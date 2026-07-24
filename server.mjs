@@ -678,12 +678,27 @@ app.post('/api/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 80;
 app.listen(PORT, () => {
-  console.log(`\n  Sooskasse-FinTS  →  http://localhost:${PORT}`);
-  console.log(`  Product ID: ${PRODUCT_ID} · ${bankCount} Banken in der Datenbank\n`);
+const c = {
+  reset: "\x1b[0m",
+  cyan: "\x1b[36m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  gray: "\x1b[90m",
+  bold: "\x1b[1m",
+};
+
+console.log(`${c.cyan}╔═══════════════════════════════════════╗${c.reset}`);
+console.log(`${c.cyan}║${c.reset} ${c.bold}Sooskasse-FinTS${c.reset}                       ${c.cyan}║${c.reset}`);
+console.log(`${c.cyan}║${c.reset} ${c.gray}Modern Banking using FinTS 3.0${c.reset}        ${c.cyan}║${c.reset}`);
+console.log(`${c.cyan}╚═══════════════════════════════════════╝${c.reset}`);
+
+console.log(`${c.green}✔${c.reset} Server      http://localhost`);
+console.log(`${c.green}✔${c.reset} Product ID  ${PRODUCT_ID}`);
+console.log(`${c.green}✔${c.reset} Banks       ${bankCount.toLocaleString()} indexed`);
   if (PRODUCT_ID === PLACEHOLDER_ID) {
     console.log('  ⚠  Using a placeholder FinTS product ID — the bank will reject this with 9078.');
-    console.log('     Put your registered ID into config.json (productId).\n');
+    console.log('  ⚠  Put your registered ID into config.json (productId).\n');
   }
 });
