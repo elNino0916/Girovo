@@ -1,0 +1,28 @@
+{
+  "name": "fints",
+  "version": "1.0.0",
+  "description": "Modern banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled S-pushTAN & SecureGo plus)",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "postinstall": "patch-package"
+  },
+  "keywords": [
+    "fints",
+    "hbci",
+    "banking",
+    "sparkasse",
+    "vr-bank"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "fints-institute-db": "^0.16.0",
+    "lib-fints": "^1.4.8"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
+  }
+}

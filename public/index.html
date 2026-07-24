@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mein Konto · FinTS Banking</title>
+  <script>
+    // Set the theme before first paint to avoid a flash.
+    (function () {
+      var t = localStorage.getItem('fints.theme');
+      if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%230e6b4f'/%3E%3Ctext x='50' y='68' font-size='52' font-family='monospace' font-weight='600' fill='white' text-anchor='middle'%3E€%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="app">
+    <!-- ============ LOGIN ============ -->
+    <section id="view-login" class="view active auth">
+      <div class="auth-card">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">€</span>
+          <div class="brand-text">
+            <span class="brand-name">Mein Konto</span>
+            <span class="brand-sub">Direktzugang über FinTS 3.0</span>
+          </div>
+        </div>
+
+        <!-- Step A: pick the bank -->
+        <div id="bank-step">
+          <p class="flabel" style="margin-bottom:10px">Bank wählen</p>
+          <div id="bank-grid" class="bankgrid"></div>
+          <div class="banksearch">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input id="bank-search" class="input" placeholder="Bank, Ort oder BLZ suchen …" autocomplete="off" />
+            <div id="bank-results" class="bs-results" hidden></div>
+          </div>
+          <p class="fhint" style="margin-top:8px"><span id="bank-count">…</span> deutsche Banken mit FinTS-Zugang in der Datenbank.</p>
+        </div>
+
+        <!-- Step B: credentials (revealed once a bank is chosen) -->
+        <form id="login-form" novalidate hidden>
+          <div class="chosen-bank">
+            <span id="chosen-logo"></span>
+            <div style="min-width:0">
+              <span class="cb-name" id="chosen-name"></span>
+              <span class="cb-meta" id="chosen-meta"></span>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm cb-change" id="change-bank">Ändern</button>
+          </div>
+
+          <div class="field">
+            <label for="userId">Anmeldename · VR-NetKey · Legitimations-ID</label>
+            <input id="userId" class="input" autocomplete="username" required />
+          </div>
+
+          <div class="field">
+            <label for="pin">PIN</label>
+            <input id="pin" class="input" type="password" autocomplete="current-password" required />
+          </div>
+
+          <p class="fhint" id="tan-hint"></p>
+
+          <button type="submit" class="btn btn-primary btn-block" id="login-btn" style="margin-top:6px">
+            <span class="spinner" hidden></span>
+            <span class="btn-label">Anmelden</span>
+          </button>
+
+          <p class="alert alert-error" id="login-error" hidden></p>
+        </form>
+
+        <p class="alert alert-warn" id="product-warn" hidden>
+          Es ist keine registrierte FinTS-Produkt-ID hinterlegt — Banken lehnen die Anmeldung
+          damit meist ab (Code 9078). ID in <span class="num">config.json</span> eintragen.
+        </p>
+
+        <p class="auth-note">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 2l7 3v6c0 4.5-3 8.3-7 9.5C8 19.3 5 15.5 5 11V5l7-3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          Deine PIN bleibt nur im Arbeitsspeicher und wird nie gespeichert. Die Verbindung
+          läuft direkt von diesem Rechner zu deiner Bank.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ TAN METHOD / MEDIA PICK ============ -->
+    <section id="view-tanmethod" class="view auth">
+      <div class="auth-card">
+        <h2 class="auth-title" id="tanmethod-title">Sicherheitsverfahren</h2>
+        <p class="auth-lead" id="tanmethod-lead">Wähle, wie du den Zugriff freigibst.</p>
+        <div id="tanmethod-list" class="option-list"></div>
+        <p class="alert alert-error" id="tanmethod-error" hidden></p>
+        <div style="margin-top:16px">
+          <button class="btn btn-ghost btn-sm" id="tanmethod-back">Zurück zur Anmeldung</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DASHBOARD ============ -->
+    <section id="view-dashboard" class="view">
+      <header class="topbar">
+        <div class="topbar-bank">
+          <span id="topbar-logo"></span>
+          <div style="min-width:0">
+            <div class="tb-name" id="topbar-bank">Mein Konto</div>
+            <div class="tb-sub" id="topbar-blz"></div>
+          </div>
+        </div>
+        <div class="topbar-spacer"></div>
+        <button class="icon-btn" id="theme-toggle" title="Design wechseln" aria-label="Design wechseln">
+          <svg id="theme-icon-sun" viewBox="0 0 24 24" width="17" height="17"><circle cx="12" cy="12" r="4.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5 5l1.8 1.8M17.2 17.2L19 19M19 5l-1.8 1.8M6.8 17.2L5 19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <svg id="theme-icon-moon" viewBox="0 0 24 24" width="16" height="16" hidden><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="logout-btn">Abmelden</button>
+      </header>
+
+      <div class="dash">
+        <aside class="sidebar">
+          <div class="sidebar-head">
+            <span class="flabel">Konten</span>
+          </div>
+          <div id="account-list" class="account-list"></div>
+          <button class="btn btn-primary btn-block transfer-cta" id="transfer-open">
+            <svg viewBox="0 0 24 24" width="15" height="15"><path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Neue Überweisung
+          </button>
+        </aside>
+
+        <main class="content">
+          <div id="account-header" class="account-header"></div>
+
+          <div class="tx-toolbar">
+            <div class="search">
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <input id="tx-search" type="search" placeholder="Umsätze durchsuchen …" />
+            </div>
+            <div class="date-range">
+              <input id="tx-from" type="date" aria-label="von" />
+              <span class="date-sep">–</span>
+              <input id="tx-to" type="date" aria-label="bis" />
+              <button class="btn btn-ghost btn-sm" id="tx-reload">Laden</button>
+            </div>
+          </div>
+
+          <div id="tx-list" class="tx-list"></div>
+          <div id="tx-empty" class="empty" hidden>
+            <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <p>Keine Umsätze im gewählten Zeitraum.</p>
+          </div>
+        </main>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ TAN WAIT (overlay) ============ -->
+  <div class="overlay" id="ov-tanwait" role="dialog" aria-modal="true" aria-labelledby="tanwait-title">
+    <div class="sheet tanwait">
+      <div class="pulse" aria-hidden="true">
+        <span class="pulse-ring"></span>
+        <span class="pulse-ring pulse-ring-2"></span>
+        <span class="pulse-core">
+          <svg viewBox="0 0 24 24" width="28" height="28"><rect x="6" y="2.5" width="12" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 18.5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </span>
+      </div>
+      <h2 class="sheet-title" id="tanwait-title">Freigabe in deiner App</h2>
+      <p class="auth-lead" id="tanwait-text" style="margin-bottom:0">Öffne deine Banking-App und bestätige die Anfrage.</p>
+      <div class="challenge num" id="tanwait-challenge" hidden></div>
+      <div class="wait-status" id="tanwait-spinnerrow">
+        <span class="spinner"></span>
+        <span id="tanwait-status">Warte auf Bestätigung …</span>
+      </div>
+      <div class="wait-actions">
+        <button class="btn btn-primary" id="tanwait-retry" hidden>Erneut versuchen</button>
+        <button class="btn btn-ghost" id="tanwait-cancel">Abbrechen</button>
+      </div>
+      <p class="alert alert-error" id="tanwait-error" hidden></p>
+    </div>
+  </div>
+
+  <!-- ============ TRANSFER (overlay) ============ -->
+  <div class="overlay" id="ov-transfer" role="dialog" aria-modal="true" aria-labelledby="transfer-title">
+    <div class="sheet sheet-wide">
+      <div class="sheet-head">
+        <h2 class="sheet-title" id="transfer-title">Überweisung</h2>
+        <button class="icon-btn" id="transfer-close" aria-label="Schließen">
+          <svg viewBox="0 0 24 24" width="17" height="17"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <!-- step 1: the form -->
+      <form id="transfer-form" novalidate>
+        <div class="field">
+          <label for="tf-account">Von Konto</label>
+          <select id="tf-account" class="input"></select>
+        </div>
+
+        <div class="seg-toggle" role="radiogroup" aria-label="Überweisungsart">
+          <button type="button" id="tf-mode-std" class="on">Überweisung</button>
+          <button type="button" id="tf-mode-instant">⚡ Echtzeit</button>
+        </div>
+        <p class="seg-note" id="tf-mode-note" hidden></p>
+
+        <div class="field">
+          <label for="tf-name">Empfänger</label>
+          <input id="tf-name" class="input" maxlength="70" placeholder="Name des Empfängers" required />
+        </div>
+
+        <div class="field">
+          <label for="tf-iban">IBAN</label>
+          <input id="tf-iban" class="input mono" placeholder="DE00 0000 0000 0000 0000 00" autocomplete="off" spellcheck="false" required />
+          <span class="fhint" id="tf-iban-hint"></span>
+        </div>
+
+        <div class="field">
+          <label for="tf-amount">Betrag</label>
+          <div class="amount-wrap">
+            <input id="tf-amount" class="input mono" inputmode="decimal" placeholder="0,00" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="label-row">
+            <label for="tf-purpose">Verwendungszweck</label>
+            <span class="charcount" id="tf-purpose-count">0/140</span>
+          </div>
+          <input id="tf-purpose" class="input" maxlength="140" placeholder="optional" />
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top:4px">Weiter zur Prüfung</button>
+        <p class="alert alert-error" id="transfer-error" hidden></p>
+      </form>
+
+      <!-- step 2: review -->
+      <div id="transfer-review" hidden>
+        <p class="auth-lead">Bitte prüfe den Auftrag. Nach der Freigabe in deiner
+          Banking-App wird die Überweisung ausgeführt.</p>
+        <dl class="review" id="review-rows"></dl>
+        <div style="display:flex; gap:10px">
+          <button class="btn btn-ghost" id="review-back" style="flex:1">Zurück</button>
+          <button class="btn btn-primary" id="review-submit" style="flex:2">
+            <span class="spinner" hidden></span>
+            Jetzt überweisen
+          </button>
+        </div>
+        <p class="alert alert-error" id="review-error" hidden></p>
+      </div>
+
+      <!-- step 3: result -->
+      <div id="transfer-result" hidden></div>
+    </div>
+  </div>
+
+  <!-- ============ TRANSACTION DETAIL (drawer) ============ -->
+  <div class="overlay overlay-right" id="ov-detail" role="dialog" aria-modal="true">
+    <div class="drawer">
+      <div class="sheet-head">
+        <span class="flabel">Umsatzdetails</span>
+        <button class="icon-btn" id="detail-close" aria-label="Schließen">
+          <svg viewBox="0 0 24 24" width="17" height="17"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div id="detail-body"></div>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

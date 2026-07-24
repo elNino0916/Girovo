@@ -1,0 +1,12 @@
+diff --git a/node_modules/lib-fints/dist/segments/registry.js b/node_modules/lib-fints/dist/segments/registry.js
+index 8f6997f..5b5ee85 100644
+--- a/node_modules/lib-fints/dist/segments/registry.js
++++ b/node_modules/lib-fints/dist/segments/registry.js
+@@ -88,6 +88,6 @@ export function registerSegments() {
+ export function getSegmentDefinition(id) {
+     return registry.get(id);
+ }
+-function registerSegmentDefinition(definition) {
++export function registerSegmentDefinition(definition) {
+     registry.set(definition.id, definition);
+ }
