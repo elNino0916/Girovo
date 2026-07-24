@@ -702,7 +702,7 @@ app.post('/api/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-const PORT = process.env.PORT || 80;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
 const c = {
   reset: "\x1b[0m",
@@ -718,7 +718,7 @@ console.log(`${c.cyan}║${c.reset} ${c.bold}Sooskasse-FinTS${c.reset}          
 console.log(`${c.cyan}║${c.reset} ${c.gray}Modern Banking using FinTS 3.0${c.reset}        ${c.cyan}║${c.reset}`);
 console.log(`${c.cyan}╚═══════════════════════════════════════╝${c.reset}`);
 
-console.log(`${c.green}✔${c.reset} Server      http://localhost`);
+console.log(`${c.green}✔${c.reset} Server      http://localhost:3000`);
 console.log(`${c.green}✔${c.reset} Product ID  ${PRODUCT_ID}`);
 console.log(`${c.green}✔${c.reset} Banks       ${bankCount.toLocaleString()} indexed`);
   if (PRODUCT_ID === PLACEHOLDER_ID) {
