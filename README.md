@@ -1,3 +1,12 @@
+<p align="center">
+  <img
+    src="https://github.com/user-attachments/assets/fee12f69-f988-40d3-97e2-fedd203e1e36"
+    width="348"
+    height="398"
+    alt="Image"
+  />
+</p>
+
 # Sooskasse-FinTS
 
 A modern, self-hosted banking app for German banks that speaks **FinTS 3.0
