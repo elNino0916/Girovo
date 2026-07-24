@@ -66,6 +66,11 @@
 
           <p class="fhint" id="tan-hint"></p>
 
+          <p class="device-hint" id="device-hint" hidden>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 2l7 3v6c0 4.5-3 8.3-7 9.5C8 19.3 5 15.5 5 11V5l7-3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 11.5l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Gerät gemerkt — deine PIN schaltet die gespeicherten Zugangsdaten frei.
+          </p>
+
           <button type="submit" class="btn btn-primary btn-block" id="login-btn" style="margin-top:6px">
             <span class="spinner" hidden></span>
             <span class="btn-label">Anmelden</span>
@@ -111,6 +116,11 @@
           </div>
         </div>
         <div class="topbar-spacer"></div>
+        <span class="device-badge" id="device-badge" hidden title="Dieses Gerät ist gemerkt — die Bank fragt seltener nach einer TAN.">
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M12 2l7 3v6c0 4.5-3 8.3-7 9.5C8 19.3 5 15.5 5 11V5l7-3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 11.5l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Gerät gemerkt
+        </span>
+        <button class="btn btn-ghost btn-sm" id="forget-device-btn" hidden>Gerät vergessen</button>
         <button class="icon-btn" id="theme-toggle" title="Design wechseln" aria-label="Design wechseln">
           <svg id="theme-icon-sun" viewBox="0 0 24 24" width="17" height="17"><circle cx="12" cy="12" r="4.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5 5l1.8 1.8M17.2 17.2L19 19M19 5l-1.8 1.8M6.8 17.2L5 19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           <svg id="theme-icon-moon" viewBox="0 0 24 24" width="16" height="16" hidden><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>

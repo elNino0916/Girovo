@@ -162,6 +162,8 @@ const state = {
   busy: false,
   loadingAccount: null,
   transferDraft: null,
+  userId: null,
+  deviceRemembered: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -268,7 +270,26 @@ function chooseBank(bank) {
   $('#tan-hint').textContent = bank.hint || '';
   $('#userId').value = store.get(`fints.userId.${bank.blz}`) || '';
   ($('#userId').value ? $('#pin') : $('#userId')).focus();
+  refreshDeviceHint();
 }
+
+// Show a hint when this (bank, login name) has a remembered device, so the
+// user knows the PIN they type will unlock it (fewer TAN prompts).
+let deviceHintTimer = null;
+async function refreshDeviceHint() {
+  clearTimeout(deviceHintTimer);
+  const hintEl = $('#device-hint');
+  const blz = state.bank?.blz;
+  const userId = $('#userId').value.trim();
+  if (!blz || !userId) { hintEl.hidden = true; return; }
+  deviceHintTimer = setTimeout(async () => {
+    try {
+      const { remembered } = await fetch(`/api/device-status?blz=${encodeURIComponent(blz)}&userId=${encodeURIComponent(userId)}`).then((r) => r.json());
+      hintEl.hidden = !remembered;
+    } catch { hintEl.hidden = true; }
+  }, 250);
+}
+$('#userId').addEventListener('input', refreshDeviceHint);
 
 $('#change-bank').addEventListener('click', () => {
   state.bank = null;
@@ -302,11 +323,23 @@ $('#login-form').addEventListener('submit', async (e) => {
 
     state.sessionId = data.sessionId;
     state.bank = { ...state.bank, ...data.bank };
-    state.tanMethods = data.tanMethods || [];
+    state.userId = userId;
     $('#pin').value = '';
 
     (data.bankMessages || []).forEach((m) => m?.subject && toast(`${m.subject}`, false, 6000));
-    renderTanMethods();
+
+    if (data.restored) {
+      // Remembered device: cached accounts + TAN method, no sync SCA.
+      state.accounts = data.accounts || [];
+      state.selectedMethod = data.selectedTanMethod || null;
+      state.tanMethods = data.selectedTanMethod ? [data.selectedTanMethod] : [];
+      state.deviceRemembered = true;
+      toast('Gerät erkannt — ohne neue TAN angemeldet.');
+      afterAccountsReady();
+    } else {
+      state.tanMethods = data.tanMethods || [];
+      renderTanMethods();
+    }
   } catch (err) {
     showError('#login-error', err.message);
   } finally {
@@ -376,15 +409,22 @@ async function selectTanMethod(method, tanMediaName) {
     if (data.needsTan) {
       startDecoupledWait(method, data, (r) => {
         state.accounts = r.accounts || [];
+        if (r.deviceSaved) notifyDeviceSaved();
         afterAccountsReady();
       }, () => selectTanMethod(method, media));
     } else {
       state.accounts = data.accounts || [];
+      if (data.deviceSaved) notifyDeviceSaved();
       afterAccountsReady();
     }
   } catch (err) {
     showError('#tanmethod-error', err.message);
   }
+}
+
+function notifyDeviceSaved() {
+  state.deviceRemembered = true;
+  toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', false, 6000);
 }
 
 function renderMediaChooser(method, names) {
@@ -500,11 +540,25 @@ function afterAccountsReady() {
   const iso = (d) => d.toISOString().slice(0, 10);
   $('#tx-from').value = iso(new Date(Date.now() - 90 * 86400000));
   $('#tx-to').value = iso(new Date());
+  $('#device-badge').hidden = !state.deviceRemembered;
+  $('#forget-device-btn').hidden = !state.deviceRemembered;
   renderAccounts();
   showView('view-dashboard');
   $('#transfer-open').disabled = !state.accounts.some((a) => a.canTransfer);
   if (state.accounts[0]) selectAccount(state.accounts[0]);
 }
+
+$('#forget-device-btn').addEventListener('click', async () => {
+  try {
+    await api('/api/forget-device', { sessionId: state.sessionId });
+    state.deviceRemembered = false;
+    $('#device-badge').hidden = true;
+    $('#forget-device-btn').hidden = true;
+    toast('Gerät vergessen — bei der nächsten Anmeldung wird wieder eine TAN angefragt.', false, 6000);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 
 function renderAccounts() {
   const list = $('#account-list');
@@ -1018,10 +1072,12 @@ $('#transfer-close').addEventListener('click', () => closeOverlay('ov-transfer')
 $('#logout-btn').addEventListener('click', async () => {
   clearTimeout(state.pollTimer);
   try { await api('/api/logout', { sessionId: state.sessionId }); } catch {}
+  // Logout clears the session only; the remembered device stays (use
+  // "Gerät vergessen" to wipe it).
   Object.assign(state, {
     sessionId: null, accounts: [], balances: {}, txCache: {}, activeAccount: null,
     selectedMethod: null, busy: false, loadingAccount: null, transferDraft: null,
-    txFilter: { from: undefined, to: undefined },
+    txFilter: { from: undefined, to: undefined }, deviceRemembered: false,
   });
   $('#tx-list').innerHTML = '';
   $('#tx-search').value = '';

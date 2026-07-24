@@ -20,6 +20,12 @@ plus, …) where you approve directly in your banking app.
 - **SEPA-Überweisung** (HKCCS) and **Echtzeitüberweisung** (HKIPZ) with IBAN
   check-digit validation, review step and TAN approval. Only offered when the
   bank/account actually supports it (BPD/UPD).
+- **Remember this device** — after the first login the bank's device identity
+  (systemId) plus the cached accounts and TAN method are saved **encrypted with
+  your PIN**, so subsequent logins reuse the device and the bank can serve
+  balance/transaction reads without a fresh TAN for the duration of its
+  exemption window (typically ~90 days). "Gerät vergessen" wipes it. See
+  [Fewer TAN prompts](#fewer-tan-prompts).
 - Light + dark theme (follows the system, manual toggle).
 
 ## Run it
@@ -52,6 +58,7 @@ banks reject dialogs without one (code 9078). Register at
 | `server.mjs` | Express backend around [`lib-fints`](https://github.com/robocode13/lib-fints); one `FinTSClient` per in-memory session; drives sync → TAN method → accounts → statements/transfers. Decoupled TAN operations are continued via `/api/tan-poll`. |
 | `fints-sepa.mjs` | Adds the transfer segments **HKCCS**/**HKIPZ** (lib-fints is read-only out of the box): segment definitions, pain.001 XML builder (001.001.03 / 001.003.03 / 001.001.09), SEPA character-set sanitizing, IBAN/BIC/amount validation. |
 | `banks.mjs` | Institute database (`banks-data.json`, regenerate via `scripts/update-banks.mjs`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search, brand detection for logos. |
+| `state-store.mjs` | Encrypted device-profile persistence (`.fints-state/`, gitignored): AES-256-GCM, key derived from the PIN via scrypt. Stores systemId + cached BPD/UPD + TAN method so logins skip a fresh sync SCA. |
 | `patches/` | One-line patch (via `patch-package`, applied on `npm install`) exporting lib-fints' internal `registerSegmentDefinition` so the custom segments can be registered. |
 | `public/` | Vanilla-JS frontend: login with bank search → TAN method → dashboard with accounts, Umsätze, transaction drawer, Überweisung flow. |
 
@@ -69,7 +76,39 @@ banks reject dialogs without one (code 9078). Register at
 | `POST /api/balance` | Kontostand for one account |
 | `POST /api/transactions` | Umsätze (optional date range) |
 | `POST /api/transfer` | SEPA-Überweisung (`instant: true` → HKIPZ) |
+| `GET  /api/device-status` | Whether a remembered device exists for (BLZ, user) |
+| `POST /api/forget-device` | Delete the encrypted device profile |
 | `POST /api/logout` | Drop the session |
+
+## Fewer TAN prompts
+
+By default a FinTS app connects "for the first time" every login, throwing away
+the bank's *Kundensystem-ID* (systemId). The bank then never recognises a
+returning device and is entitled to demand a fresh TAN each session — and this
+app additionally used to fetch each account in its own dialog (one TAN per
+account).
+
+Two things reduce that:
+
+1. **Batch-friendly caching** — one statement query returns both the Umsätze and
+   the Kontostand, and results are cached per account, so switching accounts
+   doesn't re-approve.
+2. **Remember this device** — after a successful login the app saves the
+   systemId + cached BPD/UPD + selected TAN method to `.fints-state/`,
+   **encrypted with your PIN** (AES-256-GCM, scrypt-derived key). On the next
+   login the same PIN unlocks it and the app restores the device instead of
+   re-syncing, so the bank can apply its SCA-exemption window (usually ~90 days)
+   and serve balance/last-90-days reads without a new TAN.
+
+**What this does *not* do:** it never bypasses SCA. Strong Customer
+Authentication is mandated by PSD2; whether reads are actually TAN-free within
+the window is the **bank's** decision, and many decoupled-TAN banks still
+require approval at least on login. The PIN is **never** stored — only a salt,
+IV and ciphertext are; without the correct PIN the profile can't be decrypted.
+A short numeric PIN is low-entropy, so this protects the file if it's copied off
+your machine but a determined attacker with the file could brute-force a short
+PIN offline (scrypt only slows this) — keep the machine trusted. Use **"Gerät
+vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 
 ## Notes & limitations
 

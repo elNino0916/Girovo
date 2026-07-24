@@ -21,6 +21,7 @@ import {
   SepaTransferInteraction, TRANSFER_SEG, INSTANT_SEG,
   validateIban, validateBic, parseAmount, sepaSanitize,
 } from './fints-sepa.mjs';
+import { saveProfile, loadProfile, hasProfile, forgetProfile } from './state-store.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,6 +80,26 @@ setInterval(() => {
     if (now - s.lastSeen > SESSION_TTL_MS) sessions.delete(id);
   }
 }, 60 * 1000).unref();
+
+// Remember this session's device profile (systemId + cached BPD/UPD + selected
+// TAN method), encrypted with the PIN, so future logins can skip a fresh SCA.
+// Called once we hold a real systemId and the account list.
+function saveSessionProfile(s) {
+  try {
+    const cfg = s?.client?.config;
+    if (!cfg?.pin || !s.meta?.blz || !cfg.userId) return;
+    const systemId = cfg.bankingInformation?.systemId;
+    if (!systemId || systemId === '0') return; // nothing worth remembering yet
+    const ok = saveProfile(s.meta.blz, cfg.userId, cfg.pin, {
+      bankingInformation: cfg.bankingInformation,
+      tanMethodId: cfg.tanMethodId,
+      tanMediaName: cfg.tanMediaName,
+    });
+    if (ok) { s.deviceSaved = true; console.log(`[state] device profile saved (blz=${s.meta.blz})`); }
+  } catch (err) {
+    console.warn('[state] save failed:', err?.message || err);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Serialisers — map lib-fints objects to plain JSON for the frontend.
@@ -285,6 +306,48 @@ app.post('/api/connect', wrap(async (req, res) => {
   if (!/^https:\/\//.test(url)) return res.status(400).json({ error: 'Die FinTS-URL muss mit https:// beginnen.' });
   if (!userId || !pin) return res.status(400).json({ error: 'Bitte Anmeldename und PIN angeben.' });
 
+  const buildMeta = () => ({
+    blz: bankId,
+    bankName: dbEntry?.name || `BLZ ${bankId}`,
+    brand: dbEntry?.brand || 'generic',
+    bic: dbEntry?.bic || null,
+  });
+
+  // ---- Fast path: a remembered device -------------------------------------
+  // If we have an encrypted profile for (BLZ, user) that the PIN unlocks, we
+  // restore the systemId + cached accounts + TAN method and go straight to the
+  // dashboard — no synchronisation SCA. The bank may then serve reads TAN-free
+  // within its exemption window. ANY failure here falls through to first-time.
+  const saved = loadProfile(bankId, userId, pin);
+  if (saved?.bankingInformation?.systemId && saved.bankingInformation.systemId !== '0') {
+    try {
+      const config = FinTSConfig.fromBankingInformation(
+        PRODUCT_ID, PRODUCT_VERSION, saved.bankingInformation, userId, pin,
+        saved.tanMethodId, undefined, // media set manually below to avoid a throw
+      );
+      config.debugEnabled = DEBUG;
+      if (saved.tanMediaName && config.selectedTanMethod) {
+        const m = config.selectedTanMethod;
+        m.activeTanMedia = Array.from(new Set([...(m.activeTanMedia || []), saved.tanMediaName]));
+        config.tanMediaName = saved.tanMediaName;
+      }
+      const client = new FinTSClient(config);
+      const meta = { ...buildMeta(), bankName: config.bankingInformation?.bpd?.bankName || buildMeta().bankName };
+      const sessionId = newSession(client, meta);
+      const s = getSession(sessionId);
+      const accounts = accountsFor(s);
+      const selMethod = config.selectedTanMethod;
+      console.log(`[connect] restored device profile (blz=${bankId}) accounts=${accounts.length}`);
+      return res.json({
+        sessionId, bank: meta, restored: true, accounts,
+        selectedTanMethod: selMethod ? serializeTanMethod(selMethod) : null,
+      });
+    } catch (err) {
+      console.warn('[connect] profile restore failed — first-time flow:', err?.message || err);
+      // fall through
+    }
+  }
+
   const trySync = async (bankUrl) => {
     const config = FinTSConfig.forFirstTimeUse(
       PRODUCT_ID, PRODUCT_VERSION, bankUrl, bankId, userId, pin,
@@ -378,7 +441,8 @@ app.post('/api/select-tan', wrap(async (req, res) => {
     return res.status(400).json({ error: bankAnswerText(sync) || 'Anmeldung fehlgeschlagen.' });
   }
 
-  return res.json({ needsTan: false, accounts: accountsFor(s) });
+  saveSessionProfile(s);
+  return res.json({ needsTan: false, accounts: accountsFor(s), deviceSaved: s.deviceSaved || false });
 }));
 
 // Fetch the registered TAN-media names (Gerätebezeichnungen) via HKTAB.
@@ -459,7 +523,10 @@ app.post('/api/tan-poll', wrap(async (req, res) => {
 
   // Approved — deliver the result for whatever was pending.
   s.pending = null;
-  if (type === 'sync') return res.json({ status: 'done', kind: 'accounts', accounts: accountsFor(s) });
+  if (type === 'sync') {
+    saveSessionProfile(s); // remember the device now that we hold a systemId + UPD
+    return res.json({ status: 'done', kind: 'accounts', accounts: accountsFor(s), deviceSaved: s.deviceSaved || false });
+  }
   if (type === 'balance') return res.json({ status: 'done', kind: 'balance', accountNumber, balance: serializeBalance(resp.balance) });
   if (type === 'statements') {
     logStatementDates(accountNumber, resp.statements);
@@ -583,6 +650,26 @@ app.post('/api/transfer', wrap(async (req, res) => {
     bankAnswers: bankAnswerText(resp),
   });
 }));
+
+// Whether a remembered device profile exists for (BLZ, user). Does not need
+// the PIN — only reveals existence, not contents.
+app.get('/api/device-status', (req, res) => {
+  const blz = String(req.query.blz || '').trim();
+  const userId = String(req.query.userId || '').trim();
+  res.json({ remembered: !!(blz && userId && hasProfile(blz, userId)) });
+});
+
+// Forget a remembered device — deletes the encrypted profile.
+app.post('/api/forget-device', (req, res) => {
+  const { sessionId, blz, userId } = req.body || {};
+  let b = blz, u = userId;
+  if (sessionId) {
+    const s = getSession(sessionId);
+    if (s) { b = b || s.meta?.blz; u = u || s.client?.config?.userId; }
+  }
+  const ok = b && u ? forgetProfile(String(b), String(u)) : false;
+  res.json({ ok });
+});
 
 // Drop a session (logout).
 app.post('/api/logout', (req, res) => {

@@ -27,6 +27,7 @@
 
   --radius: 10px;
   --radius-sm: 7px;
+  --topbar-h: 58px;
   --shadow: 0 1px 2px rgba(16, 24, 27, .05), 0 8px 28px -12px rgba(16, 24, 27, .18);
   --shadow-pop: 0 4px 12px rgba(16, 24, 27, .10), 0 24px 64px -16px rgba(16, 24, 27, .30);
 
@@ -95,7 +96,9 @@ input, select { font: inherit; color: inherit; }
 .view { display: none; }
 .view.active { display: block; animation: viewIn .22s ease; }
 .view.auth.active { display: flex; }
-@keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* Fade only — never transform the view. A lingering transform on the view
+   would become the containing block for the sticky topbar and break it. */
+@keyframes viewIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- buttons ---------- */
 .btn {
@@ -150,6 +153,14 @@ input, select { font: inherit; color: inherit; }
 .input.invalid { border-color: var(--red); }
 .input.mono { font-family: var(--font-mono); font-size: 14px; }
 .fhint { font-size: 12.5px; color: var(--ink-3); }
+.device-hint {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 12px; padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--green-soft); color: var(--green);
+  font-size: 12.5px; font-weight: 500;
+}
+.device-hint svg { flex: none; }
 .fhint.ok { color: var(--green); }
 .fhint.bad { color: var(--red); }
 
@@ -395,15 +406,24 @@ input, select { font: inherit; color: inherit; }
 .topbar {
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 12px;
-  padding: 10px 20px;
-  background: color-mix(in srgb, var(--bg-raise) 88%, transparent);
-  backdrop-filter: blur(10px);
+  height: var(--topbar-h);
+  padding: 0 20px;
+  /* Opaque: a translucent bar let transaction rows ghost through it as the
+     list scrolled underneath. Solid background keeps the sticky seam clean. */
+  background: var(--bg-raise);
   border-bottom: 1px solid var(--line);
 }
 .topbar-bank { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .topbar-bank .tb-name { font-weight: 600; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-bank .tb-sub { font-size: 11.5px; color: var(--ink-3); font-family: var(--font-mono); }
 .topbar-spacer { flex: 1; }
+.device-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 9px; border-radius: 20px;
+  font-size: 11.5px; font-weight: 600;
+  color: var(--green); background: var(--green-soft);
+}
+@media (max-width: 640px) { .device-badge { display: none; } }
 
 .dash {
   display: grid;
@@ -497,7 +517,9 @@ input, select { font: inherit; color: inherit; }
   background: var(--bg-raise);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  overflow: hidden;
+  /* clip (not hidden): clips the rounded corners without becoming a scroll
+     container, which would stop the sticky date labels pinning to the viewport. */
+  overflow: clip;
 }
 .tx-group-label {
   padding: 9px 16px 7px;
@@ -505,7 +527,7 @@ input, select { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--line);
   font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
   color: var(--ink-3);
-  position: sticky; top: 53px;
+  position: sticky; top: var(--topbar-h); z-index: 5;
 }
 .tx {
   display: flex; align-items: center; gap: 13px;
