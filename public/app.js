@@ -108,7 +108,23 @@ const BRANDS = {
   generic:         { bg: '#5b6b72', mark: '€' },
 };
 
+// Real logo files available under /logos (filled from /api/logos at boot).
+const logoFiles = new Map(); // brand -> filename
+
+// Marks that are too dark to sit on the dark theme directly (navy/black
+// wordmarks, measured per file) get an invert+hue-rotate in dark mode.
+// Colorful marks (Sparkasse red, comdirect yellow, DKB blue, …) render as-is.
+const DARK_INVERT = new Set([
+  'vrbank', 'ing', 'gls', 'apobank', 'psd', 'norisbank',
+  'commerzbank', 'hypovereinsbank', 'degussa', 'targobank',
+]);
+
 function logoSvg(brand, size = '') {
+  const file = logoFiles.get(brand);
+  if (file) {
+    const inv = DARK_INVERT.has(brand) ? ' lg-inv' : '';
+    return `<span class="logo logo-img${inv} ${size}"><img src="/logos/${file}" alt="" loading="lazy"></span>`;
+  }
   const b = BRANDS[brand] || BRANDS.generic;
   const fg = b.fg || '#ffffff';
   let inner;
@@ -122,7 +138,7 @@ function logoSvg(brand, size = '') {
   } else {
     const len = String(b.mark).length;
     const fs = len >= 3 ? 32 : len === 2 ? 42 : 56;
-    inner = `<text x="50" y="50" dy=".36em" text-anchor="middle" font-family="'Barlow','Segoe UI',sans-serif" font-weight="700" font-size="${fs}" fill="${fg}">${b.mark}</text>`;
+    inner = `<text x="50" y="50" dy=".36em" text-anchor="middle" font-family="'Barlow','Segoe UI',sans-serif" font-weight="700" font-size="${fs}" fill="${b.fg || '#fff'}">${b.mark}</text>`;
   }
   const accent = b.accent ? `<rect x="0" y="86" width="100" height="14" fill="${b.accent}"/>` : '';
   return `<span class="logo ${size}" style="background:${b.bg}"><svg viewBox="0 0 100 100" role="img" aria-hidden="true">${inner}${accent}</svg></span>`;
@@ -157,6 +173,15 @@ async function boot() {
     $('#bank-count').textContent = new Intl.NumberFormat('de-DE').format(meta.bankCount);
     $('#product-warn').hidden = meta.productRegistered;
   } catch { /* server down; errors surface on connect */ }
+
+  try {
+    const files = await fetch('/api/logos').then((r) => r.json());
+    files.forEach((f) => {
+      const brand = f.replace(/\.(svg|png)$/i, '');
+      // prefer svg over png when both exist
+      if (!logoFiles.has(brand) || /\.svg$/i.test(f)) logoFiles.set(brand, f);
+    });
+  } catch { /* fall back to monogram chips */ }
 
   try {
     state.banks = await fetch('/api/banks').then((r) => r.json());
@@ -222,7 +247,7 @@ async function runBankSearch(q) {
     item.innerHTML =
       `${logoSvg(b.brand, 'logo-sm')}` +
       `<span style="min-width:0"><span class="bs-name">${escapeHtml(b.name)}</span>` +
-      `<span class="bs-meta">${escapeHtml(b.blz)}${b.location ? ' · ' + escapeHtml(b.location) : ''}</span></span>`;
+      `<span class="bs-meta">${escapeHtml(b.blz)}${b.bic ? ' · ' + escapeHtml(b.bic) : ''}${b.location ? ' · ' + escapeHtml(b.location) : ''}</span></span>`;
     item.addEventListener('click', () => {
       box.hidden = true;
       $('#bank-search').value = '';
@@ -466,7 +491,7 @@ function decoupledMethod() {
 // transactions AND the balance.
 // ---------------------------------------------------------------------------
 function afterAccountsReady() {
-  $('#topbar-bank').textContent = state.bank?.name || 'Mein Konto';
+  $('#topbar-bank').textContent = state.bank?.name || 'Sooskasse-FinTS';
   $('#topbar-blz').textContent = state.bank?.blz ? `BLZ ${state.bank.blz}` : '';
   $('#topbar-logo').innerHTML = logoSvg(state.bank?.brand || 'generic', 'logo-sm');
   renderAccounts();

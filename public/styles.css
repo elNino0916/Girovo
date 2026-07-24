@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Mein Konto — FinTS Banking
+   Sooskasse-FinTS
    Design language: the German Kontoauszug, digitized. DIN-flavored grotesque
    (Barlow) for UI, mono (IBM Plex Mono) for every amount, IBAN and date.
    Identity color: banknote green; signal red for debits.
@@ -231,6 +231,31 @@ input, select { font: inherit; color: inherit; }
 .logo svg { width: 100%; height: 100%; display: block; }
 .logo-sm { width: 26px; height: 26px; border-radius: 7px; }
 .logo-lg { width: 42px; height: 42px; border-radius: 11px; }
+
+/* real logo files: white pill, logo at natural aspect ratio.
+   img heights are explicit px (not %) so intrinsic sizing hugs the logo. */
+.logo-img {
+  width: auto;
+  min-width: 34px; max-width: min(100px, 100%);
+  padding: 5px 7px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.logo-img img { height: 24px; width: auto; max-width: 100%; object-fit: contain; display: block; margin: 0 auto; }
+.logo-img.logo-sm { min-width: 26px; max-width: min(76px, 100%); padding: 4px 5px; }
+.logo-img.logo-sm img { height: 18px; }
+.logo-img.logo-lg { min-width: 42px; max-width: min(116px, 100%); }
+.logo-img.logo-lg img { height: 32px; }
+
+/* the bank grid gives logos more room: taller box, capped by the cell */
+.bankchip .logo { height: 50px; }
+.bankchip .logo-img { padding: 4px 8px; border: 0; }
+.bankchip .logo-img img { height: 42px; }
+
+/* dark theme: no white chips — logos sit directly on the surface; marks that
+   are too dark for that (navy/black wordmarks) get flipped to a light variant */
+:root[data-theme="dark"] .logo-img { background: transparent; border-color: transparent; }
+:root[data-theme="dark"] .logo-img.lg-inv img { filter: invert(1) hue-rotate(180deg) saturate(1.15); }
 
 .banksearch { position: relative; }
 .banksearch .input { padding-left: 38px; }

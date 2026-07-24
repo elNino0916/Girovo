@@ -1,7 +1,7 @@
 {
-  "name": "fints",
+  "name": "sooskasse-fints",
   "version": "1.0.0",
-  "description": "Modern banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled S-pushTAN & SecureGo plus)",
+  "description": "Sooskasse-FinTS — self-hosted banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled TAN, SEPA & Echtzeitueberweisung)",
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",

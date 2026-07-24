@@ -1,4 +1,4 @@
-# Mein Konto — FinTS Banking App
+# Sooskasse-FinTS
 
 A modern, self-hosted banking app for German banks that speaks **FinTS 3.0
 (HBCI) PIN/TAN** — including the *decoupled* TAN methods (S-pushTAN, SecureGo
@@ -6,8 +6,14 @@ plus, …) where you approve directly in your banking app.
 
 **Features**
 
-- **All German FinTS banks** — bundled institute database (~4.300 banks) with
-  BLZ / name / city search; quick picks with brand logos for the big names.
+- **All German FinTS banks** — bundled institute database (~2.700 institutes)
+  with BLZ / name / city / **BIC** search; quick picks with the real bank
+  logos (`public/logos/`, sourced from Wikimedia Commons) and a monogram
+  fallback for banks without one. URLs come from hbci4java's actively
+  maintained bank list, with dead hosts (fiducia.de / gad.de / Dresdner)
+  rewritten to their live successors — refresh anytime with
+  `node scripts/update-banks.mjs`. If a bank's primary endpoint is down,
+  the server automatically retries the known alternate URL.
 - **Kontostand & Umsätze** with search, date-range filter and a full detail
   view per transaction (IBAN, BIC, Referenzen, GVC, Primanota, … with
   copy-to-clipboard).
@@ -45,7 +51,7 @@ banks reject dialogs without one (code 9078). Register at
 |------|---------|
 | `server.mjs` | Express backend around [`lib-fints`](https://github.com/robocode13/lib-fints); one `FinTSClient` per in-memory session; drives sync → TAN method → accounts → statements/transfers. Decoupled TAN operations are continued via `/api/tan-poll`. |
 | `fints-sepa.mjs` | Adds the transfer segments **HKCCS**/**HKIPZ** (lib-fints is read-only out of the box): segment definitions, pain.001 XML builder (001.001.03 / 001.003.03 / 001.001.09), SEPA character-set sanitizing, IBAN/BIC/amount validation. |
-| `banks.mjs` | Institute database: [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db) merged with URL supplements extracted from hbci4java (`banks-extra.json`); BLZ lookup, fuzzy search, brand detection for logos. |
+| `banks.mjs` | Institute database (`banks-data.json`, regenerate via `scripts/update-banks.mjs`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search, brand detection for logos. |
 | `patches/` | One-line patch (via `patch-package`, applied on `npm install`) exporting lib-fints' internal `registerSegmentDefinition` so the custom segments can be registered. |
 | `public/` | Vanilla-JS frontend: login with bank search → TAN method → dashboard with accounts, Umsätze, transaction drawer, Überweisung flow. |
 
@@ -81,4 +87,3 @@ banks reject dialogs without one (code 9078). Register at
 - No third-party services; traffic goes directly from your machine to the
   bank's FinTS endpoint over TLS.
 - Keep this on `localhost`. It has no authentication of its own.
-"# Sooskasse-FinTS" 

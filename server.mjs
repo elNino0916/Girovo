@@ -1,4 +1,4 @@
-// FinTS Banking App — backend
+// Sooskasse-FinTS — backend
 // Speaks the FinTS 3.0 PIN/TAN protocol via `lib-fints`, including the
 // *decoupled* TAN flow (S-pushTAN, SecureGo plus, …) where the user approves
 // the operation inside their banking app, and SEPA credit transfers
@@ -232,6 +232,17 @@ app.get('/api/banks', (req, res) => {
   res.json(POPULAR_BANKS);
 });
 
+// Which real logo files exist (public/logos/<brand>.svg|png) — the frontend
+// falls back to a monogram chip for brands without one.
+app.get('/api/logos', (req, res) => {
+  let files = [];
+  try {
+    files = fs.readdirSync(path.join(__dirname, 'public', 'logos'))
+      .filter((f) => /\.(svg|png)$/i.test(f));
+  } catch { /* no logos directory */ }
+  res.json(files);
+});
+
 // BLZ / name / city search over the full institute database.
 app.get('/api/bank-search', (req, res) => {
   const q = String(req.query.q || '');
@@ -250,13 +261,37 @@ app.post('/api/connect', wrap(async (req, res) => {
   if (!/^https:\/\//.test(url)) return res.status(400).json({ error: 'Die FinTS-URL muss mit https:// beginnen.' });
   if (!userId || !pin) return res.status(400).json({ error: 'Bitte Anmeldename und PIN angeben.' });
 
-  const config = FinTSConfig.forFirstTimeUse(
-    PRODUCT_ID, PRODUCT_VERSION, url, bankId, userId, pin,
-  );
-  config.debugEnabled = DEBUG;
-  const client = new FinTSClient(config);
+  const trySync = async (bankUrl) => {
+    const config = FinTSConfig.forFirstTimeUse(
+      PRODUCT_ID, PRODUCT_VERSION, bankUrl, bankId, userId, pin,
+    );
+    config.debugEnabled = DEBUG;
+    const client = new FinTSClient(config);
+    const sync = await client.synchronize();
+    return { client, sync };
+  };
 
-  const sync = await client.synchronize();
+  // Transport-level failures (dead host, HTTP error page) — as opposed to a
+  // FinTS-level rejection, which means the URL is fine but the login isn't.
+  const isTransportError = (err) =>
+    err?.message === 'fetch failed' ||
+    ['ENOTFOUND', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN', 'CERT_HAS_EXPIRED', 'ERR_TLS_CERT_ALTNAME_INVALID'].includes(err?.cause?.code) ||
+    /request failed with status code/i.test(err?.message || '') ||
+    /error decoding/i.test(err?.message || '');
+
+  let client, sync;
+  try {
+    ({ client, sync } = await trySync(url));
+  } catch (err) {
+    // The institute DB carries an alternate URL for some banks — if the
+    // primary endpoint is unreachable, try that before giving up.
+    if (!customUrl && dbEntry?.urlAlt && isTransportError(err)) {
+      console.log(`[connect] ${url} failed (${err?.cause?.code || err.message}) — trying alternate ${dbEntry.urlAlt}`);
+      ({ client, sync } = await trySync(dbEntry.urlAlt));
+    } else {
+      throw err;
+    }
+  }
   logResp('connect', { client }, sync);
   console.log(`[connect] blz=${bankId} upd=${!!client.config.bankingInformation?.upd} accounts=${client.config.bankingInformation?.upd?.bankAccounts?.length ?? 0} tanMethods=${client.config.availableTanMethods?.length ?? 0}`);
   if (!sync.success && (!client.config.availableTanMethods || client.config.availableTanMethods.length === 0)) {
@@ -520,7 +555,7 @@ app.post('/api/logout', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`\n  FinTS Banking App  →  http://localhost:${PORT}`);
+  console.log(`\n  Sooskasse-FinTS  →  http://localhost:${PORT}`);
   console.log(`  Product ID: ${PRODUCT_ID} · ${bankCount} Banken in der Datenbank\n`);
   if (PRODUCT_ID === PLACEHOLDER_ID) {
     console.log('  ⚠  Using a placeholder FinTS product ID — the bank will reject this with 9078.');
