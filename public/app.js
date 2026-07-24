@@ -494,6 +494,12 @@ function afterAccountsReady() {
   $('#topbar-bank').textContent = state.bank?.name || 'Sooskasse-FinTS';
   $('#topbar-blz').textContent = state.bank?.blz ? `BLZ ${state.bank.blz}` : '';
   $('#topbar-logo').innerHTML = logoSvg(state.bank?.brand || 'generic', 'logo-sm');
+  // Show the default window (last 90 days) in the date pickers so it's clear
+  // what's loaded and the user can widen it. Empty = server default (90 days),
+  // so the initial auto-load still matches without an explicit range.
+  const iso = (d) => d.toISOString().slice(0, 10);
+  $('#tx-from').value = iso(new Date(Date.now() - 90 * 86400000));
+  $('#tx-to').value = iso(new Date());
   renderAccounts();
   showView('view-dashboard');
   $('#transfer-open').disabled = !state.accounts.some((a) => a.canTransfer);

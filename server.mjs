@@ -137,18 +137,42 @@ function serializeBalance(b) {
 // The account statement already carries the current balance (closingBalance),
 // so one statement query yields both Umsätze and Kontostand — avoiding a
 // second SCA approval for a separate balance request.
+//
+// The "Stand" (as-of) date is the MT940 :62F: closing-balance date, i.e. the
+// day the balance was last booked. We must pick the *newest* closing balance:
+// some banks return statement blocks newest-first, so taking the positionally
+// last block would yield the oldest balance (and a long-stale date).
 function balanceFromStatements(statements) {
-  const withBalance = (statements || []).filter((s) => s.closingBalance);
-  const last = withBalance[withBalance.length - 1];
-  if (!last) return null;
+  const withBalance = (statements || []).filter((s) => s.closingBalance?.date);
+  if (!withBalance.length) return null;
+
+  const cbTime = (s) => {
+    const t = new Date(s.closingBalance.date).getTime();
+    return Number.isNaN(t) ? -Infinity : t;
+  };
+  const last = withBalance.reduce((a, b) => (cbTime(b) >= cbTime(a) ? b : a));
   const cb = last.closingBalance;
   const av = last.availableBalance;
+
   return {
     balance: cb.value,
     currency: cb.currency,
-    date: cb.date,
+    date: cb.date, // MT940 :62F: — the day the balance was last booked
     availableAmount: av ? av.value : null,
   };
+}
+
+// Date-only diagnostics for the "Stand" issue — no amounts, names or IBANs are
+// logged. Shows how the bank ordered its statement blocks and where the newest
+// closing balance sits, so a stale "Stand" date can be traced to real data.
+function logStatementDates(accountNumber, statements) {
+  const iso = (d) => { const t = new Date(d); return Number.isNaN(t.getTime()) ? '??' : t.toISOString().slice(0, 10); };
+  const blocks = (statements || []).map((s, i) => {
+    const txDates = (s.transactions || []).map((t) => t.entryDate || t.valueDate).filter(Boolean);
+    const newestTx = txDates.length ? iso(txDates.reduce((a, b) => (new Date(b) > new Date(a) ? b : a))) : '-';
+    return `#${i} close=${s.closingBalance ? iso(s.closingBalance.date) : '-'} txs=${(s.transactions || []).length} newestTx=${newestTx}`;
+  });
+  console.log(`[stmt-dates] acct=${accountNumber} blocks=${statements?.length ?? 0} | ${blocks.join(' | ')}`);
 }
 
 function serializeTransactions(statements) {
@@ -437,7 +461,10 @@ app.post('/api/tan-poll', wrap(async (req, res) => {
   s.pending = null;
   if (type === 'sync') return res.json({ status: 'done', kind: 'accounts', accounts: accountsFor(s) });
   if (type === 'balance') return res.json({ status: 'done', kind: 'balance', accountNumber, balance: serializeBalance(resp.balance) });
-  if (type === 'statements') return res.json({ status: 'done', kind: 'statements', accountNumber, transactions: serializeTransactions(resp.statements), balance: balanceFromStatements(resp.statements) });
+  if (type === 'statements') {
+    logStatementDates(accountNumber, resp.statements);
+    return res.json({ status: 'done', kind: 'statements', accountNumber, transactions: serializeTransactions(resp.statements), balance: balanceFromStatements(resp.statements) });
+  }
   if (type === 'transfer') {
     return res.json({
       status: 'done', kind: 'transfer', accountNumber,
@@ -471,13 +498,23 @@ app.post('/api/balance', wrap(async (req, res) => {
   res.json({ needsTan: false, accountNumber, balance: serializeBalance(resp.balance) });
 }));
 
+// How many days of history the dashboard loads when no range is picked.
+const DEFAULT_STATEMENT_DAYS = 90;
+
 // Fetch transactions (Umsätze) for one account, optional date range.
 app.post('/api/transactions', wrap(async (req, res) => {
   const { sessionId, accountNumber, from, to } = req.body || {};
   const s = getSession(sessionId);
   if (!s) return res.status(401).json({ error: 'Sitzung abgelaufen. Bitte neu anmelden.' });
 
-  const fromDate = from ? new Date(from) : undefined;
+  // With no `from`, the bank returns statements from the start of its retention
+  // window and caps the response at maxEntries — so an active account gets the
+  // OLDEST slice (ending long ago) with a stale closing balance, never the
+  // current one. Default to the last ~90 days so recent bookings and the
+  // current Kontostand come back. An explicit range from the UI overrides this.
+  const fromDate = from
+    ? new Date(from)
+    : new Date(Date.now() - DEFAULT_STATEMENT_DAYS * 86400000);
   const toDate = to ? new Date(to) : undefined;
 
   const resp = await s.client.getAccountStatements(accountNumber, fromDate, toDate);
@@ -487,6 +524,7 @@ app.post('/api/transactions', wrap(async (req, res) => {
     return res.json({ ...tanPayload(resp), accountNumber });
   }
   if (!resp.success) return res.status(400).json({ error: bankAnswerText(resp) || 'Umsätze konnten nicht geladen werden.' });
+  logStatementDates(accountNumber, resp.statements);
   res.json({ needsTan: false, accountNumber, transactions: serializeTransactions(resp.statements), balance: balanceFromStatements(resp.statements) });
 }));
 
