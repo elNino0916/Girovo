@@ -1,3 +1,12 @@
+<p align="center">
+  <img
+    src="https://github.com/user-attachments/assets/fee12f69-f988-40d3-97e2-fedd203e1e36"
+    width="348"
+    height="398"
+    alt="Image"
+  />
+</p>
+
 # Sooskasse-FinTS
 
 A modern, self-hosted banking app for German banks that speaks **FinTS 3.0
@@ -44,12 +53,15 @@ Then open **http://localhost:3000**.
 
 FinTS requires a **product registration ID** issued (free) by the ZKA — some
 banks reject dialogs without one (code 9078). Register at
-<https://www.hbci-zka.de/register/prod_register.htm> and put the ID into
+<https://www.fints.org/de/hersteller/produktregistrierung> and put the ID into
 `config.json`:
 
 ```json
 { "productId": "YOURID", "productVersion": "1.0" }
 ```
+If you do not want to request a product ID from DK, a simple Google search will give you plenty of IDs you could use,
+however, using a officially obtained key is recommended to prevent your Sooskasse-FinTS from being detected as automated
+traffic and therefore being blocked by your bank's infrastructure.
 
 ## How it works
 
