@@ -26,6 +26,9 @@ plus, …) where you approve directly in your banking app.
 - **Kontostand & Umsätze** with search, date-range filter and a full detail
   view per transaction (IBAN, BIC, Referenzen, GVC, Primanota, … with
   copy-to-clipboard).
+- **Vorgemerkte Umsätze** (pending / not-yet-booked entries via `HKVMK`) —
+  loaded on demand, shows incoming SEPA-Lastschriften *before* they book.
+  Only offered when the bank/account supports it.
 - **SEPA-Überweisung** (HKCCS) and **Echtzeitüberweisung** (HKIPZ) with IBAN
   check-digit validation, review step and TAN approval. Only offered when the
   bank/account actually supports it (BPD/UPD).
@@ -69,6 +72,7 @@ traffic and therefore being blocked by your bank's infrastructure.
 |------|---------|
 | `server.mjs` | Express backend around [`lib-fints`](https://github.com/robocode13/lib-fints); one `FinTSClient` per in-memory session; drives sync → TAN method → accounts → statements/transfers. Decoupled TAN operations are continued via `/api/tan-poll`. |
 | `fints-sepa.mjs` | Adds the transfer segments **HKCCS**/**HKIPZ** (lib-fints is read-only out of the box): segment definitions, pain.001 XML builder (001.001.03 / 001.003.03 / 001.001.09), SEPA character-set sanitizing, IBAN/BIC/amount validation. |
+| `fints-pending.mjs` | Adds **HKVMK** (Vormerkposten / pending entries): segment definitions + a `PendingInteraction` that parses the returned **MT942** with lib-fints' MT940 parser (MT942 reuses the `:61:`/`:86:` entry format). |
 | `banks.mjs` | Institute database (`banks-data.json`, regenerate via `scripts/update-banks.mjs`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search, brand detection for logos. |
 | `state-store.mjs` | Encrypted device-profile persistence (`.fints-state/`, gitignored): AES-256-GCM, key derived from the PIN via scrypt. Stores systemId + cached BPD/UPD + TAN method so logins skip a fresh sync SCA. |
 | `patches/` | One-line patch (via `patch-package`, applied on `npm install`) exporting lib-fints' internal `registerSegmentDefinition` so the custom segments can be registered. |
@@ -87,6 +91,7 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `POST /api/cancel-pending` | Abandon the pending approval client-side |
 | `POST /api/balance` | Kontostand for one account |
 | `POST /api/transactions` | Umsätze (optional date range) |
+| `POST /api/pending` | Vorgemerkte Umsätze (HKVMK; on-demand) |
 | `POST /api/transfer` | SEPA-Überweisung (`instant: true` → HKIPZ) |
 | `GET  /api/device-status` | Whether a remembered device exists for (BLZ, user) |
 | `POST /api/forget-device` | Delete the encrypted device profile |

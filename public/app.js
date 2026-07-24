@@ -157,6 +157,8 @@ const state = {
   activeAccount: null,
   balances: {},        // accountNumber -> balance
   txCache: {},         // accountNumber -> { key, txs }
+  pendingCache: {},    // accountNumber -> { txs }  (vorgemerkte Umsätze, once loaded)
+  pendingLoading: null,
   txFilter: { from: undefined, to: undefined },
   pollTimer: null,
   busy: false,
@@ -588,7 +590,99 @@ function selectAccount(a) {
   state.activeAccount = a;
   document.querySelectorAll('.account-card').forEach((c) => c.classList.toggle('active', c.dataset.acct === a.accountNumber));
   renderAccountHeader(a);
+  renderPendingArea(a);
   loadTransactions(a);
+}
+
+// ---------------------------------------------------------------------------
+// VORGEMERKTE UMSÄTZE (pending / not-yet-booked, via HKVMK) — loaded on demand
+// so it never adds a TAN prompt to a normal account view.
+// ---------------------------------------------------------------------------
+const clockSvg = () =>
+  '<svg viewBox="0 0 24 24" width="17" height="17"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const refreshSvg = () =>
+  '<svg viewBox="0 0 24 24" width="15" height="15"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function renderPendingArea(a) {
+  const wrap = $('#pending-wrap');
+  if (!a.canPending) { wrap.hidden = true; wrap.innerHTML = ''; return; }
+  wrap.hidden = false;
+
+  if (state.pendingLoading === a.accountNumber) {
+    wrap.innerHTML =
+      `<div class="pending-card"><div class="pending-head"><span class="ph-label">Vorgemerkt</span></div>` +
+      `<div class="skel-row"><div class="skel skel-av"></div><div><div class="skel skel-line" style="width:52%"></div>` +
+      `<div class="skel skel-line" style="width:34%;margin-top:7px"></div></div><div class="skel skel-line" style="width:60px;height:13px"></div></div></div>`;
+    return;
+  }
+
+  const cached = state.pendingCache[a.accountNumber];
+  if (!cached) {
+    wrap.innerHTML =
+      `<div class="pending-prompt">` +
+        `<span class="pp-icon">${clockSvg()}</span>` +
+        `<span class="pp-text"><span class="pp-title">Vorgemerkte Umsätze</span>` +
+        `<span class="pp-sub">Noch nicht gebuchte Buchungen, z. B. anstehende Lastschriften. Kann eine TAN-Freigabe erfordern.</span></span>` +
+        `<button class="btn btn-ghost btn-sm" id="pending-load">Anzeigen</button>` +
+      `</div>`;
+    $('#pending-load').addEventListener('click', () => loadPending(a));
+    return;
+  }
+
+  const txs = (cached.txs || []).slice().sort((x, y) => txTime(y) - txTime(x));
+  let rows = '';
+  txs.forEach((t) => {
+    const credit = t.amount >= 0;
+    const name = t.remoteName || t.bookingText || 'Buchung';
+    const desc = t.purpose || (t.remoteName ? t.bookingText : '') || '';
+    rows +=
+      `<button class="tx pending" data-acct="${escapeHtml(a.accountNumber)}" data-idx="${txs.indexOf(t)}">` +
+        `<div class="tx-av ${credit ? 'credit' : ''}">${credit ? initials(name) : downSvg()}</div>` +
+        `<div class="tx-main"><div class="tx-name">${escapeHtml(name)}</div><div class="tx-desc">${escapeHtml(desc)}</div></div>` +
+        `<div class="tx-right"><div class="tx-amt num ${credit ? 'credit' : ''}">${credit ? '+' : '−'}${fmtMoney(Math.abs(t.amount), t.currency)}</div>` +
+        `<div class="tx-date num">${t.valueDate ? 'Wert ' + fmtDate(t.valueDate) : 'vorgemerkt'}</div></div>` +
+      `</button>`;
+  });
+
+  wrap.innerHTML =
+    `<div class="pending-card">` +
+      `<div class="pending-head"><span class="ph-label">Vorgemerkt</span>` +
+      `<span class="ph-count">${txs.length}</span>` +
+      `<button class="pending-refresh" id="pending-refresh" title="Aktualisieren" aria-label="Vorgemerkte Umsätze aktualisieren">${refreshSvg()}</button></div>` +
+      (txs.length ? rows : `<div class="pending-empty">Keine vorgemerkten Umsätze.</div>`) +
+    `</div>`;
+
+  $('#pending-refresh').addEventListener('click', () => loadPending(a));
+  wrap.querySelectorAll('.tx.pending').forEach((row) => {
+    row.addEventListener('click', () => openDetail(txs[Number(row.dataset.idx)], true));
+  });
+}
+
+async function loadPending(a) {
+  if (state.busy) { toast('Bitte warten — ein anderer Vorgang läuft noch.', true); return; }
+  state.busy = true;
+  state.pendingLoading = a.accountNumber;
+  renderPendingArea(a);
+
+  const finish = () => { state.busy = false; state.pendingLoading = null; };
+  const apply = (txs) => { state.pendingCache[a.accountNumber] = { txs: txs || [] }; renderPendingArea(a); };
+
+  try {
+    const data = await api('/api/pending', { sessionId: state.sessionId, accountNumber: a.accountNumber });
+    if (data.needsTan) {
+      startDecoupledWait(decoupledMethod(), data,
+        (r) => { finish(); apply(r.pending); },
+        () => { finish(); loadPending(a); },
+        { title: 'Vorgemerkte Umsätze freigeben' });
+    } else {
+      finish();
+      apply(data.pending);
+    }
+  } catch (err) {
+    finish();
+    renderPendingArea(a); // back to the prompt so the user can retry
+    toast(err.message, true);
+  }
 }
 
 function renderAccountHeader(a) {
@@ -773,7 +867,7 @@ $('#tx-reload').addEventListener('click', () => {
 // ---------------------------------------------------------------------------
 // TRANSACTION DETAIL
 // ---------------------------------------------------------------------------
-function openDetail(t) {
+function openDetail(t, isPending = false) {
   const credit = t.amount >= 0;
   const rows = [
     ['Empfänger / Auftraggeber', t.remoteName],
@@ -794,6 +888,7 @@ function openDetail(t) {
   ].filter(([, v]) => v);
 
   $('#detail-body').innerHTML =
+    (isPending ? `<div class="dt-pending-tag">${clockSvg()} Vorgemerkt · noch nicht gebucht</div>` : '') +
     `<div class="dt-amount num ${credit ? 'credit' : ''}">${credit ? '+' : '−'}${fmtMoney(Math.abs(t.amount), t.currency)}</div>` +
     `<div class="dt-name">${escapeHtml(t.remoteName || t.bookingText || 'Buchung')}</div>` +
     `<div class="dt-booking">${escapeHtml(t.bookingText || '')}</div>` +
@@ -1078,7 +1173,10 @@ $('#logout-btn').addEventListener('click', async () => {
     sessionId: null, accounts: [], balances: {}, txCache: {}, activeAccount: null,
     selectedMethod: null, busy: false, loadingAccount: null, transferDraft: null,
     txFilter: { from: undefined, to: undefined }, deviceRemembered: false,
+    pendingCache: {}, pendingLoading: null,
   });
+  $('#pending-wrap').hidden = true;
+  $('#pending-wrap').innerHTML = '';
   $('#tx-list').innerHTML = '';
   $('#tx-search').value = '';
   $('#tx-from').value = '';

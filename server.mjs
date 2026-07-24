@@ -21,6 +21,7 @@ import {
   SepaTransferInteraction, TRANSFER_SEG, INSTANT_SEG,
   validateIban, validateBic, parseAmount, sepaSanitize,
 } from './fints-sepa.mjs';
+import { PendingInteraction, PENDING_SEG } from './fints-pending.mjs';
 import { saveProfile, loadProfile, hasProfile, forgetProfile } from './state-store.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -140,6 +141,7 @@ function accountsFor(s) {
     canBalance: acctSupports(a, 'HKSAL'),
     canTransfer: bankSupports(TRANSFER_SEG) && acctSupports(a, TRANSFER_SEG) && !!a.iban,
     canInstant: bankSupports(INSTANT_SEG) && acctSupports(a, INSTANT_SEG) && !!a.iban,
+    canPending: bankSupports(PENDING_SEG) && acctSupports(a, PENDING_SEG),
   }));
 }
 
@@ -490,6 +492,9 @@ app.post('/api/tan-poll', wrap(async (req, res) => {
       case 'statements':
         resp = await s.client.getAccountStatementsWithTan(tanReference);
         break;
+      case 'pending':
+        resp = await s.client.continueCustomerInteractionWithTan([PENDING_SEG], tanReference);
+        break;
       case 'transfer':
         resp = await s.client.continueCustomerInteractionWithTan([segId], tanReference);
         break;
@@ -532,6 +537,7 @@ app.post('/api/tan-poll', wrap(async (req, res) => {
     logStatementDates(accountNumber, resp.statements);
     return res.json({ status: 'done', kind: 'statements', accountNumber, transactions: serializeTransactions(resp.statements), balance: balanceFromStatements(resp.statements) });
   }
+  if (type === 'pending') return res.json({ status: 'done', kind: 'pending', accountNumber, pending: serializeTransactions(resp.pendingStatements) });
   if (type === 'transfer') {
     return res.json({
       status: 'done', kind: 'transfer', accountNumber,
@@ -593,6 +599,24 @@ app.post('/api/transactions', wrap(async (req, res) => {
   if (!resp.success) return res.status(400).json({ error: bankAnswerText(resp) || 'Umsätze konnten nicht geladen werden.' });
   logStatementDates(accountNumber, resp.statements);
   res.json({ needsTan: false, accountNumber, transactions: serializeTransactions(resp.statements), balance: balanceFromStatements(resp.statements) });
+}));
+
+// Fetch vorgemerkte Umsätze (pending / not-yet-booked entries) via HKVMK —
+// where an incoming SEPA-Lastschrift appears before it books. Loaded on demand
+// so it doesn't add an approval to every account view.
+app.post('/api/pending', wrap(async (req, res) => {
+  const { sessionId, accountNumber } = req.body || {};
+  const s = getSession(sessionId);
+  if (!s) return res.status(401).json({ error: 'Sitzung abgelaufen. Bitte neu anmelden.' });
+
+  const resp = await s.client.startCustomerOrderInteraction(new PendingInteraction(accountNumber));
+  logResp('pending', s, resp);
+  if (resp.requiresTan) {
+    s.pending = { type: 'pending', tanReference: resp.tanReference, accountNumber };
+    return res.json({ ...tanPayload(resp), accountNumber });
+  }
+  if (!resp.success) return res.status(400).json({ error: bankAnswerText(resp) || 'Vorgemerkte Umsätze konnten nicht geladen werden.' });
+  res.json({ needsTan: false, accountNumber, pending: serializeTransactions(resp.pendingStatements) });
 }));
 
 // ---------------------------------------------------------------------------
