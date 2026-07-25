@@ -138,7 +138,7 @@ export function serializeTransactions(statements: Statement[] | undefined): Seri
     }
   }
   // newest first
-  txs.sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime());
+  txs.sort((a, b) => new Date(b.entryDate || b.valueDate || 0).getTime() - new Date(a.entryDate || a.valueDate || 0).getTime());
   return txs;
 }
 
