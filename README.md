@@ -14,7 +14,7 @@ A modern, self-hosted banking app for German banks that speaks **FinTS 3.0
 plus, …) where you approve directly in your banking app.
 
 **Features**
-
+- **Tested with major banks** — Sooskasse-FinTS has been tested with Atruvia, Targobank and FI infrastructure.
 - **All German FinTS banks** — bundled institute database (~2.700 institutes)
   with BLZ / name / city / **BIC** search; quick picks with the real bank
   logos (`public/logos/`, sourced from Wikimedia Commons) and a monogram
