@@ -9,16 +9,49 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export type Brand =
+  | 'sparkasse' | 'sparda' | 'psd' | 'vrbank' | 'deutschebank' | 'postbank'
+  | 'commerzbank' | 'comdirect' | 'ing' | 'dkb' | 'hypovereinsbank' | 'santander'
+  | 'targobank' | 'norisbank' | 'consorsbank' | 'apobank' | 'gls' | 'triodos'
+  | 'ethikbank' | 'oldenburgische' | 'degussa' | 'generic';
 
-const raw = JSON.parse(fs.readFileSync(path.join(__dirname, 'banks-data.json'), 'utf8'));
+/** One row of banks-data.json, plus the detected brand. */
+export type Institute = {
+  blz: string;
+  name: string;
+  location: string;
+  bic: string;
+  url: string;
+  urlAlt?: string;
+  brand: Brand;
+};
+
+/** A curated login-screen quick pick. */
+export type PopularBank = {
+  key: string;
+  name: string;
+  brand: Brand;
+  hint: string;
+  /** Nationwide banks resolve to one BLZ … */
+  blz?: string;
+  url?: string;
+  bic?: string;
+  fullName?: string;
+  /** … regional groups (Sparkasse, VR, …) hand over to the search instead. */
+  search?: string;
+};
+
+type RawInstitute = Omit<Institute, 'brand'>;
+
+const raw: RawInstitute[] = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), 'banks-data.json'), 'utf8'),
+);
 
 // ---------------------------------------------------------------------------
 // Brand detection — used to pick a logo + accent color in the frontend.
 // ---------------------------------------------------------------------------
-const BRAND_RULES = [
+const BRAND_RULES: [Brand, RegExp][] = [
   ['sparkasse', /sparkasse|kreissparkasse|stadtsparkasse|spk\b/i],
   ['sparda', /sparda/i],
   ['psd', /\bpsd\b/i],
@@ -42,21 +75,21 @@ const BRAND_RULES = [
   ['degussa', /degussa/i],
 ];
 
-function brandOf(name) {
+function brandOf(name: string): Brand {
   for (const [brand, re] of BRAND_RULES) {
     if (re.test(name)) return brand;
   }
   return 'generic';
 }
 
-const institutes = raw.map((b) => ({ ...b, brand: brandOf(b.name) }));
+const institutes: Institute[] = raw.map((b) => ({ ...b, brand: brandOf(b.name) }));
 
 const byBlz = new Map(institutes.map((b) => [b.blz, b]));
 
 // ---------------------------------------------------------------------------
 // Search: by BLZ (prefix) or by name/location (word matching, diacritic-safe).
 // ---------------------------------------------------------------------------
-const normalize = (s) =>
+const normalize = (s: string) =>
   s
     .toLowerCase()
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
@@ -64,7 +97,7 @@ const normalize = (s) =>
 
 const searchIndex = institutes.map((b) => ({ bank: b, text: normalize(`${b.name} ${b.location} ${b.bic}`) }));
 
-export function searchBanks(query, limit = 25) {
+export function searchBanks(query: string, limit = 25): Institute[] {
   const q = (query || '').trim();
   if (!q) return [];
 
@@ -72,7 +105,7 @@ export function searchBanks(query, limit = 25) {
     // Looks like a BLZ (or the beginning of one)
     const exact = byBlz.get(q);
     const prefix = institutes.filter((b) => b.blz.startsWith(q) && b !== exact);
-    return [exact, ...prefix].filter(Boolean).slice(0, limit);
+    return [exact, ...prefix].filter((b): b is Institute => !!b).slice(0, limit);
   }
 
   // Looks like a BIC (or the beginning of one): 4 letters, then country code,
@@ -89,7 +122,7 @@ export function searchBanks(query, limit = 25) {
 
   const words = normalize(q).split(/\s+/).filter(Boolean);
   if (!words.length) return [];
-  const matches = [];
+  const matches: Institute[] = [];
   for (const { bank, text } of searchIndex) {
     if (words.every((w) => text.includes(w))) {
       matches.push(bank);
@@ -107,7 +140,8 @@ export function searchBanks(query, limit = 25) {
   return matches.slice(0, limit);
 }
 
-export function lookupBlz(blz) {
+export function lookupBlz(blz: string | undefined | null): Institute | null {
+  if (blz == null) return null;
   return byBlz.get(String(blz).trim()) || null;
 }
 
@@ -118,7 +152,7 @@ export const bankCount = institutes.length;
 // Sparkasse/VR entries have no fixed BLZ — the user finds their local institute
 // via the search — so the quick picks are the big nationwide banks.
 // ---------------------------------------------------------------------------
-export const POPULAR_BANKS = [
+const PRESETS: PopularBank[] = [
   { key: 'sparkasse', name: 'Sparkasse', brand: 'sparkasse', search: 'Sparkasse', hint: 'Deine lokale Sparkasse per BLZ oder Ort suchen · S-pushTAN' },
   { key: 'vrbank', name: 'Volksbank / VR-Bank', brand: 'vrbank', search: 'Volksbank', hint: 'Deine lokale VR-Bank per BLZ oder Ort suchen · SecureGo plus' },
   { key: 'ing', name: 'ING', brand: 'ing', blz: '50010517', hint: 'Banking to go App' },
@@ -135,7 +169,9 @@ export const POPULAR_BANKS = [
   { key: 'psd', name: 'PSD Bank', brand: 'psd', search: 'PSD', hint: 'Deine lokale PSD Bank suchen' },
   { key: 'apobank', name: 'apoBank', brand: 'apobank', blz: '30060601', hint: 'apoTAN' },
   { key: 'gls', name: 'GLS Bank', brand: 'gls', blz: '43060967', hint: 'SecureGo plus' },
-]
+];
+
+export const POPULAR_BANKS: PopularBank[] = PRESETS
   .map((p) => {
     if (p.blz) {
       const inst = byBlz.get(p.blz);
@@ -144,4 +180,4 @@ export const POPULAR_BANKS = [
     }
     return p;
   })
-  .filter(Boolean);
+  .filter((p): p is PopularBank => !!p);

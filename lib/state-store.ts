@@ -19,30 +19,35 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import type { BankingInformation } from 'lib-fints';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const STATE_DIR = path.join(__dirname, '.fints-state');
+const STATE_DIR = path.join(process.cwd(), '.fints-state');
 
 // scrypt cost — deliberately raised to slow offline PIN brute-forcing.
 const SCRYPT = { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const KEY_LEN = 32;
+
+/** What a remembered device profile holds. */
+export type DeviceProfile = {
+  bankingInformation: BankingInformation;
+  tanMethodId?: number;
+  tanMediaName?: string;
+};
 
 // Profiles older than this are treated as expired and ignored — the bank's own
 // SCA-exemption window is ~90 days, so a full re-sync before then is prudent
 // (also refreshes cached accounts).
 export const PROFILE_MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
 
-function profileFile(blz, userId) {
+function profileFile(blz: string, userId: string): string {
   const id = crypto.createHash('sha256').update(`${blz}|${userId}`).digest('hex').slice(0, 32);
   return path.join(STATE_DIR, `${id}.json`);
 }
 
 /**
  * Encrypt and persist a device profile for (blz, userId), keyed by the PIN.
- * `data` is any JSON-serialisable object (bankingInformation, tan method, …).
  */
-export function saveProfile(blz, userId, pin, data) {
+export function saveProfile(blz: string, userId: string, pin: string, data: DeviceProfile): boolean {
   if (!pin) return false;
   try {
     fs.mkdirSync(STATE_DIR, { recursive: true });
@@ -63,19 +68,19 @@ export function saveProfile(blz, userId, pin, data) {
     fs.writeFileSync(profileFile(blz, userId), JSON.stringify(blob), { mode: 0o600 });
     return true;
   } catch (err) {
-    console.warn('[state] could not save device profile:', err?.message || err);
+    console.warn('[state] could not save device profile:', (err as Error)?.message || err);
     return false;
   }
 }
 
 /**
  * Load and decrypt the device profile for (blz, userId) using the PIN.
- * Returns the stored `data`, or null if there is no profile, the PIN is wrong,
+ * Returns the stored profile, or null if there is no profile, the PIN is wrong,
  * the file is corrupt/tampered, or the profile has expired.
  */
-export function loadProfile(blz, userId, pin) {
+export function loadProfile(blz: string, userId: string, pin: string): DeviceProfile | null {
   if (!pin) return null;
-  let blob;
+  let blob: { salt: string; iv: string; tag: string; ct: string };
   try {
     blob = JSON.parse(fs.readFileSync(profileFile(blz, userId), 'utf8'));
   } catch {
@@ -90,7 +95,7 @@ export function loadProfile(blz, userId, pin) {
       decipher.update(Buffer.from(blob.ct, 'base64')),
       decipher.final(), // throws if the PIN is wrong or the data was tampered
     ]);
-    const parsed = JSON.parse(plaintext.toString('utf8'));
+    const parsed = JSON.parse(plaintext.toString('utf8')) as { savedAt: number; data: DeviceProfile };
     if (!parsed || typeof parsed.savedAt !== 'number') return null;
     if (Date.now() - parsed.savedAt > PROFILE_MAX_AGE_MS) return null; // expired
     return parsed.data ?? null;
@@ -100,7 +105,7 @@ export function loadProfile(blz, userId, pin) {
 }
 
 /** Whether a profile file exists for (blz, userId) — regardless of PIN. */
-export function hasProfile(blz, userId) {
+export function hasProfile(blz: string, userId: string): boolean {
   try {
     return fs.existsSync(profileFile(blz, userId));
   } catch {
@@ -109,7 +114,7 @@ export function hasProfile(blz, userId) {
 }
 
 /** Delete the stored profile for (blz, userId). */
-export function forgetProfile(blz, userId) {
+export function forgetProfile(blz: string, userId: string): boolean {
   try {
     fs.rmSync(profileFile(blz, userId), { force: true });
     return true;

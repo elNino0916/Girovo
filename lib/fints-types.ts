@@ -1,0 +1,200 @@
+// Shared types for the FinTS layer.
+//
+// Two things live here:
+//   1. Extensions of lib-fints' response/client surface for the custom segments
+//      (HKCCS/HKIPZ/HKVMK) that this app registers itself.
+//   2. The JSON contract between the route handlers and the browser. Both sides
+//      import from here, so a change to a payload shape is a type error rather
+//      than a runtime surprise.
+
+import type { ClientResponse, FinTSClient, Statement } from 'lib-fints';
+import type { CustomerOrderInteraction } from './fints-internals.js';
+
+export type { TanMethod } from './fints-internals.js';
+
+// ---------------------------------------------------------------------------
+// lib-fints extensions
+// ---------------------------------------------------------------------------
+
+/** HIIPZ (Echtzeitüberweisung) reports an order id and status; HICCS does not. */
+export type TransferResult = {
+  orderId: string | null;
+  cancellationCode: string | null;
+  orderStatus: string | null;
+};
+
+export type ClientResponseWithResult = ClientResponse & {
+  transferResult?: TransferResult;
+  /** Vormerkposten parsed from the MT942 in HIVMK. */
+  pendingStatements?: Statement[];
+};
+
+/**
+ * `startCustomerOrderInteraction` / `continueCustomerInteractionWithTan` drive
+ * the custom segments, and `currentDialog` tells us whether the bank closed the
+ * dialog between decoupled status polls. All three are marked private in the
+ * published declarations even though they are ordinary runtime members, so the
+ * client is widened here rather than silenced at each call site.
+ *
+ * The mapped type is what makes that possible: intersecting a class type that
+ * has private members with an object type declaring the same names collapses to
+ * `never`, while `{ [K in keyof FinTSClient]: … }` keeps only the public
+ * surface and drops the private brand.
+ */
+type PublicFinTSClient = { [K in keyof FinTSClient]: FinTSClient[K] };
+
+export type FinTSClientEx = PublicFinTSClient & {
+  currentDialog?: { hasEnded: boolean };
+  startCustomerOrderInteraction(interaction: CustomerOrderInteraction): Promise<ClientResponseWithResult>;
+  continueCustomerInteractionWithTan(segIds: string[], tanReference: string, tan?: string): Promise<ClientResponseWithResult>;
+};
+
+// ---------------------------------------------------------------------------
+// Wire format: server → browser
+// ---------------------------------------------------------------------------
+
+export type BankMeta = {
+  blz: string;
+  bankName: string;
+  brand: string;
+  bic: string | null;
+};
+
+export type SerializedTanMethod = {
+  id: number;
+  name: string;
+  version: number;
+  isDecoupled: boolean;
+  activeTanMedia: string[];
+  tanMediaRequirement: number;
+  decoupled: {
+    waitBeforeFirst: number;
+    waitBetween: number;
+    maxStatusRequests: number;
+  } | null;
+};
+
+export type SerializedAccount = {
+  accountNumber: string;
+  iban: string | null;
+  bic: string | null;
+  currency: string;
+  accountType: string;
+  holder: string;
+  product: string | null;
+  limit: number | null;
+  canStatements: boolean;
+  canBalance: boolean;
+  canTransfer: boolean;
+  canInstant: boolean;
+  canPending: boolean;
+};
+
+export type SerializedBalance = {
+  balance: number;
+  currency: string;
+  date: Date | string;
+  availableAmount: number | null;
+  creditLimit?: number | null;
+  notedBalance?: number | null;
+};
+
+export type SerializedTransaction = {
+  valueDate: Date | string;
+  entryDate: Date | string;
+  /** Already signed: debit negative, credit positive. */
+  amount: number;
+  currency: string;
+  purpose: string;
+  bookingText: string;
+  remoteName: string;
+  remoteIban: string;
+  remoteBic: string;
+  e2eReference: string;
+  mandateReference: string;
+  customerReference: string;
+  bankReference: string;
+  transactionCode: string;
+  primeNotesNr: string;
+  textKeyExtension: string;
+  additionalInformation: string;
+  statementNumber: string;
+};
+
+export type BankMessage = { subject: string; text: string };
+
+/** Every TAN-gated endpoint answers with this shape when the bank wants SCA. */
+export type TanRequired = {
+  needsTan: true;
+  decoupled: true;
+  tanChallenge: string | null;
+  tanMediaName: string | null;
+  accountNumber?: string;
+};
+
+export type ConnectResponse =
+  | {
+      sessionId: string;
+      bank: BankMeta;
+      restored: true;
+      accounts: SerializedAccount[];
+      selectedTanMethod: SerializedTanMethod | null;
+    }
+  | {
+      sessionId: string;
+      bank: BankMeta;
+      restored?: false;
+      tanMethods: SerializedTanMethod[];
+      bankMessages: BankMessage[];
+    };
+
+export type SelectTanResponse =
+  | { chooseTanMedia: string[] }
+  | TanRequired
+  | { needsTan: false; accounts: SerializedAccount[]; deviceSaved: boolean };
+
+export type TanPollResponse =
+  | { status: 'pending' }
+  | { status: 'dialog_ended'; type: string; accountNumber?: string }
+  | { status: 'done'; kind: 'accounts'; accounts: SerializedAccount[]; deviceSaved: boolean }
+  | { status: 'done'; kind: 'balance'; accountNumber?: string; balance: SerializedBalance | null }
+  | { status: 'done'; kind: 'statements'; accountNumber?: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null }
+  | { status: 'done'; kind: 'pending'; accountNumber?: string; pending: SerializedTransaction[] }
+  | { status: 'done'; kind: 'transfer'; accountNumber?: string; transferResult: TransferResult | null; bankAnswers: string };
+
+export type TransactionsResponse =
+  | TanRequired
+  | { needsTan: false; accountNumber: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null };
+
+export type PendingResponse =
+  | TanRequired
+  | { needsTan: false; accountNumber: string; pending: SerializedTransaction[] };
+
+export type BalanceResponse =
+  | TanRequired
+  | { needsTan: false; accountNumber: string; balance: SerializedBalance | null };
+
+export type TransferResponse =
+  | TanRequired
+  | { needsTan: false; accountNumber: string; transferResult: TransferResult | null; bankAnswers: string };
+
+export type MetaResponse = {
+  productRegistered: boolean;
+  bankCount: number;
+  /** Whether counterparty names may be matched against Wikidata for logos. */
+  merchantLogos: boolean;
+};
+
+/** A counterparty recognised as a company, with a logo to show for it. */
+export type Merchant = { id: string; label: string; logo: string };
+
+export type MerchantsResponse = Record<string, Merchant | null>;
+
+export type BankSearchHit = {
+  blz: string;
+  name: string;
+  location: string;
+  bic: string;
+  url: string;
+  brand: string;
+};
