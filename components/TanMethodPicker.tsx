@@ -39,17 +39,23 @@ export function TanMethodPicker() {
           ? mediaChoice!.map((name) => (
               <OptionRow key={name} onClick={() => void chooseTanMethod(selectedMethod!, name)} title={name} />
             ))
-          : tanMethods.map((m) => (
-              <OptionRow
-                key={m.id}
-                onClick={() => void chooseTanMethod(m)}
-                title={m.name}
-                subtitle={
-                  (m.isDecoupled ? 'Direktfreigabe in der App' : 'TAN-Eingabe')
-                  + (m.activeTanMedia?.length ? ` · ${m.activeTanMedia.join(', ')}` : '')
-                }
-                badge={m.isDecoupled ? 'Direktfreigabe' : undefined}
-              />
+          : (tanMethods.filter((m) => m.isDecoupled).length ? (
+              tanMethods
+                .filter((m) => m.isDecoupled)
+                .map((m) => (
+                  <OptionRow
+                    key={m.id}
+                    onClick={() => void chooseTanMethod(m)}
+                    title={m.name}
+                    subtitle={
+                      'Direktfreigabe in der App'
+                      + (m.activeTanMedia?.length ? ` · ${m.activeTanMedia.join(', ')}` : '')
+                    }
+                    badge="Direktfreigabe"
+                  />
+                ))
+            ) : (
+              <Alert>Diese Bank bietet nur TAN-Eingabe-Verfahren. Sooskasse-FinTS unterstützt aktuell nur Direktfreigabe-Verfahren (decoupled).</Alert>
             ))}
       </div>
 
