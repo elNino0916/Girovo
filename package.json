@@ -1,10 +1,15 @@
 {
   "name": "sooskasse-fints",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "private": true,
   "description": "Sooskasse-FinTS — self-hosted banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled TAN, SEPA & Echtzeitueberweisung)",
-  "main": "server.mjs",
+  "type": "module",
   "scripts": {
-    "start": "node server.mjs",
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "update-banks": "node scripts/update-banks.mjs",
     "postinstall": "patch-package"
   },
   "keywords": [
@@ -16,13 +21,20 @@
   ],
   "author": "",
   "license": "MIT",
-  "type": "commonjs",
   "dependencies": {
-    "express": "^5.2.1",
-    "fints-institute-db": "^0.16.0",
-    "lib-fints": "^1.4.8"
+    "lib-fints": "^1.4.8",
+    "next": "^16.2.11",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "patch-package": "^8.0.1"
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "fints-institute-db": "^0.16.0",
+    "patch-package": "^8.0.1",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.9.0"
   }
 }

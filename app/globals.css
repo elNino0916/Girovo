@@ -1,0 +1,241 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   Sooskasse-FinTS — design tokens
+   ==========================================================================
+   Design language: the German Kontoauszug, digitized.
+
+   - Paper is pale green-grey statement stock, not white and not cream.
+   - Barlow carries the DIN/road-sign lineage of German officialdom for UI;
+     Barlow Condensed heads sections; IBM Plex Mono sets every amount, IBAN,
+     BLZ and date, with tabular figures so decimal points line up in columns
+     the way they do on a printed statement.
+   - Banknote green is the identity, Soll red the only alarm, amber reserved
+     exclusively for "vorgemerkt" (not yet booked).
+   - Small mono segment codes (HKKAZ, HKCCS, HKVMK …) label capabilities. They
+     are the app's actual subject matter: a feature is missing precisely when
+     the bank doesn't advertise that FinTS segment.
+   ========================================================================== */
+
+/* The theme is set on <html data-theme> before first paint (see layout.tsx),
+   so the class-free attribute selector is the source of truth in both
+   directions and never disagrees with the OS preference the user overrode. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root {
+  --paper: #ecefea;
+  --surface: #ffffff;
+  --inset: #e3e8e1;
+  --ink: #0f1613;
+  --ink-2: #46534c;
+  --ink-3: #7b897f;
+  --line: #d8ded6;
+  --line-strong: #bfc9bf;
+
+  --green: #0b5c42;
+  --green-soft: #dceae1;
+  --red: #a63a2e;
+  --red-soft: #f6e7e4;
+  --amber: #8a6410;
+  --amber-soft: #f4ecd8;
+
+  --shadow-card: 0 1px 1px rgb(15 22 19 / 0.04), 0 1px 3px rgb(15 22 19 / 0.06);
+  --shadow-pop: 0 8px 20px -8px rgb(15 22 19 / 0.18), 0 32px 64px -24px rgb(15 22 19 / 0.3);
+}
+
+[data-theme='dark'] {
+  --paper: #0a0f0d;
+  --surface: #131a17;
+  --inset: #0f1613;
+  --ink: #e4eae5;
+  --ink-2: #9caaa2;
+  --ink-3: #67756d;
+  --line: #212c27;
+  --line-strong: #33433c;
+
+  --green: #4cc392;
+  --green-soft: #14271e;
+  --red: #e0736a;
+  --red-soft: #2b1715;
+  --amber: #d3a247;
+  --amber-soft: #241c0d;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-pop: 0 8px 20px -8px rgb(0 0 0 / 0.6), 0 32px 64px -24px rgb(0 0 0 / 0.75);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-inset: var(--inset);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
+  --color-red: var(--red);
+  --color-red-soft: var(--red-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+
+  /* next/font sets --font-barlow / --font-barlow-condensed / --font-plex-mono
+     on <body> (layout.tsx). Tailwind substitutes these values straight into the
+     utilities it generates, so `font-display` and friends work — but because
+     `@theme inline` emits no custom properties of its own, hand-written CSS
+     below must reach for the next/font variables directly, never --font-sans. */
+  --font-sans: var(--font-barlow), 'Segoe UI', system-ui, sans-serif;
+  --font-display: var(--font-barlow-condensed), var(--font-barlow), sans-serif;
+  --font-mono: var(--font-plex-mono), 'Cascadia Mono', Consolas, ui-monospace, monospace;
+
+  --radius-card: 12px;
+  --radius-field: 9px;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+}
+
+/* Height of the sticky topbar — the transaction date rails pin just below it. */
+:root {
+  --topbar-h: 60px;
+}
+
+@layer base {
+  html {
+    height: 100%;
+    color-scheme: light;
+  }
+  [data-theme='dark'] {
+    color-scheme: dark;
+  }
+  body {
+    min-height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-barlow), 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::placeholder {
+    color: var(--ink-3);
+  }
+  :focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Date pickers are chrome-coloured by default and fight the paper. */
+  input[type='date']::-webkit-calendar-picker-indicator {
+    filter: var(--cal-filter, none);
+    cursor: pointer;
+  }
+  [data-theme='dark'] input[type='date']::-webkit-calendar-picker-indicator {
+    --cal-filter: invert(1) opacity(0.6);
+  }
+}
+
+@layer utilities {
+  /* Every amount, IBAN, BLZ and date. Tabular figures keep the decimal points
+     of a transaction list in one column, like a printed Kontoauszug. */
+  .num {
+    font-family: var(--font-plex-mono), 'Cascadia Mono', Consolas, ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-variant-ligatures: none;
+  }
+
+  /* The Formular eyebrow: letterspaced caps, like a German form label. */
+  .eyebrow {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* FinTS segment code — the protocol showing through the interface. */
+  .segcode {
+    font-family: var(--font-plex-mono), ui-monospace, monospace;
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--ink-3);
+  }
+}
+
+/* ---------- motion ---------- */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes drawer-in {
+  from { opacity: 0; transform: translateX(36px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes ping-ring {
+  0% { transform: scale(0.6); opacity: 0.5; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+.anim-fade { animation: fade-in 0.18s ease; }
+.anim-sheet { animation: sheet-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.anim-drawer { animation: drawer-in 0.25s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.anim-toast { animation: toast-in 0.25s cubic-bezier(0.2, 0.9, 0.3, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- bank logos ----------
+   Real logo files sit on a white pill in light mode. In dark mode the pill
+   disappears and navy/black wordmarks (measured per file) are flipped, while
+   colourful marks — Sparkasse red, comdirect yellow, DKB blue — stay as-is. */
+.logo-img {
+  background: #fff;
+  border: 1px solid var(--line);
+}
+[data-theme='dark'] .logo-img {
+  background: transparent;
+  border-color: transparent;
+}
+[data-theme='dark'] .logo-img[data-invert='true'] img {
+  filter: invert(1) hue-rotate(180deg) saturate(1.15);
+}
+
+/* Shimmer for loading skeletons. */
+.skel {
+  position: relative;
+  overflow: hidden;
+  background: var(--inset);
+  border-radius: 4px;
+}
+.skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 6%, transparent), transparent);
+  animation: shimmer 1.4s infinite;
+}

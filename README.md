@@ -32,6 +32,12 @@ plus, …) where you approve directly in your banking app.
 - **SEPA-Überweisung** (HKCCS) and **Echtzeitüberweisung** (HKIPZ) with IBAN
   check-digit validation, review step and TAN approval. Only offered when the
   bank/account actually supports it (BPD/UPD).
+- **Company logos on transactions** — counterparties are matched against
+  [Wikidata](https://www.wikidata.org) so `PayPal Europe S.a.r.l et Cie S.C.A.`
+  shows the PayPal mark and `DB Vertrieb GmbH` shows Deutsche Bahn's. A match
+  has to clear a deliberately high bar; anything short of it keeps the plain
+  avatar rather than risking a wrong logo. Sends counterparty names to Wikidata
+  — see [Company logos](#company-logos) before you leave it on.
 - **Remember this device** — after the first login the bank's device identity
   (systemId) plus the cached accounts and TAN method are saved **encrypted with
   your PIN**, so subsequent logins reuse the device and the bank can serve
@@ -40,14 +46,29 @@ plus, …) where you approve directly in your banking app.
   [Fewer TAN prompts](#fewer-tan-prompts).
 - Light + dark theme (follows the system, manual toggle).
 
+Built with **Next.js 16** (App Router, React 19, TypeScript) and **Tailwind CSS
+v4**. Fonts are self-hosted through `next/font` — no request leaves your machine
+except the one to your bank.
+
 ## Run it
 
 ```bash
 npm install
-npm start
+npm run dev
 ```
 
 Then open **http://localhost:3000**.
+
+For a production run:
+
+```bash
+npm run build && npm start
+```
+
+> ⚠️ **Single process only.** Each login is a live `FinTSClient` with an open
+> FinTS dialog held in the server's memory, which cannot be serialised. Never
+> deploy this to a serverless/edge runtime or behind more than one worker — a
+> request landing on the wrong instance loses the session mid-approval.
 
 > ⚠️ **Runs locally only.** Your PIN is held in server memory for the session
 > and is never written to disk or logged. Do not expose this on a public host.
@@ -70,13 +91,20 @@ traffic and therefore being blocked by your bank's infrastructure.
 
 | File | Purpose |
 |------|---------|
-| `server.mjs` | Express backend around [`lib-fints`](https://github.com/robocode13/lib-fints); one `FinTSClient` per in-memory session; drives sync → TAN method → accounts → statements/transfers. Decoupled TAN operations are continued via `/api/tan-poll`. |
-| `fints-sepa.mjs` | Adds the transfer segments **HKCCS**/**HKIPZ** (lib-fints is read-only out of the box): segment definitions, pain.001 XML builder (001.001.03 / 001.003.03 / 001.001.09), SEPA character-set sanitizing, IBAN/BIC/amount validation. |
-| `fints-pending.mjs` | Adds **HKVMK** (Vormerkposten / pending entries): segment definitions + a `PendingInteraction` that parses the returned **MT942** with lib-fints' MT940 parser (MT942 reuses the `:61:`/`:86:` entry format). |
-| `banks.mjs` | Institute database (`banks-data.json`, regenerate via `scripts/update-banks.mjs`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search, brand detection for logos. |
-| `state-store.mjs` | Encrypted device-profile persistence (`.fints-state/`, gitignored): AES-256-GCM, key derived from the PIN via scrypt. Stores systemId + cached BPD/UPD + TAN method so logins skip a fresh sync SCA. |
+| `app/api/*/route.ts` | The 15 Node-runtime route handlers. Each one is thin: validate → call the session's `FinTSClient` → serialise. Decoupled TAN operations are continued via `/api/tan-poll`. |
+| `lib/session.ts` | Product registration (`config.json` / `FINTS_PRODUCT_ID`) and the in-memory session store. Pinned to `globalThis` so hot reload doesn't drop logged-in users; 30-minute idle sweep. |
+| `lib/fints-sepa.ts` | Adds the transfer segments **HKCCS**/**HKIPZ** (lib-fints is read-only out of the box): segment definitions, pain.001 XML builder (001.001.03 / 001.003.03 / 001.001.09), SEPA character-set sanitizing, IBAN/BIC/amount validation. |
+| `lib/fints-pending.ts` | Adds **HKVMK** (Vormerkposten / pending entries): segment definitions + a `PendingInteraction` that parses the returned **MT942** with lib-fints' MT940 parser (MT942 reuses the `:61:`/`:86:` entry format). |
+| `lib/fints-internals.js` + `.d.ts` | Re-exports the lib-fints internals its `exports` map hides (segment definitions, data elements, `registerSegmentDefinition`). Kept as one shim so the library's segment registry stays a single module instance — see the note in `next.config.ts`. |
+| `lib/banks.ts` | Institute database (`banks-data.json`, regenerate via `npm run update-banks`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search, brand detection for logos. |
+| `lib/serialize.ts` | Maps lib-fints objects to the JSON the browser sees; `lib/fints-types.ts` holds that contract, imported by both sides. |
+| `lib/merchant-match.ts` | The company-detection model: name cleaning, the corporate-marker privacy gate, the candidate ladder and the scoring thresholds. Deterministic and inspectable — no network, no data files. |
+| `lib/merchants.ts` | The Wikidata lookup behind it: search for recall, one SPARQL query for verification (logo, `instance of`, parent organisation), process-level caching of hits *and* misses, and the logo proxy's allowlist. |
+| `lib/state-store.ts` | Encrypted device-profile persistence (`.fints-state/`, gitignored): AES-256-GCM, key derived from the PIN via scrypt. Stores systemId + cached BPD/UPD + TAN method so logins skip a fresh sync SCA. |
 | `patches/` | One-line patch (via `patch-package`, applied on `npm install`) exporting lib-fints' internal `registerSegmentDefinition` so the custom segments can be registered. |
-| `public/` | Vanilla-JS frontend: login with bank search → TAN method → dashboard with accounts, Umsätze, transaction drawer, Überweisung flow. |
+| `components/FintsProvider.tsx` | The client state machine: login → TAN method → dashboard, with every bank read serialised behind one `busy` flag (each read can cost its own approval) and the decoupled poll loop. |
+| `components/*.tsx` | The UI: bank picker, TAN method + wait overlay, dashboard, ledger, transaction drawer, Überweisung flow. |
+| `app/globals.css` | Design tokens (paper/ink, banknote green, Soll red, vorgemerkt amber) as CSS variables mapped into Tailwind v4 via `@theme inline`. |
 
 ### API surface
 
@@ -93,9 +121,56 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `POST /api/transactions` | Umsätze (optional date range) |
 | `POST /api/pending` | Vorgemerkte Umsätze (HKVMK; on-demand) |
 | `POST /api/transfer` | SEPA-Überweisung (`instant: true` → HKIPZ) |
+| `POST /api/merchants` | Resolve counterparty names to company logos (Wikidata) |
+| `GET  /api/merchant-logo?id=` | Proxy a resolved logo; only ids this process minted |
 | `GET  /api/device-status` | Whether a remembered device exists for (BLZ, user) |
 | `POST /api/forget-device` | Delete the encrypted device profile |
 | `POST /api/logout` | Drop the session |
+
+## Company logos
+
+Bank statements name a counterparty in its full legal form, which is rarely the
+brand you'd recognise. Sooskasse-FinTS resolves the brand against **Wikidata** —
+public, no API key, and already the source of the bank logos in `public/logos/`.
+
+**This is the only feature that contacts a host other than your bank.** It is on
+by default; turn it off with either:
+
+```json
+{ "merchantLogos": false }
+```
+
+or `FINTS_MERCHANT_LOGOS=0`. Off means the app talks to nothing but your bank,
+and every transaction keeps its plain avatar.
+
+**What is and isn't sent.** Only the cleaned company core leaves the machine —
+`PayPal`, not `PayPal Europe S.a.r.l et Cie S.C.A.` — and never an amount, IBAN,
+date or reference. A name is only ever sent if it carries a *corporate marker*:
+a legal form (`GmbH`, `AG`, `S.a.r.l`, `Ltd`, …), a mostly-uppercase spelling, or
+a corporate keyword. A private transfer from `Anna Beispiel` has none of these
+and is never looked up. Names are resolved at most once per server run — misses
+are cached too — and logo images are proxied through the app, so the browser
+itself never talks to Wikimedia. Nothing is written to disk.
+
+**How a match is decided** (`lib/merchant-match.ts`, `lib/merchants.ts`). The
+model is deterministic and biased towards showing nothing:
+
+1. Trailing legal forms and qualifiers are stripped into an ordered ladder of
+   candidates — `DB Vertrieb GmbH` → `DB Vertrieb`, then `DB`. The more
+   aggressively stripped a candidate is, the higher the bar it must clear; a
+   two-or-three letter core is only accepted on an *exact* label or alias hit.
+2. Each candidate is searched on Wikidata, then every surviving hit is verified
+   in one SPARQL query: it must carry a **logo** (P154), its **instance of**
+   (P31) classes must not be disqualifying, and its name must match the
+   candidate closely (exact, or the candidate begins with the whole label).
+3. The `instance of` denylist is what keeps *Amazon* from matching the river and
+   *Shell* from matching a film.
+4. A subsidiary keeps its own mark, but falls back to its **parent organisation**
+   (P749) when its own logo is a wide wordmark that would render as an
+   illegible sliver — which is what turns `DB Vertrieb GmbH` into the Deutsche
+   Bahn square.
+
+Anything that fails at any step resolves to null and the row keeps its avatar.
 
 ## Fewer TAN prompts
 
@@ -135,11 +210,20 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 - If the bank closes the dialog during a transfer approval, the app shows
   **„Status unklar“** and asks you to check the Umsätze before retrying —
   never blindly resend a transfer.
+- **Dates ahead of today are normal.** Fetch a statement on a weekend and the
+  bank will stamp a fresh entry with the next business day as its *Buchungstag*
+  while value-dating it immediately, and date the closing balance of its interim
+  report to that same day. Such entries are labelled **„noch nicht gebucht“**
+  and show `Buchung <date>`; the balance line reads *Buchungstag* instead of
+  *Stand*. Nothing is being predicted — it is the bank's own dating.
 - Sessions expire after 30 minutes of inactivity.
 
 ## Security
 
 - Credentials live only in memory and vanish on logout / restart.
-- No third-party services; traffic goes directly from your machine to the
-  bank's FinTS endpoint over TLS.
+- Banking traffic goes directly from your machine to the bank's FinTS endpoint
+  over TLS — no third party sits in that path.
+- The **one** exception is [company logos](#company-logos), which sends cleaned
+  merchant names to Wikidata. Set `"merchantLogos": false` in `config.json` and
+  the app contacts nothing but your bank.
 - Keep this on `localhost`. It has no authentication of its own.

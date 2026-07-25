@@ -17,12 +17,16 @@
 // both transactions as TAN-required. Registering the definitions requires the
 // (patched) export of registerSegmentDefinition — see patches/.
 
-import { SegmentDefinition } from './node_modules/lib-fints/dist/segmentDefinition.js';
-import { AlphaNumeric } from './node_modules/lib-fints/dist/dataElements/AlphaNumeric.js';
-import { Binary } from './node_modules/lib-fints/dist/dataElements/Binary.js';
-import { InternationalAccountGroup } from './node_modules/lib-fints/dist/dataGroups/InternationalAccount.js';
-import { CustomerOrderInteraction } from './node_modules/lib-fints/dist/interactions/customerInteraction.js';
-import { registerSegmentDefinition } from './node_modules/lib-fints/dist/segments/registry.js';
+import type { FinTSConfig, Message, Segment } from 'lib-fints';
+import {
+  SegmentDefinition,
+  AlphaNumeric,
+  Binary,
+  InternationalAccountGroup,
+  CustomerOrderInteraction,
+  registerSegmentDefinition,
+} from './fints-internals.js';
+import type { ClientResponseWithResult, TransferResult } from './fints-types';
 
 class HKCCS extends SegmentDefinition {
   static Id = 'HKCCS';
@@ -55,7 +59,7 @@ export const INSTANT_SEG = HKIPZ.Id;
 // ---------------------------------------------------------------------------
 // SEPA character set + helpers
 // ---------------------------------------------------------------------------
-const TRANSLIT = {
+const TRANSLIT: Record<string, string> = {
   'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue', 'ß': 'ss',
   'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'å': 'a', 'ç': 'c', 'è': 'e', 'é': 'e',
   'ê': 'e', 'ë': 'e', 'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i', 'ñ': 'n', 'ò': 'o',
@@ -69,7 +73,7 @@ const TRANSLIT = {
 // Reduce any text to the SEPA/EPC allowed character set (pure ASCII), so the
 // pain.001 byte length always equals its JS string length regardless of the
 // transport encoding.
-export function sepaSanitize(text, maxLength) {
+export function sepaSanitize(text: unknown, maxLength?: number): string {
   let out = '';
   for (const ch of String(text ?? '')) {
     if (/[A-Za-z0-9\/\-?:().,'+ ]/.test(ch)) out += ch;
@@ -80,7 +84,7 @@ export function sepaSanitize(text, maxLength) {
   return maxLength ? out.slice(0, maxLength) : out;
 }
 
-export function validateIban(input) {
+export function validateIban(input: unknown): string | null {
   const iban = String(input || '').replace(/\s+/g, '').toUpperCase();
   if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban)) return null;
   if (iban.startsWith('DE') && iban.length !== 22) return null;
@@ -94,14 +98,15 @@ export function validateIban(input) {
   return remainder === 1 ? iban : null;
 }
 
-export function validateBic(input) {
+/** '' when empty (BIC is optional), the BIC when valid, null when malformed. */
+export function validateBic(input: unknown): string | null {
   const bic = String(input || '').replace(/\s+/g, '').toUpperCase();
   if (!bic) return '';
   return /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic) ? bic : null;
 }
 
 // Accepts "12,34", "12.34", "1.234,56", "1,234.56" → integer cents (or null).
-export function parseAmount(input) {
+export function parseAmount(input: unknown): number | null {
   let s = String(input ?? '').trim().replace(/\s|€/g, '');
   if (!s) return null;
   const lastComma = s.lastIndexOf(',');
@@ -117,18 +122,19 @@ export function parseAmount(input) {
   return cents;
 }
 
-const centsToDecimal = (cents) => `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
+const centsToDecimal = (cents: number) => `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
 
 // ---------------------------------------------------------------------------
 // pain.001 builder
 // ---------------------------------------------------------------------------
-const xmlEscape = (s) =>
-  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+const xmlEscape = (s: string) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] as string));
 
 // Pick the SEPA descriptor the bank advertises in HISPAS; prefer the pain.001
 // versions we can generate, newest German usage first.
-export function pickSepaDescriptor(config) {
-  const formats = config.getTransactionParameters('HKSPA')?.supportedSepaFormats || [];
+export function pickSepaDescriptor(config: FinTSConfig): string {
+  const params = config.getTransactionParameters<{ supportedSepaFormats?: string[] }>('HKSPA');
+  const formats = params?.supportedSepaFormats || [];
   for (const wanted of ['pain.001.001.03', 'pain.001.003.03', 'pain.001.001.09']) {
     const hit = formats.find((f) => f.includes(wanted));
     if (hit) return hit;
@@ -136,16 +142,29 @@ export function pickSepaDescriptor(config) {
   return 'urn:iso:std:iso:20022:tech:xsd:pain.001.001.03';
 }
 
-function painVersionOf(descriptor) {
+function painVersionOf(descriptor: string): string {
   const m = /pain\.001\.(\d{3})\.(\d{2})/.exec(descriptor);
   return m ? `001.${m[1]}.${m[2]}` : '001.001.03';
 }
+
+export type Pain001Input = {
+  descriptor: string;
+  debtorName: string;
+  debtorIban: string;
+  debtorBic?: string;
+  creditorName: string;
+  creditorIban: string;
+  creditorBic?: string;
+  amountCents: number;
+  purpose?: string;
+  endToEndId?: string;
+};
 
 /**
  * Builds a single-transaction pain.001 credit transfer document.
  * All text inputs must already be SEPA-sanitized (pure ASCII).
  */
-export function buildPain001({ descriptor, debtorName, debtorIban, debtorBic, creditorName, creditorIban, creditorBic, amountCents, purpose, endToEndId }) {
+export function buildPain001({ descriptor, debtorName, debtorIban, debtorBic, creditorName, creditorIban, creditorBic, amountCents, purpose, endToEndId }: Pain001Input): string {
   const painVersion = painVersionOf(descriptor);
   const ns = `urn:iso:std:iso:20022:tech:xsd:pain.${painVersion.slice(4)}`;
   const isV09 = painVersion === '001.001.09';
@@ -207,23 +226,36 @@ export function buildPain001({ descriptor, debtorName, debtorIban, debtorBic, cr
   );
 }
 
+export type TransferOrder = {
+  creditorName: string;
+  creditorIban: string;
+  creditorBic?: string;
+  amountCents: number;
+  purpose?: string;
+  debtorBic?: string;
+};
+
 // ---------------------------------------------------------------------------
 // The customer interaction driving HKCCS / HKIPZ
 // ---------------------------------------------------------------------------
 export class SepaTransferInteraction extends CustomerOrderInteraction {
+  accountNumber: string;
+  transfer: TransferOrder;
+  instant: boolean;
+
   /**
    * @param accountNumber debtor account (must exist in the UPD)
-   * @param transfer { creditorName, creditorIban, creditorBic, amountCents, purpose, debtorBic }
+   * @param transfer the order to send
    * @param instant  true → HKIPZ (Echtzeitüberweisung), false → HKCCS
    */
-  constructor(accountNumber, transfer, instant) {
+  constructor(accountNumber: string, transfer: TransferOrder, instant: boolean) {
     super(instant ? HKIPZ.Id : HKCCS.Id, instant ? 'HIIPZ' : 'HICCS');
     this.accountNumber = accountNumber;
     this.transfer = transfer;
     this.instant = instant;
   }
 
-  createSegments(config) {
+  createSegments(config: FinTSConfig): Segment[] {
     const account = config.getBankAccount(this.accountNumber);
     if (!config.isAccountTransactionSupported(this.accountNumber, this.segId)) {
       throw Error(`Account ${this.accountNumber} does not support business transaction '${this.segId}'`);
@@ -253,21 +285,22 @@ export class SepaTransferInteraction extends CustomerOrderInteraction {
         account: { ...account, bic: this.transfer.debtorBic || undefined },
         sepaDescriptor: descriptor,
         sepaMessage,
-      },
+      } as Segment,
     ];
   }
 
-  handleResponse(response, clientResponse) {
+  handleResponse(response: Message, clientResponse: ClientResponseWithResult): void {
     // HICCS carries no payload; HIIPZ (instant) optionally reports
     // orderId + status. Both arrive as "unknown" segments — parse manually.
     const seg = response.findAllUnknownSegments(this.responseSegId)[0];
     if (seg && typeof seg.rawData === 'string') {
       const [orderId, cancellationCode, orderStatus] = seg.rawData.split('+');
-      clientResponse.transferResult = {
+      const result: TransferResult = {
         orderId: orderId || null,
         cancellationCode: cancellationCode || null,
         orderStatus: orderStatus || null,
       };
+      clientResponse.transferResult = result;
     }
   }
 }
