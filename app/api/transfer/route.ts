@@ -51,6 +51,11 @@ export const POST = wrap(async (req: Request) => {
   const useInstant = !!instant;
   const segId = useInstant ? INSTANT_SEG : TRANSFER_SEG;
 
+  if (!account.iban) return fail('Dieses Konto hat keine IBAN und unterstützt keine SEPA-Überweisungen.');
+  if (!s.client.config.isAccountTransactionSupported(accountNumber, segId)) {
+    return fail(`Dieses Konto unterstützt keine ${useInstant ? 'Echtzeitüberweisung' : 'SEPA-Überweisung'} über FinTS.`);
+  }
+
   const interaction = new SepaTransferInteraction(accountNumber!, {
     creditorName: name,
     creditorIban: cleanIban,
