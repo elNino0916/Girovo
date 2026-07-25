@@ -56,7 +56,14 @@ export function TransferSheet({ preselect, onClose }: { preselect: string | null
     if (!account) return setError('Bitte ein Konto wählen.');
     if (!name.trim()) return setError('Bitte den Empfänger angeben.');
     if (!ibanValid(rawIban)) return setError('Die IBAN ist ungültig.');
-    const norm = amount.trim().replace(/\./g, '').replace(',', '.');
+    const raw = amount.trim().replace(/\s|€/g, '');
+    const lastComma = raw.lastIndexOf(',');
+    const lastDot = raw.lastIndexOf('.');
+    const norm = lastComma > lastDot
+      ? raw.replace(/\./g, '').replace(',', '.')
+      : lastDot > lastComma
+        ? raw.replace(/,/g, '')
+        : raw;
     const amountNum = parseFloat(norm);
     if (!/^\d+(\.\d{1,2})?$/.test(norm) || !(amountNum > 0)) {
       return setError('Bitte einen gültigen Betrag angeben, z. B. 25,00.');
