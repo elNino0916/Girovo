@@ -181,7 +181,7 @@ export type TransferResponse =
 export type MetaResponse = {
   productRegistered: boolean;
   bankCount: number;
-  /** Whether counterparty names may be matched against Wikidata for logos. */
+  /** Whether counterparty names may be matched against Brandfetch for logos. */
   merchantLogos: boolean;
 };
 

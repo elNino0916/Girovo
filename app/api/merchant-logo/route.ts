@@ -1,8 +1,8 @@
 // Serve a resolved company logo.
 //
 // The bytes are proxied rather than linked so the page stays same-origin and
-// each mark is fetched from Wikimedia Commons once per server run. Only ids
-// minted by the resolver are known, so this cannot be pointed at another host.
+// each mark is fetched from Brandfetch once per server run. Only ids minted by
+// the resolver are known, so this cannot be pointed at another host.
 
 import type { NextRequest } from 'next/server';
 import { fetchLogo } from '@/lib/merchants';

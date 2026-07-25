@@ -44,6 +44,7 @@ type FileConfig = {
   productVersion?: string;
   debug?: boolean;
   merchantLogos?: boolean;
+  brandfetchClientId?: string;
 };
 
 let fileConfig: FileConfig = {};
@@ -60,18 +61,29 @@ export const DEBUG = !!(process.env.FINTS_DEBUG || fileConfig.debug);
 // Merchant logos
 //
 // The one feature that contacts a host other than the bank: counterparty names
-// are matched against Wikidata to show a company's logo on its transactions
-// (lib/merchants.ts). Only names that look corporate are sent, and only the
-// cleaned company core — but it is still transaction metadata leaving the
-// machine, so it is switchable:
+// are matched against Brandfetch (https://brandfetch.com) to show a company's
+// logo on its transactions (lib/merchants.ts). Only names that look corporate
+// are sent, and only the cleaned company core — but it is still transaction
+// metadata leaving the machine, so it is switchable:
 //
 //   config.json  { "merchantLogos": false }
 //   environment  FINTS_MERCHANT_LOGOS=0
 //
 // Off means the app talks to nothing but your bank, and every transaction keeps
 // its plain avatar.
+//
+// Brandfetch requires a client ID (free, from https://developers.brandfetch.com)
+// on every request. Without one the feature is force-disabled regardless of the
+// toggle above, since there is nothing to call.
+//
+//   config.json  { "brandfetchClientId": "..." }
+//   environment  BRANDFETCH_CLIENT_ID=...
 // ---------------------------------------------------------------------------
+export const BRANDFETCH_CLIENT_ID =
+  process.env.BRANDFETCH_CLIENT_ID || fileConfig.brandfetchClientId || '';
+
 export const MERCHANT_LOGOS = (() => {
+  if (!BRANDFETCH_CLIENT_ID) return false;
   const env = process.env.FINTS_MERCHANT_LOGOS;
   if (env != null && env !== '') return !['0', 'false', 'no', 'off'].includes(env.toLowerCase());
   return fileConfig.merchantLogos !== false; // default on
