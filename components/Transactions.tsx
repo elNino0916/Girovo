@@ -302,7 +302,7 @@ function TransactionDetail({
   pending: boolean;
   onClose: () => void;
 }) {
-  const { toast, merchants } = useFints();
+  const { toast, merchants, printTransaction } = useFints();
   const credit = tx.amount >= 0;
   const merchant = merchants[(tx.remoteName || '').trim()];
 
@@ -338,7 +338,12 @@ function TransactionDetail({
       <div className="anim-drawer h-dvh w-full max-w-[430px] overflow-y-auto border-l border-line bg-surface px-6 pt-5 pb-10 shadow-[var(--shadow-pop)]">
         <div className="mb-4 flex items-center justify-between">
           <span className="eyebrow">Umsatzdetails</span>
-          <IconButton onClick={onClose} aria-label="Schließen"><CloseIcon /></IconButton>
+          <span className="flex items-center gap-1">
+            <Button size="sm" onClick={() => printTransaction(tx)} title="Diesen Umsatz als PDF speichern">
+              Als PDF
+            </Button>
+            <IconButton onClick={onClose} aria-label="Schließen"><CloseIcon /></IconButton>
+          </span>
         </div>
 
         {pending && (

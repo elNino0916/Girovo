@@ -35,6 +35,19 @@ export type Toast = { id: number; message: string; tone: 'info' | 'error' };
 
 export type View = 'login' | 'tanmethod' | 'dashboard';
 
+/** A snapshot of what to render on the print-only Kontoauszug/receipt sheet. */
+export type PrintJob =
+  | {
+      kind: 'statement';
+      account: SerializedAccount;
+      bank: ChosenBank | null;
+      transactions: SerializedTransaction[];
+      balance: SerializedBalance | null;
+      from?: string;
+      to?: string;
+    }
+  | { kind: 'transaction'; account: SerializedAccount; bank: ChosenBank | null; tx: SerializedTransaction };
+
 type WaitPhase = 'waiting' | 'confirmed' | 'error' | 'ended';
 
 export type WaitState = {
@@ -534,16 +547,44 @@ function useFintsState() {
 
   const transactions = activeAccount ? txCache[activeAccount.accountNumber]?.txs ?? null : null;
 
+  // ---- printable Kontoauszug / transaction receipt ------------------------
+  // A print job just snapshots what's already on screen (no extra bank call,
+  // no PDF library): Statement.tsx renders it print-only, and the browser's
+  // own "Save as PDF" print target is the actual PDF generator.
+  const [printJob, setPrintJob] = useState<PrintJob | null>(null);
+
+  const printStatement = useCallback((from?: string, to?: string) => {
+    if (!activeAccount) return;
+    setPrintJob({
+      kind: 'statement',
+      account: activeAccount,
+      bank,
+      transactions: transactions ?? [],
+      balance: balances[activeAccount.accountNumber] ?? null,
+      from,
+      to,
+    });
+    toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
+  }, [activeAccount, bank, transactions, balances, toast]);
+
+  const printTransaction = useCallback((tx: SerializedTransaction) => {
+    if (!activeAccount) return;
+    setPrintJob({ kind: 'transaction', account: activeAccount, bank, tx });
+    toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
+  }, [activeAccount, bank, toast]);
+
+  const closePrintJob = useCallback(() => setPrintJob(null), []);
+
   return {
     // data
     view, meta, popularBanks, logoFiles, bank, sessionId, userId,
     tanMethods, selectedMethod, mediaChoice, tanMethodError,
     accounts, activeAccount, balances, transactions, pendingCache, txError, merchants,
-    busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts,
+    busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     // actions
     setView, setBank, connect, chooseTanMethod, selectAccount, loadTransactions,
     refreshAccount, loadPending, submitTransfer, forgetDevice, logout, toast,
-    retryWait, cancelWait, closeWait,
+    retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
   };
 }
 

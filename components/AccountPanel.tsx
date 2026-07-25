@@ -69,7 +69,7 @@ export function AccountList() {
 }
 
 export function AccountHeader({ onTransfer }: { onTransfer: () => void }) {
-  const { activeAccount: a, balances, refreshAccount, busy } = useFints();
+  const { activeAccount: a, balances, refreshAccount, busy, printStatement } = useFints();
   const [from, setFrom] = useState(() => isoDate(new Date(Date.now() - 90 * 86400000)));
   const [to, setTo] = useState(() => isoDate(new Date()));
 
@@ -143,6 +143,14 @@ export function AccountHeader({ onTransfer }: { onTransfer: () => void }) {
             className="num min-w-0 flex-1 rounded-[9px] border border-line bg-surface px-2 py-1.5 text-[12.5px] text-ink-2 outline-none focus:border-green sm:flex-none"
           />
           <Button size="sm" className="shrink-0" disabled={busy} onClick={() => refreshAccount(a, from, to)}>Laden</Button>
+          <Button
+            size="sm"
+            className="shrink-0"
+            onClick={() => printStatement(from, to)}
+            title="Kontoauszug für den gewählten Zeitraum als PDF speichern"
+          >
+            Kontoauszug (PDF)
+          </Button>
         </span>
       </div>
     </section>
