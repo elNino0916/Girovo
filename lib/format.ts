@@ -4,6 +4,15 @@
 export const fmtMoney = (v: number | null | undefined, cur = 'EUR') =>
   new Intl.NumberFormat('de-DE', { style: 'currency', currency: cur }).format(v ?? 0);
 
+/**
+ * A bare amount — no currency symbol, always two decimals.
+ *
+ * What a printed Kontoauszug puts in its amount column: the currency is stated
+ * once in the column head, and the figures stay a clean numeric block.
+ */
+export const fmtDecimal = (v: number | null | undefined) =>
+  new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v ?? 0);
+
 export const fmtDate = (d: Date | string | null | undefined) =>
   d ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(d)) : '';
 

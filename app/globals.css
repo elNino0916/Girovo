@@ -230,12 +230,33 @@
    the app's light/dark theme — a bank statement doesn't have a dark mode. */
 @page {
   size: A4;
-  margin: 16mm 14mm;
+  margin: 14mm 13mm 12mm;
 }
 @media print {
   html,
   body {
     background: #fff !important;
+  }
+  /* Print the sheet's rules and grey bands as designed — browsers drop
+     background fills by default to save ink, which would flatten the whole
+     document into unstructured text. */
+  .sheet,
+  .sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* A multi-page statement repeats its column heads on every sheet, never
+     splits a single booking across the fold, and keeps a heading with the
+     block it introduces. */
+  .sheet thead {
+    display: table-header-group;
+  }
+  .sheet tr,
+  .sheet .keep {
+    break-inside: avoid;
+  }
+  .sheet .keep-next {
+    break-after: avoid;
   }
 }
 
