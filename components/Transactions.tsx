@@ -165,8 +165,8 @@ function TxAvatar({
 
   if (merchant && !broken) {
     return (
-      // A rounded tile rather than the circle used for initials: Wikidata marks
-      // are mostly horizontal wordmarks, which a circle would crop to nothing.
+      // A rounded tile rather than the circle used for initials: some Brandfetch
+      // marks are horizontal wordmarks, which a circle would crop to nothing.
       // It matches the pill the bank's own logo sits in elsewhere in the app.
       // The chip stays light in both themes — company marks are drawn for white
       // backgrounds, and a navy wordmark would vanish on paper ink.

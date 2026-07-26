@@ -4,6 +4,15 @@
 export const fmtMoney = (v: number | null | undefined, cur = 'EUR') =>
   new Intl.NumberFormat('de-DE', { style: 'currency', currency: cur }).format(v ?? 0);
 
+/**
+ * A bare amount — no currency symbol, always two decimals.
+ *
+ * What a printed Kontoauszug puts in its amount column: the currency is stated
+ * once in the column head, and the figures stay a clean numeric block.
+ */
+export const fmtDecimal = (v: number | null | undefined) =>
+  new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v ?? 0);
+
 export const fmtDate = (d: Date | string | null | undefined) =>
   d ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(d)) : '';
 
@@ -77,6 +86,40 @@ export function groupLabel(d: Date | string | null | undefined): string {
     month: 'long',
     ...(sameYear ? {} : { year: 'numeric' }),
   }).format(date);
+}
+
+/**
+ * Sequences that are only produced by reading UTF-8 as Latin-1: a lead byte
+ * followed by the right number of continuation bytes.
+ */
+const UTF8_READ_AS_LATIN1 =
+  /[Â-ß][-¿]|à[ -¿][-¿]|[á-ï][-¿]{2}|ð[-¿][-¿]{2}/;
+
+/**
+ * Repairs text the FinTS transport mis-decoded.
+ *
+ * FinTS 3.0 puts ISO-8859-1 on the wire and lib-fints decodes the whole
+ * response that way. Some banks nonetheless send UTF-8 in newer fields — the
+ * Verification-of-Payee texts are where it shows up — so "Zahlungsempfänger"
+ * arrives as "ZahlungsempfÃ¤nger".
+ *
+ * Only strings that really are UTF-8 wearing a Latin-1 costume are touched:
+ * there must be a valid multi-byte sequence, every character must fit in a
+ * byte, and the re-decode must succeed. Genuine Latin-1 comes back unchanged.
+ */
+export function repairBankText(text: string): string {
+  if (!text || !UTF8_READ_AS_LATIN1.test(text)) return text;
+  const bytes = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code > 0xff) return text; // real Unicode already — not a mis-decode
+    bytes[i] = code;
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return text; // not valid UTF-8 after all
+  }
 }
 
 export function initials(name: string): string {

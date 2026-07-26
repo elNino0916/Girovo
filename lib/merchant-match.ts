@@ -203,30 +203,3 @@ export function bestScore(core: string, labels: Iterable<string>): number {
   }
   return best;
 }
-
-/**
- * Wikidata `instance of` classes that disqualify a hit outright. "Amazon"
- * matches the river before the company on a plain text search, and "Shell"
- * matches films and albums.
- */
-export const TYPE_DENYLIST = new Set([
-  'Q5',        // human
-  'Q4022',     // river
-  'Q515',      // city
-  'Q486972',   // human settlement
-  'Q1549591',  // big city
-  'Q6256',     // country
-  'Q3624078',  // sovereign state
-  'Q11424',    // film
-  'Q7366',     // song
-  'Q482994',   // album
-  'Q134556',   // single
-  'Q7889',     // video game
-  'Q571',      // book
-  'Q8261',     // novel
-  'Q3305213',  // painting
-  'Q11446',    // ship
-  'Q34770',    // language
-  'Q1656682',  // event
-  'Q16521',    // taxon
-]);

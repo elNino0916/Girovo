@@ -3,11 +3,14 @@
 import type { AccountBalance, ClientResponse, Statement } from 'lib-fints';
 import type { TanMethod } from './fints-types';
 import { lookupBlz } from './banks';
+import { repairBankText } from './format';
 import { INSTANT_SEG, TRANSFER_SEG } from './fints-sepa';
 import { PENDING_SEG } from './fints-pending';
 import type {
-  SerializedAccount, SerializedBalance, SerializedTanMethod, SerializedTransaction, TanRequired,
+  SerializedAccount, SerializedBalance, SerializedTanMethod, SerializedTransaction,
+  SerializedVop, TanRequired,
 } from './fints-types';
+import type { VopResult } from './fints-vop';
 import type { Session } from './session';
 
 export function serializeTanMethod(m: TanMethod): SerializedTanMethod {
@@ -34,6 +37,20 @@ export function accountsFor(s: Session): SerializedAccount[] {
   const bankSupports = (segId: string) => cfg.isTransactionSupported(segId);
   const acctSupports = (a: (typeof accts)[number], segId: string) =>
     !!a.allowedTransactions?.find((t) => t.transId === segId);
+
+  // Diagnostics for "the pending panel doesn't show" reports: unlike HKCCS/
+  // HKIPZ (sending money — genuinely gated bank-wide by product agreement),
+  // HKVMK is a read-only per-account query like HKKAZ/HKSAL, and some banks
+  // don't bother (re-)advertising it in the bank-wide BPD list even though the
+  // account-level UPD grants it. Log both sides so a report of "no pending
+  // panel" can be traced to whichever list is actually missing HKVMK.
+  const bpdIds = (cfg.bankingInformation?.bpd?.allowedTransactions || []).map((t) => t.transId);
+  console.log(`[accounts] BPD transactions: ${bpdIds.join(', ') || '(none)'}`);
+  for (const a of accts) {
+    const acctIds = (a.allowedTransactions || []).map((t) => t.transId);
+    console.log(`[accounts] acct ...${String(a.accountNumber).slice(-4)} UPD transactions: ${acctIds.join(', ') || '(none)'}`);
+  }
+
   return accts.map((a) => ({
     accountNumber: a.accountNumber,
     iban: a.iban || null,
@@ -49,7 +66,9 @@ export function accountsFor(s: Session): SerializedAccount[] {
     canBalance: acctSupports(a, 'HKSAL'),
     canTransfer: bankSupports(TRANSFER_SEG) && acctSupports(a, TRANSFER_SEG) && !!a.iban,
     canInstant: bankSupports(INSTANT_SEG) && acctSupports(a, INSTANT_SEG) && !!a.iban,
-    canPending: bankSupports(PENDING_SEG) && acctSupports(a, PENDING_SEG),
+    // Read-only query (like statements/balance above) — gate on the account's
+    // own UPD grant only, not also on the bank-wide BPD list (see note above).
+    canPending: acctSupports(a, PENDING_SEG),
   }));
 }
 
@@ -152,7 +171,26 @@ export function tanPayload(resp: ClientResponse): TanRequired {
 }
 
 export function bankAnswerText(resp: ClientResponse): string {
-  return (resp.bankAnswers || []).map((a) => `${a.code}: ${a.text}`).join(' | ');
+  return (resp.bankAnswers || [])
+    .map((a) => `${a.code}: ${repairBankText(a.text || '')}`)
+    .join(' | ');
+}
+
+/** The bank's return codes as a set — the VoP flow is steered by these. */
+export function bankAnswerCodes(resp: ClientResponse): Set<number> {
+  return new Set((resp.bankAnswers || []).map((a) => a.code));
+}
+
+export function serializeVop(vop: VopResult, submittedName: string): SerializedVop {
+  return {
+    verdict: vop.verdict,
+    suggestedName: vop.suggestedName,
+    reason: vop.reason,
+    infoText: vop.infoText,
+    submittedName,
+    iban: vop.iban,
+    validTo: vop.validTo,
+  };
 }
 
 // Log the bank's return codes for a response — this is what we need to see the

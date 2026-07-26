@@ -1,17 +1,15 @@
-// Company logo lookup against Wikidata.
+// Company logo lookup against Brandfetch.
 //
-// Wikidata is used because it is genuinely public (no key, no account, no
-// commercial terms), because it already stores the logos this app needs
-// (property P154, files hosted on Wikimedia Commons — the same source as
-// public/logos/), and because it is structured enough to *verify* a match
-// rather than guess one: an entity's `instance of` classes and its parent
-// organisation are queryable, so "Amazon" can be told apart from the river and
-// "DB Vertrieb GmbH" can be walked up to Deutsche Bahn.
+// Brandfetch is used because it is a purpose-built brand-logo service: a Brand
+// Search API for turning a company name into a domain (recall), and a Logo
+// CDN for turning a domain into a crisp, correctly-sized mark (the fetch). It
+// requires a client ID (free, from https://developers.brandfetch.com) but no
+// account is needed to view logos, and no counterparty data is stored on
+// Brandfetch's side beyond the search text itself.
 //
 // Two calls per unresolved batch:
-//   1. wbsearchentities — one per candidate string, for recall.
-//   2. one SPARQL query  — verifies every surviving candidate at once, for
-//      precision: logo, instance-of classes, parent organisation.
+//   1. Brand Search API — one per candidate string, for recall.
+//   2. Logo CDN — one per surviving hit, to fetch the actual image bytes.
 //
 // Nothing is written to disk. Results (including misses) live in a process
 // cache so a name is looked up at most once per server run.
@@ -26,12 +24,12 @@ import 'server-only';
 
 import crypto from 'node:crypto';
 import {
-  TYPE_DENYLIST, bestScore, candidates, looksCorporate,
+  bestScore, candidates, looksCorporate,
 } from './merchant-match';
-import { MERCHANT_LOGOS } from './session';
+import { BRANDFETCH_CLIENT_ID, MERCHANT_LOGOS } from './session';
 
 export type Merchant = {
-  /** Wikidata item the logo came from. */
+  /** Brandfetch brand id the logo came from. */
   id: string;
   /** Display name, for the image's alt text and tooltip. */
   label: string;
@@ -39,34 +37,35 @@ export type Merchant = {
   logo: string;
 };
 
-const SEARCH_API = 'https://www.wikidata.org/w/api.php';
-const SPARQL_API = 'https://query.wikidata.org/sparql';
-
-// Wikimedia requires a descriptive User-Agent identifying the client.
-const USER_AGENT =
-  'Sooskasse-FinTS/2.0 (self-hosted personal banking client; +https://github.com/elNino0916/Sooskasse-FinTS)';
+const SEARCH_API = 'https://api.brandfetch.io/v2/search';
+const LOGO_CDN = 'https://cdn.brandfetch.io';
 
 const REQUEST_TIMEOUT_MS = 6000;
 const MAX_CANDIDATES_PER_NAME = 6;
 const MAX_LOGO_CACHE = 300;
+/** Requested render size, doubled for retina per Brandfetch's own guidance. */
+const LOGO_PX = 128;
+/** Needed only to satisfy the Logo CDN's hotlink check — see fetchLogo(). */
+const BROWSER_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
 // ---------------------------------------------------------------------------
 // Process caches. Pinned to globalThis for the same reason sessions are: Next
-// re-evaluates route modules on hot reload, and re-querying Wikidata for names
-// already resolved would be both slow and needlessly chatty.
+// re-evaluates route modules on hot reload, and re-querying Brandfetch for
+// names already resolved would be both slow and needlessly chatty.
 // ---------------------------------------------------------------------------
 type MerchantGlobal = typeof globalThis & {
   __sooskasseMerchants?: Map<string, Merchant | null>;
   __sooskasseMerchantInflight?: Map<string, Promise<Merchant | null>>;
-  __sooskasseLogoUrls?: Map<string, string>;
+  __sooskasseLogoDomains?: Map<string, string>;
   __sooskasseLogoBytes?: Map<string, { body: Uint8Array; type: string }>;
 };
 const g = globalThis as MerchantGlobal;
 
 const resolved: Map<string, Merchant | null> = (g.__sooskasseMerchants ??= new Map());
 const inflight: Map<string, Promise<Merchant | null>> = (g.__sooskasseMerchantInflight ??= new Map());
-/** logo id → upstream Commons URL. Doubles as the proxy's allowlist. */
-const logoUrls: Map<string, string> = (g.__sooskasseLogoUrls ??= new Map());
+/** logo id → upstream domain. Doubles as the proxy's allowlist. */
+const logoDomains: Map<string, string> = (g.__sooskasseLogoDomains ??= new Map());
 const logoBytes: Map<string, { body: Uint8Array; type: string }> = (g.__sooskasseLogoBytes ??= new Map());
 
 // ---------------------------------------------------------------------------
@@ -75,7 +74,7 @@ const logoBytes: Map<string, { body: Uint8Array; type: string }> = (g.__sooskass
 async function getJson<T>(url: string): Promise<T | null> {
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       cache: 'no-store',
     });
@@ -90,8 +89,8 @@ async function getJson<T>(url: string): Promise<T | null> {
   }
 }
 
-// Wikidata is a shared public service; keep the app to a few requests at a time
-// even when a statement covers dozens of new counterparties.
+// Brandfetch is a metered third-party service; keep the app to a few requests
+// at a time even when a statement covers dozens of new counterparties.
 let active = 0;
 const queue: (() => void)[] = [];
 const MAX_CONCURRENT = 4;
@@ -110,173 +109,53 @@ async function throttled<T>(fn: () => Promise<T>): Promise<T> {
 // ---------------------------------------------------------------------------
 // Step 1 — recall: what could this name be?
 // ---------------------------------------------------------------------------
-type SearchHit = { id: string; label: string; matchedText: string };
-
-async function search(query: string, language: 'de' | 'en'): Promise<SearchHit[]> {
-  const url = `${SEARCH_API}?${new URLSearchParams({
-    action: 'wbsearchentities',
-    search: query,
-    language,
-    uselang: language,
-    type: 'item',
-    limit: String(MAX_CANDIDATES_PER_NAME),
-    format: 'json',
-    origin: '*',
-  })}`;
-
-  type Response = {
-    search?: { id: string; label?: string; match?: { text?: string } }[];
-  };
-  const data = await throttled(() => getJson<Response>(url));
-  return (data?.search || []).map((s) => ({
-    id: s.id,
-    label: s.label || '',
-    matchedText: s.match?.text || s.label || '',
-  }));
-}
-
-// ---------------------------------------------------------------------------
-// Step 2 — precision: is it a company, and what is its logo?
-// ---------------------------------------------------------------------------
-type Verified = {
-  id: string;
-  label: string;
-  types: Set<string>;
-  logoUrl?: string;
-  /** Logo of the parent organisation, for subsidiaries that have none. */
-  parentLogoUrl?: string;
-  parentLabel?: string;
+type SearchHit = {
+  brandId: string;
+  name: string;
+  domain: string;
+  claimed: boolean;
 };
 
-async function verify(ids: string[]): Promise<Map<string, Verified>> {
-  const out = new Map<string, Verified>();
-  if (!ids.length) return out;
-
-  // One query for the whole batch. No transitive P279* closure — requiring a
-  // logo already excludes almost everything that isn't an organisation, and the
-  // denylist catches the rest, so this stays fast and never times out.
-  const values = ids.map((id) => `wd:${id}`).join(' ');
-  const query = `
-    SELECT ?item ?itemLabel ?type ?logo ?parent ?parentLabel ?parentLogo WHERE {
-      VALUES ?item { ${values} }
-      OPTIONAL { ?item wdt:P154 ?logo . }
-      OPTIONAL { ?item wdt:P31 ?type . }
-      OPTIONAL {
-        ?item wdt:P749 ?parent .
-        OPTIONAL { ?parent wdt:P154 ?parentLogo . }
-      }
-      SERVICE wikibase:label { bd:serviceParam wikibase:language "de,en". }
-    }`;
-
-  const url = `${SPARQL_API}?${new URLSearchParams({ query, format: 'json' })}`;
-
-  type Binding = Record<string, { value: string } | undefined>;
-  type Response = { results?: { bindings?: Binding[] } };
-  const data = await throttled(() => getJson<Response>(url));
-  if (!data) return out;
-
-  const qid = (uri: string | undefined) => (uri ? uri.split('/').pop() || '' : '');
-
-  for (const b of data.results?.bindings || []) {
-    const id = qid(b.item?.value);
-    if (!id) continue;
-    const entry = out.get(id) || { id, label: '', types: new Set<string>() };
-    if (b.itemLabel?.value) entry.label = b.itemLabel.value;
-    if (b.type?.value) entry.types.add(qid(b.type.value));
-    if (b.logo?.value) entry.logoUrl = b.logo.value;
-    if (b.parentLogo?.value) entry.parentLogoUrl = b.parentLogo.value;
-    if (b.parentLabel?.value) entry.parentLabel = b.parentLabel.value;
-    out.set(id, entry);
-  }
-  return out;
-}
-
-// ---------------------------------------------------------------------------
-// Picking the usable mark
-// ---------------------------------------------------------------------------
-
-const COMMONS_API = 'https://commons.wikimedia.org/w/api.php';
-
-/** "…/Special:FilePath/DB%20Vertrieb.svg" → "DB Vertrieb.svg" */
-function commonsFilename(url: string): string | null {
-  const tail = url.split('Special:FilePath/')[1];
-  if (!tail) return null;
-  try {
-    return decodeURIComponent(tail.split('?')[0]);
-  } catch {
-    return null;
-  }
-}
-
-/** Width ÷ height for Commons files, in one batched request. */
-async function aspectRatios(urls: string[]): Promise<Map<string, number>> {
-  const out = new Map<string, number>();
-  const byTitle = new Map<string, string>();
-  for (const u of urls) {
-    const f = commonsFilename(u);
-    if (f) byTitle.set(`File:${f}`, u);
-  }
-  if (!byTitle.size) return out;
-
-  const api = `${COMMONS_API}?${new URLSearchParams({
-    action: 'query',
-    titles: [...byTitle.keys()].join('|'),
-    prop: 'imageinfo',
-    iiprop: 'size',
-    format: 'json',
-    origin: '*',
+async function search(query: string): Promise<SearchHit[]> {
+  const url = `${SEARCH_API}/${encodeURIComponent(query)}?${new URLSearchParams({
+    c: BRANDFETCH_CLIENT_ID,
   })}`;
 
-  type Response = {
-    query?: { pages?: Record<string, { title?: string; imageinfo?: { width: number; height: number }[] }> };
+  type Hit = {
+    brandId?: string;
+    name?: string | null;
+    domain?: string;
+    claimed?: boolean;
   };
-  const data = await throttled(() => getJson<Response>(api));
-  for (const page of Object.values(data?.query?.pages || {})) {
-    const info = page.imageinfo?.[0];
-    const url = page.title ? byTitle.get(page.title) : undefined;
-    if (info?.width && info?.height && url) out.set(url, info.width / info.height);
+  const data = await throttled(() => getJson<Hit[]>(url));
+
+  const out: SearchHit[] = [];
+  for (const h of data || []) {
+    if (!h.domain) continue;
+    out.push({
+      brandId: h.brandId || h.domain,
+      name: h.name || h.domain,
+      domain: h.domain,
+      claimed: !!h.claimed,
+    });
+    if (out.length >= MAX_CANDIDATES_PER_NAME) break;
   }
   return out;
 }
 
-// A mark wider than this renders as an illegible sliver in the ~30px tile a
-// transaction row gives it. "DB Vertrieb" is a 120×21 wordmark (5.7:1); the
-// Deutsche Bahn square behind it is what actually reads at that size.
-const MAX_USABLE_ASPECT = 3.5;
-
-/**
- * Choose between a company's own mark and its parent group's.
- *
- * The subsidiary's own logo is the more accurate answer and wins by default —
- * comdirect should not be shown as Commerzbank. But German statements are full
- * of back-office entities whose "logo" is a long horizontal wordmark, and at
- * avatar size the group's mark is the one a person recognises.
- */
-async function pickLogo(v: Verified): Promise<{ url: string; label: string } | null> {
-  const own = v.logoUrl;
-  const parent = v.parentLogoUrl;
-  if (!own) return parent ? { url: parent, label: v.parentLabel || v.label } : null;
-  if (!parent) return { url: own, label: v.label };
-
-  const ratios = await aspectRatios([own, parent]);
-  const ownAspect = ratios.get(own) ?? 1;
-  const parentAspect = ratios.get(parent) ?? 1;
-
-  if (ownAspect > MAX_USABLE_ASPECT && parentAspect < ownAspect) {
-    return { url: parent, label: v.parentLabel || v.label };
-  }
-  return { url: own, label: v.label };
+/** "paypal.com" → "paypal"; used only for scoring, never for lookup. */
+function domainCore(domain: string): string {
+  return domain.split('.')[0] || domain;
 }
 
 // ---------------------------------------------------------------------------
 // Resolution
 // ---------------------------------------------------------------------------
 
-/** Register a Commons URL and return the opaque id the browser will ask for. */
-function registerLogo(commonsUrl: string): string {
-  const https = commonsUrl.replace(/^http:/, 'https:');
-  const id = crypto.createHash('sha1').update(https).digest('hex').slice(0, 20);
-  logoUrls.set(id, https);
+/** Register a domain and return the opaque id the browser will ask for. */
+function registerLogo(domain: string): string {
+  const id = crypto.createHash('sha1').update(domain).digest('hex').slice(0, 20);
+  logoDomains.set(id, domain);
   return id;
 }
 
@@ -284,37 +163,20 @@ async function resolveOne(rawName: string): Promise<Merchant | null> {
   if (!looksCorporate(rawName)) return null;
 
   for (const rung of candidates(rawName)) {
-    const hits = await search(rung.query, 'de');
-    const pool = hits.length ? hits : await search(rung.query, 'en');
-    if (!pool.length) continue;
+    const hits = await search(rung.query);
+    if (!hits.length) continue;
 
-    // Score on what the search actually matched before spending a verification
-    // request: only plausible names are worth checking.
-    const plausible = pool
-      .map((h) => ({ hit: h, score: bestScore(rung.core, [h.label, h.matchedText]) }))
+    // Score on name and bare domain before spending any bytes on a logo fetch:
+    // only a plausible match is worth showing, a wrong logo is worse than none.
+    const plausible = hits
+      .map((h) => ({ hit: h, score: bestScore(rung.core, [h.name, domainCore(h.domain)]) }))
       .filter((c) => c.score >= rung.minScore)
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => (b.score - a.score) || (Number(b.hit.claimed) - Number(a.hit.claimed)));
     if (!plausible.length) continue;
 
-    const verified = await verify(plausible.map((c) => c.hit.id));
-
-    for (const { hit, score } of plausible) {
-      const v = verified.get(hit.id);
-      if (!v) continue;
-      // A thing with no `instance of` at all is too thin to trust.
-      if (!v.types.size) continue;
-      if ([...v.types].some((t) => TYPE_DENYLIST.has(t))) continue;
-
-      // Own mark, or the parent group's when the subsidiary hasn't got one it
-      // can be recognised by — this is what turns "DB Vertrieb GmbH" into the
-      // Deutsche Bahn logo.
-      const picked = await pickLogo(v);
-      if (!picked) continue;
-
-      const label = picked.label || hit.label;
-      console.log(`[merchants] "${rung.core}" → ${label} (${hit.id}, score ${score.toFixed(2)})`);
-      return { id: hit.id, label, logo: registerLogo(picked.url) };
-    }
+    const { hit, score } = plausible[0];
+    console.log(`[merchants] "${rung.core}" → ${hit.name} (${hit.domain}, score ${score.toFixed(2)})`);
+    return { id: hit.brandId, label: hit.name, logo: registerLogo(hit.domain) };
   }
 
   return null;
@@ -325,8 +187,8 @@ async function resolveOne(rawName: string): Promise<Merchant | null> {
  *
  * Never throws and never blocks on a slow lookup for long: a name that can't be
  * resolved — because it isn't a company, because nothing matched confidently,
- * or because Wikidata was unreachable — comes back as null and the UI keeps its
- * plain avatar.
+ * or because Brandfetch was unreachable — comes back as null and the UI keeps
+ * its plain avatar.
  */
 export async function resolveMerchants(names: string[]): Promise<Record<string, Merchant | null>> {
   const out: Record<string, Merchant | null> = {};
@@ -369,14 +231,25 @@ export async function fetchLogo(id: string): Promise<{ body: Uint8Array; type: s
   const cached = logoBytes.get(id);
   if (cached) return cached;
 
-  const url = logoUrls.get(id);
-  if (!url) return null;
+  const domain = logoDomains.get(id);
+  if (!domain) return null;
 
   try {
-    // Commons renders SVG marks to PNG at the requested width, so the browser
-    // gets one predictable raster regardless of how the logo was uploaded.
-    const res = await fetch(`${url}?width=96`, {
-      headers: { 'User-Agent': USER_AGENT },
+    // fallback/404 asks Brandfetch to fail rather than hand back a generic
+    // lettermark placeholder — this app would rather show no logo than a wrong
+    // or made-up one.
+    const url = `${LOGO_CDN}/${encodeURIComponent(domain)}/fallback/404/h/${LOGO_PX}/w/${LOGO_PX}/icon.png` +
+      `?${new URLSearchParams({ c: BRANDFETCH_CLIENT_ID })}`;
+    const res = await fetch(url, {
+      // The CDN is meant for direct <img> embeds and hotlink-blocks anything
+      // that doesn't look like a browser's image request — a bare server
+      // fetch gets 302'd to a docs page instead of the logo, regardless of
+      // the client ID.
+      headers: {
+        'User-Agent': BROWSER_UA,
+        'Sec-Fetch-Dest': 'image',
+        Referer: 'https://cdn.brandfetch.io/',
+      },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       cache: 'no-store',
     });
