@@ -9,8 +9,10 @@
 
 import type { ClientResponse, FinTSClient, Statement } from 'lib-fints';
 import type { CustomerOrderInteraction } from './fints-internals.js';
+import type { VopVerdict } from './fints-vop';
 
 export type { TanMethod } from './fints-internals.js';
+export type { VopVerdict };
 
 // ---------------------------------------------------------------------------
 // lib-fints extensions
@@ -174,9 +176,30 @@ export type BalanceResponse =
   | TanRequired
   | { needsTan: false; accountNumber: string; balance: SerializedBalance | null };
 
+/**
+ * What the Namensabgleich turned up, as shown to the user before the transfer
+ * is authorised. `verdict` is the bank's own comparison of the payee name we
+ * sent against the name behind the IBAN.
+ */
+export type SerializedVop = {
+  verdict: VopVerdict;
+  /** The name the bank holds for that IBAN — sent on a Close Match. */
+  suggestedName: string | null;
+  /** Why no check was possible (Not Applicable). */
+  reason: string | null;
+  /** The bank's legally required explanation; shown verbatim. */
+  infoText: string | null;
+  /** The name we submitted, for a side-by-side comparison. */
+  submittedName: string;
+  iban: string | null;
+  validTo: string | null;
+};
+
 export type TransferResponse =
-  | TanRequired
-  | { needsTan: false; accountNumber: string; transferResult: TransferResult | null; bankAnswers: string };
+  | (TanRequired & { vop?: SerializedVop })
+  /** The bank voided the challenge: the user must confirm the VoP result first. */
+  | { needsVop: true; accountNumber: string; vop: SerializedVop }
+  | { needsTan: false; accountNumber: string; transferResult: TransferResult | null; bankAnswers: string; vop?: SerializedVop };
 
 export type MetaResponse = {
   productRegistered: boolean;

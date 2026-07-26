@@ -2,11 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { fmtIban, fmtMoney, ibanValid, translateType } from '@/lib/format';
+import type { SerializedVop } from '@/lib/fints-types';
 import { useFints } from './FintsProvider';
+import { VopReport, vopNeedsAttention } from './VopResult';
 import { Alert, Button, CloseIcon, Field, IconButton, Input, Overlay, Select, Sheet, cx } from './ui';
 
-/** `awaiting` = the TAN overlay owns the screen; this sheet steps aside. */
-type Step = 'form' | 'review' | 'awaiting' | 'done' | 'unknown';
+/**
+ * `awaiting` = the TAN overlay owns the screen; this sheet steps aside.
+ * `vop` = the bank checked the payee name and voided its own challenge, so
+ * nothing moves until the user decides whether to send it anyway.
+ */
+type Step = 'form' | 'review' | 'vop' | 'awaiting' | 'done' | 'unknown';
 
 type Draft = {
   accountNumber: string;
@@ -19,7 +25,7 @@ type Draft = {
 };
 
 export function TransferSheet({ preselect, onClose }: { preselect: string | null; onClose: () => void }) {
-  const { accounts, submitTransfer, selectAccount, toast } = useFints();
+  const { accounts, submitTransfer, confirmVop, abandonVop, selectAccount, toast } = useFints();
   const eligible = useMemo(() => accounts.filter((a) => a.canTransfer), [accounts]);
 
   const [accountNumber, setAccountNumber] = useState(
@@ -35,6 +41,7 @@ export function TransferSheet({ preselect, onClose }: { preselect: string | null
   const [draft, setDraft] = useState<Draft | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [bankAnswers, setBankAnswers] = useState<string>();
+  const [vop, setVop] = useState<SerializedVop | null>(null);
 
   const account = eligible.find((a) => a.accountNumber === accountNumber);
   const canInstant = !!account?.canInstant;
@@ -79,6 +86,14 @@ export function TransferSheet({ preselect, onClose }: { preselect: string | null
     setStep('review');
   };
 
+  const handlers = {
+    onTanStarted: () => { setSubmitting(false); setStep('awaiting'); },
+    onExecuted: (answers?: string) => { setSubmitting(false); setBankAnswers(answers); setStep('done'); },
+    onUnknown: () => { setSubmitting(false); setStep('unknown'); },
+    onError: (message: string) => { setSubmitting(false); setError(message); },
+    onVop: (result: SerializedVop) => { setSubmitting(false); setVop(result); setStep('vop'); },
+  };
+
   const send = () => {
     if (!draft) return;
     setError(null);
@@ -92,13 +107,28 @@ export function TransferSheet({ preselect, onClose }: { preselect: string | null
         purpose: draft.purpose,
         instant: draft.instant,
       },
-      {
-        onTanStarted: () => { setSubmitting(false); setStep('awaiting'); },
-        onExecuted: (answers) => { setSubmitting(false); setBankAnswers(answers); setStep('done'); },
-        onUnknown: () => { setSubmitting(false); setStep('unknown'); },
-        onError: (message) => { setSubmitting(false); setError(message); },
-      },
+      handlers,
     );
+  };
+
+  /** Send it anyway — the bank's payee-name check has been seen and accepted. */
+  const sendDespiteVop = () => {
+    setError(null);
+    setSubmitting(true);
+    void confirmVop(handlers);
+  };
+
+  /** Drop the parked order. The form keeps its values, so a flagged payee name
+   *  can simply be corrected and sent again. */
+  const dropVop = () => {
+    void abandonVop();
+    setVop(null);
+    setStep('form');
+  };
+
+  const closeAfterVop = () => {
+    void abandonVop();
+    onClose();
   };
 
   const finish = () => {
@@ -118,9 +148,12 @@ export function TransferSheet({ preselect, onClose }: { preselect: string | null
       <Sheet wide>
         <div className="mb-4 flex items-center justify-between">
           <h2 id="transfer-title" className="font-display text-[20px] font-semibold tracking-tight">
-            {step === 'done' ? 'Überweisung ausgeführt' : step === 'unknown' ? 'Status unklar' : 'Überweisung'}
+            {step === 'done' ? 'Überweisung ausgeführt'
+              : step === 'unknown' ? 'Status unklar'
+                : step === 'vop' ? 'Empfänger prüfen'
+                  : 'Überweisung'}
           </h2>
-          <IconButton onClick={onClose} aria-label="Schließen"><CloseIcon /></IconButton>
+          <IconButton onClick={step === 'vop' ? closeAfterVop : onClose} aria-label="Schließen"><CloseIcon /></IconButton>
         </div>
 
         {step === 'form' && (
@@ -225,6 +258,35 @@ export function TransferSheet({ preselect, onClose }: { preselect: string | null
               <Button className="flex-1" onClick={() => setStep('form')}>Zurück</Button>
               <Button className="flex-[2]" variant="primary" busy={submitting} onClick={send}>Jetzt überweisen</Button>
             </div>
+            {error && <Alert>{error}</Alert>}
+          </>
+        )}
+
+        {step === 'vop' && vop && draft && (
+          <>
+            <p className="mb-3.5 text-sm text-ink-2">
+              Die Bank hat den Empfängernamen mit dem Namen zur IBAN abgeglichen. Prüfe das
+              Ergebnis, bevor du {fmtMoney(draft.amountNum)} freigibst.
+            </p>
+
+            <VopReport vop={vop} />
+
+            <div className="flex gap-2.5">
+              <Button className="flex-1" onClick={dropVop}>Zurück</Button>
+              <Button
+                className="flex-[2]"
+                variant="primary"
+                busy={submitting}
+                onClick={sendDespiteVop}
+              >
+                {vopNeedsAttention(vop) ? 'Trotzdem überweisen' : 'Überweisung freigeben'}
+              </Button>
+            </div>
+            {vopNeedsAttention(vop) && (
+              <p className="mt-2.5 text-center text-[12px] text-ink-3">
+                Bei einer Abweichung trägst du das Risiko einer Fehlüberweisung.
+              </p>
+            )}
             {error && <Alert>{error}</Alert>}
           </>
         )}

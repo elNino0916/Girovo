@@ -14,7 +14,8 @@ import { get, post, store } from '@/lib/client-api';
 import type {
   ConnectResponse, Merchant, MerchantsResponse, MetaResponse, PendingResponse,
   SelectTanResponse, SerializedAccount, SerializedBalance, SerializedTanMethod,
-  SerializedTransaction, TanPollResponse, TransactionsResponse, TransferResponse,
+  SerializedTransaction, SerializedVop, TanPollResponse, TransactionsResponse,
+  TransferResponse,
 } from '@/lib/fints-types';
 import type { PopularBank } from '@/lib/banks';
 
@@ -60,14 +61,20 @@ export type WaitState = {
   canRetry: boolean;
   /** Seconds since the approval was requested — makes the wait feel bounded. */
   elapsed: number;
+  /**
+   * A Namensabgleich the bank ran on this order. Present when the challenge
+   * survived the check, so the result has to travel with the approval prompt
+   * rather than getting its own screen.
+   */
+  vop: SerializedVop | null;
 };
 
 const IDLE_WAIT: WaitState = {
   open: false, title: '', text: '', challenge: null,
-  phase: 'waiting', error: null, canRetry: false, elapsed: 0,
+  phase: 'waiting', error: null, canRetry: false, elapsed: 0, vop: null,
 };
 
-type TanGate = { needsTan?: boolean; tanChallenge?: string | null };
+type TanGate = { needsTan?: boolean; tanChallenge?: string | null; vop?: SerializedVop };
 
 type WaitCallbacks = {
   onDone?: (r: TanPollResponse & { status: 'done' }) => void;
@@ -187,6 +194,7 @@ function useFintsState() {
       error: null,
       canRetry: false,
       elapsed: 0,
+      vop: data.vop || null,
     });
 
     stopTimers();
@@ -494,17 +502,50 @@ function useFintsState() {
   }, [stopTimers]);
 
   // ---- transfer -----------------------------------------------------------
+  type TransferHandlers = {
+    onExecuted: (bankAnswers?: string) => void;
+    onUnknown: () => void;
+    onError: (message: string) => void;
+    onTanStarted: () => void;
+    /** The bank checked the payee name and wants an explicit go-ahead. */
+    onVop: (vop: SerializedVop) => void;
+  };
+
+  /** Shared tail of /api/transfer and /api/vop-confirm — the answers match. */
+  const handleTransferAnswer = useCallback((data: TransferResponse, handlers: TransferHandlers) => {
+    if ('needsVop' in data) {
+      setBusy(false);
+      handlers.onVop(data.vop);
+      return;
+    }
+    if ('needsTan' in data && data.needsTan) {
+      handlers.onTanStarted();
+      startDecoupledWait(decoupledMethod(), data, {
+        onDone: (r) => {
+          setBusy(false);
+          handlers.onExecuted(r.kind === 'transfer' ? r.bankAnswers : undefined);
+        },
+        retry: null,
+        onDialogEnded: () => {
+          setBusy(false);
+          closeWait();
+          handlers.onUnknown();
+        },
+      }, { title: 'Überweisung freigeben' });
+      return;
+    }
+    if ('bankAnswers' in data) {
+      setBusy(false);
+      handlers.onExecuted(data.bankAnswers);
+    }
+  }, [startDecoupledWait, decoupledMethod, closeWait]);
+
   const submitTransfer = useCallback(async (
     payload: {
       accountNumber: string; recipientName: string; iban: string;
       amount: string; purpose: string; instant: boolean;
     },
-    handlers: {
-      onExecuted: (bankAnswers?: string) => void;
-      onUnknown: () => void;
-      onError: (message: string) => void;
-      onTanStarted: () => void;
-    },
+    handlers: TransferHandlers,
   ) => {
     if (busyRef.current) {
       handlers.onError('Bitte warten — ein anderer Vorgang läuft noch.');
@@ -515,30 +556,34 @@ function useFintsState() {
       const data = await post<TransferResponse>('/api/transfer', {
         sessionId: sessionRef.current, ...payload,
       });
-
-      if ('needsTan' in data && data.needsTan) {
-        handlers.onTanStarted();
-        startDecoupledWait(decoupledMethod(), data, {
-          onDone: (r) => {
-            setBusy(false);
-            handlers.onExecuted(r.kind === 'transfer' ? r.bankAnswers : undefined);
-          },
-          retry: null,
-          onDialogEnded: () => {
-            setBusy(false);
-            closeWait();
-            handlers.onUnknown();
-          },
-        }, { title: 'Überweisung freigeben' });
-      } else if ('bankAnswers' in data) {
-        setBusy(false);
-        handlers.onExecuted(data.bankAnswers);
-      }
+      handleTransferAnswer(data, handlers);
     } catch (err) {
       setBusy(false);
       handlers.onError((err as Error).message);
     }
-  }, [startDecoupledWait, decoupledMethod, closeWait]);
+  }, [handleTransferAnswer]);
+
+  /**
+   * "Send it anyway" after a Namensabgleich flagged the payee name. The server
+   * still holds the original order and replays it with the bank's VOP-ID; the
+   * bank then issues a fresh challenge, so this lands back in the TAN wait.
+   */
+  const confirmVop = useCallback(async (handlers: TransferHandlers) => {
+    setBusy(true);
+    try {
+      const data = await post<TransferResponse>('/api/vop-confirm', { sessionId: sessionRef.current });
+      handleTransferAnswer(data, handlers);
+    } catch (err) {
+      setBusy(false);
+      handlers.onError((err as Error).message);
+    }
+  }, [handleTransferAnswer]);
+
+  /** Drop a transfer the user decided not to send after seeing the check. */
+  const abandonVop = useCallback(async () => {
+    setBusy(false);
+    try { await post('/api/cancel-pending', { sessionId: sessionRef.current }); } catch { /* best effort */ }
+  }, []);
 
   /** Drop the cache for one account and re-read it from the bank. */
   const refreshAccount = useCallback((account: SerializedAccount, from?: string, to?: string) => {
@@ -583,7 +628,8 @@ function useFintsState() {
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     // actions
     setView, setBank, connect, chooseTanMethod, selectAccount, loadTransactions,
-    refreshAccount, loadPending, submitTransfer, forgetDevice, logout, toast,
+    refreshAccount, loadPending, submitTransfer, confirmVop, abandonVop,
+    forgetDevice, logout, toast,
     retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
   };
 }

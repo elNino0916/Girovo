@@ -12,6 +12,7 @@ export { Binary } from '../node_modules/lib-fints/dist/types/dataElements/Binary
 export { Numeric } from '../node_modules/lib-fints/dist/types/dataElements/Numeric.js';
 export { YesNo } from '../node_modules/lib-fints/dist/types/dataElements/YesNo.js';
 export { AccountGroup } from '../node_modules/lib-fints/dist/types/dataGroups/Account.js';
+export { DataGroup } from '../node_modules/lib-fints/dist/types/dataGroups/DataGroup.js';
 export { InternationalAccountGroup } from '../node_modules/lib-fints/dist/types/dataGroups/InternationalAccount.js';
 export { CustomerOrderInteraction } from '../node_modules/lib-fints/dist/types/interactions/customerInteraction.js';
 export { TanMediaInteraction } from '../node_modules/lib-fints/dist/types/interactions/tanMediaInteraction.js';
