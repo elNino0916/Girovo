@@ -16,7 +16,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FinTSClient } from 'lib-fints';
-import type { BankMeta, FinTSClientEx } from './fints-types';
+import type { BankMeta, FinTSClientEx, SerializedVop } from './fints-types';
+import type { TransferOrder } from './fints-sepa';
 import { saveProfile } from './state-store';
 
 /**
@@ -97,11 +98,33 @@ export type PendingOperation =
   | { type: 'balance' | 'statements' | 'pending'; tanReference?: string; accountNumber: string }
   | { type: 'transfer'; tanReference?: string; accountNumber: string; segId: string };
 
+/**
+ * A transfer parked between the Namensabgleich and the customer's decision.
+ *
+ * The bank has checked the payee name and voided the TAN challenge (return code
+ * 3945); the order goes out again with HKVPA once the user has seen the result.
+ * That re-submission must repeat the *identical* pain.001, so the built message
+ * is kept here rather than regenerated — see lib/fints-vop.ts.
+ */
+export type VopHold = {
+  vopId: string;
+  accountNumber: string;
+  segId: string;
+  instant: boolean;
+  transfer: TransferOrder;
+  descriptor: string;
+  sepaMessage: string;
+  vop: SerializedVop;
+  createdAt: number;
+};
+
 export type Session = {
   id: string;
   client: FinTSClientEx;
   meta: BankMeta;
   pending: PendingOperation | null;
+  /** Set only while a transfer waits for the user to accept a VoP result. */
+  vopHold: VopHold | null;
   lastSeen: number;
   deviceSaved?: boolean;
 };
@@ -128,7 +151,7 @@ if (!g.__sooskasseSweeper) {
 
 export function newSession(client: FinTSClientEx, meta: BankMeta): string {
   const id = crypto.randomBytes(24).toString('hex');
-  sessions.set(id, { id, client, meta, pending: null, lastSeen: Date.now() });
+  sessions.set(id, { id, client, meta, pending: null, vopHold: null, lastSeen: Date.now() });
   return id;
 }
 

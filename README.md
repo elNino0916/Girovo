@@ -32,6 +32,11 @@ plus, …) where you approve directly in your banking app.
 - **SEPA-Überweisung** (HKCCS) and **Echtzeitüberweisung** (HKIPZ) with IBAN
   check-digit validation, review step and TAN approval. Only offered when the
   bank/account actually supports it (BPD/UPD).
+- **Verification of Payee** (Namensabgleich via `HKVPP`/`HKVPA`) — where the
+  bank offers it, the payee name is checked against the name behind the IBAN
+  before you authorise. Match, Close Match, No Match and Not Applicable each
+  get their own screen, with the bank's own explanatory text shown verbatim and
+  an explicit "trotzdem überweisen" for a name that doesn't line up.
 - **Company logos on transactions** — counterparties are matched against
   [Brandfetch](https://brandfetch.com) so `PayPal Europe S.a.r.l et Cie S.C.A.`
   shows the PayPal mark. A match has to clear a deliberately high bar; anything
@@ -91,9 +96,10 @@ traffic and therefore being blocked by your bank's infrastructure.
 
 | File | Purpose |
 |------|---------|
-| `app/api/*/route.ts` | The 15 Node-runtime route handlers. Each one is thin: validate → call the session's `FinTSClient` → serialise. Decoupled TAN operations are continued via `/api/tan-poll`. |
+| `app/api/*/route.ts` | The Node-runtime route handlers. Each one is thin: validate → call the session's `FinTSClient` → serialise. Decoupled TAN operations are continued via `/api/tan-poll`. |
 | `lib/session.ts` | Product registration (`config.json` / `FINTS_PRODUCT_ID`) and the in-memory session store. Pinned to `globalThis` so hot reload doesn't drop logged-in users; 30-minute idle sweep. |
-| `lib/fints-sepa.ts` | Adds the transfer segments **HKCCS**/**HKIPZ** (lib-fints is read-only out of the box): segment definitions, pain.001 XML builder (001.001.03 / 001.003.03 / 001.001.09), SEPA character-set sanitizing, IBAN/BIC/amount validation. |
+| `lib/fints-sepa.ts` | Adds the transfer segments **HKCCS**/**HKIPZ** (lib-fints is read-only out of the box): segment definitions, pain.001 XML builder (001.001.03 / 001.003.03 / 001.001.09), SEPA character-set sanitizing, IBAN/BIC/amount validation. The descriptor is picked per segment — HKIPZ has its own format list in **HIIPZS**, HKCCS falls back to the bank-wide one in **HISPAS**. |
+| `lib/fints-vop.ts` | Adds **HKVPP**/**HKVPA** (Namensabgleich — Verification of Payee): segment definitions, a collector that merges a result delivered over several messages (Aufsetzpunkt, return code 3040) incl. a pain.002 fallback, the HIVPPS lookup that says which transactions the bank checks, and the return codes that steer the flow (3090/3091/3945/9076). |
 | `lib/fints-pending.ts` | Adds **HKVMK** (Vormerkposten / pending entries): segment definitions + a `PendingInteraction` that parses the returned **MT942** with lib-fints' MT940 parser (MT942 reuses the `:61:`/`:86:` entry format). |
 | `lib/fints-internals.js` + `.d.ts` | Re-exports the lib-fints internals its `exports` map hides (segment definitions, data elements, `registerSegmentDefinition`). Kept as one shim so the library's segment registry stays a single module instance — see the note in `next.config.ts`. |
 | `lib/banks.ts` | Institute database (`banks-data.json`, regenerate via `npm run update-banks`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search, brand detection for logos. |
@@ -120,7 +126,8 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `POST /api/balance` | Kontostand for one account |
 | `POST /api/transactions` | Umsätze (optional date range) |
 | `POST /api/pending` | Vorgemerkte Umsätze (HKVMK; on-demand) |
-| `POST /api/transfer` | SEPA-Überweisung (`instant: true` → HKIPZ) |
+| `POST /api/transfer` | SEPA-Überweisung (`instant: true` → HKIPZ); answers `needsVop` when a Namensabgleich needs the user's decision |
+| `POST /api/vop-confirm` | Send the parked transfer anyway, confirming the Namensabgleich result (HKVPA) |
 | `POST /api/merchants` | Resolve counterparty names to company logos (Brandfetch) |
 | `GET  /api/merchant-logo?id=` | Proxy a resolved logo; only ids this process minted |
 | `GET  /api/device-status` | Whether a remembered device exists for (BLZ, user) |
@@ -216,6 +223,14 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 - You need a bank contract with **FinTS/HBCI access enabled** and a TAN app.
 - Transfers require the bank to offer HKCCS/HKIPZ over FinTS for your account —
   the UI greys the option out otherwise.
+- The Namensabgleich runs only where the bank advertises HKVPP/HKVPA and lists
+  the transfer type in HIVPPS. Banks that deliver the result across several
+  round trips (return code 3040) are followed for up to four extra check
+  requests; beyond that the app reports "Prüfung läuft noch" rather than
+  hammering the endpoint. The bank's requested pause between requests is not
+  honoured — see the note on `MAX_VOP_POLLS` in `lib/fints-vop.ts`.
+- Opt-Out (`HKVOO`, waiving the name check) is a business-customer feature for
+  Sammelaufträge and is not implemented.
 - If the bank closes the dialog during a transfer approval, the app shows
   **„Status unklar“** and asks you to check the Umsätze before retrying —
   never blindly resend a transfer.

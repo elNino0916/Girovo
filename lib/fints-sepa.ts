@@ -16,17 +16,25 @@
 // dialog layer automatically attaches the HKTAN handshake because HIPINS marks
 // both transactions as TAN-required. Registering the definitions requires the
 // (patched) export of registerSegmentDefinition — see patches/.
+//
+// Where the bank runs a Namensabgleich (Verification of Payee) the order also
+// carries HKVPP or HKVPA in the same message; that half lives in fints-vop.ts.
 
 import type { FinTSConfig, Message, Segment } from 'lib-fints';
 import {
   SegmentDefinition,
   AlphaNumeric,
   Binary,
+  DataGroup,
+  Numeric,
   InternationalAccountGroup,
   CustomerOrderInteraction,
   registerSegmentDefinition,
 } from './fints-internals.js';
 import type { ClientResponseWithResult, TransferResult } from './fints-types';
+import {
+  VopCollector, isVopRequired, queueVopPoll, reportDelivery, vopAuthSegment, vopCheckSegment,
+} from './fints-vop';
 
 class HKCCS extends SegmentDefinition {
   static Id = 'HKCCS';
@@ -50,8 +58,31 @@ class HKIPZ extends SegmentDefinition {
   ];
 }
 
+/**
+ * HIIPZS (BPD) — the Echtzeitüberweisung parameters. Only registered so that
+ * `supportedFormats` becomes readable; lib-fints ignores parameter segments it
+ * has no definition for, which left pickSepaDescriptor guessing for HKIPZ.
+ * Elements are optional throughout: this is decoded during dialog
+ * initialisation, where a decoder throw would cost the whole login.
+ */
+class HIIPZS extends SegmentDefinition {
+  static Id = 'HIIPZS';
+  constructor() { super(HIIPZS.Id); }
+  version = 1;
+  elements = [
+    new Numeric('maxTrans', 0, 1, 3),
+    new Numeric('minSigs', 0, 1, 1),
+    new Numeric('secClass', 0, 1, 1),
+    new DataGroup('params', [
+      new AlphaNumeric('purposeCodes', 0, 1, 4096),
+      new AlphaNumeric('supportedFormats', 0, 9, 256),
+    ], 0, 1),
+  ];
+}
+
 registerSegmentDefinition(new HKCCS());
 registerSegmentDefinition(new HKIPZ());
+registerSegmentDefinition(new HIIPZS());
 
 export const TRANSFER_SEG = HKCCS.Id;
 export const INSTANT_SEG = HKIPZ.Id;
@@ -130,21 +161,45 @@ const centsToDecimal = (cents: number) => `${Math.floor(cents / 100)}.${String(c
 const xmlEscape = (s: string) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] as string));
 
-// Pick the SEPA descriptor the bank advertises in HISPAS; prefer the pain.001
-// versions we can generate, newest German usage first.
-export function pickSepaDescriptor(config: FinTSConfig): string {
-  const params = config.getTransactionParameters<{ supportedSepaFormats?: string[] }>('HKSPA');
-  const formats = params?.supportedSepaFormats || [];
-  for (const wanted of ['pain.001.001.03', 'pain.001.003.03', 'pain.001.001.09']) {
-    const hit = formats.find((f) => f.includes(wanted));
-    if (hit) return hit;
+const DEFAULT_DESCRIPTOR = 'urn:iso:std:iso:20022:tech:xsd:pain.001.001.03';
+
+// The pain.001 flavours this builder can produce, most widely accepted first.
+const SUPPORTED_PAIN = ['pain.001.001.03', 'pain.001.003.03', 'pain.001.001.09'];
+
+/**
+ * Pick a SEPA descriptor the bank actually accepts for this order.
+ *
+ * Two lists can carry them and they are not interchangeable: HKIPZ
+ * (Echtzeitüberweisung) has its own list in HIIPZS, while HKCCS has none of its
+ * own — HICCSS carries no format list at all — so it falls back to the bank-wide
+ * one in HISPAS. Offering a descriptor from the wrong list is what a bank
+ * answers with 3999 "Pain Nachricht nicht zugelassen".
+ */
+export function pickSepaDescriptor(config: FinTSConfig, segId: string = TRANSFER_SEG): string {
+  const instantFormats = segId === INSTANT_SEG
+    ? config.getTransactionParameters<{ supportedFormats?: string[] }>(INSTANT_SEG)?.supportedFormats
+    : undefined;
+  const sepaFormats = config
+    .getTransactionParameters<{ supportedSepaFormats?: string[] }>('HKSPA')?.supportedSepaFormats;
+
+  for (const formats of [instantFormats, sepaFormats]) {
+    const known = (formats || []).filter(Boolean) as string[];
+    if (!known.length) continue;
+    for (const wanted of SUPPORTED_PAIN) {
+      const hit = known.find((f) => f.includes(wanted));
+      if (hit) return hit;
+    }
+    // The bank advertises formats but none we can build — say so rather than
+    // silently sending a descriptor that will be rejected.
+    console.warn(`[sepa] ${segId}: bank offers ${known.join(', ')} — none supported, falling back`);
   }
-  return 'urn:iso:std:iso:20022:tech:xsd:pain.001.001.03';
+  return DEFAULT_DESCRIPTOR;
 }
 
+/** `urn:…:pain.001.001.03` → `001.001.03`. */
 function painVersionOf(descriptor: string): string {
-  const m = /pain\.001\.(\d{3})\.(\d{2})/.exec(descriptor);
-  return m ? `001.${m[1]}.${m[2]}` : '001.001.03';
+  const m = /pain\.(001\.\d{3}\.\d{2})/.exec(descriptor);
+  return m ? m[1] : '001.001.03';
 }
 
 export type Pain001Input = {
@@ -166,7 +221,12 @@ export type Pain001Input = {
  */
 export function buildPain001({ descriptor, debtorName, debtorIban, debtorBic, creditorName, creditorIban, creditorBic, amountCents, purpose, endToEndId }: Pain001Input): string {
   const painVersion = painVersionOf(descriptor);
-  const ns = `urn:iso:std:iso:20022:tech:xsd:pain.${painVersion.slice(4)}`;
+  // For pain messages the FinTS descriptor *is* the XML target namespace, so it
+  // is used verbatim; only a non-urn descriptor (an old `sepade.…xsd` style
+  // name) needs the namespace rebuilt from the version.
+  const ns = descriptor.startsWith('urn:')
+    ? descriptor
+    : `urn:iso:std:iso:20022:tech:xsd:pain.${painVersion}`;
   const isV09 = painVersion === '001.001.09';
   const bicTag = isV09 ? 'BICFI' : 'BIC';
 
@@ -191,7 +251,7 @@ export function buildPain001({ descriptor, debtorName, debtorIban, debtorBic, cr
 
   return (
     `<?xml version="1.0" encoding="UTF-8"?>` +
-    `<Document xmlns="${ns}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="${ns} pain.${painVersion.slice(4)}.xsd">` +
+    `<Document xmlns="${ns}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="${ns} pain.${painVersion}.xsd">` +
     `<CstmrCdtTrfInitn>` +
     `<GrpHdr>` +
     `<MsgId>${msgId}</MsgId>` +
@@ -226,6 +286,20 @@ export function buildPain001({ descriptor, debtorName, debtorIban, debtorBic, cr
   );
 }
 
+/**
+ * Segment ids of a bank response, marking the ones lib-fints could not parse
+ * with `(?)` — those arrive as "unknown" segments and carry only raw data, so
+ * this is the quickest way to see a segment definition that doesn't fit.
+ */
+function describeSegments(response: Message): string {
+  return response.segments
+    .map((seg) => {
+      const original = (seg as { originalId?: string }).originalId;
+      return original ? `${original}(?)` : seg.header.segId;
+    })
+    .join(', ');
+}
+
 export type TransferOrder = {
   creditorName: string;
   creditorIban: string;
@@ -238,21 +312,60 @@ export type TransferOrder = {
 // ---------------------------------------------------------------------------
 // The customer interaction driving HKCCS / HKIPZ
 // ---------------------------------------------------------------------------
+/**
+ * How the Namensabgleich rides along with this order (see fints-vop.ts):
+ *   'auto'     — attach HKVPP when the bank checks this transaction
+ *   { vopId }  — the re-submission: same pain, now confirmed with HKVPA
+ */
+export type VopMode = 'auto' | { vopId: string };
+
 export class SepaTransferInteraction extends CustomerOrderInteraction {
   accountNumber: string;
   transfer: TransferOrder;
   instant: boolean;
+  vopMode: VopMode;
+
+  /**
+   * The exact SEPA descriptor and pain.001 that went to the bank. A VoP
+   * re-submission must repeat the original message byte for byte (the bank
+   * answers 9010 "Auftrag weicht vom Ursprungsauftrag ab" otherwise), and the
+   * builder stamps a fresh message id and timestamp on every call — so the
+   * result is captured here and replayed rather than rebuilt.
+   */
+  sepaDescriptor: string | null = null;
+  sepaMessage: string | null = null;
+
+  /**
+   * The Namensabgleich result, gathered across however many messages the bank
+   * takes to deliver it. Read this rather than the ClientResponse: when the bank
+   * uses the Aufsetzpunkt mechanism the VOP-ID only arrives in a later message,
+   * whose response is not the one `startCustomerOrderInteraction` hands back.
+   */
+  vop: VopCollector | null = null;
 
   /**
    * @param accountNumber debtor account (must exist in the UPD)
    * @param transfer the order to send
    * @param instant  true → HKIPZ (Echtzeitüberweisung), false → HKCCS
+   * @param vopMode  how to handle the Namensabgleich
+   * @param prebuilt the pain.001 to replay, when re-submitting for a HKVPA
    */
-  constructor(accountNumber: string, transfer: TransferOrder, instant: boolean) {
+  constructor(
+    accountNumber: string,
+    transfer: TransferOrder,
+    instant: boolean,
+    vopMode: VopMode = 'auto',
+    prebuilt?: { descriptor: string; sepaMessage: string },
+  ) {
     super(instant ? HKIPZ.Id : HKCCS.Id, instant ? 'HIIPZ' : 'HICCS');
     this.accountNumber = accountNumber;
     this.transfer = transfer;
     this.instant = instant;
+    this.vopMode = vopMode;
+    if (prebuilt) {
+      this.sepaDescriptor = prebuilt.descriptor;
+      this.sepaMessage = prebuilt.sepaMessage;
+    }
   }
 
   createSegments(config: FinTSConfig): Segment[] {
@@ -264,29 +377,60 @@ export class SepaTransferInteraction extends CustomerOrderInteraction {
       throw Error(`Account ${this.accountNumber} has no IBAN in the UPD — cannot build a SEPA transfer`);
     }
     const version = config.getMaxSupportedTransactionVersion(this.segId) ?? 1;
-    const descriptor = pickSepaDescriptor(config);
 
-    const debtorName = sepaSanitize([account.holder1, account.holder2].filter(Boolean).join(' '), 70) || 'Auftraggeber';
-    const sepaMessage = buildPain001({
-      descriptor,
-      debtorName,
-      debtorIban: account.iban,
-      debtorBic: this.transfer.debtorBic || undefined,
-      creditorName: this.transfer.creditorName,
-      creditorIban: this.transfer.creditorIban,
-      creditorBic: this.transfer.creditorBic || undefined,
-      amountCents: this.transfer.amountCents,
-      purpose: this.transfer.purpose,
-    });
+    if (!this.sepaMessage || !this.sepaDescriptor) {
+      const descriptor = pickSepaDescriptor(config, this.segId);
+      const debtorName = sepaSanitize([account.holder1, account.holder2].filter(Boolean).join(' '), 70) || 'Auftraggeber';
+      this.sepaDescriptor = descriptor;
+      this.sepaMessage = buildPain001({
+        descriptor,
+        debtorName,
+        debtorIban: account.iban,
+        debtorBic: this.transfer.debtorBic || undefined,
+        creditorName: this.transfer.creditorName,
+        creditorIban: this.transfer.creditorIban,
+        creditorBic: this.transfer.creditorBic || undefined,
+        amountCents: this.transfer.amountCents,
+        purpose: this.transfer.purpose,
+      });
+      console.log(`[sepa] ${this.segId} v${version} descriptor=${descriptor}`);
+    }
 
-    return [
+    const segments: Segment[] = [
       {
         header: { segId: this.segId, segNr: 0, version },
         account: { ...account, bic: this.transfer.debtorBic || undefined },
-        sepaDescriptor: descriptor,
-        sepaMessage,
+        sepaDescriptor: this.sepaDescriptor,
+        sepaMessage: this.sepaMessage,
       } as Segment,
     ];
+
+    // The Namensabgleich segment travels in the same message as the order.
+    if (typeof this.vopMode === 'object') {
+      segments.push(vopAuthSegment(config, this.vopMode.vopId));
+    } else if (this.vopMode === 'auto' && isVopRequired(config, this.segId)) {
+      this.vop = new VopCollector(this.transfer.creditorName, reportDelivery(config));
+      segments.push(vopCheckSegment(config));
+    }
+    return segments;
+  }
+
+  /**
+   * The Namensabgleich result arrives *with* the TAN challenge, and lib-fints
+   * only calls handleResponse once a request has come through without one — so
+   * HIVPP is read here, where every response passes. A bank that has more to
+   * send gets another bare check request queued behind this one.
+   */
+  handleClientResponse(response: Message): ClientResponseWithResult {
+    const clientResponse = super.handleClientResponse(response) as ClientResponseWithResult;
+    if (this.vop) {
+      // Segment ids only — enough to tell a HIVPP that was parsed from one that
+      // fell through as an unknown segment, without logging any of its content.
+      console.log(`[vop] response segments: ${describeSegments(response)}`);
+      this.vop.absorb(response);
+      queueVopPoll(this, response, this.vop);
+    }
+    return clientResponse;
   }
 
   handleResponse(response: Message, clientResponse: ClientResponseWithResult): void {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useFints } from './FintsProvider';
+import { VopBadge } from './VopResult';
 import { Alert, Button, Overlay, Sheet, Spinner } from './ui';
 
 /**
@@ -24,6 +25,10 @@ export function TanWaitOverlay() {
           {confirmed ? 'Freigabe bestätigt' : wait.title}
         </h2>
         <p className="mt-1.5 text-sm text-ink-2">{confirmed ? 'Daten werden geladen …' : wait.text}</p>
+
+        {/* The bank kept the challenge alive through its Namensabgleich, so
+            the result rides along with the approval prompt. */}
+        {wait.vop && <VopBadge vop={wait.vop} />}
 
         {wait.challenge && (
           <p className="num mx-auto mt-3.5 max-w-[340px] rounded-[9px] bg-inset px-3.5 py-2.5 text-[13px] text-ink-2">
