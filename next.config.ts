@@ -1,5 +1,7 @@
 import type { NextConfig } from 'next';
 
+import pkg from './package.json' with { type: 'json' };
+
 // Sooskasse-FinTS runs as ONE long-lived Node process.
 //
 // Every logged-in user is a live `FinTSClient` with an open FinTS dialog held in
@@ -18,6 +20,11 @@ const nextConfig: NextConfig = {
   // runtime; keep them traced into a standalone build.
   outputFileTracingIncludes: {
     '/api/**/*': ['./banks-data.json', './config.json'],
+  },
+  // Printed documents name the generator and its version, so the client needs
+  // the one number that is otherwise only in package.json.
+  env: {
+    NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
 };
 

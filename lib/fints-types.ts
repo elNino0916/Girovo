@@ -209,7 +209,18 @@ export type MetaResponse = {
 };
 
 /** A counterparty recognised as a company, with a logo to show for it. */
-export type Merchant = { id: string; label: string; logo: string };
+export type Merchant = {
+  id: string;
+  label: string;
+  logo: string;
+  /**
+   * The payment provider the purchase went through, when the shop was only
+   * identifiable from the Verwendungszweck because the booking's counterparty
+   * was the provider itself. Present exactly when the row shows one company's
+   * mark but the statement names another.
+   */
+  via?: { label: string; logo: string };
+};
 
 export type MerchantsResponse = Record<string, Merchant | null>;
 

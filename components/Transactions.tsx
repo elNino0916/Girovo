@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { fmtDate, fmtIban, fmtMoney, groupLabel, initials, isFutureDate, txTime } from '@/lib/format';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
-import { useFints } from './FintsProvider';
+import { useFints, useMerchant } from './FintsProvider';
 import {
   ArrowDownIcon, Button, ClockIcon, CloseIcon, IconButton, Overlay, RefreshIcon,
   SearchIcon, SkeletonRow, cx,
@@ -105,11 +105,10 @@ function TxRow({
   onOpen: () => void;
   tone?: 'booked' | 'pending';
 }) {
-  const { merchants } = useFints();
   const credit = tx.amount >= 0;
   const name = tx.remoteName || tx.bookingText || 'Buchung';
   const desc = tx.purpose || (tx.remoteName ? tx.bookingText : '') || '';
-  const merchant = merchants[(tx.remoteName || '').trim()];
+  const merchant = useMerchant(tx);
   // A Buchungstag the bank has stamped ahead of today — the entry is real and
   // value-dated, but it hasn't been booked yet.
   const futureBooking = tone === 'booked' && isFutureDate(tx.entryDate);
@@ -149,6 +148,35 @@ function TxRow({
 }
 
 /**
+ * The payment provider a purchase went through, notched into the corner of the
+ * shop's mark.
+ *
+ * It exists to answer a question the row otherwise raises: the statement names
+ * PayPal, the row shows G2A. Small and secondary on purpose — the shop is what
+ * the row is about, and the provider is only how the money got there. It
+ * disappears rather than falling back to a monogram, since a badge nobody can
+ * read is worse than no badge.
+ */
+function ViaBadge({ via }: { via: NonNullable<Merchant['via']> }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) return null;
+  return (
+    <span
+      aria-hidden
+      className="absolute -right-1 -bottom-1 flex size-[15px] items-center justify-center overflow-hidden rounded-full border-2 border-surface bg-white"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`/api/merchant-logo?id=${via.logo}`}
+        alt=""
+        onError={() => setBroken(true)}
+        className="max-h-full max-w-full object-contain"
+      />
+    </span>
+  );
+}
+
+/**
  * The company mark when the counterparty was recognised, otherwise the plain
  * avatar. A logo that fails to load falls back too, so a broken image can never
  * replace a transaction's identity with an empty box.
@@ -165,26 +193,33 @@ function TxAvatar({
 
   if (merchant && !broken) {
     return (
-      // A rounded tile rather than the circle used for initials: some Brandfetch
-      // marks are horizontal wordmarks, which a circle would crop to nothing.
-      // It matches the pill the bank's own logo sits in elsewhere in the app.
-      // The chip stays light in both themes — company marks are drawn for white
-      // backgrounds, and a navy wordmark would vanish on paper ink.
+      // The badge has to sit outside the tile: the tile clips its overflow so a
+      // wordmark can't escape it, and the provider mark deliberately does.
       <span
-        title={merchant.label}
-        className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-line bg-white p-[3px]"
+        title={merchant.via ? `${merchant.label} · über ${merchant.via.label}` : merchant.label}
+        className="relative shrink-0"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={`/api/merchant-logo?id=${merchant.logo}`}
-          alt=""
-          onError={() => setBroken(true)}
-          // Bounded on both axes so a tall mark letterboxes instead of being
-          // cropped by the tile. Deliberately not `loading="lazy"`: an <img>
-          // that is 0×0 until it loads gets skipped by the lazy loader and then
-          // never loads at all.
-          className="max-h-full max-w-full object-contain"
-        />
+        {/* A rounded tile rather than the circle used for initials: some
+            Brandfetch marks are horizontal wordmarks, which a circle would crop
+            to nothing. It matches the pill the bank's own logo sits in
+            elsewhere in the app. The chip stays light in both themes — company
+            marks are drawn for white backgrounds, and a navy wordmark would
+            vanish on paper ink. */}
+        <span className="flex size-9 items-center justify-center overflow-hidden rounded-[10px] border border-line bg-white p-[3px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/api/merchant-logo?id=${merchant.logo}`}
+            alt=""
+            onError={() => setBroken(true)}
+            // Bounded on both axes so a tall mark letterboxes instead of being
+            // cropped by the tile. Deliberately not `loading="lazy"`: an <img>
+            // that is 0×0 until it loads gets skipped by the lazy loader and then
+            // never loads at all.
+            className="max-h-full max-w-full object-contain"
+          />
+        </span>
+
+        {merchant.via && <ViaBadge via={merchant.via} />}
       </span>
     );
   }
@@ -302,9 +337,9 @@ function TransactionDetail({
   pending: boolean;
   onClose: () => void;
 }) {
-  const { toast, merchants, printTransaction } = useFints();
+  const { toast, printTransaction } = useFints();
   const credit = tx.amount >= 0;
-  const merchant = merchants[(tx.remoteName || '').trim()];
+  const merchant = useMerchant(tx);
 
   const rows: [string, string, boolean?][] = [
     ['Empfänger / Auftraggeber', tx.remoteName],
@@ -339,7 +374,7 @@ function TransactionDetail({
         <div className="mb-4 flex items-center justify-between">
           <span className="eyebrow">Umsatzdetails</span>
           <span className="flex items-center gap-1">
-            <Button size="sm" onClick={() => printTransaction(tx)} title="Diesen Umsatz als PDF speichern">
+            <Button size="sm" onClick={() => printTransaction(tx, pending)} title="Diesen Umsatz als PDF speichern">
               Als PDF
             </Button>
             <IconButton onClick={onClose} aria-label="Schließen"><CloseIcon /></IconButton>

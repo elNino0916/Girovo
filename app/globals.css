@@ -146,6 +146,17 @@
     font-variant-ligatures: none;
   }
 
+  /* An IBAN is read one group at a time to be checked against another
+     document, so it gets extra room between characters — and it must never
+     wrap, because a half-IBAN on each of two lines cannot be verified. */
+  .iban {
+    font-family: var(--font-plex-mono), 'Cascadia Mono', Consolas, ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-variant-ligatures: none;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+
   /* The Formular eyebrow: letterspaced caps, like a German form label. */
   .eyebrow {
     font-size: 10.5px;
@@ -225,21 +236,131 @@
   filter: invert(1) hue-rotate(180deg) saturate(1.15);
 }
 
-/* ---------- print (Kontoauszug / receipt PDF export) ----------
-   The printable sheet in Statement.tsx is plain black-on-white regardless of
-   the app's light/dark theme — a bank statement doesn't have a dark mode. */
+/* ---------- printed documents (Kontoauszug / Buchungsbeleg) ----------
+   The design system for the two sheets in Statement.tsx. They are one document
+   family and share everything: a six-step type scale, a 4pt spacing scale, one
+   label rail every block aligns to, and exactly three rules — a strong one to
+   close the letterhead and the footer, a hairline between rows, and a single
+   flat panel for the one figure a receipt is about. No frames, no filled
+   bands, no boxes: structure comes from alignment and space, which is what
+   makes a printed financial document read as authoritative rather than busy.
+
+   Uppercase is reserved for section headings alone. Labels are sentence case —
+   caps on every label is what turns a form into noise. */
+.doc {
+  /* The rail. Every label in the document starts here and every value starts
+     at the same x, across all blocks and both columns. */
+  --doc-rail: 30mm;
+
+  --doc-ink: #16160f;
+  --doc-ink-2: #55554f; /* labels — 7.0:1 on white */
+  --doc-ink-3: #6e6e6a; /* support text — 5.1:1 on white */
+  --doc-rule: #cbcbc4;
+  --doc-panel: #f2f2ef;
+  --doc-debit: #8f1d24;
+  --doc-credit: #0b5c42;
+
+  --t-display: 30px;
+  --t-title: 16px;
+  --t-lead: 12.5px;
+  --t-body: 10px;
+  --t-small: 8.5px;
+  --t-micro: 7.5px;
+
+  --s-1: 2px;
+  --s-2: 4px;
+  --s-3: 6px;
+  --s-4: 8px;
+  --s-5: 12px;
+  --s-6: 16px;
+  --s-7: 24px;
+  --s-8: 32px;
+
+  font-size: var(--t-body);
+  line-height: 1.45;
+  color: var(--doc-ink);
+}
+
+/* The whole type scale, as the only sizes the document may use. */
+.doc-display { font-size: var(--t-display); line-height: 1; }
+.doc-title { font-size: var(--t-title); line-height: 1.1; }
+.doc-lead { font-size: var(--t-lead); line-height: 1.25; }
+.doc-body { font-size: var(--t-body); }
+.doc-small { font-size: var(--t-small); line-height: 1.4; }
+.doc-micro { font-size: var(--t-micro); line-height: 1.35; }
+
+.doc-quiet { color: var(--doc-ink-3); }
+
+/* Sentence case, not caps: a label's job is to be found, not to shout. */
+.doc-label {
+  font-size: var(--t-micro);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--doc-ink-2);
+}
+
+/* The one place uppercase is allowed, so that it still means something. */
+.doc-section {
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.doc-rule {
+  border-top: 1px solid var(--doc-rule);
+}
+.doc-rule-strong {
+  border-top: 1px solid var(--doc-ink);
+}
+
+/* Label rail + value column. `.doc-pairs-2` runs two of them side by side;
+   because both resolve the rail from the same token, the labels of the left
+   and right halves sit on one vertical line. */
+.doc-pairs {
+  display: grid;
+  grid-template-columns: var(--doc-rail) minmax(0, 1fr);
+  column-gap: var(--s-4);
+}
+.doc-pairs-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--s-7);
+}
+/* Two parties compared against one shared rail — labels written once, values
+   in aligned columns, which is how a payment names both sides of itself. */
+.doc-parties {
+  display: grid;
+  grid-template-columns: var(--doc-rail) minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: var(--s-5);
+}
+.doc-pairs > *,
+.doc-parties > * {
+  border-bottom: 1px solid var(--doc-rule);
+  padding: var(--s-3) 0;
+}
+
 @page {
   size: A4;
   margin: 14mm 13mm 12mm;
 }
 @media print {
-  html,
+  /* A dark theme puts `color-scheme: dark` on <html>. Chrome prints with
+     "Background graphics" off by default, which discards the white background
+     below — and the UA then paints the page canvas, including the whole @page
+     margin, with its dark default. That is where the black bars down every
+     edge of the PDF come from. A printed document has no dark mode: force the
+     canvas back to light so the margins stay paper. */
+  html {
+    color-scheme: light !important;
+    background: #fff !important;
+  }
   body {
     background: #fff !important;
   }
-  /* Print the sheet's rules and grey bands as designed — browsers drop
-     background fills by default to save ink, which would flatten the whole
-     document into unstructured text. */
+  /* Print the sheet's rules and its one panel as designed — browsers drop
+     background fills by default to save ink, which would flatten the document
+     into unstructured text. */
   .sheet,
   .sheet * {
     -webkit-print-color-adjust: exact;

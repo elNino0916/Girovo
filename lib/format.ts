@@ -13,6 +13,20 @@ export const fmtMoney = (v: number | null | undefined, cur = 'EUR') =>
 export const fmtDecimal = (v: number | null | undefined) =>
   new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v ?? 0);
 
+/**
+ * A debit's minus sign, as a real minus (U+2212) rather than a hyphen.
+ *
+ * The hyphen Intl emits is narrower than a digit and sits too low, which is
+ * exactly wrong in a column of tabular figures.
+ */
+const properMinus = (s: string) => s.replace('-', '−');
+
+/** Signed amount with currency: "−6,11 €" for a debit, "128,40 €" for a credit. */
+export const fmtSignedMoney = (v: number | null | undefined, cur = 'EUR') => properMinus(fmtMoney(v, cur));
+
+/** Signed bare amount for a statement's amount column: "−6,11" / "128,40". */
+export const fmtSignedDecimal = (v: number | null | undefined) => properMinus(fmtDecimal(v));
+
 export const fmtDate = (d: Date | string | null | undefined) =>
   d ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(d)) : '';
 
@@ -144,6 +158,61 @@ const ACCOUNT_TYPES: Record<string, string> = {
 };
 
 export const translateType = (t: string) => ACCOUNT_TYPES[t] || 'Konto';
+
+// Booking texts arrive from MT940 :86: shouting in caps with the umlauts
+// transliterated ("ONLINE-UEBERWEISUNG"). The words are the bank's own — only
+// their casing is unreadable — so known tokens are restored and everything else
+// is title-cased rather than guessed at.
+const BOOKING_TOKENS: Record<string, string> = {
+  UEBERWEISUNG: 'Überweisung', UEBERTRAG: 'Übertrag', ECHTZEITUEBERWEISUNG: 'Echtzeitüberweisung',
+  DAUERAUFTRAG: 'Dauerauftrag', LASTSCHRIFT: 'Lastschrift', BASISLASTSCHRIFT: 'Basislastschrift',
+  FIRMENLASTSCHRIFT: 'Firmenlastschrift', RUECKLASTSCHRIFT: 'Rücklastschrift',
+  KARTENZAHLUNG: 'Kartenzahlung', KARTENVERFUEGUNG: 'Kartenverfügung',
+  BARGELDAUSZAHLUNG: 'Bargeldauszahlung', GELDAUTOMAT: 'Geldautomat',
+  GUTSCHRIFT: 'Gutschrift', GUTSCHR: 'Gutschrift', UEBERW: 'Überweisung',
+  ENTGELT: 'Entgelt', ENTGELTABSCHLUSS: 'Entgeltabschluss', ABSCHLUSS: 'Abschluss',
+  ZINSEN: 'Zinsen', STORNO: 'Storno', RUECKBUCHUNG: 'Rückbuchung',
+  VERGUETUNG: 'Vergütung', VERMOEGENSWIRKSAME: 'Vermögenswirksame',
+};
+
+/**
+ * A booking text a person can read: "ONLINE-UEBERWEISUNG" → "Online-Überweisung".
+ *
+ * A text the bank already sent in mixed case is left exactly as it is.
+ */
+export function prettyBookingText(raw: string | null | undefined): string {
+  const s = String(raw ?? '').trim();
+  if (!s || s !== s.toUpperCase()) return s;
+  return s
+    .split(/([\s/·+-]+)/)
+    .map((part) => {
+      if (!part || /^[\s/·+-]+$/.test(part)) return part;
+      const known = BOOKING_TOKENS[part];
+      if (known) return known;
+      // Acronyms the bank means as acronyms — SEPA, POS, ATM, EC.
+      if (part.length <= 4 && !/\d/.test(part)) return part;
+      return part[0] + part.slice(1).toLowerCase();
+    })
+    .join('');
+}
+
+/**
+ * The country an IBAN belongs to, named in German.
+ *
+ * Derived from the IBAN's own country prefix — the only geography a booking
+ * actually carries — and resolved through Intl rather than a table that would
+ * go stale.
+ */
+export function ibanCountry(iban: string | null | undefined): { code: string; name: string } | null {
+  const code = String(iban ?? '').replace(/\s+/g, '').slice(0, 2).toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return null;
+  try {
+    const name = new Intl.DisplayNames(['de'], { type: 'region' }).of(code);
+    return name && name !== code ? { code, name } : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Local ISO date (yyyy-mm-dd) for <input type="date"> — never UTC-shifted. */
 export function isoDate(d: Date): string {

@@ -11,6 +11,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { get, post, store } from '@/lib/client-api';
+import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import type {
   ConnectResponse, Merchant, MerchantsResponse, MetaResponse, PendingResponse,
   SelectTanResponse, SerializedAccount, SerializedBalance, SerializedTanMethod,
@@ -47,7 +48,18 @@ export type PrintJob =
       from?: string;
       to?: string;
     }
-  | { kind: 'transaction'; account: SerializedAccount; bank: ChosenBank | null; tx: SerializedTransaction };
+  | {
+      kind: 'transaction';
+      account: SerializedAccount;
+      bank: ChosenBank | null;
+      tx: SerializedTransaction;
+      /** A Vormerkposten: authorised, not yet booked. The receipt must say so. */
+      pending: boolean;
+      /** The account's balance when it was last fetched, for the receipt's account block. */
+      balance: SerializedBalance | null;
+      /** The counterparty's resolved brand, when one was found. */
+      merchant: Merchant | null;
+    };
 
 type WaitPhase = 'waiting' | 'confirmed' | 'error' | 'ended';
 
@@ -279,14 +291,29 @@ function useFintsState() {
   // once per session; the server caches misses too.
   const resolveMerchants = useCallback(async (txs: SerializedTransaction[]) => {
     if (!metaRef.current?.merchantLogos) return;
-    const names = [...new Set(txs.map((t) => (t.remoteName || '').trim()).filter(Boolean))]
-      .filter((n) => !merchantsAsked.current.has(n));
-    if (!names.length) return;
-    names.forEach((n) => merchantsAsked.current.add(n));
+    // Every counterparty is offered, whatever the booking type — a salary from
+    // a named employer deserves its mark too. What the booking decides is only
+    // how much benefit of the doubt the name gets: a direct debit or a card
+    // payment cannot have a private person on the other side, so those names
+    // are flagged and may skip the person veto.
+    const business = new Set(
+      txs.filter(isBusinessBooking).map((t) => (t.remoteName || '').trim()).filter(Boolean),
+    );
+    const items = txs
+      .map((t) => {
+        const name = (t.remoteName || '').trim();
+        const purpose = (t.purpose || '').trim();
+        const key = getMerchantKey(t);
+        return { name, purpose, key };
+      })
+      .filter((item) => item.name && !merchantsAsked.current.has(item.key));
+
+    if (!items.length) return;
+    items.forEach((item) => merchantsAsked.current.add(item.key));
 
     try {
       const found = await post<MerchantsResponse>('/api/merchants', {
-        sessionId: sessionRef.current, names,
+        sessionId: sessionRef.current, items, businessNames: [...business],
       });
       setMerchants((m) => ({ ...m, ...found }));
     } catch { /* a missing logo is not worth surfacing */ }
@@ -612,11 +639,20 @@ function useFintsState() {
     toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
   }, [activeAccount, bank, transactions, balances, toast]);
 
-  const printTransaction = useCallback((tx: SerializedTransaction) => {
+  const printTransaction = useCallback((tx: SerializedTransaction, pending = false) => {
     if (!activeAccount) return;
-    setPrintJob({ kind: 'transaction', account: activeAccount, bank, tx });
+    const key = getMerchantKey(tx);
+    setPrintJob({
+      kind: 'transaction',
+      account: activeAccount,
+      bank,
+      tx,
+      pending,
+      balance: balances[activeAccount.accountNumber] ?? null,
+      merchant: merchants[key] ?? merchants[(tx.remoteName || '').trim()] ?? null,
+    });
     toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
-  }, [activeAccount, bank, toast]);
+  }, [activeAccount, bank, balances, merchants, toast]);
 
   const closePrintJob = useCallback(() => setPrintJob(null), []);
 
@@ -647,6 +683,18 @@ export function useFints(): FintsApi {
   const ctx = useContext(FintsContext);
   if (!ctx) throw new Error('useFints must be used inside <FintsProvider>');
   return ctx;
+}
+
+/**
+ * The brand behind a booking, if one was resolved.
+ *
+ * The single lookup path, so every surface — list row, detail drawer, printed
+ * receipt — asks the same question the same way.
+ */
+export function useMerchant(tx: SerializedTransaction): Merchant | null {
+  const { merchants } = useFints();
+  const key = useMemo(() => getMerchantKey(tx), [tx]);
+  return useMemo(() => merchants[key] ?? merchants[(tx.remoteName || '').trim()] ?? null, [merchants, key, tx.remoteName]);
 }
 
 /** Convenience: the logo filename for a brand, or undefined for a monogram. */
