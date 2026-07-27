@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { get, store } from '@/lib/client-api';
+import { useTitleBarInset } from '@/lib/use-titlebar-inset';
 import { BankLogo } from './BankLogo';
 import { useFints, type BankSearchHit, type ChosenBank } from './FintsProvider';
+import { ThemeToggle } from './ThemeToggle';
 import { Alert, Button, Field, Input, SearchIcon, ShieldIcon } from './ui';
 
 export function Login() {
@@ -244,10 +246,35 @@ function Credentials({
 // Shared chrome
 // ---------------------------------------------------------------------------
 export function AuthCard({ children }: { children: React.ReactNode }) {
+  // No session yet to put a bar over, but the window still needs one: with
+  // no native frame (electron/main.cjs) this is also the only place on the
+  // login screen the user can grab to drag it.
+  const captionInset = useTitleBarInset();
   return (
-    <div className="flex min-h-dvh items-center justify-center px-4 py-8">
-      <div className="panel w-full max-w-[470px] p-6 sm:p-8">
-        {children}
+    <div className="flex min-h-dvh flex-col">
+      <div
+        className="on-bar flex items-center gap-3 bg-bar px-4 text-bar-ink sm:px-6"
+        style={{
+          height: 'var(--barbar-h)',
+          paddingRight: captionInset ? captionInset + 8 : undefined,
+          WebkitAppRegion: 'drag',
+        } as React.CSSProperties}
+      >
+        <span className="font-display text-[17px] leading-none font-semibold tracking-tight">
+          Sooskasse<span className="text-bar-ink-2">-FinTS</span>
+        </span>
+
+        <div className="flex-1" />
+
+        <div style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <ThemeToggle tone="bar" />
+        </div>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center px-4 py-8">
+        <div className="panel w-full max-w-[470px] p-6 sm:p-8">
+          {children}
+        </div>
       </div>
     </div>
   );

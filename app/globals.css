@@ -17,9 +17,11 @@
      Barlow Condensed heads sections; IBM Plex Mono sets every amount, IBAN,
      BLZ and date, with tabular figures so decimal points line up in columns
      the way they do on a printed statement.
-   - Small mono segment codes (HKKAZ, HKCCS, HKVMK …) label capabilities. They
-     are the app's actual subject matter: a feature is missing precisely when
-     the bank doesn't advertise that FinTS segment.
+   - The protocol stays out of the interface. FinTS segment codes and the
+     structured tags inside a Verwendungszweck are how the app talks to the
+     bank, not something a person came here to read: a capability shows up as
+     an action that is present or absent, and a purpose shows up as the prose
+     half of itself.
    ========================================================================== */
 
 /* The theme is set on <html data-theme> before first paint (see layout.tsx),
@@ -33,7 +35,10 @@
   --inset: #edf1f6;
   --ink: #0d1826;
   --ink-2: #47586b;
-  --ink-3: #74879b;
+  /* Tertiary, but it still sets the day headers, dates and the second line of
+     every booking — so it is held at 4.5:1 against the inset it sits on, not
+     just against white. */
+  --ink-3: #5b6d80;
   --line: #dee5ed;
   --line-strong: #c2cedc;
 
@@ -42,7 +47,6 @@
   --bar: #12304f;
   --bar-ink: #f2f7fc;
   --bar-ink-2: #a8c1dc;
-  --bar-line: #24486d;
 
   /* The single accent: brand, link, active state, primary action. */
   --accent: #12457e;
@@ -61,7 +65,7 @@
   --shadow-pop: 0 8px 20px -8px rgb(13 24 38 / 0.18), 0 32px 64px -24px rgb(13 24 38 / 0.3);
   /* Panels read as raised surfaces, not outlined boxes — a hairline shadow
      instead of a border, so nothing in the page has a hard frame. */
-  --shadow-panel: 0 0 0 1px rgb(13 24 38 / 0.05), 0 1px 2px rgb(13 24 38 / 0.05), 0 6px 16px -12px rgb(13 24 38 / 0.4);
+  --shadow-panel: 0 0 0 1px rgb(13 24 38 / 0.06), 0 1px 2px rgb(13 24 38 / 0.04), 0 14px 30px -22px rgb(13 24 38 / 0.45);
 }
 
 [data-theme='dark'] {
@@ -70,7 +74,7 @@
   --inset: #23272c;
   --ink: #e9edf1;
   --ink-2: #a5afba;
-  --ink-3: #7b8691;
+  --ink-3: #8a95a1;
   --line: #272c32;
   --line-strong: #3b434d;
 
@@ -79,7 +83,6 @@
   --bar: #0b0d0f;
   --bar-ink: #f0f3f6;
   --bar-ink-2: #98a3af;
-  --bar-line: #23272c;
 
   /* Same accent, lifted until it clears contrast on a near-black page. */
   --accent: #4f92e0;
@@ -114,7 +117,6 @@
   --color-bar: var(--bar);
   --color-bar-ink: var(--bar-ink);
   --color-bar-ink-2: var(--bar-ink-2);
-  --color-bar-line: var(--bar-line);
 
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
@@ -137,7 +139,9 @@
   --font-display: var(--font-barlow-condensed), var(--font-barlow), sans-serif;
   --font-mono: var(--font-plex-mono), 'Cascadia Mono', Consolas, ui-monospace, monospace;
 
-  --radius-card: 12px;
+  /* Panels are a touch softer than the controls inside them, so a block reads
+     as the container and a button reads as the thing sitting in it. */
+  --radius-card: 14px;
   --radius-field: 9px;
 
   --shadow-card: var(--shadow-card);
@@ -145,18 +149,20 @@
   --shadow-panel: var(--shadow-panel);
 }
 
-/* The header is two stacked rows — the navy identity bar and the account bar
-   beneath it — and both stick. Everything that pins under the header (the
+/* The header is two stacked tiers — the navy identity bar carrying the app's
+   wordmark and the session cluster, and the institute bar beneath it — and both
+   stick. It is deliberately tall enough to read as the app's masthead rather
+   than a strip of controls. Everything that pins under the header (the
    transaction day headers) offsets by their sum, so the two never disagree. */
 :root {
-  --barbar-h: 56px;
-  --subbar-h: 46px;
+  --barbar-h: 60px;
+  --subbar-h: 48px;
   --topbar-h: calc(var(--barbar-h) + var(--subbar-h));
 }
 @media (max-width: 640px) {
   :root {
-    --barbar-h: 52px;
-    --subbar-h: 42px;
+    --barbar-h: 56px;
+    --subbar-h: 44px;
   }
 }
 
@@ -229,15 +235,6 @@
     color: var(--ink-3);
   }
 
-  /* FinTS segment code — the protocol showing through the interface. */
-  .segcode {
-    font-family: var(--font-plex-mono), ui-monospace, monospace;
-    font-size: 9.5px;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    color: var(--ink-3);
-  }
-
   /* A content block: a surface lifted off the page, never a framed box. One
      class so every block in the app shares the same edge treatment and the
      light/dark difference (cast shadow vs. inner edge) is decided once. */
@@ -271,6 +268,37 @@
   .id-tail {
     font-weight: 600;
     color: var(--ink-2);
+  }
+
+  /* One item of the masthead's right-hand cluster: a small mark with its name
+     beside it, the way a German bank's start page labels every icon in its
+     header rather than leaving the user to guess at a glyph. Sized so the
+     cluster reads as one row of equals, not as buttons of differing weight. */
+  .navlink {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border-radius: 8px;
+    padding: 6px 9px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    color: var(--bar-ink-2);
+    transition: background-color 0.15s, color 0.15s;
+  }
+  /* Only the interactive ones light up — the identity chip beside them is a
+     statement of who is signed in, not something to press. */
+  button.navlink:hover {
+    background: color-mix(in srgb, var(--bar-ink) 12%, transparent);
+    color: var(--bar-ink);
+  }
+
+  /* The footer's legal row. Quiet, evenly spaced, and set apart from the rest
+     of the page's text by size alone. */
+  .footlink {
+    font-size: 12.5px;
+    color: var(--ink-2);
+    transition: color 0.15s;
   }
 }
 

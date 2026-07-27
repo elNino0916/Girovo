@@ -16,6 +16,7 @@ export function ThemeToggle({ tone = 'page' }: { tone?: 'page' | 'bar' }) {
     const next = theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
     store.set('fints.theme', next);
+    window.electronTitleBar?.setTheme(next === 'dark');
     setTheme(next);
   };
 

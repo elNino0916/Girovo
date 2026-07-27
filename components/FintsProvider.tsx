@@ -672,7 +672,7 @@ function useFintsState() {
 
 export type FintsApi = ReturnType<typeof useFintsState>;
 
-const FintsContext = createContext<FintsApi | null>(null);
+export const FintsContext = createContext<FintsApi | null>(null);
 
 export function FintsProvider({ children }: { children: React.ReactNode }) {
   const value = useFintsState();

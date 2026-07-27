@@ -17,7 +17,7 @@
 // being reachable from the LAN, and a fixed port would collide with `npm run
 // dev` on port 3000.
 
-const { app, BrowserWindow, Menu, dialog, nativeTheme, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell } = require('electron');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -26,6 +26,16 @@ const path = require('node:path');
 
 const HOST = '127.0.0.1';
 const SERVER_START_TIMEOUT_MS = 60_000;
+
+// Matches --bar / --bar-ink in app/globals.css. The window has no native
+// title bar of its own — the app's navy identity bar (Dashboard.tsx) doubles
+// as the title bar, with the OS caption buttons floating in its right side,
+// so there is exactly one bar instead of a native one stacked on the app's.
+const BAR_COLORS = {
+  light: { color: '#12304f', symbolColor: '#f2f7fc' },
+  dark: { color: '#0b0d0f', symbolColor: '#f0f3f6' },
+};
+const TITLEBAR_HEIGHT = 56; // var(--barbar-h)
 
 /** Where the standalone Next build lives, packaged and unpackaged. */
 function serverDir() {
@@ -135,6 +145,7 @@ function stopServer() {
 
 function createWindow(appUrl) {
   const origin = new URL(appUrl).origin;
+  const initialBar = nativeTheme.shouldUseDarkColors ? BAR_COLORS.dark : BAR_COLORS.light;
 
   win = new BrowserWindow({
     width: 1280,
@@ -146,11 +157,19 @@ function createWindow(appUrl) {
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0a0f0d' : '#ecefea',
     title: 'Sooskasse-FinTS',
     autoHideMenuBar: true,
+    // No native title bar: Dashboard.tsx's navy bar is dragged into service as
+    // the title bar instead, via the Window Controls Overlay API. Not
+    // supported on macOS, which keeps its usual traffic-light hidden bar.
+    titleBarStyle: 'hidden',
+    ...(process.platform !== 'darwin'
+      ? { titleBarOverlay: { ...initialBar, height: TITLEBAR_HEIGHT } }
+      : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
 
@@ -236,6 +255,14 @@ if (!app.requestSingleInstanceLock()) {
       dialog.showErrorBox('Sooskasse-FinTS konnte nicht starten', String(err?.message || err));
       app.quit();
     }
+  });
+
+  // The overlay colour is fixed at window creation from the OS preference;
+  // the renderer's own light/dark choice (stored in localStorage) can differ,
+  // so it corrects the overlay as soon as it knows which theme it's showing.
+  ipcMain.on('titlebar:set-theme', (_event, isDark) => {
+    if (!win || process.platform === 'darwin') return;
+    win.setTitleBarOverlay({ ...(isDark ? BAR_COLORS.dark : BAR_COLORS.light), height: TITLEBAR_HEIGHT });
   });
 
   app.on('window-all-closed', () => app.quit());

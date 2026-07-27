@@ -42,7 +42,7 @@ export const viewport: Viewport = {
 };
 
 // Runs before first paint so the app never flashes the wrong theme.
-const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('fints.theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='light';}})();`;
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('fints.theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;if(window.electronTitleBar)window.electronTitleBar.setTheme(t==='dark');}catch(e){document.documentElement.dataset.theme='light';}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

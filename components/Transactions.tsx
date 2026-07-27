@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { fmtDate, fmtIban, fmtMoney, groupLabel, initials, isFutureDate, txTime } from '@/lib/format';
+import { fmtDate, fmtIban, fmtMoney, groupLabel, initials, isFutureDate, isoDate, txTime } from '@/lib/format';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
+import { parsePurpose } from '@/lib/sepa-purpose';
 import { useFints, useMerchant } from './FintsProvider';
 import {
   ArrowDownIcon, Button, ClockIcon, CloseIcon, Disclosure, IconButton, Overlay,
@@ -17,12 +18,16 @@ type DayGroup = {
 };
 
 export function Transactions() {
-  const { activeAccount, transactions, loadingAccount, txError } = useFints();
+  const { activeAccount, transactions, loadingAccount, txError, refreshAccount, busy, printStatement } = useFints();
   const [query, setQuery] = useState('');
   const [detail, setDetail] = useState<{ tx: SerializedTransaction; pending: boolean } | null>(null);
   // Collapsed rather than expanded: a day the user has never touched is open,
   // which is what someone scanning a statement wants.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // The period lives with the list it selects, not with the balance — the
+  // balance is today's, whatever range is loaded beneath it.
+  const [from, setFrom] = useState(() => isoDate(new Date(Date.now() - 90 * 86400000)));
+  const [to, setTo] = useState(() => isoDate(new Date()));
 
   const loading = !!activeAccount && loadingAccount === activeAccount.accountNumber;
 
@@ -53,21 +58,62 @@ export function Transactions() {
     <>
       <PendingPanel />
 
-      <div className="relative mb-3.5">
-        <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3">
-          <SearchIcon size={15} />
-        </span>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Umsätze durchsuchen …"
-          aria-label="Umsätze durchsuchen"
-          className="w-full rounded-[9px] border border-line bg-surface py-2.5 pr-3 pl-10 outline-none focus:border-accent"
-        />
-      </div>
-
       <div className="panel overflow-clip">
+        {/* One control block, attached to the list it governs: which period to
+            fetch, and how to narrow what came back. */}
+        <div className="border-b border-line px-4 py-4 sm:px-5">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <h2 className="section-head text-ink">Umsätze</h2>
+
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-1.5 rounded-[9px] bg-inset px-2 py-1.5">
+                <label className="eyebrow shrink-0 pl-0.5" htmlFor="tx-from">Zeitraum</label>
+                <input
+                  id="tx-from"
+                  type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Zeitraum von"
+                  className="num min-w-0 rounded-[6px] bg-surface px-1.5 py-1 text-[12.5px] text-ink-2 outline-none focus:text-ink"
+                />
+                <span className="text-ink-3">–</span>
+                <input
+                  type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Zeitraum bis"
+                  className="num min-w-0 rounded-[6px] bg-surface px-1.5 py-1 text-[12.5px] text-ink-2 outline-none focus:text-ink"
+                />
+              </span>
+
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => activeAccount && refreshAccount(activeAccount, from, to)}
+                title="Umsätze für diesen Zeitraum neu laden"
+              >
+                Aktualisieren
+              </Button>
+              <Button
+                size="sm"
+                variant="quiet"
+                onClick={() => printStatement(from, to)}
+                title="Kontoauszug für den gewählten Zeitraum als PDF speichern"
+              >
+                Kontoauszug (PDF)
+              </Button>
+            </div>
+          </div>
+
+          <div className="relative mt-3">
+            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3">
+              <SearchIcon size={15} />
+            </span>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Umsätze durchsuchen …"
+              aria-label="Umsätze durchsuchen"
+              className="w-full rounded-[9px] border border-line bg-surface py-2 pr-3 pl-10 text-[13.5px] outline-none focus:border-accent"
+            />
+          </div>
+        </div>
+
         {loading && Array.from({ length: 7 }, (_, i) => <SkeletonRow key={i} width={40 + ((i * 37) % 45)} />)}
 
         {!loading && txError && (
@@ -130,31 +176,39 @@ function TxRow({
 }) {
   const credit = tx.amount >= 0;
   const name = tx.remoteName || tx.bookingText || 'Buchung';
-  const desc = tx.purpose || (tx.remoteName ? tx.bookingText : '') || '';
   const merchant = useMerchant(tx);
   // A Buchungstag the bank has stamped ahead of today — the entry is real and
   // value-dated, but it hasn't been booked yet.
   const futureBooking = tone === 'booked' && isFutureDate(tx.entryDate);
 
+  // The bank packs the whole structured remittance record into one field —
+  // EREF+…MREF+…SVWZ+… — and only the SVWZ half is prose a person wrote. The
+  // identifiers are real, but they belong in the detail drawer: on a scannable
+  // list they crowd out the two things being scanned for, the payee and the
+  // amount. A purpose with no tags in it is returned untouched.
+  const desc = parsePurpose(tx.purpose).text || (tx.remoteName ? tx.bookingText : '') || '';
+
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3.5 border-b border-line px-4 py-3 text-left transition-colors duration-100 last:border-b-0 hover:bg-inset"
+      className="flex w-full items-center gap-3.5 border-b border-line px-4 py-3.5 text-left transition-colors duration-100 last:border-b-0 hover:bg-inset"
     >
       <TxAvatar merchant={merchant} name={name} credit={credit} tone={tone} />
 
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold">{name}</span>
-        {desc && <span className="mt-0.5 block truncate text-[12.5px] text-ink-3">{desc}</span>}
+        <span className="block truncate text-[14px] leading-snug font-semibold">{name}</span>
+        {desc && <span className="mt-1 block truncate text-[12px] leading-snug text-ink-3">{desc}</span>}
       </span>
 
-      <span className="shrink-0 text-right">
-        <span className={cx('num block text-[14.5px] font-semibold', credit && 'text-green')}>
+      {/* A fixed column so every amount in the list ends on the same edge —
+          with tabular figures that puts the decimal points in one line. */}
+      <span className="w-[112px] shrink-0 text-right sm:w-[128px]">
+        <span className={cx('num block text-[15px] leading-snug font-semibold', credit && 'text-green')}>
           {credit ? '+' : '−'}{fmtMoney(Math.abs(tx.amount), tx.currency)}
         </span>
         <span
-          className={cx('num mt-0.5 block text-[11px]', tone === 'pending' ? 'text-amber' : 'text-ink-3')}
+          className={cx('num mt-1 block text-[11px] leading-snug', tone === 'pending' ? 'text-amber' : 'text-ink-3')}
           title={futureBooking ? `Buchungstag ${fmtDate(tx.entryDate)} · Wertstellung ${fmtDate(tx.valueDate)}` : undefined}
         >
           {tone === 'pending'

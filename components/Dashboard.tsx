@@ -8,6 +8,7 @@ import { Transactions } from './Transactions';
 import { TransferSheet } from './TransferSheet';
 import { ThemeToggle } from './ThemeToggle';
 import { Button, ShieldIcon } from './ui';
+import { useTitleBarInset } from '@/lib/use-titlebar-inset';
 
 /**
  * The shell: a navy identity bar, an account bar beneath it, then the page.
@@ -18,17 +19,26 @@ import { Button, ShieldIcon } from './ui';
  * instead of being mixed in among the bank's details.
  */
 export function Dashboard() {
-  const { bank, logoFiles, accounts, activeAccount, deviceRemembered, forgetDevice, logout } = useFints();
+  const { bank, logoFiles, activeAccount, deviceRemembered, forgetDevice, logout } = useFints();
   const [transferFor, setTransferFor] = useState<string | null>(null);
-  const canTransfer = accounts.some((a) => a.canTransfer);
+
+  // In the desktop shell this bar doubles as the window's title bar (see
+  // electron/main.cjs), so its right edge must stay clear of the OS caption
+  // buttons the Window Controls Overlay API floats on top of it.
+  const captionInset = useTitleBarInset();
 
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40">
-        {/* Row 1 — identity and session. */}
+        {/* Row 1 — identity and session. Also the app's title bar in the
+            desktop shell: draggable everywhere except its own controls. */}
         <div
           className="on-bar flex items-center gap-3 bg-bar px-4 text-bar-ink sm:px-6"
-          style={{ height: 'var(--barbar-h)' }}
+          style={{
+            height: 'var(--barbar-h)',
+            paddingRight: captionInset ? captionInset + 8 : undefined,
+            WebkitAppRegion: 'drag',
+          } as React.CSSProperties}
         >
           <span className="font-display text-[17px] leading-none font-semibold tracking-tight">
             Sooskasse<span className="text-bar-ink-2">-FinTS</span>
@@ -36,8 +46,10 @@ export function Dashboard() {
 
           <div className="flex-1" />
 
-          <ThemeToggle tone="bar" />
-          <Button variant="bar" size="sm" onClick={() => void logout()}>Abmelden</Button>
+          <div className="flex items-center gap-3" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <ThemeToggle tone="bar" />
+            <Button variant="bar" size="sm" onClick={() => void logout()}>Abmelden</Button>
+          </div>
         </div>
 
         {/* Row 2 — the connected institute and the state of this device. */}
@@ -69,21 +81,10 @@ export function Dashboard() {
       </header>
 
       <div className="mx-auto grid w-full max-w-[1240px] flex-1 gap-5 px-4 pt-6 pb-14 sm:px-6 lg:grid-cols-[312px_minmax(0,1fr)] lg:gap-7">
-        <aside className="flex min-w-0 flex-col gap-3">
+        {/* The account switcher only. The transfer action lives on the balance
+            it draws from, so there is one primary button on the page. */}
+        <aside className="min-w-0">
           <AccountList />
-          {canTransfer && (
-            <Button
-              variant="primary"
-              block
-              className="hidden lg:inline-flex"
-              onClick={() => setTransferFor(activeAccount?.accountNumber ?? null)}
-            >
-              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
-                <path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Neue Überweisung
-            </Button>
-          )}
         </aside>
 
         <main className="min-w-0">

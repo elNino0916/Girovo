@@ -81,15 +81,38 @@ npm run build && npm start
 ## Windows desktop app
 
 The same app also builds into a normal Windows program — no terminal, no
-browser tab:
+browser tab, and **no Node.js or separate backend setup required**. The build
+produces a self-contained installer that bundles **both the backend and
+Electron into one package**:
 
 ```bash
 npm run electron:dist
 ```
 
-That leaves two files in `dist/`: an installer
-(`Sooskasse-FinTS-<version>-Setup.exe`) and a portable single executable. Both
-are ~100 MB, most of which is the Electron runtime.
+That produces two files in `dist/`:
+
+| File | What it is |
+|------|------------|
+| `Sooskasse-FinTS-<version>-Setup.exe` | Standard NSIS installer — double-click to install, uninstall via *Programs & Features*. |
+| `Sooskasse-FinTS-<version>-portable.exe` | Single executable, no installation needed — run from anywhere. |
+
+Both are ~100 MB, most of which is the Electron runtime.
+
+### What the installer contains
+
+The package is entirely self-contained. You only need the one file — **no Node,
+no npm, no extra software**:
+
+- **Electron shell** — the desktop window.
+- **Next.js standalone server** — the full backend API (FinTS session, SEPA,
+  transfers, …), bundled without any dependency on a system-level Node install.
+  Electron starts it as a child process using its own embedded Node runtime
+  (`ELECTRON_RUN_AS_NODE=1`), bound to `127.0.0.1` on a random free port.
+  Nothing is reachable from the network, and the port never collides with a dev
+  server.
+
+End users simply run the installer. Developers building from source only need
+`npm run electron:dist`.
 
 Nothing about the website workflow changes — `npm run dev`, `npm run build` and
 `npm start` behave exactly as before.
@@ -100,13 +123,6 @@ Nothing about the website workflow changes — `npm run dev`, `npm run build` an
 | `npm run electron:start` | Opens the desktop window against that build — a packaging-free way to check it. |
 | `npm run electron:dist` | The above, then wraps it with electron-builder into `dist/`. |
 | `npm run electron:dev` | Points the desktop window at a running `npm run dev` (start that first), so the app hot-reloads. |
-
-**It is not a static export.** The API routes hold the live FinTS dialog, so the
-desktop app ships the real server: Electron starts `.next/standalone/server.js`
-as a child process — its own binary re-run with `ELECTRON_RUN_AS_NODE=1`, so no
-Node install is required — bound to `127.0.0.1` on a random free port, and
-points a window at it. Nothing is reachable from the network, and the port never
-collides with a dev server.
 
 Remembered device profiles (see *Fewer TAN prompts*) cannot live next to a
 program installed under `Program Files`, so the desktop app puts them in

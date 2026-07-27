@@ -1,25 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { fmtDate, fmtIban, fmtMoney, isFutureDate, isoDate, splitMoney, translateType } from '@/lib/format';
+import { fmtDate, fmtIban, fmtMoney, isFutureDate, splitMoney, translateType } from '@/lib/format';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { BankLogo } from './BankLogo';
 import { useFints } from './FintsProvider';
 import { Button, Disclosure, cx } from './ui';
-
-/**
- * The capabilities an account has, named by the FinTS segment that grants them.
- * These codes are the honest explanation for a greyed-out action: the bank
- * simply doesn't advertise that segment for this account.
- */
-function segments(a: SerializedAccount): { code: string; label: string }[] {
-  const out: { code: string; label: string }[] = [];
-  if (a.canStatements) out.push({ code: 'HKKAZ', label: 'Umsätze' });
-  if (a.canPending) out.push({ code: 'HKVMK', label: 'Vorgemerkte Umsätze' });
-  if (a.canTransfer) out.push({ code: 'HKCCS', label: 'Überweisung' });
-  if (a.canInstant) out.push({ code: 'HKIPZ', label: 'Echtzeitüberweisung' });
-  return out;
-}
 
 /**
  * An IBAN read as a name rather than a number: the country and bank half
@@ -58,7 +44,7 @@ export function AccountList() {
       >
         {/* Horizontal on phones, where a column of full-width rows would push
             the statement itself below the fold. */}
-        <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-3 pb-3 lg:flex-col lg:gap-0 lg:overflow-visible lg:px-0 lg:pb-1">
+        <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-3 pb-3 lg:flex-col lg:gap-0 lg:overflow-visible lg:px-0 lg:pb-2">
           {accounts.map((a) => {
             const bal = balances[a.accountNumber];
             const isLoading = loadingAccount === a.accountNumber;
@@ -71,7 +57,7 @@ export function AccountList() {
                 onClick={() => selectAccount(a)}
                 aria-current={active}
                 className={cx(
-                  'flex min-w-[232px] shrink-0 snap-start items-center gap-3 rounded-[10px] px-3 py-2.5 text-left',
+                  'flex min-w-[236px] shrink-0 snap-start items-center gap-3 rounded-[10px] px-3 py-3 text-left',
                   'transition-colors duration-150 lg:w-full lg:min-w-0 lg:rounded-none lg:px-4',
                   // The active row is named by a navy rail and navy label —
                   // one accent doing the work a second colour would do worse.
@@ -109,91 +95,92 @@ export function AccountList() {
   );
 }
 
+/**
+ * The balance, given the room a balance deserves.
+ *
+ * This block answers exactly one question — how much is in this account right
+ * now — so nothing else competes inside it: the period filter belongs to the
+ * list of bookings and lives down there with it, and the single action the
+ * balance leads to is the one button on the panel.
+ */
 export function AccountHeader({ onTransfer }: { onTransfer: () => void }) {
-  const { activeAccount: a, balances, refreshAccount, busy, printStatement } = useFints();
-  const [from, setFrom] = useState(() => isoDate(new Date(Date.now() - 90 * 86400000)));
-  const [to, setTo] = useState(() => isoDate(new Date()));
+  const { activeAccount: a, balances } = useFints();
 
   if (!a) return null;
   const bal = balances[a.accountNumber];
   const money = splitMoney(bal?.balance, bal?.currency);
   const negative = !!bal && bal.balance < 0;
 
+  // The footnotes to the figure: written once here so the row below stays a
+  // plain grid rather than a run of conditionals.
+  const meta: { label: string; value: string; title?: string }[] = [];
+  if (a.iban || a.accountNumber) meta.push({ label: 'IBAN', value: fmtIban(a.iban) || a.accountNumber });
+  if (a.bic) meta.push({ label: 'BIC', value: a.bic });
+  if (bal?.availableAmount != null) {
+    meta.push({ label: 'Verfügbar', value: fmtMoney(bal.availableAmount, bal.currency) });
+  }
+  if (bal?.date) {
+    meta.push(
+      isFutureDate(bal.date)
+        // An interim report's closing balance is dated to the bank's next
+        // Buchungstag, so on a weekend it sits in the future. Say so rather
+        // than presenting a future day as the balance's as-of date.
+        ? {
+            label: 'Buchungstag',
+            value: fmtDate(bal.date),
+            title: 'Die Bank datiert diesen Saldo auf ihren nächsten Buchungstag. Er enthält bereits Buchungen mit diesem Datum.',
+          }
+        : { label: 'Stand', value: fmtDate(bal.date) },
+    );
+  }
+
   return (
-    <section className="panel mb-5 px-5 py-5 sm:px-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+    <section className="panel mb-5 px-5 pt-6 pb-5 sm:px-8 sm:pt-8 sm:pb-6">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
+        <div className="min-w-0">
           <p className="eyebrow">{translateType(a.accountType)} · Kontostand</p>
-          <p className="text-sm font-semibold">{a.holder || a.product || ''}</p>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          {a.canTransfer && <Button variant="primary" size="sm" onClick={onTransfer}>Überweisen</Button>}
-          <Button size="sm" disabled={busy} onClick={() => refreshAccount(a, from, to)} title="Umsätze neu laden">
-            Aktualisieren
-          </Button>
-        </div>
-      </div>
+          {(a.holder || a.product) && (
+            <p className="mt-1 truncate text-[15px] font-semibold">{a.holder || a.product}</p>
+          )}
 
-      <p className={cx('num mt-2.5 text-[40px] leading-[1.1] font-semibold tracking-tight sm:text-[46px]', negative && 'text-red')}>
-        {bal ? (
-          <>
-            {money.euros}
-            <span className={cx('text-[0.6em]', negative ? 'text-red' : 'text-ink-2')}>
-              {money.cents}&nbsp;{money.suffix}
-            </span>
-          </>
-        ) : '—'}
-      </p>
-
-      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[12.5px] text-ink-3">
-        <span className="iban">{fmtIban(a.iban) || a.accountNumber}</span>
-        {a.bic && <span>BIC <b className="num font-semibold text-ink-2">{a.bic}</b></span>}
-        {bal?.availableAmount != null && (
-          <span>Verfügbar <b className="num font-semibold text-ink-2">{fmtMoney(bal.availableAmount, bal.currency)}</b></span>
-        )}
-        {bal?.date && (
-          isFutureDate(bal.date) ? (
-            // An interim report's closing balance is dated to the bank's next
-            // Buchungstag, so on a weekend it sits in the future. Say so rather
-            // than presenting a future day as the balance's as-of date.
-            <span title="Die Bank datiert diesen Saldo auf ihren nächsten Buchungstag. Er enthält bereits Buchungen mit diesem Datum.">
-              Buchungstag <b className="num font-semibold text-ink-2">{fmtDate(bal.date)}</b>
-            </span>
-          ) : (
-            <span>Stand <b className="num font-semibold text-ink-2">{fmtDate(bal.date)}</b></span>
-          )
-        )}
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3.5">
-        <span className="flex flex-wrap gap-x-3 gap-y-1">
-          {segments(a).map((s) => (
-            <span key={s.code} className="segcode" title={s.label}>{s.code}</span>
-          ))}
-        </span>
-        {/* Full width on phones so the two date fields can shrink instead of
-            pushing the page into a horizontal scroll. */}
-        <span className="ml-auto flex w-full flex-wrap items-center gap-1.5 sm:w-auto">
-          <input
-            type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Zeitraum von"
-            className="num min-w-0 flex-1 rounded-[9px] border border-line bg-surface px-2 py-1.5 text-[12.5px] text-ink-2 outline-none focus:border-accent sm:flex-none"
-          />
-          <span className="text-ink-3">–</span>
-          <input
-            type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Zeitraum bis"
-            className="num min-w-0 flex-1 rounded-[9px] border border-line bg-surface px-2 py-1.5 text-[12.5px] text-ink-2 outline-none focus:border-accent sm:flex-none"
-          />
-          <Button size="sm" className="shrink-0" disabled={busy} onClick={() => refreshAccount(a, from, to)}>Laden</Button>
-          <Button
-            size="sm"
-            className="shrink-0"
-            onClick={() => printStatement(from, to)}
-            title="Kontoauszug für den gewählten Zeitraum als PDF speichern"
+          <p
+            className={cx(
+              'num mt-4 text-[44px] leading-[1.05] font-semibold tracking-[-0.02em] sm:text-[56px]',
+              negative && 'text-red',
+            )}
           >
-            Kontoauszug (PDF)
+            {bal ? (
+              <>
+                {money.euros}
+                <span className={cx('text-[0.52em] font-medium', negative ? 'text-red' : 'text-ink-2')}>
+                  {money.cents}&nbsp;{money.suffix}
+                </span>
+              </>
+            ) : '—'}
+          </p>
+        </div>
+
+        {/* The one primary action on the page. */}
+        {a.canTransfer && (
+          <Button variant="primary" className="shrink-0 self-start" onClick={onTransfer}>
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
+              <path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Überweisen
           </Button>
-        </span>
+        )}
       </div>
+
+      <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-line pt-4 sm:grid-cols-4">
+        {meta.map((m) => (
+          <div key={m.label} className="min-w-0" title={m.title}>
+            <dt className="eyebrow">{m.label}</dt>
+            <dd className={cx('mt-0.5 truncate text-[13px] font-medium text-ink-2', m.label === 'IBAN' ? 'iban' : 'num')}>
+              {m.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

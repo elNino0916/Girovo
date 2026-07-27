@@ -1,19 +1,43 @@
-diff --git a/node_modules/lib-fints/dist/segments/registry.js b/node_modules/lib-fints/dist/segments/registry.js
-index 8f6997f..5b5ee85 100644
---- a/node_modules/lib-fints/dist/segments/registry.js
-+++ b/node_modules/lib-fints/dist/segments/registry.js
-@@ -88,6 +88,6 @@ export function registerSegments() {
- export function getSegmentDefinition(id) {
-     return registry.get(id);
- }
--function registerSegmentDefinition(definition) {
-+export function registerSegmentDefinition(definition) {
-     registry.set(definition.id, definition);
- }
+diff --git a/node_modules/lib-fints/dist/camtParser.js b/node_modules/lib-fints/dist/camtParser.js
+index 0dc0042..d3e7857 100644
+--- a/node_modules/lib-fints/dist/camtParser.js
++++ b/node_modules/lib-fints/dist/camtParser.js
+@@ -73,22 +73,24 @@ export class CamtParser {
+         if (document.camt) {
+             return document.camt;
+         }
+-        // Look for any object with BkToCstmrAcctRpt property
++        // Look for any object with BkToCstmrAcctRpt (camt.052) or BkToCstmrStmt (camt.053)
+         for (const key in document) {
+             if (document[key] &&
+                 typeof document[key] === 'object' &&
+-                document[key]?.BkToCstmrAcctRpt) {
++                (document[key]?.BkToCstmrAcctRpt || document[key]?.BkToCstmrStmt)) {
+                 return document[key];
+             }
+         }
+         throw new CamtParsingError('No valid CAMT document structure found');
+     }
+     getReports(docObj) {
+-        const bkToCstmrAcctRpt = docObj.BkToCstmrAcctRpt;
+-        if (!bkToCstmrAcctRpt) {
+-            throw new CamtParsingError('No BkToCstmrAcctRpt element found in CAMT document');
++        // camt.052: BkToCstmrAcctRpt/Rpt — intraday account report
++        // camt.053: BkToCstmrStmt/Stmt  — account statement (used by e.g. Comdirect)
++        const container = docObj.BkToCstmrAcctRpt || docObj.BkToCstmrStmt;
++        if (!container) {
++            throw new CamtParsingError('No BkToCstmrAcctRpt or BkToCstmrStmt element found in CAMT document');
+         }
+-        const rpt = bkToCstmrAcctRpt.Rpt;
++        const rpt = container.Rpt || container.Stmt;
+         if (!rpt) {
+             return [];
+         }
 diff --git a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js b/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
+index db0c38e..3c985c4 100644
 --- a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
 +++ b/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
-@@ -21,7 +21,20 @@ export class StatementInteractionCAMT extends CustomerOrderInteraction {
+@@ -21,11 +21,27 @@ export class StatementInteractionCAMT extends CustomerOrderInteraction {
          let acceptedCamtFormats = ['urn:iso:std:iso:20022:tech:xsd:camt.052.001.08'];
          const params = init.getTransactionParameters(HKCAZ.Id);
          if (params && params.supportedCamtFormats.length > 0) {
@@ -43,35 +67,15 @@ diff --git a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.j
              acceptedCamtFormats: acceptedCamtFormats,
              allAccounts: false,
              from: this.from,
-diff --git a/node_modules/lib-fints/dist/camtParser.js b/node_modules/lib-fints/dist/camtParser.js
---- a/node_modules/lib-fints/dist/camtParser.js
-+++ b/node_modules/lib-fints/dist/camtParser.js
-@@ -76,14 +76,16 @@ export class CamtParser {
--        // Look for any object with BkToCstmrAcctRpt property
-+        // Look for any object with BkToCstmrAcctRpt (camt.052) or BkToCstmrStmt (camt.053)
-         for (const key in document) {
-             if (document[key] &&
-                 typeof document[key] === 'object' &&
--                document[key]?.BkToCstmrAcctRpt) {
-+                (document[key]?.BkToCstmrAcctRpt || document[key]?.BkToCstmrStmt)) {
-                 return document[key];
-             }
-         }
-         throw new CamtParsingError('No valid CAMT document structure found');
-     }
-     getReports(docObj) {
--        const bkToCstmrAcctRpt = docObj.BkToCstmrAcctRpt;
--        if (!bkToCstmrAcctRpt) {
--            throw new CamtParsingError('No BkToCstmrAcctRpt element found in CAMT document');
--        }
--        const rpt = bkToCstmrAcctRpt.Rpt;
-+        // camt.052: BkToCstmrAcctRpt/Rpt — intraday account report
-+        // camt.053: BkToCstmrStmt/Stmt  — account statement (used by e.g. Comdirect)
-+        const container = docObj.BkToCstmrAcctRpt || docObj.BkToCstmrStmt;
-+        if (!container) {
-+            throw new CamtParsingError('No BkToCstmrAcctRpt or BkToCstmrStmt element found in CAMT document');
-+        }
-+        const rpt = container.Rpt || container.Stmt;
-         if (!rpt) {
-             return [];\
-         }
+diff --git a/node_modules/lib-fints/dist/segments/registry.js b/node_modules/lib-fints/dist/segments/registry.js
+index 8f6997f..5b5ee85 100644
+--- a/node_modules/lib-fints/dist/segments/registry.js
++++ b/node_modules/lib-fints/dist/segments/registry.js
+@@ -88,6 +88,6 @@ export function registerSegments() {
+ export function getSegmentDefinition(id) {
+     return registry.get(id);
+ }
+-function registerSegmentDefinition(definition) {
++export function registerSegmentDefinition(definition) {
+     registry.set(definition.id, definition);
+ }
