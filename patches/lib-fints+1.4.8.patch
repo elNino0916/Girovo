@@ -11,12 +11,23 @@ index 8f6997f..5b5ee85 100644
      registry.set(definition.id, definition);
  }
 diff --git a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js b/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
-index a1b2c3d..b4e5f6g 100644
 --- a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
 +++ b/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
-@@ -23,8 +23,15 @@ export class StatementInteractionCAMT extends CustomerOrderInteraction {
+@@ -21,7 +21,20 @@ export class StatementInteractionCAMT extends CustomerOrderInteraction {
+         let acceptedCamtFormats = ['urn:iso:std:iso:20022:tech:xsd:camt.052.001.08'];
+         const params = init.getTransactionParameters(HKCAZ.Id);
          if (params && params.supportedCamtFormats.length > 0) {
-             acceptedCamtFormats = params.supportedCamtFormats.filter((format) => format.startsWith('urn:iso:std:iso:20022:tech:xsd:camt.052.001.'));
+-            acceptedCamtFormats = params.supportedCamtFormats.filter((format) => format.startsWith('urn:iso:std:iso:20022:tech:xsd:camt.052.001.'));
++            // Accept camt.052 (intraday account report) and camt.053 (account statement).
++            // Filtering to only camt.052 causes Comdirect (and similar banks) to reject
++            // the request with 3010 when they only advertise camt.053.
++            const supported = params.supportedCamtFormats.filter((format) =>
++                format.startsWith('urn:iso:std:iso:20022:tech:xsd:camt.052.001.') ||
++                format.startsWith('urn:iso:std:iso:20022:tech:xsd:camt.053.001.')
++            );
++            if (supported.length > 0) {
++                acceptedCamtFormats = supported;
++            }
          }
 +        // When the account has an IBAN, use IBAN-only identification in the
 +        // InternationalAccountGroup. Some banks (e.g. Comdirect) reject HKCAZ
@@ -32,3 +43,35 @@ index a1b2c3d..b4e5f6g 100644
              acceptedCamtFormats: acceptedCamtFormats,
              allAccounts: false,
              from: this.from,
+diff --git a/node_modules/lib-fints/dist/camtParser.js b/node_modules/lib-fints/dist/camtParser.js
+--- a/node_modules/lib-fints/dist/camtParser.js
++++ b/node_modules/lib-fints/dist/camtParser.js
+@@ -76,14 +76,16 @@ export class CamtParser {
+-        // Look for any object with BkToCstmrAcctRpt property
++        // Look for any object with BkToCstmrAcctRpt (camt.052) or BkToCstmrStmt (camt.053)
+         for (const key in document) {
+             if (document[key] &&
+                 typeof document[key] === 'object' &&
+-                document[key]?.BkToCstmrAcctRpt) {
++                (document[key]?.BkToCstmrAcctRpt || document[key]?.BkToCstmrStmt)) {
+                 return document[key];
+             }
+         }
+         throw new CamtParsingError('No valid CAMT document structure found');
+     }
+     getReports(docObj) {
+-        const bkToCstmrAcctRpt = docObj.BkToCstmrAcctRpt;
+-        if (!bkToCstmrAcctRpt) {
+-            throw new CamtParsingError('No BkToCstmrAcctRpt element found in CAMT document');
+-        }
+-        const rpt = bkToCstmrAcctRpt.Rpt;
++        // camt.052: BkToCstmrAcctRpt/Rpt — intraday account report
++        // camt.053: BkToCstmrStmt/Stmt  — account statement (used by e.g. Comdirect)
++        const container = docObj.BkToCstmrAcctRpt || docObj.BkToCstmrStmt;
++        if (!container) {
++            throw new CamtParsingError('No BkToCstmrAcctRpt or BkToCstmrStmt element found in CAMT document');
++        }
++        const rpt = container.Rpt || container.Stmt;
+         if (!rpt) {
+             return [];\
+         }
