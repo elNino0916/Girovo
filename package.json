@@ -1,6 +1,6 @@
 {
   "name": "sooskasse-fints",
-  "version": "2.0.0",
+  "version": "2.2.1",
   "private": true,
   "description": "Sooskasse-FinTS — self-hosted banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled TAN, SEPA & Echtzeitueberweisung)",
   "type": "module",

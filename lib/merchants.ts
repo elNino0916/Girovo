@@ -24,8 +24,9 @@ import 'server-only';
 
 import crypto from 'node:crypto';
 import {
-  bestScore, candidates, looksCorporate,
+  bestScore, candidates, facilitatorOf, getMerchantKey, looksCorporate, nameScore,
 } from './merchant-match';
+export { getMerchantKey };
 import { BRANDFETCH_CLIENT_ID, MERCHANT_LOGOS } from './session';
 
 export type Merchant = {
@@ -35,6 +36,12 @@ export type Merchant = {
   label: string;
   /** Opaque id for /api/merchant-logo — never the upstream URL. */
   logo: string;
+  /**
+   * The payment provider the purchase went through, set only when the shop was
+   * identified from the Verwendungszweck because the booking's counterparty was
+   * the provider itself. Mirrors `Merchant` in lib/fints-types.ts.
+   */
+  via?: { label: string; logo: string };
 };
 
 const SEARCH_API = 'https://api.brandfetch.io/v2/search';
@@ -159,24 +166,135 @@ function registerLogo(domain: string): string {
   return id;
 }
 
-async function resolveOne(rawName: string): Promise<Merchant | null> {
-  if (!looksCorporate(rawName)) return null;
+export type MerchantItem = {
+  name: string;
+  purpose?: string;
+  key?: string;
+};
 
-  for (const rung of candidates(rawName)) {
+const KNOWN_DOMAINS: Record<string, { domain: string; label: string }> = {
+  'g2a': { domain: 'g2a.com', label: 'G2A.COM' },
+  'g2a com': { domain: 'g2a.com', label: 'G2A.COM' },
+  'g2a.com': { domain: 'g2a.com', label: 'G2A.COM' },
+  'deutsche post': { domain: 'deutschepost.de', label: 'Deutsche Post' },
+  'netflix': { domain: 'netflix.com', label: 'Netflix' },
+  'steam': { domain: 'steampowered.com', label: 'Steam' },
+  'steampowered': { domain: 'steampowered.com', label: 'Steam' },
+  'steampowered.com': { domain: 'steampowered.com', label: 'Steam' },
+  'valve': { domain: 'valvesoftware.com', label: 'Valve Corporation' },
+  'valve corporation': { domain: 'valvesoftware.com', label: 'Valve Corporation' },
+  'spotify': { domain: 'spotify.com', label: 'Spotify' },
+  'amazon': { domain: 'amazon.de', label: 'Amazon' },
+  'ebay': { domain: 'ebay.de', label: 'eBay' },
+  'zalando': { domain: 'zalando.de', label: 'Zalando' },
+  'epic games': { domain: 'epicgames.com', label: 'Epic Games' },
+  'nintendo': { domain: 'nintendo.com', label: 'Nintendo' },
+  'playstation': { domain: 'playstation.com', label: 'PlayStation' },
+  'ubisoft': { domain: 'ubisoft.com', label: 'Ubisoft' },
+  'apple': { domain: 'apple.com', label: 'Apple' },
+  'paypal': { domain: 'paypal.com', label: 'PayPal' },
+};
+
+// The providers whose own mark can be shown as a badge on the shop's logo.
+// Addressed by domain, so a badge costs no search — Brandfetch's logo CDN
+// resolves a hostname directly.
+const FACILITATOR_BRANDS: Record<string, { domain: string; label: string }> = {
+  paypal: { domain: 'paypal.com', label: 'PayPal' },
+  klarna: { domain: 'klarna.com', label: 'Klarna' },
+  mollie: { domain: 'mollie.com', label: 'Mollie' },
+  adyen: { domain: 'adyen.com', label: 'Adyen' },
+  stripe: { domain: 'stripe.com', label: 'Stripe' },
+  sumup: { domain: 'sumup.com', label: 'SumUp' },
+  square: { domain: 'squareup.com', label: 'Square' },
+  sq: { domain: 'squareup.com', label: 'Square' },
+  izettle: { domain: 'zettle.com', label: 'Zettle' },
+  zettle: { domain: 'zettle.com', label: 'Zettle' },
+  nexi: { domain: 'nexi.it', label: 'Nexi' },
+  unzer: { domain: 'unzer.com', label: 'Unzer' },
+  payone: { domain: 'payone.com', label: 'PAYONE' },
+  worldline: { domain: 'worldline.com', label: 'Worldline' },
+  nuvei: { domain: 'nuvei.com', label: 'Nuvei' },
+  trustly: { domain: 'trustly.com', label: 'Trustly' },
+  gocardless: { domain: 'gocardless.com', label: 'GoCardless' },
+  shopify: { domain: 'shopify.com', label: 'Shopify' },
+  smart2pay: { domain: 'smart2pay.com', label: 'Smart2Pay' },
+  s2p: { domain: 'smart2pay.com', label: 'Smart2Pay' },
+  giropay: { domain: 'giropay.de', label: 'giropay' },
+  sofort: { domain: 'klarna.com', label: 'Sofort' },
+  wero: { domain: 'wero-wallet.eu', label: 'Wero' },
+};
+
+/**
+ * The provider badge for a shop that was only identifiable from the purpose.
+ *
+ * Returned only when the shop and the provider are genuinely different
+ * companies — a PayPal booking that resolved to PayPal itself gets no badge,
+ * because there would be nothing for it to explain.
+ */
+function viaBadge(rawName: string, resolvedDomain: string): Merchant['via'] | undefined {
+  const token = facilitatorOf(rawName);
+  if (!token) return undefined;
+  const brand = FACILITATOR_BRANDS[token];
+  if (!brand || brand.domain === resolvedDomain) return undefined;
+  return { label: brand.label, logo: registerLogo(brand.domain) };
+}
+
+async function resolveOne(rawName: string, purpose: string | undefined, businessBooking: boolean): Promise<Merchant | null> {
+  if (!looksCorporate(rawName, businessBooking, purpose)) return null;
+
+  for (const rung of candidates(rawName, purpose)) {
+    const known = KNOWN_DOMAINS[rung.core.toLowerCase()];
+    if (known) {
+      console.log(`[merchants] "${rung.core}" → ${known.label} (${known.domain}, direct match)`);
+      return {
+        id: known.domain,
+        label: known.label,
+        logo: registerLogo(known.domain),
+        ...(rung.fromPurpose ? { via: viaBadge(rawName, known.domain) } : {}),
+      };
+    }
+
+    // A rung whose query is exactly a hostname needs no search: Brandfetch's
+    // logo CDN is addressed by domain. Anchored, so only a rung deliberately
+    // built from a domain hint can take this path — never a counterparty name
+    // that merely happens to contain a dot.
+    if (/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.[a-z]{2,}$/i.test(rung.query)) {
+      const domain = rung.query.toLowerCase();
+      const label = domain.split('.')[0].toUpperCase();
+      console.log(`[merchants] "${rung.core}" → ${label} (${domain}, direct domain)`);
+      return {
+        id: domain,
+        label,
+        logo: registerLogo(domain),
+        ...(rung.fromPurpose ? { via: viaBadge(rawName, domain) } : {}),
+      };
+    }
+
     const hits = await search(rung.query);
     if (!hits.length) continue;
 
     // Score on name and bare domain before spending any bytes on a logo fetch:
     // only a plausible match is worth showing, a wrong logo is worse than none.
     const plausible = hits
-      .map((h) => ({ hit: h, score: bestScore(rung.core, [h.name, domainCore(h.domain)]) }))
+      .map((h) => {
+        const nScore = bestScore(rung.core, [h.name]);
+        const dScore = nameScore(rung.core, domainCore(h.domain));
+        const score = Math.max(nScore, dScore);
+        const domainMatch = dScore >= 0.85 ? 1 : 0;
+        return { hit: h, score, domainMatch };
+      })
       .filter((c) => c.score >= rung.minScore)
-      .sort((a, b) => (b.score - a.score) || (Number(b.hit.claimed) - Number(a.hit.claimed)));
+      .sort((a, b) => (b.score - a.score) || (b.domainMatch - a.domainMatch) || (Number(b.hit.claimed) - Number(a.hit.claimed)));
     if (!plausible.length) continue;
 
     const { hit, score } = plausible[0];
     console.log(`[merchants] "${rung.core}" → ${hit.name} (${hit.domain}, score ${score.toFixed(2)})`);
-    return { id: hit.brandId, label: hit.name, logo: registerLogo(hit.domain) };
+    return {
+      id: hit.brandId,
+      label: hit.name,
+      logo: registerLogo(hit.domain),
+      ...(rung.fromPurpose ? { via: viaBadge(rawName, hit.domain) } : {}),
+    };
   }
 
   return null;
@@ -190,34 +308,76 @@ async function resolveOne(rawName: string): Promise<Merchant | null> {
  * or because Brandfetch was unreachable — comes back as null and the UI keeps
  * its plain avatar.
  */
-export async function resolveMerchants(names: string[]): Promise<Record<string, Merchant | null>> {
+export async function resolveMerchants(
+  items: (string | MerchantItem)[],
+  /**
+   * The subset whose booking proves a business — a SEPA direct debit or a card
+   * payment. Those names may skip the person veto in lib/merchant-match.ts.
+   */
+  businessNames: Iterable<string> = [],
+): Promise<Record<string, Merchant | null>> {
   const out: Record<string, Merchant | null> = {};
   if (!MERCHANT_LOGOS) return out;
 
-  const wanted = [...new Set(names.map((n) => String(n || '').trim()).filter(Boolean))].slice(0, 60);
+  const parsedItems: { name: string; purpose?: string; key: string }[] = [];
+  const seenKeys = new Set<string>();
 
-  await Promise.all(wanted.map(async (name) => {
-    const key = name.toLowerCase();
+  for (const raw of items) {
+    let name = '';
+    let purpose: string | undefined;
+    let key = '';
 
-    if (resolved.has(key)) {
-      out[name] = resolved.get(key)!;
+    if (typeof raw === 'string') {
+      name = raw.trim();
+      key = name;
+    } else if (raw && typeof raw === 'object') {
+      name = String(raw.name ?? '').trim();
+      purpose = raw.purpose ? String(raw.purpose).trim() : undefined;
+      key = raw.key || (purpose ? getMerchantKey({ remoteName: name, purpose }) : name);
+    }
+
+    if (!name || seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    parsedItems.push({ name, purpose, key });
+    if (parsedItems.length >= 60) break;
+  }
+
+  const business = new Set([...businessNames].map((n) => String(n || '').trim()).filter(Boolean));
+
+  await Promise.all(parsedItems.map(async (item) => {
+    // The cache key carries the verdict, so the same name seen first on a
+    // transfer and later on a card payment is not answered from the stricter
+    // of the two runs.
+    const cacheKey = `${business.has(item.name) ? 'b' : 'p'}:${item.key.toLowerCase()}`;
+
+    // Only a result resolved from the name alone may be published under the
+    // name. A hint-derived logo belongs to one shop behind the wrapper, and
+    // publishing it under "PayPal Europe" would put a G2A mark on every other
+    // PayPal booking in the statement.
+    const publish = (res: Merchant | null) => {
+      out[item.key] = res;
+      if (item.key === item.name) out[item.name] = res;
+    };
+
+    if (resolved.has(cacheKey)) {
+      publish(resolved.get(cacheKey)!);
       return;
     }
 
-    let job = inflight.get(key);
+    let job = inflight.get(cacheKey);
     if (!job) {
-      job = resolveOne(name)
+      job = resolveOne(item.name, item.purpose, business.has(item.name))
         .catch(() => null)
         .then((m) => {
           // Cache misses too — an unrecognised counterparty must not be looked
           // up again on every statement reload.
-          resolved.set(key, m);
-          inflight.delete(key);
+          resolved.set(cacheKey, m);
+          inflight.delete(cacheKey);
           return m;
         });
-      inflight.set(key, job);
+      inflight.set(cacheKey, job);
     }
-    out[name] = await job;
+    publish(await job);
   }));
 
   return out;
