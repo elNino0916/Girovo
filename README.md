@@ -1,11 +1,9 @@
 <p align="center">
   <img
-    src="https://github.com/user-attachments/assets/d62f5b09-dd43-471d-89b6-e3206f2fdcfb"
+    src="https://github.com/user-attachments/assets/6c57f3c7-927d-48b1-8dd9-20ab9ebf39e5"
     alt="Image"
   />
 </p>
-
-# Sooskasse-FinTS
 
 A modern, self-hosted banking app for German banks that speaks **FinTS 3.0
 (HBCI) PIN/TAN** — including the *decoupled* TAN methods (S-pushTAN, SecureGo
