@@ -78,6 +78,44 @@ npm run build && npm start
 > ⚠️ **Runs locally only.** Your PIN is held in server memory for the session
 > and is never written to disk or logged. Do not expose this on a public host.
 
+## Windows desktop app
+
+The same app also builds into a normal Windows program — no terminal, no
+browser tab:
+
+```bash
+npm run electron:dist
+```
+
+That leaves two files in `dist/`: an installer
+(`Sooskasse-FinTS-<version>-Setup.exe`) and a portable single executable. Both
+are ~100 MB, most of which is the Electron runtime.
+
+Nothing about the website workflow changes — `npm run dev`, `npm run build` and
+`npm start` behave exactly as before.
+
+| Script | What it does |
+|--------|--------------|
+| `npm run electron:build` | `next build` in standalone mode, plus the two folders a standalone build leaves behind (`.next/static`, `public`). Output: `.next/standalone/`. |
+| `npm run electron:start` | Opens the desktop window against that build — a packaging-free way to check it. |
+| `npm run electron:dist` | The above, then wraps it with electron-builder into `dist/`. |
+| `npm run electron:dev` | Points the desktop window at a running `npm run dev` (start that first), so the app hot-reloads. |
+
+**It is not a static export.** The API routes hold the live FinTS dialog, so the
+desktop app ships the real server: Electron starts `.next/standalone/server.js`
+as a child process — its own binary re-run with `ELECTRON_RUN_AS_NODE=1`, so no
+Node install is required — bound to `127.0.0.1` on a random free port, and
+points a window at it. Nothing is reachable from the network, and the port never
+collides with a dev server.
+
+Remembered device profiles (see *Fewer TAN prompts*) cannot live next to a
+program installed under `Program Files`, so the desktop app puts them in
+`%APPDATA%\sooskasse-fints\fints-state` via the `FINTS_STATE_DIR` environment
+variable. The website keeps using `.fints-state/` in the project root.
+
+`config.json` is baked into the package at build time — set your product ID
+before building.
+
 ## FinTS product registration (important)
 
 FinTS requires a **product registration ID** issued (free) by the ZKA — some
@@ -106,11 +144,12 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `lib/serialize.ts` | Maps lib-fints objects to the JSON the browser sees; `lib/fints-types.ts` holds that contract, imported by both sides. |
 | `lib/merchant-match.ts` | The company-detection model: name cleaning, the corporate-marker privacy gate, the candidate ladder and the scoring thresholds. Deterministic and inspectable — no network, no data files. |
 | `lib/merchants.ts` | The Brandfetch lookup behind it: Brand Search API for recall, name/domain scoring for precision, the Logo CDN fetch, process-level caching of hits *and* misses, and the logo proxy's allowlist. |
-| `lib/state-store.ts` | Encrypted device-profile persistence (`.fints-state/`, gitignored): AES-256-GCM, key derived from the PIN via scrypt. Stores systemId + cached BPD/UPD + TAN method so logins skip a fresh sync SCA. |
+| `lib/state-store.ts` | Encrypted device-profile persistence (`.fints-state/`, gitignored, or wherever `FINTS_STATE_DIR` points): AES-256-GCM, key derived from the PIN via scrypt. Stores systemId + cached BPD/UPD + TAN method so logins skip a fresh sync SCA. |
 | `patches/` | One-line patch (via `patch-package`, applied on `npm install`) exporting lib-fints' internal `registerSegmentDefinition` so the custom segments can be registered. |
 | `components/FintsProvider.tsx` | The client state machine: login → TAN method → dashboard, with every bank read serialised behind one `busy` flag (each read can cost its own approval) and the decoupled poll loop. |
 | `components/*.tsx` | The UI: bank picker, TAN method + wait overlay, dashboard, ledger, transaction drawer, Überweisung flow. |
 | `app/globals.css` | Design tokens (paper/ink, banknote green, Soll red, vorgemerkt amber) as CSS variables mapped into Tailwind v4 via `@theme inline`. |
+| `electron/main.cjs` | The desktop shell: boots the standalone server on loopback, opens the window, denies every device permission and sends outside links to the real browser. Paired with `scripts/build-electron.mjs` and `electron-builder.yml`. |
 
 ### API surface
 

@@ -9,3 +9,6 @@ next-env.d.ts
 *.tsbuildinfo
 .idea/
 .vs/
+
+# Electron
+dist/

@@ -21,7 +21,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { BankingInformation } from 'lib-fints';
 
-const STATE_DIR = path.join(process.cwd(), '.fints-state');
+// Defaults to .fints-state/ in the project root. The desktop build installs the
+// server into a read-only program directory, so Electron overrides this with a
+// per-user path (electron/main.cjs).
+const STATE_DIR = process.env.FINTS_STATE_DIR || path.join(process.cwd(), '.fints-state');
 
 // scrypt cost — deliberately raised to slow offline PIN brute-forcing.
 const SCRYPT = { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
