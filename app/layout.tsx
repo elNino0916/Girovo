@@ -24,7 +24,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 const FAVICON =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%230b5c42'/%3E%3Ctext x='50' y='68' font-size='52' font-family='monospace' font-weight='600' fill='white' text-anchor='middle'%3E%E2%82%AC%3C/text%3E%3C/svg%3E";
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%2312457e'/%3E%3Ctext x='50' y='68' font-size='52' font-family='monospace' font-weight='600' fill='white' text-anchor='middle'%3E%E2%82%AC%3C/text%3E%3C/svg%3E";
 
 export const metadata: Metadata = {
   title: 'Sooskasse-FinTS',
@@ -33,9 +33,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // The identity bar is what sits under the browser chrome, so it — not the
+  // page — is the colour the OS should tint with.
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ecefea' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0f0d' },
+    { media: '(prefers-color-scheme: light)', color: '#12304f' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b0d0f' },
   ],
 };
 

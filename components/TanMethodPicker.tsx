@@ -81,14 +81,14 @@ function OptionRow({
       type="button"
       onClick={onClick}
       className="flex w-full items-center gap-3 rounded-[10px] border border-line bg-surface px-3.5 py-3
-                 text-left transition-colors duration-150 hover:border-green"
+                 text-left transition-colors duration-150 hover:border-accent hover:bg-accent-soft"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14.5px] font-semibold">{title}</span>
         {subtitle && <span className="mt-0.5 block truncate text-[12.5px] text-ink-3">{subtitle}</span>}
       </span>
       {badge ? (
-        <span className="shrink-0 rounded-full bg-green-soft px-2 py-1 text-[10.5px] font-semibold tracking-wider text-green uppercase">
+        <span className="shrink-0 rounded-full bg-accent-soft px-2 py-1 text-[10.5px] font-semibold tracking-wider text-accent uppercase">
           {badge}
         </span>
       ) : (

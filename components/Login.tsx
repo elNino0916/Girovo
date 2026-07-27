@@ -215,7 +215,7 @@ function Credentials({
         {bank.hint && <p className="-mt-1 mb-3 text-[12.5px] text-ink-3">{bank.hint}</p>}
 
         {remembered && (
-          <p className="mb-3 flex items-center gap-2 rounded-[9px] bg-green-soft px-3 py-2.5 text-[12.5px] font-medium text-green">
+          <p className="mb-3 flex items-center gap-2 rounded-[9px] bg-accent-soft px-3 py-2.5 text-[12.5px] font-medium text-accent">
             <ShieldIcon check />
             Gerät gemerkt — deine PIN schaltet die gespeicherten Zugangsdaten frei.
           </p>
@@ -246,7 +246,7 @@ function Credentials({
 export function AuthCard({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh items-center justify-center px-4 py-8">
-      <div className="w-full max-w-[470px] rounded-[14px] border border-line bg-surface p-6 shadow-[var(--shadow-card)] sm:p-8">
+      <div className="panel w-full max-w-[470px] p-6 sm:p-8">
         {children}
       </div>
     </div>
@@ -256,7 +256,7 @@ export function AuthCard({ children }: { children: React.ReactNode }) {
 function Brand() {
   return (
     <div className="mb-6 flex items-center gap-3">
-      <span className="num grid size-10 shrink-0 place-items-center rounded-[11px] bg-green text-[22px] font-semibold text-white dark:text-[#07130e]">
+      <span className="num grid size-10 shrink-0 place-items-center rounded-[11px] bg-accent text-[22px] font-semibold text-accent-ink">
         €
       </span>
       <div>

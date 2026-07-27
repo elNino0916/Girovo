@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef } from 'react';
+import { forwardRef, useId } from 'react';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 
 export const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' ');
@@ -9,7 +9,7 @@ export const cx = (...parts: Array<string | false | null | undefined>) => parts.
 // Button
 // ---------------------------------------------------------------------------
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'ghost' | 'quiet';
+  variant?: 'primary' | 'ghost' | 'quiet' | 'bar';
   size?: 'md' | 'sm';
   block?: boolean;
   busy?: boolean;
@@ -20,9 +20,12 @@ const BUTTON_BASE =
   'transition-[background-color,border-color,color,opacity] duration-150 disabled:opacity-50 disabled:cursor-not-allowed';
 
 const BUTTON_VARIANTS = {
-  primary: 'border-transparent bg-green text-white dark:text-[#07130e] hover:brightness-110',
-  ghost: 'border-line-strong text-ink-2 hover:bg-inset hover:text-ink',
+  primary: 'border-transparent bg-accent text-accent-ink hover:bg-accent-hover',
+  ghost: 'border-line-strong text-ink-2 hover:border-accent hover:bg-accent-soft hover:text-accent',
   quiet: 'border-transparent text-ink-3 hover:bg-inset hover:text-ink',
+  /* Buttons that live on the navy bar, where the page's border and hover
+     colours would be invisible. */
+  bar: 'border-[color-mix(in_srgb,var(--bar-ink)_28%,transparent)] text-bar-ink hover:bg-[color-mix(in_srgb,var(--bar-ink)_12%,transparent)]',
 } as const;
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -61,12 +64,16 @@ export function Spinner({ className }: { className?: string }) {
   );
 }
 
-export function IconButton({ className, children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement>) {
+export function IconButton({
+  className, tone = 'page', children, ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'page' | 'bar' }) {
   return (
     <button
       className={cx(
-        'grid size-8 shrink-0 place-items-center rounded-lg text-ink-3',
-        'transition-colors duration-150 hover:bg-inset hover:text-ink',
+        'grid size-8 shrink-0 place-items-center rounded-lg transition-colors duration-150',
+        tone === 'bar'
+          ? 'text-bar-ink-2 hover:bg-[color-mix(in_srgb,var(--bar-ink)_12%,transparent)] hover:text-bar-ink'
+          : 'text-ink-3 hover:bg-inset hover:text-ink',
         className,
       )}
       {...rest}
@@ -103,7 +110,7 @@ export function Field({
 const INPUT_BASE =
   'w-full rounded-[9px] border border-line-strong bg-surface px-3 py-2.5 text-ink ' +
   'transition-[border-color,box-shadow] duration-150 outline-none ' +
-  'focus:border-green focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--green)_18%,transparent)]';
+  'focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_18%,transparent)]';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }>(
   function Input({ className, invalid, ...rest }, ref) {
@@ -123,7 +130,7 @@ export function Alert({ tone = 'error', children }: { tone?: 'error' | 'warn' | 
   const tones = {
     error: 'bg-red-soft text-red',
     warn: 'bg-amber-soft text-amber',
-    info: 'bg-green-soft text-green',
+    info: 'bg-accent-soft text-accent',
   } as const;
   return (
     <p role={tone === 'error' ? 'alert' : undefined} className={cx('mt-3 rounded-[9px] px-3 py-2.5 text-[13.5px]', tones[tone])}>
@@ -165,7 +172,7 @@ export function Sheet({ wide, className, children }: { wide?: boolean; className
   return (
     <div
       className={cx(
-        'anim-sheet max-h-[calc(100dvh-40px)] w-full overflow-y-auto rounded-2xl border border-line',
+        'anim-sheet max-h-[calc(100dvh-40px)] w-full overflow-y-auto rounded-2xl',
         'bg-surface p-6 shadow-[var(--shadow-pop)] sm:p-7',
         wide ? 'max-w-[540px]' : 'max-w-[460px]',
         className,
@@ -173,6 +180,65 @@ export function Sheet({ wide, className, children }: { wide?: boolean; className
     >
       {children}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Disclosure — the one collapsible-group header in the app.
+//
+// Every grouped list (accounts, vorgemerkte Umsätze, a day of bookings) opens
+// and closes through this, so the chevron, the hit area, the sticky offset and
+// the aria wiring are decided once instead of three times.
+// ---------------------------------------------------------------------------
+export function Disclosure({
+  open, onToggle, title, trailing, sticky, tone = 'plain', className, children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  title: ReactNode;
+  /** Sits at the right edge of the header — a count, a total, a refresh. */
+  trailing?: ReactNode;
+  /** Pin the header under the app header while its group is scrolled through. */
+  sticky?: boolean;
+  tone?: 'plain' | 'inset' | 'amber';
+  className?: string;
+  children: ReactNode;
+}) {
+  const id = useId();
+  const tones = {
+    plain: 'text-ink-2 hover:text-ink',
+    inset: 'bg-inset text-ink-2 hover:text-ink',
+    amber: 'bg-amber-soft text-amber',
+  } as const;
+
+  return (
+    <div className={className}>
+      <div
+        className={cx('flex items-center gap-2 px-4 py-2.5', tones[tone], sticky && 'sticky z-5')}
+        style={sticky ? { top: 'var(--topbar-h)' } : undefined}
+      >
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={id}
+          className="-my-1 -ml-1 flex min-w-0 flex-1 items-center gap-2 rounded py-1 pl-1 text-left"
+        >
+          <ChevronIcon className="chev shrink-0 opacity-70" data-open={open} />
+          <span className="min-w-0 truncate">{title}</span>
+        </button>
+        {trailing}
+      </div>
+      <div id={id} hidden={!open}>{children}</div>
+    </div>
+  );
+}
+
+export function ChevronIcon({ size = 14, className, ...rest }: { size?: number; className?: string } & Record<string, unknown>) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className={className} {...rest}>
+      <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

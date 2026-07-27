@@ -5,27 +5,49 @@ import { fmtDate, fmtIban, fmtMoney, groupLabel, initials, isFutureDate, txTime 
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { useFints, useMerchant } from './FintsProvider';
 import {
-  ArrowDownIcon, Button, ClockIcon, CloseIcon, IconButton, Overlay, RefreshIcon,
-  SearchIcon, SkeletonRow, cx,
+  ArrowDownIcon, Button, ClockIcon, CloseIcon, Disclosure, IconButton, Overlay,
+  RefreshIcon, SearchIcon, SkeletonRow, cx,
 } from './ui';
+
+/** One day of bookings — the unit the statement is already grouped into. */
+type DayGroup = {
+  label: string;
+  future: boolean;
+  txs: SerializedTransaction[];
+};
 
 export function Transactions() {
   const { activeAccount, transactions, loadingAccount, txError } = useFints();
   const [query, setQuery] = useState('');
   const [detail, setDetail] = useState<{ tx: SerializedTransaction; pending: boolean } | null>(null);
+  // Collapsed rather than expanded: a day the user has never touched is open,
+  // which is what someone scanning a statement wants.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const loading = !!activeAccount && loadingAccount === activeAccount.accountNumber;
 
-  const filtered = useMemo(() => {
+  const groups = useMemo<DayGroup[]>(() => {
     const list = transactions ?? [];
     const q = query.trim().toLowerCase();
     const matched = q
       ? list.filter((t) => `${t.remoteName} ${t.purpose} ${t.bookingText} ${t.remoteIban}`.toLowerCase().includes(q))
       : list.slice();
-    return matched.sort((a, b) => txTime(b) - txTime(a));
+    matched.sort((a, b) => txTime(b) - txTime(a));
+
+    const out: DayGroup[] = [];
+    for (const t of matched) {
+      const date = t.entryDate || t.valueDate;
+      const label = groupLabel(date);
+      const last = out[out.length - 1];
+      if (last && last.label === label) last.txs.push(t);
+      else out.push({ label, future: isFutureDate(date), txs: [t] });
+    }
+    return out;
   }, [transactions, query]);
 
   if (!activeAccount) return null;
+
+  const empty = groups.length === 0;
 
   return (
     <>
@@ -41,18 +63,18 @@ export function Transactions() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Umsätze durchsuchen …"
           aria-label="Umsätze durchsuchen"
-          className="w-full rounded-[9px] border border-line bg-surface py-2.5 pr-3 pl-10 outline-none focus:border-green"
+          className="w-full rounded-[9px] border border-line bg-surface py-2.5 pr-3 pl-10 outline-none focus:border-accent"
         />
       </div>
 
-      <div className="overflow-clip rounded-[12px] border border-line bg-surface">
+      <div className="panel overflow-clip">
         {loading && Array.from({ length: 7 }, (_, i) => <SkeletonRow key={i} width={40 + ((i * 37) % 45)} />)}
 
         {!loading && txError && (
           <EmptyState>{txError}</EmptyState>
         )}
 
-        {!loading && !txError && filtered.length === 0 && (
+        {!loading && !txError && empty && (
           <EmptyState icon>
             {query
               ? 'Kein Umsatz passt zu dieser Suche.'
@@ -60,41 +82,42 @@ export function Transactions() {
           </EmptyState>
         )}
 
-        {!loading && !txError && filtered.map((t, i) => {
-          const label = groupLabel(t.entryDate || t.valueDate);
-          const prev = i > 0 ? groupLabel(filtered[i - 1].entryDate || filtered[i - 1].valueDate) : null;
-          return (
-            <div key={`${t.bankReference}-${t.e2eReference}-${i}`}>
-              {label !== prev && <DayRail label={label} future={isFutureDate(t.entryDate || t.valueDate)} />}
-              <TxRow tx={t} onOpen={() => setDetail({ tx: t, pending: false })} />
-            </div>
-          );
-        })}
+        {!loading && !txError && groups.map((g) => (
+          <Disclosure
+            key={g.label}
+            sticky
+            tone="inset"
+            open={!collapsed[g.label]}
+            onToggle={() => setCollapsed((c) => ({ ...c, [g.label]: !c[g.label] }))}
+            title={
+              <span className="eyebrow flex items-center gap-2">
+                {g.label}
+                {g.future && (
+                  <span
+                    className="rounded-full bg-[color-mix(in_srgb,var(--ink-3)_16%,transparent)] px-1.5 py-px text-ink-2"
+                    title="Diese Buchungen tragen einen Buchungstag in der Zukunft — die Bank verbucht sie erst an diesem Tag."
+                  >
+                    noch nicht gebucht
+                  </span>
+                )}
+              </span>
+            }
+          >
+            {g.txs.map((t, i) => (
+              <TxRow
+                key={`${t.bankReference}-${t.e2eReference}-${i}`}
+                tx={t}
+                onOpen={() => setDetail({ tx: t, pending: false })}
+              />
+            ))}
+          </Disclosure>
+        ))}
       </div>
 
       {detail && (
         <TransactionDetail tx={detail.tx} pending={detail.pending} onClose={() => setDetail(null)} />
       )}
     </>
-  );
-}
-
-function DayRail({ label, future }: { label: string; future?: boolean }) {
-  return (
-    <div
-      className="eyebrow sticky z-5 flex items-center gap-2 border-b border-line bg-inset px-4 py-2"
-      style={{ top: 'var(--topbar-h)' }}
-    >
-      {label}
-      {future && (
-        <span
-          className="rounded-full bg-[color-mix(in_srgb,var(--ink-3)_16%,transparent)] px-1.5 py-px text-ink-2"
-          title="Diese Buchungen tragen einen Buchungstag in der Zukunft — die Bank verbucht sie erst an diesem Tag."
-        >
-          noch nicht gebucht
-        </span>
-      )}
-    </div>
   );
 }
 
@@ -260,6 +283,7 @@ function EmptyState({ children, icon }: { children: React.ReactNode; icon?: bool
 function PendingPanel() {
   const { activeAccount: a, pendingCache, pendingLoading, loadPending } = useFints();
   const [detail, setDetail] = useState<SerializedTransaction | null>(null);
+  const [open, setOpen] = useState(true);
 
   if (!a?.canPending) return null;
 
@@ -268,8 +292,8 @@ function PendingPanel() {
 
   if (loading) {
     return (
-      <div className="mb-4 overflow-clip rounded-[12px] border border-line bg-surface">
-        <div className="border-b border-line bg-amber-soft px-4 py-2">
+      <div className="panel mb-4 overflow-clip">
+        <div className="bg-amber-soft px-4 py-2.5">
           <span className="eyebrow text-amber">Vorgemerkt</span>
         </div>
         <SkeletonRow width={52} />
@@ -279,7 +303,7 @@ function PendingPanel() {
 
   if (!cached) {
     return (
-      <div className="mb-4 flex items-center gap-3 rounded-[12px] border border-dashed border-line-strong bg-surface px-4 py-3">
+      <div className="panel mb-4 flex items-center gap-3 px-4 py-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-amber-soft text-amber">
           <ClockIcon />
         </span>
@@ -298,21 +322,23 @@ function PendingPanel() {
 
   return (
     <>
-      <div className="mb-4 overflow-clip rounded-[12px] border border-amber bg-surface">
-        <div className="flex items-center gap-2 border-b border-line bg-amber-soft px-4 py-2">
-          <span className="eyebrow text-amber">Vorgemerkt</span>
-          <span className="num rounded-full bg-[color-mix(in_srgb,var(--amber)_18%,transparent)] px-2 py-px text-[11px] font-semibold text-amber">
-            {txs.length}
-          </span>
+      <Disclosure
+        className="panel mb-4 overflow-clip"
+        tone="amber"
+        open={open}
+        onToggle={() => setOpen(!open)}
+        title={<span className="eyebrow text-amber">Vorgemerkt</span>}
+        trailing={
           <IconButton
-            className="ml-auto size-7 hover:bg-[color-mix(in_srgb,var(--amber)_14%,transparent)] hover:text-amber"
+            className="size-7 text-amber hover:bg-[color-mix(in_srgb,var(--amber)_14%,transparent)] hover:text-amber"
             onClick={() => void loadPending(a)}
             title="Aktualisieren"
             aria-label="Vorgemerkte Umsätze aktualisieren"
           >
             <RefreshIcon />
           </IconButton>
-        </div>
+        }
+      >
         {txs.length ? (
           txs.map((t, i) => (
             <TxRow key={`${t.e2eReference}-${i}`} tx={t} tone="pending" onOpen={() => setDetail(t)} />
@@ -320,7 +346,7 @@ function PendingPanel() {
         ) : (
           <p className="px-4 py-5 text-center text-[13px] text-ink-3">Keine vorgemerkten Umsätze.</p>
         )}
-      </div>
+      </Disclosure>
 
       {detail && <TransactionDetail tx={detail} pending onClose={() => setDetail(null)} />}
     </>
@@ -370,7 +396,7 @@ function TransactionDetail({
 
   return (
     <Overlay open align="right" onClose={onClose}>
-      <div className="anim-drawer h-dvh w-full max-w-[430px] overflow-y-auto border-l border-line bg-surface px-6 pt-5 pb-10 shadow-[var(--shadow-pop)]">
+      <div className="anim-drawer h-dvh w-full max-w-[430px] overflow-y-auto bg-surface px-6 pt-5 pb-10 shadow-[var(--shadow-pop)]">
         <div className="mb-4 flex items-center justify-between">
           <span className="eyebrow">Umsatzdetails</span>
           <span className="flex items-center gap-1">
@@ -412,7 +438,7 @@ function TransactionDetail({
                     onClick={() => void copy(value)}
                     aria-label={`${label} kopieren`}
                     title="Kopieren"
-                    className="shrink-0 rounded p-0.5 text-ink-3 hover:text-green"
+                    className="shrink-0 rounded p-0.5 text-ink-3 hover:text-accent"
                   >
                     <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
                       <rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />

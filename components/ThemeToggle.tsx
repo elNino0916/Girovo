@@ -5,7 +5,7 @@ import { store } from '@/lib/client-api';
 import { IconButton } from './ui';
 
 /** Paper or ink. The choice is written before first paint in layout.tsx. */
-export function ThemeToggle() {
+export function ThemeToggle({ tone = 'page' }: { tone?: 'page' | 'bar' }) {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export function ThemeToggle() {
   };
 
   return (
-    <IconButton onClick={toggle} title="Design wechseln" aria-label="Design wechseln">
+    <IconButton tone={tone} onClick={toggle} title="Design wechseln" aria-label="Design wechseln">
       {theme === 'dark' ? (
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
           <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />

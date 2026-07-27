@@ -3,15 +3,20 @@
 /* ==========================================================================
    Sooskasse-FinTS — design tokens
    ==========================================================================
-   Design language: the German Kontoauszug, digitized.
+   Design language: the German Online-Banking shell, as the big institutes
+   build it — a navy identity bar over a quiet page of white panels.
 
-   - Paper is pale green-grey statement stock, not white and not cream.
+   - ONE accent. Navy carries brand, links, active state and the primary
+     action. Red is not an accent here: it already means Soll, so spending it
+     on chrome would make a debit look like a button.
+   - Green is a value, never a brand: credit amounts, positive balances,
+     confirmations. Amber stays reserved exclusively for "vorgemerkt".
+   - Panels are surfaces, not boxes. Structure comes from spacing, weight and
+     one hairline per list — no framed cards stacked inside framed cards.
    - Barlow carries the DIN/road-sign lineage of German officialdom for UI;
      Barlow Condensed heads sections; IBM Plex Mono sets every amount, IBAN,
      BLZ and date, with tabular figures so decimal points line up in columns
      the way they do on a printed statement.
-   - Banknote green is the identity, Soll red the only alarm, amber reserved
-     exclusively for "vorgemerkt" (not yet booked).
    - Small mono segment codes (HKKAZ, HKCCS, HKVMK …) label capabilities. They
      are the app's actual subject matter: a feature is missing precisely when
      the bank doesn't advertise that FinTS segment.
@@ -23,38 +28,67 @@
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 :root {
-  --paper: #ecefea;
+  --paper: #f2f5f8;
   --surface: #ffffff;
-  --inset: #e3e8e1;
-  --ink: #0f1613;
-  --ink-2: #46534c;
-  --ink-3: #7b897f;
-  --line: #d8ded6;
-  --line-strong: #bfc9bf;
+  --inset: #edf1f6;
+  --ink: #0d1826;
+  --ink-2: #47586b;
+  --ink-3: #74879b;
+  --line: #dee5ed;
+  --line-strong: #c2cedc;
 
-  --green: #0b5c42;
-  --green-soft: #dceae1;
+  /* The identity bar. Its own ink scale, because navy-on-navy needs a
+     different set of greys than ink-on-paper. */
+  --bar: #12304f;
+  --bar-ink: #f2f7fc;
+  --bar-ink-2: #a8c1dc;
+  --bar-line: #24486d;
+
+  /* The single accent: brand, link, active state, primary action. */
+  --accent: #12457e;
+  --accent-hover: #17568f;
+  --accent-ink: #ffffff;
+  --accent-soft: #e6eefa;
+
+  --green: #15734a;
+  --green-soft: #e2f0e8;
   --red: #a63a2e;
-  --red-soft: #f6e7e4;
+  --red-soft: #f8e8e5;
   --amber: #8a6410;
-  --amber-soft: #f4ecd8;
+  --amber-soft: #f6efdb;
 
-  --shadow-card: 0 1px 1px rgb(15 22 19 / 0.04), 0 1px 3px rgb(15 22 19 / 0.06);
-  --shadow-pop: 0 8px 20px -8px rgb(15 22 19 / 0.18), 0 32px 64px -24px rgb(15 22 19 / 0.3);
+  --shadow-card: 0 1px 1px rgb(13 24 38 / 0.04), 0 1px 3px rgb(13 24 38 / 0.06);
+  --shadow-pop: 0 8px 20px -8px rgb(13 24 38 / 0.18), 0 32px 64px -24px rgb(13 24 38 / 0.3);
+  /* Panels read as raised surfaces, not outlined boxes — a hairline shadow
+     instead of a border, so nothing in the page has a hard frame. */
+  --shadow-panel: 0 0 0 1px rgb(13 24 38 / 0.05), 0 1px 2px rgb(13 24 38 / 0.05), 0 6px 16px -12px rgb(13 24 38 / 0.4);
 }
 
 [data-theme='dark'] {
-  --paper: #0a0f0d;
-  --surface: #131a17;
-  --inset: #0f1613;
-  --ink: #e4eae5;
-  --ink-2: #9caaa2;
-  --ink-3: #67756d;
-  --line: #212c27;
-  --line-strong: #33433c;
+  --paper: #121417;
+  --surface: #1a1d21;
+  --inset: #23272c;
+  --ink: #e9edf1;
+  --ink-2: #a5afba;
+  --ink-3: #7b8691;
+  --line: #272c32;
+  --line-strong: #3b434d;
 
-  --green: #4cc392;
-  --green-soft: #14271e;
+  /* Darker than the page rather than lighter: the bar reads as the edge of
+     the window, the way the near-black reference does it. */
+  --bar: #0b0d0f;
+  --bar-ink: #f0f3f6;
+  --bar-ink-2: #98a3af;
+  --bar-line: #23272c;
+
+  /* Same accent, lifted until it clears contrast on a near-black page. */
+  --accent: #4f92e0;
+  --accent-hover: #6aa5ea;
+  --accent-ink: #07131f;
+  --accent-soft: #16253a;
+
+  --green: #57c894;
+  --green-soft: #15291f;
   --red: #e0736a;
   --red-soft: #2b1715;
   --amber: #d3a247;
@@ -62,6 +96,9 @@
 
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5);
   --shadow-pop: 0 8px 20px -8px rgb(0 0 0 / 0.6), 0 32px 64px -24px rgb(0 0 0 / 0.75);
+  /* No cast shadow on a dark page — it would be invisible. The panel lifts by
+     being lighter than the paper, plus the faintest inner edge. */
+  --shadow-panel: inset 0 0 0 1px rgb(255 255 255 / 0.04);
 }
 
 @theme inline {
@@ -73,6 +110,16 @@
   --color-ink-3: var(--ink-3);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+
+  --color-bar: var(--bar);
+  --color-bar-ink: var(--bar-ink);
+  --color-bar-ink-2: var(--bar-ink-2);
+  --color-bar-line: var(--bar-line);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
 
   --color-green: var(--green);
   --color-green-soft: var(--green-soft);
@@ -95,11 +142,22 @@
 
   --shadow-card: var(--shadow-card);
   --shadow-pop: var(--shadow-pop);
+  --shadow-panel: var(--shadow-panel);
 }
 
-/* Height of the sticky topbar — the transaction date rails pin just below it. */
+/* The header is two stacked rows — the navy identity bar and the account bar
+   beneath it — and both stick. Everything that pins under the header (the
+   transaction day headers) offsets by their sum, so the two never disagree. */
 :root {
-  --topbar-h: 60px;
+  --barbar-h: 56px;
+  --subbar-h: 46px;
+  --topbar-h: calc(var(--barbar-h) + var(--subbar-h));
+}
+@media (max-width: 640px) {
+  :root {
+    --barbar-h: 52px;
+    --subbar-h: 42px;
+  }
 }
 
 @layer base {
@@ -123,9 +181,14 @@
     color: var(--ink-3);
   }
   :focus-visible {
-    outline: 2px solid var(--green);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 4px;
+  }
+  /* Inside the navy bar the accent outline disappears into the background, so
+     focus there is drawn in the bar's own ink. */
+  .on-bar :focus-visible {
+    outline-color: var(--bar-ink);
   }
   /* Date pickers are chrome-coloured by default and fight the paper. */
   input[type='date']::-webkit-calendar-picker-indicator {
@@ -173,6 +236,41 @@
     font-weight: 500;
     letter-spacing: 0.06em;
     color: var(--ink-3);
+  }
+
+  /* A content block: a surface lifted off the page, never a framed box. One
+     class so every block in the app shares the same edge treatment and the
+     light/dark difference (cast shadow vs. inner edge) is decided once. */
+  .panel {
+    background: var(--surface);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-panel);
+  }
+
+  /* The header of a collapsible group. Sentence case and quiet — the group's
+     name is a landmark, not a shout; uppercase is left to .eyebrow. */
+  .section-head {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    color: var(--ink-2);
+  }
+
+  /* The disclosure chevron. It points down when the group is open, so the
+     mark itself says which way the content went. */
+  .chev {
+    transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .chev[data-open='false'] {
+    transform: rotate(-90deg);
+  }
+
+  /* An IBAN read as an identifier rather than a number to copy: the country
+     and bank half recedes, the account tail stays full strength, which is how
+     you find your own account in a list of four. */
+  .id-tail {
+    font-weight: 600;
+    color: var(--ink-2);
   }
 }
 

@@ -2,7 +2,7 @@
 
 import { useFints } from './FintsProvider';
 import { VopBadge } from './VopResult';
-import { Alert, Button, Overlay, Sheet, Spinner } from './ui';
+import { Alert, Button, Overlay, Sheet, Spinner, cx } from './ui';
 
 /**
  * The decoupled approval beat: the user leaves for their banking app and comes
@@ -38,7 +38,7 @@ export function TanWaitOverlay() {
 
         {waiting && (
           <p className="mt-4 flex items-center justify-center gap-2.5 text-sm text-ink-2">
-            <Spinner className="text-green" />
+            <Spinner className="text-accent" />
             <span>Warte auf Bestätigung</span>
             <span className="num text-ink-3">{formatElapsed(wait.elapsed)}</span>
           </p>
@@ -62,19 +62,26 @@ const formatElapsed = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).pad
 function PhonePulse({ settled, ok }: { settled: boolean; ok: boolean }) {
   return (
     <div className="relative mx-auto mt-1 mb-5 size-21" aria-hidden>
+      {/* Waiting is the accent's job; green is kept for the moment it actually
+          came back confirmed. */}
       {!settled && (
         <>
           <span
-            className="absolute inset-0 rounded-full border-2 border-green opacity-0"
+            className="absolute inset-0 rounded-full border-2 border-accent opacity-0"
             style={{ animation: 'ping-ring 2.2s ease-out infinite' }}
           />
           <span
-            className="absolute inset-0 rounded-full border-2 border-green opacity-0"
+            className="absolute inset-0 rounded-full border-2 border-accent opacity-0"
             style={{ animation: 'ping-ring 2.2s ease-out infinite', animationDelay: '1.1s' }}
           />
         </>
       )}
-      <span className="absolute inset-3.5 grid place-items-center rounded-full bg-green-soft text-green">
+      <span
+        className={cx(
+          'absolute inset-3.5 grid place-items-center rounded-full',
+          ok ? 'bg-green-soft text-green' : 'bg-accent-soft text-accent',
+        )}
+      >
         {ok ? (
           <svg viewBox="0 0 24 24" width="28" height="28">
             <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
