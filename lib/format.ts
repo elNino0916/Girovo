@@ -136,11 +136,33 @@ export function repairBankText(text: string): string {
   }
 }
 
+/**
+ * A name as a person writes it rather than as the bank stores it:
+ * "NINO BORNEMANN" → "Nino Bornemann".
+ *
+ * MT940 carries the account holder in caps, which is fine in a column of data
+ * and wrong in a sentence — a greeting that shouts the user's own name back at
+ * them reads as a system message, not a welcome. A name the bank already sent
+ * in mixed case is left exactly as it is.
+ */
+export function properName(raw: string | null | undefined): string {
+  const s = String(raw ?? '').trim();
+  if (!s || s !== s.toUpperCase()) return s;
+  return s.toLowerCase().replace(/(^|[\s\-'’./])(\p{Ll})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase());
+}
+
+/**
+ * A counterparty's monogram for the avatar on a booking.
+ *
+ * Words with no letter in them are skipped before the first and last are taken:
+ * card terminals and shops append their own numbers to the name they send
+ * ("REWE SAGT DANKE 123456"), and a monogram of "R1" identifies nothing.
+ */
 export function initials(name: string): string {
-  const parts = String(name).trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return '•';
-  const first = parts[0][0] || '';
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+  const words = String(name).trim().split(/\s+/).filter((w) => /\p{L}/u.test(w));
+  if (!words.length) return '•';
+  const first = words[0].match(/\p{L}/u)?.[0] ?? '';
+  const last = words.length > 1 ? words[words.length - 1].match(/\p{L}/u)?.[0] ?? '' : '';
   return (first + last).toUpperCase();
 }
 

@@ -3,10 +3,10 @@
 import { useMemo, useState } from 'react';
 import { fmtDate, fmtIban, fmtMoney, groupLabel, initials, isFutureDate, isoDate, txTime } from '@/lib/format';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
-import { parsePurpose } from '@/lib/sepa-purpose';
+import { condenseRefs, parsePurpose } from '@/lib/sepa-purpose';
 import { useFints, useMerchant } from './FintsProvider';
 import {
-  ArrowDownIcon, Button, ClockIcon, CloseIcon, Disclosure, IconButton, Overlay,
+  Button, ClockIcon, CloseIcon, Disclosure, IconButton, Overlay,
   RefreshIcon, SearchIcon, SkeletonRow, cx,
 } from './ui';
 
@@ -66,7 +66,9 @@ export function Transactions() {
             <h2 className="section-head text-ink">Umsätze</h2>
 
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <span className="flex items-center gap-1.5 rounded-[9px] bg-inset px-2 py-1.5">
+              {/* Wraps rather than being clipped: on a phone the pill is wider
+                  than the panel, and a half-visible "bis" date cannot be set. */}
+              <span className="flex max-w-full flex-wrap items-center gap-1.5 rounded-[9px] bg-inset px-2 py-1.5">
                 <label className="eyebrow shrink-0 pl-0.5" htmlFor="tx-from">Zeitraum</label>
                 <input
                   id="tx-from"
@@ -185,26 +187,27 @@ function TxRow({
   // EREF+…MREF+…SVWZ+… — and only the SVWZ half is prose a person wrote. The
   // identifiers are real, but they belong in the detail drawer: on a scannable
   // list they crowd out the two things being scanned for, the payee and the
-  // amount. A purpose with no tags in it is returned untouched.
-  const desc = parsePurpose(tx.purpose).text || (tx.remoteName ? tx.bookingText : '') || '';
+  // amount. A purpose with no tags in it is returned untouched, and whatever
+  // machine-length tokens survive inside the prose are cut to a stub.
+  const desc = condenseRefs(parsePurpose(tx.purpose).text || (tx.remoteName ? tx.bookingText : '') || '');
 
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3.5 border-b border-line px-4 py-3.5 text-left transition-colors duration-100 last:border-b-0 hover:bg-inset"
+      className="flex w-full items-center gap-3.5 border-b border-line px-4 py-3.5 text-left transition-colors duration-100 last:border-b-0 hover:bg-inset sm:px-5"
     >
       <TxAvatar merchant={merchant} name={name} credit={credit} tone={tone} />
 
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14px] leading-snug font-semibold">{name}</span>
-        {desc && <span className="mt-1 block truncate text-[12px] leading-snug text-ink-3">{desc}</span>}
+        <span className="block truncate text-[14.5px] leading-snug font-semibold">{name}</span>
+        {desc && <span className="mt-0.5 block truncate text-[12px] leading-snug text-ink-3">{desc}</span>}
       </span>
 
       {/* A fixed column so every amount in the list ends on the same edge —
           with tabular figures that puts the decimal points in one line. */}
       <span className="w-[112px] shrink-0 text-right sm:w-[128px]">
-        <span className={cx('num block text-[15px] leading-snug font-semibold', credit && 'text-green')}>
+        <span className={cx('num block text-[15.5px] leading-snug font-semibold', credit ? 'text-green' : 'text-ink')}>
           {credit ? '+' : '−'}{fmtMoney(Math.abs(tx.amount), tx.currency)}
         </span>
         <span
@@ -282,7 +285,7 @@ function TxAvatar({
             elsewhere in the app. The chip stays light in both themes — company
             marks are drawn for white backgrounds, and a navy wordmark would
             vanish on paper ink. */}
-        <span className="flex size-9 items-center justify-center overflow-hidden rounded-[10px] border border-line bg-white p-[3px]">
+        <span className="flex size-10 items-center justify-center overflow-hidden rounded-[11px] border border-line bg-white p-[3px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`/api/merchant-logo?id=${merchant.logo}`}
@@ -301,10 +304,13 @@ function TxAvatar({
     );
   }
 
+  // The counterparty's monogram, whichever way the money went: the circle is
+  // there to give the row a face to scan for, and an arrow repeated down every
+  // debit says nothing the amount's own sign has not already said.
   return (
     <span
       className={cx(
-        'grid size-9 shrink-0 place-items-center rounded-full border text-[12.5px] font-semibold',
+        'grid size-10 shrink-0 place-items-center rounded-full border text-[13px] font-semibold',
         tone === 'pending'
           ? 'border-transparent bg-amber-soft text-amber'
           : credit
@@ -312,7 +318,7 @@ function TxAvatar({
             : 'border-line bg-inset text-ink-2',
       )}
     >
-      {credit ? initials(name) : <ArrowDownIcon />}
+      {initials(name)}
     </span>
   );
 }
@@ -358,7 +364,7 @@ function PendingPanel() {
   if (!cached) {
     return (
       <div className="panel mb-4 flex items-center gap-3 px-4 py-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-amber-soft text-amber">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-amber-soft text-amber">
           <ClockIcon />
         </span>
         <span className="min-w-0 flex-1">
@@ -451,7 +457,13 @@ function TransactionDetail({
   return (
     <Overlay open align="right" onClose={onClose}>
       <div className="anim-drawer h-dvh w-full max-w-[430px] overflow-y-auto bg-surface px-6 pt-5 pb-10 shadow-[var(--shadow-pop)]">
-        <div className="mb-4 flex items-center justify-between">
+        {/* Drawer is right-aligned and full-height, so its own header row sits
+            exactly where the OS caption buttons float — see the same note in
+            Dashboard.tsx. --caption-inset is 0 outside the desktop shell. */}
+        <div
+          className="mb-4 flex items-center justify-between"
+          style={{ paddingRight: 'var(--caption-inset)' } as React.CSSProperties}
+        >
           <span className="eyebrow">Umsatzdetails</span>
           <span className="flex items-center gap-1">
             <Button size="sm" onClick={() => printTransaction(tx, pending)} title="Diesen Umsatz als PDF speichern">

@@ -43,6 +43,8 @@ win:
     - target: portable
       arch: [x64]
 
+# build/installer.nsh (the default `include` path, so nothing to wire up here)
+# overrides the built-in "app is running" scan — see that file for details.
 nsis:
   oneClick: false
   perMachine: false

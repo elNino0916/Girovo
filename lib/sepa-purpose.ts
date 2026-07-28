@@ -73,6 +73,32 @@ export function parsePurpose(raw: string | null | undefined): ParsedPurpose {
 }
 
 /**
+ * The remittance text with its machine identifiers cut down to a stub.
+ *
+ * Splitting the tags off is not quite enough for a scannable list: banks
+ * routinely leave a bare IBAN, a terminal id or an order number sitting inside
+ * the prose itself, and twenty-odd characters that mean nothing at a glance eat
+ * exactly the width the payee's name needs. A token long enough to be an
+ * identifier and carrying a digit is shortened to its head — the full value is
+ * one tap away in the detail drawer, where it can actually be read and copied.
+ */
+export function condenseRefs(text: string | null | undefined, max = 72): string {
+  const out = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .map((word) => {
+      const bare = word.replace(/[^A-Za-z0-9]/g, '');
+      // Words a person wrote stay whole, however long: only a run that is both
+      // identifier-length and part-numeric is machine output.
+      if (bare.length < 12 || !/\d/.test(bare)) return word;
+      return `${word.slice(0, 6)}…`;
+    })
+    .join(' ');
+  return out.length > max ? `${out.slice(0, max - 1).trimEnd()}…` : out;
+}
+
+/**
  * The purpose text split back into its lines.
  *
  * :86: subfields are concatenated, and banks pad the seams with runs of spaces

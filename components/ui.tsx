@@ -214,8 +214,7 @@ export function Disclosure({
   return (
     <div className={className}>
       <div
-        className={cx('flex items-center gap-2 px-4 py-2.5', tones[tone], sticky && 'sticky z-5')}
-        style={sticky ? { top: 'var(--topbar-h)' } : undefined}
+        className={cx('flex items-center gap-2 px-4 py-2.5', tones[tone], sticky && 'sticky top-0 z-5')}
       >
         <button
           type="button"
@@ -293,10 +292,20 @@ export function RefreshIcon({ size = 15 }: { size?: number }) {
   );
 }
 
-export function ArrowDownIcon({ size = 17 }: { size?: number }) {
+export function PowerIcon({ size = 15 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden>
-      <path d="M12 5v13m0 0l-5-5m5 5l5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className="shrink-0">
+      <path d="M12 3v8" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M7.5 6.3a7.5 7.5 0 1 0 9 0" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function UserIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className="shrink-0">
+      <circle cx="12" cy="8.5" r="3.8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4.8 20c.7-3.7 3.7-5.8 7.2-5.8s6.5 2.1 7.2 5.8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
@@ -306,8 +315,8 @@ export function ArrowDownIcon({ size = 17 }: { size?: number }) {
 // ---------------------------------------------------------------------------
 export function SkeletonRow({ width = 60 }: { width?: number }) {
   return (
-    <div className="flex items-center gap-3 border-b border-line px-4 py-3.5 last:border-b-0">
-      <div className="skel size-9 shrink-0 rounded-full" />
+    <div className="flex items-center gap-3.5 border-b border-line px-4 py-3.5 last:border-b-0 sm:px-5">
+      <div className="skel size-10 shrink-0 rounded-full" />
       <div className="flex-1">
         <div className="skel h-[11px]" style={{ width: `${width}%` }} />
         <div className="skel mt-[7px] h-[11px]" style={{ width: `${Math.max(20, width - 18)}%` }} />

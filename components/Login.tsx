@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { get, store } from '@/lib/client-api';
-import { useTitleBarInset } from '@/lib/use-titlebar-inset';
 import { BankLogo } from './BankLogo';
 import { useFints, type BankSearchHit, type ChosenBank } from './FintsProvider';
 import { ThemeToggle } from './ThemeToggle';
@@ -249,14 +248,16 @@ export function AuthCard({ children }: { children: React.ReactNode }) {
   // No session yet to put a bar over, but the window still needs one: with
   // no native frame (electron/main.cjs) this is also the only place on the
   // login screen the user can grab to drag it.
-  const captionInset = useTitleBarInset();
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex h-dvh flex-col">
+      {/* Not a scroll container, same reason as Dashboard.tsx's header: kept
+          clear of the row so the OS-drawn scrollbar never crosses it.
+          bar-caption-safe keeps content clear of the OS caption buttons —
+          see the same note in Dashboard.tsx. */}
       <div
-        className="on-bar flex items-center gap-3 bg-bar px-4 text-bar-ink sm:px-6"
+        className="on-bar bar-caption-safe flex shrink-0 items-center gap-3 bg-bar pl-4 text-bar-ink sm:pl-6"
         style={{
           height: 'var(--barbar-h)',
-          paddingRight: captionInset ? captionInset + 8 : undefined,
           WebkitAppRegion: 'drag',
         } as React.CSSProperties}
       >
@@ -271,7 +272,7 @@ export function AuthCard({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      <div className="flex flex-1 items-center justify-center px-4 py-8">
+      <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-8">
         <div className="panel w-full max-w-[470px] p-6 sm:p-8">
           {children}
         </div>

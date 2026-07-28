@@ -5,7 +5,7 @@ import { fmtDate, fmtIban, fmtMoney, isFutureDate, splitMoney, translateType } f
 import type { SerializedAccount } from '@/lib/fints-types';
 import { BankLogo } from './BankLogo';
 import { useFints } from './FintsProvider';
-import { Button, Disclosure, cx } from './ui';
+import { Disclosure, cx } from './ui';
 
 /**
  * An IBAN read as a name rather than a number: the country and bank half
@@ -98,12 +98,15 @@ export function AccountList() {
 /**
  * The balance, given the room a balance deserves.
  *
- * This block answers exactly one question — how much is in this account right
- * now — so nothing else competes inside it: the period filter belongs to the
- * list of bookings and lives down there with it, and the single action the
- * balance leads to is the one button on the panel.
+ * The figure gets the panel to itself — it is the one thing this screen exists
+ * to say, so it is set at display size with nothing beside it to share the eye
+ * with. Everything that qualifies it (which account, whose, how much of it is
+ * available, as of when) drops to a single quiet line along the bottom edge:
+ * the account line every German bank writes as mark, label and right-aligned
+ * value. The period filter belongs to the list of bookings and lives down there
+ * with it; the action the balance leads to sits at the head of the page.
  */
-export function AccountHeader({ onTransfer }: { onTransfer: () => void }) {
+export function AccountHeader() {
   const { activeAccount: a, balances } = useFints();
 
   if (!a) return null;
@@ -111,76 +114,70 @@ export function AccountHeader({ onTransfer }: { onTransfer: () => void }) {
   const money = splitMoney(bal?.balance, bal?.currency);
   const negative = !!bal && bal.balance < 0;
 
-  // The footnotes to the figure: written once here so the row below stays a
-  // plain grid rather than a run of conditionals.
-  const meta: { label: string; value: string; title?: string }[] = [];
-  if (a.iban || a.accountNumber) meta.push({ label: 'IBAN', value: fmtIban(a.iban) || a.accountNumber });
-  if (a.bic) meta.push({ label: 'BIC', value: a.bic });
-  if (bal?.availableAmount != null) {
-    meta.push({ label: 'Verfügbar', value: fmtMoney(bal.availableAmount, bal.currency) });
-  }
-  if (bal?.date) {
-    meta.push(
-      isFutureDate(bal.date)
-        // An interim report's closing balance is dated to the bank's next
-        // Buchungstag, so on a weekend it sits in the future. Say so rather
-        // than presenting a future day as the balance's as-of date.
-        ? {
-            label: 'Buchungstag',
-            value: fmtDate(bal.date),
-            title: 'Die Bank datiert diesen Saldo auf ihren nächsten Buchungstag. Er enthält bereits Buchungen mit diesem Datum.',
-          }
-        : { label: 'Stand', value: fmtDate(bal.date) },
-    );
-  }
+  // An interim report's closing balance is dated to the bank's next
+  // Buchungstag, so on a weekend it sits in the future. Say which day it is
+  // rather than presenting a future date as the balance's as-of date.
+  const dated = bal?.date
+    ? isFutureDate(bal.date)
+      ? {
+          label: 'Buchungstag',
+          value: fmtDate(bal.date),
+          title: 'Die Bank datiert diesen Saldo auf ihren nächsten Buchungstag. Er enthält bereits Buchungen mit diesem Datum.',
+        }
+      : { label: 'Stand', value: fmtDate(bal.date), title: undefined }
+    : null;
 
   return (
-    <section className="panel mb-5 px-5 pt-6 pb-5 sm:px-8 sm:pt-8 sm:pb-6">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
-        <div className="min-w-0">
-          <p className="eyebrow">{translateType(a.accountType)} · Kontostand</p>
-          {(a.holder || a.product) && (
-            <p className="mt-1 truncate text-[15px] font-semibold">{a.holder || a.product}</p>
+    <section className="panel mb-5 overflow-clip">
+      <div className="px-6 pt-8 pb-8 sm:px-10 sm:pt-11 sm:pb-10">
+        <p className="eyebrow">Kontostand · {translateType(a.accountType)}</p>
+
+        <p
+          className={cx(
+            'num mt-3 text-[38px] leading-[1] font-semibold tracking-[-0.02em] sm:mt-3.5 sm:text-[52px]',
+            negative && 'text-red',
           )}
-
-          <p
-            className={cx(
-              'num mt-4 text-[44px] leading-[1.05] font-semibold tracking-[-0.02em] sm:text-[56px]',
-              negative && 'text-red',
-            )}
-          >
-            {bal ? (
-              <>
-                {money.euros}
-                <span className={cx('text-[0.52em] font-medium', negative ? 'text-red' : 'text-ink-2')}>
-                  {money.cents}&nbsp;{money.suffix}
-                </span>
-              </>
-            ) : '—'}
-          </p>
-        </div>
-
-        {/* The one primary action on the page. */}
-        {a.canTransfer && (
-          <Button variant="primary" className="shrink-0 self-start" onClick={onTransfer}>
-            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
-              <path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Überweisen
-          </Button>
-        )}
+        >
+          {bal ? (
+            <>
+              {money.euros}
+              <span className={cx('text-[0.5em] font-medium', negative ? 'text-red' : 'text-ink-2')}>
+                {money.cents}&nbsp;{money.suffix}
+              </span>
+            </>
+          ) : '—'}
+        </p>
       </div>
 
-      <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-line pt-4 sm:grid-cols-4">
-        {meta.map((m) => (
-          <div key={m.label} className="min-w-0" title={m.title}>
-            <dt className="eyebrow">{m.label}</dt>
-            <dd className={cx('mt-0.5 truncate text-[13px] font-medium text-ink-2', m.label === 'IBAN' ? 'iban' : 'num')}>
-              {m.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {/* The account line: what the account is called, what identifies it — and
+          the figures that qualify the balance, right-aligned. The institute's
+          mark is already stated twice above this row, in the header and on the
+          account it was picked from, so it is not repeated here. */}
+      <div className="flex items-center gap-3.5 bg-inset px-6 py-4 sm:px-10">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13.5px] leading-snug font-semibold">
+            {a.product || translateType(a.accountType)}
+          </span>
+          <span className="block truncate text-[11.5px] leading-snug text-ink-3">
+            <span className="iban">{fmtIban(a.iban) || a.accountNumber}</span>
+            {a.bic && <span className="hidden lg:inline"> · BIC {a.bic}</span>}
+          </span>
+        </span>
+
+        <span className="shrink-0 text-right" title={dated?.title}>
+          {bal?.availableAmount != null && (
+            <span className="block text-[12.5px] leading-snug text-ink-3">
+              Verfügbar{' '}
+              <span className="num font-semibold text-ink-2">{fmtMoney(bal.availableAmount, bal.currency)}</span>
+            </span>
+          )}
+          {dated && (
+            <span className="num block text-[11px] leading-snug text-ink-3">
+              {dated.label} {dated.value}
+            </span>
+          )}
+        </span>
+      </div>
     </section>
   );
 }

@@ -150,14 +150,37 @@
 }
 
 /* The header is two stacked tiers — the navy identity bar carrying the app's
-   wordmark and the session cluster, and the institute bar beneath it — and both
-   stick. It is deliberately tall enough to read as the app's masthead rather
-   than a strip of controls. Everything that pins under the header (the
-   transaction day headers) offsets by their sum, so the two never disagree. */
+   wordmark and the session cluster, and the institute bar beneath it. It is
+   deliberately tall enough to read as the app's masthead rather than a strip
+   of controls. */
 :root {
   --barbar-h: 60px;
   --subbar-h: 48px;
-  --topbar-h: calc(var(--barbar-h) + var(--subbar-h));
+
+  /* Width of the OS-drawn caption buttons (Window Controls Overlay) that
+     float over the masthead's right edge in the desktop shell — see
+     electron/main.cjs. Derived from the `titlebar-area-*` environment
+     variables Chromium exposes, which the compositor updates in lockstep
+     with the window's own layout. A prior version of this computed the same
+     number in JS from a `geometrychange` listener and pushed it into React
+     state; that round trip lagged one render behind the real overlay during
+     fast transitions like clicking maximize, which is what let the caption
+     buttons and the bar's own controls draw on top of each other for a
+     frame. Pure CSS has no such lag. Falls back to exactly 0 outside the
+     desktop shell, where these variables are simply undefined. */
+  --caption-inset: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+}
+
+/* Right padding for a bar whose trailing edge must clear the caption
+   buttons, on top of the bar's normal horizontal padding (1rem / 1.5rem at
+   `sm`, matching the `pl-4 sm:pl-6` these bars pair it with). */
+.bar-caption-safe {
+  padding-right: calc(1rem + var(--caption-inset));
+}
+@media (min-width: 640px) {
+  .bar-caption-safe {
+    padding-right: calc(1.5rem + var(--caption-inset));
+  }
 }
 @media (max-width: 640px) {
   :root {
@@ -169,13 +192,15 @@
 @layer base {
   html {
     height: 100%;
+    overflow: hidden;
     color-scheme: light;
   }
   [data-theme='dark'] {
     color-scheme: dark;
   }
   body {
-    min-height: 100%;
+    height: 100%;
+    overflow: hidden;
     background: var(--paper);
     color: var(--ink);
     font-family: var(--font-barlow), 'Segoe UI', system-ui, sans-serif;
@@ -274,8 +299,11 @@
      beside it, the way a German bank's start page labels every icon in its
      header rather than leaving the user to guess at a glyph. Sized so the
      cluster reads as one row of equals, not as buttons of differing weight. */
+  /* Deliberately no `display`: it would sit in the same layer as Tailwind's own
+     display utilities at equal specificity, and quietly win over the `hidden`
+     that drops items from the cluster on a narrow window. Each use brings its
+     own `inline-flex`. */
   .navlink {
-    display: inline-flex;
     align-items: center;
     gap: 7px;
     border-radius: 8px;
@@ -291,14 +319,6 @@
   button.navlink:hover {
     background: color-mix(in srgb, var(--bar-ink) 12%, transparent);
     color: var(--bar-ink);
-  }
-
-  /* The footer's legal row. Quiet, evenly spaced, and set apart from the rest
-     of the page's text by size alone. */
-  .footlink {
-    font-size: 12.5px;
-    color: var(--ink-2);
-    transition: color 0.15s;
   }
 }
 

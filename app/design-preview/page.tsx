@@ -39,6 +39,9 @@ const transactions = [
   tx(yest, -1250, 'STADTWERKE KOBLENZ', 'EREF+SW-2026-0714-8891MREF+SWK889120CRED+DE98ZZZ09999999999SVWZ+Abschlag Strom und Gas 07/2026', 'LASTSCHRIFT'),
   tx(older, -9.99, 'G2A.COM Limited', 'EREF+1051808585130MREF+5RRJ2259NXZLLCRED+LU96ZZZ0000000000000000058SVWZ+G2A.COM Limited', 'PAYPAL'),
   tx(older, 150, 'MAX MUSTERMANN', 'Rueckzahlung Urlaubskasse', 'UEBERWEISUNG'),
+  // The hard case: identifiers the bank left sitting inside the prose itself,
+  // which is what the list has to survive without losing the payee.
+  tx(older, -389.4, 'FINANZAMT KOBLENZ', 'SVWZ+Steuernummer 22/815/60294 Vorauszahlung Q3 Referenz DE78570501200105593271 Beleg 4711000928374650', 'UEBERWEISUNG'),
 ];
 
 const mock = {

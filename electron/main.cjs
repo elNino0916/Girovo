@@ -35,7 +35,14 @@ const BAR_COLORS = {
   light: { color: '#12304f', symbolColor: '#f2f7fc' },
   dark: { color: '#0b0d0f', symbolColor: '#f0f3f6' },
 };
-const TITLEBAR_HEIGHT = 56; // var(--barbar-h)
+// Must track --barbar-h's desktop value (app/globals.css). The mobile media
+// query drops that variable to 56px, but the window never gets that narrow
+// (minWidth below), so the desktop value is the only one that matters here.
+// A mismatch made the OS-drawn caption buttons cover only the top 56px of
+// the 60px bar; the leftover 4px strip repainted incorrectly whenever the
+// window's caption geometry changed, which is why clicking maximize/restore
+// visibly glitched the icons.
+const TITLEBAR_HEIGHT = 60;
 
 /** Where the standalone Next build lives, packaged and unpackaged. */
 function serverDir() {
