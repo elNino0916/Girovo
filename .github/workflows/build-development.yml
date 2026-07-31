@@ -1,0 +1,51 @@
+name: Build development desktop artifacts
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Windows installer and portable build
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set development version
+        id: version
+        shell: pwsh
+        run: |
+          $baseVersion = node -p "require('./package.json').version"
+          $developmentVersion = "$baseVersion-dev.${{ github.run_number }}"
+          npm version $developmentVersion --no-git-tag-version --allow-same-version
+          "version=$developmentVersion" >> $env:GITHUB_OUTPUT
+          Write-Host "Building Sooskasse-FinTS $developmentVersion"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build installer and portable executable
+        run: npm run electron:dist
+
+      - name: Upload development artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sooskasse-FinTS-${{ steps.version.outputs.version }}-windows
+          path: |
+            dist/*-Setup.exe
+            dist/*-portable.exe
+          if-no-files-found: error
+          retention-days: 14

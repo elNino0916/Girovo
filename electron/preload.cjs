@@ -10,3 +10,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronTitleBar', {
   setTheme: (isDark) => ipcRenderer.send('titlebar:set-theme', isDark),
 });
+
+// Statement.tsx's PDF export: renders straight out of Chromium via
+// webContents.printToPDF in the main process, then a native save dialog — no
+// OS print driver ("Microsoft Print to PDF") involved, see main.cjs.
+contextBridge.exposeInMainWorld('electronPDF', {
+  exportPDF: (suggestedName) => ipcRenderer.invoke('pdf:export', suggestedName),
+});

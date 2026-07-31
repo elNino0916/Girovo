@@ -636,7 +636,11 @@ function useFintsState() {
       from,
       to,
     });
-    toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
+    // The desktop shell exports the PDF directly to a native save dialog (see
+    // Statement.tsx); only the browser's own print dialog needs this nudge.
+    if (typeof window === 'undefined' || !window.electronPDF) {
+      toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
+    }
   }, [activeAccount, bank, transactions, balances, toast]);
 
   const printTransaction = useCallback((tx: SerializedTransaction, pending = false) => {
@@ -651,7 +655,9 @@ function useFintsState() {
       balance: balances[activeAccount.accountNumber] ?? null,
       merchant: merchants[key] ?? merchants[(tx.remoteName || '').trim()] ?? null,
     });
-    toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
+    if (typeof window === 'undefined' || !window.electronPDF) {
+      toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
+    }
   }, [activeAccount, bank, balances, merchants, toast]);
 
   const closePrintJob = useCallback(() => setPrintJob(null), []);

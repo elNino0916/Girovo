@@ -36,7 +36,7 @@ const APP_NAME = 'Sooskasse-FinTS';
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 
 export function Statement() {
-  const { printJob, closePrintJob } = useFints();
+  const { printJob, closePrintJob, toast } = useFints();
   const [stamp, setStamp] = useState<DocStamp | null>(null);
   const sheet = useRef<HTMLDivElement>(null);
 
@@ -60,22 +60,42 @@ export function Statement() {
   useEffect(() => {
     if (!printJob || !stamp) return;
     let cancelled = false;
-    const onAfterPrint = () => closePrintJob();
-    window.addEventListener('afterprint', onAfterPrint);
+    // The desktop shell exports straight out of Chromium instead of going
+    // through window.print(): on Windows that route hands the PDF to the OS
+    // print dialog's "Microsoft Print to PDF" virtual printer, whose driver is
+    // a separate OS component that can fail with "Configuration error.
+    // 0x80070002" on machines where it's missing or corrupt — see main.cjs.
+    const electronPDF = typeof window !== 'undefined' ? window.electronPDF : undefined;
 
-    // Marks first, then one frame to paint them, then the dialog.
+    const onAfterPrint = () => closePrintJob();
+    if (!electronPDF) window.addEventListener('afterprint', onAfterPrint);
+
+    // Marks first, then one frame to paint them, then the export.
     void marksSettled(sheet.current).then(() => {
       if (cancelled) return;
       requestAnimationFrame(() => {
-        if (!cancelled) window.print();
+        if (cancelled) return;
+        if (electronPDF) {
+          electronPDF.exportPDF(suggestedFileName(printJob, stamp))
+            .then((result) => {
+              if (!result.ok && 'error' in result) {
+                toast(`PDF konnte nicht gespeichert werden: ${result.error}`, 'error');
+              }
+            })
+            .finally(() => {
+              if (!cancelled) closePrintJob();
+            });
+        } else {
+          window.print();
+        }
       });
     });
 
     return () => {
       cancelled = true;
-      window.removeEventListener('afterprint', onAfterPrint);
+      if (!electronPDF) window.removeEventListener('afterprint', onAfterPrint);
     };
-  }, [printJob, stamp, closePrintJob]);
+  }, [printJob, stamp, closePrintJob, toast]);
 
   if (!printJob || !stamp) return null;
 
@@ -133,6 +153,12 @@ function marksSettled(root: HTMLElement | null): Promise<void> {
     Promise.all(each).then(() => undefined),
     new Promise<void>((resolve) => setTimeout(resolve, MARK_GRACE_MS)),
   ]);
+}
+
+/** The desktop save dialog's default filename — kept short and filesystem-safe. */
+function suggestedFileName(job: PrintJob, stamp: DocStamp): string {
+  const base = job.kind === 'statement' ? 'Kontoauszug' : 'Buchungsbeleg';
+  return `${base}_${stamp.docId}.pdf`;
 }
 
 // ---------------------------------------------------------------------------

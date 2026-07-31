@@ -489,14 +489,20 @@
 @page {
   size: A4;
   margin: 14mm 13mm 12mm;
+  /* The @page margin band is a distinct paint region from the document's own
+     background — html/body's background only covers the content box inside
+     it, never the margin itself. Left unset, that band is fully transparent
+     in the exported PDF; Chromium's own viewer happens to composite that onto
+     white, but any darker viewer (or a dark PDF theme) shows it as a black
+     frame around every page, worst at the corners where two edges meet. */
+  background: #fff;
 }
 @media print {
   /* A dark theme puts `color-scheme: dark` on <html>. Chrome prints with
      "Background graphics" off by default, which discards the white background
-     below — and the UA then paints the page canvas, including the whole @page
-     margin, with its dark default. That is where the black bars down every
-     edge of the PDF come from. A printed document has no dark mode: force the
-     canvas back to light so the margins stay paper. */
+     below — and the UA then paints the page canvas with its dark default. A
+     printed document has no dark mode: force the canvas back to light so the
+     content box stays paper (the @page rule above covers the margin band). */
   html {
     color-scheme: light !important;
     background: #fff !important;

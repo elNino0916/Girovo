@@ -272,6 +272,38 @@ if (!app.requestSingleInstanceLock()) {
     win.setTitleBarOverlay({ ...(isDark ? BAR_COLORS.dark : BAR_COLORS.light), height: TITLEBAR_HEIGHT });
   });
 
+  // Statement.tsx's window.print() route hands the PDF off to whatever the OS
+  // print dialog offers — on Windows that is the "Microsoft Print to PDF"
+  // virtual printer, whose driver is a separate, occasionally broken OS
+  // component (it fails with "Configuration error. 0x80070002" on machines
+  // where that driver is corrupt, missing, or blocked by policy, and there is
+  // nothing this app can do about the driver itself). printToPDF renders the
+  // same print-stylesheet snapshot straight out of Chromium instead, so the
+  // export no longer depends on any printer or driver being installed at all.
+  ipcMain.handle('pdf:export', async (event, suggestedName) => {
+    const contents = event.sender;
+    const owner = BrowserWindow.fromWebContents(contents) ?? win;
+    let data;
+    try {
+      data = await contents.printToPDF({ printBackground: true, preferCSSPageSize: true });
+    } catch (err) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+
+    const { canceled, filePath } = await dialog.showSaveDialog(owner ?? undefined, {
+      defaultPath: suggestedName,
+      filters: [{ name: 'PDF-Dokument', extensions: ['pdf'] }],
+    });
+    if (canceled || !filePath) return { ok: false, canceled: true };
+
+    try {
+      await fs.promises.writeFile(filePath, data);
+    } catch (err) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+    return { ok: true, filePath };
+  });
+
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', () => {
     quitting = true;
