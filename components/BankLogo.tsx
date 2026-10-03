@@ -1,34 +1,52 @@
 'use client';
 
-import { BRANDS, DARK_INVERT } from '@/lib/brands';
+import { BRANDS, DARK_INVERT, ON_DARK } from '@/lib/brands';
 import { cx } from './ui';
 
 export type LogoSize = 'sm' | 'md' | 'lg' | 'tile';
 
+// Monogram chips. The radii step with the size so a small chip still reads as
+// a rounded square, never a circle, and none of them exceeds the 12px a tile
+// itself uses.
 const BOX: Record<LogoSize, string> = {
-  sm: 'size-6.5 rounded-[7px]',
-  md: 'size-9 rounded-[10px]',
-  lg: 'size-11 rounded-xl',
-  tile: 'h-12 w-full rounded-[10px]',
+  sm: 'size-6.5 rounded-[6px]',
+  md: 'size-9 rounded-[8px]',
+  lg: 'size-11 rounded-[10px]',
+  // A quick-pick tile on the login screen: compact beside the name on a phone,
+  // above it from `sm` up. A chip, not a slab — the tile is already the frame.
+  tile: 'size-8 rounded-[8px] sm:size-9 sm:rounded-[9px]',
 };
 
+// Logo files sit on a white plate (.logo-img) so a transparent PNG reads on any
+// background. The plate is padded so the mark never touches its edge.
 const IMG_BOX: Record<LogoSize, string> = {
-  sm: 'min-w-6.5 max-w-[76px] rounded-[7px] px-1.5 py-1',
-  md: 'min-w-9 max-w-[100px] rounded-[10px] px-2 py-1.5',
-  lg: 'min-w-11 max-w-[116px] rounded-xl px-2 py-1.5',
-  tile: 'max-w-full rounded-[10px] px-2 py-1',
+  sm: 'min-w-6.5 max-w-[76px] rounded-[6px] px-1.5 py-1',
+  md: 'min-w-9 max-w-[100px] rounded-[8px] px-2 py-1.5',
+  lg: 'min-w-11 max-w-[116px] rounded-[10px] px-2 py-1.5',
+  tile: 'w-full px-1',
 };
 
+// The same tile, for a mark that needs its navy plate in light mode: a plate
+// as wide as the tile's 88px mark cap plus its padding, never a band across
+// the tile. (A set width — over the base w-auto, hence the `!` — so the mark's
+// percentage cap has a box to resolve against.)
+const TILE_PLATE = 'w-[104px]! max-w-full rounded-[8px] px-2 py-0.5';
+
+// Height sets the size; the width cap keeps a long wordmark (ING,
+// Commerzbank) from out-shouting a square one (Sparkasse) in a row of tiles.
 const IMG_H: Record<LogoSize, string> = {
-  sm: 'h-[18px]',
-  md: 'h-6',
-  lg: 'h-8',
-  tile: 'h-10',
+  sm: 'h-[18px] max-w-full',
+  md: 'h-6 max-w-full',
+  lg: 'h-8 max-w-full',
+  tile: 'h-6 max-w-[min(100%,88px)] sm:h-7',
 };
 
 /**
  * A bank's mark. Prefers a real logo file from public/logos (discovered at boot
  * via /api/logos) and falls back to a monogram chip in the group's brand color.
+ *
+ * Always decorative: the bank's name is written next to it wherever it
+ * appears, so the image carries no accessible name of its own.
  */
 export function BankLogo({
   brand, size = 'md', file,
@@ -39,13 +57,35 @@ export function BankLogo({
   file?: string;
 }) {
   if (file) {
+    // Dark navy and black marks are flipped in dark mode, and marks drawn
+    // for a dark ground get a navy plate in light mode; which ones is decided
+    // in lib/brands.ts, beside the brand list.
+    const invert = DARK_INVERT.has(brand);
+    const onDark = ON_DARK.has(brand);
     return (
       <span
-        data-invert={DARK_INVERT.has(brand)}
-        className={cx('logo-img grid w-auto shrink-0 place-items-center overflow-hidden', IMG_BOX[size])}
+        data-invert={invert}
+        data-on-dark={onDark}
+        className={cx(
+          'logo-img grid w-auto shrink-0 place-items-center overflow-hidden',
+          size === 'tile' && onDark ? TILE_PLATE : IMG_BOX[size],
+        )}
+        // The quick-pick tile is itself the white surface, so the logo goes on
+        // it bare — a framed plate inside a framed tile is a box in a box.
+        // Inline, because .logo-img is unlayered and beats any utility; the
+        // class stays for its dark-mode inversion of navy and black marks.
+        // A mark that needs its navy plate keeps it (globals.css).
+        style={size === 'tile' && !onDark ? { background: 'transparent', borderColor: 'transparent' } : undefined}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/logos/${file}`} alt="" loading="lazy" className={cx('mx-auto block w-auto max-w-full object-contain', IMG_H[size])} />
+        <img
+          src={`/logos/${file}`}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className={cx('mx-auto block w-auto object-contain', IMG_H[size])}
+        />
       </span>
     );
   }
@@ -81,7 +121,7 @@ export function BankLogo({
 
   return (
     <span className={cx('grid shrink-0 place-items-center overflow-hidden', BOX[size])} style={{ background: b.bg }}>
-      <svg viewBox="0 0 100 100" role="img" aria-hidden className="block size-full">
+      <svg viewBox="0 0 100 100" aria-hidden focusable="false" className="block size-full">
         {inner}
         {b.accent && <rect x="0" y="86" width="100" height="14" fill={b.accent} />}
       </svg>

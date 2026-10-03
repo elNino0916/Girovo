@@ -10,6 +10,8 @@
 //   - The PIN is NEVER stored. It is used only to derive the encryption key.
 //   - Each profile is encrypted with AES-256-GCM; the key is scrypt(PIN, salt).
 //     Without the correct PIN the file cannot be decrypted (GCM auth tag fails).
+//     The cipher itself lives in lib/crypto-box.ts, shared with the vault; the
+//     file layout it writes is the one this module has always written.
 //   - Files live in .fints-state/ (gitignored), named by a hash of blz+userId
 //     so the directory listing doesn't reveal which banks/users are stored.
 //   - A numeric PIN is low-entropy: this protects the file if it is copied off
@@ -20,15 +22,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { BankingInformation } from 'lib-fints';
+import { openWithPin, parseBox, sealWithPin } from './crypto-box.ts';
 
 // Defaults to .fints-state/ in the project root. The desktop build installs the
 // server into a read-only program directory, so Electron overrides this with a
-// per-user path (electron/main.cjs).
-const STATE_DIR = process.env.FINTS_STATE_DIR || path.join(process.cwd(), '.fints-state');
-
-// scrypt cost — deliberately raised to slow offline PIN brute-forcing.
-const SCRYPT = { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
-const KEY_LEN = 32;
+// per-user path (electron/main.cjs). The vault (lib/vault.ts) lives alongside.
+export const STATE_DIR = process.env.FINTS_STATE_DIR || path.join(process.cwd(), '.fints-state');
 
 /** What a remembered device profile holds. */
 export type DeviceProfile = {
@@ -54,20 +53,9 @@ export function saveProfile(blz: string, userId: string, pin: string, data: Devi
   if (!pin) return false;
   try {
     fs.mkdirSync(STATE_DIR, { recursive: true });
-    const salt = crypto.randomBytes(16);
-    const key = crypto.scryptSync(String(pin), salt, KEY_LEN, SCRYPT);
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
     const plaintext = Buffer.from(JSON.stringify({ savedAt: Date.now(), data }), 'utf8');
-    const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    const blob = {
-      v: 1,
-      salt: salt.toString('base64'),
-      iv: iv.toString('base64'),
-      tag: tag.toString('base64'),
-      ct: ciphertext.toString('base64'),
-    };
+    // No AAD: the profile format predates it (see crypto-box.ts).
+    const blob = sealWithPin(String(pin), plaintext);
     fs.writeFileSync(profileFile(blz, userId), JSON.stringify(blob), { mode: 0o600 });
     return true;
   } catch (err) {
@@ -83,21 +71,16 @@ export function saveProfile(blz: string, userId: string, pin: string, data: Devi
  */
 export function loadProfile(blz: string, userId: string, pin: string): DeviceProfile | null {
   if (!pin) return null;
-  let blob: { salt: string; iv: string; tag: string; ct: string };
+  let raw: unknown;
   try {
-    blob = JSON.parse(fs.readFileSync(profileFile(blz, userId), 'utf8'));
+    raw = JSON.parse(fs.readFileSync(profileFile(blz, userId), 'utf8'));
   } catch {
     return null; // no profile
   }
+  const blob = parseBox(raw);
+  if (!blob) return null; // not an envelope we wrote
   try {
-    const salt = Buffer.from(blob.salt, 'base64');
-    const key = crypto.scryptSync(String(pin), salt, KEY_LEN, SCRYPT);
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(blob.iv, 'base64'));
-    decipher.setAuthTag(Buffer.from(blob.tag, 'base64'));
-    const plaintext = Buffer.concat([
-      decipher.update(Buffer.from(blob.ct, 'base64')),
-      decipher.final(), // throws if the PIN is wrong or the data was tampered
-    ]);
+    const plaintext = openWithPin(String(pin), blob); // throws if the PIN is wrong or the data was tampered
     const parsed = JSON.parse(plaintext.toString('utf8')) as { savedAt: number; data: DeviceProfile };
     if (!parsed || typeof parsed.savedAt !== 'number') return null;
     if (Date.now() - parsed.savedAt > PROFILE_MAX_AGE_MS) return null; // expired

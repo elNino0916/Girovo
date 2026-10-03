@@ -19,15 +19,46 @@ plus, …) where you approve directly in your banking app.
   rewritten to their live successors — refresh anytime with
   `node scripts/update-banks.mjs`. If a bank's primary endpoint is down,
   the server automatically retries the known alternate URL.
-- **Kontostand & Umsätze** with search, date-range filter and a full detail
-  view per transaction (IBAN, BIC, Referenzen, GVC, Primanota, … with
-  copy-to-clipboard).
+- **Finanzübersicht** in the Atruvia online-banking language: navy masthead
+  and stage, *Konten und Karten* with a Gesamtsaldo of the loaded accounts
+  (rename accounts locally), the selected account's balance with Verfügbar /
+  Dispositionsrahmen / Vorgemerkt, *Monatsbilanz* and *Demnächst fällig* tiles,
+  and Schnellzugriffe (Überweisen, Geld anfordern, Kontoauszug, Export).
+- **Kontoverlauf** — the end-of-day balance over the loaded period as a step
+  chart, reconstructed from the bookings and *checked against every opening and
+  closing balance the bank sent*. If the numbers don't add up, no chart is drawn.
+- **Kontostand & Umsätze** with search (names, Verwendungszweck, IBAN with or
+  without spaces, amounts like `12,99` or `>100`), Eingänge/Ausgänge and
+  category filters, quick periods (30/90 Tage, Monat, Jahr, eigener Zeitraum),
+  day totals and a full detail drawer (Referenzen, Gläubiger-ID, copy buttons,
+  "Erneut überweisen" / "Zurücküberweisen", "Alle Umsätze mit …").
+- **Automatic categories** (Wohnen & Energie, Lebensmittel, Mobilität, Abos, …)
+  from booking codes (MT940 GVC and CAMT ISO codes), creditor IDs and a German
+  keyword table — deterministic, on-device, correctable per booking or as a
+  rule for a counterparty.
+- **Umsatzanalyse** — Einnahmen/Ausgaben/Differenz, spending by category,
+  month-by-month comparison, top payees and largest expenses for one or all
+  loaded accounts. Umbuchungen between your own accounts are left out, refunds
+  are netted, and every figure states its basis.
+- **Verträge & Abos** — recurring payments detected from the bookings (direct
+  debits, standing orders, subscriptions, salary) with rhythm, next expected
+  date, yearly cost and a "Betrag gestiegen" flag. Labelled as an estimate;
+  "Kein Vertrag" hides a false hit.
+- **CSV export** in the German Excel dialect (`;`, UTF-8 BOM, decimal comma,
+  formula-injection guard), plus the existing PDF Kontoauszug and Buchungsbeleg.
 - **Vorgemerkte Umsätze** (pending / not-yet-booked entries via `HKVMK`) —
   loaded on demand, shows incoming SEPA-Lastschriften *before* they book.
   Only offered when the bank/account supports it.
 - **SEPA-Überweisung** (HKCCS) and **Echtzeitüberweisung** (HKIPZ) with IBAN
   check-digit validation, review step and TAN approval. Only offered when the
-  bank/account actually supports it (BPD/UPD).
+  bank/account actually supports it (BPD/UPD). The form knows your recent
+  payees and saved templates, can **read a GiroCode** from a pasted or dropped
+  screenshot of an invoice, shows the bank name for a German IBAN, warns about
+  a likely duplicate and about exceeding the available amount, and the review
+  step shows name and purpose exactly as the bank will receive them.
+- **Geld anfordern** — a GiroCode (EPC QR) for your own IBAN, optionally with
+  amount and purpose, that any German banking app can scan; save as PNG or copy
+  the account details.
 - **Verification of Payee** (Namensabgleich via `HKVPP`/`HKVPA`) — where the
   bank offers it, the payee name is checked against the name behind the IBAN
   before you authorise. Match, Close Match, No Match and Not Applicable each
@@ -45,11 +76,20 @@ plus, …) where you approve directly in your banking app.
   balance/transaction reads without a fresh TAN for the duration of its
   exemption window (typically ~90 days). "Gerät vergessen" wipes it. See
   [Fewer TAN prompts](#fewer-tan-prompts).
-- Light + dark theme (follows the system, manual toggle).
+- **Personal data vault** — templates, account names and category rules are
+  stored **encrypted with your PIN** (AES-256-GCM, scrypt) next to the device
+  profile, so they exist only while you are logged in. "Gerät vergessen" can
+  delete them too.
+- **Beträge ausblenden** (privacy mode for screen sharing — every amount,
+  chart axis and tooltip is masked), **automatic logout** after 5–30 minutes of
+  inactivity with a one-minute warning, **Mitteilungen** (the bank's messages
+  from the login plus this session's transfer outcomes), a **command palette**
+  (Strg+K) and keyboard shortcuts (switchable).
+- Hell / Dunkel / System appearance; phone layout with a bottom navigation.
 
 Built with **Next.js 16** (App Router, React 19, TypeScript) and **Tailwind CSS
-v4**. Fonts are self-hosted through `next/font` — no request leaves your machine
-except the one to your bank.
+v4**, set in **Google Sans Flex**. Fonts are self-hosted through `next/font` —
+no request leaves your machine except the one to your bank.
 
 ## Run it
 
@@ -158,9 +198,13 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `lib/merchants.ts` | The Brandfetch lookup behind it: Brand Search API for recall, name/domain scoring for precision, the Logo CDN fetch, process-level caching of hits *and* misses, and the logo proxy's allowlist. |
 | `lib/state-store.ts` | Encrypted device-profile persistence (`.fints-state/`, gitignored, or wherever `FINTS_STATE_DIR` points): AES-256-GCM, key derived from the PIN via scrypt. Stores systemId + cached BPD/UPD + TAN method so logins skip a fresh sync SCA. |
 | `patches/` | One-line patch (via `patch-package`, applied on `npm install`) exporting lib-fints' internal `registerSegmentDefinition` so the custom segments can be registered. |
-| `components/FintsProvider.tsx` | The client state machine: login → TAN method → dashboard, with every bank read serialised behind one `busy` flag (each read can cost its own approval) and the decoupled poll loop. |
-| `components/*.tsx` | The UI: bank picker, TAN method + wait overlay, dashboard, ledger, transaction drawer, Überweisung flow. |
-| `app/globals.css` | Design tokens (paper/ink, banknote green, Soll red, vorgemerkt amber) as CSS variables mapped into Tailwind v4 via `@theme inline`. |
+| `lib/vault.ts`, `lib/crypto-box.ts` | The encrypted personal-data vault (templates, account names, category rules) and the AES-256-GCM/scrypt helpers it shares with the device profile. Sanitised server-side, written atomically. |
+| `lib/categorize.ts`, `lib/analytics.ts`, `lib/recurring.ts`, `lib/balance-history.ts` | Pure, tested analysis: categories, period totals and comparisons, recurring-payment detection, and the verified balance history. They handle both MT940 and CAMT shapes. |
+| `lib/csv.ts`, `lib/girocode.ts`, `lib/qr.ts`, `lib/qr-read.ts` | CSV export, the EPC069-12 GiroCode payload (build + parse) and QR rendering/reading (bundled `qrcode-generator` and `jsqr`, no network). |
+| `components/FintsProvider.tsx` | The client state machine: login → TAN method → dashboard, with every bank read serialised behind one `busy` flag (each read can cost its own approval), the decoupled poll loop, the applied date range, auto-logout, the vault and the inbox. |
+| `components/*` | The UI: `shell/` (masthead, tabs, stage, footer, bottom bar), `overview/`, `transactions/`, `insights/` (Analyse, Verträge), `transfer/`, `auth/`, plus the command palette, inbox and primitives in `ui.tsx`. |
+| `app/globals.css` | Design tokens (chrome navy, action blue, white tiles on a blue-grey page, navy-black dark theme, chart palette) as CSS variables mapped into Tailwind v4 via `@theme inline`. The print styles for the Kontoauszug are frozen separately. |
+| `app/design-preview` | Dev-only harness that renders every screen with generated data (`/design-preview?view=overview`, `analysis`, `contracts`, `transfer`, `login`, …; `&theme=dark`, `&privacy=1`). Returns 404 in production. |
 | `electron/main.cjs` | The desktop shell: boots the standalone server on loopback, opens the window, denies every device permission and sends outside links to the real browser. Paired with `scripts/build-electron.mjs` and `electron-builder.yml`. |
 
 ### API surface
@@ -181,8 +225,10 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `POST /api/vop-confirm` | Send the parked transfer anyway, confirming the Namensabgleich result (HKVPA) |
 | `POST /api/merchants` | Resolve counterparty names to company logos (Brandfetch) |
 | `GET  /api/merchant-logo?id=` | Proxy a resolved logo; only ids this process minted |
-| `GET  /api/device-status` | Whether a remembered device exists for (BLZ, user) |
-| `POST /api/forget-device` | Delete the encrypted device profile |
+| `POST /api/device-status` | Whether a remembered device exists for (BLZ, user) — a POST so the login name never lands in a URL |
+| `POST /api/forget-device` | Delete the encrypted device profile (`wipeData: true` also deletes the vault) |
+| `POST /api/vault` | Read / save / reset / wipe the encrypted personal-data vault (`op`) |
+| `POST /api/keepalive` | Keep an active session alive (no bank traffic) |
 | `POST /api/logout` | Drop the session |
 
 ## Company logos
@@ -291,7 +337,12 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
   report to that same day. Such entries are labelled **„noch nicht gebucht“**
   and show `Buchung <date>`; the balance line reads *Buchungstag* instead of
   *Stand*. Nothing is being predicted — it is the bank's own dating.
-- Sessions expire after 30 minutes of inactivity.
+- The app logs you out after 5–30 minutes without input (your choice, default
+  10, with a one-minute warning; never while an approval is in flight). The
+  server drops sessions after 30 minutes of inactivity regardless.
+- Analysis, Verträge & Abos and the Kontoverlauf only know the period you have
+  loaded (the bank's default is ~90 days). "Mehr Verlauf laden (12 Monate)" asks
+  the bank for more — that can require a TAN, and some banks keep less.
 
 ## Security
 
@@ -301,4 +352,18 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 - The **one** exception is [company logos](#company-logos), which sends cleaned
   merchant names to Brandfetch. Set `"merchantLogos": false` in `config.json`
   (or omit `brandfetchClientId`) and the app contacts nothing but your bank.
+- Templates, account names and category rules are encrypted with your PIN;
+  preferences (theme, privacy mode, logout timer) are plain settings and never
+  contain personal data. A CSV or PNG you export is a normal file — treat it
+  like a printed statement.
 - Keep this on `localhost`. It has no authentication of its own.
+
+## Development
+
+```bash
+npm test          # node --test over lib/**/*.test.ts (needs Node ≥ 23.6 for built-in TypeScript stripping)
+npm run typecheck
+```
+
+Open `http://localhost:3000/design-preview` during `npm run dev` to see every
+screen with generated data — no bank login needed.

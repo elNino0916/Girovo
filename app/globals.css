@@ -3,20 +3,30 @@
 /* ==========================================================================
    Sooskasse-FinTS — design tokens
    ==========================================================================
-   Design language: the German Online-Banking shell, as the big institutes
-   build it — a navy identity bar over a quiet page of white panels.
+   Design language: the German Online-Banking shell, modernised — a navy
+   masthead and a navy stage band over a quiet blue-grey page of white tiles,
+   the way the cooperative banks build their start page, sharpened rather than
+   copied.
 
-   - ONE accent. Navy carries brand, links, active state and the primary
-     action. Red is not an accent here: it already means Soll, so spending it
-     on chrome would make a debit look like a button.
-   - Green is a value, never a brand: credit amounts, positive balances,
-     confirmations. Amber stays reserved exclusively for "vorgemerkt".
-   - Panels are surfaces, not boxes. Structure comes from spacing, weight and
-     one hairline per list — no framed cards stacked inside framed cards.
-   - Barlow carries the DIN/road-sign lineage of German officialdom for UI;
-     Barlow Condensed heads sections; IBM Plex Mono sets every amount, IBAN,
-     BLZ and date, with tabular figures so decimal points line up in columns
-     the way they do on a printed statement.
+   - Navy is identity, not interaction. It carries the masthead, the stage,
+     the headlines and the footer. Action blue is the ONE interactive colour:
+     buttons, links, the active tab, a selected chip, the focus ring. Anything
+     blue can be pressed; nothing that can be pressed is any other hue.
+   - Values have their own colours and nothing else may borrow them. Green is
+     a credit or a confirmation. Red is a negative balance or an error — never
+     a debit, which is ordinary spending and stays ink. Amber means
+     "vorgemerkt" and nothing else. Orange is a mark, never text: the active
+     nav underline, the unread dot.
+   - Tiles are surfaces, not boxes: 12px corners and one soft shadow, never a
+     framed card inside a framed card. Structure comes from spacing, weight
+     and one hairline per list.
+   - Buttons are pills, labels are sentence case. Letterspaced capitals turn a
+     form into noise; a label's job is to be found, not to shout.
+   - Google Sans Flex sets the interface (variable weight and optical size),
+     with tabular lining figures for every amount so the decimal
+     points of a list stand in one column, like a printed Kontoauszug. IBM
+     Plex Mono is kept for what is read character by character — IBAN, BIC,
+     BLZ, references — and Barlow for the printed documents, which are frozen.
    - The protocol stays out of the interface. FinTS segment codes and the
      structured tags inside a Verwendungszweck are how the app talks to the
      bank, not something a person came here to read: a capability shows up as
@@ -24,138 +34,328 @@
      half of itself.
    ========================================================================== */
 
-/* The theme is set on <html data-theme> before first paint (see layout.tsx),
-   so the class-free attribute selector is the source of truth in both
-   directions and never disagrees with the OS preference the user overrode. */
+/* The theme is resolved on <html data-theme> before first paint (see
+   layout.tsx and lib/theme.ts), so the attribute is the single source of truth
+   — "System" is resolved there, never by a media query here, which would
+   disagree with a user who chose otherwise. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
-:root {
-  --paper: #f2f5f8;
+/* Both token sets also apply to any element carrying data-theme, so a block
+   can be shown in the other theme (a preview, a gallery) — its subtree simply
+   resolves the other values. */
+:root,
+[data-theme='light'] {
+  /* --- surfaces --------------------------------------------------------- */
+  --paper: #f4f6f9;
   --surface: #ffffff;
-  --inset: #edf1f6;
-  --ink: #0d1826;
-  --ink-2: #47586b;
-  /* Tertiary, but it still sets the day headers, dates and the second line of
-     every booking — so it is held at 4.5:1 against the inset it sits on, not
-     just against white. */
-  --ink-3: #5b6d80;
-  --line: #dee5ed;
-  --line-strong: #c2cedc;
+  --inset: #edf0f4;
+  /* What floats: sheets, drawers, menus, toasts. White on a white page — it
+     separates by shadow; in the dark it separates by being lighter. */
+  --raised: #ffffff;
 
-  /* The identity bar. Its own ink scale, because navy-on-navy needs a
-     different set of greys than ink-on-paper. */
-  --bar: #12304f;
-  --bar-ink: #f2f7fc;
-  --bar-ink-2: #a8c1dc;
+  /* --- ink -------------------------------------------------------------- */
+  --ink: #1b1f24;
+  --ink-2: #4f5761;
+  /* Tertiary, but it still sets dates, day headers and the second line of a
+     booking — so it is held at 4.5:1 against the inset it sits on, not just
+     against white (4.76:1 on --inset). */
+  --ink-3: #5f6b78;
+  --line: #dfe5ec;
+  --line-strong: #c3cdd9;
+  /* The edge of a form control. Hairlines are decoration; the boundary of a
+     field is what tells you it is a field, so it clears 3:1 (WCAG 1.4.11). */
+  --field-line: #8391a0;
+  --field-bg: #ffffff;
+  --headline: #0a2c5e;
 
-  /* The single accent: brand, link, active state, primary action. */
-  --accent: #12457e;
-  --accent-hover: #17568f;
+  /* --- masthead and stage ---------------------------------------------- */
+  /* --bar/--bar-ink MUST equal BAR_COLORS in electron/main.cjs: the OS draws
+     the caption buttons in those colours right next to this bar. */
+  --bar: #0a2c5e;
+  --bar-ink: #ffffff;
+  --bar-ink-2: #b9c8dc;
+  --bar-line: rgb(255 255 255 / 0.28);
+  --stage: #0a2c5e;
+  --stage-ink: #ffffff;
+  --stage-ink-2: #c4d2e4;
+  --stage-line: rgb(255 255 255 / 0.28);
+
+  /* --- the one interactive colour -------------------------------------- */
+  --accent: #0864ad;
+  --accent-hover: #06589a;
+  --accent-press: #044a85;
   --accent-ink: #ffffff;
-  --accent-soft: #e6eefa;
+  --accent-soft: #e8f1f9;
 
-  --green: #15734a;
-  --green-soft: #e2f0e8;
-  --red: #a63a2e;
-  --red-soft: #f8e8e5;
+  /* Non-text marks only. */
+  --emphasis: #ee6a1f;
+
+  /* --- values ---------------------------------------------------------- */
+  --green: #0c7336;
+  --green-soft: #eaf4ee;
+  --red: #c8102e;
+  --red-soft: #fcecee;
+  --red-ink: #ffffff;
   --amber: #8a6410;
-  --amber-soft: #f6efdb;
+  --amber-soft: #fff4dc;
+  /* One step deeper than the cyan it is derived from, so an info tag's text
+     clears 4.5:1 on its own tint (4.66:1), not only on white. */
+  --info: #0074a3;
+  --info-soft: #e9f4f8;
 
-  --shadow-card: 0 1px 1px rgb(13 24 38 / 0.04), 0 1px 3px rgb(13 24 38 / 0.06);
-  --shadow-pop: 0 8px 20px -8px rgb(13 24 38 / 0.18), 0 32px 64px -24px rgb(13 24 38 / 0.3);
-  /* Panels read as raised surfaces, not outlined boxes — a hairline shadow
-     instead of a border, so nothing in the page has a hard frame. */
-  --shadow-panel: 0 0 0 1px rgb(13 24 38 / 0.06), 0 1px 2px rgb(13 24 38 / 0.04), 0 14px 30px -22px rgb(13 24 38 / 0.45);
+  /* Held at 3:1 against the inset and every soft tint a control can sit on,
+     not only white: the outline's 2px gap shows whatever is behind the
+     control, not --surface (3.74:1 on --inset, 4.28:1 on white). Still a
+     lighter action blue than --accent, so focus reads as its own state. */
+  --focus: #3a7fb8;
+  --scrim: rgb(10 22 40 / 0.45);
+
+  /* --- elevation -------------------------------------------------------- */
+  --shadow-tile: 0 1px 2px rgb(10 30 60 / 0.05), 0 4px 12px rgb(10 30 60 / 0.07);
+  --shadow-tile-hover: 0 2px 4px rgb(10 30 60 / 0.06), 0 10px 24px rgb(10 30 60 / 0.12);
+  --shadow-pop: 0 8px 20px rgb(10 30 60 / 0.16), 0 28px 56px -16px rgb(10 30 60 / 0.28);
+  --shadow-sticky: 0 6px 16px -8px rgb(10 30 60 / 0.18);
+  /* Older names, kept so screens not yet moved to the tile language still
+     resolve to something deliberate. */
+  --shadow-card: 0 1px 2px rgb(10 30 60 / 0.08), 0 1px 4px rgb(10 30 60 / 0.06);
+  --shadow-panel: var(--shadow-tile);
+
+  /* The double focus ring, for components that draw focus with box-shadow
+     (an inner gap in the surface colour, then the ring). The global
+     :focus-visible rule draws the same thing with outline + offset. */
+  --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus);
+
+  /* --- shape ------------------------------------------------------------ */
+  --radius-card: 12px;
+  --radius-field: 6px;
+  --radius-chip: 8px;
+  --radius-sheet: 16px;
+  --radius-pill: 9999px;
+
+  /* --- motion ----------------------------------------------------------- */
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* --- charts ------------------------------------------------------------
+     Categories take colours by RANK within a chart (top six coloured, the
+     rest grey), so these slots are an order, not a mapping. The order was
+     chosen by running the data-viz validator over every ordering of the
+     candidate hues: adjacent slots stay apart under protan/deutan simulation
+     (worst ΔE 19.1 light / 14.1 dark, target ≥ 8) and under normal vision
+     (worst 22.9 / 17.5, floor 15), every slot clears 3:1 on the tile, and the
+     set deliberately avoids green, red, amber and orange so a bar never reads
+     as a credit, an error, a pending booking or the emphasis mark. Lightness
+     alternates dark/light down the order — that, not hue, is what keeps
+     neighbours apart for colour-blind readers. */
+  --chart-1: #0053a4;
+  --chart-2: #0ca4a0;
+  --chart-3: #5f38a7;
+  --chart-4: #e968a1;
+  --chart-5: #3846b1;
+  --chart-6: #049cd1;
+  --chart-rest: #8a96a3;
+  /* Einnahmen vs Ausgaben: a credit is green everywhere in this app, so the
+     income bar is too; spending is navy-slate, not red, because spending is
+     not an error. ΔE 22.5 (deutan) between the pair. */
+  --chart-in: #2a9a5a;
+  --chart-out: #30588f;
+  /* The Kontoverlauf line and its flat (never gradient) area. */
+  --chart-line: #0864ad;
+  --chart-area: rgb(8 100 173 / 0.08);
+  --chart-grid: #e8edf2;
+  --chart-axis: #c3cdd9;
 }
 
+/* Navy-black, not grey: the dark theme is the same bank at night, so even
+   its darkest plane keeps the blue in it. */
 [data-theme='dark'] {
-  --paper: #121417;
-  --surface: #1a1d21;
-  --inset: #23272c;
-  --ink: #e9edf1;
-  --ink-2: #a5afba;
-  --ink-3: #8a95a1;
-  --line: #272c32;
-  --line-strong: #3b434d;
+  --paper: #061423;
+  --surface: #0a1b2d;
+  --inset: #0e2236;
+  --raised: #102740;
 
-  /* Darker than the page rather than lighter: the bar reads as the edge of
-     the window, the way the near-black reference does it. */
-  --bar: #0b0d0f;
-  --bar-ink: #f0f3f6;
-  --bar-ink-2: #98a3af;
+  --ink: #e3e9ef;
+  --ink-2: #a9b6c4;
+  --ink-3: #8d9bab;
+  --line: #1c3147;
+  --line-strong: #2c4560;
+  --field-line: #56718f;
+  --field-bg: #0e2236;
+  --headline: #e3e9ef;
 
-  /* Same accent, lifted until it clears contrast on a near-black page. */
-  --accent: #4f92e0;
-  --accent-hover: #6aa5ea;
-  --accent-ink: #07131f;
-  --accent-soft: #16253a;
+  /* Darker than the page, so the bar reads as the edge of the window. */
+  --bar: #08192b;
+  --bar-ink: #f1f5f9;
+  --bar-ink-2: #9fb2c7;
+  --bar-line: rgb(255 255 255 / 0.22);
+  --stage: #0b2945;
+  --stage-ink: #ffffff;
+  --stage-ink-2: #a9bdd3;
+  --stage-line: rgb(255 255 255 / 0.22);
 
-  --green: #57c894;
-  --green-soft: #15291f;
-  --red: #e0736a;
-  --red-soft: #2b1715;
-  --amber: #d3a247;
-  --amber-soft: #241c0d;
+  /* The same blue, lifted until it clears contrast on navy-black; its ink
+     flips to near-black because white on a light blue would not. */
+  --accent: #3ba4ef;
+  --accent-hover: #5ab3f2;
+  --accent-press: #2b8fd8;
+  --accent-ink: #04121f;
+  --accent-soft: #0d2b45;
 
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5);
-  --shadow-pop: 0 8px 20px -8px rgb(0 0 0 / 0.6), 0 32px 64px -24px rgb(0 0 0 / 0.75);
-  /* No cast shadow on a dark page — it would be invisible. The panel lifts by
-     being lighter than the paper, plus the faintest inner edge. */
-  --shadow-panel: inset 0 0 0 1px rgb(255 255 255 / 0.04);
+  --emphasis: #f2813f;
+
+  --green: #54c279;
+  --green-soft: #12301f;
+  --red: #fc6274;
+  --red-soft: #3a1b22;
+  --red-ink: #1b0a0d;
+  --amber: #e0b155;
+  --amber-soft: #2c220c;
+  --info: #4fb3dc;
+  --info-soft: #0b2a3a;
+
+  --focus: #4fa3e0;
+  --scrim: rgb(0 0 0 / 0.6);
+
+  /* No cast shadow on a dark page — it would be invisible. A tile lifts by
+     being lighter than the paper, plus the faintest edge. */
+  --shadow-tile: 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-tile-hover: 0 0 0 1px rgb(255 255 255 / 0.12);
+  --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.08), 0 24px 48px rgb(0 0 0 / 0.55);
+  --shadow-sticky: 0 1px 0 rgb(255 255 255 / 0.06), 0 8px 16px -8px rgb(0 0 0 / 0.6);
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.08);
+  /* Restated (not inherited) so a dark block inside a light page resolves them
+     against its own surface. */
+  --shadow-panel: var(--shadow-tile);
+  --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus);
+
+  /* Same hues, stepped for the dark band (validated against --surface). */
+  --chart-1: #0267c7;
+  --chart-2: #0aa7a4;
+  --chart-3: #8a66d9;
+  --chart-4: #bc3e79;
+  --chart-5: #6f87f9;
+  --chart-6: #00729b;
+  --chart-rest: #5d6f83;
+  --chart-in: #41ad6b;
+  --chart-out: #5a82bd;
+  --chart-line: #3ba4ef;
+  --chart-area: rgb(59 164 239 / 0.12);
+  --chart-grid: #15283c;
+  --chart-axis: #2c4560;
+}
+
+/* Tailwind's own palette is switched off: `red-500` and friends are not
+   project colours (spec rule: only tokens), so they should not even compile.
+   White and black stay for the few places that mean the literal value — a
+   logo plate, a QR code. */
+@theme {
+  --color-*: initial;
+  --color-white: #fff;
+  --color-black: #000;
+
+  /* The dashboard turns two-column, and the masthead's labels fit, from here. */
+  --breakpoint-desk: 68.75rem;
 }
 
 @theme inline {
   --color-paper: var(--paper);
   --color-surface: var(--surface);
   --color-inset: var(--inset);
+  --color-raised: var(--raised);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-field-line: var(--field-line);
+  --color-field-bg: var(--field-bg);
+  --color-headline: var(--headline);
 
   --color-bar: var(--bar);
   --color-bar-ink: var(--bar-ink);
   --color-bar-ink-2: var(--bar-ink-2);
+  --color-bar-line: var(--bar-line);
+  --color-stage: var(--stage);
+  --color-stage-ink: var(--stage-ink);
+  --color-stage-ink-2: var(--stage-ink-2);
+  --color-stage-line: var(--stage-line);
 
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
+  --color-accent-press: var(--accent-press);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
+  --color-emphasis: var(--emphasis);
 
   --color-green: var(--green);
   --color-green-soft: var(--green-soft);
   --color-red: var(--red);
   --color-red-soft: var(--red-soft);
+  --color-red-ink: var(--red-ink);
   --color-amber: var(--amber);
   --color-amber-soft: var(--amber-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-focus: var(--focus);
+  --color-scrim: var(--scrim);
 
-  /* next/font sets --font-barlow / --font-barlow-condensed / --font-plex-mono
-     on <body> (layout.tsx). Tailwind substitutes these values straight into the
-     utilities it generates, so `font-display` and friends work — but because
-     `@theme inline` emits no custom properties of its own, hand-written CSS
-     below must reach for the next/font variables directly, never --font-sans. */
-  --font-sans: var(--font-barlow), 'Segoe UI', system-ui, sans-serif;
-  --font-display: var(--font-barlow-condensed), var(--font-barlow), sans-serif;
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-rest: var(--chart-rest);
+  --color-chart-in: var(--chart-in);
+  --color-chart-out: var(--chart-out);
+  --color-chart-line: var(--chart-line);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+
+  /* next/font sets --font-ui / --font-barlow / --font-barlow-condensed /
+     --font-plex-mono on <body> (layout.tsx). Tailwind substitutes these
+     values straight into the utilities it generates, so `font-sans` and
+     friends work — but because `@theme inline` emits no custom properties of
+     its own, hand-written CSS below must reach for the next/font variables
+     directly, never --font-sans. `font-display` is the UI face too now:
+     headlines are bold and regular width, no longer condensed. */
+  --font-sans: var(--font-ui), 'Segoe UI', system-ui, sans-serif;
+  --font-display: var(--font-ui), 'Segoe UI', system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), 'Cascadia Mono', Consolas, ui-monospace, monospace;
 
-  /* Panels are a touch softer than the controls inside them, so a block reads
-     as the container and a button reads as the thing sitting in it. */
-  --radius-card: 14px;
-  --radius-field: 9px;
+  /* These name the unlayered tokens above. Tailwind re-emits them inside
+     @layer theme, where the unlayered :root values win the cascade — so the
+     self-reference resolves to the token, never to itself. */
+  --radius-card: var(--radius-card);
+  --radius-field: var(--radius-field);
+  --radius-chip: var(--radius-chip);
+  --radius-sheet: var(--radius-sheet);
 
-  --shadow-card: var(--shadow-card);
+  --shadow-tile: var(--shadow-tile);
+  --shadow-tile-hover: var(--shadow-tile-hover);
   --shadow-pop: var(--shadow-pop);
+  --shadow-sticky: var(--shadow-sticky);
+  --shadow-card: var(--shadow-card);
   --shadow-panel: var(--shadow-panel);
 }
 
-/* The header is two stacked tiers — the navy identity bar carrying the app's
-   wordmark and the session cluster, and the institute bar beneath it. It is
-   deliberately tall enough to read as the app's masthead rather than a strip
-   of controls. */
+/* The header is two stacked tiers — the navy masthead carrying the app's
+   wordmark and the session cluster, and the white institute bar beneath it. */
 :root {
-  --barbar-h: 60px;
-  --subbar-h: 48px;
+  /* In the desktop shell the OS caption overlay is exactly this tall, and
+     Chromium keeps the env value in lockstep with page zoom — so the
+     masthead and the caption buttons stay one band at 90 % or 125 % too.
+     Outside the shell the variable is undefined and the fallback applies. */
+  --barbar-h: env(titlebar-area-height, 60px);
+  --subbar-h: 52px;
+
+  /* The tallest a control in such a band may be. The overlay stays 60 device
+     pixels, so page zoom shrinks the band in CSS pixels (42 at 144 %, 29 at
+     207 %) while a 40px control would not — it would poke out of the band at
+     both ends. 40px until the band is under 44px, then the band less 4px,
+     never below the 24px WCAG target. Bar-toned controls, .navlink and the
+     "€" plate read it; outside the shell the band is fixed and so is this. */
+  --band-ctl: max(24px, min(40px, calc(var(--barbar-h) - 4px)));
+  --band-plate: max(20px, min(32px, calc(var(--barbar-h) - 6px)));
 
   /* Width of the OS-drawn caption buttons (Window Controls Overlay) that
      float over the masthead's right edge in the desktop shell — see
@@ -169,6 +369,11 @@
      frame. Pure CSS has no such lag. Falls back to exactly 0 outside the
      desktop shell, where these variables are simply undefined. */
   --caption-inset: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+
+  /* Height of the phone bottom bar, so anything pinned to the bottom edge
+     (toasts, the page's last padding) can clear it. 0 until a bar exists —
+     the shell marks its bar with [data-bottombar] and this follows. */
+  --bottombar-h: 0px;
 }
 
 /* Right padding for a bar whose trailing edge must clear the caption
@@ -182,10 +387,13 @@
     padding-right: calc(1.5rem + var(--caption-inset));
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 639.98px) {
   :root {
-    --barbar-h: 56px;
-    --subbar-h: 44px;
+    --barbar-h: env(titlebar-area-height, 56px);
+    --subbar-h: 48px;
+  }
+  :root:has([data-bottombar]) {
+    --bottombar-h: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -193,6 +401,9 @@
   html {
     height: 100%;
     overflow: hidden;
+    color-scheme: light;
+  }
+  [data-theme='light'] {
     color-scheme: light;
   }
   [data-theme='dark'] {
@@ -203,37 +414,81 @@
     overflow: hidden;
     background: var(--paper);
     color: var(--ink);
-    font-family: var(--font-barlow), 'Segoe UI', system-ui, sans-serif;
+    font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif;
     font-size: 15px;
-    line-height: 1.45;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  /* Form controls do not inherit the page font by default, and 16px keeps
+     phone browsers from zooming into a field on focus. */
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
   }
   ::placeholder {
     color: var(--ink-3);
+    opacity: 1;
   }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+  /* The double focus ring: a 2px gap, then 2px of --focus. Drawn as outline
+     + offset rather than box-shadow so it never fights an element's own
+     shadow (a tile, a pill) and follows its radius. Where an ancestor clips
+     (a full-bleed row inside a tile), use .row-focus instead. */
   :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--focus-ring, var(--focus));
     outline-offset: 2px;
-    border-radius: 4px;
   }
-  /* Inside the navy bar the accent outline disappears into the background, so
-     focus there is drawn in the bar's own ink. */
-  .on-bar :focus-visible {
-    outline-color: var(--bar-ink);
+  /* On navy the ring is drawn in the bar's own ink — still 2px, still offset,
+     but the blue would sit at barely 4:1 against the masthead. An inherited
+     property rather than a descendant selector, so the NEAREST surface
+     decides: a popover or dialog opened from the masthead is a light surface
+     again (Overlay, Menu and Popover set it back to --focus on their root),
+     and a navy band inside one (the drawer's header) is navy again. */
+  .on-bar,
+  .on-stage {
+    --focus-ring: var(--bar-ink);
   }
-  /* Date pickers are chrome-coloured by default and fight the paper. */
+  /* The date picker's glyph already follows color-scheme (dark ink on a
+     light field, light on a dark one); it only needs to recede a little so it
+     reads as part of the field, not as a second control. */
   input[type='date']::-webkit-calendar-picker-indicator {
-    filter: var(--cal-filter, none);
+    opacity: 0.7;
     cursor: pointer;
   }
-  [data-theme='dark'] input[type='date']::-webkit-calendar-picker-indicator {
-    --cal-filter: invert(1) opacity(0.6);
+  /* Native number spinners invite a mis-scroll on an amount field. */
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 }
 
 @layer utilities {
-  /* Every amount, IBAN, BLZ and date. Tabular figures keep the decimal points
-     of a transaction list in one column, like a printed Kontoauszug. */
+  /* An amount in the interface: the UI face with tabular lining figures, so
+     a column of bookings lines up on its decimal comma while still reading
+     as part of the page rather than as a printout. */
+  .amount {
+    font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: 'tnum', 'lnum';
+    white-space: nowrap;
+  }
+
+  /* The same figures for what is not money — dates, counts, a countdown —
+     without changing the face or forcing no-wrap. */
+  .tnum {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: 'tnum', 'lnum';
+  }
+
+  /* Monospace for what is read one character at a time (and for the printed
+     documents' amount columns). Unchanged: Statement.tsx depends on it. */
   .num {
     font-family: var(--font-plex-mono), 'Cascadia Mono', Consolas, ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
@@ -251,37 +506,65 @@
     white-space: nowrap;
   }
 
-  /* The Formular eyebrow: letterspaced caps, like a German form label. */
+  /* The small label above a value. Sentence case and quiet — the bank
+     start pages this language comes from never letterspace their labels. */
   .eyebrow {
-    font-size: 10.5px;
+    font-size: 13px;
+    line-height: 1.35;
     font-weight: 600;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
     color: var(--ink-3);
   }
 
-  /* A content block: a surface lifted off the page, never a framed box. One
-     class so every block in the app shares the same edge treatment and the
-     light/dark difference (cast shadow vs. inner edge) is decided once. */
+  /* A tile: a surface lifted off the page, never a framed box. One class so
+     every block in the app shares the same edge treatment and the light/dark
+     difference (cast shadow vs. faint edge) is decided once. */
   .panel {
     background: var(--surface);
     border-radius: var(--radius-card);
-    box-shadow: var(--shadow-panel);
+    box-shadow: var(--shadow-tile);
   }
 
-  /* The header of a collapsible group. Sentence case and quiet — the group's
-     name is a landmark, not a shout; uppercase is left to .eyebrow. */
+  /* A tile that is itself the button. It lifts a pixel and casts a deeper
+     shadow — enough to say "this moves when you press it", no more. Only
+     where there is a real hover; a touch screen would leave it stuck up. */
+  .tile-hover {
+    transition:
+      box-shadow 0.2s var(--ease-out-soft),
+      transform 0.2s var(--ease-out-soft);
+  }
+  @media (hover: hover) {
+    .tile-hover:hover {
+      box-shadow: var(--shadow-tile-hover);
+      transform: translateY(-1px);
+    }
+  }
+
+  /* Focus for a full-bleed row inside a tile that clips its corners: the
+     ring is drawn inside the row, where the clip cannot cut it off. */
+  .row-focus:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--focus);
+  }
+
+  /* Content set directly on the navy stage band: its own ink scale and a
+     focus ring that shows against navy. */
+  .on-stage {
+    color: var(--stage-ink);
+  }
+
+  /* The title of a tile or a group. Bold and regular width, in the headline
+     navy — the way the reference names a block. */
   .section-head {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.005em;
-    color: var(--ink-2);
+    font-size: 17px;
+    line-height: 1.3;
+    font-weight: 700;
+    color: var(--headline);
   }
 
   /* The disclosure chevron. It points down when the group is open, so the
      mark itself says which way the content went. */
   .chev {
-    transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1);
+    transition: transform 0.18s var(--ease-out-soft);
   }
   .chev[data-open='false'] {
     transform: rotate(-90deg);
@@ -292,34 +575,81 @@
      you find your own account in a list of four. */
   .id-tail {
     font-weight: 600;
-    color: var(--ink-2);
+    color: var(--ink);
   }
 
-  /* One item of the masthead's right-hand cluster: a small mark with its name
+  /* One item of the masthead's right-hand cluster: a line icon with its name
      beside it, the way a German bank's start page labels every icon in its
-     header rather than leaving the user to guess at a glyph. Sized so the
-     cluster reads as one row of equals, not as buttons of differing weight. */
+     header rather than leaving the user to guess at a glyph. A pill on hover,
+     so the cluster reads as one row of equals, not buttons of differing
+     weight. */
   /* Deliberately no `display`: it would sit in the same layer as Tailwind's own
      display utilities at equal specificity, and quietly win over the `hidden`
      that drops items from the cluster on a narrow window. Each use brings its
      own `inline-flex`. */
   .navlink {
+    position: relative;
     align-items: center;
-    gap: 7px;
-    border-radius: 8px;
-    padding: 6px 9px;
-    font-size: 13px;
-    font-weight: 500;
+    gap: 8px;
+    /* 40px, less once zoom has shrunk the band (see --band-ctl). */
+    min-height: var(--band-ctl);
+    border-radius: var(--radius-pill);
+    padding: 0 12px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
     white-space: nowrap;
+    color: var(--bar-ink);
+    transition:
+      background-color 0.15s,
+      color 0.15s;
+  }
+  .navlink > svg {
     color: var(--bar-ink-2);
-    transition: background-color 0.15s, color 0.15s;
+    transition: color 0.15s;
   }
   /* Only the interactive ones light up — the identity chip beside them is a
      statement of who is signed in, not something to press. */
-  button.navlink:hover {
+  button.navlink:hover,
+  a.navlink:hover,
+  .navlink[aria-expanded='true'] {
     background: color-mix(in srgb, var(--bar-ink) 12%, transparent);
+  }
+  button.navlink:hover > svg,
+  a.navlink:hover > svg,
+  .navlink[aria-expanded='true'] > svg {
     color: var(--bar-ink);
   }
+}
+
+/* The masthead's Darstellung control shows the glyph of the CHOSEN setting
+   (sun, moon, or the screen for "System"). It is switched by the attribute
+   the pre-paint script writes, not by React state, so the first paint is
+   already right and server HTML never disagrees with the client. */
+.theme-glyph {
+  display: none;
+}
+:root[data-theme-pref='light'] .theme-glyph[data-glyph='light'],
+:root[data-theme-pref='dark'] .theme-glyph[data-glyph='dark'],
+:root:not([data-theme-pref='light']):not([data-theme-pref='dark']) .theme-glyph[data-glyph='system'] {
+  display: block;
+}
+/* The auth bar's toggle shows the theme you are LOOKING at. */
+.mode-glyph[data-glyph='dark'] {
+  display: none;
+}
+[data-theme='dark'] .mode-glyph[data-glyph='dark'] {
+  display: block;
+}
+[data-theme='dark'] .mode-glyph[data-glyph='light'] {
+  display: none;
+}
+
+/* Switching theme must not animate every background in the app at once. */
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after {
+  transition: none !important;
 }
 
 /* ---------- motion ---------- */
@@ -328,16 +658,28 @@
   to { opacity: 1; }
 }
 @keyframes sheet-in {
-  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  from { opacity: 0; transform: translateY(12px) scale(0.985); }
   to { opacity: 1; transform: none; }
 }
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
 @keyframes drawer-in {
-  from { opacity: 0; transform: translateX(36px); }
+  from { opacity: 0; transform: translateX(32px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
   to { opacity: 1; transform: none; }
 }
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(6px) scale(0.98); }
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -350,11 +692,22 @@
   from { transform: translateX(-100%); }
   to { transform: translateX(100%); }
 }
+@keyframes check-draw {
+  from { stroke-dashoffset: var(--check-len, 24); }
+  to { stroke-dashoffset: 0; }
+}
 
-.anim-fade { animation: fade-in 0.18s ease; }
-.anim-sheet { animation: sheet-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1); }
-.anim-drawer { animation: drawer-in 0.25s cubic-bezier(0.2, 0.9, 0.3, 1); }
-.anim-toast { animation: toast-in 0.25s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.anim-fade { animation: fade-in 0.18s ease-out; }
+.anim-sheet { animation: sheet-in 0.22s var(--ease-out-soft); }
+.anim-drawer { animation: drawer-in 0.24s var(--ease-out-soft); }
+.anim-pop { animation: pop-in 0.15s var(--ease-out-soft); transform-origin: top; }
+.anim-toast { animation: toast-in 0.24s var(--ease-out-soft); }
+.anim-toast-out { animation: toast-out 0.16s ease-in forwards; }
+.anim-up { animation: sheet-up 0.25s var(--ease-out-soft); }
+/* A centred dialog becomes a bottom sheet on a phone, and arrives like one. */
+@media (max-width: 639.98px) {
+  .anim-sheet { animation: sheet-up 0.25s var(--ease-out-soft); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -363,6 +716,10 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .tile-hover:hover {
+    transform: none;
   }
 }
 
@@ -381,6 +738,16 @@
 [data-theme='dark'] .logo-img[data-invert='true'] img {
   filter: invert(1) hue-rotate(180deg) saturate(1.15);
 }
+/* A mark drawn for a dark ground (lib/brands.ts ON_DARK) sits on the
+   masthead's navy in light mode; on the dark theme, bare like the rest. */
+.logo-img[data-on-dark='true'] {
+  background: var(--bar);
+  border-color: var(--bar);
+}
+[data-theme='dark'] .logo-img[data-on-dark='true'] {
+  background: transparent;
+  border-color: transparent;
+}
 
 /* ---------- printed documents (Kontoauszug / Buchungsbeleg) ----------
    The design system for the two sheets in Statement.tsx. They are one document
@@ -392,7 +759,10 @@
    makes a printed financial document read as authoritative rather than busy.
 
    Uppercase is reserved for section headings alone. Labels are sentence case —
-   caps on every label is what turns a form into noise. */
+   caps on every label is what turns a form into noise.
+
+   Frozen: the screen moved to Google Sans Flex, the paper did not. The face is
+   pinned here so the printed Kontoauszug looks exactly as it did. */
 .doc {
   /* The rail. Every label in the document starts here and every value starts
      at the same x, across all blocks and both columns. */
@@ -422,6 +792,7 @@
   --s-7: 24px;
   --s-8: 32px;
 
+  font-family: var(--font-barlow), 'Segoe UI', system-ui, sans-serif;
   font-size: var(--t-body);
   line-height: 1.45;
   color: var(--doc-ink);
@@ -503,12 +874,21 @@
      below — and the UA then paints the page canvas with its dark default. A
      printed document has no dark mode: force the canvas back to light so the
      content box stays paper (the @page rule above covers the margin band). */
+  /* On screen html and body are one window tall and clip (the app scrolls
+     in its own container). On paper that would cut every document off after
+     its first page — a Kontoauszug would lose its later bookings, its
+     closing balance and its seal without a word — so both grow with their
+     content and let it flow onto as many pages as it needs. */
   html {
     color-scheme: light !important;
     background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
   }
   body {
     background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
   }
   /* Print the sheet's rules and its one panel as designed — browsers drop
      background fills by default to save ink, which would flatten the document
@@ -533,12 +913,18 @@
   }
 }
 
-/* Shimmer for loading skeletons. */
+/* Shimmer for loading skeletons — shaped like the content they stand in for. */
 .skel {
   position: relative;
   overflow: hidden;
   background: var(--inset);
-  border-radius: 4px;
+}
+/* The corner is the one thing a skeleton's caller changes (a round avatar,
+   a pill), so it sits in a layer a `rounded-*` utility can beat. */
+@layer components {
+  .skel {
+    border-radius: 6px;
+  }
 }
 .skel::after {
   content: '';
@@ -546,4 +932,7 @@
   inset: 0;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 6%, transparent), transparent);
   animation: shimmer 1.4s infinite;
+}
+[data-theme='dark'] .skel::after {
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 5%, transparent), transparent);
 }

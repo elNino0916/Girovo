@@ -19,7 +19,9 @@ import {
   parseAmount, sepaSanitize, validateBic, validateIban,
 } from '@/lib/fints-sepa';
 import { VOP_CODES } from '@/lib/fints-vop';
+import { ORDER_UNANSWERED_STATUS, OrderUnanswered, startOrder } from '@/lib/fints-order';
 import type { TransferResponse } from '@/lib/fints-types';
+import { SEPA_NAME_MAX, SEPA_PURPOSE_MAX } from '@/lib/sepa-text';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,15 +45,27 @@ export const POST = wrap(async (req: Request) => {
   if (!s) return sessionExpired();
 
   // -- validate ------------------------------------------------------------
-  const name = sepaSanitize(recipientName, 70);
+  // Name and purpose go out rewritten to the SEPA character set (ä → ae …),
+  // which makes them longer. One that no longer fits is refused rather than
+  // cut: a clipped purpose loses the end of an invoice or customer number,
+  // a clipped name fails the Namensabgleich — neither of which the user saw
+  // on the review step. The sheet counts the same way (lib/sepa-text.ts), so
+  // this only catches a client that did not.
+  const name = sepaSanitize(recipientName);
   if (!name) return fail('Bitte den Namen des Empfängers angeben.');
+  if (name.length > SEPA_NAME_MAX) {
+    return fail(`Der Name des Empfängers ist zu lang (höchstens ${SEPA_NAME_MAX} Zeichen, Umlaute zählen doppelt).`);
+  }
   const cleanIban = validateIban(iban);
   if (!cleanIban) return fail('Die IBAN ist ungültig (Prüfsumme oder Format).');
   const cleanBic = validateBic(bic);
   if (cleanBic === null) return fail('Die BIC ist ungültig.');
   const amountCents = parseAmount(amount);
   if (amountCents === null) return fail('Der Betrag ist ungültig.');
-  const cleanPurpose = sepaSanitize(purpose, 140);
+  const cleanPurpose = sepaSanitize(purpose);
+  if (cleanPurpose.length > SEPA_PURPOSE_MAX) {
+    return fail(`Der Verwendungszweck ist zu lang (höchstens ${SEPA_PURPOSE_MAX} Zeichen, Umlaute zählen doppelt).`);
+  }
 
   const account = accountNumber
     ? (s.client.config.bankingInformation?.upd?.bankAccounts || [])
@@ -80,7 +94,17 @@ export const POST = wrap(async (req: Request) => {
 
   console.log(`[transfer] ${useInstant ? 'HKIPZ' : 'HKCCS'} acct=${accountNumber} → ${cleanIban} ${(amountCents / 100).toFixed(2)} EUR`);
   s.vopHold = null;
-  const resp = await s.client.startCustomerOrderInteraction(interaction);
+  // A connection that broke once the order was on its way is not a refusal:
+  // the bank may have it (lib/fints-order.ts). The client shows "Status
+  // unklar" for this answer and offers no resend.
+  const resp = await startOrder(s.client, interaction).catch((err: unknown) => {
+    if (err instanceof OrderUnanswered) return err;
+    throw err;
+  });
+  if (resp instanceof OrderUnanswered) {
+    console.error('[transfer] order sent, answer lost:', (resp.cause as Error)?.message || resp.cause);
+    return fail(resp.message, ORDER_UNANSWERED_STATUS);
+  }
   logResp('transfer', s, resp);
 
   const codes = bankAnswerCodes(resp);

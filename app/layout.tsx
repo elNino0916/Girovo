@@ -1,21 +1,46 @@
 import type { Metadata, Viewport } from 'next';
-import { Barlow, Barlow_Condensed, IBM_Plex_Mono } from 'next/font/google';
+import { Barlow, Barlow_Condensed, Google_Sans_Flex, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 
-// Self-hosted through next/font: no CDN request leaves the machine this app
-// runs on, which matters for something that also talks to a bank.
+// Self-hosted through next/font: the files are fetched once at build time and
+// served from this app's own origin, so no font request ever leaves the
+// machine at runtime — which matters for something that also talks to a bank.
+
+// The interface face: Google Sans Flex — open, round-shouldered and calm, so
+// a long Verwendungszweck reads like prose rather than like a form. One
+// variable file covers every weight the interface uses (400 text, 500–600
+// labels and figures, 700 headlines), and the optical-size axis lets the same
+// face draw a 44px balance with display proportions and a 12px caption with
+// text proportions. latin-ext because bank texts carry names from all over the
+// SEPA area.
+const googleSansFlex = Google_Sans_Flex({
+  subsets: ['latin', 'latin-ext'],
+  axes: ['opsz'],
+  variable: '--font-ui',
+  display: 'swap',
+  // next/font has no metrics on file for this face yet, so it cannot build a
+  // size-adjusted fallback; name the system faces the CSS stack falls back to
+  // instead. The file is served from this app's own origin, so the swap is
+  // practically instant anyway.
+  adjustFontFallback: false,
+  fallback: ['Segoe UI', 'system-ui', 'sans-serif'],
+});
+// Barlow sets the printed Kontoauszug and Buchungsbeleg (see .doc in
+// globals.css). The screen moved on; paper is frozen.
 const barlow = Barlow({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-barlow',
   display: 'swap',
 });
+// Only the generated bank monograms (BankLogo) still use the condensed cut.
 const barlowCondensed = Barlow_Condensed({
   subsets: ['latin'],
   weight: ['500', '600', '700'],
   variable: '--font-barlow-condensed',
   display: 'swap',
 });
+// What is read one character at a time: IBAN, BIC, BLZ, references.
 const plexMono = IBM_Plex_Mono({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
@@ -24,7 +49,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 const FAVICON =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%2312457e'/%3E%3Ctext x='50' y='68' font-size='52' font-family='monospace' font-weight='600' fill='white' text-anchor='middle'%3E%E2%82%AC%3C/text%3E%3C/svg%3E";
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%230a2c5e'/%3E%3Ctext x='50' y='68' font-size='54' font-family='Segoe UI,system-ui,sans-serif' font-weight='700' fill='white' text-anchor='middle'%3E%E2%82%AC%3C/text%3E%3C/svg%3E";
 
 export const metadata: Metadata = {
   title: 'Sooskasse-FinTS',
@@ -33,16 +58,28 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // The identity bar is what sits under the browser chrome, so it — not the
-  // page — is the colour the OS should tint with.
+  // The masthead is what sits under the browser chrome, so it — not the
+  // page — is the colour the OS should tint with. Same values as --bar.
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#12304f' },
-    { media: '(prefers-color-scheme: dark)', color: '#0b0d0f' },
+    { media: '(prefers-color-scheme: light)', color: '#0a2c5e' },
+    { media: '(prefers-color-scheme: dark)', color: '#08192b' },
   ],
+  // Lets the phone bottom bar sit above the home indicator (safe-area insets).
+  viewportFit: 'cover',
 };
 
 // Runs before first paint so the app never flashes the wrong theme.
-const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('fints.theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;if(window.electronTitleBar)window.electronTitleBar.setTheme(t==='dark');}catch(e){document.documentElement.dataset.theme='light';}})();`;
+//
+// The stored choice is 'light' | 'dark' | 'system'; anything else, or nothing,
+// means 'system'. The desktop shell keeps preferences in a file of its own
+// (window.electronStore) because a packaged build starts on a fresh origin
+// every launch and loses localStorage — so that is read first, and
+// localStorage only when there is no shell answer at all. Every access is
+// fenced: a throwing storage must cost the user their preference, never the
+// page. The resolved theme goes on data-theme (what the CSS reads) and the
+// choice itself on data-theme-pref (what the Darstellung control shows);
+// lib/theme.ts takes over from here and keeps both current.
+const THEME_SCRIPT = `(function(){var d=document.documentElement,p=null,k='fints.theme';try{var s=window.electronStore;if(s&&typeof s.get==='function')p=s.get(k);}catch(e){}if(p==null){try{p=localStorage.getItem(k);}catch(e){}}if(p!=='light'&&p!=='dark')p='system';var dark=p==='dark';if(p==='system'){try{dark=window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){dark=false;}}d.dataset.theme=dark?'dark':'light';d.dataset.themePref=p;try{if(window.electronTitleBar)window.electronTitleBar.setTheme(dark);}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -50,7 +87,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className={`${barlow.variable} ${barlowCondensed.variable} ${plexMono.variable}`}>
+      <body className={`${googleSansFlex.variable} ${barlow.variable} ${barlowCondensed.variable} ${plexMono.variable}`}>
         {children}
       </body>
     </html>

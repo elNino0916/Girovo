@@ -1,15 +1,30 @@
 // Whether a remembered device profile exists for (BLZ, user). Does not need
 // the PIN — only reveals existence, not contents.
+//
+// POST, not GET: the login name is personal, and a query string ends up in
+// access logs, the dev server's request log and the browser's history. The
+// body does not.
 
-import type { NextRequest } from 'next/server';
-import { json } from '@/lib/api';
+import { body, fail, json, wrap } from '@/lib/api';
 import { hasProfile } from '@/lib/state-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export function GET(req: NextRequest) {
-  const blz = (req.nextUrl.searchParams.get('blz') || '').trim();
-  const userId = (req.nextUrl.searchParams.get('userId') || '').trim();
-  return json({ remembered: !!(blz && userId && hasProfile(blz, userId)) });
+type DeviceStatusBody = { blz?: unknown; userId?: unknown };
+
+export const POST = wrap(async (req: Request) => {
+  const { blz, userId } = await body<DeviceStatusBody>(req);
+  // Anything that is not a plain string is no login name — not an error the
+  // user could do anything about, just "nothing remembered".
+  const b = typeof blz === 'string' ? blz.trim() : '';
+  const u = typeof userId === 'string' ? userId.trim() : '';
+  return json({ remembered: !!(b && u && hasProfile(b, u)) });
+});
+
+/** The old query-string form is gone on purpose; say so rather than 404. */
+export function GET() {
+  const res = fail('Bitte per POST abfragen.', 405);
+  res.headers.set('Allow', 'POST');
+  return res;
 }

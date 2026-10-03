@@ -12,7 +12,11 @@ export default function Page() {
   return (
     <FintsProvider>
       {/* Only the printable Kontoauszug/receipt sheet should reach paper —
-          everything else is app chrome that a PDF export shouldn't include. */}
+          everything else is app chrome that a PDF export shouldn't include.
+          Every interactive layer therefore lives in here: the dashboard
+          mounts its own (Überweisung, Geld anfordern, Mitteilungen, the
+          palette, the session warning, Tastenkürzel), and the primitives
+          render overlays in place rather than portalling them out. */}
       <div className="print:hidden">
         <App />
         <TanWaitOverlay />
