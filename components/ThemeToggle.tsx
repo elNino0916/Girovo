@@ -1,50 +1,121 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { store } from '@/lib/client-api';
-import { IconButton } from './ui';
+// Darstellung: Hell, Dunkel or System.
+//
+// The glyphs on both controls are switched by CSS from the attributes the
+// pre-paint script writes on <html> (see .theme-glyph / .mode-glyph in
+// globals.css), never by React state: the server renders before anyone knows
+// the theme, and a state-driven glyph would paint the wrong one until
+// hydration. Text that names the current setting (the trigger's accessible
+// name, the checked menu item) comes from useSyncExternalStore, which renders
+// the server's answer during hydration and corrects itself right after —
+// without a hydration mismatch.
 
-/** Paper or ink. The choice is written before first paint in layout.tsx. */
-export function ThemeToggle({ tone = 'page', labelled = false }: { tone?: 'page' | 'bar'; labelled?: boolean }) {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+import { useSyncExternalStore } from 'react';
+import {
+  appliedTheme, appliedThemePref, setThemePref, subscribeTheme, type Theme, type ThemePref,
+} from '@/lib/theme';
+import { MonitorIcon, MoonIcon, SunIcon } from './icons';
+import { IconButton, Menu, MenuGroup, MenuItemRadio, cx, type Placement } from './ui';
 
-  useEffect(() => {
-    setTheme((document.documentElement.dataset.theme as 'light' | 'dark') || 'light');
-  }, []);
+/** The stored choice, live. 'system' on the server. */
+export function useThemePref(): ThemePref {
+  return useSyncExternalStore(subscribeTheme, appliedThemePref, () => 'system' as const);
+}
 
-  const toggle = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    store.set('fints.theme', next);
-    window.electronTitleBar?.setTheme(next === 'dark');
-    setTheme(next);
-  };
+/** The theme actually on screen, live. 'light' on the server. */
+export function useResolvedTheme(): Theme {
+  return useSyncExternalStore(subscribeTheme, appliedTheme, () => 'light' as const);
+}
 
-  const glyph = theme === 'dark' ? (
-    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden className="shrink-0">
-      <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden className="shrink-0">
-      <circle cx="12" cy="12" r="4.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5 5l1.8 1.8M17.2 17.2L19 19M19 5l-1.8 1.8M6.8 17.2L5 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
+const PREF_LABEL: Record<ThemePref, string> = { light: 'Hell', dark: 'Dunkel', system: 'System' };
+
+/** Sun, moon or screen — whichever the CHOSEN setting is. */
+function PrefGlyph({ size = 18 }: { size?: number }) {
+  return (
+    <>
+      <SunIcon size={size} className="theme-glyph" data-glyph="light" />
+      <MoonIcon size={size} className="theme-glyph" data-glyph="dark" />
+      <MonitorIcon size={size} className="theme-glyph" data-glyph="system" />
+    </>
   );
+}
 
-  // In the masthead the control is one item of a named cluster, so it carries
-  // its name like the rest of them; everywhere else it stays a bare glyph.
-  if (labelled) {
-    return (
-      <button type="button" className="navlink inline-flex" onClick={toggle} title="Design wechseln" aria-label="Design wechseln">
-        {glyph}
-        <span className="hidden sm:inline">Design</span>
-      </button>
-    );
-  }
+/**
+ * The masthead's "Darstellung" item: opens a menu of Hell / Dunkel / System.
+ *
+ * `labelClassName` lets the shell collapse the word to the icon on a narrow
+ * window (e.g. "hidden desk:inline"); the accessible name stays either way.
+ * `variant="icon"` renders a round icon button instead of the masthead item.
+ */
+export function ThemeMenu({
+  variant = 'navlink', tone = 'bar', labelClassName, className, placement = 'bottom-end',
+}: {
+  variant?: 'navlink' | 'icon';
+  tone?: 'page' | 'bar' | 'stage';
+  labelClassName?: string;
+  className?: string;
+  placement?: Placement;
+}) {
+  const pref = useThemePref();
+  const name = `Darstellung: ${PREF_LABEL[pref]}`;
 
   return (
-    <IconButton tone={tone} onClick={toggle} title="Design wechseln" aria-label="Design wechseln">
-      {glyph}
+    <Menu
+      label="Darstellung"
+      placement={placement}
+      minWidth={240}
+      trigger={(props) =>
+        variant === 'icon' ? (
+          <IconButton {...props} tone={tone} size="md" aria-label={name} className={className}>
+            <PrefGlyph />
+          </IconButton>
+        ) : (
+          <button {...props} type="button" aria-label={name} title={name} className={cx('navlink inline-flex', className)}>
+            <PrefGlyph />
+            <span className={labelClassName}>Darstellung</span>
+          </button>
+        )
+      }
+    >
+      <MenuGroup label="Darstellung">
+        <MenuItemRadio checked={pref === 'light'} icon={<SunIcon />} onSelect={() => setThemePref('light')}>
+          Hell
+        </MenuItemRadio>
+        <MenuItemRadio checked={pref === 'dark'} icon={<MoonIcon />} onSelect={() => setThemePref('dark')}>
+          Dunkel
+        </MenuItemRadio>
+        <MenuItemRadio
+          checked={pref === 'system'}
+          icon={<MonitorIcon />}
+          description="Folgt der Einstellung deines Systems"
+          onSelect={() => setThemePref('system')}
+        >
+          System
+        </MenuItemRadio>
+      </MenuGroup>
+    </Menu>
+  );
+}
+
+/**
+ * A single round button that flips between light and dark — for the auth
+ * screens' bar, where a menu would be more than the moment needs. It shows
+ * the theme you are looking at, and choosing makes it an explicit setting
+ * (no longer "System").
+ *
+ * `labelled` is the old masthead form; it now renders the full ThemeMenu.
+ */
+export function ThemeToggle({
+  tone = 'page', labelled = false, className,
+}: { tone?: 'page' | 'bar' | 'stage'; labelled?: boolean; className?: string }) {
+  if (labelled) return <ThemeMenu className={className} labelClassName="hidden sm:inline" />;
+
+  const flip = () => setThemePref(appliedTheme() === 'dark' ? 'light' : 'dark');
+  return (
+    <IconButton tone={tone} size="md" onClick={flip} aria-label="Hell oder dunkel darstellen" className={className}>
+      <SunIcon size={18} className="mode-glyph" data-glyph="light" />
+      <MoonIcon size={18} className="mode-glyph" data-glyph="dark" />
     </IconButton>
   );
 }

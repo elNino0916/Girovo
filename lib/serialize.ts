@@ -1,14 +1,15 @@
 // Serialisers — map lib-fints objects to plain JSON for the frontend.
 
-import type { AccountBalance, ClientResponse, Statement } from 'lib-fints';
+import type { AccountBalance, Balance, ClientResponse, Statement } from 'lib-fints';
 import type { TanMethod } from './fints-types';
 import { lookupBlz } from './banks';
+import { nearestEntryYear } from './entry-date';
 import { repairBankText } from './format';
 import { INSTANT_SEG, TRANSFER_SEG } from './fints-sepa';
 import { PENDING_SEG } from './fints-pending';
 import type {
   SerializedAccount, SerializedBalance, SerializedTanMethod, SerializedTransaction,
-  SerializedVop, TanRequired,
+  SerializedVop, StatementBlock, TanRequired,
 } from './fints-types';
 import type { VopResult } from './fints-vop';
 import type { Session } from './session';
@@ -112,6 +113,49 @@ export function balanceFromStatements(statements: Statement[] | undefined): Seri
   };
 }
 
+/** A balance as the bank sent it, or null — never a stand-in. */
+function blockBalance(b: Balance | undefined | null): { value: number; date: string } | null {
+  if (!b || typeof b.value !== 'number' || !Number.isFinite(b.value)) return null;
+  const t = new Date(b.date).getTime();
+  if (Number.isNaN(t)) return null;
+  // JSON's own rendering of a Date, so the client parses these exactly like
+  // the bookings' entryDate/valueDate (and buckets them by *local* day).
+  return { value: b.value, date: new Date(t).toISOString() };
+}
+
+/**
+ * Each statement block's own opening and closing balance, for the client to
+ * verify a Kontoverlauf against (lib/balance-history.ts). Blocks keep the
+ * bank's order — some send newest first, see balanceFromStatements.
+ *
+ * lib-fints' CAMT parser fills gaps with balances the bank never sent, and a
+ * made-up figure must not pass verification. Both stand-ins are recognisable
+ * by identity, because the parser builds every real balance from its own XML
+ * node, with its own Date:
+ *   - a missing opening becomes { value: 0, date: closing.date } — a zero
+ *     that shares the closing balance's very Date object;
+ *   - a missing closing becomes the opening balance object itself.
+ * MT940 leaves a missing :60F:/:62F: undefined, which maps to null anyway.
+ */
+export function statementBlocks(statements: Statement[] | undefined): StatementBlock[] {
+  return (statements || []).map((st) => {
+    const ob = st.openingBalance as Balance | undefined;
+    const cb = st.closingBalance as Balance | undefined;
+    const openingInvented = !!ob && !!cb && ob !== cb && ob.value === 0 && ob.date === cb.date;
+    const closingCopied = !!ob && ob === cb;
+    const opening = openingInvented ? null : blockBalance(ob);
+    const closing = closingCopied ? null : blockBalance(cb);
+    return {
+      openingBalance: opening?.value ?? null,
+      openingDate: opening?.date ?? null,
+      closingBalance: closing?.value ?? null,
+      closingDate: closing?.date ?? null,
+      currency: cb?.currency || ob?.currency || 'EUR',
+      count: (st.transactions || []).length,
+    };
+  });
+}
+
 // Date-only diagnostics for the "Stand" issue — no amounts, names or IBANs are
 // logged. Shows how the bank ordered its statement blocks and where the newest
 // closing balance sits, so a stale "Stand" date can be traced to real data.
@@ -121,7 +165,9 @@ export function logStatementDates(accountNumber: string, statements: Statement[]
     return Number.isNaN(t.getTime()) ? '??' : t.toISOString().slice(0, 10);
   };
   const blocks = (statements || []).map((s, i) => {
-    const txDates = (s.transactions || []).map((t) => t.entryDate || t.valueDate).filter(Boolean);
+    const txDates = (s.transactions || [])
+      .map((t) => (t.entryDate ? nearestEntryYear(t.entryDate, t.valueDate) : t.valueDate))
+      .filter(Boolean);
     const newestTx = txDates.length
       ? iso(txDates.reduce((a, b) => (new Date(b) > new Date(a) ? b : a)))
       : '-';
@@ -136,14 +182,23 @@ export function serializeTransactions(statements: Statement[] | undefined): Seri
     for (const t of st.transactions || []) {
       txs.push({
         valueDate: t.valueDate,
-        entryDate: t.entryDate,
+        // MT940 names the Buchungstag without a year, and lib-fints guesses
+        // it wrong across the turn of the year (lib/entry-date.ts).
+        entryDate: nearestEntryYear(t.entryDate, t.valueDate),
         amount: t.amount, // already signed: debit negative, credit positive
         currency: st.closingBalance?.currency || 'EUR',
-        purpose: t.purpose || '',
+        // Repaired here, once, so the list, the CSV, the categories and the
+        // logo lookup all see 'Thüringen' rather than the bank's 'ThA.ringen'.
+        purpose: repairBankText(t.purpose || ''),
         bookingText: t.bookingText || '',
-        remoteName: t.remoteName || '',
+        remoteName: repairBankText(t.remoteName || ''),
         remoteIban: t.remoteAccountNumber || '',
-        remoteBic: t.remoteIdentifier || t.remoteBankId || '',
+        // lib-fints files MT940's CRED+/DEBT+ under remoteIdentifier. That is
+        // the creditor's SEPA identifier, not a bank code — it used to be
+        // preferred here, which put a Gläubiger-ID where the BIC belongs (on
+        // screen and on the printed Buchungsbeleg).
+        remoteBic: t.remoteBankId || '',
+        creditorId: t.remoteIdentifier || '',
         e2eReference: t.e2eReference || '',
         mandateReference: t.mandateReference || '',
         customerReference: t.customerReference || '',

@@ -35,6 +35,7 @@ import type { ClientResponseWithResult, TransferResult } from './fints-types';
 import {
   VopCollector, isVopRequired, queueVopPoll, reportDelivery, vopAuthSegment, vopCheckSegment,
 } from './fints-vop';
+import { sepaSanitize } from './sepa-text';
 
 class HKCCS extends SegmentDefinition {
   static Id = 'HKCCS';
@@ -90,30 +91,9 @@ export const INSTANT_SEG = HKIPZ.Id;
 // ---------------------------------------------------------------------------
 // SEPA character set + helpers
 // ---------------------------------------------------------------------------
-const TRANSLIT: Record<string, string> = {
-  'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue', 'ß': 'ss',
-  'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'å': 'a', 'ç': 'c', 'è': 'e', 'é': 'e',
-  'ê': 'e', 'ë': 'e', 'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i', 'ñ': 'n', 'ò': 'o',
-  'ó': 'o', 'ô': 'o', 'õ': 'o', 'ù': 'u', 'ú': 'u', 'û': 'u', 'ý': 'y',
-  'À': 'A', 'Á': 'A', 'Â': 'A', 'Ã': 'A', 'Å': 'A', 'Ç': 'C', 'È': 'E', 'É': 'E',
-  'Ê': 'E', 'Ë': 'E', 'Ì': 'I', 'Í': 'I', 'Î': 'I', 'Ï': 'I', 'Ñ': 'N', 'Ò': 'O',
-  'Ó': 'O', 'Ô': 'O', 'Õ': 'O', 'Ù': 'U', 'Ú': 'U', 'Û': 'U', 'Ý': 'Y',
-  '&': '+', '€': 'EUR', '@': '(at)', '*': '.', '_': '-', '"': "'",
-};
-
-// Reduce any text to the SEPA/EPC allowed character set (pure ASCII), so the
-// pain.001 byte length always equals its JS string length regardless of the
-// transport encoding.
-export function sepaSanitize(text: unknown, maxLength?: number): string {
-  let out = '';
-  for (const ch of String(text ?? '')) {
-    if (/[A-Za-z0-9\/\-?:().,'+ ]/.test(ch)) out += ch;
-    else if (TRANSLIT[ch] !== undefined) out += TRANSLIT[ch];
-    else out += ' ';
-  }
-  out = out.replace(/\s+/g, ' ').trim();
-  return maxLength ? out.slice(0, maxLength) : out;
-}
+// The character set and its rewrite live in lib/sepa-text.ts, so the transfer
+// sheet can count and show exactly what this module will send.
+export { sepaSanitize };
 
 export function validateIban(input: unknown): string | null {
   const iban = String(input || '').replace(/\s+/g, '').toUpperCase();

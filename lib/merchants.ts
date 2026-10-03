@@ -24,7 +24,7 @@ import 'server-only';
 
 import crypto from 'node:crypto';
 import {
-  bestScore, candidates, facilitatorOf, getMerchantKey, looksCorporate, nameScore,
+  bestScore, candidates, facilitatorOf, getMerchantKey, knownInstitution, looksCorporate, nameScore,
 } from './merchant-match';
 export { getMerchantKey };
 import { BRANDFETCH_CLIENT_ID, MERCHANT_LOGOS } from './session';
@@ -240,6 +240,14 @@ function viaBadge(rawName: string, resolvedDomain: string): Merchant['via'] | un
 }
 
 async function resolveOne(rawName: string, purpose: string | undefined, businessBooking: boolean): Promise<Merchant | null> {
+  // An institution with a fixed identity needs no search — and searching for
+  // it was how the Sparkassen card processor got the Hessian state crest.
+  const institution = knownInstitution(rawName);
+  if (institution) {
+    console.log(`[merchants] "${rawName}" → ${institution.label} (${institution.domain}, known institution)`);
+    return { id: institution.domain, label: institution.label, logo: registerLogo(institution.domain) };
+  }
+
   if (!looksCorporate(rawName, businessBooking, purpose)) return null;
 
   for (const rung of candidates(rawName, purpose)) {

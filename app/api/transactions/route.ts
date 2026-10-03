@@ -3,7 +3,7 @@
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import {
   balanceFromStatements, bankAnswerText, logResp, logStatementDates,
-  serializeTransactions, tanPayload,
+  serializeTransactions, statementBlocks, tanPayload,
 } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
 import type { TransactionsResponse } from '@/lib/fints-types';
@@ -44,5 +44,7 @@ export const POST = wrap(async (req: Request) => {
     needsTan: false, accountNumber,
     transactions: serializeTransactions(resp.statements),
     balance: balanceFromStatements(resp.statements),
+    // Per-block opening/closing balances — what a Kontoverlauf is checked against.
+    blocks: statementBlocks(resp.statements),
   } satisfies TransactionsResponse);
 });

@@ -38,7 +38,14 @@ export const BRANDS: Record<string, BrandMark> = {
 // Marks that are too dark to sit on the dark theme directly (navy/black
 // wordmarks, measured per file) get an invert+hue-rotate in dark mode.
 // Colorful marks (Sparkasse red, comdirect yellow, DKB blue, …) render as-is.
+// Deutsche Bank's deep blue square sits at well under 3:1 on the navy-black
+// surfaces and all but vanishes, so it is flipped too.
 export const DARK_INVERT = new Set([
   'vrbank', 'ing', 'gls', 'apobank', 'psd', 'norisbank',
-  'commerzbank', 'hypovereinsbank', 'degussa', 'targobank',
+  'commerzbank', 'hypovereinsbank', 'degussa', 'targobank', 'deutschebank',
 ]);
+
+// Logo files drawn for a dark ground: comdirect's yellow wordmark all but
+// disappears on the white plate. In light mode they get a plate of the
+// masthead's navy instead; on the dark theme they show as they are.
+export const ON_DARK = new Set(['comdirect']);

@@ -5,7 +5,7 @@
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import {
   accountsFor, balanceFromStatements, bankAnswerText, logResp, logStatementDates,
-  serializeBalance, serializeTransactions,
+  serializeBalance, serializeTransactions, statementBlocks,
 } from '@/lib/serialize';
 import { getSession, saveSessionProfile } from '@/lib/session';
 import { PENDING_SEG } from '@/lib/fints-pending';
@@ -95,6 +95,7 @@ export const POST = wrap(async (req: Request) => {
       status: 'done', kind: 'statements', accountNumber,
       transactions: serializeTransactions(statements),
       balance: balanceFromStatements(statements),
+      blocks: statementBlocks(statements),
     } satisfies TanPollResponse);
   }
   if (type === 'pending') {

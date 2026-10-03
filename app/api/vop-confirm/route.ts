@@ -10,6 +10,7 @@ import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
 import { SepaTransferInteraction } from '@/lib/fints-sepa';
+import { ORDER_UNANSWERED_STATUS, OrderUnanswered, startOrder } from '@/lib/fints-order';
 import type { TransferResponse } from '@/lib/fints-types';
 
 export const runtime = 'nodejs';
@@ -39,7 +40,17 @@ export const POST = wrap(async (req: Request) => {
   );
 
   console.log(`[vop-confirm] ${hold.segId} + HKVPA acct=${hold.accountNumber} verdict=${hold.vop.verdict}`);
-  const resp = await s.client.startCustomerOrderInteraction(interaction);
+  const resp = await startOrder(s.client, interaction).catch((err: unknown) => {
+    if (err instanceof OrderUnanswered) return err;
+    throw err;
+  });
+  if (resp instanceof OrderUnanswered) {
+    // The order (and its VOP-ID) may have reached the bank: the hold is
+    // spent, and the client shows "Status unklar" (lib/fints-order.ts).
+    s.vopHold = null;
+    console.error('[vop-confirm] order sent, answer lost:', (resp.cause as Error)?.message || resp.cause);
+    return fail(resp.message, ORDER_UNANSWERED_STATUS);
+  }
   logResp('vop-confirm', s, resp);
 
   // The hold is spent either way: a VOP-ID may only be used once.

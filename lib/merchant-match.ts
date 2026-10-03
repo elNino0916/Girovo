@@ -150,7 +150,7 @@ const CORPORATE_WORDS = new Set([
 // Left in place these are worse than noise. "ebay by adyen" matches nothing at
 // all, and "paypal steam" matches PayPal — the processor rather than the shop,
 // which is a confidently wrong logo.
-import { parsePurpose } from './sepa-purpose';
+import { parsePurpose } from './sepa-purpose.ts';
 
 const FACILITATORS = new Set([
   'adyen', 'paypal', 'pp', 'sumup', 'square', 'sq', 'izettle', 'zettle', 'iz',
@@ -569,6 +569,11 @@ export function nameScore(core: string, label: string): number {
   if (a === b) return 1;
   // "g2a com" and "g2acom" are the same name written two ways.
   if (a.replace(/\s+/g, '') === b.replace(/\s+/g, '')) return 1;
+  // A place is not a brand. "Landesbank Hessen-Thüringen" starts with
+  // "hessen" once "Landesbank" is stripped, and hessen.de — the state
+  // chancellery, whose icon is the Hessian lion — scored 0.85 on that prefix
+  // alone. Only an exact match may land on a bare region or city name.
+  if (PLACE_NAMES.has(a) || PLACE_NAMES.has(b)) return 0;
   // The length floors are what keep a short prefix from being evidence. At two
   // characters "IHR" scored 0.85 against "ihr g2a com", which is how noise
   // words from a remittance text were winning against real brands.
@@ -583,6 +588,42 @@ export function nameScore(core: string, label: string): number {
 }
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Regions and big cities, normalised — never evidence for a brand on their own. */
+const PLACE_NAMES = new Set(`
+  deutschland germany europa europe baden wuerttemberg bayern berlin brandenburg bremen
+  hamburg hessen mecklenburg vorpommern niedersachsen nordrhein westfalen nrw rheinland
+  pfalz saarland sachsen anhalt schleswig holstein thueringen
+  muenchen koeln frankfurt stuttgart duesseldorf dortmund essen leipzig dresden hannover
+  nuernberg duisburg bochum wuppertal bielefeld bonn muenster mannheim karlsruhe augsburg
+  wiesbaden kiel mainz erfurt rostock kassel halle magdeburg freiburg potsdam
+  oesterreich austria schweiz switzerland wien zuerich
+`.split(/\s+/).filter(Boolean));
+
+/**
+ * Counterparties that are institutions with a fixed identity, matched on the
+ * name itself instead of a search.
+ *
+ * The Sparkassen card processor is the one that matters: every Visa/Mastercard
+ * debit payment of a Sparkasse customer names "Landesbank Hessen-Thüringen
+ * (Girozentrale)" as its counterparty — sometimes with the umlaut broken
+ * ("ThA.ringen") — and a search for that name finds the state of Hesse, not
+ * the bank.
+ */
+const INSTITUTIONS: { test: RegExp; domain: string; label: string }[] = [
+  {
+    test: /^(?:landesbank hessen th(?:ue|u|a )ringen|helaba)(?: girozentrale)?(?: ag| aoer)?$/,
+    domain: 'helaba.com',
+    label: 'Helaba',
+  },
+];
+
+export function knownInstitution(raw: string | null | undefined): { domain: string; label: string } | null {
+  const n = normalize(String(raw ?? ''));
+  if (!n) return null;
+  const hit = INSTITUTIONS.find((i) => i.test.test(n));
+  return hit ? { domain: hit.domain, label: hit.label } : null;
+}
 
 /** The best score across every name a lookup result is known by. */
 export function bestScore(core: string, labels: Iterable<string>): number {

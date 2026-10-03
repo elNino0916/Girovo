@@ -111,7 +111,15 @@ export type SerializedTransaction = {
   bookingText: string;
   remoteName: string;
   remoteIban: string;
+  /** The counterparty's BIC (MT940 ?30 may carry a BLZ instead). Never a creditor ID. */
   remoteBic: string;
+  /**
+   * The SEPA creditor identifier (or, rarely, debtor identifier) the bank
+   * filed separately — MT940's CRED+/DEBT+. Optional because CAMT leaves it
+   * inside the purpose; read it through txCreditorId() in lib/categories.ts,
+   * which looks in both places.
+   */
+  creditorId?: string;
   e2eReference: string;
   mandateReference: string;
   customerReference: string;
@@ -121,6 +129,25 @@ export type SerializedTransaction = {
   textKeyExtension: string;
   additionalInformation: string;
   statementNumber: string;
+};
+
+/**
+ * One MT940/CAMT statement block's own balances, exactly as the bank sent them.
+ *
+ * The client uses these to *verify* a reconstructed balance history — opening
+ * plus the block's bookings must land on its closing — and refuses to draw a
+ * Kontoverlauf it cannot check. A balance the bank omitted is null, never 0:
+ * lib-fints' CAMT parser substitutes 0 for a missing opening balance, and a
+ * made-up zero must not pass as a real figure.
+ */
+export type StatementBlock = {
+  openingBalance: number | null;
+  openingDate: string | null;
+  closingBalance: number | null;
+  closingDate: string | null;
+  currency: string;
+  /** Bookings in this block. */
+  count: number;
 };
 
 export type BankMessage = { subject: string; text: string };
@@ -160,13 +187,13 @@ export type TanPollResponse =
   | { status: 'dialog_ended'; type: string; accountNumber?: string }
   | { status: 'done'; kind: 'accounts'; accounts: SerializedAccount[]; deviceSaved: boolean }
   | { status: 'done'; kind: 'balance'; accountNumber?: string; balance: SerializedBalance | null }
-  | { status: 'done'; kind: 'statements'; accountNumber?: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null }
+  | { status: 'done'; kind: 'statements'; accountNumber?: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null; blocks?: StatementBlock[] }
   | { status: 'done'; kind: 'pending'; accountNumber?: string; pending: SerializedTransaction[] }
   | { status: 'done'; kind: 'transfer'; accountNumber?: string; transferResult: TransferResult | null; bankAnswers: string };
 
 export type TransactionsResponse =
   | TanRequired
-  | { needsTan: false; accountNumber: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null };
+  | { needsTan: false; accountNumber: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null; blocks?: StatementBlock[] };
 
 export type PendingResponse =
   | TanRequired

@@ -52,3 +52,37 @@ export async function body<T = Record<string, unknown>>(req: Request): Promise<P
     return {};
   }
 }
+
+/**
+ * Like body(), but for the one route that accepts a payload of real size (the
+ * vault): stops reading past `maxBytes` and answers null instead of buffering
+ * whatever arrives. Malformed or empty JSON still reads as `{}`.
+ *
+ * The parse error is swallowed rather than passed on on purpose — V8 quotes
+ * the offending input in its message, and that input may be personal data
+ * that must not end up in a log line.
+ */
+export async function boundedBody<T = Record<string, unknown>>(req: Request, maxBytes: number): Promise<Partial<T> | null> {
+  const declared = Number(req.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) return null;
+  if (!req.body) return {};
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  try {
+    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Partial<T>) : {};
+  } catch {
+    return {};
+  }
+}

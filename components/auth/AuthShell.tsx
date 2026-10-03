@@ -1,0 +1,216 @@
+'use client';
+
+// The frame every screen before the dashboard shares: the navy masthead, a
+// short navy stage band carrying the three-step progress, and the white tile
+// (or two) that overlaps the stage — the shape of a German bank's login page,
+// on the same tokens as the dashboard behind it.
+
+import type { CSSProperties, ReactNode } from 'react';
+import { ThemeToggle } from '../ThemeToggle';
+import { CheckIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../icons';
+import { cx } from '../ui';
+import { BrandMark } from '../shell/BrandMark';
+import { MASTHEAD_EDGES } from '../shell/edges';
+
+export type AuthStep = 'bank' | 'credentials' | 'approval';
+
+const STEPS: { id: AuthStep; label: string }[] = [
+  { id: 'bank', label: 'Bank' },
+  { id: 'credentials', label: 'Anmeldung' },
+  { id: 'approval', label: 'Freigabe' },
+];
+
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
+
+const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
+const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
+
+/**
+ * The auth screens' page. `step` draws the progress on the stage; `aside` is a
+ * second tile beside the main one on a wide window (≥1024px) and is simply
+ * left out below that — whatever it says must not be the only place it is said.
+ */
+export function AuthCard({
+  children, step, aside,
+}: {
+  children: ReactNode;
+  step?: AuthStep;
+  aside?: ReactNode;
+}) {
+  return (
+    <div className="flex h-dvh flex-col bg-paper">
+      <AuthMasthead />
+
+      {/* The page scrolls here, not the window (the window sits fixed under
+          the desktop caption bar). Marked as the scroll root so an open
+          dialog — the TAN wait over the method picker — can lock it. */}
+      <div data-scroll-root className="relative min-h-0 flex-1 overflow-y-auto">
+        {/* A little lower on a short window (the desktop shell's 900×600
+            minimum), so the form starts above the fold. */}
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-0 h-[132px] bg-stage sm:[@media(min-height:721px)]:h-[164px] sm:[@media(max-height:720px)]:h-[136px]"
+        />
+
+        <main
+          className={cx(
+            'relative mx-auto w-full px-4 pt-5 pb-12 sm:px-6 sm:pb-16 sm:[@media(min-height:721px)]:pt-8 sm:[@media(max-height:720px)]:pt-5',
+            aside ? 'max-w-[528px] lg:max-w-[900px]' : 'max-w-[528px]',
+          )}
+        >
+          {step && <StepIndicator current={step} />}
+
+          <div className={cx('mt-5 sm:[@media(min-height:721px)]:mt-7', !!aside && 'lg:grid lg:grid-cols-[minmax(0,1fr)_316px] lg:items-start lg:gap-6')}>
+            <div className="panel px-5 pt-6 pb-6 sm:px-8 sm:pt-8 sm:pb-8">{children}</div>
+            {aside && <div className="hidden lg:block">{aside}</div>}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * No session yet to put a bar over, but the window still needs one: with no
+ * native frame (electron/main.cjs) this is also the only place on the login
+ * screen the user can grab to drag it.
+ */
+function AuthMasthead() {
+  return (
+    // Not a scroll container, same reason as the dashboard's masthead: kept
+    // clear of the row so the OS-drawn scrollbar never crosses it. Its edges
+    // are the dashboard masthead's (1280px column, toggle clear of the OS
+    // caption buttons), so the "€" mark is where the dashboard will put it.
+    <header
+      // A faint hairline: in light mode bar and stage are the same navy, and
+      // the line is what says where the window's drag handle ends.
+      className={cx(
+        'on-bar flex shrink-0 items-center gap-3 bg-bar text-bar-ink shadow-[inset_0_-1px_0_color-mix(in_srgb,var(--bar-ink)_10%,transparent)]',
+        MASTHEAD_EDGES,
+      )}
+      style={{ height: 'var(--barbar-h)', ...DRAG }}
+    >
+      <BrandMark version={APP_VERSION} versionClassName="hidden sm:inline" />
+
+      <div className="flex-1" />
+
+      <div style={NO_DRAG}>
+        <ThemeToggle tone="bar" />
+      </div>
+    </header>
+  );
+}
+
+/** Bank · Anmeldung · Freigabe — where the user is, set on the navy stage. */
+function StepIndicator({ current }: { current: AuthStep }) {
+  const at = STEPS.findIndex((s) => s.id === current);
+  return (
+    <ol aria-label="Schritte der Anmeldung" className="on-stage flex items-center gap-2 sm:gap-3">
+      {STEPS.map((s, i) => {
+        const done = i < at;
+        const active = i === at;
+        return (
+          <li key={s.id} aria-current={active ? 'step' : undefined} className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <span className="flex min-w-0 items-center gap-2">
+              <span
+                aria-hidden
+                className={cx(
+                  'tnum grid size-6 shrink-0 place-items-center rounded-full text-[12.5px] leading-none font-bold',
+                  active && 'bg-stage-ink text-stage',
+                  done && 'bg-[color-mix(in_srgb,var(--stage-ink)_18%,transparent)] text-stage-ink',
+                  !active && !done && 'shadow-[inset_0_0_0_1.5px_var(--stage-line)] text-stage-ink-2',
+                )}
+              >
+                {done ? <CheckIcon size={14} strokeWidth={2.6} /> : i + 1}
+              </span>
+              {/* Three labels don't fit a phone without being cut to "Ba…":
+                  there only the current step is named, the others stay as
+                  numbered marks (and remain readable to screen readers). */}
+              <span
+                className={cx(
+                  'text-[13.5px] leading-none whitespace-nowrap sm:text-[14px]',
+                  !active && 'max-sm:sr-only',
+                  active ? 'font-bold text-stage-ink' : done ? 'font-semibold text-stage-ink' : 'font-semibold text-stage-ink-2',
+                )}
+              >
+                {s.label}
+                {done && <span className="sr-only"> (erledigt)</span>}
+              </span>
+            </span>
+            {i < STEPS.length - 1 && (
+              <span aria-hidden className={cx('h-px w-4 shrink-0 sm:w-10', done ? 'bg-stage-ink-2' : 'bg-stage-line')} />
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * What happens to the credentials, said once in the wide layout's side tile.
+ * Honest about the one outside lookup the app can make: with company logos
+ * switched on, payee names (and nothing else) go to the logo service.
+ */
+export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
+  const points: { icon: ReactNode; title: string; text: string }[] = [
+    {
+      icon: <LockIcon size={18} />,
+      title: 'PIN nur im Arbeitsspeicher',
+      text: 'Sie wird nie gespeichert und mit der Abmeldung verworfen.',
+    },
+    {
+      icon: <LandmarkIcon size={18} />,
+      title: 'Direkte Verbindung',
+      text: 'Von diesem Rechner direkt zu deiner Bank, über FinTS 3.0.',
+    },
+    {
+      icon: <ShieldIcon size={18} check />,
+      title: 'Gemerktes Gerät verschlüsselt',
+      text: 'Merkt sich die App dein Gerät, sind die Daten mit deiner PIN verschlüsselt.',
+    },
+    merchantLogos
+      ? {
+          icon: <EyeOffIcon size={18} />,
+          title: 'Kein Tracking',
+          text: 'Keine Werbung, keine Analyse. Für Firmenlogos wird nur der Name des Zahlungspartners nachgeschlagen.',
+        }
+      : {
+          icon: <EyeOffIcon size={18} />,
+          title: 'Keine Daten an Dritte',
+          text: 'Keine Werbung, keine Analyse, keine Weitergabe.',
+        },
+  ];
+
+  return (
+    <aside aria-labelledby="auth-privacy-title" className="panel px-6 pt-6 pb-6">
+      <h2 id="auth-privacy-title" className="section-head">Deine Daten bleiben bei dir</h2>
+      <ul className="mt-5 flex flex-col gap-5">
+        {points.map((p) => (
+          <li key={p.title} className="flex items-start gap-3.5">
+            <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-inset text-headline">
+              {p.icon}
+            </span>
+            <span className="min-w-0 pt-px">
+              <span className="block text-[14.5px] leading-snug font-semibold text-ink">{p.title}</span>
+              <span className="mt-0.5 block text-[13.5px] leading-snug text-ink-2">{p.text}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
+
+/** The narrow layout's version of the side tile: one line under the form. */
+export function PrivacyNote() {
+  return (
+    <p className="mt-6 flex items-start gap-2.5 border-t border-line pt-5 text-[13px] leading-snug text-ink-3 lg:hidden">
+      <ShieldIcon size={16} className="mt-px shrink-0" />
+      <span>
+        Deine PIN bleibt nur im Arbeitsspeicher und wird nie gespeichert. Die Verbindung läuft direkt von
+        diesem Rechner zu deiner Bank.
+      </span>
+    </p>
+  );
+}

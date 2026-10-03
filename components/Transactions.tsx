@@ -1,522 +1,287 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { fmtDate, fmtIban, fmtMoney, groupLabel, initials, isFutureDate, isoDate, txTime } from '@/lib/format';
-import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
-import { condenseRefs, parsePurpose } from '@/lib/sepa-purpose';
-import { useFints, useMerchant } from './FintsProvider';
-import {
-  Button, ClockIcon, CloseIcon, Disclosure, IconButton, Overlay,
-  RefreshIcon, SearchIcon, SkeletonRow, cx,
-} from './ui';
+// The Umsätze tile: the loaded statement as a list a person can scan, narrow
+// and act on — and, exported alongside it, the Vorgemerkt panel for the
+// sidebar. The parts live in components/transactions/.
+//
+// Two rules shape it. What the header says was loaded is what
+// `statementInfo` says was fetched, never what a control currently shows.
+// And the filter belongs to the provider, not to this tile, so the palette,
+// the Analyse and the Verträge tab can open the list already narrowed.
 
-/** One day of bookings — the unit the statement is already grouped into. */
-type DayGroup = {
-  label: string;
-  future: boolean;
-  txs: SerializedTransaction[];
+import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import { filterTransactions } from '@/lib/analytics';
+import type { SerializedTransaction } from '@/lib/fints-types';
+import { fmtRange } from '@/lib/format';
+import { useFints } from './FintsProvider';
+import { RefreshIcon } from './icons';
+import { Money } from './Money';
+import { Alert, Button, EmptyState, ErrorState, IconButton, Spinner, cx } from './ui';
+import { TxDetailHost, openTxDetail } from './transactions/detail-host';
+import { ExportMenu } from './transactions/ExportMenu';
+import { groupByDay, listTotals, merchantFor, newestFirst } from './transactions/model';
+import { PeriodControl } from './transactions/PeriodControl';
+import { TxFilterBar, activeFilterCount } from './transactions/TxFilterBar';
+import { TxList } from './transactions/TxList';
+import { TxRowSkeleton } from './transactions/TxRow';
+
+export { PendingPanel } from './transactions/PendingPanel';
+
+const MAY_NEED_TAN = 'Kann eine Freigabe erfordern.';
+
+// The last focus request this tile has answered. Module-level rather than a
+// ref: a deep link from the Analyse tab mounts this tile fresh, with the
+// request already pending, and a plain tab switch back must not count as one.
+let answeredFocusNonce = 0;
+
+const clock = (ms: number) => {
+  const d = new Date(ms);
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
+const umsaetze = (n: number) => `${n.toLocaleString('de-DE')} ${n === 1 ? 'Umsatz' : 'Umsätze'}`;
+
 export function Transactions() {
-  const { activeAccount, transactions, loadingAccount, txError, refreshAccount, busy, printStatement } = useFints();
-  const [query, setQuery] = useState('');
-  const [detail, setDetail] = useState<{ tx: SerializedTransaction; pending: boolean } | null>(null);
-  // Collapsed rather than expanded: a day the user has never touched is open,
-  // which is what someone scanning a statement wants.
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  // The period lives with the list it selects, not with the balance — the
-  // balance is today's, whatever range is loaded beneath it.
-  const [from, setFrom] = useState(() => isoDate(new Date(Date.now() - 90 * 86400000)));
-  const [to, setTo] = useState(() => isoDate(new Date()));
+  const {
+    activeAccount: a, transactions, loadingAccount, txError, refreshAccount, busy, statementInfo, range, applyRange,
+    txFilter, setTxFilter, txFocusNonce, categoryOf, merchants,
+  } = useFints();
 
-  const loading = !!activeAccount && loadingAccount === activeAccount.accountNumber;
+  const auto = useId();
+  const titleId = `umsaetze${auto}-title`;
+  const listId = `umsaetze${auto}-list`;
+  const sectionRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
-  const groups = useMemo<DayGroup[]>(() => {
-    const list = transactions ?? [];
-    const q = query.trim().toLowerCase();
-    const matched = q
-      ? list.filter((t) => `${t.remoteName} ${t.purpose} ${t.bookingText} ${t.remoteIban}`.toLowerCase().includes(q))
-      : list.slice();
-    matched.sort((a, b) => txTime(b) - txTime(a));
+  const loaded = a ? statementInfo[a.accountNumber] : undefined;
+  const loading = !!a && loadingAccount === a.accountNumber;
+  const currency = a?.currency || 'EUR';
 
-    const out: DayGroup[] = [];
-    for (const t of matched) {
-      const date = t.entryDate || t.valueDate;
-      const label = groupLabel(date);
-      const last = out[out.length - 1];
-      if (last && last.label === label) last.txs.push(t);
-      else out.push({ label, future: isFutureDate(date), txs: [t] });
-    }
-    return out;
-  }, [transactions, query]);
+  const sorted = useMemo(() => newestFirst(transactions ?? []), [transactions]);
+  const filtered = useMemo(() => filterTransactions(sorted, txFilter, { categoryOf }), [sorted, txFilter, categoryOf]);
+  // The category menu counts what the other filters leave, so a count never
+  // promises rows that the direction chip or the search would then hide.
+  const facetSource = useMemo(
+    () => (txFilter.category ? filterTransactions(sorted, { ...txFilter, category: null }, { categoryOf }) : filtered),
+    [sorted, filtered, txFilter, categoryOf],
+  );
+  const groups = useMemo(() => groupByDay(filtered), [filtered]);
+  const totals = useMemo(() => listTotals(filtered, currency), [filtered, currency]);
+  const merchantOf = useCallback((tx: SerializedTransaction) => merchantFor(merchants, tx), [merchants]);
+  const onOpen = useCallback((tx: SerializedTransaction) => openTxDetail(tx, false), []);
 
-  if (!activeAccount) return null;
+  const filterCount = activeFilterCount(txFilter);
+  const resetFilter = useCallback(() => setTxFilter({ dir: 'all', category: null, query: '' }), [setTxFilter]);
 
-  const empty = groups.length === 0;
+  // "Alle Umsätze mit …", a category bar in the Analyse, a palette hit: bring
+  // the list into view and put focus on its heading, so a screen reader
+  // starts here and the next Tab lands in the filters. The request counts as
+  // answered only once the frame has run: a cancelled frame (StrictMode's
+  // mount, cleanup, mount in dev) leaves it pending for the next run.
+  useEffect(() => {
+    if (txFocusNonce < answeredFocusNonce) answeredFocusNonce = txFocusNonce; // a new session counts from 0
+    if (txFocusNonce === answeredFocusNonce) return;
+    const raf = requestAnimationFrame(() => {
+      answeredFocusNonce = txFocusNonce;
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      sectionRef.current?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+      headingRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [txFocusNonce]);
 
-  return (
-    <>
-      <PendingPanel />
+  if (!a) return null;
 
-      <div className="panel overflow-clip">
-        {/* One control block, attached to the list it governs: which period to
-            fetch, and how to narrow what came back. */}
-        <div className="border-b border-line px-4 py-4 sm:px-5">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-            <h2 className="section-head text-ink">Umsätze</h2>
+  const refresh = () => refreshAccount(a);
+  const hasList = !!transactions && sorted.length > 0;
 
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              {/* Wraps rather than being clipped: on a phone the pill is wider
-                  than the panel, and a half-visible "bis" date cannot be set. */}
-              <span className="flex max-w-full flex-wrap items-center gap-1.5 rounded-[9px] bg-inset px-2 py-1.5">
-                <label className="eyebrow shrink-0 pl-0.5" htmlFor="tx-from">Zeitraum</label>
-                <input
-                  id="tx-from"
-                  type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Zeitraum von"
-                  className="num min-w-0 rounded-[6px] bg-surface px-1.5 py-1 text-[12.5px] text-ink-2 outline-none focus:text-ink"
-                />
-                <span className="text-ink-3">–</span>
-                <input
-                  type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Zeitraum bis"
-                  className="num min-w-0 rounded-[6px] bg-surface px-1.5 py-1 text-[12.5px] text-ink-2 outline-none focus:text-ink"
-                />
-              </span>
+  const rangeLine = loading
+    ? <>Lädt {fmtRange(range.from, range.to)} …</>
+    : loaded
+      ? (
+        <>
+          {fmtRange(loaded.from, loaded.to)}
+          {/* When it was fetched matters less than what — on a phone the dates win the room. */}
+          <span className="hidden sm:inline"> · abgerufen {clock(loaded.loadedAt)} Uhr</span>
+        </>
+      )
+      : 'Noch nicht abgerufen';
 
-              <Button
-                size="sm"
-                disabled={busy}
-                onClick={() => activeAccount && refreshAccount(activeAccount, from, to)}
-                title="Umsätze für diesen Zeitraum neu laden"
-              >
-                Aktualisieren
-              </Button>
-              <Button
-                size="sm"
-                variant="quiet"
-                onClick={() => printStatement(from, to)}
-                title="Kontoauszug für den gewählten Zeitraum als PDF speichern"
-              >
-                Kontoauszug (PDF)
-              </Button>
-            </div>
+  let body: React.ReactNode;
+  if (!a.canStatements) {
+    body = (
+      <EmptyState illustration="transactions" title="Keine Umsätze für dieses Konto">
+        Deine Bank bietet für dieses Konto keine Umsatzabfrage über FinTS an.
+      </EmptyState>
+    );
+  } else if (loading) {
+    body = (
+      <>
+        <p role="status" className="sr-only">Umsätze werden geladen.</p>
+        <div aria-hidden>
+          {/* A shimmer is the colour of the band itself; on the band the
+              placeholder is a plain hairline-coloured bar. */}
+          <div className="flex min-h-9 items-center bg-inset px-4 sm:px-5">
+            <span className="block h-3 w-28 rounded-full bg-line" />
           </div>
-
-          <div className="relative mt-3">
-            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3">
-              <SearchIcon size={15} />
-            </span>
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Umsätze durchsuchen …"
-              aria-label="Umsätze durchsuchen"
-              className="w-full rounded-[9px] border border-line bg-surface py-2 pr-3 pl-10 text-[13.5px] outline-none focus:border-accent"
-            />
+          {[62, 48, 70, 40, 56].map((w, i) => <TxRowSkeleton key={i} width={w} />)}
+          <div className="flex min-h-9 items-center bg-inset px-4 sm:px-5">
+            <span className="block h-3 w-36 rounded-full bg-line" />
           </div>
+          {[52, 66, 44].map((w, i) => <TxRowSkeleton key={i} width={w} />)}
         </div>
-
-        {loading && Array.from({ length: 7 }, (_, i) => <SkeletonRow key={i} width={40 + ((i * 37) % 45)} />)}
-
-        {!loading && txError && (
-          <EmptyState>{txError}</EmptyState>
-        )}
-
-        {!loading && !txError && empty && (
-          <EmptyState icon>
-            {query
-              ? 'Kein Umsatz passt zu dieser Suche.'
-              : 'Keine Umsätze im gewählten Zeitraum. Weite den Zeitraum oben aus, um weiter zurückzublicken.'}
-          </EmptyState>
-        )}
-
-        {!loading && !txError && groups.map((g) => (
-          <Disclosure
-            key={g.label}
-            sticky
-            tone="inset"
-            open={!collapsed[g.label]}
-            onToggle={() => setCollapsed((c) => ({ ...c, [g.label]: !c[g.label] }))}
-            title={
-              <span className="eyebrow flex items-center gap-2">
-                {g.label}
-                {g.future && (
-                  <span
-                    className="rounded-full bg-[color-mix(in_srgb,var(--ink-3)_16%,transparent)] px-1.5 py-px text-ink-2"
-                    title="Diese Buchungen tragen einen Buchungstag in der Zukunft — die Bank verbucht sie erst an diesem Tag."
-                  >
-                    noch nicht gebucht
-                  </span>
-                )}
-              </span>
-            }
-          >
-            {g.txs.map((t, i) => (
-              <TxRow
-                key={`${t.bankReference}-${t.e2eReference}-${i}`}
-                tx={t}
-                onOpen={() => setDetail({ tx: t, pending: false })}
-              />
-            ))}
-          </Disclosure>
-        ))}
-      </div>
-
-      {detail && (
-        <TransactionDetail tx={detail.tx} pending={detail.pending} onClose={() => setDetail(null)} />
-      )}
-    </>
-  );
-}
-
-function TxRow({
-  tx, onOpen, tone = 'booked',
-}: {
-  tx: SerializedTransaction;
-  onOpen: () => void;
-  tone?: 'booked' | 'pending';
-}) {
-  const credit = tx.amount >= 0;
-  const name = tx.remoteName || tx.bookingText || 'Buchung';
-  const merchant = useMerchant(tx);
-  // A Buchungstag the bank has stamped ahead of today — the entry is real and
-  // value-dated, but it hasn't been booked yet.
-  const futureBooking = tone === 'booked' && isFutureDate(tx.entryDate);
-
-  // The bank packs the whole structured remittance record into one field —
-  // EREF+…MREF+…SVWZ+… — and only the SVWZ half is prose a person wrote. The
-  // identifiers are real, but they belong in the detail drawer: on a scannable
-  // list they crowd out the two things being scanned for, the payee and the
-  // amount. A purpose with no tags in it is returned untouched, and whatever
-  // machine-length tokens survive inside the prose are cut to a stub.
-  const desc = condenseRefs(parsePurpose(tx.purpose).text || (tx.remoteName ? tx.bookingText : '') || '');
-
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="flex w-full items-center gap-3.5 border-b border-line px-4 py-3.5 text-left transition-colors duration-100 last:border-b-0 hover:bg-inset sm:px-5"
-    >
-      <TxAvatar merchant={merchant} name={name} credit={credit} tone={tone} />
-
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14.5px] leading-snug font-semibold">{name}</span>
-        {desc && <span className="mt-0.5 block truncate text-[12px] leading-snug text-ink-3">{desc}</span>}
-      </span>
-
-      {/* A fixed column so every amount in the list ends on the same edge —
-          with tabular figures that puts the decimal points in one line. */}
-      <span className="w-[112px] shrink-0 text-right sm:w-[128px]">
-        <span className={cx('num block text-[15.5px] leading-snug font-semibold', credit ? 'text-green' : 'text-ink')}>
-          {credit ? '+' : '−'}{fmtMoney(Math.abs(tx.amount), tx.currency)}
-        </span>
-        <span
-          className={cx('num mt-1 block text-[11px] leading-snug', tone === 'pending' ? 'text-amber' : 'text-ink-3')}
-          title={futureBooking ? `Buchungstag ${fmtDate(tx.entryDate)} · Wertstellung ${fmtDate(tx.valueDate)}` : undefined}
-        >
-          {tone === 'pending'
-            ? (tx.valueDate ? `Wert ${fmtDate(tx.valueDate)}` : 'vorgemerkt')
-            // Naming the field stops a forward-dated Buchungstag from reading
-            // like the day the money actually moved.
-            : futureBooking
-              ? `Buchung ${fmtDate(tx.entryDate)}`
-              : fmtDate(tx.entryDate || tx.valueDate)}
-        </span>
-      </span>
-    </button>
-  );
-}
-
-/**
- * The payment provider a purchase went through, notched into the corner of the
- * shop's mark.
- *
- * It exists to answer a question the row otherwise raises: the statement names
- * PayPal, the row shows G2A. Small and secondary on purpose — the shop is what
- * the row is about, and the provider is only how the money got there. It
- * disappears rather than falling back to a monogram, since a badge nobody can
- * read is worse than no badge.
- */
-function ViaBadge({ via }: { via: NonNullable<Merchant['via']> }) {
-  const [broken, setBroken] = useState(false);
-  if (broken) return null;
-  return (
-    <span
-      aria-hidden
-      className="absolute -right-1 -bottom-1 flex size-[15px] items-center justify-center overflow-hidden rounded-full border-2 border-surface bg-white"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`/api/merchant-logo?id=${via.logo}`}
-        alt=""
-        onError={() => setBroken(true)}
-        className="max-h-full max-w-full object-contain"
+      </>
+    );
+  } else if (txError && !transactions) {
+    body = (
+      <ErrorState title="Umsätze konnten nicht geladen werden" onRetry={refresh} busy={busy}>
+        {txError}
+      </ErrorState>
+    );
+  } else if (!transactions) {
+    body = (
+      <EmptyState
+        illustration="transactions"
+        title="Umsätze noch nicht abgerufen"
+        action={<Button variant="primary" size="sm" disabled={busy} onClick={refresh}>Umsätze abrufen</Button>}
+      >
+        {fmtRange(range.from, range.to)}. {MAY_NEED_TAN}
+      </EmptyState>
+    );
+  } else if (sorted.length === 0) {
+    body = (
+      <EmptyState illustration="transactions" title="Keine Umsätze in diesem Zeitraum">
+        {loaded ? `Zwischen ${fmtRange(loaded.from, loaded.to).replace('–', ' und ')} wurde nichts gebucht. ` : ''}
+        Wähle oben einen längeren Zeitraum, um weiter zurückzublicken.
+      </EmptyState>
+    );
+  } else if (filtered.length === 0) {
+    const q = txFilter.query.trim();
+    body = (
+      <EmptyState
+        illustration="search"
+        title="Keine passenden Umsätze"
+        action={<Button size="sm" variant="secondary" onClick={resetFilter}>Filter zurücksetzen</Button>}
+      >
+        {q
+          ? <>Im geladenen Zeitraum passt kein Umsatz zu „{q}“{filterCount > 1 ? ' und den gewählten Filtern' : ''}.</>
+          : 'Im geladenen Zeitraum passt kein Umsatz zu diesen Filtern.'}
+      </EmptyState>
+    );
+  } else {
+    body = (
+      <TxList
+        id={listId}
+        groups={groups}
+        total={filtered.length}
+        resetKey={`${a.accountNumber}|${loaded?.from ?? ''}|${loaded?.to ?? ''}|${loaded?.loadedAt ?? 0}|${txFilter.dir}|${txFilter.category ?? ''}|${txFilter.query}`}
+        merchantOf={merchantOf}
+        categoryOf={categoryOf}
+        onOpen={onOpen}
       />
-    </span>
-  );
-}
-
-/**
- * The company mark when the counterparty was recognised, otherwise the plain
- * avatar. A logo that fails to load falls back too, so a broken image can never
- * replace a transaction's identity with an empty box.
- */
-function TxAvatar({
-  merchant, name, credit, tone,
-}: {
-  merchant: Merchant | null | undefined;
-  name: string;
-  credit: boolean;
-  tone: 'booked' | 'pending';
-}) {
-  const [broken, setBroken] = useState(false);
-
-  if (merchant && !broken) {
-    return (
-      // The badge has to sit outside the tile: the tile clips its overflow so a
-      // wordmark can't escape it, and the provider mark deliberately does.
-      <span
-        title={merchant.via ? `${merchant.label} · über ${merchant.via.label}` : merchant.label}
-        className="relative shrink-0"
-      >
-        {/* A rounded tile rather than the circle used for initials: some
-            Brandfetch marks are horizontal wordmarks, which a circle would crop
-            to nothing. It matches the pill the bank's own logo sits in
-            elsewhere in the app. The chip stays light in both themes — company
-            marks are drawn for white backgrounds, and a navy wordmark would
-            vanish on paper ink. */}
-        <span className="flex size-10 items-center justify-center overflow-hidden rounded-[11px] border border-line bg-white p-[3px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`/api/merchant-logo?id=${merchant.logo}`}
-            alt=""
-            onError={() => setBroken(true)}
-            // Bounded on both axes so a tall mark letterboxes instead of being
-            // cropped by the tile. Deliberately not `loading="lazy"`: an <img>
-            // that is 0×0 until it loads gets skipped by the lazy loader and then
-            // never loads at all.
-            className="max-h-full max-w-full object-contain"
-          />
-        </span>
-
-        {merchant.via && <ViaBadge via={merchant.via} />}
-      </span>
     );
   }
-
-  // The counterparty's monogram, whichever way the money went: the circle is
-  // there to give the row a face to scan for, and an arrow repeated down every
-  // debit says nothing the amount's own sign has not already said.
-  return (
-    <span
-      className={cx(
-        'grid size-10 shrink-0 place-items-center rounded-full border text-[13px] font-semibold',
-        tone === 'pending'
-          ? 'border-transparent bg-amber-soft text-amber'
-          : credit
-            ? 'border-transparent bg-green-soft text-green'
-            : 'border-line bg-inset text-ink-2',
-      )}
-    >
-      {initials(name)}
-    </span>
-  );
-}
-
-function EmptyState({ children, icon }: { children: React.ReactNode; icon?: boolean }) {
-  return (
-    <div className="flex flex-col items-center gap-2.5 px-6 py-12 text-center text-sm text-ink-3">
-      {icon && (
-        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden>
-          <path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        </svg>
-      )}
-      <p className="max-w-[46ch]">{children}</p>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Vorgemerkte Umsätze (HKVMK) — loaded on demand so it never adds a TAN prompt
-// to a normal account view.
-// ---------------------------------------------------------------------------
-function PendingPanel() {
-  const { activeAccount: a, pendingCache, pendingLoading, loadPending } = useFints();
-  const [detail, setDetail] = useState<SerializedTransaction | null>(null);
-  const [open, setOpen] = useState(true);
-
-  if (!a?.canPending) return null;
-
-  const loading = pendingLoading === a.accountNumber;
-  const cached = pendingCache[a.accountNumber];
-
-  if (loading) {
-    return (
-      <div className="panel mb-4 overflow-clip">
-        <div className="bg-amber-soft px-4 py-2.5">
-          <span className="eyebrow text-amber">Vorgemerkt</span>
-        </div>
-        <SkeletonRow width={52} />
-      </div>
-    );
-  }
-
-  if (!cached) {
-    return (
-      <div className="panel mb-4 flex items-center gap-3 px-4 py-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-amber-soft text-amber">
-          <ClockIcon />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13.5px] font-semibold">Vorgemerkte Umsätze</span>
-          <span className="block text-[12px] text-ink-3">
-            Noch nicht gebuchte Buchungen, z. B. anstehende Lastschriften. Kann eine TAN-Freigabe erfordern.
-          </span>
-        </span>
-        <Button size="sm" onClick={() => void loadPending(a)}>Anzeigen</Button>
-      </div>
-    );
-  }
-
-  const txs = cached.slice().sort((x, y) => txTime(y) - txTime(x));
 
   return (
     <>
-      <Disclosure
-        className="panel mb-4 overflow-clip"
-        tone="amber"
-        open={open}
-        onToggle={() => setOpen(!open)}
-        title={<span className="eyebrow text-amber">Vorgemerkt</span>}
-        trailing={
-          <IconButton
-            className="size-7 text-amber hover:bg-[color-mix(in_srgb,var(--amber)_14%,transparent)] hover:text-amber"
-            onClick={() => void loadPending(a)}
-            title="Aktualisieren"
-            aria-label="Vorgemerkte Umsätze aktualisieren"
-          >
-            <RefreshIcon />
-          </IconButton>
-        }
+      <section
+        ref={sectionRef}
+        aria-labelledby={titleId}
+        aria-busy={loading || undefined}
+        className="panel scroll-mt-4 overflow-clip"
       >
-        {txs.length ? (
-          txs.map((t, i) => (
-            <TxRow key={`${t.e2eReference}-${i}`} tx={t} tone="pending" onOpen={() => setDetail(t)} />
-          ))
-        ) : (
-          <p className="px-4 py-5 text-center text-[13px] text-ink-3">Keine vorgemerkten Umsätze.</p>
-        )}
-      </Disclosure>
+        <div className="px-4 pt-4 pb-4 sm:px-5 sm:pt-5">
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <h2 id={titleId} ref={headingRef} tabIndex={-1} className="section-head outline-none">Umsätze</h2>
+              <p className="tnum mt-0.5 truncate text-[13.5px] text-ink-3">{rangeLine}</p>
+            </div>
+            <div className="-mt-0.5 -mr-1.5 flex shrink-0 items-center gap-1 sm:gap-2">
+              {a.canStatements && <PeriodControl loaded={loaded} applyRange={applyRange} busy={busy} />}
+              {a.canStatements && (
+                <IconButton
+                  size="md"
+                  aria-label={`Umsätze aktualisieren. ${MAY_NEED_TAN}`}
+                  title={`Aktualisieren — ${MAY_NEED_TAN.toLowerCase()}`}
+                  disabled={busy}
+                  onClick={refresh}
+                >
+                  {loading ? <Spinner size={16} /> : <RefreshIcon size={18} />}
+                </IconButton>
+              )}
+              <ExportMenu loaded={loaded} all={sorted} filtered={filtered} filterActive={filterCount > 0} />
+            </div>
+          </div>
 
-      {detail && <TransactionDetail tx={detail} pending onClose={() => setDetail(null)} />}
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Detail drawer
-// ---------------------------------------------------------------------------
-function TransactionDetail({
-  tx, pending, onClose,
-}: {
-  tx: SerializedTransaction;
-  pending: boolean;
-  onClose: () => void;
-}) {
-  const { toast, printTransaction } = useFints();
-  const credit = tx.amount >= 0;
-  const merchant = useMerchant(tx);
-
-  const rows: [string, string, boolean?][] = [
-    ['Empfänger / Auftraggeber', tx.remoteName],
-    ['IBAN / Konto', tx.remoteIban ? fmtIban(tx.remoteIban) : '', true],
-    ['BIC', tx.remoteBic, true],
-    ['Verwendungszweck', tx.purpose, true],
-    ['Buchungstag', fmtDate(tx.entryDate)],
-    ['Wertstellung', fmtDate(tx.valueDate)],
-    ['Buchungstext', tx.bookingText],
-    ['End-to-End-Referenz', tx.e2eReference, true],
-    ['Mandatsreferenz', tx.mandateReference, true],
-    ['Kundenreferenz', tx.customerReference !== 'NONREF' ? tx.customerReference : ''],
-    ['Bankreferenz', tx.bankReference],
-    ['Geschäftsvorfallcode', tx.transactionCode],
-    ['Primanota', tx.primeNotesNr],
-    ['Auszug Nr.', tx.statementNumber],
-    ['Zusatzinformation', tx.additionalInformation],
-  ];
-
-  const copy = async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value.replace(/\s+/g, ' '));
-      toast('Kopiert');
-    } catch {
-      toast('Kopieren nicht möglich', 'error');
-    }
-  };
-
-  return (
-    <Overlay open align="right" onClose={onClose}>
-      <div className="anim-drawer h-dvh w-full max-w-[430px] overflow-y-auto bg-surface px-6 pt-5 pb-10 shadow-[var(--shadow-pop)]">
-        {/* Drawer is right-aligned and full-height, so its own header row sits
-            exactly where the OS caption buttons float — see the same note in
-            Dashboard.tsx. --caption-inset is 0 outside the desktop shell. */}
-        <div
-          className="mb-4 flex items-center justify-between"
-          style={{ paddingRight: 'var(--caption-inset)' } as React.CSSProperties}
-        >
-          <span className="eyebrow">Umsatzdetails</span>
-          <span className="flex items-center gap-1">
-            <Button size="sm" onClick={() => printTransaction(tx, pending)} title="Diesen Umsatz als PDF speichern">
-              Als PDF
-            </Button>
-            <IconButton onClick={onClose} aria-label="Schließen"><CloseIcon /></IconButton>
-          </span>
-        </div>
-
-        {pending && (
-          <span className="mb-2.5 inline-flex items-center gap-1.5 rounded-full bg-amber-soft px-2.5 py-1 text-[12px] font-semibold text-amber">
-            <ClockIcon size={14} /> Vorgemerkt · noch nicht gebucht
-          </span>
-        )}
-
-        <p className={cx('num text-[34px] font-semibold tracking-tight', credit && 'text-green')}>
-          {credit ? '+' : '−'}{fmtMoney(Math.abs(tx.amount), tx.currency)}
-        </p>
-        <div className="flex items-center gap-2">
-          {merchant && (
-            <TxAvatar merchant={merchant} name={tx.remoteName} credit={credit} tone="booked" />
+          {txError && transactions && !loading && (
+            <Alert
+              tone="error"
+              className="mt-3"
+              action={<Button size="xs" variant="secondary" disabled={busy} onClick={refresh}>Erneut versuchen</Button>}
+            >
+              Aktualisieren hat nicht geklappt: {txError} Angezeigt werden die zuletzt geladenen Umsätze.
+            </Alert>
           )}
-          <div className="min-w-0">
-            <p className="text-[15px] font-semibold">{tx.remoteName || tx.bookingText || 'Buchung'}</p>
-            {tx.bookingText && <p className="text-[12.5px] text-ink-3">{tx.bookingText}</p>}
+
+          {(hasList || filterCount > 0) && !loading && (
+            <div className="mt-4">
+              <TxFilterBar
+                filter={txFilter}
+                setFilter={setTxFilter}
+                facetSource={facetSource}
+                categoryOf={categoryOf}
+                listId={listId}
+              />
+            </div>
+          )}
+
+          {/* What the narrowed list adds up to: the count on the left, the
+              sums on the right — over the column of amounts they add up.
+              Announced politely, so a screen reader hears the result of a
+              filter without leaving the field. */}
+          <div
+            aria-live="polite"
+            className={cx(
+              'flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[13.5px] text-ink-2',
+              hasList && !loading ? 'mt-3' : 'sr-only',
+            )}
+          >
+            {hasList && !loading && (
+              <>
+                <p className="tnum font-semibold text-ink">
+                  {filterCount > 0
+                    ? `${filtered.length.toLocaleString('de-DE')} von ${sorted.length.toLocaleString('de-DE')} ${sorted.length === 1 ? 'Umsatz' : 'Umsätzen'}`
+                    : umsaetze(filtered.length)}
+                  {totals.otherCurrency > 0 && (
+                    <span className="font-normal text-ink-3"> · {totals.otherCurrency} in anderer Währung nicht summiert</span>
+                  )}
+                </p>
+                {(totals.income !== 0 || totals.expense !== 0) && (
+                  <p className="ml-auto flex items-baseline gap-2.5 sm:gap-3">
+                    {totals.income !== 0 && (
+                      <span title="Summe der Eingänge">
+                        <span className="sr-only">Eingänge </span>
+                        <Money value={totals.income} currency={currency} signed tone="credit" className="font-semibold" />
+                      </span>
+                    )}
+                    {totals.expense !== 0 && (
+                      <span title="Summe der Ausgänge">
+                        <span className="sr-only">Ausgänge </span>
+                        <Money value={totals.expense} currency={currency} signed tone="credit" className="font-semibold text-ink" />
+                      </span>
+                    )}
+                  </p>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        <dl className="mt-5 border-t border-line">
-          {rows.filter(([, v]) => v).map(([label, value, copyable]) => (
-            <div key={label} className="border-b border-line py-2.5">
-              <dt className="eyebrow mb-1">{label}</dt>
-              <dd className="flex items-baseline gap-2 text-[13.5px] break-words">
-                <span className="min-w-0">{value}</span>
-                {copyable && (
-                  <button
-                    type="button"
-                    onClick={() => void copy(value)}
-                    aria-label={`${label} kopieren`}
-                    title="Kopieren"
-                    className="shrink-0 rounded p-0.5 text-ink-3 hover:text-accent"
-                  >
-                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
-                      <rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                      <path d="M5 15V6a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-    </Overlay>
+        {/* No hairline above a list or its skeleton: the first day band is the edge. */}
+        <div className={cx(!(loading || (hasList && filtered.length > 0)) && 'border-t border-line')}>{body}</div>
+      </section>
+
+      <TxDetailHost />
+    </>
   );
 }

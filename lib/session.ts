@@ -129,7 +129,11 @@ export type Session = {
   deviceSaved?: boolean;
 };
 
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 min idle timeout
+/**
+ * 30 min idle timeout. Exported for /api/keepalive, which reports it so the
+ * browser can pace its pings well inside the window instead of guessing.
+ */
+export const SESSION_TTL_MS = 30 * 60 * 1000;
 
 type SessionGlobal = typeof globalThis & {
   __sooskasseSessions?: Map<string, Session>;

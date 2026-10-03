@@ -6,10 +6,17 @@
 // Instant Payments Regulation the bank compares the payee name against the name
 // behind the IBAN, and its explanatory text has to reach the customer verbatim
 // before they authorise a transfer that does not match. Hence `infoText` is
-// rendered as-is and never paraphrased.
+// rendered as-is (plain text, its own line breaks kept) and never paraphrased.
+//
+// Colour follows the app's roles: green only for the confirmed match, red for
+// the mismatch, and the near-miss gets the neutral surface with the orange
+// emphasis mark — amber is reserved for "vorgemerkt" and would say the wrong
+// thing here. The verdict is always spelled out in words; colour only points.
 
+import type { ReactNode } from 'react';
 import type { SerializedVop, VopVerdict } from '@/lib/fints-types';
-import { cx } from './ui';
+import { AlertTriangleIcon, CheckCircleIcon, InfoIcon, XCircleIcon } from './icons';
+import { Tag, cx } from './ui';
 
 type Tone = 'ok' | 'warn' | 'bad' | 'neutral';
 
@@ -46,82 +53,73 @@ const VERDICTS: Record<VopVerdict, { tone: Tone; label: string; blurb: string }>
   },
 };
 
-const TONE_TEXT: Record<Tone, string> = {
-  ok: 'text-green',
-  warn: 'text-amber',
-  bad: 'text-red',
-  neutral: 'text-ink-2',
+const TONES: Record<Tone, { box: string; icon: string; Glyph: typeof InfoIcon; tag: 'positive' | 'emphasis' | 'negative' | 'neutral' }> = {
+  ok: { box: 'bg-green-soft shadow-[inset_3px_0_0_var(--green)]', icon: 'text-green', Glyph: CheckCircleIcon, tag: 'positive' },
+  warn: { box: 'bg-inset shadow-[inset_3px_0_0_var(--emphasis)]', icon: 'text-emphasis', Glyph: AlertTriangleIcon, tag: 'emphasis' },
+  bad: { box: 'bg-red-soft shadow-[inset_3px_0_0_var(--red)]', icon: 'text-red', Glyph: XCircleIcon, tag: 'negative' },
+  neutral: { box: 'bg-info-soft shadow-[inset_3px_0_0_var(--info)]', icon: 'text-info', Glyph: InfoIcon, tag: 'neutral' },
 };
 
-const TONE_CHIP: Record<Tone, string> = {
-  ok: 'bg-green-soft text-green',
-  warn: 'bg-amber-soft text-amber',
-  bad: 'bg-red-soft text-red',
-  neutral: 'bg-inset text-ink-2',
-};
-
+/** Anything but a clean match needs the user's explicit go-ahead. */
 export const vopNeedsAttention = (v: SerializedVop) => VERDICTS[v.verdict].tone !== 'ok';
 
+/** The short verdict, for places that only have room for a word. */
+export const vopLabel = (v: SerializedVop) => VERDICTS[v.verdict].label;
+
 /** One line for the TAN overlay, where the approval already has the stage. */
-export function VopBadge({ vop }: { vop: SerializedVop }) {
+export function VopBadge({ vop, className }: { vop: SerializedVop; className?: string }) {
   const { tone, label } = VERDICTS[vop.verdict];
+  const t = TONES[tone];
   return (
-    <p className={cx('mx-auto mt-3.5 flex max-w-[340px] items-center justify-center gap-2 rounded-[9px] px-3.5 py-2 text-[12.5px]', TONE_CHIP[tone])}>
-      <VerdictGlyph tone={tone} size={15} />
-      <span className="font-semibold">Namensabgleich: {label}</span>
+    <p className={cx('mt-3.5 flex justify-center', className)}>
+      <Tag tone={t.tag} icon={tone === 'warn' ? undefined : <t.Glyph size={14} className={t.icon} />}>
+        Namensabgleich: {label}
+      </Tag>
     </p>
   );
 }
 
 /** The full result, for the decision the user has to make before authorising. */
-export function VopReport({ vop }: { vop: SerializedVop }) {
+export function VopReport({ vop, className }: { vop: SerializedVop; className?: string }) {
   const { tone, label, blurb } = VERDICTS[vop.verdict];
+  const t = TONES[tone];
   return (
-    <div className="mb-4">
-      <div className={cx('flex items-start gap-3 rounded-[9px] px-3.5 py-3', TONE_CHIP[tone])}>
-        <span className="mt-0.5 shrink-0"><VerdictGlyph tone={tone} size={20} /></span>
-        <div>
-          <p className="text-[14px] font-semibold">{label}</p>
-          <p className="mt-0.5 text-[12.5px] opacity-85">{blurb}</p>
+    <div className={className ?? 'mb-5'}>
+      <div role="status" className={cx('flex items-start gap-3 rounded-[10px] py-3.5 pr-4 pl-4', t.box)}>
+        <t.Glyph size={22} className={cx('mt-px shrink-0', t.icon)} />
+        <div className="min-w-0">
+          <p className="text-[16px] leading-snug font-bold text-ink">{label}</p>
+          <p className="mt-0.5 text-[14px] leading-snug text-ink-2">{blurb}</p>
         </div>
       </div>
 
-      <dl className="mt-3 overflow-hidden rounded-[9px] border border-line">
+      <dl className="mt-4 divide-y divide-line border-y border-line">
         <Row label="Von dir angegeben">{vop.submittedName}</Row>
         {vop.suggestedName && (
           <Row label="Bei der Bank hinterlegt">
-            <span className={TONE_TEXT[tone]}>{vop.suggestedName}</span>
+            <span className="font-semibold text-ink">{vop.suggestedName}</span>
           </Row>
         )}
         {vop.reason && <Row label="Grund">{vop.reason}</Row>}
       </dl>
 
       {vop.infoText && (
-        <p className="mt-3 rounded-[9px] bg-inset px-3.5 py-2.5 text-[12.5px] leading-relaxed whitespace-pre-line text-ink-2">
-          {vop.infoText}
-        </p>
+        <figure className="mt-4">
+          <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">Hinweis deiner Bank</figcaption>
+          <p className="rounded-[10px] bg-inset px-4 py-3 text-[14px] leading-relaxed break-words whitespace-pre-line text-ink">
+            {vop.infoText}
+          </p>
+        </figure>
       )}
     </div>
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex justify-between gap-3.5 border-b border-line px-3.5 py-2.5 last:border-b-0">
-      <dt className="eyebrow shrink-0 pt-0.5">{label}</dt>
-      <dd className="text-right text-[13.5px] break-words">{children}</dd>
+    <div className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+      <dt className="shrink-0 text-[13px] font-semibold text-ink-3">{label}</dt>
+      <dd className="text-[15px] break-words text-ink sm:text-right">{children}</dd>
     </div>
-  );
-}
-
-function VerdictGlyph({ tone, size }: { tone: Tone; size: number }) {
-  const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 2.2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden>
-      {tone === 'ok' && <path d="M4.5 12.5l5 5L19.5 7" {...common} />}
-      {tone === 'warn' && <path d="M12 4v10m0 3.5v.4" {...common} />}
-      {tone === 'bad' && <path d="M6 6l12 12M18 6L6 18" {...common} />}
-      {tone === 'neutral' && <path d="M12 8v.4M12 11.5v5" {...common} />}
-    </svg>
   );
 }
