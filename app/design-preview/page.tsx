@@ -38,6 +38,7 @@ import { TanMethodPicker } from '@/components/TanMethodPicker';
 import { TanWaitOverlay } from '@/components/TanWaitOverlay';
 import { Toasts } from '@/components/Toasts';
 import { UpdateLayer } from '@/components/updates/UpdateNotices';
+import { txKey } from '@/lib/categories';
 import { presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
 import { ACCT, MOCK_PAYEES } from './data';
@@ -115,6 +116,33 @@ async function completeOrder(c: Ctx) {
   await c.sleep(300);
 }
 
+// ---------------------------------------------------------------------------
+// Umsätze: finding a booking, narrowing to a month, filing it
+
+/** Last month — always inside the default 90 days. */
+const LAST_MONTH = presetRange('lastMonth');
+const LAST_MONTH_NAME = new Intl.DateTimeFormat('de-DE', { month: 'long' }).format(new Date(`${LAST_MONTH.from}T12:00:00`));
+
+/** Opens the drawer on the first booking row the (already filtered) list shows. */
+async function openFirstRow(c: Ctx): Promise<HTMLElement | null> {
+  const row = await c.poll(() => document.querySelector<HTMLElement>('[data-tx-row]'), 6000);
+  if (!row) {
+    console.warn('[design-preview] no transaction row found');
+    return null;
+  }
+  row.click();
+  await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+  return row;
+}
+
+/** In the open drawer: "Ändern", then a category — the offer to apply it to all follows. */
+async function pickCategory(c: Ctx, label: RegExp) {
+  await c.click(/^Kategorie ändern/, { within: 'dialog' });
+  await c.poll(() => document.querySelector('[role="menu"]'), 3000);
+  await c.click(label, { within: 'dialog' });
+  await c.sleep(200);
+}
+
 const VIEWS: Record<string, ViewDef> = {
   overview: { label: 'Übersicht', group: 'Dashboard' },
   analysis: { label: 'Analyse', group: 'Dashboard', options: { tab: 'analysis' } },
@@ -135,6 +163,89 @@ const VIEWS: Record<string, ViewDef> = {
       row.click();
       await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
     },
+  },
+  'search-month': {
+    label: 'Suche mit Monat',
+    group: 'Dashboard',
+    // A month word matches its month and its text — the count line says so.
+    options: { query: `rewe ${LAST_MONTH_NAME.toLowerCase()}` },
+  },
+  'search-none': {
+    label: 'Suche ohne Treffer',
+    group: 'Dashboard',
+    // A typo: the empty state names the word that found nothing.
+    options: { query: `rewe ${LAST_MONTH_NAME.toLowerCase()}x` },
+  },
+  'search-pending': {
+    label: 'Suche trifft Vorgemerkte',
+    group: 'Dashboard',
+    // The pending Amazon order matches too: one line in the list, first in the panel.
+    options: { query: 'amazon' },
+  },
+  'month-filter': {
+    label: 'Liste auf einen Monat',
+    group: 'Dashboard',
+    options: { filter: { from: LAST_MONTH.from, to: LAST_MONTH.to } },
+  },
+  'detail-category': {
+    label: 'Kategorie geändert',
+    group: 'Dashboard',
+    // Found by its category label, filed by hand — then the offer for the others.
+    options: { query: 'lebensmittel' },
+    async script(c) {
+      if (await openFirstRow(c)) await pickCategory(c, /^Shopping$/);
+    },
+  },
+  'detail-rules': {
+    label: 'Kategorie mit Regel',
+    group: 'Dashboard',
+    options: { query: 'lebensmittel' },
+    async script(c) {
+      const row = await c.poll(() => document.querySelector<HTMLElement>('[data-tx-row]'), 6000);
+      const key = row?.dataset.txKey;
+      const tx = Object.values(c.api().txByAccount).flat().find((t) => txKey(t) === key);
+      if (!row || !tx) return;
+      // A rule for this shop, as "Für alle übernehmen" would set it.
+      c.api().setCategory(tx, 'shopping', { rule: true });
+      await c.sleep(100);
+      await openFirstRow(c);
+      await c.click(/^Deine Regeln/, { within: 'dialog' });
+    },
+  },
+  'detail-refund': {
+    label: 'Erstattung (ohne Zurücküberweisen)',
+    group: 'Dashboard',
+    options: { query: 'erstattung' },
+    script: async (c) => { await openFirstRow(c); },
+  },
+  'detail-card': {
+    label: 'Kartenzahlung in USD',
+    group: 'Dashboard',
+    // Found by the words of its second line, which the bank never wrote.
+    options: { query: 'fremdwährung' },
+    script: async (c) => { await openFirstRow(c); },
+  },
+  'analysis-all': {
+    label: 'Analyse aller Konten',
+    group: 'Dashboard',
+    options: { tab: 'analysis', analysisScope: 'all' },
+  },
+  'analysis-drill': {
+    label: 'Analyse → Umsätze',
+    group: 'Dashboard',
+    // A category of a month over every account: the list opens on that month
+    // and says it holds one account.
+    options: { tab: 'analysis', analysisScope: 'all' },
+    async script(c) {
+      await c.click(/Umsätze anzeigen$/, { within: 'page' });
+      await c.poll(() => document.querySelector('[data-tx-row]'), 4000);
+    },
+  },
+  'contracts-error': {
+    label: 'Verträge, Konto fehlgeschlagen',
+    group: 'Dashboard',
+    preset: 'error',
+    options: { tab: 'contracts' },
   },
   inbox: { label: 'Mitteilungen', group: 'Dialoge', options: { open: 'inbox' } },
   palette: { label: 'Befehle (Strg K)', group: 'Dialoge', options: { open: 'palette' } },

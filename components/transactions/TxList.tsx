@@ -23,14 +23,17 @@ export const MORE_PAGE = 100;
 
 /**
  * The bookings, one section per day. Each day's header sticks to the top of
- * the page's scroll container while that day is scrolled through, carrying
- * the day's net so the reader never loses which day a row belongs to.
+ * the page's scroll container while that day is scrolled through, so the
+ * reader never loses which day a row belongs to. It carries, labelled, the
+ * Kontostand at the end of that day when the bank's own balances prove it
+ * (lib/balance-history.ts) — the figure a right-aligned number in a date row
+ * is read as — and otherwise the day's sum of the rows shown.
  *
  * `resetKey` names the current list (account, loaded range, filter): a new
  * list starts from the first page again.
  */
 export function TxList({
-  id, groups, total, resetKey, merchantOf, categoryOf, onOpen,
+  id, groups, total, resetKey, merchantOf, categoryOf, onOpen, balanceOn = null,
 }: {
   id: string;
   groups: DayGroup[];
@@ -39,6 +42,8 @@ export function TxList({
   merchantOf: (tx: SerializedTransaction) => Merchant | null;
   categoryOf: (tx: SerializedTransaction) => { id: CategoryId };
   onOpen: (tx: SerializedTransaction) => void;
+  /** The verified end-of-day balance per local day, when the bank's balances prove one. */
+  balanceOn?: { byDay: ReadonlyMap<string, number>; currency: string } | null;
 }) {
   // Derived rather than reset in an effect: a stale page count never renders.
   const [page, setPage] = useState({ key: resetKey, rows: FIRST_PAGE });
@@ -83,8 +88,22 @@ export function TxList({
                 <span className="truncate max-sm:sr-only">noch nicht gebucht</span>
               </span>
             )}
-            {g.net !== null && (
-              <span className="ml-auto shrink-0 text-[13px] text-ink-3" title="Summe des Tages">
+            {balanceOn ? (
+              // Days the proof does not reach (a Buchungstag still ahead) carry none.
+              balanceOn.byDay.has(g.key) && (
+                <span className="ml-auto shrink-0 text-[13px] text-ink-3">
+                  <span className="sm:hidden" aria-hidden>Stand </span>
+                  <span className="max-sm:sr-only">Kontostand </span>
+                  <span className="sr-only">am Tagesende: </span>
+                  {/* A balance: red when below zero, like every balance (Money's "auto"). */}
+                  <span className="font-semibold text-ink-2">
+                    <Money value={balanceOn.byDay.get(g.key)!} currency={balanceOn.currency} />
+                  </span>
+                </span>
+              )
+            ) : g.net !== null && (
+              <span className="ml-auto shrink-0 text-[13px] text-ink-3">
+                <span aria-hidden>Summe </span>
                 <span className="sr-only">Summe des Tages: </span>
                 <Money value={g.net} currency={g.currency} signed tone="plain" className="font-semibold" />
               </span>

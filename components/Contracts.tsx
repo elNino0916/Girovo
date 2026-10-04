@@ -217,6 +217,8 @@ function SummaryTile({ model, shortHistory }: { model: RecurringModel; shortHist
   const restMonthly = Math.round(rest.reduce((sum, g) => sum + g.monthly * 100, 0)) / 100;
   const restCount = rest.reduce((n, g) => n + g.series.length, 0);
   const failed = model.accounts.filter((b) => b.status === 'failed');
+  // Rent and energy apart from everything else, when there is both.
+  const split = !!housing && rest.length > 0;
 
   return (
     <section className="panel overflow-hidden" aria-labelledby={headingId}>
@@ -228,8 +230,8 @@ function SummaryTile({ model, shortHistory }: { model: RecurringModel; shortHist
       ) : live > 0 && (
         // With nothing recognised there is nothing to add up — "ca. 0 €"
         // would read as a finding. The basis and the notice still show.
-        <dl className="grid grid-cols-2 gap-px border-b border-line bg-line desk:grid-cols-4">
-          {housing && rest.length > 0 ? (
+        <dl className={cx('grid grid-cols-2 gap-px border-b border-line bg-line', split ? 'desk:grid-cols-4' : 'desk:grid-cols-3')}>
+          {split && housing ? (
             <>
               <SummaryFigure label={housing.label} sub={`pro Monat · ${plural(housing.series.length, 'Vertrag', 'Verträge')}`}>
                 <RoundMoney value={housing.monthly} currency={totals.currency} />
@@ -255,7 +257,7 @@ function SummaryTile({ model, shortHistory }: { model: RecurringModel; shortHist
             label="Fixkosten pro Jahr"
             prefix={unseen.length ? 'mind.' : 'ca.'}
             sub={unseen.length ? `${unseenPhrase(unseen)} Zahlungen zeigt erst ein längerer Verlauf` : 'hochgerechnet aus dem Rhythmus'}
-            wide={!(housing && rest.length > 0)}
+            wide={!split}
           >
             <RoundMoney value={totals.yearlyExpense} currency={totals.currency} />
           </SummaryFigure>
@@ -408,7 +410,7 @@ function SummaryFigure({
             {children}
           </>
         ) : (
-          <span className="text-[16px] font-semibold text-ink-3">Keine erkannt</span>
+          <span className="text-[16px] font-semibold text-ink-3">Keine regelmäßigen erkannt</span>
         )}
       </dd>
       <dd className="mt-1 text-[13px] leading-snug text-ink-3">{sub}</dd>
