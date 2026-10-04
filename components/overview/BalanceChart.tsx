@@ -128,9 +128,11 @@ export function BalanceChart({
     }
     const span = hi - lo;
     // Air above the highest and below the lowest point, but never past zero
-    // on a side where zero is the edge.
+    // on a side where zero is the edge. A day in the Dispo gets more below
+    // it: room for the label that names it (see the guides).
+    const dispo = !privacy && !card && min < 0;
     if (hi > 0 || privacy) hi += span * 0.06;
-    if (lo < 0 || privacy) lo -= span * 0.06;
+    if (lo < 0 || privacy) lo -= span * (dispo ? 0.16 : 0.06);
 
     const plotTop = PAD_TOP;
     const plotBottom = height - PAD_BOTTOM;
@@ -171,7 +173,7 @@ export function BalanceChart({
     });
 
     return { min, max, minAt, maxAt, left, x, y, zeroY, line, area, months, plotTop, plotBottom };
-  }, [width, height, n, points, privacy]);
+  }, [width, height, n, points, privacy, card]);
 
   if (n < 2) return null;
 
@@ -256,11 +258,26 @@ export function BalanceChart({
   // zero line or the max guide — two labels in one place read as neither.
   // Each label sits at the end of its guide AWAY from the extreme it names, so
   // it never covers the peak (or the trough) it is describing.
+  //
+  // A Girokonto that dipped below zero is the exception: that day costs
+  // Dispozinsen and is what a balance history is most for, yet it may be a
+  // few pixels deep. Its guide stays however close to zero it is, its label
+  // names the day in red and sits UNDER the guide — the line never goes
+  // lower, and the "0 €" label is above zero, so nothing can cover it there.
+  const dipped = !!geo && redBelowZero && geo.min < 0;
   const guides = geo && !privacy
     ? [
-        { key: 'max', y: geo.y(geo.max), at: geo.maxAt, label: `Max. ${money(geo.max, currency)}` },
-        ...(Math.abs(geo.y(geo.min) - geo.y(geo.max)) > 18 && Math.abs(geo.y(geo.min) - geo.zeroY) > 14
-          ? [{ key: 'min', y: geo.y(geo.min), at: geo.minAt, label: `Min. ${money(geo.min, currency)}` }]
+        { key: 'max', y: geo.y(geo.max), at: geo.maxAt, label: `Max. ${money(geo.max, currency)}`, below: false },
+        ...(Math.abs(geo.y(geo.min) - geo.y(geo.max)) > 18 && (dipped || Math.abs(geo.y(geo.min) - geo.zeroY) > 14)
+          ? [{
+              key: 'min',
+              y: geo.y(geo.min),
+              at: geo.minAt,
+              label: dipped
+                ? `Min. ${money(geo.min, currency)} am ${shortDate(points[geo.minAt].date)}`
+                : `Min. ${money(geo.min, currency)}`,
+              below: dipped,
+            }]
           : []),
       ].map((g) => {
         let start = g.at > (n - 1) / 2;
@@ -268,7 +285,7 @@ export function BalanceChart({
         // red) would print its label over the "0 €" label: it moves to the
         // other end. Its text sits above its guide and the line never rises
         // past the maximum, so the line cannot run through it there either.
-        if (zeroLabel && zeroLabel.start === start && Math.abs(g.y - geo.zeroY) < 16) start = !start;
+        if (!g.below && zeroLabel && zeroLabel.start === start && Math.abs(g.y - geo.zeroY) < 16) start = !start;
         return { ...g, start };
       })
     : [];
@@ -402,11 +419,11 @@ export function BalanceChart({
               <text
                 key={g.key}
                 x={g.start ? 0 : width}
-                y={g.y - 6}
+                y={g.below ? g.y + 14 : g.y - 6}
                 textAnchor={g.start ? 'start' : 'end'}
                 fontSize={12}
                 fontWeight={600}
-                fill="var(--ink-2)"
+                fill={g.below ? 'var(--red)' : 'var(--ink-2)'}
                 stroke="var(--surface)"
                 strokeWidth={4}
                 strokeLinejoin="round"
