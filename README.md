@@ -99,7 +99,8 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   chart axis and tooltip is masked, amounts inside the bank's own text as far
   as they can be recognised, and the Kontoverlauf keeps its trend but not
   whether it dipped below zero), **automatic logout** after 5–30 minutes of
-  inactivity with a one-minute warning, **Mitteilungen** (the bank's messages
+  inactivity with a one-minute warning (also in the window title, and in the
+  desktop app on a flashing taskbar button), **Mitteilungen** (the bank's messages
   from the login plus this session's transfer outcomes), a **command palette**
   (Strg+K) and keyboard shortcuts (switchable).
 - Hell / Dunkel / System appearance; phone layout with a bottom navigation.

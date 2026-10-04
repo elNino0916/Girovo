@@ -13,6 +13,14 @@ contextBridge.exposeInMainWorld('electronTitleBar', {
   setTheme: (isDark, dim) => ipcRenderer.send('titlebar:set-theme', !!isDark, Number.isInteger(dim) ? dim : 0),
 });
 
+// SessionGuard.tsx's last minute before the automatic logout: while another
+// window is in front, the taskbar button flashes until this one is focused
+// again (or the warning closes and sends false). It never brings the window
+// forward on its own.
+contextBridge.exposeInMainWorld('electronWindow', {
+  requestAttention: (on) => ipcRenderer.send('window:attention', on === true),
+});
+
 // Statement.tsx's PDF export: renders straight out of Chromium via
 // webContents.printToPDF in the main process, then a native save dialog — no
 // OS print driver ("Microsoft Print to PDF") involved, see main.cjs.

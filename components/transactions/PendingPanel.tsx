@@ -51,6 +51,7 @@ export function showPendingMatches(): void {
 export function PendingPanel() {
   const {
     activeAccount: a, pendingCache, pendingInfo, pendingLoading, loadPending, busy, merchants, txFilter, categoryOf,
+    pendingErrors,
   } = useFints();
   const [expanded, setExpanded] = useState(false);
   const titleId = useId();
@@ -78,6 +79,8 @@ export function PendingPanel() {
   if (!a?.canPending) return null;
 
   const loading = pendingLoading === a.accountNumber;
+  // A failed fetch is said here, where the list would be — not only in a toast.
+  const failure = loading ? undefined : pendingErrors[a.accountNumber];
   const shown = expanded ? txs : txs.slice(0, PREVIEW_ROWS);
   const load = () => void loadPending(a);
 
@@ -124,7 +127,14 @@ export function PendingPanel() {
                     {matches.size === 1 ? '1 passt' : `${matches.size} passen`} zur Suche in den Umsätzen
                   </p>
                 )}
+                {failure && (
+                  <p className="mt-1 text-[12.5px] leading-snug text-ink-2">
+                    <span className="font-semibold text-red">Aktualisieren fehlgeschlagen:</span> {failure.message}
+                  </p>
+                )}
               </>
+            ) : failure ? (
+              <p className="mt-0.5 text-[13.5px] font-semibold text-red">Abruf fehlgeschlagen</p>
             ) : (
               <p className="mt-0.5 text-[13.5px] text-ink-3">{loading ? 'Wird abgerufen …' : 'Noch nicht abgerufen'}</p>
             )}
@@ -151,10 +161,12 @@ export function PendingPanel() {
         ) : !cached ? (
           <div className="px-4 pb-4 sm:px-5">
             <p className="text-[14px] leading-relaxed text-ink-2">
-              Angekündigte Lastschriften und Kartenzahlungen, die deine Bank noch nicht gebucht hat. {TAN_NOTE}
+              {failure
+                ? <>{failure.message} {TAN_NOTE}</>
+                : <>Angekündigte Lastschriften und Kartenzahlungen, die deine Bank noch nicht gebucht hat. {TAN_NOTE}</>}
             </p>
             <Button size="sm" variant="secondary" className="mt-3" disabled={busy} onClick={load}>
-              Vorgemerkte abrufen
+              {failure ? 'Erneut versuchen' : 'Vorgemerkte abrufen'}
             </Button>
           </div>
         ) : txs.length === 0 ? null : (

@@ -16,7 +16,11 @@ type Snapshot = {
   state: UpdateState | null;
   /** The update dialog. */
   dialog: boolean;
-  /** The release whose notice has been looked at in Mitteilungen — the bell stops counting it. */
+  /**
+   * The notice that has been looked at in Mitteilungen (noticeKey) — the bell
+   * stops marking it. Per version and stage: a download that finishes in the
+   * background marks the bell once more.
+   */
   seen: string | null;
   /** The "aktualisiert" toast has been shown for this page. */
   greeted: boolean;
@@ -76,8 +80,8 @@ export const updates = {
   openDialog: () => commit({ dialog: true }),
   closeDialog: () => commit({ dialog: false }),
   markSeen: () => {
-    const version = snapshot.state?.release?.version ?? null;
-    if (version && snapshot.seen !== version) commit({ seen: version });
+    const key = noticeKey(snapshot.state);
+    if (key && snapshot.seen !== key) commit({ seen: key });
   },
   markGreeted: () => commit({ greeted: true }),
   check: () => call((b) => b.check()),
@@ -97,9 +101,18 @@ export function hasNewer(state: UpdateState | null): state is UpdateState & { re
   return !!state?.release && state.phase !== 'current' && state.phase !== 'idle';
 }
 
-/** The bell counts a newer version until its notice has been seen. */
+/** The newer version is downloaded and waits for the restart. */
+export const isReady = (state: UpdateState | null) => state?.phase === 'ready' || state?.phase === 'installing';
+
+/** What the bell's mark is about: a newer version, and whether it is ready yet. Null with nothing newer. */
+export function noticeKey(state: UpdateState | null): string | null {
+  return hasNewer(state) ? `${state.release.version}:${isReady(state) ? 'ready' : 'available'}` : null;
+}
+
+/** The bell marks a newer version until its notice has been seen — and again once it is ready. */
 export function unseenUpdate(snap: Snapshot): boolean {
-  return hasNewer(snap.state) && snap.seen !== snap.state.release.version;
+  const key = noticeKey(snap.state);
+  return key != null && snap.seen !== key;
 }
 
 /**

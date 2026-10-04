@@ -23,6 +23,10 @@
 //                           containing "Fehler" → the bank refuses the order
 //                           containing "Abgelehnt" → refused in the app
 //                           containing "Unklar" → the dialog ends: status unknown
+//   `unclear`             this session's log already holds a "Status unklar" transfer
+//   `failPending`         every Vorgemerkt fetch fails once its approval is through
+//   logout                "Abmelden" asks first while the log holds an unclear
+//                           transfer; the notice's PIN clause follows ~300 ms later
 //   login                 user name … "fehler" → wrong PIN, "gesperrt" → access locked,
 //                           "wartung" → bank not answering, "langsam" → no answer
 //                           until "Abbrechen"; else TAN methods
@@ -44,8 +48,9 @@ import { acceptsBalance, balanceQueue, failureSentence } from '@/lib/balances';
 import { BANK_UNAVAILABLE, bankAnswerLines } from '@/lib/bank-answer';
 import { categorize } from '@/lib/categorize';
 import { counterpartyKey, isCategoryId, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
-import { addDaysKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, translateType } from '@/lib/format';
+import { addDaysKey, fmtDate, fmtRange, ibanValid, isoDate, parseAmount, presetRange, repairBankText, translateType } from '@/lib/format';
 import { recordSentOrder } from '@/lib/sent-orders';
+import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-log';
 import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
@@ -56,7 +61,7 @@ import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import type {
   Merchant, SerializedAccount, SerializedBalance, SerializedTanMethod, SerializedTransaction, SerializedVop,
 } from '@/lib/fints-types';
-import { ACCT, getMockData, type MockData } from './data';
+import { ACCT, MOCK_PAYEES, getMockData, type MockData } from './data';
 
 export type MockPreset = 'default' | 'empty' | 'past-range' | 'unverified' | 'loading' | 'error';
 
@@ -110,6 +115,10 @@ export type MockOptions = {
   analysisScope?: AnalysisScope;
   /** Category rules and single-booking choices in the vault from the start. */
   categoryRules?: VaultData['categoryRules'];
+  /** This session's log holds a transfer whose status is unclear (Abmelden asks first). */
+  unclear?: boolean;
+  /** Every Vorgemerkt fetch fails once its approval is through (read live). */
+  failPending?: boolean;
 };
 
 export type MockFintsProviderProps = MockOptions & {
@@ -235,8 +244,9 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
     }
   }
 
-  const pendingCache: Record<string, SerializedTransaction[]> =
-    preset === 'default' || preset === 'unverified' || preset === 'past-range'
+  // With failPending the list was never fetched, so its failure has the panel to itself.
+  const pendingCache: Record<string, SerializedTransaction[]> = opts.failPending ? {}
+    : preset === 'default' || preset === 'unverified' || preset === 'past-range'
       ? { [ACCT.giro]: data.pending[ACCT.giro] }
       : empty ? { [ACCT.giro]: [] } : {};
 
@@ -320,6 +330,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [busy, setBusyState] = useState(loggedIn && init.busy);
   const [loadingAccount, setLoadingAccount] = useState<string | null>(loggedIn ? init.loadingAccount : null);
   const [pendingLoading, setPendingLoading] = useState<string | null>(null);
+  const [pendingErrors, setPendingErrors] = useState<Record<string, LoadError>>({});
   const [deviceRemembered, setDeviceRemembered] = useState(loggedIn);
 
   const [wait, setWait] = useState<WaitState>(IDLE_WAIT);
@@ -359,7 +370,16 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const [range, setRange] = useState<DateRange>(init.range);
   const [messages, setMessages] = useState<InboxMessage[]>(connected ? init.messages : []);
-  const [activity, setActivity] = useState<ActivityEntry[]>(loggedIn ? init.activity : []);
+  const [activity, setActivity] = useState<ActivityEntry[]>(() => (!loggedIn ? [] : opts.unclear
+    ? [{
+        id: 'act-unklar', at: new Date(Date.now() - 12 * 60_000).toISOString(), kind: 'transfer' as const,
+        outcome: 'unknown' as const, accountNumber: ACCT.giro, name: MOCK_PAYEES.max.name,
+        iban: MOCK_PAYEES.max.iban.replace(/\s+/g, ''), amount: 75, instant: false,
+      }, ...init.activity]
+    : init.activity));
+  const activityRef = useRef(activity);
+  activityRef.current = activity;
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [vault, setVault] = useState<VaultData | null>(loggedIn ? init.vault : null);
   const [vaultStatus, setVaultStatus] = useState<VaultStatus>(loggedIn ? init.vaultStatus : 'idle');
 
@@ -413,10 +433,15 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   }, []);
 
   // ---- toasts -------------------------------------------------------------
-  const toast = useCallback((message: string, tone: ToastTone = 'info', ms?: number, action?: ToastAction) => {
+  const toast = useCallback((message: string, tone: ToastTone = 'info', ms?: number, action?: ToastAction): number => {
     const id = ++toastId.current;
-    const entry: Toast = { id, message, tone, ms: ms ?? (tone === 'error' ? 9000 : 4200), ...(action ? { action } : {}) };
+    const entry: Toast = { id, message, tone, ms: ms ?? (tone === 'error' ? 10_000 : 4200), ...(action ? { action } : {}) };
     setToasts((list) => [...list.filter((t) => t.message !== message || t.tone !== tone), entry].slice(-MAX_TOASTS));
+    return id;
+  }, []);
+
+  const rewordToast = useCallback((id: number, message: string) => {
+    setToasts((list) => list.map((t) => (t.id === id ? { ...t, message } : t)));
   }, []);
 
   const dismissToast = useCallback((id: number) => {
@@ -531,7 +556,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     waitCb.current = {};
     closeWait();
     if (viewRef.current !== 'dashboard') {
-      void logoutRef.current('user');
+      void logoutRef.current('cancelled');
       return;
     }
     setBusy(false);
@@ -609,7 +634,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     const settle: LoadSettled = (outcome, error) => o.onSettled?.(outcome, error);
     if (!account.canBalance) { settle('skipped'); return; }
     if (busyRef.current) {
-      if (!o.quiet) toast(BUSY_MESSAGE, 'error');
+      if (!o.quiet) toast(BUSY_MESSAGE, 'info');
       settle('busy');
       return;
     }
@@ -634,7 +659,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   // As the provider's loadAllBalances: one after the other, one toast for what failed.
   const loadAllBalances = useCallback(() => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
     const gen = sessionGen.current;
@@ -692,7 +717,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       return;
     }
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
     let { from, to } = r;
@@ -713,6 +738,18 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
           rangeRef.current = prev;
           setRange(prev);
         },
+        // As the provider: an approval not given closes without a word, so this says what stays.
+        onSettled: (outcome) => {
+          if (outcome !== 'cancelled' || rangeRef.current !== prev) return;
+          const span = fmtRange(prev.from, prev.to);
+          toast(
+            next.from < prev.from
+              ? `Ältere Umsätze wurden nicht abgerufen – es bleibt beim Zeitraum ${span}.`
+              : `Der neue Zeitraum wurde nicht abgerufen – es bleibt bei ${span}.`,
+            'info',
+            8000,
+          );
+        },
       });
     }
   }, [toast, today, loadTransactions]);
@@ -720,7 +757,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   // As the provider: a past applied range is carried forward to today.
   const refreshAfterTransfer = useCallback((account: SerializedAccount) => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
     let r = rangeRef.current;
@@ -736,16 +773,24 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const loadPending = useCallback(async (account: SerializedAccount) => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
+    setPendingErrors((e) => without(e, account.accountNumber));
     setBusy(true);
     setPendingLoading(account.accountNumber);
     const finish = () => { setBusy(false); setPendingLoading(null); };
+    const label = vaultRef.current?.aliases?.[account.accountNumber] || account.product || translateType(account.accountType);
     later(450, () => startWait('pending', {
-      subject: `den Abruf der vorgemerkten Umsätze von ${vaultRef.current?.aliases?.[account.accountNumber] || account.product || translateType(account.accountType)}`,
+      subject: `den Abruf der vorgemerkten Umsätze von ${label}`,
       onDone: () => {
         finish();
+        // As the provider: the panel keeps the reason, the toast announces it.
+        if (optsRef.current.failPending) {
+          setPendingErrors((e) => ({ ...e, [account.accountNumber]: { message: MOCK_ERROR, at: Date.now() } }));
+          toast(`Abruf der vorgemerkten Umsätze für „${label}“ fehlgeschlagen: ${MOCK_ERROR}`, 'error');
+          return;
+        }
         setPendingCache((c) => ({
           ...c, [account.accountNumber]: preset === 'empty' ? [] : data.pending[account.accountNumber] ?? [],
         }));
@@ -1062,6 +1107,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setBusy(false);
     setLoadingAccount(null);
     setPendingLoading(null);
+    setPendingErrors({});
     setDeviceRemembered(false);
     setTxErrors({});
     setBalanceErrors({});
@@ -1088,6 +1134,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setInboxOpenState(false);
     setPaletteOpenState(false);
     setShortcutsOpenState(false);
+    setLogoutConfirmOpen(false);
     const r = presetRange('90d');
     rangeRef.current = r;
     setRange(r);
@@ -1106,13 +1153,37 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   }, [setBusy]);
 
   const logout = useCallback(async (reason: LogoutReason = 'user') => {
-    if (reason !== 'idle' && reason !== 'expired') reason = 'user';
+    if (reason !== 'idle' && reason !== 'expired' && reason !== 'cancelled') reason = 'user';
+    if (viewRef.current === 'login') {
+      if (reason === 'user' || reason === 'cancelled') resetSession();
+      return;
+    }
+    const unclear = unclearTransfers(activityRef.current).map((e) => e.name);
     resetSession();
-    if (reason === 'idle') toast('Du wurdest aus Sicherheitsgründen abgemeldet.', 'info', IDLE_NOTICE_MS);
-    else if (reason === 'expired') toast('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.', 'error');
-  }, [resetSession, toast]);
+    if (reason === 'idle') {
+      toast(idleLogoutNotice(unclear, unclear.length), 'info', IDLE_NOTICE_MS);
+    } else if (reason === 'expired') {
+      toast('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.', 'error');
+    } else {
+      // The real provider adds the PIN clause once /api/logout answered.
+      const said = reason;
+      const id = toast(logoutNotice(said, false), 'info', 6000);
+      // A plain timer: the reset above ends the session that later() is tied to.
+      setTimeout(() => rewordToast(id, logoutNotice(said, true)), 300);
+    }
+  }, [resetSession, toast, rewordToast]);
 
   logoutRef.current = logout;
+
+  const requestLogout = useCallback(() => {
+    if (unclearTransfers(activityRef.current).length) {
+      setLogoutConfirmOpen(true);
+      return;
+    }
+    void logoutRef.current('user');
+  }, []);
+
+  const closeLogoutConfirm = useCallback(() => setLogoutConfirmOpen(false), []);
 
   // ---- transfer -----------------------------------------------------------
   const logTransfer = useCallback((outcome: ActivityEntry['outcome'], message?: string) => {
@@ -1432,6 +1503,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
     txErrors, balanceErrors, balanceLoading, loadingAllBalances,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
+    pendingErrors,
     range, statementInfo, txByAccount, ownIbans,
     messages, unreadCount, activity,
     vault, vaultStatus,
@@ -1442,12 +1514,14 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
+    logoutConfirmOpen,
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
     cancelConnect,
     loadBalance, loadAllBalances,
     isLoadedForAppliedRange,
     refreshAccount, refreshAfterTransfer, applyRange, loadPending, submitTransfer, confirmVop, abandonVop,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
+    requestLogout, closeLogoutConfirm,
     retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,
@@ -1480,6 +1554,7 @@ export function MockFintsProvider({ children, preset = 'default', overrides, sti
     options.staleBank, options.methods,
     options.logos,
     options.filter, options.analysisPeriod, options.analysisScope, options.categoryRules,
+    options.unclear, options.failPending,
   ]);
   const underElectron = useSyncExternalStore(noopSubscribe, isElectron, () => false);
   return (

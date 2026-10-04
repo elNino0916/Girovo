@@ -9,11 +9,57 @@
 // the browser already use (Strg+R, Strg+0/±, F11, Strg+Shift+I, the
 // clipboard keys) — see ShortcutsHelp for the list as the user sees it, and
 // for the switch that turns the single keys off (WCAG 2.1.4).
+//
+// A single key never starts a bank read: a stray "2" must not put an
+// approval request on someone's phone. And what a key changes without a
+// visible trace near the eye — every amount masked at once — it says.
 
 import { useEffect, useRef } from 'react';
 import type { DashboardTab } from '@/lib/app-types';
-import { useFints } from '../FintsProvider';
+import type { SerializedAccount } from '@/lib/fints-types';
+import { useFints, type FintsApi } from '../FintsProvider';
 import type { ShellActions } from './actions';
+
+/** What switching "Beträge ausblenden" from a key or the palette says. */
+export function privacyNotice(hidden: boolean, singleKeys: boolean): string {
+  if (!hidden) return 'Beträge werden wieder angezeigt.';
+  return singleKeys ? 'Beträge ausgeblendet – mit B blendest du sie wieder ein.' : 'Beträge ausgeblendet.';
+}
+
+/**
+ * The account a digit names, when switching there costs nothing: its
+ * Umsätze are loaded for the applied range (or, without Umsätze, its balance
+ * is known or cannot be asked for). Anything else would be a read from the
+ * bank — perhaps an approval — on one unmodified key, so the key says so and
+ * offers the read as a deliberate press, the way the account list does.
+ */
+function switchByKey(f: FintsApi, account: SerializedAccount) {
+  const label = f.accountLabel(account);
+  if (f.busy) {
+    f.toast(`„${label}“ lässt sich wählen, sobald der laufende Vorgang fertig ist.`, 'info');
+    return;
+  }
+  const free = account.canStatements
+    ? f.isLoadedForAppliedRange(account.accountNumber)
+    : !account.canBalance || !!f.balances[account.accountNumber];
+  if (free) {
+    f.selectAccount(account);
+    return;
+  }
+  const acct = account.accountNumber;
+  const failed = !!(f.txErrors[acct] ?? f.balanceErrors[acct]);
+  const elsewhere = !failed && !!f.txByAccount[acct];
+  f.toast(
+    failed
+      ? `Der letzte Abruf für „${label}“ ist fehlgeschlagen. Ein neuer kann eine Freigabe erfordern.`
+      : elsewhere
+        ? `Die Umsätze von „${label}“ sind für einen anderen Zeitraum abgerufen. Ein neuer Abruf kann eine Freigabe erfordern.`
+        : `„${label}“ ist noch nicht abgerufen. Ein Abruf kann eine Freigabe erfordern.`,
+    'info',
+    10_000,
+    { label: failed ? 'Erneut versuchen' : 'Jetzt abrufen', run: () => f.selectAccount(account) },
+  );
+}
 
 /** Where a keystroke is text, not a command. */
 export function isTypingTarget(el: EventTarget | null): boolean {
@@ -122,6 +168,8 @@ export function useGlobalShortcuts(actions: ShellActions) {
         case 'B':
           e.preventDefault();
           f.togglePrivacy();
+          // Every figure changes at once, far from the masthead's own button.
+          f.toast(privacyNotice(!f.privacy, true), 'info');
           return;
       }
 
@@ -130,7 +178,7 @@ export function useGlobalShortcuts(actions: ShellActions) {
         const account = f.accounts[Number(key) - 1];
         if (!account) return;
         e.preventDefault();
-        if (account.accountNumber !== f.activeAccount?.accountNumber) f.selectAccount(account);
+        if (account.accountNumber !== f.activeAccount?.accountNumber) switchByKey(f, account);
       }
     };
     window.addEventListener('keydown', onKeyDown);

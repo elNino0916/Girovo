@@ -16,6 +16,7 @@
 //                  &q=rewe                    Umsätze search
 //                  &fail=1                    every statement load and balance enquiry fails
 //                  &toasts=1                  one toast of each tone
+//                  &unclear=1                 this session's log holds a "Status unklar" transfer
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
 //                  &updateDialog=1            …with its dialog open
 //                  &y=800                     scroll the page there once loaded
@@ -155,6 +156,31 @@ async function completeOrder(c: Ctx) {
 }
 
 /** "Alle Salden abrufen", pressed the way a person presses it, until the last answer is in. */
+/** The Sitzung panel, opened from the masthead chip. */
+async function openSession(c: Ctx) {
+  await c.click(/^Sitzung/, { within: 'page' });
+  await c.poll(() => document.querySelector('[role="dialog"], [data-popover]'), 2000);
+}
+
+/** "Abmelden" in the Sitzung panel's footer. */
+async function pressLogout(c: Ctx) {
+  await openSession(c);
+  await c.click(/^Abmelden$/, { within: 'dialog' });
+}
+
+/** Types into the palette's field, once it is there, until its answer has settled. */
+const paletteQuery = (q: string): Script => async (c) => {
+  const input = await c.poll(() => document.querySelector<HTMLInputElement>('[role="dialog"] input[role="combobox"]'), 4000);
+  if (!input) return;
+  typeInto(input, q);
+  await c.sleep(500);
+};
+
+/** One key, pressed on the page itself (not in a field), as a person would. */
+function pressKey(key: string) {
+  document.body.dispatchEvent(new KeyboardEvent('keydown', { key, code: /^\d$/.test(key) ? `Digit${key}` : '', bubbles: true }));
+}
+
 async function fetchAllBalances(c: Ctx) {
   await c.click(/^alle salden abrufen/i, { within: 'page' });
   await c.until((f) => f.loadingAllBalances, 2000);
@@ -235,9 +261,25 @@ const VIEWS: Record<string, ViewDef> = {
   session: {
     label: 'Sitzungsmenü',
     group: 'Dialoge',
+    script: openSession,
+  },
+  'logout-notice': {
+    label: 'Abgemeldet (Hinweis)',
+    group: 'Dialoge',
+    // The login screen after "Abmelden": the notice, with the PIN clause once the server answered.
     async script(c) {
-      await c.click(/^Sitzung/, { within: 'page' });
-      await c.poll(() => document.querySelector('[role="dialog"], [data-popover]'), 2000);
+      await pressLogout(c);
+      await c.until((f) => f.view === 'login', 3000);
+      await c.poll(() => [...document.querySelectorAll('[data-toast] p')].find((p) => /PIN verworfen/.test(p.textContent ?? '')), 3000);
+    },
+  },
+  'logout-confirm': {
+    label: 'Abmelden bei unklarer Überweisung',
+    group: 'Dialoge',
+    options: { unclear: true },
+    async script(c) {
+      await pressLogout(c);
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"] h2')].find((h) => /Trotzdem abmelden/.test(h.textContent ?? '')), 3000);
     },
   },
   'search-month': {
@@ -325,9 +367,57 @@ const VIEWS: Record<string, ViewDef> = {
     options: { tab: 'contracts' },
   },
   inbox: { label: 'Mitteilungen', group: 'Dialoge', options: { open: 'inbox' } },
-  palette: { label: 'Befehle (Strg K)', group: 'Dialoge', options: { open: 'palette' } },
+  palette: { label: 'Suche (Strg K)', group: 'Dialoge', options: { open: 'palette' } },
+  // "ab" no longer reaches Abmelden; "abm" does, last, under "Sitzung".
+  'palette-ab': { label: 'Suche „ab“', group: 'Dialoge', options: { open: 'palette' }, script: paletteQuery('ab') },
+  'palette-logout': { label: 'Suche „abm“', group: 'Dialoge', options: { open: 'palette' }, script: paletteQuery('abm') },
   shortcuts: { label: 'Tastenkürzel', group: 'Dialoge', options: { open: 'shortcuts' } },
   'session-warning': { label: 'Abmeldung in 45 s', group: 'Dialoge', options: { idleInMs: 45_000 } },
+  'session-warning-unclear': {
+    label: 'Abmeldung, Überweisung unklar', group: 'Dialoge', options: { idleInMs: 45_000, unclear: true },
+  },
+  'inbox-unclear': { label: 'Mitteilungen, Status unklar', group: 'Dialoge', options: { open: 'inbox', unclear: true } },
+  'pending-error': {
+    label: 'Vorgemerkte: Abruf fehlgeschlagen',
+    group: 'Dashboard',
+    options: { failPending: true, tanMs: 600 },
+    async script(c) {
+      await c.click(/^Vorgemerkte abrufen$/, { within: 'page' });
+      await c.until((f) => Object.keys(f.pendingErrors).length > 0, 5000);
+    },
+  },
+  'range-cancelled': {
+    label: 'Zeitraum: Freigabe abgebrochen',
+    group: 'Dashboard',
+    options: { tan: 'hold' },
+    async script(c) {
+      c.api().applyRange(presetRange('365d'));
+      await c.until((f) => f.wait.open, 3000);
+      await c.click(/^Abbrechen$/, { within: 'dialog' });
+      await c.poll(() => [...document.querySelectorAll('[data-toast] p')].find((p) => /nicht abgerufen/.test(p.textContent ?? '')), 3000);
+    },
+  },
+  'shortcut-keys': {
+    label: 'Einzeltasten: 2 und B',
+    group: 'Dialoge',
+    // "2" names an account not fetched yet: a hint, no bank read. "B" says what it did.
+    async script(c) {
+      pressKey('2');
+      await c.sleep(150);
+      pressKey('b');
+      await c.sleep(300);
+    },
+  },
+  'toasts-keyboard': {
+    label: 'Hinweis per F6',
+    group: 'Dialoge',
+    async script(c) {
+      c.api().toast('2 Mitteilungen deiner Bank', 'info', 600_000, { label: 'Anzeigen', run: () => c.api().setInboxOpen(true) });
+      await c.poll(() => document.querySelector('[data-toast]'), 2000);
+      pressKey('F6');
+      await c.sleep(200);
+    },
+  },
   share: { label: 'Geld anfordern', group: 'Dialoge', options: { open: 'share' } },
   tanwait: {
     label: 'Freigabe (Umsatzabruf)',
@@ -365,10 +455,24 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Im Sitzungsmenü',
     group: 'Updates',
     update: { scenario: 'available' },
+    script: openSession,
+  },
+  'update-background': {
+    label: 'Im Hintergrund geladen',
+    group: 'Updates',
+    update: { scenario: 'available', dialog: true },
+    // "Herunterladen", "Im Hintergrund laden" — and the toast once the file is there.
     async script(c) {
-      await c.click(/^Sitzung/, { within: 'page' });
-      await c.poll(() => document.querySelector('[role="dialog"], [data-popover]'), 2000);
+      await c.click(/^Herunterladen/, { within: 'dialog' });
+      await c.click(/^Im Hintergrund laden$/, { within: 'dialog' });
+      await c.poll(() => [...document.querySelectorAll('[data-toast] p')].find((p) => /heruntergeladen/.test(p.textContent ?? '')), 8000);
     },
+  },
+  'update-session-downloading': {
+    label: 'Download im Sitzungsmenü',
+    group: 'Updates',
+    update: { scenario: 'downloading' },
+    script: openSession,
   },
 
   login: { label: 'Bank wählen', group: 'Anmeldung', options: { view: 'login' } },
@@ -686,6 +790,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     ...(one(params.q) ? { query: one(params.q) } : {}),
     ...(LOGOS.includes(logosParam) ? { logos: logosParam } : {}),
     ...(one(params.fail) === '1' ? { fail: true } : {}),
+    ...(one(params.unclear) === '1' ? { unclear: true } : {}),
   };
 
   const theme = one(params.theme);
@@ -810,6 +915,8 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=overview&acct=karte&privacy=1', label: 'Kreditkarte ausgeblendet' },
   { q: 'view=session&logos=on', label: 'Sitzung: Firmenlogos an' },
   { q: 'view=session&logos=unavailable', label: 'Sitzung: ohne Firmenlogos' },
+  { q: 'view=session&unclear=1', label: 'Sitzung: Überweisung unklar' },
+  { q: 'view=palette-logout&unclear=1', label: 'Suche „abm“, Überweisung unklar' },
   { q: 'view=login&logos=on', label: 'Anmeldung: Firmenlogos an' },
   { q: 'view=credentials&logos=off', label: 'Anmeldung: Firmenlogos aus' },
   { q: 'view=overview&toasts=1', label: 'Hinweise' },
@@ -887,7 +994,7 @@ function Index() {
           <code className="num">range=90d|365d|all</code>, <code className="num">tan=hold|ended|error|refused</code>,{' '}
           <code className="num">acct=tagesgeld|karte</code>, <code className="num">q=…</code>,{' '}
           <code className="num">logos=unasked|on|off|unavailable</code>,{' '}
-          <code className="num">fail=1</code>,{' '}
+          <code className="num">fail=1</code>, <code className="num">unclear=1</code>,{' '}
           <code className="num">y=…</code>, <code className="num">still=0|1</code>,{' '}
           <code className="num">update=available|ready|current|…</code>, <code className="num">updateDialog=1</code>.
         </p>

@@ -177,7 +177,7 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
   const updateChecks = !!update?.auto && update.kind !== 'dev';
   const logoLine = useLogoLine(merchantLogos);
   const outside = [
-    updateChecks ? 'Nach Updates fragt die App bei GitHub, nur mit ihrer Versionsnummer.' : '',
+    updateChecks ? 'Nach Updates fragt die App bei GitHub – dort kommen nur ihre Versionsnummer und deine IP-Adresse an.' : '',
     logoLine ?? '',
   ].filter(Boolean).join(' ');
   // Nothing leaves the machine but bank traffic — now, and without a yes.

@@ -102,18 +102,22 @@ export function ThemeMenu({
  * A single round button that flips between light and dark — for the auth
  * screens' bar, where a menu would be more than the moment needs. It shows
  * the theme you are looking at, and choosing makes it an explicit setting
- * (no longer "System").
+ * (no longer "System") — which its name says, so following the system is
+ * not given up unawares.
  *
  * `labelled` is the old masthead form; it now renders the full ThemeMenu.
  */
 export function ThemeToggle({
   tone = 'page', labelled = false, className,
 }: { tone?: 'page' | 'bar' | 'stage'; labelled?: boolean; className?: string }) {
+  const pref = useThemePref();
+  const shown = useResolvedTheme();
   if (labelled) return <ThemeMenu className={className} labelClassName="hidden sm:inline" />;
 
   const flip = () => setThemePref(appliedTheme() === 'dark' ? 'light' : 'dark');
+  const name = `${shown === 'dark' ? 'Hell' : 'Dunkel'} darstellen${pref === 'system' ? ' (statt System)' : ''}`;
   return (
-    <IconButton tone={tone} size="md" onClick={flip} aria-label="Hell oder dunkel darstellen" className={className}>
+    <IconButton tone={tone} size="md" onClick={flip} aria-label={name} className={className}>
       <SunIcon size={18} className="mode-glyph" data-glyph="light" />
       <MoonIcon size={18} className="mode-glyph" data-glyph="dark" />
     </IconButton>
