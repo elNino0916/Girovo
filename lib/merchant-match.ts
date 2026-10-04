@@ -603,17 +603,41 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * when exactly one of them is the name itself — ikea.com beats an IKEA careers
  * site — but are when more than one could be (theridge.co.za,
  * the-ridge.org.uk). `ranked` is sorted best first.
+ *
+ * A verified entry outranks every unverified one of the same score: those are
+ * a famous name's copycat and fan sites ("OpenAI" at chat-gpt-israel.com,
+ * "Kaufland" at kaufland-kundenportal.com), not rival companies. Verified
+ * entries of one name or one site are one brand on several domains
+ * (discord.com and discordapp.com, kaufland.de and kaufland.bg).
  */
-export function unambiguous<T extends { hit: { domain: string }; score: number }>(ranked: T[], core: string): T | null {
+export function unambiguous<T extends { hit: { domain: string; name?: string; verified?: boolean }; score: number }>(
+  ranked: T[], core: string,
+): T | null {
   const top = ranked[0];
   if (!top) return null;
-  const rivals = ranked.filter((c) => c.score === top.score);
+  const tied = ranked.filter((c) => c.score === top.score);
+  const verified = tied.filter((c) => c.hit.verified);
+  const rivals = verified.length ? verified : tied;
   const site = (domain: string) => (domain.split('.')[0] || domain).toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (new Set(rivals.map((c) => site(c.hit.domain))).size <= 1) return top;
+  if (new Set(rivals.map((c) => site(c.hit.domain))).size <= 1) return rivals[0];
+  if (verified.length && new Set(verified.map((c) => normalize(c.hit.name ?? c.hit.domain))).size <= 1) return verified[0];
   const want = normalize(core).replace(/\s+/g, '');
   const own = rivals.filter((c) => site(c.hit.domain) === want);
   const family = rivals.filter((c) => site(c.hit.domain).includes(want));
   return own.length === 1 && family.length === 1 ? own[0] : null;
+}
+
+/**
+ * Whether a lookup hit scored well enough to put its logo on a booking.
+ *
+ * A card terminal's descriptor (`strict`) is cut to 22 characters and usually
+ * names a local shop, so a name that merely starts with a brand's is evidence
+ * only when Brandfetch verified that brand: "Kaufland Muelheim" is Kaufland,
+ * but "Café Nova Deutzer F" is not the Cafe Nova at cafenova.ch, and "Pinos
+ * Pizza 1" in Köln is not pinospizza.com. Anything else needs an exact match.
+ */
+export function enoughEvidence(score: number, minScore: number, strict: boolean, verified: boolean): boolean {
+  return score >= (strict && !verified ? 1 : minScore);
 }
 
 /** Regions and big cities, normalised — never evidence for a brand on their own. */

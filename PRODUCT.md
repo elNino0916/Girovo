@@ -128,7 +128,7 @@ The owner sees the position as the combination of three claims (confirmed
 
 ## Capabilities and Constraints
 
-**Current state (4.1.1).** The README is the full feature list:
+**Current state (4.1.2).** The README is the full feature list:
 
 - Finanzübersicht: Konten und Karten, Gesamtsaldo, Monatsbilanz, Demnächst
   fällig

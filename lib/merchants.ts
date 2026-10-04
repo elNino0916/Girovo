@@ -25,7 +25,8 @@ import 'server-only';
 
 import crypto from 'node:crypto';
 import {
-  bestScore, candidates, facilitatorOf, getMerchantKey, knownInstitution, looksCorporate, nameScore, unambiguous,
+  bestScore, candidates, enoughEvidence, facilitatorOf, getMerchantKey, knownInstitution, looksCorporate, nameScore,
+  unambiguous,
 } from './merchant-match';
 export { getMerchantKey };
 import { BRANDFETCH_CLIENT_ID, MERCHANT_LOGOS } from './session';
@@ -122,6 +123,12 @@ type SearchHit = {
   name: string;
   domain: string;
   claimed: boolean;
+  /**
+   * Brandfetch verified the entry as the brand's own. Copycat and fan sites
+   * filed under a famous name ("OpenAI" at chat-gpt-israel.com, "Kaufland" at
+   * kaufland-kundenportal.com) and most small shops are not.
+   */
+  verified: boolean;
 };
 
 async function search(query: string): Promise<SearchHit[]> {
@@ -134,6 +141,7 @@ async function search(query: string): Promise<SearchHit[]> {
     name?: string | null;
     domain?: string;
     claimed?: boolean;
+    verified?: boolean;
   };
   const data = await throttled(() => getJson<Hit[]>(url));
 
@@ -145,6 +153,7 @@ async function search(query: string): Promise<SearchHit[]> {
       name: h.name || h.domain,
       domain: h.domain,
       claimed: !!h.claimed,
+      verified: h.verified === true,
     });
     if (out.length >= MAX_CANDIDATES_PER_NAME) break;
   }
@@ -173,9 +182,9 @@ export type MerchantItem = {
   key?: string;
   /**
    * The name came out of a card terminal's merchant descriptor: cut to the
-   * scheme's 22 characters and usually a local shop. Only an exact match is
-   * evidence then — "Café Nova Deutzer F" must not borrow the logo of some
-   * other "Cafe Nova" because it starts with that name.
+   * scheme's 22 characters and usually a local shop. A name that only starts
+   * with the brand's is evidence then for a verified brand alone — see
+   * enoughEvidence in lib/merchant-match.ts.
    */
   strict?: boolean;
 };
@@ -189,6 +198,9 @@ const KNOWN_DOMAINS: Record<string, { domain: string; label: string }> = {
   'steam': { domain: 'steampowered.com', label: 'Steam' },
   // Steam's card descriptor. Pinned: the brand answers to three domains.
   'steam purchase': { domain: 'steampowered.com', label: 'Steam' },
+  // Its Visa descriptor, "Steamgames.com" (a domain-shaped name keeps both
+  // the host and its core — see tokenize in lib/merchant-match.ts).
+  'steamgames.com steamgames': { domain: 'steampowered.com', label: 'Steam' },
   'steampowered': { domain: 'steampowered.com', label: 'Steam' },
   'steampowered.com': { domain: 'steampowered.com', label: 'Steam' },
   'valve': { domain: 'valvesoftware.com', label: 'Valve Corporation' },
@@ -301,8 +313,11 @@ async function resolveOne(rawName: string, purpose: string | undefined, business
         const domainMatch = dScore >= 0.85 ? 1 : 0;
         return { hit: h, score, domainMatch };
       })
-      .filter((c) => c.score >= (strict ? 1 : rung.minScore))
-      .sort((a, b) => (b.score - a.score) || (b.domainMatch - a.domainMatch) || (Number(b.hit.claimed) - Number(a.hit.claimed)));
+      .filter((c) => enoughEvidence(c.score, rung.minScore, strict, c.hit.verified))
+      .sort((a, b) => (b.score - a.score)
+        || (Number(b.hit.verified) - Number(a.hit.verified))
+        || (b.domainMatch - a.domainMatch)
+        || (Number(b.hit.claimed) - Number(a.hit.claimed)));
     if (!plausible.length) continue;
 
     const winner = unambiguous(plausible, rung.core);

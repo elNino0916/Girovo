@@ -44,6 +44,40 @@ test('one brand on several domains is fine when exactly one domain is the name',
   assert.equal(unambiguous([], 'x'), null);
 });
 
+// Ranked as lib/merchants.ts ranks them: score first, then verified first.
+const vhit = (domain: string, name: string, score: number, verified: boolean) =>
+  ({ hit: { domain, name, verified }, score });
+
+test('a verified brand beats the copycat sites filed under its name', async () => {
+  const { unambiguous } = await import('./merchant-match.ts');
+  const kaufland = [
+    vhit('kaufland.de', 'Kaufland', 0.85, true), vhit('kaufland.bg', 'Kaufland Bulgaria', 0.85, true),
+    vhit('kaufland-kundenportal.com', 'Kaufland', 0.85, false), vhit('kaufland-einkaufen.com', 'Kaufland', 0.85, false),
+  ];
+  assert.equal(unambiguous(kaufland, 'kaufland muelheim')?.hit.domain, 'kaufland.de');
+  const openai = [
+    vhit('openai.com', 'OpenAI', 0.85, true),
+    vhit('chat-gpt-israel.com', 'OpenAI', 0.85, false), vhit('chat-gpt-suomi.fi', 'OpenAI', 0.85, false),
+  ];
+  assert.equal(unambiguous(openai, 'openai chatgpt subscr')?.hit.domain, 'openai.com');
+  const discord = [
+    vhit('discord.com', 'Discord', 0.85, true), vhit('discordapp.com', 'Discord', 0.85, true),
+    vhit('discordmerch.com', 'Discord', 0.85, false), vhit('dis.gd', 'Discord', 0.85, false),
+  ];
+  assert.equal(unambiguous(discord, 'discord nitromonthly')?.hit.domain, 'discord.com');
+  // Two verified companies that only share a score are still a guess.
+  assert.equal(unambiguous([vhit('alpha.com', 'Alpha', 0.85, true), vhit('beta.de', 'Beta', 0.85, true)], 'x y'), null);
+});
+
+test('a card descriptor borrows a logo on a prefix only from a verified brand', async () => {
+  const { enoughEvidence } = await import('./merchant-match.ts');
+  assert.ok(enoughEvidence(0.85, 0.85, true, true), 'Kaufland Muelheim → kaufland.de');
+  assert.ok(!enoughEvidence(0.85, 0.85, true, false), 'Café Nova Deutzer F ↛ cafenova.ch');
+  assert.ok(enoughEvidence(1, 0.85, true, false), 'an exact name needs no verification');
+  assert.ok(enoughEvidence(0.85, 0.85, false, false), 'a transfer keeps the ordinary threshold');
+  assert.ok(!enoughEvidence(0.85, 1, true, true), 'a short core still needs an exact hit');
+});
+
 test('a lookup is never cut down to an article', async () => {
   const { candidates } = await import('./merchant-match.ts');
   const cores = candidates('The Ridge EU').map((c) => c.core);
