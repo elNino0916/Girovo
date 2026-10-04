@@ -16,6 +16,7 @@
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
 import type { SerializedTransaction, StatementBlock } from './fints-types';
+import { isCardAccount } from './balances.ts';
 import { counterpartyName, intermediaryName, rawCounterparty, txCreditorId } from './categories.ts';
 import { dayKey, fmtDecimal, fmtSignedDecimal, prettyBookingText, repairBankText } from './format.ts';
 import { parsePurpose, purposeLines, type ParsedPurpose } from './sepa-purpose.ts';
@@ -126,7 +127,9 @@ export function bookingReferences(tx: SerializedTransaction, parsed: ParsedPurpo
 
 /**
  * The credit line under the name the screen uses: "Dispositionsrahmen" on an
- * account, "Kreditrahmen" on a card. Always the size of the line — a bank that
+ * account, "Kreditrahmen" on a card. A card is decided the way the screen
+ * decides it (`isCardAccount`: the Kontoart, named or 50–59), so the paper
+ * never calls a card's limit a Dispo. Always the size of the line — a bank that
  * reports it as a negative number must not print "−2.000,00". Null when there
  * is none, or it is zero.
  */
@@ -136,7 +139,7 @@ export function creditLine(
 ): { label: 'Dispositionsrahmen' | 'Kreditrahmen'; amount: number } | null {
   if (limit == null || !Number.isFinite(Number(limit)) || cents(limit) === 0) return null;
   return {
-    label: accountType === 'CreditCardAccount' ? 'Kreditrahmen' : 'Dispositionsrahmen',
+    label: isCardAccount({ accountType }) ? 'Kreditrahmen' : 'Dispositionsrahmen',
     amount: Math.abs(cents(limit)) / 100,
   };
 }

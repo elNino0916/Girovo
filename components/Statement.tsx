@@ -25,6 +25,7 @@
 // a SHA-256 over the exact data on the page, and names the generator.
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react';
+import { isCardAccount } from '@/lib/balances';
 import { txBic } from '@/lib/categories';
 import { dayKey, fmtDate, fmtDecimal, fmtIban, ibanCountry, translateType } from '@/lib/format';
 import {
@@ -521,7 +522,8 @@ function StatementSheet({ job, stamp }: { job: StatementJob; stamp: DocStamp }) 
   const periodText = `${period.from ? fmtDate(period.from) : '—'} – ${period.to ? fmtDate(period.to) : '—'}`;
   const stmtNo = statementNumberRange(rows);
   const iban = fmtIban(account.iban);
-  const kind = translateType(account.accountType);
+  // A card by its Kontoart is a card on paper, as on screen (its line below is a Kreditrahmen).
+  const kind = isCardAccount(account) ? 'Kreditkarte' : translateType(account.accountType);
 
   const notes = [
     states.includes('ahead') ? AHEAD_NOTE : '',
@@ -596,12 +598,22 @@ function StatementSheet({ job, stamp }: { job: StatementJob; stamp: DocStamp }) 
 
       <Totals ledger={ledger} currency={currency} balance={balance} account={account} />
 
-      <EndMarker
-        label={`Ende des Kontoauszugs · ${rows.length === 1 ? '1 Umsatz' : `${rows.length} Umsätze`}`}
-      />
+      <EndMarker label={`Ende des Kontoauszugs · ${endCount(rows.length, ledger.outstanding?.count ?? 0)}`} />
       <SheetFooter stamp={stamp} notes={notes} />
     </article>
   );
+}
+
+/**
+ * The end line's count, matching the sums above it: the bookings the balance
+ * contains, plus those set apart as "Noch nicht enthalten" — so a reader who
+ * adds Gutschriften and Belastungen finds the same number.
+ */
+function endCount(rows: number, outstanding: number): string {
+  const counted = rows - outstanding;
+  const head = counted === 1 ? '1 Umsatz' : `${counted} Umsätze`;
+  if (!outstanding) return head;
+  return `${head}, dazu ${outstanding} noch nicht ${outstanding === 1 ? 'enthaltener' : 'enthaltene'}`;
 }
 
 /** "Alter Kontostand am 05.07.2026" — the ledger's first line, in the amount column. */
@@ -887,8 +899,11 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
           },
           { label: 'Buchungsart', value: text.bookingText },
           { label: 'Geschäftsvorfall-Code', value: String(tx.transactionCode ?? '').trim(), cast: 'mono' },
-          { label: 'Primanota', value: String(tx.primeNotesNr ?? '').trim(), cast: 'mono' },
-          { label: 'Auszug-Nr.', value: String(tx.statementNumber ?? '').trim(), cast: 'mono' },
+          // A Vormerkposten is on no Kontoauszug yet: a statement number or
+          // Primanota beside "Vorgemerkt, noch nicht gebucht" would contradict
+          // the sheet's own state line, so a pending booking prints neither.
+          { label: 'Primanota', value: state === 'pending' ? '' : String(tx.primeNotesNr ?? '').trim(), cast: 'mono' },
+          { label: 'Auszug-Nr.', value: state === 'pending' ? '' : String(tx.statementNumber ?? '').trim(), cast: 'mono' },
         ]}
       />
 

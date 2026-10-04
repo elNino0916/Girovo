@@ -84,6 +84,12 @@ test('references carry the drawer\'s labels, skip SEPA placeholders and print a 
 test('the credit line is named as on screen and printed as its size', () => {
   assert.deepEqual(creditLine(-2000, 'CheckingAccount'), { label: 'Dispositionsrahmen', amount: 2000 });
   assert.deepEqual(creditLine(2500, 'CreditCardAccount'), { label: 'Kreditrahmen', amount: 2500 });
+  // A card by its numeric Kontoart (50–59) is a card on paper too, as on screen.
+  assert.deepEqual(creditLine(2500, '50'), { label: 'Kreditrahmen', amount: 2500 });
+  assert.deepEqual(creditLine(-1500, '57'), { label: 'Kreditrahmen', amount: 1500 });
+  // Any other Kontoart keeps its Dispositionsrahmen.
+  assert.deepEqual(creditLine(-2000, '1'), { label: 'Dispositionsrahmen', amount: 2000 });
+  assert.deepEqual(creditLine(-2000, '60'), { label: 'Dispositionsrahmen', amount: 2000 });
   assert.equal(creditLine(0, 'CheckingAccount'), null);
   assert.equal(creditLine(0.001, 'CheckingAccount'), null);
   assert.equal(creditLine(null, 'CheckingAccount'), null);
