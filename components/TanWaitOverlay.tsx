@@ -288,7 +288,7 @@ function TanWait() {
         title="Freigabe abbrechen?"
         description={
           <>
-            Die Überweisung wurde vielleicht schon ausgeführt. Brichst du jetzt ab, bleibt ihr Status offen –
+            Die Überweisung wurde vielleicht schon ausgeführt. Brichst du jetzt ab, bleibt ihr Status unklar –
             prüfe deine Umsätze, bevor du sie noch einmal sendest.
           </>
         }

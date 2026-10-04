@@ -59,7 +59,7 @@ function groups(mod: string): Group[] {
       title: 'In Listen und Dialogen',
       rows: [
         { keys: [['↑'], ['↓']], label: 'Auswahl bewegen' },
-        { keys: [['↵']], label: 'Auswählen oder ausführen' },
+        { keys: [['↵']], label: 'Auswählen oder öffnen' },
         { keys: [['Esc']], label: 'Schließen' },
       ],
     },

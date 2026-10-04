@@ -659,19 +659,38 @@ export function TransferSheet() {
               <Button type="submit" form="transfer-form" variant="primary" className="flex-[2]">Weiter zur Prüfung</Button>
             </FooterRow>
           ) : step === 'review' ? (
-            <FooterRow>
-              <Button className="flex-1" disabled={submitting} onClick={() => { setError(null); setStep('form'); }}>Zurück</Button>
-              <Button
-                variant="primary"
-                className="flex-[2]"
-                busy={submitting || settling}
-                disabled={busy && !submitting}
-                aria-describedby={duplicate || reviewWarning ? REVIEW_WARNINGS_ID : undefined}
-                onClick={send}
-              >
-                {sendLabel}
-              </Button>
-            </FooterRow>
+            duplicate ? (
+              // The same order may already have gone out: the safe answer is
+              // the filled one, as at a name mismatch — look before sending.
+              <StackRow>
+                <Button
+                  className="sm:flex-1"
+                  busy={submitting || settling}
+                  disabled={busy && !submitting}
+                  aria-describedby={REVIEW_WARNINGS_ID}
+                  onClick={send}
+                >
+                  {sendLabel}
+                </Button>
+                <Button variant="primary" className="sm:flex-1" disabled={submitting} onClick={() => { setError(null); setStep('form'); }}>
+                  Angaben prüfen
+                </Button>
+              </StackRow>
+            ) : (
+              <FooterRow>
+                <Button className="flex-1" disabled={submitting} onClick={() => { setError(null); setStep('form'); }}>Zurück</Button>
+                <Button
+                  variant="primary"
+                  className="flex-[2]"
+                  busy={submitting || settling}
+                  disabled={busy && !submitting}
+                  aria-describedby={reviewWarning ? REVIEW_WARNINGS_ID : undefined}
+                  onClick={send}
+                >
+                  {sendLabel}
+                </Button>
+              </FooterRow>
+            )
           ) : step === 'vop' && vop ? (
             vopSuggestion ? (
               <StackRow>
@@ -1237,8 +1256,8 @@ function CheckResult({
     );
   }
   const failed = [
-    statements === false && 'Die Umsätze konnten gerade nicht abgerufen werden.',
-    pending === false && 'Die vorgemerkten Umsätze konnten gerade nicht abgerufen werden.',
+    statements === false && 'Abruf der Umsätze fehlgeschlagen.',
+    pending === false && 'Abruf der vorgemerkten Umsätze fehlgeschlagen.',
   ].filter(Boolean) as string[];
   // Only what was actually read is named as searched.
   const places = [statements === true && 'deinen Umsätzen', pending === true && 'den vorgemerkten Umsätzen'].filter(Boolean).join(' und ');

@@ -129,7 +129,7 @@ export function PendingPanel() {
                 )}
                 {failure && (
                   <p className="mt-1 text-[12.5px] leading-snug text-ink-2">
-                    <span className="font-semibold text-red">Aktualisieren fehlgeschlagen:</span> {failure.message}
+                    <span className="font-semibold text-red">Abruf fehlgeschlagen:</span> {failure.message}
                   </p>
                 )}
               </>
@@ -142,7 +142,7 @@ export function PendingPanel() {
           {cached && (
             <IconButton
               aria-label={`Vorgemerkte Umsätze aktualisieren. ${TAN_NOTE}`}
-              title={`Aktualisieren — ${TAN_NOTE.toLowerCase()}`}
+              title={`Aktualisieren. ${TAN_NOTE}`}
               disabled={busy}
               onClick={load}
               className="-mt-0.5 -mr-1.5"

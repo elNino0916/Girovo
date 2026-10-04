@@ -462,7 +462,7 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Dialoge',
     async script(c) {
       // A toast the app really raises (the bank's messages have none since the login toast went).
-      c.api().toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 600_000, { label: 'Gerät vergessen', run: () => {} });
+      c.api().toast('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 600_000, { label: 'Gerät vergessen', run: () => {} });
       await c.poll(() => document.querySelector('[data-toast]'), 2000);
       pressKey('F6');
       await c.sleep(200);
@@ -911,7 +911,7 @@ function Driver({ setup, script }: { setup: Setup; script?: Script }) {
       if (setup.toasts) {
         const t = c.api().toast;
         // The app has no "Mitteilungen" toast any more (the bell and the tile announce them).
-        t('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 600_000, { label: 'Gerät vergessen', run: () => {} });
+        t('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 600_000, { label: 'Gerät vergessen', run: () => {} });
         t('Überweisung an Lea Becker ausgeführt.', 'success', 600_000);
         t(
           'Die Verbindung zur Bank wurde unterbrochen (Zeitüberschreitung). Bitte versuche es erneut.',

@@ -204,12 +204,12 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
       ? {
           icon: <EyeOffIcon size={18} />,
           title: 'Keine Daten an Dritte',
-          text: ['Keine Werbung, keine Analyse, keine Weitergabe.', outside].filter(Boolean).join(' '),
+          text: ['Keine Werbung, kein Tracking, keine Weitergabe.', outside].filter(Boolean).join(' '),
         }
       : {
           icon: <EyeOffIcon size={18} />,
           title: 'Kein Tracking',
-          text: `Keine Werbung, keine Analyse. ${outside}`,
+          text: `Keine Werbung, keine Nutzungsstatistik. ${outside}`,
         },
   ];
 

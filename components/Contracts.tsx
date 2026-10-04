@@ -14,7 +14,7 @@
 
 import { useCallback, useId, useMemo } from 'react';
 import { useFints } from './FintsProvider';
-import { ArrowRightIcon, ChevronIcon } from './icons';
+import { ArrowRightIcon } from './icons';
 import { Money } from './Money';
 import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, Skeleton, Spinner, Tile, cx } from './ui';
 import { fmtRange, displayName, presetRange } from '@/lib/format';
@@ -156,7 +156,7 @@ export function Contracts() {
               headerClassName="min-h-14 sm:px-6"
             >
               <p className="border-t border-line px-4 pt-3 pb-1 text-[13px] text-ink-3 sm:px-6">
-                Zweimal ausgeblieben — vermutlich gekündigt oder umgestellt.
+                Zweimal ausgeblieben – vermutlich gekündigt oder umgestellt.
               </p>
               <ul>{ended.map((s) => <ContractRow key={s.id} s={s} account={accountName(s)} onDismiss={dismiss} />)}</ul>
             </Disclosure>
@@ -170,7 +170,7 @@ export function Contracts() {
             >
               {vaultStatus === 'error' || vaultStatus === 'unavailable' ? (
                 <p className="border-t border-line px-4 pt-3 pb-1 text-[13px] text-ink-3 sm:px-6">
-                  Deine persönlichen Daten sind gerade nicht verfügbar — diese Auswahl gilt nur bis zur Abmeldung.
+                  Deine persönlichen Daten sind gerade nicht verfügbar – diese Auswahl gilt nur bis zur Abmeldung.
                 </p>
               ) : null}
               <ul className="border-t border-line">{dismissed.map((s) => <DismissedRow key={s.id} s={s} onRestore={restore} />)}</ul>
@@ -189,7 +189,7 @@ function NoBasis({ model }: { model: RecurringModel }) {
   if (own?.status === 'failed' && activeAccount) {
     return (
       <section className="panel" aria-label="Verträge und Abos">
-        <ErrorState title="Umsätze konnten nicht abgerufen werden" onRetry={() => refreshAccount(activeAccount)} busy={busy}>
+        <ErrorState title="Abruf fehlgeschlagen" onRetry={() => refreshAccount(activeAccount)} busy={busy}>
           {own.error} Ohne Umsätze lassen sich keine Verträge erkennen.
         </ErrorState>
       </section>
@@ -208,7 +208,7 @@ function NoBasis({ model }: { model: RecurringModel }) {
         ) : undefined}
       >
         Regelmäßige Zahlungen erkennt die App auf diesem Rechner in den Umsätzen deiner Konten.
-        {canLoad && activeAccount && <> Ruf dafür die Umsätze von {accountLabel(activeAccount)} ab — das kann eine Freigabe erfordern.</>}
+        {canLoad && activeAccount && <> Ruf dafür die Umsätze von {accountLabel(activeAccount)} ab – das kann eine Freigabe erfordern.</>}
       </EmptyState>
     </section>
   );
@@ -299,14 +299,14 @@ function FailedNotice({ failed }: { failed: AccountBasis[] }) {
       <Alert
         tone="error"
         className="mt-0"
-        title={`${joinNames(names)} ${failed.length === 1 ? 'konnte' : 'konnten'} nicht abgerufen werden`}
+        title={`Abruf fehlgeschlagen: ${joinNames(names)}`}
         action={failed.map((b) => (
           <Button key={b.account.accountNumber} size="xs" variant="secondary" disabled={busy} onClick={() => refreshAccount(b.account)}>
             {failed.length === 1 ? 'Erneut versuchen' : `${accountLabel(b.account)} erneut abrufen`}
           </Button>
         ))}
       >
-        {failed[0].error} Ohne {failed.length === 1 ? 'dieses Konto' : 'diese Konten'} wären die Summen unvollständig —
+        {failed[0].error} Ohne {failed.length === 1 ? 'dieses Konto' : 'diese Konten'} wären die Summen unvollständig –
         sie erscheinen, sobald die Umsätze da sind.
       </Alert>
     </div>
@@ -344,7 +344,7 @@ function AccountList({ accounts }: { accounts: AccountBasis[] }) {
                   </>
                 )}
                 {b.status === 'loading' && <span className="inline-flex items-center gap-1.5"><Spinner size={12} /> wird abgerufen …</span>}
-                {b.status === 'failed' && 'konnte nicht abgerufen werden'}
+                {b.status === 'failed' && 'Abruf fehlgeschlagen'}
                 {b.status === 'missing' && 'nicht enthalten'}
                 {b.status === 'unsupported' && 'keine Umsätze über FinTS'}
               </span>
@@ -522,7 +522,7 @@ export function UpcomingPayments() {
       ) : shown.length === 0 ? (
         <p className="px-4 pb-4 text-[14px] leading-relaxed text-ink-2 sm:px-5 sm:pb-5">
           {own?.status === 'failed'
-            ? `Die Umsätze von ${name} konnten nicht abgerufen werden.`
+            ? `Abruf für ${name} fehlgeschlagen – ohne Umsätze lässt sich nichts vorhersehen.`
             : own?.status !== 'included'
               ? `Sobald die Umsätze von ${name || 'diesem Konto'} abgerufen sind, stehen hier die nächsten erwarteten Buchungen.`
               : any
@@ -567,15 +567,11 @@ export function UpcomingPayments() {
               );
             })}
           </ul>
+          {/* Said, not linked: "Alle Verträge" in the header is the one way on. */}
           {more > 0 && (
-            <button
-              type="button"
-              onClick={() => setTab('contracts')}
-              className="row-focus flex w-full items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-left text-[13.5px] font-semibold text-accent hover:bg-accent-soft sm:px-5"
-            >
-              {plural(more, 'weitere Buchung', 'weitere Buchungen')} in 30 Tagen
-              <ChevronIcon dir="right" size={15} />
-            </button>
+            <p className="px-4 pb-2.5 text-[13px] leading-snug text-ink-3 sm:px-5">
+              und {plural(more, 'weitere Buchung', 'weitere Buchungen')} in den 30 Tagen
+            </p>
           )}
           {/* What the 30 days add up to — every expected booking, not only the five shown. */}
           <dl className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-t border-line bg-inset px-4 py-2.5 text-[13px] sm:px-5">

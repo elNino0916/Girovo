@@ -299,7 +299,7 @@ export function Transactions() {
                 <IconButton
                   size="md"
                   aria-label={`Umsätze aktualisieren. ${MAY_NEED_TAN}`}
-                  title={`Aktualisieren — ${MAY_NEED_TAN.toLowerCase()}`}
+                  title={`Aktualisieren. ${MAY_NEED_TAN}`}
                   disabled={busy}
                   onClick={refresh}
                 >
@@ -316,7 +316,7 @@ export function Transactions() {
               className="mt-3"
               action={<Button size="xs" variant="secondary" disabled={busy} onClick={refresh}>Erneut versuchen</Button>}
             >
-              Aktualisieren hat nicht geklappt: {txError} Angezeigt werden die zuletzt geladenen Umsätze.
+              Abruf fehlgeschlagen: {txError} Angezeigt werden die zuletzt abgerufenen Umsätze.
             </Alert>
           )}
 

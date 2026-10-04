@@ -284,7 +284,7 @@ const MAX_ALIAS = 60;
 /** The idle logout happens while nobody is looking; the notice has to outlast the absence. */
 const IDLE_NOTICE_MS = 10 * 60_000;
 /** A wait, not a failure: toasted as a notice, never in the error's red. */
-const BUSY_MESSAGE = 'Bitte warten — ein anderer Vorgang läuft noch.';
+const BUSY_MESSAGE = 'Bitte warten – ein anderer Vorgang läuft noch.';
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -1850,7 +1850,7 @@ function useFintsState() {
   // computer "Gerät vergessen" is one press, not a trip to the Sitzung panel.
   const notifyDeviceSaved = useCallback(() => {
     setDeviceRemembered(true);
-    toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 10_000, {
+    toast('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 10_000, {
       label: 'Gerät vergessen',
       run: () => void forgetDeviceRef.current(),
     });
@@ -1911,13 +1911,13 @@ function useFintsState() {
       setSelectedMethodBoth(data.selectedTanMethod);
       setTanMethodsBoth(data.selectedTanMethod ? [data.selectedTanMethod] : []);
       setDeviceRemembered(true);
-      toast('Gerät erkannt — ohne neue TAN angemeldet.');
+      toast('Gerät erkannt – ohne neue Freigabe angemeldet.');
       afterAccountsReady(data.accounts || []);
     } else if ('tanMethods' in data) {
       setTanMethodsBoth(data.tanMethods || []);
       setSelectedMethodBoth(null);
       setMediaChoice(null);
-      setTanMethodError(data.tanMethods?.length ? null : 'Die Bank bietet keine TAN-Verfahren für diesen Zugang an.');
+      setTanMethodError(data.tanMethods?.length ? null : 'Deine Bank bietet für diesen Zugang kein Sicherheitsverfahren an.');
       setView('tanmethod');
     }
   }, [afterAccountsReady, toast, setSelectedMethodBoth, setTanMethodsBoth]);
@@ -1997,7 +1997,7 @@ function useFintsState() {
     try {
       await post('/api/forget-device', { sessionId: sessionRef.current });
       setDeviceRemembered(false);
-      toast('Gerät vergessen — bei der nächsten Anmeldung wird wieder eine TAN angefragt.', 'info', 6000);
+      toast('Gerät vergessen – bei der nächsten Anmeldung fragt deine Bank wieder nach einer Freigabe.', 'info', 6000);
     } catch (err) {
       toast((err as Error).message, 'error');
     }

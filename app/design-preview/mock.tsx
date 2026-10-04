@@ -163,7 +163,7 @@ const MAX_ACTIVITY = 50;
 const MAX_TEMPLATES = 200;
 const MAX_ALIAS = 60;
 const IDLE_NOTICE_MS = 10 * 60_000;
-const BUSY_MESSAGE = 'Bitte warten — ein anderer Vorgang läuft noch.';
+const BUSY_MESSAGE = 'Bitte warten – ein anderer Vorgang läuft noch.';
 const LOAD_MS = 700;
 const BALANCE_MS = 500;
 const DEFAULT_TAN_MS = 2600;
@@ -1035,7 +1035,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       challenge: 'Anmeldung im Online-Banking über FinTS freigeben',
       onDone: () => {
         setDeviceRemembered(true);
-        toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 10_000, {
+        toast('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 10_000, {
           label: 'Gerät vergessen',
           run: () => void forgetDeviceRef.current(),
         });
@@ -1068,7 +1068,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       toast('Gerät vergessen und deine gespeicherten Daten von diesem Rechner gelöscht. Bis zum Abmelden wird nichts mehr gespeichert.', 'success', 8000);
       return;
     }
-    toast('Gerät vergessen — bei der nächsten Anmeldung wird wieder eine TAN angefragt.', 'info', 6000);
+    toast('Gerät vergessen – bei der nächsten Anmeldung fragt deine Bank wieder nach einer Freigabe.', 'info', 6000);
   }, [toast, dropVault]);
   forgetDeviceRef.current = forgetDevice;
 

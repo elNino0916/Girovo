@@ -64,7 +64,7 @@ test('an unclear order from before a logout is found in the vault log', () => {
   const d = check({ sent: [sent()] });
   assert.equal(
     d?.sentence,
-    'Am 03.10.2026 um 18:40 Uhr hast du bereits eine Überweisung über 120,00 € an Lea Becker gesendet, deren Ausführung nicht bestätigt wurde.',
+    'Am 03.10.2026 um 18:40 Uhr hast du bereits eine Überweisung über 120,00 € an Lea Becker gesendet – ihr Status ist unklar.',
   );
 });
 

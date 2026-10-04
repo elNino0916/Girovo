@@ -75,7 +75,7 @@ export function PeriodControl({
                 variant="secondary"
                 disabled={busy}
                 aria-label={describe}
-                title={busy ? 'Bitte warten — ein anderer Vorgang läuft noch.' : undefined}
+                title={busy ? 'Bitte warten – ein anderer Vorgang läuft noch.' : undefined}
                 iconLeft={<CalendarIcon size={16} />}
                 iconRight={<ChevronIcon size={14} strokeWidth={2} className={cx('-mr-1 transition-transform duration-150', open && 'rotate-180')} />}
                 className="max-sm:px-3"

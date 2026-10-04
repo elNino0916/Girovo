@@ -477,7 +477,7 @@ function Palette({ onClose }: { onClose: () => void }) {
 
           {!items.length && (
             <EmptyState illustration="search" compact title={`Keine Treffer für „${q}“`}>
-              Suche nach einer Aktion wie „Überweisen“, nach einem Konto oder nach geladenen Umsätzen — Name,
+              Suche nach einer Aktion wie „Überweisen“, nach einem Konto oder nach geladenen Umsätzen – Name,
               Verwendungszweck oder Betrag wie „12,99“.
             </EmptyState>
           )}

@@ -410,7 +410,7 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
     : step.kind === 'picked'
       ? `Als „${categoryLabel(step.id)}“ eingeordnet.`
       : step.kind === 'ruled'
-        ? `Alle Umsätze von ${name} sind jetzt „${categoryLabel(step.id)}“ — auch künftige.`
+        ? `Alle Umsätze von ${name} sind jetzt „${categoryLabel(step.id)}“ – auch künftige.`
         : step.kind === 'undone'
           ? `Wieder „${categoryLabel(step.id)}“, ${step.byRule ? 'wie deine Regel' : 'automatisch erkannt'}.`
           : `Regel entfernt. Die Umsätze von ${name} werden wieder automatisch eingeordnet.`;
@@ -494,7 +494,7 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
       {step && step.kind !== 'picked' && <p className="mt-2 text-[13px] leading-snug text-ink-2">{status}</p>}
       <p className="sr-only" aria-live="polite">{status}</p>
       {step && !vaultSaves && (
-        <p className="mt-2 text-[13px] text-ink-3">Gilt nur für diese Sitzung — deine persönlichen Daten werden gerade nicht gespeichert.</p>
+        <p className="mt-2 text-[13px] text-ink-3">Gilt nur für diese Sitzung – deine persönlichen Daten werden gerade nicht gespeichert.</p>
       )}
 
       {rules && (

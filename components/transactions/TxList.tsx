@@ -101,7 +101,7 @@ export function TxList({
             {g.future && (
               <span
                 className="inline-flex min-w-0 items-center gap-1 text-[12.5px] font-semibold text-ink-3"
-                title="Diese Buchungen tragen einen Buchungstag in der Zukunft — die Bank verbucht sie erst an diesem Tag."
+                title="Diese Buchungen tragen einen Buchungstag in der Zukunft – die Bank verbucht sie erst an diesem Tag."
               >
                 <ClockIcon size={13} />
                 {/* On a phone the clock alone; the rows below say "Buchung 05.10." anyway. */}

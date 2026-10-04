@@ -277,8 +277,8 @@ function SessionPanel({
             </p>
             <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
               {deviceRemembered
-                ? 'Die Bank fragt bei der Anmeldung seltener nach einer TAN.'
-                : 'Bei der nächsten Anmeldung fragt die Bank nach einer TAN.'}
+                ? 'Deine Bank fragt bei der Anmeldung seltener nach einer Freigabe.'
+                : 'Bei der nächsten Anmeldung fragt deine Bank nach einer Freigabe.'}
             </p>
             {deviceRemembered && (
               <Button variant="tertiary" size="xs" className="mt-1.5 -ml-3.5" aria-haspopup="dialog" onClick={onForget}>
@@ -423,7 +423,7 @@ function LogoutConfirmDialog() {
 /**
  * "Gerät vergessen" deletes the stored device registration for this bank
  * login. Worth a confirmation: the consequence only shows at the next login,
- * when the bank treats this machine as new and asks for a TAN again.
+ * when the bank treats this machine as new and asks for an approval again.
  *
  * On its own it is also simply the way to have the bank register this
  * machine afresh, so it keeps the Vorlagen. Handing the computer on is what
@@ -458,7 +458,7 @@ function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: () => v
       description={
         <>
           Die App löscht die Geräte-Kennung, unter der {bank?.name ?? 'deine Bank'} diesen Rechner kennt. Bei der
-          nächsten Anmeldung gilt er als neues Gerät: Die Bank fragt dann wieder nach einer TAN.
+          nächsten Anmeldung gilt er als neues Gerät: Deine Bank fragt dann wieder nach einer Freigabe.
         </>
       }
       actions={

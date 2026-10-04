@@ -63,13 +63,13 @@ function InboxBody() {
             </ul>
             <p className="mt-3 text-[13px] leading-snug text-ink-3">
               Erhalten bei der Anmeldung um {fmtSince(Date.parse(messages[0].receivedAt))}. Mitteilungen werden nicht
-              gespeichert — nach dem Abmelden sind sie hier nicht mehr zu sehen.
+              gespeichert – nach dem Abmelden sind sie hier nicht mehr zu sehen.
             </p>
           </>
         ) : (
           <EmptyState illustration="inbox" compact title="Keine Mitteilungen">
             Deine Bank hat bei dieser Anmeldung nichts mitgeteilt. Mitteilungen kommen nur mit der vollständigen
-            Synchronisation beim Anmelden — neue siehst du also erst nach der nächsten Anmeldung.
+            Synchronisation beim Anmelden – neue siehst du also erst nach der nächsten Anmeldung.
           </EmptyState>
         )}
       </section>

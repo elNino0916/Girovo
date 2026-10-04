@@ -61,7 +61,7 @@ export function findDuplicate(input: {
   const when = (at: Date) => (dayKey(at) === isoDate(now) ? `Heute um ${fmtTime(at)}` : `Am ${fmtDate(at)} um ${fmtTime(at)}`);
   const sentence = (at: Date, who: string, outcome: 'executed' | 'unknown') => (outcome === 'executed'
     ? `${when(at)} hast du bereits ${money} an ${who} überwiesen.`
-    : `${when(at)} hast du bereits eine Überweisung über ${money} an ${who} gesendet, deren Ausführung nicht bestätigt wurde.`);
+    : `${when(at)} hast du bereits eine Überweisung über ${money} an ${who} gesendet – ihr Status ist unklar.`);
 
   for (const a of input.activity) {
     if (a.outcome === 'failed' || compactIban(a.iban) !== iban || Math.round(a.amount * 100) !== input.cents) continue;

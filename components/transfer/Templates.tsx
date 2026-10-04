@@ -274,7 +274,7 @@ export function SaveAsTemplate({ payee }: { payee: Omit<TransferTemplate, 'id' |
     return (
       <p ref={savedRef} tabIndex={-1} className="flex items-center gap-2 text-[14px] text-ink-2 outline-none">
         <StarIcon size={16} className="shrink-0 text-ink-3" />
-        {saved ? <>Als Vorlage „{done}“ gespeichert.</> : <>Gespeichert als Vorlage „{done}“.</>}
+        {saved ? <>Als Vorlage „{done}“ gespeichert.</> : <>Schon als Vorlage „{done}“ gespeichert.</>}
       </p>
     );
   }

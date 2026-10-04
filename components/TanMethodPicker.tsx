@@ -45,7 +45,7 @@ function rowsFor(methods: SerializedTanMethod[]): Row[] {
 const listOf = (names: string[]) => new Intl.ListFormat('de', { style: 'long', type: 'conjunction' }).format(names);
 
 /** Said before the fact, here and in the wide layout's side tile. */
-const DEVICE_MEMORY = 'Nach der ersten Freigabe merkt sich die App dieses Gerät – rückgängig unter Sitzung → Gerät vergessen.';
+const DEVICE_MEMORY = 'Nach der ersten Freigabe merkt sich die App dieses Gerät – rückgängig mit „Gerät vergessen“ im Sitzungsmenü.';
 
 export function TanMethodPicker() {
   const {
