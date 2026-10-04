@@ -3,7 +3,8 @@
 // The profile chip and its "Sitzung" panel: who is signed in, since when, how
 // long until the app signs them out on its own, how long that should be, and
 // whether this machine is remembered by the bank — and the encrypted store of
-// personal data (Vorlagen, Kontonamen, Kategorien): the way out when it cannot
+// personal data (Vorlagen, Kontonamen, Kategorien, the transfers of the last
+// 14 days that the duplicate warning reads): the way out when it cannot
 // be opened, and the way to delete it from this machine. In the desktop app it
 // also names the app's version and leads to its updates.
 //
@@ -245,7 +246,8 @@ function SessionPanel({
           <div className="min-w-0 flex-1">
             <p className="text-[14px] leading-snug font-semibold text-ink">Gespeicherte Daten</p>
             <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
-              Vorlagen, Kontonamen und Kategorien liegen verschlüsselt auf diesem Rechner.
+              Vorlagen, Kontonamen, Kategorien und deine Überweisungen der letzten 14 Tage (für die Warnung vor
+              doppelten Zahlungen) liegen verschlüsselt auf diesem Rechner.
             </p>
             <Button variant="tertiary" size="xs" className="mt-1.5 -ml-3.5" aria-haspopup="dialog" onClick={onWipe}>
               Von diesem Rechner löschen …
@@ -365,7 +367,7 @@ function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: () => v
         <Checkbox
           className="mt-3"
           label="Auch gespeicherte Daten von diesem Rechner löschen"
-          description="Vorlagen, Kontonamen und Kategorien samt früherer Sicherungen – endgültig."
+          description="Vorlagen, Kontonamen, Kategorien und die Überweisungen der letzten 14 Tage samt früherer Sicherungen – endgültig."
           checked={wipe}
           disabled={busy}
           onChange={(e) => setWipe(e.target.checked)}
@@ -441,7 +443,7 @@ function WipeVaultDialog({ open, onClose }: { open: boolean; onClose: () => void
       onClose={busy ? undefined : onClose}
       title="Gespeicherte Daten löschen?"
       icon={<LockIcon size={20} />}
-      description="Vorlagen, Kontonamen und Kategorien werden von diesem Rechner gelöscht, frühere Sicherungen eingeschlossen. Das lässt sich nicht rückgängig machen."
+      description="Vorlagen, Kontonamen, Kategorien und die Überweisungen der letzten 14 Tage werden von diesem Rechner gelöscht, frühere Sicherungen eingeschlossen. Das lässt sich nicht rückgängig machen."
       actions={
         <>
           <Button variant="secondary" data-autofocus onClick={onClose} disabled={busy}>Abbrechen</Button>

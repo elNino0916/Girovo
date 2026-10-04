@@ -497,8 +497,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
           phase: 'ended',
           settledAt: Date.now(),
           title: 'Freigabe nicht rechtzeitig angekommen',
-          text: 'Die Bank hat den Vorgang beendet, bevor die Freigabe verarbeitet wurde. '
-            + 'Bitte erneut starten und die Freigabe zügig bestätigen.',
+          text: 'Deine Bank hat die Anfrage beendet. Sende sie neu und bestätige sie in der App.',
           canRetry: !!waitCb.current.retry,
         }));
         return;
