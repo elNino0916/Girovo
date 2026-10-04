@@ -5,7 +5,7 @@ import type { SerializedTransaction } from './fints-types';
 import { counterpartyKey } from './categories.ts';
 import { categorize } from './categorize.ts';
 import {
-  cadenceLabel, detectRecurring, recurringTotals, seriesId, txCreditorId, txMandate, upcoming,
+  cadenceLabel, detectRecurring, recurringGroups, recurringTotals, seriesId, txCreditorId, txMandate, unseenCadences, upcoming,
   type RecurringSeries,
 } from './recurring.ts';
 import { CRED, IBAN, OWN_IBANS, OWN_SAVINGS, camt, mt940, newestFirst } from './__fixtures__/transactions.ts';
@@ -263,6 +263,10 @@ test('one PayPal mandate, many purchases: the subscription inside is still found
   assert.equal(s.category, 'media');
   assert.equal(s.key, `out|cred:${CRED.paypal}|mref:5RRJ2259NXZLL|amt:13`);
   assert.equal(s.nextDate, '2026-10-15');
+  // Named after the shop, not PayPal — and without PayPal's IBAN, which would
+  // lead "Umsätze anzeigen" to every PayPal purchase.
+  assert.equal(s.name, 'Netflix International B.V');
+  assert.equal(s.iban, null);
 });
 
 test('money in and money out with the same counterparty are separate series', () => {
@@ -496,4 +500,38 @@ test('PayPal: a series is one shop at one steady price, never similar amounts at
   assert.equal(s.changed, false);
   assert.equal(s.cadence, 'monthly');
   assert.equal(s.nextDate, '2026-10-22');
+  assert.equal(s.name, 'Spotify AB');
+});
+
+test('unseenCadences: what a history of that length cannot be relied on to show', () => {
+  assert.deepEqual(unseenCadences(91), ['quarterly', 'halfyearly', 'yearly']);
+  assert.deepEqual(unseenCadences(182), ['halfyearly', 'yearly']);
+  assert.deepEqual(unseenCadences(366), ['yearly'], 'a year holds one insurance premium, not two');
+  assert.deepEqual(unseenCadences(730), []);
+  assert.deepEqual(unseenCadences(Number.NaN), ['quarterly', 'halfyearly', 'yearly']);
+});
+
+test('recurringGroups: rent apart from subscriptions, each with its own figures', () => {
+  const stub = (p: Partial<RecurringSeries>): RecurringSeries => ({
+    kind: 'expense', ended: false, currency: 'EUR', category: 'other', monthlyAmount: 0, yearlyAmount: 0, ...p,
+  } as RecurringSeries);
+  const series = [
+    stub({ id: 'rent', category: 'housing', monthlyAmount: -1090, yearlyAmount: -13080 }),
+    stub({ id: 'power', category: 'housing', monthlyAmount: -78, yearlyAmount: -936 }),
+    stub({ id: 'netflix', category: 'media', monthlyAmount: -15.99, yearlyAmount: -191.88 }),
+    stub({ id: 'gym', category: 'leisure', monthlyAmount: -29.9, yearlyAmount: -358.8 }),
+    stub({ id: 'plan', category: 'savings', monthlyAmount: -100, yearlyAmount: -1200 }),
+    stub({ id: 'gone', category: 'media', monthlyAmount: -9.99, yearlyAmount: -119.88, ended: true }),
+    stub({ id: 'salary', kind: 'income', category: 'income', monthlyAmount: 2650, yearlyAmount: 31800 }),
+    stub({ id: 'usd', category: 'media', currency: 'USD', monthlyAmount: -5, yearlyAmount: -60 }),
+  ];
+  const groups = recurringGroups(series, 'EUR');
+  assert.deepEqual(groups.map((g) => [g.id, g.label, g.series.map((s) => s.id), g.monthly, g.yearly]), [
+    ['housing', 'Wohnen & Energie', ['rent', 'power'], 1168, 14016],
+    ['media', 'Abos & Medien', ['netflix', 'usd'], 15.99, 191.88],
+    ['other', 'Weitere Verträge', ['gym'], 29.9, 358.8],
+    ['savings', 'Sparen & Anlegen', ['plan'], 100, 1200],
+  ]);
+  const all = recurringTotals(series.filter((s) => s.kind === 'expense'), 'EUR');
+  assert.equal(Math.round(groups.reduce((sum, g) => sum + g.monthly * 100, 0)) / 100, all.monthlyExpense, 'the groups add up to the whole');
 });

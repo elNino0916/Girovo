@@ -191,7 +191,7 @@ export function ChartTooltip({
       aria-hidden
       style={style}
       className={cx(
-        'anim-fade pointer-events-none absolute z-10 min-w-[168px] rounded-[10px] bg-raised px-3 py-2.5 text-[13px] leading-snug text-ink shadow-[var(--shadow-pop)]',
+        'anim-fade pointer-events-none absolute z-10 min-w-[168px] rounded-[var(--radius-card)] bg-raised px-3 py-2.5 text-[13px] leading-snug text-ink shadow-[var(--shadow-pop)]',
         className,
       )}
     >
@@ -651,19 +651,26 @@ export function ShareBar({
  * A single bar in a ranked list, its length relative to the list's largest
  * value. Grows from the left; the rounded end is where the value is.
  * Decorative: the row it sits in states the figure in words.
+ *
+ * The bar is always the track's full width and slides in from the left
+ * behind the track's clip, so a change of value moves it on the compositor
+ * (a transform, no layout) and the rounded end keeps its shape — a scaleX
+ * would squash it.
  */
 export function BarTrack({
   value, max, color, className, thickness = 8,
 }: { value: number; max: number; color: string; className?: string; thickness?: number }) {
   const pct = max > 0 ? Math.max(0, Math.min(1, value / max)) * 100 : 0;
+  const end = Math.min(4, thickness / 2);
   return (
-    <span aria-hidden className={cx('relative block min-w-0', className)} style={{ height: thickness }}>
+    <span aria-hidden className={cx('relative block min-w-0 overflow-hidden', className)} style={{ height: thickness }}>
       <span
-        className="absolute inset-y-0 left-0 block transition-[width] duration-300 ease-out motion-reduce:transition-none"
+        className="absolute inset-0 block transition-transform duration-200 ease-[var(--ease-out-soft)] motion-reduce:transition-none"
         style={{
-          width: `max(${thickness / 2}px, ${pct}%)`,
+          // Never shorter than its rounded end, so a tiny share still shows.
+          transform: `translateX(calc(max(${pct}%, ${thickness / 2}px) - 100%))`,
           background: color,
-          borderRadius: `0 ${Math.min(4, thickness / 2)}px ${Math.min(4, thickness / 2)}px 0`,
+          borderRadius: `0 ${end}px ${end}px 0`,
         }}
       />
     </span>

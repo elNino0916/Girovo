@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import type { SerializedTransaction } from './fints-types';
 import { counterpartyKey, txKey } from './categories.ts';
 import {
-  bookingKind, bookingKindLabel, categorize, foldText, guessCategory, isOwnAccount, keywordCategory,
+  bookingKind, bookingKindLabel, categorize, foldText, guessCategory, isBusinessCredit, isOwnAccount, keywordCategory,
 } from './categorize.ts';
 import { CRED, IBAN, OWN_GIRO, OWN_IBANS, OWN_SAVINGS, camt, mt940 } from './__fixtures__/transactions.ts';
 
@@ -267,4 +267,27 @@ test('a Visa Debit purchase via the Sparkassen card processor is a card payment,
   // A fee the bank books on its own is still a fee, even when it names the card.
   const fee = { ...base, amount: -1.75, bookingText: 'ENTGELT', purpose: 'Auslandseinsatzentgelt Debitk.0 2030-12' };
   assert.equal(guessCategory(fee), 'fees');
+});
+
+test('isBusinessCredit: refunds, creditors, payment services and spending categories are never sent back', () => {
+  // A person paying the user back: the one credit "Zurücküberweisen" is for.
+  const friend = mt940({ day: '2026-09-12', amount: 25, gvc: '166', text: 'GUTSCHRIFT', name: 'Max Mustermann', iban: IBAN.person, purpose: 'Pizza Freitag' });
+  assert.equal(isBusinessCredit(friend, 'otherIn'), false, '"Gutschrift" as the booking text is just money coming in');
+  assert.equal(isBusinessCredit(friend), false);
+  // The Amazon return refund of the critique.
+  const amazon = mt940({
+    day: '2026-09-20', amount: 34.99, gvc: '166', text: 'GUTSCHRIFT', name: 'AMAZON PAYMENTS EUROPE S.C.A.',
+    iban: 'DE87300308801908262006', purpose: '302-8841923-5521307 ERSTATTUNG AMAZON.DE RUECKSENDUNG',
+  });
+  assert.equal(isBusinessCredit(amazon), true);
+  for (const purpose of ['Rückerstattung Bestellung 4711', 'Retoure 12345', 'Gutschrift aus Reklamation', 'Refund order 99', 'Storno Rechnung 7']) {
+    assert.equal(isBusinessCredit({ ...friend, purpose }), true, purpose);
+  }
+  assert.equal(isBusinessCredit({ ...friend, bookingText: 'ERSTATTUNG' }), true);
+  // A creditor's money back (a utility's Guthaben) and a payment service.
+  assert.equal(isBusinessCredit(mt940({ day: '2026-09-02', amount: 41.2, gvc: '166', text: 'GUTSCHRIFT', name: 'Stadtwerke', iban: IBAN.stadtwerke, cred: CRED.stadtwerke, purpose: 'Abrechnung 2025' })), true);
+  assert.equal(isBusinessCredit({ ...friend, name: '', remoteName: 'PAYPAL EUROPE S.A.R.L. ET CIE S.C.A', purpose: 'Auszahlung' } as SerializedTransaction), true);
+  // Filed under a spending category (a shop's refund) or as an Umbuchung.
+  assert.equal(isBusinessCredit(friend, 'shopping'), true);
+  assert.equal(isBusinessCredit(friend, 'transfer'), true);
 });

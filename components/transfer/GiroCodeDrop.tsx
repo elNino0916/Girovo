@@ -145,7 +145,7 @@ export function GiroCodeDrop({
         disabled={reading}
         aria-describedby={scan.status === 'error' ? errorId : undefined}
         className={cx(
-          'group flex min-h-13 w-full items-center gap-3 rounded-[10px] border-[1.5px] border-dashed px-3.5 py-2.5 text-left',
+          'group flex min-h-13 w-full items-center gap-3 rounded-[var(--radius-chip)] border-[1.5px] border-dashed px-3.5 py-2.5 text-left',
           'transition-[background-color,border-color] duration-150 disabled:cursor-progress',
           dragging
             ? 'border-accent bg-accent-soft'

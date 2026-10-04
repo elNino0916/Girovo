@@ -1,7 +1,9 @@
 'use client';
 
 // Mitteilungen: what the bank said at login, and what this session did —
-// and, in the desktop app, a newer version of the app itself.
+// and, in the desktop app, a newer version of the app itself. In that order:
+// the bank's words are the content, the app's own news is housekeeping and
+// comes last, so it is always clear who is speaking.
 //
 // Bank messages arrive with the login synchronisation (HIRMG/HIRMS texts) —
 // there is no mailbox behind them and nothing is fetched here. Their text is
@@ -11,14 +13,17 @@
 // the drawer remembers what was new when it opened, so the messages that
 // brought you here stay marked while you read them.
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ActivityEntry, InboxMessage } from '@/lib/app-types';
+import { copyText } from '@/lib/clipboard';
 import { fmtShortIban } from '@/lib/format';
+import { answerBeyondOutcome } from '@/lib/session-log';
 import { useFints } from './FintsProvider';
 import { Money } from './Money';
-import { AlertTriangleIcon, CheckIcon, ChevronIcon, HelpIcon, InfoIcon, TransferIcon } from './icons';
-import { Button, CountBadge, Dot, Drawer, EmptyState, Tag, cx } from './ui';
+import { AlertTriangleIcon, CheckIcon, ChevronIcon, CopyIcon, HelpIcon, TransferIcon } from './icons';
+import { Alert, Button, CountBadge, Dot, Drawer, EmptyState, Tag, cx } from './ui';
 import { fmtSince } from './shell/session';
+import { useShowOnAccount } from './shell/actions';
 import { updates } from './updates/store';
 import { UpdateInboxCard, useUpdateNotice } from './updates/UpdateNotices';
 
@@ -48,19 +53,6 @@ function InboxBody() {
 
   return (
     <div className="flex flex-col gap-8">
-      {update && (
-        <section aria-labelledby="inbox-update">
-          <SectionHead id="inbox-update" title="App-Update" count={0} />
-          <UpdateInboxCard
-            notice={update}
-            onOpen={() => {
-              setInboxOpen(false);
-              updates.openDialog();
-            }}
-          />
-        </section>
-      )}
-
       <section aria-labelledby="inbox-bank">
         <SectionHead id="inbox-bank" title="Mitteilungen deiner Bank" count={messages.length} />
         {messages.length ? (
@@ -72,13 +64,13 @@ function InboxBody() {
             </ul>
             <p className="mt-3 text-[13px] leading-snug text-ink-3">
               Erhalten bei der Anmeldung um {fmtSince(Date.parse(messages[0].receivedAt))}. Mitteilungen werden nicht
-              gespeichert — nach dem Abmelden sind sie hier nicht mehr zu sehen.
+              gespeichert – nach dem Abmelden sind sie hier nicht mehr zu sehen.
             </p>
           </>
         ) : (
           <EmptyState illustration="inbox" compact title="Keine Mitteilungen">
             Deine Bank hat bei dieser Anmeldung nichts mitgeteilt. Mitteilungen kommen nur mit der vollständigen
-            Synchronisation beim Anmelden — neue siehst du also erst nach der nächsten Anmeldung.
+            Synchronisation beim Anmelden – neue siehst du also erst nach der nächsten Anmeldung.
           </EmptyState>
         )}
       </section>
@@ -90,12 +82,25 @@ function InboxBody() {
             {activity.map((entry) => <ActivityItem key={entry.id} entry={entry} />)}
           </ul>
         ) : (
-          <p className="rounded-[10px] bg-inset px-4 py-3.5 text-[14px] leading-snug text-ink-2">
+          <p className="rounded-[8px] bg-inset px-4 py-3.5 text-[14px] leading-snug text-ink-2">
             Noch keine Überweisungen in dieser Sitzung. Ausgeführte, abgelehnte und unklare Aufträge stehen hier, bis du
             dich abmeldest.
           </p>
         )}
       </section>
+
+      {update && (
+        <section aria-labelledby="inbox-update">
+          <SectionHead id="inbox-update" title="Diese App" count={0} />
+          <UpdateInboxCard
+            notice={update}
+            onOpen={() => {
+              setInboxOpen(false);
+              updates.openDialog();
+            }}
+          />
+        </section>
+      )}
     </div>
   );
 }
@@ -103,7 +108,7 @@ function InboxBody() {
 function SectionHead({ id, title, count }: { id: string; title: string; count: number }) {
   return (
     <div className="mb-3 flex items-center gap-2">
-      <h3 id={id} className="text-[16px] font-bold text-headline">{title}</h3>
+      <h3 id={id} className="section-head">{title}</h3>
       {count > 0 && <CountBadge count={count} />}
     </div>
   );
@@ -111,6 +116,7 @@ function SectionHead({ id, title, count }: { id: string; title: string; count: n
 
 function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage; isNew: boolean; defaultOpen: boolean }) {
   const id = useId();
+  const subjectId = `${id}-subject`;
   const body = m.text.trim();
   // A message whose text only repeats its subject has nothing to unfold.
   const expandable = !!body && body !== m.subject.trim();
@@ -120,12 +126,15 @@ function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage
     <>
       <span className="flex w-3 shrink-0 justify-center pt-[7px]">{isNew && <Dot />}</span>
       <span className="min-w-0 flex-1">
-        <span className={cx('block text-[15px] leading-snug text-ink', isNew ? 'font-bold' : 'font-semibold')}>
+        {/* Semibold whether new or not: the orange dot says "new". */}
+        <span id={subjectId} className="block text-[15px] leading-snug font-semibold text-ink">
           {m.subject}
           {isNew && <span className="sr-only"> (neu)</span>}
         </span>
+        {/* A preview for the eye; the button is named by its subject alone,
+            not by the whole of a bank's Sonderbedingungen. */}
         {expandable && !open && (
-          <span className="mt-0.5 line-clamp-2 text-[14px] leading-snug text-ink-2">{body}</span>
+          <span aria-hidden className="mt-0.5 line-clamp-2 text-[14px] leading-snug text-ink-2">{body}</span>
         )}
       </span>
     </>
@@ -138,6 +147,7 @@ function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage
           type="button"
           aria-expanded={open}
           aria-controls={id}
+          aria-labelledby={subjectId}
           onClick={() => setOpen((o) => !o)}
           className="row-focus flex w-full items-start gap-3 px-4 py-3.5 text-left hover:bg-inset sm:px-6"
         >
@@ -148,12 +158,46 @@ function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage
         <div className="flex items-start gap-3 px-4 py-3.5 sm:px-6">{head}</div>
       )}
       {expandable && (
-        <div id={id} hidden={!open} className="px-4 pb-4 pl-[46px] sm:px-6 sm:pl-[54px]">
+        <div id={id} hidden={!open} className="px-4 pb-3 pl-[46px] sm:px-6 sm:pl-[54px]">
           {/* The bank's own words, as text: never markup. */}
           <p className="text-[14.5px] leading-relaxed whitespace-pre-line text-ink [overflow-wrap:anywhere]">{body}</p>
+          <CopyMessage text={`${m.subject}\n\n${body}`} />
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * Messages are not kept after the logout, so a notice like "Neue
+ * Sonderbedingungen" can be taken along: subject and text, as the bank sent
+ * them, onto the clipboard.
+ */
+function CopyMessage({ text }: { text: string }) {
+  const [state, setState] = useState<'idle' | 'done' | 'failed'>('idle');
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const copy = async () => {
+    const ok = await copyText(text);
+    setState(ok ? 'done' : 'failed');
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setState('idle'), 1600);
+  };
+  return (
+    <>
+      <Button
+        variant="tertiary"
+        size="xs"
+        className="mt-1.5 -ml-3.5"
+        iconLeft={state === 'done' ? <CheckIcon size={15} strokeWidth={2.2} /> : <CopyIcon size={15} />}
+        onClick={() => void copy()}
+      >
+        {state === 'done' ? 'Kopiert' : 'Text kopieren'}
+      </Button>
+      <span className="sr-only" aria-live="polite">
+        {state === 'done' ? 'Mitteilung kopiert' : state === 'failed' ? 'Kopieren nicht möglich' : ''}
+      </span>
+    </>
   );
 }
 
@@ -164,10 +208,13 @@ const OUTCOME = {
 } as const;
 
 function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
-  const { accounts, accountLabel, showTransactions, setInboxOpen } = useFints();
+  const { accounts, accountLabel, setInboxOpen } = useFints();
+  const showOnAccount = useShowOnAccount();
   const o = OUTCOME[e.outcome];
   const account = accounts.find((a) => a.accountNumber === e.accountNumber);
   const short = fmtShortIban(e.iban);
+  // What the bank said beyond the tag beside it ("Auftrag ausgeführt." under "Ausgeführt").
+  const answer = answerBeyondOutcome(e);
   const at = new Date(e.at);
   const time = `${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')} Uhr`;
 
@@ -196,16 +243,14 @@ function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
           <Tag tone={o.tone} size="sm">{o.label}</Tag>
           {e.instant && <Tag size="sm">Echtzeit</Tag>}
         </div>
-        {e.message && (
-          <p className="mt-2 text-[13.5px] leading-snug whitespace-pre-line text-ink-2 [overflow-wrap:anywhere]">{e.message}</p>
+        {answer && (
+          <p className="mt-2 text-[13.5px] leading-snug whitespace-pre-line text-ink-2 [overflow-wrap:anywhere]">{answer}</p>
         )}
+        {/* A caution, not information: the warning's inset with the orange edge. */}
         {e.outcome === 'unknown' && (
-          <div className="mt-2.5 flex items-start gap-2 text-[13.5px] leading-snug text-ink-2">
-            <InfoIcon size={16} className="mt-px text-info" />
-            <span>
-              Ob die Bank den Auftrag ausgeführt hat, ist nicht bekannt. Prüfe deine Umsätze, bevor du ihn wiederholst.
-            </span>
-          </div>
+          <Alert tone="warn" className="mt-2.5">
+            Ob die Bank den Auftrag ausgeführt hat, ist nicht bekannt. Prüfe deine Umsätze, bevor du ihn wiederholst.
+          </Alert>
         )}
         {e.outcome === 'unknown' && e.iban && (
           <Button
@@ -214,7 +259,9 @@ function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
             className="mt-1.5 -ml-3"
             onClick={() => {
               setInboxOpen(false);
-              showTransactions({ query: e.iban });
+              // On the account it went from — or, when that would ask the
+              // bank, a list that says it is another account's.
+              showOnAccount(account, { query: e.iban }, Date.parse(e.at));
             }}
           >
             Umsätze mit diesem Empfänger

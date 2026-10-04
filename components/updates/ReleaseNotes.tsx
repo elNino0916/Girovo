@@ -6,6 +6,7 @@
 
 import { Fragment } from 'react';
 import type { Inline, NotesBlock } from '@/lib/release-notes';
+import { ExternalIcon } from '../icons';
 
 function Inlines({ nodes }: { nodes: Inline[] }) {
   return nodes.map((n, i) => {
@@ -28,6 +29,9 @@ function Inlines({ nodes }: { nodes: Inline[] }) {
             className="font-semibold text-accent underline-offset-4 hover:underline"
           >
             <Inlines nodes={n.children} />
+            {/* As "Auf GitHub": the link opens the browser, not this window. */}
+            <ExternalIcon size={12} className="ml-0.5 inline-block align-[-1px]" />
+            <span className="sr-only"> (öffnet extern)</span>
           </a>
         );
     }

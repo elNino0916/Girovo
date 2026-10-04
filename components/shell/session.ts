@@ -104,6 +104,17 @@ export function firstName(raw: string | null | undefined): string {
   return word && /\p{L}/u.test(word) ? word : '';
 }
 
+/**
+ * Whose session it is, for the greeting and the profile chip alike: the first
+ * account holder the bank listed at login that reads as a person, else the
+ * first holder at all. Stable for the session — switching to a partner's or a
+ * company account changes neither the greeting nor the chip.
+ */
+export function sessionHolder(accounts: readonly { holder?: string | null }[]): string {
+  const holders = accounts.map((a) => (a.holder ?? '').trim()).filter(Boolean);
+  return holders.find((h) => firstName(h)) ?? holders[0] ?? '';
+}
+
 /** Two letters for the profile chip: first and last name, or the first two of one word. */
 export function nameInitials(raw: string | null | undefined): string {
   const words = holderName(raw).split(' ').filter((w) => /\p{L}/u.test(w) && !TITLES.has(w.toLowerCase()));

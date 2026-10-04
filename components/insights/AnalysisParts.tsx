@@ -8,10 +8,11 @@
 import { useId, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { CategoryAmount, Counterparty, MonthBucket } from '@/lib/analytics';
+import { daysLabel, monthPartNote } from '@/lib/analytics';
 import type { CategoryId } from '@/lib/categories';
-import { categoryLabel, counterpartyName } from '@/lib/categories';
+import { categoryLabel } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { dayKey, displayName, prettyBookingText } from '@/lib/format';
+import { dayKey, displayName } from '@/lib/format';
 import {
   BarTrack, CHART_IN, CHART_OUT, ChartLegend, PairedBars, ShareBar, fmtAxisMoney, rankColor, type ShareSegment,
 } from '../charts';
@@ -20,7 +21,8 @@ import { MASKED_LABEL, Money, useMoneyText, usePrivacy } from '../Money';
 import {
   Button, EmptyState, FilterChip, IconButton, Menu, MenuItemRadio, MenuSeparator, Skeleton,
 } from '../ui';
-import { WHOLE_RANGE, type AnalysisPeriod, type BigExpense } from './analysis-model';
+import { serviceName, txText } from '../transactions/model';
+import { WHOLE_RANGE, type AnalysisMonth, type AnalysisPeriod, type BigExpense } from './analysis-model';
 import { CounterpartyAvatar, InsightTile, fmtDayKey, fmtDayKeyShort } from './shared';
 
 const NBSP = '\u00a0';
@@ -37,24 +39,22 @@ const plural = (n: number, one: string, many: string) => `${n.toLocaleString('de
 
 /**
  * Which part of a partial month the figures cover: "bis 03.10." for the
- * running month, "ab 05.07." for the one the range starts in.
+ * running month, "ab 05.07." for the one the range starts in, '' for a
+ * whole month.
  */
-export function partialNote(m: MonthBucket): string {
-  const [y, mo] = m.month.split('-').map(Number);
-  const startsLate = m.from > `${m.month}-01`;
-  const endsEarly = m.to < `${m.month}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`;
-  if (startsLate && endsEarly) return `${fmtDayKeyShort(m.from)}–${fmtDayKeyShort(m.to)}`;
-  if (startsLate) return `ab ${fmtDayKeyShort(m.from)}`;
-  return `bis ${fmtDayKeyShort(m.to)}`;
-}
+export const partialNote = (m: MonthBucket): string => monthPartNote(m.from, m.to);
 
 /** "Oktober 2026 · bis 03.10." or the whole range in words. */
-export function periodLabel(period: AnalysisPeriod, months: MonthBucket[], range: string): string {
+export function periodLabel(period: AnalysisPeriod, months: readonly MonthBucket[], range: string): string {
   if (period === WHOLE_RANGE) return range;
   const m = months.find((x) => x.month === period);
   if (!m) return range;
-  return m.complete ? m.title : `${m.title} · ${partialNote(m)}`;
+  return m.complete ? m.title : daysLabel(m.from, m.to);
 }
+
+/** What a month that is not complete lacks: "Unvollständig, 06.07.–31.07." or "Keine Umsätze". */
+const incompleteNote = (m: AnalysisMonth) =>
+  m.noData ? 'Keine Umsätze' : `Unvollständig, ${fmtDayKeyShort(m.from)}–${fmtDayKeyShort(m.to)}`;
 
 // ---------------------------------------------------------------------------
 // Period picker: ‹ [Gesamter Zeitraum ▾] ›
@@ -64,16 +64,18 @@ export function PeriodPicker({
   period, months, rangeText, onChange, disabled,
 }: {
   period: AnalysisPeriod;
-  months: MonthBucket[];
+  months: readonly AnalysisMonth[];
   rangeText: string;
   onChange: (p: AnalysisPeriod) => void;
   disabled?: boolean;
 }) {
   const idx = period === WHOLE_RANGE ? -1 : months.findIndex((m) => m.month === period);
   const current = idx >= 0 ? months[idx] : null;
-  // From the whole range, "back" lands on the newest month — the one people
-  // usually want first; from a month it walks one month at a time.
-  const prev = idx === -1 ? months[months.length - 1] : idx > 0 ? months[idx - 1] : null;
+  // From the whole range, "back" lands on the newest complete month — the
+  // one people usually want first, rather than a running month of four
+  // days; from a month it walks one month at a time.
+  const newestComplete = [...months].reverse().find((m) => m.complete) ?? months[months.length - 1];
+  const prev = idx === -1 ? newestComplete ?? null : idx > 0 ? months[idx - 1] : null;
   const next = idx >= 0 && idx < months.length - 1 ? months[idx + 1] : null;
   const newestFirst = useMemo(() => [...months].reverse(), [months]);
 
@@ -81,10 +83,13 @@ export function PeriodPicker({
   // row below the account switch reads as one control rather than a stray chip.
   return (
     <div className="flex w-full min-w-0 items-center gap-1 sm:w-auto">
+      {/* 40px on a phone, where a thumb has to find it; 32px beside a mouse. */}
       <IconButton
+        size="md"
         aria-label={prev ? `Vorheriger Monat: ${prev.title}` : 'Vorheriger Monat'}
         disabled={disabled || !prev}
         onClick={() => prev && onChange(prev.month)}
+        className="sm:size-8"
       >
         <ChevronIcon dir="left" size={16} />
       </IconButton>
@@ -94,8 +99,8 @@ export function PeriodPicker({
         trigger={(p) => (
           <FilterChip {...p} menu disabled={disabled} icon={<CalendarIcon size={16} />} className="min-w-0 grow justify-center sm:grow-0">
             {current ? current.title : 'Gesamter Zeitraum'}
-            {current && !current.complete && (
-              <span className="font-normal text-ink-2"> · {partialNote(current)}</span>
+            {current && !current.complete && (current.noData || partialNote(current)) && (
+              <span className="font-normal text-ink-2"> · {current.noData ? 'keine Umsätze' : partialNote(current)}</span>
             )}
           </FilterChip>
         )}
@@ -108,7 +113,7 @@ export function PeriodPicker({
           <MenuItemRadio
             key={m.month}
             checked={period === m.month}
-            description={m.complete ? undefined : `Unvollständig, ${fmtDayKeyShort(m.from)}–${fmtDayKeyShort(m.to)}`}
+            description={m.complete ? undefined : incompleteNote(m)}
             onSelect={() => onChange(m.month)}
           >
             {m.title}
@@ -116,9 +121,11 @@ export function PeriodPicker({
         ))}
       </Menu>
       <IconButton
+        size="md"
         aria-label={next ? `Nächster Monat: ${next.title}` : 'Nächster Monat'}
         disabled={disabled || !next}
         onClick={() => next && onChange(next.month)}
+        className="sm:size-8"
       >
         <ChevronIcon dir="right" size={16} />
       </IconButton>
@@ -136,7 +143,7 @@ export function Kpi({
   return (
     <div className="min-w-0 bg-surface px-4 py-4 sm:px-6 sm:py-5">
       <dt className="text-[13px] leading-snug font-semibold text-ink-2">{label}</dt>
-      <dd className="mt-1 text-[20px] leading-tight font-semibold text-ink sm:text-[24px]">{children}</dd>
+      <dd className="mt-1 text-[20px] leading-tight font-bold text-ink sm:text-[24px]">{children}</dd>
       {sub && <dd className="mt-1 text-[13px] leading-snug text-ink-3">{sub}</dd>}
     </div>
   );
@@ -223,8 +230,8 @@ export function CategoryBreakdown({
                       </span>
                     </span>
                   </span>
-                  {/* The chevron's column too, on a phone; the row is still the button. */}
-                  <ChevronIcon dir="right" size={16} className="hidden shrink-0 text-ink-3 sm:block" />
+                  {/* Says the row leads somewhere, at every width. */}
+                  <ChevronIcon dir="right" size={16} className="shrink-0 text-ink-3" />
                   <span className="sr-only">. Umsätze anzeigen</span>
                 </button>
               </li>
@@ -243,7 +250,7 @@ export function CategoryBreakdown({
 export function MonthlyComparison({
   months, currency, selected, onSelect,
 }: {
-  months: MonthBucket[];
+  months: readonly AnalysisMonth[];
   currency: string;
   selected: AnalysisPeriod;
   onSelect: (p: AnalysisPeriod) => void;
@@ -261,7 +268,7 @@ export function MonthlyComparison({
       label: m.label,
       title: m.title,
       values: [m.income, m.expense] as [number, number],
-      partial: m.complete ? null : `${fmtDayKeyShort(m.from)}–${fmtDayKeyShort(m.to)}`,
+      partial: m.complete ? null : m.noData ? 'keine Umsätze' : `${fmtDayKeyShort(m.from)}–${fmtDayKeyShort(m.to)}`,
       group: m.month.slice(0, 4),
     })),
     [months],
@@ -315,12 +322,13 @@ export function MonthlyComparison({
               selectedKey={selected === WHOLE_RANGE ? null : selected}
               onSelect={(k) => onSelect(k === selected ? WHOLE_RANGE : k)}
               ariaLabel={summary}
+              // The bar is a toggle button (aria-pressed says whether it is
+              // chosen); the name says only what it shows.
               describe={(d) =>
-                `${d.title}${d.partial ? ` (unvollständig, ${d.partial})` : ''}: ` +
+                `${d.title}${d.partial === 'keine Umsätze' ? ' (keine Umsätze)' : d.partial ? ` (unvollständig, ${d.partial})` : ''}: ` +
                 (privacy
                   ? MASKED_LABEL
-                  : `Einnahmen ${money(d.values[0], currency)}, Ausgaben ${money(d.values[1], currency)}`) +
-                (selected === d.key ? '. Ausgewählt' : '. Auswählen')}
+                  : `Einnahmen ${money(d.values[0], currency)}, Ausgaben ${money(d.values[1], currency)}`)}
               footer={(d) => {
                 const net = d.values[0] - d.values[1];
                 return (
@@ -345,7 +353,7 @@ function maxBy<T>(xs: T[], f: (x: T) => number): T {
   return xs.reduce((a, b) => (f(b) > f(a) ? b : a));
 }
 
-function MonthTable({ months, currency }: { months: MonthBucket[]; currency: string }) {
+function MonthTable({ months, currency }: { months: readonly AnalysisMonth[]; currency: string }) {
   return (
     <div className="-mx-4 overflow-x-auto sm:-mx-6">
       <table className="w-full min-w-[420px] border-collapse text-[14px]">
@@ -365,7 +373,7 @@ function MonthTable({ months, currency }: { months: MonthBucket[]; currency: str
                 {m.title}
                 {!m.complete && (
                   <span className="block text-[12.5px] font-normal text-ink-3">
-                    unvollständig, {fmtDayKeyShort(m.from)}–{fmtDayKeyShort(m.to)}
+                    {m.noData ? 'keine Umsätze' : `unvollständig, ${fmtDayKeyShort(m.from)}–${fmtDayKeyShort(m.to)}`}
                   </span>
                 )}
               </th>
@@ -413,6 +421,8 @@ function ListRow({
           </span>
           <span className="block truncate text-[13px] text-ink-3">{sub}</span>
         </span>
+        {/* Every one of these rows opens the Umsätze list: it says so. */}
+        <ChevronIcon dir="right" size={16} className="shrink-0 text-ink-3" />
         <span className="sr-only">. {label}</span>
       </button>
     </li>
@@ -443,21 +453,30 @@ export function TopPayees({
             return (
               <ListRow
                 key={p.key}
-                avatar={<CounterpartyAvatar tx={p.sample} name={name} />}
+                avatar={
+                  p.cash ? (
+                    // Cash has no payee to show a face for — its category's glyph.
+                    <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full border border-line bg-inset text-ink-2">
+                      <CategoryIcon id="cash" size={18} />
+                    </span>
+                  ) : <CounterpartyAvatar tx={p.sample} name={name} />
+                }
                 title={name}
                 sub={
                   <>
-                    {plural(p.count, 'Umsatz', 'Umsätze')}
+                    {plural(p.count, p.cash ? 'Abhebung' : 'Umsatz', p.cash ? 'Abhebungen' : 'Umsätze')}
                     {/* Netting per payee can still leave one above the whole
                         (a refund booked under another name) — no share then,
                         rather than "112 % der Ausgaben". */}
                     {Math.round(p.amount * 100) <= Math.round(expense * 100) && <> · {fmtShare(p.amount, expense)} der Ausgaben</>}
-                    <span className="hidden sm:inline"> · {categoryName(p.sample)}</span>
+                    {p.via
+                      ? <span className="hidden sm:inline"> · über {serviceName(p.via)}</span>
+                      : !p.cash && <span className="hidden sm:inline"> · {categoryName(p.sample)}</span>}
                   </>
                 }
                 amount={<Money value={p.amount} currency={currency} tone="plain" />}
                 onClick={() => onShow(p)}
-                label={`Alle Umsätze mit ${name} anzeigen`}
+                label={p.cash ? 'Alle Abhebungen anzeigen' : `Alle Umsätze mit ${name} anzeigen`}
               />
             );
           })}
@@ -476,15 +495,16 @@ export function LargestExpenses({
   onShow: (tx: SerializedTransaction) => void;
 }) {
   return (
-    <InsightTile title="Größte Ausgaben" subtitle={subtitle}>
+    <InsightTile title="Größte Einzelausgaben" subtitle={subtitle}>
       {items.length === 0 ? (
-        <EmptyState compact illustration="transactions" title="Keine Ausgaben">
-          In diesem Zeitraum gibt es keine Ausgaben.
+        <EmptyState compact illustration="transactions" title="Keine einzelnen Ausgaben">
+          In diesem Zeitraum gibt es außer Verträgen, Abos und Bargeld keine Ausgaben.
         </EmptyState>
       ) : (
         <ol className="pb-2">
           {items.map(({ tx, repeats }, i) => {
-            const name = displayName(counterpartyName(tx)) || prettyBookingText(tx.bookingText) || 'Ohne Namen';
+            // The name the Umsätze list shows — the shop behind PayPal included.
+            const name = txText(tx).name || 'Ohne Namen';
             const day = fmtDayKey(dayKey(tx.entryDate || tx.valueDate));
             return (
               <ListRow

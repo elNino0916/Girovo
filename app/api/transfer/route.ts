@@ -11,6 +11,7 @@
 //   • already executed   → nothing left to approve
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
+import { isDefiniteRefusal } from '@/lib/bank-answer';
 import { bankAnswerCodes, bankAnswerText, logResp, serializeVop, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
 import { lookupBlz } from '@/lib/banks';
@@ -160,7 +161,13 @@ export const POST = wrap(async (req: Request) => {
     return json({ ...tanPayload(resp), accountNumber, ...(vop ? { vop } : {}) } satisfies TransferResponse);
   }
   if (!resp.success) {
-    return fail(bankAnswerText(resp) || 'Die Bank hat die Überweisung abgelehnt.');
+    // The order went out and the bank answered it with an error. Only a clean
+    // refusal means nothing was executed (lib/bank-answer.ts); a dialog abort
+    // alone, or an error beside an execution code, leaves it unclear — and
+    // an unclear order is never offered for sending again.
+    return json({
+      outcome: isDefiniteRefusal(codes) ? 'refused' : 'unclear', accountNumber, bankAnswers: bankAnswerText(resp),
+    } satisfies TransferResponse);
   }
   // Executed without SCA (3076 — an exemption, or a bagatelle the bank waved
   // through after a clean Namensabgleich). Report it right away.

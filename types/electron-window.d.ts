@@ -62,6 +62,15 @@ declare global {
       openRelease: () => Promise<ElectronUpdateState | null>;
       onState: (callback: (state: ElectronUpdateState) => void) => () => void;
     };
+    /**
+     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * `requestAttention(true)` flashes the taskbar button while the window is
+     * not the one in front, until it is focused; `false` stops it. Never
+     * brings the window forward.
+     */
+    electronWindow?: {
+      requestAttention: (on: boolean) => void;
+    };
     /** Exposed by electron/preload.cjs; undefined outside the desktop shell. */
     electronTitleBar?: {
       /** `dim`: how many dialog scrims lie over the caption buttons (0 = none). */
@@ -82,11 +91,25 @@ declare global {
     };
     /**
      * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Saves a file the app made (the CSV export) through a native Save-As
+     * and answers once it is written or the dialog was dismissed — see
+     * main.cjs's file:save handler and saveFile() in lib/download.ts.
+     */
+    electronFiles?: {
+      save: (suggestedName: string, bytes: Uint8Array) => Promise<
+        | { ok: true }
+        | { ok: false; canceled: true }
+        | { ok: false; error: string }
+      >;
+    };
+    /**
+     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
      * Synchronous preference storage in userData/prefs.json — the packaged
      * app's localStorage does not survive a restart (random port per start).
      * Keys must match /^fints\.[\w.-]{1,80}$/ and values be ≤ 4096 chars;
-     * anything else is ignored (get → null). For preferences only, never
-     * personal data — that goes in the encrypted vault.
+     * anything else is ignored (get → null). For preferences, plus the bank
+     * and login name the login screen fills in before a PIN exists; any
+     * other personal data goes in the encrypted vault.
      */
     electronStore?: {
       get: (key: string) => string | null;

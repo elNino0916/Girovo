@@ -25,8 +25,8 @@ const googleSansFlex = Google_Sans_Flex({
   adjustFontFallback: false,
   fallback: ['Segoe UI', 'system-ui', 'sans-serif'],
 });
-// Barlow sets the printed Kontoauszug and Buchungsbeleg (see .doc in
-// globals.css). The screen moved on; paper is frozen.
+// Barlow is only the fallback behind the bank monograms' condensed cut
+// (BankLogo); the printed documents moved to the interface face.
 const barlow = Barlow({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],

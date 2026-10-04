@@ -31,14 +31,16 @@ import { MASTHEAD_EDGES } from './edges';
 import { ProfileMenu } from './ProfileMenu';
 import { PAGE_TITLE_ID } from './Stage';
 
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
 // Label tiers, as container widths of the masthead's content box.
-// FULL: every word, incl. the shortcut hint. MID: the words that name a
-// destination (Suche, Mitteilungen, the first name); the two toggles keep
-// their glyph and tooltip. Below MID everything is an icon.
+// FULL: every word, incl. the shortcut hint and Darstellung. MID: the words
+// that name a destination (Suche, Mitteilungen, the first name) and
+// "Beträge ausblenden" — the control a screen share most depends on, so it
+// keeps its words in the desktop app's default 1280px window, where the
+// caption buttons leave the masthead about 1,090px. Below MID everything is
+// an icon with its name as tooltip.
 const LABEL_FULL = 'hidden @min-[1180px]/mast:inline';
 const LABEL_MID = 'hidden @min-[900px]/mast:inline';
 
@@ -52,17 +54,22 @@ export function Masthead() {
   const {
     privacy, togglePrivacy, unreadCount: bankUnread, inboxOpen, setInboxOpen, setPaletteOpen, singleKeyShortcuts,
   } = useFints();
-  // A newer version of the app (desktop only) waits in Mitteilungen too, and
-  // counts until it has been seen there.
+  // A newer version of the app (desktop only) waits in Mitteilungen too. The
+  // number counts the bank's messages only; the app's own news is marked by
+  // the dot alone, so it never reads as one more message from the bank.
   const updateSnapshot = useUpdates();
-  const unreadCount = bankUnread + (unseenUpdate(updateSnapshot) ? 1 : 0);
-  const inboxName = unreadCount > 0 ? `Mitteilungen, ${unreadCount} ungelesen` : 'Mitteilungen';
+  const updateUnseen = unseenUpdate(updateSnapshot);
+  const inboxName = ['Mitteilungen', bankUnread > 0 ? `${bankUnread} ungelesen` : '', updateUnseen ? 'neue App-Version' : '']
+    .filter(Boolean).join(', ');
   // Opening the drawer marks everything read. Were the count badge to go out
   // at that moment, the items left of it would jump sideways behind the
   // scrim; so the bell keeps showing what it showed when it was pressed, and
   // settles once the drawer has closed.
-  const [shownUnread, setShownUnread] = useState(unreadCount);
-  if (!inboxOpen && shownUnread !== unreadCount) setShownUnread(unreadCount);
+  const [shown, setShown] = useState({ unread: bankUnread, update: updateUnseen });
+  if (!inboxOpen && (shown.unread !== bankUnread || shown.update !== updateUnseen)) {
+    setShown({ unread: bankUnread, update: updateUnseen });
+  }
+  const shownUnread = shown.unread;
 
   return (
     <div
@@ -88,10 +95,9 @@ export function Masthead() {
       </a>
 
       <div className="@container/mast flex h-full min-w-0 items-center gap-2 sm:gap-3">
-        {/* The version is the first thing to go when room runs out: it
-            truncates ("3.1.3-dev.1…", full string in its tooltip), and on a
-            narrow masthead it leaves altogether. */}
-        <BrandMark version={APP_VERSION} versionClassName="hidden @min-[660px]/mast:block" />
+        {/* No version here: the footer and the Sitzung panel carry it, and
+            the bar's room goes to the labelled controls. */}
+        <BrandMark />
 
         <div className="min-w-2 flex-1" />
 
@@ -99,16 +105,16 @@ export function Masthead() {
           <button
             type="button"
             className={cx(ITEM, 'max-sm:hidden')}
-            aria-label="Suche und Befehle"
+            aria-label="Suche"
             aria-keyshortcuts="Control+K Meta+K"
-            title="Suche und Befehle (Strg+K)"
+            title="Suche (Strg+K)"
             onClick={() => setPaletteOpen(true)}
           >
             <SearchIcon size={18} />
             <span className={LABEL_MID}>Suche</span>
             <kbd
               aria-hidden
-              className="hidden h-[22px] items-center rounded-[5px] border border-bar-line px-1.5 font-sans text-[12px] leading-none font-semibold text-bar-ink-2 @min-[1180px]/mast:inline-flex"
+              className="hidden h-[22px] items-center rounded-[5px] border border-bar-line px-1.5 font-sans text-[12.5px] leading-none font-semibold text-bar-ink-2 @min-[1180px]/mast:inline-flex"
             >
               Strg K
             </kbd>
@@ -125,10 +131,11 @@ export function Masthead() {
           >
             <span className="relative text-bar-ink-2 transition-colors duration-150 group-hover:text-bar-ink">
               <BellIcon />
-              {/* The dot is the narrow-window form of the count: where the
-                  count badge shows, the dot would only say the same thing twice. */}
-              {shownUnread > 0 && (
-                <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-bar @min-[900px]/mast:hidden" />
+              {/* The dot is the narrow-window form of the count (where the
+                  badge shows, it would say the same thing twice) — and, at
+                  every width, the mark of a new app version. */}
+              {(shownUnread > 0 || shown.update) && (
+                <Dot className={cx('absolute -top-0.5 -right-0.5 ring-2 ring-bar', !shown.update && '@min-[900px]/mast:hidden')} />
               )}
             </span>
             <span className={LABEL_MID}>Mitteilungen</span>
@@ -152,7 +159,7 @@ export function Masthead() {
             onClick={togglePrivacy}
           >
             {privacy ? <EyeOffIcon /> : <EyeIcon />}
-            <span className={LABEL_FULL}>{privacy ? 'Beträge anzeigen' : 'Beträge ausblenden'}</span>
+            <span className={LABEL_MID}>{privacy ? 'Beträge anzeigen' : 'Beträge ausblenden'}</span>
           </button>
 
           <ThemeMenu className={cx(ITEM, 'max-sm:hidden')} labelClassName={LABEL_FULL} />

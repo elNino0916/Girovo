@@ -6,20 +6,22 @@
 //   than a digit and sits too low, which is exactly wrong in a column of
 //   tabular figures. A credit may carry an explicit "+".
 // - Colour follows the value's role, not its sign alone. A negative BALANCE is
-//   red (it is a problem); a debit BOOKING is ink (it is ordinary spending);
-//   a credit booking is green. The caller says which one it is showing.
+//   red (it is a problem) — except a credit card's, which is negative by
+//   nature and stays ink (lib/balances.ts isCardAccount); a debit BOOKING is
+//   ink (it is ordinary spending); a credit booking is green. The caller says
+//   which one it is showing.
 // - "Beträge ausblenden" replaces the figure with dots. The value is then not
 //   in the DOM at all — not in a title, not in an aria-label — so it cannot be
 //   read off a screen share, a screenshot or the accessibility tree.
 
 import { useCallback, useContext } from 'react';
 import { splitMoney } from '@/lib/format';
+import { AMOUNT_MASK as MASK } from '@/lib/mask';
 import { FintsContext } from './FintsProvider';
 import { cx } from './ui';
 
 const MINUS = '−';
 const NBSP = ' ';
-const MASK = '•••••';
 
 /** What a masked amount reads as, for the few places that announce one. */
 export const MASKED_LABEL = 'Betrag ausgeblendet';

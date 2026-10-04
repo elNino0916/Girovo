@@ -8,14 +8,14 @@
 import { useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useFints } from '../FintsProvider';
-import { CategoryIcon, ClockIcon, EyeOffIcon, MoreIcon, ReceiptIcon, UndoIcon } from '../icons';
+import { CategoryIcon, ChevronIcon, ClockIcon, EyeOffIcon, MoreIcon, ReceiptIcon, UndoIcon } from '../icons';
 import { Money } from '../Money';
 import { Button, IconButton, Menu, MenuItem, Tag, cx } from '../ui';
 import { categoryLabel } from '@/lib/categories';
-import { dayKey, displayName } from '@/lib/format';
+import { dayKey, displayName, fmtIban } from '@/lib/format';
 import type { RecurringSeries } from '@/lib/recurring';
 import {
-  CounterpartyAvatar, daysUntil, fmtDayKey, fmtDayKeyShort, focusAfterRemoval, relativeDays, useShowInList,
+  CounterpartyAvatar, RoundMoney, daysUntil, fmtDayKey, fmtDayKeyShort, focusAfterRemoval, relativeDays, useShowInList,
 } from './shared';
 
 /** The column template shared by the header and every row from `md` up. */
@@ -83,7 +83,14 @@ function DueText({ s, compact }: { s: RecurringSeries; compact?: boolean }) {
     );
 }
 
-export function ContractRow({ s, onDismiss }: { s: RecurringSeries; onDismiss: (s: RecurringSeries) => void }) {
+export function ContractRow({
+  s, onDismiss, account = null,
+}: {
+  s: RecurringSeries;
+  onDismiss: (s: RecurringSeries) => void;
+  /** The account it is paid from (or into) — named when the list spans several. */
+  account?: string | null;
+}) {
   const { categoryOf } = useFints();
   const showInList = useShowInList();
   const [open, setOpen] = useState(false);
@@ -92,17 +99,21 @@ export function ContractRow({ s, onDismiss }: { s: RecurringSeries; onDismiss: (
   const n = name(s);
   const credit = s.kind === 'income';
   const rose = s.changed && (s.change ?? 0) > 0 && !s.variable;
-  const show = () => showInList(s.transactions[0] ?? null, { query: s.iban ?? s.name, dir: credit ? 'in' : 'out' });
+  const show = () => showInList(s.transactions[0] ?? null, { query: s.iban ? fmtIban(s.iban) : s.name, dir: credit ? 'in' : 'out' });
   const dismiss = () => {
     focusAfterRemoval(rowRef.current);
     onDismiss(s);
   };
 
-  const amount = (
+  // A fixed price exactly; an amount that varies as "ca." in whole euros —
+  // cents would claim a precision the estimate does not have.
+  const amount = s.variable ? (
     <>
-      {s.variable && <span className="mr-1 text-[13px] font-normal text-ink-3">ca.</span>}
-      <Money value={s.amount} currency={s.currency} signed tone="credit" className="font-semibold" />
+      <span className="mr-1 text-[13px] font-normal text-ink-3">ca.</span>
+      <RoundMoney value={s.amount} currency={s.currency} signed className={cx('font-semibold', credit && 'text-green')} />
     </>
+  ) : (
+    <Money value={s.amount} currency={s.currency} signed tone="credit" className="font-semibold" />
   );
 
   return (
@@ -115,8 +126,10 @@ export function ContractRow({ s, onDismiss }: { s: RecurringSeries; onDismiss: (
           onClick={() => setOpen((o) => !o)}
           className={cx('row-focus min-w-0 flex-1 py-3 pl-4 text-left sm:pl-6', CONTRACT_COLUMNS)}
         >
-          {/* Who, how often */}
+          {/* Who, how often. The chevron says the row opens: the bookings
+              the guess rests on are behind it. */}
           <span className="flex min-w-0 items-start gap-3 md:items-center">
+            <ChevronIcon className="chev -mr-1 shrink-0 self-center text-ink-3" data-open={open} />
             <CounterpartyAvatar tx={s.transactions[0]} name={n} credit={credit} />
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-baseline justify-between gap-3">
@@ -130,12 +143,13 @@ export function ContractRow({ s, onDismiss }: { s: RecurringSeries; onDismiss: (
                 {s.cadenceLabel}
                 <span className="md:hidden">
                   {' · '}
-                  <Money value={Math.abs(s.yearlyAmount)} currency={s.currency} tone="plain" /> im Jahr
+                  ca. <RoundMoney value={Math.abs(s.yearlyAmount)} currency={s.currency} /> im Jahr
                 </span>
                 <span className="hidden md:inline">
                   <span aria-hidden> · </span>
                   <span className="sr-only">, </span>
                   {categoryLabel(s.category)}
+                  {account && <> · {account}</>}
                 </span>
               </span>
               <span className="mt-0.5 block text-[13px] text-ink-2 md:hidden">
@@ -151,16 +165,20 @@ export function ContractRow({ s, onDismiss }: { s: RecurringSeries; onDismiss: (
             </span>
           </span>
 
-          {/* Columns from md up */}
+          {/* Columns from md up. Their header is visual only, so each cell
+              says what it is to a screen reader. */}
           <span className="hidden md:block">
+            <span className="sr-only">{credit ? 'Nächster Eingang: ' : 'Nächste Buchung: '}</span>
             <DueText s={s} />
           </span>
           <span className="hidden text-right md:block">
+            <span className="sr-only">Betrag: </span>
             <span className="block text-[15px]">{amount}</span>
             <span className="block text-[13px] text-ink-3">zuletzt {fmtDayKeyShort(s.lastDate)}</span>
           </span>
           <span className="hidden text-right md:block">
-            <Money value={Math.abs(s.yearlyAmount)} currency={s.currency} tone="plain" className="text-[15px] text-ink" />
+            <span className="sr-only">Pro Jahr: </span>
+            <RoundMoney value={Math.abs(s.yearlyAmount)} currency={s.currency} className="text-[15px] text-ink" />
           </span>
         </button>
 
@@ -182,7 +200,7 @@ export function ContractRow({ s, onDismiss }: { s: RecurringSeries; onDismiss: (
               description="Aus dieser Liste und den Summen nehmen"
               onSelect={dismiss}
             >
-              Kein Vertrag
+              Nicht als Vertrag zählen
             </MenuItem>
           </Menu>
         </span>
@@ -196,7 +214,28 @@ export function ContractRow({ s, onDismiss }: { s: RecurringSeries; onDismiss: (
               {s.count} Buchungen seit {fmtDayKey(s.firstDate)}
               {s.directDebit && ' · per Lastschrift'}
               {s.variable && ' · Betrag schwankt'}
+              {account && <span className="md:hidden"> · {account}</span>}
+              {rose && s.previousAmount != null && (
+                <> · vorher <Money value={Math.abs(s.previousAmount)} currency={s.currency} tone="plain" /></>
+              )}
             </p>
+            {/* What a dispute or a blocked Lastschrift at the bank asks for. */}
+            {(s.creditorId || s.mandateReference) && (
+              <dl className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-[13px]">
+                {s.creditorId && (
+                  <div className="flex gap-1.5">
+                    <dt className="text-ink-3">Gläubiger-ID</dt>
+                    <dd className="iban text-ink">{s.creditorId}</dd>
+                  </div>
+                )}
+                {s.mandateReference && (
+                  <div className="flex min-w-0 gap-1.5">
+                    <dt className="shrink-0 text-ink-3">Mandatsreferenz</dt>
+                    <dd className="iban min-w-0 truncate text-ink">{s.mandateReference}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
             <ol className="mt-2 grid max-w-[40rem] gap-x-8 sm:grid-cols-2">
               {s.transactions.slice(0, 6).map((tx, i) => {
                 // A booking filed differently from the series (a one-off the user
@@ -219,7 +258,7 @@ export function ContractRow({ s, onDismiss }: { s: RecurringSeries; onDismiss: (
             </ol>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button size="sm" variant="secondary" onClick={show}>Umsätze anzeigen</Button>
-              <Button size="sm" variant="tertiary" onClick={dismiss}>Kein Vertrag</Button>
+              <Button size="sm" variant="tertiary" onClick={dismiss}>Nicht als Vertrag zählen</Button>
             </div>
           </>
         )}

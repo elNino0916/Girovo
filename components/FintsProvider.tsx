@@ -4,8 +4,10 @@
 //
 // Every read on the bank may need its own SCA approval, so operations are
 // strictly serialized behind `busy`. A single statement query yields both the
-// transactions AND the balance, which is why there is no separate balance
-// fetch on the dashboard path — that would cost a second approval.
+// transactions AND the balance, which is why the dashboard path never asks
+// for a balance on its own — that would cost a second approval. The balance
+// enquiry (loadBalance) runs only on request: for an account without Umsätze,
+// and for "Alle Salden abrufen".
 //
 // Around that core sits everything the browser keeps for itself: the applied
 // date range, the session clock that logs an unattended dashboard out, the
@@ -22,24 +24,31 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { ApiError, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail } from '@/lib/client-api';
+import { bankAnswerLines } from '@/lib/bank-answer';
 import { bookingKind, categorize } from '@/lib/categorize';
 import { counterpartyKey, counterpartyName, isCategoryId, rawCounterparty, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
 import { parseCardAcceptor } from '@/lib/card-purpose';
 import {
   dayKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, toLocalDate, translateType,
+  fmtRange,
   type RangePreset,
 } from '@/lib/format';
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
+import { acceptsBalance, balanceQueue, failureSentence } from '@/lib/balances';
 import { unbookedPending } from '@/lib/pending';
+import { recordSentOrder, sanitizeSentOrders, type SentOrder } from '@/lib/sent-orders';
+import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-log';
+import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
   type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SharePrefill,
   type StatementInfo, type TransferPrefill, type TransferTemplate, type TxFilter, type VaultData,
   type VaultGetResponse, type VaultPutResponse, type VaultStatus,
 } from '@/lib/app-types';
+import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import type {
-  BankMessage, ConnectResponse, Merchant, MerchantsResponse, MetaResponse, PendingResponse,
+  BalanceResponse, BankMessage, ConnectResponse, Merchant, MerchantsResponse, MetaResponse, PendingResponse,
   SelectTanResponse, SerializedAccount, SerializedBalance, SerializedTanMethod,
   SerializedTransaction, SerializedVop, TanPollResponse, TransactionsResponse,
   TransferResponse,
@@ -52,7 +61,6 @@ export type ChosenBank = {
   brand: string;
   bic?: string | null;
   location?: string;
-  hint?: string;
 };
 
 export type BankSearchHit = {
@@ -70,11 +78,18 @@ export type Toast = { id: number; message: string; tone: ToastTone; ms: number; 
 
 export type View = 'login' | 'tanmethod' | 'dashboard';
 
-export type LogoutReason = 'user' | 'idle' | 'expired';
+/** `cancelled`: the login's own approval was called off, so the half-open session goes. */
+export type LogoutReason = 'user' | 'idle' | 'expired' | 'cancelled';
 
 /** The idle limits the user can choose from, in minutes. */
 export const IDLE_MINUTE_CHOICES = [5, 10, 15, 30] as const;
 export type IdleMinutes = (typeof IDLE_MINUTE_CHOICES)[number];
+
+/**
+ * The user's answer to "Firmenlogos anzeigen?". No name goes to the logo
+ * service until it is 'on'. Kept per machine, with the other preferences.
+ */
+export type LogoConsent = 'unasked' | 'on' | 'off';
 
 /** A snapshot of what to render on the print-only Kontoauszug/receipt sheet. */
 export type PrintJob =
@@ -86,6 +101,12 @@ export type PrintJob =
       balance: SerializedBalance | null;
       from?: string;
       to?: string;
+      /**
+       * The bank's statement blocks from the fetch the rows came from: their
+       * opening balance is what the printed "Alter Kontostand" is checked
+       * against (lib/print-doc.ts).
+       */
+      blocks?: StatementInfo['blocks'] | null;
     }
   | {
       kind: 'transaction';
@@ -94,10 +115,6 @@ export type PrintJob =
       tx: SerializedTransaction;
       /** A Vormerkposten: authorised, not yet booked. The receipt must say so. */
       pending: boolean;
-      /** The account's balance when it was last fetched, for the receipt's account block. */
-      balance: SerializedBalance | null;
-      /** The counterparty's resolved brand, when one was found. */
-      merchant: Merchant | null;
     };
 
 /** When an account's Vorgemerkt list was fetched, and how it stands against the statement. */
@@ -114,10 +131,34 @@ export type PendingInfo = {
   booked: number;
 };
 
-type WaitPhase = 'waiting' | 'confirmed' | 'error' | 'ended';
+/**
+ * Why an account's last read failed, in the bank's (or the app's) words, and
+ * when. Kept per account until a read of that account starts again, so a
+ * failure is still a failure after another account was opened.
+ */
+export type LoadError = { message: string; at: number };
+
+/** How a read ended, for a caller that goes on with the next one (loadAllBalances). */
+export type LoadOutcome = 'applied' | 'failed' | 'cancelled' | 'busy' | 'skipped';
+
+/** `onSettled` of a read: how it ended, and the reason when it failed. */
+export type LoadSettled = (outcome: LoadOutcome, error?: string) => void;
+
+/**
+ * waiting → confirmed, or one of: error (the status could not be read),
+ * ended (the bank closed the dialog first), refused (the bank's answer refuses
+ * it — see lib/bank-answer.ts).
+ */
+type WaitPhase = 'waiting' | 'confirmed' | 'error' | 'ended' | 'refused';
 
 /** What an approval is for — the overlay asks before abandoning a transfer. */
-export type WaitKind = 'login' | 'statements' | 'pending' | 'transfer';
+export type WaitKind = 'login' | 'statements' | 'pending' | 'balance' | 'transfer';
+
+/**
+ * The transfer an approval is for, as the bank received it (name rewritten to
+ * the SEPA character set), for the user to compare with their banking app.
+ */
+export type WaitOrder = { amount: number; name: string; iban: string; instant: boolean };
 
 export type WaitState = {
   open: boolean;
@@ -126,7 +167,9 @@ export type WaitState = {
   text: string;
   challenge: string | null;
   phase: WaitPhase;
+  /** What went wrong: the bank's answer as it came (codes included), or the app's own message. */
   error: string | null;
+  /** A way to ask again exists. The overlay offers it once the wait is over — or overdue — never while it runs. */
   canRetry: boolean;
   /**
    * When the approval was requested (epoch ms). The overlay counts the
@@ -150,11 +193,25 @@ export type WaitState = {
    * would send the user to the wrong one.
    */
   tanMediaName: string | null;
+  /** For a transfer: what is being approved, in the app's own words. */
+  order: WaitOrder | null;
+  /** A line of context, e.g. that this is the second approval right after the login. */
+  note: string | null;
 };
 
 const IDLE_WAIT: WaitState = {
   open: false, kind: null, title: '', text: '', challenge: null,
   phase: 'waiting', error: null, canRetry: false, startedAt: 0, settledAt: null, vop: null, tanMediaName: null,
+  order: null, note: null,
+};
+
+/** What each kind of approval asks the user to confirm, as the object of "bestätige …". */
+const WAIT_SUBJECT: Record<WaitKind, string> = {
+  login: 'die Anmeldung',
+  statements: 'den Umsatzabruf',
+  pending: 'den Abruf der vorgemerkten Umsätze',
+  balance: 'die Saldoabfrage',
+  transfer: 'die Überweisung',
 };
 
 type TanGate = { needsTan?: boolean; tanChallenge?: string | null; tanMediaName?: string | null; vop?: SerializedVop };
@@ -165,6 +222,11 @@ type WaitCallbacks = {
   onDialogEnded?: ((r: TanPollResponse) => void) | null;
   /** The user pressed Abbrechen in the overlay. */
   onCancelled?: (() => void) | null;
+  /**
+   * The bank answered the approval with an error ('refused' or 'unclear', see
+   * TanPollResponse). Without a handler the overlay shows it.
+   */
+  onAnswer?: ((status: 'refused' | 'unclear', bankAnswers: string) => void) | null;
 };
 
 /** What the transfer form submits; the server parses `amount` itself. */
@@ -177,11 +239,19 @@ export type TransferHandlers = {
   onExecuted: (bankAnswers?: string) => void;
   /**
    * The order reached the bank but its fate is unknown: the dialog ended
-   * before the approval was confirmed, the approval was abandoned, or the
-   * connection broke mid-request. Never to be presented as a failure — the
-   * money may have moved.
+   * before the approval was confirmed, the approval was abandoned, the
+   * connection broke mid-request, or the bank answered with an error that
+   * does not refuse the order. Never to be presented as a failure — the
+   * money may have moved. `bankAnswers`: the bank's words, when it said any.
    */
-  onUnknown: () => void;
+  onUnknown: (bankAnswers?: string) => void;
+  /**
+   * The bank refused the order — before the approval or after it — and said
+   * nothing else (lib/bank-answer.ts). Nothing was executed; the order may be
+   * corrected and sent again.
+   */
+  onRefused: (bankAnswers: string) => void;
+  /** Not sent, or not accepted for processing (validation, busy, a check still running): may be retried. */
   onError: (message: string) => void;
   onTanStarted: () => void;
   /** The bank checked the payee name and wants an explicit go-ahead. */
@@ -204,6 +274,8 @@ const VAULT_SAVE_DELAY_MS = 800;
 const LOGOUT_FLUSH_TIMEOUT_MS = 2000;
 /** How long "Freigabe bestätigt" stays up before the overlay leaves. */
 const CONFIRMED_LINGER_MS = 700;
+/** A statement approval this soon after the login's own is "the second one" (startDecoupledWait). */
+const SECOND_APPROVAL_MS = 30_000;
 const DEFAULT_RANGE_PRESET: RangePreset = '90d';
 const MAX_TOASTS = 4; // = Toasts.tsx MAX_VISIBLE: a queued toast nobody can see would expire unseen
 const MAX_ACTIVITY = 50;
@@ -211,7 +283,8 @@ const MAX_TEMPLATES = 200;
 const MAX_ALIAS = 60;
 /** The idle logout happens while nobody is looking; the notice has to outlast the absence. */
 const IDLE_NOTICE_MS = 10 * 60_000;
-const BUSY_MESSAGE = 'Bitte warten — ein anderer Vorgang läuft noch.';
+/** A wait, not a failure: toasted as a notice, never in the error's red. */
+const BUSY_MESSAGE = 'Bitte warten – ein anderer Vorgang läuft noch.';
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -333,6 +406,13 @@ function typedAmount(raw: string): number {
   return Math.abs(parseAmount(raw) ?? 0);
 }
 
+/** A submitted order as the vault's two-week log keeps it (lib/sent-orders.ts), or null without amount or IBAN. */
+function sentOrderOf(p: TransferPayload, outcome: SentOrder['outcome'], at: string): SentOrder | null {
+  const cents = Math.round(typedAmount(p.amount) * 100);
+  const iban = normIban(p.iban);
+  return cents > 0 && iban ? { at, accountNumber: p.accountNumber, iban, cents, outcome } : null;
+}
+
 /** One login message as an inbox entry, or null when the bank sent nothing readable. */
 function toInboxMessage(m: BankMessage, receivedAt: string): InboxMessage | null {
   const text = repairBankText(String(m?.text ?? '').trim());
@@ -380,6 +460,7 @@ function normalizeVault(raw: VaultData | null | undefined): VaultData {
     dismissedRecurring: Array.isArray(raw.dismissedRecurring)
       ? raw.dismissedRecurring.filter((id): id is string => typeof id === 'string')
       : [],
+    sentOrders: sanitizeSentOrders(raw.sentOrders),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : EMPTY_VAULT.updatedAt,
   };
 }
@@ -423,6 +504,10 @@ function deliveredEnd(txs: readonly SerializedTransaction[], blocks: StatementIn
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** A login's id, so "Abbrechen" can name it to the server. Random, never derived from the user. */
+const newAttemptId = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+
 // ---------------------------------------------------------------------------
 
 function useFintsState() {
@@ -432,6 +517,10 @@ function useFintsState() {
   const [logoFiles, setLogoFiles] = useState<Record<string, string>>({});
 
   const [bank, setBank] = useState<ChosenBank | null>(null);
+  /** Until the bank remembered from last time is confirmed against the list. */
+  const [bankChecking, setBankChecking] = useState(true);
+  /** That remembered bank, when the list no longer has it (merged, renumbered). */
+  const [staleBank, setStaleBank] = useState<ChosenBank | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [userId, setUserId] = useState('');
 
@@ -447,7 +536,14 @@ function useFintsState() {
   /** Vorgemerkte as the bank listed them, with the moment it did (see `pendingCache` below). */
   const [pendingFetched, setPendingFetched] = useState<Record<string, { txs: SerializedTransaction[]; loadedAt: number }>>({});
   const [statementInfo, setStatementInfo] = useState<Record<string, StatementInfo>>({});
-  const [txError, setTxError] = useState<string | null>(null);
+  /** Per account: why its last statement load failed (see LoadError). */
+  const [txErrors, setTxErrors] = useState<Record<string, LoadError>>({});
+  /** Per account: why its last balance enquiry failed. */
+  const [balanceErrors, setBalanceErrors] = useState<Record<string, LoadError>>({});
+  /** The account whose balance alone is being asked for (loadBalance) — not a statement load. */
+  const [balanceLoading, setBalanceLoading] = useState<string | null>(null);
+  /** "Alle Salden abrufen" is working through the accounts. */
+  const [loadingAllBalances, setLoadingAllBalances] = useState(false);
 
   /** Counterparty name → company, or null once we know there's no match. */
   const [merchants, setMerchants] = useState<Record<string, Merchant | null>>({});
@@ -455,6 +551,8 @@ function useFintsState() {
   const [busy, setBusyState] = useState(false);
   const [loadingAccount, setLoadingAccount] = useState<string | null>(null);
   const [pendingLoading, setPendingLoading] = useState<string | null>(null);
+  /** Per account: why its last Vorgemerkt fetch failed — the panel says so, not only a toast. */
+  const [pendingErrors, setPendingErrors] = useState<Record<string, LoadError>>({});
   const [deviceRemembered, setDeviceRemembered] = useState(false);
 
   const [wait, setWait] = useState<WaitState>(IDLE_WAIT);
@@ -466,6 +564,8 @@ function useFintsState() {
   const [idleMinutes, setIdleMinutesState] = useState<IdleMinutes>(DEFAULT_IDLE_MINUTES);
   /** Shortcuts on one unmodified key (/, ?, N, B, G, 1–9). On unless turned off. */
   const [singleKeyShortcuts, setSingleKeyShortcutsState] = useState(true);
+  /** Company logos: off until the user answers the dashboard's one-time question. */
+  const [logoConsent, setLogoConsentState] = useState<LogoConsent>('unasked');
 
   // Session clock.
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
@@ -475,6 +575,10 @@ function useFintsState() {
   const [tab, setTabState] = useState<DashboardTab>('overview');
   const [txFilter, setTxFilter] = useState<TxFilter>(EMPTY_FILTER);
   const [txFocusNonce, setTxFocusNonce] = useState(0);
+  // The Umsatzanalyse's month (null: not chosen yet) and accounts — kept here
+  // rather than in the tab, so a look at the Umsätze and back keeps them.
+  const [analysisPeriod, setAnalysisPeriod] = useState<AnalysisPeriod | null>(null);
+  const [analysisScope, setAnalysisScope] = useState<AnalysisScope>('account');
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferPrefill, setTransferPrefill] = useState<TransferPrefill | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -482,6 +586,10 @@ function useFintsState() {
   const [inboxOpen, setInboxOpenState] = useState(false);
   const [paletteOpen, setPaletteOpenState] = useState(false);
   const [shortcutsOpen, setShortcutsOpenState] = useState(false);
+  /** "Trotzdem abmelden?" — asked only while the session log holds a transfer whose status is unclear. */
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  /** "Gerät vergessen?" — from the Sitzung panel or the "Gerät gemerkt" toast; one confirmation for both. */
+  const [forgetDeviceOpen, setForgetDeviceOpenState] = useState(false);
 
   // The applied statement range — what every load asks the bank for.
   const [range, setRange] = useState<DateRange>(() => defaultRange());
@@ -508,11 +616,17 @@ function useFintsState() {
   const selectedMethodRef = useRef<SerializedTanMethod | null>(null);
   const tanMethodsRef = useRef<SerializedTanMethod[]>([]);
   const balancesRef = useRef(balances);
+  /** What an account is called on screen (alias or bank name), for a toast written after an await. */
+  const accountLabelRef = useRef((a: SerializedAccount) => a.product?.trim() || translateType(a.accountType));
   const txCacheRef = useRef(txCache);
   const metaRef = useRef<MetaResponse | null>(null);
   const waitRef = useRef<WaitState>(IDLE_WAIT);
   /** Names already sent for logo lookup — each is attempted once per session. */
   const merchantsAsked = useRef<Set<string>>(new Set());
+  const logoConsentRef = useRef<LogoConsent>('unasked');
+  /** The Vorgemerkt lists, for the logo lookup that catches up after a yes. */
+  const pendingFetchedRef = useRef(pendingFetched);
+  pendingFetchedRef.current = pendingFetched;
   const waitCbRef = useRef<WaitCallbacks>({});
   /**
    * Bumped whenever a wait starts, closes or the session ends. A poll that
@@ -520,6 +634,8 @@ function useFintsState() {
    * at any more, and is dropped.
    */
   const waitGenRef = useRef(0);
+  /** The last approval that came through: what it was for, under which generation, when. */
+  const lastConfirmedRef = useRef<{ kind: WaitKind; gen: number; at: number } | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastId = useRef(0);
 
@@ -536,6 +652,9 @@ function useFintsState() {
   const lastKeepaliveRef = useRef(0);
 
   const messagesRef = useRef<InboxMessage[]>([]);
+  /** The session log, for a logout that has to say what it is about to drop. */
+  const activityRef = useRef<ActivityEntry[]>([]);
+  activityRef.current = activity;
   const lastTransferRef = useRef<TransferPayload | null>(null);
 
   const vaultRef = useRef<VaultData | null>(null);
@@ -581,14 +700,22 @@ function useFintsState() {
   }, []);
 
   // ---- toasts -------------------------------------------------------------
-  const toast = useCallback((message: string, tone: ToastTone = 'info', ms?: number, action?: ToastAction) => {
+  // How long one stays is decided in Toasts.tsx (lib/toast-time.ts): `ms` is
+  // the least the caller asks for, and reading time or an action lengthen it.
+  const toast = useCallback((message: string, tone: ToastTone = 'info', ms?: number, action?: ToastAction): number => {
     const id = ++toastId.current;
     const entry: Toast = {
-      id, message, tone, ms: ms ?? (tone === 'error' ? 9000 : 4200), ...(action ? { action } : {}),
+      id, message, tone, ms: ms ?? (tone === 'error' ? 10_000 : 4200), ...(action ? { action } : {}),
     };
     // The same message again replaces the earlier one (and restarts its time)
     // rather than stacking — "Bitte warten" five times says nothing new.
     setToasts((list) => [...list.filter((t) => t.message !== message || t.tone !== tone), entry].slice(-MAX_TOASTS));
+    return id;
+  }, []);
+
+  /** Rewords a toast still on screen, its time running on — for a fact that is only confirmed later. */
+  const rewordToast = useCallback((id: number, message: string) => {
+    setToasts((list) => list.map((t) => (t.id === id ? { ...t, message } : t)));
   }, []);
 
   const dismissToast = useCallback((id: number) => {
@@ -613,9 +740,26 @@ function useFintsState() {
 
     get<PopularBank[]>('/api/banks').then(setPopularBanks).catch(() => setPopularBanks([]));
 
-    const last = store.get('fints.lastBank');
-    if (last) {
-      try { setBank(JSON.parse(last) as ChosenBank); } catch { /* stale value */ }
+    // The bank picked last time, once the list confirms it is still there —
+    // before the credentials form shows, so nobody types a PIN for a bank
+    // that has since merged away.
+    let last: ChosenBank | null = null;
+    try { last = JSON.parse(store.get('fints.lastBank') ?? 'null') as ChosenBank | null; } catch { /* stale value */ }
+    if (last?.blz) {
+      const remembered = last;
+      get<{ bank: BankSearchHit | null }>(`/api/banks?blz=${encodeURIComponent(remembered.blz)}`)
+        .then(({ bank: listed }) => {
+          if (listed) {
+            setBank({ blz: listed.blz, name: listed.name, location: listed.location, brand: listed.brand, bic: listed.bic });
+          } else {
+            setStaleBank(remembered);
+          }
+        })
+        // The check itself failed: keep the bank. A login would say if it is gone.
+        .catch(() => setBank(remembered))
+        .finally(() => setBankChecking(false));
+    } else {
+      setBankChecking(false);
     }
 
     // Read after mount rather than in the initial state: the server render has
@@ -630,7 +774,17 @@ function useFintsState() {
       setIdleMinutesState(idle);
     }
     if (store.get('fints.singleKeys') === '0') setSingleKeyShortcutsState(false);
+    const logos = store.get('fints.merchantLogos');
+    if (logos === 'on' || logos === 'off') {
+      logoConsentRef.current = logos;
+      setLogoConsentState(logos);
+    }
   }, []);
+
+  // Once a bank is chosen, the note about the one that left the list has done its job.
+  useEffect(() => {
+    if (bank) setStaleBank(null);
+  }, [bank]);
 
   useEffect(() => () => {
     if (pollTimer.current) clearTimeout(pollTimer.current);
@@ -676,29 +830,46 @@ function useFintsState() {
     method: SerializedTanMethod | null,
     data: TanGate,
     cbs: WaitCallbacks,
-    opts: { title?: string; kind?: WaitKind } = {},
+    opts: {
+      kind?: WaitKind;
+      /** What the user confirms, as the object of "bestätige …": "den Abruf der Umsätze von …". */
+      subject?: string;
+      order?: WaitOrder | null;
+    } = {},
   ) => {
     stopTimers();
+    const kind = opts.kind ?? 'statements';
+    // Right after the login's own approval, a statement that asks for one
+    // more looks like the first request again. Said once, so it is not
+    // mistaken for that one having failed.
+    const prev = lastConfirmedRef.current;
+    lastConfirmedRef.current = null;
+    const second = kind === 'statements' && prev?.kind === 'login' && prev.gen === waitGenRef.current
+      && Date.now() - prev.at < SECOND_APPROVAL_MS;
     const gen = ++waitGenRef.current;
     const sid = sessionRef.current;
     waitCbRef.current = cbs;
+    const subject = opts.subject || WAIT_SUBJECT[kind];
     setWait({
       open: true,
-      kind: opts.kind ?? 'statements',
-      title: opts.title || 'Freigabe in deiner App',
+      kind,
+      // The overlay names each kind of approval itself (TanWaitOverlay.tsx).
+      title: '',
       text: method?.isDecoupled
-        ? `Öffne „${method.name}“ und bestätige die Anfrage.`
-        : 'Bestätige die Anfrage in deiner Banking-App.',
+        ? `Öffne „${method.name}“ und bestätige ${subject}.`
+        : `Bestätige ${subject} in deiner Banking-App.`,
       challenge: data.tanChallenge || null,
       phase: 'waiting',
       error: null,
-      canRetry: false,
+      canRetry: !!cbs.retry,
       startedAt: Date.now(),
       settledAt: null,
       vop: data.vop || null,
       tanMediaName: data.tanMediaName?.trim()
         || (method?.activeTanMedia?.length === 1 ? method.activeTanMedia[0] : null)
         || null,
+      order: opts.order ?? null,
+      note: second ? 'Die Anmeldung ist freigegeben – für die Umsätze fragt deine Bank ein zweites Mal.' : null,
     });
 
     const interval = Math.max(1500, (method?.decoupled?.waitBetween || 2) * 1000);
@@ -724,14 +895,28 @@ function useFintsState() {
             phase: 'ended',
             settledAt: Date.now(),
             title: 'Freigabe nicht rechtzeitig angekommen',
-            text:
-              'Die Bank hat den Vorgang beendet, bevor die Freigabe verarbeitet wurde. ' +
-              'Bitte erneut starten und die Freigabe zügig bestätigen.',
+            // The bank's timeout, not the user's: no "zügig" (critique auth #6).
+            text: 'Deine Bank hat die Anfrage beendet. Sende sie neu und bestätige sie in der App.',
+            canRetry: !!waitCbRef.current.retry,
+          }));
+          return;
+        }
+        if (r.status === 'refused' || r.status === 'unclear') {
+          // The bank's own answer — never mistaken for a lost connection.
+          stopTimers();
+          const handler = waitCbRef.current.onAnswer;
+          if (handler) { handler(r.status, r.bankAnswers); return; }
+          setWait((w) => ({
+            ...w,
+            phase: r.status === 'refused' ? 'refused' : 'error',
+            settledAt: Date.now(),
+            error: r.bankAnswers || 'Deine Bank hat die Freigabe nicht bestätigt.',
             canRetry: !!waitCbRef.current.retry,
           }));
           return;
         }
         stopTimers();
+        lastConfirmedRef.current = { kind, gen, at: Date.now() };
         setWait((w) => ({ ...w, phase: 'confirmed', settledAt: Date.now() }));
         // Only closes *this* wait: onDone may already have started the next
         // one (a statement that needs its own approval right after login).
@@ -739,6 +924,8 @@ function useFintsState() {
         waitCbRef.current.onDone?.(r);
       } catch (err) {
         // A 401 has already logged out (and bumped the generation) by now.
+        // Anything else — the bank unreachable, "Kein offener Vorgang" — says
+        // nothing about the approval: the overlay calls it unverifiable.
         if (gen !== waitGenRef.current) return;
         stopTimers();
         setWait((w) => ({
@@ -775,7 +962,7 @@ function useFintsState() {
     // logout, so the half-open session (and the PIN it holds in the server's
     // memory) is dropped now rather than by the 30-minute sweep.
     if (!accountsRef.current.length) {
-      void logoutRef.current('user');
+      void logoutRef.current('cancelled');
       return;
     }
     setBusy(false);
@@ -793,16 +980,27 @@ function useFintsState() {
    * render (the first statement right after the login).
    */
   const decoupledMethod = useCallback(() => {
-    const list = tanMethodsRef.current;
-    return selectedMethodRef.current || list.find((m) => m.isDecoupled) || list[0] || null;
+    // Never a typed-TAN method as a stand-in: an app-approval wait cannot
+    // succeed on one. Without a decoupled method the wait says only "in
+    // deiner Banking-App" and polls at the default pace.
+    return selectedMethodRef.current || tanMethodsRef.current.find((m) => m.isDecoupled) || null;
   }, []);
+
+  /** An account as an approval names it — the user's own name for it first (read from the ref: see above). */
+  const approvalAccountName = useCallback((a: SerializedAccount) => (
+    vaultRef.current?.aliases?.[a.accountNumber] || a.product?.trim() || translateType(a.accountType)
+  ), []);
 
   // ---- company logos ------------------------------------------------------
   // Decoration, so it runs outside the `busy` gate that serialises bank calls
   // and never blocks or fails a statement. Each counterparty is asked about
   // once per session; the server caches misses too.
+  //
+  // Names leave the machine for Brandfetch only once the user has said yes:
+  // until then every lookup is held (not queued — setLogoConsent catches up
+  // on what is loaded by then), and a build without the feature never asks.
   const resolveMerchants = useCallback(async (txs: SerializedTransaction[]) => {
-    if (!metaRef.current?.merchantLogos) return;
+    if (!metaRef.current?.merchantLogos || logoConsentRef.current !== 'on') return;
     const sid = sessionRef.current;
     // Every counterparty is offered, whatever the booking type — a salary from
     // a named employer deserves its mark too. What the booking decides is only
@@ -831,7 +1029,8 @@ function useFintsState() {
       const found = await post<MerchantsResponse>('/api/merchants', {
         sessionId: sid, items, businessNames: [...business],
       });
-      if (!isCurrent(sid)) return;
+      // Switched off while the lookup ran: its logos stay unshown.
+      if (!isCurrent(sid) || logoConsentRef.current !== 'on') return;
       setMerchants((m) => ({ ...m, ...found }));
     } catch { /* a missing logo is not worth surfacing */ }
   }, [isCurrent]);
@@ -1025,28 +1224,37 @@ function useFintsState() {
    * actually covers.
    *
    * `onNotApplied` runs when no statement lands: the bank refused, the
-   * request failed, or its approval was cancelled or ran out.
+   * request failed, or its approval was cancelled or ran out. `onSettled`
+   * says which of these it was (or that it landed). A failure is kept for the
+   * account (txErrors) and announced in a toast, unless `quiet` leaves that
+   * to the caller.
    */
   const loadTransactions = useCallback(async (
     account: SerializedAccount,
     from?: string,
     to?: string,
-    opts: { force?: boolean; onNotApplied?: () => void } = {},
+    opts: { force?: boolean; onNotApplied?: () => void; quiet?: boolean; onSettled?: LoadSettled } = {},
   ) => {
     const applied = resolveRange();
     const span = { from: from || applied.from, to: to || applied.to };
     const cacheKey = rangeKey(span);
     const acct = account.accountNumber;
-    const notApplied = () => opts.onNotApplied?.();
+    const notApplied = (outcome: LoadOutcome, error?: string) => {
+      opts.onNotApplied?.();
+      opts.onSettled?.(outcome, error);
+    };
 
+    // No Umsätze over FinTS for this account (a Depot, most often): asking
+    // would only bring back the library's refusal, in English.
+    if (!account.canStatements) { notApplied('skipped'); return; }
     if (!opts.force) {
       const cached = txCacheRef.current[acct];
-      if (cached && cached.key === cacheKey) { setTxError(null); return; }
+      if (cached && cached.key === cacheKey) { opts.onSettled?.('applied'); return; }
     }
-    if (busyRef.current) { notApplied(); return; }
+    if (busyRef.current) { notApplied('busy'); return; }
 
     const sid = sessionRef.current;
-    setTxError(null);
+    setTxErrors((e) => without(e, acct));
     setBusy(true);
     setLoadingAccount(acct);
 
@@ -1072,6 +1280,7 @@ function useFintsState() {
         } else {
           balancesRef.current = { ...balancesRef.current, [acct]: balance };
           setBalances((b) => ({ ...b, [acct]: balance }));
+          setBalanceErrors((e) => without(e, acct));
         }
       }
       setTxCache((c) => ({ ...c, [acct]: { key: cacheKey, txs: list } }));
@@ -1088,6 +1297,7 @@ function useFintsState() {
         );
       }
       void resolveMerchants(list);
+      opts.onSettled?.('applied');
     };
 
     try {
@@ -1106,15 +1316,18 @@ function useFintsState() {
           onDone: (r) => {
             finish();
             if (r.kind === 'statements') apply(r.transactions, r.balance, r.blocks);
-            else notApplied();
+            else notApplied('failed');
           },
           retry: () => {
             finish();
-            void loadTransactions(account, span.from, span.to, { force: true, onNotApplied: opts.onNotApplied });
+            void loadTransactions(account, span.from, span.to, { ...opts, force: true });
           },
           // "Abbrechen" while waiting, "Schließen" once it failed or ran out.
-          onCancelled: notApplied,
-        }, { kind: 'statements' });
+          onCancelled: () => notApplied('cancelled'),
+        }, {
+          kind: 'statements',
+          subject: `den Abruf der Umsätze von ${approvalAccountName(account)} ab ${fmtDate(toLocalDate(span.from))}`,
+        });
       } else {
         finish();
         apply(data.transactions, data.balance, data.blocks);
@@ -1122,17 +1335,137 @@ function useFintsState() {
     } catch (err) {
       if (!isCurrent(sid)) return;
       finish();
-      setTxError((err as Error).message);
-      notApplied();
+      // Where the figure would be, the hero and the account's row now say
+      // that it failed and why; the toast is the one announcement of it.
+      const message = (err as Error).message;
+      setTxErrors((e) => ({ ...e, [acct]: { message, at: Date.now() } }));
+      if (!opts.quiet) toast(failureSentence([{ name: accountLabelRef.current(account), message }])!, 'error');
+      notApplied('failed', message);
     }
-  }, [resolveRange, setBusy, isCurrent, startDecoupledWait, decoupledMethod, resolveMerchants, toast]);
+  }, [resolveRange, setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, resolveMerchants, toast]);
+
+  // ---- balances -----------------------------------------------------------
+  /**
+   * Asks the bank for one account's balance alone (HKSAL). For an account
+   * without Umsätze to read the balance from, and for "Alle Salden abrufen",
+   * which completes the Gesamtsaldo without loading — and switching to —
+   * every account's statement. Never on its own: like any read it can cost an
+   * approval. A known balance is only replaced by one at least as new
+   * (acceptsBalance). `quiet` and `onSettled` as for loadTransactions.
+   */
+  const loadBalance = useCallback(async (
+    account: SerializedAccount,
+    opts: { quiet?: boolean; onSettled?: LoadSettled } = {},
+  ) => {
+    const acct = account.accountNumber;
+    const settle: LoadSettled = (outcome, error) => opts.onSettled?.(outcome, error);
+    if (!account.canBalance) { settle('skipped'); return; }
+    if (busyRef.current) {
+      if (!opts.quiet) toast(BUSY_MESSAGE, 'info');
+      settle('busy');
+      return;
+    }
+    const sid = sessionRef.current;
+    setBalanceErrors((e) => without(e, acct));
+    setBusy(true);
+    setBalanceLoading(acct);
+
+    const finish = () => { setBusy(false); setBalanceLoading(null); };
+    const fail = (message: string) => {
+      setBalanceErrors((e) => ({ ...e, [acct]: { message, at: Date.now() } }));
+      if (!opts.quiet) toast(failureSentence([{ name: accountLabelRef.current(account), message }])!, 'error');
+      settle('failed', message);
+    };
+    const apply = (balance: SerializedBalance | null) => {
+      // An answer without a balance is not a zero balance.
+      if (!balance) { fail('Deine Bank hat für dieses Konto keinen Saldo gemeldet.'); return; }
+      if (acceptsBalance(balancesRef.current[acct], balance)) {
+        balancesRef.current = { ...balancesRef.current, [acct]: balance };
+        setBalances((b) => ({ ...b, [acct]: balance }));
+      }
+      settle('applied');
+    };
+
+    try {
+      const data = await post<BalanceResponse>('/api/balance', { sessionId: sid, accountNumber: acct });
+      if (!isCurrent(sid)) return;
+      if (data.needsTan) {
+        startDecoupledWait(decoupledMethod(), data, {
+          onDone: (r) => {
+            finish();
+            if (r.kind === 'balance') apply(r.balance);
+            else fail('Die Antwort deiner Bank passte nicht zur Saldoabfrage.');
+          },
+          retry: () => { finish(); void loadBalance(account, opts); },
+          onCancelled: () => { finish(); settle('cancelled'); },
+        }, { kind: 'balance', subject: `die Saldoabfrage für ${approvalAccountName(account)}` });
+      } else {
+        finish();
+        apply(data.balance);
+      }
+    } catch (err) {
+      if (!isCurrent(sid)) return;
+      finish();
+      fail((err as Error).message);
+    }
+  }, [setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, toast]);
+
+  /**
+   * "Alle Salden abrufen": every balance this session does not know yet, one
+   * account after the other behind `busy` (lib/balances.ts balanceQueue). The
+   * active account stays the active one. Stops when an approval is
+   * cancelled; what failed is said once, at the end. Never started on its
+   * own — each read can cost an approval.
+   */
+  const loadAllBalances = useCallback(() => {
+    if (busyRef.current) {
+      toast(BUSY_MESSAGE, 'info');
+      return;
+    }
+    const sid = sessionRef.current;
+    const queue = balanceQueue(accountsRef.current, balancesRef.current, resolveRange().to >= isoDate(new Date()));
+    if (!queue.length) {
+      // Only accounts whose statement is the way to their balance are left,
+      // and the applied range ends before today.
+      if (accountsRef.current.some((a) => a.canStatements && !balancesRef.current[a.accountNumber])) {
+        toast('Diese Konten melden ihren Saldo nur mit den Umsätzen. Wähle bei den Umsätzen einen Zeitraum bis heute.', 'info', 8000);
+      }
+      return;
+    }
+
+    const failed: Array<{ name: string; message: string }> = [];
+    setLoadingAllBalances(true);
+    const done = () => {
+      setLoadingAllBalances(false);
+      const sentence = failureSentence(failed);
+      if (sentence) toast(sentence, 'error');
+    };
+    const next = () => {
+      // Logged out meanwhile: resetSession has already put everything back.
+      if (!isCurrent(sid)) return;
+      const step = queue.shift();
+      if (!step) { done(); return; }
+      const { account } = step;
+      const onSettled: LoadSettled = (outcome, error) => {
+        if (outcome === 'failed') failed.push({ name: accountLabelRef.current(account), message: error ?? '' });
+        // Cancelled: the user said no to an approval, so no further ones are asked for.
+        if (outcome === 'cancelled' || outcome === 'busy') done();
+        else next();
+      };
+      if (step.via === 'balance') void loadBalance(account, { quiet: true, onSettled });
+      else void loadTransactions(account, undefined, undefined, { quiet: true, onSettled });
+    };
+    next();
+  }, [toast, resolveRange, isCurrent, loadBalance, loadTransactions]);
 
   const selectAccount = useCallback((a: SerializedAccount) => {
     if (busyRef.current) return; // don't interrupt an in-flight approval
     setActiveAccount(a);
     activeAccountRef.current = a;
     void loadTransactions(a);
-  }, [loadTransactions]);
+    // No Umsätze to read its balance from: ask for the balance alone.
+    if (!a.canStatements && a.canBalance && !balancesRef.current[a.accountNumber]) void loadBalance(a);
+  }, [loadTransactions, loadBalance]);
 
   /** Drop the cache for one account and re-read it from the bank. */
   const refreshAccount = useCallback((account: SerializedAccount, from?: string, to?: string) => {
@@ -1160,8 +1493,21 @@ function useFintsState() {
         rangeAnchorRef.current = prevAnchor;
         setRange(prev);
       },
+      // A failure says so in its own toast. An approval that was not given
+      // closes without a word — so this says what the screen still shows.
+      onSettled: (outcome) => {
+        if (outcome !== 'cancelled' || rangeRef.current !== prev) return;
+        const span = fmtRange(prev.from, prev.to);
+        toast(
+          next.from < prev.from
+            ? `Ältere Umsätze wurden nicht abgerufen – es bleibt beim Zeitraum ${span}.`
+            : `Der neue Zeitraum wurde nicht abgerufen – es bleibt bei ${span}.`,
+          'info',
+          8000,
+        );
+      },
     });
-  }, [setAppliedRange, loadTransactions]);
+  }, [setAppliedRange, loadTransactions, toast]);
 
   /**
    * Makes `r` the range every statement load uses, and re-reads the active
@@ -1176,7 +1522,7 @@ function useFintsState() {
       return;
     }
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
     const account = activeAccountRef.current;
@@ -1195,7 +1541,7 @@ function useFintsState() {
    */
   const refreshAfterTransfer = useCallback((account: SerializedAccount) => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
     const today = isoDate(new Date());
@@ -1213,10 +1559,11 @@ function useFintsState() {
   // ---- vorgemerkte Umsätze ------------------------------------------------
   const loadPending = useCallback(async (account: SerializedAccount) => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
     const sid = sessionRef.current;
+    setPendingErrors((e) => without(e, account.accountNumber));
     setBusy(true);
     setPendingLoading(account.accountNumber);
 
@@ -1235,7 +1582,7 @@ function useFintsState() {
         startDecoupledWait(decoupledMethod(), data, {
           onDone: (r) => { finish(); if (r.kind === 'pending') apply(r.pending); },
           retry: () => { finish(); void loadPending(account); },
-        }, { title: 'Vorgemerkte Umsätze freigeben', kind: 'pending' });
+        }, { kind: 'pending', subject: `den Abruf der vorgemerkten Umsätze von ${approvalAccountName(account)}` });
       } else {
         finish();
         apply(data.pending);
@@ -1243,9 +1590,13 @@ function useFintsState() {
     } catch (err) {
       if (!isCurrent(sid)) return;
       finish();
-      toast((err as Error).message, 'error');
+      // The Vorgemerkt panel keeps the reason (and the way to try again);
+      // the toast is the one announcement of it.
+      const message = (err as Error).message;
+      setPendingErrors((e) => ({ ...e, [account.accountNumber]: { message, at: Date.now() } }));
+      toast(`Abruf der vorgemerkten Umsätze für „${accountLabelRef.current(account)}“ fehlgeschlagen: ${message}`, 'error');
     }
-  }, [setBusy, isCurrent, startDecoupledWait, decoupledMethod, toast, resolveMerchants]);
+  }, [setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, toast, resolveMerchants]);
 
   // ---- session clock ------------------------------------------------------
   // The dashboard logs itself out after `idleMinutes` without input. The exact
@@ -1366,6 +1717,28 @@ function useFintsState() {
     store.set('fints.singleKeys', on ? '1' : '0');
   }, []);
 
+  /**
+   * The answer to "Firmenlogos anzeigen?" (the dashboard asks once), or the
+   * Sitzung panel's switch. Yes looks up what is loaded already. No drops
+   * every logo of this session at once, so the logo proxy is not asked for
+   * one again either.
+   */
+  const setLogoConsent = useCallback((on: boolean) => {
+    const next: LogoConsent = on ? 'on' : 'off';
+    logoConsentRef.current = next;
+    setLogoConsentState(next);
+    store.set('fints.merchantLogos', next);
+    if (on) {
+      void resolveMerchants([
+        ...Object.values(txCacheRef.current).flatMap((c) => c.txs),
+        ...Object.values(pendingFetchedRef.current).flatMap((p) => p.txs),
+      ]);
+    } else {
+      setMerchants({});
+      merchantsAsked.current.clear();
+    }
+  }, [resolveMerchants]);
+
   // ---- navigation & launchers ---------------------------------------------
   const setTab = useCallback((t: DashboardTab) => setTabState(t), []);
   const setInboxOpen = useCallback((b: boolean) => setInboxOpenState(b), []);
@@ -1460,18 +1833,9 @@ function useFintsState() {
     // start the next session with yesterday's "today".
     setAppliedRange(defaultRange());
     setView('dashboard');
-
-    // Announced once the dashboard is there to show them — on the TAN-method
-    // screen there is nowhere for "Anzeigen" to go.
-    const unread = messagesRef.current.filter((m) => !m.read).length;
-    if (unread) {
-      toast(
-        `${unread} ${unread === 1 ? 'Mitteilung' : 'Mitteilungen'} deiner Bank`,
-        'info',
-        8000,
-        { label: 'Anzeigen', run: () => setInboxOpenState(true) },
-      );
-    }
+    // The bank's messages are announced by the masthead's bell and the
+    // Übersicht's Mitteilungen tile, both of which stay until they are read —
+    // not by a toast as well (components/shell/MessagesTeaser.tsx).
 
     if (list[0]) {
       setActiveAccount(list[0]);
@@ -1480,20 +1844,40 @@ function useFintsState() {
     }
     // Not a bank call: it runs beside the first statement, outside `busy`.
     void loadVault(sid);
-  }, [startSessionClock, setAppliedRange, toast, loadTransactions, loadVault]);
+  }, [startSessionClock, setAppliedRange, loadTransactions, loadVault]);
 
+  // Said after the fact, so the way back is right there: on a shared
+  // computer "Gerät vergessen" is one press away, not a trip to the Sitzung
+  // panel. The press opens the same confirmation the panel does — never the
+  // deletion itself, which F6 then Enter would otherwise set off unasked.
+  const setForgetDeviceOpen = useCallback((b: boolean) => setForgetDeviceOpenState(b), []);
   const notifyDeviceSaved = useCallback(() => {
     setDeviceRemembered(true);
-    toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 6000);
+    toast('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 10_000, {
+      label: 'Gerät vergessen …',
+      run: () => setForgetDeviceOpenState(true),
+    });
   }, [toast]);
+
+  /** The login the bank is being asked for right now, so it can be called off. */
+  const connectAttemptRef = useRef<{ id: string; ctrl: AbortController } | null>(null);
 
   const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string) => {
     // "Zurück zur Anmeldung" from the TAN-method screen leaves the half-open
     // session behind; a new login replaces it.
     const previous = sessionRef.current;
-    const data = await post<ConnectResponse>('/api/connect', {
-      blz: chosen.blz, userId: login, pin,
-    });
+    const attempt = { id: newAttemptId(), ctrl: new AbortController() };
+    connectAttemptRef.current = attempt;
+    let data: ConnectResponse;
+    try {
+      data = await post<ConnectResponse>('/api/connect', {
+        blz: chosen.blz, userId: login, pin, attemptId: attempt.id,
+      }, { signal: attempt.ctrl.signal });
+    } finally {
+      if (connectAttemptRef.current === attempt) connectAttemptRef.current = null;
+    }
+    // Called off while the answer was on its way: it goes nowhere.
+    if (attempt.ctrl.signal.aborted) throw new DOMException('Die Anmeldung wurde abgebrochen.', 'AbortError');
 
     store.set('fints.lastBank', JSON.stringify(chosen));
     store.set(`fints.userId.${chosen.blz}`, login);
@@ -1530,16 +1914,29 @@ function useFintsState() {
       setSelectedMethodBoth(data.selectedTanMethod);
       setTanMethodsBoth(data.selectedTanMethod ? [data.selectedTanMethod] : []);
       setDeviceRemembered(true);
-      toast('Gerät erkannt — ohne neue TAN angemeldet.');
+      toast('Gerät erkannt – ohne neue Freigabe angemeldet.');
       afterAccountsReady(data.accounts || []);
     } else if ('tanMethods' in data) {
       setTanMethodsBoth(data.tanMethods || []);
       setSelectedMethodBoth(null);
       setMediaChoice(null);
-      setTanMethodError(data.tanMethods?.length ? null : 'Die Bank bietet keine TAN-Verfahren für diesen Zugang an.');
+      setTanMethodError(data.tanMethods?.length ? null : 'Deine Bank bietet für diesen Zugang kein Sicherheitsverfahren an.');
       setView('tanmethod');
     }
   }, [afterAccountsReady, toast, setSelectedMethodBoth, setTanMethodsBoth]);
+
+  /**
+   * "Abbrechen" while the bank is being asked for the login: its answer is
+   * dropped here, and the server ends the bank request and drops whatever
+   * the attempt already holds — the PIN with it (app/api/connect/cancel).
+   */
+  const cancelConnect = useCallback(() => {
+    const attempt = connectAttemptRef.current;
+    if (!attempt) return;
+    connectAttemptRef.current = null;
+    attempt.ctrl.abort();
+    post('/api/connect/cancel', { attemptId: attempt.id }).catch(() => { /* the 30-minute sweep remains */ });
+  }, []);
 
   const chooseTanMethod = useCallback(async (method: SerializedTanMethod, tanMediaName?: string) => {
     const sid = sessionRef.current;
@@ -1603,7 +2000,7 @@ function useFintsState() {
     try {
       await post('/api/forget-device', { sessionId: sessionRef.current });
       setDeviceRemembered(false);
-      toast('Gerät vergessen — bei der nächsten Anmeldung wird wieder eine TAN angefragt.', 'info', 6000);
+      toast('Gerät vergessen – bei der nächsten Anmeldung fragt deine Bank wieder nach einer Freigabe.', 'info', 6000);
     } catch (err) {
       toast((err as Error).message, 'error');
     }
@@ -1638,8 +2035,12 @@ function useFintsState() {
     setBusy(false);
     setLoadingAccount(null);
     setPendingLoading(null);
+    setPendingErrors({});
     setDeviceRemembered(false);
-    setTxError(null);
+    setTxErrors({});
+    setBalanceErrors({});
+    setBalanceLoading(null);
+    setLoadingAllBalances(false);
     setWait(IDLE_WAIT);
     setPrintJob(null);
 
@@ -1653,6 +2054,8 @@ function useFintsState() {
     setTabState('overview');
     setTxFilter(EMPTY_FILTER);
     setTxFocusNonce(0);
+    setAnalysisPeriod(null);
+    setAnalysisScope('account');
     setTransferOpen(false);
     setTransferPrefill(null);
     setShareOpen(false);
@@ -1660,6 +2063,8 @@ function useFintsState() {
     setInboxOpenState(false);
     setPaletteOpenState(false);
     setShortcutsOpenState(false);
+    setLogoutConfirmOpen(false);
+    setForgetDeviceOpenState(false);
     setAppliedRange(defaultRange());
 
     messagesRef.current = [];
@@ -1685,45 +2090,74 @@ function useFintsState() {
    * session the logout is about to drop), then the server forgets the session.
    * Logout clears the session only; the remembered device stays (use "Gerät
    * vergessen" to wipe it).
+   *
+   * Every logout is said on the login screen it lands on. A user's says that
+   * the PIN is gone only once the server confirmed it dropped the session —
+   * the session object is what held it (lib/session-log.ts logoutNotice).
    */
   const logout = useCallback(async (reason: LogoutReason = 'user') => {
     // `onClick={logout}` hands over a click event; that is a user logout too.
-    if (reason !== 'idle' && reason !== 'expired') reason = 'user';
+    if (reason !== 'idle' && reason !== 'expired' && reason !== 'cancelled') reason = 'user';
     const sid = sessionRef.current;
-    // A straggling idle tick or 401 after the session already ended.
-    if (!sid && reason !== 'user') return;
+    if (!sid) {
+      // A straggling idle tick or 401 after the session already ended, or a
+      // second press on "Abmelden": nothing is left to end or to announce.
+      if (reason === 'user' || reason === 'cancelled') resetSession();
+      return;
+    }
 
     // Captured before the reset below empties the vault. An expired session
     // cannot take a save any more, so that one is not attempted.
     const saved = reason === 'expired' ? Promise.resolve() : flushVault();
-    // A transfer approval whose status check failed does not hold the session
-    // (see inFlight) — but the order may have gone through. The reset below
-    // takes the sheet and its "Status unklar" with it, so the notice has to
-    // say it, or the user, back at the login screen, sends it again.
+    // What the reset below takes with it, and the notice therefore has to
+    // name, or the user, back at the login screen, sends it again: transfers
+    // whose outcome is unclear — those in the session log, and an approval
+    // whose status check failed (it no longer holds the session, see
+    // inFlight, but the order may have gone through).
     const w = waitRef.current;
-    const unsure = reason === 'idle' && w.open && w.kind === 'transfer' && !waitHoldsSession(w);
-    const to = unsure ? lastTransferRef.current?.recipientName.trim() : '';
+    const unclear = unclearTransfers(activityRef.current).map((e) => e.name);
+    if (w.open && w.kind === 'transfer' && !waitHoldsSession(w)) {
+      unclear.unshift(lastTransferRef.current?.recipientName.trim() ?? '');
+    }
     resetSession();
 
+    let notice: number | null = null;
     if (reason === 'idle') {
-      toast(
-        unsure
-          ? `Du wurdest aus Sicherheitsgründen abgemeldet. Der Status deiner Überweisung${to ? ` an ${to}` : ''} ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.`
-          : 'Du wurdest aus Sicherheitsgründen abgemeldet.',
-        'info',
-        IDLE_NOTICE_MS,
-      );
+      toast(idleLogoutNotice(unclear, unclear.length), 'info', IDLE_NOTICE_MS);
     } else if (reason === 'expired') {
       toast('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.', 'error');
+    } else {
+      notice = toast(logoutNotice(reason, false), 'info', 6000);
     }
 
     await Promise.race([saved, delay(LOGOUT_FLUSH_TIMEOUT_MS)]);
-    if (sid) {
-      try { await post('/api/logout', { sessionId: sid }); } catch { /* best effort */ }
+    let dropped = false;
+    try {
+      await post('/api/logout', { sessionId: sid });
+      dropped = true;
+    } catch { /* best effort — the server's 30-minute sweep remains */ }
+    if (notice != null && dropped && (reason === 'user' || reason === 'cancelled')) {
+      rewordToast(notice, logoutNotice(reason, true));
     }
-  }, [flushVault, resetSession, toast]);
+  }, [flushVault, resetSession, toast, rewordToast]);
 
   logoutRef.current = logout;
+
+  /**
+   * "Abmelden" from the Sitzung panel or the palette. Asks first only when
+   * the session log holds a transfer whose status is unclear: the logout
+   * clears that log, and with it the only record in the app of an order
+   * that may have moved money. Otherwise it logs out at once.
+   */
+  const requestLogout = useCallback(() => {
+    if (unclearTransfers(activityRef.current).length) {
+      setLogoutConfirmOpen(true);
+      return;
+    }
+    void logoutRef.current('user');
+  }, []);
+
+  const closeLogoutConfirm = useCallback(() => setLogoutConfirmOpen(false), []);
 
   // Any session-bound call that came back 401 (lib/client-api.ts).
   useEffect(() => {
@@ -1755,11 +2189,40 @@ function useFintsState() {
   }, [view, markActivity, checkIdle]);
 
   // ---- transfer -----------------------------------------------------------
-  /** Appends the outcome of the last submitted order to this session's log. */
+  /**
+   * The order whose approval is under way: already in the vault's log as
+   * unclear (see handleTransferAnswer), to be settled by its outcome.
+   */
+  const sentOrderRef = useRef<SentOrder | null>(null);
+
+  /**
+   * The vault's two-week log of sent orders, which the duplicate check reads
+   * after a logout (lib/sent-orders.ts): `next` goes in, `replaces` — the same
+   * order logged earlier — comes out. Written at once rather than with the
+   * next debounced save: an unclear order is exactly what must not be
+   * forgotten, not even by a window closed a second later.
+   */
+  const logSentOrder = useCallback((next: SentOrder | null, replaces: SentOrder | null) => {
+    updateVault((v) => {
+      const kept = replaces
+        ? v.sentOrders.filter((o) => !(o.at === replaces.at && o.iban === replaces.iban && o.cents === replaces.cents))
+        : v.sentOrders;
+      return { ...v, sentOrders: next ? recordSentOrder(kept, next) : kept };
+    });
+    void flushVault();
+  }, [updateVault, flushVault]);
+
+  /**
+   * Appends the outcome of the last submitted order to this session's log —
+   * and settles it in the vault's: executed and unclear orders stay there for
+   * two weeks, a refused one (it moved no money) leaves it.
+   */
   const logTransfer = useCallback((outcome: ActivityEntry['outcome'], message?: string) => {
     const p = lastTransferRef.current;
     if (!p) return;
-    const text = message ? repairBankText(message).trim() : ''; // idempotent on repaired text
+    // The bank's sentences without their return codes (lib/bank-answer.ts);
+    // repairing is idempotent on repaired text.
+    const text = message ? bankAnswerLines(repairBankText(message)).join('\n') : '';
     const entry: ActivityEntry = {
       id: newId(),
       at: new Date().toISOString(),
@@ -1773,7 +2236,14 @@ function useFintsState() {
       ...(text ? { message: text } : {}),
     };
     setActivity((list) => [entry, ...list].slice(0, MAX_ACTIVITY));
-  }, []);
+    const inFlight = sentOrderRef.current;
+    sentOrderRef.current = null;
+    if (outcome === 'failed') {
+      if (inFlight) logSentOrder(null, inFlight);
+    } else {
+      logSentOrder(sentOrderOf(p, outcome, inFlight?.at ?? entry.at), inFlight);
+    }
+  }, [logSentOrder]);
 
   const withActivity = useCallback((h: TransferHandlers): TransferHandlers => ({
     ...h,
@@ -1784,7 +2254,16 @@ function useFintsState() {
       logTransfer('executed', text);
       h.onExecuted(text);
     },
-    onUnknown: () => { logTransfer('unknown'); h.onUnknown(); },
+    onUnknown: (answers) => {
+      const text = answers ? repairBankText(answers) : answers;
+      logTransfer('unknown', text);
+      h.onUnknown(text);
+    },
+    onRefused: (answers) => {
+      const text = repairBankText(answers);
+      logTransfer('failed', text);
+      h.onRefused(text);
+    },
     onError: (message) => { logTransfer('failed', message); h.onError(message); },
   }), [logTransfer]);
 
@@ -1795,8 +2274,22 @@ function useFintsState() {
       handlers.onVop(data.vop);
       return;
     }
+    if ('outcome' in data) {
+      // The bank answered the order with an error before any approval.
+      setBusy(false);
+      if (data.outcome === 'refused') handlers.onRefused(data.bankAnswers);
+      else handlers.onUnknown(data.bankAnswers);
+      return;
+    }
     if ('needsTan' in data && data.needsTan) {
       handlers.onTanStarted();
+      const p = lastTransferRef.current;
+      // From here the bank holds the order: approved in the app, it executes
+      // whether or not this window is still open to hear about it. So it is
+      // logged as unclear now, and settled by its outcome.
+      const sent = p ? sentOrderOf(p, 'unknown', new Date().toISOString()) : null;
+      sentOrderRef.current = sent;
+      if (sent) logSentOrder(sent, null);
       startDecoupledWait(decoupledMethod(), data, {
         onDone: (r) => {
           setBusy(false);
@@ -1808,17 +2301,30 @@ function useFintsState() {
           closeWait();
           handlers.onUnknown();
         },
+        // A refusal in the app (or by the bank after it) has its own screen
+        // in the sheet; anything less certain is "Status unklar".
+        onAnswer: (status, answers) => {
+          setBusy(false);
+          closeWait();
+          if (status === 'refused') handlers.onRefused(answers);
+          else handlers.onUnknown(answers);
+        },
         // The order is with the bank and can still be approved in the app
         // after we stop asking — abandoning the wait does not cancel it.
         onCancelled: () => handlers.onUnknown(),
-      }, { title: 'Überweisung freigeben', kind: 'transfer' });
+      }, {
+        kind: 'transfer',
+        order: p
+          ? { amount: typedAmount(p.amount), name: sepaSanitize(p.recipientName), iban: normIban(p.iban), instant: p.instant }
+          : null,
+      });
       return;
     }
     // Executed without an approval. Unconditional, so an answer missing its
     // bank texts cannot leave `busy` stuck on.
     setBusy(false);
     handlers.onExecuted(data.bankAnswers);
-  }, [setBusy, startDecoupledWait, decoupledMethod, closeWait]);
+  }, [setBusy, startDecoupledWait, decoupledMethod, closeWait, logSentOrder]);
 
   /**
    * A request that never got an answer may still have reached the bank: the
@@ -1840,6 +2346,7 @@ function useFintsState() {
     }
     const sid = sessionRef.current;
     lastTransferRef.current = payload;
+    sentOrderRef.current = null;
     const h = withActivity(handlers);
     setBusy(true);
     try {
@@ -1885,6 +2392,8 @@ function useFintsState() {
 
   // ---- derived data -------------------------------------------------------
   const transactions = activeAccount ? txCache[activeAccount.accountNumber]?.txs ?? null : null;
+  /** Why the active account's last statement load failed — txErrors for the account on screen. */
+  const txError = activeAccount ? txErrors[activeAccount.accountNumber]?.message ?? null : null;
 
   const txByAccount = useMemo(() => {
     const out: Record<string, SerializedTransaction[]> = {};
@@ -1957,6 +2466,7 @@ function useFintsState() {
     (a: SerializedAccount) => aliases?.[a.accountNumber] || a.product?.trim() || translateType(a.accountType),
     [aliases],
   );
+  accountLabelRef.current = accountLabel;
 
   // ---- vault-backed actions -----------------------------------------------
   const renameAccount = useCallback((accountNumber: string, alias: string | null) => {
@@ -2024,10 +2534,19 @@ function useFintsState() {
    * the same counterparty. A rule also lifts the single-booking overrides that
    * loaded bookings of that counterparty carry: "für alle übernehmen" would
    * otherwise leave exactly the ones the user already touched behind.
+   * `null` undoes a choice for this one booking: it goes back to what a rule
+   * or the automatic guess says.
    */
-  const setCategory = useCallback((tx: SerializedTransaction, id: CategoryId, opts: { rule?: boolean } = {}) => {
-    if (!isCategoryId(id)) return;
+  const setCategory = useCallback((tx: SerializedTransaction, id: CategoryId | null, opts: { rule?: boolean } = {}) => {
     const key = txKey(tx);
+    if (id === null) {
+      updateVault((v) => {
+        const overrides = without(v.txCategories, key);
+        return overrides === v.txCategories ? v : { ...v, txCategories: overrides };
+      });
+      return;
+    }
+    if (!isCategoryId(id)) return;
     const who = counterpartyKey(tx);
     // A counterparty with neither IBAN, creditor ID nor name cannot carry a rule.
     if (opts.rule && who !== 'name:?') {
@@ -2046,6 +2565,14 @@ function useFintsState() {
       ? v
       : { ...v, txCategories: { ...v.txCategories, [key]: id } }));
   }, [txCache, pendingFetched, updateVault]);
+
+  /** Drops the user's rule for one counterparty (a counterpartyKey); its bookings go back to the automatic guess. */
+  const removeCategoryRule = useCallback((who: string) => {
+    updateVault((v) => {
+      const rules = without(v.categoryRules, who);
+      return rules === v.categoryRules ? v : { ...v, categoryRules: rules };
+    });
+  }, [updateVault]);
 
   // ---- printable Kontoauszug / transaction receipt ------------------------
   // A print job just snapshots what's already on screen (no extra bank call,
@@ -2068,6 +2595,7 @@ function useFintsState() {
       balance: past ? closingBalanceOf(info, activeAccount.currency) : balances[acct] ?? null,
       from: info?.from ?? from,
       to: info?.to ?? to,
+      blocks: info?.blocks ?? null,
     });
     // The desktop shell exports the PDF directly to a native save dialog (see
     // Statement.tsx); only the browser's own print dialog needs this nudge.
@@ -2078,54 +2606,63 @@ function useFintsState() {
 
   const printTransaction = useCallback((tx: SerializedTransaction, pending = false) => {
     if (!activeAccount) return;
-    const key = getMerchantKey(tx);
     setPrintJob({
       kind: 'transaction',
       account: activeAccount,
       bank,
       tx,
       pending,
-      balance: balances[activeAccount.accountNumber] ?? null,
-      merchant: merchants[key] ?? merchants[counterpartyName(tx)] ?? null,
     });
     if (typeof window === 'undefined' || !window.electronPDF) {
       toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
     }
-  }, [activeAccount, bank, balances, merchants, toast]);
+  }, [activeAccount, bank, toast]);
 
   const closePrintJob = useCallback(() => setPrintJob(null), []);
 
   return {
     // data
     view, meta, popularBanks, logoFiles, bank, sessionId, userId,
+    bankChecking, staleBank,
     tanMethods, selectedMethod, mediaChoice, tanMethodError,
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
+    txErrors, balanceErrors, balanceLoading, loadingAllBalances,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
+    pendingErrors,
     range, statementInfo, txByAccount, ownIbans,
     messages, unreadCount, activity,
     vault, vaultStatus,
     // prefs
     privacy, idleMinutes, singleKeyShortcuts,
+    logoConsent,
     // session
     sessionStartedAt, idleDeadline,
     // navigation & launchers
     tab, txFilter, txFocusNonce,
+    analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
+    logoutConfirmOpen, forgetDeviceOpen,
     // actions
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
+    cancelConnect,
+    loadBalance, loadAllBalances,
     isLoadedForAppliedRange,
     refreshAccount, refreshAfterTransfer, applyRange, loadPending, submitTransfer, confirmVop, abandonVop,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
+    requestLogout, closeLogoutConfirm, setForgetDeviceOpen,
     retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
+    setLogoConsent,
     setTab, setTxFilter, showTransactions,
+    setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
     updateVault, resetVault, wipeVault, accountLabel, renameAccount,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     categoryOf, setCategory,
+    removeCategoryRule,
   };
 }
 

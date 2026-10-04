@@ -1,9 +1,44 @@
 'use client';
 
-import { fmtShortIban } from '@/lib/format';
+import { fmtShortIban, translateType } from '@/lib/format';
 import type { SerializedAccount } from '@/lib/fints-types';
+import type { VaultStatus } from '@/lib/app-types';
 import { AccountTypeIcon } from '../icons';
 import { cx } from '../ui';
+
+// ---- names ----------------------------------------------------------------
+// An account's own name is a local alias, kept in the encrypted vault; the
+// bank never hears of it. The list renames all accounts at once, the hero
+// renames the only one.
+
+/** The provider clips an alias to this too (MAX_ALIAS); the field says so up front. */
+export const MAX_ALIAS = 60;
+
+/** What the bank itself calls the account — the name an empty alias falls back to. */
+export const bankName = (a: SerializedAccount) => a.product?.trim() || translateType(a.accountType);
+
+/** The alias to keep for what was typed: none when it is empty or the bank's own name again. */
+export function aliasFromDraft(a: SerializedAccount, draft: string): string | null {
+  const clean = draft.replace(/\s+/g, ' ').trim();
+  return clean && clean !== bankName(a) ? clean : null;
+}
+
+/**
+ * Why renaming is not possible right now. Aliases live in the encrypted vault,
+ * so a name typed while it is unreadable would quietly vanish at the next
+ * login — better to say so than to accept the edit.
+ */
+export function vaultNote(status: VaultStatus): string {
+  switch (status) {
+    case 'idle':
+    case 'loading':
+      return 'Deine persönlichen Einstellungen werden noch geladen. Gleich kannst du deine Konten umbenennen.';
+    case 'error':
+      return 'Deine gespeicherten persönlichen Einstellungen ließen sich nicht entschlüsseln – meist, weil sich deine PIN geändert hat. Bis sie zurückgesetzt sind, kann ein neuer Kontoname nicht gespeichert werden.';
+    default:
+      return 'Kontonamen werden verschlüsselt auf diesem Rechner gespeichert. Das ist in dieser Sitzung nicht möglich.';
+  }
+}
 
 /**
  * How an account is told apart from its siblings, ready to show: a part that
@@ -111,7 +146,10 @@ export function AccountGlyph({
       aria-hidden
       className={cx(
         'grid shrink-0 place-items-center rounded-full transition-colors duration-150',
-        selected ? 'bg-accent text-accent-ink' : 'bg-accent-soft text-accent',
+        // Signal Blue only on the selected row of the list, which can be
+        // pressed; elsewhere (the hero's footer, the rename form) the plate is
+        // a navy tint that reads on white and on the inset alike.
+        selected ? 'bg-accent text-accent-ink' : 'bg-[color-mix(in_srgb,var(--headline)_8%,transparent)] text-headline',
         className,
       )}
       style={{ width: size, height: size }}

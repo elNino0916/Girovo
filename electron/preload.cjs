@@ -13,11 +13,29 @@ contextBridge.exposeInMainWorld('electronTitleBar', {
   setTheme: (isDark, dim) => ipcRenderer.send('titlebar:set-theme', !!isDark, Number.isInteger(dim) ? dim : 0),
 });
 
+// SessionGuard.tsx's last minute before the automatic logout: while another
+// window is in front, the taskbar button flashes until this one is focused
+// again (or the warning closes and sends false). It never brings the window
+// forward on its own.
+contextBridge.exposeInMainWorld('electronWindow', {
+  requestAttention: (on) => ipcRenderer.send('window:attention', on === true),
+});
+
 // Statement.tsx's PDF export: renders straight out of Chromium via
 // webContents.printToPDF in the main process, then a native save dialog — no
 // OS print driver ("Microsoft Print to PDF") involved, see main.cjs.
 contextBridge.exposeInMainWorld('electronPDF', {
   exportPDF: (suggestedName) => ipcRenderer.invoke('pdf:export', suggestedName),
+});
+
+// Saving a file the app made (the CSV export) through a native Save-As, so the
+// page hears whether the file was written before it says "gespeichert" — a
+// plain download cannot tell it. See main.cjs's file:save handler.
+contextBridge.exposeInMainWorld('electronFiles', {
+  save: (suggestedName, bytes) =>
+    ArrayBuffer.isView(bytes)
+      ? ipcRenderer.invoke('file:save', String(suggestedName ?? ''), bytes)
+      : Promise.resolve({ ok: false, error: 'Die Datei konnte nicht gespeichert werden.' }),
 });
 
 // In-app updates (electron/updater.cjs). Every call answers with the

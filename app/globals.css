@@ -15,8 +15,9 @@
    - Values have their own colours and nothing else may borrow them. Green is
      a credit or a confirmation. Red is a negative balance or an error — never
      a debit, which is ordinary spending and stays ink. Amber means
-     "vorgemerkt" and nothing else. Orange is a mark, never text: the active
-     nav underline, the unread dot.
+     "vorgemerkt" and nothing else. Orange is a mark, never text: the unread
+     dot, a warning's edge and glyph, the dot in an emphasis tag. The active
+     tab's underline is action blue, like everything else that can be pressed.
    - Tiles are surfaces, not boxes: 12px corners and one soft shadow, never a
      framed card inside a framed card. Structure comes from spacing, weight
      and one hairline per list.
@@ -26,7 +27,8 @@
      with tabular lining figures for every amount so the decimal
      points of a list stand in one column, like a printed Kontoauszug. IBM
      Plex Mono is kept for what is read character by character — IBAN, BIC,
-     BLZ, references — and Barlow for the printed documents, which are frozen.
+     BLZ, references. The printed documents use the same two faces, set for
+     paper (see the .doc section at the end).
    - The protocol stays out of the interface. FinTS segment codes and the
      structured tags inside a Verwendungszweck are how the app talks to the
      bank, not something a person came here to read: a capability shows up as
@@ -39,6 +41,15 @@
    — "System" is resolved there, never by a media query here, which would
    disagree with a user who chose otherwise. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* Short windows — the desktop shell's 900×600 minimum, a laptop at 125 %,
+   any window at 200 % zoom. Height in CSS pixels shrinks with page zoom, so
+   these match a zoomed window too. `short`: an overlay's fixed header and
+   footer get compact, so the form between them keeps its room. `shorter`:
+   the page chrome (stage, institute bar) gets compact as well, so a zoomed
+   window still opens on the first account row. */
+@custom-variant short (@media (max-height: 43.75rem));
+@custom-variant shorter (@media (max-height: 32.5rem));
 
 /* Both token sets also apply to any element carrying data-theme, so a block
    can be shown in the other theme (a preview, a gallery) — its subtree simply
@@ -396,6 +407,13 @@
     --bottombar-h: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 }
+/* A zoomed or very short window: the institute bar gives back 8px of the
+   room the fixed header tiers take (see the `shorter` variant). */
+@media (min-width: 640px) and (max-height: 32.5rem) {
+  :root {
+    --subbar-h: 44px;
+  }
+}
 
 @layer base {
   html {
@@ -487,8 +505,7 @@
     font-feature-settings: 'tnum', 'lnum';
   }
 
-  /* Monospace for what is read one character at a time (and for the printed
-     documents' amount columns). Unchanged: Statement.tsx depends on it. */
+  /* Monospace for what is read one character at a time. */
   .num {
     font-family: var(--font-plex-mono), 'Cascadia Mono', Consolas, ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
@@ -738,128 +755,334 @@
 [data-theme='dark'] .logo-img[data-invert='true'] img {
   filter: invert(1) hue-rotate(180deg) saturate(1.15);
 }
-/* A mark drawn for a dark ground (lib/brands.ts ON_DARK) sits on the
-   masthead's navy in light mode; on the dark theme, bare like the rest. */
-.logo-img[data-on-dark='true'] {
-  background: var(--bar);
-  border-color: var(--bar);
+/* A mark drawn for a dark ground (lib/brands.ts ON_DARK) is set in one dark
+   colour on the light plate, like a brand's own single-colour logo — the
+   masthead's navy stays the app's identity. On the dark theme, as drawn. */
+.logo-img[data-on-dark='true'] img {
+  filter: brightness(0);
+  opacity: 0.86;
 }
-[data-theme='dark'] .logo-img[data-on-dark='true'] {
-  background: transparent;
-  border-color: transparent;
+[data-theme='dark'] .logo-img[data-on-dark='true'] img {
+  filter: none;
+  opacity: 1;
 }
 
 /* ---------- printed documents (Kontoauszug / Buchungsbeleg) ----------
-   The design system for the two sheets in Statement.tsx. They are one document
-   family and share everything: a six-step type scale, a 4pt spacing scale, one
-   label rail every block aligns to, and exactly three rules — a strong one to
-   close the letterhead and the footer, a hairline between rows, and a single
-   flat panel for the one figure a receipt is about. No frames, no filled
-   bands, no boxes: structure comes from alignment and space, which is what
-   makes a printed financial document read as authoritative rather than busy.
+   The design system for the two sheets in Statement.tsx. They are one
+   document family, read by people who are not the user — a landlord, the
+   Jobcenter, a tax adviser — and filed, so they follow the paper's rules,
+   not the screen's:
 
-   Uppercase is reserved for section headings alone. Labels are sentence case —
-   caps on every label is what turns a form into noise.
-
-   Frozen: the screen moved to Google Sans Flex, the paper did not. The face is
-   pinned here so the printed Kontoauszug looks exactly as it did. */
+   - The interface face, set for reading on paper: Google Sans Flex with its
+     optical-size axis (it draws 8pt with text proportions, open apertures and
+     wider spacing) and tabular lining figures, so amounts line up on their
+     decimal comma without a monospace. IBM Plex Mono only for what a reader
+     checks character by character: IBAN, BIC, BLZ, references.
+   - Five type sizes in points, none below 8pt; running text at 9.5pt.
+   - One label rail every block aligns to, so labels and values form two
+     straight columns down the page. Structure comes from alignment and space:
+     no frames, no filled bands, no boxes — the one tinted panel holds the
+     figure a sheet is about.
+   - Three rules: the navy one that closes the letterhead (the app's masthead,
+     drawn the way paper can carry it), a strong ink rule under every heading
+     and over the footer, a hairline between bookings.
+   - Labels and headings are sentence case, like the screen.
+   - Ink on white, always: the tokens are fixed light values and never follow
+     data-theme. A debit is ink and a credit green, as on screen; both signs
+     are written out, so a black-and-white copy says the same. */
 .doc {
-  /* The rail. Every label in the document starts here and every value starts
-     at the same x, across all blocks and both columns. */
-  --doc-rail: 30mm;
+  /* The rail. Every label in the document starts at the left edge and every
+     value at the same x, across all blocks. Wide enough for the longest label
+     the sheets print ("Geschäftsvorfall-Code") at 8pt. */
+  --doc-rail: 33mm;
 
-  --doc-ink: #16160f;
-  --doc-ink-2: #55554f; /* labels — 7.0:1 on white */
-  --doc-ink-3: #6e6e6a; /* support text — 5.1:1 on white */
-  --doc-rule: #cbcbc4;
-  --doc-panel: #f2f2ef;
-  --doc-debit: #8f1d24;
-  --doc-credit: #0b5c42;
+  --doc-ink: #1b1f24; /* 16:1 on white */
+  --doc-ink-2: #4f5761; /* labels, secondary text — 7.4:1 */
+  --doc-ink-3: #5f6b78; /* notes and meta lines — 5.5:1 */
+  --doc-navy: #0a2c5e; /* document title, section headings, the letterhead rule */
+  --doc-credit: #0c7336; /* credit amounts — 6:1, still dark on a grey copy */
+  --doc-rule: #b4bfcc; /* hairlines: a shade deeper than the screen's, so toner keeps them */
+  --doc-panel: #edf0f4;
 
-  --t-display: 30px;
-  --t-title: 16px;
-  --t-lead: 12.5px;
-  --t-body: 10px;
-  --t-small: 8.5px;
-  --t-micro: 7.5px;
+  --t-display: 20pt; /* the Buchungsbeleg's amount */
+  --t-title: 15pt; /* the document's name */
+  --t-lead: 11pt; /* names, section headings, the closing balance */
+  --t-body: 9.5pt; /* bookings, values, purposes */
+  --t-small: 8pt; /* labels, meta lines, notes — the floor */
 
-  --s-1: 2px;
-  --s-2: 4px;
-  --s-3: 6px;
-  --s-4: 8px;
-  --s-5: 12px;
-  --s-6: 16px;
-  --s-7: 24px;
-  --s-8: 32px;
+  --s-1: 2pt;
+  --s-2: 4pt;
+  --s-3: 6pt;
+  --s-4: 8pt;
+  --s-5: 12pt;
+  --s-6: 16pt;
+  --s-7: 24pt;
+  --s-8: 32pt;
 
-  font-family: var(--font-barlow), 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif;
   font-size: var(--t-body);
-  line-height: 1.45;
+  line-height: 1.4;
+  font-variant-numeric: lining-nums;
   color: var(--doc-ink);
+  background: #fff;
 }
-
 /* The whole type scale, as the only sizes the document may use. */
-.doc-display { font-size: var(--t-display); line-height: 1; }
-.doc-title { font-size: var(--t-title); line-height: 1.1; }
-.doc-lead { font-size: var(--t-lead); line-height: 1.25; }
-.doc-body { font-size: var(--t-body); }
-.doc-small { font-size: var(--t-small); line-height: 1.4; }
-.doc-micro { font-size: var(--t-micro); line-height: 1.35; }
-
-.doc-quiet { color: var(--doc-ink-3); }
-
-/* Sentence case, not caps: a label's job is to be found, not to shout. */
+.doc-display {
+  font-size: var(--t-display);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.doc-title {
+  font-size: var(--t-title);
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--doc-navy);
+}
+.doc-lead {
+  font-size: var(--t-lead);
+  line-height: 1.3;
+  font-weight: 600;
+}
+.doc-small {
+  font-size: var(--t-small);
+  line-height: 1.45;
+}
+/* The party a Buchungsbeleg is about: the title's size, the text's ink. */
+.doc-name {
+  font-size: var(--t-title);
+  line-height: 1.2;
+  font-weight: 600;
+}
+/* Sentence case, quiet, on the rail: a label's job is to be found. */
 .doc-label {
-  font-size: var(--t-micro);
+  font-size: var(--t-small);
+  line-height: 1.45;
   font-weight: 500;
-  line-height: 1.35;
   color: var(--doc-ink-2);
 }
-
-/* The one place uppercase is allowed, so that it still means something. */
 .doc-section {
-  font-size: var(--t-small);
+  font-size: var(--t-lead);
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--doc-navy);
+}
+
+.doc-strong { font-weight: 600; }
+.doc-soft { color: var(--doc-ink-2); }
+.doc-quiet { color: var(--doc-ink-3); }
+.doc-credit { color: var(--doc-credit); }
+
+/* Figures: dates, amounts, counts. Tabular and lining, never wrapped. */
+.doc-fig {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum', 'lnum';
+  white-space: nowrap;
+}
+/* What is checked character by character. A step smaller than the text
+   around it, because the mono's wide, high-waisted letters read larger —
+   but never below the 8pt floor. */
+.doc-mono {
+  font-family: var(--font-plex-mono), 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  font-size: max(var(--t-small), 0.92em);
+  font-variant-numeric: tabular-nums;
+  font-variant-ligatures: none;
+}
+/* An IBAN is compared four characters at a time and never wraps: half an
+   IBAN on each of two lines cannot be checked. */
+.doc-iban {
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+/* A 35-character reference has no seams; it may break anywhere. */
+.doc-ref {
+  overflow-wrap: anywhere;
+}
+
+/* The one tinted panel: the Buchungsbeleg's amount. */
+.doc-panel {
+  background: var(--doc-panel);
+  border-radius: 1.5mm;
+  padding: var(--s-3) var(--s-4) var(--s-4);
+}
+
+/* ---- letterhead ------------------------------------------------------ */
+.doc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-7);
+  padding-bottom: var(--s-5);
+  border-bottom: 2px solid var(--doc-navy);
+}
+.doc-mark {
+  height: 11mm;
+  width: auto;
+  max-width: 40mm;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.doc-monogram {
+  display: grid;
+  place-items: center;
+  width: 11mm;
+  height: 11mm;
+  flex-shrink: 0;
+  border: 1px solid var(--doc-ink);
+  font-size: var(--t-title);
   font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+}
+/* The reference block on the right, the way a German business letter sets
+   its Informationsblock: short labels, then the values on one edge. */
+.doc-info {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: var(--s-4);
+  row-gap: var(--s-1);
+  margin-top: var(--s-3);
 }
 
-.doc-rule {
-  border-top: 1px solid var(--doc-rule);
+/* ---- blocks and the rail ---------------------------------------------- */
+.doc-block {
+  margin-top: var(--s-6);
 }
-.doc-rule-strong {
-  border-top: 1px solid var(--doc-ink);
+.doc-block > h2 {
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--doc-ink);
+  margin-bottom: var(--s-2);
 }
-
-/* Label rail + value column. `.doc-pairs-2` runs two of them side by side;
-   because both resolve the rail from the same token, the labels of the left
-   and right halves sit on one vertical line. */
+/* Above a table the column heads carry the strong rule themselves. */
+.doc-block-table > h2 {
+  border-bottom: 0;
+}
 .doc-pairs {
   display: grid;
   grid-template-columns: var(--doc-rail) minmax(0, 1fr);
   column-gap: var(--s-4);
 }
-.doc-pairs-2 {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: var(--s-7);
+.doc-pairs > * {
+  padding: var(--s-1) 0;
 }
-/* Two parties compared against one shared rail — labels written once, values
-   in aligned columns, which is how a payment names both sides of itself. */
+/* A short list of short labels needs no full rail. */
+.doc-pairs-auto {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+/* Two parties compared against one rail — the labels written once, the two
+   accounts in aligned columns. */
 .doc-parties {
   display: grid;
   grid-template-columns: var(--doc-rail) minmax(0, 1fr) minmax(0, 1fr);
   column-gap: var(--s-5);
 }
-.doc-pairs > *,
 .doc-parties > * {
-  border-bottom: 1px solid var(--doc-rule);
-  padding: var(--s-3) 0;
+  padding: var(--s-1) 0;
+}
+/* Two pair lists side by side; the right one starts at the page's centre. */
+.doc-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--s-7);
 }
 
+/* ---- the bookings table ----------------------------------------------- */
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.doc-table th {
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--doc-ink);
+  font-size: var(--t-small);
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--doc-ink-2);
+  text-align: left;
+  vertical-align: bottom;
+}
+/* Bookings sit closer than running text: a booking is read as one unit, and
+   a statement should not need twice the paper the bank's own does. */
+.doc-table td {
+  padding: var(--s-1) 0 var(--s-2);
+  border-bottom: 1px solid var(--doc-rule);
+  line-height: 1.3;
+  vertical-align: top;
+}
+.doc-table td .doc-small {
+  line-height: 1.35;
+}
+.doc-table .doc-col-date {
+  width: 20mm;
+  padding-right: var(--s-3);
+}
+.doc-table .doc-col-text {
+  padding-right: var(--s-5);
+}
+.doc-table .doc-col-amount {
+  width: 24mm;
+  text-align: right;
+}
+/* The bank's booking text, after the name on the same line. */
+.doc-kind {
+  margin-left: 0.6em;
+  font-size: var(--t-small);
+  color: var(--doc-ink-3);
+  white-space: nowrap;
+}
+/* The opening balance opens the ledger: the first row, on the strong rule. */
+.doc-table .doc-row-balance td {
+  border-bottom-color: var(--doc-ink);
+  font-weight: 600;
+}
+
+/* The arithmetic a reader checks, right-aligned under the amount column. */
+.doc-totals {
+  width: 104mm;
+  margin-left: auto;
+  margin-top: var(--s-4);
+}
+.doc-totals-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-5);
+  padding: var(--s-1) 0;
+}
+/* The new balance between a rule and a double rule: the Summenstrich. */
+.doc-total-final {
+  margin: var(--s-2) 0 var(--s-1);
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--doc-ink);
+  border-bottom: 3px double var(--doc-ink);
+}
+
+/* ---- footer ----------------------------------------------------------- */
+.doc-end {
+  margin-top: var(--s-6);
+  text-align: center;
+}
+.doc-foot {
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--doc-ink);
+}
+
+/* On screen — the design preview only, which never prints: the sheet at A4
+   width with the @page margins below as its padding, lifted off the desk by
+   the tile shadow. On paper it is the bare sheet again. */
+.doc-paper {
+  width: 210mm;
+  min-height: 297mm;
+  margin-inline: auto;
+  padding: 15mm 13mm 16mm 20mm;
+  box-shadow: var(--shadow-tile);
+}
+
+/* A4 with a 20mm Heftrand on the left: a two-hole punch takes its holes
+   about 12mm in from the edge, so a filed sheet loses no character. The
+   bottom margin carries the page marks (Statement.tsx injects their text). */
 @page {
   size: A4;
-  margin: 14mm 13mm 12mm;
+  margin: 15mm 13mm 16mm 20mm;
   /* The @page margin band is a distinct paint region from the document's own
      background — html/body's background only covers the content box inside
      it, never the margin itself. Left unset, that band is fully transparent
@@ -889,6 +1112,13 @@
     background: #fff !important;
     height: auto !important;
     overflow: visible !important;
+  }
+  .doc-paper {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
   }
   /* Print the sheet's rules and its one panel as designed — browsers drop
      background fills by default to save ink, which would flatten the document

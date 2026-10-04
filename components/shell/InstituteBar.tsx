@@ -9,6 +9,7 @@
 // (thumb reach), and this tier keeps only the institute.
 
 import type { DashboardTab } from '@/lib/app-types';
+import { fmtBlz } from '../auth/format';
 import { BankLogo } from '../BankLogo';
 import { useFints } from '../FintsProvider';
 import { ShieldIcon } from '../icons';
@@ -30,48 +31,60 @@ export function InstituteBar() {
   // beside the page scroller's scrollbar (--sbw, see Dashboard), the way the
   // page column below it is, so the bank's logo and the page title share an
   // edge.
+  //
+  // When room runs out (a narrow or zoomed window) things give way in order
+  // of importance: first the "Gerät gemerkt" tag drops its words for its
+  // shield, then the bank's name truncates. The section tabs never do — they
+  // are where the user goes, the other two only say how things stand. The
+  // room is the row's own (a container query), not the window's.
   return (
     <div
       className="relative z-30 shrink-0 border-b border-line bg-surface"
       style={{ height: 'var(--subbar-h)', paddingRight: 'var(--sbw, 0px)' }}
     >
-      <div className="mx-auto flex h-full w-full max-w-[1280px] items-center gap-3 px-4 sm:gap-4 sm:px-6">
-        <div className="flex min-w-0 items-center gap-2.5 sm:max-w-[34%] desk:max-w-[40%]">
-          <BankLogo brand={brand} size="sm" file={logoFiles[brand]} />
-          <span className="min-w-0 truncate text-[14.5px] font-semibold text-ink" title={bank?.name}>
-            {bank?.name || 'Keine Bank verbunden'}
-          </span>
-          {bank?.blz && (
-            <span className="tnum hidden shrink-0 text-[12.5px] text-ink-3 desk:inline">BLZ {bank.blz}</span>
+      <div className="@container/ibar mx-auto h-full w-full max-w-[1280px] px-4 sm:px-6">
+        <div className="flex h-full items-center gap-3 sm:gap-4">
+          <div className="flex min-w-0 items-center gap-2.5 sm:max-w-[34%] desk:max-w-[40%]">
+            <BankLogo brand={brand} size="sm" file={logoFiles[brand]} />
+            <span className="min-w-0 truncate text-[14.5px] font-semibold text-ink" title={bank?.name}>
+              {bank?.name || 'Keine Bank verbunden'}
+            </span>
+            {/* Read digit by digit against a statement or a letter: Plex
+                Mono, grouped the way the login screen prints it. */}
+            {bank?.blz && (
+              <span className="hidden shrink-0 text-[12.5px] whitespace-nowrap text-ink-3 desk:inline">
+                BLZ <span className="num">{fmtBlz(bank.blz)}</span>
+              </span>
+            )}
+          </div>
+
+          <span aria-hidden className="hidden h-6 w-px shrink-0 bg-line sm:block" />
+
+          {/* The row is as tall as the bar so the active tab's rule sits on the
+              bar's own bottom edge, the way the reference draws it. */}
+          <div className="hidden shrink-0 self-stretch sm:flex">
+            <Tabs
+              idBase={DASH_TABS_ID}
+              aria-label="Bereiche"
+              items={TAB_ITEMS}
+              value={tab}
+              onChange={setTab}
+            />
+          </div>
+
+          <div className="min-w-0 flex-1" />
+
+          {deviceRemembered && (
+            <Tag
+              tone="info"
+              icon={<ShieldIcon size={13} check />}
+              title="Dieses Gerät ist gemerkt – die Bank fragt seltener nach einer Freigabe."
+              className="max-[420px]:hidden @max-[48rem]/ibar:px-1.5"
+            >
+              <span className="@max-[48rem]/ibar:sr-only">Gerät gemerkt</span>
+            </Tag>
           )}
         </div>
-
-        <span aria-hidden className="hidden h-6 w-px shrink-0 bg-line sm:block" />
-
-        {/* The row is as tall as the bar so the active tab's rule sits on the
-            bar's own bottom edge, the way the reference draws it. */}
-        <div className="hidden min-w-0 self-stretch sm:flex">
-          <Tabs
-            idBase={DASH_TABS_ID}
-            aria-label="Bereiche"
-            items={TAB_ITEMS}
-            value={tab}
-            onChange={setTab}
-          />
-        </div>
-
-        <div className="min-w-0 flex-1" />
-
-        {deviceRemembered && (
-          <Tag
-            tone="info"
-            icon={<ShieldIcon size={13} check />}
-            title="Dieses Gerät ist gemerkt — die Bank fragt seltener nach einer TAN."
-            className="max-[420px]:hidden"
-          >
-            Gerät gemerkt
-          </Tag>
-        )}
       </div>
     </div>
   );

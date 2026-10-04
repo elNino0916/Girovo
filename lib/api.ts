@@ -1,7 +1,11 @@
 // Shared plumbing for the route handlers: JSON helpers and the error boundary
 // that used to be Express' `wrap`.
+//
+// Every route that talks to a bank comes through here, so this is also where
+// the bank-request policy is installed (lib/bank-fetch.ts, on import).
 
 import { NextResponse } from 'next/server';
+import { describeError } from './bank-fetch.ts';
 
 export function json<T>(data: T, status = 200): NextResponse {
   return NextResponse.json(data, { status });
@@ -16,19 +20,11 @@ export function sessionExpired(): NextResponse {
   return fail('Sitzung abgelaufen. Bitte neu anmelden.', 401);
 }
 
-function friendlyError(err: unknown): string {
-  const e = err as { message?: string; cause?: { code?: string } };
-  const msg = e?.message || String(err);
-  const code = e?.cause?.code || '';
-  if (msg === 'fetch failed' || ['ENOTFOUND', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN'].includes(code)) {
-    return 'Bank nicht erreichbar. Prüfe deine Internetverbindung und die FinTS-URL.';
-  }
-  return msg;
-}
-
 /**
  * Wraps a handler so an unexpected throw becomes a 500 with a readable German
- * message instead of Next's opaque digest page.
+ * message instead of Next's opaque digest page: a bank that does not answer,
+ * lib-fints' English, a bug — each in words (describeError), and never a
+ * bank's response body. The details stay in the server log.
  */
 export function wrap<A extends unknown[]>(
   fn: (...args: A) => Promise<NextResponse>,
@@ -39,7 +35,7 @@ export function wrap<A extends unknown[]>(
     } catch (err) {
       const e = err as { message?: string; cause?: { code?: string } };
       console.error('[error]', e?.message || err, e?.cause?.code || '');
-      return NextResponse.json({ error: friendlyError(err) }, { status: 500 });
+      return NextResponse.json({ error: describeError(err) }, { status: 500 });
     }
   };
 }

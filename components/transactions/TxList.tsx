@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import type { MouseEvent } from 'react';
 import type { CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { Money } from '../Money';
@@ -23,14 +24,17 @@ export const MORE_PAGE = 100;
 
 /**
  * The bookings, one section per day. Each day's header sticks to the top of
- * the page's scroll container while that day is scrolled through, carrying
- * the day's net so the reader never loses which day a row belongs to.
+ * the page's scroll container while that day is scrolled through, so the
+ * reader never loses which day a row belongs to. It carries, labelled, the
+ * Kontostand at the end of that day when the bank's own balances prove it
+ * (lib/balance-history.ts) — the figure a right-aligned number in a date row
+ * is read as — and otherwise the day's sum of the rows shown.
  *
  * `resetKey` names the current list (account, loaded range, filter): a new
  * list starts from the first page again.
  */
 export function TxList({
-  id, groups, total, resetKey, merchantOf, categoryOf, onOpen,
+  id, groups, total, resetKey, merchantOf, categoryOf, onOpen, balanceOn = null,
 }: {
   id: string;
   groups: DayGroup[];
@@ -39,6 +43,8 @@ export function TxList({
   merchantOf: (tx: SerializedTransaction) => Merchant | null;
   categoryOf: (tx: SerializedTransaction) => { id: CategoryId };
   onOpen: (tx: SerializedTransaction) => void;
+  /** The verified end-of-day balance per local day, when the bank's balances prove one. */
+  balanceOn?: { byDay: ReadonlyMap<string, number>; currency: string; card?: boolean } | null;
 }) {
   // Derived rather than reset in an effect: a stale page count never renders.
   const [page, setPage] = useState({ key: resetKey, rows: FIRST_PAGE });
@@ -56,6 +62,16 @@ export function TxList({
     rootRef.current?.querySelectorAll<HTMLElement>('[data-tx-row]')[i]?.focus({ preventScroll: true });
   }, [limit]);
 
+  // Every row is a Tab stop, the way an online-banking Umsatzliste works —
+  // so the list starts with a way past it. It appears only once focused, and
+  // puts the next Tab after the last row shown.
+  const endRef = useRef<HTMLSpanElement>(null);
+  const skipList = (e: MouseEvent) => {
+    e.preventDefault();
+    endRef.current?.scrollIntoView({ block: 'center' });
+    endRef.current?.focus({ preventScroll: true });
+  };
+
   let budget = limit;
   const visible: DayGroup[] = [];
   for (const g of groups) {
@@ -66,7 +82,16 @@ export function TxList({
   const rest = total - Math.min(total, limit);
 
   return (
-    <div id={id} ref={rootRef}>
+    <div id={id} ref={rootRef} className="relative">
+      <a
+        href={`#${id}-end`}
+        onClick={skipList}
+        // not-sr-only also zeroes the padding; the pill gets it back. Above
+        // the sticky day band it would otherwise sit under.
+        className="sr-only rounded-full bg-accent text-[13.5px] font-semibold text-accent-ink focus:not-sr-only focus:absolute focus:top-1 focus:left-3 focus:z-10 focus:px-4! focus:py-1.5! focus:whitespace-nowrap"
+      >
+        Liste überspringen
+      </a>
       {visible.map((g) => (
         <section key={g.key} aria-labelledby={`${id}-${g.key}`}>
           <div className="sticky top-0 z-5 flex min-h-9 items-center gap-2 bg-inset px-4 py-1.5 sm:px-5">
@@ -76,15 +101,30 @@ export function TxList({
             {g.future && (
               <span
                 className="inline-flex min-w-0 items-center gap-1 text-[12.5px] font-semibold text-ink-3"
-                title="Diese Buchungen tragen einen Buchungstag in der Zukunft — die Bank verbucht sie erst an diesem Tag."
+                title="Diese Buchungen tragen einen Buchungstag in der Zukunft – die Bank verbucht sie erst an diesem Tag."
               >
                 <ClockIcon size={13} />
                 {/* On a phone the clock alone; the rows below say "Buchung 05.10." anyway. */}
                 <span className="truncate max-sm:sr-only">noch nicht gebucht</span>
               </span>
             )}
-            {g.net !== null && (
-              <span className="ml-auto shrink-0 text-[13px] text-ink-3" title="Summe des Tages">
+            {balanceOn ? (
+              // Days the proof does not reach (a Buchungstag still ahead) carry none.
+              balanceOn.byDay.has(g.key) && (
+                <span className="ml-auto shrink-0 text-[13px] text-ink-3">
+                  <span className="sm:hidden" aria-hidden>Stand </span>
+                  <span className="max-sm:sr-only">Kontostand </span>
+                  <span className="sr-only">am Tagesende: </span>
+                  {/* A balance: red when below zero, like every balance (Money's "auto") —
+                      a credit card's is negative by nature and stays ink. */}
+                  <span className="font-semibold text-ink-2">
+                    <Money value={balanceOn.byDay.get(g.key)!} currency={balanceOn.currency} tone={balanceOn.card ? 'plain' : 'auto'} />
+                  </span>
+                </span>
+              )
+            ) : g.net !== null && (
+              <span className="ml-auto shrink-0 text-[13px] text-ink-3">
+                <span aria-hidden>Summe </span>
                 <span className="sr-only">Summe des Tages: </span>
                 <Money value={g.net} currency={g.currency} signed tone="plain" className="font-semibold" />
               </span>
@@ -104,6 +144,12 @@ export function TxList({
           </ul>
         </section>
       ))}
+
+      {/* Where "Liste überspringen" leads: after the last row shown, before
+          the way to show more. */}
+      <span id={`${id}-end`} ref={endRef} tabIndex={-1} className="sr-only">
+        Ende der Umsatzliste{rest > 0 ? `, ${total - rest} von ${total} angezeigt` : ''}
+      </span>
 
       {rest > 0 && (
         <div className="flex flex-col items-center gap-1 border-t border-line px-4 py-5">

@@ -7,6 +7,7 @@
 
 import type { CategoryId } from './categories';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
+import type { SentOrder } from './sent-orders';
 
 export type { CategoryId };
 
@@ -30,9 +31,41 @@ export type TxFilter = {
   dir: 'all' | 'in' | 'out';
   category: CategoryId | null;
   query: string;
+  /**
+   * The first and last Buchungstag shown (local yyyy-mm-dd, both included).
+   * A view of what is already loaded, never a fetch: loading another period
+   * is the Zeitraum control's job. Empty or absent means open.
+   */
+  from?: string;
+  to?: string;
+  /**
+   * Set by a deep link from a figure over every account with Umsätze (the
+   * Analyse's "Alle Konten"): the list holds one account, and says so. Any
+   * edit in the filter bar drops it.
+   */
+  acrossAccounts?: boolean;
+  /**
+   * Set by a "show me" about one account's bookings (a palette hit, a look at
+   * a transfer whose status is unclear — useShowOnAccount). The list says when
+   * it shows another account, because switching would have asked the bank,
+   * and, with `sentAt` (epoch ms, when the transfer went out), when it was
+   * fetched before that transfer and so cannot hold it yet. Any edit in the
+   * filter bar drops it.
+   */
+  lookup?: { accountNumber: string; sentAt?: number };
 };
 
 export const EMPTY_FILTER: TxFilter = { dir: 'all', category: null, query: '' };
+
+/** Which accounts the Umsatzanalyse adds up: the active one, or every one with Umsätze in its currency. */
+export type AnalysisScope = 'account' | 'all';
+
+/**
+ * The Umsatzanalyse's period: 'all' (the whole loaded range) or a yyyy-mm
+ * month. Null until the user picks one — the analysis then opens on the last
+ * complete month.
+ */
+export type AnalysisPeriod = string;
 
 /** A message the bank sent with the login synchronisation (HIRMG/HIRMS texts). */
 export type InboxMessage = {
@@ -112,6 +145,8 @@ export type VaultData = {
   txCategories: Record<string, CategoryId>;
   /** recurring-series ids the user said are not a contract. */
   dismissedRecurring: string[];
+  /** Executed and unclear transfers of the last 14 days, for the duplicate check (lib/sent-orders.ts). */
+  sentOrders: SentOrder[];
   /** ISO */
   updatedAt: string;
 };
@@ -123,6 +158,7 @@ export const EMPTY_VAULT: VaultData = {
   categoryRules: {},
   txCategories: {},
   dismissedRecurring: [],
+  sentOrders: [],
   updatedAt: new Date(0).toISOString(),
 };
 

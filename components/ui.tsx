@@ -534,8 +534,79 @@ const FOCUSABLE =
 
 const isShown = (el: HTMLElement) => el.getClientRects().length > 0 && !el.closest('[inert], [hidden]');
 
+/**
+ * In the Tab order: tabindex="-1" leaves a control out of it — the unchecked
+ * radios of a roving group (Segmented), the items of a menu. Those take
+ * focus from their own keys, never from Tab or from a layer opening.
+ */
+const isTabbable = (el: HTMLElement) => el.getAttribute('tabindex') !== '-1';
+
 function focusablesIn(root: HTMLElement): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(isShown);
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => isShown(el) && isTabbable(el));
+}
+
+/** A field to type into: typing is never consequential, so a form may open there. Not a checkbox, switch or select. */
+const TEXT_FIELD = 'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"])'
+  + ':not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]), textarea, [contenteditable]:not([contenteditable="false"])';
+
+/**
+ * Where focus goes when a layer opens: the safe, non-destructive place. One
+ * rule for every dialog, drawer, sheet and popover:
+ *
+ *   1. what the layer names — `initialFocus`, or [data-autofocus] on its safe
+ *      button ("Abbrechen", "Weiter warten", "Angemeldet bleiben");
+ *      [data-autofocus="fine"] only with a fine pointer — on a touch screen
+ *      the layer itself, so no on-screen keyboard covers it on open;
+ *   2. else its first field to type into (a form starts where you type);
+ *   3. else its own close button (a drawer of details: Enter only closes);
+ *   4. else the layer itself, which a screen reader announces by its name.
+ *
+ * Never a checkbox, a switch, a radio, an external link or an action button
+ * by default: the first Space or Enter after opening must not arm a data
+ * wipe, shorten the auto-logout, switch update checks off — or start a
+ * transfer from a booking's "Erneut überweisen".
+ */
+function safeFocusTarget(root: HTMLElement, named?: HTMLElement | null): HTMLElement {
+  const usable = (el: HTMLElement | null | undefined): el is HTMLElement => !!el && isShown(el) && !el.matches(':disabled');
+  if (usable(named)) return named;
+  const marked = root.querySelector<HTMLElement>('[data-autofocus]');
+  if (usable(marked)) {
+    // data-autofocus="fine": a field worth starting in only where there is a
+    // keyboard to type with — the palette's search. On a touch screen it would
+    // open the on-screen keyboard over the very list the layer opened to show,
+    // so the layer itself takes focus and the field waits for a tap.
+    if (marked.dataset.autofocus === 'fine' && coarsePointer()) return root;
+    return marked;
+  }
+  const field = focusablesIn(root).find((el) => el.matches(TEXT_FIELD) && !el.matches(':disabled'));
+  if (field) return field;
+  const close = root.querySelector<HTMLElement>('[data-dialog-close]');
+  if (usable(close)) return close;
+  return root;
+}
+
+/** A touch screen as the main pointer (a phone, a tablet): focusing a field there opens the on-screen keyboard. */
+const coarsePointer = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+
+/**
+ * Focus was put somewhere with preventScroll (the layer must not jump while
+ * it animates in), so a target below the fold of its scrolling body — a
+ * dialog's buttons on a short window — is brought into view here, inside the
+ * layer only. A focused control nobody can see is a lost place (WCAG 2.4.11).
+ */
+function revealInLayer(el: HTMLElement, root: HTMLElement) {
+  let scroller = el.parentElement;
+  while (scroller && scroller !== root) {
+    const overflow = getComputedStyle(scroller).overflowY;
+    if ((overflow === 'auto' || overflow === 'scroll') && scroller.scrollHeight > scroller.clientHeight) break;
+    scroller = scroller.parentElement;
+  }
+  if (!scroller || scroller === root) return;
+  const r = el.getBoundingClientRect();
+  const box = scroller.getBoundingClientRect();
+  const air = 12;
+  if (r.bottom > box.bottom) scroller.scrollTop += r.bottom - box.bottom + air;
+  else if (r.top < box.top) scroller.scrollTop -= box.top - r.top + air;
 }
 
 /**
@@ -563,7 +634,7 @@ function neighboursOf(el: Element | null, layer: HTMLElement): HTMLElement[] {
   const before: HTMLElement[] = [];
   let next: HTMLElement | undefined;
   for (const x of document.querySelectorAll<HTMLElement>(FOCUSABLE)) {
-    if (x === el || el.contains(x) || layer.contains(x)) continue;
+    if (x === el || el.contains(x) || layer.contains(x) || !isTabbable(x)) continue;
     if (el.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_PRECEDING) before.push(x);
     else if (isShown(x)) {
       next = x;
@@ -675,7 +746,7 @@ export type OverlayProps = {
   describedBy?: string;
   /** Accessible name when there is no visible title. */
   label?: string;
-  /** Where focus goes on open. Defaults to [data-autofocus], else the first control that is not the close button. */
+  /** Where focus goes on open. Defaults to the safe place (see safeFocusTarget): [data-autofocus], a field, the close button, the layer. */
   initialFocus?: RefObject<HTMLElement | null>;
   /**
    * Where focus goes on close. Defaults to whatever had focus when the layer
@@ -724,12 +795,9 @@ function OverlayLayer({
     const neighbours = neighboursOf(returnTo, root);
 
     if (!root.contains(document.activeElement)) {
-      const target =
-        initialFocus?.current ??
-        root.querySelector<HTMLElement>('[data-autofocus]') ??
-        focusablesIn(root).find((el) => !el.hasAttribute('data-dialog-close')) ??
-        root;
+      const target = safeFocusTarget(root, initialFocus?.current);
       target.focus({ preventScroll: true });
+      if (target !== root) revealInLayer(target, root);
     }
 
     // Focus that leaves the top layer by any route (a click on something
@@ -831,12 +899,56 @@ function OverlayLayer({
 const SHEET_WIDTHS = { sm: 'sm:max-w-[440px]', md: 'sm:max-w-[540px]', lg: 'sm:max-w-[680px]' } as const;
 
 /**
+ * Whether a scroller has content hidden below its visible part — the cue for
+ * the hairline a fixed footer draws over it (and above, for a fixed header).
+ * Also publishes the scroller's own scrollbar width as `--sbw` on it, so its
+ * content can hand that room back (see Panel). Re-measured on scroll, and
+ * whenever the scroller or its content changes size.
+ */
+export function useScrollEdges<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [edges, setEdges] = useState({ top: false, bottom: false });
+
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const top = el.scrollTop > 1;
+    const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+    el.style.setProperty('--sbw', `${Math.max(0, el.offsetWidth - el.clientWidth)}px`);
+    setEdges((e) => (e.top === top && e.bottom === bottom ? e : { top, bottom }));
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    // The content grows and shrinks (an error appears, a step changes)
+    // without the scroller itself changing size.
+    const inner = el.firstElementChild;
+    if (inner) ro?.observe(inner);
+    return () => ro?.disconnect();
+  }, [measure]);
+
+  return { ref, edges, measure };
+}
+
+/** The hairline a pinned footer draws once content scrolls under it (Sheet, Popover). */
+const FOOTER_EDGE = 'shadow-[0_-1px_0_var(--line)]';
+
+/**
  * The panel of a centred dialog: 16px corners, a bottom sheet on phones.
  * `band` adds the navy header band with a centred pictogram — the dialog
  * form the reference uses for anything that needs your attention.
+ *
+ * `footer` (the dialog's buttons) stays put under the scrolling body, so in a
+ * short window the way out is never scrolled out of reach; a hairline marks
+ * it once there is more above it to scroll to. In a short window the band
+ * also slims down, giving its room to what the dialog says.
  */
 export function Sheet({
-  size, wide, band, onClose, closeLabel = 'Schließen', className, bodyClassName, children,
+  size, wide, band, onClose, closeLabel = 'Schließen', className, bodyClassName, footer, children,
 }: {
   size?: 'sm' | 'md' | 'lg';
   /** @deprecated use size="md". */
@@ -847,9 +959,12 @@ export function Sheet({
   closeLabel?: string;
   className?: string;
   bodyClassName?: string;
+  /** The actions row, fixed below the scrolling body (see DialogActions). */
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const navy = band && band.tone !== 'plain';
+  const { ref: bodyRef, edges, measure } = useScrollEdges<HTMLDivElement>();
   return (
     <div
       className={cx(
@@ -862,11 +977,14 @@ export function Sheet({
       {band && (
         <div
           aria-hidden
-          className={cx('grid h-[88px] shrink-0 place-items-center', navy ? 'bg-stage text-stage-ink dark:bg-bar' : 'bg-accent-soft text-accent')}
+          className={cx(
+            'grid h-[88px] shrink-0 place-items-center short:h-14',
+            navy ? 'bg-stage text-stage-ink dark:bg-bar' : 'bg-accent-soft text-accent',
+          )}
         >
           <span
             className={cx(
-              'grid size-12 place-items-center rounded-full',
+              'grid size-12 place-items-center rounded-full short:scale-[0.8]',
               navy ? 'bg-[color-mix(in_srgb,var(--stage-ink)_14%,transparent)]' : 'bg-surface',
             )}
           >
@@ -886,13 +1004,30 @@ export function Sheet({
         </IconButton>
       )}
       <div
+        ref={bodyRef}
+        onScroll={measure}
         className={cx(
-          'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-7 sm:pt-7 sm:pb-7',
+          'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-6 sm:px-7 sm:pt-7 short:pt-5',
+          // With a footer the body keeps only room for a focus ring at its
+          // edge; the footer's own top padding is the gap to the buttons.
+          footer ? 'pb-1' : 'pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-7',
           bodyClassName,
         )}
       >
-        {children}
+        {/* One element, so the scroll edge hears the content change size. */}
+        <div>{children}</div>
       </div>
+      {footer && (
+        <div
+          className={cx(
+            'relative shrink-0 px-5 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] transition-shadow duration-150 sm:px-7 sm:pb-7',
+            'short:pt-3 short:pb-[max(1rem,env(safe-area-inset-bottom))] sm:short:pb-5',
+            edges.bottom && FOOTER_EDGE,
+          )}
+        >
+          {footer}
+        </div>
+      )}
     </div>
   );
 }
@@ -928,7 +1063,9 @@ export function DialogHeader({
 /**
  * The button row at the foot of a dialog. Primary goes LAST in the markup:
  * rightmost on desktop, topmost (closest to the thumb's reach and the eye)
- * when the row stacks on a phone.
+ * when the row stacks on a phone. Hand it to Sheet as its `footer` (Dialog
+ * does), with `className=""`, so it stays in view however far the dialog's
+ * text has to scroll in a short window.
  */
 export function DialogActions({
   children, align = 'end', className,
@@ -971,17 +1108,22 @@ export function Dialog({
   const descId = description ? `dlg${id}-desc` : undefined;
   return (
     <Overlay open={open} onClose={onClose} onBackdrop={onBackdrop} labelledBy={titleId} describedBy={descId} initialFocus={initialFocus} fallbackFocus={fallbackFocus}>
-      <Sheet size={size} band={band} onClose={band ? onClose : undefined}>
+      <Sheet
+        size={size}
+        band={band}
+        onClose={band ? onClose : undefined}
+        footer={actions ? <DialogActions align={band ? 'center' : 'end'} className="">{actions}</DialogActions> : undefined}
+      >
         <DialogHeader
           title={title}
           titleId={titleId}
           icon={band ? undefined : icon}
           onClose={band ? undefined : onClose}
           description={description ? <span id={descId}>{description}</span> : undefined}
-          className={band ? 'mb-4 text-center' : undefined}
+          // Nothing follows the header but the pinned buttons: no gap to keep.
+          className={cx(band && 'text-center', children ? (band ? 'mb-4' : 'mb-5') : 'mb-0')}
         />
         {children}
-        {actions && <DialogActions align={band ? 'center' : 'end'}>{actions}</DialogActions>}
       </Sheet>
     </Overlay>
   );
@@ -1396,7 +1538,7 @@ export function Tag({
       title={title}
       className={cx(
         'inline-flex shrink-0 items-center gap-1 rounded-[6px] leading-none font-semibold whitespace-nowrap',
-        size === 'sm' ? 'h-5 px-1.5 text-[12px]' : 'h-6 px-2 text-[12.5px]',
+        size === 'sm' ? 'h-5 px-1.5 text-[12.5px]' : 'h-6 px-2 text-[12.5px]',
         TAG_TONES[tone],
         className,
       )}
@@ -1770,28 +1912,6 @@ export function MenuItemRadio({ checked, className, ...p }: MenuItemBase & { che
   );
 }
 
-export function MenuItemCheckbox({ checked, className, ...p }: MenuItemBase & { checked: boolean }) {
-  const handlers = useMenuItem({ ...p, keepOpen: p.keepOpen ?? true });
-  return (
-    <button type="button" role="menuitemcheckbox" aria-checked={checked} {...handlers} className={cx(MENU_ITEM, className)}>
-      <ItemBody
-        {...p}
-        lead={
-          <span
-            aria-hidden
-            className={cx(
-              'grid size-[18px] shrink-0 place-items-center rounded-[4px] border-[1.5px]',
-              checked ? 'border-accent bg-accent text-accent-ink' : 'border-field-line',
-            )}
-          >
-            {checked && <CheckIcon size={12} strokeWidth={3} />}
-          </span>
-        }
-      />
-    </button>
-  );
-}
-
 export function MenuGroup({ label, children }: { label?: ReactNode; children: ReactNode }) {
   const id = useId();
   return (
@@ -1814,12 +1934,18 @@ export function MenuSeparator() {
  * A non-modal floating panel with its own content — a custom date range, a
  * small form. Focus moves in on open; Escape closes and returns it; a press
  * outside or tabbing out closes it.
+ *
+ * `footer` stays put under the scrolling content, as a Sheet's does: the
+ * panel's way out (the Sitzung panel's "Abmelden") is never scrolled out of
+ * reach in a short window, with the same hairline once content runs under it.
  */
 export function Popover({
-  trigger, children, label, labelledBy, placement = 'bottom-start', className, open: openProp, onOpenChange,
+  trigger, children, footer, label, labelledBy, placement = 'bottom-start', className, open: openProp, onOpenChange,
 }: {
   trigger: (props: TriggerProps, state: { open: boolean }) => ReactNode;
   children: ReactNode | ((close: () => void) => ReactNode);
+  /** Fixed below the scrolling content (see Sheet's `footer`). */
+  footer?: ReactNode | ((close: () => void) => ReactNode);
   label?: string;
   labelledBy?: string;
   placement?: Placement;
@@ -1849,14 +1975,18 @@ export function Popover({
 
   useOutsidePress(open, [triggerRef, panelRef], () => close(false));
 
-  // Focus moves in once the panel is placed (see Menu: hidden can't take focus).
+  // Focus moves in once the panel is placed (see Menu: hidden can't take
+  // focus) — to the safe place, as in a dialog (safeFocusTarget): a panel of
+  // settings opens on itself, announced by its name, never on its first
+  // radio or switch, where an arrow key or Space would change something.
   const placed = open && style.visibility === 'visible';
   useLayoutEffect(() => {
     if (!placed) return;
     const root = panelRef.current;
     if (!root) return;
-    const target = root.querySelector<HTMLElement>('[data-autofocus]') ?? focusablesIn(root)[0] ?? root;
+    const target = safeFocusTarget(root);
     target.focus({ preventScroll: true });
+    if (target !== root) revealInLayer(target, root);
   }, [placed]);
 
   const triggerProps: TriggerProps = {
@@ -1895,13 +2025,40 @@ export function Popover({
           style={{ ...style, ...NO_DRAG }}
           className={cx(
             // Opened from the masthead, but a light surface: the page's focus ring.
-            'anim-pop z-120 max-w-[calc(100vw-16px)] overflow-y-auto overscroll-contain rounded-[12px] bg-raised p-4 text-ink shadow-[var(--shadow-pop)] outline-none [--focus-ring:var(--focus)]',
+            'anim-pop z-120 max-w-[calc(100vw-16px)] rounded-[12px] bg-raised text-ink shadow-[var(--shadow-pop)] outline-none [--focus-ring:var(--focus)]',
+            // With a footer the panel itself does not scroll: its body does.
+            footer ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overscroll-contain p-4',
             className,
           )}
         >
-          {typeof children === 'function' ? children(() => close(true)) : children}
+          {footer ? (
+            <PopoverBody fit={style.maxHeight} footer={typeof footer === 'function' ? footer(() => close(true)) : footer}>
+              {typeof children === 'function' ? children(() => close(true)) : children}
+            </PopoverBody>
+          ) : typeof children === 'function' ? children(() => close(true)) : children}
         </div>
       )}
+    </>
+  );
+}
+
+/**
+ * A Popover's scrolling content and pinned footer. Mounted with the panel;
+ * the edge is measured again once the panel is placed and given its height
+ * (`fit`), before that frame is painted.
+ */
+function PopoverBody({ fit, footer, children }: { fit: CSSProperties['maxHeight']; footer: ReactNode; children: ReactNode }) {
+  const { ref, edges, measure } = useScrollEdges<HTMLDivElement>();
+  useLayoutEffect(measure, [fit, measure]);
+  return (
+    <>
+      <div ref={ref} onScroll={measure} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+        {/* One element, so the scroll edge hears the content change size. */}
+        <div>{children}</div>
+      </div>
+      <div className={cx('shrink-0 bg-raised px-4 py-3 transition-shadow duration-150', edges.bottom && FOOTER_EDGE)}>
+        {footer}
+      </div>
     </>
   );
 }
@@ -2065,7 +2222,7 @@ export function EmptyState({
       ) : icon ? (
         <span className="grid size-12 place-items-center rounded-full bg-accent-soft text-accent">{icon}</span>
       ) : null}
-      {title && <p className={cx('text-[16px] font-bold text-ink', illustration || icon ? 'mt-3' : undefined)}>{title}</p>}
+      {title && <p className={cx('text-[17px] leading-snug font-bold text-ink', illustration || icon ? 'mt-3' : undefined)}>{title}</p>}
       {children && <div className="mt-1.5 max-w-[46ch] text-[14px] leading-relaxed text-ink-2">{children}</div>}
       {action && <div className="mt-4 flex flex-wrap justify-center gap-2">{action}</div>}
     </div>
@@ -2087,7 +2244,7 @@ export function ErrorState({
   return (
     <div role="alert" className={cx('flex flex-col items-center text-center', compact ? 'px-4 py-6' : 'px-6 py-10', className)}>
       <IllustrationArt name="error" />
-      <p className="mt-3 text-[16px] font-bold text-ink">{title}</p>
+      <p className="mt-3 text-[17px] leading-snug font-bold text-ink">{title}</p>
       {children && <div className="mt-1.5 max-w-[46ch] text-[14px] leading-relaxed text-ink-2">{children}</div>}
       {onRetry && (
         <Button size="sm" variant="secondary" className="mt-4" busy={busy} onClick={onRetry}>
@@ -2101,34 +2258,6 @@ export function ErrorState({
 // ---------------------------------------------------------------------------
 // Small parts
 // ---------------------------------------------------------------------------
-
-/** A labelled figure: "Verfügbar · 2.196,22 €". The value is a node so it can be a <Money>. */
-export function Stat({
-  label, value, sub, size = 'md', align = 'start', labelClassName, className,
-}: {
-  label: ReactNode;
-  value: ReactNode;
-  sub?: ReactNode;
-  size?: 'sm' | 'md' | 'lg';
-  align?: 'start' | 'end';
-  labelClassName?: string;
-  className?: string;
-}) {
-  return (
-    <div className={cx('min-w-0', align === 'end' && 'text-right', className)}>
-      <div className={cx('text-[13px] leading-snug font-semibold', labelClassName ?? 'text-ink-2')}>{label}</div>
-      <div
-        className={cx(
-          'mt-0.5 leading-tight font-bold text-ink',
-          size === 'sm' ? 'text-[16px]' : size === 'lg' ? 'text-[28px]' : 'text-[20px]',
-        )}
-      >
-        {value}
-      </div>
-      {sub && <div className="mt-0.5 text-[13px] leading-snug text-ink-3">{sub}</div>}
-    </div>
-  );
-}
 
 /**
  * Short facts in a row with " · " between them: "Basis: Girokonto · 4 Umsätze".
@@ -2162,7 +2291,7 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
     <kbd
       className={cx(
         'inline-grid h-[22px] min-w-[22px] place-items-center rounded-[5px] border border-b-2 border-line-strong bg-surface px-1.5',
-        'font-sans text-[12px] leading-none font-semibold text-ink-2',
+        'font-sans text-[12.5px] leading-none font-semibold text-ink-2',
         className,
       )}
     >

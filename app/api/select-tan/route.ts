@@ -17,7 +17,16 @@ export const POST = wrap(async (req: Request) => {
   const s = getSession(sessionId);
   if (!s) return sessionExpired();
 
-  const method = s.client.selectTanMethod(Number(tanMethodId));
+  // Only approval in the bank's app: the app has no field to type a TAN into.
+  // Started with a typed-TAN method, the approval wait would fail a second
+  // later with lib-fints' "TAN must be provided…" — and every retry again.
+  const offered = (s.client.config.availableTanMethods || []).find((m) => m.id === Number(tanMethodId));
+  if (!offered) return fail('Dieses Verfahren bietet deine Bank für deinen Zugang nicht an.');
+  if (!offered.isDecoupled) {
+    return fail('Dieses Verfahren braucht eine TAN-Eingabe. Hier geht nur die Freigabe in einer Banking-App.');
+  }
+
+  const method = s.client.selectTanMethod(offered.id);
 
   // Banks with tanMediaRequirement=Required (e.g. Sparkasse pushTAN) need the
   // exact device name. Discover it via HKTAB, unless the caller already picked.

@@ -75,7 +75,7 @@ export function PeriodControl({
                 variant="secondary"
                 disabled={busy}
                 aria-label={describe}
-                title={busy ? 'Bitte warten — ein anderer Vorgang läuft noch.' : undefined}
+                title={busy ? 'Bitte warten – ein anderer Vorgang läuft noch.' : undefined}
                 iconLeft={<CalendarIcon size={16} />}
                 iconRight={<ChevronIcon size={14} strokeWidth={2} className={cx('-mr-1 transition-transform duration-150', open && 'rotate-180')} />}
                 className="max-sm:px-3"
@@ -164,7 +164,7 @@ function CustomRange({
         if (valid && !busy) onApply({ from, to });
       }}
     >
-      <p className="mb-3 text-[16px] font-bold text-headline">Eigener Zeitraum</p>
+      <p className="section-head mb-3">Eigener Zeitraum</p>
       <Field label="Von" error={fromError} className="mb-3">
         <Input type="date" value={from} max={to && to < today ? to : today} onChange={(e) => setFrom(e.target.value)} data-autofocus />
       </Field>

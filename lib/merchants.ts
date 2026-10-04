@@ -15,10 +15,11 @@
 // cache so a name is looked up at most once per server run.
 //
 // PRIVACY: this is the only code path in the app that talks to a host other
-// than the user's bank, and it is the reason MERCHANT_LOGOS exists. Only the
-// cleaned company core leaves the machine — never a full counterparty string,
-// an amount, an IBAN or a date — and only for names that lib/merchant-match.ts
-// judged corporate.
+// than the user's bank, and it is the reason MERCHANT_LOGOS exists. It runs
+// only after the user agreed in the app (asked once, before the first lookup;
+// switchable in the Sitzung panel). Only the cleaned company core leaves the
+// machine — never a full counterparty string, an amount, an IBAN or a date —
+// and only for names that lib/merchant-match.ts judged corporate.
 
 import 'server-only';
 

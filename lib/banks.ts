@@ -9,6 +9,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseBankQuery } from './bank-query.ts';
 
 export type Brand =
   | 'sparkasse' | 'sparda' | 'psd' | 'vrbank' | 'deutschebank' | 'postbank'
@@ -27,12 +28,15 @@ export type Institute = {
   brand: Brand;
 };
 
-/** A curated login-screen quick pick. */
+/**
+ * A curated login-screen quick pick. (The approval app a brand's customers
+ * use is kept per brand in lib/brands.ts, not here: a bank found by search
+ * needs it just as much.)
+ */
 export type PopularBank = {
   key: string;
   name: string;
   brand: Brand;
-  hint: string;
   /** Nationwide banks resolve to one BLZ … */
   blz?: string;
   url?: string;
@@ -87,7 +91,9 @@ const institutes: Institute[] = raw.map((b) => ({ ...b, brand: brandOf(b.name) }
 const byBlz = new Map(institutes.map((b) => [b.blz, b]));
 
 // ---------------------------------------------------------------------------
-// Search: by BLZ (prefix) or by name/location (word matching, diacritic-safe).
+// Search: by BLZ (prefix), by BIC (prefix) or by name/location (word
+// matching, diacritic-safe). An IBAN is never searched here: the browser
+// reads its BLZ and sends only that (lib/bank-query.ts).
 // ---------------------------------------------------------------------------
 const normalize = (s: string) =>
   s
@@ -95,49 +101,71 @@ const normalize = (s: string) =>
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
     .normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-const searchIndex = institutes.map((b) => ({ bank: b, text: normalize(`${b.name} ${b.location} ${b.bic}`) }));
+/**
+ * The short names people search by that are in no institute's name: "DKB" is
+ * not in "Deutsche Kreditbank Berlin". Keyed by brand, because the brand rules
+ * above are tight (dkb is exactly BLZ 120 300 00). "ING-DiBa" needs none — it
+ * is the institute's own name.
+ */
+const ALIASES: Partial<Record<Brand, string>> = {
+  dkb: 'dkb',
+  hypovereinsbank: 'hvb',
+  apobank: 'apobank',
+  oldenburgische: 'olb',
+};
+
+// Name, town and alias — not the BIC. A BIC read as free text matches inside
+// other banks' codes: "DKB" is the end of BYLADEM1DKB, a Sparkasse in
+// Dinkelsbühl. BICs are matched from their start only, below.
+const searchIndex = institutes.map((b) => ({
+  bank: b,
+  text: normalize(`${b.name} ${b.location} ${ALIASES[b.brand] ?? ''}`),
+  name: normalize(b.name),
+  alias: ALIASES[b.brand] ?? null,
+}));
+type IndexEntry = (typeof searchIndex)[number];
+
+/** A BIC, or the start of one: four letters, then the country (MALADE51KOB). */
+const BIC_PREFIX = /^[A-Za-z]{4}[A-Za-z0-9]{0,7}$/;
 
 export function searchBanks(query: string, limit = 25): Institute[] {
-  const q = (query || '').trim();
-  if (!q) return [];
+  const q = parseBankQuery(query);
 
-  if (/^\d{3,8}$/.test(q)) {
-    // Looks like a BLZ (or the beginning of one)
-    const exact = byBlz.get(q);
-    const prefix = institutes.filter((b) => b.blz.startsWith(q) && b !== exact);
+  if (q.kind === 'blz') {
+    // A BLZ or the beginning of one — spaces between the digits allowed, the
+    // way the app prints it ("370 400 44").
+    if (!/^\d{3,8}$/.test(q.digits)) return [];
+    const exact = byBlz.get(q.digits);
+    const prefix = institutes.filter((b) => b.blz.startsWith(q.digits) && b !== exact);
     return [exact, ...prefix].filter((b): b is Institute => !!b).slice(0, limit);
   }
+  if (q.kind !== 'text') return [];
 
-  // Looks like a BIC (or the beginning of one): 4 letters, then country code,
-  // e.g. MALADE51KOB. Prefix matches rank before the free-text results.
-  if (/^[A-Za-z]{4}[A-Za-z0-9]{0,7}$/.test(q) && q.length >= 4) {
-    const bq = q.toUpperCase();
-    const bicHits = institutes.filter((b) => b.bic && b.bic.startsWith(bq));
-    if (bicHits.length) {
-      bicHits.sort((a, b) => a.bic.localeCompare(b.bic) || a.blz.localeCompare(b.blz));
-      return bicHits.slice(0, limit);
-    }
-    // fall through to name search (e.g. "AACH" is a city prefix, not a BIC)
+  // BIC prefix matches rank before the free-text results, which still follow:
+  // "Deut" is the start of a BIC and of a name alike.
+  const bicHits: Institute[] = [];
+  if (BIC_PREFIX.test(q.text) && q.text.length >= 4) {
+    const bq = q.text.toUpperCase();
+    bicHits.push(...institutes.filter((b) => b.bic && b.bic.startsWith(bq)));
+    bicHits.sort((a, b) => a.bic.localeCompare(b.bic) || a.blz.localeCompare(b.blz));
   }
 
-  const words = normalize(q).split(/\s+/).filter(Boolean);
-  if (!words.length) return [];
-  const matches: Institute[] = [];
-  for (const { bank, text } of searchIndex) {
-    if (words.every((w) => text.includes(w))) {
-      matches.push(bank);
-      if (matches.length >= 200) break; // plenty; ranked below
-    }
+  const words = normalize(q.text).split(/\s+/).filter(Boolean);
+  const nq = words.join(' ');
+  const taken = new Set(bicHits);
+  const matches: IndexEntry[] = [];
+  for (const entry of searchIndex) {
+    if (taken.has(entry.bank) || !words.every((w) => entry.text.includes(w))) continue;
+    matches.push(entry);
+    if (matches.length >= 200) break; // plenty; ranked below
   }
-  // Rank: name starts with query > shorter names first (usually the "head" institute)
-  const nq = normalize(q);
-  matches.sort((a, b) => {
-    const aStarts = normalize(a.name).startsWith(nq) ? 0 : 1;
-    const bStarts = normalize(b.name).startsWith(nq) ? 0 : 1;
-    if (aStarts !== bStarts) return aStarts - bStarts;
-    return a.name.length - b.name.length;
-  });
-  return matches.slice(0, limit);
+  // Rank: a bank asked for by its short name ("DKB") or a name that starts
+  // with the query first, then shorter names (usually the "head" institute),
+  // then the BLZ, so rows of one name keep one order.
+  const rank = (e: IndexEntry) => ((e.alias && words.includes(e.alias)) || e.name.startsWith(nq) ? 0 : 1);
+  matches.sort((a, b) =>
+    rank(a) - rank(b) || a.bank.name.length - b.bank.name.length || a.bank.blz.localeCompare(b.bank.blz));
+  return [...bicHits, ...matches.map((e) => e.bank)].slice(0, limit);
 }
 
 export function lookupBlz(blz: string | undefined | null): Institute | null {
@@ -153,22 +181,23 @@ export const bankCount = institutes.length;
 // via the search — so the quick picks are the big nationwide banks.
 // ---------------------------------------------------------------------------
 const PRESETS: PopularBank[] = [
-  { key: 'sparkasse', name: 'Sparkasse', brand: 'sparkasse', search: 'Sparkasse', hint: 'Deine lokale Sparkasse per BLZ oder Ort suchen · S-pushTAN' },
-  { key: 'vrbank', name: 'Volksbank / VR-Bank', brand: 'vrbank', search: 'Volksbank', hint: 'Deine lokale VR-Bank per BLZ oder Ort suchen · SecureGo plus' },
-  { key: 'ing', name: 'ING', brand: 'ing', blz: '50010517', hint: 'Banking to go App' },
-  { key: 'dkb', name: 'DKB', brand: 'dkb', search: 'DKB', hint: 'Deine BLZ suchen · DKB-App' },
-  { key: 'commerzbank', name: 'Commerzbank', brand: 'commerzbank', search: 'Commerzbank', hint: 'Deine BLZ suchen · photoTAN' },
-  { key: 'deutschebank', name: 'Deutsche Bank', brand: 'deutschebank', search: 'Deutsche Bank', hint: 'Deine BLZ suchen · photoTAN' },
-  { key: 'postbank', name: 'Postbank', brand: 'postbank', search: 'Postbank', hint: 'Deine BLZ suchen · BestSign' },
-  { key: 'comdirect', name: 'comdirect', brand: 'comdirect', search: 'comdirect', hint: 'Deine BLZ suchen · photoTAN' },
-  { key: 'hypovereinsbank', name: 'HypoVereinsbank', brand: 'hypovereinsbank', blz: '70020270', hint: 'appTAN' },
-  { key: 'targobank', name: 'Targobank', brand: 'targobank', blz: '30020900', hint: 'easyTAN' },
-  { key: 'consorsbank', name: 'Consorsbank', brand: 'consorsbank', blz: '76030080', hint: 'SecurePlus' },
-  { key: 'norisbank', name: 'norisbank', brand: 'norisbank', blz: '10077777', hint: 'photoTAN' },
-  { key: 'sparda', name: 'Sparda-Bank', brand: 'sparda', search: 'Sparda', hint: 'Deine lokale Sparda-Bank suchen · SpardaSecureApp' },
-  { key: 'psd', name: 'PSD Bank', brand: 'psd', search: 'PSD', hint: 'Deine lokale PSD Bank suchen' },
-  { key: 'apobank', name: 'apoBank', brand: 'apobank', blz: '30060601', hint: 'apoTAN' },
-  { key: 'gls', name: 'GLS Bank', brand: 'gls', blz: '43060967', hint: 'SecureGo plus' },
+  { key: 'sparkasse', name: 'Sparkasse', brand: 'sparkasse', search: 'Sparkasse' },
+  { key: 'vrbank', name: 'Volksbank / VR-Bank', brand: 'vrbank', search: 'Volksbank' },
+  { key: 'ing', name: 'ING', brand: 'ing', blz: '50010517' },
+  // All of DKB is one BLZ: the tile picks it, rather than searching "DKB".
+  { key: 'dkb', name: 'DKB', brand: 'dkb', blz: '12030000' },
+  { key: 'commerzbank', name: 'Commerzbank', brand: 'commerzbank', search: 'Commerzbank' },
+  { key: 'deutschebank', name: 'Deutsche Bank', brand: 'deutschebank', search: 'Deutsche Bank' },
+  { key: 'postbank', name: 'Postbank', brand: 'postbank', search: 'Postbank' },
+  { key: 'comdirect', name: 'comdirect', brand: 'comdirect', search: 'comdirect' },
+  { key: 'hypovereinsbank', name: 'HypoVereinsbank', brand: 'hypovereinsbank', blz: '70020270' },
+  { key: 'targobank', name: 'Targobank', brand: 'targobank', blz: '30020900' },
+  { key: 'consorsbank', name: 'Consorsbank', brand: 'consorsbank', blz: '76030080' },
+  { key: 'norisbank', name: 'norisbank', brand: 'norisbank', blz: '10077777' },
+  { key: 'sparda', name: 'Sparda-Bank', brand: 'sparda', search: 'Sparda' },
+  { key: 'psd', name: 'PSD Bank', brand: 'psd', search: 'PSD' },
+  { key: 'apobank', name: 'apoBank', brand: 'apobank', blz: '30060601' },
+  { key: 'gls', name: 'GLS Bank', brand: 'gls', blz: '43060967' },
 ];
 
 export const POPULAR_BANKS: PopularBank[] = PRESETS

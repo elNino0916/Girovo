@@ -27,7 +27,8 @@ import { Inbox } from './Inbox';
 import { CommandPalette } from './CommandPalette';
 import { SessionGuard } from './SessionGuard';
 import { ShortcutsHelp } from './ShortcutsHelp';
-import { TabPanel, cx } from './ui';
+import { ChevronIcon } from './icons';
+import { Button, TabPanel, cx } from './ui';
 import { useShellActions } from './shell/actions';
 import { useGlobalShortcuts } from './shell/useShortcuts';
 import { Masthead } from './shell/Masthead';
@@ -36,6 +37,7 @@ import { Stage } from './shell/Stage';
 import { Footer } from './shell/Footer';
 import { BottomBar } from './shell/BottomBar';
 import { MessagesTeaser } from './shell/MessagesTeaser';
+import { MerchantLogoConsent } from './MerchantLogoConsent';
 
 export function Dashboard() {
   const { tab, transferOpen, shareOpen } = useFints();
@@ -99,46 +101,81 @@ export function Dashboard() {
 /**
  * The Übersicht grid.
  *
- * One list of tiles in two orders: on a desk-wide screen two columns (2:1,
- * the wide one first), below that a single column where the small summaries
- * — Vorgemerkt, Monatsbilanz, Demnächst fällig, Mitteilungen — move up
- * between the balance and the bookings: the bookings are a long list, and
- * anything after them would never be seen on a phone. The column wrappers are
- * `display: contents` on the narrow layout, so the same mounted tiles are
- * reordered by CSS alone — nothing remounts (and loses its state) when the
- * window crosses the breakpoint.
+ * The markup is the reading order — Konten und Karten, Kontostand, the small
+ * summaries (Vorgemerkt, Monatsbilanz, Demnächst fällig, Mitteilungen), then
+ * Umsätze — so the eye, Tab and a screen reader go the same way at every
+ * width. Below the desk breakpoint that is simply one column: the bookings
+ * are a long list, and anything after them would never be seen on a phone.
+ *
+ * From desk it is two columns (2:1). The summaries' wrapper is placed in the
+ * second column across every row and stays pinned beside the bookings; the
+ * other three fill the first column in order. Placement, not CSS `order`, and
+ * nothing remounts (and loses its state) when the window crosses the
+ * breakpoint. The rows are `auto auto 1fr`, so a side column taller than the
+ * list and the hero (Umsätze still loading, or none) grows the last row,
+ * never the first two. With a single account the list renders nothing, and
+ * the grid drops to two rows rather than keep a gap where it would be.
  */
 function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
   const { activeAccount } = useFints();
-  const rightRef = useRef<HTMLDivElement>(null);
-  const stickyTop = useStickyTop(rightRef, scrollRef);
+  const sideRef = useRef<HTMLDivElement>(null);
+  const stickyTop = useStickyTop(sideRef, scrollRef);
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6 desk:grid desk:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] desk:items-start">
-      <div className="contents desk:flex desk:min-w-0 desk:flex-col desk:gap-6">
-        <Slot order="order-1"><AccountList /></Slot>
-        <Slot order="order-2"><AccountHero /></Slot>
-        <Slot order="order-7"><Transactions /></Slot>
-      </div>
+    <div
+      className={cx(
+        'flex flex-col gap-4 sm:gap-6',
+        'desk:grid desk:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] desk:grid-rows-[auto_auto_1fr] desk:items-start',
+        'desk:has-[>[data-slot=accounts]:empty]:grid-rows-[auto_1fr]',
+      )}
+    >
+      <Slot name="accounts" className="desk:col-start-1"><AccountList /></Slot>
+      <Slot name="hero" className="desk:col-start-1"><AccountHero /></Slot>
+      {activeAccount && <ToTransactions />}
       <div
-        ref={rightRef}
+        ref={sideRef}
         // Pinned beside the bookings while they scroll (sticky only applies
         // on the two-column layout; the `top` is inert without it).
         style={{ top: stickyTop }}
-        className="contents desk:sticky desk:flex desk:min-w-0 desk:flex-col desk:gap-6"
+        className="flex min-w-0 flex-col gap-4 sm:gap-6 desk:sticky desk:col-start-2 desk:row-[1/-1]"
       >
-        {activeAccount?.canPending && <Slot order="order-3"><PendingPanel /></Slot>}
-        <Slot order="order-4"><MonthSummary /></Slot>
-        <Slot order="order-5"><UpcomingPayments /></Slot>
-        <Slot order="order-6"><MessagesTeaser /></Slot>
+        <Slot><MerchantLogoConsent /></Slot>
+        {activeAccount?.canPending && <Slot><PendingPanel /></Slot>}
+        <Slot><MonthSummary /></Slot>
+        <Slot><UpcomingPayments /></Slot>
+        <Slot><MessagesTeaser /></Slot>
       </div>
+      <Slot name="transactions" className="desk:col-start-1"><Transactions /></Slot>
     </div>
   );
 }
 
 /** A grid cell. Empty tiles (a component that renders nothing) leave no gap behind. */
-function Slot({ order, children }: { order: string; children: ReactNode }) {
-  return <div className={cx('min-w-0 empty:hidden', order)}>{children}</div>;
+function Slot({ name, className, children }: { name?: string; className?: string; children: ReactNode }) {
+  return <div data-slot={name} className={cx('min-w-0 empty:hidden', className)}>{children}</div>;
+}
+
+/**
+ * Below the desk breakpoint the summaries stand between the balance and the
+ * bookings. This goes past them in one press — the same jump as the palette's
+ * "Umsätze durchsuchen" and "/", landing on the Umsätze heading, so the next
+ * Tab is in the filters. On desk the bookings sit right under the balance.
+ */
+function ToTransactions() {
+  const { showTransactions } = useFints();
+  return (
+    <div className="-my-1 sm:-my-2 desk:hidden">
+      <Button
+        variant="tertiary"
+        size="sm"
+        className="-ml-3"
+        iconRight={<ChevronIcon dir="down" size={15} />}
+        onClick={() => showTransactions()}
+      >
+        Zu den Umsätzen
+      </Button>
+    </div>
+  );
 }
 
 /**

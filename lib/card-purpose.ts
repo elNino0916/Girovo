@@ -37,6 +37,9 @@ const CARD = /\b(Debitk|Kreditk)\.?\s?\d{1,2}\s+\d{4}-\d{2}\b/i;
 // +ARN74…"), then the scheme's and the acquirer's references for the refund.
 const CARD_BARE = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?\s+\d{1,4}\s+\d{4}-\d{2}\b/;
 const SEQ_EXPIRY = /(?:^|\s)\d{1,4}\s+\d{4}-\d{2}(?=\s|$)/;
+// A girocard terminal's record: the card's sequence number ("Kartenfolgenummer")
+// and its expiry ("Verfalljahr", YYMM) — "… 2026-10-04T08:12:40 KFN 1 VJ 2912".
+const GIROCARD = /\bKFN\s?\d{1,2}\s+VJ\s?\d{4}\b/i;
 const CARD_REFS = /(?:\/VID-\S*|\+ARN\S*)/i;
 const SCHEME = /\bZahl\.?\s?System\s+(VISA\s+Debit|Visa|Mastercard(?:\s+Debit)?|Maestro|V\s?PAY|girocard)\b/i;
 const ORIGINAL = /\bOriginal\s+([\d.,]+)\s+([A-Z]{3})(?:\s+1\s+Euro\s*=\s*([\d.,]+)\s+[A-Z]{3})?/i;
@@ -52,7 +55,7 @@ function decimal(s: string): number | null {
 /** Whether a purpose is a card system's record rather than prose. */
 export function isCardPurpose(text: string | null | undefined): boolean {
   const s = String(text ?? '');
-  return CARD.test(s) || SCHEME.test(s) || CARD_BARE.test(s);
+  return CARD.test(s) || SCHEME.test(s) || CARD_BARE.test(s) || GIROCARD.test(s);
 }
 
 /** The parts of a card record, or null when the purpose isn't one. */
@@ -62,14 +65,15 @@ export function parseCardPurpose(text: string | null | undefined): CardPurpose |
 
   const card = CARD.exec(s);
   const scheme = SCHEME.exec(s);
+  const girocard = GIROCARD.test(s);
   const original = ORIGINAL.exec(s);
   const fee = FEE.exec(s);
   const origAmount = original ? decimal(original[1]) : null;
 
   return {
     at: TIMESTAMP.exec(s)?.[0] ?? null,
-    card: card ? (/^debit/i.test(card[1]) ? 'debit' : 'credit') : null,
-    scheme: scheme ? scheme[1].replace(/\s+/g, ' ') : null,
+    card: card ? (/^debit/i.test(card[1]) ? 'debit' : 'credit') : girocard ? 'debit' : null,
+    scheme: scheme ? scheme[1].replace(/\s+/g, ' ') : girocard ? 'girocard' : null,
     original: original && origAmount != null
       ? { amount: origAmount, currency: original[2].toUpperCase(), rate: original[3] ? decimal(original[3]) : null }
       : null,
@@ -86,7 +90,7 @@ export function parseCardPurpose(text: string | null | undefined): CardPurpose |
 export function stripCardBoilerplate(text: string | null | undefined): string {
   const s = String(text ?? '');
   if (!isCardPurpose(s)) return s;
-  return [TIMESTAMP, CARD, SCHEME, ORIGINAL, FEE, CARD_REFS, SEQ_EXPIRY]
+  return [TIMESTAMP, CARD, SCHEME, ORIGINAL, FEE, CARD_REFS, GIROCARD, SEQ_EXPIRY]
     .reduce((acc, re) => acc.replace(new RegExp(re.source, 'gi'), ' '), s)
     .replace(/\s+/g, ' ')
     .replace(/^[\s·,;:/+-]+|[\s·,;:/+-]+$/g, '')

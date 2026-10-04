@@ -39,10 +39,11 @@ export function Footer() {
         </div>
 
         <div className="mt-5 flex flex-col gap-1.5 border-t border-bar-line pt-4 text-[13px] leading-snug text-bar-ink-2 sm:flex-row sm:flex-wrap sm:gap-x-6">
-          <span>Direktzugang über FinTS 3.0</span>
+          {/* One sentence for how the app reaches the bank — it used to be
+              said twice, once with the protocol and once without. */}
           <span className="inline-flex items-center gap-1.5">
-            <ShieldIcon size={13} />
-            Direkte Verbindung von diesem Rechner zu {bank?.name || 'deiner Bank'}
+            <ShieldIcon size={13} className="shrink-0" />
+            Direkte FinTS-Verbindung von diesem Rechner zu {bank?.name || 'deiner Bank'}
           </span>
           <span className="sm:ml-auto">
             Angemeldet seit <span className="tnum">{fmtSince(sessionStartedAt)}</span>

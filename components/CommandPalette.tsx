@@ -1,6 +1,6 @@
 'use client';
 
-// "Suche und Befehle" — one field for everything the dashboard can do.
+// "Suche" — one field for everything the dashboard can do.
 //
 // Strg+K / ⌘K, the masthead's Suche and the phone's "Mehr" open it. It finds
 // three kinds of things, always in this order so the eye learns where to
@@ -10,12 +10,19 @@
 // booking opens the Umsätze list filtered to what was typed, on the booking's
 // account when that is answered from the cache.
 //
+// "Abmelden" is the one entry that ends something, so it stands apart, last,
+// under "Sitzung", and answers only a deliberate query: the start of its name
+// from three letters ("abm"), or one of its words in full ("logout") — never
+// "ab" (Abos, an Abbuchung) or a fuzzy hit like "logo" or "med", which could
+// leave it alone and preselected (lib/palette.ts). With nothing typed it is
+// listed too — on a phone, "Mehr" is where people look for it.
+//
 // Nothing here bypasses anything: Überweisen opens the transfer sheet with
 // its review, Namensabgleich and TAN. Choosing a Konto is a switch like any
 // other (it may load). Choosing a booking is "show me", and that never reads
 // from the bank: when its account was loaded for another range (or before
-// midnight), the list opens on the current account and a toast offers the
-// switch — with the note that it may need an approval.
+// midnight), the list opens on the current account, says whose booking it
+// was and offers the switch — with the note that it may need an approval.
 //
 // ARIA: the input is a combobox that owns a listbox; arrow keys move the
 // active option (aria-activedescendant), focus never leaves the field.
@@ -23,11 +30,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { txMatcher } from '@/lib/analytics';
-import { dayKey, fmtDate, fmtShortIban, initials, translateType } from '@/lib/format';
+import { dayKey, fmtDate, initials, translateType } from '@/lib/format';
+import { paletteResults } from '@/lib/palette';
 import { setThemePref } from '@/lib/theme';
 import type { DashboardTab } from '@/lib/app-types';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { useFints } from './FintsProvider';
+import { isCardAccount } from '@/lib/balances';
 import { Money } from './Money';
 import { useThemePref } from './ThemeToggle';
 import {
@@ -35,12 +44,13 @@ import {
   KeyboardIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon, RefreshIcon, RepeatIcon, SearchIcon, SunIcon, TransferIcon,
 } from './icons';
 import { EmptyState, IconButton, Kbd, Overlay, cx } from './ui';
-import { txText } from './transactions/model';
-import { useShellActions } from './shell/actions';
+import { searchText, txText } from './transactions/model';
+import { useShellActions, useShowOnAccount } from './shell/actions';
 import { hasNewer, updates, useUpdates } from './updates/store';
-import { fuzzyScore } from './shell/fuzzy';
+import { privacyNotice } from './shell/useShortcuts';
+import { ShortIban } from './overview/AccountIdentity';
 
-type Group = 'actions' | 'accounts' | 'transactions';
+type Group = 'actions' | 'accounts' | 'transactions' | 'session';
 
 type Item = {
   id: string;
@@ -55,17 +65,22 @@ type Item = {
   featured?: boolean;
   /** Identifiers (IBAN, account number): matched as a run of characters, never fuzzily. */
   ids?: string[];
+  /** Ends something: listed last, and only for a deliberate query (lib/palette.ts). */
+  lastResort?: boolean;
   run: () => void;
 };
 
-const GROUP_LABEL: Record<Group, string> = { actions: 'Aktionen', accounts: 'Konten', transactions: 'Umsätze' };
+const GROUP_LABEL: Record<Group, string> = {
+  actions: 'Aktionen', accounts: 'Konten', transactions: 'Umsätze', session: 'Sitzung',
+};
+const GROUP_ORDER: readonly Group[] = ['actions', 'accounts', 'transactions', 'session'];
 const MAX_TX = 6;
 const MIN_TX_QUERY = 2;
 
 export function CommandPalette() {
   const { paletteOpen, setPaletteOpen } = useFints();
   return (
-    <Overlay open={paletteOpen} onClose={() => setPaletteOpen(false)} label="Suche und Befehle">
+    <Overlay open={paletteOpen} onClose={() => setPaletteOpen(false)} label="Suche">
       <Palette onClose={() => setPaletteOpen(false)} />
     </Overlay>
   );
@@ -74,6 +89,7 @@ export function CommandPalette() {
 function Palette({ onClose }: { onClose: () => void }) {
   const f = useFints();
   const a = useShellActions();
+  const showOnAccount = useShowOnAccount();
   const themePref = useThemePref();
   const { state: update } = useUpdates();
   const [query, setQuery] = useState('');
@@ -99,8 +115,10 @@ function Palette({ onClose }: { onClose: () => void }) {
   const actions = useMemo<Item[]>(() => {
     // A one-key hint only while those keys work (they can be switched off).
     const single = (keys: string[]) => (f.singleKeyShortcuts ? <KeyHint keys={keys} /> : undefined);
+    // The sections are one press away in the institute bar (and the phone's
+    // bottom bar), so they are found by typing, not listed up front.
     const tab = (t: DashboardTab, label: string, icon: ReactNode, key: string, keywords: string[]): Item => ({
-      id: `tab-${t}`, group: 'actions', label, icon, keywords, featured: f.tab !== t,
+      id: `tab-${t}`, group: 'actions', label, icon, keywords,
       hint: <KeyHint keys={['Alt', key]} />,
       description: f.tab === t ? 'Du bist hier' : undefined,
       run: () => f.setTab(t),
@@ -125,7 +143,8 @@ function Palette({ onClose }: { onClose: () => void }) {
         run: a.share,
       },
       {
-        id: 'search', group: 'actions', label: 'Umsätze durchsuchen', icon: <SearchIcon size={18} />, featured: true,
+        // Not listed up front: this field already searches the Umsätze.
+        id: 'search', group: 'actions', label: 'Umsätze durchsuchen', icon: <SearchIcon size={18} />,
         hint: single(['/']),
         keywords: ['suche', 'filter', 'finden', 'buchungen'],
         run: a.focusSearch,
@@ -137,7 +156,7 @@ function Palette({ onClose }: { onClose: () => void }) {
         run: a.statement,
       },
       a.canExport && {
-        id: 'csv', group: 'actions', label: 'Umsätze als CSV exportieren', icon: <DownloadIcon />, featured: true,
+        id: 'csv', group: 'actions', label: 'Umsätze als CSV exportieren', icon: <DownloadIcon />,
         description: a.rangeLabel ? `${a.rangeLabel} · für Excel` : 'Für Excel',
         keywords: ['export', 'excel', 'csv', 'tabelle', 'download', 'herunterladen'],
         run: a.exportCsv,
@@ -147,7 +166,13 @@ function Palette({ onClose }: { onClose: () => void }) {
         icon: f.privacy ? <EyeIcon /> : <EyeOffIcon />, featured: true,
         hint: single(['B']),
         keywords: ['privat', 'verbergen', 'verstecken', 'datenschutz', 'bildschirm teilen', 'beträge', 'einblenden'],
-        run: f.togglePrivacy,
+        run: () => {
+          const hidden = !f.privacy;
+          f.togglePrivacy();
+          // Every figure changes at once, behind the closing palette: said
+          // too, for whoever cannot see that happen.
+          f.toast(privacyNotice(hidden, f.singleKeyShortcuts), 'info');
+        },
       },
       {
         id: 'inbox', group: 'actions', label: 'Mitteilungen', icon: <BellIcon />, featured: true,
@@ -194,16 +219,16 @@ function Palette({ onClose }: { onClose: () => void }) {
         run: () => f.setShortcutsOpen(true),
       },
       {
-        id: 'logout', group: 'actions', label: 'Abmelden', icon: <LogoutIcon />,
-        keywords: ['logout', 'ausloggen', 'beenden', 'sitzung'],
-        run: () => void f.logout('user'),
+        id: 'logout', group: 'session', label: 'Abmelden', icon: <LogoutIcon />, featured: true, lastResort: true,
+        keywords: ['logout', 'ausloggen', 'abmeldung', 'sitzung beenden'],
+        // Asks first only while this session holds a transfer whose status is unclear.
+        run: f.requestLogout,
       },
     ];
     return list.filter((x): x is Item => !!x);
   }, [a, f, themePref, update]);
 
   const accounts = useMemo<Item[]>(() => f.accounts.map((acct, i) => {
-    const short = fmtShortIban(acct.iban || acct.accountNumber);
     const balance = f.balances[acct.accountNumber];
     const isActive = acct.accountNumber === f.activeAccount?.accountNumber;
     return {
@@ -212,7 +237,8 @@ function Palette({ onClose }: { onClose: () => void }) {
       label: f.accountLabel(acct),
       icon: <AccountTypeIcon type={acct.accountType} product={acct.product} />,
       featured: true,
-      description: <span className="iban">{short.head} <span className="id-tail">{short.tail}</span></span>,
+      // As the account list shows it: "DE62 ··· 5932 71", a card as "4930 •••• •••• 1234".
+      description: <ShortIban account={acct} />,
       hint: (
         <span className="flex items-center gap-3">
           {isActive && (
@@ -221,7 +247,15 @@ function Palette({ onClose }: { onClose: () => void }) {
               <span className="max-sm:sr-only">Ausgewählt</span>
             </span>
           )}
-          {balance && <Money value={balance.balance} currency={balance.currency} className="text-[14px] font-semibold" />}
+          {balance && (
+            // A card's balance is negative by nature: ink, never alarm red.
+            <Money
+              value={balance.balance}
+              currency={balance.currency}
+              tone={isCardAccount(acct) ? 'plain' : 'auto'}
+              className="text-[14px] font-semibold"
+            />
+          )}
           {i < 9 && f.singleKeyShortcuts && <span className="hidden sm:inline-flex"><KeyHint keys={[String(i + 1)]} /></span>}
         </span>
       ),
@@ -235,11 +269,13 @@ function Palette({ onClose }: { onClose: () => void }) {
   }), [f]);
 
   // Bookings: only once something is typed, newest first, across every
-  // account loaded in this session.
+  // account loaded in this session — found by what their rows show (the
+  // tidied name, the town, the category), as in the Umsätze search.
   const q = query.trim();
+  const searchCtx = useMemo(() => ({ categoryOf: f.categoryOf, shownText: searchText }), [f.categoryOf]);
   const txMatches = useMemo(() => {
     if (q.length < MIN_TX_QUERY) return { list: [] as { tx: SerializedTransaction; account: SerializedAccount }[], total: 0, inActive: 0 };
-    const match = txMatcher(q);
+    const match = txMatcher(q, searchCtx);
     const hits: { tx: SerializedTransaction; account: SerializedAccount; day: string }[] = [];
     let inActive = 0;
     for (const account of f.accounts) {
@@ -251,35 +287,16 @@ function Palette({ onClose }: { onClose: () => void }) {
     }
     hits.sort((x, y) => (x.day === y.day ? 0 : x.day < y.day ? 1 : -1));
     return { list: hits.slice(0, MAX_TX), total: hits.length, inActive };
-  }, [q, f.accounts, f.txByAccount, f.activeAccount]);
+  }, [q, searchCtx, f.accounts, f.txByAccount, f.activeAccount]);
 
   const transactions = useMemo<Item[]>(() => {
-    /**
-     * A booking hit: the Umsätze list, filtered, on the booking's account —
-     * when switching there is answered from the cache. Bookings of an account
-     * loaded for another range stay findable, but going to them would ask the
-     * bank again (perhaps for a TAN), which a "show me" choice must not set
-     * off: the list opens on the current account, and a toast says why and
-     * offers the switch as a deliberate step.
-     */
-    const showBooking = (account: SerializedAccount) => {
-      const elsewhere = account.accountNumber !== f.activeAccount?.accountNumber;
-      const fromCache = elsewhere && !f.busy && f.isLoadedForAppliedRange(account.accountNumber);
-      if (fromCache) f.selectAccount(account);
-      f.showTransactions({ query: q });
-      if (!elsewhere || fromCache) return;
-      const label = f.accountLabel(account);
-      if (f.busy) {
-        f.toast(`„${label}“ lässt sich wählen, sobald der laufende Vorgang fertig ist.`, 'info');
-        return;
-      }
-      f.toast(
-        `Die Umsätze von „${label}“ sind für einen anderen Zeitraum geladen. Wechseln lädt sie neu – das kann eine Freigabe erfordern.`,
-        'info',
-        12_000,
-        { label: 'Konto wechseln', run: () => f.selectAccount(account) },
-      );
-    };
+    // A booking hit: the Umsätze list, filtered, on the booking's account —
+    // when switching there is answered from the cache. Bookings of an account
+    // loaded for another range stay findable, but going to them would ask the
+    // bank again (perhaps for a TAN), which a "show me" choice must not set
+    // off: the list opens on the current account, names the booking's, and
+    // offers the switch as a deliberate step (useShowOnAccount).
+    const showBooking = (account: SerializedAccount) => showOnAccount(account, { query: q });
 
     // The account is only worth naming when the hits come from more than one.
     const several = new Set(txMatches.list.map((h) => h.account.accountNumber)).size > 1;
@@ -310,28 +327,13 @@ function Palette({ onClose }: { onClose: () => void }) {
       });
     }
     return items;
-  }, [txMatches, q, f]);
+  }, [txMatches, q, f, showOnAccount]);
 
   const items = useMemo(() => {
-    if (!q) return [...actions.filter((x) => x.featured), ...accounts];
-    // "12,99", "-49,90", ">100": an amount, which only bookings can answer.
-    const amountLike = /^[\s\d.,+\-−<>=€]+$/.test(q);
-    const compact = q.replace(/\s+/g, '').toUpperCase();
-    const score = (item: Item) => {
-      // Four or more characters of an IBAN or account number, typed with or
-      // without its spaces, find that account.
-      const idHit = compact.length >= 4
-        && (item.ids ?? []).some((id) => id.replace(/\s+/g, '').toUpperCase().includes(compact));
-      if (idHit) return 70;
-      return amountLike ? 0 : fuzzyScore(item.label, q, item.keywords);
-    };
-    const rank = (list: Item[]) =>
-      list
-        .map((item, i) => ({ item, i, score: score(item) }))
-        .filter((r) => r.score > 0)
-        .sort((x, y) => y.score - x.score || x.i - y.i)
-        .map((r) => r.item);
-    return [...rank(actions).slice(0, 8), ...rank(accounts), ...transactions];
+    const r = paletteResults(actions, accounts, q);
+    // Abmelden after everything, bookings included: never the row an Enter
+    // meant for a search lands on.
+    return [...r.actions, ...r.accounts, ...(q ? transactions : []), ...r.last];
   }, [q, actions, accounts, transactions]);
 
   // A new query starts at the top.
@@ -364,7 +366,7 @@ function Palette({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const groups = (['actions', 'accounts', 'transactions'] as const)
+  const groups = GROUP_ORDER
     .map((g) => ({ g, rows: items.map((item, i) => ({ item, i })).filter((r) => r.item.group === g) }))
     .filter((x) => x.rows.length);
 
@@ -398,15 +400,17 @@ function Palette({ onClose }: { onClose: () => void }) {
           <SearchIcon size={20} className="text-ink-3" />
           <input
             ref={inputRef}
-            data-autofocus
+            // Starts here with a keyboard; on a touch screen the dialog takes
+            // focus instead, so the on-screen keyboard does not cover the list.
+            data-autofocus="fine"
             type="text"
             role="combobox"
             aria-expanded="true"
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={items.length ? optId(current) : undefined}
-            aria-label="Suchen oder Befehl eingeben"
-            placeholder="Suchen oder Befehl eingeben …"
+            aria-label="Umsatz, Konto oder Aktion suchen"
+            placeholder="Umsatz, Konto oder Aktion suchen …"
             autoComplete="off"
             spellCheck={false}
             enterKeyHint="go"
@@ -422,6 +426,14 @@ function Palette({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
+          {/* Said first, while the field is (nearly) empty: the masthead calls
+              this "Suche", so before anything else it says what it searches. */}
+          {q.length < MIN_TX_QUERY && (
+            <p className="px-5 pt-1.5 pb-1 text-[13px] leading-snug text-ink-3">
+              Tippe einen Namen, Verwendungszweck oder Betrag, um in den geladenen Umsätzen zu suchen.
+            </p>
+          )}
+
           {/* Always rendered, so aria-controls never points at nothing. */}
           <div id={listId} role="listbox" aria-label="Ergebnisse">
             {groups.map(({ g, rows }) => (
@@ -450,21 +462,15 @@ function Palette({ onClose }: { onClose: () => void }) {
 
           {!items.length && (
             <EmptyState illustration="search" compact title={`Keine Treffer für „${q}“`}>
-              Suche nach einer Aktion wie „Überweisen“, nach einem Konto oder nach geladenen Umsätzen — Name,
+              Suche nach einer Aktion wie „Überweisen“, nach einem Konto oder nach geladenen Umsätzen – Name,
               Verwendungszweck oder Betrag wie „12,99“.
             </EmptyState>
-          )}
-
-          {items.length > 0 && q.length < MIN_TX_QUERY && (
-            <p className="px-5 pt-2 pb-2 text-[13px] leading-snug text-ink-3">
-              Tippe einen Namen, Verwendungszweck oder Betrag, um in den geladenen Umsätzen zu suchen.
-            </p>
           )}
         </div>
 
         <div aria-hidden className="hidden shrink-0 items-center gap-5 border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:flex">
           <span className="inline-flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> auswählen</span>
-          <span className="inline-flex items-center gap-1.5"><Kbd>↵</Kbd> ausführen</span>
+          <span className="inline-flex items-center gap-1.5"><Kbd>↵</Kbd> öffnen</span>
           <span className="inline-flex items-center gap-1.5"><Kbd>Esc</Kbd> schließen</span>
         </div>
       </div>
@@ -486,7 +492,7 @@ function Option({
       onMouseDown={(e) => e.preventDefault()}
       onClick={onChoose}
       className={cx(
-        'mx-2 flex min-h-12 cursor-pointer items-center gap-3 rounded-[10px] px-3 py-2',
+        'mx-2 flex min-h-12 cursor-pointer items-center gap-3 rounded-[8px] px-3 py-2',
         // The tint alone is ~1.1:1 on --raised; the ring is what a keyboard
         // user actually sees (focus stays in the field). Forced colours drop
         // box-shadows, so there it is an outline.

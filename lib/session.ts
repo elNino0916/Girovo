@@ -65,17 +65,23 @@ export const DEBUG = !!(process.env.FINTS_DEBUG || fileConfig.debug);
 // are matched against Brandfetch (https://brandfetch.com) to show a company's
 // logo on its transactions (lib/merchants.ts). Only names that look corporate
 // are sent, and only the cleaned company core — but it is still transaction
-// metadata leaving the machine, so it is switchable:
+// metadata leaving the machine, together with the user's IP address.
+//
+// So it is the user's decision, made in the app: logos stay off until they
+// answer a one-time question that comes before the first lookup, and the
+// Sitzung panel switches them later (the client holds every lookup until
+// then — see resolveMerchants in components/FintsProvider.tsx).
+//
+// MERCHANT_LOGOS only says whether this build offers the feature at all. It
+// is the hard kill switch above that choice: off, the app never asks, shows no
+// switch, and talks to nothing but the bank.
 //
 //   config.json  { "merchantLogos": false }
 //   environment  FINTS_MERCHANT_LOGOS=0
 //
-// Off means the app talks to nothing but your bank, and every transaction keeps
-// its plain avatar.
-//
 // Brandfetch requires a client ID (free, from https://developers.brandfetch.com)
-// on every request. Without one the feature is force-disabled regardless of the
-// toggle above, since there is nothing to call.
+// on every request. Without one the feature is not offered either, since there
+// is nothing to call.
 //
 //   config.json  { "brandfetchClientId": "..." }
 //   environment  BRANDFETCH_CLIENT_ID=...
@@ -83,11 +89,12 @@ export const DEBUG = !!(process.env.FINTS_DEBUG || fileConfig.debug);
 export const BRANDFETCH_CLIENT_ID =
   process.env.BRANDFETCH_CLIENT_ID || fileConfig.brandfetchClientId || '';
 
+/** Whether this build offers company logos (never whether the user agreed). */
 export const MERCHANT_LOGOS = (() => {
   if (!BRANDFETCH_CLIENT_ID) return false;
   const env = process.env.FINTS_MERCHANT_LOGOS;
   if (env != null && env !== '') return !['0', 'false', 'no', 'off'].includes(env.toLowerCase());
-  return fileConfig.merchantLogos !== false; // default on
+  return fileConfig.merchantLogos !== false;
 })();
 
 // ---------------------------------------------------------------------------

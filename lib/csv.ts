@@ -49,14 +49,22 @@ export type CsvOptions = {
   accountLabel?: string;
   /** The category the app shows for a booking — the provider's `categoryOf`. Omitted: empty column. */
   categoryOf?: (tx: SerializedTransaction) => CategoryResult | CategoryId | null | undefined;
-  /**
-   * The rows (the very objects passed in) that are Vormerkposten rather than
-   * booked. Decided by where a row came from, never by a key: a Vormerkposten
-   * and the booking it became share day, amount, IBAN and reference, and a
-   * key lookup would mark the booking "Vorgemerkt" too.
-   */
-  pendingRows?: ReadonlySet<SerializedTransaction>;
+  /** The day the Status column measures a Buchungstag against; defaults to today. */
+  today?: Date;
 };
+
+/**
+ * The Status column. The file holds the statement's bookings — the rows the
+ * Umsätze list shows, never the Vorgemerkt list — and says of each what the
+ * list's day header says: a Buchungstag still ahead is "Noch nicht gebucht"
+ * (the bank sent it, and books it on that day), everything else "Gebucht".
+ */
+export function csvStatus(tx: Pick<SerializedTransaction, 'entryDate' | 'valueDate'>, today = new Date()): string {
+  const d = new Date(tx.entryDate || tx.valueDate);
+  if (Number.isNaN(d.getTime())) return 'Gebucht';
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  return day(d) > day(today) ? 'Noch nicht gebucht' : 'Gebucht';
+}
 
 const SEPARATOR = ';';
 const EOL = '\r\n';
@@ -178,15 +186,15 @@ function row(tx: SerializedTransaction, opts: CsvOptions, accountCells: string[]
     csvIdCell(txCreditorId(tx) ?? field('CRED')),
     csvIdCell(reference(tx.mandateReference) || reference(field('MREF'))),
     csvIdCell(reference(tx.e2eReference) || reference(field('EREF'))),
-    csvTextCell(opts.pendingRows?.has(tx) ? 'Vorgemerkt' : 'Gebucht'),
+    csvTextCell(csvStatus(tx, opts.today)),
   ];
   return cells.join(SEPARATOR);
 }
 
 /**
  * The CSV file's full text, BOM included, one row per booking in the order
- * given (pass them as the list shows them). Write it with
- * `downloadText(name, csv, 'text/csv;charset=utf-8')`.
+ * given (pass them as the list shows them). Save it with
+ * `saveFile(name, textBlob(csv, 'text/csv;charset=utf-8'))`.
  */
 export function transactionsToCsv(txs: readonly SerializedTransaction[], opts: CsvOptions): string {
   const { account } = opts;
@@ -202,17 +210,39 @@ export function transactionsToCsv(txs: readonly SerializedTransaction[], opts: C
 }
 
 /**
+ * What a CSV of the filtered Umsätze list covers. `span`: the days — the
+ * filter's own from/to where it has them (a month chosen in the list), the
+ * loaded period for an open end. `filtered`: whether something the dates do
+ * not say (a search, a category, a direction) narrowed it further.
+ */
+export function csvScope(
+  filter: { dir: string; category: string | null; query: string; from?: string; to?: string },
+  loaded: { from: string; to: string },
+): { span: { from: string; to: string }; filtered: boolean } {
+  return {
+    span: { from: filter.from || loaded.from, to: filter.to || loaded.to },
+    filtered: filter.dir !== 'all' || !!filter.category || !!filter.query.trim(),
+  };
+}
+
+/**
  * "Umsaetze_593271_2026-07-05_2026-10-03.csv" — the last six characters of
  * the IBAN tell two accounts' exports apart without putting the whole IBAN
  * into a file name that ends up in a Downloads folder and in recent-files
  * lists. ASCII only: "ä" in a file name still trips up some mail clients.
+ *
+ * The span is the days the file covers: the loaded period, or the month a
+ * filter narrowed the list to. A file narrowed by anything the dates do not
+ * say (a search, a category, a direction) ends in "_gefiltert", so it is
+ * never mistaken for the whole period under the same name.
  */
 export function csvFileName(
   account: Pick<SerializedAccount, 'accountNumber' | 'iban'>,
   range: { from: string; to: string },
+  opts: { filtered?: boolean } = {},
 ): string {
   const id = compact(account.iban || account.accountNumber).replace(/[^A-Z0-9]/g, '').slice(-6) || 'Konto';
   const day = (s: string) => String(s ?? '').replace(/[^0-9-]/g, '');
   const span = [day(range.from), day(range.to)].filter(Boolean).join('_');
-  return `Umsaetze_${id}${span ? `_${span}` : ''}.csv`;
+  return `Umsaetze_${id}${span ? `_${span}` : ''}${opts.filtered ? '_gefiltert' : ''}.csv`;
 }

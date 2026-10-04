@@ -32,6 +32,18 @@ test('parses a foreign-currency payment', () => {
   assert.equal(p.rest, '');
 });
 
+test('a girocard terminal record: time, card, and the terminal descriptor left over', () => {
+  const GIRO = 'ARAL Station 4711//MUSTERSTADT/DE 2026-10-04T08:12:40 KFN 1 VJ 2912';
+  assert.ok(isCardPurpose(GIRO));
+  const p = parseCardPurpose(GIRO)!;
+  assert.equal(p.at, '2026-10-04T08:12:40');
+  assert.equal(p.card, 'debit');
+  assert.equal(p.scheme, 'girocard');
+  assert.equal(p.fee, null);
+  assert.equal(p.rest, 'ARAL Station 4711//MUSTERSTADT/DE');
+  assert.ok(!isCardPurpose('Rechnung KFN-Nummer 4711'), 'KFN alone is no record');
+});
+
 test('keeps what the record does not explain', () => {
   assert.equal(parseCardPurpose(NOTE)!.rest, 'Teillieferung(Final)');
 });

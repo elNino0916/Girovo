@@ -8,17 +8,22 @@
 // "Weiter" button would scroll out of reach and the step you are on would
 // scroll out of sight. The edges only draw a hairline once something is
 // actually scrolled under them, so a sheet that fits looks like one surface.
+//
+// In a short window (the 900×600 minimum, 200 % zoom) the fixed parts give
+// room back to the form: a smaller title, tighter padding, and — with
+// `compactExtra`, for the stepper — the line under the title moves up beside
+// it. What a step asks for then starts above the fold.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLayoutEffect } from 'react';
 import type { ComponentProps, ReactNode, Ref } from 'react';
 import { CloseIcon } from '../icons';
-import { IconButton, cx } from '../ui';
+import { IconButton, cx, useScrollEdges } from '../ui';
 
 const WIDTHS = { md: 'sm:max-w-[560px]', lg: 'sm:max-w-[720px]' } as const;
 
 export function Panel({
-  size = 'md', title, titleId, titleRef, eyebrow, onClose, closeDisabled, headerExtra, footer, children, className, bodyClassName,
-  ...rest
+  size = 'md', title, titleId, titleRef, eyebrow, onClose, closeDisabled, headerExtra, compactExtra = false, footer, children,
+  className, bodyClassName, scrollKey, ...rest
 }: Omit<ComponentProps<'div'>, 'title'> & {
   size?: keyof typeof WIDTHS;
   title: ReactNode;
@@ -31,37 +36,30 @@ export function Panel({
   closeDisabled?: boolean;
   /** Under the title: the stepper. */
   headerExtra?: ReactNode;
+  /** In a short window the header line sits beside the title instead of under it (one line: the stepper). */
+  compactExtra?: boolean;
   footer?: ReactNode;
   bodyClassName?: string;
+  /**
+   * The body scrolls back to its top whenever this changes — a new step
+   * starts at its beginning, where its warnings are, not at the scroll
+   * offset the last step was left at.
+   */
+  scrollKey?: string | number;
 }) {
-  const body = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState({ top: false, bottom: false });
+  // The thin scrollbar a tall form gets takes its width from the body's
+  // right gutter, not from the fields: the content's right padding gives it
+  // back (--sbw, see below), so the fields end where the header and footer
+  // end, scrollbar or not.
+  const { ref: body, edges, measure } = useScrollEdges<HTMLDivElement>();
 
-  const measure = useCallback(() => {
+  // Before paint, so the new step is never seen scrolled.
+  useLayoutEffect(() => {
     const el = body.current;
-    if (!el) return;
-    const top = el.scrollTop > 1;
-    const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
-    // The thin scrollbar a tall form gets takes its width from the body's
-    // right gutter, not from the fields: the content's right padding gives
-    // it back (see below), so the fields end where the header and footer
-    // end, scrollbar or not.
-    el.style.setProperty('--sbw', `${Math.max(0, el.offsetWidth - el.clientWidth)}px`);
-    setEdges((e) => (e.top === top && e.bottom === bottom ? e : { top, bottom }));
-  }, []);
-
-  useEffect(() => {
-    const el = body.current;
-    if (!el) return;
+    if (!el || scrollKey === undefined) return;
+    el.scrollTop = 0;
     measure();
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
-    ro?.observe(el);
-    // The content grows and shrinks (an error appears, a step changes)
-    // without the scroller itself changing size.
-    const inner = el.firstElementChild;
-    if (inner) ro?.observe(inner);
-    return () => ro?.disconnect();
-  }, [measure]);
+  }, [scrollKey, measure, body]);
 
   return (
     <div
@@ -75,36 +73,47 @@ export function Panel({
     >
       <header
         className={cx(
-          'relative z-1 shrink-0 px-5 pt-5 pb-4 transition-shadow duration-150 sm:px-7 sm:pt-6',
+          'relative z-1 shrink-0 px-5 pt-5 pb-4 transition-shadow duration-150 sm:px-7 sm:pt-6 short:pt-4 short:pb-3',
           edges.top && 'shadow-[0_1px_0_var(--line)]',
         )}
       >
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
+        {/* One wrapping row: the title, then the line under it. In a short
+            window a compact line asks for a place beside the title and only
+            drops under it when a long title leaves too little room. The close
+            button sits in the corner, so the order stays title, line, close. */}
+        <div
+          className={cx(
+            'flex flex-wrap items-center gap-x-5 gap-y-4 short:gap-y-3',
+            onClose && compactExtra && 'short:pr-9',
+          )}
+        >
+          <div className={cx('min-w-0 max-w-full', onClose && 'pr-9', onClose && compactExtra && 'short:pr-0')}>
             {eyebrow && <p className="mb-0.5 text-[13px] font-semibold text-ink-3">{eyebrow}</p>}
             <h2
               id={titleId}
               ref={titleRef}
               tabIndex={-1}
-              className="text-[22px] leading-tight font-bold text-headline outline-none sm:text-[24px]"
+              className="text-[22px] leading-tight font-bold text-headline outline-none short:text-[20px]"
             >
               {title}
             </h2>
           </div>
-          {onClose && (
-            <IconButton
-              data-dialog-close
-              size="md"
-              aria-label="Schließen"
-              onClick={onClose}
-              disabled={closeDisabled}
-              className="-mt-1.5 -mr-2"
-            >
-              <CloseIcon />
-            </IconButton>
+          {headerExtra && (
+            <div className={cx('min-w-0 basis-full', compactExtra && 'short:grow short:basis-40')}>{headerExtra}</div>
           )}
         </div>
-        {headerExtra && <div className="mt-4">{headerExtra}</div>}
+        {onClose && (
+          <IconButton
+            data-dialog-close
+            size="md"
+            aria-label="Schließen"
+            onClick={onClose}
+            disabled={closeDisabled}
+            className="absolute top-3.5 right-3 sm:top-[18px] sm:right-5 short:top-2.5!"
+          >
+            <CloseIcon />
+          </IconButton>
+        )}
       </header>
 
       <div
@@ -125,7 +134,7 @@ export function Panel({
       {footer && (
         <footer
           className={cx(
-            'relative z-1 shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] transition-shadow duration-150 sm:px-7 sm:pt-4 sm:pb-6',
+            'relative z-1 shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] transition-shadow duration-150 sm:px-7 sm:pt-4 sm:pb-6 short:pt-3 sm:short:pb-4',
             edges.bottom && 'shadow-[0_-1px_0_var(--line)]',
           )}
         >

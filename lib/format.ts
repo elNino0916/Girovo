@@ -74,11 +74,6 @@ export function splitMoney(v: number | null | undefined, cur = 'EUR') {
   return { euros: euros.trim(), cents, suffix };
 }
 
-export const txTime = (t: { entryDate?: Date | string; valueDate?: Date | string }) => {
-  const d = new Date(t.entryDate || t.valueDate || 0);
-  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
-};
-
 const startOfDay = (d: Date) => {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);

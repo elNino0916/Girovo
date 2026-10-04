@@ -57,15 +57,18 @@ async function settle<T>(res: Response, payload?: unknown): Promise<T> {
   return data as T;
 }
 
-export async function post<T>(path: string, payload?: unknown): Promise<T> {
+export async function post<T>(path: string, payload?: unknown, init?: { signal?: AbortSignal }): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload || {}),
+      signal: init?.signal,
     });
-  } catch {
+  } catch (err) {
+    // A request its caller called off is not a server that went away.
+    if (init?.signal?.aborted) throw err;
     // The browser's own "Failed to fetch" would land in a German UI verbatim.
     throw new ApiError(UNREACHABLE, 0);
   }

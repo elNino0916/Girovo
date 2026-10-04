@@ -6,13 +6,15 @@
 </p>
 
 A modern, self-hosted banking app for German banks that speaks **FinTS 3.0
-(HBCI) PIN/TAN** — including the *decoupled* TAN methods (S-pushTAN, SecureGo
-plus, …) where you approve directly in your banking app.
+(HBCI) PIN/TAN** with approval in your bank's app — the *decoupled* TAN
+methods such as S-pushTAN, SecureGo plus or BestSign. Methods where you type a
+TAN (chipTAN, smsTAN, TAN generators) are not supported.
 
 **Features**
 - **Tested with major banks** — Sooskasse-FinTS has been tested with Atruvia, Targobank, Commerzbank and FI infrastructure.
 - **All German FinTS banks** — bundled institute database (~2.700 institutes)
-  with BLZ / name / city / **BIC** search; quick picks with the real bank
+  with name / city / BLZ / **BIC** search, or a pasted **IBAN** (read in the
+  browser — only its BLZ is sent to the search); quick picks with the real bank
   logos (`public/logos/`, sourced from Wikimedia Commons) and a monogram
   fallback for banks without one. URLs come from hbci4java's actively
   maintained bank list, with dead hosts (fiducia.de / gad.de / Dresdner)
@@ -20,10 +22,14 @@ plus, …) where you approve directly in your banking app.
   `node scripts/update-banks.mjs`. If a bank's primary endpoint is down,
   the server automatically retries the known alternate URL.
 - **Finanzübersicht** in the Atruvia online-banking language: navy masthead
-  and stage, *Konten und Karten* with a Gesamtsaldo of the loaded accounts
-  (rename accounts locally), the selected account's balance with Verfügbar /
-  Dispositionsrahmen / Vorgemerkt, *Monatsbilanz* and *Demnächst fällig* tiles,
-  and Schnellzugriffe (Überweisen, Geld anfordern, Kontoauszug, Export).
+  and stage, *Konten und Karten* with a Gesamtsaldo that appears once every
+  euro account's balance is known (*Alle Salden abrufen* asks for the missing
+  ones by balance enquiry; rename accounts locally), the selected account's
+  balance with Verfügbar / Dispositionsrahmen (Kreditrahmen for a card) /
+  Vorgemerkt — or, when a fetch failed, the bank's reason and *Erneut
+  versuchen* in its place — *Monatsbilanz* (compared with the same days of the
+  month before) and *Demnächst fällig* tiles, and Schnellzugriffe (Überweisen,
+  Geld anfordern, Kontoauszug).
 - **Kontoverlauf** — the end-of-day balance over the loaded period as a step
   chart, reconstructed from the bookings and *checked against every opening and
   closing balance the bank sent*. If the numbers don't add up, no chart is drawn.
@@ -44,7 +50,9 @@ plus, …) where you approve directly in your banking app.
   debits, standing orders, subscriptions, salary) with rhythm, next expected
   date, yearly cost and a "Betrag gestiegen" flag. Labelled as an estimate;
   "Kein Vertrag" hides a false hit.
-- **CSV export** in the German Excel dialect (`;`, UTF-8 BOM, decimal comma,
+- **CSV export** of the Umsätze list — all of the loaded period, or what the
+  filter shows (the file name says which days, and "_gefiltert") — booked
+  Umsätze only, in the German Excel dialect (`;`, UTF-8 BOM, decimal comma,
   formula-injection guard), plus the existing PDF Kontoauszug and Buchungsbeleg.
 - **Vorgemerkte Umsätze** (pending / not-yet-booked entries via `HKVMK`) —
   loaded on demand, shows incoming SEPA-Lastschriften *before* they book.
@@ -75,9 +83,10 @@ plus, …) where you approve directly in your banking app.
 - **Company logos on transactions** — counterparties are matched against
   [Brandfetch](https://brandfetch.com) so `PayPal Europe S.a.r.l et Cie S.C.A.`
   shows the PayPal mark. A match has to clear a deliberately high bar; anything
-  short of it keeps the plain avatar rather than risking a wrong logo. Requires
-  a free Brandfetch client ID and sends counterparty names to Brandfetch — see
-  [Company logos](#company-logos) before you turn it on.
+  short of it keeps the plain avatar rather than risking a wrong logo. It sends
+  cleaned company names to Brandfetch, so it is **off until you agree**: the
+  app asks once, before the first lookup, and *Sitzung → Firmenlogos* switches
+  it later. See [Company logos](#company-logos).
 - **Remember this device** — after the first login the bank's device identity
   (systemId) plus the cached accounts and TAN method are saved **encrypted with
   your PIN**, so subsequent logins reuse the device and the bank can serve
@@ -89,8 +98,11 @@ plus, …) where you approve directly in your banking app.
   profile, so they exist only while you are logged in. "Gerät vergessen" can
   delete them too.
 - **Beträge ausblenden** (privacy mode for screen sharing — every amount,
-  chart axis and tooltip is masked), **automatic logout** after 5–30 minutes of
-  inactivity with a one-minute warning, **Mitteilungen** (the bank's messages
+  chart axis and tooltip is masked, amounts inside the bank's own text as far
+  as they can be recognised, and the Kontoverlauf keeps its trend but not
+  whether it dipped below zero), **automatic logout** after 5–30 minutes of
+  inactivity with a one-minute warning (also in the window title, and in the
+  desktop app on a flashing taskbar button), **Mitteilungen** (the bank's messages
   from the login plus this session's transfer outcomes), a **command palette**
   (Strg+K) and keyboard shortcuts (switchable).
 - Hell / Dunkel / System appearance; phone layout with a bottom navigation.
@@ -250,7 +262,8 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `lib/fints-vop.ts` | Adds **HKVPP**/**HKVPA** (Namensabgleich — Verification of Payee): segment definitions, a collector that merges a result delivered over several messages (Aufsetzpunkt, return code 3040) incl. a pain.002 fallback, the HIVPPS lookup that says which transactions the bank checks, and the return codes that steer the flow (3090/3091/3945/9076). |
 | `lib/fints-pending.ts` | Adds **HKVMK** (Vormerkposten / pending entries): segment definitions + a `PendingInteraction` that parses the returned **MT942** with lib-fints' MT940 parser (MT942 reuses the `:61:`/`:86:` entry format). |
 | `lib/fints-internals.js` + `.d.ts` | Re-exports the lib-fints internals its `exports` map hides (segment definitions, data elements, `registerSegmentDefinition`). Kept as one shim so the library's segment registry stays a single module instance — see the note in `next.config.ts`. |
-| `lib/banks.ts` | Institute database (`banks-data.json`, regenerate via `npm run update-banks`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search, brand detection for logos. |
+| `lib/banks.ts` | Institute database (`banks-data.json`, regenerate via `npm run update-banks`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search (with short names such as DKB, HVB, OLB), brand detection for logos. `lib/bank-query.ts` reads a query as name, BLZ or IBAN — in the browser, so an IBAN never leaves it. |
+| `lib/bank-fetch.ts` | Every lib-fints request under one policy, attached from outside the library: a 60 s limit on the bank's first byte, cancellation (a login called off), and HTTP error pages or unreadable replies turned into one German sentence — bodies go to the server log only. Also the route handlers' error translator. `lib/bank-answer.ts` reads a bank's `code: text \| code: text` answer the one way the whole app does: sentences plus a small list of codes, lock detection by the bank's own wording, and the refusal test the order routes share — only an answer that refuses the order and says nothing else is a refusal; anything doubtful stays „Status unklar“. |
 | `lib/serialize.ts` | Maps lib-fints objects to the JSON the browser sees; `lib/fints-types.ts` holds that contract, imported by both sides. |
 | `lib/merchant-match.ts` | The company-detection model: name cleaning, the corporate-marker privacy gate, the candidate ladder and the scoring thresholds. Deterministic and inspectable — no network, no data files. |
 | `lib/merchants.ts` | The Brandfetch lookup behind it: Brand Search API for recall, name/domain scoring for precision, the Logo CDN fetch, process-level caching of hits *and* misses, and the logo proxy's allowlist. |
@@ -271,10 +284,11 @@ traffic and therefore being blocked by your bank's infrastructure.
 | Endpoint | Purpose |
 |----------|---------|
 | `GET  /api/meta` | Product-ID status, bank count |
-| `GET  /api/banks` | Curated quick-pick banks |
-| `GET  /api/bank-search?q=` | Search all institutes (BLZ, name, city) |
+| `GET  /api/banks` | Curated quick-pick banks; `?blz=` checks that one BLZ is still listed |
+| `GET  /api/bank-search?q=` | Search all institutes (name, city, BLZ, BIC — never an IBAN) |
 | `POST /api/connect` | First sync; returns TAN methods |
-| `POST /api/select-tan` | Select method/media + authenticated sync (accounts) |
+| `POST /api/connect/cancel` | Call off a login in flight (`attemptId`); drops any session it created |
+| `POST /api/select-tan` | Select an app-approval method/media + authenticated sync (accounts); refuses methods that need a typed TAN |
 | `POST /api/tan-poll` | Poll/continue the pending decoupled approval |
 | `POST /api/cancel-pending` | Abandon the pending approval client-side |
 | `POST /api/balance` | Kontostand for one account |
@@ -298,16 +312,22 @@ brand you'd recognise. Sooskasse-FinTS resolves the brand against
 name into a company + domain, and Brandfetch's Logo CDN to fetch a correctly
 sized mark for that domain.
 
-**This is the only feature that contacts a host other than your bank.** It
-requires a free client ID from <https://developers.brandfetch.com>:
+**This is the only feature that sends anything from your bookings to a host
+other than your bank, so it is off until you agree.** The first Übersicht asks
+once — *Firmenlogos anzeigen?*, with exactly what is sent — and every lookup
+waits for the answer. The answer is kept on this machine with the other
+preferences; *Sitzung → Firmenlogos* changes it at any time, and switching it
+off drops the logos at once.
+
+A build offers the feature only with a free client ID from
+<https://developers.brandfetch.com> (release builds carry one):
 
 ```json
 { "brandfetchClientId": "YOUR_CLIENT_ID" }
 ```
 
-or `BRANDFETCH_CLIENT_ID=...`. Without a client ID the feature is force-disabled
-regardless of the toggle below, since there is nothing to call. With a client ID
-configured it is on by default; turn it off explicitly with either:
+or `BRANDFETCH_CLIENT_ID=...`. To take it out of a build entirely — no
+question, no switch — leave the client ID out or set:
 
 ```json
 { "merchantLogos": false }
@@ -318,7 +338,8 @@ and every transaction keeps its plain avatar.
 
 **What is and isn't sent.** Only the cleaned company core leaves the machine —
 `PayPal`, not `PayPal Europe S.a.r.l et Cie S.C.A.` — and never an amount, IBAN,
-date or reference. A name is only ever sent if it carries a *corporate marker*:
+date or reference. Like any web request, each lookup shows Brandfetch your IP
+address. A name is only ever sent if it carries a *corporate marker*:
 a legal form (`GmbH`, `AG`, `S.a.r.l`, `Ltd`, …), a mostly-uppercase spelling, or
 a corporate keyword. A private transfer from `Anna Beispiel` has none of these
 and is never looked up. Names are resolved at most once per server run — misses
@@ -376,7 +397,15 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 
 ## Notes & limitations
 
-- You need a bank contract with **FinTS/HBCI access enabled** and a TAN app.
+- You need a bank contract with **FinTS/HBCI access enabled** and **approval
+  in your bank's app** (decoupled TAN: S-pushTAN, SecureGo plus, BestSign, …).
+  The app has no TAN entry field, so chipTAN, smsTAN and other methods where
+  you type a TAN do not work; the login says so before you enter your PIN.
+- A bank must start answering within 60 seconds, or the request is reported as
+  "Deine Bank antwortet gerade nicht" (error pages and unreadable replies too —
+  their content stays in the server log). A login can be cancelled after a few
+  seconds of waiting. A transfer whose answer is lost this way still ends as
+  **„Status unklar“**, never as failed.
 - Transfers require the bank to offer HKCCS/HKIPZ over FinTS for your account —
   the UI greys the option out otherwise.
 - The Namensabgleich runs only where the bank advertises HKVPP/HKVPA and lists
@@ -409,22 +438,26 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 - Banking traffic goes directly from your machine to the bank's FinTS endpoint
   over TLS — no third party sits in that path.
 - Besides the bank, the app makes two kinds of outside request, each of which
-  can be switched off:
+  can be switched off in the app:
   - [company logos](#company-logos) send cleaned merchant names to Brandfetch —
-    set `"merchantLogos": false` in `config.json` (or omit
-    `brandfetchClientId`);
+    only once you have agreed (the app asks before the first lookup); switch
+    them under *Sitzung → Firmenlogos*;
   - the desktop app's [update check](#updates) asks GitHub for the latest
     release, carrying the app's version and nothing else — switch it off under
     *Sitzung → Updates*.
 
-  With both off, the app contacts nothing but your bank.
+  Like any web request, each one shows the service your IP address. With both
+  off, the app contacts nothing but your bank.
 - Updates are verified against the SHA-256 digest GitHub publishes for the
   release file before they run, and are only downloaded and installed when you
   click.
-- Templates, account names and category rules are encrypted with your PIN;
-  preferences (theme, privacy mode, logout timer) are plain settings and never
-  contain personal data. A CSV or PNG you export is a normal file — treat it
-  like a printed statement.
+- Templates, account names and category rules are encrypted with your PIN.
+  Preferences are plain settings: theme, privacy mode, logout timer, the
+  company-logo answer, and the last bank with its login name (to fill in the
+  login form) — never a PIN, a balance or a booking. *Von diesem Rechner
+  löschen …* and *Gerät vergessen* with its box ticked remove that login name
+  too. A CSV or PNG you export is a normal file — treat it like a printed
+  statement.
 - Keep this on `localhost`. It has no authentication of its own.
 
 ## Development

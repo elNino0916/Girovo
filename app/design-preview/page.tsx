@@ -9,11 +9,14 @@
 //                  &privacy=1                 Beträge ausblenden
 //                  &preset=default|empty|past-range|unverified|loading|error   (&empty=1 = preset empty)
 //                  &range=90d|365d|all        statement range loaded at start
-//                  &tan=confirm|hold|ended|error   how simulated approvals end
+//                  &tan=confirm|hold|ended|error|refused   how simulated approvals end
 //                  &acct=giro|tagesgeld|karte  start on another account
+//                  &logos=unasked|on|off|unavailable   company logos: the user's answer, or a build without them
 //                  &still=0|1                 settle animations (default: on under Electron)
 //                  &q=rewe                    Umsätze search
+//                  &fail=1                    every statement load and balance enquiry fails
 //                  &toasts=1                  one toast of each tone
+//                  &unclear=1                 this session's log holds a "Status unklar" transfer
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
 //                  &updateDialog=1            …with its dialog open
 //                  &y=800                     scroll the page there once loaded
@@ -36,12 +39,15 @@ import { Login } from '@/components/Login';
 import { Statement } from '@/components/Statement';
 import { TanMethodPicker } from '@/components/TanMethodPicker';
 import { TanWaitOverlay } from '@/components/TanWaitOverlay';
+import { PENDING_PANEL_ID } from '@/components/transactions/PendingPanel';
 import { Toasts } from '@/components/Toasts';
 import { UpdateLayer } from '@/components/updates/UpdateNotices';
+import { txKey } from '@/lib/categories';
 import { presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
 import { ACCT, MOCK_PAYEES } from './data';
 import { MockFintsProvider, type MockOptions, type MockPreset } from './mock';
+import { PrintPreview, type PrintPreviewKind } from './print';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
 
 // ---------------------------------------------------------------------------
@@ -63,11 +69,13 @@ type Script = (c: Ctx) => Promise<void> | void;
 
 type ViewDef = {
   label: string;
-  group: 'Dashboard' | 'Anmeldung' | 'Überweisung' | 'Dialoge' | 'Updates';
+  group: 'Dashboard' | 'Anmeldung' | 'Überweisung' | 'Dialoge' | 'Updates' | 'Dokumente';
   preset?: MockPreset;
   options?: MockOptions;
   /** The desktop updater this view shows (a fake, ./updater.ts), and whether its dialog is open. */
   update?: { scenario: UpdateScenario; dialog?: boolean };
+  /** A printed document, shown on screen in place of the app (./print.tsx). */
+  print?: PrintPreviewKind;
   script?: Script;
 };
 
@@ -93,8 +101,41 @@ async function toReview(c: Ctx) {
   await c.poll(() => findButton(SUBMIT, 'dialog', true), 4000);
 }
 
-/** On the review step: the primary action that sends the order. */
-const SUBMIT = /(freigeben|senden|ausführen|jetzt überweisen|^überweisen$|überweisung absenden)/i;
+/** Types into a field the way a person would, so React sees the change. */
+function typeInto(el: HTMLInputElement, text: string) {
+  el.focus();
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(el, text);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/** "Bank wählen" with `q` typed into the search, once its answer is there (the real search route). */
+const searchFor = (q: string): Script => async (c) => {
+  const input = await c.poll(() => document.querySelector<HTMLInputElement>('input[role="combobox"]'), 6000);
+  if (!input) return;
+  typeInto(input, q);
+  await c.poll(() => {
+    const said = document.querySelector('main p[role="status"]')?.textContent?.trim();
+    return said && said !== 'Suche …' ? said : null;
+  }, 6000);
+};
+
+/**
+ * "Anmelden" with this login name (the mock answers by name: fehler,
+ * gesperrt, wartung, langsam), then until the answer is on screen.
+ */
+const loginAs = (name: string, waitMs?: number): Script => async (c) => {
+  const login = await c.poll(() => document.querySelector<HTMLInputElement>('input[autocomplete="username"]'), 6000);
+  const pin = document.querySelector<HTMLInputElement>('input[autocomplete="current-password"]');
+  if (!login || !pin) return;
+  typeInto(login, name);
+  typeInto(pin, '12345');
+  await c.click(/^Anmelden$/);
+  if (waitMs) await c.sleep(waitMs);
+  else await c.poll(() => document.querySelector('main [role="alert"]'), 8000);
+};
+
+/** On the review step: the primary action that sends the order ("Trotzdem überweisen" after a duplicate hint). */
+const SUBMIT = /(freigeben|senden|ausführen|jetzt überweisen|trotzdem überweisen|^überweisen$|überweisung absenden)/i;
 
 /**
  * Review, then send — the order goes to the (simulated) bank. Returns once the
@@ -115,8 +156,120 @@ async function completeOrder(c: Ctx) {
   await c.sleep(300);
 }
 
+/** "Alle Salden abrufen", pressed the way a person presses it, until the last answer is in. */
+/** The Sitzung panel, opened from the masthead chip. */
+async function openSession(c: Ctx) {
+  await c.click(/^Sitzung/, { within: 'page' });
+  await c.poll(() => document.querySelector('[role="dialog"], [data-popover]'), 2000);
+}
+
+/** "Abmelden" in the Sitzung panel's footer. */
+async function pressLogout(c: Ctx) {
+  await openSession(c);
+  await c.click(/^Abmelden$/, { within: 'dialog' });
+}
+
+/** Types into the palette's field, once it is there, until its answer has settled. */
+const paletteQuery = (q: string): Script => async (c) => {
+  const input = await c.poll(() => document.querySelector<HTMLInputElement>('[role="dialog"] input[role="combobox"]'), 4000);
+  if (!input) return;
+  typeInto(input, q);
+  await c.sleep(500);
+};
+
+/** One key, pressed on the page itself (not in a field), as a person would. */
+function pressKey(key: string) {
+  document.body.dispatchEvent(new KeyboardEvent('keydown', { key, code: /^\d$/.test(key) ? `Digit${key}` : '', bubbles: true }));
+}
+
+async function fetchAllBalances(c: Ctx) {
+  await c.click(/^alle salden abrufen/i, { within: 'page' });
+  await c.until((f) => f.loadingAllBalances, 2000);
+  await c.until((f) => !f.loadingAllBalances, 8000);
+}
+
+// ---------------------------------------------------------------------------
+// Umsätze: finding a booking, narrowing to a month, filing it
+
+/** Last month — always inside the default 90 days. */
+const LAST_MONTH = presetRange('lastMonth');
+const LAST_MONTH_NAME = new Intl.DateTimeFormat('de-DE', { month: 'long' }).format(new Date(`${LAST_MONTH.from}T12:00:00`));
+
+/**
+ * The Umsätze tile. Its rows are not the first `[data-tx-row]` in the
+ * document: the summaries' wrapper (Vorgemerkt among them) comes before it in
+ * the reading order, so a lookup must be scoped to the tile.
+ */
+function umsaetzeSection(): HTMLElement | null {
+  const h = [...document.querySelectorAll<HTMLElement>('h2')].find((el) => /^umsätze$/i.test(el.textContent?.trim() ?? ''));
+  return h?.closest<HTMLElement>('section') ?? null;
+}
+
+/** The booking rows of the Umsätze list, never the Vorgemerkt panel's. */
+const listRows = (): HTMLElement[] => [...(umsaetzeSection()?.querySelectorAll<HTMLElement>('[data-tx-row]') ?? [])];
+
+/** Scrolls the Umsätze tile to the top of the window, so a search or a month narrowing shows its result. */
+async function showList(c: Ctx) {
+  const section = await c.poll(() => umsaetzeSection(), 6000);
+  if (!section) return;
+  section.scrollIntoView({ block: 'start' });
+  await c.sleep(150);
+}
+
+/** Opens the drawer on the first booking row the (already filtered) Umsätze list shows. */
+async function openFirstRow(c: Ctx): Promise<HTMLElement | null> {
+  const row = await c.poll(() => listRows()[0], 6000);
+  if (!row) {
+    console.warn('[design-preview] no transaction row found');
+    return null;
+  }
+  row.click();
+  await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+  return row;
+}
+
+/** In the open drawer: "Ändern", then a category — the offer to apply it to all follows. */
+async function pickCategory(c: Ctx, label: RegExp) {
+  await c.click(/^Kategorie ändern/, { within: 'dialog' });
+  await c.poll(() => document.querySelector('[role="menu"]'), 3000);
+  await c.click(label, { within: 'dialog' });
+  await c.sleep(200);
+}
+
+/** In the open drawer: the Kategorie section scrolled to the top, so its offer or its rules are in view. */
+async function showCategorySection(c: Ctx) {
+  const drawer = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].filter(visible).at(-1);
+  const heading = [...(drawer?.querySelectorAll<HTMLElement>('h3') ?? [])].find((h) => h.textContent?.trim() === 'Kategorie');
+  heading?.closest('section')?.scrollIntoView({ block: 'start' });
+  await c.sleep(150);
+}
+
+/** The Umsätze tile's Export menu, open — scrolled to, so the menu is in view. */
+async function openExportMenu(c: Ctx) {
+  const trigger = await c.poll(() => findButton(/^Export$/, 'page', false), 6000);
+  if (!trigger) return;
+  trigger.scrollIntoView({ block: 'center' });
+  await c.sleep(100);
+  trigger.click();
+  await c.poll(() => document.querySelector('[role="menu"]'), 3000);
+}
+
+/**
+ * The desktop app's Save-As (window.electronFiles, electron/preload.cjs),
+ * answering as given — so the toast that follows a written file, or a
+ * refusal, can be seen without the shell.
+ */
+function fakeFileSave(answer: { ok: true } | { ok: false; canceled: true } | { ok: false; error: string }) {
+  window.electronFiles = { save: async () => answer };
+}
+
 const VIEWS: Record<string, ViewDef> = {
   overview: { label: 'Übersicht', group: 'Dashboard' },
+  'overview-single': { label: 'Nur ein Konto', group: 'Dashboard', options: { oneAccount: true } },
+  'overview-balances': { label: 'Alle Salden abgerufen', group: 'Dashboard', script: fetchAllBalances },
+  'overview-balances-error': {
+    label: 'Saldenabruf fehlgeschlagen', group: 'Dashboard', options: { fail: true }, script: fetchAllBalances,
+  },
   analysis: { label: 'Analyse', group: 'Dashboard', options: { tab: 'analysis' } },
   contracts: { label: 'Verträge & Abos', group: 'Dashboard', options: { tab: 'contracts' } },
   empty: { label: 'Ohne Umsätze', group: 'Dashboard', preset: 'empty' },
@@ -124,9 +277,10 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Umsatzdetails',
     group: 'Dashboard',
     async script(c) {
-      // A row of the Umsätze list: `data-tx-row` when the list marks its rows,
-      // else the first row button under the "Umsätze" heading.
-      const row = await c.poll(() => document.querySelector<HTMLElement>('[data-tx-row]')
+      // A row of the Umsätze list (not the Vorgemerkt panel's, which comes
+      // first in the DOM): `data-tx-row` when the list marks its rows, else
+      // the first row button under the "Umsätze" heading.
+      const row = await c.poll(() => listRows()[0]
         ?? findUnderHeading(/^umsätze$/i, 'li > button, li [role="button"]'), 6000);
       if (!row) {
         console.warn('[design-preview] no transaction row found');
@@ -136,10 +290,260 @@ const VIEWS: Record<string, ViewDef> = {
       await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
     },
   },
+  'detail-pending': {
+    label: 'Umsatzdetails, vorgemerkt',
+    group: 'Dashboard',
+    // The Vorgemerkt panel's first entry, opened from the panel itself.
+    async script(c) {
+      const row = await c.poll(() => document.querySelector<HTMLElement>(`#${PENDING_PANEL_ID} [data-tx-row]`), 6000);
+      if (!row) {
+        console.warn('[design-preview] no pending row found');
+        return;
+      }
+      row.click();
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+    },
+  },
+  'logo-consent': { label: 'Firmenlogos-Frage', group: 'Dashboard', options: { logos: 'unasked' } },
+  'detail-privacy': {
+    label: 'Umsatzdetails ausgeblendet',
+    group: 'Dashboard',
+    options: { privacy: true },
+    // A Visa Debit payment in dollars: its record carries the original
+    // amount, the rate and the fee — all of them masked.
+    async script(c) {
+      const rows = await c.poll(() => {
+        const all = listRows();
+        return all.length ? all : null;
+      }, 6000);
+      const row = rows?.find((r) => /Fremdwährung/.test(r.textContent ?? '')) ?? rows?.[0];
+      if (!row) return;
+      row.click();
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+    },
+  },
+  session: {
+    label: 'Sitzungsmenü',
+    group: 'Dialoge',
+    script: openSession,
+  },
+  'logout-notice': {
+    label: 'Abgemeldet (Hinweis)',
+    group: 'Dialoge',
+    // The login screen after "Abmelden": the notice, with the PIN clause once the server answered.
+    async script(c) {
+      await pressLogout(c);
+      await c.until((f) => f.view === 'login', 3000);
+      await c.poll(() => [...document.querySelectorAll('[data-toast] p')].find((p) => /PIN verworfen/.test(p.textContent ?? '')), 3000);
+    },
+  },
+  'logout-confirm': {
+    label: 'Abmelden bei unklarer Überweisung',
+    group: 'Dialoge',
+    options: { unclear: true },
+    async script(c) {
+      await pressLogout(c);
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"] h2')].find((h) => /Trotzdem abmelden/.test(h.textContent ?? '')), 3000);
+    },
+  },
+  'search-month': {
+    label: 'Suche mit Monat',
+    group: 'Dashboard',
+    // A month word matches its month and its text — the count line says so.
+    options: { query: `rewe ${LAST_MONTH_NAME.toLowerCase()}` },
+    script: showList,
+  },
+  'search-none': {
+    label: 'Suche ohne Treffer',
+    group: 'Dashboard',
+    // A typo: the empty state names the word that found nothing.
+    options: { query: `rewe ${LAST_MONTH_NAME.toLowerCase()}x` },
+    script: showList,
+  },
+  'search-pending': {
+    label: 'Suche trifft Vorgemerkte',
+    group: 'Dashboard',
+    // The pending Amazon order matches too: one line in the list, first in the panel.
+    options: { query: 'amazon' },
+  },
+  'month-filter': {
+    label: 'Liste auf einen Monat',
+    group: 'Dashboard',
+    options: { filter: { from: LAST_MONTH.from, to: LAST_MONTH.to } },
+    script: showList,
+  },
+  export: {
+    label: 'Export-Menü (gefiltert)',
+    group: 'Dashboard',
+    // A month and a search: the filtered file names its days and "gefiltert".
+    options: { filter: { from: LAST_MONTH.from, to: LAST_MONTH.to }, query: 'rewe' },
+    script: openExportMenu,
+  },
+  'export-saved': {
+    label: 'CSV gespeichert (Desktop-App)',
+    group: 'Dashboard',
+    async script(c) {
+      fakeFileSave({ ok: true });
+      await openExportMenu(c);
+      await c.click(/^Alle Umsätze als CSV/);
+      await c.sleep(300);
+    },
+  },
+  'export-busy': {
+    label: 'CSV nicht gespeichert (Datei offen)',
+    group: 'Dashboard',
+    async script(c) {
+      fakeFileSave({
+        ok: false,
+        error: 'Die Datei ist noch in einem anderen Programm geöffnet, zum Beispiel in Excel. Schließe sie dort oder wähle einen anderen Namen.',
+      });
+      await openExportMenu(c);
+      await c.click(/^Alle Umsätze als CSV/);
+      await c.sleep(300);
+    },
+  },
+  'detail-category': {
+    label: 'Kategorie geändert',
+    group: 'Dashboard',
+    // Found by its category label, filed by hand — then the offer for the others.
+    options: { query: 'lebensmittel' },
+    async script(c) {
+      if (!(await openFirstRow(c))) return;
+      await pickCategory(c, /^Shopping$/);
+      await showCategorySection(c);
+    },
+  },
+  'detail-rules': {
+    label: 'Kategorie mit Regel',
+    group: 'Dashboard',
+    // The shop's name finds its bookings whatever they are filed under.
+    options: { query: 'aldi' },
+    async script(c) {
+      const row = await c.poll(() => listRows()[0], 6000);
+      const key = row?.dataset.txKey;
+      const tx = Object.values(c.api().txByAccount).flat().find((t) => txKey(t) === key);
+      if (!row || !tx) return;
+      // A rule for this shop, as "Für alle übernehmen" would set it.
+      c.api().setCategory(tx, 'shopping', { rule: true });
+      await c.sleep(100);
+      await openFirstRow(c);
+      await c.click(/^Deine Regeln/, { within: 'dialog' });
+      await showCategorySection(c);
+    },
+  },
+  'detail-refund': {
+    label: 'Erstattung (ohne Zurücküberweisen)',
+    group: 'Dashboard',
+    options: { query: 'erstattung' },
+    script: async (c) => { await openFirstRow(c); },
+  },
+  'detail-card': {
+    label: 'Kartenzahlung in USD',
+    group: 'Dashboard',
+    // Found by the words of its second line, which the bank never wrote.
+    options: { query: 'fremdwährung' },
+    script: async (c) => { await openFirstRow(c); },
+  },
+  'analysis-all': {
+    label: 'Analyse aller Konten',
+    group: 'Dashboard',
+    options: { tab: 'analysis', analysisScope: 'all' },
+  },
+  'analysis-drill': {
+    label: 'Analyse → Umsätze',
+    group: 'Dashboard',
+    // A category of a month over every account: the list opens on that month
+    // and says it holds one account.
+    options: { tab: 'analysis', analysisScope: 'all' },
+    async script(c) {
+      await c.click(/Umsätze anzeigen$/, { within: 'page' });
+      await c.poll(() => document.querySelector('[data-tx-row]'), 4000);
+    },
+  },
+  'contracts-error': {
+    label: 'Verträge, Konto fehlgeschlagen',
+    group: 'Dashboard',
+    preset: 'error',
+    options: { tab: 'contracts' },
+  },
   inbox: { label: 'Mitteilungen', group: 'Dialoge', options: { open: 'inbox' } },
-  palette: { label: 'Befehle (Strg K)', group: 'Dialoge', options: { open: 'palette' } },
+  palette: { label: 'Suche (Strg K)', group: 'Dialoge', options: { open: 'palette' } },
+  // "ab" no longer reaches Abmelden; "abm" does, last, under "Sitzung".
+  'palette-ab': { label: 'Suche „ab“', group: 'Dialoge', options: { open: 'palette' }, script: paletteQuery('ab') },
+  'palette-logout': { label: 'Suche „abm“', group: 'Dialoge', options: { open: 'palette' }, script: paletteQuery('abm') },
   shortcuts: { label: 'Tastenkürzel', group: 'Dialoge', options: { open: 'shortcuts' } },
   'session-warning': { label: 'Abmeldung in 45 s', group: 'Dialoge', options: { idleInMs: 45_000 } },
+  'session-warning-unclear': {
+    label: 'Abmeldung, Überweisung unklar', group: 'Dialoge', options: { idleInMs: 45_000, unclear: true },
+  },
+  'inbox-unclear': { label: 'Mitteilungen, Status unklar', group: 'Dialoge', options: { open: 'inbox', unclear: true } },
+  // "Umsätze mit diesem Empfänger" for a transfer from the Tagesgeld, whose
+  // Umsätze are not loaded: no bank read — the list stays on the Girokonto and says so.
+  'unclear-elsewhere': {
+    label: 'Status unklar: anderes Konto',
+    group: 'Dialoge',
+    options: { open: 'inbox', unclear: 'tagesgeld' },
+    async script(c) {
+      await c.click(/^Umsätze mit diesem Empfänger$/, { within: 'dialog' });
+      await showList(c);
+    },
+  },
+  // The same from the Girokonto, sent after its list was fetched: the list cannot hold it yet.
+  'unclear-stale': {
+    label: 'Status unklar: Liste von davor',
+    group: 'Dialoge',
+    options: { open: 'inbox', unclear: 'recent' },
+    async script(c) {
+      await c.click(/^Umsätze mit diesem Empfänger$/, { within: 'dialog' });
+      await showList(c);
+    },
+  },
+  'pending-error': {
+    label: 'Vorgemerkte: Abruf fehlgeschlagen',
+    group: 'Dashboard',
+    options: { failPending: true, tanMs: 600 },
+    async script(c) {
+      await c.click(/^Vorgemerkte abrufen$/, { within: 'page' });
+      await c.until((f) => Object.keys(f.pendingErrors).length > 0, 5000);
+    },
+  },
+  'range-cancelled': {
+    label: 'Zeitraum: Freigabe abgebrochen',
+    group: 'Dashboard',
+    options: { tan: 'hold' },
+    async script(c) {
+      c.api().applyRange(presetRange('365d'));
+      await c.until((f) => f.wait.open, 3000);
+      await c.click(/^Abbrechen$/, { within: 'dialog' });
+      await c.poll(() => [...document.querySelectorAll('[data-toast] p')].find((p) => /nicht abgerufen/.test(p.textContent ?? '')), 3000);
+    },
+  },
+  'shortcut-keys': {
+    label: 'Einzeltasten: 2 und B',
+    group: 'Dialoge',
+    // "2" names an account not fetched yet: a hint, no bank read. "B" says what it did.
+    async script(c) {
+      pressKey('2');
+      await c.sleep(150);
+      pressKey('b');
+      await c.sleep(300);
+    },
+  },
+  'toasts-keyboard': {
+    label: 'Hinweis per F6',
+    group: 'Dialoge',
+    async script(c) {
+      // A toast the app really raises (the bank's messages have none since the login toast went).
+      // Its action opens the confirmation, as in the app — F6 lands on it, Enter only asks.
+      c.api().toast('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 600_000, {
+        label: 'Gerät vergessen …',
+        run: () => c.api().setForgetDeviceOpen(true),
+      });
+      await c.poll(() => document.querySelector('[data-toast]'), 2000);
+      pressKey('F6');
+      await c.sleep(200);
+    },
+  },
   share: { label: 'Geld anfordern', group: 'Dialoge', options: { open: 'share' } },
   tanwait: {
     label: 'Freigabe (Umsatzabruf)',
@@ -151,10 +555,25 @@ const VIEWS: Record<string, ViewDef> = {
       await c.until((f) => f.wait.open, 3000);
     },
   },
+  'tanwait-overdue': {
+    label: 'Freigabe (Frist abgelaufen)',
+    group: 'Dialoge',
+    // Started 3:10 ago — past the mock bank's 2 minutes.
+    options: { tan: 'hold', tanElapsedMs: 190_000 },
+    async script(c) {
+      c.api().applyRange(presetRange('365d'));
+      await c.until((f) => f.wait.open, 3000);
+      await c.sleep(200);
+    },
+  },
 
   update: { label: 'Update verfügbar', group: 'Updates', update: { scenario: 'available', dialog: true } },
   'update-downloading': { label: 'Download läuft', group: 'Updates', update: { scenario: 'downloading', dialog: true } },
   'update-ready': { label: 'Bereit zur Installation', group: 'Updates', update: { scenario: 'ready', dialog: true } },
+  // The restart is a logout: over an unclear transfer, looking comes first.
+  'update-ready-unclear': {
+    label: 'Bereit, Überweisung unklar', group: 'Updates', options: { unclear: true }, update: { scenario: 'ready', dialog: true },
+  },
   'update-current': { label: 'Auf dem neuesten Stand', group: 'Updates', update: { scenario: 'current', dialog: true } },
   'update-installed': { label: 'Nach dem Update', group: 'Updates', update: { scenario: 'installed' } },
   'update-error': { label: 'Download fehlgeschlagen', group: 'Updates', update: { scenario: 'error', dialog: true } },
@@ -166,10 +585,24 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Im Sitzungsmenü',
     group: 'Updates',
     update: { scenario: 'available' },
+    script: openSession,
+  },
+  'update-background': {
+    label: 'Im Hintergrund geladen',
+    group: 'Updates',
+    update: { scenario: 'available', dialog: true },
+    // "Herunterladen", "Im Hintergrund laden" — and the toast once the file is there.
     async script(c) {
-      await c.click(/^Sitzung/, { within: 'page' });
-      await c.poll(() => document.querySelector('[role="dialog"], [data-popover]'), 2000);
+      await c.click(/^Herunterladen/, { within: 'dialog' });
+      await c.click(/^Im Hintergrund laden$/, { within: 'dialog' });
+      await c.poll(() => [...document.querySelectorAll('[data-toast] p')].find((p) => /heruntergeladen/.test(p.textContent ?? '')), 8000);
     },
+  },
+  'update-session-downloading': {
+    label: 'Download im Sitzungsmenü',
+    group: 'Updates',
+    update: { scenario: 'downloading' },
+    script: openSession,
   },
 
   login: { label: 'Bank wählen', group: 'Anmeldung', options: { view: 'login' } },
@@ -198,6 +631,58 @@ const VIEWS: Record<string, ViewDef> = {
       await c.until((f) => f.wait.open, 3000);
     },
   },
+  'tanwait-login-refused': {
+    label: 'Anmeldung abgelehnt',
+    group: 'Anmeldung',
+    // "Ablehnen" pressed in the app.
+    options: { view: 'tanmethod', tan: 'refused', tanMs: 600 },
+    async script(c) {
+      const m = c.api().tanMethods[0];
+      void c.api().chooseTanMethod(m, m.activeTanMedia[0]);
+      await c.until((f) => f.wait.phase === 'refused', 4000);
+    },
+  },
+  'tanwait-second': {
+    label: 'Zweite Freigabe nach der Anmeldung',
+    group: 'Anmeldung',
+    options: { view: 'tanmethod', secondApproval: true, tanMs: 600 },
+    async script(c) {
+      const m = c.api().tanMethods[0];
+      void c.api().chooseTanMethod(m, m.activeTanMedia[0]);
+      await c.until((f) => f.wait.kind === 'statements' && f.wait.phase === 'waiting', 6000);
+    },
+  },
+  'login-help': {
+    label: 'Was brauche ich?',
+    group: 'Anmeldung',
+    options: { view: 'login' },
+    async script(c) {
+      const summary = await c.poll(() => document.querySelector<HTMLElement>('main details > summary'), 6000);
+      summary?.click();
+    },
+  },
+  'login-iban': { label: 'Suche per IBAN', group: 'Anmeldung', options: { view: 'login' }, script: searchFor('DE89 3704 0044 0532 0130 00') },
+  'login-blz-miss': { label: 'BLZ ohne Treffer', group: 'Anmeldung', options: { view: 'login' }, script: searchFor('123 456 78') },
+  'login-no-fints': { label: 'Bank ohne FinTS', group: 'Anmeldung', options: { view: 'login' }, script: searchFor('N26') },
+  'login-shared-name': { label: 'Gleichnamige Banken', group: 'Anmeldung', options: { view: 'login' }, script: searchFor('comdirect') },
+  'login-stale': { label: 'Bank nicht mehr gelistet', group: 'Anmeldung', options: { view: 'login', staleBank: true } },
+  'credentials-error': {
+    label: 'Zugangsdaten falsch', group: 'Anmeldung', options: { view: 'login', bankChosen: true }, script: loginAs('fehler'),
+  },
+  'credentials-locked': {
+    label: 'Zugang gesperrt', group: 'Anmeldung', options: { view: 'login', bankChosen: true }, script: loginAs('gesperrt'),
+  },
+  'credentials-outage': {
+    label: 'Bank antwortet nicht', group: 'Anmeldung', options: { view: 'login', bankChosen: true }, script: loginAs('wartung'),
+  },
+  'credentials-slow': {
+    label: 'Anmeldung dauert (Abbrechen)',
+    group: 'Anmeldung',
+    options: { view: 'login', bankChosen: true },
+    // "Abbrechen" shows after 8 s without an answer.
+    script: loginAs('langsam', 8600),
+  },
+  'tanmethod-typed': { label: 'Nur TAN-Eingabe', group: 'Anmeldung', options: { view: 'tanmethod', methods: 'typed' } },
 
   transfer: { label: 'Erfassen', group: 'Überweisung', options: { open: 'transfer' } },
   'transfer-filled': { label: 'Erfassen (ausgefüllt)', group: 'Überweisung', options: transferWith(MOCK_PAYEES.lea) },
@@ -209,8 +694,42 @@ const VIEWS: Record<string, ViewDef> = {
     options: transferWith(MOCK_PAYEES.lea, {}, { amount: '50,00', purpose: 'Taschengeld Oktober' }),
     script: toReview,
   },
+  'transfer-earlier': {
+    label: 'Prüfen (unklar aus früherer Sitzung)',
+    group: 'Überweisung',
+    // 75,00 € to Max Mustermann ended "Status unklar" yesterday — remembered in the vault's two-week log.
+    options: transferWith(MOCK_PAYEES.max, {}, { amount: '75,00', purpose: 'Rechnung 2026-117' }),
+    script: toReview,
+  },
+  'transfer-dispo': {
+    label: 'Prüfen (Dispo)',
+    group: 'Überweisung',
+    // Covered by Verfügbar, but the Kontostand ends below zero.
+    options: transferWith(MOCK_PAYEES.lea, {}, { amount: '2.000,00', purpose: 'Miete Oktober' }),
+    script: toReview,
+  },
+  'transfer-over': {
+    label: 'Prüfen (mehr als verfügbar)',
+    group: 'Überweisung',
+    options: transferWith(MOCK_PAYEES.lea, {}, { amount: '5.000,00', purpose: 'Anzahlung Küche' }),
+    script: toReview,
+  },
   'transfer-vop': {
     label: 'Namensabgleich', group: 'Überweisung', options: transferWith(MOCK_PAYEES.closeMatch), script: sendOrder,
+  },
+  'transfer-vop-nomatch': {
+    label: 'Namensabgleich (keine Übereinstimmung)',
+    group: 'Überweisung',
+    // "Schmidt" in the payee name: the bank holds another name for the IBAN.
+    options: transferWith({ name: 'Erika Schmidt', iban: MOCK_PAYEES.max.iban }),
+    script: sendOrder,
+  },
+  'transfer-vop-none': {
+    label: 'Namensabgleich (nicht möglich)',
+    group: 'Überweisung',
+    // "Kiosk" in the payee name: the payee's bank gives no result.
+    options: transferWith({ name: 'Kiosk am Markt', iban: MOCK_PAYEES.max.iban }),
+    script: sendOrder,
   },
   'tanwait-transfer': {
     label: 'Freigabe', group: 'Überweisung', options: transferWith(MOCK_PAYEES.lea, { tan: 'hold' }), script: sendOrder,
@@ -225,14 +744,56 @@ const VIEWS: Record<string, ViewDef> = {
     options: transferWith({ name: 'Unklar GmbH', iban: MOCK_PAYEES.max.iban }, { tanMs: 900 }),
     script: completeOrder,
   },
+  'transfer-unknown-checked': {
+    label: 'Status unklar (nachgesehen)',
+    group: 'Überweisung',
+    options: transferWith({ name: 'Unklar GmbH', iban: MOCK_PAYEES.max.iban }, { tanMs: 900 }),
+    // "Jetzt nachsehen": the Umsätze, then the Vorgemerkte (an approval in the mock).
+    async script(c) {
+      await completeOrder(c);
+      await c.click(/^jetzt nachsehen$/i, { within: 'dialog' });
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"] p')].find((p) => /bitte nicht erneut senden|gefunden/i.test(p.textContent ?? '')), 9000);
+    },
+  },
   'transfer-error': {
-    label: 'Abgelehnt',
+    label: 'Abgelehnt (vor der Freigabe)',
     group: 'Überweisung',
     // "Fehler" in the payee name: the bank refuses the order.
     options: transferWith({ name: 'Fehler GmbH', iban: MOCK_PAYEES.max.iban }),
     script: sendOrder,
   },
+  'transfer-refused': {
+    label: 'Abgelehnt (in der App)',
+    group: 'Überweisung',
+    // "Abgelehnt" in the payee name: the approval is refused in the app.
+    options: transferWith({ name: 'Abgelehnt GmbH', iban: MOCK_PAYEES.max.iban }, { tanMs: 900 }),
+    script: completeOrder,
+  },
+
+  // The printed documents, at A4 width (./print.tsx). The data situations
+  // apply to them too: &preset=past-range|empty, &range=365d, &acct=karte.
+  'print-statement': { label: 'Kontoauszug', group: 'Dokumente', print: 'statement', script: sheetShown },
+  'print-statement-card': {
+    label: 'Kontoauszug Kreditkarte', group: 'Dokumente', print: 'statement', options: { account: ACCT.karte },
+    script: sheetShown,
+  },
+  'print-statement-no-opening': {
+    label: 'Kontoauszug ohne Anfangssaldo', group: 'Dokumente', print: 'statement-no-opening', script: sheetShown,
+  },
+  'print-statement-difference': {
+    label: 'Kontoauszug mit Differenz', group: 'Dokumente', print: 'statement-difference', script: sheetShown,
+  },
+  'print-receipt': { label: 'Beleg: Lastschrift', group: 'Dokumente', print: 'receipt', script: sheetShown },
+  'print-receipt-credit': { label: 'Beleg: Gutschrift', group: 'Dokumente', print: 'credit', script: sheetShown },
+  'print-receipt-card': { label: 'Beleg: Visa Debit', group: 'Dokumente', print: 'card', script: sheetShown },
+  'print-receipt-ahead': { label: 'Beleg: noch nicht gebucht', group: 'Dokumente', print: 'ahead', script: sheetShown },
+  'print-receipt-pending': { label: 'Beleg: vorgemerkt', group: 'Dokumente', print: 'pending', script: sheetShown },
 };
+
+/** A document view is ready once its sheet is sealed and on the page. */
+async function sheetShown(c: Ctx) {
+  await c.poll(() => document.querySelector('.doc-paper'), 6000);
+}
 
 /** A clickable element in the section a heading introduces. */
 function findUnderHeading(heading: RegExp, selector: string): HTMLElement | null {
@@ -308,8 +869,9 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 
 const PRESETS: readonly MockPreset[] = ['default', 'empty', 'past-range', 'unverified', 'loading', 'error'];
 const RANGES = ['90d', '365d', 'all'] as const;
-const TANS = ['confirm', 'hold', 'ended', 'error'] as const;
+const TANS = ['confirm', 'hold', 'ended', 'error', 'refused'] as const;
 const ACCOUNTS: Record<string, string> = { giro: ACCT.giro, tagesgeld: ACCT.tagesgeld, karte: ACCT.karte };
+const LOGOS = ['unasked', 'on', 'off', 'unavailable'] as const;
 
 const noopSubscribe = () => () => {};
 
@@ -348,6 +910,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
   const rangeParam = one(params.range) as (typeof RANGES)[number];
   const tanParam = one(params.tan) as (typeof TANS)[number];
   const account = ACCOUNTS[one(params.acct)];
+  const logosParam = one(params.logos) as (typeof LOGOS)[number];
   const options: MockOptions = {
     ...def.options,
     ...(RANGES.includes(rangeParam) ? { range: rangeParam } : {}),
@@ -355,6 +918,9 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     ...(one(params.privacy) === '1' ? { privacy: true } : {}),
     ...(account ? { account } : {}),
     ...(one(params.q) ? { query: one(params.q) } : {}),
+    ...(LOGOS.includes(logosParam) ? { logos: logosParam } : {}),
+    ...(one(params.fail) === '1' ? { fail: true } : {}),
+    ...(one(params.unclear) === '1' ? { unclear: true } : {}),
   };
 
   const theme = one(params.theme);
@@ -374,12 +940,16 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     // transition of this one.
     <MockFintsProvider key={JSON.stringify(params)} preset={preset} still={still} {...options}>
       {/* Only the printable sheet reaches paper — same structure as app/page.tsx. */}
-      <div className="print:hidden">
-        <App />
-        <TanWaitOverlay />
-        <UpdateLayer />
-        <Toasts />
-      </div>
+      {def.print ? (
+        <PrintPreview kind={def.print} />
+      ) : (
+        <div className="print:hidden">
+          <App />
+          <TanWaitOverlay />
+          <UpdateLayer />
+          <Toasts />
+        </div>
+      )}
       <Statement />
       <Driver setup={setup} script={def.script} />
     </MockFintsProvider>
@@ -420,7 +990,8 @@ function Driver({ setup, script }: { setup: Setup; script?: Script }) {
     void (async () => {
       if (setup.toasts) {
         const t = c.api().toast;
-        t('2 Mitteilungen deiner Bank', 'info', 600_000, { label: 'Anzeigen', run: () => apiRef.current.setInboxOpen(true) });
+        // The app has no "Mitteilungen" toast any more (the bell and the tile announce them).
+        t('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 600_000, { label: 'Gerät vergessen …', run: () => {} });
         t('Überweisung an Lea Becker ausgeführt.', 'success', 600_000);
         t(
           'Die Verbindung zur Bank wurde unterbrochen (Zeitüberschreitung). Bitte versuche es erneut.',
@@ -453,7 +1024,7 @@ function Driver({ setup, script }: { setup: Setup; script?: Script }) {
 
 // ---------------------------------------------------------------------------
 
-const GROUPS: ViewDef['group'][] = ['Dashboard', 'Anmeldung', 'Überweisung', 'Dialoge', 'Updates'];
+const GROUPS: ViewDef['group'][] = ['Dashboard', 'Anmeldung', 'Überweisung', 'Dialoge', 'Updates', 'Dokumente'];
 
 const PRESET_LABELS: Record<MockPreset, string> = {
   default: 'Standard',
@@ -469,10 +1040,23 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=analysis&range=all', label: 'Analyse über 13 Monate' },
   { q: 'view=contracts&range=all', label: 'Verträge über 13 Monate' },
   { q: 'view=overview&acct=karte', label: 'Kreditkarte aktiv' },
+  { q: 'view=overview&acct=karte&privacy=1', label: 'Kreditkarte, Beträge ausgeblendet' },
+  { q: 'view=overview-single&preset=error', label: 'Ein Konto, Abruf fehlgeschlagen' },
   { q: 'view=overview&privacy=1', label: 'Beträge ausgeblendet' },
+  { q: 'view=overview&acct=karte&privacy=1', label: 'Kreditkarte ausgeblendet' },
+  { q: 'view=session&logos=on', label: 'Sitzung: Firmenlogos an' },
+  { q: 'view=session&logos=unavailable', label: 'Sitzung: ohne Firmenlogos' },
+  { q: 'view=session&unclear=1', label: 'Sitzung: Überweisung unklar' },
+  { q: 'view=palette-logout&unclear=1', label: 'Suche „abm“, Überweisung unklar' },
+  { q: 'view=login&logos=on', label: 'Anmeldung: Firmenlogos an' },
+  { q: 'view=credentials&logos=off', label: 'Anmeldung: Firmenlogos aus' },
   { q: 'view=overview&toasts=1', label: 'Hinweise' },
   { q: 'view=tanwait&tan=ended', label: 'Freigabe abgelaufen' },
   { q: 'view=tanwait&tan=error', label: 'Freigabe-Fehler' },
+  { q: 'view=tanwait&tan=refused', label: 'Freigabe abgelehnt' },
+  { q: 'view=print-statement&range=365d', label: 'Kontoauszug über 12 Monate' },
+  { q: 'view=print-statement&preset=past-range', label: 'Kontoauszug, vergangener Zeitraum' },
+  { q: 'view=print-statement&preset=empty', label: 'Kontoauszug ohne Umsätze' },
 ];
 
 /** ?view=index — every view and data situation, one click each. */
@@ -538,8 +1122,10 @@ function Index() {
 
         <p className="mt-6 text-[12.5px] text-ink-3">
           Weitere Parameter: <code className="num">privacy=1</code>, <code className="num">preset=…</code>,{' '}
-          <code className="num">range=90d|365d|all</code>, <code className="num">tan=hold|ended|error</code>,{' '}
+          <code className="num">range=90d|365d|all</code>, <code className="num">tan=hold|ended|error|refused</code>,{' '}
           <code className="num">acct=tagesgeld|karte</code>, <code className="num">q=…</code>,{' '}
+          <code className="num">logos=unasked|on|off|unavailable</code>,{' '}
+          <code className="num">fail=1</code>, <code className="num">unclear=1</code>,{' '}
           <code className="num">y=…</code>, <code className="num">still=0|1</code>,{' '}
           <code className="num">update=available|ready|current|…</code>, <code className="num">updateDialog=1</code>.
         </p>
