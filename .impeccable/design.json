@@ -1,0 +1,1124 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-04T10:54:12.519Z",
+  "title": "Design System: Sooskasse-FinTS",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Blue-Grey Paper",
+        "canonical": "oklch(97.2% 0.005 258.3)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#242527",
+          "#404244",
+          "#606164",
+          "#818285",
+          "#a3a5a8",
+          "#c7c9cc",
+          "#edeff1"
+        ],
+        "dark": "#061423"
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Tile White",
+        "canonical": "oklch(100.0% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ],
+        "dark": "#0a1b2d"
+      },
+      "inset": {
+        "role": "neutral",
+        "displayName": "Inset Grey",
+        "canonical": "oklch(95.4% 0.006 255.5)",
+        "tonalRamp": [
+          "#090b0e",
+          "#232528",
+          "#404245",
+          "#5f6165",
+          "#808286",
+          "#a2a5a9",
+          "#c6c9cd",
+          "#eceff3"
+        ],
+        "dark": "#0e2236"
+      },
+      "raised": {
+        "role": "neutral",
+        "displayName": "Raised White",
+        "canonical": "oklch(100.0% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ],
+        "dark": "#102740"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(23.7% 0.011 254.1)",
+        "tonalRamp": [
+          "#080b10",
+          "#21252b",
+          "#3e4248",
+          "#5d6268",
+          "#7e8389",
+          "#a0a6ac",
+          "#c4cad1",
+          "#e9eff6"
+        ],
+        "dark": "#e3e9ef"
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Slate Ink",
+        "canonical": "oklch(45.3% 0.019 254.0)",
+        "tonalRamp": [
+          "#060c13",
+          "#1f262e",
+          "#3b434c",
+          "#5a626c",
+          "#7b838e",
+          "#9da6b1",
+          "#c1cad6",
+          "#e6f0fc"
+        ],
+        "dark": "#a9b6c4"
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Quiet Ink",
+        "canonical": "oklch(52.2% 0.025 250.4)",
+        "tonalRamp": [
+          "#040c15",
+          "#1c2631",
+          "#38434f",
+          "#57636f",
+          "#778491",
+          "#9aa7b5",
+          "#bdcbd9",
+          "#e3f0fe"
+        ],
+        "dark": "#8d9bab"
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(91.9% 0.012 252.1)",
+        "tonalRamp": [
+          "#080c10",
+          "#21262b",
+          "#3e4248",
+          "#5d6268",
+          "#7d8389",
+          "#a0a6ac",
+          "#c4cad1",
+          "#e9eff6"
+        ],
+        "dark": "#1c3147"
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Strong Line",
+        "canonical": "oklch(84.4% 0.020 252.9)",
+        "tonalRamp": [
+          "#060c13",
+          "#1e262f",
+          "#3b434d",
+          "#59626d",
+          "#7a838e",
+          "#9ca6b2",
+          "#c0cad6",
+          "#e5f0fc"
+        ],
+        "dark": "#2c4560"
+      },
+      "field-line": {
+        "role": "neutral",
+        "displayName": "Field Edge",
+        "canonical": "oklch(65.0% 0.028 250.1)",
+        "tonalRamp": [
+          "#030c16",
+          "#1b2632",
+          "#374350",
+          "#566371",
+          "#768493",
+          "#98a7b6",
+          "#bccbdb",
+          "#e3f0fe"
+        ],
+        "dark": "#56718f"
+      },
+      "field-bg": {
+        "role": "neutral",
+        "displayName": "Field White",
+        "canonical": "oklch(100.0% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ],
+        "dark": "#0e2236"
+      },
+      "headline": {
+        "role": "primary",
+        "displayName": "Night Navy (headline)",
+        "canonical": "oklch(30.2% 0.097 258.7)",
+        "tonalRamp": [
+          "#000923",
+          "#012253",
+          "#1f4175",
+          "#3e6198",
+          "#5e83bc",
+          "#7fa6e2",
+          "#a9cbff",
+          "#e5efff"
+        ],
+        "dark": "#e3e9ef"
+      },
+      "bar": {
+        "role": "primary",
+        "displayName": "Night Navy",
+        "canonical": "oklch(30.2% 0.097 258.7)",
+        "tonalRamp": [
+          "#000923",
+          "#012253",
+          "#1f4175",
+          "#3e6198",
+          "#5e83bc",
+          "#7fa6e2",
+          "#a9cbff",
+          "#e5efff"
+        ],
+        "dark": "#08192b"
+      },
+      "bar-ink": {
+        "role": "neutral",
+        "displayName": "Bar Ink",
+        "canonical": "oklch(100.0% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ],
+        "dark": "#f1f5f9"
+      },
+      "bar-ink-2": {
+        "role": "neutral",
+        "displayName": "Mist (bar)",
+        "canonical": "oklch(82.8% 0.033 255.6)",
+        "tonalRamp": [
+          "#030b19",
+          "#1a2635",
+          "#374353",
+          "#556274",
+          "#768496",
+          "#98a6ba",
+          "#bccbdf",
+          "#e5f0fe"
+        ],
+        "dark": "#9fb2c7"
+      },
+      "bar-line": {
+        "role": "neutral",
+        "displayName": "Bar Divider",
+        "canonical": "oklch(100.0% 0.000 0 / 0.28)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ],
+        "dark": "rgb(255 255 255 / 0.22)"
+      },
+      "stage": {
+        "role": "primary",
+        "displayName": "Night Navy (stage)",
+        "canonical": "oklch(30.2% 0.097 258.7)",
+        "tonalRamp": [
+          "#000923",
+          "#012253",
+          "#1f4175",
+          "#3e6198",
+          "#5e83bc",
+          "#7fa6e2",
+          "#a9cbff",
+          "#e5efff"
+        ],
+        "dark": "#0b2945"
+      },
+      "stage-ink": {
+        "role": "neutral",
+        "displayName": "Stage Ink",
+        "canonical": "oklch(100.0% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ],
+        "dark": "#ffffff"
+      },
+      "stage-ink-2": {
+        "role": "neutral",
+        "displayName": "Mist (stage)",
+        "canonical": "oklch(85.9% 0.029 254.7)",
+        "tonalRamp": [
+          "#040b17",
+          "#1b2633",
+          "#384352",
+          "#566272",
+          "#778494",
+          "#99a6b8",
+          "#bdcbdc",
+          "#e4f0fe"
+        ],
+        "dark": "#a9bdd3"
+      },
+      "stage-line": {
+        "role": "neutral",
+        "displayName": "Stage Divider",
+        "canonical": "oklch(100.0% 0.000 0 / 0.28)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ],
+        "dark": "rgb(255 255 255 / 0.22)"
+      },
+      "accent": {
+        "role": "secondary",
+        "displayName": "Signal Blue",
+        "canonical": "oklch(49.6% 0.139 250.5)",
+        "tonalRamp": [
+          "#000c1c",
+          "#012647",
+          "#024378",
+          "#0663ac",
+          "#3786d2",
+          "#5caaf8",
+          "#a0ceff",
+          "#e3f0ff"
+        ],
+        "dark": "#3ba4ef"
+      },
+      "accent-hover": {
+        "role": "secondary",
+        "displayName": "Signal Blue Hover",
+        "canonical": "oklch(45.4% 0.128 250.7)",
+        "tonalRamp": [
+          "#000c1c",
+          "#002648",
+          "#024378",
+          "#1963a6",
+          "#4086cc",
+          "#64aaf2",
+          "#a0cefe",
+          "#e3f0fe"
+        ],
+        "dark": "#5ab3f2"
+      },
+      "accent-press": {
+        "role": "secondary",
+        "displayName": "Signal Blue Press",
+        "canonical": "oklch(40.5% 0.116 251.4)",
+        "tonalRamp": [
+          "#000b1c",
+          "#012648",
+          "#01437a",
+          "#2663a1",
+          "#4986c6",
+          "#6ca9ec",
+          "#a1cdff",
+          "#e3f0ff"
+        ],
+        "dark": "#2b8fd8"
+      },
+      "accent-ink": {
+        "role": "secondary",
+        "displayName": "On Signal",
+        "canonical": "oklch(100.0% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ],
+        "dark": "#04121f"
+      },
+      "accent-soft": {
+        "role": "secondary",
+        "displayName": "Signal Wash",
+        "canonical": "oklch(95.4% 0.014 244.7)",
+        "tonalRamp": [
+          "#060c11",
+          "#1f262c",
+          "#3c4349",
+          "#5b6269",
+          "#7b838b",
+          "#9ea6ae",
+          "#c2cad2",
+          "#e7f0f8"
+        ],
+        "dark": "#0d2b45"
+      },
+      "focus": {
+        "role": "secondary",
+        "displayName": "Focus Blue",
+        "canonical": "oklch(57.8% 0.112 246.4)",
+        "tonalRamp": [
+          "#000c1a",
+          "#002744",
+          "#034572",
+          "#1d659d",
+          "#4388c1",
+          "#67abe7",
+          "#9bcfff",
+          "#e2f1fe"
+        ],
+        "dark": "#4fa3e0"
+      },
+      "emphasis": {
+        "role": "tertiary",
+        "displayName": "Marker Orange",
+        "canonical": "oklch(67.7% 0.181 44.9)",
+        "tonalRamp": [
+          "#190500",
+          "#411600",
+          "#6e2a01",
+          "#9e4003",
+          "#d25701",
+          "#fe7933",
+          "#feb696",
+          "#feeae1"
+        ],
+        "dark": "#f2813f"
+      },
+      "green": {
+        "role": "value",
+        "displayName": "Credit Green",
+        "canonical": "oklch(48.7% 0.128 150.5)",
+        "tonalRamp": [
+          "#001003",
+          "#012e11",
+          "#015023",
+          "#107538",
+          "#3e9758",
+          "#63bc7a",
+          "#88e19d",
+          "#c7ffd2"
+        ],
+        "dark": "#54c279"
+      },
+      "green-soft": {
+        "role": "value",
+        "displayName": "Credit Tint",
+        "canonical": "oklch(95.8% 0.013 159.9)",
+        "tonalRamp": [
+          "#070d09",
+          "#202723",
+          "#3c4440",
+          "#5b645f",
+          "#7c8580",
+          "#9ea8a2",
+          "#c2ccc6",
+          "#e7f1eb"
+        ],
+        "dark": "#12301f"
+      },
+      "red": {
+        "role": "value",
+        "displayName": "Soll Red",
+        "canonical": "oklch(53.0% 0.207 22.3)",
+        "tonalRamp": [
+          "#1e0002",
+          "#4c010a",
+          "#800218",
+          "#b70327",
+          "#e43845",
+          "#fe7272",
+          "#feb2af",
+          "#fee9e7"
+        ],
+        "dark": "#fc6274"
+      },
+      "red-soft": {
+        "role": "value",
+        "displayName": "Soll Tint",
+        "canonical": "oklch(95.6% 0.018 8.8)",
+        "tonalRamp": [
+          "#12080a",
+          "#2d2223",
+          "#4b3e40",
+          "#6b5d5f",
+          "#8c7e80",
+          "#b0a1a3",
+          "#d4c5c7",
+          "#faeaec"
+        ],
+        "dark": "#3a1b22"
+      },
+      "red-ink": {
+        "role": "value",
+        "displayName": "On Soll",
+        "canonical": "oklch(100.0% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ],
+        "dark": "#1b0a0d"
+      },
+      "amber": {
+        "role": "value",
+        "displayName": "Vorgemerkt Amber",
+        "canonical": "oklch(52.9% 0.104 80.9)",
+        "tonalRamp": [
+          "#120a00",
+          "#322201",
+          "#573d00",
+          "#7e5a05",
+          "#a27b2f",
+          "#c69e54",
+          "#ecc278",
+          "#ffeccc"
+        ],
+        "dark": "#e0b155"
+      },
+      "amber-soft": {
+        "role": "value",
+        "displayName": "Vorgemerkt Tint",
+        "canonical": "oklch(96.9% 0.034 86.3)",
+        "tonalRamp": [
+          "#110a00",
+          "#2c2411",
+          "#4a412d",
+          "#6a604c",
+          "#8b816c",
+          "#aea48e",
+          "#d3c8b1",
+          "#f8eed6"
+        ],
+        "dark": "#2c220c"
+      },
+      "info": {
+        "role": "value",
+        "displayName": "Info Cyan",
+        "canonical": "oklch(52.8% 0.113 235.6)",
+        "tonalRamp": [
+          "#000d16",
+          "#01293c",
+          "#004867",
+          "#016994",
+          "#2d8cbc",
+          "#55b0e2",
+          "#8ad3ff",
+          "#def2fe"
+        ],
+        "dark": "#4fb3dc"
+      },
+      "info-soft": {
+        "role": "value",
+        "displayName": "Info Tint",
+        "canonical": "oklch(96.0% 0.013 221.4)",
+        "tonalRamp": [
+          "#060c0f",
+          "#1e272a",
+          "#3b4447",
+          "#5a6366",
+          "#7a8488",
+          "#9da7ab",
+          "#c1cbcf",
+          "#e6f1f5"
+        ],
+        "dark": "#0b2a3a"
+      },
+      "scrim": {
+        "role": "neutral",
+        "displayName": "Scrim",
+        "canonical": "oklch(20.0% 0.040 258.3 / 0.45)",
+        "tonalRamp": [
+          "#020b1c",
+          "#192539",
+          "#354358",
+          "#536278",
+          "#74839b",
+          "#96a6bf",
+          "#b9cae4",
+          "#e6effe"
+        ],
+        "dark": "rgb(0 0 0 / 0.6)"
+      },
+      "chart-1": {
+        "role": "chart",
+        "displayName": "Chart Slot 1 (deep blue)",
+        "canonical": "oklch(44.9% 0.148 255.0)",
+        "tonalRamp": [
+          "#000b1f",
+          "#01244d",
+          "#014081",
+          "#1660b2",
+          "#3d83d8",
+          "#62a7fe",
+          "#a6ccfe",
+          "#e4f0ff"
+        ],
+        "dark": "#0267c7"
+      },
+      "chart-2": {
+        "role": "chart",
+        "displayName": "Chart Slot 2 (teal)",
+        "canonical": "oklch(65.0% 0.110 191.7)",
+        "tonalRamp": [
+          "#010e0e",
+          "#022c2a",
+          "#024d4b",
+          "#03706d",
+          "#019692",
+          "#38bbb6",
+          "#65e0db",
+          "#b6fffb"
+        ],
+        "dark": "#0aa7a4"
+      },
+      "chart-3": {
+        "role": "chart",
+        "displayName": "Chart Slot 3 (violet)",
+        "canonical": "oklch(45.0% 0.169 294.8)",
+        "tonalRamp": [
+          "#0f0029",
+          "#2e0062",
+          "#4c2090",
+          "#6b45b5",
+          "#8b68db",
+          "#ad8efe",
+          "#cdbeff",
+          "#efecfe"
+        ],
+        "dark": "#8a66d9"
+      },
+      "chart-4": {
+        "role": "chart",
+        "displayName": "Chart Slot 4 (rose)",
+        "canonical": "oklch(69.0% 0.170 354.8)",
+        "tonalRamp": [
+          "#1c000c",
+          "#490028",
+          "#7a0246",
+          "#a52766",
+          "#cc4e88",
+          "#f472ab",
+          "#ffaecd",
+          "#ffe7ef"
+        ],
+        "dark": "#bc3e79"
+      },
+      "chart-5": {
+        "role": "chart",
+        "displayName": "Chart Slot 5 (indigo)",
+        "canonical": "oklch(45.0% 0.169 272.0)",
+        "tonalRamp": [
+          "#040032",
+          "#140175",
+          "#28309a",
+          "#4353bf",
+          "#6177e6",
+          "#869efe",
+          "#b6c7ff",
+          "#e9eeff"
+        ],
+        "dark": "#6f87f9"
+      },
+      "chart-6": {
+        "role": "chart",
+        "displayName": "Chart Slot 6 (sky)",
+        "canonical": "oklch(65.1% 0.132 231.7)",
+        "tonalRamp": [
+          "#000d15",
+          "#00293a",
+          "#034863",
+          "#026a90",
+          "#0a8ebe",
+          "#34b3e9",
+          "#83d5ff",
+          "#ddf2fe"
+        ],
+        "dark": "#00729b"
+      },
+      "chart-rest": {
+        "role": "chart",
+        "displayName": "Chart Rest (grey)",
+        "canonical": "oklch(66.8% 0.024 250.3)",
+        "tonalRamp": [
+          "#040c15",
+          "#1c2630",
+          "#39434e",
+          "#57636f",
+          "#788490",
+          "#9aa7b4",
+          "#becbd8",
+          "#e3f0fe"
+        ],
+        "dark": "#5d6f83"
+      },
+      "chart-in": {
+        "role": "chart",
+        "displayName": "Einnahmen Green",
+        "canonical": "oklch(60.9% 0.138 153.5)",
+        "tonalRamp": [
+          "#010f05",
+          "#012e15",
+          "#005028",
+          "#04753e",
+          "#299a5a",
+          "#54be7b",
+          "#7be39e",
+          "#c6ffd6"
+        ],
+        "dark": "#41ad6b"
+      },
+      "chart-out": {
+        "role": "chart",
+        "displayName": "Ausgaben Navy-Slate",
+        "canonical": "oklch(45.9% 0.101 256.8)",
+        "tonalRamp": [
+          "#000a21",
+          "#002351",
+          "#1a4176",
+          "#39629a",
+          "#5a84be",
+          "#7ca7e4",
+          "#a8ccfe",
+          "#e5effe"
+        ],
+        "dark": "#5a82bd"
+      },
+      "chart-line": {
+        "role": "chart",
+        "displayName": "Kontoverlauf Line",
+        "canonical": "oklch(49.6% 0.139 250.5)",
+        "tonalRamp": [
+          "#000c1c",
+          "#012647",
+          "#024378",
+          "#0663ac",
+          "#3786d2",
+          "#5caaf8",
+          "#a0ceff",
+          "#e3f0ff"
+        ],
+        "dark": "#3ba4ef"
+      },
+      "chart-area": {
+        "role": "chart",
+        "displayName": "Kontoverlauf Area",
+        "canonical": "oklch(49.6% 0.139 250.5 / 0.08)",
+        "tonalRamp": [
+          "#000c1c",
+          "#012647",
+          "#024378",
+          "#0663ac",
+          "#3786d2",
+          "#5caaf8",
+          "#a0ceff",
+          "#e3f0ff"
+        ],
+        "dark": "rgb(59 164 239 / 0.12)"
+      },
+      "chart-grid": {
+        "role": "chart",
+        "displayName": "Chart Grid",
+        "canonical": "oklch(94.4% 0.009 247.9)",
+        "tonalRamp": [
+          "#080c0f",
+          "#222529",
+          "#3e4246",
+          "#5d6266",
+          "#7e8387",
+          "#a1a6aa",
+          "#c5cacf",
+          "#eaeff4"
+        ],
+        "dark": "#15283c"
+      },
+      "chart-axis": {
+        "role": "chart",
+        "displayName": "Chart Axis",
+        "canonical": "oklch(84.4% 0.020 252.9)",
+        "tonalRamp": [
+          "#060c13",
+          "#1e262f",
+          "#3b434d",
+          "#59626d",
+          "#7a838e",
+          "#9ca6b2",
+          "#c0cad6",
+          "#e5f0fc"
+        ],
+        "dark": "#2c4560"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The balance figure in the account hero (40px when the tile is under 520px); cents at half size in 600."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The page title on the navy stage: 36px at desk, 32px at sm, 28px on phones."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Dialog titles."
+      },
+      "section": {
+        "displayName": "Section",
+        "purpose": "Tile and group titles, in Night Navy."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text; form controls take 16px."
+      },
+      "row": {
+        "displayName": "Row",
+        "purpose": "A booking row's counterparty name and amount."
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "Pill, tab and chip labels (15px lg, 13.5px sm, 13px xs)."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Field labels, stat labels and eyebrows. Sentence case, never letterspaced."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Second lines, dates, hints and tile subtitles, in Quiet Ink."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "IBAN, BIC, BLZ and references. An IBAN never wraps."
+      }
+    },
+    "shadows": [
+      {
+        "name": "tile",
+        "value": "0 1px 2px rgb(10 30 60 / 0.05), 0 4px 12px rgb(10 30 60 / 0.07)",
+        "dark": "0 0 0 1px rgb(255 255 255 / 0.06)",
+        "purpose": "Every tile at rest: lifted, never framed."
+      },
+      {
+        "name": "tile-hover",
+        "value": "0 2px 4px rgb(10 30 60 / 0.06), 0 10px 24px rgb(10 30 60 / 0.12)",
+        "dark": "0 0 0 1px rgb(255 255 255 / 0.12)",
+        "purpose": "A tile that is itself the button, with translateY(-1px); hover-capable devices only."
+      },
+      {
+        "name": "pop",
+        "value": "0 8px 20px rgb(10 30 60 / 0.16), 0 28px 56px -16px rgb(10 30 60 / 0.28)",
+        "dark": "0 0 0 1px rgb(255 255 255 / 0.08), 0 24px 48px rgb(0 0 0 / 0.55)",
+        "purpose": "Sheets, drawers, menus, popovers, toasts."
+      },
+      {
+        "name": "sticky",
+        "value": "0 6px 16px -8px rgb(10 30 60 / 0.18)",
+        "dark": "0 1px 0 rgb(255 255 255 / 0.06), 0 8px 16px -8px rgb(0 0 0 / 0.6)",
+        "purpose": "A header that has started to stick over scrolling content."
+      },
+      {
+        "name": "ring",
+        "value": "0 0 0 2px var(--surface), 0 0 0 4px var(--focus)",
+        "purpose": "Box-shadow form of the double focus ring, for components that cannot use outline."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-soft",
+        "value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "The one easing curve for entrances and lifts."
+      },
+      {
+        "name": "state",
+        "value": "150ms ease-out",
+        "purpose": "Colour, border and background changes on controls."
+      },
+      {
+        "name": "pop-in",
+        "value": "150ms ease-out-soft",
+        "purpose": "Menus and popovers: 4px drop and 0.98 scale."
+      },
+      {
+        "name": "fade",
+        "value": "180ms ease-out",
+        "purpose": "Scrims and plain fades."
+      },
+      {
+        "name": "sheet-in",
+        "value": "220ms ease-out-soft",
+        "purpose": "Centred dialogs: 12px rise and 0.985 scale."
+      },
+      {
+        "name": "drawer-in",
+        "value": "240ms ease-out-soft",
+        "purpose": "Right drawer: 32px slide."
+      },
+      {
+        "name": "sheet-up",
+        "value": "250ms ease-out-soft",
+        "purpose": "Phone bottom sheets."
+      },
+      {
+        "name": "toast",
+        "value": "240ms in / 160ms out",
+        "purpose": "Toasts rise 10px in, sink 6px out."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "prefers-reduced-motion collapses every animation and transition; tiles stop lifting."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "desk",
+        "value": "1100px (68.75rem)"
+      },
+      {
+        "name": "tile-figures",
+        "value": "520px / 640px container width"
+      },
+      {
+        "name": "desktop-shell-min",
+        "value": "900×600 window"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Filled Signal Blue pill for the one leading action of a decision.",
+      "html": "<button class=\"ds-btn-primary\">Überweisung prüfen</button>",
+      "css": ".ds-btn-primary { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 2px solid transparent; border-radius: 9999px; background: var(--accent); color: var(--accent-ink); font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color .15s ease-out; } .ds-btn-primary:hover { background: var(--accent-hover); } .ds-btn-primary:active { background: var(--accent-press); } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "The default button: a 2px Signal Blue outline, washed on hover.",
+      "html": "<button class=\"ds-btn-secondary\">Erneut versuchen</button>",
+      "css": ".ds-btn-secondary { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 2px solid var(--accent); border-radius: 9999px; background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color .15s ease-out; } .ds-btn-secondary:hover { background: var(--accent-soft); } .ds-btn-secondary:active { background: color-mix(in srgb, var(--accent) 18%, transparent); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+    },
+    {
+      "name": "Stage Quick Actions",
+      "kind": "custom",
+      "refersTo": "button-stage-primary",
+      "description": "The Schnellzugriffe on the navy stage: one filled white lead pill, the rest outlined in white.",
+      "html": "<div class=\"ds-stage\"><button class=\"ds-stage-primary\">Überweisen</button><button class=\"ds-stage-btn\">Geld anfordern</button><button class=\"ds-stage-btn\">Kontoauszug</button></div>",
+      "css": ".ds-stage { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-wrap: wrap; gap: 8px; padding: 20px 24px; background: var(--stage); border-radius: 12px; } .ds-stage-primary, .ds-stage-btn { font: inherit; height: 36px; padding: 0 16px; border-radius: 9999px; font-size: 13.5px; font-weight: 600; line-height: 1; cursor: pointer; transition: background-color .15s, border-color .15s; } .ds-stage-primary { border: 2px solid transparent; background: var(--stage-ink); color: var(--stage); } .ds-stage-primary:hover { background: color-mix(in srgb, var(--stage-ink) 86%, var(--stage)); } .ds-stage-btn { border: 1.5px solid var(--stage-line); background: transparent; color: var(--stage-ink); } .ds-stage-btn:hover { border-color: var(--stage-ink); background: color-mix(in srgb, var(--stage-ink) 12%, transparent); } .ds-stage-primary:focus-visible, .ds-stage-btn:focus-visible { outline: 2px solid var(--stage-ink); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "48px field with a 3:1 Field Edge, label above in 13px semibold, hint below.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">IBAN</span><input class=\"ds-input\" placeholder=\"DE00 0000 0000 0000 0000 00\" /><span class=\"ds-field-hint\">Wir prüfen die Prüfziffer, während du tippst.</span></label>",
+      "css": ".ds-field { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; gap: 6px; max-width: 360px; } .ds-field-label { font-size: 13px; line-height: 1.35; font-weight: 600; color: var(--ink-2); } .ds-input { font: inherit; height: 48px; padding: 0 14px; border: 1px solid var(--field-line); border-radius: 6px; background: var(--field-bg); color: var(--ink); font-size: 16px; transition: border-color .15s; } .ds-input::placeholder { color: var(--ink-3); } .ds-input:hover { border-color: var(--ink-3); } .ds-input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; } .ds-field-hint { font-size: 13px; line-height: 1.35; color: var(--ink-3); }"
+    },
+    {
+      "name": "Filter Chips",
+      "kind": "chip",
+      "refersTo": "chip-filter",
+      "description": "Outlined in Signal Blue; selected adds the wash and a check (the check says \"on\" without colour).",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip\" aria-pressed=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12.5l4.5 4.5L19 7.5\"/></svg>Ausgaben</button><button class=\"ds-chip\" aria-pressed=\"false\">Eingänge</button><button class=\"ds-chip\" aria-pressed=\"false\">Kategorie<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 9l6 6 6-6\"/></svg></button></div>",
+      "css": ".ds-chips { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-wrap: wrap; gap: 8px; } .ds-chip { font: inherit; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .15s; } .ds-chip:hover, .ds-chip[aria-pressed='true'] { background: var(--accent-soft); } .ds-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Tags",
+      "kind": "chip",
+      "refersTo": "tag-pending",
+      "description": "Non-interactive status words: each value colour on its own tint; emphasis keeps ink text with an orange dot.",
+      "html": "<div class=\"ds-tags\"><span class=\"ds-tag ds-tag-pending\">Vorgemerkt</span><span class=\"ds-tag ds-tag-positive\">Gutschrift</span><span class=\"ds-tag ds-tag-info\">Gerät gemerkt</span><span class=\"ds-tag ds-tag-neutral\">Dauerauftrag</span><span class=\"ds-tag ds-tag-emphasis\"><span class=\"ds-dot\"></span>Betrag gestiegen</span></div>",
+      "css": ".ds-tags { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-wrap: wrap; gap: 8px; } .ds-tag { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 12.5px; font-weight: 600; line-height: 1; white-space: nowrap; } .ds-tag-pending { background: var(--amber-soft); color: var(--amber); } .ds-tag-positive { background: var(--green-soft); color: var(--green); } .ds-tag-info { background: var(--info-soft); color: var(--info); } .ds-tag-neutral { background: var(--inset); color: var(--ink-2); } .ds-tag-emphasis { background: color-mix(in srgb, var(--emphasis) 11%, var(--surface)); color: var(--ink); } .ds-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--emphasis); }"
+    },
+    {
+      "name": "Institute Bar Tabs",
+      "kind": "nav",
+      "refersTo": "institute-bar",
+      "description": "The white second tier: the bank's mark and name, then underline tabs with a 3px Signal Blue rule on the bar's bottom edge.",
+      "html": "<nav class=\"ds-ibar\"><span class=\"ds-ibar-logo\">S</span><span class=\"ds-ibar-name\">Sparkasse KölnBonn</span><span class=\"ds-ibar-sep\"></span><button class=\"ds-tab\" aria-selected=\"true\">Übersicht</button><button class=\"ds-tab\" aria-selected=\"false\">Analyse</button><button class=\"ds-tab\" aria-selected=\"false\">Verträge &amp; Abos</button></nav>",
+      "css": ".ds-ibar { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; align-items: stretch; gap: 4px; height: 52px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--line); } .ds-ibar-logo { align-self: center; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--line); color: var(--headline); font-weight: 700; font-size: 14px; } .ds-ibar-name { align-self: center; margin-left: 6px; font-size: 14.5px; font-weight: 600; color: var(--ink); } .ds-ibar-sep { align-self: center; width: 1px; height: 24px; margin: 0 12px; background: var(--line); } .ds-tab { font: inherit; position: relative; padding: 0 12px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); font-size: 15px; font-weight: 600; cursor: pointer; transition: color .15s; } .ds-tab:hover, .ds-tab[aria-selected='true'] { color: var(--ink); } .ds-tab::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: 0; height: 3px; border-radius: 9999px 9999px 0 0; background: transparent; transition: background-color .15s; } .ds-tab[aria-selected='true']::after { background: var(--accent); } .ds-tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }"
+    },
+    {
+      "name": "Masthead",
+      "kind": "nav",
+      "refersTo": "masthead",
+      "description": "Night Navy band: the € plate and wordmark, then a labelled icon cluster of 40px pill navlinks.",
+      "html": "<header class=\"ds-mast\"><span class=\"ds-plate\">€</span><span class=\"ds-word\">Sooskasse-FinTS</span><span class=\"ds-mast-fill\"></span><button class=\"ds-navlink\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"M20 20l-4.2-4.2\"/></svg>Suche</button><button class=\"ds-navlink\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z\"/><path d=\"M10 20.5a2 2 0 0 0 4 0\"/></svg>Mitteilungen<span class=\"ds-unread\"></span></button></header>",
+      "css": ".ds-mast { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 24px; background: var(--bar); color: var(--bar-ink); --focus-ring: var(--bar-ink); } .ds-plate { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--bar-ink); color: var(--bar); font-size: 18px; font-weight: 700; line-height: 1; } .ds-word { font-size: 18px; font-weight: 700; line-height: 1; } .ds-mast-fill { flex: 1; } .ds-navlink { font: inherit; position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 0; border-radius: 9999px; background: none; color: var(--bar-ink); font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color .15s; } .ds-navlink svg { color: var(--bar-ink-2); transition: color .15s; } .ds-navlink:hover { background: color-mix(in srgb, var(--bar-ink) 12%, transparent); } .ds-navlink:hover svg { color: var(--bar-ink); } .ds-navlink:focus-visible { outline: 2px solid var(--bar-ink); outline-offset: 2px; } .ds-unread { width: 8px; height: 8px; border-radius: 50%; background: var(--emphasis); }"
+    },
+    {
+      "name": "Booking List Tile",
+      "kind": "card",
+      "refersTo": "tile",
+      "description": "A tile lifted by one soft shadow; rows split by one hairline; avatar, name, meta line and a tabular amount (credit green, debit ink).",
+      "html": "<section class=\"ds-tile\"><h2 class=\"ds-tile-head\">Umsätze</h2><div class=\"ds-row\"><span class=\"ds-avatar\">RE</span><span class=\"ds-row-text\"><span class=\"ds-row-name\">REWE Markt</span><span class=\"ds-row-meta\">Kartenzahlung · Lebensmittel</span></span><span class=\"ds-amt\">−23,47 €</span></div><div class=\"ds-row\"><span class=\"ds-avatar\">AB</span><span class=\"ds-row-text\"><span class=\"ds-row-name\">Anna Beispiel</span><span class=\"ds-row-meta\">Miete Oktober</span></span><span class=\"ds-amt ds-amt-credit\">+450,00 €</span></div></section>",
+      "css": ".ds-tile { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; max-width: 520px; background: var(--surface); border-radius: 12px; box-shadow: var(--shadow-tile); color: var(--ink); overflow: hidden; } .ds-tile-head { margin: 0; padding: 20px 20px 12px; font-size: 17px; line-height: 1.3; font-weight: 700; color: var(--headline); } .ds-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px 20px; border-top: 1px solid var(--line); } .ds-avatar { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--inset); color: var(--ink-2); font-size: 13px; font-weight: 700; } .ds-row-text { flex: 1; min-width: 0; } .ds-row-name { display: block; font-size: 15px; line-height: 1.375; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-row-meta { display: block; margin-top: 2px; font-size: 13px; line-height: 1.375; color: var(--ink-3); } .ds-amt { flex: none; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; } .ds-amt-credit { color: var(--green); }"
+    },
+    {
+      "name": "Account Hero Balance",
+      "kind": "custom",
+      "refersTo": "tile",
+      "description": "The signature figure: 52px Night Navy balance with half-size cents, a tabular date line, and qualifying figures beside it.",
+      "html": "<section class=\"ds-hero\"><div><p class=\"ds-hero-label\">Kontostand <span>· Girokonto</span></p><p class=\"ds-hero-bal\">2.196<span class=\"ds-cents\">,22 €</span></p><p class=\"ds-hero-date\">Stand 04.10.2026, 12:35 Uhr</p></div><dl class=\"ds-hero-figs\"><div><dt>Verfügbar</dt><dd>3.696,22 €</dd></div><div><dt>Vorgemerkt</dt><dd>−84,10 €</dd></div></dl></section>",
+      "css": ".ds-hero { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 40px; max-width: 720px; padding: 28px 32px; background: var(--surface); border-radius: 12px; box-shadow: var(--shadow-tile); } .ds-hero p { margin: 0; } .ds-hero-label { font-size: 14px; font-weight: 600; color: var(--ink-2); } .ds-hero-label span { font-weight: 400; color: var(--ink-3); } .ds-hero-bal { margin-top: 6px !important; font-size: 52px; line-height: 1; font-weight: 700; letter-spacing: -0.015em; color: var(--headline); font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; } .ds-cents { font-size: .5em; font-weight: 600; } .ds-hero-date { margin-top: 8px !important; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; } .ds-hero-figs { display: grid; gap: 10px; margin: 0; } .ds-hero-figs div { display: flex; justify-content: space-between; gap: 24px; } .ds-hero-figs dt { font-size: 13px; font-weight: 600; color: var(--ink-2); } .ds-hero-figs dd { margin: 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Private Branch",
+    "overview": "Sooskasse-FinTS looks like the online banking its users already know: a navy masthead, a navy stage band that greets you by name, and white tiles on a quiet blue-grey page. It is rebuilt for one customer, on their own machine. It is a branch that opens for one person. Nothing on the walls sells anything, every figure is the bank's own, and the counter is tidy. The feel is **trustworthy, plain and precise**. Trust comes from familiarity and exactness, not from ornament.\n\nDensity is that of a good bank start page. At the desktop shell's 900×600 minimum, the account tiles are on screen without scrolling. There is still room enough that a long Verwendungszweck reads like prose. Google Sans Flex sets everything, and amounts use tabular lining figures, so a column of bookings lines up on its decimal comma like a printed Kontoauszug. Colour is rationed:\n\n- navy is identity - Signal Blue is the one thing you can press - green, red, amber and orange each own exactly one meaning\n\nThe look is the modernised Atruvia online-banking language. It is the owner's current choice and the default. Other looks may be explored, but only as alternatives for the owner to pick, never swapped in. The system borrows a language, never a bank's branding: the connected bank's logo appears only in the white institute bar, under the app's own \"€\" mark. The protocol stays out of the interface. FinTS segment codes and the structured tags inside a Verwendungszweck never reach the screen. A capability shows up as an action that is present or absent.",
+    "keyCharacteristics": [
+      "Three tiers on top: navy masthead, white institute bar, navy stage. Below them, white tiles lap 48px over the stage's lower edge.",
+      "One interactive hue (Signal Blue). Each value colour owns one meaning.",
+      "Pill buttons, sentence-case labels, semibold rather than bold.",
+      "Tiles lifted by one soft shadow, never framed.",
+      "Tabular figures and a real minus on every amount. Monospace only for what is read character by character.",
+      "The dark theme is the same bank at night: navy-black, never grey.",
+      "Motion is short and soft (150–250ms, one ease-out curve), and none of it is needed to read the screen."
+    ],
+    "rules": [
+      {
+        "name": "The One Signal Rule",
+        "body": "Signal Blue is the only interactive colour. Anything blue can be pressed, and nothing that can be pressed is any other hue. The two sanctioned exceptions are the white lead pill on the navy stage and the red button that confirms a destructive action.",
+        "section": "colors"
+      },
+      {
+        "name": "The Owned Colours Rule",
+        "body": "Green is a credit or a confirmation. Red is a negative balance or an error, never a debit: a debit is ordinary spending and stays ink. Amber means \"vorgemerkt\" and nothing else, so a warning uses the inset grey with an orange edge instead. Orange is a mark, never text.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tokens Only Rule",
+        "body": "Tailwind's default palette is switched off (`--color-*: initial`), so `red-500` does not even compile. Every colour is a token. Literal white and black exist only for literal things: a logo plate, a QR code.",
+        "section": "colors"
+      },
+      {
+        "name": "The Kontoauszug Column Rule",
+        "body": "Every amount goes through `<Money>`. It uses tabular lining figures and a real minus (U+2212), never a hyphen, so a column of bookings lines up on its decimal comma. Dates, counts and countdowns take `.tnum` too.",
+        "section": "typography"
+      },
+      {
+        "name": "The Semibold Rule",
+        "body": "600 is for what you press or read as a label. 700 is only for what names a thing (page, dialog and tile titles) and for figures. Google Sans Flex at 700 thickens into a slab at 13–15px, and a row of bold pills out-shouts the headline it serves.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentence Case Rule",
+        "body": "Labels are sentence case and never letterspaced. A label's job is to be found, not to shout. Uppercase lives only in the printed documents' section heads, where it still means something.",
+        "section": "typography"
+      },
+      {
+        "name": "The Character-by-Character Rule",
+        "body": "IBAN, BIC, BLZ and references are set in IBM Plex Mono. An IBAN gets 0.06em tracking and never wraps, because half an IBAN on each of two lines cannot be checked.",
+        "section": "typography"
+      },
+      {
+        "name": "The Fold Rule",
+        "body": "At the desktop shell's 900×600 minimum, the first row of account tiles is visible without scrolling. The stage stays compact, and its four quick actions stay on one line beside the title (below 1100px they drop to 36px pills without glyphs).",
+        "section": "layout"
+      },
+      {
+        "name": "The Shared Edge Rule",
+        "body": "The page column, the institute bar's row and the stage's content share one 1280px column and one gutter, so the logo, the title and the first tile align.",
+        "section": "layout"
+      },
+      {
+        "name": "The Lifted, Never Framed Rule",
+        "body": "A block is a `.panel` tile: 12px corners and one soft shadow. Never put a framed card inside a framed card, and never draw a border around a tile.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Night Edge Rule",
+        "body": "In the dark theme, depth comes from tone (`paper` → `surface` → `raised` get lighter), not from shadow. The only shadow-like mark is a 1px white edge at 6–12%.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** reach for tokens by name (`bg-surface`, `text-ink-2`, `bg-accent`, `rounded-[var(--radius-card)]`). The dark theme then resolves itself through `data-theme`.",
+      "**Do** build blocks from `<Tile>` / `.panel` (12px corners and the Tile shadow), and separate list rows with one `line` hairline.",
+      "**Do** route every amount through `<Money>` (tabular figures, U+2212 minus, role-based colour, privacy mask), and every IBAN through the `.iban` mono style, which never wraps.",
+      "**Do** keep labels sentence case at 600, and reserve 700 for titles and figures.",
+      "**Do** give every icon-only control an `aria-label`. It doubles as its tooltip.",
+      "**Do** keep the double focus ring visible: 2px Focus Blue at a 2px offset, bar ink on navy, inset inside clipped rows.",
+      "**Do** keep motion between 150ms and 250ms on `cubic-bezier(0.2, 0.8, 0.2, 1)`. Lift tiles only on hover-capable devices. Honour `prefers-reduced-motion`.",
+      "**Do** keep phones thumb-first: 44px controls, the section tabs in the bottom bar, dialogs as bottom sheets.",
+      "**Do** give charts colours by rank (top six, rest grey), Credit Green for income and navy-slate for spending.",
+      "**Do** put the connected bank's logo only in the institute bar, under the app's own mark."
+    ],
+    "donts": [
+      "**Don't** colour anything Signal Blue that cannot be pressed, and don't make a pressable thing any other hue (except the stage's white lead pill and a destructive red confirm).",
+      "**Don't** colour a debit red. Spending is not an error.",
+      "**Don't** use amber for a warning. Amber means \"vorgemerkt\"; a warning is inset grey plus an orange edge.",
+      "**Don't** set orange as text. It is a dot, an edge or a glyph.",
+      "**Don't** frame a card inside a card or draw a border around a tile.",
+      "**Don't** letterspace labels or set them in capitals.",
+      "**Don't** use Tailwind's default palette (`red-500`, `slate-200`). It is switched off on purpose.",
+      "**Don't** show FinTS segment codes or a Verwendungszweck's structured tags in the interface.",
+      "**Don't** fill a chart area with a gradient. The Kontoverlauf area is flat.",
+      "**Don't** change the print styles (`.doc`, Barlow, the 30mm label rail). The paper is frozen while the screen moves on.",
+      "**Don't** use any bank's or Atruvia's logo, wordmark or name as the app's own identity. The app borrows a design language, not a brand."
+    ]
+  }
+}
