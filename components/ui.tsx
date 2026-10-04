@@ -922,6 +922,9 @@ export function useScrollEdges<T extends HTMLElement>() {
   return { ref, edges, measure };
 }
 
+/** The hairline a pinned footer draws once content scrolls under it (Sheet, Popover). */
+const FOOTER_EDGE = 'shadow-[0_-1px_0_var(--line)]';
+
 /**
  * The panel of a centred dialog: 16px corners, a bottom sheet on phones.
  * `band` adds the navy header band with a centred pictogram — the dialog
@@ -1007,7 +1010,7 @@ export function Sheet({
           className={cx(
             'relative shrink-0 px-5 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] transition-shadow duration-150 sm:px-7 sm:pb-7',
             'short:pt-3 short:pb-[max(1rem,env(safe-area-inset-bottom))] sm:short:pb-5',
-            edges.bottom && 'shadow-[0_-1px_0_var(--line)]',
+            edges.bottom && FOOTER_EDGE,
           )}
         >
           {footer}
@@ -1941,12 +1944,18 @@ export function MenuSeparator() {
  * A non-modal floating panel with its own content — a custom date range, a
  * small form. Focus moves in on open; Escape closes and returns it; a press
  * outside or tabbing out closes it.
+ *
+ * `footer` stays put under the scrolling content, as a Sheet's does: the
+ * panel's way out (the Sitzung panel's "Abmelden") is never scrolled out of
+ * reach in a short window, with the same hairline once content runs under it.
  */
 export function Popover({
-  trigger, children, label, labelledBy, placement = 'bottom-start', className, open: openProp, onOpenChange,
+  trigger, children, footer, label, labelledBy, placement = 'bottom-start', className, open: openProp, onOpenChange,
 }: {
   trigger: (props: TriggerProps, state: { open: boolean }) => ReactNode;
   children: ReactNode | ((close: () => void) => ReactNode);
+  /** Fixed below the scrolling content (see Sheet's `footer`). */
+  footer?: ReactNode | ((close: () => void) => ReactNode);
   label?: string;
   labelledBy?: string;
   placement?: Placement;
@@ -2026,13 +2035,40 @@ export function Popover({
           style={{ ...style, ...NO_DRAG }}
           className={cx(
             // Opened from the masthead, but a light surface: the page's focus ring.
-            'anim-pop z-120 max-w-[calc(100vw-16px)] overflow-y-auto overscroll-contain rounded-[12px] bg-raised p-4 text-ink shadow-[var(--shadow-pop)] outline-none [--focus-ring:var(--focus)]',
+            'anim-pop z-120 max-w-[calc(100vw-16px)] rounded-[12px] bg-raised text-ink shadow-[var(--shadow-pop)] outline-none [--focus-ring:var(--focus)]',
+            // With a footer the panel itself does not scroll: its body does.
+            footer ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overscroll-contain p-4',
             className,
           )}
         >
-          {typeof children === 'function' ? children(() => close(true)) : children}
+          {footer ? (
+            <PopoverBody fit={style.maxHeight} footer={typeof footer === 'function' ? footer(() => close(true)) : footer}>
+              {typeof children === 'function' ? children(() => close(true)) : children}
+            </PopoverBody>
+          ) : typeof children === 'function' ? children(() => close(true)) : children}
         </div>
       )}
+    </>
+  );
+}
+
+/**
+ * A Popover's scrolling content and pinned footer. Mounted with the panel;
+ * the edge is measured again once the panel is placed and given its height
+ * (`fit`), before that frame is painted.
+ */
+function PopoverBody({ fit, footer, children }: { fit: CSSProperties['maxHeight']; footer: ReactNode; children: ReactNode }) {
+  const { ref, edges, measure } = useScrollEdges<HTMLDivElement>();
+  useLayoutEffect(measure, [fit, measure]);
+  return (
+    <>
+      <div ref={ref} onScroll={measure} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+        {/* One element, so the scroll edge hears the content change size. */}
+        <div>{children}</div>
+      </div>
+      <div className={cx('shrink-0 bg-raised px-4 py-3 transition-shadow duration-150', edges.bottom && FOOTER_EDGE)}>
+        {footer}
+      </div>
     </>
   );
 }

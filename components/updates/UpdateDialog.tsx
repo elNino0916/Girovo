@@ -260,7 +260,7 @@ function Notes({ notes, name }: { notes: string; name: string }) {
         role="region"
         aria-labelledby={id}
         tabIndex={0}
-        className="max-h-[min(32vh,300px)] overflow-y-auto overscroll-contain rounded-[8px] bg-inset px-4 py-3.5 text-[14px] leading-relaxed text-ink-2 [@media(max-height:700px)]:max-h-[min(24vh,300px)]"
+        className="max-h-[min(32vh,300px)] overflow-y-auto overscroll-contain rounded-[8px] bg-inset px-4 py-3.5 text-[14px] leading-relaxed text-ink-2 short:max-h-[min(24vh,300px)]"
       >
         <ReleaseNotes blocks={blocks} />
       </div>

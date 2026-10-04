@@ -98,7 +98,20 @@ function Warning({ left }: { left: number }) {
       {/* display: contents — the panel stays the overlay's flex child; the
           backdrop around it stays outside the neutral zone. */}
       <div {...{ [IDLE_NEUTRAL_ATTR]: '' }} className="contents">
-        <Sheet size="sm" band={{ icon: <ClockIcon size={24} />, tone: 'navy' }}>
+        <Sheet
+          size="sm"
+          band={{ icon: <ClockIcon size={24} />, tone: 'navy' }}
+          // Pinned below the body, as in every dialog: with an unclear transfer
+          // to name, the warning outgrows a short window, and the choice must
+          // stay in view — focus starts on "Angemeldet bleiben" without
+          // scrolling the countdown away.
+          footer={
+            <DialogActions align="center" className="">
+              <Button variant="secondary" onClick={() => void logout('user')}>Abmelden</Button>
+              <Button variant="primary" data-autofocus onClick={stayLoggedIn}>Angemeldet bleiben</Button>
+            </DialogActions>
+          }
+        >
           <h2 id={titleId} className="text-center text-[22px] leading-tight font-bold text-headline">
             Möchtest du angemeldet bleiben?
           </h2>
@@ -130,11 +143,6 @@ function Warning({ left }: { left: number }) {
                 : `Der Status von ${unclear.length} Überweisungen ${to} ist unklar. Nach der Abmeldung stehen sie nicht mehr in den Mitteilungen.`}
             </Alert>
           )}
-
-          <DialogActions align="center" className="mt-7">
-            <Button variant="secondary" onClick={() => void logout('user')}>Abmelden</Button>
-            <Button variant="primary" data-autofocus onClick={stayLoggedIn}>Angemeldet bleiben</Button>
-          </DialogActions>
         </Sheet>
       </div>
     </Overlay>

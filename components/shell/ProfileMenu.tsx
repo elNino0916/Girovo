@@ -32,14 +32,15 @@ import { UpdateSessionRow } from '../updates/UpdateNotices';
 import { ChevronIcon, InfoIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, ShieldIcon, SunIcon } from '../icons';
 import { Button, Checkbox, Dialog, Dot, Kbd, Popover, Segmented, Switch, cx } from '../ui';
 import { LOGO_DISCLOSURE } from '../MerchantLogoConsent';
-import { fmtCountdown, fmtSince, holderName, nameInitials, firstName, useCountdown } from './session';
+import { fmtCountdown, fmtSince, holderName, nameInitials, firstName, sessionHolder, useCountdown } from './session';
 
 export function ProfileMenu() {
-  const { activeAccount, accounts, vaultStatus, requestLogout } = useFints();
+  const { accounts, vaultStatus, requestLogout } = useFints();
   const [confirmForget, setConfirmForget] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmWipe, setConfirmWipe] = useState(false);
-  const holder = activeAccount?.holder || accounts[0]?.holder || '';
+  // The session's holder, as in the greeting — not the active account's.
+  const holder = sessionHolder(accounts);
   const full = holderName(holder);
   const first = firstName(holder);
   const initials = nameInitials(holder);
@@ -54,8 +55,22 @@ export function ProfileMenu() {
       <Popover
         label="Sitzung"
         placement="bottom-end"
-        // The panel scrolls inside itself (SessionPanel), so its footer can stay.
-        className="flex w-[min(352px,calc(100vw-16px))] flex-col overflow-hidden! p-0!"
+        className="w-[min(352px,calc(100vw-16px))]"
+        // The session's last word, always in view: the body scrolls, this does not.
+        footer={(close) => (
+          <Button
+            block
+            size="sm"
+            iconLeft={<LogoutIcon size={16} />}
+            onClick={() => {
+              // As below: a "Trotzdem abmelden?" hands focus back to the chip.
+              close();
+              requestLogout();
+            }}
+          >
+            Abmelden
+          </Button>
+        )}
         trigger={(props) => (
           <button
             {...props}
@@ -95,11 +110,6 @@ export function ProfileMenu() {
             onUpdates={() => {
               close();
               updates.openDialog();
-            }}
-            onLogout={() => {
-              // As above: a "Trotzdem abmelden?" hands focus back to the chip.
-              close();
-              requestLogout();
             }}
           />
         )}
@@ -146,7 +156,7 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 const ROW = '-mx-1.5 min-h-10 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] text-ink hover:bg-inset';
 
 function SessionPanel({
-  holder, initials, onForget, onReset, onWipe, onShortcuts, onUpdates, onLogout,
+  holder, initials, onForget, onReset, onWipe, onShortcuts, onUpdates,
 }: {
   holder: string;
   initials: string;
@@ -155,7 +165,6 @@ function SessionPanel({
   onWipe: () => void;
   onShortcuts: () => void;
   onUpdates: () => void;
-  onLogout: () => void;
 }) {
   const {
     bank, sessionStartedAt, idleDeadline, idleMinutes, setIdleMinutes, deviceRemembered, setShortcutsOpen, vaultStatus,
@@ -165,186 +174,178 @@ function SessionPanel({
   const left = useCountdown(idleDeadline);
   const pref = useThemePref();
 
+  // The Popover scrolls this under its pinned "Abmelden" (ProfileMenu above).
   return (
-    <div className="flex min-h-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-4">
-        <div className="flex items-center gap-3">
-          <Avatar initials={initials} tone="page" />
-          <div className="min-w-0">
-            <p className="truncate text-[16px] leading-snug font-bold text-ink">{holder || 'Sitzung'}</p>
-            <p className="truncate text-[13px] leading-snug text-ink-3">{bank?.name ?? 'Angemeldet'}</p>
+    <>
+      <div className="flex items-center gap-3">
+        <Avatar initials={initials} tone="page" />
+        <div className="min-w-0">
+          <p className="truncate text-[16px] leading-snug font-bold text-ink">{holder || 'Sitzung'}</p>
+          <p className="truncate text-[13px] leading-snug text-ink-3">{bank?.name ?? 'Angemeldet'}</p>
+        </div>
+      </div>
+
+      <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-[14px] leading-snug">
+        <dt className="text-ink-2">Angemeldet seit</dt>
+        <dd className="tnum text-right font-semibold text-ink">{fmtSince(sessionStartedAt)}</dd>
+        <dt className="text-ink-2">Automatische Abmeldung in</dt>
+        <dd className="tnum text-right font-semibold text-ink">
+          {/* A timer, deliberately not live: a screen reader reading every
+              second aloud would make the panel unusable. */}
+          <span role="timer">
+            {left != null ? fmtCountdown(left) : '–'}
+          </span>
+        </dd>
+      </dl>
+
+      <Group title="Einstellungen">
+        <p aria-hidden className="mt-2.5 mb-2 text-[14px] leading-snug text-ink">Automatisch abmelden nach</p>
+        <Segmented
+          aria-label="Automatisch abmelden nach"
+          size="sm"
+          block
+          options={IDLE_OPTIONS}
+          value={String(idleMinutes)}
+          onChange={(v) => setIdleMinutes(Number(v) as IdleMinutes)}
+        />
+
+        {/* On a phone the masthead has no room for Darstellung; it lives here. */}
+        <div className="mt-4 sm:hidden">
+          <p aria-hidden className="mb-2 text-[14px] leading-snug text-ink">Darstellung</p>
+          <Segmented
+            aria-label="Darstellung"
+            size="sm"
+            block
+            value={pref}
+            onChange={setThemePref}
+            options={[
+              { value: 'light', label: 'Hell', icon: <SunIcon size={15} /> },
+              { value: 'dark', label: 'Dunkel', icon: <MoonIcon size={15} /> },
+              { value: 'system', label: 'System', icon: <MonitorIcon size={15} /> },
+            ]}
+          />
+        </div>
+
+        {/* The one lookup that carries anything from the bookings off this
+            machine, so its switch says exactly what goes out. Off until the
+            user agreed; absent in a build that does not offer it. */}
+        {meta?.merchantLogos && (
+          <Switch
+            checked={logoConsent === 'on'}
+            onChange={setLogoConsent}
+            label="Firmenlogos"
+            description={LOGO_DISCLOSURE}
+            className="mt-4"
+          />
+        )}
+
+        <div className="mt-2.5 -mb-1 flex flex-col">
+          {/* Desktop app only. */}
+          <UpdateSessionRow onOpen={onUpdates} className={cx(ROW, 'flex')} />
+
+          {/* Shortcuts need a keyboard; a phone has none worth listing them for. */}
+          <button
+            type="button"
+            onClick={() => {
+              onShortcuts();
+              setShortcutsOpen(true);
+            }}
+            className={cx(ROW, 'hidden sm:flex')}
+          >
+            <KeyboardIcon className="text-ink-2" />
+            <span className="flex-1">Tastenkürzel</span>
+            {/* With the single keys off, "?" would promise a key that does nothing. */}
+            {singleKeyShortcuts ? <Kbd>?</Kbd> : <span className="text-[13px] text-ink-3">Einzeltasten aus</span>}
+          </button>
+        </div>
+      </Group>
+
+      <Group title="Auf diesem Rechner">
+        <div className="mt-3 flex items-start gap-3">
+          <span
+            aria-hidden
+            className={cx(
+              'mt-0.5 grid size-8 shrink-0 place-items-center rounded-full',
+              deviceRemembered ? 'bg-info-soft text-info' : 'bg-inset text-ink-3',
+            )}
+          >
+            <ShieldIcon size={16} check={deviceRemembered} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] leading-snug font-semibold text-ink">
+              {deviceRemembered ? 'Dieses Gerät ist gemerkt' : 'Dieses Gerät ist nicht gemerkt'}
+            </p>
+            <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+              {deviceRemembered
+                ? 'Die Bank fragt bei der Anmeldung seltener nach einer TAN.'
+                : 'Bei der nächsten Anmeldung fragt die Bank nach einer TAN.'}
+            </p>
+            {deviceRemembered && (
+              <Button variant="tertiary" size="xs" className="mt-1.5 -ml-3.5" aria-haspopup="dialog" onClick={onForget}>
+                Gerät vergessen …
+              </Button>
+            )}
           </div>
         </div>
 
-        <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-[14px] leading-snug">
-          <dt className="text-ink-2">Angemeldet seit</dt>
-          <dd className="tnum text-right font-semibold text-ink">{fmtSince(sessionStartedAt)}</dd>
-          <dt className="text-ink-2">Automatische Abmeldung in</dt>
-          <dd className="tnum text-right font-semibold text-ink">
-            {/* A timer, deliberately not live: a screen reader reading every
-                second aloud would make the panel unusable. */}
-            <span role="timer">
-              {left != null ? fmtCountdown(left) : '–'}
-            </span>
-          </dd>
-        </dl>
-
-        <Group title="Einstellungen">
-          <p aria-hidden className="mt-2.5 mb-2 text-[14px] leading-snug text-ink">Automatisch abmelden nach</p>
-          <Segmented
-            aria-label="Automatisch abmelden nach"
-            size="sm"
-            block
-            options={IDLE_OPTIONS}
-            value={String(idleMinutes)}
-            onChange={(v) => setIdleMinutes(Number(v) as IdleMinutes)}
-          />
-
-          {/* On a phone the masthead has no room for Darstellung; it lives here. */}
-          <div className="mt-4 sm:hidden">
-            <p aria-hidden className="mb-2 text-[14px] leading-snug text-ink">Darstellung</p>
-            <Segmented
-              aria-label="Darstellung"
-              size="sm"
-              block
-              value={pref}
-              onChange={setThemePref}
-              options={[
-                { value: 'light', label: 'Hell', icon: <SunIcon size={15} /> },
-                { value: 'dark', label: 'Dunkel', icon: <MoonIcon size={15} /> },
-                { value: 'system', label: 'System', icon: <MonitorIcon size={15} /> },
-              ]}
-            />
-          </div>
-
-          {/* The one lookup that carries anything from the bookings off this
-              machine, so its switch says exactly what goes out. Off until the
-              user agreed; absent in a build that does not offer it. */}
-          {meta?.merchantLogos && (
-            <Switch
-              checked={logoConsent === 'on'}
-              onChange={setLogoConsent}
-              label="Firmenlogos"
-              description={LOGO_DISCLOSURE}
-              className="mt-4"
-            />
-          )}
-
-          <div className="mt-2.5 -mb-1 flex flex-col">
-            {/* Desktop app only. */}
-            <UpdateSessionRow onOpen={onUpdates} className={cx(ROW, 'flex')} />
-
-            {/* Shortcuts need a keyboard; a phone has none worth listing them for. */}
-            <button
-              type="button"
-              onClick={() => {
-                onShortcuts();
-                setShortcutsOpen(true);
-              }}
-              className={cx(ROW, 'hidden sm:flex')}
-            >
-              <KeyboardIcon className="text-ink-2" />
-              <span className="flex-1">Tastenkürzel</span>
-              {/* With the single keys off, "?" would promise a key that does nothing. */}
-              {singleKeyShortcuts ? <Kbd>?</Kbd> : <span className="text-[13px] text-ink-3">Einzeltasten aus</span>}
-            </button>
-          </div>
-        </Group>
-
-        <Group title="Auf diesem Rechner">
-          <div className="mt-3 flex items-start gap-3">
-            <span
-              aria-hidden
-              className={cx(
-                'mt-0.5 grid size-8 shrink-0 place-items-center rounded-full',
-                deviceRemembered ? 'bg-info-soft text-info' : 'bg-inset text-ink-3',
-              )}
-            >
-              <ShieldIcon size={16} check={deviceRemembered} />
+        {vaultStatus === 'error' && (
+          <div className="mt-4 flex items-start gap-3">
+            <span aria-hidden className="relative mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-inset text-ink-2">
+              <LockIcon size={16} />
+              <Dot className="absolute -top-px -right-px ring-2 ring-[var(--raised)]" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[14px] leading-snug font-semibold text-ink">
-                {deviceRemembered ? 'Dieses Gerät ist gemerkt' : 'Dieses Gerät ist nicht gemerkt'}
-              </p>
+              <p className="text-[14px] leading-snug font-semibold text-ink">Gespeicherte Daten nicht lesbar</p>
               <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
-                {deviceRemembered
-                  ? 'Die Bank fragt bei der Anmeldung seltener nach einer TAN.'
-                  : 'Bei der nächsten Anmeldung fragt die Bank nach einer TAN.'}
+                Deine gespeicherten Vorlagen, Kontonamen und Kategorien konnten nicht geöffnet werden – meist, weil sich
+                deine PIN geändert hat. Was du jetzt änderst, wird nicht gespeichert.
               </p>
-              {deviceRemembered && (
-                <Button variant="tertiary" size="xs" className="mt-1.5 -ml-3.5" aria-haspopup="dialog" onClick={onForget}>
-                  Gerät vergessen …
+              <div className="mt-1.5 -ml-3.5 flex flex-wrap">
+                <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={onReset}>
+                  Gespeicherte Daten zurücksetzen …
                 </Button>
-              )}
+                {/* Unreadable with this PIN, but not with the old one: it can
+                    still be tried against PINs, so it can be deleted too. */}
+                <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={onWipe}>
+                  Löschen …
+                </Button>
+              </div>
             </div>
           </div>
+        )}
 
-          {vaultStatus === 'error' && (
-            <div className="mt-4 flex items-start gap-3">
-              <span aria-hidden className="relative mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-inset text-ink-2">
-                <LockIcon size={16} />
-                <Dot className="absolute -top-px -right-px ring-2 ring-[var(--raised)]" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[14px] leading-snug font-semibold text-ink">Gespeicherte Daten nicht lesbar</p>
-                <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
-                  Deine gespeicherten Vorlagen, Kontonamen und Kategorien konnten nicht geöffnet werden – meist, weil sich
-                  deine PIN geändert hat. Was du jetzt änderst, wird nicht gespeichert.
-                </p>
-                <div className="mt-1.5 -ml-3.5 flex flex-wrap">
-                  <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={onReset}>
-                    Gespeicherte Daten zurücksetzen …
-                  </Button>
-                  {/* Unreadable with this PIN, but not with the old one: it can
-                      still be tried against PINs, so it can be deleted too. */}
-                  <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={onWipe}>
-                    Löschen …
-                  </Button>
-                </div>
-              </div>
+        {/* Whether or not the device is remembered: someone handing the
+            computer on needs a way to take their data with them. */}
+        {vaultStatus === 'ready' && (
+          <div className="mt-4 flex items-start gap-3">
+            <span aria-hidden className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-inset text-ink-3">
+              <LockIcon size={16} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] leading-snug font-semibold text-ink">Gespeicherte Daten</p>
+              <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+                Vorlagen, Kontonamen, Kategorien und deine Überweisungen der letzten 14 Tage (für die Warnung vor
+                doppelten Zahlungen) liegen verschlüsselt auf diesem Rechner.
+              </p>
+              <Button variant="tertiary" size="xs" className="mt-1.5 -ml-3.5" aria-haspopup="dialog" onClick={onWipe}>
+                Von diesem Rechner löschen …
+              </Button>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Whether or not the device is remembered: someone handing the
-              computer on needs a way to take their data with them. */}
-          {vaultStatus === 'ready' && (
-            <div className="mt-4 flex items-start gap-3">
-              <span aria-hidden className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-inset text-ink-3">
-                <LockIcon size={16} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[14px] leading-snug font-semibold text-ink">Gespeicherte Daten</p>
-                <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
-                  Vorlagen, Kontonamen, Kategorien und deine Überweisungen der letzten 14 Tage (für die Warnung vor
-                  doppelten Zahlungen) liegen verschlüsselt auf diesem Rechner.
-                </p>
-                <Button variant="tertiary" size="xs" className="mt-1.5 -ml-3.5" aria-haspopup="dialog" onClick={onWipe}>
-                  Von diesem Rechner löschen …
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Said once, quietly: there is nothing the user can do about it here. */}
-          {vaultStatus === 'unavailable' && (
-            <p className="mt-4 flex items-start gap-2.5 text-[13px] leading-snug text-ink-3">
-              <InfoIcon size={16} className="mt-px shrink-0" />
-              <span>
-                Vorlagen, Kontonamen und Kategorien können in dieser Sitzung nicht gespeichert werden. Was du änderst, gilt
-                bis zum Abmelden.
-              </span>
-            </p>
-          )}
-        </Group>
-      </div>
-
-      {/* The session's last word, always in view: the body scrolls, this does not. */}
-      <div className="shrink-0 border-t border-line bg-raised px-4 py-3">
-        <Button block size="sm" iconLeft={<LogoutIcon size={16} />} onClick={onLogout}>
-          Abmelden
-        </Button>
-      </div>
-    </div>
+        {/* Said once, quietly: there is nothing the user can do about it here. */}
+        {vaultStatus === 'unavailable' && (
+          <p className="mt-4 flex items-start gap-2.5 text-[13px] leading-snug text-ink-3">
+            <InfoIcon size={16} className="mt-px shrink-0" />
+            <span>
+              Vorlagen, Kontonamen und Kategorien können in dieser Sitzung nicht gespeichert werden. Was du änderst, gilt
+              bis zum Abmelden.
+            </span>
+          </p>
+        )}
+      </Group>
+    </>
   );
 }
 
