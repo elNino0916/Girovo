@@ -15,9 +15,13 @@ import { useFints } from './FintsProvider';
 import { ImageIcon } from './icons';
 import { Button, focusFirst } from './ui';
 
-/** What goes out, said the same way here and at the Sitzung panel's switch. */
+/**
+ * What goes out, said the same way here and at the Sitzung panel's switch.
+ * "Aus deinen Umsätzen", not "an die du zahlst": a salary's employer is
+ * looked up too.
+ */
 export const LOGO_DISCLOSURE =
-  'Dafür gehen Namen von Firmen, an die du zahlst, an den Logo-Dienst Brandfetch – keine Beträge, IBANs oder ' +
+  'Dafür gehen Firmennamen aus deinen Umsätzen an den Logo-Dienst Brandfetch – keine Beträge, IBANs oder ' +
   'Verwendungszwecke. Wie bei jedem Abruf sieht Brandfetch dabei deine IP-Adresse.';
 
 const CONTROLS = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';

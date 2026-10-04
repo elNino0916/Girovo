@@ -160,9 +160,9 @@ function StepIndicator({ current }: { current: AuthStep }) {
 function useLogoLine(offered?: boolean): string | null {
   const { meta, logoConsent } = useFints();
   if (!(offered ?? meta?.merchantLogos)) return null;
-  if (logoConsent === 'on') return 'Für Firmenlogos gehen Firmennamen an den Dienst Brandfetch – abschaltbar im Sitzungsmenü.';
-  if (logoConsent === 'off') return 'Firmenlogos über den Dienst Brandfetch hast du ausgeschaltet.';
-  return 'Firmenlogos gibt es nur, wenn du zustimmst. Dafür gehen Firmennamen an den Dienst Brandfetch.';
+  if (logoConsent === 'on') return 'Für Firmenlogos gehen Firmennamen an den Logo-Dienst Brandfetch – abschaltbar im Sitzungsmenü.';
+  if (logoConsent === 'off') return 'Die Firmenlogos von Brandfetch hast du ausgeschaltet.';
+  return 'Firmenlogos nur mit deiner Zustimmung: Dafür gehen Firmennamen an den Logo-Dienst Brandfetch.';
 }
 
 /**
@@ -197,8 +197,8 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
       // Said before the fact: the app does not ask, it announces.
       icon: <ShieldIcon size={18} check />,
       title: 'Dieses Gerät wird gemerkt',
-      text: 'Nach der Anmeldung merkt sich die App diesen Rechner, mit deiner PIN verschlüsselt – deine Bank fragt dann '
-        + 'seltener nach einer Freigabe. Teilst du den Rechner, wähle danach im Sitzungsmenü „Gerät vergessen“.',
+      text: 'Nach der Anmeldung, mit deiner PIN verschlüsselt – deine Bank fragt dann seltener nach einer Freigabe. '
+        + 'Rückgängig mit „Gerät vergessen“ im Sitzungsmenü.',
     },
     nothingOut
       ? {
@@ -235,8 +235,8 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
 
 /**
  * The narrow layout's version of the side tile, under the form. Short, but
- * nothing the side tile discloses is left out of it: the device it remembers
- * and the one lookup that could carry booking data.
+ * it keeps what matters most: the device the app remembers, and the one
+ * lookup that would carry anything from the bookings.
  */
 export function PrivacyNote() {
   const logoLine = useLogoLine();
