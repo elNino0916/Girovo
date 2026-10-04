@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { bankAnswerLines, refusalReference } from '@/lib/bank-answer';
+import { bankAnswerLines, formatBankAnswer, refusalReference } from '@/lib/bank-answer';
 import { fmtIban } from '@/lib/format';
 import type { SerializedTanMethod } from '@/lib/fints-types';
 import { useFints, type WaitKind, type WaitOrder, type WaitState } from './FintsProvider';
@@ -139,8 +139,10 @@ function TanWait() {
 
   const challenge = wait.challenge ? plainChallenge(wait.challenge) : '';
   const live = waiting || confirmed;
-  // The bank's own words, without their return codes (lib/bank-answer.ts).
-  const answerLines = bankAnswerLines(wait.error);
+  // The bank's own words, without their return codes (lib/bank-answer.ts). A
+  // refusal is told by its reason alone, as the login screen tells an error;
+  // anything else keeps every line the bank sent.
+  const answerLines = refused ? formatBankAnswer(wait.error).lines : bankAnswerLines(wait.error);
   const reference = refused ? refusalReference(wait.error) : '';
   // A new request is offered once this one is over — or overdue. Never for a
   // transfer: an order is not sent twice behind the user's back.

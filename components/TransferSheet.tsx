@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ClipboardEvent, FormEvent, ReactNode } from 'react';
 import type { TransferPrefill, TransferTemplate } from '@/lib/app-types';
 import { isCardAccount } from '@/lib/balances';
-import { bankAnswerLines, refusalReference } from '@/lib/bank-answer';
+import { bankAnswerLines, formatBankAnswer, refusalReference } from '@/lib/bank-answer';
 import type { SerializedAccount, SerializedVop } from '@/lib/fints-types';
 import type { EpcPayment } from '@/lib/girocode';
 import { fmtAmountInput, fmtDate, fmtIban, fmtShortIban, isoDate, parseAmount } from '@/lib/format';
@@ -613,6 +613,9 @@ export function TransferSheet() {
   if (empty || step === 'awaiting') return null;
 
   const answerLines = bankAnswerLines(bankAnswers);
+  // A definite refusal reads as the bank's reason alone, the way a login error
+  // does (no "Dialog abgebrochen" beside it); an unclear outcome keeps every line.
+  const refusalLines = step === 'refused' ? formatBankAnswer(bankAnswers).lines : [];
   // A range that ended before today cannot hold this transfer's booking; the
   // refresh then reads up to today instead, and the result step says so.
   const pastRange = range.to < isoDate(new Date());
@@ -1123,11 +1126,11 @@ export function TransferSheet() {
           <div className="flex flex-col items-center pt-2 text-center">
             <RefusedMark />
             <p className="mt-5 max-w-[48ch] text-[15px] leading-relaxed text-ink">
-              {answerLines.length > 0 ? 'Deine Bank hat den Auftrag abgelehnt:' : 'Deine Bank hat den Auftrag abgelehnt.'}
+              {refusalLines.length > 0 ? 'Deine Bank hat den Auftrag abgelehnt:' : 'Deine Bank hat den Auftrag abgelehnt.'}
             </p>
-            {answerLines.length > 0 && (
+            {refusalLines.length > 0 && (
               <BankAnswer
-                lines={answerLines}
+                lines={refusalLines}
                 label={null}
                 reference={refusalReference(bankAnswers)}
                 className="mt-3"

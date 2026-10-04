@@ -88,6 +88,16 @@ test('a 3xxx warning about tries or a lock stays next to the error', () => {
   assert.equal(a.locked, false);
 });
 
+test('the dialog\'s own errors are left out beside a real one, as on a refusal', () => {
+  const a = formatBankAnswer(
+    '9050: Die Nachricht enthält Fehler. | 9210: Der Auftrag wurde abgelehnt – die Freigabe wurde in der App verweigert. | 9800: Dialog abgebrochen.',
+  );
+  assert.deepEqual(a.lines, ['Der Auftrag wurde abgelehnt – die Freigabe wurde in der App verweigert.']);
+  assert.deepEqual(a.codes, ['9210']);
+  // On its own, the message-level error is still the answer.
+  assert.deepEqual(formatBankAnswer('9050: Die Nachricht enthält Fehler.').lines, ['Die Nachricht enthält Fehler.']);
+});
+
 test('only 9800 is still shown when it is all the bank said', () => {
   assert.deepEqual(formatBankAnswer('9800: Dialog abgebrochen').lines, ['Dialog abgebrochen']);
 });

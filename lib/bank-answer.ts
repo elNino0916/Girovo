@@ -18,7 +18,9 @@
 //   never be presented that way, because a user told it failed sends it again.
 //   So only an answer that refuses the order and says nothing else counts —
 //   everything doubtful stays "Status unklar" (isDefiniteRefusal,
-//   refusalReference, bankAnswerLines).
+//   refusalReference, bankAnswerLines). A refusal, once definite, is told the
+//   way a login error is (formatBankAnswer), so one answer reads the same on
+//   every screen; an unclear outcome keeps every line the bank sent.
 // - Login and reads: the bank's errors lead, notes that ride along on every
 //   reply are left out, warnings about tries and locks stay, and a lock is told
 //   by the bank's own words (formatBankAnswer, isCredentialAnswer).
@@ -174,9 +176,6 @@ export type BankAnswer = {
   locked: boolean;
 };
 
-/** Return code 9800, "Dialog abgebrochen": it follows any error and adds nothing. */
-const DIALOG_ENDED = 9800;
-
 /**
  * A warning (3xxx) that still matters next to an error: how many tries are
  * left, or that the access is (about to be) locked.
@@ -201,9 +200,11 @@ export function formatBankAnswer(message: string | null | undefined): BankAnswer
   // When the bank reports an error (9xxx), the errors are the answer; its
   // notes and warnings ride along on every reply and would bury it. Kept are
   // the warnings about tries and locks: "noch 1 Versuch" next to "PIN falsch"
-  // is the one thing the user must not miss.
+  // is the one thing the user must not miss. The dialog's own errors (9000,
+  // 9050 "Die Nachricht enthält Fehler", 9800 "Dialog abgebrochen") follow any
+  // real error and add nothing, so they show only when nothing else was said.
   const errors = all.filter((p) => isError(p.code));
-  const meaningful = errors.filter((p) => p.code !== DIALOG_ENDED);
+  const meaningful = errors.filter((p) => !ABOUT_THE_DIALOG.has(p.code as number));
   const lockWarnings = all.filter((p) => isWarning(p.code) && LOCK_WARNING.test(p.text));
   const shown = errors.length ? [...(meaningful.length ? meaningful : errors), ...lockWarnings] : all;
 
