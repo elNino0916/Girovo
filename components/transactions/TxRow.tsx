@@ -3,6 +3,7 @@
 import { memo } from 'react';
 import { categoryLabel, txKey, type CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
+import { BankText } from '../BankText';
 import { CategoryIcon } from '../icons';
 import { Money } from '../Money';
 import { Skeleton, cx } from '../ui';
@@ -65,7 +66,8 @@ export const TxRow = memo(function TxRow({
         </span>
         {(summary || showCategory) && (
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] leading-snug text-ink-3">
-            {summary && <span className="min-w-0 truncate">{summary}</span>}
+            {/* Bank prose: an amount in it is masked with the row's own. */}
+            {summary && <span className="min-w-0 truncate"><BankText text={summary} /></span>}
             {summary && showCategory && <span aria-hidden className="shrink-0">·</span>}
             {showCategory && (
               <span
