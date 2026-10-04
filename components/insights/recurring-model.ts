@@ -14,7 +14,7 @@
 // Umsätze over FinTS). Totals are held back while an account in scope
 // failed — a sum without it would look complete and is not.
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useFints } from '../FintsProvider';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { bookingDay } from '@/lib/analytics';
@@ -78,27 +78,20 @@ export type RecurringModel = {
 };
 
 /**
- * Which accounts failed to load, with the reason.
- *
- * The provider keeps one error for the last statement load (`txError`), not
- * one per account. Until it does, the error is pinned on the account that was
- * being fetched when it came — watched here while the view is open — or,
- * failing that, on the active account when it has nothing loaded. Only an
- * account without any loaded bookings counts as failed: a refresh that did
- * not land leaves the earlier bookings, which still hold. Switch this to the
- * provider's per-account errors once they exist.
+ * Which accounts failed to load, with the reason — the provider's
+ * per-account statement errors (`txErrors`), so a failure stays with the
+ * account it happened to, whichever account is open. Only an account without
+ * any loaded bookings counts as failed: a refresh that did not land leaves the
+ * earlier bookings, which still hold. A failed balance enquiry
+ * (`balanceErrors`) says nothing about the bookings and does not count.
  */
 function useLoadFailures(): Record<string, string> {
-  const { txError, loadingAccount, activeAccount, statementInfo } = useFints();
-  // The last account a statement was fetched for — adjusted during render,
-  // as React recommends for state derived from a changing prop.
-  const [lastLoad, setLastLoad] = useState<string | null>(loadingAccount);
-  if (loadingAccount && loadingAccount !== lastLoad) setLastLoad(loadingAccount);
+  const { txErrors, statementInfo } = useFints();
   return useMemo(() => {
-    if (!txError || loadingAccount) return {};
-    const acct = lastLoad ?? activeAccount?.accountNumber ?? null;
-    return acct && !statementInfo[acct] ? { [acct]: txError } : {};
-  }, [txError, loadingAccount, lastLoad, activeAccount, statementInfo]);
+    const out: Record<string, string> = {};
+    for (const [acct, e] of Object.entries(txErrors)) if (!statementInfo[acct]) out[acct] = e.message;
+    return out;
+  }, [txErrors, statementInfo]);
 }
 
 /**

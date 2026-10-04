@@ -55,7 +55,7 @@ const quoted = (words: string[]) => {
 
 export function Transactions() {
   const {
-    activeAccount: a, transactions, loadingAccount, txError, refreshAccount, busy, statementInfo, range, applyRange,
+    activeAccount: a, transactions, loadingAccount, txError, txErrors, refreshAccount, busy, statementInfo, range, applyRange,
     txFilter, setTxFilter, txFocusNonce, categoryOf, merchants, pendingCache, accountLabel,
   } = useFints();
 
@@ -157,7 +157,16 @@ export function Transactions() {
           <span className="hidden sm:inline"> · abgerufen {clock(loaded.loadedAt)} Uhr</span>
         </>
       )
-      : txError ? 'Abruf fehlgeschlagen' : 'Noch nicht abgerufen';
+      : txError
+        ? (
+          <>
+            Abruf fehlgeschlagen
+            {a && txErrors[a.accountNumber] && (
+              <span className="hidden sm:inline"> um {clock(txErrors[a.accountNumber].at)} Uhr</span>
+            )}
+          </>
+        )
+        : 'Noch nicht abgerufen';
 
   const pendingLine = pendingHits > 0 && (
     <button

@@ -52,7 +52,7 @@ type Coverage = { from: string; to: string; complete: boolean };
 export function MonthSummary() {
   const {
     activeAccount: a, accounts, statementInfo, txByAccount, txErrors, categoryOf, loadingAccount, busy, applyRange,
-    accountLabel, setTab,
+    accountLabel, setTab, setAnalysisPeriod,
   } = useFints();
   const titleId = useId();
 
@@ -172,7 +172,9 @@ export function MonthSummary() {
           month and how far it goes. */}
       <button
         type="button"
-        onClick={() => setTab('analysis')}
+        // The month this tile shows — the Analyse would otherwise open on the
+        // last complete one (yyyy-mm; a month without bookings falls back there).
+        onClick={() => { setAnalysisPeriod(month.start.slice(0, 7)); setTab('analysis'); }}
         className="row-focus flex w-full items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-left text-[13.5px] font-semibold text-accent hover:bg-accent-soft sm:px-5"
       >
         Zur Analyse
