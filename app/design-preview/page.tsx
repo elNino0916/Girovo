@@ -42,6 +42,7 @@ import { presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
 import { ACCT, MOCK_PAYEES } from './data';
 import { MockFintsProvider, type MockOptions, type MockPreset } from './mock';
+import { PrintPreview, type PrintPreviewKind } from './print';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
 
 // ---------------------------------------------------------------------------
@@ -63,11 +64,13 @@ type Script = (c: Ctx) => Promise<void> | void;
 
 type ViewDef = {
   label: string;
-  group: 'Dashboard' | 'Anmeldung' | 'Überweisung' | 'Dialoge' | 'Updates';
+  group: 'Dashboard' | 'Anmeldung' | 'Überweisung' | 'Dialoge' | 'Updates' | 'Dokumente';
   preset?: MockPreset;
   options?: MockOptions;
   /** The desktop updater this view shows (a fake, ./updater.ts), and whether its dialog is open. */
   update?: { scenario: UpdateScenario; dialog?: boolean };
+  /** A printed document, shown on screen in place of the app (./print.tsx). */
+  print?: PrintPreviewKind;
   script?: Script;
 };
 
@@ -232,7 +235,31 @@ const VIEWS: Record<string, ViewDef> = {
     options: transferWith({ name: 'Fehler GmbH', iban: MOCK_PAYEES.max.iban }),
     script: sendOrder,
   },
+
+  // The printed documents, at A4 width (./print.tsx). The data situations
+  // apply to them too: &preset=past-range|empty, &range=365d, &acct=karte.
+  'print-statement': { label: 'Kontoauszug', group: 'Dokumente', print: 'statement', script: sheetShown },
+  'print-statement-card': {
+    label: 'Kontoauszug Kreditkarte', group: 'Dokumente', print: 'statement', options: { account: ACCT.karte },
+    script: sheetShown,
+  },
+  'print-statement-no-opening': {
+    label: 'Kontoauszug ohne Anfangssaldo', group: 'Dokumente', print: 'statement-no-opening', script: sheetShown,
+  },
+  'print-statement-difference': {
+    label: 'Kontoauszug mit Differenz', group: 'Dokumente', print: 'statement-difference', script: sheetShown,
+  },
+  'print-receipt': { label: 'Beleg: Lastschrift', group: 'Dokumente', print: 'receipt', script: sheetShown },
+  'print-receipt-credit': { label: 'Beleg: Gutschrift', group: 'Dokumente', print: 'credit', script: sheetShown },
+  'print-receipt-card': { label: 'Beleg: Visa Debit', group: 'Dokumente', print: 'card', script: sheetShown },
+  'print-receipt-ahead': { label: 'Beleg: noch nicht gebucht', group: 'Dokumente', print: 'ahead', script: sheetShown },
+  'print-receipt-pending': { label: 'Beleg: vorgemerkt', group: 'Dokumente', print: 'pending', script: sheetShown },
 };
+
+/** A document view is ready once its sheet is sealed and on the page. */
+async function sheetShown(c: Ctx) {
+  await c.poll(() => document.querySelector('.doc-paper'), 6000);
+}
 
 /** A clickable element in the section a heading introduces. */
 function findUnderHeading(heading: RegExp, selector: string): HTMLElement | null {
@@ -374,12 +401,16 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     // transition of this one.
     <MockFintsProvider key={JSON.stringify(params)} preset={preset} still={still} {...options}>
       {/* Only the printable sheet reaches paper — same structure as app/page.tsx. */}
-      <div className="print:hidden">
-        <App />
-        <TanWaitOverlay />
-        <UpdateLayer />
-        <Toasts />
-      </div>
+      {def.print ? (
+        <PrintPreview kind={def.print} />
+      ) : (
+        <div className="print:hidden">
+          <App />
+          <TanWaitOverlay />
+          <UpdateLayer />
+          <Toasts />
+        </div>
+      )}
       <Statement />
       <Driver setup={setup} script={def.script} />
     </MockFintsProvider>
@@ -453,7 +484,7 @@ function Driver({ setup, script }: { setup: Setup; script?: Script }) {
 
 // ---------------------------------------------------------------------------
 
-const GROUPS: ViewDef['group'][] = ['Dashboard', 'Anmeldung', 'Überweisung', 'Dialoge', 'Updates'];
+const GROUPS: ViewDef['group'][] = ['Dashboard', 'Anmeldung', 'Überweisung', 'Dialoge', 'Updates', 'Dokumente'];
 
 const PRESET_LABELS: Record<MockPreset, string> = {
   default: 'Standard',
@@ -473,6 +504,9 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=overview&toasts=1', label: 'Hinweise' },
   { q: 'view=tanwait&tan=ended', label: 'Freigabe abgelaufen' },
   { q: 'view=tanwait&tan=error', label: 'Freigabe-Fehler' },
+  { q: 'view=print-statement&range=365d', label: 'Kontoauszug über 12 Monate' },
+  { q: 'view=print-statement&preset=past-range', label: 'Kontoauszug, vergangener Zeitraum' },
+  { q: 'view=print-statement&preset=empty', label: 'Kontoauszug ohne Umsätze' },
 ];
 
 /** ?view=index — every view and data situation, one click each. */
