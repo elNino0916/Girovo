@@ -64,6 +64,14 @@ plus, …) where you approve directly in your banking app.
   before you authorise. Match, Close Match, No Match and Not Applicable each
   get their own screen, with the bank's own explanatory text shown verbatim and
   an explicit "trotzdem überweisen" for a name that doesn't line up.
+- **The real shop on card payments** — a card payment's account holder is
+  usually a payment provider (every Sparkasse Visa Debit payment goes to
+  "Landesbank Hessen-Thüringen", terminals often to "Adyen N.V."); the shop
+  travels as the *abweichender Empfänger*. The app shows the shop, as the
+  bank's own app does, cleans the terminal's descriptor
+  (`LS Caf Nova Deutzer F/Frankenwerft 1/Kln/DE` → "Café Nova Deutzer F",
+  Frankenwerft 1, Köln) and keeps the provider and the bank's original name in
+  the booking's details.
 - **Company logos on transactions** — counterparties are matched against
   [Brandfetch](https://brandfetch.com) so `PayPal Europe S.a.r.l et Cie S.C.A.`
   shows the PayPal mark. A match has to clear a deliberately high bar; anything
@@ -86,10 +94,14 @@ plus, …) where you approve directly in your banking app.
   from the login plus this session's transfer outcomes), a **command palette**
   (Strg+K) and keyboard shortcuts (switchable).
 - Hell / Dunkel / System appearance; phone layout with a bottom navigation.
+- **Updates in the desktop app** — the Windows app looks for a new release on
+  GitHub, shows what's new, and installs it on request: the download is checked
+  against the SHA-256 digest GitHub publishes for every release file before it
+  runs. See [Updates](#updates).
 
 Built with **Next.js 16** (App Router, React 19, TypeScript) and **Tailwind CSS
-v4**, set in **Google Sans Flex**. Fonts are self-hosted through `next/font` —
-no request leaves your machine except the one to your bank.
+v4**, set in **Google Sans Flex**. Fonts are self-hosted through `next/font`, so
+they add no outside request of their own.
 
 ## Run it
 
@@ -168,6 +180,52 @@ variable. The website keeps using `.fints-state/` in the project root.
 `config.json` is baked into the package at build time — set your product ID
 before building.
 
+### Updates
+
+The desktop app updates itself from this repository's
+[GitHub releases](https://github.com/elNino0916/Sooskasse-FinTS/releases)
+(`electron/updater.cjs`):
+
+- **Checking** — 15 seconds after the start and then every 6 hours, the app asks
+  GitHub's API for the latest release. The request carries the app's version
+  (`User-Agent: Sooskasse-FinTS/<version>`) and nothing about you or your
+  accounts; it goes through a session of its own without cookies or cache.
+  Switch it off under *Sitzung → Updates* — a check is then only made when you
+  press "Nach Updates suchen".
+- **Nothing happens without a click.** A newer version shows up in
+  *Mitteilungen* (and on the login screen's bar); downloading it and restarting
+  into it are separate, explicit steps. The restart waits while a TAN approval
+  is open, and says that it signs you out.
+- **Verified** — GitHub computes a SHA-256 digest for every file attached to a
+  release. The download is checked against it before it is kept and again right
+  before it runs; a file that does not match is deleted. A release without
+  digests is only offered as a link to its page.
+- **Installed copies** (from the `Setup.exe`): the new `Setup.exe` runs silently
+  over the existing installation and starts the app again. The installer waits
+  for the old app to close on its own before it touches a file
+  (`build/installer.nsh`); an installation "for all users" asks for
+  administrator rights.
+- **Portable copies**: the new `portable.exe` is saved next to the old one (or in
+  *Downloads* if that folder is read-only) and started instead. The old file
+  stays — delete it when you like.
+- After the update the app says so once, with the release notes.
+
+**Publishing a release** the updater picks up needs nothing beyond what
+`npm run electron:dist` produces: create a normal GitHub release (not a draft,
+not a pre-release) whose tag is the version (`4.1.0` or `v4.1.0`) and attach
+`Sooskasse-FinTS-<version>-Setup.exe` and `Sooskasse-FinTS-<version>-portable.exe`
+from `dist/`. GitHub adds the digests by itself; no `latest.yml` is needed.
+The release text becomes the app's "Was ist neu" (Markdown: headings, lists,
+bold, links). Development builds (`<version>-dev.<n>`) are newer than the
+release they are numbered after, so they are only offered a higher version.
+
+To try the flow without publishing anything, point an unpackaged build at a
+local feed: `SOOSKASSE_UPDATE_FEED=http://127.0.0.1:<port>/latest` (an answer
+shaped like GitHub's `/releases/latest`) and `SOOSKASSE_UPDATE_KIND=nsis` or
+`portable`, then `npm run electron:dev`. A packaged app ignores both. The
+design preview shows every state of the update dialog with a fake updater
+(`/design-preview?view=update`, `update-ready`, `update-installed`, …).
+
 ## FinTS product registration (important)
 
 FinTS requires a **product registration ID** issued (free) by the ZKA — some
@@ -197,15 +255,16 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `lib/merchant-match.ts` | The company-detection model: name cleaning, the corporate-marker privacy gate, the candidate ladder and the scoring thresholds. Deterministic and inspectable — no network, no data files. |
 | `lib/merchants.ts` | The Brandfetch lookup behind it: Brand Search API for recall, name/domain scoring for precision, the Logo CDN fetch, process-level caching of hits *and* misses, and the logo proxy's allowlist. |
 | `lib/state-store.ts` | Encrypted device-profile persistence (`.fints-state/`, gitignored, or wherever `FINTS_STATE_DIR` points): AES-256-GCM, key derived from the PIN via scrypt. Stores systemId + cached BPD/UPD + TAN method so logins skip a fresh sync SCA. |
-| `patches/` | One-line patch (via `patch-package`, applied on `npm install`) exporting lib-fints' internal `registerSegmentDefinition` so the custom segments can be registered. |
+| `patches/` | Patch for lib-fints (via `patch-package`, applied on `npm install`): exports the internal `registerSegmentDefinition` so the custom segments can be registered, reads camt.053 as well as camt.052, and keeps the ultimate creditor/debtor (MT940 `ABWE+`/`ABWA+`, CAMT `UltmtCdtr`/`UltmtDbtr`) that the parser otherwise drops — where the shop behind a card payment is named. |
 | `lib/vault.ts`, `lib/crypto-box.ts` | The encrypted personal-data vault (templates, account names, category rules) and the AES-256-GCM/scrypt helpers it shares with the device profile. Sanitised server-side, written atomically. |
 | `lib/categorize.ts`, `lib/analytics.ts`, `lib/recurring.ts`, `lib/balance-history.ts` | Pure, tested analysis: categories, period totals and comparisons, recurring-payment detection, and the verified balance history. They handle both MT940 and CAMT shapes. |
 | `lib/csv.ts`, `lib/girocode.ts`, `lib/qr.ts`, `lib/qr-read.ts` | CSV export, the EPC069-12 GiroCode payload (build + parse) and QR rendering/reading (bundled `qrcode-generator` and `jsqr`, no network). |
 | `components/FintsProvider.tsx` | The client state machine: login → TAN method → dashboard, with every bank read serialised behind one `busy` flag (each read can cost its own approval), the decoupled poll loop, the applied date range, auto-logout, the vault and the inbox. |
-| `components/*` | The UI: `shell/` (masthead, tabs, stage, footer, bottom bar), `overview/`, `transactions/`, `insights/` (Analyse, Verträge), `transfer/`, `auth/`, plus the command palette, inbox and primitives in `ui.tsx`. |
+| `components/*` | The UI: `shell/` (masthead, tabs, stage, footer, bottom bar), `overview/`, `transactions/`, `insights/` (Analyse, Verträge), `transfer/`, `auth/`, `updates/` (the desktop updater's dialog and notices), plus the command palette, inbox and primitives in `ui.tsx`. |
 | `app/globals.css` | Design tokens (chrome navy, action blue, white tiles on a blue-grey page, navy-black dark theme, chart palette) as CSS variables mapped into Tailwind v4 via `@theme inline`. The print styles for the Kontoauszug are frozen separately. |
 | `app/design-preview` | Dev-only harness that renders every screen with generated data (`/design-preview?view=overview`, `analysis`, `contracts`, `transfer`, `login`, …; `&theme=dark`, `&privacy=1`). Returns 404 in production. |
 | `electron/main.cjs` | The desktop shell: boots the standalone server on loopback, opens the window, denies every device permission and sends outside links to the real browser. Paired with `scripts/build-electron.mjs` and `electron-builder.yml`. |
+| `electron/updater.cjs`, `electron/update-logic.cjs` | The [updater](#updates): checks GitHub releases, downloads and verifies against GitHub's SHA-256 digest, starts the installer (or the new portable build). Node built-ins and Electron only; the decisions (versions, files, install kind) are pure and tested on their own. The page side is `components/updates/`. |
 
 ### API surface
 
@@ -349,9 +408,19 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 - Credentials live only in memory and vanish on logout / restart.
 - Banking traffic goes directly from your machine to the bank's FinTS endpoint
   over TLS — no third party sits in that path.
-- The **one** exception is [company logos](#company-logos), which sends cleaned
-  merchant names to Brandfetch. Set `"merchantLogos": false` in `config.json`
-  (or omit `brandfetchClientId`) and the app contacts nothing but your bank.
+- Besides the bank, the app makes two kinds of outside request, each of which
+  can be switched off:
+  - [company logos](#company-logos) send cleaned merchant names to Brandfetch —
+    set `"merchantLogos": false` in `config.json` (or omit
+    `brandfetchClientId`);
+  - the desktop app's [update check](#updates) asks GitHub for the latest
+    release, carrying the app's version and nothing else — switch it off under
+    *Sitzung → Updates*.
+
+  With both off, the app contacts nothing but your bank.
+- Updates are verified against the SHA-256 digest GitHub publishes for the
+  release file before they run, and are only downloaded and installed when you
+  click.
 - Templates, account names and category rules are encrypted with your PIN;
   preferences (theme, privacy mode, logout timer) are plain settings and never
   contain personal data. A CSV or PNG you export is a normal file — treat it
@@ -361,7 +430,7 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 ## Development
 
 ```bash
-npm test          # node --test over lib/**/*.test.ts (needs Node ≥ 23.6 for built-in TypeScript stripping)
+npm test          # node --test over lib/**/*.test.ts and electron/**/*.test.cjs (needs Node ≥ 23.6 for built-in TypeScript stripping)
 npm run typecheck
 ```
 

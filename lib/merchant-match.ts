@@ -67,6 +67,11 @@ const QUALIFIERS = new Set([
 // Words too generic to identify a company on their own. A name that reduces to
 // one of these resolves to null however good the string match looks.
 const TOO_GENERIC = new Set([
+  // Articles: a rung cut down to "the" (from "The Ridge EU") would search for
+  // nothing, and an exact hit on some brand called "The" would win.
+  'the', 'der', 'die', 'das', 'le', 'la', 'el', 'il', 'of',
+  // Kinds of venue, not the name of one.
+  'cafe', 'bar', 'kiosk', 'imbiss', 'pizzeria', 'baeckerei',
   'bank', 'sparkasse', 'volksbank', 'raiffeisenbank', 'stadtwerke', 'finanzamt',
   'apotheke', 'versicherung', 'markt', 'supermarkt', 'tankstelle', 'restaurant',
   'hotel', 'taxi', 'praxis', 'kanzlei', 'immobilien', 'hausverwaltung', 'miete',
@@ -151,6 +156,7 @@ const CORPORATE_WORDS = new Set([
 // all, and "paypal steam" matches PayPal — the processor rather than the shop,
 // which is a confidently wrong logo.
 import { parsePurpose } from './sepa-purpose.ts';
+import { counterpartyName } from './categories.ts';
 
 const FACILITATORS = new Set([
   'adyen', 'paypal', 'pp', 'sumup', 'square', 'sq', 'izettle', 'zettle', 'iz',
@@ -589,6 +595,27 @@ export function nameScore(core: string, label: string): number {
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/**
+ * The best of a ranked list of lookup hits, unless the name it won on belongs
+ * to several unrelated companies. "The Ridge" is a wallet maker, a golf course
+ * in Alabama and a venue in South Africa; picking one of them is a guess, and a
+ * wrong logo is worse than none. Several domains of one brand are no conflict
+ * when exactly one of them is the name itself — ikea.com beats an IKEA careers
+ * site — but are when more than one could be (theridge.co.za,
+ * the-ridge.org.uk). `ranked` is sorted best first.
+ */
+export function unambiguous<T extends { hit: { domain: string }; score: number }>(ranked: T[], core: string): T | null {
+  const top = ranked[0];
+  if (!top) return null;
+  const rivals = ranked.filter((c) => c.score === top.score);
+  const site = (domain: string) => (domain.split('.')[0] || domain).toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (new Set(rivals.map((c) => site(c.hit.domain))).size <= 1) return top;
+  const want = normalize(core).replace(/\s+/g, '');
+  const own = rivals.filter((c) => site(c.hit.domain) === want);
+  const family = rivals.filter((c) => site(c.hit.domain).includes(want));
+  return own.length === 1 && family.length === 1 ? own[0] : null;
+}
+
 /** Regions and big cities, normalised — never evidence for a brand on their own. */
 const PLACE_NAMES = new Set(`
   deutschland germany europa europe baden wuerttemberg bayern berlin brandenburg bremen
@@ -601,8 +628,9 @@ const PLACE_NAMES = new Set(`
 `.split(/\s+/).filter(Boolean));
 
 /**
- * Counterparties that are institutions with a fixed identity, matched on the
- * name itself instead of a search.
+ * Counterparties with a fixed identity — institutions, and brands a search
+ * would confuse with their namesakes — matched on the name itself instead of
+ * a search.
  *
  * The Sparkassen card processor is the one that matters: every Visa/Mastercard
  * debit payment of a Sparkasse customer names "Landesbank Hessen-Thüringen
@@ -616,6 +644,15 @@ const INSTITUTIONS: { test: RegExp; domain: string; label: string }[] = [
     domain: 'helaba.com',
     label: 'Helaba',
   },
+  // Germany has two unrelated discounters called Netto: Edeka's "Netto
+  // Marken-Discount" and the Danish Salling group's Netto (the Scottie dog) —
+  // and France a third. A search for "Netto" returns the Danish one first; the
+  // descriptor's "Marken-Discou(nt)" is what says which shop it was.
+  { test: /^netto marken/, domain: 'netto-online.de', label: 'Netto Marken-Discount' },
+  { test: /^netto (?:aps|stavenhagen)\b/, domain: 'netto.dk', label: 'Netto' },
+  // Ridge (the wallet maker) sells in Europe as "The Ridge EU"; a search for
+  // "The Ridge" finds a golf course, a venue and a pub before it.
+  { test: /^the ridge eu$/, domain: 'ridge.com', label: 'Ridge' },
 ];
 
 export function knownInstitution(raw: string | null | undefined): { domain: string; label: string } | null {
@@ -648,8 +685,9 @@ export function bestScore(core: string, labels: Iterable<string>): number {
  *
  * Names that are not payment wrappers key on the name alone, exactly as before.
  */
-export function getMerchantKey(item: { remoteName?: string | null; purpose?: string | null }): string {
-  const name = String(item.remoteName ?? '').trim();
+export function getMerchantKey(item: { remoteName?: string | null; purpose?: string | null; ultimateName?: string | null }): string {
+  // The shop, not the card processor it was paid through — see counterpartyName.
+  const name = counterpartyName(item);
   if (!name) return '';
   if (!item.purpose || !isFacilitatorName(name)) return name;
   const hint = merchantHint(item.purpose);

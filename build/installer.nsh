@@ -24,12 +24,39 @@ ManifestDPIAwareness PerMonitorV2
 ; landing on "cannot be closed" until the uninstaller is run by hand first.
 ;
 ; Fix, part 1 — customCheckAppRunning (replaces _CHECK_APP_RUNNING):
-;   Silently kill every Sooskasse-FinTS.exe process with taskkill /F /T so
-;   any orphaned server child is cleaned up, then continue without prompting
-;   the user.  taskkill exits 128 when nothing was found, which is fine.
+;   Silently kill every Sooskasse-FinTS.exe process with taskkill /F, then
+;   continue without prompting the user. The image name matches the server
+;   child (and Electron's helper processes) as well, so an orphaned server is
+;   cleaned up too. taskkill exits 128 when nothing was found, which is fine.
 ;   A brief Sleep lets Windows release file locks before we write to $INSTDIR.
+;
+;   Deliberately no /T: that also kills every *descendant* of a matching
+;   process, whatever its name — and an installer started by the app's own
+;   updater (electron/updater.cjs) is exactly that, a child of
+;   Sooskasse-FinTS.exe. With /T the installer would take itself down.
+;
+;   --updated is that updater's flag. The app quits right after starting the
+;   installer: it closes the window, ends the bank session and stops its
+;   server, and it should be left to finish that rather than be killed in the
+;   middle of writing its preferences. So under --updated the installer first
+;   waits, about ten seconds at most, for the user's Sooskasse-FinTS.exe
+;   processes to be gone (the same exact-match tasklist query as
+;   electron-builder's own FIND_PROCESS — each one takes ~0.3 s, hence 20
+;   rounds of it plus 250 ms); taskkill only deals with whatever is left.
 !macro customCheckAppRunning
-  nsExec::Exec `taskkill /F /IM "${APP_EXECUTABLE_FILENAME}" /T`
+  ${if} ${isUpdated}
+    StrCpy $R1 0
+    ${do}
+      nsExec::Exec `"$SYSDIR\cmd.exe" /C tasklist /FI "USERNAME eq %USERNAME%" /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FO CSV /NH | "$SYSDIR\findstr.exe" /B /I /C:"\"${APP_EXECUTABLE_FILENAME}\""`
+      Pop $R0
+      ${if} $R0 != 0
+        ${break}
+      ${endif}
+      Sleep 250
+      IntOp $R1 $R1 + 1
+    ${loopuntil} $R1 >= 20
+  ${endif}
+  nsExec::Exec `taskkill /F /IM "${APP_EXECUTABLE_FILENAME}"`
   Pop $0
   Sleep 500
 !macroend

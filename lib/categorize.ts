@@ -23,7 +23,7 @@
 
 import type { SerializedTransaction } from './fints-types';
 import type { CategoryId, CategoryResult } from './categories';
-import { categoryDef, counterpartyKey, isCategoryId, txKey } from './categories.ts';
+import { categoryDef, counterpartyKey, counterpartyName, isCategoryId, txKey } from './categories.ts';
 import { isCardPurpose, stripCardBoilerplate } from './card-purpose.ts';
 import { parsePurpose } from './sepa-purpose.ts';
 
@@ -432,14 +432,15 @@ const source = (raw: string | null | undefined, bonus: number, prose: boolean): 
  * turn only count on credits: "Gehalt" in a transfer to a nanny is not income.
  */
 export function keywordCategory(
-  tx: Pick<SerializedTransaction, 'amount' | 'remoteName' | 'purpose' | 'bookingText' | 'transactionCode'>,
+  tx: Pick<SerializedTransaction, 'amount' | 'remoteName' | 'purpose' | 'bookingText' | 'transactionCode'> & { ultimateName?: string },
   merchantLabel?: string | null,
   kind: BookingKind = bookingKind(tx),
 ): CategoryId | null {
   const credit = Number(tx.amount) > 0;
   const sources = [
     source(merchantLabel, 6, false),
-    source(tx.remoteName, 3, false),
+    // The shop behind a card processor, not the processor (see counterpartyName).
+    source(counterpartyName(tx), 3, false),
     // A card record says how it was paid, not what was bought — and its
     // "Einsatzentgelt" would read as a bank fee. Only what it leaves counts.
     source(stripCardBoilerplate(parsePurpose(tx.purpose).text), 0, true),

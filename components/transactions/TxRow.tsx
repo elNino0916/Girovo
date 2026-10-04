@@ -33,7 +33,7 @@ export const TxRow = memo(function TxRow({
   compact?: boolean;
   onOpen: (tx: SerializedTransaction) => void;
 }) {
-  const { name, summary } = txText(tx);
+  const { name, summary, bankName } = txText(tx);
   const credit = tx.amount > 0;
   const note = rowNote(tx, pending);
   const showCategory = !compact && category && !QUIET_CATEGORIES.has(category);
@@ -56,7 +56,13 @@ export const TxRow = memo(function TxRow({
       <CounterpartyAvatar tx={tx} merchant={merchant} name={name} credit={credit} pending={pending} />
 
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] leading-snug font-semibold text-ink">{name}</span>
+        {/* The tidied name; hovering shows what the bank's FinTS answer said. */}
+        <span
+          className="block truncate text-[15px] leading-snug font-semibold text-ink"
+          title={bankName && bankName !== name ? `Laut Bank: ${bankName}` : undefined}
+        >
+          {name}
+        </span>
         {(summary || showCategory) && (
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] leading-snug text-ink-3">
             {summary && <span className="min-w-0 truncate">{summary}</span>}

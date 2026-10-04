@@ -7,6 +7,7 @@
 // runtime import of a sibling module spelled with its `.ts` extension).
 
 import type { SerializedTransaction } from './fints-types';
+import { cleanMerchantName } from './card-purpose.ts';
 
 export type CategoryId =
   | 'income'
@@ -87,6 +88,41 @@ export function creditorId(purpose: string | null | undefined): string | null {
   return m ? m[1].toUpperCase() : null;
 }
 
+type Parties = { remoteName?: string | null; ultimateName?: string | null };
+
+/**
+ * Who a booking is really with.
+ *
+ * Card payments and payment services name an intermediary as the account
+ * holder — every Visa Debit payment of a Sparkasse customer goes to
+ * "Landesbank Hessen-Thüringen" — and the shop as the "abweichender
+ * Empfänger" (for money coming in, the "abweichender Auftraggeber"). The
+ * bank's own app shows the shop, so this app does too: in the list, for logos,
+ * categories, search and recurring payments.
+ */
+export function counterpartyName(tx: Parties): string {
+  // A card terminal's descriptor ("WL .Steam Purchase//425-889-9642/US/3")
+  // is reduced to the shop; any ordinary name comes back as it is.
+  return cleanMerchantName(rawCounterparty(tx));
+}
+
+/** The counterparty exactly as the bank sent it — descriptor, location and all. */
+export function rawCounterparty(tx: Parties): string {
+  return String(tx.ultimateName ?? '').trim() || String(tx.remoteName ?? '').trim();
+}
+
+/**
+ * The intermediary a booking went through, when a different party stands
+ * behind it — shown as "Abgewickelt über …", because the IBAN on the booking
+ * is the intermediary's, not the shop's. Null when there is no such split.
+ */
+export function intermediaryName(tx: Parties): string | null {
+  const ultimate = String(tx.ultimateName ?? '').trim();
+  const holder = String(tx.remoteName ?? '').trim();
+  if (!ultimate || !holder || squash(ultimate) === squash(holder)) return null;
+  return holder;
+}
+
 /** A creditor ID has check digits in places three and four, where a BIC has letters. */
 const CREDITOR_SHAPE = /^[A-Z]{2}\d{2}[A-Z0-9]{4,31}$/;
 
@@ -120,15 +156,24 @@ export function txBic(tx: { remoteBic?: string }): string {
  * the name (names arrive truncated and re-cased).
  */
 export function counterpartyKey(
-  tx: Pick<SerializedTransaction, 'purpose' | 'remoteIban' | 'remoteName'> & { remoteBic?: string; creditorId?: string },
+  tx: Pick<SerializedTransaction, 'purpose' | 'remoteIban' | 'remoteName'> & { remoteBic?: string; creditorId?: string; ultimateName?: string },
 ): string {
+  // Behind an intermediary the IBAN and creditor ID are the intermediary's —
+  // keyed on those, "Amazon → Shopping" would file every Visa Debit payment
+  // as Shopping. The shop's own name is the only thing that tells them apart.
+  if (intermediaryName(tx)) {
+    const shop = squash(counterpartyName(tx)).replace(/\b\d+\b/g, '').replace(/\s+/g, ' ').trim();
+    if (shop) return `name:${shop}`;
+  }
   // The same key for the same creditor, whether the statement came as MT940
   // (separate field) or CAMT (inside the purpose).
   const cred = txCreditorId(tx);
   if (cred) return `cred:${cred}`;
   const iban = String(tx.remoteIban ?? '').replace(/\s+/g, '').toUpperCase();
   if (/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) return `iban:${iban}`;
-  const name = squash(tx.remoteName).replace(/\b\d+\b/g, '').replace(/\s+/g, ' ').trim();
+  // The shop, not its descriptor: one rule for every REWE, whichever branch's
+  // street and town the terminal appended.
+  const name = squash(counterpartyName(tx)).replace(/\b\d+\b/g, '').replace(/\s+/g, ' ').trim();
   return `name:${name || '?'}`;
 }
 

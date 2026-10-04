@@ -409,3 +409,25 @@ test('repairs umlauts a SWIFT conversion turned into "A." — only when the word
   assert.equal(repairSwiftUmlauts('Frank A.Meier'), 'Frank A.Meier');
   assert.equal(repairSwiftUmlauts('Kto. A.B. 123'), 'Kto. A.B. 123');
 });
+
+test('displayName writes a web address the way people do', async () => {
+  const { displayName } = await import('./format.ts');
+  assert.equal(displayName('TEMU.COM'), 'Temu.com');
+  assert.equal(displayName('AMAZON.DE MARKETPLACE'), 'Amazon.de Marketplace');
+  assert.equal(displayName('LIEFERANDO.DE'), 'Lieferando.de');
+  assert.equal(displayName('G2A.COM LIMITED'), 'G2A.com Limited');
+});
+
+test('fmtBytes states a download size the way a dialog does', async () => {
+  const { fmtBytes } = await import('./format.ts');
+  assert.equal(fmtBytes(104_919_142), '105 MB');
+  assert.equal(fmtBytes(4_200_000), '4,2 MB');
+  assert.equal(fmtBytes(860_000), '860 kB');
+  assert.equal(fmtBytes(512), '512 Byte');
+  assert.equal(fmtBytes(1_500_000_000), '1,5 GB');
+  // Progress: the total picks the unit, the figure goes without it.
+  assert.equal(`${fmtBytes(47_300_000, { unitOf: 104_919_142, bare: true })} von ${fmtBytes(104_919_142)}`, '47 von 105 MB');
+  assert.equal(fmtBytes(860_000, { unitOf: 104_919_142, bare: true }), '0,9');
+  assert.equal(fmtBytes(-1), '');
+  assert.equal(fmtBytes(Number.NaN), '');
+});

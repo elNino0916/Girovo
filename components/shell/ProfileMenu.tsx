@@ -4,7 +4,8 @@
 // long until the app signs them out on its own, how long that should be, and
 // whether this machine is remembered by the bank — and the encrypted store of
 // personal data (Vorlagen, Kontonamen, Kategorien): the way out when it cannot
-// be opened, and the way to delete it from this machine.
+// be opened, and the way to delete it from this machine. In the desktop app it
+// also names the app's version and leads to its updates.
 //
 // A non-modal Popover rather than a role=menu: most of it is information to
 // read (a countdown, a status) with two real controls in between, and a menu
@@ -14,7 +15,9 @@ import { useState } from 'react';
 import { setThemePref } from '@/lib/theme';
 import { IDLE_MINUTE_CHOICES, useFints, type IdleMinutes } from '../FintsProvider';
 import { useThemePref } from '../ThemeToggle';
-import { ChevronIcon, InfoIcon, KeyboardIcon, LockIcon, MonitorIcon, MoonIcon, ShieldIcon, SunIcon } from '../icons';
+import { updates } from '../updates/store';
+import { UpdateSessionRow } from '../updates/UpdateNotices';
+import { ChevronIcon, InfoIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, ShieldIcon, SunIcon } from '../icons';
 import { Button, Checkbox, Dialog, Dot, Kbd, Popover, Segmented, cx } from '../ui';
 import { fmtCountdown, fmtSince, holderName, nameInitials, firstName, useCountdown } from './session';
 
@@ -75,6 +78,10 @@ export function ProfileMenu() {
               setConfirmWipe(true);
             }}
             onShortcuts={close}
+            onUpdates={() => {
+              close();
+              updates.openDialog();
+            }}
           />
         )}
       </Popover>
@@ -104,7 +111,7 @@ function Avatar({ initials, tone }: { initials: string; tone: 'bar' | 'page' }) 
 const IDLE_OPTIONS = IDLE_MINUTE_CHOICES.map((n) => ({ value: String(n), label: `${n} Min` }));
 
 function SessionPanel({
-  holder, initials, onForget, onReset, onWipe, onShortcuts,
+  holder, initials, onForget, onReset, onWipe, onShortcuts, onUpdates,
 }: {
   holder: string;
   initials: string;
@@ -112,10 +119,11 @@ function SessionPanel({
   onReset: () => void;
   onWipe: () => void;
   onShortcuts: () => void;
+  onUpdates: () => void;
 }) {
   const {
     bank, sessionStartedAt, idleDeadline, idleMinutes, setIdleMinutes, deviceRemembered, setShortcutsOpen, vaultStatus,
-    singleKeyShortcuts,
+    singleKeyShortcuts, logout,
   } = useFints();
   const left = useCountdown(idleDeadline);
   const pref = useThemePref();
@@ -255,20 +263,32 @@ function SessionPanel({
         </p>
       )}
 
-      {/* Shortcuts need a keyboard; a phone has none worth listing them for. */}
-      <button
-        type="button"
-        onClick={() => {
-          onShortcuts();
-          setShortcutsOpen(true);
-        }}
-        className="mt-3 -mx-1.5 -mb-1.5 hidden min-h-10 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] text-ink hover:bg-inset sm:flex"
-      >
-        <KeyboardIcon className="text-ink-2" />
-        <span className="flex-1">Tastenkürzel</span>
-        {/* With the single keys off, "?" would promise a key that does nothing. */}
-        {singleKeyShortcuts ? <Kbd>?</Kbd> : <span className="text-[13px] text-ink-3">Einzeltasten aus</span>}
-      </button>
+      <div className="mt-3 -mb-1.5 flex flex-col">
+        {/* Desktop app only. */}
+        <UpdateSessionRow onOpen={onUpdates} />
+
+        {/* Shortcuts need a keyboard; a phone has none worth listing them for. */}
+        <button
+          type="button"
+          onClick={() => {
+            onShortcuts();
+            setShortcutsOpen(true);
+          }}
+          className="-mx-1.5 hidden min-h-10 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] text-ink hover:bg-inset sm:flex"
+        >
+          <KeyboardIcon className="text-ink-2" />
+          <span className="flex-1">Tastenkürzel</span>
+          {/* With the single keys off, "?" would promise a key that does nothing. */}
+          {singleKeyShortcuts ? <Kbd>?</Kbd> : <span className="text-[13px] text-ink-3">Einzeltasten aus</span>}
+        </button>
+      </div>
+
+      {/* The session's last word, at the end of the panel about it. */}
+      <div className="mt-3 border-t border-line pt-3">
+        <Button block size="sm" iconLeft={<LogoutIcon size={16} />} onClick={() => void logout('user')}>
+          Abmelden
+        </Button>
+      </div>
     </div>
   );
 }

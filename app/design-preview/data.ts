@@ -579,13 +579,34 @@ function generate(today: string): Generated {
       const base = cents(between(r, 4, 39));
       const de = (n: number) => n.toFixed(2).replace('.', ',');
       const at = `${day}T${clock().slice(0, 5)}`;
-      g(booked, mt940({
-        day: booked, valueDay: day, amount: -cents(base + (usd ? 0.15 : 1)), name: 'Landesbank Hessen-ThA.ringen',
-        gvc: '005', text: 'LASTSCHRIFT',
-        purpose: usd
-          ? `${at} Debitk.0 2030-12 Original ${de(base * 1.1563)} USD 1 Euro=1,1563 USD Einsatzentgelt 0,15 EUR Zahl.System VISA Debit`
-          : `${at} Debitk.0 2030-12 Einsatzentgelt 1,00 EUR Zahl.System VISA Debit`,
-      }));
+      // The shop rides along as the "abweichender Empfänger" (ABWE+) — what
+      // the Sparkasse app shows as the receiver.
+      const shop = usd
+        ? pick(r, ['STEAM PURCHASE', 'OPENAI *CHATGPT SUBSCR', 'TEMU.COM'])
+        : pick(r, ['AMAZON EU S.A R.L.', 'DM DROGERIE MARKT', 'DB VERTRIEB GMBH', 'LIEFERANDO.DE']);
+      g(booked, {
+        ...mt940({
+          day: booked, valueDay: day, amount: -cents(base + (usd ? 0.15 : 1)), name: 'Landesbank Hessen-ThA.ringen',
+          iban: 'DE41500500000001234567', gvc: '005', text: 'LASTSCHRIFT',
+          purpose: usd
+            ? `${at} Debitk.0 2030-12 Original ${de(base * 1.1563)} USD 1 Euro=1,1563 USD Einsatzentgelt 0,15 EUR Zahl.System VISA Debit`
+            : `${at} Debitk.0 2030-12 Einsatzentgelt 1,00 EUR Zahl.System VISA Debit`,
+        }),
+        ultimateName: shop,
+      });
+    }
+    if (r() < 0.05) {
+      // A girocard payment at a café whose terminal runs through Adyen: the
+      // acquirer holds the account, the terminal's descriptor names the shop
+      // — street, town (its umlaut dropped by SWIFT) and country included.
+      g(booked, {
+        ...mt940({
+          day: booked, valueDay: day, amount: -between(r, 3.2, 8.9), name: 'Adyen N.V.',
+          iban: 'NL50ADYB2017400157', gvc: '106', text: 'KARTENZAHLUNG',
+          purpose: `${day}T${clock().slice(0, 5)} Debitk.0 2030-12`,
+        }),
+        ultimateName: 'LS Caf Nova Deutzer F/Frankenwerft 1/Kln/DE',
+      });
     }
     if (r() < 0.045) {
       const amount = pick(r, [50, 100, 100, 150, 200]);

@@ -28,6 +28,7 @@ import {
   ibanCountry, prettyBookingText, translateType, txTime,
 } from '@/lib/format';
 import { parsePurpose, purposeLines } from '@/lib/sepa-purpose';
+import { counterpartyName, intermediaryName } from '@/lib/categories';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import type { ChosenBank, PrintJob } from './FintsProvider';
 import { useFints, useLogoFile } from './FintsProvider';
@@ -560,7 +561,7 @@ function StatementSheet({ job, stamp }: { job: PrintJob & { kind: 'statement' };
                   <td className="doc-body num py-[var(--s-3)] whitespace-nowrap">{fmtDate(t.valueDate)}</td>
                   <td className="py-[var(--s-3)] pr-[var(--s-5)]">
                     <p className="doc-body font-semibold">
-                      {t.remoteName || prettyBookingText(t.bookingText) || 'Buchung'}
+                      {counterpartyName(t) || prettyBookingText(t.bookingText) || 'Buchung'}
                     </p>
                     {purposeLines(purpose.text).map((line, n) => (
                       <p key={n} className="doc-small doc-quiet">{line}</p>
@@ -672,15 +673,20 @@ function TransactionSheet({ job, stamp }: { job: PrintJob & { kind: 'transaction
           )}
           <div className="min-w-0">
             <p className="doc-micro doc-quiet">{credit ? 'Auftraggeber' : 'Zahlungsempfänger'}</p>
-            <p className="doc-lead mt-[var(--s-1)] font-semibold">{tx.remoteName || '—'}</p>
-            {/* The booking's counterparty stays the lead — on a document of
-                record that is who was actually paid. Where the shop behind a
-                payment provider is known, it is named in words rather than as
-                a second logo: a monochrome sheet has no room for a badge, and
-                "Einkauf bei …" states the relation the badge only implies. */}
+            {/* The party the payment was for leads: the shop the bank names as
+                "abweichender Empfänger" when it settled through a card
+                processor (as the bank's own app shows it), else the account
+                holder. The processor is named underneath, and stays the
+                holder in the Konten block below — that IBAN is its own. */}
+            <p className="doc-lead mt-[var(--s-1)] font-semibold">{counterpartyName(tx) || '—'}</p>
+            {/* Where the shop behind a payment provider is known only from the
+                purpose, it is named in words rather than as a second logo: a
+                monochrome sheet has no room for a badge, and "Einkauf bei …"
+                states the relation the badge only implies. */}
             <p className="doc-small doc-quiet mt-[var(--s-1)]">
               {[
-                merchant && merchant.label !== tx.remoteName
+                intermediaryName(tx) ? `über ${intermediaryName(tx)}` : null,
+                merchant && merchant.label !== counterpartyName(tx)
                   ? (merchant.via ? `Einkauf bei ${merchant.label}` : merchant.label)
                   : null,
                 country?.name,

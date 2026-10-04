@@ -1,0 +1,156 @@
+'use strict';
+
+// The updater's decisions, kept apart from Electron and the network so they
+// can be tested on their own (update-logic.test.cjs): which release counts as
+// newer, which of its files this copy of the app needs, and whether that file
+// can be checked before it runs. Everything that comes from the network is
+// data — nothing in here throws on odd input, it answers "no update".
+
+const path = require('node:path');
+
+const REPO = 'elNino0916/Sooskasse-FinTS';
+const FEED_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
+const RELEASES_PAGE = `https://github.com/${REPO}/releases`;
+const DOWNLOAD_PREFIX = `https://github.com/${REPO}/releases/download/`;
+
+// A release's executables are ~100 MB; a file far past that is not ours.
+const MAX_ASSET_BYTES = 1024 * 1024 * 1024;
+// Release notes are shown in a dialog, not archived.
+const MAX_NOTES_CHARS = 20_000;
+
+/** The file of a release that updates each kind of install (see installKind). */
+const ASSET_PATTERN = {
+  nsis: /-Setup\.exe$/i,
+  portable: /-portable\.exe$/i,
+};
+
+/** "4.1.0", "v4.1.0", "4.1.0-dev.12" → { core: [4, 1, 0], pre: 'dev.12' }; null if not a version. */
+function parseVersion(text) {
+  const m = /^v?(\d{1,9})\.(\d{1,9})\.(\d{1,9})(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(
+    String(text ?? '').trim(),
+  );
+  if (!m) return null;
+  return { core: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] ?? '' };
+}
+
+function compareCore(a, b) {
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+  return 0;
+}
+
+/**
+ * Whether the release `candidate` is an update for the running `current`.
+ *
+ * Semver, with one turn for this project's development builds: CI stamps them
+ * `<package.json version>-dev.<run>`, and package.json keeps the last
+ * release's number until the next one is cut — so 4.0.0-dev.57 is built from
+ * code *after* 4.0.0, not before it. For a dev build a release only counts as
+ * newer when its x.y.z is higher. Any other pre-release (4.1.0-beta.1) does
+ * come before its release, as semver has it. A pre-release is never offered.
+ */
+function isNewer(candidate, current) {
+  const c = parseVersion(candidate);
+  const v = parseVersion(current);
+  if (!c || !v || c.pre) return false;
+  const order = compareCore(c.core, v.core);
+  if (order !== 0) return order > 0;
+  return !!v.pre && !/^dev(?:\.|$)/i.test(v.pre);
+}
+
+/** A file name that can safely become a path on disk: no folders, no tricks. */
+const SAFE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,150}$/;
+
+function parseAsset(raw, downloadPrefix) {
+  if (!raw || typeof raw !== 'object') return null;
+  const name = typeof raw.name === 'string' ? raw.name : '';
+  const url = typeof raw.browser_download_url === 'string' ? raw.browser_download_url : '';
+  const size = Number(raw.size);
+  if (!SAFE_FILE_NAME.test(name) || name.includes('..')) return null;
+  if (!url.startsWith(downloadPrefix)) return null;
+  if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_ASSET_BYTES) return null;
+  // GitHub computes this itself for every uploaded file; it is what the
+  // download is checked against before anything runs.
+  const digest = /^sha256:([0-9a-f]{64})$/i.exec(typeof raw.digest === 'string' ? raw.digest : '');
+  return { name, url, size, sha256: digest ? digest[1].toLowerCase() : null };
+}
+
+/**
+ * GitHub's "latest release" answer, reduced to what the updater needs — or
+ * null when it is not a usable release (a draft, a pre-release, a tag that is
+ * not a version).
+ */
+function parseRelease(json, { downloadPrefix = DOWNLOAD_PREFIX, releasesPage = RELEASES_PAGE } = {}) {
+  if (!json || typeof json !== 'object' || json.draft || json.prerelease) return null;
+  const parsed = parseVersion(json.tag_name);
+  if (!parsed || parsed.pre) return null;
+  const version = parsed.core.join('.');
+  const name = typeof json.name === 'string' && json.name.trim() ? json.name.trim().slice(0, 200) : version;
+  const pageUrl = typeof json.html_url === 'string' && json.html_url.startsWith(`${releasesPage}/`)
+    ? json.html_url
+    : releasesPage;
+  const published = typeof json.published_at === 'string' ? Date.parse(json.published_at) : NaN;
+  return {
+    version,
+    name,
+    notes: typeof json.body === 'string' ? json.body.slice(0, MAX_NOTES_CHARS) : '',
+    url: pageUrl,
+    publishedAt: Number.isFinite(published) ? new Date(published).toISOString() : null,
+    assets: Array.isArray(json.assets) ? json.assets.map((a) => parseAsset(a, downloadPrefix)).filter(Boolean) : [],
+  };
+}
+
+/** The file of `release` that updates an install of `kind`, or null. */
+function pickAsset(release, kind) {
+  const pattern = ASSET_PATTERN[kind];
+  if (!release || !pattern) return null;
+  return release.assets.find((a) => pattern.test(a.name)) ?? null;
+}
+
+/**
+ * How this copy of the app was installed, which decides how it updates:
+ *
+ *   nsis      installed by the Setup.exe — the next Setup.exe updates it in
+ *             place, silently, and starts it again
+ *   portable  the portable .exe — the next one is saved beside it and started
+ *             instead (electron-builder's portable launcher sets the variable)
+ *   manual    anything else, e.g. an unpacked build: the download page
+ *   dev       not packaged at all
+ */
+function installKind({ isPackaged, env, execPath, exists }) {
+  if (!isPackaged) return 'dev';
+  if (env.PORTABLE_EXECUTABLE_FILE) return 'portable';
+  const dir = path.dirname(execPath);
+  const base = path.basename(execPath, path.extname(execPath));
+  // The NSIS installer puts its uninstaller beside the executable, under
+  // electron-builder's fixed name.
+  if (exists(path.join(dir, `Uninstall ${base}.exe`))) return 'nsis';
+  return 'manual';
+}
+
+/** The arguments the downloaded file is started with. */
+function installArgs(kind) {
+  // /S: the NSIS installer runs without its wizard, into the existing
+  // install's folder. --updated: electron-builder's flag for "this replaces a
+  // running app" (build/installer.nsh waits for it to close on its own).
+  // --force-run: start the app again when done — the installer passes
+  // --updated on to it, which main.cjs takes as "the old instance may still
+  // be closing".
+  if (kind === 'nsis') return ['/S', '--updated', '--force-run'];
+  // The portable launcher hands its arguments on to the app.
+  if (kind === 'portable') return ['--updated'];
+  return null;
+}
+
+module.exports = {
+  REPO,
+  FEED_URL,
+  RELEASES_PAGE,
+  DOWNLOAD_PREFIX,
+  MAX_NOTES_CHARS,
+  parseVersion,
+  isNewer,
+  parseRelease,
+  pickAsset,
+  installKind,
+  installArgs,
+};

@@ -1,6 +1,6 @@
 {
 	"name": "sooskasse-fints",
-	"version": "4.0.0",
+	"version": "4.1.0",
 	"private": true,
 	"description": "Sooskasse-FinTS — self-hosted banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled TAN, SEPA & Echtzeitueberweisung)",
 	"type": "module",
@@ -16,7 +16,7 @@
 		"electron:start": "electron .",
 		"electron:dist": "npm run electron:build && electron-builder --win",
 		"postinstall": "patch-package",
-		"test": "node --test \"lib/**/*.test.ts\""
+		"test": "node --test \"lib/**/*.test.ts\" \"electron/**/*.test.cjs\""
 	},
 	"keywords": [
 		"fints",

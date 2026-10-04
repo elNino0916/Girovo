@@ -7,6 +7,7 @@ import { TanWaitOverlay } from '@/components/TanWaitOverlay';
 import { Dashboard } from '@/components/Dashboard';
 import { Toasts } from '@/components/Toasts';
 import { Statement } from '@/components/Statement';
+import { UpdateLayer } from '@/components/updates/UpdateNotices';
 
 export default function Page() {
   return (
@@ -20,6 +21,9 @@ export default function Page() {
       <div className="print:hidden">
         <App />
         <TanWaitOverlay />
+        {/* Desktop app only: the update dialog, on every screen — before
+            the login is the best time to update. */}
+        <UpdateLayer />
         <Toasts />
       </div>
       <Statement />

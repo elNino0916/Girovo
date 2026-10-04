@@ -24,7 +24,7 @@ import 'server-only';
 
 import crypto from 'node:crypto';
 import {
-  bestScore, candidates, facilitatorOf, getMerchantKey, knownInstitution, looksCorporate, nameScore,
+  bestScore, candidates, facilitatorOf, getMerchantKey, knownInstitution, looksCorporate, nameScore, unambiguous,
 } from './merchant-match';
 export { getMerchantKey };
 import { BRANDFETCH_CLIENT_ID, MERCHANT_LOGOS } from './session';
@@ -170,6 +170,13 @@ export type MerchantItem = {
   name: string;
   purpose?: string;
   key?: string;
+  /**
+   * The name came out of a card terminal's merchant descriptor: cut to the
+   * scheme's 22 characters and usually a local shop. Only an exact match is
+   * evidence then — "Café Nova Deutzer F" must not borrow the logo of some
+   * other "Cafe Nova" because it starts with that name.
+   */
+  strict?: boolean;
 };
 
 const KNOWN_DOMAINS: Record<string, { domain: string; label: string }> = {
@@ -179,6 +186,8 @@ const KNOWN_DOMAINS: Record<string, { domain: string; label: string }> = {
   'deutsche post': { domain: 'deutschepost.de', label: 'Deutsche Post' },
   'netflix': { domain: 'netflix.com', label: 'Netflix' },
   'steam': { domain: 'steampowered.com', label: 'Steam' },
+  // Steam's card descriptor. Pinned: the brand answers to three domains.
+  'steam purchase': { domain: 'steampowered.com', label: 'Steam' },
   'steampowered': { domain: 'steampowered.com', label: 'Steam' },
   'steampowered.com': { domain: 'steampowered.com', label: 'Steam' },
   'valve': { domain: 'valvesoftware.com', label: 'Valve Corporation' },
@@ -239,7 +248,7 @@ function viaBadge(rawName: string, resolvedDomain: string): Merchant['via'] | un
   return { label: brand.label, logo: registerLogo(brand.domain) };
 }
 
-async function resolveOne(rawName: string, purpose: string | undefined, businessBooking: boolean): Promise<Merchant | null> {
+async function resolveOne(rawName: string, purpose: string | undefined, businessBooking: boolean, strict = false): Promise<Merchant | null> {
   // An institution with a fixed identity needs no search — and searching for
   // it was how the Sparkassen card processor got the Hessian state crest.
   const institution = knownInstitution(rawName);
@@ -291,11 +300,16 @@ async function resolveOne(rawName: string, purpose: string | undefined, business
         const domainMatch = dScore >= 0.85 ? 1 : 0;
         return { hit: h, score, domainMatch };
       })
-      .filter((c) => c.score >= rung.minScore)
+      .filter((c) => c.score >= (strict ? 1 : rung.minScore))
       .sort((a, b) => (b.score - a.score) || (b.domainMatch - a.domainMatch) || (Number(b.hit.claimed) - Number(a.hit.claimed)));
     if (!plausible.length) continue;
 
-    const { hit, score } = plausible[0];
+    const winner = unambiguous(plausible, rung.core);
+    if (!winner) {
+      console.log(`[merchants] "${rung.core}" → ambiguous (${plausible.slice(0, 4).map((c) => c.hit.domain).join(', ')})`);
+      continue;
+    }
+    const { hit, score } = winner;
     console.log(`[merchants] "${rung.core}" → ${hit.name} (${hit.domain}, score ${score.toFixed(2)})`);
     return {
       id: hit.brandId,
@@ -327,13 +341,14 @@ export async function resolveMerchants(
   const out: Record<string, Merchant | null> = {};
   if (!MERCHANT_LOGOS) return out;
 
-  const parsedItems: { name: string; purpose?: string; key: string }[] = [];
+  const parsedItems: { name: string; purpose?: string; key: string; strict: boolean }[] = [];
   const seenKeys = new Set<string>();
 
   for (const raw of items) {
     let name = '';
     let purpose: string | undefined;
     let key = '';
+    let strict = false;
 
     if (typeof raw === 'string') {
       name = raw.trim();
@@ -342,11 +357,12 @@ export async function resolveMerchants(
       name = String(raw.name ?? '').trim();
       purpose = raw.purpose ? String(raw.purpose).trim() : undefined;
       key = raw.key || (purpose ? getMerchantKey({ remoteName: name, purpose }) : name);
+      strict = raw.strict === true;
     }
 
     if (!name || seenKeys.has(key)) continue;
     seenKeys.add(key);
-    parsedItems.push({ name, purpose, key });
+    parsedItems.push({ name, purpose, key, strict });
     if (parsedItems.length >= 60) break;
   }
 
@@ -356,7 +372,7 @@ export async function resolveMerchants(
     // The cache key carries the verdict, so the same name seen first on a
     // transfer and later on a card payment is not answered from the stricter
     // of the two runs.
-    const cacheKey = `${business.has(item.name) ? 'b' : 'p'}:${item.key.toLowerCase()}`;
+    const cacheKey = `${business.has(item.name) ? 'b' : 'p'}${item.strict ? 's' : ''}:${item.key.toLowerCase()}`;
 
     // Only a result resolved from the name alone may be published under the
     // name. A hint-derived logo belongs to one shop behind the wrapper, and
@@ -374,7 +390,7 @@ export async function resolveMerchants(
 
     let job = inflight.get(cacheKey);
     if (!job) {
-      job = resolveOne(item.name, item.purpose, business.has(item.name))
+      job = resolveOne(item.name, item.purpose, business.has(item.name), item.strict)
         .catch(() => null)
         .then((m) => {
           // Cache misses too — an unrecognised counterparty must not be looked

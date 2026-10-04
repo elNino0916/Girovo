@@ -1,6 +1,7 @@
 'use client';
 
-// Mitteilungen: what the bank said at login, and what this session did.
+// Mitteilungen: what the bank said at login, and what this session did —
+// and, in the desktop app, a newer version of the app itself.
 //
 // Bank messages arrive with the login synchronisation (HIRMG/HIRMS texts) —
 // there is no mailbox behind them and nothing is fetched here. Their text is
@@ -18,6 +19,8 @@ import { Money } from './Money';
 import { AlertTriangleIcon, CheckIcon, ChevronIcon, HelpIcon, InfoIcon, TransferIcon } from './icons';
 import { Button, CountBadge, Dot, Drawer, EmptyState, Tag, cx } from './ui';
 import { fmtSince } from './shell/session';
+import { updates } from './updates/store';
+import { UpdateInboxCard, useUpdateNotice } from './updates/UpdateNotices';
 
 // The drawer is also opened from places that do not outlive it — the
 // overview's teaser goes once everything is read, a toast times out — so
@@ -34,15 +37,30 @@ export function Inbox() {
 }
 
 function InboxBody() {
-  const { messages, activity, markAllRead } = useFints();
+  const { messages, activity, markAllRead, setInboxOpen } = useFints();
+  const update = useUpdateNotice();
   // What was unread at the moment the drawer opened.
   const [fresh] = useState(() => new Set(messages.filter((m) => !m.read).map((m) => m.id)));
   useEffect(() => {
     markAllRead();
+    updates.markSeen();
   }, [markAllRead]);
 
   return (
     <div className="flex flex-col gap-8">
+      {update && (
+        <section aria-labelledby="inbox-update">
+          <SectionHead id="inbox-update" title="App-Update" count={0} />
+          <UpdateInboxCard
+            notice={update}
+            onOpen={() => {
+              setInboxOpen(false);
+              updates.openDialog();
+            }}
+          />
+        </section>
+      )}
+
       <section aria-labelledby="inbox-bank">
         <SectionHead id="inbox-bank" title="Mitteilungen deiner Bank" count={messages.length} />
         {messages.length ? (

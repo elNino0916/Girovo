@@ -8,9 +8,9 @@
 // bookings that are already loaded.
 
 import type { TransferPrefill } from '@/lib/app-types';
-import { parseCardPurpose } from '@/lib/card-purpose';
+import { parseCardAcceptor, parseCardPurpose, type CardPurpose } from '@/lib/card-purpose';
 import { bookingKind, bookingKindLabel, foldText, type BookingKind } from '@/lib/categorize';
-import { txCreditorId, type CategoryId } from '@/lib/categories';
+import { counterpartyName, intermediaryName, rawCounterparty, txCreditorId, type CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import {
   dayKey, displayName, fmtAmountInput, fmtDate, fmtDayHeader, ibanValid, isFutureDate, prettyBookingText,
@@ -38,6 +38,20 @@ export type TxText = {
   name: string;
   /** Exactly as the bank stored it (mis-decoded umlauts repaired) — for the detail view and prefills. */
   rawName: string;
+  /**
+   * The intermediary the payment went through when the bank names a different
+   * party behind it — the card processor of a Visa Debit payment. The IBAN on
+   * the booking is this one's, not the shop's. Null otherwise.
+   */
+  via: string | null;
+  /**
+   * The counterparty exactly as the bank's FinTS answer names it — the card
+   * terminal's whole descriptor ("LS Caf Nova Deutzer F/Frankenwerft 1/Kln/DE")
+   * where `name` shows the shop. Only encoding damage is repaired.
+   */
+  bankName: string;
+  /** Where a card payment's terminal stood, from the merchant descriptor. Null for anything else. */
+  place: { street: string | null; city: string | null; country: string | null } | null;
   /** The SVWZ prose in readable case, machine identifiers cut to a stub — the list's second line. */
   summary: string;
   /** The SVWZ prose, uncut, one entry per line the bank wrote. */
@@ -53,10 +67,40 @@ export type TxText = {
 // object itself is a safe cache key — and the cache dies with it.
 const textCache = new WeakMap<SerializedTransaction, TxText>();
 
+const regionNames = (() => {
+  try { return new Intl.DisplayNames(['de'], { type: 'region' }); } catch { return null; }
+})();
+
+/** A country code in German ("NL" → "Niederlande"), or the code itself. */
+export function countryName(code: string | null | undefined): string {
+  if (!code) return '';
+  try { return regionNames?.of(code) ?? code; } catch { return code; }
+}
+
+/** "Köln" at home, "Amsterdam-Dui, Niederlande" abroad, the country alone for an online shop. */
+function placeLabel(place: TxText['place']): string {
+  if (!place) return '';
+  const abroad = place.country && place.country !== 'DE' ? countryName(place.country) : '';
+  return [place.city, abroad].filter(Boolean).join(', ');
+}
+
+/** "Visa Debit" / "Debitkarte" / "Kartenzahlung" — and a refund says it is one. */
+function cardLabel(card: CardPurpose, credit: boolean): string {
+  const base = card.scheme
+    ? card.scheme.replace(/^VISA\b/, 'Visa')
+    : card.card === 'credit' ? 'Kreditkarte' : card.card === 'debit' ? 'Debitkarte' : '';
+  if (!base) return credit ? 'Kartengutschrift' : 'Kartenzahlung';
+  return credit ? `Gutschrift · ${base}` : base;
+}
+
 export function txText(tx: SerializedTransaction): TxText {
   const hit = textCache.get(tx);
   if (hit) return hit;
-  const rawName = repairBankText(tx.remoteName ?? '').replace(/\s+/g, ' ').trim();
+  // The shop, when the bank names one behind its card processor — what the
+  // Sparkasse's own app shows. The processor stays available as `via`.
+  const rawName = repairBankText(counterpartyName(tx)).replace(/\s+/g, ' ').trim();
+  const viaRaw = intermediaryName(tx);
+  const via = viaRaw ? displayName(repairBankText(viaRaw).replace(/\s+/g, ' ').trim()) : null;
   const parsed = parsePurpose(repairBankText(tx.purpose ?? ''));
   const bookingText = prettyBookingText(repairBankText(tx.bookingText ?? ''));
   const name = displayName(rawName) || bookingText || 'Buchung';
@@ -72,9 +116,16 @@ export function txText(tx: SerializedTransaction): TxText {
   // record doesn't explain. No amounts — this line is a plain string, and
   // "Beträge ausblenden" can only mask what goes through <Money>.
   const card = parseCardPurpose(parsed.text);
+  // Where the terminal stood, from the shop's descriptor ("…/Kln/DE" → Köln).
+  const acceptor = parseCardAcceptor(rawCounterparty(tx));
+  const place = acceptor && (acceptor.street || acceptor.city || acceptor.country)
+    ? { street: acceptor.street, city: acceptor.city, country: acceptor.country }
+    : null;
+  const where = placeLabel(place);
   let summary = card
     ? [
-        card.scheme ? card.scheme.replace(/^VISA\b/, 'Visa') : card.card === 'credit' ? 'Kreditkarte' : 'Debitkarte',
+        cardLabel(card, tx.amount > 0),
+        where,
         card.original && card.original.currency !== 'EUR' ? `Fremdwährung ${card.original.currency}` : '',
         prettyPurpose(card.rest),
       ].filter(Boolean).join(' · ')
@@ -83,14 +134,20 @@ export function txText(tx: SerializedTransaction): TxText {
   // A card payment's "purpose" is the terminal's own record — the shop name
   // again, a city, a timestamp, a card sequence number. On a scannable list
   // the words "Kartenzahlung" say more; the record stays in the details.
-  if (summary && kind === 'karte') {
+  if (summary && kind === 'karte' && !card) {
     const head = foldText(rawName).split(' ')[0];
     if (!head || foldText(summary).startsWith(head)) summary = '';
   }
   if (!summary && rawName) summary = bookingText || (kind === 'karte' ? 'Kartenzahlung' : '');
+  // The town is worth its place on the line even when the purpose said
+  // nothing else ("Kartenzahlung · Köln").
+  if (where && !card && kind === 'karte' && summary && !summary.includes(where)) summary = `${summary} · ${where}`;
   const out: TxText = {
     name,
     rawName,
+    via,
+    bankName: repairBankText(rawCounterparty(tx)).replace(/\s+/g, ' ').trim(),
+    place,
     summary,
     purposeLines: purposeLines(parsed.text),
     parsed,
@@ -121,7 +178,7 @@ export function rowKey(tx: SerializedTransaction): number {
  * subscribing each row to the provider.
  */
 export function merchantFor(merchants: Record<string, Merchant | null>, tx: SerializedTransaction): Merchant | null {
-  return merchants[getMerchantKey(tx)] ?? merchants[(tx.remoteName || '').trim()] ?? null;
+  return merchants[getMerchantKey(tx)] ?? merchants[counterpartyName(tx)] ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -337,8 +394,12 @@ export function transferSeeds(
   if (!canTransfer) return none;
   const iban = compactIban(tx.remoteIban);
   if (!ibanValid(iban)) return none;
-  const { rawName, kind, parsed } = txText(tx);
+  const { rawName, kind, parsed, via } = txText(tx);
   if (!rawName) return none;
+  // Behind an intermediary the IBAN is the intermediary's and the name is
+  // the shop's: a transfer seeded from both would fail the Namensabgleich at
+  // best and pay the card processor at worst.
+  if (via) return none;
   const prose = purposeLines(parsed.text).join(' ').replace(/\s+/g, ' ').trim();
   const amount = fmtAmountInput(Math.abs(tx.amount));
   // Only euro bookings: the transfer form sends SEPA, and SEPA is euro.
@@ -362,11 +423,14 @@ export function transferSeeds(
 
 /**
  * What "Alle Umsätze mit …" searches for: the IBAN when there is one (exact,
- * however the name was spelled on each booking), else the name.
+ * however the name was spelled on each booking), else the name. Behind an
+ * intermediary the IBAN is shared by every shop it serves — every Visa Debit
+ * payment of a Sparkasse customer carries the card processor's — so there the
+ * shop's name is the only thing that finds the right bookings.
  */
 export function counterpartyQuery(tx: SerializedTransaction): string | null {
+  const { rawName, via } = txText(tx);
   const iban = compactIban(tx.remoteIban);
-  if (ibanValid(iban)) return iban;
-  const name = txText(tx).rawName;
-  return name.length >= 2 ? name : null;
+  if (!via && ibanValid(iban)) return iban;
+  return rawName.length >= 2 ? rawName : null;
 }

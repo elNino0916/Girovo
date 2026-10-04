@@ -22,8 +22,9 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { ApiError, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail } from '@/lib/client-api';
-import { categorize } from '@/lib/categorize';
-import { counterpartyKey, isCategoryId, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
+import { bookingKind, categorize } from '@/lib/categorize';
+import { counterpartyKey, counterpartyName, isCategoryId, rawCounterparty, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
+import { parseCardAcceptor } from '@/lib/card-purpose';
 import {
   dayKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, toLocalDate, translateType,
   type RangePreset,
@@ -809,14 +810,17 @@ function useFintsState() {
     // payment cannot have a private person on the other side, so those names
     // are flagged and may skip the person veto.
     const business = new Set(
-      txs.filter(isBusinessBooking).map((t) => (t.remoteName || '').trim()).filter(Boolean),
+      txs.filter((t) => isBusinessBooking(t) || bookingKind(t) === 'karte').map((t) => counterpartyName(t)).filter(Boolean),
     );
     const items = txs
       .map((t) => {
-        const name = (t.remoteName || '').trim();
+        const name = counterpartyName(t);
         const purpose = (t.purpose || '').trim();
         const key = getMerchantKey(t);
-        return { name, purpose, key };
+        // A name cut from a card terminal's descriptor is matched exactly or
+        // not at all (see MerchantItem.strict in lib/merchants.ts).
+        const strict = parseCardAcceptor(rawCounterparty(t)) !== null;
+        return { name, purpose, key, strict };
       })
       .filter((item) => item.name && !merchantsAsked.current.has(item.key));
 
@@ -1933,7 +1937,7 @@ function useFintsState() {
     return (tx: SerializedTransaction): CategoryResult => {
       const hit = memo.get(tx);
       if (hit) return hit;
-      const merchant = merchants[getMerchantKey(tx)] ?? merchants[(tx.remoteName || '').trim()] ?? null;
+      const merchant = merchants[getMerchantKey(tx)] ?? merchants[counterpartyName(tx)] ?? null;
       let result: CategoryResult;
       try {
         result = categorize(tx, {
@@ -2082,7 +2086,7 @@ function useFintsState() {
       tx,
       pending,
       balance: balances[activeAccount.accountNumber] ?? null,
-      merchant: merchants[key] ?? merchants[(tx.remoteName || '').trim()] ?? null,
+      merchant: merchants[key] ?? merchants[counterpartyName(tx)] ?? null,
     });
     if (typeof window === 'undefined' || !window.electronPDF) {
       toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
@@ -2149,7 +2153,7 @@ export function useFints(): FintsApi {
 export function useMerchant(tx: SerializedTransaction): Merchant | null {
   const { merchants } = useFints();
   const key = useMemo(() => getMerchantKey(tx), [tx]);
-  return useMemo(() => merchants[key] ?? merchants[(tx.remoteName || '').trim()] ?? null, [merchants, key, tx.remoteName]);
+  return useMemo(() => merchants[key] ?? merchants[counterpartyName(tx)] ?? null, [merchants, key, tx]);
 }
 
 /** Convenience: the logo filename for a brand, or undefined for a monogram. */

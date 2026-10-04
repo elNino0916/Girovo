@@ -32,11 +32,12 @@ import { Money } from './Money';
 import { useThemePref } from './ThemeToggle';
 import {
   AccountTypeIcon, BellIcon, ChartIcon, CheckIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon, FileIcon, HomeIcon,
-  KeyboardIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon, RepeatIcon, SearchIcon, SunIcon, TransferIcon,
+  KeyboardIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon, RefreshIcon, RepeatIcon, SearchIcon, SunIcon, TransferIcon,
 } from './icons';
 import { EmptyState, IconButton, Kbd, Overlay, cx } from './ui';
 import { txText } from './transactions/model';
 import { useShellActions } from './shell/actions';
+import { hasNewer, updates, useUpdates } from './updates/store';
 import { fuzzyScore } from './shell/fuzzy';
 
 type Group = 'actions' | 'accounts' | 'transactions';
@@ -74,6 +75,7 @@ function Palette({ onClose }: { onClose: () => void }) {
   const f = useFints();
   const a = useShellActions();
   const themePref = useThemePref();
+  const { state: update } = useUpdates();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -172,6 +174,19 @@ function Palette({ onClose }: { onClose: () => void }) {
           f.toast(on ? 'Kürzel mit einzelnen Tasten sind eingeschaltet.' : 'Kürzel mit einzelnen Tasten sind ausgeschaltet.', 'success');
         },
       },
+      // Desktop app only. Opening the dialog is the action; with nothing new
+      // known yet, it also asks.
+      !!update && {
+        id: 'updates', group: 'actions',
+        label: hasNewer(update) ? `Update auf Version ${update.release.version}` : 'Nach Updates suchen',
+        icon: hasNewer(update) ? <DownloadIcon /> : <RefreshIcon />,
+        description: `Installiert: Version ${update.current}`,
+        keywords: ['update', 'aktualisieren', 'aktualisierung', 'version', 'neue version', 'upgrade', 'installieren'],
+        run: () => {
+          if (!hasNewer(update)) void updates.check();
+          updates.openDialog();
+        },
+      },
       {
         id: 'shortcuts', group: 'actions', label: 'Tastenkürzel', icon: <KeyboardIcon />,
         hint: single(['?']),
@@ -185,7 +200,7 @@ function Palette({ onClose }: { onClose: () => void }) {
       },
     ];
     return list.filter((x): x is Item => !!x);
-  }, [a, f, themePref]);
+  }, [a, f, themePref, update]);
 
   const accounts = useMemo<Item[]>(() => f.accounts.map((acct, i) => {
     const short = fmtShortIban(acct.iban || acct.accountNumber);

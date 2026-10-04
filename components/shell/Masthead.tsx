@@ -23,8 +23,9 @@ import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
-import { BellIcon, EyeIcon, EyeOffIcon, LogoutIcon, SearchIcon } from '../icons';
-import { Button, CountBadge, Dot, IconButton, cx } from '../ui';
+import { unseenUpdate, useUpdates } from '../updates/store';
+import { BellIcon, EyeIcon, EyeOffIcon, SearchIcon } from '../icons';
+import { CountBadge, Dot, cx } from '../ui';
 import { BrandMark } from './BrandMark';
 import { MASTHEAD_EDGES } from './edges';
 import { ProfileMenu } from './ProfileMenu';
@@ -37,7 +38,7 @@ const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 // Label tiers, as container widths of the masthead's content box.
 // FULL: every word, incl. the shortcut hint. MID: the words that name a
 // destination (Suche, Mitteilungen, the first name); the two toggles keep
-// their glyph and tooltip. Below MID everything but Abmelden is an icon.
+// their glyph and tooltip. Below MID everything is an icon.
 const LABEL_FULL = 'hidden @min-[1180px]/mast:inline';
 const LABEL_MID = 'hidden @min-[900px]/mast:inline';
 
@@ -49,8 +50,12 @@ const ITEM = 'navlink inline-flex sm:@max-[899.98px]/mast:px-[11px]! max-sm:px-[
 
 export function Masthead() {
   const {
-    privacy, togglePrivacy, unreadCount, inboxOpen, setInboxOpen, setPaletteOpen, logout, singleKeyShortcuts,
+    privacy, togglePrivacy, unreadCount: bankUnread, inboxOpen, setInboxOpen, setPaletteOpen, singleKeyShortcuts,
   } = useFints();
+  // A newer version of the app (desktop only) waits in Mitteilungen too, and
+  // counts until it has been seen there.
+  const updateSnapshot = useUpdates();
+  const unreadCount = bankUnread + (unseenUpdate(updateSnapshot) ? 1 : 0);
   const inboxName = unreadCount > 0 ? `Mitteilungen, ${unreadCount} ungelesen` : 'Mitteilungen';
   // Opening the drawer marks everything read. Were the count badge to go out
   // at that moment, the items left of it would jump sideways behind the
@@ -154,18 +159,9 @@ export function Masthead() {
 
           <span aria-hidden className="mx-1.5 h-6 w-px bg-bar-line max-sm:hidden" />
 
+          {/* Abmelden lives in the Sitzung panel behind this chip, with the
+              session it ends — the bar stays a row of places to go. */}
           <ProfileMenu />
-
-          {/* The one action that keeps its word longest — down to a narrow
-              window; on a phone it is the glyph alone. */}
-          <span className="ml-1.5 hidden @min-[640px]/mast:inline-flex">
-            <Button variant="bar" size="sm" iconLeft={<LogoutIcon size={16} />} onClick={() => void logout('user')}>
-              Abmelden
-            </Button>
-          </span>
-          <IconButton tone="bar" size="md" aria-label="Abmelden" className="@min-[640px]/mast:hidden" onClick={() => void logout('user')}>
-            <LogoutIcon />
-          </IconButton>
         </div>
       </div>
     </div>
