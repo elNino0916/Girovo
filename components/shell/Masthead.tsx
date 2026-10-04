@@ -36,9 +36,12 @@ const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
 // Label tiers, as container widths of the masthead's content box.
-// FULL: every word, incl. the shortcut hint. MID: the words that name a
-// destination (Suche, Mitteilungen, the first name); the two toggles keep
-// their glyph and tooltip. Below MID everything is an icon.
+// FULL: every word, incl. the shortcut hint and Darstellung. MID: the words
+// that name a destination (Suche, Mitteilungen, the first name) and
+// "Beträge ausblenden" — the control a screen share most depends on, so it
+// keeps its words in the desktop app's default 1280px window, where the
+// caption buttons leave the masthead about 1,090px. Below MID everything is
+// an icon with its name as tooltip.
 const LABEL_FULL = 'hidden @min-[1180px]/mast:inline';
 const LABEL_MID = 'hidden @min-[900px]/mast:inline';
 
@@ -88,10 +91,9 @@ export function Masthead() {
       </a>
 
       <div className="@container/mast flex h-full min-w-0 items-center gap-2 sm:gap-3">
-        {/* The version is the first thing to go when room runs out: it
-            truncates ("3.1.3-dev.1…", full string in its tooltip), and on a
-            narrow masthead it leaves altogether. */}
-        <BrandMark version={APP_VERSION} versionClassName="hidden @min-[660px]/mast:block" />
+        {/* No version here: the footer and the Sitzung panel carry it, and
+            the bar's room goes to the labelled controls. */}
+        <BrandMark />
 
         <div className="min-w-2 flex-1" />
 
@@ -152,7 +154,7 @@ export function Masthead() {
             onClick={togglePrivacy}
           >
             {privacy ? <EyeOffIcon /> : <EyeIcon />}
-            <span className={LABEL_FULL}>{privacy ? 'Beträge anzeigen' : 'Beträge ausblenden'}</span>
+            <span className={LABEL_MID}>{privacy ? 'Beträge anzeigen' : 'Beträge ausblenden'}</span>
           </button>
 
           <ThemeMenu className={cx(ITEM, 'max-sm:hidden')} labelClassName={LABEL_FULL} />

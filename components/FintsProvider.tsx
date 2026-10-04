@@ -1796,18 +1796,9 @@ function useFintsState() {
     // start the next session with yesterday's "today".
     setAppliedRange(defaultRange());
     setView('dashboard');
-
-    // Announced once the dashboard is there to show them — on the TAN-method
-    // screen there is nowhere for "Anzeigen" to go.
-    const unread = messagesRef.current.filter((m) => !m.read).length;
-    if (unread) {
-      toast(
-        `${unread} ${unread === 1 ? 'Mitteilung' : 'Mitteilungen'} deiner Bank`,
-        'info',
-        8000,
-        { label: 'Anzeigen', run: () => setInboxOpenState(true) },
-      );
-    }
+    // The bank's messages are announced by the masthead's bell and the
+    // Übersicht's Mitteilungen tile, both of which stay until they are read —
+    // not by a toast as well (components/shell/MessagesTeaser.tsx).
 
     if (list[0]) {
       setActiveAccount(list[0]);
@@ -1816,7 +1807,7 @@ function useFintsState() {
     }
     // Not a bank call: it runs beside the first statement, outside `busy`.
     void loadVault(sid);
-  }, [startSessionClock, setAppliedRange, toast, loadTransactions, loadVault]);
+  }, [startSessionClock, setAppliedRange, loadTransactions, loadVault]);
 
   // Said after the fact, so the way back is right there: on a shared
   // computer "Gerät vergessen" is one press, not a trip to the Sitzung panel.

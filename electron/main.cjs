@@ -24,6 +24,7 @@ const http = require('node:http');
 const net = require('node:net');
 const path = require('node:path');
 const { createUpdater } = require('./updater.cjs');
+const { createFileSave, SAVE_FAILED } = require('./file-save.cjs');
 const updateLogic = require('./update-logic.cjs');
 
 const HOST = '127.0.0.1';
@@ -659,6 +660,21 @@ function run() {
       return { ok: false, error: String(err?.message || err) };
     }
     return { ok: true, filePath };
+  });
+
+  // The app's own files (the CSV export, window.electronFiles): its own
+  // Save-As, so the page learns whether the file was written before it says
+  // "gespeichert" — see electron/file-save.cjs.
+  ipcMain.handle('file:save', (event, suggestedName, bytes) => {
+    if (!fromApp(event)) return { ok: false, error: SAVE_FAILED };
+    const owner = BrowserWindow.fromWebContents(event.sender) ?? win;
+    const save = createFileSave({
+      showSaveDialog: (options) => dialog.showSaveDialog(owner ?? undefined, options),
+      writeFile: (file, data) => fs.promises.writeFile(file, data),
+      downloadsDir: app.getPath('downloads'),
+      filters: DOWNLOAD_FILTERS,
+    });
+    return save(suggestedName, bytes);
   });
 
   app.on('window-all-closed', () => app.quit());

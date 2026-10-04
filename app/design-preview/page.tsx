@@ -188,6 +188,25 @@ async function pickCategory(c: Ctx, label: RegExp) {
   await c.sleep(200);
 }
 
+/** The Umsätze tile's Export menu, open — scrolled to, so the menu is in view. */
+async function openExportMenu(c: Ctx) {
+  const trigger = await c.poll(() => findButton(/^Export$/, 'page', false), 6000);
+  if (!trigger) return;
+  trigger.scrollIntoView({ block: 'center' });
+  await c.sleep(100);
+  trigger.click();
+  await c.poll(() => document.querySelector('[role="menu"]'), 3000);
+}
+
+/**
+ * The desktop app's Save-As (window.electronFiles, electron/preload.cjs),
+ * answering as given — so the toast that follows a written file, or a
+ * refusal, can be seen without the shell.
+ */
+function fakeFileSave(answer: { ok: true } | { ok: false; canceled: true } | { ok: false; error: string }) {
+  window.electronFiles = { save: async () => answer };
+}
+
 const VIEWS: Record<string, ViewDef> = {
   overview: { label: 'Übersicht', group: 'Dashboard' },
   'overview-single': { label: 'Nur ein Konto', group: 'Dashboard', options: { oneAccount: true } },
@@ -262,6 +281,36 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Liste auf einen Monat',
     group: 'Dashboard',
     options: { filter: { from: LAST_MONTH.from, to: LAST_MONTH.to } },
+  },
+  export: {
+    label: 'Export-Menü (gefiltert)',
+    group: 'Dashboard',
+    // A month and a search: the filtered file names its days and "gefiltert".
+    options: { filter: { from: LAST_MONTH.from, to: LAST_MONTH.to }, query: 'rewe' },
+    script: openExportMenu,
+  },
+  'export-saved': {
+    label: 'CSV gespeichert (Desktop-App)',
+    group: 'Dashboard',
+    async script(c) {
+      fakeFileSave({ ok: true });
+      await openExportMenu(c);
+      await c.click(/^Alle Umsätze als CSV/);
+      await c.sleep(300);
+    },
+  },
+  'export-busy': {
+    label: 'CSV nicht gespeichert (Datei offen)',
+    group: 'Dashboard',
+    async script(c) {
+      fakeFileSave({
+        ok: false,
+        error: 'Die Datei ist noch in einem anderen Programm geöffnet, zum Beispiel in Excel. Schließe sie dort oder wähle einen anderen Namen.',
+      });
+      await openExportMenu(c);
+      await c.click(/^Alle Umsätze als CSV/);
+      await c.sleep(300);
+    },
   },
   'detail-category': {
     label: 'Kategorie geändert',
@@ -755,7 +804,8 @@ function Driver({ setup, script }: { setup: Setup; script?: Script }) {
     void (async () => {
       if (setup.toasts) {
         const t = c.api().toast;
-        t('2 Mitteilungen deiner Bank', 'info', 600_000, { label: 'Anzeigen', run: () => apiRef.current.setInboxOpen(true) });
+        // The app has no "Mitteilungen" toast any more (the bell and the tile announce them).
+        t('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 600_000, { label: 'Gerät vergessen', run: () => {} });
         t('Überweisung an Lea Becker ausgeführt.', 'success', 600_000);
         t(
           'Die Verbindung zur Bank wurde unterbrochen (Zeitüberschreitung). Bitte versuche es erneut.',

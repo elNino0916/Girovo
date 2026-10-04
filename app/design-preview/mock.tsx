@@ -929,17 +929,12 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setVault(data.vault);
     setVaultStatus('ready');
     setView('dashboard');
-    const unread = messagesRef.current.filter((m) => !m.read).length;
-    if (unread) {
-      toast(`${unread} ${unread === 1 ? 'Mitteilung' : 'Mitteilungen'} deiner Bank`, 'info', 8000, {
-        label: 'Anzeigen', run: () => setInboxOpenState(true),
-      });
-    }
+    // As the provider: the bell and the Mitteilungen tile announce the bank's messages, no toast.
     const first = bankAccounts[0];
     setActiveAccount(first);
     activeRef.current = first;
     void loadTransactionsRef.current(first, r.from, r.to);
-  }, [data, bankAccounts, toast]);
+  }, [data, bankAccounts]);
 
   /** Ends the simulated login wait, like "Abbrechen" ends the real request. */
   const connectCancelRef = useRef<(() => void) | null>(null);

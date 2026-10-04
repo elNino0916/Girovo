@@ -29,7 +29,7 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   Vorgemerkt — or, when a fetch failed, the bank's reason and *Erneut
   versuchen* in its place — *Monatsbilanz* (compared with the same days of the
   month before) and *Demnächst fällig* tiles, and Schnellzugriffe (Überweisen,
-  Geld anfordern, Kontoauszug, Export).
+  Geld anfordern, Kontoauszug).
 - **Kontoverlauf** — the end-of-day balance over the loaded period as a step
   chart, reconstructed from the bookings and *checked against every opening and
   closing balance the bank sent*. If the numbers don't add up, no chart is drawn.
@@ -50,7 +50,9 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   debits, standing orders, subscriptions, salary) with rhythm, next expected
   date, yearly cost and a "Betrag gestiegen" flag. Labelled as an estimate;
   "Kein Vertrag" hides a false hit.
-- **CSV export** in the German Excel dialect (`;`, UTF-8 BOM, decimal comma,
+- **CSV export** of the Umsätze list — all of the loaded period, or what the
+  filter shows (the file name says which days, and "_gefiltert") — booked
+  Umsätze only, in the German Excel dialect (`;`, UTF-8 BOM, decimal comma,
   formula-injection guard), plus the existing PDF Kontoauszug and Buchungsbeleg.
 - **Vorgemerkte Umsätze** (pending / not-yet-booked entries via `HKVMK`) —
   loaded on demand, shows incoming SEPA-Lastschriften *before* they book.

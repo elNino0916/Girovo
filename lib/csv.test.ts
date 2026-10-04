@@ -1,12 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { txKey } from './categories.ts';
-import { CSV_COLUMNS, csvAmountCell, csvDateCell, csvFileName, csvIdCell, csvTextCell, transactionsToCsv } from './csv.ts';
+import { CSV_COLUMNS, csvAmountCell, csvDateCell, csvFileName, csvIdCell, csvScope, csvStatus, csvTextCell, transactionsToCsv } from './csv.ts';
 import { textBlob } from './download.ts';
 import type { SerializedAccount, SerializedTransaction } from './fints-types';
 
 /** JSON of a local calendar day — what the wire carries for a booking date. */
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d).toISOString();
+
+/** The day the Status column is measured against in these tests. */
+const TODAY = new Date(2026, 9, 4, 13, 8);
 
 const tx = (over: Partial<SerializedTransaction> = {}): SerializedTransaction => ({
   valueDate: day(2026, 10, 2),
@@ -70,7 +72,7 @@ function parseCsv(text: string): string[][] {
 }
 
 const exportRows = (txs: SerializedTransaction[], extra: Partial<Parameters<typeof transactionsToCsv>[1]> = {}) => {
-  const csv = transactionsToCsv(txs, { account: ACCOUNT, bankName: 'Musterbank eG', ...extra });
+  const csv = transactionsToCsv(txs, { account: ACCOUNT, bankName: 'Musterbank eG', today: TODAY, ...extra });
   assert.ok(csv.startsWith('﻿'), 'BOM');
   assert.ok(csv.endsWith('\r\n'), 'ends with CRLF');
   const rows = parseCsv(csv.slice(1));
@@ -242,22 +244,23 @@ test('category from the callback, as a result or a bare id', () => {
   assert.equal(r3['Kategorie'], '');
 });
 
-test('status: Vorgemerkt for the pending rows passed, Gebucht otherwise', () => {
-  const booked = tx();
-  const pending = tx({ amount: -49.9, remoteName: 'Stadtwerke', entryDate: day(2026, 10, 5) });
-  const rows = exportRows([pending, booked], { pendingRows: new Set([pending]) });
-  assert.deepEqual(rows.slice(1).map((r) => r['Status']), ['Vorgemerkt', 'Gebucht']);
-  assert.deepEqual(exportRows([pending, booked]).slice(1).map((r) => r['Status']), ['Gebucht', 'Gebucht']);
+test('status: what the list says of the day — a Buchungstag still ahead is not booked yet', () => {
+  // The bank sends a weekend transfer with Monday as its Buchungstag; the list
+  // files it under "noch nicht gebucht", and so does the file.
+  const ahead = tx({ remoteName: 'Stadtwerke', entryDate: day(2026, 10, 5), valueDate: day(2026, 10, 3) });
+  const today = tx({ remoteName: 'REWE', entryDate: day(2026, 10, 4) });
+  const past = tx();
+  const rows = exportRows([ahead, today, past]);
+  assert.deepEqual(rows.slice(1).map((r) => r['Status']), ['Noch nicht gebucht', 'Gebucht', 'Gebucht']);
 });
 
-test('status: the booking a Vormerkposten became stays Gebucht', () => {
-  // Same day, amount, IBAN and reference — the same txKey. Only where a row
-  // came from tells them apart.
-  const pending = tx({ amount: -120, remoteName: 'Stadtwerke', e2eReference: 'ABS-4711', entryDate: day(2026, 10, 5) });
-  const booked = { ...pending };
-  assert.equal(txKey(pending), txKey(booked));
-  const rows = exportRows([pending, booked], { pendingRows: new Set([pending]) });
-  assert.deepEqual(rows.slice(1).map((r) => r['Status']), ['Vorgemerkt', 'Gebucht']);
+test('status: by the Buchungstag, else the Valuta; an unreadable date counts as booked', () => {
+  assert.equal(csvStatus({ entryDate: day(2026, 10, 5), valueDate: day(2026, 10, 1) }, TODAY), 'Noch nicht gebucht');
+  assert.equal(csvStatus({ entryDate: '', valueDate: day(2026, 10, 6) }, TODAY), 'Noch nicht gebucht');
+  assert.equal(csvStatus({ entryDate: day(2026, 10, 4), valueDate: day(2026, 10, 9) }, TODAY), 'Gebucht');
+  assert.equal(csvStatus({ entryDate: 'nonsense', valueDate: '' }, TODAY), 'Gebucht');
+  // Late in the evening is still the same day.
+  assert.equal(csvStatus({ entryDate: new Date(2026, 9, 4, 23, 59).toISOString(), valueDate: '' }, TODAY), 'Gebucht');
 });
 
 test('account label: alias, then product, then account type', () => {
@@ -277,4 +280,36 @@ test('file name: last six of the IBAN and the range', () => {
   assert.equal(csvFileName({ accountNumber: '0012345678', iban: null }, { from: '2026-01-01', to: '2026-01-31' }), 'Umsaetze_345678_2026-01-01_2026-01-31.csv');
   assert.equal(csvFileName({ accountNumber: '', iban: null }, { from: '', to: '' }), 'Umsaetze_Konto.csv');
   assert.equal(csvFileName(ACCOUNT, { from: '../../x', to: '2026-10-03' }), 'Umsaetze_345932_2026-10-03.csv');
+});
+
+test('file name: a filtered file says so, a month alone is said by its dates', () => {
+  assert.equal(
+    csvFileName(ACCOUNT, { from: '2026-09-01', to: '2026-09-30' }),
+    'Umsaetze_345932_2026-09-01_2026-09-30.csv',
+  );
+  assert.equal(
+    csvFileName(ACCOUNT, { from: '2026-07-05', to: '2026-10-03' }, { filtered: true }),
+    'Umsaetze_345932_2026-07-05_2026-10-03_gefiltert.csv',
+  );
+});
+
+test('scope: the filter\'s month narrows the days, open ends take the loaded period', () => {
+  const loaded = { from: '2026-07-06', to: '2026-10-04' };
+  const none = { dir: 'all', category: null, query: '' };
+  assert.deepEqual(csvScope(none, loaded), { span: loaded, filtered: false });
+  assert.deepEqual(
+    csvScope({ ...none, from: '2026-09-01', to: '2026-09-30' }, loaded),
+    { span: { from: '2026-09-01', to: '2026-09-30' }, filtered: false },
+  );
+  assert.deepEqual(csvScope({ ...none, from: '2026-09-01' }, loaded).span, { from: '2026-09-01', to: '2026-10-04' });
+  assert.deepEqual(csvScope({ ...none, to: '2026-08-31' }, loaded).span, { from: '2026-07-06', to: '2026-08-31' });
+});
+
+test('scope: a search, a category or a direction makes the file "gefiltert"', () => {
+  const loaded = { from: '2026-07-06', to: '2026-10-04' };
+  const none = { dir: 'all', category: null, query: '' };
+  assert.equal(csvScope({ ...none, query: 'rewe' }, loaded).filtered, true);
+  assert.equal(csvScope({ ...none, query: '   ' }, loaded).filtered, false);
+  assert.equal(csvScope({ ...none, category: 'groceries' }, loaded).filtered, true);
+  assert.equal(csvScope({ ...none, dir: 'out' }, loaded).filtered, true);
 });
