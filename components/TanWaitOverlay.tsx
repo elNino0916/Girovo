@@ -155,18 +155,34 @@ function TanWait() {
         <Sheet
           size="sm"
           band={{ icon: <BandIcon phase={wait.phase} />, tone: 'navy' }}
-          // Below the scrolling body, so "Abbrechen" stays in reach in a
-          // short window while the order to compare scrolls.
-          footer={!confirmed ? (
-            <DialogActions align="center" className="">
-              <Button onClick={cancel}>{waiting ? 'Abbrechen' : 'Schließen'}</Button>
-              {offerRetry && (
-                <Button variant="primary" onClick={retryWait}>
-                  {refused || waiting ? 'Neue Anfrage senden' : 'Erneut versuchen'}
-                </Button>
+          // Below the scrolling body: the wait's status (the counter, the
+          // bank's limit, "Frist abgelaufen") and "Abbrechen" stay in view
+          // together in a short window or at 200 %, while the order to
+          // compare and the bank's request scroll.
+          footer={
+            <>
+              {live && (
+                <WaitProgress
+                  startedAt={wait.startedAt}
+                  settledAt={wait.settledAt}
+                  limit={limit}
+                  done={confirmed}
+                  overdue={overdue}
+                  className={confirmed ? undefined : 'mb-5 short:mb-3'}
+                />
               )}
-            </DialogActions>
-          ) : undefined}
+              {!confirmed && (
+                <DialogActions align="center" className="">
+                  <Button onClick={cancel}>{waiting ? 'Abbrechen' : 'Schließen'}</Button>
+                  {offerRetry && (
+                    <Button variant="primary" onClick={retryWait}>
+                      {refused || waiting ? 'Neue Anfrage senden' : 'Erneut versuchen'}
+                    </Button>
+                  )}
+                </DialogActions>
+              )}
+            </>
+          }
         >
           <div className="text-center">
             {/* Title and sentence are the live part; the ticking counter below
@@ -216,16 +232,6 @@ function TanWait() {
                   {challenge}
                 </p>
               </figure>
-            )}
-
-            {live && (
-              <WaitProgress
-                startedAt={wait.startedAt}
-                settledAt={wait.settledAt}
-                limit={limit}
-                done={confirmed}
-                overdue={overdue}
-              />
             )}
 
             {waiting && (
@@ -396,18 +402,26 @@ function useSecondsSince(startedAt: number, settledAt: number | null): number {
   return Math.max(0, Math.floor(((settledAt ?? now) - startedAt) / 1000));
 }
 
-function WaitProgress({ startedAt, settledAt, limit, done, overdue }: {
+/**
+ * The wait's status line, counter and the bank's limit. It lives in the
+ * sheet's pinned footer, above the buttons, so a short window never hides it
+ * below the fold while the bank's deadline runs out. In a short window the
+ * limit's note gives up its line; the bar still shows how much is used, and
+ * the overdue line replaces both once it has passed.
+ */
+function WaitProgress({ startedAt, settledAt, limit, done, overdue, className }: {
   startedAt: number;
   settledAt: number | null;
   limit: number | null;
   done: boolean;
   /** Still waiting, past the bank's limit. */
   overdue: boolean;
+  className?: string;
 }) {
   const elapsed = useSecondsSince(startedAt, settledAt);
   const share = done ? 1 : limit ? Math.min(1, elapsed / limit) : 0;
   return (
-    <div className="mt-6 text-left short:mt-4">
+    <div className={cx('text-left', className)}>
       <div className="flex items-center justify-between gap-3 text-[14px]">
         {done ? (
           <span className="flex items-center gap-2.5 font-semibold text-green">
@@ -439,7 +453,7 @@ function WaitProgress({ startedAt, settledAt, limit, done, overdue }: {
               style={{ width: `${(share * 100).toFixed(2)}%` }}
             />
           </div>
-          <p className="mt-2 text-[12.5px] leading-snug text-ink-3">
+          <p className="mt-2 text-[12.5px] leading-snug text-ink-3 short:sr-only">
             {done ? 'Rechtzeitig angekommen.' : `Deine Bank wartet bis zu ${fmtLimit(limit)} auf die Freigabe.`}
           </p>
         </>
