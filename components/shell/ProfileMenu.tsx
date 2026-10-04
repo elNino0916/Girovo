@@ -23,7 +23,6 @@
 import { useId, useState } from 'react';
 import type { ReactNode } from 'react';
 import { setThemePref } from '@/lib/theme';
-import { unclearTransfers } from '@/lib/session-log';
 import { IDLE_MINUTE_CHOICES, useFints, type IdleMinutes } from '../FintsProvider';
 import { useThemePref } from '../ThemeToggle';
 import { Money } from '../Money';
@@ -33,10 +32,10 @@ import { ChevronIcon, InfoIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon,
 import { Button, Checkbox, Dialog, Dot, Kbd, Popover, Segmented, Switch, cx } from '../ui';
 import { LOGO_DISCLOSURE } from '../MerchantLogoConsent';
 import { fmtCountdown, fmtSince, holderName, nameInitials, firstName, sessionHolder, useCountdown } from './session';
+import { useLookAtUnclear } from './actions';
 
 export function ProfileMenu() {
-  const { accounts, vaultStatus, requestLogout } = useFints();
-  const [confirmForget, setConfirmForget] = useState(false);
+  const { accounts, vaultStatus, requestLogout, forgetDeviceOpen, setForgetDeviceOpen } = useFints();
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmWipe, setConfirmWipe] = useState(false);
   // The session's holder, as in the greeting — not the active account's.
@@ -96,7 +95,7 @@ export function ProfileMenu() {
               // Focus goes back to the chip first, so the confirmation returns
               // it there too — the panel it was opened from is gone by then.
               close();
-              setConfirmForget(true);
+              setForgetDeviceOpen(true);
             }}
             onReset={() => {
               close();
@@ -114,7 +113,8 @@ export function ProfileMenu() {
           />
         )}
       </Popover>
-      <ForgetDeviceDialog open={confirmForget} onClose={() => setConfirmForget(false)} />
+      {/* Also opened by the "Gerät gemerkt" toast's action: one confirmation, whatever the way in. */}
+      <ForgetDeviceDialog open={forgetDeviceOpen} onClose={() => setForgetDeviceOpen(false)} />
       <ResetVaultDialog open={confirmReset} onClose={() => setConfirmReset(false)} />
       <WipeVaultDialog open={confirmWipe} onClose={() => setConfirmWipe(false)} />
       <LogoutConfirmDialog />
@@ -356,27 +356,14 @@ function SessionPanel({
  * order that may have moved money, so the safe answer comes first: look.
  */
 function LogoutConfirmDialog() {
-  const {
-    logoutConfirmOpen, closeLogoutConfirm, logout, activity, activeAccount, accounts,
-    isLoadedForAppliedRange, selectAccount, showTransactions, setInboxOpen,
-  } = useFints();
-  const unclear = unclearTransfers(activity);
-  const one = unclear.length === 1 ? unclear[0] : null;
-
-  // One order: its payee's bookings, on its account when that is answered
-  // from the cache — never a bank read from here. Several: Mitteilungen,
-  // where each has its own way to look.
+  const { logoutConfirmOpen, closeLogoutConfirm, logout } = useFints();
+  // One order: its payee's bookings, on its own account — never a bank read
+  // from here; a list that cannot show that account says so. Several:
+  // Mitteilungen, where each has its own way to look.
+  const { unclear, one, look: lookAt, lookLabel } = useLookAtUnclear();
   const look = () => {
     closeLogoutConfirm();
-    if (!one) {
-      setInboxOpen(true);
-      return;
-    }
-    const account = accounts.find((a) => a.accountNumber === one.accountNumber);
-    if (account && account.accountNumber !== activeAccount?.accountNumber && isLoadedForAppliedRange(account.accountNumber)) {
-      selectAccount(account);
-    }
-    showTransactions({ query: one.iban });
+    lookAt();
   };
 
   return (
@@ -404,9 +391,7 @@ function LogoutConfirmDialog() {
           >
             Abmelden
           </Button>
-          <Button variant="primary" data-autofocus onClick={look}>
-            {one ? 'Umsätze prüfen' : 'In Mitteilungen ansehen'}
-          </Button>
+          <Button variant="primary" data-autofocus onClick={look}>{lookLabel}</Button>
         </>
       }
     >

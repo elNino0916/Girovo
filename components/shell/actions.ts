@@ -10,10 +10,12 @@
 // TAN); Kontoauszug and the export work on what is already loaded.
 
 import { useCallback, useMemo } from 'react';
+import type { TxFilter } from '@/lib/app-types';
 import { csvFileName, transactionsToCsv } from '@/lib/csv';
 import { saveFile, textBlob } from '@/lib/download';
 import { fmtRange } from '@/lib/format';
-import type { SerializedTransaction } from '@/lib/fints-types';
+import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
+import { unclearTransfers } from '@/lib/session-log';
 import { useFints } from '../FintsProvider';
 import { newestFirst } from '../transactions/model';
 
@@ -66,6 +68,54 @@ export function useCsvExport() {
       toast((e as Error).message || 'Die CSV-Datei konnte nicht gespeichert werden.', 'error');
     }
   }, [activeAccount, bank, accountLabel, categoryOf, toast]);
+}
+
+/**
+ * "Show me" on one account's Umsätze: a palette hit, a look at a transfer
+ * whose status is unclear. It never reads from the bank. The list moves to
+ * that account only when the switch is answered from the cache; otherwise it
+ * opens where it is, filtered all the same, and the filter's `lookup` makes
+ * it name the account it could not show and offer the switch as a step of
+ * its own (it may need an approval). An empty search on the wrong account
+ * must never read as "not there" — least of all for an order that may have
+ * moved money. `sentAt` (epoch ms): when that order went out, so a list
+ * fetched before it says it cannot hold it yet.
+ */
+export function useShowOnAccount() {
+  const { activeAccount, busy, isLoadedForAppliedRange, selectAccount, showTransactions } = useFints();
+  return useCallback((account: SerializedAccount | undefined, filter: Partial<TxFilter>, sentAt?: number) => {
+    if (!account) {
+      showTransactions(filter);
+      return;
+    }
+    const elsewhere = account.accountNumber !== activeAccount?.accountNumber;
+    if (elsewhere && !busy && isLoadedForAppliedRange(account.accountNumber)) selectAccount(account);
+    showTransactions({
+      ...filter,
+      lookup: { accountNumber: account.accountNumber, ...(sentAt && Number.isFinite(sentAt) ? { sentAt } : {}) },
+    });
+  }, [activeAccount, busy, isLoadedForAppliedRange, selectAccount, showTransactions]);
+}
+
+/**
+ * The look before a logout (or an update's restart, which is one) over
+ * transfers whose status is unclear — the safe answer of that decision. One
+ * order: its payee's Umsätze, on its own account (useShowOnAccount). Several:
+ * Mitteilungen, where each has its own way to look.
+ */
+export function useLookAtUnclear() {
+  const { activity, accounts, setInboxOpen } = useFints();
+  const showOnAccount = useShowOnAccount();
+  const unclear = useMemo(() => unclearTransfers(activity), [activity]);
+  const one = unclear.length === 1 ? unclear[0] : null;
+  const look = useCallback(() => {
+    if (!one) {
+      setInboxOpen(true);
+      return;
+    }
+    showOnAccount(accounts.find((a) => a.accountNumber === one.accountNumber), { query: one.iban }, Date.parse(one.at));
+  }, [one, accounts, setInboxOpen, showOnAccount]);
+  return { unclear, one, look, lookLabel: one ? 'Umsätze prüfen' : 'In Mitteilungen ansehen' };
 }
 
 export type ShellActions = ReturnType<typeof useShellActions>;

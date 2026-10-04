@@ -11,17 +11,18 @@
 // account when that is answered from the cache.
 //
 // "Abmelden" is the one entry that ends something, so it stands apart, last,
-// under "Sitzung": out of reach of one- and two-letter queries ("ab" is far
-// more often Abos or an Abbuchung), after every other result for longer ones
-// (lib/palette.ts). With nothing typed it is listed too — on a phone, "Mehr"
-// is where people look for it.
+// under "Sitzung", and answers only a deliberate query: the start of its name
+// from three letters ("abm"), or one of its words in full ("logout") — never
+// "ab" (Abos, an Abbuchung) or a fuzzy hit like "logo" or "med", which could
+// leave it alone and preselected (lib/palette.ts). With nothing typed it is
+// listed too — on a phone, "Mehr" is where people look for it.
 //
 // Nothing here bypasses anything: Überweisen opens the transfer sheet with
 // its review, Namensabgleich and TAN. Choosing a Konto is a switch like any
 // other (it may load). Choosing a booking is "show me", and that never reads
 // from the bank: when its account was loaded for another range (or before
-// midnight), the list opens on the current account and a toast offers the
-// switch — with the note that it may need an approval.
+// midnight), the list opens on the current account, says whose booking it
+// was and offers the switch — with the note that it may need an approval.
 //
 // ARIA: the input is a combobox that owns a listbox; arrow keys move the
 // active option (aria-activedescendant), focus never leaves the field.
@@ -44,7 +45,7 @@ import {
 } from './icons';
 import { EmptyState, IconButton, Kbd, Overlay, cx } from './ui';
 import { searchText, txText } from './transactions/model';
-import { useShellActions } from './shell/actions';
+import { useShellActions, useShowOnAccount } from './shell/actions';
 import { hasNewer, updates, useUpdates } from './updates/store';
 import { privacyNotice } from './shell/useShortcuts';
 import { ShortIban } from './overview/AccountIdentity';
@@ -64,7 +65,7 @@ type Item = {
   featured?: boolean;
   /** Identifiers (IBAN, account number): matched as a run of characters, never fuzzily. */
   ids?: string[];
-  /** Ends something: listed last, and only for queries of three letters or more (lib/palette.ts). */
+  /** Ends something: listed last, and only for a deliberate query (lib/palette.ts). */
   lastResort?: boolean;
   run: () => void;
 };
@@ -88,6 +89,7 @@ export function CommandPalette() {
 function Palette({ onClose }: { onClose: () => void }) {
   const f = useFints();
   const a = useShellActions();
+  const showOnAccount = useShowOnAccount();
   const themePref = useThemePref();
   const { state: update } = useUpdates();
   const [query, setQuery] = useState('');
@@ -288,32 +290,13 @@ function Palette({ onClose }: { onClose: () => void }) {
   }, [q, searchCtx, f.accounts, f.txByAccount, f.activeAccount]);
 
   const transactions = useMemo<Item[]>(() => {
-    /**
-     * A booking hit: the Umsätze list, filtered, on the booking's account —
-     * when switching there is answered from the cache. Bookings of an account
-     * loaded for another range stay findable, but going to them would ask the
-     * bank again (perhaps for a TAN), which a "show me" choice must not set
-     * off: the list opens on the current account, and a toast says why and
-     * offers the switch as a deliberate step.
-     */
-    const showBooking = (account: SerializedAccount) => {
-      const elsewhere = account.accountNumber !== f.activeAccount?.accountNumber;
-      const fromCache = elsewhere && !f.busy && f.isLoadedForAppliedRange(account.accountNumber);
-      if (fromCache) f.selectAccount(account);
-      f.showTransactions({ query: q });
-      if (!elsewhere || fromCache) return;
-      const label = f.accountLabel(account);
-      if (f.busy) {
-        f.toast(`„${label}“ lässt sich wählen, sobald der laufende Vorgang fertig ist.`, 'info');
-        return;
-      }
-      f.toast(
-        `Die Umsätze von „${label}“ sind für einen anderen Zeitraum geladen. Wechseln lädt sie neu – das kann eine Freigabe erfordern.`,
-        'info',
-        12_000,
-        { label: 'Konto wechseln', run: () => f.selectAccount(account) },
-      );
-    };
+    // A booking hit: the Umsätze list, filtered, on the booking's account —
+    // when switching there is answered from the cache. Bookings of an account
+    // loaded for another range stay findable, but going to them would ask the
+    // bank again (perhaps for a TAN), which a "show me" choice must not set
+    // off: the list opens on the current account, names the booking's, and
+    // offers the switch as a deliberate step (useShowOnAccount).
+    const showBooking = (account: SerializedAccount) => showOnAccount(account, { query: q });
 
     // The account is only worth naming when the hits come from more than one.
     const several = new Set(txMatches.list.map((h) => h.account.accountNumber)).size > 1;
@@ -344,7 +327,7 @@ function Palette({ onClose }: { onClose: () => void }) {
       });
     }
     return items;
-  }, [txMatches, q, f]);
+  }, [txMatches, q, f, showOnAccount]);
 
   const items = useMemo(() => {
     const r = paletteResults(actions, accounts, q);

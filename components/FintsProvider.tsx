@@ -588,6 +588,8 @@ function useFintsState() {
   const [shortcutsOpen, setShortcutsOpenState] = useState(false);
   /** "Trotzdem abmelden?" — asked only while the session log holds a transfer whose status is unclear. */
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  /** "Gerät vergessen?" — from the Sitzung panel or the "Gerät gemerkt" toast; one confirmation for both. */
+  const [forgetDeviceOpen, setForgetDeviceOpenState] = useState(false);
 
   // The applied statement range — what every load asks the bank for.
   const [range, setRange] = useState<DateRange>(() => defaultRange());
@@ -671,8 +673,6 @@ function useFintsState() {
   const readySidRef = useRef<string | null>(null);
 
   const logoutRef = useRef<(reason?: LogoutReason) => Promise<void>>(async () => {});
-  /** For the "Gerät gemerkt" toast, which is set up before forgetDevice exists. */
-  const forgetDeviceRef = useRef<() => Promise<void>>(async () => {});
 
   sessionRef.current = sessionId;
   accountsRef.current = accounts;
@@ -1847,12 +1847,15 @@ function useFintsState() {
   }, [startSessionClock, setAppliedRange, loadTransactions, loadVault]);
 
   // Said after the fact, so the way back is right there: on a shared
-  // computer "Gerät vergessen" is one press, not a trip to the Sitzung panel.
+  // computer "Gerät vergessen" is one press away, not a trip to the Sitzung
+  // panel. The press opens the same confirmation the panel does — never the
+  // deletion itself, which F6 then Enter would otherwise set off unasked.
+  const setForgetDeviceOpen = useCallback((b: boolean) => setForgetDeviceOpenState(b), []);
   const notifyDeviceSaved = useCallback(() => {
     setDeviceRemembered(true);
     toast('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 10_000, {
-      label: 'Gerät vergessen',
-      run: () => void forgetDeviceRef.current(),
+      label: 'Gerät vergessen …',
+      run: () => setForgetDeviceOpenState(true),
     });
   }, [toast]);
 
@@ -2002,7 +2005,6 @@ function useFintsState() {
       toast((err as Error).message, 'error');
     }
   }, [toast, wipeVaultWith]);
-  forgetDeviceRef.current = forgetDevice;
 
   /** Everything a session owns, back to its pre-login state. Preferences stay. */
   const resetSession = useCallback(() => {
@@ -2062,6 +2064,7 @@ function useFintsState() {
     setPaletteOpenState(false);
     setShortcutsOpenState(false);
     setLogoutConfirmOpen(false);
+    setForgetDeviceOpenState(false);
     setAppliedRange(defaultRange());
 
     messagesRef.current = [];
@@ -2639,7 +2642,7 @@ function useFintsState() {
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
-    logoutConfirmOpen,
+    logoutConfirmOpen, forgetDeviceOpen,
     // actions
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
     cancelConnect,
@@ -2647,7 +2650,7 @@ function useFintsState() {
     isLoadedForAppliedRange,
     refreshAccount, refreshAfterTransfer, applyRange, loadPending, submitTransfer, confirmVop, abandonVop,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
-    requestLogout, closeLogoutConfirm,
+    requestLogout, closeLogoutConfirm, setForgetDeviceOpen,
     retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,

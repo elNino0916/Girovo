@@ -34,6 +34,7 @@ import { TxRowSkeleton } from './transactions/TxRow';
 export { PendingPanel } from './transactions/PendingPanel';
 
 const MAY_NEED_TAN = 'Kann eine Freigabe erfordern.';
+const BUSY_NOTE = 'Möglich, sobald der laufende Vorgang fertig ist.';
 
 // The last focus request this tile has answered. Module-level rather than a
 // ref: a deep link from the Analyse tab mounts this tile fresh, with the
@@ -56,7 +57,7 @@ const quoted = (words: string[]) => {
 export function Transactions() {
   const {
     activeAccount: a, transactions, loadingAccount, txError, txErrors, refreshAccount, busy, statementInfo, range, applyRange,
-    txFilter, setTxFilter, txFocusNonce, categoryOf, merchants, pendingCache, accountLabel,
+    txFilter, setTxFilter, txFocusNonce, categoryOf, merchants, pendingCache, accountLabel, accounts, selectAccount,
   } = useFints();
 
   const auto = useId();
@@ -167,6 +168,18 @@ export function Transactions() {
           </>
         )
         : 'Noch nicht abgerufen';
+
+  // A "show me" about one account (useShowOnAccount) that this list cannot
+  // answer: it shows another account, or — for a transfer whose status is
+  // unclear — it was fetched before that transfer went out. Either way an
+  // empty result here says nothing about it, so the list says so first.
+  const lookup = txFilter.lookup;
+  const lookupAccount = lookup && lookup.accountNumber !== a.accountNumber
+    ? accounts.find((x) => x.accountNumber === lookup.accountNumber)
+    : undefined;
+  const fetchedBefore = !!lookup?.sentAt && lookup.accountNumber === a.accountNumber && !!loaded
+    && loaded.loadedAt < lookup.sentAt;
+  const lookupNote = <span className="self-center text-[13px] leading-snug text-ink-3">{busy ? BUSY_NOTE : MAY_NEED_TAN}</span>;
 
   const pendingLine = pendingHits > 0 && (
     <button
@@ -317,6 +330,44 @@ export function Transactions() {
               action={<Button size="xs" variant="secondary" disabled={busy} onClick={refresh}>Erneut versuchen</Button>}
             >
               Abruf fehlgeschlagen: {txError} Angezeigt werden die zuletzt abgerufenen Umsätze.
+            </Alert>
+          )}
+
+          {/* Status unklar takes the warning's inset with the orange edge; a
+              palette hit on another account is plain information. */}
+          {lookup && lookupAccount && !loading && (
+            <Alert
+              tone={lookup.sentAt ? 'warn' : 'info'}
+              className="mt-3"
+              role="status"
+              action={
+                <>
+                  <Button size="xs" variant="secondary" disabled={busy} onClick={() => selectAccount(lookupAccount)}>
+                    Zu „{accountLabel(lookupAccount)}“ wechseln
+                  </Button>
+                  {lookupNote}
+                </>
+              }
+            >
+              {lookup.sentAt
+                ? <>Die Überweisung ging von „{accountLabel(lookupAccount)}“ aus. Diese Liste zeigt „{accountLabel(a)}“ – ob sie ausgeführt wurde, siehst du nur dort.</>
+                : <>Der Umsatz gehört zu „{accountLabel(lookupAccount)}“. Diese Liste zeigt „{accountLabel(a)}“.</>}
+            </Alert>
+          )}
+          {fetchedBefore && loaded && !loading && (
+            <Alert
+              tone="warn"
+              className="mt-3"
+              role="status"
+              action={
+                <>
+                  <Button size="xs" variant="secondary" disabled={busy} onClick={refresh}>Aktualisieren</Button>
+                  {lookupNote}
+                </>
+              }
+            >
+              Diese Umsätze wurden um <span className="tnum">{clock(loaded.loadedAt)}</span> Uhr abgerufen, vor deiner
+              Überweisung – sie kann hier noch nicht stehen.
             </Alert>
           )}
 

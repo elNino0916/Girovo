@@ -44,6 +44,15 @@ export type TxFilter = {
    * edit in the filter bar drops it.
    */
   acrossAccounts?: boolean;
+  /**
+   * Set by a "show me" about one account's bookings (a palette hit, a look at
+   * a transfer whose status is unclear — useShowOnAccount). The list says when
+   * it shows another account, because switching would have asked the bank,
+   * and, with `sentAt` (epoch ms, when the transfer went out), when it was
+   * fetched before that transfer and so cannot hold it yet. Any edit in the
+   * filter bar drops it.
+   */
+  lookup?: { accountNumber: string; sentAt?: number };
 };
 
 export const EMPTY_FILTER: TxFilter = { dir: 'all', category: null, query: '' };

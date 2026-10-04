@@ -115,8 +115,13 @@ export type MockOptions = {
   analysisScope?: AnalysisScope;
   /** Category rules and single-booking choices in the vault from the start. */
   categoryRules?: VaultData['categoryRules'];
-  /** This session's log holds a transfer whose status is unclear (Abmelden asks first). */
-  unclear?: boolean;
+  /**
+   * This session's log holds a transfer whose status is unclear (Abmelden asks
+   * first): from the Girokonto 12 minutes ago; 'tagesgeld' from the Tagesgeld,
+   * whose Umsätze are not loaded; 'recent' from the Girokonto after its list
+   * was fetched.
+   */
+  unclear?: boolean | 'tagesgeld' | 'recent';
   /** Every Vorgemerkt fetch fails once its approval is through (read live). */
   failPending?: boolean;
 };
@@ -372,14 +377,17 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [messages, setMessages] = useState<InboxMessage[]>(connected ? init.messages : []);
   const [activity, setActivity] = useState<ActivityEntry[]>(() => (!loggedIn ? [] : opts.unclear
     ? [{
-        id: 'act-unklar', at: new Date(Date.now() - 12 * 60_000).toISOString(), kind: 'transfer' as const,
-        outcome: 'unknown' as const, accountNumber: ACCT.giro, name: MOCK_PAYEES.max.name,
+        // The first list was fetched a minute ago (initialState): 'recent' went out after it.
+        id: 'act-unklar', at: new Date(Date.now() - (opts.unclear === 'recent' ? 20_000 : 12 * 60_000)).toISOString(),
+        kind: 'transfer' as const, outcome: 'unknown' as const,
+        accountNumber: opts.unclear === 'tagesgeld' ? ACCT.tagesgeld : ACCT.giro, name: MOCK_PAYEES.max.name,
         iban: MOCK_PAYEES.max.iban.replace(/\s+/g, ''), amount: 75, instant: false,
       }, ...init.activity]
     : init.activity));
   const activityRef = useRef(activity);
   activityRef.current = activity;
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [forgetDeviceOpen, setForgetDeviceOpenState] = useState(false);
   const [vault, setVault] = useState<VaultData | null>(loggedIn ? init.vault : null);
   const [vaultStatus, setVaultStatus] = useState<VaultStatus>(loggedIn ? init.vaultStatus : 'idle');
 
@@ -1035,9 +1043,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       challenge: 'Anmeldung im Online-Banking über FinTS freigeben',
       onDone: () => {
         setDeviceRemembered(true);
+        // As in the provider: the action opens the confirmation, never the deletion.
         toast('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 10_000, {
-          label: 'Gerät vergessen',
-          run: () => void forgetDeviceRef.current(),
+          label: 'Gerät vergessen …',
+          run: () => setForgetDeviceOpenState(true),
         });
         afterAccountsReady();
       },
@@ -1047,8 +1056,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const chooseTanMethodRef = useRef(chooseTanMethod);
   chooseTanMethodRef.current = chooseTanMethod;
-  /** For the "Gerät gemerkt" toast above, as in the provider. */
-  const forgetDeviceRef = useRef<() => Promise<void>>(async () => {});
+  const setForgetDeviceOpen = useCallback((b: boolean) => setForgetDeviceOpenState(b), []);
 
   const clearMediaChoice = useCallback(() => setMediaChoice(null), []);
 
@@ -1070,7 +1078,6 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     }
     toast('Gerät vergessen – bei der nächsten Anmeldung fragt deine Bank wieder nach einer Freigabe.', 'info', 6000);
   }, [toast, dropVault]);
-  forgetDeviceRef.current = forgetDevice;
 
   const wipeVault = useCallback(async () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 300));
@@ -1130,6 +1137,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setPaletteOpenState(false);
     setShortcutsOpenState(false);
     setLogoutConfirmOpen(false);
+    setForgetDeviceOpenState(false);
     const r = presetRange('90d');
     rangeRef.current = r;
     setRange(r);
@@ -1509,14 +1517,14 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
-    logoutConfirmOpen,
+    logoutConfirmOpen, forgetDeviceOpen,
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
     cancelConnect,
     loadBalance, loadAllBalances,
     isLoadedForAppliedRange,
     refreshAccount, refreshAfterTransfer, applyRange, loadPending, submitTransfer, confirmVop, abandonVop,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
-    requestLogout, closeLogoutConfirm,
+    requestLogout, closeLogoutConfirm, setForgetDeviceOpen,
     retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,

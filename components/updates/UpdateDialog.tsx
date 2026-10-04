@@ -14,15 +14,19 @@
 // (Herunterladen, Im Hintergrund laden, Nach Updates suchen) and on the way
 // out when it is not (Später before a restart, Schließen before a page that
 // leaves the app) — never on the switch or the GitHub link.
+//
+// A restart over a transfer whose status is unclear is the logout decision
+// again, and gets the same safe answer: "Umsätze prüfen" (or, for several,
+// "In Mitteilungen ansehen") is the filled primary, the restart the outline.
 
 import { useId, useMemo } from 'react';
 import { fmtBytes, fmtDate } from '@/lib/format';
 import { parseReleaseNotes } from '@/lib/release-notes';
-import { unclearTransfers } from '@/lib/session-log';
 import { useFints, waitHoldsSession } from '../FintsProvider';
 import { CheckCircleIcon, DownloadIcon, ExternalIcon, InfoIcon, RefreshIcon } from '../icons';
 import { Alert, Button, Dialog, Spinner, Switch } from '../ui';
 import { fmtSince } from '../shell/session';
+import { useLookAtUnclear } from '../shell/actions';
 import { ReleaseNotes } from './ReleaseNotes';
 import { hasNewer, updates, useUpdates, type UpdateState } from './store';
 
@@ -33,7 +37,8 @@ export function UpdateDialog() {
 }
 
 function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }) {
-  const { view, busy, wait, activity } = useFints();
+  const { view, busy, wait } = useFints();
+  const { unclear: unclearList, look, lookLabel } = useLookAtUnclear();
   const release = hasNewer(state) ? state.release : null;
   const installed = release ? null : state.installed;
   const signedIn = view === 'dashboard';
@@ -43,7 +48,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   const portable = state.kind === 'portable';
   // The restart is a logout too: what it would take with it is said, as on
   // every other way out of the session.
-  const unclear = signedIn ? unclearTransfers(activity).length : 0;
+  const unclear = signedIn ? unclearList.length : 0;
 
   const title = release
     ? state.phase === 'ready' || state.phase === 'installing'
@@ -90,17 +95,37 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
       </>
     );
   } else if (release && (state.phase === 'ready' || state.phase === 'installing')) {
-    actions = (
+    const restart = (
+      <Button
+        variant={unclear > 0 ? 'secondary' : 'primary'}
+        busy={state.phase === 'installing'}
+        disabled={holding}
+        onClick={() => void updates.install()}
+      >
+        {portable ? 'Neue Version starten' : 'Jetzt neu starten'}
+      </Button>
+    );
+    actions = unclear > 0 ? (
+      // Look first: the restart takes the only record of those transfers with it.
       <>
-        <Button variant="secondary" data-autofocus onClick={close} disabled={state.phase === 'installing'}>Später</Button>
+        <Button variant="quiet" className="sm:mr-auto sm:-ml-3" onClick={close} disabled={state.phase === 'installing'}>Später</Button>
+        {restart}
         <Button
           variant="primary"
-          busy={state.phase === 'installing'}
-          disabled={holding}
-          onClick={() => void updates.install()}
+          data-autofocus
+          disabled={state.phase === 'installing'}
+          onClick={() => {
+            close();
+            look();
+          }}
         >
-          {portable ? 'Neue Version starten' : 'Jetzt neu starten'}
+          {lookLabel}
         </Button>
+      </>
+    ) : (
+      <>
+        <Button variant="secondary" data-autofocus onClick={close} disabled={state.phase === 'installing'}>Später</Button>
+        {restart}
       </>
     );
   } else if (release) {
@@ -138,6 +163,18 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   return (
     <Dialog open={open} onClose={close} size="md" title={title} description={description} icon={icon} actions={actions}>
       <div className="flex flex-col gap-4">
+        {/* First, above the notes: it is why "Umsätze prüfen" is the filled
+            button, so it must be in view in a short window too. A caution,
+            not information — the warning's inset with the orange edge, as
+            everywhere Status unklar is said. */}
+        {release?.canInstall && (state.phase === 'ready' || state.phase === 'installing') && unclear > 0 && (
+          <Alert tone="warn" className="mt-0">
+            {unclear === 1
+              ? 'Die Überweisung mit unklarem Status steht nach dem Neustart nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.'
+              : `Die ${unclear} Überweisungen mit unklarem Status stehen nach dem Neustart nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.`}
+          </Alert>
+        )}
+
         {!release && <Status state={state} />}
 
         {release && <Notes notes={release.notes} name={release.name} />}
@@ -164,10 +201,9 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
               <>Sooskasse-FinTS wird beendet, installiert die neue Version und startet von selbst neu – meist in weniger als einer Minute.</>
             )}
             {signedIn && <> Du wirst dabei abgemeldet.</>}
-            {unclear === 1 && <> Die Überweisung mit unklarem Status steht danach nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.</>}
-            {unclear > 1 && <> Die {unclear} Überweisungen mit unklarem Status stehen danach nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.</>}
           </Alert>
         )}
+
 
         {release?.canInstall && state.phase === 'ready' && holding && (
           <p className="flex items-start gap-2.5 text-[14px] leading-snug text-ink-2">
@@ -243,7 +279,7 @@ function Notes({ notes, name }: { notes: string; name: string }) {
   return (
     <section aria-labelledby={id}>
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h3 id={id} className="text-[15px] font-bold text-headline">Was ist neu</h3>
+        <h3 id={id} className="section-head">Was ist neu</h3>
         <button
           type="button"
           onClick={() => void updates.openRelease()}

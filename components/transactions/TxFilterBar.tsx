@@ -22,8 +22,10 @@ export function activeFilterCount(f: TxFilter): number {
   return (f.dir !== 'all' ? 1 : 0) + (f.category ? 1 : 0) + (f.query.trim() ? 1 : 0) + (f.from || f.to ? 1 : 0);
 }
 
-/** The filter with `patch` applied by the user — which ends a deep link's "all accounts" note. */
-const edited = (f: TxFilter, patch: Partial<TxFilter>): TxFilter => ({ ...f, ...patch, acrossAccounts: undefined });
+/** The filter with `patch` applied by the user — which ends a deep link's notes ("all accounts", "another account"). */
+const edited = (f: TxFilter, patch: Partial<TxFilter>): TxFilter => ({
+  ...f, ...patch, acrossAccounts: undefined, lookup: undefined,
+});
 
 /**
  * Search, direction chips, the category menu and the month. The filter itself

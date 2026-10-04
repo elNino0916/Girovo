@@ -477,6 +477,27 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Abmeldung, Überweisung unklar', group: 'Dialoge', options: { idleInMs: 45_000, unclear: true },
   },
   'inbox-unclear': { label: 'Mitteilungen, Status unklar', group: 'Dialoge', options: { open: 'inbox', unclear: true } },
+  // "Umsätze mit diesem Empfänger" for a transfer from the Tagesgeld, whose
+  // Umsätze are not loaded: no bank read — the list stays on the Girokonto and says so.
+  'unclear-elsewhere': {
+    label: 'Status unklar: anderes Konto',
+    group: 'Dialoge',
+    options: { open: 'inbox', unclear: 'tagesgeld' },
+    async script(c) {
+      await c.click(/^Umsätze mit diesem Empfänger$/, { within: 'dialog' });
+      await showList(c);
+    },
+  },
+  // The same from the Girokonto, sent after its list was fetched: the list cannot hold it yet.
+  'unclear-stale': {
+    label: 'Status unklar: Liste von davor',
+    group: 'Dialoge',
+    options: { open: 'inbox', unclear: 'recent' },
+    async script(c) {
+      await c.click(/^Umsätze mit diesem Empfänger$/, { within: 'dialog' });
+      await showList(c);
+    },
+  },
   'pending-error': {
     label: 'Vorgemerkte: Abruf fehlgeschlagen',
     group: 'Dashboard',
@@ -513,7 +534,11 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Dialoge',
     async script(c) {
       // A toast the app really raises (the bank's messages have none since the login toast went).
-      c.api().toast('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 600_000, { label: 'Gerät vergessen', run: () => {} });
+      // Its action opens the confirmation, as in the app — F6 lands on it, Enter only asks.
+      c.api().toast('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 600_000, {
+        label: 'Gerät vergessen …',
+        run: () => c.api().setForgetDeviceOpen(true),
+      });
       await c.poll(() => document.querySelector('[data-toast]'), 2000);
       pressKey('F6');
       await c.sleep(200);
@@ -545,6 +570,10 @@ const VIEWS: Record<string, ViewDef> = {
   update: { label: 'Update verfügbar', group: 'Updates', update: { scenario: 'available', dialog: true } },
   'update-downloading': { label: 'Download läuft', group: 'Updates', update: { scenario: 'downloading', dialog: true } },
   'update-ready': { label: 'Bereit zur Installation', group: 'Updates', update: { scenario: 'ready', dialog: true } },
+  // The restart is a logout: over an unclear transfer, looking comes first.
+  'update-ready-unclear': {
+    label: 'Bereit, Überweisung unklar', group: 'Updates', options: { unclear: true }, update: { scenario: 'ready', dialog: true },
+  },
   'update-current': { label: 'Auf dem neuesten Stand', group: 'Updates', update: { scenario: 'current', dialog: true } },
   'update-installed': { label: 'Nach dem Update', group: 'Updates', update: { scenario: 'installed' } },
   'update-error': { label: 'Download fehlgeschlagen', group: 'Updates', update: { scenario: 'error', dialog: true } },
@@ -962,7 +991,7 @@ function Driver({ setup, script }: { setup: Setup; script?: Script }) {
       if (setup.toasts) {
         const t = c.api().toast;
         // The app has no "Mitteilungen" toast any more (the bell and the tile announce them).
-        t('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 600_000, { label: 'Gerät vergessen', run: () => {} });
+        t('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 600_000, { label: 'Gerät vergessen …', run: () => {} });
         t('Überweisung an Lea Becker ausgeführt.', 'success', 600_000);
         t(
           'Die Verbindung zur Bank wurde unterbrochen (Zeitüberschreitung). Bitte versuche es erneut.',

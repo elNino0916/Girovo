@@ -23,6 +23,7 @@ import { Money } from './Money';
 import { AlertTriangleIcon, CheckIcon, ChevronIcon, CopyIcon, HelpIcon, TransferIcon } from './icons';
 import { Alert, Button, CountBadge, Dot, Drawer, EmptyState, Tag, cx } from './ui';
 import { fmtSince } from './shell/session';
+import { useShowOnAccount } from './shell/actions';
 import { updates } from './updates/store';
 import { UpdateInboxCard, useUpdateNotice } from './updates/UpdateNotices';
 
@@ -207,7 +208,8 @@ const OUTCOME = {
 } as const;
 
 function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
-  const { accounts, accountLabel, showTransactions, setInboxOpen } = useFints();
+  const { accounts, accountLabel, setInboxOpen } = useFints();
+  const showOnAccount = useShowOnAccount();
   const o = OUTCOME[e.outcome];
   const account = accounts.find((a) => a.accountNumber === e.accountNumber);
   const short = fmtShortIban(e.iban);
@@ -257,7 +259,9 @@ function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
             className="mt-1.5 -ml-3"
             onClick={() => {
               setInboxOpen(false);
-              showTransactions({ query: e.iban });
+              // On the account it went from — or, when that would ask the
+              // bank, a list that says it is another account's.
+              showOnAccount(account, { query: e.iban }, Date.parse(e.at));
             }}
           >
             Umsätze mit diesem Empfänger
