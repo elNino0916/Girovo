@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-04T15:38:21.000Z",
+  "generatedAt": "2026-10-04T15:52:19.780Z",
   "title": "Design System: Sooskasse-FinTS",
   "extensions": {
     "colorMeta": {
@@ -1282,7 +1282,7 @@
       },
       {
         "name": "The Pinned Way Out Rule",
-        "body": "A dialog's actions and a panel's closing action sit in a footer below the scrolling body (Sheet's and Popover's `footer`, the transfer sheet's footer), so they never scroll away, whatever the window's height or zoom.",
+        "body": "A dialog's actions and a panel's closing action sit in a footer below the scrolling body (Sheet's and Popover's `footer`, the transfer sheet's footer), so they never scroll away, whatever the window's height or zoom. A wait that runs against a deadline pins its status there with them, so the time running out is never below the fold.",
         "section": "components"
       },
       {

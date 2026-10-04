@@ -809,7 +809,9 @@ any window at 200%) an overlay's fixed parts give their room to what it
 says: the attention band slims from 88px to 56px with its 48px pictogram
 scaled to 0.8, sheet footers tighten, and the transfer sheet's header goes
 compact (a 20px title, tighter padding, the stepper beside the title as 20px
-marks only, wrapping under a long title, the close button in the corner). At
+marks only, wrapping under a long title, the close button in the corner). The
+approval wait's limit note ("Deine Bank wartet bis zu …") gives up its line
+to screen readers only, so its status and bar stay beside "Abbrechen". At
 `shorter` the page chrome compacts as well: the stage drops its greeting and
 sets a 24px title with the pills centred beside it, and the institute bar
 is 44px.
@@ -986,6 +988,7 @@ quick pick is a logo over a 12.5px label; picks that start a search carry a
   - Widths 440, 540 or 680px. Arrives in 220ms (fade, 12px rise, 0.985 scale). On phones it becomes a bottom sheet that slides up in 250ms.
   - Attention dialogs open with an 88px navy band around a 48px pictogram disc (56px and 0.8 scale in short windows).
   - Its actions are a **pinned footer**: they sit below the scrolling body and never scroll away, end-aligned (centred under a band). On phones they stack in reverse order, so the last action sits on top.
+  - The approval wait pins its status in that footer too, above "Abbrechen": "Warte auf Bestätigung" with the counter, the navy bar and the bank's limit, or "Frist abgelaufen" once it has passed. The order to compare and the bank's request scroll above it.
 - **Transfer sheet:** 560px (720px for the larger one), the same surface with a fixed header (title, stepper, close) and a fixed footer. Both draw their hairline only while content scrolls under them. Every step starts scrolled to its top, where its warnings are.
 - **Drawer:** from the right, 440px or 560px wide, 240ms. Its header is a navy band at masthead height, carrying a 17px bold title and the close button. A drawer's footer keeps a standing hairline.
 - **Menu / Popover:**
@@ -1068,8 +1071,11 @@ once; refused is a red tint with a red cross; unsure is the inset grey with a
 The bank's sentences are shown verbatim, codes stripped, in an error alert or
 an 8px inset well. Under them, once and small, "Rückmeldung der Bank: 9210"
 in 12.5px Quiet Ink, as a reference for a call to the bank, never as the
-message. Dialog- and message-level codes (9000, 9050, 9800) are never shown.
-An order that was sent never gets "Versuche es noch einmal".
+message. Dialog- and message-level codes (9000, 9050, 9800) are never shown,
+and beside a real error their sentences ("Dialog abgebrochen.") go too, so a
+refusal reads the same in the transfer sheet, the approval wait and the login.
+Only an unclear outcome keeps every line the bank sent. An order that was sent
+never gets "Versuche es noch einmal".
 
 ### Consent Tile
 The one question the app asks before anything leaves for a host other than
@@ -1093,7 +1099,7 @@ changes the answer; a build without the feature shows neither.
 
 **The Safe Focus Rule.** A layer opens on the safe place: what it names (`initialFocus`, or `[data-autofocus]` on its safe button), else its first text field, else its close button, else the layer itself. Never a checkbox, switch, radio, link or action by default. A `[data-autofocus="fine"]` field (the palette's search) takes focus only with a fine pointer, so a touch keyboard never covers a layer as it opens, and a target below the fold of the layer's body is scrolled into view.
 
-**The Pinned Way Out Rule.** A dialog's actions and a panel's closing action sit in a footer below the scrolling body (Sheet's and Popover's `footer`, the transfer sheet's footer), so they never scroll away, whatever the window's height or zoom.
+**The Pinned Way Out Rule.** A dialog's actions and a panel's closing action sit in a footer below the scrolling body (Sheet's and Popover's `footer`, the transfer sheet's footer), so they never scroll away, whatever the window's height or zoom. A wait that runs against a deadline pins its status there with them, so the time running out is never below the fold.
 
 ### Printed Documents (Kontoauszug, Buchungsbeleg)
 The paper is the end of the user's journey and the only part a third party
@@ -1106,8 +1112,8 @@ exact, fileable. Both sheets are one family built on the `.doc` system.
 - **Page:** A4, margins 15 / 13 / 16 / 20mm (top, right, bottom, left), white `@page` background.
 - **Structure:** one 33mm label rail every block aligns to; a 2px navy rule closes the letterhead; a 1px ink rule under every heading, the table head and above the footer; a 1px `doc-rule` hairline between bookings; one tinted panel (1.5mm corners), only for the Beleg's amount. No frames, no filled bands.
 - **Letterhead:** the bank's mark or monogram, its name, "Kontoführendes Institut", BIC · BLZ (grouped 3-3-2); on the right the document's name over an Informationsblock (Zeitraum, Auszug-Nr., Erstellt, Dokument).
-- **Kontoauszug:** a ledger. Alter Kontostand is the first row, on the strong rule; then the bookings (column heads repeat on every page, no booking splits across a fold); then "n Gutschriften", "n Belastungen" and Neuer Kontostand right-aligned under the amount column; then Verfügbar and Dispositionsrahmen or Kreditrahmen.
-- **Buchungsbeleg:** the party and the amount in its panel, the state under it, the two accounts against one rail, the Verwendungszweck and references in words (Gläubiger-ID, Mandatsref., End-to-End-Ref.).
+- **Kontoauszug:** a ledger. Alter Kontostand is the first row, on the strong rule; then the bookings (column heads repeat on every page, no booking splits across a fold); then "n Gutschriften", "n Belastungen" and Neuer Kontostand right-aligned under the amount column; then Verfügbar and Dispositionsrahmen, or Kreditrahmen for a card (`isCardAccount`, the same rule as on screen, which also names the account "Kreditkarte"). The end line counts what the sums count, plus what is set apart ("120 Umsätze" becomes "119 Umsätze, dazu 1 noch nicht enthaltener").
+- **Buchungsbeleg:** the party and the amount in its panel, the state under it, the two accounts against one rail, the Verwendungszweck and references in words (Gläubiger-ID, Mandatsref., End-to-End-Ref.). A vorgemerkt booking is on no Kontoauszug yet, so it prints no Auszug-Nr. and no Primanota.
 - **Footer:** one sentence in the third person ("Erstellt mit Sooskasse-FinTS … Die Bank hat dieses Dokument nicht ausgestellt; maßgeblich sind ihre eigenen Kontoauszüge.") and the SHA-256 seal, grouped in eights.
 
 **The Record Rule.** Paper prints the bank's words as the bank sent them, repairing only encoding damage. The screen's tidying never replaces bank text on paper: where the sheet leads with a name the app derived, "Name laut Bank" prints the whole string beside it.
