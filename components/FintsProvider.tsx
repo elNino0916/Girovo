@@ -33,7 +33,7 @@ import {
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
 import { unbookedPending } from '@/lib/pending';
-import { recordSentOrder, sanitizeSentOrders } from '@/lib/sent-orders';
+import { recordSentOrder, sanitizeSentOrders, type SentOrder } from '@/lib/sent-orders';
 import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
@@ -375,6 +375,13 @@ function newId(): string {
  */
 function typedAmount(raw: string): number {
   return Math.abs(parseAmount(raw) ?? 0);
+}
+
+/** A submitted order as the vault's two-week log keeps it (lib/sent-orders.ts), or null without amount or IBAN. */
+function sentOrderOf(p: TransferPayload, outcome: SentOrder['outcome'], at: string): SentOrder | null {
+  const cents = Math.round(typedAmount(p.amount) * 100);
+  const iban = normIban(p.iban);
+  return cents > 0 && iban ? { at, accountNumber: p.accountNumber, iban, cents, outcome } : null;
 }
 
 /** One login message as an inbox entry, or null when the bank sent nothing readable. */
@@ -1845,11 +1852,32 @@ function useFintsState() {
 
   // ---- transfer -----------------------------------------------------------
   /**
+   * The order whose approval is under way: already in the vault's log as
+   * unclear (see handleTransferAnswer), to be settled by its outcome.
+   */
+  const sentOrderRef = useRef<SentOrder | null>(null);
+
+  /**
+   * The vault's two-week log of sent orders, which the duplicate check reads
+   * after a logout (lib/sent-orders.ts): `next` goes in, `replaces` — the same
+   * order logged earlier — comes out. Written at once rather than with the
+   * next debounced save: an unclear order is exactly what must not be
+   * forgotten, not even by a window closed a second later.
+   */
+  const logSentOrder = useCallback((next: SentOrder | null, replaces: SentOrder | null) => {
+    updateVault((v) => {
+      const kept = replaces
+        ? v.sentOrders.filter((o) => !(o.at === replaces.at && o.iban === replaces.iban && o.cents === replaces.cents))
+        : v.sentOrders;
+      return { ...v, sentOrders: next ? recordSentOrder(kept, next) : kept };
+    });
+    void flushVault();
+  }, [updateVault, flushVault]);
+
+  /**
    * Appends the outcome of the last submitted order to this session's log —
-   * and, when money may have moved (executed or unclear), to the two-week log
-   * in the vault the duplicate check reads after a logout (lib/sent-orders.ts).
-   * That one is written at once rather than with the next debounced save: an
-   * unclear order is exactly what must not be forgotten.
+   * and settles it in the vault's: executed and unclear orders stay there for
+   * two weeks, a refused one (it moved no money) leaves it.
    */
   const logTransfer = useCallback((outcome: ActivityEntry['outcome'], message?: string) => {
     const p = lastTransferRef.current;
@@ -1870,17 +1898,14 @@ function useFintsState() {
       ...(text ? { message: text } : {}),
     };
     setActivity((list) => [entry, ...list].slice(0, MAX_ACTIVITY));
-    const cents = Math.round(entry.amount * 100);
-    if (outcome !== 'failed' && entry.iban && cents > 0) {
-      updateVault((v) => ({
-        ...v,
-        sentOrders: recordSentOrder(v.sentOrders, {
-          at: entry.at, accountNumber: entry.accountNumber, iban: entry.iban, cents, outcome,
-        }),
-      }));
-      void flushVault();
+    const inFlight = sentOrderRef.current;
+    sentOrderRef.current = null;
+    if (outcome === 'failed') {
+      if (inFlight) logSentOrder(null, inFlight);
+    } else {
+      logSentOrder(sentOrderOf(p, outcome, inFlight?.at ?? entry.at), inFlight);
     }
-  }, [updateVault, flushVault]);
+  }, [logSentOrder]);
 
   const withActivity = useCallback((h: TransferHandlers): TransferHandlers => ({
     ...h,
@@ -1921,6 +1946,12 @@ function useFintsState() {
     if ('needsTan' in data && data.needsTan) {
       handlers.onTanStarted();
       const p = lastTransferRef.current;
+      // From here the bank holds the order: approved in the app, it executes
+      // whether or not this window is still open to hear about it. So it is
+      // logged as unclear now, and settled by its outcome.
+      const sent = p ? sentOrderOf(p, 'unknown', new Date().toISOString()) : null;
+      sentOrderRef.current = sent;
+      if (sent) logSentOrder(sent, null);
       startDecoupledWait(decoupledMethod(), data, {
         onDone: (r) => {
           setBusy(false);
@@ -1955,7 +1986,7 @@ function useFintsState() {
     // bank texts cannot leave `busy` stuck on.
     setBusy(false);
     handlers.onExecuted(data.bankAnswers);
-  }, [setBusy, startDecoupledWait, decoupledMethod, closeWait]);
+  }, [setBusy, startDecoupledWait, decoupledMethod, closeWait, logSentOrder]);
 
   /**
    * A request that never got an answer may still have reached the bank: the
@@ -1977,6 +2008,7 @@ function useFintsState() {
     }
     const sid = sessionRef.current;
     lastTransferRef.current = payload;
+    sentOrderRef.current = null;
     const h = withActivity(handlers);
     setBusy(true);
     try {
