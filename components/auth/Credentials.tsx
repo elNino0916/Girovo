@@ -135,13 +135,15 @@ export function Credentials({
     };
   }, [bank.blz, login]);
 
-  // Straight back to the field that most likely needs retyping, with its
-  // content selected so the next keystroke replaces it. An effect rather than
-  // a call in the catch: it runs once the fields are editable again.
+  // Straight back to the PIN once the fields are editable again (an effect
+  // rather than a call in the catch). Selected, so the next keystroke replaces
+  // it, only when the bank turned the credentials down: after an outage the
+  // PIN was never wrong, and a retry is one Enter.
   useEffect(() => {
     if (!failures) return;
     pinRef.current?.focus();
-    pinRef.current?.select();
+    if (isCredentialAnswer(error)) pinRef.current?.select();
+    // `error` is set in the same update as `failures`; only a new failure re-runs this.
   }, [failures]);
 
   // Called off: the "Abbrechen" that had focus is gone; back to the PIN,
@@ -370,7 +372,7 @@ export function Credentials({
         {submitting && slow && (
           <div className="mt-2 flex flex-wrap items-center justify-center gap-x-1 text-[13px] leading-snug text-ink-3">
             <span aria-hidden>Deine Bank antwortet noch nicht.</span>
-            <Button variant="quiet" size="sm" onClick={onCancel}>
+            <Button variant="tertiary" size="sm" onClick={onCancel}>
               Abbrechen
             </Button>
           </div>
