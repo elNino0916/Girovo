@@ -12,6 +12,8 @@
 // What it simulates, and how long it takes, is deliberately boring and fixed,
 // so screenshots are reproducible:
 //   statement load        ~700 ms; beyond 90 days a decoupled approval first
+//   balance enquiry       ~500 ms, no approval ("Alle Salden abrufen")
+//   `fail`                every statement load and balance enquiry fails
 //   approval (TAN)        `tanMs` (2.6 s); `tan: 'hold'` keeps it waiting
 //   Vormerkposten         always an approval, like most banks
 //   transfer              approval, then executed. Payee name …
@@ -27,10 +29,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   FintsContext, countsAsActivity, waitHoldsSession,
-  type ChosenBank, type FintsApi, type IdleMinutes, type LogoutReason, type PendingInfo, type PrintJob, type Toast,
+  type ChosenBank, type FintsApi, type IdleMinutes, type LoadError, type LoadOutcome, type LoadSettled,
+  type LogoutReason, type PendingInfo, type PrintJob, type Toast,
   type ToastAction, type ToastTone, type TransferHandlers, type TransferPayload, type View, type WaitKind,
   type WaitState,
 } from '@/components/FintsProvider';
+import { acceptsBalance, balanceQueue, failureSentence } from '@/lib/balances';
 import { categorize } from '@/lib/categorize';
 import { counterpartyKey, isCategoryId, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
 import { addDaysKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, translateType } from '@/lib/format';
@@ -71,6 +75,10 @@ export type MockOptions = {
   account?: string;
   /** Umsätze search text. */
   query?: string;
+  /** The bank lists only the Girokonto — the customer with a single account. */
+  oneAccount?: boolean;
+  /** Every statement load and balance enquiry from now on fails (read live). */
+  fail?: boolean;
 };
 
 export type MockFintsProviderProps = MockOptions & {
@@ -105,6 +113,7 @@ const MAX_ALIAS = 60;
 const IDLE_NOTICE_MS = 10 * 60_000;
 const BUSY_MESSAGE = 'Bitte warten — ein anderer Vorgang läuft noch.';
 const LOAD_MS = 700;
+const BALANCE_MS = 500;
 const DEFAULT_TAN_MS = 2600;
 const MOCK_ERROR = 'Die Verbindung zur Bank wurde unterbrochen (Zeitüberschreitung). Bitte versuche es erneut.';
 
@@ -153,7 +162,7 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
     if (s.balance) balances[acct] = s.balance;
   };
 
-  let txError: string | null = null;
+  let txErrors: Record<string, LoadError> = {};
   let busy = false;
   let loadingAccount: string | null = null;
 
@@ -162,14 +171,16 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
     busy = true;
     loadingAccount = ACCT.giro;
   } else if (preset === 'error') {
-    txError = MOCK_ERROR;
-    load(ACCT.karte, presetRange('90d'));
+    // The Girokonto's statement failed a minute ago; the card was opened
+    // afterwards and loaded.
+    txErrors = { [ACCT.giro]: { message: MOCK_ERROR, at: now - 60_000 } };
+    if (!opts.oneAccount) load(ACCT.karte, presetRange('90d'));
   } else {
     load(ACCT.giro, range);
     if (opts.account && opts.account !== ACCT.giro && opts.account !== ACCT.karte) load(opts.account, range);
     // The card was looked at earlier in this session (with today's range, so
     // its balance is known); the Tagesgeld was not — "Saldo abrufen".
-    load(ACCT.karte, preset === 'past-range' ? presetRange('90d') : range);
+    if (!opts.oneAccount) load(ACCT.karte, preset === 'past-range' ? presetRange('90d') : range);
     if (preset === 'past-range') {
       // The current balance is known from that earlier load too.
       balances[ACCT.giro] = data.balance(ACCT.giro);
@@ -183,7 +194,7 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
 
   const sessionStartedAt = now - 7 * 60_000;
   return {
-    range, balances, txCache, statementInfo, txError, busy, loadingAccount, pendingCache,
+    range, balances, txCache, statementInfo, txErrors, busy, loadingAccount, pendingCache,
     messages: empty ? [] : data.messages(new Date(sessionStartedAt).toISOString()),
     activity: empty ? [] : data.activity(now),
     vault: preset === 'loading' ? null : empty ? EMPTY_VAULT : data.vault,
@@ -223,8 +234,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [tanMethodError, setTanMethodError] = useState<string | null>(null);
 
   const loggedIn = !opts.view || opts.view === 'dashboard';
-  const startAccount = data.accounts.find((a) => a.accountNumber === opts.account) ?? data.accounts[0];
-  const [accounts, setAccounts] = useState<SerializedAccount[]>(loggedIn ? data.accounts : []);
+  // What the bank lists for this login; a first-frame option, so fixed per session.
+  const [bankAccounts] = useState(() => (opts.oneAccount ? data.accounts.slice(0, 1) : data.accounts));
+  const startAccount = bankAccounts.find((a) => a.accountNumber === opts.account) ?? bankAccounts[0];
+  const [accounts, setAccounts] = useState<SerializedAccount[]>(loggedIn ? bankAccounts : []);
   const [activeAccount, setActiveAccount] = useState<SerializedAccount | null>(loggedIn ? startAccount : null);
   const [balances, setBalances] = useState<Record<string, SerializedBalance>>(loggedIn ? init.balances : {});
   const [txCache, setTxCache] = useState<Cache>(loggedIn ? init.txCache : {});
@@ -240,7 +253,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     return out;
   }, [pendingAt, pendingCache]);
   const [statementInfo, setStatementInfo] = useState<Record<string, StatementInfo>>(loggedIn ? init.statementInfo : {});
-  const [txError, setTxError] = useState<string | null>(loggedIn ? init.txError : null);
+  const [txErrors, setTxErrors] = useState<Record<string, LoadError>>(loggedIn ? init.txErrors : {});
+  const [balanceErrors, setBalanceErrors] = useState<Record<string, LoadError>>({});
+  const [balanceLoading, setBalanceLoading] = useState<string | null>(null);
+  const [loadingAllBalances, setLoadingAllBalances] = useState(false);
   // No logos in the preview: the real lookup goes out to a logo service.
   const [merchants] = useState<Record<string, Merchant | null>>({});
 
@@ -308,6 +324,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   viewRef.current = view;
   const lastTransferRef = useRef<TransferPayload | null>(null);
   const toastId = useRef(0);
+  const accountLabelRef = useRef((a: SerializedAccount) => a.product?.trim() || translateType(a.accountType));
 
   const setBusy = useCallback((b: boolean) => {
     busyRef.current = b;
@@ -444,47 +461,121 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     account: SerializedAccount,
     from?: string,
     to?: string,
-    o: { force?: boolean; onNotApplied?: () => void } = {},
+    o: { force?: boolean; onNotApplied?: () => void; quiet?: boolean; onSettled?: LoadSettled } = {},
   ) => {
     const applied = rangeRef.current;
     const span = { from: from || applied.from, to: to || applied.to };
     const cacheKey = `${span.from}|${span.to}`;
     const acct = account.accountNumber;
-    if (!o.force && txCacheRef.current[acct]?.key === cacheKey) { setTxError(null); return; }
-    if (busyRef.current) { o.onNotApplied?.(); return; }
+    const notApplied = (outcome: LoadOutcome, error?: string) => { o.onNotApplied?.(); o.onSettled?.(outcome, error); };
+    if (!account.canStatements) { notApplied('skipped'); return; }
+    if (!o.force && txCacheRef.current[acct]?.key === cacheKey) { o.onSettled?.('applied'); return; }
+    if (busyRef.current) { notApplied('busy'); return; }
 
-    setTxError(null);
+    setTxErrors((e) => without(e, acct));
     setBusy(true);
     setLoadingAccount(acct);
     const finish = () => { setBusy(false); setLoadingAccount(null); };
+    // As the provider: kept for the account, announced once.
+    const fail = () => {
+      finish();
+      setTxErrors((e) => ({ ...e, [acct]: { message: MOCK_ERROR, at: Date.now() } }));
+      if (!o.quiet) toast(failureSentence([{ name: accountLabelRef.current(account), message: MOCK_ERROR }])!, 'error');
+      notApplied('failed', MOCK_ERROR);
+    };
     const apply = () => {
       const s = data.statement(acct, span, { broken: preset === 'unverified' && acct === ACCT.giro, empty: preset === 'empty' });
       // As the provider: a balance up to today, never one older than the known one.
       if (s.balance && span.to >= today) {
-        setBalances((b) => {
-          const known = b[acct];
-          return known && new Date(s.balance!.date).getTime() < new Date(known.date).getTime() ? b : { ...b, [acct]: s.balance! };
-        });
+        const balance = s.balance;
+        setBalances((b) => (acceptsBalance(b[acct], balance) ? { ...b, [acct]: balance } : b));
       }
       setTxCache((c) => ({ ...c, [acct]: { key: cacheKey, txs: s.txs } }));
       setStatementInfo((si) => ({ ...si, [acct]: { from: span.from, to: span.to, blocks: s.blocks, loadedAt: Date.now() } }));
+      o.onSettled?.('applied');
     };
 
     // Most banks want a fresh approval for anything older than 90 days.
     if (span.from < ninetyAgo) {
       later(450, () => startWait('statements', {
         challenge: `Umsatzabruf ab ${fmtDate(span.from)} für ${account.product || translateType(account.accountType)} freigeben`,
-        onDone: () => { finish(); apply(); },
-        retry: () => { finish(); void loadTransactionsRef.current(account, span.from, span.to, { force: true, onNotApplied: o.onNotApplied }); },
-        onCancelled: o.onNotApplied ?? null,
+        onDone: () => { if (optsRef.current.fail) { fail(); return; } finish(); apply(); },
+        retry: () => { finish(); void loadTransactionsRef.current(account, span.from, span.to, { ...o, force: true }); },
+        onCancelled: () => notApplied('cancelled'),
       }));
       return;
     }
-    later(LOAD_MS, () => { finish(); apply(); });
-  }, [data, preset, today, ninetyAgo, later, setBusy, startWait]);
+    later(LOAD_MS, () => { if (optsRef.current.fail) { fail(); return; } finish(); apply(); });
+  }, [data, preset, today, ninetyAgo, later, setBusy, startWait, toast]);
 
   const loadTransactionsRef = useRef(loadTransactions);
   loadTransactionsRef.current = loadTransactions;
+
+  // ---- balance enquiry ----------------------------------------------------
+  // As the provider's loadBalance: the balance alone, no approval in the mock.
+  const loadBalance = useCallback(async (account: SerializedAccount, o: { quiet?: boolean; onSettled?: LoadSettled } = {}) => {
+    const acct = account.accountNumber;
+    const settle: LoadSettled = (outcome, error) => o.onSettled?.(outcome, error);
+    if (!account.canBalance) { settle('skipped'); return; }
+    if (busyRef.current) {
+      if (!o.quiet) toast(BUSY_MESSAGE, 'error');
+      settle('busy');
+      return;
+    }
+    setBalanceErrors((e) => without(e, acct));
+    setBusy(true);
+    setBalanceLoading(acct);
+    later(BALANCE_MS, () => {
+      setBusy(false);
+      setBalanceLoading(null);
+      if (optsRef.current.fail) {
+        setBalanceErrors((e) => ({ ...e, [acct]: { message: MOCK_ERROR, at: Date.now() } }));
+        if (!o.quiet) toast(failureSentence([{ name: accountLabelRef.current(account), message: MOCK_ERROR }])!, 'error');
+        settle('failed', MOCK_ERROR);
+        return;
+      }
+      const balance = data.balance(acct, { empty: preset === 'empty' });
+      setBalances((b) => (acceptsBalance(b[acct], balance) ? { ...b, [acct]: balance } : b));
+      settle('applied');
+    });
+  }, [data, preset, later, setBusy, toast]);
+
+  // As the provider's loadAllBalances: one after the other, one toast for what failed.
+  const loadAllBalances = useCallback(() => {
+    if (busyRef.current) {
+      toast(BUSY_MESSAGE, 'error');
+      return;
+    }
+    const gen = sessionGen.current;
+    const queue = balanceQueue(accounts, balances, rangeRef.current.to >= today);
+    if (!queue.length) {
+      if (accounts.some((a) => a.canStatements && !balances[a.accountNumber])) {
+        toast('Diese Konten melden ihren Saldo nur mit den Umsätzen. Wähle bei den Umsätzen einen Zeitraum bis heute.', 'info', 8000);
+      }
+      return;
+    }
+    const failed: Array<{ name: string; message: string }> = [];
+    setLoadingAllBalances(true);
+    const done = () => {
+      setLoadingAllBalances(false);
+      const sentence = failureSentence(failed);
+      if (sentence) toast(sentence, 'error');
+    };
+    const next = () => {
+      if (gen !== sessionGen.current) return;
+      const step = queue.shift();
+      if (!step) { done(); return; }
+      const { account } = step;
+      const onSettled: LoadSettled = (outcome, error) => {
+        if (outcome === 'failed') failed.push({ name: accountLabelRef.current(account), message: error ?? '' });
+        if (outcome === 'cancelled' || outcome === 'busy') done();
+        else next();
+      };
+      if (step.via === 'balance') void loadBalance(account, { quiet: true, onSettled });
+      else void loadTransactionsRef.current(account, undefined, undefined, { quiet: true, onSettled });
+    };
+    next();
+  }, [accounts, balances, today, toast, loadBalance]);
 
   // The mock's range never rolls over at midnight; the cache key is the whole answer.
   const isLoadedForAppliedRange = useCallback((accountNumber: string) => (
@@ -496,7 +587,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setActiveAccount(a);
     activeRef.current = a;
     void loadTransactions(a);
-  }, [loadTransactions]);
+    if (!a.canStatements && a.canBalance && !balances[a.accountNumber]) void loadBalance(a);
+  }, [loadTransactions, loadBalance, balances]);
 
   const refreshAccount = useCallback((account: SerializedAccount, from?: string, to?: string) => {
     void loadTransactions(account, from, to, { force: true });
@@ -736,7 +828,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   // ---- login --------------------------------------------------------------
   const afterAccountsReady = useCallback(() => {
     const now = Date.now();
-    setAccounts(data.accounts);
+    setAccounts(bankAccounts);
     setSessionStartedAt(now);
     const r = presetRange('90d');
     rangeRef.current = r;
@@ -752,11 +844,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
         label: 'Anzeigen', run: () => setInboxOpenState(true),
       });
     }
-    const first = data.accounts[0];
+    const first = bankAccounts[0];
     setActiveAccount(first);
     activeRef.current = first;
     void loadTransactionsRef.current(first, r.from, r.to);
-  }, [data, toast]);
+  }, [data, bankAccounts, toast]);
 
   const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string) => {
     await new Promise<void>((resolve) => setTimeout(resolve, 900));
@@ -859,7 +951,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setLoadingAccount(null);
     setPendingLoading(null);
     setDeviceRemembered(false);
-    setTxError(null);
+    setTxErrors({});
+    setBalanceErrors({});
+    setBalanceLoading(null);
+    setLoadingAllBalances(false);
     setWait(IDLE_WAIT);
     setPrintJob(null);
 
@@ -1018,6 +1113,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   // ---- derived data -------------------------------------------------------
   const transactions = activeAccount ? txCache[activeAccount.accountNumber]?.txs ?? null : null;
+  const txError = activeAccount ? txErrors[activeAccount.accountNumber]?.message ?? null : null;
 
   const txByAccount = useMemo(() => {
     const out: Record<string, SerializedTransaction[]> = {};
@@ -1061,6 +1157,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     (a: SerializedAccount) => aliases?.[a.accountNumber] || a.product?.trim() || translateType(a.accountType),
     [aliases],
   );
+  accountLabelRef.current = accountLabel;
 
   const renameAccount = useCallback((accountNumber: string, alias: string | null) => {
     const clean = (alias ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_ALIAS);
@@ -1155,6 +1252,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     view, meta, popularBanks, logoFiles, bank, sessionId, userId,
     tanMethods, selectedMethod, mediaChoice, tanMethodError,
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
+    txErrors, balanceErrors, balanceLoading, loadingAllBalances,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     range, statementInfo, txByAccount, ownIbans,
     messages, unreadCount, activity,
@@ -1165,6 +1263,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
+    loadBalance, loadAllBalances,
     isLoadedForAppliedRange,
     refreshAccount, refreshAfterTransfer, applyRange, loadPending, submitTransfer, confirmVop, abandonVop,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
@@ -1193,7 +1292,7 @@ export function MockFintsProvider({ children, preset = 'default', overrides, sti
   // `tanMs` are read live and need no new session.
   const sessionKey = JSON.stringify([
     preset, options.range, options.idleInMs, options.view, options.bankChosen, options.tab, options.open,
-    options.transferPrefill, options.privacy, options.account, options.query,
+    options.transferPrefill, options.privacy, options.account, options.query, options.oneAccount,
   ]);
   const underElectron = useSyncExternalStore(noopSubscribe, isElectron, () => false);
   return (

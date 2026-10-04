@@ -28,6 +28,7 @@ const AFTER_CONFIRM: Record<WaitKind, string> = {
   login: 'Deine Konten werden geladen …',
   statements: 'Umsätze werden geladen …',
   pending: 'Vorgemerkte Umsätze werden geladen …',
+  balance: 'Der Saldo wird abgerufen …',
   transfer: 'Das Ergebnis wird abgerufen …',
 };
 
