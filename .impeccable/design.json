@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-04T10:54:12.519Z",
+  "generatedAt": "2026-10-04T15:38:21.000Z",
   "title": "Design System: Sooskasse-FinTS",
   "extensions": {
     "colorMeta": {
@@ -182,7 +182,7 @@
       },
       "headline": {
         "role": "primary",
-        "displayName": "Night Navy (headline)",
+        "displayName": "Night Navy (headline, progress)",
         "canonical": "oklch(30.2% 0.097 258.7)",
         "tonalRamp": [
           "#000923",
@@ -803,48 +803,124 @@
           "#e5f0fc"
         ],
         "dark": "#2c4560"
+      },
+      "doc-rule": {
+        "role": "print",
+        "displayName": "Toner Hairline (paper)",
+        "canonical": "oklch(80.0% 0.022 252.5)",
+        "tonalRamp": [
+          "#050c14",
+          "#1d2630",
+          "#3a434e",
+          "#58626e",
+          "#798390",
+          "#9ca6b3",
+          "#bfcad8",
+          "#e4f0fd"
+        ],
+        "dark": "#b4bfcc"
       }
     },
     "typographyMeta": {
       "display": {
         "displayName": "Display",
-        "purpose": "The balance figure in the account hero (40px when the tile is under 520px); cents at half size in 600."
+        "purpose": "The balance in the account hero: Night Navy, Soll Red when overdrawn, ink for a card. Cents at half size in 600."
+      },
+      "display-compact": {
+        "displayName": "Display compact",
+        "purpose": "The hero balance when its tile is narrower than 520px, and the session countdown."
       },
       "headline": {
         "displayName": "Headline",
-        "purpose": "The page title on the navy stage: 36px at desk, 32px at sm, 28px on phones."
+        "purpose": "The page title on the navy stage at 1100px and wider."
+      },
+      "headline-md": {
+        "displayName": "Headline (md)",
+        "purpose": "The stage title from 640px; the login titles from 640px, in Night Navy."
+      },
+      "headline-sm": {
+        "displayName": "Headline (sm)",
+        "purpose": "The stage title and the login titles on phones."
+      },
+      "amount-review": {
+        "displayName": "Review amount",
+        "purpose": "The transfer review's amount, Night Navy."
+      },
+      "amount-detail": {
+        "displayName": "Detail amount",
+        "purpose": "A booking's amount in its detail drawer."
+      },
+      "figure-lg": {
+        "displayName": "Figure (lg)",
+        "purpose": "KPI figures from 640px, the approval order amount, the Fertig amount; the stage title in very short windows."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "KPI figures on phones, the Monatsbilanz Differenz, the phone account-card balance, amount fields (600); a short-window sheet title."
       },
       "title": {
         "displayName": "Title",
-        "purpose": "Dialog titles."
+        "purpose": "Dialog and sheet titles at every width; a hero state without a figure."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "The \"Sooskasse-FinTS\" wordmark and the € plate (17px on phones)."
       },
       "section": {
         "displayName": "Section",
-        "purpose": "Tile and group titles, in Night Navy."
+        "purpose": "Tile, group, popover and drawer-section titles in Night Navy; empty and error titles in ink. The only heading step below Title."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "Form controls only, so a phone never zooms into a focused field."
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Running text; form controls take 16px."
+        "purpose": "Running text, menu items, dialog descriptions."
       },
       "row": {
         "displayName": "Row",
-        "purpose": "A booking row's counterparty name and amount."
+        "purpose": "A booking's counterparty and amount, account names, underline tabs."
+      },
+      "item": {
+        "displayName": "Item",
+        "purpose": "The bank's name in the institute bar, side-tile point titles, an IBAN as a value; toasts and bank messages in 400."
       },
       "button": {
         "displayName": "Button",
-        "purpose": "Pill, tab and chip labels (15px lg, 13.5px sm, 13px xs)."
+        "purpose": "md pill, tab and chip labels (15px at lg, 13.5px at sm, 13px at xs)."
+      },
+      "button-sm": {
+        "displayName": "Button (sm)",
+        "purpose": "sm pills, the stage pills, the skip link, the day band date."
+      },
+      "small": {
+        "displayName": "Small",
+        "purpose": "Side-tile text, help disclosures, notes under a figure; field errors in 600."
       },
       "label": {
         "displayName": "Label",
-        "purpose": "Field labels, stat labels and eyebrows. Sentence case, never letterspaced."
+        "purpose": "Field labels, stat labels, group headings and eyebrows. Sentence case, never letterspaced."
       },
       "caption": {
         "displayName": "Caption",
-        "purpose": "Second lines, dates, hints and tile subtitles, in Quiet Ink."
+        "purpose": "A booking's second line, dates, hints and tile subtitles, in Quiet Ink."
+      },
+      "caption-sm": {
+        "displayName": "Caption (sm)",
+        "purpose": "The 12.5px floor: amount notes, \"Rückmeldung der Bank\", menu group labels, counters."
+      },
+      "tag": {
+        "displayName": "Tag",
+        "purpose": "Tags at both heights, keycaps, the phone bottom-bar labels."
+      },
+      "badge": {
+        "displayName": "Badge",
+        "purpose": "Count badges and stepper numerals: the documented exception under the 12.5px floor."
       },
       "mono": {
         "displayName": "Mono",
-        "purpose": "IBAN, BIC, BLZ and references. An IBAN never wraps."
+        "purpose": "IBAN, BIC, BLZ and references. An IBAN never wraps; a BLZ is grouped 3-3-2."
       }
     },
     "shadows": [
@@ -858,7 +934,7 @@
         "name": "tile-hover",
         "value": "0 2px 4px rgb(10 30 60 / 0.06), 0 10px 24px rgb(10 30 60 / 0.12)",
         "dark": "0 0 0 1px rgb(255 255 255 / 0.12)",
-        "purpose": "A tile that is itself the button, with translateY(-1px); hover-capable devices only."
+        "purpose": "A tile that is itself the button (.tile-hover), with translateY(-1px); hover-capable devices only. Held in reserve: no tile is a whole button today."
       },
       {
         "name": "pop",
@@ -870,24 +946,41 @@
         "name": "sticky",
         "value": "0 6px 16px -8px rgb(10 30 60 / 0.18)",
         "dark": "0 1px 0 rgb(255 255 255 / 0.06), 0 8px 16px -8px rgb(0 0 0 / 0.6)",
-        "purpose": "A header that has started to stick over scrolling content."
+        "purpose": "Reserved for a header that has started to stick over scrolling content; defined, not used by any surface today."
+      },
+      {
+        "name": "scroll-edge",
+        "value": "0 -1px 0 var(--line)",
+        "dark": "0 -1px 0 var(--line)",
+        "purpose": "A pinned footer (Sheet, Popover, transfer sheet) while content scrolls under it; a pinned header uses 0 1px 0. Absent while everything fits."
+      },
+      {
+        "name": "bottom-bar",
+        "value": "0 -6px 16px -10px rgb(10 30 60 / 0.18)",
+        "dark": "none",
+        "purpose": "The phone bottom bar, light theme only; its Überweisen disc takes 0 4px 10px -2px rgb(10 30 60 / 0.35)."
       },
       {
         "name": "ring",
         "value": "0 0 0 2px var(--surface), 0 0 0 4px var(--focus)",
         "purpose": "Box-shadow form of the double focus ring, for components that cannot use outline."
+      },
+      {
+        "name": "tone-edge",
+        "value": "inset 3px 0 0 <tone colour>",
+        "purpose": "The left edge of an inline alert or a toast in its tone (red, green, info, emphasis for a warning); 3px inner orange edge on the unsure mark."
       }
     ],
     "motion": [
       {
         "name": "ease-out-soft",
         "value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
-        "purpose": "The one easing curve for entrances and lifts."
+        "purpose": "The one easing curve for entrances, lifts and bar fills."
       },
       {
         "name": "state",
         "value": "150ms ease-out",
-        "purpose": "Colour, border and background changes on controls."
+        "purpose": "Colour, border, background and scroll-edge changes on controls."
       },
       {
         "name": "pop-in",
@@ -898,6 +991,11 @@
         "name": "fade",
         "value": "180ms ease-out",
         "purpose": "Scrims and plain fades."
+      },
+      {
+        "name": "chevron",
+        "value": "180ms ease-out-soft",
+        "purpose": "A disclosure chevron turning."
       },
       {
         "name": "sheet-in",
@@ -917,7 +1015,32 @@
       {
         "name": "toast",
         "value": "240ms in / 160ms out",
-        "purpose": "Toasts rise 10px in, sink 6px out."
+        "purpose": "Toasts rise 10px in, sink 6px out. Lifetime follows reading time (errors ≥10s, with an action ≥12s, both ≥20s) and pauses on hover, focus or a background window."
+      },
+      {
+        "name": "bar-fill",
+        "value": "transform 200ms ease-out-soft",
+        "purpose": "A bar or progress fill that changes value slides a full-width fill behind its track's clip with translateX. Never width, never scaleX."
+      },
+      {
+        "name": "countdown",
+        "value": "width 1000ms linear",
+        "purpose": "Bars that tick each second (approval wait, session warning)."
+      },
+      {
+        "name": "success-mark",
+        "value": "disc 320ms, ring 900ms from 250ms, check drawn 420ms from 180ms",
+        "purpose": "The confirmation mark settles in once; under reduced motion it shows its end state."
+      },
+      {
+        "name": "spinner",
+        "value": "700ms linear, infinite",
+        "purpose": "Busy buttons (label colour) and waits (Night Navy)."
+      },
+      {
+        "name": "shimmer",
+        "value": "1.4s, infinite",
+        "purpose": "Loading skeletons."
       },
       {
         "name": "reduced-motion",
@@ -935,8 +1058,24 @@
         "value": "1100px (68.75rem)"
       },
       {
+        "name": "short",
+        "value": "max-height 700px (43.75rem): overlays compact"
+      },
+      {
+        "name": "shorter",
+        "value": "max-height 520px (32.5rem): page chrome compacts"
+      },
+      {
         "name": "tile-figures",
-        "value": "520px / 640px container width"
+        "value": "520px / 640px container width (account hero)"
+      },
+      {
+        "name": "masthead-labels",
+        "value": "900px / 1180px container width"
+      },
+      {
+        "name": "institute-bar-tag",
+        "value": "48rem container width"
       },
       {
         "name": "desktop-shell-min",
@@ -949,15 +1088,15 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Filled Signal Blue pill for the one leading action of a decision.",
-      "html": "<button class=\"ds-btn-primary\">Überweisung prüfen</button>",
-      "css": ".ds-btn-primary { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 2px solid transparent; border-radius: 9999px; background: var(--accent); color: var(--accent-ink); font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color .15s ease-out; } .ds-btn-primary:hover { background: var(--accent-hover); } .ds-btn-primary:active { background: var(--accent-press); } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+      "description": "Filled Signal Blue pill for the one leading action of a decision, and always for the safe answer at a risk decision.",
+      "html": "<button class=\"ds-btn-primary\">Weiter zur Prüfung</button>",
+      "css": ".ds-btn-primary { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 2px solid transparent; border-radius: 9999px; background: var(--accent); color: var(--accent-ink); font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color .15s ease-out; } .ds-btn-primary:hover { background: var(--accent-hover); } .ds-btn-primary:active { background: var(--accent-press); } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: .45; cursor: not-allowed; }"
     },
     {
       "name": "Secondary Button",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "The default button: a 2px Signal Blue outline, washed on hover.",
+      "description": "The default button: a 2px Signal Blue outline, washed on hover. The risky action at a risk decision (\"Trotzdem überweisen\").",
       "html": "<button class=\"ds-btn-secondary\">Erneut versuchen</button>",
       "css": ".ds-btn-secondary { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 2px solid var(--accent); border-radius: 9999px; background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color .15s ease-out; } .ds-btn-secondary:hover { background: var(--accent-soft); } .ds-btn-secondary:active { background: color-mix(in srgb, var(--accent) 18%, transparent); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
     },
@@ -965,93 +1104,110 @@
       "name": "Stage Quick Actions",
       "kind": "custom",
       "refersTo": "button-stage-primary",
-      "description": "The Schnellzugriffe on the navy stage: one filled white lead pill, the rest outlined in white.",
+      "description": "The three Schnellzugriffe on the navy stage: one filled white lead pill, the rest outlined in white. Export is not one of them; it lives on the Umsätze tile.",
       "html": "<div class=\"ds-stage\"><button class=\"ds-stage-primary\">Überweisen</button><button class=\"ds-stage-btn\">Geld anfordern</button><button class=\"ds-stage-btn\">Kontoauszug</button></div>",
       "css": ".ds-stage { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-wrap: wrap; gap: 8px; padding: 20px 24px; background: var(--stage); border-radius: 12px; } .ds-stage-primary, .ds-stage-btn { font: inherit; height: 36px; padding: 0 16px; border-radius: 9999px; font-size: 13.5px; font-weight: 600; line-height: 1; cursor: pointer; transition: background-color .15s, border-color .15s; } .ds-stage-primary { border: 2px solid transparent; background: var(--stage-ink); color: var(--stage); } .ds-stage-primary:hover { background: color-mix(in srgb, var(--stage-ink) 86%, var(--stage)); } .ds-stage-btn { border: 1.5px solid var(--stage-line); background: transparent; color: var(--stage-ink); } .ds-stage-btn:hover { border-color: var(--stage-ink); background: color-mix(in srgb, var(--stage-ink) 12%, transparent); } .ds-stage-primary:focus-visible, .ds-stage-btn:focus-visible { outline: 2px solid var(--stage-ink); outline-offset: 2px; }"
     },
     {
-      "name": "Text Field",
+      "name": "Text and Amount Fields",
       "kind": "input",
       "refersTo": "input",
-      "description": "48px field with a 3:1 Field Edge, label above in 13px semibold, hint below.",
-      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">IBAN</span><input class=\"ds-input\" placeholder=\"DE00 0000 0000 0000 0000 00\" /><span class=\"ds-field-hint\">Wir prüfen die Prüfziffer, während du tippst.</span></label>",
-      "css": ".ds-field { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; gap: 6px; max-width: 360px; } .ds-field-label { font-size: 13px; line-height: 1.35; font-weight: 600; color: var(--ink-2); } .ds-input { font: inherit; height: 48px; padding: 0 14px; border: 1px solid var(--field-line); border-radius: 6px; background: var(--field-bg); color: var(--ink); font-size: 16px; transition: border-color .15s; } .ds-input::placeholder { color: var(--ink-3); } .ds-input:hover { border-color: var(--ink-3); } .ds-input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; } .ds-field-hint { font-size: 13px; line-height: 1.35; color: var(--ink-3); }"
+      "description": "48px fields with a 3:1 Field Edge, the label above in 13px semibold, a hint or a red error below. An amount field sets 20px tabular figures with a 17px Quiet Ink €.",
+      "html": "<div class=\"ds-form\"><label class=\"ds-field\"><span class=\"ds-field-label\">Name</span><input class=\"ds-input\" value=\"Anna Beispiel\" /><span class=\"ds-field-hint\">So, wie er bei der Bank des Empfängers geführt wird.</span></label><label class=\"ds-field\"><span class=\"ds-field-label\">Betrag</span><span class=\"ds-amount\"><input class=\"ds-input ds-input-amount\" value=\"450,00\" aria-invalid=\"true\" /><span class=\"ds-cur\" aria-hidden=\"true\">€</span></span><span class=\"ds-field-error\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 4l9 16H3z\"/><path d=\"M12 10v4M12 17.5v.01\"/></svg>Mehr als verfügbar – die Bank kann den Auftrag ablehnen.</span></label></div>",
+      "css": ".ds-form { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: grid; gap: 16px; max-width: 360px; } .ds-field { display: flex; flex-direction: column; gap: 6px; } .ds-field-label { font-size: 13px; line-height: 1.35; font-weight: 600; color: var(--ink-2); } .ds-input { font: inherit; width: 100%; box-sizing: border-box; height: 48px; padding: 0 14px; border: 1px solid var(--field-line); border-radius: 6px; background: var(--field-bg); color: var(--ink); font-size: 16px; transition: border-color .15s; } .ds-input:hover { border-color: var(--ink-3); } .ds-input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; } .ds-input[aria-invalid='true'] { border-color: var(--red); } .ds-amount { position: relative; display: block; } .ds-input-amount { padding-right: 40px; text-align: right; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums lining-nums; } .ds-cur { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 17px; font-weight: 600; color: var(--ink-3); } .ds-field-hint { font-size: 13px; line-height: 1.35; color: var(--ink-3); } .ds-field-error { display: flex; gap: 6px; align-items: flex-start; font-size: 13.5px; line-height: 1.35; font-weight: 600; color: var(--red); } .ds-field-error svg { flex: none; margin-top: 1px; }"
     },
     {
       "name": "Filter Chips",
       "kind": "chip",
       "refersTo": "chip-filter",
-      "description": "Outlined in Signal Blue; selected adds the wash and a check (the check says \"on\" without colour).",
+      "description": "Outlined in Signal Blue; selected adds the wash and a check (the check says \"on\" without colour). A menu chip shows a chevron.",
       "html": "<div class=\"ds-chips\"><button class=\"ds-chip\" aria-pressed=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12.5l4.5 4.5L19 7.5\"/></svg>Ausgaben</button><button class=\"ds-chip\" aria-pressed=\"false\">Eingänge</button><button class=\"ds-chip\" aria-pressed=\"false\">Kategorie<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 9l6 6 6-6\"/></svg></button></div>",
       "css": ".ds-chips { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-wrap: wrap; gap: 8px; } .ds-chip { font: inherit; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid var(--accent); border-radius: 8px; background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .15s; } .ds-chip:hover, .ds-chip[aria-pressed='true'] { background: var(--accent-soft); } .ds-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
     },
     {
-      "name": "Status Tags",
+      "name": "Status and Outcome Tags",
       "kind": "chip",
       "refersTo": "tag-pending",
-      "description": "Non-interactive status words: each value colour on its own tint; emphasis keeps ink text with an orange dot.",
-      "html": "<div class=\"ds-tags\"><span class=\"ds-tag ds-tag-pending\">Vorgemerkt</span><span class=\"ds-tag ds-tag-positive\">Gutschrift</span><span class=\"ds-tag ds-tag-info\">Gerät gemerkt</span><span class=\"ds-tag ds-tag-neutral\">Dauerauftrag</span><span class=\"ds-tag ds-tag-emphasis\"><span class=\"ds-dot\"></span>Betrag gestiegen</span></div>",
-      "css": ".ds-tags { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-wrap: wrap; gap: 8px; } .ds-tag { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 12.5px; font-weight: 600; line-height: 1; white-space: nowrap; } .ds-tag-pending { background: var(--amber-soft); color: var(--amber); } .ds-tag-positive { background: var(--green-soft); color: var(--green); } .ds-tag-info { background: var(--info-soft); color: var(--info); } .ds-tag-neutral { background: var(--inset); color: var(--ink-2); } .ds-tag-emphasis { background: color-mix(in srgb, var(--emphasis) 11%, var(--surface)); color: var(--ink); } .ds-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--emphasis); }"
-    },
-    {
-      "name": "Institute Bar Tabs",
-      "kind": "nav",
-      "refersTo": "institute-bar",
-      "description": "The white second tier: the bank's mark and name, then underline tabs with a 3px Signal Blue rule on the bar's bottom edge.",
-      "html": "<nav class=\"ds-ibar\"><span class=\"ds-ibar-logo\">S</span><span class=\"ds-ibar-name\">Sparkasse KölnBonn</span><span class=\"ds-ibar-sep\"></span><button class=\"ds-tab\" aria-selected=\"true\">Übersicht</button><button class=\"ds-tab\" aria-selected=\"false\">Analyse</button><button class=\"ds-tab\" aria-selected=\"false\">Verträge &amp; Abos</button></nav>",
-      "css": ".ds-ibar { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; align-items: stretch; gap: 4px; height: 52px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--line); } .ds-ibar-logo { align-self: center; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--line); color: var(--headline); font-weight: 700; font-size: 14px; } .ds-ibar-name { align-self: center; margin-left: 6px; font-size: 14.5px; font-weight: 600; color: var(--ink); } .ds-ibar-sep { align-self: center; width: 1px; height: 24px; margin: 0 12px; background: var(--line); } .ds-tab { font: inherit; position: relative; padding: 0 12px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); font-size: 15px; font-weight: 600; cursor: pointer; transition: color .15s; } .ds-tab:hover, .ds-tab[aria-selected='true'] { color: var(--ink); } .ds-tab::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: 0; height: 3px; border-radius: 9999px 9999px 0 0; background: transparent; transition: background-color .15s; } .ds-tab[aria-selected='true']::after { background: var(--accent); } .ds-tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }"
+      "description": "Non-interactive status words: each value colour on its own tint, 12.5px semibold. The outcome tags say Ausgeführt, Nicht ausgeführt and Status unklar; emphasis keeps ink text with an orange dot.",
+      "html": "<div class=\"ds-tags\"><span class=\"ds-tag ds-tag-pending\">Vorgemerkt</span><span class=\"ds-tag ds-tag-info\">Gerät gemerkt</span><span class=\"ds-tag ds-tag-neutral\">Echtzeit</span><span class=\"ds-tag ds-tag-positive\">Ausgeführt</span><span class=\"ds-tag ds-tag-negative\">Nicht ausgeführt</span><span class=\"ds-tag ds-tag-emphasis\"><span class=\"ds-dot\"></span>Status unklar</span><span class=\"ds-badge\">3</span></div>",
+      "css": ".ds-tags { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } .ds-tag { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 12.5px; font-weight: 600; line-height: 1; white-space: nowrap; } .ds-tag-pending { background: var(--amber-soft); color: var(--amber); } .ds-tag-positive { background: var(--green-soft); color: var(--green); } .ds-tag-negative { background: var(--red-soft); color: var(--red); } .ds-tag-info { background: var(--info-soft); color: var(--info); } .ds-tag-neutral { background: var(--inset); color: var(--ink-2); } .ds-tag-emphasis { background: color-mix(in srgb, var(--emphasis) 11%, var(--surface)); color: var(--ink); } .ds-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--emphasis); } .ds-badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 9999px; background: var(--inset); color: var(--ink-2); font-size: 12px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }"
     },
     {
       "name": "Masthead",
       "kind": "nav",
       "refersTo": "masthead",
-      "description": "Night Navy band: the € plate and wordmark, then a labelled icon cluster of 40px pill navlinks.",
-      "html": "<header class=\"ds-mast\"><span class=\"ds-plate\">€</span><span class=\"ds-word\">Sooskasse-FinTS</span><span class=\"ds-mast-fill\"></span><button class=\"ds-navlink\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"M20 20l-4.2-4.2\"/></svg>Suche</button><button class=\"ds-navlink\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z\"/><path d=\"M10 20.5a2 2 0 0 0 4 0\"/></svg>Mitteilungen<span class=\"ds-unread\"></span></button></header>",
-      "css": ".ds-mast { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 24px; background: var(--bar); color: var(--bar-ink); --focus-ring: var(--bar-ink); } .ds-plate { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--bar-ink); color: var(--bar); font-size: 18px; font-weight: 700; line-height: 1; } .ds-word { font-size: 18px; font-weight: 700; line-height: 1; } .ds-mast-fill { flex: 1; } .ds-navlink { font: inherit; position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 0; border-radius: 9999px; background: none; color: var(--bar-ink); font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color .15s; } .ds-navlink svg { color: var(--bar-ink-2); transition: color .15s; } .ds-navlink:hover { background: color-mix(in srgb, var(--bar-ink) 12%, transparent); } .ds-navlink:hover svg { color: var(--bar-ink); } .ds-navlink:focus-visible { outline: 2px solid var(--bar-ink); outline-offset: 2px; } .ds-unread { width: 8px; height: 8px; border-radius: 50%; background: var(--emphasis); }"
+      "description": "Night Navy band: the € plate and wordmark (no version), then a labelled cluster of 40px pill navlinks. The bell counts bank messages only.",
+      "html": "<header class=\"ds-mast\"><span class=\"ds-plate\">€</span><span class=\"ds-word\">Sooskasse-FinTS</span><span class=\"ds-mast-fill\"></span><button class=\"ds-navlink\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"M20 20l-4.2-4.2\"/></svg>Suche</button><button class=\"ds-navlink\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z\"/><path d=\"M10 20.5a2 2 0 0 0 4 0\"/></svg>Mitteilungen<span class=\"ds-count\">2</span></button><button class=\"ds-navlink\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>Beträge ausblenden</button></header>",
+      "css": ".ds-mast { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 24px; background: var(--bar); color: var(--bar-ink); } .ds-plate { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--bar-ink); color: var(--bar); font-size: 18px; font-weight: 700; line-height: 1; } .ds-word { font-size: 18px; font-weight: 700; line-height: 1; } .ds-mast-fill { flex: 1; } .ds-navlink { font: inherit; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 0; border-radius: 9999px; background: none; color: var(--bar-ink); font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color .15s; } .ds-navlink svg { color: var(--bar-ink-2); transition: color .15s; } .ds-navlink:hover { background: color-mix(in srgb, var(--bar-ink) 12%, transparent); } .ds-navlink:hover svg { color: var(--bar-ink); } .ds-navlink:focus-visible { outline: 2px solid var(--bar-ink); outline-offset: 2px; } .ds-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 9999px; background: color-mix(in srgb, var(--bar-ink) 18%, transparent); font-size: 12px; font-weight: 700; }"
+    },
+    {
+      "name": "Institute Bar Tabs",
+      "kind": "nav",
+      "refersTo": "institute-bar",
+      "description": "The white second tier: the bank's mark, name and grouped BLZ in Plex Mono, then underline tabs with a 3px Signal Blue rule on the bar's bottom edge, and the device tag at the far right.",
+      "html": "<nav class=\"ds-ibar\"><span class=\"ds-ibar-logo\">S</span><span class=\"ds-ibar-name\">Sparkasse KölnBonn</span><span class=\"ds-ibar-blz\">BLZ <span class=\"ds-mono\">370 501 98</span></span><span class=\"ds-ibar-sep\"></span><button class=\"ds-tab\" aria-selected=\"true\">Übersicht</button><button class=\"ds-tab\" aria-selected=\"false\">Analyse</button><button class=\"ds-tab\" aria-selected=\"false\">Verträge &amp; Abos</button><span class=\"ds-ibar-fill\"></span><span class=\"ds-devtag\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z\"/><path d=\"M9 12l2 2 4-4\"/></svg>Gerät gemerkt</span></nav>",
+      "css": ".ds-ibar { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; align-items: stretch; gap: 4px; height: 52px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--line); } .ds-ibar-logo { align-self: center; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); color: var(--headline); font-weight: 700; font-size: 14px; } .ds-ibar-name { align-self: center; margin-left: 6px; font-size: 14.5px; font-weight: 600; color: var(--ink); white-space: nowrap; } .ds-ibar-blz { align-self: center; margin-left: 8px; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; } .ds-mono { font-family: var(--font-plex-mono), 'Cascadia Mono', Consolas, ui-monospace, monospace; } .ds-ibar-sep { align-self: center; width: 1px; height: 24px; margin: 0 12px; background: var(--line); } .ds-tab { font: inherit; position: relative; flex: none; padding: 0 12px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); font-size: 15px; font-weight: 600; cursor: pointer; transition: color .15s; } .ds-tab:hover, .ds-tab[aria-selected='true'] { color: var(--ink); } .ds-tab::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: 0; height: 3px; border-radius: 9999px 9999px 0 0; background: transparent; transition: background-color .15s; } .ds-tab[aria-selected='true']::after { background: var(--accent); } .ds-tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; } .ds-ibar-fill { flex: 1; } .ds-devtag { align-self: center; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--info-soft); color: var(--info); font-size: 12.5px; font-weight: 600; white-space: nowrap; }"
     },
     {
       "name": "Booking List Tile",
       "kind": "card",
       "refersTo": "tile",
-      "description": "A tile lifted by one soft shadow; rows split by one hairline; avatar, name, meta line and a tabular amount (credit green, debit ink).",
-      "html": "<section class=\"ds-tile\"><h2 class=\"ds-tile-head\">Umsätze</h2><div class=\"ds-row\"><span class=\"ds-avatar\">RE</span><span class=\"ds-row-text\"><span class=\"ds-row-name\">REWE Markt</span><span class=\"ds-row-meta\">Kartenzahlung · Lebensmittel</span></span><span class=\"ds-amt\">−23,47 €</span></div><div class=\"ds-row\"><span class=\"ds-avatar\">AB</span><span class=\"ds-row-text\"><span class=\"ds-row-name\">Anna Beispiel</span><span class=\"ds-row-meta\">Miete Oktober</span></span><span class=\"ds-amt ds-amt-credit\">+450,00 €</span></div></section>",
-      "css": ".ds-tile { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; max-width: 520px; background: var(--surface); border-radius: 12px; box-shadow: var(--shadow-tile); color: var(--ink); overflow: hidden; } .ds-tile-head { margin: 0; padding: 20px 20px 12px; font-size: 17px; line-height: 1.3; font-weight: 700; color: var(--headline); } .ds-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px 20px; border-top: 1px solid var(--line); } .ds-avatar { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--inset); color: var(--ink-2); font-size: 13px; font-weight: 700; } .ds-row-text { flex: 1; min-width: 0; } .ds-row-name { display: block; font-size: 15px; line-height: 1.375; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-row-meta { display: block; margin-top: 2px; font-size: 13px; line-height: 1.375; color: var(--ink-3); } .ds-amt { flex: none; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; } .ds-amt-credit { color: var(--green); }"
+      "description": "A tile lifted by one soft shadow: a sticky inset day band with the verified end-of-day Kontostand, rows with an inset hairline that starts where the text does, and tabular amounts (credit green, debit ink).",
+      "html": "<section class=\"ds-tile\"><h2 class=\"ds-tile-head\">Umsätze</h2><div class=\"ds-day\"><span class=\"ds-day-date\">Freitag, 02.10.</span><span class=\"ds-day-bal\">Kontostand <b>2.196,22 €</b></span></div><div class=\"ds-row\"><span class=\"ds-avatar\">RE</span><span class=\"ds-row-text\"><span class=\"ds-row-name\">REWE Markt</span><span class=\"ds-row-meta\">Kartenzahlung · Lebensmittel</span></span><span class=\"ds-amt\">−23,47 €</span></div><div class=\"ds-row\"><span class=\"ds-avatar\">AB</span><span class=\"ds-row-text\"><span class=\"ds-row-name\">Anna Beispiel</span><span class=\"ds-row-meta\">Miete Oktober</span></span><span class=\"ds-amt ds-amt-credit\">+450,00 €<span class=\"ds-amt-note\">Buchung 05.10.</span></span></div></section>",
+      "css": ".ds-tile { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; max-width: 520px; background: var(--surface); border-radius: 12px; box-shadow: var(--shadow-tile); color: var(--ink); overflow: hidden; } .ds-tile-head { margin: 0; padding: 20px 20px 12px; font-size: 17px; line-height: 1.3; font-weight: 700; color: var(--headline); } .ds-day { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 20px; box-sizing: border-box; background: var(--inset); } .ds-day-date { font-size: 13.5px; font-weight: 600; color: var(--ink-2); } .ds-day-bal { margin-left: auto; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; } .ds-day-bal b { font-weight: 600; color: var(--ink-2); } .ds-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px 20px; box-sizing: border-box; } .ds-row + .ds-row::before { content: ''; position: absolute; top: 0; left: 72px; right: 0; height: 1px; background: var(--line); } .ds-row:hover { background: color-mix(in srgb, var(--inset) 55%, var(--surface)); } .ds-avatar { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--inset); color: var(--ink-2); font-size: 14px; font-weight: 700; } .ds-row-text { flex: 1; min-width: 0; } .ds-row-name { display: block; font-size: 15px; line-height: 1.375; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-row-meta { display: block; margin-top: 2px; font-size: 13px; line-height: 1.375; color: var(--ink-3); } .ds-amt { flex: none; text-align: right; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; } .ds-amt-credit { color: var(--green); } .ds-amt-note { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 400; color: var(--ink-3); }"
     },
     {
       "name": "Account Hero Balance",
       "kind": "custom",
       "refersTo": "tile",
-      "description": "The signature figure: 52px Night Navy balance with half-size cents, a tabular date line, and qualifying figures beside it.",
-      "html": "<section class=\"ds-hero\"><div><p class=\"ds-hero-label\">Kontostand <span>· Girokonto</span></p><p class=\"ds-hero-bal\">2.196<span class=\"ds-cents\">,22 €</span></p><p class=\"ds-hero-date\">Stand 04.10.2026, 12:35 Uhr</p></div><dl class=\"ds-hero-figs\"><div><dt>Verfügbar</dt><dd>3.696,22 €</dd></div><div><dt>Vorgemerkt</dt><dd>−84,10 €</dd></div></dl></section>",
-      "css": ".ds-hero { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 40px; max-width: 720px; padding: 28px 32px; background: var(--surface); border-radius: 12px; box-shadow: var(--shadow-tile); } .ds-hero p { margin: 0; } .ds-hero-label { font-size: 14px; font-weight: 600; color: var(--ink-2); } .ds-hero-label span { font-weight: 400; color: var(--ink-3); } .ds-hero-bal { margin-top: 6px !important; font-size: 52px; line-height: 1; font-weight: 700; letter-spacing: -0.015em; color: var(--headline); font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; } .ds-cents { font-size: .5em; font-weight: 600; } .ds-hero-date { margin-top: 8px !important; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; } .ds-hero-figs { display: grid; gap: 10px; margin: 0; } .ds-hero-figs div { display: flex; justify-content: space-between; gap: 24px; } .ds-hero-figs dt { font-size: 13px; font-weight: 600; color: var(--ink-2); } .ds-hero-figs dd { margin: 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }"
+      "description": "The signature figure: a label naming the figure and the account, the 52px Night Navy balance with half-size cents, a tabular date line, and the qualifying figures beside it.",
+      "html": "<section class=\"ds-hero\"><div><p class=\"ds-hero-label\">Kontostand <span>· Girokonto</span></p><p class=\"ds-hero-bal\">2.196<span class=\"ds-cents\">,22 €</span></p><p class=\"ds-hero-date\">Stand 04.10.2026, 12:35 Uhr</p></div><dl class=\"ds-hero-figs\"><div><dt>Verfügbar</dt><dd>3.696,22 €</dd></div><div><dt>Dispositionsrahmen</dt><dd>1.500,00 €</dd></div><div><dt class=\"ds-amber\">Vorgemerkt</dt><dd>−84,10 €</dd></div></dl></section>",
+      "css": ".ds-hero { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 40px; max-width: 720px; padding: 28px 32px; background: var(--surface); border-radius: 12px; box-shadow: var(--shadow-tile); } .ds-hero p { margin: 0; } .ds-hero-label { font-size: 14px; font-weight: 600; color: var(--ink-2); } .ds-hero-label span { font-weight: 400; color: var(--ink-3); } .ds-hero-bal { margin-top: 6px !important; font-size: 52px; line-height: 1; font-weight: 700; letter-spacing: -0.015em; color: var(--headline); font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; } .ds-cents { font-size: .5em; font-weight: 600; } .ds-hero-date { margin-top: 8px !important; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; } .ds-hero-figs { display: grid; gap: 8px; margin: 0; padding-left: 24px; border-left: 1px solid var(--line); min-width: 240px; } .ds-hero-figs div { display: flex; justify-content: space-between; gap: 24px; } .ds-hero-figs dt { font-size: 13px; font-weight: 600; color: var(--ink-2); } .ds-hero-figs dt.ds-amber { color: var(--amber); } .ds-hero-figs dd { margin: 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }"
+    },
+    {
+      "name": "Pinned Decision Footer",
+      "kind": "custom",
+      "refersTo": "sheet-footer",
+      "description": "A sheet whose buttons never scroll away: the body scrolls under a fixed footer, which draws a 1px hairline only while content runs under it. At a risk decision the safe action is the filled primary, last in the markup and on top when stacked on a phone.",
+      "html": "<div class=\"ds-sheet\"><div class=\"ds-sheet-body\"><h2 class=\"ds-sheet-title\">Überweisung prüfen</h2><div class=\"ds-alert\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 4l9 16H3z\"/><path d=\"M12 10v4M12 17.5v.01\"/></svg><div><p class=\"ds-alert-title\">Schon einmal überwiesen?</p><p>Am 28.09. ging dieselbe Zahlung an Anna Beispiel. Prüfe, ob du sie wirklich noch einmal senden möchtest.</p></div></div><div class=\"ds-order\"><p class=\"ds-order-amt\">450,00 €</p><p class=\"ds-order-to\">an Anna Beispiel</p><p class=\"ds-order-iban\">DE02 1203 0000 0000 2020 51</p></div></div><div class=\"ds-sheet-foot is-scrolled-under\"><button class=\"ds-foot-btn ds-foot-outline\">Trotzdem überweisen</button><button class=\"ds-foot-btn ds-foot-primary\">Angaben prüfen</button></div></div>",
+      "css": ".ds-sheet { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; max-width: 540px; max-height: 360px; overflow: hidden; background: var(--raised); color: var(--ink); border-radius: 16px; box-shadow: var(--shadow-pop); } .ds-sheet-body { flex: 1; min-height: 0; overflow-y: auto; padding: 28px 28px 4px; } .ds-sheet-title { margin: 0 0 16px; font-size: 22px; line-height: 1.25; font-weight: 700; color: var(--headline); } .ds-alert { display: flex; gap: 12px; padding: 12px 12px 12px 16px; border-radius: 8px; background: var(--inset); box-shadow: inset 3px 0 0 var(--emphasis); font-size: 14px; line-height: 1.375; } .ds-alert svg { flex: none; color: var(--emphasis); margin-top: 1px; } .ds-alert p { margin: 0; color: var(--ink-2); } .ds-alert .ds-alert-title { font-weight: 700; color: var(--ink); } .ds-order { margin-top: 16px; padding: 16px 20px; border-radius: 12px; background: var(--inset); } .ds-order p { margin: 0; } .ds-order-amt { font-size: 34px; line-height: 1.25; font-weight: 700; color: var(--headline); font-variant-numeric: tabular-nums lining-nums; } .ds-order-to { margin-top: 4px !important; font-size: 15px; font-weight: 600; } .ds-order-iban { margin-top: 2px !important; font-family: var(--font-plex-mono), 'Cascadia Mono', Consolas, ui-monospace, monospace; font-size: 14.5px; letter-spacing: .06em; white-space: nowrap; color: var(--ink-2); } .ds-sheet-foot { flex: none; display: flex; gap: 12px; padding: 20px 28px 28px; background: var(--raised); transition: box-shadow .15s; } .ds-sheet-foot.is-scrolled-under { box-shadow: 0 -1px 0 var(--line); } .ds-foot-btn { font: inherit; flex: 1; height: 44px; padding: 0 20px; border-radius: 9999px; font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color .15s; } .ds-foot-outline { border: 2px solid var(--accent); background: transparent; color: var(--accent); } .ds-foot-outline:hover { background: var(--accent-soft); } .ds-foot-primary { border: 2px solid transparent; background: var(--accent); color: var(--accent-ink); } .ds-foot-primary:hover { background: var(--accent-hover); } .ds-foot-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+    },
+    {
+      "name": "Transfer Stepper and Outcome Marks",
+      "kind": "custom",
+      "refersTo": "stepper-done",
+      "description": "Progress drawn in Night Navy, because it cannot be pressed: done discs with a check, a navy ring for the current step, grey outlines for open ones. \"Status unklar\" is a Marker Orange ring with an ink \"?\"; a refusal a red ring with a cross. The 72px marks close an order: success, refused, unsure.",
+      "html": "<div class=\"ds-out\"><ol class=\"ds-steps\"><li class=\"is-done\"><span class=\"ds-mark\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12.5l4.6 4.6L19 7.8\"/></svg></span><span class=\"ds-lbl\">Erfassen</span><span class=\"ds-bar is-done\"></span></li><li class=\"is-done\"><span class=\"ds-mark\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12.5l4.6 4.6L19 7.8\"/></svg></span><span class=\"ds-lbl\">Prüfen</span><span class=\"ds-bar is-done\"></span></li><li class=\"is-done\"><span class=\"ds-mark\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12.5l4.6 4.6L19 7.8\"/></svg></span><span class=\"ds-lbl\">Freigabe</span><span class=\"ds-bar is-done\"></span></li><li class=\"is-unsure\"><span class=\"ds-mark\">?</span><span class=\"ds-lbl ds-lbl-here\">Fertig</span></li></ol><ol class=\"ds-steps\"><li class=\"is-done\"><span class=\"ds-mark\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12.5l4.6 4.6L19 7.8\"/></svg></span><span class=\"ds-lbl\">Erfassen</span><span class=\"ds-bar is-done\"></span></li><li class=\"is-here\"><span class=\"ds-mark\">2</span><span class=\"ds-lbl ds-lbl-here\">Prüfen</span><span class=\"ds-bar\"></span></li><li><span class=\"ds-mark\">3</span><span class=\"ds-lbl\">Freigabe</span><span class=\"ds-bar\"></span></li><li><span class=\"ds-mark\">4</span><span class=\"ds-lbl\">Fertig</span></li></ol><div class=\"ds-marks\"><span class=\"ds-big ds-big-ok\"><svg width=\"34\" height=\"34\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12.5l4.6 4.6L19 7.8\"/></svg></span><span class=\"ds-big ds-big-no\"><svg width=\"30\" height=\"30\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M7 7l10 10M17 7L7 17\"/></svg></span><span class=\"ds-big ds-big-unsure\"><svg width=\"32\" height=\"32\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9.2 9.2a2.9 2.9 0 1 1 4.1 2.65c-.8.37-1.3 1.05-1.3 1.9v.5\"/><path d=\"M12 17.6v.1\"/></svg></span></div></div>",
+      "css": ".ds-out { font-family: var(--font-ui), 'Segoe UI', system-ui, sans-serif; display: grid; gap: 20px; max-width: 520px; } .ds-steps { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; } .ds-steps li { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; } .ds-steps li:last-child { flex: none; } .ds-mark { display: grid; place-items: center; flex: none; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--line-strong); color: var(--ink-3); font-size: 12px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; } .is-done .ds-mark { border: 0; background: var(--headline); color: var(--raised); } .is-here .ds-mark { border: 2px solid var(--headline); background: var(--raised); color: var(--headline); } .is-unsure .ds-mark { border: 2px solid var(--emphasis); background: var(--raised); color: var(--ink); } .ds-lbl { font-size: 13px; font-weight: 500; line-height: 1; white-space: nowrap; color: var(--ink-3); } .is-done .ds-lbl { color: var(--ink-2); } .ds-lbl-here { font-weight: 600; color: var(--ink) !important; } .ds-bar { flex: 1; min-width: 12px; height: 2px; border-radius: 9999px; background: var(--line-strong); } .ds-bar.is-done { background: var(--headline); } .ds-marks { display: flex; gap: 16px; } .ds-big { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; } .ds-big-ok { background: var(--green-soft); color: var(--green); } .ds-big-no { background: var(--red-soft); color: var(--red); } .ds-big-unsure { background: var(--inset); color: var(--ink-2); box-shadow: inset 0 0 0 3px var(--emphasis); }"
     }
   ],
   "narrative": {
     "northStar": "The Private Branch",
-    "overview": "Sooskasse-FinTS looks like the online banking its users already know: a navy masthead, a navy stage band that greets you by name, and white tiles on a quiet blue-grey page. It is rebuilt for one customer, on their own machine. It is a branch that opens for one person. Nothing on the walls sells anything, every figure is the bank's own, and the counter is tidy. The feel is **trustworthy, plain and precise**. Trust comes from familiarity and exactness, not from ornament.\n\nDensity is that of a good bank start page. At the desktop shell's 900×600 minimum, the account tiles are on screen without scrolling. There is still room enough that a long Verwendungszweck reads like prose. Google Sans Flex sets everything, and amounts use tabular lining figures, so a column of bookings lines up on its decimal comma like a printed Kontoauszug. Colour is rationed:\n\n- navy is identity - Signal Blue is the one thing you can press - green, red, amber and orange each own exactly one meaning\n\nThe look is the modernised Atruvia online-banking language. It is the owner's current choice and the default. Other looks may be explored, but only as alternatives for the owner to pick, never swapped in. The system borrows a language, never a bank's branding: the connected bank's logo appears only in the white institute bar, under the app's own \"€\" mark. The protocol stays out of the interface. FinTS segment codes and the structured tags inside a Verwendungszweck never reach the screen. A capability shows up as an action that is present or absent.",
+    "overview": "Sooskasse-FinTS looks like the online banking its users already know: a navy masthead, a navy stage band that greets you by name, and white tiles on a quiet blue-grey page. It is rebuilt for one customer, on their own machine. It is a branch that opens for one person. Nothing on the walls sells anything, every figure is the bank's own, and the counter is tidy. The feel is **trustworthy, plain and precise**. Trust comes from familiarity and exactness, not from ornament. Where money could go wrong, the branch is careful first: at a risk decision the safe answer is the filled button, every layer opens on a harmless place, and every outcome is named with the same few words.\n\nDensity is that of a good bank start page. At the desktop shell's 900×600 minimum, the account tiles are on screen without scrolling, and short or zoomed windows compact their chrome so the first account row and a dialog's way out stay in view. There is still room enough that a long Verwendungszweck reads like prose. Google Sans Flex sets everything, on screen and on paper, and amounts use tabular lining figures, so a column of bookings lines up on its decimal comma like a printed Kontoauszug. Colour is rationed:\n\n- navy is identity, and the colour of everything that only reports\n- Signal Blue is the one thing you can press\n- green, red, amber and orange each own exactly one meaning\n\nThe look is the modernised Atruvia online-banking language. It is the owner's current choice and the default. Other looks may be explored, but only as alternatives for the owner to pick, never swapped in. The system borrows a language, never a bank's branding: the connected bank's logo appears only where the bank is the subject (the white institute bar under the app's own \"€\" mark, the bank picker, the printed letterhead as kontoführendes Institut), never as the app's identity. The protocol stays out of the interface. FinTS segment codes and the structured tags inside a Verwendungszweck never reach the screen. A capability shows up as an action that is present or absent.",
     "keyCharacteristics": [
       "Three tiers on top: navy masthead, white institute bar, navy stage. Below them, white tiles lap 48px over the stage's lower edge.",
-      "One interactive hue (Signal Blue). Each value colour owns one meaning.",
+      "One interactive hue (Signal Blue). Progress, steps and waits are navy. Each value colour owns one meaning.",
       "Pill buttons, sentence-case labels, semibold rather than bold.",
-      "Tiles lifted by one soft shadow, never framed.",
+      "Tiles lifted by one soft shadow, never framed. Wells inside them sit on the inset grey.",
       "Tabular figures and a real minus on every amount. Monospace only for what is read character by character.",
-      "The dark theme is the same bank at night: navy-black, never grey.",
+      "The safe choice is the filled primary, and a dialog's buttons never scroll away.",
+      "The dark theme is the same bank at night: navy-black, never grey. Paper is always light.",
       "Motion is short and soft (150–250ms, one ease-out curve), and none of it is needed to read the screen."
     ],
     "rules": [
       {
         "name": "The One Signal Rule",
-        "body": "Signal Blue is the only interactive colour. Anything blue can be pressed, and nothing that can be pressed is any other hue. The two sanctioned exceptions are the white lead pill on the navy stage and the red button that confirms a destructive action.",
+        "body": "Signal Blue marks what can be pressed, and nothing that can be pressed is any other hue. What only reports (a progress fill, the stepper, a wait spinner outside a button, an account-type plate off its pressable row) is Night Navy, never blue. The sanctioned exceptions are the white lead pill on the navy stage, the red button that confirms a destructive action, and the drawn pictograms of empty states and dialogs (Signal Blue strokes on a Signal Wash disc).",
         "section": "colors"
       },
       {
         "name": "The Owned Colours Rule",
-        "body": "Green is a credit or a confirmation. Red is a negative balance or an error, never a debit: a debit is ordinary spending and stays ink. Amber means \"vorgemerkt\" and nothing else, so a warning uses the inset grey with an orange edge instead. Orange is a mark, never text.",
+        "body": "Green is a credit or a confirmation. Red is a negative balance or an error, never a debit: a debit is ordinary spending and stays ink. A credit card's balance is negative by nature, so it stays ink too; a card is known by its FinTS Kontoart alone (`isCardAccount`: CreditCardAccount or 50–59), never by a product name like \"Giro mit Visa\", and its Verfügbar still turns red below zero. Amber means \"vorgemerkt\" and nothing else, so a warning uses the inset grey with an orange edge instead. Orange is a mark, never text.",
         "section": "colors"
       },
       {
         "name": "The Tokens Only Rule",
-        "body": "Tailwind's default palette is switched off (`--color-*: initial`), so `red-500` does not even compile. Every colour is a token. Literal white and black exist only for literal things: a logo plate, a QR code.",
+        "body": "Tailwind's default palette is switched off (`--color-*: initial`), so `red-500` does not even compile. Every colour is a token. Literal white and black exist only for literal things: a logo plate, a QR code, a switch thumb.",
         "section": "colors"
       },
       {
@@ -1066,58 +1222,140 @@
       },
       {
         "name": "The Sentence Case Rule",
-        "body": "Labels are sentence case and never letterspaced. A label's job is to be found, not to shout. Uppercase lives only in the printed documents' section heads, where it still means something.",
+        "body": "Labels are sentence case and never letterspaced, on screen and on paper. A label's job is to be found, not to shout.",
         "section": "typography"
       },
       {
         "name": "The Character-by-Character Rule",
-        "body": "IBAN, BIC, BLZ and references are set in IBM Plex Mono. An IBAN gets 0.06em tracking and never wraps, because half an IBAN on each of two lines cannot be checked.",
+        "body": "IBAN, BIC, BLZ and references are set in IBM Plex Mono. An IBAN gets 0.06em tracking and never wraps, because half an IBAN on each of two lines cannot be checked. A BLZ is grouped the way bank documents print it (\"570 699 99\") wherever it appears.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Ladder Rule",
+        "body": "One heading step (Section, 17px) and one figure ladder (20 to 24px) sit between Title and Body. A new heading or figure takes one of them; it never invents a 16px, 18px or 19px step.",
+        "section": "typography"
+      },
+      {
+        "name": "The Floor Rule",
+        "body": "No HTML text is smaller than 12.5px. The only exceptions are count badges and stepper numerals (12px bold), monogram initials scaled to their avatar (12, 14 or 18px), and the labels charts draw in SVG (12px ticks, month labels and Min./Max. guides; the year under a bar chart's first month of a year at 11.5px).",
         "section": "typography"
       },
       {
         "name": "The Fold Rule",
-        "body": "At the desktop shell's 900×600 minimum, the first row of account tiles is visible without scrolling. The stage stays compact, and its four quick actions stay on one line beside the title (below 1100px they drop to 36px pills without glyphs).",
+        "body": "At the desktop shell's 900×600 minimum, the first row of account tiles is visible without scrolling, and at 200% zoom the first account row still shows. The stage stays compact, and its three Schnellzugriffe (Überweisen, Geld anfordern, Kontoauszug) stay on one line beside the title (between 640px and 1100px they drop to 36px pills without glyphs). Export is not one of them: it lives on the Umsätze tile it exports.",
         "section": "layout"
       },
       {
         "name": "The Shared Edge Rule",
-        "body": "The page column, the institute bar's row and the stage's content share one 1280px column and one gutter, so the logo, the title and the first tile align.",
+        "body": "The masthead's content, the institute bar's row, the stage's content and the page column share one 1280px column and one gutter, so the \"€\" mark, the bank's logo, the page title and the first tile align. The masthead's right edge gives way to the caption buttons when they need the room.",
+        "section": "layout"
+      },
+      {
+        "name": "The Reading Order Rule",
+        "body": "The DOM order is the narrow reading order. A wider layout places blocks with the grid; it never reorders them with CSS `order`.",
         "section": "layout"
       },
       {
         "name": "The Lifted, Never Framed Rule",
-        "body": "A block is a `.panel` tile: 12px corners and one soft shadow. Never put a framed card inside a framed card, and never draw a border around a tile.",
+        "body": "A block is a `.panel` tile: 12px corners and one soft shadow. Never put a framed card inside a framed card, and never draw a border around a tile. What groups inside a tile is a well: the inset grey with 8px corners and no edge.",
         "section": "elevation"
       },
       {
         "name": "The Night Edge Rule",
         "body": "In the dark theme, depth comes from tone (`paper` → `surface` → `raised` get lighter), not from shadow. The only shadow-like mark is a 1px white edge at 6–12%.",
         "section": "elevation"
+      },
+      {
+        "name": "The Scroll Edge Rule",
+        "body": "A pinned header or footer is flat while everything fits. A 1px `line` hairline appears on its edge only once content runs under it, and leaves again when the content ends.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Safe Choice Rule",
+        "body": "At every risk decision the safe action is the filled primary and the risky one the outline beside it: \"Angaben prüfen\" at a duplicate or a name mismatch, \"Namen übernehmen\" when the bank suggests the name, \"Angaben ändern\" after a refusal, \"Jetzt nachsehen\" at Status unklar, \"Umsätze prüfen\" before logging out over an unclear transfer. A destructive confirmation the user asked for keeps its red confirm, with the safe button focused.",
+        "section": "components"
+      },
+      {
+        "name": "The Safe Focus Rule",
+        "body": "A layer opens on the safe place: what it names (`initialFocus`, or `[data-autofocus]` on its safe button), else its first text field, else its close button, else the layer itself. Never a checkbox, switch, radio, link or action by default. A `[data-autofocus=\"fine\"]` field (the palette's search) takes focus only with a fine pointer, so a touch keyboard never covers a layer as it opens, and a target below the fold of the layer's body is scrolled into view.",
+        "section": "components"
+      },
+      {
+        "name": "The Pinned Way Out Rule",
+        "body": "A dialog's actions and a panel's closing action sit in a footer below the scrolling body (Sheet's and Popover's `footer`, the transfer sheet's footer), so they never scroll away, whatever the window's height or zoom.",
+        "section": "components"
+      },
+      {
+        "name": "The Record Rule",
+        "body": "Paper prints the bank's words as the bank sent them, repairing only encoding damage. The screen's tidying never replaces bank text on paper: where the sheet leads with a name the app derived, \"Name laut Bank\" prints the whole string beside it.",
+        "section": "print"
+      },
+      {
+        "name": "The Bank's Figure Rule",
+        "body": "A balance is the bank's only when the bank sent it. Alter Kontostand is the bank's opening balance when the bookings carry it onto the closing; otherwise it is worked out and marked \"(errechnet)\". Future-dated bookings the closing lacks print apart (\"Noch nicht enthalten\"), and a gap the bookings cannot explain is printed with its size, never adjusted to fit.",
+        "section": "print"
+      },
+      {
+        "name": "The Same State Rule",
+        "body": "Paper states a booking's state the way the screen does (gebucht, vorgemerkt, noch nicht gebucht), and an unbooked state gets a sentence under the amount, not only a word.",
+        "section": "print"
+      },
+      {
+        "name": "The Third-Party Rule",
+        "body": "Paper speaks in the third person and carries only what its reader needs. The Buchungsbeleg shows the booking, never the account's balance or a merchant logo. The bank is named as the kontoführendes Institut, never as the author.",
+        "section": "print"
+      },
+      {
+        "name": "The Two-Sign Rule",
+        "body": "On paper a debit is ink and a credit green, and both signs (+ and −) are written out, so a grey copy says the same. A balance carries only its minus.",
+        "section": "print"
+      },
+      {
+        "name": "The Summenstrich Rule",
+        "body": "The final balance sits between a 1px rule and a 3px double rule. No box.",
+        "section": "print"
+      },
+      {
+        "name": "The Fileable Page Rule",
+        "body": "Nothing on paper is smaller than 8pt, mono included, and running text is 9.5pt. The 20mm left margin lets a punched, filed sheet keep every character, and every printed page carries the document, the account and \"Seite x von y\" in its bottom margin.",
+        "section": "print"
       }
     ],
     "dos": [
       "**Do** reach for tokens by name (`bg-surface`, `text-ink-2`, `bg-accent`, `rounded-[var(--radius-card)]`). The dark theme then resolves itself through `data-theme`.",
-      "**Do** build blocks from `<Tile>` / `.panel` (12px corners and the Tile shadow), and separate list rows with one `line` hairline.",
-      "**Do** route every amount through `<Money>` (tabular figures, U+2212 minus, role-based colour, privacy mask), and every IBAN through the `.iban` mono style, which never wraps.",
+      "**Do** build blocks from `<Tile>` / `.panel` (12px corners and the Tile shadow), separate list rows with one `line` hairline, and group inside a tile with an 8px inset well.",
+      "**Do** route every amount through `<Money>` (tabular figures, U+2212 minus, role-based colour, privacy mask), bank free text through `<BankText>`, and every IBAN through the `.iban` mono style, which never wraps.",
+      "**Do** decide whether a balance is a card's with `isCardAccount` (the Kontoart), and pass `tone=\"plain\"` for it.",
       "**Do** keep labels sentence case at 600, and reserve 700 for titles and figures.",
+      "**Do** take a size from the frontmatter ramp. A heading below Title is Section (17px); a figure below Display is on the 20/24px ladder.",
+      "**Do** make the safe answer the filled primary at every risk decision, with the risky action as the outline beside it.",
+      "**Do** give a dialog or panel its actions as a pinned `footer` (Sheet, Popover), so they stay in view in a 900×600 window and at 200%.",
+      "**Do** let layers open on the safe place (safeFocusTarget). Mark a safe button with `data-autofocus`, and a search field that should not raise a touch keyboard with `data-autofocus=\"fine\"`.",
+      "**Do** draw progress, steps and waits in Night Navy (`headline`).",
+      "**Do** name every outcome with the shared words: Freigabe, Abruf fehlgeschlagen, unvollständig, nicht ausgeführt, Status unklar.",
       "**Do** give every icon-only control an `aria-label`. It doubles as its tooltip.",
       "**Do** keep the double focus ring visible: 2px Focus Blue at a 2px offset, bar ink on navy, inset inside clipped rows.",
-      "**Do** keep motion between 150ms and 250ms on `cubic-bezier(0.2, 0.8, 0.2, 1)`. Lift tiles only on hover-capable devices. Honour `prefers-reduced-motion`.",
+      "**Do** keep motion between 150ms and 250ms on `cubic-bezier(0.2, 0.8, 0.2, 1)`. Animate a bar's fill with `translateX` behind its track's clip, never its width; only a countdown that ticks each second keeps a 1000ms linear width. Lift tiles only on hover-capable devices. Honour `prefers-reduced-motion`.",
       "**Do** keep phones thumb-first: 44px controls, the section tabs in the bottom bar, dialogs as bottom sheets.",
+      "**Do** write the markup in the narrow reading order and place blocks with the grid on wider screens.",
       "**Do** give charts colours by rank (top six, rest grey), Credit Green for income and navy-slate for spending.",
-      "**Do** put the connected bank's logo only in the institute bar, under the app's own mark."
+      "**Do** use the spaced Gedankenstrich (\" – \") in interface strings, and German quotes („…“)."
     ],
     "donts": [
-      "**Don't** colour anything Signal Blue that cannot be pressed, and don't make a pressable thing any other hue (except the stage's white lead pill and a destructive red confirm).",
-      "**Don't** colour a debit red. Spending is not an error.",
+      "**Don't** colour anything Signal Blue that cannot be pressed (the drawn pictograms of empty states and dialogs excepted), and don't make a pressable thing any other hue (except the stage's white lead pill and a destructive red confirm).",
+      "**Don't** colour a debit red, or a credit card's balance. Spending is not an error, and a card is negative by nature.",
       "**Don't** use amber for a warning. Amber means \"vorgemerkt\"; a warning is inset grey plus an orange edge.",
-      "**Don't** set orange as text. It is a dot, an edge or a glyph.",
+      "**Don't** set orange as text. It is a dot, an edge, a ring or a glyph.",
       "**Don't** frame a card inside a card or draw a border around a tile.",
-      "**Don't** letterspace labels or set them in capitals.",
+      "**Don't** letterspace labels or set them in capitals, on screen or on paper.",
+      "**Don't** set text below 12.5px outside the Floor Rule's exceptions, invent a 16px heading, or use a 10px radius.",
       "**Don't** use Tailwind's default palette (`red-500`, `slate-200`). It is switched off on purpose.",
-      "**Don't** show FinTS segment codes or a Verwendungszweck's structured tags in the interface.",
+      "**Don't** show FinTS segment codes or a Verwendungszweck's structured tags in the interface, or print them on paper. A bank code appears only as the small \"Rückmeldung der Bank\" reference.",
+      "**Don't** put the risky action in the filled button at a risk decision, or open a layer on a checkbox, a switch, a radio or an action.",
+      "**Don't** let a dialog's buttons scroll away with its text.",
+      "**Don't** sort blocks with CSS `order`.",
       "**Don't** fill a chart area with a gradient. The Kontoverlauf area is flat.",
-      "**Don't** change the print styles (`.doc`, Barlow, the 30mm label rail). The paper is frozen while the screen moves on.",
+      "**Don't** let a theme reach paper. The `.doc` tokens are fixed light values.",
       "**Don't** use any bank's or Atruvia's logo, wordmark or name as the app's own identity. The app borrows a design language, not a brand."
     ]
   }

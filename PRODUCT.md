@@ -33,8 +33,8 @@ The jobs they come to do:
 
 Sooskasse-FinTS is a banking app for German banks. It speaks FinTS 3.0
 (HBCI) PIN/TAN, including decoupled TAN, directly from the user's own
-machine. It works with any of the ~2,700 FinTS institutes in its bundled
-database, and every one gets the same interface for:
+machine. It works with any bank behind the 2,721 Bankleitzahlen with FinTS
+access in its bundled database, and every one gets the same interface for:
 
 - balances and Umsätze, plus pending entries
 - SEPA and Echtzeit transfers with Namensabgleich (Verification of Payee)
@@ -78,12 +78,21 @@ The owner sees the position as the combination of three claims (confirmed
     process, sessions live in memory, and the app has no authentication of its
     own.
 - **Getting in.** The login runs in this order:
-  1. Pick the bank. Quick picks show real logos; search works by BLZ, name,
-     city or BIC.
+  1. Pick the bank. Quick picks show real logos; search works by name, city,
+     BLZ (also typed with spaces), BIC or IBAN. The IBAN is read on the
+     device, and only its BLZ goes to the search.
   2. Enter Anmeldename and PIN.
-  3. Choose a TAN method.
-  4. Approve in the TAN app.
+  3. Choose the security method. Only approval in the bank's app works; when
+     the bank offers a single method and it is one, it is picked
+     automatically.
+  4. Approve in the banking app.
   5. Land on the Finanzübersicht.
+
+  What is needed is said before the PIN is typed: a "Was brauche ich?"
+  disclosure on the bank and credentials steps (the online-banking
+  credentials, the bank's FinTS access, approval in the bank's app; chipTAN,
+  smsTAN and TAN generators do not work), and a line on the credentials form
+  that names the brand's approval app where one name holds.
 
   Any bank read can cost its own approval, so reads are serialised and cached.
   "Gerät merken" keeps the bank's systemId encrypted with the PIN, so the bank
@@ -95,16 +104,25 @@ The owner sees the position as the combination of three claims (confirmed
   Kontoverlauf only know the loaded period. Loading 12 months can cost a TAN,
   and some banks keep less.
 - **Screen sharing.** "Beträge ausblenden" masks every amount, chart axis and
-  tooltip.
+  tooltip, and the amounts inside the bank's free text (Verwendungszweck,
+  references) as well as text can be read.
 - **Documents.** The app produces:
   - a PDF Kontoauszug and Buchungsbeleg
-  - a CSV export in the German Excel dialect
+  - a CSV export in the German Excel dialect, holding the booked Umsätze the
+    list shows (never Vorgemerkte), with the days and any filter in its file
+    name
   - a GiroCode PNG for Geld anfordern
 - **What the bank sends that the UI has to absorb:**
   - bookings dated ahead of today ("noch nicht gebucht")
   - bank messages at login (Mitteilungen)
+  - orders and approvals the bank refuses ("nicht ausgeführt", "nicht
+    freigegeben"), shown with the bank's sentences verbatim and its code once
+    as "Rückmeldung der Bank"
   - transfers whose outcome is unknown ("Status unklar"; never resend
-    blindly)
+    blindly). "Jetzt nachsehen" checks the Umsätze and Vorgemerkte in place
+    and never sends anything
+  - reads that fail ("Abruf fehlgeschlagen") or leave a total incomplete
+    ("unvollständig"; the Gesamtsaldo is never a partial sum)
   - Namensabgleich results (Match, Close Match, No Match, Not Applicable),
     with the bank's own text shown verbatim
 
@@ -122,7 +140,11 @@ The owner sees the position as the combination of three claims (confirmed
 - CSV and PDF export
 - Vorgemerkte Umsätze (HKVMK)
 - SEPA-Überweisung (HKCCS) and Echtzeitüberweisung (HKIPZ), with templates,
-  recent payees, GiroCode reading and duplicate and overdraft warnings
+  recent payees, GiroCode reading and duplicate and overdraft warnings. The
+  duplicate check reads a 14-day record of sent orders (account, IBAN,
+  amount, time, outcome) kept in the PIN-encrypted vault, so it survives a
+  logout; an order is written there as unclear the moment the bank holds it
+  for approval
 - Namensabgleich (HKVPP/HKVPA)
 - Geld anfordern (EPC QR)
 - the shop behind card payments
@@ -147,9 +169,9 @@ The owner sees the position as the combination of three claims (confirmed
 - Two outside requests exist besides the bank, and both are disclosed and can
   be switched off:
   - Brandfetch, which receives cleaned company names only. Off until the user
-    agrees (owner decision, 2026-10-04): the app asks once, before the first
-    lookup, and the Sitzung panel switches it. Builds without a client ID never
-    offer it.
+    agrees (owner decision, 2026-10-04): the app asks once, in a tile on the
+    Übersicht, before the first lookup, and the Sitzung panel's "Firmenlogos"
+    switch changes the answer. Builds without a client ID never offer it.
   - the update check, which goes to GitHub
 - Fonts are self-hosted.
 - A transfer whose outcome is unclear is never resent automatically.
@@ -162,6 +184,7 @@ The owner sees the position as the combination of three claims (confirmed
 - Überweisung, Echtzeitüberweisung, Namensabgleich
 - Kontoauszug, Buchungsbeleg
 - Gerät vergessen
+- Freigabe for the approval; "TAN" only inside a method's name
 
 Wherever the app shows a tidied counterparty name, it also shows the bank's
 raw name as "Name laut Bank" (owner's request).
@@ -172,6 +195,46 @@ raw name as "Name laut Bank" (owner's request).
   disclosed in the app and README. The owner has not decided whether checks
   should be opt-in instead.
 - No accessibility standard has been set yet.
+- **Duplicate warning.** "Angaben prüfen" is now the filled primary and
+  "Trotzdem überweisen" the outline, as at a name mismatch. Is safe-first
+  right here, given that a deliberate repeat payment within 14 days is
+  possible?
+- **Figure step.** KPIs, amount fields and the Monatsbilanz Differenz use a
+  20px/24px figure ladder, now documented as tokens. Keep it, or move the
+  figures to an existing size such as the 22px Title?
+- **Bottom-bar labels** are 12.5px, the caption floor ("Überweisen" fits from
+  360px). Keep, or allow 12px for that bar only?
+- **Curated lists in `lib/brands.ts` and the bank picker.** The banks named as
+  offering no FinTS (N26, Revolut, Trade Republic, bunq, C24, Tomorrow,
+  Vivid) and the approval-app name per brand (S-pushTAN, SecureGo plus,
+  Banking to go, DKB-App, BestSign, photoTAN, SecurePlus) need the owner's
+  confirmation.
+- **Buchungsbeleg balance.** The Beleg no longer prints the account's
+  balance, Verfügbar or credit line (a third party reads it). Should it show
+  the balance again?
+- **Statement density.** At 9.5pt about 13 bookings fit an A4 page (120
+  bookings print on 9 pages). Keep, or set the table body at 9pt?
+- **Bank logo on paper.** The printed letterhead shows the bank's logo as
+  kontoführendes Institut, while the footer says the bank did not issue the
+  document. Keep the logo, or print the bank's name only?
+- **CSV with Vorgemerkte.** The export holds booked Umsätze only. Is an
+  explicit "mit vorgemerkten Umsätzen" option wanted?
+- **Day band figure.** A day of bookings now shows the verified end-of-day
+  Kontostand where the app can prove it, otherwise a labelled "Summe". Keep
+  the balance, or go back to the day's sum?
+- **Category share bar.** Keep Analyse's stacked share bar in rank colours,
+  or drop it for single-hue row bars (a change to DESIGN.md's chart rule)?
+- **What "Beträge ausblenden" hides.** The Monatsbilanz split bar hides
+  today; Analyse's direction and comparison lines and the category shares do
+  not. All or none?
+- **Gerät merken consent.** The device is remembered after login and the app
+  says so beforehand. Is an explicit "Dieses Gerät merken" choice (and
+  "Anmeldenamen merken") wanted?
+- **Terminology.** The app now says Kartensaldo, Kreditrahmen and
+  Gesamtsaldo. Add them to the list above?
+- **Optional extras** proposed during the fix pass: a "Drucken / als PDF" for
+  a bank message, and a first-use toast for single-key shortcuts with
+  "Kürzel ausschalten".
 
 ## Brand Commitments
 
@@ -196,8 +259,9 @@ raw name as "Name laut Bank" (owner's request).
 - **Testing claim** in the README: "tested with Atruvia, Targobank,
   Commerzbank and FI infrastructure". The owner uses the app with real
   Sparkasse data.
-- **Bank data.** `banks-data.json` holds ~2,700 institutes, from hbci4java's
-  list plus fints-institute-db. `public/logos/` holds 17 bank logos from
+- **Bank data.** `banks-data.json` holds 2,721 Bankleitzahlen with FinTS
+  access (about 1,870 distinct bank names), from hbci4java's list plus
+  fints-institute-db. `public/logos/` holds 17 bank logos from
   Wikimedia Commons; every other bank gets a monogram.
 - **Releases.** Tags 4.0.0 (GitHub release, 2026-10-03) and 4.1.0. The repo is public under
   the MIT licence.
