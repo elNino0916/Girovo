@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "components/ui.tsx"
+        ],
+        "createdAt": "2026-10-04T14:46:31.734Z",
+        "reason": "Claude (critique triage): Kbd keycap at ui.tsx Kbd — 1px neutral line-strong border with a 2px bottom edge imitating a physical key, not an accent stripe on a card; detector run B classified it as a false positive"
+      }
+    ]
+  }
+}
