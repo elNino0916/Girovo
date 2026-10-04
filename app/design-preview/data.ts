@@ -111,8 +111,6 @@ export const MOCK_BANK: ChosenBank = {
   brand: 'vrbank',
   bic: BIC,
   location: 'Musterstadt',
-  // As the picker hands it over: the bank's approval app, not a field label.
-  hint: 'SecureGo plus',
 };
 
 export const ACCT = {
@@ -890,7 +888,8 @@ function buildMockData(today: string): MockData {
     ],
     popularBanks: POPULAR,
     logoFiles: LOGO_FILES,
-    meta: { productRegistered: true, bankCount: 3417, merchantLogos: false },
+    // The real list's size (banks-data.json): 2,721 Bankleitzahlen. Never an invented figure.
+    meta: { productRegistered: true, bankCount: 2721, merchantLogos: false },
     vault: {
       version: 1,
       templates: [
@@ -938,22 +937,22 @@ const LOGO_FILES: Record<string, string> = {
 
 /** The login quick picks, as /api/banks would list them (lib/banks.ts reads the disk; this cannot). */
 const POPULAR: PopularBank[] = [
-  { key: 'sparkasse', name: 'Sparkasse', brand: 'sparkasse', search: 'Sparkasse', hint: 'Deine lokale Sparkasse per BLZ oder Ort suchen · S-pushTAN' },
-  { key: 'vrbank', name: 'Volksbank / VR-Bank', brand: 'vrbank', search: 'Volksbank', hint: 'Deine lokale VR-Bank per BLZ oder Ort suchen · SecureGo plus' },
-  { key: 'ing', name: 'ING', brand: 'ing', blz: '50010517', bic: 'INGDDEFFXXX', fullName: 'ING-DiBa', hint: 'Banking to go App' },
-  { key: 'dkb', name: 'DKB', brand: 'dkb', search: 'DKB', hint: 'Deine BLZ suchen · DKB-App' },
-  { key: 'commerzbank', name: 'Commerzbank', brand: 'commerzbank', search: 'Commerzbank', hint: 'Deine BLZ suchen · photoTAN' },
-  { key: 'deutschebank', name: 'Deutsche Bank', brand: 'deutschebank', search: 'Deutsche Bank', hint: 'Deine BLZ suchen · photoTAN' },
-  { key: 'postbank', name: 'Postbank', brand: 'postbank', search: 'Postbank', hint: 'Deine BLZ suchen · BestSign' },
-  { key: 'comdirect', name: 'comdirect', brand: 'comdirect', search: 'comdirect', hint: 'Deine BLZ suchen · photoTAN' },
-  { key: 'hypovereinsbank', name: 'HypoVereinsbank', brand: 'hypovereinsbank', blz: '70020270', bic: 'HYVEDEMMXXX', fullName: 'UniCredit Bank - HypoVereinsbank', hint: 'appTAN' },
-  { key: 'targobank', name: 'Targobank', brand: 'targobank', blz: '30020900', bic: 'CMCIDEDDXXX', fullName: 'TARGOBANK', hint: 'easyTAN' },
-  { key: 'consorsbank', name: 'Consorsbank', brand: 'consorsbank', blz: '76030080', bic: 'CSDBDE71XXX', fullName: 'BNP Paribas S.A. Niederlassung Deutschland', hint: 'SecurePlus' },
-  { key: 'norisbank', name: 'norisbank', brand: 'norisbank', blz: '10077777', bic: 'NORSDE51XXX', fullName: 'norisbank', hint: 'photoTAN' },
-  { key: 'sparda', name: 'Sparda-Bank', brand: 'sparda', search: 'Sparda', hint: 'Deine lokale Sparda-Bank suchen · SpardaSecureApp' },
-  { key: 'psd', name: 'PSD Bank', brand: 'psd', search: 'PSD', hint: 'Deine lokale PSD Bank suchen' },
-  { key: 'apobank', name: 'apoBank', brand: 'apobank', blz: '30060601', bic: 'DAAEDEDDXXX', fullName: 'Deutsche Apotheker- und Ärztebank', hint: 'apoTAN' },
-  { key: 'gls', name: 'GLS Bank', brand: 'gls', blz: '43060967', bic: 'GENODEM1GLS', fullName: 'GLS Gemeinschaftsbank', hint: 'SecureGo plus' },
+  { key: 'sparkasse', name: 'Sparkasse', brand: 'sparkasse', search: 'Sparkasse' },
+  { key: 'vrbank', name: 'Volksbank / VR-Bank', brand: 'vrbank', search: 'Volksbank' },
+  { key: 'ing', name: 'ING', brand: 'ing', blz: '50010517', bic: 'INGDDEFFXXX', fullName: 'ING-DiBa' },
+  { key: 'dkb', name: 'DKB', brand: 'dkb', blz: '12030000', bic: 'BYLADEM1001', fullName: 'Deutsche Kreditbank Berlin' },
+  { key: 'commerzbank', name: 'Commerzbank', brand: 'commerzbank', search: 'Commerzbank' },
+  { key: 'deutschebank', name: 'Deutsche Bank', brand: 'deutschebank', search: 'Deutsche Bank' },
+  { key: 'postbank', name: 'Postbank', brand: 'postbank', search: 'Postbank' },
+  { key: 'comdirect', name: 'comdirect', brand: 'comdirect', search: 'comdirect' },
+  { key: 'hypovereinsbank', name: 'HypoVereinsbank', brand: 'hypovereinsbank', blz: '70020270', bic: 'HYVEDEMMXXX', fullName: 'UniCredit Bank - HypoVereinsbank' },
+  { key: 'targobank', name: 'Targobank', brand: 'targobank', blz: '30020900', bic: 'CMCIDEDDXXX', fullName: 'TARGOBANK' },
+  { key: 'consorsbank', name: 'Consorsbank', brand: 'consorsbank', blz: '76030080', bic: 'CSDBDE71XXX', fullName: 'BNP Paribas S.A. Niederlassung Deutschland' },
+  { key: 'norisbank', name: 'norisbank', brand: 'norisbank', blz: '10077777', bic: 'NORSDE51XXX', fullName: 'norisbank' },
+  { key: 'sparda', name: 'Sparda-Bank', brand: 'sparda', search: 'Sparda' },
+  { key: 'psd', name: 'PSD Bank', brand: 'psd', search: 'PSD' },
+  { key: 'apobank', name: 'apoBank', brand: 'apobank', blz: '30060601', bic: 'DAAEDEDDXXX', fullName: 'Deutsche Apotheker- und Ärztebank' },
+  { key: 'gls', name: 'GLS Bank', brand: 'gls', blz: '43060967', bic: 'GENODEM1GLS', fullName: 'GLS Gemeinschaftsbank' },
 ];
 
 let cache: MockData | null = null;

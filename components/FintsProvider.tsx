@@ -55,7 +55,6 @@ export type ChosenBank = {
   brand: string;
   bic?: string | null;
   location?: string;
-  hint?: string;
 };
 
 export type BankSearchHit = {
@@ -475,6 +474,10 @@ function deliveredEnd(txs: readonly SerializedTransaction[], blocks: StatementIn
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** A login's id, so "Abbrechen" can name it to the server. Random, never derived from the user. */
+const newAttemptId = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+
 // ---------------------------------------------------------------------------
 
 function useFintsState() {
@@ -484,6 +487,10 @@ function useFintsState() {
   const [logoFiles, setLogoFiles] = useState<Record<string, string>>({});
 
   const [bank, setBank] = useState<ChosenBank | null>(null);
+  /** Until the bank remembered from last time is confirmed against the list. */
+  const [bankChecking, setBankChecking] = useState(true);
+  /** That remembered bank, when the list no longer has it (merged, renumbered). */
+  const [staleBank, setStaleBank] = useState<ChosenBank | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [userId, setUserId] = useState('');
 
@@ -667,9 +674,26 @@ function useFintsState() {
 
     get<PopularBank[]>('/api/banks').then(setPopularBanks).catch(() => setPopularBanks([]));
 
-    const last = store.get('fints.lastBank');
-    if (last) {
-      try { setBank(JSON.parse(last) as ChosenBank); } catch { /* stale value */ }
+    // The bank picked last time, once the list confirms it is still there —
+    // before the credentials form shows, so nobody types a PIN for a bank
+    // that has since merged away.
+    let last: ChosenBank | null = null;
+    try { last = JSON.parse(store.get('fints.lastBank') ?? 'null') as ChosenBank | null; } catch { /* stale value */ }
+    if (last?.blz) {
+      const remembered = last;
+      get<{ bank: BankSearchHit | null }>(`/api/banks?blz=${encodeURIComponent(remembered.blz)}`)
+        .then(({ bank: listed }) => {
+          if (listed) {
+            setBank({ blz: listed.blz, name: listed.name, location: listed.location, brand: listed.brand, bic: listed.bic });
+          } else {
+            setStaleBank(remembered);
+          }
+        })
+        // The check itself failed: keep the bank. A login would say if it is gone.
+        .catch(() => setBank(remembered))
+        .finally(() => setBankChecking(false));
+    } else {
+      setBankChecking(false);
     }
 
     // Read after mount rather than in the initial state: the server render has
@@ -685,6 +709,11 @@ function useFintsState() {
     }
     if (store.get('fints.singleKeys') === '0') setSingleKeyShortcutsState(false);
   }, []);
+
+  // Once a bank is chosen, the note about the one that left the list has done its job.
+  useEffect(() => {
+    if (bank) setStaleBank(null);
+  }, [bank]);
 
   useEffect(() => () => {
     if (pollTimer.current) clearTimeout(pollTimer.current);
@@ -881,8 +910,10 @@ function useFintsState() {
    * render (the first statement right after the login).
    */
   const decoupledMethod = useCallback(() => {
-    const list = tanMethodsRef.current;
-    return selectedMethodRef.current || list.find((m) => m.isDecoupled) || list[0] || null;
+    // Never a typed-TAN method as a stand-in: an app-approval wait cannot
+    // succeed on one. Without a decoupled method the wait says only "in
+    // deiner Banking-App" and polls at the default pace.
+    return selectedMethodRef.current || tanMethodsRef.current.find((m) => m.isDecoupled) || null;
   }, []);
 
   /** An account as an approval names it — the user's own name for it first (read from the ref: see above). */
@@ -1583,13 +1614,25 @@ function useFintsState() {
     toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 6000);
   }, [toast]);
 
+  /** The login the bank is being asked for right now, so it can be called off. */
+  const connectAttemptRef = useRef<{ id: string; ctrl: AbortController } | null>(null);
+
   const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string) => {
     // "Zurück zur Anmeldung" from the TAN-method screen leaves the half-open
     // session behind; a new login replaces it.
     const previous = sessionRef.current;
-    const data = await post<ConnectResponse>('/api/connect', {
-      blz: chosen.blz, userId: login, pin,
-    });
+    const attempt = { id: newAttemptId(), ctrl: new AbortController() };
+    connectAttemptRef.current = attempt;
+    let data: ConnectResponse;
+    try {
+      data = await post<ConnectResponse>('/api/connect', {
+        blz: chosen.blz, userId: login, pin, attemptId: attempt.id,
+      }, { signal: attempt.ctrl.signal });
+    } finally {
+      if (connectAttemptRef.current === attempt) connectAttemptRef.current = null;
+    }
+    // Called off while the answer was on its way: it goes nowhere.
+    if (attempt.ctrl.signal.aborted) throw new DOMException('Die Anmeldung wurde abgebrochen.', 'AbortError');
 
     store.set('fints.lastBank', JSON.stringify(chosen));
     store.set(`fints.userId.${chosen.blz}`, login);
@@ -1636,6 +1679,19 @@ function useFintsState() {
       setView('tanmethod');
     }
   }, [afterAccountsReady, toast, setSelectedMethodBoth, setTanMethodsBoth]);
+
+  /**
+   * "Abbrechen" while the bank is being asked for the login: its answer is
+   * dropped here, and the server ends the bank request and drops whatever
+   * the attempt already holds — the PIN with it (app/api/connect/cancel).
+   */
+  const cancelConnect = useCallback(() => {
+    const attempt = connectAttemptRef.current;
+    if (!attempt) return;
+    connectAttemptRef.current = null;
+    attempt.ctrl.abort();
+    post('/api/connect/cancel', { attemptId: attempt.id }).catch(() => { /* the 30-minute sweep remains */ });
+  }, []);
 
   const chooseTanMethod = useCallback(async (method: SerializedTanMethod, tanMediaName?: string) => {
     const sid = sessionRef.current;
@@ -2267,6 +2323,7 @@ function useFintsState() {
   return {
     // data
     view, meta, popularBanks, logoFiles, bank, sessionId, userId,
+    bankChecking, staleBank,
     tanMethods, selectedMethod, mediaChoice, tanMethodError,
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
@@ -2283,6 +2340,7 @@ function useFintsState() {
     inboxOpen, paletteOpen, shortcutsOpen,
     // actions
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
+    cancelConnect,
     isLoadedForAppliedRange,
     refreshAccount, refreshAfterTransfer, applyRange, loadPending, submitTransfer, confirmVop, abandonVop,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,

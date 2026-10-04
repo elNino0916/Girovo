@@ -93,6 +93,39 @@ async function toReview(c: Ctx) {
   await c.poll(() => findButton(SUBMIT, 'dialog', true), 4000);
 }
 
+/** Types into a field the way a person would, so React sees the change. */
+function typeInto(el: HTMLInputElement, text: string) {
+  el.focus();
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(el, text);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/** "Bank wählen" with `q` typed into the search, once its answer is there (the real search route). */
+const searchFor = (q: string): Script => async (c) => {
+  const input = await c.poll(() => document.querySelector<HTMLInputElement>('input[role="combobox"]'), 6000);
+  if (!input) return;
+  typeInto(input, q);
+  await c.poll(() => {
+    const said = document.querySelector('main p[role="status"]')?.textContent?.trim();
+    return said && said !== 'Suche …' ? said : null;
+  }, 6000);
+};
+
+/**
+ * "Anmelden" with this login name (the mock answers by name: fehler,
+ * gesperrt, wartung, langsam), then until the answer is on screen.
+ */
+const loginAs = (name: string, waitMs?: number): Script => async (c) => {
+  const login = await c.poll(() => document.querySelector<HTMLInputElement>('input[autocomplete="username"]'), 6000);
+  const pin = document.querySelector<HTMLInputElement>('input[autocomplete="current-password"]');
+  if (!login || !pin) return;
+  typeInto(login, name);
+  typeInto(pin, '12345');
+  await c.click(/^Anmelden$/);
+  if (waitMs) await c.sleep(waitMs);
+  else await c.poll(() => document.querySelector('main [role="alert"]'), 8000);
+};
+
 /** On the review step: the primary action that sends the order ("Trotzdem überweisen" after a duplicate hint). */
 const SUBMIT = /(freigeben|senden|ausführen|jetzt überweisen|trotzdem überweisen|^überweisen$|überweisung absenden)/i;
 
@@ -230,6 +263,37 @@ const VIEWS: Record<string, ViewDef> = {
       await c.until((f) => f.wait.kind === 'statements' && f.wait.phase === 'waiting', 6000);
     },
   },
+  'login-help': {
+    label: 'Was brauche ich?',
+    group: 'Anmeldung',
+    options: { view: 'login' },
+    async script(c) {
+      const summary = await c.poll(() => document.querySelector<HTMLElement>('main details > summary'), 6000);
+      summary?.click();
+    },
+  },
+  'login-iban': { label: 'Suche per IBAN', group: 'Anmeldung', options: { view: 'login' }, script: searchFor('DE89 3704 0044 0532 0130 00') },
+  'login-blz-miss': { label: 'BLZ ohne Treffer', group: 'Anmeldung', options: { view: 'login' }, script: searchFor('123 456 78') },
+  'login-no-fints': { label: 'Bank ohne FinTS', group: 'Anmeldung', options: { view: 'login' }, script: searchFor('N26') },
+  'login-shared-name': { label: 'Gleichnamige Banken', group: 'Anmeldung', options: { view: 'login' }, script: searchFor('comdirect') },
+  'login-stale': { label: 'Bank nicht mehr gelistet', group: 'Anmeldung', options: { view: 'login', staleBank: true } },
+  'credentials-error': {
+    label: 'Zugangsdaten falsch', group: 'Anmeldung', options: { view: 'login', bankChosen: true }, script: loginAs('fehler'),
+  },
+  'credentials-locked': {
+    label: 'Zugang gesperrt', group: 'Anmeldung', options: { view: 'login', bankChosen: true }, script: loginAs('gesperrt'),
+  },
+  'credentials-outage': {
+    label: 'Bank antwortet nicht', group: 'Anmeldung', options: { view: 'login', bankChosen: true }, script: loginAs('wartung'),
+  },
+  'credentials-slow': {
+    label: 'Anmeldung dauert (Abbrechen)',
+    group: 'Anmeldung',
+    options: { view: 'login', bankChosen: true },
+    // "Abbrechen" shows after 8 s without an answer.
+    script: loginAs('langsam', 8600),
+  },
+  'tanmethod-typed': { label: 'Nur TAN-Eingabe', group: 'Anmeldung', options: { view: 'tanmethod', methods: 'typed' } },
 
   transfer: { label: 'Erfassen', group: 'Überweisung', options: { open: 'transfer' } },
   'transfer-filled': { label: 'Erfassen (ausgefüllt)', group: 'Überweisung', options: transferWith(MOCK_PAYEES.lea) },

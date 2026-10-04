@@ -6,13 +6,15 @@
 </p>
 
 A modern, self-hosted banking app for German banks that speaks **FinTS 3.0
-(HBCI) PIN/TAN** — including the *decoupled* TAN methods (S-pushTAN, SecureGo
-plus, …) where you approve directly in your banking app.
+(HBCI) PIN/TAN** with approval in your bank's app — the *decoupled* TAN
+methods such as S-pushTAN, SecureGo plus or BestSign. Methods where you type a
+TAN (chipTAN, smsTAN, TAN generators) are not supported.
 
 **Features**
 - **Tested with major banks** — Sooskasse-FinTS has been tested with Atruvia, Targobank, Commerzbank and FI infrastructure.
 - **All German FinTS banks** — bundled institute database (~2.700 institutes)
-  with BLZ / name / city / **BIC** search; quick picks with the real bank
+  with name / city / BLZ / **BIC** search, or a pasted **IBAN** (read in the
+  browser — only its BLZ is sent to the search); quick picks with the real bank
   logos (`public/logos/`, sourced from Wikimedia Commons) and a monogram
   fallback for banks without one. URLs come from hbci4java's actively
   maintained bank list, with dead hosts (fiducia.de / gad.de / Dresdner)
@@ -250,7 +252,8 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `lib/fints-vop.ts` | Adds **HKVPP**/**HKVPA** (Namensabgleich — Verification of Payee): segment definitions, a collector that merges a result delivered over several messages (Aufsetzpunkt, return code 3040) incl. a pain.002 fallback, the HIVPPS lookup that says which transactions the bank checks, and the return codes that steer the flow (3090/3091/3945/9076). |
 | `lib/fints-pending.ts` | Adds **HKVMK** (Vormerkposten / pending entries): segment definitions + a `PendingInteraction` that parses the returned **MT942** with lib-fints' MT940 parser (MT942 reuses the `:61:`/`:86:` entry format). |
 | `lib/fints-internals.js` + `.d.ts` | Re-exports the lib-fints internals its `exports` map hides (segment definitions, data elements, `registerSegmentDefinition`). Kept as one shim so the library's segment registry stays a single module instance — see the note in `next.config.ts`. |
-| `lib/banks.ts` | Institute database (`banks-data.json`, regenerate via `npm run update-banks`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search, brand detection for logos. |
+| `lib/banks.ts` | Institute database (`banks-data.json`, regenerate via `npm run update-banks`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search (with short names such as DKB, HVB, OLB), brand detection for logos. `lib/bank-query.ts` reads a query as name, BLZ or IBAN — in the browser, so an IBAN never leaves it. |
+| `lib/bank-fetch.ts` | Every lib-fints request under one policy, attached from outside the library: a 60 s limit on the bank's first byte, cancellation (a login called off), and HTTP error pages or unreadable replies turned into one German sentence — bodies go to the server log only. Also the route handlers' error translator. `lib/bank-answer.ts` is its client-side half: a bank's `code: text \| code: text` answer as sentences plus a small list of codes, lock detection by the bank's own wording. |
 | `lib/serialize.ts` | Maps lib-fints objects to the JSON the browser sees; `lib/fints-types.ts` holds that contract, imported by both sides. |
 | `lib/merchant-match.ts` | The company-detection model: name cleaning, the corporate-marker privacy gate, the candidate ladder and the scoring thresholds. Deterministic and inspectable — no network, no data files. |
 | `lib/merchants.ts` | The Brandfetch lookup behind it: Brand Search API for recall, name/domain scoring for precision, the Logo CDN fetch, process-level caching of hits *and* misses, and the logo proxy's allowlist. |
@@ -271,10 +274,11 @@ traffic and therefore being blocked by your bank's infrastructure.
 | Endpoint | Purpose |
 |----------|---------|
 | `GET  /api/meta` | Product-ID status, bank count |
-| `GET  /api/banks` | Curated quick-pick banks |
-| `GET  /api/bank-search?q=` | Search all institutes (BLZ, name, city) |
+| `GET  /api/banks` | Curated quick-pick banks; `?blz=` checks that one BLZ is still listed |
+| `GET  /api/bank-search?q=` | Search all institutes (name, city, BLZ, BIC — never an IBAN) |
 | `POST /api/connect` | First sync; returns TAN methods |
-| `POST /api/select-tan` | Select method/media + authenticated sync (accounts) |
+| `POST /api/connect/cancel` | Call off a login in flight (`attemptId`); drops any session it created |
+| `POST /api/select-tan` | Select an app-approval method/media + authenticated sync (accounts); refuses methods that need a typed TAN |
 | `POST /api/tan-poll` | Poll/continue the pending decoupled approval |
 | `POST /api/cancel-pending` | Abandon the pending approval client-side |
 | `POST /api/balance` | Kontostand for one account |
@@ -376,7 +380,15 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 
 ## Notes & limitations
 
-- You need a bank contract with **FinTS/HBCI access enabled** and a TAN app.
+- You need a bank contract with **FinTS/HBCI access enabled** and **approval
+  in your bank's app** (decoupled TAN: S-pushTAN, SecureGo plus, BestSign, …).
+  The app has no TAN entry field, so chipTAN, smsTAN and other methods where
+  you type a TAN do not work; the login says so before you enter your PIN.
+- A bank must start answering within 60 seconds, or the request is reported as
+  "Deine Bank antwortet gerade nicht" (error pages and unreadable replies too —
+  their content stays in the server log). A login can be cancelled after a few
+  seconds of waiting. A transfer whose answer is lost this way still ends as
+  **„Status unklar“**, never as failed.
 - Transfers require the bank to offer HKCCS/HKIPZ over FinTS for your account —
   the UI greys the option out otherwise.
 - The Namensabgleich runs only where the bank advertises HKVPP/HKVPA and lists
