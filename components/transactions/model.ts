@@ -430,9 +430,13 @@ const OWN_ROW_TAGS = new Set(['SVWZ', 'EREF', 'MREF', 'CRED', 'KREF']);
 export function referenceRows(tx: SerializedTransaction): RefRow[] {
   const { parsed } = txText(tx);
   const field = (tag: string) => parsed.fields.find((f) => f.tag === tag)?.value ?? '';
+  // The tags' own values first, as on paper (lib/print-doc.ts
+  // bookingReferences): where a bank ran the tags together, the library files
+  // everything after "EREF+" — MREF, CRED and the prose — as the End-to-End
+  // reference.
   const rows: RefRow[] = [
-    { label: 'End-to-End-Referenz', value: realRef(tx.e2eReference) || realRef(field('EREF')) },
-    { label: 'Mandatsreferenz', value: realRef(tx.mandateReference) || realRef(field('MREF')) },
+    { label: 'End-to-End-Referenz', value: realRef(field('EREF')) || realRef(tx.e2eReference) },
+    { label: 'Mandatsreferenz', value: realRef(field('MREF')) || realRef(tx.mandateReference) },
     { label: 'Gläubiger-ID', value: txCreditorId(tx) ?? '' },
     { label: 'Kundenreferenz', value: realRef(tx.customerReference) || realRef(field('KREF')) },
     ...parsed.fields.filter((f) => !OWN_ROW_TAGS.has(f.tag)).map((f) => ({ label: f.label, value: f.value })),

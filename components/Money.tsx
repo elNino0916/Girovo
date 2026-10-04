@@ -16,12 +16,12 @@
 
 import { useCallback, useContext } from 'react';
 import { splitMoney } from '@/lib/format';
+import { AMOUNT_MASK as MASK } from '@/lib/mask';
 import { FintsContext } from './FintsProvider';
 import { cx } from './ui';
 
 const MINUS = '−';
 const NBSP = ' ';
-const MASK = '•••••';
 
 /** What a masked amount reads as, for the few places that announce one. */
 export const MASKED_LABEL = 'Betrag ausgeblendet';
