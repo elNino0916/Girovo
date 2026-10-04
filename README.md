@@ -20,10 +20,14 @@ plus, …) where you approve directly in your banking app.
   `node scripts/update-banks.mjs`. If a bank's primary endpoint is down,
   the server automatically retries the known alternate URL.
 - **Finanzübersicht** in the Atruvia online-banking language: navy masthead
-  and stage, *Konten und Karten* with a Gesamtsaldo of the loaded accounts
-  (rename accounts locally), the selected account's balance with Verfügbar /
-  Dispositionsrahmen / Vorgemerkt, *Monatsbilanz* and *Demnächst fällig* tiles,
-  and Schnellzugriffe (Überweisen, Geld anfordern, Kontoauszug, Export).
+  and stage, *Konten und Karten* with a Gesamtsaldo that appears once every
+  euro account's balance is known (*Alle Salden abrufen* asks for the missing
+  ones by balance enquiry; rename accounts locally), the selected account's
+  balance with Verfügbar / Dispositionsrahmen (Kreditrahmen for a card) /
+  Vorgemerkt — or, when a fetch failed, the bank's reason and *Erneut
+  versuchen* in its place — *Monatsbilanz* (compared with the same days of the
+  month before) and *Demnächst fällig* tiles, and Schnellzugriffe (Überweisen,
+  Geld anfordern, Kontoauszug, Export).
 - **Kontoverlauf** — the end-of-day balance over the loaded period as a step
   chart, reconstructed from the bookings and *checked against every opening and
   closing balance the bank sent*. If the numbers don't add up, no chart is drawn.

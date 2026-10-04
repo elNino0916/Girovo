@@ -105,7 +105,7 @@ export function Transactions() {
           <span className="hidden sm:inline"> · abgerufen {clock(loaded.loadedAt)} Uhr</span>
         </>
       )
-      : 'Noch nicht abgerufen';
+      : txError ? 'Abruf fehlgeschlagen' : 'Noch nicht abgerufen';
 
   let body: React.ReactNode;
   if (!a.canStatements) {

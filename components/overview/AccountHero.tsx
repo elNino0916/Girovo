@@ -1,18 +1,22 @@
 'use client';
 
-import { useId, useMemo } from 'react';
-import type { ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
+import { canReportBalance, isCardAccount } from '@/lib/balances';
 import { buildBalanceHistory } from '@/lib/balance-history';
-import { fmtDate, fmtIban, fmtRange, isFutureDate, isoDate, properName, translateType } from '@/lib/format';
-import type { SerializedBalance } from '@/lib/fints-types';
+import { fmtDate, fmtIban, fmtRange, isFutureDate, isoDate, properName } from '@/lib/format';
+import type { SerializedAccount, SerializedBalance } from '@/lib/fints-types';
 import type { StatementInfo } from '@/lib/app-types';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
-import { InfoIcon } from '../icons';
-import { CopyButton, Skeleton, cx } from '../ui';
+import { AlertTriangleIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
+import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx } from '../ui';
 import { fmtSince } from '../shell/session';
-import { AccountGlyph, accountIdent } from './AccountIdentity';
+import { AccountGlyph, MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
 import { BalanceChart } from './BalanceChart';
+
+/** The same words every other fetch control carries. */
+const MAY_NEED_TAN = 'Kann eine Freigabe erfordern.';
 
 /**
  * The bank's own balance at the end of a fetched range: the newest statement
@@ -76,26 +80,39 @@ function HeroSkeleton() {
  * The balance, given the room a balance deserves — and what qualifies it.
  *
  * The figure leads, set at display size in the headline navy with the cents
- * stepped down, the way a bank's start page states it. Right under it, the
- * day it is true for; beside it the handful of figures that change what the
- * balance means (how much is actually available, the overdraft line, what is
- * already reserved). Then the verified Kontoverlauf, and finally the account
- * line: whose account, which IBAN, which BIC.
+ * stepped down, the way a bank's start page states it, under a label that
+ * names the account it belongs to. Right under it, the day it is true for;
+ * beside it the handful of figures that change what the balance means (how
+ * much is actually available, the overdraft line, what is already reserved).
+ * Then the verified Kontoverlauf, and finally the account line: whose
+ * account, which IBAN, which BIC.
  *
- * No buttons of its own: Überweisen, Geld anfordern and Kontoauszug are the
- * stage's Schnellzugriffe right above, and act on this same account — a
- * second row of them here would only be the same three things twice.
+ * Where there is no figure, the hero says why in its place — not fetched yet,
+ * or failed with the bank's own reason — and offers the read that gets it.
+ * A failure is never shown as "not fetched yet".
+ *
+ * A credit card speaks its own language: a Kartensaldo against a
+ * Kreditrahmen, in ink rather than red — a card's balance is negative by
+ * nature, so red would raise an alarm after every purchase.
+ *
+ * No buttons for the account's actions: Überweisen, Geld anfordern and
+ * Kontoauszug are the stage's Schnellzugriffe right above, and act on this
+ * same account. With a single account the list above stays away, and its
+ * "Umbenennen" moves into the account line here.
  *
  * Past ranges: a statement fetched for a range that ended before today says
  * nothing about the balance *now*. Its closing figure is shown as "Saldo am
  * {Ende}" and is never labelled "Kontostand"; the current balance appears
- * only if an earlier fetch up to today supplied it.
+ * only if a fetch up to today, or a balance enquiry, supplied it.
  */
 export function AccountHero() {
   const {
-    activeAccount: a, balances, statementInfo, txByAccount, pendingCache, pendingInfo, loadingAccount, accountLabel,
+    activeAccount: a, accounts, balances, statementInfo, txByAccount, pendingCache, pendingInfo, loadingAccount,
+    balanceLoading, txErrors, balanceErrors, busy, privacy, togglePrivacy, isLoadedForAppliedRange, refreshAccount,
+    loadBalance, accountLabel,
   } = useFints();
 
+  const figureRef = useRef<HTMLDivElement>(null);
   const acct = a?.accountNumber ?? '';
   const info = acct ? statementInfo[acct] : undefined;
   const txs = acct ? txByAccount[acct] : undefined;
@@ -108,25 +125,48 @@ export function AccountHero() {
     [info, txs],
   );
 
-  if (!a) return <HeroSkeleton />;
+  // No account at all (the bank listed none): the list says so; nothing to hold a place for.
+  if (!a) return accounts.length ? <HeroSkeleton /> : null;
 
   const bal = balances[acct];
-  const loading = loadingAccount === acct;
+  const statementLoading = loadingAccount === acct;
+  const figureLoading = statementLoading || balanceLoading === acct;
+  const failure = txErrors[acct] ?? balanceErrors[acct];
+  const card = isCardAccount(a);
   const today = isoDate(new Date());
   const past = !!info && info.to < today;
   const closing = past ? closingOf(info, a.currency) : null;
   const currency = bal?.currency ?? closing?.currency ?? a.currency ?? 'EUR';
   const dated = asOf(bal);
-  const kind = translateType(a.accountType);
+  const label = accountLabel(a);
+  const nowLabel = card ? 'Kartensaldo' : 'Kontostand';
 
   // What the big figure is: today's balance when known; for a past range
   // without one, that range's closing balance under its own name.
   const main: { label: string; value: number; currency: string } | null = bal
-    ? { label: 'Kontostand', value: bal.balance, currency: bal.currency }
+    ? { label: nowLabel, value: bal.balance, currency: bal.currency }
     : closing && info
       ? { label: `Saldo am ${fmtDate(info.to)}`, value: closing.balance, currency: closing.currency }
       : null;
   const negative = !!main && Math.round(main.value * 100) < 0;
+  // Navy, or red for an overdrawn account. A card's negative balance is its
+  // normal state: ink. With amounts hidden always navy — a colour would give
+  // away what the dots hide.
+  const figureColour = privacy || !negative ? 'text-headline' : card ? 'text-ink' : undefined;
+
+  /**
+   * Fetches the figure the cheapest way that gets it: the statement while
+   * the Umsätze are not loaded (one read brings both), the balance enquiry
+   * once they are, or when the account has none to load. The button that
+   * asked gives way to the fetch, so focus waits on the figure's place for
+   * whatever arrives there — never dropped to <body>.
+   */
+  const fetchFigure = (via: 'auto' | 'balance' = 'auto') => {
+    if (busy) return;
+    figureRef.current?.focus({ preventScroll: true });
+    if (via === 'auto' && a.canStatements && !(a.canBalance && isLoadedForAppliedRange(acct))) refreshAccount(a);
+    else void loadBalance(a);
+  };
 
   // Vorgemerkt: only once fetched (it can take a TAN, so it is never assumed
   // to be empty), only when something IS reserved — an amber "0,00 €" would
@@ -144,7 +184,8 @@ export function AccountHero() {
   }
   if (bal?.creditLimit != null && Math.round(bal.creditLimit * 100) !== 0) {
     figures.push(
-      <Figure key="limit" label="Dispositionsrahmen">
+      // A card's limit is a Kreditrahmen; a Dispositionsrahmen is a Girokonto's overdraft.
+      <Figure key="limit" label={card ? 'Kreditrahmen' : 'Dispositionsrahmen'}>
         <Money value={Math.abs(bal.creditLimit)} currency={bal.currency} tone="plain" />
       </Figure>,
     );
@@ -171,15 +212,10 @@ export function AccountHero() {
   if (bal && closing && info) {
     figures.push(
       <Figure key="closing" label={`Saldo am ${fmtDate(info.to)}`} title="Endsaldo des geladenen Zeitraums laut deiner Bank">
-        <Money value={closing.balance} currency={closing.currency} tone="auto" />
+        <Money value={closing.balance} currency={closing.currency} tone={card ? 'plain' : 'auto'} />
       </Figure>,
     );
   }
-
-  const iban = fmtIban(a.iban);
-  const ident = accountIdent(a);
-  const holder = properName(a.holder);
-  const label = accountLabel(a);
 
   return (
     <HeroFrame label={label}>
@@ -189,48 +225,89 @@ export function AccountHero() {
       <div className="@container px-5 pt-5 pb-6 sm:px-8 sm:pt-7 sm:pb-7">
         {/* The figure, and beside it (under it when narrow) what qualifies it. */}
         <div className="grid gap-x-10 gap-y-5 @min-[640px]:grid-cols-[minmax(0,1fr)_auto] @min-[640px]:items-end">
-          <div className="min-w-0">
+          <div ref={figureRef} tabIndex={-1} aria-busy={figureLoading || undefined} className="min-w-0 outline-none">
+            {/* Which figure, and whose: two Girokonten must not look alike up here. */}
             <p className="text-[14px] leading-snug font-semibold text-ink-2">
-              {main?.label ?? 'Kontostand'}
-              {kind !== 'Konto' && <span className="font-normal text-ink-3"> · {kind}</span>}
+              {main?.label ?? nowLabel}
+              <span className="font-normal text-ink-3"> · {label}</span>
             </p>
 
             {main ? (
-              <p className={cx('mt-1.5 leading-none font-bold tracking-[-0.015em]', !negative && 'text-headline')}>
-                <Money
-                  value={main.value}
-                  currency={main.currency}
-                  tone="auto"
-                  split
-                  className="text-[40px] @min-[520px]:text-[52px]"
-                  centsClassName="text-[0.5em] font-semibold"
-                />
-              </p>
-            ) : loading ? (
-              <span className="mt-2 block">
-                <Skeleton className="h-10 w-56 max-w-full rounded-[6px] @min-[520px]:h-12" />
-                <span className="sr-only">Kontostand wird abgerufen</span>
-              </span>
-            ) : (
-              <p className="mt-1.5 text-[40px] leading-none font-bold text-ink-3 @min-[520px]:text-[52px]">–</p>
-            )}
-
-            <p className="tnum mt-2 text-[13px] leading-snug text-ink-3">
-              {bal ? (
-                <span title={dated?.title}>
-                  {dated?.text}
-                  {dated?.title && <span className="sr-only">. {dated.title}</span>}
+              <>
+                <p className={cx('mt-1.5 leading-none font-bold tracking-[-0.015em]', figureColour)}>
+                  <Money
+                    value={main.value}
+                    currency={main.currency}
+                    tone={card ? 'plain' : 'auto'}
+                    split
+                    className="text-[40px] @min-[520px]:text-[52px]"
+                    centsClassName="text-[0.5em] font-semibold"
+                  />
+                </p>
+                {bal ? (
+                  <p className="tnum mt-2 text-[13px] leading-snug text-ink-3">
+                    <span title={dated?.title}>
+                      {dated?.text}
+                      {dated?.title && <span className="sr-only">. {dated.title}</span>}
+                    </span>
+                    {/* Hidden amounts outlast a restart: whoever comes back to a
+                        page of dots learns why here, and the way back. */}
+                    {privacy && (
+                      <>
+                        {' · Beträge ausgeblendet '}
+                        <button
+                          type="button"
+                          aria-label="Beträge anzeigen"
+                          onClick={togglePrivacy}
+                          className="ml-1 font-semibold text-accent underline-offset-2 hover:underline"
+                        >
+                          Anzeigen
+                        </button>
+                      </>
+                    )}
+                  </p>
+                ) : a.canBalance ? (
+                  // A past range's closing figure stands in for a balance the
+                  // app does not know — the enquiry can still add it.
+                  <FetchAction
+                    lead={balanceErrors[acct]
+                      ? `Der Zeitraum endet vor heute. Abruf des aktuellen ${nowLabel}s fehlgeschlagen: ${balanceErrors[acct].message}`
+                      : 'Der Zeitraum endet vor heute.'}
+                    label={balanceErrors[acct] ? 'Erneut versuchen' : `Aktuellen ${nowLabel} abrufen`}
+                    busy={busy}
+                    loading={balanceLoading === acct}
+                    run={() => fetchFigure('balance')}
+                  />
+                ) : (
+                  <p className="tnum mt-2 text-[13px] leading-snug text-ink-3">
+                    Zeitraum endet vor heute – den aktuellen {nowLabel} zeigt ein Abruf bis heute.
+                  </p>
+                )}
+              </>
+            ) : figureLoading ? (
+              <>
+                <span className="mt-2 block">
+                  <Skeleton className="h-10 w-56 max-w-full rounded-[6px] @min-[520px]:h-12" />
+                  <span className="sr-only">Kontostand wird abgerufen</span>
                 </span>
-              ) : main ? (
-                // A past range's closing figure, standing in for a balance the
-                // app does not know: say why there is no "Kontostand".
-                'Zeitraum endet vor heute – den aktuellen Kontostand zeigt ein Abruf bis heute.'
-              ) : loading ? (
-                'Saldo wird abgerufen …'
-              ) : (
-                'Noch kein Saldo abgerufen'
-              )}
-            </p>
+                <p className="mt-2 text-[13px] leading-snug text-ink-3">Saldo wird abgerufen …</p>
+              </>
+            ) : failure ? (
+              <FigureNote
+                problem
+                title="Abruf fehlgeschlagen"
+                action={{ label: 'Erneut versuchen', run: () => fetchFigure() }}
+                busy={busy}
+              >
+                {failure.message}
+              </FigureNote>
+            ) : canReportBalance(a) ? (
+              <FigureNote title="Noch kein Saldo abgerufen" action={{ label: 'Saldo abrufen', run: () => fetchFigure() }} busy={busy} />
+            ) : (
+              <FigureNote title="Kein Saldo abrufbar">
+                Deine Bank meldet für dieses Konto über diesen Zugang keinen Saldo.
+              </FigureNote>
+            )}
           </div>
 
           {figures.length > 0 && (
@@ -245,46 +322,10 @@ export function AccountHero() {
           )}
         </div>
 
-        <BalanceSection history={history} loading={loading && !info} currency={currency} />
+        <BalanceSection history={history} loading={statementLoading && !info} currency={currency} figure={!!main} />
       </div>
 
-      {/* The account line: what the account is called, whose it is, and the
-          identifiers to hand to somebody else — each copyable. */}
-      <div className="flex flex-col gap-3 border-t border-line bg-inset px-5 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-8">
-        <span className="flex min-w-0 flex-1 items-center gap-3">
-          <AccountGlyph account={a} size={36} className="hidden sm:grid" />
-          <span className="min-w-0">
-            <span className="block truncate text-[15px] leading-snug font-semibold">{label}</span>
-            {holder && <span className="block truncate text-[13px] leading-snug text-ink-3">{holder}</span>}
-          </span>
-        </span>
-
-        <span className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 sm:justify-end">
-          {iban ? (
-            <span className="flex min-w-0 items-center gap-1">
-              <span className="sr-only">IBAN </span>
-              <span className="iban overflow-x-auto text-[13.5px] text-ink [scrollbar-width:none]">{iban}</span>
-              <CopyButton text={iban.replace(/\s+/g, '')} label="IBAN kopieren" />
-            </span>
-          ) : ident.tail ? (
-            // No IBAN (a credit card, a Depot): the number the bank reports,
-            // grouped like a card prints it, the recognisable end set heavier.
-            <span className="flex min-w-0 items-baseline gap-1.5 text-[13px] text-ink-3">
-              <span aria-hidden className="shrink-0">{ident.kind === 'card' ? 'Karte' : 'Konto'}</span>
-              <span aria-hidden className="iban flex min-w-0 text-[13.5px] text-ink-2">
-                {ident.head && <span className="min-w-0 truncate">{ident.head}&nbsp;</span>}
-                <span className="id-tail shrink-0">{ident.tail}</span>
-              </span>
-              <span className="sr-only">{ident.spoken}</span>
-            </span>
-          ) : null}
-          {a.bic && (
-            <span className="text-[13px] text-ink-3">
-              BIC <span className="iban text-ink-2">{a.bic}</span>
-            </span>
-          )}
-        </span>
-      </div>
+      <AccountLine account={a} label={label} renamable={accounts.length === 1} />
     </HeroFrame>
   );
 }
@@ -299,13 +340,247 @@ function HeroFrame({ label, children }: { label: string; children: ReactNode }) 
   );
 }
 
+/**
+ * In the figure's place: why there is none — and, when a read can change
+ * that, the read, with the note every fetch control carries. Not a live
+ * region: the toast has already announced a failure once.
+ */
+function FigureNote({
+  title, problem, action, busy, children,
+}: {
+  title: string;
+  problem?: boolean;
+  action?: { label: string; run: () => void };
+  busy?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="mt-2">
+      <p className="flex items-center gap-2 text-[22px] leading-[1.25] font-bold text-ink">
+        {problem && <AlertTriangleIcon size={22} className="shrink-0 text-red" />}
+        {title}
+      </p>
+      {/* The reason as the bank (or the app) put it. */}
+      {children && <p className="mt-1 max-w-[60ch] text-[14px] leading-snug text-ink-2">{children}</p>}
+      {action && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Button size="sm" variant="secondary" iconLeft={<RefreshIcon size={16} />} disabled={busy} onClick={action.run}>
+            {action.label}
+          </Button>
+          <span className="text-[13px] leading-snug text-ink-3">{MAY_NEED_TAN}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The date line's place under a past range's figure: what it is, and the read that adds today's. */
+function FetchAction({ lead, label, busy, loading, run }: {
+  lead: string; label: string; busy: boolean; loading: boolean; run: () => void;
+}) {
+  return (
+    <div className="mt-2 text-[13px] leading-snug text-ink-3">
+      <p>{lead}</p>
+      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+        <Button
+          variant="tertiary"
+          size="xs"
+          className="-ml-3"
+          iconLeft={<RefreshIcon size={15} />}
+          busy={loading}
+          disabled={busy}
+          onClick={run}
+        >
+          {label}
+        </Button>
+        <span>{MAY_NEED_TAN}</span>
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The account line: what the account is called, whose it is, and the
+ * identifiers to hand to somebody else — each copyable. For the only account
+ * (no list above it) it is also where the account is renamed.
+ */
+function AccountLine({ account, label, renamable }: { account: SerializedAccount; label: string; renamable: boolean }) {
+  const { vaultStatus } = useFints();
+  const [renaming, setRenaming] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const renameButton = useRef<HTMLButtonElement>(null);
+  const noteId = useId();
+
+  // Focus goes back to the button that started renaming — never lost to <body>.
+  const wasRenaming = useRef(false);
+  useEffect(() => {
+    if (!renaming && wasRenaming.current) renameButton.current?.focus();
+    wasRenaming.current = renaming;
+  }, [renaming]);
+
+  // The explanation answers a click; once the vault is readable it is moot.
+  useEffect(() => {
+    if (vaultStatus === 'ready') setNoteOpen(false);
+  }, [vaultStatus]);
+
+  const startRenaming = () => {
+    if (vaultStatus !== 'ready') setNoteOpen(true);
+    else setRenaming(true);
+  };
+
+  const iban = fmtIban(account.iban);
+  const ident = accountIdent(account);
+  const holder = properName(account.holder);
+
+  return (
+    <div className="border-t border-line bg-inset px-5 py-4 sm:px-8">
+      {renaming && renamable ? (
+        <RenameForm account={account} onClose={() => setRenaming(false)} />
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <span className="flex min-w-0 flex-1 items-center gap-3">
+            <AccountGlyph account={account} size={36} className="hidden sm:grid" />
+            <span className="min-w-0">
+              <span className="block truncate text-[15px] leading-snug font-semibold">{label}</span>
+              {holder && <span className="block truncate text-[13px] leading-snug text-ink-3">{holder}</span>}
+            </span>
+            {renamable && (
+              <Button
+                ref={renameButton}
+                variant="tertiary"
+                size="xs"
+                iconLeft={<PencilIcon size={16} />}
+                aria-describedby={noteOpen ? noteId : undefined}
+                onClick={startRenaming}
+              >
+                Umbenennen
+              </Button>
+            )}
+          </span>
+
+          <span className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 sm:justify-end">
+            {iban ? (
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="sr-only">IBAN </span>
+                <span className="iban overflow-x-auto text-[13.5px] text-ink [scrollbar-width:none]">{iban}</span>
+                <CopyButton text={iban.replace(/\s+/g, '')} label="IBAN kopieren" />
+              </span>
+            ) : ident.tail ? (
+              // No IBAN (a credit card, a Depot): the number the bank reports,
+              // grouped like a card prints it, the recognisable end set heavier.
+              <span className="flex min-w-0 items-baseline gap-1.5 text-[13px] text-ink-3">
+                <span aria-hidden className="shrink-0">{ident.kind === 'card' ? 'Karte' : 'Konto'}</span>
+                <span aria-hidden className="iban flex min-w-0 text-[13.5px] text-ink-2">
+                  {ident.head && <span className="min-w-0 truncate">{ident.head}&nbsp;</span>}
+                  <span className="id-tail shrink-0">{ident.tail}</span>
+                </span>
+                <span className="sr-only">{ident.spoken}</span>
+              </span>
+            ) : null}
+            {account.bic && (
+              <span className="text-[13px] text-ink-3">
+                BIC <span className="iban text-ink-2">{account.bic}</span>
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+
+      {noteOpen && !renaming && (
+        <Alert tone="info" role="status" className="mt-3" onDismiss={() => setNoteOpen(false)}>
+          <span id={noteId}>{vaultNote(vaultStatus)}</span>
+        </Alert>
+      )}
+    </div>
+  );
+}
+
+/** Renaming the only account, in place of its name. Escape or "Abbrechen" leaves it as it was. */
+function RenameForm({ account, onClose }: { account: SerializedAccount; onClose: () => void }) {
+  const { vault, renameAccount, toast } = useFints();
+  const saved = vault?.aliases?.[account.accountNumber] ?? null;
+  const [draft, setDraft] = useState(saved ?? '');
+  const input = useRef<HTMLInputElement>(null);
+  const fieldId = useId();
+  const custom = !!draft.trim();
+
+  useEffect(() => {
+    input.current?.focus();
+  }, []);
+
+  const save = (e: FormEvent) => {
+    e.preventDefault();
+    // Typing the bank's own name back in is the same as having no alias.
+    const next = aliasFromDraft(account, draft);
+    if (next !== saved) {
+      renameAccount(account.accountNumber, next);
+      toast('Kontoname gespeichert.', 'success');
+    }
+    onClose();
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Escape') return;
+    // Escape belongs to this field, not to whatever layer sits above the page.
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+  };
+
+  return (
+    <form onSubmit={save} noValidate aria-label="Konto umbenennen">
+      <Field
+        label="Kontoname"
+        htmlFor={fieldId}
+        className="max-w-[400px]"
+        hint="Er wird verschlüsselt auf diesem Rechner gespeichert, deine Bank erfährt davon nichts. Ein leeres Feld zeigt wieder den Namen deiner Bank."
+      >
+        {/* Always rendered (only hidden while there is nothing to reset):
+            adding it on the first keystroke would wrap the input in a new
+            element and drop the caret. */}
+        <Input
+          ref={input}
+          value={draft}
+          maxLength={MAX_ALIAS}
+          placeholder={bankName(account)}
+          autoComplete="off"
+          spellCheck={false}
+          enterKeyHint="done"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={onKeyDown}
+          trailing={
+            <IconButton
+              aria-label={`Auf „${bankName(account)}“ zurücksetzen`}
+              disabled={!custom}
+              className={custom ? undefined : 'invisible'}
+              onClick={() => {
+                setDraft('');
+                input.current?.focus();
+              }}
+            >
+              <UndoIcon size={17} />
+            </IconButton>
+          }
+        />
+      </Field>
+      {/* After the field, where Tab arrives — the primary action last. */}
+      <div className="mt-3 flex justify-end gap-2 sm:justify-start">
+        <Button variant="tertiary" size="sm" onClick={onClose}>Abbrechen</Button>
+        <Button variant="primary" size="sm" type="submit">Speichern</Button>
+      </div>
+    </form>
+  );
+}
+
 /** Kontoverlauf — or, when the bank's figures do not prove one, the reason why not. */
 function BalanceSection({
-  history, loading, currency,
+  history, loading, currency, figure,
 }: {
   history: ReturnType<typeof buildBalanceHistory> | null;
   loading: boolean;
   currency: string;
+  /** A balance is shown above — which stays the bank's own, whatever the history. */
+  figure: boolean;
 }) {
   if (loading) {
     return (
@@ -324,6 +599,8 @@ function BalanceSection({
         <InfoIcon size={16} className="mt-px shrink-0" />
         <span>
           <span className="font-semibold text-ink-2">Kein Kontoverlauf.</span> {reason}
+          {/* A history that does not add up says nothing against the figure above. */}
+          {!history.verified && figure && ' Der Saldo oben ist der, den deine Bank gemeldet hat.'}
         </span>
       </p>
     );
@@ -337,8 +614,7 @@ function BalanceSection({
       </figcaption>
       <BalanceChart points={history.points} currency={history.currency || currency} />
       <p className="mt-1 text-[12.5px] leading-snug text-ink-3">
-        Tagesendsaldo nach Buchungstag, nachgerechnet aus{' '}
-        {history.blocks === 1 ? 'dem Kontoauszug' : `${history.blocks} Kontoauszügen`} deiner Bank.
+        Tagesendsaldo nach Buchungstag, aus den Umsätzen und Salden deiner Bank nachgerechnet.
       </p>
     </figure>
   );
