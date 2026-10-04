@@ -16,7 +16,7 @@ export const isUpdateScenario = (s: string): s is UpdateScenario => (UPDATE_SCEN
 
 // The running version as the masthead shows it, and the one after it that
 // the fake offers — so the two never contradict each other.
-const CURRENT = process.env.NEXT_PUBLIC_APP_VERSION || '4.1.0';
+const CURRENT = process.env.NEXT_PUBLIC_APP_VERSION || '4.1.1';
 const NEXT = (() => {
   const [major, minor] = CURRENT.split(/[.-]/).map(Number);
   return `${major || 0}.${(minor || 0) + 1}.0`;
