@@ -417,7 +417,9 @@ function Palette({ onClose }: { onClose: () => void }) {
           <SearchIcon size={20} className="text-ink-3" />
           <input
             ref={inputRef}
-            data-autofocus
+            // Starts here with a keyboard; on a touch screen the dialog takes
+            // focus instead, so the on-screen keyboard does not cover the list.
+            data-autofocus="fine"
             type="text"
             role="combobox"
             aria-expanded="true"

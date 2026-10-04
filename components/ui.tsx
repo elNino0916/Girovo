@@ -555,6 +555,8 @@ const TEXT_FIELD = 'input:not([type="checkbox"]):not([type="radio"]):not([type="
  *
  *   1. what the layer names — `initialFocus`, or [data-autofocus] on its safe
  *      button ("Abbrechen", "Weiter warten", "Angemeldet bleiben");
+ *      [data-autofocus="fine"] only with a fine pointer — on a touch screen
+ *      the layer itself, so no on-screen keyboard covers it on open;
  *   2. else its first field to type into (a form starts where you type);
  *   3. else its own close button (a drawer of details: Enter only closes);
  *   4. else the layer itself, which a screen reader announces by its name.
@@ -568,13 +570,23 @@ function safeFocusTarget(root: HTMLElement, named?: HTMLElement | null): HTMLEle
   const usable = (el: HTMLElement | null | undefined): el is HTMLElement => !!el && isShown(el) && !el.matches(':disabled');
   if (usable(named)) return named;
   const marked = root.querySelector<HTMLElement>('[data-autofocus]');
-  if (usable(marked)) return marked;
+  if (usable(marked)) {
+    // data-autofocus="fine": a field worth starting in only where there is a
+    // keyboard to type with — the palette's search. On a touch screen it would
+    // open the on-screen keyboard over the very list the layer opened to show,
+    // so the layer itself takes focus and the field waits for a tap.
+    if (marked.dataset.autofocus === 'fine' && coarsePointer()) return root;
+    return marked;
+  }
   const field = focusablesIn(root).find((el) => el.matches(TEXT_FIELD) && !el.matches(':disabled'));
   if (field) return field;
   const close = root.querySelector<HTMLElement>('[data-dialog-close]');
   if (usable(close)) return close;
   return root;
 }
+
+/** A touch screen as the main pointer (a phone, a tablet): focusing a field there opens the on-screen keyboard. */
+const coarsePointer = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 
 /**
  * Focus was put somewhere with preventScroll (the layer must not jump while
