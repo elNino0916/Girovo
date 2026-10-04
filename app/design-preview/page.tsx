@@ -39,6 +39,7 @@ import { Login } from '@/components/Login';
 import { Statement } from '@/components/Statement';
 import { TanMethodPicker } from '@/components/TanMethodPicker';
 import { TanWaitOverlay } from '@/components/TanWaitOverlay';
+import { PENDING_PANEL_ID } from '@/components/transactions/PendingPanel';
 import { Toasts } from '@/components/Toasts';
 import { UpdateLayer } from '@/components/updates/UpdateNotices';
 import { txKey } from '@/lib/categories';
@@ -194,9 +195,30 @@ async function fetchAllBalances(c: Ctx) {
 const LAST_MONTH = presetRange('lastMonth');
 const LAST_MONTH_NAME = new Intl.DateTimeFormat('de-DE', { month: 'long' }).format(new Date(`${LAST_MONTH.from}T12:00:00`));
 
-/** Opens the drawer on the first booking row the (already filtered) list shows. */
+/**
+ * The Umsätze tile. Its rows are not the first `[data-tx-row]` in the
+ * document: the summaries' wrapper (Vorgemerkt among them) comes before it in
+ * the reading order, so a lookup must be scoped to the tile.
+ */
+function umsaetzeSection(): HTMLElement | null {
+  const h = [...document.querySelectorAll<HTMLElement>('h2')].find((el) => /^umsätze$/i.test(el.textContent?.trim() ?? ''));
+  return h?.closest<HTMLElement>('section') ?? null;
+}
+
+/** The booking rows of the Umsätze list, never the Vorgemerkt panel's. */
+const listRows = (): HTMLElement[] => [...(umsaetzeSection()?.querySelectorAll<HTMLElement>('[data-tx-row]') ?? [])];
+
+/** Scrolls the Umsätze tile to the top of the window, so a search or a month narrowing shows its result. */
+async function showList(c: Ctx) {
+  const section = await c.poll(() => umsaetzeSection(), 6000);
+  if (!section) return;
+  section.scrollIntoView({ block: 'start' });
+  await c.sleep(150);
+}
+
+/** Opens the drawer on the first booking row the (already filtered) Umsätze list shows. */
 async function openFirstRow(c: Ctx): Promise<HTMLElement | null> {
-  const row = await c.poll(() => document.querySelector<HTMLElement>('[data-tx-row]'), 6000);
+  const row = await c.poll(() => listRows()[0], 6000);
   if (!row) {
     console.warn('[design-preview] no transaction row found');
     return null;
@@ -212,6 +234,14 @@ async function pickCategory(c: Ctx, label: RegExp) {
   await c.poll(() => document.querySelector('[role="menu"]'), 3000);
   await c.click(label, { within: 'dialog' });
   await c.sleep(200);
+}
+
+/** In the open drawer: the Kategorie section scrolled to the top, so its offer or its rules are in view. */
+async function showCategorySection(c: Ctx) {
+  const drawer = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].filter(visible).at(-1);
+  const heading = [...(drawer?.querySelectorAll<HTMLElement>('h3') ?? [])].find((h) => h.textContent?.trim() === 'Kategorie');
+  heading?.closest('section')?.scrollIntoView({ block: 'start' });
+  await c.sleep(150);
 }
 
 /** The Umsätze tile's Export menu, open — scrolled to, so the menu is in view. */
@@ -247,12 +277,27 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Umsatzdetails',
     group: 'Dashboard',
     async script(c) {
-      // A row of the Umsätze list: `data-tx-row` when the list marks its rows,
-      // else the first row button under the "Umsätze" heading.
-      const row = await c.poll(() => document.querySelector<HTMLElement>('[data-tx-row]')
+      // A row of the Umsätze list (not the Vorgemerkt panel's, which comes
+      // first in the DOM): `data-tx-row` when the list marks its rows, else
+      // the first row button under the "Umsätze" heading.
+      const row = await c.poll(() => listRows()[0]
         ?? findUnderHeading(/^umsätze$/i, 'li > button, li [role="button"]'), 6000);
       if (!row) {
         console.warn('[design-preview] no transaction row found');
+        return;
+      }
+      row.click();
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+    },
+  },
+  'detail-pending': {
+    label: 'Umsatzdetails, vorgemerkt',
+    group: 'Dashboard',
+    // The Vorgemerkt panel's first entry, opened from the panel itself.
+    async script(c) {
+      const row = await c.poll(() => document.querySelector<HTMLElement>(`#${PENDING_PANEL_ID} [data-tx-row]`), 6000);
+      if (!row) {
+        console.warn('[design-preview] no pending row found');
         return;
       }
       row.click();
@@ -268,7 +313,7 @@ const VIEWS: Record<string, ViewDef> = {
     // amount, the rate and the fee — all of them masked.
     async script(c) {
       const rows = await c.poll(() => {
-        const all = [...document.querySelectorAll<HTMLElement>('[data-tx-row]')];
+        const all = listRows();
         return all.length ? all : null;
       }, 6000);
       const row = rows?.find((r) => /Fremdwährung/.test(r.textContent ?? '')) ?? rows?.[0];
@@ -306,12 +351,14 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Dashboard',
     // A month word matches its month and its text — the count line says so.
     options: { query: `rewe ${LAST_MONTH_NAME.toLowerCase()}` },
+    script: showList,
   },
   'search-none': {
     label: 'Suche ohne Treffer',
     group: 'Dashboard',
     // A typo: the empty state names the word that found nothing.
     options: { query: `rewe ${LAST_MONTH_NAME.toLowerCase()}x` },
+    script: showList,
   },
   'search-pending': {
     label: 'Suche trifft Vorgemerkte',
@@ -323,6 +370,7 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Liste auf einen Monat',
     group: 'Dashboard',
     options: { filter: { from: LAST_MONTH.from, to: LAST_MONTH.to } },
+    script: showList,
   },
   export: {
     label: 'Export-Menü (gefiltert)',
@@ -360,7 +408,9 @@ const VIEWS: Record<string, ViewDef> = {
     // Found by its category label, filed by hand — then the offer for the others.
     options: { query: 'lebensmittel' },
     async script(c) {
-      if (await openFirstRow(c)) await pickCategory(c, /^Shopping$/);
+      if (!(await openFirstRow(c))) return;
+      await pickCategory(c, /^Shopping$/);
+      await showCategorySection(c);
     },
   },
   'detail-rules': {
@@ -369,7 +419,7 @@ const VIEWS: Record<string, ViewDef> = {
     // The shop's name finds its bookings whatever they are filed under.
     options: { query: 'aldi' },
     async script(c) {
-      const row = await c.poll(() => document.querySelector<HTMLElement>('[data-tx-row]'), 6000);
+      const row = await c.poll(() => listRows()[0], 6000);
       const key = row?.dataset.txKey;
       const tx = Object.values(c.api().txByAccount).flat().find((t) => txKey(t) === key);
       if (!row || !tx) return;
@@ -378,6 +428,7 @@ const VIEWS: Record<string, ViewDef> = {
       await c.sleep(100);
       await openFirstRow(c);
       await c.click(/^Deine Regeln/, { within: 'dialog' });
+      await showCategorySection(c);
     },
   },
   'detail-refund': {

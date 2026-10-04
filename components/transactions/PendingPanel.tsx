@@ -124,7 +124,7 @@ export function PendingPanel() {
                 )}
                 {matches.size > 0 && (
                   <p className="mt-0.5 text-[12.5px] leading-snug font-semibold text-ink-2">
-                    {matches.size === 1 ? '1 passt' : `${matches.size} passen`} zur Suche in den Umsätzen
+                    {matches.size === 1 ? '1 passt' : `${matches.size} passen`} zu deiner Suche
                   </p>
                 )}
                 {failure && (
