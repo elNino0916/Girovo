@@ -4,8 +4,10 @@
 //
 // Every read on the bank may need its own SCA approval, so operations are
 // strictly serialized behind `busy`. A single statement query yields both the
-// transactions AND the balance, which is why there is no separate balance
-// fetch on the dashboard path — that would cost a second approval.
+// transactions AND the balance, which is why the dashboard path never asks
+// for a balance on its own — that would cost a second approval. The balance
+// enquiry (loadBalance) runs only on request: for an account without Umsätze,
+// and for "Alle Salden abrufen".
 //
 // Around that core sits everything the browser keeps for itself: the applied
 // date range, the session clock that logs an unattended dashboard out, the
@@ -32,6 +34,7 @@ import {
 } from '@/lib/format';
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
+import { acceptsBalance, balanceQueue, failureSentence } from '@/lib/balances';
 import { unbookedPending } from '@/lib/pending';
 import { recordSentOrder, sanitizeSentOrders, type SentOrder } from '@/lib/sent-orders';
 import { sepaSanitize } from '@/lib/sepa-text';
@@ -42,7 +45,7 @@ import {
   type VaultGetResponse, type VaultPutResponse, type VaultStatus,
 } from '@/lib/app-types';
 import type {
-  BankMessage, ConnectResponse, Merchant, MerchantsResponse, MetaResponse, PendingResponse,
+  BalanceResponse, BankMessage, ConnectResponse, Merchant, MerchantsResponse, MetaResponse, PendingResponse,
   SelectTanResponse, SerializedAccount, SerializedBalance, SerializedTanMethod,
   SerializedTransaction, SerializedVop, TanPollResponse, TransactionsResponse,
   TransferResponse,
@@ -123,6 +126,19 @@ export type PendingInfo = {
 };
 
 /**
+ * Why an account's last read failed, in the bank's (or the app's) words, and
+ * when. Kept per account until a read of that account starts again, so a
+ * failure is still a failure after another account was opened.
+ */
+export type LoadError = { message: string; at: number };
+
+/** How a read ended, for a caller that goes on with the next one (loadAllBalances). */
+export type LoadOutcome = 'applied' | 'failed' | 'cancelled' | 'busy' | 'skipped';
+
+/** `onSettled` of a read: how it ended, and the reason when it failed. */
+export type LoadSettled = (outcome: LoadOutcome, error?: string) => void;
+
+/**
  * waiting → confirmed, or one of: error (the status could not be read),
  * ended (the bank closed the dialog first), refused (the bank's answer refuses
  * it — see lib/bank-answer.ts).
@@ -130,7 +146,7 @@ export type PendingInfo = {
 type WaitPhase = 'waiting' | 'confirmed' | 'error' | 'ended' | 'refused';
 
 /** What an approval is for — the overlay asks before abandoning a transfer. */
-export type WaitKind = 'login' | 'statements' | 'pending' | 'transfer';
+export type WaitKind = 'login' | 'statements' | 'pending' | 'balance' | 'transfer';
 
 /**
  * The transfer an approval is for, as the bank received it (name rewritten to
@@ -188,6 +204,7 @@ const WAIT_SUBJECT: Record<WaitKind, string> = {
   login: 'die Anmeldung',
   statements: 'den Umsatzabruf',
   pending: 'den Abruf der vorgemerkten Umsätze',
+  balance: 'die Saldoabfrage',
   transfer: 'die Überweisung',
 };
 
@@ -512,7 +529,14 @@ function useFintsState() {
   /** Vorgemerkte as the bank listed them, with the moment it did (see `pendingCache` below). */
   const [pendingFetched, setPendingFetched] = useState<Record<string, { txs: SerializedTransaction[]; loadedAt: number }>>({});
   const [statementInfo, setStatementInfo] = useState<Record<string, StatementInfo>>({});
-  const [txError, setTxError] = useState<string | null>(null);
+  /** Per account: why its last statement load failed (see LoadError). */
+  const [txErrors, setTxErrors] = useState<Record<string, LoadError>>({});
+  /** Per account: why its last balance enquiry failed. */
+  const [balanceErrors, setBalanceErrors] = useState<Record<string, LoadError>>({});
+  /** The account whose balance alone is being asked for (loadBalance) — not a statement load. */
+  const [balanceLoading, setBalanceLoading] = useState<string | null>(null);
+  /** "Alle Salden abrufen" is working through the accounts. */
+  const [loadingAllBalances, setLoadingAllBalances] = useState(false);
 
   /** Counterparty name → company, or null once we know there's no match. */
   const [merchants, setMerchants] = useState<Record<string, Merchant | null>>({});
@@ -575,6 +599,8 @@ function useFintsState() {
   const selectedMethodRef = useRef<SerializedTanMethod | null>(null);
   const tanMethodsRef = useRef<SerializedTanMethod[]>([]);
   const balancesRef = useRef(balances);
+  /** What an account is called on screen (alias or bank name), for a toast written after an await. */
+  const accountLabelRef = useRef((a: SerializedAccount) => a.product?.trim() || translateType(a.accountType));
   const txCacheRef = useRef(txCache);
   const metaRef = useRef<MetaResponse | null>(null);
   const waitRef = useRef<WaitState>(IDLE_WAIT);
@@ -1173,28 +1199,37 @@ function useFintsState() {
    * actually covers.
    *
    * `onNotApplied` runs when no statement lands: the bank refused, the
-   * request failed, or its approval was cancelled or ran out.
+   * request failed, or its approval was cancelled or ran out. `onSettled`
+   * says which of these it was (or that it landed). A failure is kept for the
+   * account (txErrors) and announced in a toast, unless `quiet` leaves that
+   * to the caller.
    */
   const loadTransactions = useCallback(async (
     account: SerializedAccount,
     from?: string,
     to?: string,
-    opts: { force?: boolean; onNotApplied?: () => void } = {},
+    opts: { force?: boolean; onNotApplied?: () => void; quiet?: boolean; onSettled?: LoadSettled } = {},
   ) => {
     const applied = resolveRange();
     const span = { from: from || applied.from, to: to || applied.to };
     const cacheKey = rangeKey(span);
     const acct = account.accountNumber;
-    const notApplied = () => opts.onNotApplied?.();
+    const notApplied = (outcome: LoadOutcome, error?: string) => {
+      opts.onNotApplied?.();
+      opts.onSettled?.(outcome, error);
+    };
 
+    // No Umsätze over FinTS for this account (a Depot, most often): asking
+    // would only bring back the library's refusal, in English.
+    if (!account.canStatements) { notApplied('skipped'); return; }
     if (!opts.force) {
       const cached = txCacheRef.current[acct];
-      if (cached && cached.key === cacheKey) { setTxError(null); return; }
+      if (cached && cached.key === cacheKey) { opts.onSettled?.('applied'); return; }
     }
-    if (busyRef.current) { notApplied(); return; }
+    if (busyRef.current) { notApplied('busy'); return; }
 
     const sid = sessionRef.current;
-    setTxError(null);
+    setTxErrors((e) => without(e, acct));
     setBusy(true);
     setLoadingAccount(acct);
 
@@ -1220,6 +1255,7 @@ function useFintsState() {
         } else {
           balancesRef.current = { ...balancesRef.current, [acct]: balance };
           setBalances((b) => ({ ...b, [acct]: balance }));
+          setBalanceErrors((e) => without(e, acct));
         }
       }
       setTxCache((c) => ({ ...c, [acct]: { key: cacheKey, txs: list } }));
@@ -1236,6 +1272,7 @@ function useFintsState() {
         );
       }
       void resolveMerchants(list);
+      opts.onSettled?.('applied');
     };
 
     try {
@@ -1254,14 +1291,14 @@ function useFintsState() {
           onDone: (r) => {
             finish();
             if (r.kind === 'statements') apply(r.transactions, r.balance, r.blocks);
-            else notApplied();
+            else notApplied('failed');
           },
           retry: () => {
             finish();
-            void loadTransactions(account, span.from, span.to, { force: true, onNotApplied: opts.onNotApplied });
+            void loadTransactions(account, span.from, span.to, { ...opts, force: true });
           },
           // "Abbrechen" while waiting, "Schließen" once it failed or ran out.
-          onCancelled: notApplied,
+          onCancelled: () => notApplied('cancelled'),
         }, {
           kind: 'statements',
           subject: `den Abruf der Umsätze von ${approvalAccountName(account)} ab ${fmtDate(toLocalDate(span.from))}`,
@@ -1273,17 +1310,137 @@ function useFintsState() {
     } catch (err) {
       if (!isCurrent(sid)) return;
       finish();
-      setTxError((err as Error).message);
-      notApplied();
+      // Where the figure would be, the hero and the account's row now say
+      // that it failed and why; the toast is the one announcement of it.
+      const message = (err as Error).message;
+      setTxErrors((e) => ({ ...e, [acct]: { message, at: Date.now() } }));
+      if (!opts.quiet) toast(failureSentence([{ name: accountLabelRef.current(account), message }])!, 'error');
+      notApplied('failed', message);
     }
   }, [resolveRange, setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, resolveMerchants, toast]);
+
+  // ---- balances -----------------------------------------------------------
+  /**
+   * Asks the bank for one account's balance alone (HKSAL). For an account
+   * without Umsätze to read the balance from, and for "Alle Salden abrufen",
+   * which completes the Gesamtsaldo without loading — and switching to —
+   * every account's statement. Never on its own: like any read it can cost an
+   * approval. A known balance is only replaced by one at least as new
+   * (acceptsBalance). `quiet` and `onSettled` as for loadTransactions.
+   */
+  const loadBalance = useCallback(async (
+    account: SerializedAccount,
+    opts: { quiet?: boolean; onSettled?: LoadSettled } = {},
+  ) => {
+    const acct = account.accountNumber;
+    const settle: LoadSettled = (outcome, error) => opts.onSettled?.(outcome, error);
+    if (!account.canBalance) { settle('skipped'); return; }
+    if (busyRef.current) {
+      if (!opts.quiet) toast(BUSY_MESSAGE, 'error');
+      settle('busy');
+      return;
+    }
+    const sid = sessionRef.current;
+    setBalanceErrors((e) => without(e, acct));
+    setBusy(true);
+    setBalanceLoading(acct);
+
+    const finish = () => { setBusy(false); setBalanceLoading(null); };
+    const fail = (message: string) => {
+      setBalanceErrors((e) => ({ ...e, [acct]: { message, at: Date.now() } }));
+      if (!opts.quiet) toast(failureSentence([{ name: accountLabelRef.current(account), message }])!, 'error');
+      settle('failed', message);
+    };
+    const apply = (balance: SerializedBalance | null) => {
+      // An answer without a balance is not a zero balance.
+      if (!balance) { fail('Deine Bank hat für dieses Konto keinen Saldo gemeldet.'); return; }
+      if (acceptsBalance(balancesRef.current[acct], balance)) {
+        balancesRef.current = { ...balancesRef.current, [acct]: balance };
+        setBalances((b) => ({ ...b, [acct]: balance }));
+      }
+      settle('applied');
+    };
+
+    try {
+      const data = await post<BalanceResponse>('/api/balance', { sessionId: sid, accountNumber: acct });
+      if (!isCurrent(sid)) return;
+      if (data.needsTan) {
+        startDecoupledWait(decoupledMethod(), data, {
+          onDone: (r) => {
+            finish();
+            if (r.kind === 'balance') apply(r.balance);
+            else fail('Die Antwort deiner Bank passte nicht zur Saldoabfrage.');
+          },
+          retry: () => { finish(); void loadBalance(account, opts); },
+          onCancelled: () => { finish(); settle('cancelled'); },
+        }, { kind: 'balance', subject: `die Saldoabfrage für ${approvalAccountName(account)}` });
+      } else {
+        finish();
+        apply(data.balance);
+      }
+    } catch (err) {
+      if (!isCurrent(sid)) return;
+      finish();
+      fail((err as Error).message);
+    }
+  }, [setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, toast]);
+
+  /**
+   * "Alle Salden abrufen": every balance this session does not know yet, one
+   * account after the other behind `busy` (lib/balances.ts balanceQueue). The
+   * active account stays the active one. Stops when an approval is
+   * cancelled; what failed is said once, at the end. Never started on its
+   * own — each read can cost an approval.
+   */
+  const loadAllBalances = useCallback(() => {
+    if (busyRef.current) {
+      toast(BUSY_MESSAGE, 'error');
+      return;
+    }
+    const sid = sessionRef.current;
+    const queue = balanceQueue(accountsRef.current, balancesRef.current, resolveRange().to >= isoDate(new Date()));
+    if (!queue.length) {
+      // Only accounts whose statement is the way to their balance are left,
+      // and the applied range ends before today.
+      if (accountsRef.current.some((a) => a.canStatements && !balancesRef.current[a.accountNumber])) {
+        toast('Diese Konten melden ihren Saldo nur mit den Umsätzen. Wähle bei den Umsätzen einen Zeitraum bis heute.', 'info', 8000);
+      }
+      return;
+    }
+
+    const failed: Array<{ name: string; message: string }> = [];
+    setLoadingAllBalances(true);
+    const done = () => {
+      setLoadingAllBalances(false);
+      const sentence = failureSentence(failed);
+      if (sentence) toast(sentence, 'error');
+    };
+    const next = () => {
+      // Logged out meanwhile: resetSession has already put everything back.
+      if (!isCurrent(sid)) return;
+      const step = queue.shift();
+      if (!step) { done(); return; }
+      const { account } = step;
+      const onSettled: LoadSettled = (outcome, error) => {
+        if (outcome === 'failed') failed.push({ name: accountLabelRef.current(account), message: error ?? '' });
+        // Cancelled: the user said no to an approval, so no further ones are asked for.
+        if (outcome === 'cancelled' || outcome === 'busy') done();
+        else next();
+      };
+      if (step.via === 'balance') void loadBalance(account, { quiet: true, onSettled });
+      else void loadTransactions(account, undefined, undefined, { quiet: true, onSettled });
+    };
+    next();
+  }, [toast, resolveRange, isCurrent, loadBalance, loadTransactions]);
 
   const selectAccount = useCallback((a: SerializedAccount) => {
     if (busyRef.current) return; // don't interrupt an in-flight approval
     setActiveAccount(a);
     activeAccountRef.current = a;
     void loadTransactions(a);
-  }, [loadTransactions]);
+    // No Umsätze to read its balance from: ask for the balance alone.
+    if (!a.canStatements && a.canBalance && !balancesRef.current[a.accountNumber]) void loadBalance(a);
+  }, [loadTransactions, loadBalance]);
 
   /** Drop the cache for one account and re-read it from the bank. */
   const refreshAccount = useCallback((account: SerializedAccount, from?: string, to?: string) => {
@@ -1843,7 +2000,10 @@ function useFintsState() {
     setLoadingAccount(null);
     setPendingLoading(null);
     setDeviceRemembered(false);
-    setTxError(null);
+    setTxErrors({});
+    setBalanceErrors({});
+    setBalanceLoading(null);
+    setLoadingAllBalances(false);
     setWait(IDLE_WAIT);
     setPrintJob(null);
 
@@ -2162,6 +2322,8 @@ function useFintsState() {
 
   // ---- derived data -------------------------------------------------------
   const transactions = activeAccount ? txCache[activeAccount.accountNumber]?.txs ?? null : null;
+  /** Why the active account's last statement load failed — txErrors for the account on screen. */
+  const txError = activeAccount ? txErrors[activeAccount.accountNumber]?.message ?? null : null;
 
   const txByAccount = useMemo(() => {
     const out: Record<string, SerializedTransaction[]> = {};
@@ -2234,6 +2396,7 @@ function useFintsState() {
     (a: SerializedAccount) => aliases?.[a.accountNumber] || a.product?.trim() || translateType(a.accountType),
     [aliases],
   );
+  accountLabelRef.current = accountLabel;
 
   // ---- vault-backed actions -----------------------------------------------
   const renameAccount = useCallback((accountNumber: string, alias: string | null) => {
@@ -2378,6 +2541,7 @@ function useFintsState() {
     bankChecking, staleBank,
     tanMethods, selectedMethod, mediaChoice, tanMethodError,
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
+    txErrors, balanceErrors, balanceLoading, loadingAllBalances,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     range, statementInfo, txByAccount, ownIbans,
     messages, unreadCount, activity,
@@ -2394,6 +2558,7 @@ function useFintsState() {
     // actions
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
     cancelConnect,
+    loadBalance, loadAllBalances,
     isLoadedForAppliedRange,
     refreshAccount, refreshAfterTransfer, applyRange, loadPending, submitTransfer, confirmVop, abandonVop,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,

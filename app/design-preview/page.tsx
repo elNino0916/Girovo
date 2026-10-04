@@ -14,6 +14,7 @@
 //                  &logos=unasked|on|off|unavailable   company logos: the user's answer, or a build without them
 //                  &still=0|1                 settle animations (default: on under Electron)
 //                  &q=rewe                    Umsätze search
+//                  &fail=1                    every statement load and balance enquiry fails
 //                  &toasts=1                  one toast of each tone
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
 //                  &updateDialog=1            …with its dialog open
@@ -149,8 +150,20 @@ async function completeOrder(c: Ctx) {
   await c.sleep(300);
 }
 
+/** "Alle Salden abrufen", pressed the way a person presses it, until the last answer is in. */
+async function fetchAllBalances(c: Ctx) {
+  await c.click(/^alle salden abrufen/i, { within: 'page' });
+  await c.until((f) => f.loadingAllBalances, 2000);
+  await c.until((f) => !f.loadingAllBalances, 8000);
+}
+
 const VIEWS: Record<string, ViewDef> = {
   overview: { label: 'Übersicht', group: 'Dashboard' },
+  'overview-single': { label: 'Nur ein Konto', group: 'Dashboard', options: { oneAccount: true } },
+  'overview-balances': { label: 'Alle Salden abgerufen', group: 'Dashboard', script: fetchAllBalances },
+  'overview-balances-error': {
+    label: 'Saldenabruf fehlgeschlagen', group: 'Dashboard', options: { fail: true }, script: fetchAllBalances,
+  },
   analysis: { label: 'Analyse', group: 'Dashboard', options: { tab: 'analysis' } },
   contracts: { label: 'Verträge & Abos', group: 'Dashboard', options: { tab: 'contracts' } },
   empty: { label: 'Ohne Umsätze', group: 'Dashboard', preset: 'empty' },
@@ -533,6 +546,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     ...(account ? { account } : {}),
     ...(one(params.q) ? { query: one(params.q) } : {}),
     ...(LOGOS.includes(logosParam) ? { logos: logosParam } : {}),
+    ...(one(params.fail) === '1' ? { fail: true } : {}),
   };
 
   const theme = one(params.theme);
@@ -647,6 +661,8 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=analysis&range=all', label: 'Analyse über 13 Monate' },
   { q: 'view=contracts&range=all', label: 'Verträge über 13 Monate' },
   { q: 'view=overview&acct=karte', label: 'Kreditkarte aktiv' },
+  { q: 'view=overview&acct=karte&privacy=1', label: 'Kreditkarte, Beträge ausgeblendet' },
+  { q: 'view=overview-single&preset=error', label: 'Ein Konto, Abruf fehlgeschlagen' },
   { q: 'view=overview&privacy=1', label: 'Beträge ausgeblendet' },
   { q: 'view=overview&acct=karte&privacy=1', label: 'Kreditkarte ausgeblendet' },
   { q: 'view=session&logos=on', label: 'Sitzung: Firmenlogos an' },
@@ -725,6 +741,7 @@ function Index() {
           <code className="num">range=90d|365d|all</code>, <code className="num">tan=hold|ended|error|refused</code>,{' '}
           <code className="num">acct=tagesgeld|karte</code>, <code className="num">q=…</code>,{' '}
           <code className="num">logos=unasked|on|off|unavailable</code>,{' '}
+          <code className="num">fail=1</code>,{' '}
           <code className="num">y=…</code>, <code className="num">still=0|1</code>,{' '}
           <code className="num">update=available|ready|current|…</code>, <code className="num">updateDialog=1</code>.
         </p>

@@ -36,6 +36,7 @@ const WAIT_TITLE: Record<WaitKind, string> = {
   login: 'Anmeldung freigeben',
   statements: 'Umsatzabruf freigeben',
   pending: 'Vorgemerkte Umsätze freigeben',
+  balance: 'Saldoabfrage freigeben',
   transfer: 'Überweisung freigeben',
 };
 
@@ -44,6 +45,7 @@ const AFTER_CONFIRM: Record<WaitKind, string> = {
   login: 'Deine Konten werden geladen …',
   statements: 'Umsätze werden geladen …',
   pending: 'Vorgemerkte Umsätze werden geladen …',
+  balance: 'Der Saldo wird abgerufen …',
   // The transfer sheet already shows the bank's answer by now.
   transfer: 'Die Überweisung ist freigegeben.',
 };
@@ -57,6 +59,7 @@ const REFUSED: Record<WaitKind, { title: string; text: string }> = {
   login: { title: 'Anmeldung nicht freigegeben', text: 'Deine Bank hat die Anmeldung abgelehnt:' },
   statements: { title: 'Umsatzabruf nicht freigegeben', text: 'Deine Bank hat den Abruf abgelehnt:' },
   pending: { title: 'Abruf nicht freigegeben', text: 'Deine Bank hat den Abruf abgelehnt:' },
+  balance: { title: 'Saldoabfrage nicht freigegeben', text: 'Deine Bank hat die Abfrage abgelehnt:' },
   transfer: { title: 'Überweisung nicht ausgeführt', text: 'Deine Bank hat den Auftrag abgelehnt:' },
 };
 
