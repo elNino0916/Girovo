@@ -128,7 +128,7 @@ export function VopReport({ vop, iban, className }: { vop: SerializedVop; iban?:
       {vop.infoText && (
         <figure className="mt-4">
           <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">Hinweis deiner Bank</figcaption>
-          <p className="rounded-[10px] bg-inset px-4 py-3 text-[14px] leading-relaxed break-words whitespace-pre-line text-ink">
+          <p className="rounded-[var(--radius-chip)] bg-inset px-4 py-3 text-[14px] leading-relaxed break-words whitespace-pre-line text-ink">
             {vop.infoText}
           </p>
         </figure>

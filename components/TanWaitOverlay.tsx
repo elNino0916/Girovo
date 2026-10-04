@@ -210,7 +210,7 @@ function TanWait() {
             {challenge && live && (
               <figure className="mt-4 text-left">
                 {wait.order && <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">Anfrage deiner Bank</figcaption>}
-                <p className="rounded-[10px] bg-inset px-4 py-3 text-[14px] leading-relaxed text-balance whitespace-pre-line text-ink-2">
+                <p className="rounded-[var(--radius-chip)] bg-inset px-4 py-3 text-[14px] leading-relaxed text-balance whitespace-pre-line text-ink-2">
                   {challenge}
                 </p>
               </figure>
@@ -260,7 +260,7 @@ function TanWait() {
 
             {refused && answerLines.length > 0 && (
               <figure className="mt-4 text-left">
-                <ul className="rounded-[10px] bg-inset px-4 py-3 text-[14px] leading-relaxed break-words text-ink">
+                <ul className="rounded-[var(--radius-chip)] bg-inset px-4 py-3 text-[14px] leading-relaxed break-words text-ink">
                   {answerLines.map((l) => <li key={l}>{l}</li>)}
                 </ul>
                 {reference && (
@@ -414,7 +414,7 @@ function WaitProgress({ startedAt, settledAt, limit, done, overdue }: {
           </span>
         ) : (
           <span className="flex items-center gap-2.5 font-semibold text-ink-2">
-            <Spinner size={16} className="text-accent" />
+            <Spinner size={16} className="text-headline" />
             {overdue ? 'Noch keine Bestätigung' : 'Warte auf Bestätigung'}
           </span>
         )}

@@ -287,8 +287,12 @@ function Progress({ received, total }: { received: number; total: number }) {
         aria-valuetext={`${pct} Prozent`}
         className="mt-2 h-2 overflow-hidden rounded-full bg-inset"
       >
-        {/* Navy, not Signal Blue: a progress fill cannot be pressed. */}
-        <div className="h-full rounded-full bg-headline transition-[width] duration-200 ease-out" style={{ width: `${pct}%` }} />
+        {/* Navy, not Signal Blue: a progress fill cannot be pressed. It slides
+            in behind the track's clip (a transform, no layout per chunk). */}
+        <div
+          className="h-full rounded-full bg-headline transition-transform duration-200 ease-[var(--ease-out-soft)] motion-reduce:transition-none"
+          style={{ transform: `translateX(${pct - 100}%)` }}
+        />
       </div>
       <p className="mt-2 text-[13px] leading-snug text-ink-3">
         Die Datei wird vor der Installation mit der Prüfsumme von GitHub abgeglichen.

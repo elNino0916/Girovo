@@ -214,7 +214,7 @@ export function ShareAccount() {
               already useful before anything is typed. */}
           <section aria-label="GiroCode" className="flex flex-col items-center sm:sticky sm:top-0 sm:order-2 sm:self-start">
             {code?.ok && covered ? (
-              <div className="grid size-[240px] place-items-center rounded-[14px] bg-inset px-6 text-center">
+              <div className="grid size-[240px] place-items-center rounded-[var(--radius-card)] bg-inset px-6 text-center">
                 <span className="flex flex-col items-center gap-2.5 text-[13.5px] leading-snug text-ink-2">
                   <EyeOffIcon size={28} className="text-ink-3" />
                   Beträge sind ausgeblendet – der Code enthält den Betrag und ließe sich vom Bildschirm scannen.
@@ -224,7 +224,7 @@ export function ShareAccount() {
             ) : code?.ok ? (
               // White in both themes, black modules, quiet zone included in
               // the path: an inverted or tinted code is one a scanner may refuse.
-              <div className="rounded-[14px] bg-white p-2 shadow-[var(--shadow-tile)] ring-1 ring-line">
+              <div className="rounded-[var(--radius-card)] bg-white p-2 shadow-[var(--shadow-tile)] ring-1 ring-line">
                 <svg
                   viewBox={`0 0 ${code.path.size} ${code.path.size}`}
                   width="224"
@@ -238,7 +238,7 @@ export function ShareAccount() {
                 </svg>
               </div>
             ) : (
-              <div className="grid size-[240px] place-items-center rounded-[14px] border-[1.5px] border-dashed border-line-strong bg-inset px-6 text-center">
+              <div className="grid size-[240px] place-items-center rounded-[var(--radius-card)] border-[1.5px] border-dashed border-line-strong bg-inset px-6 text-center">
                 <span className="flex flex-col items-center gap-2 text-[13.5px] leading-snug text-ink-3">
                   <QrIcon size={28} />
                   {amountState.error ? 'Bitte prüfe den Betrag.' : 'Kein GiroCode – bitte prüfe die Angaben.'}

@@ -1216,7 +1216,7 @@ function BankAnswer({
   return (
     <figure className={cx('w-full text-left', className)}>
       {label && <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">{label}</figcaption>}
-      <ul className="rounded-[10px] bg-inset px-4 py-3 text-[14px] leading-relaxed break-words text-ink">
+      <ul className="rounded-[var(--radius-chip)] bg-inset px-4 py-3 text-[14px] leading-relaxed break-words text-ink">
         {lines.map((l) => <li key={l}>{l}</li>)}
       </ul>
       {reference && (

@@ -1900,28 +1900,6 @@ export function MenuItemRadio({ checked, className, ...p }: MenuItemBase & { che
   );
 }
 
-export function MenuItemCheckbox({ checked, className, ...p }: MenuItemBase & { checked: boolean }) {
-  const handlers = useMenuItem({ ...p, keepOpen: p.keepOpen ?? true });
-  return (
-    <button type="button" role="menuitemcheckbox" aria-checked={checked} {...handlers} className={cx(MENU_ITEM, className)}>
-      <ItemBody
-        {...p}
-        lead={
-          <span
-            aria-hidden
-            className={cx(
-              'grid size-[18px] shrink-0 place-items-center rounded-[4px] border-[1.5px]',
-              checked ? 'border-accent bg-accent text-accent-ink' : 'border-field-line',
-            )}
-          >
-            {checked && <CheckIcon size={12} strokeWidth={3} />}
-          </span>
-        }
-      />
-    </button>
-  );
-}
-
 export function MenuGroup({ label, children }: { label?: ReactNode; children: ReactNode }) {
   const id = useId();
   return (
@@ -2268,34 +2246,6 @@ export function ErrorState({
 // ---------------------------------------------------------------------------
 // Small parts
 // ---------------------------------------------------------------------------
-
-/** A labelled figure: "Verfügbar · 2.196,22 €". The value is a node so it can be a <Money>. */
-export function Stat({
-  label, value, sub, size = 'md', align = 'start', labelClassName, className,
-}: {
-  label: ReactNode;
-  value: ReactNode;
-  sub?: ReactNode;
-  size?: 'sm' | 'md' | 'lg';
-  align?: 'start' | 'end';
-  labelClassName?: string;
-  className?: string;
-}) {
-  return (
-    <div className={cx('min-w-0', align === 'end' && 'text-right', className)}>
-      <div className={cx('text-[13px] leading-snug font-semibold', labelClassName ?? 'text-ink-2')}>{label}</div>
-      <div
-        className={cx(
-          'mt-0.5 leading-tight font-bold text-ink',
-          size === 'sm' ? 'text-[16px]' : size === 'lg' ? 'text-[28px]' : 'text-[20px]',
-        )}
-      >
-        {value}
-      </div>
-      {sub && <div className="mt-0.5 text-[13px] leading-snug text-ink-3">{sub}</div>}
-    </div>
-  );
-}
 
 /**
  * Short facts in a row with " · " between them: "Basis: Girokonto · 4 Umsätze".

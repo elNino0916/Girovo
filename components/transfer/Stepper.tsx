@@ -55,10 +55,11 @@ export function Stepper({
             <span
               aria-hidden
               className={cx(
-                'tnum grid size-6 shrink-0 place-items-center rounded-full text-[12px] leading-none font-bold short:size-5 short:text-[11px]',
+                'tnum grid size-6 shrink-0 place-items-center rounded-full text-[12px] leading-none font-bold short:size-5',
                 done && 'bg-headline text-raised',
                 here && !unsure && !refused && 'border-2 border-headline bg-raised text-headline',
-                here && unsure && 'border-2 border-ink-3 bg-raised text-ink-2',
+                // Status unklar: the orange edge it carries everywhere, the mark in ink.
+                here && unsure && 'border-2 border-emphasis bg-raised text-ink',
                 here && refused && 'border-2 border-red bg-raised text-red',
                 !done && !here && 'border-[1.5px] border-line-strong text-ink-3',
               )}

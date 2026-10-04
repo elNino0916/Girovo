@@ -137,7 +137,7 @@ export function TanMethodPicker() {
           </Heading>
           {busy || !tanMethodError ? (
             <p role="status" className="mt-6 flex items-center gap-3 rounded-[var(--radius-chip)] bg-inset px-4 py-4 text-[15px] text-ink">
-              <Spinner size={18} className="text-accent" />
+              <Spinner size={18} className="text-headline" />
               <span>Verbinde über <span className="font-semibold">{only!.title}</span> …</span>
             </p>
           ) : (

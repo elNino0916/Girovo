@@ -416,10 +416,6 @@ export function StarIcon(p: IconProps) {
   return <Icon {...p}><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9L12 3.5z" /></Icon>;
 }
 
-export function EuroIcon(p: IconProps) {
-  return <Icon {...p}><path d="M18 7.6A7 7 0 1 0 18 16.4M4.5 10.2h8.5M4.5 13.8h8.5" /></Icon>;
-}
-
 export function ReceiptIcon(p: IconProps) {
   return (
     <Icon {...p}>

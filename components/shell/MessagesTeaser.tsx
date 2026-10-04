@@ -29,7 +29,7 @@ export function MessagesTeaser() {
       className="min-w-0 overflow-clip"
     >
       <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-        <div className="flex items-start gap-3 rounded-[10px] bg-inset px-3.5 py-3">
+        <div className="flex items-start gap-3 rounded-[var(--radius-chip)] bg-inset px-3.5 py-3">
           <span className="relative mt-0.5 shrink-0 text-ink-2">
             <MailIcon />
             <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-[var(--inset)]" />

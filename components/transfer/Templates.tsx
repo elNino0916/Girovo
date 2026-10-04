@@ -177,7 +177,7 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
         </Alert>
       )}
       {lastRemoved && (
-        <div className="mb-3 flex min-h-12 items-center gap-3 rounded-[10px] bg-inset py-1.5 pr-1.5 pl-4">
+        <div className="mb-3 flex min-h-12 items-center gap-3 rounded-[var(--radius-chip)] bg-inset py-1.5 pr-1.5 pl-4">
           <TrashIcon size={17} className="shrink-0 text-ink-3" />
           <p className="min-w-0 flex-1 text-[14px] leading-snug break-words text-ink">
             Vorlage „{lastRemoved.label}“ gelöscht.

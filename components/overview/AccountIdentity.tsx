@@ -146,7 +146,10 @@ export function AccountGlyph({
       aria-hidden
       className={cx(
         'grid shrink-0 place-items-center rounded-full transition-colors duration-150',
-        selected ? 'bg-accent text-accent-ink' : 'bg-accent-soft text-accent',
+        // Signal Blue only on the selected row of the list, which can be
+        // pressed; elsewhere (the hero's footer, the rename form) the plate is
+        // a navy tint that reads on white and on the inset alike.
+        selected ? 'bg-accent text-accent-ink' : 'bg-[color-mix(in_srgb,var(--headline)_8%,transparent)] text-headline',
         className,
       )}
       style={{ width: size, height: size }}
