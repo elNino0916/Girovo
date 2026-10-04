@@ -31,7 +31,6 @@ import { MASTHEAD_EDGES } from './edges';
 import { ProfileMenu } from './ProfileMenu';
 import { PAGE_TITLE_ID } from './Stage';
 
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 

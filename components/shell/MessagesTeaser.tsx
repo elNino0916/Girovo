@@ -7,8 +7,8 @@
 // At login the bank's messages are announced here and by the masthead's
 // bell, and nowhere else: no toast on top. A toast is gone after a few
 // seconds, at the busiest moment of the session; this tile stays until the
-// messages are read. It counts the bank's messages only — the bell also
-// counts a waiting app update, which is the drawer's business, not the bank's.
+// messages are read. It counts the bank's messages only, as the bell's number
+// does; a waiting app update is marked on the bell by its dot alone.
 
 import { useFints } from '../FintsProvider';
 import { ChevronIcon, MailIcon } from '../icons';

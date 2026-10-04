@@ -432,7 +432,8 @@ function WaitProgress({ startedAt, settledAt, limit, done, overdue }: {
         <>
           <div aria-hidden className="mt-2.5 h-1 overflow-hidden rounded-full bg-inset">
             <div
-              className={cx('h-full rounded-full transition-[width] duration-1000 ease-linear', done ? 'bg-green' : 'bg-accent')}
+              // Navy, not Signal Blue: like every progress fill, it cannot be pressed.
+              className={cx('h-full rounded-full transition-[width] duration-1000 ease-linear', done ? 'bg-green' : 'bg-headline')}
               style={{ width: `${(share * 100).toFixed(2)}%` }}
             />
           </div>

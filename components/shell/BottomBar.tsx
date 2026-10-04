@@ -2,7 +2,8 @@
 
 // The phone's bottom bar: the three sections within thumb reach, the one
 // action people open a banking app for in the middle, and "Mehr" for
-// everything else (it opens the command palette, which lists it all).
+// everything else: the command palette, which before any typing lists the
+// main actions, the accounts and, last, Abmelden (lib/palette.ts).
 // It mirrors the institute bar's sections and nothing else: the Umsätze are
 // a place inside the Übersicht (the Übersicht's own "Zu den Umsätzen" and
 // the palette's "Umsätze durchsuchen" go there), not a section with a

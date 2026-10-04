@@ -19,7 +19,7 @@ import { useFints } from '../FintsProvider';
 import { FileIcon, QrIcon, TransferIcon } from '../icons';
 import { Button, cx } from '../ui';
 import type { ShellActions } from './actions';
-import { firstName, greeting, useNow } from './session';
+import { firstName, greeting, sessionHolder, useNow } from './session';
 
 export const PAGE_TITLE_ID = 'page-title';
 
@@ -30,11 +30,12 @@ const TITLES: Record<DashboardTab, string> = {
 };
 
 export function Stage({ actions }: { actions: ShellActions }) {
-  const { tab, activeAccount, accounts } = useFints();
+  const { tab, accounts } = useFints();
   // Re-read every few minutes, so a session left open over dinner does not
   // keep saying "Guten Tag".
   const now = useNow(5 * 60_000);
-  const name = firstName(activeAccount?.holder || accounts[0]?.holder);
+  // The session's holder, as on the profile chip — not the active account's.
+  const name = firstName(sessionHolder(accounts));
 
   return (
     <section aria-labelledby={PAGE_TITLE_ID} className="on-stage bg-stage">

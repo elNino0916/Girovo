@@ -461,7 +461,8 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Hinweis per F6',
     group: 'Dialoge',
     async script(c) {
-      c.api().toast('2 Mitteilungen deiner Bank', 'info', 600_000, { label: 'Anzeigen', run: () => c.api().setInboxOpen(true) });
+      // A toast the app really raises (the bank's messages have none since the login toast went).
+      c.api().toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 600_000, { label: 'Gerät vergessen', run: () => {} });
       await c.poll(() => document.querySelector('[data-toast]'), 2000);
       pressKey('F6');
       await c.sleep(200);
