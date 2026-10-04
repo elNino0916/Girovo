@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-04T15:52:19.780Z",
+  "generatedAt": "2026-10-04T16:25:01.222Z",
   "title": "Design System: Sooskasse-FinTS",
   "extensions": {
     "colorMeta": {
@@ -1272,7 +1272,7 @@
       },
       {
         "name": "The Safe Choice Rule",
-        "body": "At every risk decision the safe action is the filled primary and the risky one the outline beside it: \"Angaben prüfen\" at a duplicate or a name mismatch, \"Namen übernehmen\" when the bank suggests the name, \"Angaben ändern\" after a refusal, \"Jetzt nachsehen\" at Status unklar, \"Umsätze prüfen\" before logging out over an unclear transfer. A destructive confirmation the user asked for keeps its red confirm, with the safe button focused.",
+        "body": "At every risk decision the safe action is the filled primary and the risky one the outline beside it: \"Angaben prüfen\" at a duplicate or a name mismatch, \"Namen übernehmen\" when the bank suggests the name, \"Angaben ändern\" after a refusal, \"Jetzt nachsehen\" at Status unklar, \"Umsätze prüfen\" (or \"In Mitteilungen ansehen\" for several) before logging out over an unclear transfer, whether by \"Abmelden\" or by an update's restart. The restart then stays an outline beside it, with a quiet \"Später\" first, and the unclear transfer is said in a warning alert of its own. A destructive confirmation the user asked for keeps its red confirm, with the safe button focused.",
         "section": "components"
       },
       {

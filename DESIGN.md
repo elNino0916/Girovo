@@ -738,7 +738,7 @@ Every size below is a token in the frontmatter. A size that is not on this list 
 - **Figures** (700, line-height 1.25, tabular): one ladder below Display. 20px on phones and 24px from 640px for every KPI figure (Analyse, Verträge). 24px for the approval overlay's order amount and the transfer's Fertig amount. 20px for the Monatsbilanz Differenz and the phone account-card balance (600). Amount fields are 20px/600 with a 17px/600 Quiet Ink "€".
 - **Title** (700, 22px, 1.25): dialog and sheet titles at every width, with a 15px Slate Ink description beneath. Only a short window drops a transfer sheet's title to 20px. A hero with no figure ("Abruf fehlgeschlagen") sets its state in Title, in ink.
 - **Wordmark** (700, 18px, line-height 1; 17px on phones): "Sooskasse-FinTS" in the masthead and the footer, and the "€" in its plate.
-- **Section** (700, 17px, 1.3, Night Navy): the title of a tile, a group, a popover or a drawer section, the transfer form's groups, the Sitzung panel's holder name, the Namensabgleich verdict. Drawer titles use the same size in bar ink. Empty-state and error-state titles use it in ink.
+- **Section** (700, 17px, 1.3, Night Navy): the title of a tile, a group, a popover, a drawer section or a dialog's group (the update's "Was ist neu"), the transfer form's groups, the Sitzung panel's holder name, the Namensabgleich verdict. Drawer titles use the same size in bar ink. Empty-state and error-state titles use it in ink.
 - **Control** (400, 16px): form controls only, so a phone never zooms into a focused field. There is no 16px heading.
 - **Body** (400, 15px, 1.5): running text, menu items, dialog descriptions.
 - **Row** (600, 15px, 1.375): the counterparty's name on a booking row and its amount, account names, underline tabs.
@@ -980,7 +980,7 @@ quick pick is a logo over a 12.5px label; picks that start a search carry a
 - **Institute bar:** the bank's logo (on a white plate in light; bare, or inverted when dark, in the dark theme; a mark drawn for a dark ground is set in one dark colour on light), its name in 14.5px semibold, and from 1100px "BLZ 570 699 99" in 12.5px Quiet Ink with the number in Plex Mono. Then a vertical hairline, then the section tabs (Übersicht, Analyse, Verträge & Abos). The device tag sits at the far right.
 - **Phone bottom bar:** 64px plus the safe area, white with a hairline. It holds Übersicht, Analyse, a centred 52px Signal Blue disc for Überweisen with the transfer glyph and a 4px surface ring, Verträge and "Mehr" (the palette). Labels are 12.5px semibold. The current item is blue with a 3px Signal Blue rule at the top; the disc's own label stays ink.
 - **Footer:** Night Navy. The wordmark with the version, the GitHub link, and one line on how the app reaches the bank ("Direkte FinTS-Verbindung von diesem Rechner zu …") beside "Angemeldet seit".
-- **Command palette ("Suche"):** an entry that ends something is a last resort. "Abmelden" is absent for queries under three letters and otherwise listed after every other result, bookings included, in its own "Sitzung" group.
+- **Command palette ("Suche"):** an entry that ends something is a last resort. "Abmelden" answers only a deliberate query: three or more letters that start its name ("abm"), or one of its words typed in full ("logout", "ausloggen", "sitzung"). Never "ab" and never a fuzzy hit ("med", "logo"), which could leave it alone and preselected. When it answers, it is listed after every other result, bookings included, in its own "Sitzung" group. A booking from another account opens the Umsätze list as described under Outcome States: switched when that is answered from the cache, otherwise naming the account it could not show.
 
 ### Overlays
 - **Dialog:**
@@ -997,7 +997,7 @@ quick pick is a logo over a 12.5px label; picks that start a search carry a
   - A popover can pin a footer the same way a dialog does (the Sitzung panel's "Abmelden").
   - Layers render in place (never portalled), so they can never reach a printout.
 - **Sitzung panel:** a 352px popover from the profile chip. Three groups under 13px semibold Quiet Ink headings, split by hairlines: who and since when (the holder's name as a 17px navy Section, the countdown), Einstellungen (Automatisch abmelden nach, Darstellung on phones, the Firmenlogos switch, Updates, Tastenkürzel), and Auf diesem Rechner. "Abmelden" is its pinned footer, a small block button. The large avatar is navy initials on the inset.
-- **Toast:** raised white, 12px corners, the Pop shadow plus a 3px inner edge in its tone, an 18px glyph and 14.5px text. Its lifetime follows reading time (at least 10s for an error, 12s with an action, 20s for both) and pauses while it is hovered, focused or the window is in the background. F6 moves to its button and back; Escape closes it.
+- **Toast:** raised white, 12px corners, the Pop shadow plus a 3px inner edge in its tone, an 18px glyph and 14.5px text. Its lifetime follows reading time (at least 10s for an error, 12s with an action, 20s for both) and pauses while it is hovered, focused or the window is in the background. F6 moves to its button and back; Escape closes it. Because F6 lands on that button, a toast's action never does anything that needs a confirmation elsewhere: "Gerät vergessen …" on the "Gerät gemerkt" toast opens the same "Gerät vergessen?" dialog as the Sitzung panel.
 - **Inline alert:** 8px corners, a tinted ground and a 3px inner left edge in the tone colour, with an 18px glyph and 14px text.
   - Error: red on red tint.
   - Success: green on green tint.
@@ -1067,6 +1067,18 @@ discs: success is a green tint with a drawn check and a ring that leaves
 once; refused is a red tint with a red cross; unsure is the inset grey with a
 3px orange inner edge and a Slate Ink question mark.
 
+A look at an unclear order ("Umsätze mit diesem Empfänger" in Mitteilungen,
+"Umsätze prüfen" before a logout or a restart) never reads from the bank. The
+Umsätze list opens filtered to the payee's IBAN on the order's own account
+when that switch is answered from the cache. Otherwise it stays where it is
+and says so first, in a warning alert ("Die Überweisung ging von „Tagesgeld“
+aus. Diese Liste zeigt „GiroKomfort“ …") with "Zu „Tagesgeld“ wechseln"
+beside the approval note. A list fetched before the order went out says that
+too ("… vor deiner Überweisung – sie kann hier noch nicht stehen.") with
+"Aktualisieren". An empty search there must never read as "not executed". A
+palette hit on another account's booking uses the same line in the info tone.
+Any edit in the filter bar drops these notes.
+
 ### Bank Answers
 The bank's sentences are shown verbatim, codes stripped, in an error alert or
 an 8px inset well. Under them, once and small, "Rückmeldung der Bank: 9210"
@@ -1095,7 +1107,7 @@ changes the answer; a build without the feature shows neither.
 - **Loading skeletons** are shaped like the rows they stand in for, with a 1.4s shimmer.
 
 ### Named Rules
-**The Safe Choice Rule.** At every risk decision the safe action is the filled primary and the risky one the outline beside it: "Angaben prüfen" at a duplicate or a name mismatch, "Namen übernehmen" when the bank suggests the name, "Angaben ändern" after a refusal, "Jetzt nachsehen" at Status unklar, "Umsätze prüfen" before logging out over an unclear transfer. A destructive confirmation the user asked for keeps its red confirm, with the safe button focused.
+**The Safe Choice Rule.** At every risk decision the safe action is the filled primary and the risky one the outline beside it: "Angaben prüfen" at a duplicate or a name mismatch, "Namen übernehmen" when the bank suggests the name, "Angaben ändern" after a refusal, "Jetzt nachsehen" at Status unklar, "Umsätze prüfen" (or "In Mitteilungen ansehen" for several) before logging out over an unclear transfer, whether by "Abmelden" or by an update's restart. The restart then stays an outline beside it, with a quiet "Später" first, and the unclear transfer is said in a warning alert of its own. A destructive confirmation the user asked for keeps its red confirm, with the safe button focused.
 
 **The Safe Focus Rule.** A layer opens on the safe place: what it names (`initialFocus`, or `[data-autofocus]` on its safe button), else its first text field, else its close button, else the layer itself. Never a checkbox, switch, radio, link or action by default. A `[data-autofocus="fine"]` field (the palette's search) takes focus only with a fine pointer, so a touch keyboard never covers a layer as it opens, and a target below the fold of the layer's body is scrolled into view.
 
