@@ -9,10 +9,16 @@
 // the install on "Jetzt neu starten". The restart ends the bank session like
 // any quit would, so it waits while an approval is open (the same rule as
 // the automatic logout), and says so when the user is signed in.
+//
+// Focus opens on the step the dialog is about when that step is harmless
+// (Herunterladen, Im Hintergrund laden, Nach Updates suchen) and on the way
+// out when it is not (Später before a restart, Schließen before a page that
+// leaves the app) — never on the switch or the GitHub link.
 
 import { useId, useMemo } from 'react';
 import { fmtBytes, fmtDate } from '@/lib/format';
 import { parseReleaseNotes } from '@/lib/release-notes';
+import { unclearTransfers } from '@/lib/session-log';
 import { useFints, waitHoldsSession } from '../FintsProvider';
 import { CheckCircleIcon, DownloadIcon, ExternalIcon, InfoIcon, RefreshIcon } from '../icons';
 import { Alert, Button, Dialog, Spinner, Switch } from '../ui';
@@ -27,7 +33,7 @@ export function UpdateDialog() {
 }
 
 function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }) {
-  const { view, busy, wait } = useFints();
+  const { view, busy, wait, activity } = useFints();
   const release = hasNewer(state) ? state.release : null;
   const installed = release ? null : state.installed;
   const signedIn = view === 'dashboard';
@@ -35,6 +41,9 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   // would abandon it half-way.
   const holding = busy || (wait.open && waitHoldsSession(wait));
   const portable = state.kind === 'portable';
+  // The restart is a logout too: what it would take with it is said, as on
+  // every other way out of the session.
+  const unclear = signedIn ? unclearTransfers(activity).length : 0;
 
   const title = release
     ? state.phase === 'ready' || state.phase === 'installing'
@@ -44,11 +53,16 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
       ? `Neu in Version ${installed.version}`
       : 'Updates';
 
+  // The date belongs to the new version, so it is said with it.
   const description = release ? (
-    <>
-      Du nutzt Version <span className="tnum">{state.current}</span>
-      {release.publishedAt && <> · erschienen am <span className="tnum">{fmtDate(release.publishedAt)}</span></>}
-    </>
+    release.publishedAt ? (
+      <>
+        Version <span className="tnum">{release.version}</span> vom <span className="tnum">{fmtDate(release.publishedAt)}</span>
+        {' · '}du nutzt <span className="tnum">{state.current}</span>
+      </>
+    ) : (
+      <>Du nutzt Version <span className="tnum">{state.current}</span></>
+    )
   ) : installed ? (
     installed.from ? <>Aktualisiert von Version <span className="tnum">{installed.from}</span>.</> : 'Gerade aktualisiert.'
   ) : (
@@ -62,7 +76,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   if (release && !release.canInstall) {
     actions = (
       <>
-        <Button variant="secondary" onClick={close}>Schließen</Button>
+        <Button variant="secondary" data-autofocus onClick={close}>Schließen</Button>
         <Button variant="primary" iconLeft={<ExternalIcon size={16} />} onClick={() => void updates.openRelease()}>
           Download-Seite öffnen
         </Button>
@@ -72,13 +86,13 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
     actions = (
       <>
         <Button variant="secondary" onClick={() => void updates.cancel()}>Abbrechen</Button>
-        <Button variant="primary" onClick={close}>Im Hintergrund laden</Button>
+        <Button variant="primary" data-autofocus onClick={close}>Im Hintergrund laden</Button>
       </>
     );
   } else if (release && (state.phase === 'ready' || state.phase === 'installing')) {
     actions = (
       <>
-        <Button variant="secondary" onClick={close} disabled={state.phase === 'installing'}>Später</Button>
+        <Button variant="secondary" data-autofocus onClick={close} disabled={state.phase === 'installing'}>Später</Button>
         <Button
           variant="primary"
           busy={state.phase === 'installing'}
@@ -95,6 +109,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         <Button variant="secondary" onClick={close}>Später</Button>
         <Button
           variant="primary"
+          data-autofocus
           iconLeft={<DownloadIcon size={16} />}
           disabled={state.phase !== 'available'}
           onClick={() => void updates.download()}
@@ -109,6 +124,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         <Button variant="secondary" onClick={close}>Schließen</Button>
         <Button
           variant="primary"
+          data-autofocus
           iconLeft={<RefreshIcon size={16} />}
           busy={state.phase === 'checking'}
           onClick={() => void updates.check()}
@@ -132,7 +148,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         {release && !release.canInstall && (
           <Alert tone="info" className="mt-0">
             {state.kind === 'dev' || state.kind === 'manual'
-              ? 'Diese Ausgabe der App kann sich nicht selbst aktualisieren. Lade die neue Version auf GitHub herunter.'
+              ? 'Diese Version der App kann sich nicht selbst aktualisieren. Lade die neue Version auf GitHub herunter.'
               : 'Für diese Version gibt es keine Datei, die die App prüfen könnte. Lade sie auf GitHub herunter.'}
           </Alert>
         )}
@@ -148,6 +164,8 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
               <>Sooskasse-FinTS wird beendet, installiert die neue Version und startet von selbst neu – meist in weniger als einer Minute.</>
             )}
             {signedIn && <> Du wirst dabei abgemeldet.</>}
+            {unclear === 1 && <> Die Überweisung mit unklarem Status steht danach nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.</>}
+            {unclear > 1 && <> Die {unclear} Überweisungen mit unklarem Status stehen danach nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.</>}
           </Alert>
         )}
 
@@ -236,12 +254,13 @@ function Notes({ notes, name }: { notes: string; name: string }) {
           <span className="sr-only">(öffnet extern)</span>
         </button>
       </div>
-      {/* A scrolling region, so it takes focus to be scrolled by keyboard. */}
+      {/* A scrolling region, so it takes focus to be scrolled by keyboard.
+          Lower on a short window, where the dialog itself already scrolls. */}
       <div
         role="region"
         aria-labelledby={id}
         tabIndex={0}
-        className="max-h-[min(32vh,300px)] overflow-y-auto overscroll-contain rounded-[10px] bg-inset px-4 py-3.5 text-[14px] leading-relaxed text-ink-2"
+        className="max-h-[min(32vh,300px)] overflow-y-auto overscroll-contain rounded-[8px] bg-inset px-4 py-3.5 text-[14px] leading-relaxed text-ink-2 [@media(max-height:700px)]:max-h-[min(24vh,300px)]"
       >
         <ReleaseNotes blocks={blocks} />
       </div>
@@ -268,7 +287,8 @@ function Progress({ received, total }: { received: number; total: number }) {
         aria-valuetext={`${pct} Prozent`}
         className="mt-2 h-2 overflow-hidden rounded-full bg-inset"
       >
-        <div className="h-full rounded-full bg-accent transition-[width] duration-200 ease-out" style={{ width: `${pct}%` }} />
+        {/* Navy, not Signal Blue: a progress fill cannot be pressed. */}
+        <div className="h-full rounded-full bg-headline transition-[width] duration-200 ease-out" style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-2 text-[13px] leading-snug text-ink-3">
         Die Datei wird vor der Installation mit der Prüfsumme von GitHub abgeglichen.

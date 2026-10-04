@@ -55,17 +55,22 @@ export function Masthead() {
   const {
     privacy, togglePrivacy, unreadCount: bankUnread, inboxOpen, setInboxOpen, setPaletteOpen, singleKeyShortcuts,
   } = useFints();
-  // A newer version of the app (desktop only) waits in Mitteilungen too, and
-  // counts until it has been seen there.
+  // A newer version of the app (desktop only) waits in Mitteilungen too. The
+  // number counts the bank's messages only; the app's own news is marked by
+  // the dot alone, so it never reads as one more message from the bank.
   const updateSnapshot = useUpdates();
-  const unreadCount = bankUnread + (unseenUpdate(updateSnapshot) ? 1 : 0);
-  const inboxName = unreadCount > 0 ? `Mitteilungen, ${unreadCount} ungelesen` : 'Mitteilungen';
+  const updateUnseen = unseenUpdate(updateSnapshot);
+  const inboxName = ['Mitteilungen', bankUnread > 0 ? `${bankUnread} ungelesen` : '', updateUnseen ? 'neue App-Version' : '']
+    .filter(Boolean).join(', ');
   // Opening the drawer marks everything read. Were the count badge to go out
   // at that moment, the items left of it would jump sideways behind the
   // scrim; so the bell keeps showing what it showed when it was pressed, and
   // settles once the drawer has closed.
-  const [shownUnread, setShownUnread] = useState(unreadCount);
-  if (!inboxOpen && shownUnread !== unreadCount) setShownUnread(unreadCount);
+  const [shown, setShown] = useState({ unread: bankUnread, update: updateUnseen });
+  if (!inboxOpen && (shown.unread !== bankUnread || shown.update !== updateUnseen)) {
+    setShown({ unread: bankUnread, update: updateUnseen });
+  }
+  const shownUnread = shown.unread;
 
   return (
     <div
@@ -101,9 +106,9 @@ export function Masthead() {
           <button
             type="button"
             className={cx(ITEM, 'max-sm:hidden')}
-            aria-label="Suche und Befehle"
+            aria-label="Suche"
             aria-keyshortcuts="Control+K Meta+K"
-            title="Suche und Befehle (Strg+K)"
+            title="Suche (Strg+K)"
             onClick={() => setPaletteOpen(true)}
           >
             <SearchIcon size={18} />
@@ -127,10 +132,11 @@ export function Masthead() {
           >
             <span className="relative text-bar-ink-2 transition-colors duration-150 group-hover:text-bar-ink">
               <BellIcon />
-              {/* The dot is the narrow-window form of the count: where the
-                  count badge shows, the dot would only say the same thing twice. */}
-              {shownUnread > 0 && (
-                <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-bar @min-[900px]/mast:hidden" />
+              {/* The dot is the narrow-window form of the count (where the
+                  badge shows, it would say the same thing twice) — and, at
+                  every width, the mark of a new app version. */}
+              {(shownUnread > 0 || shown.update) && (
+                <Dot className={cx('absolute -top-0.5 -right-0.5 ring-2 ring-bar', !shown.update && '@min-[900px]/mast:hidden')} />
               )}
             </span>
             <span className={LABEL_MID}>Mitteilungen</span>

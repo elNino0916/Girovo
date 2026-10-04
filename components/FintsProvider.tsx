@@ -30,6 +30,7 @@ import { counterpartyKey, counterpartyName, isCategoryId, rawCounterparty, txKey
 import { parseCardAcceptor } from '@/lib/card-purpose';
 import {
   dayKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, toLocalDate, translateType,
+  fmtRange,
   type RangePreset,
 } from '@/lib/format';
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
@@ -37,6 +38,7 @@ import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
 import { acceptsBalance, balanceQueue, failureSentence } from '@/lib/balances';
 import { unbookedPending } from '@/lib/pending';
 import { recordSentOrder, sanitizeSentOrders, type SentOrder } from '@/lib/sent-orders';
+import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-log';
 import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
@@ -76,7 +78,8 @@ export type Toast = { id: number; message: string; tone: ToastTone; ms: number; 
 
 export type View = 'login' | 'tanmethod' | 'dashboard';
 
-export type LogoutReason = 'user' | 'idle' | 'expired';
+/** `cancelled`: the login's own approval was called off, so the half-open session goes. */
+export type LogoutReason = 'user' | 'idle' | 'expired' | 'cancelled';
 
 /** The idle limits the user can choose from, in minutes. */
 export const IDLE_MINUTE_CHOICES = [5, 10, 15, 30] as const;
@@ -280,6 +283,7 @@ const MAX_TEMPLATES = 200;
 const MAX_ALIAS = 60;
 /** The idle logout happens while nobody is looking; the notice has to outlast the absence. */
 const IDLE_NOTICE_MS = 10 * 60_000;
+/** A wait, not a failure: toasted as a notice, never in the error's red. */
 const BUSY_MESSAGE = 'Bitte warten — ein anderer Vorgang läuft noch.';
 
 // ---------------------------------------------------------------------------
@@ -547,6 +551,8 @@ function useFintsState() {
   const [busy, setBusyState] = useState(false);
   const [loadingAccount, setLoadingAccount] = useState<string | null>(null);
   const [pendingLoading, setPendingLoading] = useState<string | null>(null);
+  /** Per account: why its last Vorgemerkt fetch failed — the panel says so, not only a toast. */
+  const [pendingErrors, setPendingErrors] = useState<Record<string, LoadError>>({});
   const [deviceRemembered, setDeviceRemembered] = useState(false);
 
   const [wait, setWait] = useState<WaitState>(IDLE_WAIT);
@@ -580,6 +586,8 @@ function useFintsState() {
   const [inboxOpen, setInboxOpenState] = useState(false);
   const [paletteOpen, setPaletteOpenState] = useState(false);
   const [shortcutsOpen, setShortcutsOpenState] = useState(false);
+  /** "Trotzdem abmelden?" — asked only while the session log holds a transfer whose status is unclear. */
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   // The applied statement range — what every load asks the bank for.
   const [range, setRange] = useState<DateRange>(() => defaultRange());
@@ -642,6 +650,9 @@ function useFintsState() {
   const lastKeepaliveRef = useRef(0);
 
   const messagesRef = useRef<InboxMessage[]>([]);
+  /** The session log, for a logout that has to say what it is about to drop. */
+  const activityRef = useRef<ActivityEntry[]>([]);
+  activityRef.current = activity;
   const lastTransferRef = useRef<TransferPayload | null>(null);
 
   const vaultRef = useRef<VaultData | null>(null);
@@ -689,14 +700,22 @@ function useFintsState() {
   }, []);
 
   // ---- toasts -------------------------------------------------------------
-  const toast = useCallback((message: string, tone: ToastTone = 'info', ms?: number, action?: ToastAction) => {
+  // How long one stays is decided in Toasts.tsx (lib/toast-time.ts): `ms` is
+  // the least the caller asks for, and reading time or an action lengthen it.
+  const toast = useCallback((message: string, tone: ToastTone = 'info', ms?: number, action?: ToastAction): number => {
     const id = ++toastId.current;
     const entry: Toast = {
-      id, message, tone, ms: ms ?? (tone === 'error' ? 9000 : 4200), ...(action ? { action } : {}),
+      id, message, tone, ms: ms ?? (tone === 'error' ? 10_000 : 4200), ...(action ? { action } : {}),
     };
     // The same message again replaces the earlier one (and restarts its time)
     // rather than stacking — "Bitte warten" five times says nothing new.
     setToasts((list) => [...list.filter((t) => t.message !== message || t.tone !== tone), entry].slice(-MAX_TOASTS));
+    return id;
+  }, []);
+
+  /** Rewords a toast still on screen, its time running on — for a fact that is only confirmed later. */
+  const rewordToast = useCallback((id: number, message: string) => {
+    setToasts((list) => list.map((t) => (t.id === id ? { ...t, message } : t)));
   }, []);
 
   const dismissToast = useCallback((id: number) => {
@@ -943,7 +962,7 @@ function useFintsState() {
     // logout, so the half-open session (and the PIN it holds in the server's
     // memory) is dropped now rather than by the 30-minute sweep.
     if (!accountsRef.current.length) {
-      void logoutRef.current('user');
+      void logoutRef.current('cancelled');
       return;
     }
     setBusy(false);
@@ -1342,7 +1361,7 @@ function useFintsState() {
     const settle: LoadSettled = (outcome, error) => opts.onSettled?.(outcome, error);
     if (!account.canBalance) { settle('skipped'); return; }
     if (busyRef.current) {
-      if (!opts.quiet) toast(BUSY_MESSAGE, 'error');
+      if (!opts.quiet) toast(BUSY_MESSAGE, 'info');
       settle('busy');
       return;
     }
@@ -1400,7 +1419,7 @@ function useFintsState() {
    */
   const loadAllBalances = useCallback(() => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
     const sid = sessionRef.current;
@@ -1474,8 +1493,21 @@ function useFintsState() {
         rangeAnchorRef.current = prevAnchor;
         setRange(prev);
       },
+      // A failure says so in its own toast. An approval that was not given
+      // closes without a word — so this says what the screen still shows.
+      onSettled: (outcome) => {
+        if (outcome !== 'cancelled' || rangeRef.current !== prev) return;
+        const span = fmtRange(prev.from, prev.to);
+        toast(
+          next.from < prev.from
+            ? `Ältere Umsätze wurden nicht abgerufen – es bleibt beim Zeitraum ${span}.`
+            : `Der neue Zeitraum wurde nicht abgerufen – es bleibt bei ${span}.`,
+          'info',
+          8000,
+        );
+      },
     });
-  }, [setAppliedRange, loadTransactions]);
+  }, [setAppliedRange, loadTransactions, toast]);
 
   /**
    * Makes `r` the range every statement load uses, and re-reads the active
@@ -1490,7 +1522,7 @@ function useFintsState() {
       return;
     }
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
     const account = activeAccountRef.current;
@@ -1509,7 +1541,7 @@ function useFintsState() {
    */
   const refreshAfterTransfer = useCallback((account: SerializedAccount) => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
     const today = isoDate(new Date());
@@ -1527,10 +1559,11 @@ function useFintsState() {
   // ---- vorgemerkte Umsätze ------------------------------------------------
   const loadPending = useCallback(async (account: SerializedAccount) => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'error');
+      toast(BUSY_MESSAGE, 'info');
       return;
     }
     const sid = sessionRef.current;
+    setPendingErrors((e) => without(e, account.accountNumber));
     setBusy(true);
     setPendingLoading(account.accountNumber);
 
@@ -1557,7 +1590,11 @@ function useFintsState() {
     } catch (err) {
       if (!isCurrent(sid)) return;
       finish();
-      toast((err as Error).message, 'error');
+      // The Vorgemerkt panel keeps the reason (and the way to try again);
+      // the toast is the one announcement of it.
+      const message = (err as Error).message;
+      setPendingErrors((e) => ({ ...e, [account.accountNumber]: { message, at: Date.now() } }));
+      toast(`Abruf der vorgemerkten Umsätze für „${accountLabelRef.current(account)}“ fehlgeschlagen: ${message}`, 'error');
     }
   }, [setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, toast, resolveMerchants]);
 
@@ -1996,6 +2033,7 @@ function useFintsState() {
     setBusy(false);
     setLoadingAccount(null);
     setPendingLoading(null);
+    setPendingErrors({});
     setDeviceRemembered(false);
     setTxErrors({});
     setBalanceErrors({});
@@ -2023,6 +2061,7 @@ function useFintsState() {
     setInboxOpenState(false);
     setPaletteOpenState(false);
     setShortcutsOpenState(false);
+    setLogoutConfirmOpen(false);
     setAppliedRange(defaultRange());
 
     messagesRef.current = [];
@@ -2048,45 +2087,74 @@ function useFintsState() {
    * session the logout is about to drop), then the server forgets the session.
    * Logout clears the session only; the remembered device stays (use "Gerät
    * vergessen" to wipe it).
+   *
+   * Every logout is said on the login screen it lands on. A user's says that
+   * the PIN is gone only once the server confirmed it dropped the session —
+   * the session object is what held it (lib/session-log.ts logoutNotice).
    */
   const logout = useCallback(async (reason: LogoutReason = 'user') => {
     // `onClick={logout}` hands over a click event; that is a user logout too.
-    if (reason !== 'idle' && reason !== 'expired') reason = 'user';
+    if (reason !== 'idle' && reason !== 'expired' && reason !== 'cancelled') reason = 'user';
     const sid = sessionRef.current;
-    // A straggling idle tick or 401 after the session already ended.
-    if (!sid && reason !== 'user') return;
+    if (!sid) {
+      // A straggling idle tick or 401 after the session already ended, or a
+      // second press on "Abmelden": nothing is left to end or to announce.
+      if (reason === 'user' || reason === 'cancelled') resetSession();
+      return;
+    }
 
     // Captured before the reset below empties the vault. An expired session
     // cannot take a save any more, so that one is not attempted.
     const saved = reason === 'expired' ? Promise.resolve() : flushVault();
-    // A transfer approval whose status check failed does not hold the session
-    // (see inFlight) — but the order may have gone through. The reset below
-    // takes the sheet and its "Status unklar" with it, so the notice has to
-    // say it, or the user, back at the login screen, sends it again.
+    // What the reset below takes with it, and the notice therefore has to
+    // name, or the user, back at the login screen, sends it again: transfers
+    // whose outcome is unclear — those in the session log, and an approval
+    // whose status check failed (it no longer holds the session, see
+    // inFlight, but the order may have gone through).
     const w = waitRef.current;
-    const unsure = reason === 'idle' && w.open && w.kind === 'transfer' && !waitHoldsSession(w);
-    const to = unsure ? lastTransferRef.current?.recipientName.trim() : '';
+    const unclear = unclearTransfers(activityRef.current).map((e) => e.name);
+    if (w.open && w.kind === 'transfer' && !waitHoldsSession(w)) {
+      unclear.unshift(lastTransferRef.current?.recipientName.trim() ?? '');
+    }
     resetSession();
 
+    let notice: number | null = null;
     if (reason === 'idle') {
-      toast(
-        unsure
-          ? `Du wurdest aus Sicherheitsgründen abgemeldet. Der Status deiner Überweisung${to ? ` an ${to}` : ''} ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.`
-          : 'Du wurdest aus Sicherheitsgründen abgemeldet.',
-        'info',
-        IDLE_NOTICE_MS,
-      );
+      toast(idleLogoutNotice(unclear, unclear.length), 'info', IDLE_NOTICE_MS);
     } else if (reason === 'expired') {
       toast('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.', 'error');
+    } else {
+      notice = toast(logoutNotice(reason, false), 'info', 6000);
     }
 
     await Promise.race([saved, delay(LOGOUT_FLUSH_TIMEOUT_MS)]);
-    if (sid) {
-      try { await post('/api/logout', { sessionId: sid }); } catch { /* best effort */ }
+    let dropped = false;
+    try {
+      await post('/api/logout', { sessionId: sid });
+      dropped = true;
+    } catch { /* best effort — the server's 30-minute sweep remains */ }
+    if (notice != null && dropped && (reason === 'user' || reason === 'cancelled')) {
+      rewordToast(notice, logoutNotice(reason, true));
     }
-  }, [flushVault, resetSession, toast]);
+  }, [flushVault, resetSession, toast, rewordToast]);
 
   logoutRef.current = logout;
+
+  /**
+   * "Abmelden" from the Sitzung panel or the palette. Asks first only when
+   * the session log holds a transfer whose status is unclear: the logout
+   * clears that log, and with it the only record in the app of an order
+   * that may have moved money. Otherwise it logs out at once.
+   */
+  const requestLogout = useCallback(() => {
+    if (unclearTransfers(activityRef.current).length) {
+      setLogoutConfirmOpen(true);
+      return;
+    }
+    void logoutRef.current('user');
+  }, []);
+
+  const closeLogoutConfirm = useCallback(() => setLogoutConfirmOpen(false), []);
 
   // Any session-bound call that came back 401 (lib/client-api.ts).
   useEffect(() => {
@@ -2557,6 +2625,7 @@ function useFintsState() {
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
     txErrors, balanceErrors, balanceLoading, loadingAllBalances,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
+    pendingErrors,
     range, statementInfo, txByAccount, ownIbans,
     messages, unreadCount, activity,
     vault, vaultStatus,
@@ -2570,6 +2639,7 @@ function useFintsState() {
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
+    logoutConfirmOpen,
     // actions
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
     cancelConnect,
@@ -2577,6 +2647,7 @@ function useFintsState() {
     isLoadedForAppliedRange,
     refreshAccount, refreshAfterTransfer, applyRange, loadPending, submitTransfer, confirmVop, abandonVop,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
+    requestLogout, closeLogoutConfirm,
     retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,

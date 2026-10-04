@@ -11,19 +11,31 @@
 
 import { Fragment, useEffect, useState } from 'react';
 import { useFints } from './FintsProvider';
+import { TOAST_KEY } from './Toasts';
 import { KeyboardIcon } from './icons';
 import { Button, Dialog, Kbd, Switch, cx } from './ui';
 
 /** `single`: one unmodified key, which the switch turns off. */
 type Row = { keys: string[][]; label: string; single?: boolean };
+type Group = { title: string; rows: Row[] };
 
-function groups(mod: string): { title: string; rows: Row[] }[] {
+/**
+ * Two columns of about the same height — "Überall" and "Aktionen" are short,
+ * "Navigation" is long — read top to bottom, left column first.
+ */
+function columns(mod: string): Group[][] {
+  const [everywhere, navigation, actions, lists] = groups(mod);
+  return [[everywhere, actions], [navigation, lists]];
+}
+
+function groups(mod: string): Group[] {
   return [
     {
       title: 'Überall',
       rows: [
-        { keys: [[mod, 'K']], label: 'Suche und Befehle' },
+        { keys: [[mod, 'K']], label: 'Suche' },
         { keys: [['?']], label: 'Diese Übersicht', single: true },
+        { keys: [[TOAST_KEY]], label: 'Zur neuesten Benachrichtigung und zurück' },
       ],
     },
     {
@@ -89,39 +101,44 @@ export function ShortcutsHelp() {
         description={
           <>
             /, ?, N, B, G und 1–9. Ausschalten, wenn du per Sprache steuerst oder Tasten leicht versehentlich
-            triffst. {mod === '⌘' ? '⌘K' : 'Strg+K'} und Alt+1–3 wirken immer.
+            triffst. {mod === '⌘' ? '⌘K' : 'Strg+K'}, Alt+1–3 und {TOAST_KEY} bleiben eingeschaltet.
           </>
         }
-        className="mb-6 rounded-[10px] bg-inset px-4 py-3"
+        className="mb-6 rounded-[8px] bg-inset px-4 py-3"
       />
       <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
-        {groups(mod).map((g) => (
-          <section key={g.title} aria-label={g.title}>
-            <h3 className="mb-2 text-[13px] font-semibold text-ink-3">{g.title}</h3>
-            <dl className="flex flex-col">
-              {g.rows.map((r) => {
-                const off = r.single && !singleKeyShortcuts;
-                return (
-                  <div key={r.label} className="flex min-h-10 items-center justify-between gap-4 border-b border-line py-1.5 last:border-b-0">
-                    <dt className={cx('min-w-0 text-[14.5px] leading-snug', off ? 'text-ink-3' : 'text-ink')}>{r.label}</dt>
-                    <dd className="flex shrink-0 items-center gap-1.5 text-[12.5px] text-ink-3">
-                      {off ? (
-                        <>
-                          <span aria-hidden className="font-semibold">aus</span>
-                          <span className="sr-only">ausgeschaltet</span>
-                        </>
-                      ) : <KeyCombos combos={r.keys} />}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-            {g.title === 'Navigation' && singleKeyShortcuts && (
-              <p className="mt-2 text-[13px] leading-[28px] text-ink-3">
-                Oder <Kbd>G</Kbd> drücken, dann <Kbd>Ü</Kbd>, <Kbd>A</Kbd> oder <Kbd>V</Kbd> für die drei Bereiche.
-              </p>
-            )}
-          </section>
+        {columns(mod).map((column) => (
+          <div key={column[0].title} className="flex flex-col gap-6">
+            {column.map((g) => (
+              <section key={g.title} aria-label={g.title}>
+                <h3 className="mb-2 text-[13px] font-semibold text-ink-3">{g.title}</h3>
+                <dl className="flex flex-col">
+                  {g.rows.map((r) => {
+                    const off = r.single && !singleKeyShortcuts;
+                    return (
+                      <div key={r.label} className="flex min-h-10 items-center justify-between gap-4 border-b border-line py-1.5 last:border-b-0">
+                        <dt className={cx('min-w-0 text-[14.5px] leading-snug', off ? 'text-ink-3' : 'text-ink')}>{r.label}</dt>
+                        <dd className="flex shrink-0 items-center gap-1.5 text-[12.5px] text-ink-3">
+                          {off ? (
+                            <>
+                              <span aria-hidden className="font-semibold">aus</span>
+                              <span className="sr-only">ausgeschaltet</span>
+                            </>
+                          ) : <KeyCombos combos={r.keys} />}
+                        </dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+                {g.title === 'Navigation' && singleKeyShortcuts && (
+                  <p className="mt-2 text-[13px] leading-[28px] text-ink-3">
+                    Oder <Kbd>G</Kbd> drücken, dann <Kbd>Ü</Kbd>, <Kbd>A</Kbd> oder <Kbd>V</Kbd> für die drei Bereiche.
+                    Eine Zahl wechselt zu einem schon abgerufenen Konto.
+                  </p>
+                )}
+              </section>
+            ))}
+          </div>
         ))}
       </div>
     </Dialog>

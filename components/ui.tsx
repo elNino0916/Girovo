@@ -534,8 +534,67 @@ const FOCUSABLE =
 
 const isShown = (el: HTMLElement) => el.getClientRects().length > 0 && !el.closest('[inert], [hidden]');
 
+/**
+ * In the Tab order: tabindex="-1" leaves a control out of it — the unchecked
+ * radios of a roving group (Segmented), the items of a menu. Those take
+ * focus from their own keys, never from Tab or from a layer opening.
+ */
+const isTabbable = (el: HTMLElement) => el.getAttribute('tabindex') !== '-1';
+
 function focusablesIn(root: HTMLElement): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(isShown);
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => isShown(el) && isTabbable(el));
+}
+
+/** A field to type into: typing is never consequential, so a form may open there. Not a checkbox, switch or select. */
+const TEXT_FIELD = 'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"])'
+  + ':not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]), textarea, [contenteditable]:not([contenteditable="false"])';
+
+/**
+ * Where focus goes when a layer opens: the safe, non-destructive place. One
+ * rule for every dialog, drawer, sheet and popover:
+ *
+ *   1. what the layer names — `initialFocus`, or [data-autofocus] on its safe
+ *      button ("Abbrechen", "Weiter warten", "Angemeldet bleiben");
+ *   2. else its first field to type into (a form starts where you type);
+ *   3. else its own close button (a drawer of details: Enter only closes);
+ *   4. else the layer itself, which a screen reader announces by its name.
+ *
+ * Never a checkbox, a switch, a radio, an external link or an action button
+ * by default: the first Space or Enter after opening must not arm a data
+ * wipe, shorten the auto-logout, switch update checks off — or start a
+ * transfer from a booking's "Erneut überweisen".
+ */
+function safeFocusTarget(root: HTMLElement, named?: HTMLElement | null): HTMLElement {
+  const usable = (el: HTMLElement | null | undefined): el is HTMLElement => !!el && isShown(el) && !el.matches(':disabled');
+  if (usable(named)) return named;
+  const marked = root.querySelector<HTMLElement>('[data-autofocus]');
+  if (usable(marked)) return marked;
+  const field = focusablesIn(root).find((el) => el.matches(TEXT_FIELD) && !el.matches(':disabled'));
+  if (field) return field;
+  const close = root.querySelector<HTMLElement>('[data-dialog-close]');
+  if (usable(close)) return close;
+  return root;
+}
+
+/**
+ * Focus was put somewhere with preventScroll (the layer must not jump while
+ * it animates in), so a target below the fold of its scrolling body — a
+ * dialog's buttons on a short window — is brought into view here, inside the
+ * layer only. A focused control nobody can see is a lost place (WCAG 2.4.11).
+ */
+function revealInLayer(el: HTMLElement, root: HTMLElement) {
+  let scroller = el.parentElement;
+  while (scroller && scroller !== root) {
+    const overflow = getComputedStyle(scroller).overflowY;
+    if ((overflow === 'auto' || overflow === 'scroll') && scroller.scrollHeight > scroller.clientHeight) break;
+    scroller = scroller.parentElement;
+  }
+  if (!scroller || scroller === root) return;
+  const r = el.getBoundingClientRect();
+  const box = scroller.getBoundingClientRect();
+  const air = 12;
+  if (r.bottom > box.bottom) scroller.scrollTop += r.bottom - box.bottom + air;
+  else if (r.top < box.top) scroller.scrollTop -= box.top - r.top + air;
 }
 
 /**
@@ -563,7 +622,7 @@ function neighboursOf(el: Element | null, layer: HTMLElement): HTMLElement[] {
   const before: HTMLElement[] = [];
   let next: HTMLElement | undefined;
   for (const x of document.querySelectorAll<HTMLElement>(FOCUSABLE)) {
-    if (x === el || el.contains(x) || layer.contains(x)) continue;
+    if (x === el || el.contains(x) || layer.contains(x) || !isTabbable(x)) continue;
     if (el.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_PRECEDING) before.push(x);
     else if (isShown(x)) {
       next = x;
@@ -675,7 +734,7 @@ export type OverlayProps = {
   describedBy?: string;
   /** Accessible name when there is no visible title. */
   label?: string;
-  /** Where focus goes on open. Defaults to [data-autofocus], else the first control that is not the close button. */
+  /** Where focus goes on open. Defaults to the safe place (see safeFocusTarget): [data-autofocus], a field, the close button, the layer. */
   initialFocus?: RefObject<HTMLElement | null>;
   /**
    * Where focus goes on close. Defaults to whatever had focus when the layer
@@ -724,12 +783,9 @@ function OverlayLayer({
     const neighbours = neighboursOf(returnTo, root);
 
     if (!root.contains(document.activeElement)) {
-      const target =
-        initialFocus?.current ??
-        root.querySelector<HTMLElement>('[data-autofocus]') ??
-        focusablesIn(root).find((el) => !el.hasAttribute('data-dialog-close')) ??
-        root;
+      const target = safeFocusTarget(root, initialFocus?.current);
       target.focus({ preventScroll: true });
+      if (target !== root) revealInLayer(target, root);
     }
 
     // Focus that leaves the top layer by any route (a click on something
@@ -1920,14 +1976,18 @@ export function Popover({
 
   useOutsidePress(open, [triggerRef, panelRef], () => close(false));
 
-  // Focus moves in once the panel is placed (see Menu: hidden can't take focus).
+  // Focus moves in once the panel is placed (see Menu: hidden can't take
+  // focus) — to the safe place, as in a dialog (safeFocusTarget): a panel of
+  // settings opens on itself, announced by its name, never on its first
+  // radio or switch, where an arrow key or Space would change something.
   const placed = open && style.visibility === 'visible';
   useLayoutEffect(() => {
     if (!placed) return;
     const root = panelRef.current;
     if (!root) return;
-    const target = root.querySelector<HTMLElement>('[data-autofocus]') ?? focusablesIn(root)[0] ?? root;
+    const target = safeFocusTarget(root);
     target.focus({ preventScroll: true });
+    if (target !== root) revealInLayer(target, root);
   }, [placed]);
 
   const triggerProps: TriggerProps = {

@@ -114,8 +114,12 @@ let updater = null;
 // script can read the theme before the first frame and nothing flashes.
 //
 // Deliberately narrow: `fints.*` keys, short string values, a bounded count.
-// This is for preferences, not data — anything personal (IBANs, names,
-// categories) belongs in the PIN-encrypted vault (lib/vault.ts), never here.
+// This is for preferences, not data. The one exception is what the login
+// screen fills in before any PIN exists to decrypt anything: the bank chosen
+// last (fints.lastBank) and the login name for it (fints.userId.<BLZ>), both
+// deleted with the saved data ("Von diesem Rechner löschen", "Gerät
+// vergessen" with the box ticked). Anything else personal (IBANs, account
+// names, categories) belongs in the PIN-encrypted vault (lib/vault.ts).
 // ---------------------------------------------------------------------------
 const PREF_KEY = /^fints\.[\w.-]{1,80}$/;
 const PREF_VALUE_MAX = 4096;
@@ -623,6 +627,24 @@ function run() {
     if (process.platform === 'darwin') return;
     const layers = Number.isInteger(dim) ? Math.min(Math.max(dim, 0), MAX_CAPTION_DIM) : 0;
     win.setTitleBarOverlay({ ...barColors(dark, layers), height: TITLEBAR_HEIGHT });
+  });
+
+  // window.electronWindow (preload.cjs): the auto-logout warning reaching a
+  // user who is in another window. The taskbar button flashes only while this
+  // window is not the focused one, and stops once it is — Windows would
+  // otherwise leave it highlighted — or when the warning closes. Focus is
+  // never taken: the warning asks, it does not pull the window forward.
+  ipcMain.on('window:attention', (event, on) => {
+    if (!win || win.isDestroyed() || !fromApp(event)) return;
+    if (on !== true) {
+      win.flashFrame(false);
+      return;
+    }
+    if (win.isFocused()) return;
+    win.flashFrame(true);
+    win.once('focus', () => {
+      if (win && !win.isDestroyed()) win.flashFrame(false);
+    });
   });
 
   // window.electronStore (preload.cjs) — see "Preferences" above.
