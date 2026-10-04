@@ -18,7 +18,8 @@ import { useThemePref } from '../ThemeToggle';
 import { updates } from '../updates/store';
 import { UpdateSessionRow } from '../updates/UpdateNotices';
 import { ChevronIcon, InfoIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, ShieldIcon, SunIcon } from '../icons';
-import { Button, Checkbox, Dialog, Dot, Kbd, Popover, Segmented, cx } from '../ui';
+import { Button, Checkbox, Dialog, Dot, Kbd, Popover, Segmented, Switch, cx } from '../ui';
+import { LOGO_DISCLOSURE } from '../MerchantLogoConsent';
 import { fmtCountdown, fmtSince, holderName, nameInitials, firstName, useCountdown } from './session';
 
 export function ProfileMenu() {
@@ -124,6 +125,7 @@ function SessionPanel({
   const {
     bank, sessionStartedAt, idleDeadline, idleMinutes, setIdleMinutes, deviceRemembered, setShortcutsOpen, vaultStatus,
     singleKeyShortcuts, logout,
+    meta, logoConsent, setLogoConsent,
   } = useFints();
   const left = useCountdown(idleDeadline);
   const pref = useThemePref();
@@ -261,6 +263,20 @@ function SessionPanel({
             bis zum Abmelden.
           </span>
         </p>
+      )}
+
+      {/* The one lookup that carries anything from the bookings off this
+          machine, so its switch says exactly what goes out. Off until the
+          user agreed; absent in a build that does not offer it. */}
+      {meta?.merchantLogos && (
+        <div className="mt-4 border-t border-line pt-4">
+          <Switch
+            checked={logoConsent === 'on'}
+            onChange={setLogoConsent}
+            label="Firmenlogos"
+            description={LOGO_DISCLOSURE}
+          />
+        </div>
       )}
 
       <div className="mt-3 -mb-1.5 flex flex-col">

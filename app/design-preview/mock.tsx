@@ -36,6 +36,7 @@ import {
   type ToastAction, type ToastTone, type TransferHandlers, type TransferPayload, type View, type WaitKind,
   type WaitOrder, type WaitState,
 } from '@/components/FintsProvider';
+import type { LogoConsent } from '@/components/FintsProvider';
 import { BANK_UNAVAILABLE, bankAnswerLines } from '@/lib/bank-answer';
 import { categorize } from '@/lib/categorize';
 import { counterpartyKey, isCategoryId, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
@@ -83,6 +84,12 @@ export type MockOptions = {
   /** The transfer form's prefill with `open: 'transfer'`. */
   transferPrefill?: TransferPrefill;
   privacy?: boolean;
+  /**
+   * Company logos: the user's answer, or 'unavailable' for a build that does
+   * not offer them. Default: not asked yet on the login screens (a first
+   * start), answered "no" on the dashboard (logos stay off in the preview).
+   */
+  logos?: LogoConsent | 'unavailable';
   /** Start on this account (accountNumber), loaded with the start range. */
   account?: string;
   /** Umsätze search text. */
@@ -234,7 +241,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   optsRef.current = opts;
 
   const [view, setView] = useState<View>(opts.view ?? 'dashboard');
-  const [meta] = useState(data.meta);
+  // Offered, as in a release build — so the screens show the text its users see.
+  const [meta] = useState(() => ({ ...data.meta, merchantLogos: opts.logos !== 'unavailable' }));
   const [popularBanks] = useState(data.popularBanks);
   const [logoFiles] = useState(data.logoFiles);
 
@@ -295,6 +303,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [privacy, setPrivacy] = useState(opts.privacy ?? false);
   const [idleMinutes, setIdleMinutesState] = useState<IdleMinutes>(DEFAULT_IDLE_MINUTES);
   const [singleKeyShortcuts, setSingleKeyShortcuts] = useState(true);
+  const [logoConsent, setLogoConsentState] = useState<LogoConsent>(() => (
+    opts.logos && opts.logos !== 'unavailable' ? opts.logos : loggedIn ? 'off' : 'unasked'
+  ));
+  // No logo service here: an answer is only recorded.
+  const setLogoConsent = useCallback((on: boolean) => setLogoConsentState(on ? 'on' : 'off'), []);
 
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(loggedIn ? init.sessionStartedAt : null);
   const [idleDeadline, setIdleDeadline] = useState<number | null>(null);
@@ -879,7 +892,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       challenge: 'Anmeldung im Online-Banking über FinTS freigeben',
       onDone: () => {
         setDeviceRemembered(true);
-        toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 6000);
+        toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 10_000, {
+          label: 'Gerät vergessen',
+          run: () => void forgetDeviceRef.current(),
+        });
         afterAccountsReady();
       },
       retry: () => void chooseTanMethodRef.current(method, media),
@@ -888,6 +904,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const chooseTanMethodRef = useRef(chooseTanMethod);
   chooseTanMethodRef.current = chooseTanMethod;
+  /** For the "Gerät gemerkt" toast above, as in the provider. */
+  const forgetDeviceRef = useRef<() => Promise<void>>(async () => {});
 
   const clearMediaChoice = useCallback(() => setMediaChoice(null), []);
 
@@ -909,6 +927,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     }
     toast('Gerät vergessen — bei der nächsten Anmeldung wird wieder eine TAN angefragt.', 'info', 6000);
   }, [toast, dropVault]);
+  forgetDeviceRef.current = forgetDevice;
 
   const wipeVault = useCallback(async () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 300));
@@ -1292,6 +1311,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     messages, unreadCount, activity,
     vault, vaultStatus,
     privacy, idleMinutes, singleKeyShortcuts,
+    logoConsent,
     sessionStartedAt, idleDeadline,
     tab, txFilter, txFocusNonce,
     transferOpen, transferPrefill, shareOpen, sharePrefill,
@@ -1303,6 +1323,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
     retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
+    setLogoConsent,
     setTab, setTxFilter, showTransactions,
     openTransfer, closeTransfer, openShare, closeShare,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
@@ -1328,6 +1349,7 @@ export function MockFintsProvider({ children, preset = 'default', overrides, sti
     preset, options.range, options.idleInMs, options.view, options.bankChosen, options.tab, options.open,
     options.transferPrefill, options.privacy, options.account, options.query,
     options.staleBank, options.methods,
+    options.logos,
   ]);
   const underElectron = useSyncExternalStore(noopSubscribe, isElectron, () => false);
   return (

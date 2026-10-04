@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent, RefObject } from 'react';
 import type { BalancePoint } from '@/lib/balance-history';
 import { fmtDate, toLocalDate } from '@/lib/format';
+import { FintsContext } from '../FintsProvider';
+import { accountKind } from '../icons';
 import { MASKED_LABEL, usePrivacy, useMoneyText } from '../Money';
 import { cx } from '../ui';
 
@@ -27,6 +29,17 @@ import { cx } from '../ui';
 // the colour of a negative balance everywhere in this app, and nowhere else.
 // Both follow the steps exactly: they are cut at the zero line, not drawn as
 // separate shapes.
+//
+// Two exceptions:
+//
+// - "Beträge ausblenden" keeps the trend and hides the sign. The scale runs
+//   from the lowest to the highest balance without forcing zero in, the area
+//   rises from the bottom of the plot, there is no zero line and no red. A
+//   zero-anchored area or a red stretch would tell anyone watching a shared
+//   screen that the account is overdrawn; the shape alone does not.
+// - A credit card's balance is negative by nature (spent, settled from the
+//   Girokonto later), so its chart is never painted red. Zero stays in the
+//   scale: there the sign is no secret, only no alarm.
 
 const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
@@ -70,6 +83,11 @@ export function BalanceChart({
   className?: string;
 }) {
   const privacy = usePrivacy();
+  // The chart always draws the selected account (the account hero's).
+  const account = useContext(FintsContext)?.activeAccount;
+  const card = !!account && accountKind(account.accountType, account.product) === 'card';
+  /** Whether the stretch below zero is red — see the exceptions at the top. */
+  const redBelowZero = !privacy && !card;
   const money = useMoneyText();
   const [boxRef, width] = useWidth<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
@@ -99,15 +117,22 @@ export function BalanceChart({
       if (p.balance < min) { min = p.balance; minAt = i; }
       if (p.balance > max) { max = p.balance; maxAt = i; }
     });
-    // Zero is always inside the domain — see the note at the top.
-    let lo = Math.min(0, min);
-    let hi = Math.max(0, max);
-    if (hi === lo) hi = lo + 1;
+    // Zero is always inside the domain — unless amounts are hidden, when the
+    // domain is only the trend (see the note at the top).
+    let lo = privacy ? min : Math.min(0, min);
+    let hi = privacy ? max : Math.max(0, max);
+    if (hi === lo) {
+      // A flat line: at zero it is the floor; hidden, it sits mid-plot.
+      if (privacy) lo -= 1;
+      hi += 1;
+    }
     const span = hi - lo;
     // Air above the highest and below the lowest point, but never past zero
-    // on a side where zero is the edge.
-    if (hi > 0) hi += span * 0.06;
-    if (lo < 0) lo -= span * 0.06;
+    // on a side where zero is the edge. A day in the Dispo gets more below
+    // it: room for the label that names it (see the guides).
+    const dispo = !privacy && !card && min < 0;
+    if (hi > 0 || privacy) hi += span * 0.06;
+    if (lo < 0 || privacy) lo -= span * (dispo ? 0.16 : 0.06);
 
     const plotTop = PAD_TOP;
     const plotBottom = height - PAD_BOTTOM;
@@ -130,7 +155,9 @@ export function BalanceChart({
       line += `H${r(left(i))}V${r(y(points[i].balance))}`;
     }
     line += `H${r(left(n))}`;
-    const area = `M${r(left(0))} ${r(zeroY)}V${line.slice(line.indexOf(' ') + 1)}V${r(zeroY)}Z`;
+    // Hidden amounts: from the plot's bottom, so the fill never flips at zero.
+    const base = privacy ? plotBottom : zeroY;
+    const area = `M${r(left(0))} ${r(base)}V${line.slice(line.indexOf(' ') + 1)}V${r(base)}Z`;
 
     // Month starts: a faint rule where the 1st begins and the month's short
     // name, thinned out so a year on a phone does not turn into a smear of
@@ -146,7 +173,7 @@ export function BalanceChart({
     });
 
     return { min, max, minAt, maxAt, left, x, y, zeroY, line, area, months, plotTop, plotBottom };
-  }, [width, height, n, points]);
+  }, [width, height, n, points, privacy, card]);
 
   if (n < 2) return null;
 
@@ -231,11 +258,26 @@ export function BalanceChart({
   // zero line or the max guide — two labels in one place read as neither.
   // Each label sits at the end of its guide AWAY from the extreme it names, so
   // it never covers the peak (or the trough) it is describing.
+  //
+  // A Girokonto that dipped below zero is the exception: that day costs
+  // Dispozinsen and is what a balance history is most for, yet it may be a
+  // few pixels deep. Its guide stays however close to zero it is, its label
+  // names the day in red and sits UNDER the guide — the line never goes
+  // lower, and the "0 €" label is above zero, so nothing can cover it there.
+  const dipped = !!geo && redBelowZero && geo.min < 0;
   const guides = geo && !privacy
     ? [
-        { key: 'max', y: geo.y(geo.max), at: geo.maxAt, label: `Max. ${money(geo.max, currency)}` },
-        ...(Math.abs(geo.y(geo.min) - geo.y(geo.max)) > 18 && Math.abs(geo.y(geo.min) - geo.zeroY) > 14
-          ? [{ key: 'min', y: geo.y(geo.min), at: geo.minAt, label: `Min. ${money(geo.min, currency)}` }]
+        { key: 'max', y: geo.y(geo.max), at: geo.maxAt, label: `Max. ${money(geo.max, currency)}`, below: false },
+        ...(Math.abs(geo.y(geo.min) - geo.y(geo.max)) > 18 && (dipped || Math.abs(geo.y(geo.min) - geo.zeroY) > 14)
+          ? [{
+              key: 'min',
+              y: geo.y(geo.min),
+              at: geo.minAt,
+              label: dipped
+                ? `Min. ${money(geo.min, currency)} am ${shortDate(points[geo.minAt].date)}`
+                : `Min. ${money(geo.min, currency)}`,
+              below: dipped,
+            }]
           : []),
       ].map((g) => {
         let start = g.at > (n - 1) / 2;
@@ -243,7 +285,7 @@ export function BalanceChart({
         // red) would print its label over the "0 €" label: it moves to the
         // other end. Its text sits above its guide and the line never rises
         // past the maximum, so the line cannot run through it there either.
-        if (zeroLabel && zeroLabel.start === start && Math.abs(g.y - geo.zeroY) < 16) start = !start;
+        if (!g.below && zeroLabel && zeroLabel.start === start && Math.abs(g.y - geo.zeroY) < 16) start = !start;
         return { ...g, start };
       })
     : [];
@@ -295,14 +337,16 @@ export function BalanceChart({
             focusable="false"
             className="absolute inset-0 block h-full w-full overflow-visible"
           >
-            <defs>
-              <clipPath id={`${clipId}-above`}>
-                <rect x={0} y={0} width={width} height={Math.max(0, geo.zeroY)} />
-              </clipPath>
-              <clipPath id={`${clipId}-below`}>
-                <rect x={0} y={geo.zeroY} width={width} height={Math.max(0, height - geo.zeroY)} />
-              </clipPath>
-            </defs>
+            {redBelowZero && (
+              <defs>
+                <clipPath id={`${clipId}-above`}>
+                  <rect x={0} y={0} width={width} height={Math.max(0, geo.zeroY)} />
+                </clipPath>
+                <clipPath id={`${clipId}-below`}>
+                  <rect x={0} y={geo.zeroY} width={width} height={Math.max(0, height - geo.zeroY)} />
+                </clipPath>
+              </defs>
+            )}
 
             {geo.months.map((m) => (
               <g key={m.x}>
@@ -324,41 +368,62 @@ export function BalanceChart({
               <line key={g.key} x1={0} x2={width} y1={g.y} y2={g.y} stroke="var(--chart-axis)" strokeWidth={1} strokeDasharray="2 4" />
             ))}
 
-            <path d={geo.area} fill="var(--chart-area)" clipPath={`url(#${clipId}-above)`} />
-            <path d={geo.area} fill="var(--red-soft)" clipPath={`url(#${clipId}-below)`} />
+            {redBelowZero ? (
+              <>
+                <path d={geo.area} fill="var(--chart-area)" clipPath={`url(#${clipId}-above)`} />
+                <path d={geo.area} fill="var(--red-soft)" clipPath={`url(#${clipId}-below)`} />
+              </>
+            ) : (
+              <path d={geo.area} fill="var(--chart-area)" />
+            )}
 
             {/* Zero: the baseline when the account never dipped, the line that
-                matters most when it did. */}
-            <line x1={0} x2={width} y1={geo.zeroY} y2={geo.zeroY} stroke="var(--chart-axis)" strokeWidth={1} />
+                matters most when it did. Hidden amounts have no zero to show. */}
+            {!privacy && (
+              <line x1={0} x2={width} y1={geo.zeroY} y2={geo.zeroY} stroke="var(--chart-axis)" strokeWidth={1} />
+            )}
 
-            <path
-              d={geo.line}
-              fill="none"
-              stroke="var(--chart-line)"
-              strokeWidth={2}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              clipPath={`url(#${clipId}-above)`}
-            />
-            <path
-              d={geo.line}
-              fill="none"
-              stroke="var(--red)"
-              strokeWidth={2}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              clipPath={`url(#${clipId}-below)`}
-            />
+            {redBelowZero ? (
+              <>
+                <path
+                  d={geo.line}
+                  fill="none"
+                  stroke="var(--chart-line)"
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  clipPath={`url(#${clipId}-above)`}
+                />
+                <path
+                  d={geo.line}
+                  fill="none"
+                  stroke="var(--red)"
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  clipPath={`url(#${clipId}-below)`}
+                />
+              </>
+            ) : (
+              <path
+                d={geo.line}
+                fill="none"
+                stroke="var(--chart-line)"
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            )}
 
             {guides.map((g) => (
               <text
                 key={g.key}
                 x={g.start ? 0 : width}
-                y={g.y - 6}
+                y={g.below ? g.y + 14 : g.y - 6}
                 textAnchor={g.start ? 'start' : 'end'}
                 fontSize={12}
                 fontWeight={600}
-                fill="var(--ink-2)"
+                fill={g.below ? 'var(--red)' : 'var(--ink-2)'}
                 stroke="var(--surface)"
                 strokeWidth={4}
                 strokeLinejoin="round"
@@ -393,14 +458,19 @@ export function BalanceChart({
                   cy={a.y}
                   r={5}
                   fill="var(--surface)"
-                  stroke={negativeAt(a.i) ? 'var(--red)' : 'var(--chart-line)'}
+                  stroke={redBelowZero && negativeAt(a.i) ? 'var(--red)' : 'var(--chart-line)'}
                   strokeWidth={2.5}
                 />
               </g>
             )}
             {!a && (
               // Where the line ends: the latest closing balance.
-              <circle cx={geo.left(n)} cy={geo.y(last.balance)} r={3.5} fill={negativeAt(n - 1) ? 'var(--red)' : 'var(--chart-line)'} />
+              <circle
+                cx={geo.left(n)}
+                cy={geo.y(last.balance)}
+                r={3.5}
+                fill={redBelowZero && negativeAt(n - 1) ? 'var(--red)' : 'var(--chart-line)'}
+              />
             )}
           </svg>
         )}
@@ -423,7 +493,7 @@ export function BalanceChart({
             <span
               className={cx(
                 'amount mt-0.5 block text-[15px] leading-tight font-semibold',
-                !privacy && negativeAt(a.i) ? 'text-red' : 'text-ink',
+                redBelowZero && negativeAt(a.i) ? 'text-red' : 'text-ink',
               )}
             >
               {money(points[a.i].balance, currency)}

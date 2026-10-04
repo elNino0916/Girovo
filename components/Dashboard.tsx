@@ -36,6 +36,7 @@ import { Stage } from './shell/Stage';
 import { Footer } from './shell/Footer';
 import { BottomBar } from './shell/BottomBar';
 import { MessagesTeaser } from './shell/MessagesTeaser';
+import { MerchantLogoConsent } from './MerchantLogoConsent';
 
 export function Dashboard() {
   const { tab, transferOpen, shareOpen } = useFints();
@@ -127,6 +128,7 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
         style={{ top: stickyTop }}
         className="contents desk:sticky desk:flex desk:min-w-0 desk:flex-col desk:gap-6"
       >
+        <Slot order="order-3"><MerchantLogoConsent /></Slot>
         {activeAccount?.canPending && <Slot order="order-3"><PendingPanel /></Slot>}
         <Slot order="order-4"><MonthSummary /></Slot>
         <Slot order="order-5"><UpcomingPayments /></Slot>

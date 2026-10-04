@@ -77,9 +77,10 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
 - **Company logos on transactions** — counterparties are matched against
   [Brandfetch](https://brandfetch.com) so `PayPal Europe S.a.r.l et Cie S.C.A.`
   shows the PayPal mark. A match has to clear a deliberately high bar; anything
-  short of it keeps the plain avatar rather than risking a wrong logo. Requires
-  a free Brandfetch client ID and sends counterparty names to Brandfetch — see
-  [Company logos](#company-logos) before you turn it on.
+  short of it keeps the plain avatar rather than risking a wrong logo. It sends
+  cleaned company names to Brandfetch, so it is **off until you agree**: the
+  app asks once, before the first lookup, and *Sitzung → Firmenlogos* switches
+  it later. See [Company logos](#company-logos).
 - **Remember this device** — after the first login the bank's device identity
   (systemId) plus the cached accounts and TAN method are saved **encrypted with
   your PIN**, so subsequent logins reuse the device and the bank can serve
@@ -91,7 +92,9 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   profile, so they exist only while you are logged in. "Gerät vergessen" can
   delete them too.
 - **Beträge ausblenden** (privacy mode for screen sharing — every amount,
-  chart axis and tooltip is masked), **automatic logout** after 5–30 minutes of
+  chart axis and tooltip is masked, amounts inside the bank's own text as far
+  as they can be recognised, and the Kontoverlauf keeps its trend but not
+  whether it dipped below zero), **automatic logout** after 5–30 minutes of
   inactivity with a one-minute warning, **Mitteilungen** (the bank's messages
   from the login plus this session's transfer outcomes), a **command palette**
   (Strg+K) and keyboard shortcuts (switchable).
@@ -302,16 +305,22 @@ brand you'd recognise. Sooskasse-FinTS resolves the brand against
 name into a company + domain, and Brandfetch's Logo CDN to fetch a correctly
 sized mark for that domain.
 
-**This is the only feature that contacts a host other than your bank.** It
-requires a free client ID from <https://developers.brandfetch.com>:
+**This is the only feature that sends anything from your bookings to a host
+other than your bank, so it is off until you agree.** The first Übersicht asks
+once — *Firmenlogos anzeigen?*, with exactly what is sent — and every lookup
+waits for the answer. The answer is kept on this machine with the other
+preferences; *Sitzung → Firmenlogos* changes it at any time, and switching it
+off drops the logos at once.
+
+A build offers the feature only with a free client ID from
+<https://developers.brandfetch.com> (release builds carry one):
 
 ```json
 { "brandfetchClientId": "YOUR_CLIENT_ID" }
 ```
 
-or `BRANDFETCH_CLIENT_ID=...`. Without a client ID the feature is force-disabled
-regardless of the toggle below, since there is nothing to call. With a client ID
-configured it is on by default; turn it off explicitly with either:
+or `BRANDFETCH_CLIENT_ID=...`. To take it out of a build entirely — no
+question, no switch — leave the client ID out or set:
 
 ```json
 { "merchantLogos": false }
@@ -322,7 +331,8 @@ and every transaction keeps its plain avatar.
 
 **What is and isn't sent.** Only the cleaned company core leaves the machine —
 `PayPal`, not `PayPal Europe S.a.r.l et Cie S.C.A.` — and never an amount, IBAN,
-date or reference. A name is only ever sent if it carries a *corporate marker*:
+date or reference. Like any web request, each lookup shows Brandfetch your IP
+address. A name is only ever sent if it carries a *corporate marker*:
 a legal form (`GmbH`, `AG`, `S.a.r.l`, `Ltd`, …), a mostly-uppercase spelling, or
 a corporate keyword. A private transfer from `Anna Beispiel` has none of these
 and is never looked up. Names are resolved at most once per server run — misses
@@ -421,22 +431,26 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 - Banking traffic goes directly from your machine to the bank's FinTS endpoint
   over TLS — no third party sits in that path.
 - Besides the bank, the app makes two kinds of outside request, each of which
-  can be switched off:
+  can be switched off in the app:
   - [company logos](#company-logos) send cleaned merchant names to Brandfetch —
-    set `"merchantLogos": false` in `config.json` (or omit
-    `brandfetchClientId`);
+    only once you have agreed (the app asks before the first lookup); switch
+    them under *Sitzung → Firmenlogos*;
   - the desktop app's [update check](#updates) asks GitHub for the latest
     release, carrying the app's version and nothing else — switch it off under
     *Sitzung → Updates*.
 
-  With both off, the app contacts nothing but your bank.
+  Like any web request, each one shows the service your IP address. With both
+  off, the app contacts nothing but your bank.
 - Updates are verified against the SHA-256 digest GitHub publishes for the
   release file before they run, and are only downloaded and installed when you
   click.
-- Templates, account names and category rules are encrypted with your PIN;
-  preferences (theme, privacy mode, logout timer) are plain settings and never
-  contain personal data. A CSV or PNG you export is a normal file — treat it
-  like a printed statement.
+- Templates, account names and category rules are encrypted with your PIN.
+  Preferences are plain settings: theme, privacy mode, logout timer, the
+  company-logo answer, and the last bank with its login name (to fill in the
+  login form) — never a PIN, a balance or a booking. *Von diesem Rechner
+  löschen …* and *Gerät vergessen* with its box ticked remove that login name
+  too. A CSV or PNG you export is a normal file — treat it like a printed
+  statement.
 - Keep this on `localhost`. It has no authentication of its own.
 
 ## Development

@@ -6,11 +6,13 @@ import {
 } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { fmtDate, fmtDayHeader, fmtIban, ibanCountry, isFutureDate } from '@/lib/format';
+import { AMOUNT_MASK } from '@/lib/mask';
+import { BankText } from '../BankText';
 import { useFints } from '../FintsProvider';
 import {
   ArrowRightIcon, BoltIcon, CategoryIcon, ChevronIcon, ClockIcon, ReceiptIcon, RepeatIcon, TransferIcon, UndoIcon,
 } from '../icons';
-import { Money } from '../Money';
+import { MASKED_LABEL, Money, usePrivacy } from '../Money';
 import {
   Button, CopyButton, Disclosure, Drawer, Menu, MenuGroup, MenuItemCheckbox, MenuItemRadio, MenuSeparator, Tag, cx,
 } from '../ui';
@@ -22,6 +24,9 @@ const SOURCE_TEXT: Record<CategorySource, string> = {
   rule: 'Deine Regel für alle Umsätze',
   manual: 'Von dir gewählt',
 };
+
+/** SEPA purpose tags whose value is an amount: Ursprungsbetrag, Zinskompensationsbetrag. */
+const AMOUNT_TAGS = new Set(['OAMT', 'COAM']);
 
 const TAG_ICON: Record<NonNullable<StatusTag['icon']>, ReactNode> = {
   clock: <ClockIcon size={13} />,
@@ -52,6 +57,12 @@ export function TxDetail({
   const credit = tx.amount > 0;
   const tags = statusTags(tx, pending);
   const refs = useMemo(() => referenceRows(tx), [tx]);
+  // The values of the SEPA tags that are amounts by definition (OAMT, COAM).
+  const amountRefs = useMemo(
+    () => new Set(text.parsed.fields.filter((f) => AMOUNT_TAGS.has(f.tag)).map((f) => f.value)),
+    [text],
+  );
+  const privacy = usePrivacy();
   // The category as it stands now — refiling a credit as "Einkommen" in the
   // section below takes "Zurücküberweisen" away at once.
   const seeds = transferSeeds(tx, !!activeAccount?.canTransfer, categoryOf(tx).id);
@@ -139,10 +150,12 @@ export function TxDetail({
           <Row half label="Wertstellung"><span className="tnum">{fmtDate(tx.valueDate)}</span></Row>
         )}
         {text.purposeLines.length > 0 && (
+          // The copy stays unmasked: copying is the user's own act, and the
+          // clipboard is not on the shared screen.
           <Row label="Verwendungszweck" copy={{ text: text.purposeLines.join(' '), label: 'Verwendungszweck kopieren' }}>
             {/* Bank text is untrusted: plain text only, one line per line the bank wrote. */}
             {text.purposeLines.map((line, i) => (
-              <span key={i} className="block break-words">{line}</span>
+              <span key={i} className="block break-words"><BankText text={line} /></span>
             ))}
           </Row>
         )}
@@ -213,7 +226,13 @@ export function TxDetail({
                 <div key={`${r.label}-${i}`} className="flex items-start gap-2 border-b border-line py-2.5 last:border-b-0">
                   <div className="min-w-0 flex-1">
                     <dt className="text-[13px] font-semibold text-ink-3">{r.label}</dt>
-                    <dd className="num mt-0.5 text-[13.5px] break-all text-ink">{r.value}</dd>
+                    <dd className="num mt-0.5 text-[13.5px] break-all text-ink">
+                      {/* An Ursprungsbetrag is an amount whatever its shape; the rest
+                          (the original purpose above all) is masked like prose. */}
+                      {privacy && amountRefs.has(r.value)
+                        ? <span role="img" aria-label={MASKED_LABEL}>{AMOUNT_MASK}</span>
+                        : <BankText text={r.value} />}
+                    </dd>
                   </div>
                   <CopyButton text={r.value} label={`${r.label} kopieren`} className="-mr-1" />
                 </div>

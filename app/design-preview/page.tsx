@@ -11,6 +11,7 @@
 //                  &range=90d|365d|all        statement range loaded at start
 //                  &tan=confirm|hold|ended|error|refused   how simulated approvals end
 //                  &acct=giro|tagesgeld|karte  start on another account
+//                  &logos=unasked|on|off|unavailable   company logos: the user's answer, or a build without them
 //                  &still=0|1                 settle animations (default: on under Electron)
 //                  &q=rewe                    Umsätze search
 //                  &toasts=1                  one toast of each tone
@@ -167,6 +168,32 @@ const VIEWS: Record<string, ViewDef> = {
       }
       row.click();
       await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+    },
+  },
+  'logo-consent': { label: 'Firmenlogos-Frage', group: 'Dashboard', options: { logos: 'unasked' } },
+  'detail-privacy': {
+    label: 'Umsatzdetails ausgeblendet',
+    group: 'Dashboard',
+    options: { privacy: true },
+    // A Visa Debit payment in dollars: its record carries the original
+    // amount, the rate and the fee — all of them masked.
+    async script(c) {
+      const rows = await c.poll(() => {
+        const all = [...document.querySelectorAll<HTMLElement>('[data-tx-row]')];
+        return all.length ? all : null;
+      }, 6000);
+      const row = rows?.find((r) => /Fremdwährung/.test(r.textContent ?? '')) ?? rows?.[0];
+      if (!row) return;
+      row.click();
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+    },
+  },
+  session: {
+    label: 'Sitzungsmenü',
+    group: 'Dialoge',
+    async script(c) {
+      await c.click(/^Sitzung/, { within: 'page' });
+      await c.poll(() => document.querySelector('[role="dialog"], [data-popover]'), 2000);
     },
   },
   inbox: { label: 'Mitteilungen', group: 'Dialoge', options: { open: 'inbox' } },
@@ -458,6 +485,7 @@ const PRESETS: readonly MockPreset[] = ['default', 'empty', 'past-range', 'unver
 const RANGES = ['90d', '365d', 'all'] as const;
 const TANS = ['confirm', 'hold', 'ended', 'error', 'refused'] as const;
 const ACCOUNTS: Record<string, string> = { giro: ACCT.giro, tagesgeld: ACCT.tagesgeld, karte: ACCT.karte };
+const LOGOS = ['unasked', 'on', 'off', 'unavailable'] as const;
 
 const noopSubscribe = () => () => {};
 
@@ -496,6 +524,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
   const rangeParam = one(params.range) as (typeof RANGES)[number];
   const tanParam = one(params.tan) as (typeof TANS)[number];
   const account = ACCOUNTS[one(params.acct)];
+  const logosParam = one(params.logos) as (typeof LOGOS)[number];
   const options: MockOptions = {
     ...def.options,
     ...(RANGES.includes(rangeParam) ? { range: rangeParam } : {}),
@@ -503,6 +532,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     ...(one(params.privacy) === '1' ? { privacy: true } : {}),
     ...(account ? { account } : {}),
     ...(one(params.q) ? { query: one(params.q) } : {}),
+    ...(LOGOS.includes(logosParam) ? { logos: logosParam } : {}),
   };
 
   const theme = one(params.theme);
@@ -618,6 +648,11 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=contracts&range=all', label: 'Verträge über 13 Monate' },
   { q: 'view=overview&acct=karte', label: 'Kreditkarte aktiv' },
   { q: 'view=overview&privacy=1', label: 'Beträge ausgeblendet' },
+  { q: 'view=overview&acct=karte&privacy=1', label: 'Kreditkarte ausgeblendet' },
+  { q: 'view=session&logos=on', label: 'Sitzung: Firmenlogos an' },
+  { q: 'view=session&logos=unavailable', label: 'Sitzung: ohne Firmenlogos' },
+  { q: 'view=login&logos=on', label: 'Anmeldung: Firmenlogos an' },
+  { q: 'view=credentials&logos=off', label: 'Anmeldung: Firmenlogos aus' },
   { q: 'view=overview&toasts=1', label: 'Hinweise' },
   { q: 'view=tanwait&tan=ended', label: 'Freigabe abgelaufen' },
   { q: 'view=tanwait&tan=error', label: 'Freigabe-Fehler' },
@@ -689,6 +724,7 @@ function Index() {
           Weitere Parameter: <code className="num">privacy=1</code>, <code className="num">preset=…</code>,{' '}
           <code className="num">range=90d|365d|all</code>, <code className="num">tan=hold|ended|error|refused</code>,{' '}
           <code className="num">acct=tagesgeld|karte</code>, <code className="num">q=…</code>,{' '}
+          <code className="num">logos=unasked|on|off|unavailable</code>,{' '}
           <code className="num">y=…</code>, <code className="num">still=0|1</code>,{' '}
           <code className="num">update=available|ready|current|…</code>, <code className="num">updateDialog=1</code>.
         </p>
