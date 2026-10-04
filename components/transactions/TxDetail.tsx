@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useState, type ReactNode } from 'react';
+import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { facilitatorShop } from '@/lib/analytics';
 import {
   CATEGORIES, categoryLabel, counterpartyKey, isCategoryId, txBic, type CategoryId, type CategorySource,
@@ -359,6 +359,10 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
   const [step, setStep] = useState<Step | null>(null);
   const vaultSaves = vaultStatus === 'ready';
   const titleId = useId();
+  // The control that stays: where focus goes when the one that held it
+  // (the offer, "Regel entfernen") goes away.
+  const changeRef = useRef<HTMLElement | null>(null);
+  const refocus = () => setTimeout(() => changeRef.current?.focus(), 0);
 
   const pick = (id: CategoryId) => {
     if (id === current.id && current.source === 'manual') return;
@@ -368,6 +372,7 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
   const applyToAll = (id: CategoryId) => {
     setCategory(tx, id, { rule: true });
     setStep({ kind: 'ruled', id });
+    refocus();
   };
   const undo = () => {
     setCategory(tx, null);
@@ -376,6 +381,7 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
   const unrule = () => {
     removeCategoryRule(who);
     setStep({ kind: 'unruled' });
+    refocus();
   };
 
   // The offer to reach further — only after a pick a rule does not already make.
@@ -409,7 +415,13 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
           label="Kategorie wählen"
           minWidth={280}
           trigger={(p, { open }) => (
-            <Button {...p} size="sm" variant="secondary" aria-label={`Kategorie ändern, aktuell ${categoryLabel(current.id)}`}>
+            <Button
+              {...p}
+              ref={(el) => { p.ref(el); changeRef.current = el; }}
+              size="sm"
+              variant="secondary"
+              aria-label={`Kategorie ändern, aktuell ${categoryLabel(current.id)}`}
+            >
               Ändern
               <ChevronIcon size={14} strokeWidth={2} className={cx('-mr-1 transition-transform duration-150', open && 'rotate-180')} />
             </Button>
@@ -466,7 +478,15 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
         <p className="mt-2 text-[13px] text-ink-3">Gilt nur für diese Sitzung — deine persönlichen Daten werden gerade nicht gespeichert.</p>
       )}
 
-      {rules && <RuleList rules={rules} onRemove={removeCategoryRule} />}
+      {rules && (
+        <RuleList
+          rules={rules}
+          onRemove={(key) => {
+            removeCategoryRule(key);
+            refocus();
+          }}
+        />
+      )}
     </section>
   );
 }

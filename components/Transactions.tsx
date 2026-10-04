@@ -11,7 +11,7 @@
 // the Analyse and the Verträge tab can open the list already narrowed.
 
 import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
-import { calendarMonths, filterTransactions, searchReport, txMatcher, type SearchContext } from '@/lib/analytics';
+import { calendarMonths, daysLabel, filterTransactions, searchReport, txMatcher, type SearchContext } from '@/lib/analytics';
 import { EMPTY_FILTER } from '@/lib/app-types';
 import { buildBalanceHistory } from '@/lib/balance-history';
 import type { SerializedTransaction } from '@/lib/fints-types';
@@ -215,7 +215,7 @@ export function Transactions() {
       <EmptyState
         illustration="transactions"
         title="Keine Umsätze in diesem Zeitraum"
-        action={shortHistory ? <LoadHistoryButton layout="stacked" className="items-center text-center" /> : undefined}
+        action={shortHistory ? <LoadHistoryButton layout="centered" /> : undefined}
       >
         {loaded ? `Zwischen ${fmtRange(loaded.from, loaded.to).replace('–', ' und ')} wurde nichts gebucht.` : ''}
         {shortHistory && ' Ein längerer Zeitraum zeigt vielleicht mehr.'}
@@ -224,7 +224,9 @@ export function Transactions() {
   } else if (filtered.length === 0) {
     // Say why, word by word, instead of implying the booking does not exist.
     const missing = report.filter((t) => t.matches === 0).map((t) => t.text);
-    const where = loaded ? `im geladenen Zeitraum (${fmtRange(loaded.from, loaded.to)})` : 'im geladenen Zeitraum';
+    const where = loaded
+      ? <>im geladenen Zeitraum (<span className="whitespace-nowrap">{fmtRange(loaded.from, loaded.to)}</span>)</>
+      : 'im geladenen Zeitraum';
     let reason: React.ReactNode;
     if (missing.length) {
       reason = <>{quoted(missing)} {missing.length === 1 ? 'kommt' : 'kommen'} {where} in keinem Umsatz vor.</>;
@@ -242,7 +244,7 @@ export function Transactions() {
         action={
           <>
             <Button size="sm" variant="secondary" onClick={resetFilter}>Filter zurücksetzen</Button>
-            {q && shortHistory && <LoadHistoryButton layout="stacked" className="w-full items-center text-center" />}
+            {q && shortHistory && <LoadHistoryButton layout="centered" className="mt-2 w-full" />}
           </>
         }
       >
@@ -347,6 +349,8 @@ export function Transactions() {
                     {filterCount > 0
                       ? `${filtered.length.toLocaleString('de-DE')} von ${sorted.length.toLocaleString('de-DE')} ${sorted.length === 1 ? 'Umsatz' : 'Umsätzen'}`
                       : umsaetze(filtered.length)}
+                    {/* On a phone the month chip may sit scrolled out of view; the count names it. */}
+                    {days && <span className="font-normal text-ink-3 sm:hidden"> · {daysLabel(days.from, days.to)}</span>}
                     {totals.otherCurrency > 0 && (
                       <span className="font-normal text-ink-3"> · {totals.otherCurrency} in anderer Währung nicht summiert</span>
                     )}

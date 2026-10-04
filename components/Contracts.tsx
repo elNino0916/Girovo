@@ -28,6 +28,10 @@ const plural = (n: number, one: string, many: string) => `${n.toLocaleString('de
 
 const MAY_NEED_TAN = 'Kann eine Freigabe erfordern.';
 
+/** "A", "A und B", "A, B und C". */
+const joinNames = (names: string[]) =>
+  names.length > 1 ? `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}` : names[0] ?? '';
+
 const CADENCE_ADJECTIVE: Partial<Record<Cadence, string>> = {
   quarterly: 'vierteljährliche',
   halfyearly: 'halbjährliche',
@@ -105,7 +109,9 @@ export function Contracts() {
       {income.length > 0 && (
         <ContractGroup
           title="Regelmäßige Eingänge"
-          subtitle={<>ca. <RoundMoney value={totals.monthlyIncome} currency={totals.currency} /> pro Monat</>}
+          subtitle={model.incomplete
+            ? plural(income.length, 'regelmäßiger Eingang', 'regelmäßige Eingänge')
+            : <>ca. <RoundMoney value={totals.monthlyIncome} currency={totals.currency} /> pro Monat</>}
           headerNext="Nächster Eingang"
         >
           {income.map((s) => <ContractRow key={s.id} s={s} account={accountName(s)} onDismiss={dismiss} />)}
@@ -119,10 +125,11 @@ export function Contracts() {
           key={g.id}
           title={g.label}
           subtitle={
+            // While an account failed, no sum: it would look complete and is not.
             <DotList
               items={[
-                <>ca. <RoundMoney value={g.monthly} currency={g.currency} /> pro Monat</>,
-                <>ca. <RoundMoney value={g.yearly} currency={g.currency} /> im Jahr</>,
+                !model.incomplete && <>ca. <RoundMoney value={g.monthly} currency={g.currency} /> pro Monat</>,
+                !model.incomplete && <>ca. <RoundMoney value={g.yearly} currency={g.currency} /> im Jahr</>,
                 plural(g.series.length, 'Vertrag', 'Verträge'),
               ]}
             />
@@ -200,8 +207,8 @@ function NoBasis({ model }: { model: RecurringModel }) {
           </Button>
         ) : undefined}
       >
-        Regelmäßige Zahlungen erkennt die App auf diesem Rechner in den Umsätzen deiner Konten
-        {canLoad && activeAccount ? <> — zuerst {accountLabel(activeAccount)}. {MAY_NEED_TAN}</> : '.'}
+        Regelmäßige Zahlungen erkennt die App auf diesem Rechner in den Umsätzen deiner Konten.
+        {canLoad && activeAccount && <> Ruf dafür die Umsätze von {accountLabel(activeAccount)} ab — das kann eine Freigabe erfordern.</>}
       </EmptyState>
     </section>
   );
@@ -265,11 +272,12 @@ function SummaryTile({ model, shortHistory }: { model: RecurringModel; shortHist
       )}
       {/* "Schätzung" only once there is something estimated. */}
       <div className="px-4 py-3 sm:px-6">
+        {/* Where the "more than the bank" work happens, it says where it happened. */}
+        <p className="text-[13px] leading-relaxed text-ink-3">Berechnet auf diesem Rechner aus den geladenen Umsätzen.</p>
         <p className="tnum text-[13px] leading-relaxed text-ink-3">
           <DotList
             items={[
               live > 0 && !failed.length && 'Schätzung',
-              'berechnet auf diesem Rechner aus den geladenen Umsätzen',
               basis.bookings > 0 && 'Umbuchungen und Bargeld ausgenommen',
               otherCurrency > 0 && `${plural(otherCurrency, 'Vertrag', 'Verträge')} in anderer Währung nicht summiert`,
             ]}
@@ -291,7 +299,7 @@ function FailedNotice({ failed }: { failed: AccountBasis[] }) {
       <Alert
         tone="error"
         className="mt-0"
-        title={`${names.join(' und ')} ${failed.length === 1 ? 'konnte' : 'konnten'} nicht abgerufen werden`}
+        title={`${joinNames(names)} ${failed.length === 1 ? 'konnte' : 'konnten'} nicht abgerufen werden`}
         action={failed.map((b) => (
           <Button key={b.account.accountNumber} size="xs" variant="secondary" disabled={busy} onClick={() => refreshAccount(b.account)}>
             {failed.length === 1 ? 'Erneut versuchen' : `${accountLabel(b.account)} erneut abrufen`}
@@ -311,10 +319,12 @@ function FailedNotice({ failed }: { failed: AccountBasis[] }) {
  * switch to it: it only adds its bookings.
  */
 function AccountList({ accounts }: { accounts: AccountBasis[] }) {
-  const { busy, loadTransactions, refreshAccount, accountLabel, activeAccount } = useFints();
+  const { busy, loadTransactions, accountLabel, activeAccount } = useFints();
   const listed = accounts.filter((b) => b.status !== 'unsupported' || accounts.length > 1);
   if (!listed.length) return null;
-  const needsHint = listed.some((b) => b.status === 'missing' || b.status === 'failed');
+  // Said once, under the buttons that may ask the bank for an approval.
+  const needsHint = listed.some((b) => b.status === 'missing'
+    || (b.status === 'included' && b.account.accountNumber !== activeAccount?.accountNumber && (b.span ?? 0) < YEAR_SPAN));
   return (
     <div className="mt-2">
       <h3 className="text-[13px] font-semibold text-ink-2">Konten</h3>
@@ -323,9 +333,10 @@ function AccountList({ accounts }: { accounts: AccountBasis[] }) {
           const name = accountLabel(b.account);
           const active = b.account.accountNumber === activeAccount?.accountNumber;
           return (
-            <li key={b.account.accountNumber} className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-0.5 py-1 text-[13.5px]">
+            <li key={b.account.accountNumber} className="flex min-h-9 flex-wrap items-center gap-x-3 py-1 text-[13.5px]">
               <span className="min-w-0 font-semibold text-ink">{name}</span>
-              <span className="tnum min-w-0 flex-1 text-ink-3">
+              {/* Beside the name from sm up; under it on a phone, where both would wrap into each other. */}
+              <span className="tnum order-last w-full min-w-0 text-ink-3 sm:order-none sm:w-auto sm:flex-1">
                 {b.status === 'included' && (
                   <>
                     {fmtRange(b.from, b.to)} · {plural(b.bookings ?? 0, 'Umsatz', 'Umsätze')}
@@ -338,20 +349,15 @@ function AccountList({ accounts }: { accounts: AccountBasis[] }) {
                 {b.status === 'unsupported' && 'keine Umsätze über FinTS'}
               </span>
               {b.status === 'missing' && (
-                <Button size="xs" variant="tertiary" className="-mr-3" disabled={busy} onClick={() => void loadTransactions(b.account)}>
+                <Button size="xs" variant="tertiary" className="-mr-3 ml-auto" disabled={busy} onClick={() => void loadTransactions(b.account)}>
                   Umsätze abrufen<span className="sr-only"> für {name}</span>
-                </Button>
-              )}
-              {b.status === 'failed' && (
-                <Button size="xs" variant="tertiary" className="-mr-3" disabled={busy} onClick={() => refreshAccount(b.account)}>
-                  Erneut versuchen<span className="sr-only"> für {name}</span>
                 </Button>
               )}
               {b.status === 'included' && !active && (b.span ?? 0) < YEAR_SPAN && (
                 <Button
                   size="xs"
                   variant="tertiary"
-                  className="-mr-3"
+                  className="-mr-3 ml-auto"
                   disabled={busy}
                   onClick={() => {
                     const r = presetRange('365d');
@@ -377,10 +383,15 @@ function HistoryNotice({ model, className }: { model: RecurringModel; className?
   const activeShort = short.some((b) => b.account.accountNumber === activeAccount?.accountNumber);
   if (!short.length) return null;
   const phrase = unseenPhrase(model.unseen);
+  // "GiroKomfort und Visa Classic reichen 91 Tage zurück" when they agree.
+  const same = short.every((b) => b.span === short[0].span);
+  const reach = same
+    ? `${joinNames(short.map((b) => accountLabel(b.account)))} ${short.length === 1 ? 'reicht' : 'reichen'} ${plural(short[0].span ?? 0, 'Tag', 'Tage')} zurück`
+    : short.map((b) => `${accountLabel(b.account)} reicht ${plural(b.span ?? 0, 'Tag', 'Tage')} zurück`).join(', ');
   return (
     <div className={cx('bg-info-soft px-4 py-3.5 sm:px-6', className)}>
       <p className="text-[14px] leading-snug text-ink">
-        {short.map((b) => `${accountLabel(b.account)} reicht ${plural(b.span ?? 0, 'Tag', 'Tage')} zurück`).join(', ')}.
+        {reach}.
         {phrase ? ` ${phrase} Verträge zeigen sich erst in einem längeren Verlauf.` : ' Für jährliche Verträge 12 Monate abrufen.'}
       </p>
       {activeShort && <LoadHistoryButton className="mt-2.5" />}
@@ -568,7 +579,7 @@ export function UpcomingPayments() {
           )}
           {/* What the 30 days add up to — every expected booking, not only the five shown. */}
           <dl className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-t border-line bg-inset px-4 py-2.5 text-[13px] sm:px-5">
-            <dt className="text-ink-2">In 30 Tagen, ca.</dt>
+            <dt className="text-ink-2">Summe der 30 Tage, ca.</dt>
             <dd className="flex items-baseline gap-2.5 font-semibold">
               {sums.out !== 0 && (
                 <span>

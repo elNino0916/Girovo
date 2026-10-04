@@ -361,7 +361,7 @@ export function Analysis() {
           <EmptyState
             illustration="chart"
             title="Keine Umsätze im geladenen Zeitraum"
-            action={showHistoryButton ? <LoadHistoryButton layout="stacked" className="items-center text-center" /> : undefined}
+            action={showHistoryButton ? <LoadHistoryButton layout="centered" /> : undefined}
           >
             Für {rangeText} ({plural(loadedSpan, 'Tag', 'Tage')}) liegen keine Buchungen vor.
             {showHistoryButton && ' Mit einem längeren Verlauf gibt es vielleicht etwas auszuwerten.'}

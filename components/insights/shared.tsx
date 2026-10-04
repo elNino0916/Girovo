@@ -75,14 +75,20 @@ export function LoadHistoryButton({
   variant?: 'secondary' | 'tertiary';
   /** A tertiary button whose label lines up with the text around it (pulls in its own padding). */
   flush?: boolean;
-  /** inline: hint beside the button (wraps under it when narrow) · stacked: hint below. */
-  layout?: 'inline' | 'stacked';
+  /** inline: hint beside the button (wraps under it when narrow) · stacked: hint below · centered: below, centred (empty states). */
+  layout?: 'inline' | 'stacked' | 'centered';
 }) {
   const { applyRange, busy, loadingAccount, activeAccount } = useFints();
   const loading = !!activeAccount && loadingAccount === activeAccount.accountNumber;
   const target = useMemo(() => presetRange('365d'), []);
   return (
-    <div className={cx('flex flex-wrap items-center gap-x-3 gap-y-1.5', layout === 'stacked' && 'flex-col items-start', className)}>
+    <div
+      className={cx(
+        'flex flex-wrap gap-x-3 gap-y-1.5',
+        layout === 'inline' ? 'items-center' : layout === 'stacked' ? 'flex-col items-start' : 'flex-col items-center text-center',
+        className,
+      )}
+    >
       <Button
         size={size}
         variant={variant}

@@ -199,7 +199,8 @@ const VIEWS: Record<string, ViewDef> = {
   'detail-rules': {
     label: 'Kategorie mit Regel',
     group: 'Dashboard',
-    options: { query: 'lebensmittel' },
+    // The shop's name finds its bookings whatever they are filed under.
+    options: { query: 'aldi' },
     async script(c) {
       const row = await c.poll(() => document.querySelector<HTMLElement>('[data-tx-row]'), 6000);
       const key = row?.dataset.txKey;
