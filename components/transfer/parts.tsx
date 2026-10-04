@@ -53,13 +53,31 @@ export function SuccessMark() {
   );
 }
 
-/** The "we cannot tell" mark: neutral, not a warning colour — nothing is known to be wrong. */
+/**
+ * The "we cannot tell" mark: the neutral disc with the 3px orange edge of a
+ * warning — the emphasis that "Status unklar" carries everywhere — and an ink
+ * question mark. Not red: nothing is known to be wrong.
+ */
 export function UnsureMark() {
   return (
-    <span aria-hidden className="mx-auto grid size-[72px] place-items-center rounded-full bg-inset text-ink-2">
+    <span
+      aria-hidden
+      className="mx-auto grid size-[72px] place-items-center rounded-full bg-inset text-ink-2 shadow-[inset_0_0_0_3px_var(--emphasis)]"
+    >
       <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M9.2 9.2a2.9 2.9 0 1 1 4.1 2.65c-.8.37-1.3 1.05-1.3 1.9v.5" />
         <path d="M12 17.6v.1" />
+      </svg>
+    </span>
+  );
+}
+
+/** The "the bank said no" mark: red, because a refusal is an error the bank reported. */
+export function RefusedMark() {
+  return (
+    <span aria-hidden className="mx-auto grid size-[72px] place-items-center rounded-full bg-red-soft text-red">
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+        <path d="M7 7l10 10M17 7L7 17" />
       </svg>
     </span>
   );

@@ -1,19 +1,22 @@
 'use client';
 
-// The "Prüfen" step: exactly what will be sent, the figures around it, and
-// the two things worth a second look before an approval — a payment that
-// looks like one already made, and whether to keep this payee as a template.
+// The "Prüfen" step: exactly what will be sent, the figures around it — and,
+// first of all, anything worth a second look before the approval: a payment
+// that looks like one already made, more than the account can spend, a
+// Kontostand that ends in the Dispo. Those sit at the top of the step, above
+// the order, so no window is too short to show them before "überweisen".
 
-import type { ReactNode, Ref } from 'react';
+import type { Ref } from 'react';
+import { bankAnswerLines } from '@/lib/bank-answer';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { expectedCreditDate, fmtDate, fmtIban } from '@/lib/format';
 import { sepaSanitize } from '@/lib/sepa-text';
-import { BoltIcon, LandmarkIcon, StarIcon } from '../icons';
+import type { FundsWarning, spendable } from '@/lib/transfer-checks';
+import { BoltIcon, LandmarkIcon } from '../icons';
 import { Money } from '../Money';
-import { Alert, Checkbox, Field, Input, Spinner, Tag } from '../ui';
-import { fmtLongDate, shortIbanText, type TransferDraft, type spendable } from './model';
+import { Alert, Spinner, Tag } from '../ui';
+import { fmtLongDate, shortIbanText, type TransferDraft } from './model';
 import { SummaryList, SummaryRow } from './parts';
-import { vaultNote } from './Templates';
 
 /** Another bank operation (a statement, Vormerkposten) still holds the line. */
 export function BusyNote() {
@@ -36,58 +39,54 @@ export function CreditDate({ short }: { short?: boolean }) {
   return <>Gutschrift voraussichtlich <span className="tnum">{when}</span></>;
 }
 
+/** The id the primary button points its aria-describedby at. */
+export const REVIEW_WARNINGS_ID = 'tf-review-warnings';
+
 /**
- * "Als Vorlage speichern" — only offered while the encrypted vault is
- * actually there to save into; otherwise it says why not.
+ * "Mehr als verfügbar – …" and "Kontostand danach ca. −177,10 € – …": one
+ * wording for the hint under Betrag and the warning on Prüfen.
  */
-export function TemplateSaver({
-  status, existing, checked, onChecked, label, onLabel,
-}: {
-  status: string;
-  /** The label of a template that already says exactly this, if any. */
-  existing: string | null;
-  checked: boolean;
-  onChecked: (b: boolean) => void;
-  label: string;
-  onLabel: (s: string) => void;
-}) {
-  if (existing) {
+export function FundsWarningText({ warning, currency }: { warning: FundsWarning; currency?: string | null }) {
+  if (warning.kind === 'over') {
     return (
-      <p className="flex items-center gap-2 text-[14px] text-ink-2">
-        <StarIcon size={16} className="text-accent" />
-        Gespeichert als Vorlage „{existing}“.
-      </p>
+      <>
+        Mehr als {warning.basis === 'available' ? 'verfügbar' : 'dein Kontostand'} – die Bank kann den Auftrag ablehnen.
+      </>
     );
   }
-  const note = vaultNote(status);
   return (
-    <div>
-      <Checkbox
-        label="Als Vorlage speichern"
-        description={note ?? 'Wird gespeichert, sobald die Überweisung ausgeführt ist.'}
-        checked={checked && !note}
-        disabled={!!note}
-        onChange={(e) => onChecked(e.target.checked)}
-      />
-      {checked && !note && (
-        <Field label="Name der Vorlage" htmlFor="tf-tpl" className="mt-3 mb-0 pl-8">
-          <Input id="tf-tpl" value={label} maxLength={60} onChange={(e) => onLabel(e.target.value)} />
-        </Field>
-      )}
+    <>
+      Kontostand danach ca.{' '}
+      <Money value={warning.balanceAfter} currency={currency || 'EUR'} tone="plain" className="font-semibold" />{' '}
+      – du nutzt deinen Dispositionsrahmen.
+    </>
+  );
+}
+
+/** A message on the step — the app's own, or a bank answer — as lines, codes stripped. */
+export function StepError({ message, errorRef }: { message: string; errorRef?: Ref<HTMLDivElement> }) {
+  const lines = bankAnswerLines(message);
+  return (
+    <div ref={errorRef} className="scroll-mt-4">
+      <Alert className="mb-4">
+        {lines.length > 1 ? <ul className="space-y-0.5">{lines.map((l) => <li key={l}>{l}</li>)}</ul> : (lines[0] ?? message)}
+      </Alert>
     </div>
   );
 }
 
 export function ReviewStep({
-  draft, account, accountName, bank, funds, duplicate, saveSlot, busyElsewhere, error, errorRef,
+  draft, account, accountName, bank, funds, warning, duplicate, primaryLabel, busyElsewhere, error, errorRef,
 }: {
   draft: TransferDraft;
   account: SerializedAccount;
   accountName: string;
   bank: { name: string; bic: string } | null;
   funds: ReturnType<typeof spendable>;
+  warning: FundsWarning | null;
   duplicate: string | null;
-  saveSlot: ReactNode;
+  /** The footer's primary label, which the closing note names. */
+  primaryLabel: string;
   busyElsewhere: boolean;
   error: string | null;
   errorRef: Ref<HTMLDivElement>;
@@ -105,8 +104,26 @@ export function ReviewStep({
   const sentName = sepaSanitize(draft.name);
   const sentPurpose = sepaSanitize(draft.purpose);
   const rewritten = sentName !== draft.name || sentPurpose !== draft.purpose;
+  const warned = !!duplicate || !!warning;
   return (
     <div className="pt-1">
+      {error && <StepError message={error} errorRef={errorRef} />}
+
+      {warned && (
+        <div id={REVIEW_WARNINGS_ID} className="mb-4 flex flex-col gap-3">
+          {duplicate && (
+            <Alert tone="warn" title="Schon einmal überwiesen?" className="mt-0">
+              {duplicate} Prüfe, ob du diese Zahlung wirklich noch einmal senden möchtest.
+            </Alert>
+          )}
+          {warning && (
+            <Alert tone="warn" className="mt-0">
+              <FundsWarningText warning={warning} currency={account.currency} />
+            </Alert>
+          )}
+        </div>
+      )}
+
       <div className="rounded-[12px] bg-inset px-4 py-4 sm:px-5">
         <p className="text-[13px] font-semibold text-ink-3">Betrag</p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -139,7 +156,7 @@ export function ReviewStep({
         <SummaryRow label="Verwendungszweck">
           {sentPurpose || <span className="text-ink-3">ohne</span>}
         </SummaryRow>
-        <SummaryRow label="Ausführung">{draft.instant ? 'Echtzeitüberweisung' : 'SEPA-Überweisung'}</SummaryRow>
+        <SummaryRow label="Ausführung">{draft.instant ? 'Echtzeitüberweisung' : 'Standardüberweisung'}</SummaryRow>
         <SummaryRow label="Gutschrift">
           {draft.instant || !credit ? 'in Sekunden' : <span className="tnum">voraussichtlich {fmtLongDate(credit)}</span>}
         </SummaryRow>
@@ -151,6 +168,11 @@ export function ReviewStep({
             {funds.date && <span className="text-ink-3"> (Stand {fmtDate(funds.date)})</span>}
           </SummaryRow>
         )}
+        {warning?.kind === 'overdraft' && (
+          <SummaryRow label="Kontostand danach">
+            ca. <Money value={warning.balanceAfter} currency={account.currency} className="font-semibold" />
+          </SummaryRow>
+        )}
       </SummaryList>
       {rewritten && (
         <p className="mt-2 text-[13px] leading-snug text-ink-3">
@@ -158,19 +180,10 @@ export function ReviewStep({
         </p>
       )}
 
-      {duplicate && (
-        <Alert tone="warn" title="Schon einmal überwiesen?" className="mt-4">
-          {duplicate} Prüfe, ob du diese Zahlung wirklich noch einmal senden möchtest.
-        </Alert>
-      )}
-
-      <div className="mt-5">{saveSlot}</div>
-
       <p className="mt-5 text-[13.5px] leading-relaxed text-ink-3">
-        Nach „Jetzt überweisen“ gleicht die Bank den Empfängernamen ab und bittet dich um die Freigabe in deiner Banking-App.
+        Nach „{primaryLabel}“ gleicht die Bank den Empfängernamen ab und bittet dich um die Freigabe in deiner Banking-App.
       </p>
       {busyElsewhere && <BusyNote />}
-      {error && <div ref={errorRef} className="scroll-mb-6"><Alert>{error}</Alert></div>}
     </div>
   );
 }

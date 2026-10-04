@@ -9,7 +9,7 @@
 //                  &privacy=1                 Beträge ausblenden
 //                  &preset=default|empty|past-range|unverified|loading|error   (&empty=1 = preset empty)
 //                  &range=90d|365d|all        statement range loaded at start
-//                  &tan=confirm|hold|ended|error   how simulated approvals end
+//                  &tan=confirm|hold|ended|error|refused   how simulated approvals end
 //                  &acct=giro|tagesgeld|karte  start on another account
 //                  &still=0|1                 settle animations (default: on under Electron)
 //                  &q=rewe                    Umsätze search
@@ -93,8 +93,8 @@ async function toReview(c: Ctx) {
   await c.poll(() => findButton(SUBMIT, 'dialog', true), 4000);
 }
 
-/** On the review step: the primary action that sends the order. */
-const SUBMIT = /(freigeben|senden|ausführen|jetzt überweisen|^überweisen$|überweisung absenden)/i;
+/** On the review step: the primary action that sends the order ("Trotzdem überweisen" after a duplicate hint). */
+const SUBMIT = /(freigeben|senden|ausführen|jetzt überweisen|trotzdem überweisen|^überweisen$|überweisung absenden)/i;
 
 /**
  * Review, then send — the order goes to the (simulated) bank. Returns once the
@@ -151,6 +151,17 @@ const VIEWS: Record<string, ViewDef> = {
       await c.until((f) => f.wait.open, 3000);
     },
   },
+  'tanwait-overdue': {
+    label: 'Freigabe (Frist abgelaufen)',
+    group: 'Dialoge',
+    // Started 3:10 ago — past the mock bank's 2 minutes.
+    options: { tan: 'hold', tanElapsedMs: 190_000 },
+    async script(c) {
+      c.api().applyRange(presetRange('365d'));
+      await c.until((f) => f.wait.open, 3000);
+      await c.sleep(200);
+    },
+  },
 
   update: { label: 'Update verfügbar', group: 'Updates', update: { scenario: 'available', dialog: true } },
   'update-downloading': { label: 'Download läuft', group: 'Updates', update: { scenario: 'downloading', dialog: true } },
@@ -198,6 +209,27 @@ const VIEWS: Record<string, ViewDef> = {
       await c.until((f) => f.wait.open, 3000);
     },
   },
+  'tanwait-login-refused': {
+    label: 'Anmeldung abgelehnt',
+    group: 'Anmeldung',
+    // "Ablehnen" pressed in the app.
+    options: { view: 'tanmethod', tan: 'refused', tanMs: 600 },
+    async script(c) {
+      const m = c.api().tanMethods[0];
+      void c.api().chooseTanMethod(m, m.activeTanMedia[0]);
+      await c.until((f) => f.wait.phase === 'refused', 4000);
+    },
+  },
+  'tanwait-second': {
+    label: 'Zweite Freigabe nach der Anmeldung',
+    group: 'Anmeldung',
+    options: { view: 'tanmethod', secondApproval: true, tanMs: 600 },
+    async script(c) {
+      const m = c.api().tanMethods[0];
+      void c.api().chooseTanMethod(m, m.activeTanMedia[0]);
+      await c.until((f) => f.wait.kind === 'statements' && f.wait.phase === 'waiting', 6000);
+    },
+  },
 
   transfer: { label: 'Erfassen', group: 'Überweisung', options: { open: 'transfer' } },
   'transfer-filled': { label: 'Erfassen (ausgefüllt)', group: 'Überweisung', options: transferWith(MOCK_PAYEES.lea) },
@@ -209,8 +241,42 @@ const VIEWS: Record<string, ViewDef> = {
     options: transferWith(MOCK_PAYEES.lea, {}, { amount: '50,00', purpose: 'Taschengeld Oktober' }),
     script: toReview,
   },
+  'transfer-earlier': {
+    label: 'Prüfen (unklar aus früherer Sitzung)',
+    group: 'Überweisung',
+    // 75,00 € to Max Mustermann ended "Status unklar" yesterday — remembered in the vault's two-week log.
+    options: transferWith(MOCK_PAYEES.max, {}, { amount: '75,00', purpose: 'Rechnung 2026-117' }),
+    script: toReview,
+  },
+  'transfer-dispo': {
+    label: 'Prüfen (Dispo)',
+    group: 'Überweisung',
+    // Covered by Verfügbar, but the Kontostand ends below zero.
+    options: transferWith(MOCK_PAYEES.lea, {}, { amount: '2.000,00', purpose: 'Miete Oktober' }),
+    script: toReview,
+  },
+  'transfer-over': {
+    label: 'Prüfen (mehr als verfügbar)',
+    group: 'Überweisung',
+    options: transferWith(MOCK_PAYEES.lea, {}, { amount: '5.000,00', purpose: 'Anzahlung Küche' }),
+    script: toReview,
+  },
   'transfer-vop': {
     label: 'Namensabgleich', group: 'Überweisung', options: transferWith(MOCK_PAYEES.closeMatch), script: sendOrder,
+  },
+  'transfer-vop-nomatch': {
+    label: 'Namensabgleich (keine Übereinstimmung)',
+    group: 'Überweisung',
+    // "Schmidt" in the payee name: the bank holds another name for the IBAN.
+    options: transferWith({ name: 'Erika Schmidt', iban: MOCK_PAYEES.max.iban }),
+    script: sendOrder,
+  },
+  'transfer-vop-none': {
+    label: 'Namensabgleich (nicht möglich)',
+    group: 'Überweisung',
+    // "Kiosk" in the payee name: the payee's bank gives no result.
+    options: transferWith({ name: 'Kiosk am Markt', iban: MOCK_PAYEES.max.iban }),
+    script: sendOrder,
   },
   'tanwait-transfer': {
     label: 'Freigabe', group: 'Überweisung', options: transferWith(MOCK_PAYEES.lea, { tan: 'hold' }), script: sendOrder,
@@ -225,12 +291,30 @@ const VIEWS: Record<string, ViewDef> = {
     options: transferWith({ name: 'Unklar GmbH', iban: MOCK_PAYEES.max.iban }, { tanMs: 900 }),
     script: completeOrder,
   },
+  'transfer-unknown-checked': {
+    label: 'Status unklar (nachgesehen)',
+    group: 'Überweisung',
+    options: transferWith({ name: 'Unklar GmbH', iban: MOCK_PAYEES.max.iban }, { tanMs: 900 }),
+    // "Jetzt nachsehen": the Umsätze, then the Vorgemerkte (an approval in the mock).
+    async script(c) {
+      await completeOrder(c);
+      await c.click(/^jetzt nachsehen$/i, { within: 'dialog' });
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"] p')].find((p) => /bitte nicht erneut senden|gefunden/i.test(p.textContent ?? '')), 9000);
+    },
+  },
   'transfer-error': {
-    label: 'Abgelehnt',
+    label: 'Abgelehnt (vor der Freigabe)',
     group: 'Überweisung',
     // "Fehler" in the payee name: the bank refuses the order.
     options: transferWith({ name: 'Fehler GmbH', iban: MOCK_PAYEES.max.iban }),
     script: sendOrder,
+  },
+  'transfer-refused': {
+    label: 'Abgelehnt (in der App)',
+    group: 'Überweisung',
+    // "Abgelehnt" in the payee name: the approval is refused in the app.
+    options: transferWith({ name: 'Abgelehnt GmbH', iban: MOCK_PAYEES.max.iban }, { tanMs: 900 }),
+    script: completeOrder,
   },
 };
 
@@ -308,7 +392,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 
 const PRESETS: readonly MockPreset[] = ['default', 'empty', 'past-range', 'unverified', 'loading', 'error'];
 const RANGES = ['90d', '365d', 'all'] as const;
-const TANS = ['confirm', 'hold', 'ended', 'error'] as const;
+const TANS = ['confirm', 'hold', 'ended', 'error', 'refused'] as const;
 const ACCOUNTS: Record<string, string> = { giro: ACCT.giro, tagesgeld: ACCT.tagesgeld, karte: ACCT.karte };
 
 const noopSubscribe = () => () => {};
@@ -473,6 +557,7 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=overview&toasts=1', label: 'Hinweise' },
   { q: 'view=tanwait&tan=ended', label: 'Freigabe abgelaufen' },
   { q: 'view=tanwait&tan=error', label: 'Freigabe-Fehler' },
+  { q: 'view=tanwait&tan=refused', label: 'Freigabe abgelehnt' },
 ];
 
 /** ?view=index — every view and data situation, one click each. */
@@ -538,7 +623,7 @@ function Index() {
 
         <p className="mt-6 text-[12.5px] text-ink-3">
           Weitere Parameter: <code className="num">privacy=1</code>, <code className="num">preset=…</code>,{' '}
-          <code className="num">range=90d|365d|all</code>, <code className="num">tan=hold|ended|error</code>,{' '}
+          <code className="num">range=90d|365d|all</code>, <code className="num">tan=hold|ended|error|refused</code>,{' '}
           <code className="num">acct=tagesgeld|karte</code>, <code className="num">q=…</code>,{' '}
           <code className="num">y=…</code>, <code className="num">still=0|1</code>,{' '}
           <code className="num">update=available|ready|current|…</code>, <code className="num">updateDialog=1</code>.

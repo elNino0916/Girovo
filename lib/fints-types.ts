@@ -193,6 +193,13 @@ export type SelectTanResponse =
 export type TanPollResponse =
   | { status: 'pending' }
   | { status: 'dialog_ended'; type: string; accountNumber?: string }
+  /**
+   * The bank answered the approval with an error. 'refused': its answer
+   * refuses the operation and says nothing else (lib/bank-answer.ts) — for an
+   * order, no money moved. 'unclear': an error that does not say so (a dialog
+   * abort, or an execution code beside it) — an order may have gone through.
+   */
+  | (({ status: 'refused' } | { status: 'unclear' }) & { type: string; accountNumber?: string; bankAnswers: string })
   | { status: 'done'; kind: 'accounts'; accounts: SerializedAccount[]; deviceSaved: boolean }
   | { status: 'done'; kind: 'balance'; accountNumber?: string; balance: SerializedBalance | null }
   | { status: 'done'; kind: 'statements'; accountNumber?: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null; blocks?: StatementBlock[] }
@@ -234,6 +241,8 @@ export type TransferResponse =
   | (TanRequired & { vop?: SerializedVop })
   /** The bank voided the challenge: the user must confirm the VoP result first. */
   | { needsVop: true; accountNumber: string; vop: SerializedVop }
+  /** The bank answered the order with an error — refused, or unclear as in TanPollResponse. */
+  | { outcome: 'refused' | 'unclear'; accountNumber: string; bankAnswers: string }
   | { needsTan: false; accountNumber: string; transferResult: TransferResult | null; bankAnswers: string; vop?: SerializedVop };
 
 export type MetaResponse = {

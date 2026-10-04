@@ -909,6 +909,14 @@ function buildMockData(today: string): MockData {
       categoryRules: {},
       txCategories: {},
       dismissedRecurring: [],
+      // An order from an earlier session whose outcome stayed unclear — the
+      // duplicate check finds it after the logout ('transfer-duplicate-earlier').
+      sentOrders: [
+        {
+          at: new Date(`${addDaysKey(today, -1)}T18:40:00`).toISOString(), accountNumber: ACCT.giro,
+          iban: PARTY.max.iban, cents: 7500, outcome: 'unknown',
+        },
+      ],
       updatedAt: `${addDaysKey(today, -12)}T18:20:00.000Z`,
     },
     activity: (now) => [

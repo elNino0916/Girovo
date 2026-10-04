@@ -2,19 +2,21 @@
 
 // Vorlagen: payees saved in the encrypted vault. Picking one fills the whole
 // form (and still goes through the review step); "Vorlagen verwalten" renames
-// and deletes (with an undo in the dialog). Saving happens on the review step, once an order has been
-// carried out — so a template is always a payee the bank has accepted.
+// and deletes (with an undo in the dialog). Saving is offered on the done
+// step, once an order has been carried out — so a template is always a payee
+// the bank has accepted, and the review step holds one decision only.
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import type { TransferTemplate } from '@/lib/app-types';
 import { fmtShortIban, parseAmount } from '@/lib/format';
 import { useFints } from '../FintsProvider';
 import { ChevronIcon, PencilIcon, StarIcon, TrashIcon, UndoIcon } from '../icons';
 import { useMoneyText } from '../Money';
 import {
-  Alert, Button, Dialog, EmptyState, IconButton, Input, Menu, MenuItem, MenuLabel, MenuSeparator, cx,
+  Alert, Button, Dialog, EmptyState, Field, IconButton, Input, Menu, MenuItem, MenuLabel, MenuSeparator, cx,
 } from '../ui';
-import { sortTemplates } from './model';
+import { sameTemplate, sortTemplates } from './model';
 
 const shortIban = (iban: string) => {
   const s = fmtShortIban(iban);
@@ -81,7 +83,7 @@ export function TemplatesMenu({ onPick, onManage }: { onPick: (t: TransferTempla
           </>
         ) : (
           <p className="max-w-[300px] px-3 pt-2 pb-2.5 text-[13.5px] leading-snug text-ink-3">
-            {note ?? 'Noch keine Vorlagen. Nach einer Überweisung kannst du den Empfänger im Schritt „Prüfen“ als Vorlage speichern.'}
+            {note ?? 'Noch keine Vorlagen. Ist eine Überweisung ausgeführt, kannst du den Empfänger als Vorlage speichern.'}
           </p>
         )}
         <MenuItem icon={<PencilIcon size={17} />} onSelect={onManage} disabled={!vault}>
@@ -193,7 +195,7 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
       )}
       {templates.length === 0 ? (
         <EmptyState compact icon={<StarIcon size={22} />} title="Keine Vorlagen">
-          Nach einer Überweisung kannst du den Empfänger im Schritt „Prüfen“ als Vorlage speichern.
+          Ist eine Überweisung ausgeführt, kannst du den Empfänger als Vorlage speichern.
         </EmptyState>
       ) : (
         <ul ref={listRef} className="-mx-2 divide-y divide-line">
@@ -235,5 +237,61 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
         </ul>
       )}
     </Dialog>
+  );
+}
+
+const LABEL_MAX = 60;
+const clipLabel = (s: string) => [...s.replace(/\s+/g, ' ').trim()].slice(0, LABEL_MAX).join('');
+
+/**
+ * "Als Vorlage speichern" on the done step: the bank has just accepted this
+ * payee. One button, the template's name prefilled and editable beside it.
+ * Offered only while the vault can actually save, and never for a payee a
+ * template already says exactly.
+ */
+export function SaveAsTemplate({ payee }: { payee: Omit<TransferTemplate, 'id' | 'label' | 'createdAt' | 'lastUsedAt'> }) {
+  const { vault, vaultStatus, saveTemplate } = useFints();
+  const [label, setLabel] = useState(() => clipLabel(payee.name));
+  const [saved, setSaved] = useState<string | null>(null);
+  const savedRef = useRef<HTMLParagraphElement>(null);
+  const existing = useMemo(
+    () => (vault?.templates ?? []).find((t) => sameTemplate(t, payee)) ?? null,
+    [vault?.templates, payee],
+  );
+
+  // The button that was pressed is gone; focus goes to what replaced it.
+  useEffect(() => { if (saved) savedRef.current?.focus(); }, [saved]);
+
+  const save = (e: FormEvent) => {
+    e.preventDefault();
+    const name = clipLabel(label) || clipLabel(payee.name);
+    saveTemplate({ ...payee, label: name });
+    setSaved(name);
+  };
+
+  const done = saved ?? existing?.label ?? null;
+  if (done) {
+    return (
+      <p ref={savedRef} tabIndex={-1} className="flex items-center gap-2 text-[14px] text-ink-2 outline-none">
+        <StarIcon size={16} className="shrink-0 text-ink-3" />
+        {saved ? <>Als Vorlage „{done}“ gespeichert.</> : <>Gespeichert als Vorlage „{done}“.</>}
+      </p>
+    );
+  }
+  if (vaultStatus !== 'ready') return null;
+  return (
+    <form onSubmit={save} noValidate>
+      <Field
+        label="Name der Vorlage"
+        htmlFor="tf-tpl"
+        className="mb-0"
+        hint="Empfänger, IBAN, Betrag und Verwendungszweck – verschlüsselt auf diesem Rechner."
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input id="tf-tpl" value={label} maxLength={LABEL_MAX} autoComplete="off" onChange={(e) => setLabel(e.target.value)} />
+          <Button type="submit" iconLeft={<StarIcon size={16} />}>Als Vorlage speichern</Button>
+        </div>
+      </Field>
+    </form>
   );
 }
