@@ -46,6 +46,28 @@ export const DARK_INVERT = new Set([
 ]);
 
 // Logo files drawn for a dark ground: comdirect's yellow wordmark all but
-// disappears on the white plate. In light mode they get a plate of the
-// masthead's navy instead; on the dark theme they show as they are.
+// disappears on white. In light mode they are set in one dark colour, the way
+// a brand prints its single-colour logo (globals.css) — not on a plate of the
+// masthead's navy, which is the app's own identity. On the dark theme they
+// show as drawn.
 export const ON_DARK = new Set(['comdirect']);
+
+/**
+ * The app a brand's customers approve in, where one name holds for the whole
+ * brand — the login form names it as an example ("z. B. S-pushTAN") before
+ * the PIN is typed. Brands whose banks differ, or whose app is not known for
+ * certain, are left out on purpose: the form then just says "Banking-App".
+ */
+export const APPROVAL_APP: Record<string, string> = {
+  sparkasse: 'S-pushTAN',
+  vrbank: 'SecureGo plus',
+  gls: 'SecureGo plus',
+  ing: 'Banking to go',
+  dkb: 'DKB-App',
+  postbank: 'BestSign',
+  commerzbank: 'photoTAN',
+  comdirect: 'photoTAN',
+  deutschebank: 'photoTAN',
+  norisbank: 'photoTAN',
+  consorsbank: 'SecurePlus',
+};

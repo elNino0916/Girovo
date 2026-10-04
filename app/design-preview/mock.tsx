@@ -18,7 +18,9 @@
 //                           "Max Musterman"  → Namensabgleich: Close Match
 //                           containing "Fehler" → the bank refuses the order
 //                           containing "Unklar" → the dialog ends: status unknown
-//   login                 "fehler" as user name → refused; else TAN methods
+//   login                 user name … "fehler" → wrong PIN, "gesperrt" → access locked,
+//                           "wartung" → bank not answering, "langsam" → no answer
+//                           until "Abbrechen"; else TAN methods
 //   print                 no PDF — a toast says so
 //
 // Nothing here persists: privacy, idle limit and theme stay in memory, so the
@@ -31,6 +33,7 @@ import {
   type ToastAction, type ToastTone, type TransferHandlers, type TransferPayload, type View, type WaitKind,
   type WaitState,
 } from '@/components/FintsProvider';
+import { BANK_UNAVAILABLE } from '@/lib/bank-answer';
 import { categorize } from '@/lib/categorize';
 import { counterpartyKey, isCategoryId, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
 import { addDaysKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, translateType } from '@/lib/format';
@@ -59,6 +62,10 @@ export type MockOptions = {
   view?: View;
   /** With view 'login': the bank is already chosen (the credentials step). */
   bankChosen?: boolean;
+  /** With view 'login': the bank remembered from last time has left the list. */
+  staleBank?: boolean;
+  /** 'typed': the bank offers only methods that need a typed TAN (the dead end). */
+  methods?: 'typed';
   // First-frame navigation. Part of the initial state rather than set from an
   // effect, so nothing (a slow first compile, a hot reload) can race it.
   tab?: DashboardTab;
@@ -118,6 +125,11 @@ function without<V>(rec: Record<string, V>, k: string): Record<string, V> {
   const next = { ...rec };
   delete next[k];
   return next;
+}
+
+/** The TAN methods the simulated bank offers for this login. */
+function offeredMethods(data: MockData, methods: MockOptions['methods']): SerializedTanMethod[] {
+  return methods === 'typed' ? data.tanMethods.filter((m) => !m.isDecoupled) : data.tanMethods;
 }
 
 /** The range a preset starts with. */
@@ -209,13 +221,20 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   // The bank picker comes first on a fresh login screen; the credentials view
   // sets the bank itself, as picking one would.
   const [bank, setBank] = useState<ChosenBank | null>(opts.view === 'login' && !opts.bankChosen ? null : data.bank);
+  // The mock has no list to check a remembered bank against: never checking,
+  // and stale only when asked to be.
+  const bankChecking = false;
+  const [staleBank, setStaleBank] = useState<ChosenBank | null>(opts.staleBank ? data.bank : null);
+  useEffect(() => {
+    if (bank) setStaleBank(null);
+  }, [bank]);
   // On the TAN-method screen the bank has already answered the login: there
   // is a session, and its messages have arrived (they come with that answer).
   const connected = opts.view !== 'login';
   const [sessionId, setSessionId] = useState<string | null>(connected ? 'mock-session' : null);
   const [userId, setUserId] = useState(data.userId);
 
-  const [tanMethods, setTanMethods] = useState<SerializedTanMethod[]>(data.tanMethods);
+  const [tanMethods, setTanMethods] = useState<SerializedTanMethod[]>(() => offeredMethods(data, opts.methods));
   const [selectedMethod, setSelectedMethod] = useState<SerializedTanMethod | null>(
     opts.view === 'tanmethod' || opts.view === 'login' ? null : data.tanMethods[0],
   );
@@ -758,11 +777,22 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     void loadTransactionsRef.current(first, r.from, r.to);
   }, [data, toast]);
 
+  /** Ends the simulated login wait, like "Abbrechen" ends the real request. */
+  const connectCancelRef = useRef<(() => void) | null>(null);
+
   const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string) => {
-    await new Promise<void>((resolve) => setTimeout(resolve, 900));
-    if (/fehler/i.test(login) || !pin) {
-      throw new Error('Zugangsdaten falsch. Bitte prüfe Anmeldename und PIN. Nach drei Fehlversuchen sperrt die Bank den Zugang.');
-    }
+    // "langsam": a bank that does not answer — until the login is called off.
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(resolve, /langsam/i.test(login) ? 600_000 : 900);
+      connectCancelRef.current = () => {
+        clearTimeout(t);
+        reject(new DOMException('Die Anmeldung wurde abgebrochen.', 'AbortError'));
+      };
+    }).finally(() => { connectCancelRef.current = null; });
+    // The bank's answers in the server's real format ("code: text | …").
+    if (/gesperrt/i.test(login)) throw new Error('9942: Der Zugang ist gesperrt. | 9800: Dialog abgebrochen');
+    if (/wartung/i.test(login)) throw new Error(BANK_UNAVAILABLE);
+    if (/fehler/i.test(login) || !pin) throw new Error('9931: Anmeldename oder PIN ist falsch. | 9800: Dialog abgebrochen');
     sessionGen.current++;
     setSessionId(`mock-${Date.now()}`);
     setBank({ ...chosen, bic: chosen.bic ?? data.bank.bic ?? null });
@@ -770,12 +800,14 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     const inbox = data.messages(new Date().toISOString());
     messagesRef.current = inbox;
     setMessages(inbox);
-    setTanMethods(data.tanMethods);
+    setTanMethods(offeredMethods(data, optsRef.current.methods));
     setSelectedMethod(null);
     setMediaChoice(null);
     setTanMethodError(null);
     setView('tanmethod');
   }, [data]);
+
+  const cancelConnect = useCallback(() => connectCancelRef.current?.(), []);
 
   const chooseTanMethod = useCallback(async (method: SerializedTanMethod, tanMediaName?: string) => {
     setSelectedMethod(method);
@@ -784,7 +816,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setMediaChoice(null);
     await new Promise<void>((resolve) => setTimeout(resolve, 400));
     if (!method.isDecoupled) {
-      setTanMethodError('Dieses Verfahren braucht eine TAN-Eingabe. Bitte wähle eine Freigabe per App.');
+      // As /api/select-tan refuses it.
+      setTanMethodError('Dieses Verfahren braucht eine TAN-Eingabe. Hier geht nur die Freigabe in einer Banking-App.');
       return;
     }
     const media = tanMediaName || (method.activeTanMedia.length === 1 ? method.activeTanMedia[0] : undefined);
@@ -1153,6 +1186,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   return {
     view, meta, popularBanks, logoFiles, bank, sessionId, userId,
+    bankChecking, staleBank,
     tanMethods, selectedMethod, mediaChoice, tanMethodError,
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
@@ -1165,6 +1199,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
+    cancelConnect,
     isLoadedForAppliedRange,
     refreshAccount, refreshAfterTransfer, applyRange, loadPending, submitTransfer, confirmVop, abandonVop,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
@@ -1194,6 +1229,7 @@ export function MockFintsProvider({ children, preset = 'default', overrides, sti
   const sessionKey = JSON.stringify([
     preset, options.range, options.idleInMs, options.view, options.bankChosen, options.tab, options.open,
     options.transferPrefill, options.privacy, options.account, options.query,
+    options.staleBank, options.methods,
   ]);
   const underElectron = useSyncExternalStore(noopSubscribe, isElectron, () => false);
   return (

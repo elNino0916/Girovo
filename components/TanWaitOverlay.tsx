@@ -46,7 +46,7 @@ function TanWait() {
   // The method this approval runs on — the same one the provider attributes a
   // mid-session approval to.
   const method: SerializedTanMethod | null =
-    selectedMethod ?? tanMethods.find((m) => m.isDecoupled) ?? tanMethods[0] ?? null;
+    selectedMethod ?? tanMethods.find((m) => m.isDecoupled) ?? null;
   // Where to look: the device the bank named for this very challenge, else
   // the method's only active medium. With several and none named, nothing —
   // a guess would send the user to the wrong phone.

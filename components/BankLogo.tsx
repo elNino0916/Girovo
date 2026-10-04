@@ -3,18 +3,17 @@
 import { BRANDS, DARK_INVERT, ON_DARK } from '@/lib/brands';
 import { cx } from './ui';
 
-export type LogoSize = 'sm' | 'md' | 'lg' | 'tile';
+export type LogoSize = 'sm' | 'md' | 'tile';
 
-// Monogram chips. The radii step with the size so a small chip still reads as
-// a rounded square, never a circle, and none of them exceeds the 12px a tile
-// itself uses.
+// Monogram chips, on DESIGN.md's radius scale: 6px at field size, 8px from
+// chip size up, so a small chip still reads as a rounded square, never a
+// circle.
 const BOX: Record<LogoSize, string> = {
   sm: 'size-6.5 rounded-[6px]',
   md: 'size-9 rounded-[8px]',
-  lg: 'size-11 rounded-[10px]',
-  // A quick-pick tile on the login screen: compact beside the name on a phone,
-  // above it from `sm` up. A chip, not a slab — the tile is already the frame.
-  tile: 'size-8 rounded-[8px] sm:size-9 sm:rounded-[9px]',
+  // A quick pick on the login screen: compact beside the name on a phone,
+  // above it from `sm` up. A chip, not a slab.
+  tile: 'size-8 rounded-[8px] sm:size-9',
 };
 
 // Logo files sit on a white plate (.logo-img) so a transparent PNG reads on any
@@ -22,22 +21,14 @@ const BOX: Record<LogoSize, string> = {
 const IMG_BOX: Record<LogoSize, string> = {
   sm: 'min-w-6.5 max-w-[76px] rounded-[6px] px-1.5 py-1',
   md: 'min-w-9 max-w-[100px] rounded-[8px] px-2 py-1.5',
-  lg: 'min-w-11 max-w-[116px] rounded-[10px] px-2 py-1.5',
   tile: 'w-full px-1',
 };
 
-// The same tile, for a mark that needs its navy plate in light mode: a plate
-// as wide as the tile's 88px mark cap plus its padding, never a band across
-// the tile. (A set width — over the base w-auto, hence the `!` — so the mark's
-// percentage cap has a box to resolve against.)
-const TILE_PLATE = 'w-[104px]! max-w-full rounded-[8px] px-2 py-0.5';
-
 // Height sets the size; the width cap keeps a long wordmark (ING,
-// Commerzbank) from out-shouting a square one (Sparkasse) in a row of tiles.
+// Commerzbank) from out-shouting a square one (Sparkasse) in a row of picks.
 const IMG_H: Record<LogoSize, string> = {
   sm: 'h-[18px] max-w-full',
   md: 'h-6 max-w-full',
-  lg: 'h-8 max-w-full',
   tile: 'h-6 max-w-[min(100%,88px)] sm:h-7',
 };
 
@@ -58,24 +49,20 @@ export function BankLogo({
 }) {
   if (file) {
     // Dark navy and black marks are flipped in dark mode, and marks drawn
-    // for a dark ground get a navy plate in light mode; which ones is decided
-    // in lib/brands.ts, beside the brand list.
+    // for a dark ground are set in one dark colour in light mode; which ones
+    // is decided in lib/brands.ts, beside the brand list.
     const invert = DARK_INVERT.has(brand);
     const onDark = ON_DARK.has(brand);
     return (
       <span
         data-invert={invert}
         data-on-dark={onDark}
-        className={cx(
-          'logo-img grid w-auto shrink-0 place-items-center overflow-hidden',
-          size === 'tile' && onDark ? TILE_PLATE : IMG_BOX[size],
-        )}
-        // The quick-pick tile is itself the white surface, so the logo goes on
-        // it bare — a framed plate inside a framed tile is a box in a box.
-        // Inline, because .logo-img is unlayered and beats any utility; the
-        // class stays for its dark-mode inversion of navy and black marks.
-        // A mark that needs its navy plate keeps it (globals.css).
-        style={size === 'tile' && !onDark ? { background: 'transparent', borderColor: 'transparent' } : undefined}
+        className={cx('logo-img grid w-auto shrink-0 place-items-center overflow-hidden', IMG_BOX[size])}
+        // A quick pick sits on the white card itself, so the logo goes on it
+        // bare — a framed plate on the card would be a box in a box. Inline,
+        // because .logo-img is unlayered and beats any utility; the class
+        // stays for its dark-mode inversion of navy and black marks.
+        style={size === 'tile' ? { background: 'transparent', borderColor: 'transparent' } : undefined}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

@@ -739,15 +739,16 @@
 [data-theme='dark'] .logo-img[data-invert='true'] img {
   filter: invert(1) hue-rotate(180deg) saturate(1.15);
 }
-/* A mark drawn for a dark ground (lib/brands.ts ON_DARK) sits on the
-   masthead's navy in light mode; on the dark theme, bare like the rest. */
-.logo-img[data-on-dark='true'] {
-  background: var(--bar);
-  border-color: var(--bar);
+/* A mark drawn for a dark ground (lib/brands.ts ON_DARK) is set in one dark
+   colour on the light plate, like a brand's own single-colour logo — the
+   masthead's navy stays the app's identity. On the dark theme, as drawn. */
+.logo-img[data-on-dark='true'] img {
+  filter: brightness(0);
+  opacity: 0.86;
 }
-[data-theme='dark'] .logo-img[data-on-dark='true'] {
-  background: transparent;
-  border-color: transparent;
+[data-theme='dark'] .logo-img[data-on-dark='true'] img {
+  filter: none;
+  opacity: 1;
 }
 
 /* ---------- printed documents (Kontoauszug / Buchungsbeleg) ----------
