@@ -15,8 +15,9 @@
    - Values have their own colours and nothing else may borrow them. Green is
      a credit or a confirmation. Red is a negative balance or an error — never
      a debit, which is ordinary spending and stays ink. Amber means
-     "vorgemerkt" and nothing else. Orange is a mark, never text: the active
-     nav underline, the unread dot.
+     "vorgemerkt" and nothing else. Orange is a mark, never text: the unread
+     dot, a warning's edge and glyph, the dot in an emphasis tag. The active
+     tab's underline is action blue, like everything else that can be pressed.
    - Tiles are surfaces, not boxes: 12px corners and one soft shadow, never a
      framed card inside a framed card. Structure comes from spacing, weight
      and one hairline per list.
