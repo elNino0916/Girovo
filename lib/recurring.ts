@@ -50,6 +50,7 @@
 
 import type { SerializedTransaction } from './fints-types';
 import type { CategoryId, CategoryResult } from './categories';
+import { facilitatorShop } from './analytics.ts';
 import { categoryDef, counterpartyName, intermediaryName, txCreditorId as creditorIdOf } from './categories.ts';
 import { bookingKind, foldText, guessCategory, isOwnAccount } from './categorize.ts';
 import {
@@ -515,17 +516,21 @@ function buildSeries(
   const nextDate = projectNext(occ, cadence, group.credit);
   const late = ref - 5 - dayNumber(nextDate);
 
-  // Not the intermediary's IBAN: "Umsätze anzeigen" would list every shop it serves.
+  // Not the intermediary's IBAN, nor a payment service's: "Umsätze anzeigen"
+  // would list every shop it serves.
   let iban: string | null = null;
-  if (!intermediaryName(newest)) {
+  if (!intermediaryName(newest) && !group.facilitator) {
     for (let i = occ.length - 1; i >= 0 && !iban; i--) iban = validIban(occ[i].tx.remoteIban);
   }
+  // A subscription paid through PayPal is the shop's ("Netflix"), as the
+  // purpose names it — not "PayPal Europe S.à r.l. et Cie S.C.A".
+  const shop = group.facilitator ? facilitatorShop(newest) : null;
 
   return {
     id: seriesId(key),
     key,
     kind: group.credit ? 'income' : 'expense',
-    name: counterpartyName(newest) || prettyBookingText(newest.bookingText) || 'Unbekannt',
+    name: shop || counterpartyName(newest) || prettyBookingText(newest.bookingText) || 'Unbekannt',
     iban,
     creditorId: group.cred,
     mandateReference: group.mref,
@@ -689,6 +694,70 @@ export function upcoming(
     .filter((s) => !s.ended && !s.overdue && s.nextDate >= today && s.nextDate <= horizon)
     .map((s) => ({ series: s, date: s.nextDate }))
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : Math.abs(b.series.amount) - Math.abs(a.series.amount)));
+}
+
+/**
+ * The slower rhythms a history of `days` days cannot be relied on to show:
+ * a series needs two of its bookings inside the history, which only a
+ * history of twice its rhythm guarantees. Ninety days can miss every
+ * quarterly, half-yearly and yearly payment; a year still misses the yearly
+ * ones (an insurance premium booked once in it is one booking, not a series).
+ */
+export function unseenCadences(days: number): Cadence[] {
+  return CADENCES.filter((c) => c.months >= 3 && !(days >= 2 * c.days)).map((c) => c.id);
+}
+
+/** How the regular payments are grouped on the Verträge tab, in this order. */
+export type RecurringFamily = 'housing' | 'media' | 'insurance' | 'other' | 'savings';
+
+const FAMILY_OF: Partial<Record<CategoryId, RecurringFamily>> = {
+  housing: 'housing',
+  media: 'media',
+  insurance: 'insurance',
+  savings: 'savings',
+};
+
+export const RECURRING_FAMILY_LABEL: Record<RecurringFamily, string> = {
+  housing: 'Wohnen & Energie',
+  media: 'Abos & Medien',
+  insurance: 'Versicherungen',
+  other: 'Weitere Verträge',
+  savings: 'Sparen & Anlegen',
+};
+
+const FAMILY_ORDER: readonly RecurringFamily[] = ['housing', 'media', 'insurance', 'other', 'savings'];
+
+export type RecurringGroup = {
+  id: RecurringFamily;
+  label: string;
+  /** Biggest monthly weight first. */
+  series: RecurringSeries[];
+  /** Positive, what the group's series in `currency` add up to. */
+  monthly: number;
+  yearly: number;
+  currency: string;
+};
+
+/**
+ * The regular payments out, grouped the way a household reads them: the
+ * rent and its energy, subscriptions, insurance, everything else, and what is
+ * put aside — each with its own monthly and yearly figure, so a Netflix is
+ * not lost inside the rent. Ended series are not here; empty groups neither.
+ */
+export function recurringGroups(series: readonly RecurringSeries[], currency: string): RecurringGroup[] {
+  const by = new Map<RecurringFamily, RecurringSeries[]>();
+  for (const s of series) {
+    if (s.kind !== 'expense' || s.ended) continue;
+    const family = FAMILY_OF[s.category] ?? 'other';
+    const list = by.get(family);
+    if (list) list.push(s);
+    else by.set(family, [s]);
+  }
+  return FAMILY_ORDER.filter((f) => by.has(f)).map((f) => {
+    const list = by.get(f)!;
+    const totals = recurringTotals(list, currency);
+    return { id: f, label: RECURRING_FAMILY_LABEL[f], series: list, monthly: totals.monthlyExpense, yearly: totals.yearlyExpense, currency };
+  });
 }
 
 /**

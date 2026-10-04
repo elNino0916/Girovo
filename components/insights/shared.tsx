@@ -7,6 +7,7 @@
 import { useCallback, useId, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useFints } from '../FintsProvider';
+import { MASKED_LABEL, maskedMoney, usePrivacy } from '../Money';
 import { Button, TileHeader, cx } from '../ui';
 import { CalendarIcon } from '../icons';
 import type { TxFilter } from '@/lib/app-types';
@@ -62,7 +63,7 @@ export const YEAR_SPAN = 360;
 export { CounterpartyAvatar } from '../transactions/Avatar';
 
 /**
- * "Mehr Verlauf laden (12 Monate)" with its honest small print. Applies the
+ * "Umsätze für 12 Monate abrufen" with its honest small print. Applies the
  * range like the Umsätze period control does — an explicit action that may
  * need a TAN, for the active account. Hidden once a year is loaded.
  */
@@ -91,13 +92,39 @@ export function LoadHistoryButton({
         className={flush ? '-ml-4' : undefined}
         onClick={() => applyRange(target)}
       >
-        Mehr Verlauf laden (12 Monate)
+        Umsätze für 12 Monate abrufen
       </Button>
       <span className="text-[13px] leading-snug text-ink-3">
         Kann eine Freigabe erfordern. Manche Banken liefern weniger Verlauf.
       </span>
     </div>
   );
+}
+
+const MINUS = '\u2212';
+
+/**
+ * An estimate in whole euros — "1.316 €" after a "ca." the caller sets. A
+ * figure worked out from a rhythm has no cents worth showing; cents would
+ * claim a precision the estimate does not have. Masked like every amount
+ * under "Beträge ausblenden" (the value is then not in the DOM at all).
+ */
+export function RoundMoney({
+  value, currency = 'EUR', signed = false, className,
+}: { value: number; currency?: string; signed?: boolean; className?: string }) {
+  const privacy = usePrivacy();
+  if (privacy) {
+    return <span role="img" aria-label={MASKED_LABEL} className={cx('amount', className)}>{maskedMoney(currency)}</span>;
+  }
+  const whole = Math.round(Math.abs(value));
+  let text: string;
+  try {
+    text = new Intl.NumberFormat('de-DE', { style: 'currency', currency, maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(whole);
+  } catch {
+    text = `${whole.toLocaleString('de-DE')}\u00a0${currency}`;
+  }
+  const sign = whole === 0 ? '' : value < 0 ? MINUS : signed ? '+' : '';
+  return <span className={cx('amount', className)}>{sign}{text}</span>;
 }
 
 /**

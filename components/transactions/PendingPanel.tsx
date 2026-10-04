@@ -1,20 +1,39 @@
 'use client';
 
 import { useCallback, useId, useMemo, useState } from 'react';
+import { filterTransactions } from '@/lib/analytics';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { useFints } from '../FintsProvider';
 import { ClockIcon, RefreshIcon } from '../icons';
 import { Money } from '../Money';
 import { Button, IconButton, Spinner } from '../ui';
 import { fmtSince } from '../shell/session';
-import { merchantFor, newestFirst, rowKey } from './model';
+import { merchantFor, newestFirst, rowKey, searchText } from './model';
 import { TxDetailHost, openTxDetail } from './detail-host';
+import { activeFilterCount } from './TxFilterBar';
 import { TxRow, TxRowSkeleton } from './TxRow';
 
 /** Rows shown before "Alle anzeigen" — the panel shares a column with other tiles. */
 const PREVIEW_ROWS = 4;
 
-const TAN_NOTE = 'Kann eine TAN-Freigabe erfordern.';
+const TAN_NOTE = 'Kann eine Freigabe erfordern.';
+
+/** The panel's DOM id — "Außerdem passt 1 vorgemerkter Umsatz" in the Umsätze list leads here. */
+export const PENDING_PANEL_ID = 'vorgemerkt';
+
+/**
+ * Brings the Vorgemerkt panel into view with focus on the first row that
+ * matches the Umsätze filter (the panel's heading when none is shown).
+ */
+export function showPendingMatches(): void {
+  const panel = document.getElementById(PENDING_PANEL_ID);
+  if (!panel) return;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  panel.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+  const target = panel.querySelector<HTMLElement>('[data-pending-match] [data-tx-row]') ?? panel.querySelector<HTMLElement>('h2');
+  if (target && !target.matches('button, [tabindex]')) target.setAttribute('tabindex', '-1');
+  target?.focus({ preventScroll: true });
+}
 
 /**
  * Vorgemerkte Umsätze (HKVMK): bookings the bank knows about but has not
@@ -24,16 +43,30 @@ const TAN_NOTE = 'Kann eine TAN-Freigabe erfordern.';
  * approval on top of the statement, and an approval nobody asked for is a
  * prompt on the phone that makes no sense. Amber is the colour of
  * "vorgemerkt", and this panel is the one place it appears.
+ *
+ * Vorgemerkte never join the Umsätze list (they would count in its sums and
+ * its CSV, and twice once booked), but its search reaches them here: while
+ * the list is narrowed, the rows that match it come first and say so.
  */
 export function PendingPanel() {
-  const { activeAccount: a, pendingCache, pendingInfo, pendingLoading, loadPending, busy, merchants } = useFints();
+  const {
+    activeAccount: a, pendingCache, pendingInfo, pendingLoading, loadPending, busy, merchants, txFilter, categoryOf,
+  } = useFints();
   const [expanded, setExpanded] = useState(false);
   const titleId = useId();
   const onOpen = useCallback((tx: SerializedTransaction) => openTxDetail(tx, true), []);
 
   const cached = a ? pendingCache[a.accountNumber] : undefined;
   const fetched = a ? pendingInfo[a.accountNumber] : undefined;
-  const txs = useMemo(() => (cached ? newestFirst(cached) : []), [cached]);
+  const searchCtx = useMemo(() => ({ categoryOf, shownText: searchText }), [categoryOf]);
+  const narrowed = activeFilterCount(txFilter) > 0;
+  // The rows the Umsätze filter matches, first — the rest after them.
+  const { txs, matches } = useMemo(() => {
+    const all = cached ? newestFirst(cached) : [];
+    if (!narrowed || !all.length) return { txs: all, matches: new Set<SerializedTransaction>() };
+    const hit = new Set(filterTransactions(all, txFilter, searchCtx));
+    return { txs: [...all.filter((t) => hit.has(t)), ...all.filter((t) => !hit.has(t))], matches: hit };
+  }, [cached, narrowed, txFilter, searchCtx]);
   const currency = a?.currency || 'EUR';
   // One currency only — a Vormerkposten in another is listed, not summed.
   const sum = useMemo(() => {
@@ -50,7 +83,7 @@ export function PendingPanel() {
 
   return (
     <>
-      <section aria-labelledby={titleId} aria-busy={loading || undefined} className="panel overflow-clip">
+      <section id={PENDING_PANEL_ID} aria-labelledby={titleId} aria-busy={loading || undefined} className="panel scroll-mt-4 overflow-clip">
         <div className="flex items-start gap-3 px-4 pt-4 pb-4 sm:px-5">
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-amber-soft text-amber">
             <ClockIcon size={18} />
@@ -84,6 +117,11 @@ export function PendingPanel() {
                     <span className="tnum">Stand {fmtSince(fetched.loadedAt)}</span>
                     {fetched.behindStatement && ', vor dem letzten Umsatzabruf'}
                     {fetched.behindStatement && fetched.booked > 0 && txs.length > 0 && ` · ${fetched.booked} inzwischen gebucht`}
+                  </p>
+                )}
+                {matches.size > 0 && (
+                  <p className="mt-0.5 text-[12.5px] leading-snug font-semibold text-ink-2">
+                    {matches.size === 1 ? '1 passt' : `${matches.size} passen`} zur Suche in den Umsätzen
                   </p>
                 )}
               </>
@@ -125,6 +163,7 @@ export function PendingPanel() {
               {shown.map((tx) => (
                 <li
                   key={rowKey(tx)}
+                  data-pending-match={matches.has(tx) || undefined}
                   className="relative after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-[68px] after:h-px after:bg-line last:after:hidden"
                 >
                   <TxRow tx={tx} merchant={merchantFor(merchants, tx)} pending compact onOpen={onOpen} />

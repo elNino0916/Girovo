@@ -35,7 +35,7 @@ import {
   KeyboardIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon, RefreshIcon, RepeatIcon, SearchIcon, SunIcon, TransferIcon,
 } from './icons';
 import { EmptyState, IconButton, Kbd, Overlay, cx } from './ui';
-import { txText } from './transactions/model';
+import { searchText, txText } from './transactions/model';
 import { useShellActions } from './shell/actions';
 import { hasNewer, updates, useUpdates } from './updates/store';
 import { fuzzyScore } from './shell/fuzzy';
@@ -235,11 +235,13 @@ function Palette({ onClose }: { onClose: () => void }) {
   }), [f]);
 
   // Bookings: only once something is typed, newest first, across every
-  // account loaded in this session.
+  // account loaded in this session — found by what their rows show (the
+  // tidied name, the town, the category), as in the Umsätze search.
   const q = query.trim();
+  const searchCtx = useMemo(() => ({ categoryOf: f.categoryOf, shownText: searchText }), [f.categoryOf]);
   const txMatches = useMemo(() => {
     if (q.length < MIN_TX_QUERY) return { list: [] as { tx: SerializedTransaction; account: SerializedAccount }[], total: 0, inActive: 0 };
-    const match = txMatcher(q);
+    const match = txMatcher(q, searchCtx);
     const hits: { tx: SerializedTransaction; account: SerializedAccount; day: string }[] = [];
     let inActive = 0;
     for (const account of f.accounts) {
@@ -251,7 +253,7 @@ function Palette({ onClose }: { onClose: () => void }) {
     }
     hits.sort((x, y) => (x.day === y.day ? 0 : x.day < y.day ? 1 : -1));
     return { list: hits.slice(0, MAX_TX), total: hits.length, inActive };
-  }, [q, f.accounts, f.txByAccount, f.activeAccount]);
+  }, [q, searchCtx, f.accounts, f.txByAccount, f.activeAccount]);
 
   const transactions = useMemo<Item[]>(() => {
     /**

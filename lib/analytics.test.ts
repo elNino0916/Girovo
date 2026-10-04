@@ -5,8 +5,12 @@ import type { SerializedTransaction } from './fints-types';
 import type { TxFilter } from './app-types';
 import { categorize } from './categorize.ts';
 import type { CategoryOf } from './analytics.ts';
-import { filterTransactions, largest, monthlyBuckets, periodTotals, topCounterparties, txMatcher } from './analytics.ts';
+import {
+  calendarMonths, daysLabel, facilitatorShop, filterTransactions, inFilterDays, largest, monthOfWord, monthlyBuckets,
+  periodTotals, searchReport, topCounterparties, txMatcher,
+} from './analytics.ts';
 import { CRED, IBAN, OWN_IBANS, OWN_SAVINGS, camt, mt940, newestFirst } from './__fixtures__/transactions.ts';
+import { parseCardAcceptor } from './card-purpose.ts';
 
 const categoryOf = (tx: SerializedTransaction) => categorize(tx, { ownIbans: OWN_IBANS });
 const sum = (xs: { amount: number }[]) => Math.round(xs.reduce((s, x) => s + x.amount * 100, 0)) / 100;
@@ -146,7 +150,11 @@ test('monthlyBuckets: leap February and both DST switch days land in their month
 
 test('topCounterparties groups by identity and ranks by money', () => {
   const out = topCounterparties(DATA, { categoryOf, dir: 'out', limit: 3 });
-  assert.deepEqual(out.map((c) => c.name), ['Hausverwaltung Kramer', 'REWE SAGT DANKE 4684', 'GA NR00001234']);
+  // Cash is "Bargeld", not a payee named after the machine (or the bank) that paid it out.
+  assert.deepEqual(out.map((c) => c.name), ['Hausverwaltung Kramer', 'REWE SAGT DANKE 4684', 'Bargeld']);
+  assert.equal(out[2].cash, true);
+  assert.equal(out[2].key, 'cash');
+  assert.equal(out[2].iban, undefined);
   assert.equal(out[0].amount, 3400);
   assert.equal(out[0].count, 4);
   assert.equal(out[0].iban, IBAN.landlord);
@@ -320,4 +328,166 @@ test('txMatcher is reusable on its own', () => {
   const m = txMatcher('netflix');
   assert.equal(DATA.filter(m).length, 3);
   assert.equal(DATA.filter(txMatcher('')).length, DATA.length);
+});
+
+// ---------------------------------------------------------------------------
+// Finding a booking by what the screen shows
+// ---------------------------------------------------------------------------
+
+// A girocard payment whose terminal dropped the accents: the bank says "Caf"
+// and "Kln", the list says "Café Nova Deutzer F" and "Köln".
+const cafe = {
+  ...mt940({
+    day: '2026-09-18', amount: -4.8, gvc: '106', text: 'KARTENZAHLUNG', name: 'Adyen N.V.', iban: 'NL50ADYB2017400157',
+    purpose: '2026-09-18T08:12 Debitk.0 2030-12',
+  }),
+  ultimateName: 'LS Caf Nova Deutzer F/Frankenwerft 1/Kln/DE',
+};
+const WITH_CAFE = newestFirst([...DATA, cafe]);
+// Stands in for components/transactions/model.ts searchText: what the row and the drawer show.
+const shownText = (tx: SerializedTransaction) => {
+  const acceptor = parseCardAcceptor(tx.ultimateName);
+  return acceptor ? [acceptor.merchant, 'Debitkarte', acceptor.city, acceptor.country === 'DE' ? 'Deutschland' : ''].join(' ') : '';
+};
+const shown = { categoryOf, shownText };
+const findShown = (query: string, extra: Partial<TxFilter> = {}) =>
+  filterTransactions(WITH_CAFE, { dir: 'all', category: null, query, ...extra }, shown);
+
+test('search: the words the screen shows find their row', () => {
+  assert.equal(filterTransactions(WITH_CAFE, { dir: 'all', category: null, query: 'café nova' }, { categoryOf }).length, 0,
+    'the bank wrote "Caf"; without what the screen shows, the accent hides it');
+  assert.deepEqual(findShown('café nova'), [cafe]);
+  assert.deepEqual(findShown('cafe nova'), [cafe]);
+  assert.deepEqual(findShown('köln'), [cafe]);
+  assert.deepEqual(findShown('koeln'), [cafe]);
+  assert.deepEqual(findShown('deutschland debitkarte'), [cafe]);
+  assert.deepEqual(findShown('frankenwerft'), [cafe], 'the bank’s own descriptor still counts');
+});
+
+test('search: category labels, as the rows show them', () => {
+  assert.equal(findShown('lebensmittel').length, 5, 'every REWE booking is "Lebensmittel & Drogerie"');
+  assert.equal(findShown('Lebensmittel & Drogerie').length, 5);
+  assert.equal(findShown('wohnen').length, 4);
+  assert.equal(findShown('rewe lebensmittel').length, 5);
+  // A user's rule is what the row shows, so it is what the search finds.
+  const ruled: CategoryOf = (tx) => (tx.remoteIban === IBAN.landlord ? { id: 'savings', source: 'rule' } : categoryOf(tx));
+  const ctx = { categoryOf: ruled };
+  assert.equal(filterTransactions(DATA, { dir: 'all', category: null, query: 'sparen anlegen' }, ctx).length, 4);
+  assert.equal(filterTransactions(DATA, { dir: 'all', category: null, query: 'wohnen' }, ctx).length, 0);
+});
+
+test('search: month words, alone or with a year, as well as the text', () => {
+  assert.equal(monthOfWord('August'), 8);
+  assert.equal(monthOfWord('aug'), 8);
+  assert.equal(monthOfWord('Sept.'), 9);
+  assert.equal(monthOfWord('märz'), 3);
+  assert.equal(monthOfWord('Maerz'), 3);
+  assert.equal(monthOfWord('Mrz'), 3);
+  assert.equal(monthOfWord('jun'), 6);
+  assert.equal(monthOfWord('jul'), 7);
+  assert.equal(monthOfWord('ju'), null, 'two letters are text');
+  assert.equal(monthOfWord('maier'), null);
+  assert.equal(monthOfWord('augustin'), null);
+
+  const august = DATA.filter((tx) => tx.entryDate >= '2026-07-31T22' && tx.entryDate < '2026-08-31T22');
+  assert.equal(find('august').length, august.length);
+  assert.equal(find('August 2026').length, august.length);
+  assert.equal(find('aug 2025').length, 0);
+  assert.equal(find('08/2026').length, august.length);
+  // "Gehalt 07/2026" is the July salary's purpose; "07/2026" finds it by its text and July's bookings by date.
+  assert.equal(find('acme 07/2026').length, 1);
+  assert.equal(find('2026-08').length, august.length);
+  assert.equal(find('rewe august').length, 1, 'REWE on 8 August');
+  assert.equal(find('miete september').length, 1, 'the rent booked in September');
+  // A month word is still a word: "Mai" finds no May booking here, but "Maier".
+  const maier = mt940({ day: '2026-09-02', amount: -40, gvc: '116', text: 'UEBERWEISUNG', name: 'Maier, Petra', iban: IBAN.person, purpose: 'Nachhilfe' });
+  const s = (q: string) => filterTransactions([...DATA, maier], { dir: 'all', category: null, query: q }, { categoryOf });
+  assert.deepEqual(s('mai'), [maier]);
+  assert.deepEqual(s('maier'), [maier]);
+});
+
+test('search: a month counts in the Buchungs- or the Wertstellungsmonat', () => {
+  // Paid on 31 August, booked on 1 September.
+  const late = mt940({ day: '2026-09-01', valueDay: '2026-08-31', amount: -19.9, gvc: '106', text: 'KARTENZAHLUNG', name: 'Kino am Markt' });
+  const s = (q: string) => filterTransactions([late], { dir: 'all', category: null, query: q }, { categoryOf });
+  assert.equal(s('august').length, 1);
+  assert.equal(s('september').length, 1);
+  assert.equal(s('oktober').length, 0);
+});
+
+test('searchReport: which word found nothing, and which was read as a month', () => {
+  assert.deepEqual(searchReport(DATA, 'rewe augustt', { categoryOf }), [
+    { text: 'rewe', matches: 5, month: null },
+    { text: 'augustt', matches: 0, month: null },
+  ]);
+  const r = searchReport(DATA, 'rewe aug 2026', { categoryOf });
+  assert.deepEqual(r.map((t) => [t.text, t.month]), [['rewe', null], ['aug 2026', 'August 2026']]);
+  assert.ok(r.every((t) => t.matches > 0), 'each word occurs');
+  assert.deepEqual(searchReport(DATA, '  ', { categoryOf }), []);
+  assert.deepEqual(searchReport(DATA, 'DE75 5121', { categoryOf }), [{ text: 'DE75 5121', matches: 4, month: null }]);
+  assert.deepEqual(searchReport(DATA, 'rewe €').map((t) => t.text), ['rewe'], 'a lone currency sign is no word');
+});
+
+test('filterTransactions: from/to narrow by the local Buchungstag, both ends included', () => {
+  const sept = find('', { from: '2026-09-01', to: '2026-09-30' });
+  assert.equal(sept.length, periodTotals(DATA, { categoryOf, from: '2026-09-01', to: '2026-09-30' }).count + 1, 'the Umbuchung is a row too');
+  assert.ok(sept.every((tx) => tx.entryDate >= '2026-08-31T22' && tx.entryDate < '2026-09-30T22'));
+  assert.equal(find('', { from: '2026-10-01', to: '2026-10-01' }).length, 1, 'the rent of 1 October, sent as 30.09. 22:00 UTC');
+  assert.equal(find('', { from: '2026-10-01' }).length, 1, 'an open end');
+  assert.equal(find('', { to: '2026-07-04' }).length, 2, 'rent and REWE up to 4 July');
+  assert.equal(find('rewe', { from: '2026-09-01', to: '2026-09-30' }).length, 2);
+  assert.equal(find('', { from: '', to: '' }).length, DATA.length, 'empty means open');
+  assert.equal(inFilterDays(rent('2026-10-01'), { from: '2026-10-01', to: '2026-10-31' }), true);
+  assert.equal(inFilterDays(rent('2026-10-01'), { from: '2026-09-01', to: '2026-09-30' }), false);
+});
+
+test('calendarMonths and daysLabel name a stretch the way the controls do', () => {
+  const m = calendarMonths('2026-07-06', '2026-10-04', new Date(2026, 9, 4, 12));
+  assert.deepEqual(m.map((x) => [x.month, x.from, x.to, x.complete]), [
+    ['2026-07', '2026-07-06', '2026-07-31', false],
+    ['2026-08', '2026-08-01', '2026-08-31', true],
+    ['2026-09', '2026-09-01', '2026-09-30', true],
+    ['2026-10', '2026-10-01', '2026-10-04', false],
+  ]);
+  assert.equal(daysLabel('2026-09-01', '2026-09-30'), 'September 2026');
+  assert.equal(daysLabel('2026-10-01', '2026-10-04'), 'Oktober 2026 · bis 04.10.');
+  assert.equal(daysLabel('2026-07-06', '2026-07-31'), 'Juli 2026 · ab 06.07.');
+  assert.equal(daysLabel('2026-07-06', '2026-07-20'), 'Juli 2026 · 06.07.–20.07.');
+  assert.equal(daysLabel('2026-09-28', '2026-09-28'), '28.09.2026');
+  assert.equal(daysLabel('2026-07-06', '2026-09-30'), '06.07.–30.09.2026');
+  assert.equal(daysLabel('2026-09-01', ''), 'ab 01.09.2026');
+  assert.equal(daysLabel('', ''), '');
+});
+
+const paypal = (day: string, shop: string, amount: number) =>
+  mt940({
+    day, amount, gvc: '105', text: 'BASISLASTSCHRIFT', name: 'PAYPAL EUROPE S.A.R.L. ET CIE S.C.A', iban: IBAN.paypal,
+    purpose: shop ? `PP.4711.PP . ${shop}, Ihr Einkauf bei ${shop}` : 'PP.4711.PP PAYPAL',
+  });
+
+test('facilitatorShop: the shop behind a payment service, from the purpose', () => {
+  assert.equal(facilitatorShop(paypal('2026-09-03', 'ZALANDO SE', -59.95)), 'ZALANDO SE');
+  assert.equal(facilitatorShop(paypal('2026-09-03', 'G2A.com', -9.99)), 'G2A.com', 'a domain as the purpose spells it');
+  assert.equal(facilitatorShop(paypal('2026-09-03', '', -9.99)), null, 'no shop named');
+  assert.equal(facilitatorShop(rent('2026-09-01')), null, 'not a payment service');
+});
+
+test('topCounterparties: a shop paid through PayPal is the payee, not PayPal', () => {
+  const txs = newestFirst([
+    paypal('2026-09-03', 'ZALANDO SE', -60), paypal('2026-09-10', 'ZALANDO SE', -40), paypal('2026-09-12', 'THOMANN GMBH', -80),
+  ]);
+  const out = topCounterparties(txs, { categoryOf, dir: 'out', limit: 5 });
+  assert.deepEqual(out.map((c) => [c.name, c.amount, c.count]), [['ZALANDO SE', 100, 2], ['THOMANN GMBH', 80, 1]]);
+  assert.ok(out.every((c) => c.iban === undefined), 'PayPal’s IBAN would list every PayPal purchase');
+  assert.equal(out[0].via, 'PAYPAL EUROPE S.A.R.L. ET CIE S.C.A');
+});
+
+test('largest: skip leaves bookings out', () => {
+  const big = largest(DATA, { categoryOf, dir: 'out', limit: 3, skip: (tx) => tx.remoteIban === IBAN.landlord });
+  assert.deepEqual(big.map((t) => t.amount), [-200, -129.99, -72.4]);
+});
+
+test('txMatcher takes the screen’s words through its context', () => {
+  assert.equal(WITH_CAFE.filter(txMatcher('köln', shown)).length, 1);
+  assert.equal(WITH_CAFE.filter(txMatcher('köln')).length, 0);
 });

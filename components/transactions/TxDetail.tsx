@@ -1,27 +1,35 @@
 'use client';
 
 import { useId, useMemo, useState, type ReactNode } from 'react';
+import { facilitatorShop } from '@/lib/analytics';
 import {
-  CATEGORIES, categoryLabel, counterpartyKey, txBic, type CategoryId, type CategorySource,
+  CATEGORIES, categoryLabel, counterpartyKey, isCategoryId, txBic, type CategoryId, type CategorySource,
 } from '@/lib/categories';
+import { guessCategory } from '@/lib/categorize';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { fmtDate, fmtDayHeader, fmtIban, ibanCountry, isFutureDate } from '@/lib/format';
+import { displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry, isFutureDate, toLocalDate } from '@/lib/format';
 import { useFints } from '../FintsProvider';
 import {
   ArrowRightIcon, BoltIcon, CategoryIcon, ChevronIcon, ClockIcon, ReceiptIcon, RepeatIcon, TransferIcon, UndoIcon,
 } from '../icons';
 import { Money } from '../Money';
 import {
-  Button, CopyButton, Disclosure, Drawer, Menu, MenuGroup, MenuItemCheckbox, MenuItemRadio, MenuSeparator, Tag, cx,
+  Button, CopyButton, Disclosure, Drawer, Menu, MenuGroup, MenuItem, MenuItemRadio, MenuSeparator, Tag, cx,
 } from '../ui';
 import { CounterpartyAvatar } from './Avatar';
-import { counterpartyQuery, countryName, referenceRows, statusTags, transferSeeds, txText, type StatusTag } from './model';
+import {
+  cardFacts, counterpartyQuery, countryName, merchantFor, referenceRows, shortDay, statusTags, transferSeeds, txText,
+  type StatusTag,
+} from './model';
 
 const SOURCE_TEXT: Record<CategorySource, string> = {
   auto: 'Automatisch erkannt',
   rule: 'Deine Regel für alle Umsätze',
   manual: 'Von dir gewählt',
 };
+
+/** "1,1563" — a rate as the bank wrote it, without the float's tail. */
+const fmtRate = (n: number) => n.toLocaleString('de-DE', { maximumFractionDigits: 6 });
 
 const TAG_ICON: Record<NonNullable<StatusTag['icon']>, ReactNode> = {
   clock: <ClockIcon size={13} />,
@@ -46,12 +54,18 @@ export function TxDetail({
   onClose: () => void;
 }) {
   const {
-    activeAccount, categoryOf, setCategory, vaultStatus, openTransfer, showTransactions, printTransaction,
+    activeAccount, categoryOf, openTransfer, showTransactions, printTransaction,
   } = useFints();
   const text = txText(tx);
   const credit = tx.amount > 0;
   const tags = statusTags(tx, pending);
   const refs = useMemo(() => referenceRows(tx), [tx]);
+  const card = useMemo(() => cardFacts(tx), [tx]);
+  // The bank's own name for the counterparty, and — when the header shows a
+  // shop the app worked out (from a card terminal's descriptor, or from what
+  // a payment service wrote into the purpose) — that shop, labelled as such.
+  const bankName = text.bankName || text.rawName;
+  const recognised = facilitatorShop(tx) ? text.name : text.rawName !== bankName ? text.rawName : null;
   // The category as it stands now — refiling a credit as "Einkommen" in the
   // section below takes "Zurücküberweisen" away at once.
   const seeds = transferSeeds(tx, !!activeAccount?.canTransfer, categoryOf(tx).id);
@@ -88,7 +102,14 @@ export function TxDetail({
           <Money value={tx.amount} currency={tx.currency} signed tone="credit" className="text-[32px] leading-tight font-bold" />
         </p>
         <p className="mt-1 text-[14px] text-ink-2">
-          {[text.bookingText, when ? fmtDayHeader(when) : ''].filter(Boolean).join(' · ')}
+          {/* A card payment says when the card was used — the Buchungstag
+              below can be a day or two later, even still ahead. */}
+          {[
+            text.bookingText,
+            card?.usedAt
+              ? `bezahlt am ${shortDay(card.usedAt.day)}${card.usedAt.time ? ` um ${card.usedAt.time}` : ''}`
+              : when ? fmtDayHeader(when) : '',
+          ].filter(Boolean).join(' · ')}
         </p>
         {tags.length > 0 && (
           <ul className="mt-3 flex flex-wrap justify-center gap-1.5" aria-label="Status">
@@ -138,6 +159,29 @@ export function TxDetail({
         {tx.valueDate && (
           <Row half label="Wertstellung"><span className="tnum">{fmtDate(tx.valueDate)}</span></Row>
         )}
+        {/* The card system's record, said in words: when, which card, what
+            it cost abroad. Amounts through <Money>, so "Beträge ausblenden"
+            masks them like every other. */}
+        {card?.usedAt && (
+          <Row half label="Bezahlt am">
+            <span className="tnum">{fmtDate(toLocalDate(card.usedAt.day))}{card.usedAt.time && `, ${card.usedAt.time} Uhr`}</span>
+          </Row>
+        )}
+        {card?.card && <Row half label="Karte">{card.card}</Row>}
+        {card?.original && (
+          <Row label="Originalbetrag">
+            <Money value={card.original.amount} currency={card.original.currency} tone="plain" />
+            {card.original.rate != null && (
+              <span className="tnum text-ink-2"> · 1&nbsp;€ = {fmtRate(card.original.rate)}&nbsp;{card.original.currency}</span>
+            )}
+          </Row>
+        )}
+        {card?.fee != null && (
+          <Row label="Einsatzentgelt">
+            <Money value={card.fee} currency="EUR" tone="plain" />
+            {card.feeIncluded && <span className="text-ink-2"> · im Betrag enthalten</span>}
+          </Row>
+        )}
         {text.purposeLines.length > 0 && (
           <Row label="Verwendungszweck" copy={{ text: text.purposeLines.join(' '), label: 'Verwendungszweck kopieren' }}>
             {/* Bank text is untrusted: plain text only, one line per line the bank wrote. */}
@@ -148,7 +192,7 @@ export function TxDetail({
         )}
       </Section>
 
-      {(text.rawName || iban) && (
+      {(bankName || iban) && (
         <Section
           title={credit ? 'Auftraggeber' : 'Empfänger'}
           after={query && (
@@ -156,7 +200,7 @@ export function TxDetail({
             // words start on the same edge as the labels above it.
             <button
               type="button"
-              className="group mt-1 inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-[4px] text-[14px] font-bold text-accent"
+              className="group mt-1 inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-[4px] text-[14px] font-semibold text-accent"
               onClick={() => {
                 onClose();
                 showTransactions({ query });
@@ -167,16 +211,17 @@ export function TxDetail({
             </button>
           )}
         >
-          {text.rawName && <Row label="Name"><span className="break-words">{text.rawName}</span></Row>}
-          {address && <Row label={place?.street ? 'Anschrift' : 'Ort'}><span className="break-words">{address}</span></Row>}
-          {/* What the bank's FinTS answer actually says, whenever the line
-              above shows something tidier — the card terminal's descriptor
-              unabridged, so nothing the app derived is the only record. */}
-          {text.bankName && text.bankName !== text.rawName && (
-            <Row label="Name laut Bank" copy={{ text: text.bankName, label: 'Name laut Bank kopieren' }}>
-              <span className="break-words">{text.bankName}</span>
+          {/* What the bank's FinTS answer says, first and always under the
+              same label — the card terminal's descriptor unabridged, so
+              nothing the app derived is ever the only record. A shop the app
+              worked out from it sits below, called what it is. */}
+          {bankName && (
+            <Row label="Name laut Bank" copy={{ text: bankName, label: 'Name laut Bank kopieren' }}>
+              <span className="break-words">{bankName}</span>
             </Row>
           )}
+          {recognised && <Row label="Geschäft (erkannt)"><span className="break-words">{recognised}</span></Row>}
+          {address && <Row label={place?.street ? 'Anschrift' : 'Ort'}><span className="break-words">{address}</span></Row>}
           {/* The account the money actually moved to or from belongs to the
               payment provider (a card processor or acquirer), not to the shop
               named above — said here, so the IBAN below is never mistaken for
@@ -196,7 +241,7 @@ export function TxDetail({
         </Section>
       )}
 
-      <CategorySection tx={tx} name={text.name} vaultSaves={vaultStatus === 'ready'} categoryOf={categoryOf} setCategory={setCategory} />
+      <CategorySection tx={tx} name={text.name} />
 
       {refs.length > 0 && (
         <div className="mt-6 border-t border-line pt-2">
@@ -255,32 +300,102 @@ function Row({
   );
 }
 
+/** The category groups of the menu, the booking's own direction first. */
+function menuGroups(credit: boolean): { label: string; ids: CategoryId[] }[] {
+  const spend = CATEGORIES.filter((c) => !c.neutral && c.direction !== 'in').map((c) => c.id);
+  const income = CATEGORIES.filter((c) => c.direction === 'in').map((c) => c.id);
+  const own = CATEGORIES.filter((c) => c.neutral).map((c) => c.id);
+  return credit
+    ? [
+        // Interest received is a credit in "Bankentgelte & Zinsen".
+        { label: 'Eingänge', ids: [...income, 'fees'] },
+        // A shop's refund belongs to that shop's category and reduces it in the Analyse.
+        { label: 'Erstattung einer Ausgabe', ids: spend.filter((id) => id !== 'fees') },
+        { label: 'Zwischen deinen Konten', ids: own },
+      ]
+    : [
+        { label: 'Ausgaben', ids: spend },
+        { label: 'Eingänge', ids: income },
+        { label: 'Zwischen deinen Konten', ids: own },
+      ];
+}
+
+/** What just happened in the section — said beside the category, and to a screen reader. */
+type Step =
+  | { kind: 'picked'; id: CategoryId }
+  | { kind: 'ruled'; id: CategoryId }
+  | { kind: 'undone'; id: CategoryId; byRule: boolean }
+  | { kind: 'unruled' };
+
 /**
  * How the app filed the booking, and where the user changes it. The source
- * line keeps a guess visibly a guess. "Für alle Umsätze von …" turns the
- * choice into a rule for the counterparty — set it before picking.
+ * line keeps a guess visibly a guess. A pick files this one booking; only
+ * then does the section offer to do the same for the counterparty's other
+ * bookings — the choice first, its reach second, the way people correct
+ * things. A choice for one booking can be undone ("Automatisch (…)"), a rule
+ * removed, and every rule is listed below.
  */
-function CategorySection({
-  tx, name, vaultSaves, categoryOf, setCategory,
-}: {
-  tx: SerializedTransaction;
-  name: string;
-  vaultSaves: boolean;
-  categoryOf: (tx: SerializedTransaction) => { id: CategoryId; source: CategorySource };
-  setCategory: (tx: SerializedTransaction, id: CategoryId, opts?: { rule?: boolean }) => void;
-}) {
+function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string }) {
+  const {
+    categoryOf, setCategory, removeCategoryRule, vault, vaultStatus, ownIbans, merchants, txByAccount,
+  } = useFints();
   const current = categoryOf(tx);
-  const canRule = counterpartyKey(tx) !== 'name:?';
-  const [forAll, setForAll] = useState(current.source === 'rule');
-  const [changed, setChanged] = useState<{ id: CategoryId; rule: boolean } | null>(null);
-
+  const who = counterpartyKey(tx);
+  const canRule = who !== 'name:?';
+  const rules = vault?.categoryRules;
+  const ruled = canRule && rules && isCategoryId(rules[who]) ? rules[who] : null;
+  // What the booking falls back to without a choice for it alone: the rule,
+  // else the automatic guess.
+  const fallback: { id: CategoryId; source: CategorySource } = ruled
+    ? { id: ruled, source: 'rule' }
+    : { id: guessCategory(tx, { ownIbans, merchantLabel: merchantFor(merchants, tx)?.label ?? null }), source: 'auto' };
+  // The counterparty's other loaded bookings — what "für alle" reaches today.
+  const others = useMemo(() => {
+    if (!canRule) return 0;
+    let n = 0;
+    for (const list of Object.values(txByAccount)) for (const t of list) if (t !== tx && counterpartyKey(t) === who) n++;
+    return n;
+  }, [canRule, txByAccount, tx, who]);
+  const [step, setStep] = useState<Step | null>(null);
+  const vaultSaves = vaultStatus === 'ready';
   const titleId = useId();
+
+  const pick = (id: CategoryId) => {
+    if (id === current.id && current.source === 'manual') return;
+    setCategory(tx, id);
+    setStep({ kind: 'picked', id });
+  };
+  const applyToAll = (id: CategoryId) => {
+    setCategory(tx, id, { rule: true });
+    setStep({ kind: 'ruled', id });
+  };
+  const undo = () => {
+    setCategory(tx, null);
+    setStep({ kind: 'undone', id: fallback.id, byRule: fallback.source === 'rule' });
+  };
+  const unrule = () => {
+    removeCategoryRule(who);
+    setStep({ kind: 'unruled' });
+  };
+
+  // The offer to reach further — only after a pick a rule does not already make.
+  const offer = canRule && step?.kind === 'picked' && current.source === 'manual' && ruled !== step.id ? step.id : null;
+  const status = !step
+    ? ''
+    : step.kind === 'picked'
+      ? `Als „${categoryLabel(step.id)}“ eingeordnet.`
+      : step.kind === 'ruled'
+        ? `Alle Umsätze von ${name} sind jetzt „${categoryLabel(step.id)}“ — auch künftige.`
+        : step.kind === 'undone'
+          ? `Wieder „${categoryLabel(step.id)}“, ${step.byRule ? 'wie deine Regel' : 'automatisch erkannt'}.`
+          : `Regel entfernt. Die Umsätze von ${name} werden wieder automatisch eingeordnet.`;
 
   return (
     <section aria-labelledby={titleId} className="mt-6 border-t border-line pt-5">
       <h3 id={titleId} className="text-[15px] font-bold text-headline">Kategorie</h3>
       <div className="mt-3 flex items-center gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
+        {/* A glyph, not a control: inset grey, so the one blue here is "Ändern". */}
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-inset text-ink-2">
           <CategoryIcon id={current.id} size={20} />
         </span>
         <div className="min-w-0 flex-1">
@@ -300,42 +415,126 @@ function CategorySection({
             </Button>
           )}
         >
-          {canRule && (
+          {current.source === 'manual' && (
             <>
-              <MenuItemCheckbox checked={forAll} onSelect={() => setForAll((v) => !v)}>
-                Für alle Umsätze von {name} übernehmen
-              </MenuItemCheckbox>
+              <MenuItem
+                icon={<UndoIcon size={18} />}
+                description={fallback.source === 'rule' ? `Deine Regel für ${name}` : 'Wie die App den Umsatz einordnet'}
+                onSelect={undo}
+              >
+                {fallback.source === 'rule' ? 'Wie die Regel' : 'Automatisch'} ({categoryLabel(fallback.id)})
+              </MenuItem>
               <MenuSeparator />
             </>
           )}
-          {/* Every category, whichever way the money went: a shop's refund
-              belongs to that shop's category and reduces it in the Analyse. */}
-          <MenuGroup label="Kategorie">
-            {CATEGORIES.map((c) => (
-              <MenuItemRadio
-                key={c.id}
-                checked={current.id === c.id}
-                icon={<CategoryIcon id={c.id} />}
-                onSelect={() => {
-                  const rule = canRule && forAll;
-                  setCategory(tx, c.id, { rule });
-                  setChanged({ id: c.id, rule });
-                }}
-              >
-                {c.label}
-              </MenuItemRadio>
-            ))}
-          </MenuGroup>
+          {menuGroups(tx.amount > 0).map((g) => (
+            <MenuGroup key={g.label} label={g.label}>
+              {g.ids.map((id) => (
+                <MenuItemRadio key={id} checked={current.id === id} icon={<CategoryIcon id={id} />} onSelect={() => pick(id)}>
+                  {categoryLabel(id)}
+                </MenuItemRadio>
+              ))}
+            </MenuGroup>
+          ))}
         </Menu>
       </div>
-      <p className="sr-only" aria-live="polite">
-        {changed
-          ? `Kategorie ${categoryLabel(changed.id)} gespeichert${changed.rule ? ` für alle Umsätze von ${name}` : ''}.`
-          : ''}
-      </p>
-      {changed && !vaultSaves && (
+
+      {current.source === 'rule' && (
+        <Button size="xs" variant="tertiary" className="mt-2 -ml-3" onClick={unrule}>
+          Regel für {name} entfernen
+        </Button>
+      )}
+
+      {offer && (
+        // Choice first, reach second: the pick is saved; this only widens it.
+        <div className="mt-3 rounded-[8px] bg-inset px-4 py-3">
+          <p className="text-[14px] leading-snug text-ink">
+            {others > 0
+              ? <>Auch {others === 1 ? 'den anderen Umsatz' : `die ${others.toLocaleString('de-DE')} anderen Umsätze`} von {name} als „{categoryLabel(offer)}“ einordnen?</>
+              : <>Künftige Umsätze von {name} auch als „{categoryLabel(offer)}“ einordnen?</>}
+          </p>
+          {others > 0 && <p className="mt-0.5 text-[13px] leading-snug text-ink-3">Gilt dann auch für künftige Umsätze.</p>}
+          <Button size="xs" variant="secondary" className="mt-2.5" onClick={() => applyToAll(offer)}>
+            {others > 0 ? 'Für alle übernehmen' : 'Als Regel speichern'}
+          </Button>
+        </div>
+      )}
+
+      {step && step.kind !== 'picked' && <p className="mt-2 text-[13px] leading-snug text-ink-2">{status}</p>}
+      <p className="sr-only" aria-live="polite">{status}</p>
+      {step && !vaultSaves && (
         <p className="mt-2 text-[13px] text-ink-3">Gilt nur für diese Sitzung — deine persönlichen Daten werden gerade nicht gespeichert.</p>
       )}
+
+      {rules && <RuleList rules={rules} onRemove={removeCategoryRule} />}
     </section>
+  );
+}
+
+/** A rule's counterparty in words: the name its loaded bookings show, else the key itself, readable. */
+function ruleName(key: string, names: ReadonlyMap<string, string>): string {
+  const known = names.get(key);
+  if (known) return known;
+  const colon = key.indexOf(':');
+  const kind = key.slice(0, colon);
+  const value = key.slice(colon + 1);
+  if (kind === 'iban') return fmtIban(value);
+  if (kind === 'cred') return `Gläubiger-ID ${value}`;
+  return displayName(value) || value;
+}
+
+/**
+ * Every "für alle Umsätze von …" the user has set, with the way out — here,
+ * where rules are made, rather than in a settings screen nobody finds.
+ */
+function RuleList({ rules, onRemove }: { rules: Record<string, CategoryId>; onRemove: (key: string) => void }) {
+  const { txByAccount, pendingCache } = useFints();
+  const [open, setOpen] = useState(false);
+  const entries = Object.entries(rules).filter(([, id]) => isCategoryId(id));
+  // Names only while the list is open: finding them walks every loaded booking.
+  const names = useMemo(() => {
+    const out = new Map<string, string>();
+    if (!open) return out;
+    for (const list of [...Object.values(txByAccount), ...Object.values(pendingCache)]) {
+      for (const t of list) {
+        const key = counterpartyKey(t);
+        if (rules[key] && !out.has(key)) out.set(key, txText(t).name);
+      }
+    }
+    return out;
+  }, [open, rules, txByAccount, pendingCache]);
+  if (!entries.length) return null;
+  return (
+    <Disclosure
+      className="-mx-4 mt-3"
+      open={open}
+      onToggle={() => setOpen((o) => !o)}
+      title={
+        <span className="text-[14px] font-semibold text-ink-2">
+          Deine Regeln <span className="tnum text-ink-3">({entries.length})</span>
+        </span>
+      }
+    >
+      {open && (
+        <ul className="px-4 pb-1">
+          {entries
+            .map(([key, id]) => ({ key, id, name: ruleName(key, names) }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'de'))
+            .map((r) => (
+              <li key={r.key} className="flex items-center gap-3 border-b border-line py-2 last:border-b-0">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-semibold text-ink">{r.name}</span>
+                  <span className="flex items-center gap-1 text-[13px] text-ink-3">
+                    <CategoryIcon id={r.id} size={14} /> {categoryLabel(r.id)}
+                  </span>
+                </span>
+                <Button size="xs" variant="tertiary" aria-label={`Regel für ${r.name} entfernen`} onClick={() => onRemove(r.key)}>
+                  Entfernen
+                </Button>
+              </li>
+            ))}
+        </ul>
+      )}
+    </Disclosure>
   );
 }

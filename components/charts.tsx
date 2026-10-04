@@ -659,7 +659,7 @@ export function BarTrack({
   return (
     <span aria-hidden className={cx('relative block min-w-0', className)} style={{ height: thickness }}>
       <span
-        className="absolute inset-y-0 left-0 block transition-[width] duration-300 ease-out motion-reduce:transition-none"
+        className="absolute inset-y-0 left-0 block transition-[width] duration-200 ease-out motion-reduce:transition-none"
         style={{
           width: `max(${thickness / 2}px, ${pct}%)`,
           background: color,

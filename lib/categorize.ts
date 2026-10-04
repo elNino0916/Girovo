@@ -23,8 +23,9 @@
 
 import type { SerializedTransaction } from './fints-types';
 import type { CategoryId, CategoryResult } from './categories';
-import { categoryDef, counterpartyKey, counterpartyName, isCategoryId, txKey } from './categories.ts';
+import { categoryDef, counterpartyKey, counterpartyName, isCategoryId, txCreditorId, txKey } from './categories.ts';
 import { isCardPurpose, stripCardBoilerplate } from './card-purpose.ts';
+import { isFacilitatorName } from './merchant-match.ts';
 import { parsePurpose } from './sepa-purpose.ts';
 
 export type { CategoryResult };
@@ -495,6 +496,34 @@ export function guessCategory(
   if (/(^| )UMBUCHUNG/.test(foldText(tx.bookingText))) return 'transfer';
 
   return keywordCategory(tx, ctx.merchantLabel, kind) ?? (credit ? 'otherIn' : 'other');
+}
+
+// A credit that is itself a refund or a reversal, in the payer's words. In
+// the bank's booking text "Gutschrift" is only the word for money coming in,
+// so there it does not count.
+const REFUND_PURPOSE = /(^| )((RUECK)?ERSTATTUNG|RUECKSENDUNG|RETOURE|GUTSCHRIFT|REFUND|STORNO)/;
+const REFUND_BOOKING_TEXT = /(^| )((RUECK)?ERSTATTUNG|RUECKSENDUNG|RETOURE|REFUND|STORNO)/;
+
+/**
+ * Whether a credit came from a business rather than a person: a refund or a
+ * reversal, money from a creditor (it carries a Gläubiger-ID) or through a
+ * payment service, or a credit filed under a spending category or as an
+ * Umbuchung (`category`, as the user sees it). Nobody sends such money back,
+ * so "Zurücküberweisen" is never offered for it.
+ */
+export function isBusinessCredit(
+  tx: Pick<SerializedTransaction, 'amount' | 'purpose' | 'bookingText' | 'remoteName'> & {
+    ultimateName?: string; remoteBic?: string; creditorId?: string;
+  },
+  category?: CategoryId | null,
+): boolean {
+  if (category) {
+    const def = categoryDef(category);
+    if (def.direction === 'out' || def.neutral) return true;
+  }
+  if (txCreditorId(tx)) return true;
+  if (isFacilitatorName(counterpartyName(tx))) return true;
+  return REFUND_PURPOSE.test(foldText(parsePurpose(tx.purpose).text)) || REFUND_BOOKING_TEXT.test(foldText(tx.bookingText));
 }
 
 /** A booking's category: the user's choice if there is one, else a labelled guess. */

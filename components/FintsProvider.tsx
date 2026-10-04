@@ -38,6 +38,7 @@ import {
   type StatementInfo, type TransferPrefill, type TransferTemplate, type TxFilter, type VaultData,
   type VaultGetResponse, type VaultPutResponse, type VaultStatus,
 } from '@/lib/app-types';
+import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import type {
   BankMessage, ConnectResponse, Merchant, MerchantsResponse, MetaResponse, PendingResponse,
   SelectTanResponse, SerializedAccount, SerializedBalance, SerializedTanMethod,
@@ -475,6 +476,10 @@ function useFintsState() {
   const [tab, setTabState] = useState<DashboardTab>('overview');
   const [txFilter, setTxFilter] = useState<TxFilter>(EMPTY_FILTER);
   const [txFocusNonce, setTxFocusNonce] = useState(0);
+  // The Umsatzanalyse's month (null: not chosen yet) and accounts — kept here
+  // rather than in the tab, so a look at the Umsätze and back keeps them.
+  const [analysisPeriod, setAnalysisPeriod] = useState<AnalysisPeriod | null>(null);
+  const [analysisScope, setAnalysisScope] = useState<AnalysisScope>('account');
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferPrefill, setTransferPrefill] = useState<TransferPrefill | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -1653,6 +1658,8 @@ function useFintsState() {
     setTabState('overview');
     setTxFilter(EMPTY_FILTER);
     setTxFocusNonce(0);
+    setAnalysisPeriod(null);
+    setAnalysisScope('account');
     setTransferOpen(false);
     setTransferPrefill(null);
     setShareOpen(false);
@@ -2024,10 +2031,19 @@ function useFintsState() {
    * the same counterparty. A rule also lifts the single-booking overrides that
    * loaded bookings of that counterparty carry: "für alle übernehmen" would
    * otherwise leave exactly the ones the user already touched behind.
+   * `null` undoes a choice for this one booking: it goes back to what a rule
+   * or the automatic guess says.
    */
-  const setCategory = useCallback((tx: SerializedTransaction, id: CategoryId, opts: { rule?: boolean } = {}) => {
-    if (!isCategoryId(id)) return;
+  const setCategory = useCallback((tx: SerializedTransaction, id: CategoryId | null, opts: { rule?: boolean } = {}) => {
     const key = txKey(tx);
+    if (id === null) {
+      updateVault((v) => {
+        const overrides = without(v.txCategories, key);
+        return overrides === v.txCategories ? v : { ...v, txCategories: overrides };
+      });
+      return;
+    }
+    if (!isCategoryId(id)) return;
     const who = counterpartyKey(tx);
     // A counterparty with neither IBAN, creditor ID nor name cannot carry a rule.
     if (opts.rule && who !== 'name:?') {
@@ -2046,6 +2062,14 @@ function useFintsState() {
       ? v
       : { ...v, txCategories: { ...v.txCategories, [key]: id } }));
   }, [txCache, pendingFetched, updateVault]);
+
+  /** Drops the user's rule for one counterparty (a counterpartyKey); its bookings go back to the automatic guess. */
+  const removeCategoryRule = useCallback((who: string) => {
+    updateVault((v) => {
+      const rules = without(v.categoryRules, who);
+      return rules === v.categoryRules ? v : { ...v, categoryRules: rules };
+    });
+  }, [updateVault]);
 
   // ---- printable Kontoauszug / transaction receipt ------------------------
   // A print job just snapshots what's already on screen (no extra bank call,
@@ -2110,6 +2134,7 @@ function useFintsState() {
     sessionStartedAt, idleDeadline,
     // navigation & launchers
     tab, txFilter, txFocusNonce,
+    analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
     // actions
@@ -2120,12 +2145,14 @@ function useFintsState() {
     retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setTab, setTxFilter, showTransactions,
+    setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
     updateVault, resetVault, wipeVault, accountLabel, renameAccount,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     categoryOf, setCategory,
+    removeCategoryRule,
   };
 }
 
