@@ -28,6 +28,7 @@ import { setThemePref } from '@/lib/theme';
 import type { DashboardTab } from '@/lib/app-types';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { useFints } from './FintsProvider';
+import { isCardAccount } from '@/lib/balances';
 import { Money } from './Money';
 import { useThemePref } from './ThemeToggle';
 import {
@@ -221,7 +222,15 @@ function Palette({ onClose }: { onClose: () => void }) {
               <span className="max-sm:sr-only">Ausgewählt</span>
             </span>
           )}
-          {balance && <Money value={balance.balance} currency={balance.currency} className="text-[14px] font-semibold" />}
+          {balance && (
+            // A card's balance is negative by nature: ink, never alarm red.
+            <Money
+              value={balance.balance}
+              currency={balance.currency}
+              tone={isCardAccount(acct) ? 'plain' : 'auto'}
+              className="text-[14px] font-semibold"
+            />
+          )}
           {i < 9 && f.singleKeyShortcuts && <span className="hidden sm:inline-flex"><KeyHint keys={[String(i + 1)]} /></span>}
         </span>
       ),

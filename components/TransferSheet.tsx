@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ClipboardEvent, FormEvent, ReactNode } from 'react';
 import type { TransferPrefill, TransferTemplate } from '@/lib/app-types';
+import { isCardAccount } from '@/lib/balances';
 import { bankAnswerLines, refusalReference } from '@/lib/bank-answer';
 import type { SerializedAccount, SerializedVop } from '@/lib/fints-types';
 import type { EpcPayment } from '@/lib/girocode';
@@ -28,7 +29,7 @@ import { sepaLength, sepaSanitize } from '@/lib/sepa-text';
 import { findDuplicate, findSentTransfer, fundsWarning, spendable, type FundsWarning } from '@/lib/transfer-checks';
 import { useFints, type TransferHandlers } from './FintsProvider';
 import {
-  AccountTypeIcon, AlertTriangleIcon, BoltIcon, ClockIcon, InfoIcon, QrIcon, RepeatIcon, StarIcon, UndoIcon, accountKind,
+  AccountTypeIcon, AlertTriangleIcon, BoltIcon, ClockIcon, InfoIcon, QrIcon, RepeatIcon, StarIcon, UndoIcon,
 } from './icons';
 import { Money, formatMoney, useMoneyText } from './Money';
 import { VopReport, vopDeviates, vopUnchecked } from './VopResult';
@@ -234,7 +235,7 @@ export function TransferSheet() {
   // Erfassen (as the amount is typed) and on Prüfen.
   const formWarning = account && amountCheck.cents != null
     ? fundsWarning(balances[account.accountNumber], amountCheck.cents, {
-      currency: account.currency, overdraft: accountKind(account.accountType, account.product) !== 'card',
+      currency: account.currency, overdraft: !isCardAccount(account),
     })
     : null;
 
@@ -277,7 +278,7 @@ export function TransferSheet() {
     : null), [draft, activity, sentOrders, pendingCache, txByAccount]);
   const reviewWarning: FundsWarning | null = draft && draftAccount
     ? fundsWarning(balances[draft.accountNumber], draft.cents, {
-      currency: draftAccount.currency, overdraft: accountKind(draftAccount.accountType, draftAccount.product) !== 'card',
+      currency: draftAccount.currency, overdraft: !isCardAccount(draftAccount),
     })
     : null;
   // The commit names the risk it takes: a hint, never a block.

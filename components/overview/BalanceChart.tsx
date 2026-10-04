@@ -3,9 +3,9 @@
 import { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent, RefObject } from 'react';
 import type { BalancePoint } from '@/lib/balance-history';
+import { isCardAccount } from '@/lib/balances';
 import { fmtDate, toLocalDate } from '@/lib/format';
 import { FintsContext } from '../FintsProvider';
-import { accountKind } from '../icons';
 import { MASKED_LABEL, usePrivacy, useMoneyText } from '../Money';
 import { cx } from '../ui';
 
@@ -39,7 +39,9 @@ import { cx } from '../ui';
 //   screen that the account is overdrawn; the shape alone does not.
 // - A credit card's balance is negative by nature (spent, settled from the
 //   Girokonto later), so its chart is never painted red. Zero stays in the
-//   scale: there the sign is no secret, only no alarm.
+//   scale: there the sign is no secret, only no alarm. A card is told by its
+//   Kontoart alone (lib/balances.ts isCardAccount), as everywhere a balance
+//   is coloured — a "Giro mit Visa" keeps its red overdraft.
 
 const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
@@ -85,7 +87,7 @@ export function BalanceChart({
   const privacy = usePrivacy();
   // The chart always draws the selected account (the account hero's).
   const account = useContext(FintsContext)?.activeAccount;
-  const card = !!account && accountKind(account.accountType, account.product) === 'card';
+  const card = !!account && isCardAccount(account);
   /** Whether the stretch below zero is red — see the exceptions at the top. */
   const redBelowZero = !privacy && !card;
   const money = useMoneyText();

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
 import { calendarMonths, daysLabel, filterTransactions, searchReport, txMatcher, type SearchContext } from '@/lib/analytics';
 import { EMPTY_FILTER } from '@/lib/app-types';
 import { buildBalanceHistory } from '@/lib/balance-history';
+import { isCardAccount } from '@/lib/balances';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { fmtRange } from '@/lib/format';
 import { useFints } from './FintsProvider';
@@ -96,8 +97,10 @@ export function Transactions() {
   const balanceOn = useMemo(() => {
     if (!loaded || !transactions?.length) return null;
     const h = buildBalanceHistory({ txs: transactions, blocks: loaded.blocks, range: { from: loaded.from, to: loaded.to } });
-    return h.verified ? { byDay: new Map(h.points.map((p) => [p.date, p.balance])), currency: h.currency } : null;
-  }, [loaded, transactions]);
+    return h.verified
+      ? { byDay: new Map(h.points.map((p) => [p.date, p.balance])), currency: h.currency, card: !!a && isCardAccount(a) }
+      : null;
+  }, [loaded, transactions, a]);
   const onOpen = useCallback((tx: SerializedTransaction) => openTxDetail(tx, false), []);
 
   const filterCount = activeFilterCount(txFilter);

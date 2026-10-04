@@ -7,6 +7,7 @@
 // the order, so no window is too short to show them before "überweisen".
 
 import type { Ref } from 'react';
+import { isCardAccount } from '@/lib/balances';
 import { bankAnswerLines } from '@/lib/bank-answer';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { expectedCreditDate, fmtDate, fmtIban } from '@/lib/format';
@@ -163,8 +164,15 @@ export function ReviewStep({
         {funds && after != null && (
           // The balance is not part of the order, so it keeps following
           // "Beträge ausblenden".
+          // A card's Kontostand is negative by nature: ink, not alarm red.
           <SummaryRow label={funds.kind === 'available' ? 'Verfügbar danach' : 'Kontostand danach'}>
-            ca. <Money value={after} currency={account.currency} className="font-semibold" />
+            ca.{' '}
+            <Money
+              value={after}
+              currency={account.currency}
+              tone={funds.kind !== 'available' && isCardAccount(account) ? 'plain' : 'auto'}
+              className="font-semibold"
+            />
             {funds.date && <span className="text-ink-3"> (Stand {fmtDate(funds.date)})</span>}
           </SummaryRow>
         )}

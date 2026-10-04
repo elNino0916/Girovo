@@ -43,7 +43,7 @@ export function TxList({
   categoryOf: (tx: SerializedTransaction) => { id: CategoryId };
   onOpen: (tx: SerializedTransaction) => void;
   /** The verified end-of-day balance per local day, when the bank's balances prove one. */
-  balanceOn?: { byDay: ReadonlyMap<string, number>; currency: string } | null;
+  balanceOn?: { byDay: ReadonlyMap<string, number>; currency: string; card?: boolean } | null;
 }) {
   // Derived rather than reset in an effect: a stale page count never renders.
   const [page, setPage] = useState({ key: resetKey, rows: FIRST_PAGE });
@@ -95,9 +95,10 @@ export function TxList({
                   <span className="sm:hidden" aria-hidden>Stand </span>
                   <span className="max-sm:sr-only">Kontostand </span>
                   <span className="sr-only">am Tagesende: </span>
-                  {/* A balance: red when below zero, like every balance (Money's "auto"). */}
+                  {/* A balance: red when below zero, like every balance (Money's "auto") —
+                      a credit card's is negative by nature and stays ink. */}
                   <span className="font-semibold text-ink-2">
-                    <Money value={balanceOn.byDay.get(g.key)!} currency={balanceOn.currency} />
+                    <Money value={balanceOn.byDay.get(g.key)!} currency={balanceOn.currency} tone={balanceOn.card ? 'plain' : 'auto'} />
                   </span>
                 </span>
               )
