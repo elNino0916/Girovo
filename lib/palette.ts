@@ -4,12 +4,16 @@
 // The palette is the dashboard's search: someone types "ab" for Abos or an
 // Abbuchung, "lo" for Lohn or Lotto, "me" for Media Markt — and presses
 // Enter on whatever sits on top. So an entry that ends something (Abmelden)
-// is a last resort: it is left out of every query shorter than three
-// characters, and when it matches, it comes after every other result —
-// actions, accounts and bookings alike. "abm", "logout" or "abmelden" still
-// find it, and it is preselected only when nothing else matches.
+// is a last resort. It answers only a deliberate query: three or more
+// characters that start its own name ("abm", "abmelden"), or one of its words
+// typed out in full ("logout", "ausloggen", "sitzung"). Never a fuzzy hit:
+// "med", "den" or "mel" are inside the name, "logo" is the start of "logout"
+// but far more often Firmenlogos — with nothing else matching, any of them
+// would leave Abmelden alone and preselected, one Enter from the logout.
+// When it answers, it comes after every other result — actions, accounts and
+// bookings alike — and is preselected only when nothing else matches.
 
-import { fuzzyScore } from './fuzzy.ts';
+import { fold, fuzzyScore } from './fuzzy.ts';
 
 export type PaletteEntry = {
   label: string;
@@ -41,6 +45,21 @@ export function scoreEntry(entry: PaletteEntry, query: string): number {
   if (idHit) return 70;
   if (isAmountQuery(query)) return 0;
   return fuzzyScore(entry.label, query, entry.keywords);
+}
+
+/**
+ * Whether a last-resort entry answers `query` (trimmed): from three
+ * characters on, the start of its label, or the whole of one of its keywords
+ * or of a word in one ("sitzung" of "sitzung beenden").
+ */
+export function answersLastResort(entry: PaletteEntry, query: string): boolean {
+  const q = fold(query);
+  if (q.length < LAST_RESORT_MIN_QUERY) return false;
+  if (fold(entry.label).startsWith(q)) return true;
+  return (entry.keywords ?? []).some((k) => {
+    const kw = fold(k);
+    return kw === q || kw.split(' ').includes(q);
+  });
 }
 
 /** Best first; equal scores keep the list's own order. */
@@ -75,6 +94,6 @@ export function paletteResults<T extends PaletteEntry>(
   return {
     actions: rank(ordinary, q).slice(0, MAX_ACTIONS),
     accounts: rank(accounts, q),
-    last: q.length >= LAST_RESORT_MIN_QUERY ? rank(lastResort, q) : [],
+    last: rank(lastResort.filter((e) => answersLastResort(e, q)), q),
   };
 }

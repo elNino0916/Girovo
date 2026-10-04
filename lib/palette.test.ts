@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fuzzyScore } from './fuzzy.ts';
-import { LAST_RESORT_MIN_QUERY, isAmountQuery, paletteResults, scoreEntry, type PaletteEntry } from './palette.ts';
+import {
+  LAST_RESORT_MIN_QUERY, answersLastResort, isAmountQuery, paletteResults, scoreEntry, type PaletteEntry,
+} from './palette.ts';
 
 type E = PaletteEntry & { id: string };
 
@@ -54,6 +56,20 @@ test('from three letters on, Abmelden answers — after every other action and a
   assert.deepEqual(ids(results('abo').last), []);
   // A word of its keywords finds it too, still last.
   assert.deepEqual(ids(results('sitzung').last), ['logout']);
+});
+
+test('Abmelden never answers a fuzzy hit: inside its name, or the mere start of a keyword', () => {
+  // Each of these left Abmelden alone and preselected when nothing else
+  // matched ("logo" for the Firmenlogos switch, "med" for a shop outside the
+  // loaded range), so one Enter logged out.
+  for (const q of ['med', 'den', 'mel', 'meld', 'ende', 'logo', 'logou', 'aus', 'ausl', 'sitz', 'beend']) {
+    assert.deepEqual(ids(results(q).last), [], q);
+    assert.ok(!answersLastResort(ACTIONS[ACTIONS.length - 1], q), q);
+  }
+  // The start of its own name, or a word of it typed out, still does.
+  for (const q of ['abm', 'ABME', 'abmelden', 'logout', 'ausloggen', 'abmeldung', 'sitzung', 'sitzung beenden']) {
+    assert.deepEqual(ids(results(q).last), ['logout'], q);
+  }
 });
 
 test('ordinary ranking is unchanged: a prefix outranks a keyword, umlauts fold either way', () => {
