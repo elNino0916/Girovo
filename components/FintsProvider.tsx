@@ -98,6 +98,12 @@ export type PrintJob =
       balance: SerializedBalance | null;
       from?: string;
       to?: string;
+      /**
+       * The bank's statement blocks from the fetch the rows came from: their
+       * opening balance is what the printed "Alter Kontostand" is checked
+       * against (lib/print-doc.ts).
+       */
+      blocks?: StatementInfo['blocks'] | null;
     }
   | {
       kind: 'transaction';
@@ -106,10 +112,6 @@ export type PrintJob =
       tx: SerializedTransaction;
       /** A Vormerkposten: authorised, not yet booked. The receipt must say so. */
       pending: boolean;
-      /** The account's balance when it was last fetched, for the receipt's account block. */
-      balance: SerializedBalance | null;
-      /** The counterparty's resolved brand, when one was found. */
-      merchant: Merchant | null;
     };
 
 /** When an account's Vorgemerkt list was fetched, and how it stands against the statement. */
@@ -2532,6 +2534,7 @@ function useFintsState() {
       balance: past ? closingBalanceOf(info, activeAccount.currency) : balances[acct] ?? null,
       from: info?.from ?? from,
       to: info?.to ?? to,
+      blocks: info?.blocks ?? null,
     });
     // The desktop shell exports the PDF directly to a native save dialog (see
     // Statement.tsx); only the browser's own print dialog needs this nudge.
@@ -2542,20 +2545,17 @@ function useFintsState() {
 
   const printTransaction = useCallback((tx: SerializedTransaction, pending = false) => {
     if (!activeAccount) return;
-    const key = getMerchantKey(tx);
     setPrintJob({
       kind: 'transaction',
       account: activeAccount,
       bank,
       tx,
       pending,
-      balance: balances[activeAccount.accountNumber] ?? null,
-      merchant: merchants[key] ?? merchants[counterpartyName(tx)] ?? null,
     });
     if (typeof window === 'undefined' || !window.electronPDF) {
       toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
     }
-  }, [activeAccount, bank, balances, merchants, toast]);
+  }, [activeAccount, bank, toast]);
 
   const closePrintJob = useCallback(() => setPrintJob(null), []);
 
