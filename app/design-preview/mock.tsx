@@ -52,6 +52,7 @@ import {
   type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SharePrefill, type StatementInfo,
   type TransferPrefill, type TransferTemplate, type TxFilter, type VaultData, type VaultStatus,
 } from '@/lib/app-types';
+import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import type {
   Merchant, SerializedAccount, SerializedBalance, SerializedTanMethod, SerializedTransaction, SerializedVop,
 } from '@/lib/fints-types';
@@ -102,6 +103,13 @@ export type MockOptions = {
   oneAccount?: boolean;
   /** Every statement load and balance enquiry from now on fails (read live). */
   fail?: boolean;
+  /** The Umsätze list's narrowing beyond the search: a month chip, a category. */
+  filter?: Partial<TxFilter>;
+  /** The Umsatzanalyse's first period (a yyyy-mm month or 'all') and accounts. */
+  analysisPeriod?: string;
+  analysisScope?: AnalysisScope;
+  /** Category rules and single-booking choices in the vault from the start. */
+  categoryRules?: VaultData['categoryRules'];
 };
 
 export type MockFintsProviderProps = MockOptions & {
@@ -237,7 +245,8 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
     range, balances, txCache, statementInfo, txErrors, busy, loadingAccount, pendingCache,
     messages: empty ? [] : data.messages(new Date(sessionStartedAt).toISOString()),
     activity: empty ? [] : data.activity(now),
-    vault: preset === 'loading' ? null : empty ? EMPTY_VAULT : data.vault,
+    vault: preset === 'loading' ? null : empty ? EMPTY_VAULT
+      : opts.categoryRules ? { ...data.vault, categoryRules: opts.categoryRules } : data.vault,
     vaultStatus: (preset === 'loading' ? 'loading' : 'ready') as VaultStatus,
     sessionStartedAt,
   };
@@ -330,8 +339,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [idleDeadline, setIdleDeadline] = useState<number | null>(null);
 
   const [tab, setTabState] = useState<DashboardTab>(opts.tab ?? 'overview');
-  const [txFilter, setTxFilter] = useState<TxFilter>(opts.query ? { ...EMPTY_FILTER, query: opts.query } : EMPTY_FILTER);
+  const [txFilter, setTxFilter] = useState<TxFilter>({ ...EMPTY_FILTER, ...opts.filter, ...(opts.query ? { query: opts.query } : {}) });
   const [txFocusNonce, setTxFocusNonce] = useState(0);
+  const [analysisPeriod, setAnalysisPeriod] = useState<AnalysisPeriod | null>(opts.analysisPeriod ?? null);
+  const [analysisScope, setAnalysisScope] = useState<AnalysisScope>(opts.analysisScope ?? 'account');
   // Launchers carry an eligible account, as openTransfer/openShare guarantee.
   const opening = loggedIn ? opts.open : undefined;
   const [transferOpen, setTransferOpen] = useState(opening === 'transfer');
@@ -1069,6 +1080,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setTabState('overview');
     setTxFilter(EMPTY_FILTER);
     setTxFocusNonce(0);
+    setAnalysisPeriod(null);
+    setAnalysisScope('account');
     setTransferOpen(false);
     setTransferPrefill(null);
     setShareOpen(false);
@@ -1363,9 +1376,16 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       : v));
   }, [updateVault]);
 
-  const setCategory = useCallback((tx: SerializedTransaction, id: CategoryId, o: { rule?: boolean } = {}) => {
-    if (!isCategoryId(id)) return;
+  const setCategory = useCallback((tx: SerializedTransaction, id: CategoryId | null, o: { rule?: boolean } = {}) => {
     const k = txKey(tx);
+    if (id === null) {
+      updateVault((v) => {
+        const overrides = without(v.txCategories, k);
+        return overrides === v.txCategories ? v : { ...v, txCategories: overrides };
+      });
+      return;
+    }
+    if (!isCategoryId(id)) return;
     const who = counterpartyKey(tx);
     if (o.rule && who !== 'name:?') {
       const stale = new Set([k]);
@@ -1381,6 +1401,13 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     }
     updateVault((v) => (v.txCategories[k] === id ? v : { ...v, txCategories: { ...v.txCategories, [k]: id } }));
   }, [txCache, pendingCache, updateVault]);
+
+  const removeCategoryRule = useCallback((who: string) => {
+    updateVault((v) => {
+      const rules = without(v.categoryRules, who);
+      return rules === v.categoryRules ? v : { ...v, categoryRules: rules };
+    });
+  }, [updateVault]);
 
   // ---- print --------------------------------------------------------------
   // No print sheet in the preview: window.print() would open a dialog over
@@ -1413,6 +1440,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     logoConsent,
     sessionStartedAt, idleDeadline,
     tab, txFilter, txFocusNonce,
+    analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
@@ -1425,12 +1453,14 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,
     setTab, setTxFilter, showTransactions,
+    setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
     updateVault, resetVault, wipeVault, accountLabel, renameAccount,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     categoryOf, setCategory,
+    removeCategoryRule,
   } satisfies FintsApi;
 }
 
@@ -1450,6 +1480,7 @@ export function MockFintsProvider({ children, preset = 'default', overrides, sti
     options.transferPrefill, options.privacy, options.account, options.query, options.oneAccount,
     options.staleBank, options.methods,
     options.logos,
+    options.filter, options.analysisPeriod, options.analysisScope, options.categoryRules,
   ]);
   const underElectron = useSyncExternalStore(noopSubscribe, isElectron, () => false);
   return (

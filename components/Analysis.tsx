@@ -2,34 +2,40 @@
 
 // "Umsatzanalyse" — where the money went, read from the bookings that are
 // already loaded. Nothing on this tab asks the bank for anything except the
-// one explicit "Mehr Verlauf laden" button, which goes through the same
-// applyRange path (and the same TAN gate) as the Umsätze period control.
+// one explicit "Umsätze für 12 Monate abrufen" button, which goes through the
+// same applyRange path (and the same TAN gate) as the Umsätze period control.
 //
 // Every figure states its basis: which account(s), which days, how many
-// bookings, and that Umbuchungen between the user's own accounts were left
-// out. Figures that are averages say over how many complete months.
+// bookings, that Umbuchungen between the user's own accounts were left out,
+// and that it was worked out on this machine. Figures that are averages say
+// over how many complete months. Every "show me those bookings" opens the
+// Umsätze list on exactly the days the figure counted.
+//
+// The period and the accounts live in the provider, not here: a look at the
+// Umsätze and back finds the analysis where it was left.
 
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useFints } from './FintsProvider';
 import { Money, usePrivacy } from './Money';
 import { Button, DotList, EmptyState, ErrorState, Segmented, Spinner } from './ui';
 import type { Counterparty } from '@/lib/analytics';
+import type { TxFilter } from '@/lib/app-types';
 import type { CategoryId } from '@/lib/categories';
 import { categoryDef, categoryLabel, counterpartyName, intermediaryName } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { fmtAmountInput, fmtRange, prettyBookingText } from '@/lib/format';
+import { fmtAmountInput, fmtIban, fmtRange, prettyBookingText } from '@/lib/format';
 import {
-  WHOLE_RANGE, averageExpense, loadedPeers, useMonths, usePeriodFigures, useScopeData,
-  type AnalysisPeriod, type AnalysisScope,
+  WHOLE_RANGE, averageExpense, defaultPeriod, firstBookingDay, loadedPeers, useMonths, usePeriodFigures, useScopeData,
 } from './insights/analysis-model';
 import {
   AnalysisSkeleton, CategoryBreakdown, Kpi, LargestExpenses, MonthlyComparison, PeriodPicker, TopPayees,
   periodLabel,
 } from './insights/AnalysisParts';
-import { LoadHistoryButton, YEAR_SPAN, spanDays, useShowInList } from './insights/shared';
+import { useRecurringModel } from './insights/recurring-model';
+import { LoadHistoryButton, YEAR_SPAN, fmtDayKey, spanDays, useShowInList } from './insights/shared';
 
 /** "103 Umsätze" — joined by a no-break space, so a count never wraps away from its noun. */
-const plural = (n: number, one: string, many: string) => `${n.toLocaleString('de-DE')}\u00a0${n === 1 ? one : many}`;
+const plural = (n: number, one: string, many: string) => `${n.toLocaleString('de-DE')} ${n === 1 ? one : many}`;
 
 /**
  * "aus 12 Umsätzen" — the bookings a headline figure is made of. Not
@@ -38,27 +44,57 @@ const plural = (n: number, one: string, many: string) => `${n.toLocaleString('de
  */
 const fromBookings = (n: number) => (n === 0 ? 'keine Umsätze' : `aus ${plural(n, 'Umsatz', 'Umsätzen')}`);
 
+/** "GiroKomfort und Visa Classic", "A, B und C". */
+const joinNames = (names: string[]) =>
+  names.length > 1 ? `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}` : names[0] ?? '';
+
 export function Analysis() {
   const {
     activeAccount, accounts, transactions, txByAccount, statementInfo, categoryOf, loadingAccount, txError,
     busy, accountLabel, showTransactions, refreshAccount,
+    analysisPeriod, setAnalysisPeriod, analysisScope, setAnalysisScope,
   } = useFints();
   const headingId = useId();
   const privacy = usePrivacy();
 
-  const [scope, setScope] = useState<AnalysisScope>('account');
-  const [period, setPeriod] = useState<AnalysisPeriod>(WHOLE_RANGE);
-
-  const data = useScopeData({ scope, activeAccount, accounts, transactions, txByAccount, statementInfo });
+  const data = useScopeData({ scope: analysisScope, activeAccount, accounts, transactions, txByAccount, statementInfo });
   const months = useMonths(data, categoryOf);
-  const figures = usePeriodFigures(data, months, period, categoryOf);
+  // Until the user picks one, the last complete month: the question is
+  // "where did the money go this month", and households think in months.
+  const period = analysisPeriod ?? defaultPeriod(months);
+
+  // Recognised contracts and cash withdrawals are shown elsewhere (Verträge,
+  // Top-Empfänger); "Größte Einzelausgaben" is for the one-off ones.
+  const recurring = useRecurringModel();
+  const contractTxs = useMemo(() => {
+    const set = new Set<SerializedTransaction>();
+    for (const s of [...recurring.income, ...recurring.expense, ...recurring.ended]) for (const tx of s.transactions) set.add(tx);
+    return set;
+  }, [recurring.income, recurring.expense, recurring.ended]);
+  const notOneOff = useCallback(
+    (tx: SerializedTransaction) => contractTxs.has(tx) || categoryOf(tx).id === 'cash',
+    [contractTxs, categoryOf],
+  );
+
+  const figures = usePeriodFigures(data, months, period, categoryOf, notOneOff);
   const average = useMemo(() => averageExpense(months), [months]);
 
   // A period that no longer exists (another account, a new range) falls back
-  // to the whole range instead of showing an empty month.
+  // to the default instead of showing an empty month.
   useEffect(() => {
-    if (period !== WHOLE_RANGE && !months.some((m) => m.month === period)) setPeriod(WHOLE_RANGE);
-  }, [months, period]);
+    if (analysisPeriod && analysisPeriod !== WHOLE_RANGE && months.length && !months.some((m) => m.month === analysisPeriod)) {
+      setAnalysisPeriod(null);
+    }
+  }, [months, analysisPeriod, setAnalysisPeriod]);
+
+  // Said once the figures above have changed — a month picked in the chart
+  // below the fold re-scopes tiles the eye may not see.
+  const [announced, setAnnounced] = useState('');
+  const choosePeriod = useCallback((p: string) => {
+    setAnalysisPeriod(p);
+    const m = months.find((x) => x.month === p);
+    setAnnounced(`Analyse zeigt jetzt ${m ? m.title : 'den gesamten Zeitraum'}.`);
+  }, [setAnalysisPeriod, months]);
 
   const peers = useMemo(
     () => loadedPeers(activeAccount, accounts, txByAccount, statementInfo).peers,
@@ -69,17 +105,37 @@ export function Analysis() {
 
   const openOn = useShowInList();
 
+  // The days every drill-down carries: the list then holds exactly the
+  // bookings the figure counted. Left out when they are the whole loaded
+  // range of the account the list shows.
+  const ownInfo = activeAccount ? statementInfo[activeAccount.accountNumber] : undefined;
+  const drill = useMemo((): Partial<TxFilter> => {
+    if (!figures || !data) return {};
+    const whole = !!ownInfo && figures.from === ownInfo.from && figures.to === ownInfo.to;
+    return {
+      ...(whole ? {} : { from: figures.from, to: figures.to }),
+      ...(data.scope === 'all' ? { acrossAccounts: true } : {}),
+    };
+  }, [figures, data, ownInfo]);
+
   const showCategory = useCallback((id: CategoryId) => {
     // A category that can go either way (fees, "Sonstiges") is shown from its
     // spending side, the side this tile counted.
-    showTransactions(categoryDef(id).direction === 'both' ? { category: id, dir: 'out' } : { category: id });
-  }, [showTransactions]);
+    showTransactions(categoryDef(id).direction === 'both' ? { ...drill, category: id, dir: 'out' } : { ...drill, category: id });
+  }, [showTransactions, drill]);
 
   // The payee's debits — and, when the row's figure has refunds netted into
   // it, those too, so the list holds exactly the bookings the row counted.
+  // Cash is a category, not a payee; a shop paid through PayPal is found by
+  // its name in the purpose, not by PayPal's IBAN.
   const showPayee = useCallback((p: Counterparty) => {
-    openOn(p.sample, p.offsets > 0 ? { query: p.iban ?? p.name } : { query: p.iban ?? p.name, dir: 'out' });
-  }, [openOn]);
+    const dir = p.offsets > 0 ? {} : { dir: 'out' as const };
+    if (p.cash) {
+      openOn(p.sample, { ...drill, category: 'cash', dir: 'out' });
+      return;
+    }
+    openOn(p.sample, { ...drill, ...dir, query: p.iban ? fmtIban(p.iban) : p.name });
+  }, [openOn, drill]);
 
   // One booking, found again in the list by its counterparty and its exact
   // signed amount — the search box then says plainly what it is showing.
@@ -91,12 +147,12 @@ export function Analysis() {
     if (privacy) {
       // An intermediary's IBAN would find every shop it serves; the shop's name finds this one.
       const iban = intermediaryName(tx) ? '' : (tx.remoteIban || '').trim();
-      openOn(tx, { query: iban || who, dir: tx.amount < 0 ? 'out' : 'in' });
+      openOn(tx, { ...drill, query: iban ? fmtIban(iban) : who, dir: tx.amount < 0 ? 'out' : 'in' });
       return;
     }
     const amount = `${tx.amount < 0 ? '-' : ''}${fmtAmountInput(Math.abs(tx.amount))}`;
-    openOn(tx, { query: [who, amount].filter(Boolean).join(' ') });
-  }, [openOn, privacy]);
+    openOn(tx, { ...drill, query: [who, amount].filter(Boolean).join(' ') });
+  }, [openOn, privacy, drill]);
 
   // ---- states before there is anything to analyse ------------------------
   if (!activeAccount) {
@@ -136,10 +192,10 @@ export function Analysis() {
         <section className="panel" aria-label="Umsatzanalyse">
           <EmptyState
             illustration="chart"
-            title="Umsätze noch nicht geladen"
-            action={<Button variant="primary" size="sm" disabled={busy} onClick={() => refreshAccount(activeAccount)}>Umsätze laden</Button>}
+            title="Umsätze noch nicht abgerufen"
+            action={<Button variant="primary" size="sm" disabled={busy} onClick={() => refreshAccount(activeAccount)}>Umsätze abrufen</Button>}
           >
-            Die Analyse wertet die Umsätze von {accountLabel(activeAccount)} aus. Das Laden kann eine Freigabe erfordern.
+            Die Analyse wertet die Umsätze von {accountLabel(activeAccount)} aus. Das Abrufen kann eine Freigabe erfordern.
           </EmptyState>
         </section>
       );
@@ -157,37 +213,47 @@ export function Analysis() {
   const pLabel = periodLabel(period, months, rangeText);
   const selectedMonth = period === WHOLE_RANGE ? null : months.find((m) => m.month === period) ?? null;
   const loadedSpan = spanDays(data.from, data.to);
-  const ownInfo = statementInfo[activeAccount.accountNumber];
   const showHistoryButton = !ownInfo || spanDays(ownInfo.from, ownInfo.to) < YEAR_SPAN;
   const empty = data.txs.length === 0;
+  const first = firstBookingDay(data);
+  const lateStart = months.some((m) => m.noData) && !!first;
 
-  // How this month compares with the average of the complete months — only
-  // when both sides are whole months, so a half October is never "40 % below".
+  // How this month compares with the other complete months — never with an
+  // average it is part of, and only when both sides are whole months, so a
+  // half October is never "40 % below".
   let versusAverage: string | null = null;
-  if (selectedMonth?.complete && average && average.value > 0) {
-    const diff = (selectedMonth.expense - average.value) / average.value;
+  const others = selectedMonth?.complete ? averageExpense(months, { except: selectedMonth.month, min: 1 }) : null;
+  if (selectedMonth && others && others.value > 0) {
+    const diff = (selectedMonth.expense - others.value) / others.value;
     const pct = Math.round(Math.abs(diff) * 100);
-    versusAverage = pct === 0 ? 'genau im Durchschnitt' : `${pct}\u00a0% ${diff > 0 ? 'über' : 'unter'} dem Durchschnitt`;
+    const basis = others.months.length === 1
+      ? `im ${others.months[0].title.split(' ')[0]}`
+      : `im Schnitt der ${others.months.length} anderen vollen Monate`;
+    versusAverage = pct === 0
+      ? `so viel wie ${basis}`
+      : `${pct} % ${diff > 0 ? 'mehr' : 'weniger'} als ${basis}`;
   }
 
-  const scopeName = data.scope === 'all' ? `${data.accounts.length} Konten` : accountLabel(activeAccount);
+  const scopeNames = data.accounts.map((acc) => accountLabel(acc));
+  const peerNames = peers.map((acc) => accountLabel(acc));
 
   return (
     <div className="min-w-0 space-y-4 sm:space-y-6">
       {/* ---- Toolbar, basis and the headline figures --------------------- */}
       <section className="panel overflow-hidden" aria-labelledby={headingId}>
         <h2 id={headingId} className="sr-only">Überblick</h2>
+        <p className="sr-only" aria-live="polite">{announced}</p>
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 pt-4 sm:px-6 sm:pt-5">
           <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
             {peers.length > 0 && (
               <Segmented
                 aria-label="Welche Konten"
                 size="sm"
-                value={scope}
-                onChange={setScope}
+                value={data.scope}
+                onChange={setAnalysisScope}
                 options={[
                   { value: 'account', label: 'Dieses Konto' },
-                  { value: 'all', label: `Alle geladenen Konten (${peers.length + 1})` },
+                  { value: 'all', label: 'Alle Konten mit Umsätzen' },
                 ]}
               />
             )}
@@ -195,7 +261,7 @@ export function Analysis() {
               period={period}
               months={months}
               rangeText={rangeText}
-              onChange={setPeriod}
+              onChange={choosePeriod}
               disabled={empty}
             />
           </div>
@@ -211,19 +277,23 @@ export function Analysis() {
         <p className="tnum px-4 pt-3 text-[13px] leading-relaxed text-ink-3 sm:px-6">
           <DotList
             items={[
-              `Basis: ${scopeName}`,
+              `Basis: ${joinNames(scopeNames)}`,
               <span className="whitespace-nowrap">{rangeText}</span>,
               <>
                 {plural(totals.count, 'Umsatz', 'Umsätze')}
-                {period !== WHOLE_RANGE && <> in {pLabel}</>}
+                {period !== WHOLE_RANGE && <> im {pLabel}</>}
               </>,
-              totals.excluded > 0
-                ? `${plural(totals.excluded, 'Umbuchung', 'Umbuchungen')} ausgeklammert`
-                : 'Umbuchungen ausgeklammert',
+              // The other accounts are one switch away — and a card's purchases
+              // are there, not here, when this account pays the card's bill
+              // as an Umbuchung.
+              data.scope === 'account' && peers.length > 0 && `ohne ${joinNames(peerNames)}`,
+              totals.excluded > 0 && `${plural(totals.excluded, 'Umbuchung', 'Umbuchungen')} ausgeklammert`,
+              lateStart && <span className="whitespace-nowrap">erste Buchung am {fmtDayKey(first)}</span>,
               data.clipped && 'Zeitraum, den alle Konten abdecken',
               data.otherCurrencyAccounts > 0 &&
                 `${plural(data.otherCurrencyAccounts, 'Konto', 'Konten')} in anderer Währung nicht enthalten`,
               totals.otherCurrency > 0 && `${plural(totals.otherCurrency, 'Umsatz', 'Umsätze')} in Fremdwährung nicht enthalten`,
+              'berechnet auf diesem Rechner',
             ]}
           />
         </p>
@@ -263,8 +333,9 @@ export function Analysis() {
               <Kpi
                 label={
                   <>
-                    <span className="sm:hidden">Ø Monatsausgaben</span>
-                    <span className="hidden sm:inline">Ø Ausgaben pro Monat</span>
+                    <span aria-hidden className="sm:hidden">Ø Monatsausgaben</span>
+                    <span aria-hidden className="hidden sm:inline">Ø Ausgaben pro Monat</span>
+                    <span className="sr-only">Durchschnittliche Ausgaben pro Monat</span>
                   </>
                 }
                 sub={
@@ -273,7 +344,7 @@ export function Analysis() {
                     : 'Braucht mindestens zwei volle Monate'
                 }
               >
-                {average ? <Money value={average.value} currency={data.currency} tone="plain" /> : <span className="text-[16px] font-semibold text-ink-3">zu wenig Daten</span>}
+                {average ? <Money value={average.value} currency={data.currency} tone="plain" /> : <span className="text-[16px] font-semibold text-ink-3">Noch zu wenig Verlauf</span>}
               </Kpi>
             </dl>
             {showHistoryButton && (
@@ -290,7 +361,7 @@ export function Analysis() {
           <EmptyState
             illustration="chart"
             title="Keine Umsätze im geladenen Zeitraum"
-            action={showHistoryButton ? <LoadHistoryButton layout="stacked" className="items-center text-center" /> : undefined}
+            action={showHistoryButton ? <LoadHistoryButton layout="centered" /> : undefined}
           >
             Für {rangeText} ({plural(loadedSpan, 'Tag', 'Tage')}) liegen keine Buchungen vor.
             {showHistoryButton && ' Mit einem längeren Verlauf gibt es vielleicht etwas auszuwerten.'}
@@ -318,7 +389,7 @@ export function Analysis() {
             <div className="order-4">
               <LargestExpenses
                 items={figures.biggest}
-                subtitle={pLabel}
+                subtitle={`ohne Verträge, Abos und Bargeld · ${pLabel}`}
                 categoryName={categoryName}
                 onShow={showBooking}
               />
@@ -326,7 +397,7 @@ export function Analysis() {
           </div>
           <div className="contents desk:flex desk:flex-col desk:gap-6">
             <div className="order-2">
-              <MonthlyComparison months={months} currency={data.currency} selected={period} onSelect={setPeriod} />
+              <MonthlyComparison months={months} currency={data.currency} selected={period} onSelect={choosePeriod} />
             </div>
             <div className="order-3">
               <TopPayees
@@ -344,4 +415,3 @@ export function Analysis() {
     </div>
   );
 }
-

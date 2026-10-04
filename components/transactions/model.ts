@@ -7,16 +7,17 @@
 // Nothing here talks to the bank or the provider: plain functions over the
 // bookings that are already loaded.
 
+import { facilitatorShop } from '@/lib/analytics';
 import type { TransferPrefill } from '@/lib/app-types';
 import { parseCardAcceptor, parseCardPurpose, type CardPurpose } from '@/lib/card-purpose';
-import { bookingKind, bookingKindLabel, foldText, type BookingKind } from '@/lib/categorize';
+import { bookingKind, bookingKindLabel, foldText, isBusinessCredit, type BookingKind } from '@/lib/categorize';
 import { counterpartyName, intermediaryName, rawCounterparty, txCreditorId, type CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import {
-  dayKey, displayName, fmtAmountInput, fmtDate, fmtDayHeader, ibanValid, isFutureDate, prettyBookingText,
+  dayKey, displayName, fmtAmountInput, fmtDate, fmtDayHeader, fmtIban, ibanValid, isFutureDate, prettyBookingText,
   prettyPurpose, repairBankText, toLocalDate,
 } from '@/lib/format';
-import { getMerchantKey } from '@/lib/merchant-match';
+import { facilitatorOf, getMerchantKey } from '@/lib/merchant-match';
 import { condenseRefs, parsePurpose, purposeLines, type ParsedPurpose } from '@/lib/sepa-purpose';
 
 const cents = (v: number) => Math.round(Number(v) * 100);
@@ -84,14 +85,34 @@ function placeLabel(place: TxText['place']): string {
   return [place.city, abroad].filter(Boolean).join(', ');
 }
 
+/** The card the way people name it: "Visa Debit", "girocard", "Debitkarte" — or null. */
+function cardName(card: CardPurpose): string | null {
+  return card.scheme
+    ? card.scheme.replace(/^VISA\b/, 'Visa')
+    : card.card === 'credit' ? 'Kreditkarte' : card.card === 'debit' ? 'Debitkarte' : null;
+}
+
 /** "Visa Debit" / "Debitkarte" / "Kartenzahlung" — and a refund says it is one. */
 function cardLabel(card: CardPurpose, credit: boolean): string {
-  const base = card.scheme
-    ? card.scheme.replace(/^VISA\b/, 'Visa')
-    : card.card === 'credit' ? 'Kreditkarte' : card.card === 'debit' ? 'Debitkarte' : '';
+  const base = cardName(card);
   if (!base) return credit ? 'Kartengutschrift' : 'Kartenzahlung';
   return credit ? `Gutschrift · ${base}` : base;
 }
+
+// The payment services whose own spelling the list uses for "über …".
+const SERVICE_NAMES: Record<string, string> = {
+  paypal: 'PayPal', klarna: 'Klarna', sofort: 'Sofort', stripe: 'Stripe', mollie: 'Mollie', adyen: 'Adyen',
+  sumup: 'SumUp', unzer: 'Unzer', payone: 'Payone', giropay: 'giropay', paydirekt: 'paydirekt', wero: 'Wero',
+};
+
+/** "PayPal" for "PAYPAL EUROPE S.A.R.L. ET CIE S.C.A". */
+export function serviceName(raw: string): string {
+  const id = facilitatorOf(raw);
+  return (id && SERVICE_NAMES[id]) || displayName(raw);
+}
+
+// A cash machine's own record: "GA NR00004471 BLZ57069999 0 17.09/15.55".
+const ATM_RECORD = /\bGA\s?NR\S*\s+BLZ\s?\d+\s+\d+\s+(\d{2})\.(\d{2})\/(\d{2})\.(\d{2})\b/;
 
 export function txText(tx: SerializedTransaction): TxText {
   const hit = textCache.get(tx);
@@ -103,7 +124,11 @@ export function txText(tx: SerializedTransaction): TxText {
   const via = viaRaw ? displayName(repairBankText(viaRaw).replace(/\s+/g, ' ').trim()) : null;
   const parsed = parsePurpose(repairBankText(tx.purpose ?? ''));
   const bookingText = prettyBookingText(repairBankText(tx.bookingText ?? ''));
-  const name = displayName(rawName) || bookingText || 'Buchung';
+  // A purchase through a payment service (PayPal) is the shop's, as the
+  // purpose names it ("Ihr Einkauf bei ZALANDO SE"); the service is named on
+  // the second line and in the drawer, which keeps the bank's name.
+  const shop = facilitatorShop(tx);
+  const name = (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || 'Buchung';
   // The second line repeats nothing the first already says: a purpose that
   // is just the payee's name again gives way to the booking text.
   const kind = bookingKind(tx);
@@ -116,20 +141,29 @@ export function txText(tx: SerializedTransaction): TxText {
   // record doesn't explain. No amounts — this line is a plain string, and
   // "Beträge ausblenden" can only mask what goes through <Money>.
   const card = parseCardPurpose(parsed.text);
+  // A girocard terminal's record starts with its own descriptor ("REWE SAGT
+  // DANKE//MUSTERSTADT/DE"): the shop again, and where it stood.
+  const echo = card?.rest ? parseCardAcceptor(card.rest) : null;
   // Where the terminal stood, from the shop's descriptor ("…/Kln/DE" → Köln).
-  const acceptor = parseCardAcceptor(rawCounterparty(tx));
+  const acceptor = parseCardAcceptor(rawCounterparty(tx)) ?? echo;
   const place = acceptor && (acceptor.street || acceptor.city || acceptor.country)
     ? { street: acceptor.street, city: acceptor.city, country: acceptor.country }
     : null;
   const where = placeLabel(place);
+  const atm = kind === 'bargeld' ? ATM_RECORD.exec(parsed.text) : null;
   let summary = card
     ? [
         cardLabel(card, tx.amount > 0),
         where,
         card.original && card.original.currency !== 'EUR' ? `Fremdwährung ${card.original.currency}` : '',
-        prettyPurpose(card.rest),
+        echo ? '' : prettyPurpose(card.rest),
       ].filter(Boolean).join(' · ')
-    : condenseRefs(prettyPurpose(parsed.text));
+    : atm
+      // "Geldautomat · 17.09., 15:55" — what the machine's record says, in words.
+      ? `Geldautomat · ${atm[1]}.${atm[2]}., ${atm[3]}:${atm[4]}`
+      : shop
+        ? `über ${serviceName(rawName)}`
+        : condenseRefs(prettyPurpose(parsed.text));
   if (summary && foldText(summary) === foldText(rawName)) summary = '';
   // A card payment's "purpose" is the terminal's own record — the shop name
   // again, a city, a timestamp, a card sequence number. On a scannable list
@@ -156,6 +190,53 @@ export function txText(tx: SerializedTransaction): TxText {
   };
   textCache.set(tx, out);
   return out;
+}
+
+/**
+ * What the list and the drawer show of a booking that its raw strings do not
+ * hold — the tidied name, the second line, the shop's town and country, the
+ * repaired letters — for the search (lib/analytics SearchContext.shownText).
+ * A word read on screen then finds its row.
+ */
+export function searchText(tx: SerializedTransaction): string {
+  const t = txText(tx);
+  return [
+    t.name, t.rawName, t.via, t.bankName, t.summary, t.bookingText, t.purposeLines.join(' '),
+    t.place?.street, t.place?.city, t.place?.country ? countryName(t.place.country) : '',
+  ].filter(Boolean).join(' ');
+}
+
+/** What a card payment's record says, in the words the drawer uses. */
+export type CardFacts = {
+  /** When the card was used, as the terminal recorded it: local day and "08:12". */
+  usedAt: { day: string; time: string | null } | null;
+  /** "girocard", "Visa Debit", "Debitkarte" — null when the record does not say. */
+  card: string | null;
+  /** The amount in the currency the shop charged, for a foreign-currency payment. */
+  original: { amount: number; currency: string; rate: number | null } | null;
+  /** The card-usage fee the record names, in EUR. */
+  fee: number | null;
+  /** The fee demonstrably sits inside the booked amount (original ÷ rate + fee = amount, to the cent). */
+  feeIncluded: boolean;
+};
+
+export function cardFacts(tx: SerializedTransaction): CardFacts | null {
+  const card = parseCardPurpose(txText(tx).parsed.text);
+  if (!card) return null;
+  const m = card.at ? /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(card.at) : null;
+  const original = card.original && card.original.currency !== 'EUR' ? card.original : null;
+  let feeIncluded = false;
+  if (original?.rate && card.fee != null && (tx.currency || 'EUR') === 'EUR') {
+    const converted = cents(original.amount / original.rate);
+    feeIncluded = Math.abs(Math.abs(cents(tx.amount)) - (converted + cents(card.fee))) <= 1;
+  }
+  return {
+    usedAt: m ? { day: m[1], time: m[2] } : null,
+    card: cardName(card),
+    original,
+    fee: card.fee,
+    feeIncluded,
+  };
 }
 
 // A stable React key per loaded booking. Two bookings can be identical in
@@ -319,8 +400,13 @@ export function statusTags(tx: SerializedTransaction, pending: boolean): StatusT
   if (kind !== 'sonstige') {
     const label = bookingKindLabel(kind);
     // The bank's own booking text is already shown beside the tags; a tag
-    // that only repeats it is noise.
-    if (foldText(label) !== foldText(bookingText)) {
+    // that only repeats it is noise — and so is one whose word the text
+    // already holds ("Gehalt/Rente" beside "Lohn/Gehalt", "Lastschrift"
+    // beside "Basislastschrift"). A tag that adds something ("Kartenzahlung"
+    // beside "Lastschrift") stays.
+    const shown = foldText(bookingText).replace(/ /g, '');
+    const repeats = !!shown && foldText(label).split(' ').some((w) => w.length >= 5 && shown.includes(w));
+    if (!repeats) {
       tags.push({
         label,
         tone: KIND_TONE[kind] ?? 'neutral',
@@ -365,9 +451,10 @@ export function referenceRows(tx: SerializedTransaction): RefRow[] {
 // Kinds that cannot be "sent again" by an Überweisung: the money was pulled
 // (Lastschrift), paid at a terminal (Karte), or moved by the bank itself.
 const NOT_REPEATABLE = new Set<BookingKind>(['lastschrift', 'karte', 'ruecklastschrift', 'bargeld', 'entgelt', 'zinsen']);
-// Credits nobody pays back: what the bank booked itself, and a salary or a
-// pension — sending an employer its payroll back is not a thing anyone means.
-const NOT_REFUNDABLE = new Set<BookingKind>(['bargeld', 'entgelt', 'zinsen', 'gehalt']);
+// Credits nobody pays back: what the bank booked itself, a salary or a
+// pension (sending an employer its payroll back is not a thing anyone
+// means), a card refund from a shop, and a direct debit that came back.
+const NOT_REFUNDABLE = new Set<BookingKind>(['bargeld', 'entgelt', 'zinsen', 'gehalt', 'karte', 'lastschrift', 'ruecklastschrift']);
 
 const PURPOSE_MAX = 140;
 const clip = (s: string, n: number) => {
@@ -381,9 +468,13 @@ const clip = (s: string, n: number) => {
  *
  * - "Erneut überweisen": a debit to a valid IBAN that was an Überweisung
  *   (not a Lastschrift or a card payment, which were never yours to send).
- * - "Zurücküberweisen": a credit from a valid IBAN, for the same amount —
- *   but not income: neither a booking the bank marks as Gehalt/Rente nor one
- *   filed under "Einkommen" (by the app or by the user), passed as `category`.
+ * - "Zurücküberweisen": a credit from a person, for the same amount. Not
+ *   income (a booking the bank marks as Gehalt/Rente, or one filed under
+ *   "Einkommen" by the app or the user, passed as `category`), and nothing a
+ *   business sent: no refund (Erstattung, Retoure, Gutschrift in the
+ *   purpose), no counterparty with a Gläubiger-ID or a payment service, no
+ *   credit filed under a spending category or an Umbuchung. Nobody sends a
+ *   refund back.
  */
 export function transferSeeds(
   tx: SerializedTransaction,
@@ -411,7 +502,7 @@ export function transferSeeds(
       refund: null,
     };
   }
-  if (tx.amount > 0 && !NOT_REFUNDABLE.has(kind) && category !== 'income') {
+  if (tx.amount > 0 && !NOT_REFUNDABLE.has(kind) && category !== 'income' && !isBusinessCredit(tx, category)) {
     const purpose = prose ? `Rückzahlung: ${prose}` : `Rückzahlung vom ${fmtDate(tx.entryDate || tx.valueDate)}`;
     return {
       repeat: null,
@@ -423,14 +514,18 @@ export function transferSeeds(
 
 /**
  * What "Alle Umsätze mit …" searches for: the IBAN when there is one (exact,
- * however the name was spelled on each booking), else the name. Behind an
- * intermediary the IBAN is shared by every shop it serves — every Visa Debit
- * payment of a Sparkasse customer carries the card processor's — so there the
- * shop's name is the only thing that finds the right bookings.
+ * however the name was spelled on each booking) — in its groups of four, the
+ * way people read and recognise one in the search field — else the name.
+ * Behind an intermediary the IBAN is shared by every shop it serves — every
+ * Visa Debit payment of a Sparkasse customer carries the card processor's —
+ * so there the shop's name is the only thing that finds the right bookings;
+ * and behind a payment service (PayPal) it is the shop the purpose names.
  */
 export function counterpartyQuery(tx: SerializedTransaction): string | null {
   const { rawName, via } = txText(tx);
+  const shop = facilitatorShop(tx);
+  if (shop) return shop;
   const iban = compactIban(tx.remoteIban);
-  if (!via && ibanValid(iban)) return iban;
+  if (!via && ibanValid(iban)) return fmtIban(iban);
   return rawName.length >= 2 ? rawName : null;
 }

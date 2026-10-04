@@ -4,6 +4,7 @@ import type { StatementInfo } from '@/lib/app-types';
 import { csvFileName, transactionsToCsv } from '@/lib/csv';
 import { downloadText } from '@/lib/download';
 import type { SerializedTransaction } from '@/lib/fints-types';
+import { daysLabel } from '@/lib/analytics';
 import { fmtRange } from '@/lib/format';
 import { useFints } from '../FintsProvider';
 import { ChevronIcon, DownloadIcon, FileIcon, FilterIcon } from '../icons';
@@ -15,10 +16,11 @@ const umsaetze = (n: number) => `${n.toLocaleString('de-DE')} ${n === 1 ? 'Umsat
  * Taking the loaded statement elsewhere: the printable Kontoauszug, or the
  * bookings as a German-Excel CSV — all of them, or just what the filter
  * shows. Everything is built from what is already on screen; nothing here
- * asks the bank for anything.
+ * asks the bank for anything. A filtered file narrowed to a month says so,
+ * in the menu and in its name.
  */
 export function ExportMenu({
-  loaded, all, filtered, filterActive,
+  loaded, all, filtered, filterActive, days = null,
 }: {
   loaded: StatementInfo | undefined;
   /** Every loaded booking, newest first — as the list shows them. */
@@ -26,6 +28,8 @@ export function ExportMenu({
   /** The bookings the current filter leaves, newest first. */
   filtered: readonly SerializedTransaction[];
   filterActive: boolean;
+  /** The days the filter narrows the list to (TxFilter from/to, open ends filled from the loaded range). */
+  days?: { from: string; to: string } | null;
 }) {
   const { activeAccount, bank, accountLabel, categoryOf, printStatement, toast } = useFints();
   if (!activeAccount) return null;
@@ -35,8 +39,8 @@ export function ExportMenu({
 
   // Booked rows only, so every Status says "Gebucht" — never matched against
   // the Vorgemerkt list, whose items share a key with the bookings they became.
-  const saveCsv = (rows: readonly SerializedTransaction[]) => {
-    if (!range || !rows.length) return;
+  const saveCsv = (rows: readonly SerializedTransaction[], span = range) => {
+    if (!span || !rows.length) return;
     try {
       const csv = transactionsToCsv(rows, {
         account: activeAccount,
@@ -44,7 +48,7 @@ export function ExportMenu({
         accountLabel: accountLabel(activeAccount),
         categoryOf,
       });
-      downloadText(csvFileName(activeAccount, range), csv, 'text/csv;charset=utf-8');
+      downloadText(csvFileName(activeAccount, span), csv, 'text/csv;charset=utf-8');
     } catch {
       toast('Die CSV-Datei konnte nicht erstellt werden.', 'error');
     }
@@ -90,9 +94,13 @@ export function ExportMenu({
         icon={<FilterIcon />}
         disabled={nothing || !filterActive || filtered.length === 0}
         description={
-          !filterActive ? 'Kein Filter aktiv' : filtered.length === 0 ? 'Der Filter zeigt keine Umsätze' : umsaetze(filtered.length)
+          !filterActive
+            ? 'Kein Filter aktiv'
+            : filtered.length === 0
+              ? 'Der Filter zeigt keine Umsätze'
+              : days ? `${umsaetze(filtered.length)} · ${daysLabel(days.from, days.to)}` : umsaetze(filtered.length)
         }
-        onSelect={() => saveCsv(filtered)}
+        onSelect={() => saveCsv(filtered, days ?? range)}
       >
         Gefilterte Umsätze als CSV
       </MenuItem>

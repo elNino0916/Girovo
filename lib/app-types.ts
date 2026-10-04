@@ -31,9 +31,32 @@ export type TxFilter = {
   dir: 'all' | 'in' | 'out';
   category: CategoryId | null;
   query: string;
+  /**
+   * The first and last Buchungstag shown (local yyyy-mm-dd, both included).
+   * A view of what is already loaded, never a fetch: loading another period
+   * is the Zeitraum control's job. Empty or absent means open.
+   */
+  from?: string;
+  to?: string;
+  /**
+   * Set by a deep link from a figure over every account with Umsätze (the
+   * Analyse's "Alle Konten"): the list holds one account, and says so. Any
+   * edit in the filter bar drops it.
+   */
+  acrossAccounts?: boolean;
 };
 
 export const EMPTY_FILTER: TxFilter = { dir: 'all', category: null, query: '' };
+
+/** Which accounts the Umsatzanalyse adds up: the active one, or every one with Umsätze in its currency. */
+export type AnalysisScope = 'account' | 'all';
+
+/**
+ * The Umsatzanalyse's period: 'all' (the whole loaded range) or a yyyy-mm
+ * month. Null until the user picks one — the analysis then opens on the last
+ * complete month.
+ */
+export type AnalysisPeriod = string;
 
 /** A message the bank sent with the login synchronisation (HIRMG/HIRMS texts). */
 export type InboxMessage = {

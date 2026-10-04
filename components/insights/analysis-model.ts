@@ -11,20 +11,27 @@
 //   one of them covers. Accounts loaded for different periods would otherwise
 //   make a month look expensive just because one account reaches further back.
 // - Period. The whole scope range, or one calendar month of it. A month the
-//   range cuts — or the current one — is partial and labelled as such.
+//   range cuts — or the current one — is partial and labelled as such. A
+//   month before the first booking is not a month without spending: the bank
+//   may simply have delivered less history, or the account is newer. It is
+//   kept out of every comparison and called what it is ("keine Umsätze").
 
 import { useMemo } from 'react';
 import type { CategoryOf, Counterparty, MonthBucket, PeriodTotals } from '@/lib/analytics';
-import { largest, monthlyBuckets, periodTotals, topCounterparties } from '@/lib/analytics';
+import { bookingDay, largest, monthlyBuckets, periodTotals, topCounterparties } from '@/lib/analytics';
 import { counterpartyKey } from '@/lib/categories';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
-import type { StatementInfo } from '@/lib/app-types';
+import type { AnalysisPeriod, AnalysisScope, StatementInfo } from '@/lib/app-types';
 import { dayKey } from '@/lib/format';
 
-export type AnalysisScope = 'account' | 'all';
-/** 'all' or a yyyy-mm month. */
-export type AnalysisPeriod = string;
+export type { AnalysisPeriod, AnalysisScope };
 export const WHOLE_RANGE: AnalysisPeriod = 'all';
+
+/** A month of the analysis: its figures, and whether it lies before the first booking in scope. */
+export type AnalysisMonth = MonthBucket & {
+  /** Wholly before the first booking: no data, not a month without spending. Never complete. */
+  noData: boolean;
+};
 
 export type ScopeData = {
   scope: AnalysisScope;
@@ -166,19 +173,45 @@ function biggestDistinct(sortedDebits: SerializedTransaction[], limit: number): 
   return [...groups.values()].slice(0, limit);
 }
 
-/** Monthly buckets over the whole scope range — the period menu and the Monatsvergleich. */
-export function useMonths(data: ScopeData | null, categoryOf: CategoryOf): MonthBucket[] {
-  return useMemo(
-    () => (data ? monthlyBuckets(data.txs, { categoryOf, from: data.from, to: data.to, currency: data.currency }) : []),
-    [data, categoryOf],
-  );
+/** The first Buchungstag among the scope's bookings, or '' for none. */
+export function firstBookingDay(data: ScopeData | null): string {
+  let first = '';
+  for (const tx of data?.txs ?? []) {
+    const d = bookingDay(tx);
+    if (d && d >= (data?.from ?? '') && (!first || d < first)) first = d;
+  }
+  return first;
 }
 
+/** Monthly buckets over the whole scope range — the period menu and the Monatsvergleich. */
+export function useMonths(data: ScopeData | null, categoryOf: CategoryOf): AnalysisMonth[] {
+  return useMemo(() => {
+    if (!data) return [];
+    const first = firstBookingDay(data);
+    return monthlyBuckets(data.txs, { categoryOf, from: data.from, to: data.to, currency: data.currency }).map((m) => {
+      const noData = !first || m.to < first;
+      return { ...m, noData, complete: m.complete && !noData };
+    });
+  }, [data, categoryOf]);
+}
+
+/** Where the analysis opens: the last complete month — households think in months — else the whole range. */
+export function defaultPeriod(months: readonly AnalysisMonth[]): AnalysisPeriod {
+  for (let i = months.length - 1; i >= 0; i--) if (months[i].complete) return months[i].month;
+  return WHOLE_RANGE;
+}
+
+/**
+ * The figures of one period. `notOneOff` keeps bookings out of "Größte
+ * Einzelausgaben" — the recognised contracts and cash withdrawals, which
+ * Verträge and Top-Empfänger already show.
+ */
 export function usePeriodFigures(
   data: ScopeData | null,
-  months: MonthBucket[],
+  months: readonly MonthBucket[],
   period: AnalysisPeriod,
   categoryOf: CategoryOf,
+  notOneOff?: (tx: SerializedTransaction) => boolean,
 ): PeriodFigures | null {
   return useMemo(() => {
     if (!data) return null;
@@ -199,15 +232,22 @@ export function usePeriodFigures(
       credits: counted(totals.incomeByCategory),
       debits: counted(totals.byCategory),
       payees: topCounterparties(data.txs, { ...opts, dir: 'out', limit: 8 }),
-      biggest: biggestDistinct(largest(data.txs, { ...opts, dir: 'out', limit: Number.MAX_SAFE_INTEGER }), 8),
+      biggest: biggestDistinct(largest(data.txs, { ...opts, dir: 'out', limit: Number.MAX_SAFE_INTEGER, skip: notOneOff }), 8),
     };
-  }, [data, months, period, categoryOf]);
+  }, [data, months, period, categoryOf, notOneOff]);
 }
 
-/** Average monthly spending over the complete months — null below two of them. */
-export function averageExpense(months: MonthBucket[]): { value: number; months: MonthBucket[] } | null {
-  const complete = months.filter((m) => m.complete);
-  if (complete.length < 2) return null;
+/**
+ * Average monthly spending over the complete months, leaving out `except` —
+ * a month is not compared with an average it is part of. Null below `min`
+ * months.
+ */
+export function averageExpense<M extends MonthBucket>(
+  months: readonly M[],
+  opts: { except?: string; min?: number } = {},
+): { value: number; months: M[] } | null {
+  const complete = months.filter((m) => m.complete && m.month !== opts.except);
+  if (complete.length < (opts.min ?? 2)) return null;
   const cents = complete.reduce((s, m) => s + Math.round(m.expense * 100), 0);
   return { value: Math.round(cents / complete.length) / 100, months: complete };
 }
