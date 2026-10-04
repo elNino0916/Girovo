@@ -336,7 +336,7 @@ export function AccountList() {
                             currency={bal.currency}
                             // A card's balance is negative by nature — ink, not the red of an overdraft.
                             tone={isCardAccount(a) ? 'plain' : 'auto'}
-                            className="block text-[19px] leading-tight font-semibold sm:text-[15.5px] sm:leading-snug"
+                            className="block text-[20px] leading-tight font-semibold sm:text-[15px] sm:leading-snug"
                           />
                           {showAvailable && (
                             <span className="block text-[13px] leading-snug text-ink-3">

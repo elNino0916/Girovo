@@ -414,14 +414,14 @@ function SummaryFigure({
   return (
     <div className={cx('min-w-0 bg-surface px-4 py-3.5 sm:px-6 sm:py-5', wide && 'col-span-2 desk:col-span-1')}>
       <dt className="text-[13px] leading-snug font-semibold text-ink-2">{label}</dt>
-      <dd className="mt-1 flex flex-wrap items-baseline gap-x-1.5 text-[19px] leading-tight font-bold text-ink sm:text-[24px]">
+      <dd className="mt-1 flex flex-wrap items-baseline gap-x-1.5 text-[20px] leading-tight font-bold text-ink sm:text-[24px]">
         {children ? (
           <>
             <span className="text-[13px] font-normal text-ink-3 sm:text-[14px]">{prefix}</span>
             {children}
           </>
         ) : (
-          <span className="text-[16px] font-semibold text-ink-3">Keine regelmäßigen erkannt</span>
+          <span className="text-[15px] font-semibold text-ink-3">Keine regelmäßigen erkannt</span>
         )}
       </dd>
       <dd className="mt-1 text-[13px] leading-snug text-ink-3">{sub}</dd>
@@ -542,7 +542,7 @@ export function UpcomingPayments() {
                     className="tnum grid w-14 shrink-0 place-items-center rounded-[8px] bg-inset py-1 leading-tight"
                     aria-hidden
                   >
-                    <span className="text-[11.5px] font-semibold text-ink-3">{wd}</span>
+                    <span className="text-[12.5px] font-semibold text-ink-3">{wd}</span>
                     <span className="text-[13px] font-semibold text-ink">{dm}</span>
                   </span>
                   <span className="min-w-0 flex-1">

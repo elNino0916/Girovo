@@ -93,7 +93,7 @@ export function Panel({
               id={titleId}
               ref={titleRef}
               tabIndex={-1}
-              className="text-[22px] leading-tight font-bold text-headline outline-none sm:text-[24px] short:text-[20px]"
+              className="text-[22px] leading-tight font-bold text-headline outline-none short:text-[20px]"
             >
               {title}
             </h2>

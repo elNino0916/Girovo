@@ -100,10 +100,10 @@ export function VopReport({ vop, iban, className }: { vop: SerializedVop; iban?:
   const checked = vop.iban || iban;
   return (
     <div className={className ?? 'mb-5'}>
-      <div role="status" className={cx('flex items-start gap-3 rounded-[10px] py-3.5 pr-4 pl-4', t.box)}>
+      <div role="status" className={cx('flex items-start gap-3 rounded-[var(--radius-chip)] py-3.5 pr-4 pl-4', t.box)}>
         <t.Glyph size={22} className={cx('mt-px shrink-0', t.icon)} />
         <div className="min-w-0">
-          <p className="text-[16px] leading-snug font-bold text-ink">{label}</p>
+          <p className="text-[17px] leading-snug font-bold text-ink">{label}</p>
           <p className="mt-0.5 text-[14px] leading-snug text-ink-2">{blurb}</p>
         </div>
       </div>

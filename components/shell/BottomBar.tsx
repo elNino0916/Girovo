@@ -55,7 +55,7 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
               </span>
               {/* Ink, not blue: blue under the bar marks where you ARE; the round
                   button already says what it does. */}
-              <span className="text-[12px] leading-none font-semibold text-ink">Überweisen</span>
+              <span className="text-[12.5px] leading-none font-semibold text-ink">Überweisen</span>
             </button>
           </li>
         )}
@@ -82,7 +82,7 @@ function BarItem({
         aria-current={current ? 'page' : undefined}
         aria-haspopup={haspopup ? 'dialog' : undefined}
         className={cx(
-          'row-focus relative flex flex-1 flex-col items-center justify-center gap-1 text-[12px] leading-none font-semibold transition-colors duration-150',
+          'row-focus relative flex flex-1 flex-col items-center justify-center gap-1 text-[12.5px] leading-none font-semibold transition-colors duration-150',
           current ? 'text-accent' : 'text-ink-2 active:text-ink',
         )}
       >

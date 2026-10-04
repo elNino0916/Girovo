@@ -317,8 +317,8 @@ export function ShareAccount() {
                   const n = parseAmount(text);
                   if (n != null && n > 0) setAmount(fmtAmountInput(n));
                 }}
-                className="amount text-right text-[18px] font-semibold"
-                trailing={<span aria-hidden className="pr-2.5 text-[16px] font-semibold text-ink-3">€</span>}
+                className="amount text-right text-[20px] font-semibold"
+                trailing={<span aria-hidden className="pr-2.5 text-[17px] font-semibold text-ink-3">€</span>}
               />
             </Field>
 

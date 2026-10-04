@@ -237,7 +237,7 @@ function Body({
 
       <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-line pt-3.5">
         <span className="text-[14px] font-semibold text-ink">Differenz</span>
-        <Money value={net} currency={currency} signed tone="credit" className="text-[18px] font-bold" />
+        <Money value={net} currency={currency} signed tone="credit" className="text-[20px] font-bold" />
       </div>
 
       {prevTotals && prevTotals.count > 0 && (

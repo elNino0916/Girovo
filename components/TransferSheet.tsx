@@ -779,7 +779,7 @@ export function TransferSheet() {
 
             <section aria-labelledby="tf-payee" className="mt-7">
               <div className="mb-3 flex min-h-9 items-center justify-between gap-3">
-                <h3 id="tf-payee" className="text-[16px] font-bold text-ink">Empfänger</h3>
+                <h3 id="tf-payee" className="section-head">Empfänger</h3>
                 <TemplatesMenu onPick={applyTemplate} onManage={() => setManaging(true)} />
               </div>
 
@@ -879,7 +879,7 @@ export function TransferSheet() {
             </section>
 
             <section aria-labelledby="tf-payment" className="mt-7">
-              <h3 id="tf-payment" className="mb-3 text-[16px] font-bold text-ink">Zahlung</h3>
+              <h3 id="tf-payment" className="section-head mb-3">Zahlung</h3>
               <div className="grid gap-x-4 sm:grid-cols-2">
                 <Field
                   label="Betrag"

@@ -114,7 +114,7 @@ export function Masthead() {
             <span className={LABEL_MID}>Suche</span>
             <kbd
               aria-hidden
-              className="hidden h-[22px] items-center rounded-[5px] border border-bar-line px-1.5 font-sans text-[12px] leading-none font-semibold text-bar-ink-2 @min-[1180px]/mast:inline-flex"
+              className="hidden h-[22px] items-center rounded-[5px] border border-bar-line px-1.5 font-sans text-[12.5px] leading-none font-semibold text-bar-ink-2 @min-[1180px]/mast:inline-flex"
             >
               Strg K
             </kbd>

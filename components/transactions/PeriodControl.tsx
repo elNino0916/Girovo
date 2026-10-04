@@ -164,7 +164,7 @@ function CustomRange({
         if (valid && !busy) onApply({ from, to });
       }}
     >
-      <p className="mb-3 text-[16px] font-bold text-headline">Eigener Zeitraum</p>
+      <p className="section-head mb-3">Eigener Zeitraum</p>
       <Field label="Von" error={fromError} className="mb-3">
         <Input type="date" value={from} max={to && to < today ? to : today} onChange={(e) => setFrom(e.target.value)} data-autofocus />
       </Field>

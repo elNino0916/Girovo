@@ -107,7 +107,7 @@ function InboxBody() {
 function SectionHead({ id, title, count }: { id: string; title: string; count: number }) {
   return (
     <div className="mb-3 flex items-center gap-2">
-      <h3 id={id} className="text-[16px] font-bold text-headline">{title}</h3>
+      <h3 id={id} className="section-head">{title}</h3>
       {count > 0 && <CountBadge count={count} />}
     </div>
   );

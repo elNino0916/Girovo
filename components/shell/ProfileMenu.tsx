@@ -180,7 +180,7 @@ function SessionPanel({
       <div className="flex items-center gap-3">
         <Avatar initials={initials} tone="page" />
         <div className="min-w-0">
-          <p className="truncate text-[16px] leading-snug font-bold text-ink">{holder || 'Sitzung'}</p>
+          <p className="truncate text-[17px] leading-snug font-bold text-headline">{holder || 'Sitzung'}</p>
           <p className="truncate text-[13px] leading-snug text-ink-3">{bank?.name ?? 'Angemeldet'}</p>
         </div>
       </div>

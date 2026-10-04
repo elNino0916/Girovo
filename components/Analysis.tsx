@@ -344,7 +344,7 @@ export function Analysis() {
                     : 'Braucht mindestens zwei volle Monate'
                 }
               >
-                {average ? <Money value={average.value} currency={data.currency} tone="plain" /> : <span className="text-[16px] font-semibold text-ink-3">Noch zu wenig Verlauf</span>}
+                {average ? <Money value={average.value} currency={data.currency} tone="plain" /> : <span className="text-[15px] font-semibold text-ink-3">Noch zu wenig Verlauf</span>}
               </Kpi>
             </dl>
             {showHistoryButton && (

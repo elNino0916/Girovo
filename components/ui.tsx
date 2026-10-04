@@ -1526,7 +1526,7 @@ export function Tag({
       title={title}
       className={cx(
         'inline-flex shrink-0 items-center gap-1 rounded-[6px] leading-none font-semibold whitespace-nowrap',
-        size === 'sm' ? 'h-5 px-1.5 text-[12px]' : 'h-6 px-2 text-[12.5px]',
+        size === 'sm' ? 'h-5 px-1.5 text-[12.5px]' : 'h-6 px-2 text-[12.5px]',
         TAG_TONES[tone],
         className,
       )}
@@ -2232,7 +2232,7 @@ export function EmptyState({
       ) : icon ? (
         <span className="grid size-12 place-items-center rounded-full bg-accent-soft text-accent">{icon}</span>
       ) : null}
-      {title && <p className={cx('text-[16px] font-bold text-ink', illustration || icon ? 'mt-3' : undefined)}>{title}</p>}
+      {title && <p className={cx('text-[17px] leading-snug font-bold text-ink', illustration || icon ? 'mt-3' : undefined)}>{title}</p>}
       {children && <div className="mt-1.5 max-w-[46ch] text-[14px] leading-relaxed text-ink-2">{children}</div>}
       {action && <div className="mt-4 flex flex-wrap justify-center gap-2">{action}</div>}
     </div>
@@ -2254,7 +2254,7 @@ export function ErrorState({
   return (
     <div role="alert" className={cx('flex flex-col items-center text-center', compact ? 'px-4 py-6' : 'px-6 py-10', className)}>
       <IllustrationArt name="error" />
-      <p className="mt-3 text-[16px] font-bold text-ink">{title}</p>
+      <p className="mt-3 text-[17px] leading-snug font-bold text-ink">{title}</p>
       {children && <div className="mt-1.5 max-w-[46ch] text-[14px] leading-relaxed text-ink-2">{children}</div>}
       {onRetry && (
         <Button size="sm" variant="secondary" className="mt-4" busy={busy} onClick={onRetry}>
@@ -2329,7 +2329,7 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
     <kbd
       className={cx(
         'inline-grid h-[22px] min-w-[22px] place-items-center rounded-[5px] border border-b-2 border-line-strong bg-surface px-1.5',
-        'font-sans text-[12px] leading-none font-semibold text-ink-2',
+        'font-sans text-[12.5px] leading-none font-semibold text-ink-2',
         className,
       )}
     >
