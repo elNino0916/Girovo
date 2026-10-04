@@ -132,8 +132,10 @@ function tidyAmount(text: string | null | undefined): string {
  */
 type Check =
   | { stage: 'statements'; startedAt: number }
-  | { stage: 'pending'; startedAt: number; statements: boolean }
-  | { stage: 'done'; at: number; statements: boolean; pending: boolean | null };
+  // statements: null — the account has no Umsätze over FinTS to read (a
+  // statement load for it settles at once, without going busy).
+  | { stage: 'pending'; startedAt: number; statements: boolean | null }
+  | { stage: 'done'; at: number; statements: boolean | null; pending: boolean | null };
 
 export function TransferSheet() {
   const {
@@ -374,8 +376,15 @@ export function TransferSheet() {
   const lookAgain = () => {
     if (!checkAccount || busy) return;
     checkStarted.current = false;
-    setCheck({ stage: 'statements', startedAt: Date.now() });
-    refreshAfterTransfer(checkAccount);
+    if (checkAccount.canStatements) {
+      setCheck({ stage: 'statements', startedAt: Date.now() });
+      refreshAfterTransfer(checkAccount);
+    } else if (checkAccount.canPending) {
+      setCheck({ stage: 'pending', startedAt: Date.now(), statements: null });
+      void loadPending(checkAccount);
+    } else {
+      setCheck({ stage: 'done', at: Date.now(), statements: null, pending: null });
+    }
   };
 
   // ---- filling the form ---------------------------------------------------
@@ -1208,7 +1217,8 @@ function CheckResult({
   sighting, statements, pending, at, name,
 }: {
   sighting: ReturnType<typeof findSentTransfer>;
-  statements: boolean;
+  /** null: the account has no Umsätze over FinTS to read. */
+  statements: boolean | null;
   /** null: the account has no Vorgemerkt list to read. */
   pending: boolean | null;
   at: number;
@@ -1226,11 +1236,11 @@ function CheckResult({
     );
   }
   const failed = [
-    !statements && 'Die Umsätze konnten gerade nicht abgerufen werden.',
+    statements === false && 'Die Umsätze konnten gerade nicht abgerufen werden.',
     pending === false && 'Die vorgemerkten Umsätze konnten gerade nicht abgerufen werden.',
   ].filter(Boolean) as string[];
   // Only what was actually read is named as searched.
-  const places = [statements && 'deinen Umsätzen', pending === true && 'den vorgemerkten Umsätzen'].filter(Boolean).join(' und ');
+  const places = [statements === true && 'deinen Umsätzen', pending === true && 'den vorgemerkten Umsätzen'].filter(Boolean).join(' und ');
   return (
     <Alert
       tone="warn"
@@ -1243,6 +1253,9 @@ function CheckResult({
           In {places} steht sie noch nicht (Stand <span className="tnum">{checked}</span>). Je nach Bank erscheint eine
           Überweisung erst später. Sieh später noch einmal nach oder prüfe es in deiner Banking-App.
         </span>
+      ) : statements === null && pending === null ? (
+        // Nothing this app could read for the account — trying again would not change that.
+        <span className="block">Für dieses Konto liefert deine Bank keine Umsätze an die App. Prüfe es in deiner Banking-App.</span>
       ) : (
         <span className="block">Versuche es gleich noch einmal oder prüfe es in deiner Banking-App.</span>
       )}
