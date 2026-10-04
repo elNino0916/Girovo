@@ -150,7 +150,22 @@ function TanWait() {
   return (
     <>
       <Overlay open labelledBy={titleId} describedBy={textId} initialFocus={headingRef}>
-        <Sheet size="sm" band={{ icon: <BandIcon phase={wait.phase} />, tone: 'navy' }}>
+        <Sheet
+          size="sm"
+          band={{ icon: <BandIcon phase={wait.phase} />, tone: 'navy' }}
+          // Below the scrolling body, so "Abbrechen" stays in reach in a
+          // short window while the order to compare scrolls.
+          footer={!confirmed ? (
+            <DialogActions align="center" className="">
+              <Button onClick={cancel}>{waiting ? 'Abbrechen' : 'Schließen'}</Button>
+              {offerRetry && (
+                <Button variant="primary" onClick={retryWait}>
+                  {refused || waiting ? 'Neue Anfrage senden' : 'Erneut versuchen'}
+                </Button>
+              )}
+            </DialogActions>
+          ) : undefined}
+        >
           <div className="text-center">
             {/* Title and sentence are the live part; the ticking counter below
                 is deliberately outside it, or it would talk every second. */}
@@ -262,17 +277,6 @@ function TanWait() {
                   <ul className="space-y-0.5">{answerLines.map((l) => <li key={l}>{l}</li>)}</ul>
                 )}
               </Alert>
-            )}
-
-            {!confirmed && (
-              <DialogActions align="center">
-                <Button onClick={cancel}>{waiting ? 'Abbrechen' : 'Schließen'}</Button>
-                {offerRetry && (
-                  <Button variant="primary" onClick={retryWait}>
-                    {refused || waiting ? 'Neue Anfrage senden' : 'Erneut versuchen'}
-                  </Button>
-                )}
-              </DialogActions>
             )}
           </div>
         </Sheet>
@@ -401,7 +405,7 @@ function WaitProgress({ startedAt, settledAt, limit, done, overdue }: {
   const elapsed = useSecondsSince(startedAt, settledAt);
   const share = done ? 1 : limit ? Math.min(1, elapsed / limit) : 0;
   return (
-    <div className="mt-6 text-left">
+    <div className="mt-6 text-left short:mt-4">
       <div className="flex items-center justify-between gap-3 text-[14px]">
         {done ? (
           <span className="flex items-center gap-2.5 font-semibold text-green">

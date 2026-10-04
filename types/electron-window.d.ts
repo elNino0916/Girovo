@@ -82,6 +82,19 @@ declare global {
     };
     /**
      * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Saves a file the app made (the CSV export) through a native Save-As
+     * and answers once it is written or the dialog was dismissed — see
+     * main.cjs's file:save handler and saveFile() in lib/download.ts.
+     */
+    electronFiles?: {
+      save: (suggestedName: string, bytes: Uint8Array) => Promise<
+        | { ok: true }
+        | { ok: false; canceled: true }
+        | { ok: false; error: string }
+      >;
+    };
+    /**
+     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
      * Synchronous preference storage in userData/prefs.json — the packaged
      * app's localStorage does not survive a restart (random port per start).
      * Keys must match /^fints\.[\w.-]{1,80}$/ and values be ≤ 4096 chars;

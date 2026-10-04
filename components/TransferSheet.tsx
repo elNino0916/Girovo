@@ -648,6 +648,7 @@ export function TransferSheet() {
         onClose={requestClose}
         closeDisabled={submitting}
         headerExtra={<Stepper current={STEP_INDEX[step]} unsure={step === 'unknown'} refused={step === 'refused'} />}
+        compactExtra
         scrollKey={step}
         onPaste={onPaste}
         {...drop.handlers}

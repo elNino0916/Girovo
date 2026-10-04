@@ -831,12 +831,53 @@ function OverlayLayer({
 const SHEET_WIDTHS = { sm: 'sm:max-w-[440px]', md: 'sm:max-w-[540px]', lg: 'sm:max-w-[680px]' } as const;
 
 /**
+ * Whether a scroller has content hidden below its visible part — the cue for
+ * the hairline a fixed footer draws over it (and above, for a fixed header).
+ * Also publishes the scroller's own scrollbar width as `--sbw` on it, so its
+ * content can hand that room back (see Panel). Re-measured on scroll, and
+ * whenever the scroller or its content changes size.
+ */
+export function useScrollEdges<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [edges, setEdges] = useState({ top: false, bottom: false });
+
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const top = el.scrollTop > 1;
+    const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+    el.style.setProperty('--sbw', `${Math.max(0, el.offsetWidth - el.clientWidth)}px`);
+    setEdges((e) => (e.top === top && e.bottom === bottom ? e : { top, bottom }));
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    // The content grows and shrinks (an error appears, a step changes)
+    // without the scroller itself changing size.
+    const inner = el.firstElementChild;
+    if (inner) ro?.observe(inner);
+    return () => ro?.disconnect();
+  }, [measure]);
+
+  return { ref, edges, measure };
+}
+
+/**
  * The panel of a centred dialog: 16px corners, a bottom sheet on phones.
  * `band` adds the navy header band with a centred pictogram — the dialog
  * form the reference uses for anything that needs your attention.
+ *
+ * `footer` (the dialog's buttons) stays put under the scrolling body, so in a
+ * short window the way out is never scrolled out of reach; a hairline marks
+ * it once there is more above it to scroll to. In a short window the band
+ * also slims down, giving its room to what the dialog says.
  */
 export function Sheet({
-  size, wide, band, onClose, closeLabel = 'Schließen', className, bodyClassName, children,
+  size, wide, band, onClose, closeLabel = 'Schließen', className, bodyClassName, footer, children,
 }: {
   size?: 'sm' | 'md' | 'lg';
   /** @deprecated use size="md". */
@@ -847,9 +888,12 @@ export function Sheet({
   closeLabel?: string;
   className?: string;
   bodyClassName?: string;
+  /** The actions row, fixed below the scrolling body (see DialogActions). */
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const navy = band && band.tone !== 'plain';
+  const { ref: bodyRef, edges, measure } = useScrollEdges<HTMLDivElement>();
   return (
     <div
       className={cx(
@@ -862,11 +906,14 @@ export function Sheet({
       {band && (
         <div
           aria-hidden
-          className={cx('grid h-[88px] shrink-0 place-items-center', navy ? 'bg-stage text-stage-ink dark:bg-bar' : 'bg-accent-soft text-accent')}
+          className={cx(
+            'grid h-[88px] shrink-0 place-items-center short:h-14',
+            navy ? 'bg-stage text-stage-ink dark:bg-bar' : 'bg-accent-soft text-accent',
+          )}
         >
           <span
             className={cx(
-              'grid size-12 place-items-center rounded-full',
+              'grid size-12 place-items-center rounded-full short:scale-[0.8]',
               navy ? 'bg-[color-mix(in_srgb,var(--stage-ink)_14%,transparent)]' : 'bg-surface',
             )}
           >
@@ -886,13 +933,30 @@ export function Sheet({
         </IconButton>
       )}
       <div
+        ref={bodyRef}
+        onScroll={measure}
         className={cx(
-          'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-7 sm:pt-7 sm:pb-7',
+          'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-6 sm:px-7 sm:pt-7 short:pt-5',
+          // With a footer the body keeps only room for a focus ring at its
+          // edge; the footer's own top padding is the gap to the buttons.
+          footer ? 'pb-1' : 'pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-7',
           bodyClassName,
         )}
       >
-        {children}
+        {/* One element, so the scroll edge hears the content change size. */}
+        <div>{children}</div>
       </div>
+      {footer && (
+        <div
+          className={cx(
+            'relative shrink-0 px-5 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] transition-shadow duration-150 sm:px-7 sm:pb-7',
+            'short:pt-3 short:pb-[max(1rem,env(safe-area-inset-bottom))] sm:short:pb-5',
+            edges.bottom && 'shadow-[0_-1px_0_var(--line)]',
+          )}
+        >
+          {footer}
+        </div>
+      )}
     </div>
   );
 }
@@ -928,7 +992,9 @@ export function DialogHeader({
 /**
  * The button row at the foot of a dialog. Primary goes LAST in the markup:
  * rightmost on desktop, topmost (closest to the thumb's reach and the eye)
- * when the row stacks on a phone.
+ * when the row stacks on a phone. Hand it to Sheet as its `footer` (Dialog
+ * does), with `className=""`, so it stays in view however far the dialog's
+ * text has to scroll in a short window.
  */
 export function DialogActions({
   children, align = 'end', className,
@@ -971,17 +1037,22 @@ export function Dialog({
   const descId = description ? `dlg${id}-desc` : undefined;
   return (
     <Overlay open={open} onClose={onClose} onBackdrop={onBackdrop} labelledBy={titleId} describedBy={descId} initialFocus={initialFocus} fallbackFocus={fallbackFocus}>
-      <Sheet size={size} band={band} onClose={band ? onClose : undefined}>
+      <Sheet
+        size={size}
+        band={band}
+        onClose={band ? onClose : undefined}
+        footer={actions ? <DialogActions align={band ? 'center' : 'end'} className="">{actions}</DialogActions> : undefined}
+      >
         <DialogHeader
           title={title}
           titleId={titleId}
           icon={band ? undefined : icon}
           onClose={band ? undefined : onClose}
           description={description ? <span id={descId}>{description}</span> : undefined}
-          className={band ? 'mb-4 text-center' : undefined}
+          // Nothing follows the header but the pinned buttons: no gap to keep.
+          className={cx(band && 'text-center', children ? (band ? 'mb-4' : 'mb-5') : 'mb-0')}
         />
         {children}
-        {actions && <DialogActions align={band ? 'center' : 'end'}>{actions}</DialogActions>}
       </Sheet>
     </Overlay>
   );

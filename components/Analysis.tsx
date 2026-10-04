@@ -369,46 +369,39 @@ export function Analysis() {
         </section>
       ) : (
         // Two independent columns on wide screens, so a long category list
-        // doesn't leave a hole under the month chart; one column on phones in
-        // reading order (display: contents lets the order classes reach the tiles).
+        // doesn't leave a hole under the month chart. Narrower, the columns
+        // stack one after the other — the order of the markup, which is also
+        // the order Tab and a screen reader take at every width.
         <div
           className="flex flex-col gap-4 transition-opacity duration-200 sm:gap-6 desk:grid desk:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)] desk:items-start"
           style={{ opacity: loading ? 0.55 : 1 }}
           aria-busy={loading || undefined}
         >
-          <div className="contents desk:flex desk:flex-col desk:gap-6">
-            <div className="order-1">
-              <CategoryBreakdown
-                rows={totals.byCategory}
-                total={totals.expense}
-                currency={data.currency}
-                subtitle={pLabel}
-                onShow={showCategory}
-              />
-            </div>
-            <div className="order-4">
-              <LargestExpenses
-                items={figures.biggest}
-                subtitle={`ohne Verträge, Abos und Bargeld · ${pLabel}`}
-                categoryName={categoryName}
-                onShow={showBooking}
-              />
-            </div>
+          <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
+            <CategoryBreakdown
+              rows={totals.byCategory}
+              total={totals.expense}
+              currency={data.currency}
+              subtitle={pLabel}
+              onShow={showCategory}
+            />
+            <LargestExpenses
+              items={figures.biggest}
+              subtitle={`ohne Verträge, Abos und Bargeld · ${pLabel}`}
+              categoryName={categoryName}
+              onShow={showBooking}
+            />
           </div>
-          <div className="contents desk:flex desk:flex-col desk:gap-6">
-            <div className="order-2">
-              <MonthlyComparison months={months} currency={data.currency} selected={period} onSelect={choosePeriod} />
-            </div>
-            <div className="order-3">
-              <TopPayees
-                payees={figures.payees}
-                expense={totals.expense}
-                currency={data.currency}
-                subtitle={`nach Ausgaben · ${pLabel}`}
-                categoryName={categoryName}
-                onShow={showPayee}
-              />
-            </div>
+          <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
+            <MonthlyComparison months={months} currency={data.currency} selected={period} onSelect={choosePeriod} />
+            <TopPayees
+              payees={figures.payees}
+              expense={totals.expense}
+              currency={data.currency}
+              subtitle={`nach Ausgaben · ${pLabel}`}
+              categoryName={categoryName}
+              onShow={showPayee}
+            />
           </div>
         </div>
       )}

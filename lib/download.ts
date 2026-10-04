@@ -1,10 +1,12 @@
 // Handing the user a file — a CSV export, a GiroCode PNG.
 //
-// Always a Blob behind an object URL and an <a download>: in a browser that
-// is a normal download, and in the desktop shell it is what Electron turns
-// into its Save-As dialog. Never a navigation to a data: URL — Chromium
-// blocks top-level data: navigations, and the shell would load the file
-// into the app window instead of saving it.
+// A Blob behind an object URL and an <a download>: in a browser a normal
+// download, which the browser itself confirms, and in the desktop shell what
+// Electron turns into its Save-As dialog. Never a navigation to a data: URL
+// — Chromium blocks top-level data: navigations, and the shell would load the
+// file into the app window instead of saving it. saveFile() goes through the
+// desktop shell's own Save-As instead, so the page learns whether the file
+// was actually written before it says so.
 
 /**
  * A file name every OS accepts: no path separators, none of the characters
@@ -62,7 +64,40 @@ export function textBlob(text: string, mime = 'text/plain;charset=utf-8'): Blob 
   return new Blob([text], { type: mime });
 }
 
-/** Saves text as a file — e.g. `downloadText(name, csv, 'text/csv;charset=utf-8')`. */
-export function downloadText(filename: string, text: string, mime = 'text/plain;charset=utf-8'): void {
-  downloadBlob(filename, textBlob(text, mime));
+/**
+ * How a save ended. `saved`: the file is on disk (the desktop shell wrote
+ * it). `canceled`: the user dismissed the Save-As. `handed-over`: a browser
+ * download — whether and where it lands is the browser's to say, and it
+ * says so itself.
+ */
+export type SaveOutcome = 'saved' | 'canceled' | 'handed-over';
+
+/** What the desktop shell's file:save answers (electron/main.cjs). */
+export type ShellSaveResult = { ok: true } | { ok: false; canceled: true } | { ok: false; error: string };
+
+const SAVE_FAILED = 'Die Datei konnte nicht gespeichert werden.';
+
+/**
+ * Saves a Blob as a file and says how that ended, so a "gespeichert" is only
+ * ever said for a file that exists. In the desktop shell that is its own
+ * Save-As (window.electronFiles, electron/preload.cjs); elsewhere a normal
+ * download. Throws with a message for the user when the shell could not
+ * write the file.
+ */
+export async function saveFile(filename: string, blob: Blob): Promise<SaveOutcome> {
+  const name = safeFileName(filename);
+  const shell = typeof window === 'undefined' ? undefined : window.electronFiles;
+  if (!shell) {
+    downloadBlob(name, blob);
+    return 'handed-over';
+  }
+  let res: ShellSaveResult;
+  try {
+    res = await shell.save(name, new Uint8Array(await blob.arrayBuffer()));
+  } catch {
+    throw new Error(SAVE_FAILED);
+  }
+  if (res.ok) return 'saved';
+  if ('canceled' in res) return 'canceled';
+  throw new Error(res.error || SAVE_FAILED);
 }

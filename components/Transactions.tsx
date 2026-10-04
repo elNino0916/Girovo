@@ -306,7 +306,7 @@ export function Transactions() {
                   {loading ? <Spinner size={16} /> : <RefreshIcon size={18} />}
                 </IconButton>
               )}
-              <ExportMenu loaded={loaded} all={sorted} filtered={filtered} filterActive={filterCount > 0} days={days} />
+              <ExportMenu loaded={loaded} all={sorted} filtered={filtered} />
             </div>
           </div>
 

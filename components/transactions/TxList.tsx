@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import type { MouseEvent } from 'react';
 import type { CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { Money } from '../Money';
@@ -61,6 +62,16 @@ export function TxList({
     rootRef.current?.querySelectorAll<HTMLElement>('[data-tx-row]')[i]?.focus({ preventScroll: true });
   }, [limit]);
 
+  // Every row is a Tab stop, the way an online-banking Umsatzliste works —
+  // so the list starts with a way past it. It appears only once focused, and
+  // puts the next Tab after the last row shown.
+  const endRef = useRef<HTMLSpanElement>(null);
+  const skipList = (e: MouseEvent) => {
+    e.preventDefault();
+    endRef.current?.scrollIntoView({ block: 'center' });
+    endRef.current?.focus({ preventScroll: true });
+  };
+
   let budget = limit;
   const visible: DayGroup[] = [];
   for (const g of groups) {
@@ -71,7 +82,16 @@ export function TxList({
   const rest = total - Math.min(total, limit);
 
   return (
-    <div id={id} ref={rootRef}>
+    <div id={id} ref={rootRef} className="relative">
+      <a
+        href={`#${id}-end`}
+        onClick={skipList}
+        // not-sr-only also zeroes the padding; the pill gets it back. Above
+        // the sticky day band it would otherwise sit under.
+        className="sr-only rounded-full bg-accent text-[13.5px] font-semibold text-accent-ink focus:not-sr-only focus:absolute focus:top-1 focus:left-3 focus:z-10 focus:px-4! focus:py-1.5! focus:whitespace-nowrap"
+      >
+        Liste überspringen
+      </a>
       {visible.map((g) => (
         <section key={g.key} aria-labelledby={`${id}-${g.key}`}>
           <div className="sticky top-0 z-5 flex min-h-9 items-center gap-2 bg-inset px-4 py-1.5 sm:px-5">
@@ -124,6 +144,12 @@ export function TxList({
           </ul>
         </section>
       ))}
+
+      {/* Where "Liste überspringen" leads: after the last row shown, before
+          the way to show more. */}
+      <span id={`${id}-end`} ref={endRef} tabIndex={-1} className="sr-only">
+        Ende der Umsatzliste{rest > 0 ? `, ${total - rest} von ${total} angezeigt` : ''}
+      </span>
 
       {rest > 0 && (
         <div className="flex flex-col items-center gap-1 border-t border-line px-4 py-5">

@@ -9,6 +9,11 @@
 //
 // Finished steps are filled, the current one is a ring, open ones are grey
 // outlines — distinguishable by shape as well as colour, in both themes.
+// Drawn in navy, not Signal Blue: progress cannot be pressed, and blue is
+// what can (DESIGN.md, the One Signal Rule).
+//
+// In a short window the marks alone remain — the sheet's title already names
+// the step — so the row fits beside the title (see Panel's compactExtra).
 
 import { CheckIcon, CloseIcon } from '../icons';
 import { cx } from '../ui';
@@ -28,7 +33,7 @@ export function Stepper({
 }) {
   const last = TRANSFER_STEPS.length - 1;
   return (
-    <ol aria-label="Fortschritt der Überweisung" className={cx('flex items-center gap-2', className)}>
+    <ol aria-label="Fortschritt der Überweisung" className={cx('flex items-center gap-2 short:gap-1.5', className)}>
       {TRANSFER_STEPS.map((label, i) => {
         // Reaching "Fertig" with a known outcome completes it; an unknown
         // outcome leaves it current, marked with a question mark. A refusal
@@ -41,14 +46,18 @@ export function Stepper({
             key={label}
             aria-current={i === current ? 'step' : undefined}
             // The current step keeps its whole word; the others may shrink.
-            className={cx('flex items-center gap-2', i < last && 'flex-1', i < last && i !== current && 'min-w-0')}
+            className={cx(
+              'flex items-center gap-2 short:gap-1.5',
+              i < last && 'flex-1',
+              i < last && i !== current && 'min-w-0',
+            )}
           >
             <span
               aria-hidden
               className={cx(
-                'tnum grid size-6 shrink-0 place-items-center rounded-full text-[12px] leading-none font-bold',
-                done && 'bg-accent text-accent-ink',
-                here && !unsure && !refused && 'border-2 border-accent bg-raised text-accent',
+                'tnum grid size-6 shrink-0 place-items-center rounded-full text-[12px] leading-none font-bold short:size-5 short:text-[11px]',
+                done && 'bg-headline text-raised',
+                here && !unsure && !refused && 'border-2 border-headline bg-raised text-headline',
                 here && unsure && 'border-2 border-ink-3 bg-raised text-ink-2',
                 here && refused && 'border-2 border-red bg-raised text-red',
                 !done && !here && 'border-[1.5px] border-line-strong text-ink-3',
@@ -62,7 +71,7 @@ export function Stepper({
             <span
               aria-hidden
               className={cx(
-                'text-[13px] leading-none whitespace-nowrap',
+                'text-[13px] leading-none whitespace-nowrap short:hidden',
                 i === current ? 'font-semibold text-ink' : 'hidden font-medium sm:inline',
                 i !== current && (done ? 'text-ink-2' : 'text-ink-3'),
               )}
@@ -72,7 +81,7 @@ export function Stepper({
             {i < last && (
               <span
                 aria-hidden
-                className={cx('h-[2px] min-w-3 flex-1 rounded-full', i < current ? 'bg-accent' : 'bg-line-strong')}
+                className={cx('h-[2px] min-w-3 flex-1 rounded-full short:min-w-2', i < current ? 'bg-headline' : 'bg-line-strong')}
               />
             )}
           </li>
