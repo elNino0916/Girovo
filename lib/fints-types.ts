@@ -239,7 +239,7 @@ export type TransferResponse =
 export type MetaResponse = {
   productRegistered: boolean;
   bankCount: number;
-  /** Whether counterparty names may be matched against Brandfetch for logos. */
+  /** Whether this build offers company logos via Brandfetch. Whether the user agreed is theirs to say (logoConsent). */
   merchantLogos: boolean;
 };
 

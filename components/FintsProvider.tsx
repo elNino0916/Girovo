@@ -76,6 +76,12 @@ export type LogoutReason = 'user' | 'idle' | 'expired';
 export const IDLE_MINUTE_CHOICES = [5, 10, 15, 30] as const;
 export type IdleMinutes = (typeof IDLE_MINUTE_CHOICES)[number];
 
+/**
+ * The user's answer to "Firmenlogos anzeigen?". No name goes to the logo
+ * service until it is 'on'. Kept per machine, with the other preferences.
+ */
+export type LogoConsent = 'unasked' | 'on' | 'off';
+
 /** A snapshot of what to render on the print-only Kontoauszug/receipt sheet. */
 export type PrintJob =
   | {
@@ -466,6 +472,8 @@ function useFintsState() {
   const [idleMinutes, setIdleMinutesState] = useState<IdleMinutes>(DEFAULT_IDLE_MINUTES);
   /** Shortcuts on one unmodified key (/, ?, N, B, G, 1–9). On unless turned off. */
   const [singleKeyShortcuts, setSingleKeyShortcutsState] = useState(true);
+  /** Company logos: off until the user answers the dashboard's one-time question. */
+  const [logoConsent, setLogoConsentState] = useState<LogoConsent>('unasked');
 
   // Session clock.
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
@@ -513,6 +521,10 @@ function useFintsState() {
   const waitRef = useRef<WaitState>(IDLE_WAIT);
   /** Names already sent for logo lookup — each is attempted once per session. */
   const merchantsAsked = useRef<Set<string>>(new Set());
+  const logoConsentRef = useRef<LogoConsent>('unasked');
+  /** The Vorgemerkt lists, for the logo lookup that catches up after a yes. */
+  const pendingFetchedRef = useRef(pendingFetched);
+  pendingFetchedRef.current = pendingFetched;
   const waitCbRef = useRef<WaitCallbacks>({});
   /**
    * Bumped whenever a wait starts, closes or the session ends. A poll that
@@ -554,6 +566,8 @@ function useFintsState() {
   const readySidRef = useRef<string | null>(null);
 
   const logoutRef = useRef<(reason?: LogoutReason) => Promise<void>>(async () => {});
+  /** For the "Gerät gemerkt" toast, which is set up before forgetDevice exists. */
+  const forgetDeviceRef = useRef<() => Promise<void>>(async () => {});
 
   sessionRef.current = sessionId;
   accountsRef.current = accounts;
@@ -630,6 +644,11 @@ function useFintsState() {
       setIdleMinutesState(idle);
     }
     if (store.get('fints.singleKeys') === '0') setSingleKeyShortcutsState(false);
+    const logos = store.get('fints.merchantLogos');
+    if (logos === 'on' || logos === 'off') {
+      logoConsentRef.current = logos;
+      setLogoConsentState(logos);
+    }
   }, []);
 
   useEffect(() => () => {
@@ -801,8 +820,12 @@ function useFintsState() {
   // Decoration, so it runs outside the `busy` gate that serialises bank calls
   // and never blocks or fails a statement. Each counterparty is asked about
   // once per session; the server caches misses too.
+  //
+  // Names leave the machine for Brandfetch only once the user has said yes:
+  // until then every lookup is held (not queued — setLogoConsent catches up
+  // on what is loaded by then), and a build without the feature never asks.
   const resolveMerchants = useCallback(async (txs: SerializedTransaction[]) => {
-    if (!metaRef.current?.merchantLogos) return;
+    if (!metaRef.current?.merchantLogos || logoConsentRef.current !== 'on') return;
     const sid = sessionRef.current;
     // Every counterparty is offered, whatever the booking type — a salary from
     // a named employer deserves its mark too. What the booking decides is only
@@ -831,7 +854,8 @@ function useFintsState() {
       const found = await post<MerchantsResponse>('/api/merchants', {
         sessionId: sid, items, businessNames: [...business],
       });
-      if (!isCurrent(sid)) return;
+      // Switched off while the lookup ran: its logos stay unshown.
+      if (!isCurrent(sid) || logoConsentRef.current !== 'on') return;
       setMerchants((m) => ({ ...m, ...found }));
     } catch { /* a missing logo is not worth surfacing */ }
   }, [isCurrent]);
@@ -1366,6 +1390,28 @@ function useFintsState() {
     store.set('fints.singleKeys', on ? '1' : '0');
   }, []);
 
+  /**
+   * The answer to "Firmenlogos anzeigen?" (the dashboard asks once), or the
+   * Sitzung panel's switch. Yes looks up what is loaded already. No drops
+   * every logo of this session at once, so the logo proxy is not asked for
+   * one again either.
+   */
+  const setLogoConsent = useCallback((on: boolean) => {
+    const next: LogoConsent = on ? 'on' : 'off';
+    logoConsentRef.current = next;
+    setLogoConsentState(next);
+    store.set('fints.merchantLogos', next);
+    if (on) {
+      void resolveMerchants([
+        ...Object.values(txCacheRef.current).flatMap((c) => c.txs),
+        ...Object.values(pendingFetchedRef.current).flatMap((p) => p.txs),
+      ]);
+    } else {
+      setMerchants({});
+      merchantsAsked.current.clear();
+    }
+  }, [resolveMerchants]);
+
   // ---- navigation & launchers ---------------------------------------------
   const setTab = useCallback((t: DashboardTab) => setTabState(t), []);
   const setInboxOpen = useCallback((b: boolean) => setInboxOpenState(b), []);
@@ -1482,9 +1528,14 @@ function useFintsState() {
     void loadVault(sid);
   }, [startSessionClock, setAppliedRange, toast, loadTransactions, loadVault]);
 
+  // Said after the fact, so the way back is right there: on a shared
+  // computer "Gerät vergessen" is one press, not a trip to the Sitzung panel.
   const notifyDeviceSaved = useCallback(() => {
     setDeviceRemembered(true);
-    toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 6000);
+    toast('Gerät gemerkt — künftige Anmeldungen brauchen seltener eine TAN.', 'info', 10_000, {
+      label: 'Gerät vergessen',
+      run: () => void forgetDeviceRef.current(),
+    });
   }, [toast]);
 
   const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string) => {
@@ -1608,6 +1659,7 @@ function useFintsState() {
       toast((err as Error).message, 'error');
     }
   }, [toast, wipeVaultWith]);
+  forgetDeviceRef.current = forgetDevice;
 
   /** Everything a session owns, back to its pre-login state. Preferences stay. */
   const resetSession = useCallback(() => {
@@ -2106,6 +2158,7 @@ function useFintsState() {
     vault, vaultStatus,
     // prefs
     privacy, idleMinutes, singleKeyShortcuts,
+    logoConsent,
     // session
     sessionStartedAt, idleDeadline,
     // navigation & launchers
@@ -2119,6 +2172,7 @@ function useFintsState() {
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
     retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
+    setLogoConsent,
     setTab, setTxFilter, showTransactions,
     openTransfer, closeTransfer, openShare, closeShare,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,

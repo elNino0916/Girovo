@@ -146,8 +146,10 @@ The owner sees the position as the combination of three claims (confirmed
   into release builds from `config.json`.
 - Two outside requests exist besides the bank, and both are disclosed and can
   be switched off:
-  - Brandfetch, which receives cleaned company names only, and only with a
-    client ID configured
+  - Brandfetch, which receives cleaned company names only. Off until the user
+    agrees (owner decision, 2026-10-04): the app asks once, before the first
+    lookup, and the Sitzung panel switches it. Builds without a client ID never
+    offer it.
   - the update check, which goes to GitHub
 - Fonts are self-hosted.
 - A transfer whose outcome is unclear is never resent automatically.

@@ -6,6 +6,7 @@
 // on the same tokens as the dashboard behind it.
 
 import type { CSSProperties, ReactNode } from 'react';
+import { useFints } from '../FintsProvider';
 import { ThemeToggle } from '../ThemeToggle';
 import { CheckIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../icons';
 import { cx } from '../ui';
@@ -152,47 +153,63 @@ function StepIndicator({ current }: { current: AuthStep }) {
 }
 
 /**
+ * The company-logo sentence, the same at every width: the only lookup besides
+ * the bank that would carry anything from the user's bookings, so it names
+ * the service and says what goes there. Null in a build that does not offer it.
+ */
+function useLogoLine(offered?: boolean): string | null {
+  const { meta, logoConsent } = useFints();
+  if (!(offered ?? meta?.merchantLogos)) return null;
+  if (logoConsent === 'on') return 'Für Firmenlogos gehen Firmennamen an den Dienst Brandfetch – abschaltbar im Sitzungsmenü.';
+  if (logoConsent === 'off') return 'Firmenlogos über den Dienst Brandfetch hast du ausgeschaltet.';
+  return 'Firmenlogos gibt es nur, wenn du zustimmst. Dafür gehen Firmennamen an den Dienst Brandfetch.';
+}
+
+/**
  * What happens to the credentials, said once in the wide layout's side tile.
- * Honest about the outside lookups the app can make: with company logos
- * switched on, payee names (and nothing else) go to the logo service; with
- * the desktop app's update check on, its version number goes to GitHub.
+ * Honest about what is kept on this machine and about every outside lookup
+ * the app can make: company names to Brandfetch only with the user's yes, and
+ * with the desktop app's update check on, its version number to GitHub.
  */
 export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
+  const { logoConsent } = useFints();
   const { state: update } = useUpdates();
   const updateChecks = !!update?.auto && update.kind !== 'dev';
-  const outside = merchantLogos && updateChecks
-    ? 'Nach draußen gehen nur Namen von Zahlungspartnern (für Firmenlogos) und die Versionsnummer der App (für Updates).'
-    : merchantLogos
-      ? 'Für Firmenlogos wird nur der Name des Zahlungspartners nachgeschlagen.'
-      : updateChecks
-        ? 'Nach Updates fragt die App bei GitHub nur mit ihrer Versionsnummer.'
-        : null;
+  const logoLine = useLogoLine(merchantLogos);
+  const outside = [
+    updateChecks ? 'Nach Updates fragt die App bei GitHub, nur mit ihrer Versionsnummer.' : '',
+    logoLine ?? '',
+  ].filter(Boolean).join(' ');
+  // Nothing leaves the machine but bank traffic — now, and without a yes.
+  const nothingOut = !updateChecks && (!logoLine || logoConsent === 'off');
   const points: { icon: ReactNode; title: string; text: string }[] = [
     {
       icon: <LockIcon size={18} />,
-      title: 'PIN nur im Arbeitsspeicher',
-      text: 'Sie wird nie gespeichert und mit der Abmeldung verworfen.',
+      title: 'Deine PIN wird nie gespeichert',
+      text: 'Sie bleibt nur im Arbeitsspeicher und ist mit der Abmeldung weg.',
     },
     {
       icon: <LandmarkIcon size={18} />,
       title: 'Direkte Verbindung',
-      text: 'Von diesem Rechner direkt zu deiner Bank, über FinTS 3.0.',
+      text: 'Von diesem Rechner direkt zu deiner Bank, über ihren FinTS-Zugang.',
     },
     {
+      // Said before the fact: the app does not ask, it announces.
       icon: <ShieldIcon size={18} check />,
-      title: 'Gemerktes Gerät verschlüsselt',
-      text: 'Merkt sich die App dein Gerät, sind die Daten mit deiner PIN verschlüsselt.',
+      title: 'Dieses Gerät wird gemerkt',
+      text: 'Nach der Anmeldung merkt sich die App diesen Rechner, mit deiner PIN verschlüsselt – deine Bank fragt dann '
+        + 'seltener nach einer Freigabe. Teilst du den Rechner, wähle danach im Sitzungsmenü „Gerät vergessen“.',
     },
-    outside
+    nothingOut
       ? {
           icon: <EyeOffIcon size={18} />,
-          title: 'Kein Tracking',
-          text: `Keine Werbung, keine Analyse. ${outside}`,
+          title: 'Keine Daten an Dritte',
+          text: ['Keine Werbung, keine Analyse, keine Weitergabe.', outside].filter(Boolean).join(' '),
         }
       : {
           icon: <EyeOffIcon size={18} />,
-          title: 'Keine Daten an Dritte',
-          text: 'Keine Werbung, keine Analyse, keine Weitergabe.',
+          title: 'Kein Tracking',
+          text: `Keine Werbung, keine Analyse. ${outside}`,
         },
   ];
 
@@ -216,14 +233,19 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
   );
 }
 
-/** The narrow layout's version of the side tile: one line under the form. */
+/**
+ * The narrow layout's version of the side tile, under the form. Short, but
+ * nothing the side tile discloses is left out of it: the device it remembers
+ * and the one lookup that could carry booking data.
+ */
 export function PrivacyNote() {
+  const logoLine = useLogoLine();
   return (
     <p className="mt-6 flex items-start gap-2.5 border-t border-line pt-5 text-[13px] leading-snug text-ink-3 lg:hidden">
       <ShieldIcon size={16} className="mt-px shrink-0" />
       <span>
-        Deine PIN bleibt nur im Arbeitsspeicher und wird nie gespeichert. Die Verbindung läuft direkt von
-        diesem Rechner zu deiner Bank.
+        Deine PIN wird nie gespeichert, die Verbindung läuft direkt zu deiner Bank. Nach der Anmeldung merkt sich
+        die App dieses Gerät, mit deiner PIN verschlüsselt.{logoLine && ` ${logoLine}`}
       </span>
     </p>
   );

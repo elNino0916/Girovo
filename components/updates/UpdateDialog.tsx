@@ -286,7 +286,7 @@ function AutoCheck({ state }: { state: UpdateState }) {
         checked={state.auto}
         onChange={(on) => void updates.setAuto(on)}
         label="Automatisch nach Updates suchen"
-        description="Beim Start und alle sechs Stunden. Die Anfrage an GitHub enthält nur die Versionsnummer der App – nichts über dich oder deine Konten."
+        description="Beim Start und alle sechs Stunden. Die Anfrage an GitHub enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht GitHub dabei deine IP-Adresse – nichts über deine Konten."
       />
     </div>
   );
