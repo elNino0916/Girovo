@@ -9,7 +9,7 @@
 // scroll out of sight. The edges only draw a hairline once something is
 // actually scrolled under them, so a sheet that fits looks like one surface.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ComponentProps, ReactNode, Ref } from 'react';
 import { CloseIcon } from '../icons';
 import { IconButton, cx } from '../ui';
@@ -18,7 +18,7 @@ const WIDTHS = { md: 'sm:max-w-[560px]', lg: 'sm:max-w-[720px]' } as const;
 
 export function Panel({
   size = 'md', title, titleId, titleRef, eyebrow, onClose, closeDisabled, headerExtra, footer, children, className, bodyClassName,
-  ...rest
+  scrollKey, ...rest
 }: Omit<ComponentProps<'div'>, 'title'> & {
   size?: keyof typeof WIDTHS;
   title: ReactNode;
@@ -33,6 +33,12 @@ export function Panel({
   headerExtra?: ReactNode;
   footer?: ReactNode;
   bodyClassName?: string;
+  /**
+   * The body scrolls back to its top whenever this changes — a new step
+   * starts at its beginning, where its warnings are, not at the scroll
+   * offset the last step was left at.
+   */
+  scrollKey?: string | number;
 }) {
   const body = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ top: false, bottom: false });
@@ -49,6 +55,14 @@ export function Panel({
     el.style.setProperty('--sbw', `${Math.max(0, el.offsetWidth - el.clientWidth)}px`);
     setEdges((e) => (e.top === top && e.bottom === bottom ? e : { top, bottom }));
   }, []);
+
+  // Before paint, so the new step is never seen scrolled.
+  useLayoutEffect(() => {
+    const el = body.current;
+    if (!el || scrollKey === undefined) return;
+    el.scrollTop = 0;
+    measure();
+  }, [scrollKey, measure]);
 
   useEffect(() => {
     const el = body.current;

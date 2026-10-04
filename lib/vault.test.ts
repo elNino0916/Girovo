@@ -160,6 +160,21 @@ test('updatedAt is normalised to ISO or falls back to the epoch', () => {
   assert.equal(vault.sanitizeVault({ version: 1, updatedAt: 'gestern' })?.updatedAt, EMPTY_VAULT.updatedAt);
 });
 
+test('sent orders: two weeks kept, older and malformed ones dropped', () => {
+  const now = Date.UTC(2026, 9, 4, 12);
+  const sent = (daysAgo: number, over: Record<string, unknown> = {}) => ({
+    at: new Date(now - daysAgo * 86_400_000).toISOString(), accountNumber: '1234567890', iban: IBAN, cents: 5000, outcome: 'unknown', ...over,
+  });
+  const out = vault.sanitizeVault(base({
+    sentOrders: [sent(1), sent(20), sent(2, { cents: -1 }), sent(3, { name: 'Lea Becker' })] as never,
+  }), now);
+  assert.ok(out);
+  assert.equal(out.sentOrders.length, 2);
+  assert.equal('name' in out.sentOrders[1], false);
+  // A vault from before the log existed reads as an empty log.
+  assert.deepEqual(vault.sanitizeVault({ version: 1 })?.sentOrders, []);
+});
+
 // ---------------------------------------------------------------------------
 // The file round trip
 // ---------------------------------------------------------------------------
@@ -170,6 +185,9 @@ const FULL = base({
   categoryRules: { [`iban:${IBAN}`]: 'housing' },
   txCategories: { '2026-10-02|-12.90|DE02120300000000202051|E1': 'groceries' },
   dismissedRecurring: ['rec:abc'],
+  sentOrders: [{
+    at: new Date(Date.now() - 3_600_000).toISOString(), accountNumber: '1234567890', iban: IBAN, cents: 85_000, outcome: 'executed',
+  }],
 });
 
 const owner = fakeSession('13579');
@@ -194,9 +212,9 @@ test('save then load returns the sanitised data with a server timestamp', async 
   assert.deepEqual(again, got);
 });
 
-test('the file on disk is sealed: no IBAN, no alias in sight', () => {
+test('the file on disk is sealed: no IBAN, no alias, no sent order in sight', () => {
   const raw = fs.readFileSync(vaultFile(), 'utf8');
-  assert.ok(!raw.includes(IBAN) && !raw.includes('Haushaltskonto') && !raw.includes('housing'));
+  assert.ok(!raw.includes(IBAN) && !raw.includes('Haushaltskonto') && !raw.includes('housing') && !raw.includes('85000'));
   const box = parseBox(JSON.parse(raw));
   assert.ok(box);
   // AAD-bound: the profile's plain open must not accept it.

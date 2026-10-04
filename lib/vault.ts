@@ -25,6 +25,8 @@
 //   - Everything is sanitised on the way in *and* out. Every future version of
 //     the client shares this store, and a shape it doesn't know must never
 //     reach a view.
+//   - The log of sent transfers (lib/sent-orders.ts) only keeps two weeks:
+//     older entries are dropped whenever the vault is read or written.
 //
 // No 'server-only' marker: like state-store.ts it needs node:fs, which already
 // keeps it out of any client bundle, and leaving the marker off lets
@@ -42,6 +44,7 @@ import type { Session } from './session';
 import { EMPTY_VAULT } from './app-types.ts';
 import { isCategoryId } from './categories.ts';
 import { boxSalt, deriveKey, newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
+import { sanitizeSentOrders } from './sent-orders.ts';
 import { STATE_DIR } from './state-store.ts';
 
 /**
@@ -217,9 +220,10 @@ const category = (raw: unknown): CategoryId | null => (isCategoryId(raw) ? raw :
 /**
  * The vault as this server version understands it, or null when `input` is not
  * a vault at all (wrong type or version). Unknown keys are dropped, strings
- * clipped, IBANs and category ids validated, collections capped.
+ * clipped, IBANs and category ids validated, collections capped, sent orders
+ * older than two weeks (at `now`) pruned.
  */
-export function sanitizeVault(input: unknown): VaultData | null {
+export function sanitizeVault(input: unknown, now = Date.now()): VaultData | null {
   if (!isRecord(input) || input.version !== 1) return null;
   const dismissed = Array.isArray(input.dismissedRecurring)
     ? [...new Set(input.dismissedRecurring.filter((d): d is string => keyOk(d, VAULT_LIMITS.key)))]
@@ -233,6 +237,7 @@ export function sanitizeVault(input: unknown): VaultData | null {
       /^(cred|iban|name):/.test(k) ? category(raw) : null),
     txCategories: capMap(input.txCategories, VAULT_LIMITS.txCategories, VAULT_LIMITS.key, category),
     dismissedRecurring: dismissed.slice(-VAULT_LIMITS.dismissed),
+    sentOrders: sanitizeSentOrders(input.sentOrders, now),
     updatedAt: iso(input.updatedAt) ?? EMPTY_VAULT.updatedAt,
   };
 }

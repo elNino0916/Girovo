@@ -11,6 +11,10 @@
 // The name goes in exactly as the bank stores the account holder, because the
 // payer's bank compares it against that very record (Namensabgleich); an
 // edited name is allowed, and the sheet says what it may cause.
+//
+// With "Beträge ausblenden" on, a code that carries an amount is covered until
+// asked for: the caption can hide the figure, a scannable code on a shared
+// screen cannot.
 
 import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -20,8 +24,8 @@ import { downloadBlob } from '@/lib/download';
 import { fmtAmountInput, fmtIban, fmtShortIban, parseAmount } from '@/lib/format';
 import { qrMatrix, qrPngBlob, qrSvgPath, type QrMatrix } from '@/lib/qr';
 import { useFints } from './FintsProvider';
-import { AlertTriangleIcon, CheckIcon, CopyIcon, DownloadIcon, InfoIcon, QrIcon } from './icons';
-import { Money, useMoneyText } from './Money';
+import { AlertTriangleIcon, CheckIcon, CopyIcon, DownloadIcon, EyeIcon, EyeOffIcon, ImageIcon, InfoIcon, QrIcon } from './icons';
+import { Money, useMoneyText, usePrivacy } from './Money';
 import { Alert, Button, CopyButton, Field, Input, Overlay, Select, cx } from './ui';
 import { Panel } from './transfer/Panel';
 
@@ -34,9 +38,26 @@ type Code =
   | { ok: true; matrix: QrMatrix; path: { d: string; size: number } }
   | { ok: false; message: string };
 
+/**
+ * The code as a PNG on the clipboard — the quickest way into a messenger or an
+ * e-mail. The blob is handed over as a promise, so the click's user
+ * activation still covers the write while the image renders. False when the
+ * browser (or the desktop shell's policy) does not allow it.
+ */
+async function copyPng(blob: Promise<Blob>): Promise<boolean> {
+  try {
+    if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function ShareAccount() {
   const { accounts, sharePrefill, closeShare, accountLabel, toast } = useFints();
   const money = useMoneyText();
+  const privacy = usePrivacy();
   const eligible = useMemo(() => accounts.filter((a) => !!a.iban), [accounts]);
 
   const [initial] = useState(() => {
@@ -62,8 +83,10 @@ export function ShareAccount() {
   const [amountTouched, setAmountTouched] = useState(!!initial.amount);
   const [purpose, setPurpose] = useState(initial.purpose);
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'account' | 'image' | null>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** Shown on request while amounts are hidden (see the header). */
+  const [revealed, setRevealed] = useState(false);
 
   const nameEdited = customName != null && squash(customName) !== squash(holder);
 
@@ -104,12 +127,22 @@ export function ShareAccount() {
     account.bic ? `BIC: ${account.bic}` : null,
   ].filter(Boolean).join('\n');
 
+  const flashCopied = (what: 'account' | 'image') => {
+    setCopied(what);
+    clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(null), 1800);
+  };
+
   const copyAccount = async () => {
     const ok = await copyText(accountText);
     if (!ok) { toast('Kopieren war nicht möglich.', 'error'); return; }
-    setCopied(true);
-    clearTimeout(copiedTimer.current);
-    copiedTimer.current = setTimeout(() => setCopied(false), 1800);
+    flashCopied('account');
+  };
+
+  const copyImage = async () => {
+    if (!code?.ok) return;
+    if (await copyPng(qrPngBlob(code.matrix, 8))) flashCopied('image');
+    else toast('Das Bild ließ sich nicht kopieren. Speichere es stattdessen als PNG.', 'error');
   };
 
   const savePng = async () => {
@@ -130,6 +163,7 @@ export function ShareAccount() {
   const summaryAmount = amountState.value != null
     ? money(amountState.value, account.currency)
     : 'Betrag frei wählbar';
+  const covered = privacy && amountState.value != null && !revealed;
 
   return (
     <Overlay open onClose={closeShare} labelledBy="share-title" describedBy="share-desc">
@@ -148,10 +182,17 @@ export function ShareAccount() {
         footer={(
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Button
-              iconLeft={copied ? <CheckIcon size={17} strokeWidth={2.2} /> : <CopyIcon size={17} />}
+              iconLeft={copied === 'account' ? <CheckIcon size={17} strokeWidth={2.2} /> : <CopyIcon size={17} />}
               onClick={() => void copyAccount()}
             >
-              {copied ? 'Kopiert' : 'Kontodaten kopieren'}
+              {copied === 'account' ? 'Kopiert' : 'Kontodaten kopieren'}
+            </Button>
+            <Button
+              iconLeft={copied === 'image' ? <CheckIcon size={17} strokeWidth={2.2} /> : <ImageIcon size={17} />}
+              disabled={!code?.ok}
+              onClick={() => void copyImage()}
+            >
+              {copied === 'image' ? 'Kopiert' : 'Bild kopieren'}
             </Button>
             <Button
               variant="primary"
@@ -162,7 +203,9 @@ export function ShareAccount() {
             >
               Als PNG speichern
             </Button>
-            <span className="sr-only" aria-live="polite">{copied ? 'Kontodaten kopiert' : ''}</span>
+            <span className="sr-only" aria-live="polite">
+              {copied === 'account' ? 'Kontodaten kopiert' : copied === 'image' ? 'GiroCode als Bild kopiert' : ''}
+            </span>
           </div>
         )}
       >
@@ -170,7 +213,15 @@ export function ShareAccount() {
           {/* The code first on a phone: with the account's defaults it is
               already useful before anything is typed. */}
           <section aria-label="GiroCode" className="flex flex-col items-center sm:sticky sm:top-0 sm:order-2 sm:self-start">
-            {code?.ok ? (
+            {code?.ok && covered ? (
+              <div className="grid size-[240px] place-items-center rounded-[14px] bg-inset px-6 text-center">
+                <span className="flex flex-col items-center gap-2.5 text-[13.5px] leading-snug text-ink-2">
+                  <EyeOffIcon size={28} className="text-ink-3" />
+                  Beträge sind ausgeblendet – der Code enthält den Betrag und ließe sich vom Bildschirm scannen.
+                  <Button size="sm" iconLeft={<EyeIcon size={16} />} onClick={() => setRevealed(true)}>Code anzeigen</Button>
+                </span>
+              </div>
+            ) : code?.ok ? (
               // White in both themes, black modules, quiet zone included in
               // the path: an inverted or tinted code is one a scanner may refuse.
               <div className="rounded-[14px] bg-white p-2 shadow-[var(--shadow-tile)] ring-1 ring-line">
@@ -226,7 +277,7 @@ export function ShareAccount() {
             )}
 
             <Field
-              label="Empfängername"
+              label="Dein Name"
               htmlFor="share-name"
               hint={nameEdited ? (
                 <span className="flex flex-col items-start gap-1.5">
@@ -335,7 +386,7 @@ function Explainer({ className }: { className?: string }) {
     <p className={cx('items-start gap-2 leading-relaxed text-ink-3', className)}>
       <InfoIcon size={16} className="mt-0.5 shrink-0" />
       <span>
-        Mit jeder Banking-App scannbar (GiroCode). Der Code enthält nur Name, IBAN, BIC, Betrag und
+        Lesbar mit Banking-Apps, die GiroCodes scannen können. Der Code enthält nur Name, IBAN, BIC, Betrag und
         Verwendungszweck; die zahlende Person prüft und gibt die Überweisung in ihrer eigenen App frei.
       </span>
     </p>

@@ -7,6 +7,7 @@
 
 import type { CategoryId } from './categories';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
+import type { SentOrder } from './sent-orders';
 
 export type { CategoryId };
 
@@ -112,6 +113,8 @@ export type VaultData = {
   txCategories: Record<string, CategoryId>;
   /** recurring-series ids the user said are not a contract. */
   dismissedRecurring: string[];
+  /** Executed and unclear transfers of the last 14 days, for the duplicate check (lib/sent-orders.ts). */
+  sentOrders: SentOrder[];
   /** ISO */
   updatedAt: string;
 };
@@ -123,6 +126,7 @@ export const EMPTY_VAULT: VaultData = {
   categoryRules: {},
   txCategories: {},
   dismissedRecurring: [],
+  sentOrders: [],
   updatedAt: new Date(0).toISOString(),
 };
 

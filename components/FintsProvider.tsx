@@ -22,6 +22,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { ApiError, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail } from '@/lib/client-api';
+import { bankAnswerLines } from '@/lib/bank-answer';
 import { bookingKind, categorize } from '@/lib/categorize';
 import { counterpartyKey, counterpartyName, isCategoryId, rawCounterparty, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
 import { parseCardAcceptor } from '@/lib/card-purpose';
@@ -32,6 +33,8 @@ import {
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
 import { unbookedPending } from '@/lib/pending';
+import { recordSentOrder, sanitizeSentOrders, type SentOrder } from '@/lib/sent-orders';
+import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
   type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SharePrefill,
@@ -114,10 +117,21 @@ export type PendingInfo = {
   booked: number;
 };
 
-type WaitPhase = 'waiting' | 'confirmed' | 'error' | 'ended';
+/**
+ * waiting → confirmed, or one of: error (the status could not be read),
+ * ended (the bank closed the dialog first), refused (the bank's answer refuses
+ * it — see lib/bank-answer.ts).
+ */
+type WaitPhase = 'waiting' | 'confirmed' | 'error' | 'ended' | 'refused';
 
 /** What an approval is for — the overlay asks before abandoning a transfer. */
 export type WaitKind = 'login' | 'statements' | 'pending' | 'transfer';
+
+/**
+ * The transfer an approval is for, as the bank received it (name rewritten to
+ * the SEPA character set), for the user to compare with their banking app.
+ */
+export type WaitOrder = { amount: number; name: string; iban: string; instant: boolean };
 
 export type WaitState = {
   open: boolean;
@@ -126,7 +140,9 @@ export type WaitState = {
   text: string;
   challenge: string | null;
   phase: WaitPhase;
+  /** What went wrong: the bank's answer as it came (codes included), or the app's own message. */
   error: string | null;
+  /** A way to ask again exists. The overlay offers it once the wait is over — or overdue — never while it runs. */
   canRetry: boolean;
   /**
    * When the approval was requested (epoch ms). The overlay counts the
@@ -150,11 +166,24 @@ export type WaitState = {
    * would send the user to the wrong one.
    */
   tanMediaName: string | null;
+  /** For a transfer: what is being approved, in the app's own words. */
+  order: WaitOrder | null;
+  /** A line of context, e.g. that this is the second approval right after the login. */
+  note: string | null;
 };
 
 const IDLE_WAIT: WaitState = {
   open: false, kind: null, title: '', text: '', challenge: null,
   phase: 'waiting', error: null, canRetry: false, startedAt: 0, settledAt: null, vop: null, tanMediaName: null,
+  order: null, note: null,
+};
+
+/** What each kind of approval asks the user to confirm, as the object of "bestätige …". */
+const WAIT_SUBJECT: Record<WaitKind, string> = {
+  login: 'die Anmeldung',
+  statements: 'den Umsatzabruf',
+  pending: 'den Abruf der vorgemerkten Umsätze',
+  transfer: 'die Überweisung',
 };
 
 type TanGate = { needsTan?: boolean; tanChallenge?: string | null; tanMediaName?: string | null; vop?: SerializedVop };
@@ -165,6 +194,11 @@ type WaitCallbacks = {
   onDialogEnded?: ((r: TanPollResponse) => void) | null;
   /** The user pressed Abbrechen in the overlay. */
   onCancelled?: (() => void) | null;
+  /**
+   * The bank answered the approval with an error ('refused' or 'unclear', see
+   * TanPollResponse). Without a handler the overlay shows it.
+   */
+  onAnswer?: ((status: 'refused' | 'unclear', bankAnswers: string) => void) | null;
 };
 
 /** What the transfer form submits; the server parses `amount` itself. */
@@ -177,11 +211,19 @@ export type TransferHandlers = {
   onExecuted: (bankAnswers?: string) => void;
   /**
    * The order reached the bank but its fate is unknown: the dialog ended
-   * before the approval was confirmed, the approval was abandoned, or the
-   * connection broke mid-request. Never to be presented as a failure — the
-   * money may have moved.
+   * before the approval was confirmed, the approval was abandoned, the
+   * connection broke mid-request, or the bank answered with an error that
+   * does not refuse the order. Never to be presented as a failure — the
+   * money may have moved. `bankAnswers`: the bank's words, when it said any.
    */
-  onUnknown: () => void;
+  onUnknown: (bankAnswers?: string) => void;
+  /**
+   * The bank refused the order — before the approval or after it — and said
+   * nothing else (lib/bank-answer.ts). Nothing was executed; the order may be
+   * corrected and sent again.
+   */
+  onRefused: (bankAnswers: string) => void;
+  /** Not sent, or not accepted for processing (validation, busy, a check still running): may be retried. */
   onError: (message: string) => void;
   onTanStarted: () => void;
   /** The bank checked the payee name and wants an explicit go-ahead. */
@@ -204,6 +246,8 @@ const VAULT_SAVE_DELAY_MS = 800;
 const LOGOUT_FLUSH_TIMEOUT_MS = 2000;
 /** How long "Freigabe bestätigt" stays up before the overlay leaves. */
 const CONFIRMED_LINGER_MS = 700;
+/** A statement approval this soon after the login's own is "the second one" (startDecoupledWait). */
+const SECOND_APPROVAL_MS = 30_000;
 const DEFAULT_RANGE_PRESET: RangePreset = '90d';
 const MAX_TOASTS = 4; // = Toasts.tsx MAX_VISIBLE: a queued toast nobody can see would expire unseen
 const MAX_ACTIVITY = 50;
@@ -333,6 +377,13 @@ function typedAmount(raw: string): number {
   return Math.abs(parseAmount(raw) ?? 0);
 }
 
+/** A submitted order as the vault's two-week log keeps it (lib/sent-orders.ts), or null without amount or IBAN. */
+function sentOrderOf(p: TransferPayload, outcome: SentOrder['outcome'], at: string): SentOrder | null {
+  const cents = Math.round(typedAmount(p.amount) * 100);
+  const iban = normIban(p.iban);
+  return cents > 0 && iban ? { at, accountNumber: p.accountNumber, iban, cents, outcome } : null;
+}
+
 /** One login message as an inbox entry, or null when the bank sent nothing readable. */
 function toInboxMessage(m: BankMessage, receivedAt: string): InboxMessage | null {
   const text = repairBankText(String(m?.text ?? '').trim());
@@ -380,6 +431,7 @@ function normalizeVault(raw: VaultData | null | undefined): VaultData {
     dismissedRecurring: Array.isArray(raw.dismissedRecurring)
       ? raw.dismissedRecurring.filter((id): id is string => typeof id === 'string')
       : [],
+    sentOrders: sanitizeSentOrders(raw.sentOrders),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : EMPTY_VAULT.updatedAt,
   };
 }
@@ -520,6 +572,8 @@ function useFintsState() {
    * at any more, and is dropped.
    */
   const waitGenRef = useRef(0);
+  /** The last approval that came through: what it was for, under which generation, when. */
+  const lastConfirmedRef = useRef<{ kind: WaitKind; gen: number; at: number } | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastId = useRef(0);
 
@@ -676,29 +730,46 @@ function useFintsState() {
     method: SerializedTanMethod | null,
     data: TanGate,
     cbs: WaitCallbacks,
-    opts: { title?: string; kind?: WaitKind } = {},
+    opts: {
+      kind?: WaitKind;
+      /** What the user confirms, as the object of "bestätige …": "den Abruf der Umsätze von …". */
+      subject?: string;
+      order?: WaitOrder | null;
+    } = {},
   ) => {
     stopTimers();
+    const kind = opts.kind ?? 'statements';
+    // Right after the login's own approval, a statement that asks for one
+    // more looks like the first request again. Said once, so it is not
+    // mistaken for that one having failed.
+    const prev = lastConfirmedRef.current;
+    lastConfirmedRef.current = null;
+    const second = kind === 'statements' && prev?.kind === 'login' && prev.gen === waitGenRef.current
+      && Date.now() - prev.at < SECOND_APPROVAL_MS;
     const gen = ++waitGenRef.current;
     const sid = sessionRef.current;
     waitCbRef.current = cbs;
+    const subject = opts.subject || WAIT_SUBJECT[kind];
     setWait({
       open: true,
-      kind: opts.kind ?? 'statements',
-      title: opts.title || 'Freigabe in deiner App',
+      kind,
+      // The overlay names each kind of approval itself (TanWaitOverlay.tsx).
+      title: '',
       text: method?.isDecoupled
-        ? `Öffne „${method.name}“ und bestätige die Anfrage.`
-        : 'Bestätige die Anfrage in deiner Banking-App.',
+        ? `Öffne „${method.name}“ und bestätige ${subject}.`
+        : `Bestätige ${subject} in deiner Banking-App.`,
       challenge: data.tanChallenge || null,
       phase: 'waiting',
       error: null,
-      canRetry: false,
+      canRetry: !!cbs.retry,
       startedAt: Date.now(),
       settledAt: null,
       vop: data.vop || null,
       tanMediaName: data.tanMediaName?.trim()
         || (method?.activeTanMedia?.length === 1 ? method.activeTanMedia[0] : null)
         || null,
+      order: opts.order ?? null,
+      note: second ? 'Die Anmeldung ist freigegeben – für die Umsätze fragt deine Bank ein zweites Mal.' : null,
     });
 
     const interval = Math.max(1500, (method?.decoupled?.waitBetween || 2) * 1000);
@@ -731,7 +802,22 @@ function useFintsState() {
           }));
           return;
         }
+        if (r.status === 'refused' || r.status === 'unclear') {
+          // The bank's own answer — never mistaken for a lost connection.
+          stopTimers();
+          const handler = waitCbRef.current.onAnswer;
+          if (handler) { handler(r.status, r.bankAnswers); return; }
+          setWait((w) => ({
+            ...w,
+            phase: r.status === 'refused' ? 'refused' : 'error',
+            settledAt: Date.now(),
+            error: r.bankAnswers || 'Deine Bank hat die Freigabe nicht bestätigt.',
+            canRetry: !!waitCbRef.current.retry,
+          }));
+          return;
+        }
         stopTimers();
+        lastConfirmedRef.current = { kind, gen, at: Date.now() };
         setWait((w) => ({ ...w, phase: 'confirmed', settledAt: Date.now() }));
         // Only closes *this* wait: onDone may already have started the next
         // one (a statement that needs its own approval right after login).
@@ -739,6 +825,8 @@ function useFintsState() {
         waitCbRef.current.onDone?.(r);
       } catch (err) {
         // A 401 has already logged out (and bumped the generation) by now.
+        // Anything else — the bank unreachable, "Kein offener Vorgang" — says
+        // nothing about the approval: the overlay calls it unverifiable.
         if (gen !== waitGenRef.current) return;
         stopTimers();
         setWait((w) => ({
@@ -796,6 +884,11 @@ function useFintsState() {
     const list = tanMethodsRef.current;
     return selectedMethodRef.current || list.find((m) => m.isDecoupled) || list[0] || null;
   }, []);
+
+  /** An account as an approval names it — the user's own name for it first (read from the ref: see above). */
+  const approvalAccountName = useCallback((a: SerializedAccount) => (
+    vaultRef.current?.aliases?.[a.accountNumber] || a.product?.trim() || translateType(a.accountType)
+  ), []);
 
   // ---- company logos ------------------------------------------------------
   // Decoration, so it runs outside the `busy` gate that serialises bank calls
@@ -1114,7 +1207,10 @@ function useFintsState() {
           },
           // "Abbrechen" while waiting, "Schließen" once it failed or ran out.
           onCancelled: notApplied,
-        }, { kind: 'statements' });
+        }, {
+          kind: 'statements',
+          subject: `den Abruf der Umsätze von ${approvalAccountName(account)} ab ${fmtDate(toLocalDate(span.from))}`,
+        });
       } else {
         finish();
         apply(data.transactions, data.balance, data.blocks);
@@ -1125,7 +1221,7 @@ function useFintsState() {
       setTxError((err as Error).message);
       notApplied();
     }
-  }, [resolveRange, setBusy, isCurrent, startDecoupledWait, decoupledMethod, resolveMerchants, toast]);
+  }, [resolveRange, setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, resolveMerchants, toast]);
 
   const selectAccount = useCallback((a: SerializedAccount) => {
     if (busyRef.current) return; // don't interrupt an in-flight approval
@@ -1235,7 +1331,7 @@ function useFintsState() {
         startDecoupledWait(decoupledMethod(), data, {
           onDone: (r) => { finish(); if (r.kind === 'pending') apply(r.pending); },
           retry: () => { finish(); void loadPending(account); },
-        }, { title: 'Vorgemerkte Umsätze freigeben', kind: 'pending' });
+        }, { kind: 'pending', subject: `den Abruf der vorgemerkten Umsätze von ${approvalAccountName(account)}` });
       } else {
         finish();
         apply(data.pending);
@@ -1245,7 +1341,7 @@ function useFintsState() {
       finish();
       toast((err as Error).message, 'error');
     }
-  }, [setBusy, isCurrent, startDecoupledWait, decoupledMethod, toast, resolveMerchants]);
+  }, [setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, toast, resolveMerchants]);
 
   // ---- session clock ------------------------------------------------------
   // The dashboard logs itself out after `idleMinutes` without input. The exact
@@ -1755,11 +1851,40 @@ function useFintsState() {
   }, [view, markActivity, checkIdle]);
 
   // ---- transfer -----------------------------------------------------------
-  /** Appends the outcome of the last submitted order to this session's log. */
+  /**
+   * The order whose approval is under way: already in the vault's log as
+   * unclear (see handleTransferAnswer), to be settled by its outcome.
+   */
+  const sentOrderRef = useRef<SentOrder | null>(null);
+
+  /**
+   * The vault's two-week log of sent orders, which the duplicate check reads
+   * after a logout (lib/sent-orders.ts): `next` goes in, `replaces` — the same
+   * order logged earlier — comes out. Written at once rather than with the
+   * next debounced save: an unclear order is exactly what must not be
+   * forgotten, not even by a window closed a second later.
+   */
+  const logSentOrder = useCallback((next: SentOrder | null, replaces: SentOrder | null) => {
+    updateVault((v) => {
+      const kept = replaces
+        ? v.sentOrders.filter((o) => !(o.at === replaces.at && o.iban === replaces.iban && o.cents === replaces.cents))
+        : v.sentOrders;
+      return { ...v, sentOrders: next ? recordSentOrder(kept, next) : kept };
+    });
+    void flushVault();
+  }, [updateVault, flushVault]);
+
+  /**
+   * Appends the outcome of the last submitted order to this session's log —
+   * and settles it in the vault's: executed and unclear orders stay there for
+   * two weeks, a refused one (it moved no money) leaves it.
+   */
   const logTransfer = useCallback((outcome: ActivityEntry['outcome'], message?: string) => {
     const p = lastTransferRef.current;
     if (!p) return;
-    const text = message ? repairBankText(message).trim() : ''; // idempotent on repaired text
+    // The bank's sentences without their return codes (lib/bank-answer.ts);
+    // repairing is idempotent on repaired text.
+    const text = message ? bankAnswerLines(repairBankText(message)).join('\n') : '';
     const entry: ActivityEntry = {
       id: newId(),
       at: new Date().toISOString(),
@@ -1773,7 +1898,14 @@ function useFintsState() {
       ...(text ? { message: text } : {}),
     };
     setActivity((list) => [entry, ...list].slice(0, MAX_ACTIVITY));
-  }, []);
+    const inFlight = sentOrderRef.current;
+    sentOrderRef.current = null;
+    if (outcome === 'failed') {
+      if (inFlight) logSentOrder(null, inFlight);
+    } else {
+      logSentOrder(sentOrderOf(p, outcome, inFlight?.at ?? entry.at), inFlight);
+    }
+  }, [logSentOrder]);
 
   const withActivity = useCallback((h: TransferHandlers): TransferHandlers => ({
     ...h,
@@ -1784,7 +1916,16 @@ function useFintsState() {
       logTransfer('executed', text);
       h.onExecuted(text);
     },
-    onUnknown: () => { logTransfer('unknown'); h.onUnknown(); },
+    onUnknown: (answers) => {
+      const text = answers ? repairBankText(answers) : answers;
+      logTransfer('unknown', text);
+      h.onUnknown(text);
+    },
+    onRefused: (answers) => {
+      const text = repairBankText(answers);
+      logTransfer('failed', text);
+      h.onRefused(text);
+    },
     onError: (message) => { logTransfer('failed', message); h.onError(message); },
   }), [logTransfer]);
 
@@ -1795,8 +1936,22 @@ function useFintsState() {
       handlers.onVop(data.vop);
       return;
     }
+    if ('outcome' in data) {
+      // The bank answered the order with an error before any approval.
+      setBusy(false);
+      if (data.outcome === 'refused') handlers.onRefused(data.bankAnswers);
+      else handlers.onUnknown(data.bankAnswers);
+      return;
+    }
     if ('needsTan' in data && data.needsTan) {
       handlers.onTanStarted();
+      const p = lastTransferRef.current;
+      // From here the bank holds the order: approved in the app, it executes
+      // whether or not this window is still open to hear about it. So it is
+      // logged as unclear now, and settled by its outcome.
+      const sent = p ? sentOrderOf(p, 'unknown', new Date().toISOString()) : null;
+      sentOrderRef.current = sent;
+      if (sent) logSentOrder(sent, null);
       startDecoupledWait(decoupledMethod(), data, {
         onDone: (r) => {
           setBusy(false);
@@ -1808,17 +1963,30 @@ function useFintsState() {
           closeWait();
           handlers.onUnknown();
         },
+        // A refusal in the app (or by the bank after it) has its own screen
+        // in the sheet; anything less certain is "Status unklar".
+        onAnswer: (status, answers) => {
+          setBusy(false);
+          closeWait();
+          if (status === 'refused') handlers.onRefused(answers);
+          else handlers.onUnknown(answers);
+        },
         // The order is with the bank and can still be approved in the app
         // after we stop asking — abandoning the wait does not cancel it.
         onCancelled: () => handlers.onUnknown(),
-      }, { title: 'Überweisung freigeben', kind: 'transfer' });
+      }, {
+        kind: 'transfer',
+        order: p
+          ? { amount: typedAmount(p.amount), name: sepaSanitize(p.recipientName), iban: normIban(p.iban), instant: p.instant }
+          : null,
+      });
       return;
     }
     // Executed without an approval. Unconditional, so an answer missing its
     // bank texts cannot leave `busy` stuck on.
     setBusy(false);
     handlers.onExecuted(data.bankAnswers);
-  }, [setBusy, startDecoupledWait, decoupledMethod, closeWait]);
+  }, [setBusy, startDecoupledWait, decoupledMethod, closeWait, logSentOrder]);
 
   /**
    * A request that never got an answer may still have reached the bank: the
@@ -1840,6 +2008,7 @@ function useFintsState() {
     }
     const sid = sessionRef.current;
     lastTransferRef.current = payload;
+    sentOrderRef.current = null;
     const h = withActivity(handlers);
     setBusy(true);
     try {

@@ -7,7 +7,8 @@
 // voided with 3945), so from here the flow rejoins the normal approval wait.
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
-import { bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
+import { isDefiniteRefusal } from '@/lib/bank-answer';
+import { bankAnswerCodes, bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
 import { SepaTransferInteraction } from '@/lib/fints-sepa';
 import { ORDER_UNANSWERED_STATUS, OrderUnanswered, startOrder } from '@/lib/fints-order';
@@ -63,10 +64,17 @@ export const POST = wrap(async (req: Request) => {
       accountNumber: hold.accountNumber,
       segId: hold.segId,
     };
-    return json({ ...tanPayload(resp), accountNumber: hold.accountNumber } satisfies TransferResponse);
+    // The check result travels with the approval prompt, so the user still
+    // sees what the Namensabgleich said while confirming in the app.
+    return json({ ...tanPayload(resp), accountNumber: hold.accountNumber, vop: hold.vop } satisfies TransferResponse);
   }
   if (!resp.success) {
-    return fail(bankAnswerText(resp) || 'Die Bank hat die Überweisung abgelehnt.');
+    // As in /api/transfer: only a clean refusal says nothing was executed.
+    return json({
+      outcome: isDefiniteRefusal(bankAnswerCodes(resp)) ? 'refused' : 'unclear',
+      accountNumber: hold.accountNumber,
+      bankAnswers: bankAnswerText(resp),
+    } satisfies TransferResponse);
   }
   return json({
     needsTan: false,

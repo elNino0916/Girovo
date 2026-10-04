@@ -3,8 +3,9 @@
 // the bank confirms the approval.
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
+import { isDefiniteRefusal } from '@/lib/bank-answer';
 import {
-  accountsFor, balanceFromStatements, bankAnswerText, logResp, logStatementDates,
+  accountsFor, balanceFromStatements, bankAnswerCodes, bankAnswerText, logResp, logStatementDates,
   serializeBalance, serializeTransactions, statementBlocks,
 } from '@/lib/serialize';
 import { getSession, saveSessionProfile } from '@/lib/session';
@@ -68,8 +69,15 @@ export const POST = wrap(async (req: Request) => {
   }
 
   if (!resp.success) {
+    // The bank's answer, not a lost connection: it says so explicitly, so the
+    // client never has to guess from a status code. Only an answer that
+    // refuses and says nothing else is a refusal (lib/bank-answer.ts) — for a
+    // transfer that means no money moved, and the client may say so. A dialog
+    // abort alone, or an error beside "Auftrag ausgeführt", is 'unclear'.
     s.pending = null;
-    return fail(bankAnswerText(resp) || 'Freigabe fehlgeschlagen oder abgelehnt.');
+    const status = isDefiniteRefusal(bankAnswerCodes(resp)) ? 'refused' : 'unclear';
+    console.log(`[tan-poll] bank answered with an error (type=${type}): ${status}`);
+    return json({ status, type, accountNumber, bankAnswers: bankAnswerText(resp) } satisfies TanPollResponse);
   }
 
   // Approved — deliver the result for whatever was pending.

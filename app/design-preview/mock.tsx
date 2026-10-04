@@ -16,7 +16,10 @@
 //   Vormerkposten         always an approval, like most banks
 //   transfer              approval, then executed. Payee name …
 //                           "Max Musterman"  → Namensabgleich: Close Match
+//                           containing "Schmidt" → Namensabgleich: No Match
+//                           containing "Kiosk" → Namensabgleich: not possible
 //                           containing "Fehler" → the bank refuses the order
+//                           containing "Abgelehnt" → refused in the app
 //                           containing "Unklar" → the dialog ends: status unknown
 //   login                 "fehler" as user name → refused; else TAN methods
 //   print                 no PDF — a toast says so
@@ -29,11 +32,14 @@ import {
   FintsContext, countsAsActivity, waitHoldsSession,
   type ChosenBank, type FintsApi, type IdleMinutes, type LogoutReason, type PendingInfo, type PrintJob, type Toast,
   type ToastAction, type ToastTone, type TransferHandlers, type TransferPayload, type View, type WaitKind,
-  type WaitState,
+  type WaitOrder, type WaitState,
 } from '@/components/FintsProvider';
 import { categorize } from '@/lib/categorize';
 import { counterpartyKey, isCategoryId, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
+import { bankAnswerLines } from '@/lib/bank-answer';
 import { addDaysKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, translateType } from '@/lib/format';
+import { recordSentOrder } from '@/lib/sent-orders';
+import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
   type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SharePrefill, type StatementInfo,
@@ -50,9 +56,13 @@ export type MockOptions = {
   /** The statement range loaded at start. Default '90d', like the real app after login. */
   range?: '90d' | '365d' | 'all';
   /** How a simulated approval ends. 'hold' keeps it waiting (for screenshots of the wait). */
-  tan?: 'confirm' | 'hold' | 'ended' | 'error';
+  tan?: 'confirm' | 'hold' | 'ended' | 'error' | 'refused';
   /** How long a simulated approval takes before it ends as `tan` says. */
   tanMs?: number;
+  /** A held approval that started this long ago — past the bank's limit, for the overdue state. */
+  tanElapsedMs?: number;
+  /** After the login's approval, the first statement asks for one of its own (and holds it). */
+  secondApproval?: boolean;
   /** Puts the first auto-logout this far away (e.g. 45_000 for the warning dialog). */
   idleInMs?: number;
   /** Where the session starts. Default 'dashboard'. */
@@ -92,7 +102,18 @@ export type MockFintsProviderProps = MockOptions & {
 const IDLE_WAIT: WaitState = {
   open: false, kind: null, title: '', text: '', challenge: null,
   phase: 'waiting', error: null, canRetry: false, startedAt: 0, settledAt: null, vop: null, tanMediaName: null,
+  order: null, note: null,
 };
+/** As the provider's WAIT_SUBJECT. */
+const WAIT_SUBJECT: Record<WaitKind, string> = {
+  login: 'die Anmeldung',
+  statements: 'den Umsatzabruf',
+  pending: 'den Abruf der vorgemerkten Umsätze',
+  transfer: 'die Überweisung',
+};
+const SECOND_APPROVAL_MS = 30_000;
+/** What the mock bank answers when an approval is refused in the app. */
+const MOCK_REFUSAL = '9210: Der Auftrag wurde abgelehnt – die Freigabe wurde in der App verweigert. | 9800: Dialog abgebrochen.';
 const DEFAULT_IDLE_MINUTES: IdleMinutes = 10;
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
 const DEADLINE_PUBLISH_MS = 10_000;
@@ -307,6 +328,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const viewRef = useRef(view);
   viewRef.current = view;
   const lastTransferRef = useRef<TransferPayload | null>(null);
+  /** Armed at the start with `secondApproval`; the first statement load after the login takes it. */
+  const secondApprovalRef = useRef(false);
   const toastId = useRef(0);
 
   const setBusy = useCallback((b: boolean) => {
@@ -346,45 +369,66 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     retry?: (() => void) | null;
     onDialogEnded?: (() => void) | null;
     onCancelled?: (() => void) | null;
+    onAnswer?: ((status: 'refused' | 'unclear', bankAnswers: string) => void) | null;
   }>({});
   const waitGen = useRef(0);
+  /** As the provider: the last approval that came through, for the "second approval" line. */
+  const lastConfirmed = useRef<{ kind: WaitKind; gen: number; at: number } | null>(null);
 
   const startWait = useCallback((kind: WaitKind, w: {
-    title?: string;
+    subject?: string;
     challenge?: string | null;
     vop?: SerializedVop | null;
+    order?: WaitOrder | null;
     onDone: () => void;
     retry?: (() => void) | null;
     onDialogEnded?: (() => void) | null;
     onCancelled?: (() => void) | null;
+    onAnswer?: ((status: 'refused' | 'unclear', bankAnswers: string) => void) | null;
     /** Forces how this approval ends, whatever the options say. */
-    outcome?: 'confirm' | 'ended';
+    outcome?: 'confirm' | 'ended' | 'refused' | 'hold';
   }) => {
+    const prev = lastConfirmed.current;
+    lastConfirmed.current = null;
+    const second = kind === 'statements' && prev?.kind === 'login' && prev.gen === waitGen.current
+      && Date.now() - prev.at < SECOND_APPROVAL_MS;
     const gen = ++waitGen.current;
-    waitCb.current = { onDone: w.onDone, retry: w.retry ?? null, onDialogEnded: w.onDialogEnded ?? null, onCancelled: w.onCancelled ?? null };
+    waitCb.current = {
+      onDone: w.onDone, retry: w.retry ?? null, onDialogEnded: w.onDialogEnded ?? null,
+      onCancelled: w.onCancelled ?? null, onAnswer: w.onAnswer ?? null,
+    };
     const method = selectedMethodRef.current ?? data.tanMethods[0];
+    const subject = w.subject || WAIT_SUBJECT[kind];
     setWait({
       open: true,
       kind,
-      title: w.title || 'Freigabe in deiner App',
+      title: '',
       text: method?.isDecoupled
-        ? `Öffne „${method.name}“ und bestätige die Anfrage.`
-        : 'Bestätige die Anfrage in deiner Banking-App.',
+        ? `Öffne „${method.name}“ und bestätige ${subject}.`
+        : `Bestätige ${subject} in deiner Banking-App.`,
       challenge: w.challenge ?? null,
       phase: 'waiting',
       error: null,
-      canRetry: false,
-      startedAt: Date.now(),
+      canRetry: !!w.retry,
+      startedAt: Date.now() - (optsRef.current.tanElapsedMs ?? 0),
       settledAt: null,
       vop: w.vop ?? null,
       tanMediaName: tanMediaRef.current
         ?? (method?.activeTanMedia.length === 1 ? method.activeTanMedia[0] : null),
+      order: w.order ?? null,
+      note: second ? 'Die Anmeldung ist freigegeben – für die Umsätze fragt deine Bank ein zweites Mal.' : null,
     });
 
     const outcome = w.outcome ?? optsRef.current.tan ?? 'confirm';
     if (outcome === 'hold') return;
     later(optsRef.current.tanMs ?? DEFAULT_TAN_MS, () => {
       if (gen !== waitGen.current) return;
+      if (outcome === 'refused') {
+        const handler = waitCb.current.onAnswer;
+        if (handler) { handler('refused', MOCK_REFUSAL); return; }
+        setWait((s) => ({ ...s, phase: 'refused', settledAt: Date.now(), error: MOCK_REFUSAL, canRetry: !!waitCb.current.retry }));
+        return;
+      }
       if (outcome === 'ended') {
         const handler = waitCb.current.onDialogEnded;
         if (handler) { handler(); return; }
@@ -403,6 +447,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
         setWait((s) => ({ ...s, phase: 'error', settledAt: Date.now(), error: MOCK_ERROR, canRetry: !!waitCb.current.retry }));
         return;
       }
+      lastConfirmed.current = { kind, gen, at: Date.now() };
       setWait((s) => ({ ...s, phase: 'confirmed', settledAt: Date.now() }));
       later(CONFIRMED_LINGER_MS, () => { if (gen === waitGen.current) setWait(IDLE_WAIT); });
       waitCb.current.onDone?.();
@@ -471,8 +516,12 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     };
 
     // Most banks want a fresh approval for anything older than 90 days.
-    if (span.from < ninetyAgo) {
+    const second = secondApprovalRef.current;
+    secondApprovalRef.current = false;
+    if (span.from < ninetyAgo || second) {
       later(450, () => startWait('statements', {
+        subject: `den Abruf der Umsätze von ${vaultRef.current?.aliases?.[acct] || account.product || translateType(account.accountType)} ab ${fmtDate(span.from)}`,
+        outcome: second ? 'hold' : undefined,
         challenge: `Umsatzabruf ab ${fmtDate(span.from)} für ${account.product || translateType(account.accountType)} freigeben`,
         onDone: () => { finish(); apply(); },
         retry: () => { finish(); void loadTransactionsRef.current(account, span.from, span.to, { force: true, onNotApplied: o.onNotApplied }); },
@@ -560,7 +609,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setPendingLoading(account.accountNumber);
     const finish = () => { setBusy(false); setPendingLoading(null); };
     later(450, () => startWait('pending', {
-      title: 'Vorgemerkte Umsätze freigeben',
+      subject: `den Abruf der vorgemerkten Umsätze von ${vaultRef.current?.aliases?.[account.accountNumber] || account.product || translateType(account.accountType)}`,
       onDone: () => {
         finish();
         setPendingCache((c) => ({
@@ -793,6 +842,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       return;
     }
     tanMediaRef.current = media ?? null;
+    secondApprovalRef.current = !!optsRef.current.secondApproval;
     startWait('login', {
       challenge: 'Anmeldung im Online-Banking über FinTS freigeben',
       onDone: () => {
@@ -909,7 +959,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const logTransfer = useCallback((outcome: ActivityEntry['outcome'], message?: string) => {
     const p = lastTransferRef.current;
     if (!p) return;
-    const text = message ? repairBankText(message).trim() : '';
+    const text = message ? bankAnswerLines(repairBankText(message)).join('\n') : '';
     const entry: ActivityEntry = {
       id: newId(),
       at: new Date().toISOString(),
@@ -923,12 +973,21 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       ...(text ? { message: text } : {}),
     };
     setActivity((list) => [entry, ...list].slice(0, MAX_ACTIVITY));
-  }, []);
+    // As the provider: what may have moved money goes into the vault's log.
+    const cents = Math.round(entry.amount * 100);
+    if (outcome !== 'failed' && cents > 0) {
+      updateVault((v) => ({
+        ...v,
+        sentOrders: recordSentOrder(v.sentOrders, { at: entry.at, accountNumber: entry.accountNumber, iban: entry.iban, cents, outcome }),
+      }));
+    }
+  }, [updateVault]);
 
   const withActivity = useCallback((h: TransferHandlers): TransferHandlers => ({
     ...h,
     onExecuted: (answers) => { logTransfer('executed', answers); h.onExecuted(answers); },
-    onUnknown: () => { logTransfer('unknown'); h.onUnknown(); },
+    onUnknown: (answers) => { logTransfer('unknown', answers); h.onUnknown(answers); },
+    onRefused: (answers) => { logTransfer('failed', answers); h.onRefused(answers); },
     onError: (message) => { logTransfer('failed', message); h.onError(message); },
   }), [logTransfer]);
 
@@ -938,10 +997,16 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     const amount = parseAmount(p.amount) ?? 0;
     const ibanTail = normIban(p.iban).slice(-4);
     startWait('transfer', {
-      title: 'Überweisung freigeben',
       challenge: `${p.instant ? 'Echtzeitüberweisung' : 'Überweisung'} über ${amount.toFixed(2).replace('.', ',')} EUR `
         + `an ${p.recipientName.trim()} (IBAN …${ibanTail}) freigeben`,
       vop,
+      order: { amount, name: sepaSanitize(p.recipientName), iban: normIban(p.iban), instant: p.instant },
+      onAnswer: (status, answers) => {
+        setBusy(false);
+        closeWait();
+        if (status === 'refused') h.onRefused(answers);
+        else h.onUnknown(answers);
+      },
       onDone: () => {
         setBusy(false);
         h.onExecuted(p.instant
@@ -951,11 +1016,13 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       retry: null,
       onDialogEnded: () => { setBusy(false); closeWait(); h.onUnknown(); },
       onCancelled: () => h.onUnknown(),
-      outcome: /unklar/i.test(p.recipientName) ? 'ended' : undefined,
+      outcome: /unklar/i.test(p.recipientName) ? 'ended' : /abgelehnt/i.test(p.recipientName) ? 'refused' : undefined,
     });
   }, [startWait, setBusy, closeWait]);
 
   const vopOrder = useRef<TransferPayload | null>(null);
+  /** The check result the parked order carries into its approval, as /api/vop-confirm passes it on. */
+  const vopResult = useRef<SerializedVop | null>(null);
 
   const submitTransfer = useCallback(async (payload: TransferPayload, handlers: TransferHandlers) => {
     if (busyRef.current) {
@@ -968,22 +1035,52 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     later(650, () => {
       const name = payload.recipientName.trim();
       if (/fehler/i.test(name)) {
+        // Refused outright, before any approval.
         setBusy(false);
-        h.onError('Der Auftrag wurde von der Bank abgelehnt: Die Empfänger-IBAN ist für Überweisungen gesperrt. (9210)');
+        h.onRefused('9050: Die Nachricht enthält Fehler. | 9210: Die Empfänger-IBAN ist für Überweisungen gesperrt. | 9800: Dialog abgebrochen.');
         return;
       }
       const iban = normIban(payload.iban);
-      if (/^max musterman$/i.test(name)) {
-        // Namensabgleich: one letter off — the bank names who it really is.
+      const park = (vop: SerializedVop) => {
         setBusy(false);
         vopOrder.current = payload;
-        h.onVop({
+        vopResult.current = vop;
+        h.onVop(vop);
+      };
+      const notice = 'Wenn du den Auftrag trotzdem freigibst, kann das Geld auf einem Konto landen, dessen '
+        + 'Inhaber nicht der von dir angegebene Empfänger ist. Deine Bank haftet dann nicht für die Ausführung.';
+      if (/^max musterman$/i.test(name)) {
+        // Namensabgleich: one letter off — the bank names who it really is.
+        park({
           verdict: 'CLOSE_MATCH',
           suggestedName: 'Max Mustermann',
           reason: null,
           infoText: 'Der Name des Zahlungsempfängers stimmt nicht genau mit dem Namen überein, der zur angegebenen IBAN '
-            + 'hinterlegt ist. Wenn du den Auftrag trotzdem freigibst, kann das Geld auf einem Konto landen, dessen '
-            + 'Inhaber nicht der von dir angegebene Empfänger ist. Deine Bank haftet dann nicht für die Ausführung.',
+            + `hinterlegt ist. ${notice}`,
+          submittedName: name,
+          iban,
+          validTo: null,
+        });
+        return;
+      }
+      if (/schmidt/i.test(name)) {
+        park({
+          verdict: 'NO_MATCH',
+          suggestedName: null,
+          reason: null,
+          infoText: `Der Name des Zahlungsempfängers stimmt nicht mit dem Namen überein, der zur angegebenen IBAN hinterlegt ist. ${notice}`,
+          submittedName: name,
+          iban,
+          validTo: null,
+        });
+        return;
+      }
+      if (/kiosk/i.test(name)) {
+        park({
+          verdict: 'NOT_APPLICABLE',
+          suggestedName: null,
+          reason: 'Die Bank des Zahlungsempfängers bietet keinen Namensabgleich an.',
+          infoText: `Der Name des Zahlungsempfängers konnte nicht überprüft werden. ${notice}`,
           submittedName: name,
           iban,
           validTo: null,
@@ -1008,11 +1105,13 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     }
     const h = withActivity(handlers);
     setBusy(true);
-    later(500, () => approveTransfer(order, h, null));
+    const vop = vopResult.current;
+    later(500, () => approveTransfer(order, h, vop));
   }, [withActivity, setBusy, later, approveTransfer]);
 
   const abandonVop = useCallback(async () => {
     vopOrder.current = null;
+    vopResult.current = null;
     setBusy(false);
   }, [setBusy]);
 
