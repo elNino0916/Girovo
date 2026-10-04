@@ -10,7 +10,7 @@
 // Printing one of these pages (Strg+P) gives the real pages, page marks
 // included: the preview frame drops away on paper.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFints, type PrintJob } from '@/components/FintsProvider';
 import { DocumentPreview } from '@/components/Statement';
 import type { StatementInfo } from '@/lib/app-types';
@@ -47,6 +47,27 @@ function closingOf(info: StatementInfo, currency: string): SerializedBalance | n
   return best && best.closingBalance != null
     ? { balance: best.closingBalance, currency: best.currency || currency, date: best.closingDate ?? info.to, availableAmount: null }
     : null;
+}
+
+/** An A4 sheet's width in CSS pixels (210 mm at 96 dpi) — the .doc-paper width. */
+const SHEET_PX = (210 / 25.4) * 96;
+
+/** How far the sheet must shrink to fit the scroller's content box: 1 when it fits. */
+function useFitToWidth(scroller: HTMLElement | null): number {
+  const [fit, setFit] = useState(1);
+  useEffect(() => {
+    if (!scroller) return;
+    const measure = () => {
+      const cs = getComputedStyle(scroller);
+      const room = scroller.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      setFit(Math.min(1, Math.max(0.25, room / SHEET_PX)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(scroller);
+    return () => ro.disconnect();
+  }, [scroller]);
+  return fit;
 }
 
 export function PrintPreview({ kind }: { kind: PrintPreviewKind }) {
@@ -89,13 +110,22 @@ export function PrintPreview({ kind }: { kind: PrintPreviewKind }) {
     return { kind: 'transaction', account: activeAccount, bank, tx, pending };
   }, [kind, activeAccount, bank, transactions, balances, statementInfo, pendingCache]);
 
+  const [main, setMain] = useState<HTMLElement | null>(null);
+  const fit = useFitToWidth(main);
+
   return (
     <main
+      ref={setMain}
       data-scroll-root
       className="h-dvh overflow-auto bg-paper px-4 py-8 sm:px-8 print:h-auto print:overflow-visible print:bg-transparent print:p-0"
     >
       {job ? (
-        <DocumentPreview job={job} />
+        // Scaled down (never up) to the window's width, so a narrow window
+        // sees the whole A4 sheet instead of its left two thirds. Paper is
+        // the real size again.
+        <div className="[zoom:var(--fit)] print:[zoom:1]" style={{ ['--fit' as string]: fit }}>
+          <DocumentPreview job={job} />
+        </div>
       ) : (
         <p className="mx-auto max-w-[46ch] text-center text-[14px] text-ink-2">
           Für diesen Beleg gibt es in den Beispieldaten dieses Kontos keine passende Buchung.
