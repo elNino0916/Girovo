@@ -50,7 +50,7 @@
 
 import type { SerializedTransaction } from './fints-types';
 import type { CategoryId, CategoryResult } from './categories';
-import { categoryDef, txCreditorId as creditorIdOf } from './categories.ts';
+import { categoryDef, counterpartyName, intermediaryName, txCreditorId as creditorIdOf } from './categories.ts';
 import { bookingKind, foldText, guessCategory, isOwnAccount } from './categorize.ts';
 import {
   addBusinessDays, addDaysKey, dayFromNumber, dayKey, dayNumber, isTargetBusinessDay, nextTargetBusinessDay, prettyBookingText,
@@ -438,12 +438,19 @@ const HABIT_CATEGORIES: ReadonlySet<CategoryId> = new Set<CategoryId>(['leisure'
 
 function groupKeyOf(tx: SerializedTransaction, credit: boolean, cred: string | null, mref: string | null): string | null {
   const dir = credit ? 'in' : 'out';
+  // Behind a card processor every shop shares the processor's IBAN (and has
+  // no mandate), so the IBAN would pour every Visa Debit payment into one
+  // "series". The shop's own name is what separates them.
+  if (intermediaryName(tx)) {
+    const shop = nameKey(counterpartyName(tx));
+    if (shop) return `${dir}|name:${shop}`;
+  }
   const iban = validIban(tx.remoteIban);
   if (cred && mref) return `${dir}|cred:${cred}|mref:${mref}`;
   if (iban && mref) return `${dir}|iban:${iban}|mref:${mref}`;
   if (iban) return `${dir}|iban:${iban}`;
   if (cred) return `${dir}|cred:${cred}`;
-  const name = nameKey(tx.remoteName);
+  const name = nameKey(counterpartyName(tx));
   if (name) return `${dir}|name:${name}`;
   const text = foldText(tx.bookingText);
   return text ? `${dir}|text:${text}` : null;
@@ -508,14 +515,17 @@ function buildSeries(
   const nextDate = projectNext(occ, cadence, group.credit);
   const late = ref - 5 - dayNumber(nextDate);
 
+  // Not the intermediary's IBAN: "Umsätze anzeigen" would list every shop it serves.
   let iban: string | null = null;
-  for (let i = occ.length - 1; i >= 0 && !iban; i--) iban = validIban(occ[i].tx.remoteIban);
+  if (!intermediaryName(newest)) {
+    for (let i = occ.length - 1; i >= 0 && !iban; i--) iban = validIban(occ[i].tx.remoteIban);
+  }
 
   return {
     id: seriesId(key),
     key,
     kind: group.credit ? 'income' : 'expense',
-    name: newest.remoteName?.trim() || prettyBookingText(newest.bookingText) || 'Unbekannt',
+    name: counterpartyName(newest) || prettyBookingText(newest.bookingText) || 'Unbekannt',
     iban,
     creditorId: group.cred,
     mandateReference: group.mref,

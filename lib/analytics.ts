@@ -22,7 +22,7 @@
 import type { SerializedTransaction } from './fints-types';
 import type { CategoryId, CategoryResult } from './categories';
 import type { TxFilter } from './app-types';
-import { categoryDef, counterpartyKey } from './categories.ts';
+import { categoryDef, counterpartyKey, counterpartyName, intermediaryName } from './categories.ts';
 import { foldText } from './categorize.ts';
 import { dayKey, fmtMonth, parseAmount, prettyBookingText, toLocalDate } from './format.ts';
 import { parsePurpose } from './sepa-purpose.ts';
@@ -333,7 +333,8 @@ export function topCounterparties(
     // otherwise all land in one "?" group; their booking text tells them apart.
     if (key === 'name:?') key = `text:${foldText(tx.bookingText) || '?'}`;
     const time = txMillis(tx);
-    const iban = validIban(tx.remoteIban);
+    // An intermediary's IBAN would lead "show these bookings" to every shop it serves.
+    const iban = intermediaryName(tx) ? '' : validIban(tx.remoteIban);
     const offset = c < 0 ? 1 : 0;
     const g = groups.get(key);
     if (!g) {
@@ -356,7 +357,7 @@ export function topCounterparties(
     .filter(([, g]) => g.amount > 0)
     .map(([key, g]) => ({
       key,
-      name: g.newest.remoteName?.trim() || prettyBookingText(g.newest.bookingText) || 'Ohne Namen',
+      name: counterpartyName(g.newest) || prettyBookingText(g.newest.bookingText) || 'Ohne Namen',
       amount: euros(g.amount),
       count: g.count,
       offsets: g.offsets,
@@ -395,6 +396,7 @@ function haystack(tx: SerializedTransaction): string {
   const prose = parsePurpose(tx.purpose).text;
   return foldText(
     [
+      tx.ultimateName,
       tx.remoteName,
       prose,
       tx.purpose,

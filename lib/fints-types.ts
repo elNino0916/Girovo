@@ -120,6 +120,14 @@ export type SerializedTransaction = {
    * which looks in both places.
    */
   creditorId?: string;
+  /**
+   * The party behind the account holder: the "abweichender Empfänger" of a
+   * payment (MT940 ABWE+, CAMT UltmtCdtr) or the "abweichender Auftraggeber"
+   * of money coming in (ABWA+, UltmtDbtr). A Sparkasse Visa Debit payment
+   * names its card processor as `remoteName` and the shop only here. Read it
+   * through counterpartyName() in lib/categories.ts.
+   */
+  ultimateName?: string;
   e2eReference: string;
   mandateReference: string;
   customerReference: string;

@@ -11,7 +11,7 @@
 // Pure and dependency-free apart from sibling lib modules, so the
 // `node --test` suite can run it under Node's own type stripping.
 
-import { categoryLabel, isCategoryId, txBic, txCreditorId } from './categories.ts';
+import { categoryLabel, intermediaryName, isCategoryId, txBic, txCreditorId } from './categories.ts';
 import type { CategoryId, CategoryResult } from './categories.ts';
 import { prettyBookingText, repairBankText, translateType } from './format.ts';
 import type { SerializedAccount, SerializedTransaction } from './fints-types';
@@ -27,6 +27,10 @@ export const CSV_COLUMNS = [
   'Name Zahlungsbeteiligter',
   'IBAN Zahlungsbeteiligter',
   'BIC Zahlungsbeteiligter',
+  // The shop behind a card processor (or the payer behind a payment service):
+  // the name the bank's own app shows. Its own column, so the name and IBAN
+  // above stay the account the money really moved to.
+  'Abweichender Empfänger/Auftraggeber',
   'Buchungstext',
   'Verwendungszweck',
   'Betrag',
@@ -165,6 +169,7 @@ function row(tx: SerializedTransaction, opts: CsvOptions, accountCells: string[]
     csvTextCell(repairBankText(tx.remoteName).trim()),
     csvIdCell(compact(tx.remoteIban)),
     csvIdCell(txBic(tx)),
+    csvTextCell(intermediaryName(tx) ? repairBankText(tx.ultimateName ?? '').trim() : ''),
     csvTextCell(prettyBookingText(repairBankText(tx.bookingText))),
     csvTextCell(purpose),
     csvAmountCell(tx.amount),

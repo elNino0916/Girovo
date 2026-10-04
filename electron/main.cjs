@@ -17,12 +17,14 @@
 // being reachable from the LAN, and a fixed port would collide with `npm run
 // dev` on port 3000.
 
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, session, shell } = require('electron');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
 const path = require('node:path');
+const { createUpdater } = require('./updater.cjs');
+const updateLogic = require('./update-logic.cjs');
 
 const HOST = '127.0.0.1';
 const SERVER_START_TIMEOUT_MS = 60_000;
@@ -97,6 +99,8 @@ let win = null;
 /** Origin of the page the window shows; the only one the IPC bridges answer. */
 let appOrigin = '';
 let quitting = false;
+/** @type {ReturnType<typeof createUpdater> | null} */
+let updater = null;
 
 // ---------------------------------------------------------------------------
 // Preferences
@@ -433,6 +437,90 @@ function createWindow(appUrl) {
   win.loadURL(appUrl);
 }
 
+// ---------------------------------------------------------------------------
+// Updates (electron/updater.cjs)
+//
+// The update traffic goes through a session of its own, in memory only: no
+// cookies, no cache, nothing shared with the window — and a User-Agent that
+// names the app and its version and nothing else about this machine.
+// ---------------------------------------------------------------------------
+
+/** Starts `file` outside this process's job, so it outlives the quit that follows. */
+function spawnDetached(file, args, { cwd }) {
+  return new Promise((resolve, reject) => {
+    const env = { ...process.env };
+    // The portable launcher's own bookkeeping; the next launcher sets it afresh.
+    for (const key of Object.keys(env)) if (key.startsWith('PORTABLE_EXECUTABLE_')) delete env[key];
+    const child = spawn(file, args, { cwd, env, detached: true, stdio: 'ignore' });
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+  });
+}
+
+function setupUpdater() {
+  // Only an unpackaged build can be pointed at a test feed (a local server,
+  // see electron/updater.test.cjs) — a shipped app always asks GitHub.
+  const testFeed = !app.isPackaged ? process.env.SOOSKASSE_UPDATE_FEED : undefined;
+  const kind = (testFeed && process.env.SOOSKASSE_UPDATE_KIND) || updateLogic.installKind({
+    isPackaged: app.isPackaged,
+    env: process.env,
+    execPath: process.execPath,
+    exists: (file) => fs.existsSync(file),
+  });
+
+  const ses = session.fromPartition('sooskasse-updater', { cache: false });
+  ses.setUserAgent(`Sooskasse-FinTS/${app.getVersion()}`);
+
+  updater = createUpdater({
+    currentVersion: app.getVersion(),
+    kind,
+    fetch: (url, init) => ses.fetch(url, init),
+    // Beside electron-builder's own name for it (app-update.yml); out of the
+    // roaming profile, which is no place for 100 MB installers.
+    cacheDir: testFeed
+      ? path.join(app.getPath('temp'), 'sooskasse-fints-updater-dev')
+      : path.join(process.env.LOCALAPPDATA || app.getPath('temp'), 'sooskasse-fints-updater'),
+    portableDir: process.env.PORTABLE_EXECUTABLE_DIR || null,
+    downloadsDir: app.getPath('downloads'),
+    previousExe: process.env.PORTABLE_EXECUTABLE_FILE || null,
+    autoCheck: kind !== 'dev' || !!testFeed,
+    ...(testFeed ? { feedUrl: testFeed, downloadPrefix: new URL('/', testFeed).href } : {}),
+    getPref: (key) => prefs().get(key) ?? null,
+    setPref: (key, value) => setPref(key, value),
+    send: (state) => {
+      if (win && !win.webContents.isDestroyed()) win.webContents.send('updater:state', state);
+    },
+    spawnDetached,
+    quit: () => {
+      quitting = true;
+      app.quit();
+    },
+    openExternal: (url) => shell.openExternal(url),
+  });
+
+  // window.electronUpdater (preload.cjs). Each answers with the state; the
+  // window also gets every change pushed on 'updater:state'.
+  const handle = (channel, run) => {
+    ipcMain.handle(channel, (event, ...args) => (fromApp(event) ? run(...args) : null));
+  };
+  handle('updater:get', () => updater.getState());
+  handle('updater:check', () => updater.check({ manual: true }));
+  // Answers at once; the download reports through the pushed state.
+  handle('updater:download', () => {
+    void updater.download();
+    return updater.getState();
+  });
+  handle('updater:cancel', () => updater.cancel());
+  handle('updater:install', () => updater.install());
+  handle('updater:set-auto', (on) => updater.setAuto(on === true));
+  handle('updater:open-release', () => updater.openRelease());
+
+  updater.start();
+}
+
 // A minimal menu: hidden behind Alt, but it is what registers the zoom,
 // reload and devtools accelerators on Windows.
 function buildMenu() {
@@ -468,11 +556,33 @@ function buildMenu() {
   );
 }
 
+/**
+ * A start caused by an update (--updated: the installer's --force-run, or the
+ * new portable .exe, see electron/update-logic.cjs) can come up while the old
+ * instance is still closing. Rather than hand over to a window that is about
+ * to go away, it waits for the old instance's lock — for a while.
+ */
+function waitForLock(then) {
+  const deadline = Date.now() + 15_000;
+  const retry = () => {
+    if (app.requestSingleInstanceLock()) then();
+    else if (Date.now() < deadline) setTimeout(retry, 300);
+    else app.quit();
+  };
+  setTimeout(retry, 300);
+}
+
 // Two instances would mean two servers and two copies of the FinTS session
 // state; focus the existing window instead.
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
+if (app.requestSingleInstanceLock()) {
+  run();
+} else if (process.argv.includes('--updated')) {
+  waitForLock(run);
 } else {
+  app.quit();
+}
+
+function run() {
   app.on('second-instance', () => {
     if (win) {
       if (win.isMinimized()) win.restore();
@@ -487,6 +597,12 @@ if (!app.requestSingleInstanceLock()) {
       // (see the electron:dev script) instead of the built server.
       const appUrl = process.env.ELECTRON_START_URL || (await startServer());
       createWindow(appUrl);
+      // An updater that fails to come up must not take the app with it.
+      try {
+        setupUpdater();
+      } catch (err) {
+        console.warn('[updater] unavailable:', err?.message || err);
+      }
     } catch (err) {
       dialog.showErrorBox('Sooskasse-FinTS konnte nicht starten', String(err?.message || err));
       app.quit();
@@ -549,6 +665,9 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     quitting = true;
   });
-  app.on('will-quit', stopServer);
+  app.on('will-quit', () => {
+    updater?.stop();
+    stopServer();
+  });
   process.on('exit', stopServer);
 }

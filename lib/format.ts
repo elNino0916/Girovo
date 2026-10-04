@@ -27,6 +27,23 @@ export const fmtSignedMoney = (v: number | null | undefined, cur = 'EUR') => pro
 /** Signed bare amount for a statement's amount column: "−6,11" / "128,40". */
 export const fmtSignedDecimal = (v: number | null | undefined) => properMinus(fmtDecimal(v));
 
+/**
+ * A file size the way a download dialog states it: decimal units, one
+ * decimal below ten ("4,2 MB"), none above ("105 MB").
+ *
+ * For progress, `unitOf` lets another size pick the unit and `bare` leaves it
+ * off, so "47 von 105 MB" reads as one pair — not "860 kB von 105 MB".
+ */
+export function fmtBytes(n: number, { unitOf = n, bare = false }: { unitOf?: number; bare?: boolean } = {}): string {
+  if (!Number.isFinite(n) || n < 0) return '';
+  const UNITS = ['Byte', 'kB', 'MB', 'GB'] as const;
+  let unit = 0;
+  for (let scale = Math.max(unitOf, n); scale >= 1000 && unit < UNITS.length - 1; scale /= 1000) unit++;
+  const v = n / 1000 ** unit;
+  const figure = new Intl.NumberFormat('de-DE', { maximumFractionDigits: unit === 0 || v >= 10 ? 0 : 1 }).format(v);
+  return bare ? figure : `${figure} ${UNITS[unit]}`;
+}
+
 export const fmtDate = (d: Date | string | null | undefined) =>
   d ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(d)) : '';
 
@@ -611,6 +628,10 @@ export function displayName(raw: string | null | undefined): string {
       if (i === words.length - 1 && i > 0 && COUNTRY_TAIL.has(word)) return word;
       // A club's "EV" without its dots, as card terminals and old systems send it.
       if (i === words.length - 1 && i > 0 && word === 'EV') return 'eV';
+      // A web address as card merchants send it ("TEMU.COM", "AMAZON.DE"):
+      // the name re-cased, the domain ending in lower case — "Temu.com".
+      const site = /^([A-Z0-9][A-Z0-9-]*)\.(COM|DE|NET|ORG|EU|IO|CO|AT|CH|NL|FR|IT|ES|UK|TV|APP)$/.exec(word);
+      if (site) return `${casePart(site[1])}.${site[2].toLowerCase()}`;
       // Joined parts are each a word of their own: "HUK-COBURG", "GMBH-ZWNL".
       return word.split(/([-/])/).map((part) => (part === '-' || part === '/' || !part ? part : casePart(part))).join('');
     })

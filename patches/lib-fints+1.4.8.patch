@@ -1,5 +1,5 @@
 diff --git a/node_modules/lib-fints/dist/camtParser.js b/node_modules/lib-fints/dist/camtParser.js
-index 0dc0042..d3e7857 100644
+index 0dc0042..a39993d 100644
 --- a/node_modules/lib-fints/dist/camtParser.js
 +++ b/node_modules/lib-fints/dist/camtParser.js
 @@ -73,22 +73,24 @@ export class CamtParser {
@@ -33,6 +33,33 @@ index 0dc0042..d3e7857 100644
          if (!rpt) {
              return [];
          }
+@@ -287,7 +289,17 @@ export class CamtParser {
+             let remoteName = '';
+             let remoteIBAN = '';
+             let remoteBankId = '';
++            let ultimateCreditor = '';
++            let ultimateDebtor = '';
+             const txDtls = entry.NtryDtls?.TxDtls;
++            if (txDtls) {
++                // Names only (<Nm>, or <Pty><Nm> in newer camt versions): an
++                // ultimate party given by an identifier alone has no name to show.
++                ultimateCreditor = this.getValueFromPath(txDtls, 'RltdPties.UltmtCdtr.Nm')
++                    || this.getValueFromPath(txDtls, 'RltdPties.UltmtCdtr.Pty.Nm') || '';
++                ultimateDebtor = this.getValueFromPath(txDtls, 'RltdPties.UltmtDbtr.Nm')
++                    || this.getValueFromPath(txDtls, 'RltdPties.UltmtDbtr.Pty.Nm') || '';
++            }
+             if (txDtls) {
+                 if (isDebit) {
+                     // For debit transactions, we want the creditor (receiving party)
+@@ -320,6 +332,8 @@ export class CamtParser {
+                 remoteName,
+                 remoteAccountNumber: remoteIBAN,
+                 remoteBankId,
++                ultimateCreditor,
++                ultimateDebtor,
+                 e2eReference: endToEndId,
+                 mandateReference: mandateId,
+                 additionalInformation: additionalEntryInfo,
 diff --git a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js b/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
 index db0c38e..3c985c4 100644
 --- a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
@@ -67,6 +94,21 @@ index db0c38e..3c985c4 100644
              acceptedCamtFormats: acceptedCamtFormats,
              allAccounts: false,
              from: this.from,
+diff --git a/node_modules/lib-fints/dist/mt940parser.js b/node_modules/lib-fints/dist/mt940parser.js
+index 5d196e3..f11cdaf 100644
+--- a/node_modules/lib-fints/dist/mt940parser.js
++++ b/node_modules/lib-fints/dist/mt940parser.js
+@@ -243,6 +243,10 @@ export class Mt940Parser {
+                         break;
+                     case 'ABWA+':
+                         transaction.client = text;
++                        transaction.ultimateDebtor = text;
++                        break;
++                    case 'ABWE+':
++                        transaction.ultimateCreditor = text;
+                         break;
+                     case 'SVWZ+':
+                         transaction.purpose = text;
 diff --git a/node_modules/lib-fints/dist/segments/registry.js b/node_modules/lib-fints/dist/segments/registry.js
 index 8f6997f..5b5ee85 100644
 --- a/node_modules/lib-fints/dist/segments/registry.js
@@ -79,3 +121,18 @@ index 8f6997f..5b5ee85 100644
 +export function registerSegmentDefinition(definition) {
      registry.set(definition.id, definition);
  }
+diff --git a/node_modules/lib-fints/dist/types/statement.d.ts b/node_modules/lib-fints/dist/types/statement.d.ts
+index 02aa9af..310450d 100644
+--- a/node_modules/lib-fints/dist/types/statement.d.ts
++++ b/node_modules/lib-fints/dist/types/statement.d.ts
+@@ -26,6 +26,10 @@ export interface Transaction {
+     remoteName?: string;
+     remoteIdentifier?: string;
+     client?: string;
++    /** "Abweichender Empfänger" (MT940 ABWE+, CAMT UltmtCdtr): the party a payment is really for. */
++    ultimateCreditor?: string;
++    /** "Abweichender Auftraggeber" (MT940 ABWA+, CAMT UltmtDbtr): the party a payment really comes from. */
++    ultimateDebtor?: string;
+     e2eReference?: string;
+     mandateReference?: string;
+     textKeyExtension?: string;

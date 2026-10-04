@@ -9,7 +9,7 @@ import { useId, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { CategoryAmount, Counterparty, MonthBucket } from '@/lib/analytics';
 import type { CategoryId } from '@/lib/categories';
-import { categoryLabel } from '@/lib/categories';
+import { categoryLabel, counterpartyName } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { dayKey, displayName, prettyBookingText } from '@/lib/format';
 import {
@@ -484,7 +484,7 @@ export function LargestExpenses({
       ) : (
         <ol className="pb-2">
           {items.map(({ tx, repeats }, i) => {
-            const name = displayName(tx.remoteName) || prettyBookingText(tx.bookingText) || 'Ohne Namen';
+            const name = displayName(counterpartyName(tx)) || prettyBookingText(tx.bookingText) || 'Ohne Namen';
             const day = fmtDayKey(dayKey(tx.entryDate || tx.valueDate));
             return (
               <ListRow

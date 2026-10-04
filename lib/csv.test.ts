@@ -83,7 +83,7 @@ test('header row is the documented column list', () => {
   assert.equal(
     csv,
     '﻿Bezeichnung Auftragskonto;IBAN Auftragskonto;BIC Auftragskonto;Bankname Auftragskonto;Buchungstag;Valutadatum;' +
-      'Name Zahlungsbeteiligter;IBAN Zahlungsbeteiligter;BIC Zahlungsbeteiligter;Buchungstext;Verwendungszweck;Betrag;' +
+      'Name Zahlungsbeteiligter;IBAN Zahlungsbeteiligter;BIC Zahlungsbeteiligter;Abweichender Empfänger/Auftraggeber;Buchungstext;Verwendungszweck;Betrag;' +
       'Waehrung;Kategorie;Glaeubiger ID;Mandatsreferenz;Kundenreferenz (End-to-End);Status\r\n',
   );
 });

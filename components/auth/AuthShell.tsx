@@ -11,6 +11,8 @@ import { CheckIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../ic
 import { cx } from '../ui';
 import { BrandMark } from '../shell/BrandMark';
 import { MASTHEAD_EDGES } from '../shell/edges';
+import { useUpdates } from '../updates/store';
+import { UpdateBarButton } from '../updates/UpdateNotices';
 
 export type AuthStep = 'bank' | 'credentials' | 'approval';
 
@@ -94,7 +96,9 @@ function AuthMasthead() {
 
       <div className="flex-1" />
 
-      <div style={NO_DRAG}>
+      <div className="flex items-center gap-1" style={NO_DRAG}>
+        {/* Desktop app, and only while a newer version is known. */}
+        <UpdateBarButton />
         <ThemeToggle tone="bar" />
       </div>
     </header>
@@ -149,10 +153,20 @@ function StepIndicator({ current }: { current: AuthStep }) {
 
 /**
  * What happens to the credentials, said once in the wide layout's side tile.
- * Honest about the one outside lookup the app can make: with company logos
- * switched on, payee names (and nothing else) go to the logo service.
+ * Honest about the outside lookups the app can make: with company logos
+ * switched on, payee names (and nothing else) go to the logo service; with
+ * the desktop app's update check on, its version number goes to GitHub.
  */
 export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
+  const { state: update } = useUpdates();
+  const updateChecks = !!update?.auto && update.kind !== 'dev';
+  const outside = merchantLogos && updateChecks
+    ? 'Nach draußen gehen nur Namen von Zahlungspartnern (für Firmenlogos) und die Versionsnummer der App (für Updates).'
+    : merchantLogos
+      ? 'Für Firmenlogos wird nur der Name des Zahlungspartners nachgeschlagen.'
+      : updateChecks
+        ? 'Nach Updates fragt die App bei GitHub nur mit ihrer Versionsnummer.'
+        : null;
   const points: { icon: ReactNode; title: string; text: string }[] = [
     {
       icon: <LockIcon size={18} />,
@@ -169,11 +183,11 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
       title: 'Gemerktes Gerät verschlüsselt',
       text: 'Merkt sich die App dein Gerät, sind die Daten mit deiner PIN verschlüsselt.',
     },
-    merchantLogos
+    outside
       ? {
           icon: <EyeOffIcon size={18} />,
           title: 'Kein Tracking',
-          text: 'Keine Werbung, keine Analyse. Für Firmenlogos wird nur der Name des Zahlungspartners nachgeschlagen.',
+          text: `Keine Werbung, keine Analyse. ${outside}`,
         }
       : {
           icon: <EyeOffIcon size={18} />,

@@ -20,6 +20,25 @@ contextBridge.exposeInMainWorld('electronPDF', {
   exportPDF: (suggestedName) => ipcRenderer.invoke('pdf:export', suggestedName),
 });
 
+// In-app updates (electron/updater.cjs). Every call answers with the
+// updater's state; onState hears every change, download progress included,
+// and returns its own unsubscribe.
+contextBridge.exposeInMainWorld('electronUpdater', {
+  getState: () => ipcRenderer.invoke('updater:get'),
+  check: () => ipcRenderer.invoke('updater:check'),
+  download: () => ipcRenderer.invoke('updater:download'),
+  cancel: () => ipcRenderer.invoke('updater:cancel'),
+  install: () => ipcRenderer.invoke('updater:install'),
+  setAuto: (on) => ipcRenderer.invoke('updater:set-auto', on === true),
+  openRelease: () => ipcRenderer.invoke('updater:open-release'),
+  onState: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on('updater:state', listener);
+    return () => ipcRenderer.removeListener('updater:state', listener);
+  },
+});
+
 // Preferences that must survive a restart (theme, "Beträge ausblenden", idle
 // limit). Synchronous on purpose: layout.tsx's pre-paint script reads the
 // theme before the first frame. Backed by userData/prefs.json in main.cjs,

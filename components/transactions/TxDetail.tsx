@@ -15,7 +15,7 @@ import {
   Button, CopyButton, Disclosure, Drawer, Menu, MenuGroup, MenuItemCheckbox, MenuItemRadio, MenuSeparator, Tag, cx,
 } from '../ui';
 import { CounterpartyAvatar } from './Avatar';
-import { counterpartyQuery, referenceRows, statusTags, transferSeeds, txText, type StatusTag } from './model';
+import { counterpartyQuery, countryName, referenceRows, statusTags, transferSeeds, txText, type StatusTag } from './model';
 
 const SOURCE_TEXT: Record<CategorySource, string> = {
   auto: 'Automatisch erkannt',
@@ -58,7 +58,14 @@ export function TxDetail({
   const query = counterpartyQuery(tx);
   const iban = String(tx.remoteIban ?? '').replace(/\s+/g, '');
   const bic = txBic(tx);
-  const country = ibanCountry(iban);
+  // Where the terminal stood beats the IBAN's country: behind a card
+  // processor the IBAN is the processor's, wherever the shop was.
+  // The shop's country belongs with its address, not under the provider's
+  // IBAN — there it would read as that account's country.
+  const place = text.place;
+  const address = place ? [place.street, place.city, place.country ? countryName(place.country) : ''].filter(Boolean).join(', ') : '';
+  // Behind a payment provider the IBAN's country is the provider's, not the shop's.
+  const country = place || text.via ? null : ibanCountry(iban);
   const future = !pending && isFutureDate(tx.entryDate);
   const when = tx.entryDate || tx.valueDate;
 
@@ -161,8 +168,22 @@ export function TxDetail({
           )}
         >
           {text.rawName && <Row label="Name"><span className="break-words">{text.rawName}</span></Row>}
+          {address && <Row label={place?.street ? 'Anschrift' : 'Ort'}><span className="break-words">{address}</span></Row>}
+          {/* What the bank's FinTS answer actually says, whenever the line
+              above shows something tidier — the card terminal's descriptor
+              unabridged, so nothing the app derived is the only record. */}
+          {text.bankName && text.bankName !== text.rawName && (
+            <Row label="Name laut Bank" copy={{ text: text.bankName, label: 'Name laut Bank kopieren' }}>
+              <span className="break-words">{text.bankName}</span>
+            </Row>
+          )}
+          {/* The account the money actually moved to or from belongs to the
+              payment provider (a card processor or acquirer), not to the shop
+              named above — said here, so the IBAN below is never mistaken for
+              the shop's. */}
+          {text.via && <Row label="Zahlungsdienstleister"><span className="break-words">{text.via}</span></Row>}
           {iban && (
-            <Row label="IBAN" copy={{ text: iban, label: 'IBAN kopieren' }}>
+            <Row label={text.via ? 'IBAN des Zahlungsdienstleisters' : 'IBAN'} copy={{ text: iban, label: 'IBAN kopieren' }}>
               <span className="iban text-[14px]">{fmtIban(iban)}</span>
             </Row>
           )}

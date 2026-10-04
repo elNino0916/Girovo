@@ -15,6 +15,8 @@ directories:
 
 files:
   - electron/**/*
+  # The updater's tests (npm test) have no business in the shipped app.
+  - "!electron/**/*.test.cjs"
   - package.json
   # electron-builder collects the production dependencies into the archive on
   # its own, which here would mean a second copy of Next and React. The shell

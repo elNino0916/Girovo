@@ -146,7 +146,7 @@ test('monthlyBuckets: leap February and both DST switch days land in their month
 
 test('topCounterparties groups by identity and ranks by money', () => {
   const out = topCounterparties(DATA, { categoryOf, dir: 'out', limit: 3 });
-  assert.deepEqual(out.map((c) => c.name), ['Hausverwaltung Kramer', 'REWE SAGT DANKE 4684//BERLIN/DE', 'GA NR00001234']);
+  assert.deepEqual(out.map((c) => c.name), ['Hausverwaltung Kramer', 'REWE SAGT DANKE 4684', 'GA NR00001234']);
   assert.equal(out[0].amount, 3400);
   assert.equal(out[0].count, 4);
   assert.equal(out[0].iban, IBAN.landlord);
@@ -197,7 +197,7 @@ test('topCounterparties shares the basis of periodTotals: refunds net, the other
   assert.deepEqual(t.incomeByCategory, []);
 
   const out = topCounterparties(txs, { ...opts, dir: 'out', limit: 8 });
-  assert.deepEqual(out.map((c) => [c.name, c.amount, c.count]), [['REWE SAGT DANKE 4701//BERLIN/DE', 50, 1]]);
+  assert.deepEqual(out.map((c) => [c.name, c.amount, c.count]), [['REWE SAGT DANKE 4701', 50, 1]]);
   assert.ok(out.every((c) => c.amount <= t.expense), 'no payee is more than the whole');
   assert.deepEqual(topCounterparties(txs, { ...opts, dir: 'in', limit: 8 }), [], 'a reversed salary nets to nothing');
 

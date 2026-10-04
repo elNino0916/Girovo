@@ -4,6 +4,7 @@
 
 import type { ActivityEntry, TransferTemplate } from '@/lib/app-types';
 import type { SerializedBalance, SerializedTransaction } from '@/lib/fints-types';
+import { intermediaryName } from '@/lib/categories';
 import { bookingKind } from '@/lib/categorize';
 import {
   dayKey, dayNumber, displayName, fmtDate, fmtShortIban, ibanValid, isoDate, parseAmount, toLocalDate,
@@ -116,6 +117,9 @@ export function recentPayees(
     const iban = rawIban(tx.remoteIban);
     if (!iban || seen.has(iban) || iban === exclude || !ibanValid(iban)) continue;
     if (NOT_A_PAYEE.has(bookingKind(tx))) continue;
+    // Paid through an intermediary for someone else (a card processor for a
+    // shop): its IBAN is not one you would send a transfer to.
+    if (intermediaryName(tx)) continue;
     const name = displayName(tx.remoteName);
     if (!name) continue;
     seen.add(iban);

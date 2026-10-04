@@ -15,7 +15,7 @@ import { Money, usePrivacy } from './Money';
 import { Button, DotList, EmptyState, ErrorState, Segmented, Spinner } from './ui';
 import type { Counterparty } from '@/lib/analytics';
 import type { CategoryId } from '@/lib/categories';
-import { categoryDef, categoryLabel } from '@/lib/categories';
+import { categoryDef, categoryLabel, counterpartyName, intermediaryName } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { fmtAmountInput, fmtRange, prettyBookingText } from '@/lib/format';
 import {
@@ -87,9 +87,10 @@ export function Analysis() {
   // the counterparty (by IBAN where there is one) and the direction narrow
   // the list instead, and its amounts stay masked.
   const showBooking = useCallback((tx: SerializedTransaction) => {
-    const who = (tx.remoteName || '').trim() || prettyBookingText(tx.bookingText);
+    const who = counterpartyName(tx) || prettyBookingText(tx.bookingText);
     if (privacy) {
-      const iban = (tx.remoteIban || '').trim();
+      // An intermediary's IBAN would find every shop it serves; the shop's name finds this one.
+      const iban = intermediaryName(tx) ? '' : (tx.remoteIban || '').trim();
       openOn(tx, { query: iban || who, dir: tx.amount < 0 ? 'out' : 'in' });
       return;
     }

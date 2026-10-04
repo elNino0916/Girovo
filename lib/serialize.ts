@@ -5,6 +5,7 @@ import type { TanMethod } from './fints-types';
 import { lookupBlz } from './banks';
 import { nearestEntryYear } from './entry-date';
 import { repairBankText } from './format';
+import { parsePurpose } from './sepa-purpose';
 import { INSTANT_SEG, TRANSFER_SEG } from './fints-sepa';
 import { PENDING_SEG } from './fints-pending';
 import type {
@@ -176,6 +177,22 @@ export function logStatementDates(accountNumber: string, statements: Statement[]
   console.log(`[stmt-dates] acct=${accountNumber} blocks=${statements?.length ?? 0} | ${blocks.join(' | ')}`);
 }
 
+/**
+ * The "abweichender Empfänger" of a payment or the "abweichender Auftraggeber"
+ * of money coming in — the shop behind a card processor, the employer behind
+ * a payroll service. lib-fints reads it from ABWE+/ABWA+ (MT940) and
+ * UltmtCdtr/UltmtDbtr (CAMT) through this app's patch; a bank that runs the
+ * SEPA tags together without spaces leaves them in the purpose, so that is the
+ * fallback. Only the side facing the other party counts: on a payment the
+ * ultimate *debtor* is the customer, not the shop.
+ */
+function ultimateParty(t: Statement['transactions'][number]): string {
+  const credit = Number(t.amount) > 0;
+  const own = (credit ? t.ultimateDebtor : t.ultimateCreditor) || '';
+  const tagged = own ? '' : parsePurpose(t.purpose).fields.find((f) => f.tag === (credit ? 'ABWA' : 'ABWE'))?.value || '';
+  return repairBankText(own || tagged).replace(/\s+/g, ' ').trim();
+}
+
 export function serializeTransactions(statements: Statement[] | undefined): SerializedTransaction[] {
   const txs: SerializedTransaction[] = [];
   for (const st of statements || []) {
@@ -199,6 +216,7 @@ export function serializeTransactions(statements: Statement[] | undefined): Seri
         // screen and on the printed Buchungsbeleg).
         remoteBic: t.remoteBankId || '',
         creditorId: t.remoteIdentifier || '',
+        ultimateName: ultimateParty(t),
         e2eReference: t.e2eReference || '',
         mandateReference: t.mandateReference || '',
         customerReference: t.customerReference || '',

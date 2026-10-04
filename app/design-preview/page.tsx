@@ -14,6 +14,8 @@
 //                  &still=0|1                 settle animations (default: on under Electron)
 //                  &q=rewe                    Umsätze search
 //                  &toasts=1                  one toast of each tone
+//                  &update=available|ready|…  a fake desktop updater (./updater.ts)
+//                  &updateDialog=1            …with its dialog open
 //                  &y=800                     scroll the page there once loaded
 //
 // The real components render inside the same print:hidden structure as
@@ -35,10 +37,12 @@ import { Statement } from '@/components/Statement';
 import { TanMethodPicker } from '@/components/TanMethodPicker';
 import { TanWaitOverlay } from '@/components/TanWaitOverlay';
 import { Toasts } from '@/components/Toasts';
+import { UpdateLayer } from '@/components/updates/UpdateNotices';
 import { presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
 import { ACCT, MOCK_PAYEES } from './data';
 import { MockFintsProvider, type MockOptions, type MockPreset } from './mock';
+import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
 
 // ---------------------------------------------------------------------------
 // Scripts: how each view gets from "logged in" to the state it shows
@@ -59,9 +63,11 @@ type Script = (c: Ctx) => Promise<void> | void;
 
 type ViewDef = {
   label: string;
-  group: 'Dashboard' | 'Anmeldung' | 'Überweisung' | 'Dialoge';
+  group: 'Dashboard' | 'Anmeldung' | 'Überweisung' | 'Dialoge' | 'Updates';
   preset?: MockPreset;
   options?: MockOptions;
+  /** The desktop updater this view shows (a fake, ./updater.ts), and whether its dialog is open. */
+  update?: { scenario: UpdateScenario; dialog?: boolean };
   script?: Script;
 };
 
@@ -143,6 +149,26 @@ const VIEWS: Record<string, ViewDef> = {
     async script(c) {
       c.api().applyRange(presetRange('365d'));
       await c.until((f) => f.wait.open, 3000);
+    },
+  },
+
+  update: { label: 'Update verfügbar', group: 'Updates', update: { scenario: 'available', dialog: true } },
+  'update-downloading': { label: 'Download läuft', group: 'Updates', update: { scenario: 'downloading', dialog: true } },
+  'update-ready': { label: 'Bereit zur Installation', group: 'Updates', update: { scenario: 'ready', dialog: true } },
+  'update-current': { label: 'Auf dem neuesten Stand', group: 'Updates', update: { scenario: 'current', dialog: true } },
+  'update-installed': { label: 'Nach dem Update', group: 'Updates', update: { scenario: 'installed' } },
+  'update-error': { label: 'Download fehlgeschlagen', group: 'Updates', update: { scenario: 'error', dialog: true } },
+  'update-manual': { label: 'Nur Download-Seite', group: 'Updates', update: { scenario: 'manual', dialog: true } },
+  'update-portable': { label: 'Portable Version', group: 'Updates', update: { scenario: 'portable', dialog: true } },
+  'update-inbox': { label: 'In Mitteilungen', group: 'Updates', options: { open: 'inbox' }, update: { scenario: 'available' } },
+  'update-login': { label: 'Bei der Anmeldung', group: 'Updates', options: { view: 'login' }, update: { scenario: 'ready' } },
+  'update-session': {
+    label: 'Im Sitzungsmenü',
+    group: 'Updates',
+    update: { scenario: 'available' },
+    async script(c) {
+      await c.click(/^Sitzung/, { within: 'page' });
+      await c.poll(() => document.querySelector('[role="dialog"], [data-popover]'), 2000);
     },
   },
 
@@ -287,6 +313,14 @@ const ACCOUNTS: Record<string, string> = { giro: ACCT.giro, tagesgeld: ACCT.tage
 
 const noopSubscribe = () => () => {};
 
+/** The fake updater is set up once per view (the same key as the mock session below). */
+let updaterKey: string | null = null;
+function prepareUpdater(key: string, scenario: UpdateScenario | null, dialog: boolean) {
+  if (updaterKey === key) return;
+  updaterKey = key;
+  installFakeUpdater(scenario, { dialog });
+}
+
 export default function DesignPreview({ searchParams }: { searchParams: Promise<Search> }) {
   if (process.env.NODE_ENV === 'production') notFound();
   const params = use(searchParams);
@@ -298,6 +332,14 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
   const viewId = one(params.view) || 'overview';
   if (viewId === 'index') return <Index />;
   const def = VIEWS[viewId] ?? VIEWS.overview;
+
+  // Before anything below subscribes to the updater: they attach to the fake.
+  const updateParam = one(params.update);
+  prepareUpdater(
+    JSON.stringify(params),
+    isUpdateScenario(updateParam) ? updateParam : def.update?.scenario ?? null,
+    def.update?.dialog || one(params.updateDialog) === '1',
+  );
 
   const presetParam = one(params.preset) as MockPreset;
   const preset = PRESETS.includes(presetParam) ? presetParam
@@ -335,6 +377,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
       <div className="print:hidden">
         <App />
         <TanWaitOverlay />
+        <UpdateLayer />
         <Toasts />
       </div>
       <Statement />
@@ -410,7 +453,7 @@ function Driver({ setup, script }: { setup: Setup; script?: Script }) {
 
 // ---------------------------------------------------------------------------
 
-const GROUPS: ViewDef['group'][] = ['Dashboard', 'Anmeldung', 'Überweisung', 'Dialoge'];
+const GROUPS: ViewDef['group'][] = ['Dashboard', 'Anmeldung', 'Überweisung', 'Dialoge', 'Updates'];
 
 const PRESET_LABELS: Record<MockPreset, string> = {
   default: 'Standard',
@@ -497,7 +540,8 @@ function Index() {
           Weitere Parameter: <code className="num">privacy=1</code>, <code className="num">preset=…</code>,{' '}
           <code className="num">range=90d|365d|all</code>, <code className="num">tan=hold|ended|error</code>,{' '}
           <code className="num">acct=tagesgeld|karte</code>, <code className="num">q=…</code>,{' '}
-          <code className="num">y=…</code>, <code className="num">still=0|1</code>.
+          <code className="num">y=…</code>, <code className="num">still=0|1</code>,{' '}
+          <code className="num">update=available|ready|current|…</code>, <code className="num">updateDialog=1</code>.
         </p>
       </div>
     </main>
