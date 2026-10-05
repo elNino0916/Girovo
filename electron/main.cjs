@@ -450,7 +450,7 @@ function createWindow(appUrl) {
 // names the app and its version and nothing else about this machine.
 // ---------------------------------------------------------------------------
 
-/** Starts `file` outside this process's job, so it outlives the quit that follows. */
+/** Starts `file` outside this process's job, so it outlives the quit that follows. Answers its pid. */
 function spawnDetached(file, args, { cwd }) {
   return new Promise((resolve, reject) => {
     const env = { ...process.env };
@@ -460,9 +460,41 @@ function spawnDetached(file, args, { cwd }) {
     child.once('error', reject);
     child.once('spawn', () => {
       child.unref();
-      resolve();
+      resolve(child.pid);
     });
   });
+}
+
+const UPDATE_WINDOW = 'Sooskasse-FinTS-Update.exe';
+
+/**
+ * The window that shows the install's progress once this app has quit
+ * (build/update-window/UpdateWindow.cs). It runs from the cache folder, not
+ * from here: the installer is about to delete this installation, and a
+ * running .exe cannot be deleted. It only watches — the installer runs the
+ * same with or without it.
+ */
+async function showInstallWindow({ installerPid, version, cacheDir }) {
+  const source = path.join(process.resourcesPath, UPDATE_WINDOW);
+  if (!fs.existsSync(source)) return;
+  const exe = path.join(cacheDir, UPDATE_WINDOW);
+  await fs.promises.copyFile(source, exe);
+  const installDir = path.dirname(process.execPath);
+  // How many files the installation has: the new one will have about as many.
+  const entries = await fs.promises.readdir(installDir, { recursive: true, withFileTypes: true });
+  const files = entries.filter((e) => e.isFile()).length;
+  const bounds = win && !win.isDestroyed() ? win.getBounds() : null;
+  await spawnDetached(exe, [
+    '--installer-pid', String(installerPid),
+    '--install-dir', installDir,
+    '--files', String(files),
+    '--version', version,
+    '--app-exe', process.execPath,
+    '--releases-url', updateLogic.RELEASES_PAGE,
+    '--theme', prefersDark() ? 'dark' : 'light',
+    '--log', path.join(cacheDir, 'update-window.log'),
+    ...(bounds ? ['--around', [bounds.x, bounds.y, bounds.width, bounds.height].join(',')] : []),
+  ], { cwd: cacheDir });
 }
 
 function setupUpdater() {
@@ -479,17 +511,24 @@ function setupUpdater() {
   const ses = session.fromPartition('sooskasse-updater', { cache: false });
   ses.setUserAgent(`Sooskasse-FinTS/${app.getVersion()}`);
 
+  // Beside electron-builder's own name for it (app-update.yml); out of the
+  // roaming profile, which is no place for 100 MB installers.
+  const cacheDir = testFeed
+    ? path.join(app.getPath('temp'), 'sooskasse-fints-updater-dev')
+    : path.join(process.env.LOCALAPPDATA || app.getPath('temp'), 'sooskasse-fints-updater');
+
   updater = createUpdater({
     currentVersion: app.getVersion(),
     kind,
     fetch: (url, init) => ses.fetch(url, init),
-    // Beside electron-builder's own name for it (app-update.yml); out of the
-    // roaming profile, which is no place for 100 MB installers.
-    cacheDir: testFeed
-      ? path.join(app.getPath('temp'), 'sooskasse-fints-updater-dev')
-      : path.join(process.env.LOCALAPPDATA || app.getPath('temp'), 'sooskasse-fints-updater'),
+    cacheDir,
     portableDir: process.env.PORTABLE_EXECUTABLE_DIR || null,
     downloadsDir: app.getPath('downloads'),
+    // The Setup.exe this copy was installed from, kept by build/installer.nsh:
+    // the next update downloads only what differs from it.
+    baseFile: testFeed
+      ? process.env.SOOSKASSE_UPDATE_BASE || null
+      : path.join(process.resourcesPath, 'update-base.bin'),
     previousExe: process.env.PORTABLE_EXECUTABLE_FILE || null,
     autoCheck: kind !== 'dev' || !!testFeed,
     ...(testFeed ? { feedUrl: testFeed, downloadPrefix: new URL('/', testFeed).href } : {}),
@@ -499,6 +538,7 @@ function setupUpdater() {
       if (win && !win.webContents.isDestroyed()) win.webContents.send('updater:state', state);
     },
     spawnDetached,
+    showInstallWindow: (info) => showInstallWindow({ ...info, cacheDir }),
     quit: () => {
       quitting = true;
       app.quit();

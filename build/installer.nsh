@@ -74,6 +74,19 @@ ManifestDPIAwareness PerMonitorV2
 !macro customUnInstallCheckCurrentUser
 !macroend
 
+; customInstall — a copy of this very installer goes into the install, as
+;   resources\update-base.bin. The app's updater (electron/updater.cjs) builds
+;   the next version's installer from it: it compares the two releases'
+;   blockmaps and downloads only the chunks this one does not have, a few MB
+;   instead of ~110. The copy goes wherever the install goes — per user or per
+;   machine — always matches the installed version, and the next update's
+;   uninstall step removes it with everything else. If the copy fails, the
+;   next update is simply a whole download, so nothing here is checked.
+;   (.bin: it is read for its bytes, never run from there.)
+!macro customInstall
+  CopyFiles /SILENT "$EXEPATH" "$INSTDIR\resources\update-base.bin"
+!macroend
+
 ; The assisted installer has no Welcome page by default — it jumps straight to
 ; "install for me or everyone", which wastes the branded sidebar image
 ; (build/installerSidebar.bmp) on the Finish page alone. Opting in here via the

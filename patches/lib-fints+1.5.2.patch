@@ -61,10 +61,10 @@ index 0dc0042..a39993d 100644
                  mandateReference: mandateId,
                  additionalInformation: additionalEntryInfo,
 diff --git a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js b/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
-index db0c38e..3c985c4 100644
+index d6874b6..264b2cf 100644
 --- a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
 +++ b/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
-@@ -21,11 +21,27 @@ export class StatementInteractionCAMT extends CustomerOrderInteraction {
+@@ -22,11 +22,29 @@ export class StatementInteractionCAMT extends CustomerOrderInteraction {
          let acceptedCamtFormats = ['urn:iso:std:iso:20022:tech:xsd:camt.052.001.08'];
          const params = init.getTransactionParameters(HKCAZ.Id);
          if (params && params.supportedCamtFormats.length > 0) {
@@ -84,12 +84,14 @@ index db0c38e..3c985c4 100644
 +        // InternationalAccountGroup. Some banks (e.g. Comdirect) reject HKCAZ
 +        // when both iban and accountNumber are present, answering 3010
 +        // "Kontonummer ist ungültig" even though the IBAN is correct.
++        // (Upstream's internationalAccount() only drops the national fields
++        // when HISPAS says nationalAccountAllowed === false.)
 +        const account = bankAccount.iban
 +            ? { iban: bankAccount.iban, bic: bankAccount.bic }
-+            : bankAccount;
++            : internationalAccount(init, bankAccount);
          const hkcaz = {
              header: { segId: HKCAZ.Id, segNr: 0, version: version },
--            account: bankAccount,
+-            account: internationalAccount(init, bankAccount),
 +            account,
              acceptedCamtFormats: acceptedCamtFormats,
              allAccounts: false,
@@ -110,10 +112,10 @@ index 5d196e3..f11cdaf 100644
                      case 'SVWZ+':
                          transaction.purpose = text;
 diff --git a/node_modules/lib-fints/dist/segments/registry.js b/node_modules/lib-fints/dist/segments/registry.js
-index 8f6997f..5b5ee85 100644
+index 38b8d31..5746d97 100644
 --- a/node_modules/lib-fints/dist/segments/registry.js
 +++ b/node_modules/lib-fints/dist/segments/registry.js
-@@ -88,6 +88,6 @@ export function registerSegments() {
+@@ -94,6 +94,6 @@ export function registerSegments() {
  export function getSegmentDefinition(id) {
      return registry.get(id);
  }

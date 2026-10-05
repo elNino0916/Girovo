@@ -124,3 +124,107 @@ test('installArgs: silent and restarting for the installer, nothing for the rest
   assert.equal(logic.installArgs('manual'), null);
   assert.equal(logic.installArgs('dev'), null);
 });
+
+test('tagUrl sits beside the latest-release address', () => {
+  assert.equal(logic.tagUrl(logic.FEED_URL, '4.1.0'), `https://api.github.com/repos/${logic.REPO}/releases/tags/4.1.0`);
+  assert.equal(logic.tagUrl('http://127.0.0.1:5000/latest', 'v4.1.0'), 'http://127.0.0.1:5000/tags/v4.1.0');
+  assert.equal(logic.tagUrl('http://127.0.0.1:5000/feed.json', '4.1.0'), null);
+});
+
+test('pickBlockmap finds the blockmap beside the installer, and only that', () => {
+  const r = logic.parseRelease(release({
+    assets: [
+      asset('Sooskasse-FinTS-4.1.0-Setup.exe'),
+      asset('Sooskasse-FinTS-4.1.0-portable.exe'),
+      asset('Sooskasse-FinTS-4.1.0-Setup.exe.blockmap', { size: 122_110 }),
+    ],
+  }));
+  const setup = logic.pickAsset(r, 'nsis');
+  assert.equal(setup.name, 'Sooskasse-FinTS-4.1.0-Setup.exe', 'the blockmap is not mistaken for the installer');
+  assert.equal(logic.pickBlockmap(r, setup).name, 'Sooskasse-FinTS-4.1.0-Setup.exe.blockmap');
+  assert.equal(logic.pickBlockmap(r, logic.pickAsset(r, 'portable')), null);
+  assert.equal(logic.pickBlockmap(null, setup), null);
+});
+
+const blockmap = (checksums, sizes, extra = {}) => ({
+  version: '2',
+  files: [{ name: 'file', offset: 0, checksums, sizes, ...extra }],
+});
+
+test('parseBlockmap: chunks in file order, adding up to the installer', () => {
+  assert.deepEqual(logic.parseBlockmap(blockmap(['a', 'b', 'c'], [10, 20, 5]), 35), [
+    { checksum: 'a', size: 10, offset: 0 },
+    { checksum: 'b', size: 20, offset: 10 },
+    { checksum: 'c', size: 5, offset: 30 },
+  ]);
+});
+
+test('parseBlockmap refuses anything that does not describe the file', () => {
+  assert.equal(logic.parseBlockmap(blockmap(['a', 'b'], [10, 20]), 31), null, 'wrong total');
+  assert.equal(logic.parseBlockmap(blockmap(['a'], [10, 20]), 30), null, 'lists of different length');
+  assert.equal(logic.parseBlockmap(blockmap(['a', 'b'], [10, -20]), -10), null);
+  assert.equal(logic.parseBlockmap(blockmap(['a', 7], [10, 20]), 30), null);
+  assert.equal(logic.parseBlockmap(blockmap([], []), 0), null);
+  assert.equal(logic.parseBlockmap(blockmap(['a'], [10], { offset: 4 }), 14), null);
+  assert.equal(logic.parseBlockmap({ ...blockmap(['a'], [10]), version: '1' }, 10), null);
+  assert.equal(logic.parseBlockmap({ version: '2', files: [] }, 10), null);
+  assert.equal(logic.parseBlockmap(null, 10), null);
+});
+
+/** Chunks as a blockmap lists them, from [checksum, size] pairs. */
+function chunks(list) {
+  let offset = 0;
+  return list.map(([checksum, size]) => {
+    const c = { checksum, size, offset };
+    offset += size;
+    return c;
+  });
+}
+
+test('planDifferential: unchanged chunks are copied, changed ones fetched', () => {
+  const old = chunks([['a', 100], ['b', 100], ['c', 100], ['d', 100]]);
+  const next = chunks([['a', 100], ['X', 50], ['c', 100], ['d', 100], ['Y', 30]]);
+  const plan = logic.planDifferential(old, next, { mergeGap: 0 });
+  assert.deepEqual(plan.copies, [
+    { from: 0, to: 0, size: 100 },
+    { from: 200, to: 150, size: 200 },
+  ]);
+  assert.deepEqual(plan.fetches, [
+    { start: 100, size: 50 },
+    { start: 350, size: 30 },
+  ]);
+  assert.equal(plan.fetchBytes, 80);
+});
+
+test('planDifferential: a chunk that moved is copied from where it was', () => {
+  const old = chunks([['a', 10], ['b', 20]]);
+  const plan = logic.planDifferential(old, chunks([['b', 20], ['a', 10]]));
+  assert.deepEqual(plan.copies, [{ from: 10, to: 0, size: 20 }, { from: 0, to: 20, size: 10 }]);
+  assert.deepEqual(plan.fetches, []);
+});
+
+test('planDifferential: same checksum but another size is not the same chunk', () => {
+  const plan = logic.planDifferential(chunks([['a', 10]]), chunks([['a', 11]]));
+  assert.deepEqual(plan.copies, []);
+  assert.deepEqual(plan.fetches, [{ start: 0, size: 11 }]);
+});
+
+test('planDifferential: a short copy between two fetches is fetched along', () => {
+  const old = chunks([['a', 100], ['b', 1000]]);
+  const next = chunks([['X', 10], ['a', 100], ['Y', 10], ['b', 1000], ['Z', 10]]);
+  const plan = logic.planDifferential(old, next, { mergeGap: 100 });
+  // 'a' (100 bytes) sits between two fetches: one request for X+a+Y.
+  // 'b' (1000 bytes) is past the gap: copied.
+  assert.deepEqual(plan.fetches, [{ start: 0, size: 120 }, { start: 1120, size: 10 }]);
+  assert.deepEqual(plan.copies, [{ from: 100, to: 120, size: 1000 }]);
+  assert.equal(plan.fetchBytes, 130);
+  // Every byte of the new file is covered exactly once.
+  const covered = [...plan.copies.map((c) => [c.to, c.size]), ...plan.fetches.map((f) => [f.start, f.size])]
+    .sort((x, y) => x[0] - y[0]);
+  let at = 0;
+  for (const [start, size] of covered) {
+    assert.equal(start, at);
+    at += size;
+  }
+  assert.equal(at, 1130);
+});

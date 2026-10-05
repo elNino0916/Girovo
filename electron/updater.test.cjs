@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
+const zlib = require('node:zlib');
 const { createUpdater, PREF_AUTO } = require('./updater.cjs');
 
 const PAYLOAD = crypto.randomBytes(300_000);
@@ -359,6 +360,52 @@ test('a failed start keeps the update ready and says why', async () => {
   }
 });
 
+test('the install window is shown for the running installer, and cannot stop the update', async () => {
+  const srv = await startServer(githubLike());
+  try {
+    const shown = [];
+    const { updater, calls } = makeUpdater(srv.base, {
+      spawnDetached: async () => 4242,
+      showInstallWindow: async (info) => shown.push(info),
+    });
+    await updater.check({ manual: true });
+    await updater.download();
+    await updater.install();
+    assert.deepEqual(shown, [{ installerPid: 4242, version: '9.9.9' }]);
+    assert.equal(calls.quit, 1);
+
+    // A window that fails to start changes nothing.
+    const failing = makeUpdater(srv.base, {
+      showInstallWindow: async () => {
+        throw new Error('blocked');
+      },
+    });
+    await failing.updater.check({ manual: true });
+    await failing.updater.download();
+    const s = await failing.updater.install();
+    assert.equal(failing.calls.spawned.length, 1);
+    assert.equal(failing.calls.quit, 1);
+    assert.equal(s.phase, 'installing');
+    assert.equal(s.error, null);
+
+    // The portable build starts the new .exe, which is its own window.
+    let portableShown = false;
+    const portable = makeUpdater(srv.base, {
+      kind: 'portable',
+      portableDir: tempDir(),
+      showInstallWindow: async () => {
+        portableShown = true;
+      },
+    });
+    await portable.updater.check({ manual: true });
+    await portable.updater.download();
+    await portable.updater.install();
+    assert.equal(portableShown, false);
+  } finally {
+    await srv.close();
+  }
+});
+
 test('the automatic check is a stored preference, on by default', () => {
   const { updater, prefs } = makeUpdater('http://127.0.0.1:9/');
   assert.equal(updater.getState().auto, true);
@@ -368,4 +415,226 @@ test('the automatic check is a stored preference, on by default', () => {
   updater.setAuto(true);
   updater.stop();
   assert.equal(prefs.get(PREF_AUTO), 'on');
+});
+
+// ---- differential downloads ------------------------------------------------
+
+const CHUNK = 4096;
+const OLD = crypto.randomBytes(CHUNK * 60);
+/** OLD with two chunks rewritten, one chunk inserted, and a tail: most of it is still OLD. */
+const NEW = Buffer.concat([
+  OLD.subarray(0, CHUNK * 10),
+  crypto.randomBytes(CHUNK * 2),
+  OLD.subarray(CHUNK * 12, CHUNK * 40),
+  crypto.randomBytes(CHUNK),
+  OLD.subarray(CHUNK * 40),
+  crypto.randomBytes(1000),
+]);
+const DIFF_BYTES = CHUNK * 3 + 1000;
+const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+const OLD_SETUP = 'Sooskasse-FinTS-4.0.0-Setup.exe';
+
+function checksumsOf(buf) {
+  const list = [];
+  for (let at = 0; at < buf.length; at += CHUNK) {
+    list.push(crypto.createHash('sha256').update(buf.subarray(at, at + CHUNK)).digest('base64').slice(0, 24));
+  }
+  return list;
+}
+
+/** A blockmap as electron-builder writes it, over fixed-size chunks (its own are content-defined). */
+function makeBlockmap(buf, checksums = checksumsOf(buf)) {
+  const sizes = checksums.map((_, i) => Math.min(CHUNK, buf.length - i * CHUNK));
+  return zlib.gzipSync(JSON.stringify({ version: '2', files: [{ name: 'file', offset: 0, checksums, sizes }] }));
+}
+
+/**
+ * GitHub with blockmaps: 9.9.9 is the latest release, 4.0.0 the installed
+ * one. Downloads honour single byte ranges unless `ranges` is false;
+ * `served` counts what went out of the new installer.
+ */
+function diffServer({ ranges = true, oldTag = '4.0.0', newMap = makeBlockmap(NEW), withMap = true, onRange } = {}) {
+  const served = { bytes: 0, requests: 0, ranged: 0 };
+  const files = {
+    [SETUP]: NEW,
+    [`${SETUP}.blockmap`]: newMap,
+    [OLD_SETUP]: OLD,
+    [`${OLD_SETUP}.blockmap`]: makeBlockmap(OLD),
+  };
+  const release = (base, tag, names) => ({
+    ...releaseJson(base, { tag }),
+    assets: names.map((name) => ({
+      name,
+      size: files[name].length,
+      digest: `sha256:${sha(files[name])}`,
+      browser_download_url: `${base}dl/${name}`,
+    })),
+  });
+  const json = (res, body) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(body));
+  const route = (req, res, base) => {
+    const name = req.url.startsWith('/dl/') ? req.url.slice(4) : null;
+    if (req.url === '/latest') {
+      json(res, release(base, '9.9.9', withMap ? [SETUP, `${SETUP}.blockmap`] : [SETUP]));
+    } else if (req.url === `/tags/${oldTag}`) {
+      json(res, release(base, oldTag, [OLD_SETUP, `${OLD_SETUP}.blockmap`]));
+    } else if (name && files[name]) {
+      const body = files[name];
+      const range = /^bytes=(\d+)-(\d+)$/.exec(req.headers.range || '');
+      if (name === SETUP) served.requests++;
+      if (range && ranges) {
+        const start = Number(range[1]);
+        const end = Number(range[2]);
+        if (name === SETUP) {
+          served.ranged++;
+          served.bytes += end - start + 1;
+        }
+        if (onRange?.(res, start, end, body.length)) return;
+        res.writeHead(206, { 'content-range': `bytes ${start}-${end}/${body.length}`, 'content-length': end - start + 1 });
+        res.end(body.subarray(start, end + 1));
+      } else {
+        if (name === SETUP) served.bytes += body.length;
+        res.writeHead(200, { 'content-length': body.length }).end(body);
+      }
+    } else {
+      res.writeHead(404).end();
+    }
+  };
+  return { route, served };
+}
+
+function baseFileWith(buf) {
+  const file = path.join(tempDir(), 'update-base.bin');
+  fs.writeFileSync(file, buf);
+  return file;
+}
+
+test('differential: only the changed chunks are downloaded, the rest comes from the installed Setup.exe', async () => {
+  const { route, served } = diffServer();
+  const srv = await startServer(route);
+  try {
+    const { updater, cacheDir, calls } = makeUpdater(srv.base, { baseFile: baseFileWith(OLD) });
+    let s = await updater.check({ manual: true });
+    assert.equal(s.phase, 'available');
+    // 2 rewritten chunks, 1 inserted one, the tail.
+    assert.equal(s.release.size, DIFF_BYTES, 'offers the smaller download');
+
+    s = await updater.download();
+    assert.equal(s.phase, 'ready');
+    assert.equal(fs.readFileSync(path.join(cacheDir, SETUP)).equals(NEW), true);
+    assert.equal(served.bytes, DIFF_BYTES);
+    assert.equal(served.ranged, served.requests, 'nothing but range requests');
+    assert.equal(calls.states.find((x) => x.phase === 'downloading').total, DIFF_BYTES);
+
+    // Installs like any download.
+    await updater.install();
+    assert.equal(calls.spawned[0].file, path.join(cacheDir, SETUP));
+  } finally {
+    await srv.close();
+  }
+});
+
+test('differential: a release tagged v4.0.0 is found too', async () => {
+  const { route, served } = diffServer({ oldTag: 'v4.0.0' });
+  const srv = await startServer(route);
+  try {
+    const { updater } = makeUpdater(srv.base, { baseFile: baseFileWith(OLD) });
+    assert.equal((await updater.check({ manual: true })).release.size, DIFF_BYTES);
+    assert.equal((await updater.download()).phase, 'ready');
+    assert.equal(served.bytes, DIFF_BYTES);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('differential: a server that ignores ranges means the whole file', async () => {
+  const { route } = diffServer({ ranges: false });
+  const srv = await startServer(route);
+  try {
+    const { updater, cacheDir } = makeUpdater(srv.base, { baseFile: baseFileWith(OLD) });
+    await updater.check({ manual: true });
+    const s = await updater.download();
+    assert.equal(s.phase, 'ready');
+    assert.equal(s.error, null);
+    assert.equal(s.release.size, NEW.length, 'now says what it really took');
+    assert.equal(fs.readFileSync(path.join(cacheDir, SETUP)).equals(NEW), true);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('differential: a wrong blockmap is caught by the digest, then the whole file', async () => {
+  // Claims chunk 10 is unchanged: the assembled file cannot match.
+  const lying = checksumsOf(NEW);
+  lying[10] = checksumsOf(OLD)[10];
+  const { route, served } = diffServer({ newMap: makeBlockmap(NEW, lying) });
+  const srv = await startServer(route);
+  try {
+    const { updater, cacheDir } = makeUpdater(srv.base, { baseFile: baseFileWith(OLD) });
+    assert.equal((await updater.check({ manual: true })).release.size, DIFF_BYTES - CHUNK);
+    const s = await updater.download();
+    assert.equal(s.phase, 'ready');
+    assert.equal(fs.readFileSync(path.join(cacheDir, SETUP)).equals(NEW), true);
+    assert.equal(served.bytes, DIFF_BYTES - CHUNK + NEW.length, 'the ranges, then the whole file');
+    assert.deepEqual(fs.readdirSync(cacheDir), [SETUP], 'no half-built file left over');
+  } finally {
+    await srv.close();
+  }
+});
+
+test('differential: an installed copy that is not the release\'s Setup.exe is not used', async () => {
+  const local = Buffer.from(OLD);
+  local[5] ^= 0xff; // a local build of 4.0.0, say
+  const { route, served } = diffServer();
+  const srv = await startServer(route);
+  try {
+    const { updater } = makeUpdater(srv.base, { baseFile: baseFileWith(local) });
+    assert.equal((await updater.check({ manual: true })).release.size, NEW.length);
+    assert.equal((await updater.download()).phase, 'ready');
+    assert.equal(served.ranged, 0);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('differential: without a blockmap, a base file or a release build, the whole file', async () => {
+  const noMap = await startServer(diffServer({ withMap: false }).route);
+  const srv = await startServer(diffServer().route);
+  try {
+    const sizeFor = async (base, overrides) =>
+      (await makeUpdater(base, { baseFile: baseFileWith(OLD), ...overrides }).updater.check({ manual: true })).release.size;
+    assert.equal(await sizeFor(noMap.base, {}), NEW.length, 'no blockmap in the release');
+    assert.equal(await sizeFor(srv.base, { baseFile: path.join(tempDir(), 'missing.bin') }), NEW.length, 'no base file');
+    assert.equal(await sizeFor(srv.base, { currentVersion: '4.0.0-dev.57' }), NEW.length, 'a dev build');
+  } finally {
+    await noMap.close();
+    await srv.close();
+  }
+});
+
+test('differential: cancelling stops it — no whole download behind it', async () => {
+  const hanging = [];
+  const { route, served } = diffServer({
+    onRange: (res, start, end, total) => {
+      // Headers, then nothing.
+      res.writeHead(206, { 'content-range': `bytes ${start}-${end}/${total}`, 'content-length': end - start + 1 });
+      hanging.push(res);
+      return true;
+    },
+  });
+  const srv = await startServer(route);
+  try {
+    const { updater, cacheDir } = makeUpdater(srv.base, { baseFile: baseFileWith(OLD) });
+    await updater.check({ manual: true });
+    const running = updater.download();
+    for (let i = 0; i < 100 && hanging.length === 0; i++) await new Promise((r) => setTimeout(r, 20));
+    updater.cancel();
+    const s = await running;
+    assert.equal(s.phase, 'available');
+    assert.equal(s.error, null);
+    assert.equal(served.ranged, served.requests, 'no whole download was started');
+    assert.deepEqual(fs.readdirSync(cacheDir), []);
+  } finally {
+    for (const res of hanging) res.destroy();
+    await srv.close();
+  }
 });

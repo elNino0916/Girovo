@@ -18,6 +18,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildUpdateWindow } from './build-update-window.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STANDALONE = path.join(ROOT, '.next', 'standalone');
@@ -88,3 +89,7 @@ for (const file of ['banks-data.json', 'config.json']) {
 }
 
 console.log('✓ desktop server ready in .next/standalone');
+
+// The window shown while an update installs (electron-builder.yml ships it).
+console.log('› update window');
+buildUpdateWindow();

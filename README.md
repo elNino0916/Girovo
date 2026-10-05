@@ -216,7 +216,19 @@ The desktop app updates itself from this repository's
   over the existing installation and starts the app again. The installer waits
   for the old app to close on its own before it touches a file
   (`build/installer.nsh`); an installation "for all users" asks for
-  administrator rights.
+  administrator rights. While it works, a small window in the app's look shows
+  how far it is and closes once the new version is up
+  (`build/update-window/UpdateWindow.cs`, built with the C# compiler that comes
+  with Windows by `scripts/build-update-window.mjs` — `--demo light|dark|failure`
+  shows it). It only watches: the update runs the same without it.
+- **Only what changed** — the installer keeps a copy of itself in the
+  installation (`resources\update-base.bin`). An update compares the new
+  release's blockmap with the installed release's, copies the unchanged parts
+  of the installer from that file and downloads only the rest from GitHub in
+  byte ranges: usually 1–3 MB instead of ~110 MB. The result is checked against
+  GitHub's digest like any download; if anything does not fit (no blockmap, an
+  installation from a local build, a changed Electron that changes nearly
+  everything), the whole `Setup.exe` is downloaded instead.
 - **Portable copies**: the new `portable.exe` is saved next to the old one (or in
   *Downloads* if that folder is read-only) and started instead. The old file
   stays — delete it when you like.
@@ -225,8 +237,12 @@ The desktop app updates itself from this repository's
 **Publishing a release** the updater picks up needs nothing beyond what
 `npm run electron:dist` produces: create a normal GitHub release (not a draft,
 not a pre-release) whose tag is the version (`4.1.0` or `v4.1.0`) and attach
-`Sooskasse-FinTS-<version>-Setup.exe` and `Sooskasse-FinTS-<version>-portable.exe`
-from `dist/`. GitHub adds the digests by itself; no `latest.yml` is needed.
+`Sooskasse-FinTS-<version>-Setup.exe`, `Sooskasse-FinTS-<version>-Setup.exe.blockmap`
+and `Sooskasse-FinTS-<version>-portable.exe` from `dist/` — upload the files of
+one build, the blockmap has to describe exactly that `Setup.exe`. GitHub adds
+the digests by itself; no `latest.yml` is needed. Without the blockmap the
+release still works, it is just downloaded whole — by the copies updating to
+it and, later, by the copies updating *from* it.
 The release text becomes the app's "Was ist neu" (Markdown: headings, lists,
 bold, links). Development builds (`<version>-dev.<n>`) are newer than the
 release they are numbered after, so they are only offered a higher version.
@@ -234,7 +250,9 @@ release they are numbered after, so they are only offered a higher version.
 To try the flow without publishing anything, point an unpackaged build at a
 local feed: `SOOSKASSE_UPDATE_FEED=http://127.0.0.1:<port>/latest` (an answer
 shaped like GitHub's `/releases/latest`) and `SOOSKASSE_UPDATE_KIND=nsis` or
-`portable`, then `npm run electron:dev`. A packaged app ignores both. The
+`portable`, then `npm run electron:dev` (`SOOSKASSE_UPDATE_BASE=<path to a
+Setup.exe>` stands in for the installed copy's `update-base.bin`; the feed then
+also needs `/tags/<version>`). A packaged app ignores all of them. The
 design preview shows every state of the update dialog with a fake updater
 (`/design-preview?view=update`, `update-ready`, `update-installed`, …).
 

@@ -106,6 +106,95 @@ function pickAsset(release, kind) {
   return release.assets.find((a) => pattern.test(a.name)) ?? null;
 }
 
+/** The release-by-tag address beside `feedUrl` (…/releases/latest), or null when there is none. */
+function tagUrl(feedUrl, tag) {
+  if (typeof feedUrl !== 'string' || !feedUrl.endsWith('/latest')) return null;
+  return `${feedUrl.slice(0, -'latest'.length)}tags/${encodeURIComponent(tag)}`;
+}
+
+/** The blockmap electron-builder writes beside `asset` (name + ".blockmap"), if the release has it. */
+function pickBlockmap(release, asset) {
+  if (!release || !asset) return null;
+  return release.assets.find((a) => a.name === `${asset.name}.blockmap`) ?? null;
+}
+
+// A blockmap of a ~100 MB installer lists ~5,000 chunks; ten times that is not ours.
+const MAX_BLOCKMAP_CHUNKS = 100_000;
+
+/**
+ * electron-builder's blockmap (version 2, already un-gzipped and parsed),
+ * reduced to its chunks in file order: { checksum, size, offset }. Null
+ * unless it is one file starting at 0 whose chunks add up to exactly
+ * `fileSize` — the installer it claims to describe.
+ */
+function parseBlockmap(json, fileSize) {
+  if (!json || typeof json !== 'object' || json.version !== '2') return null;
+  if (!Array.isArray(json.files) || json.files.length !== 1) return null;
+  const { offset, checksums, sizes } = json.files[0] ?? {};
+  if (offset !== 0 || !Array.isArray(checksums) || !Array.isArray(sizes)) return null;
+  if (checksums.length !== sizes.length || checksums.length === 0 || checksums.length > MAX_BLOCKMAP_CHUNKS) return null;
+  const chunks = [];
+  let at = 0;
+  for (let i = 0; i < sizes.length; i++) {
+    const size = sizes[i];
+    const checksum = checksums[i];
+    if (!Number.isSafeInteger(size) || size <= 0 || typeof checksum !== 'string' || !checksum || checksum.length > 128) {
+      return null;
+    }
+    chunks.push({ checksum, size, offset: at });
+    at += size;
+  }
+  return at === fileSize ? chunks : null;
+}
+
+/**
+ * How to build the new installer from the old one: which of its byte ranges
+ * can be copied from the old file and which have to be fetched. A chunk
+ * counts as present when the old file has one with the same checksum and
+ * size. Fetched ranges closer than `mergeGap` bytes are fetched as one —
+ * a request costs more than a few kilobytes.
+ *
+ * @returns {{ copies: {from: number, to: number, size: number}[],
+ *             fetches: {start: number, size: number}[], fetchBytes: number }}
+ */
+function planDifferential(oldChunks, newChunks, { mergeGap = 64 * 1024 } = {}) {
+  const have = new Map();
+  for (const c of oldChunks) {
+    const key = `${c.size}:${c.checksum}`;
+    if (!have.has(key)) have.set(key, c.offset);
+  }
+  // In file order: runs of copied and fetched chunks, neighbours merged.
+  const runs = [];
+  for (const c of newChunks) {
+    const from = have.get(`${c.size}:${c.checksum}`);
+    const last = runs[runs.length - 1];
+    if (from === undefined) {
+      if (last?.fetch) last.size += c.size;
+      else runs.push({ fetch: true, to: c.offset, size: c.size });
+    } else if (last && !last.fetch && last.from + last.size === from) {
+      last.size += c.size;
+    } else {
+      runs.push({ fetch: false, from, to: c.offset, size: c.size });
+    }
+  }
+  const copies = [];
+  const fetches = [];
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+    const prev = fetches[fetches.length - 1];
+    if (run.fetch) {
+      // A short copy between two fetches was folded into the earlier one below.
+      if (prev && prev.start + prev.size === run.to) prev.size += run.size;
+      else fetches.push({ start: run.to, size: run.size });
+    } else if (prev && prev.start + prev.size === run.to && run.size <= mergeGap && runs[i + 1]?.fetch) {
+      prev.size += run.size;
+    } else {
+      copies.push({ from: run.from, to: run.to, size: run.size });
+    }
+  }
+  return { copies, fetches, fetchBytes: fetches.reduce((sum, f) => sum + f.size, 0) };
+}
+
 /**
  * How this copy of the app was installed, which decides how it updates:
  *
@@ -151,6 +240,10 @@ module.exports = {
   isNewer,
   parseRelease,
   pickAsset,
+  tagUrl,
+  pickBlockmap,
+  parseBlockmap,
+  planDifferential,
   installKind,
   installArgs,
 };
