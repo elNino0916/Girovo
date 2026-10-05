@@ -1,6 +1,6 @@
 <p align="center">
   <img
-    src="https://github.com/user-attachments/assets/03253665-9042-4637-b241-d53b8757d573"
+    src="https://github.com/user-attachments/assets/4014a579-5f6d-4203-8e0f-be99ddaad6ab"
     alt="Image"
   />
 </p>
