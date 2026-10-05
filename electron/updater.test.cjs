@@ -18,7 +18,7 @@ const PAYLOAD = crypto.randomBytes(300_000);
 const SHA = crypto.createHash('sha256').update(PAYLOAD).digest('hex');
 const SETUP = 'Girovo-9.9.9-Setup.exe';
 const PORTABLE = 'Girovo-9.9.9-portable.exe';
-const PAGE = 'https://github.com/elNino0916/Sooskasse-FinTS/releases';
+const PAGE = 'https://github.com/elNino0916/Girovo/releases';
 
 /** A stand-in for api.github.com and the release downloads; `route` decides per request. */
 async function startServer(route) {

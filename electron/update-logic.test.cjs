@@ -95,36 +95,45 @@ test('parseRelease: a foreign release page link falls back to the releases list'
   assert.equal(logic.parseRelease(release({ html_url: 'https://evil.example/tag/4.1.0' })).url, logic.RELEASES_PAGE);
 });
 
-test('parseRelease: after the repository is renamed to Girovo, its answers still count', () => {
-  // GitHub forwards the old name, but the release it answers with names the new one.
-  const renamed = 'https://github.com/elNino0916/Girovo/releases';
+test('the feed is the Girovo repository', () => {
+  assert.equal(logic.FEED_URL, 'https://api.github.com/repos/elNino0916/Girovo/releases/latest');
+  assert.equal(logic.RELEASES_PAGE, 'https://github.com/elNino0916/Girovo/releases');
+});
+
+test('parseRelease: files and pages of the old Sooskasse-FinTS repository still count', () => {
+  // The repository under the old name carries the update to Girovo for 4.x installs.
+  const legacy = 'https://github.com/elNino0916/Sooskasse-FinTS/releases';
   const r = logic.parseRelease(release({
-    html_url: `${renamed}/tag/5.0.0`,
+    html_url: `${legacy}/tag/5.0.0`,
     assets: [
-      asset('Girovo-5.0.0-Setup.exe', { browser_download_url: `${renamed}/download/5.0.0/Girovo-5.0.0-Setup.exe` }),
+      asset('Girovo-5.0.0-Setup.exe', { browser_download_url: `${legacy}/download/5.0.0/Girovo-5.0.0-Setup.exe` }),
       asset('Girovo-5.0.0-portable.exe'),
       // A look-alike repository is not the project.
+      asset('Girovo-5.0.0-Setup.exe', {
+        browser_download_url: 'https://github.com/elNino0916/Sooskasse-FinTS-fork/releases/download/5.0.0/Girovo-5.0.0-Setup.exe',
+      }),
       asset('Girovo-5.0.0-Setup.exe', {
         browser_download_url: 'https://github.com/elNino0916/Girovo-fork/releases/download/5.0.0/Girovo-5.0.0-Setup.exe',
       }),
     ],
   }));
-  assert.equal(r.url, `${renamed}/tag/5.0.0`);
+  assert.equal(r.url, `${legacy}/tag/5.0.0`);
   assert.deepEqual(r.assets.map((a) => a.url), [
-    `${renamed}/download/5.0.0/Girovo-5.0.0-Setup.exe`,
+    `${legacy}/download/5.0.0/Girovo-5.0.0-Setup.exe`,
     `${logic.DOWNLOAD_PREFIX}4.1.0/Girovo-5.0.0-portable.exe`,
   ]);
   assert.equal(logic.pickAsset(r, 'nsis').name, 'Girovo-5.0.0-Setup.exe');
 });
 
 test('releasePageOr: either repository name, nothing else', () => {
-  assert.equal(logic.releasePageOr(`${logic.RELEASES_PAGE}/tag/4.3.0`), `${logic.RELEASES_PAGE}/tag/4.3.0`);
-  const renamed = 'https://github.com/elNino0916/Girovo/releases/tag/4.3.0';
-  assert.equal(logic.releasePageOr(renamed), renamed);
-  assert.equal(logic.releasePageOr('https://github.com/elNino0916/Girovo-fork/releases/tag/4.3.0'), logic.RELEASES_PAGE);
+  assert.equal(logic.releasePageOr(`${logic.RELEASES_PAGE}/tag/5.0.0`), `${logic.RELEASES_PAGE}/tag/5.0.0`);
+  const legacy = 'https://github.com/elNino0916/Sooskasse-FinTS/releases/tag/5.0.0';
+  assert.equal(logic.releasePageOr(legacy), legacy);
+  assert.equal(logic.releasePageOr('https://github.com/elNino0916/Girovo-fork/releases/tag/5.0.0'), logic.RELEASES_PAGE);
+  assert.equal(logic.releasePageOr('https://github.com/elNino0916/Sooskasse-FinTS-fork/releases/tag/5.0.0'), logic.RELEASES_PAGE);
   assert.equal(logic.releasePageOr(undefined), logic.RELEASES_PAGE);
   // A test feed's own page stands alone.
-  assert.equal(logic.releasePageOr(renamed, 'http://127.0.0.1:1/releases'), 'http://127.0.0.1:1/releases');
+  assert.equal(logic.releasePageOr(legacy, 'http://127.0.0.1:1/releases'), 'http://127.0.0.1:1/releases');
 });
 
 test('parseRelease caps the release notes', () => {

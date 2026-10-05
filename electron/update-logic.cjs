@@ -8,18 +8,20 @@
 
 const path = require('node:path');
 
-// The repository is to follow the app's rename (Sooskasse-FinTS → Girovo).
-// After a rename GitHub forwards the old name's API and download URLs, but
-// its answers then carry the new name — so a release's files count as ours
-// under either. The feed keeps the old name: before the rename the new one
-// does not exist yet, after it the old one is forwarded.
-const REPO = 'elNino0916/Sooskasse-FinTS';
-const RENAMED_REPO = 'elNino0916/Girovo';
+// The project's repository, renamed with the app. Its old name,
+// Sooskasse-FinTS, now belongs to a small repository of its own that carries
+// nothing but the update to this version (and the releases it is built from):
+// 4.x and 5.0.0 — built before the switch — only ever ask there. From 5.0.1
+// on the app asks here. Files and release pages under the old name still
+// count as ours — the "updated" marker an older install leaves for the first
+// start of this one links to that repository's release page.
+const REPO = 'elNino0916/Girovo';
+const LEGACY_REPO = 'elNino0916/Sooskasse-FinTS';
 const FEED_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const RELEASES_PAGE = `https://github.com/${REPO}/releases`;
-const RELEASES_PAGES = [RELEASES_PAGE, `https://github.com/${RENAMED_REPO}/releases`];
+const RELEASES_PAGES = [RELEASES_PAGE, `https://github.com/${LEGACY_REPO}/releases`];
 const DOWNLOAD_PREFIX = `https://github.com/${REPO}/releases/download/`;
-const DOWNLOAD_PREFIXES = [DOWNLOAD_PREFIX, `https://github.com/${RENAMED_REPO}/releases/download/`];
+const DOWNLOAD_PREFIXES = [DOWNLOAD_PREFIX, `https://github.com/${LEGACY_REPO}/releases/download/`];
 
 // A release's executables are ~100 MB; a file far past that is not ours.
 const MAX_ASSET_BYTES = 1024 * 1024 * 1024;

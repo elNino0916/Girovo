@@ -11,7 +11,7 @@ import { BrandMark } from './BrandMark';
 import { fmtSince } from './session';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
-const REPO = 'https://github.com/elNino0916/Sooskasse-FinTS';
+const REPO = 'https://github.com/elNino0916/Girovo';
 
 export function Footer() {
   const { bank, sessionStartedAt } = useFints();

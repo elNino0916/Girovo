@@ -201,7 +201,7 @@ before building.
 ### Updates
 
 The desktop app updates itself from this repository's
-[GitHub releases](https://github.com/elNino0916/Sooskasse-FinTS/releases)
+[GitHub releases](https://github.com/elNino0916/Girovo/releases)
 (`electron/updater.cjs`):
 
 - **Checking** — 15 seconds after the start and then every 6 hours, the app asks
@@ -253,6 +253,17 @@ it and, later, by the copies updating *from* it.
 The release text becomes the app's "Was ist neu" (Markdown: headings, lists,
 bold, links). Development builds (`<version>-dev.<n>`) are newer than the
 release they are numbered after, so they are only offered a higher version.
+
+**The old repository.** Up to 4.3 the app was Sooskasse-FinTS, and its
+updater asks `elNino0916/Sooskasse-FinTS` for updates and accepts files from
+there only; 5.0.0, built before the switch, asks there too. Since the rename
+that name belongs to a small repository of its own: it carries 5.0.1 (the same
+files as here) as its latest, and beside it the releases older installs
+compare with to download only what changed — `v4.2.0`–`v4.3.0` and `5.0.0`,
+each with its original `Setup.exe` and blockmap (`v`, because GitHub keeps the
+tags of the old repository's immutable releases reserved under that name).
+From 5.0.1 on, the app asks this repository. The old one needs no further
+releases — and must not be deleted while older installs may still be around.
 
 To try the flow without publishing anything, point an unpackaged build at a
 local feed: `GIROVO_UPDATE_FEED=http://127.0.0.1:<port>/latest` (an answer

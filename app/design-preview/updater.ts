@@ -36,14 +36,14 @@ const NOTES = [
   '- Ein Update-Installer konnte sich beim Beenden der alten Version selbst mit beenden (`taskkill /T`).',
   '- Kartenzahlungen zeigen den echten Händler statt des Zahlungsdienstleisters.',
   '',
-  `Alle Änderungen: [Vergleich auf GitHub](https://github.com/elNino0916/Sooskasse-FinTS/compare/${CURRENT}...${NEXT})`,
+  `Alle Änderungen: [Vergleich auf GitHub](https://github.com/elNino0916/Girovo/compare/${CURRENT}...${NEXT})`,
 ].join('\r\n');
 
 const RELEASE: NonNullable<ElectronUpdateState['release']> = {
   version: NEXT,
   name: NEXT,
   notes: NOTES,
-  url: `https://github.com/elNino0916/Sooskasse-FinTS/releases/tag/${NEXT}`,
+  url: `https://github.com/elNino0916/Girovo/releases/tag/${NEXT}`,
   publishedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
   size: 104_919_142,
   canInstall: true,
