@@ -18,10 +18,20 @@ import { Button, Dot, Tag, cx } from '../ui';
 import { UpdateDialog } from './UpdateDialog';
 import { hasNewer, isReady, updates, useUpdates, type UpdateState } from './store';
 
+// Up to 4.3 the app was called Sooskasse-FinTS. The first start after the
+// update from such a version says so — the name in the bar has just changed.
+// `from` is the version the update replaced ("4.3.0", "4.1.0-dev.12", or ''
+// when the marker did not say).
+function renamedSince(from: string | undefined): boolean {
+  const [major, minor] = (from ?? '').split('.').map(Number);
+  return major < 4 || (major === 4 && minor <= 3);
+}
+
 export function UpdateLayer() {
   const { state, greeted, dialog } = useUpdates();
   const { toast } = useFints();
   const installed = state?.installed?.version;
+  const installedFrom = state?.installed?.from;
   const failed = state?.failedInstall;
 
   // "Im Hintergrund laden" closes the dialog on a running download; when it
@@ -47,7 +57,10 @@ export function UpdateLayer() {
     if (greeted || (!installed && !failed)) return;
     updates.markGreeted();
     if (installed) {
-      toast(`Sooskasse-FinTS wurde auf Version ${installed} aktualisiert.`, 'success', 10_000, {
+      const text = renamedSince(installedFrom)
+        ? `Sooskasse-FinTS heißt jetzt Girovo. Version ${installed} ist installiert.`
+        : `Girovo wurde auf Version ${installed} aktualisiert.`;
+      toast(text, 'success', 10_000, {
         label: 'Was ist neu?',
         run: updates.openDialog,
       });
@@ -57,7 +70,7 @@ export function UpdateLayer() {
         run: updates.openDialog,
       });
     }
-  }, [installed, failed, greeted, toast]);
+  }, [installed, installedFrom, failed, greeted, toast]);
 
   return <UpdateDialog />;
 }

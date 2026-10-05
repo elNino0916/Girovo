@@ -8,6 +8,9 @@ import { Dashboard } from '@/components/Dashboard';
 import { Toasts } from '@/components/Toasts';
 import { Statement } from '@/components/Statement';
 import { UpdateLayer } from '@/components/updates/UpdateNotices';
+import { TelemetryErrors } from '@/components/telemetry/TelemetryErrors';
+import { trackUsage } from '@/components/telemetry/usage';
+import { useEffect } from 'react';
 
 export default function Page() {
   return (
@@ -25,6 +28,8 @@ export default function Page() {
             the login is the best time to update. */}
         <UpdateLayer />
         <Toasts />
+        {/* Desktop app only: the page's uncaught errors, reported. */}
+        <TelemetryErrors />
       </div>
       <Statement />
     </FintsProvider>
@@ -33,6 +38,10 @@ export default function Page() {
 
 function App() {
   const { view } = useFints();
+  // Usage (with the user's yes): which screen is up. The dashboard reports its tabs itself.
+  useEffect(() => {
+    if (view !== 'dashboard') trackUsage('screen_viewed', { screen: view });
+  }, [view]);
   if (view === 'dashboard') return <Dashboard />;
   if (view === 'tanmethod') return <TanMethodPicker />;
   return <Login />;

@@ -19,6 +19,8 @@ test('GitHub line endings and the release title', () => {
   assert.equal(blocks.length, 3);
   // A first heading that is something else stays.
   assert.equal(parseReleaseNotes('# Highlights\n- x', '4.1.0')[0].type, 'heading');
+  // The app's new name (after 4.3) is a title too.
+  assert.equal(parseReleaseNotes('# Girovo 5.0.0\n\nText', '5.0.0')[0].type, 'paragraph');
 });
 
 test('inline: bold, italic, code', () => {

@@ -19,6 +19,7 @@ import type { FinTSClient } from 'lib-fints';
 import type { BankMeta, FinTSClientEx, SerializedVop } from './fints-types';
 import type { TransferOrder } from './fints-sepa';
 import { saveProfile } from './state-store';
+import { noteTelemetry } from './telemetry';
 
 /**
  * Widen a client to the members lib-fints declares private but this app needs
@@ -143,21 +144,21 @@ export type Session = {
 export const SESSION_TTL_MS = 30 * 60 * 1000;
 
 type SessionGlobal = typeof globalThis & {
-  __sooskasseSessions?: Map<string, Session>;
-  __sooskasseSweeper?: ReturnType<typeof setInterval>;
+  __girovoSessions?: Map<string, Session>;
+  __girovoSweeper?: ReturnType<typeof setInterval>;
 };
 const g = globalThis as SessionGlobal;
 
-const sessions: Map<string, Session> = (g.__sooskasseSessions ??= new Map());
+const sessions: Map<string, Session> = (g.__girovoSessions ??= new Map());
 
-if (!g.__sooskasseSweeper) {
-  g.__sooskasseSweeper = setInterval(() => {
+if (!g.__girovoSweeper) {
+  g.__girovoSweeper = setInterval(() => {
     const now = Date.now();
     for (const [id, s] of sessions) {
       if (now - s.lastSeen > SESSION_TTL_MS) sessions.delete(id);
     }
   }, 60 * 1000);
-  g.__sooskasseSweeper.unref?.();
+  g.__girovoSweeper.unref?.();
 }
 
 export function newSession(client: FinTSClientEx, meta: BankMeta): string {
@@ -171,6 +172,8 @@ export function getSession(id: unknown): Session | null {
   const s = sessions.get(id);
   if (!s) return null;
   s.lastSeen = Date.now();
+  // Which bank a failing request was for — the one thing telemetry gets to know about a session.
+  noteTelemetry({ blz: s.meta?.blz });
   return s;
 }
 

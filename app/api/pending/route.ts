@@ -3,7 +3,7 @@
 // so it doesn't add an approval to every account view.
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
-import { bankAnswerText, logResp, serializeTransactions, tanPayload } from '@/lib/serialize';
+import { accountCurrency, bankAnswerText, logResp, serializeTransactions, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
 import { PendingInteraction } from '@/lib/fints-pending';
 import type { PendingResponse } from '@/lib/fints-types';
@@ -27,6 +27,7 @@ export const POST = wrap(async (req: Request) => {
   }
   if (!resp.success) return fail(bankAnswerText(resp) || 'Vorgemerkte Umsätze konnten nicht geladen werden.');
   return json({
-    needsTan: false, accountNumber, pending: serializeTransactions(resp.pendingStatements),
+    // MT942 has no balance to name the currency: the account's stands in.
+    needsTan: false, accountNumber, pending: serializeTransactions(resp.pendingStatements, accountCurrency(s, accountNumber)),
   } satisfies PendingResponse);
 });

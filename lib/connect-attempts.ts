@@ -23,9 +23,9 @@ const ATTEMPT_ID = /^[A-Za-z0-9_-]{16,64}$/;
 /** How long a finished (or pre-cancelled) attempt still answers. */
 export const ATTEMPT_LINGER_MS = 2 * 60_000;
 
-type AttemptGlobal = typeof globalThis & { __sooskasseConnectAttempts?: Map<string, Entry> };
+type AttemptGlobal = typeof globalThis & { __girovoConnectAttempts?: Map<string, Entry> };
 const g = globalThis as AttemptGlobal;
-const attempts: Map<string, Entry> = (g.__sooskasseConnectAttempts ??= new Map());
+const attempts: Map<string, Entry> = (g.__girovoConnectAttempts ??= new Map());
 
 function sweep(now: number): void {
   for (const [id, e] of attempts) if (e.endedAt !== null && now - e.endedAt > ATTEMPT_LINGER_MS) attempts.delete(id);

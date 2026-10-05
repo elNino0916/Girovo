@@ -1,6 +1,6 @@
 'use strict';
 
-// Desktop shell for Sooskasse-FinTS.
+// Desktop shell for Girovo.
 //
 // The app is a server app, not a static site: every logged-in user is a live
 // FinTS dialog held in one long-lived Node process (see next.config.ts), and the
@@ -19,13 +19,27 @@
 
 const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, session, shell } = require('electron');
 const { spawn } = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
+const os = require('node:os');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { createUpdater } = require('./updater.cjs');
 const { createFileSave, SAVE_FAILED } = require('./file-save.cjs');
+const { createTelemetryHub, lineSplitter, relayServerLine } = require('./telemetry.cjs');
 const updateLogic = require('./update-logic.cjs');
+
+// Up to 4.3 the app was called Sooskasse-FinTS, and the app's name is what
+// names its userData folder. An install that already has that folder keeps
+// it: the device profile, the PIN-encrypted vault (FINTS_STATE_DIR) and
+// prefs.json live there. So does the single-instance lock, and the first
+// start after the update to Girovo has to wait for the very lock the closing
+// Sooskasse-FinTS instance still holds (waitForLock). Set before anything
+// reads userData — which includes requestSingleInstanceLock below.
+const LEGACY_USER_DATA = path.join(app.getPath('appData'), 'Sooskasse-FinTS');
+if (fs.existsSync(LEGACY_USER_DATA)) app.setPath('userData', LEGACY_USER_DATA);
 
 const HOST = '127.0.0.1';
 const SERVER_START_TIMEOUT_MS = 60_000;
@@ -204,6 +218,63 @@ function delPref(key) {
   return writePrefs();
 }
 
+// ---------------------------------------------------------------------------
+// Telemetry (electron/telemetry.cjs): errors always, usage only with the
+// user's yes. Until the SDK is loaded — and for good in a build without
+// config.json's telemetry block — the hub has no client and sends nothing.
+// ---------------------------------------------------------------------------
+const startedAt = Date.now();
+const hubDeps = {
+  getPref: (key) => prefs().get(key) ?? null,
+  setPref: (key, value) => setPref(key, value),
+  delPref: (key) => delPref(key),
+  randomId: () => crypto.randomUUID(),
+};
+let telemetry = createTelemetryHub({ client: null, ...hubDeps });
+
+/** config.json's telemetry block: beside the built server, or in the project root during development. */
+function telemetryConfig() {
+  for (const file of [path.join(serverDir(), 'config.json'), path.join(__dirname, '..', 'config.json')]) {
+    try {
+      const t = JSON.parse(fs.readFileSync(file, 'utf8')).telemetry;
+      if (typeof t?.endpoint === 'string' && typeof t?.key === 'string') return t;
+    } catch { /* not there, or not readable: try the next */ }
+  }
+  return null;
+}
+
+async function setupTelemetry() {
+  // A packaged app reports; an unpackaged one only when asked to
+  // (GIROVO_TELEMETRY=1), so development does not end up in the reports.
+  const enabled = app.isPackaged || process.env.GIROVO_TELEMETRY === '1';
+  const config = enabled ? telemetryConfig() : null;
+  if (!config) return;
+  try {
+    const { createTelemetry } = await import(pathToFileURL(path.join(__dirname, 'telemetry-sdk.mjs')).href);
+    const version = app.getVersion();
+    const client = createTelemetry({
+      endpoint: config.endpoint,
+      key: config.key,
+      release: version,
+      environment: app.isPackaged && !version.includes('-') ? 'production' : 'development',
+      client: 'Girovo',
+      clientVersion: version,
+      // Errors are captured below and scrubbed first (telemetry-scrub.cjs).
+      captureErrors: false,
+    });
+    client.setContext({ osVersion: os.release(), device: 'desktop' });
+    telemetry = createTelemetryHub({ client, ...hubDeps });
+  } catch (err) {
+    console.warn('[telemetry] unavailable:', err?.message || err);
+  }
+}
+
+process.on('uncaughtExceptionMonitor', (err) => telemetry.error(err, { source: 'main', fatal: true }));
+process.on('unhandledRejection', (reason) => {
+  console.error('[main] unhandled rejection:', reason);
+  telemetry.error(reason, { source: 'main' });
+});
+
 /** Whether an IPC message was sent by the app's own page, not some other frame. */
 function fromApp(event) {
   try {
@@ -357,24 +428,35 @@ async function startServer() {
       // The installed app directory is read-only, so remembered device profiles
       // go to the per-user data folder instead of next to the executable.
       FINTS_STATE_DIR: path.join(app.getPath('userData'), 'fints-state'),
+      // The server's reports come out on its stdout (lib/telemetry.ts), for
+      // the hub here to judge like the shell's own.
+      GIROVO_TELEMETRY_PIPE: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
 
   // Surface server output on the terminal when one is attached; without this a
-  // packaging problem would be completely silent.
-  server.stdout.on('data', (b) => process.stdout.write(`[server] ${b}`));
+  // packaging problem would be completely silent. Telemetry lines are taken
+  // out on the way.
+  server.stdout.on('data', lineSplitter(
+    (line) => relayServerLine(telemetry, line),
+    (text) => process.stdout.write(`[server] ${text}`),
+  ));
   server.stderr.on('data', (b) => process.stderr.write(`[server] ${b}`));
   server.on('exit', (code) => {
     server = null;
     if (!quitting) {
-      dialog.showErrorBox('Sooskasse-FinTS', `Der Server wurde unerwartet beendet (Code ${code}).`);
+      const message = `Der Server wurde unerwartet beendet (Code ${code}).`;
+      telemetry.error({ name: 'ServerExited', message }, { source: 'main', fatal: true });
+      dialog.showErrorBox('Girovo', message);
       app.quit();
     }
   });
 
+  const startedServer = Date.now();
   await waitForServer(port, Date.now() + SERVER_START_TIMEOUT_MS);
+  telemetry.metric('server.start_ms', Date.now() - startedServer);
   return `http://${HOST}:${port}`;
 }
 
@@ -401,7 +483,7 @@ function createWindow(appUrl) {
     // Matches --paper in app/globals.css so the frame does not flash white
     // while the first paint is on its way.
     backgroundColor: dark ? PAPER.dark : PAPER.light,
-    title: 'Sooskasse-FinTS',
+    title: 'Girovo',
     autoHideMenuBar: true,
     // No native title bar: Dashboard.tsx's navy bar is dragged into service as
     // the title bar instead, via the Window Controls Overlay API. Not
@@ -421,6 +503,12 @@ function createWindow(appUrl) {
 
   // Permissions (deny all but clipboard writes) and the download dialog.
   configureSession(win.webContents.session);
+
+  // The page's own errors arrive through telemetry:error (preload.cjs); a
+  // renderer that dies cannot send them, so its end is reported from here.
+  win.webContents.on('render-process-gone', (_event, details) => {
+    telemetry.error({ name: 'RenderProcessGone', message: String(details?.reason || 'gone') }, { source: 'renderer', fatal: true });
+  });
 
   // Bank and Brandfetch links belong in the real browser; the window itself
   // stays on the local server.
@@ -465,7 +553,7 @@ function spawnDetached(file, args, { cwd }) {
   });
 }
 
-const UPDATE_WINDOW = 'Sooskasse-FinTS-Update.exe';
+const UPDATE_WINDOW = 'Girovo-Update.exe';
 
 /**
  * The window that shows the install's progress once this app has quit
@@ -497,19 +585,50 @@ async function showInstallWindow({ installerPid, version, cacheDir }) {
   ], { cwd: cacheDir });
 }
 
+/**
+ * The updater's state as telemetry: a newer version seen, a download done,
+ * this start being an update (usage, with the yes), and every new failure
+ * (always, like any error).
+ */
+const lastUpdate = { phase: null, error: null, installed: false };
+function reportUpdate(state) {
+  if (!state) return;
+  if (state.installed && !lastUpdate.installed) {
+    lastUpdate.installed = true;
+    telemetry.event('update_installed', { from: state.installed.from, to: state.installed.version });
+  }
+  if (state.phase !== lastUpdate.phase) {
+    if (state.phase === 'available' && state.release) {
+      telemetry.event('update_available', { version: state.release.version });
+    } else if (state.phase === 'ready' && lastUpdate.phase === 'downloading' && state.release) {
+      telemetry.event('update_downloaded', { version: state.release.version });
+    }
+    lastUpdate.phase = state.phase;
+  }
+  const error = state.error ? `${state.error.during}:${state.error.message}` : null;
+  if (error && error !== lastUpdate.error) {
+    telemetry.error({ name: 'UpdateError', message: state.error.message }, { source: 'updater', during: state.error.during });
+  }
+  lastUpdate.error = error;
+}
+
 function setupUpdater() {
   // Only an unpackaged build can be pointed at a test feed (a local server,
   // see electron/updater.test.cjs) — a shipped app always asks GitHub.
-  const testFeed = !app.isPackaged ? process.env.SOOSKASSE_UPDATE_FEED : undefined;
-  const kind = (testFeed && process.env.SOOSKASSE_UPDATE_KIND) || updateLogic.installKind({
+  const testFeed = !app.isPackaged ? process.env.GIROVO_UPDATE_FEED : undefined;
+  const kind = (testFeed && process.env.GIROVO_UPDATE_KIND) || updateLogic.installKind({
     isPackaged: app.isPackaged,
     env: process.env,
     execPath: process.execPath,
     exists: (file) => fs.existsSync(file),
   });
 
+  // The partition and the cache folder keep the app's old name (see
+  // LEGACY_USER_DATA): both are on disk already, and the cache folder is
+  // where the Sooskasse-FinTS that installs the update to Girovo leaves the
+  // marker this version reads to say that it was updated.
   const ses = session.fromPartition('sooskasse-updater', { cache: false });
-  ses.setUserAgent(`Sooskasse-FinTS/${app.getVersion()}`);
+  ses.setUserAgent(`Girovo/${app.getVersion()}`);
 
   // Beside electron-builder's own name for it (app-update.yml); out of the
   // roaming profile, which is no place for 100 MB installers.
@@ -527,7 +646,7 @@ function setupUpdater() {
     // The Setup.exe this copy was installed from, kept by build/installer.nsh:
     // the next update downloads only what differs from it.
     baseFile: testFeed
-      ? process.env.SOOSKASSE_UPDATE_BASE || null
+      ? process.env.GIROVO_UPDATE_BASE || null
       : path.join(process.resourcesPath, 'update-base.bin'),
     previousExe: process.env.PORTABLE_EXECUTABLE_FILE || null,
     autoCheck: kind !== 'dev' || !!testFeed,
@@ -535,6 +654,7 @@ function setupUpdater() {
     getPref: (key) => prefs().get(key) ?? null,
     setPref: (key, value) => setPref(key, value),
     send: (state) => {
+      reportUpdate(state);
       if (win && !win.webContents.isDestroyed()) win.webContents.send('updater:state', state);
     },
     spawnDetached,
@@ -545,6 +665,8 @@ function setupUpdater() {
     },
     openExternal: (url) => shell.openExternal(url),
   });
+  // The start itself may be the result of an update; say so before any push.
+  reportUpdate(updater.getState());
 
   // window.electronUpdater (preload.cjs). Each answers with the state; the
   // window also gets every change pushed on 'updater:state'.
@@ -635,8 +757,12 @@ function run() {
     }
   });
 
+  // Loaded first, so that a start that fails is reported too.
+  const telemetryReady = setupTelemetry();
+
   app.whenReady().then(async () => {
     buildMenu();
+    await telemetryReady;
     try {
       // ELECTRON_START_URL points the shell at an already-running `npm run dev`
       // (see the electron:dev script) instead of the built server.
@@ -647,11 +773,25 @@ function run() {
         setupUpdater();
       } catch (err) {
         console.warn('[updater] unavailable:', err?.message || err);
+        telemetry.error(err, { source: 'updater' });
       }
+      telemetry.event('app_started', { installKind: updater?.getState()?.kind, locale: app.getLocale() });
     } catch (err) {
-      dialog.showErrorBox('Sooskasse-FinTS konnte nicht starten', String(err?.message || err));
+      telemetry.error(err, { source: 'main', fatal: true });
+      dialog.showErrorBox('Girovo konnte nicht starten', String(err?.message || err));
       app.quit();
     }
+  });
+
+  // window.electronTelemetry (preload.cjs): the page's errors (always) and
+  // its usage events (the hub drops them without the yes), and the yes itself.
+  onSync('telemetry:consent', () => telemetry.consent(), 'unasked');
+  ipcMain.handle('telemetry:set-consent', (event, on) => (fromApp(event) ? telemetry.setConsent(on === true) : null));
+  ipcMain.on('telemetry:event', (event, name, props) => {
+    if (fromApp(event) && typeof name === 'string') telemetry.event(name, props);
+  });
+  ipcMain.on('telemetry:error', (event, err) => {
+    if (fromApp(event)) telemetry.error(err, { source: 'renderer' });
   });
 
   // The overlay colour is fixed at window creation from the stored theme (or
@@ -688,9 +828,12 @@ function run() {
   });
 
   // window.electronStore (preload.cjs) — see "Preferences" above.
-  onSync('store:get', (key) => (validPrefKey(key) ? prefs().get(key) ?? null : null), null);
-  onSync('store:set', (key, value) => setPref(key, value), false);
-  onSync('store:del', (key) => delPref(key), false);
+  // The telemetry keys are the hub's (telemetry:set-consent): a yes, a no
+  // and the install id change together, never one of them on its own.
+  const pageKey = (key) => validPrefKey(key) && !/^fints\.telemetry(?:\.|$)/.test(key);
+  onSync('store:get', (key) => (pageKey(key) ? prefs().get(key) ?? null : null), null);
+  onSync('store:set', (key, value) => (pageKey(key) ? setPref(key, value) : false), false);
+  onSync('store:del', (key) => (pageKey(key) ? delPref(key) : false), false);
 
   // Statement.tsx's window.print() route hands the PDF off to whatever the OS
   // print dialog offers — on Windows that is the "Microsoft Print to PDF"
@@ -743,9 +886,17 @@ function run() {
   app.on('before-quit', () => {
     quitting = true;
   });
-  app.on('will-quit', () => {
+  // Quitting waits once, at most 1.5 s, for queued reports to go out — the
+  // installer started by the updater gives the app ten seconds to close.
+  let telemetrySent = false;
+  app.on('will-quit', (event) => {
     updater?.stop();
     stopServer();
+    if (telemetrySent) return;
+    telemetrySent = true;
+    telemetry.event('app_closed', { minutes: (Date.now() - startedAt) / 60_000 });
+    event.preventDefault();
+    telemetry.shutdown(1500).finally(() => app.quit());
   });
   process.on('exit', stopServer);
 }

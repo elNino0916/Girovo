@@ -104,6 +104,19 @@ declare global {
     };
     /**
      * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Errors are always reported (scrubbed in the main process); events count
+     * only after the user's yes, which `consent()` answers synchronously.
+     * The main process accepts only the events and fields it declares
+     * (electron/telemetry.cjs).
+     */
+    electronTelemetry?: {
+      consent: () => 'on' | 'off' | 'unasked';
+      setConsent: (on: boolean) => Promise<'on' | 'off' | 'unasked' | null>;
+      event: (name: string, props?: Record<string, string | number | boolean>) => void;
+      error: (err: { name?: string; message?: string; stack?: string }) => void;
+    };
+    /**
+     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
      * Synchronous preference storage in userData/prefs.json — the packaged
      * app's localStorage does not survive a restart (random port per start).
      * Keys must match /^fints\.[\w.-]{1,80}$/ and values be ≤ 4096 chars;

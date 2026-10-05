@@ -95,6 +95,38 @@ test('parseRelease: a foreign release page link falls back to the releases list'
   assert.equal(logic.parseRelease(release({ html_url: 'https://evil.example/tag/4.1.0' })).url, logic.RELEASES_PAGE);
 });
 
+test('parseRelease: after the repository is renamed to Girovo, its answers still count', () => {
+  // GitHub forwards the old name, but the release it answers with names the new one.
+  const renamed = 'https://github.com/elNino0916/Girovo/releases';
+  const r = logic.parseRelease(release({
+    html_url: `${renamed}/tag/5.0.0`,
+    assets: [
+      asset('Girovo-5.0.0-Setup.exe', { browser_download_url: `${renamed}/download/5.0.0/Girovo-5.0.0-Setup.exe` }),
+      asset('Girovo-5.0.0-portable.exe'),
+      // A look-alike repository is not the project.
+      asset('Girovo-5.0.0-Setup.exe', {
+        browser_download_url: 'https://github.com/elNino0916/Girovo-fork/releases/download/5.0.0/Girovo-5.0.0-Setup.exe',
+      }),
+    ],
+  }));
+  assert.equal(r.url, `${renamed}/tag/5.0.0`);
+  assert.deepEqual(r.assets.map((a) => a.url), [
+    `${renamed}/download/5.0.0/Girovo-5.0.0-Setup.exe`,
+    `${logic.DOWNLOAD_PREFIX}4.1.0/Girovo-5.0.0-portable.exe`,
+  ]);
+  assert.equal(logic.pickAsset(r, 'nsis').name, 'Girovo-5.0.0-Setup.exe');
+});
+
+test('releasePageOr: either repository name, nothing else', () => {
+  assert.equal(logic.releasePageOr(`${logic.RELEASES_PAGE}/tag/4.3.0`), `${logic.RELEASES_PAGE}/tag/4.3.0`);
+  const renamed = 'https://github.com/elNino0916/Girovo/releases/tag/4.3.0';
+  assert.equal(logic.releasePageOr(renamed), renamed);
+  assert.equal(logic.releasePageOr('https://github.com/elNino0916/Girovo-fork/releases/tag/4.3.0'), logic.RELEASES_PAGE);
+  assert.equal(logic.releasePageOr(undefined), logic.RELEASES_PAGE);
+  // A test feed's own page stands alone.
+  assert.equal(logic.releasePageOr(renamed, 'http://127.0.0.1:1/releases'), 'http://127.0.0.1:1/releases');
+});
+
 test('parseRelease caps the release notes', () => {
   const r = logic.parseRelease(release({ body: 'x'.repeat(50_000) }));
   assert.equal(r.notes.length, logic.MAX_NOTES_CHARS);
@@ -116,6 +148,10 @@ test('installKind tells the installed, portable and unpacked builds apart', () =
   assert.equal(logic.installKind({ ...base, exists: () => false }), 'manual');
   assert.equal(logic.installKind({ ...base, env: { PORTABLE_EXECUTABLE_FILE: 'D:\\Sooskasse-FinTS-4.0.0-portable.exe' } }), 'portable');
   assert.equal(logic.installKind({ ...base, isPackaged: false }), 'dev');
+  // An install updated to Girovo keeps its folder, now with the new exe in it.
+  const renamedExe = 'C:\\Users\\max\\AppData\\Local\\Programs\\Sooskasse-FinTS\\Girovo.exe';
+  const renamedUninstaller = path.join(path.dirname(renamedExe), 'Uninstall Girovo.exe');
+  assert.equal(logic.installKind({ ...base, execPath: renamedExe, exists: (f) => f === renamedUninstaller }), 'nsis');
 });
 
 test('installArgs: silent and restarting for the installer, nothing for the rest', () => {

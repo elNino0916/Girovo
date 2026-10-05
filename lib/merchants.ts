@@ -64,18 +64,18 @@ const BROWSER_UA =
 // names already resolved would be both slow and needlessly chatty.
 // ---------------------------------------------------------------------------
 type MerchantGlobal = typeof globalThis & {
-  __sooskasseMerchants?: Map<string, Merchant | null>;
-  __sooskasseMerchantInflight?: Map<string, Promise<Merchant | null>>;
-  __sooskasseLogoDomains?: Map<string, string>;
-  __sooskasseLogoBytes?: Map<string, { body: Uint8Array; type: string }>;
+  __girovoMerchants?: Map<string, Merchant | null>;
+  __girovoMerchantInflight?: Map<string, Promise<Merchant | null>>;
+  __girovoLogoDomains?: Map<string, string>;
+  __girovoLogoBytes?: Map<string, { body: Uint8Array; type: string }>;
 };
 const g = globalThis as MerchantGlobal;
 
-const resolved: Map<string, Merchant | null> = (g.__sooskasseMerchants ??= new Map());
-const inflight: Map<string, Promise<Merchant | null>> = (g.__sooskasseMerchantInflight ??= new Map());
+const resolved: Map<string, Merchant | null> = (g.__girovoMerchants ??= new Map());
+const inflight: Map<string, Promise<Merchant | null>> = (g.__girovoMerchantInflight ??= new Map());
 /** logo id → upstream domain. Doubles as the proxy's allowlist. */
-const logoDomains: Map<string, string> = (g.__sooskasseLogoDomains ??= new Map());
-const logoBytes: Map<string, { body: Uint8Array; type: string }> = (g.__sooskasseLogoBytes ??= new Map());
+const logoDomains: Map<string, string> = (g.__girovoLogoDomains ??= new Map());
+const logoBytes: Map<string, { body: Uint8Array; type: string }> = (g.__girovoLogoBytes ??= new Map());
 
 // ---------------------------------------------------------------------------
 // HTTP

@@ -49,8 +49,10 @@ const MAX_BLOCKMAP_JSON_BYTES = 32 * 1024 * 1024;
 // GitHub answers one byte range per request (several in one: HTTP 501), and
 // each one goes through a redirect first, so a few run side by side.
 const RANGE_REQUESTS_AT_ONCE = 4;
-// Past this, the one plain download is as quick as many small ones.
-const DIFF_MAX_SHARE = 0.8;
+// Even a release that changes nearly everything (a new Electron) leaves a few
+// MB as they were, and its changed ranges merge into about ten requests — so
+// any reuse is worth it. Only a blockmap scattered into hundreds of ranges is
+// not: one plain download is quicker than that many requests.
 const DIFF_MAX_REQUESTS = 400;
 const COPY_CHUNK_BYTES = 1024 * 1024;
 // Written right before an install starts, read by the version that comes up
@@ -176,7 +178,7 @@ function createUpdater(deps) {
   const {
     currentVersion, kind, fetch, cacheDir, portableDir = null, downloadsDir = null, baseFile = null, autoCheck = true,
     getPref, setPref, send = () => {}, spawnDetached, showInstallWindow = null, quit, openExternal,
-    feedUrl = logic.FEED_URL, downloadPrefix = logic.DOWNLOAD_PREFIX, releasesPage = logic.RELEASES_PAGE,
+    feedUrl = logic.FEED_URL, downloadPrefix = logic.DOWNLOAD_PREFIXES, releasesPage = logic.RELEASES_PAGE,
     previousExe = null, now = Date.now, log = console,
   } = deps;
 
@@ -247,7 +249,7 @@ function createUpdater(deps) {
   }
 
   async function writable(dir) {
-    const probe = path.join(dir, `.sooskasse-update-${process.pid}.tmp`);
+    const probe = path.join(dir, `.girovo-update-${process.pid}.tmp`);
     try {
       await fs.promises.mkdir(dir, { recursive: true });
       const handle = await fs.promises.open(probe, 'wx');
@@ -363,7 +365,7 @@ function createUpdater(deps) {
     if (!marker || typeof marker !== 'object') return;
     const to = typeof marker.to === 'string' ? marker.to : '';
     if (to === currentVersion) {
-      const url = typeof marker.url === 'string' && marker.url.startsWith(`${releasesPage}/`) ? marker.url : releasesPage;
+      const url = logic.releasePageOr(marker.url, releasesPage);
       state.installed = {
         version: currentVersion,
         from: typeof marker.from === 'string' ? marker.from.slice(0, 40) : '',
@@ -480,7 +482,8 @@ function createUpdater(deps) {
         await fetchBlockmap(oldMap, oldAsset.size),
         await fetchBlockmap(newMap, asset.size),
       );
-      if (plan.fetchBytes > asset.size * DIFF_MAX_SHARE || plan.fetches.length > DIFF_MAX_REQUESTS) return null;
+      // Nothing to reuse: that is just the whole file, in ranges.
+      if (plan.copies.length === 0 || plan.fetches.length > DIFF_MAX_REQUESTS) return null;
       return plan;
     } catch (err) {
       log.warn('[updater] no differential download:', err?.message || err);

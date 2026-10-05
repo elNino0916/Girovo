@@ -31,6 +31,7 @@ import { UpdateSessionRow } from '../updates/UpdateNotices';
 import { ChevronIcon, InfoIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, ShieldIcon, SunIcon } from '../icons';
 import { Button, Checkbox, Dialog, Dot, Kbd, Popover, Segmented, Switch, cx } from '../ui';
 import { LOGO_DISCLOSURE } from '../MerchantLogoConsent';
+import { USAGE_SUMMARY, setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import { fmtCountdown, fmtSince, holderName, nameInitials, firstName, sessionHolder, useCountdown } from './session';
 import { useLookAtUnclear } from './actions';
 
@@ -173,6 +174,7 @@ function SessionPanel({
   } = useFints();
   const left = useCountdown(idleDeadline);
   const pref = useThemePref();
+  const usage = useUsageConsent();
 
   // The Popover scrolls this under its pinned "Abmelden" (ProfileMenu above).
   return (
@@ -235,6 +237,19 @@ function SessionPanel({
             onChange={setLogoConsent}
             label="Firmenlogos"
             description={LOGO_DISCLOSURE}
+            className="mt-4"
+          />
+        )}
+
+        {/* Desktop app only. Usage goes to the developer only with this on;
+            error reports go always, and the description says so — briefly:
+            the full account is the Übersicht tile's. */}
+        {usage && (
+          <Switch
+            checked={usage === 'on'}
+            onChange={(on) => void setUsageConsent(on)}
+            label="Nutzungsdaten teilen"
+            description={USAGE_SUMMARY}
             className="mt-4"
           />
         )}

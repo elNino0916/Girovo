@@ -10,7 +10,7 @@
 //
 // Someone who is only in another window — copying an IBAN from a mail —
 // would not see a dialog inside this one. So while it is up, the window's
-// title counts down ("Abmeldung in 0:45 – Sooskasse-FinTS", on the taskbar
+// title counts down ("Abmeldung in 0:45 – Girovo", on the taskbar
 // and in Alt+Tab) and, in the desktop app, the taskbar button flashes until
 // the window is in front again. Both are put back when the dialog closes.
 //

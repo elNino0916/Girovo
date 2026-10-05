@@ -89,3 +89,32 @@ contextBridge.exposeInMainWorld('electronStore', {
     } catch { /* as above */ }
   },
 });
+
+// Telemetry (electron/telemetry.cjs). The page's errors always go to the
+// main process, which scrubs them; its usage events only count once the user
+// said yes — consent() is that answer ('on', 'off' or 'unasked'), read
+// synchronously so the Übersicht knows at first paint whether to ask.
+const short = (value, max) => (typeof value === 'string' ? value.slice(0, max) : '');
+
+contextBridge.exposeInMainWorld('electronTelemetry', {
+  consent: () => {
+    try {
+      const value = ipcRenderer.sendSync('telemetry:consent');
+      return value === 'on' || value === 'off' ? value : 'unasked';
+    } catch {
+      return 'unasked';
+    }
+  },
+  setConsent: (on) => ipcRenderer.invoke('telemetry:set-consent', on === true),
+  event: (name, props) => {
+    if (typeof name !== 'string' || name.length > 64) return;
+    ipcRenderer.send('telemetry:event', name, props && typeof props === 'object' ? { ...props } : {});
+  },
+  error: (err) => {
+    ipcRenderer.send('telemetry:error', {
+      name: short(err?.name, 80),
+      message: short(err?.message, 2000),
+      stack: short(err?.stack, 8000),
+    });
+  },
+});

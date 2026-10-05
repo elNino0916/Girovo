@@ -78,7 +78,9 @@ export const VAULT_REQUEST_MAX_BYTES = 2 * VAULT_LIMITS.bytes;
 const FILE_MAX_BYTES = Math.ceil((VAULT_LIMITS.bytes * 4) / 3) + 4096;
 
 // Binds the ciphertext to its purpose, so no other box sealed under a key from
-// the same PIN (the device profile, say) can be passed off as a vault.
+// the same PIN (the device profile, say) can be passed off as a vault. It
+// keeps the app's old name: every vault on disk was sealed with exactly these
+// bytes, and a different string would make all of them unreadable.
 const AAD = Buffer.from('sooskasse-fints/vault/v1', 'utf8');
 
 /** A refusal the route turns into an HTTP status with a message for the user. */

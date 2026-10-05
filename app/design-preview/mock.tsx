@@ -124,6 +124,12 @@ export type MockOptions = {
   unclear?: boolean | 'tagesgeld' | 'recent';
   /** Every Vorgemerkt fetch fails once its approval is through (read live). */
   failPending?: boolean;
+  /**
+   * The Girokonto's bank offers no HKVMK and sends the Vorgemerkte with the
+   * Umsätze instead, as Sparkassen do: no fetch of their own, a fresh list
+   * with every statement read up to today.
+   */
+  pendingWithStatements?: boolean;
 };
 
 export type MockFintsProviderProps = MockOptions & {
@@ -307,7 +313,12 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const loggedIn = !opts.view || opts.view === 'dashboard';
   // What the bank lists for this login; a first-frame option, so fixed per session.
-  const [bankAccounts] = useState(() => (opts.oneAccount ? data.accounts.slice(0, 1) : data.accounts));
+  const [bankAccounts] = useState(() => {
+    const listed = opts.oneAccount ? data.accounts.slice(0, 1) : data.accounts;
+    return opts.pendingWithStatements
+      ? listed.map((a) => (a.accountNumber === ACCT.giro ? { ...a, canPending: false } : a))
+      : listed;
+  });
   const startAccount = bankAccounts.find((a) => a.accountNumber === opts.account) ?? bankAccounts[0];
   const [accounts, setAccounts] = useState<SerializedAccount[]>(loggedIn ? bankAccounts : []);
   const [activeAccount, setActiveAccount] = useState<SerializedAccount | null>(loggedIn ? startAccount : null);
@@ -321,7 +332,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     : {}));
   const pendingInfo = useMemo(() => {
     const out: Record<string, PendingInfo> = {};
-    for (const [a, at] of Object.entries(pendingAt)) if (pendingCache[a]) out[a] = { loadedAt: at, behindStatement: false, booked: 0 };
+    for (const [a, at] of Object.entries(pendingAt)) if (pendingCache[a]) out[a] = { loadedAt: at, behindStatement: false, booked: 0, readAt: at };
     return out;
   }, [pendingAt, pendingCache]);
   const [statementInfo, setStatementInfo] = useState<Record<string, StatementInfo>>(loggedIn ? init.statementInfo : {});
@@ -610,8 +621,14 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
         const balance = s.balance;
         setBalances((b) => (acceptsBalance(b[acct], balance) ? { ...b, [acct]: balance } : b));
       }
+      const at = Date.now();
       setTxCache((c) => ({ ...c, [acct]: { key: cacheKey, txs: s.txs } }));
-      setStatementInfo((si) => ({ ...si, [acct]: { from: span.from, to: span.to, blocks: s.blocks, loadedAt: Date.now() } }));
+      setStatementInfo((si) => ({ ...si, [acct]: { from: span.from, to: span.to, blocks: s.blocks, loadedAt: at } }));
+      // As the provider: the bank's list rides along with a read up to today.
+      if (optsRef.current.pendingWithStatements && acct === ACCT.giro && span.to >= today) {
+        setPendingCache((c) => ({ ...c, [acct]: preset === 'empty' ? [] : data.pending[acct] ?? [] }));
+        setPendingAt((m) => ({ ...m, [acct]: at }));
+      }
       o.onSettled?.('applied');
     };
 
@@ -1557,7 +1574,7 @@ export function MockFintsProvider({ children, preset = 'default', overrides, sti
     options.staleBank, options.methods,
     options.logos,
     options.filter, options.analysisPeriod, options.analysisScope, options.categoryRules,
-    options.unclear, options.failPending,
+    options.unclear, options.failPending, options.pendingWithStatements,
   ]);
   const underElectron = useSyncExternalStore(noopSubscribe, isElectron, () => false);
   return (

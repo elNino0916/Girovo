@@ -31,7 +31,7 @@ The jobs they come to do:
 
 ## Product Purpose
 
-Sooskasse-FinTS is a banking app for German banks. It speaks FinTS 3.0
+Girovo is a banking app for German banks. It speaks FinTS 3.0
 (HBCI) PIN/TAN, including decoupled TAN, directly from the user's own
 machine. It works with any bank behind the 2,721 Bankleitzahlen with FinTS
 access in its bundled database, and every one gets the same interface for:
@@ -53,7 +53,9 @@ The owner sees the position as the combination of three claims (confirmed
 1. **Only your bank sees it.** FinTS runs straight from the user's machine to
    the bank. No aggregator, cloud account or third-party access sits in that
    path. The PIN lives only in memory. The device profile and the
-   personal-data vault are encrypted with the PIN.
+   personal-data vault are encrypted with the PIN. Nothing about the user's
+   finances goes to the developer: error reports (always) and usage data (with
+   a yes) are scrubbed and limited to declared fields (README → Telemetry).
 2. **Any German bank, one modern app.** It is free and open source (MIT) and
    works with any FinTS bank, in an interface that feels like familiar online
    banking.
@@ -128,7 +130,7 @@ The owner sees the position as the combination of three claims (confirmed
 
 ## Capabilities and Constraints
 
-**Current state (4.2.0).** The README is the full feature list:
+**Current state (4.3.0).** The README is the full feature list:
 
 - Finanzübersicht: Konten und Karten, Gesamtsaldo, Monatsbilanz, Demnächst
   fällig
@@ -138,7 +140,8 @@ The owner sees the position as the combination of three claims (confirmed
 - Umsatzanalyse
 - Verträge & Abos
 - CSV and PDF export
-- Vorgemerkte Umsätze (HKVMK)
+- Vorgemerkte Umsätze (HKVMK on request, or sent with the Umsätze as
+  Sparkassen do)
 - SEPA-Überweisung (HKCCS) and Echtzeitüberweisung (HKIPZ), with templates,
   recent payees, GiroCode reading and duplicate and overdraft warnings. The
   duplicate check reads a 14-day record of sent orders (account, IBAN,
@@ -238,7 +241,7 @@ raw name as "Name laut Bank" (owner's request).
 
 ## Brand Commitments
 
-- **Name and mark.** Sooskasse-FinTS, with the "€" plate and wordmark
+- **Name and mark.** Girovo (called Sooskasse-FinTS up to 4.3), with the "G€" plate and wordmark
   (`components/shell/BrandMark.tsx`). The app has its own identity. It borrows
   a design language, never another bank's or provider's branding.
 - **Interface typeface.** Google Sans Flex. This is binding for now (owner,
@@ -280,7 +283,10 @@ raw name as "Name laut Bank" (owner's request).
 ## Product Principles
 
 1. **The bank is the only party.** Anything that leaves the machine for
-   another host is disclosed, minimal and can be switched off. Personal data
+   another host is disclosed, minimal and can be switched off — with one
+   exception the owner chose (2026-10-05): the desktop app's error reports go
+   to the developer's server always, scrubbed of anything personal and never
+   carrying financial data. Usage data needs the user's yes. Personal data
    stays local and encrypted with the PIN.
 2. **Feels like their online banking.** A non-technical user should recognise
    the terms, the flow and the safety steps. Nothing asks for configuration,

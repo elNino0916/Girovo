@@ -29,6 +29,12 @@ export type ClientResponseWithResult = ClientResponse & {
   transferResult?: TransferResult;
   /** Vormerkposten parsed from the MT942 in HIVMK. */
   pendingStatements?: Statement[];
+  /**
+   * Vormerkposten the bank sent beside the Umsätze, in HIKAZ/HICAZ
+   * (lib/fints-statements.ts). Undefined when the answer carried none; null
+   * when it carried some the app could not read.
+   */
+  notedStatements?: Statement[] | null;
 };
 
 /**
@@ -89,6 +95,10 @@ export type SerializedAccount = {
   canBalance: boolean;
   canTransfer: boolean;
   canInstant: boolean;
+  /**
+   * Vorgemerkte can be fetched on their own (HKVMK). A bank without it may
+   * still send them with the Umsätze (`pending` on a statement answer).
+   */
   canPending: boolean;
 };
 
@@ -202,13 +212,25 @@ export type TanPollResponse =
   | (({ status: 'refused' } | { status: 'unclear' }) & { type: string; accountNumber?: string; bankAnswers: string })
   | { status: 'done'; kind: 'accounts'; accounts: SerializedAccount[]; deviceSaved: boolean }
   | { status: 'done'; kind: 'balance'; accountNumber?: string; balance: SerializedBalance | null }
-  | { status: 'done'; kind: 'statements'; accountNumber?: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null; blocks?: StatementBlock[] }
+  | { status: 'done'; kind: 'statements'; accountNumber?: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null; blocks?: StatementBlock[]; pending?: SerializedTransaction[] | null }
   | { status: 'done'; kind: 'pending'; accountNumber?: string; pending: SerializedTransaction[] }
   | { status: 'done'; kind: 'transfer'; accountNumber?: string; transferResult: TransferResult | null; bankAnswers: string };
 
 export type TransactionsResponse =
   | TanRequired
-  | { needsTan: false; accountNumber: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null; blocks?: StatementBlock[] };
+  | {
+      needsTan: false;
+      accountNumber: string;
+      transactions: SerializedTransaction[];
+      balance: SerializedBalance | null;
+      blocks?: StatementBlock[];
+      /**
+       * Vorgemerkte the bank sent with these Umsätze; absent when it sent
+       * none, null when it sent some the server could not read. Never part
+       * of `transactions`, `balance` or `blocks`.
+       */
+      pending?: SerializedTransaction[] | null;
+    };
 
 export type PendingResponse =
   | TanRequired

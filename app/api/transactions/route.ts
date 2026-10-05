@@ -3,9 +3,10 @@
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import {
   balanceFromStatements, bankAnswerText, logResp, logStatementDates,
-  serializeTransactions, statementBlocks, tanPayload,
+  serializeNoted, serializeTransactions, statementBlocks, tanPayload,
 } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
+import { fetchStatements } from '@/lib/fints-statements';
 import type { TransactionsResponse } from '@/lib/fints-types';
 
 export const runtime = 'nodejs';
@@ -32,7 +33,9 @@ export const POST = wrap(async (req: Request) => {
     : new Date(Date.now() - DEFAULT_STATEMENT_DAYS * 86400000);
   const toDate = to ? new Date(to) : undefined;
 
-  const resp = await s.client.getAccountStatements(accountNumber, fromDate, toDate);
+  // lib-fints' getAccountStatements, keeping the Vormerkposten a bank sends
+  // beside the Umsätze (Sparkassen do, and offer no HKVMK).
+  const resp = await fetchStatements(s.client, accountNumber, fromDate, toDate);
   logResp('transactions', s, resp);
   if (resp.requiresTan) {
     s.pending = { type: 'statements', tanReference: resp.tanReference, accountNumber };
@@ -46,5 +49,6 @@ export const POST = wrap(async (req: Request) => {
     balance: balanceFromStatements(resp.statements),
     // Per-block opening/closing balances — what a Kontoverlauf is checked against.
     blocks: statementBlocks(resp.statements),
+    pending: serializeNoted(s, accountNumber, resp.notedStatements),
   } satisfies TransactionsResponse);
 });

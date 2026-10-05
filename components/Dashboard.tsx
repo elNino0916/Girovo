@@ -38,6 +38,8 @@ import { Footer } from './shell/Footer';
 import { BottomBar } from './shell/BottomBar';
 import { MessagesTeaser } from './shell/MessagesTeaser';
 import { MerchantLogoConsent } from './MerchantLogoConsent';
+import { UsageConsentTile } from './telemetry/UsageConsent';
+import { trackUsage } from './telemetry/usage';
 
 export function Dashboard() {
   const { tab, transferOpen, shareOpen } = useFints();
@@ -54,6 +56,9 @@ export function Dashboard() {
     }
     scrollRef.current?.scrollTo({ top: 0 });
   }, [tab]);
+
+  // Usage (with the user's yes): which of the three pages is in use.
+  useEffect(() => trackUsage('screen_viewed', { screen: tab }), [tab]);
 
   const rootRef = useRef<HTMLDivElement>(null);
   useScrollbarWidth(rootRef, scrollRef);
@@ -117,7 +122,7 @@ export function Dashboard() {
  * the grid drops to two rows rather than keep a gap where it would be.
  */
 function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
-  const { activeAccount } = useFints();
+  const { activeAccount, pendingCache } = useFints();
   const sideRef = useRef<HTMLDivElement>(null);
   const stickyTop = useStickyTop(sideRef, scrollRef);
 
@@ -140,7 +145,11 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
         className="flex min-w-0 flex-col gap-4 sm:gap-6 desk:sticky desk:col-start-2 desk:row-[1/-1]"
       >
         <Slot><MerchantLogoConsent /></Slot>
-        {activeAccount?.canPending && <Slot><PendingPanel /></Slot>}
+        <Slot><UsageConsentTile /></Slot>
+        {/* On request (HKVMK), or once the bank sent a list with the Umsätze. */}
+        {activeAccount && (activeAccount.canPending || pendingCache[activeAccount.accountNumber]) && (
+          <Slot><PendingPanel /></Slot>
+        )}
         <Slot><MonthSummary /></Slot>
         <Slot><UpcomingPayments /></Slot>
         <Slot><MessagesTeaser /></Slot>

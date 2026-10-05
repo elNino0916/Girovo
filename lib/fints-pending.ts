@@ -9,11 +9,14 @@
 // register it through the library's own extension points. MT942 reuses the
 // MT940 :61:/:86: entry format (it only adds :34F: floor limits and :90D:/:90C:
 // summary tags, which the MT940 parser safely skips as unknown tags), so we can
-// reuse lib-fints' Mt940Parser as-is. Verified against the official segment
-// catalogue (hbci4java hbci-300.xml): HKVMK v1 uses the national account group
+// reuse lib-fints' Mt940Parser (through lib/noted.ts, which evens out the
+// framing it trips over). Verified against the official segment catalogue
+// (hbci4java hbci-300.xml): HKVMK v1 uses the national account group
 // (KTV3 = number + subnumber + bank), no IBAN.
+//
+// Not every bank offers HKVMK — Sparkassen do not, and send their
+// Vormerkposten with the Umsätze instead (lib/fints-statements.ts).
 
-import { Mt940Parser } from 'lib-fints';
 import type { FinTSConfig, Message, Segment } from 'lib-fints';
 import {
   SegmentDefinition,
@@ -26,6 +29,7 @@ import {
   registerSegmentDefinition,
 } from './fints-internals.js';
 import type { ClientResponseWithResult } from './fints-types';
+import { parseMt942 } from './noted.ts';
 
 class HKVMK extends SegmentDefinition {
   static Id = 'HKVMK';
@@ -76,16 +80,12 @@ export class PendingInteraction extends CustomerOrderInteraction {
   }
 
   handleResponse(response: Message, clientResponse: ClientResponseWithResult): void {
-    const seg = response.findSegment<Segment & { mt942?: string }>(HIVMK.Id);
-    const mt942 = seg?.mt942;
-    if (mt942) {
-      try {
-        clientResponse.pendingStatements = new Mt940Parser(mt942).parse();
-      } catch (err) {
-        console.warn('MT942 parsing failed:', (err as Error)?.message || err);
-        clientResponse.pendingStatements = [];
-      }
-    } else {
+    // A long list spread over several messages arrives as several HIVMK.
+    const mt942 = response.findAllSegments<Segment & { mt942?: string }>(HIVMK.Id).map((seg) => seg.mt942 || '');
+    try {
+      clientResponse.pendingStatements = parseMt942(mt942);
+    } catch (err) {
+      console.warn('MT942 parsing failed:', (err as Error)?.message || err);
       clientResponse.pendingStatements = [];
     }
   }

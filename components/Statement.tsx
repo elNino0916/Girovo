@@ -36,8 +36,9 @@ import {
 import type { SerializedAccount, SerializedBalance, SerializedTransaction } from '@/lib/fints-types';
 import type { ChosenBank, PrintJob } from './FintsProvider';
 import { useFints, useLogoFile } from './FintsProvider';
+import { trackUsage } from './telemetry/usage';
 
-const APP_NAME = 'Sooskasse-FinTS';
+const APP_NAME = 'Girovo';
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 
 type StatementJob = Extract<PrintJob, { kind: 'statement' }>;
@@ -69,6 +70,7 @@ export function Statement() {
         if (electronPDF) {
           electronPDF.exportPDF(suggestedFileName(printJob, stamp))
             .then((result) => {
+              if (result.ok) trackUsage('export_created', { format: 'pdf', kind: printJob.kind });
               if (!result.ok && 'error' in result) {
                 toast(`PDF konnte nicht gespeichert werden: ${result.error}`, 'error');
               }

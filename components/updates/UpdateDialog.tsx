@@ -198,7 +198,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
                 startet statt dieser.
               </>
             ) : (
-              <>Sooskasse-FinTS wird beendet, installiert die neue Version und startet von selbst neu – meist in weniger als einer Minute.</>
+              <>Girovo wird beendet, installiert die neue Version und startet von selbst neu – meist in weniger als einer Minute.</>
             )}
             {signedIn && <> Du wirst dabei abgemeldet.</>}
           </Alert>

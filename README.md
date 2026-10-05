@@ -11,7 +11,7 @@ methods such as S-pushTAN, SecureGo plus or BestSign. Methods where you type a
 TAN (chipTAN, smsTAN, TAN generators) are not supported.
 
 **Features**
-- **Tested with major banks** — Sooskasse-FinTS has been tested with Atruvia, Targobank, Commerzbank and FI infrastructure.
+- **Tested with major banks** — Girovo has been tested with Atruvia, Targobank, Commerzbank and FI infrastructure.
 - **All German FinTS banks** — bundled institute database (~2.700 institutes)
   with name / city / BLZ / **BIC** search, or a pasted **IBAN** (read in the
   browser — only its BLZ is sent to the search); quick picks with the real bank
@@ -54,9 +54,11 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   filter shows (the file name says which days, and "_gefiltert") — booked
   Umsätze only, in the German Excel dialect (`;`, UTF-8 BOM, decimal comma,
   formula-injection guard), plus the existing PDF Kontoauszug and Buchungsbeleg.
-- **Vorgemerkte Umsätze** (pending / not-yet-booked entries via `HKVMK`) —
-  loaded on demand, shows incoming SEPA-Lastschriften *before* they book.
-  Only offered when the bank/account supports it.
+- **Vorgemerkte Umsätze** (pending / not-yet-booked entries) — shows incoming
+  SEPA-Lastschriften and card payments *before* they book. Loaded on demand
+  via `HKVMK` where the bank offers it; banks that send them with the Umsätze
+  instead (Sparkassen: the "nicht gebuchte Umsätze" of `HIKAZ`/`HICAZ`) show
+  them with every statement read.
 - **SEPA-Überweisung** (HKCCS) and **Echtzeitüberweisung** (HKIPZ) with IBAN
   check-digit validation, review step and TAN approval. Only offered when the
   bank/account actually supports it (BPD/UPD). The form knows your recent
@@ -153,8 +155,8 @@ That produces two files in `dist/`:
 
 | File | What it is |
 |------|------------|
-| `Sooskasse-FinTS-<version>-Setup.exe` | Standard NSIS installer — double-click to install, uninstall via *Programs & Features*. |
-| `Sooskasse-FinTS-<version>-portable.exe` | Single executable, no installation needed — run from anywhere. |
+| `Girovo-<version>-Setup.exe` | Standard NSIS installer — double-click to install, uninstall via *Programs & Features*. |
+| `Girovo-<version>-portable.exe` | Single executable, no installation needed — run from anywhere. |
 
 Both are ~100 MB, most of which is the Electron runtime.
 
@@ -186,8 +188,12 @@ Nothing about the website workflow changes — `npm run dev`, `npm run build` an
 
 Remembered device profiles (see *Fewer TAN prompts*) cannot live next to a
 program installed under `Program Files`, so the desktop app puts them in
-`%APPDATA%\sooskasse-fints\fints-state` via the `FINTS_STATE_DIR` environment
+`%APPDATA%\Girovo\fints-state` via the `FINTS_STATE_DIR` environment
 variable. The website keeps using `.fints-state/` in the project root.
+The app was called Sooskasse-FinTS up to 4.3, and a machine that already has
+`%APPDATA%\Sooskasse-FinTS` keeps using that folder (`electron/main.cjs`), so
+the update to Girovo carries the device profile, the vault and the settings
+over as they are.
 
 `config.json` is baked into the package at build time — set your product ID
 before building.
@@ -200,7 +206,7 @@ The desktop app updates itself from this repository's
 
 - **Checking** — 15 seconds after the start and then every 6 hours, the app asks
   GitHub's API for the latest release. The request carries the app's version
-  (`User-Agent: Sooskasse-FinTS/<version>`) and nothing about you or your
+  (`User-Agent: Girovo/<version>`) and nothing about you or your
   accounts; it goes through a session of its own without cookies or cache.
   Switch it off under *Sitzung → Updates* — a check is then only made when you
   press "Nach Updates suchen".
@@ -225,10 +231,11 @@ The desktop app updates itself from this repository's
   installation (`resources\update-base.bin`). An update compares the new
   release's blockmap with the installed release's, copies the unchanged parts
   of the installer from that file and downloads only the rest from GitHub in
-  byte ranges: usually 1–3 MB instead of ~110 MB. The result is checked against
-  GitHub's digest like any download; if anything does not fit (no blockmap, an
-  installation from a local build, a changed Electron that changes nearly
-  everything), the whole `Setup.exe` is downloaded instead.
+  byte ranges: usually 1–3 MB instead of ~110 MB. A release that changes nearly
+  everything (a new Electron) still reuses the few MB that stayed. The result
+  is checked against GitHub's digest like any download; if anything does not
+  fit (no blockmap, an installation from a local build, nothing reusable at
+  all), the whole `Setup.exe` is downloaded instead.
 - **Portable copies**: the new `portable.exe` is saved next to the old one (or in
   *Downloads* if that folder is read-only) and started instead. The old file
   stays — delete it when you like.
@@ -237,8 +244,8 @@ The desktop app updates itself from this repository's
 **Publishing a release** the updater picks up needs nothing beyond what
 `npm run electron:dist` produces: create a normal GitHub release (not a draft,
 not a pre-release) whose tag is the version (`4.1.0` or `v4.1.0`) and attach
-`Sooskasse-FinTS-<version>-Setup.exe`, `Sooskasse-FinTS-<version>-Setup.exe.blockmap`
-and `Sooskasse-FinTS-<version>-portable.exe` from `dist/` — upload the files of
+`Girovo-<version>-Setup.exe`, `Girovo-<version>-Setup.exe.blockmap`
+and `Girovo-<version>-portable.exe` from `dist/` — upload the files of
 one build, the blockmap has to describe exactly that `Setup.exe`. GitHub adds
 the digests by itself; no `latest.yml` is needed. Without the blockmap the
 release still works, it is just downloaded whole — by the copies updating to
@@ -248,13 +255,46 @@ bold, links). Development builds (`<version>-dev.<n>`) are newer than the
 release they are numbered after, so they are only offered a higher version.
 
 To try the flow without publishing anything, point an unpackaged build at a
-local feed: `SOOSKASSE_UPDATE_FEED=http://127.0.0.1:<port>/latest` (an answer
-shaped like GitHub's `/releases/latest`) and `SOOSKASSE_UPDATE_KIND=nsis` or
-`portable`, then `npm run electron:dev` (`SOOSKASSE_UPDATE_BASE=<path to a
+local feed: `GIROVO_UPDATE_FEED=http://127.0.0.1:<port>/latest` (an answer
+shaped like GitHub's `/releases/latest`) and `GIROVO_UPDATE_KIND=nsis` or
+`portable`, then `npm run electron:dev` (`GIROVO_UPDATE_BASE=<path to a
 Setup.exe>` stands in for the installed copy's `update-base.bin`; the feed then
 also needs `/tags/<version>`). A packaged app ignores all of them. The
 design preview shows every state of the update dialog with a fake updater
 (`/design-preview?view=update`, `update-ready`, `update-installed`, …).
+
+### Telemetry
+
+The desktop app reports to the developer's own server
+(`config.json` → `telemetry: { endpoint, key }`), through a vendored copy of
+its SDK (`electron/telemetry-sdk.mjs` — never loaded from the network). The
+main process decides what goes out (`electron/telemetry.cjs`):
+
+- **Error reports, always.** Crashes and unexpected failures of the shell, the
+  server (`wrap()` in `lib/api.ts`, `instrumentation.ts`) and the page, with
+  where they happened: the source, the API route, the bank's BLZ when known.
+  Messages and stacks are scrubbed first (`electron/telemetry-scrub.cjs`):
+  IBANs, amounts, dates, long numbers, e-mail addresses, quoted text, names
+  after labels like "Empfänger", URL queries and the Windows user folder are
+  masked. Without the user's yes a report carries no install id, only the SDK's
+  per-start session id.
+- **Usage, only after the user's yes** — asked once by a tile on the Übersicht,
+  changeable under *Sitzung → Nutzungsdaten teilen*: which screens are used,
+  how logins end (with the BLZ, never the login name), how long the bank takes
+  to answer, exports made (format only), update events, and a random install
+  id. Switching it off deletes the id.
+
+Only the events and fields declared in `electron/telemetry.cjs` are sent, each
+of a fixed type, so no free text from the bookings can travel in a property.
+Never sent: login name, PIN, IBANs, balances, bookings, amounts, payees,
+Verwendungszwecke. Every report shows the server the user's IP address.
+
+The server process does not send anything itself: `lib/telemetry.ts` writes one
+marked line per report to its stdout, which the shell takes out of the log and
+judges like its own. `npm run dev` and an unpackaged `electron:dev` send nothing
+(set `GIROVO_TELEMETRY=1` to try it). A build without the `telemetry` block in
+`config.json` sends nothing at all. The design preview fakes the bridge with
+`?usage=unasked|on|off`.
 
 ## FinTS product registration (important)
 
@@ -267,7 +307,7 @@ banks reject dialogs without one (code 9078). Register at
 { "productId": "YOURID", "productVersion": "1.0" }
 ```
 If you do not want to request a product ID from DK, a simple Google search will give you plenty of IDs you could use,
-however, using a officially obtained key is recommended to prevent your Sooskasse-FinTS from being detected as automated
+however, using a officially obtained key is recommended to prevent your Girovo from being detected as automated
 traffic and therefore being blocked by your bank's infrastructure.
 
 ## How it works
@@ -279,7 +319,8 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `lib/fints-sepa.ts` | Adds the transfer segments **HKCCS**/**HKIPZ** (lib-fints is read-only out of the box): segment definitions, pain.001 XML builder (001.001.03 / 001.003.03 / 001.001.09), SEPA character-set sanitizing, IBAN/BIC/amount validation. The descriptor is picked per segment — HKIPZ has its own format list in **HIIPZS**, HKCCS falls back to the bank-wide one in **HISPAS**. |
 | `lib/fints-vop.ts` | Adds **HKVPP**/**HKVPA** (Namensabgleich — Verification of Payee): segment definitions, a collector that merges a result delivered over several messages (Aufsetzpunkt, return code 3040) incl. a pain.002 fallback, the HIVPPS lookup that says which transactions the bank checks, and the return codes that steer the flow (3090/3091/3945/9076). |
 | `lib/fints-pending.ts` | Adds **HKVMK** (Vormerkposten / pending entries): segment definitions + a `PendingInteraction` that parses the returned **MT942** with lib-fints' MT940 parser (MT942 reuses the `:61:`/`:86:` entry format). |
-| `lib/fints-internals.js` + `.d.ts` | Re-exports the lib-fints internals its `exports` map hides (segment definitions, data elements, `registerSegmentDefinition`). Kept as one shim so the library's segment registry stays a single module instance — see the note in `next.config.ts`. |
+| `lib/fints-statements.ts`, `lib/noted.ts` | Umsätze with the Vormerkposten a bank sends beside them (**HIKAZ** MT942, **HICAZ** camt.052 `PDNG`), which lib-fints decodes but drops — the only way Sparkassen deliver them. Subclasses of lib-fints' statement interactions keep its request and its reading of the booked part, and parse the noted part on its own, so it can never cost the Umsätze. |
+| `lib/fints-internals.js` + `.d.ts` | Re-exports the lib-fints internals its `exports` map hides (segment definitions, data elements, `registerSegmentDefinition`, the statement interactions and the CAMT parser). Kept as one shim so the library's segment registry stays a single module instance — see the note in `next.config.ts`. |
 | `lib/banks.ts` | Institute database (`banks-data.json`, regenerate via `npm run update-banks`): hbci4java's maintained bank list with dead-host rewrites, plus alternate URLs from [`fints-institute-db`](https://www.npmjs.com/package/fints-institute-db); BLZ/BIC lookup, fuzzy search (with short names such as DKB, HVB, OLB), brand detection for logos. `lib/bank-query.ts` reads a query as name, BLZ or IBAN — in the browser, so an IBAN never leaves it. |
 | `lib/bank-fetch.ts` | Every lib-fints request under one policy, attached from outside the library: a 60 s limit on the bank's first byte, cancellation (a login called off), and HTTP error pages or unreadable replies turned into one German sentence — bodies go to the server log only. Also the route handlers' error translator. `lib/bank-answer.ts` reads a bank's `code: text \| code: text` answer the one way the whole app does: sentences plus a small list of codes, lock detection by the bank's own wording, and the refusal test the order routes share — only an answer that refuses the order and says nothing else is a refusal; anything doubtful stays „Status unklar“. |
 | `lib/serialize.ts` | Maps lib-fints objects to the JSON the browser sees; `lib/fints-types.ts` holds that contract, imported by both sides. |
@@ -310,7 +351,7 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `POST /api/tan-poll` | Poll/continue the pending decoupled approval |
 | `POST /api/cancel-pending` | Abandon the pending approval client-side |
 | `POST /api/balance` | Kontostand for one account |
-| `POST /api/transactions` | Umsätze (optional date range) |
+| `POST /api/transactions` | Umsätze (optional date range), with the Vorgemerkte the bank sent beside them |
 | `POST /api/pending` | Vorgemerkte Umsätze (HKVMK; on-demand) |
 | `POST /api/transfer` | SEPA-Überweisung (`instant: true` → HKIPZ); answers `needsVop` when a Namensabgleich needs the user's decision |
 | `POST /api/vop-confirm` | Send the parked transfer anyway, confirming the Namensabgleich result (HKVPA) |
@@ -325,7 +366,7 @@ traffic and therefore being blocked by your bank's infrastructure.
 ## Company logos
 
 Bank statements name a counterparty in its full legal form, which is rarely the
-brand you'd recognise. Sooskasse-FinTS resolves the brand against
+brand you'd recognise. Girovo resolves the brand against
 **[Brandfetch](https://brandfetch.com)**: a Brand Search API to turn the cleaned
 name into a company + domain, and Brandfetch's Logo CDN to fetch a correctly
 sized mark for that domain.
@@ -455,23 +496,28 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 - Credentials live only in memory and vanish on logout / restart.
 - Banking traffic goes directly from your machine to the bank's FinTS endpoint
   over TLS — no third party sits in that path.
-- Besides the bank, the app makes two kinds of outside request, each of which
-  can be switched off in the app:
+- Besides the bank, the app makes these outside requests:
   - [company logos](#company-logos) send cleaned merchant names to Brandfetch —
     only once you have agreed (the app asks before the first lookup); switch
     them under *Sitzung → Firmenlogos*;
   - the desktop app's [update check](#updates) asks GitHub for the latest
     release, carrying the app's version and nothing else — switch it off under
-    *Sitzung → Updates*.
+    *Sitzung → Updates*;
+  - the desktop app's [telemetry](#telemetry) sends error reports to the
+    developer's server — always, scrubbed of anything personal — and usage
+    data only once you have agreed (*Sitzung → Nutzungsdaten teilen*).
 
-  Like any web request, each one shows the service your IP address. With both
-  off, the app contacts nothing but your bank.
+  Like any web request, each one shows the service your IP address. Error
+  reports cannot be switched off in the app; everything else can, and with it
+  off the app contacts nothing but your bank and, when something breaks, the
+  developer's error reporting.
 - Updates are verified against the SHA-256 digest GitHub publishes for the
   release file before they run, and are only downloaded and installed when you
   click.
 - Templates, account names and category rules are encrypted with your PIN.
   Preferences are plain settings: theme, privacy mode, logout timer, the
-  company-logo answer, and the last bank with its login name (to fill in the
+  company-logo and usage-data answers (with usage data shared, a random install
+  id), and the last bank with its login name (to fill in the
   login form) — never a PIN, a balance or a booking. *Von diesem Rechner
   löschen …* and *Gerät vergessen* with its box ticked remove that login name
   too. A CSV or PNG you export is a normal file — treat it like a printed

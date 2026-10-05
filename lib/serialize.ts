@@ -193,7 +193,11 @@ function ultimateParty(t: Statement['transactions'][number]): string {
   return repairBankText(own || tagged).replace(/\s+/g, ' ').trim();
 }
 
-export function serializeTransactions(statements: Statement[] | undefined): SerializedTransaction[] {
+/**
+ * `currency` stands in where a statement names none: MT942 and a camt report
+ * of Vormerkposten carry no balance to read it from. Pass the account's.
+ */
+export function serializeTransactions(statements: Statement[] | undefined, currency = 'EUR'): SerializedTransaction[] {
   const txs: SerializedTransaction[] = [];
   for (const st of statements || []) {
     for (const t of st.transactions || []) {
@@ -203,7 +207,7 @@ export function serializeTransactions(statements: Statement[] | undefined): Seri
         // it wrong across the turn of the year (lib/entry-date.ts).
         entryDate: nearestEntryYear(t.entryDate, t.valueDate),
         amount: t.amount, // already signed: debit negative, credit positive
-        currency: st.closingBalance?.currency || 'EUR',
+        currency: st.closingBalance?.currency || currency,
         // Repaired here, once, so the list, the CSV, the categories and the
         // logo lookup all see 'Thüringen' rather than the bank's 'ThA.ringen'.
         purpose: repairBankText(t.purpose || ''),
@@ -232,6 +236,29 @@ export function serializeTransactions(statements: Statement[] | undefined): Seri
   // newest first
   txs.sort((a, b) => new Date(b.entryDate || b.valueDate || 0).getTime() - new Date(a.entryDate || a.valueDate || 0).getTime());
   return txs;
+}
+
+/** The account's currency as the UPD names it — 'EUR' when it names none. */
+export function accountCurrency(s: Pick<Session, 'client'>, accountNumber: string): string {
+  try {
+    return s.client.config.getBankAccount(accountNumber)?.currency || 'EUR';
+  } catch {
+    return 'EUR'; // not in the UPD, or not unique there
+  }
+}
+
+/**
+ * The Vorgemerkte a statement answer carried: undefined when it carried none,
+ * null when they could not be read. Kept apart from the bookings: never part
+ * of balanceFromStatements, statementBlocks or logStatementDates.
+ */
+export function serializeNoted(
+  s: Pick<Session, 'client'>,
+  accountNumber: string,
+  statements: Statement[] | null | undefined,
+): SerializedTransaction[] | null | undefined {
+  if (!statements) return statements;
+  return serializeTransactions(statements, accountCurrency(s, accountNumber));
 }
 
 export function tanPayload(resp: ClientResponse): TanRequired {

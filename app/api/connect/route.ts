@@ -13,6 +13,7 @@ import { beginAttempt, settleAttempt, type ConnectAttempt } from '@/lib/connect-
 import { accountsFor, bankAnswerText, logResp, serializeTanMethod } from '@/lib/serialize';
 import { DEBUG, PRODUCT_ID, PRODUCT_VERSION, asClientEx, getSession, newSession } from '@/lib/session';
 import { loadProfile } from '@/lib/state-store';
+import { noteTelemetry, reportEvent } from '@/lib/telemetry';
 import type { BankMeta, ConnectResponse, FinTSClientEx } from '@/lib/fints-types';
 
 export const runtime = 'nodejs';
@@ -36,11 +37,21 @@ export const POST = wrap(async (req: Request) => {
   }
   if (!userId || !pin) return fail('Bitte Anmeldename und PIN angeben.');
 
+  // Telemetry: which bank and how the login went — never who logged in.
+  noteTelemetry({ blz: bankId });
+  const started = Date.now();
+  const outcome: LoginOutcome = (result, extra = {}) =>
+    reportEvent('login_result', { blz: bankId, outcome: result, ms: Date.now() - started, ...extra });
+
   const attempt = beginAttempt(attemptId);
   try {
-    return await login(attempt, bankId, dbEntry, userId, pin);
+    return await login(attempt, bankId, dbEntry, userId, pin, outcome);
   } catch (err) {
-    if (attempt.signal.aborted) return fail(CANCELLED, 409);
+    if (attempt.signal.aborted) {
+      outcome('cancelled');
+      return fail(CANCELLED, 409);
+    }
+    outcome(bankErrorKind(err) ?? 'error');
     throw err;
   } finally {
     // Over: a late cancel still finds the session it created, if any.
@@ -48,12 +59,15 @@ export const POST = wrap(async (req: Request) => {
   }
 });
 
+type LoginOutcome = (result: string, extra?: { restored?: boolean; tanMethods?: number }) => void;
+
 async function login(
   attempt: ConnectAttempt,
   bankId: string,
   dbEntry: NonNullable<ReturnType<typeof lookupBlz>>,
   userId: string,
   pin: string,
+  outcome: LoginOutcome,
 ) {
   /** A session for this login — unless it was called off meanwhile. */
   const open = (client: FinTSClientEx, meta: BankMeta): string | null => {
@@ -94,11 +108,15 @@ async function login(
         bankName: config.bankingInformation?.bpd?.bankName || buildMeta().bankName,
       };
       const sessionId = open(client, meta);
-      if (!sessionId) return fail(CANCELLED, 409);
+      if (!sessionId) {
+        outcome('cancelled');
+        return fail(CANCELLED, 409);
+      }
       const s = getSession(sessionId)!;
       const accounts = accountsFor(s);
       const selMethod = config.selectedTanMethod;
       console.log(`[connect] restored device profile (blz=${bankId}) accounts=${accounts.length}`);
+      outcome('ok', { restored: true });
       const payload: ConnectResponse = {
         sessionId, bank: meta, restored: true, accounts,
         selectedTanMethod: selMethod ? serializeTanMethod(selMethod) : null,
@@ -142,13 +160,18 @@ async function login(
   logResp('connect', { client }, sync);
   console.log(`[connect] blz=${bankId} upd=${!!client.config.bankingInformation?.upd} accounts=${client.config.bankingInformation?.upd?.bankAccounts?.length ?? 0} tanMethods=${client.config.availableTanMethods?.length ?? 0}`);
   if (!sync.success && (!client.config.availableTanMethods || client.config.availableTanMethods.length === 0)) {
+    outcome('refused');
     return fail(bankAnswerText(sync) || 'Deine Bank hat die Anmeldung abgelehnt. Prüfe Anmeldename und PIN.');
   }
 
   const bankName = client.config.bankingInformation?.bpd?.bankName || dbEntry.name || `BLZ ${bankId}`;
   const meta: BankMeta = { blz: bankId, bankName, brand: dbEntry.brand || 'generic', bic: dbEntry.bic || null };
   const sessionId = open(client, meta);
-  if (!sessionId) return fail(CANCELLED, 409);
+  if (!sessionId) {
+    outcome('cancelled');
+    return fail(CANCELLED, 409);
+  }
+  outcome('ok', { restored: false, tanMethods: client.config.availableTanMethods.length });
   const payload: ConnectResponse = {
     sessionId,
     bank: meta,

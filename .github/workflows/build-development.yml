@@ -26,7 +26,7 @@ jobs:
           $developmentVersion = "$baseVersion-dev.${{ github.run_number }}"
           npm version $developmentVersion --no-git-tag-version --allow-same-version
           "version=$developmentVersion" >> $env:GITHUB_OUTPUT
-          Write-Host "Building Sooskasse-FinTS $developmentVersion"
+          Write-Host "Building Girovo $developmentVersion"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -43,7 +43,7 @@ jobs:
       - name: Upload development artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Sooskasse-FinTS-${{ steps.version.outputs.version }}-windows
+          name: Girovo-${{ steps.version.outputs.version }}-windows
           path: |
             dist/*-Setup.exe
             dist/*-portable.exe

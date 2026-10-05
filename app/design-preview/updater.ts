@@ -16,14 +16,14 @@ export const isUpdateScenario = (s: string): s is UpdateScenario => (UPDATE_SCEN
 
 // The running version as the masthead shows it, and the one after it that
 // the fake offers — so the two never contradict each other.
-const CURRENT = process.env.NEXT_PUBLIC_APP_VERSION || '4.2.0';
+const CURRENT = process.env.NEXT_PUBLIC_APP_VERSION || '4.3.0';
 const NEXT = (() => {
   const [major, minor] = CURRENT.split(/[.-]/).map(Number);
   return `${major || 0}.${(minor || 0) + 1}.0`;
 })();
 
 const NOTES = [
-  `# Sooskasse-FinTS ${NEXT}`,
+  `# Girovo ${NEXT}`,
   '',
   'Updates kommen jetzt direkt in der App an – geprüft, bevor sie laufen.',
   '',
@@ -89,7 +89,7 @@ function initial(scenario: UpdateScenario): ElectronUpdateState {
     case 'manual':
       return { ...base, kind: 'manual', phase: 'available', checkedAt, release: { ...RELEASE, canInstall: false } };
     case 'portable':
-      return { ...base, kind: 'portable', phase: 'ready', checkedAt, release: RELEASE, location: 'D:\\Programme\\Sooskasse' };
+      return { ...base, kind: 'portable', phase: 'ready', checkedAt, release: RELEASE, location: 'D:\\Programme\\Girovo' };
     case 'error':
       return {
         ...base,

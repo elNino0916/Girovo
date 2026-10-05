@@ -82,7 +82,7 @@ function emptyNote(q: BankQuery): string {
     return 'Keine Bank mit dieser BLZ. Eine BLZ hat 8 Ziffern – du findest sie in deiner IBAN an Stelle 5 bis 12.';
   }
   const known = q.kind === 'text' ? bankWithoutFinTS(q.text) : null;
-  if (known) return `${known} bietet kein FinTS an. Mit Sooskasse-FinTS lässt sich das Konto dort deshalb nicht nutzen.`;
+  if (known) return `${known} bietet kein FinTS an. Mit Girovo lässt sich das Konto dort deshalb nicht nutzen.`;
   return 'Keine Bank mit diesem Namen oder Ort. Nicht jede Bank bietet FinTS an.';
 }
 

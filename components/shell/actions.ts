@@ -18,6 +18,7 @@ import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types
 import { unclearTransfers } from '@/lib/session-log';
 import { useFints } from '../FintsProvider';
 import { newestFirst } from '../transactions/model';
+import { trackUsage } from '../telemetry/usage';
 
 /** The Umsätze search field's id (components/transactions/TxFilterBar.tsx). */
 const TX_SEARCH_ID = 'umsatz-suche';
@@ -63,7 +64,11 @@ export function useCsvExport() {
     }
     try {
       const outcome = await saveFile(csvFileName(activeAccount, span, opts), textBlob(csv, 'text/csv;charset=utf-8'));
-      if (outcome === 'saved') toast(`${umsaetze(rows.length)} als CSV-Datei gespeichert.`, 'success');
+      if (outcome === 'saved') {
+        toast(`${umsaetze(rows.length)} als CSV-Datei gespeichert.`, 'success');
+        // Usage (with the user's yes): that a file was made — not what is in it, nor how many rows.
+        trackUsage('export_created', { format: 'csv', kind: 'transactions' });
+      }
     } catch (e) {
       toast((e as Error).message || 'Die CSV-Datei konnte nicht gespeichert werden.', 'error');
     }

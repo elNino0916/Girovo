@@ -5,8 +5,8 @@
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { isDefiniteRefusal } from '@/lib/bank-answer';
 import {
-  accountsFor, balanceFromStatements, bankAnswerCodes, bankAnswerText, logResp, logStatementDates,
-  serializeBalance, serializeTransactions, statementBlocks,
+  accountCurrency, accountsFor, balanceFromStatements, bankAnswerCodes, bankAnswerText, logResp, logStatementDates,
+  serializeBalance, serializeNoted, serializeTransactions, statementBlocks,
 } from '@/lib/serialize';
 import { getSession, saveSessionProfile } from '@/lib/session';
 import { PENDING_SEG } from '@/lib/fints-pending';
@@ -104,12 +104,15 @@ export const POST = wrap(async (req: Request) => {
       transactions: serializeTransactions(statements),
       balance: balanceFromStatements(statements),
       blocks: statementBlocks(statements),
+      // The approval continued lib/fints-statements.ts' interaction, which
+      // kept the Vormerkposten of this answer too.
+      pending: serializeNoted(s, accountNumber!, resp.notedStatements),
     } satisfies TanPollResponse);
   }
   if (type === 'pending') {
     return json({
       status: 'done', kind: 'pending', accountNumber,
-      pending: serializeTransactions(resp.pendingStatements),
+      pending: serializeTransactions(resp.pendingStatements, accountCurrency(s, accountNumber!)),
     } satisfies TanPollResponse);
   }
   return json({

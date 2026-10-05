@@ -33,7 +33,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 
-namespace Sooskasse.UpdateWindow
+namespace Girovo.UpdateWindow
 {
     sealed class Options
     {
@@ -42,7 +42,7 @@ namespace Sooskasse.UpdateWindow
         public int Files = 1600;
         public string Version = "";
         public string AppExe = "";
-        public string AppName = "Sooskasse-FinTS";
+        public string AppName = "Girovo";
         public string ReleasesUrl = "";
         public string Log = "";
         public bool Dark;
@@ -185,7 +185,9 @@ namespace Sooskasse.UpdateWindow
             ResizeMode = ResizeMode.NoResize;
             SizeToContent = SizeToContent.WidthAndHeight;
             ShowInTaskbar = true;
-            Topmost = false;
+            // Above other windows, so the update cannot get lost behind them.
+            // The admin prompt is unaffected: Windows shows it on its own desktop.
+            Topmost = true;
             UseLayoutRounding = true;
             SnapsToDevicePixels = true;
             TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
@@ -221,6 +223,29 @@ namespace Sooskasse.UpdateWindow
             return b;
         }
 
+        // The G€ mark, as in lib/brand-mark.ts: the same 512-grid paths and
+        // stroke widths, scaled down to whatever holds it.
+        UIElement Mark(Color ink)
+        {
+            var canvas = new Canvas { Width = 512, Height = 512 };
+            canvas.Children.Add(MarkStroke("M361.4 151.8A136 136 0 1 0 405.1 292H280", 46, ink));
+            canvas.Children.Add(MarkStroke("M100 222H244M100 292H208", 40, ink));
+            return new Viewbox { Child = canvas, Stretch = Stretch.Uniform };
+        }
+
+        System.Windows.Shapes.Path MarkStroke(string data, double width, Color ink)
+        {
+            return new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse(data),
+                Stroke = Brush(ink),
+                StrokeThickness = width,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                StrokeLineJoin = PenLineJoin.Round,
+            };
+        }
+
         UIElement BuildCard()
         {
             // The dialog: 16px corners, lifted by the Pop shadow (light) or the
@@ -248,7 +273,7 @@ namespace Sooskasse.UpdateWindow
             var stack = new StackPanel();
             card.Child = stack;
 
-            // The masthead's mark: the "€" plate and the wordmark.
+            // The masthead's mark: the G€ plate and the wordmark.
             var brand = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 18) };
             var plate = new Border
             {
@@ -256,21 +281,12 @@ namespace Sooskasse.UpdateWindow
                 Height = 28,
                 CornerRadius = new CornerRadius(8),
                 Background = Brush(palette.Headline),
-                Child = new TextBlock
-                {
-                    Text = "€",
-                    FontFamily = new FontFamily(UiFont),
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 16,
-                    Foreground = Brush(palette.PlateInk),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                },
+                Child = Mark(palette.PlateInk),
             };
             brand.Children.Add(plate);
             brand.Children.Add(new TextBlock
             {
-                Text = "Sooskasse-FinTS",
+                Text = "Girovo",
                 FontFamily = new FontFamily(UiFont),
                 FontWeight = FontWeights.Bold,
                 FontSize = 15,
@@ -294,7 +310,7 @@ namespace Sooskasse.UpdateWindow
             description.Foreground = Brush(palette.Ink2);
             description.TextWrapping = TextWrapping.Wrap;
             description.Margin = new Thickness(0, 6, 0, 0);
-            description.Text = "Sooskasse-FinTS startet danach von selbst wieder.";
+            description.Text = "Girovo startet danach von selbst wieder.";
             stack.Children.Add(description);
 
             // The progress row, as in the update dialog: what is happening on
@@ -624,12 +640,12 @@ namespace Sooskasse.UpdateWindow
             title.Text = "Update nicht abgeschlossen";
             description.Text = appThere
                 ? "Die Installation wurde abgebrochen – zum Beispiel, weil die Frage nach Administratorrechten abgelehnt wurde. Die bisherige Version ist noch da."
-                : "Die Installation wurde abgebrochen, und Sooskasse-FinTS ist nicht mehr vollständig installiert. Lade die neue Version von GitHub herunter und installiere sie.";
+                : "Die Installation wurde abgebrochen, und Girovo ist nicht mehr vollständig installiert. Lade die neue Version von GitHub herunter und installiere sie.";
             progressBlock.Visibility = Visibility.Collapsed;
             buttons.Children.Add(Pill("Schließen", false, Close));
             if (appThere)
             {
-                buttons.Children.Add(Pill("Sooskasse-FinTS öffnen", true, delegate
+                buttons.Children.Add(Pill("Girovo öffnen", true, delegate
                 {
                     StartQuietly(options.AppExe);
                     Close();

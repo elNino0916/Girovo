@@ -49,6 +49,7 @@ import { ACCT, MOCK_PAYEES } from './data';
 import { MockFintsProvider, type MockOptions, type MockPreset } from './mock';
 import { PrintPreview, type PrintPreviewKind } from './print';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
+import { USAGE_SCENARIOS, installFakeTelemetry } from './telemetry';
 
 // ---------------------------------------------------------------------------
 // Scripts: how each view gets from "logged in" to the state it shows
@@ -498,6 +499,12 @@ const VIEWS: Record<string, ViewDef> = {
       await showList(c);
     },
   },
+  'pending-with-statements': {
+    label: 'Vorgemerkte mit den Umsätzen (Sparkasse)',
+    group: 'Dashboard',
+    // No HKVMK: the list came with the Umsätze — no fetch button, no refresh.
+    options: { pendingWithStatements: true },
+  },
   'pending-error': {
     label: 'Vorgemerkte: Abruf fehlgeschlagen',
     group: 'Dashboard',
@@ -883,6 +890,14 @@ function prepareUpdater(key: string, scenario: UpdateScenario | null, dialog: bo
   installFakeUpdater(scenario, { dialog });
 }
 
+/** Likewise the fake telemetry bridge (?usage=…). */
+let telemetryKey: string | null = null;
+function prepareTelemetry(key: string, consent: (typeof USAGE_SCENARIOS)[number] | null) {
+  if (telemetryKey === key) return;
+  telemetryKey = key;
+  installFakeTelemetry(consent);
+}
+
 export default function DesignPreview({ searchParams }: { searchParams: Promise<Search> }) {
   if (process.env.NODE_ENV === 'production') notFound();
   const params = use(searchParams);
@@ -902,6 +917,8 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     isUpdateScenario(updateParam) ? updateParam : def.update?.scenario ?? null,
     def.update?.dialog || one(params.updateDialog) === '1',
   );
+  const usageParam = one(params.usage) as (typeof USAGE_SCENARIOS)[number];
+  prepareTelemetry(JSON.stringify(params), USAGE_SCENARIOS.includes(usageParam) ? usageParam : null);
 
   const presetParam = one(params.preset) as MockPreset;
   const preset = PRESETS.includes(presetParam) ? presetParam

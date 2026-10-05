@@ -36,7 +36,7 @@ import {
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
 import { acceptsBalance, balanceQueue, failureSentence } from '@/lib/balances';
-import { unbookedPending } from '@/lib/pending';
+import { afterStatementRead, pendingView, type PendingRead } from '@/lib/pending';
 import { recordSentOrder, sanitizeSentOrders, type SentOrder } from '@/lib/sent-orders';
 import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-log';
 import { sepaSanitize } from '@/lib/sepa-text';
@@ -119,7 +119,7 @@ export type PrintJob =
 
 /** When an account's Vorgemerkt list was fetched, and how it stands against the statement. */
 export type PendingInfo = {
-  /** epoch ms */
+  /** epoch ms — how fresh the rows shown are (the "Stand"). */
   loadedAt: number;
   /**
    * A statement was loaded after the list. Whatever it shows as booked has
@@ -129,6 +129,12 @@ export type PendingInfo = {
   behindStatement: boolean;
   /** How many of the fetched items that statement already shows as booked. */
   booked: number;
+  /**
+   * epoch ms — when a Vorgemerkt list for the account was last read, on
+   * request or with the Umsätze, whether or not it added rows: whether a
+   * read has landed (TransferSheet's check).
+   */
+  readAt: number;
 };
 
 /**
@@ -533,8 +539,10 @@ function useFintsState() {
   const [activeAccount, setActiveAccount] = useState<SerializedAccount | null>(null);
   const [balances, setBalances] = useState<Record<string, SerializedBalance>>({});
   const [txCache, setTxCache] = useState<Record<string, { key: string; txs: SerializedTransaction[] }>>({});
-  /** Vorgemerkte as the bank listed them, with the moment it did (see `pendingCache` below). */
-  const [pendingFetched, setPendingFetched] = useState<Record<string, { txs: SerializedTransaction[]; loadedAt: number }>>({});
+  /** Vorgemerkte as the bank listed them on request (HKVMK), with the moment it did (see `pendingCache` below). */
+  const [pendingFetched, setPendingFetched] = useState<Record<string, PendingRead<SerializedTransaction>>>({});
+  /** Vorgemerkte the bank sent beside the Umsätze of a statement read — the only way Sparkassen send them. */
+  const [notedFetched, setNotedFetched] = useState<Record<string, PendingRead<SerializedTransaction>>>({});
   const [statementInfo, setStatementInfo] = useState<Record<string, StatementInfo>>({});
   /** Per account: why its last statement load failed (see LoadError). */
   const [txErrors, setTxErrors] = useState<Record<string, LoadError>>({});
@@ -627,6 +635,8 @@ function useFintsState() {
   /** The Vorgemerkt lists, for the logo lookup that catches up after a yes. */
   const pendingFetchedRef = useRef(pendingFetched);
   pendingFetchedRef.current = pendingFetched;
+  const notedFetchedRef = useRef(notedFetched);
+  notedFetchedRef.current = notedFetched;
   const waitCbRef = useRef<WaitCallbacks>({});
   /**
    * Bumped whenever a wait starts, closes or the session ends. A poll that
@@ -1259,12 +1269,22 @@ function useFintsState() {
     setLoadingAccount(acct);
 
     const finish = () => { setBusy(false); setLoadingAccount(null); };
+    // A range up to today goes out open-ended, as the login load always
+    // did: banks date weekend and holiday bookings — and the interim
+    // closing balance — to the next Buchungstag (see isFutureDate), and a
+    // Bis-Datum of today would make one that filters by booking date leave
+    // them out. The cache and statementInfo still name the span asked for.
+    const openEnd = span.to >= isoDate(new Date());
     const apply = (
       txs: SerializedTransaction[],
       balance: SerializedBalance | null,
       blocks: StatementInfo['blocks'] | undefined,
+      pending: SerializedTransaction[] | null | undefined,
     ) => {
       const list = txs || [];
+      // One moment for the statement and the Vorgemerkte it brought: read
+      // together, they are never reconciled against each other (pendingView).
+      const at = Date.now();
       let coveredTo = span.to;
       if (balance && span.to >= isoDate(new Date())) {
         const known = balancesRef.current[acct];
@@ -1285,8 +1305,13 @@ function useFintsState() {
       }
       setTxCache((c) => ({ ...c, [acct]: { key: cacheKey, txs: list } }));
       setStatementInfo((s) => ({
-        ...s, [acct]: { from: span.from, to: coveredTo, blocks: blocks ?? [], loadedAt: Date.now() },
+        ...s, [acct]: { from: span.from, to: coveredTo, blocks: blocks ?? [], loadedAt: at },
       }));
+      setNotedFetched((c) => {
+        const next = afterStatementRead(c[acct], pending, openEnd, at);
+        if (next === c[acct]) return c;
+        return next ? { ...c, [acct]: next } : without(c, acct);
+      });
       if (coveredTo !== span.to) {
         // The list, the Kontoverlauf and a printed statement all go by the
         // span recorded above; this says why it is shorter than asked for.
@@ -1296,17 +1321,11 @@ function useFintsState() {
           8000,
         );
       }
-      void resolveMerchants(list);
+      void resolveMerchants(pending?.length ? [...list, ...pending] : list);
       opts.onSettled?.('applied');
     };
 
     try {
-      // A range up to today goes out open-ended, as the login load always
-      // did: banks date weekend and holiday bookings — and the interim
-      // closing balance — to the next Buchungstag (see isFutureDate), and a
-      // Bis-Datum of today would make one that filters by booking date leave
-      // them out. The cache and statementInfo still name the span asked for.
-      const openEnd = span.to >= isoDate(new Date());
       const data = await post<TransactionsResponse>('/api/transactions', {
         sessionId: sid, accountNumber: acct, from: span.from, ...(openEnd ? {} : { to: span.to }),
       });
@@ -1315,7 +1334,7 @@ function useFintsState() {
         startDecoupledWait(decoupledMethod(), data, {
           onDone: (r) => {
             finish();
-            if (r.kind === 'statements') apply(r.transactions, r.balance, r.blocks);
+            if (r.kind === 'statements') apply(r.transactions, r.balance, r.blocks, r.pending);
             else notApplied('failed');
           },
           retry: () => {
@@ -1330,7 +1349,7 @@ function useFintsState() {
         });
       } else {
         finish();
-        apply(data.transactions, data.balance, data.blocks);
+        apply(data.transactions, data.balance, data.blocks, data.pending);
       }
     } catch (err) {
       if (!isCurrent(sid)) return;
@@ -1732,6 +1751,7 @@ function useFintsState() {
       void resolveMerchants([
         ...Object.values(txCacheRef.current).flatMap((c) => c.txs),
         ...Object.values(pendingFetchedRef.current).flatMap((p) => p.txs),
+        ...Object.values(notedFetchedRef.current).flatMap((p) => p.txs),
       ]);
     } else {
       setMerchants({});
@@ -2025,6 +2045,7 @@ function useFintsState() {
     txCacheRef.current = {};
     setTxCache({});
     setPendingFetched({});
+    setNotedFetched({});
     setStatementInfo({});
     setMerchants({});
     merchantsAsked.current.clear();
@@ -2403,27 +2424,30 @@ function useFintsState() {
 
   /**
    * Vorgemerkte per account, as they stand against the newest statement.
-   * The list is fetched on request only (it can take a TAN), so it is never
-   * re-read behind the user's back; but a statement loaded after it — and
-   * reaching the day it was fetched — may already list some of its items as
-   * booked. Those leave here: kept, they would be counted once inside the
-   * Kontostand and once more as "Vorgemerkt". `pendingInfo` says when the
-   * list was fetched and whether it is older than the bookings beside it.
+   * A list fetched on request (HKVMK; it can take a TAN) is never re-read
+   * behind the user's back, and one the bank sent with the Umsätze is only
+   * as new as that read; a statement loaded after either — and reaching the
+   * day it was read — may already list some of its items as booked. Those
+   * leave here: kept, they would be counted once inside the Kontostand and
+   * once more as "Vorgemerkt". `pendingInfo` says when the list was read and
+   * whether it is older than the bookings beside it (lib/pending.ts).
    */
   const { pendingCache, pendingInfo } = useMemo(() => {
     const cache: Record<string, SerializedTransaction[]> = {};
     const info: Record<string, PendingInfo> = {};
-    for (const [acct, entry] of Object.entries(pendingFetched)) {
+    for (const acct of new Set([...Object.keys(notedFetched), ...Object.keys(pendingFetched)])) {
       const st = statementInfo[acct];
       const booked = txCache[acct]?.txs;
-      const behindStatement = !!st && !!booked && st.loadedAt > entry.loadedAt
-        && st.to >= isoDate(new Date(entry.loadedAt));
-      const live = behindStatement ? unbookedPending(entry.txs, booked) : entry.txs;
-      cache[acct] = live as SerializedTransaction[];
-      info[acct] = { loadedAt: entry.loadedAt, behindStatement, booked: entry.txs.length - live.length };
+      const view = pendingView(
+        { noted: notedFetched[acct], fetched: pendingFetched[acct] },
+        st && booked ? { loadedAt: st.loadedAt, to: st.to, booked } : undefined,
+      );
+      if (!view) continue;
+      cache[acct] = view.txs as SerializedTransaction[];
+      info[acct] = { loadedAt: view.loadedAt, behindStatement: view.behindStatement, booked: view.booked, readAt: view.readAt };
     }
     return { pendingCache: cache, pendingInfo: info };
-  }, [pendingFetched, statementInfo, txCache]);
+  }, [notedFetched, pendingFetched, statementInfo, txCache]);
 
   const ownIbans = useMemo(
     () => [...new Set(accounts.map((a) => normIban(a.iban)).filter(Boolean))],
@@ -2551,7 +2575,11 @@ function useFintsState() {
     // A counterparty with neither IBAN, creditor ID nor name cannot carry a rule.
     if (opts.rule && who !== 'name:?') {
       const stale = new Set([key]);
-      const loaded = [...Object.values(txCache).flatMap((e) => e.txs), ...Object.values(pendingFetched).flatMap((e) => e.txs)];
+      const loaded = [
+        ...Object.values(txCache).flatMap((e) => e.txs),
+        ...Object.values(pendingFetched).flatMap((e) => e.txs),
+        ...Object.values(notedFetched).flatMap((e) => e.txs),
+      ];
       for (const t of loaded) if (counterpartyKey(t) === who) stale.add(txKey(t));
       updateVault((v) => {
         let overrides = v.txCategories;
@@ -2564,7 +2592,7 @@ function useFintsState() {
     updateVault((v) => (v.txCategories[key] === id
       ? v
       : { ...v, txCategories: { ...v.txCategories, [key]: id } }));
-  }, [txCache, pendingFetched, updateVault]);
+  }, [txCache, pendingFetched, notedFetched, updateVault]);
 
   /** Drops the user's rule for one counterparty (a counterpartyKey); its bookings go back to the automatic guess. */
   const removeCategoryRule = useCallback((who: string) => {

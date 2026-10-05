@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Barlow, Barlow_Condensed, Google_Sans_Flex, IBM_Plex_Mono } from 'next/font/google';
+import { markSvg } from '@/lib/brand-mark';
 import './globals.css';
 
 // Self-hosted through next/font: the files are fetched once at build time and
@@ -48,11 +49,11 @@ const plexMono = IBM_Plex_Mono({
   display: 'swap',
 });
 
-const FAVICON =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%230a2c5e'/%3E%3Ctext x='50' y='68' font-size='54' font-family='Segoe UI,system-ui,sans-serif' font-weight='700' fill='white' text-anchor='middle'%3E%E2%82%AC%3C/text%3E%3C/svg%3E";
+// The G€ on the masthead's navy, inline so the tab icon costs no request.
+const FAVICON = `data:image/svg+xml,${encodeURIComponent(markSvg({ plate: '#0a2c5e', ink: '#ffffff' }))}`;
 
 export const metadata: Metadata = {
-  title: 'Sooskasse-FinTS',
+  title: 'Girovo',
   description: 'Direktzugang zu deiner Bank über FinTS 3.0',
   icons: { icon: FAVICON },
 };

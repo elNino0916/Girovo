@@ -2,5 +2,9 @@
   "productId": "6151256F3D4F9975B877BD4A2",
   "productVersion": "3.1.1",
   "debug": false,
-  "brandfetchClientId": "1idpO6zglw_IjSCm9mg"
+  "brandfetchClientId": "1idpO6zglw_IjSCm9mg",
+  "telemetry": {
+    "endpoint": "https://telemetry.elnino0916.de",
+    "key": "tlm_x28SO-CatsxASUsuMd5pXMfiexDzjLIS"
+  }
 }

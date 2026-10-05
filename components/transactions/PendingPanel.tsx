@@ -36,13 +36,16 @@ export function showPendingMatches(): void {
 }
 
 /**
- * Vorgemerkte Umsätze (HKVMK): bookings the bank knows about but has not
- * booked yet — an announced Lastschrift, a card payment still being cleared.
+ * Vorgemerkte Umsätze: bookings the bank knows about but has not booked yet —
+ * an announced Lastschrift, a card payment still being cleared.
  *
- * Loaded only on request, never on its own: for many banks this is a second
- * approval on top of the statement, and an approval nobody asked for is a
- * prompt on the phone that makes no sense. Amber is the colour of
- * "vorgemerkt", and this panel is the one place it appears.
+ * They come one of two ways. A bank with HKVMK (`canPending`) lists them on
+ * request only, never on its own: for many banks that is a second approval
+ * on top of the statement, and an approval nobody asked for is a prompt on
+ * the phone that makes no sense. Others — Sparkassen — send them beside the
+ * Umsätze, so they arrive with every statement read and there is nothing
+ * extra to fetch; the panel appears once such a list has come. Amber is the
+ * colour of "vorgemerkt", and this panel is the one place it appears.
  *
  * Vorgemerkte never join the Umsätze list (they would count in its sums and
  * its CSV, and twice once booked), but its search reaches them here: while
@@ -76,7 +79,9 @@ export function PendingPanel() {
     return c / 100;
   }, [txs, currency]);
 
-  if (!a?.canPending) return null;
+  // Without HKVMK there is nothing to ask for: only a list the bank sent with the Umsätze.
+  if (!a || (!a.canPending && !cached)) return null;
+  const onRequest = a.canPending;
 
   const loading = pendingLoading === a.accountNumber;
   // A failed fetch is said here, where the list would be — not only in a toast.
@@ -111,10 +116,10 @@ export function PendingPanel() {
                     </>
                   )}
                 </p>
-                {/* Never re-read on its own (it can take a TAN), so it says
-                    how fresh it is — and, when the bookings beside it are
-                    newer, that too. What those show as booked has already
-                    left this list. */}
+                {/* Only as fresh as its last read — on request (it can take
+                    a TAN) or with the Umsätze — so it says how fresh it is,
+                    and, when the bookings beside it are newer, that too.
+                    What those show as booked has already left this list. */}
                 {fetched && (
                   <p className="mt-0.5 text-[12.5px] leading-snug text-ink-3">
                     <span className="tnum">Stand {fmtSince(fetched.loadedAt)}</span>
@@ -139,7 +144,7 @@ export function PendingPanel() {
               <p className="mt-0.5 text-[13.5px] text-ink-3">{loading ? 'Wird abgerufen …' : 'Noch nicht abgerufen'}</p>
             )}
           </div>
-          {cached && (
+          {cached && onRequest && (
             <IconButton
               aria-label={`Vorgemerkte Umsätze aktualisieren. ${TAN_NOTE}`}
               title={`Aktualisieren. ${TAN_NOTE}`}

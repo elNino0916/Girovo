@@ -1,5 +1,5 @@
 // Builds the window shown while an update installs
-// (build/update-window/UpdateWindow.cs → build/update-window/bin/Sooskasse-FinTS-Update.exe),
+// (build/update-window/UpdateWindow.cs → build/update-window/bin/Girovo-Update.exe),
 // with the C# compiler every Windows has: .NET Framework 4.x and its WPF, so
 // nothing to install and nothing extra to ship. electron-builder.yml takes the
 // result into the app's resources.
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = path.join(ROOT, 'build', 'update-window', 'UpdateWindow.cs');
 const OUT_DIR = path.join(ROOT, 'build', 'update-window', 'bin');
-export const UPDATE_WINDOW_EXE = path.join(OUT_DIR, 'Sooskasse-FinTS-Update.exe');
+export const UPDATE_WINDOW_EXE = path.join(OUT_DIR, 'Girovo-Update.exe');
 
 export function buildUpdateWindow() {
   const framework = path.join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319');
@@ -61,7 +61,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       '--demo', look === 'failure' ? 'failure' : 'progress',
       '--theme', look === 'dark' ? 'dark' : 'light',
       '--version', '4.1.4',
-      '--app-exe', 'C:\\Program Files\\Sooskasse-FinTS\\Sooskasse-FinTS.exe',
+      '--app-exe', 'C:\\Program Files\\Girovo\\Girovo.exe',
     ], { detached: true, stdio: 'ignore' }).unref();
   }
 }

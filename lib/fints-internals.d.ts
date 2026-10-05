@@ -4,7 +4,7 @@
 // declarations, but lib-fints does publish the matching declarations under
 // dist/types/ — so the shapes below are the library's real ones, not stand-ins.
 // Only `registerSegmentDefinition` is declared by hand: it is exported by our
-// patch (patches/lib-fints+1.4.8.patch), not by the upstream .d.ts.
+// patch (patches/lib-fints+1.5.2.patch), not by the upstream .d.ts.
 
 export { SegmentDefinition } from '../node_modules/lib-fints/dist/types/segmentDefinition.js';
 export { AlphaNumeric } from '../node_modules/lib-fints/dist/types/dataElements/AlphaNumeric.js';
@@ -15,6 +15,9 @@ export { AccountGroup } from '../node_modules/lib-fints/dist/types/dataGroups/Ac
 export { DataGroup } from '../node_modules/lib-fints/dist/types/dataGroups/DataGroup.js';
 export { InternationalAccountGroup } from '../node_modules/lib-fints/dist/types/dataGroups/InternationalAccount.js';
 export { CustomerOrderInteraction } from '../node_modules/lib-fints/dist/types/interactions/customerInteraction.js';
+export { StatementInteractionCAMT } from '../node_modules/lib-fints/dist/types/interactions/statementInteractionCAMT.js';
+export { StatementInteractionMT940 } from '../node_modules/lib-fints/dist/types/interactions/statementInteractionMT940.js';
+export { CamtParser } from '../node_modules/lib-fints/dist/types/camtParser.js';
 export { TanMediaInteraction } from '../node_modules/lib-fints/dist/types/interactions/tanMediaInteraction.js';
 
 // lib-fints' entry point re-exports neither tanMethod.js nor codes.js, so the
@@ -23,5 +26,5 @@ export type { TanMethod, DecoupledParams } from '../node_modules/lib-fints/dist/
 
 import type { SegmentDefinition } from '../node_modules/lib-fints/dist/types/segmentDefinition.js';
 
-/** Added by patches/lib-fints+1.4.8.patch — upstream keeps this module-private. */
+/** Added by patches/lib-fints+1.5.2.patch — upstream keeps this module-private. */
 export declare function registerSegmentDefinition(definition: SegmentDefinition): void;

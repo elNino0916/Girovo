@@ -14,6 +14,7 @@ import { BrandMark } from '../shell/BrandMark';
 import { MASTHEAD_EDGES } from '../shell/edges';
 import { useUpdates } from '../updates/store';
 import { UpdateBarButton } from '../updates/UpdateNotices';
+import { useUsageConsent } from '../telemetry/usage';
 
 export type AuthStep = 'bank' | 'credentials' | 'approval';
 
@@ -166,22 +167,42 @@ function useLogoLine(offered?: boolean): string | null {
 }
 
 /**
+ * The desktop app's reports to the developer: errors always, usage only with
+ * the yes. Null outside the desktop app, which sends neither. `mentionUsage`
+ * false where the text around it already says usage needs the yes.
+ */
+function useTelemetryLine(mentionUsage = true): string | null {
+  const usage = useUsageConsent();
+  if (!usage) return null;
+  if (usage === 'on') {
+    return 'Fehlerberichte und, mit deiner Zustimmung, Nutzungsdaten gehen an den Entwickler von Girovo – nie Kontodaten, Beträge oder Namen.';
+  }
+  const errors = 'Fehlerberichte gehen an den Entwickler von Girovo – ohne Kontodaten, Beträge und Namen.';
+  return mentionUsage ? `${errors} Nutzungsdaten nur mit deiner Zustimmung.` : errors;
+}
+
+/**
  * What happens to the credentials, said once in the wide layout's side tile.
  * Honest about what is kept on this machine and about every outside lookup
- * the app can make: company names to Brandfetch only with the user's yes, and
- * with the desktop app's update check on, its version number to GitHub.
+ * the app can make: company names to Brandfetch only with the user's yes,
+ * with the desktop app's update check on, its version number to GitHub, and
+ * in the desktop app error reports — plus usage data with the yes — to the
+ * developer (components/telemetry).
  */
 export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
   const { logoConsent } = useFints();
   const { state: update } = useUpdates();
+  const usage = useUsageConsent();
   const updateChecks = !!update?.auto && update.kind !== 'dev';
   const logoLine = useLogoLine(merchantLogos);
   const outside = [
     updateChecks ? 'Nach Updates fragt die App bei GitHub – dort kommen nur ihre Versionsnummer und deine IP-Adresse an.' : '',
     logoLine ?? '',
+    // "Keine Nutzungsstatistik ohne deine Zustimmung" leads the point already.
+    useTelemetryLine(false) ?? '',
   ].filter(Boolean).join(' ');
   // Nothing leaves the machine but bank traffic — now, and without a yes.
-  const nothingOut = !updateChecks && (!logoLine || logoConsent === 'off');
+  const nothingOut = !updateChecks && !usage && (!logoLine || logoConsent === 'off');
   const points: { icon: ReactNode; title: string; text: string }[] = [
     {
       icon: <LockIcon size={18} />,
@@ -206,11 +227,17 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
           title: 'Keine Daten an Dritte',
           text: ['Keine Werbung, kein Tracking, keine Weitergabe.', outside].filter(Boolean).join(' '),
         }
-      : {
-          icon: <EyeOffIcon size={18} />,
-          title: 'Kein Tracking',
-          text: `Keine Werbung, keine Nutzungsstatistik. ${outside}`,
-        },
+      : usage === 'on'
+        ? {
+            icon: <EyeOffIcon size={18} />,
+            title: 'Keine Werbung',
+            text: `Keine Werbung, keine Weitergabe. ${outside}`,
+          }
+        : {
+            icon: <EyeOffIcon size={18} />,
+            title: 'Kein Tracking',
+            text: `Keine Werbung, keine Nutzungsstatistik ohne deine Zustimmung. ${outside}`,
+          },
   ];
 
   return (
@@ -240,12 +267,13 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
  */
 export function PrivacyNote() {
   const logoLine = useLogoLine();
+  const telemetryLine = useTelemetryLine();
   return (
     <p className="mt-6 flex items-start gap-2.5 border-t border-line pt-5 text-[13px] leading-snug text-ink-3 lg:hidden">
       <ShieldIcon size={16} className="mt-px shrink-0" />
       <span>
         Deine PIN wird nie gespeichert, die Verbindung läuft direkt zu deiner Bank. Nach der Anmeldung merkt sich
-        die App dieses Gerät, mit deiner PIN verschlüsselt.{logoLine && ` ${logoLine}`}
+        die App dieses Gerät, mit deiner PIN verschlüsselt.{logoLine && ` ${logoLine}`}{telemetryLine && ` ${telemetryLine}`}
       </span>
     </p>
   );

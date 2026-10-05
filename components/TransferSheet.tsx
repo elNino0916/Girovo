@@ -347,16 +347,18 @@ export function TransferSheet() {
       if (!landed && !checkStarted.current) return;
       checkStarted.current = false;
       // A failed or cancelled first read ends the check: no second approval
-      // is asked for after the user has just declined one.
-      if (landed && checkAccount.canPending) {
+      // is asked for after the user has just declined one. Nor is one when
+      // the read brought the Vorgemerkte along (lib/fints-statements.ts).
+      const pendingCame = landed && (pendingInfo[acct]?.readAt ?? 0) >= check.startedAt;
+      if (landed && checkAccount.canPending && !pendingCame) {
         setCheck({ stage: 'pending', startedAt: Date.now(), statements: true });
         void loadPending(checkAccount);
       } else {
-        setCheck({ stage: 'done', at: Date.now(), statements: landed, pending: null });
+        setCheck({ stage: 'done', at: Date.now(), statements: landed, pending: pendingCame || null });
       }
       return;
     }
-    const landed = (pendingInfo[acct]?.loadedAt ?? 0) >= check.startedAt;
+    const landed = (pendingInfo[acct]?.readAt ?? 0) >= check.startedAt;
     if (!landed && !checkStarted.current) return;
     checkStarted.current = false;
     setCheck({ stage: 'done', at: Date.now(), statements: check.statements, pending: landed });

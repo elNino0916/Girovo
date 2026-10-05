@@ -1,5 +1,5 @@
 ---
-name: Sooskasse-FinTS
+name: Girovo
 description: German online banking over FinTS, on your own machine. A private branch for one customer.
 colors:
   paper: "#f4f6f9"
@@ -584,13 +584,13 @@ components:
     padding: "6pt 8pt 8pt"
 ---
 
-# Design System: Sooskasse-FinTS
+# Design System: Girovo
 
 ## Overview
 
 **Creative North Star: "The Private Branch"**
 
-Sooskasse-FinTS looks like the online banking its users already know: a navy
+Girovo looks like the online banking its users already know: a navy
 masthead, a navy stage band that greets you by name, and white tiles on a
 quiet blue-grey page. It is rebuilt for one customer, on their own machine. It
 is a branch that opens for one person. Nothing on the walls sells anything,
@@ -618,7 +618,7 @@ owner's current choice and the default. Other looks may be explored, but only
 as alternatives for the owner to pick, never swapped in. The system borrows a
 language, never a bank's branding: the connected bank's logo appears only
 where the bank is the subject (the white institute bar under the app's own
-"€" mark, the bank picker, the printed letterhead as kontoführendes
+"G€" mark, the bank picker, the printed letterhead as kontoführendes
 Institut), never as the app's identity. The protocol stays out of the
 interface. FinTS segment codes and the structured tags inside a
 Verwendungszweck never reach the screen. A capability shows up as an action
@@ -737,7 +737,7 @@ Every size below is a token in the frontmatter. A size that is not on this list 
 - **Amounts** (700, line-height 1.25, tabular): 34px for the transfer review's amount, 32px for a booking's amount in its detail drawer.
 - **Figures** (700, line-height 1.25, tabular): one ladder below Display. 20px on phones and 24px from 640px for every KPI figure (Analyse, Verträge). 24px for the approval overlay's order amount and the transfer's Fertig amount. 20px for the Monatsbilanz Differenz and the phone account-card balance (600). Amount fields are 20px/600 with a 17px/600 Quiet Ink "€".
 - **Title** (700, 22px, 1.25): dialog and sheet titles at every width, with a 15px Slate Ink description beneath. Only a short window drops a transfer sheet's title to 20px. A hero with no figure ("Abruf fehlgeschlagen") sets its state in Title, in ink.
-- **Wordmark** (700, 18px, line-height 1; 17px on phones): "Sooskasse-FinTS" in the masthead and the footer, and the "€" in its plate.
+- **Wordmark** (700, 18px, line-height 1; 17px on phones): "Girovo" in the masthead and the footer, and the "G€" in its plate.
 - **Section** (700, 17px, 1.3, Night Navy): the title of a tile, a group, a popover, a drawer section or a dialog's group (the update's "Was ist neu"), the transfer form's groups, the Sitzung panel's holder name, the Namensabgleich verdict. Drawer titles use the same size in bar ink. Empty-state and error-state titles use it in ink.
 - **Control** (400, 16px): form controls only, so a phone never zooms into a focused field. There is no 16px heading.
 - **Body** (400, 15px, 1.5): running text, menu items, dialog descriptions.
@@ -832,7 +832,7 @@ is 44px.
 ### Named Rules
 **The Fold Rule.** At the desktop shell's 900×600 minimum, the first row of account tiles is visible without scrolling, and at 200% zoom the first account row still shows. The stage stays compact, and its three Schnellzugriffe (Überweisen, Geld anfordern, Kontoauszug) stay on one line beside the title (between 640px and 1100px they drop to 36px pills without glyphs). Export is not one of them: it lives on the Umsätze tile it exports.
 
-**The Shared Edge Rule.** The masthead's content, the institute bar's row, the stage's content and the page column share one 1280px column and one gutter, so the "€" mark, the bank's logo, the page title and the first tile align. The masthead's right edge gives way to the caption buttons when they need the room.
+**The Shared Edge Rule.** The masthead's content, the institute bar's row, the stage's content and the page column share one 1280px column and one gutter, so the "G€" mark, the bank's logo, the page title and the first tile align. The masthead's right edge gives way to the caption buttons when they need the room.
 
 **The Reading Order Rule.** The DOM order is the narrow reading order. A wider layout places blocks with the grid; it never reorders them with CSS `order`.
 
@@ -872,7 +872,7 @@ radius per job, and it climbs with the size of the thing:
 | 4px | skeleton text lines, the focus corner of inline text links, code in release notes |
 | 5px | checkboxes, keycaps |
 | 6px | fields, tags, skeleton figures, small bank-logo plates, the category share bar |
-| 8px | filter chips, wells, inline alerts, menu items, option rows, phone account wells, the "€" plate |
+| 8px | filter chips, wells, inline alerts, menu items, option rows, phone account wells, the "G€" plate |
 | 12px | tiles, menus, popovers, toasts, the chart tooltip, the review's amount card, GiroCode plates |
 | 16px | dialogs and sheets (top corners only when it is a phone bottom sheet) |
 | pill | every button, icon button, navlink, tab-inside-a-tile, segmented control, count badge, switch, stepper mark and avatar |
@@ -891,8 +891,8 @@ Borders:
 - **Drop zones:** a 1.5px dashed Strong Line.
 
 Icons are drawn on a 24px grid as round-capped line art: 1.8px stroke at
-18px by default, 2–2.1px for chevrons and close marks. The "€" plate is a
-rounded 8px square with the euro sign cut out in the bar's own navy.
+18px by default, 2–2.1px for chevrons and close marks. The "G€" plate is a
+rounded 8px square with the mark (lib/brand-mark.ts) cut out in the bar's own navy.
 
 ## Components
 
@@ -972,7 +972,7 @@ quick pick is a logo over a 12.5px label; picks that start a search carry a
 
 ### Navigation
 - **Masthead:**
-  - On the left: the "€" plate (32px) and the wordmark "Sooskasse-FinTS". No version: the footer and the Sitzung panel carry it.
+  - On the left: the "G€" plate (32px) and the wordmark "Girovo". No version: the footer and the Sitzung panel carry it.
   - On the right: a cluster of line icons, each labelled with its name, the way a German bank's start page labels its header: Suche, Mitteilungen, Beträge ausblenden, Darstellung, then the profile chip.
   - Each item is a 40px pill "navlink". Its glyph is in Mist and turns bar ink on a 12% white hover. While amounts are hidden, the privacy item keeps a 14% white tint.
   - Labels follow the masthead's own width. From 1180px every word shows, with the "Strg K" keycap and Darstellung. From 900px: Suche, Mitteilungen, Beträge ausblenden and the first name. Below that every item is an icon with its name as tooltip.
@@ -1126,7 +1126,7 @@ exact, fileable. Both sheets are one family built on the `.doc` system.
 - **Letterhead:** the bank's mark or monogram, its name, "Kontoführendes Institut", BIC · BLZ (grouped 3-3-2); on the right the document's name over an Informationsblock (Zeitraum, Auszug-Nr., Erstellt, Dokument).
 - **Kontoauszug:** a ledger. Alter Kontostand is the first row, on the strong rule; then the bookings (column heads repeat on every page, no booking splits across a fold); then "n Gutschriften", "n Belastungen" and Neuer Kontostand right-aligned under the amount column; then Verfügbar and Dispositionsrahmen, or Kreditrahmen for a card (`isCardAccount`, the same rule as on screen, which also names the account "Kreditkarte"). The end line counts what the sums count, plus what is set apart ("120 Umsätze" becomes "119 Umsätze, dazu 1 noch nicht enthaltener").
 - **Buchungsbeleg:** the party and the amount in its panel, the state under it, the two accounts against one rail, the Verwendungszweck and references in words (Gläubiger-ID, Mandatsref., End-to-End-Ref.). A vorgemerkt booking is on no Kontoauszug yet, so it prints no Auszug-Nr. and no Primanota.
-- **Footer:** one sentence in the third person ("Erstellt mit Sooskasse-FinTS … Die Bank hat dieses Dokument nicht ausgestellt; maßgeblich sind ihre eigenen Kontoauszüge.") and the SHA-256 seal, grouped in eights.
+- **Footer:** one sentence in the third person ("Erstellt mit Girovo … Die Bank hat dieses Dokument nicht ausgestellt; maßgeblich sind ihre eigenen Kontoauszüge.") and the SHA-256 seal, grouped in eights.
 
 **The Record Rule.** Paper prints the bank's words as the bank sent them, repairing only encoding damage. The screen's tidying never replaces bank text on paper: where the sheet leads with a name the app derived, "Name laut Bank" prints the whole string beside it.
 

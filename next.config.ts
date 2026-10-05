@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 
 import pkg from './package.json' with { type: 'json' };
 
-// Sooskasse-FinTS runs as ONE long-lived Node process.
+// Girovo runs as ONE long-lived Node process.
 //
 // Every logged-in user is a live `FinTSClient` with an open FinTS dialog held in
 // this process's memory (see lib/session.ts). That state cannot be serialised,

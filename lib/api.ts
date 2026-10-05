@@ -5,7 +5,8 @@
 // the bank-request policy is installed (lib/bank-fetch.ts, on import).
 
 import { NextResponse } from 'next/server';
-import { describeError } from './bank-fetch.ts';
+import { bankErrorKind, describeError } from './bank-fetch.ts';
+import { reportError, withTelemetryContext } from './telemetry.ts';
 
 export function json<T>(data: T, status = 200): NextResponse {
   return NextResponse.json(data, { status });
@@ -24,20 +25,33 @@ export function sessionExpired(): NextResponse {
  * Wraps a handler so an unexpected throw becomes a 500 with a readable German
  * message instead of Next's opaque digest page: a bank that does not answer,
  * lib-fints' English, a bug — each in words (describeError), and never a
- * bank's response body. The details stay in the server log.
+ * bank's response body. The details stay in the server log, and go to
+ * telemetry (lib/telemetry.ts) with the route and the bank's BLZ when known —
+ * except a request the user called off.
  */
 export function wrap<A extends unknown[]>(
   fn: (...args: A) => Promise<NextResponse>,
 ): (...args: A) => Promise<NextResponse> {
-  return async (...args: A) => {
+  return (...args: A) => withTelemetryContext(async () => {
     try {
       return await fn(...args);
     } catch (err) {
       const e = err as { message?: string; cause?: { code?: string } };
       console.error('[error]', e?.message || err, e?.cause?.code || '');
+      const kind = bankErrorKind(err);
+      if (kind !== 'cancelled') reportError(err, { source: 'route', route: routeOf(args[0]), kind: kind ?? undefined });
       return NextResponse.json({ error: describeError(err) }, { status: 500 });
     }
-  };
+  });
+}
+
+/** The path a route was called at ("/api/transactions"), never its query. */
+function routeOf(req: unknown): string | undefined {
+  try {
+    return req instanceof Request ? new URL(req.url).pathname : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Reads a JSON body, tolerating an empty one (the old Express behaviour). */

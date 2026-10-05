@@ -90,8 +90,8 @@ const squash = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
 /**
  * Blocks of `markdown`. `title` is the release's own name: a first heading
- * that only repeats it ("# Sooskasse-FinTS 4.1.0") is left out — the dialog
- * already says which version this is.
+ * that only repeats it ("# Girovo 5.0.0", or "# Sooskasse-FinTS 4.1.0" from
+ * before the rename) is left out — the dialog already says which version this is.
  */
 export function parseReleaseNotes(markdown: string, title?: string): NotesBlock[] {
   const blocks: NotesBlock[] = [];
@@ -134,7 +134,7 @@ export function parseReleaseNotes(markdown: string, title?: string): NotesBlock[
       const children = parseInline(heading[2]);
       const first = blocks.length === 0;
       if (first && title && squash(inlineText(children)) === squash(title)) continue;
-      if (first && title && /^sooskasse-?fints\s+v?\d/i.test(inlineText(children))) continue;
+      if (first && title && /^(girovo|sooskasse-?fints)\s+v?\d/i.test(inlineText(children))) continue;
       blocks.push({ type: 'heading', level: heading[1].length <= 2 ? 2 : 3, children });
       continue;
     }

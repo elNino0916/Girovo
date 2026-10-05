@@ -32,7 +32,7 @@ const FIND_BANK: Point = {
 };
 const FORGOT_PIN: Point = {
   title: 'PIN vergessen?',
-  text: 'Eine neue PIN bekommst du nur von deiner Bank – Sooskasse-FinTS speichert deine PIN nie.',
+  text: 'Eine neue PIN bekommst du nur von deiner Bank – Girovo speichert deine PIN nie.',
 };
 
 /**

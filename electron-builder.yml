@@ -6,8 +6,12 @@
 # as an extraResource instead: it is started as a child process, and a child
 # process cannot execute a file from inside an asar archive.
 
+# The appId keeps the app's old name (Sooskasse-FinTS up to 4.3): the
+# installer derives its registry key from it, and that key is how an update
+# finds the install it replaces — and its folder, which an existing install
+# keeps. A new appId would put Girovo beside the old app instead of over it.
 appId: de.elnino0916.sooskasse-fints
-productName: Sooskasse-FinTS
+productName: Girovo
 
 directories:
   output: dist
@@ -34,8 +38,8 @@ extraResources:
     to: server/node_modules
   # The window shown while an update installs (scripts/build-update-window.mjs).
   # The updater copies it out before the installer replaces this folder.
-  - from: build/update-window/bin/Sooskasse-FinTS-Update.exe
-    to: Sooskasse-FinTS-Update.exe
+  - from: build/update-window/bin/Girovo-Update.exe
+    to: Girovo-Update.exe
 
 # Nothing shipped here is a native module — the traced server bundle is plain
 # JavaScript — so there is nothing for electron-rebuild to do.
@@ -55,7 +59,7 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  shortcutName: Sooskasse-FinTS
+  shortcutName: Girovo
   artifactName: ${productName}-${version}-Setup.${ext}
 
 portable:

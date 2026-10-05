@@ -9,9 +9,9 @@
 ManifestDPIAware true
 ManifestDPIAwareness PerMonitorV2
 
-; Sooskasse-FinTS spawns its Next.js server as its own executable re-executed
-; with ELECTRON_RUN_AS_NODE=1 (see electron/main.cjs) — so two processes named
-; Sooskasse-FinTS.exe exist under $INSTDIR while the app is open, not one.
+; Girovo spawns its Next.js server as its own executable re-executed with
+; ELECTRON_RUN_AS_NODE=1 (see electron/main.cjs) — so two processes named
+; Girovo.exe exist under $INSTDIR while the app is open, not one.
 ;
 ; electron-builder's built-in "is the app running?" check (app-builder-lib's
 ; _CHECK_APP_RUNNING, in allowOnlyOneInstallerInstance.nsh) scans for any
@@ -24,7 +24,7 @@ ManifestDPIAwareness PerMonitorV2
 ; landing on "cannot be closed" until the uninstaller is run by hand first.
 ;
 ; Fix, part 1 — customCheckAppRunning (replaces _CHECK_APP_RUNNING):
-;   Silently kill every Sooskasse-FinTS.exe process with taskkill /F, then
+;   Silently kill every Girovo.exe process with taskkill /F, then
 ;   continue without prompting the user. The image name matches the server
 ;   child (and Electron's helper processes) as well, so an orphaned server is
 ;   cleaned up too. taskkill exits 128 when nothing was found, which is fine.
@@ -33,30 +33,40 @@ ManifestDPIAwareness PerMonitorV2
 ;   Deliberately no /T: that also kills every *descendant* of a matching
 ;   process, whatever its name — and an installer started by the app's own
 ;   updater (electron/updater.cjs) is exactly that, a child of
-;   Sooskasse-FinTS.exe. With /T the installer would take itself down.
+;   Girovo.exe. With /T the installer would take itself down.
 ;
 ;   --updated is that updater's flag. The app quits right after starting the
 ;   installer: it closes the window, ends the bank session and stops its
 ;   server, and it should be left to finish that rather than be killed in the
 ;   middle of writing its preferences. So under --updated the installer first
-;   waits, about ten seconds at most, for the user's Sooskasse-FinTS.exe
-;   processes to be gone (the same exact-match tasklist query as
-;   electron-builder's own FIND_PROCESS — each one takes ~0.3 s, hence 20
-;   rounds of it plus 250 ms); taskkill only deals with whatever is left.
+;   waits, about ten seconds at most, for the user's Girovo.exe processes
+;   to be gone (exact-match tasklist queries like electron-builder's own
+;   FIND_PROCESS); taskkill only deals with whatever is left.
+;
+;   Both steps also cover LEGACY_EXECUTABLE_FILENAME. Up to 4.3 the app was
+;   called Sooskasse-FinTS, so the update to Girovo is started by a
+;   Sooskasse-FinTS.exe that is still closing — the new name has no process
+;   yet. One tasklist per name, each filtered by image name too: the user
+;   filter alone has to look up the owner of every process on the machine,
+;   which took over 40 s. One round, both queries and the 250 ms, is about
+;   0.75 s, hence 13 of them.
+!ifndef LEGACY_EXECUTABLE_FILENAME
+  !define LEGACY_EXECUTABLE_FILENAME "Sooskasse-FinTS.exe"
+!endif
 !macro customCheckAppRunning
   ${if} ${isUpdated}
     StrCpy $R1 0
     ${do}
-      nsExec::Exec `"$SYSDIR\cmd.exe" /C tasklist /FI "USERNAME eq %USERNAME%" /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FO CSV /NH | "$SYSDIR\findstr.exe" /B /I /C:"\"${APP_EXECUTABLE_FILENAME}\""`
+      nsExec::Exec `"$SYSDIR\cmd.exe" /C (tasklist /FI "USERNAME eq %USERNAME%" /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FO CSV /NH & tasklist /FI "USERNAME eq %USERNAME%" /FI "IMAGENAME eq ${LEGACY_EXECUTABLE_FILENAME}" /FO CSV /NH) | "$SYSDIR\findstr.exe" /B /I /C:"\"${APP_EXECUTABLE_FILENAME}\"" /C:"\"${LEGACY_EXECUTABLE_FILENAME}\""`
       Pop $R0
       ${if} $R0 != 0
         ${break}
       ${endif}
       Sleep 250
       IntOp $R1 $R1 + 1
-    ${loopuntil} $R1 >= 20
+    ${loopuntil} $R1 >= 13
   ${endif}
-  nsExec::Exec `taskkill /F /IM "${APP_EXECUTABLE_FILENAME}"`
+  nsExec::Exec `taskkill /F /IM "${APP_EXECUTABLE_FILENAME}" /IM "${LEGACY_EXECUTABLE_FILENAME}"`
   Pop $0
   Sleep 500
 !macroend
@@ -96,7 +106,7 @@ ManifestDPIAwareness PerMonitorV2
 ; language — no messages.yml override needed for the stock strings, but this
 ; custom page's own text has to be written by hand).
 !macro customWelcomePage
-  !define MUI_WELCOMEPAGE_TITLE "Willkommen beim Sooskasse-FinTS-Setup"
-  !define MUI_WELCOMEPAGE_TEXT "Dieser Assistent installiert Sooskasse-FinTS auf diesem Computer.$\r$\n$\r$\nKlicke auf „Weiter“, um fortzufahren."
+  !define MUI_WELCOMEPAGE_TITLE "Willkommen beim Girovo-Setup"
+  !define MUI_WELCOMEPAGE_TEXT "Dieser Assistent installiert Girovo auf diesem Computer.$\r$\n$\r$\nKlicke auf „Weiter“, um fortzufahren."
   !insertmacro MUI_PAGE_WELCOME
 !macroend

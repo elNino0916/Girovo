@@ -29,6 +29,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { HttpClient } from 'lib-fints';
 import { BANK_UNAVAILABLE, BANK_UNREACHABLE } from './bank-answer.ts';
+import { reportMetric, telemetryContext } from './telemetry.ts';
 
 /** How long a bank may take to start answering. */
 export const FIRST_BYTE_MS = 60_000;
@@ -64,8 +65,8 @@ type Scope = { signal?: AbortSignal; bankCall?: boolean; inPolicy?: boolean };
 
 // On globalThis, like the session store: a route module evaluated again (hot
 // reload) must keep talking to the scope the installed patches read.
-const g = globalThis as typeof globalThis & { __sooskasseBankScope?: AsyncLocalStorage<Scope> };
-const scope: AsyncLocalStorage<Scope> = (g.__sooskasseBankScope ??= new AsyncLocalStorage<Scope>());
+const g = globalThis as typeof globalThis & { __girovoBankScope?: AsyncLocalStorage<Scope> };
+const scope: AsyncLocalStorage<Scope> = (g.__girovoBankScope ??= new AsyncLocalStorage<Scope>());
 
 /** Runs `fn` so that `signal` ends every bank request made inside it. */
 export function withBankSignal<T>(signal: AbortSignal, fn: () => Promise<T>): Promise<T> {
@@ -141,8 +142,8 @@ export async function fetchFromBank(
 // ---------------------------------------------------------------------------
 // Installation
 
-const BANK_FETCH = Symbol.for('sooskasse.bankFetch');
-const BANK_SCOPE = Symbol.for('sooskasse.bankScope');
+const BANK_FETCH = Symbol.for('girovo.bankFetch');
+const BANK_SCOPE = Symbol.for('girovo.bankScope');
 type MarkedFetch = Fetch & { [BANK_FETCH]?: true };
 
 /**
@@ -158,10 +159,28 @@ function ensureFetchWrapped(): void {
     // Outside a bank call, or already under the policy (a wrapper around
     // this wrapper): straight through.
     if (!s?.bankCall || s.inPolicy) return current(input, init);
-    return scope.run({ ...s, inPolicy: true }, () => fetchFromBank(current, input, init, { signal: s.signal }));
+    return scope.run({ ...s, inPolicy: true }, () => timed(fetchFromBank(current, input, init, { signal: s.signal })));
   };
   wrapped[BANK_FETCH] = true;
   globalThis.fetch = wrapped;
+}
+
+/**
+ * How long the bank took to answer, as a usage metric (lib/telemetry.ts —
+ * counted only with the user's yes): the duration, whether it worked and the
+ * bank's BLZ from the request's context. Nothing of the request or the answer.
+ */
+async function timed(request: Promise<Response>): Promise<Response> {
+  const started = Date.now();
+  const blz = telemetryContext().blz;
+  try {
+    const res = await request;
+    reportMetric('bank.request_ms', Date.now() - started, { blz, ok: true });
+    return res;
+  } catch (err) {
+    if (!(err instanceof BankRequestCancelled)) reportMetric('bank.request_ms', Date.now() - started, { blz, ok: false });
+    throw err;
+  }
 }
 
 /** Puts every lib-fints request under the policy. Idempotent. */

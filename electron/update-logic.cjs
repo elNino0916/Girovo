@@ -8,10 +8,18 @@
 
 const path = require('node:path');
 
+// The repository is to follow the app's rename (Sooskasse-FinTS → Girovo).
+// After a rename GitHub forwards the old name's API and download URLs, but
+// its answers then carry the new name — so a release's files count as ours
+// under either. The feed keeps the old name: before the rename the new one
+// does not exist yet, after it the old one is forwarded.
 const REPO = 'elNino0916/Sooskasse-FinTS';
+const RENAMED_REPO = 'elNino0916/Girovo';
 const FEED_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const RELEASES_PAGE = `https://github.com/${REPO}/releases`;
+const RELEASES_PAGES = [RELEASES_PAGE, `https://github.com/${RENAMED_REPO}/releases`];
 const DOWNLOAD_PREFIX = `https://github.com/${REPO}/releases/download/`;
+const DOWNLOAD_PREFIXES = [DOWNLOAD_PREFIX, `https://github.com/${RENAMED_REPO}/releases/download/`];
 
 // A release's executables are ~100 MB; a file far past that is not ours.
 const MAX_ASSET_BYTES = 1024 * 1024 * 1024;
@@ -60,13 +68,14 @@ function isNewer(candidate, current) {
 /** A file name that can safely become a path on disk: no folders, no tricks. */
 const SAFE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,150}$/;
 
-function parseAsset(raw, downloadPrefix) {
+/** `downloadPrefixes`: one URL prefix or a list of them, as for parseRelease. */
+function parseAsset(raw, downloadPrefixes) {
   if (!raw || typeof raw !== 'object') return null;
   const name = typeof raw.name === 'string' ? raw.name : '';
   const url = typeof raw.browser_download_url === 'string' ? raw.browser_download_url : '';
   const size = Number(raw.size);
   if (!SAFE_FILE_NAME.test(name) || name.includes('..')) return null;
-  if (!url.startsWith(downloadPrefix)) return null;
+  if (![].concat(downloadPrefixes).some((prefix) => url.startsWith(prefix))) return null;
   if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_ASSET_BYTES) return null;
   // GitHub computes this itself for every uploaded file; it is what the
   // download is checked against before anything runs.
@@ -75,19 +84,26 @@ function parseAsset(raw, downloadPrefix) {
 }
 
 /**
+ * `url` if it is a page of one of the project's releases — under either
+ * repository name when `releasesPage` is the real one — else `releasesPage`.
+ */
+function releasePageOr(url, releasesPage = RELEASES_PAGE) {
+  const pages = releasesPage === RELEASES_PAGE ? RELEASES_PAGES : [releasesPage];
+  return typeof url === 'string' && pages.some((page) => url.startsWith(`${page}/`)) ? url : releasesPage;
+}
+
+/**
  * GitHub's "latest release" answer, reduced to what the updater needs — or
  * null when it is not a usable release (a draft, a pre-release, a tag that is
  * not a version).
  */
-function parseRelease(json, { downloadPrefix = DOWNLOAD_PREFIX, releasesPage = RELEASES_PAGE } = {}) {
+function parseRelease(json, { downloadPrefix = DOWNLOAD_PREFIXES, releasesPage = RELEASES_PAGE } = {}) {
   if (!json || typeof json !== 'object' || json.draft || json.prerelease) return null;
   const parsed = parseVersion(json.tag_name);
   if (!parsed || parsed.pre) return null;
   const version = parsed.core.join('.');
   const name = typeof json.name === 'string' && json.name.trim() ? json.name.trim().slice(0, 200) : version;
-  const pageUrl = typeof json.html_url === 'string' && json.html_url.startsWith(`${releasesPage}/`)
-    ? json.html_url
-    : releasesPage;
+  const pageUrl = releasePageOr(json.html_url, releasesPage);
   const published = typeof json.published_at === 'string' ? Date.parse(json.published_at) : NaN;
   return {
     version,
@@ -235,9 +251,11 @@ module.exports = {
   FEED_URL,
   RELEASES_PAGE,
   DOWNLOAD_PREFIX,
+  DOWNLOAD_PREFIXES,
   MAX_NOTES_CHARS,
   parseVersion,
   isNewer,
+  releasePageOr,
   parseRelease,
   pickAsset,
   tagUrl,

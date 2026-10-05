@@ -16,8 +16,8 @@ const { createUpdater, PREF_AUTO } = require('./updater.cjs');
 
 const PAYLOAD = crypto.randomBytes(300_000);
 const SHA = crypto.createHash('sha256').update(PAYLOAD).digest('hex');
-const SETUP = 'Sooskasse-FinTS-9.9.9-Setup.exe';
-const PORTABLE = 'Sooskasse-FinTS-9.9.9-portable.exe';
+const SETUP = 'Girovo-9.9.9-Setup.exe';
+const PORTABLE = 'Girovo-9.9.9-portable.exe';
 const PAGE = 'https://github.com/elNino0916/Sooskasse-FinTS/releases';
 
 /** A stand-in for api.github.com and the release downloads; `route` decides per request. */
@@ -32,7 +32,7 @@ function releaseJson(base, { tag = '9.9.9', digest = `sha256:${SHA}`, size = PAY
   const asset = (name) => ({ name, size, digest, browser_download_url: `${base}dl/${name}` });
   return {
     tag_name: tag,
-    name: `Sooskasse-FinTS ${tag}`,
+    name: `Girovo ${tag}`,
     draft: false,
     prerelease: false,
     body: '## Neu\n- **Updates** direkt in der App',
@@ -56,7 +56,7 @@ const githubLike = (opts) => (req, res, base) => {
 };
 
 function tempDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'sooskasse-updater-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'girovo-updater-test-'));
 }
 
 /** An updater wired to fakes; `calls` records what it asked of the app. */
@@ -453,10 +453,10 @@ function makeBlockmap(buf, checksums = checksumsOf(buf)) {
  * one. Downloads honour single byte ranges unless `ranges` is false;
  * `served` counts what went out of the new installer.
  */
-function diffServer({ ranges = true, oldTag = '4.0.0', newMap = makeBlockmap(NEW), withMap = true, onRange } = {}) {
+function diffServer({ ranges = true, oldTag = '4.0.0', next = NEW, newMap = makeBlockmap(next), withMap = true, onRange } = {}) {
   const served = { bytes: 0, requests: 0, ranged: 0 };
   const files = {
-    [SETUP]: NEW,
+    [SETUP]: next,
     [`${SETUP}.blockmap`]: newMap,
     [OLD_SETUP]: OLD,
     [`${OLD_SETUP}.blockmap`]: makeBlockmap(OLD),
@@ -607,6 +607,37 @@ test('differential: without a blockmap, a base file or a release build, the whol
     assert.equal(await sizeFor(srv.base, { currentVersion: '4.0.0-dev.57' }), NEW.length, 'a dev build');
   } finally {
     await noMap.close();
+    await srv.close();
+  }
+});
+
+test('differential: a release that changes nearly everything still reuses what stayed', async () => {
+  // A new Electron, say: all but the first 3 of 60 chunks are new.
+  const mostlyNew = Buffer.concat([OLD.subarray(0, CHUNK * 3), crypto.randomBytes(CHUNK * 57)]);
+  const { route, served } = diffServer({ next: mostlyNew });
+  const srv = await startServer(route);
+  try {
+    const { updater, cacheDir } = makeUpdater(srv.base, { baseFile: baseFileWith(OLD) });
+    assert.equal((await updater.check({ manual: true })).release.size, CHUNK * 57);
+    assert.equal((await updater.download()).phase, 'ready');
+    assert.equal(fs.readFileSync(path.join(cacheDir, SETUP)).equals(mostlyNew), true);
+    assert.equal(served.bytes, CHUNK * 57);
+    assert.equal(served.ranged, served.requests);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('differential: with nothing in common, the plain whole download', async () => {
+  const allNew = crypto.randomBytes(CHUNK * 60);
+  const { route, served } = diffServer({ next: allNew });
+  const srv = await startServer(route);
+  try {
+    const { updater } = makeUpdater(srv.base, { baseFile: baseFileWith(OLD) });
+    assert.equal((await updater.check({ manual: true })).release.size, allNew.length);
+    assert.equal((await updater.download()).phase, 'ready');
+    assert.equal(served.ranged, 0);
+  } finally {
     await srv.close();
   }
 });

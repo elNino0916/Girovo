@@ -1,8 +1,8 @@
 {
-	"name": "sooskasse-fints",
-	"version": "4.2.0",
+	"name": "girovo",
+	"version": "5.0.0",
 	"private": true,
-	"description": "Sooskasse-FinTS — self-hosted banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled TAN, SEPA & Echtzeitueberweisung)",
+	"description": "Girovo — self-hosted banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled TAN, SEPA & Echtzeitueberweisung)",
 	"type": "module",
 	"main": "electron/main.cjs",
 	"scripts": {
