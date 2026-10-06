@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildUpdateWindow } from './build-update-window.mjs';
+import { fetchModel } from './fetch-model.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STANDALONE = path.join(ROOT, '.next', 'standalone');
@@ -45,6 +46,11 @@ const WIN_UNPACKED = path.join(ROOT, 'dist', 'win-unpacked');
 // dist/ (its outputFileTracingExcludes matching turned out not to reach these
 // particular files) — starves the mechanism at its source: with dist/win-unpacked
 // gone, there's nothing under dist/ for the tracer to find in the first place.
+// The on-device category model ships beside the server (electron-builder.yml,
+// extraResources); fetched and checked here, a no-op when already present.
+console.log('› category model');
+await fetchModel({ log: (line) => console.log(`  ${line}`) });
+
 console.log('› cleaning .next/standalone and dist/win-unpacked');
 fs.rmSync(STANDALONE, { recursive: true, force: true });
 fs.rmSync(WIN_UNPACKED, { recursive: true, force: true });
@@ -68,6 +74,9 @@ if (!fs.existsSync(path.join(STANDALONE, 'server.js'))) {
 // profiles out of the bundle. Belt and braces, because this one ships secrets:
 // if a future tracer heuristic sneaks them back in, they still do not get here.
 fs.rmSync(path.join(STANDALONE, '.fints-state'), { recursive: true, force: true });
+// Likewise the category model: it ships once, as its own resource
+// (electron-builder.yml), and 280 MB twice would be a waste nobody notices.
+fs.rmSync(path.join(STANDALONE, 'models'), { recursive: true, force: true });
 
 console.log('› copying .next/static');
 fs.cpSync(path.join(ROOT, '.next', 'static'), path.join(STANDALONE, '.next', 'static'), {
@@ -87,6 +96,24 @@ for (const file of ['banks-data.json', 'config.json']) {
     fs.copyFileSync(path.join(ROOT, file), dest);
   }
 }
+
+// onnxruntime-node (lib/category-model.ts) loads its native runtime by a path
+// it computes at run time, which the tracer can only guess at: it brings
+// every platform's binding, or none. So its bin/ is replaced by exactly what
+// Windows x64 needs on the CPU — the binding and onnxruntime.dll, about 29 MB.
+// DirectML.dll, dxcompiler.dll and dxil.dll (38 MB) are for the GPU and stay out.
+const ORT_BIN = path.join('node_modules', 'onnxruntime-node', 'bin', 'napi-v6', 'win32', 'x64');
+const ortStandalone = path.join(STANDALONE, 'node_modules', 'onnxruntime-node');
+if (!fs.existsSync(path.join(ortStandalone, 'package.json'))) {
+  console.error('✗ onnxruntime-node was not traced into .next/standalone — the category model would not load.');
+  process.exit(1);
+}
+fs.rmSync(path.join(ortStandalone, 'bin'), { recursive: true, force: true });
+fs.mkdirSync(path.join(STANDALONE, ORT_BIN), { recursive: true });
+for (const file of ['onnxruntime_binding.node', 'onnxruntime.dll']) {
+  fs.copyFileSync(path.join(ROOT, ORT_BIN, file), path.join(STANDALONE, ORT_BIN, file));
+}
+console.log('› onnxruntime: Windows x64 CPU runtime only');
 
 console.log('✓ desktop server ready in .next/standalone');
 

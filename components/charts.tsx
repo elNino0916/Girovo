@@ -25,6 +25,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
+import { intlLocale, type Messages } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/react';
 import { currencyMark } from './Money';
 import { cx } from './ui';
 
@@ -83,15 +85,24 @@ export function niceTicks(max: number, target = 4): { ticks: number[]; top: numb
   return { ticks, top };
 }
 
-const AXIS_NUMBER = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
-
 /**
- * A money axis tick in the chart's currency: "1.500 €", "1.500 $". Whole
- * units — the axis gives scale, the tooltip gives cents.
+ * A money axis tick in the chart's currency: "1.500 €", "1.500 $" ("€1,500",
+ * "$1,500") — the currency where the language speaking now puts it. Whole
+ * units — the axis gives scale, the tooltip gives cents. Made per call, so a
+ * caller that keeps it keys it on the language too.
  */
 export const fmtAxisMoney = (currency = 'EUR') => {
-  const mark = currencyMark(currency);
-  return (v: number) => `${AXIS_NUMBER.format(v)} ${mark}`;
+  try {
+    const money = new Intl.NumberFormat(intlLocale(), {
+      style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 0,
+    });
+    return (v: number) => money.format(v);
+  } catch {
+    // A currency Intl does not know: the figure, then the code.
+    const figure = new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 0 });
+    const mark = currencyMark(currency);
+    return (v: number) => `${figure.format(v)} ${mark}`;
+  }
 };
 
 /** A path for a bar with rounded data-end corners and a square base, growing up from `base`. */
@@ -294,6 +305,7 @@ export function PairedBars({
   className?: string;
 }) {
   const [ref, width] = useElementWidth<HTMLDivElement>();
+  const tr = useT();
   const [hover, setHover] = useState<number | null>(null);
   const [focus, setFocus] = useState<number | null>(null);
   const [cursor, setCursor] = useState(() => Math.max(0, data.length - 1));
@@ -365,7 +377,7 @@ export function PairedBars({
 
   const name = (d: PairedDatum) =>
     describe?.(d) ??
-    `${d.title}${d.partial ? ` (unvollständig, ${d.partial})` : ''}: ${series[0].label} ${formatValue(d.values[0])}, ${series[1].label} ${formatValue(d.values[1])}`;
+    `${d.title}${d.partial ? ` (${tr.insights.month.incomplete(d.partial)})` : ''}: ${series[0].label} ${formatValue(d.values[0])}, ${series[1].label} ${formatValue(d.values[1])}`;
 
   // The tooltip sits beside the hovered pair, on the side with more room, at
   // the top of the plot — never on top of the bars it is describing (see
@@ -544,7 +556,7 @@ export function PairedBars({
           title={
             <>
               {activeDatum.title}
-              {activeDatum.partial && <span className="font-normal text-ink-3"> · nur {activeDatum.partial}</span>}
+              {activeDatum.partial && <span className="font-normal text-ink-3"> · {tr.insights.month.only(activeDatum.partial)}</span>}
             </>
           }
           rows={series.map((s, k) => ({
@@ -565,10 +577,10 @@ export function PairedBars({
 // ShareBar — one 100 % bar, part-to-whole
 // ---------------------------------------------------------------------------
 
-/** "24 %", "<1 %" — never "0 %" for a part that is there. */
-const shareText = (part: number, whole: number) => {
+/** "24 %", "<1 %" ("24%", "<1%") — never "0 %" for a part that is there. */
+const shareText = (part: number, whole: number, t: Messages) => {
   const pct = whole > 0 ? (part / whole) * 100 : 0;
-  return pct > 0 && pct < 0.5 ? '<1\u00a0%' : `${Math.round(pct)}\u00a0%`;
+  return t.insights.percent(pct > 0 && pct < 0.5 ? '<1' : String(Math.round(pct)));
 };
 
 export type ShareSegment = { key: string; label: string; value: number; color: string; detail?: string };
@@ -589,6 +601,7 @@ export function ShareBar({
 }) {
   const [hover, setHover] = useState<string | null>(null);
   const [ref, width] = useElementWidth<HTMLDivElement>();
+  const t = useT();
   const total = segments.reduce((s, x) => s + Math.max(0, x.value), 0);
   if (!(total > 0)) return null;
 
@@ -633,7 +646,7 @@ export function ShareBar({
               key: 'v',
               color: tip.seg.color,
               value: formatValue(tip.seg.value),
-              label: shareText(tip.seg.value, total),
+              label: shareText(tip.seg.value, total, t),
             },
           ]}
           footer={tip.seg.detail}

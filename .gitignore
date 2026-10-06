@@ -13,3 +13,5 @@ next-env.d.ts
 # Electron
 dist/
 build/update-window/bin/
+# The on-device category model, fetched by scripts/fetch-model.mjs (too big for git)
+/models/

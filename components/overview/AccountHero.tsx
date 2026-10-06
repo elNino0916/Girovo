@@ -7,6 +7,8 @@ import { buildBalanceHistory } from '@/lib/balance-history';
 import { fmtDate, fmtIban, fmtRange, isFutureDate, isoDate, properName } from '@/lib/format';
 import type { SerializedAccount, SerializedBalance } from '@/lib/fints-types';
 import type { StatementInfo } from '@/lib/app-types';
+import type { Messages } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { AlertTriangleIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
@@ -14,9 +16,6 @@ import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx } fro
 import { fmtSince } from '../shell/session';
 import { AccountGlyph, MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
 import { BalanceChart } from './BalanceChart';
-
-/** The same words every other fetch control carries. */
-const MAY_NEED_TAN = 'Kann eine Freigabe erfordern.';
 
 /**
  * The bank's own balance at the end of a fetched range: the newest statement
@@ -40,14 +39,12 @@ function closingOf(info: StatementInfo | undefined, fallbackCurrency: string): {
  * which day it is rather than presenting a future date as the balance's as-of
  * date.
  */
-function asOf(bal: SerializedBalance | undefined) {
+function asOf(bal: SerializedBalance | undefined, t: Messages) {
   if (!bal?.date) return null;
+  const words = t.insights.hero;
   return isFutureDate(bal.date)
-    ? {
-        text: `Buchungstag ${fmtDate(bal.date)}`,
-        title: 'Die Bank datiert diesen Saldo auf ihren nächsten Buchungstag. Er enthält bereits Buchungen mit diesem Datum.',
-      }
-    : { text: `Stand ${fmtDate(bal.date)}`, title: undefined };
+    ? { text: words.bookingDay(fmtDate(bal.date)), title: words.bookingDayHint }
+    : { text: words.asOf(fmtDate(bal.date)), title: undefined };
 }
 
 /** One line of the figures beside the balance: label left, amount right-aligned. */
@@ -64,8 +61,9 @@ function Figure({ label, labelClassName, title, children }: {
 
 /** Shaped like the hero, for the moment before there is an account to show. */
 function HeroSkeleton() {
+  const t = useT();
   return (
-    <section aria-busy="true" aria-label="Kontostand wird geladen" className="panel min-w-0 overflow-clip">
+    <section aria-busy="true" aria-label={t.insights.hero.loading} className="panel min-w-0 overflow-clip">
       <div className="px-5 pt-6 pb-6 sm:px-8 sm:pt-7">
         <Skeleton className="h-3.5 w-36 rounded-[4px]" />
         <Skeleton className="mt-4 h-11 w-64 max-w-full rounded-[6px]" />
@@ -111,6 +109,9 @@ export function AccountHero() {
     balanceLoading, txErrors, balanceErrors, busy, privacy, togglePrivacy, isLoadedForAppliedRange, refreshAccount,
     loadBalance, accountLabel,
   } = useFints();
+  // `tr`, not `t`: a booking is `t` in the filters below.
+  const tr = useT();
+  const words = tr.insights.hero;
 
   const figureRef = useRef<HTMLDivElement>(null);
   const acct = a?.accountNumber ?? '';
@@ -137,16 +138,16 @@ export function AccountHero() {
   const past = !!info && info.to < today;
   const closing = past ? closingOf(info, a.currency) : null;
   const currency = bal?.currency ?? closing?.currency ?? a.currency ?? 'EUR';
-  const dated = asOf(bal);
+  const dated = asOf(bal, tr);
   const label = accountLabel(a);
-  const nowLabel = card ? 'Kartensaldo' : 'Kontostand';
+  const nowLabel = card ? words.cardBalance : tr.common.account.balance;
 
   // What the big figure is: today's balance when known; for a past range
   // without one, that range's closing balance under its own name.
   const main: { label: string; value: number; currency: string } | null = bal
     ? { label: nowLabel, value: bal.balance, currency: bal.currency }
     : closing && info
-      ? { label: `Saldo am ${fmtDate(info.to)}`, value: closing.balance, currency: closing.currency }
+      ? { label: words.balanceOn(fmtDate(info.to)), value: closing.balance, currency: closing.currency }
       : null;
   const negative = !!main && Math.round(main.value * 100) < 0;
   // Navy, or red for an overdrawn account. A card's negative balance is its
@@ -177,7 +178,7 @@ export function AccountHero() {
   const figures: ReactNode[] = [];
   if (bal?.availableAmount != null) {
     figures.push(
-      <Figure key="avail" label="Verfügbar">
+      <Figure key="avail" label={tr.insights.available}>
         <Money value={bal.availableAmount} currency={bal.currency} tone="auto" />
       </Figure>,
     );
@@ -185,7 +186,7 @@ export function AccountHero() {
   if (bal?.creditLimit != null && Math.round(bal.creditLimit * 100) !== 0) {
     figures.push(
       // A card's limit is a Kreditrahmen; a Dispositionsrahmen is a Girokonto's overdraft.
-      <Figure key="limit" label={card ? 'Kreditrahmen' : 'Dispositionsrahmen'}>
+      <Figure key="limit" label={card ? words.creditLimit : words.overdraft}>
         <Money value={Math.abs(bal.creditLimit)} currency={bal.currency} tone="plain" />
       </Figure>,
     );
@@ -196,14 +197,14 @@ export function AccountHero() {
     // show as booked).
     const fetched = pendingInfo[acct];
     const stand = fetched
-      ? ` · Stand ${fmtSince(fetched.loadedAt)}${fetched.behindStatement ? ', vor dem letzten Umsatzabruf' : ''}`
+      ? ` · ${words.pendingAsOf(fmtSince(fetched.loadedAt), !!fetched.behindStatement)}`
       : '';
     figures.push(
       <Figure
         key="pending"
-        label="Vorgemerkt"
+        label={tr.common.booking.pending}
         labelClassName="font-semibold text-amber"
-        title={`${pending.length === 1 ? '1 vorgemerkter Umsatz' : `${pending.length} vorgemerkte Umsätze`}${stand}`}
+        title={`${words.pendingCount(pending.length)}${stand}`}
       >
         <Money value={pendingSum} currency={currency} tone="plain" />
       </Figure>,
@@ -211,7 +212,7 @@ export function AccountHero() {
   }
   if (bal && closing && info) {
     figures.push(
-      <Figure key="closing" label={`Saldo am ${fmtDate(info.to)}`} title="Endsaldo des geladenen Zeitraums laut deiner Bank">
+      <Figure key="closing" label={words.balanceOn(fmtDate(info.to))} title={words.closingHint}>
         <Money value={closing.balance} currency={closing.currency} tone={card ? 'plain' : 'auto'} />
       </Figure>,
     );
@@ -254,14 +255,14 @@ export function AccountHero() {
                         page of dots learns why here, and the way back. */}
                     {privacy && (
                       <>
-                        {' · Beträge ausgeblendet '}
+                        {` · ${tr.insights.amountsHidden} `}
                         <button
                           type="button"
-                          aria-label="Beträge anzeigen"
+                          aria-label={tr.common.showAmounts}
                           onClick={togglePrivacy}
                           className="ml-1 font-semibold text-accent underline-offset-2 hover:underline"
                         >
-                          Anzeigen
+                          {words.show}
                         </button>
                       </>
                     )}
@@ -271,16 +272,16 @@ export function AccountHero() {
                   // app does not know — the enquiry can still add it.
                   <FetchAction
                     lead={balanceErrors[acct]
-                      ? `Der Zeitraum endet vor heute. Abruf des aktuellen ${nowLabel}s fehlgeschlagen: ${balanceErrors[acct].message}`
-                      : 'Der Zeitraum endet vor heute.'}
-                    label={balanceErrors[acct] ? 'Erneut versuchen' : `Aktuellen ${nowLabel} abrufen`}
+                      ? `${words.pastRange} ${words.currentFailed(card, balanceErrors[acct].message)}`
+                      : words.pastRange}
+                    label={balanceErrors[acct] ? tr.common.retry : words.loadCurrent(card)}
                     busy={busy}
                     loading={balanceLoading === acct}
                     run={() => fetchFigure('balance')}
                   />
                 ) : (
                   <p className="tnum mt-2 text-[13px] leading-snug text-ink-3">
-                    Zeitraum endet vor heute – den aktuellen {nowLabel} zeigt ein Abruf bis heute.
+                    {words.pastRangeHint(card)}
                   </p>
                 )}
               </>
@@ -288,24 +289,24 @@ export function AccountHero() {
               <>
                 <span className="mt-2 block">
                   <Skeleton className="h-10 w-56 max-w-full rounded-[6px] @min-[520px]:h-12" />
-                  <span className="sr-only">Kontostand wird abgerufen</span>
+                  <span className="sr-only">{words.fetching}</span>
                 </span>
-                <p className="mt-2 text-[13px] leading-snug text-ink-3">Saldo wird abgerufen …</p>
+                <p className="mt-2 text-[13px] leading-snug text-ink-3">{words.fetchingDots}</p>
               </>
             ) : failure ? (
               <FigureNote
                 problem
-                title="Abruf fehlgeschlagen"
-                action={{ label: 'Erneut versuchen', run: () => fetchFigure() }}
+                title={tr.common.fetchFailed}
+                action={{ label: tr.common.retry, run: () => fetchFigure() }}
                 busy={busy}
               >
                 {failure.message}
               </FigureNote>
             ) : canReportBalance(a) ? (
-              <FigureNote title="Noch kein Saldo abgerufen" action={{ label: 'Saldo abrufen', run: () => fetchFigure() }} busy={busy} />
+              <FigureNote title={words.noBalanceYet} action={{ label: tr.insights.loadBalance, run: () => fetchFigure() }} busy={busy} />
             ) : (
-              <FigureNote title="Kein Saldo abrufbar">
-                Deine Bank meldet für dieses Konto über diesen Zugang keinen Saldo.
+              <FigureNote title={words.noBalance}>
+                {words.noBalanceHint}
               </FigureNote>
             )}
           </div>
@@ -332,9 +333,10 @@ export function AccountHero() {
 
 function HeroFrame({ label, children }: { label: string; children: ReactNode }) {
   const id = useId();
+  const t = useT();
   return (
     <section className="panel min-w-0 overflow-clip" aria-labelledby={id}>
-      <h2 id={id} className="sr-only">Konto {label}</h2>
+      <h2 id={id} className="sr-only">{t.insights.hero.title(label)}</h2>
       {children}
     </section>
   );
@@ -354,6 +356,7 @@ function FigureNote({
   busy?: boolean;
   children?: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="mt-2">
       <p className="flex items-center gap-2 text-[22px] leading-[1.25] font-bold text-ink">
@@ -367,7 +370,7 @@ function FigureNote({
           <Button size="sm" variant="secondary" iconLeft={<RefreshIcon size={16} />} disabled={busy} onClick={action.run}>
             {action.label}
           </Button>
-          <span className="text-[13px] leading-snug text-ink-3">{MAY_NEED_TAN}</span>
+          <span className="text-[13px] leading-snug text-ink-3">{t.insights.mayNeedApproval}</span>
         </div>
       )}
     </div>
@@ -378,6 +381,7 @@ function FigureNote({
 function FetchAction({ lead, label, busy, loading, run }: {
   lead: string; label: string; busy: boolean; loading: boolean; run: () => void;
 }) {
+  const t = useT();
   return (
     <div className="mt-2 text-[13px] leading-snug text-ink-3">
       <p>{lead}</p>
@@ -393,7 +397,7 @@ function FetchAction({ lead, label, busy, loading, run }: {
         >
           {label}
         </Button>
-        <span>{MAY_NEED_TAN}</span>
+        <span>{t.insights.mayNeedApproval}</span>
       </p>
     </div>
   );
@@ -406,6 +410,7 @@ function FetchAction({ lead, label, busy, loading, run }: {
  */
 function AccountLine({ account, label, renamable }: { account: SerializedAccount; label: string; renamable: boolean }) {
   const { vaultStatus } = useFints();
+  const t = useT();
   const [renaming, setRenaming] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const renameButton = useRef<HTMLButtonElement>(null);
@@ -453,7 +458,7 @@ function AccountLine({ account, label, renamable }: { account: SerializedAccount
                 aria-describedby={noteOpen ? noteId : undefined}
                 onClick={startRenaming}
               >
-                Umbenennen
+                {t.insights.accounts.rename}
               </Button>
             )}
           </span>
@@ -463,13 +468,13 @@ function AccountLine({ account, label, renamable }: { account: SerializedAccount
               <span className="flex min-w-0 items-center gap-1">
                 <span className="sr-only">IBAN </span>
                 <span className="iban overflow-x-auto text-[13.5px] text-ink [scrollbar-width:none]">{iban}</span>
-                <CopyButton text={iban.replace(/\s+/g, '')} label="IBAN kopieren" />
+                <CopyButton text={iban.replace(/\s+/g, '')} label={t.common.account.copyIban} />
               </span>
             ) : ident.tail ? (
               // No IBAN (a credit card, a Depot): the number the bank reports,
               // grouped like a card prints it, the recognisable end set heavier.
               <span className="flex min-w-0 items-baseline gap-1.5 text-[13px] text-ink-3">
-                <span aria-hidden className="shrink-0">{ident.kind === 'card' ? 'Karte' : 'Konto'}</span>
+                <span aria-hidden className="shrink-0">{ident.kind === 'card' ? t.insights.hero.card : t.common.account.account}</span>
                 <span aria-hidden className="iban flex min-w-0 text-[13.5px] text-ink-2">
                   {ident.head && <span className="min-w-0 truncate">{ident.head}&nbsp;</span>}
                   <span className="id-tail shrink-0">{ident.tail}</span>
@@ -498,6 +503,8 @@ function AccountLine({ account, label, renamable }: { account: SerializedAccount
 /** Renaming the only account, in place of its name. Escape or "Abbrechen" leaves it as it was. */
 function RenameForm({ account, onClose }: { account: SerializedAccount; onClose: () => void }) {
   const { vault, renameAccount, toast } = useFints();
+  const t = useT();
+  const words = t.insights.hero;
   const saved = vault?.aliases?.[account.accountNumber] ?? null;
   const [draft, setDraft] = useState(saved ?? '');
   const input = useRef<HTMLInputElement>(null);
@@ -514,7 +521,7 @@ function RenameForm({ account, onClose }: { account: SerializedAccount; onClose:
     const next = aliasFromDraft(account, draft);
     if (next !== saved) {
       renameAccount(account.accountNumber, next);
-      toast('Kontoname gespeichert.', 'success');
+      toast(t.insights.accounts.namesSaved(1), 'success');
     }
     onClose();
   };
@@ -528,12 +535,12 @@ function RenameForm({ account, onClose }: { account: SerializedAccount; onClose:
   };
 
   return (
-    <form onSubmit={save} noValidate aria-label="Konto umbenennen">
+    <form onSubmit={save} noValidate aria-label={words.renameLabel}>
       <Field
-        label="Kontoname"
+        label={words.nameLabel}
         htmlFor={fieldId}
         className="max-w-[400px]"
-        hint="Er wird verschlüsselt auf diesem Rechner gespeichert, deine Bank erfährt davon nichts. Ein leeres Feld zeigt wieder den Namen deiner Bank."
+        hint={words.nameHint}
       >
         {/* Always rendered (only hidden while there is nothing to reset):
             adding it on the first keystroke would wrap the input in a new
@@ -550,7 +557,7 @@ function RenameForm({ account, onClose }: { account: SerializedAccount; onClose:
           onKeyDown={onKeyDown}
           trailing={
             <IconButton
-              aria-label={`Auf „${bankName(account)}“ zurücksetzen`}
+              aria-label={t.insights.resetTo(bankName(account))}
               disabled={!custom}
               className={custom ? undefined : 'invisible'}
               onClick={() => {
@@ -565,8 +572,8 @@ function RenameForm({ account, onClose }: { account: SerializedAccount; onClose:
       </Field>
       {/* After the field, where Tab arrives — the primary action last. */}
       <div className="mt-3 flex justify-end gap-2 sm:justify-start">
-        <Button variant="tertiary" size="sm" onClick={onClose}>Abbrechen</Button>
-        <Button variant="primary" size="sm" type="submit">Speichern</Button>
+        <Button variant="tertiary" size="sm" onClick={onClose}>{t.common.cancel}</Button>
+        <Button variant="primary" size="sm" type="submit">{t.common.save}</Button>
       </div>
     </form>
   );
@@ -582,6 +589,8 @@ function BalanceSection({
   /** A balance is shown above — which stays the bank's own, whatever the history. */
   figure: boolean;
 }) {
+  const t = useT();
+  const words = t.insights.hero;
   if (loading) {
     return (
       <div className="mt-6 border-t border-line pt-5">
@@ -593,14 +602,14 @@ function BalanceSection({
   if (!history) return null;
 
   if (!history.verified || history.points.length < 2) {
-    const reason = history.verified ? 'Der geladene Zeitraum ist zu kurz.' : history.reason;
+    const reason = history.verified ? words.historyTooShort : history.reason;
     return (
       <p className="mt-6 flex border-t border-line pt-5 items-start gap-2 text-[13px] leading-snug text-ink-3">
         <InfoIcon size={16} className="mt-px shrink-0" />
         <span>
-          <span className="font-semibold text-ink-2">Kein Kontoverlauf.</span> {reason}
+          <span className="font-semibold text-ink-2">{words.noHistory}</span> {reason}
           {/* A history that does not add up says nothing against the figure above. */}
-          {!history.verified && figure && ' Der Saldo oben ist der, den deine Bank gemeldet hat.'}
+          {!history.verified && figure && ` ${words.figureStands}`}
         </span>
       </p>
     );
@@ -609,12 +618,12 @@ function BalanceSection({
   return (
     <figure className="mt-6 border-t border-line pt-5">
       <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4">
-        <span className="text-[14px] font-semibold text-ink">Kontoverlauf</span>
+        <span className="text-[14px] font-semibold text-ink">{t.insights.balanceChart.title}</span>
         <span className="tnum text-[13px] text-ink-3">{fmtRange(history.from, history.to)}</span>
       </figcaption>
       <BalanceChart points={history.points} currency={history.currency || currency} />
       <p className="mt-1 text-[12.5px] leading-snug text-ink-3">
-        Tagesendsaldo nach Buchungstag, aus den Umsätzen und Salden deiner Bank nachgerechnet.
+        {words.historyCaption}
       </p>
     </figure>
   );

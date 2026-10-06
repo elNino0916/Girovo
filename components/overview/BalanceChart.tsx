@@ -2,11 +2,13 @@
 
 import { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent, RefObject } from 'react';
+import { fmtDayShort } from '@/lib/analytics';
 import type { BalancePoint } from '@/lib/balance-history';
 import { isCardAccount } from '@/lib/balances';
 import { fmtDate, toLocalDate } from '@/lib/format';
+import { useT } from '@/lib/i18n/react';
 import { FintsContext } from '../FintsProvider';
-import { MASKED_LABEL, usePrivacy, useMoneyText } from '../Money';
+import { maskedLabel, usePrivacy, useMoneyText } from '../Money';
 import { cx } from '../ui';
 
 // The Kontoverlauf, drawn by hand rather than through a chart library: one
@@ -43,19 +45,16 @@ import { cx } from '../ui';
 //   Kontoart alone (lib/balances.ts isCardAccount), as everywhere a balance
 //   is coloured — a "Giro mit Visa" keeps its red overdraft.
 
-const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-
 /** Room for the max label above the plot and the month labels under it. */
 const PAD_TOP = 26;
 const PAD_BOTTOM = 26;
 /** Half a dot, so the dot at the end of the line is not cut by the edge. */
 const PAD_X = 4;
 
+/** "28.09.2026" ("28/09/2026"). */
 const dateOf = (key: string) => fmtDate(toLocalDate(key));
-const shortDate = (key: string) => {
-  const d = toLocalDate(key);
-  return d ? `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.` : '';
-};
+/** "28.09." ("28 Sept"). */
+const shortDate = (key: string) => fmtDayShort(key);
 
 /** Width of the element, kept current. 0 until measured (and on the server). */
 function useWidth<T extends HTMLElement>(): [RefObject<T | null>, number] {
@@ -91,6 +90,9 @@ export function BalanceChart({
   /** Whether the stretch below zero is red — see the exceptions at the top. */
   const redBelowZero = !privacy && !card;
   const money = useMoneyText();
+  // `tr`, not `t`: the pointer's position along the chart is `t` below.
+  const tr = useT();
+  const words = tr.insights.balanceChart;
   const [boxRef, width] = useWidth<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
   // Whether the active day was picked by keyboard: only then does it become
@@ -171,11 +173,11 @@ export function BalanceChart({
       const px = left(i);
       if (px - lastX < 34 || px < 18 || px > width - 18) return;
       lastX = px;
-      months.push({ x: px, label: MONTHS[Number(p.date.slice(5, 7)) - 1] ?? '' });
+      months.push({ x: px, label: tr.insights.monthsShort[Number(p.date.slice(5, 7)) - 1] ?? '' });
     });
 
     return { min, max, minAt, maxAt, left, x, y, zeroY, line, area, months, plotTop, plotBottom };
-  }, [width, height, n, points, privacy, card]);
+  }, [width, height, n, points, privacy, card, tr]);
 
   if (n < 2) return null;
 
@@ -183,22 +185,25 @@ export function BalanceChart({
   // A day, spoken: the slider's value text. In privacy mode the amount is
   // named as hidden rather than read out as a row of mask dots.
   const spoken = (i: number) =>
-    `Kontostand am ${dateOf(points[i].date)}: ${privacy ? MASKED_LABEL : money(points[i].balance, currency)}`;
+    words.spoken(dateOf(points[i].date), privacy ? maskedLabel() : money(points[i].balance, currency));
 
   // The picture, in words — what a sighted reader takes from it at a glance.
   // Read as the slider's description, after its name ("Kontoverlauf").
   const summary = (() => {
-    const range = `Vom ${shortDate(points[0].date)} bis ${dateOf(last.date)}`;
-    if (privacy) return `${range}. Beträge sind ausgeblendet.`;
+    const range = words.range(shortDate(points[0].date), dateOf(last.date));
+    if (privacy) return `${range}. ${words.hidden}`;
     let min = 0;
     let max = 0;
     points.forEach((p, i) => {
       if (p.balance < points[min].balance) min = i;
       if (p.balance > points[max].balance) max = i;
     });
-    return `${range}: niedrigster Stand ${money(points[min].balance, currency)} am ${shortDate(points[min].date)}, `
-      + `höchster Stand ${money(points[max].balance, currency)} am ${shortDate(points[max].date)}, `
-      + `zuletzt ${money(last.balance, currency)}.`;
+    return words.summary(
+      range,
+      money(points[min].balance, currency), shortDate(points[min].date),
+      money(points[max].balance, currency), shortDate(points[max].date),
+      money(last.balance, currency),
+    );
   })();
 
   // The day the slider stands on: the one picked by keyboard, else the latest.
@@ -269,15 +274,15 @@ export function BalanceChart({
   const dipped = !!geo && redBelowZero && geo.min < 0;
   const guides = geo && !privacy
     ? [
-        { key: 'max', y: geo.y(geo.max), at: geo.maxAt, label: `Max. ${money(geo.max, currency)}`, below: false },
+        { key: 'max', y: geo.y(geo.max), at: geo.maxAt, label: words.max(money(geo.max, currency)), below: false },
         ...(Math.abs(geo.y(geo.min) - geo.y(geo.max)) > 18 && (dipped || Math.abs(geo.y(geo.min) - geo.zeroY) > 14)
           ? [{
               key: 'min',
               y: geo.y(geo.min),
               at: geo.minAt,
               label: dipped
-                ? `Min. ${money(geo.min, currency)} am ${shortDate(points[geo.minAt].date)}`
-                : `Min. ${money(geo.min, currency)}`,
+                ? words.minOn(money(geo.min, currency), shortDate(points[geo.minAt].date))
+                : words.min(money(geo.min, currency)),
               below: dipped,
             }]
           : []),
@@ -303,7 +308,7 @@ export function BalanceChart({
       <div
         ref={boxRef}
         role="slider"
-        aria-label="Kontoverlauf"
+        aria-label={words.title}
         aria-describedby={`${summaryId} ${hintId}`}
         aria-orientation="horizontal"
         aria-valuemin={0}
@@ -490,7 +495,7 @@ export function BalanceChart({
             }}
           >
             <span className="tnum block text-[12.5px] leading-tight text-ink-3">
-              Kontostand am {dateOf(points[a.i].date)}
+              {words.on(dateOf(points[a.i].date))}
             </span>
             <span
               className={cx(
@@ -506,7 +511,7 @@ export function BalanceChart({
 
       <span id={summaryId} className="sr-only">{summary}</span>
       <span id={hintId} className="sr-only">
-        Mit den Pfeiltasten wählst du einen Tag, mit Bild auf und Bild ab springst du eine Woche.
+        {words.keys}
       </span>
     </div>
   );

@@ -93,3 +93,31 @@ test('namesakes are told apart by the full name, never by the first word', async
   assert.deepEqual(knownInstitution('The Ridge EU'), { domain: 'ridge.com', label: 'Ridge' });
   assert.equal(knownInstitution('The Ridge'), null);
 });
+
+test('candidates: a branch town at the end is also tried without it', async () => {
+  const { candidates } = await import('./merchant-match.ts');
+  const towns = new Set(['aschaffenburg', 'koblenz']);
+  const cores = (name: string) => candidates(name, undefined, { towns }).map((r) => r.core);
+  assert.deepEqual(cores('Dominos Aschaffenburg'), ['dominos aschaffenburg', 'dominos'], 'the whole name first');
+  assert.deepEqual(cores('DOMINOS PIZZA KOBLENZ'), ['dominos pizza koblenz', 'dominos pizza']);
+  // What is left must still be a name: a kind of business alone is not.
+  assert.deepEqual(cores('Stadtwerke Koblenz'), ['stadtwerke koblenz']);
+  // A town that is the whole name stays the name; without a town list nothing changes.
+  assert.deepEqual(cores('Koblenz'), ['koblenz']);
+  assert.deepEqual(candidates('Dominos Aschaffenburg').map((r) => r.core), ['dominos aschaffenburg']);
+});
+
+test('candidates: a card terminal\'s "SAGT DANKE" is no part of the name', async () => {
+  const { candidates } = await import('./merchant-match.ts');
+  const cores = (name: string) => candidates(name).map((r) => r.core);
+  assert.deepEqual(cores('NORMA SAGT DANKE'), ['norma sagt danke', 'norma']);
+  assert.deepEqual(cores('REWE SAGT DANKE'), ['rewe sagt danke', 'rewe'], 'the whole name, which REWE answers to, first');
+});
+
+test('candidates: the kind of payment is never searched as a shop', async () => {
+  const { candidates } = await import('./merchant-match.ts');
+  assert.deepEqual(candidates('Ratenzahlung'), []);
+  // Behind PayPal with only "Ratenzahlung" as the shop, PayPal is what is left to search.
+  const viaPaypal = candidates('PayPal Europe S.a.r.l. et Cie S.C.A', 'PP.4711.PP . Ratenzahlung, Ihr Einkauf bei Ratenzahlung');
+  assert.ok(!viaPaypal.some((r) => r.core === 'ratenzahlung'), viaPaypal.map((r) => r.core).join(' | '));
+});

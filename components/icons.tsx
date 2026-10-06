@@ -8,6 +8,7 @@
 // machine and cannot be coloured to the theme.
 
 import type { ReactNode, SVGProps } from 'react';
+import type { AvatarId } from '@/lib/avatars';
 import type { CategoryId } from '@/lib/categories';
 
 export type IconProps = Omit<SVGProps<SVGSVGElement>, 'children'> & {
@@ -389,6 +390,16 @@ export function MonitorIcon(p: IconProps) {
   return <Icon {...p}><rect x="3" y="4" width="18" height="12.5" rx="2" /><path d="M8.5 20.5h7M12 16.5v4" /></Icon>;
 }
 
+/** The interface language. */
+export function GlobeIcon(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <circle cx="12" cy="12" r="8.75" />
+      <path d="M3.25 12h17.5M12 3.25c2.4 2.5 3.6 5.4 3.6 8.75s-1.2 6.25-3.6 8.75c-2.4-2.5-3.6-5.4-3.6-8.75S9.6 5.75 12 3.25z" />
+    </Icon>
+  );
+}
+
 export function LogoutIcon(p: IconProps) {
   return <Icon {...p}><path d="M9.5 20.5h-3a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h3M15.5 16.5L20 12l-4.5-4.5M20 12H9.5" /></Icon>;
 }
@@ -635,4 +646,67 @@ const ACCOUNT_ICONS: Record<AccountKind, (p: IconProps) => ReactNode> = {
 export function AccountTypeIcon({ type, product, ...rest }: IconProps & { type: string; product?: string | null }) {
   const Glyph = ACCOUNT_ICONS[accountKind(type, product)];
   return <Glyph {...rest} />;
+}
+
+// ---------------------------------------------------------------------------
+// Profile pictures (lib/avatars.ts): what a user can put on their profile
+// chip instead of their initials. The same grid, stroke and caps as the rest
+// of the family, so a picture sits in the masthead like any other glyph.
+// ---------------------------------------------------------------------------
+
+const AVATAR_GLYPHS: Record<Exclude<AvatarId, 'piggy' | 'star'>, ReactNode> = {
+  cat: (
+    <>
+      <path d="M4.6 10.4V4.8l4.1 2.8c1-.4 2.1-.6 3.3-.6s2.3.2 3.3.6l4.1-2.8v5.6c.9 1.2 1.4 2.5 1.4 3.9 0 3.6-3.9 6.2-8.8 6.2s-8.8-2.6-8.8-6.2c0-1.4.5-2.7 1.4-3.9z" />
+      <circle cx="9" cy="13.4" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="13.4" r="1" fill="currentColor" stroke="none" />
+      <path d="M11.1 16.2h1.8L12 17.2z" fill="currentColor" strokeWidth={1} />
+    </>
+  ),
+  leaf: <path d="M5 19c0-8.6 5-14.1 14.5-14.5C19.5 14 14.5 19 6.5 19H5zM3.5 20.5L13 11" />,
+  flower: (
+    <>
+      <path d="M7.5 5L10 7.5 12 4.5l2 3L16.5 5v5a4.5 4.5 0 0 1-9 0V5zM12 14.5v6.5" />
+      <path d="M12 18.6c-2.5 0-4.2-1.5-4.2-3.7 2.5 0 4.2 1.5 4.2 3.7z" />
+    </>
+  ),
+  mountain: (
+    <>
+      <path d="M2.5 19.5L9.2 7l4.4 8 2.6-4 5.3 8.5h-19zM7.4 10.5l1.4 1.2 1.3-1.1 1.2 1 .8-1.1" />
+      <circle cx="18" cy="5.5" r="1.6" />
+    </>
+  ),
+  wave: (
+    <path d="M3 7.5c1.5-1.2 3-1.2 4.5 0s3 1.2 4.5 0 3-1.2 4.5 0 3 1.2 4.5 0M3 12c1.5-1.2 3-1.2 4.5 0s3 1.2 4.5 0 3-1.2 4.5 0 3 1.2 4.5 0M3 16.5c1.5-1.2 3-1.2 4.5 0s3 1.2 4.5 0 3-1.2 4.5 0 3 1.2 4.5 0" />
+  ),
+  coffee: (
+    <path d="M4.5 10H16v4.5a4.5 4.5 0 0 1-4.5 4.5H9a4.5 4.5 0 0 1-4.5-4.5V10zM16 11.5h1.5a2.25 2.25 0 0 1 0 4.5h-1.9M8.2 3.8c-.7.8-.7 1.7 0 2.5M11.2 3.8c-.7.8-.7 1.7 0 2.5M14.2 3.8c-.7.8-.7 1.7 0 2.5" />
+  ),
+  music: (
+    <>
+      <path d="M9 17.5V5.5l10-2v12" />
+      <circle cx="6.6" cy="17.5" r="2.4" />
+      <circle cx="16.6" cy="15.5" r="2.4" />
+    </>
+  ),
+  rocket: (
+    <>
+      <path d="M12 2.8c3.3 2.1 4.8 5.4 4.8 9.4L15.2 16H8.8l-1.6-3.8c0-4 1.5-7.3 4.8-9.4z" />
+      <circle cx="12" cy="9.3" r="1.7" />
+      <path d="M7.6 12.8L5 15.4v2.8l3.4-1.6M16.4 12.8l2.6 2.6v2.8l-3.4-1.6M10.4 18.6c.3 1.3.8 2.1 1.6 2.7.8-.6 1.3-1.4 1.6-2.7" />
+    </>
+  ),
+  anchor: (
+    <>
+      <circle cx="12" cy="5" r="2" />
+      <path d="M12 7v13.5M8.5 10.5h7M4.5 13.5c0 4 3.4 7 7.5 7s7.5-3 7.5-7M3 15l1.5-1.5L6 15M18 15l1.5-1.5L21 15" />
+    </>
+  ),
+};
+
+/** A profile picture by its id (lib/avatars.ts). */
+export function AvatarGlyph({ id, ...p }: IconProps & { id: AvatarId }) {
+  if (id === 'piggy') return <PiggyIcon {...p} />;
+  if (id === 'star') return <StarIcon {...p} />;
+  return <Icon {...p}>{AVATAR_GLYPHS[id]}</Icon>;
 }

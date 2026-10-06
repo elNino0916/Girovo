@@ -1,9 +1,11 @@
 'use client';
 
 import { useId, useMemo } from 'react';
-import { periodTotals } from '@/lib/analytics';
+import { fmtDayShort, fmtDaySpan, periodTotals } from '@/lib/analytics';
 import type { PeriodTotals } from '@/lib/analytics';
-import { fmtMonth, fmtRange, isoDate, presetRange, toLocalDate } from '@/lib/format';
+import { fmtMonth, fmtRange, isoDate, presetRange } from '@/lib/format';
+import type { Messages } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
 import { comparisonSpan, type ComparisonSpan } from '@/lib/month-summary';
 import { useFints } from '../FintsProvider';
 import { Money, usePrivacy } from '../Money';
@@ -11,20 +13,17 @@ import { ChevronIcon } from '../icons';
 import { Button, DotList, EmptyState, Skeleton, TileHeader } from '../ui';
 
 const NBSP = '\u00a0';
-const pad2 = (n: number) => String(n).padStart(2, '0');
-/** "03.10." */
-const dayMonth = (key: string) => {
-  const d = toLocalDate(key);
-  return d ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.` : '';
-};
+/** "03.10." ("3 Oct"). */
+const dayMonth = (key: string) => fmtDayShort(key);
 const monthName = (key: string) => fmtMonth(key).split(' ')[0];
 
 /** "Im September", "Im September bis 04.09.", "Im September, 03.09.–04.09." */
-function comparisonLabel(span: ComparisonSpan): string {
-  const month = `Im ${monthName(span.from)}`;
-  if (span.wholeMonth) return month;
-  if (span.from.endsWith('-01')) return `${month} bis ${dayMonth(span.to)}`;
-  return `${month}, ${dayMonth(span.from)}–${dayMonth(span.to)}`;
+function comparisonLabel(span: ComparisonSpan, t: Messages): string {
+  const words = t.insights.monthSummary;
+  const month = monthName(span.from);
+  if (span.wholeMonth) return words.inMonth(month);
+  if (span.from.endsWith('-01')) return words.inMonthUntil(month, dayMonth(span.to));
+  return words.inMonthSpan(month, fmtDaySpan(span.from, span.to));
 }
 
 /** First and last day of the month `today` is in. */
@@ -55,6 +54,8 @@ export function MonthSummary() {
     accountLabel, setTab, setAnalysisPeriod,
   } = useFints();
   const titleId = useId();
+  const t = useT();
+  const words = t.insights.monthSummary;
 
   const acct = a?.accountNumber ?? '';
   const info = acct ? statementInfo[acct] : undefined;
@@ -95,14 +96,14 @@ export function MonthSummary() {
     ? data.coverage.complete
       ? null
       : data.coverage.from === month.start
-        ? `bis ${dayMonth(data.coverage.to)}`
-        : `${dayMonth(data.coverage.from)}–${dayMonth(data.coverage.to)}`
+        ? t.insights.period.until(dayMonth(data.coverage.to))
+        : fmtDaySpan(data.coverage.from, data.coverage.to)
     : null;
 
   return (
     <section className="panel min-w-0 overflow-clip" aria-labelledby={titleId} aria-busy={loading || undefined}>
       <TileHeader
-        title="Monatsbilanz"
+        title={words.title}
         titleId={titleId}
         subtitle={
           <span className="tnum">
@@ -118,51 +119,51 @@ export function MonthSummary() {
           <div className="mt-3 flex justify-between"><Skeleton className="h-3.5 w-20 rounded-[4px]" /><Skeleton className="h-3.5 w-24 rounded-[4px]" /></div>
           <Skeleton className="mt-4 h-2.5 w-full rounded-full" />
           <div className="mt-5 flex justify-between"><Skeleton className="h-4 w-20 rounded-[4px]" /><Skeleton className="h-4 w-24 rounded-[4px]" /></div>
-          <span className="sr-only">Umsätze werden geladen</span>
+          <span className="sr-only">{t.insights.bookings.loading}</span>
         </div>
       ) : !a.canStatements ? (
-        <EmptyState compact title="Keine Umsätze für dieses Konto" className="pt-1">
-          Deine Bank bietet für dieses Konto keine Umsatzabfrage über FinTS an.
+        <EmptyState compact title={t.insights.bookings.noneForAccount} className="pt-1">
+          {words.unsupported}
         </EmptyState>
       ) : !info && txErrors[acct] ? (
         // The reason, and the way to try again, stand with the Kontostand and
         // the Umsätze; said a third time here it would only be louder.
-        <EmptyState compact title="Abruf fehlgeschlagen" className="pt-1">
-          Sobald die Umsätze dieses Kontos abgerufen sind, steht hier die Bilanz des Monats.
+        <EmptyState compact title={t.common.fetchFailed} className="pt-1">
+          {words.pending}
         </EmptyState>
       ) : !info || !data ? (
-        <EmptyState compact title="Keine Umsätze geladen" className="pt-1">
-          Sobald die Umsätze dieses Kontos abgerufen sind, steht hier die Bilanz des Monats.
+        <EmptyState compact title={words.notLoaded} className="pt-1">
+          {words.pending}
         </EmptyState>
       ) : !data.coverage || !data.totals ? (
         <EmptyState
           compact
-          title={`${name} ist nicht geladen`}
+          title={words.monthNotLoaded(name)}
           className="pt-1"
           action={
             <>
               {/* The default window: this month and the one before, and the
                   span most banks serve without an extra approval. */}
               <Button size="sm" variant="secondary" disabled={busy} onClick={() => applyRange(presetRange('90d'))}>
-                Bis heute laden
+                {words.loadToToday}
               </Button>
-              <p className="w-full text-[13px] leading-snug text-ink-3">Lädt die letzten 90 Tage. Kann eine Freigabe erfordern.</p>
+              <p className="w-full text-[13px] leading-snug text-ink-3">{words.loadToTodayHint}</p>
             </>
           }
         >
-          Geladen ist der Zeitraum <span className="tnum whitespace-nowrap">{fmtRange(info.from, info.to)}</span>.
+          {rich(words.loaded(<span className="tnum whitespace-nowrap">{fmtRange(info.from, info.to)}</span>))}
         </EmptyState>
       ) : data.totals.count === 0 ? (
-        <EmptyState compact title={`Noch keine Umsätze im ${name}`} className="pt-1">
+        <EmptyState compact title={words.noneYet(name)} className="pt-1">
           {data.totals.excluded > 0
-            ? `Bisher nur ${data.totals.excluded === 1 ? 'eine Umbuchung' : `${data.totals.excluded} Umbuchungen`} zwischen deinen eigenen Konten – die zählen hier nicht mit.`
-            : 'Sobald etwas gebucht ist, siehst du hier, was rein- und rausging.'}
+            ? words.onlyTransfers(data.totals.excluded)
+            : words.empty}
         </EmptyState>
       ) : (
         <Body
           totals={data.totals}
           prevTotals={data.prev?.totals ?? null}
-          prevLabel={data.prev ? comparisonLabel(data.prev.span) : ''}
+          prevLabel={data.prev ? comparisonLabel(data.prev.span, t) : ''}
           accountName={accounts.length > 1 ? accountLabel(a) : null}
         />
       )}
@@ -177,7 +178,7 @@ export function MonthSummary() {
         onClick={() => { setAnalysisPeriod(month.start.slice(0, 7)); setTab('analysis'); }}
         className="row-focus flex w-full items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-left text-[13.5px] font-semibold text-accent hover:bg-accent-soft sm:px-5"
       >
-        Zur Analyse
+        {words.toAnalysis}
         <ChevronIcon dir="right" size={15} />
       </button>
     </section>
@@ -189,11 +190,12 @@ function Body({
 }: { totals: PeriodTotals; prevTotals: PeriodTotals | null; prevLabel: string; accountName: string | null }) {
   const { income, expense, net, currency } = totals;
   const privacy = usePrivacy();
+  const t = useT();
 
   const facts = [
-    totals.count === 1 ? '1 Umsatz' : `${totals.count} Umsätze`,
-    totals.excluded > 0 && `ohne ${totals.excluded === 1 ? '1 Umbuchung' : `${totals.excluded} Umbuchungen`}`,
-    totals.otherCurrency > 0 && `ohne ${totals.otherCurrency} in Fremdwährung`,
+    t.insights.count.bookings(totals.count),
+    totals.excluded > 0 && t.insights.without(t.insights.count.transfers(totals.excluded)),
+    totals.otherCurrency > 0 && t.insights.monthSummary.withoutForeign(totals.otherCurrency),
   ]
     .filter((part): part is string => !!part)
     // Each fact wraps as a whole — "ohne 1 / Umbuchung" across two lines
@@ -207,7 +209,7 @@ function Body({
         <div className="flex items-baseline justify-between gap-3">
           <dt className="flex items-center gap-2 text-[14px] text-ink-2">
             <span aria-hidden className="size-2.5 shrink-0 rounded-[3px] bg-chart-in" />
-            Einnahmen
+            {t.insights.income}
           </dt>
           <dd className="text-[15px] font-semibold text-ink">
             <Money value={income} currency={currency} tone="plain" />
@@ -216,7 +218,7 @@ function Body({
         <div className="flex items-baseline justify-between gap-3">
           <dt className="flex items-center gap-2 text-[14px] text-ink-2">
             <span aria-hidden className="size-2.5 shrink-0 rounded-[3px] bg-chart-out" />
-            Ausgaben
+            {t.common.booking.spending}
           </dt>
           <dd className="text-[15px] font-semibold text-ink">
             <Money value={expense} currency={currency} tone="plain" />
@@ -236,7 +238,7 @@ function Body({
       )}
 
       <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-line pt-3.5">
-        <span className="text-[14px] font-semibold text-ink">Differenz</span>
+        <span className="text-[14px] font-semibold text-ink">{t.common.booking.difference}</span>
         <Money value={net} currency={currency} signed tone="credit" className="text-[20px] font-bold" />
       </div>
 
@@ -249,7 +251,7 @@ function Body({
 
       {/* Wrapping between whole facts, with no dot left hanging at a line's end. */}
       <p className="tnum mt-3 text-[12.5px] leading-snug text-ink-3">
-        <DotList items={basis.map((part, i) => (i === 0 ? `Basis: ${part}` : part))} />
+        <DotList items={basis.map((part, i) => (i === 0 ? t.insights.basis(part) : part))} />
       </p>
     </div>
   );

@@ -10,6 +10,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { TransferTemplate } from '@/lib/app-types';
 import { fmtShortIban, parseAmount } from '@/lib/format';
+import { msgs, type Messages } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ChevronIcon, PencilIcon, StarIcon, TrashIcon, UndoIcon } from '../icons';
 import { useMoneyText } from '../Money';
@@ -36,8 +38,9 @@ function useTemplateLine() {
 
 /** Why there are no templates to offer right now, or null when there may be. */
 export function vaultNote(status: string): string | null {
-  if (status === 'idle' || status === 'loading') return 'Vorlagen werden geladen …';
-  if (status === 'error' || status === 'unavailable') return 'Vorlagen sind gerade nicht verfügbar, weil dein verschlüsselter Speicher nicht geladen werden konnte.';
+  const words = msgs().transfer.templates;
+  if (status === 'idle' || status === 'loading') return words.loading;
+  if (status === 'error' || status === 'unavailable') return words.unavailable;
   return null;
 }
 
@@ -48,6 +51,7 @@ export function vaultNote(status: string): string | null {
  */
 export function TemplatesMenu({ onPick, onManage }: { onPick: (t: TransferTemplate) => void; onManage: () => void }) {
   const { vault, vaultStatus } = useFints();
+  const words = useT().transfer.templates;
   const line = useTemplateLine();
   const templates = useMemo(() => sortTemplates(vault?.templates ?? []), [vault?.templates]);
   const note = vaultNote(vaultStatus);
@@ -57,7 +61,7 @@ export function TemplatesMenu({ onPick, onManage }: { onPick: (t: TransferTempla
       <Menu
         placement="bottom-end"
         minWidth={280}
-        label="Vorlagen"
+        label={words.menu}
         trigger={(p, { open }) => (
           <Button
             {...p}
@@ -67,13 +71,13 @@ export function TemplatesMenu({ onPick, onManage }: { onPick: (t: TransferTempla
             iconLeft={<StarIcon size={16} />}
             iconRight={<ChevronIcon size={14} strokeWidth={2.2} className={cx('transition-transform duration-150', open && 'rotate-180')} />}
           >
-            Vorlagen{templates.length ? <span className="tnum font-semibold text-ink-3"> {templates.length}</span> : null}
+            {words.menu}{templates.length ? <span className="tnum font-semibold text-ink-3"> {templates.length}</span> : null}
           </Button>
         )}
       >
         {templates.length > 0 ? (
           <>
-            <MenuLabel>Vorlage verwenden</MenuLabel>
+            <MenuLabel>{words.use}</MenuLabel>
             {templates.map((t) => (
               <MenuItem key={t.id} onSelect={() => onPick(t)} description={line(t)}>
                 <span className="font-semibold">{t.label}</span>
@@ -83,11 +87,11 @@ export function TemplatesMenu({ onPick, onManage }: { onPick: (t: TransferTempla
           </>
         ) : (
           <p className="max-w-[300px] px-3 pt-2 pb-2.5 text-[13.5px] leading-snug text-ink-3">
-            {note ?? 'Noch keine Vorlagen. Ist eine Überweisung ausgeführt, kannst du den Empfänger als Vorlage speichern.'}
+            {note ?? `${words.noneYet} ${words.howToSave}`}
           </p>
         )}
         <MenuItem icon={<PencilIcon size={17} />} onSelect={onManage} disabled={!vault}>
-          Vorlagen verwalten …
+          {words.manage}
         </MenuItem>
       </Menu>
     </>
@@ -99,12 +103,15 @@ type Refocus = { id: string; control: 'rename' | 'delete' } | 'done';
 
 export function ManageTemplates({ onClose }: { onClose: () => void }) {
   const { vault, vaultStatus, updateVault, deleteTemplate } = useFints();
+  const tr = useT();
+  const words = tr.transfer.templates;
   const templates = useMemo(() => sortTemplates(vault?.templates ?? []), [vault?.templates]);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   /** Deleted while this dialog is open, newest first — each can be put back from here. */
   const [removed, setRemoved] = useState<TransferTemplate[]>([]);
-  const [live, setLive] = useState('');
+  /** The last announcement — how to say it, worded in the language on screen when it is shown. */
+  const [live, setLive] = useState<{ say: (m: Messages) => string } | null>(null);
   const line = useTemplateLine();
   const listRef = useRef<HTMLUListElement>(null);
   const doneRef = useRef<HTMLButtonElement>(null);
@@ -134,7 +141,7 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
     endRename(t);
     if (!label || label === t.label) return;
     updateVault((v) => ({ ...v, templates: v.templates.map((x) => (x.id === t.id ? { ...x, label } : x)) }));
-    setLive(`Vorlage in „${label}“ umbenannt.`);
+    setLive({ say: (m) => m.transfer.templates.renamed(label) });
   };
 
   // Deleting is one click, so it is undoable rather than confirmed — and the
@@ -146,7 +153,7 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
     refocus.current = neighbour ? { id: neighbour.id, control: 'delete' } : 'done';
     deleteTemplate(t.id);
     setRemoved((r) => [t, ...r.filter((x) => x.id !== t.id)]);
-    setLive(`Vorlage „${t.label}“ gelöscht.`);
+    setLive({ say: (m) => m.transfer.templates.deleted(t.label) });
   };
 
   const undo = () => {
@@ -155,7 +162,7 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
     refocus.current = { id: t.id, control: 'delete' };
     updateVault((v) => (v.templates.some((x) => x.id === t.id) ? v : { ...v, templates: [t, ...v.templates] }));
     setRemoved(rest);
-    setLive(`Vorlage „${t.label}“ wiederhergestellt.`);
+    setLive({ say: (m) => m.transfer.templates.restored(t.label) });
   };
 
   const lastRemoved = removed[0];
@@ -165,37 +172,37 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
       open
       onClose={onClose}
       size="md"
-      title="Vorlagen verwalten"
-      description="Vorlagen werden verschlüsselt gespeichert und sind nur nach deiner Anmeldung lesbar."
+      title={words.manageTitle}
+      description={words.manageDescription}
       initialFocus={doneRef}
-      actions={<Button ref={doneRef} variant="primary" onClick={onClose}>Fertig</Button>}
+      actions={<Button ref={doneRef} variant="primary" onClick={onClose}>{tr.common.done}</Button>}
     >
-      <p className="sr-only" aria-live="polite" aria-atomic="true">{live}</p>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{live?.say(tr)}</p>
       {vaultStatus !== 'ready' && (
         <Alert tone="warn" className="mb-4">
-          Änderungen werden gerade nicht gespeichert, weil dein verschlüsselter Speicher nicht verfügbar ist.
+          {words.notSaving}
         </Alert>
       )}
       {lastRemoved && (
         <div className="mb-3 flex min-h-12 items-center gap-3 rounded-[var(--radius-chip)] bg-inset py-1.5 pr-1.5 pl-4">
           <TrashIcon size={17} className="shrink-0 text-ink-3" />
           <p className="min-w-0 flex-1 text-[14px] leading-snug break-words text-ink">
-            Vorlage „{lastRemoved.label}“ gelöscht.
+            {words.deleted(lastRemoved.label)}
           </p>
           <Button
             size="sm"
             variant="tertiary"
             iconLeft={<UndoIcon size={16} />}
-            aria-label={`Rückgängig – „${lastRemoved.label}“ wiederherstellen`}
+            aria-label={words.undoLabel(lastRemoved.label)}
             onClick={undo}
           >
-            Rückgängig
+            {words.undo}
           </Button>
         </div>
       )}
       {templates.length === 0 ? (
-        <EmptyState compact icon={<StarIcon size={22} />} title="Keine Vorlagen">
-          Ist eine Überweisung ausgeführt, kannst du den Empfänger als Vorlage speichern.
+        <EmptyState compact icon={<StarIcon size={22} />} title={words.none}>
+          {words.howToSave}
         </EmptyState>
       ) : (
         <ul ref={listRef} className="-mx-2 divide-y divide-line">
@@ -205,7 +212,7 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
                 <div className="flex flex-1 items-center gap-2">
                   <Input
                     autoFocus
-                    aria-label={`Neuer Name für „${t.label}“`}
+                    aria-label={words.newName(t.label)}
                     value={draft}
                     maxLength={60}
                     onChange={(e) => setDraft(e.target.value)}
@@ -216,7 +223,7 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
                     }}
                     className="h-10"
                   />
-                  <Button size="sm" variant="primary" onClick={() => commitRename(t)}>Speichern</Button>
+                  <Button size="sm" variant="primary" onClick={() => commitRename(t)}>{tr.common.save}</Button>
                 </div>
               ) : (
                 <>
@@ -224,10 +231,10 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
                     <p className="truncate text-[15px] font-semibold text-ink">{t.label}</p>
                     <p className="truncate text-[13px] text-ink-3">{line(t)}</p>
                   </div>
-                  <IconButton aria-label={`„${t.label}“ umbenennen`} data-tpl-rename={t.id} onClick={() => startRename(t)}>
+                  <IconButton aria-label={words.rename(t.label)} data-tpl-rename={t.id} onClick={() => startRename(t)}>
                     <PencilIcon size={17} />
                   </IconButton>
-                  <IconButton aria-label={`„${t.label}“ löschen`} data-tpl-delete={t.id} onClick={() => remove(t)}>
+                  <IconButton aria-label={words.remove(t.label)} data-tpl-delete={t.id} onClick={() => remove(t)}>
                     <TrashIcon size={17} />
                   </IconButton>
                 </>
@@ -251,6 +258,7 @@ const clipLabel = (s: string) => [...s.replace(/\s+/g, ' ').trim()].slice(0, LAB
  */
 export function SaveAsTemplate({ payee }: { payee: Omit<TransferTemplate, 'id' | 'label' | 'createdAt' | 'lastUsedAt'> }) {
   const { vault, vaultStatus, saveTemplate } = useFints();
+  const words = useT().transfer.templates;
   const [label, setLabel] = useState(() => clipLabel(payee.name));
   const [saved, setSaved] = useState<string | null>(null);
   const savedRef = useRef<HTMLParagraphElement>(null);
@@ -274,7 +282,7 @@ export function SaveAsTemplate({ payee }: { payee: Omit<TransferTemplate, 'id' |
     return (
       <p ref={savedRef} tabIndex={-1} className="flex items-center gap-2 text-[14px] text-ink-2 outline-none">
         <StarIcon size={16} className="shrink-0 text-ink-3" />
-        {saved ? <>Als Vorlage „{done}“ gespeichert.</> : <>Schon als Vorlage „{done}“ gespeichert.</>}
+        {saved ? words.saved(done) : words.alreadySaved(done)}
       </p>
     );
   }
@@ -282,14 +290,14 @@ export function SaveAsTemplate({ payee }: { payee: Omit<TransferTemplate, 'id' |
   return (
     <form onSubmit={save} noValidate>
       <Field
-        label="Name der Vorlage"
+        label={words.nameLabel}
         htmlFor="tf-tpl"
         className="mb-0"
-        hint="Empfänger, IBAN, Betrag und Verwendungszweck – verschlüsselt auf diesem Rechner."
+        hint={words.saveHint}
       >
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input id="tf-tpl" value={label} maxLength={LABEL_MAX} autoComplete="off" onChange={(e) => setLabel(e.target.value)} />
-          <Button type="submit" iconLeft={<StarIcon size={16} />}>Als Vorlage speichern</Button>
+          <Button type="submit" iconLeft={<StarIcon size={16} />}>{words.save}</Button>
         </div>
       </Field>
     </form>

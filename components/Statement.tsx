@@ -23,11 +23,18 @@
 //
 // The footer says plainly that the document was generated here, seals it with
 // a SHA-256 over the exact data on the page, and names the generator.
+//
+// The sheet's own words follow the interface language (lib/i18n), and so do
+// its figures and dates (lib/format.ts); the bank's words never do. The seal
+// covers the data only, so the same bookings give the same reference in
+// either language.
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { isCardAccount } from '@/lib/balances';
 import { txBic } from '@/lib/categories';
 import { dayKey, fmtDate, fmtDecimal, fmtIban, ibanCountry, translateType } from '@/lib/format';
+import { intlLocale, msgs } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
 import {
   bankLine, bookingReferences, bookingState, creditLine, cssString, fmtBalance, fmtBlz, fmtMovement, paperText,
   statementLedger, statementNumberRange, statementPeriod,
@@ -72,7 +79,7 @@ export function Statement() {
             .then((result) => {
               if (result.ok) trackUsage('export_created', { format: 'pdf', kind: printJob.kind });
               if (!result.ok && 'error' in result) {
-                toast(`PDF konnte nicht gespeichert werden: ${result.error}`, 'error');
+                toast(msgs().transactions.doc.pdfFailed(result.error), 'error');
               }
             })
             .finally(() => {
@@ -186,7 +193,8 @@ function marksSettled(root: HTMLElement | null): Promise<void> {
 
 /** The desktop save dialog's default filename — kept short and filesystem-safe. */
 function suggestedFileName(job: PrintJob, stamp: DocStamp): string {
-  const base = job.kind === 'statement' ? 'Kontoauszug' : 'Buchungsbeleg';
+  const { doc } = msgs().transactions;
+  const base = job.kind === 'statement' ? doc.statementFile : doc.receiptFile;
   return `${base}_${stamp.docId}.pdf`;
 }
 
@@ -270,13 +278,13 @@ async function sealDocument(job: PrintJob): Promise<DocStamp> {
   return { docId: `SK-${day}-${sha ? sha.slice(0, 8).toUpperCase() : fnv1a(payload)}`, sha, created };
 }
 
-/** "04.10.2026, 14:32 Uhr (MESZ)" — a timestamp that says which clock it is on. */
+/** "04.10.2026, 14:32 Uhr (MESZ)" ("04/10/2026, 14:32 (CEST)") — a timestamp that says which clock it is on. */
 function fmtCreated(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  const zone = new Intl.DateTimeFormat('de-DE', { timeZoneName: 'short' })
+  const zone = new Intl.DateTimeFormat(intlLocale(), { timeZoneName: 'short' })
     .formatToParts(d)
     .find((part) => part.type === 'timeZoneName')?.value;
-  return `${fmtDate(d)}, ${pad(d.getHours())}:${pad(d.getMinutes())} Uhr${zone ? ` (${zone})` : ''}`;
+  return msgs().transactions.doc.created(fmtDate(d), `${pad(d.getHours())}:${pad(d.getMinutes())}`, zone);
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +303,7 @@ function fmtCreated(d: Date): string {
  * without margin boxes) the page simply carries no marks.
  */
 function PageMarks({ left, right }: { left: string; right: string }) {
+  const tr = useT();
   const ref = useRef<HTMLStyleElement>(null);
   const [family, setFamily] = useState('');
   useLayoutEffect(() => {
@@ -302,9 +311,14 @@ function PageMarks({ left, right }: { left: string; right: string }) {
     if (host) setFamily(getComputedStyle(host).fontFamily);
   }, []);
   const box = `${family ? `font-family: ${family};` : ''} font-size: 8pt; color: #5f6b78;`;
+  // "Seite 2 von 3": the words as CSS strings, the numbers as the printer's own counters.
+  const pageOf = tr.transactions.doc
+    .pageOf({ counter: 'page' }, { counter: 'pages' })
+    .map((part) => (typeof part === 'string' ? cssString(part) : `counter(${part.counter})`))
+    .join(' ');
   const css =
     `@page { @bottom-left { content: ${cssString(left)}; ${box} }` +
-    ` @bottom-right { content: ${cssString(`${right} · Seite `)} counter(page) " von " counter(pages); ${box} } }`;
+    ` @bottom-right { content: ${cssString(`${right} · `)} ${pageOf}; ${box} } }`;
   return <style ref={ref}>{css}</style>;
 }
 
@@ -398,18 +412,19 @@ function BankMark({ bank, logoFile }: { bank: ChosenBank | null; logoFile?: stri
 function Letterhead({
   bank, title, info,
 }: { bank: ChosenBank | null; title: string; info: [string, ReactNode, Cast?][] }) {
+  const { doc } = useT().transactions;
   const logoFile = useLogoFile(bank?.brand);
   const codes = [
     bank?.bic ? ['BIC', bank.bic] : null,
-    bank?.blz ? ['BLZ', fmtBlz(bank.blz)] : null,
+    bank?.blz ? [doc.blz, fmtBlz(bank.blz)] : null,
   ].filter((c): c is [string, string] => !!c);
   return (
     <header className="doc-head keep">
       <div className="flex min-w-0 items-start gap-[var(--s-5)]">
         <BankMark bank={bank} logoFile={logoFile} />
         <div className="min-w-0">
-          <p className="doc-lead">{bank?.name || 'Bank'}</p>
-          <p className="doc-small doc-soft mt-[var(--s-1)]">Kontoführendes Institut</p>
+          <p className="doc-lead">{bank?.name || doc.bank}</p>
+          <p className="doc-small doc-soft mt-[var(--s-1)]">{doc.institution}</p>
           {codes.length > 0 && (
             <Facts
               className="doc-small doc-soft"
@@ -465,6 +480,7 @@ function EndMarker({ label }: { label: string }) {
  * every sheet ends on says the bank did not issue it.
  */
 function SheetFooter({ stamp, notes }: { stamp: DocStamp; notes: string[] }) {
+  const { doc } = useT().transactions;
   const generator = [APP_NAME, APP_VERSION].filter(Boolean).join(' ');
   return (
     <footer className="doc-foot doc-small doc-quiet keep">
@@ -472,16 +488,13 @@ function SheetFooter({ stamp, notes }: { stamp: DocStamp; notes: string[] }) {
         {notes.map((note) => (
           <p key={note}>{note}</p>
         ))}
-        <p>
-          Erstellt mit {generator} aus den Daten, die die Bank per FinTS übermittelt hat. Die Bank hat dieses
-          Dokument nicht ausgestellt; maßgeblich sind ihre eigenen Kontoauszüge.
-        </p>
+        <p>{doc.generatedBy(generator)}</p>
       </div>
 
       {stamp.sha && (
         <p className="mt-[var(--s-3)] flex gap-[var(--s-4)]">
           {/* Over the data the sheet prints (see canonical), not over the PDF's bytes. */}
-          <span className="shrink-0">Prüfsumme (SHA-256)</span>
+          <span className="shrink-0">{doc.checksum}</span>
           {/* Grouped in eights so a reader can compare it against another copy
               without losing their place, and free to wrap at those seams. */}
           <span className="doc-mono">{(stamp.sha.toUpperCase().match(/.{1,8}/g) || []).join(' ')}</span>
@@ -506,10 +519,9 @@ function oldestFirst(txs: readonly SerializedTransaction[]): SerializedTransacti
     .map((x) => x.tx);
 }
 
-const AHEAD_NOTE =
-  '„Noch nicht gebucht“: Die Bank hat den Umsatz bereits gemeldet, sein Buchungstag liegt aber nach dem Erstellungsdatum.';
-
 function StatementSheet({ job, stamp }: { job: StatementJob; stamp: DocStamp }) {
+  const tr = useT();
+  const doc = tr.transactions.doc;
   const { account, bank, balance, transactions } = job;
   const currency = balance?.currency || account.currency || 'EUR';
   const rows = oldestFirst(transactions);
@@ -525,33 +537,29 @@ function StatementSheet({ job, stamp }: { job: StatementJob; stamp: DocStamp }) 
   const stmtNo = statementNumberRange(rows);
   const iban = fmtIban(account.iban);
   // A card by its Kontoart is a card on paper, as on screen (its line below is a Kreditrahmen).
-  const kind = isCardAccount(account) ? 'Kreditkarte' : translateType(account.accountType);
+  const kind = isCardAccount(account) ? tr.transactions.card.creditCard : translateType(account.accountType);
 
   const notes = [
-    states.includes('ahead') ? AHEAD_NOTE : '',
-    ledger.opening?.source === 'derived'
-      ? 'Alter Kontostand errechnet: neuer Kontostand abzüglich der Umsätze, die er enthält. Einen Anfangssaldo hat die Bank nicht gemeldet.'
-      : '',
-    ledger.closing?.source === 'derived'
-      ? 'Neuer Kontostand errechnet: alter Kontostand zuzüglich der Umsätze dieses Auszugs. Einen Endsaldo hat die Bank nicht gemeldet.'
-      : '',
-    'Vorgemerkte Umsätze sind nicht enthalten: Die Bank hat sie noch nicht gebucht.',
+    states.includes('ahead') ? doc.aheadNote : '',
+    ledger.opening?.source === 'derived' ? doc.openingDerived : '',
+    ledger.closing?.source === 'derived' ? doc.closingDerived : '',
+    doc.noPending,
   ].filter(Boolean);
 
   return (
     <article>
       <PageMarks
-        left={['Kontoauszug', iban || account.accountNumber, periodText].filter(Boolean).join(' · ')}
+        left={[doc.statement, iban || account.accountNumber, periodText].filter(Boolean).join(' · ')}
         right={stamp.docId}
       />
       <Letterhead
         bank={bank}
-        title="Kontoauszug"
+        title={doc.statement}
         info={[
-          ['Zeitraum', periodText, 'fig'],
-          ...(stmtNo ? [['Auszug-Nr.', stmtNo, 'fig'] as [string, string, Cast]] : []),
-          ['Erstellt', fmtCreated(stamp.created), 'fig'],
-          ['Dokument', stamp.docId, 'mono'],
+          [doc.period, periodText, 'fig'],
+          ...(stmtNo ? [[tr.transactions.refs.statementNo, stmtNo, 'fig'] as [string, string, Cast]] : []),
+          [doc.createdLabel, fmtCreated(stamp.created), 'fig'],
+          [doc.document, stamp.docId, 'mono'],
         ]}
       />
 
@@ -559,36 +567,36 @@ function StatementSheet({ job, stamp }: { job: StatementJob; stamp: DocStamp }) 
       <section className="doc-columns keep mt-[var(--s-5)]">
         <Pairs
           rows={[
-            { label: 'Kontoinhaber', value: <span className="doc-strong">{bankLine(account.holder) || '—'}</span> },
-            { label: 'Konto', value: [kind, account.product].filter((v, i, all) => v && all.indexOf(v) === i).join(' · ') },
+            { label: doc.holder, value: <span className="doc-strong">{bankLine(account.holder) || '—'}</span> },
+            { label: tr.common.account.account, value: [kind, account.product].filter((v, i, all) => v && all.indexOf(v) === i).join(' · ') },
           ]}
         />
         <Pairs
           rail="auto"
           rows={[
             ...(iban ? [{ label: 'IBAN', value: iban, cast: 'iban' } satisfies Pair] : []),
-            { label: 'Kontonummer', value: account.accountNumber, cast: 'mono' },
+            { label: doc.accountNumber, value: account.accountNumber, cast: 'mono' },
           ]}
         />
       </section>
 
       <section className="doc-block doc-block-table">
-        <h2 className="doc-section keep-next">Umsätze</h2>
+        <h2 className="doc-section keep-next">{tr.common.booking.transactions}</h2>
         <table className="doc-table">
           <thead>
             {/* Repeats on every printed page; the page margin names the account. */}
             <tr>
-              <th scope="col" className="doc-col-date">Buchungstag</th>
-              <th scope="col" className="doc-col-date">Wertstellung</th>
-              <th scope="col" className="doc-col-text">Vorgang</th>
-              <th scope="col" className="doc-col-amount">Betrag{ledger.mixed ? '' : ` in ${currency}`}</th>
+              <th scope="col" className="doc-col-date">{tr.transactions.entryDate}</th>
+              <th scope="col" className="doc-col-date">{tr.transactions.valueDate}</th>
+              <th scope="col" className="doc-col-text">{doc.details}</th>
+              <th scope="col" className="doc-col-amount">{ledger.mixed ? tr.common.booking.amount : doc.amountIn(currency)}</th>
             </tr>
           </thead>
           <tbody>
-            {ledger.opening && <BalanceRow label="Alter Kontostand" figure={ledger.opening} />}
+            {ledger.opening && <BalanceRow label={doc.opening} figure={ledger.opening} />}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="doc-quiet py-[var(--s-7)] text-center">Keine Umsätze in diesem Zeitraum.</td>
+                <td colSpan={4} className="doc-quiet py-[var(--s-7)] text-center">{doc.empty}</td>
               </tr>
             )}
             {rows.map((t, i) => (
@@ -600,7 +608,7 @@ function StatementSheet({ job, stamp }: { job: StatementJob; stamp: DocStamp }) 
 
       <Totals ledger={ledger} currency={currency} balance={balance} account={account} />
 
-      <EndMarker label={`Ende des Kontoauszugs · ${endCount(rows.length, ledger.outstanding?.count ?? 0)}`} />
+      <EndMarker label={doc.statementEnd(endCount(rows.length, ledger.outstanding?.count ?? 0))} />
       <SheetFooter stamp={stamp} notes={notes} />
     </article>
   );
@@ -612,20 +620,17 @@ function StatementSheet({ job, stamp }: { job: StatementJob; stamp: DocStamp }) 
  * adds Gutschriften and Belastungen finds the same number.
  */
 function endCount(rows: number, outstanding: number): string {
-  const counted = rows - outstanding;
-  const head = counted === 1 ? '1 Umsatz' : `${counted} Umsätze`;
-  if (!outstanding) return head;
-  return `${head}, dazu ${outstanding} noch nicht ${outstanding === 1 ? 'enthaltener' : 'enthaltene'}`;
+  return msgs().transactions.doc.endCount(rows - outstanding, outstanding);
 }
 
 /** "Alter Kontostand am 05.07.2026" — the ledger's first line, in the amount column. */
 function BalanceRow({ label, figure }: { label: string; figure: LedgerFigure }) {
+  const { doc } = useT().transactions;
   return (
     <tr className="doc-row-balance keep-next">
       <td colSpan={3} className="doc-col-text">
-        {label}
-        {figure.date && <> am <span className="doc-fig">{fmtDate(figure.date)}</span></>}
-        {figure.source === 'derived' && <span className="doc-soft font-normal"> (errechnet)</span>}
+        {figure.date ? rich(doc.balanceOn(label, <span className="doc-fig">{fmtDate(figure.date)}</span>)) : label}
+        {figure.source === 'derived' && <span className="doc-soft font-normal"> {doc.derived}</span>}
       </td>
       <td className="doc-col-amount doc-fig">{fmtBalance(figure.amount)}</td>
     </tr>
@@ -637,26 +642,29 @@ function BalanceRow({ label, figure }: { label: string; figure: LedgerFigure }) 
  * first, because with the mandate it is what identifies a direct debit. A
  * reference the purpose already prints (an order number) is not repeated.
  */
-const ROW_REFS: { key: DocRef['key']; label: string }[] = [
-  { key: 'cred', label: 'Gläubiger-ID' },
-  { key: 'mref', label: 'Mandatsref.' },
-  { key: 'eref', label: 'End-to-End-Ref.' },
-];
+const ROW_REFS = ['cred', 'mref', 'eref'] as const satisfies readonly DocRef['key'][];
 
 function BookingRow({ tx, state, mixed }: { tx: SerializedTransaction; state: BookingState; mixed: boolean }) {
+  const tr = useT();
+  const doc = tr.transactions.doc;
   const text = paperText(tx);
   const refs = bookingReferences(tx, text.parsed);
   const prose = text.purposeLines.join(' ');
   const credit = Math.round(tx.amount * 100) > 0;
   const iban = fmtIban(tx.remoteIban);
+  const refLabel: Record<(typeof ROW_REFS)[number], string> = {
+    cred: tr.common.booking.creditorId,
+    mref: doc.mandateShort,
+    eref: doc.e2eShort,
+  };
 
   const meta: ReactNode[] = [];
-  if (text.via) meta.push(`über ${text.via}`);
+  if (text.via) meta.push(tr.transactions.via(text.via));
   if (iban) meta.push(<span className="doc-mono doc-iban">{iban}</span>);
-  for (const { key, label } of ROW_REFS) {
+  for (const key of ROW_REFS) {
     const ref = refs.find((r) => r.key === key);
     if (ref && !prose.includes(ref.value)) {
-      meta.push(<><span className="whitespace-nowrap">{label}</span>{NBSP}<span className="doc-mono doc-ref">{ref.value}</span></>);
+      meta.push(<><span className="whitespace-nowrap">{refLabel[key]}</span>{NBSP}<span className="doc-mono doc-ref">{ref.value}</span></>);
     }
   }
 
@@ -664,16 +672,16 @@ function BookingRow({ tx, state, mixed }: { tx: SerializedTransaction; state: Bo
     <tr>
       <td className="doc-col-date">
         <span className="doc-fig">{fmtDate(tx.entryDate || tx.valueDate)}</span>
-        {state === 'ahead' && <span className="doc-small doc-soft block">noch nicht gebucht</span>}
+        {state === 'ahead' && <span className="doc-small doc-soft block">{tr.transactions.state.ahead}</span>}
       </td>
       <td className="doc-col-date doc-fig">{fmtDate(tx.valueDate)}</td>
       <td className="doc-col-text">
         {/* Who, then what kind of booking — on one line. */}
         <p>
-          <span className="doc-strong">{text.name || text.bookingText || 'Buchung'}</span>
+          <span className="doc-strong">{text.name || text.bookingText || tr.transactions.fallbackName}</span>
           {text.name && text.bookingText && <span className="doc-kind">{text.bookingText}</span>}
         </p>
-        {text.bankName && <p className="doc-small doc-soft">Name laut Bank: {text.bankName}</p>}
+        {text.bankName && <p className="doc-small doc-soft">{doc.bankNameLine(text.bankName)}</p>}
         {text.purposeLines.map((line, n) => (
           <p key={n} className="doc-soft">{line}</p>
         ))}
@@ -698,25 +706,25 @@ function BookingRow({ tx, state, mixed }: { tx: SerializedTransaction; state: Bo
 function Totals({
   ledger, currency, balance, account,
 }: { ledger: StatementLedger; currency: string; balance: SerializedBalance | null; account: SerializedAccount }) {
-  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const { doc } = useT().transactions;
   const limit = creditLine(balance?.creditLimit, account.accountType);
   const qualifiers = [
-    balance?.availableAmount != null ? `Verfügbar ${balanceText(balance.availableAmount, balance.currency)}` : '',
+    balance?.availableAmount != null ? doc.available(balanceText(balance.availableAmount, balance.currency)) : '',
     limit && balance ? `${limit.label} ${balanceText(limit.amount, balance.currency)}` : '',
   ].filter(Boolean);
 
   return (
-    <section className="doc-totals keep" aria-label="Summen und Kontostand">
+    <section className="doc-totals keep" aria-label={doc.totals}>
       {ledger.mixed ? (
-        <p className="doc-small doc-soft">Die Umsätze sind in mehreren Währungen geführt und werden nicht addiert.</p>
+        <p className="doc-small doc-soft">{doc.mixed}</p>
       ) : (
         <>
           <div className="doc-totals-row">
-            <span className="doc-soft"><span className="doc-fig">{count(ledger.credits.count, 'Gutschrift', 'Gutschriften')}</span></span>
+            <span className="doc-soft"><span className="doc-fig">{doc.credits(ledger.credits.count)}</span></span>
             <span className={`doc-fig doc-strong ${ledger.credits.count ? 'doc-credit' : ''}`}>{fmtMovement(ledger.credits.sum)}</span>
           </div>
           <div className="doc-totals-row">
-            <span className="doc-soft"><span className="doc-fig">{count(ledger.debits.count, 'Belastung', 'Belastungen')}</span></span>
+            <span className="doc-soft"><span className="doc-fig">{doc.debits(ledger.debits.count)}</span></span>
             <span className="doc-fig doc-strong">{fmtMovement(ledger.debits.sum)}</span>
           </div>
         </>
@@ -726,28 +734,30 @@ function Totals({
           Summenstrich a reader of any German statement knows. */}
       <div className="doc-totals-row doc-total-final">
         <span className="doc-strong">
-          Neuer Kontostand
-          {ledger.closing?.date && <> am <span className="doc-fig">{fmtDate(ledger.closing.date)}</span></>}
-          {ledger.closing?.source === 'derived' && <span className="doc-soft font-normal"> (errechnet)</span>}
+          {ledger.closing?.date
+            ? rich(doc.balanceOn(doc.closing, <span className="doc-fig">{fmtDate(ledger.closing.date)}</span>))
+            : doc.closing}
+          {ledger.closing?.source === 'derived' && <span className="doc-soft font-normal"> {doc.derived}</span>}
         </span>
         <span className="doc-lead doc-fig font-bold">
-          {ledger.closing ? balanceText(ledger.closing.amount, currency) : 'nicht gemeldet'}
+          {ledger.closing ? balanceText(ledger.closing.amount, currency) : doc.notReported}
         </span>
       </div>
 
       {ledger.outstanding && (
         <div className="doc-totals-row doc-small doc-soft">
           <span>
-            Noch nicht enthalten: {ledger.outstanding.count === 1 ? '1 Umsatz vom' : `${ledger.outstanding.count} Umsätze ab`}{' '}
-            <span className="doc-fig">{fmtDate(ledger.outstanding.firstDay)}</span>
+            {rich(doc.notIncluded(
+              ledger.outstanding.count,
+              <span className="doc-fig">{fmtDate(ledger.outstanding.firstDay)}</span>,
+            ))}
           </span>
           <span className="doc-fig">{fmtMovement(ledger.outstanding.sum)}</span>
         </div>
       )}
       {ledger.difference != null && (
         <p className="doc-small doc-soft mt-[var(--s-1)]">
-          Alter und neuer Kontostand stammen von der Bank; die Umsätze dieses Auszugs erklären{' '}
-          <span className="doc-fig">{fmtDecimal(Math.abs(ledger.difference))} {currency}</span> des Unterschieds nicht.
+          {rich(doc.unexplained(<span className="doc-fig">{fmtDecimal(Math.abs(ledger.difference))} {currency}</span>))}
         </p>
       )}
       {qualifiers.length > 0 && (
@@ -761,13 +771,9 @@ function Totals({
 // Buchungsbeleg (single-transaction receipt)
 // ---------------------------------------------------------------------------
 
-const STATE_WORD: Record<BookingState, string> = {
-  booked: 'gebucht',
-  pending: 'vorgemerkt',
-  ahead: 'noch nicht gebucht',
-};
-
 function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp }) {
+  const tr = useT();
+  const doc = tr.transactions.doc;
   const { account, bank, tx } = job;
   const state = bookingState(tx, job.pending, stamp.created);
   const text = paperText(tx);
@@ -784,18 +790,18 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
 
   const subline = [
     text.bookingText,
-    text.via ? `über ${text.via}` : '',
+    text.via ? tr.transactions.via(text.via) : '',
   ].filter(Boolean);
 
   return (
     <article>
-      <PageMarks left="Buchungsbeleg" right={stamp.docId} />
+      <PageMarks left={doc.receipt} right={stamp.docId} />
       <Letterhead
         bank={bank}
-        title="Buchungsbeleg"
+        title={doc.receipt}
         info={[
-          ['Erstellt', fmtCreated(stamp.created), 'fig'],
-          ['Dokument', stamp.docId, 'mono'],
+          [doc.createdLabel, fmtCreated(stamp.created), 'fig'],
+          [doc.document, stamp.docId, 'mono'],
         ]}
       />
 
@@ -803,18 +809,18 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
           it is booked. The figure is the largest thing on the page. */}
       <section className="keep mt-[var(--s-6)] flex items-start justify-between gap-[var(--s-7)]">
         <div className="min-w-0">
-          <p className="doc-label">{credit ? 'Auftraggeber' : 'Zahlungsempfänger'}</p>
+          <p className="doc-label">{credit ? tr.transactions.detail.payer : doc.payee}</p>
           <p className="doc-name mt-[var(--s-1)]">{text.name || text.bookingText || '—'}</p>
           {subline.length > 0 && (
             <Facts className="doc-soft mt-[var(--s-1)]" items={subline} />
           )}
-          {text.bankName && <p className="doc-small doc-soft mt-[var(--s-1)]">Name laut Bank: {text.bankName}</p>}
+          {text.bankName && <p className="doc-small doc-soft mt-[var(--s-1)]">{doc.bankNameLine(text.bankName)}</p>}
         </div>
 
         <div className="doc-panel shrink-0 text-right">
           <p className={`doc-display doc-fig ${credit ? 'doc-credit' : ''}`}>{fmtMovement(tx.amount)} {currency}</p>
           <p className="doc-soft doc-strong mt-[var(--s-2)]">
-            {credit ? 'Gutschrift' : 'Belastung'} · {STATE_WORD[state]}
+            {credit ? tr.common.booking.credit : tr.common.booking.debit} · {tr.transactions.state[state]}
           </p>
         </div>
       </section>
@@ -824,31 +830,28 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
           in a word. */}
       {state === 'pending' && (
         <p className="keep mt-[var(--s-5)]">
-          <span className="doc-strong">Vorgemerkt, noch nicht gebucht. </span>
-          <span className="doc-soft">
-            Betrag, Wertstellung und Referenzen können sich bis zur Buchung noch ändern.
-          </span>
+          <span className="doc-strong">{doc.pendingLead} </span>
+          <span className="doc-soft">{doc.pendingBody}</span>
         </p>
       )}
       {state === 'ahead' && (
         <p className="keep mt-[var(--s-5)]">
-          <span className="doc-strong">Noch nicht gebucht. </span>
+          <span className="doc-strong">{doc.aheadLead} </span>
           <span className="doc-soft">
-            Die Bank meldet den Umsatz mit dem Buchungstag <span className="doc-fig">{fmtDate(tx.entryDate)}</span>; er
-            liegt nach dem Erstellungsdatum dieses Belegs.
+            {rich(doc.aheadBody(<span className="doc-fig">{fmtDate(tx.entryDate)}</span>))}
           </span>
         </p>
       )}
 
       {/* Both sides of the payment against one rail: the labels are written
           once and the two accounts line up column against column. */}
-      <Block title="Konten">
+      <Block title={tr.common.account.accounts}>
         <div className="doc-parties">
           <span />
-          <span className="doc-label doc-strong">{credit ? 'Empfängerkonto' : 'Belastetes Konto'}</span>
-          <span className="doc-label doc-strong">{credit ? 'Auftraggeberkonto' : 'Empfängerkonto'}</span>
+          <span className="doc-label doc-strong">{credit ? doc.recipientAccount : doc.debitedAccount}</span>
+          <span className="doc-label doc-strong">{credit ? doc.payerAccount : doc.recipientAccount}</span>
 
-          <span className="doc-label">Inhaber</span>
+          <span className="doc-label">{doc.owner}</span>
           <span>{bankLine(account.holder) || '—'}</span>
           <span>{bankLine(tx.remoteName) || '—'}</span>
 
@@ -862,7 +865,7 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
 
           {showCountry && (
             <>
-              <span className="doc-label">Land</span>
+              <span className="doc-label">{tr.transactions.detail.country}</span>
               <span>{own?.name || '—'}</span>
               <span>{remote?.name || '—'}</span>
             </>
@@ -871,7 +874,7 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
       </Block>
 
       {(text.purposeLines.length > 0 || showExtra) && (
-        <Block title="Verwendungszweck">
+        <Block title={tr.common.booking.purpose}>
           {/* One line per line the bank sent, rather than a single wrapped
               paragraph — the seams carry meaning (an order number, a contract,
               a period) and are what a reader is looking for. */}
@@ -883,34 +886,34 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
       )}
 
       <PairBlock
-        title="Buchung"
+        title={doc.booking}
         rows={[
           {
-            label: 'Buchungstag',
+            label: tr.transactions.entryDate,
             value: state === 'pending'
-              ? 'noch nicht gebucht'
+              ? tr.transactions.state.ahead
               : entryDay
-                ? <><span className="doc-fig">{fmtDate(tx.entryDate)}</span>{state === 'ahead' && <span className="doc-soft"> · noch nicht gebucht</span>}</>
+                ? <><span className="doc-fig">{fmtDate(tx.entryDate)}</span>{state === 'ahead' && <span className="doc-soft"> · {tr.transactions.state.ahead}</span>}</>
                 : '',
           },
           {
-            label: 'Wertstellung',
+            label: tr.transactions.valueDate,
             value: valueDay
-              ? <><span className="doc-fig">{fmtDate(tx.valueDate)}</span>{state === 'pending' && <span className="doc-soft"> · vorläufig</span>}</>
+              ? <><span className="doc-fig">{fmtDate(tx.valueDate)}</span>{state === 'pending' && <span className="doc-soft"> · {doc.provisional}</span>}</>
               : '',
           },
-          { label: 'Buchungsart', value: text.bookingText },
-          { label: 'Geschäftsvorfall-Code', value: String(tx.transactionCode ?? '').trim(), cast: 'mono' },
+          { label: doc.bookingType, value: text.bookingText },
+          { label: tr.transactions.refs.code, value: String(tx.transactionCode ?? '').trim(), cast: 'mono' },
           // A Vormerkposten is on no Kontoauszug yet: a statement number or
           // Primanota beside "Vorgemerkt, noch nicht gebucht" would contradict
           // the sheet's own state line, so a pending booking prints neither.
-          { label: 'Primanota', value: state === 'pending' ? '' : String(tx.primeNotesNr ?? '').trim(), cast: 'mono' },
-          { label: 'Auszug-Nr.', value: state === 'pending' ? '' : String(tx.statementNumber ?? '').trim(), cast: 'mono' },
+          { label: tr.transactions.refs.primanota, value: state === 'pending' ? '' : String(tx.primeNotesNr ?? '').trim(), cast: 'mono' },
+          { label: tr.transactions.refs.statementNo, value: state === 'pending' ? '' : String(tx.statementNumber ?? '').trim(), cast: 'mono' },
         ]}
       />
 
       <PairBlock
-        title="Referenzen"
+        title={tr.transactions.refs.title}
         rows={bookingReferences(tx, text.parsed).map((r: DocRef) => ({
           label: r.label,
           value: r.value,
@@ -918,12 +921,10 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
         }))}
       />
 
-      <EndMarker label="Ende des Buchungsbelegs" />
+      <EndMarker label={doc.receiptEnd} />
       <SheetFooter
         stamp={stamp}
-        notes={state === 'booked' && entryDay && valueDay && entryDay !== valueDay
-          ? ['Die Wertstellung (Valuta) bestimmt die Zinsberechnung und kann vom Buchungstag abweichen.']
-          : []}
+        notes={state === 'booked' && entryDay && valueDay && entryDay !== valueDay ? [doc.valueNote] : []}
       />
     </article>
   );

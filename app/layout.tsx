@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import { Barlow, Barlow_Condensed, Google_Sans_Flex, IBM_Plex_Mono } from 'next/font/google';
+import { cookies, headers } from 'next/headers';
 import { markSvg } from '@/lib/brand-mark';
+import { LOCALE_COOKIE, resolveLocale, type Locale } from '@/lib/i18n/locale';
+import { MESSAGES } from '@/lib/i18n/messages';
+import { LocaleProvider } from '@/lib/i18n/react';
 import './globals.css';
 
 // Self-hosted through next/font: the files are fetched once at build time and
@@ -52,11 +56,24 @@ const plexMono = IBM_Plex_Mono({
 // The G€ on the masthead's navy, inline so the tab icon costs no request.
 const FAVICON = `data:image/svg+xml,${encodeURIComponent(markSvg({ plate: '#0a2c5e', ink: '#ffffff' }))}`;
 
-export const metadata: Metadata = {
-  title: 'Girovo',
-  description: 'Direktzugang zu deiner Bank über FinTS 3.0',
-  icons: { icon: FAVICON },
-};
+/**
+ * The language of this page load: the stored choice (its cookie copy,
+ * lib/i18n/react.tsx), else the system's — what the browser, or the desktop
+ * shell, sends as Accept-Language. Read per request, so the first frame is
+ * already in the language the client will continue in.
+ */
+async function requestLocale(): Promise<Locale> {
+  const [jar, head] = await Promise.all([cookies(), headers()]);
+  return resolveLocale(jar.get(LOCALE_COOKIE)?.value, head.get('accept-language'));
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: 'Girovo',
+    description: MESSAGES[await requestLocale()].common.appDescription,
+    icons: { icon: FAVICON },
+  };
+}
 
 export const viewport: Viewport = {
   // The masthead is what sits under the browser chrome, so it — not the
@@ -82,14 +99,15 @@ export const viewport: Viewport = {
 // lib/theme.ts takes over from here and keeps both current.
 const THEME_SCRIPT = `(function(){var d=document.documentElement,p=null,k='fints.theme';try{var s=window.electronStore;if(s&&typeof s.get==='function')p=s.get(k);}catch(e){}if(p==null){try{p=localStorage.getItem(k);}catch(e){}}if(p!=='light'&&p!=='dark')p='system';var dark=p==='dark';if(p==='system'){try{dark=window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){dark=false;}}d.dataset.theme=dark?'dark':'light';d.dataset.themePref=p;try{if(window.electronTitleBar)window.electronTitleBar.setTheme(dark);}catch(e){}})();`;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await requestLocale();
   return (
-    <html lang="de" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className={`${googleSansFlex.variable} ${barlow.variable} ${barlowCondensed.variable} ${plexMono.variable}`}>
-        {children}
+        <LocaleProvider initial={locale}>{children}</LocaleProvider>
       </body>
     </html>
   );

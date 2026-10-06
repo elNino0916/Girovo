@@ -11,18 +11,10 @@
 // sold. A build that does not offer logos never asks.
 
 import { useId, useRef } from 'react';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from './FintsProvider';
 import { ImageIcon } from './icons';
 import { Button, focusFirst } from './ui';
-
-/**
- * What goes out, said the same way here and at the Sitzung panel's switch.
- * "Aus deinen Umsätzen", not "an die du zahlst": a salary's employer is
- * looked up too.
- */
-export const LOGO_DISCLOSURE =
-  'Dafür gehen Firmennamen aus deinen Umsätzen an den Logo-Dienst Brandfetch – keine Beträge, IBANs oder ' +
-  'Verwendungszwecke. Wie bei jedem Abruf sieht Brandfetch dabei deine IP-Adresse.';
 
 const CONTROLS = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -37,6 +29,7 @@ function nextControlAfter(el: HTMLElement): HTMLElement | null {
 
 export function MerchantLogoConsent() {
   const { meta, logoConsent, setLogoConsent, toast } = useFints();
+  const t = useT();
   const ref = useRef<HTMLElement>(null);
   const titleId = useId();
   if (!meta?.merchantLogos || logoConsent !== 'unasked') return null;
@@ -47,7 +40,7 @@ export function MerchantLogoConsent() {
     // keeps their place: focus moves on to what Tab would have reached next.
     const next = box && box.contains(document.activeElement) ? nextControlAfter(box) : null;
     setLogoConsent(on);
-    toast(on ? 'Firmenlogos sind eingeschaltet.' : 'Firmenlogos bleiben aus.', on ? 'success' : 'info');
+    toast(on ? t.auth.logos.on : t.auth.logos.off, on ? 'success' : 'info');
     if (next) focusFirst([next, document.getElementById('main')]);
   };
 
@@ -58,14 +51,14 @@ export function MerchantLogoConsent() {
           <ImageIcon size={18} />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 id={titleId} className="section-head">Firmenlogos anzeigen?</h2>
-          <p className="mt-1 text-[14px] leading-snug text-ink-2">{LOGO_DISCLOSURE}</p>
+          <h2 id={titleId} className="section-head">{t.auth.logos.title}</h2>
+          <p className="mt-1 text-[14px] leading-snug text-ink-2">{t.auth.logos.disclosure}</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={() => answer(true)}>Logos laden</Button>
-            <Button size="sm" variant="secondary" onClick={() => answer(false)}>Nein danke</Button>
+            <Button size="sm" variant="secondary" onClick={() => answer(true)}>{t.auth.logos.load}</Button>
+            <Button size="sm" variant="secondary" onClick={() => answer(false)}>{t.auth.noThanks}</Button>
           </div>
           <p className="mt-3 text-[13px] leading-snug text-ink-3">
-            Du kannst das jederzeit im Sitzungsmenü oben rechts ändern.
+            {t.auth.logos.later}
           </p>
         </div>
       </div>

@@ -17,6 +17,8 @@ import { buildBalanceHistory } from '@/lib/balance-history';
 import { isCardAccount } from '@/lib/balances';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { fmtRange } from '@/lib/format';
+import { intlLocale } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
 import { useFints } from './FintsProvider';
 import { ArrowRightIcon, RefreshIcon } from './icons';
 import { Money } from './Money';
@@ -33,9 +35,6 @@ import { TxRowSkeleton } from './transactions/TxRow';
 
 export { PendingPanel } from './transactions/PendingPanel';
 
-const MAY_NEED_TAN = 'Kann eine Freigabe erfordern.';
-const BUSY_NOTE = 'Möglich, sobald der laufende Vorgang fertig ist.';
-
 // The last focus request this tile has answered. Module-level rather than a
 // ref: a deep link from the Analyse tab mounts this tile fresh, with the
 // request already pending, and a plain tab switch back must not count as one.
@@ -46,19 +45,17 @@ const clock = (ms: number) => {
   return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-const umsaetze = (n: number) => `${n.toLocaleString('de-DE')} ${n === 1 ? 'Umsatz' : 'Umsätze'}`;
-
-/** „a“, „a“ und „b“, „a“, „b“ und „c“. */
-const quoted = (words: string[]) => {
-  const q = words.map((w) => `„${w}“`);
-  return q.length > 1 ? `${q.slice(0, -1).join(', ')} und ${q[q.length - 1]}` : q[0] ?? '';
-};
+/** „a“, „a“ und „b“, „a“, „b“ und „c“ — quoted, and joined the way the language joins a list. */
+const quoted = (words: string[], quote: (word: string) => string) =>
+  new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(words.map(quote));
 
 export function Transactions() {
   const {
     activeAccount: a, transactions, loadingAccount, txError, txErrors, refreshAccount, busy, statementInfo, range, applyRange,
     txFilter, setTxFilter, txFocusNonce, categoryOf, merchants, pendingCache, accountLabel, accounts, selectAccount,
   } = useFints();
+  // `tr`, not `t`: the search's terms are `t` below.
+  const tr = useT();
 
   const auto = useId();
   const titleId = `umsaetze${auto}-title`;
@@ -72,10 +69,11 @@ export function Transactions() {
 
   // The search reads what the rows show — the tidied name, the town, the
   // category — not only the bank's raw strings. One context object, so each
-  // booking's text is folded once rather than per keystroke.
+  // booking's text is folded once rather than per keystroke; a new one when
+  // the language changes, since what the rows show is then said in it.
   const searchCtx = useMemo<SearchContext & { categoryOf: typeof categoryOf }>(
     () => ({ categoryOf, shownText: searchText }),
-    [categoryOf],
+    [categoryOf, tr],
   );
   const sorted = useMemo(() => newestFirst(transactions ?? []), [transactions]);
   const filtered = useMemo(() => filterTransactions(sorted, txFilter, searchCtx), [sorted, txFilter, searchCtx]);
@@ -89,8 +87,9 @@ export function Transactions() {
     () => (txFilter.from || txFilter.to ? filterTransactions(sorted, { ...txFilter, from: '', to: '' }, searchCtx) : filtered),
     [sorted, filtered, txFilter, searchCtx],
   );
-  const months = useMemo(() => (loaded ? calendarMonths(loaded.from, loaded.to) : []), [loaded]);
-  const groups = useMemo(() => groupByDay(filtered), [filtered]);
+  // Both carry names in words (a month's title, a day's header): built again on a change of language.
+  const months = useMemo(() => (loaded ? calendarMonths(loaded.from, loaded.to) : []), [loaded, tr]);
+  const groups = useMemo(() => groupByDay(filtered), [filtered, tr]);
   const totals = useMemo(() => listTotals(filtered, currency), [filtered, currency]);
   const merchantOf = useCallback((tx: SerializedTransaction) => merchantFor(merchants, tx), [merchants]);
   // The Kontostand at the end of each day — only where the bank's own
@@ -140,6 +139,8 @@ export function Transactions() {
 
   if (!a) return null;
 
+  const words = tr.transactions.list;
+  const mayNeedApproval = tr.transactions.mayNeedApproval;
   const refresh = () => refreshAccount(a);
   const hasList = !!transactions && sorted.length > 0;
   // Less than a year loaded: "weiter zurück" is worth offering where nothing was found.
@@ -149,25 +150,25 @@ export function Transactions() {
     : null;
 
   const rangeLine = loading
-    ? <>Lädt {fmtRange(range.from, range.to)} …</>
+    ? words.loadingRange(fmtRange(range.from, range.to))
     : loaded
       ? (
         <>
           {fmtRange(loaded.from, loaded.to)}
           {/* When it was fetched matters less than what — on a phone the dates win the room. */}
-          <span className="hidden sm:inline"> · abgerufen {clock(loaded.loadedAt)} Uhr</span>
+          <span className="hidden sm:inline"> · {words.fetchedAt(clock(loaded.loadedAt))}</span>
         </>
       )
       : txError
         ? (
           <>
-            Abruf fehlgeschlagen
+            {tr.common.fetchFailed}
             {a && txErrors[a.accountNumber] && (
-              <span className="hidden sm:inline"> um {clock(txErrors[a.accountNumber].at)} Uhr</span>
+              <span className="hidden sm:inline"> {words.failedAt(clock(txErrors[a.accountNumber].at))}</span>
             )}
           </>
         )
-        : 'Noch nicht abgerufen';
+        : tr.transactions.notFetched;
 
   // A "show me" about one account (useShowOnAccount) that this list cannot
   // answer: it shows another account, or — for a transfer whose status is
@@ -179,7 +180,7 @@ export function Transactions() {
     : undefined;
   const fetchedBefore = !!lookup?.sentAt && lookup.accountNumber === a.accountNumber && !!loaded
     && loaded.loadedAt < lookup.sentAt;
-  const lookupNote = <span className="self-center text-[13px] leading-snug text-ink-3">{busy ? BUSY_NOTE : MAY_NEED_TAN}</span>;
+  const lookupNote = <span className="self-center text-[13px] leading-snug text-ink-3">{busy ? words.busy : mayNeedApproval}</span>;
 
   const pendingLine = pendingHits > 0 && (
     <button
@@ -188,7 +189,7 @@ export function Transactions() {
       className="group inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-[4px] text-left text-[13.5px] font-semibold text-accent"
     >
       <span className="underline-offset-[3px] group-hover:underline">
-        Außerdem {pendingHits === 1 ? 'passt 1 vorgemerkter Umsatz' : `passen ${pendingHits} vorgemerkte Umsätze`}
+        {words.pendingMatch(pendingHits)}
       </span>
       <ArrowRightIcon size={15} />
     </button>
@@ -197,14 +198,14 @@ export function Transactions() {
   let body: React.ReactNode;
   if (!a.canStatements) {
     body = (
-      <EmptyState illustration="transactions" title="Keine Umsätze für dieses Konto">
-        Deine Bank bietet für dieses Konto keine Umsatzabfrage über FinTS an.
+      <EmptyState illustration="transactions" title={words.noStatements}>
+        {words.noStatementsBody}
       </EmptyState>
     );
   } else if (loading) {
     body = (
       <>
-        <p role="status" className="sr-only">Umsätze werden geladen.</p>
+        <p role="status" className="sr-only">{words.loading}</p>
         <div aria-hidden>
           {/* A shimmer is the colour of the band itself; on the band the
               placeholder is a plain hairline-coloured bar. */}
@@ -221,7 +222,7 @@ export function Transactions() {
     );
   } else if (txError && !transactions) {
     body = (
-      <ErrorState title="Umsätze konnten nicht geladen werden" onRetry={refresh} busy={busy}>
+      <ErrorState title={words.loadFailed} onRetry={refresh} busy={busy}>
         {txError}
       </ErrorState>
     );
@@ -229,46 +230,46 @@ export function Transactions() {
     body = (
       <EmptyState
         illustration="transactions"
-        title="Umsätze noch nicht abgerufen"
-        action={<Button variant="primary" size="sm" disabled={busy} onClick={refresh}>Umsätze abrufen</Button>}
+        title={words.notFetched}
+        action={<Button variant="primary" size="sm" disabled={busy} onClick={refresh}>{words.fetch}</Button>}
       >
-        {fmtRange(range.from, range.to)}. {MAY_NEED_TAN}
+        {fmtRange(range.from, range.to)}. {mayNeedApproval}
       </EmptyState>
     );
   } else if (sorted.length === 0) {
     body = (
       <EmptyState
         illustration="transactions"
-        title="Keine Umsätze in diesem Zeitraum"
+        title={words.empty}
         action={shortHistory ? <LoadHistoryButton layout="centered" /> : undefined}
       >
-        {loaded ? `Zwischen ${fmtRange(loaded.from, loaded.to).replace('–', ' und ')} wurde nichts gebucht.` : ''}
-        {shortHistory && ' Ein längerer Zeitraum zeigt vielleicht mehr.'}
+        {loaded ? words.nothingBooked(fmtRange(loaded.from, loaded.to)) : ''}
+        {shortHistory && ` ${words.longerPeriod}`}
       </EmptyState>
     );
   } else if (filtered.length === 0) {
     // Say why, word by word, instead of implying the booking does not exist.
     const missing = report.filter((t) => t.matches === 0).map((t) => t.text);
     const where = loaded
-      ? <>im geladenen Zeitraum (<span className="whitespace-nowrap">{fmtRange(loaded.from, loaded.to)}</span>)</>
-      : 'im geladenen Zeitraum';
+      ? rich(words.inLoadedRange(<span className="whitespace-nowrap">{fmtRange(loaded.from, loaded.to)}</span>))
+      : words.inLoaded;
     let reason: React.ReactNode;
     if (missing.length) {
-      reason = <>{quoted(missing)} {missing.length === 1 ? 'kommt' : 'kommen'} {where} in keinem Umsatz vor.</>;
+      reason = rich(words.notFound(quoted(missing, words.quote), missing.length, where));
     } else if (q && report.length > 1 && !sorted.some(txMatcher(q, searchCtx))) {
-      reason = <>Jedes Wort von „{q}“ kommt vor, aber kein Umsatz enthält alle zusammen.</>;
+      reason = words.allWordsApart(q);
     } else if (q) {
-      reason = <>„{q}“ findet Umsätze, aber keinen, der zu den übrigen Filtern passt.</>;
+      reason = words.otherFilters(q);
     } else {
-      reason = <>Im geladenen Zeitraum passt kein Umsatz zu diesen Filtern.</>;
+      reason = words.noneInPeriod;
     }
     body = (
       <EmptyState
         illustration="search"
-        title="Keine passenden Umsätze"
+        title={words.noMatches}
         action={
           <>
-            <Button size="sm" variant="secondary" onClick={resetFilter}>Filter zurücksetzen</Button>
+            <Button size="sm" variant="secondary" onClick={resetFilter}>{words.resetFilters}</Button>
             {q && shortHistory && <LoadHistoryButton layout="centered" className="mt-2 w-full" />}
           </>
         }
@@ -303,7 +304,7 @@ export function Transactions() {
         <div className="px-4 pt-4 pb-4 sm:px-5 sm:pt-5">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <h2 id={titleId} ref={headingRef} tabIndex={-1} className="section-head outline-none">Umsätze</h2>
+              <h2 id={titleId} ref={headingRef} tabIndex={-1} className="section-head outline-none">{tr.common.nav.transactions}</h2>
               <p className="tnum mt-0.5 truncate text-[13.5px] text-ink-3">{rangeLine}</p>
             </div>
             <div className="-mt-0.5 -mr-1.5 flex shrink-0 items-center gap-1 sm:gap-2">
@@ -311,8 +312,8 @@ export function Transactions() {
               {a.canStatements && (
                 <IconButton
                   size="md"
-                  aria-label={`Umsätze aktualisieren. ${MAY_NEED_TAN}`}
-                  title={`Aktualisieren. ${MAY_NEED_TAN}`}
+                  aria-label={`${words.refresh} ${mayNeedApproval}`}
+                  title={`${tr.transactions.refresh}. ${mayNeedApproval}`}
                   disabled={busy}
                   onClick={refresh}
                 >
@@ -327,9 +328,9 @@ export function Transactions() {
             <Alert
               tone="error"
               className="mt-3"
-              action={<Button size="xs" variant="secondary" disabled={busy} onClick={refresh}>Erneut versuchen</Button>}
+              action={<Button size="xs" variant="secondary" disabled={busy} onClick={refresh}>{tr.common.retry}</Button>}
             >
-              Abruf fehlgeschlagen: {txError} Angezeigt werden die zuletzt abgerufenen Umsätze.
+              {words.failedKeptOld(txError)}
             </Alert>
           )}
 
@@ -343,15 +344,15 @@ export function Transactions() {
               action={
                 <>
                   <Button size="xs" variant="secondary" disabled={busy} onClick={() => selectAccount(lookupAccount)}>
-                    Zu „{accountLabel(lookupAccount)}“ wechseln
+                    {words.switchTo(accountLabel(lookupAccount))}
                   </Button>
                   {lookupNote}
                 </>
               }
             >
               {lookup.sentAt
-                ? <>Die Überweisung ging von „{accountLabel(lookupAccount)}“ aus. Diese Liste zeigt „{accountLabel(a)}“ – ob sie ausgeführt wurde, siehst du nur dort.</>
-                : <>Der Umsatz gehört zu „{accountLabel(lookupAccount)}“. Diese Liste zeigt „{accountLabel(a)}“.</>}
+                ? words.sentFromOther(accountLabel(lookupAccount), accountLabel(a))
+                : words.belongsToOther(accountLabel(lookupAccount), accountLabel(a))}
             </Alert>
           )}
           {fetchedBefore && loaded && !loading && (
@@ -361,13 +362,12 @@ export function Transactions() {
               role="status"
               action={
                 <>
-                  <Button size="xs" variant="secondary" disabled={busy} onClick={refresh}>Aktualisieren</Button>
+                  <Button size="xs" variant="secondary" disabled={busy} onClick={refresh}>{tr.transactions.refresh}</Button>
                   {lookupNote}
                 </>
               }
             >
-              Diese Umsätze wurden um <span className="tnum">{clock(loaded.loadedAt)}</span> Uhr abgerufen, vor deiner
-              Überweisung – sie kann hier noch nicht stehen.
+              {rich(words.fetchedBeforeTransfer(<span className="tnum">{clock(loaded.loadedAt)}</span>))}
             </Alert>
           )}
 
@@ -389,7 +389,7 @@ export function Transactions() {
           {/* A figure over every account led here: this list is one of them. */}
           {txFilter.acrossAccounts && hasList && !loading && (
             <Alert tone="info" className="mt-3" role="status">
-              Die Analyse hat alle Konten mit Umsätzen gezählt. Diese Liste zeigt nur {accountLabel(a)}.
+              {words.acrossAccounts(accountLabel(a))}
             </Alert>
           )}
 
@@ -410,33 +410,33 @@ export function Transactions() {
                 {hasList && !loading && (
                   <>
                     {filterCount > 0
-                      ? `${filtered.length.toLocaleString('de-DE')} von ${sorted.length.toLocaleString('de-DE')} ${sorted.length === 1 ? 'Umsatz' : 'Umsätzen'}`
-                      : umsaetze(filtered.length)}
+                      ? words.countOf(filtered.length, sorted.length)
+                      : tr.transactions.count(filtered.length)}
                     {/* On a phone the month chip may sit scrolled out of view; the count names it. */}
                     {days && <span className="font-normal text-ink-3 sm:hidden"> · {daysLabel(days.from, days.to)}</span>}
                     {totals.otherCurrency > 0 && (
-                      <span className="font-normal text-ink-3"> · {totals.otherCurrency} in anderer Währung nicht summiert</span>
+                      <span className="font-normal text-ink-3"> · {words.otherCurrency(totals.otherCurrency)}</span>
                     )}
                   </>
                 )}
               </p>
               {hasList && !loading && filterCount > 0 && (
                 <Button size="xs" variant="tertiary" className="-my-1 -ml-1" onClick={resetFilter}>
-                  Zurücksetzen
+                  {words.reset}
                   <CountBadge count={filterCount} tone="accent" />
                 </Button>
               )}
             </div>
             <p aria-live="polite" className="ml-auto flex items-baseline gap-2.5 sm:gap-3">
               {hasList && !loading && totals.income !== 0 && (
-                <span title="Summe der Eingänge">
-                  <span className="sr-only">Eingänge </span>
+                <span title={words.incomeTotal}>
+                  <span className="sr-only">{tr.common.booking.incoming} </span>
                   <Money value={totals.income} currency={currency} signed tone="credit" className="font-semibold" />
                 </span>
               )}
               {hasList && !loading && totals.expense !== 0 && (
-                <span title="Summe der Ausgänge">
-                  <span className="sr-only">Ausgänge </span>
+                <span title={words.expenseTotal}>
+                  <span className="sr-only">{tr.common.booking.outgoing} </span>
                   <Money value={totals.expense} currency={currency} signed tone="credit" className="font-semibold text-ink" />
                 </span>
               )}
@@ -446,11 +446,7 @@ export function Transactions() {
             <div className="mt-1 flex flex-col items-start text-[13px] leading-snug text-ink-3">
               {/* A month word matches its month and its text: say so, so a
                   "Mai" that shows every May booking is not a mystery. */}
-              {monthWords.length > 0 && (
-                <p>
-                  {monthWords.map((t) => `„${t.text}“ auch als Monat ${t.month}`).join(', ')} gesucht
-                </p>
-              )}
+              {monthWords.length > 0 && <p>{words.monthWords(monthWords)}</p>}
               {pendingLine}
             </div>
           )}

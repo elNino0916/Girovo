@@ -23,46 +23,31 @@
 import type { ReactNode } from 'react';
 import type { SerializedVop, VopVerdict } from '@/lib/fints-types';
 import { fmtIban } from '@/lib/format';
+import type { Messages } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/react';
 import { AlertTriangleIcon, CheckCircleIcon, InfoIcon, XCircleIcon } from './icons';
 import { Tag, cx } from './ui';
 
 type Tone = 'ok' | 'warn' | 'bad' | 'neutral';
 
-/** Said of every verdict without a result: nothing was compared, nothing confirmed. */
-const UNCONFIRMED = 'Niemand hat bestätigt, dass die IBAN zu diesem Namen gehört.';
-
-const VERDICTS: Record<VopVerdict, { tone: Tone; label: string; blurb: string }> = {
-  MATCH: {
-    tone: 'ok',
-    label: 'Name stimmt überein',
-    blurb: 'Der Empfängername passt zu dem Namen, den die Bank zu dieser IBAN führt.',
-  },
-  CLOSE_MATCH: {
-    tone: 'warn',
-    label: 'Name weicht leicht ab',
-    blurb: 'Die Bank führt zu dieser IBAN einen ähnlichen, aber nicht identischen Namen.',
-  },
-  NO_MATCH: {
-    tone: 'bad',
-    label: 'Name stimmt nicht überein',
-    blurb: 'Der Empfängername passt nicht zu dem Namen, den die Bank zu dieser IBAN führt.',
-  },
-  NOT_APPLICABLE: {
-    tone: 'neutral',
-    label: 'Kein Abgleich möglich',
-    blurb: `Der Name konnte nicht geprüft werden. ${UNCONFIRMED}`,
-  },
-  PENDING: {
-    tone: 'neutral',
-    label: 'Prüfung läuft noch',
-    blurb: `Der Name konnte noch nicht geprüft werden. ${UNCONFIRMED}`,
-  },
-  UNKNOWN: {
-    tone: 'neutral',
-    label: 'Prüfergebnis unklar',
-    blurb: `Die Bank hat ein Ergebnis geliefert, das sich nicht zuordnen lässt. ${UNCONFIRMED}`,
-  },
+const VERDICT_TONES: Record<VopVerdict, Tone> = {
+  MATCH: 'ok',
+  CLOSE_MATCH: 'warn',
+  NO_MATCH: 'bad',
+  NOT_APPLICABLE: 'neutral',
+  PENDING: 'neutral',
+  UNKNOWN: 'neutral',
 };
+
+/**
+ * A verdict in words. Every verdict without a result also says that nothing
+ * was compared and nothing confirmed.
+ */
+function verdictText(tr: Messages, verdict: VopVerdict): { label: string; blurb: string } {
+  const words = tr.transfer.vop;
+  const { label, blurb } = words.verdicts[verdict];
+  return { label, blurb: VERDICT_TONES[verdict] === 'neutral' ? `${blurb} ${words.unconfirmed}` : blurb };
+}
 
 const TONES: Record<Tone, { box: string; icon: string; Glyph: typeof InfoIcon; tag: 'positive' | 'emphasis' | 'negative' | 'neutral' }> = {
   ok: { box: 'bg-green-soft shadow-[inset_3px_0_0_var(--green)]', icon: 'text-green', Glyph: CheckCircleIcon, tag: 'positive' },
@@ -75,16 +60,18 @@ const TONES: Record<Tone, { box: string; icon: string; Glyph: typeof InfoIcon; t
 export const vopDeviates = (v: SerializedVop) => v.verdict === 'CLOSE_MATCH' || v.verdict === 'NO_MATCH';
 
 /** Nothing was compared: Not Applicable, Pending, Unknown. */
-export const vopUnchecked = (v: SerializedVop) => VERDICTS[v.verdict].tone === 'neutral';
+export const vopUnchecked = (v: SerializedVop) => VERDICT_TONES[v.verdict] === 'neutral';
 
 /** One line for the TAN overlay, where the approval already has the stage. */
 export function VopBadge({ vop, className }: { vop: SerializedVop; className?: string }) {
-  const { tone, label } = VERDICTS[vop.verdict];
+  const tr = useT();
+  const tone = VERDICT_TONES[vop.verdict];
+  const { label } = verdictText(tr, vop.verdict);
   const t = TONES[tone];
   return (
     <p className={cx('mt-3.5 flex justify-center', className)}>
       <Tag tone={t.tag} icon={tone === 'warn' ? undefined : <t.Glyph size={14} className={t.icon} />}>
-        Namensabgleich: {label}
+        {tr.transfer.vop.badge(label)}
       </Tag>
     </p>
   );
@@ -95,7 +82,10 @@ export function VopBadge({ vop, className }: { vop: SerializedVop; className?: s
  * `iban`: the IBAN that was checked — the bank's echo of it, else the one sent.
  */
 export function VopReport({ vop, iban, className }: { vop: SerializedVop; iban?: string | null; className?: string }) {
-  const { tone, label, blurb } = VERDICTS[vop.verdict];
+  const tr = useT();
+  const words = tr.transfer.vop;
+  const tone = VERDICT_TONES[vop.verdict];
+  const { label, blurb } = verdictText(tr, vop.verdict);
   const t = TONES[tone];
   const checked = vop.iban || iban;
   return (
@@ -109,9 +99,9 @@ export function VopReport({ vop, iban, className }: { vop: SerializedVop; iban?:
       </div>
 
       <dl className="mt-4 divide-y divide-line border-y border-line">
-        <Row label="Von dir angegeben">{vop.submittedName}</Row>
+        <Row label={words.submitted}>{vop.submittedName}</Row>
         {vop.suggestedName && (
-          <Row label="Bei der Bank hinterlegt">
+          <Row label={words.suggested}>
             <span className="font-semibold text-ink">{vop.suggestedName}</span>
           </Row>
         )}
@@ -122,12 +112,12 @@ export function VopReport({ vop, iban, className }: { vop: SerializedVop; iban?:
             <span className="iban block overflow-x-auto text-[14.5px] [scrollbar-width:none]">{fmtIban(checked)}</span>
           </Row>
         )}
-        {vop.reason && <Row label="Grund">{vop.reason}</Row>}
+        {vop.reason && <Row label={words.reason}>{vop.reason}</Row>}
       </dl>
 
       {vop.infoText && (
         <figure className="mt-4">
-          <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">Hinweis deiner Bank</figcaption>
+          <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">{words.bankNote}</figcaption>
           <p className="rounded-[var(--radius-chip)] bg-inset px-4 py-3 text-[14px] leading-relaxed break-words whitespace-pre-line text-ink">
             {vop.infoText}
           </p>

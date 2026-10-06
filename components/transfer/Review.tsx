@@ -11,6 +11,8 @@ import { isCardAccount } from '@/lib/balances';
 import { bankAnswerLines } from '@/lib/bank-answer';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { expectedCreditDate, fmtDate, fmtIban } from '@/lib/format';
+import { intlLocale } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
 import { sepaSanitize } from '@/lib/sepa-text';
 import type { FundsWarning, spendable } from '@/lib/transfer-checks';
 import { BoltIcon, LandmarkIcon } from '../icons';
@@ -21,23 +23,25 @@ import { SummaryList, SummaryRow } from './parts';
 
 /** Another bank operation (a statement, Vormerkposten) still holds the line. */
 export function BusyNote() {
+  const t = useT();
   return (
     <p className="mt-3 flex items-center gap-2 text-[13.5px] text-ink-2" role="status">
       <Spinner size={14} />
-      Bitte warten – ein anderer Vorgang läuft noch.
+      {t.transfer.review.busy}
     </p>
   );
 }
 
 /** "Gutschrift voraussichtlich Montag, 05.10.2026" — an estimate, and it says so. */
 export function CreditDate({ short }: { short?: boolean }) {
+  const t = useT();
   // Computed at render: a sheet left open past the cut-off moves the date.
   const d = expectedCreditDate(new Date(), false);
   if (!d) return null;
   const when = short
-    ? new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }).format(d)
+    ? new Intl.DateTimeFormat(intlLocale(), { weekday: 'short', day: '2-digit', month: '2-digit' }).format(d)
     : fmtLongDate(d);
-  return <>Gutschrift voraussichtlich <span className="tnum">{when}</span></>;
+  return <>{rich(t.transfer.review.creditDate(<span className="tnum">{when}</span>))}</>;
 }
 
 /** The id the primary button points its aria-describedby at. */
@@ -48,18 +52,15 @@ export const REVIEW_WARNINGS_ID = 'tf-review-warnings';
  * wording for the hint under Betrag and the warning on Prüfen.
  */
 export function FundsWarningText({ warning, currency }: { warning: FundsWarning; currency?: string | null }) {
+  const t = useT();
   if (warning.kind === 'over') {
-    return (
-      <>
-        Mehr als {warning.basis === 'available' ? 'verfügbar' : 'dein Kontostand'} – die Bank kann den Auftrag ablehnen.
-      </>
-    );
+    return <>{t.transfer.funds.over(warning.basis === 'available')}</>;
   }
   return (
     <>
-      Kontostand danach ca.{' '}
-      <Money value={warning.balanceAfter} currency={currency || 'EUR'} tone="plain" className="font-semibold" />{' '}
-      – du nutzt deinen Dispositionsrahmen.
+      {rich(t.transfer.funds.overdraft(
+        <Money value={warning.balanceAfter} currency={currency || 'EUR'} tone="plain" className="font-semibold" />,
+      ))}
     </>
   );
 }
@@ -92,6 +93,8 @@ export function ReviewStep({
   error: string | null;
   errorRef: Ref<HTMLDivElement>;
 }) {
+  const t = useT();
+  const words = t.transfer.review;
   const amount = draft.cents / 100;
   // A SEPA order is always in euros (the pain.001 says Ccy="EUR"), whatever
   // the account keeps — so the order shows €, and "danach" is only worked out
@@ -113,8 +116,8 @@ export function ReviewStep({
       {warned && (
         <div id={REVIEW_WARNINGS_ID} className="mb-4 flex flex-col gap-3">
           {duplicate && (
-            <Alert tone="warn" title="Schon einmal überwiesen?" className="mt-0">
-              {duplicate} Prüfe, ob du diese Zahlung wirklich noch einmal senden möchtest.
+            <Alert tone="warn" title={words.duplicateTitle} className="mt-0">
+              {duplicate} {words.duplicateCheck}
             </Alert>
           )}
           {warning && (
@@ -126,7 +129,7 @@ export function ReviewStep({
       )}
 
       <div className="rounded-[12px] bg-inset px-4 py-4 sm:px-5">
-        <p className="text-[13px] font-semibold text-ink-3">Betrag</p>
+        <p className="text-[13px] font-semibold text-ink-3">{t.common.booking.amount}</p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
           {/* The order's own figures are shown whatever "Beträge ausblenden"
               says — they are what is being checked. */}
@@ -137,9 +140,9 @@ export function ReviewStep({
             split
             className="text-[34px] leading-tight font-bold text-headline"
           />
-          {draft.instant && <Tag tone="info" icon={<BoltIcon size={13} />}>Echtzeit</Tag>}
+          {draft.instant && <Tag tone="info" icon={<BoltIcon size={13} />}>{t.common.booking.instant}</Tag>}
         </div>
-        <p className="mt-3 text-[13px] font-semibold text-ink-3">An</p>
+        <p className="mt-3 text-[13px] font-semibold text-ink-3">{words.to}</p>
         <p className="mt-0.5 text-[17px] leading-snug font-semibold break-words text-ink">{sentName}</p>
         <p className="iban mt-1 overflow-x-auto text-[14.5px] text-ink-2 [scrollbar-width:none]">{fmtIban(draft.iban)}</p>
         {bank && (
@@ -151,45 +154,45 @@ export function ReviewStep({
       </div>
 
       <SummaryList className="mt-2">
-        <SummaryRow label="Von">
+        <SummaryRow label={words.from}>
           {accountName} · <span className="tnum">{shortIbanText(account.iban)}</span>
         </SummaryRow>
-        <SummaryRow label="Verwendungszweck">
-          {sentPurpose || <span className="text-ink-3">ohne</span>}
+        <SummaryRow label={t.common.booking.purpose}>
+          {sentPurpose || <span className="text-ink-3">{words.none}</span>}
         </SummaryRow>
-        <SummaryRow label="Ausführung">{draft.instant ? 'Echtzeitüberweisung' : 'Standardüberweisung'}</SummaryRow>
-        <SummaryRow label="Gutschrift">
-          {draft.instant || !credit ? 'in Sekunden' : <span className="tnum">voraussichtlich {fmtLongDate(credit)}</span>}
+        <SummaryRow label={t.transfer.form.execution}>{draft.instant ? words.instantTransfer : words.standardTransfer}</SummaryRow>
+        <SummaryRow label={words.credit}>
+          {draft.instant || !credit ? words.inSeconds : <span className="tnum">{words.expected(fmtLongDate(credit))}</span>}
         </SummaryRow>
         {funds && after != null && (
           // The balance is not part of the order, so it keeps following
           // "Beträge ausblenden".
           // A card's Kontostand is negative by nature: ink, not alarm red.
-          <SummaryRow label={funds.kind === 'available' ? 'Verfügbar danach' : 'Kontostand danach'}>
-            ca.{' '}
+          <SummaryRow label={funds.kind === 'available' ? words.availableAfter : words.balanceAfter}>
+            {words.approx}{' '}
             <Money
               value={after}
               currency={account.currency}
               tone={funds.kind !== 'available' && isCardAccount(account) ? 'plain' : 'auto'}
               className="font-semibold"
             />
-            {funds.date && <span className="text-ink-3"> (Stand {fmtDate(funds.date)})</span>}
+            {funds.date && <span className="text-ink-3"> ({words.asOf(fmtDate(funds.date))})</span>}
           </SummaryRow>
         )}
         {warning?.kind === 'overdraft' && (
-          <SummaryRow label="Kontostand danach">
-            ca. <Money value={warning.balanceAfter} currency={account.currency} className="font-semibold" />
+          <SummaryRow label={words.balanceAfter}>
+            {words.approx} <Money value={warning.balanceAfter} currency={account.currency} className="font-semibold" />
           </SummaryRow>
         )}
       </SummaryList>
       {rewritten && (
         <p className="mt-2 text-[13px] leading-snug text-ink-3">
-          So übermittelt an die Bank: Umlaute ausgeschrieben (ä → ae), nicht übertragbare Zeichen weggelassen.
+          {words.rewritten}
         </p>
       )}
 
       <p className="mt-5 text-[13.5px] leading-relaxed text-ink-3">
-        Nach „{primaryLabel}“ gleicht die Bank den Empfängernamen ab und bittet dich um die Freigabe in deiner Banking-App.
+        {words.next(primaryLabel)}
       </p>
       {busyElsewhere && <BusyNote />}
     </div>

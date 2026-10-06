@@ -6,6 +6,8 @@
 // body does not.
 
 import { body, fail, json, wrap } from '@/lib/api';
+import { msgs } from '@/lib/i18n';
+import { withRequestLocale } from '@/lib/i18n/server';
 import { hasProfile } from '@/lib/state-store';
 
 export const runtime = 'nodejs';
@@ -22,9 +24,12 @@ export const POST = wrap(async (req: Request) => {
   return json({ remembered: !!(b && u && hasProfile(b, u)) });
 });
 
-/** The old query-string form is gone on purpose; say so rather than 404. */
-export function GET() {
-  const res = fail('Bitte per POST abfragen.', 405);
+/**
+ * The old query-string form is gone on purpose; say so rather than 404, in
+ * the caller's language (what wrap() does for the routes it wraps).
+ */
+export function GET(req: Request) {
+  const res = withRequestLocale(req, () => fail(msgs().auth.api.usePost, 405));
   res.headers.set('Allow', 'POST');
   return res;
 }

@@ -8,13 +8,16 @@
 // dismissed, and only then says "gespeichert". A plain <a download> cannot
 // tell it either. Only the types the app produces, a bare file name, and a
 // size no export comes near. Kept apart from main.cjs (dialog and fs come in
-// as arguments) so `npm test` can run it without Electron.
+// as arguments) so `npm test` can run it without Electron. What it says, it
+// says in the shell's language at the time (electron/i18n.cjs).
 
 const path = require('node:path');
+const { TEXTS, shellTexts } = require('./i18n.cjs');
 
 /** The largest file it writes: a year of bookings is well under 1 MB. */
 const SAVE_MAX_BYTES = 50 * 1024 * 1024;
-const SAVE_FAILED = 'Die Datei konnte nicht gespeichert werden.';
+/** @deprecated The German sentence, for code that compares; a save answers shellTexts().files.saveFailed. */
+const SAVE_FAILED = TEXTS.de.files.saveFailed;
 
 /**
  * @param {object} deps
@@ -31,7 +34,7 @@ function createFileSave({ showSaveDialog, writeFile, downloadsDir, filters }) {
     const name = String(suggestedName || '').split(/[\\/]/).pop() || 'Download';
     const filter = filters[path.extname(name).toLowerCase()];
     if (!filter || !ArrayBuffer.isView(bytes) || bytes.byteLength > SAVE_MAX_BYTES) {
-      return { ok: false, error: SAVE_FAILED };
+      return { ok: false, error: shellTexts().files.saveFailed };
     }
     const { canceled, filePath } = await showSaveDialog({
       defaultPath: path.join(downloadsDir, name),
@@ -43,12 +46,8 @@ function createFileSave({ showSaveDialog, writeFile, downloadsDir, filters }) {
     } catch (err) {
       // Windows refuses to replace a file another program holds open — the
       // usual case being last month's export still open in Excel.
-      return {
-        ok: false,
-        error: err && err.code === 'EBUSY'
-          ? 'Die Datei ist noch in einem anderen Programm geöffnet, zum Beispiel in Excel. Schließe sie dort oder wähle einen anderen Namen.'
-          : 'Die Datei konnte dort nicht gespeichert werden. Wähle einen anderen Ordner.',
-      };
+      const said = shellTexts().files;
+      return { ok: false, error: err && err.code === 'EBUSY' ? said.openElsewhere : said.notThere };
     }
     return { ok: true };
   };

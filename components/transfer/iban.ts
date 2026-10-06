@@ -7,6 +7,7 @@
 // IBAN would throw it to the end.
 
 import { ibanCountry, ibanValid } from '@/lib/format';
+import { msgs } from '@/lib/i18n';
 
 /**
  * IBAN lengths in the SEPA area (EPC409-09, 2025 edition). Used to decide
@@ -55,31 +56,25 @@ export function regroup(input: string, caret: number): { value: string; caret: n
 export const stripIbanLabel = (text: string) => text.replace(/^\s*IBAN\s*:?\s*/i, '');
 
 /**
- * Why `raw` is not a usable IBAN, in words — or null when it is one.
- * `own` is the sending account's IBAN: a transfer to itself is refused by the
- * server too, but saying so here is kinder than a round trip.
+ * Why `raw` is not a usable IBAN, in words (the language speaking right now)
+ * — or null when it is one. `own` is the sending account's IBAN: a transfer
+ * to itself is refused by the server too, but saying so here is kinder than
+ * a round trip.
  */
 export function ibanProblem(raw: string, own?: string | null): string | null {
-  if (!raw) return 'Bitte gib die IBAN des Empfängers an.';
-  if (!/^[A-Z]{2}/.test(raw)) return 'Eine IBAN beginnt mit dem Ländercode, zum Beispiel „DE“.';
-  if (!/^[A-Z]{2}\d{2}/.test(raw)) return 'Nach dem Ländercode folgen zwei Prüfziffern.';
+  const words = msgs().transfer.iban;
+  if (!raw) return words.missing;
+  if (!/^[A-Z]{2}/.test(raw)) return words.countryCode;
+  if (!/^[A-Z]{2}\d{2}/.test(raw)) return words.checkDigits;
   const len = expectedLength(raw);
   if (len && raw.length !== len) {
-    const country = ibanCountry(raw)?.name;
-    return `Eine IBAN ${country ? `aus ${countryDative(country)} ` : ''}hat ${len} Stellen – eingegeben sind ${raw.length}.`;
+    // The country as the language names it, with its article where it takes one.
+    return words.length(len, raw.length, ibanCountry(raw)?.name ?? null);
   }
-  if (!ibanValid(raw)) return 'Die Prüfziffer passt nicht. Bitte vergleiche die IBAN Zeichen für Zeichen.';
-  if (own && raw === rawIban(own)) return 'Das ist die IBAN deines Auftragskontos. Bitte gib das Konto des Empfängers an.';
+  if (!ibanValid(raw)) return words.checksum;
+  if (own && raw === rawIban(own)) return words.own;
   return null;
 }
-
-// "aus der Schweiz", "aus den Niederlanden" — the handful of country names
-// that take an article in German. Everything else reads fine bare.
-const WITH_ARTICLE: Record<string, string> = {
-  Schweiz: 'der Schweiz', Slowakei: 'der Slowakei', Niederlande: 'den Niederlanden',
-  'Vereinigtes Königreich': 'dem Vereinigten Königreich', 'Republik Moldau': 'der Republik Moldau',
-};
-const countryDative = (name: string) => WITH_ARTICLE[name] ?? name;
 
 /** A SEPA transfer can only reach an IBAN inside the SEPA area. */
 export const isSepaIban = (raw: string) => raw.length >= 2 && raw.slice(0, 2) in IBAN_LENGTHS;

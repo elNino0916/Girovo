@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import type { SerializedTransaction } from './fints-types';
 import { counterpartyKey, txKey } from './categories.ts';
 import {
-  bookingKind, bookingKindLabel, categorize, foldText, guessCategory, isBusinessCredit, isOwnAccount, keywordCategory,
+  bookingKind, bookingKindLabel, categorize, foldText, guessCategory, isBankOwnBooking, isBusinessCredit, isOwnAccount,
+  keywordCategory,
 } from './categorize.ts';
 import { CRED, IBAN, OWN_GIRO, OWN_IBANS, OWN_SAVINGS, camt, mt940 } from './__fixtures__/transactions.ts';
 
@@ -290,4 +291,42 @@ test('isBusinessCredit: refunds, creditors, payment services and spending catego
   // Filed under a spending category (a shop's refund) or as an Umbuchung.
   assert.equal(isBusinessCredit(friend, 'shopping'), true);
   assert.equal(isBusinessCredit(friend, 'transfer'), true);
+});
+
+test('isBankOwnBooking: the Abschluss, fees and interest the bank books itself', () => {
+  // A Sparkasse quarter's interest: no name, no account, the booking text says what it is.
+  assert.equal(isBankOwnBooking(mt940({ day: '2026-09-30', amount: 1.07, text: 'ABSCHLUSS', purpose: 'Abrechnung 30.09.2026 siehe Anlage' })), true);
+  assert.equal(isBankOwnBooking(mt940({ day: '2026-09-30', amount: -7.9, text: 'ENTGELTABSCHLUSS' })), true);
+  // Only the GVC (805–810) to go by.
+  assert.equal(isBankOwnBooking(mt940({ day: '2026-09-30', amount: -2.5, gvc: '808' })), true);
+  // A fee or interest from somewhere else has that account's IBAN.
+  assert.equal(isBankOwnBooking(mt940({ day: '2026-09-05', amount: -4.99, text: 'ENTGELT', name: 'PayPal Europe', iban: IBAN.paypal })), false);
+  assert.equal(isBankOwnBooking(mt940({ day: '2026-09-30', amount: 12.4, text: 'ZINSEN', name: 'Tagesgeld AG', iban: IBAN.employer })), false);
+  // Anything else is not the bank's own.
+  assert.equal(isBankOwnBooking(mt940({ day: '2026-09-02', amount: -2.6, text: 'KARTENZAHLUNG', name: 'Baeckerei Hoefer' })), false);
+});
+
+test('guessCategory: the model only fills what the keywords leave, only for money going out', async () => {
+  const { counterpartyKey } = await import('./categories.ts');
+  const shop = mt940({ day: '2026-09-02', amount: -8.5, text: 'KARTENZAHLUNG', name: 'LANDBROT SCHUEREN' });
+  const key = counterpartyKey(shop);
+  assert.equal(guessCategory(shop), 'other');
+  assert.equal(guessCategory(shop, { modelGuesses: { [key]: 'groceries' } }), 'groceries');
+  // A keyword match is not second-guessed.
+  const rewe = mt940({ day: '2026-09-02', amount: -30, text: 'KARTENZAHLUNG', name: 'REWE Markt GmbH' });
+  assert.equal(guessCategory(rewe, { modelGuesses: { [counterpartyKey(rewe)]: 'leisure' } }), 'groceries');
+  // Money coming in is never guessed, and only a spending category is taken.
+  const credit = mt940({ day: '2026-09-02', amount: 20, text: 'GUTSCHRIFT', name: 'LANDBROT SCHUEREN' });
+  assert.equal(guessCategory(credit, { modelGuesses: { [counterpartyKey(credit)]: 'groceries' } }), 'otherIn');
+  assert.equal(guessCategory(shop, { modelGuesses: { [key]: 'income' } }), 'other');
+});
+
+test('keywords: a "Bäcker" by card, and web hosting', () => {
+  const card = mt940({ day: '2026-10-02', amount: -3.2, gvc: '106', text: 'KARTENZAHLUNG', name: 'SCHAEFER DEIN BAECKER 0415' });
+  assert.equal(guessCategory(card), 'groceries');
+  // As a surname on a transfer, "Bäcker" is a person.
+  const person = mt940({ day: '2026-10-02', amount: -20, text: 'UEBERWEISUNG', name: 'Thomas Baecker', iban: IBAN.landlord });
+  assert.equal(guessCategory(person), 'other');
+  const host = mt940({ day: '2026-10-02', amount: -4.51, text: 'FOLGELASTSCHRIFT', name: 'Hetzner Online GmbH', purpose: 'R0024173385' });
+  assert.equal(guessCategory(host), 'media');
 });

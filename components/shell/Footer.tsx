@@ -5,6 +5,7 @@
 // session runs, and where its source lives — the shape every German bank
 // closes an online-banking page with.
 
+import { rich, useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ExternalIcon, ShieldIcon } from '../icons';
 import { BrandMark } from './BrandMark';
@@ -15,6 +16,7 @@ const REPO = 'https://github.com/elNino0916/Girovo';
 
 export function Footer() {
   const { bank, sessionStartedAt } = useFints();
+  const t = useT();
 
   return (
     <footer className="on-bar mt-auto bg-bar text-bar-ink">
@@ -23,18 +25,18 @@ export function Footer() {
           <p className="flex min-w-0">
             <BrandMark version={APP_VERSION} />
           </p>
-          <nav aria-label="Projekt" className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13.5px]">
+          <nav aria-label={t.shell.footer.project} className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13.5px]">
             <a
               href={REPO}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex min-h-8 items-center gap-1.5 rounded-sm font-semibold underline-offset-4 hover:underline"
             >
-              Quellcode auf GitHub
+              {t.shell.footer.source}
               <ExternalIcon size={14} className="text-bar-ink-2" />
-              <span className="sr-only">(öffnet extern)</span>
+              <span className="sr-only">{t.shell.opensExternally}</span>
             </a>
-            <span className="text-bar-ink-2">Open Source · MIT-Lizenz</span>
+            <span className="text-bar-ink-2">{t.shell.footer.license}</span>
           </nav>
         </div>
 
@@ -43,10 +45,10 @@ export function Footer() {
               said twice, once with the protocol and once without. */}
           <span className="inline-flex items-center gap-1.5">
             <ShieldIcon size={13} className="shrink-0" />
-            Direkte FinTS-Verbindung von diesem Rechner zu {bank?.name || 'deiner Bank'}
+            {t.shell.footer.connection(bank?.name || '')}
           </span>
           <span className="sm:ml-auto">
-            Angemeldet seit <span className="tnum">{fmtSince(sessionStartedAt)}</span>
+            {rich(t.shell.footer.since(<span className="tnum">{fmtSince(sessionStartedAt)}</span>))}
           </span>
         </div>
       </div>

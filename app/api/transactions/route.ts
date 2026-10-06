@@ -8,6 +8,7 @@ import {
 import { getSession } from '@/lib/session';
 import { fetchStatements } from '@/lib/fints-statements';
 import type { TransactionsResponse } from '@/lib/fints-types';
+import { msgs } from '@/lib/i18n';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ export const POST = wrap(async (req: Request) => {
   const { sessionId, accountNumber, from, to } = await body<TransactionsBody>(req);
   const s = getSession(sessionId);
   if (!s) return sessionExpired();
-  if (!accountNumber) return fail('Kein Konto angegeben.');
+  if (!accountNumber) return fail(msgs().transactions.api.noAccount);
 
   // With no `from`, the bank returns statements from the start of its retention
   // window and caps the response at maxEntries — so an active account gets the
@@ -41,7 +42,7 @@ export const POST = wrap(async (req: Request) => {
     s.pending = { type: 'statements', tanReference: resp.tanReference, accountNumber };
     return json({ ...tanPayload(resp), accountNumber } satisfies TransactionsResponse);
   }
-  if (!resp.success) return fail(bankAnswerText(resp) || 'Umsätze konnten nicht geladen werden.');
+  if (!resp.success) return fail(bankAnswerText(resp) || msgs().transactions.api.transactionsFailed);
   logStatementDates(accountNumber, resp.statements);
   return json({
     needsTan: false, accountNumber,

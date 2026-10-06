@@ -25,6 +25,8 @@ import { bankAnswerLines, formatBankAnswer, refusalReference } from '@/lib/bank-
 import type { SerializedAccount, SerializedVop } from '@/lib/fints-types';
 import type { EpcPayment } from '@/lib/girocode';
 import { fmtAmountInput, fmtDate, fmtIban, fmtShortIban, isoDate, parseAmount } from '@/lib/format';
+import { msgs, type Messages } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
 import { sepaLength, sepaSanitize } from '@/lib/sepa-text';
 import { findDuplicate, findSentTransfer, fundsWarning, spendable, type FundsWarning } from '@/lib/transfer-checks';
 import { useFints, type TransferHandlers } from './FintsProvider';
@@ -67,15 +69,12 @@ type Source = { kind: NonNullable<TransferPrefill['source']>; label?: string };
 // never reached.
 const STEP_INDEX: Record<Step, number> = { form: 0, review: 1, vop: 2, awaiting: 2, refused: 2, done: 3, unknown: 3 };
 
-const TITLES: Record<Step, string> = {
-  form: 'Überweisung',
-  review: 'Überweisung prüfen',
-  vop: 'Namensabgleich',
-  awaiting: 'Freigabe',
-  done: 'Überweisung ausgeführt',
-  unknown: 'Status unklar',
-  refused: 'Überweisung nicht ausgeführt',
-};
+/** The sheet's heading on a step. */
+function stepTitle(tr: Messages, step: Step): string {
+  if (step === 'awaiting') return tr.common.approval;
+  if (step === 'unknown') return tr.common.statusUnclear;
+  return tr.transfer.titles[step];
+}
 
 const SOURCE_ICON: Record<Source['kind'], ReactNode> = {
   girocode: <QrIcon size={14} />,
@@ -85,35 +84,66 @@ const SOURCE_ICON: Record<Source['kind'], ReactNode> = {
   recent: <ClockIcon size={14} />,
 };
 
-function sourceLabel(s: Source): string {
+function sourceLabel(tr: Messages, s: Source): string {
+  const words = tr.transfer.source;
   switch (s.kind) {
-    case 'girocode': return 'Aus GiroCode übernommen';
-    case 'template': return s.label ? `Vorlage: ${s.label}` : 'Aus Vorlage übernommen';
-    case 'repeat': return 'Erneut überweisen';
-    case 'refund': return 'Rückzahlung';
-    case 'recent': return 'Letzter Empfänger';
+    case 'girocode': return words.girocode;
+    case 'template': return s.label ? words.template(s.label) : words.templateUnnamed;
+    case 'repeat': return words.repeat;
+    case 'refund': return words.refund;
+    case 'recent': return words.recent;
   }
 }
 
+/**
+ * An announcement for the live region. State keeps how to say it, not the
+ * words: they are worked out in the language on screen when it is shown.
+ */
+type Say = { say: (m: Messages) => string };
+
 const clip = (s: string | null | undefined, n: number) => [...String(s ?? '')].slice(0, n).join('');
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
-const fmtTime = (d: Date) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} Uhr`;
+/** "13:12 Uhr" ("13:12"). */
+const fmtTime = (tr: Messages, d: Date) => tr.transfer.clock(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
 /** "13:12 Uhr" today, "03.10.2026, 18:40 Uhr" any other day. */
-const fmtWhen = (t: number) => {
+const fmtWhen = (tr: Messages, t: number) => {
   const d = new Date(t);
-  return isoDate(d) === isoDate(new Date()) ? fmtTime(d) : `${fmtDate(d)}, ${fmtTime(d)}`;
+  return isoDate(d) === isoDate(new Date()) ? fmtTime(tr, d) : `${fmtDate(d)}, ${fmtTime(tr, d)}`;
 };
 
 // The bank receives name and purpose rewritten to the SEPA character set
 // (ä → ae, € → EUR …), and its 70/140 limits count the rewritten text. The
-// fields' own maxLength only caps what can be typed; these say whether it
-// fits once rewritten — the server refuses what does not, rather than cut it.
-const purposeTooLong = (n: number) =>
-  `Für die Bank ${n - MAX_PURPOSE === 1 ? 'ein Zeichen' : `${n - MAX_PURPOSE} Zeichen`} zu lang: `
-  + 'Umlaute und Sonderzeichen werden ausgeschrieben (ä → ae, € → EUR).';
-const nameTooLong = (n: number) =>
-  `Für die Bank ist der Name ${n} Zeichen lang, höchstens ${MAX_NAME} gehen: `
-  + 'Umlaute und Sonderzeichen werden ausgeschrieben (ä → ae).';
+// fields' own maxLength only caps what can be typed; the form's checks
+// (formProblems, the purpose field's own error) say whether it fits once
+// rewritten — the server refuses what does not, rather than cut it.
+
+/**
+ * What "Weiter zur Prüfung" refuses, field by field, in words. The sheet
+ * keeps only which fields were flagged; the words are worked out where they
+ * are shown, from the values as they stand — which have not changed since,
+ * or the flag would be gone.
+ */
+function formProblems(tr: Messages, f: {
+  account: SerializedAccount | undefined;
+  name: string;
+  raw: string;
+  amount: string;
+  purposeLen: number;
+}): Partial<Record<FieldKey, string>> {
+  const words = tr.transfer;
+  const out: Partial<Record<FieldKey, string>> = {};
+  if (!f.account) out.account = words.form.chooseAccount;
+  const sentName = sepaSanitize(f.name);
+  if (!f.name.trim()) out.name = words.nameMissing;
+  else if (!sentName) out.name = words.form.nameUnsendable;
+  else if (sentName.length > MAX_NAME) out.name = words.form.nameTooLong(sentName.length, MAX_NAME);
+  const ip = ibanProblem(f.raw, f.account?.iban);
+  if (ip) out.iban = ip;
+  const a = checkAmount(f.amount);
+  if (a.cents == null) out.amount = a.error ?? words.form.amountMissing;
+  if (f.purposeLen > MAX_PURPOSE) out.purpose = words.form.purposeTooLong(f.purposeLen - MAX_PURPOSE);
+  return out;
+}
 
 /** A typed amount shown back the way the field formats it on blur. */
 function tidyAmount(text: string | null | undefined): string {
@@ -143,6 +173,7 @@ export function TransferSheet() {
     refreshAfterTransfer, loadPending, range, txByAccount, pendingCache, pendingInfo, statementInfo, activity,
     accountLabel, vault, touchTemplate, wait, busy, toast,
   } = useFints();
+  const tr = useT();
   const money = useMoneyText();
   const narrow = useNarrow();
   const eligible = useMemo(() => accounts.filter((a) => a.canTransfer), [accounts]);
@@ -183,7 +214,8 @@ export function TransferSheet() {
   // judges everything.
   const [ibanTouched, setIbanTouched] = useState(!!initial.iban);
   const [amountTouched, setAmountTouched] = useState(!!initial.amount);
-  const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  /** The fields "Weiter" found fault with, until each is edited (formProblems says what). */
+  const [flagged, setFlagged] = useState<Partial<Record<FieldKey, boolean>>>({});
 
   const [step, setStep] = useState<Step>('form');
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -199,7 +231,7 @@ export function TransferSheet() {
   const [check, setCheck] = useState<Check | null>(null);
   const [confirm, setConfirm] = useState<null | 'discard' | 'vop'>(null);
   const [managing, setManaging] = useState(false);
-  const [live, setLive] = useState('');
+  const [live, setLive] = useState<Say | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
 
   const account = eligible.find((a) => a.accountNumber === accountNumber);
@@ -218,12 +250,16 @@ export function TransferSheet() {
   const empty = eligible.length === 0;
   useEffect(() => {
     if (!empty) return;
-    toast('Kein Konto unterstützt Überweisungen über FinTS.', 'error');
+    toast(msgs().transfer.noAccount, 'error');
     closeTransfer();
   }, [empty, toast, closeTransfer]);
 
   // ---- derived form state -------------------------------------------------
   const raw = rawIban(iban);
+  const purposeLen = sepaLength(purpose);
+  const problems = formProblems(tr, { account, name, raw, amount, purposeLen });
+  const errors: Partial<Record<FieldKey, string>> = {};
+  for (const k of FIELD_ORDER) if (flagged[k]) errors[k] = problems[k];
   const ibanLiveProblem = raw && ibanTouched ? ibanProblem(raw, account?.iban) : null;
   const ibanError = errors.iban ?? ibanLiveProblem ?? undefined;
   const ibanOk = !!raw && !ibanProblem(raw, account?.iban);
@@ -231,7 +267,6 @@ export function TransferSheet() {
 
   const amountCheck = checkAmount(amount);
   const amountError = errors.amount ?? (amountTouched ? amountCheck.error ?? undefined : undefined);
-  const purposeLen = sepaLength(purpose);
   const funds = spendable(account ? balances[account.accountNumber] : null);
   // More than the account can spend, or into the Dispo — the same reading on
   // Erfassen (as the amount is typed) and on Prüfen.
@@ -266,7 +301,9 @@ export function TransferSheet() {
   // ---- the review step's second looks -------------------------------------
   const draftAccount = draft ? eligible.find((a) => a.accountNumber === draft.accountNumber) ?? account : account;
   const sentOrders = vault?.sentOrders;
-  const duplicate = useMemo(() => (draft
+  // The check, not its words: the sentence is worded when it is read
+  // (lib/transfer-checks.ts), in the language on screen.
+  const duplicateCheck = useMemo(() => (draft
     ? findDuplicate({
       iban: draft.iban,
       cents: draft.cents,
@@ -276,21 +313,22 @@ export function TransferSheet() {
       pending: pendingCache,
       txByAccount,
       fmt: (v) => formatMoney(v),
-    })?.sentence ?? null
+    })
     : null), [draft, activity, sentOrders, pendingCache, txByAccount]);
+  const duplicate = duplicateCheck?.sentence ?? null;
   const reviewWarning: FundsWarning | null = draft && draftAccount
     ? fundsWarning(balances[draft.accountNumber], draft.cents, {
       currency: draftAccount.currency, overdraft: !isCardAccount(draftAccount),
     })
     : null;
   // The commit names the risk it takes: a hint, never a block.
-  const sendLabel = duplicate ? 'Trotzdem überweisen' : 'Jetzt überweisen';
-  /** What the review step warns about, as the step's announcement says it. */
-  const reviewNote = [
-    duplicate,
+  const sendLabel = duplicate ? tr.transfer.actions.sendAnyway : tr.transfer.actions.sendNow;
+  /** What the review step warns about, as the step's announcement says it — in the language `m` speaks. */
+  const reviewNote = (m: Messages) => [
+    duplicateCheck?.sentence,
     reviewWarning && (reviewWarning.kind === 'over'
-      ? `Mehr als ${reviewWarning.basis === 'available' ? 'verfügbar' : 'dein Kontostand'} – die Bank kann den Auftrag ablehnen.`
-      : `Kontostand danach ca. ${money(reviewWarning.balanceAfter, draftAccount?.currency ?? 'EUR')} – du nutzt deinen Dispositionsrahmen.`),
+      ? m.transfer.funds.over(reviewWarning.basis === 'available')
+      : m.transfer.funds.overdraft(money(reviewWarning.balanceAfter, draftAccount?.currency ?? 'EUR')).join('')),
   ].filter(Boolean).join(' ');
   const reviewNoteRef = useRef(reviewNote);
   reviewNoteRef.current = reviewNote;
@@ -306,9 +344,14 @@ export function TransferSheet() {
     titleRef.current?.focus({ preventScroll: true });
     // The warnings are part of the announcement: focus moves past them to the
     // heading, and a screen reader tabbing on to the buttons would never
-    // hear them otherwise.
-    const note = step === 'review' ? reviewNoteRef.current : '';
-    setLive(`Schritt ${STEP_INDEX[step] + 1} von ${TRANSFER_STEPS.length}: ${TITLES[step]}.${note ? ` ${note}` : ''}`);
+    // hear them otherwise. They are the ones on screen as the step opens.
+    const note = step === 'review' ? reviewNoteRef.current : null;
+    setLive({
+      say: (m) => {
+        const said = note?.(m);
+        return `${m.transfer.live.step(STEP_INDEX[step] + 1, TRANSFER_STEPS.length, stepTitle(m, step))}${said ? ` ${said}` : ''}`;
+      },
+    });
   }, [step]);
 
   // An error that arrives on a step already open (a retry refused, the line
@@ -407,7 +450,7 @@ export function TransferSheet() {
       setPurpose(clip(next.purpose, MAX_PURPOSE));
       if (next.instant !== undefined) setInstant(next.instant);
     }
-    setErrors({});
+    setFlagged({});
     setSource(from);
   }, []);
 
@@ -420,7 +463,7 @@ export function TransferSheet() {
       // form; banks accept it as the remittance text.
       purpose: p.purpose ?? p.reference ?? '',
     }, { kind: 'girocode' }, true);
-    setLive(`GiroCode übernommen: ${p.name}${p.amount != null ? `, ${formatMoney(p.amount)}` : ''}.`);
+    setLive({ say: (m) => m.transfer.live.girocode(p.name, p.amount != null ? formatMoney(p.amount) : null) });
     // Straight on to what the code could not say.
     requestAnimationFrame(() => (p.amount == null ? amountRef : nameRef).current?.focus());
   }, [fillPayee]);
@@ -436,7 +479,7 @@ export function TransferSheet() {
     );
     touchTemplate(t.id);
     reader.reset();
-    setLive(`Vorlage „${t.label}“ übernommen.`);
+    setLive({ say: (m) => m.transfer.live.template(t.label) });
   };
 
   // Strg+V anywhere in the form: an image (a screenshot of an invoice) or a
@@ -459,25 +502,17 @@ export function TransferSheet() {
   // ---- Erfassen → Prüfen --------------------------------------------------
   const toReview = (e: FormEvent) => {
     e.preventDefault();
-    const next: Partial<Record<FieldKey, string>> = {};
-    if (!account) next.account = 'Bitte wähle das Konto, von dem du überweist.';
-    const sentName = sepaSanitize(name);
-    if (!name.trim()) next.name = 'Bitte gib den Namen des Empfängers an.';
-    else if (!sentName) next.name = 'Der Name besteht nur aus Zeichen, die eine Überweisung nicht übertragen kann.';
-    else if (sentName.length > MAX_NAME) next.name = nameTooLong(sentName.length);
-    const ip = ibanProblem(raw, account?.iban);
-    if (ip) next.iban = ip;
+    const next: Partial<Record<FieldKey, boolean>> = {};
+    for (const k of FIELD_ORDER) if (problems[k]) next[k] = true;
     const a = checkAmount(amount);
-    if (a.cents == null) next.amount = a.error ?? 'Bitte gib den Betrag an.';
-    if (purposeLen > MAX_PURPOSE) next.purpose = purposeTooLong(purposeLen);
-    setErrors(next);
+    setFlagged(next);
     setIbanTouched(true);
     setAmountTouched(true);
     const first = FIELD_ORDER.find((k) => next[k]);
     if (first || !account || a.cents == null) {
       if (first) fieldRefs[first].current?.focus();
       const n = Object.keys(next).length;
-      setLive(n === 1 ? 'Bitte prüfe das markierte Feld.' : `Bitte prüfe die ${n} markierten Felder.`);
+      setLive({ say: (m) => m.transfer.live.checkFields(n) });
       return;
     }
     setAmount(fmtAmountInput(a.cents / 100));
@@ -636,6 +671,9 @@ export function TransferSheet() {
     : null;
   const vopCheckFirst = !!vop && (vop.verdict === 'NO_MATCH' || (vop.verdict === 'CLOSE_MATCH' && !vop.suggestedName));
 
+  const words = tr.transfer;
+  const act = words.actions;
+
   return (
     <Overlay
       open
@@ -649,7 +687,7 @@ export function TransferSheet() {
       <Panel
         titleId="transfer-title"
         titleRef={titleRef}
-        title={TITLES[step]}
+        title={stepTitle(tr, step)}
         onClose={requestClose}
         closeDisabled={submitting}
         headerExtra={<Stepper current={STEP_INDEX[step]} unsure={step === 'unknown'} refused={step === 'refused'} />}
@@ -660,8 +698,8 @@ export function TransferSheet() {
         footer={
           step === 'form' ? (
             <FooterRow>
-              <Button className="flex-1" onClick={requestClose}>Abbrechen</Button>
-              <Button type="submit" form="transfer-form" variant="primary" className="flex-[2]">Weiter zur Prüfung</Button>
+              <Button className="flex-1" onClick={requestClose}>{tr.common.cancel}</Button>
+              <Button type="submit" form="transfer-form" variant="primary" className="flex-[2]">{act.toReview}</Button>
             </FooterRow>
           ) : step === 'review' ? (
             duplicate ? (
@@ -678,12 +716,12 @@ export function TransferSheet() {
                   {sendLabel}
                 </Button>
                 <Button variant="primary" className="sm:flex-1" disabled={submitting} onClick={() => { setError(null); setStep('form'); }}>
-                  Angaben prüfen
+                  {act.check}
                 </Button>
               </StackRow>
             ) : (
               <FooterRow>
-                <Button className="flex-1" disabled={submitting} onClick={() => { setError(null); setStep('form'); }}>Zurück</Button>
+                <Button className="flex-1" disabled={submitting} onClick={() => { setError(null); setStep('form'); }}>{act.back}</Button>
                 <Button
                   variant="primary"
                   className="flex-[2]"
@@ -699,24 +737,24 @@ export function TransferSheet() {
           ) : step === 'vop' && vop ? (
             vopSuggestion ? (
               <StackRow>
-                <Button variant="quiet" className="sm:-ml-3" disabled={submitting} onClick={dropVop}>Zurück</Button>
+                <Button variant="quiet" className="sm:-ml-3" disabled={submitting} onClick={dropVop}>{act.back}</Button>
                 <Button className="sm:flex-1" busy={submitting} disabled={busy && !submitting} onClick={sendDespiteVop}>
-                  Trotzdem überweisen
+                  {act.sendAnyway}
                 </Button>
                 <Button variant="primary" className="sm:flex-1" disabled={submitting} onClick={() => adoptSuggested(vopSuggestion)}>
-                  Namen übernehmen
+                  {act.adoptName}
                 </Button>
               </StackRow>
             ) : vopCheckFirst ? (
               <StackRow>
                 <Button className="sm:flex-1" busy={submitting} disabled={busy && !submitting} onClick={sendDespiteVop}>
-                  Trotzdem überweisen
+                  {act.sendAnyway}
                 </Button>
-                <Button variant="primary" className="sm:flex-1" disabled={submitting} onClick={dropVop}>Angaben prüfen</Button>
+                <Button variant="primary" className="sm:flex-1" disabled={submitting} onClick={dropVop}>{act.check}</Button>
               </StackRow>
             ) : (
               <FooterRow>
-                <Button className="flex-1" disabled={submitting} onClick={dropVop}>Zurück</Button>
+                <Button className="flex-1" disabled={submitting} onClick={dropVop}>{act.back}</Button>
                 <Button
                   variant="primary"
                   className="flex-[2]"
@@ -724,26 +762,26 @@ export function TransferSheet() {
                   disabled={busy && !submitting}
                   onClick={sendDespiteVop}
                 >
-                  {vopDeviates(vop) ? 'Trotzdem überweisen'
-                    : vop.verdict === 'NOT_APPLICABLE' ? 'Ohne Abgleich überweisen'
-                      : vopUnchecked(vop) ? 'Ohne Ergebnis überweisen'
-                        : 'Überweisung freigeben'}
+                  {vopDeviates(vop) ? act.sendAnyway
+                    : vop.verdict === 'NOT_APPLICABLE' ? act.sendUnchecked
+                      : vopUnchecked(vop) ? act.sendNoResult
+                        : act.approve}
                 </Button>
               </FooterRow>
             )
           ) : step === 'done' ? (
             <FooterRow>
-              <Button className="flex-1" onClick={refreshStatements} disabled={busy}>Umsätze aktualisieren</Button>
-              <Button variant="primary" className="flex-1" onClick={closeTransfer}>Fertig</Button>
+              <Button className="flex-1" onClick={refreshStatements} disabled={busy}>{act.refresh}</Button>
+              <Button variant="primary" className="flex-1" onClick={closeTransfer}>{tr.common.done}</Button>
             </FooterRow>
           ) : step === 'unknown' ? (
             sighting ? (
               <FooterRow>
-                <Button variant="primary" className="flex-1" onClick={closeTransfer}>Fertig</Button>
+                <Button variant="primary" className="flex-1" onClick={closeTransfer}>{tr.common.done}</Button>
               </FooterRow>
             ) : (
               <FooterRow>
-                <Button className="flex-1" onClick={closeTransfer}>Schließen</Button>
+                <Button className="flex-1" onClick={closeTransfer}>{tr.common.close}</Button>
                 <Button
                   variant="primary"
                   className="flex-[2]"
@@ -751,32 +789,32 @@ export function TransferSheet() {
                   disabled={!checkAccount || (busy && !checking)}
                   onClick={lookAgain}
                 >
-                  {check?.stage === 'done' ? 'Noch einmal nachsehen' : 'Jetzt nachsehen'}
+                  {check?.stage === 'done' ? act.lookAgain : act.lookNow}
                 </Button>
               </FooterRow>
             )
           ) : step === 'refused' ? (
             <FooterRow>
-              <Button className="flex-1" onClick={closeTransfer}>Schließen</Button>
-              <Button variant="primary" className="flex-[2]" onClick={changeDetails}>Angaben ändern</Button>
+              <Button className="flex-1" onClick={closeTransfer}>{tr.common.close}</Button>
+              <Button variant="primary" className="flex-[2]" onClick={changeDetails}>{act.change}</Button>
             </FooterRow>
           ) : null
         }
       >
-        <p className="sr-only" aria-live="polite" aria-atomic="true">{live}</p>
+        <p className="sr-only" aria-live="polite" aria-atomic="true">{live?.say(tr)}</p>
 
         {step === 'form' && (
           <form id="transfer-form" onSubmit={toReview} noValidate className="pt-1">
-            <Field label="Von Konto" htmlFor="tf-account" error={errors.account}>
+            <Field label={words.form.fromAccount} htmlFor="tf-account" error={errors.account}>
               <Select
                 id="tf-account"
                 ref={accountRef}
                 value={accountNumber}
-                onChange={(e) => { setAccountNumber(e.target.value); setErrors((x) => ({ ...x, account: undefined })); }}
+                onChange={(e) => { setAccountNumber(e.target.value); setFlagged((x) => ({ ...x, account: false })); }}
               >
                 {eligible.map((a) => (
                   <option key={a.accountNumber} value={a.accountNumber}>
-                    {accountOption(a, accountLabel(a), narrow ? null : spendable(balances[a.accountNumber]), money)}
+                    {accountOption(tr, a, accountLabel(a), narrow ? null : spendable(balances[a.accountNumber]), money)}
                   </option>
                 ))}
               </Select>
@@ -784,7 +822,7 @@ export function TransferSheet() {
 
             <section aria-labelledby="tf-payee" className="mt-7">
               <div className="mb-3 flex min-h-9 items-center justify-between gap-3">
-                <h3 id="tf-payee" className="section-head">Empfänger</h3>
+                <h3 id="tf-payee" className="section-head">{words.recipient}</h3>
                 <TemplatesMenu onPick={applyTemplate} onManage={() => setManaging(true)} />
               </div>
 
@@ -792,13 +830,13 @@ export function TransferSheet() {
                 // A source note is a static value, not a status: Strong Line
                 // edge, Slate Ink label.
                 <p className="mb-4">
-                  <Chip icon={SOURCE_ICON[source.kind]}>{sourceLabel(source)}</Chip>
+                  <Chip icon={SOURCE_ICON[source.kind]}>{sourceLabel(tr, source)}</Chip>
                 </p>
               )}
 
               {recents.length > 0 && (
                 <div className="mb-4">
-                  <p id="tf-recent" className="mb-2 text-[13px] font-semibold text-ink-3">Letzte Empfänger</p>
+                  <p id="tf-recent" className="mb-2 text-[13px] font-semibold text-ink-3">{words.form.recent}</p>
                   <div
                     role="group"
                     aria-labelledby="tf-recent"
@@ -817,7 +855,7 @@ export function TransferSheet() {
                           key={r.iban}
                           className="max-w-[260px]"
                           icon={own ? <AccountTypeIcon type={own.accountType} product={own.product} size={16} /> : undefined}
-                          title={`${own ? 'Eigenes Konto · ' : ''}${r.name} · ${fmtIban(r.iban)}`}
+                          title={`${own ? `${words.form.ownAccount} · ` : ''}${r.name} · ${fmtIban(r.iban)}`}
                           selected={raw === r.iban && squash(name) === r.name}
                           onClick={() => {
                             fillPayee({ name: r.name, iban: r.iban }, null, false);
@@ -839,12 +877,12 @@ export function TransferSheet() {
               <GiroCodeDrop className="mb-5" scan={reader.scan} dragging={drop.dragging} onFile={(f) => void reader.readFile(f)} />
 
               <Field
-                label="Name"
+                label={words.form.name}
                 htmlFor="tf-name"
                 error={errors.name}
                 // The bank compares it with the account holder's name (the
                 // Namensabgleich): saying so up front heads off a near miss.
-                hint={errors.name ? undefined : 'So, wie das Konto des Empfängers lautet – deine Bank gleicht ihn mit der IBAN ab.'}
+                hint={errors.name ? undefined : words.form.nameHint}
               >
                 <Input
                   id="tf-name"
@@ -853,8 +891,8 @@ export function TransferSheet() {
                   maxLength={MAX_NAME}
                   value={name}
                   autoComplete="off"
-                  onChange={(e) => { setName(e.target.value); setErrors((x) => ({ ...x, name: undefined })); }}
-                  placeholder="Vor- und Nachname oder Firma"
+                  onChange={(e) => { setName(e.target.value); setFlagged((x) => ({ ...x, name: false })); }}
+                  placeholder={words.form.namePlaceholder}
                 />
               </Field>
 
@@ -872,7 +910,7 @@ export function TransferSheet() {
                   value={iban}
                   onValueChange={(v) => {
                     setIban(v);
-                    setErrors((x) => ({ ...x, iban: undefined }));
+                    setFlagged((x) => ({ ...x, iban: false }));
                     const r = rawIban(v);
                     const len = expectedLength(r);
                     setIbanTouched(len != null && r.length >= len);
@@ -884,16 +922,16 @@ export function TransferSheet() {
             </section>
 
             <section aria-labelledby="tf-payment" className="mt-7">
-              <h3 id="tf-payment" className="section-head mb-3">Zahlung</h3>
+              <h3 id="tf-payment" className="section-head mb-3">{words.form.payment}</h3>
               <div className="grid gap-x-4 sm:grid-cols-2">
                 <Field
-                  label="Betrag"
+                  label={tr.common.booking.amount}
                   htmlFor="tf-amount"
                   error={amountError}
                   hint={amountError || !funds ? undefined : (
                     <span className="flex flex-col gap-1">
                       <span>
-                        {funds.kind === 'available' ? 'Verfügbar' : 'Kontostand'}{' '}
+                        {funds.kind === 'available' ? words.form.available : tr.common.account.balance}{' '}
                         <Money value={funds.value} currency={account?.currency} className="font-semibold text-ink-2" />
                       </span>
                       {formWarning && (
@@ -914,7 +952,7 @@ export function TransferSheet() {
                     value={amount}
                     onChange={(e) => {
                       setAmount(e.target.value);
-                      setErrors((x) => ({ ...x, amount: undefined }));
+                      setFlagged((x) => ({ ...x, amount: false }));
                       setAmountTouched(false);
                     }}
                     onBlur={(e) => {
@@ -932,37 +970,37 @@ export function TransferSheet() {
                 </Field>
 
                 <div className="mb-4 flex flex-col gap-1.5">
-                  <span className="text-[13px] leading-snug font-semibold text-ink-2" aria-hidden>Ausführung</span>
+                  <span className="text-[13px] leading-snug font-semibold text-ink-2" aria-hidden>{words.form.execution}</span>
                   <Segmented
-                    aria-label="Ausführung"
+                    aria-label={words.form.execution}
                     block
                     className="h-12 items-center"
                     value={useInstant ? 'instant' : 'standard'}
                     onChange={(v) => setInstant(v === 'instant')}
                     options={[
-                      { value: 'standard', label: 'Standard' },
-                      { value: 'instant', label: 'Echtzeit', icon: <BoltIcon size={16} />, disabled: !canInstant },
+                      { value: 'standard', label: words.form.standard },
+                      { value: 'instant', label: tr.common.booking.instant, icon: <BoltIcon size={16} />, disabled: !canInstant },
                     ]}
                   />
                   <p className="text-[13px] leading-snug text-ink-3">
                     {!canInstant
-                      ? 'Echtzeit bietet deine Bank für dieses Konto nicht über FinTS an.'
+                      ? words.form.noInstant
                       : useInstant
-                        ? 'In Sekunden beim Empfänger, rund um die Uhr.'
+                        ? words.form.instantHint
                         : <CreditDate short />}
                   </p>
                 </div>
               </div>
 
               <Field
-                label="Verwendungszweck"
+                label={tr.common.booking.purpose}
                 htmlFor="tf-purpose"
                 optional
                 className="mb-1"
                 // Counted the way the bank counts: after ä → ae and the like.
                 // Too long is said at once, not only on "Weiter" — a
                 // GiroCode can fill in a purpose that does not fit.
-                error={errors.purpose ?? (purposeLen > MAX_PURPOSE ? purposeTooLong(purposeLen) : undefined)}
+                error={errors.purpose ?? (purposeLen > MAX_PURPOSE ? words.form.purposeTooLong(purposeLen - MAX_PURPOSE) : undefined)}
                 trailing={(
                   <span
                     aria-hidden
@@ -976,7 +1014,7 @@ export function TransferSheet() {
                   </span>
                 )}
                 hint={purposeLen > MAX_PURPOSE || purposeLen < MAX_PURPOSE - 10 ? undefined : (
-                  `Noch ${MAX_PURPOSE - purposeLen} Zeichen.${sepaSanitize(purpose) !== squash(purpose) ? ' Umlaute und Sonderzeichen zählen ausgeschrieben (ä → ae).' : ''}`
+                  `${words.form.charsLeft(MAX_PURPOSE - purposeLen)}${sepaSanitize(purpose) !== squash(purpose) ? ` ${words.form.countsWrittenOut}` : ''}`
                 )}
               >
                 <Input
@@ -985,8 +1023,8 @@ export function TransferSheet() {
                   maxLength={MAX_PURPOSE}
                   value={purpose}
                   autoComplete="off"
-                  onChange={(e) => { setPurpose(e.target.value); setErrors((x) => ({ ...x, purpose: undefined })); }}
-                  placeholder="z. B. Rechnung 2026-118"
+                  onChange={(e) => { setPurpose(e.target.value); setFlagged((x) => ({ ...x, purpose: false })); }}
+                  placeholder={words.form.purposePlaceholder}
                 />
               </Field>
             </section>
@@ -1013,10 +1051,9 @@ export function TransferSheet() {
           <div className="pt-1">
             {error && <StepError message={error} errorRef={errorRef} />}
             <p className="mb-4 text-[15px] leading-relaxed text-ink-2">
-              {vopUnchecked(vop)
-                ? 'Für diesen Empfänger liefert der Namensabgleich kein eindeutiges Ergebnis. Prüfe die Angaben, bevor du '
-                : 'Die Bank hat den Empfängernamen mit dem Namen zur IBAN abgeglichen. Prüfe das Ergebnis, bevor du '}
-              <Money value={draft.cents / 100} masked={false} className="font-semibold text-ink" /> freigibst.
+              {rich((vopUnchecked(vop) ? words.vopStep.introUnchecked : words.vopStep.intro)(
+                <Money value={draft.cents / 100} masked={false} className="font-semibold text-ink" />,
+              ))}
             </p>
             <VopReport vop={vop} iban={draft.iban} className="mb-4" />
             {vop.verdict === 'NO_MATCH' && (
@@ -1024,15 +1061,12 @@ export function TransferSheet() {
               // way to tell is a channel the fraudster does not control.
               <p className="mb-3 flex items-start gap-2 text-[14.5px] leading-snug text-ink">
                 <InfoIcon size={17} className="mt-px shrink-0 text-info" />
-                <span>
-                  Frag beim Empfänger nach, ob Name und IBAN stimmen – über einen Weg, den du schon kennst, nicht über die
-                  Rechnung oder E-Mail, aus der die IBAN stammt.
-                </span>
+                <span>{words.vopStep.askPayee}</span>
               </p>
             )}
             {vopDeviates(vop) && (
               <p className="text-[13.5px] leading-snug text-ink-2">
-                Gibst du die Überweisung trotz Abweichung frei, trägst du das Risiko, dass das Geld beim falschen Empfänger ankommt.
+                {words.vopStep.risk}
               </p>
             )}
             {busy && !submitting && <BusyNote />}
@@ -1044,13 +1078,13 @@ export function TransferSheet() {
             <SuccessMark />
             <p className="mt-5 text-[17px] leading-snug text-ink">
               <Money value={draft.cents / 100} className="text-[24px] font-bold text-headline" />
-              <span className="mt-1 block break-words">an {sepaSanitize(draft.name)}</span>
+              <span className="mt-1 block break-words">{words.done.to(sepaSanitize(draft.name))}</span>
             </p>
             <p className="mt-2 text-[14px] text-ink-2">
               {draft.instant ? (
                 <>
                   <BoltIcon size={15} className="mr-1 inline-block align-[-2px]" />
-                  Echtzeitüberweisung – in Sekunden beim Empfänger.
+                  {words.done.instant}
                 </>
               ) : (
                 <CreditDate />
@@ -1058,15 +1092,8 @@ export function TransferSheet() {
             </p>
             {answerLines.length > 0 && <BankAnswer lines={answerLines} className="mt-5" />}
             <p className="mt-5 max-w-[46ch] text-[13.5px] leading-relaxed text-ink-3">
-              Die Buchung erscheint in deinen Umsätzen, sobald die Bank sie meldet.{' '}
-              {pastRange ? (
-                <>
-                  Dein gewählter Zeitraum endet am {fmtDate(range.to)} – „Umsätze aktualisieren“ lädt die Umsätze bis heute.
-                  Das kann eine Freigabe erfordern.
-                </>
-              ) : (
-                <>„Umsätze aktualisieren“ ruft sie neu ab – das kann eine Freigabe erfordern.</>
-              )}
+              {words.done.appears}{' '}
+              {pastRange ? words.done.pastRange(fmtDate(range.to), act.refresh) : words.done.refreshHint(act.refresh)}
             </p>
             {templatePayee && (
               <div className="mt-6 w-full border-t border-line pt-5 text-left">
@@ -1080,13 +1107,11 @@ export function TransferSheet() {
           <div className="flex flex-col items-center pt-2 text-center">
             <UnsureMark />
             <p className="mt-5 max-w-[48ch] text-[15px] leading-relaxed text-ink">
-              Für diese Überweisung liegt keine Bestätigung vor. Sie kann trotzdem bei deiner Bank angekommen sein und
-              ausgeführt werden.
+              {words.unknown.noConfirmation}
             </p>
             {!sighting && (
               <p className="mt-2 max-w-[48ch] text-[14px] leading-relaxed text-ink-2">
-                Bevor du sie erneut sendest: Sieh nach, ob sie schon in deinen Umsätzen oder bei den vorgemerkten Umsätzen
-                steht – „Jetzt nachsehen“ ruft beide neu ab, das kann eine Freigabe erfordern.
+                {words.unknown.beforeResend(act.lookNow)}
               </p>
             )}
 
@@ -1104,20 +1129,20 @@ export function TransferSheet() {
             {checking && (
               <p className="mt-4 flex items-center gap-2 text-[13.5px] text-ink-2" role="status">
                 <Spinner size={14} />
-                {check?.stage === 'pending' ? 'Vorgemerkte Umsätze werden abgerufen …' : 'Umsätze werden abgerufen …'}
+                {check?.stage === 'pending' ? words.unknown.loadingPending : words.unknown.loading}
               </p>
             )}
             {busy && !checking && <BusyNote />}
 
             {draft && (
               <SummaryList className="mt-5 w-full border-y border-line text-left">
-                <SummaryRow label="Betrag"><Money value={draft.cents / 100} className="font-semibold" /></SummaryRow>
-                <SummaryRow label="Empfänger">{sepaSanitize(draft.name)}</SummaryRow>
+                <SummaryRow label={tr.common.booking.amount}><Money value={draft.cents / 100} className="font-semibold" /></SummaryRow>
+                <SummaryRow label={words.recipient}>{sepaSanitize(draft.name)}</SummaryRow>
                 <SummaryRow label="IBAN"><span className="iban text-[14px]">{fmtIban(draft.iban)}</span></SummaryRow>
-                <SummaryRow label="Verwendungszweck">
-                  {sepaSanitize(draft.purpose) || <span className="text-ink-3">ohne</span>}
+                <SummaryRow label={tr.common.booking.purpose}>
+                  {sepaSanitize(draft.purpose) || <span className="text-ink-3">{words.review.none}</span>}
                 </SummaryRow>
-                {sentAt != null && <SummaryRow label="Gesendet"><span className="tnum">{fmtWhen(sentAt)}</span></SummaryRow>}
+                {sentAt != null && <SummaryRow label={words.unknown.sent}><span className="tnum">{fmtWhen(tr, sentAt)}</span></SummaryRow>}
               </SummaryList>
             )}
             {answerLines.length > 0 && <BankAnswer lines={answerLines} className="mt-5" />}
@@ -1128,7 +1153,7 @@ export function TransferSheet() {
           <div className="flex flex-col items-center pt-2 text-center">
             <RefusedMark />
             <p className="mt-5 max-w-[48ch] text-[15px] leading-relaxed text-ink">
-              {refusalLines.length > 0 ? 'Deine Bank hat den Auftrag abgelehnt:' : 'Deine Bank hat den Auftrag abgelehnt.'}
+              {refusalLines.length > 0 ? words.refused.withReason : words.refused.plain}
             </p>
             {refusalLines.length > 0 && (
               <BankAnswer
@@ -1140,8 +1165,8 @@ export function TransferSheet() {
             )}
             {draft && (
               <SummaryList className="mt-5 w-full border-y border-line text-left">
-                <SummaryRow label="Betrag"><Money value={draft.cents / 100} className="font-semibold" /></SummaryRow>
-                <SummaryRow label="Empfänger">{sepaSanitize(draft.name)}</SummaryRow>
+                <SummaryRow label={tr.common.booking.amount}><Money value={draft.cents / 100} className="font-semibold" /></SummaryRow>
+                <SummaryRow label={words.recipient}>{sepaSanitize(draft.name)}</SummaryRow>
                 <SummaryRow label="IBAN"><span className="iban text-[14px]">{fmtIban(draft.iban)}</span></SummaryRow>
               </SummaryList>
             )}
@@ -1154,12 +1179,12 @@ export function TransferSheet() {
         <Dialog
           open
           onClose={() => setConfirm(null)}
-          title="Eingaben verwerfen?"
-          description="Die Überweisung wurde noch nicht gesendet. Was du eingegeben hast, geht verloren."
+          title={words.discard.title}
+          description={words.discard.body}
           actions={(
             <>
-              <Button data-autofocus onClick={() => setConfirm(null)}>Weiter bearbeiten</Button>
-              <Button variant="danger" onClick={() => { setConfirm(null); closeTransfer(); }}>Verwerfen</Button>
+              <Button data-autofocus onClick={() => setConfirm(null)}>{words.discard.keep}</Button>
+              <Button variant="danger" onClick={() => { setConfirm(null); closeTransfer(); }}>{words.discard.confirm}</Button>
             </>
           )}
         />
@@ -1168,12 +1193,12 @@ export function TransferSheet() {
         <Dialog
           open
           onClose={() => setConfirm(null)}
-          title="Überweisung verwerfen?"
-          description="Der Auftrag liegt geprüft bei deiner Bank, ist aber nicht freigegeben. Verwirfst du ihn, wird kein Geld überwiesen."
+          title={words.discardVop.title}
+          description={words.discardVop.body}
           actions={(
             <>
-              <Button data-autofocus onClick={() => setConfirm(null)}>Weiter prüfen</Button>
-              <Button variant="danger" onClick={() => { setConfirm(null); closeAfterVop(); }}>Überweisung verwerfen</Button>
+              <Button data-autofocus onClick={() => setConfirm(null)}>{words.discardVop.keep}</Button>
+              <Button variant="danger" onClick={() => { setConfirm(null); closeAfterVop(); }}>{words.discardVop.confirm}</Button>
             </>
           )}
         />
@@ -1214,19 +1239,24 @@ function StackRow({ children }: { children: ReactNode }) {
   return <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">{children}</div>;
 }
 
-/** The bank's own words, codes stripped; under a refusal its code once, small, for a call to the bank. */
+/**
+ * The bank's own words, codes stripped; under a refusal its code once, small, for a call to the bank.
+ * `label`: left out, the usual caption; null, none.
+ */
 function BankAnswer({
-  lines, label = 'Antwort deiner Bank', reference, className,
+  lines, label, reference, className,
 }: { lines: string[]; label?: string | null; reference?: string; className?: string }) {
+  const tr = useT();
+  const caption = label === undefined ? tr.transfer.bankAnswer.label : label;
   return (
     <figure className={cx('w-full text-left', className)}>
-      {label && <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">{label}</figcaption>}
+      {caption && <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">{caption}</figcaption>}
       <ul className="rounded-[var(--radius-chip)] bg-inset px-4 py-3 text-[14px] leading-relaxed break-words text-ink">
         {lines.map((l) => <li key={l}>{l}</li>)}
       </ul>
       {reference && (
         <p className="mt-1.5 text-[12.5px] text-ink-3">
-          Rückmeldung der Bank: <span className="tnum">{reference}</span>
+          {rich(tr.transfer.bankAnswer.reference(<span className="tnum">{reference}</span>))}
         </p>
       )}
     </figure>
@@ -1249,40 +1279,43 @@ function CheckResult({
   at: number;
   name: string;
 }) {
-  const checked = fmtTime(new Date(at));
+  const tr = useT();
+  const words = tr.transfer.unknown;
+  const checked = fmtTime(tr, new Date(at));
   if (sighting) {
     const tx = sighting.tx;
     return (
-      <Alert tone="success" title={sighting.where === 'booked' ? 'Gefunden in deinen Umsätzen' : 'Gefunden bei den vorgemerkten Umsätzen'} className="mt-5">
-        <Money value={-tx.amount} className="font-semibold text-ink" /> an {name}
-        {sighting.where === 'booked' ? <>, gebucht am <span className="tnum">{fmtDate(tx.entryDate || tx.valueDate)}</span></> : null}.
-        {' '}Sende die Überweisung nicht noch einmal.
+      <Alert tone="success" title={sighting.where === 'booked' ? words.foundBooked : words.foundPending} className="mt-5">
+        {rich(words.found(
+          <Money value={-tx.amount} className="font-semibold text-ink" />,
+          name,
+          sighting.where === 'booked' ? <span className="tnum">{fmtDate(tx.entryDate || tx.valueDate)}</span> : null,
+        ))}
       </Alert>
     );
   }
   const failed = [
-    statements === false && 'Abruf der Umsätze fehlgeschlagen.',
-    pending === false && 'Abruf der vorgemerkten Umsätze fehlgeschlagen.',
+    statements === false && words.failedBooked,
+    pending === false && words.failedPending,
   ].filter(Boolean) as string[];
   // Only what was actually read is named as searched.
-  const places = [statements === true && 'deinen Umsätzen', pending === true && 'den vorgemerkten Umsätzen'].filter(Boolean).join(' und ');
+  const searched = statements === true || pending === true;
   return (
     <Alert
       tone="warn"
-      title={places ? 'Noch nicht sichtbar – bitte nicht erneut senden' : 'Nicht nachgesehen – bitte nicht erneut senden'}
+      title={searched ? words.notVisible : words.notChecked}
       className="mt-5"
     >
       {failed.map((f) => <span key={f} className="block">{f}</span>)}
-      {places ? (
+      {searched ? (
         <span className="block">
-          In {places} steht sie noch nicht (Stand <span className="tnum">{checked}</span>). Je nach Bank erscheint eine
-          Überweisung erst später. Sieh später noch einmal nach oder prüfe es in deiner Banking-App.
+          {rich(words.notYet(words.searched(statements === true, pending === true), <span className="tnum">{checked}</span>))}
         </span>
       ) : statements === null && pending === null ? (
         // Nothing this app could read for the account — trying again would not change that.
-        <span className="block">Für dieses Konto liefert deine Bank keine Umsätze an die App. Prüfe es in deiner Banking-App.</span>
+        <span className="block">{words.nothingToRead}</span>
       ) : (
-        <span className="block">Versuche es gleich noch einmal oder prüfe es in deiner Banking-App.</span>
+        <span className="block">{words.tryAgain}</span>
       )}
     </Alert>
   );
@@ -1290,12 +1323,13 @@ function CheckResult({
 
 /** "Girokonto · DE78 ··· 5932 71 · Verfügbar 2.196,22 €" — one line, as a native option must be. */
 function accountOption(
+  tr: Messages,
   a: SerializedAccount,
   label: string,
   funds: ReturnType<typeof spendable>,
   money: (v: number, c?: string) => string,
 ): string {
   const parts = [label, shortIbanText(a.iban)];
-  if (funds) parts.push(`${funds.kind === 'available' ? 'Verfügbar' : 'Kontostand'} ${money(funds.value, a.currency)}`);
+  if (funds) parts.push(`${funds.kind === 'available' ? tr.transfer.form.available : tr.common.account.balance} ${money(funds.value, a.currency)}`);
   return parts.filter(Boolean).join(' · ');
 }

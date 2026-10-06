@@ -53,6 +53,14 @@ export const DARK_INVERT = new Set([
 export const ON_DARK = new Set(['comdirect']);
 
 /**
+ * Brands whose logo file is a compact mark (public/logos, about as tall as it
+ * is wide) that still reads at a booking's avatar size, 32–56px. Every other
+ * file is a wordmark, unreadable that small; there the brand's chip stands in
+ * (BankChip in components/BankLogo.tsx).
+ */
+export const COMPACT_LOGO = new Set(['sparkasse', 'deutschebank', 'consorsbank', 'triodos']);
+
+/**
  * The app a brand's customers approve in, where one name holds for the whole
  * brand — the login form names it as an example ("z. B. S-pushTAN") before
  * the PIN is typed. Brands whose banks differ, or whose app is not known for

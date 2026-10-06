@@ -14,7 +14,7 @@
 
 import { useId } from 'react';
 import type { ReactNode } from 'react';
-import type { DashboardTab } from '@/lib/app-types';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { FileIcon, QrIcon, TransferIcon } from '../icons';
 import { Button, cx } from '../ui';
@@ -23,14 +23,9 @@ import { firstName, greeting, sessionHolder, useNow } from './session';
 
 export const PAGE_TITLE_ID = 'page-title';
 
-const TITLES: Record<DashboardTab, string> = {
-  overview: 'Finanzübersicht',
-  analysis: 'Umsatzanalyse',
-  contracts: 'Verträge & Abos',
-};
-
 export function Stage({ actions }: { actions: ShellActions }) {
   const { tab, accounts } = useFints();
+  const t = useT();
   // Re-read every few minutes, so a session left open over dinner does not
   // keep saying "Guten Tag".
   const now = useNow(5 * 60_000);
@@ -50,7 +45,7 @@ export function Stage({ actions }: { actions: ShellActions }) {
               tabIndex={-1}
               className="mt-0.5 text-[28px] leading-[1.15] font-bold text-stage-ink outline-none sm:text-[32px] desk:text-[36px] shorter:mt-0 shorter:text-[24px]"
             >
-              {TITLES[tab]}
+              {t.shell.stage.titles[tab]}
             </h1>
           </div>
           <QuickActions actions={actions} />
@@ -80,9 +75,10 @@ const UNAVAILABLE =
 
 function QuickActions({ actions: a }: { actions: ShellActions }) {
   const { singleKeyShortcuts: singleKeys } = useFints();
+  const t = useT();
   const hintId = useId();
   return (
-    <div role="group" aria-label="Schnellzugriffe" className="flex gap-2 sm:flex-wrap">
+    <div role="group" aria-label={t.shell.stage.quickActions} className="flex gap-2 sm:flex-wrap">
       {a.canTransfer && (
         <Button
           variant="stage-primary"
@@ -92,11 +88,11 @@ function QuickActions({ actions: a }: { actions: ShellActions }) {
           aria-keyshortcuts={singleKeys ? 'N' : undefined}
           onClick={a.transfer}
         >
-          Überweisen
+          {t.shell.transfer}
         </Button>
       )}
       <Button variant="stage" size="sm" className={PILL} iconLeft={glyph(<QrIcon size={17} />)} disabled={!a.canShare} onClick={a.share}>
-        Geld anfordern
+        {t.shell.requestMoney}
       </Button>
       <Button
         variant="stage"
@@ -107,10 +103,10 @@ function QuickActions({ actions: a }: { actions: ShellActions }) {
         aria-describedby={a.statementHint ? hintId : undefined}
         // Whose statement and which period: the pill acts on the account
         // selected in the Übersicht, whatever tab is open.
-        title={a.canStatement ? `Kontoauszug als PDF – ${a.statementSubject}` : a.statementHint}
+        title={a.canStatement ? t.shell.stage.statementTitle(a.statementSubject) : a.statementHint}
         onClick={a.statement}
       >
-        Kontoauszug
+        {t.shell.stage.statement}
       </Button>
       {a.statementHint && <span id={hintId} className="sr-only">{a.statementHint}</span>}
     </div>

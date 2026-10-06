@@ -9,25 +9,9 @@ import { useSyncExternalStore } from 'react';
 
 export type UsageConsent = 'on' | 'off' | 'unasked';
 
-/**
- * What a yes shares, said the same way on the Übersicht tile and at the
- * Sitzung panel's switch.
- */
-export const USAGE_DISCLOSURE =
-  'Dann erfährt der Entwickler von Girovo, welche Bereiche du nutzt, wie Anmeldungen ausgehen und wie lange ' +
-  'deine Bank für Abrufe braucht – mit ihrer Bankleitzahl. Nie dabei: Anmeldename, PIN, IBANs, Salden, Umsätze, ' +
-  'Beträge oder Empfänger. Wie bei jeder Verbindung sieht der Server deine IP-Adresse.';
-
-/**
- * The Sitzung panel's switch, where room is short: the gist, and that error
- * reports go regardless. The full account is the Übersicht tile's, where the
- * question is asked.
- */
-export const USAGE_SUMMARY = 'Welche Bereiche du nutzt – nie Kontodaten. Fehlerberichte gehen immer.';
-
-/** Error reports need no yes; the user is told so wherever they are asked. */
-export const ERROR_REPORTS_NOTE =
-  'Fehlerberichte schickt Girovo immer – ohne Kontodaten, Beträge und Namen.';
+// What a yes shares, and that error reports need none, are said where the
+// question is asked (lib/i18n/messages/auth.ts, `usage`); the Sitzung panel's
+// switch has its own short line (lib/i18n/messages/session.ts).
 
 const listeners = new Set<() => void>();
 let cached: UsageConsent | null | undefined;

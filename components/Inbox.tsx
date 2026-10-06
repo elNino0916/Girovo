@@ -17,6 +17,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { ActivityEntry, InboxMessage } from '@/lib/app-types';
 import { copyText } from '@/lib/clipboard';
 import { fmtShortIban } from '@/lib/format';
+import { useT } from '@/lib/i18n/react';
 import { answerBeyondOutcome } from '@/lib/session-log';
 import { useFints } from './FintsProvider';
 import { Money } from './Money';
@@ -34,8 +35,9 @@ const inboxTrigger = () => document.querySelector<HTMLElement>('[data-inbox-trig
 
 export function Inbox() {
   const { inboxOpen, setInboxOpen } = useFints();
+  const t = useT();
   return (
-    <Drawer open={inboxOpen} onClose={() => setInboxOpen(false)} title="Mitteilungen" fallbackFocus={inboxTrigger}>
+    <Drawer open={inboxOpen} onClose={() => setInboxOpen(false)} title={t.common.nav.messages} fallbackFocus={inboxTrigger}>
       <InboxBody />
     </Drawer>
   );
@@ -43,6 +45,7 @@ export function Inbox() {
 
 function InboxBody() {
   const { messages, activity, markAllRead, setInboxOpen } = useFints();
+  const t = useT();
   const update = useUpdateNotice();
   // What was unread at the moment the drawer opened.
   const [fresh] = useState(() => new Set(messages.filter((m) => !m.read).map((m) => m.id)));
@@ -54,7 +57,7 @@ function InboxBody() {
   return (
     <div className="flex flex-col gap-8">
       <section aria-labelledby="inbox-bank">
-        <SectionHead id="inbox-bank" title="Mitteilungen deiner Bank" count={messages.length} />
+        <SectionHead id="inbox-bank" title={t.shell.inbox.bankMessages} count={messages.length} />
         {messages.length ? (
           <>
             <ul className="-mx-4 border-y border-line sm:-mx-6">
@@ -63,35 +66,32 @@ function InboxBody() {
               ))}
             </ul>
             <p className="mt-3 text-[13px] leading-snug text-ink-3">
-              Erhalten bei der Anmeldung um {fmtSince(Date.parse(messages[0].receivedAt))}. Mitteilungen werden nicht
-              gespeichert – nach dem Abmelden sind sie hier nicht mehr zu sehen.
+              {t.shell.inbox.received(fmtSince(Date.parse(messages[0].receivedAt)))}
             </p>
           </>
         ) : (
-          <EmptyState illustration="inbox" compact title="Keine Mitteilungen">
-            Deine Bank hat bei dieser Anmeldung nichts mitgeteilt. Mitteilungen kommen nur mit der vollständigen
-            Synchronisation beim Anmelden – neue siehst du also erst nach der nächsten Anmeldung.
+          <EmptyState illustration="inbox" compact title={t.shell.inbox.none}>
+            {t.shell.inbox.noneHint}
           </EmptyState>
         )}
       </section>
 
       <section aria-labelledby="inbox-activity">
-        <SectionHead id="inbox-activity" title="Vorgänge dieser Sitzung" count={activity.length} />
+        <SectionHead id="inbox-activity" title={t.shell.inbox.activity} count={activity.length} />
         {activity.length ? (
           <ul className="-mx-4 border-y border-line sm:-mx-6">
             {activity.map((entry) => <ActivityItem key={entry.id} entry={entry} />)}
           </ul>
         ) : (
           <p className="rounded-[8px] bg-inset px-4 py-3.5 text-[14px] leading-snug text-ink-2">
-            Noch keine Überweisungen in dieser Sitzung. Ausgeführte, abgelehnte und unklare Aufträge stehen hier, bis du
-            dich abmeldest.
+            {t.shell.inbox.noActivity}
           </p>
         )}
       </section>
 
       {update && (
         <section aria-labelledby="inbox-update">
-          <SectionHead id="inbox-update" title="Diese App" count={0} />
+          <SectionHead id="inbox-update" title={t.shell.inbox.thisApp} count={0} />
           <UpdateInboxCard
             notice={update}
             onOpen={() => {
@@ -115,6 +115,7 @@ function SectionHead({ id, title, count }: { id: string; title: string; count: n
 }
 
 function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage; isNew: boolean; defaultOpen: boolean }) {
+  const t = useT();
   const id = useId();
   const subjectId = `${id}-subject`;
   const body = m.text.trim();
@@ -129,7 +130,7 @@ function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage
         {/* Semibold whether new or not: the orange dot says "new". */}
         <span id={subjectId} className="block text-[15px] leading-snug font-semibold text-ink">
           {m.subject}
-          {isNew && <span className="sr-only"> (neu)</span>}
+          {isNew && <span className="sr-only">{` ${t.shell.inbox.new}`}</span>}
         </span>
         {/* A preview for the eye; the button is named by its subject alone,
             not by the whole of a bank's Sonderbedingungen. */}
@@ -174,6 +175,7 @@ function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage
  * them, onto the clipboard.
  */
 function CopyMessage({ text }: { text: string }) {
+  const t = useT();
   const [state, setState] = useState<'idle' | 'done' | 'failed'>('idle');
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -192,31 +194,34 @@ function CopyMessage({ text }: { text: string }) {
         iconLeft={state === 'done' ? <CheckIcon size={15} strokeWidth={2.2} /> : <CopyIcon size={15} />}
         onClick={() => void copy()}
       >
-        {state === 'done' ? 'Kopiert' : 'Text kopieren'}
+        {state === 'done' ? t.common.copied : t.shell.inbox.copyText}
       </Button>
       <span className="sr-only" aria-live="polite">
-        {state === 'done' ? 'Mitteilung kopiert' : state === 'failed' ? 'Kopieren nicht möglich' : ''}
+        {state === 'done' ? t.shell.inbox.messageCopied : state === 'failed' ? t.shell.ui.copyFailed : ''}
       </span>
     </>
   );
 }
 
+// The outcome's look; its word is read where it is shown (ActivityItem).
 const OUTCOME = {
-  executed: { label: 'Ausgeführt', tone: 'positive', icon: CheckIcon, disc: 'bg-green-soft text-green' },
-  failed: { label: 'Nicht ausgeführt', tone: 'negative', icon: AlertTriangleIcon, disc: 'bg-red-soft text-red' },
-  unknown: { label: 'Status unklar', tone: 'emphasis', icon: HelpIcon, disc: 'bg-inset text-ink-2' },
+  executed: { tone: 'positive', icon: CheckIcon, disc: 'bg-green-soft text-green' },
+  failed: { tone: 'negative', icon: AlertTriangleIcon, disc: 'bg-red-soft text-red' },
+  unknown: { tone: 'emphasis', icon: HelpIcon, disc: 'bg-inset text-ink-2' },
 } as const;
 
 function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
   const { accounts, accountLabel, setInboxOpen } = useFints();
+  const t = useT();
   const showOnAccount = useShowOnAccount();
   const o = OUTCOME[e.outcome];
+  const outcome = e.outcome === 'unknown' ? t.common.statusUnclear : t.shell.inbox.outcome[e.outcome];
   const account = accounts.find((a) => a.accountNumber === e.accountNumber);
   const short = fmtShortIban(e.iban);
   // What the bank said beyond the tag beside it ("Auftrag ausgeführt." under "Ausgeführt").
   const answer = answerBeyondOutcome(e);
   const at = new Date(e.at);
-  const time = `${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')} Uhr`;
+  const time = t.shell.clock(`${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`);
 
   return (
     <li className="flex items-start gap-3 border-b border-line px-4 py-4 last:border-b-0 sm:px-6">
@@ -229,19 +234,19 @@ function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-3">
           <p className="min-w-0 truncate text-[15px] leading-snug font-semibold text-ink">
-            <span className="sr-only">Überweisung an </span>
-            {e.name || 'Unbekannter Empfänger'}
+            <span className="sr-only">{`${t.shell.inbox.transferTo} `}</span>
+            {e.name || t.shell.inbox.unknownPayee}
           </p>
           <Money value={-e.amount} signed tone="credit" className="shrink-0 text-[15px] font-semibold" />
         </div>
         <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
           <span className="tnum">{time}</span>
           {short.tail && <> · <span className="iban">{short.head} <span className="id-tail">{short.tail}</span></span></>}
-          {account && <> · von {accountLabel(account)}</>}
+          {account && <> · {t.shell.inbox.fromAccount(accountLabel(account))}</>}
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <Tag tone={o.tone} size="sm">{o.label}</Tag>
-          {e.instant && <Tag size="sm">Echtzeit</Tag>}
+          <Tag tone={o.tone} size="sm">{outcome}</Tag>
+          {e.instant && <Tag size="sm">{t.common.booking.instant}</Tag>}
         </div>
         {answer && (
           <p className="mt-2 text-[13.5px] leading-snug whitespace-pre-line text-ink-2 [overflow-wrap:anywhere]">{answer}</p>
@@ -249,7 +254,7 @@ function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
         {/* A caution, not information: the warning's inset with the orange edge. */}
         {e.outcome === 'unknown' && (
           <Alert tone="warn" className="mt-2.5">
-            Ob die Bank den Auftrag ausgeführt hat, ist nicht bekannt. Prüfe deine Umsätze, bevor du ihn wiederholst.
+            {t.shell.inbox.unclear}
           </Alert>
         )}
         {e.outcome === 'unknown' && e.iban && (
@@ -264,7 +269,7 @@ function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
               showOnAccount(account, { query: e.iban }, Date.parse(e.at));
             }}
           >
-            Umsätze mit diesem Empfänger
+            {t.shell.inbox.withPayee}
           </Button>
         )}
       </div>

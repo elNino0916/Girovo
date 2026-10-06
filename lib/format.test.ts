@@ -5,19 +5,74 @@ import {
   addBusinessDays, addDaysKey, dayKey, dayNumber, displayName, easterSunday, expectedCreditDate, fmtAmountInput,
   fmtDayHeader, fmtMonth, fmtRange, fmtShortIban, fmtSignedDecimal, fmtSignedMoney, initials, isTargetBusinessDay,
   nextTargetBusinessDay, parseAmount, presetRange, prettyBookingText, prettyPurpose, splitMoney, toLocalDate,
+  fmtBytes, fmtDate, fmtMoney, translateType,
 } from './format.ts';
 import { mt940Date } from './__fixtures__/transactions.ts';
+import { withLocale } from './i18n/server.ts';
 
 const MINUS = '−';
 const day = (d: Date | null) => (d ? dayKey(d) : null);
 
 test('splitMoney sets a negative balance with a real minus, everything else unchanged', () => {
-  assert.deepEqual(splitMoney(-1234.56), { euros: `${MINUS}1.234`, cents: ',56', suffix: '€' });
-  assert.deepEqual(splitMoney(1234.56), { euros: '1.234', cents: ',56', suffix: '€' });
-  assert.deepEqual(splitMoney(0), { euros: '0', cents: ',00', suffix: '€' });
-  assert.deepEqual(splitMoney(null), { euros: '0', cents: ',00', suffix: '€' });
-  assert.deepEqual(splitMoney(-0.5), { euros: `${MINUS}0`, cents: ',50', suffix: '€' });
+  assert.deepEqual(splitMoney(-1234.56), { euros: `${MINUS}1.234`, cents: ',56', prefix: '', suffix: '€' });
+  assert.deepEqual(splitMoney(1234.56), { euros: '1.234', cents: ',56', prefix: '', suffix: '€' });
+  assert.deepEqual(splitMoney(0), { euros: '0', cents: ',00', prefix: '', suffix: '€' });
+  assert.deepEqual(splitMoney(null), { euros: '0', cents: ',00', prefix: '', suffix: '€' });
+  assert.deepEqual(splitMoney(-0.5), { euros: `${MINUS}0`, cents: ',50', prefix: '', suffix: '€' });
   assert.ok(!splitMoney(-7).euros.includes('-'), 'no hyphen-minus left');
+});
+
+test('splitMoney in English puts the euro sign in front, the minus ahead of it', () => {
+  withLocale('en', () => {
+    assert.deepEqual(splitMoney(1234.56), { euros: '1,234', cents: '.56', prefix: '€', suffix: '' });
+    assert.deepEqual(splitMoney(-1234.56), { euros: '1,234', cents: '.56', prefix: `${MINUS}€`, suffix: '' });
+  });
+});
+
+test('figures and dates follow the language', () => {
+  const oct5 = new Date(2026, 9, 5);
+  withLocale('en', () => {
+    assert.equal(fmtMoney(1234.56), '€1,234.56');
+    assert.equal(fmtSignedMoney(-6.11), `${MINUS}€6.11`);
+    assert.equal(fmtDate(oct5), '05/10/2026');
+    assert.equal(fmtMonth('2026-10'), 'October 2026');
+    // Thin spaces around the dash, as Intl sets a range.
+    assert.equal(fmtRange(new Date(2026, 6, 5), oct5), '5 Jul – 5 Oct 2026');
+    assert.equal(fmtRange(oct5, oct5), '5 Oct 2026');
+    assert.equal(fmtAmountInput(1000), '1,000.00');
+    assert.equal(fmtBytes(512), '512 bytes');
+    assert.equal(translateType('CheckingAccount'), 'Current account');
+    assert.equal(fmtDayHeader(oct5, oct5), 'Today');
+  });
+  // And German, the default, where nothing moved.
+  assert.equal(fmtMoney(1234.56), '1.234,56 €');
+  assert.equal(fmtDate(oct5), '05.10.2026');
+  assert.equal(fmtRange(new Date(2026, 6, 5), oct5), '05.07.–05.10.2026');
+  assert.equal(translateType('CheckingAccount'), 'Girokonto');
+  assert.equal(fmtDayHeader(oct5, oct5), 'Heute');
+});
+
+test('parseAmount: three digits behind one separator follow the language, the other reading is refused', () => {
+  // German: "1.000" is a thousand, "1,000" could be either and is refused.
+  assert.equal(parseAmount('1.000', 'de'), 1000);
+  assert.equal(parseAmount('1,000', 'de'), null);
+  // English: the mirror image.
+  assert.equal(parseAmount('1,000', 'en'), 1000);
+  assert.equal(parseAmount('1.000', 'en'), null);
+  assert.equal(parseAmount('12,500', 'en'), 12500);
+  assert.equal(parseAmount('12,999', 'en'), 12999);
+  // Everything that is not that one case reads the same in both.
+  for (const locale of ['de', 'en'] as const) {
+    assert.equal(parseAmount('1.000,50', locale), 1000.5, locale);
+    assert.equal(parseAmount('1,000.50', locale), 1000.5, locale);
+    assert.equal(parseAmount('12,99', locale), 12.99, locale);
+    assert.equal(parseAmount('12.99', locale), 12.99, locale);
+    assert.equal(parseAmount('1000.00', locale), 1000, locale);
+    assert.equal(parseAmount('0.500', locale), null, locale);
+  }
+  // Without one, the language speaking right now decides.
+  withLocale('en', () => assert.equal(parseAmount('1,000'), 1000));
+  assert.equal(parseAmount('1,000'), null);
 });
 
 test('the printed statement helpers keep their output', () => {

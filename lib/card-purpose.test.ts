@@ -69,6 +69,19 @@ test('merchant descriptors from a real statement reduce to the shop and its plac
   assert.equal(cleanMerchantName('APPLE.COM/BILL//Cork/IE'), 'APPLE.COM/BILL');
   assert.deepEqual(parseCardAcceptor('ALDI SUED/MUENCHEN/DE'),
     { merchant: 'ALDI SUED', street: null, city: 'München', country: 'DE' }, 'no street slot at all');
+  // A girocard terminal: its id and the branch number go, the town stays.
+  assert.deepEqual(parseCardAcceptor('BAECKEREI HOEFER 46 GIR 79552496//KOBLENZ/DE'),
+    { merchant: 'BÄCKEREI HOEFER', street: null, city: 'Koblenz', country: 'DE' });
+  assert.equal(cleanMerchantName('Baeckerei Hoefer 46 Gir 79552496//Koblenz/DE'), 'Bäckerei Hoefer');
+  assert.equal(cleanMerchantName('EDEKA Schmidt GIR 69334855//Koblenz/DE'), 'EDEKA Schmidt');
+  // A number that belongs to the name stays without a terminal id behind it.
+  assert.equal(cleanMerchantName('Bar 25//Berlin/DE'), 'Bar 25');
+  // A provider with only the kind of payment behind it is itself the one paid.
+  assert.equal(cleanMerchantName('PAYPAL .Ratenzahlung//4029357733/LU'), 'PAYPAL Ratenzahlung');
+  assert.equal(cleanMerchantName('PAYPAL *Spaeter bezahlen//4029357733/LU'), 'PAYPAL Spaeter bezahlen');
+  // A shop behind it is still the shop, even one whose name holds such a word.
+  assert.equal(cleanMerchantName('PAYPAL .G2A.COM//35314369001/LU'), 'G2A.COM');
+  assert.equal(cleanMerchantName('WL .Steam Purchase//425-889-9642/Us/3'), 'Steam Purchase');
 });
 
 test('ordinary names are never taken apart', async () => {

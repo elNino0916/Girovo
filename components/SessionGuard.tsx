@@ -26,6 +26,7 @@
 // approval dialog, which is still open and would otherwise hide it.
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { useT } from '@/lib/i18n/react';
 import { payeeList, unclearTransfers } from '@/lib/session-log';
 import { IDLE_NEUTRAL_ATTR, useFints, waitHoldsSession } from './FintsProvider';
 import { ClockIcon } from './icons';
@@ -50,6 +51,7 @@ export function SessionGuard() {
  * (again after every time the user switches away). Undone on unmount.
  */
 function useWindowAttention(left: number) {
+  const t = useT();
   const titleRef = useRef<string | null>(null);
   const label = fmtCountdown(left);
 
@@ -67,12 +69,14 @@ function useWindowAttention(left: number) {
 
   useEffect(() => {
     if (titleRef.current == null) return;
-    document.title = `Abmeldung in ${label} – ${titleRef.current}`;
-  }, [label]);
+    document.title = t.auth.sessionGuard.windowTitle(label, titleRef.current);
+  }, [label, t]);
 }
 
 function Warning({ left }: { left: number }) {
   const { stayLoggedIn, logout, activity } = useFints();
+  const t = useT();
+  const sg = t.auth.sessionGuard;
   const titleId = useId();
   const descId = useId();
   const seconds = Math.ceil(left / 1000);
@@ -82,13 +86,14 @@ function Warning({ left }: { left: number }) {
   const unclear = unclearTransfers(activity);
   const to = payeeList(unclear.map((e) => e.name));
 
-  const [announced, setAnnounced] = useState('');
+  // The time left at the last mark announced; put into words where it is shown.
+  const [announced, setAnnounced] = useState<number | null>(null);
   const lastMark = useRef<number | null>(null);
   useEffect(() => {
     const mark = ANNOUNCE_AT.find((s) => seconds <= s && seconds > s - 5 && lastMark.current !== s);
     if (mark == null) return;
     lastMark.current = mark;
-    setAnnounced(`Noch ${countdownWords(left)} bis zur automatischen Abmeldung.`);
+    setAnnounced(left);
   }, [seconds, left]);
 
   return (
@@ -107,23 +112,23 @@ function Warning({ left }: { left: number }) {
           // scrolling the countdown away.
           footer={
             <DialogActions align="center" className="">
-              <Button variant="secondary" onClick={() => void logout('user')}>Abmelden</Button>
-              <Button variant="primary" data-autofocus onClick={stayLoggedIn}>Angemeldet bleiben</Button>
+              <Button variant="secondary" onClick={() => void logout('user')}>{t.common.logout}</Button>
+              <Button variant="primary" data-autofocus onClick={stayLoggedIn}>{sg.stay}</Button>
             </DialogActions>
           }
         >
           <h2 id={titleId} className="text-center text-[22px] leading-tight font-bold text-headline">
-            Möchtest du angemeldet bleiben?
+            {sg.title}
           </h2>
           <p id={descId} className="mt-2 text-center text-[15px] leading-snug text-ink-2">
-            Du warst eine Weile nicht aktiv. Aus Sicherheitsgründen meldet dich die App gleich automatisch ab.
+            {sg.text}
           </p>
 
           <div className="mt-5 flex flex-col items-center">
-            <span role="timer" aria-label={`Noch ${countdownWords(left)}`} className="tnum text-[40px] leading-none font-bold text-headline">
+            <span role="timer" aria-label={sg.timeLeft(countdownWords(left))} className="tnum text-[40px] leading-none font-bold text-headline">
               {fmtCountdown(left)}
             </span>
-            <span aria-hidden className="mt-1.5 text-[13px] text-ink-3">bis zur Abmeldung</span>
+            <span aria-hidden className="mt-1.5 text-[13px] text-ink-3">{sg.untilLogout}</span>
             {/* A quiet bar that empties with the minute — the figure says how
                 long, the bar says it is moving. Navy, not Signal Blue: it
                 cannot be pressed. */}
@@ -134,13 +139,11 @@ function Warning({ left }: { left: number }) {
               />
             </span>
           </div>
-          <p className="sr-only" aria-live="polite">{announced}</p>
+          <p className="sr-only" aria-live="polite">{announced == null ? '' : sg.announce(countdownWords(announced))}</p>
 
           {unclear.length > 0 && (
             <Alert tone="warn" className="mt-6">
-              {unclear.length === 1
-                ? `Der Status deiner Überweisung ${to} ist unklar. Nach der Abmeldung steht sie nicht mehr in den Mitteilungen.`
-                : `Der Status von ${unclear.length} Überweisungen ${to} ist unklar. Nach der Abmeldung stehen sie nicht mehr in den Mitteilungen.`}
+              {sg.unclear(unclear.length, to)}
             </Alert>
           )}
         </Sheet>

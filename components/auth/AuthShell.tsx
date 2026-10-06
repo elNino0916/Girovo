@@ -6,8 +6,10 @@
 // on the same tokens as the dashboard behind it.
 
 import type { CSSProperties, ReactNode } from 'react';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ThemeToggle } from '../ThemeToggle';
+import { LanguageSwitch } from '../LanguageToggle';
 import { CheckIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../icons';
 import { cx } from '../ui';
 import { BrandMark } from '../shell/BrandMark';
@@ -18,11 +20,7 @@ import { useUsageConsent } from '../telemetry/usage';
 
 export type AuthStep = 'bank' | 'credentials' | 'approval';
 
-const STEPS: { id: AuthStep; label: string }[] = [
-  { id: 'bank', label: 'Bank' },
-  { id: 'credentials', label: 'Anmeldung' },
-  { id: 'approval', label: 'Freigabe' },
-];
+const STEPS: AuthStep[] = ['bank', 'credentials', 'approval'];
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 
@@ -101,6 +99,8 @@ function AuthMasthead() {
       <div className="flex items-center gap-1" style={NO_DRAG}>
         {/* Desktop app, and only while a newer version is known. */}
         <UpdateBarButton />
+        {/* Before anything is typed: the bank search, the login and the approval read in it. */}
+        <LanguageSwitch />
         <ThemeToggle tone="bar" />
       </div>
     </header>
@@ -109,14 +109,20 @@ function AuthMasthead() {
 
 /** Bank · Anmeldung · Freigabe — where the user is, set on the navy stage. */
 function StepIndicator({ current }: { current: AuthStep }) {
-  const at = STEPS.findIndex((s) => s.id === current);
+  const t = useT();
+  const labels: Record<AuthStep, string> = {
+    bank: t.auth.steps.bank,
+    credentials: t.auth.steps.credentials,
+    approval: t.common.approval,
+  };
+  const at = STEPS.indexOf(current);
   return (
-    <ol aria-label="Schritte der Anmeldung" className="on-stage flex items-center gap-2 sm:gap-3">
-      {STEPS.map((s, i) => {
+    <ol aria-label={t.auth.steps.label} className="on-stage flex items-center gap-2 sm:gap-3">
+      {STEPS.map((id, i) => {
         const done = i < at;
         const active = i === at;
         return (
-          <li key={s.id} aria-current={active ? 'step' : undefined} className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <li key={id} aria-current={active ? 'step' : undefined} className="flex min-w-0 items-center gap-2 sm:gap-3">
             <span className="flex min-w-0 items-center gap-2">
               <span
                 aria-hidden
@@ -139,8 +145,8 @@ function StepIndicator({ current }: { current: AuthStep }) {
                   active ? 'font-bold text-stage-ink' : done ? 'font-semibold text-stage-ink' : 'font-semibold text-stage-ink-2',
                 )}
               >
-                {s.label}
-                {done && <span className="sr-only"> (erledigt)</span>}
+                {labels[id]}
+                {done && <span className="sr-only"> {t.auth.steps.done}</span>}
               </span>
             </span>
             {i < STEPS.length - 1 && (
@@ -160,10 +166,11 @@ function StepIndicator({ current }: { current: AuthStep }) {
  */
 function useLogoLine(offered?: boolean): string | null {
   const { meta, logoConsent } = useFints();
+  const t = useT();
   if (!(offered ?? meta?.merchantLogos)) return null;
-  if (logoConsent === 'on') return 'Für Firmenlogos gehen Firmennamen an den Logo-Dienst Brandfetch – abschaltbar im Sitzungsmenü.';
-  if (logoConsent === 'off') return 'Die Firmenlogos von Brandfetch hast du ausgeschaltet.';
-  return 'Firmenlogos nur mit deiner Zustimmung: Dafür gehen Firmennamen an den Logo-Dienst Brandfetch.';
+  if (logoConsent === 'on') return t.auth.privacy.logosOn;
+  if (logoConsent === 'off') return t.auth.privacy.logosOff;
+  return t.auth.privacy.logosUnasked;
 }
 
 /**
@@ -173,12 +180,11 @@ function useLogoLine(offered?: boolean): string | null {
  */
 function useTelemetryLine(mentionUsage = true): string | null {
   const usage = useUsageConsent();
+  const t = useT();
   if (!usage) return null;
-  if (usage === 'on') {
-    return 'Fehlerberichte und, mit deiner Zustimmung, Nutzungsdaten gehen an den Entwickler von Girovo – nie Kontodaten, Beträge oder Namen.';
-  }
-  const errors = 'Fehlerberichte gehen an den Entwickler von Girovo – ohne Kontodaten, Beträge und Namen.';
-  return mentionUsage ? `${errors} Nutzungsdaten nur mit deiner Zustimmung.` : errors;
+  if (usage === 'on') return t.auth.privacy.telemetryOn;
+  const errors = t.auth.privacy.errorReports;
+  return mentionUsage ? `${errors} ${t.auth.privacy.usageNeedsYes}` : errors;
 }
 
 /**
@@ -193,10 +199,11 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
   const { logoConsent } = useFints();
   const { state: update } = useUpdates();
   const usage = useUsageConsent();
+  const words = useT().auth.privacy;
   const updateChecks = !!update?.auto && update.kind !== 'dev';
   const logoLine = useLogoLine(merchantLogos);
   const outside = [
-    updateChecks ? 'Nach Updates fragt die App bei GitHub – dort kommen nur ihre Versionsnummer und deine IP-Adresse an.' : '',
+    updateChecks ? words.updates : '',
     logoLine ?? '',
     // "Keine Nutzungsstatistik ohne deine Zustimmung" leads the point already.
     useTelemetryLine(false) ?? '',
@@ -204,45 +211,32 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
   // Nothing leaves the machine but bank traffic — now, and without a yes.
   const nothingOut = !updateChecks && !usage && (!logoLine || logoConsent === 'off');
   const points: { icon: ReactNode; title: string; text: string }[] = [
-    {
-      icon: <LockIcon size={18} />,
-      title: 'Deine PIN wird nie gespeichert',
-      text: 'Sie bleibt nur im Arbeitsspeicher und ist mit der Abmeldung weg.',
-    },
-    {
-      icon: <LandmarkIcon size={18} />,
-      title: 'Direkte Verbindung',
-      text: 'Von diesem Rechner direkt zu deiner Bank, über ihren FinTS-Zugang.',
-    },
-    {
-      // Said before the fact: the app does not ask, it announces.
-      icon: <ShieldIcon size={18} check />,
-      title: 'Dieses Gerät wird gemerkt',
-      text: 'Nach der Anmeldung, mit deiner PIN verschlüsselt – deine Bank fragt dann seltener nach einer Freigabe. '
-        + 'Rückgängig mit „Gerät vergessen“ im Sitzungsmenü.',
-    },
+    { icon: <LockIcon size={18} />, ...words.pin },
+    { icon: <LandmarkIcon size={18} />, ...words.direct },
+    // Said before the fact: the app does not ask, it announces.
+    { icon: <ShieldIcon size={18} check />, ...words.device },
     nothingOut
       ? {
           icon: <EyeOffIcon size={18} />,
-          title: 'Keine Daten an Dritte',
-          text: ['Keine Werbung, kein Tracking, keine Weitergabe.', outside].filter(Boolean).join(' '),
+          title: words.nothingOut.title,
+          text: [words.nothingOut.text, outside].filter(Boolean).join(' '),
         }
       : usage === 'on'
         ? {
             icon: <EyeOffIcon size={18} />,
-            title: 'Keine Werbung',
-            text: `Keine Werbung, keine Weitergabe. ${outside}`,
+            title: words.usageOn.title,
+            text: `${words.usageOn.text} ${outside}`,
           }
         : {
             icon: <EyeOffIcon size={18} />,
-            title: 'Kein Tracking',
-            text: `Keine Werbung, keine Nutzungsstatistik ohne deine Zustimmung. ${outside}`,
+            title: words.usageOff.title,
+            text: `${words.usageOff.text} ${outside}`,
           },
   ];
 
   return (
     <aside aria-labelledby="auth-privacy-title" className="panel px-6 pt-6 pb-6">
-      <h2 id="auth-privacy-title" className="section-head">Deine Daten bleiben bei dir</h2>
+      <h2 id="auth-privacy-title" className="section-head">{words.title}</h2>
       <ul className="mt-5 flex flex-col gap-5">
         {points.map((p) => (
           <li key={p.title} className="flex items-start gap-3.5">
@@ -266,14 +260,14 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
  * lookup that would carry anything from the bookings.
  */
 export function PrivacyNote() {
+  const t = useT();
   const logoLine = useLogoLine();
   const telemetryLine = useTelemetryLine();
   return (
     <p className="mt-6 flex items-start gap-2.5 border-t border-line pt-5 text-[13px] leading-snug text-ink-3 lg:hidden">
       <ShieldIcon size={16} className="mt-px shrink-0" />
       <span>
-        Deine PIN wird nie gespeichert, die Verbindung läuft direkt zu deiner Bank. Nach der Anmeldung merkt sich
-        die App dieses Gerät, mit deiner PIN verschlüsselt.{logoLine && ` ${logoLine}`}{telemetryLine && ` ${telemetryLine}`}
+        {t.auth.privacy.note}{logoLine && ` ${logoLine}`}{telemetryLine && ` ${telemetryLine}`}
       </span>
     </p>
   );

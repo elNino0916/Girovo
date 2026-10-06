@@ -3,6 +3,8 @@
 import { fmtShortIban, translateType } from '@/lib/format';
 import type { SerializedAccount } from '@/lib/fints-types';
 import type { VaultStatus } from '@/lib/app-types';
+import { msgs } from '@/lib/i18n';
+import { useLocale } from '@/lib/i18n/react';
 import { AccountTypeIcon } from '../icons';
 import { cx } from '../ui';
 
@@ -26,17 +28,19 @@ export function aliasFromDraft(a: SerializedAccount, draft: string): string | nu
 /**
  * Why renaming is not possible right now. Aliases live in the encrypted vault,
  * so a name typed while it is unreadable would quietly vanish at the next
- * login — better to say so than to accept the edit.
+ * login — better to say so than to accept the edit. In the language speaking
+ * right now: call it where it is shown.
  */
 export function vaultNote(status: VaultStatus): string {
+  const words = msgs().insights.identity;
   switch (status) {
     case 'idle':
     case 'loading':
-      return 'Deine persönlichen Einstellungen werden noch geladen. Gleich kannst du deine Konten umbenennen.';
+      return words.vaultLoading;
     case 'error':
-      return 'Deine gespeicherten persönlichen Einstellungen ließen sich nicht entschlüsseln – meist, weil sich deine PIN geändert hat. Bis sie zurückgesetzt sind, kann ein neuer Kontoname nicht gespeichert werden.';
+      return words.vaultError;
     default:
-      return 'Kontonamen werden verschlüsselt auf diesem Rechner gespeichert. Das ist in dieser Sitzung nicht möglich.';
+      return words.vaultUnavailable;
   }
 }
 
@@ -69,9 +73,11 @@ const group4 = (s: string) => s.match(/.{1,4}/g) ?? [];
  * ("0105 5932 80"), so the two never look like different accounts.
  */
 export function accountIdent(account: Pick<SerializedAccount, 'iban' | 'accountNumber'>): AccountIdent {
+  // What a screen reader hears, in the language speaking right now.
+  const words = msgs().insights.identity;
   if (account.iban) {
     const { head, tail } = fmtShortIban(account.iban);
-    if (tail) return { kind: 'iban', head, tail, spoken: `IBAN endet auf ${tail}` };
+    if (tail) return { kind: 'iban', head, tail, spoken: words.ibanEnds(tail) };
   }
 
   const raw = String(account.accountNumber ?? '').replace(/\s+/g, '').toUpperCase();
@@ -85,7 +91,7 @@ export function accountIdent(account: Pick<SerializedAccount, 'iban' | 'accountN
       kind: 'card',
       head: group4(lead + '•'.repeat(mask.length)).join(' '),
       tail: last,
-      spoken: `Karte endet auf ${last}`,
+      spoken: words.cardEnds(last),
     };
   }
 
@@ -99,13 +105,13 @@ export function accountIdent(account: Pick<SerializedAccount, 'iban' | 'accountN
       kind: 'number',
       head: groups.slice(0, k).join(' '),
       tail: groups.slice(k).join(' '),
-      spoken: `Kontonummer ${groups.join(' ')}`,
+      spoken: words.accountNumber(groups.join(' ')),
     };
   }
 
   // Anything else (a short number, separators of the bank's own) is shown as
   // the bank sent it — all of it as the tail, so none of it is ever cut off.
-  return { kind: 'number', head: '', tail: String(account.accountNumber).trim(), spoken: `Kontonummer ${raw}` };
+  return { kind: 'number', head: '', tail: String(account.accountNumber).trim(), spoken: words.accountNumber(raw) };
 }
 
 /**
@@ -120,6 +126,8 @@ export function accountIdent(account: Pick<SerializedAccount, 'iban' | 'accountN
  * plainly instead of "D E 7 8 Punkt Punkt Punkt".
  */
 export function ShortIban({ account, className }: { account: SerializedAccount; className?: string }) {
+  // Read so a change of language renders the spoken form again.
+  useLocale();
   const { head, tail, spoken } = accountIdent(account);
   if (!tail) return null;
   return (

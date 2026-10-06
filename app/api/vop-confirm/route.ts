@@ -8,6 +8,7 @@
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { isDefiniteRefusal } from '@/lib/bank-answer';
+import { msgs } from '@/lib/i18n';
 import { bankAnswerCodes, bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
 import { SepaTransferInteraction } from '@/lib/fints-sepa';
@@ -26,10 +27,10 @@ export const POST = wrap(async (req: Request) => {
   if (!s) return sessionExpired();
 
   const hold = s.vopHold;
-  if (!hold) return fail('Kein Auftrag wartet auf die Bestätigung des Namensabgleichs.');
+  if (!hold) return fail(msgs().transfer.route.noHold);
   if (Date.now() - hold.createdAt > HOLD_TTL_MS) {
     s.vopHold = null;
-    return fail('Das Prüfergebnis ist zu alt. Bitte die Überweisung noch einmal starten.');
+    return fail(msgs().transfer.route.holdExpired);
   }
 
   const interaction = new SepaTransferInteraction(

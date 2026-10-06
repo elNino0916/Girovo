@@ -42,8 +42,10 @@ import type { CategoryId } from './categories.ts';
 import type { SealedBox } from './crypto-box.ts';
 import type { Session } from './session';
 import { EMPTY_VAULT } from './app-types.ts';
+import { OWN_PICTURE, isAvatarChoice, isAvatarImage } from './avatars.ts';
 import { isCategoryId } from './categories.ts';
 import { boxSalt, deriveKey, newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
+import { msgs } from './i18n/index.ts';
 import { sanitizeSentOrders } from './sent-orders.ts';
 import { STATE_DIR } from './state-store.ts';
 
@@ -83,7 +85,10 @@ const FILE_MAX_BYTES = Math.ceil((VAULT_LIMITS.bytes * 4) / 3) + 4096;
 // bytes, and a different string would make all of them unreadable.
 const AAD = Buffer.from('sooskasse-fints/vault/v1', 'utf8');
 
-/** A refusal the route turns into an HTTP status with a message for the user. */
+/**
+ * A refusal the route turns into an HTTP status with a message for the user —
+ * msgs().provider.vault, in the language of the request that ran into it.
+ */
 export class VaultError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -92,16 +97,6 @@ export class VaultError extends Error {
     this.status = status;
   }
 }
-
-const MSG = {
-  unavailable: 'Für diese Sitzung können keine persönlichen Daten gespeichert werden.',
-  locked: 'Deine gespeicherten Daten lassen sich mit dieser PIN nicht öffnen. Setze sie zurück, um neu zu beginnen.',
-  format: 'Die Daten haben ein unbekanntes Format.',
-  tooLarge: 'Zu viele gespeicherte Einträge. Lösche ein paar Vorlagen oder Kategorie-Zuordnungen und versuche es erneut.',
-  read: 'Deine gespeicherten Daten konnten nicht gelesen werden.',
-  write: 'Deine Daten konnten nicht gespeichert werden.',
-  wipe: 'Deine gespeicherten Daten konnten nicht vollständig gelöscht werden. Bitte versuche es erneut.',
-};
 
 // ---------------------------------------------------------------------------
 // Sanitisation
@@ -240,6 +235,11 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     txCategories: capMap(input.txCategories, VAULT_LIMITS.txCategories, VAULT_LIMITS.key, category),
     dismissedRecurring: dismissed.slice(-VAULT_LIMITS.dismissed),
     sentOrders: sanitizeSentOrders(input.sentOrders, now),
+    // The own picture only with a picture to show: a choice that names nothing is the initials.
+    ...(isAvatarChoice(input.avatar) && (input.avatar !== OWN_PICTURE || isAvatarImage(input.avatarImage))
+      ? { avatar: input.avatar }
+      : {}),
+    ...(isAvatarImage(input.avatarImage) ? { avatarImage: input.avatarImage } : {}),
     updatedAt: iso(input.updatedAt) ?? EMPTY_VAULT.updatedAt,
   };
 }
@@ -254,7 +254,7 @@ type Identity = { blz: string; userId: string; pin: string };
 function identityOf(s: Session): Identity {
   const cfg = s?.client?.config;
   const blz = s?.meta?.blz;
-  if (!cfg?.pin || !cfg.userId || !blz) throw new VaultError(MSG.unavailable, 409);
+  if (!cfg?.pin || !cfg.userId || !blz) throw new VaultError(msgs().provider.vault.unavailable, 409);
   return { blz: String(blz), userId: String(cfg.userId), pin: String(cfg.pin) };
 }
 
@@ -300,7 +300,7 @@ function readSealed(file: string): Sealed {
   } catch (err) {
     if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return { kind: 'missing' };
     console.warn('[vault] read failed:', (err as NodeJS.ErrnoException)?.code || 'unknown');
-    throw new VaultError(MSG.read, 500);
+    throw new VaultError(msgs().provider.vault.read, 500);
   }
   let parsed: unknown;
   try {
@@ -401,12 +401,12 @@ async function writeFileAtomic(file: string, contents: string): Promise<void> {
 
 async function writeVault(entry: Unlocked, data: VaultData): Promise<void> {
   const plaintext = Buffer.from(JSON.stringify(data), 'utf8');
-  if (plaintext.length > VAULT_LIMITS.bytes) throw new VaultError(MSG.tooLarge, 413);
+  if (plaintext.length > VAULT_LIMITS.bytes) throw new VaultError(msgs().provider.vault.tooLarge, 413);
   try {
     await writeFileAtomic(entry.file, JSON.stringify(sealBox(entry.key, entry.salt, plaintext, AAD)));
   } catch (err) {
     console.warn('[vault] write failed:', (err as NodeJS.ErrnoException)?.code || 'unknown');
-    throw new VaultError(MSG.write, 500);
+    throw new VaultError(msgs().provider.vault.write, 500);
   }
 }
 
@@ -449,7 +449,7 @@ export async function loadVault(s: Session): Promise<VaultGetResponse> {
 export async function saveVault(s: Session, input: unknown): Promise<VaultPutResponse> {
   const id = identityOf(s);
   const data = sanitizeVault(input);
-  if (!data) throw new VaultError(MSG.format, 400);
+  if (!data) throw new VaultError(msgs().provider.vault.format, 400);
   const file = vaultFile(id);
   return serialized(file, async (): Promise<VaultPutResponse> => {
     let entry = unlocked.get(s);
@@ -457,7 +457,7 @@ export async function saveVault(s: Session, input: unknown): Promise<VaultPutRes
       // First save of this session without a prior load: prove the key on
       // the existing file before replacing it.
       const opened = await openVaultFile(s, id, file);
-      if (opened.status === 'error') throw new VaultError(MSG.locked, 409);
+      if (opened.status === 'error') throw new VaultError(msgs().provider.vault.locked, 409);
       entry = opened.status === 'ready' ? opened.entry : await freshKey(id, file);
       unlocked.set(s, entry);
     }
@@ -481,7 +481,7 @@ export async function resetVault(s: Session): Promise<VaultPutResponse> {
       moved = await moveAside(file);
     } catch (err) {
       console.warn('[vault] could not move the old file aside:', (err as NodeJS.ErrnoException)?.code || 'unknown');
-      throw new VaultError(MSG.write, 500);
+      throw new VaultError(msgs().provider.vault.write, 500);
     }
     const entry = await freshKey(id, file);
     const updatedAt = new Date().toISOString();
@@ -508,7 +508,7 @@ export async function resetVault(s: Session): Promise<VaultPutResponse> {
 export async function wipeVault(s: Session): Promise<number> {
   const blz = s?.meta?.blz;
   const userId = s?.client?.config?.userId;
-  if (!blz || !userId) throw new VaultError(MSG.unavailable, 409);
+  if (!blz || !userId) throw new VaultError(msgs().provider.vault.unavailable, 409);
   const stem = `${vaultBaseName(String(blz), String(userId))}.vault`;
   const file = path.join(STATE_DIR, stem);
   return serialized(file, async () => {
@@ -519,7 +519,7 @@ export async function wipeVault(s: Session): Promise<number> {
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return 0; // never saved anything
       console.warn('[vault] wipe: cannot list the state directory:', (err as NodeJS.ErrnoException)?.code || 'unknown');
-      throw new VaultError(MSG.wipe, 500);
+      throw new VaultError(msgs().provider.vault.wipe, 500);
     }
     let removed = 0;
     let failed = 0;
@@ -534,7 +534,7 @@ export async function wipeVault(s: Session): Promise<number> {
       }
     }
     console.log(`[vault] wiped ${removed} file(s)${failed ? `, ${failed} left` : ''} (blz=${blz})`);
-    if (failed) throw new VaultError(MSG.wipe, 500);
+    if (failed) throw new VaultError(msgs().provider.vault.wipe, 500);
     return removed;
   });
 }

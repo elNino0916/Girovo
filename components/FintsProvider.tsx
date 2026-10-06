@@ -24,10 +24,14 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { ApiError, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail } from '@/lib/client-api';
+import { msgs, type Messages } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n/react';
 import { bankAnswerLines } from '@/lib/bank-answer';
-import { bookingKind, categorize } from '@/lib/categorize';
+import { bookingKind, categorize, guessCategory } from '@/lib/categorize';
+import { OWN_PICTURE, isAvatarChoice, isAvatarImage } from '@/lib/avatars';
 import { counterpartyKey, counterpartyName, isCategoryId, rawCounterparty, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
-import { parseCardAcceptor } from '@/lib/card-purpose';
+import { isCardPurpose, parseCardAcceptor } from '@/lib/card-purpose';
+import { parsePurpose } from '@/lib/sepa-purpose';
 import {
   dayKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, toLocalDate, translateType,
   fmtRange,
@@ -205,20 +209,43 @@ export type WaitState = {
   note: string | null;
 };
 
-const IDLE_WAIT: WaitState = {
-  open: false, kind: null, title: '', text: '', challenge: null,
+/**
+ * A text the provider keeps for a screen to show later. The app's own words
+ * are kept unwritten — a function of the texts — and written in the language
+ * on screen each time they are shown, so a change of language reaches them;
+ * what the bank or the server said is kept as it came.
+ */
+type OwnText = (m: Messages) => string;
+type KeptText = string | OwnText;
+const written = (k: KeptText, m: Messages): string => (typeof k === 'function' ? k(m) : k);
+
+/** WaitState as the provider keeps it: its own words unwritten until shown (shownWait). */
+type KeptWait = Omit<WaitState, 'title' | 'text' | 'error' | 'note'> & {
+  title: OwnText | null;
+  text: OwnText | null;
+  error: KeptText | null;
+  note: OwnText | null;
+};
+
+const IDLE_WAIT: KeptWait = {
+  open: false, kind: null, title: null, text: null, challenge: null,
   phase: 'waiting', error: null, canRetry: false, startedAt: 0, settledAt: null, vop: null, tanMediaName: null,
   order: null, note: null,
 };
 
-/** What each kind of approval asks the user to confirm, as the object of "bestätige …". */
-const WAIT_SUBJECT: Record<WaitKind, string> = {
-  login: 'die Anmeldung',
-  statements: 'den Umsatzabruf',
-  pending: 'den Abruf der vorgemerkten Umsätze',
-  balance: 'die Saldoabfrage',
-  transfer: 'die Überweisung',
-};
+/** The wait as TanWaitOverlay reads it, in the language on screen. */
+function shownWait(w: KeptWait, m: Messages): WaitState {
+  return {
+    ...w,
+    title: w.title ? w.title(m) : '',
+    text: w.text ? w.text(m) : '',
+    error: w.error === null ? null : written(w.error, m),
+    note: w.note ? w.note(m) : null,
+  };
+}
+
+/** A failed read as the provider keeps it (LoadError, its message perhaps unwritten). */
+type KeptLoadError = { message: KeptText; at: number };
 
 type TanGate = { needsTan?: boolean; tanChallenge?: string | null; tanMediaName?: string | null; vop?: SerializedVop };
 
@@ -289,8 +316,8 @@ const MAX_TEMPLATES = 200;
 const MAX_ALIAS = 60;
 /** The idle logout happens while nobody is looking; the notice has to outlast the absence. */
 const IDLE_NOTICE_MS = 10 * 60_000;
-/** A wait, not a failure: toasted as a notice, never in the error's red. */
-const BUSY_MESSAGE = 'Bitte warten – ein anderer Vorgang läuft noch.';
+// Another operation still running (msgs().provider.busy) is a wait, not a
+// failure: toasted as a notice, never in the error's red.
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -467,6 +494,10 @@ function normalizeVault(raw: VaultData | null | undefined): VaultData {
       ? raw.dismissedRecurring.filter((id): id is string => typeof id === 'string')
       : [],
     sentOrders: sanitizeSentOrders(raw.sentOrders),
+    ...(isAvatarChoice(raw.avatar) && (raw.avatar !== OWN_PICTURE || isAvatarImage(raw.avatarImage))
+      ? { avatar: raw.avatar }
+      : {}),
+    ...(isAvatarImage(raw.avatarImage) ? { avatarImage: raw.avatarImage } : {}),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : EMPTY_VAULT.updatedAt,
   };
 }
@@ -517,6 +548,11 @@ const newAttemptId = () =>
 // ---------------------------------------------------------------------------
 
 function useFintsState() {
+  // The texts kept unwritten below are written in this language when shown;
+  // `locale` relabels what depends on it (accountLabel).
+  const texts = useT();
+  const { locale } = useLocale();
+
   const [view, setView] = useState<View>('login');
   const [meta, setMeta] = useState<MetaResponse | null>(null);
   const [popularBanks, setPopularBanks] = useState<PopularBank[]>([]);
@@ -533,7 +569,8 @@ function useFintsState() {
   const [tanMethods, setTanMethods] = useState<SerializedTanMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<SerializedTanMethod | null>(null);
   const [mediaChoice, setMediaChoice] = useState<string[] | null>(null);
-  const [tanMethodError, setTanMethodError] = useState<string | null>(null);
+  // Wrapped in an object: a function as the state itself would be taken for an updater.
+  const [tanMethodErrorKept, setTanMethodError] = useState<{ text: KeptText } | null>(null);
 
   const [accounts, setAccounts] = useState<SerializedAccount[]>([]);
   const [activeAccount, setActiveAccount] = useState<SerializedAccount | null>(null);
@@ -546,8 +583,8 @@ function useFintsState() {
   const [statementInfo, setStatementInfo] = useState<Record<string, StatementInfo>>({});
   /** Per account: why its last statement load failed (see LoadError). */
   const [txErrors, setTxErrors] = useState<Record<string, LoadError>>({});
-  /** Per account: why its last balance enquiry failed. */
-  const [balanceErrors, setBalanceErrors] = useState<Record<string, LoadError>>({});
+  /** Per account: why its last balance enquiry failed (shown as `balanceErrors`). */
+  const [balanceErrorsKept, setBalanceErrors] = useState<Record<string, KeptLoadError>>({});
   /** The account whose balance alone is being asked for (loadBalance) — not a statement load. */
   const [balanceLoading, setBalanceLoading] = useState<string | null>(null);
   /** "Alle Salden abrufen" is working through the accounts. */
@@ -555,6 +592,9 @@ function useFintsState() {
 
   /** Counterparty name → company, or null once we know there's no match. */
   const [merchants, setMerchants] = useState<Record<string, Merchant | null>>({});
+  // The on-device model's category guesses (lib/category-model.ts), by counterpartyKey.
+  const [modelGuesses, setModelGuesses] = useState<Record<string, CategoryId>>({});
+  const guessesAsked = useRef(new Set<string>());
 
   const [busy, setBusyState] = useState(false);
   const [loadingAccount, setLoadingAccount] = useState<string | null>(null);
@@ -563,7 +603,8 @@ function useFintsState() {
   const [pendingErrors, setPendingErrors] = useState<Record<string, LoadError>>({});
   const [deviceRemembered, setDeviceRemembered] = useState(false);
 
-  const [wait, setWait] = useState<WaitState>(IDLE_WAIT);
+  const [keptWait, setWait] = useState<KeptWait>(IDLE_WAIT);
+  const wait = useMemo(() => shownWait(keptWait, texts), [keptWait, texts]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [printJob, setPrintJob] = useState<PrintJob | null>(null);
 
@@ -628,7 +669,7 @@ function useFintsState() {
   const accountLabelRef = useRef((a: SerializedAccount) => a.product?.trim() || translateType(a.accountType));
   const txCacheRef = useRef(txCache);
   const metaRef = useRef<MetaResponse | null>(null);
-  const waitRef = useRef<WaitState>(IDLE_WAIT);
+  const waitRef = useRef<WaitState>(wait);
   /** Names already sent for logo lookup — each is attempted once per session. */
   const merchantsAsked = useRef<Set<string>>(new Set());
   const logoConsentRef = useRef<LogoConsent>('unasked');
@@ -843,7 +884,7 @@ function useFintsState() {
     opts: {
       kind?: WaitKind;
       /** What the user confirms, as the object of "bestätige …": "den Abruf der Umsätze von …". */
-      subject?: string;
+      subject?: OwnText;
       order?: WaitOrder | null;
     } = {},
   ) => {
@@ -859,15 +900,15 @@ function useFintsState() {
     const gen = ++waitGenRef.current;
     const sid = sessionRef.current;
     waitCbRef.current = cbs;
-    const subject = opts.subject || WAIT_SUBJECT[kind];
+    const subject: OwnText = opts.subject ?? ((m) => m.provider.wait.subject[kind]);
     setWait({
       open: true,
       kind,
       // The overlay names each kind of approval itself (TanWaitOverlay.tsx).
-      title: '',
-      text: method?.isDecoupled
-        ? `Öffne „${method.name}“ und bestätige ${subject}.`
-        : `Bestätige ${subject} in deiner Banking-App.`,
+      title: null,
+      text: (m) => (method?.isDecoupled
+        ? m.provider.wait.openApp(method.name, subject(m))
+        : m.provider.wait.confirmInApp(subject(m))),
       challenge: data.tanChallenge || null,
       phase: 'waiting',
       error: null,
@@ -879,7 +920,7 @@ function useFintsState() {
         || (method?.activeTanMedia?.length === 1 ? method.activeTanMedia[0] : null)
         || null,
       order: opts.order ?? null,
-      note: second ? 'Die Anmeldung ist freigegeben – für die Umsätze fragt deine Bank ein zweites Mal.' : null,
+      note: second ? (m) => m.provider.wait.secondApproval : null,
     });
 
     const interval = Math.max(1500, (method?.decoupled?.waitBetween || 2) * 1000);
@@ -904,9 +945,9 @@ function useFintsState() {
             ...w,
             phase: 'ended',
             settledAt: Date.now(),
-            title: 'Freigabe nicht rechtzeitig angekommen',
+            title: (m) => m.provider.wait.endedTitle,
             // The bank's timeout, not the user's: no "zügig" (critique auth #6).
-            text: 'Deine Bank hat die Anfrage beendet. Sende sie neu und bestätige sie in der App.',
+            text: (m) => m.provider.wait.endedText,
             canRetry: !!waitCbRef.current.retry,
           }));
           return;
@@ -920,7 +961,7 @@ function useFintsState() {
             ...w,
             phase: r.status === 'refused' ? 'refused' : 'error',
             settledAt: Date.now(),
-            error: r.bankAnswers || 'Deine Bank hat die Freigabe nicht bestätigt.',
+            error: r.bankAnswers || ((m: Messages) => m.provider.wait.notConfirmed),
             canRetry: !!waitCbRef.current.retry,
           }));
           return;
@@ -1079,7 +1120,7 @@ function useFintsState() {
             // A 4xx refusal says what to do about it ("Zu viele gespeicherte
             // Einträge …"); anything else gets the plain statement.
             const refused = err instanceof ApiError && err.status >= 400 && err.status < 500;
-            toast(refused ? err.message : 'Deine persönlichen Einstellungen konnten nicht gespeichert werden.', 'error');
+            toast(refused ? err.message : msgs().provider.vault.saveFailed, 'error');
           }
         }
       });
@@ -1157,7 +1198,7 @@ function useFintsState() {
       // What was changed in memory while the vault was unreadable is kept —
       // and now, for the first time, saved.
       if (vaultDirtyRef.current) scheduleVaultSave();
-      toast('Persönliche Daten zurückgesetzt. Änderungen werden wieder gespeichert.', 'success');
+      toast(msgs().provider.vault.reset, 'success');
     } catch (err) {
       if (!isCurrent(sid)) return;
       toast((err as Error).message, 'error');
@@ -1215,7 +1256,7 @@ function useFintsState() {
   /** Deletes the saved personal data from this machine, the device registration untouched. */
   const wipeVault = useCallback(async () => {
     if (await wipeVaultWith((sid) => post('/api/vault', { sessionId: sid, op: 'wipe' }))) {
-      toast('Deine gespeicherten Daten sind von diesem Rechner gelöscht. Bis zum Abmelden wird nichts mehr gespeichert.', 'success', 8000);
+      toast(msgs().provider.vault.wiped, 'success', 8000);
     }
   }, [wipeVaultWith, toast]);
 
@@ -1315,11 +1356,7 @@ function useFintsState() {
       if (coveredTo !== span.to) {
         // The list, the Kontoverlauf and a printed statement all go by the
         // span recorded above; this says why it is shorter than asked for.
-        toast(
-          `Deine Bank hat nur Umsätze bis ${fmtDate(toLocalDate(coveredTo))} geliefert. Der Kontostand bleibt der zuletzt abgerufene.`,
-          'info',
-          8000,
-        );
+        toast(msgs().provider.reads.cutShort(fmtDate(toLocalDate(coveredTo))), 'info', 8000);
       }
       void resolveMerchants(pending?.length ? [...list, ...pending] : list);
       opts.onSettled?.('applied');
@@ -1345,7 +1382,8 @@ function useFintsState() {
           onCancelled: () => notApplied('cancelled'),
         }, {
           kind: 'statements',
-          subject: `den Abruf der Umsätze von ${approvalAccountName(account)} ab ${fmtDate(toLocalDate(span.from))}`,
+          // Written when shown, like the rest of the wait: the account's name and the date follow the language.
+          subject: (m) => m.provider.wait.statementsOf(approvalAccountName(account), fmtDate(toLocalDate(span.from))),
         });
       } else {
         finish();
@@ -1380,7 +1418,7 @@ function useFintsState() {
     const settle: LoadSettled = (outcome, error) => opts.onSettled?.(outcome, error);
     if (!account.canBalance) { settle('skipped'); return; }
     if (busyRef.current) {
-      if (!opts.quiet) toast(BUSY_MESSAGE, 'info');
+      if (!opts.quiet) toast(msgs().provider.busy, 'info');
       settle('busy');
       return;
     }
@@ -1390,14 +1428,17 @@ function useFintsState() {
     setBalanceLoading(acct);
 
     const finish = () => { setBusy(false); setBalanceLoading(null); };
-    const fail = (message: string) => {
-      setBalanceErrors((e) => ({ ...e, [acct]: { message, at: Date.now() } }));
+    // The reason is kept for the account as it came, or as the app's own words
+    // unwritten; the toast and the caller get it written now.
+    const fail = (reason: KeptText) => {
+      setBalanceErrors((e) => ({ ...e, [acct]: { message: reason, at: Date.now() } }));
+      const message = written(reason, msgs());
       if (!opts.quiet) toast(failureSentence([{ name: accountLabelRef.current(account), message }])!, 'error');
       settle('failed', message);
     };
     const apply = (balance: SerializedBalance | null) => {
       // An answer without a balance is not a zero balance.
-      if (!balance) { fail('Deine Bank hat für dieses Konto keinen Saldo gemeldet.'); return; }
+      if (!balance) { fail((m) => m.provider.reads.noBalance); return; }
       if (acceptsBalance(balancesRef.current[acct], balance)) {
         balancesRef.current = { ...balancesRef.current, [acct]: balance };
         setBalances((b) => ({ ...b, [acct]: balance }));
@@ -1413,11 +1454,11 @@ function useFintsState() {
           onDone: (r) => {
             finish();
             if (r.kind === 'balance') apply(r.balance);
-            else fail('Die Antwort deiner Bank passte nicht zur Saldoabfrage.');
+            else fail((m) => m.provider.reads.balanceMismatch);
           },
           retry: () => { finish(); void loadBalance(account, opts); },
           onCancelled: () => { finish(); settle('cancelled'); },
-        }, { kind: 'balance', subject: `die Saldoabfrage für ${approvalAccountName(account)}` });
+        }, { kind: 'balance', subject: (m) => m.provider.wait.balanceOf(approvalAccountName(account)) });
       } else {
         finish();
         apply(data.balance);
@@ -1438,7 +1479,7 @@ function useFintsState() {
    */
   const loadAllBalances = useCallback(() => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'info');
+      toast(msgs().provider.busy, 'info');
       return;
     }
     const sid = sessionRef.current;
@@ -1447,7 +1488,7 @@ function useFintsState() {
       // Only accounts whose statement is the way to their balance are left,
       // and the applied range ends before today.
       if (accountsRef.current.some((a) => a.canStatements && !balancesRef.current[a.accountNumber])) {
-        toast('Diese Konten melden ihren Saldo nur mit den Umsätzen. Wähle bei den Umsätzen einen Zeitraum bis heute.', 'info', 8000);
+        toast(msgs().provider.reads.balanceWithStatements, 'info', 8000);
       }
       return;
     }
@@ -1517,13 +1558,8 @@ function useFintsState() {
       onSettled: (outcome) => {
         if (outcome !== 'cancelled' || rangeRef.current !== prev) return;
         const span = fmtRange(prev.from, prev.to);
-        toast(
-          next.from < prev.from
-            ? `Ältere Umsätze wurden nicht abgerufen – es bleibt beim Zeitraum ${span}.`
-            : `Der neue Zeitraum wurde nicht abgerufen – es bleibt bei ${span}.`,
-          'info',
-          8000,
-        );
+        const said = msgs().provider.reads;
+        toast(next.from < prev.from ? said.olderNotFetched(span) : said.periodNotFetched(span), 'info', 8000);
       },
     });
   }, [setAppliedRange, loadTransactions, toast]);
@@ -1537,11 +1573,11 @@ function useFintsState() {
   const applyRange = useCallback((r: DateRange) => {
     const next = normalizeRange(r);
     if (!next) {
-      toast('Bitte einen gültigen Zeitraum wählen.', 'error');
+      toast(msgs().provider.reads.invalidPeriod, 'error');
       return;
     }
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'info');
+      toast(msgs().provider.busy, 'info');
       return;
     }
     const account = activeAccountRef.current;
@@ -1560,7 +1596,7 @@ function useFintsState() {
    */
   const refreshAfterTransfer = useCallback((account: SerializedAccount) => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'info');
+      toast(msgs().provider.busy, 'info');
       return;
     }
     const today = isoDate(new Date());
@@ -1578,7 +1614,7 @@ function useFintsState() {
   // ---- vorgemerkte Umsätze ------------------------------------------------
   const loadPending = useCallback(async (account: SerializedAccount) => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'info');
+      toast(msgs().provider.busy, 'info');
       return;
     }
     const sid = sessionRef.current;
@@ -1601,7 +1637,7 @@ function useFintsState() {
         startDecoupledWait(decoupledMethod(), data, {
           onDone: (r) => { finish(); if (r.kind === 'pending') apply(r.pending); },
           retry: () => { finish(); void loadPending(account); },
-        }, { kind: 'pending', subject: `den Abruf der vorgemerkten Umsätze von ${approvalAccountName(account)}` });
+        }, { kind: 'pending', subject: (m) => m.provider.wait.pendingOf(approvalAccountName(account)) });
       } else {
         finish();
         apply(data.pending);
@@ -1613,7 +1649,7 @@ function useFintsState() {
       // the toast is the one announcement of it.
       const message = (err as Error).message;
       setPendingErrors((e) => ({ ...e, [account.accountNumber]: { message, at: Date.now() } }));
-      toast(`Abruf der vorgemerkten Umsätze für „${accountLabelRef.current(account)}“ fehlgeschlagen: ${message}`, 'error');
+      toast(msgs().provider.reads.pendingFailed(accountLabelRef.current(account), message), 'error');
     }
   }, [setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, toast, resolveMerchants]);
 
@@ -1791,7 +1827,7 @@ function useFintsState() {
     if (transferOpen) return;
     const eligible = accounts.filter((a) => a.canTransfer);
     if (!eligible.length) {
-      toast('Kein Konto unterstützt Überweisungen über FinTS.', 'error');
+      toast(msgs().provider.launch.noTransferAccount, 'error');
       return;
     }
     const accountNumber =
@@ -1813,7 +1849,7 @@ function useFintsState() {
     if (transferOpen || shareOpen) return;
     const eligible = accounts.filter((a) => a.iban);
     if (!eligible.length) {
-      toast('Für keines deiner Konten liegt eine IBAN vor.', 'error');
+      toast(msgs().provider.launch.noIbanAccount, 'error');
       return;
     }
     const accountNumber =
@@ -1873,8 +1909,9 @@ function useFintsState() {
   const setForgetDeviceOpen = useCallback((b: boolean) => setForgetDeviceOpenState(b), []);
   const notifyDeviceSaved = useCallback(() => {
     setDeviceRemembered(true);
-    toast('Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.', 'info', 10_000, {
-      label: 'Gerät vergessen …',
+    const said = msgs().provider.device;
+    toast(said.saved, 'info', 10_000, {
+      label: said.forget,
       run: () => setForgetDeviceOpenState(true),
     });
   }, [toast]);
@@ -1897,7 +1934,7 @@ function useFintsState() {
       if (connectAttemptRef.current === attempt) connectAttemptRef.current = null;
     }
     // Called off while the answer was on its way: it goes nowhere.
-    if (attempt.ctrl.signal.aborted) throw new DOMException('Die Anmeldung wurde abgebrochen.', 'AbortError');
+    if (attempt.ctrl.signal.aborted) throw new DOMException(msgs().provider.login.cancelled, 'AbortError');
 
     store.set('fints.lastBank', JSON.stringify(chosen));
     store.set(`fints.userId.${chosen.blz}`, login);
@@ -1934,13 +1971,13 @@ function useFintsState() {
       setSelectedMethodBoth(data.selectedTanMethod);
       setTanMethodsBoth(data.selectedTanMethod ? [data.selectedTanMethod] : []);
       setDeviceRemembered(true);
-      toast('Gerät erkannt – ohne neue Freigabe angemeldet.');
+      toast(msgs().provider.login.deviceRecognised);
       afterAccountsReady(data.accounts || []);
     } else if ('tanMethods' in data) {
       setTanMethodsBoth(data.tanMethods || []);
       setSelectedMethodBoth(null);
       setMediaChoice(null);
-      setTanMethodError(data.tanMethods?.length ? null : 'Deine Bank bietet für diesen Zugang kein Sicherheitsverfahren an.');
+      setTanMethodError(data.tanMethods?.length ? null : { text: (m) => m.provider.login.noTanMethod });
       setView('tanmethod');
     }
   }, [afterAccountsReady, toast, setSelectedMethodBoth, setTanMethodsBoth]);
@@ -1997,7 +2034,7 @@ function useFintsState() {
       }
     } catch (err) {
       if (!isCurrent(sid)) return;
-      setTanMethodError((err as Error).message);
+      setTanMethodError({ text: (err as Error).message });
     }
   }, [isCurrent, startDecoupledWait, afterAccountsReady, notifyDeviceSaved, setSelectedMethodBoth]);
 
@@ -2013,14 +2050,14 @@ function useFintsState() {
     if (opts?.wipeData === true) {
       if (await wipeVaultWith((sid) => post('/api/forget-device', { sessionId: sid, wipeData: true }))) {
         setDeviceRemembered(false);
-        toast('Gerät vergessen und deine gespeicherten Daten von diesem Rechner gelöscht. Bis zum Abmelden wird nichts mehr gespeichert.', 'success', 8000);
+        toast(msgs().provider.device.forgottenAndWiped, 'success', 8000);
       }
       return;
     }
     try {
       await post('/api/forget-device', { sessionId: sessionRef.current });
       setDeviceRemembered(false);
-      toast('Gerät vergessen – bei der nächsten Anmeldung fragt deine Bank wieder nach einer Freigabe.', 'info', 6000);
+      toast(msgs().provider.device.forgotten, 'info', 6000);
     } catch (err) {
       toast((err as Error).message, 'error');
     }
@@ -2049,6 +2086,8 @@ function useFintsState() {
     setStatementInfo({});
     setMerchants({});
     merchantsAsked.current.clear();
+    setModelGuesses({});
+    guessesAsked.current.clear();
     setSelectedMethodBoth(null);
     setTanMethodsBoth([]);
     setMediaChoice(null);
@@ -2146,7 +2185,7 @@ function useFintsState() {
     if (reason === 'idle') {
       toast(idleLogoutNotice(unclear, unclear.length), 'info', IDLE_NOTICE_MS);
     } else if (reason === 'expired') {
-      toast('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.', 'error');
+      toast(msgs().provider.logout.expired, 'error');
     } else {
       notice = toast(logoutNotice(reason, false), 'info', 6000);
     }
@@ -2362,7 +2401,7 @@ function useFintsState() {
 
   const submitTransfer = useCallback(async (payload: TransferPayload, handlers: TransferHandlers) => {
     if (busyRef.current) {
-      handlers.onError(BUSY_MESSAGE); // never sent, so not logged
+      handlers.onError(msgs().provider.busy); // never sent, so not logged
       return;
     }
     const sid = sessionRef.current;
@@ -2389,7 +2428,7 @@ function useFintsState() {
    */
   const confirmVop = useCallback(async (handlers: TransferHandlers) => {
     if (busyRef.current) {
-      handlers.onError(BUSY_MESSAGE);
+      handlers.onError(msgs().provider.busy);
       return;
     }
     const sid = sessionRef.current;
@@ -2459,6 +2498,60 @@ function useFintsState() {
   const categoryRules = vault?.categoryRules;
   const txCategories = vault?.txCategories;
 
+  // The user's rules are the model's examples: with a new one, every
+  // counterparty is asked again (the server keeps its vectors, so that is cheap).
+  useEffect(() => {
+    guessesAsked.current.clear();
+  }, [categoryRules]);
+
+  // The on-device model's guesses (lib/category-model.ts) for the outgoing
+  // bookings the keywords left as "Sonstiges" — asked once per counterparty
+  // and session. The server is this app's own: nothing leaves the machine.
+  useEffect(() => {
+    const sid = sessionRef.current;
+    if (!sid) return;
+    const own = new Set(ownIbans);
+    const all = [
+      ...Object.values(txByAccount).flat(),
+      ...Object.values(pendingFetched).flatMap((p) => p.txs),
+      ...Object.values(notedFetched).flatMap((p) => p.txs),
+    ];
+    const names = new Map<string, string>();
+    const items: { key: string; name: string; purpose: string }[] = [];
+    for (const tx of all) {
+      const key = counterpartyKey(tx);
+      const name = counterpartyName(tx);
+      if (!name) continue;
+      if (!names.has(key)) names.set(key, name);
+      if (Number(tx.amount) >= 0 || guessesAsked.current.has(key)) continue;
+      if (guessCategory(tx, { ownIbans: own }) !== 'other') continue;
+      guessesAsked.current.add(key);
+      // A card system's record says nothing about what was bought.
+      items.push({ key, name, purpose: isCardPurpose(tx.purpose) ? '' : parsePurpose(tx.purpose).text });
+    }
+    if (!items.length) return;
+    const examples = Object.entries(categoryRules ?? {}).flatMap(([key, category]) => {
+      const name = names.get(key);
+      return name ? [{ name, category }] : [];
+    });
+    void post<{ guesses?: Record<string, CategoryId | null> }>('/api/category-guesses', { sessionId: sid, items, examples })
+      .then(({ guesses }) => {
+        if (!isCurrent(sid) || !guesses) return;
+        setModelGuesses((prev) => {
+          const next = { ...prev };
+          for (const [key, guess] of Object.entries(guesses)) {
+            if (isCategoryId(guess)) next[key] = guess;
+            else delete next[key];
+          }
+          return next;
+        });
+      })
+      // Asked again with the next change, rather than never.
+      .catch(() => {
+        for (const it of items) guessesAsked.current.delete(it.key);
+      });
+  }, [sessionId, txByAccount, pendingFetched, notedFetched, ownIbans, categoryRules, isCurrent]);
+
   /**
    * The category of a booking. Its identity changes only when a rule, an
    * override, a logo match or the own-account list does — analysis code can
@@ -2475,6 +2568,7 @@ function useFintsState() {
       try {
         result = categorize(tx, {
           ownIbans: own, rules: categoryRules, overrides: txCategories, merchantLabel: merchant?.label ?? null,
+          modelGuesses,
         });
       } catch {
         // A guess gone wrong must not take the dashboard down with it.
@@ -2483,14 +2577,24 @@ function useFintsState() {
       memo.set(tx, result);
       return result;
     };
-  }, [ownIbans, categoryRules, txCategories, merchants]);
+  }, [ownIbans, categoryRules, txCategories, merchants, modelGuesses]);
 
   const aliases = vault?.aliases;
+  // translateType answers in the language on screen: `locale` makes a new
+  // label function on a change of language, so every account name relabels.
   const accountLabel = useCallback(
     (a: SerializedAccount) => aliases?.[a.accountNumber] || a.product?.trim() || translateType(a.accountType),
-    [aliases],
+    [aliases, locale],
   );
   accountLabelRef.current = accountLabel;
+
+  // The kept reasons, written in the language on screen.
+  const tanMethodError = tanMethodErrorKept ? written(tanMethodErrorKept.text, texts) : null;
+  const balanceErrors = useMemo(() => {
+    const out: Record<string, LoadError> = {};
+    for (const [acct, e] of Object.entries(balanceErrorsKept)) out[acct] = { message: written(e.message, texts), at: e.at };
+    return out;
+  }, [balanceErrorsKept, texts]);
 
   // ---- vault-backed actions -----------------------------------------------
   const renameAccount = useCallback((accountNumber: string, alias: string | null) => {
@@ -2511,7 +2615,7 @@ function useFintsState() {
     const clip = (s: string | undefined, n: number) => (s == null ? undefined : [...s.trim()].slice(0, n).join(''));
     const iban = normIban(t.iban);
     if (!t.name.trim() || !ibanValid(iban)) {
-      toast('Vorlage nicht gespeichert: Name oder IBAN ist ungültig.', 'error');
+      toast(msgs().provider.vault.templateInvalid, 'error');
       return;
     }
     const amount = clip(t.amount, 20);
@@ -2628,7 +2732,7 @@ function useFintsState() {
     // The desktop shell exports the PDF directly to a native save dialog (see
     // Statement.tsx); only the browser's own print dialog needs this nudge.
     if (typeof window === 'undefined' || !window.electronPDF) {
-      toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
+      toast(msgs().provider.printAsPdf, 'info', 6000);
     }
   }, [activeAccount, statementInfo, bank, transactions, balances, toast]);
 
@@ -2642,7 +2746,7 @@ function useFintsState() {
       pending,
     });
     if (typeof window === 'undefined' || !window.electronPDF) {
-      toast('Im Druckdialog „Als PDF speichern“ wählen.', 'info', 6000);
+      toast(msgs().provider.printAsPdf, 'info', 6000);
     }
   }, [activeAccount, bank, toast]);
 
@@ -2691,6 +2795,7 @@ function useFintsState() {
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     categoryOf, setCategory,
     removeCategoryRule,
+    modelGuesses,
   };
 }
 

@@ -8,6 +8,8 @@
 // desktop shell's own Save-As instead, so the page learns whether the file
 // was actually written before it says so.
 
+import { msgs } from './i18n/index.ts';
+
 /**
  * A file name every OS accepts: no path separators, none of the characters
  * Windows reserves, no trailing dots or spaces (Explorer strips them, so the
@@ -75,8 +77,6 @@ export type SaveOutcome = 'saved' | 'canceled' | 'handed-over';
 /** What the desktop shell's file:save answers (electron/main.cjs). */
 export type ShellSaveResult = { ok: true } | { ok: false; canceled: true } | { ok: false; error: string };
 
-const SAVE_FAILED = 'Die Datei konnte nicht gespeichert werden.';
-
 /**
  * Saves a Blob as a file and says how that ended, so a "gespeichert" is only
  * ever said for a file that exists. In the desktop shell that is its own
@@ -95,9 +95,9 @@ export async function saveFile(filename: string, blob: Blob): Promise<SaveOutcom
   try {
     res = await shell.save(name, new Uint8Array(await blob.arrayBuffer()));
   } catch {
-    throw new Error(SAVE_FAILED);
+    throw new Error(msgs().transactions.download.failed);
   }
   if (res.ok) return 'saved';
   if ('canceled' in res) return 'canceled';
-  throw new Error(res.error || SAVE_FAILED);
+  throw new Error(res.error || msgs().transactions.download.failed);
 }

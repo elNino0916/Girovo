@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { fmtDate, properName } from '@/lib/format';
+import { msgs } from '@/lib/i18n';
 
 /**
  * The current time, re-read every `intervalMs` (or only once with null).
@@ -61,20 +62,12 @@ export function fmtCountdown(ms: number): string {
 
 /** "Noch 42 Sekunden" / "Noch 2 Minuten" — the countdown as a screen reader should hear it. */
 export function countdownWords(ms: number): string {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  if (s >= 120) return `${Math.ceil(s / 60)} Minuten`;
-  if (s > 60) return `${Math.floor(s / 60)} Minute und ${s % 60} Sekunden`;
-  if (s === 60) return '1 Minute';
-  return s === 1 ? '1 Sekunde' : `${s} Sekunden`;
+  return msgs().shell.countdown(Math.max(0, Math.ceil(ms / 1000)));
 }
 
 /** The hour of day, said the way a counter clerk would say it. */
 export function greeting(at: number | null): string {
-  const h = new Date(at ?? Date.now()).getHours();
-  if (h < 5) return 'Guten Abend';
-  if (h < 11) return 'Guten Morgen';
-  if (h < 18) return 'Guten Tag';
-  return 'Guten Abend';
+  return msgs().shell.greeting(new Date(at ?? Date.now()).getHours());
 }
 
 // Forms of address a bank puts in front of a holder's name. They are not
@@ -128,7 +121,7 @@ export function nameInitials(raw: string | null | undefined): string {
 export function fmtSince(at: number | null, now: number | null = null): string {
   if (at == null) return '—';
   const d = new Date(at);
-  const time = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} Uhr`;
+  const time = msgs().shell.clock(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
   const today = new Date(now ?? Date.now());
   return d.toDateString() === today.toDateString() ? time : `${fmtDate(d)}, ${time}`;
 }

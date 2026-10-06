@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from './FintsProvider';
 import { AccountHero, AccountList, MonthSummary } from './AccountPanel';
 import { PendingPanel, Transactions } from './Transactions';
@@ -172,6 +173,7 @@ function Slot({ name, className, children }: { name?: string; className?: string
  */
 function ToTransactions() {
   const { showTransactions } = useFints();
+  const t = useT();
   return (
     <div className="-my-1 sm:-my-2 desk:hidden">
       <Button
@@ -181,7 +183,7 @@ function ToTransactions() {
         iconRight={<ChevronIcon dir="down" size={15} />}
         onClick={() => showTransactions()}
       >
-        Zu den Umsätzen
+        {t.shell.dashboard.toTransactions}
       </Button>
     </div>
   );

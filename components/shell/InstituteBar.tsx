@@ -9,6 +9,7 @@
 // (thumb reach), and this tier keeps only the institute.
 
 import type { DashboardTab } from '@/lib/app-types';
+import { rich, useT } from '@/lib/i18n/react';
 import { fmtBlz } from '../auth/format';
 import { BankLogo } from '../BankLogo';
 import { useFints } from '../FintsProvider';
@@ -17,14 +18,12 @@ import { Tabs, Tag } from '../ui';
 
 export const DASH_TABS_ID = 'dash';
 
-export const TAB_ITEMS: { id: DashboardTab; label: string }[] = [
-  { id: 'overview', label: 'Übersicht' },
-  { id: 'analysis', label: 'Analyse' },
-  { id: 'contracts', label: 'Verträge & Abos' },
-];
+/** The sections, in order. Each is named where it is shown, by the navigation's word (t.common.nav). */
+export const TAB_ITEMS: { id: DashboardTab }[] = [{ id: 'overview' }, { id: 'analysis' }, { id: 'contracts' }];
 
 export function InstituteBar() {
   const { bank, logoFiles, deviceRemembered, tab, setTab } = useFints();
+  const t = useT();
   const brand = bank?.brand || 'generic';
 
   // The white band and its rule span the window; the row inside is centred
@@ -47,13 +46,13 @@ export function InstituteBar() {
           <div className="flex min-w-0 items-center gap-2.5 sm:max-w-[34%] desk:max-w-[40%]">
             <BankLogo brand={brand} size="sm" file={logoFiles[brand]} />
             <span className="min-w-0 truncate text-[14.5px] font-semibold text-ink" title={bank?.name}>
-              {bank?.name || 'Keine Bank verbunden'}
+              {bank?.name || t.shell.instituteBar.noBank}
             </span>
             {/* Read digit by digit against a statement or a letter: Plex
                 Mono, grouped the way the login screen prints it. */}
             {bank?.blz && (
               <span className="hidden shrink-0 text-[12.5px] whitespace-nowrap text-ink-3 desk:inline">
-                BLZ <span className="num">{fmtBlz(bank.blz)}</span>
+                {rich(t.shell.instituteBar.blz(<span className="num">{fmtBlz(bank.blz)}</span>))}
               </span>
             )}
           </div>
@@ -65,8 +64,8 @@ export function InstituteBar() {
           <div className="hidden shrink-0 self-stretch sm:flex">
             <Tabs
               idBase={DASH_TABS_ID}
-              aria-label="Bereiche"
-              items={TAB_ITEMS}
+              aria-label={t.shell.instituteBar.sections}
+              items={TAB_ITEMS.map(({ id }) => ({ id, label: t.common.nav[id] }))}
               value={tab}
               onChange={setTab}
             />
@@ -78,10 +77,10 @@ export function InstituteBar() {
             <Tag
               tone="info"
               icon={<ShieldIcon size={13} check />}
-              title="Dieses Gerät ist gemerkt – die Bank fragt seltener nach einer Freigabe."
+              title={t.shell.instituteBar.deviceHint}
               className="max-[420px]:hidden @max-[48rem]/ibar:px-1.5"
             >
-              <span className="@max-[48rem]/ibar:sr-only">Gerät gemerkt</span>
+              <span className="@max-[48rem]/ibar:sr-only">{t.shell.instituteBar.device}</span>
             </Tag>
           )}
         </div>

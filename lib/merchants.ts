@@ -26,10 +26,29 @@ import 'server-only';
 import crypto from 'node:crypto';
 import {
   bestScore, candidates, enoughEvidence, facilitatorOf, getMerchantKey, knownInstitution, looksCorporate, nameScore,
-  unambiguous,
+  normalize, unambiguous,
 } from './merchant-match';
 export { getMerchantKey };
+import { bankTowns } from './banks';
 import { BRANDFETCH_CLIENT_ID, MERCHANT_LOGOS } from './session';
+
+/**
+ * The towns a branch's card terminal may add to a chain's name ("DOMINOS
+ * ASCHAFFENBURG"): the institute database's, as candidates() compares them.
+ * The database writes "Koblenz am Rhein", "Mainz a Rhein", "Frankfurt
+ * (Oder)", "Grafing b. München" — the town is what comes before the addition.
+ * A two-word town ("Bad Homburg") stays out: "bad" alone is no town. Built on
+ * first use.
+ */
+let towns: ReadonlySet<string> | null = null;
+function townSet(): ReadonlySet<string> {
+  towns ??= new Set(
+    bankTowns()
+      .map((t) => normalize(t.split(/\s*\(|\s+(?:am|an|a|b|bei|im|in|ob|vor|v|i|o)\b\.?\s/i)[0]))
+      .filter((t) => t.length >= 4 && !t.includes(' ')),
+  );
+  return towns;
+}
 
 export type Merchant = {
   /** Brandfetch brand id the logo came from. */
@@ -215,6 +234,36 @@ const KNOWN_DOMAINS: Record<string, { domain: string; label: string }> = {
   'ubisoft': { domain: 'ubisoft.com', label: 'Ubisoft' },
   'apple': { domain: 'apple.com', label: 'Apple' },
   'paypal': { domain: 'paypal.com', label: 'PayPal' },
+  // Pinned: Brandfetch answers "EasyPark" with five equal, unverified brands
+  // (easypark.com, easyparkpartners.com, park-line.nl, parkmobile.nl,
+  // easyparkitalia.it), which the search rightly calls ambiguous.
+  'easypark': { domain: 'easypark.com', label: 'EasyPark' },
+  // Pinned: "Dominos" answers with the UK, Pakistan and a Canadian franchise
+  // — none verified, the German site not among them. A branch reaches this as
+  // "dominos" once its town is taken off (candidates in lib/merchant-match.ts).
+  'dominos': { domain: 'dominos.de', label: "Domino's Pizza" },
+  'dominos pizza': { domain: 'dominos.de', label: "Domino's Pizza" },
+  // Riot Games' card descriptor, "Riot Games Limited" cut and run together.
+  'riotgamesli': { domain: 'riotgames.com', label: 'Riot Games' },
+  'riot games': { domain: 'riotgames.com', label: 'Riot Games' },
+  'riotgames': { domain: 'riotgames.com', label: 'Riot Games' },
+  // Pinned: "Norma" answers with norma.uz, the NORMA Group and a fashion
+  // label — the discounter is not among them. Its card terminals write "NORMA
+  // SAGT DANKE", which reaches this as "norma" (QUALIFIERS).
+  'norma': { domain: 'norma-online.de', label: 'NORMA' },
+  // The other NORMA, pinned too: its own search is ambiguous, and without a
+  // pin it would fall through to the discounter's.
+  'norma group': { domain: 'normagroup.com', label: 'NORMA Group' },
+  // Lieferando's card descriptor: "Takeaway.com" run together, which the
+  // search finds nothing for. Lieferando.de itself has no logo there; the
+  // parent's domain carries the same mark.
+  'takeawaycom': { domain: 'takeaway.com', label: 'Lieferando' },
+  // The teo markets. Their site is teo.de, but Brandfetch's logo for that
+  // domain — icon and wordmark alike — is the TEO banking app's, an earlier
+  // owner's; unpinned, plain "teo" (QUALIFIERS drops "markt") is an exact hit
+  // on a tax software's. tegut's mark instead, where teo began — the owner's
+  // call. Not plain "teo": that is a given name, and the banking app's too.
+  'teo markt': { domain: 'tegut.com', label: 'teo' },
 };
 
 // The providers whose own mark can be shown as a badge on the shop's logo.
@@ -272,7 +321,7 @@ async function resolveOne(rawName: string, purpose: string | undefined, business
 
   if (!looksCorporate(rawName, businessBooking, purpose)) return null;
 
-  for (const rung of candidates(rawName, purpose)) {
+  for (const rung of candidates(rawName, purpose, { towns: townSet() })) {
     const known = KNOWN_DOMAINS[rung.core.toLowerCase()];
     if (known) {
       console.log(`[merchants] "${rung.core}" → ${known.label} (${known.domain}, direct match)`);

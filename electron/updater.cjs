@@ -31,7 +31,11 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
+const { shellTexts } = require('./i18n.cjs');
 const logic = require('./update-logic.cjs');
+
+/** The messages, in the shell's language at the moment one is made (electron/i18n.cjs). */
+const said = () => shellTexts().updates;
 
 const PREF_AUTO = 'fints.updates.auto';
 const FIRST_CHECK_DELAY_MS = 15_000;
@@ -61,32 +65,29 @@ const COPY_CHUNK_BYTES = 1024 * 1024;
 const MARKER = 'installing.json';
 const MARKER_MAX_AGE_MS = 24 * 60 * 60_000;
 
-/** A failure whose message is already fit for the user (German). */
+/** A failure whose message is already fit for the user (in the shell's language when it happened). */
 class UpdateError extends Error {}
 
 function describe(err, during) {
   if (err instanceof UpdateError) return err.message;
+  const say = said();
   const code = err?.code;
-  if (code === 'ENOSPC') return 'Auf dem Laufwerk ist nicht genug Platz für das Update.';
+  if (code === 'ENOSPC') return say.noSpace;
   if (code === 'EACCES' || code === 'EPERM' || code === 'EBUSY') {
-    return during === 'install'
-      ? 'Das Update konnte nicht gestartet werden – die Datei ist gesperrt. Ein Virenscanner prüft sie vielleicht noch; versuche es gleich noch einmal.'
-      : 'Die Datei konnte nicht gespeichert werden – der Ordner ist schreibgeschützt oder gesperrt.';
+    return during === 'install' ? say.installLocked : say.folderLocked;
   }
-  if (code === 'ENOENT' && during === 'install') return 'Die heruntergeladene Datei ist nicht mehr da. Lade das Update noch einmal herunter.';
-  if (err?.name === 'TimeoutError') return 'GitHub hat nicht rechtzeitig geantwortet. Versuche es später noch einmal.';
+  if (code === 'ENOENT' && during === 'install') return say.fileGone;
+  if (err?.name === 'TimeoutError') return say.timeout;
   // Chromium's network errors (net::ERR_…) and Node's, for the tests.
   const message = String(err?.message || '');
   if (/net::ERR_|fetch failed|terminated|ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN/i.test(message)) {
-    return during === 'download'
-      ? 'Die Verbindung zu GitHub ist abgebrochen. Versuche es noch einmal.'
-      : 'Keine Verbindung zu GitHub. Bist du mit dem Internet verbunden?';
+    return during === 'download' ? say.connectionLost : say.offline;
   }
   return during === 'check'
-    ? 'Die Suche nach Updates hat nicht geklappt.'
+    ? say.checkFailed
     : during === 'download'
-      ? 'Der Download hat nicht geklappt.'
-      : 'Das Update konnte nicht gestartet werden.';
+      ? say.downloadFailed
+      : say.installFailed;
 }
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -139,7 +140,7 @@ async function readBytes(res, max) {
     size += value.byteLength;
     if (size > max) {
       reader.cancel().catch(() => {});
-      throw new UpdateError('Die Antwort von GitHub war unverständlich.');
+      throw new UpdateError(said().unreadable);
     }
     chunks.push(Buffer.from(value.buffer, value.byteOffset, value.byteLength));
   }
@@ -313,7 +314,7 @@ function createUpdater(deps) {
         const { done, value } = await reader.read();
         if (done) break;
         received += value.byteLength;
-        if (received > expected) throw new UpdateError('Die Datei ist größer als angekündigt und wurde verworfen.');
+        if (received > expected) throw new UpdateError(said().tooLarge);
         hash.update(value);
         // A stream that failed (or never opened) neither drains nor closes
         // twice: only wait on one that is still open.
@@ -330,7 +331,7 @@ function createUpdater(deps) {
         }
         onChunk(received);
       }
-      if (received !== expected) throw new UpdateError('Der Download wurde unterbrochen. Versuche es noch einmal.');
+      if (received !== expected) throw new UpdateError(said().interrupted);
       out.end();
       await closed;
       if (writeError) throw writeError;
@@ -379,10 +380,7 @@ function createUpdater(deps) {
       void clearCache();
     } else if (Number.isFinite(marker.at) && now() - marker.at < MARKER_MAX_AGE_MS && logic.isNewer(to, currentVersion)) {
       state.failedInstall = to;
-      state.error = {
-        during: 'install',
-        message: `Das Update auf Version ${to} wurde nicht abgeschlossen. Du kannst es noch einmal versuchen.`,
-      };
+      state.error = { during: 'install', message: said().notCompleted(to) };
     }
   }
 
@@ -398,18 +396,18 @@ function createUpdater(deps) {
     // No release published at all yet, or none under that tag.
     if (res.status === 404) return null;
     if (res.status === 403 || res.status === 429) {
-      throw new UpdateError('GitHub nimmt gerade keine weiteren Anfragen an. Versuche es später noch einmal.');
+      throw new UpdateError(said().rateLimited);
     }
-    if (!res.ok) throw new UpdateError(`GitHub hat mit einem Fehler geantwortet (HTTP ${res.status}).`);
+    if (!res.ok) throw new UpdateError(said().httpError(res.status));
     let json;
     try {
       json = JSON.parse((await readBytes(res, MAX_FEED_BYTES)).toString('utf8'));
     } catch (err) {
       if (err instanceof UpdateError) throw err;
-      throw new UpdateError('Die Antwort von GitHub war unverständlich.');
+      throw new UpdateError(said().unreadable);
     }
     const release = logic.parseRelease(json, { downloadPrefix, releasesPage });
-    if (!release) throw new UpdateError('Die Antwort von GitHub war unverständlich.');
+    if (!release) throw new UpdateError(said().unreadable);
     return release;
   }
 
@@ -680,7 +678,7 @@ function createUpdater(deps) {
           break;
         }
       }
-      if (!dir) throw new UpdateError('Es gibt keinen Ordner, in dem die neue Version gespeichert werden kann.');
+      if (!dir) throw new UpdateError(said().noFolder);
       const file = path.join(dir, asset.name);
       partial = `${file}.partial`;
       const built = plan
@@ -694,10 +692,10 @@ function createUpdater(deps) {
           set({ received: 0, total: asset.size, release: state.release && { ...state.release, size: asset.size } });
         }
         const res = await fetch(asset.url, { signal: controller.signal, cache: 'no-store' });
-        if (!res.ok || !res.body) throw new UpdateError(`Der Download ist fehlgeschlagen (HTTP ${res.status}).`);
+        if (!res.ok || !res.body) throw new UpdateError(said().downloadHttp(res.status));
         const digest = await save(res.body, partial, asset.size, onChunk);
         if (digest !== asset.sha256) {
-          throw new UpdateError('Die Datei stimmt nicht mit der Prüfsumme von GitHub überein und wurde gelöscht.');
+          throw new UpdateError(said().digestMismatch);
         }
       }
       await renameWithRetry(partial, file);
@@ -710,9 +708,7 @@ function createUpdater(deps) {
         set({ phase: 'available', received: 0, total: 0 });
       } else {
         log.warn('[updater] download failed:', stalled ? 'stalled' : err?.message || err);
-        const message = stalled
-          ? 'Die Verbindung zu GitHub ist abgebrochen. Versuche es noch einmal.'
-          : describe(err, 'download');
+        const message = stalled ? said().connectionLost : describe(err, 'download');
         set({ phase: 'available', received: 0, total: 0, error: { during: 'download', message } });
       }
     } finally {
@@ -741,7 +737,7 @@ function createUpdater(deps) {
       if (!(await fileMatches(file, asset))) {
         readyFile = null;
         if (path.dirname(file) === cacheDir) await fs.promises.rm(file, { force: true }).catch(() => {});
-        throw new UpdateError('Die heruntergeladene Datei fehlt oder wurde verändert. Lade das Update noch einmal herunter.');
+        throw new UpdateError(said().changed);
       }
       await writeMarker({
         from: currentVersion,

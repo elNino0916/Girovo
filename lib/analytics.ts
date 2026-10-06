@@ -25,6 +25,7 @@ import type { TxFilter } from './app-types';
 import { categoryDef, categoryLabel, counterpartyKey, counterpartyName, intermediaryName } from './categories.ts';
 import { foldText } from './categorize.ts';
 import { dayKey, fmtMonth, fmtRange, parseAmount, prettyBookingText, toLocalDate } from './format.ts';
+import { activeLocale, intlLocale, msgs } from './i18n/index.ts';
 import { isFacilitatorName, merchantHint } from './merchant-match.ts';
 import { parsePurpose } from './sepa-purpose.ts';
 
@@ -163,7 +164,7 @@ export function periodTotals(
 export type MonthBucket = {
   /** yyyy-mm */
   month: string;
-  /** Short, for an axis: "Okt" */
+  /** Short, for an axis: "Okt" — read when it is read, like `title` (see CalendarMonth). */
   label: string;
   /** Long, for a tooltip or table: "Oktober 2026". */
   title: string;
@@ -184,25 +185,72 @@ export type MonthBucket = {
 
 const lastDayOfMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
 
-// Axis labels, fixed rather than asked of Intl: the standalone short forms
-// differ between ICU versions ("Sep" / "Sept."), and a chart axis wants one
-// width that Node and the Electron renderer agree on.
-const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-const MONTH_LONG = [
-  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
-];
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
-/** "28.09." from a day key. */
-const shortDayKey = (key: string) => `${key.slice(8, 10)}.${key.slice(5, 7)}.`;
+/**
+ * "Okt" ("Oct") for "2026-10": a month on a chart's axis. Fixed names
+ * (lib/i18n/messages/insights.ts) rather than asked of Intl: the standalone
+ * short forms differ between ICU versions ("Sep" / "Sept."), and a chart
+ * axis wants one width that Node and the Electron renderer agree on.
+ */
+export function monthShort(month: string): string {
+  return msgs().insights.monthsShort[+String(month).slice(5, 7) - 1] ?? '';
+}
+
+/**
+ * "28.09." ("28 Sept") from a day key — a day whose year the context already
+ * names. '' for no day.
+ */
+export function fmtDayShort(key: string): string {
+  const d = toLocalDate(key);
+  if (!d) return '';
+  if (activeLocale() === 'en') return new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'short' }).format(d);
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.`;
+}
+
+/**
+ * "06.07.–20.07." ("6–20 Jul") — two days whose year the context already
+ * names. English lets Intl join them, so a month shared by both is written once.
+ */
+export function fmtDaySpan(from: string, to: string): string {
+  const a = toLocalDate(from);
+  const b = toLocalDate(to);
+  if (activeLocale() === 'en' && a && b && a <= b) {
+    try {
+      return new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'short' }).formatRange(a, b);
+    } catch {
+      /* an engine without formatRange: the two days as they are */
+    }
+  }
+  return `${fmtDayShort(from)}–${fmtDayShort(to)}`;
+}
+
+/**
+ * One calendar month of a range, cut to it. Its names are read when they are
+ * read, so a change of language reaches every list that keeps the month.
+ */
+function calendarMonth(month: string, from: string, to: string, complete: boolean): CalendarMonth {
+  return {
+    month,
+    get label() {
+      return monthShort(month);
+    },
+    get title() {
+      return fmtMonth(month);
+    },
+    from,
+    to,
+    complete,
+  };
+}
 
 /** One calendar month of a range, cut to it. */
 export type CalendarMonth = {
   /** yyyy-mm */
   month: string;
-  /** Short, for an axis: "Okt" */
+  /** Short, for an axis: "Okt" (monthShort) — read when it is read. */
   label: string;
-  /** "Oktober 2026" */
+  /** "Oktober 2026" (fmtMonth) — read when it is read. */
   title: string;
   /** The part of the month inside the range, yyyy-mm-dd. */
   from: string;
@@ -226,14 +274,12 @@ export function calendarMonths(fromIn: DayInput, toIn: DayInput, todayIn: Date =
     const month = `${y}-${pad2(m)}`;
     const first = `${month}-01`;
     const last = `${month}-${pad2(lastDayOfMonth(y, m))}`;
-    out.push({
+    out.push(calendarMonth(
       month,
-      label: MONTH_SHORT[m - 1],
-      title: fmtMonth(month),
-      from: from > first ? from : first,
-      to: to < last ? to : last,
-      complete: from <= first && to >= last && last < today,
-    });
+      from > first ? from : first,
+      to < last ? to : last,
+      from <= first && to >= last && last < today,
+    ));
     m++;
     if (m > 12) {
       m = 1;
@@ -249,13 +295,14 @@ export function calendarMonths(fromIn: DayInput, toIn: DayInput, todayIn: Date =
  * both, '' for the whole month.
  */
 export function monthPartNote(from: string, to: string): string {
+  const words = msgs().insights.period;
   const month = from.slice(0, 7);
   const last = `${month}-${pad2(lastDayOfMonth(+month.slice(0, 4), +month.slice(5, 7)))}`;
   const startsLate = from > `${month}-01`;
   const endsEarly = to < last;
-  if (startsLate && endsEarly) return `${shortDayKey(from)}–${shortDayKey(to)}`;
-  if (startsLate) return `ab ${shortDayKey(from)}`;
-  if (endsEarly) return `bis ${shortDayKey(to)}`;
+  if (startsLate && endsEarly) return fmtDaySpan(from, to);
+  if (startsLate) return words.from(fmtDayShort(from));
+  if (endsEarly) return words.until(fmtDayShort(to));
   return '';
 }
 
@@ -265,11 +312,12 @@ export function monthPartNote(from: string, to: string): string {
  * "06.07.–30.09.2026", "ab 01.09.2026".
  */
 export function daysLabel(fromIn: string | null | undefined, toIn: string | null | undefined): string {
+  const words = msgs().insights.period;
   const from = dayKey(fromIn);
   const to = dayKey(toIn);
   if (!from && !to) return '';
-  if (!to) return `ab ${fmtRange(from, from)}`;
-  if (!from) return `bis ${fmtRange(to, to)}`;
+  if (!to) return words.from(fmtRange(from, from));
+  if (!from) return words.until(fmtRange(to, to));
   if (from === to || from > to) return fmtRange(from, to);
   if (from.slice(0, 7) === to.slice(0, 7)) {
     const note = monthPartNote(from, to);
@@ -297,7 +345,9 @@ export function monthlyBuckets(
 
   return months.map((cm) => {
     const t = totalsOf(byMonth.get(cm.month) ?? [], opts.categoryOf);
-    return { ...cm, income: t.income, expense: t.expense, net: t.net, count: t.count };
+    // Onto the month itself, not a spread copy: a spread would read its names
+    // once, in the language speaking now, and keep them.
+    return Object.assign(cm, { income: t.income, expense: t.expense, net: t.net, count: t.count });
   });
 }
 
@@ -311,7 +361,9 @@ export type Counterparty = {
   /**
    * As the bank wrote it on the newest booking — except for cash, which is
    * "Bargeld" rather than the bank whose machine paid it out, and a purchase
-   * through a payment service, which is the shop the purpose names.
+   * through a payment service, which is the shop the purpose names. Those
+   * words (and "Ohne Namen") are read when they are read, in the language
+   * speaking then.
    */
   name: string;
   /** Every cash withdrawal, as one: they share a category, not a payee. */
@@ -459,19 +511,22 @@ export function topCounterparties(
   }
   return [...groups.entries()]
     .filter(([, g]) => g.amount > 0)
-    .map(([key, g]): Counterparty => ({
-      key,
-      name: g.cash
-        ? 'Bargeld'
-        : g.shop ?? (counterpartyName(g.newest) || prettyBookingText(g.newest.bookingText) || 'Ohne Namen'),
-      ...(g.cash ? { cash: true } : {}),
-      ...(g.shop ? { via: counterpartyName(g.newest) } : {}),
-      amount: euros(g.amount),
-      count: g.count,
-      offsets: g.offsets,
-      ...(g.iban ? { iban: g.iban } : {}),
-      sample: g.newest,
-    }))
+    .map(([key, g]): Counterparty => {
+      const named = g.cash ? '' : g.shop ?? (counterpartyName(g.newest) || prettyBookingText(g.newest.bookingText));
+      return {
+        key,
+        get name() {
+          return g.cash ? categoryLabel('cash') : named || msgs().insights.noName;
+        },
+        ...(g.cash ? { cash: true } : {}),
+        ...(g.shop ? { via: counterpartyName(g.newest) } : {}),
+        amount: euros(g.amount),
+        count: g.count,
+        offsets: g.offsets,
+        ...(g.iban ? { iban: g.iban } : {}),
+        sample: g.newest,
+      };
+    })
     .sort((a, b) => b.amount - a.amount || b.count - a.count || a.name.localeCompare(b.name, 'de'))
     .slice(0, Math.max(0, opts.limit));
 }
@@ -504,6 +559,9 @@ const AMOUNT_TOKEN = /^[+\-−–]?\d[\d.,]*$/;
 const COMPARE_TOKEN = /^(<=|>=|<|>)(.+)$/;
 const RANGE_TOKEN = /^(\d[\d.,]*)[-–](\d[\d.,]*)$/;
 const DATE_TOKEN = /^(\d{1,2})\.(\d{1,2})\.?(\d{2}|\d{4})?$/;
+// The same day as English writes it, day first: "28/09", "28/09/2026". A
+// four-digit second part is a month and its year instead (MONTH_YEAR_TOKEN).
+const SLASH_DATE_TOKEN = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/;
 // A month with its year: "09/2026", "9.2026", "2026-09".
 const MONTH_YEAR_TOKEN = /^(\d{1,2})[./](\d{4})$/;
 const ISO_MONTH_TOKEN = /^(\d{4})-(\d{1,2})$/;
@@ -559,22 +617,37 @@ function haystack(tx: SerializedTransaction, ctx: SearchContext): string {
 
 type Test = (tx: SerializedTransaction, text: () => string) => boolean;
 
+// What a person types for a month, folded: words to recognise, not to show.
+// i18n-data-start
 const MONTH_WORDS = ['JANUAR', 'FEBRUAR', 'MAERZ', 'APRIL', 'MAI', 'JUNI', 'JULI', 'AUGUST', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DEZEMBER'];
 // Spellings that are no start of the folded name: "Mrz", "Marz".
 const MONTH_ALIASES: Record<string, number> = { MRZ: 3, MARZ: 3 };
+// With English on screen, its month words name their month too — the German
+// ones keep working.
+const MONTH_WORDS_EN = [
+  'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+];
+// i18n-data-end
 
 /**
  * 1–12 for a German month word or its start — "August", "aug", "Sept.",
- * "März", "Mrz" — else null. Three letters at least, so "Ma" or "Ju" is
- * still just text.
+ * "März", "Mrz" — else null; with English on screen also an English one
+ * ("March", "oct"). Three letters at least, so "Ma" or "Ju" is still just
+ * text.
  */
 export function monthOfWord(word: string): number | null {
   const f = foldText(word).replace(/ /g, '');
   if (f.length < 3 || !/^[A-Z]+$/.test(f)) return null;
   if (MONTH_ALIASES[f]) return MONTH_ALIASES[f];
   const i = MONTH_WORDS.findIndex((m) => m.startsWith(f));
-  return i < 0 ? null : i + 1;
+  if (i >= 0) return i + 1;
+  const e = activeLocale() === 'en' ? MONTH_WORDS_EN.findIndex((m) => m.startsWith(f)) : -1;
+  return e < 0 ? null : e + 1;
 }
+
+/** "August", "August 2026" — a month a search word was read as, in the language speaking right now. */
+const monthInWords = (month: number, year: number | null) =>
+  `${msgs().insights.monthsLong[month - 1]}${year != null ? ` ${year}` : ''}`;
 
 /** Booked or value-dated in that month (and year, when given) — like a day, which matches either. */
 function inMonth(tx: SerializedTransaction, month: number, year: number | null): boolean {
@@ -624,7 +697,7 @@ function tokenTest(token: string): Test | null {
     }
   }
 
-  const date = DATE_TOKEN.exec(token);
+  const date = DATE_TOKEN.exec(token) ?? SLASH_DATE_TOKEN.exec(token);
   if (date) {
     const d = +date[1];
     const m = +date[2];
@@ -664,15 +737,17 @@ type Term = {
   /** As typed — what a report quotes back. */
   text: string;
   test: Test;
-  /** The month the term also names, in words: "August", "August 2026". */
-  month: string | null;
+  /** The month the term also names, in words: "August", "August 2026" — read when it is read. */
+  readonly month: string | null;
 };
 
 /** A month reading, OR'd with the words' plain reading: "Mai" finds May's bookings and still "Maier". */
 function monthTerm(text: string, month: number, year: number | null, plain: Test | null): Term {
   return {
     text,
-    month: `${MONTH_LONG[month - 1]}${year != null ? ` ${year}` : ''}`,
+    get month() {
+      return monthInWords(month, year);
+    },
     test: (tx, t) => inMonth(tx, month, year) || (!!plain && plain(tx, t)),
   };
 }
@@ -731,7 +806,7 @@ const ibanHit = (tx: SerializedTransaction, compact: string) =>
  * ">100" and "<=20" compare the absolute amount, and so does "50-100" — a
  * range only when the first number is the smaller, and the text is searched
  * for it as well, so "Rechnung 2026-118" still finds that invoice. "28.09."
- * matches the Buchungs- or Wertstellungstag, "August", "aug 2026" or
+ * (or "28/09") matches the Buchungs- or Wertstellungstag, "August", "aug 2026" or
  * "09/2026" the month — each as well as the text, so "Mai" still finds
  * "Maier". An IBAN may be typed with or without its spaces.
  */
@@ -750,7 +825,10 @@ export type SearchTermReport = {
   text: string;
   /** How many of the bookings this word alone matches. */
   matches: number;
-  /** The month the word was also read as: "August", "August 2026". */
+  /**
+   * The month the word was also read as: "August", "August 2026" — read when
+   * it is read, so a report kept across a change of language follows it.
+   */
   month: string | null;
 };
 
@@ -770,7 +848,13 @@ export function searchReport(
   return terms.map((t) => {
     let matches = 0;
     for (const tx of txs) if (t.test(tx, () => haystack(tx, ctx))) matches++;
-    return { text: t.text, matches, month: t.month };
+    return {
+      text: t.text,
+      matches,
+      get month() {
+        return t.month;
+      },
+    };
   });
 }
 

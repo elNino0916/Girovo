@@ -12,6 +12,7 @@
 // without a hydration mismatch.
 
 import { useSyncExternalStore } from 'react';
+import { useT } from '@/lib/i18n/react';
 import {
   appliedTheme, appliedThemePref, setThemePref, subscribeTheme, type Theme, type ThemePref,
 } from '@/lib/theme';
@@ -27,8 +28,6 @@ export function useThemePref(): ThemePref {
 export function useResolvedTheme(): Theme {
   return useSyncExternalStore(subscribeTheme, appliedTheme, () => 'light' as const);
 }
-
-const PREF_LABEL: Record<ThemePref, string> = { light: 'Hell', dark: 'Dunkel', system: 'System' };
 
 /** Sun, moon or screen — whichever the CHOSEN setting is. */
 function PrefGlyph({ size = 18 }: { size?: number }) {
@@ -57,12 +56,13 @@ export function ThemeMenu({
   className?: string;
   placement?: Placement;
 }) {
+  const t = useT();
   const pref = useThemePref();
-  const name = `Darstellung: ${PREF_LABEL[pref]}`;
+  const name = t.shell.theme.current(t.common.theme[pref]);
 
   return (
     <Menu
-      label="Darstellung"
+      label={t.common.theme.label}
       placement={placement}
       minWidth={240}
       trigger={(props) =>
@@ -73,25 +73,25 @@ export function ThemeMenu({
         ) : (
           <button {...props} type="button" aria-label={name} title={name} className={cx('navlink inline-flex', className)}>
             <PrefGlyph />
-            <span className={labelClassName}>Darstellung</span>
+            <span className={labelClassName}>{t.common.theme.label}</span>
           </button>
         )
       }
     >
-      <MenuGroup label="Darstellung">
+      <MenuGroup label={t.common.theme.label}>
         <MenuItemRadio checked={pref === 'light'} icon={<SunIcon />} onSelect={() => setThemePref('light')}>
-          Hell
+          {t.common.theme.light}
         </MenuItemRadio>
         <MenuItemRadio checked={pref === 'dark'} icon={<MoonIcon />} onSelect={() => setThemePref('dark')}>
-          Dunkel
+          {t.common.theme.dark}
         </MenuItemRadio>
         <MenuItemRadio
           checked={pref === 'system'}
           icon={<MonitorIcon />}
-          description="Folgt der Einstellung deines Systems"
+          description={t.shell.theme.followsSystem}
           onSelect={() => setThemePref('system')}
         >
-          System
+          {t.common.theme.system}
         </MenuItemRadio>
       </MenuGroup>
     </Menu>
@@ -110,12 +110,13 @@ export function ThemeMenu({
 export function ThemeToggle({
   tone = 'page', labelled = false, className,
 }: { tone?: 'page' | 'bar' | 'stage'; labelled?: boolean; className?: string }) {
+  const t = useT();
   const pref = useThemePref();
   const shown = useResolvedTheme();
   if (labelled) return <ThemeMenu className={className} labelClassName="hidden sm:inline" />;
 
   const flip = () => setThemePref(appliedTheme() === 'dark' ? 'light' : 'dark');
-  const name = `${shown === 'dark' ? 'Hell' : 'Dunkel'} darstellen${pref === 'system' ? ' (statt System)' : ''}`;
+  const name = t.shell.theme.flip(shown !== 'dark', pref === 'system');
   return (
     <IconButton tone={tone} size="md" onClick={flip} aria-label={name} className={className}>
       <SunIcon size={18} className="mode-glyph" data-glyph="light" />

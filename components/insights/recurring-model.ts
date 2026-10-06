@@ -111,7 +111,7 @@ function historySpan(from: string, to: string, txs: readonly SerializedTransacti
 
 export function useRecurringModel(): RecurringModel {
   const {
-    accounts, txByAccount, statementInfo, ownIbans, categoryOf, vault, vaultStatus, loadingAccount, activeAccount,
+    accounts, txByAccount, statementInfo, ownIbans, categoryOf, vault, vaultStatus, loadingAccount, activeAccount, modelGuesses,
   } = useFints();
   const failures = useLoadFailures();
 
@@ -146,9 +146,9 @@ export function useRecurringModel(): RecurringModel {
 
   const detected = useMemo(
     () => (loaded.txs.length
-      ? detectRecurring(loaded.txs, { ownIbans, categoryOf, until: loaded.until || dayKey(new Date()) })
+      ? detectRecurring(loaded.txs, { ownIbans, categoryOf, modelGuesses, until: loaded.until || dayKey(new Date()) })
       : []),
-    [loaded, ownIbans, categoryOf],
+    [loaded, ownIbans, categoryOf, modelGuesses],
   );
 
   const dismissedIds = vault?.dismissedRecurring;

@@ -5,14 +5,12 @@ import type { FormEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
 import { canReportBalance, isCardAccount, namesList, totalBalance } from '@/lib/balances';
 import { translateType } from '@/lib/format';
 import type { SerializedAccount } from '@/lib/fints-types';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { PencilIcon, RefreshIcon, UndoIcon } from '../icons';
 import { Alert, Button, DotList, EmptyState, IconButton, Input, Skeleton, TileHeader, cx } from '../ui';
 import { AccountGlyph, MAX_ALIAS, ShortIban, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
-
-/** The same words every other fetch control carries. */
-const MAY_NEED_TAN = 'Kann eine Freigabe erfordern';
 
 /**
  * Konten und Karten — the account switcher, and the place the whole relationship
@@ -42,6 +40,8 @@ export function AccountList() {
     loadAllBalances, loadingAllBalances, isLoadedForAppliedRange, txErrors, balanceErrors,
     accountLabel, renameAccount, vault, vaultStatus, toast,
   } = useFints();
+  const t = useT();
+  const words = t.insights.accounts;
 
   const [editing, setEditing] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -92,7 +92,7 @@ export function AccountList() {
       changed++;
     }
     setEditing(false);
-    if (changed) toast(changed === 1 ? 'Kontoname gespeichert.' : 'Kontonamen gespeichert.', 'success');
+    if (changed) toast(words.namesSaved(changed), 'success');
   };
 
   const onFieldKey = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -135,23 +135,23 @@ export function AccountList() {
     reason === 'currency' ? `${accountLabel(account)} (${currency})` : accountLabel(account)
   )));
   const totalFacts: ReactNode[] = [
-    failed.length > 0 && `Abruf fehlgeschlagen: ${names(failed)}`,
-    notYet.length > 0 && `Noch nicht abgerufen: ${names(notYet)}`,
+    failed.length > 0 && `${t.common.fetchFailed}: ${names(failed)}`,
+    notYet.length > 0 && words.notYet(names(notYet)),
     excluded && (
-      <span title="Konten, für die deine Bank keinen Saldo meldet, und Konten in anderer Währung zählen nicht mit.">
-        ohne {excluded}
+      <span title={words.excludedHint}>
+        {t.insights.without(excluded)}
       </span>
     ),
   ];
 
   const busyTitle = busy
-    ? wait.open ? 'Bitte warten – eine Freigabe läuft' : 'Bitte warten – ein Abruf läuft'
+    ? wait.open ? words.busyApproval : words.busyFetch
     : undefined;
 
   return (
     <section className="panel min-w-0 overflow-clip" aria-labelledby={titleId}>
       <TileHeader
-        title="Konten und Karten"
+        title={words.title}
         titleId={titleId}
         actions={
           editing ? null : accounts.length > 0 ? (
@@ -165,13 +165,13 @@ export function AccountList() {
               className="-mr-2.5"
               onClick={startEditing}
               aria-describedby={noteOpen ? noteId : undefined}
-              aria-label="Konten umbenennen"
+              aria-label={words.renameAll}
             >
               {/* Renaming is all it does, and only on this machine — "anpassen"
                   sounded like a change at the bank. The short form keeps the
                   tile's title on one line on a phone. */}
-              <span className="sm:hidden">Umbenennen</span>
-              <span className="hidden sm:inline">Konten umbenennen</span>
+              <span className="sm:hidden">{words.rename}</span>
+              <span className="hidden sm:inline">{words.renameAll}</span>
             </Button>
           ) : null
         }
@@ -186,14 +186,13 @@ export function AccountList() {
       )}
 
       {accounts.length === 0 ? (
-        <EmptyState compact title="Keine Konten">
-          Deine Bank hat für diesen Zugang keine Konten gemeldet.
+        <EmptyState compact title={words.none}>
+          {words.noneHint}
         </EmptyState>
       ) : editing ? (
-        <form onSubmit={save} noValidate aria-label="Konten umbenennen">
+        <form onSubmit={save} noValidate aria-label={words.renameAll}>
           <p className="px-4 pb-3 text-[13px] leading-snug text-ink-3 sm:px-5">
-            Gib deinen Konten eigene Namen. Sie werden verschlüsselt auf diesem Rechner gespeichert, deine Bank
-            erfährt davon nichts. Ein leeres Feld zeigt wieder den Namen deiner Bank.
+            {words.renameHint}
           </p>
           <ul className="border-t border-line">
             {accounts.map((a, i) => {
@@ -206,7 +205,7 @@ export function AccountList() {
                   <AccountGlyph account={a} className="hidden sm:grid" />
                   <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-6">
                     <label htmlFor={fieldId} className="sr-only">
-                      Name für {bankName(a)}, {ident}
+                      {words.nameFor(bankName(a), ident)}
                     </label>
                     {/* A name is a short thing: the field is sized like one,
                         with the way back to the bank's name inside it. */}
@@ -227,7 +226,7 @@ export function AccountList() {
                       // the input in a new element and drop the caret.
                       trailing={
                         <IconButton
-                          aria-label={`Auf „${bankName(a)}“ zurücksetzen`}
+                          aria-label={t.insights.resetTo(bankName(a))}
                           disabled={!custom}
                           className={custom ? undefined : 'invisible'}
                           onClick={() => {
@@ -242,7 +241,7 @@ export function AccountList() {
                     <span className="mt-1.5 block min-w-0 sm:mt-0">
                       <ShortIban account={a} />
                       {custom && (
-                        <span className="block truncate text-[13px] leading-snug text-ink-3">Bei der Bank: {bankName(a)}</span>
+                        <span className="block truncate text-[13px] leading-snug text-ink-3">{words.atBank(bankName(a))}</span>
                       )}
                     </span>
                   </div>
@@ -252,15 +251,15 @@ export function AccountList() {
           </ul>
           {/* After the fields, where Tab arrives — the primary action last. */}
           <div className="flex justify-end gap-2 border-t border-line px-4 py-3 sm:px-5">
-            <Button variant="tertiary" size="sm" onClick={cancel}>Abbrechen</Button>
-            <Button variant="primary" size="sm" type="submit">Speichern</Button>
+            <Button variant="tertiary" size="sm" onClick={cancel}>{t.common.cancel}</Button>
+            <Button variant="primary" size="sm" type="submit">{t.common.save}</Button>
           </div>
         </form>
       ) : (
         <>
           <ul
             ref={listRef}
-            aria-label="Konten"
+            aria-label={t.common.account.accounts}
             className={cx(
               // Phones: a swipeable row of cards, snapping so a card is never
               // left half in view. From sm up: the classic column of rows.
@@ -340,7 +339,7 @@ export function AccountList() {
                           />
                           {showAvailable && (
                             <span className="block text-[13px] leading-snug text-ink-3">
-                              Verfügbar{' '}
+                              {t.insights.available}{' '}
                               <Money value={bal.availableAmount} currency={bal.currency} tone="plain" />
                             </span>
                           )}
@@ -348,20 +347,20 @@ export function AccountList() {
                       ) : loading ? (
                         <span className="block py-1">
                           <Skeleton className="h-4 w-24 rounded-[4px] sm:ml-auto" />
-                          <span className="sr-only">Saldo wird abgerufen</span>
+                          <span className="sr-only">{words.fetching}</span>
                         </span>
                       ) : !canReportBalance(a) ? (
-                        <span className="block text-[13px] leading-snug text-ink-3">Kein Abruf möglich</span>
+                        <span className="block text-[13px] leading-snug text-ink-3">{words.cannotFetch}</span>
                       ) : failure ? (
                         <>
-                          <span className="block text-[14px] leading-snug font-semibold text-red">Abruf fehlgeschlagen</span>
-                          <RowAction busy={busy}>Erneut versuchen</RowAction>
-                          <span className="sr-only">. {MAY_NEED_TAN}.</span>
+                          <span className="block text-[14px] leading-snug font-semibold text-red">{t.common.fetchFailed}</span>
+                          <RowAction busy={busy}>{t.common.retry}</RowAction>
+                          <span className="sr-only">. {t.insights.mayNeedApproval}</span>
                         </>
                       ) : (
                         <>
-                          <RowAction busy={busy} className="text-[14px]">Saldo abrufen</RowAction>
-                          <span className="block text-[13px] leading-snug text-ink-3">{MAY_NEED_TAN}</span>
+                          <RowAction busy={busy} className="text-[14px]">{t.insights.loadBalance}</RowAction>
+                          <span className="block text-[13px] leading-snug text-ink-3">{t.insights.mayNeedApprovalLabel}</span>
                         </>
                       )}
                     </span>
@@ -388,11 +387,11 @@ export function AccountList() {
           {total.counted.length >= 2 && (
             <div ref={totalRef} tabIndex={-1} className="border-t border-line bg-inset px-4 py-3.5 outline-none sm:px-5">
               <div className="flex items-baseline justify-between gap-4">
-                <span className="text-[14px] font-semibold text-ink-2">Gesamtsaldo</span>
+                <span className="text-[14px] font-semibold text-ink-2">{words.total}</span>
                 {total.cents != null ? (
                   <Money value={total.cents / 100} tone="auto" className="text-[17px] font-bold" />
                 ) : (
-                  <span className="text-[13px] text-ink-3">unvollständig</span>
+                  <span className="text-[13px] text-ink-3">{words.incomplete}</span>
                 )}
               </div>
               {totalFacts.some(Boolean) && (
@@ -418,9 +417,9 @@ export function AccountList() {
                       loadAllBalances();
                     }}
                   >
-                    Alle Salden abrufen
+                    {words.loadAll}
                   </Button>
-                  <span className="text-[13px] leading-snug text-ink-3">{MAY_NEED_TAN}.</span>
+                  <span className="text-[13px] leading-snug text-ink-3">{t.insights.mayNeedApproval}</span>
                 </div>
               )}
             </div>

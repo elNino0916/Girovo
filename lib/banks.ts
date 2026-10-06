@@ -88,6 +88,15 @@ function brandOf(name: string): Brand {
 
 const institutes: Institute[] = raw.map((b) => ({ ...b, brand: brandOf(b.name) }));
 
+/**
+ * Every town a German bank sits in, as the institute database writes it —
+ * about 1,400, which is nearly every German town. The logo lookup uses them
+ * to tell "Dominos Aschaffenburg" (a branch) from a brand of that name.
+ */
+export function bankTowns(): string[] {
+  return [...new Set(institutes.map((b) => b.location).filter(Boolean))];
+}
+
 const byBlz = new Map(institutes.map((b) => [b.blz, b]));
 
 // ---------------------------------------------------------------------------

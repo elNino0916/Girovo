@@ -32,8 +32,11 @@ const nextConfig: NextConfig = {
   // The tracer cannot resolve the filename lib/state-store.ts builds at runtime,
   // so it falls back to pulling in all of .fints-state/ — the developer's own
   // encrypted device profiles, which would then ship inside the installer.
+  //
+  // The category model (lib/category-model.ts) ships beside the server as a
+  // resource of its own (electron-builder.yml) — traced in, it would ship twice.
   outputFileTracingExcludes: {
-    '*': ['./.fints-state/**'],
+    '*': ['./.fints-state/**', './models/**'],
   },
   // Printed documents name the generator and its version, so the client needs
   // the one number that is otherwise only in package.json.

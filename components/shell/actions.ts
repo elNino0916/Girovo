@@ -15,6 +15,8 @@ import { csvFileName, transactionsToCsv } from '@/lib/csv';
 import { saveFile, textBlob } from '@/lib/download';
 import { fmtRange } from '@/lib/format';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
+import { intlLocale, msgs } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/react';
 import { unclearTransfers } from '@/lib/session-log';
 import { useFints } from '../FintsProvider';
 import { newestFirst } from '../transactions/model';
@@ -22,8 +24,6 @@ import { trackUsage } from '../telemetry/usage';
 
 /** The Umsätze search field's id (components/transactions/TxFilterBar.tsx). */
 const TX_SEARCH_ID = 'umsatz-suche';
-
-const umsaetze = (n: number) => `${n.toLocaleString('de-DE')} ${n === 1 ? 'Umsatz' : 'Umsätze'}`;
 
 /**
  * The one CSV export, for every place that offers it (the Umsätze tile's
@@ -59,18 +59,19 @@ export function useCsvExport() {
         categoryOf,
       });
     } catch {
-      toast('Die CSV-Datei konnte nicht erstellt werden.', 'error');
+      toast(msgs().shell.csv.notCreated, 'error');
       return;
     }
     try {
       const outcome = await saveFile(csvFileName(activeAccount, span, opts), textBlob(csv, 'text/csv;charset=utf-8'));
       if (outcome === 'saved') {
-        toast(`${umsaetze(rows.length)} als CSV-Datei gespeichert.`, 'success');
+        const n = rows.length;
+        toast(msgs().shell.csv.saved(n, new Intl.NumberFormat(intlLocale()).format(n)), 'success');
         // Usage (with the user's yes): that a file was made — not what is in it, nor how many rows.
         trackUsage('export_created', { format: 'csv', kind: 'transactions' });
       }
     } catch (e) {
-      toast((e as Error).message || 'Die CSV-Datei konnte nicht gespeichert werden.', 'error');
+      toast((e as Error).message || msgs().shell.csv.notSaved, 'error');
     }
   }, [activeAccount, bank, accountLabel, categoryOf, toast]);
 }
@@ -110,6 +111,7 @@ export function useShowOnAccount() {
  */
 export function useLookAtUnclear() {
   const { activity, accounts, setInboxOpen } = useFints();
+  const t = useT();
   const showOnAccount = useShowOnAccount();
   const unclear = useMemo(() => unclearTransfers(activity), [activity]);
   const one = unclear.length === 1 ? unclear[0] : null;
@@ -120,7 +122,7 @@ export function useLookAtUnclear() {
     }
     showOnAccount(accounts.find((a) => a.accountNumber === one.accountNumber), { query: one.iban }, Date.parse(one.at));
   }, [one, accounts, setInboxOpen, showOnAccount]);
-  return { unclear, one, look, lookLabel: one ? 'Umsätze prüfen' : 'In Mitteilungen ansehen' };
+  return { unclear, one, look, lookLabel: one ? t.shell.lookAtUnclear.one : t.shell.lookAtUnclear.several };
 }
 
 export type ShellActions = ReturnType<typeof useShellActions>;
@@ -130,6 +132,7 @@ export function useShellActions() {
     accounts, activeAccount, transactions, statementInfo, loadingAccount,
     accountLabel, toast, openTransfer, openShare, printStatement, setTab,
   } = useFints();
+  const t = useT();
   const saveCsv = useCsvExport();
 
   const acct = activeAccount?.accountNumber ?? null;
@@ -149,10 +152,10 @@ export function useShellActions() {
   // button would only say it in a tooltip, which keyboard and touch never see.
   const statementHint = !activeAccount || loaded ? ''
     : !activeAccount.canStatements
-      ? 'Für dieses Konto bietet deine Bank keine Umsätze an – daher auch keinen Kontoauszug.'
+      ? t.shell.statementHint.noTransactions
       : loadingAccount === acct
-        ? 'Die Umsätze werden gerade geladen. Danach gibt es den Kontoauszug.'
-        : 'Den Kontoauszug gibt es, sobald die Umsätze dieses Kontos geladen sind.';
+        ? t.shell.statementHint.loading
+        : t.shell.statementHint.notLoaded;
 
   const statement = useCallback(() => {
     if (!loaded || !info) {

@@ -17,6 +17,7 @@
 
 import type { ReactNode } from 'react';
 import type { DashboardTab } from '@/lib/app-types';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ChartIcon, HomeIcon, MoreIcon, RepeatIcon, TransferIcon } from '../icons';
 import { cx } from '../ui';
@@ -24,18 +25,19 @@ import type { ShellActions } from './actions';
 
 export function BottomBar({ actions }: { actions: ShellActions }) {
   const { tab, setTab, setPaletteOpen } = useFints();
+  const tr = useT();
   // (The Dashboard scrolls a newly chosen section to its top.)
   const go = (t: DashboardTab) => () => setTab(t);
 
   return (
     <nav
-      aria-label="Hauptnavigation"
+      aria-label={tr.shell.bottomBar.label}
       data-bottombar
       className="relative z-30 shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_16px_-10px_rgb(10_30_60/0.18)] sm:hidden dark:shadow-none"
     >
       <ul className={cx('grid h-16', actions.canTransfer ? 'grid-cols-5' : 'grid-cols-4')}>
-        <BarItem icon={<HomeIcon size={22} />} label="Übersicht" current={tab === 'overview'} onClick={go('overview')} />
-        <BarItem icon={<ChartIcon size={22} />} label="Analyse" current={tab === 'analysis'} onClick={go('analysis')} />
+        <BarItem icon={<HomeIcon size={22} />} label={tr.common.nav.overview} current={tab === 'overview'} onClick={go('overview')} />
+        <BarItem icon={<ChartIcon size={22} />} label={tr.common.nav.analysis} current={tab === 'analysis'} onClick={go('analysis')} />
         {actions.canTransfer && (
           <li className="flex justify-center">
             <button
@@ -55,14 +57,14 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
               </span>
               {/* Ink, not blue: blue under the bar marks where you ARE; the round
                   button already says what it does. */}
-              <span className="text-[12.5px] leading-none font-semibold text-ink">Überweisen</span>
+              <span className="text-[12.5px] leading-none font-semibold text-ink">{tr.shell.transfer}</span>
             </button>
           </li>
         )}
-        <BarItem icon={<RepeatIcon size={22} />} label="Verträge" current={tab === 'contracts'} onClick={go('contracts')} />
+        <BarItem icon={<RepeatIcon size={22} />} label={tr.shell.bottomBar.contracts} current={tab === 'contracts'} onClick={go('contracts')} />
         <BarItem
           icon={<MoreIcon size={22} />}
-          label="Mehr"
+          label={tr.common.more}
           onClick={() => setPaletteOpen(true)}
           haspopup
         />

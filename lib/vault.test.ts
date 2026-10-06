@@ -49,6 +49,35 @@ test('only a version-1 object is a vault', () => {
   assert.deepEqual(vault.sanitizeVault({ version: 1 }), EMPTY_VAULT);
 });
 
+test('the profile picture is kept when it is one of the offered ones, and nothing else', () => {
+  assert.equal(vault.sanitizeVault({ version: 1, avatar: 'cat' })?.avatar, 'cat');
+  for (const avatar of ['dog', '../cat', 7, null, '']) {
+    assert.equal('avatar' in (vault.sanitizeVault({ version: 1, avatar }) ?? {}), false, String(avatar));
+  }
+});
+
+test('an own picture is kept only as a small image data URL, and chosen only with one', () => {
+  const picture = `data:image/webp;base64,${'A'.repeat(400)}`;
+  const own = vault.sanitizeVault({ version: 1, avatar: 'own', avatarImage: picture });
+  assert.equal(own?.avatar, 'own');
+  assert.equal(own?.avatarImage, picture);
+  // Kept while an icon is shown, so it can be chosen again.
+  assert.equal(vault.sanitizeVault({ version: 1, avatar: 'cat', avatarImage: picture })?.avatarImage, picture);
+  // "Own" with nothing to show is the initials.
+  assert.equal('avatar' in (vault.sanitizeVault({ version: 1, avatar: 'own' }) ?? {}), false);
+  for (const bad of [
+    'data:image/svg+xml;base64,PHN2Zz4=', // could carry script
+    'https://example.com/me.png', // would be fetched
+    `data:image/webp;base64,${'A'.repeat(70 * 1024)}`, // too big
+    'data:image/png;base64,not base64!',
+    42,
+  ]) {
+    const out = vault.sanitizeVault({ version: 1, avatar: 'own', avatarImage: bad });
+    assert.equal(out?.avatarImage, undefined, String(bad).slice(0, 40));
+    assert.equal(out?.avatar, undefined, String(bad).slice(0, 40));
+  }
+});
+
 test('unknown keys are dropped at every level', () => {
   const out = vault.sanitizeVault({
     ...base({ templates: [template(1)] }),

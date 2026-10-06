@@ -176,12 +176,22 @@ function townName(raw: string): string {
 // shops put their hotline there) or a web address.
 const NOT_A_PLACE = /\d{3,}|www\.|\.(?:com|de|net|org|eu|io)\b|https?:/i;
 
+/**
+ * What a provider writes behind its prefix when no shop stands behind it —
+ * the kind of payment, not a name ("PAYPAL .Ratenzahlung": PayPal's own
+ * instalments). Taken for a shop, it was searched as one and found some brand
+ * called "Ratenzahlung".
+ */
+const PAYMENT_KIND = /^(?:raten?zahlung|teilzahlung|ratenkauf|raten?|rechnung(?:skauf)?|kauf auf rechnung|einkauf|kauf|bestellung|bezahlung|zahlung|payment|purchase|checkout|pay later|pay in \d+|sp(?:ae|ä)ter bezahlen)$/i;
+
 /** The shop's name from a descriptor's first slot. */
 function shopName(raw: string): string {
   let s = raw.trim().replace(/[.\s]+$/, '');
-  // "WL *Steam Purchase" (arriving as "WL .Steam Purchase"), "SQ *Coffee".
+  // "WL *Steam Purchase" (arriving as "WL .Steam Purchase"), "SQ *Coffee" —
+  // unless all that follows is the kind of payment: then the provider is who
+  // was paid ("PAYPAL .Ratenzahlung" → "PAYPAL Ratenzahlung").
   let m = /^([A-Za-z0-9]{2,6})\s*[*.]\s*(.+)$/.exec(s);
-  if (m && PROVIDER_PREFIX.has(m[1].toUpperCase())) s = m[2];
+  if (m && PROVIDER_PREFIX.has(m[1].toUpperCase())) s = PAYMENT_KIND.test(m[2].trim()) ? `${m[1]} ${m[2].trim()}` : m[2];
   // "DHL*4158584457": a reference behind the shop, not part of it.
   else if (m && /\d{4}/.test(m[2]) && /^[A-Za-z0-9-]+$/.test(m[2])) s = m[1];
   // "SP the Ridge EU", "LS Caf Nova": the provider code without a separator.
@@ -189,8 +199,12 @@ function shopName(raw: string): string {
   if (m && SPACED_PREFIX.has(m[1])) s = m[2];
   // "Amazon Mktp DE*2X3Y4Z": a trailing order reference.
   s = s.replace(/\s*[*.]\s*(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{5,}$/, '');
+  // "BAECKEREI HOEFER 46 GIR 79552496": a girocard terminal's id, and the
+  // branch number in front of it — the till, not the shop.
+  s = s.replace(/(?:\s+\d{1,4})?\s+GIR\s+\d{6,10}$/i, '');
   // The accent the scheme's character set dropped, where the word is certain.
   s = s.replace(/\bCaf\b/g, 'Café').replace(/\bCAF\b/g, 'CAFÉ');
+  s = s.replace(/\bBaeckerei\b/g, 'Bäckerei').replace(/\bBAECKEREI\b/g, 'BÄCKEREI');
   // A name that starts lower case ("the Ridge") is a cut-off sentence start.
   return s.replace(/^\p{Ll}/u, (c) => c.toUpperCase()).trim();
 }

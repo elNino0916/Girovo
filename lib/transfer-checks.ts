@@ -13,19 +13,33 @@ import type { SerializedBalance, SerializedTransaction } from './fints-types';
 import type { SentOrder } from './sent-orders';
 import { bookingKind } from './categorize.ts';
 import { dayKey, dayNumber, displayName, fmtDate, isoDate, toLocalDate } from './format.ts';
+import { msgs } from './i18n/index.ts';
 import { SENT_ORDER_DAYS } from './sent-orders.ts';
 
 /** Same amount to the same IBAN within this many days → ask. The vault keeps orders exactly this long. */
 export const DUPLICATE_WINDOW_DAYS = SENT_ORDER_DAYS;
 
 const compactIban = (s: string | null | undefined) => String(s ?? '').replace(/\s+/g, '').toUpperCase();
-const fmtTime = (d: Date) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} Uhr`;
+/** "9:05 Uhr" ("9:05"). */
+const fmtTime = (d: Date) => msgs().transfer.clock(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
 
 // ---------------------------------------------------------------------------
 // Duplicate check
 // ---------------------------------------------------------------------------
 
+/**
+ * What the review step says about a payment that looks like one already made.
+ * `sentence` is worded when it is read — amount, date and words in the
+ * language speaking right now — so a check kept across a change of language
+ * speaks the new one.
+ */
 export type Duplicate = { sentence: string };
+
+const worded = (say: () => string): Duplicate => ({
+  get sentence() {
+    return say();
+  },
+});
 
 /**
  * Whether the same amount already went to the same IBAN within the last two
@@ -57,24 +71,27 @@ export function findDuplicate(input: {
     const n = dayNumber(key);
     return Number.isFinite(n) && today - n <= DUPLICATE_WINDOW_DAYS && n - today <= DUPLICATE_WINDOW_DAYS;
   };
-  const money = input.fmt(input.cents / 100);
-  const when = (at: Date) => (dayKey(at) === isoDate(now) ? `Heute um ${fmtTime(at)}` : `Am ${fmtDate(at)} um ${fmtTime(at)}`);
-  const sentence = (at: Date, who: string, outcome: 'executed' | 'unknown') => (outcome === 'executed'
-    ? `${when(at)} hast du bereits ${money} an ${who} überwiesen.`
-    : `${when(at)} hast du bereits eine Überweisung über ${money} an ${who} gesendet – ihr Status ist unklar.`);
+  const words = () => msgs().transfer.duplicate;
+  const money = () => input.fmt(input.cents / 100);
+  const when = (at: Date) => (dayKey(at) === isoDate(now)
+    ? words().todayAt(fmtTime(at))
+    : words().dayAt(fmtDate(at), fmtTime(at)));
+  const sentence = (at: Date, who: string, outcome: 'executed' | 'unknown') => worded(() => (outcome === 'executed'
+    ? words().sent(when(at), money(), who)
+    : words().sentUnclear(when(at), money(), who)));
 
   for (const a of input.activity) {
     if (a.outcome === 'failed' || compactIban(a.iban) !== iban || Math.round(a.amount * 100) !== input.cents) continue;
     const at = new Date(a.at);
     if (!within(dayKey(at))) continue;
-    return { sentence: sentence(at, displayName(a.name) || input.name, a.outcome) };
+    return sentence(at, displayName(a.name) || input.name, a.outcome);
   }
 
   for (const o of input.sent) {
     if (compactIban(o.iban) !== iban || o.cents !== input.cents) continue;
     const at = new Date(o.at);
     if (!within(dayKey(at))) continue;
-    return { sentence: sentence(at, input.name, o.outcome) };
+    return sentence(at, input.name, o.outcome);
   }
 
   const newest = (lists: Record<string, readonly SerializedTransaction[]>) => {
@@ -94,22 +111,19 @@ export function findDuplicate(input: {
   const pending = newest(input.pending);
   if (pending) {
     const who = displayName(pending.tx.remoteName) || input.name;
-    return {
-      sentence: bookingKind(pending.tx) === 'lastschrift'
-        ? `${who} zieht bereits ${money} per Lastschrift ein – die Buchung ist vorgemerkt.`
-        : `Bei deinen vorgemerkten Umsätzen steht bereits eine Zahlung über ${money} an ${who}.`,
-    };
+    const debit = bookingKind(pending.tx) === 'lastschrift';
+    return worded(() => (debit ? words().debitPending(who, money()) : words().pending(money(), who)));
   }
 
   const booked = newest(input.txByAccount);
   if (!booked) return null;
   const who = displayName(booked.tx.remoteName) || input.name;
-  const date = fmtDate(toLocalDate(booked.day) ?? booked.day);
-  return {
-    sentence: bookingKind(booked.tx) === 'lastschrift'
-      ? `Am ${date} hat ${who} bereits ${money} per Lastschrift eingezogen.`
-      : `Am ${date} hast du bereits ${money} an ${who} überwiesen.`,
-  };
+  const day = booked.day;
+  const debit = bookingKind(booked.tx) === 'lastschrift';
+  return worded(() => {
+    const date = fmtDate(toLocalDate(day) ?? day);
+    return debit ? words().debitBooked(date, who, money()) : words().booked(date, money(), who);
+  });
 }
 
 // ---------------------------------------------------------------------------

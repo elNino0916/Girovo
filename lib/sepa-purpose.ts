@@ -13,31 +13,33 @@
 // The parser is deliberately conservative — a purpose with no tags in it is
 // returned untouched rather than guessed at.
 
-/** The tags a German bank puts in :86:, and what each one means. */
-const TAGS: Record<string, string> = {
-  EREF: 'End-to-End-Referenz',
-  KREF: 'Kundenreferenz',
-  MREF: 'Mandatsreferenz',
-  CRED: 'Gläubiger-ID',
-  DEBT: 'Originator-ID',
-  COAM: 'Zinskompensationsbetrag',
-  OAMT: 'Ursprungsbetrag',
-  SVWZ: 'Verwendungszweck',
-  ABWA: 'Abweichender Auftraggeber',
-  ABWE: 'Abweichender Empfänger',
-  IBAN: 'IBAN',
-  BIC: 'BIC',
-  RTRN: 'Rückgabegrund',
-  ORCR: 'Ursprüngliche Gläubiger-ID',
-  ORMR: 'Ursprüngliche Mandatsreferenz',
-  DDAT: 'Fälligkeitsdatum',
-  PURP: 'Zahlungsart',
-};
+import { msgs } from './i18n/index.ts';
+
+/** The tags a German bank puts in :86:. */
+const TAGS = [
+  'EREF', 'KREF', 'MREF', 'CRED', 'DEBT', 'COAM', 'OAMT', 'SVWZ', 'ABWA', 'ABWE', 'IBAN', 'BIC',
+  'RTRN', 'ORCR', 'ORMR', 'DDAT', 'PURP',
+] as const;
+
+type Tag = (typeof TAGS)[number];
+
+/** What a tag means, in the language speaking right now. */
+function tagLabel(tag: Tag): string {
+  const words = msgs();
+  switch (tag) {
+    case 'CRED': return words.common.booking.creditorId;
+    case 'SVWZ': return words.common.booking.purpose;
+    case 'IBAN':
+    case 'BIC': return tag;
+    default: return words.transfer.purposeTags[tag];
+  }
+}
 
 // No word boundary before the tag: the tags follow the previous value with no
 // separator at all ("...585130MREF+..."), so `\b` would never match.
-const TAG_RE = new RegExp(`(${Object.keys(TAGS).join('|')})\\+`, 'g');
+const TAG_RE = new RegExp(`(${TAGS.join('|')})\\+`, 'g');
 
+/** One identifier of the record. `label` is worded when it is read, so a parse kept across a change of language still names it in the new one. */
 export type PurposeField = { tag: string; label: string; value: string };
 
 export type ParsedPurpose = {
@@ -65,8 +67,9 @@ export function parsePurpose(raw: string | null | undefined): ParsedPurpose {
     const end = i + 1 < marks.length ? marks[i + 1].start : s.length;
     const value = s.slice(mark.valueStart, end).trim();
     if (!value) return;
-    if (mark.tag === 'SVWZ') texts.push(value);
-    else fields.push({ tag: mark.tag, label: TAGS[mark.tag], value });
+    const tag = mark.tag as Tag;
+    if (tag === 'SVWZ') texts.push(value);
+    else fields.push({ tag, get label() { return tagLabel(tag); }, value });
   });
 
   return { text: texts.filter(Boolean).join(' ').trim(), fields };

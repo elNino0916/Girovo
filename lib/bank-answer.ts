@@ -29,7 +29,13 @@
 // (lib/bank-fetch.ts produces it on the server): a screen recognises it here
 // and adds the next step that fits where it is.
 //
-// Pure and dependency-free, for the client, the route handlers and `node --test`.
+// The bank's words are never translated. The app's own sentences come from
+// lib/i18n/messages/provider.ts, and are recognised in either language.
+//
+// Pure, depending on nothing but the texts — for the client, the route
+// handlers and `node --test`.
+
+import { LOCALES, MESSAGES, msgs } from './i18n/index.ts';
 
 // ---------------------------------------------------------------------------
 // Reading the wire string
@@ -137,26 +143,38 @@ export function refusalReference(text: string | null | undefined): string {
 // The bank not answering
 // ---------------------------------------------------------------------------
 
+// The sentences themselves are msgs().provider.bank (lib/i18n/messages/
+// provider.ts): `unavailable` — the bank did not answer usefully (an HTTP
+// error page, a reply that is no FinTS message, or no first byte within the
+// time limit); `unreachable` — it could not be reached at all (no connection,
+// name not resolved). Each says what happened and nothing about what to do —
+// that depends on the screen. `tryAgainLater` is the next step a login or a
+// read adds to either; never an order once it has gone out — that outcome
+// stays "Status unklar".
+
 /**
- * The bank did not answer usefully: an HTTP error page (maintenance), a reply
- * that is no FinTS message, or no first byte within the time limit. Says what
- * happened and nothing about what to do — that depends on the screen.
+ * @deprecated The German sentence, for code that compares — a screen shows
+ * msgs().provider.bank.unavailable, in the language on screen.
  */
-export const BANK_UNAVAILABLE = 'Deine Bank antwortet gerade nicht – oft ist das eine Wartung.';
+export const BANK_UNAVAILABLE = MESSAGES.de.provider.bank.unavailable;
 
-/** The bank could not be reached at all (no connection, name not resolved). */
-export const BANK_UNREACHABLE = 'Deine Bank ist gerade nicht erreichbar. Prüfe deine Internetverbindung.';
+/** @deprecated The German sentence, for code that compares — a screen shows msgs().provider.bank.unreachable. */
+export const BANK_UNREACHABLE = MESSAGES.de.provider.bank.unreachable;
+
+/** @deprecated The German sentence — a screen shows msgs().provider.bank.tryAgainLater (t.provider.bank.tryAgainLater). */
+export const TRY_AGAIN_LATER = MESSAGES.de.provider.bank.tryAgainLater;
 
 /**
- * The next step a login or a read adds to either sentence above. Never on an
- * order once it has gone out — that outcome stays "Status unklar".
+ * Whether a message is one of the two "the bank is not answering" sentences —
+ * in either language: the server wrote it in the language of the request,
+ * which the page may have changed since.
  */
-export const TRY_AGAIN_LATER = 'Versuche es in ein paar Minuten noch einmal.';
-
-/** Whether a message is one of the two "the bank is not answering" sentences. */
 export function isBankOutage(message: string | null | undefined): boolean {
   const m = String(message ?? '');
-  return m.startsWith(BANK_UNAVAILABLE) || m.startsWith(BANK_UNREACHABLE);
+  return LOCALES.some((l) => {
+    const bank = MESSAGES[l].provider.bank;
+    return m.startsWith(bank.unavailable) || m.startsWith(bank.unreachable);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +194,8 @@ export type BankAnswer = {
   locked: boolean;
 };
 
+// The bank's own words, as German banks write them — data, never translated.
+// i18n-data-start
 /**
  * A warning (3xxx) that still matters next to an error: how many tries are
  * left, or that the access is (about to be) locked.
@@ -186,8 +206,7 @@ const LOCK_WORDS = /gesperrt|zugangssperre|pin-?sperre/i;
 /** A lock announced, not happened: "… wird nach drei Fehlversuchen gesperrt". */
 const LOCK_NOT_YET = /\b(?:wird|werden|würde|würden|droht|drohen|sonst|bevor)\b/i;
 const LOCK_NEGATED = /nicht\s+(?:mehr\s+)?gesperrt|entsperrt/i;
-
-const FALLBACK_LINE = 'Deine Bank hat keine Begründung mitgeschickt.';
+// i18n-data-end
 
 function isLockLine(line: string): boolean {
   return LOCK_WORDS.test(line) && !LOCK_NOT_YET.test(line) && !LOCK_NEGATED.test(line);
@@ -211,7 +230,7 @@ export function formatBankAnswer(message: string | null | undefined): BankAnswer
   const lines: string[] = [];
   for (const p of shown) if (p.text && !lines.includes(p.text)) lines.push(p.text);
   const codes = [...new Set(shown.flatMap((p) => (p.code === null ? [] : [fourDigits(p.code)])))];
-  if (!lines.length) lines.push(FALLBACK_LINE);
+  if (!lines.length) lines.push(msgs().provider.bank.noReason);
 
   return { lines, codes, locked: lines.some(isLockLine) };
 }
@@ -220,15 +239,18 @@ export function formatBankAnswer(message: string | null | undefined): BankAnswer
 // of reach, or refusing the app's product registration (9078). Banks word
 // this differently and do not all send the same code, so the codes most of
 // them use (9931, 9942) are backed up by the words their texts share, and by
-// the server's own "Prüfe Anmeldename und PIN" fallback.
+// the server's own "Prüfe Anmeldename und PIN" fallback (in English it names
+// the PIN too).
 const CREDENTIAL_CODES = [9931, 9942];
 const PRODUCT_NOT_REGISTERED = 9078;
-const CREDENTIAL_WORDS = /\bPIN\b|Anmeldename|Kennung|Legitimation|Zugangsdaten|Benutzer|Passwort/i;
+const CREDENTIAL_WORDS = /\bPIN\b|Anmeldename|Kennung|Legitimation|Zugangsdaten|Benutzer|Passwort/i; // i18n-data
+/** A bank that says it cannot be reached is no refusal of the credentials. */
+const NOT_REACHABLE = /nicht erreichbar/i; // i18n-data
 
 export function isCredentialAnswer(message: string | null | undefined): boolean {
   if (isBankOutage(message)) return false;
   const codes = new Set(parts(message).map((p) => p.code));
   if (CREDENTIAL_CODES.some((c) => codes.has(c))) return true;
   if (codes.has(PRODUCT_NOT_REGISTERED)) return false;
-  return formatBankAnswer(message).lines.some((l) => CREDENTIAL_WORDS.test(l)) && !/nicht erreichbar/i.test(String(message));
+  return formatBankAnswer(message).lines.some((l) => CREDENTIAL_WORDS.test(l)) && !NOT_REACHABLE.test(String(message));
 }

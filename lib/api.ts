@@ -7,32 +7,42 @@
 import { NextResponse } from 'next/server';
 import { bankErrorKind, describeError } from './bank-fetch.ts';
 import { reportError, withTelemetryContext } from './telemetry.ts';
+import { msgs } from './i18n/index.ts';
+import { withRequestLocale } from './i18n/server.ts';
 
 export function json<T>(data: T, status = 200): NextResponse {
   return NextResponse.json(data, { status });
 }
 
+/** An error answer: `message` is for the user, in the request's language (msgs()). */
 export function fail(message: string, status = 400): NextResponse {
   return NextResponse.json({ error: message }, { status });
 }
 
-/** 401 + the message the frontend keys on to bounce back to the login screen. */
+/**
+ * 401: the server no longer knows the session. The frontend bounces back to
+ * the login screen on the status and the sessionId it sent, not on the words.
+ */
 export function sessionExpired(): NextResponse {
-  return fail('Sitzung abgelaufen. Bitte neu anmelden.', 401);
+  return fail(msgs().provider.server.sessionExpired, 401);
 }
 
 /**
- * Wraps a handler so an unexpected throw becomes a 500 with a readable German
+ * Wraps a handler so an unexpected throw becomes a 500 with a readable
  * message instead of Next's opaque digest page: a bank that does not answer,
  * lib-fints' English, a bug — each in words (describeError), and never a
  * bank's response body. The details stay in the server log, and go to
  * telemetry (lib/telemetry.ts) with the route and the bank's BLZ when known —
  * except a request the user called off.
+ *
+ * The handler runs in the language of the page that called it (the request's
+ * cookie, lib/i18n/server.ts), so every message on the way out — this one, a
+ * route's own, a bank error's description — is in the language the user reads.
  */
 export function wrap<A extends unknown[]>(
   fn: (...args: A) => Promise<NextResponse>,
 ): (...args: A) => Promise<NextResponse> {
-  return (...args: A) => withTelemetryContext(async () => {
+  return (...args: A) => withRequestLocale(args[0], () => withTelemetryContext(async () => {
     try {
       return await fn(...args);
     } catch (err) {
@@ -42,7 +52,7 @@ export function wrap<A extends unknown[]>(
       if (kind !== 'cancelled') reportError(err, { source: 'route', route: routeOf(args[0]), kind: kind ?? undefined });
       return NextResponse.json({ error: describeError(err) }, { status: 500 });
     }
-  });
+  }));
 }
 
 /** The path a route was called at ("/api/transactions"), never its query. */

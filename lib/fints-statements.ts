@@ -15,6 +15,7 @@
 import type { FinTSConfig, Message, Segment, Statement, StatementResponse } from 'lib-fints';
 import { StatementInteractionCAMT, StatementInteractionMT940 } from './fints-internals.js';
 import type { ClientResponseWithResult, FinTSClientEx } from './fints-types';
+import { msgs } from './i18n/index.ts';
 import { collectNoted, countPendingInBooked, parseMt942, parseNotedCamt, type NotedField } from './noted.ts';
 
 type NotedSegment = Segment & { bookedTransactions?: NotedField; notedTransactions?: NotedField };
@@ -119,7 +120,7 @@ export async function fetchStatements(
   to?: Date,
 ): Promise<StatementsResponse> {
   const format = statementFormat(client.config, accountNumber);
-  if (!format) throw new Error('Für dieses Konto bietet deine Bank keine Umsätze über FinTS an.');
+  if (!format) throw new Error(msgs().transactions.api.noStatements);
   const interaction = format === 'camt'
     ? new NotedStatementInteractionCAMT(accountNumber, from, to)
     : new NotedStatementInteractionMT940(accountNumber, from, to);

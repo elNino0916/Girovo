@@ -12,18 +12,21 @@
 import { useCallback, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { parseEpcPayload, type EpcPayment } from '@/lib/girocode';
+import { useT } from '@/lib/i18n/react';
 import { readQrFromBlob } from '@/lib/qr-read';
 import { AlertTriangleIcon, QrIcon } from '../icons';
 import { Spinner, cx } from '../ui';
 
+/**
+ * Why a scan came to nothing: not an image, no code found on it, or a code
+ * that is not a SEPA transfer in euros. Worded where it is shown.
+ */
+export type ScanProblem = 'notAnImage' | 'noCode' | 'notEpc';
+
 export type ScanState =
   | { status: 'idle' }
   | { status: 'reading' }
-  | { status: 'error'; message: string };
-
-const NOT_AN_IMAGE = 'Bitte wähle ein Bild (PNG, JPG oder einen Screenshot) mit dem GiroCode.';
-const NO_CODE = 'Kein GiroCode gefunden. Nutze ein scharfes Bild, auf dem der Code vollständig zu sehen ist.';
-const NOT_EPC = 'Kein gültiger GiroCode – unterstützt werden nur SEPA-Überweisungen in Euro.';
+  | { status: 'error'; problem: ScanProblem };
 
 /** The first image among pasted or dropped files/items, if any. */
 export function imageFromTransfer(data: DataTransfer | null): File | null {
@@ -53,15 +56,15 @@ export function useGiroCodeReader(onPayment: (p: EpcPayment) => void) {
   const readFile = useCallback(async (file: File | null | undefined) => {
     const mine = ++gen.current;
     if (!file || !file.type.startsWith('image/')) {
-      setScan({ status: 'error', message: NOT_AN_IMAGE });
+      setScan({ status: 'error', problem: 'notAnImage' });
       return;
     }
     setScan({ status: 'reading' });
     const text = await readQrFromBlob(file);
     if (mine !== gen.current) return;
-    if (!text) { setScan({ status: 'error', message: NO_CODE }); return; }
+    if (!text) { setScan({ status: 'error', problem: 'noCode' }); return; }
     const payment = parseEpcPayload(text);
-    if (!payment) { setScan({ status: 'error', message: NOT_EPC }); return; }
+    if (!payment) { setScan({ status: 'error', problem: 'notEpc' }); return; }
     setScan({ status: 'idle' });
     deliver.current(payment);
   }, []);
@@ -71,7 +74,7 @@ export function useGiroCodeReader(onPayment: (p: EpcPayment) => void) {
     if (!/^\s*BCD\s*[\r\n]/.test(text)) return false;
     gen.current++;
     const payment = parseEpcPayload(text);
-    if (!payment) { setScan({ status: 'error', message: NOT_EPC }); return true; }
+    if (!payment) { setScan({ status: 'error', problem: 'notEpc' }); return true; }
     setScan({ status: 'idle' });
     deliver.current(payment);
     return true;
@@ -134,6 +137,7 @@ export function GiroCodeDrop({
   className?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
+  const words = useT().transfer.giro;
   const reading = scan.status === 'reading';
   const errorId = 'girocode-error';
 
@@ -163,13 +167,13 @@ export function GiroCodeDrop({
         </span>
         <span className="min-w-0 flex-1 leading-snug">
           <span className="block text-[14.5px] font-semibold text-accent">
-            {reading ? 'GiroCode wird gelesen …' : dragging ? 'Bild hier ablegen' : 'GiroCode einlesen'}
+            {reading ? words.reading : dragging ? words.dropHere : words.read}
           </span>
           <span className="block text-[13px] text-ink-3">
-            {reading ? 'Einen Moment bitte.' : (
+            {reading ? words.wait : (
               <>
-                <span className="pointer-fine:hidden">Bild mit dem Code auswählen</span>
-                <span className="hidden pointer-fine:inline">Bild hierher ziehen, mit Strg+V einfügen oder auswählen</span>
+                <span className="pointer-fine:hidden">{words.pick}</span>
+                <span className="hidden pointer-fine:inline">{words.pickOrDrop}</span>
               </>
             )}
           </span>
@@ -187,11 +191,11 @@ export function GiroCodeDrop({
           if (f) onFile(f);
         }}
       />
-      <span className="sr-only" role="status">{reading ? 'GiroCode wird gelesen' : ''}</span>
+      <span className="sr-only" role="status">{reading ? words.readingStatus : ''}</span>
       {scan.status === 'error' && (
         <p id={errorId} role="alert" className="mt-2 flex items-start gap-1.5 text-[13.5px] leading-snug font-semibold text-red">
           <AlertTriangleIcon size={16} className="mt-px" />
-          <span>{scan.message}</span>
+          <span>{words.errors[scan.problem]}</span>
         </p>
       )}
     </div>

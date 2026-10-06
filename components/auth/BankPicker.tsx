@@ -19,6 +19,8 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { get } from '@/lib/client-api';
 import type { PopularBank } from '@/lib/banks';
 import { bankSearchTerm, parseBankQuery, type BankQuery } from '@/lib/bank-query';
+import { intlLocale, type Messages } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
 import { BankLogo } from '../BankLogo';
 import type { BankSearchHit, ChosenBank } from '../FintsProvider';
 import { CloseIcon, SearchIcon } from '../icons';
@@ -66,24 +68,24 @@ type SearchState =
   | { kind: 'done'; hits: BankSearchHit[] }
   | { kind: 'failed' };
 
+type PickerWords = Messages['auth']['bankPicker'];
+
 /** Why there is nothing to search yet, for a query that is an IBAN on its way. */
-function ibanNote(q: BankQuery): string | null {
+function ibanNote(q: BankQuery, w: PickerWords): string | null {
   if (q.kind !== 'iban') return null;
-  if (q.country !== 'DE') return 'Hier gibt es nur deutsche Banken – eine deutsche IBAN beginnt mit DE.';
-  if (q.valid === false) return 'Diese IBAN stimmt nicht. Prüfe sie bitte noch einmal.';
-  if (!q.blz) return 'Tippe weiter – die BLZ steckt in Stelle 5 bis 12 deiner IBAN.';
+  if (q.country !== 'DE') return w.ibanForeign;
+  if (q.valid === false) return w.ibanInvalid;
+  if (!q.blz) return w.ibanIncomplete;
   return null;
 }
 
 /** Nothing found, said for what was searched. */
-function emptyNote(q: BankQuery): string {
-  if (q.kind === 'iban') return 'Zu dieser IBAN gibt es keine Bank mit FinTS-Zugang. Nicht jede Bank bietet FinTS an.';
-  if (q.kind === 'blz') {
-    return 'Keine Bank mit dieser BLZ. Eine BLZ hat 8 Ziffern – du findest sie in deiner IBAN an Stelle 5 bis 12.';
-  }
+function emptyNote(q: BankQuery, w: PickerWords): string {
+  if (q.kind === 'iban') return w.noneForIban;
+  if (q.kind === 'blz') return w.noneForBlz;
   const known = q.kind === 'text' ? bankWithoutFinTS(q.text) : null;
-  if (known) return `${known} bietet kein FinTS an. Mit Girovo lässt sich das Konto dort deshalb nicht nutzen.`;
-  return 'Keine Bank mit diesem Namen oder Ort. Nicht jede Bank bietet FinTS an.';
+  if (known) return w.withoutFints(known);
+  return w.noneForName;
 }
 
 /** The one hit is the bank the IBAN names (not a list still left from before). */
@@ -91,11 +93,11 @@ const isIbanBank = (q: BankQuery, hits: BankSearchHit[]) =>
   q.kind === 'iban' && hits.length === 1 && hits[0].blz === q.blz;
 
 /** Guidance above a list that is long, or whose rows share one name. */
-function listNote(q: BankQuery, hits: BankSearchHit[]): string | null {
+function listNote(q: BankQuery, hits: BankSearchHit[], w: PickerWords): string | null {
   if (!hits.length) return null;
-  if (q.kind === 'iban') return isIbanBank(q, hits) ? 'Die Bank zu deiner IBAN:' : null;
-  if (hits.length >= SEARCH_LIMIT) return `Die ersten ${SEARCH_LIMIT} Treffer – ergänze den Ort oder gib deine IBAN ein.`;
-  if (new Set(hits.map((h) => h.name)).size < hits.length) return 'Gib deine IBAN ein, dann findest du genau deine Bank.';
+  if (q.kind === 'iban') return isIbanBank(q, hits) ? w.ibanBank : null;
+  if (hits.length >= SEARCH_LIMIT) return w.firstHits(SEARCH_LIMIT);
+  if (new Set(hits.map((h) => h.name)).size < hits.length) return w.sameNames;
   return null;
 }
 
@@ -110,6 +112,7 @@ export function BankPicker({
   onPick: (b: ChosenBank) => void;
 }) {
   const uid = useId();
+  const tr = useT().auth.bankPicker;
   const inputId = `banksearch${uid}`;
   const listId = `${inputId}-list`;
   const optId = (i: number) => `${inputId}-opt-${i}`;
@@ -133,7 +136,7 @@ export function BankPicker({
   const parsed = parseBankQuery(query);
   // What goes to the server: a name, a BLZ — for an IBAN only its BLZ.
   const term = bankSearchTerm(parsed);
-  const waitNote = ibanNote(parsed);
+  const waitNote = ibanNote(parsed, tr);
 
   useEffect(() => {
     if (term === null) {
@@ -230,16 +233,16 @@ export function BankPicker({
   // place (why there is no list). The status line says the same for a
   // screen reader, which does not see the popup's text.
   const settled = search.kind === 'done' ? search.hits : null;
-  const topNote = open && hits ? listNote(parsed, hits) : null;
+  const topNote = open && hits ? listNote(parsed, hits, tr) : null;
   const placeNote = !open
     ? null
     : waitNote
       ?? (search.kind === 'failed'
-        ? 'Die Suche ist gerade nicht erreichbar. Bitte versuche es gleich noch einmal.'
+        ? tr.unavailable
         : search.kind === 'searching' && !hits
-          ? 'Suche …'
+          ? tr.searching
           : settled && settled.length === 0
-            ? emptyNote(parsed)
+            ? emptyNote(parsed, tr)
             : null);
 
   const status = !open
@@ -247,8 +250,8 @@ export function BankPicker({
     : placeNote
       ?? (hits
         ? hits.length === 1
-          ? `${isIbanBank(parsed, hits) ? 'Die Bank zu deiner IBAN' : '1 Bank gefunden'}: ${hits[0].name}, BLZ ${fmtBlz(hits[0].blz)}`
-          : `${hits.length >= SEARCH_LIMIT ? `Mindestens ${SEARCH_LIMIT}` : hits.length} Banken gefunden.${topNote ? ` ${topNote}` : ''}`
+          ? (isIbanBank(parsed, hits) ? tr.statusIbanBank : tr.statusOne)(hits[0].name, fmtBlz(hits[0].blz))
+          : `${tr.statusMany(Math.min(hits.length, SEARCH_LIMIT), hits.length >= SEARCH_LIMIT)}${topNote ? ` ${topNote}` : ''}`
         : '');
 
   const searching = search.kind === 'searching';
@@ -267,19 +270,18 @@ export function BankPicker({
 
   return (
     <>
-      <h1 className="text-[28px] leading-tight font-bold text-headline sm:text-[32px]">Bank wählen</h1>
-      <p className="mt-1.5 text-[15px] leading-snug text-ink-2">Bei welcher Bank führst du dein Konto?</p>
+      <h1 className="text-[28px] leading-tight font-bold text-headline sm:text-[32px]">{tr.title}</h1>
+      <p className="mt-1.5 text-[15px] leading-snug text-ink-2">{tr.intro}</p>
 
       {staleBank && (
-        <Alert tone="info" className="mt-5" title="Deine Bank vom letzten Mal steht nicht mehr in der Liste">
-          {staleBank.name} (BLZ <span className="num">{fmtBlz(staleBank.blz)}</span>) – vielleicht hat sie fusioniert.
-          Such deine Bank bitte neu, am genauesten mit deiner IBAN.
+        <Alert tone="info" className="mt-5" title={tr.staleTitle}>
+          {rich(tr.staleText(staleBank.name, <span className="num">{fmtBlz(staleBank.blz)}</span>))}
         </Alert>
       )}
 
       <div className="mt-6">
         <label htmlFor={inputId} className="text-[13px] leading-snug font-semibold text-ink-2">
-          Bank suchen
+          {tr.label}
         </label>
         <div
           className="relative mt-1.5"
@@ -303,7 +305,7 @@ export function BankPicker({
             onChange={(e) => { setQuery(e.target.value); setDismissed(false); }}
             onFocus={() => setFocused(true)}
             onKeyDown={onKeyDown}
-            placeholder="Name, Ort, BLZ oder IBAN"
+            placeholder={tr.placeholder}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
@@ -315,7 +317,7 @@ export function BankPicker({
                 <span className="grid size-8 place-items-center text-ink-3"><Spinner size={16} /></span>
               ) : query ? (
                 <IconButton
-                  aria-label="Suche leeren"
+                  aria-label={tr.clear}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => { setQuery(''); inputRef.current?.focus(); }}
                 >
@@ -340,7 +342,7 @@ export function BankPicker({
             <ul
               id={listId}
               role="listbox"
-              aria-label="Gefundene Banken"
+              aria-label={tr.results}
               className={cx('max-h-[min(340px,50vh)] overflow-y-auto overscroll-contain', options.length > 0 && 'p-1.5')}
             >
               {options.map((b, i) => (
@@ -400,10 +402,7 @@ export function BankPicker({
           {bankCount ? (
             // Entries of the bank list are Bankleitzahlen, not banks: one
             // bank can have several.
-            <>
-              <span className="tnum">{new Intl.NumberFormat('de-DE').format(bankCount)}</span> Bankleitzahlen mit
-              FinTS-Zugang
-            </>
+            rich(tr.count(<span className="tnum">{new Intl.NumberFormat(intlLocale()).format(bankCount)}</span>))
           ) : (
             <Skeleton className="mt-0.5 h-3.5 w-64 max-w-full" />
           )}
@@ -415,7 +414,7 @@ export function BankPicker({
         <section aria-labelledby={`${inputId}-popular`} className="mt-7">
           {/* Not "Häufig gewählt": the app counts nothing, so it cannot know. */}
           <h2 id={`${inputId}-popular`} className="text-[13px] leading-snug font-semibold text-ink-2">
-            Schnellauswahl
+            {tr.quickPicks}
           </h2>
           <QuickPicks banks={banks} logoFiles={logoFiles} onPick={pickPopular} />
         </section>
@@ -435,6 +434,7 @@ function QuickPicks({
   logoFiles: Record<string, string>;
   onPick: (b: PopularBank) => void;
 }) {
+  const tr = useT().auth.bankPicker;
   // Unframed picks on the card itself — a frame per tile inside the card
   // would be a box in a box — tinting on hover like a menu row. Logos on one
   // line across the row: each pick stacks from the top, and the label sits
@@ -473,7 +473,7 @@ function QuickPicks({
             <button
               type="button"
               onClick={() => onPick(b)}
-              aria-label={searches ? `${label} suchen` : label}
+              aria-label={searches ? tr.searchFor(label) : label}
               className={cx(
                 tileBase,
                 'w-full transition-colors duration-150 hover:bg-inset active:bg-[color-mix(in_srgb,var(--inset)_70%,var(--line))]',

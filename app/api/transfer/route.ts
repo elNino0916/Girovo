@@ -12,6 +12,7 @@
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { isDefiniteRefusal } from '@/lib/bank-answer';
+import { msgs } from '@/lib/i18n';
 import { bankAnswerCodes, bankAnswerText, logResp, serializeVop, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
 import { lookupBlz } from '@/lib/banks';
@@ -44,6 +45,7 @@ export const POST = wrap(async (req: Request) => {
   } = await body<TransferBody>(req);
   const s = getSession(sessionId);
   if (!s) return sessionExpired();
+  const words = msgs().transfer;
 
   // -- validate ------------------------------------------------------------
   // Name and purpose go out rewritten to the SEPA character set (ä → ae …),
@@ -53,34 +55,34 @@ export const POST = wrap(async (req: Request) => {
   // on the review step. The sheet counts the same way (lib/sepa-text.ts), so
   // this only catches a client that did not.
   const name = sepaSanitize(recipientName);
-  if (!name) return fail('Bitte den Namen des Empfängers angeben.');
+  if (!name) return fail(words.route.nameMissing);
   if (name.length > SEPA_NAME_MAX) {
-    return fail(`Der Name des Empfängers ist zu lang (höchstens ${SEPA_NAME_MAX} Zeichen, Umlaute zählen doppelt).`);
+    return fail(words.route.nameTooLong(SEPA_NAME_MAX));
   }
   const cleanIban = validateIban(iban);
-  if (!cleanIban) return fail('Die IBAN ist ungültig (Prüfsumme oder Format).');
+  if (!cleanIban) return fail(words.route.ibanInvalid);
   const cleanBic = validateBic(bic);
-  if (cleanBic === null) return fail('Die BIC ist ungültig.');
+  if (cleanBic === null) return fail(words.bicInvalid);
   const amountCents = parseAmount(amount);
-  if (amountCents === null) return fail('Der Betrag ist ungültig.');
+  if (amountCents === null) return fail(words.route.amountInvalid);
   const cleanPurpose = sepaSanitize(purpose);
   if (cleanPurpose.length > SEPA_PURPOSE_MAX) {
-    return fail(`Der Verwendungszweck ist zu lang (höchstens ${SEPA_PURPOSE_MAX} Zeichen, Umlaute zählen doppelt).`);
+    return fail(words.route.purposeTooLong(SEPA_PURPOSE_MAX));
   }
 
   const account = accountNumber
     ? (s.client.config.bankingInformation?.upd?.bankAccounts || [])
       .find((a) => a.accountNumber === accountNumber)
     : undefined;
-  if (!accountNumber || !account) return fail('Unbekanntes Konto.');
-  if (cleanIban === account.iban) return fail('Empfänger-IBAN und Auftraggeber-IBAN sind identisch.');
+  if (!accountNumber || !account) return fail(words.route.unknownAccount);
+  if (cleanIban === account.iban) return fail(words.route.sameIban);
 
   const useInstant = !!instant;
   const segId = useInstant ? INSTANT_SEG : TRANSFER_SEG;
 
-  if (!account.iban) return fail('Dieses Konto hat keine IBAN und unterstützt keine SEPA-Überweisungen.');
+  if (!account.iban) return fail(words.route.noIban);
   if (!s.client.config.isAccountTransactionSupported(accountNumber, segId)) {
-    return fail(`Dieses Konto unterstützt keine ${useInstant ? 'Echtzeitüberweisung' : 'SEPA-Überweisung'} über FinTS.`);
+    return fail(words.route.unsupported(useInstant));
   }
 
   const transfer = {
@@ -123,10 +125,7 @@ export const POST = wrap(async (req: Request) => {
 
   // The bank wants a Namensabgleich and we did not (or could not) send one.
   if (codes.has(VOP_CODES.required)) {
-    return fail(
-      'Diese Bank verlangt für Überweisungen einen Namensabgleich (Verification of Payee), '
-      + 'meldet die dafür nötigen Geschäftsvorfälle aber nicht an. Bitte im Online-Banking der Bank überweisen.',
-    );
+    return fail(words.route.vopRequired);
   }
 
   // 3945 — the challenge is void. Nothing can be approved until the user has
@@ -138,9 +137,8 @@ export const POST = wrap(async (req: Request) => {
       // ran out of check requests), or it never delivered a result at all.
       const incomplete = codes.has(VOP_CODES.stillRunning) || codes.has(VOP_CODES.moreToCome);
       return fail(incomplete
-        ? 'Die Bank prüft den Empfängernamen noch und hat das Ergebnis nicht vollständig geliefert. '
-          + 'Bitte in einem Moment erneut versuchen.'
-        : bankAnswerText(resp) || 'Die Bank hat die Freigabe zurückgezogen, ohne ein Prüfergebnis zu liefern.');
+        ? words.route.vopIncomplete
+        : bankAnswerText(resp) || words.route.vopWithdrawn);
     }
     s.vopHold = {
       vopId: vopResult.vopId,

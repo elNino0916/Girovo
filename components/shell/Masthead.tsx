@@ -21,6 +21,7 @@
 
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
 import { unseenUpdate, useUpdates } from '../updates/store';
@@ -54,13 +55,19 @@ export function Masthead() {
   const {
     privacy, togglePrivacy, unreadCount: bankUnread, inboxOpen, setInboxOpen, setPaletteOpen, singleKeyShortcuts,
   } = useFints();
+  const t = useT();
   // A newer version of the app (desktop only) waits in Mitteilungen too. The
   // number counts the bank's messages only; the app's own news is marked by
   // the dot alone, so it never reads as one more message from the bank.
   const updateSnapshot = useUpdates();
   const updateUnseen = unseenUpdate(updateSnapshot);
-  const inboxName = ['Mitteilungen', bankUnread > 0 ? `${bankUnread} ungelesen` : '', updateUnseen ? 'neue App-Version' : '']
-    .filter(Boolean).join(', ');
+  const inboxName = [
+    t.common.nav.messages,
+    bankUnread > 0 ? t.shell.unread(bankUnread) : '',
+    updateUnseen ? t.shell.masthead.newAppVersion : '',
+  ].filter(Boolean).join(', ');
+  // What a press on the privacy item does — the label changes with the state.
+  const amounts = privacy ? t.common.showAmounts : t.common.hideAmounts;
   // Opening the drawer marks everything read. Were the count badge to go out
   // at that moment, the items left of it would jump sideways behind the
   // scrim; so the bell keeps showing what it showed when it was pressed, and
@@ -91,7 +98,7 @@ export function Masthead() {
         className="sr-only z-200 rounded-full bg-accent font-semibold text-accent-ink focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:px-4! focus:py-2!"
         style={NO_DRAG}
       >
-        Zum Inhalt springen
+        {t.shell.masthead.skip}
       </a>
 
       <div className="@container/mast flex h-full min-w-0 items-center gap-2 sm:gap-3">
@@ -105,18 +112,18 @@ export function Masthead() {
           <button
             type="button"
             className={cx(ITEM, 'max-sm:hidden')}
-            aria-label="Suche"
+            aria-label={t.common.search}
             aria-keyshortcuts="Control+K Meta+K"
-            title="Suche (Strg+K)"
+            title={`${t.common.search} (${t.shell.ctrl}+K)`}
             onClick={() => setPaletteOpen(true)}
           >
             <SearchIcon size={18} />
-            <span className={LABEL_MID}>Suche</span>
+            <span className={LABEL_MID}>{t.common.search}</span>
             <kbd
               aria-hidden
               className="hidden h-[22px] items-center rounded-[5px] border border-bar-line px-1.5 font-sans text-[12.5px] leading-none font-semibold text-bar-ink-2 @min-[1180px]/mast:inline-flex"
             >
-              Strg K
+              {`${t.shell.ctrl} K`}
             </kbd>
           </button>
 
@@ -138,7 +145,7 @@ export function Masthead() {
                 <Dot className={cx('absolute -top-0.5 -right-0.5 ring-2 ring-bar', !shown.update && '@min-[900px]/mast:hidden')} />
               )}
             </span>
-            <span className={LABEL_MID}>Mitteilungen</span>
+            <span className={LABEL_MID}>{t.common.nav.messages}</span>
             {shownUnread > 0 && (
               <span className={LABEL_MID}>
                 <CountBadge count={shownUnread} tone="bar" />
@@ -153,13 +160,13 @@ export function Masthead() {
           <button
             type="button"
             className={cx(ITEM, privacy && 'bg-[color-mix(in_srgb,var(--bar-ink)_14%,transparent)]')}
-            aria-label={privacy ? 'Beträge anzeigen' : 'Beträge ausblenden'}
+            aria-label={amounts}
             aria-keyshortcuts={singleKeyShortcuts ? 'B' : undefined}
-            title={(privacy ? 'Beträge anzeigen' : 'Beträge ausblenden') + (singleKeyShortcuts ? ' (B)' : '')}
+            title={amounts + (singleKeyShortcuts ? ' (B)' : '')}
             onClick={togglePrivacy}
           >
             {privacy ? <EyeOffIcon /> : <EyeIcon />}
-            <span className={LABEL_MID}>{privacy ? 'Beträge anzeigen' : 'Beträge ausblenden'}</span>
+            <span className={LABEL_MID}>{amounts}</span>
           </button>
 
           <ThemeMenu className={cx(ITEM, 'max-sm:hidden')} labelClassName={LABEL_FULL} />

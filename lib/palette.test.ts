@@ -7,6 +7,9 @@ import {
 
 type E = PaletteEntry & { id: string };
 
+// CommandPalette.tsx's LOGOUT_WORDS: matched in either language.
+const LOGOUT_WORDS = ['logout', 'log out', 'sign out', 'session', 'abmelden', 'ausloggen', 'abmeldung', 'sitzung beenden'];
+
 // The palette's actions as CommandPalette.tsx lists them (the parts that rank).
 const ACTIONS: E[] = [
   { id: 'transfer', label: 'Überweisen', featured: true, keywords: ['überweisung', 'geld senden', 'zahlen', 'bezahlen', 'echtzeit', 'sepa'] },
@@ -16,7 +19,7 @@ const ACTIONS: E[] = [
   { id: 'privacy', label: 'Beträge ausblenden', featured: true, keywords: ['privat', 'verbergen', 'verstecken', 'datenschutz', 'bildschirm teilen', 'beträge', 'einblenden'] },
   { id: 'inbox', label: 'Mitteilungen', featured: true, keywords: ['nachrichten', 'bank', 'vorgänge', 'hinweise', 'inbox'] },
   { id: 'tab-contracts', label: 'Verträge & Abos', keywords: ['abos', 'abonnements', 'fixkosten', 'wiederkehrend', 'daueraufträge', 'verträge'] },
-  { id: 'logout', label: 'Abmelden', featured: true, lastResort: true, keywords: ['logout', 'ausloggen', 'abmeldung', 'sitzung beenden'] },
+  { id: 'logout', label: 'Abmelden', featured: true, lastResort: true, keywords: LOGOUT_WORDS },
 ];
 
 const ACCOUNTS: E[] = [
@@ -103,4 +106,16 @@ test('fuzzyScore: prefix 100, word start 85, initials 75, inside 60, keyword at 
   assert.equal(fuzzyScore('Abmelden', 'mel'), 60);
   assert.equal(fuzzyScore('Abmelden', 'log', ['logout']), 80);
   assert.equal(fuzzyScore('Abmelden', 'xyz'), 0);
+});
+
+test('in English, "Log out" answers the start of its name and its words in either language — never a short word of a phrase', () => {
+  const logOut: PaletteEntry = { label: 'Log out', lastResort: true, keywords: LOGOUT_WORDS };
+  for (const q of ['log', 'Log o', 'log out', 'logout', 'sign out', 'session', 'abmelden', 'ausloggen', 'sitzung']) {
+    assert.ok(answersLastResort(logOut, q), q);
+  }
+  for (const q of ['lo', 'logo', 'logou', 'out', 'sign', 'ses', 'abm', 'money out']) {
+    assert.ok(!answersLastResort(logOut, q), q);
+  }
+  // The German entry has the same words: "log", "out" and "sign" are no deliberate query there either.
+  for (const q of ['log', 'out', 'sign']) assert.ok(!answersLastResort(ACTIONS[ACTIONS.length - 1], q), q);
 });

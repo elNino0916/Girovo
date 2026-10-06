@@ -9,6 +9,7 @@ import type { SerializedTransaction } from '@/lib/fints-types';
 import { intermediaryName } from '@/lib/categories';
 import { bookingKind } from '@/lib/categorize';
 import { dayKey, displayName, fmtShortIban, ibanValid, parseAmount } from '@/lib/format';
+import { intlLocale, msgs } from '@/lib/i18n';
 import { rawIban } from './iban';
 
 /** The order as the review step shows it and the bank receives it. */
@@ -41,16 +42,18 @@ const MAX_CENTS = 99_999_999_999;
 export type AmountCheck = { cents: number; error: null } | { cents: null; error: string | null };
 
 /**
- * The typed amount as whole cents, or why it cannot be sent. Empty input is
+ * The typed amount as whole cents, or why it cannot be sent (in the language
+ * speaking right now, like the reading of the amount itself). Empty input is
  * `{ cents: null, error: null }` — not an error until the form is submitted.
  */
 export function checkAmount(text: string): AmountCheck {
   if (!text.trim()) return { cents: null, error: null };
+  const words = msgs().transfer.amount;
   const n = parseAmount(text);
-  if (n == null) return { cents: null, error: 'Bitte gib einen gültigen Betrag an, zum Beispiel 25,00.' };
+  if (n == null) return { cents: null, error: words.invalid };
   const cents = Math.round(n * 100);
-  if (cents <= 0) return { cents: null, error: 'Der Betrag muss größer als 0,00 € sein.' };
-  if (cents > MAX_CENTS) return { cents: null, error: 'Der Betrag darf höchstens 999.999.999,99 € betragen.' };
+  if (cents <= 0) return { cents: null, error: words.notPositive };
+  if (cents > MAX_CENTS) return { cents: null, error: words.tooLarge };
   return { cents, error: null };
 }
 
@@ -114,9 +117,9 @@ export function recentPayees(
 // Dates and templates
 // ---------------------------------------------------------------------------
 
-/** "Montag, 05.10.2026" */
+/** "Montag, 05.10.2026" ("Monday, 05/10/2026"). */
 export const fmtLongDate = (d: Date) =>
-  new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+  new Intl.DateTimeFormat(intlLocale(), { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
 
 /** Most recently used first, then newest. */
 export function sortTemplates(list: readonly TransferTemplate[]): TransferTemplate[] {

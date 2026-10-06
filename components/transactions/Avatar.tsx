@@ -7,9 +7,14 @@
 // recognisably the same counterparty.
 
 import { useCallback, useState } from 'react';
+import type { ReactNode } from 'react';
+import { COMPACT_LOGO, DARK_INVERT, ON_DARK } from '@/lib/brands';
+import { isBankOwnBooking } from '@/lib/categorize';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { initials } from '@/lib/format';
-import { useMerchant } from '../FintsProvider';
+import { useT } from '@/lib/i18n/react';
+import { BankChip } from '../BankLogo';
+import { useFints, useLogoFile, useMerchant } from '../FintsProvider';
 import { cx } from '../ui';
 
 /** sm 32 px (compact lists) · md 40 px (lists) · lg 56 px (the detail drawer). Pixel values are accepted too. */
@@ -115,9 +120,62 @@ function LookedUpAvatar(props: Omit<AvatarProps, 'merchant'>) {
   return <AvatarFace merchant={merchant} {...props} />;
 }
 
+/** The brand chip's square at each avatar size, cornered like the logo tile. */
+const CHIP = {
+  sm: 'size-8 rounded-[9px]',
+  md: 'size-10 rounded-[11px]',
+  lg: 'size-14 rounded-[14px]',
+} as const;
+
+/**
+ * A booking the bank made itself — the Abschluss, a fee, interest — shows the
+ * bank's own mark: there the bank is the counterparty, so its mark is the
+ * subject, as in the institute bar. A compact logo file is drawn the way the
+ * institute bar draws it (.logo-img: a light plate, navy and black marks
+ * flipped in dark mode); a wordmark would be unreadable this small, so there
+ * the brand's chip stands in (lib/brands.ts COMPACT_LOGO). Only these rows
+ * read the bank, so a long list stays off the provider. Without a bank, the
+ * monogram stays.
+ */
+function BankOwnAvatar({ size, children }: { size: 'sm' | 'md' | 'lg'; children: ReactNode }) {
+  const { bank } = useFints();
+  const brand = bank?.brand ?? '';
+  const file = useLogoFile(brand || undefined);
+  const [broken, setBroken] = useState(false);
+  const probe = useEarlyFailure(() => setBroken(true), file ?? '');
+  if (!bank) return children;
+  if (!file || broken || !COMPACT_LOGO.has(brand)) {
+    return (
+      <span aria-hidden title={bank.name} className="shrink-0">
+        <BankChip brand={brand} className={CHIP[size]} />
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      title={bank?.name}
+      data-invert={DARK_INVERT.has(brand)}
+      data-on-dark={ON_DARK.has(brand)}
+      className={cx('logo-img flex shrink-0 items-center justify-center overflow-hidden', TILE[size])}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={probe}
+        src={`/logos/${file}`}
+        alt=""
+        draggable={false}
+        onError={() => setBroken(true)}
+        className="max-h-full max-w-full object-contain"
+      />
+    </span>
+  );
+}
+
 function AvatarFace({
-  merchant, name, credit = false, pending = false, size: requested = 'md',
+  tx, merchant, name, credit = false, pending = false, size: requested = 'md',
 }: Omit<AvatarProps, 'merchant'> & { merchant: Merchant | null }) {
+  const t = useT();
   // The logo that failed, rather than a flag: when the booking's brand
   // changes (the merchant table arrives late), the new mark gets its chance.
   const [broken, setBroken] = useState<string | null>(null);
@@ -131,7 +189,7 @@ function AvatarFace({
       // wordmark can't escape it, and the provider mark deliberately does.
       <span
         aria-hidden
-        title={merchant.via ? `${merchant.label} · über ${merchant.via.label}` : merchant.label}
+        title={merchant.via ? `${merchant.label} · ${t.transactions.via(merchant.via.label)}` : merchant.label}
         className="relative shrink-0"
       >
         {/* A rounded tile rather than the circle used for initials: some
@@ -165,7 +223,7 @@ function AvatarFace({
   // circle takes the credit tint; a Vormerkposten's the amber of "vorgemerkt".
   // The plain one gets a hairline: on the dark surface --inset alone is only
   // a shade off, and the circle would dissolve into the row.
-  return (
+  const monogram = (
     <span
       aria-hidden
       className={cx(
@@ -181,4 +239,5 @@ function AvatarFace({
       {initials(name)}
     </span>
   );
+  return isBankOwnBooking(tx) ? <BankOwnAvatar size={size}>{monogram}</BankOwnAvatar> : monogram;
 }

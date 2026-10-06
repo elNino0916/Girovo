@@ -10,9 +10,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { post, store } from '@/lib/client-api';
-import { TRY_AGAIN_LATER, formatBankAnswer, isBankOutage, isCredentialAnswer } from '@/lib/bank-answer';
+import { formatBankAnswer, isBankOutage, isCredentialAnswer } from '@/lib/bank-answer';
 import { APPROVAL_APP } from '@/lib/brands';
 import type { MetaResponse } from '@/lib/fints-types';
+import type { Messages } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
 import { BankAnswerAlert } from '../BankAnswer';
 import { BankLogo } from '../BankLogo';
 import type { ChosenBank } from '../FintsProvider';
@@ -22,59 +24,35 @@ import { PrivacyNote } from './AuthShell';
 import { LoginHelp } from './LoginHelp';
 import { fmtBlz } from './format';
 
+type CredentialWords = Messages['auth']['credentials'];
+
 /**
  * What the bank calls the login name, where we know it for certain. Everyone
  * else gets the generic wording — a wrong specific label is worse than a
  * plain one.
  */
-const LOGIN_LABEL: Record<string, string> = {
-  vrbank: 'VR-NetKey oder Alias',
-  gls: 'VR-NetKey oder Alias',
-  sparkasse: 'Anmeldename oder Legitimations-ID',
-  ing: 'Zugangsnummer',
-  comdirect: 'Zugangsnummer',
-  commerzbank: 'Teilnehmernummer',
-  postbank: 'Postbank ID',
+const LOGIN_LABEL: Record<string, keyof CredentialWords['loginLabels']> = {
+  vrbank: 'vrNetKey',
+  gls: 'vrNetKey',
+  sparkasse: 'loginName',
+  ing: 'accessNumber',
+  comdirect: 'accessNumber',
+  commerzbank: 'participantNumber',
+  postbank: 'postbankId',
 };
-const GENERIC_LOGIN_LABEL = 'Anmeldename oder Legitimations-ID';
-
-type Secret = {
-  label: string;
-  /** For "… anzeigen" on the reveal button. */
-  short: string;
-  /** "Mit deiner PIN …" — the secret with its article, as German needs it. */
-  withIt: string;
-  hint?: string;
-  missing: string;
-};
+const GENERIC_LOGIN_LABEL = 'loginName';
 
 /**
  * What the bank calls the secret, by the same rule. "PIN" alone invites the
  * four digits of the bank card, so the default says which PIN it is.
  */
-const SECRET: Record<string, Secret> = {
-  postbank: {
-    label: 'Passwort', short: 'Passwort', withIt: 'Mit deinem Passwort',
-    hint: 'Das Passwort zu deiner Postbank ID.', missing: 'Bitte gib dein Passwort ein.',
-  },
+const SECRET: Record<string, keyof CredentialWords['secrets']> = {
+  postbank: 'postbank',
 };
-const GENERIC_SECRET: Secret = {
-  label: 'Online-Banking-PIN', short: 'PIN', withIt: 'Mit deiner PIN',
-  hint: 'Nicht die PIN deiner Bankkarte.', missing: 'Bitte gib deine PIN ein.',
-};
+const GENERIC_SECRET = 'pin';
 
 /** After this long without an answer, the login can be called off. */
 const CANCEL_AFTER_MS = 8000;
-
-/**
- * The one hard requirement, said before the PIN goes anywhere: approval in
- * the bank's app. Named by brand where one app holds for the whole brand
- * (lib/brands.ts), so it holds for banks found by search too.
- */
-function approvalHint(brand: string): string {
-  const app = APPROVAL_APP[brand];
-  return `Freigabe danach in deiner Banking-App${app ? `, z.\u00a0B. ${app}` : ''}. chipTAN, smsTAN und TAN-Generator gehen hier nicht.`;
-}
 
 export function Credentials({
   bank, logoFile, meta, onChange, onSubmit, onCancel,
@@ -88,12 +66,17 @@ export function Credentials({
   onCancel: () => void;
 }) {
   const uid = useId();
+  const tr = useT();
+  const words = tr.auth.credentials;
   const [login, setLogin] = useState(() => store.get(`fints.userId.${bank.blz}`) || '');
   const [pin, setPin] = useState('');
   const [reveal, setReveal] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
+  // The answer as it came from the server or the bank; '' for a failure that
+  // came without words, which is said in the language on screen (words.failed).
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{ login?: string; pin?: string }>({});
+  // Which field is missing; what it says is the language's.
+  const [fieldErrors, setFieldErrors] = useState<{ login?: boolean; pin?: boolean }>({});
   // Sticky for the visit: once the bank has turned the credentials down,
   // every further try is one closer to a locked access.
   const [lockoutRisk, setLockoutRisk] = useState(false);
@@ -158,20 +141,20 @@ export function Credentials({
     return () => clearTimeout(t);
   }, [submitting]);
 
-  const secret = SECRET[bank.brand] ?? GENERIC_SECRET;
+  const secret = words.secrets[SECRET[bank.brand] ?? GENERIC_SECRET];
 
   const submit = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     if (submitting) return;
     if (!login.trim()) {
-      setFieldErrors({ login: 'Bitte gib deinen Anmeldenamen ein.' });
+      setFieldErrors({ login: true });
       loginRef.current?.focus();
       return;
     }
     if (!pin.trim()) {
       // Enter in the name field moves on to the PIN; only "Anmelden" with
       // the PIN still empty is something to point out.
-      setFieldErrors(document.activeElement === loginRef.current ? {} : { pin: secret.missing });
+      setFieldErrors(document.activeElement === loginRef.current ? {} : { pin: true });
       pinRef.current?.focus();
       return;
     }
@@ -191,7 +174,7 @@ export function Credentials({
         setCancels((n) => n + 1);
         return;
       }
-      const message = (err as Error).message || 'Die Anmeldung ist fehlgeschlagen.';
+      const message = (err as Error).message || '';
       setError(message);
       // A locked access is not one more wrong try: no lockout warning, and
       // no PIN selected for another attempt — only the bank can help now.
@@ -201,7 +184,7 @@ export function Credentials({
     } finally {
       setSubmitting(false);
     }
-  }, [bank, login, pin, onSubmit, submitting, secret.missing]);
+  }, [bank, login, pin, onSubmit, submitting]);
 
   const trackCapsLock = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     // getModifierState is the only way to know without a keypress of the
@@ -209,19 +192,19 @@ export function Credentials({
     if (typeof e.getModifierState === 'function') setCapsLock(e.getModifierState('CapsLock'));
   };
 
-  const loginLabel = LOGIN_LABEL[bank.brand] ?? GENERIC_LOGIN_LABEL;
-  const locked = error ? formatBankAnswer(error).locked : false;
+  const loginLabel = words.loginLabels[LOGIN_LABEL[bank.brand] ?? GENERIC_LOGIN_LABEL];
+  const shownError = error === null ? null : error || words.failed;
+  const locked = shownError ? formatBankAnswer(shownError).locked : false;
   const capsId = `pin${uid}-caps`;
 
   return (
     <>
-      <h1 className="text-[28px] leading-tight font-bold text-headline sm:text-[32px]">Anmelden</h1>
-      <p className="mt-1.5 text-[15px] leading-snug text-ink-2">Mit den Zugangsdaten deines Online-Bankings.</p>
+      <h1 className="text-[28px] leading-tight font-bold text-headline sm:text-[32px]">{words.title}</h1>
+      <p className="mt-1.5 text-[15px] leading-snug text-ink-2">{words.intro}</p>
 
       {meta && !meta.productRegistered && (
         <Alert tone="warn" className="mt-5">
-          Es ist keine registrierte FinTS-Produkt-ID hinterlegt. Banken lehnen die Anmeldung damit meist ab
-          (Code 9078). Trage die ID in <span className="num">config.json</span> ein.
+          {rich(words.noProductId(<span className="num">config.json</span>))}
         </Alert>
       )}
 
@@ -264,7 +247,7 @@ export function Credentials({
           onClick={onChange}
           disabled={submitting}
         >
-          Ändern<span className="sr-only">: andere Bank statt {bank.name} wählen</span>
+          {words.change}<span className="sr-only">: {words.changeBank(bank.name)}</span>
         </Button>
       </div>
 
@@ -272,8 +255,8 @@ export function Credentials({
         <Field
           label={loginLabel}
           htmlFor={`login${uid}`}
-          hint={bank.brand in LOGIN_LABEL ? undefined : 'So wie beim Online-Banking deiner Bank.'}
-          error={fieldErrors.login}
+          hint={bank.brand in LOGIN_LABEL ? undefined : words.loginHint}
+          error={fieldErrors.login ? words.loginMissing : undefined}
         >
           <Input
             id={`login${uid}`}
@@ -294,7 +277,13 @@ export function Credentials({
           />
         </Field>
 
-        <Field label={secret.label} htmlFor={`pin${uid}`} hint={secret.hint} error={fieldErrors.pin} className="mb-0">
+        <Field
+          label={secret.label}
+          htmlFor={`pin${uid}`}
+          hint={secret.hint}
+          error={fieldErrors.pin ? secret.missing : undefined}
+          className="mb-0"
+        >
           <Input
             id={`pin${uid}`}
             ref={pinRef}
@@ -316,7 +305,7 @@ export function Credentials({
             aria-describedby={capsLock ? capsId : undefined}
             trailing={
               <IconButton
-                aria-label={`${secret.short} anzeigen`}
+                aria-label={words.reveal(secret.short)}
                 aria-pressed={reveal}
                 aria-controls={`pin${uid}`}
                 onClick={() => setReveal((r) => !r)}
@@ -329,56 +318,60 @@ export function Credentials({
         </Field>
         {/* The live region is always there (one that appears together with
             its text is often not heard); the visible line comes and goes. */}
-        <span id={capsId} aria-live="polite" className="sr-only">{capsLock ? 'Feststelltaste ist aktiv' : ''}</span>
+        <span id={capsId} aria-live="polite" className="sr-only">{capsLock ? words.capsLock : ''}</span>
         {capsLock && (
           <p aria-hidden className="mt-2 flex items-center gap-1.5 text-[13px] leading-snug font-semibold text-ink-2">
             <AlertTriangleIcon size={15} className="text-emphasis" />
-            Feststelltaste ist aktiv
+            {words.capsLock}
           </p>
         )}
 
+        {/* The one hard requirement, said before the PIN goes anywhere:
+            approval in the bank's app. Named by brand where one app holds for
+            the whole brand (lib/brands.ts), so it holds for banks found by
+            search too. */}
         <p className="mt-3 flex items-start gap-2 text-[13px] leading-snug text-ink-3">
           <PhoneIcon size={16} className="mt-px shrink-0" />
-          <span>{approvalHint(bank.brand)}</span>
+          <span>{words.approvalHint(APPROVAL_APP[bank.brand])}</span>
         </p>
 
-        {remembered && !error && (
-          <Alert tone="info" title="Dieses Gerät ist gemerkt" icon={<ShieldIcon size={18} check />} className="mt-4" role="status">
-            {secret.withIt} klappt die Anmeldung hier meist ohne neue Freigabe.
+        {remembered && !shownError && (
+          <Alert tone="info" title={words.rememberedTitle} icon={<ShieldIcon size={18} check />} className="mt-4" role="status">
+            {words.rememberedText(secret.withIt)}
           </Alert>
         )}
 
-        {error && (
-          <BankAnswerAlert message={error} className="mt-4">
-            {isBankOutage(error) && <p>{TRY_AGAIN_LATER}</p>}
+        {shownError && (
+          <BankAnswerAlert message={shownError} className="mt-4">
+            {isBankOutage(shownError) && <p>{tr.provider.bank.tryAgainLater}</p>}
             {locked ? (
-              <p className="mt-1.5 font-semibold">Entsperren kann nur deine Bank.</p>
+              <p className="mt-1.5 font-semibold">{words.locked}</p>
             ) : lockoutRisk && (
-              <p className="mt-1.5 font-semibold">Mehrere Fehlversuche können deinen Online-Zugang sperren.</p>
+              <p className="mt-1.5 font-semibold">{words.lockoutRisk}</p>
             )}
           </BankAnswerAlert>
         )}
 
         <Button type="submit" variant="primary" size="lg" block busy={submitting} className="mt-6">
-          {submitting ? 'Verbinde mit der Bank …' : 'Anmelden'}
+          {submitting ? tr.auth.connecting : words.title}
         </Button>
 
         {/* A bank that does not answer must not hold the form — or the PIN
             on the server — for minutes: after a while the login can be
             called off. */}
         <p aria-live="polite" className="sr-only">
-          {submitting && slow ? 'Deine Bank antwortet noch nicht. Du kannst die Anmeldung abbrechen.' : cancelled ? 'Anmeldung abgebrochen.' : ''}
+          {submitting && slow ? words.slowCanCancel : cancelled ? words.cancelled : ''}
         </p>
         {submitting && slow && (
           <div className="mt-2 flex flex-wrap items-center justify-center gap-x-1 text-[13px] leading-snug text-ink-3">
-            <span aria-hidden>Deine Bank antwortet noch nicht.</span>
+            <span aria-hidden>{words.slow}</span>
             <Button variant="tertiary" size="sm" onClick={onCancel}>
-              Abbrechen
+              {tr.common.cancel}
             </Button>
           </div>
         )}
         {cancelled && !submitting && (
-          <p aria-hidden className="mt-3 text-center text-[13px] leading-snug text-ink-3">Anmeldung abgebrochen.</p>
+          <p aria-hidden className="mt-3 text-center text-[13px] leading-snug text-ink-3">{words.cancelled}</p>
         )}
       </form>
 

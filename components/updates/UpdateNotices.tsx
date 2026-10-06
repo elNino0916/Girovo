@@ -12,6 +12,8 @@
 //   UpdateBarButton   the login screens' bar, which has room to spare
 
 import { useEffect, useRef } from 'react';
+import { msgs } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { CheckCircleIcon, DownloadIcon, RefreshIcon } from '../icons';
 import { Button, Dot, Tag, cx } from '../ui';
@@ -43,12 +45,8 @@ export function UpdateLayer() {
     const was = prevPhase.current;
     prevPhase.current = phase;
     if (was !== 'downloading' || phase !== 'ready' || dialog || !state?.release) return;
-    toast(
-      `Version ${state.release.version} ist heruntergeladen. Installiert wird erst, wenn du neu startest.`,
-      'success',
-      12_000,
-      { label: 'Details', run: updates.openDialog },
-    );
+    const u = msgs().shell.updates;
+    toast(u.downloaded(state.release.version), 'success', 12_000, { label: u.details, run: updates.openDialog });
   }, [phase, dialog, state, toast]);
 
   // Said once per page, at the first start after an install: that it worked —
@@ -56,17 +54,16 @@ export function UpdateLayer() {
   useEffect(() => {
     if (greeted || (!installed && !failed)) return;
     updates.markGreeted();
+    const u = msgs().shell.updates;
     if (installed) {
-      const text = renamedSince(installedFrom)
-        ? `Sooskasse-FinTS heißt jetzt Girovo. Version ${installed} ist installiert.`
-        : `Girovo wurde auf Version ${installed} aktualisiert.`;
+      const text = renamedSince(installedFrom) ? u.renamed(installed) : u.updated(installed);
       toast(text, 'success', 10_000, {
-        label: 'Was ist neu?',
+        label: u.whatsNewAsk,
         run: updates.openDialog,
       });
     } else {
-      toast(`Das Update auf Version ${failed} wurde nicht abgeschlossen.`, 'error', 12_000, {
-        label: 'Details',
+      toast(u.notCompleted(failed ?? ''), 'error', 12_000, {
+        label: u.details,
         run: updates.openDialog,
       });
     }
@@ -104,6 +101,7 @@ function noticeOf(state: UpdateState | null): UpdateNotice | null {
  * tinted card and nothing in Signal Blue that cannot be pressed.
  */
 export function UpdateInboxCard({ notice, onOpen }: { notice: UpdateNotice; onOpen: () => void }) {
+  const u = useT().shell.updates;
   const newer = notice.kind === 'newer';
   return (
     <div className="flex items-start gap-3">
@@ -120,19 +118,19 @@ export function UpdateInboxCard({ notice, onOpen }: { notice: UpdateNotice; onOp
         <p className="text-[14.5px] leading-snug font-semibold text-ink">
           {newer
             ? notice.ready
-              ? `Version ${notice.version} ist bereit zur Installation`
-              : `Version ${notice.version} ist verfügbar`
-            : `Aktualisiert auf Version ${notice.version}`}
+              ? u.readyToInstall(notice.version)
+              : u.available(notice.version)
+            : u.updatedTo(notice.version)}
         </p>
         <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
           {!newer
-            ? 'Sieh dir an, was sich geändert hat.'
+            ? u.seeChanges
             : notice.ready
-              ? <>Du nutzt noch Version <span className="tnum">{notice.current}</span>. Installiert wird erst, wenn du neu startest.</>
-              : <>Du nutzt Version <span className="tnum">{notice.current}</span>. Heruntergeladen wird erst, wenn du auf „Herunterladen“ klickst.</>}
+              ? rich(u.stillOn(<span className="tnum">{notice.current}</span>))
+              : rich(u.notYetDownloaded(<span className="tnum">{notice.current}</span>))}
         </p>
         <Button variant="tertiary" size="xs" className="mt-1 -ml-3.5" aria-haspopup="dialog" onClick={onOpen}>
-          {newer ? (notice.ready ? 'Jetzt installieren …' : 'Details und Download …') : 'Was ist neu? …'}
+          {newer ? (notice.ready ? u.installNow : u.detailsAndDownload) : u.whatsNewOpen}
         </Button>
       </div>
     </div>
@@ -147,21 +145,22 @@ export function UpdateInboxCard({ notice, onOpen }: { notice: UpdateNotice; onOp
  */
 export function UpdateSessionRow({ onOpen, className }: { onOpen: () => void; className?: string }) {
   const { state } = useUpdates();
+  const t = useT();
   if (!state) return null;
   const newer = hasNewer(state) ? state.release : null;
   const pct = state.total > 0 ? Math.min(100, Math.floor((state.received / state.total) * 100)) : 0;
   return (
     <button type="button" aria-haspopup="dialog" onClick={onOpen} className={className}>
       <RefreshIcon size={18} className="text-ink-2" />
-      <span className="flex-1">Updates</span>
+      <span className="flex-1">{t.shell.updates.title}</span>
       {newer && state.phase === 'downloading' ? (
-        <span className="tnum text-[13px] text-ink-3">Lädt … {pct} %</span>
+        <span className="tnum text-[13px] text-ink-3">{t.shell.updates.loadingPct(pct)}</span>
       ) : newer ? (
         <Tag tone="emphasis" size="sm">
-          {isReady(state) ? 'Bereit zur Installation' : `Version ${newer.version}`}
+          {isReady(state) ? t.shell.updates.readyTag : t.shell.version(newer.version)}
         </Tag>
       ) : (
-        <span className="tnum text-[13px] text-ink-3">Version {state.current}</span>
+        <span className="tnum text-[13px] text-ink-3">{t.shell.version(state.current)}</span>
       )}
     </button>
   );
@@ -174,13 +173,14 @@ export function UpdateSessionRow({ onOpen, className }: { onOpen: () => void; cl
  */
 export function UpdateBarButton({ className }: { className?: string }) {
   const { state } = useUpdates();
+  const u = useT().shell.updates;
   if (!hasNewer(state)) return null;
-  const label = isReady(state) ? 'Update bereit' : 'Update verfügbar';
+  const label = isReady(state) ? u.barReady : u.barAvailable;
   return (
     <button
       type="button"
       aria-haspopup="dialog"
-      title={`${label}: Version ${state.release.version}`}
+      title={u.barTitle(label, state.release.version)}
       onClick={updates.openDialog}
       className={cx('navlink inline-flex', className)}
     >

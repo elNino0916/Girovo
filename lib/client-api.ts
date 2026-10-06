@@ -2,7 +2,10 @@
 
 // Thin fetch wrapper for the route handlers. Every endpoint answers either the
 // payload or `{ error }` with a non-2xx status, so failure is always a throw
-// with a message that is already written for the user in German.
+// with a message that is already written for the user, in the language of the
+// page that asked (lib/i18n/server.ts).
+
+import { msgs } from './i18n/index.ts';
 
 export class ApiError extends Error {
   status: number;
@@ -26,7 +29,7 @@ export const SESSION_EXPIRED_EVENT = 'fints:expired';
 export type SessionExpiredDetail = { sessionId: string };
 
 /** fetch itself threw: the local server is gone (crashed, restarting) or unreachable. */
-const UNREACHABLE = 'Keine Verbindung zum lokalen Server. Bitte versuche es erneut.';
+const unreachable = () => new ApiError(msgs().provider.server.unreachable, 0);
 
 /**
  * Only calls made *within* a session can report its expiry. A 401 from a call
@@ -42,7 +45,7 @@ function sessionOf(payload: unknown): string | null {
 async function settle<T>(res: Response, payload?: unknown): Promise<T> {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const message = (data as { error?: string }).error || `Fehler (${res.status})`;
+    const message = (data as { error?: string }).error || msgs().provider.server.failed(res.status);
     const sessionId = res.status === 401 ? sessionOf(payload) : null;
     if (sessionId && typeof window !== 'undefined') {
       // Dispatched before the throw, so the logout is already under way when
@@ -69,8 +72,8 @@ export async function post<T>(path: string, payload?: unknown, init?: { signal?:
   } catch (err) {
     // A request its caller called off is not a server that went away.
     if (init?.signal?.aborted) throw err;
-    // The browser's own "Failed to fetch" would land in a German UI verbatim.
-    throw new ApiError(UNREACHABLE, 0);
+    // The browser's own "Failed to fetch" would land in the UI verbatim.
+    throw unreachable();
   }
   return settle<T>(res, payload);
 }
@@ -80,7 +83,7 @@ export async function get<T>(path: string): Promise<T> {
   try {
     res = await fetch(path);
   } catch {
-    throw new ApiError(UNREACHABLE, 0);
+    throw unreachable();
   }
   return settle<T>(res);
 }

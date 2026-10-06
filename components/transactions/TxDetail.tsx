@@ -8,13 +8,15 @@ import {
 import { guessCategory } from '@/lib/categorize';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry, isFutureDate, toLocalDate } from '@/lib/format';
+import { intlLocale, msgs, type Messages } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/react';
 import { AMOUNT_MASK } from '@/lib/mask';
 import { BankText } from '../BankText';
 import { useFints } from '../FintsProvider';
 import {
   ArrowRightIcon, BoltIcon, CategoryIcon, ChevronIcon, ClockIcon, ReceiptIcon, RepeatIcon, TransferIcon, UndoIcon,
 } from '../icons';
-import { MASKED_LABEL, Money, usePrivacy } from '../Money';
+import { maskedLabel, Money, usePrivacy } from '../Money';
 import {
   Button, CopyButton, Disclosure, Drawer, Menu, MenuGroup, MenuItem, MenuItemRadio, MenuSeparator, Tag, cx,
 } from '../ui';
@@ -24,17 +26,11 @@ import {
   type StatusTag,
 } from './model';
 
-const SOURCE_TEXT: Record<CategorySource, string> = {
-  auto: 'Automatisch erkannt',
-  rule: 'Deine Regel für alle Umsätze',
-  manual: 'Von dir gewählt',
-};
-
 /** SEPA purpose tags whose value is an amount: Ursprungsbetrag, Zinskompensationsbetrag. */
 const AMOUNT_TAGS = new Set(['OAMT', 'COAM']);
 
-/** "1,1563" — a rate as the bank wrote it, without the float's tail. */
-const fmtRate = (n: number) => n.toLocaleString('de-DE', { maximumFractionDigits: 6 });
+/** "1,1563" ("1.1563") — a rate as the bank wrote it, without the float's tail. */
+const fmtRate = (n: number) => n.toLocaleString(intlLocale(), { maximumFractionDigits: 6 });
 
 const TAG_ICON: Record<NonNullable<StatusTag['icon']>, ReactNode> = {
   clock: <ClockIcon size={13} />,
@@ -61,17 +57,21 @@ export function TxDetail({
   const {
     activeAccount, categoryOf, openTransfer, showTransactions, printTransaction,
   } = useFints();
+  // `tr`, not `t`: in this file `t` is a booking.
+  const tr = useT();
+  const words = tr.transactions.detail;
   const text = txText(tx);
   const credit = tx.amount > 0;
   const tags = statusTags(tx, pending);
-  const refs = useMemo(() => referenceRows(tx), [tx]);
+  // Labels in words: built again when the language changes.
+  const refs = useMemo(() => referenceRows(tx), [tx, tr]);
   // The values of the SEPA tags that are amounts by definition (OAMT, COAM).
   const amountRefs = useMemo(
     () => new Set(text.parsed.fields.filter((f) => AMOUNT_TAGS.has(f.tag)).map((f) => f.value)),
     [text],
   );
   const privacy = usePrivacy();
-  const card = useMemo(() => cardFacts(tx), [tx]);
+  const card = useMemo(() => cardFacts(tx), [tx, tr]);
   // The bank's own name for the counterparty, and — when the header shows a
   // shop the app worked out (from a card terminal's descriptor, or from what
   // a payment service wrote into the purpose) — that shop, labelled as such.
@@ -103,13 +103,13 @@ export function TxDetail({
   };
 
   return (
-    <Drawer open onClose={onClose} title={pending ? 'Vorgemerkter Umsatz' : 'Umsatzdetails'} bodyClassName="px-4 pt-6 pb-8 sm:px-6">
+    <Drawer open onClose={onClose} title={pending ? words.pendingTitle : words.title} bodyClassName="px-4 pt-6 pb-8 sm:px-6">
       {/* Who and how much — the two things the row already said, large. */}
       <div className="flex flex-col items-center text-center">
         <CounterpartyAvatar tx={tx} name={text.name} credit={credit} pending={pending} size="lg" />
         <p className="mt-3 max-w-full text-[17px] leading-snug font-semibold break-words text-ink">{text.name}</p>
         <p className="mt-1">
-          <span className="sr-only">{credit ? 'Gutschrift' : 'Belastung'}</span>
+          <span className="sr-only">{credit ? tr.common.booking.credit : tr.common.booking.debit}</span>
           <Money value={tx.amount} currency={tx.currency} signed tone="credit" className="text-[32px] leading-tight font-bold" />
         </p>
         <p className="mt-1 text-[14px] text-ink-2">
@@ -118,12 +118,12 @@ export function TxDetail({
           {[
             text.bookingText,
             card?.usedAt
-              ? `bezahlt am ${shortDay(card.usedAt.day)}${card.usedAt.time ? ` um ${card.usedAt.time}` : ''}`
+              ? words.paidOn(shortDay(card.usedAt.day), card.usedAt.time)
               : when ? fmtDayHeader(when) : '',
           ].filter(Boolean).join(' · ')}
         </p>
         {tags.length > 0 && (
-          <ul className="mt-3 flex flex-wrap justify-center gap-1.5" aria-label="Status">
+          <ul className="mt-3 flex flex-wrap justify-center gap-1.5" aria-label={words.status}>
             {tags.map((t) => (
               <li key={t.label}>
                 <Tag tone={t.tone} icon={t.icon ? TAG_ICON[t.icon] : undefined}>{t.label}</Tag>
@@ -135,12 +135,12 @@ export function TxDetail({
         <div className="mt-5 flex flex-wrap justify-center gap-2">
           {seeds.repeat && (
             <Button size="sm" variant="secondary" iconLeft={<TransferIcon size={16} />} onClick={() => startTransfer(seeds.repeat!)}>
-              Erneut überweisen
+              {words.repeat}
             </Button>
           )}
           {seeds.refund && (
             <Button size="sm" variant="secondary" iconLeft={<UndoIcon size={16} />} onClick={() => startTransfer(seeds.refund!)}>
-              Zurücküberweisen
+              {words.refund}
             </Button>
           )}
           <Button
@@ -149,54 +149,57 @@ export function TxDetail({
             iconLeft={<ReceiptIcon size={16} />}
             onClick={() => printTransaction(tx, pending)}
           >
-            Beleg (PDF)
+            {words.receipt}
           </Button>
         </div>
       </div>
 
-      <Section title="Zahlung">
-        <Row half label="Buchungstag">
+      <Section title={words.payment}>
+        <Row half label={tr.transactions.entryDate}>
           {pending
             // A Vormerkposten's dates are the bank's provisional ones; the tag
             // above already says "Vorgemerkt".
-            ? 'Noch nicht gebucht'
+            ? tr.transactions.notBooked
             : (
               <>
                 <span className="tnum">{fmtDate(tx.entryDate)}</span>
-                {future && <span className="block text-[13.5px] text-ink-2">noch nicht gebucht</span>}
+                {future && <span className="block text-[13.5px] text-ink-2">{tr.transactions.state.ahead}</span>}
               </>
             )}
         </Row>
         {tx.valueDate && (
-          <Row half label="Wertstellung"><span className="tnum">{fmtDate(tx.valueDate)}</span></Row>
+          <Row half label={tr.transactions.valueDate}><span className="tnum">{fmtDate(tx.valueDate)}</span></Row>
         )}
         {/* The card system's record, said in words: when, which card, what
             it cost abroad. Amounts through <Money>, so "Beträge ausblenden"
             masks them like every other. */}
         {card?.usedAt && (
-          <Row half label="Bezahlt am">
-            <span className="tnum">{fmtDate(toLocalDate(card.usedAt.day))}{card.usedAt.time && `, ${card.usedAt.time} Uhr`}</span>
+          <Row half label={words.paidAt}>
+            <span className="tnum">{fmtDate(toLocalDate(card.usedAt.day))}{card.usedAt.time && `, ${tr.transactions.clock(card.usedAt.time)}`}</span>
           </Row>
         )}
-        {card?.card && <Row half label="Karte">{card.card}</Row>}
+        {card?.card && <Row half label={words.card}>{card.card}</Row>}
         {card?.original && (
-          <Row label="Originalbetrag">
+          <Row label={words.original}>
             <Money value={card.original.amount} currency={card.original.currency} tone="plain" />
             {card.original.rate != null && (
-              <span className="tnum text-ink-2"> · 1&nbsp;€ = {fmtRate(card.original.rate)}&nbsp;{card.original.currency}</span>
+              <span className="tnum text-ink-2"> · {words.rate(fmtRate(card.original.rate), card.original.currency)}</span>
             )}
           </Row>
         )}
         {card?.fee != null && (
-          <Row label="Einsatzentgelt">
+          <Row label={words.fee}>
             <Money value={card.fee} currency="EUR" tone="plain" />
-            {card.feeIncluded && <span className="text-ink-2"> · im Betrag enthalten</span>}
+            {card.feeIncluded && <span className="text-ink-2"> · {words.feeIncluded}</span>}
           </Row>
         )}
         {text.purposeLines.length > 0 && (
           // The copy stays unmasked: copying is the user's own act, and the
           // clipboard is not on the shared screen.
-          <Row label="Verwendungszweck" copy={{ text: text.purposeLines.join(' '), label: 'Verwendungszweck kopieren' }}>
+          <Row
+            label={tr.common.booking.purpose}
+            copy={{ text: text.purposeLines.join(' '), label: words.copy(tr.common.booking.purpose) }}
+          >
             {/* Bank text is untrusted: plain text only, one line per line the bank wrote. */}
             {text.purposeLines.map((line, i) => (
               <span key={i} className="block break-words"><BankText text={line} /></span>
@@ -207,7 +210,7 @@ export function TxDetail({
 
       {(bankName || iban) && (
         <Section
-          title={credit ? 'Auftraggeber' : 'Empfänger'}
+          title={credit ? words.payer : words.recipient}
           after={query && (
             // A link in the run of the text rather than a padded pill: its
             // words start on the same edge as the labels above it.
@@ -219,7 +222,7 @@ export function TxDetail({
                 showTransactions({ query });
               }}
             >
-              <span className="min-w-0 truncate underline-offset-[3px] group-hover:underline">Alle Umsätze mit {text.name}</span>
+              <span className="min-w-0 truncate underline-offset-[3px] group-hover:underline">{words.allWith(text.name)}</span>
               <ArrowRightIcon size={16} />
             </button>
           )}
@@ -229,28 +232,28 @@ export function TxDetail({
               nothing the app derived is ever the only record. A shop the app
               worked out from it sits below, called what it is. */}
           {bankName && (
-            <Row label="Name laut Bank" copy={{ text: bankName, label: 'Name laut Bank kopieren' }}>
+            <Row label={words.bankName} copy={{ text: bankName, label: words.copy(words.bankName) }}>
               <span className="break-words">{bankName}</span>
             </Row>
           )}
-          {recognised && <Row label="Geschäft (erkannt)"><span className="break-words">{recognised}</span></Row>}
-          {address && <Row label={place?.street ? 'Anschrift' : 'Ort'}><span className="break-words">{address}</span></Row>}
+          {recognised && <Row label={words.shop}><span className="break-words">{recognised}</span></Row>}
+          {address && <Row label={place?.street ? words.address : words.place}><span className="break-words">{address}</span></Row>}
           {/* The account the money actually moved to or from belongs to the
               payment provider (a card processor or acquirer), not to the shop
               named above — said here, so the IBAN below is never mistaken for
               the shop's. */}
-          {text.via && <Row label="Zahlungsdienstleister"><span className="break-words">{text.via}</span></Row>}
+          {text.via && <Row label={words.provider}><span className="break-words">{text.via}</span></Row>}
           {iban && (
-            <Row label={text.via ? 'IBAN des Zahlungsdienstleisters' : 'IBAN'} copy={{ text: iban, label: 'IBAN kopieren' }}>
+            <Row label={text.via ? words.providerIban : 'IBAN'} copy={{ text: iban, label: tr.common.account.copyIban }}>
               <span className="iban text-[14px]">{fmtIban(iban)}</span>
             </Row>
           )}
           {bic && (
-            <Row half label="BIC" copy={{ text: bic, label: 'BIC kopieren' }}>
+            <Row half label="BIC" copy={{ text: bic, label: words.copy('BIC') }}>
               <span className="iban text-[14px]">{bic}</span>
             </Row>
           )}
-          {country && <Row half label="Land">{country.name}</Row>}
+          {country && <Row half label={words.country}>{country.name}</Row>}
         </Section>
       )}
 
@@ -262,7 +265,7 @@ export function TxDetail({
             className="-mx-4"
             title={
               <span className="text-[15px] font-bold text-headline">
-                Referenzen <span className="tnum font-semibold text-ink-3">({refs.length})</span>
+                {tr.transactions.refs.title} <span className="tnum font-semibold text-ink-3">({refs.length})</span>
               </span>
             }
           >
@@ -275,11 +278,11 @@ export function TxDetail({
                       {/* An Ursprungsbetrag is an amount whatever its shape; the rest
                           (the original purpose above all) is masked like prose. */}
                       {privacy && amountRefs.has(r.value)
-                        ? <span role="img" aria-label={MASKED_LABEL}>{AMOUNT_MASK}</span>
+                        ? <span role="img" aria-label={maskedLabel()}>{AMOUNT_MASK}</span>
                         : <BankText text={r.value} />}
                     </dd>
                   </div>
-                  <CopyButton text={r.value} label={`${r.label} kopieren`} className="-mr-1" />
+                  <CopyButton text={r.value} label={words.copy(r.label)} className="-mr-1" />
                 </div>
               ))}
             </dl>
@@ -320,22 +323,23 @@ function Row({
 }
 
 /** The category groups of the menu, the booking's own direction first. */
-function menuGroups(credit: boolean): { label: string; ids: CategoryId[] }[] {
+function menuGroups(credit: boolean, tr: Messages): { label: string; ids: CategoryId[] }[] {
+  const { common: { booking }, transactions: { categorize: words } } = tr;
   const spend = CATEGORIES.filter((c) => !c.neutral && c.direction !== 'in').map((c) => c.id);
   const income = CATEGORIES.filter((c) => c.direction === 'in').map((c) => c.id);
   const own = CATEGORIES.filter((c) => c.neutral).map((c) => c.id);
   return credit
     ? [
         // Interest received is a credit in "Bankentgelte & Zinsen".
-        { label: 'Eingänge', ids: [...income, 'fees'] },
+        { label: booking.incoming, ids: [...income, 'fees'] },
         // A shop's refund belongs to that shop's category and reduces it in the Analyse.
-        { label: 'Erstattung einer Ausgabe', ids: spend.filter((id) => id !== 'fees') },
-        { label: 'Zwischen deinen Konten', ids: own },
+        { label: words.refundGroup, ids: spend.filter((id) => id !== 'fees') },
+        { label: words.ownGroup, ids: own },
       ]
     : [
-        { label: 'Ausgaben', ids: spend },
-        { label: 'Eingänge', ids: income },
-        { label: 'Zwischen deinen Konten', ids: own },
+        { label: booking.spending, ids: spend },
+        { label: booking.incoming, ids: income },
+        { label: words.ownGroup, ids: own },
       ];
 }
 
@@ -358,6 +362,8 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
   const {
     categoryOf, setCategory, removeCategoryRule, vault, vaultStatus, ownIbans, merchants, txByAccount,
   } = useFints();
+  const tr = useT();
+  const words = tr.transactions.categorize;
   const current = categoryOf(tx);
   const who = counterpartyKey(tx);
   const canRule = who !== 'name:?';
@@ -408,16 +414,16 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
   const status = !step
     ? ''
     : step.kind === 'picked'
-      ? `Als „${categoryLabel(step.id)}“ eingeordnet.`
+      ? words.filedAs(categoryLabel(step.id))
       : step.kind === 'ruled'
-        ? `Alle Umsätze von ${name} sind jetzt „${categoryLabel(step.id)}“ – auch künftige.`
+        ? words.ruled(name, categoryLabel(step.id))
         : step.kind === 'undone'
-          ? `Wieder „${categoryLabel(step.id)}“, ${step.byRule ? 'wie deine Regel' : 'automatisch erkannt'}.`
-          : `Regel entfernt. Die Umsätze von ${name} werden wieder automatisch eingeordnet.`;
+          ? words.undone(categoryLabel(step.id), step.byRule)
+          : words.unruled(name);
 
   return (
     <section aria-labelledby={titleId} className="mt-6 border-t border-line pt-5">
-      <h3 id={titleId} className="text-[15px] font-bold text-headline">Kategorie</h3>
+      <h3 id={titleId} className="text-[15px] font-bold text-headline">{tr.transactions.category}</h3>
       <div className="mt-3 flex items-center gap-3">
         {/* A glyph, not a control: inset grey, so the one blue here is "Ändern". */}
         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-inset text-ink-2">
@@ -426,12 +432,12 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
         <div className="min-w-0 flex-1">
           <p className="text-[15px] leading-snug font-semibold text-ink">{categoryLabel(current.id)}</p>
           <p className="text-[13px] leading-snug text-ink-3">
-            {current.source === 'rule' ? `${SOURCE_TEXT.rule} von ${name}` : SOURCE_TEXT[current.source]}
+            {current.source === 'rule' ? words.ruleWith(name) : words.source[current.source]}
           </p>
         </div>
         <Menu
           placement="bottom-end"
-          label="Kategorie wählen"
+          label={tr.transactions.chooseCategory}
           minWidth={280}
           trigger={(p, { open }) => (
             <Button
@@ -439,9 +445,9 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
               ref={(el) => { p.ref(el); changeRef.current = el; }}
               size="sm"
               variant="secondary"
-              aria-label={`Kategorie ändern, aktuell ${categoryLabel(current.id)}`}
+              aria-label={words.changeLabel(categoryLabel(current.id))}
             >
-              Ändern
+              {words.change}
               <ChevronIcon size={14} strokeWidth={2} className={cx('-mr-1 transition-transform duration-150', open && 'rotate-180')} />
             </Button>
           )}
@@ -450,15 +456,15 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
             <>
               <MenuItem
                 icon={<UndoIcon size={18} />}
-                description={fallback.source === 'rule' ? `Deine Regel für ${name}` : 'Wie die App den Umsatz einordnet'}
+                description={fallback.source === 'rule' ? words.yourRuleFor(name) : words.howAppFiles}
                 onSelect={undo}
               >
-                {fallback.source === 'rule' ? 'Wie die Regel' : 'Automatisch'} ({categoryLabel(fallback.id)})
+                {words.undoItem(fallback.source === 'rule', categoryLabel(fallback.id))}
               </MenuItem>
               <MenuSeparator />
             </>
           )}
-          {menuGroups(tx.amount > 0).map((g) => (
+          {menuGroups(tx.amount > 0, tr).map((g) => (
             <MenuGroup key={g.label} label={g.label}>
               {g.ids.map((id) => (
                 <MenuItemRadio key={id} checked={current.id === id} icon={<CategoryIcon id={id} />} onSelect={() => pick(id)}>
@@ -472,7 +478,7 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
 
       {current.source === 'rule' && (
         <Button size="xs" variant="tertiary" className="mt-2 -ml-3" onClick={unrule}>
-          Regel für {name} entfernen
+          {words.removeRule(name)}
         </Button>
       )}
 
@@ -481,12 +487,12 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
         <div className="mt-3 rounded-[8px] bg-inset px-4 py-3">
           <p className="text-[14px] leading-snug text-ink">
             {others > 0
-              ? <>Auch {others === 1 ? 'den anderen Umsatz' : `die ${others.toLocaleString('de-DE')} anderen Umsätze`} von {name} als „{categoryLabel(offer)}“ einordnen?</>
-              : <>Künftige Umsätze von {name} auch als „{categoryLabel(offer)}“ einordnen?</>}
+              ? words.offerOthers(others, name, categoryLabel(offer))
+              : words.offerFuture(name, categoryLabel(offer))}
           </p>
-          {others > 0 && <p className="mt-0.5 text-[13px] leading-snug text-ink-3">Gilt dann auch für künftige Umsätze.</p>}
+          {others > 0 && <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{words.alsoFuture}</p>}
           <Button size="xs" variant="secondary" className="mt-2.5" onClick={() => applyToAll(offer)}>
-            {others > 0 ? 'Für alle übernehmen' : 'Als Regel speichern'}
+            {others > 0 ? words.applyAll : words.saveRule}
           </Button>
         </div>
       )}
@@ -494,7 +500,7 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
       {step && step.kind !== 'picked' && <p className="mt-2 text-[13px] leading-snug text-ink-2">{status}</p>}
       <p className="sr-only" aria-live="polite">{status}</p>
       {step && !vaultSaves && (
-        <p className="mt-2 text-[13px] text-ink-3">Gilt nur für diese Sitzung – deine persönlichen Daten werden gerade nicht gespeichert.</p>
+        <p className="mt-2 text-[13px] text-ink-3">{words.sessionOnly}</p>
       )}
 
       {rules && (
@@ -518,7 +524,7 @@ function ruleName(key: string, names: ReadonlyMap<string, string>): string {
   const kind = key.slice(0, colon);
   const value = key.slice(colon + 1);
   if (kind === 'iban') return fmtIban(value);
-  if (kind === 'cred') return `Gläubiger-ID ${value}`;
+  if (kind === 'cred') return `${msgs().common.booking.creditorId} ${value}`;
   return displayName(value) || value;
 }
 
@@ -528,9 +534,12 @@ function ruleName(key: string, names: ReadonlyMap<string, string>): string {
  */
 function RuleList({ rules, onRemove }: { rules: Record<string, CategoryId>; onRemove: (key: string) => void }) {
   const { txByAccount, pendingCache } = useFints();
+  const tr = useT();
+  const words = tr.transactions.categorize;
   const [open, setOpen] = useState(false);
   const entries = Object.entries(rules).filter(([, id]) => isCategoryId(id));
   // Names only while the list is open: finding them walks every loaded booking.
+  // A name the bank left out is said in words, so the language is a dependency.
   const names = useMemo(() => {
     const out = new Map<string, string>();
     if (!open) return out;
@@ -541,7 +550,7 @@ function RuleList({ rules, onRemove }: { rules: Record<string, CategoryId>; onRe
       }
     }
     return out;
-  }, [open, rules, txByAccount, pendingCache]);
+  }, [open, rules, txByAccount, pendingCache, tr]);
   if (!entries.length) return null;
   return (
     <Disclosure
@@ -550,7 +559,7 @@ function RuleList({ rules, onRemove }: { rules: Record<string, CategoryId>; onRe
       onToggle={() => setOpen((o) => !o)}
       title={
         <span className="text-[14px] font-semibold text-ink-2">
-          Deine Regeln <span className="tnum text-ink-3">({entries.length})</span>
+          {words.rules} <span className="tnum text-ink-3">({entries.length})</span>
         </span>
       }
     >
@@ -567,8 +576,8 @@ function RuleList({ rules, onRemove }: { rules: Record<string, CategoryId>; onRe
                     <CategoryIcon id={r.id} size={14} /> {categoryLabel(r.id)}
                   </span>
                 </span>
-                <Button size="xs" variant="tertiary" aria-label={`Regel für ${r.name} entfernen`} onClick={() => onRemove(r.key)}>
-                  Entfernen
+                <Button size="xs" variant="tertiary" aria-label={words.removeRule(r.name)} onClick={() => onRemove(r.key)}>
+                  {words.remove}
                 </Button>
               </li>
             ))}

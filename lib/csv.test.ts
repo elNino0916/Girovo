@@ -1,8 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CSV_COLUMNS, csvAmountCell, csvDateCell, csvFileName, csvIdCell, csvScope, csvStatus, csvTextCell, transactionsToCsv } from './csv.ts';
+import {
+  CSV_COLUMNS, csvAmountCell, csvDateCell, csvFileName, csvHeader, csvIdCell, csvScope, csvStatus, csvTextCell, transactionsToCsv,
+} from './csv.ts';
 import { textBlob } from './download.ts';
 import type { SerializedAccount, SerializedTransaction } from './fints-types';
+import { withLocale } from './i18n/server.ts';
 
 /** JSON of a local calendar day — what the wire carries for a booking date. */
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d).toISOString();
@@ -77,7 +80,9 @@ const exportRows = (txs: SerializedTransaction[], extra: Partial<Parameters<type
   assert.ok(csv.endsWith('\r\n'), 'ends with CRLF');
   const rows = parseCsv(csv.slice(1));
   for (const r of rows) assert.equal(r.length, CSV_COLUMNS.length, JSON.stringify(r));
-  return rows.map((r) => Object.fromEntries(CSV_COLUMNS.map((c, i) => [c, r[i]])) as Record<(typeof CSV_COLUMNS)[number], string>);
+  // Keyed by the header's own names — German, the language the tests speak.
+  const header = csvHeader();
+  return rows.map((r) => Object.fromEntries(header.map((c, i) => [c, r[i]])) as Record<string, string>);
 };
 
 test('header row is the documented column list', () => {
@@ -88,6 +93,26 @@ test('header row is the documented column list', () => {
       'Name Zahlungsbeteiligter;IBAN Zahlungsbeteiligter;BIC Zahlungsbeteiligter;Abweichender Empfänger/Auftraggeber;Buchungstext;Verwendungszweck;Betrag;' +
       'Waehrung;Kategorie;Glaeubiger ID;Mandatsreferenz;Kundenreferenz (End-to-End);Status\r\n',
   );
+});
+
+test('in English the header, the Status and the file name follow; the cells stay German Excel\'s', () => {
+  withLocale('en', () => {
+    const ahead = tx({ entryDate: day(2026, 10, 5), valueDate: day(2026, 10, 3), amount: -1234.5 });
+    const csv = transactionsToCsv([ahead, tx()], { account: ACCOUNT, bankName: 'Musterbank eG', today: TODAY });
+    const [header, first, second] = parseCsv(csv.slice(1));
+    assert.equal(header.length, CSV_COLUMNS.length);
+    assert.equal(header[0], 'Account name');
+    assert.equal(header[CSV_COLUMNS.indexOf('amount')], 'Amount');
+    assert.equal(first[CSV_COLUMNS.indexOf('status')], 'Not booked yet');
+    assert.equal(second[CSV_COLUMNS.indexOf('status')], 'Booked');
+    // Semicolons, the decimal comma and dd.mm.yyyy whatever the interface speaks.
+    assert.equal(first[CSV_COLUMNS.indexOf('amount')], '-1234,50');
+    assert.equal(first[CSV_COLUMNS.indexOf('entryDate')], '05.10.2026');
+    assert.equal(
+      csvFileName(ACCOUNT, { from: '2026-07-05', to: '2026-10-03' }, { filtered: true }),
+      'Transactions_345932_2026-07-05_2026-10-03_filtered.csv',
+    );
+  });
 });
 
 test('the file starts with the UTF-8 byte order mark once saved', async () => {

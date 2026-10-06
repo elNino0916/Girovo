@@ -1,5 +1,6 @@
 // Every request lib-fints sends to a bank, under one policy — and the one
-// place that turns whatever went wrong on the way into a German sentence.
+// place that turns whatever went wrong on the way into a sentence, in the
+// language of the request (lib/i18n/server.ts).
 //
 // lib-fints posts each FinTS message with the global fetch, without a signal
 // and without a time limit of its own (node_modules/lib-fints/dist/
@@ -28,7 +29,7 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { HttpClient } from 'lib-fints';
-import { BANK_UNAVAILABLE, BANK_UNREACHABLE } from './bank-answer.ts';
+import { MESSAGES, msgs, type Messages } from './i18n/index.ts';
 import { reportMetric, telemetryContext } from './telemetry.ts';
 
 /** How long a bank may take to start answering. */
@@ -232,38 +233,54 @@ export function bankErrorKind(err: unknown): BankErrorKind | null {
   return null;
 }
 
-const INSECURE = 'Die Verbindung zu deiner Bank ließ sich nicht sicher aufbauen. Prüfe Datum und Uhrzeit dieses Rechners.';
-const CANCELLED = 'Die Anfrage an deine Bank wurde abgebrochen.';
-const UNEXPECTED = 'Bei der Verbindung mit deiner Bank ist ein unerwarteter Fehler aufgetreten.';
+type BankTexts = Messages['provider']['bank'];
 
 /** lib-fints throws in English; what each of its errors means for the user. */
-const LIBRARY_ERRORS: [RegExp, string][] = [
-  [/TAN must be provided for non-decoupled TAN methods/i,
-    'Dieses Verfahren braucht eine TAN-Eingabe. Hier geht nur die Freigabe in einer Banking-App.'],
-  [/not supported according to the BPD|does not support business transaction/i,
-    'Deine Bank bietet diesen Vorgang für dein Konto über FinTS nicht an.'],
-  [/has no IBAN in the UPD/i, 'Für dieses Konto meldet deine Bank keine IBAN.'],
+const LIBRARY_ERRORS: [RegExp, (said: BankTexts) => string][] = [
+  [/TAN must be provided for non-decoupled TAN methods/i, (said) => said.tanEntryNeeded],
+  [/not supported according to the BPD|does not support business transaction/i, (said) => said.notOffered],
+  [/has no IBAN in the UPD/i, (said) => said.noIban],
 ];
 
-/** Plain ASCII with an English function word: a library's message, not ours. */
+/** Plain ASCII with an English function word: a library's message — unless it is one of ours (isOwnText). */
 const ENGLISH = /\b(?:the|is|are|not|must|cannot|can't|failed|error|invalid|unexpected|undefined|null|of|to|has|no)\b/i;
 
 /**
- * The message a user sees for an error thrown while handling a request.
- * Transport failures get the sentences from lib/bank-answer.ts; lib-fints'
- * English errors a German meaning; our own German messages pass through.
- * Nothing of a bank's response body ever reaches the result.
+ * Whether `message` is one of the app's own texts (lib/i18n/messages), in
+ * either language: an English one is plain ASCII with English words, just
+ * like a library's, and still passes as ours. Only the texts without a
+ * placeholder can be found this way.
+ */
+function isOwnText(message: string): boolean {
+  const seen = new Set<object>();
+  const has = (v: unknown): boolean => {
+    if (typeof v === 'string') return v === message;
+    if (!v || typeof v !== 'object' || seen.has(v)) return false;
+    seen.add(v);
+    return Object.values(v).some(has);
+  };
+  return has(MESSAGES);
+}
+
+/**
+ * The message a user sees for an error thrown while handling a request, in
+ * the request's language. Transport failures get the sentences that
+ * lib/bank-answer.ts recognises; lib-fints' English errors a meaning; our own
+ * messages pass through. Nothing of a bank's response body ever reaches the
+ * result.
  */
 export function describeError(err: unknown): string {
+  const said = msgs().provider.bank;
   switch (bankErrorKind(err)) {
-    case 'unavailable': return BANK_UNAVAILABLE;
-    case 'unreachable': return BANK_UNREACHABLE;
-    case 'insecure': return INSECURE;
-    case 'cancelled': return CANCELLED;
+    case 'unavailable': return said.unavailable;
+    case 'unreachable': return said.unreachable;
+    case 'insecure': return said.insecure;
+    case 'cancelled': return said.cancelled;
     default: break;
   }
   const message = (err as { message?: string } | null)?.message || String(err ?? '');
-  for (const [re, text] of LIBRARY_ERRORS) if (re.test(message)) return text;
-  if (!message.trim() || (/^[\x20-\x7e]*$/.test(message) && ENGLISH.test(message))) return UNEXPECTED;
+  for (const [re, text] of LIBRARY_ERRORS) if (re.test(message)) return text(said);
+  if (!message.trim()) return said.unexpected;
+  if (/^[\x20-\x7e]*$/.test(message) && ENGLISH.test(message) && !isOwnText(message)) return said.unexpected;
   return message;
 }

@@ -8,6 +8,7 @@
 
 import type { SerializedTransaction } from './fints-types';
 import { cleanMerchantName } from './card-purpose.ts';
+import { msgs } from './i18n/index.ts';
 
 export type CategoryId =
   | 'income'
@@ -29,7 +30,11 @@ export type CategoryId =
 
 export type CategoryDef = {
   id: CategoryId;
-  /** Shown in lists, filters and the analysis. Sentence case, German. */
+  /**
+   * Shown in lists, filters and the analysis, in the language speaking right
+   * now (lib/i18n/messages/categories.ts) — read it where it is shown, never
+   * keep a copy.
+   */
   label: string;
   /**
    * Which way money moves in this category. `both` is for the two buckets a
@@ -43,24 +48,32 @@ export type CategoryDef = {
   neutral?: boolean;
 };
 
-export const CATEGORIES: readonly CategoryDef[] = [
-  { id: 'income', label: 'Einkommen', direction: 'in' },
-  { id: 'otherIn', label: 'Sonstige Eingänge', direction: 'in' },
-  { id: 'transfer', label: 'Umbuchung', direction: 'both', neutral: true },
-  { id: 'housing', label: 'Wohnen & Energie', direction: 'out' },
-  { id: 'groceries', label: 'Lebensmittel & Drogerie', direction: 'out' },
-  { id: 'mobility', label: 'Mobilität', direction: 'out' },
-  { id: 'shopping', label: 'Shopping', direction: 'out' },
-  { id: 'leisure', label: 'Freizeit & Gastronomie', direction: 'out' },
-  { id: 'media', label: 'Abos & Medien', direction: 'out' },
-  { id: 'health', label: 'Gesundheit', direction: 'out' },
-  { id: 'insurance', label: 'Versicherungen', direction: 'out' },
-  { id: 'taxes', label: 'Steuern & Abgaben', direction: 'out' },
-  { id: 'cash', label: 'Bargeld', direction: 'out' },
-  { id: 'fees', label: 'Bankentgelte & Zinsen', direction: 'both' },
-  { id: 'savings', label: 'Sparen & Anlegen', direction: 'out' },
-  { id: 'other', label: 'Sonstiges', direction: 'both' },
+const ROWS: readonly Omit<CategoryDef, 'label'>[] = [
+  { id: 'income', direction: 'in' },
+  { id: 'otherIn', direction: 'in' },
+  { id: 'transfer', direction: 'both', neutral: true },
+  { id: 'housing', direction: 'out' },
+  { id: 'groceries', direction: 'out' },
+  { id: 'mobility', direction: 'out' },
+  { id: 'shopping', direction: 'out' },
+  { id: 'leisure', direction: 'out' },
+  { id: 'media', direction: 'out' },
+  { id: 'health', direction: 'out' },
+  { id: 'insurance', direction: 'out' },
+  { id: 'taxes', direction: 'out' },
+  { id: 'cash', direction: 'out' },
+  { id: 'fees', direction: 'both' },
+  { id: 'savings', direction: 'out' },
+  { id: 'other', direction: 'both' },
 ];
+
+/** Every category, its label read when it is read — so a change of language reaches every list. */
+export const CATEGORIES: readonly CategoryDef[] = ROWS.map((row) => ({
+  ...row,
+  get label() {
+    return msgs().categories[row.id];
+  },
+}));
 
 const BY_ID = new Map(CATEGORIES.map((c) => [c.id, c]));
 

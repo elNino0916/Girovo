@@ -6,17 +6,23 @@
 //
 // Nothing here talks to the bank or the provider: plain functions over the
 // bookings that are already loaded.
+//
+// What it says in words — the second line's "Kartenzahlung", a country, a
+// reference's label — is in the language speaking right now (lib/i18n). So
+// the per-booking cache is kept per language, and a list that memoises
+// anything built here lists the texts (`t`) among its dependencies.
 
 import { facilitatorShop } from '@/lib/analytics';
 import type { TransferPrefill } from '@/lib/app-types';
 import { parseCardAcceptor, parseCardPurpose, type CardPurpose } from '@/lib/card-purpose';
-import { bookingKind, bookingKindLabel, foldText, isBusinessCredit, type BookingKind } from '@/lib/categorize';
+import { bookingKind, foldText, isBusinessCredit, type BookingKind } from '@/lib/categorize';
 import { counterpartyName, intermediaryName, rawCounterparty, txCreditorId, type CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import {
   dayKey, displayName, fmtAmountInput, fmtDate, fmtDayHeader, fmtIban, ibanValid, isFutureDate, prettyBookingText,
   prettyPurpose, repairBankText, toLocalDate,
 } from '@/lib/format';
+import { activeLocale, intlLocale, msgs, type Locale } from '@/lib/i18n';
 import { facilitatorOf, getMerchantKey } from '@/lib/merchant-match';
 import { condenseRefs, parsePurpose, purposeLines, type ParsedPurpose } from '@/lib/sepa-purpose';
 
@@ -65,17 +71,43 @@ export type TxText = {
 };
 
 // Bookings are immutable once loaded (a refresh brings new objects), so the
-// object itself is a safe cache key — and the cache dies with it.
-const textCache = new WeakMap<SerializedTransaction, TxText>();
+// object itself is a safe cache key — and the cache dies with it. One cache
+// per language: what a booking says in words is said in the language on screen.
+const textCaches = new Map<Locale, WeakMap<SerializedTransaction, TxText>>();
 
-const regionNames = (() => {
-  try { return new Intl.DisplayNames(['de'], { type: 'region' }); } catch { return null; }
-})();
+function textCache(): WeakMap<SerializedTransaction, TxText> {
+  const locale = activeLocale();
+  let cache = textCaches.get(locale);
+  if (!cache) textCaches.set(locale, (cache = new WeakMap()));
+  return cache;
+}
 
-/** A country code in German ("NL" → "Niederlande"), or the code itself. */
+const regionNames = new Map<Locale, Intl.DisplayNames | null>();
+
+/** A country code in the language speaking right now ("NL" → "Niederlande", "Netherlands"), or the code itself. */
 export function countryName(code: string | null | undefined): string {
   if (!code) return '';
-  try { return regionNames?.of(code) ?? code; } catch { return code; }
+  const locale = activeLocale();
+  let names = regionNames.get(locale);
+  if (names === undefined) {
+    try { names = new Intl.DisplayNames([locale], { type: 'region' }); } catch { names = null; }
+    regionNames.set(locale, names);
+  }
+  try { return names?.of(code) ?? code; } catch { return code; }
+}
+
+/**
+ * A day and month without the year, the way the language writes them:
+ * "30.09." ("30/09"). A leap year stands in for the one a record does not
+ * name, so a 29 February stays one; digits that name no day at all are
+ * shown as they came rather than as some other day.
+ */
+function dayMonth(day: number, month: number): string {
+  const date = new Date(2000, month - 1, day);
+  if (date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.`;
+  }
+  return new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', month: '2-digit' }).format(date);
 }
 
 /** "Köln" at home, "Amsterdam-Dui, Niederlande" abroad, the country alone for an online shop. */
@@ -87,16 +119,18 @@ function placeLabel(place: TxText['place']): string {
 
 /** The card the way people name it: "Visa Debit", "girocard", "Debitkarte" — or null. */
 function cardName(card: CardPurpose): string | null {
+  const words = msgs().transactions.card;
   return card.scheme
     ? card.scheme.replace(/^VISA\b/, 'Visa')
-    : card.card === 'credit' ? 'Kreditkarte' : card.card === 'debit' ? 'Debitkarte' : null;
+    : card.card === 'credit' ? words.creditCard : card.card === 'debit' ? words.debitCard : null;
 }
 
 /** "Visa Debit" / "Debitkarte" / "Kartenzahlung" — and a refund says it is one. */
 function cardLabel(card: CardPurpose, credit: boolean): string {
+  const words = msgs().transactions.card;
   const base = cardName(card);
-  if (!base) return credit ? 'Kartengutschrift' : 'Kartenzahlung';
-  return credit ? `Gutschrift · ${base}` : base;
+  if (!base) return credit ? words.credit : words.payment;
+  return credit ? words.creditVia(base) : base;
 }
 
 // The payment services whose own spelling the list uses for "über …".
@@ -115,8 +149,10 @@ export function serviceName(raw: string): string {
 const ATM_RECORD = /\bGA\s?NR\S*\s+BLZ\s?\d+\s+\d+\s+(\d{2})\.(\d{2})\/(\d{2})\.(\d{2})\b/;
 
 export function txText(tx: SerializedTransaction): TxText {
-  const hit = textCache.get(tx);
+  const cache = textCache();
+  const hit = cache.get(tx);
   if (hit) return hit;
+  const words = msgs().transactions;
   // The shop, when the bank names one behind its card processor — what the
   // Sparkasse's own app shows. The processor stays available as `via`.
   const rawName = repairBankText(counterpartyName(tx)).replace(/\s+/g, ' ').trim();
@@ -128,7 +164,7 @@ export function txText(tx: SerializedTransaction): TxText {
   // purpose names it ("Ihr Einkauf bei ZALANDO SE"); the service is named on
   // the second line and in the drawer, which keeps the bank's name.
   const shop = facilitatorShop(tx);
-  const name = (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || 'Buchung';
+  const name = (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || words.fallbackName;
   // The second line repeats nothing the first already says: a purpose that
   // is just the payee's name again gives way to the booking text.
   const kind = bookingKind(tx);
@@ -155,14 +191,14 @@ export function txText(tx: SerializedTransaction): TxText {
     ? [
         cardLabel(card, tx.amount > 0),
         where,
-        card.original && card.original.currency !== 'EUR' ? `Fremdwährung ${card.original.currency}` : '',
+        card.original && card.original.currency !== 'EUR' ? words.card.foreignCurrency(card.original.currency) : '',
         echo ? '' : prettyPurpose(card.rest),
       ].filter(Boolean).join(' · ')
     : atm
       // "Geldautomat · 17.09., 15:55" — what the machine's record says, in words.
-      ? `Geldautomat · ${atm[1]}.${atm[2]}., ${atm[3]}:${atm[4]}`
+      ? words.card.atm(dayMonth(+atm[1], +atm[2]), `${atm[3]}:${atm[4]}`)
       : shop
-        ? `über ${serviceName(rawName)}`
+        ? words.via(serviceName(rawName))
         : condenseRefs(prettyPurpose(parsed.text));
   if (summary && foldText(summary) === foldText(rawName)) summary = '';
   // A card payment's "purpose" is the terminal's own record — the shop name
@@ -172,7 +208,7 @@ export function txText(tx: SerializedTransaction): TxText {
     const head = foldText(rawName).split(' ')[0];
     if (!head || foldText(summary).startsWith(head)) summary = '';
   }
-  if (!summary && rawName) summary = bookingText || (kind === 'karte' ? 'Kartenzahlung' : '');
+  if (!summary && rawName) summary = bookingText || (kind === 'karte' ? words.card.payment : '');
   // The town is worth its place on the line even when the purpose said
   // nothing else ("Kartenzahlung · Köln").
   if (where && !card && kind === 'karte' && summary && !summary.includes(where)) summary = `${summary} · ${where}`;
@@ -188,7 +224,7 @@ export function txText(tx: SerializedTransaction): TxText {
     bookingText,
     kind,
   };
-  textCache.set(tx, out);
+  cache.set(tx, out);
   return out;
 }
 
@@ -266,12 +302,11 @@ export function merchantFor(merchants: Record<string, Merchant | null>, tx: Seri
 // Dates
 // ---------------------------------------------------------------------------
 
-/** "30.09." — the year is the one the list is already in. */
+/** "30.09." ("30/09") — the year is the one the list is already in. */
 export function shortDay(d: Date | string | null | undefined): string {
   const date = toLocalDate(d);
   if (!date) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.`;
+  return dayMonth(date.getDate(), date.getMonth() + 1);
 }
 
 /**
@@ -285,18 +320,21 @@ export function shortDay(d: Date | string | null | undefined): string {
  *   an overdraft are counted from.
  */
 export function rowNote(tx: SerializedTransaction, pending: boolean): { text: string; title: string } | null {
+  const words = msgs().transactions;
   const entry = dayKey(tx.entryDate);
   const value = dayKey(tx.valueDate);
-  const title = [entry && `Buchungstag ${fmtDate(tx.entryDate)}`, value && `Wertstellung ${fmtDate(tx.valueDate)}`]
+  const title = [entry && words.row.entryDate(fmtDate(tx.entryDate)), value && words.row.valueDate(fmtDate(tx.valueDate))]
     .filter(Boolean)
     .join(' · ');
   if (pending) {
-    return value ? { text: `Wert ${shortDay(tx.valueDate)}`, title } : { text: 'vorgemerkt', title: 'Noch nicht gebucht' };
+    return value
+      ? { text: words.row.value(shortDay(tx.valueDate)), title }
+      : { text: words.state.pending, title: words.notBooked };
   }
   // Naming the field stops a forward-dated Buchungstag from reading like the
   // day the money moved.
-  if (entry && isFutureDate(tx.entryDate)) return { text: `Buchung ${shortDay(tx.entryDate)}`, title };
-  if (entry && value && entry !== value) return { text: `Wert ${shortDay(tx.valueDate)}`, title };
+  if (entry && isFutureDate(tx.entryDate)) return { text: words.row.booking(shortDay(tx.entryDate)), title };
+  if (entry && value && entry !== value) return { text: words.row.value(shortDay(tx.valueDate)), title };
   return null;
 }
 
@@ -393,17 +431,19 @@ const KIND_TONE: Partial<Record<BookingKind, StatusTag['tone']>> = {
 
 /** The words for the kind of booking and its state — never a code. */
 export function statusTags(tx: SerializedTransaction, pending: boolean): StatusTag[] {
+  const { common, transactions: words } = msgs();
   const { kind, bookingText } = txText(tx);
   const tags: StatusTag[] = [];
-  if (pending) tags.push({ label: 'Vorgemerkt', tone: 'pending', icon: 'clock' });
-  else if (isFutureDate(tx.entryDate)) tags.push({ label: 'Noch nicht gebucht', tone: 'neutral', icon: 'clock' });
+  if (pending) tags.push({ label: common.booking.pending, tone: 'pending', icon: 'clock' });
+  else if (isFutureDate(tx.entryDate)) tags.push({ label: words.notBooked, tone: 'neutral', icon: 'clock' });
   if (kind !== 'sonstige') {
-    const label = bookingKindLabel(kind);
+    const label = words.kinds[kind];
     // The bank's own booking text is already shown beside the tags; a tag
     // that only repeats it is noise — and so is one whose word the text
     // already holds ("Gehalt/Rente" beside "Lohn/Gehalt", "Lastschrift"
     // beside "Basislastschrift"). A tag that adds something ("Kartenzahlung"
-    // beside "Lastschrift") stays.
+    // beside "Lastschrift") stays. The bank's text is German, so in another
+    // language the tag never repeats it: there it says what the text means.
     const shown = foldText(bookingText).replace(/ /g, '');
     const repeats = !!shown && foldText(label).split(' ').some((w) => w.length >= 5 && shown.includes(w));
     if (!repeats) {
@@ -428,6 +468,7 @@ const OWN_ROW_TAGS = new Set(['SVWZ', 'EREF', 'MREF', 'CRED', 'KREF']);
  * lives behind the collapsed "Referenzen" section.
  */
 export function referenceRows(tx: SerializedTransaction): RefRow[] {
+  const { common, transactions: { refs } } = msgs();
   const { parsed } = txText(tx);
   const field = (tag: string) => parsed.fields.find((f) => f.tag === tag)?.value ?? '';
   // The tags' own values first, as on paper (lib/print-doc.ts
@@ -435,20 +476,20 @@ export function referenceRows(tx: SerializedTransaction): RefRow[] {
   // everything after "EREF+" — MREF, CRED and the prose — as the End-to-End
   // reference.
   const rows: RefRow[] = [
-    { label: 'End-to-End-Referenz', value: realRef(field('EREF')) || realRef(tx.e2eReference) },
-    { label: 'Mandatsreferenz', value: realRef(field('MREF')) || realRef(tx.mandateReference) },
-    { label: 'Gläubiger-ID', value: txCreditorId(tx) ?? '' },
-    { label: 'Kundenreferenz', value: realRef(tx.customerReference) || realRef(field('KREF')) },
+    { label: refs.e2e, value: realRef(field('EREF')) || realRef(tx.e2eReference) },
+    { label: refs.mandate, value: realRef(field('MREF')) || realRef(tx.mandateReference) },
+    { label: common.booking.creditorId, value: txCreditorId(tx) ?? '' },
+    { label: refs.customer, value: realRef(tx.customerReference) || realRef(field('KREF')) },
     ...parsed.fields.filter((f) => !OWN_ROW_TAGS.has(f.tag)).map((f) => ({ label: f.label, value: f.value })),
-    { label: 'Bankreferenz', value: realRef(tx.bankReference) },
-    { label: 'Primanota', value: String(tx.primeNotesNr ?? '').trim() },
-    { label: 'Auszug-Nr.', value: String(tx.statementNumber ?? '').trim() },
-    { label: 'Geschäftsvorfall-Code', value: String(tx.transactionCode ?? '').trim() },
-    { label: 'Zusatzinformation', value: repairBankText(String(tx.additionalInformation ?? '')).trim() },
+    { label: refs.bank, value: realRef(tx.bankReference) },
+    { label: refs.primanota, value: String(tx.primeNotesNr ?? '').trim() },
+    { label: refs.statementNo, value: String(tx.statementNumber ?? '').trim() },
+    { label: refs.code, value: String(tx.transactionCode ?? '').trim() },
+    { label: refs.extra, value: repairBankText(String(tx.additionalInformation ?? '')).trim() },
   ];
   // The purpose exactly as the bank sent it, when the tidy version above
   // took it apart — some disputes need the original string.
-  if (parsed.fields.length) rows.push({ label: 'Verwendungszweck (Original)', value: repairBankText(tx.purpose ?? '').trim() });
+  if (parsed.fields.length) rows.push({ label: refs.original, value: repairBankText(tx.purpose ?? '').trim() });
   return rows.filter((r) => r.value);
 }
 
@@ -507,7 +548,9 @@ export function transferSeeds(
     };
   }
   if (tx.amount > 0 && !NOT_REFUNDABLE.has(kind) && category !== 'income' && !isBusinessCredit(tx, category)) {
-    const purpose = prose ? `Rückzahlung: ${prose}` : `Rückzahlung vom ${fmtDate(tx.entryDate || tx.valueDate)}`;
+    // The prefilled reference is the user's own, in the language they read.
+    const { seeds } = msgs().transactions;
+    const purpose = prose ? seeds.refund(prose) : seeds.refundDated(fmtDate(tx.entryDate || tx.valueDate));
     return {
       repeat: null,
       refund: { name: rawName, iban, amount, purpose: clip(purpose, PURPOSE_MAX), source: 'refund' },

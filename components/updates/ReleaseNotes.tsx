@@ -5,10 +5,12 @@
 // every other outside link (main.cjs sends them to the real browser).
 
 import { Fragment } from 'react';
+import { useT } from '@/lib/i18n/react';
 import type { Inline, NotesBlock } from '@/lib/release-notes';
 import { ExternalIcon } from '../icons';
 
 function Inlines({ nodes }: { nodes: Inline[] }) {
+  const t = useT();
   return nodes.map((n, i) => {
     switch (n.type) {
       case 'text':
@@ -31,7 +33,7 @@ function Inlines({ nodes }: { nodes: Inline[] }) {
             <Inlines nodes={n.children} />
             {/* As "Auf GitHub": the link opens the browser, not this window. */}
             <ExternalIcon size={12} className="ml-0.5 inline-block align-[-1px]" />
-            <span className="sr-only"> (öffnet extern)</span>
+            <span className="sr-only">{` ${t.shell.opensExternally}`}</span>
           </a>
         );
     }

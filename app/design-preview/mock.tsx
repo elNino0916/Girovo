@@ -1554,6 +1554,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     categoryOf, setCategory,
     removeCategoryRule,
+    // The preview runs no model: its keyword rules alone file the mock bookings.
+    modelGuesses: {},
   } satisfies FintsApi;
 }
 

@@ -4,12 +4,11 @@ import type { StatementInfo } from '@/lib/app-types';
 import { csvScope } from '@/lib/csv';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { daysLabel } from '@/lib/analytics';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { useCsvExport } from '../shell/actions';
 import { ChevronIcon, DownloadIcon, FilterIcon } from '../icons';
 import { Button, Menu, MenuItem, cx } from '../ui';
-
-const umsaetze = (n: number) => `${n.toLocaleString('de-DE')} ${n === 1 ? 'Umsatz' : 'Umsätze'}`;
 
 /**
  * The Umsätze as a German-Excel CSV — all of them, or just what the filter
@@ -30,8 +29,11 @@ export function ExportMenu({
 }) {
   const { activeAccount, txFilter } = useFints();
   const saveCsv = useCsvExport();
+  const t = useT();
   if (!activeAccount) return null;
 
+  const words = t.transactions.exportMenu;
+  const count = t.transactions.count;
   const range = loaded ? { from: loaded.from, to: loaded.to } : null;
   const nothing = !range || all.length === 0;
   const scope = range ? csvScope(txFilter, range) : null;
@@ -40,7 +42,7 @@ export function ExportMenu({
 
   return (
     <Menu
-      label="Umsätze exportieren"
+      label={words.label}
       placement="bottom-end"
       minWidth={288}
       trigger={(p, { open }) => (
@@ -48,36 +50,36 @@ export function ExportMenu({
           {...p}
           size="sm"
           variant="tertiary"
-          aria-label="Export"
+          aria-label={words.button}
           iconLeft={<DownloadIcon size={16} />}
           iconRight={<ChevronIcon size={14} strokeWidth={2} className={cx('-mr-1 hidden transition-transform duration-150 sm:block', open && 'rotate-180')} />}
           className="max-sm:px-2.5"
         >
-          <span className="hidden sm:inline">Export</span>
+          <span className="hidden sm:inline">{words.button}</span>
         </Button>
       )}
     >
       <MenuItem
         icon={<DownloadIcon />}
         disabled={nothing}
-        description={nothing ? 'Keine Umsätze im Zeitraum' : `${umsaetze(all.length)} · für Excel`}
+        description={nothing ? words.nothing : words.forExcel(count(all.length))}
         onSelect={() => range && void saveCsv(all, range)}
       >
-        Alle Umsätze als CSV
+        {words.all}
       </MenuItem>
       <MenuItem
         icon={<FilterIcon />}
         disabled={nothing || !narrowed || filtered.length === 0}
         description={
           !narrowed
-            ? 'Kein Filter aktiv'
+            ? words.noFilter
             : filtered.length === 0
-              ? 'Der Filter zeigt keine Umsätze'
-              : days ? `${umsaetze(filtered.length)} · ${daysLabel(days.from, days.to)}` : umsaetze(filtered.length)
+              ? words.filterEmpty
+              : days ? `${count(filtered.length)} · ${daysLabel(days.from, days.to)}` : count(filtered.length)
         }
         onSelect={() => scope && void saveCsv(filtered, scope.span, { filtered: scope.filtered })}
       >
-        Gefilterte Umsätze als CSV
+        {words.filtered}
       </MenuItem>
     </Menu>
   );

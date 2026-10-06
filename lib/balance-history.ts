@@ -9,8 +9,8 @@
 // each block's bookings must carry its opening exactly onto its closing, and
 // each block must open where the one before it closed. Only a chain that
 // holds end to end — no missing balance, no gap, no stray cent — becomes a
-// chart. Anything else returns `verified: false` with a reason in plain German
-// for the quiet note that replaces the chart.
+// chart. Anything else returns `verified: false` with a reason in plain words
+// (lib/i18n, read when it is read) for the quiet note that replaces the chart.
 //
 // Given a verified chain, the series is anchored on the newest closing
 // balance and walked back by local Buchungstag: the balance at the end of day
@@ -22,6 +22,7 @@
 import type { SerializedTransaction, StatementBlock } from './fints-types';
 import type { DateRange } from './app-types';
 import { addDaysKey, dayKey, dayNumber } from './format.ts';
+import { msgs, type Messages } from './i18n/index.ts';
 
 export type BalancePoint = {
   /** Local yyyy-mm-dd. */
@@ -51,7 +52,15 @@ const MAX_DAYS = 4000;
 
 const cents = (v: number) => Math.round(v * 100);
 
-const fail = (reason: string): BalanceHistory => ({ verified: false, reason });
+type Reason = keyof Messages['insights']['balanceHistory'];
+
+/** No history, and why — the words read where they are shown, so they follow the language. */
+const fail = (reason: Reason): BalanceHistory => ({
+  verified: false,
+  get reason() {
+    return msgs().insights.balanceHistory[reason];
+  },
+});
 
 type Block = {
   open: number;
@@ -194,16 +203,16 @@ export function buildBalanceHistory(input: {
 }): BalanceHistory {
   const from = dayKey(input.range?.from);
   const to = dayKey(input.range?.to);
-  if (!from || !to || from > to) return fail('Der Zeitraum ist ungültig.');
+  if (!from || !to || from > to) return fail('invalidRange');
 
   const raw = input.blocks ?? [];
-  if (!raw.length) return fail('Die Bank hat zu diesem Abruf keine Salden geliefert.');
+  if (!raw.length) return fail('noBalances');
   if (raw.some((b) => b.openingBalance == null || b.closingBalance == null || !b.openingDate || !b.closingDate)) {
-    return fail('Die Bank hat nicht zu jedem Kontoauszug einen Anfangs- und Endsaldo geliefert.');
+    return fail('missingBalances');
   }
   const currency = raw[0].currency || 'EUR';
   if (raw.some((b) => (b.currency || 'EUR') !== currency) || input.txs.some((t) => (t.currency || currency) !== currency)) {
-    return fail('Die Umsätze sind in mehr als einer Währung geführt.');
+    return fail('currencies');
   }
 
   const blocks = orderBlocks(
@@ -217,12 +226,12 @@ export function buildBalanceHistory(input: {
     })),
   );
   if (blocks.some((b) => !b.openDay || !b.closeDay)) {
-    return fail('Die Bank hat nicht zu jedem Kontoauszug einen Anfangs- und Endsaldo geliefert.');
+    return fail('missingBalances');
   }
 
   for (let k = 1; k < blocks.length; k++) {
     if (blocks[k].open !== blocks[k - 1].close) {
-      return fail('Die Kontoauszüge der Bank schließen nicht lückenlos aneinander an.');
+      return fail('gap');
     }
   }
 
@@ -232,15 +241,15 @@ export function buildBalanceHistory(input: {
     index,
   }));
   if (bookings.some((b) => !b.day || !Number.isFinite(b.cents))) {
-    return fail('Nicht jeder Umsatz hat ein gültiges Buchungsdatum und einen Betrag.');
+    return fail('badBooking');
   }
   if (blocks.reduce((s, b) => s + b.count, 0) !== bookings.length) {
-    return fail('Die Zahl der Umsätze passt nicht zu den Kontoauszügen der Bank.');
+    return fail('count');
   }
 
   const byDate = assignByDate(blocks, bookings);
   const proof = (byDate && prove(blocks, byDate)) || prove(blocks, assignByCount(blocks, bookings));
-  if (!proof) return fail('Die Umsätze ergeben nicht die Salden, die die Bank meldet.');
+  if (!proof) return fail('sum');
 
   // Adding up is not enough: the walk-back hangs every booking on its date, so
   // each date must lie inside the statement block the booking belongs to — not
@@ -252,7 +261,7 @@ export function buildBalanceHistory(input: {
   // the booking — the curve would contradict the bank's own opening balance.
   const last = blocks.length - 1;
   if (proof.assigned.some((list, k) => list.some((b) => b.day < blocks[k].openDay || (k < last && b.day > blocks[k].closeDay)))) {
-    return fail('Die Buchungsdaten passen nicht zu den Kontoauszügen der Bank.');
+    return fail('dates');
   }
 
   // Where the bank's figures start to cover the account. An opening balance
@@ -266,7 +275,7 @@ export function buildBalanceHistory(input: {
   // only if no booking is dated on or before it. Blocks that overlap in time
   // could still put one there.
   if (proof.included.some((b) => b.day <= covered)) {
-    return fail('Die Buchungsdaten passen nicht zu den Kontoauszügen der Bank.');
+    return fail('dates');
   }
 
   let end = to;
@@ -276,9 +285,9 @@ export function buildBalanceHistory(input: {
     if (stop < end) end = stop;
   }
   const start = covered > from ? covered : from;
-  if (start > end) return fail('Für diesen Zeitraum liegen keine geprüften Salden vor.');
+  if (start > end) return fail('unverified');
   const span = dayNumber(end) - dayNumber(start) + 1;
-  if (span > MAX_DAYS) return fail('Der Zeitraum ist zu lang für einen Kontoverlauf.');
+  if (span > MAX_DAYS) return fail('tooLong');
 
   // Walk back from the anchor: first everything dated after the last point,
   // then one day at a time.

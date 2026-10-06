@@ -7,6 +7,7 @@
 
 import { dayKey } from './format.ts';
 import type { SerializedAccount, SerializedBalance } from './fints-types';
+import { intlLocale, msgs } from './i18n/index.ts';
 
 type Capabilities = Pick<SerializedAccount, 'canStatements' | 'canBalance'>;
 
@@ -123,11 +124,19 @@ export function balanceQueue<A extends Pick<SerializedAccount, 'accountNumber'> 
   return queue;
 }
 
-const LIST = new Intl.ListFormat('de-DE', { style: 'long', type: 'conjunction' });
+/** One list format per Intl locale, made on first use. */
+const LISTS = new Map<string, Intl.ListFormat>();
 
-/** "Tagesgeld", "Tagesgeld und Depot", "Giro, Tagesgeld und Depot". */
+/**
+ * "Tagesgeld", "Tagesgeld und Depot", "Giro, Tagesgeld und Depot" — joined
+ * the way the language speaking right now joins a list ("Giro, Tagesgeld and
+ * Depot").
+ */
 export function namesList(names: readonly string[]): string {
-  return LIST.format(names.filter((n) => n.trim()));
+  const locale = intlLocale();
+  let list = LISTS.get(locale);
+  if (!list) LISTS.set(locale, (list = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' })));
+  return list.format(names.filter((n) => n.trim()));
 }
 
 /**
@@ -136,7 +145,8 @@ export function namesList(names: readonly string[]): string {
  */
 export function failureSentence(failed: ReadonlyArray<{ name: string; message: string }>): string | null {
   if (!failed.length) return null;
-  const names = namesList(failed.map((f) => `„${f.name}“`));
+  const words = msgs().insights.balances;
+  const names = namesList(failed.map((f) => words.quoted(f.name)));
   const reasons = [...new Set(failed.map((f) => f.message.trim()).filter(Boolean))];
-  return `Abruf für ${names} fehlgeschlagen${reasons.length === 1 ? `: ${reasons[0]}` : '.'}`;
+  return words.fetchFailed(names, reasons.length === 1 ? reasons[0] : null);
 }

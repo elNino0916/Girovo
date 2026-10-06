@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { TRY_AGAIN_LATER, isBankOutage } from '@/lib/bank-answer';
+import { isBankOutage } from '@/lib/bank-answer';
 import { APPROVAL_APP } from '@/lib/brands';
 import type { SerializedTanMethod } from '@/lib/fints-types';
+import { intlLocale } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
 import { BankAnswerAlert } from './BankAnswer';
 import { AuthCard } from './auth/AuthShell';
 import { useFints } from './FintsProvider';
@@ -42,15 +44,15 @@ function rowsFor(methods: SerializedTanMethod[]): Row[] {
   });
 }
 
-const listOf = (names: string[]) => new Intl.ListFormat('de', { style: 'long', type: 'conjunction' }).format(names);
-
-/** Said before the fact, here and in the wide layout's side tile. */
-const DEVICE_MEMORY = 'Nach der ersten Freigabe merkt sich die App dieses Gerät – rückgängig mit „Gerät vergessen“ im Sitzungsmenü.';
+/** "chipTAN, smsTAN und TAN-Generator", in the language on screen. */
+const listOf = (names: string[]) => new Intl.ListFormat(intlLocale(), { style: 'long', type: 'conjunction' }).format(names);
 
 export function TanMethodPicker() {
   const {
     bank, tanMethods, mediaChoice, selectedMethod, tanMethodError, chooseTanMethod, clearMediaChoice, setView,
   } = useFints();
+  const t = useT();
+  const tm = t.auth.tanMethod;
   const autoPicked = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -101,9 +103,9 @@ export function TanMethodPicker() {
     <AuthCard step="approval" aside={<ApprovalAside />}>
       {pickingMedia ? (
         <>
-          <Heading refEl={headingRef} title="Gerät wählen">
-            Auf welchem Gerät möchtest du freigeben?
-            <span className="mt-1 block text-ink-3">Verfahren: {selectedMethod!.name}</span>
+          <Heading refEl={headingRef} title={tm.chooseDevice}>
+            {tm.chooseDeviceText}
+            <span className="mt-1 block text-ink-3">{tm.method(selectedMethod!.name)}</span>
           </Heading>
           <ul className="mt-6 flex flex-col gap-1">
             {mediaChoice!.map((name) => (
@@ -126,19 +128,19 @@ export function TanMethodPicker() {
               disabled={busy}
               onClick={clearMediaChoice}
             >
-              Anderes Verfahren
+              {tm.otherMethod}
             </Button>
           )}
         </>
       ) : connectingOnly ? (
         <>
-          <Heading refEl={headingRef} title="Sicherheitsverfahren">
-            Deine Bank bietet für diesen Zugang nur ein Verfahren an.
+          <Heading refEl={headingRef} title={tm.title}>
+            {tm.onlyOne}
           </Heading>
           {busy || !tanMethodError ? (
             <p role="status" className="mt-6 flex items-center gap-3 rounded-[var(--radius-chip)] bg-inset px-4 py-4 text-[15px] text-ink">
               <Spinner size={18} className="text-headline" />
-              <span>Verbinde über <span className="font-semibold">{only!.title}</span> …</span>
+              <span>{rich(tm.connectingVia(<span className="font-semibold">{only!.title}</span>))}</span>
             </p>
           ) : (
             <Button
@@ -146,15 +148,15 @@ export function TanMethodPicker() {
               className="mt-6"
               onClick={() => run(only!.key, only!.method, only!.media)}
             >
-              Erneut versuchen
+              {t.common.retry}
             </Button>
           )}
-          <p className="mt-5 text-[13px] leading-snug text-ink-3 lg:hidden">{DEVICE_MEMORY}</p>
+          <p className="mt-5 text-[13px] leading-snug text-ink-3 lg:hidden">{tm.deviceMemory}</p>
         </>
       ) : rows.length ? (
         <>
-          <Heading refEl={headingRef} title="Sicherheitsverfahren">
-            Wähle, wie du Anmeldung und Aufträge freigibst. Die Freigabe erfolgt direkt in deiner Banking-App.
+          <Heading refEl={headingRef} title={tm.title}>
+            {tm.choose}
           </Heading>
           <ul className="mt-6 flex flex-col gap-1">
             {rows.map((r) => (
@@ -171,27 +173,20 @@ export function TanMethodPicker() {
           </ul>
           {typed.length > 0 && (
             <p className="mt-3 text-[13px] leading-snug text-ink-3">
-              {listOf(typed.map((m) => m.name))} {typed.length === 1 ? 'braucht' : 'brauchen'} eine TAN-Eingabe
-              und {typed.length === 1 ? 'geht' : 'gehen'} hier nicht.
+              {tm.typedNote(listOf(typed.map((m) => m.name)), typed.length)}
             </p>
           )}
-          <p className="mt-5 text-[13px] leading-snug text-ink-3 lg:hidden">{DEVICE_MEMORY}</p>
+          <p className="mt-5 text-[13px] leading-snug text-ink-3 lg:hidden">{tm.deviceMemory}</p>
         </>
       ) : (
         <>
-          <Heading refEl={headingRef} title="Sicherheitsverfahren">
-            Für diesen Zugang gibt es kein Verfahren, das hier funktioniert.
+          <Heading refEl={headingRef} title={tm.title}>
+            {tm.none}
           </Heading>
           {typed.length > 0 && (
-            <Alert tone="warn" className="mt-6" title="Nur Verfahren mit TAN-Eingabe">
-              <p>
-                Für deinen Zugang meldet deine Bank: {listOf(typed.map((m) => m.name))}. Hier geht aber nur die
-                Freigabe in einer Banking-App.
-              </p>
-              <p className="mt-1.5">
-                Frag deine Bank nach der Freigabe per App{app ? ` (z.\u00a0B. ${app})` : ''} oder stell sie in deinem
-                Online-Banking um. Danach kannst du dich hier anmelden.
-              </p>
+            <Alert tone="warn" className="mt-6" title={tm.onlyTypedTitle}>
+              <p>{tm.onlyTyped(listOf(typed.map((m) => m.name)))}</p>
+              <p className="mt-1.5">{tm.askBank(app)}</p>
             </Alert>
           )}
         </>
@@ -199,13 +194,13 @@ export function TanMethodPicker() {
 
       {tanMethodError && (
         <BankAnswerAlert message={tanMethodError} className="mt-4">
-          {isBankOutage(tanMethodError) && <p>{TRY_AGAIN_LATER}</p>}
+          {isBankOutage(tanMethodError) && <p>{t.provider.bank.tryAgainLater}</p>}
         </BankAnswerAlert>
       )}
 
       {/* Rows announce nothing themselves (a button's content is its name);
           this says what the click set going. */}
-      <p role="status" className="sr-only">{busy ? 'Verbinde mit der Bank …' : ''}</p>
+      <p role="status" className="sr-only">{busy ? t.auth.connecting : ''}</p>
 
       <div className="mt-6 border-t border-line pt-4">
         <Button
@@ -217,7 +212,7 @@ export function TanMethodPicker() {
           // answers must not trap the user on this screen.
           onClick={() => setView('login')}
         >
-          Zurück zur Anmeldung
+          {tm.back}
         </Button>
       </div>
     </AuthCard>
@@ -232,14 +227,16 @@ export function TanMethodPicker() {
  * stage above already counts the steps of the login.
  */
 function ApprovalAside() {
+  const tm = useT().auth.tanMethod;
+  const a = tm.aside;
   const steps: { icon: ReactNode; title: string; text: string }[] = [
-    { icon: <ShieldIcon size={18} check />, title: 'Verfahren wählen', text: 'Das, mit dem du auch im Online-Banking deiner Bank freigibst.' },
-    { icon: <PhoneIcon size={18} />, title: 'Banking-App öffnen', text: 'Deine Bank schickt die Anfrage an das Gerät, das du dort hinterlegt hast.' },
-    { icon: <CheckCircleIcon size={18} />, title: 'Anfrage bestätigen', text: 'Danach geht es hier von selbst weiter.' },
+    { icon: <ShieldIcon size={18} check />, title: a.chooseTitle, text: a.chooseText },
+    { icon: <PhoneIcon size={18} />, title: a.openTitle, text: a.openText },
+    { icon: <CheckCircleIcon size={18} />, title: a.confirmTitle, text: a.confirmText },
   ];
   return (
     <aside aria-labelledby="tan-aside-title" className="panel px-6 pt-6 pb-6">
-      <h2 id="tan-aside-title" className="section-head">So läuft die Freigabe</h2>
+      <h2 id="tan-aside-title" className="section-head">{a.title}</h2>
       <ol className="mt-5 flex flex-col gap-5">
         {steps.map((st) => (
           <li key={st.title} className="flex items-start gap-3.5">
@@ -253,7 +250,7 @@ function ApprovalAside() {
           </li>
         ))}
       </ol>
-      <p className="mt-6 border-t border-line pt-4 text-[13px] leading-snug text-ink-3">{DEVICE_MEMORY}</p>
+      <p className="mt-6 border-t border-line pt-4 text-[13px] leading-snug text-ink-3">{tm.deviceMemory}</p>
     </aside>
   );
 }

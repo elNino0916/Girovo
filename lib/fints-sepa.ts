@@ -360,7 +360,8 @@ export class SepaTransferInteraction extends CustomerOrderInteraction {
 
     if (!this.sepaMessage || !this.sepaDescriptor) {
       const descriptor = pickSepaDescriptor(config, this.segId);
-      const debtorName = sepaSanitize([account.holder1, account.holder2].filter(Boolean).join(' '), 70) || 'Auftraggeber';
+      // Goes into the order the bank receives, in the bank's language whatever the app's.
+      const debtorName = sepaSanitize([account.holder1, account.holder2].filter(Boolean).join(' '), 70) || 'Auftraggeber'; // i18n-data
       this.sepaDescriptor = descriptor;
       this.sepaMessage = buildPain001({
         descriptor,

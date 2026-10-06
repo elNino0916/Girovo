@@ -47,10 +47,15 @@ export function scoreEntry(entry: PaletteEntry, query: string): number {
   return fuzzyScore(entry.label, query, entry.keywords);
 }
 
+/** The shortest word of a keyword phrase that answers for the whole phrase. */
+const PHRASE_WORD_MIN = 5;
+
 /**
  * Whether a last-resort entry answers `query` (trimmed): from three
  * characters on, the start of its label, or the whole of one of its keywords
- * or of a word in one ("sitzung" of "sitzung beenden").
+ * or of a word in one that says something on its own ("sitzung" of "sitzung
+ * beenden") — five letters or more, so "log", "out" and "sign" of "log out"
+ * and "sign out" never do: they are the start of far too much else.
  */
 export function answersLastResort(entry: PaletteEntry, query: string): boolean {
   const q = fold(query);
@@ -58,7 +63,7 @@ export function answersLastResort(entry: PaletteEntry, query: string): boolean {
   if (fold(entry.label).startsWith(q)) return true;
   return (entry.keywords ?? []).some((k) => {
     const kw = fold(k);
-    return kw === q || kw.split(' ').includes(q);
+    return kw === q || (q.length >= PHRASE_WORD_MIN && kw.split(' ').includes(q));
   });
 }
 

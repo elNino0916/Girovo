@@ -39,6 +39,11 @@ export type CategorizeContext = {
   overrides?: Record<string, CategoryId> | null;
   /** The company the logo lookup resolved this counterparty to, if any. */
   merchantLabel?: string | null;
+  /**
+   * counterpartyKey() → the on-device model's guess (lib/category-model.ts),
+   * for the outgoing bookings no keyword matched.
+   */
+  modelGuesses?: Readonly<Record<string, CategoryId>> | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -250,6 +255,19 @@ export function bookingKind(
   return credit ? 'gutschrift' : 'sonstige';
 }
 
+/**
+ * Whether the account's own bank made this booking — the Abschluss, a fee,
+ * interest: booked as one, with no account on the other side. A fee or
+ * interest that came from elsewhere (a provider's direct debit, another
+ * bank's interest transferred in) carries that account's IBAN and is not.
+ */
+export function isBankOwnBooking(
+  tx: Pick<SerializedTransaction, 'transactionCode' | 'bookingText' | 'amount' | 'remoteIban'> & { purpose?: string | null },
+): boolean {
+  const kind = bookingKind(tx);
+  return (kind === 'entgelt' || kind === 'zinsen') && !String(tx.remoteIban ?? '').trim();
+}
+
 // ---------------------------------------------------------------------------
 // Keyword dictionaries
 //
@@ -293,7 +311,8 @@ const KEYWORDS: readonly (readonly [CategoryId, readonly string[]])[] = [
     'REWE', 'EDEKA', 'ALDI', 'LIDL', '^NETTO', 'NETTO MARKEN DISCOUNT', '^PENNY', 'PENNY MARKT', 'KAUFLAND',
     '^DM', 'DM DROGERIE*', 'ROSSMANN', 'MUELLER DROGERIE', 'DROGERIE MUELLER', 'MUELLER HANDELS', '!^MUELLER',
     '!^NORMA', 'TEGUT', 'GLOBUS', 'MARKTKAUF', 'FAMILA', 'NAH UND GUT', 'DENNS', 'ALNATURA', 'BIO COMPANY',
-    'BUDNI*', 'PICNIC', '@FLINK', 'KNUSPR', '*BAECKEREI', 'BAECKEREI*', '*METZGEREI', 'METZGEREI*',
+    'BUDNI*', 'PICNIC', '@FLINK', 'KNUSPR', '*BAECKEREI', 'BAECKEREI*', '!BAECKER', 'BACKSTUBE*', '*BACKSTUBE',
+    '*METZGEREI', 'METZGEREI*',
     'WOCHENMARKT', '*SUPERMARKT', 'SUPERMARKT*', 'LEBENSMITTEL*', 'GETRAENKEMARKT', 'GETRAENKE*',
     'DROGERIE*',
   ]],
@@ -314,6 +333,9 @@ const KEYWORDS: readonly (readonly [CategoryId, readonly string[]])[] = [
     'KABEL DEUTSCHLAND', 'PYUR', 'FREENET', 'MOBILCOM', 'KLARMOBIL', 'ALDI TALK', 'LIDL CONNECT', 'WINSIM',
     'SIMYO', '@BLAU', '@FRAENK', 'NETCOLOGNE', 'M NET', 'WAIPU', 'JOYN', '@RTL', 'PARAMOUNT', 'CRUNCHYROLL',
     'DEEZER', '@TIDAL', 'MICROSOFT', 'ADOBE', 'DROPBOX', 'OPENAI', 'CHATGPT', 'PATREON', 'EWE TEL',
+    // Web hosting, servers and domains.
+    '@HETZNER', '@IONOS', '@STRATO', '@NETCUP', 'ALL INKL', '@HOSTINGER', 'DIGITALOCEAN', 'HOST EUROPE',
+    'DOMAINFACTORY', '@GITHUB',
   ]],
   ['insurance', [
     'ALLIANZ', 'HUK', 'HUK24', 'HUK COBURG', 'AXA', '@ERGO', 'DEVK', 'GENERALI', '@R V', 'DEBEKA', 'HANSEMERKUR',
@@ -482,7 +504,7 @@ export function keywordCategory(
  */
 export function guessCategory(
   tx: SerializedTransaction,
-  ctx: { ownIbans?: ReadonlySet<string> | readonly string[] | null; merchantLabel?: string | null } = {},
+  ctx: Pick<CategorizeContext, 'merchantLabel' | 'modelGuesses'> & { ownIbans?: ReadonlySet<string> | readonly string[] | null } = {},
 ): CategoryId {
   if (isOwnAccount(tx.remoteIban, ctx.ownIbans)) return 'transfer';
 
@@ -495,7 +517,15 @@ export function guessCategory(
   // customer's accounts — an own account this session just doesn't list.
   if (/(^| )UMBUCHUNG/.test(foldText(tx.bookingText))) return 'transfer';
 
-  return keywordCategory(tx, ctx.merchantLabel, kind) ?? (credit ? 'otherIn' : 'other');
+  const keyword = keywordCategory(tx, ctx.merchantLabel, kind);
+  if (keyword) return keyword;
+  // What the keywords missed, the on-device model may know — money going out
+  // only (see lib/category-model.ts), and only a spending category.
+  if (!credit && ctx.modelGuesses) {
+    const guess = ctx.modelGuesses[counterpartyKey(tx)];
+    if (isCategoryId(guess) && categoryDef(guess).direction === 'out') return guess;
+  }
+  return credit ? 'otherIn' : 'other';
 }
 
 // A credit that is itself a refund or a reversal, in the payer's words. In

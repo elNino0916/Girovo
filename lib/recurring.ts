@@ -51,11 +51,12 @@
 import type { SerializedTransaction } from './fints-types';
 import type { CategoryId, CategoryResult } from './categories';
 import { facilitatorShop } from './analytics.ts';
-import { categoryDef, counterpartyName, intermediaryName, txCreditorId as creditorIdOf } from './categories.ts';
+import { categoryDef, categoryLabel, counterpartyName, intermediaryName, txCreditorId as creditorIdOf } from './categories.ts';
 import { bookingKind, foldText, guessCategory, isOwnAccount } from './categorize.ts';
 import {
   addBusinessDays, addDaysKey, dayFromNumber, dayKey, dayNumber, isTargetBusinessDay, nextTargetBusinessDay, prettyBookingText,
 } from './format.ts';
+import { msgs } from './i18n/index.ts';
 import { parsePurpose } from './sepa-purpose.ts';
 
 export type Cadence = 'weekly' | 'monthly' | 'quarterly' | 'halfyearly' | 'yearly';
@@ -70,21 +71,20 @@ type CadenceDef = {
   /** Fewest bookings that make a series. */
   min: number;
   perYear: number;
-  label: string;
 };
 
 const CADENCES: readonly CadenceDef[] = [
-  { id: 'weekly', days: 7, tol: 2, months: 0, min: 3, perYear: 52, label: 'wöchentlich' },
-  { id: 'monthly', days: 30.4, tol: 4, months: 1, min: 3, perYear: 12, label: 'monatlich' },
-  { id: 'quarterly', days: 91, tol: 8, months: 3, min: 2, perYear: 4, label: 'vierteljährlich' },
-  { id: 'halfyearly', days: 182, tol: 12, months: 6, min: 2, perYear: 2, label: 'halbjährlich' },
-  { id: 'yearly', days: 365, tol: 20, months: 12, min: 2, perYear: 1, label: 'jährlich' },
+  { id: 'weekly', days: 7, tol: 2, months: 0, min: 3, perYear: 52 },
+  { id: 'monthly', days: 30.4, tol: 4, months: 1, min: 3, perYear: 12 },
+  { id: 'quarterly', days: 91, tol: 8, months: 3, min: 2, perYear: 4 },
+  { id: 'halfyearly', days: 182, tol: 12, months: 6, min: 2, perYear: 2 },
+  { id: 'yearly', days: 365, tol: 20, months: 12, min: 2, perYear: 1 },
 ];
 
 const CADENCE_BY_ID = new Map(CADENCES.map((c) => [c.id, c]));
 
-/** "monatlich", "vierteljährlich", … */
-export const cadenceLabel = (c: Cadence): string => CADENCE_BY_ID.get(c)?.label ?? '';
+/** "monatlich", "vierteljährlich", … — in the language speaking right now (lib/i18n). */
+export const cadenceLabel = (c: Cadence): string => (CADENCE_BY_ID.has(c) ? msgs().insights.cadence[c] : '');
 
 export type RecurringSeries = {
   /** Stable across reloads: a hash of the grouping key. What "Kein Vertrag" stores. */
@@ -92,7 +92,11 @@ export type RecurringSeries = {
   /** The grouping key itself, e.g. "out|cred:DE98ZZZ09999999999|mref:M-1". */
   key: string;
   kind: 'income' | 'expense';
-  /** As the bank wrote it on the newest booking (raw — run it through displayName). */
+  /**
+   * As the bank wrote it on the newest booking (raw — run it through
+   * displayName). A series whose bookings name nobody is "Unbekannt", read
+   * when it is read, so it follows the language.
+   */
   name: string;
   iban: string | null;
   creditorId: string | null;
@@ -102,6 +106,7 @@ export type RecurringSeries = {
   /** The newest booking's category (the user's choice when categoryOf is given). */
   category: CategoryId;
   cadence: Cadence;
+  /** The rhythm in words, read when it is read — a change of language reaches it. */
   cadenceLabel: string;
   /** Median gap between bookings, in days. */
   intervalDays: number;
@@ -148,6 +153,12 @@ export type DetectOptions = {
   dismissed?: readonly string[];
   /** The provider's categoryOf, so a series shows the category the user sees. */
   categoryOf?: (tx: SerializedTransaction) => CategoryResult;
+  /**
+   * The on-device model's category guesses (counterpartyKey → category), so
+   * a habit the keywords did not know — a local bakery, a filling station —
+   * is told from a contract the same way a known chain is.
+   */
+  modelGuesses?: Readonly<Record<string, CategoryId>> | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -476,7 +487,7 @@ function buildSeries(
   occ: readonly Occurrence[],
   ref: number,
   categoryOf: DetectOptions['categoryOf'],
-  ownIbans: DetectOptions['ownIbans'],
+  guessCtx: Pick<DetectOptions, 'ownIbans' | 'modelGuesses'>,
 ): RecurringSeries | null {
   const newest = occ[occ.length - 1].tx;
   const kinds = occ.map((o) => bookingKind(o.tx));
@@ -496,12 +507,12 @@ function buildSeries(
   if (occ.length < min) return null;
 
   const abs = occ.map((o) => o.abs);
-  const category = categoryOf ? categoryOf(newest).id : guessCategory(newest, { ownIbans });
+  const category = categoryOf ? categoryOf(newest).id : guessCategory(newest, guessCtx);
   if (arranged) {
     if (!stableAmounts(abs, group.salary ? 0.25 : 0.15)) return null;
   } else if (
     kinds.includes('karte')
-    && (HABIT_CATEGORIES.has(category) || HABIT_CATEGORIES.has(guessCategory(newest, { ownIbans })))
+    && (HABIT_CATEGORIES.has(category) || HABIT_CATEGORIES.has(guessCategory(newest, guessCtx)))
   ) {
     if (!identicalAmounts(abs)) return null;
   } else if (!steadyAmounts(abs, group.salary ? 0.25 : 0.1)) {
@@ -525,19 +536,25 @@ function buildSeries(
   // A subscription paid through PayPal is the shop's ("Netflix"), as the
   // purpose names it — not "PayPal Europe S.à r.l. et Cie S.C.A".
   const shop = group.facilitator ? facilitatorShop(newest) : null;
+  const named = shop || counterpartyName(newest) || prettyBookingText(newest.bookingText);
 
   return {
     id: seriesId(key),
     key,
     kind: group.credit ? 'income' : 'expense',
-    name: shop || counterpartyName(newest) || prettyBookingText(newest.bookingText) || 'Unbekannt',
+    // Words, not data, where the bookings name nobody: read when they are read.
+    get name() {
+      return named || msgs().insights.contracts.unknown;
+    },
     iban,
     creditorId: group.cred,
     mandateReference: group.mref,
     directDebit,
     category,
     cadence: cadence.id,
-    cadenceLabel: cadence.label,
+    get cadenceLabel() {
+      return cadenceLabel(cadence.id);
+    },
     intervalDays: interval,
     amount: (sign * typical) / 100,
     lastAmount: (sign * lastAbs) / 100,
@@ -611,7 +628,8 @@ export function detectRecurring(txs: readonly SerializedTransaction[], opts: Det
   const until = opts.until ? dayKey(opts.until) : today;
   const ref = dayNumber(until && until < today ? until : today);
   const dismissed = new Set(opts.dismissed ?? []);
-  const { ownIbans, categoryOf } = opts;
+  const { ownIbans, categoryOf, modelGuesses } = opts;
+  const guessCtx = { ownIbans, modelGuesses };
 
   const groups = new Map<string, Group>();
   for (const tx of txs) {
@@ -620,7 +638,7 @@ export function detectRecurring(txs: readonly SerializedTransaction[], opts: Det
     if (isOwnAccount(tx.remoteIban, ownIbans)) continue;
     const kind = bookingKind(tx);
     if (kind === 'bargeld' || kind === 'ruecklastschrift') continue;
-    const guess = guessCategory(tx, { ownIbans });
+    const guess = guessCategory(tx, guessCtx);
     if (guess === 'transfer' || guess === 'cash') continue;
     if (guess === 'groceries' && kind !== 'lastschrift') continue;
     if (categoryOf && categoryDef(categoryOf(tx).id).neutral) continue;
@@ -645,7 +663,7 @@ export function detectRecurring(txs: readonly SerializedTransaction[], opts: Det
   }
 
   const out: RecurringSeries[] = [];
-  const build = (key: string, g: Group, occ: readonly Occurrence[]) => buildSeries(key, g, occ, ref, categoryOf, ownIbans);
+  const build = (key: string, g: Group, occ: readonly Occurrence[]) => buildSeries(key, g, occ, ref, categoryOf, guessCtx);
   /** "…|amt:13" — the euros a sub-series is filed under (keeps ids users dismissed stable). */
   const amountKey = (g: Group, occ: readonly Occurrence[]) => `${g.key}|amt:${Math.round(median(occ.map((o) => o.abs)) / 100)}`;
 
@@ -717,18 +735,33 @@ const FAMILY_OF: Partial<Record<CategoryId, RecurringFamily>> = {
   savings: 'savings',
 };
 
+/**
+ * Each group's heading — the category's own name, where a group is one
+ * category. Read when it is read, so a change of language reaches it.
+ */
 export const RECURRING_FAMILY_LABEL: Record<RecurringFamily, string> = {
-  housing: 'Wohnen & Energie',
-  media: 'Abos & Medien',
-  insurance: 'Versicherungen',
-  other: 'Weitere Verträge',
-  savings: 'Sparen & Anlegen',
+  get housing() {
+    return categoryLabel('housing');
+  },
+  get media() {
+    return categoryLabel('media');
+  },
+  get insurance() {
+    return categoryLabel('insurance');
+  },
+  get other() {
+    return msgs().insights.contracts.otherContracts;
+  },
+  get savings() {
+    return categoryLabel('savings');
+  },
 };
 
 const FAMILY_ORDER: readonly RecurringFamily[] = ['housing', 'media', 'insurance', 'other', 'savings'];
 
 export type RecurringGroup = {
   id: RecurringFamily;
+  /** RECURRING_FAMILY_LABEL's, read when it is read. */
   label: string;
   /** Biggest monthly weight first. */
   series: RecurringSeries[];
@@ -756,7 +789,16 @@ export function recurringGroups(series: readonly RecurringSeries[], currency: st
   return FAMILY_ORDER.filter((f) => by.has(f)).map((f) => {
     const list = by.get(f)!;
     const totals = recurringTotals(list, currency);
-    return { id: f, label: RECURRING_FAMILY_LABEL[f], series: list, monthly: totals.monthlyExpense, yearly: totals.yearlyExpense, currency };
+    return {
+      id: f,
+      get label() {
+        return RECURRING_FAMILY_LABEL[f];
+      },
+      series: list,
+      monthly: totals.monthlyExpense,
+      yearly: totals.yearlyExpense,
+      currency,
+    };
   });
 }
 

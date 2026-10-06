@@ -5,7 +5,9 @@ import type { ReactNode } from 'react';
 import { bankAnswerLines, formatBankAnswer, refusalReference } from '@/lib/bank-answer';
 import { fmtIban } from '@/lib/format';
 import type { SerializedTanMethod } from '@/lib/fints-types';
-import { useFints, type WaitKind, type WaitOrder, type WaitState } from './FintsProvider';
+import type { Messages } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
+import { useFints, type WaitOrder, type WaitState } from './FintsProvider';
 import { AlertTriangleIcon, BoltIcon, CheckCircleIcon, ClockIcon, CloseIcon, InfoIcon, PhoneIcon } from './icons';
 import { Money } from './Money';
 import { VopBadge } from './VopResult';
@@ -26,45 +28,10 @@ export function TanWaitOverlay() {
   return <TanWait />;
 }
 
-/**
- * What each approval is called while it is waited for — in the app's own
- * words, so an approval right after another one never looks like the first
- * one again. What it covers (account, from-date) goes in the sentence below,
- * not in the title.
- */
-const WAIT_TITLE: Record<WaitKind, string> = {
-  login: 'Anmeldung freigeben',
-  statements: 'Umsatzabruf freigeben',
-  pending: 'Vorgemerkte Umsätze freigeben',
-  balance: 'Saldoabfrage freigeben',
-  transfer: 'Überweisung freigeben',
-};
-
-/** What the screen behind is about to do once the approval is in. */
-const AFTER_CONFIRM: Record<WaitKind, string> = {
-  login: 'Deine Konten werden geladen …',
-  statements: 'Umsätze werden geladen …',
-  pending: 'Vorgemerkte Umsätze werden geladen …',
-  balance: 'Der Saldo wird abgerufen …',
-  // The transfer sheet already shows the bank's answer by now.
-  transfer: 'Die Überweisung ist freigegeben.',
-};
-
-/**
- * The bank refused: the user pressed "Ablehnen" in the app, or the bank said
- * no. A transfer never ends up here — its sheet has a step of its own for a
- * refusal — but the entry keeps the map complete.
- */
-const REFUSED: Record<WaitKind, { title: string; text: string }> = {
-  login: { title: 'Anmeldung nicht freigegeben', text: 'Deine Bank hat die Anmeldung abgelehnt:' },
-  statements: { title: 'Umsatzabruf nicht freigegeben', text: 'Deine Bank hat den Abruf abgelehnt:' },
-  pending: { title: 'Abruf nicht freigegeben', text: 'Deine Bank hat den Abruf abgelehnt:' },
-  balance: { title: 'Saldoabfrage nicht freigegeben', text: 'Deine Bank hat die Abfrage abgelehnt:' },
-  transfer: { title: 'Überweisung nicht ausgeführt', text: 'Deine Bank hat den Auftrag abgelehnt:' },
-};
-
 function TanWait() {
   const { wait, retryWait, cancelWait, selectedMethod, tanMethods } = useFints();
+  const t = useT();
+  const tw = t.auth.tanWait;
   const uid = useId();
   const titleId = `tanwait${uid}-title`;
   const textId = `tanwait${uid}-text`;
@@ -97,16 +64,21 @@ function TanWait() {
   // Opens by itself once the limit has passed, unless the user decided.
   const helpOpen = helpChoice ?? overdue;
 
-  const title = confirmed ? 'Freigabe bestätigt'
-    : failed ? 'Freigabe konnte nicht geprüft werden'
-      : refused ? REFUSED[kind].title
-        : wait.title || WAIT_TITLE[kind];
+  // What each approval is called while it is waited for — in the app's own
+  // words, so an approval right after another one never looks like the first
+  // one again. What it covers (account, from-date) goes in the sentence below,
+  // not in the title. Once confirmed, the sentence says what the screen behind
+  // is about to do; a transfer's sheet shows the bank's answer by then.
+  const title = confirmed ? tw.confirmed
+    : failed ? tw.checkFailed
+      : refused ? tw.refused[kind].title
+        : wait.title || tw.title[kind];
   const text = confirmed
-    ? AFTER_CONFIRM[kind]
+    ? tw.afterConfirm[kind]
     : failed
-      ? 'Ob die Freigabe angekommen ist, ließ sich nicht feststellen.'
+      ? tw.checkFailedText
       : refused
-        ? REFUSED[kind].text
+        ? tw.refused[kind].text
         : wait.text;
 
   // Each new state of the dialog is read out from its title: focus moves
@@ -173,10 +145,10 @@ function TanWait() {
               )}
               {!confirmed && (
                 <DialogActions align="center" className="">
-                  <Button onClick={cancel}>{waiting ? 'Abbrechen' : 'Schließen'}</Button>
+                  <Button onClick={cancel}>{waiting ? t.common.cancel : t.common.close}</Button>
                   {offerRetry && (
                     <Button variant="primary" onClick={retryWait}>
-                      {refused || waiting ? 'Neue Anfrage senden' : 'Erneut versuchen'}
+                      {refused || waiting ? tw.newRequest : t.common.retry}
                     </Button>
                   )}
                 </DialogActions>
@@ -203,7 +175,7 @@ function TanWait() {
                   <span>{wait.note}</span>
                 </p>
               )}
-              {overdue && <span className="sr-only">Die Frist deiner Bank ist abgelaufen.</span>}
+              {overdue && <span className="sr-only">{tw.overdue}</span>}
             </div>
 
             {/* Where to look, and what the bank says — while there is still
@@ -213,7 +185,7 @@ function TanWait() {
               <p className="mt-3 inline-flex max-w-full items-center gap-1.5 text-[13.5px] text-ink-3">
                 <PhoneIcon size={16} className="shrink-0" />
                 <span className="truncate">
-                  Gerät: <span className="font-semibold text-ink-2">{device}</span>
+                  {rich(tw.device(<span className="font-semibold text-ink-2">{device}</span>))}
                 </span>
               </p>
             )}
@@ -227,7 +199,7 @@ function TanWait() {
 
             {challenge && live && (
               <figure className="mt-4 text-left">
-                {wait.order && <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">Anfrage deiner Bank</figcaption>}
+                {wait.order && <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">{tw.challenge}</figcaption>}
                 <p className="rounded-[var(--radius-chip)] bg-inset px-4 py-3 text-[14px] leading-relaxed text-balance whitespace-pre-line text-ink-2">
                   {challenge}
                 </p>
@@ -244,24 +216,16 @@ function TanWait() {
                   aria-controls={helpId}
                   onClick={() => setHelpChoice(!helpOpen)}
                 >
-                  Keine Anfrage bekommen?
+                  {tw.helpToggle}
                 </Button>
                 <ul
                   id={helpId}
                   hidden={!helpOpen}
                   className="mt-1.5 list-disc space-y-1 pl-5 text-[13.5px] leading-snug text-ink-2 marker:text-ink-3"
                 >
-                  <li>
-                    {methodName
-                      ? <>Öffne „{methodName}“ selbst, auch wenn keine Mitteilung erschienen ist.</>
-                      : 'Öffne deine Banking-App selbst, auch wenn keine Mitteilung erschienen ist.'}
-                  </li>
-                  <li>
-                    {device
-                      ? <>Sieh auf dem Gerät nach, das deine Bank angefragt hat: „{device}“.</>
-                      : 'Hast du mehrere Geräte für die Freigabe eingerichtet, sieh auf allen nach.'}
-                  </li>
-                  <li>Prüfe, ob die App auf deinem Telefon Mitteilungen senden darf.</li>
+                  <li>{methodName ? tw.openMethod(methodName) : tw.openApp}</li>
+                  <li>{device ? tw.checkDevice(device) : tw.checkDevices}</li>
+                  <li>{tw.checkNotifications}</li>
                 </ul>
               </div>
             )}
@@ -273,7 +237,7 @@ function TanWait() {
                 </ul>
                 {reference && (
                   <figcaption className="mt-1.5 text-[12.5px] text-ink-3">
-                    Rückmeldung der Bank: <span className="tnum">{reference}</span>
+                    {rich(tw.reference(<span className="tnum">{reference}</span>))}
                   </figcaption>
                 )}
               </figure>
@@ -293,13 +257,8 @@ function TanWait() {
       <Dialog
         open={confirmAbort && waiting}
         onClose={() => setConfirmAbort(false)}
-        title="Freigabe abbrechen?"
-        description={
-          <>
-            Die Überweisung wurde vielleicht schon ausgeführt. Brichst du jetzt ab, bleibt ihr Status unklar –
-            prüfe deine Umsätze, bevor du sie noch einmal sendest.
-          </>
-        }
+        title={tw.abort.title}
+        description={tw.abort.text}
         actions={
           <>
             <Button
@@ -308,10 +267,10 @@ function TanWait() {
                 void cancelWait();
               }}
             >
-              Trotzdem abbrechen
+              {tw.abort.confirm}
             </Button>
             <Button variant="primary" data-autofocus onClick={() => setConfirmAbort(false)}>
-              Weiter warten
+              {tw.abort.keepWaiting}
             </Button>
           </>
         }
@@ -328,16 +287,18 @@ function TanWait() {
  * as on the review step.
  */
 function OrderToCompare({ order, method }: { order: WaitOrder; method: string | null }) {
+  const t = useT();
+  const tw = t.auth.tanWait;
   return (
     <div className="mt-4">
       <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
         <Money value={order.amount} currency="EUR" masked={false} className="text-[24px] leading-tight font-bold text-headline" />
-        {order.instant && <Tag tone="info" size="sm" icon={<BoltIcon size={12} />}>Echtzeit</Tag>}
+        {order.instant && <Tag tone="info" size="sm" icon={<BoltIcon size={12} />}>{t.common.booking.instant}</Tag>}
       </p>
-      <p className="mt-0.5 text-[15px] leading-snug font-semibold break-words text-ink">an {order.name}</p>
+      <p className="mt-0.5 text-[15px] leading-snug font-semibold break-words text-ink">{tw.to(order.name)}</p>
       <p className="iban mt-0.5 overflow-x-auto text-[14px] text-ink-2 [scrollbar-width:none]">{fmtIban(order.iban)}</p>
       <p className="mx-auto mt-2 max-w-[36ch] text-[13.5px] leading-snug text-ink-3">
-        {method ? <>Vergleiche das mit der Anzeige in „{method}“.</> : 'Vergleiche das mit der Anzeige in deiner Banking-App.'}
+        {method ? tw.compareIn(method) : tw.compareApp}
       </p>
     </div>
   );
@@ -376,7 +337,8 @@ const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart
 
 // Whole minutes rounded down: "bis zu" is a promise about the latest moment,
 // so it never names a minute the bank will not wait for.
-const fmtLimit = (s: number) => (s < 120 ? `${Math.round(s)} Sekunden` : `${Math.floor(s / 60)} Minuten`);
+const fmtLimit = (s: number, tw: Messages['auth']['tanWait']) =>
+  (s < 120 ? tw.seconds(Math.round(s)) : tw.minutes(Math.floor(s / 60)));
 
 /**
  * Whole seconds from `startedAt` to now, or to `settledAt` once the wait has
@@ -418,6 +380,7 @@ function WaitProgress({ startedAt, settledAt, limit, done, overdue, className }:
   overdue: boolean;
   className?: string;
 }) {
+  const tw = useT().auth.tanWait;
   const elapsed = useSecondsSince(startedAt, settledAt);
   const share = done ? 1 : limit ? Math.min(1, elapsed / limit) : 0;
   return (
@@ -426,23 +389,23 @@ function WaitProgress({ startedAt, settledAt, limit, done, overdue, className }:
         {done ? (
           <span className="flex items-center gap-2.5 font-semibold text-green">
             <CheckCircleIcon size={17} />
-            Bestätigt
+            {tw.confirmedShort}
           </span>
         ) : (
           <span className="flex items-center gap-2.5 font-semibold text-ink-2">
             <Spinner size={16} className="text-headline" />
-            {overdue ? 'Noch keine Bestätigung' : 'Warte auf Bestätigung'}
+            {overdue ? tw.noConfirmationYet : tw.waitingForConfirmation}
           </span>
         )}
         <span className="tnum text-ink-3">
-          <span className="sr-only">Seit </span>
+          <span className="sr-only">{tw.elapsed} </span>
           {fmtClock(elapsed)}
         </span>
       </div>
       {limit && (overdue ? (
         <p className="mt-2.5 flex items-start gap-1.5 text-[13px] leading-snug text-ink-2">
           <AlertTriangleIcon size={15} className="mt-px shrink-0 text-emphasis" />
-          <span>Die Frist deiner Bank von {fmtLimit(limit)} ist abgelaufen.</span>
+          <span>{tw.limitPassed(fmtLimit(limit, tw))}</span>
         </p>
       ) : (
         <>
@@ -454,7 +417,7 @@ function WaitProgress({ startedAt, settledAt, limit, done, overdue, className }:
             />
           </div>
           <p className="mt-2 text-[12.5px] leading-snug text-ink-3 short:sr-only">
-            {done ? 'Rechtzeitig angekommen.' : `Deine Bank wartet bis zu ${fmtLimit(limit)} auf die Freigabe.`}
+            {done ? tw.inTime : tw.limit(fmtLimit(limit, tw))}
           </p>
         </>
       ))}

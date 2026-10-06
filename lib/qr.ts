@@ -11,6 +11,7 @@
 // themselves and read it back with jsQR.
 
 import qrcode from 'qrcode-generator';
+import { msgs } from './i18n/index.ts';
 
 export type QrEcc = 'L' | 'M' | 'Q' | 'H';
 export type QrMatrix = boolean[][];
@@ -45,7 +46,7 @@ export function qrMatrix(text: string, ecc: QrEcc = 'M'): QrMatrix {
     qr.make();
   } catch {
     // The library throws a bare string ("code length overflow …").
-    throw new Error('Der Inhalt ist zu lang für einen QR-Code.');
+    throw new Error(msgs().transfer.qr.tooLong);
   }
   const n = qr.getModuleCount();
   const matrix: QrMatrix = [];
@@ -109,7 +110,7 @@ export function qrSvgPath(matrix: QrMatrix, quiet = 4): { d: string; size: numbe
  * stays sharp however it is later printed or scaled down by a viewer.
  */
 export async function qrPngBlob(matrix: QrMatrix, scale = 8, quiet = 4): Promise<Blob> {
-  if (typeof document === 'undefined') throw new Error('Ein PNG kann nur im Browser erzeugt werden.');
+  if (typeof document === 'undefined') throw new Error(msgs().transfer.qr.browserOnly);
   const q = quietZone(quiet);
   const px = Math.max(1, Math.round(Number.isFinite(scale) ? scale : 8));
   const size = (matrix.length + 2 * q) * px;
@@ -118,7 +119,7 @@ export async function qrPngBlob(matrix: QrMatrix, scale = 8, quiet = 4): Promise
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Das Bild konnte nicht erzeugt werden.');
+  if (!ctx) throw new Error(msgs().transfer.qr.imageFailed);
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, size, size);
@@ -130,7 +131,7 @@ export async function qrPngBlob(matrix: QrMatrix, scale = 8, quiet = 4): Promise
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
-      else reject(new Error('Das Bild konnte nicht erzeugt werden.'));
+      else reject(new Error(msgs().transfer.qr.imageFailed));
     }, 'image/png');
   });
 }

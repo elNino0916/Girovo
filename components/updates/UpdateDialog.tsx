@@ -21,6 +21,7 @@
 
 import { useId, useMemo } from 'react';
 import { fmtBytes, fmtDate } from '@/lib/format';
+import { rich, useT } from '@/lib/i18n/react';
 import { parseReleaseNotes } from '@/lib/release-notes';
 import { useFints, waitHoldsSession } from '../FintsProvider';
 import { CheckCircleIcon, DownloadIcon, ExternalIcon, InfoIcon, RefreshIcon } from '../icons';
@@ -38,6 +39,8 @@ export function UpdateDialog() {
 
 function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }) {
   const { view, busy, wait } = useFints();
+  const t = useT();
+  const u = t.shell.updates;
   const { unclear: unclearList, look, lookLabel } = useLookAtUnclear();
   const release = hasNewer(state) ? state.release : null;
   const installed = release ? null : state.installed;
@@ -52,26 +55,28 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
 
   const title = release
     ? state.phase === 'ready' || state.phase === 'installing'
-      ? `Version ${release.version} ist bereit`
-      : `Version ${release.version} ist verfügbar`
+      ? u.ready(release.version)
+      : u.available(release.version)
     : installed
-      ? `Neu in Version ${installed.version}`
-      : 'Updates';
+      ? u.newIn(installed.version)
+      : u.title;
 
   // The date belongs to the new version, so it is said with it.
+  const current = <span className="tnum">{state.current}</span>;
   const description = release ? (
     release.publishedAt ? (
-      <>
-        Version <span className="tnum">{release.version}</span> vom <span className="tnum">{fmtDate(release.publishedAt)}</span>
-        {' · '}du nutzt <span className="tnum">{state.current}</span>
-      </>
+      rich(u.releaseOf(
+        <span className="tnum">{release.version}</span>,
+        <span className="tnum">{fmtDate(release.publishedAt)}</span>,
+        current,
+      ))
     ) : (
-      <>Du nutzt Version <span className="tnum">{state.current}</span></>
+      rich(u.youUse(current))
     )
   ) : installed ? (
-    installed.from ? <>Aktualisiert von Version <span className="tnum">{installed.from}</span>.</> : 'Gerade aktualisiert.'
+    installed.from ? rich(u.updatedFrom(<span className="tnum">{installed.from}</span>)) : u.justUpdated
   ) : (
-    <>Installiert ist Version <span className="tnum">{state.current}</span>.</>
+    rich(u.installedIs(current))
   );
 
   const icon = release ? <DownloadIcon size={20} /> : installed ? <CheckCircleIcon size={20} /> : <RefreshIcon size={20} />;
@@ -81,17 +86,17 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   if (release && !release.canInstall) {
     actions = (
       <>
-        <Button variant="secondary" data-autofocus onClick={close}>Schließen</Button>
+        <Button variant="secondary" data-autofocus onClick={close}>{t.common.close}</Button>
         <Button variant="primary" iconLeft={<ExternalIcon size={16} />} onClick={() => void updates.openRelease()}>
-          Download-Seite öffnen
+          {u.openDownloadPage}
         </Button>
       </>
     );
   } else if (release && state.phase === 'downloading') {
     actions = (
       <>
-        <Button variant="secondary" onClick={() => void updates.cancel()}>Abbrechen</Button>
-        <Button variant="primary" data-autofocus onClick={close}>Im Hintergrund laden</Button>
+        <Button variant="secondary" onClick={() => void updates.cancel()}>{t.common.cancel}</Button>
+        <Button variant="primary" data-autofocus onClick={close}>{u.inBackground}</Button>
       </>
     );
   } else if (release && (state.phase === 'ready' || state.phase === 'installing')) {
@@ -102,13 +107,13 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         disabled={holding}
         onClick={() => void updates.install()}
       >
-        {portable ? 'Neue Version starten' : 'Jetzt neu starten'}
+        {portable ? u.startNew : u.restartNow}
       </Button>
     );
     actions = unclear > 0 ? (
       // Look first: the restart takes the only record of those transfers with it.
       <>
-        <Button variant="quiet" className="sm:mr-auto sm:-ml-3" onClick={close} disabled={state.phase === 'installing'}>Später</Button>
+        <Button variant="quiet" className="sm:mr-auto sm:-ml-3" onClick={close} disabled={state.phase === 'installing'}>{u.later}</Button>
         {restart}
         <Button
           variant="primary"
@@ -124,14 +129,14 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
       </>
     ) : (
       <>
-        <Button variant="secondary" data-autofocus onClick={close} disabled={state.phase === 'installing'}>Später</Button>
+        <Button variant="secondary" data-autofocus onClick={close} disabled={state.phase === 'installing'}>{u.later}</Button>
         {restart}
       </>
     );
   } else if (release) {
     actions = (
       <>
-        <Button variant="secondary" onClick={close}>Später</Button>
+        <Button variant="secondary" onClick={close}>{u.later}</Button>
         <Button
           variant="primary"
           data-autofocus
@@ -139,14 +144,14 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
           disabled={state.phase !== 'available'}
           onClick={() => void updates.download()}
         >
-          Herunterladen{release.size ? <span className="font-normal opacity-85">({fmtBytes(release.size)})</span> : null}
+          {u.download}{release.size ? <span className="font-normal opacity-85">({fmtBytes(release.size)})</span> : null}
         </Button>
       </>
     );
   } else {
     actions = (
       <>
-        <Button variant="secondary" onClick={close}>Schließen</Button>
+        <Button variant="secondary" onClick={close}>{t.common.close}</Button>
         <Button
           variant="primary"
           data-autofocus
@@ -154,7 +159,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
           busy={state.phase === 'checking'}
           onClick={() => void updates.check()}
         >
-          Nach Updates suchen
+          {t.shell.checkForUpdates}
         </Button>
       </>
     );
@@ -169,9 +174,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
             everywhere Status unklar is said. */}
         {release?.canInstall && (state.phase === 'ready' || state.phase === 'installing') && unclear > 0 && (
           <Alert tone="warn" className="mt-0">
-            {unclear === 1
-              ? 'Die Überweisung mit unklarem Status steht nach dem Neustart nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.'
-              : `Die ${unclear} Überweisungen mit unklarem Status stehen nach dem Neustart nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.`}
+            {u.unclearRestart(unclear)}
           </Alert>
         )}
 
@@ -184,23 +187,16 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
 
         {release && !release.canInstall && (
           <Alert tone="info" className="mt-0">
-            {state.kind === 'dev' || state.kind === 'manual'
-              ? 'Diese Version der App kann sich nicht selbst aktualisieren. Lade die neue Version auf GitHub herunter.'
-              : 'Für diese Version gibt es keine Datei, die die App prüfen könnte. Lade sie auf GitHub herunter.'}
+            {state.kind === 'dev' || state.kind === 'manual' ? u.cannotUpdate : u.noFile}
           </Alert>
         )}
 
         {release?.canInstall && (state.phase === 'ready' || state.phase === 'installing') && (
           <Alert tone="info" className="mt-0" role="status">
-            {portable ? (
-              <>
-                Die neue Version liegt in <span className="font-semibold [overflow-wrap:anywhere]">{state.location}</span> und
-                startet statt dieser.
-              </>
-            ) : (
-              <>Girovo wird beendet, installiert die neue Version und startet von selbst neu – meist in weniger als einer Minute.</>
-            )}
-            {signedIn && <> Du wirst dabei abgemeldet.</>}
+            {portable
+              ? rich(u.portable(<span className="font-semibold [overflow-wrap:anywhere]">{state.location}</span>))
+              : u.restarts}
+            {signedIn && <> {u.logsOut}</>}
           </Alert>
         )}
 
@@ -208,7 +204,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         {release?.canInstall && state.phase === 'ready' && holding && (
           <p className="flex items-start gap-2.5 text-[14px] leading-snug text-ink-2">
             <InfoIcon size={16} className="mt-px shrink-0 text-info" />
-            <span>Gerade läuft eine Freigabe. Neu starten kannst du, sobald sie abgeschlossen ist.</span>
+            <span>{u.approvalRunning}</span>
           </p>
         )}
 
@@ -216,9 +212,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
           <p className="flex items-start gap-2.5 text-[14px] leading-snug text-ink-2">
             <InfoIcon size={16} className="mt-px shrink-0 text-info" />
             <span>
-              Die vorige Version liegt noch unter{' '}
-              <span className="font-semibold [overflow-wrap:anywhere]">{installed.previousFile}</span>. Du kannst sie
-              löschen.
+              {rich(u.previous(<span className="font-semibold [overflow-wrap:anywhere]">{installed.previousFile}</span>))}
             </span>
           </p>
         )}
@@ -237,11 +231,13 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
 
 /** Where the search stands, while no newer version is known. */
 function Status({ state }: { state: UpdateState }) {
+  const t = useT();
+  const u = t.shell.updates;
   if (state.phase === 'checking') {
     return (
       <p role="status" className="flex items-center gap-2.5 text-[15px] text-ink">
         <Spinner />
-        Suche nach Updates …
+        {u.checking}
       </p>
     );
   }
@@ -250,10 +246,10 @@ function Status({ state }: { state: UpdateState }) {
       <p role="status" className="flex items-start gap-2.5 text-[15px] leading-snug text-ink">
         <CheckCircleIcon size={20} className="shrink-0 text-green" />
         <span>
-          Du nutzt die neueste Version.
+          {u.latest}
           {state.checkedAt != null && (
             <span className="mt-0.5 block text-[13.5px] text-ink-3">
-              Zuletzt geprüft: <span className="tnum">{fmtSince(state.checkedAt)}</span>
+              {rich(u.lastChecked(<span className="tnum">{fmtSince(state.checkedAt)}</span>))}
             </span>
           )}
         </span>
@@ -265,29 +261,28 @@ function Status({ state }: { state: UpdateState }) {
   if (state.installed) return null;
   return (
     <p className="text-[15px] leading-snug text-ink-2">
-      {state.auto && state.kind !== 'dev'
-        ? 'Die App sucht kurz nach dem Start von selbst nach Updates – oder jetzt, wenn du möchtest.'
-        : 'Die App sucht nicht von selbst nach Updates.'}
+      {state.auto && state.kind !== 'dev' ? u.autoOn : u.autoOff}
     </p>
   );
 }
 
 function Notes({ notes, name }: { notes: string; name: string }) {
+  const t = useT();
   const id = useId();
   const blocks = useMemo(() => parseReleaseNotes(notes, name), [notes, name]);
   if (!blocks.length) return null;
   return (
     <section aria-labelledby={id}>
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h3 id={id} className="section-head">Was ist neu</h3>
+        <h3 id={id} className="section-head">{t.shell.updates.whatsNew}</h3>
         <button
           type="button"
           onClick={() => void updates.openRelease()}
           className="inline-flex min-h-8 items-center gap-1 rounded-sm text-[13.5px] font-semibold text-accent underline-offset-4 hover:underline"
         >
-          Auf GitHub
+          {t.shell.updates.onGitHub}
           <ExternalIcon size={13} />
-          <span className="sr-only">(öffnet extern)</span>
+          <span className="sr-only">{t.shell.opensExternally}</span>
         </button>
       </div>
       {/* A scrolling region, so it takes focus to be scrolled by keyboard.
@@ -305,22 +300,24 @@ function Notes({ notes, name }: { notes: string; name: string }) {
 }
 
 function Progress({ received, total }: { received: number; total: number }) {
+  const t = useT();
+  const u = t.shell.updates;
   const pct = total > 0 ? Math.min(100, Math.floor((received / total) * 100)) : 0;
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3 text-[14px]">
-        <span className="font-semibold text-ink">Wird heruntergeladen …</span>
+        <span className="font-semibold text-ink">{u.downloading}</span>
         <span className="tnum text-ink-2">
-          {fmtBytes(received, { unitOf: total, bare: true })} von {fmtBytes(total)}
+          {t.format.partOf(fmtBytes(received, { unitOf: total, bare: true }), fmtBytes(total))}
         </span>
       </div>
       <div
         role="progressbar"
-        aria-label="Download des Updates"
+        aria-label={u.progress}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct}
-        aria-valuetext={`${pct} Prozent`}
+        aria-valuetext={u.percent(pct)}
         className="mt-2 h-2 overflow-hidden rounded-full bg-inset"
       >
         {/* Navy, not Signal Blue: a progress fill cannot be pressed. It slides
@@ -331,13 +328,14 @@ function Progress({ received, total }: { received: number; total: number }) {
         />
       </div>
       <p className="mt-2 text-[13px] leading-snug text-ink-3">
-        Die Datei wird vor der Installation mit der Prüfsumme von GitHub abgeglichen.
+        {u.checksum}
       </p>
     </div>
   );
 }
 
 function AutoCheck({ state }: { state: UpdateState }) {
+  const u = useT().shell.updates;
   // An unpackaged build never checks on its own; a switch would only mislead.
   if (state.kind === 'dev') return null;
   return (
@@ -345,8 +343,8 @@ function AutoCheck({ state }: { state: UpdateState }) {
       <Switch
         checked={state.auto}
         onChange={(on) => void updates.setAuto(on)}
-        label="Automatisch nach Updates suchen"
-        description="Beim Start und alle sechs Stunden. Die Anfrage an GitHub enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht GitHub dabei deine IP-Adresse – nichts über deine Konten."
+        label={u.auto}
+        description={u.autoHint}
       />
     </div>
   );

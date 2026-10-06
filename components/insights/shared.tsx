@@ -7,33 +7,40 @@
 import { useCallback, useId, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useFints } from '../FintsProvider';
-import { MASKED_LABEL, maskedMoney, usePrivacy } from '../Money';
+import { maskedLabel, maskedMoney, usePrivacy } from '../Money';
 import { Button, TileHeader, cx } from '../ui';
 import { CalendarIcon } from '../icons';
+import { fmtDayShort } from '@/lib/analytics';
 import type { TxFilter } from '@/lib/app-types';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { dayKey, dayNumber, presetRange, toLocalDate } from '@/lib/format';
+import { dayKey, dayNumber, fmtDate, presetRange, toLocalDate } from '@/lib/format';
+import { intlLocale, msgs } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n/react';
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-/** "28.09.2026" from a local day key — never through `new Date('yyyy-mm-dd')`, which is UTC. */
+/**
+ * "28.09.2026" ("28/09/2026") from a local day key — never through
+ * `new Date('yyyy-mm-dd')`, which is UTC.
+ */
 export function fmtDayKey(key: string): string {
-  const d = toLocalDate(key);
-  return d ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : '';
+  return fmtDate(toLocalDate(key));
 }
 
-/** "28.09." */
+/** "28.09." ("28 Sept"). */
 export function fmtDayKeyShort(key: string): string {
-  const d = toLocalDate(key);
-  return d ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.` : '';
+  return fmtDayShort(key);
 }
 
-/** "Mo., 05.10." — for a short list of upcoming dates where the weekday helps. */
+/** "Mo." ("Mon") — the weekday of a day key, short. */
+export function fmtWeekday(key: string): string {
+  const d = toLocalDate(key);
+  return d ? new Intl.DateTimeFormat(intlLocale(), { weekday: 'short' }).format(d) : '';
+}
+
+/** "Mo. 05.10." ("Mon 5 Oct") — for a short list of upcoming dates where the weekday helps. */
 export function fmtWeekdayShort(key: string): string {
   const d = toLocalDate(key);
   if (!d) return '';
-  const wd = new Intl.DateTimeFormat('de-DE', { weekday: 'short' }).format(d);
-  return `${wd} ${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.`;
+  return `${fmtWeekday(key)} ${fmtDayShort(key)}`;
 }
 
 /** Whole calendar days from today to `key` (negative: in the past). */
@@ -41,13 +48,14 @@ export function daysUntil(key: string, today: Date = new Date()): number {
   return dayNumber(key) - dayNumber(dayKey(today));
 }
 
-/** "heute", "morgen", "in 5 Tagen", "gestern", "vor 3 Tagen". */
+/** "heute", "morgen", "in 5 Tagen", "gestern", "vor 3 Tagen" — in the language speaking right now. */
 export function relativeDays(key: string, today: Date = new Date()): string {
+  const words = msgs().insights.relative;
   const n = daysUntil(key, today);
-  if (n === 0) return 'heute';
-  if (n === 1) return 'morgen';
-  if (n === -1) return 'gestern';
-  return n > 0 ? `in ${n} Tagen` : `vor ${-n} Tagen`;
+  if (n === 0) return words.today;
+  if (n === 1) return words.tomorrow;
+  if (n === -1) return words.yesterday;
+  return n > 0 ? words.inDays(n) : words.daysAgo(-n);
 }
 
 /** Days covered by a loaded range, both ends included. */
@@ -79,6 +87,7 @@ export function LoadHistoryButton({
   layout?: 'inline' | 'stacked' | 'centered';
 }) {
   const { applyRange, busy, loadingAccount, activeAccount } = useFints();
+  const t = useT();
   const loading = !!activeAccount && loadingAccount === activeAccount.accountNumber;
   const target = useMemo(() => presetRange('365d'), []);
   return (
@@ -98,10 +107,10 @@ export function LoadHistoryButton({
         className={flush ? '-ml-4' : undefined}
         onClick={() => applyRange(target)}
       >
-        Umsätze für 12 Monate abrufen
+        {t.insights.loadYear.label}
       </Button>
       <span className="text-[13px] leading-snug text-ink-3">
-        Kann eine Freigabe erfordern. Manche Banken liefern weniger Verlauf.
+        {t.insights.loadYear.hint}
       </span>
     </div>
   );
@@ -119,15 +128,17 @@ export function RoundMoney({
   value, currency = 'EUR', signed = false, className,
 }: { value: number; currency?: string; signed?: boolean; className?: string }) {
   const privacy = usePrivacy();
+  // Read so a change of language renders the figure again ("1.316 \u20ac", "\u20ac1,316").
+  useLocale();
   if (privacy) {
-    return <span role="img" aria-label={MASKED_LABEL} className={cx('amount', className)}>{maskedMoney(currency)}</span>;
+    return <span role="img" aria-label={maskedLabel()} className={cx('amount', className)}>{maskedMoney(currency)}</span>;
   }
   const whole = Math.round(Math.abs(value));
   let text: string;
   try {
-    text = new Intl.NumberFormat('de-DE', { style: 'currency', currency, maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(whole);
+    text = new Intl.NumberFormat(intlLocale(), { style: 'currency', currency, maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(whole);
   } catch {
-    text = `${whole.toLocaleString('de-DE')}\u00a0${currency}`;
+    text = `${whole.toLocaleString(intlLocale())}\u00a0${currency}`;
   }
   const sign = whole === 0 ? '' : value < 0 ? MINUS : signed ? '+' : '';
   return <span className={cx('amount', className)}>{sign}{text}</span>;

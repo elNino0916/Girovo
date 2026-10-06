@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import type { CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
+import { useT } from '@/lib/i18n/react';
 import { Money } from '../Money';
 import { ClockIcon } from '../icons';
 import { Button } from '../ui';
@@ -46,6 +47,8 @@ export function TxList({
   /** The verified end-of-day balance per local day, when the bank's balances prove one. */
   balanceOn?: { byDay: ReadonlyMap<string, number>; currency: string; card?: boolean } | null;
 }) {
+  const t = useT();
+  const words = t.transactions.days;
   // Derived rather than reset in an effect: a stale page count never renders.
   const [page, setPage] = useState({ key: resetKey, rows: FIRST_PAGE });
   const limit = page.key === resetKey ? page.rows : FIRST_PAGE;
@@ -90,7 +93,7 @@ export function TxList({
         // the sticky day band it would otherwise sit under.
         className="sr-only rounded-full bg-accent text-[13.5px] font-semibold text-accent-ink focus:not-sr-only focus:absolute focus:top-1 focus:left-3 focus:z-10 focus:px-4! focus:py-1.5! focus:whitespace-nowrap"
       >
-        Liste überspringen
+        {words.skip}
       </a>
       {visible.map((g) => (
         <section key={g.key} aria-labelledby={`${id}-${g.key}`}>
@@ -101,20 +104,20 @@ export function TxList({
             {g.future && (
               <span
                 className="inline-flex min-w-0 items-center gap-1 text-[12.5px] font-semibold text-ink-3"
-                title="Diese Buchungen tragen einen Buchungstag in der Zukunft – die Bank verbucht sie erst an diesem Tag."
+                title={words.future}
               >
                 <ClockIcon size={13} />
                 {/* On a phone the clock alone; the rows below say "Buchung 05.10." anyway. */}
-                <span className="truncate max-sm:sr-only">noch nicht gebucht</span>
+                <span className="truncate max-sm:sr-only">{t.transactions.state.ahead}</span>
               </span>
             )}
             {balanceOn ? (
               // Days the proof does not reach (a Buchungstag still ahead) carry none.
               balanceOn.byDay.has(g.key) && (
                 <span className="ml-auto shrink-0 text-[13px] text-ink-3">
-                  <span className="sm:hidden" aria-hidden>Stand </span>
-                  <span className="max-sm:sr-only">Kontostand </span>
-                  <span className="sr-only">am Tagesende: </span>
+                  <span className="sm:hidden" aria-hidden>{words.balanceShort} </span>
+                  <span className="max-sm:sr-only">{t.common.account.balance} </span>
+                  <span className="sr-only">{words.endOfDay} </span>
                   {/* A balance: red when below zero, like every balance (Money's "auto") —
                       a credit card's is negative by nature and stays ink. */}
                   <span className="font-semibold text-ink-2">
@@ -124,8 +127,8 @@ export function TxList({
               )
             ) : g.net !== null && (
               <span className="ml-auto shrink-0 text-[13px] text-ink-3">
-                <span aria-hidden>Summe </span>
-                <span className="sr-only">Summe des Tages: </span>
+                <span aria-hidden>{t.transactions.sum} </span>
+                <span className="sr-only">{words.dayTotal} </span>
                 <Money value={g.net} currency={g.currency} signed tone="plain" className="font-semibold" />
               </span>
             )}
@@ -148,7 +151,7 @@ export function TxList({
       {/* Where "Liste überspringen" leads: after the last row shown, before
           the way to show more. */}
       <span id={`${id}-end`} ref={endRef} tabIndex={-1} className="sr-only">
-        Ende der Umsatzliste{rest > 0 ? `, ${total - rest} von ${total} angezeigt` : ''}
+        {words.end}{rest > 0 ? `, ${words.shownOf(total - rest, total)}` : ''}
       </span>
 
       {rest > 0 && (
@@ -161,10 +164,10 @@ export function TxList({
               setPage({ key: resetKey, rows: limit + MORE_PAGE });
             }}
           >
-            Weitere {Math.min(rest, MORE_PAGE)} anzeigen
+            {words.more(Math.min(rest, MORE_PAGE))}
           </Button>
           <span className="tnum text-[13px] text-ink-3">
-            {total - rest} von {total} angezeigt
+            {words.shownOf(total - rest, total)}
           </span>
         </div>
       )}

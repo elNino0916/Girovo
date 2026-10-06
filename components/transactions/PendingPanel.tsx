@@ -3,6 +3,7 @@
 import { useCallback, useId, useMemo, useState } from 'react';
 import { filterTransactions } from '@/lib/analytics';
 import type { SerializedTransaction } from '@/lib/fints-types';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ClockIcon, RefreshIcon } from '../icons';
 import { Money } from '../Money';
@@ -15,8 +16,6 @@ import { TxRow, TxRowSkeleton } from './TxRow';
 
 /** Rows shown before "Alle anzeigen" — the panel shares a column with other tiles. */
 const PREVIEW_ROWS = 4;
-
-const TAN_NOTE = 'Kann eine Freigabe erfordern.';
 
 /** The panel's DOM id — "Außerdem passt 1 vorgemerkter Umsatz" in the Umsätze list leads here. */
 export const PENDING_PANEL_ID = 'vorgemerkt';
@@ -56,13 +55,18 @@ export function PendingPanel() {
     activeAccount: a, pendingCache, pendingInfo, pendingLoading, loadPending, busy, merchants, txFilter, categoryOf,
     pendingErrors,
   } = useFints();
+  // `tr`, not `t`: here `t` is a booking.
+  const tr = useT();
+  const words = tr.transactions.pending;
   const [expanded, setExpanded] = useState(false);
   const titleId = useId();
   const onOpen = useCallback((tx: SerializedTransaction) => openTxDetail(tx, true), []);
 
   const cached = a ? pendingCache[a.accountNumber] : undefined;
   const fetched = a ? pendingInfo[a.accountNumber] : undefined;
-  const searchCtx = useMemo(() => ({ categoryOf, shownText: searchText }), [categoryOf]);
+  // A new context on a change of language: the search caches each booking's
+  // text per context, and that text holds what the rows show in words.
+  const searchCtx = useMemo(() => ({ categoryOf, shownText: searchText }), [categoryOf, tr]);
   const narrowed = activeFilterCount(txFilter) > 0;
   // The rows the Umsätze filter matches, first — the rest after them.
   const { txs, matches } = useMemo(() => {
@@ -97,20 +101,20 @@ export function PendingPanel() {
             <ClockIcon size={18} />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="section-head">Vorgemerkt</h2>
+            <h2 id={titleId} className="section-head">{tr.common.booking.pending}</h2>
             {cached && !loading ? (
               <>
                 <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-[13.5px] text-ink-2">
                   <span className="tnum">
                     {txs.length === 0
-                      ? (fetched?.booked ? 'Inzwischen alles gebucht' : 'Deine Bank meldet nichts Vorgemerktes')
-                      : txs.length === 1 ? '1 Umsatz' : `${txs.length} Umsätze`}
+                      ? (fetched?.booked ? words.allBooked : words.none)
+                      : tr.transactions.count(txs.length)}
                   </span>
                   {txs.length > 0 && (
                     <>
                       <span aria-hidden className="text-ink-3">·</span>
                       <span>
-                        <span className="sr-only">Summe </span>
+                        <span className="sr-only">{tr.transactions.sum} </span>
                         <Money value={sum} currency={currency} signed tone="plain" className="font-semibold text-ink" />
                       </span>
                     </>
@@ -122,32 +126,32 @@ export function PendingPanel() {
                     What those show as booked has already left this list. */}
                 {fetched && (
                   <p className="mt-0.5 text-[12.5px] leading-snug text-ink-3">
-                    <span className="tnum">Stand {fmtSince(fetched.loadedAt)}</span>
-                    {fetched.behindStatement && ', vor dem letzten Umsatzabruf'}
-                    {fetched.behindStatement && fetched.booked > 0 && txs.length > 0 && ` · ${fetched.booked} inzwischen gebucht`}
+                    <span className="tnum">{words.asOf(fmtSince(fetched.loadedAt))}</span>
+                    {fetched.behindStatement && words.behindStatement}
+                    {fetched.behindStatement && fetched.booked > 0 && txs.length > 0 && ` · ${words.bookedSince(fetched.booked)}`}
                   </p>
                 )}
                 {matches.size > 0 && (
                   <p className="mt-0.5 text-[12.5px] leading-snug font-semibold text-ink-2">
-                    {matches.size === 1 ? '1 passt' : `${matches.size} passen`} zu deiner Suche
+                    {words.matches(matches.size)}
                   </p>
                 )}
                 {failure && (
                   <p className="mt-1 text-[12.5px] leading-snug text-ink-2">
-                    <span className="font-semibold text-red">Abruf fehlgeschlagen:</span> {failure.message}
+                    <span className="font-semibold text-red">{tr.common.fetchFailed}:</span> {failure.message}
                   </p>
                 )}
               </>
             ) : failure ? (
-              <p className="mt-0.5 text-[13.5px] font-semibold text-red">Abruf fehlgeschlagen</p>
+              <p className="mt-0.5 text-[13.5px] font-semibold text-red">{tr.common.fetchFailed}</p>
             ) : (
-              <p className="mt-0.5 text-[13.5px] text-ink-3">{loading ? 'Wird abgerufen …' : 'Noch nicht abgerufen'}</p>
+              <p className="mt-0.5 text-[13.5px] text-ink-3">{loading ? words.loadingShort : tr.transactions.notFetched}</p>
             )}
           </div>
           {cached && onRequest && (
             <IconButton
-              aria-label={`Vorgemerkte Umsätze aktualisieren. ${TAN_NOTE}`}
-              title={`Aktualisieren. ${TAN_NOTE}`}
+              aria-label={`${words.refresh} ${tr.transactions.mayNeedApproval}`}
+              title={`${tr.transactions.refresh}. ${tr.transactions.mayNeedApproval}`}
               disabled={busy}
               onClick={load}
               className="-mt-0.5 -mr-1.5"
@@ -161,17 +165,15 @@ export function PendingPanel() {
           <div className="border-t border-line">
             <TxRowSkeleton compact width={56} />
             <TxRowSkeleton compact width={42} />
-            <span className="sr-only" role="status">Vorgemerkte Umsätze werden geladen.</span>
+            <span className="sr-only" role="status">{words.loading}</span>
           </div>
         ) : !cached ? (
           <div className="px-4 pb-4 sm:px-5">
             <p className="text-[14px] leading-relaxed text-ink-2">
-              {failure
-                ? <>{failure.message} {TAN_NOTE}</>
-                : <>Angekündigte Lastschriften und Kartenzahlungen, die deine Bank noch nicht gebucht hat. {TAN_NOTE}</>}
+              {failure ? failure.message : words.intro} {tr.transactions.mayNeedApproval}
             </p>
             <Button size="sm" variant="secondary" className="mt-3" disabled={busy} onClick={load}>
-              {failure ? 'Erneut versuchen' : 'Vorgemerkte abrufen'}
+              {failure ? tr.common.retry : words.fetch}
             </Button>
           </div>
         ) : txs.length === 0 ? null : (
@@ -190,7 +192,7 @@ export function PendingPanel() {
             {txs.length > PREVIEW_ROWS && (
               <div className="border-t border-line px-2 py-1.5">
                 <Button size="sm" variant="tertiary" block aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
-                  {expanded ? 'Weniger anzeigen' : `Alle ${txs.length} anzeigen`}
+                  {expanded ? words.showLess : words.showAll(txs.length)}
                 </Button>
               </div>
             )}

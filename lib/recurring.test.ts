@@ -535,3 +535,15 @@ test('recurringGroups: rent apart from subscriptions, each with its own figures'
   const all = recurringTotals(series.filter((s) => s.kind === 'expense'), 'EUR');
   assert.equal(Math.round(groups.reduce((sum, g) => sum + g.monthly * 100, 0)) / 100, all.monthlyExpense, 'the groups add up to the whole');
 });
+
+test('the on-device guess tells a habit from a contract where the keywords know neither', () => {
+  // A local bakery the keyword lists do not know, paid by card every month at the same price.
+  const txs = ['2026-05-04', '2026-06-03', '2026-07-03', '2026-08-04', '2026-09-03']
+    .map((day) => girocard(day, -8.5, 'LANDBROT SCHUEREN'));
+  const without = detectRecurring(newestFirst(txs), { today: TODAY });
+  assert.equal(without.length, 1, 'without a guess it looks like a subscription');
+  // The model files it under groceries: a card payment there is a habit, never a contract.
+  const key = counterpartyKey(txs[0]);
+  const withGuess = detectRecurring(newestFirst(txs), { today: TODAY, modelGuesses: { [key]: 'groceries' } });
+  assert.deepEqual(withGuess, [], listed(withGuess));
+});

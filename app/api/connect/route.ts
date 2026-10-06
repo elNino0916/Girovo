@@ -10,6 +10,7 @@ import { lookupBlz } from '@/lib/banks';
 import { body, fail, json, wrap } from '@/lib/api';
 import { bankErrorKind, withBankSignal } from '@/lib/bank-fetch';
 import { beginAttempt, settleAttempt, type ConnectAttempt } from '@/lib/connect-attempts';
+import { msgs } from '@/lib/i18n';
 import { accountsFor, bankAnswerText, logResp, serializeTanMethod } from '@/lib/serialize';
 import { DEBUG, PRODUCT_ID, PRODUCT_VERSION, asClientEx, getSession, newSession } from '@/lib/session';
 import { loadProfile } from '@/lib/state-store';
@@ -22,20 +23,18 @@ export const dynamic = 'force-dynamic';
 type ConnectBody = { blz: string; userId: string; pin: string; attemptId?: string };
 
 /** The login was called off; the browser has stopped listening already. */
-const CANCELLED = 'Die Anmeldung wurde abgebrochen.';
+const cancelled = () => fail(msgs().auth.api.cancelled, 409);
 
 export const POST = wrap(async (req: Request) => {
   const { blz, userId, pin, attemptId } = await body<ConnectBody>(req);
 
   const bankId = String(blz || '').trim();
-  if (!/^\d{8}$/.test(bankId)) return fail('Bitte eine gültige 8-stellige Bankleitzahl angeben.');
+  if (!/^\d{8}$/.test(bankId)) return fail(msgs().auth.api.invalidBlz);
   const dbEntry = lookupBlz(bankId);
   // Every listed bank has an address; a BLZ without one has left the list
   // (the browser checks a remembered bank at start, so this is the rare race).
-  if (!dbEntry?.url) {
-    return fail('Diese Bank steht nicht mehr in der Liste – vielleicht hat sie fusioniert. Wähle sie über „Ändern“ neu aus.');
-  }
-  if (!userId || !pin) return fail('Bitte Anmeldename und PIN angeben.');
+  if (!dbEntry?.url) return fail(msgs().auth.api.bankGone);
+  if (!userId || !pin) return fail(msgs().auth.api.missingCredentials);
 
   // Telemetry: which bank and how the login went — never who logged in.
   noteTelemetry({ blz: bankId });
@@ -49,7 +48,7 @@ export const POST = wrap(async (req: Request) => {
   } catch (err) {
     if (attempt.signal.aborted) {
       outcome('cancelled');
-      return fail(CANCELLED, 409);
+      return cancelled();
     }
     outcome(bankErrorKind(err) ?? 'error');
     throw err;
@@ -110,7 +109,7 @@ async function login(
       const sessionId = open(client, meta);
       if (!sessionId) {
         outcome('cancelled');
-        return fail(CANCELLED, 409);
+        return cancelled();
       }
       const s = getSession(sessionId)!;
       const accounts = accountsFor(s);
@@ -161,7 +160,7 @@ async function login(
   console.log(`[connect] blz=${bankId} upd=${!!client.config.bankingInformation?.upd} accounts=${client.config.bankingInformation?.upd?.bankAccounts?.length ?? 0} tanMethods=${client.config.availableTanMethods?.length ?? 0}`);
   if (!sync.success && (!client.config.availableTanMethods || client.config.availableTanMethods.length === 0)) {
     outcome('refused');
-    return fail(bankAnswerText(sync) || 'Deine Bank hat die Anmeldung abgelehnt. Prüfe Anmeldename und PIN.');
+    return fail(bankAnswerText(sync) || msgs().auth.api.refused);
   }
 
   const bankName = client.config.bankingInformation?.bpd?.bankName || dbEntry.name || `BLZ ${bankId}`;
@@ -169,7 +168,7 @@ async function login(
   const sessionId = open(client, meta);
   if (!sessionId) {
     outcome('cancelled');
-    return fail(CANCELLED, 409);
+    return cancelled();
   }
   outcome('ok', { restored: false, tanMethods: client.config.availableTanMethods.length });
   const payload: ConnectResponse = {

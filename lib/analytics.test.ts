@@ -322,6 +322,11 @@ test('search: dates match the Buchungs- or Wertstellungstag', () => {
   assert.equal(find('15.09.2025').length, 0);
   assert.equal(find('01.10.').length, 1, 'local day, not the UTC date of the wire string');
   assert.equal(find('30.09.').length, 3);
+  // As English writes the day, day first; "09/2026" stays the month.
+  assert.equal(find('15/09').length, 1);
+  assert.equal(find('15/09/2026').length, 1);
+  assert.equal(find('15/09/2025').length, 0);
+  assert.equal(find('30/09').length, 3);
 });
 
 test('txMatcher is reusable on its own', () => {

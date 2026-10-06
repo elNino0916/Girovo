@@ -6,6 +6,7 @@ import type { TxFilter } from '@/lib/app-types';
 import { CATEGORIES, categoryLabel, type CategoryId } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { fmtRange } from '@/lib/format';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { CalendarIcon, CategoryIcon, CloseIcon, SearchIcon } from '../icons';
 import {
@@ -60,6 +61,8 @@ export function TxFilterBar({
   listId: string;
 }) {
   const { singleKeyShortcuts: singleKeys } = useFints();
+  const t = useT();
+  const words = t.transactions.filter;
   const [draft, setDraft] = useState(filter.query);
   // The query this field last handed to the provider. A provider query that
   // differs from it was set from elsewhere.
@@ -136,8 +139,8 @@ export function TxFilterBar({
               commitQuery(draft);
             }
           }}
-          placeholder="Name, Zweck, Kategorie, Betrag, Monat"
-          aria-label="Umsätze durchsuchen"
+          placeholder={words.placeholder}
+          aria-label={words.searchLabel}
           aria-describedby={hintId}
           aria-controls={listId}
           autoComplete="off"
@@ -147,7 +150,7 @@ export function TxFilterBar({
           trailing={
             draft ? (
               <IconButton
-                aria-label="Suche leeren"
+                aria-label={words.clear}
                 onClick={() => {
                   setDraft('');
                   commitQuery('');
@@ -167,10 +170,7 @@ export function TxFilterBar({
           }
           className="[&::-webkit-search-cancel-button]:hidden"
         />
-        <p id={hintId} className="sr-only">
-          Sucht im Namen, Verwendungszweck, in der Kategorie und IBAN. Beträge wie 12,99, über 100 als &gt;100, von 50 bis
-          100 als 50-100, ein Tag wie 28.09. und ein Monat wie August.
-        </p>
+        <p id={hintId} className="sr-only">{words.hint}</p>
       </div>
 
       {/* One scrolling row on a phone rather than a wrap: the chips keep their
@@ -178,14 +178,14 @@ export function TxFilterBar({
           The vertical padding is room for the focus ring, which a scroller
           would otherwise clip. */}
       <div className="-mx-4 -my-1 flex items-center gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:-mx-5 sm:px-5">
-        <div role="group" aria-label="Richtung" className="flex shrink-0 gap-2">
-          <FilterChip selected={filter.dir === 'all'} onClick={() => setDir('all')}>Alle</FilterChip>
-          <FilterChip selected={filter.dir === 'in'} onClick={() => setDir('in')}>Eingänge</FilterChip>
-          <FilterChip selected={filter.dir === 'out'} onClick={() => setDir('out')}>Ausgänge</FilterChip>
+        <div role="group" aria-label={words.direction} className="flex shrink-0 gap-2">
+          <FilterChip selected={filter.dir === 'all'} onClick={() => setDir('all')}>{words.all}</FilterChip>
+          <FilterChip selected={filter.dir === 'in'} onClick={() => setDir('in')}>{t.common.booking.incoming}</FilterChip>
+          <FilterChip selected={filter.dir === 'out'} onClick={() => setDir('out')}>{t.common.booking.outgoing}</FilterChip>
         </div>
         <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-line" />
         <Menu
-          label="Kategorie"
+          label={t.transactions.category}
           minWidth={280}
           trigger={(p) => (
             <FilterChip
@@ -193,15 +193,15 @@ export function TxFilterBar({
               menu
               selected={!!filter.category}
               icon={filter.category ? <CategoryIcon id={filter.category} size={16} /> : undefined}
-              aria-label={filter.category ? `Kategorie: ${categoryLabel(filter.category)}` : 'Kategorie wählen'}
+              aria-label={filter.category ? words.categoryIs(categoryLabel(filter.category)) : t.transactions.chooseCategory}
               className="shrink-0"
             >
-              {filter.category ? categoryLabel(filter.category) : 'Kategorie'}
+              {filter.category ? categoryLabel(filter.category) : t.transactions.category}
             </FilterChip>
           )}
         >
           <MenuItemRadio checked={!filter.category} onSelect={() => setFilter((f) => edited(f, { category: null }))}>
-            Alle Kategorien
+            {words.allCategories}
           </MenuItemRadio>
           <MenuSeparator />
           <MenuGroup>
@@ -224,7 +224,7 @@ export function TxFilterBar({
         {/* The month: a view of what is loaded. Removable in one press when set. */}
         <span className="inline-flex shrink-0 items-center">
           <Menu
-            label="Monat"
+            label={words.month}
             minWidth={264}
             trigger={(p) => (
               <FilterChip
@@ -232,10 +232,10 @@ export function TxFilterBar({
                 menu
                 selected={!!days}
                 icon={<CalendarIcon size={16} />}
-                aria-label={days ? `Zeitraum der Liste: ${days}` : 'Monat wählen'}
+                aria-label={days ? words.daysAre(days) : words.chooseMonth}
                 className={cx(days && 'rounded-r-none border-r-0 pr-2')}
               >
-                {days || 'Monat'}
+                {days || words.month}
               </FilterChip>
             )}
           >
@@ -244,10 +244,10 @@ export function TxFilterBar({
               description={loaded ? fmtRange(loaded.from, loaded.to) : undefined}
               onSelect={() => setDays(undefined, undefined)}
             >
-              Ganzer geladener Zeitraum
+              {words.wholePeriod}
             </MenuItemRadio>
             {newestMonths.length > 0 && <MenuSeparator />}
-            <MenuGroup label="Monat im geladenen Zeitraum">
+            <MenuGroup label={words.monthsInPeriod}>
               {newestMonths.map((m) => {
                 const n = monthCounts.get(m.month) ?? 0;
                 return (
@@ -269,8 +269,8 @@ export function TxFilterBar({
           {days && (
             <button
               type="button"
-              aria-label={`${days} entfernen`}
-              title={`${days} entfernen`}
+              aria-label={words.remove(days)}
+              title={words.remove(days)}
               onClick={() => setDays(undefined, undefined)}
               className="grid h-9 w-8 shrink-0 place-items-center rounded-r-[var(--radius-chip)] border border-l-0 border-accent bg-accent-soft text-accent transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]"
             >

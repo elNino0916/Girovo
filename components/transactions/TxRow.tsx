@@ -3,6 +3,7 @@
 import { memo } from 'react';
 import { categoryLabel, txKey, type CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
+import { useT } from '@/lib/i18n/react';
 import { BankText } from '../BankText';
 import { CategoryIcon } from '../icons';
 import { Money } from '../Money';
@@ -21,7 +22,8 @@ const QUIET_CATEGORIES = new Set<CategoryId>(['other', 'otherIn']);
  *
  * Memoised on its props: the parent resolves the merchant and the category,
  * so a row does not subscribe to the provider and does not re-render when an
- * unrelated part of the app changes.
+ * unrelated part of the app changes. It does read the language (useT): a
+ * change of it renders every row again, summary and category included.
  */
 export const TxRow = memo(function TxRow({
   tx, merchant, category, pending = false, compact = false, onOpen,
@@ -34,6 +36,7 @@ export const TxRow = memo(function TxRow({
   compact?: boolean;
   onOpen: (tx: SerializedTransaction) => void;
 }) {
+  const t = useT();
   const { name, summary, bankName } = txText(tx);
   const credit = tx.amount > 0;
   const note = rowNote(tx, pending);
@@ -60,7 +63,7 @@ export const TxRow = memo(function TxRow({
         {/* The tidied name; hovering shows what the bank's FinTS answer said. */}
         <span
           className="block truncate text-[15px] leading-snug font-semibold text-ink"
-          title={bankName && bankName !== name ? `Laut Bank: ${bankName}` : undefined}
+          title={bankName && bankName !== name ? t.transactions.row.perBank(bankName) : undefined}
         >
           {name}
         </span>
@@ -91,7 +94,7 @@ export const TxRow = memo(function TxRow({
       </span>
 
       <span className="shrink-0 pl-1 text-right">
-        <span className="sr-only">{credit ? 'Gutschrift' : 'Belastung'}</span>
+        <span className="sr-only">{credit ? t.common.booking.credit : t.common.booking.debit}</span>
         <Money
           value={tx.amount}
           currency={tx.currency}

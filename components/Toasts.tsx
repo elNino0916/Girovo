@@ -23,6 +23,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { Messages } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n/react';
 import { toastLifetime } from '@/lib/toast-time';
 import { useFints } from './FintsProvider';
 import type { Toast } from './FintsProvider';
@@ -57,6 +59,7 @@ const modalOpen = () => !!document.querySelector('[aria-modal="true"]');
 
 export function Toasts() {
   const { toasts, dismissToast } = useFints();
+  const tr = useT();
   const visible = toasts.slice(-MAX_VISIBLE);
   const polite = useAnnouncement(toasts, false);
   const urgent = useAnnouncement(toasts, true);
@@ -91,16 +94,16 @@ export function Toasts() {
   return (
     <>
       <div className="sr-only" aria-live="polite">
-        {polite && <p key={polite.id}>{spoken(polite)}</p>}
+        {polite && <p key={polite.id}>{spoken(polite, tr)}</p>}
       </div>
       <div className="sr-only" role="alert">
-        {urgent && <p key={urgent.id}>{spoken(urgent)}</p>}
+        {urgent && <p key={urgent.id}>{spoken(urgent, tr)}</p>}
       </div>
 
       {visible.length > 0 && (
         <section
           ref={stackRef}
-          aria-label="Benachrichtigungen"
+          aria-label={tr.shell.toasts.region}
           className={cx(
             'pointer-events-none fixed inset-x-0 z-200 flex flex-col items-center gap-2 px-4',
             'bottom-[calc(var(--bottombar-h)+12px)] sm:inset-x-auto sm:right-6 sm:bottom-6 sm:items-end sm:px-0',
@@ -117,8 +120,8 @@ export function Toasts() {
 }
 
 /** What a screen reader hears: the message, and for a toast with a button, how to reach it. */
-function spoken(t: Toast): string {
-  return t.action ? `${t.message} Mit ${TOAST_KEY} zur Schaltfläche „${t.action.label}“.` : t.message;
+function spoken(t: Toast, tr: Messages): string {
+  return t.action ? `${t.message} ${tr.shell.toasts.reachAction(TOAST_KEY, t.action.label)}` : t.message;
 }
 
 /**
@@ -158,6 +161,8 @@ function useAway(): boolean {
 }
 
 function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number) => void }) {
+  const tr = useT();
+  const { locale } = useLocale();
   const [leaving, setLeaving] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -226,11 +231,11 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
           action beside it, a longer one gets the full width and the action
           drops below, right-aligned. Squeezing both into one line is what
           used to split "Zeitüberschreitung" mid-word. The words wrap at spaces
-          (German hyphenation where the engine has it); only a token longer
-          than the whole line, an IBAN say, is broken anywhere. */}
+          (the language's own hyphenation where the engine has it); only a token
+          longer than the whole line, an IBAN say, is broken anywhere. */}
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-2 py-px">
         <p
-          lang="de"
+          lang={locale}
           className="min-w-0 flex-[1_1_auto] text-[14.5px] leading-snug whitespace-pre-line hyphens-auto wrap-anywhere"
         >
           {toast.message}
@@ -258,7 +263,7 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
       </div>
       {/* Pulled in: the pill and the 32px hit area both carry their own
           air, so the row's full gap here would only cost the message width. */}
-      <IconButton aria-label="Hinweis schließen" onClick={() => setLeaving(true)} className="-my-0.5 -ml-2">
+      <IconButton aria-label={tr.shell.ui.dismiss} onClick={() => setLeaving(true)} className="-my-0.5 -ml-2">
         <CloseIcon size={15} />
       </IconButton>
     </div>

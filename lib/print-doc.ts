@@ -13,12 +13,16 @@
 //     the sheet works out itself is marked as worked out, and one that cannot
 //     be squared with the bookings says so instead of being made to fit.
 //
+// The sheet's own words follow the interface language (lib/i18n): a label,
+// a credit line's name. What the bank sent never does.
+//
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
 import type { SerializedTransaction, StatementBlock } from './fints-types';
 import { isCardAccount } from './balances.ts';
 import { counterpartyName, intermediaryName, rawCounterparty, txCreditorId } from './categories.ts';
 import { dayKey, fmtDecimal, fmtSignedDecimal, prettyBookingText, repairBankText } from './format.ts';
+import { msgs } from './i18n/index.ts';
 import { parsePurpose, purposeLines, type ParsedPurpose } from './sepa-purpose.ts';
 
 const cents = (v: number) => Math.round(Number(v) * 100);
@@ -100,18 +104,19 @@ const OWN_ROW_TAGS = new Set(['SVWZ', 'EREF', 'MREF', 'CRED', 'KREF']);
  */
 export function bookingReferences(tx: SerializedTransaction, parsed: ParsedPurpose = paperText(tx).parsed): DocRef[] {
   const field = (tag: string) => parsed.fields.find((f) => f.tag === tag)?.value ?? '';
+  const { common, transactions: { refs } } = msgs();
   // The tags' own values first: where a bank ran the tags together, the
   // parser files everything after "EREF+" — MREF, CRED and the prose — as
   // the End-to-End reference.
   const rows: DocRef[] = [
-    { key: 'eref', label: 'End-to-End-Referenz', value: realRef(field('EREF')) || realRef(tx.e2eReference) },
-    { key: 'mref', label: 'Mandatsreferenz', value: realRef(field('MREF')) || realRef(tx.mandateReference) },
-    { key: 'cred', label: 'Gläubiger-ID', value: txCreditorId(tx) ?? '' },
-    { key: 'kref', label: 'Kundenreferenz', value: realRef(tx.customerReference) || realRef(field('KREF')) },
+    { key: 'eref', label: refs.e2e, value: realRef(field('EREF')) || realRef(tx.e2eReference) },
+    { key: 'mref', label: refs.mandate, value: realRef(field('MREF')) || realRef(tx.mandateReference) },
+    { key: 'cred', label: common.booking.creditorId, value: txCreditorId(tx) ?? '' },
+    { key: 'kref', label: refs.customer, value: realRef(tx.customerReference) || realRef(field('KREF')) },
     ...parsed.fields
       .filter((f) => !OWN_ROW_TAGS.has(f.tag))
       .map((f): DocRef => ({ key: 'field', label: f.label, value: f.value.trim(), iban: f.tag === 'IBAN' })),
-    { key: 'bank', label: 'Bankreferenz', value: realRef(tx.bankReference) },
+    { key: 'bank', label: refs.bank, value: realRef(tx.bankReference) },
   ];
   const seen = new Set<string>();
   return rows.filter((r) => {
@@ -127,19 +132,20 @@ export function bookingReferences(tx: SerializedTransaction, parsed: ParsedPurpo
 
 /**
  * The credit line under the name the screen uses: "Dispositionsrahmen" on an
- * account, "Kreditrahmen" on a card. A card is decided the way the screen
- * decides it (`isCardAccount`: the Kontoart, named or 50–59), so the paper
- * never calls a card's limit a Dispo. Always the size of the line — a bank that
- * reports it as a negative number must not print "−2.000,00". Null when there
- * is none, or it is zero.
+ * account, "Kreditrahmen" on a card ("Overdraft limit", "Credit limit"). A
+ * card is decided the way the screen decides it (`isCardAccount`: the
+ * Kontoart, named or 50–59), so the paper never calls a card's limit a Dispo.
+ * Always the size of the line — a bank that reports it as a negative number
+ * must not print "−2.000,00". Null when there is none, or it is zero.
  */
 export function creditLine(
   limit: number | null | undefined,
   accountType: string,
-): { label: 'Dispositionsrahmen' | 'Kreditrahmen'; amount: number } | null {
+): { label: string; amount: number } | null {
   if (limit == null || !Number.isFinite(Number(limit)) || cents(limit) === 0) return null;
+  const { doc } = msgs().transactions;
   return {
-    label: isCardAccount({ accountType }) ? 'Kreditrahmen' : 'Dispositionsrahmen',
+    label: isCardAccount({ accountType }) ? doc.creditLimit : doc.overdraftLimit,
     amount: Math.abs(cents(limit)) / 100,
   };
 }

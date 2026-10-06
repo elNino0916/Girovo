@@ -10,12 +10,14 @@
 // messages are read. It counts the bank's messages only, as the bell's number
 // does; a waiting app update is marked on the bell by its dot alone.
 
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ChevronIcon, MailIcon } from '../icons';
 import { Dot, Tile } from '../ui';
 
 export function MessagesTeaser() {
   const { messages, setInboxOpen } = useFints();
+  const t = useT();
   const unread = messages.filter((m) => !m.read);
   if (!unread.length) return null;
   const first = unread[0];
@@ -23,9 +25,9 @@ export function MessagesTeaser() {
 
   return (
     <Tile
-      title="Mitteilungen"
+      title={t.common.nav.messages}
       // The count in words, not in a filled badge: blue is for what can be pressed.
-      subtitle={`${count} ungelesen · von deiner Bank, bei dieser Anmeldung`}
+      subtitle={t.shell.teaser.subtitle(count)}
       className="min-w-0 overflow-clip"
     >
       <div className="px-4 pb-4 sm:px-5 sm:pb-5">
@@ -52,7 +54,7 @@ export function MessagesTeaser() {
         onClick={() => setInboxOpen(true)}
         className="row-focus flex w-full items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-left text-[13.5px] font-semibold text-accent hover:bg-accent-soft sm:px-5"
       >
-        {count === 1 ? 'Mitteilung lesen' : count === 2 ? 'Beide lesen' : `Alle ${count} lesen`}
+        {t.shell.teaser.read(count)}
         <ChevronIcon dir="right" size={15} />
       </button>
     </Tile>

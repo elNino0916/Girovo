@@ -8,6 +8,12 @@
 // template keeps working — but this is the app's own export, built from the
 // bookings it loaded, and nothing here may claim to be the bank's.
 //
+// The header row, the Status column and the file name follow the interface
+// language (lib/i18n/messages/transactions.ts), and so do the app's own words
+// in a cell (a category). The format never does: a file saved from the
+// English interface is still German Excel's — semicolons, decimal commas,
+// dd.mm.yyyy.
+//
 // Pure and dependency-free apart from sibling lib modules, so the
 // `node --test` suite can run it under Node's own type stripping.
 
@@ -15,32 +21,43 @@ import { categoryLabel, intermediaryName, isCategoryId, txBic, txCreditorId } fr
 import type { CategoryId, CategoryResult } from './categories.ts';
 import { prettyBookingText, repairBankText, translateType } from './format.ts';
 import type { SerializedAccount, SerializedTransaction } from './fints-types';
+import { msgs } from './i18n/index.ts';
 import { parsePurpose, purposeLines } from './sepa-purpose.ts';
 
+/**
+ * The file's columns, in order — as keys; csvHeader() names them. The
+ * `ultimate` column holds the shop behind a card processor (or the payer
+ * behind a payment service): the name the bank's own app shows. Its own
+ * column, so the name and IBAN before it stay the account the money really
+ * moved to.
+ */
 export const CSV_COLUMNS = [
-  'Bezeichnung Auftragskonto',
-  'IBAN Auftragskonto',
-  'BIC Auftragskonto',
-  'Bankname Auftragskonto',
-  'Buchungstag',
-  'Valutadatum',
-  'Name Zahlungsbeteiligter',
-  'IBAN Zahlungsbeteiligter',
-  'BIC Zahlungsbeteiligter',
-  // The shop behind a card processor (or the payer behind a payment service):
-  // the name the bank's own app shows. Its own column, so the name and IBAN
-  // above stay the account the money really moved to.
-  'Abweichender Empfänger/Auftraggeber',
-  'Buchungstext',
-  'Verwendungszweck',
-  'Betrag',
-  'Waehrung',
-  'Kategorie',
-  'Glaeubiger ID',
-  'Mandatsreferenz',
-  'Kundenreferenz (End-to-End)',
-  'Status',
+  'accountName',
+  'accountIban',
+  'accountBic',
+  'accountBank',
+  'entryDate',
+  'valueDate',
+  'remoteName',
+  'remoteIban',
+  'remoteBic',
+  'ultimate',
+  'bookingText',
+  'purpose',
+  'amount',
+  'currency',
+  'category',
+  'creditorId',
+  'mandateRef',
+  'e2eRef',
+  'status',
 ] as const;
+
+/** The header row's names, in the language speaking right now. */
+export function csvHeader(): string[] {
+  const names = msgs().transactions.csv.columns;
+  return CSV_COLUMNS.map((column) => names[column]);
+}
 
 export type CsvOptions = {
   account: Pick<SerializedAccount, 'accountNumber' | 'iban' | 'bic' | 'currency' | 'accountType' | 'product'>;
@@ -60,10 +77,11 @@ export type CsvOptions = {
  * (the bank sent it, and books it on that day), everything else "Gebucht".
  */
 export function csvStatus(tx: Pick<SerializedTransaction, 'entryDate' | 'valueDate'>, today = new Date()): string {
+  const words = msgs().transactions;
   const d = new Date(tx.entryDate || tx.valueDate);
-  if (Number.isNaN(d.getTime())) return 'Gebucht';
+  if (Number.isNaN(d.getTime())) return words.csv.booked;
   const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  return day(d) > day(today) ? 'Noch nicht gebucht' : 'Gebucht';
+  return day(d) > day(today) ? words.notBooked : words.csv.booked;
 }
 
 const SEPARATOR = ';';
@@ -85,7 +103,10 @@ export function csvTextCell(value: unknown): string {
   let s = value == null ? '' : String(value);
   if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   s = s.replace(/\r\n?/g, '\n');
-  return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  // The quote as \x22 inside the patterns: a bare one there reads as the start
+  // of a string to the i18n scanner (lib/i18n/scan.ts), which then takes the
+  // comments below for interface text.
+  return /[;\x22\n]/.test(s) ? `"${s.replace(/\x22/g, '""')}"` : s;
 }
 
 /** What Excel would read as a number, a date or a time rather than as text. */
@@ -205,7 +226,7 @@ export function transactionsToCsv(txs: readonly SerializedTransaction[], opts: C
     csvIdCell(compact(account.bic)),
     csvTextCell(opts.bankName),
   ];
-  const lines = [CSV_COLUMNS.join(SEPARATOR), ...txs.map((tx) => row(tx, opts, accountCells))];
+  const lines = [csvHeader().join(SEPARATOR), ...txs.map((tx) => row(tx, opts, accountCells))];
   return BOM + lines.join(EOL) + EOL;
 }
 
@@ -226,23 +247,25 @@ export function csvScope(
 }
 
 /**
- * "Umsaetze_593271_2026-07-05_2026-10-03.csv" — the last six characters of
- * the IBAN tell two accounts' exports apart without putting the whole IBAN
- * into a file name that ends up in a Downloads folder and in recent-files
- * lists. ASCII only: "ä" in a file name still trips up some mail clients.
+ * "Umsaetze_593271_2026-07-05_2026-10-03.csv" ("Transactions_…") — the last
+ * six characters of the IBAN tell two accounts' exports apart without putting
+ * the whole IBAN into a file name that ends up in a Downloads folder and in
+ * recent-files lists. ASCII only: "ä" in a file name still trips up some mail
+ * clients.
  *
  * The span is the days the file covers: the loaded period, or the month a
  * filter narrowed the list to. A file narrowed by anything the dates do not
- * say (a search, a category, a direction) ends in "_gefiltert", so it is
- * never mistaken for the whole period under the same name.
+ * say (a search, a category, a direction) ends in "_gefiltert" ("_filtered"),
+ * so it is never mistaken for the whole period under the same name.
  */
 export function csvFileName(
   account: Pick<SerializedAccount, 'accountNumber' | 'iban'>,
   range: { from: string; to: string },
   opts: { filtered?: boolean } = {},
 ): string {
-  const id = compact(account.iban || account.accountNumber).replace(/[^A-Z0-9]/g, '').slice(-6) || 'Konto';
+  const words = msgs().transactions.csv;
+  const id = compact(account.iban || account.accountNumber).replace(/[^A-Z0-9]/g, '').slice(-6) || words.fileNoAccount;
   const day = (s: string) => String(s ?? '').replace(/[^0-9-]/g, '');
   const span = [day(range.from), day(range.to)].filter(Boolean).join('_');
-  return `Umsaetze_${id}${span ? `_${span}` : ''}${opts.filtered ? '_gefiltert' : ''}.csv`;
+  return `${words.file}_${id}${span ? `_${span}` : ''}${opts.filtered ? `_${words.fileFiltered}` : ''}.csv`;
 }

@@ -17,13 +17,15 @@
 import { useEffect, useRef } from 'react';
 import type { DashboardTab } from '@/lib/app-types';
 import type { SerializedAccount } from '@/lib/fints-types';
+import { msgs } from '@/lib/i18n';
 import { useFints, type FintsApi } from '../FintsProvider';
 import type { ShellActions } from './actions';
 
 /** What switching "Beträge ausblenden" from a key or the palette says. */
 export function privacyNotice(hidden: boolean, singleKeys: boolean): string {
-  if (!hidden) return 'Beträge werden wieder angezeigt.';
-  return singleKeys ? 'Beträge ausgeblendet – mit B blendest du sie wieder ein.' : 'Beträge ausgeblendet.';
+  const say = msgs().shell.amounts;
+  if (!hidden) return say.shown;
+  return singleKeys ? say.hiddenB : say.hidden;
 }
 
 /**
@@ -35,8 +37,10 @@ export function privacyNotice(hidden: boolean, singleKeys: boolean): string {
  */
 function switchByKey(f: FintsApi, account: SerializedAccount) {
   const label = f.accountLabel(account);
+  const t = msgs();
+  const say = t.shell.switchByKey;
   if (f.busy) {
-    f.toast(`„${label}“ lässt sich wählen, sobald der laufende Vorgang fertig ist.`, 'info');
+    f.toast(say.busy(label), 'info');
     return;
   }
   const free = account.canStatements
@@ -50,14 +54,10 @@ function switchByKey(f: FintsApi, account: SerializedAccount) {
   const failed = !!(f.txErrors[acct] ?? f.balanceErrors[acct]);
   const elsewhere = !failed && !!f.txByAccount[acct];
   f.toast(
-    failed
-      ? `Der letzte Abruf für „${label}“ ist fehlgeschlagen. Ein neuer kann eine Freigabe erfordern.`
-      : elsewhere
-        ? `Die Umsätze von „${label}“ sind für einen anderen Zeitraum abgerufen. Ein neuer Abruf kann eine Freigabe erfordern.`
-        : `„${label}“ ist noch nicht abgerufen. Ein Abruf kann eine Freigabe erfordern.`,
+    failed ? say.failed(label) : elsewhere ? say.otherPeriod(label) : say.notLoaded(label),
     'info',
     10_000,
-    { label: failed ? 'Erneut versuchen' : 'Jetzt abrufen', run: () => f.selectAccount(account) },
+    { label: failed ? t.common.retry : say.loadNow, run: () => f.selectAccount(account) },
   );
 }
 

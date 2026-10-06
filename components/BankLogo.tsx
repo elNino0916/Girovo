@@ -77,6 +77,16 @@ export function BankLogo({
     );
   }
 
+  return <BankChip brand={brand} className={BOX[size]} />;
+}
+
+/**
+ * A brand's chip: its colour and mark on a square, drawn on a 100 grid so it
+ * reads at any size — where a bank has no logo file, and as a booking's avatar
+ * where its file is a wordmark (lib/brands.ts COMPACT_LOGO). `className` sets
+ * the size and the corners.
+ */
+export function BankChip({ brand, className }: { brand: string; className: string }) {
   const b = BRANDS[brand] || BRANDS.generic;
   const fg = b.fg || '#ffffff';
 
@@ -107,7 +117,7 @@ export function BankLogo({
   }
 
   return (
-    <span className={cx('grid shrink-0 place-items-center overflow-hidden', BOX[size])} style={{ background: b.bg }}>
+    <span className={cx('grid shrink-0 place-items-center overflow-hidden', className)} style={{ background: b.bg }}>
       <svg viewBox="0 0 100 100" aria-hidden focusable="false" className="block size-full">
         {inner}
         {b.accent && <rect x="0" y="86" width="100" height="14" fill={b.accent} />}

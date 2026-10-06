@@ -11,7 +11,7 @@
 // to subscribe to the provider just for this.
 
 import { AMOUNT_MASK, amountParts } from '@/lib/mask';
-import { MASKED_LABEL, usePrivacy } from './Money';
+import { maskedLabel, usePrivacy } from './Money';
 
 export function BankText({ text }: { text: string }) {
   const privacy = usePrivacy();
@@ -19,7 +19,7 @@ export function BankText({ text }: { text: string }) {
   return (
     <>
       {amountParts(text).map((p, i) => (p.amount
-        ? <span key={i} role="img" aria-label={MASKED_LABEL}>{AMOUNT_MASK}</span>
+        ? <span key={i} role="img" aria-label={maskedLabel()}>{AMOUNT_MASK}</span>
         : p.text))}
     </>
   );

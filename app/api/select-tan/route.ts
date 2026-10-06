@@ -2,6 +2,7 @@
 // pulls the account list (UPD). This usually triggers the decoupled approval.
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
+import { msgs } from '@/lib/i18n';
 import { accountsFor, bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
 import { getSession, saveSessionProfile } from '@/lib/session';
 import { fetchTanMediaNames } from '@/lib/tan-media';
@@ -21,10 +22,8 @@ export const POST = wrap(async (req: Request) => {
   // Started with a typed-TAN method, the approval wait would fail a second
   // later with lib-fints' "TAN must be provided…" — and every retry again.
   const offered = (s.client.config.availableTanMethods || []).find((m) => m.id === Number(tanMethodId));
-  if (!offered) return fail('Dieses Verfahren bietet deine Bank für deinen Zugang nicht an.');
-  if (!offered.isDecoupled) {
-    return fail('Dieses Verfahren braucht eine TAN-Eingabe. Hier geht nur die Freigabe in einer Banking-App.');
-  }
+  if (!offered) return fail(msgs().auth.api.methodNotOffered);
+  if (!offered.isDecoupled) return fail(msgs().auth.api.methodNeedsTan);
 
   const method = s.client.selectTanMethod(offered.id);
 
@@ -63,7 +62,7 @@ export const POST = wrap(async (req: Request) => {
     return json(tanPayload(sync));
   }
   if (!sync.success) {
-    return fail(bankAnswerText(sync) || 'Anmeldung fehlgeschlagen.');
+    return fail(bankAnswerText(sync) || msgs().auth.api.loginFailed);
   }
 
   saveSessionProfile(s);

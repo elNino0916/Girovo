@@ -21,6 +21,12 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   rewritten to their live successors — refresh anytime with
   `node scripts/update-banks.mjs`. If a bank's primary endpoint is down,
   the server automatically retries the known alternate URL.
+- **German or English** — switch at any time on the login screen or in the
+  Sitzung panel; without a choice the app follows the system's language
+  (German on a German system, English otherwise). Figures and dates follow
+  the language (1.234,56 € / €1,234.56). What your bank sends — its messages,
+  answers and Verwendungszwecke — is shown as the bank wrote it, and the CSV
+  export stays in the German Excel dialect either way.
 - **Finanzübersicht** in the Atruvia online-banking language: navy masthead
   and stage, *Konten und Karten* with a Gesamtsaldo that appears once every
   euro account's balance is known (*Alle Salden abrufen* asks for the missing
@@ -40,8 +46,9 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   "Erneut überweisen" / "Zurücküberweisen", "Alle Umsätze mit …").
 - **Automatic categories** (Wohnen & Energie, Lebensmittel, Mobilität, Abos, …)
   from booking codes (MT940 GVC and CAMT ISO codes), creditor IDs and a German
-  keyword table — deterministic, on-device, correctable per booking or as a
-  rule for a counterparty.
+  keyword table, and for what those miss a small text model that runs on the
+  machine (see [Category model](#category-model)) — correctable per booking or
+  as a rule for a counterparty, and every rule teaches the model.
 - **Umsatzanalyse** — Einnahmen/Ausgaben/Differenz, spending by category,
   month-by-month comparison, top payees and largest expenses for one or all
   loaded accounts. Umbuchungen between your own accounts are left out, refunds
@@ -121,10 +128,12 @@ they add no outside request of their own.
 
 ```bash
 npm install
+node scripts/fetch-model.mjs
 npm run dev
 ```
 
-Then open **http://localhost:3000**.
+Then open **http://localhost:3000**. The second line fetches the category
+model (300 MB, once); without it the app runs on the keyword rules alone.
 
 For a production run:
 
@@ -158,7 +167,8 @@ That produces two files in `dist/`:
 | `Girovo-<version>-Setup.exe` | Standard NSIS installer — double-click to install, uninstall via *Programs & Features*. |
 | `Girovo-<version>-portable.exe` | Single executable, no installation needed — run from anywhere. |
 
-Both are ~100 MB, most of which is the Electron runtime.
+Both are about 400 MB: the category model is most of it, the Electron runtime
+most of the rest.
 
 ### What the installer contains
 
@@ -172,6 +182,9 @@ no npm, no extra software**:
   (`ELECTRON_RUN_AS_NODE=1`), bound to `127.0.0.1` on a random free port.
   Nothing is reachable from the network, and the port never collides with a dev
   server.
+- **Category model** — `resources/models/category-model` (280 MB) and
+  the ONNX runtime for Windows x64 (29 MB, CPU only). See
+  [Category model](#category-model).
 
 End users simply run the installer. Developers building from source only need
 `npm run electron:dist`.
@@ -226,12 +239,15 @@ The desktop app updates itself from this repository's
   how far it is and closes once the new version is up
   (`build/update-window/UpdateWindow.cs`, built with the C# compiler that comes
   with Windows by `scripts/build-update-window.mjs` — `--demo light|dark|failure`
-  shows it). It only watches: the update runs the same without it.
+  shows it, `--lang en` in English). It only watches: the update runs the same
+  without it. The same window says it when the app cannot go on — it could not
+  start, or its server stopped — in the app's look and language, with "Restart
+  Girovo"; Windows' plain message box is left only as the fallback.
 - **Only what changed** — the installer keeps a copy of itself in the
   installation (`resources\update-base.bin`). An update compares the new
   release's blockmap with the installed release's, copies the unchanged parts
   of the installer from that file and downloads only the rest from GitHub in
-  byte ranges: usually 1–3 MB instead of ~110 MB. A release that changes nearly
+  byte ranges: usually 1–3 MB instead of ~400 MB. A release that changes nearly
   everything (a new Electron) still reuses the few MB that stayed. The result
   is checked against GitHub's digest like any download; if anything does not
   fit (no blockmap, an installation from a local build, nothing reusable at
@@ -373,6 +389,47 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `POST /api/vault` | Read / save / reset / wipe the encrypted personal-data vault (`op`) |
 | `POST /api/keepalive` | Keep an active session alive (no bank traffic) |
 | `POST /api/logout` | Drop the session |
+
+## Category model
+
+Categories come first from the bank's booking codes, creditor IDs and a German
+keyword table (`lib/categorize.ts`). For the outgoing bookings none of those
+recognise — a local bakery, a physiotherapist, a parking app — a text model
+decides, on the machine (`lib/category-model.ts`):
+
+- **The model** is [multilingual-e5-base](https://huggingface.co/intfloat/multilingual-e5-base)
+  (MIT), int8-quantised ONNX from
+  [Xenova/multilingual-e5-base](https://huggingface.co/Xenova/multilingual-e5-base),
+  run by `onnxruntime-node` on the CPU in the app's own server. Its weights are
+  over GitHub's file limit, so they are not in the repository:
+  `scripts/fetch-model.mjs` downloads them pinned to one revision and checks
+  every file's hash; `npm run electron:build` runs it before every build.
+- **Switching models:** `scripts/fetch-model.mjs` is the only file that names
+  the model. It keeps each calibrated one — e5-base, and e5-small (118 MB,
+  used in 5.0.2 and 5.0.3) — with its pins and thresholds; `MODEL` picks the one to
+  ship, and the thresholds go beside the weights as `model.json`, which the
+  app reads. Switching is that one word and a rerun of the script.
+- **How it decides:** the booking's counterparty and Verwendungszweck are
+  compared with short descriptions of each spending category, with a
+  counter-class for money between people (a gift, a repayment), and with the
+  counterparties the user has filed by rule — a near-identical name takes the
+  rule's category. Only a clear winner counts; anything else stays
+  "Sonstiges". Money coming in is never guessed.
+- **Where it shows:** the guess comes after the keywords and is labelled as a
+  guess like theirs. The contract detection (`lib/recurring.ts`) uses it too,
+  so a card payment at a shop the keywords do not know is judged as a habit,
+  not a subscription.
+- **Privacy:** nothing leaves the machine — the page asks the app's own server
+  on `127.0.0.1`, and the server keeps the vectors in memory only, logging no
+  text. The model takes about 600 MB of memory while loaded; it is loaded on
+  first use and released after a quiet minute.
+- **Calibration:** `node scripts/eval-category-model.mjs` (`--sweep` to search)
+  scores two labelled sets of German bookings. The thresholds and the
+  category descriptions are tuned on the first (87 of 99 right, 3 wrong); the
+  second is never tuned on and is what tells how the model does on names
+  nobody has looked at — 66 of 83 right, 7 of its 73 guesses wrong (90 %).
+  The thresholds accept a few wrong guesses for many more right ones; a wrong
+  one is fixed with a click, and a rule then teaches the model that name.
 
 ## Company logos
 
@@ -544,3 +601,8 @@ npm run typecheck
 
 Open `http://localhost:3000/design-preview` during `npm run dev` to see every
 screen with generated data — no bank login needed.
+
+Every text on screen lives in `lib/i18n/messages`, German and English side by
+side; `lib/i18n/README.md` has the rules and the glossary. A text written
+straight into a component fails the test suite —
+`node scripts/i18n-check.mjs [files…]` lists them.

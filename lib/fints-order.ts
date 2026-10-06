@@ -8,22 +8,26 @@
 // second with ORDER_UNANSWERED_STATUS, which the client shows as "Status
 // unklar" — never as a failure, because a user told it failed sends it again.
 //
-// Type-only imports, so the client can read the status constant from here
-// without pulling the FinTS stack into its bundle.
+// Type-only imports besides the texts, so the client can read the status
+// constant from here without pulling the FinTS stack into its bundle.
 
 import type { ClientResponseWithResult, FinTSClientEx } from './fints-types';
 import type { CustomerOrderInteraction } from './fints-internals.js';
+import { MESSAGES, msgs } from './i18n/index.ts';
 
 /** The HTTP status for "the order went out, its answer did not come back". */
 export const ORDER_UNANSWERED_STATUS = 502;
 
-export const ORDER_UNANSWERED_MESSAGE =
-  'Die Verbindung zur Bank ist abgebrochen, nachdem der Auftrag gesendet wurde. Ob er ausgeführt wurde, ist unklar.';
+/**
+ * @deprecated The German sentence, for code that compares. An OrderUnanswered
+ * carries msgs().provider.bank.orderUnanswered, in the language of the request.
+ */
+export const ORDER_UNANSWERED_MESSAGE = MESSAGES.de.provider.bank.orderUnanswered;
 
 /** The order may have reached the bank; its answer never arrived. */
 export class OrderUnanswered extends Error {
   constructor(cause: unknown) {
-    super(ORDER_UNANSWERED_MESSAGE, { cause });
+    super(msgs().provider.bank.orderUnanswered, { cause });
     this.name = 'OrderUnanswered';
   }
 }

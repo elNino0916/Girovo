@@ -19,10 +19,12 @@
 // 13 QR code holds at error-correction level M, the largest code the standard
 // lets a scanner expect.
 //
-// Pure and dependency-free apart from the IBAN check, so the `node --test`
-// suite can run it under Node's own type stripping.
+// Pure and dependency-free apart from the IBAN check and the interface's
+// texts, so the `node --test` suite can run it under Node's own type
+// stripping.
 
 import { ibanValid } from './format.ts';
+import { msgs } from './i18n/index.ts';
 
 /** What a GiroCode asks the payer to send. */
 export type EpcPayment = {
@@ -72,15 +74,16 @@ const utf8Length = (s: string) => new TextEncoder().encode(s).length;
 
 /** "EUR12.50": two decimals, a point, no grouping — never the German "12,50". */
 function amountElement(amount: number): string {
-  if (!Number.isFinite(amount)) throw new Error('Der Betrag ist keine gültige Zahl.');
+  const words = msgs().transfer.epc;
+  if (!Number.isFinite(amount)) throw new Error(words.amountNaN);
   const cents = Math.round(amount * 100);
   // A third decimal must not be rounded away silently — the payer would see a
   // different figure than the one that was typed.
   if (Math.abs(amount * 100 - cents) > 1e-6) {
-    throw new Error('Der Betrag darf höchstens zwei Nachkommastellen haben.');
+    throw new Error(words.amountDecimals);
   }
   if (cents < MIN_CENTS || cents > MAX_CENTS) {
-    throw new Error('Der Betrag muss zwischen 0,01 € und 999.999.999,99 € liegen.');
+    throw new Error(words.amountRange);
   }
   return `EUR${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
 }
@@ -88,27 +91,29 @@ function amountElement(amount: number): string {
 /**
  * The GiroCode text for a payment request — EPC069-12 version 002, UTF-8.
  *
- * Throws an Error with a German message the UI can show as-is when the input
- * cannot become a valid code; it never truncates or rounds to make it fit.
+ * Throws an Error with a message the UI can show as-is — in the language
+ * speaking right now — when the input cannot become a valid code; it never
+ * truncates or rounds to make it fit.
  */
 export function buildEpcPayload(input: EpcInput): string {
+  const words = msgs().transfer;
   const name = element(input.name);
-  if (!name) throw new Error('Bitte gib den Namen des Empfängers an.');
+  if (!name) throw new Error(words.nameMissing);
   if (charCount(name) > EPC_MAX_NAME) {
-    throw new Error(`Der Name darf höchstens ${EPC_MAX_NAME} Zeichen lang sein.`);
+    throw new Error(words.epc.nameTooLong(EPC_MAX_NAME));
   }
 
   const iban = String(input.iban ?? '').replace(/\s+/g, '').toUpperCase();
-  if (!ibanValid(iban)) throw new Error('Die IBAN ist ungültig.');
+  if (!ibanValid(iban)) throw new Error(words.epc.ibanInvalid);
 
   const bic = String(input.bic ?? '').replace(/\s+/g, '').toUpperCase();
-  if (bic && !BIC_RE.test(bic)) throw new Error('Die BIC ist ungültig.');
+  if (bic && !BIC_RE.test(bic)) throw new Error(words.bicInvalid);
 
   const amount = input.amount == null ? '' : amountElement(input.amount);
 
   const purpose = element(input.purpose);
   if (charCount(purpose) > EPC_MAX_PURPOSE) {
-    throw new Error(`Der Verwendungszweck darf höchstens ${EPC_MAX_PURPOSE} Zeichen lang sein.`);
+    throw new Error(words.epc.purposeTooLong(EPC_MAX_PURPOSE));
   }
 
   const lines = [
@@ -133,7 +138,7 @@ export function buildEpcPayload(input: EpcInput): string {
   // Only reachable with a long name and a long purpose that are both rich in
   // multi-byte characters: 70 + 140 ASCII characters fit comfortably.
   if (utf8Length(payload) > EPC_MAX_BYTES) {
-    throw new Error('Name und Verwendungszweck sind zusammen zu lang für einen GiroCode. Bitte kürze den Verwendungszweck.');
+    throw new Error(words.epc.tooLong);
   }
   return payload;
 }

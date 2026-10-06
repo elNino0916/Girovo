@@ -7,6 +7,7 @@
 // Usage:
 //   node scripts/build-update-window.mjs                  build it
 //   node scripts/build-update-window.mjs --demo light     build it and show it (light, dark, failure)
+//   node scripts/build-update-window.mjs --demo light --lang en   …in English
 
 import { spawnSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -61,6 +62,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       '--demo', look === 'failure' ? 'failure' : 'progress',
       '--theme', look === 'dark' ? 'dark' : 'light',
       '--version', '4.1.4',
+      ...(process.argv.includes('--lang') ? ['--lang', process.argv[process.argv.indexOf('--lang') + 1] ?? 'de'] : []),
       '--app-exe', 'C:\\Program Files\\Girovo\\Girovo.exe',
     ], { detached: true, stdio: 'ignore' }).unref();
   }

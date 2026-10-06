@@ -27,7 +27,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createUpdater } = require('./updater.cjs');
-const { createFileSave, SAVE_FAILED } = require('./file-save.cjs');
+const { createFileSave } = require('./file-save.cjs');
+const { LOCALE_COOKIE, LOCALE_PREF, configure: configureLanguage, shellLocale, shellTexts, storedLocale } = require('./i18n.cjs');
 const { createTelemetryHub, lineSplitter, relayServerLine } = require('./telemetry.cjs');
 const updateLogic = require('./update-logic.cjs');
 
@@ -218,6 +219,11 @@ function delPref(key) {
   return writePrefs();
 }
 
+// The shell's own texts (electron/i18n.cjs) speak the app's language: the
+// choice the page stores as `fints.locale`, else the system's. Read each time
+// a text is made, so a change in the app reaches the next dialog.
+configureLanguage({ stored: () => prefs().get(LOCALE_PREF), system: () => app.getLocale() });
+
 // ---------------------------------------------------------------------------
 // Telemetry (electron/telemetry.cjs): errors always, usage only with the
 // user's yes. Until the SDK is loaded — and for good in a build without
@@ -324,12 +330,16 @@ const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write']);
 // Files the app hands over as Blob + <a download>. Chromium's own Save-As
 // dialog is kept — the user decides where a file with bank data lands — but
 // it opens in Downloads and with a type filter, so an export cannot be saved
-// without its extension by accident.
-const DOWNLOAD_FILTERS = {
-  '.csv': { name: 'CSV-Datei', extensions: ['csv'] },
-  '.png': { name: 'PNG-Bild', extensions: ['png'] },
-  '.pdf': { name: 'PDF', extensions: ['pdf'] },
-};
+// without its extension by accident. The types are named in the shell's
+// language at the moment a dialog opens.
+function downloadFilters() {
+  const types = shellTexts().fileTypes;
+  return {
+    '.csv': { name: types.csv, extensions: ['csv'] },
+    '.png': { name: types.png, extensions: ['png'] },
+    '.pdf': { name: types.pdf, extensions: ['pdf'] },
+  };
+}
 
 /** @type {WeakSet<Electron.Session>} */
 const configuredSessions = new WeakSet();
@@ -358,7 +368,7 @@ function configureSession(ses) {
 
   ses.on('will-download', (_event, item) => {
     const name = path.basename(item.getFilename() || 'Download');
-    const filter = DOWNLOAD_FILTERS[path.extname(name).toLowerCase()];
+    const filter = downloadFilters()[path.extname(name).toLowerCase()];
     item.setSaveDialogOptions({
       defaultPath: path.join(app.getPath('downloads'), name),
       ...(filter ? { filters: [filter] } : {}),
@@ -383,7 +393,7 @@ function waitForServer(port, deadline) {
   return new Promise((resolve, reject) => {
     const attempt = () => {
       if (server && server.exitCode !== null) {
-        reject(new Error(`Der Server wurde mit Code ${server.exitCode} beendet.`));
+        reject(new Error(shellTexts().start.serverStopped(server.exitCode)));
         return;
       }
       // /api/meta is the cheapest route that also proves the bank database was
@@ -395,7 +405,7 @@ function waitForServer(port, deadline) {
       req.on('timeout', () => req.destroy(new Error('timeout')));
       req.on('error', () => {
         if (Date.now() > deadline) {
-          reject(new Error('Der Server hat nicht rechtzeitig geantwortet.'));
+          reject(new Error(shellTexts().start.serverTimeout));
         } else {
           setTimeout(attempt, 150);
         }
@@ -409,10 +419,7 @@ async function startServer() {
   const dir = serverDir();
   const entry = path.join(dir, 'server.js');
   if (!fs.existsSync(entry)) {
-    throw new Error(
-      `Der gebaute Server fehlt (${entry}).\n\n` +
-        'Führe zuerst "npm run electron:build" aus.',
-    );
+    throw new Error(shellTexts().start.serverMissing(entry));
   }
 
   const port = await findFreePort();
@@ -431,6 +438,11 @@ async function startServer() {
       // The server's reports come out on its stdout (lib/telemetry.ts), for
       // the hub here to judge like the shell's own.
       GIROVO_TELEMETRY_PIPE: '1',
+      // The on-device category model (lib/category-model.ts): shipped beside
+      // the server in the installed app, in models/ when run from the project.
+      GIROVO_MODEL_DIR: app.isPackaged
+        ? path.join(process.resourcesPath, 'models', 'category-model')
+        : path.join(__dirname, '..', 'models', 'category-model'),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
@@ -447,10 +459,9 @@ async function startServer() {
   server.on('exit', (code) => {
     server = null;
     if (!quitting) {
-      const message = `Der Server wurde unerwartet beendet (Code ${code}).`;
+      const message = shellTexts().start.serverExited(code);
       telemetry.error({ name: 'ServerExited', message }, { source: 'main', fatal: true });
-      dialog.showErrorBox('Girovo', message);
-      app.quit();
+      void showFatal(shellTexts().start.closed, message).finally(() => app.quit());
     }
   });
 
@@ -527,7 +538,27 @@ function createWindow(appUrl) {
     win = null;
   });
 
-  win.loadURL(appUrl);
+  // The first frame in the language the user chose: the server renders it in
+  // the cookie's language (lib/i18n/server.ts), and the cookie is only the
+  // page's copy of the preference — set again from the preference before
+  // every load, so a lost cookie cannot open the window in the system's
+  // language first. A refusal costs no more than that frame: the page reads
+  // the preference once it is up and corrects itself.
+  const opened = win;
+  const locale = storedLocale();
+  const cookieSet = locale
+    ? opened.webContents.session.cookies.set({
+      url: appUrl,
+      name: LOCALE_COOKIE,
+      value: locale,
+      path: '/',
+      // Ten years, like the page's own copy (lib/i18n/react.tsx).
+      expirationDate: Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 60 * 60,
+    }).catch(() => {})
+    : Promise.resolve();
+  void cookieSet.then(() => {
+    if (!opened.isDestroyed()) opened.loadURL(appUrl);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -556,6 +587,54 @@ function spawnDetached(file, args, { cwd }) {
 const UPDATE_WINDOW = 'Girovo-Update.exe';
 
 /**
+ * The app cannot go on — it could not start, or its server stopped: said in
+ * Girovo's own window (the update window's error mode,
+ * build/update-window/UpdateWindow.cs) rather than in Windows' plain message
+ * box, which stays the fallback for when that window cannot be started.
+ */
+async function showFatal(title, message) {
+  if (await showErrorWindow(title, message)) return;
+  dialog.showErrorBox(title, message);
+}
+
+/**
+ * Starts the error window, detached, so it outlives the quit that follows —
+ * from a copy in the temp folder, so it never holds a file of the
+ * installation open while the user reinstalls. In the installed app it
+ * offers to start Girovo again. Answers whether it is up.
+ */
+async function showErrorWindow(title, message) {
+  if (process.platform !== 'win32') return false;
+  const source = app.isPackaged
+    ? path.join(process.resourcesPath, UPDATE_WINDOW)
+    : path.join(__dirname, '..', 'build', 'update-window', 'bin', UPDATE_WINDOW);
+  try {
+    if (!fs.existsSync(source)) return false;
+    let exe = path.join(app.getPath('temp'), 'Girovo-Error.exe');
+    try {
+      await fs.promises.copyFile(source, exe);
+    } catch {
+      // Still open from an earlier error: run the original.
+      exe = source;
+    }
+    // The portable build runs from a folder of its own; starting it again means its launcher.
+    const appExe = app.isPackaged ? process.env.PORTABLE_EXECUTABLE_FILE || process.execPath : null;
+    const bounds = win && !win.isDestroyed() ? win.getBounds() : null;
+    await spawnDetached(exe, [
+      '--error-title', title,
+      '--error-text', message,
+      '--lang', shellLocale(),
+      '--theme', prefersDark() ? 'dark' : 'light',
+      ...(appExe ? ['--app-exe', appExe] : []),
+      ...(bounds ? ['--around', [bounds.x, bounds.y, bounds.width, bounds.height].join(',')] : []),
+    ], { cwd: path.dirname(exe) });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The window that shows the install's progress once this app has quit
  * (build/update-window/UpdateWindow.cs). It runs from the cache folder, not
  * from here: the installer is about to delete this installation, and a
@@ -580,6 +659,8 @@ async function showInstallWindow({ installerPid, version, cacheDir }) {
     '--app-exe', process.execPath,
     '--releases-url', updateLogic.RELEASES_PAGE,
     '--theme', prefersDark() ? 'dark' : 'light',
+    // The app's language, so the window speaks it too ('de' or 'en').
+    '--lang', shellLocale(),
     '--log', path.join(cacheDir, 'update-window.log'),
     ...(bounds ? ['--around', [bounds.x, bounds.y, bounds.width, bounds.height].join(',')] : []),
   ], { cwd: cacheDir });
@@ -689,34 +770,36 @@ function setupUpdater() {
 }
 
 // A minimal menu: hidden behind Alt, but it is what registers the zoom,
-// reload and devtools accelerators on Windows.
+// reload and devtools accelerators on Windows. Labelled in the shell's
+// language at the start.
 function buildMenu() {
+  const label = shellTexts().menu;
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
-        label: '&Datei',
-        submenu: [{ role: 'quit', label: 'Beenden' }],
+        label: label.file,
+        submenu: [{ role: 'quit', label: label.quit }],
       },
       {
-        label: '&Bearbeiten',
+        label: label.edit,
         submenu: [
-          { role: 'cut', label: 'Ausschneiden' },
-          { role: 'copy', label: 'Kopieren' },
-          { role: 'paste', label: 'Einfügen' },
-          { role: 'selectAll', label: 'Alles auswählen' },
+          { role: 'cut', label: label.cut },
+          { role: 'copy', label: label.copy },
+          { role: 'paste', label: label.paste },
+          { role: 'selectAll', label: label.selectAll },
         ],
       },
       {
-        label: '&Ansicht',
+        label: label.view,
         submenu: [
-          { role: 'reload', label: 'Neu laden' },
+          { role: 'reload', label: label.reload },
           { type: 'separator' },
-          { role: 'resetZoom', label: 'Zoom zurücksetzen' },
-          { role: 'zoomIn', label: 'Vergrößern' },
-          { role: 'zoomOut', label: 'Verkleinern' },
+          { role: 'resetZoom', label: label.resetZoom },
+          { role: 'zoomIn', label: label.zoomIn },
+          { role: 'zoomOut', label: label.zoomOut },
           { type: 'separator' },
-          { role: 'togglefullscreen', label: 'Vollbild' },
-          { role: 'toggleDevTools', label: 'Entwicklertools' },
+          { role: 'togglefullscreen', label: label.fullScreen },
+          { role: 'toggleDevTools', label: label.devTools },
         ],
       },
     ]),
@@ -778,7 +861,7 @@ function run() {
       telemetry.event('app_started', { installKind: updater?.getState()?.kind, locale: app.getLocale() });
     } catch (err) {
       telemetry.error(err, { source: 'main', fatal: true });
-      dialog.showErrorBox('Girovo konnte nicht starten', String(err?.message || err));
+      await showFatal(shellTexts().start.failed, String(err?.message || err));
       app.quit();
     }
   });
@@ -855,7 +938,7 @@ function run() {
 
     const { canceled, filePath } = await dialog.showSaveDialog(owner ?? undefined, {
       defaultPath: suggestedName,
-      filters: [{ name: 'PDF-Dokument', extensions: ['pdf'] }],
+      filters: [{ name: shellTexts().fileTypes.pdfDocument, extensions: ['pdf'] }],
     });
     if (canceled || !filePath) return { ok: false, canceled: true };
 
@@ -869,15 +952,16 @@ function run() {
 
   // The app's own files (the CSV export, window.electronFiles): its own
   // Save-As, so the page learns whether the file was written before it says
-  // "gespeichert" — see electron/file-save.cjs.
+  // "gespeichert" — see electron/file-save.cjs. Its refusals, also of a call
+  // that brought no bytes (preload.cjs), are in the shell's language.
   ipcMain.handle('file:save', (event, suggestedName, bytes) => {
-    if (!fromApp(event)) return { ok: false, error: SAVE_FAILED };
+    if (!fromApp(event)) return { ok: false, error: shellTexts().files.saveFailed };
     const owner = BrowserWindow.fromWebContents(event.sender) ?? win;
     const save = createFileSave({
       showSaveDialog: (options) => dialog.showSaveDialog(owner ?? undefined, options),
       writeFile: (file, data) => fs.promises.writeFile(file, data),
       downloadsDir: app.getPath('downloads'),
-      filters: DOWNLOAD_FILTERS,
+      filters: downloadFilters(),
     });
     return save(suggestedName, bytes);
   });

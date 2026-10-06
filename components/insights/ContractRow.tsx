@@ -13,6 +13,8 @@ import { Money } from '../Money';
 import { Button, IconButton, Menu, MenuItem, Tag, cx } from '../ui';
 import { categoryLabel } from '@/lib/categories';
 import { dayKey, displayName, fmtIban } from '@/lib/format';
+import { msgs } from '@/lib/i18n';
+import { rich, useT } from '@/lib/i18n/react';
 import type { RecurringSeries } from '@/lib/recurring';
 import {
   CounterpartyAvatar, RoundMoney, daysUntil, fmtDayKey, fmtDayKeyShort, focusAfterRemoval, relativeDays, useShowInList,
@@ -21,42 +23,46 @@ import {
 /** The column template shared by the header and every row from `md` up. */
 export const CONTRACT_COLUMNS = 'md:grid md:grid-cols-[minmax(0,1fr)_12rem_8.5rem_7.5rem] md:items-center md:gap-4';
 
-export function ContractListHeader({ next = 'Nächste Buchung' }: { next?: string }) {
+/** `next` names the second column — "Nächste Buchung" unless given. */
+export function ContractListHeader({ next }: { next?: string }) {
+  const t = useT();
+  const columns = t.insights.contracts.columns;
   return (
     <div aria-hidden className="hidden border-b border-line pr-11 pb-2 pl-6 text-[12.5px] font-semibold text-ink-3 md:block">
       <div className={CONTRACT_COLUMNS}>
-        <span>Vertrag</span>
-        <span>{next}</span>
-        <span className="text-right">Betrag</span>
-        <span className="text-right">Pro Jahr</span>
+        <span>{columns.contract}</span>
+        <span>{next ?? columns.next}</span>
+        <span className="text-right">{t.common.booking.amount}</span>
+        <span className="text-right">{columns.perYear}</span>
       </div>
     </div>
   );
 }
 
-const name = (s: RecurringSeries) => displayName(s.name) || 'Unbekannt';
+const name = (s: RecurringSeries) => displayName(s.name) || msgs().insights.contracts.unknown;
 
 /** Where a series stands: its next expected booking, or why there is none. */
 function DueText({ s, compact }: { s: RecurringSeries; compact?: boolean }) {
+  const due = useT().insights.contracts.due;
   if (s.ended) {
     return compact
-      ? <>Zuletzt am {fmtDayKey(s.lastDate)} · vermutlich beendet</>
+      ? <>{due.endedCompact(fmtDayKey(s.lastDate))}</>
       : (
         <>
-          <span className="block text-[14px] text-ink">Zuletzt {fmtDayKey(s.lastDate)}</span>
-          <span className="block text-[13px] text-ink-3">vermutlich beendet</span>
+          <span className="block text-[14px] text-ink">{due.last(fmtDayKey(s.lastDate))}</span>
+          <span className="block text-[13px] text-ink-3">{due.ended}</span>
         </>
       );
   }
   if (s.overdue) {
     return compact
-      ? <>Erwartet am {fmtDayKey(s.nextDate)}, noch nicht gebucht</>
+      ? <>{due.overdueCompact(fmtDayKey(s.nextDate))}</>
       : (
         <>
           <span className="inline-flex items-center gap-1 text-[14px] text-ink">
             <ClockIcon size={14} className="text-ink-3" /> {fmtDayKey(s.nextDate)}
           </span>
-          <span className="block text-[13px] text-ink-3">erwartet, noch nicht gebucht</span>
+          <span className="block text-[13px] text-ink-3">{due.overdue}</span>
         </>
       );
   }
@@ -65,20 +71,20 @@ function DueText({ s, compact }: { s: RecurringSeries; compact?: boolean }) {
   // would read as a forecast of the past. Say what is known instead.
   if (daysUntil(s.nextDate) < 0) {
     return compact
-      ? <>Erwartet am {fmtDayKey(s.nextDate)}, noch nicht in den Umsätzen</>
+      ? <>{due.missingCompact(fmtDayKey(s.nextDate))}</>
       : (
         <>
           <span className="tnum block text-[14px] text-ink">{fmtDayKey(s.nextDate)}</span>
-          <span className="block text-[13px] text-ink-3">noch nicht in den Umsätzen</span>
+          <span className="block text-[13px] text-ink-3">{due.missing}</span>
         </>
       );
   }
   return compact
-    ? <>Voraussichtlich am {fmtDayKey(s.nextDate)}</>
+    ? <>{due.expectedCompact(fmtDayKey(s.nextDate))}</>
     : (
       <>
         <span className="tnum block text-[14px] text-ink">{fmtDayKey(s.nextDate)}</span>
-        <span className="block text-[13px] text-ink-3">voraussichtlich, {relativeDays(s.nextDate)}</span>
+        <span className="block text-[13px] text-ink-3">{due.expected(relativeDays(s.nextDate))}</span>
       </>
     );
 }
@@ -92,6 +98,8 @@ export function ContractRow({
   account?: string | null;
 }) {
   const { categoryOf } = useFints();
+  const t = useT();
+  const words = t.insights.contracts;
   const showInList = useShowInList();
   const [open, setOpen] = useState(false);
   const rowRef = useRef<HTMLLIElement>(null);
@@ -109,7 +117,7 @@ export function ContractRow({
   // cents would claim a precision the estimate does not have.
   const amount = s.variable ? (
     <>
-      <span className="mr-1 text-[13px] font-normal text-ink-3">ca.</span>
+      <span className="mr-1 text-[13px] font-normal text-ink-3">{t.insights.approx}</span>
       <RoundMoney value={s.amount} currency={s.currency} signed className={cx('font-semibold', credit && 'text-green')} />
     </>
   ) : (
@@ -143,7 +151,7 @@ export function ContractRow({
                 {s.cadenceLabel}
                 <span className="md:hidden">
                   {' · '}
-                  ca. <RoundMoney value={Math.abs(s.yearlyAmount)} currency={s.currency} /> im Jahr
+                  {rich(words.perYear(<RoundMoney value={Math.abs(s.yearlyAmount)} currency={s.currency} />))}
                 </span>
                 <span className="hidden md:inline">
                   <span aria-hidden> · </span>
@@ -158,7 +166,7 @@ export function ContractRow({
               {rose && (
                 <span className="mt-1.5 flex">
                   <Tag tone="emphasis" size="sm">
-                    Betrag gestiegen <Money value={s.change ?? 0} currency={s.currency} signed tone="plain" />
+                    {rich(words.rose(<Money value={s.change ?? 0} currency={s.currency} signed tone="plain" />))}
                   </Tag>
                 </span>
               )}
@@ -168,16 +176,16 @@ export function ContractRow({
           {/* Columns from md up. Their header is visual only, so each cell
               says what it is to a screen reader. */}
           <span className="hidden md:block">
-            <span className="sr-only">{credit ? 'Nächster Eingang: ' : 'Nächste Buchung: '}</span>
+            <span className="sr-only">{credit ? words.columns.nextIncoming : words.columns.next}: </span>
             <DueText s={s} />
           </span>
           <span className="hidden text-right md:block">
-            <span className="sr-only">Betrag: </span>
+            <span className="sr-only">{t.common.booking.amount}: </span>
             <span className="block text-[15px]">{amount}</span>
-            <span className="block text-[13px] text-ink-3">zuletzt {fmtDayKeyShort(s.lastDate)}</span>
+            <span className="block text-[13px] text-ink-3">{words.lastShort(fmtDayKeyShort(s.lastDate))}</span>
           </span>
           <span className="hidden text-right md:block">
-            <span className="sr-only">Pro Jahr: </span>
+            <span className="sr-only">{words.columns.perYear}: </span>
             <RoundMoney value={Math.abs(s.yearlyAmount)} currency={s.currency} className="text-[15px] text-ink" />
           </span>
         </button>
@@ -187,20 +195,20 @@ export function ContractRow({
         <span className="hidden shrink-0 md:block">
           <Menu
             placement="bottom-end"
-            label={`Aktionen für ${n}`}
+            label={words.actionsFor(n)}
             trigger={(p) => (
-              <IconButton {...p} aria-label={`Aktionen für ${n}`}>
+              <IconButton {...p} aria-label={words.actionsFor(n)}>
                 <MoreIcon size={18} />
               </IconButton>
             )}
           >
-            <MenuItem icon={<ReceiptIcon size={18} />} onSelect={show}>Umsätze anzeigen</MenuItem>
+            <MenuItem icon={<ReceiptIcon size={18} />} onSelect={show}>{t.insights.bookings.show}</MenuItem>
             <MenuItem
               icon={<EyeOffIcon size={18} />}
-              description="Aus dieser Liste und den Summen nehmen"
+              description={words.dismissHint}
               onSelect={dismiss}
             >
-              Nicht als Vertrag zählen
+              {words.dismiss}
             </MenuItem>
           </Menu>
         </span>
@@ -211,12 +219,12 @@ export function ContractRow({
           <>
             <p className="text-[13px] text-ink-2">
               <span className="md:hidden">{categoryLabel(s.category)} · </span>
-              {s.count} Buchungen seit {fmtDayKey(s.firstDate)}
-              {s.directDebit && ' · per Lastschrift'}
-              {s.variable && ' · Betrag schwankt'}
+              {words.since(s.count, fmtDayKey(s.firstDate))}
+              {s.directDebit && ` · ${words.byDirectDebit}`}
+              {s.variable && ` · ${words.varies}`}
               {account && <span className="md:hidden"> · {account}</span>}
               {rose && s.previousAmount != null && (
-                <> · vorher <Money value={Math.abs(s.previousAmount)} currency={s.currency} tone="plain" /></>
+                <> · {rich(words.before(<Money value={Math.abs(s.previousAmount)} currency={s.currency} tone="plain" />))}</>
               )}
             </p>
             {/* What a dispute or a blocked Lastschrift at the bank asks for. */}
@@ -224,13 +232,13 @@ export function ContractRow({
               <dl className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-[13px]">
                 {s.creditorId && (
                   <div className="flex gap-1.5">
-                    <dt className="text-ink-3">Gläubiger-ID</dt>
+                    <dt className="text-ink-3">{t.common.booking.creditorId}</dt>
                     <dd className="iban text-ink">{s.creditorId}</dd>
                   </div>
                 )}
                 {s.mandateReference && (
                   <div className="flex min-w-0 gap-1.5">
-                    <dt className="shrink-0 text-ink-3">Mandatsreferenz</dt>
+                    <dt className="shrink-0 text-ink-3">{words.mandate}</dt>
                     <dd className="iban min-w-0 truncate text-ink">{s.mandateReference}</dd>
                   </div>
                 )}
@@ -257,8 +265,8 @@ export function ContractRow({
               })}
             </ol>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" variant="secondary" onClick={show}>Umsätze anzeigen</Button>
-              <Button size="sm" variant="tertiary" onClick={dismiss}>Nicht als Vertrag zählen</Button>
+              <Button size="sm" variant="secondary" onClick={show}>{t.insights.bookings.show}</Button>
+              <Button size="sm" variant="tertiary" onClick={dismiss}>{words.dismiss}</Button>
             </div>
           </>
         )}
@@ -269,6 +277,7 @@ export function ContractRow({
 
 /** A series the user set aside, with the way back. */
 export function DismissedRow({ s, onRestore }: { s: RecurringSeries; onRestore: (s: RecurringSeries) => void }) {
+  const t = useT();
   const n = name(s);
   const rowRef = useRef<HTMLLIElement>(null);
   return (
@@ -296,7 +305,7 @@ export function DismissedRow({ s, onRestore }: { s: RecurringSeries; onRestore: 
         {/* The name is computed from this text, so it starts with what the
             button visibly says — "Wieder anzeigen" works as a voice command —
             and only then says which series. */}
-        Wieder anzeigen<span className="sr-only"> – {n} als Vertrag</span>
+        {t.insights.contracts.restore}<span className="sr-only">{t.insights.contracts.restoreWhich(n)}</span>
       </Button>
     </li>
   );

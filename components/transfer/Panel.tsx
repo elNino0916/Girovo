@@ -16,6 +16,7 @@
 
 import { useLayoutEffect } from 'react';
 import type { ComponentProps, ReactNode, Ref } from 'react';
+import { useT } from '@/lib/i18n/react';
 import { CloseIcon } from '../icons';
 import { IconButton, cx, useScrollEdges } from '../ui';
 
@@ -52,6 +53,7 @@ export function Panel({
   // back (--sbw, see below), so the fields end where the header and footer
   // end, scrollbar or not.
   const { ref: body, edges, measure } = useScrollEdges<HTMLDivElement>();
+  const t = useT();
 
   // Before paint, so the new step is never seen scrolled.
   useLayoutEffect(() => {
@@ -106,7 +108,7 @@ export function Panel({
           <IconButton
             data-dialog-close
             size="md"
-            aria-label="Schließen"
+            aria-label={t.common.close}
             onClick={onClose}
             disabled={closeDisabled}
             className="absolute top-3.5 right-3 sm:top-[18px] sm:right-5 short:top-2.5!"

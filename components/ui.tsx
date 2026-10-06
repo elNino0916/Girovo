@@ -24,6 +24,7 @@ import type {
 } from 'react';
 import { anchorPosition, type Placement } from '@/lib/anchor';
 import { copyText } from '@/lib/clipboard';
+import { useT } from '@/lib/i18n/react';
 import { setCaptionDim } from '@/lib/theme';
 import {
   AlertTriangleIcon, CheckCircleIcon, CheckIcon, ChevronIcon, CloseIcon, CopyIcon, InfoIcon, XCircleIcon,
@@ -177,8 +178,9 @@ export function IconButton({
  * clipboard policy.
  */
 export function CopyButton({
-  text, label = 'Kopieren', tone = 'page', className,
+  text, label, tone = 'page', className,
 }: { text: string; label?: string; tone?: 'page' | 'bar' | 'stage'; className?: string }) {
+  const t = useT();
   const [state, setState] = useState<'idle' | 'done' | 'failed'>('idle');
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -192,7 +194,7 @@ export function CopyButton({
 
   return (
     <span className="relative inline-flex">
-      <IconButton tone={tone} aria-label={label} onClick={() => void copy()} className={className}>
+      <IconButton tone={tone} aria-label={label ?? t.shell.ui.copy} onClick={() => void copy()} className={className}>
         {state === 'done' ? (
           <CheckIcon size={16} strokeWidth={2.2} className={tone === 'page' ? 'text-green' : undefined} />
         ) : state === 'failed' ? (
@@ -202,7 +204,7 @@ export function CopyButton({
         )}
       </IconButton>
       <span className="sr-only" aria-live="polite">
-        {state === 'done' ? 'Kopiert' : state === 'failed' ? 'Kopieren nicht möglich' : ''}
+        {state === 'done' ? t.common.copied : state === 'failed' ? t.shell.ui.copyFailed : ''}
       </span>
     </span>
   );
@@ -249,6 +251,7 @@ export function Field({
   className?: string;
   children: ReactNode;
 }) {
+  const t = useT();
   const auto = useId();
   const id = htmlFor ?? `field${auto}`;
   const hintId = hint ? `${id}-hint` : undefined;
@@ -264,7 +267,7 @@ export function Field({
         <label htmlFor={id} className={cx('text-[13px] leading-snug font-semibold text-ink-2', labelHidden && 'sr-only')}>
           {label}
           {required && <span aria-hidden className="ml-0.5 text-ink-3">*</span>}
-          {optional && <span className="font-normal text-ink-3"> (optional)</span>}
+          {optional && <span className="font-normal text-ink-3">{` ${t.shell.ui.optional}`}</span>}
         </label>
         {trailing}
       </div>
@@ -497,6 +500,7 @@ export function Alert({
   /** Defaults to "alert" for errors, none otherwise. */
   role?: 'alert' | 'status';
 }) {
+  const tr = useT();
   const t = ALERT_TONES[tone];
   return (
     <div
@@ -510,7 +514,7 @@ export function Alert({
         {action && <div className="mt-2.5 flex flex-wrap gap-2">{action}</div>}
       </div>
       {onDismiss && (
-        <IconButton aria-label="Hinweis schließen" onClick={onDismiss} className="-my-1 -mr-1 size-7">
+        <IconButton aria-label={tr.shell.ui.dismiss} onClick={onDismiss} className="-my-1 -mr-1 size-7">
           <CloseIcon size={15} />
         </IconButton>
       )}
@@ -948,7 +952,7 @@ const FOOTER_EDGE = 'shadow-[0_-1px_0_var(--line)]';
  * also slims down, giving its room to what the dialog says.
  */
 export function Sheet({
-  size, wide, band, onClose, closeLabel = 'Schließen', className, bodyClassName, footer, children,
+  size, wide, band, onClose, closeLabel, className, bodyClassName, footer, children,
 }: {
   size?: 'sm' | 'md' | 'lg';
   /** @deprecated use size="md". */
@@ -963,6 +967,7 @@ export function Sheet({
   footer?: ReactNode;
   children: ReactNode;
 }) {
+  const t = useT();
   const navy = band && band.tone !== 'plain';
   const { ref: bodyRef, edges, measure } = useScrollEdges<HTMLDivElement>();
   return (
@@ -996,7 +1001,7 @@ export function Sheet({
         <IconButton
           data-dialog-close
           tone={navy ? 'stage' : 'page'}
-          aria-label={closeLabel}
+          aria-label={closeLabel ?? t.common.close}
           onClick={onClose}
           className="absolute top-3 right-3 z-1"
         >
@@ -1034,7 +1039,7 @@ export function Sheet({
 
 /** Title row of a dialog: an optional pictogram, the title, a line of context, a close button. */
 export function DialogHeader({
-  title, titleId, description, onClose, closeLabel = 'Schließen', icon, className,
+  title, titleId, description, onClose, closeLabel, icon, className,
 }: {
   title: ReactNode;
   titleId?: string;
@@ -1044,6 +1049,7 @@ export function DialogHeader({
   icon?: ReactNode;
   className?: string;
 }) {
+  const t = useT();
   return (
     <div className={cx('flex items-start gap-3.5', className ?? 'mb-5')}>
       {icon && <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">{icon}</span>}
@@ -1052,7 +1058,7 @@ export function DialogHeader({
         {description && <div className="mt-1.5 text-[15px] leading-snug text-ink-2">{description}</div>}
       </div>
       {onClose && (
-        <IconButton data-dialog-close aria-label={closeLabel} onClick={onClose} size="md" className="-mt-1.5 -mr-2">
+        <IconButton data-dialog-close aria-label={closeLabel ?? t.common.close} onClick={onClose} size="md" className="-mt-1.5 -mr-2">
           <CloseIcon />
         </IconButton>
       )}
@@ -1151,6 +1157,7 @@ export function Drawer({
   fallbackFocus?: FocusFallback;
   children: ReactNode;
 }) {
+  const t = useT();
   const auto = useId();
   const id = titleId ?? `drawer${auto}-title`;
   return (
@@ -1164,7 +1171,7 @@ export function Drawer({
         <header className="on-bar bar-caption-safe flex shrink-0 items-center gap-2 bg-bar pl-4 text-bar-ink sm:pl-6" style={{ height: 'var(--barbar-h)' }}>
           <h2 id={id} className="min-w-0 flex-1 truncate text-[17px] font-bold">{title}</h2>
           {actions}
-          <IconButton data-dialog-close tone="bar" size="md" aria-label="Schließen" onClick={onClose} className="-mr-2">
+          <IconButton data-dialog-close tone="bar" size="md" aria-label={t.common.close} onClick={onClose} className="-mr-2">
             <CloseIcon />
           </IconButton>
         </header>
@@ -1478,6 +1485,7 @@ export function Chip({
   className?: string;
   title?: string;
 }) {
+  const t = useT();
   const look = onClick
     ? cx('border-accent text-accent', selected ? 'bg-accent-soft' : 'hover:bg-accent-soft')
     : 'border-line-strong text-ink-2';
@@ -1502,8 +1510,8 @@ export function Chip({
       {onRemove && (
         <button
           type="button"
-          aria-label={removeLabel ?? 'Entfernen'}
-          title={removeLabel ?? 'Entfernen'}
+          aria-label={removeLabel ?? t.shell.ui.remove}
+          title={removeLabel ?? t.shell.ui.remove}
           onClick={onRemove}
           className={cx(
             'grid h-9 w-8 shrink-0 place-items-center rounded-r-[var(--radius-chip)] border border-l-0 transition-colors duration-150',
@@ -2230,7 +2238,7 @@ export function EmptyState({
 }
 
 export function ErrorState({
-  title = 'Das hat nicht geklappt', children, onRetry, retryLabel = 'Erneut versuchen', busy, className, compact,
+  title, children, onRetry, retryLabel, busy, className, compact,
 }: {
   title?: ReactNode;
   /** The reason, as the bank or the app put it. */
@@ -2241,14 +2249,15 @@ export function ErrorState({
   className?: string;
   compact?: boolean;
 }) {
+  const t = useT();
   return (
     <div role="alert" className={cx('flex flex-col items-center text-center', compact ? 'px-4 py-6' : 'px-6 py-10', className)}>
       <IllustrationArt name="error" />
-      <p className="mt-3 text-[17px] leading-snug font-bold text-ink">{title}</p>
+      <p className="mt-3 text-[17px] leading-snug font-bold text-ink">{title === undefined ? t.shell.ui.failed : title}</p>
       {children && <div className="mt-1.5 max-w-[46ch] text-[14px] leading-relaxed text-ink-2">{children}</div>}
       {onRetry && (
         <Button size="sm" variant="secondary" className="mt-4" busy={busy} onClick={onRetry}>
-          {retryLabel}
+          {retryLabel ?? t.common.retry}
         </Button>
       )}
     </div>

@@ -15,6 +15,11 @@
 //   3. the new files appearing in the installation (copied from there),
 // then the installer's exit and the app's window.
 //
+// The same window, with --error-title and --error-text, is how the app says
+// it cannot go on — it could not start, or its server stopped — in its own
+// look rather than in Windows' plain message box: the title, the message, and
+// "Girovo neu starten" when --app-exe names the app to start again.
+//
 // Built by scripts/build-update-window.mjs with the C# compiler that ships with
 // Windows (.NET Framework 4.x): C# 5, WPF built in code, no XAML.
 
@@ -48,6 +53,18 @@ namespace Girovo.UpdateWindow
         public bool Dark;
         public Rect? Around;
         public string Demo = "";
+        /// <summary>The app's interface language: "en" for English, anything else German.</summary>
+        public bool English;
+        /// <summary>An error to show instead of an update (electron/main.cjs, showErrorWindow).</summary>
+        public string ErrorTitle = "";
+        public string ErrorText = "";
+        /// <summary>For development: render the card to this PNG and exit, no window shown.</summary>
+        public string Snapshot = "";
+
+        public bool IsError
+        {
+            get { return ErrorTitle.Length > 0; }
+        }
 
         public static Options Parse(string[] args)
         {
@@ -66,6 +83,10 @@ namespace Girovo.UpdateWindow
                     case "--log": o.Log = value; break;
                     case "--theme": o.Dark = value == "dark"; break;
                     case "--demo": o.Demo = value; break;
+                    case "--lang": o.English = value == "en"; break;
+                    case "--error-title": o.ErrorTitle = value; break;
+                    case "--error-text": o.ErrorText = value; break;
+                    case "--snapshot": o.Snapshot = value; break;
                     case "--around":
                         var p = value.Split(',');
                         double x, y, w, h;
@@ -140,6 +161,7 @@ namespace Girovo.UpdateWindow
             try
             {
                 var options = Options.Parse(args);
+                if (options.Snapshot.Length > 0) return Snapshot(options);
                 var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
                 return app.Run(new UpdateWindow(options));
             }
@@ -148,6 +170,27 @@ namespace Girovo.UpdateWindow
                 // A window that cannot show itself has nothing to say.
                 return 0;
             }
+        }
+
+        /// <summary>The card as the window would show it, drawn into a PNG — never on screen.</summary>
+        static int Snapshot(Options options)
+        {
+            var window = new UpdateWindow(options);
+            var card = (FrameworkElement)window.Content;
+            window.Content = null;
+            card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            card.Arrange(new Rect(card.DesiredSize));
+            card.UpdateLayout();
+            const double scale = 2;
+            var bitmap = new RenderTargetBitmap(
+                (int)Math.Ceiling(card.ActualWidth * scale + card.Margin.Left * scale + card.Margin.Right * scale),
+                (int)Math.Ceiling(card.ActualHeight * scale + card.Margin.Top * scale + card.Margin.Bottom * scale),
+                96 * scale, 96 * scale, PixelFormats.Pbgra32);
+            bitmap.Render(card);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using (var file = File.Create(options.Snapshot)) encoder.Save(file);
+            return 0;
         }
     }
 
@@ -178,7 +221,8 @@ namespace Girovo.UpdateWindow
             palette = Palette.For(options.Dark);
             OpenLog();
 
-            Title = "Update wird installiert – " + options.AppName;
+            Say.English = options.English;
+            Title = options.IsError ? "Girovo" : Say.Pick("Update wird installiert – ", "Installing update – ") + options.AppName;
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
             Background = Brushes.Transparent;
@@ -195,6 +239,8 @@ namespace Girovo.UpdateWindow
             if (icon != null) Icon = icon;
 
             Content = BuildCard();
+            // Before the first frame, so the card is laid out once, with its buttons.
+            if (options.IsError) ShowError();
             MouseLeftButtonDown += delegate { try { DragMove(); } catch (InvalidOperationException) { } };
             Loaded += delegate { Place(); };
             ContentRendered += delegate { Start(); };
@@ -301,7 +347,9 @@ namespace Girovo.UpdateWindow
             title.FontSize = 22;
             title.Foreground = Brush(palette.Headline);
             title.TextWrapping = TextWrapping.Wrap;
-            title.Text = options.Version.Length > 0 ? "Update auf " + options.Version + " wird installiert" : "Update wird installiert";
+            title.Text = options.Version.Length > 0
+                ? Say.Pick("Update auf " + options.Version + " wird installiert", "Installing update to " + options.Version)
+                : Say.Pick("Update wird installiert", "Installing update");
             stack.Children.Add(title);
 
             description.FontFamily = new FontFamily(UiFont);
@@ -310,7 +358,7 @@ namespace Girovo.UpdateWindow
             description.Foreground = Brush(palette.Ink2);
             description.TextWrapping = TextWrapping.Wrap;
             description.Margin = new Thickness(0, 6, 0, 0);
-            description.Text = "Girovo startet danach von selbst wieder.";
+            description.Text = Say.Pick("Girovo startet danach von selbst wieder.", "Girovo restarts on its own afterwards.");
             stack.Children.Add(description);
 
             // The progress row, as in the update dialog: what is happening on
@@ -327,7 +375,7 @@ namespace Girovo.UpdateWindow
             phase.FontWeight = FontWeights.SemiBold;
             phase.FontSize = 14;
             phase.Foreground = Brush(palette.Ink);
-            phase.Text = "Wird vorbereitet …";
+            phase.Text = Say.Pick("Wird vorbereitet …", "Preparing…");
             row.Children.Add(phase);
             progressBlock.Children.Add(row);
 
@@ -414,7 +462,8 @@ namespace Girovo.UpdateWindow
             // Never backwards: a reading that dips does not move the bar.
             if (target < shown) return;
             shown = target;
-            percent.Text = ((int)Math.Floor(target * 100)).ToString(CultureInfo.InvariantCulture) + " %";
+            var whole = ((int)Math.Floor(target * 100)).ToString(CultureInfo.InvariantCulture);
+            percent.Text = Say.Pick(whole + " %", whole + "%");
             double width = track.ActualWidth * target;
             if (!animate)
             {
@@ -440,6 +489,8 @@ namespace Girovo.UpdateWindow
 
         void Start()
         {
+            // An error has nothing to watch.
+            if (options.IsError) return;
             if (options.Demo.Length > 0)
             {
                 RunDemo();
@@ -544,30 +595,30 @@ namespace Girovo.UpdateWindow
                 double target;
                 if (removed && inInstall > lowest + 3)
                 {
-                    text = "Dateien werden kopiert …";
+                    text = Say.Pick("Dateien werden kopiert …", "Copying files…");
                     target = 0.72 + 0.24 * Math.Min(1.0, (double)inInstall / n);
                 }
                 else if (unpacked > 0)
                 {
-                    text = "Neue Version wird entpackt …";
+                    text = Say.Pick("Neue Version wird entpackt …", "Unpacking the new version…");
                     target = 0.12 + 0.60 * Math.Min(1.0, (double)unpacked / n);
                 }
                 else if (removed)
                 {
                     // The unpacking is not visible from here (another TEMP):
                     // creep on, slower and slower.
-                    text = "Neue Version wird entpackt …";
+                    text = Say.Pick("Neue Version wird entpackt …", "Unpacking the new version…");
                     double t = (DateTime.UtcNow - removedAt.Value).TotalSeconds;
                     target = 0.12 + 0.55 * (1 - Math.Exp(-t / 15));
                 }
                 else if (inInstall >= 0 && inInstall < n)
                 {
-                    text = "Alte Version wird entfernt …";
+                    text = Say.Pick("Alte Version wird entfernt …", "Removing the old version…");
                     target = 0.12 * Math.Max(0.0, (double)(n - inInstall) / n);
                 }
                 else
                 {
-                    text = "Wird vorbereitet …";
+                    text = Say.Pick("Wird vorbereitet …", "Preparing…");
                     target = 0;
                 }
 
@@ -584,7 +635,7 @@ namespace Girovo.UpdateWindow
                     Log("installer exited, code " + code);
                     if (code == 0 || installer == null)
                     {
-                        Ui(delegate { SetPhase("Wird gestartet …"); SetProgress(0.97); });
+                        Ui(delegate { SetPhase(Say.Pick("Wird gestartet …", "Starting…")); SetProgress(0.97); });
                         WaitForApp();
                     }
                     else
@@ -637,15 +688,15 @@ namespace Girovo.UpdateWindow
         {
             finished = true;
             bool appThere = !string.IsNullOrEmpty(options.AppExe) && File.Exists(options.AppExe);
-            title.Text = "Update nicht abgeschlossen";
+            title.Text = Say.Pick("Update nicht abgeschlossen", "Update not completed");
             description.Text = appThere
-                ? "Die Installation wurde abgebrochen – zum Beispiel, weil die Frage nach Administratorrechten abgelehnt wurde. Die bisherige Version ist noch da."
-                : "Die Installation wurde abgebrochen, und Girovo ist nicht mehr vollständig installiert. Lade die neue Version von GitHub herunter und installiere sie.";
+                ? Say.Pick("Die Installation wurde abgebrochen – zum Beispiel, weil die Frage nach Administratorrechten abgelehnt wurde. Die bisherige Version ist noch da.", "The installation was cancelled — for example because the request for administrator rights was declined. The previous version is still there.")
+                : Say.Pick("Die Installation wurde abgebrochen, und Girovo ist nicht mehr vollständig installiert. Lade die neue Version von GitHub herunter und installiere sie.", "The installation was cancelled, and Girovo is no longer fully installed. Download the new version from GitHub and install it.");
             progressBlock.Visibility = Visibility.Collapsed;
-            buttons.Children.Add(Pill("Schließen", false, Close));
+            buttons.Children.Add(Pill(Say.Pick("Schließen", "Close"), false, Close));
             if (appThere)
             {
-                buttons.Children.Add(Pill("Girovo öffnen", true, delegate
+                buttons.Children.Add(Pill(Say.Pick("Girovo öffnen", "Open Girovo"), true, delegate
                 {
                     StartQuietly(options.AppExe);
                     Close();
@@ -653,7 +704,7 @@ namespace Girovo.UpdateWindow
             }
             else if (options.ReleasesUrl.StartsWith("https://github.com/", StringComparison.Ordinal))
             {
-                buttons.Children.Add(Pill("Download-Seite öffnen", true, delegate
+                buttons.Children.Add(Pill(Say.Pick("Download-Seite öffnen", "Open download page"), true, delegate
                 {
                     StartQuietly(options.ReleasesUrl);
                     Close();
@@ -662,6 +713,30 @@ namespace Girovo.UpdateWindow
             buttons.Visibility = Visibility.Visible;
             Activate();
             Log("failure shown (code " + code + ")");
+        }
+
+        /// <summary>
+        /// The app cannot go on: what it said (already in its language), and the
+        /// way out — close, or start it again when it is installed.
+        /// </summary>
+        void ShowError()
+        {
+            finished = true;
+            title.Text = options.ErrorTitle;
+            description.Text = options.ErrorText;
+            progressBlock.Visibility = Visibility.Collapsed;
+            bool canRestart = !string.IsNullOrEmpty(options.AppExe) && File.Exists(options.AppExe);
+            buttons.Children.Add(Pill(Say.Pick("Schließen", "Close"), !canRestart, Close));
+            if (canRestart)
+            {
+                buttons.Children.Add(Pill(Say.Pick("Girovo neu starten", "Restart Girovo"), true, delegate
+                {
+                    StartQuietly(options.AppExe);
+                    Close();
+                }));
+            }
+            buttons.Visibility = Visibility.Visible;
+            Log("error shown");
         }
 
         static void StartQuietly(string target)
@@ -685,12 +760,12 @@ namespace Girovo.UpdateWindow
             }
             var steps = new List<Tuple<string, double>>
             {
-                Tuple.Create("Alte Version wird entfernt …", 0.06),
-                Tuple.Create("Alte Version wird entfernt …", 0.12),
-                Tuple.Create("Neue Version wird entpackt …", 0.31),
-                Tuple.Create("Neue Version wird entpackt …", 0.55),
-                Tuple.Create("Dateien werden kopiert …", 0.81),
-                Tuple.Create("Wird gestartet …", 0.97),
+                Tuple.Create(Say.Pick("Alte Version wird entfernt …", "Removing the old version…"), 0.06),
+                Tuple.Create(Say.Pick("Alte Version wird entfernt …", "Removing the old version…"), 0.12),
+                Tuple.Create(Say.Pick("Neue Version wird entpackt …", "Unpacking the new version…"), 0.31),
+                Tuple.Create(Say.Pick("Neue Version wird entpackt …", "Unpacking the new version…"), 0.55),
+                Tuple.Create(Say.Pick("Dateien werden kopiert …", "Copying files…"), 0.81),
+                Tuple.Create(Say.Pick("Wird gestartet …", "Starting…"), 0.97),
             };
             int i = 0;
             var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
@@ -763,6 +838,21 @@ namespace Girovo.UpdateWindow
                 action();
             };
             timer.Start();
+        }
+    }
+
+    /// <summary>
+    /// The window's words in the app's language: electron/main.cjs passes
+    /// --lang with the language the app is shown in (lib/i18n), and German
+    /// is the default, as in the app.
+    /// </summary>
+    static class Say
+    {
+        public static bool English;
+
+        public static string Pick(string german, string english)
+        {
+            return English ? english : german;
         }
     }
 }

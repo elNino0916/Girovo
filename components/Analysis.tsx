@@ -20,10 +20,12 @@ import { Money, usePrivacy } from './Money';
 import { Button, DotList, EmptyState, ErrorState, Segmented, Spinner } from './ui';
 import type { Counterparty } from '@/lib/analytics';
 import type { TxFilter } from '@/lib/app-types';
+import { namesList } from '@/lib/balances';
 import type { CategoryId } from '@/lib/categories';
 import { categoryDef, categoryLabel, counterpartyName, intermediaryName } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { fmtAmountInput, fmtIban, fmtRange, prettyBookingText } from '@/lib/format';
+import { fmtAmountInput, fmtIban, fmtMonth, fmtRange, prettyBookingText } from '@/lib/format';
+import { useT } from '@/lib/i18n/react';
 import {
   WHOLE_RANGE, averageExpense, defaultPeriod, firstBookingDay, loadedPeers, useMonths, usePeriodFigures, useScopeData,
 } from './insights/analysis-model';
@@ -34,20 +36,6 @@ import {
 import { useRecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, YEAR_SPAN, fmtDayKey, spanDays, useShowInList } from './insights/shared';
 
-/** "103 Umsätze" — joined by a no-break space, so a count never wraps away from its noun. */
-const plural = (n: number, one: string, many: string) => `${n.toLocaleString('de-DE')} ${n === 1 ? one : many}`;
-
-/**
- * "aus 12 Umsätzen" — the bookings a headline figure is made of. Not
- * "Eingänge"/"Ausgänge": a refund netted into the Ausgaben is one of their
- * bookings, but it is no money going out.
- */
-const fromBookings = (n: number) => (n === 0 ? 'keine Umsätze' : `aus ${plural(n, 'Umsatz', 'Umsätzen')}`);
-
-/** "GiroKomfort und Visa Classic", "A, B und C". */
-const joinNames = (names: string[]) =>
-  names.length > 1 ? `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}` : names[0] ?? '';
-
 export function Analysis() {
   const {
     activeAccount, accounts, transactions, txByAccount, statementInfo, categoryOf, loadingAccount, txError,
@@ -56,6 +44,8 @@ export function Analysis() {
   } = useFints();
   const headingId = useId();
   const privacy = usePrivacy();
+  const t = useT();
+  const words = t.insights.analysis;
 
   const data = useScopeData({ scope: analysisScope, activeAccount, accounts, transactions, txByAccount, statementInfo });
   const months = useMonths(data, categoryOf);
@@ -88,13 +78,16 @@ export function Analysis() {
   }, [months, analysisPeriod, setAnalysisPeriod]);
 
   // Said once the figures above have changed — a month picked in the chart
-  // below the fold re-scopes tiles the eye may not see.
-  const [announced, setAnnounced] = useState('');
+  // below the fold re-scopes tiles the eye may not see. What was picked is
+  // kept (a month, or null for the whole range), not the sentence: that is
+  // said in the language on screen.
+  const [announcedMonth, setAnnouncedMonth] = useState<{ month: string | null } | null>(null);
   const choosePeriod = useCallback((p: string) => {
     setAnalysisPeriod(p);
     const m = months.find((x) => x.month === p);
-    setAnnounced(`Analyse zeigt jetzt ${m ? m.title : 'den gesamten Zeitraum'}.`);
+    setAnnouncedMonth((prev) => (prev && prev.month === (m?.month ?? null) ? prev : { month: m?.month ?? null }));
   }, [setAnalysisPeriod, months]);
+  const announced = announcedMonth ? words.nowShowing(announcedMonth.month ? fmtMonth(announcedMonth.month) : null) : '';
 
   const peers = useMemo(
     () => loadedPeers(activeAccount, accounts, txByAccount, statementInfo).peers,
@@ -157,9 +150,9 @@ export function Analysis() {
   // ---- states before there is anything to analyse ------------------------
   if (!activeAccount) {
     return (
-      <section className="panel" aria-label="Umsatzanalyse">
-        <EmptyState illustration="chart" title="Kein Konto ausgewählt">
-          Wähle in der Übersicht ein Konto, dessen Umsätze du auswerten möchtest.
+      <section className="panel" aria-label={words.label}>
+        <EmptyState illustration="chart" title={words.noAccount}>
+          {words.noAccountHint}
         </EmptyState>
       </section>
     );
@@ -168,8 +161,8 @@ export function Analysis() {
   if (!transactions) {
     if (txError && !loading) {
       return (
-        <section className="panel" aria-label="Umsatzanalyse">
-          <ErrorState title="Umsätze konnten nicht geladen werden" onRetry={() => refreshAccount(activeAccount)} busy={busy}>
+        <section className="panel" aria-label={words.label}>
+          <ErrorState title={words.loadFailed} onRetry={() => refreshAccount(activeAccount)} busy={busy}>
             {txError}
           </ErrorState>
         </section>
@@ -177,10 +170,9 @@ export function Analysis() {
     }
     if (!activeAccount.canStatements) {
       return (
-        <section className="panel" aria-label="Umsatzanalyse">
-          <EmptyState illustration="chart" title="Keine Umsätze für dieses Konto">
-            Für {accountLabel(activeAccount)} stellt deine Bank über diesen Zugang keine Umsätze bereit. Wähle ein
-            anderes Konto, um es auszuwerten.
+        <section className="panel" aria-label={words.label}>
+          <EmptyState illustration="chart" title={t.insights.bookings.noneForAccount}>
+            {words.unsupported(accountLabel(activeAccount))}
           </EmptyState>
         </section>
       );
@@ -189,19 +181,19 @@ export function Analysis() {
       // Not loaded and not on its way — loading is the user's call, since it
       // may need a TAN.
       return (
-        <section className="panel" aria-label="Umsatzanalyse">
+        <section className="panel" aria-label={words.label}>
           <EmptyState
             illustration="chart"
-            title="Umsätze noch nicht abgerufen"
-            action={<Button variant="primary" size="sm" disabled={busy} onClick={() => refreshAccount(activeAccount)}>Umsätze abrufen</Button>}
+            title={words.notLoaded}
+            action={<Button variant="primary" size="sm" disabled={busy} onClick={() => refreshAccount(activeAccount)}>{t.insights.bookings.load}</Button>}
           >
-            Die Analyse wertet die Umsätze von {accountLabel(activeAccount)} aus. Das Abrufen kann eine Freigabe erfordern.
+            {words.notLoadedHint(accountLabel(activeAccount))}
           </EmptyState>
         </section>
       );
     }
     return (
-      <div role="status" aria-label="Umsätze werden geladen">
+      <div role="status" aria-label={t.insights.bookings.loading}>
         <AnalysisSkeleton />
       </div>
     );
@@ -227,11 +219,11 @@ export function Analysis() {
     const diff = (selectedMonth.expense - others.value) / others.value;
     const pct = Math.round(Math.abs(diff) * 100);
     const basis = others.months.length === 1
-      ? `im ${others.months[0].title.split(' ')[0]}`
-      : `im Schnitt der ${others.months.length} anderen vollen Monate`;
+      ? words.versus.month(fmtMonth(others.months[0].month).split(' ')[0])
+      : words.versus.average(others.months.length);
     versusAverage = pct === 0
-      ? `so viel wie ${basis}`
-      : `${pct} % ${diff > 0 ? 'mehr' : 'weniger'} als ${basis}`;
+      ? words.versus.same(basis)
+      : diff > 0 ? words.versus.more(pct, basis) : words.versus.less(pct, basis);
   }
 
   const scopeNames = data.accounts.map((acc) => accountLabel(acc));
@@ -241,19 +233,19 @@ export function Analysis() {
     <div className="min-w-0 space-y-4 sm:space-y-6">
       {/* ---- Toolbar, basis and the headline figures --------------------- */}
       <section className="panel overflow-hidden" aria-labelledby={headingId}>
-        <h2 id={headingId} className="sr-only">Überblick</h2>
+        <h2 id={headingId} className="sr-only">{words.overview}</h2>
         <p className="sr-only" aria-live="polite">{announced}</p>
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 pt-4 sm:px-6 sm:pt-5">
           <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
             {peers.length > 0 && (
               <Segmented
-                aria-label="Welche Konten"
+                aria-label={words.scope.label}
                 size="sm"
                 value={data.scope}
                 onChange={setAnalysisScope}
                 options={[
-                  { value: 'account', label: 'Dieses Konto' },
-                  { value: 'all', label: 'Alle Konten mit Umsätzen' },
+                  { value: 'account', label: words.scope.account },
+                  { value: 'all', label: words.scope.all },
                 ]}
               />
             )}
@@ -267,7 +259,7 @@ export function Analysis() {
           </div>
           {loading && (
             <span role="status" className="inline-flex items-center gap-2 text-[13px] text-ink-2">
-              <Spinner size={14} /> Umsätze werden geladen …
+              <Spinner size={14} /> {t.insights.bookings.loadingDots}
             </span>
           )}
         </div>
@@ -277,23 +269,22 @@ export function Analysis() {
         <p className="tnum px-4 pt-3 text-[13px] leading-relaxed text-ink-3 sm:px-6">
           <DotList
             items={[
-              `Basis: ${joinNames(scopeNames)}`,
+              t.insights.basis(namesList(scopeNames)),
               <span className="whitespace-nowrap">{rangeText}</span>,
               <>
-                {plural(totals.count, 'Umsatz', 'Umsätze')}
-                {period !== WHOLE_RANGE && <> im {pLabel}</>}
+                {t.insights.count.bookings(totals.count)}
+                {period !== WHOLE_RANGE && <> {words.inPeriod(pLabel)}</>}
               </>,
               // The other accounts are one switch away — and a card's purchases
               // are there, not here, when this account pays the card's bill
               // as an Umbuchung.
-              data.scope === 'account' && peers.length > 0 && `ohne ${joinNames(peerNames)}`,
-              totals.excluded > 0 && `${plural(totals.excluded, 'Umbuchung', 'Umbuchungen')} ausgeklammert`,
-              lateStart && <span className="whitespace-nowrap">erste Buchung am {fmtDayKey(first)}</span>,
-              data.clipped && 'Zeitraum, den alle Konten abdecken',
-              data.otherCurrencyAccounts > 0 &&
-                `${plural(data.otherCurrencyAccounts, 'Konto', 'Konten')} in anderer Währung nicht enthalten`,
-              totals.otherCurrency > 0 && `${plural(totals.otherCurrency, 'Umsatz', 'Umsätze')} in Fremdwährung nicht enthalten`,
-              'berechnet auf diesem Rechner',
+              data.scope === 'account' && peers.length > 0 && t.insights.without(namesList(peerNames)),
+              totals.excluded > 0 && words.transfersLeftOut(totals.excluded),
+              lateStart && <span className="whitespace-nowrap">{words.firstBooking(fmtDayKey(first))}</span>,
+              data.clipped && words.commonPeriod,
+              data.otherCurrencyAccounts > 0 && words.otherCurrencyAccounts(data.otherCurrencyAccounts),
+              totals.otherCurrency > 0 && words.foreignBookings(totals.otherCurrency),
+              words.computedHere,
             ]}
           />
         </p>
@@ -309,23 +300,23 @@ export function Analysis() {
               style={{ opacity: loading ? 0.55 : 1 }}
             >
               <Kpi
-                label="Einnahmen"
-                sub={fromBookings(figures.credits)}
+                label={t.insights.income}
+                sub={words.fromBookings(figures.credits)}
               >
                 <Money value={totals.income} currency={data.currency} tone="plain" />
               </Kpi>
               <Kpi
-                label="Ausgaben"
-                sub={versusAverage ?? fromBookings(figures.debits)}
+                label={t.common.booking.spending}
+                sub={versusAverage ?? words.fromBookings(figures.debits)}
               >
                 <Money value={totals.expense} currency={data.currency} tone="plain" />
               </Kpi>
               <Kpi
-                label="Differenz"
+                label={t.common.booking.difference}
                 sub={
                   Math.round(totals.net * 100) === 0
-                    ? 'Einnahmen und Ausgaben gleich hoch'
-                    : totals.net > 0 ? 'mehr eingenommen als ausgegeben' : 'mehr ausgegeben als eingenommen'
+                    ? words.net.even
+                    : totals.net > 0 ? words.net.more : words.net.less
                 }
               >
                 <Money value={totals.net} currency={data.currency} signed tone="credit" />
@@ -333,18 +324,18 @@ export function Analysis() {
               <Kpi
                 label={
                   <>
-                    <span aria-hidden className="sm:hidden">Ø Monatsausgaben</span>
-                    <span aria-hidden className="hidden sm:inline">Ø Ausgaben pro Monat</span>
-                    <span className="sr-only">Durchschnittliche Ausgaben pro Monat</span>
+                    <span aria-hidden className="sm:hidden">{words.average.short}</span>
+                    <span aria-hidden className="hidden sm:inline">{words.average.label}</span>
+                    <span className="sr-only">{words.average.spoken}</span>
                   </>
                 }
                 sub={
                   average
-                    ? `aus ${plural(average.months.length, 'vollem Monat', 'vollen Monaten')}`
-                    : 'Braucht mindestens zwei volle Monate'
+                    ? words.average.fromMonths(average.months.length)
+                    : words.average.needsTwo
                 }
               >
-                {average ? <Money value={average.value} currency={data.currency} tone="plain" /> : <span className="text-[15px] font-semibold text-ink-3">Noch zu wenig Verlauf</span>}
+                {average ? <Money value={average.value} currency={data.currency} tone="plain" /> : <span className="text-[15px] font-semibold text-ink-3">{words.average.tooShort}</span>}
               </Kpi>
             </dl>
             {showHistoryButton && (
@@ -357,14 +348,14 @@ export function Analysis() {
       </section>
 
       {empty ? (
-        <section className="panel" aria-label="Keine Umsätze">
+        <section className="panel" aria-label={t.insights.bookings.none}>
           <EmptyState
             illustration="chart"
-            title="Keine Umsätze im geladenen Zeitraum"
+            title={t.insights.bookings.noneInRange}
             action={showHistoryButton ? <LoadHistoryButton layout="centered" /> : undefined}
           >
-            Für {rangeText} ({plural(loadedSpan, 'Tag', 'Tage')}) liegen keine Buchungen vor.
-            {showHistoryButton && ' Mit einem längeren Verlauf gibt es vielleicht etwas auszuwerten.'}
+            {words.emptyRange(rangeText, loadedSpan)}
+            {showHistoryButton && ` ${words.emptyRangeLonger}`}
           </EmptyState>
         </section>
       ) : (
@@ -387,7 +378,7 @@ export function Analysis() {
             />
             <LargestExpenses
               items={figures.biggest}
-              subtitle={`ohne Verträge, Abos und Bargeld · ${pLabel}`}
+              subtitle={words.largest.subtitle(pLabel)}
               categoryName={categoryName}
               onShow={showBooking}
             />
@@ -398,7 +389,7 @@ export function Analysis() {
               payees={figures.payees}
               expense={totals.expense}
               currency={data.currency}
-              subtitle={`nach Ausgaben · ${pLabel}`}
+              subtitle={words.payees.subtitle(pLabel)}
               categoryName={categoryName}
               onShow={showPayee}
             />

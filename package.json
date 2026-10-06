@@ -1,6 +1,6 @@
 {
 	"name": "girovo",
-	"version": "5.0.1",
+	"version": "5.1.0",
 	"private": true,
 	"description": "Girovo — self-hosted banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled TAN, SEPA & Echtzeitueberweisung)",
 	"type": "module",
@@ -28,9 +28,11 @@
 	"author": "elNino0916",
 	"license": "MIT",
 	"dependencies": {
+		"@huggingface/tokenizers": "0.2.0",
 		"jsqr": "1.4.0",
 		"lib-fints": "^1.5.2",
 		"next": "^16.3.8",
+		"onnxruntime-node": "1.30.0",
 		"qrcode-generator": "2.0.4",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0"

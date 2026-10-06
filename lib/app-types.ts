@@ -8,6 +8,7 @@
 import type { CategoryId } from './categories';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
 import type { SentOrder } from './sent-orders';
+import type { AvatarChoice } from './avatars';
 
 export type { CategoryId };
 
@@ -147,6 +148,10 @@ export type VaultData = {
   dismissedRecurring: string[];
   /** Executed and unclear transfers of the last 14 days, for the duplicate check (lib/sent-orders.ts). */
   sentOrders: SentOrder[];
+  /** What the profile chip shows (lib/avatars.ts): a line icon or 'own'; absent, the initials. */
+  avatar?: AvatarChoice;
+  /** The user's own picture, a small data URL — kept while another choice is shown, until removed. */
+  avatarImage?: string;
   /** ISO */
   updatedAt: string;
 };

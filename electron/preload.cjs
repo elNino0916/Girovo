@@ -31,11 +31,13 @@ contextBridge.exposeInMainWorld('electronPDF', {
 // Saving a file the app made (the CSV export) through a native Save-As, so the
 // page hears whether the file was written before it says "gespeichert" — a
 // plain download cannot tell it. See main.cjs's file:save handler.
+//
+// Anything but bytes goes over as null: main refuses it before any dialog,
+// with its message in the shell's language (electron/i18n.cjs), which this
+// sandboxed preload cannot load itself.
 contextBridge.exposeInMainWorld('electronFiles', {
   save: (suggestedName, bytes) =>
-    ArrayBuffer.isView(bytes)
-      ? ipcRenderer.invoke('file:save', String(suggestedName ?? ''), bytes)
-      : Promise.resolve({ ok: false, error: 'Die Datei konnte nicht gespeichert werden.' }),
+    ipcRenderer.invoke('file:save', String(suggestedName ?? ''), ArrayBuffer.isView(bytes) ? bytes : null),
 });
 
 // In-app updates (electron/updater.cjs). Every call answers with the

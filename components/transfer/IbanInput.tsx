@@ -10,6 +10,7 @@ import type { ClipboardEvent, KeyboardEvent, Ref } from 'react';
 import { get } from '@/lib/client-api';
 import type { BankSearchHit } from '@/lib/fints-types';
 import { ibanCountry } from '@/lib/format';
+import { useT } from '@/lib/i18n/react';
 import { LandmarkIcon } from '../icons';
 import { Input, Spinner, type InputProps } from '../ui';
 import { IBAN_MAX_FORMATTED, isSepaIban, regroup, stripIbanLabel } from './iban';
@@ -148,12 +149,13 @@ export function useBankLookup(raw: string, valid: boolean): BankLookup | null {
 
 /** What the field can say about an IBAN that passes: its bank, or at least that it is valid. */
 export function IbanHint({ raw, ok, lookup }: { raw: string; ok: boolean; lookup: BankLookup | null }) {
+  const words = useT().transfer.ibanHint;
   if (!ok) {
-    if (/^[A-Z]{2}/.test(raw) && !isSepaIban(raw)) return <>SEPA-Überweisungen erreichen nur Konten im SEPA-Raum.</>;
+    if (/^[A-Z]{2}/.test(raw) && !isSepaIban(raw)) return <>{words.notSepa}</>;
     return null;
   }
   if (lookup?.status === 'loading') {
-    return <span className="inline-flex items-center gap-1.5"><Spinner size={12} />Bank wird gesucht …</span>;
+    return <span className="inline-flex items-center gap-1.5"><Spinner size={12} />{words.lookingUp}</span>;
   }
   if (lookup?.status === 'found') {
     return (
@@ -166,7 +168,7 @@ export function IbanHint({ raw, ok, lookup }: { raw: string; ok: boolean; lookup
       </span>
     );
   }
-  if (lookup?.status === 'none') return <>IBAN gültig. Die Bank ist im Verzeichnis nicht hinterlegt.</>;
+  if (lookup?.status === 'none') return <>{words.unknownBank}</>;
   const country = ibanCountry(raw);
-  return <>IBAN gültig{country && !raw.startsWith('DE') ? ` · Konto in ${country.name}` : ''}.</>;
+  return <>{words.valid(country && !raw.startsWith('DE') ? country.name : null)}</>;
 }

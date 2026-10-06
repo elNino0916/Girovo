@@ -1,8 +1,12 @@
-// Presentation helpers. German locale throughout — this app only talks to
-// German banks, so there is no locale to negotiate.
+// Presentation helpers, in the language speaking right now (lib/i18n): German
+// conventions in German ("1.234,56 €", "05.10.2026"), British ones in English
+// ("€1,234.56", "05/10/2026"). What a bank sends — a booking text, a name —
+// is repaired here but never translated: it stays the bank's own German.
+
+import { activeLocale, intlLocale, msgs, type Locale } from './i18n/index.ts';
 
 export const fmtMoney = (v: number | null | undefined, cur = 'EUR') =>
-  new Intl.NumberFormat('de-DE', { style: 'currency', currency: cur }).format(v ?? 0);
+  new Intl.NumberFormat(intlLocale(), { style: 'currency', currency: cur }).format(v ?? 0);
 
 /**
  * A bare amount — no currency symbol, always two decimals.
@@ -11,7 +15,7 @@ export const fmtMoney = (v: number | null | undefined, cur = 'EUR') =>
  * once in the column head, and the figures stay a clean numeric block.
  */
 export const fmtDecimal = (v: number | null | undefined) =>
-  new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v ?? 0);
+  new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v ?? 0);
 
 /**
  * A debit's minus sign, as a real minus (U+2212) rather than a hyphen.
@@ -21,7 +25,7 @@ export const fmtDecimal = (v: number | null | undefined) =>
  */
 const properMinus = (s: string) => s.replace('-', '−');
 
-/** Signed amount with currency: "−6,11 €" for a debit, "128,40 €" for a credit. */
+/** Signed amount with currency: "−6,11 €" for a debit, "128,40 €" for a credit ("−€6.11", "€128.40"). */
 export const fmtSignedMoney = (v: number | null | undefined, cur = 'EUR') => properMinus(fmtMoney(v, cur));
 
 /** Signed bare amount for a statement's amount column: "−6,11" / "128,40". */
@@ -32,20 +36,21 @@ export const fmtSignedDecimal = (v: number | null | undefined) => properMinus(fm
  * decimal below ten ("4,2 MB"), none above ("105 MB").
  *
  * For progress, `unitOf` lets another size pick the unit and `bare` leaves it
- * off, so "47 von 105 MB" reads as one pair — not "860 kB von 105 MB".
+ * off, so "47 von 105 MB" reads as one pair — not "860 kB von 105 MB"
+ * (msgs().format.partOf puts the pair together).
  */
 export function fmtBytes(n: number, { unitOf = n, bare = false }: { unitOf?: number; bare?: boolean } = {}): string {
   if (!Number.isFinite(n) || n < 0) return '';
-  const UNITS = ['Byte', 'kB', 'MB', 'GB'] as const;
+  const units = msgs().format.bytes;
   let unit = 0;
-  for (let scale = Math.max(unitOf, n); scale >= 1000 && unit < UNITS.length - 1; scale /= 1000) unit++;
+  for (let scale = Math.max(unitOf, n); scale >= 1000 && unit < units.length - 1; scale /= 1000) unit++;
   const v = n / 1000 ** unit;
-  const figure = new Intl.NumberFormat('de-DE', { maximumFractionDigits: unit === 0 || v >= 10 ? 0 : 1 }).format(v);
-  return bare ? figure : `${figure} ${UNITS[unit]}`;
+  const figure = new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: unit === 0 || v >= 10 ? 0 : 1 }).format(v);
+  return bare ? figure : `${figure} ${units[unit]}`;
 }
 
 export const fmtDate = (d: Date | string | null | undefined) =>
-  d ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(d)) : '';
+  d ? new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(d)) : '';
 
 export const fmtIban = (iban: string | null | undefined) =>
   iban ? String(iban).replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim() : '';
@@ -53,25 +58,36 @@ export const fmtIban = (iban: string | null | undefined) =>
 /**
  * Splits a formatted amount so euros can be set large and cents small.
  *
- * A negative balance leads with a real minus (U+2212), like every other signed
- * figure on screen — the hero sets this at display size, where the hyphen's
- * short, low stroke is at its most visibly wrong.
+ * The currency comes where the language puts it: behind the figure in German
+ * ("1.234" ",56" "€" — `suffix`), in front of it in English ("€" "1,234"
+ * ".56" — `prefix`). A negative balance leads with a real minus (U+2212),
+ * like every other signed figure on screen — in front of the "€" in English —
+ * because the hero sets this at display size, where the hyphen's short, low
+ * stroke is at its most visibly wrong.
  */
 export function splitMoney(v: number | null | undefined, cur = 'EUR') {
-  const parts = new Intl.NumberFormat('de-DE', { style: 'currency', currency: cur }).formatToParts(v ?? 0);
+  const parts = new Intl.NumberFormat(intlLocale(), { style: 'currency', currency: cur }).formatToParts(v ?? 0);
   let euros = '';
   let cents = '';
+  let prefix = '';
   let suffix = '';
   let inFraction = false;
+  let digits = false;
   for (const p of parts) {
     if (p.type === 'decimal') { inFraction = true; cents += p.value; continue; }
     if (p.type === 'fraction') { cents += p.value; continue; }
-    if (p.type === 'currency') { suffix = p.value; continue; }
+    if (p.type === 'currency') {
+      // Ahead of the figure, the sign so far goes with it: "−€", never "€−".
+      if (digits) suffix = p.value;
+      else { prefix = euros + p.value; euros = ''; }
+      continue;
+    }
     if (p.type === 'minusSign') { euros += '−'; continue; }
     if (p.type === 'literal' && inFraction) continue;
+    if (p.type === 'integer') digits = true;
     euros += p.value;
   }
-  return { euros: euros.trim(), cents, suffix };
+  return { euros: euros.trim(), cents, prefix: prefix.trim(), suffix };
 }
 
 const startOfDay = (d: Date) => {
@@ -104,17 +120,18 @@ export const isFutureDate = (d: Date | string | null | undefined): boolean => {
 
 /** "Heute", "Gestern", "Morgen", a weekday for this week, else a written date. */
 export function groupLabel(d: Date | string | null | undefined): string {
+  const words = msgs().format;
   const diff = daysFromToday(d);
-  if (diff == null) return 'Ohne Datum';
+  if (diff == null) return words.noDate;
   const date = new Date(d as Date | string);
-  if (diff === 0) return 'Heute';
-  if (diff === 1) return 'Gestern';
-  if (diff === -1) return 'Morgen';
+  if (diff === 0) return words.today;
+  if (diff === 1) return words.yesterday;
+  if (diff === -1) return words.tomorrow;
   // A bare weekday is only unambiguous looking backwards — "Montag" for a date
   // still to come would read as the Monday that just passed.
-  if (diff > 1 && diff < 7) return new Intl.DateTimeFormat('de-DE', { weekday: 'long' }).format(date);
+  if (diff > 1 && diff < 7) return new Intl.DateTimeFormat(intlLocale(), { weekday: 'long' }).format(date);
   const sameYear = date.getFullYear() === new Date().getFullYear();
-  return new Intl.DateTimeFormat('de-DE', {
+  return new Intl.DateTimeFormat(intlLocale(), {
     day: 'numeric',
     month: 'long',
     ...(sameYear ? {} : { year: 'numeric' }),
@@ -161,6 +178,7 @@ function repairLatin1Mojibake(text: string): string {
 
 // Words with an umlaut or ß that turn up in counterparty names and purposes:
 // places, family names, trades. Lower case, as a person writes them.
+// i18n-data-next-line — the bank's German, recognised, never translated
 const UMLAUT_WORDS = new Set(`
   thüringen thüringer münchen münchner köln kölner düsseldorf düsseldorfer nürnberg
   nürnberger würzburg würzburger göttingen lübeck lübecker saarbrücken osnabrück tübingen
@@ -272,25 +290,21 @@ export function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
-const ACCOUNT_TYPES: Record<string, string> = {
-  CheckingAccount: 'Girokonto',
-  SavingsAccount: 'Sparkonto',
-  FixedDepositAccount: 'Festgeld',
-  SecuritiesAccount: 'Depot',
-  LoanMortgageAccount: 'Kredit',
-  CreditCardAccount: 'Kreditkarte',
-  HomeSavingsContract: 'Bausparvertrag',
-  InsurancePolicy: 'Versicherung',
-  InvestmentCompanyFund: 'Fonds',
-  Miscellaneous: 'Konto',
+/**
+ * The kind of account a bank reports (lib-fints' type names), as a person
+ * calls it — in the language speaking right now, so a label stored once goes
+ * stale on a change of language: call this where the label is shown.
+ */
+export const translateType = (t: string) => {
+  const words = msgs().format;
+  return words.accountTypes[t] || words.accountType;
 };
-
-export const translateType = (t: string) => ACCOUNT_TYPES[t] || 'Konto';
 
 // Booking texts arrive from MT940 :86: shouting in caps with the umlauts
 // transliterated ("ONLINE-UEBERWEISUNG"). The words are the bank's own — only
 // their casing is unreadable — so known tokens are restored and everything else
 // is title-cased rather than guessed at.
+// i18n-data-start — the bank's own words, repaired, never translated
 const BOOKING_TOKENS: Record<string, string> = {
   UEBERWEISUNG: 'Überweisung', UEBERTRAG: 'Übertrag', ECHTZEITUEBERWEISUNG: 'Echtzeitüberweisung',
   DAUERAUFTRAG: 'Dauerauftrag', LASTSCHRIFT: 'Lastschrift', BASISLASTSCHRIFT: 'Basislastschrift',
@@ -305,6 +319,7 @@ const BOOKING_TOKENS: Record<string, string> = {
   LOHN: 'Lohn', GEHALT: 'Gehalt', MIETE: 'Miete', RATE: 'Rate', RENTE: 'Rente', BEZUEGE: 'Bezüge',
   SEPA: 'SEPA',
 };
+// i18n-data-end
 
 /**
  * A booking text a person can read: "ONLINE-UEBERWEISUNG" → "Online-Überweisung",
@@ -330,7 +345,7 @@ export function prettyBookingText(raw: string | null | undefined): string {
 }
 
 /**
- * The country an IBAN belongs to, named in German.
+ * The country an IBAN belongs to, named in the language speaking right now.
  *
  * Derived from the IBAN's own country prefix — the only geography a booking
  * actually carries — and resolved through Intl rather than a table that would
@@ -340,7 +355,7 @@ export function ibanCountry(iban: string | null | undefined): { code: string; na
   const code = String(iban ?? '').replace(/\s+/g, '').slice(0, 2).toUpperCase();
   if (!/^[A-Z]{2}$/.test(code)) return null;
   try {
-    const name = new Intl.DisplayNames(['de'], { type: 'region' }).of(code);
+    const name = new Intl.DisplayNames([activeLocale()], { type: 'region' }).of(code);
     return name && name !== code ? { code, name } : null;
   } catch {
     return null;
@@ -432,13 +447,17 @@ const startOfLocalDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.g
 /**
  * An amount as a person types it, or null when it is not one.
  *
- * German first — "1.000,50", "12,99 €", "−49,90", and "1.000" is a thousand —
- * but a pasted "1000.5" or "1,000.50" is read the way its writer meant it: the
- * last separator followed by one or two digits is the decimal point. What
- * stays ambiguous is refused rather than guessed: "12,999" could be a typo of
- * either reading, and a wrong guess here becomes a wrong transfer amount.
+ * Either way of writing is read the way its writer meant it — "1.000,50",
+ * "12,99 €", "−49,90", a pasted "1000.5" or "1,000.50": the last separator
+ * followed by one or two digits is the decimal point. One case depends on the
+ * language the user reads the app in: a single separator with exactly three
+ * digits behind it is a thousands separator in that language's way of
+ * writing — "1.000" in German, "1,000" in English — and the other one
+ * ("1,000" in German, "1.000" in English) is refused rather than guessed: it
+ * could be a typo of either reading, and a wrong guess here becomes a wrong
+ * transfer amount.
  */
-export function parseAmount(input: string | null | undefined): number | null {
+export function parseAmount(input: string | null | undefined, locale: Locale = activeLocale()): number | null {
   let s = String(input ?? '')
     .replace(/[\s  ]+/g, '')
     .replace(/€|EUR/gi, '');
@@ -477,9 +496,10 @@ export function parseAmount(input: string | null | undefined): number | null {
       // "1.000.000" — only grouping can repeat.
       if (!validGrouping(s, sep)) return null;
       intPart = s;
-    } else if (sep === '.' && tail.length === 3 && /^[1-9]\d{0,2}$/.test(pieces[0])) {
-      // "1.000" — a German thousands dot. (A comma with three digits after it
-      // is the ambiguous case, and falls through to the refusal below.)
+    } else if (sep === (locale === 'en' ? ',' : '.') && tail.length === 3 && /^[1-9]\d{0,2}$/.test(pieces[0])) {
+      // "1.000" — a German thousands dot ("1,000", an English thousands
+      // comma). The other separator with three digits after it is the
+      // ambiguous case, and falls through to the refusal below.
       intPart = s;
     } else {
       intPart = pieces[0];
@@ -501,10 +521,15 @@ function validGrouping(intPart: string, sep: string): boolean {
   return /^\d{1,3}$/.test(groups[0]) && groups.slice(1).every((g) => /^\d{3}$/.test(g));
 }
 
-/** An amount for an input field to show back: "1.000,00". No currency, no sign games. */
+/**
+ * An amount for an input field to show back: "1.000,00" ("1,000.00"). No
+ * currency, no sign games. In the language speaking right now, so it reads
+ * back through parseAmount in the same language — not a format for a file
+ * name or anything else that outlives a change of language.
+ */
 export function fmtAmountInput(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '';
-  return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  return new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
 // ---------------------------------------------------------------------------
@@ -591,7 +616,7 @@ function casePart(part: string): string {
 // Lowercase between other words: "Stadtwerke von der Heide", "Müller und Söhne".
 const CONNECTORS = new Set([
   'UND', 'VON', 'VOM', 'ZU', 'ZUM', 'ZUR', 'DER', 'DIE', 'DAS', 'DES', 'DEN', 'DEM', 'VAN', 'DE', 'DI',
-  'DA', 'DEL', 'LA', 'LE', 'ET', 'OF', 'THE', 'AND', 'FUER', 'FÜR', 'IM', 'IN', 'AM', 'AN', 'AUF', 'BEI', 'MIT',
+  'DA', 'DEL', 'LA', 'LE', 'ET', 'OF', 'THE', 'AND', 'FUER', 'FÜR', 'IM', 'IN', 'AM', 'AN', 'AUF', 'BEI', 'MIT', // i18n-data
 ]);
 
 // A trailing country code, as banks append to a card acceptor's name.
@@ -653,7 +678,7 @@ const PURPOSE_CASING: Record<string, string> = {
 
 // Small words that are lowercase inside a sentence.
 const PURPOSE_LOWER = new Set([
-  'UND', 'ODER', 'VON', 'VOM', 'ZU', 'ZUM', 'ZUR', 'DER', 'DIE', 'DAS', 'DES', 'DEN', 'DEM', 'FUER', 'FÜR',
+  'UND', 'ODER', 'VON', 'VOM', 'ZU', 'ZUM', 'ZUR', 'DER', 'DIE', 'DAS', 'DES', 'DEN', 'DEM', 'FUER', 'FÜR', // i18n-data
   'IM', 'IN', 'AM', 'AN', 'AUF', 'BEI', 'MIT', 'BIS', 'PER', 'AUS', 'NACH', 'AB',
 ]);
 
@@ -727,38 +752,44 @@ function daysBefore(d: Date, today: Date): number {
  * this one, where the weekday stops helping anybody place the date.
  */
 export function fmtDayHeader(d: Date | string | null | undefined, today: Date = new Date()): string {
+  const words = msgs().format;
   const date = toLocalDate(d);
-  if (!date) return 'Ohne Datum';
+  if (!date) return words.noDate;
   const diff = daysBefore(date, today);
-  if (diff === 0) return 'Heute';
-  if (diff === 1) return 'Gestern';
-  if (diff === -1) return 'Morgen';
+  if (diff === 0) return words.today;
+  if (diff === 1) return words.yesterday;
+  if (diff === -1) return words.tomorrow;
   if (date.getFullYear() === today.getFullYear()) {
-    return new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
+    return new Intl.DateTimeFormat(intlLocale(), { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
   }
-  return new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+  return new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'long', year: 'numeric' }).format(date);
 }
 
 /**
- * A date range the way a statement heading states it: "05.07.–03.10.2026".
- * The year is written once when both ends share it, and a single day is just
- * that day.
+ * A date range the way a statement heading states it: "05.07.–03.10.2026"
+ * ("5 Jul – 3 Oct 2026"). The year is written once when both ends share it,
+ * and a single day is just that day.
  */
 export function fmtRange(from: Date | string | null | undefined, to: Date | string | null | undefined): string {
   const a = toLocalDate(from);
   const b = toLocalDate(to);
   if (!a || !b) return '';
+  if (activeLocale() === 'en') {
+    // English writes the month out short; Intl joins the ends and shares the year.
+    const f = new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
+    return isoDate(a) === isoDate(b) ? f.format(a) : f.formatRange(a, b);
+  }
   const dm = (d: Date) => `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.`;
   if (isoDate(a) === isoDate(b)) return `${dm(a)}${a.getFullYear()}`;
   if (a.getFullYear() === b.getFullYear()) return `${dm(a)}–${dm(b)}${b.getFullYear()}`;
   return `${dm(a)}${a.getFullYear()}–${dm(b)}${b.getFullYear()}`;
 }
 
-/** "2026-10" → "Oktober 2026". A full yyyy-mm-dd is accepted and read for its month. */
+/** "2026-10" → "Oktober 2026" ("October 2026"). A full yyyy-mm-dd is accepted and read for its month. */
 export function fmtMonth(yyyyMm: string): string {
   const m = /^(\d{4})-(\d{2})/.exec(String(yyyyMm ?? ''));
   if (!m) return '';
-  return new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(new Date(+m[1], +m[2] - 1, 1));
+  return new Intl.DateTimeFormat(intlLocale(), { month: 'long', year: 'numeric' }).format(new Date(+m[1], +m[2] - 1, 1));
 }
 
 // ---------------------------------------------------------------------------

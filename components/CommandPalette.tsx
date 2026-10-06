@@ -12,10 +12,14 @@
 //
 // "Abmelden" is the one entry that ends something, so it stands apart, last,
 // under "Sitzung", and answers only a deliberate query: the start of its name
-// from three letters ("abm"), or one of its words in full ("logout") — never
-// "ab" (Abos, an Abbuchung) or a fuzzy hit like "logo" or "med", which could
-// leave it alone and preselected (lib/palette.ts). With nothing typed it is
-// listed too — on a phone, "Mehr" is where people look for it.
+// on screen from three letters ("abm", "log" for "Log out"), or one of its
+// words in full, German or English ("logout", "ausloggen", "sign out") —
+// never "ab" (Abos, an Abbuchung) or a fuzzy hit like "logo" or "med", which
+// could leave it alone and preselected (lib/palette.ts). With nothing typed
+// it is listed too — on a phone, "Mehr" is where people look for it.
+//
+// Commands are found by their words in the language on screen; on an
+// English screen their German names and words find them too.
 //
 // Nothing here bypasses anything: Überweisen opens the transfer sheet with
 // its review, Namensabgleich and TAN. Choosing a Konto is a switch like any
@@ -31,6 +35,8 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { txMatcher } from '@/lib/analytics';
 import { dayKey, fmtDate, initials, translateType } from '@/lib/format';
+import { MESSAGES, msgs, type Messages } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n/react';
 import { paletteResults } from '@/lib/palette';
 import { setThemePref } from '@/lib/theme';
 import type { DashboardTab } from '@/lib/app-types';
@@ -70,17 +76,28 @@ type Item = {
   run: () => void;
 };
 
-const GROUP_LABEL: Record<Group, string> = {
-  actions: 'Aktionen', accounts: 'Konten', transactions: 'Umsätze', session: 'Sitzung',
-};
+/** A command's own search words in lib/i18n/messages/shell.ts. */
+type WordsId = keyof Messages['shell']['palette']['words'];
+
 const GROUP_ORDER: readonly Group[] = ['actions', 'accounts', 'transactions', 'session'];
 const MAX_TX = 6;
 const MIN_TX_QUERY = 2;
 
+/**
+ * Abmelden's words, whichever language is on screen: each answers when typed
+ * in full (lib/palette.ts), German and English alike — never the start of
+ * one, never a fuzzy hit. Its name in the language on screen answers from
+ * three letters on.
+ */
+// i18n-data-start — search words, never shown
+const LOGOUT_WORDS = ['logout', 'log out', 'sign out', 'session', 'abmelden', 'ausloggen', 'abmeldung', 'sitzung beenden'];
+// i18n-data-end
+
 export function CommandPalette() {
   const { paletteOpen, setPaletteOpen } = useFints();
+  const t = useT();
   return (
-    <Overlay open={paletteOpen} onClose={() => setPaletteOpen(false)} label="Suche">
+    <Overlay open={paletteOpen} onClose={() => setPaletteOpen(false)} label={t.common.search}>
       <Palette onClose={() => setPaletteOpen(false)} />
     </Overlay>
   );
@@ -88,6 +105,8 @@ export function CommandPalette() {
 
 function Palette({ onClose }: { onClose: () => void }) {
   const f = useFints();
+  const tr = useT();
+  const { locale } = useLocale();
   const a = useShellActions();
   const showOnAccount = useShowOnAccount();
   const themePref = useThemePref();
@@ -113,59 +132,67 @@ function Palette({ onClose }: { onClose: () => void }) {
   };
 
   const actions = useMemo<Item[]>(() => {
+    const p = tr.shell.palette;
+    const de = MESSAGES.de;
+    /**
+     * A command's name and the words that find it: its own in the language on
+     * screen, and — when that is not German — its German name and words as
+     * well, so a German query finds it whatever the app speaks.
+     * `extra`: words of this one entry (a theme's own name).
+     */
+    const named = (name: (m: Messages) => string, words: WordsId, extra: string[] = []) => ({
+      label: name(tr),
+      keywords: locale === 'de'
+        ? [...p.words[words], ...extra]
+        : [...p.words[words], ...extra, name(de), ...de.shell.palette.words[words]],
+    });
     // A one-key hint only while those keys work (they can be switched off).
     const single = (keys: string[]) => (f.singleKeyShortcuts ? <KeyHint keys={keys} /> : undefined);
     // The sections are one press away in the institute bar (and the phone's
     // bottom bar), so they are found by typing, not listed up front.
-    const tab = (t: DashboardTab, label: string, icon: ReactNode, key: string, keywords: string[]): Item => ({
-      id: `tab-${t}`, group: 'actions', label, icon, keywords,
+    const tab = (t: DashboardTab, icon: ReactNode, key: string): Item => ({
+      id: `tab-${t}`, group: 'actions', ...named((m) => m.common.nav[t], t), icon,
       hint: <KeyHint keys={['Alt', key]} />,
-      description: f.tab === t ? 'Du bist hier' : undefined,
+      description: f.tab === t ? p.youAreHere : undefined,
       run: () => f.setTab(t),
     });
-    const theme = (pref: 'light' | 'dark' | 'system', label: string, icon: ReactNode): Item => ({
-      id: `theme-${pref}`, group: 'actions', label: `Darstellung: ${label}`, icon,
-      keywords: ['theme', 'modus', 'farbe', 'dark mode', 'nachtmodus', 'aussehen', label],
-      description: themePref === pref ? 'Aktuelle Einstellung' : undefined,
+    const theme = (pref: 'light' | 'dark' | 'system', icon: ReactNode): Item => ({
+      id: `theme-${pref}`, group: 'actions',
+      ...named((m) => m.shell.theme.current(m.common.theme[pref]), 'theme', [tr.common.theme[pref]]), icon,
+      description: themePref === pref ? p.currentSetting : undefined,
       run: () => setThemePref(pref),
     });
     const list: (Item | false)[] = [
       a.canTransfer && {
-        id: 'transfer', group: 'actions', label: 'Überweisen', icon: <TransferIcon />, featured: true,
+        id: 'transfer', group: 'actions', ...named((m) => m.shell.transfer, 'transfer'), icon: <TransferIcon />, featured: true,
         hint: single(['N']),
-        keywords: ['überweisung', 'geld senden', 'zahlen', 'bezahlen', 'echtzeit', 'sepa'],
         run: a.transfer,
       },
       a.canShare && {
-        id: 'share', group: 'actions', label: 'Geld anfordern', icon: <QrIcon />, featured: true,
-        description: 'GiroCode mit deinen Kontodaten',
-        keywords: ['girocode', 'qr', 'code', 'empfangen', 'kontodaten', 'iban teilen'],
+        id: 'share', group: 'actions', ...named((m) => m.shell.requestMoney, 'share'), icon: <QrIcon />, featured: true,
+        description: p.shareHint,
         run: a.share,
       },
       {
         // Not listed up front: this field already searches the Umsätze.
-        id: 'search', group: 'actions', label: 'Umsätze durchsuchen', icon: <SearchIcon size={18} />,
+        id: 'search', group: 'actions', ...named((m) => m.shell.searchTransactions, 'search'), icon: <SearchIcon size={18} />,
         hint: single(['/']),
-        keywords: ['suche', 'filter', 'finden', 'buchungen'],
         run: a.focusSearch,
       },
       a.canStatement && {
-        id: 'statement', group: 'actions', label: 'Kontoauszug als PDF', icon: <FileIcon />, featured: true,
+        id: 'statement', group: 'actions', ...named((m) => m.shell.statementPdf, 'statement'), icon: <FileIcon />, featured: true,
         description: a.rangeLabel,
-        keywords: ['pdf', 'drucken', 'auszug', 'beleg', 'dokument'],
         run: a.statement,
       },
       a.canExport && {
-        id: 'csv', group: 'actions', label: 'Umsätze als CSV exportieren', icon: <DownloadIcon />,
-        description: a.rangeLabel ? `${a.rangeLabel} · für Excel` : 'Für Excel',
-        keywords: ['export', 'excel', 'csv', 'tabelle', 'download', 'herunterladen'],
+        id: 'csv', group: 'actions', ...named((m) => m.shell.palette.csv, 'csv'), icon: <DownloadIcon />,
+        description: p.csvNote(a.rangeLabel),
         run: a.exportCsv,
       },
       {
-        id: 'privacy', group: 'actions', label: f.privacy ? 'Beträge anzeigen' : 'Beträge ausblenden',
+        id: 'privacy', group: 'actions', ...named((m) => (f.privacy ? m.common.showAmounts : m.common.hideAmounts), 'privacy'),
         icon: f.privacy ? <EyeIcon /> : <EyeOffIcon />, featured: true,
         hint: single(['B']),
-        keywords: ['privat', 'verbergen', 'verstecken', 'datenschutz', 'bildschirm teilen', 'beträge', 'einblenden'],
         run: () => {
           const hidden = !f.privacy;
           f.togglePrivacy();
@@ -175,58 +202,56 @@ function Palette({ onClose }: { onClose: () => void }) {
         },
       },
       {
-        id: 'inbox', group: 'actions', label: 'Mitteilungen', icon: <BellIcon />, featured: true,
-        description: f.unreadCount ? `${f.unreadCount} ungelesen` : 'Nachrichten deiner Bank und Vorgänge dieser Sitzung',
-        keywords: ['nachrichten', 'bank', 'vorgänge', 'hinweise', 'inbox'],
+        id: 'inbox', group: 'actions', ...named((m) => m.common.nav.messages, 'inbox'), icon: <BellIcon />, featured: true,
+        description: f.unreadCount ? tr.shell.unread(f.unreadCount) : p.inboxHint,
         run: () => f.setInboxOpen(true),
       },
-      tab('overview', 'Übersicht', <HomeIcon />, '1', ['start', 'konten', 'finanzübersicht', 'kontostand']),
-      tab('analysis', 'Analyse', <ChartIcon />, '2', ['auswertung', 'kategorien', 'ausgaben', 'einnahmen', 'statistik', 'umsatzanalyse']),
-      tab('contracts', 'Verträge & Abos', <RepeatIcon />, '3', ['abos', 'abonnements', 'fixkosten', 'wiederkehrend', 'daueraufträge', 'verträge']),
-      theme('light', 'Hell', <SunIcon />),
-      theme('dark', 'Dunkel', <MoonIcon />),
-      theme('system', 'System', <MonitorIcon />),
+      tab('overview', <HomeIcon />, '1'),
+      tab('analysis', <ChartIcon />, '2'),
+      tab('contracts', <RepeatIcon />, '3'),
+      theme('light', <SunIcon />),
+      theme('dark', <MoonIcon />),
+      theme('system', <MonitorIcon />),
       {
         id: 'single-keys', group: 'actions',
-        label: f.singleKeyShortcuts ? 'Kürzel mit einzelnen Tasten ausschalten' : 'Kürzel mit einzelnen Tasten einschalten',
+        ...named((m) => (f.singleKeyShortcuts ? m.shell.singleKeys.turnOff : m.shell.singleKeys.turnOn), 'singleKeys'),
         icon: <KeyboardIcon />,
-        description: '/, ?, N, B, G und 1–9',
-        keywords: ['tastenkürzel', 'shortcuts', 'einzeltasten', 'sprachsteuerung', 'barrierefreiheit', 'tastatur'],
+        description: tr.shell.singleKeys.keys,
         run: () => {
           const on = !f.singleKeyShortcuts;
           f.setSingleKeyShortcuts(on);
           // Nothing on screen changes; the toast is the only answer.
-          f.toast(on ? 'Kürzel mit einzelnen Tasten sind eingeschaltet.' : 'Kürzel mit einzelnen Tasten sind ausgeschaltet.', 'success');
+          const say = msgs().shell.singleKeys;
+          f.toast(on ? say.nowOn : say.nowOff, 'success');
         },
       },
       // Desktop app only. Opening the dialog is the action; with nothing new
       // known yet, it also asks.
       !!update && {
         id: 'updates', group: 'actions',
-        label: hasNewer(update) ? `Update auf Version ${update.release.version}` : 'Nach Updates suchen',
+        ...named((m) => (hasNewer(update) ? m.shell.palette.updateTo(update.release.version) : m.shell.checkForUpdates), 'updates'),
         icon: hasNewer(update) ? <DownloadIcon /> : <RefreshIcon />,
-        description: `Installiert: Version ${update.current}`,
-        keywords: ['update', 'aktualisieren', 'aktualisierung', 'version', 'neue version', 'upgrade', 'installieren'],
+        description: p.installed(update.current),
         run: () => {
           if (!hasNewer(update)) void updates.check();
           updates.openDialog();
         },
       },
       {
-        id: 'shortcuts', group: 'actions', label: 'Tastenkürzel', icon: <KeyboardIcon />,
+        id: 'shortcuts', group: 'actions', ...named((m) => m.common.shortcuts, 'shortcuts'), icon: <KeyboardIcon />,
         hint: single(['?']),
-        keywords: ['shortcuts', 'tastatur', 'hilfe', 'kürzel'],
         run: () => f.setShortcutsOpen(true),
       },
       {
-        id: 'logout', group: 'session', label: 'Abmelden', icon: <LogoutIcon />, featured: true, lastResort: true,
-        keywords: ['logout', 'ausloggen', 'abmeldung', 'sitzung beenden'],
+        // Its name in the language on screen, its words in both (LOGOUT_WORDS).
+        id: 'logout', group: 'session', label: tr.common.logout, icon: <LogoutIcon />, featured: true, lastResort: true,
+        keywords: LOGOUT_WORDS,
         // Asks first only while this session holds a transfer whose status is unclear.
         run: f.requestLogout,
       },
     ];
     return list.filter((x): x is Item => !!x);
-  }, [a, f, themePref, update]);
+  }, [a, f, themePref, update, tr, locale]);
 
   const accounts = useMemo<Item[]>(() => f.accounts.map((acct, i) => {
     const balance = f.balances[acct.accountNumber];
@@ -244,7 +269,7 @@ function Palette({ onClose }: { onClose: () => void }) {
           {isActive && (
             <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-accent">
               <CheckIcon size={16} strokeWidth={2.2} />
-              <span className="max-sm:sr-only">Ausgewählt</span>
+              <span className="max-sm:sr-only">{tr.shell.palette.selected}</span>
             </span>
           )}
           {balance && (
@@ -259,14 +284,19 @@ function Palette({ onClose }: { onClose: () => void }) {
           {i < 9 && f.singleKeyShortcuts && <span className="hidden sm:inline-flex"><KeyHint keys={[String(i + 1)]} /></span>}
         </span>
       ),
-      keywords: [acct.product ?? '', translateType(acct.accountType)],
+      keywords: [
+        acct.product ?? '',
+        translateType(acct.accountType),
+        // German finds it too, as it finds the actions: "girokonto" on an English screen.
+        ...(locale === 'de' ? [] : [MESSAGES.de.format.accountTypes[acct.accountType] || MESSAGES.de.format.accountType]),
+      ],
       ids: [acct.iban ?? '', acct.accountNumber],
       run: () => {
         if (!isActive) f.selectAccount(acct);
         f.setTab('overview');
       },
     } satisfies Item;
-  }), [f]);
+  }), [f, tr, locale]);
 
   // Bookings: only once something is typed, newest first, across every
   // account loaded in this session — found by what their rows show (the
@@ -320,14 +350,14 @@ function Palette({ onClose }: { onClose: () => void }) {
       items.unshift({
         id: 'tx-all',
         group: 'transactions',
-        label: `Alle Treffer für „${q}“ anzeigen`,
-        description: `${txMatches.inActive} ${txMatches.inActive === 1 ? 'Umsatz' : 'Umsätze'} im ausgewählten Konto`,
+        label: tr.shell.palette.showAll(q),
+        description: tr.shell.palette.inSelected(txMatches.inActive),
         icon: <SearchIcon size={18} />,
         run: () => f.showTransactions({ query: q }),
       });
     }
     return items;
-  }, [txMatches, q, f, showOnAccount]);
+  }, [txMatches, q, f, showOnAccount, tr]);
 
   const items = useMemo(() => {
     const r = paletteResults(actions, accounts, q);
@@ -369,9 +399,15 @@ function Palette({ onClose }: { onClose: () => void }) {
   const groups = GROUP_ORDER
     .map((g) => ({ g, rows: items.map((item, i) => ({ item, i })).filter((r) => r.item.group === g) }))
     .filter((x) => x.rows.length);
+  const groupLabel: Record<Group, string> = {
+    actions: tr.shell.palette.groups.actions,
+    accounts: tr.common.account.accounts,
+    transactions: tr.common.booking.transactions,
+    session: tr.shell.palette.groups.session,
+  };
 
   const txNote = q.length >= MIN_TX_QUERY && txMatches.total > MAX_TX
-    ? `Die ${MAX_TX} neuesten von ${txMatches.total} Treffern`
+    ? tr.shell.palette.newest(MAX_TX, txMatches.total)
     : null;
 
   // What a screen reader hears about the results: focus never leaves the
@@ -381,8 +417,8 @@ function Palette({ onClose }: { onClose: () => void }) {
   const status = !q
     ? ''
     : !items.length
-      ? `Keine Treffer für „${q}“`
-      : `${items.length === 1 ? '1 Ergebnis' : `${items.length} Ergebnisse`}${txNote ? ` · Umsätze: ${txNote}` : ''}`;
+      ? tr.shell.palette.noResults(q)
+      : tr.shell.palette.results(items.length, txNote);
   const [announced, setAnnounced] = useState('');
   useEffect(() => {
     const t = setTimeout(() => setAnnounced(status), 400);
@@ -409,8 +445,8 @@ function Palette({ onClose }: { onClose: () => void }) {
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={items.length ? optId(current) : undefined}
-            aria-label="Umsatz, Konto oder Aktion suchen"
-            placeholder="Umsatz, Konto oder Aktion suchen …"
+            aria-label={tr.shell.palette.field}
+            placeholder={tr.shell.palette.placeholder}
             autoComplete="off"
             spellCheck={false}
             enterKeyHint="go"
@@ -420,7 +456,7 @@ function Palette({ onClose }: { onClose: () => void }) {
             className="h-full min-w-0 flex-1 bg-transparent text-[17px] text-ink outline-none placeholder:text-ink-3"
           />
           <span aria-hidden className="hidden sm:contents"><Kbd>Esc</Kbd></span>
-          <IconButton size="md" aria-label="Schließen" data-dialog-close className="sm:hidden" onClick={onClose}>
+          <IconButton size="md" aria-label={tr.common.close} data-dialog-close className="sm:hidden" onClick={onClose}>
             <CloseIcon />
           </IconButton>
         </div>
@@ -430,16 +466,16 @@ function Palette({ onClose }: { onClose: () => void }) {
               this "Suche", so before anything else it says what it searches. */}
           {q.length < MIN_TX_QUERY && (
             <p className="px-5 pt-1.5 pb-1 text-[13px] leading-snug text-ink-3">
-              Tippe einen Namen, Verwendungszweck oder Betrag, um in den geladenen Umsätzen zu suchen.
+              {tr.shell.palette.intro}
             </p>
           )}
 
           {/* Always rendered, so aria-controls never points at nothing. */}
-          <div id={listId} role="listbox" aria-label="Ergebnisse">
+          <div id={listId} role="listbox" aria-label={tr.shell.palette.resultsLabel}>
             {groups.map(({ g, rows }) => (
               <div key={g} role="group" aria-labelledby={`${base}-g-${g}`} className="pb-1">
                 <div id={`${base}-g-${g}`} role="presentation" className="flex items-baseline justify-between px-5 pt-2.5 pb-1.5">
-                  <span className="text-[13px] font-semibold text-ink-3">{GROUP_LABEL[g]}</span>
+                  <span className="text-[13px] font-semibold text-ink-3">{groupLabel[g]}</span>
                   {g === 'transactions' && txNote && <span className="text-[12.5px] text-ink-3">{txNote}</span>}
                 </div>
                 {rows.map(({ item, i }) => (
@@ -461,17 +497,16 @@ function Palette({ onClose }: { onClose: () => void }) {
           <p role="status" className="sr-only">{announced}</p>
 
           {!items.length && (
-            <EmptyState illustration="search" compact title={`Keine Treffer für „${q}“`}>
-              Suche nach einer Aktion wie „Überweisen“, nach einem Konto oder nach geladenen Umsätzen – Name,
-              Verwendungszweck oder Betrag wie „12,99“.
+            <EmptyState illustration="search" compact title={tr.shell.palette.noResults(q)}>
+              {tr.shell.palette.emptyHint}
             </EmptyState>
           )}
         </div>
 
         <div aria-hidden className="hidden shrink-0 items-center gap-5 border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:flex">
-          <span className="inline-flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> auswählen</span>
-          <span className="inline-flex items-center gap-1.5"><Kbd>↵</Kbd> öffnen</span>
-          <span className="inline-flex items-center gap-1.5"><Kbd>Esc</Kbd> schließen</span>
+          <span className="inline-flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> {tr.shell.palette.keys.select}</span>
+          <span className="inline-flex items-center gap-1.5"><Kbd>↵</Kbd> {tr.shell.palette.keys.open}</span>
+          <span className="inline-flex items-center gap-1.5"><Kbd>Esc</Kbd> {tr.shell.palette.keys.close}</span>
         </div>
       </div>
     </div>

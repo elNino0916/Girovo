@@ -62,6 +62,9 @@ const QUALIFIERS = new Set([
   // "Stichting Nuvei Escrow Services", "Netflix Abo".
   'escrow', 'derdengelden', 'treuhand', 'aufladung', 'blitz', 'guthaben',
   'einzahlung', 'abo', 'abonnement', 'collections',
+  // The slogan a chain's card terminals put behind its name: "REWE SAGT
+  // DANKE", "NORMA SAGT DANKE".
+  'sagt', 'danke',
 ]);
 
 // Words too generic to identify a company on their own. A name that reduces to
@@ -81,6 +84,10 @@ const TOO_GENERIC = new Set([
   'gas', 'wasser', 'stadt', 'gemeinde', 'verein', 'kirche', 'schule', 'universitaet',
   'instant', 'transfer', 'instant transfer', 'express', 'checkout', 'payout', 'ref',
   'reference', 'sofort', 'sepa', 'credit', 'debit', 'auszahlung', 'einzahlung',
+  // The kind of payment a provider names when no shop stands behind it
+  // ("PAYPAL .Ratenzahlung") — there was a brand called "Ratenzahlung".
+  'ratenzahlung', 'teilzahlung', 'ratenkauf', 'rate', 'raten', 'rechnung', 'rechnungskauf', 'kauf auf rechnung',
+  'einkauf', 'kauf', 'bestellung', 'bezahlung', 'payment', 'purchase', 'pay later', 'spaeter bezahlen',
 ]);
 
 // Given names, spelled as `normalize` leaves them (lowercase, umlauts
@@ -499,7 +506,16 @@ export function merchantHint(purpose?: string | null): string | null {
  * before the ambiguous two-letter core, and the two-letter core is only
  * accepted on an exact label or alias hit.
  */
-export function candidates(raw: string, purpose?: string): Candidate[] {
+export function candidates(
+  raw: string,
+  purpose?: string,
+  /**
+   * Towns, normalised — a name that ends in one ("DOMINOS ASCHAFFENBURG", a
+   * chain's branch as its card terminal names it) is also tried without it,
+   * after the whole name. lib/merchants.ts passes the institute database's.
+   */
+  opts: { towns?: ReadonlySet<string> } = {},
+): Candidate[] {
   const rungs: Candidate[] = [];
   const push = (parts: string[], minScore: number, fromPurpose = false) => {
     const core = parts.join(' ').trim();
@@ -526,7 +542,7 @@ export function candidates(raw: string, purpose?: string): Candidate[] {
         const host = domain[1].toLowerCase();
         rungs.push({ query: host, core: hostCore(host), minScore: 0.85, fromPurpose: true });
       } else {
-        for (const r of candidates(hint)) push([r.core], r.minScore, true);
+        for (const r of candidates(hint, undefined, opts)) push([r.core], r.minScore, true);
       }
     }
   }
@@ -543,6 +559,12 @@ export function candidates(raw: string, purpose?: string): Candidate[] {
     push(afterLegal, 0.85);
     push(afterQualifiers, 0.85);
     push(afterLeading, 0.85);
+
+    // The branch's town at the end: the chain is what is left.
+    const last = afterLeading[afterLeading.length - 1];
+    if (afterLeading.length > 1 && (PLACE_NAMES.has(last) || opts.towns?.has(last))) {
+      push(afterLeading.slice(0, -1), 0.85);
+    }
 
     if (
       !isFacilitatorWrapper

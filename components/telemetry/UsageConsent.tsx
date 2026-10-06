@@ -7,10 +7,11 @@
 // out before a yes. Error reports do not wait for one, and the tile says so.
 
 import { useId, useRef } from 'react';
+import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ChartIcon } from '../icons';
 import { Button, focusFirst } from '../ui';
-import { ERROR_REPORTS_NOTE, USAGE_DISCLOSURE, setUsageConsent, useUsageConsent } from './usage';
+import { setUsageConsent, useUsageConsent } from './usage';
 
 const CONTROLS = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -26,6 +27,7 @@ function nextControlAfter(el: HTMLElement): HTMLElement | null {
 export function UsageConsentTile() {
   const consent = useUsageConsent();
   const { toast } = useFints();
+  const t = useT();
   const ref = useRef<HTMLElement>(null);
   const titleId = useId();
   if (consent !== 'unasked') return null;
@@ -35,7 +37,7 @@ export function UsageConsentTile() {
     // The tile goes away with the answer; a keyboard user keeps their place.
     const next = box && box.contains(document.activeElement) ? nextControlAfter(box) : null;
     void setUsageConsent(on);
-    toast(on ? 'Nutzungsdaten werden geteilt.' : 'Nutzungsdaten bleiben auf diesem Rechner.', on ? 'success' : 'info');
+    toast(on ? t.auth.usage.on : t.auth.usage.off, on ? 'success' : 'info');
     if (next) focusFirst([next, document.getElementById('main')]);
   };
 
@@ -46,14 +48,14 @@ export function UsageConsentTile() {
           <ChartIcon size={18} />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 id={titleId} className="section-head">Nutzungsdaten teilen?</h2>
-          <p className="mt-1 text-[14px] leading-snug text-ink-2">{USAGE_DISCLOSURE}</p>
+          <h2 id={titleId} className="section-head">{t.auth.usage.title}</h2>
+          <p className="mt-1 text-[14px] leading-snug text-ink-2">{t.auth.usage.disclosure}</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={() => answer(true)}>Teilen</Button>
-            <Button size="sm" variant="secondary" onClick={() => answer(false)}>Nein danke</Button>
+            <Button size="sm" variant="secondary" onClick={() => answer(true)}>{t.auth.usage.share}</Button>
+            <Button size="sm" variant="secondary" onClick={() => answer(false)}>{t.auth.noThanks}</Button>
           </div>
           <p className="mt-3 text-[13px] leading-snug text-ink-3">
-            {ERROR_REPORTS_NOTE} Ändern kannst du das jederzeit im Sitzungsmenü oben rechts.
+            {t.auth.usage.errorReports} {t.auth.usage.later}
           </p>
         </div>
       </div>

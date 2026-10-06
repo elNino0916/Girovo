@@ -22,6 +22,7 @@ import { buildEpcPayload } from '@/lib/girocode';
 import { copyText } from '@/lib/clipboard';
 import { downloadBlob } from '@/lib/download';
 import { fmtAmountInput, fmtIban, fmtShortIban, parseAmount } from '@/lib/format';
+import { useT } from '@/lib/i18n/react';
 import { qrMatrix, qrPngBlob, qrSvgPath, type QrMatrix } from '@/lib/qr';
 import { useFints } from './FintsProvider';
 import { AlertTriangleIcon, CheckIcon, CopyIcon, DownloadIcon, EyeIcon, EyeOffIcon, ImageIcon, InfoIcon, QrIcon } from './icons';
@@ -56,6 +57,8 @@ async function copyPng(blob: Promise<Blob>): Promise<boolean> {
 
 export function ShareAccount() {
   const { accounts, sharePrefill, closeShare, accountLabel, toast } = useFints();
+  const t = useT();
+  const words = t.transfer.share;
   const money = useMoneyText();
   const privacy = usePrivacy();
   const eligible = useMemo(() => accounts.filter((a) => !!a.iban), [accounts]);
@@ -91,13 +94,15 @@ export function ShareAccount() {
   const nameEdited = customName != null && squash(customName) !== squash(holder);
 
   // ---- the amount: optional, but when given it must be a real one --------
+  // The reading follows the language (lib/format.ts parseAmount), and so do
+  // the words: both are worked out again when it changes.
   const amountState = useMemo(() => {
     if (!amount.trim()) return { value: null as number | null, error: null as string | null };
     const n = parseAmount(amount);
-    if (n == null) return { value: null, error: 'Bitte gib einen gültigen Betrag an, zum Beispiel 25,00 – oder lass das Feld leer.' };
-    if (Math.round(n * 100) <= 0) return { value: null, error: 'Der Betrag muss größer als 0,00 € sein – oder lass das Feld leer.' };
+    if (n == null) return { value: null, error: t.transfer.share.amountInvalid };
+    if (Math.round(n * 100) <= 0) return { value: null, error: t.transfer.share.amountNotPositive };
     return { value: n, error: null };
-  }, [amount]);
+  }, [amount, t]);
   const amountError = amountTouched ? amountState.error : null;
 
   // ---- the code ------------------------------------------------------------
@@ -107,15 +112,16 @@ export function ShareAccount() {
     // a code that silently leaves the amount out.
     if (amountState.error) return { ok: false, message: amountState.error };
     try {
+      // Its refusals come in the language on screen (lib/girocode.ts).
       const payload = buildEpcPayload({
         name, iban: account.iban, bic: account.bic, amount: amountState.value, purpose,
       });
       const matrix = qrMatrix(payload);
       return { ok: true, matrix, path: qrSvgPath(matrix) };
     } catch (e) {
-      return { ok: false, message: (e as Error).message || 'Der GiroCode konnte nicht erstellt werden.' };
+      return { ok: false, message: (e as Error).message || t.transfer.share.codeFailed };
     }
-  }, [account?.iban, account?.bic, name, amountState, purpose]);
+  }, [account?.iban, account?.bic, name, amountState, purpose, t]);
 
   if (!account) return null;
 
@@ -135,14 +141,14 @@ export function ShareAccount() {
 
   const copyAccount = async () => {
     const ok = await copyText(accountText);
-    if (!ok) { toast('Kopieren war nicht möglich.', 'error'); return; }
+    if (!ok) { toast(words.copyFailed, 'error'); return; }
     flashCopied('account');
   };
 
   const copyImage = async () => {
     if (!code?.ok) return;
     if (await copyPng(qrPngBlob(code.matrix, 8))) flashCopied('image');
-    else toast('Das Bild ließ sich nicht kopieren. Speichere es stattdessen als PNG.', 'error');
+    else toast(words.imageCopyFailed, 'error');
   };
 
   const savePng = async () => {
@@ -151,10 +157,12 @@ export function ShareAccount() {
     try {
       const blob = await qrPngBlob(code.matrix, 8);
       const tail = iban.replace(/\s+/g, '').slice(-6);
-      const amt = amountState.value != null ? `_${fmtAmountInput(amountState.value).replace(/\./g, '').replace(',', '-')}` : '';
+      // "_1000-50": from the cents, not the formatted figure, so the name is the same in every language.
+      const cents = amountState.value != null ? Math.round(amountState.value * 100) : null;
+      const amt = cents != null ? `_${Math.floor(cents / 100)}-${String(cents % 100).padStart(2, '0')}` : '';
       downloadBlob(`GiroCode_${tail}${amt}.png`, blob);
     } catch (e) {
-      toast((e as Error).message || 'Das Bild konnte nicht gespeichert werden.', 'error');
+      toast((e as Error).message || words.imageSaveFailed, 'error');
     } finally {
       setSaving(false);
     }
@@ -162,7 +170,7 @@ export function ShareAccount() {
 
   const summaryAmount = amountState.value != null
     ? money(amountState.value, account.currency)
-    : 'Betrag frei wählbar';
+    : words.anyAmount;
   const covered = privacy && amountState.value != null && !revealed;
 
   return (
@@ -170,13 +178,12 @@ export function ShareAccount() {
       <Panel
         size="lg"
         titleId="share-title"
-        title="Geld anfordern"
+        title={words.title}
         onClose={closeShare}
         bodyClassName="pt-0 pb-6"
         headerExtra={(
           <p id="share-desc" className="-mt-2 text-[15px] leading-snug text-ink-2">
-            Ein GiroCode für dein Konto. Die zahlende Person scannt ihn mit ihrer Banking-App und bekommt die Überweisung
-            an dich fertig ausgefüllt.
+            {words.intro}
           </p>
         )}
         footer={(
@@ -185,14 +192,14 @@ export function ShareAccount() {
               iconLeft={copied === 'account' ? <CheckIcon size={17} strokeWidth={2.2} /> : <CopyIcon size={17} />}
               onClick={() => void copyAccount()}
             >
-              {copied === 'account' ? 'Kopiert' : 'Kontodaten kopieren'}
+              {copied === 'account' ? t.common.copied : words.copyDetails}
             </Button>
             <Button
               iconLeft={copied === 'image' ? <CheckIcon size={17} strokeWidth={2.2} /> : <ImageIcon size={17} />}
               disabled={!code?.ok}
               onClick={() => void copyImage()}
             >
-              {copied === 'image' ? 'Kopiert' : 'Bild kopieren'}
+              {copied === 'image' ? t.common.copied : words.copyImage}
             </Button>
             <Button
               variant="primary"
@@ -201,10 +208,10 @@ export function ShareAccount() {
               disabled={!code?.ok}
               onClick={() => void savePng()}
             >
-              Als PNG speichern
+              {words.savePng}
             </Button>
             <span className="sr-only" aria-live="polite">
-              {copied === 'account' ? 'Kontodaten kopiert' : copied === 'image' ? 'GiroCode als Bild kopiert' : ''}
+              {copied === 'account' ? words.detailsCopied : copied === 'image' ? words.imageCopied : ''}
             </span>
           </div>
         )}
@@ -217,8 +224,8 @@ export function ShareAccount() {
               <div className="grid size-[240px] place-items-center rounded-[var(--radius-card)] bg-inset px-6 text-center">
                 <span className="flex flex-col items-center gap-2.5 text-[13.5px] leading-snug text-ink-2">
                   <EyeOffIcon size={28} className="text-ink-3" />
-                  Beträge sind ausgeblendet – der Code enthält den Betrag und ließe sich vom Bildschirm scannen.
-                  <Button size="sm" iconLeft={<EyeIcon size={16} />} onClick={() => setRevealed(true)}>Code anzeigen</Button>
+                  {words.covered}
+                  <Button size="sm" iconLeft={<EyeIcon size={16} />} onClick={() => setRevealed(true)}>{words.showCode}</Button>
                 </span>
               </div>
             ) : code?.ok ? (
@@ -231,7 +238,7 @@ export function ShareAccount() {
                   height="224"
                   shapeRendering="crispEdges"
                   role="img"
-                  aria-label={`GiroCode: Überweisung an ${squash(name)}, ${summaryAmount}`}
+                  aria-label={words.codeLabel(squash(name), summaryAmount)}
                   className="block"
                 >
                   <path d={code.path.d} fill="#000" />
@@ -241,7 +248,7 @@ export function ShareAccount() {
               <div className="grid size-[240px] place-items-center rounded-[var(--radius-card)] border-[1.5px] border-dashed border-line-strong bg-inset px-6 text-center">
                 <span className="flex flex-col items-center gap-2 text-[13.5px] leading-snug text-ink-3">
                   <QrIcon size={28} />
-                  {amountState.error ? 'Bitte prüfe den Betrag.' : 'Kein GiroCode – bitte prüfe die Angaben.'}
+                  {amountState.error ? words.checkAmount : words.noCode}
                 </span>
               </div>
             )}
@@ -250,7 +257,7 @@ export function ShareAccount() {
               <p className="mt-0.5 text-[15px] text-ink-2">
                 {amountState.value != null
                   ? <Money value={amountState.value} currency={account.currency} className="font-semibold text-ink" />
-                  : 'Betrag frei wählbar'}
+                  : words.anyAmount}
               </p>
               {purpose.trim() && <p className="mt-0.5 line-clamp-2 text-[13px] break-words text-ink-3">{squash(purpose)}</p>}
             </div>
@@ -262,7 +269,7 @@ export function ShareAccount() {
 
           <div className="min-w-0 sm:order-1">
             {eligible.length > 1 && (
-              <Field label="Konto" htmlFor="share-account">
+              <Field label={t.common.account.account} htmlFor="share-account">
                 <Select id="share-account" value={account.accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
                   {eligible.map((a) => {
                     const s = fmtShortIban(a.iban);
@@ -277,22 +284,19 @@ export function ShareAccount() {
             )}
 
             <Field
-              label="Dein Name"
+              label={words.yourName}
               htmlFor="share-name"
               hint={nameEdited ? (
                 <span className="flex flex-col items-start gap-1.5">
                   <span className="flex items-start gap-1.5 text-ink-2">
                     <AlertTriangleIcon size={15} className="mt-0.5 shrink-0 text-emphasis" />
-                    <span>
-                      Weicht vom Kontoinhaber „{holder}“ ab. Die Bank der zahlenden Person meldet dann womöglich
-                      „Name stimmt nicht überein“.
-                    </span>
+                    <span>{words.nameDiffers(holder)}</span>
                   </span>
                   <Button variant="tertiary" size="xs" className="-ml-3" onClick={() => setCustomName(null)}>
-                    Kontoinhaber übernehmen
+                    {words.useHolder}
                   </Button>
                 </span>
-              ) : 'So, wie deine Bank den Kontoinhaber führt.'}
+              ) : words.nameHint}
             >
               <Input
                 id="share-name"
@@ -303,7 +307,7 @@ export function ShareAccount() {
               />
             </Field>
 
-            <Field label="Betrag" htmlFor="share-amount" optional error={amountError ?? undefined} hint={amountError ? undefined : 'Leer lassen, wenn die zahlende Person den Betrag selbst eingibt.'}>
+            <Field label={t.common.booking.amount} htmlFor="share-amount" optional error={amountError ?? undefined} hint={amountError ? undefined : words.amountHint}>
               <Input
                 id="share-amount"
                 inputMode="decimal"
@@ -323,7 +327,7 @@ export function ShareAccount() {
             </Field>
 
             <Field
-              label="Verwendungszweck"
+              label={t.common.booking.purpose}
               htmlFor="share-purpose"
               optional
               trailing={<span aria-hidden className="tnum text-[12.5px] text-ink-3">{purpose.length}/{MAX_PURPOSE}</span>}
@@ -333,7 +337,7 @@ export function ShareAccount() {
                 value={purpose}
                 maxLength={MAX_PURPOSE}
                 autoComplete="off"
-                placeholder="z. B. Anteil Konzertkarten"
+                placeholder={words.purposePlaceholder}
                 onChange={(e) => setPurpose(e.target.value)}
               />
             </Field>
@@ -341,18 +345,18 @@ export function ShareAccount() {
             <dl className="mt-6 divide-y divide-line border-y border-line">
               {eligible.length === 1 && (
                 <div className="flex min-h-12 flex-col justify-center py-2 sm:flex-row sm:items-center sm:justify-start sm:gap-3">
-                  <dt className="shrink-0 text-[13px] font-semibold text-ink-3 sm:w-12">Konto</dt>
+                  <dt className="shrink-0 text-[13px] font-semibold text-ink-3 sm:w-12">{t.common.account.account}</dt>
                   <dd className="min-w-0 truncate text-[15px] text-ink">{accountLabel(account)}</dd>
                 </div>
               )}
-              <DataRow label="IBAN" copy={iban.replace(/\s+/g, '')} copyLabel="IBAN kopieren">
+              <DataRow label="IBAN" copy={iban.replace(/\s+/g, '')} copyLabel={t.common.account.copyIban}>
                 <span className="iban text-[14.5px] text-ink">
                   {short.head && fmtIban(iban).slice(0, -short.tail.length)}
                   <span className="font-semibold">{short.tail}</span>
                 </span>
               </DataRow>
               {account.bic && (
-                <DataRow label="BIC" copy={account.bic} copyLabel="BIC kopieren">
+                <DataRow label="BIC" copy={account.bic} copyLabel={words.copyBic}>
                   <span className="num text-[14.5px] tracking-[0.04em] text-ink">{account.bic}</span>
                 </DataRow>
               )}
@@ -382,13 +386,11 @@ function DataRow({
 }
 
 function Explainer({ className }: { className?: string }) {
+  const t = useT();
   return (
     <p className={cx('items-start gap-2 leading-relaxed text-ink-3', className)}>
       <InfoIcon size={16} className="mt-0.5 shrink-0" />
-      <span>
-        Lesbar mit Banking-Apps, die GiroCodes scannen können. Der Code enthält nur Name, IBAN, BIC, Betrag und
-        Verwendungszweck; die zahlende Person prüft und gibt die Überweisung in ihrer eigenen App frei.
-      </span>
+      <span>{t.transfer.share.explainer}</span>
     </p>
   );
 }

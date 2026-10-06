@@ -13,9 +13,14 @@
 // - "Beträge ausblenden" replaces the figure with dots. The value is then not
 //   in the DOM at all — not in a title, not in an aria-label — so it cannot be
 //   read off a screen share, a screenshot or the accessibility tree.
+//
+// Figures follow the page's language (lib/format.ts): "1.234,56 €" in German,
+// "€1,234.56" in English — the currency where the language puts it.
 
 import { useCallback, useContext } from 'react';
 import { splitMoney } from '@/lib/format';
+import { activeLocale, intlLocale, msgs } from '@/lib/i18n';
+import { useLocale } from '@/lib/i18n/react';
 import { AMOUNT_MASK as MASK } from '@/lib/mask';
 import { FintsContext } from './FintsProvider';
 import { cx } from './ui';
@@ -24,13 +29,13 @@ const MINUS = '−';
 const NBSP = ' ';
 
 /** What a masked amount reads as, for the few places that announce one. */
-export const MASKED_LABEL = 'Betrag ausgeblendet';
+export const maskedLabel = () => msgs().common.amountHidden;
 
 /** "€", "$", "CHF" — the mark an amount in `currency` is written with. */
 export function currencyMark(currency: string): string {
   if (currency === 'EUR') return '€';
   try {
-    const part = new Intl.NumberFormat('de-DE', { style: 'currency', currency })
+    const part = new Intl.NumberFormat(intlLocale(), { style: 'currency', currency })
       .formatToParts(0)
       .find((p) => p.type === 'currency');
     return part?.value ?? currency;
@@ -48,21 +53,24 @@ function signOf(value: number, signed: boolean): string {
 }
 
 /**
- * The unmasked text of an amount: "−1.234,56 €", "+12,00 €". For the places
+ * The unmasked text of an amount: "−1.234,56 €", "+12,00 €" ("−€1,234.56",
+ * "+€12.00"). For the places
  * that must show the figure regardless of "Beträge ausblenden" — the transfer
  * review, a printed document. Everything else uses <Money> or useMoneyText.
  */
 export function formatMoney(value: number, currency = 'EUR', opts: { signed?: boolean } = {}): string {
   let abs: string;
   try {
-    abs = new Intl.NumberFormat('de-DE', { style: 'currency', currency }).format(Math.abs(value));
+    abs = new Intl.NumberFormat(intlLocale(), { style: 'currency', currency }).format(Math.abs(value));
   } catch {
-    abs = `${new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(value))}${NBSP}${currency}`;
+    abs = `${new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(value))}${NBSP}${currency}`;
   }
   return signOf(value, !!opts.signed) + abs;
 }
 
-export const maskedMoney = (currency = 'EUR') => `${MASK}${NBSP}${currencyMark(currency)}`;
+/** The dots in place of an amount, the currency where the language puts it: "••• €", "€•••". */
+export const maskedMoney = (currency = 'EUR') =>
+  activeLocale() === 'en' ? `${currencyMark(currency)}${MASK}` : `${MASK}${NBSP}${currencyMark(currency)}`;
 
 /** Whether amounts are hidden right now. Outside the provider (a print sheet, a gallery) they are not. */
 export function usePrivacy(): boolean {
@@ -96,11 +104,13 @@ export function Money({
   centsClassName?: string;
 }) {
   const privacy = usePrivacy();
+  // Read so a change of language renders the figure again.
+  useLocale();
   const hidden = masked ?? privacy;
 
   if (hidden) {
     return (
-      <span role="img" aria-label={MASKED_LABEL} className={cx('amount', className)}>
+      <span role="img" aria-label={maskedLabel()} className={cx('amount', className)}>
         {maskedMoney(currency)}
       </span>
     );
@@ -125,11 +135,11 @@ export function Money({
   return (
     <span className={cx('amount', color, className)}>
       {sign}
+      {parts.prefix}
       {parts.euros}
       <span className={centsClassName ?? 'text-[0.58em]'}>
         {parts.cents}
-        {NBSP}
-        {parts.suffix}
+        {parts.suffix && <>{NBSP}{parts.suffix}</>}
       </span>
     </span>
   );
@@ -141,9 +151,12 @@ export function Money({
  */
 export function useMoneyText(): (value: number, currency?: string, opts?: { signed?: boolean; masked?: boolean }) => string {
   const privacy = usePrivacy();
+  // A new function on a change of language, so whatever memoises on it formats again.
+  const { locale } = useLocale();
   return useCallback(
     (value, currency = 'EUR', opts = {}) =>
       (opts.masked ?? privacy) ? maskedMoney(currency) : formatMoney(value, currency, { signed: opts.signed }),
-    [privacy],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- locale is read through formatMoney
+    [privacy, locale],
   );
 }

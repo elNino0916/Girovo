@@ -16,6 +16,10 @@ already carries those. They bring a TAN app on their phone (decoupled
 approval such as S-pushTAN or SecureGo plus) and the habits of their bank's
 own online banking.
 
+They read the app in German or in English. The English-speaking ones are
+mostly people who live in Germany and bank here, but read English more
+easily than German — their bank's own app rarely offers them that.
+
 The owner and their household are one group among these users. They use the
 app against real Sparkasse data. Developers who run it from source
 (`npm run dev`) or build their own installer are a secondary audience. The
@@ -251,8 +255,16 @@ raw name as "Name laut Bank" (owner's request).
   owner likes it and it stays the default. It is not locked: other looks may be
   explored, but only as alternatives for the owner to choose, never swapped in
   silently.
-- **Language and voice.** German only, addressing the user informally as "du"
-  (e.g. "Deine Daten bleiben bei dir"). Bank terms stay as banks use them.
+- **Language and voice.** German and English (owner, 2026-10-05), switchable
+  at any time — on the login bar and in the Sitzung panel — and defaulting to
+  the system's language: German on a German system, English on any other.
+  German is the source and addresses the user informally as "du" (e.g. "Deine
+  Daten bleiben bei dir"); English says the same in a plain, friendly "you",
+  in British spelling, with figures and dates in British conventions. Bank
+  terms stay as banks use them, and what a bank sends — its messages, its
+  answers, a Verwendungszweck — is never translated. The rules and the
+  glossary are in `lib/i18n/README.md`. Austria and Switzerland are out of
+  scope: their banks offer no FinTS.
 
 ## Evidence on Hand
 
