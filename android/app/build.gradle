@@ -15,6 +15,9 @@ def keystoreProperties = new Properties()
 def keystoreFile = rootProject.file('keystore.properties')
 if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProperties.load(it) }
 
+// A release APK (assemble…Release) is split per ABI, see `splits` below.
+def splitApks = gradle.startParameter.taskNames.any { it.contains('assemble') && it.contains('Release') }
+
 android {
     namespace = "de.elnino0916.android.girovo"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -31,9 +34,12 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
         // Phones and the emulator; the category model's ONNX Runtime is the
-        // only native code, and it would otherwise ship for four ABIs.
-        ndk {
-            abiFilters 'arm64-v8a', 'x86_64'
+        // only native code, and it would otherwise ship for four ABIs. (A
+        // split release APK picks its ABI there instead — Gradle refuses both.)
+        if (!splitApks) {
+            ndk {
+                abiFilters 'arm64-v8a', 'x86_64'
+            }
         }
     }
 
@@ -72,7 +78,7 @@ android {
     // bundle and serves each device its own ABI by itself.)
     splits {
         abi {
-            enable = gradle.startParameter.taskNames.any { it.contains('assemble') && it.contains('Release') }
+            enable = splitApks
             reset()
             include 'arm64-v8a', 'x86_64'
             universalApk = false
