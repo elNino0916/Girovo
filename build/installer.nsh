@@ -97,16 +97,52 @@ ManifestDPIAwareness PerMonitorV2
   CopyFiles /SILENT "$EXEPATH" "$INSTDIR\resources\update-base.bin"
 !macroend
 
-; The assisted installer has no Welcome page by default — it jumps straight to
-; "install for me or everyone", which wastes the branded sidebar image
-; (build/installerSidebar.bmp) on the Finish page alone. Opting in here via the
-; documented customWelcomePage hook gives the sidebar its intended first
-; impression and adds a page that matches every other string in this installer
-; in being German (NSIS auto-selects its built-in language pack from the OS
-; language — no messages.yml override needed for the stock strings, but this
-; custom page's own text has to be written by hand).
+; The installer speaks the app's two languages, German on a German Windows and
+; English on any other — the rule the app itself follows until the user picks
+; one (electron/i18n.cjs). electron-builder.yml (nsis.installerLanguages) loads
+; just those two; NSIS then picks one from the Windows display language before
+; the first page shows, so there is no language dialog. A German variant
+; (Austria, Switzerland) gets German. Any other language gets the first one
+; loaded, English: en_US is listed first, and electron-builder's own messages
+; (messages.yml, "en must be first") create the English table before any
+; other.
+;
+; The built-in pages and electron-builder's messages come in both languages.
+; A text written here has to as well: a LangString per language, which the
+; page names as $(…).
+
+; customHeader — where those LangStrings are defined. electron-builder inserts
+;   it right after the languages are loaded (installer.nsi: addLangs, then
+;   customHeader), so ${LANG_GERMAN} and ${LANG_ENGLISH} exist by then. Not at
+;   the top of this file: electron-builder includes it before its own
+;   messages, and a LangString there would create its language's table first
+;   — German first would make German the fallback for every other language.
+;   The welcome page comes earlier in the script (assistedInstaller.nsh) and
+;   names the texts before they are defined, which NSIS allows — it is how
+;   MUI's own page texts work, defined only by MUI_LANGUAGE. A text missing in
+;   one language fails the build: makensis warns about it, and
+;   electron-builder runs it with warnings as errors (-WX). The uninstaller
+;   shows none of these texts.
+;
+;   Checked against electron-builder 26.15's generated script and its NSIS
+;   3.0.4.1: two language tables; a test build in the same order picked German
+;   for de-DE, de-AT and de-CH, English for en-US, en-GB, fr-FR, ru-RU, ja-JP.
+!macro customHeader
+  !ifndef BUILD_UNINSTALLER
+    LangString girovoWelcomeTitle ${LANG_GERMAN} "Willkommen beim Girovo-Setup"
+    LangString girovoWelcomeTitle ${LANG_ENGLISH} "Welcome to the Girovo setup"
+    LangString girovoWelcomeText ${LANG_GERMAN} "Dieser Assistent installiert Girovo auf diesem Computer.$\r$\n$\r$\nKlicke auf „Weiter“, um fortzufahren."
+    LangString girovoWelcomeText ${LANG_ENGLISH} "This wizard will install Girovo on this computer.$\r$\n$\r$\nClick “Next” to continue."
+  !endif
+!macroend
+
+; customWelcomePage — the assisted installer has no Welcome page by default: it
+;   jumps straight to "install for me or everyone", which wastes the branded
+;   sidebar image (build/installerSidebar.bmp) on the Finish page alone. Opting
+;   in here via the documented hook gives the sidebar its intended first
+;   impression; its title and text are the two LangStrings above.
 !macro customWelcomePage
-  !define MUI_WELCOMEPAGE_TITLE "Willkommen beim Girovo-Setup"
-  !define MUI_WELCOMEPAGE_TEXT "Dieser Assistent installiert Girovo auf diesem Computer.$\r$\n$\r$\nKlicke auf „Weiter“, um fortzufahren."
+  !define MUI_WELCOMEPAGE_TITLE "$(girovoWelcomeTitle)"
+  !define MUI_WELCOMEPAGE_TEXT "$(girovoWelcomeText)"
   !insertmacro MUI_PAGE_WELCOME
 !macroend

@@ -381,6 +381,20 @@ test('search: category labels, as the rows show them', () => {
   assert.equal(filterTransactions(DATA, { dir: 'all', category: null, query: 'wohnen' }, ctx).length, 0);
 });
 
+test('search: the user\'s own notes find their booking, umlauts either way', () => {
+  const ikea = DATA.find((tx) => tx.amount === -129.99)!;
+  const notes = new Map<SerializedTransaction, string>([[ikea, 'Kommode fürs Kinderzimmer – Rechnung 4711']]);
+  const ctx = { categoryOf, noteOf: (tx: SerializedTransaction) => notes.get(tx) };
+  const s = (q: string, c: typeof ctx | { categoryOf: CategoryOf } = ctx) =>
+    filterTransactions(DATA, { dir: 'all', category: null, query: q }, c);
+  assert.deepEqual(s('kommode'), [ikea]);
+  assert.deepEqual(s('kinderzimmer fuers'), [ikea], 'every word, in any order, "ü" typed as "ue"');
+  assert.deepEqual(s('ikea kommode'), [ikea], 'a note word and a bank word together');
+  assert.deepEqual(s('4711'), [ikea]);
+  assert.equal(s('kommode', { categoryOf }).length, 0, 'without the notes, nothing');
+  assert.deepEqual(searchReport(DATA, 'kommode', ctx), [{ text: 'kommode', matches: 1, month: null }]);
+});
+
 test('search: month words, alone or with a year, as well as the text', () => {
   assert.equal(monthOfWord('August'), 8);
   assert.equal(monthOfWord('aug'), 8);

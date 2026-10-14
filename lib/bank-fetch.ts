@@ -35,6 +35,14 @@ import { reportMetric, telemetryContext } from './telemetry.ts';
 /** How long a bank may take to start answering. */
 export const FIRST_BYTE_MS = 60_000;
 
+/**
+ * The policy's settings. The Android app sets `firstByteMs` to Infinity: its
+ * native HTTP stack times the first byte itself (HttpPlugin.java), because a
+ * timer in the page does not run while the app is in the background and
+ * would fire late on the way back, ending a request the bank had answered.
+ */
+export const bankPolicy = { firstByteMs: FIRST_BYTE_MS };
+
 export type BankUnavailableReason = 'timeout' | 'status' | 'unreadable';
 
 /** The bank did not answer usefully. The message is for the server log. */
@@ -107,7 +115,9 @@ export async function fetchFromBank(
   const ctrl = new AbortController();
   const cancel = () => ctrl.abort(new BankRequestCancelled());
   opts.signal?.addEventListener('abort', cancel, { once: true });
-  const timer = setTimeout(() => ctrl.abort(new BankUnavailable('timeout')), opts.firstByteMs ?? FIRST_BYTE_MS);
+  const limit = opts.firstByteMs ?? bankPolicy.firstByteMs;
+  // setTimeout takes Infinity as 0: no limit means no timer at all.
+  const timer = Number.isFinite(limit) ? setTimeout(() => ctrl.abort(new BankUnavailable('timeout')), limit) : undefined;
   try {
     let res: Response;
     try {

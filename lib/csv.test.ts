@@ -91,8 +91,27 @@ test('header row is the documented column list', () => {
     csv,
     '﻿Bezeichnung Auftragskonto;IBAN Auftragskonto;BIC Auftragskonto;Bankname Auftragskonto;Buchungstag;Valutadatum;' +
       'Name Zahlungsbeteiligter;IBAN Zahlungsbeteiligter;BIC Zahlungsbeteiligter;Abweichender Empfänger/Auftraggeber;Buchungstext;Verwendungszweck;Betrag;' +
-      'Waehrung;Kategorie;Glaeubiger ID;Mandatsreferenz;Kundenreferenz (End-to-End);Status\r\n',
+      'Waehrung;Kategorie;Glaeubiger ID;Mandatsreferenz;Kundenreferenz (End-to-End);Status;Notiz\r\n',
   );
+});
+
+test('the note is the last column, as typed — guarded like any text, empty without one', () => {
+  const t1 = tx({ remoteName: 'Blumen Kraus' });
+  const t2 = tx({ remoteName: 'REWE' });
+  const t3 = tx({ remoteName: 'Kiosk' });
+  const notes = new Map<SerializedTransaction, string>([
+    [t1, 'Geburtstag Oma; „Rosen“'],
+    [t3, '=HYPERLINK("http://x")'],
+  ]);
+  const [header, r1, r2, r3] = exportRows([t1, t2, t3], { noteOf: (t) => notes.get(t) });
+  assert.equal(CSV_COLUMNS.at(-1), 'note');
+  assert.equal(header['Notiz'], 'Notiz');
+  assert.equal(r1['Notiz'], 'Geburtstag Oma; „Rosen“');
+  assert.equal(r2['Notiz'], '');
+  assert.equal(r3['Notiz'], `'=HYPERLINK("http://x")`);
+  // Without notes at all the column is there, and empty.
+  assert.equal(exportRows([t1])[1]['Notiz'], '');
+  withLocale('en', () => assert.equal(csvHeader().at(-1), 'Note'));
 });
 
 test('in English the header, the Status and the file name follow; the cells stay German Excel\'s', () => {

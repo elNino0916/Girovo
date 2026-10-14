@@ -1,6 +1,6 @@
 'use client';
 
-// The printable Kontoauszug / Buchungsbeleg.
+// The printable Kontoauszug / Buchungsbeleg / bank message (Mitteilung).
 //
 // No PDF library: this renders a print-only sheet (Tailwind's `print:` variant,
 // hidden on screen) from data already sitting in memory, then calls
@@ -8,7 +8,7 @@
 // generator. That keeps a local-only banking app from adding a renderer
 // dependency (or a headless-Chromium one) just to lay out a table of numbers.
 //
-// Both sheets are one document family, built on the `.doc` system in
+// The sheets are one document family, built on the `.doc` system in
 // globals.css: five type sizes in points, a spacing scale in points, one label
 // rail every block aligns to, three rules and one tinted panel. Structure comes
 // from alignment and space — a printed financial document earns its authority
@@ -18,8 +18,10 @@
 // the bank sent: names, purposes and references word for word (only encoding
 // damage repaired), balances only as the bank reported them or plainly marked
 // as worked out, and a booking's state exactly as the screen states it —
-// vorgemerkt, noch nicht gebucht, gebucht. What it says, and the arithmetic
-// behind it, lives in lib/print-doc.ts; this file only lays it out.
+// vorgemerkt, noch nicht gebucht, gebucht. A bank message prints its subject
+// and text as the bank sent them, line breaks and all. What a sheet says, and
+// the arithmetic behind it, lives in lib/print-doc.ts; this file only lays it
+// out.
 //
 // The footer says plainly that the document was generated here, seals it with
 // a SHA-256 over the exact data on the page, and names the generator.
@@ -36,8 +38,8 @@ import { dayKey, fmtDate, fmtDecimal, fmtIban, ibanCountry, translateType } from
 import { intlLocale, msgs } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import {
-  bankLine, bookingReferences, bookingState, creditLine, cssString, fmtBalance, fmtBlz, fmtMovement, paperText,
-  statementLedger, statementNumberRange, statementPeriod,
+  bankLine, bookingReferences, bookingState, creditLine, cssString, fmtBalance, fmtBlz, fmtMovement, messageLines,
+  paperText, statementLedger, statementNumberRange, statementPeriod,
   type BookingState, type DocRef, type LedgerFigure, type StatementLedger,
 } from '@/lib/print-doc';
 import type { SerializedAccount, SerializedBalance, SerializedTransaction } from '@/lib/fints-types';
@@ -50,6 +52,7 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 
 type StatementJob = Extract<PrintJob, { kind: 'statement' }>;
 type TransactionJob = Extract<PrintJob, { kind: 'transaction' }>;
+type MessageJob = Extract<PrintJob, { kind: 'message' }>;
 
 export function Statement() {
   const { printJob, closePrintJob, toast } = useFints();
@@ -120,7 +123,9 @@ function DocumentSheet({
     <div ref={ref} className={`sheet doc ${className}`}>
       {job.kind === 'statement'
         ? <StatementSheet job={job} stamp={stamp} />
-        : <TransactionSheet job={job} stamp={stamp} />}
+        : job.kind === 'transaction'
+          ? <TransactionSheet job={job} stamp={stamp} />
+          : <MessageSheet job={job} stamp={stamp} />}
     </div>
   );
 }
@@ -194,7 +199,7 @@ function marksSettled(root: HTMLElement | null): Promise<void> {
 /** The desktop save dialog's default filename — kept short and filesystem-safe. */
 function suggestedFileName(job: PrintJob, stamp: DocStamp): string {
   const { doc } = msgs().transactions;
-  const base = job.kind === 'statement' ? doc.statementFile : doc.receiptFile;
+  const base = { statement: doc.statementFile, transaction: doc.receiptFile, message: doc.messageFile }[job.kind];
   return `${base}_${stamp.docId}.pdf`;
 }
 
@@ -233,6 +238,14 @@ function canonical(job: PrintJob, created: Date): string {
       t.creditorId, t.purpose, t.bookingText, t.e2eReference, t.mandateReference, t.customerReference,
       t.bankReference, t.transactionCode, t.primeNotesNr, t.statementNumber, t.additionalInformation,
     ].map(s).join('|');
+
+  if (job.kind === 'message') {
+    // When it arrived as the session stored it (ISO), so the seal is the same
+    // whichever language the sheet speaks.
+    const m = job.message;
+    return ['mitteilung', dayKey(created), bank(job.bank), s(m.receivedAt), s(m.subject), s(m.text)].join('\n');
+  }
+
   const head = [job.kind === 'statement' ? 'kontoauszug' : 'buchungsbeleg', dayKey(created), acct(job.account), bank(job.bank)];
 
   if (job.kind === 'statement') {
@@ -279,7 +292,7 @@ async function sealDocument(job: PrintJob): Promise<DocStamp> {
 }
 
 /** "04.10.2026, 14:32 Uhr (MESZ)" ("04/10/2026, 14:32 (CEST)") — a timestamp that says which clock it is on. */
-function fmtCreated(d: Date): string {
+function fmtTimestamp(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const zone = new Intl.DateTimeFormat(intlLocale(), { timeZoneName: 'short' })
     .formatToParts(d)
@@ -477,9 +490,12 @@ function EndMarker({ label }: { label: string }) {
 
 /**
  * Who made this, from what, and its seal. Plainly not the bank: the sentence
- * every sheet ends on says the bank did not issue it.
+ * every sheet ends on says the bank did not issue it. `made` words that
+ * sentence for a sheet that is not made from bookings.
  */
-function SheetFooter({ stamp, notes }: { stamp: DocStamp; notes: string[] }) {
+function SheetFooter({
+  stamp, notes, made,
+}: { stamp: DocStamp; notes: string[]; made?: (generator: string) => string }) {
   const { doc } = useT().transactions;
   const generator = [APP_NAME, APP_VERSION].filter(Boolean).join(' ');
   return (
@@ -488,7 +504,7 @@ function SheetFooter({ stamp, notes }: { stamp: DocStamp; notes: string[] }) {
         {notes.map((note) => (
           <p key={note}>{note}</p>
         ))}
-        <p>{doc.generatedBy(generator)}</p>
+        <p>{(made ?? doc.generatedBy)(generator)}</p>
       </div>
 
       {stamp.sha && (
@@ -558,7 +574,7 @@ function StatementSheet({ job, stamp }: { job: StatementJob; stamp: DocStamp }) 
         info={[
           [doc.period, periodText, 'fig'],
           ...(stmtNo ? [[tr.transactions.refs.statementNo, stmtNo, 'fig'] as [string, string, Cast]] : []),
-          [doc.createdLabel, fmtCreated(stamp.created), 'fig'],
+          [doc.createdLabel, fmtTimestamp(stamp.created), 'fig'],
           [doc.document, stamp.docId, 'mono'],
         ]}
       />
@@ -800,7 +816,7 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
         bank={bank}
         title={doc.receipt}
         info={[
-          [doc.createdLabel, fmtCreated(stamp.created), 'fig'],
+          [doc.createdLabel, fmtTimestamp(stamp.created), 'fig'],
           [doc.document, stamp.docId, 'mono'],
         ]}
       />
@@ -926,6 +942,65 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
         stamp={stamp}
         notes={state === 'booked' && entryDay && valueDay && entryDay !== valueDay ? [doc.valueNote] : []}
       />
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mitteilung (a message the bank sent at login)
+// ---------------------------------------------------------------------------
+
+/**
+ * A notice the user may have to keep or show — new Sonderbedingungen, a
+ * changed fee — after the logout that takes it off the screen. The bank is
+ * still the letterhead's institution and the footer still says it did not
+ * issue the sheet; between them its subject and its text, word for word and
+ * line for line. Only the sheet's own words follow the interface language.
+ */
+function MessageSheet({ job, stamp }: { job: MessageJob; stamp: DocStamp }) {
+  const tr = useT();
+  const doc = tr.transactions.doc;
+  const { bank, message } = job;
+  const received = new Date(message.receivedAt);
+  const known = !Number.isNaN(received.getTime());
+  const lines = messageLines(message.subject, message.text);
+
+  return (
+    <article>
+      <PageMarks left={[doc.message, known ? fmtDate(received) : ''].filter(Boolean).join(' · ')} right={stamp.docId} />
+      <Letterhead
+        bank={bank}
+        title={doc.message}
+        info={[
+          ...(known ? [[doc.received, fmtTimestamp(received), 'fig'] as [string, string, Cast]] : []),
+          [doc.createdLabel, fmtTimestamp(stamp.created), 'fig'],
+          [doc.document, stamp.docId, 'mono'],
+        ]}
+      />
+
+      {/* What the message is about, in the bank's words — the sheet's largest line. */}
+      <section className="keep mt-[var(--s-6)]">
+        <p className="doc-label">{doc.subject}</p>
+        <p className="doc-name mt-[var(--s-1)] [overflow-wrap:anywhere]">{message.subject}</p>
+      </section>
+
+      {/* Not a `keep` block: a notice longer than the rest of the page runs on
+          over the fold instead of leaving it blank. The heading stays with its
+          first lines, and each line the bank wrote is a block of its own, so a
+          fold never leaves one of its wrapped lines alone (widows, orphans). */}
+      {lines.length > 0 && (
+        <section className="doc-block">
+          <h2 className="doc-section keep-next">{doc.messageText}</h2>
+          <div className="doc-message">
+            {lines.map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <EndMarker label={doc.messageEnd} />
+      <SheetFooter stamp={stamp} notes={[]} made={doc.generatedFromMessage} />
     </article>
   );
 }

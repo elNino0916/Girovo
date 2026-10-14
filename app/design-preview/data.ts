@@ -11,6 +11,9 @@
 //   Kreditkarte CAMT-shaped card account without an IBAN, settled monthly
 //               from the Girokonto by Umbuchung.
 //
+// And a second bank for "Weitere Bank anmelden" (SECOND_BANK): a Sparkasse
+// with one CAMT-shaped Girokonto, the household account Lea pays into.
+//
 // Determinism: every booking draws its randomness from a PRNG seeded with its
 // own identity (series + date), never from a shared stream. The same day
 // therefore always produces the same amounts, and adding a series never
@@ -26,8 +29,10 @@ import type { ChosenBank } from '@/components/FintsProvider';
 import type { ActivityEntry, DateRange, InboxMessage, VaultData } from '@/lib/app-types';
 import type { PopularBank } from '@/lib/banks';
 import type {
-  MetaResponse, SerializedAccount, SerializedBalance, SerializedTanMethod, SerializedTransaction, StatementBlock,
+  BankOrderKind, MetaResponse, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedTanMethod,
+  SerializedTransaction, StandingRules, StatementBlock,
 } from '@/lib/fints-types';
+import { counterpartyKey, txKey } from '@/lib/categories';
 import { addDaysKey, dayNumber, isTargetBusinessDay, isoDate, nextTargetBusinessDay } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
@@ -117,21 +122,62 @@ export const ACCT = {
   giro: '0105593271',
   tagesgeld: '0105593280',
   karte: '4930XXXXXXXX1234',
+  /** The second bank's Girokonto. */
+  spk: '1902345678',
 } as const;
 
 const GIRO_IBAN = makeIban('DE', `${BLZ}${ACCT.giro}`);
 const TG_IBAN = makeIban('DE', `${BLZ}${ACCT.tagesgeld}`);
+
+/** A further bank of the same person — made up, like the first (no real BLZ or BIC). */
+const SPK_BLZ = '38069999';
+const SPK_BIC = 'SPKMDE31XXX';
+export const SECOND_BANK: ChosenBank = {
+  blz: SPK_BLZ,
+  name: 'Sparkasse Musterstadt',
+  brand: 'sparkasse',
+  bic: SPK_BIC,
+  location: 'Musterstadt',
+};
+const SPK_IBAN = makeIban('DE', `${SPK_BLZ}${ACCT.spk}`);
+
+export const SECOND_ACCOUNTS: SerializedAccount[] = [
+  {
+    accountNumber: ACCT.spk, iban: SPK_IBAN, bic: SPK_BIC, currency: 'EUR', accountType: 'CheckingAccount',
+    holder: HOLDER, product: 'Giro Haushalt', limit: 500,
+    canStatements: true, canBalance: true, canTransfer: true, canInstant: true, canPending: false,
+  },
+];
+
+/**
+ * A Dauerauftrag's rules as a Sparkasse's or the DKB's BPD names them
+ * (HICDES `0:9999:0102030612:01…3099`, no weekly turns) — with a year's lead,
+ * so the date fields have a sensible end.
+ */
+const STANDING_RULES: StandingRules = {
+  minDays: 1,
+  maxDays: 365,
+  months: [1, 2, 3, 6, 12],
+  monthDays: [...Array.from({ length: 30 }, (_, i) => i + 1), 99],
+  weeks: [],
+  weekDays: [],
+  fromBank: true,
+};
 
 export const MOCK_ACCOUNTS: SerializedAccount[] = [
   {
     accountNumber: ACCT.giro, iban: GIRO_IBAN, bic: BIC, currency: 'EUR', accountType: 'CheckingAccount',
     holder: HOLDER, product: 'GiroKomfort', limit: 2000,
     canStatements: true, canBalance: true, canTransfer: true, canInstant: true, canPending: true,
+    dated: { create: true, list: true, remove: true, rules: { minDays: 1, maxDays: 360, fromBank: true } },
+    standing: { create: true, list: true, remove: true, rules: STANDING_RULES },
   },
   {
+    // Daueraufträge only, and none at the bank yet.
     accountNumber: ACCT.tagesgeld, iban: TG_IBAN, bic: BIC, currency: 'EUR', accountType: 'SavingsAccount',
     holder: HOLDER, product: 'Tagesgeld', limit: null,
     canStatements: true, canBalance: true, canTransfer: true, canInstant: false, canPending: false,
+    standing: { create: true, list: true, remove: true, rules: STANDING_RULES },
   },
   {
     accountNumber: ACCT.karte, iban: null, bic: null, currency: 'EUR', accountType: 'CreditCardAccount',
@@ -140,7 +186,7 @@ export const MOCK_ACCOUNTS: SerializedAccount[] = [
   },
 ];
 
-const LIMIT: Record<string, number | null> = { [ACCT.giro]: 2000, [ACCT.tagesgeld]: null, [ACCT.karte]: 2500 };
+const LIMIT: Record<string, number | null> = { [ACCT.giro]: 2000, [ACCT.tagesgeld]: null, [ACCT.karte]: 2500, [ACCT.spk]: 500 };
 
 /** Counterparties with accounts of their own. IBANs are computed, so they all validate. */
 const PARTY = {
@@ -184,6 +230,8 @@ const PARTY = {
   },
   lea: { name: 'LEA BECKER', iban: makeIban('DE', '500105170648489890'), bic: 'INGDDEFFXXX' },
   max: { name: 'MAX MUSTERMANN', iban: makeIban('DE', '100100100006820101'), bic: 'PBNKDEFFXXX' },
+  club: { name: 'TSV MUSTERSTADT 1888 E.V.', iban: makeIban('DE', '570501200000412345'), bic: 'MALADE51KOB' },
+  garage: { name: 'AUTOHAUS BERGER GMBH', iban: makeIban('DE', '570700240123456700'), bic: 'DEUTDEDBKOB' },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -329,8 +377,10 @@ function generate(today: string): Generated {
   const giro: Ledger = [];
   const tg: Ledger = [];
   const cc: Ledger = [];
+  const spk: Ledger = [];
   const g = (day: string, tx: SerializedTransaction) => { if (day >= windowFrom) giro.push({ account: ACCT.giro, day, tx }); };
   const t = (day: string, tx: SerializedTransaction) => { if (day >= windowFrom) tg.push({ account: ACCT.tagesgeld, day, tx }); };
+  const s = (day: string, tx: SerializedTransaction) => { if (day >= windowFrom) spk.push({ account: ACCT.spk, day, tx }); };
   const c = (day: string, tx: SerializedTransaction) => { if (day >= windowFrom) cc.push({ account: ACCT.karte, day, tx }); };
   /** Due on or before today — and, for the one deliberate exception, a day ahead. */
   const due = (day: string) => day <= today;
@@ -670,10 +720,56 @@ function generate(today: string): Generated {
     }));
   }
 
+  // The second bank's household account: Lea's share in on the first,
+  // the sports club and the Kita by direct debit, groceries on Saturdays,
+  // and the Sparkasse's own monthly fee.
+  for (const { y, m } of months) {
+    const tag = `${y}-${pad2(m + 1)}`;
+    const share = rollForward(key(y, m, 1));
+    if (due(share)) {
+      s(share, camt({
+        day: share, amount: 450, name: 'Lea Becker', iban: PARTY.lea.iban, bic: PARTY.lea.bic, code: 'RCDT', text: 'Gutschrift',
+        purpose: `Haushaltsgeld ${mm(y, m)}`,
+      }));
+    }
+    const club = rollForward(key(y, m, 3));
+    if (due(club)) {
+      s(club, camt({
+        day: club, amount: -18, name: 'TSV Musterstadt 1890 e.V.', iban: makeIban('DE', '380699990000418290'), code: 'DDRT',
+        text: 'Lastschrift', purpose: `Mitgliedsbeitrag ${mm(y, m)} Mitgl.-Nr. 4182`,
+      }));
+    }
+    const kita = rollForward(key(y, m, 5));
+    if (due(kita)) {
+      s(kita, camt({
+        day: kita, amount: -212, name: 'Stadt Musterstadt Kita-Beitraege', iban: makeIban('DE', '380699990000100206'),
+        code: 'DDRT', text: 'Lastschrift', purpose: `Elternbeitrag Kita Sonnenblume ${mm(y, m)}`,
+      }));
+    }
+    const fee = lastBusinessDayOfMonth(y, m);
+    if (due(fee)) {
+      s(fee, camt({
+        day: fee, amount: -4.5, name: '', code: 'CHRG', text: 'Entgelt', purpose: `Kontoführung ${mm(y, m)}`,
+        eref: `ENTG${tag.replace('-', '')}`,
+      }));
+    }
+  }
+  for (let day = windowFrom; day < today; day = addDaysKey(day, 1)) {
+    if (new Date(dayNumber(day) * 86_400_000).getUTCDay() !== 6) continue;
+    const r = rng(`spk|${day}`);
+    const booked = isoDate(nextTargetBusinessDay(addDaysKey(day, 1)));
+    if (booked > today || r() > 0.8) continue;
+    s(booked, camt({
+      day: booked, valueDay: day, amount: -between(r, 38, 96), name: 'KAUFLAND MUSTERSTADT', code: 'POSD',
+      text: 'Kartenzahlung', purpose: `KAUFLAND MUSTERSTADT//MUSTERSTADT/DE ${day} girocard`,
+    }));
+  }
+
   const byDay = (a: Ledger[number], b: Ledger[number]) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
   giro.sort(byDay);
   tg.sort(byDay);
   cc.sort(byDay);
+  spk.sort(byDay);
 
   // Starting balances are chosen so that today's figures look like a real
   // person's: the Girokonto dips into the Dispo once before a payday inside
@@ -704,15 +800,17 @@ function generate(today: string): Generated {
     ],
     [ACCT.tagesgeld]: [],
     [ACCT.karte]: [],
+    [ACCT.spk]: [],
   };
 
   return {
     today,
-    ledgers: { [ACCT.giro]: giro, [ACCT.tagesgeld]: tg, [ACCT.karte]: cc },
+    ledgers: { [ACCT.giro]: giro, [ACCT.tagesgeld]: tg, [ACCT.karte]: cc, [ACCT.spk]: spk },
     start: {
       [ACCT.giro]: cents(dipFloor - minRecent),
       [ACCT.tagesgeld]: cents(8416.73 - tgSum),
       [ACCT.karte]: 0,
+      [ACCT.spk]: 612.4,
     },
     windowFrom,
     pending,
@@ -746,8 +844,69 @@ export type MockData = {
   logoFiles: Record<string, string>;
   meta: MetaResponse;
   vault: VaultData;
+  /**
+   * What a user who has been at it for a while keeps besides (MockOptions
+   * `personal`): notes on three Girokonto bookings — one with an amount in
+   * it, for "Beträge ausblenden" — one of them refiled by hand, and Telekom
+   * filed under Wohnen by a rule. The Kategorie-Check's and the drawer's
+   * examples; off by default, so every other view keeps its data.
+   */
+  personal: Pick<VaultData, 'notes' | 'txCategories' | 'categoryRules'>;
+  /** Monthly budgets a household might set (MockOptions `budgets`). */
+  budgets: VaultData['budgets'];
   activity(now: number): ActivityEntry[];
+  /** The bank "Weitere Bank anmelden" adds, as its login would hand it over. */
+  second: {
+    bank: ChosenBank;
+    userId: string;
+    accounts: SerializedAccount[];
+    tanMethods: SerializedTanMethod[];
+    messages(receivedAt: string): InboxMessage[];
+  };
+
+  /** The Daueraufträge and terminierten Überweisungen the bank holds, per account — fresh handles each call. */
+  bankOrders(accountNumber: string): Record<BankOrderKind, SerializedBankOrder[]>;
 };
+
+let orderSeq = 0;
+
+/** What the simulated bank keeps for later: three Daueraufträge and a Terminüberweisung on the Girokonto. */
+function mockBankOrders(today: string, acct: string): Record<BankOrderKind, SerializedBankOrder[]> {
+  if (acct !== ACCT.giro) return { standing: [], dated: [] };
+  const [y, m] = today.split('-').map(Number);
+  const firstOf = (monthsAgo: number, day: number) => isoDate(new Date(y, m - 1 - monthsAgo, day));
+  const ref = () => `mock-order-${++orderSeq}`;
+  return {
+    standing: [
+      {
+        ref: ref(), kind: 'standing', orderId: 'DA-0001', name: PARTY.landlord.name, iban: PARTY.landlord.iban,
+        bic: PARTY.landlord.bic, amount: 850, currency: 'EUR', purpose: 'Miete Wohnung 3. OG links',
+        schedule: { kind: 'standing', first: firstOf(26, 1), unit: 'M', interval: 1, day: 1, last: null },
+        more: 0, deletable: true,
+      },
+      {
+        ref: ref(), kind: 'standing', orderId: 'DA-0002', name: HOLDER, iban: TG_IBAN, bic: BIC, amount: 150,
+        currency: 'EUR', purpose: 'Sparrate Notgroschen',
+        schedule: { kind: 'standing', first: firstOf(9, 15), unit: 'M', interval: 1, day: 15, last: null },
+        more: 0, deletable: true,
+      },
+      {
+        ref: ref(), kind: 'standing', orderId: 'DA-0003', name: PARTY.club.name, iban: PARTY.club.iban,
+        bic: PARTY.club.bic, amount: 45, currency: 'EUR', purpose: 'Mitgliedsbeitrag Nino Becker',
+        schedule: { kind: 'standing', first: firstOf(14, 1), unit: 'M', interval: 3, day: 1, last: isoDate(new Date(y + 1, 11, 31)) },
+        more: 0, deletable: true,
+      },
+    ],
+    dated: [
+      {
+        ref: ref(), kind: 'dated', orderId: 'TU-0417', name: PARTY.garage.name, iban: PARTY.garage.iban,
+        bic: PARTY.garage.bic, amount: 1240, currency: 'EUR', purpose: 'Rechnung 2026-0931 Inspektion',
+        schedule: { kind: 'dated', date: addDaysKey(today, 12) },
+        more: 0, deletable: true,
+      },
+    ],
+  };
+}
 
 function buildMockData(today: string): MockData {
   const gen = generate(today);
@@ -762,6 +921,7 @@ function buildMockData(today: string): MockData {
     return cents(v);
   };
 
+  // The Volksbank's Girokonto reads MT940; the other accounts — the Sparkasse's too — CAMT.
   const dateOf = (acct: string) => (acct === ACCT.giro ? mt940Date : camtDate);
 
   const balance = (acct: string, opts: { empty?: boolean } = {}): SerializedBalance => {
@@ -861,6 +1021,7 @@ function buildMockData(today: string): MockData {
         ].join('\n'),
         receivedAt,
         read: false,
+        bank: MOCK_BANK.name,
       },
       {
         id: 'msg-maintenance',
@@ -869,6 +1030,7 @@ function buildMockData(today: string): MockData {
           + 'kann der Zugang über FinTS kurzzeitig nicht verfügbar sein.',
         receivedAt,
         read: false,
+        bank: MOCK_BANK.name,
       },
     ],
     tanMethods: [
@@ -908,6 +1070,8 @@ function buildMockData(today: string): MockData {
       categoryRules: {},
       txCategories: {},
       dismissedRecurring: [],
+      budgets: {},
+      notes: {},
       // An order from an earlier session whose outcome stayed unclear — the
       // duplicate check finds it after the logout ('transfer-duplicate-earlier').
       sentOrders: [
@@ -918,6 +1082,30 @@ function buildMockData(today: string): MockData {
       ],
       updatedAt: `${addDaysKey(today, -12)}T18:20:00.000Z`,
     },
+    personal: personalData(gen, today),
+    budgets: { groceries: 35000, mobility: 15000, shopping: 15000, leisure: 12000 },
+    second: {
+      bank: SECOND_BANK,
+      userId: 'nino.b',
+      accounts: SECOND_ACCOUNTS,
+      tanMethods: [
+        {
+          id: 923, name: 'S-pushTAN', version: 7, isDecoupled: true,
+          activeTanMedia: ['iPhone von Nino'], tanMediaRequirement: 2,
+          decoupled: { waitBeforeFirst: 2, waitBetween: 2, maxStatusRequests: 60 },
+        },
+      ],
+      messages: (receivedAt) => [
+        {
+          id: 'msg-spk-postbox',
+          subject: 'Neue Nachricht im elektronischen Postfach',
+          text: 'In Ihrem elektronischen Postfach liegt ein neues Dokument für Sie bereit: Rechnungsabschluss zum Quartalsende.',
+          receivedAt,
+          read: false,
+          bank: SECOND_BANK.name,
+        },
+      ],
+    },
     activity: (now) => [
       {
         id: 'act-lea', at: new Date(now - 26 * 60_000).toISOString(), kind: 'transfer', outcome: 'executed',
@@ -925,6 +1113,26 @@ function buildMockData(today: string): MockData {
         message: 'Auftrag ausgeführt.',
       },
     ],
+    bankOrders: (acct) => mockBankOrders(today, acct),
+  };
+}
+
+/** The newest booked Girokonto bookings a few personal touches go on (MockData.personal). */
+function personalData(gen: Generated, today: string): MockData['personal'] {
+  const booked = gen.ledgers[ACCT.giro].filter((b) => b.day <= today).reverse();
+  const newest = (pred: (tx: SerializedTransaction) => boolean) => booked.find((b) => pred(b.tx))?.tx;
+  const edeka = newest((tx) => tx.remoteName === GROCERS[2].name);
+  const amazon = newest((tx) => tx.remoteName === PARTY.amazon.name && tx.amount < 0);
+  const rent = newest((tx) => tx.remoteName === PARTY.landlord.name);
+  const telekom = newest((tx) => tx.remoteName === PARTY.telekom.name);
+  const notes: Record<string, string> = {};
+  if (rent) notes[txKey(rent)] = 'Mieterhöhung ab nächstem Monat angekündigt';
+  if (amazon) notes[txKey(amazon)] = 'Kopfhörer für Lea, Rechnung liegt im Ordner';
+  if (edeka) notes[txKey(edeka)] = 'Grillfest bei Jonas – Getränke für alle, 12,50 € Pfand zurück';
+  return {
+    notes,
+    txCategories: edeka ? { [txKey(edeka)]: 'leisure' } : {},
+    categoryRules: telekom ? { [counterpartyKey(telekom)]: 'housing' } : {},
   };
 }
 
@@ -973,4 +1181,6 @@ export const MOCK_PAYEES = {
   max: { name: 'Max Mustermann', iban: PARTY.max.iban },
   /** One letter short — the bank's Namensabgleich answers Close Match. */
   closeMatch: { name: 'Max Musterman', iban: PARTY.max.iban },
+  /** The Girokonto's rent goes here — a Dauerauftrag the bank already holds. */
+  landlord: { name: 'Hausverwaltung Kraemer GmbH', iban: PARTY.landlord.iban },
 } as const;

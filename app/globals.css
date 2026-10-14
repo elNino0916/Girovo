@@ -767,8 +767,8 @@
   opacity: 1;
 }
 
-/* ---------- printed documents (Kontoauszug / Buchungsbeleg) ----------
-   The design system for the two sheets in Statement.tsx. They are one
+/* ---------- printed documents (Kontoauszug / Buchungsbeleg / Mitteilung) ----------
+   The design system for the sheets in Statement.tsx. They are one
    document family, read by people who are not the user — a landlord, the
    Jobcenter, a tax adviser — and filed, so they follow the paper's rules,
    not the screen's:
@@ -1053,6 +1053,20 @@
   padding: var(--s-2) 0;
   border-top: 1px solid var(--doc-ink);
   border-bottom: 3px double var(--doc-ink);
+}
+
+/* ---- a bank message ----------------------------------------------------- */
+/* The bank's text as it sent it, one block per line it wrote: its blank
+   lines and its spacing stay (a list, an indent, a signature), at the
+   running-text size and a measure of about 90 characters. A word or link
+   longer than the line breaks anywhere rather than running off the paper. */
+.doc-message {
+  max-width: 150mm;
+}
+.doc-message > p {
+  min-height: 1lh; /* a blank line keeps its height */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* ---- footer ----------------------------------------------------------- */

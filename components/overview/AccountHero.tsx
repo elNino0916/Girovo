@@ -3,12 +3,14 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { canReportBalance, isCardAccount } from '@/lib/balances';
-import { buildBalanceHistory } from '@/lib/balance-history';
-import { fmtDate, fmtIban, fmtRange, isFutureDate, isoDate, properName } from '@/lib/format';
+import type { BalanceHistory } from '@/lib/balance-history';
+import { accountBalanceHistory } from '@/lib/history';
+import { dayKey, fmtDate, fmtIban, fmtRange, isFutureDate, isoDate, properName } from '@/lib/format';
 import type { SerializedAccount, SerializedBalance } from '@/lib/fints-types';
 import type { StatementInfo } from '@/lib/app-types';
 import type { Messages } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { AlertTriangleIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
@@ -63,7 +65,7 @@ function Figure({ label, labelClassName, title, children }: {
 function HeroSkeleton() {
   const t = useT();
   return (
-    <section aria-busy="true" aria-label={t.insights.hero.loading} className="panel min-w-0 overflow-clip">
+    <section data-hero aria-busy="true" aria-label={t.insights.hero.loading} className="panel min-w-0 overflow-clip">
       <div className="px-5 pt-6 pb-6 sm:px-8 sm:pt-7">
         <Skeleton className="h-3.5 w-36 rounded-[4px]" />
         <Skeleton className="mt-4 h-11 w-64 max-w-full rounded-[6px]" />
@@ -120,11 +122,9 @@ export function AccountHero() {
 
   // Exactly this account's booked items from the one fetch the blocks came
   // from — pending items are not part of any statement and would break the
-  // proof (lib/balance-history.ts).
-  const history = useMemo(
-    () => (info && txs ? buildBalanceHistory({ txs, blocks: info.blocks, range: { from: info.from, to: info.to } }) : null),
-    [info, txs],
-  );
+  // proof (lib/balance-history.ts) — carried back over the kept Umsätze where
+  // their kept balances agree (lib/history.ts).
+  const history = useMemo(() => (info && txs ? accountBalanceHistory(txs, info) : null), [info, txs]);
 
   // No account at all (the bank listed none): the list says so; nothing to hold a place for.
   if (!a) return accounts.length ? <HeroSkeleton /> : null;
@@ -136,7 +136,12 @@ export function AccountHero() {
   const card = isCardAccount(a);
   const today = isoDate(new Date());
   const past = !!info && info.to < today;
-  const closing = past ? closingOf(info, a.currency) : null;
+  // A past range the kept Umsätze answered alone has no statement of its own:
+  // its end balance is the one kept for that day, as the Kontoverlauf proves it.
+  const keptEnd = past && info?.saved && !info.saved.fetched && history?.verified && history.to === info.to
+    ? { balance: history.points[history.points.length - 1].balance, currency: history.currency }
+    : null;
+  const closing = past ? closingOf(info, a.currency) ?? keptEnd : null;
   const currency = bal?.currency ?? closing?.currency ?? a.currency ?? 'EUR';
   const dated = asOf(bal, tr);
   const label = accountLabel(a);
@@ -154,6 +159,10 @@ export function AccountHero() {
   // normal state: ink. With amounts hidden always navy — a colour would give
   // away what the dots hide.
   const figureColour = privacy || !negative ? 'text-headline' : card ? 'text-ink' : undefined;
+  // On Android today's balance goes without its name and its date: the
+  // account's name heads the figure, and a date is said only when it is not today.
+  const plainNow = IS_ANDROID && (main?.label ?? nowLabel) === nowLabel;
+  const showDate = !(IS_ANDROID && !privacy && dayKey(bal?.date) === today);
 
   /**
    * Fetches the figure the cheapest way that gets it: the statement while
@@ -229,8 +238,12 @@ export function AccountHero() {
           <div ref={figureRef} tabIndex={-1} aria-busy={figureLoading || undefined} className="min-w-0 outline-none">
             {/* Which figure, and whose: two Girokonten must not look alike up here. */}
             <p className="text-[14px] leading-snug font-semibold text-ink-2">
-              {main?.label ?? nowLabel}
-              <span className="font-normal text-ink-3"> · {label}</span>
+              {plainNow ? label : (
+                <>
+                  {main?.label ?? nowLabel}
+                  <span className="font-normal text-ink-3"> · {label}</span>
+                </>
+              )}
             </p>
 
             {main ? (
@@ -245,7 +258,7 @@ export function AccountHero() {
                     centsClassName="text-[0.5em] font-semibold"
                   />
                 </p>
-                {bal ? (
+                {bal ? (showDate && (
                   <p className="tnum mt-2 text-[13px] leading-snug text-ink-3">
                     <span title={dated?.title}>
                       {dated?.text}
@@ -267,7 +280,7 @@ export function AccountHero() {
                       </>
                     )}
                   </p>
-                ) : a.canBalance ? (
+                )) : a.canBalance ? (
                   // A past range's closing figure stands in for a balance the
                   // app does not know — the enquiry can still add it.
                   <FetchAction
@@ -323,10 +336,11 @@ export function AccountHero() {
           )}
         </div>
 
+        {IS_ANDROID && <AccountLine compact account={a} label={label} renamable={accounts.length === 1} />}
         <BalanceSection history={history} loading={statementLoading && !info} currency={currency} figure={!!main} />
       </div>
 
-      <AccountLine account={a} label={label} renamable={accounts.length === 1} />
+      {!IS_ANDROID && <AccountLine account={a} label={label} renamable={accounts.length === 1} />}
     </HeroFrame>
   );
 }
@@ -335,7 +349,7 @@ function HeroFrame({ label, children }: { label: string; children: ReactNode }) 
   const id = useId();
   const t = useT();
   return (
-    <section className="panel min-w-0 overflow-clip" aria-labelledby={id}>
+    <section data-hero className="panel min-w-0 overflow-clip" aria-labelledby={id}>
       <h2 id={id} className="sr-only">{t.insights.hero.title(label)}</h2>
       {children}
     </section>
@@ -407,8 +421,14 @@ function FetchAction({ lead, label, busy, loading, run }: {
  * The account line: what the account is called, whose it is, and the
  * identifiers to hand to somebody else — each copyable. For the only account
  * (no list above it) it is also where the account is renamed.
+ *
+ * `compact` (Android): inside the balance, whose first line already names the
+ * account — the number to hand on, and renaming as an icon. The holder is
+ * the user, and the BIC is in Geld anfordern.
  */
-function AccountLine({ account, label, renamable }: { account: SerializedAccount; label: string; renamable: boolean }) {
+function AccountLine({ account, label, renamable, compact = false }: {
+  account: SerializedAccount; label: string; renamable: boolean; compact?: boolean;
+}) {
   const { vaultStatus } = useFints();
   const t = useT();
   const [renaming, setRenaming] = useState(false);
@@ -436,6 +456,55 @@ function AccountLine({ account, label, renamable }: { account: SerializedAccount
   const iban = fmtIban(account.iban);
   const ident = accountIdent(account);
   const holder = properName(account.holder);
+  const idNode = iban ? (
+    <span className="flex min-w-0 items-center gap-1">
+      <span className="sr-only">IBAN </span>
+      <span className="iban overflow-x-auto text-[13.5px] text-ink [scrollbar-width:none]">{iban}</span>
+      <CopyButton text={iban.replace(/\s+/g, '')} label={t.common.account.copyIban} />
+    </span>
+  ) : ident.tail ? (
+    // No IBAN (a credit card, a Depot): the number the bank reports,
+    // grouped like a card prints it, the recognisable end set heavier.
+    <span className="flex min-w-0 items-baseline gap-1.5 text-[13px] text-ink-3">
+      <span aria-hidden className="shrink-0">{ident.kind === 'card' ? t.insights.hero.card : t.common.account.account}</span>
+      <span aria-hidden className="iban flex min-w-0 text-[13.5px] text-ink-2">
+        {ident.head && <span className="min-w-0 truncate">{ident.head}&nbsp;</span>}
+        <span className="id-tail shrink-0">{ident.tail}</span>
+      </span>
+      <span className="sr-only">{ident.spoken}</span>
+    </span>
+  ) : null;
+  const note = noteOpen && !renaming && (
+    <Alert tone="info" role="status" className="mt-3" onDismiss={() => setNoteOpen(false)}>
+      <span id={noteId}>{vaultNote(vaultStatus)}</span>
+    </Alert>
+  );
+
+  if (compact) {
+    return (
+      <div className="mt-3">
+        {renaming && renamable ? (
+          <RenameForm account={account} onClose={() => setRenaming(false)} />
+        ) : (
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1">{idNode}</span>
+            {renamable && (
+              <IconButton
+                ref={renameButton}
+                size="md"
+                aria-label={t.insights.accounts.rename}
+                aria-describedby={noteOpen ? noteId : undefined}
+                onClick={startRenaming}
+              >
+                <PencilIcon size={18} />
+              </IconButton>
+            )}
+          </div>
+        )}
+        {note}
+      </div>
+    );
+  }
 
   return (
     <div className="border-t border-line bg-inset px-5 py-4 sm:px-8">
@@ -464,24 +533,7 @@ function AccountLine({ account, label, renamable }: { account: SerializedAccount
           </span>
 
           <span className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 sm:justify-end">
-            {iban ? (
-              <span className="flex min-w-0 items-center gap-1">
-                <span className="sr-only">IBAN </span>
-                <span className="iban overflow-x-auto text-[13.5px] text-ink [scrollbar-width:none]">{iban}</span>
-                <CopyButton text={iban.replace(/\s+/g, '')} label={t.common.account.copyIban} />
-              </span>
-            ) : ident.tail ? (
-              // No IBAN (a credit card, a Depot): the number the bank reports,
-              // grouped like a card prints it, the recognisable end set heavier.
-              <span className="flex min-w-0 items-baseline gap-1.5 text-[13px] text-ink-3">
-                <span aria-hidden className="shrink-0">{ident.kind === 'card' ? t.insights.hero.card : t.common.account.account}</span>
-                <span aria-hidden className="iban flex min-w-0 text-[13.5px] text-ink-2">
-                  {ident.head && <span className="min-w-0 truncate">{ident.head}&nbsp;</span>}
-                  <span className="id-tail shrink-0">{ident.tail}</span>
-                </span>
-                <span className="sr-only">{ident.spoken}</span>
-              </span>
-            ) : null}
+            {idNode}
             {account.bic && (
               <span className="text-[13px] text-ink-3">
                 BIC <span className="iban text-ink-2">{account.bic}</span>
@@ -491,11 +543,7 @@ function AccountLine({ account, label, renamable }: { account: SerializedAccount
         </div>
       )}
 
-      {noteOpen && !renaming && (
-        <Alert tone="info" role="status" className="mt-3" onDismiss={() => setNoteOpen(false)}>
-          <span id={noteId}>{vaultNote(vaultStatus)}</span>
-        </Alert>
-      )}
+      {note}
     </div>
   );
 }
@@ -583,7 +631,7 @@ function RenameForm({ account, onClose }: { account: SerializedAccount; onClose:
 function BalanceSection({
   history, loading, currency, figure,
 }: {
-  history: ReturnType<typeof buildBalanceHistory> | null;
+  history: BalanceHistory | null;
   loading: boolean;
   currency: string;
   /** A balance is shown above — which stays the bank's own, whatever the history. */
@@ -616,15 +664,18 @@ function BalanceSection({
   }
 
   return (
-    <figure className="mt-6 border-t border-line pt-5">
-      <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4">
+    <figure className={IS_ANDROID ? 'mt-5' : 'mt-6 border-t border-line pt-5'}>
+      {/* On Android the curve under the figure speaks for itself; its name stays for a screen reader. */}
+      <figcaption className={IS_ANDROID ? 'sr-only' : 'mb-2 flex flex-wrap items-baseline justify-between gap-x-4'}>
         <span className="text-[14px] font-semibold text-ink">{t.insights.balanceChart.title}</span>
         <span className="tnum text-[13px] text-ink-3">{fmtRange(history.from, history.to)}</span>
       </figcaption>
       <BalanceChart points={history.points} currency={history.currency || currency} />
-      <p className="mt-1 text-[12.5px] leading-snug text-ink-3">
-        {words.historyCaption}
-      </p>
+      {!IS_ANDROID && (
+        <p className="mt-1 text-[12.5px] leading-snug text-ink-3">
+          {words.historyCaption}
+        </p>
+      )}
     </figure>
   );
 }

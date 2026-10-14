@@ -7,7 +7,9 @@ import { fmtIban } from '@/lib/format';
 import type { SerializedTanMethod } from '@/lib/fints-types';
 import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
-import { useFints, type WaitOrder, type WaitState } from './FintsProvider';
+import { BankLogo } from './BankLogo';
+import { scheduleSentence } from '@/lib/order-schedule';
+import { isOrderWait, isOrderWaitKind, useFints, type WaitKind, type WaitOrder, type WaitState } from './FintsProvider';
 import { AlertTriangleIcon, BoltIcon, CheckCircleIcon, ClockIcon, CloseIcon, InfoIcon, PhoneIcon } from './icons';
 import { Money } from './Money';
 import { VopBadge } from './VopResult';
@@ -28,8 +30,31 @@ export function TanWaitOverlay() {
   return <TanWait />;
 }
 
+/**
+ * What an approval is called, what follows its confirmation and how a refusal
+ * of it is told — the login's, the reads' and the transfer's from the
+ * approval's own texts, the orders the bank keeps for later from theirs.
+ * `abort`: what leaving it while it runs risks, where that differs from a
+ * transfer's.
+ */
+function waitWords(t: Messages, kind: WaitKind): {
+  title: string; afterConfirm: string; refused: { title: string; text: string }; abort?: string;
+} {
+  if (isOrderWaitKind(kind)) {
+    const w = t.orders.wait;
+    return {
+      title: w.title[kind],
+      afterConfirm: w.afterConfirm[kind],
+      refused: w.refused[kind],
+      abort: kind === 'bankOrders' ? undefined : w.abort[kind],
+    };
+  }
+  const tw = t.auth.tanWait;
+  return { title: tw.title[kind], afterConfirm: tw.afterConfirm[kind], refused: tw.refused[kind] };
+}
+
 function TanWait() {
-  const { wait, retryWait, cancelWait, selectedMethod, tanMethods } = useFints();
+  const { wait, retryWait, cancelWait, selectedMethod, tanMethods, logoFiles } = useFints();
   const t = useT();
   const tw = t.auth.tanWait;
   const uid = useId();
@@ -47,10 +72,10 @@ function TanWait() {
   const failed = wait.phase === 'error';
   const refused = wait.phase === 'refused';
 
-  // The method this approval runs on — the same one the provider attributes a
-  // mid-session approval to.
+  // The method this approval runs on — the one the provider started it with
+  // (a linked bank's own), else the one it attributes a mid-session approval to.
   const method: SerializedTanMethod | null =
-    selectedMethod ?? tanMethods.find((m) => m.isDecoupled) ?? null;
+    wait.method ?? selectedMethod ?? tanMethods.find((m) => m.isDecoupled) ?? null;
   // Where to look: the device the bank named for this very challenge, else
   // the method's only active medium. With several and none named, nothing —
   // a guess would send the user to the wrong phone.
@@ -69,16 +94,17 @@ function TanWait() {
   // one again. What it covers (account, from-date) goes in the sentence below,
   // not in the title. Once confirmed, the sentence says what the screen behind
   // is about to do; a transfer's sheet shows the bank's answer by then.
+  const words = waitWords(t, kind);
   const title = confirmed ? tw.confirmed
     : failed ? tw.checkFailed
-      : refused ? tw.refused[kind].title
-        : wait.title || tw.title[kind];
+      : refused ? words.refused.title
+        : wait.title || words.title;
   const text = confirmed
-    ? tw.afterConfirm[kind]
+    ? words.afterConfirm
     : failed
       ? tw.checkFailedText
       : refused
-        ? tw.refused[kind].text
+        ? words.refused.text
         : wait.text;
 
   // Each new state of the dialog is read out from its title: focus moves
@@ -100,9 +126,9 @@ function TanWait() {
   useEffect(() => { if (!waiting) setConfirmAbort(false); }, [waiting]);
 
   const cancel = () => {
-    // Abandoning a transfer's approval leaves the order's fate unknown — the
+    // Abandoning an order's approval leaves the order's fate unknown — the
     // bank may already have it. Make that a decision, not a reflex.
-    if (wait.kind === 'transfer' && waiting) {
+    if (isOrderWait(wait.kind) && waiting) {
       setConfirmAbort(true);
       return;
     }
@@ -116,9 +142,9 @@ function TanWait() {
   // anything else keeps every line the bank sent.
   const answerLines = refused ? formatBankAnswer(wait.error).lines : bankAnswerLines(wait.error);
   const reference = refused ? refusalReference(wait.error) : '';
-  // A new request is offered once this one is over — or overdue. Never for a
-  // transfer: an order is not sent twice behind the user's back.
-  const offerRetry = wait.canRetry && kind !== 'transfer' && (!waiting || overdue);
+  // A new request is offered once this one is over — or overdue. Never for an
+  // order: it is not sent twice behind the user's back.
+  const offerRetry = wait.canRetry && !isOrderWait(kind) && (!waiting || overdue);
   const methodName = method?.name ?? null;
 
   return (
@@ -177,6 +203,17 @@ function TanWait() {
               )}
               {overdue && <span className="sr-only">{tw.overdue}</span>}
             </div>
+
+            {/* Which bank asks, once more than one is in the view: its app is
+                the one to open. */}
+            {wait.bank && live && (
+              <p className="mt-3 flex items-center justify-center gap-2 text-[13.5px] text-ink-3">
+                <BankLogo brand={wait.bank.brand} size="sm" file={logoFiles[wait.bank.brand]} />
+                <span className="min-w-0 truncate">
+                  {rich(t.banks.asks(<span className="font-semibold text-ink-2">{wait.bank.name}</span>))}
+                </span>
+              </p>
+            )}
 
             {/* Where to look, and what the bank says — while there is still
                 something to confirm, and through the short confirmed beat
@@ -258,7 +295,7 @@ function TanWait() {
         open={confirmAbort && waiting}
         onClose={() => setConfirmAbort(false)}
         title={tw.abort.title}
-        description={tw.abort.text}
+        description={words.abort ?? tw.abort.text}
         actions={
           <>
             <Button
@@ -289,14 +326,18 @@ function TanWait() {
 function OrderToCompare({ order, method }: { order: WaitOrder; method: string | null }) {
   const t = useT();
   const tw = t.auth.tanWait;
+  const schedule = order.schedule ?? null;
   return (
     <div className="mt-4">
       <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
         <Money value={order.amount} currency="EUR" masked={false} className="text-[24px] leading-tight font-bold text-headline" />
         {order.instant && <Tag tone="info" size="sm" icon={<BoltIcon size={12} />}>{t.common.booking.instant}</Tag>}
+        {schedule && <Tag size="sm">{t.orders.kind[schedule.kind]}</Tag>}
       </p>
       <p className="mt-0.5 text-[15px] leading-snug font-semibold break-words text-ink">{tw.to(order.name)}</p>
       <p className="iban mt-0.5 overflow-x-auto text-[14px] text-ink-2 [scrollbar-width:none]">{fmtIban(order.iban)}</p>
+      {/* When it runs, as the review step said it: the banking app shows the date or the rhythm too. */}
+      {schedule && <p className="tnum mx-auto mt-1 max-w-[40ch] text-[13.5px] leading-snug text-ink-2">{scheduleSentence(schedule)}</p>}
       <p className="mx-auto mt-2 max-w-[36ch] text-[13.5px] leading-snug text-ink-3">
         {method ? tw.compareIn(method) : tw.compareApp}
       </p>

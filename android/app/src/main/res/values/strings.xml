@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Girovo</string>
+    <string name="title_activity_main">Girovo</string>
+    <string name="package_name">de.elnino0916.android.girovo</string>
+    <string name="custom_url_scheme">de.elnino0916.android.girovo</string>
+</resources>

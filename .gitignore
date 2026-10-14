@@ -15,3 +15,9 @@ dist/
 build/update-window/bin/
 # The on-device category model, fetched by scripts/fetch-model.mjs (too big for git)
 /models/
+
+# Android build (scripts/build-android.mjs)
+.next-android/
+.next-android-dev/
+/out/
+/public/mobile-runtime.js

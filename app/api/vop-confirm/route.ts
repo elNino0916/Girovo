@@ -11,7 +11,7 @@ import { isDefiniteRefusal } from '@/lib/bank-answer';
 import { msgs } from '@/lib/i18n';
 import { bankAnswerCodes, bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
-import { SepaTransferInteraction } from '@/lib/fints-sepa';
+import { orderInteraction } from '@/lib/fints-orders';
 import { ORDER_UNANSWERED_STATUS, OrderUnanswered, startOrder } from '@/lib/fints-order';
 import type { TransferResponse } from '@/lib/fints-types';
 
@@ -33,10 +33,12 @@ export const POST = wrap(async (req: Request) => {
     return fail(msgs().transfer.route.holdExpired);
   }
 
-  const interaction = new SepaTransferInteraction(
+  // The same kind of order as first sent — a transfer, a terminierte
+  // Überweisung, a Dauerauftrag with its very schedule (lib/fints-orders.ts).
+  const interaction = orderInteraction(
     hold.accountNumber,
     hold.transfer,
-    hold.instant,
+    { instant: hold.instant, schedule: hold.schedule },
     { vopId: hold.vopId },
     { descriptor: hold.descriptor, sepaMessage: hold.sepaMessage },
   );

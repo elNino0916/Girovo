@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: the page may come from the development server on the
+     computer (GIROVO_DEV_SERVER, capacitor.config.ts) — the emulator reaches
+     it as 10.0.2.2, a phone through `adb reverse` as localhost. Everything
+     else stays https-only, as in a release (src/main/res/xml). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The GitHub build installs its own updates (UpdaterPlugin): it may ask to
+     install packages. The Google Play build never asks — Play's policy keeps
+     that permission for app stores and the like. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+</manifest>

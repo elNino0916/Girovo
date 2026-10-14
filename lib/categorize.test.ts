@@ -2,9 +2,10 @@ import './__fixtures__/tz.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SerializedTransaction } from './fints-types';
+import type { CategoryId } from './categories.ts';
 import { counterpartyKey, txKey } from './categories.ts';
 import {
-  bookingKind, bookingKindLabel, categorize, foldText, guessCategory, isBankOwnBooking, isBusinessCredit, isOwnAccount,
+  bookingKind, bookingKindLabel, categorize, explainGuess, foldText, guessCategory, isBankOwnBooking, isBusinessCredit, isOwnAccount,
   keywordCategory,
 } from './categorize.ts';
 import { CRED, IBAN, OWN_GIRO, OWN_IBANS, OWN_SAVINGS, camt, mt940 } from './__fixtures__/transactions.ts';
@@ -319,6 +320,24 @@ test('guessCategory: the model only fills what the keywords leave, only for mone
   const credit = mt940({ day: '2026-09-02', amount: 20, text: 'GUTSCHRIFT', name: 'LANDBROT SCHUEREN' });
   assert.equal(guessCategory(credit, { modelGuesses: { [counterpartyKey(credit)]: 'groceries' } }), 'otherIn');
   assert.equal(guessCategory(shop, { modelGuesses: { [key]: 'income' } }), 'other');
+});
+
+test('explainGuess names the rung that decided — the Kategorie-Check counts by it', async () => {
+  const { counterpartyKey } = await import('./categories.ts');
+  const why = (tx: SerializedTransaction, modelGuesses?: Record<string, CategoryId>) =>
+    explainGuess(tx, { ownIbans: OWN_IBANS, modelGuesses });
+  assert.deepEqual(why(camt({ day: '2026-09-01', amount: -60, code: 'ESCT', iban: OWN_GIRO })), { id: 'transfer', basis: 'own' });
+  assert.deepEqual(why(mt940({ day: '2026-09-01', amount: -60, text: 'UMBUCHUNG' })), { id: 'transfer', basis: 'own' });
+  assert.deepEqual(why(mt940({ day: '2026-09-01', amount: -200, gvc: '083', text: 'BARGELDAUSZAHLUNG' })), { id: 'cash', basis: 'code' });
+  assert.deepEqual(why(mt940({ day: '2026-09-30', amount: -7.95, gvc: '805', text: 'ABSCHLUSS' })), { id: 'fees', basis: 'code' });
+  assert.deepEqual(why(mt940({ day: '2026-09-30', amount: 2650, gvc: '153', text: 'LOHN/GEHALT' })), { id: 'income', basis: 'code' });
+  assert.deepEqual(why(mt940({ day: '2026-09-02', amount: -30, text: 'KARTENZAHLUNG', name: 'REWE Markt GmbH' })), { id: 'groceries', basis: 'keyword' });
+  const shop = mt940({ day: '2026-09-02', amount: -8.5, text: 'KARTENZAHLUNG', name: 'LANDBROT SCHUEREN' });
+  assert.deepEqual(why(shop), { id: 'other', basis: 'none' });
+  assert.deepEqual(why(shop, { [counterpartyKey(shop)]: 'groceries' }), { id: 'groceries', basis: 'model' });
+  assert.deepEqual(why(mt940({ day: '2026-09-02', amount: 20, text: 'GUTSCHRIFT', name: 'Lea Becker' })), { id: 'otherIn', basis: 'none' });
+  // guessCategory is its answer, without the reason.
+  assert.equal(guessCategory(shop, { modelGuesses: { [counterpartyKey(shop)]: 'groceries' } }), 'groceries');
 });
 
 test('keywords: a "Bäcker" by card, and web hosting', () => {

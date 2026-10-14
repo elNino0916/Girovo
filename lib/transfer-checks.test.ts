@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ActivityEntry } from './app-types';
-import type { SerializedBalance, SerializedTransaction } from './fints-types';
+import type { SerializedBalance, SerializedBankOrder, SerializedTransaction } from './fints-types';
 import type { SentOrder } from './sent-orders';
-import { findDuplicate, findSentTransfer, fundsWarning, spendable } from './transfer-checks.ts';
+import { findDuplicate, findPlacedOrder, findSentTransfer, fundsWarning, spendable } from './transfer-checks.ts';
 
 const IBAN = 'DE02120300000000202051';
 const NOW = new Date(2026, 9, 4, 15, 30);
@@ -140,4 +140,55 @@ test('findSentTransfer: older bookings, other amounts and other IBANs do not cou
   const other = tx({ entryDate: at(2026, 10, 4), remoteIban: 'DE89370400440532013000' });
   const credit = tx({ entryDate: at(2026, 10, 4), amount: 120 });
   assert.equal(findSentTransfer({ iban: IBAN, cents: 12_000, since, booked: [older, other, credit], pending: null }), null);
+});
+
+// ---------------------------------------------------------------------------
+// Orders the bank keeps for later (lib/order-schedule.ts, lib/sent-orders.ts)
+
+const standing = { kind: 'standing' as const, first: '2026-11-01', unit: 'M' as const, interval: 1, day: 1 };
+const dated = { kind: 'dated' as const, date: '2026-10-20' };
+const bankOrder = (over: Partial<SerializedBankOrder> = {}): SerializedBankOrder => ({
+  ref: 'r1', kind: 'standing', orderId: 'DA-1', name: 'LEA BECKER', iban: IBAN, bic: null, amount: 120, currency: 'EUR',
+  purpose: '', schedule: standing, more: 0, deletable: true, ...over,
+});
+
+test('a new Dauerauftrag is never a repeat of payments made — only of another Dauerauftrag', () => {
+  // The rent paid by hand last week beside a new Dauerauftrag for it: no warning.
+  assert.equal(check({ schedule: standing, activity: [activity()], sent: [sent()], txByAccount: { 1: [tx()] } }), null);
+  const d = check({ schedule: standing, activity: [activity({ schedule: standing })] });
+  assert.equal(d?.sentence, 'Heute um 9:05 Uhr hast du bereits einen Dauerauftrag über 120,00 € an Lea Becker eingerichtet.');
+  assert.equal(d?.title, 'Schon eingerichtet?');
+  const held = check({ schedule: standing, bankOrders: [bankOrder()] });
+  assert.equal(held?.sentence, 'Bei deiner Bank besteht schon ein Dauerauftrag über 120,00 € an Lea Becker (monatlich am 1.).');
+});
+
+test('a terminierte Überweisung is one payment: payments and other Terminüberweisungen count, Daueraufträge do not', () => {
+  assert.equal(
+    check({ schedule: dated, txByAccount: { 1: [tx()] } })?.sentence,
+    'Am 02.10.2026 hast du bereits 120,00 € an Lea Becker überwiesen.',
+  );
+  assert.equal(check({ schedule: dated, activity: [activity({ schedule: standing })] }), null);
+  assert.equal(check({ schedule: dated, bankOrders: [bankOrder()] }), null);
+  const vault = check({ schedule: dated, sent: [sent({ kind: 'dated', due: '2026-10-20', outcome: 'executed' })] });
+  assert.equal(vault?.sentence, 'Am 03.10.2026 um 18:40 Uhr hast du bereits eine Terminüberweisung über 120,00 € an Lea Becker zum 20.10.2026 angelegt.');
+  assert.equal(vault?.title, 'Schon angelegt?');
+  assert.equal(
+    check({ schedule: dated, bankOrders: [bankOrder({ kind: 'dated', schedule: dated })] })?.sentence,
+    'Bei deiner Bank liegt schon eine Terminüberweisung über 120,00 € an Lea Becker zum 20.10.2026.',
+  );
+});
+
+test('a transfer now is warned about a terminierte Überweisung of the same payment, never about a Dauerauftrag', () => {
+  assert.match(check({ activity: [activity({ schedule: dated, outcome: 'unknown' })] })?.sentence ?? '', /Terminüberweisung .* zum 20\.10\.2026 gesendet – ihr Status ist unklar/);
+  assert.equal(check({ sent: [sent({ kind: 'standing', due: '2026-11-01' })] }), null);
+  assert.equal(check({ activity: [activity()] })?.title, 'Schon einmal überwiesen?');
+});
+
+test('findPlacedOrder: the order in the bank\'s list, the same schedule first', () => {
+  const other = bankOrder({ ref: 'r2', schedule: { ...standing, day: 15, first: '2026-11-15' } });
+  const same = bankOrder({ ref: 'r3' });
+  assert.equal(findPlacedOrder({ iban: IBAN, cents: 12_000, schedule: standing, orders: [other, same] })?.ref, 'r3');
+  assert.equal(findPlacedOrder({ iban: IBAN, cents: 12_000, schedule: standing, orders: [other] })?.ref, 'r2');
+  assert.equal(findPlacedOrder({ iban: IBAN, cents: 12_000, schedule: dated, orders: [same] }), null);
+  assert.equal(findPlacedOrder({ iban: IBAN, cents: 12_001, schedule: standing, orders: [same] }), null);
 });

@@ -13,9 +13,11 @@ import { CalendarIcon } from '../icons';
 import { fmtDayShort } from '@/lib/analytics';
 import type { TxFilter } from '@/lib/app-types';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { dayKey, dayNumber, fmtDate, presetRange, toLocalDate } from '@/lib/format';
+import { addDaysKey, dayKey, dayNumber, fmtDate, presetRange, toLocalDate } from '@/lib/format';
+import { FREE_WINDOW_DAYS, planFetch } from '@/lib/history';
 import { intlLocale, msgs } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 
 /**
  * "28.09.2026" ("28/09/2026") from a local day key — never through
@@ -73,7 +75,9 @@ export { CounterpartyAvatar } from '../transactions/Avatar';
 /**
  * "Umsätze für 12 Monate abrufen" with its honest small print. Applies the
  * range like the Umsätze period control does — an explicit action that may
- * need a TAN, for the active account. Hidden once a year is loaded.
+ * need a TAN, for the active account. Hidden once a year is loaded. When the
+ * older months are kept on this computer (lib/history.ts), the bank is asked
+ * only for its free window, and the small print says where they come from.
  */
 export function LoadHistoryButton({
   className, size = 'sm', variant = 'secondary', layout = 'inline', flush,
@@ -86,10 +90,12 @@ export function LoadHistoryButton({
   /** inline: hint beside the button (wraps under it when narrow) · stacked: hint below · centered: below, centred (empty states). */
   layout?: 'inline' | 'stacked' | 'centered';
 }) {
-  const { applyRange, busy, loadingAccount, activeAccount } = useFints();
+  const { applyRange, busy, loadingAccount, activeAccount, historyCoverage } = useFints();
   const t = useT();
   const loading = !!activeAccount && loadingAccount === activeAccount.accountNumber;
   const target = useMemo(() => presetRange('365d'), []);
+  const plan = planFetch(target, activeAccount ? historyCoverage[activeAccount.accountNumber] : undefined, target.to);
+  const fromSaved = !!plan && plan.from >= addDaysKey(target.to, -FREE_WINDOW_DAYS);
   return (
     <div
       className={cx(
@@ -109,9 +115,12 @@ export function LoadHistoryButton({
       >
         {t.insights.loadYear.label}
       </Button>
-      <span className="text-[13px] leading-snug text-ink-3">
-        {t.insights.loadYear.hint}
-      </span>
+      {/* On Android the button alone: the approval, if any, asks for itself. */}
+      {!IS_ANDROID && (
+        <span className="text-[13px] leading-snug text-ink-3">
+          {fromSaved ? t.history.fromSaved : t.insights.loadYear.hint}
+        </span>
+      )}
     </div>
   );
 }

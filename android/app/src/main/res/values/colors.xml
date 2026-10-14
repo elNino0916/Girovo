@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Girovo's identity colours (app/globals.css: the bar, accent and paper tokens). -->
+<resources>
+    <color name="girovo_navy">#0A2C5E</color>
+    <color name="girovo_action">#0864AD</color>
+    <color name="girovo_paper">#F4F6F9</color>
+</resources>

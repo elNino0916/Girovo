@@ -16,8 +16,11 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FinTSClient } from 'lib-fints';
-import type { BankMeta, FinTSClientEx, SerializedVop } from './fints-types';
+import type { BankMeta, BankOrderKind, FinTSClientEx, ReadBankOrder, SerializedVop } from './fints-types';
 import type { TransferOrder } from './fints-sepa';
+import type { DaySpan } from './history';
+import type { OrderSchedule } from './order-schedule';
+import { findSessionsWith } from './history-store';
 import { saveProfile } from './state-store';
 import { noteTelemetry } from './telemetry';
 
@@ -103,8 +106,15 @@ export const MERCHANT_LOGOS = (() => {
 // ---------------------------------------------------------------------------
 export type PendingOperation =
   | { type: 'sync'; tanReference?: string }
-  | { type: 'balance' | 'statements' | 'pending'; tanReference?: string; accountNumber: string }
-  | { type: 'transfer'; tanReference?: string; accountNumber: string; segId: string };
+  | { type: 'balance' | 'pending'; tanReference?: string; accountNumber: string }
+  /** `asked`: the days the bank was asked for, which the kept Umsätze need once it answers (lib/history-store.ts). */
+  | { type: 'statements'; tanReference?: string; accountNumber: string; asked: DaySpan }
+  /** An order: a transfer (HKCCS/HKIPZ), a terminierte Überweisung (HKCSE) or a Dauerauftrag (HKCDE). */
+  | { type: 'transfer'; tanReference?: string; accountNumber: string; segId: string }
+  /** A Bestand read (HKCDB/HKCSB). */
+  | { type: 'bankOrders'; tanReference?: string; accountNumber: string; segId: string; kind: BankOrderKind }
+  /** Deleting one of them (HKCDL/HKCSL). */
+  | { type: 'orderDelete'; tanReference?: string; accountNumber: string; segId: string; ref: string };
 
 /**
  * A transfer parked between the Namensabgleich and the customer's decision.
@@ -112,7 +122,9 @@ export type PendingOperation =
  * The bank has checked the payee name and voided the TAN challenge (return code
  * 3945); the order goes out again with HKVPA once the user has seen the result.
  * That re-submission must repeat the *identical* pain.001, so the built message
- * is kept here rather than regenerated — see lib/fints-vop.ts.
+ * is kept here rather than regenerated — see lib/fints-vop.ts. A terminierte
+ * Überweisung or a Dauerauftrag keeps its schedule too: HKCDE repeats its
+ * Dauerauftragsdetails beside the pain.
  */
 export type VopHold = {
   vopId: string;
@@ -120,11 +132,19 @@ export type VopHold = {
   segId: string;
   instant: boolean;
   transfer: TransferOrder;
+  schedule?: OrderSchedule;
   descriptor: string;
   sepaMessage: string;
   vop: SerializedVop;
   createdAt: number;
 };
+
+/**
+ * The orders of the last Bestand read, per handle (SerializedBankOrder.ref):
+ * a deletion must send the bank's own pain message back unchanged, and the
+ * browser never holds it — it names the handle, the server finds the rest.
+ */
+export type HeldBankOrder = ReadBankOrder & { accountNumber: string; kind: BankOrderKind };
 
 export type Session = {
   id: string;
@@ -133,8 +153,17 @@ export type Session = {
   pending: PendingOperation | null;
   /** Set only while a transfer waits for the user to accept a VoP result. */
   vopHold: VopHold | null;
+  /** The last Bestand read of each account and kind, by handle (see HeldBankOrder). */
+  bankOrders: Map<string, HeldBankOrder>;
   lastSeen: number;
   deviceSaved?: boolean;
+  /**
+   * A further bank of the view ("Weitere Bank anmelden"): the id of the
+   * primary login's session, whose vault decides whether this login keeps
+   * its Umsätze on this computer (lib/history-store.ts). Set by /api/history
+   * "follow"; this login's own vault, if it has one, belongs to another view.
+   */
+  keepChoiceFrom?: string;
 };
 
 /**
@@ -163,9 +192,13 @@ if (!g.__girovoSweeper) {
 
 export function newSession(client: FinTSClientEx, meta: BankMeta): string {
   const id = crypto.randomBytes(24).toString('hex');
-  sessions.set(id, { id, client, meta, pending: null, vopHold: null, lastSeen: Date.now() });
+  sessions.set(id, { id, client, meta, pending: null, vopHold: null, bankOrders: new Map(), lastSeen: Date.now() });
   return id;
 }
+
+// The kept Umsätze look a primary login's session up again by its id
+// (Session.keepChoiceFrom) — without counting it as activity.
+findSessionsWith((id) => sessions.get(id) ?? null);
 
 export function getSession(id: unknown): Session | null {
   if (typeof id !== 'string') return null;

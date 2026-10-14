@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import type { DateRange, StatementInfo } from '@/lib/app-types';
-import { fmtRange, isoDate, presetRange, type RangePreset } from '@/lib/format';
+import { addDaysKey, fmtDate, fmtRange, isoDate, presetRange, toLocalDate, type RangePreset } from '@/lib/format';
+import { planFetch, savedPeriod, type DaySpan } from '@/lib/history';
 import { useT } from '@/lib/i18n/react';
 import { CalendarIcon, ChevronIcon } from '../icons';
 import {
@@ -14,9 +15,11 @@ const PRESETS: RangePreset[] = ['30d', '90d', 'thisMonth', 'lastMonth', 'thisYea
 
 // PSD2 lets a bank skip the approval for the last 90 days of bookings;
 // reaching further back is what usually costs one. So the hint
-// (period.mayNeedApproval) is shown wherever a choice reaches further back
-// than what is loaded — honestly hedged, because some banks ask anyway and
-// some never do.
+// (period.mayNeedApproval) is shown wherever a choice would ask the bank for
+// more than it has answered — honestly hedged, because some banks ask anyway
+// and some never do. With Umsätze kept on this computer (lib/history.ts) the
+// bank is asked only for what they lack, so a longer choice the kept days
+// hold carries no hint.
 
 /**
  * Which period the Umsätze list asks the bank for: presets in a menu, and a
@@ -26,25 +29,43 @@ const PRESETS: RangePreset[] = ['30d', '90d', 'thisMonth', 'lastMonth', 'thisYea
  *
  * What is shown as selected is what was actually loaded (`loaded`), never
  * the control's own state.
+ *
+ * With kept Umsätze, "Alles Gespeicherte" joins the presets: the list reaches
+ * back as far as what is kept for the account (savedPeriod), the bank asked
+ * only for its free window.
  */
 export function PeriodControl({
-  loaded, applyRange, busy,
+  loaded, applyRange, busy, coverage, savedRange = false, applySavedRange,
 }: {
   loaded: StatementInfo | undefined;
   applyRange: (r: DateRange) => void;
   busy: boolean;
+  /** The days kept for the account (lib/history.ts) — absent when none are. */
+  coverage?: readonly DaySpan[];
+  /** "Alles Gespeicherte" is the applied range. */
+  savedRange?: boolean;
+  applySavedRange?: () => void;
 }) {
   const t = useT();
   const words = t.transactions.period;
   const [customOpen, setCustomOpen] = useState(false);
   const today = isoDate(new Date());
-  const active = loaded ? PRESETS.find((id) => {
+  const savedFrom = coverage && applySavedRange ? savedPeriod(coverage, today)?.from ?? null : null;
+  const savedActive = savedRange && !!savedFrom && loaded?.from === savedFrom && loaded.to === today;
+  const active = loaded && !savedActive ? PRESETS.find((id) => {
     const r = presetRange(id);
     return r.from === loaded.from && r.to === loaded.to;
   }) : undefined;
-  const reachesBack = (from: string) => !loaded || from < loaded.from;
-  const label = active ? words.presets[active].short : words.title;
-  const describe = loaded ? words.is(active ? words.presets[active].label : fmtRange(loaded.from, loaded.to)) : words.choose;
+  // Where the bank's own answer begins: after the kept part, if there is one.
+  const fetchedFrom = loaded?.saved ? addDaysKey(loaded.saved.to, 1) : loaded?.from;
+  const reachesBack = (r: DateRange) => {
+    const plan = planFetch(r, coverage, today);
+    return !!plan && (!fetchedFrom || plan.from < fetchedFrom);
+  };
+  const label = savedActive ? t.history.period.short : active ? words.presets[active].short : words.title;
+  const describe = loaded
+    ? words.is(savedActive ? t.history.period.label : active ? words.presets[active].label : fmtRange(loaded.from, loaded.to))
+    : words.choose;
 
   return (
     <Popover
@@ -91,7 +112,7 @@ export function PeriodControl({
                   description={
                     <>
                       <span className="tnum block">{fmtRange(r.from, r.to)}</span>
-                      {reachesBack(r.from) && <span className="block">{words.mayNeedApproval}</span>}
+                      {reachesBack(r) && <span className="block">{words.mayNeedApproval}</span>}
                     </>
                   }
                   onSelect={() => { if (active !== id) applyRange(r); }}
@@ -100,11 +121,20 @@ export function PeriodControl({
                 </MenuItemRadio>
               );
             })}
+            {savedFrom && applySavedRange && (
+              <MenuItemRadio
+                checked={savedActive}
+                description={<span className="tnum block">{t.history.period.since(fmtDate(toLocalDate(savedFrom)))}</span>}
+                onSelect={() => { if (!savedActive) applySavedRange(); }}
+              >
+                {t.history.period.label}
+              </MenuItemRadio>
+            )}
           </MenuGroup>
           <MenuSeparator />
           <MenuItem
             icon={<CalendarIcon />}
-            description={!active && loaded ? fmtRange(loaded.from, loaded.to) : undefined}
+            description={!active && !savedActive && loaded ? fmtRange(loaded.from, loaded.to) : undefined}
             onSelect={() => setCustomOpen(true)}
           >
             {words.customMenu}
@@ -116,6 +146,7 @@ export function PeriodControl({
         <CustomRange
           initial={loaded ?? presetRange('90d')}
           loadedFrom={loaded?.from}
+          reachesBack={reachesBack}
           today={today}
           busy={busy}
           onApply={(r) => {
@@ -130,10 +161,12 @@ export function PeriodControl({
 }
 
 function CustomRange({
-  initial, loadedFrom, today, busy, onApply, onCancel,
+  initial, loadedFrom, reachesBack, today, busy, onApply, onCancel,
 }: {
   initial: DateRange;
   loadedFrom: string | undefined;
+  /** Whether the bank would be asked for more than it has answered (PeriodControl). */
+  reachesBack: (r: DateRange) => boolean;
   today: string;
   busy: boolean;
   onApply: (r: DateRange) => void;
@@ -168,7 +201,7 @@ function CustomRange({
       <Field label={words.to} error={toError} className="mb-3">
         <Input type="date" value={to} min={from || undefined} max={today} onChange={(e) => setTo(e.target.value)} />
       </Field>
-      {valid && loadedFrom && from < loadedFrom && (
+      {valid && loadedFrom && reachesBack({ from, to }) && (
         <Alert tone="info" className="mt-1" role="status">
           {words.longerHistory}
         </Alert>

@@ -61,7 +61,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     spawn(UPDATE_WINDOW_EXE, [
       '--demo', look === 'failure' ? 'failure' : 'progress',
       '--theme', look === 'dark' ? 'dark' : 'light',
-      '--version', '4.1.4',
+      '--version', '5.2.0',
       ...(process.argv.includes('--lang') ? ['--lang', process.argv[process.argv.indexOf('--lang') + 1] ?? 'de'] : []),
       '--app-exe', 'C:\\Program Files\\Girovo\\Girovo.exe',
     ], { detached: true, stdio: 'ignore' }).unref();

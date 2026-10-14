@@ -9,6 +9,7 @@
 
 import { boundedBody, fail, json, sessionExpired, wrap } from '@/lib/api';
 import type { VaultGetResponse, VaultPutResponse } from '@/lib/app-types';
+import { HistoryError, wipeHistory } from '@/lib/history-store';
 import { msgs } from '@/lib/i18n';
 import { getSession } from '@/lib/session';
 import { loadVault, resetVault, saveVault, VAULT_REQUEST_MAX_BYTES, VaultError, wipeVault } from '@/lib/vault';
@@ -33,16 +34,21 @@ export const POST = wrap(async (req: Request) => {
         return json((await saveVault(s, b.data)) satisfies VaultPutResponse);
       case 'reset':
         return json((await resetVault(s)) satisfies VaultPutResponse);
-      case 'wipe':
-        // The file and its backups, for good. "Gerät vergessen" can do the
+      case 'wipe': {
+        // The file and its backups, for good — and the Umsätze kept beside
+        // it (lib/history-store.ts), which are saved data of this login too.
+        // The kept Umsätze go first: if they cannot, the vault is untouched
+        // and the client carries on as before. "Gerät vergessen" can do the
         // same in one go (app/api/forget-device); this is the way when no
         // device is remembered.
-        return json({ ok: true, wiped: await wipeVault(s) });
+        const history = await wipeHistory(s);
+        return json({ ok: true, wiped: history + (await wipeVault(s)) });
+      }
       default:
         return fail(msgs().provider.vault.unknownAction);
     }
   } catch (err) {
-    if (err instanceof VaultError) return fail(err.message, err.status);
+    if (err instanceof VaultError || err instanceof HistoryError) return fail(err.message, err.status);
     throw err; // wrap() logs the message only — never a payload
   }
 });

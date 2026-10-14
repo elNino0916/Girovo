@@ -61,3 +61,16 @@ test('recordSentOrder puts the new order first and caps the log', () => {
   assert.equal(out[0].cents, 99);
   assert.equal(recordSentOrder(null, order(), NOW).length, 1);
 });
+
+test('an order for later keeps its kind and first date; half of one is dropped', () => {
+  const out = sanitizeSentOrders([
+    order({ ago: DAY, kind: 'standing', due: '2026-11-01' }),
+    order({ ago: 2 * DAY, kind: 'dated', due: '2026-10-20', outcome: 'unknown' }),
+    { ...order({ ago: 3 * DAY }), kind: 'standing' },
+    { ...order({ ago: 3 * DAY }), kind: 'monthly', due: '2026-11-01' },
+    { ...order({ ago: 3 * DAY }), kind: 'dated', due: '20.10.2026' },
+  ], NOW);
+  assert.deepEqual(out.map((o) => [o.kind, o.due]), [['standing', '2026-11-01'], ['dated', '2026-10-20']]);
+  // A transfer now carries neither.
+  assert.deepEqual(Object.keys(sanitizeSentOrders([order()], NOW)[0]).sort(), ['accountNumber', 'at', 'cents', 'iban', 'outcome']);
+});

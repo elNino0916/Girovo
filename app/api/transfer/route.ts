@@ -1,6 +1,11 @@
 // SEPA-Überweisung (Einzel / Echtzeit). Requires TAN approval; the money
 // leaves the account once the user confirms in their banking app.
 //
+// With a `schedule` the same order goes out as a terminierte Überweisung
+// (HKCSE) or a Dauerauftrag (HKCDE) instead — lib/fints-orders.ts — checked
+// against the bank's rules first, and with the same Namensabgleich, approval
+// and "Status unklar" as any transfer.
+//
 // Where the bank performs a Namensabgleich (Verification of Payee) the order
 // carries a HKVPP and the bank answers with its comparison of the payee name.
 // Which of the three endings applies is decided by the bank's return codes, not
@@ -17,12 +22,15 @@ import { bankAnswerCodes, bankAnswerText, logResp, serializeVop, tanPayload } fr
 import { getSession } from '@/lib/session';
 import { lookupBlz } from '@/lib/banks';
 import {
-  INSTANT_SEG, SepaTransferInteraction, TRANSFER_SEG,
+  INSTANT_SEG, TRANSFER_SEG,
   parseAmount, sepaSanitize, validateBic, validateIban,
 } from '@/lib/fints-sepa';
+import { orderCaps, orderInteraction, orderSegId } from '@/lib/fints-orders';
 import { VOP_CODES } from '@/lib/fints-vop';
 import { ORDER_UNANSWERED_STATUS, OrderUnanswered, startOrder } from '@/lib/fints-order';
 import type { TransferResponse } from '@/lib/fints-types';
+import { isoDate } from '@/lib/format';
+import { readSchedule, scheduleProblems } from '@/lib/order-schedule';
 import { SEPA_NAME_MAX, SEPA_PURPOSE_MAX } from '@/lib/sepa-text';
 
 export const runtime = 'nodejs';
@@ -37,11 +45,13 @@ type TransferBody = {
   amount: string;
   purpose?: string;
   instant?: boolean;
+  /** A terminierte Überweisung or a Dauerauftrag (lib/order-schedule.ts). */
+  schedule?: unknown;
 };
 
 export const POST = wrap(async (req: Request) => {
   const {
-    sessionId, accountNumber, recipientName, iban, bic, amount, purpose, instant,
+    sessionId, accountNumber, recipientName, iban, bic, amount, purpose, instant, schedule: rawSchedule,
   } = await body<TransferBody>(req);
   const s = getSession(sessionId);
   if (!s) return sessionExpired();
@@ -77,11 +87,27 @@ export const POST = wrap(async (req: Request) => {
   if (!accountNumber || !account) return fail(words.route.unknownAccount);
   if (cleanIban === account.iban) return fail(words.route.sameIban);
 
+  // An order for later: its shape, then the bank's rules for it — the sheet
+  // checks the same (lib/order-schedule.ts), so this only catches a client
+  // that did not. Echtzeit is a transfer now and never scheduled.
+  const later = msgs().orders;
+  const schedule = rawSchedule == null ? null : readSchedule(rawSchedule);
+  if (rawSchedule != null && !schedule) return fail(later.route.scheduleInvalid);
+  if (schedule && instant) return fail(later.route.noInstant);
+
   const useInstant = !!instant;
-  const segId = useInstant ? INSTANT_SEG : TRANSFER_SEG;
+  const segId = schedule ? orderSegId(false, schedule) : useInstant ? INSTANT_SEG : TRANSFER_SEG;
 
   if (!account.iban) return fail(words.route.noIban);
-  if (!s.client.config.isAccountTransactionSupported(accountNumber, segId)) {
+  if (schedule) {
+    const caps = orderCaps(s.client.config, accountNumber)[schedule.kind];
+    if (!caps?.create) return fail(later.route.unsupported(schedule.kind));
+    const problems = scheduleProblems(schedule, caps.rules, isoDate(new Date()));
+    if (Object.keys(problems).length) {
+      console.log(`[transfer] ${segId} schedule refused: ${Object.values(problems).join(', ')}`);
+      return fail(later.route.scheduleInvalid);
+    }
+  } else if (!s.client.config.isAccountTransactionSupported(accountNumber, segId)) {
     return fail(words.route.unsupported(useInstant));
   }
 
@@ -93,9 +119,10 @@ export const POST = wrap(async (req: Request) => {
     purpose: cleanPurpose,
     debtorBic: lookupBlz(s.client.config.bankId)?.bic || s.meta?.bic || undefined,
   };
-  const interaction = new SepaTransferInteraction(accountNumber, transfer, useInstant);
+  const interaction = orderInteraction(accountNumber, transfer, { instant: useInstant, schedule });
 
-  console.log(`[transfer] ${useInstant ? 'HKIPZ' : 'HKCCS'} acct=${accountNumber} → ${cleanIban} ${(amountCents / 100).toFixed(2)} EUR`);
+  // The segment only: no IBAN, no amount, no name in a log line (owner's rule).
+  console.log(`[transfer] ${segId} acct=...${String(accountNumber).slice(-4)}`);
   s.vopHold = null;
   // A connection that broke once the order was on its way is not a refusal:
   // the bank may have it (lib/fints-order.ts). The client shows "Status
@@ -146,6 +173,7 @@ export const POST = wrap(async (req: Request) => {
       segId,
       instant: useInstant,
       transfer,
+      ...(schedule ? { schedule } : {}),
       descriptor: interaction.sepaDescriptor!,
       sepaMessage: interaction.sepaMessage!,
       vop,

@@ -13,17 +13,18 @@
 import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
 import { calendarMonths, daysLabel, filterTransactions, searchReport, txMatcher, type SearchContext } from '@/lib/analytics';
 import { EMPTY_FILTER } from '@/lib/app-types';
-import { buildBalanceHistory } from '@/lib/balance-history';
 import { isCardAccount } from '@/lib/balances';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { fmtRange } from '@/lib/format';
+import { accountBalanceHistory } from '@/lib/history';
 import { intlLocale } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from './FintsProvider';
 import { ArrowRightIcon, RefreshIcon } from './icons';
 import { Money } from './Money';
 import { Alert, Button, CountBadge, EmptyState, ErrorState, IconButton, Spinner, cx } from './ui';
-import { LoadHistoryButton, YEAR_SPAN, spanDays } from './insights/shared';
+import { LoadHistoryButton, YEAR_SPAN, fmtDayKeyShort, spanDays } from './insights/shared';
 import { TxDetailHost, openTxDetail } from './transactions/detail-host';
 import { ExportMenu } from './transactions/ExportMenu';
 import { groupByDay, listTotals, merchantFor, newestFirst, searchText } from './transactions/model';
@@ -53,6 +54,8 @@ export function Transactions() {
   const {
     activeAccount: a, transactions, loadingAccount, txError, txErrors, refreshAccount, busy, statementInfo, range, applyRange,
     txFilter, setTxFilter, txFocusNonce, categoryOf, merchants, pendingCache, accountLabel, accounts, selectAccount,
+    noteOf,
+    historyCoverage, savedRange, applySavedRange,
   } = useFints();
   // `tr`, not `t`: the search's terms are `t` below.
   const tr = useT();
@@ -68,12 +71,13 @@ export function Transactions() {
   const currency = a?.currency || 'EUR';
 
   // The search reads what the rows show — the tidied name, the town, the
-  // category — not only the bank's raw strings. One context object, so each
-  // booking's text is folded once rather than per keystroke; a new one when
-  // the language changes, since what the rows show is then said in it.
+  // category — and the user's own notes, not only the bank's raw strings. One
+  // context object, so each booking's text is folded once rather than per
+  // keystroke; a new one when the language changes, since what the rows show
+  // is then said in it, and when a note does.
   const searchCtx = useMemo<SearchContext & { categoryOf: typeof categoryOf }>(
-    () => ({ categoryOf, shownText: searchText }),
-    [categoryOf, tr],
+    () => ({ categoryOf, shownText: searchText, noteOf }),
+    [categoryOf, noteOf, tr],
   );
   const sorted = useMemo(() => newestFirst(transactions ?? []), [transactions]);
   const filtered = useMemo(() => filterTransactions(sorted, txFilter, searchCtx), [sorted, txFilter, searchCtx]);
@@ -96,7 +100,7 @@ export function Transactions() {
   // balances prove the whole chain, exactly as the Kontoverlauf draws it.
   const balanceOn = useMemo(() => {
     if (!loaded || !transactions?.length) return null;
-    const h = buildBalanceHistory({ txs: transactions, blocks: loaded.blocks, range: { from: loaded.from, to: loaded.to } });
+    const h = accountBalanceHistory(transactions, loaded);
     return h.verified
       ? { byDay: new Map(h.points.map((p) => [p.date, p.balance])), currency: h.currency, card: !!a && isCardAccount(a) }
       : null;
@@ -155,8 +159,18 @@ export function Transactions() {
       ? (
         <>
           {fmtRange(loaded.from, loaded.to)}
-          {/* When it was fetched matters less than what — on a phone the dates win the room. */}
-          <span className="hidden sm:inline"> · {words.fetchedAt(clock(loaded.loadedAt))}</span>
+          {/* When it was fetched matters less than what — on a phone the dates win the room
+              (and the list's own divider says where the kept part begins). Beside
+              the kept part's end, the time only where the line has room for both. */}
+          {loaded.saved && (
+            <span className="hidden sm:inline">
+              {' · '}
+              {loaded.saved.fetched ? tr.history.list.savedUntil(fmtDayKeyShort(loaded.saved.to)) : tr.history.list.allSaved}
+            </span>
+          )}
+          {(!loaded.saved || loaded.saved.fetched) && (
+            <span className={loaded.saved ? 'hidden 2xl:inline' : 'hidden sm:inline'}> · {words.fetchedAt(clock(loaded.loadedAt))}</span>
+          )}
         </>
       )
       : txError
@@ -287,8 +301,10 @@ export function Transactions() {
         resetKey={`${a.accountNumber}|${loaded?.from ?? ''}|${loaded?.to ?? ''}|${loaded?.loadedAt ?? 0}|${txFilter.dir}|${txFilter.category ?? ''}|${txFilter.from ?? ''}|${txFilter.to ?? ''}|${txFilter.query}`}
         merchantOf={merchantOf}
         categoryOf={categoryOf}
+        noteOf={noteOf}
         onOpen={onOpen}
         balanceOn={balanceOn}
+        savedTo={loaded?.saved?.to ?? null}
       />
     );
   }
@@ -305,10 +321,20 @@ export function Transactions() {
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
               <h2 id={titleId} ref={headingRef} tabIndex={-1} className="section-head outline-none">{tr.common.nav.transactions}</h2>
-              <p className="tnum mt-0.5 truncate text-[13.5px] text-ink-3">{rangeLine}</p>
+              {/* On Android the list's own days say what it covers; the line stays while it loads. */}
+              {(!IS_ANDROID || loading) && <p className="tnum mt-0.5 truncate text-[13.5px] text-ink-3">{rangeLine}</p>}
             </div>
             <div className="-mt-0.5 -mr-1.5 flex shrink-0 items-center gap-1 sm:gap-2">
-              {a.canStatements && <PeriodControl loaded={loaded} applyRange={applyRange} busy={busy} />}
+              {a.canStatements && (
+                <PeriodControl
+                  loaded={loaded}
+                  applyRange={applyRange}
+                  busy={busy}
+                  coverage={historyCoverage[a.accountNumber]}
+                  savedRange={savedRange}
+                  applySavedRange={applySavedRange}
+                />
+              )}
               {a.canStatements && (
                 <IconButton
                   size="md"
@@ -402,7 +428,8 @@ export function Transactions() {
           <div
             className={cx(
               'flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[13.5px] text-ink-2',
-              hasList && !loading ? 'mt-3' : 'sr-only',
+              // On Android only while a filter narrows the list: unfiltered, it is the whole list.
+              hasList && !loading && (!IS_ANDROID || filterCount > 0) ? 'mt-3' : 'sr-only',
             )}
           >
             <div className="flex min-w-0 flex-wrap items-center gap-x-2">

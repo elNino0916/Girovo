@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The dark theme's planes (app/globals.css, [data-theme='dark']). -->
+<resources>
+    <color name="girovo_navy">#08192B</color>
+    <color name="girovo_action">#3BA4EF</color>
+    <color name="girovo_paper">#061423</color>
+</resources>

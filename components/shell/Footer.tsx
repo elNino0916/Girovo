@@ -5,6 +5,7 @@
 // session runs, and where its source lives — the shape every German bank
 // closes an online-banking page with.
 
+import { namesList } from '@/lib/balances';
 import { rich, useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ExternalIcon, ShieldIcon } from '../icons';
@@ -15,8 +16,10 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 const REPO = 'https://github.com/elNino0916/Girovo';
 
 export function Footer() {
-  const { bank, sessionStartedAt } = useFints();
+  const { bank, banks, sessionStartedAt } = useFints();
   const t = useT();
+  // Every bank this session is connected to; one, as before.
+  const connected = banks.filter((b) => b.state === 'primary' || b.state === 'active').map((b) => b.bank.name);
 
   return (
     <footer className="on-bar mt-auto bg-bar text-bar-ink">
@@ -45,7 +48,7 @@ export function Footer() {
               said twice, once with the protocol and once without. */}
           <span className="inline-flex items-center gap-1.5">
             <ShieldIcon size={13} className="shrink-0" />
-            {t.shell.footer.connection(bank?.name || '')}
+            {t.shell.footer.connection(connected.length > 1 ? namesList(connected) : bank?.name || '')}
           </span>
           <span className="sm:ml-auto">
             {rich(t.shell.footer.since(<span className="tnum">{fmtSince(sessionStartedAt)}</span>))}

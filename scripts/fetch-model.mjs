@@ -10,11 +10,12 @@
 // present and correct are not downloaded again. Without the model the app
 // still runs — categories then come from the keyword rules alone.
 //
-// This file is the only place that names the model. MODELS holds each one
-// that has been calibrated, with its thresholds; MODEL picks the one to ship.
+// category-models.json is the only place that names the model: `models`
+// holds each one that has been calibrated, with its thresholds; `ship` picks
+// the one to ship.
 // The thresholds go beside the weights as model.json, so the app uses the
 // ones measured for the model it actually has. Switching back and forth is
-// one word here and a rerun. A new e5-style encoder (same files, mean
+// one word in the JSON and a rerun. A new e5-style encoder (same files, mean
 // pooling, "query: " prefix) needs its pins and a calibration first:
 // scripts/eval-category-model.mjs --sweep, with HOLDOUT as the judge.
 
@@ -22,49 +23,22 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import CATALOG from './category-models.json' with { type: 'json' };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const MODEL_DIR = path.join(ROOT, 'models', 'category-model');
 
 /**
- * Each model's source and files — LFS files by SHA-256, small ones by their
- * git blob id — and its calibration (lib/category-model.ts, Thresholds).
+ * Each calibrated model's source and files — LFS files by SHA-256, small ones
+ * by their git blob id — and its thresholds (lib/category-model.ts,
+ * Thresholds), in category-models.json: the Android app downloads from the
+ * same list (mobile/bridges/model.ts), so both check the same files.
  * Both are multilingual E5 (MIT), as converted to ONNX and quantised to int8
- * by Xenova.
+ * by Xenova. `ship` picks the one the desktop build bundles and the phone offers.
  */
-const MODELS = {
-  // Ships since 5.0.4. Right more often on names nobody tuned it on, for a
-  // few more wrong guesses than the strictest setting would allow.
-  'multilingual-e5-base': {
-    upstream: 'intfloat/multilingual-e5-base',
-    repo: 'Xenova/multilingual-e5-base',
-    revision: '1ec9243030a27d1a115d5c340572074c125b58b2',
-    files: [
-      { from: 'onnx/model_quantized.onnx', to: 'model_quantized.onnx', size: 278647662, sha256: 'df7a9a29309e3ad491e1783adf8baee710262cc06079c7cbab63c630277fac94' },
-      { from: 'tokenizer.json', to: 'tokenizer.json', size: 17082660, sha256: '62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626' },
-      { from: 'tokenizer_config.json', to: 'tokenizer_config.json', size: 418, gitBlob: '6de1940d16d38be9877bf7cc228c9377841b311f' },
-      { from: 'config.json', to: 'config.json', size: 686, gitBlob: '6f4d460131679782c01697207140860df1bb3df4' },
-      { from: 'special_tokens_map.json', to: 'special_tokens_map.json', size: 280, gitBlob: 'd5698132694f4f1bcff08fa7d937b1701812598e' },
-    ],
-    thresholds: { minScore: 0.8075, minMargin: 0.006, exampleScore: 0.92 },
-  },
-  // 5.0.2 and 5.0.3. Less than half the size and quicker to load.
-  'multilingual-e5-small': {
-    upstream: 'intfloat/multilingual-e5-small',
-    repo: 'Xenova/multilingual-e5-small',
-    revision: '761b726dd34fb83930e26aab4e9ac3899aa1fa78',
-    files: [
-      { from: 'onnx/model_quantized.onnx', to: 'model_quantized.onnx', size: 118308185, sha256: 'f80102d3f2a1229f387d3c81909990d8945513e347b0eab049f7de3c6f98c193' },
-      { from: 'tokenizer.json', to: 'tokenizer.json', size: 17082730, sha256: '0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39' },
-      { from: 'tokenizer_config.json', to: 'tokenizer_config.json', size: 443, gitBlob: '059214673d9d6d2ee319411e2ffec8c024b816d5' },
-      { from: 'config.json', to: 'config.json', size: 658, gitBlob: '4104f38273cc595fd9500fd243124e9f6cf383dc' },
-      { from: 'special_tokens_map.json', to: 'special_tokens_map.json', size: 167, gitBlob: 'e0b1d18ecd0ae4ff1d47bd297d910c0cf83e504b' },
-    ],
-    thresholds: { minScore: 0.83, minMargin: 0.002, exampleScore: 0.94 },
-  },
-};
+const MODELS = CATALOG.models;
 
-export const MODEL = 'multilingual-e5-base';
+export const MODEL = CATALOG.ship;
 
 const { upstream: UPSTREAM, repo: REPO, revision: REVISION, files: FILES, thresholds: THRESHOLDS } = MODELS[MODEL];
 

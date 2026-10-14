@@ -13,16 +13,23 @@
 // the stage's lower edge. On the Übersicht the tiles sit in a 2:1 grid —
 // accounts, balance and bookings on the wide side, the smaller summaries
 // beside them — and fold into one column in reading order on a narrow screen.
+//
+// The Android app is an app, not a bank's web page: one top app bar that
+// names the page (Masthead), the tiles, the navigation bar. No institute bar
+// (the bank is in the Sitzung panel and, with several, on the accounts), no
+// stage (Geld anfordern and Kontoauszug are under "Mehr"), no footer.
 
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from './FintsProvider';
 import { AccountHero, AccountList, MonthSummary } from './AccountPanel';
 import { PendingPanel, Transactions } from './Transactions';
 import { Analysis } from './Analysis';
 import { Contracts, UpcomingPayments } from './Contracts';
 import { TransferSheet } from './TransferSheet';
+import { AddBankSheet } from './AddBank';
 import { ShareAccount } from './ShareAccount';
 import { Inbox } from './Inbox';
 import { CommandPalette } from './CommandPalette';
@@ -69,14 +76,20 @@ export function Dashboard() {
       {/* "Zum Inhalt springen" is the masthead's first child — see Masthead. */}
       <header className="shrink-0">
         <Masthead />
-        <InstituteBar />
+        {!IS_ANDROID && <InstituteBar />}
       </header>
 
       <div ref={scrollRef} data-scroll-root className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="flex min-h-full flex-col">
-          <Stage actions={actions} />
+          {!IS_ANDROID && <Stage actions={actions} />}
 
-          <main id="main" className="relative mx-auto -mt-12 w-full max-w-[1280px] px-4 pb-10 sm:px-6 sm:pb-14">
+          <main
+            id="main"
+            className={cx(
+              'relative mx-auto w-full max-w-[1280px] px-4 sm:px-6',
+              IS_ANDROID ? 'pt-2 pb-6' : '-mt-12 pb-10 sm:pb-14',
+            )}
+          >
             <TabPanel idBase={DASH_TABS_ID} id="overview" active={tab === 'overview'}>
               <Overview scrollRef={scrollRef} />
             </TabPanel>
@@ -88,7 +101,7 @@ export function Dashboard() {
             </TabPanel>
           </main>
 
-          <Footer />
+          {!IS_ANDROID && <Footer />}
         </div>
       </div>
 
@@ -96,6 +109,7 @@ export function Dashboard() {
 
       {transferOpen && <TransferSheet />}
       {shareOpen && <ShareAccount />}
+      <AddBankSheet />
       <Inbox />
       <CommandPalette />
       <SessionGuard />
@@ -137,7 +151,8 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
     >
       <Slot name="accounts" className="desk:col-start-1"><AccountList /></Slot>
       <Slot name="hero" className="desk:col-start-1"><AccountHero /></Slot>
-      {activeAccount && <ToTransactions />}
+      {/* A jump down the page is a web page's habit; the phone app scrolls. */}
+      {activeAccount && !IS_ANDROID && <ToTransactions />}
       <div
         ref={sideRef}
         // Pinned beside the bookings while they scroll (sticky only applies
@@ -151,9 +166,16 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
         {activeAccount && (activeAccount.canPending || pendingCache[activeAccount.accountNumber]) && (
           <Slot><PendingPanel /></Slot>
         )}
-        <Slot><MonthSummary /></Slot>
-        <Slot><UpcomingPayments /></Slot>
-        <Slot><MessagesTeaser /></Slot>
+        {/* On Android the Übersicht is the balance and the bookings: the month's
+            figures are the Analyse's, what is due the Verträge's, the bank's
+            messages the bell's. */}
+        {!IS_ANDROID && (
+          <>
+            <Slot><MonthSummary /></Slot>
+            <Slot><UpcomingPayments /></Slot>
+            <Slot><MessagesTeaser /></Slot>
+          </>
+        )}
       </div>
       <Slot name="transactions" className="desk:col-start-1"><Transactions /></Slot>
     </div>
@@ -244,9 +266,19 @@ function useScrollbarWidth(root: RefObject<HTMLElement | null>, scroller: RefObj
       const pad = parseFloat(getComputedStyle(el).paddingRight) || 0;
       target.style.setProperty('--sbw', `${Math.max(0, el.offsetWidth - el.clientWidth + pad)}px`);
     };
-    const ro = new ResizeObserver(measure);
+    // In the next frame, as in useScrollEdges (ui.tsx): written inside the
+    // observer's callback, --sbw would move the layout within the same
+    // delivery — a "ResizeObserver loop" on every zoom step.
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
     ro.observe(el);
     measure();
-    return () => ro.disconnect();
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
   }, [root, scroller]);
 }

@@ -1,6 +1,8 @@
-# Packaging config for the Windows desktop build.
+# Packaging config for the desktop builds, Windows and Linux.
 #
-# Run `npm run electron:build` first — this only wraps what that produced.
+# Run `npm run electron:build` first — this only wraps what that produced, and
+# that has to be built for the same platform (`npm run electron:dist` and
+# `npm run electron:dist:linux` do both in one go).
 #
 # The app archive holds nothing but the Electron shell. The Next server goes in
 # as an extraResource instead: it is started as a child process, and a child
@@ -36,11 +38,6 @@ extraResources:
   # to come across as their own mapping.
   - from: .next/standalone/node_modules
     to: server/node_modules
-  # The window shown while an update installs (scripts/build-update-window.mjs),
-  # and when the app cannot start or its server stopped (main.cjs, showFatal).
-  # Both copy it out first, so it never holds this folder open.
-  - from: build/update-window/bin/Girovo-Update.exe
-    to: Girovo-Update.exe
   # The on-device category model (lib/category-model.ts), fetched by
   # scripts/fetch-model.mjs; main.cjs points the server at it (GIROVO_MODEL_DIR).
   - from: models/category-model
@@ -52,6 +49,13 @@ npmRebuild: false
 
 win:
   icon: build/icon.png
+  # Added to the extraResources above, not in place of them.
+  extraResources:
+    # The window shown while an update installs (scripts/build-update-window.mjs),
+    # and when the app cannot start or its server stopped (main.cjs, showFatal).
+    # Both copy it out first, so it never holds this folder open.
+    - from: build/update-window/bin/Girovo-Update.exe
+      to: Girovo-Update.exe
   target:
     - target: nsis
       arch: [x64]
@@ -59,13 +63,54 @@ win:
       arch: [x64]
 
 # build/installer.nsh (the default `include` path, so nothing to wire up here)
-# overrides the built-in "app is running" scan — see that file for details.
+# overrides the built-in "app is running" scan and adds the welcome page, in
+# both languages — see that file for details.
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   shortcutName: Girovo
   artifactName: ${productName}-${version}-Setup.${ext}
+  # The app's two languages and no others (left unset, electron-builder loads
+  # all 26 it bundles). NSIS picks one from the Windows display language:
+  # German for German, and for anything else the first one listed — so
+  # English stays first. No dialog asks.
+  installerLanguages: [en_US, de_DE]
+  multiLanguageInstaller: true
+  displayLanguageSelector: false
 
 portable:
   artifactName: ${productName}-${version}-portable.${ext}
+
+# Built on Linux only (CI's ubuntu-latest): the AppImage and the .deb need
+# Linux's own tools, which electron-builder does not have on Windows.
+#
+# Neither updates itself — the updater sees an install it cannot replace
+# (update-logic.cjs, installKind: 'manual') and offers the release page.
+linux:
+  icon: build/icon.png
+  # A lower-case command, /usr/bin/girovo for the .deb, rather than "Girovo".
+  executableName: girovo
+  # The .desktop file is named after package.json's desktopName, which is
+  # also the app id Electron gives its windows — so the dock and the task
+  # switcher put the running window under the app's own icon.
+  syncDesktopName: true
+  category: Office;Finance
+  synopsis: Banking for German banks via FinTS
+  # Packages carry the author's address (Debian's Maintainer field).
+  maintainer: elNino0916 <admin@elnino0916.de>
+  extraResources:
+    # No .exe to take the window's icon from: main.cjs hands it this one.
+    - from: build/icon.png
+      to: icon.png
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+
+appImage:
+  artifactName: ${productName}-${version}-x86_64.${ext}
+
+deb:
+  artifactName: ${productName}-${version}-amd64.${ext}

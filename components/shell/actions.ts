@@ -42,7 +42,7 @@ const TX_SEARCH_ID = 'umsatz-suche';
  * download is confirmed by the browser itself.
  */
 export function useCsvExport() {
-  const { activeAccount, bank, accountLabel, categoryOf, toast } = useFints();
+  const { activeAccount, bank, activeBank, accountLabel, categoryOf, noteOf, toast } = useFints();
 
   return useCallback(async (
     rows: readonly SerializedTransaction[],
@@ -54,9 +54,12 @@ export function useCsvExport() {
     try {
       csv = transactionsToCsv(rows, {
         account: activeAccount,
-        bankName: bank?.name ?? '',
+        // The account's own bank, with more than one in the view.
+        bankName: (activeBank?.bank ?? bank)?.name ?? '',
         accountLabel: accountLabel(activeAccount),
         categoryOf,
+        // The user's notes go into their own file, as the last column.
+        noteOf,
       });
     } catch {
       toast(msgs().shell.csv.notCreated, 'error');
@@ -73,7 +76,7 @@ export function useCsvExport() {
     } catch (e) {
       toast((e as Error).message || msgs().shell.csv.notSaved, 'error');
     }
-  }, [activeAccount, bank, accountLabel, categoryOf, toast]);
+  }, [activeAccount, bank, activeBank, accountLabel, categoryOf, noteOf, toast]);
 }
 
 /**

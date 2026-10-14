@@ -9,8 +9,20 @@
         "files": [
           "components/ui.tsx"
         ],
-        "createdAt": "2026-10-04T14:46:31.734Z",
-        "reason": "Claude (critique triage): Kbd keycap at ui.tsx Kbd — 1px neutral line-strong border with a 2px bottom edge imitating a physical key, not an accent stripe on a card; detector run B classified it as a false positive"
+        "reason": "Claude (critique triage): Kbd keycap at ui.tsx Kbd — 1px neutral line-strong border with a 2px bottom edge imitating a physical key, not an accent stripe on a card; detector run B classified it as a false positive",
+        "createdAt": "2026-10-04T14:46:31.734Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "segoe ui variable text",
+        "reason": "Claude: the desktop shell's own windows (start window electron/splash.html, like the C# update/error window) show before or without the web app, where Google Sans Flex (next/font, hashed in the server) is not available; they use the system face Segoe UI Variable — documented in DESIGN.md",
+        "createdAt": "2026-10-07T08:32:20.229Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "segoe ui variable display",
+        "reason": "Claude: the desktop shell's own windows (start window electron/splash.html, like the C# update/error window) show before or without the web app, where Google Sans Flex (next/font, hashed in the server) is not available; they use the system face Segoe UI Variable — documented in DESIGN.md",
+        "createdAt": "2026-10-07T08:32:20.295Z"
       }
     ]
   }

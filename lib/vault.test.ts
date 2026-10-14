@@ -56,6 +56,14 @@ test('the profile picture is kept when it is one of the offered ones, and nothin
   }
 });
 
+test('keeping the Umsätze on this computer is on only for a plain true — off by default', () => {
+  assert.equal(vault.sanitizeVault({ version: 1, keepBookings: true })?.keepBookings, true);
+  assert.equal('keepBookings' in (vault.sanitizeVault({ version: 1 }) ?? {}), false);
+  for (const v of [false, 'true', 1, null, {}, [true]]) {
+    assert.equal('keepBookings' in (vault.sanitizeVault({ version: 1, keepBookings: v }) ?? {}), false, String(v));
+  }
+});
+
 test('an own picture is kept only as a small image data URL, and chosen only with one', () => {
   const picture = `data:image/webp;base64,${'A'.repeat(400)}`;
   const own = vault.sanitizeVault({ version: 1, avatar: 'own', avatarImage: picture });
@@ -184,6 +192,27 @@ test('dismissed series: strings only, deduplicated, ≤ 200 chars, at most 500',
   assert.equal(out.dismissedRecurring.at(-1), 's509');
 });
 
+test('budgets: spending categories only, whole cents above zero', () => {
+  const out = vault.sanitizeVault(base({
+    budgets: { groceries: 30000, income: 250000, leisure: 99.5, shopping: '100', transfer: 500 } as never,
+  }));
+  assert.deepEqual(out?.budgets, { groceries: 30000 });
+  // A vault from before budgets existed reads as one without any.
+  assert.deepEqual(vault.sanitizeVault({ version: 1 })?.budgets, {});
+});
+
+test('notes: one clean line each, keyed like a single-booking category, capped', () => {
+  const key = '2026-10-02|-12.90|DE02120300000000202051|E1';
+  const out = vault.sanitizeVault(base({
+    notes: { [key]: `  Geschenk${LS}für\nMama  `, empty: '   ', ['x'.repeat(201)]: 'zu lang', other: 'n'.repeat(300) } as never,
+  }));
+  assert.ok(out);
+  assert.deepEqual(Object.keys(out.notes), [key, 'other']);
+  assert.equal(out.notes[key], 'Geschenk für Mama');
+  assert.equal(out.notes.other.length, 280);
+  assert.deepEqual(vault.sanitizeVault({ version: 1 })?.notes, {});
+});
+
 test('updatedAt is normalised to ISO or falls back to the epoch', () => {
   assert.equal(vault.sanitizeVault({ version: 1, updatedAt: '2026-10-03T08:00:00+02:00' })?.updatedAt, '2026-10-03T06:00:00.000Z');
   assert.equal(vault.sanitizeVault({ version: 1, updatedAt: 'gestern' })?.updatedAt, EMPTY_VAULT.updatedAt);
@@ -204,6 +233,22 @@ test('sent orders: two weeks kept, older and malformed ones dropped', () => {
   assert.deepEqual(vault.sanitizeVault({ version: 1 })?.sentOrders, []);
 });
 
+test('linked banks: BLZ, name and login name only — never a PIN — and absent while there are none', () => {
+  const out = vault.sanitizeVault(base({
+    linkedBanks: [
+      { blz: '37050198', name: 'Sparkasse KölnBonn', userId: 'nino.becker', pin: '24680', accounts: ['1234567890'] },
+      { blz: '37050198', name: 'Sparkasse KölnBonn', userId: 'nino.becker' },
+      { blz: '1234', name: 'Kaputt', userId: 'x' },
+    ] as never,
+  }));
+  assert.ok(out);
+  assert.deepEqual(out.linkedBanks, [{ blz: '37050198', name: 'Sparkasse KölnBonn', userId: 'nino.becker' }]);
+  assert.equal(JSON.stringify(out).includes('24680'), false);
+  // None left: the key goes, so a vault without linked banks is exactly what it was before.
+  assert.equal('linkedBanks' in (vault.sanitizeVault(base({ linkedBanks: [{ blz: 'x' }] as never })) ?? {}), false);
+  assert.deepEqual(vault.sanitizeVault({ version: 1, linkedBanks: [] }), EMPTY_VAULT);
+});
+
 // ---------------------------------------------------------------------------
 // The file round trip
 // ---------------------------------------------------------------------------
@@ -214,6 +259,9 @@ const FULL = base({
   categoryRules: { [`iban:${IBAN}`]: 'housing' },
   txCategories: { '2026-10-02|-12.90|DE02120300000000202051|E1': 'groceries' },
   dismissedRecurring: ['rec:abc'],
+  budgets: { groceries: 30000 },
+  notes: { '2026-10-02|-12.90|DE02120300000000202051|E1': 'Geburtstagsgeschenk Oma' },
+  linkedBanks: [{ blz: '37050198', name: 'Sparkasse KölnBonn', userId: 'zweitbank.login' }],
   sentOrders: [{
     at: new Date(Date.now() - 3_600_000).toISOString(), accountNumber: '1234567890', iban: IBAN, cents: 85_000, outcome: 'executed',
   }],
@@ -241,9 +289,11 @@ test('save then load returns the sanitised data with a server timestamp', async 
   assert.deepEqual(again, got);
 });
 
-test('the file on disk is sealed: no IBAN, no alias, no sent order in sight', () => {
+test('the file on disk is sealed: no IBAN, no alias, no sent order, no budget, no note, no linked login in sight', () => {
   const raw = fs.readFileSync(vaultFile(), 'utf8');
   assert.ok(!raw.includes(IBAN) && !raw.includes('Haushaltskonto') && !raw.includes('housing') && !raw.includes('85000'));
+  assert.ok(!raw.includes('Geburtstagsgeschenk') && !raw.includes('groceries') && !raw.includes('30000'));
+  assert.ok(!raw.includes('zweitbank.login') && !raw.includes('37050198'));
   const box = parseBox(JSON.parse(raw));
   assert.ok(box);
   // AAD-bound: the profile's plain open must not accept it.

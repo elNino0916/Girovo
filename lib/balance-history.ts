@@ -52,10 +52,14 @@ const MAX_DAYS = 4000;
 
 const cents = (v: number) => Math.round(v * 100);
 
-type Reason = keyof Messages['insights']['balanceHistory'];
+export type UnverifiedReason = keyof Messages['insights']['balanceHistory'];
 
-/** No history, and why — the words read where they are shown, so they follow the language. */
-const fail = (reason: Reason): BalanceHistory => ({
+/**
+ * No history, and why — the words read where they are shown, so they follow
+ * the language. Exported for lib/history.ts, which carries a verified
+ * history back over the Umsätze kept on this computer.
+ */
+export const fail = (reason: UnverifiedReason): BalanceHistory => ({
   verified: false,
   get reason() {
     return msgs().insights.balanceHistory[reason];

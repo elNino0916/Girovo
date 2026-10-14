@@ -53,7 +53,7 @@ export function showPendingMatches(): void {
 export function PendingPanel() {
   const {
     activeAccount: a, pendingCache, pendingInfo, pendingLoading, loadPending, busy, merchants, txFilter, categoryOf,
-    pendingErrors,
+    pendingErrors, noteOf,
   } = useFints();
   // `tr`, not `t`: here `t` is a booking.
   const tr = useT();
@@ -65,8 +65,9 @@ export function PendingPanel() {
   const cached = a ? pendingCache[a.accountNumber] : undefined;
   const fetched = a ? pendingInfo[a.accountNumber] : undefined;
   // A new context on a change of language: the search caches each booking's
-  // text per context, and that text holds what the rows show in words.
-  const searchCtx = useMemo(() => ({ categoryOf, shownText: searchText }), [categoryOf, tr]);
+  // text per context, and that text holds what the rows show in words (and
+  // the user's notes, so a changed note makes a new one too).
+  const searchCtx = useMemo(() => ({ categoryOf, shownText: searchText, noteOf }), [categoryOf, noteOf, tr]);
   const narrowed = activeFilterCount(txFilter) > 0;
   // The rows the Umsätze filter matches, first — the rest after them.
   const { txs, matches } = useMemo(() => {
@@ -185,7 +186,7 @@ export function PendingPanel() {
                   data-pending-match={matches.has(tx) || undefined}
                   className="relative after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-[68px] after:h-px after:bg-line last:after:hidden"
                 >
-                  <TxRow tx={tx} merchant={merchantFor(merchants, tx)} pending compact onOpen={onOpen} />
+                  <TxRow tx={tx} merchant={merchantFor(merchants, tx)} userNote={noteOf(tx)} pending compact onOpen={onOpen} />
                 </li>
               ))}
             </ul>

@@ -5,7 +5,6 @@ import { facilitatorShop } from '@/lib/analytics';
 import {
   CATEGORIES, categoryLabel, counterpartyKey, isCategoryId, txBic, type CategoryId, type CategorySource,
 } from '@/lib/categories';
-import { guessCategory } from '@/lib/categorize';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry, isFutureDate, toLocalDate } from '@/lib/format';
 import { intlLocale, msgs, type Messages } from '@/lib/i18n';
@@ -21,8 +20,9 @@ import {
   Button, CopyButton, Disclosure, Drawer, Menu, MenuGroup, MenuItem, MenuItemRadio, MenuSeparator, Tag, cx,
 } from '../ui';
 import { CounterpartyAvatar } from './Avatar';
+import { NoteSection } from './NoteSection';
 import {
-  cardFacts, counterpartyQuery, countryName, merchantFor, referenceRows, shortDay, statusTags, transferSeeds, txText,
+  cardFacts, counterpartyQuery, countryName, referenceRows, shortDay, statusTags, transferSeeds, txText,
   type StatusTag,
 } from './model';
 
@@ -41,7 +41,8 @@ const TAG_ICON: Record<NonNullable<StatusTag['icon']>, ReactNode> = {
 /**
  * Umsatzdetails — everything one booking says, in the order a person asks:
  * how much and with whom, then the payment itself, the other account, how the
- * app filed it, and only last (collapsed) the identifiers the bank attached.
+ * app filed it, the user's own note, and only last (collapsed) the
+ * identifiers the bank attached.
  *
  * The actions reuse existing flows only: a transfer is prefilled and still
  * goes through review, Namensabgleich and TAN; the receipt is the print
@@ -259,6 +260,9 @@ export function TxDetail({
 
       <CategorySection tx={tx} name={text.name} />
 
+      {/* The user's own line about this booking — on screen only, never on the Beleg. */}
+      <NoteSection tx={tx} />
+
       {refs.length > 0 && (
         <div className="mt-6 border-t border-line pt-2">
           <Disclosure
@@ -322,8 +326,8 @@ function Row({
   );
 }
 
-/** The category groups of the menu, the booking's own direction first. */
-function menuGroups(credit: boolean, tr: Messages): { label: string; ids: CategoryId[] }[] {
+/** The category groups of the menu, the booking's own direction first (the Kategorie-Check's menu too). */
+export function menuGroups(credit: boolean, tr: Messages): { label: string; ids: CategoryId[] }[] {
   const { common: { booking }, transactions: { categorize: words } } = tr;
   const spend = CATEGORIES.filter((c) => !c.neutral && c.direction !== 'in').map((c) => c.id);
   const income = CATEGORIES.filter((c) => c.direction === 'in').map((c) => c.id);
@@ -360,7 +364,7 @@ type Step =
  */
 function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string }) {
   const {
-    categoryOf, setCategory, removeCategoryRule, vault, vaultStatus, ownIbans, merchants, txByAccount,
+    categoryOf, categoryGuessOf, setCategory, removeCategoryRule, vault, vaultStatus, txByAccount,
   } = useFints();
   const tr = useT();
   const words = tr.transactions.categorize;
@@ -370,10 +374,10 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
   const rules = vault?.categoryRules;
   const ruled = canRule && rules && isCategoryId(rules[who]) ? rules[who] : null;
   // What the booking falls back to without a choice for it alone: the rule,
-  // else the automatic guess.
+  // else the automatic guess — the model's included, as the list shows it.
   const fallback: { id: CategoryId; source: CategorySource } = ruled
     ? { id: ruled, source: 'rule' }
-    : { id: guessCategory(tx, { ownIbans, merchantLabel: merchantFor(merchants, tx)?.label ?? null }), source: 'auto' };
+    : { id: categoryGuessOf(tx).id, source: 'auto' };
   // The counterparty's other loaded bookings — what "für alle" reaches today.
   const others = useMemo(() => {
     if (!canRule) return 0;

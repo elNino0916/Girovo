@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- DayNight, so the WebView reports the phone's dark mode to the page
+         (prefers-color-scheme), which Girovo's "System" theme follows. -->
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/girovo_navy</item>
+        <item name="colorPrimaryDark">@color/girovo_navy</item>
+        <item name="colorAccent">@color/girovo_action</item>
+        <item name="android:windowBackground">@color/girovo_paper</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+        <item name="android:windowBackground">@color/girovo_paper</item>
+    </style>
+
+    <!-- The Android 12 splash: the G€ mark on the masthead's navy, until the
+         page has its language and colours (mobile/bridges/boot.ts hides it). -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/girovo_navy</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_mark</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>
+</resources>

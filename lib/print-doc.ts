@@ -1,5 +1,5 @@
-// What the printed Kontoauszug and Buchungsbeleg say, worked out apart from
-// how they look (components/Statement.tsx).
+// What the printed Kontoauszug, Buchungsbeleg and bank message say, worked
+// out apart from how they look (components/Statement.tsx).
 //
 // Paper is the record a third party reads — a landlord, the Jobcenter, a tax
 // adviser — so everything here follows two rules:
@@ -357,6 +357,29 @@ export function statementNumberRange(oldestFirst: readonly Pick<SerializedTransa
   const first = nums[0];
   const last = nums[nums.length - 1];
   return first === last ? first : `${first} – ${last}`;
+}
+
+// ---------------------------------------------------------------------------
+// A bank message
+// ---------------------------------------------------------------------------
+
+/**
+ * A message's text as paper prints it, one entry per line the bank wrote: its
+ * words, its blank lines and its spacing — the seams of a notice (a list, an
+ * indent, a signature) are part of what it says. Only blank lines before the
+ * first line and whitespace after the last go. The text arrives repaired
+ * already (InboxMessage.text) and is never translated.
+ *
+ * Empty when the bank sent nothing beyond the subject: the inbox has nothing
+ * to unfold then either, and the sheet prints the subject alone.
+ */
+export function messageLines(subject: string, text: string): string[] {
+  const body = String(text ?? '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/^(?:[ \t]*\n)+/, '')
+    .trimEnd();
+  if (!body.trim() || body.trim() === String(subject ?? '').trim()) return [];
+  return body.split('\n');
 }
 
 // ---------------------------------------------------------------------------

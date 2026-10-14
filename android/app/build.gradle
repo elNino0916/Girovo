@@ -1,0 +1,140 @@
+apply plugin: 'com.android.application'
+
+import groovy.json.JsonSlurper
+
+// One version for every build of Girovo: package.json's. The version code
+// counts major.minor.patch as MMmmpp (5.2.2 → 50202), times 10, plus a last
+// digit left for a rebuild of the same version.
+def pkg = new JsonSlurper().parse(rootProject.file('../package.json'))
+def (major, minor, patch) = pkg.version.tokenize('-')[0].tokenize('.').collect { it as int }
+def girovoVersionCode = ((major * 10000) + (minor * 100) + patch) * 10
+
+// Release signing, from android/keystore.properties (never committed):
+//   storeFile=…  storePassword=…  keyAlias=…  keyPassword=…
+def keystoreProperties = new Properties()
+def keystoreFile = rootProject.file('keystore.properties')
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProperties.load(it) }
+
+android {
+    namespace = "de.elnino0916.android.girovo"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "de.elnino0916.android.girovo"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode girovoVersionCode
+        versionName pkg.version
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+        // Phones and the emulator; the category model's ONNX Runtime is the
+        // only native code, and it would otherwise ship for four ABIs.
+        ndk {
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    // Where the app comes from decides how it updates:
+    //  - play:   Google Play installs updates; the app only offers Play's own
+    //            in-app update. It may not download and install APKs itself.
+    //  - github: the APK on GitHub's releases; the app checks GitHub and
+    //            installs a downloaded, SHA-256-checked APK, like the desktop app.
+    flavorDimensions = ['distribution']
+    productFlavors {
+        play {
+            dimension 'distribution'
+            buildConfigField 'String', 'DISTRIBUTION', '"play"'
+        }
+        github {
+            dimension 'distribution'
+            buildConfigField 'String', 'DISTRIBUTION', '"github"'
+        }
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    // ONNX Runtime (the category model) is 34 MB of native code per ABI.
+    // Compressed in the package, it is a fraction of that to download; Android
+    // unpacks it once at install.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    // A release APK for GitHub is built per ABI: arm64-v8a is every current
+    // phone, x86_64 the emulator and Chromebooks. (Google Play takes the app
+    // bundle and serves each device its own ABI by itself.)
+    splits {
+        abi {
+            enable = gradle.startParameter.taskNames.any { it.contains('assemble') && it.contains('Release') }
+            reset()
+            include 'arm64-v8a', 'x86_64'
+            universalApk = false
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreProperties['storeFile']) {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystoreProperties['storeFile']) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    // Fingerprint login (BiometricPlugin).
+    implementation "androidx.biometric:biometric:1.1.0"
+    // The category model, once downloaded (ModelPlugin).
+    implementation "com.microsoft.onnxruntime:onnxruntime-android:1.31.0"
+    // Google Play's in-app update, in the Play build only (src/play/…/UpdaterPlugin).
+    playImplementation "com.google.android.play:app-update:2.1.0"
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

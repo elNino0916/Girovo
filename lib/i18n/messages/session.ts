@@ -84,7 +84,7 @@ export const de = {
       `Die App löscht die Geräte-Kennung, unter der ${bank ?? 'deine Bank'} diesen Rechner kennt. Bei der nächsten Anmeldung gilt er als neues Gerät: Deine Bank fragt dann wieder nach einer Freigabe.`,
     body: 'Deine aktuelle Sitzung bleibt bestehen. Gibst du den Rechner weiter, lösche auch deine gespeicherten Daten.',
     wipe: 'Auch gespeicherte Daten von diesem Rechner löschen',
-    wipeHint: 'Vorlagen, Kontonamen, Kategorien und die Überweisungen der letzten 14 Tage samt früherer Sicherungen, dazu der Anmeldename und die Bank, die die Anmeldung vorausfüllt – endgültig.',
+    wipeHint: 'Vorlagen, Kontonamen, Kategorien, gespeicherte Umsätze und die Überweisungen der letzten 14 Tage samt früherer Sicherungen, dazu der Anmeldename und die Bank, die die Anmeldung vorausfüllt – endgültig.',
     confirm: 'Gerät vergessen',
     confirmWipe: 'Vergessen und löschen',
   },
@@ -98,7 +98,7 @@ export const de = {
 
   wipeDialog: {
     title: 'Gespeicherte Daten löschen?',
-    description: 'Vorlagen, Kontonamen, Kategorien und die Überweisungen der letzten 14 Tage werden von diesem Rechner gelöscht, frühere Sicherungen eingeschlossen – dazu der Anmeldename und die Bank, die die Anmeldung vorausfüllt. Das lässt sich nicht rückgängig machen.',
+    description: 'Vorlagen, Kontonamen, Kategorien, gespeicherte Umsätze und die Überweisungen der letzten 14 Tage werden von diesem Rechner gelöscht, frühere Sicherungen eingeschlossen – dazu der Anmeldename und die Bank, die die Anmeldung vorausfüllt. Das lässt sich nicht rückgängig machen.',
     body: 'Deine aktuelle Sitzung bleibt bestehen. Was du bis zum Abmelden änderst, wird nicht mehr gespeichert; bei der nächsten Anmeldung beginnst du mit leeren Vorlagen.',
   },
 };
@@ -173,7 +173,7 @@ export const en: typeof de = {
       `The app deletes the device ID by which ${bank ?? 'your bank'} knows this computer. At your next login it counts as a new device, and your bank asks for an approval again.`,
     body: 'Your current session stays open. If you are passing this computer on, delete your saved data too.',
     wipe: 'Also delete saved data from this computer',
-    wipeHint: 'Templates, account names, categories and the transfers of the last 14 days, earlier backups included, plus the login name and bank the login screen fills in – for good.',
+    wipeHint: 'Templates, account names, categories, saved transactions and the transfers of the last 14 days, earlier backups included, plus the login name and bank the login screen fills in – for good.',
     confirm: 'Forget device',
     confirmWipe: 'Forget and delete',
   },
@@ -187,7 +187,7 @@ export const en: typeof de = {
 
   wipeDialog: {
     title: 'Delete saved data?',
-    description: 'Templates, account names, categories and the transfers of the last 14 days are deleted from this computer, earlier backups included – along with the login name and bank the login screen fills in. This cannot be undone.',
+    description: 'Templates, account names, categories, saved transactions and the transfers of the last 14 days are deleted from this computer, earlier backups included – along with the login name and bank the login screen fills in. This cannot be undone.',
     body: 'Your current session stays open. What you change until you log out is no longer saved; at your next login you start with empty templates.',
   },
 };

@@ -8,6 +8,9 @@ import {
 import { getSession } from '@/lib/session';
 import { fetchStatements } from '@/lib/fints-statements';
 import type { TransactionsResponse } from '@/lib/fints-types';
+import { isoDate } from '@/lib/format';
+import { isDay } from '@/lib/history';
+import { noteDelivery } from '@/lib/history-store';
 import { msgs } from '@/lib/i18n';
 
 export const runtime = 'nodejs';
@@ -33,23 +36,32 @@ export const POST = wrap(async (req: Request) => {
     ? new Date(from)
     : new Date(Date.now() - DEFAULT_STATEMENT_DAYS * 86400000);
   const toDate = to ? new Date(to) : undefined;
+  // The same request in local days, for the Umsätze kept on this computer
+  // (lib/history-store.ts): the client sends yyyy-mm-dd, and an open end
+  // means up to today.
+  const asked = { from: isDay(from) ? from : isoDate(fromDate), to: isDay(to) ? to : isoDate(new Date()) };
 
   // lib-fints' getAccountStatements, keeping the Vormerkposten a bank sends
   // beside the Umsätze (Sparkassen do, and offer no HKVMK).
   const resp = await fetchStatements(s.client, accountNumber, fromDate, toDate);
   logResp('transactions', s, resp);
   if (resp.requiresTan) {
-    s.pending = { type: 'statements', tanReference: resp.tanReference, accountNumber };
+    s.pending = { type: 'statements', tanReference: resp.tanReference, accountNumber, asked };
     return json({ ...tanPayload(resp), accountNumber } satisfies TransactionsResponse);
   }
   if (!resp.success) return fail(bankAnswerText(resp) || msgs().transactions.api.transactionsFailed);
   logStatementDates(accountNumber, resp.statements);
+  const transactions = serializeTransactions(resp.statements);
+  // Per-block opening/closing balances — what a Kontoverlauf is checked against.
+  const blocks = statementBlocks(resp.statements);
+  // Kept on this computer if the vault says so — once this answer is on its
+  // way; the Vorgemerkte never are.
+  noteDelivery(s, accountNumber, asked, transactions, blocks);
   return json({
     needsTan: false, accountNumber,
-    transactions: serializeTransactions(resp.statements),
+    transactions,
     balance: balanceFromStatements(resp.statements),
-    // Per-block opening/closing balances — what a Kontoverlauf is checked against.
-    blocks: statementBlocks(resp.statements),
+    blocks,
     pending: serializeNoted(s, accountNumber, resp.notedStatements),
   } satisfies TransactionsResponse);
 });

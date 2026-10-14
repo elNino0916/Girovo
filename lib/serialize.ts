@@ -8,6 +8,9 @@ import { repairBankText } from './format';
 import { parsePurpose } from './sepa-purpose';
 import { INSTANT_SEG, TRANSFER_SEG } from './fints-sepa';
 import { PENDING_SEG } from './fints-pending';
+// Also registers the order segments and their parameters, before any login
+// decodes a BPD (the connect route imports this module).
+import { orderCaps } from './fints-orders';
 import type {
   SerializedAccount, SerializedBalance, SerializedTanMethod, SerializedTransaction,
   SerializedVop, StatementBlock, TanRequired,
@@ -71,7 +74,20 @@ export function accountsFor(s: Session): SerializedAccount[] {
     // Read-only query (like statements/balance above) — gate on the account's
     // own UPD grant only, not also on the bank-wide BPD list (see note above).
     canPending: acctSupports(a, PENDING_SEG),
+    // Terminierte Überweisungen and Daueraufträge: BPD and UPD both, with the
+    // bank's rules (lib/fints-orders.ts).
+    ...ordersOf(cfg, a.accountNumber),
   }));
+}
+
+function ordersOf(cfg: Session['client']['config'], accountNumber: string): Pick<SerializedAccount, 'dated' | 'standing'> {
+  try {
+    return orderCaps(cfg, accountNumber);
+  } catch (err) {
+    // Never at the cost of the account list.
+    console.warn('[accounts] order capabilities unreadable:', (err as Error)?.message || err);
+    return { dated: null, standing: null };
+  }
 }
 
 export function serializeBalance(b: AccountBalance | undefined | null): SerializedBalance | null {

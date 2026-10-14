@@ -49,6 +49,8 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   // would abandon it half-way.
   const holding = busy || (wait.open && waitHoldsSession(wait));
   const portable = state.kind === 'portable';
+  // The Android app from GitHub: Android's installer takes over, not a restart.
+  const android = state.kind === 'android';
   // The restart is a logout too: what it would take with it is said, as on
   // every other way out of the session.
   const unclear = signedIn ? unclearList.length : 0;
@@ -107,7 +109,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         disabled={holding}
         onClick={() => void updates.install()}
       >
-        {portable ? u.startNew : u.restartNow}
+        {android ? t.android.updates.install : portable ? u.startNew : u.restartNow}
       </Button>
     );
     actions = unclear > 0 ? (
@@ -193,9 +195,11 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
 
         {release?.canInstall && (state.phase === 'ready' || state.phase === 'installing') && (
           <Alert tone="info" className="mt-0" role="status">
-            {portable
-              ? rich(u.portable(<span className="font-semibold [overflow-wrap:anywhere]">{state.location}</span>))
-              : u.restarts}
+            {android
+              ? t.android.updates.installs
+              : portable
+                ? rich(u.portable(<span className="font-semibold [overflow-wrap:anywhere]">{state.location}</span>))
+                : u.restarts}
             {signedIn && <> {u.logsOut}</>}
           </Alert>
         )}
@@ -323,6 +327,7 @@ function Progress({ received, total }: { received: number; total: number }) {
         {/* Navy, not Signal Blue: a progress fill cannot be pressed. It slides
             in behind the track's clip (a transform, no layout per chunk). */}
         <div
+          data-progress-fill
           className="h-full rounded-full bg-headline transition-transform duration-200 ease-[var(--ease-out-soft)] motion-reduce:transition-none"
           style={{ transform: `translateX(${pct - 100}%)` }}
         />

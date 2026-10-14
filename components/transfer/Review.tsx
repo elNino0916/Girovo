@@ -13,6 +13,7 @@ import type { SerializedAccount } from '@/lib/fints-types';
 import { expectedCreditDate, fmtDate, fmtIban } from '@/lib/format';
 import { intlLocale } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
+import { scheduleSentence } from '@/lib/order-schedule';
 import { sepaSanitize } from '@/lib/sepa-text';
 import type { FundsWarning, spendable } from '@/lib/transfer-checks';
 import { BoltIcon, LandmarkIcon } from '../icons';
@@ -78,7 +79,7 @@ export function StepError({ message, errorRef }: { message: string; errorRef?: R
 }
 
 export function ReviewStep({
-  draft, account, accountName, bank, funds, warning, duplicate, primaryLabel, busyElsewhere, error, errorRef,
+  draft, account, accountName, bank, funds, warning, duplicate, duplicateTitle, primaryLabel, busyElsewhere, error, errorRef,
 }: {
   draft: TransferDraft;
   account: SerializedAccount;
@@ -87,6 +88,8 @@ export function ReviewStep({
   funds: ReturnType<typeof spendable>;
   warning: FundsWarning | null;
   duplicate: string | null;
+  /** The duplicate warning's title: "Schon einmal überwiesen?", or the order for later's own. */
+  duplicateTitle?: string | null;
   /** The footer's primary label, which the closing note names. */
   primaryLabel: string;
   busyElsewhere: boolean;
@@ -96,6 +99,8 @@ export function ReviewStep({
   const t = useT();
   const words = t.transfer.review;
   const amount = draft.cents / 100;
+  /** A terminierte Überweisung or a Dauerauftrag: when it runs is part of the order. */
+  const schedule = draft.schedule ?? null;
   // A SEPA order is always in euros (the pain.001 says Ccy="EUR"), whatever
   // the account keeps — so the order shows €, and "danach" is only worked out
   // where the balance is in euros too; across currencies it would be a guess.
@@ -116,7 +121,7 @@ export function ReviewStep({
       {warned && (
         <div id={REVIEW_WARNINGS_ID} className="mb-4 flex flex-col gap-3">
           {duplicate && (
-            <Alert tone="warn" title={words.duplicateTitle} className="mt-0">
+            <Alert tone="warn" title={duplicateTitle ?? words.duplicateTitle} className="mt-0">
               {duplicate} {words.duplicateCheck}
             </Alert>
           )}
@@ -141,6 +146,7 @@ export function ReviewStep({
             className="text-[34px] leading-tight font-bold text-headline"
           />
           {draft.instant && <Tag tone="info" icon={<BoltIcon size={13} />}>{t.common.booking.instant}</Tag>}
+          {schedule && <Tag>{t.orders.kind[schedule.kind]}</Tag>}
         </div>
         <p className="mt-3 text-[13px] font-semibold text-ink-3">{words.to}</p>
         <p className="mt-0.5 text-[17px] leading-snug font-semibold break-words text-ink">{sentName}</p>
@@ -160,11 +166,19 @@ export function ReviewStep({
         <SummaryRow label={t.common.booking.purpose}>
           {sentPurpose || <span className="text-ink-3">{words.none}</span>}
         </SummaryRow>
-        <SummaryRow label={t.transfer.form.execution}>{draft.instant ? words.instantTransfer : words.standardTransfer}</SummaryRow>
-        <SummaryRow label={words.credit}>
-          {draft.instant || !credit ? words.inSeconds : <span className="tnum">{words.expected(fmtLongDate(credit))}</span>}
+        <SummaryRow label={t.transfer.form.execution}>
+          {schedule ? t.orders.kind[schedule.kind] : draft.instant ? words.instantTransfer : words.standardTransfer}
         </SummaryRow>
-        {funds && after != null && (
+        {schedule ? (
+          // When it runs, in plain words — as the bank receives it in the order.
+          <SummaryRow label={t.orders.form.when}><span className="tnum">{scheduleSentence(schedule)}</span></SummaryRow>
+        ) : (
+          <SummaryRow label={words.credit}>
+            {draft.instant || !credit ? words.inSeconds : <span className="tnum">{words.expected(fmtLongDate(credit))}</span>}
+          </SummaryRow>
+        )}
+        {/* Today's figures say nothing about a day that has not come. */}
+        {funds && after != null && !schedule && (
           // The balance is not part of the order, so it keeps following
           // "Beträge ausblenden".
           // A card's Kontostand is negative by nature: ink, not alarm red.
@@ -191,8 +205,10 @@ export function ReviewStep({
         </p>
       )}
 
+      {schedule && <p className="mt-2 text-[13px] leading-snug text-ink-3">{t.orders.sheet.noFunds}</p>}
+
       <p className="mt-5 text-[13.5px] leading-relaxed text-ink-3">
-        {words.next(primaryLabel)}
+        {schedule ? t.orders.sheet.next(primaryLabel) : words.next(primaryLabel)}
       </p>
       {busyElsewhere && <BusyNote />}
     </div>

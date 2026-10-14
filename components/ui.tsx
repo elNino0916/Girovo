@@ -25,6 +25,7 @@ import type {
 import { anchorPosition, type Placement } from '@/lib/anchor';
 import { copyText } from '@/lib/clipboard';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { setCaptionDim } from '@/lib/theme';
 import {
   AlertTriangleIcon, CheckCircleIcon, CheckIcon, ChevronIcon, CloseIcon, CopyIcon, InfoIcon, XCircleIcon,
@@ -105,6 +106,8 @@ export function Button({
       type={type}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
+      data-variant={variant}
+      data-size={size}
       className={cx(BUTTON_BASE, BUTTON_VARIANTS[variant], BUTTON_SIZES[size], block && 'w-full', className)}
       {...rest}
     >
@@ -119,6 +122,7 @@ export function Spinner({ className, size = 15, label }: { className?: string; s
   const ring = (
     <span
       aria-hidden
+      data-spinner
       className={cx('inline-block shrink-0 rounded-full border-2 border-current border-t-transparent', className)}
       style={{ width: size, height: size, animation: 'spin .7s linear infinite' }}
     />
@@ -152,6 +156,7 @@ export function IconButton({
   return (
     <button
       type={type}
+      data-icon-button={size}
       // The name doubles as the hover tooltip, so a bare icon is never a guess.
       title={title ?? rest['aria-label']}
       className={cx(
@@ -217,7 +222,14 @@ export function CopyButton({
 // control inside it through context, so `<Field label error><Input/></Field>`
 // is fully wired for a screen reader without the caller threading ids.
 // ---------------------------------------------------------------------------
-type FieldWiring = { id: string; describedBy?: string; invalid: boolean; required: boolean };
+type FieldWiring = {
+  id: string;
+  describedBy?: string;
+  invalid: boolean;
+  required: boolean;
+  /** Android: the label floats inside the control (Material's outlined text field). */
+  floating?: boolean;
+};
 const FieldContext = createContext<FieldWiring | null>(null);
 
 function useFieldWiring(props: { id?: string; 'aria-describedby'?: string; 'aria-invalid'?: unknown; invalid?: boolean }) {
@@ -256,14 +268,18 @@ export function Field({
   const id = htmlFor ?? `field${auto}`;
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
+  // Android: Material's outlined text field, the label inside the outline and
+  // rising onto it (app/android.css) — for a label alone on its row. A row
+  // that also carries something (a counter, a link) keeps the label above.
+  const floating = IS_ANDROID && !labelHidden && !trailing;
   const wiring = useMemo<FieldWiring>(
-    () => ({ id, describedBy: cx(errorId, hintId) || undefined, invalid: !!error, required: !!required }),
-    [id, errorId, hintId, error, required],
+    () => ({ id, describedBy: cx(errorId, hintId) || undefined, invalid: !!error, required: !!required, floating }),
+    [id, errorId, hintId, error, required, floating],
   );
 
   return (
-    <div className={cx('flex flex-col gap-1.5', className ?? 'mb-4')}>
-      <div className={cx('flex items-baseline justify-between gap-3', labelHidden && !trailing && 'sr-only')}>
+    <div data-field={floating ? 'float' : undefined} className={cx('flex flex-col gap-1.5', className ?? 'mb-4')}>
+      <div data-field-label className={cx('flex items-baseline justify-between gap-3', labelHidden && !trailing && 'sr-only')}>
         <label htmlFor={id} className={cx('text-[13px] leading-snug font-semibold text-ink-2', labelHidden && 'sr-only')}>
           {label}
           {required && <span aria-hidden className="ml-0.5 text-ink-3">*</span>}
@@ -304,10 +320,14 @@ export type InputProps = ComponentProps<'input'> & {
 
 export function Input({ className, invalid, leading, trailing, containerClassName, ...rest }: InputProps) {
   const wiring = useFieldWiring({ ...rest, invalid });
+  const floating = useContext(FieldContext)?.floating;
   const input = (
     <input
       {...rest}
       {...wiring}
+      // A floating label needs to know whether the field is empty: CSS can
+      // only tell through :placeholder-shown, so there always is one.
+      placeholder={rest.placeholder ?? (floating ? ' ' : undefined)}
       className={cx(
         CONTROL_BASE,
         TEXT_READONLY,
@@ -360,12 +380,14 @@ export type TextareaProps = ComponentProps<'textarea'> & { invalid?: boolean; sh
 
 export function Textarea({ className, invalid, showCount, maxLength, value, ...rest }: TextareaProps) {
   const wiring = useFieldWiring({ ...rest, invalid });
+  const floating = useContext(FieldContext)?.floating;
   const count = typeof value === 'string' ? value.length : null;
   return (
     <>
       <textarea
         {...rest}
         {...wiring}
+        placeholder={rest.placeholder ?? (floating ? ' ' : undefined)}
         value={value}
         maxLength={maxLength}
         className={cx(CONTROL_BASE, TEXT_READONLY, 'block min-h-[96px] resize-y px-3.5 py-3 leading-[1.45]', className)}
@@ -882,6 +904,7 @@ function OverlayLayer({
       aria-describedby={describedBy}
       aria-label={labelledBy ? undefined : label}
       tabIndex={-1}
+      data-align={align}
       onKeyDown={onKeyDown}
       onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget; }}
       onClick={(e) => {
@@ -926,13 +949,26 @@ export function useScrollEdges<T extends HTMLElement>() {
     const el = ref.current;
     if (!el) return;
     measure();
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    // A size change is measured in the next frame, not inside the observer's
+    // callback: writing --sbw there resizes the content it watches within the
+    // same delivery, which Chromium reports as a "ResizeObserver loop" — on
+    // Windows' classic scrollbars, whose width in CSS pixels changes with
+    // every zoom step.
+    let frame = 0;
+    const later = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    };
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(later) : null;
     ro?.observe(el);
     // The content grows and shrinks (an error appears, a step changes)
     // without the scroller itself changing size.
     const inner = el.firstElementChild;
     if (inner) ro?.observe(inner);
-    return () => ro?.disconnect();
+    return () => {
+      cancelAnimationFrame(frame);
+      ro?.disconnect();
+    };
   }, [measure]);
 
   return { ref, edges, measure };
@@ -952,7 +988,7 @@ const FOOTER_EDGE = 'shadow-[0_-1px_0_var(--line)]';
  * also slims down, giving its room to what the dialog says.
  */
 export function Sheet({
-  size, wide, band, onClose, closeLabel, className, bodyClassName, footer, children,
+  size, wide, band, onClose, closeLabel, className, bodyClassName, footer, basic, children,
 }: {
   size?: 'sm' | 'md' | 'lg';
   /** @deprecated use size="md". */
@@ -965,6 +1001,8 @@ export function Sheet({
   bodyClassName?: string;
   /** The actions row, fixed below the scrolling body (see DialogActions). */
   footer?: ReactNode;
+  /** A short question or notice (Dialog): Material's basic dialog on Android, centred rather than a bottom sheet. */
+  basic?: boolean;
   children: ReactNode;
 }) {
   const t = useT();
@@ -972,6 +1010,8 @@ export function Sheet({
   const { ref: bodyRef, edges, measure } = useScrollEdges<HTMLDivElement>();
   return (
     <div
+      data-sheet
+      data-dialog={basic ? 'basic' : undefined}
       className={cx(
         'anim-sheet relative flex max-h-full w-full flex-col overflow-hidden bg-raised shadow-[var(--shadow-pop)]',
         'rounded-t-[var(--radius-sheet)] sm:rounded-[var(--radius-sheet)]',
@@ -1051,7 +1091,7 @@ export function DialogHeader({
 }) {
   const t = useT();
   return (
-    <div className={cx('flex items-start gap-3.5', className ?? 'mb-5')}>
+    <div data-dialog-header className={cx('flex items-start gap-3.5', className ?? 'mb-5')}>
       {icon && <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">{icon}</span>}
       <div className="min-w-0 flex-1">
         <h2 id={titleId} className="text-[22px] leading-tight font-bold text-headline">{title}</h2>
@@ -1078,6 +1118,7 @@ export function DialogActions({
 }: { children: ReactNode; align?: 'end' | 'center' | 'stretch' | 'between'; className?: string }) {
   return (
     <div
+      data-dialog-actions
       className={cx(
         'flex flex-col-reverse gap-3 sm:flex-row sm:items-center',
         align === 'end' && 'sm:justify-end',
@@ -1115,6 +1156,7 @@ export function Dialog({
   return (
     <Overlay open={open} onClose={onClose} onBackdrop={onBackdrop} labelledBy={titleId} describedBy={descId} initialFocus={initialFocus} fallbackFocus={fallbackFocus}>
       <Sheet
+        basic
         size={size}
         band={band}
         onClose={band ? onClose : undefined}
@@ -1168,7 +1210,7 @@ export function Drawer({
           width === 'lg' ? 'sm:max-w-[560px]' : 'sm:max-w-[440px]',
         )}
       >
-        <header className="on-bar bar-caption-safe flex shrink-0 items-center gap-2 bg-bar pl-4 text-bar-ink sm:pl-6" style={{ height: 'var(--barbar-h)' }}>
+        <header data-topbar className="on-bar bar-caption-safe flex shrink-0 items-center gap-2 bg-bar pl-4 text-bar-ink sm:pl-6" style={{ height: 'var(--barbar-h)' }}>
           <h2 id={id} className="min-w-0 flex-1 truncate text-[17px] font-bold">{title}</h2>
           {actions}
           <IconButton data-dialog-close tone="bar" size="md" aria-label={t.common.close} onClick={onClose} className="-mr-2">
@@ -1386,6 +1428,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
+      data-segmented={size}
       onKeyDown={onKeyDown}
       className={cx(
         'max-w-full gap-1 overflow-x-auto rounded-full bg-inset p-1 [scrollbar-width:none]',
@@ -1449,6 +1492,7 @@ export function FilterChip({
   return (
     <button
       type="button"
+      data-chip
       aria-pressed={menu ? undefined : selected}
       className={cx(
         CHIP_BASE,
@@ -1501,7 +1545,7 @@ export function Chip({
   return (
     <span className={cx('inline-flex max-w-full items-center', className)}>
       {onClick ? (
-        <button type="button" title={title} aria-pressed={selected} onClick={onClick} className={cx(CHIP_BASE, 'max-w-full', look, onRemove && 'rounded-r-none border-r-0 pr-2')}>
+        <button type="button" data-chip title={title} aria-pressed={selected} onClick={onClick} className={cx(CHIP_BASE, 'max-w-full', look, onRemove && 'rounded-r-none border-r-0 pr-2')}>
           {body}
         </button>
       ) : (

@@ -16,6 +16,13 @@ already carries those. They bring a TAN app on their phone (decoupled
 approval such as S-pushTAN or SecureGo plus) and the habits of their bank's
 own online banking.
 
+**Anyone with an Android phone**, for the same banking on the go. They get the
+Android app from Google Play or as the APK from GitHub, and expect it to look
+and behave like the other apps on their phone: Material 3 Expressive, the wallpaper's
+colours, the back gesture, a fingerprint instead of the PIN if they want one.
+The TAN app is usually on the same phone, so an approval means switching apps
+and coming back.
+
 They read the app in German or in English. The English-speaking ones are
 mostly people who live in Germany and bank here, but read English more
 easily than German — their bank's own app rarely offers them that.
@@ -29,8 +36,10 @@ The jobs they come to do:
 
 - check the balance and what is available
 - read and search Umsätze, and see what is still vorgemerkt
-- send a SEPA or Echtzeit transfer safely
-- understand where the money goes (Analyse, Verträge & Abos)
+- send a SEPA or Echtzeit transfer safely, or set one up for later
+  (Terminüberweisung, Dauerauftrag)
+- understand where the money goes and keep to a budget (Analyse,
+  Monatsbudgets, Verträge & Abos)
 - get statements and receipts out as PDF or CSV
 
 ## Product Purpose
@@ -56,8 +65,9 @@ The owner sees the position as the combination of three claims (confirmed
 
 1. **Only your bank sees it.** FinTS runs straight from the user's machine to
    the bank. No aggregator, cloud account or third-party access sits in that
-   path. The PIN lives only in memory. The device profile and the
-   personal-data vault are encrypted with the PIN. Nothing about the user's
+   path. The PIN lives only in memory. The device profile, the
+   personal-data vault and, if the user keeps them, the Umsätze are encrypted
+   with the PIN. Nothing about the user's
    finances goes to the developer: error reports (always) and usage data (with
    a yes) are scrubbed and limited to declared fields (README → Telemetry).
 2. **Any German bank, one modern app.** It is free and open source (MIT) and
@@ -65,7 +75,7 @@ The owner sees the position as the combination of three claims (confirmed
    banking.
 3. **More than the bank's own app.** It goes beyond what a bank app shows,
    all computed on the machine:
-   - Umsatzanalyse
+   - Umsatzanalyse, with Monatsbudgets and a Kategorie-Check
    - Verträge & Abos
    - the real shop behind a card payment
    - GiroCode reading and Geld anfordern
@@ -75,7 +85,8 @@ The owner sees the position as the combination of three claims (confirmed
 
 - **Distribution.** The main form is the Windows desktop app: an Electron
   shell around the same Next.js app, shipped as an NSIS `Setup.exe` and a
-  portable `.exe` on GitHub releases.
+  portable `.exe` on GitHub releases. The same shell also ships for Linux, as
+  an AppImage and a `.deb`; those do not update themselves.
   - The app checks GitHub for releases. Downloading and installing an update
     are separate clicks, and each download is checked against the SHA-256
     digest GitHub publishes for it.
@@ -83,6 +94,14 @@ The owner sees the position as the combination of three claims (confirmed
     on a public host or a serverless or multi-worker runtime: there is one
     process, sessions live in memory, and the app has no authentication of its
     own.
+  - The Android app is the same page and the same server code on the phone
+    (android/README.md): the route handlers run inside the app's WebView and
+    the phone talks to the bank directly. It ships on Google Play (Play
+    updates it) and as an APK on the GitHub releases (it updates itself, each
+    download checked against GitHub's SHA-256). Its look is Material 3
+    Expressive, in Material You's colours and the phone's light or dark (neither is a
+    setting); the colours that carry a value never follow the wallpaper. It speaks of
+    the device as "Telefon", never "Rechner".
 - **Getting in.** The login runs in this order:
   1. Pick the bank. Quick picks show real logos; search works by name, city,
      BLZ (also typed with spaces), BIC or IBAN. The IBAN is read on the
@@ -100,23 +119,43 @@ The owner sees the position as the combination of three claims (confirmed
   smsTAN and TAN generators do not work), and a line on the credentials form
   that names the brand's approval app where one name holds.
 
+  More banks join the same view the same way: "Weitere Bank anmelden" runs
+  these steps in a sheet over the Übersicht, for a session of its own beside
+  the first. The first (primary) login's encrypted vault holds the personal
+  data of the whole view and remembers the further banks — BLZ, name and
+  Anmeldename, never a PIN — so the next login offers "Auch bei … anmelden".
+
   Any bank read can cost its own approval, so reads are serialised and cached.
   "Gerät merken" keeps the bank's systemId encrypted with the PIN, so the bank
   may skip TANs during its SCA exemption window (~90 days).
 - **Sessions.** The app logs the user out after 5–30 minutes without input
   (default 10). It warns one minute ahead and never logs out while an approval
-  is running. The server drops sessions after 30 minutes idle.
+  is running. The server drops sessions after 30 minutes idle. With several
+  banks, each is a session of its own: the keepalive covers all of them, every
+  request goes through the session of the account it concerns, and the logout
+  (by hand or idle) ends all of them. A further bank whose session ends alone
+  is marked logged out, with "Erneut anmelden"; the primary's ending ends the
+  view, as before.
 - **Data horizon.** The bank's default is about 90 days. Analyse, Verträge and
   Kontoverlauf only know the loaded period. Loading 12 months can cost a TAN,
-  and some banks keep less.
+  and some banks keep less. With "Umsätze auf diesem Rechner behalten" (opt-in,
+  per login) they also know what earlier logins kept — up to ten years — and a
+  longer period asks the bank only for what is missing. The bank stays the
+  source for every day it delivers; the kept part of a list is marked.
+  A budget month the loaded period cuts is labelled
+  as such, and its spending is a minimum ("mind."), never the month's total.
 - **Screen sharing.** "Beträge ausblenden" masks every amount, chart axis and
   tooltip, and the amounts inside the bank's free text (Verwendungszweck,
-  references) as well as text can be read.
+  references) and the user's own notes as well as text can be read. The
+  Monatsbudgets' bars hide too; whether a budget is over stays, in words.
 - **Documents.** The app produces:
   - a PDF Kontoauszug and Buchungsbeleg
+  - a PDF of a bank message (Mitteilung), its subject and text as the bank
+    sent them, so a notice outlives the logout that clears the inbox
   - a CSV export in the German Excel dialect, holding the booked Umsätze the
     list shows (never Vorgemerkte), with the days and any filter in its file
-    name
+    name. Its last column ("Notiz") holds the user's notes as typed; the
+    printed Buchungsbeleg never carries a note (a third party reads it)
   - a GiroCode PNG for Geld anfordern
 - **What the bank sends that the UI has to absorb:**
   - bookings dated ahead of today ("noch nicht gebucht")
@@ -126,7 +165,9 @@ The owner sees the position as the combination of three claims (confirmed
     as "Rückmeldung der Bank"
   - transfers whose outcome is unknown ("Status unklar"; never resend
     blindly). "Jetzt nachsehen" checks the Umsätze and Vorgemerkte in place
-    and never sends anything
+    and never sends anything — for a Terminüberweisung or a Dauerauftrag it
+    reads the bank's list of them instead; a deletion that stays unclear is
+    never sent again by itself either
   - reads that fail ("Abruf fehlgeschlagen") or leave a total incomplete
     ("unvollständig"; the Gesamtsaldo is never a partial sum)
   - Namensabgleich results (Match, Close Match, No Match, Not Applicable),
@@ -138,10 +179,16 @@ The owner sees the position as the combination of three claims (confirmed
 
 - Finanzübersicht: Konten und Karten, Gesamtsaldo, Monatsbilanz, Demnächst
   fällig
+- several banks in one view ("Weitere Bank anmelden"): accounts grouped by
+  bank, one Gesamtsaldo, transfers through the account's own bank
 - Kontoverlauf, checked against the bank's balances
 - Umsätze: search, filters, detail drawer
-- automatic, correctable categories
+- notes on bookings: written in the drawer, marked on the row, found by the
+  search, in the CSV, never on paper
+- automatic, correctable categories, and a Kategorie-Check of how they fare
+  with the user's bookings (on the machine only)
 - Umsatzanalyse
+- Monatsbudgets per spending category, compared with the month on view
 - Verträge & Abos
 - CSV and PDF export
 - Vorgemerkte Umsätze (HKVMK on request, or sent with the Umsätze as
@@ -153,10 +200,24 @@ The owner sees the position as the combination of three claims (confirmed
   logout; an order is written there as unclear the moment the bank holds it
   for approval
 - Namensabgleich (HKVPP/HKVPA)
+- Terminüberweisung (HKCSE) and Dauerauftrag (HKCDE) from the transfer
+  sheet's "Termin", within the dates, rhythms and days the bank's parameters
+  allow; the bank's own Daueraufträge and Terminüberweisungen (HKCDB/HKCSB)
+  under Verträge & Abos, read on request, each deletable (HKCDL/HKCSL).
+  Built from the specification and open implementations, **not yet tried
+  against a real bank** (lib/fints-orders.ts lists what is unverified).
+  Changing an order is not offered: delete it and place it again. Placing one
+  is logged for the duplicate check with its kind and first date; a new
+  Dauerauftrag is compared with Daueraufträge only, a Terminüberweisung with
+  payments and other Terminüberweisungen, never with a Dauerauftrag
 - Geld anfordern (EPC QR)
 - the shop behind card payments
 - company logos via Brandfetch
 - Gerät merken and the encrypted personal-data vault
+- Umsätze auf diesem Rechner behalten: booked Umsätze (never Vorgemerkte)
+  kept per login, encrypted with the PIN beside the vault, with the days the
+  bank delivered and the balances that prove them; "Alles Gespeicherte" in the
+  Zeitraum menu, and fewer approvals for longer periods
 - Beträge ausblenden and auto-logout
 - Mitteilungen
 - command palette (Strg+K) and keyboard shortcuts
@@ -166,6 +227,10 @@ The owner sees the position as the combination of three claims (confirmed
 
 **Constraints:**
 
+- Accounts are identified by their account number. A further bank that
+  lists another account under a number already shown is refused as a whole,
+  with a message; the same account seen by two logins (same IBAN) is shown
+  once.
 - Features depend on the bank and the account (BPD/UPD). Transfers,
   Echtzeit, pending entries and Namensabgleich appear only where the bank
   supports them.
@@ -189,6 +254,8 @@ The owner sees the position as the combination of three claims (confirmed
 - Umsätze, Vorgemerkt, Buchungstag, Valuta
 - Verwendungszweck, Gläubiger-ID
 - Überweisung, Echtzeitüberweisung, Namensabgleich
+- Terminüberweisung, Dauerauftrag, Ausführung, Termin, Turnus,
+  Ausführungstag
 - Kontoauszug, Buchungsbeleg
 - Gerät vergessen
 - Freigabe for the approval; "TAN" only inside a method's name
@@ -197,6 +264,11 @@ Wherever the app shows a tidied counterparty name, it also shows the bank's
 raw name as "Name laut Bank" (owner's request).
 
 **Open decisions:**
+
+- **Umsätze auf diesem Rechner behalten** is off by default and chosen per
+  login (Claude's choice, from the brief). Owner to confirm the default — and
+  that, once older Umsätze are kept, the lists open on "Alles Gespeicherte"
+  after the login rather than on 90 days.
 
 - Automatic update checks are on by default. Claude chose that, and it is
   disclosed in the app and README. The owner has not decided whether checks
@@ -231,17 +303,38 @@ raw name as "Name laut Bank" (owner's request).
   the balance, or go back to the day's sum?
 - **Category share bar.** Keep Analyse's stacked share bar in rank colours,
   or drop it for single-hue row bars (a change to DESIGN.md's chart rule)?
-- **What "Beträge ausblenden" hides.** The Monatsbilanz split bar hides
-  today; Analyse's direction and comparison lines and the category shares do
-  not. All or none?
+- **What "Beträge ausblenden" hides.** The Monatsbilanz split bar and the
+  Monatsbudgets' bars hide today; Analyse's direction and comparison lines
+  and the category shares do not. All or none?
+- **Budgets.** Should a compact Monatsbudgets tile join the Übersicht's
+  summaries once a budget exists (left out for now, to keep the overview
+  uncluttered)? Should Vorgemerkte count against the running month's budget
+  (today they count once booked, as in the rest of the Analyse)?
 - **Gerät merken consent.** The device is remembered after login and the app
   says so beforehand. Is an explicit "Dieses Gerät merken" choice (and
   "Anmeldenamen merken") wanted?
 - **Terminology.** The app now says Kartensaldo, Kreditrahmen and
   Gesamtsaldo. Add them to the list above?
-- **Optional extras** proposed during the fix pass: a "Drucken / als PDF" for
-  a bank message, and a first-use toast for single-key shortcuts with
-  "Kürzel ausschalten".
+- **Several banks.** (1) "Bank entfernen" logs a linked bank out and
+  forgets it in the vault, but keeps its device registration (like a logout).
+  Should it forget the device too? (2) A remembered bank that is not logged in
+  keeps the Gesamtsaldo "unvollständig" (its accounts are not even listed).
+  Right, or should a total over the logged-in banks be shown, named as such?
+  (3) An account number shown twice is refused rather than keyed per bank —
+  enough, or are composite keys wanted? (4) A further bank's Umsätze are kept
+  when the first login keeps them, each in its own file; "Bank entfernen"
+  leaves that file on disk (like the device registration), and deleting the
+  saved data reaches only the banks logged in at that moment. Right?
+- **Daueraufträge (open points).** The bank's list closes Verträge & Abos —
+  keep it there, or give it a place of its own? A device remembered before
+  the feature keeps a BPD without the bank's rules for these orders; the app
+  then offers a narrower, safe choice. Should a login refresh the BPD once
+  instead (it touches the login, and the stored TAN methods must survive
+  it)? Should the list show an
+  order to one of your own accounts by its name ("Notgroschen") rather than
+  the holder's?
+- **Optional extras** proposed during the fix pass: a first-use toast for
+  single-key shortcuts with "Kürzel ausschalten".
 
 ## Brand Commitments
 

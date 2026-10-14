@@ -8,8 +8,12 @@
 //   Einstellungen — one row each: how soon that logout comes, the language,
 //     the appearance (phones), company logos, usage data, the app's updates
 //     (desktop) and the keyboard shortcuts;
-//   Auf diesem Rechner — whether the bank remembers this machine, and the
-//     encrypted store of personal data, each with its one action.
+//   Banken — with more than one bank in the view, each of them and where it
+//     stands (a linked one can be removed); with one, only the way to log in
+//     to another ("Weitere Bank anmelden", lib/linked-banks.ts);
+//   Auf diesem Rechner — whether the bank remembers this machine, the
+//     encrypted store of personal data, each with its one action, and the
+//     switch that keeps the Umsätze here (lib/history.ts).
 //
 // Kept short on purpose: a row says what a setting is, in a line or two;
 // what an action does in full is said by the dialog it opens ("Gerät
@@ -24,32 +28,77 @@
 // read (a countdown, a status) with a few real controls in between, and a
 // menu would announce every line as something to press.
 
-import { useId, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { AVATAR_IDS, OWN_PICTURE, type AvatarChoice } from '@/lib/avatars';
 import type { VaultData } from '@/lib/app-types';
 import { rich, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
+import { fmtDate, toLocalDate } from '@/lib/format';
 import { setThemePref } from '@/lib/theme';
-import { IDLE_MINUTE_CHOICES, useFints, type IdleMinutes } from '../FintsProvider';
+import { BankLogo } from '../BankLogo';
+import { IDLE_MINUTE_CHOICES, useFints, type BankEntry, type IdleMinutes } from '../FintsProvider';
+import { AndroidSettings } from '../android/AndroidSettings';
 import { useThemePref } from '../ThemeToggle';
 import { LanguageSegmented } from '../LanguageToggle';
 import { Money } from '../Money';
 import { updates } from '../updates/store';
 import { UpdateSessionRow } from '../updates/UpdateNotices';
 import {
-  AvatarGlyph, ChevronIcon, InfoIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, PencilIcon, ShieldIcon, SunIcon,
+  AvatarGlyph, ChevronIcon, InfoIcon, KeyboardIcon, LandmarkIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, PencilIcon,
+  PlusIcon, ShieldIcon, SunIcon,
 } from '../icons';
-import { Button, Checkbox, Dialog, Dot, Kbd, Popover, Segmented, Select, Switch, cx } from '../ui';
+import { Button, Checkbox, Dialog, Dot, Kbd, Overlay, Popover, Segmented, Select, Sheet, Switch, cx, type TriggerProps } from '../ui';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import { fmtCountdown, fmtSince, holderName, nameInitials, firstName, sessionHolder, useCountdown } from './session';
 import { useLookAtUnclear } from './actions';
 import { AvatarImageError, avatarFromFile } from './avatar-image';
 
+/**
+ * Where the Sitzung panel opens: a popover off the chip on the desktop and the
+ * website. In the Android app, Material's modal bottom sheet — a settings page
+ * in all but name, it takes the phone's width and goes with the back gesture.
+ */
+function SessionLayer({ label, trigger, footer, children }: {
+  label: string;
+  trigger: (props: TriggerProps, state: { open: boolean }) => ReactNode;
+  footer: (close: () => void) => ReactNode;
+  children: (close: () => void) => ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  if (!IS_ANDROID) {
+    return (
+      <Popover label={label} placement="bottom-end" className="w-[min(352px,calc(100vw-16px))]" footer={footer} trigger={trigger}>
+        {children}
+      </Popover>
+    );
+  }
+  const close = () => setOpen(false);
+  return (
+    <>
+      {trigger(
+        {
+          ref: () => {}, id, 'aria-haspopup': 'dialog', 'aria-expanded': open, 'aria-controls': undefined,
+          onClick: () => setOpen(true), onKeyDown: () => {},
+        },
+        { open },
+      )}
+      <Overlay open={open} onClose={close} label={label} align="bottom">
+        <Sheet onClose={close} footer={footer(close)}>{children(close)}</Sheet>
+      </Overlay>
+    </>
+  );
+}
+
 export function ProfileMenu() {
   const t = useT();
-  const { accounts, vault, vaultStatus, requestLogout, forgetDeviceOpen, setForgetDeviceOpen } = useFints();
+  const { accounts, vault, vaultStatus, requestLogout, forgetDeviceOpen, setForgetDeviceOpen, openAddBank } = useFints();
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmWipe, setConfirmWipe] = useState(false);
+  const [removing, setRemoving] = useState<BankEntry | null>(null);
+  const [confirmKeepOff, setConfirmKeepOff] = useState(false);
+  const [confirmHistoryReset, setConfirmHistoryReset] = useState(false);
   // The session's holder, as in the greeting — not the active account's.
   const holder = sessionHolder(accounts);
   const full = holderName(holder);
@@ -63,10 +112,8 @@ export function ProfileMenu() {
 
   return (
     <>
-      <Popover
+      <SessionLayer
         label={t.session.panel}
-        placement="bottom-end"
-        className="w-[min(352px,calc(100vw-16px))]"
         // The session's last word, always in view: the body scrolls, this does not.
         footer={(close) => (
           <Button
@@ -117,18 +164,37 @@ export function ProfileMenu() {
               close();
               setConfirmWipe(true);
             }}
+            onKeepOff={() => {
+              close();
+              setConfirmKeepOff(true);
+            }}
+            onHistoryReset={() => {
+              close();
+              setConfirmHistoryReset(true);
+            }}
             onShortcuts={close}
             onUpdates={() => {
               close();
               updates.openDialog();
             }}
+            onAddBank={() => {
+              close();
+              openAddBank();
+            }}
+            onRemoveBank={(entry) => {
+              close();
+              setRemoving(entry);
+            }}
           />
         )}
-      </Popover>
+      </SessionLayer>
       {/* Also opened by the "Gerät gemerkt" toast's action: one confirmation, whatever the way in. */}
       <ForgetDeviceDialog open={forgetDeviceOpen} onClose={() => setForgetDeviceOpen(false)} />
       <ResetVaultDialog open={confirmReset} onClose={() => setConfirmReset(false)} />
       <WipeVaultDialog open={confirmWipe} onClose={() => setConfirmWipe(false)} />
+      <RemoveBankDialog entry={removing} onClose={() => setRemoving(null)} />
+      <KeepOffDialog open={confirmKeepOff} onClose={() => setConfirmKeepOff(false)} />
+      <ResetHistoryDialog open={confirmHistoryReset} onClose={() => setConfirmHistoryReset(false)} />
       <LogoutConfirmDialog />
     </>
   );
@@ -218,21 +284,26 @@ function MachineIcon({ children, tone = 'quiet' }: { children: ReactNode; tone?:
 }
 
 function SessionPanel({
-  holder, initials, onForget, onReset, onWipe, onShortcuts, onUpdates,
+  holder, initials, onForget, onReset, onWipe, onKeepOff, onHistoryReset, onShortcuts, onUpdates, onAddBank, onRemoveBank,
 }: {
   holder: string;
   initials: string;
   onForget: () => void;
   onReset: () => void;
   onWipe: () => void;
+  onKeepOff: () => void;
+  onHistoryReset: () => void;
   onShortcuts: () => void;
   onUpdates: () => void;
+  onAddBank: () => void;
+  onRemoveBank: (entry: BankEntry) => void;
 }) {
   const t = useT();
   const {
     bank, sessionStartedAt, idleDeadline, idleMinutes, setIdleMinutes, deviceRemembered, setShortcutsOpen, vaultStatus,
     singleKeyShortcuts, vault, updateVault,
     meta, logoConsent, setLogoConsent,
+    banks, logoFiles,
   } = useFints();
   const left = useCountdown(idleDeadline);
   const pref = useThemePref();
@@ -309,6 +380,44 @@ function SessionPanel({
         ))}
       </p>
 
+      {banks.length > 1 ? (
+        <Group title={t.banks.group}>
+          {banks.map((b) => (
+            <MachineRow
+              key={b.key}
+              // One column for every mark, a wordmark scaled into it, so the names line up (as in the bank picker).
+              icon={(
+                <span className="grid w-[52px] shrink-0 place-items-center [&>span]:max-w-full">
+                  <BankLogo brand={b.bank.brand} size="sm" file={logoFiles[b.bank.brand]} />
+                </span>
+              )}
+              title={b.bank.name}
+              hint={bankHint(b, t)}
+              action={b.state !== 'primary' && (
+                <Button
+                  variant="tertiary"
+                  size="xs"
+                  className="-mr-2 shrink-0"
+                  aria-haspopup="dialog"
+                  aria-label={t.banks.removeNamed(b.bank.name)}
+                  onClick={() => onRemoveBank(b)}
+                >
+                  {t.banks.remove}
+                </Button>
+              )}
+            />
+          ))}
+          <Button variant="tertiary" size="xs" className="mt-2 -ml-3" iconLeft={<PlusIcon size={15} />} onClick={onAddBank}>
+            {t.banks.add}
+          </Button>
+        </Group>
+      ) : (
+        // One bank: nothing to list — only the way to another.
+        <Button variant="tertiary" size="xs" className="mt-1.5 -ml-3" iconLeft={<PlusIcon size={15} />} onClick={onAddBank}>
+          {t.banks.add}
+        </Button>
+      )}
+
       <Group title={t.session.settings}>
         <div className="mt-1.5">
           <SettingRow label={t.session.idle} htmlFor={idleId}>
@@ -331,8 +440,9 @@ function SessionPanel({
           </SettingRow>
         </div>
 
-        {/* On a phone the masthead has no room for Darstellung; it lives here. */}
-        <div className="mt-2 sm:hidden">
+        {/* On a phone the masthead has no room for Darstellung; it lives here.
+            The Android app has none: it follows the phone's light and dark. */}
+        {!IS_ANDROID && <div className="mt-2 sm:hidden">
           <p aria-hidden className="mb-2 text-[14px] leading-snug text-ink">{t.common.theme.label}</p>
           <Segmented
             aria-label={t.common.theme.label}
@@ -346,7 +456,10 @@ function SessionPanel({
               { value: 'system', label: t.common.theme.system, icon: <MonitorIcon size={15} /> },
             ]}
           />
-        </div>
+        </div>}
+
+        {/* The Android app only: colours, fingerprint login, the category model. */}
+        <AndroidSettings />
 
         {/* The one lookup that carries anything from the bookings off this
             machine, so its switch says what goes out — in one line; the
@@ -450,6 +563,10 @@ function SessionPanel({
           />
         )}
 
+        {/* The choice lives in the vault, so it is offered only while the
+            vault can be written. Off is the default (owner to confirm). */}
+        {vaultStatus === 'ready' && <KeepRow onOff={onKeepOff} onReset={onHistoryReset} />}
+
         {/* Said once, quietly: there is nothing the user can do about it here. */}
         {vaultStatus === 'unavailable' && (
           <p className="mt-3 flex items-start gap-2.5 text-[13px] leading-snug text-ink-3">
@@ -459,6 +576,139 @@ function SessionPanel({
         )}
       </Group>
     </>
+  );
+}
+
+/** Where a bank of the view stands, in the panel's one-line hint. */
+function bankHint(b: BankEntry, t: ReturnType<typeof useT>): string {
+  if (b.state === 'primary') return t.banks.state.primary;
+  if (b.state === 'loggedOut') return t.banks.state.loggedOut;
+  if (b.state === 'remembered') return t.banks.state.remembered;
+  return b.deviceRemembered ? `${t.banks.state.active} · ${t.shell.instituteBar.device}` : t.banks.state.active;
+}
+
+/**
+ * "Umsätze auf diesem Rechner behalten": a switch with one line under it —
+ * what it does while off, since when Umsätze are kept while on, and why
+ * nothing is added while the kept file does not open with this PIN (with the
+ * way to start over). Switching off asks first (KeepOffDialog): it deletes.
+ */
+function KeepRow({ onOff, onReset }: { onOff: () => void; onReset: () => void }) {
+  const t = useT();
+  const { keepBookings, historyStatus, historyCoverage, setKeepBookings } = useFints();
+  const [busy, setBusy] = useState(false);
+  // The oldest day kept for any account of this login.
+  const oldest = useMemo(() => {
+    let day = '';
+    for (const spans of Object.values(historyCoverage)) {
+      const first = spans[0]?.from;
+      if (first && (!day || first < day)) day = first;
+    }
+    return day;
+  }, [historyCoverage]);
+  const hint = !keepBookings ? t.history.keepHint
+    : historyStatus === 'error' ? t.history.unreadable
+      : historyStatus === 'unavailable' ? t.history.unavailable
+        : historyStatus === 'loading' ? t.history.loading
+          : oldest ? t.history.keptSince(fmtDate(toLocalDate(oldest))) : t.history.keepHint;
+  const turnOn = async () => {
+    setBusy(true);
+    try {
+      await setKeepBookings(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-3">
+      <Switch
+        checked={keepBookings}
+        disabled={busy}
+        onChange={(on) => (on ? void turnOn() : onOff())}
+        label={t.history.keep}
+        description={hint}
+      />
+      {keepBookings && historyStatus === 'error' && (
+        <Button variant="tertiary" size="xs" className="mt-0.5 -ml-3.5" aria-haspopup="dialog" onClick={onReset}>
+          {t.history.startOver}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Switching "Umsätze auf diesem Rechner behalten" off deletes what is kept,
+ * every backup with it — said here, before it is done, with the safe button
+ * focused and the deletion in red (The Safe Choice Rule).
+ */
+function KeepOffDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
+  const { setKeepBookings } = useFints();
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      // Reports its own outcome as a toast, success or failure.
+      await setKeepBookings(false);
+    } finally {
+      setBusy(false);
+      onClose();
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onClose={busy ? undefined : onClose}
+      title={t.history.offDialog.title}
+      icon={<LockIcon size={20} />}
+      description={t.history.offDialog.description}
+      actions={
+        <>
+          <Button variant="secondary" data-autofocus onClick={onClose} disabled={busy}>{t.common.cancel}</Button>
+          <Button variant="danger" busy={busy} onClick={() => void run()}>{t.history.offDialog.confirm}</Button>
+        </>
+      }
+    >
+      {/* Indented to the title's edge, under the header's pictogram. */}
+      <p className="pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.history.offDialog.body}</p>
+    </Dialog>
+  );
+}
+
+/**
+ * The way out of a kept file this PIN cannot open. Nothing is deleted: the
+ * server sets the old file aside — its bookings may be gone at the bank — and
+ * begins a new one.
+ */
+function ResetHistoryDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
+  const { resetHistory } = useFints();
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      // Reports its own outcome as a toast, success or failure.
+      await resetHistory();
+    } finally {
+      setBusy(false);
+      onClose();
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onClose={busy ? undefined : onClose}
+      title={t.history.resetDialog.title}
+      icon={<LockIcon size={20} />}
+      description={t.history.resetDialog.description}
+      actions={
+        <>
+          <Button variant="secondary" data-autofocus onClick={onClose} disabled={busy}>{t.common.cancel}</Button>
+          <Button variant="primary" busy={busy} onClick={() => void run()}>{t.history.resetDialog.confirm}</Button>
+        </>
+      }
+    />
   );
 }
 
@@ -752,6 +1002,43 @@ function ResetVaultDialog({ open, onClose }: { open: boolean; onClose: () => voi
     >
       {/* Indented to the title's edge, under the header's pictogram. */}
       <p className="pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.session.resetDialog.body}</p>
+    </Dialog>
+  );
+}
+
+/**
+ * "Bank entfernen": a linked bank leaves the view and is forgotten by the
+ * primary login's store (BLZ, name, login name) — logged out first, if it is
+ * logged in. Nothing changes at the bank, and its remembered device stays.
+ */
+function RemoveBankDialog({ entry, onClose }: { entry: BankEntry | null; onClose: () => void }) {
+  const t = useT();
+  const { removeBank } = useFints();
+  const words = t.banks.removeDialog;
+  return (
+    <Dialog
+      open={!!entry}
+      onClose={onClose}
+      title={words.title}
+      icon={<LandmarkIcon size={20} />}
+      description={entry ? words.description(entry.bank.name) : undefined}
+      actions={
+        <>
+          <Button variant="secondary" data-autofocus onClick={onClose}>{t.common.cancel}</Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              if (entry) removeBank(entry);
+              onClose();
+            }}
+          >
+            {words.confirm}
+          </Button>
+        </>
+      }
+    >
+      {/* Indented to the title's edge, under the header's pictogram. */}
+      <p className="pl-[54px] text-[14px] leading-relaxed text-ink-2">{words.body}</p>
     </Dialog>
   );
 }

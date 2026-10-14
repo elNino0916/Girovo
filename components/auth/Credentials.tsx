@@ -15,10 +15,11 @@ import { APPROVAL_APP } from '@/lib/brands';
 import type { MetaResponse } from '@/lib/fints-types';
 import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { BankAnswerAlert } from '../BankAnswer';
 import { BankLogo } from '../BankLogo';
 import type { ChosenBank } from '../FintsProvider';
-import { AlertTriangleIcon, EyeIcon, EyeOffIcon, PhoneIcon, ShieldIcon } from '../icons';
+import { AlertTriangleIcon, EyeIcon, EyeOffIcon, FingerprintIcon, PhoneIcon, ShieldIcon } from '../icons';
 import { Alert, Button, Field, IconButton, Input } from '../ui';
 import { PrivacyNote } from './AuthShell';
 import { LoginHelp } from './LoginHelp';
@@ -55,7 +56,7 @@ const GENERIC_SECRET = 'pin';
 const CANCEL_AFTER_MS = 8000;
 
 export function Credentials({
-  bank, logoFile, meta, onChange, onSubmit, onCancel,
+  bank, logoFile, meta, onChange, onSubmit, onCancel, initialLogin, initialError,
 }: {
   bank: ChosenBank;
   logoFile?: string;
@@ -64,17 +65,21 @@ export function Credentials({
   onSubmit: (bank: ChosenBank, userId: string, pin: string) => Promise<void>;
   /** Calls off the login while the bank is being asked. */
   onCancel: () => void;
+  /** The login name to start with, before the one this machine remembers (a linked bank's). */
+  initialLogin?: string;
+  /** Why the last login with this form did not go through, when it was found out after the form had gone. */
+  initialError?: string | null;
 }) {
   const uid = useId();
   const tr = useT();
   const words = tr.auth.credentials;
-  const [login, setLogin] = useState(() => store.get(`fints.userId.${bank.blz}`) || '');
+  const [login, setLogin] = useState(() => initialLogin || store.get(`fints.userId.${bank.blz}`) || '');
   const [pin, setPin] = useState('');
   const [reveal, setReveal] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
   // The answer as it came from the server or the bank; '' for a failure that
   // came without words, which is said in the language on screen (words.failed).
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
   // Which field is missing; what it says is the language's.
   const [fieldErrors, setFieldErrors] = useState<{ login?: boolean; pin?: boolean }>({});
   // Sticky for the visit: once the bank has turned the credentials down,
@@ -89,6 +94,10 @@ export function Credentials({
   // Bumped per cancelled attempt: focus goes back to the form.
   const [cancels, setCancels] = useState(0);
   const [remembered, setRemembered] = useState(false);
+  // Android: a fingerprint login is set up for this login name (mobile/bridges/biometric.ts).
+  const [fingerprint, setFingerprint] = useState(false);
+  const [fingerprintNotice, setFingerprintNotice] = useState<string | null>(null);
+  const fingerprintAsked = useRef(false);
   const pinRef = useRef<HTMLInputElement>(null);
   const loginRef = useRef<HTMLInputElement>(null);
 
@@ -143,6 +152,45 @@ export function Credentials({
 
   const secret = words.secrets[SECRET[bank.brand] ?? GENERIC_SECRET];
 
+  /** One login with `secretValue`: typed, or opened with a fingerprint. */
+  const attempt = useCallback(async (secretValue: string, viaFingerprint: boolean) => {
+    setFieldErrors({});
+    setError(null);
+    setFingerprintNotice(null);
+    setCancelled(false);
+    setSubmitting(true);
+    // A PIN left readable on screen while the bank is being asked is a PIN
+    // left readable for whoever walks past during the wait.
+    setReveal(false);
+    try {
+      await onSubmit(bank, login.trim(), secretValue);
+      setPin('');
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') {
+        setCancelled(true);
+        setCancels((n) => n + 1);
+        return;
+      }
+      const message = (err as Error).message || '';
+      setError(message);
+      // A stored PIN the bank did not take is deleted at once: it is never
+      // tried a second time, because a few wrong tries lock the access. Only
+      // a bank that could not be reached says nothing about the PIN.
+      if (viaFingerprint && !isBankOutage(message)) {
+        void window.girovoMobile?.biometric.forget(bank.blz, login.trim());
+        setFingerprint(false);
+        setFingerprintNotice(tr.android.biometric.refused);
+      }
+      // A locked access is not one more wrong try: no lockout warning, and
+      // no PIN selected for another attempt — only the bank can help now.
+      if (formatBankAnswer(message).locked) return;
+      if (isCredentialAnswer(message)) setLockoutRisk(true);
+      setFailures((n) => n + 1);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [bank, login, onSubmit, tr]);
+
   const submit = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     if (submitting) return;
@@ -158,33 +206,55 @@ export function Credentials({
       pinRef.current?.focus();
       return;
     }
-    setFieldErrors({});
-    setError(null);
-    setCancelled(false);
-    setSubmitting(true);
-    // A PIN left readable on screen while the bank is being asked is a PIN
-    // left readable for whoever walks past during the wait.
-    setReveal(false);
-    try {
-      await onSubmit(bank, login.trim(), pin);
-      setPin('');
-    } catch (err) {
-      if ((err as Error)?.name === 'AbortError') {
-        setCancelled(true);
-        setCancels((n) => n + 1);
-        return;
-      }
-      const message = (err as Error).message || '';
-      setError(message);
-      // A locked access is not one more wrong try: no lockout warning, and
-      // no PIN selected for another attempt — only the bank can help now.
-      if (formatBankAnswer(message).locked) return;
-      if (isCredentialAnswer(message)) setLockoutRisk(true);
-      setFailures((n) => n + 1);
-    } finally {
-      setSubmitting(false);
+    await attempt(pin, false);
+  }, [login, pin, attempt, submitting]);
+
+  /** Android: the PIN from behind the fingerprint, then the same login as a typed one. */
+  const withFingerprint = useCallback(async () => {
+    const mobile = window.girovoMobile;
+    const name = login.trim();
+    if (!mobile || submitting || !name) return;
+    const bio = tr.android.biometric;
+    const opened = await mobile.biometric.unlock(bank.blz, name, {
+      title: bio.unlockTitle,
+      subtitle: bio.unlockSubtitle(bank.name),
+      cancel: bio.usePin,
+    });
+    if (opened.result === 'unlocked' && opened.pin) {
+      await attempt(opened.pin, true);
+      return;
     }
-  }, [bank, login, pin, onSubmit, submitting]);
+    if (opened.result === 'invalidated' || opened.result === 'missing') {
+      setFingerprint(false);
+      if (opened.result === 'invalidated') setFingerprintNotice(bio.invalidated);
+    }
+    pinRef.current?.focus();
+  }, [bank, login, submitting, attempt, tr]);
+
+  // Android: whether this login name has a fingerprint login, and if so the
+  // fingerprint is asked for once, straight away, as a bank's own app does.
+  useEffect(() => {
+    const mobile = IS_ANDROID ? window.girovoMobile : undefined;
+    const name = login.trim();
+    if (!mobile || !name) {
+      setFingerprint(false);
+      return;
+    }
+    let current = true;
+    void mobile.biometric.enrolled(bank.blz, name).then((on) => {
+      if (!current) return;
+      setFingerprint(on);
+      if (on && !fingerprintAsked.current && !initialError) {
+        fingerprintAsked.current = true;
+        void withFingerprint();
+      }
+    });
+    return () => {
+      current = false;
+    };
+    // Per bank and login name; withFingerprint is current when it runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bank.blz, login]);
 
   const trackCapsLock = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     // getModifierState is the only way to know without a keypress of the
@@ -352,9 +422,26 @@ export function Credentials({
           </BankAnswerAlert>
         )}
 
+        {fingerprintNotice && !submitting && (
+          <Alert tone="info" className="mt-4" role="status">{fingerprintNotice}</Alert>
+        )}
+
         <Button type="submit" variant="primary" size="lg" block busy={submitting} className="mt-6">
           {submitting ? tr.auth.connecting : words.title}
         </Button>
+
+        {fingerprint && !submitting && (
+          <Button
+            variant="secondary"
+            size="lg"
+            block
+            className="mt-3"
+            iconLeft={<FingerprintIcon size={20} />}
+            onClick={() => void withFingerprint()}
+          >
+            {tr.android.biometric.loginButton}
+          </Button>
+        )}
 
         {/* A bank that does not answer must not hold the form — or the PIN
             on the server — for minutes: after a while the login can be

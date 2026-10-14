@@ -31,8 +31,24 @@ const de = {
     /** A development build without its server: for whoever builds the app. */
     serverMissing: (entry) => `Der gebaute Server fehlt (${entry}).\n\nFühre zuerst "npm run electron:build" aus.`,
     serverExited: (code) => `Der Server wurde unerwartet beendet (Code ${code}).`,
+    /** A fault in the app itself (an uncaught exception); its message, as JavaScript wrote it, follows. */
+    crashed: (message) => `Ein unerwarteter Fehler in Girovo selbst:\n\n${message}`,
     /** The title when the server stopped while the app was running; serverExited is its text. */
     closed: 'Girovo musste beendet werden',
+  },
+  /** The window shown while the app starts (electron/splash.cjs). */
+  splash: {
+    title: 'Girovo wird gestartet',
+    /** The steps, in their order; finishing only after an update. */
+    steps: {
+      finishing: 'Aktualisierung abschließen',
+      preparing: 'Girovo vorbereiten',
+      opening: 'Fenster öffnen',
+    },
+    version: (version) => `Version ${version}`,
+    portable: 'portabel',
+    /** After a while without the window: why it can take longer, without blaming anything. */
+    slow: 'Das dauert länger als sonst. Nach einer Aktualisierung oder einem Neustart des Computers braucht der erste Start oft mehr Zeit.',
   },
   /** The application menu, with the access keys Windows underlines. */
   menu: {
@@ -100,7 +116,19 @@ const en = {
     serverTimeout: 'The server did not answer in time.',
     serverMissing: (entry) => `The built server is missing (${entry}).\n\nRun "npm run electron:build" first.`,
     serverExited: (code) => `The server stopped unexpectedly (code ${code}).`,
+    crashed: (message) => `An unexpected error in Girovo itself:\n\n${message}`,
     closed: 'Girovo had to close',
+  },
+  splash: {
+    title: 'Starting Girovo',
+    steps: {
+      finishing: 'Finish the update',
+      preparing: 'Get Girovo ready',
+      opening: 'Open the window',
+    },
+    version: (version) => `Version ${version}`,
+    portable: 'portable',
+    slow: 'This is taking longer than usual. The first start after an update or after restarting the computer often takes more time.',
   },
   menu: {
     file: '&File',

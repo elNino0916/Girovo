@@ -17,6 +17,7 @@
 //                  &fail=1                    every statement load and balance enquiry fails
 //                  &toasts=1                  one toast of each tone
 //                  &unclear=1                 this session's log holds a "Status unklar" transfer
+//                  &second=linked|loggedOut|remembered   a second bank in the view (Weitere Bank anmelden)
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
 //                  &updateDialog=1            …with its dialog open
 //                  &y=800                     scroll the page there once loaded
@@ -43,9 +44,9 @@ import { PENDING_PANEL_ID } from '@/components/transactions/PendingPanel';
 import { Toasts } from '@/components/Toasts';
 import { UpdateLayer } from '@/components/updates/UpdateNotices';
 import { txKey } from '@/lib/categories';
-import { presetRange } from '@/lib/format';
+import { addDaysKey, isoDate, presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
-import { ACCT, MOCK_PAYEES } from './data';
+import { ACCT, MOCK_PAYEES, SECOND_BANK } from './data';
 import { MockFintsProvider, type MockOptions, type MockPreset } from './mock';
 import { PrintPreview, type PrintPreviewKind } from './print';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
@@ -70,7 +71,7 @@ type Script = (c: Ctx) => Promise<void> | void;
 
 type ViewDef = {
   label: string;
-  group: 'Dashboard' | 'Anmeldung' | 'Überweisung' | 'Dialoge' | 'Updates' | 'Dokumente';
+  group: 'Dashboard' | 'Anmeldung' | 'Überweisung' | 'Dialoge' | 'Banken' | 'Updates' | 'Dokumente';
   preset?: MockPreset;
   options?: MockOptions;
   /** The desktop updater this view shows (a fake, ./updater.ts), and whether its dialog is open. */
@@ -136,7 +137,13 @@ const loginAs = (name: string, waitMs?: number): Script => async (c) => {
 };
 
 /** On the review step: the primary action that sends the order ("Trotzdem überweisen" after a duplicate hint). */
-const SUBMIT = /(freigeben|senden|ausführen|jetzt überweisen|trotzdem überweisen|^überweisen$|überweisung absenden)/i;
+const SUBMIT = /(freigeben|senden|ausführen|jetzt überweisen|trotzdem überweisen|^überweisen$|überweisung absenden|dauerauftrag einrichten|terminüberweisung anlegen|trotzdem einrichten|trotzdem anlegen)/i;
+
+/** The transfer sheet's "Termin": "An einem Datum" or "Regelmäßig", as a person picks it. */
+const pickWhen = (label: RegExp): Script => async (c) => {
+  await c.click(label, { within: 'dialog' });
+  await c.sleep(150);
+};
 
 /**
  * Review, then send — the order goes to the (simulated) bank. Returns once the
@@ -157,12 +164,40 @@ async function completeOrder(c: Ctx) {
   await c.sleep(300);
 }
 
+/**
+ * "Weitere Bank anmelden" with the second bank chosen, its login name filled
+ * in, as the offer after a login opens it — then "Anmelden" with `name`.
+ */
+const addSecondBank = (name: string): Script => async (c) => {
+  c.api().openAddBank({ bank: SECOND_BANK, userId: name });
+  await loginAs(name, 300)(c);
+};
+
 /** "Alle Salden abrufen", pressed the way a person presses it, until the last answer is in. */
 /** The Sitzung panel, opened from the masthead chip. */
 async function openSession(c: Ctx) {
   await c.click(/^Sitzung/, { within: 'page' });
   await c.poll(() => document.querySelector('[role="dialog"], [data-popover]'), 2000);
 }
+
+/** The Sitzung panel, scrolled to "Umsätze auf diesem Rechner behalten". */
+async function openSessionAtKeep(c: Ctx): Promise<HTMLElement | null> {
+  await openSession(c);
+  const label = await c.poll(
+    () => [...document.querySelectorAll<HTMLLabelElement>('label')].find((l) => /^Umsätze auf diesem Rechner/.test(l.textContent ?? '')),
+    3000,
+  );
+  label?.scrollIntoView({ block: 'center' });
+  await c.sleep(150);
+  return label ? document.getElementById(label.htmlFor) : null;
+}
+
+/**
+ * Where a 'saved' preview's kept part ends: the day before the bank's ninety
+ * days (lib/history.ts planFetch). The list narrowed to the fortnight around
+ * it shows the line that says where the kept Umsätze begin.
+ */
+const KEPT_EDGE = addDaysKey(isoDate(new Date()), -91);
 
 /** "Abmelden" in the Sitzung panel's footer. */
 async function pressLogout(c: Ctx) {
@@ -245,6 +280,25 @@ async function showCategorySection(c: Ctx) {
   await c.sleep(150);
 }
 
+/** In the open drawer: the section under `title` scrolled to the top (the note, the category). */
+async function showDrawerSection(c: Ctx, title: RegExp) {
+  const drawer = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].filter(visible).at(-1);
+  const heading = [...(drawer?.querySelectorAll<HTMLElement>('h3') ?? [])].find((h) => title.test(h.textContent?.trim() ?? ''));
+  heading?.closest('section')?.scrollIntoView({ block: 'start' });
+  await c.sleep(150);
+}
+
+/** Types into a textarea the way a person would, so React sees the change. */
+function typeIntoArea(el: HTMLTextAreaElement, text: string) {
+  el.focus();
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(el, text);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/** The current month and the one a 90-day range starts in (partial). */
+const THIS_MONTH = presetRange('90d').to.slice(0, 7);
+const FIRST_LOADED_MONTH = presetRange('90d').from.slice(0, 7);
+
 /** The Umsätze tile's Export menu, open — scrolled to, so the menu is in view. */
 async function openExportMenu(c: Ctx) {
   const trigger = await c.poll(() => findButton(/^Export$/, 'page', false), 6000);
@@ -272,7 +326,96 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Saldenabruf fehlgeschlagen', group: 'Dashboard', options: { fail: true }, script: fetchAllBalances,
   },
   analysis: { label: 'Analyse', group: 'Dashboard', options: { tab: 'analysis' } },
+  history: {
+    label: 'Gespeicherte Umsätze',
+    group: 'Dashboard',
+    // The list on "Alles Gespeicherte", narrowed to the days around where the
+    // kept part begins — the divider in view.
+    options: { history: 'saved', filter: { from: addDaysKey(KEPT_EDGE, -6), to: addDaysKey(KEPT_EDGE, 7) } },
+    script: showList,
+  },
+  'history-period': {
+    label: 'Zeitraum mit gespeicherten Umsätzen',
+    group: 'Dashboard',
+    options: { history: 'saved' },
+    async script(c) {
+      await showList(c);
+      const trigger = await c.poll(() => findButton(/^Zeitraum: /, 'page', false), 4000);
+      trigger?.click();
+      await c.poll(() => document.querySelector('[role="menu"]'), 3000);
+    },
+  },
+  'history-past': {
+    label: 'Vergangener Monat nur aus gespeicherten Umsätzen',
+    group: 'Dashboard',
+    options: { history: 'saved' },
+    // A month before the bank's free window, all kept: no bank call at all.
+    async script(c) {
+      const d = new Date();
+      const from = isoDate(new Date(d.getFullYear(), d.getMonth() - 6, 1));
+      const to = isoDate(new Date(d.getFullYear(), d.getMonth() - 5, 0));
+      c.api().applyRange({ from, to });
+      await c.until((f) => f.statementInfo[f.activeAccount?.accountNumber ?? '']?.from === from, 4000);
+    },
+  },
+  'history-analysis': { label: 'Analyse mit gespeicherten Umsätzen', group: 'Dashboard', options: { history: 'saved', tab: 'analysis' } },
+  'history-contracts': { label: 'Verträge mit gespeicherten Umsätzen', group: 'Dashboard', options: { history: 'saved', tab: 'contracts' } },
   contracts: { label: 'Verträge & Abos', group: 'Dashboard', options: { tab: 'contracts' } },
+  // Monatsbudgets: the last complete month (the Analyse's default), the
+  // running one, the one the 90 days start in (partial), the whole range.
+  'analysis-budgets': { label: 'Analyse: Budgets', group: 'Dashboard', options: { tab: 'analysis', budgets: true } },
+  'analysis-budgets-running': {
+    label: 'Budgets, laufender Monat', group: 'Dashboard', options: { tab: 'analysis', budgets: true, analysisPeriod: THIS_MONTH },
+  },
+  'analysis-budgets-partial': {
+    label: 'Budgets, Monat nicht ganz geladen', group: 'Dashboard',
+    options: { tab: 'analysis', budgets: true, analysisPeriod: FIRST_LOADED_MONTH },
+  },
+  'analysis-budgets-range': {
+    label: 'Budgets, gesamter Zeitraum', group: 'Dashboard', options: { tab: 'analysis', budgets: true, analysisPeriod: 'all' },
+  },
+  'budgets-dialog': {
+    label: 'Budgets bearbeiten', group: 'Dialoge', options: { tab: 'analysis', budgets: true },
+    script: async (c) => {
+      await c.click(/^(Monatsbudgets bearbeiten|Edit monthly budgets)$/);
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+    },
+  },
+  'budgets-set': {
+    label: 'Budgets festlegen (noch keine)', group: 'Dialoge', options: { tab: 'analysis' },
+    script: async (c) => {
+      await c.click(/^(Budgets festlegen|Set budgets)$/);
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+    },
+  },
+  // The Kategorie-Check over the whole range, with a rule, a booking refiled
+  // by hand and notes in the vault.
+  'category-check': {
+    label: 'Kategorie-Check', group: 'Dashboard', options: { tab: 'analysis', personal: true, analysisPeriod: 'all' },
+    script: async (c) => {
+      await c.click(/^(Kategorie-Check|Category check)$/);
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+    },
+  },
+  'overview-notes': { label: 'Umsätze mit Notizen', group: 'Dashboard', options: { personal: true } },
+  // A note found by the search, then read in its drawer.
+  'detail-note': {
+    label: 'Umsatzdetails mit Notiz', group: 'Dashboard', options: { personal: true, query: 'Grillfest' },
+    async script(c) {
+      await openFirstRow(c);
+      await showDrawerSection(c, /^(Notiz|Note)$/);
+    },
+  },
+  'detail-note-edit': {
+    label: 'Notiz schreiben', group: 'Dashboard',
+    async script(c) {
+      await openFirstRow(c);
+      await c.click(/^(Notiz hinzufügen|Add note)$/, { within: 'dialog' });
+      const area = await c.poll(() => document.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea'), 3000);
+      if (area) typeIntoArea(area, 'Für die Steuererklärung aufheben');
+      await showDrawerSection(c, /^(Notiz|Note)$/);
+    },
+  },
   empty: { label: 'Ohne Umsätze', group: 'Dashboard', preset: 'empty' },
   detail: {
     label: 'Umsatzdetails',
@@ -327,6 +470,29 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Sitzungsmenü',
     group: 'Dialoge',
     script: openSession,
+  },
+  'session-history': {
+    label: 'Sitzungsmenü: Umsätze behalten',
+    group: 'Dialoge',
+    options: { history: 'saved' },
+    async script(c) { await openSessionAtKeep(c); },
+  },
+  'session-history-unreadable': {
+    label: 'Sitzungsmenü: gespeicherte Umsätze nicht lesbar',
+    group: 'Dialoge',
+    options: { history: 'unreadable' },
+    async script(c) { await openSessionAtKeep(c); },
+  },
+  'history-off': {
+    label: 'Gespeicherte Umsätze löschen?',
+    group: 'Dialoge',
+    options: { history: 'saved' },
+    // Switching it off asks first: it deletes what is kept.
+    async script(c) {
+      const sw = await openSessionAtKeep(c);
+      sw?.click();
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"] h2')].find((h) => /Umsätze löschen/.test(h.textContent ?? '')), 3000);
+    },
   },
   'logout-notice': {
     label: 'Abgemeldet (Hinweis)',
@@ -552,6 +718,85 @@ const VIEWS: Record<string, ViewDef> = {
     },
   },
   share: { label: 'Geld anfordern', group: 'Dialoge', options: { open: 'share' } },
+
+  // More than one bank in one view (Weitere Bank anmelden).
+  banks: { label: 'Zwei Banken', group: 'Banken', options: { secondBank: 'linked' } },
+  'banks-account': {
+    label: 'Zwei Banken, Konto der zweiten', group: 'Banken', options: { secondBank: 'linked', account: ACCT.spk },
+  },
+  'banks-remembered': {
+    label: 'Zweite Bank gemerkt (Angebot)', group: 'Banken', options: { secondBank: 'remembered' },
+  },
+  'banks-logged-out': {
+    label: 'Zweite Bank abgemeldet', group: 'Banken', options: { secondBank: 'loggedOut' },
+  },
+  'banks-add': {
+    label: 'Weitere Bank: Bank wählen',
+    group: 'Banken',
+    async script(c) {
+      c.api().openAddBank();
+      await c.poll(() => document.querySelector('[role="dialog"] input[role="combobox"]'), 4000);
+    },
+  },
+  'banks-add-credentials': {
+    label: 'Weitere Bank: Zugangsdaten',
+    group: 'Banken',
+    options: { secondBank: 'remembered' },
+    // "Auch bei … anmelden" from the account list: the login name is there already.
+    async script(c) {
+      await c.click(/^Auch bei /, { within: 'page' });
+      await c.poll(() => document.querySelector('[role="dialog"] input[autocomplete="current-password"]'), 4000);
+    },
+  },
+  'banks-add-approval': {
+    label: 'Weitere Bank: Freigabe',
+    group: 'Banken',
+    options: { tan: 'hold' },
+    async script(c) {
+      await addSecondBank('nino.b')(c);
+      await c.until((f) => f.wait.open, 6000);
+    },
+  },
+  'banks-added': {
+    label: 'Weitere Bank: angemeldet',
+    group: 'Banken',
+    options: { tanMs: 600 },
+    async script(c) {
+      await addSecondBank('nino.b')(c);
+      await c.until((f) => f.links.length === 1 && !f.addBank, 8000);
+      await c.until((f) => !f.busy && !f.wait.open, 6000);
+    },
+  },
+  'banks-collision': {
+    label: 'Weitere Bank: Kontonummer doppelt',
+    group: 'Banken',
+    // "doppelt" in the login name: the bank lists an account under the Girokonto's number.
+    options: { tanMs: 600 },
+    async script(c) {
+      await addSecondBank('doppelt')(c);
+      await c.until((f) => !!f.addBank?.error, 8000);
+    },
+  },
+  'banks-session': { label: 'Sitzungsmenü mit zwei Banken', group: 'Banken', options: { secondBank: 'linked' }, script: openSession },
+  'banks-remove': {
+    label: 'Bank entfernen',
+    group: 'Banken',
+    options: { secondBank: 'linked' },
+    async script(c) {
+      await openSession(c);
+      await c.click(/entfernen/i, { within: 'dialog' });
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"] h2')].find((h) => /Bank entfernen/.test(h.textContent ?? '')), 3000);
+    },
+  },
+  'banks-inbox': { label: 'Mitteilungen von zwei Banken', group: 'Banken', options: { secondBank: 'linked', open: 'inbox' } },
+  'banks-transfer': {
+    label: 'Überweisung, Konten zweier Banken', group: 'Banken', options: { secondBank: 'linked', open: 'transfer' },
+  },
+  'banks-analysis': {
+    label: 'Analyse aller Konten, zwei Banken',
+    group: 'Banken',
+    options: { secondBank: 'linked', tab: 'analysis', analysisScope: 'all' },
+  },
   tanwait: {
     label: 'Freigabe (Umsatzabruf)',
     group: 'Dialoge',
@@ -777,6 +1022,105 @@ const VIEWS: Record<string, ViewDef> = {
     script: completeOrder,
   },
 
+  // Terminüberweisung and Dauerauftrag: the same sheet, with "Termin".
+  'transfer-dated': {
+    label: 'Termin: an einem Datum', group: 'Überweisung', options: transferWith(MOCK_PAYEES.lea), script: pickWhen(/^an einem datum$/i),
+  },
+  'transfer-standing': {
+    label: 'Termin: regelmäßig (Dauerauftrag)', group: 'Überweisung', options: transferWith(MOCK_PAYEES.lea), script: pickWhen(/^regelmäßig$/i),
+  },
+  'transfer-standing-review': {
+    label: 'Dauerauftrag prüfen',
+    group: 'Überweisung',
+    options: transferWith(MOCK_PAYEES.lea, {}, { amount: '50,00', purpose: 'Taschengeld' }),
+    async script(c) { await pickWhen(/^regelmäßig$/i)(c); await toReview(c); },
+  },
+  'transfer-dated-review': {
+    label: 'Terminüberweisung prüfen',
+    group: 'Überweisung',
+    options: transferWith(MOCK_PAYEES.lea),
+    async script(c) { await pickWhen(/^an einem datum$/i)(c); await toReview(c); },
+  },
+  'transfer-standing-duplicate': {
+    label: 'Dauerauftrag prüfen (besteht schon)',
+    group: 'Überweisung',
+    // The Girokonto's list was read: 850,00 € to the Hausverwaltung, monthly.
+    options: transferWith(
+      MOCK_PAYEES.landlord,
+      { ordersLoaded: true },
+      { amount: '850,00', purpose: 'Miete Wohnung 3. OG links' },
+    ),
+    async script(c) { await pickWhen(/^regelmäßig$/i)(c); await toReview(c); },
+  },
+  'tanwait-standing': {
+    label: 'Freigabe (Dauerauftrag)',
+    group: 'Überweisung',
+    options: transferWith(MOCK_PAYEES.lea, { tan: 'hold' }, { amount: '50,00', purpose: 'Taschengeld' }),
+    async script(c) { await pickWhen(/^regelmäßig$/i)(c); await sendOrder(c); },
+  },
+  'transfer-standing-done': {
+    label: 'Dauerauftrag eingerichtet',
+    group: 'Überweisung',
+    options: transferWith(MOCK_PAYEES.lea, { tanMs: 900 }, { amount: '50,00', purpose: 'Taschengeld' }),
+    async script(c) { await pickWhen(/^regelmäßig$/i)(c); await completeOrder(c); },
+  },
+  'transfer-dated-unknown': {
+    label: 'Terminüberweisung: Status unklar',
+    group: 'Überweisung',
+    options: transferWith({ name: 'Unklar GmbH', iban: MOCK_PAYEES.max.iban }, { tanMs: 900 }),
+    async script(c) { await pickWhen(/^an einem datum$/i)(c); await completeOrder(c); },
+  },
+  'transfer-no-orders': {
+    label: 'Ohne Termin (Bank bietet keinen)', group: 'Überweisung', options: transferWith(MOCK_PAYEES.lea, { noOrders: true }),
+  },
+  'contracts-orders': {
+    label: 'Daueraufträge bei der Bank',
+    group: 'Dashboard',
+    options: { tab: 'contracts', ordersLoaded: true },
+    async script(c) {
+      const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
+      tile?.scrollIntoView({ block: 'start' });
+      await c.sleep(150);
+    },
+  },
+  'contracts-orders-unread': {
+    label: 'Daueraufträge (nicht abgerufen)',
+    group: 'Dashboard',
+    options: { tab: 'contracts' },
+    async script(c) {
+      const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
+      tile?.scrollIntoView({ block: 'start' });
+      await c.sleep(150);
+    },
+  },
+  'order-delete': {
+    label: 'Dauerauftrag löschen?',
+    group: 'Dialoge',
+    options: { tab: 'contracts', ordersLoaded: true },
+    async script(c) {
+      const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
+      tile?.scrollIntoView({ block: 'start' });
+      await c.click(/^dauerauftrag an .+ löschen …$/i, { within: 'page' });
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 3000);
+    },
+  },
+  'order-deleted': {
+    label: 'Dauerauftrag gelöscht',
+    group: 'Dashboard',
+    options: { tab: 'contracts', ordersLoaded: true, tanMs: 900 },
+    async script(c) {
+      const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
+      tile?.scrollIntoView({ block: 'start' });
+      await c.click(/^dauerauftrag an .+ löschen …$/i, { within: 'page' });
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 3000);
+      await c.click(/^dauerauftrag löschen$/i, { within: 'dialog' });
+      await c.until((f) => f.wait.open, 3000);
+      await c.until((f) => !f.wait.open && !f.busy, 8000);
+      document.getElementById('bank-orders')?.scrollIntoView({ block: 'start' });
+      await c.sleep(300);
+    },
+  },
+
   // The printed documents, at A4 width (./print.tsx). The data situations
   // apply to them too: &preset=past-range|empty, &range=365d, &acct=karte.
   'print-statement': { label: 'Kontoauszug', group: 'Dokumente', print: 'statement', script: sheetShown },
@@ -795,6 +1139,9 @@ const VIEWS: Record<string, ViewDef> = {
   'print-receipt-card': { label: 'Beleg: Visa Debit', group: 'Dokumente', print: 'card', script: sheetShown },
   'print-receipt-ahead': { label: 'Beleg: noch nicht gebucht', group: 'Dokumente', print: 'ahead', script: sheetShown },
   'print-receipt-pending': { label: 'Beleg: vorgemerkt', group: 'Dokumente', print: 'pending', script: sheetShown },
+  'print-message': { label: 'Mitteilung der Bank', group: 'Dokumente', print: 'message', script: sheetShown },
+  'print-message-short': { label: 'Mitteilung, kurz', group: 'Dokumente', print: 'message-short', script: sheetShown },
+  'print-message-long': { label: 'Mitteilung über zwei Seiten', group: 'Dokumente', print: 'message-long', script: sheetShown },
 };
 
 /** A document view is ready once its sheet is sealed and on the page. */
@@ -877,7 +1224,8 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 const PRESETS: readonly MockPreset[] = ['default', 'empty', 'past-range', 'unverified', 'loading', 'error'];
 const RANGES = ['90d', '365d', 'all'] as const;
 const TANS = ['confirm', 'hold', 'ended', 'error', 'refused'] as const;
-const ACCOUNTS: Record<string, string> = { giro: ACCT.giro, tagesgeld: ACCT.tagesgeld, karte: ACCT.karte };
+const ACCOUNTS: Record<string, string> = { giro: ACCT.giro, tagesgeld: ACCT.tagesgeld, karte: ACCT.karte, spk: ACCT.spk };
+const SECONDS = ['linked', 'loggedOut', 'remembered'] as const;
 const LOGOS = ['unasked', 'on', 'off', 'unavailable'] as const;
 
 const noopSubscribe = () => () => {};
@@ -928,6 +1276,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
   const tanParam = one(params.tan) as (typeof TANS)[number];
   const account = ACCOUNTS[one(params.acct)];
   const logosParam = one(params.logos) as (typeof LOGOS)[number];
+  const secondParam = one(params.second) as (typeof SECONDS)[number];
   const options: MockOptions = {
     ...def.options,
     ...(RANGES.includes(rangeParam) ? { range: rangeParam } : {}),
@@ -938,6 +1287,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     ...(LOGOS.includes(logosParam) ? { logos: logosParam } : {}),
     ...(one(params.fail) === '1' ? { fail: true } : {}),
     ...(one(params.unclear) === '1' ? { unclear: true } : {}),
+    ...(SECONDS.includes(secondParam) ? { secondBank: secondParam } : {}),
   };
 
   const theme = one(params.theme);
@@ -1041,7 +1391,7 @@ function Driver({ setup, script }: { setup: Setup; script?: Script }) {
 
 // ---------------------------------------------------------------------------
 
-const GROUPS: ViewDef['group'][] = ['Dashboard', 'Anmeldung', 'Überweisung', 'Dialoge', 'Updates', 'Dokumente'];
+const GROUPS: ViewDef['group'][] = ['Dashboard', 'Anmeldung', 'Überweisung', 'Dialoge', 'Banken', 'Updates', 'Dokumente'];
 
 const PRESET_LABELS: Record<MockPreset, string> = {
   default: 'Standard',

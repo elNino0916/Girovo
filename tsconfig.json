@@ -34,7 +34,11 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next-android/types/**/*.ts",
+    ".next-android/dev/types/**/*.ts",
+    ".next-android-dev/types/**/*.ts",
+    ".next-android-dev/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

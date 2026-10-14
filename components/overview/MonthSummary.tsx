@@ -6,6 +6,7 @@ import type { PeriodTotals } from '@/lib/analytics';
 import { fmtMonth, fmtRange, isoDate, presetRange } from '@/lib/format';
 import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { comparisonSpan, type ComparisonSpan } from '@/lib/month-summary';
 import { useFints } from '../FintsProvider';
 import { Money, usePrivacy } from '../Money';
@@ -170,8 +171,8 @@ export function MonthSummary() {
 
       {/* The way on, as a full-width row at the foot of the tile — the same
           shape the other side tiles use, and it leaves the header to the
-          month and how far it goes. */}
-      <button
+          month and how far it goes. On Android the navigation bar is it. */}
+      {!IS_ANDROID && <button
         type="button"
         // The month this tile shows — the Analyse would otherwise open on the
         // last complete one (yyyy-mm; a month without bookings falls back there).
@@ -180,7 +181,7 @@ export function MonthSummary() {
       >
         {words.toAnalysis}
         <ChevronIcon dir="right" size={15} />
-      </button>
+      </button>}
     </section>
   );
 }
@@ -192,8 +193,9 @@ function Body({
   const privacy = usePrivacy();
   const t = useT();
 
+  // On Android only what changes how the figures read: what was left out.
   const facts = [
-    t.insights.count.bookings(totals.count),
+    !IS_ANDROID && t.insights.count.bookings(totals.count),
     totals.excluded > 0 && t.insights.without(t.insights.count.transfers(totals.excluded)),
     totals.otherCurrency > 0 && t.insights.monthSummary.withoutForeign(totals.otherCurrency),
   ]
@@ -250,9 +252,11 @@ function Body({
       )}
 
       {/* Wrapping between whole facts, with no dot left hanging at a line's end. */}
-      <p className="tnum mt-3 text-[12.5px] leading-snug text-ink-3">
-        <DotList items={basis.map((part, i) => (i === 0 ? t.insights.basis(part) : part))} />
-      </p>
+      {basis.length > 0 && (
+        <p className="tnum mt-3 text-[12.5px] leading-snug text-ink-3">
+          <DotList items={basis.map((part, i) => (i === 0 && !IS_ANDROID ? t.insights.basis(part) : part))} />
+        </p>
+      )}
     </div>
   );
 }

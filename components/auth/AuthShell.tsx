@@ -4,9 +4,14 @@
 // short navy stage band carrying the three-step progress, and the white tile
 // (or two) that overlaps the stage — the shape of a German bank's login page,
 // on the same tokens as the dashboard behind it.
+//
+// The Android app's login is an app's screen instead: the steps and the form
+// straight on the page, no band, no card around them, and no Darstellung —
+// the app follows the phone's light and dark.
 
 import type { CSSProperties, ReactNode } from 'react';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { ThemeToggle } from '../ThemeToggle';
 import { LanguageSwitch } from '../LanguageToggle';
@@ -49,10 +54,12 @@ export function AuthCard({
       <div data-scroll-root className="relative min-h-0 flex-1 overflow-y-auto">
         {/* A little lower on a short window (the desktop shell's 900×600
             minimum), so the form starts above the fold. */}
-        <div
-          aria-hidden
-          className="absolute inset-x-0 top-0 h-[132px] bg-stage sm:[@media(min-height:721px)]:h-[164px] sm:[@media(max-height:720px)]:h-[136px]"
-        />
+        {!IS_ANDROID && (
+          <div
+            aria-hidden
+            className="absolute inset-x-0 top-0 h-[132px] bg-stage sm:[@media(min-height:721px)]:h-[164px] sm:[@media(max-height:720px)]:h-[136px]"
+          />
+        )}
 
         <main
           className={cx(
@@ -63,7 +70,7 @@ export function AuthCard({
           {step && <StepIndicator current={step} />}
 
           <div className={cx('mt-5 sm:[@media(min-height:721px)]:mt-7', !!aside && 'lg:grid lg:grid-cols-[minmax(0,1fr)_316px] lg:items-start lg:gap-6')}>
-            <div className="panel px-5 pt-6 pb-6 sm:px-8 sm:pt-8 sm:pb-8">{children}</div>
+            <div className={IS_ANDROID ? 'pb-2' : 'panel px-5 pt-6 pb-6 sm:px-8 sm:pt-8 sm:pb-8'}>{children}</div>
             {aside && <div className="hidden lg:block">{aside}</div>}
           </div>
         </main>
@@ -84,6 +91,7 @@ function AuthMasthead() {
     // are the dashboard masthead's (1280px column, toggle clear of the OS
     // caption buttons), so the "€" mark is where the dashboard will put it.
     <header
+      data-topbar
       // A faint hairline: in light mode bar and stage are the same navy, and
       // the line is what says where the window's drag handle ends.
       className={cx(
@@ -101,7 +109,7 @@ function AuthMasthead() {
         <UpdateBarButton />
         {/* Before anything is typed: the bank search, the login and the approval read in it. */}
         <LanguageSwitch />
-        <ThemeToggle tone="bar" />
+        {!IS_ANDROID && <ThemeToggle tone="bar" />}
       </div>
     </header>
   );

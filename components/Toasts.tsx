@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { toastLifetime } from '@/lib/toast-time';
 import { useFints } from './FintsProvider';
 import type { Toast } from './FintsProvider';
@@ -103,6 +104,7 @@ export function Toasts() {
       {visible.length > 0 && (
         <section
           ref={stackRef}
+          data-toasts
           aria-label={tr.shell.toasts.region}
           className={cx(
             'pointer-events-none fixed inset-x-0 z-200 flex flex-col items-center gap-2 px-4',
@@ -119,9 +121,9 @@ export function Toasts() {
   );
 }
 
-/** What a screen reader hears: the message, and for a toast with a button, how to reach it. */
+/** What a screen reader hears: the message, and for a toast with a button, how to reach it (by key — not on a phone). */
 function spoken(t: Toast, tr: Messages): string {
-  return t.action ? `${t.message} ${tr.shell.toasts.reachAction(TOAST_KEY, t.action.label)}` : t.message;
+  return t.action && !IS_ANDROID ? `${t.message} ${tr.shell.toasts.reachAction(TOAST_KEY, t.action.label)}` : t.message;
 }
 
 /**

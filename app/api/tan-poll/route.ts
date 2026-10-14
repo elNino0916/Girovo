@@ -8,8 +8,10 @@ import {
   accountCurrency, accountsFor, balanceFromStatements, bankAnswerCodes, bankAnswerText, logResp, logStatementDates,
   serializeBalance, serializeNoted, serializeTransactions, statementBlocks,
 } from '@/lib/serialize';
+import { noteDelivery } from '@/lib/history-store';
 import { getSession, saveSessionProfile } from '@/lib/session';
 import { PENDING_SEG } from '@/lib/fints-pending';
+import { holdBankOrders, orderCaps } from '@/lib/fints-orders';
 import type { ClientResponseWithResult, TanPollResponse } from '@/lib/fints-types';
 import type { AccountBalanceResponse, StatementResponse } from 'lib-fints';
 
@@ -42,6 +44,8 @@ export const POST = wrap(async (req: Request) => {
         resp = await s.client.continueCustomerInteractionWithTan([PENDING_SEG], tanReference!);
         break;
       case 'transfer':
+      case 'bankOrders':
+      case 'orderDelete':
         resp = await s.client.continueCustomerInteractionWithTan([pending.segId], tanReference!);
         break;
       default:
@@ -96,14 +100,19 @@ export const POST = wrap(async (req: Request) => {
       balance: serializeBalance((resp as AccountBalanceResponse).balance),
     } satisfies TanPollResponse);
   }
-  if (type === 'statements') {
+  if (pending.type === 'statements') {
     const statements = (resp as StatementResponse).statements;
     logStatementDates(accountNumber!, statements);
+    const transactions = serializeTransactions(statements);
+    const blocks = statementBlocks(statements);
+    // As app/api/transactions: kept on this computer if the vault says so,
+    // for the days the approved request asked for.
+    noteDelivery(s, pending.accountNumber, pending.asked, transactions, blocks);
     return json({
       status: 'done', kind: 'statements', accountNumber,
-      transactions: serializeTransactions(statements),
+      transactions,
       balance: balanceFromStatements(statements),
-      blocks: statementBlocks(statements),
+      blocks,
       // The approval continued lib/fints-statements.ts' interaction, which
       // kept the Vormerkposten of this answer too.
       pending: serializeNoted(s, accountNumber!, resp.notedStatements),
@@ -114,6 +123,18 @@ export const POST = wrap(async (req: Request) => {
       status: 'done', kind: 'pending', accountNumber,
       pending: serializeTransactions(resp.pendingStatements, accountCurrency(s, accountNumber!)),
     } satisfies TanPollResponse);
+  }
+  if (pending.type === 'bankOrders') {
+    // The list interaction gathered every round of the approved read (lib/fints-orders.ts).
+    const caps = orderCaps(s.client.config, pending.accountNumber)[pending.kind];
+    const read = resp.bankOrders ?? { orders: [], complete: false, unreadable: 0 };
+    return json({
+      status: 'done', kind: 'bankOrders', accountNumber,
+      ...holdBankOrders(s, pending.accountNumber, pending.kind, read, !!caps?.remove),
+    } satisfies TanPollResponse);
+  }
+  if (pending.type === 'orderDelete') {
+    return json({ status: 'done', kind: 'orderDeleted', accountNumber, bankAnswers: bankAnswerText(resp) } satisfies TanPollResponse);
   }
   return json({
     status: 'done', kind: 'transfer', accountNumber,

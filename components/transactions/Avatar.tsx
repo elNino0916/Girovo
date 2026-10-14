@@ -6,13 +6,15 @@
 // Verträge rows. One look everywhere, so a contract and its bookings are
 // recognisably the same counterparty.
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { COMPACT_LOGO, DARK_INVERT, ON_DARK } from '@/lib/brands';
 import { isBankOwnBooking } from '@/lib/categorize';
+import { apiFetch } from '@/lib/client-api';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { initials } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { BankChip } from '../BankLogo';
 import { useFints, useLogoFile, useMerchant } from '../FintsProvider';
 import { cx } from '../ui';
@@ -42,6 +44,42 @@ const BADGE = {
 
 const logoSrc = (id: string) => `/api/merchant-logo?id=${encodeURIComponent(id)}`;
 
+/** Android: each logo once, as an object URL (null when there is none). */
+const phoneLogos = new Map<string, Promise<string | null>>();
+
+/**
+ * Where an <img> gets the logo `id`. On the desktop that is the route itself.
+ * In the Android app the route runs inside this page (mobile/server) and only
+ * a fetch reaches it, so the bytes are fetched and handed to the <img> as an
+ * object URL — undefined until they are in, `onFail` when there are none.
+ */
+function useLogoSrc(id: string, onFail: () => void): string | undefined {
+  const [phoneSrc, setPhoneSrc] = useState<{ id: string; url: string } | null>(null);
+  useEffect(() => {
+    if (!IS_ANDROID || !id) return;
+    let live = true;
+    let pending = phoneLogos.get(id);
+    if (!pending) {
+      pending = apiFetch(logoSrc(id))
+        .then((res) => (res.ok ? res.blob() : null))
+        .then((blob) => (blob ? URL.createObjectURL(blob) : null))
+        .catch(() => null);
+      phoneLogos.set(id, pending);
+    }
+    void pending.then((url) => {
+      if (!live) return;
+      if (url) setPhoneSrc({ id, url });
+      else onFail();
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+  if (!IS_ANDROID) return logoSrc(id);
+  return phoneSrc?.id === id ? phoneSrc.url : undefined;
+}
+
 /**
  * A ref for a logo <img> that catches the failure `onError` never hears of: a
  * mark server-rendered into the page can fail before hydration attaches the
@@ -69,6 +107,7 @@ function useEarlyFailure(onFail: () => void, key: string) {
 function ViaBadge({ via, size }: { via: NonNullable<Merchant['via']>; size: 'sm' | 'md' | 'lg' }) {
   const [broken, setBroken] = useState(false);
   const probe = useEarlyFailure(() => setBroken(true), via.logo);
+  const src = useLogoSrc(via.logo, () => setBroken(true));
   if (broken) return null;
   return (
     <span
@@ -77,8 +116,9 @@ function ViaBadge({ via, size }: { via: NonNullable<Merchant['via']>; size: 'sm'
         BADGE[size],
       )}
     >
+      {/* Only with a source: an <img> without one counts as a failed load to the probe. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img ref={probe} src={logoSrc(via.logo)} alt="" onError={() => setBroken(true)} className="max-h-full max-w-full object-contain" />
+      {src && <img ref={probe} src={src} alt="" onError={() => setBroken(true)} className="max-h-full max-w-full object-contain" />}
     </span>
   );
 }
@@ -138,7 +178,9 @@ const CHIP = {
  * monogram stays.
  */
 function BankOwnAvatar({ size, children }: { size: 'sm' | 'md' | 'lg'; children: ReactNode }) {
-  const { bank } = useFints();
+  // The bank of the account on screen — with more than one bank in the view, not always the first login's.
+  const { bank: primary, activeBank } = useFints();
+  const bank = activeBank?.bank ?? primary;
   const brand = bank?.brand ?? '';
   const file = useLogoFile(brand || undefined);
   const [broken, setBroken] = useState(false);
@@ -181,6 +223,7 @@ function AvatarFace({
   const [broken, setBroken] = useState<string | null>(null);
   const logo = merchant?.logo ?? '';
   const probe = useEarlyFailure(() => setBroken(logo), logo);
+  const logoUrl = useLogoSrc(logo, () => setBroken(logo));
   const size = SIZE[requested];
 
   if (merchant && broken !== merchant.logo) {
@@ -198,18 +241,20 @@ function AvatarFace({
             drawn for white backgrounds, and a navy wordmark would vanish on
             the dark surface. */}
         <span className={cx('flex items-center justify-center overflow-hidden border border-line bg-white', TILE[size])}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            ref={probe}
-            src={logoSrc(merchant.logo)}
-            alt=""
-            onError={() => setBroken(merchant.logo)}
-            // Bounded on both axes so a tall mark letterboxes instead of being
-            // cropped by the tile. Deliberately not `loading="lazy"`: an <img>
-            // that is 0×0 until it loads gets skipped by the lazy loader and then
-            // never loads at all.
-            className="max-h-full max-w-full object-contain"
-          />
+          {logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              ref={probe}
+              src={logoUrl}
+              alt=""
+              onError={() => setBroken(merchant.logo)}
+              // Bounded on both axes so a tall mark letterboxes instead of being
+              // cropped by the tile. Deliberately not `loading="lazy"`: an <img>
+              // that is 0×0 until it loads gets skipped by the lazy loader and then
+              // never loads at all.
+              className="max-h-full max-w-full object-contain"
+            />
+          )}
         </span>
 
         {merchant.via && <ViaBadge via={merchant.via} size={size} />}

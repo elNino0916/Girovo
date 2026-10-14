@@ -7,8 +7,12 @@
 
 import type { CategoryId } from './categories';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
+import type { SavedPart } from './history';
+import type { OrderSchedule } from './order-schedule';
 import type { SentOrder } from './sent-orders';
 import type { AvatarChoice } from './avatars';
+import type { Budgets } from './budgets';
+import type { LinkedBankRef } from './linked-banks';
 
 export type { CategoryId };
 
@@ -18,13 +22,24 @@ export type DashboardTab = 'overview' | 'analysis' | 'contracts';
 /** A date range as `<input type="date">` speaks it: local yyyy-mm-dd. */
 export type DateRange = { from: string; to: string };
 
-/** What was actually fetched for one account — never what a control shows. */
+/**
+ * What one account's list actually holds — never what a control shows: the
+ * bank's answer, and, with "Umsätze auf diesem Rechner behalten", the kept
+ * Umsätze before it (`saved`).
+ */
 export type StatementInfo = {
   from: string;
   to: string;
+  /** The bank's statement blocks of the answer the list holds (none when the bank was not asked). */
   blocks: StatementBlock[];
-  /** epoch ms */
+  /** epoch ms — when the bank answered, or the kept Umsätze were read for the list. */
   loadedAt: number;
+  /**
+   * The start of the list, `from` to `saved.to`, came from this computer
+   * (lib/history.ts historyView); absent when the list is the bank's answer
+   * alone.
+   */
+  saved?: SavedPart;
 };
 
 /** The Umsätze list's narrowing. Lives in the provider so other views can deep-link into it. */
@@ -77,6 +92,8 @@ export type InboxMessage = {
   /** ISO timestamp of when this session received it. */
   receivedAt: string;
   read: boolean;
+  /** The bank that sent it, as named at its login — shown once more than one bank is in the view. */
+  bank?: string;
 };
 
 /** Something this session did that the user may want to look back at. */
@@ -91,6 +108,8 @@ export type ActivityEntry = {
   iban: string;
   amount: number;
   instant: boolean;
+  /** A terminierte Überweisung or a Dauerauftrag: placed now, carried out later. */
+  schedule?: OrderSchedule;
   /** The bank's own answer text, when it gave one. */
   message?: string;
 };
@@ -132,7 +151,7 @@ export type TransferTemplate = {
 /**
  * Personal data that must survive a restart but must not sit in plaintext:
  * IBANs of people you pay, what you call your accounts, how you file your
- * bookings. Encrypted server-side with a key derived from the PIN (see
+ * bookings, what you budget and note. Encrypted server-side with a key derived from the PIN (see
  * lib/vault.ts) — so it only exists while you are logged in.
  */
 export type VaultData = {
@@ -146,12 +165,27 @@ export type VaultData = {
   txCategories: Record<string, CategoryId>;
   /** recurring-series ids the user said are not a contract. */
   dismissedRecurring: string[];
+  /** Spending category → the monthly budget in whole cents (lib/budgets.ts). */
+  budgets: Budgets;
+  /** txKey() → the user's own note on that booking, one line (lib/notes.ts). */
+  notes: Record<string, string>;
   /** Executed and unclear transfers of the last 14 days, for the duplicate check (lib/sent-orders.ts). */
   sentOrders: SentOrder[];
   /** What the profile chip shows (lib/avatars.ts): a line icon or 'own'; absent, the initials. */
   avatar?: AvatarChoice;
   /** The user's own picture, a small data URL — kept while another choice is shown, until removed. */
   avatarImage?: string;
+  /**
+   * Further banks shown beside this login's (lib/linked-banks.ts): BLZ, name
+   * and login name, so the next login can offer them again. Never a PIN.
+   * Absent while there are none.
+   */
+  linkedBanks?: LinkedBankRef[];
+  /**
+   * Keep this login's booked Umsätze on this computer (lib/history.ts), sealed
+   * with the PIN. Absent means off, the default; only `true` turns it on.
+   */
+  keepBookings?: true;
   /** ISO */
   updatedAt: string;
 };
@@ -163,6 +197,8 @@ export const EMPTY_VAULT: VaultData = {
   categoryRules: {},
   txCategories: {},
   dismissedRecurring: [],
+  budgets: {},
+  notes: {},
   sentOrders: [],
   updatedAt: new Date(0).toISOString(),
 };

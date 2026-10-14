@@ -12,7 +12,7 @@
 //
 // Everything from rung 3 down is a guess, and is labelled as one (source
 // 'auto') so the UI can say "automatisch erkannt" rather than pass it off as
-// fact. A wrong category is cheap to fix — one tap, or one rule for every
+// fact; explainGuess says which rung it was. A wrong category is cheap to fix — one tap, or one rule for every
 // booking with that counterparty — so rung 5 errs towards recognising things,
 // but never at the price of filing a private person as a shop: short or
 // ambiguous brand words only count in the counterparty's name, some only on
@@ -498,34 +498,52 @@ export function keywordCategory(
 // ---------------------------------------------------------------------------
 
 /**
- * The automatic guess alone — rungs 3 to 6, without the user's rules. Used
- * where a user decision must not leak in, such as telling a grocery card
- * payment from a subscription in the recurring-payment detection.
+ * Which rung decided an automatic guess:
+ *   own     — one of the user's own accounts, or the bank's own "Umbuchung" (rung 3)
+ *   code    — the booking code: cash, fees and interest, a salary (rung 4)
+ *   keyword — a known company or a telling word (rung 5)
+ *   model   — the on-device model, for what the keywords missed (rung 5)
+ *   none    — nothing matched: "Sonstige Eingänge" or "Sonstiges" (rung 6)
+ * The Kategorie-Check (lib/category-check.ts) counts by it.
  */
-export function guessCategory(
-  tx: SerializedTransaction,
-  ctx: Pick<CategorizeContext, 'merchantLabel' | 'modelGuesses'> & { ownIbans?: ReadonlySet<string> | readonly string[] | null } = {},
-): CategoryId {
-  if (isOwnAccount(tx.remoteIban, ctx.ownIbans)) return 'transfer';
+export type GuessBasis = 'own' | 'code' | 'keyword' | 'model' | 'none';
+export type CategoryGuess = { id: CategoryId; basis: GuessBasis };
+
+type GuessContext = Pick<CategorizeContext, 'merchantLabel' | 'modelGuesses'> & {
+  ownIbans?: ReadonlySet<string> | readonly string[] | null;
+};
+
+/** The automatic guess and the rung that decided it — guessCategory, explained. */
+export function explainGuess(tx: SerializedTransaction, ctx: GuessContext = {}): CategoryGuess {
+  if (isOwnAccount(tx.remoteIban, ctx.ownIbans)) return { id: 'transfer', basis: 'own' };
 
   const credit = Number(tx.amount) > 0;
   const kind = bookingKind(tx);
-  if (kind === 'bargeld') return 'cash';
-  if (kind === 'entgelt' || kind === 'zinsen') return 'fees';
-  if (kind === 'gehalt' && credit) return 'income';
+  if (kind === 'bargeld') return { id: 'cash', basis: 'code' };
+  if (kind === 'entgelt' || kind === 'zinsen') return { id: 'fees', basis: 'code' };
+  if (kind === 'gehalt' && credit) return { id: 'income', basis: 'code' };
   // "Umbuchung" is the banks' own word for moving money between one
   // customer's accounts — an own account this session just doesn't list.
-  if (/(^| )UMBUCHUNG/.test(foldText(tx.bookingText))) return 'transfer';
+  if (/(^| )UMBUCHUNG/.test(foldText(tx.bookingText))) return { id: 'transfer', basis: 'own' };
 
   const keyword = keywordCategory(tx, ctx.merchantLabel, kind);
-  if (keyword) return keyword;
+  if (keyword) return { id: keyword, basis: 'keyword' };
   // What the keywords missed, the on-device model may know — money going out
   // only (see lib/category-model.ts), and only a spending category.
   if (!credit && ctx.modelGuesses) {
     const guess = ctx.modelGuesses[counterpartyKey(tx)];
-    if (isCategoryId(guess) && categoryDef(guess).direction === 'out') return guess;
+    if (isCategoryId(guess) && categoryDef(guess).direction === 'out') return { id: guess, basis: 'model' };
   }
-  return credit ? 'otherIn' : 'other';
+  return { id: credit ? 'otherIn' : 'other', basis: 'none' };
+}
+
+/**
+ * The automatic guess alone — rungs 3 to 6, without the user's rules. Used
+ * where a user decision must not leak in, such as telling a grocery card
+ * payment from a subscription in the recurring-payment detection.
+ */
+export function guessCategory(tx: SerializedTransaction, ctx: GuessContext = {}): CategoryId {
+  return explainGuess(tx, ctx).id;
 }
 
 // A credit that is itself a refund or a reversal, in the payer's words. In

@@ -585,6 +585,12 @@ export type SearchContext = {
    * A word read on screen then finds its row.
    */
   shownText?: (tx: SerializedTransaction) => string;
+  /**
+   * The user's own note on a booking (lib/notes.ts), if any — a word from it
+   * finds the booking like a word of the bank's text. A context is cached per
+   * object: hand over a new one when a note changes.
+   */
+  noteOf?: (tx: SerializedTransaction) => string | null | undefined;
 };
 
 const NO_CONTEXT: SearchContext = {};
@@ -609,6 +615,7 @@ function haystack(tx: SerializedTransaction, ctx: SearchContext): string {
       ignorable(tx.mandateReference) ? '' : tx.mandateReference,
       ctx.shownText?.(tx) ?? '',
       ctx.categoryOf ? categoryLabel(ctx.categoryOf(tx).id) : '',
+      ctx.noteOf?.(tx) ?? '',
     ].join(' '),
   );
   cache.set(tx, text);
@@ -801,8 +808,9 @@ const ibanHit = (tx: SerializedTransaction, compact: string) =>
  * the booking text, the IBAN and the references — umlauts either way, so
  * "müller" finds "MUELLER" — and, with a context, against what the screen
  * shows: the tidied name and second line, a card terminal's town and
- * country, the category. Words that look like amounts also match amounts:
- * "12,99" that amount, "-49,90" that debit, "12" anything from 12,00 to 12,99,
+ * country, the category, the user's own note. Words that look like amounts
+ * also match amounts: "12,99" that amount, "-49,90" that debit, "12"
+ * anything from 12,00 to 12,99,
  * ">100" and "<=20" compare the absolute amount, and so does "50-100" — a
  * range only when the first number is the smaller, and the text is searched
  * for it as well, so "Rechnung 2026-118" still finds that invoice. "28.09."

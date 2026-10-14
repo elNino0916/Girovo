@@ -9,7 +9,7 @@ import { intlLocale } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { BankAnswerAlert } from './BankAnswer';
 import { AuthCard } from './auth/AuthShell';
-import { useFints } from './FintsProvider';
+import { useFints, type ChosenBank } from './FintsProvider';
 import { ArrowRightIcon, BackIcon, CheckCircleIcon, PhoneIcon, ShieldIcon } from './icons';
 import { Alert, Button, Spinner, cx } from './ui';
 
@@ -51,6 +51,39 @@ export function TanMethodPicker() {
   const {
     bank, tanMethods, mediaChoice, selectedMethod, tanMethodError, chooseTanMethod, clearMediaChoice, setView,
   } = useFints();
+  return (
+    <AuthCard step="approval" aside={<ApprovalAside />}>
+      <TanMethodChoice
+        bank={bank}
+        tanMethods={tanMethods}
+        mediaChoice={mediaChoice}
+        selectedMethod={selectedMethod}
+        tanMethodError={tanMethodError}
+        chooseTanMethod={chooseTanMethod}
+        clearMediaChoice={clearMediaChoice}
+        onBack={() => setView('login')}
+      />
+    </AuthCard>
+  );
+}
+
+/**
+ * The step itself, for whichever login it belongs to: the first one (above),
+ * or a further bank's in "Weitere Bank anmelden" (components/AddBank.tsx).
+ */
+export function TanMethodChoice({
+  bank, tanMethods, mediaChoice, selectedMethod, tanMethodError, chooseTanMethod, clearMediaChoice, onBack,
+}: {
+  bank: ChosenBank | null;
+  tanMethods: SerializedTanMethod[];
+  mediaChoice: string[] | null;
+  selectedMethod: SerializedTanMethod | null;
+  tanMethodError: string | null;
+  chooseTanMethod: (method: SerializedTanMethod, tanMediaName?: string) => Promise<void>;
+  clearMediaChoice: () => void;
+  /** "Zurück zur Anmeldung". */
+  onBack: () => void;
+}) {
   const t = useT();
   const tm = t.auth.tanMethod;
   const autoPicked = useRef(false);
@@ -100,7 +133,7 @@ export function TanMethodPicker() {
   const app = bank ? APPROVAL_APP[bank.brand] : undefined;
 
   return (
-    <AuthCard step="approval" aside={<ApprovalAside />}>
+    <>
       {pickingMedia ? (
         <>
           <Heading refEl={headingRef} title={tm.chooseDevice}>
@@ -210,12 +243,12 @@ export function TanMethodPicker() {
           className="-ml-3"
           // Stays available while a method is being set up: a bank that never
           // answers must not trap the user on this screen.
-          onClick={() => setView('login')}
+          onClick={onBack}
         >
           {tm.back}
         </Button>
       </div>
-    </AuthCard>
+    </>
   );
 }
 

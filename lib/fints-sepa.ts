@@ -19,6 +19,11 @@
 //
 // Where the bank runs a Namensabgleich (Verification of Payee) the order also
 // carries HKVPP or HKVPA in the same message; that half lives in fints-vop.ts.
+//
+// The terminierte Überweisung (HKCSE) and the Dauerauftrag (HKCDE) are the
+// same kind of order with a date or a schedule added (lib/fints-orders.ts):
+// they share SepaOrderInteraction below — the pain.001, the descriptor choice,
+// the Namensabgleich — and only add their own data elements.
 
 import type { FinTSConfig, Message, Segment } from 'lib-fints';
 import {
@@ -34,8 +39,8 @@ import {
 import type { ClientResponseWithResult, TransferResult } from './fints-types';
 import {
   VopCollector, isVopRequired, queueVopPoll, reportDelivery, vopAuthSegment, vopCheckSegment,
-} from './fints-vop';
-import { sepaSanitize } from './sepa-text';
+} from './fints-vop.ts';
+import { sepaSanitize } from './sepa-text.ts';
 
 class HKCCS extends SegmentDefinition {
   static Id = 'HKCCS';
@@ -149,20 +154,25 @@ const SUPPORTED_PAIN = ['pain.001.001.03', 'pain.001.003.03', 'pain.001.001.09']
 /**
  * Pick a SEPA descriptor the bank actually accepts for this order.
  *
- * Two lists can carry them and they are not interchangeable: HKIPZ
- * (Echtzeitüberweisung) has its own list in HIIPZS, while HKCCS has none of its
- * own — HICCSS carries no format list at all — so it falls back to the bank-wide
- * one in HISPAS. Offering a descriptor from the wrong list is what a bank
- * answers with 3999 "Pain Nachricht nicht zugelassen".
+ * Two lists can carry them and they are not interchangeable: a segment may
+ * have its own list in its parameters — HKIPZ (Echtzeitüberweisung) in
+ * HIIPZS, and the Daueraufträge and terminierte Überweisungen where their
+ * parameter version names one (lib/fints-orders.ts) — while HKCCS has none of
+ * its own (HICCSS carries no format list at all) and falls back to the
+ * bank-wide one in HISPAS. Offering a descriptor from the wrong list is what a
+ * bank answers with 3999 "Pain Nachricht nicht zugelassen".
+ *
+ * A segment's own list is read from `supportedFormats` in its parameters:
+ * every parameter definition this app registers names a format list that way.
  */
 export function pickSepaDescriptor(config: FinTSConfig, segId: string = TRANSFER_SEG): string {
-  const instantFormats = segId === INSTANT_SEG
-    ? config.getTransactionParameters<{ supportedFormats?: string[] }>(INSTANT_SEG)?.supportedFormats
-    : undefined;
+  const ownFormats = segId === TRANSFER_SEG
+    ? undefined
+    : config.getTransactionParameters<{ supportedFormats?: (string | undefined)[] }>(segId)?.supportedFormats;
   const sepaFormats = config
     .getTransactionParameters<{ supportedSepaFormats?: string[] }>('HKSPA')?.supportedSepaFormats;
 
-  for (const formats of [instantFormats, sepaFormats]) {
+  for (const formats of [ownFormats, sepaFormats]) {
     const known = (formats || []).filter(Boolean) as string[];
     if (!known.length) continue;
     for (const wanted of SUPPORTED_PAIN) {
@@ -193,13 +203,26 @@ export type Pain001Input = {
   amountCents: number;
   purpose?: string;
   endToEndId?: string;
+  /**
+   * ReqdExctnDt as yyyy-mm-dd. Left out, the FinTS/DK convention for "execute
+   * immediately", 1999-01-01 — what HKCCS, HKIPZ and HKCDE carry. Only a
+   * terminierte Überweisung (HKCSE) names its real date here.
+   */
+  executionDate?: string;
 };
+
+/** The FinTS/DK placeholder for "execute immediately" (and for a Dauerauftrag, whose dates travel beside the pain). */
+export const IMMEDIATE_EXECUTION = '1999-01-01';
 
 /**
  * Builds a single-transaction pain.001 credit transfer document.
  * All text inputs must already be SEPA-sanitized (pure ASCII).
  */
-export function buildPain001({ descriptor, debtorName, debtorIban, debtorBic, creditorName, creditorIban, creditorBic, amountCents, purpose, endToEndId }: Pain001Input): string {
+export function buildPain001({
+  descriptor, debtorName, debtorIban, debtorBic, creditorName, creditorIban, creditorBic, amountCents, purpose, endToEndId,
+  executionDate = IMMEDIATE_EXECUTION,
+}: Pain001Input): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(executionDate)) throw new Error('pain.001: executionDate must be yyyy-mm-dd');
   const painVersion = painVersionOf(descriptor);
   // For pain messages the FinTS descriptor *is* the XML target namespace, so it
   // is used verbatim; only a non-urn descriptor (an old `sepade.…xsd` style
@@ -216,10 +239,11 @@ export function buildPain001({ descriptor, debtorName, debtorIban, debtorBic, cr
   const amount = centsToDecimal(amountCents);
   const e2e = endToEndId ? sepaSanitize(endToEndId, 35) : 'NOTPROVIDED';
 
-  // FinTS/DK convention: 1999-01-01 = execute immediately
-  const executionDate = isV09
-    ? '<ReqdExctnDt><Dt>1999-01-01</Dt></ReqdExctnDt>'
-    : '<ReqdExctnDt>1999-01-01</ReqdExctnDt>';
+  // pain.001.001.09 wraps the date in a choice (Dt or DtTm); the older
+  // versions carry the bare ISODate.
+  const requested = isV09
+    ? `<ReqdExctnDt><Dt>${executionDate}</Dt></ReqdExctnDt>`
+    : `<ReqdExctnDt>${executionDate}</ReqdExctnDt>`;
 
   const debtorAgent = debtorBic
     ? `<DbtrAgt><FinInstnId><${bicTag}>${xmlEscape(debtorBic)}</${bicTag}></FinInstnId></DbtrAgt>`
@@ -247,7 +271,7 @@ export function buildPain001({ descriptor, debtorName, debtorIban, debtorBic, cr
     `<NbOfTxs>1</NbOfTxs>` +
     `<CtrlSum>${amount}</CtrlSum>` +
     `<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf>` +
-    executionDate +
+    requested +
     `<Dbtr><Nm>${xmlEscape(debtorName)}</Nm></Dbtr>` +
     `<DbtrAcct><Id><IBAN>${xmlEscape(debtorIban)}</IBAN></Id></DbtrAcct>` +
     debtorAgent +
@@ -290,7 +314,7 @@ export type TransferOrder = {
 };
 
 // ---------------------------------------------------------------------------
-// The customer interaction driving HKCCS / HKIPZ
+// The customer interactions driving HKCCS / HKIPZ (and HKCSE / HKCDE)
 // ---------------------------------------------------------------------------
 /**
  * How the Namensabgleich rides along with this order (see fints-vop.ts):
@@ -299,10 +323,17 @@ export type TransferOrder = {
  */
 export type VopMode = 'auto' | { vopId: string };
 
-export class SepaTransferInteraction extends CustomerOrderInteraction {
+/**
+ * One SEPA order with a single pain.001 credit transfer: the account, the
+ * descriptor, the pain message — and whatever data elements the segment adds
+ * after them (orderElements), with the Namensabgleich riding along wherever
+ * the bank lists the segment in HIVPPS. SepaTransferInteraction below is the
+ * immediate transfer; lib/fints-orders.ts adds the dated one and the
+ * Dauerauftrag.
+ */
+export class SepaOrderInteraction extends CustomerOrderInteraction {
   accountNumber: string;
   transfer: TransferOrder;
-  instant: boolean;
   vopMode: VopMode;
 
   /**
@@ -324,28 +355,39 @@ export class SepaTransferInteraction extends CustomerOrderInteraction {
   vop: VopCollector | null = null;
 
   /**
+   * @param segId         the order segment (HKCCS, HKIPZ, HKCSE, HKCDE)
+   * @param responseSegId the bank's answer to it
    * @param accountNumber debtor account (must exist in the UPD)
-   * @param transfer the order to send
-   * @param instant  true → HKIPZ (Echtzeitüberweisung), false → HKCCS
-   * @param vopMode  how to handle the Namensabgleich
-   * @param prebuilt the pain.001 to replay, when re-submitting for a HKVPA
+   * @param transfer      the payment to send
+   * @param vopMode       how to handle the Namensabgleich
+   * @param prebuilt      the pain.001 to replay, when re-submitting for a HKVPA
    */
   constructor(
+    segId: string,
+    responseSegId: string,
     accountNumber: string,
     transfer: TransferOrder,
-    instant: boolean,
     vopMode: VopMode = 'auto',
     prebuilt?: { descriptor: string; sepaMessage: string },
   ) {
-    super(instant ? HKIPZ.Id : HKCCS.Id, instant ? 'HIIPZ' : 'HICCS');
+    super(segId, responseSegId);
     this.accountNumber = accountNumber;
     this.transfer = transfer;
-    this.instant = instant;
     this.vopMode = vopMode;
     if (prebuilt) {
       this.sepaDescriptor = prebuilt.descriptor;
       this.sepaMessage = prebuilt.sepaMessage;
     }
+  }
+
+  /** The pain.001's ReqdExctnDt (yyyy-mm-dd); undefined for "immediately" (1999-01-01). */
+  protected executionDate(): string | undefined {
+    return undefined;
+  }
+
+  /** The segment's own data elements after the pain message — none for a plain transfer. */
+  protected orderElements(): Record<string, unknown> {
+    return {};
   }
 
   createSegments(config: FinTSConfig): Segment[] {
@@ -373,6 +415,7 @@ export class SepaTransferInteraction extends CustomerOrderInteraction {
         creditorBic: this.transfer.creditorBic || undefined,
         amountCents: this.transfer.amountCents,
         purpose: this.transfer.purpose,
+        executionDate: this.executionDate(),
       });
       console.log(`[sepa] ${this.segId} v${version} descriptor=${descriptor}`);
     }
@@ -383,6 +426,7 @@ export class SepaTransferInteraction extends CustomerOrderInteraction {
         account: { ...account, bic: this.transfer.debtorBic || undefined },
         sepaDescriptor: this.sepaDescriptor,
         sepaMessage: this.sepaMessage,
+        ...this.orderElements(),
       } as Segment,
     ];
 
@@ -412,6 +456,32 @@ export class SepaTransferInteraction extends CustomerOrderInteraction {
       queueVopPoll(this, response, this.vop);
     }
     return clientResponse;
+  }
+
+  handleResponse(_response: Message, _clientResponse: ClientResponseWithResult): void {
+    // Each order reads its own answer segment.
+  }
+}
+
+export class SepaTransferInteraction extends SepaOrderInteraction {
+  instant: boolean;
+
+  /**
+   * @param accountNumber debtor account (must exist in the UPD)
+   * @param transfer the order to send
+   * @param instant  true → HKIPZ (Echtzeitüberweisung), false → HKCCS
+   * @param vopMode  how to handle the Namensabgleich
+   * @param prebuilt the pain.001 to replay, when re-submitting for a HKVPA
+   */
+  constructor(
+    accountNumber: string,
+    transfer: TransferOrder,
+    instant: boolean,
+    vopMode: VopMode = 'auto',
+    prebuilt?: { descriptor: string; sepaMessage: string },
+  ) {
+    super(instant ? HKIPZ.Id : HKCCS.Id, instant ? 'HIIPZ' : 'HICCS', accountNumber, transfer, vopMode, prebuilt);
+    this.instant = instant;
   }
 
   handleResponse(response: Message, clientResponse: ClientResponseWithResult): void {

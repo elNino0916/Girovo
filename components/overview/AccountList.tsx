@@ -2,13 +2,15 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
-import { canReportBalance, isCardAccount, namesList, totalBalance } from '@/lib/balances';
+import { canReportBalance, isCardAccount, namesList } from '@/lib/balances';
 import { translateType } from '@/lib/format';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
-import { useFints } from '../FintsProvider';
+import { combinedTotal, groupByLogin } from '@/lib/linked-banks';
+import { BankLogo } from '../BankLogo';
+import { useFints, type BankEntry } from '../FintsProvider';
 import { Money } from '../Money';
-import { PencilIcon, RefreshIcon, UndoIcon } from '../icons';
+import { ChevronIcon, PencilIcon, PlusIcon, RefreshIcon, UndoIcon } from '../icons';
 import { Alert, Button, DotList, EmptyState, IconButton, Input, Skeleton, TileHeader, cx } from '../ui';
 import { AccountGlyph, MAX_ALIAS, ShortIban, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
 
@@ -33,12 +35,20 @@ import { AccountGlyph, MAX_ALIAS, ShortIban, accountIdent, aliasFromDraft, bankN
  * every read, can need an approval), "Abruf fehlgeschlagen" with the way to
  * try again, or "Kein Abruf möglich" for an account the bank reports no
  * balance for over FinTS.
+ *
+ * With more than one bank in the view (lib/linked-banks.ts) the rows are
+ * grouped under each bank's band — the primary login first — and the
+ * Gesamtsaldo is over all of them. A linked bank logged out during the
+ * session keeps its rows as they were last read, with "Erneut anmelden"; one
+ * remembered from an earlier session but not logged in now offers "Auch bei
+ * … anmelden", and keeps the Gesamtsaldo open until it is.
  */
 export function AccountList() {
   const {
     accounts, activeAccount, balances, loadingAccount, balanceLoading, busy, wait, selectAccount, loadBalance,
     loadAllBalances, loadingAllBalances, isLoadedForAppliedRange, txErrors, balanceErrors,
     accountLabel, renameAccount, vault, vaultStatus, toast,
+    banks, links, bankOf, logoFiles, openAddBank,
   } = useFints();
   const t = useT();
   const words = t.insights.accounts;
@@ -48,11 +58,9 @@ export function AccountList() {
   const [noteOpen, setNoteOpen] = useState(false);
   const editButton = useRef<HTMLButtonElement>(null);
   const firstInput = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
   const totalRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const noteId = useId();
-  const inView = useCardInView(listRef, accounts.length, !editing);
 
   // Focus follows the mode: into the first name when editing starts, back to
   // the button that started it when editing ends — never lost to <body>.
@@ -105,8 +113,10 @@ export function AccountList() {
   };
 
   // One account: the hero is that account, with its name, IBAN, balance and
-  // the way to rename it. A list of one would only say it all again.
-  if (accounts.length === 1) return null;
+  // the way to rename it. A list of one would only say it all again — unless
+  // another bank is in the view.
+  if (accounts.length === 1 && banks.length <= 1) return null;
+  const grouped = banks.length > 1;
 
   const failureOf = (acct: string) => txErrors[acct] ?? balanceErrors[acct];
   const loadingNow = (acct: string) => loadingAccount === acct || balanceLoading === acct;
@@ -125,24 +135,44 @@ export function AccountList() {
   // A figure only once every account it is about is known: "Gesamtsaldo" is
   // the bank's word for all of them, and a sum of some is another number.
   // Euros only, never an account that cannot report (lib/balances.ts) — and
-  // what is left out is named.
-  const total = totalBalance(accounts, balances);
+  // what is left out is named. Over every bank in the view: a linked bank not
+  // logged in keeps it open too (lib/linked-banks.ts).
+  const absent = banks.filter((b) => b.state === 'remembered').map((b) => b.bank.name);
+  const total = combinedTotal(accounts, balances, absent);
   const names = (list: SerializedAccount[]) => namesList(list.map(accountLabel));
+  // A logged-out bank's accounts are its own fact: nothing can fetch them now.
+  const gone = (a: SerializedAccount) => bankOf(a)?.state === 'loggedOut';
+  const loggedOut = total.missing.filter(gone);
   // An account being fetched right now is neither: its row shows the fetch.
-  const failed = total.missing.filter((a) => !loadingNow(a.accountNumber) && failureOf(a.accountNumber));
-  const notYet = total.missing.filter((a) => !loadingNow(a.accountNumber) && !failureOf(a.accountNumber));
+  const failed = total.missing.filter((a) => !gone(a) && !loadingNow(a.accountNumber) && failureOf(a.accountNumber));
+  const notYet = total.missing.filter((a) => !gone(a) && !loadingNow(a.accountNumber) && !failureOf(a.accountNumber));
   const excluded = namesList(total.excluded.map(({ account, reason, currency }) => (
     reason === 'currency' ? `${accountLabel(account)} (${currency})` : accountLabel(account)
   )));
   const totalFacts: ReactNode[] = [
     failed.length > 0 && `${t.common.fetchFailed}: ${names(failed)}`,
     notYet.length > 0 && words.notYet(names(notYet)),
+    loggedOut.length > 0 && `${t.banks.state.loggedOut}: ${names(loggedOut)}`,
+    absent.length > 0 && t.banks.notLoggedIn(namesList(absent)),
     excluded && (
       <span title={words.excludedHint}>
         {t.insights.without(excluded)}
       </span>
     ),
   ];
+  // What "Alle Salden abrufen" can still fetch: not a logged-out bank's.
+  const fetchable = total.missing.filter((a) => !gone(a));
+
+  // One group per bank, the primary login first; a single bank is one group without a band.
+  const groups: Array<{ entry: BankEntry | null; accounts: SerializedAccount[] }> = grouped
+    ? [
+        ...groupByLogin(accounts, links).map((g) => ({
+          entry: banks.find((b) => b.key === (g.id ?? 'primary')) ?? null,
+          accounts: g.accounts,
+        })),
+        ...banks.filter((b) => b.state === 'remembered').map((entry) => ({ entry, accounts: [] })),
+      ]
+    : [{ entry: null, accounts }];
 
   const busyTitle = busy
     ? wait.open ? words.busyApproval : words.busyFetch
@@ -257,134 +287,142 @@ export function AccountList() {
         </form>
       ) : (
         <>
-          <ul
-            ref={listRef}
-            aria-label={t.common.account.accounts}
-            className={cx(
-              // Phones: a swipeable row of cards, snapping so a card is never
-              // left half in view. From sm up: the classic column of rows.
-              'flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3',
-              '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-              // The row of cards is as wide as all cards together; without
-              // this, that width would leak up as the tile's minimum width
-              // and push the whole page sideways inside a grid column.
-              '[contain:inline-size]',
-              'sm:block sm:overflow-visible sm:border-t sm:border-line sm:px-0 sm:pb-0',
-            )}
-          >
-            {accounts.map((a) => {
-              const acct = a.accountNumber;
-              const bal = balances[acct];
-              const active = activeAccount?.accountNumber === acct;
-              const loading = loadingNow(acct);
-              const failure = !bal && !loading && canReportBalance(a) ? failureOf(acct) : undefined;
-              const label = accountLabel(a);
-              const kind = translateType(a.accountType);
-              // The selected account's Verfügbar is the hero's to say.
-              const showAvailable = !active
-                && bal?.availableAmount != null && Math.round(bal.availableAmount * 100) !== Math.round(bal.balance * 100);
-              return (
-                <li
-                  key={acct}
-                  className="w-[80%] max-w-[300px] shrink-0 snap-start sm:w-auto sm:max-w-none sm:border-b sm:border-line sm:last:border-b-0"
+          {groups.map(({ entry, accounts: list }) => (
+            <div key={entry?.key ?? 'all'}>
+              {entry && (
+                <BankBand
+                  entry={entry}
+                  logoFile={logoFiles[entry.bank.brand]}
+                  onLogin={() => openAddBank({ bank: entry.bank, userId: entry.ref?.userId })}
+                />
+              )}
+              {list.length > 0 && (
+                <AccountRows
+                  accounts={list}
+                  label={entry ? t.banks.accountsAt(entry.bank.name) : t.common.account.accounts}
+                  grouped={grouped}
                 >
-                  <button
-                    type="button"
-                    onClick={() => open(a)}
-                    aria-current={active ? 'true' : undefined}
-                    aria-disabled={busy || undefined}
-                    // The bank's reason, for a pointer resting on a failed row;
-                    // the hero states it once the row is opened.
-                    title={busyTitle ?? failure?.message}
-                    className={cx(
-                      // On a phone each card is a well in the tile, never a
-                      // framed card inside it (Lifted, Never Framed).
-                      'row-focus group relative flex h-full w-full flex-col gap-3 rounded-[8px] p-3.5 text-left',
-                      'transition-colors duration-150',
-                      'sm:flex-row sm:items-center sm:gap-4 sm:rounded-none sm:px-5 sm:py-3.5',
-                      busy ? 'cursor-progress' : 'cursor-pointer',
-                      active
-                        ? cx(
-                          // Selected: the wash, edged in the action colour like
-                          // a segmented control's thumb.
-                          'bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent)]',
-                          'sm:bg-[color-mix(in_srgb,var(--accent)_6%,var(--surface))] sm:shadow-none',
-                          // The selected row is named by a rail in the action
-                          // colour — the same mark as the active tab above it.
-                          'sm:before:absolute sm:before:inset-y-0 sm:before:left-0 sm:before:w-[3px] sm:before:bg-accent',
-                        )
-                        : 'bg-inset sm:bg-transparent sm:hover:bg-inset',
-                    )}
-                  >
-                    <span className="flex min-w-0 items-center gap-3 sm:flex-1 sm:gap-4">
-                      <AccountGlyph account={a} selected={active} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] leading-snug font-semibold text-ink">
-                          {label}
-                          {label !== kind && <span className="sr-only">, {kind}</span>}
-                        </span>
-                        <ShortIban account={a} />
-                      </span>
-                    </span>
-
-                    <span className="min-w-0 sm:shrink-0 sm:text-right">
-                      {bal ? (
-                        <>
-                          <Money
-                            value={bal.balance}
-                            currency={bal.currency}
-                            // A card's balance is negative by nature — ink, not the red of an overdraft.
-                            tone={isCardAccount(a) ? 'plain' : 'auto'}
-                            className="block text-[20px] leading-tight font-semibold sm:text-[15px] sm:leading-snug"
-                          />
-                          {showAvailable && (
-                            <span className="block text-[13px] leading-snug text-ink-3">
-                              {t.insights.available}{' '}
-                              <Money value={bal.availableAmount} currency={bal.currency} tone="plain" />
-                            </span>
+                  {(a) => {
+                    const acct = a.accountNumber;
+                    const bal = balances[acct];
+                    const active = activeAccount?.accountNumber === acct;
+                    const loading = loadingNow(acct);
+                    const failure = !bal && !loading && canReportBalance(a) ? failureOf(acct) : undefined;
+                    const label = accountLabel(a);
+                    const kind = translateType(a.accountType);
+                    // The selected account's Verfügbar is the hero's to say.
+                    const showAvailable = !active
+                      && bal?.availableAmount != null && Math.round(bal.availableAmount * 100) !== Math.round(bal.balance * 100);
+                    return (
+                      <li
+                        key={acct}
+                        className="w-[80%] max-w-[300px] shrink-0 snap-start sm:w-auto sm:max-w-none sm:border-b sm:border-line sm:last:border-b-0"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => open(a)}
+                          aria-current={active ? 'true' : undefined}
+                          aria-disabled={busy || undefined}
+                          // The bank's reason, for a pointer resting on a failed row;
+                          // the hero states it once the row is opened.
+                          title={busyTitle ?? failure?.message}
+                          className={cx(
+                            // On a phone each card is a well in the tile, never a
+                            // framed card inside it (Lifted, Never Framed).
+                            'row-focus group relative flex h-full w-full flex-col gap-3 rounded-[8px] p-3.5 text-left',
+                            'transition-colors duration-150',
+                            'sm:flex-row sm:items-center sm:gap-4 sm:rounded-none sm:px-5 sm:py-3.5',
+                            busy ? 'cursor-progress' : 'cursor-pointer',
+                            active
+                              ? cx(
+                                // Selected: the wash, edged in the action colour like
+                                // a segmented control's thumb.
+                                'bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent)]',
+                                'sm:bg-[color-mix(in_srgb,var(--accent)_6%,var(--surface))] sm:shadow-none',
+                                // The selected row is named by a rail in the action
+                                // colour — the same mark as the active tab above it.
+                                'sm:before:absolute sm:before:inset-y-0 sm:before:left-0 sm:before:w-[3px] sm:before:bg-accent',
+                              )
+                              : 'bg-inset sm:bg-transparent sm:hover:bg-inset',
                           )}
-                        </>
-                      ) : loading ? (
-                        <span className="block py-1">
-                          <Skeleton className="h-4 w-24 rounded-[4px] sm:ml-auto" />
-                          <span className="sr-only">{words.fetching}</span>
-                        </span>
-                      ) : !canReportBalance(a) ? (
-                        <span className="block text-[13px] leading-snug text-ink-3">{words.cannotFetch}</span>
-                      ) : failure ? (
-                        <>
-                          <span className="block text-[14px] leading-snug font-semibold text-red">{t.common.fetchFailed}</span>
-                          <RowAction busy={busy}>{t.common.retry}</RowAction>
-                          <span className="sr-only">. {t.insights.mayNeedApproval}</span>
-                        </>
-                      ) : (
-                        <>
-                          <RowAction busy={busy} className="text-[14px]">{t.insights.loadBalance}</RowAction>
-                          <span className="block text-[13px] leading-snug text-ink-3">{t.insights.mayNeedApprovalLabel}</span>
-                        </>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                        >
+                          <span className="flex min-w-0 items-center gap-3 sm:flex-1 sm:gap-4">
+                            <AccountGlyph account={a} selected={active} />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[15px] leading-snug font-semibold text-ink">
+                                {label}
+                                {label !== kind && <span className="sr-only">, {kind}</span>}
+                              </span>
+                              <ShortIban account={a} />
+                            </span>
+                          </span>
 
-          {/* Where in the row of cards you are, so the third account is not
-              a secret until swiped to. Phones only; the list itself tells a
-              screen reader how many there are. */}
-          <div aria-hidden className="flex justify-center gap-1.5 pb-3 sm:hidden">
-            {accounts.map((a, i) => (
-              <span
-                key={a.accountNumber}
-                className={cx('size-1.5 rounded-full transition-colors duration-150', i === inView ? 'bg-ink-2' : 'bg-line-strong')}
-              />
-            ))}
-          </div>
+                          <span className="min-w-0 sm:shrink-0 sm:text-right">
+                            {bal ? (
+                              <>
+                                <Money
+                                  value={bal.balance}
+                                  currency={bal.currency}
+                                  // A card's balance is negative by nature — ink, not the red of an overdraft.
+                                  tone={isCardAccount(a) ? 'plain' : 'auto'}
+                                  className="block text-[20px] leading-tight font-semibold sm:text-[15px] sm:leading-snug"
+                                />
+                                {showAvailable && (
+                                  <span className="block text-[13px] leading-snug text-ink-3">
+                                    {t.insights.available}{' '}
+                                    <Money value={bal.availableAmount} currency={bal.currency} tone="plain" />
+                                  </span>
+                                )}
+                              </>
+                            ) : loading ? (
+                              <span className="block py-1">
+                                <Skeleton className="h-4 w-24 rounded-[4px] sm:ml-auto" />
+                                <span className="sr-only">{words.fetching}</span>
+                              </span>
+                            ) : gone(a) ? (
+                              // Its bank's band says so, with the way back in.
+                              <span className="block text-[13px] leading-snug text-ink-3">{t.banks.state.loggedOut}</span>
+                            ) : !canReportBalance(a) ? (
+                              <span className="block text-[13px] leading-snug text-ink-3">{words.cannotFetch}</span>
+                            ) : failure ? (
+                              <>
+                                <span className="block text-[14px] leading-snug font-semibold text-red">{t.common.fetchFailed}</span>
+                                <RowAction busy={busy}>{t.common.retry}</RowAction>
+                                <span className="sr-only">. {t.insights.mayNeedApproval}</span>
+                              </>
+                            ) : (
+                              <>
+                                <RowAction busy={busy} className="text-[14px]">{t.insights.loadBalance}</RowAction>
+                                <span className="block text-[13px] leading-snug text-ink-3">{t.insights.mayNeedApprovalLabel}</span>
+                              </>
+                            )}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  }}
+                </AccountRows>
+              )}
+              {/* Remembered from an earlier session: one press to its login
+                  form, the login name filled in — the PIN and the approval
+                  are still the user's. */}
+              {entry?.state === 'remembered' && (
+                <button
+                  type="button"
+                  onClick={() => openAddBank({ bank: entry.bank, userId: entry.ref?.userId })}
+                  className="row-focus flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-[14px] font-semibold text-accent hover:bg-accent-soft sm:px-5"
+                >
+                  {t.banks.alsoLogin(entry.bank.name)}
+                  <ChevronIcon dir="right" size={15} />
+                </button>
+              )}
+            </div>
+          ))}
 
           {/* A total of one account is that account again: the row is there
-              once two or more accounts can be added up. */}
-          {total.counted.length >= 2 && (
+              once two or more accounts can be added up — or one beside a
+              bank that is not logged in. */}
+          {total.counted.length + total.absent.length >= 2 && (
             <div ref={totalRef} tabIndex={-1} className="border-t border-line bg-inset px-4 py-3.5 outline-none sm:px-5">
               <div className="flex items-baseline justify-between gap-4">
                 <span className="text-[14px] font-semibold text-ink-2">{words.total}</span>
@@ -399,7 +437,7 @@ export function AccountList() {
                   <DotList items={totalFacts} />
                 </p>
               )}
-              {total.cents == null && (
+              {fetchable.length > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                   <Button
                     variant="tertiary"
@@ -424,9 +462,101 @@ export function AccountList() {
               )}
             </div>
           )}
+
+          {/* Once the view holds more than one bank, the way to one more is
+              here too (otherwise in the Sitzung panel only). */}
+          {grouped && (
+            <div className="border-t border-line px-4 py-2 sm:px-5">
+              <Button variant="tertiary" size="sm" className="-ml-4" iconLeft={<PlusIcon size={16} />} onClick={() => openAddBank()}>
+                {t.banks.add}
+              </Button>
+            </div>
+          )}
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * One bank's rows — or every row, with a single bank: the classic column
+ * from sm up, a swipeable row of cards on a phone with dots for where in the
+ * row you are.
+ */
+function AccountRows({
+  accounts, label, grouped, children,
+}: {
+  accounts: SerializedAccount[];
+  label: string;
+  /** Under a bank's band, which draws the rule above. */
+  grouped: boolean;
+  children: (a: SerializedAccount) => ReactNode;
+}) {
+  const listRef = useRef<HTMLUListElement>(null);
+  const inView = useCardInView(listRef, accounts.length, true);
+  return (
+    <>
+      <ul
+        ref={listRef}
+        aria-label={label}
+        className={cx(
+          // Phones: a swipeable row of cards, snapping so a card is never
+          // left half in view. From sm up: the classic column of rows.
+          'flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3',
+          '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          // The row of cards is as wide as all cards together; without
+          // this, that width would leak up as the tile's minimum width
+          // and push the whole page sideways inside a grid column.
+          '[contain:inline-size]',
+          'sm:block sm:overflow-visible sm:px-0 sm:pb-0',
+          grouped ? 'pt-3 sm:pt-0' : 'sm:border-t sm:border-line',
+        )}
+      >
+        {accounts.map(children)}
+      </ul>
+
+      {/* Where in the row of cards you are, so the third account is not
+          a secret until swiped to. Phones only; the list itself tells a
+          screen reader how many there are. */}
+      {accounts.length > 1 && (
+        <div aria-hidden className="flex justify-center gap-1.5 pb-3 sm:hidden">
+          {accounts.map((a, i) => (
+            <span
+              key={a.accountNumber}
+              className={cx('size-1.5 rounded-full transition-colors duration-150', i === inView ? 'bg-ink-2' : 'bg-line-strong')}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * A bank's band over its rows, once more than one bank is in the view: its
+ * mark and name the way the institute bar shows them, and where it stands
+ * when it is not logged in — with the way back in, for one whose session
+ * ended during this one.
+ */
+function BankBand({ entry, logoFile, onLogin }: { entry: BankEntry; logoFile?: string; onLogin: () => void }) {
+  const t = useT();
+  const state = entry.state === 'loggedOut' ? t.banks.state.loggedOut
+    : entry.state === 'remembered' ? t.banks.state.remembered
+      : null;
+  return (
+    <div className="flex min-h-11 items-center gap-2.5 border-t border-line px-4 py-1.5 sm:bg-inset sm:px-5">
+      {/* One column for every bank's mark, so the names line up band under band. */}
+      <span className="grid w-[52px] shrink-0 place-items-center [&>span]:max-w-full">
+        <BankLogo brand={entry.bank.brand} size="sm" file={logoFile} />
+      </span>
+      <h3 className="min-w-0 flex-1 truncate text-[13.5px] leading-snug font-semibold text-ink-2" title={entry.bank.name}>
+        {entry.bank.name}
+      </h3>
+      {state && <span className="shrink-0 text-[13px] leading-snug text-ink-3">{state}</span>}
+      {entry.state === 'loggedOut' && (
+        <Button variant="tertiary" size="xs" className="-mr-2.5 shrink-0" onClick={onLogin}>{t.banks.loginAgain}</Button>
+      )}
+    </div>
   );
 }
 

@@ -22,6 +22,7 @@
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
 import { unseenUpdate, useUpdates } from '../updates/store';
@@ -50,6 +51,22 @@ const LABEL_MID = 'hidden @min-[900px]/mast:inline';
  * 36px on a phone, where the wordmark needs every pixel of the row.
  */
 const ITEM = 'navlink inline-flex sm:@max-[899.98px]/mast:px-[11px]! max-sm:px-[9px]!';
+
+/**
+ * The Android app's top app bar says where you are, as Material's does — what
+ * the desktop's navy stage says under the masthead (shell/Stage), which the
+ * phone does without. The app's own mark there would only repeat the icon the
+ * app was opened with.
+ */
+function PageTitle() {
+  const { tab } = useFints();
+  const t = useT();
+  return (
+    <h1 id={PAGE_TITLE_ID} tabIndex={-1} data-topbar-title className="min-w-0 truncate outline-none">
+      {t.common.nav[tab]}
+    </h1>
+  );
+}
 
 export function Masthead() {
   const {
@@ -80,6 +97,7 @@ export function Masthead() {
 
   return (
     <div
+      data-topbar
       className={cx('on-bar relative z-40 shrink-0 bg-bar text-bar-ink', MASTHEAD_EDGES)}
       style={{ height: 'var(--barbar-h)', ...DRAG }}
     >
@@ -104,7 +122,7 @@ export function Masthead() {
       <div className="@container/mast flex h-full min-w-0 items-center gap-2 sm:gap-3">
         {/* No version here: the footer and the Sitzung panel carry it, and
             the bar's room goes to the labelled controls. */}
-        <BrandMark />
+        {IS_ANDROID ? <PageTitle /> : <BrandMark />}
 
         <div className="min-w-2 flex-1" />
 

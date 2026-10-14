@@ -163,7 +163,7 @@ export function Kpi({
 // ---------------------------------------------------------------------------
 
 export function CategoryBreakdown({
-  rows, total, currency, subtitle, onShow,
+  rows, total, currency, subtitle, onShow, actions, footer,
 }: {
   rows: CategoryAmount[];
   total: number;
@@ -171,6 +171,10 @@ export function CategoryBreakdown({
   currency: string;
   subtitle: ReactNode;
   onShow: (id: CategoryId) => void;
+  /** Beside the title: the way to set budgets while there are none. */
+  actions?: ReactNode;
+  /** On the tile's inset foot: the Kategorie-Check's line. */
+  footer?: ReactNode;
 }) {
   const money = useMoneyText();
   const t = useT();
@@ -197,7 +201,7 @@ export function CategoryBreakdown({
   }, [rows, t]);
 
   return (
-    <InsightTile title={t.insights.analysis.categories.title} subtitle={subtitle}>
+    <InsightTile title={t.insights.analysis.categories.title} subtitle={subtitle} actions={actions || undefined}>
       {rows.length === 0 ? (
         <EmptyState compact illustration="chart" title={t.insights.analysis.noSpending}>
           {t.insights.analysis.categories.empty}
@@ -249,6 +253,7 @@ export function CategoryBreakdown({
           </ul>
         </>
       )}
+      {footer}
     </InsightTile>
   );
 }

@@ -43,16 +43,21 @@ import type { SealedBox } from './crypto-box.ts';
 import type { Session } from './session';
 import { EMPTY_VAULT } from './app-types.ts';
 import { OWN_PICTURE, isAvatarChoice, isAvatarImage } from './avatars.ts';
+import { sanitizeBudgets } from './budgets.ts';
 import { isCategoryId } from './categories.ts';
 import { boxSalt, deriveKey, newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
 import { msgs } from './i18n/index.ts';
+import { sanitizeNotes } from './notes.ts';
+import { sanitizeLinkedBanks } from './linked-banks.ts';
+import { moveAside, removeFamily, serialized, writeFileAtomic } from './sealed-file.ts';
 import { sanitizeSentOrders } from './sent-orders.ts';
 import { STATE_DIR } from './state-store.ts';
 
 /**
  * Caps applied by sanitizeVault. Generous for a person, tight for a runaway
  * client: the byte ceiling is on the plaintext JSON, and the counts keep a
- * vault well under it in practice.
+ * vault well under it in practice. Budgets and notes keep their own caps
+ * beside their rules (lib/budgets.ts, lib/notes.ts NOTE_LIMITS).
  */
 export const VAULT_LIMITS = {
   bytes: 512 * 1024,
@@ -218,13 +223,17 @@ const category = (raw: unknown): CategoryId | null => (isCategoryId(raw) ? raw :
  * The vault as this server version understands it, or null when `input` is not
  * a vault at all (wrong type or version). Unknown keys are dropped, strings
  * clipped, IBANs and category ids validated, collections capped, sent orders
- * older than two weeks (at `now`) pruned.
+ * older than two weeks (at `now`) pruned. A vault from before budgets and
+ * notes existed reads as one without any.
  */
 export function sanitizeVault(input: unknown, now = Date.now()): VaultData | null {
   if (!isRecord(input) || input.version !== 1) return null;
   const dismissed = Array.isArray(input.dismissedRecurring)
     ? [...new Set(input.dismissedRecurring.filter((d): d is string => keyOk(d, VAULT_LIMITS.key)))]
     : [];
+  // BLZ, name and login name of each further bank in the view — whatever
+  // else an entry carries (a PIN, say) never reaches the file.
+  const linkedBanks = sanitizeLinkedBanks(input.linkedBanks);
   return {
     version: 1,
     templates: templates(input.templates),
@@ -234,12 +243,20 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
       /^(cred|iban|name):/.test(k) ? category(raw) : null),
     txCategories: capMap(input.txCategories, VAULT_LIMITS.txCategories, VAULT_LIMITS.key, category),
     dismissedRecurring: dismissed.slice(-VAULT_LIMITS.dismissed),
+    // Spending categories only, whole cents (lib/budgets.ts).
+    budgets: sanitizeBudgets(input.budgets),
+    // One line each, at most 280 characters, the newest within the caps (lib/notes.ts).
+    notes: sanitizeNotes(input.notes),
     sentOrders: sanitizeSentOrders(input.sentOrders, now),
     // The own picture only with a picture to show: a choice that names nothing is the initials.
     ...(isAvatarChoice(input.avatar) && (input.avatar !== OWN_PICTURE || isAvatarImage(input.avatarImage))
       ? { avatar: input.avatar }
       : {}),
     ...(isAvatarImage(input.avatarImage) ? { avatarImage: input.avatarImage } : {}),
+    ...(linkedBanks.length ? { linkedBanks } : {}),
+    // Keeping the Umsätze on this computer (lib/history-store.ts) is off
+    // unless the vault says so in so many words: a true, nothing else.
+    ...(input.keepBookings === true ? { keepBookings: true as const } : {}),
     updatedAt: iso(input.updatedAt) ?? EMPTY_VAULT.updatedAt,
   };
 }
@@ -276,18 +293,9 @@ type Unlocked = { file: string; salt: Buffer; key: Buffer };
 // idle sweeper or a hot reload drop it without any bookkeeping here.
 const unlocked = new WeakMap<Session, Unlocked>();
 
-// One operation per file at a time. The client debounces its saves, but a save
-// can still overlap a reset, or a second window of the same login.
-const queues = new Map<string, Promise<unknown>>();
-function serialized<T>(file: string, task: () => Promise<T>): Promise<T> {
-  const run = (queues.get(file) ?? Promise.resolve()).then(task);
-  const tail = run.then(() => undefined, () => undefined);
-  queues.set(file, tail);
-  void tail.then(() => {
-    if (queues.get(file) === tail) queues.delete(file);
-  });
-  return run;
-}
+// One operation per file at a time (serialized, lib/sealed-file.ts): the
+// client debounces its saves, but a save can still overlap a reset, or a
+// second window of the same login.
 
 type Sealed = { kind: 'missing' } | { kind: 'corrupt' } | { kind: 'sealed'; box: SealedBox };
 
@@ -346,59 +354,6 @@ async function freshKey(id: Identity, file: string): Promise<Unlocked> {
   return { file, salt, key: await deriveKey(id.pin, salt) };
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Windows refuses a rename onto a file another process (virus scanner, search
-// indexer, backup tool) briefly holds open. Those locks clear within
-// milliseconds, so a few short retries beat failing the user's save.
-async function renameRetrying(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      fs.renameSync(from, to);
-      return;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException)?.code;
-      if (attempt >= 5 || !(code === 'EPERM' || code === 'EACCES' || code === 'EBUSY')) throw err;
-      await sleep(15 * 2 ** attempt);
-    }
-  }
-}
-
-/** Delete `file` (a missing one counts as deleted), riding out the same brief Windows locks. */
-async function removeRetrying(file: string): Promise<void> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      fs.rmSync(file, { force: true });
-      return;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException)?.code;
-      if (attempt >= 5 || !(code === 'EPERM' || code === 'EACCES' || code === 'EBUSY')) throw err;
-      await sleep(15 * 2 ** attempt);
-    }
-  }
-}
-
-/** Replace `file` so that a crash leaves either the old or the new content, never half of one. */
-async function writeFileAtomic(file: string, contents: string): Promise<void> {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  const tmp = `${file}.${crypto.randomBytes(6).toString('hex')}.tmp`;
-  try {
-    const fd = fs.openSync(tmp, 'wx', 0o600);
-    try {
-      fs.writeFileSync(fd, contents, 'utf8');
-      fs.fsyncSync(fd); // the rename must not reach the disk before the data does
-    } finally {
-      fs.closeSync(fd);
-    }
-    await renameRetrying(tmp, file);
-  } catch (err) {
-    try {
-      fs.rmSync(tmp, { force: true });
-    } catch { /* best effort */ }
-    throw err;
-  }
-}
-
 async function writeVault(entry: Unlocked, data: VaultData): Promise<void> {
   const plaintext = Buffer.from(JSON.stringify(data), 'utf8');
   if (plaintext.length > VAULT_LIMITS.bytes) throw new VaultError(msgs().provider.vault.tooLarge, 413);
@@ -408,14 +363,6 @@ async function writeVault(entry: Unlocked, data: VaultData): Promise<void> {
     console.warn('[vault] write failed:', (err as NodeJS.ErrnoException)?.code || 'unknown');
     throw new VaultError(msgs().provider.vault.write, 500);
   }
-}
-
-/** Move an existing vault file out of the way, never over an earlier backup. */
-async function moveAside(file: string): Promise<boolean> {
-  if (!fs.existsSync(file)) return false;
-  const bak = fs.existsSync(`${file}.bak`) ? `${file}.${Date.now()}.bak` : `${file}.bak`;
-  await renameRetrying(file, bak);
-  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -513,25 +460,16 @@ export async function wipeVault(s: Session): Promise<number> {
   const file = path.join(STATE_DIR, stem);
   return serialized(file, async () => {
     unlocked.delete(s);
-    let names: string[];
+    let removed: number;
+    let failed: number;
     try {
-      names = fs.readdirSync(STATE_DIR);
+      // A state directory that does not exist yet removes nothing: never saved anything.
+      ({ removed, failed } = await removeFamily(STATE_DIR, stem, (code) => {
+        console.warn('[vault] wipe: could not delete a file:', code);
+      }));
     } catch (err) {
-      if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return 0; // never saved anything
       console.warn('[vault] wipe: cannot list the state directory:', (err as NodeJS.ErrnoException)?.code || 'unknown');
       throw new VaultError(msgs().provider.vault.wipe, 500);
-    }
-    let removed = 0;
-    let failed = 0;
-    for (const name of names) {
-      if (name !== stem && !name.startsWith(`${stem}.`)) continue;
-      try {
-        await removeRetrying(path.join(STATE_DIR, name));
-        removed++;
-      } catch (err) {
-        failed++;
-        console.warn('[vault] wipe: could not delete a file:', (err as NodeJS.ErrnoException)?.code || 'unknown');
-      }
     }
     console.log(`[vault] wiped ${removed} file(s)${failed ? `, ${failed} left` : ''} (blz=${blz})`);
     if (failed) throw new VaultError(msgs().provider.vault.wipe, 500);

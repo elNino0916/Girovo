@@ -4,8 +4,24 @@
     {
       "name": "fints",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "android-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "cross-env",
+        "GIROVO_TARGET=android",
+        "next",
+        "dev",
+        "-p",
+        "3100"
+      ],
+      "port": 3100
     }
   ]
 }

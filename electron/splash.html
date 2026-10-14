@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- The start window's card (electron/splash.cjs): nothing loads from
+     anywhere, and everything it says arrives as data (splashModel). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Girovo</title>
+<style>
+  /* The palettes of build/update-window/UpdateWindow.cs (Palette.For). */
+  :root {
+    --surface: #ffffff; --ink: #1b1f24; --ink-2: #4f5761; --inset: #edf0f4;
+    --headline: #0a2c5e; --plate-ink: #ffffff; --accent: #0864ad;
+    --edge: transparent; --shadow: 0 10px 36px rgba(10, 30, 60, 0.22);
+  }
+  :root.dark {
+    --surface: #0a1b2d; --ink: #e3e9ef; --ink-2: #a9b6c4; --inset: #0e2236;
+    /* At night the headline navy turns to ink. */
+    --headline: #e3e9ef; --plate-ink: #0a1b2d; --accent: #3ba4ef;
+    /* The Night Edge Rule: depth from a faint white edge, not only shadow. */
+    --edge: rgba(255, 255, 255, 0.08); --shadow: 0 10px 36px rgba(0, 0, 0, 0.55);
+  }
+  html, body { margin: 0; background: transparent; overflow: hidden; }
+  body {
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; user-select: none; cursor: default;
+  }
+  /* The shadow's room inside the transparent window (UpdateWindow.cs: 28, 20, 28, 36). */
+  .frame { padding: 20px 28px 36px; }
+  .card {
+    width: 440px; box-sizing: border-box; padding: 24px 28px 26px;
+    background: var(--surface); border-radius: 16px;
+    border: 1px solid var(--edge); box-shadow: var(--shadow);
+    /* Frameless: the card is what moves the window. */
+    -webkit-app-region: drag;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .plate { width: 28px; height: 28px; border-radius: 8px; background: var(--headline); display: grid; place-items: center; }
+  .plate svg { width: 28px; height: 28px; }
+  .wordmark { font-weight: 700; font-size: 15px; color: var(--ink-2); }
+  h1 {
+    margin: 0; font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    font-weight: 700; font-size: 22px; line-height: 1.25; color: var(--headline);
+  }
+  ol { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 10px; }
+  li { display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 20px; color: var(--ink-2); }
+  li.active { color: var(--ink); font-weight: 600; }
+  .icon { width: 18px; height: 18px; flex: none; display: grid; place-items: center; }
+  .icon svg { width: 18px; height: 18px; }
+  /* Pending: a quiet ring. Active: the accent ring turning. Done: an accent tick. */
+  .pending .ring { stroke: var(--inset); }
+  :root:not(.dark) .pending .ring { stroke: #c9d0d8; }
+  .active .track { stroke: var(--inset); }
+  .active .arc { stroke: var(--accent); transform-origin: 9px 9px; animation: turn 0.9s linear infinite; }
+  .done .tick { stroke: var(--accent); }
+  @keyframes turn { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .active .arc { animation: none; } }
+  .note {
+    margin: 16px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--inset);
+    font-size: 13.5px; line-height: 20px; color: var(--ink-2);
+  }
+  .version { margin-top: 18px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="card">
+    <div class="brand">
+      <!-- The G€ mark: lib/brand-mark.ts (MARK_ARC, MARK_BARS and their widths). -->
+      <div class="plate" aria-hidden="true">
+        <svg viewBox="0 0 512 512" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M361.4 151.8A136 136 0 1 0 405.1 292H280" stroke-width="46" style="stroke: var(--plate-ink)"/>
+          <path d="M100 222H244M100 292H208" stroke-width="40" style="stroke: var(--plate-ink)"/>
+        </svg>
+      </div>
+      <span class="wordmark">Girovo</span>
+    </div>
+    <h1 id="title"></h1>
+    <ol id="steps" aria-live="polite"></ol>
+    <p class="note" id="note" hidden></p>
+    <div class="version" id="version"></div>
+  </div>
+</div>
+<script>
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = (parts) => {
+    const el = document.createElementNS(NS, 'svg');
+    el.setAttribute('viewBox', '0 0 18 18');
+    el.setAttribute('fill', 'none');
+    for (const [tag, attrs] of parts) {
+      const p = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) p.setAttribute(k, v);
+      el.appendChild(p);
+    }
+    return el;
+  };
+  const ICONS = {
+    pending: () => svg([['circle', { class: 'ring', cx: 9, cy: 9, r: 7, 'stroke-width': 2 }]]),
+    active: () => svg([
+      ['circle', { class: 'track', cx: 9, cy: 9, r: 7, 'stroke-width': 2 }],
+      ['path', { class: 'arc', d: 'M9 2a7 7 0 0 1 7 7', 'stroke-width': 2, 'stroke-linecap': 'round' }],
+    ]),
+    done: () => svg([['path', { class: 'tick', d: 'M3.5 9.5l3.5 3.5 7.5-8', 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }]]),
+  };
+
+  // Text only, never markup: everything arrives from electron/i18n.cjs.
+  function render(model) {
+    document.documentElement.classList.toggle('dark', !!model.dark);
+    document.getElementById('title').textContent = model.title;
+    const list = document.getElementById('steps');
+    list.replaceChildren(...model.steps.map((step) => {
+      const li = document.createElement('li');
+      li.className = step.state;
+      const icon = document.createElement('span');
+      icon.className = 'icon';
+      icon.appendChild(ICONS[step.state] ? ICONS[step.state]() : ICONS.pending());
+      const label = document.createElement('span');
+      label.textContent = step.label;
+      li.append(icon, label);
+      return li;
+    }));
+    const note = document.getElementById('note');
+    note.hidden = !model.note;
+    note.textContent = model.note || '';
+    document.getElementById('version').textContent = model.version;
+  }
+
+  window.splash = { render };
+  try {
+    render(JSON.parse(decodeURIComponent(location.hash.slice(1))));
+  } catch { /* drawn by the next render() */ }
+</script>
+</body>
+</html>

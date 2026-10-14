@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the app may hand to another app (the share sheet, the package
+     installer): only its own cache — a CSV or GiroCode being shared, a
+     downloaded update — never the folder the vault lives in. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="shared" path="shared/" />
+    <cache-path name="updates" path="updates/" />
+</paths>

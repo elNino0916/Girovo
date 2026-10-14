@@ -6,6 +6,7 @@
 
 import type { TransferTemplate } from '@/lib/app-types';
 import type { SerializedTransaction } from '@/lib/fints-types';
+import type { OrderSchedule } from '@/lib/order-schedule';
 import { intermediaryName } from '@/lib/categories';
 import { bookingKind } from '@/lib/categorize';
 import { dayKey, displayName, fmtShortIban, ibanValid, parseAmount } from '@/lib/format';
@@ -21,6 +22,8 @@ export type TransferDraft = {
   cents: number;
   purpose: string;
   instant: boolean;
+  /** A terminierte Überweisung or a Dauerauftrag; absent for a transfer carried out now. */
+  schedule?: OrderSchedule;
 };
 
 /** "DE78 ··· 5932 71" as one string, for a native <option> or a summary line. */

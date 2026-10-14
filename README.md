@@ -23,7 +23,8 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   the server automatically retries the known alternate URL.
 - **German or English** — switch at any time on the login screen or in the
   Sitzung panel; without a choice the app follows the system's language
-  (German on a German system, English otherwise). Figures and dates follow
+  (German on a German system, English otherwise), and so does the Windows
+  installer. Figures and dates follow
   the language (1.234,56 € / €1,234.56). What your bank sends — its messages,
   answers and Verwendungszwecke — is shown as the bank wrote it, and the CSV
   export stays in the German Excel dialect either way.
@@ -36,6 +37,17 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   versuchen* in its place — *Monatsbilanz* (compared with the same days of the
   month before) and *Demnächst fällig* tiles, and Schnellzugriffe (Überweisen,
   Geld anfordern, Kontoauszug).
+- **Several banks in one view** — *Weitere Bank anmelden* (in the Sitzung
+  panel, and under the account list) runs the same login — bank, login name
+  and PIN, security method, approval — for another bank, as a session of its
+  own beside the first. *Konten und Karten* groups the accounts under each
+  bank, the Gesamtsaldo, *Alle Konten* in Analyse, Verträge & Abos, the
+  command palette and the transfer form cover all of them, and every request
+  goes through the login of the account it concerns. The first login's
+  encrypted vault remembers the further banks (BLZ, name, login name — never a
+  PIN), so the next login offers *Auch bei … anmelden*; *Bank entfernen*
+  forgets one. A bank whose session ends on its own is marked logged out, the
+  others stay.
 - **Kontoverlauf** — the end-of-day balance over the loaded period as a step
   chart, reconstructed from the bookings and *checked against every opening and
   closing balance the bank sent*. If the numbers don't add up, no chart is drawn.
@@ -44,6 +56,12 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   category filters, quick periods (30/90 Tage, Monat, Jahr, eigener Zeitraum),
   day totals and a full detail drawer (Referenzen, Gläubiger-ID, copy buttons,
   "Erneut überweisen" / "Zurücküberweisen", "Alle Umsätze mit …").
+- **Notes on bookings** — a line of your own on any booking ("Geschenk für
+  Mama", up to 280 characters), written in its detail drawer and marked on its
+  row. The Umsätze search and the command palette find it, the CSV export
+  carries it in a last "Notiz" column; the printed Buchungsbeleg never shows it.
+  Kept encrypted in the personal-data vault, under "Beträge ausblenden" its
+  amounts are masked like the bank's own text.
 - **Automatic categories** (Wohnen & Energie, Lebensmittel, Mobilität, Abos, …)
   from booking codes (MT940 GVC and CAMT ISO codes), creditor IDs and a German
   keyword table, and for what those miss a small text model that runs on the
@@ -53,6 +71,17 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   month-by-month comparison, top payees and largest expenses for one or all
   loaded accounts. Umbuchungen between your own accounts are left out, refunds
   are netted, and every figure states its basis.
+- **Monatsbudgets** — a monthly amount for any spending category, set in the
+  Analyse and compared with the month on view, counted exactly as "Ausgaben
+  nach Kategorie" counts (refunds netted, Umbuchungen out): "212,40 € von
+  300,00 €", what is left, or how far over. The running month says it is
+  still running; a month the loaded period cuts says so and gives its
+  spending as a minimum ("mind."), never as the month's total.
+- **Kategorie-Check** — how the automatic categories fare with your own
+  bookings, worked out on the machine: how many the app filed by its rules or
+  by the on-device model, how many of those you left as they were, which you
+  changed (automatic → yours), and the ones still without a category, each
+  with the category menu to file it. Nothing of it is sent anywhere.
 - **Verträge & Abos** — recurring payments detected from the bookings (direct
   debits, standing orders, subscriptions, salary) with rhythm, next expected
   date, yearly cost and a "Betrag gestiegen" flag. Labelled as an estimate;
@@ -60,7 +89,8 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
 - **CSV export** of the Umsätze list — all of the loaded period, or what the
   filter shows (the file name says which days, and "_gefiltert") — booked
   Umsätze only, in the German Excel dialect (`;`, UTF-8 BOM, decimal comma,
-  formula-injection guard), plus the existing PDF Kontoauszug and Buchungsbeleg.
+  formula-injection guard), your notes in the last column, plus the existing
+  PDF Kontoauszug and Buchungsbeleg.
 - **Vorgemerkte Umsätze** (pending / not-yet-booked entries) — shows incoming
   SEPA-Lastschriften and card payments *before* they book. Loaded on demand
   via `HKVMK` where the bank offers it; banks that send them with the Umsätze
@@ -73,6 +103,16 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   screenshot of an invoice, shows the bank name for a German IBAN, warns about
   a likely duplicate and about exceeding the available amount, and the review
   step shows name and purpose exactly as the bank will receive them.
+- **Terminüberweisung and Dauerauftrag** (HKCSE, HKCDE) — the transfer sheet's
+  „Termin“: *Sofort*, *An einem Datum* or *Regelmäßig*, with the dates, rhythms
+  and execution days your bank allows (its HICSES/HICDES parameters). The
+  review states the schedule in plain words, and the order goes through the
+  same Namensabgleich, approval and „Status unklar“ as a transfer. Only offered
+  where the bank and the account support it.
+- **The bank's Daueraufträge and Terminüberweisungen** (HKCDB, HKCSB) — under
+  *Verträge & Abos*, read on request (it can cost an approval): payee, amount,
+  rhythm or date and purpose, each deletable where the bank allows it (HKCDL,
+  HKCSL) after a confirmation that names exactly what goes.
 - **Geld anfordern** — a GiroCode (EPC QR) for your own IBAN, optionally with
   amount and purpose, that any German banking app can scan; save as PNG or copy
   the account details.
@@ -102,17 +142,33 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   balance/transaction reads without a fresh TAN for the duration of its
   exemption window (typically ~90 days). "Gerät vergessen" wipes it. See
   [Fewer TAN prompts](#fewer-tan-prompts).
-- **Personal data vault** — templates, account names and category rules are
-  stored **encrypted with your PIN** (AES-256-GCM, scrypt) next to the device
-  profile, so they exist only while you are logged in. "Gerät vergessen" can
-  delete them too.
+- **Personal data vault** — templates, account names, category rules,
+  monthly budgets and notes on bookings are stored **encrypted with your PIN**
+  (AES-256-GCM, scrypt) next to the device profile, so they exist only while
+  you are logged in. "Gerät vergessen" can delete them too.
+- **Umsätze auf diesem Rechner behalten** (opt-in per login, off by default,
+  *Sitzung → Auf diesem Rechner*) — every statement the bank delivers is kept
+  **encrypted with your PIN** beside the vault: booked Umsätze only (never
+  Vorgemerkte), the days the bank provably delivered, and the end-of-day
+  balances its figures proved. Analyse, Verträge & Abos and the Kontoverlauf
+  then reach as far back as what is kept (the Zeitraum menu's "Alles
+  Gespeicherte", the default once something older is kept), and a longer
+  period asks the bank only for what is missing — its free 90-day window, or
+  from a week before the kept days end — so 12 months rarely need a TAN once
+  they are kept. The bank stays authoritative: for the days it delivers, its
+  answer replaces what was kept. A quiet line in the list marks where the kept
+  days begin, and the Kontoverlauf over them is still checked against the
+  bank's balances. Switching it off deletes them. With several banks the
+  choice is the first login's and covers every bank in the view; each login
+  keeps its own file, sealed with its own PIN.
 - **Beträge ausblenden** (privacy mode for screen sharing — every amount,
   chart axis and tooltip is masked, amounts inside the bank's own text as far
   as they can be recognised, and the Kontoverlauf keeps its trend but not
   whether it dipped below zero), **automatic logout** after 5–30 minutes of
   inactivity with a one-minute warning (also in the window title, and in the
   desktop app on a flashing taskbar button), **Mitteilungen** (the bank's messages
-  from the login plus this session's transfer outcomes), a **command palette**
+  from the login — each one can be copied or saved as a PDF, its text exactly
+  as the bank sent it — plus this session's transfer outcomes), a **command palette**
   (Strg+K) and keyboard shortcuts (switchable).
 - Hell / Dunkel / System appearance; phone layout with a bottom navigation.
 - **Updates in the desktop app** — the Windows app looks for a new release on
@@ -164,7 +220,7 @@ That produces two files in `dist/`:
 
 | File | What it is |
 |------|------------|
-| `Girovo-<version>-Setup.exe` | Standard NSIS installer — double-click to install, uninstall via *Programs & Features*. |
+| `Girovo-<version>-Setup.exe` | Standard NSIS installer — double-click to install, uninstall via *Programs & Features*. German on a German Windows, English on any other; its own texts are in `build/installer.nsh`. |
 | `Girovo-<version>-portable.exe` | Single executable, no installation needed — run from anywhere. |
 
 Both are about 400 MB: the category model is most of it, the Electron runtime
@@ -211,6 +267,34 @@ over as they are.
 `config.json` is baked into the package at build time — set your product ID
 before building.
 
+### Linux
+
+The same app also builds for Linux (x64), on a Linux machine — electron-builder
+cannot make these packages on Windows:
+
+```bash
+npm run electron:dist:linux
+```
+
+| File | What it is |
+|------|------------|
+| `Girovo-<version>-x86_64.AppImage` | Single file, no installation needed — `chmod +x` it and run it. Needs FUSE (`libfuse2` on Debian and Ubuntu). |
+| `Girovo-<version>-amd64.deb` | Package for Debian, Ubuntu and their relatives — installs to `/opt/Girovo`, with the `girovo` command and a menu entry. |
+
+CI builds both on every push to `main`, next to the Windows files
+(`.github/workflows/build-development.yml`). The packages are the Windows app
+with three differences: the ONNX runtime is Linux's (`libonnxruntime.so.1`,
+46 MB), there is no update window (`build/update-window` is Windows only, so a
+failed start is said in a plain message box), and neither package updates
+itself — the update dialog offers the release page instead
+(see [Updates](#updates)). The settings, the vault and the device profiles go
+to `~/.config/girovo`.
+
+The `.deb` sets up Chromium's sandbox when it installs, including the
+AppArmor profile Ubuntu 24.04 and later need for it. The AppImage cannot do
+that: on those systems it stops at start with a sandbox error. Use the `.deb`
+there.
+
 ### Updates
 
 The desktop app updates itself from this repository's
@@ -255,6 +339,9 @@ The desktop app updates itself from this repository's
 - **Portable copies**: the new `portable.exe` is saved next to the old one (or in
   *Downloads* if that folder is read-only) and started instead. The old file
   stays — delete it when you like.
+- **Linux** (AppImage and `.deb`): the check and "what's new" work the same,
+  but the app does not replace itself — the dialog links to the release page
+  to download the new file from.
 - After the update the app says so once, with the release notes.
 
 **Publishing a release** the updater picks up needs nothing beyond what
@@ -265,7 +352,9 @@ and `Girovo-<version>-portable.exe` from `dist/` — upload the files of
 one build, the blockmap has to describe exactly that `Setup.exe`. GitHub adds
 the digests by itself; no `latest.yml` is needed. Without the blockmap the
 release still works, it is just downloaded whole — by the copies updating to
-it and, later, by the copies updating *from* it.
+it and, later, by the copies updating *from* it. Attach the `.AppImage` and
+the `.deb` from `npm run electron:dist:linux` (or CI's Linux artifact) too, for
+the Linux users the dialog sends there.
 The release text becomes the app's "Was ist neu" (Markdown: headings, lists,
 bold, links). Development builds (`<version>-dev.<n>`) are newer than the
 release they are numbered after, so they are only offered a higher version.
@@ -308,7 +397,7 @@ main process decides what goes out (`electron/telemetry.cjs`):
 - **Usage, only after the user's yes** — asked once by a tile on the Übersicht,
   changeable under *Sitzung → Nutzungsdaten teilen*: which screens are used,
   how logins end (with the BLZ, never the login name), how long the bank takes
-  to answer, exports made (format only), update events, and a random install
+  to answer, how long the app takes to start, exports made (format and kind of document only), update events, and a random install
   id. Switching it off deletes the id.
 
 Only the events and fields declared in `electron/telemetry.cjs` are sent, each
@@ -322,6 +411,46 @@ judges like its own. `npm run dev` and an unpackaged `electron:dev` send nothing
 (set `GIROVO_TELEMETRY=1` to try it). A build without the `telemetry` block in
 `config.json` sends nothing at all. The design preview fakes the bridge with
 `?usage=unasked|on|off`.
+
+## Android app
+
+The same app also runs on Android phones (Android 8 and later), with the
+banking done on the phone itself: the desktop server's route handlers run
+inside the app (`mobile/`), and the phone talks to the bank directly — no
+server in between, no cloud account.
+
+```bash
+npm run android            # debug build, installed on the connected phone or emulator
+npm run android:release    # signed releases into dist/ (see android/README.md)
+```
+
+| File | What it is |
+|------|------------|
+| `Girovo-<version>-android.apk` | The app from GitHub, for every current phone (arm64). It updates itself from this repository's releases, like the desktop app: downloaded, checked against GitHub's SHA-256, installed by Android. |
+| `Girovo-<version>-play.aab` | The same app for Google Play, which installs its updates. |
+
+On the phone the app looks the way Android apps look now: Material 3
+Expressive — springy motion, shape-morphing buttons, the flexible navigation
+bar — in the wallpaper's colours (Material You), the very colours the phone's
+own apps use, and in the phone's light or dark. It is laid out as an app, not
+a web page: one top bar naming the page, the tiles, the navigation bar, and the
+Sitzung panel as a bottom sheet. The colours that carry meaning (credit,
+negative balance, vorgemerkt) stay Girovo's on every phone. Beyond the
+desktop app's features it has:
+
+- **Fingerprint login** (opt-in): the PIN of one login, sealed with a key in
+  the Android Keystore that only a fingerprint opens. Adding a fingerprint to
+  the phone deletes it, and so does a PIN the bank refuses.
+- **The category model as a download** (about 300 MB, once, from Hugging Face;
+  each file checked against its pinned digest). Without it the keyword rules
+  sort alone.
+- **The share sheet** for a GiroCode, Android's file picker for the CSV
+  export, and Android's print dialog ("Save as PDF") for Kontoauszug,
+  Buchungsbeleg and Mitteilungen.
+
+The Android app sends no telemetry. How it is built, signed and published —
+and what Google Play asks of an app like this — is in
+[android/README.md](android/README.md).
 
 ## FinTS product registration (important)
 
@@ -344,6 +473,7 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `app/api/*/route.ts` | The Node-runtime route handlers. Each one is thin: validate → call the session's `FinTSClient` → serialise. Decoupled TAN operations are continued via `/api/tan-poll`. |
 | `lib/session.ts` | Product registration (`config.json` / `FINTS_PRODUCT_ID`) and the in-memory session store. Pinned to `globalThis` so hot reload doesn't drop logged-in users; 30-minute idle sweep. |
 | `lib/fints-sepa.ts` | Adds the transfer segments **HKCCS**/**HKIPZ** (lib-fints is read-only out of the box): segment definitions, pain.001 XML builder (001.001.03 / 001.003.03 / 001.001.09), SEPA character-set sanitizing, IBAN/BIC/amount validation. The descriptor is picked per segment — HKIPZ has its own format list in **HIIPZS**, HKCCS falls back to the bank-wide one in **HISPAS**. |
+| `lib/fints-orders.ts` | Adds the orders a bank keeps for later: **HKCSE**/**HKCSB**/**HKCSL** (terminierte SEPA-Überweisung) and **HKCDE**/**HKCDB**/**HKCDL** (SEPA-Dauerauftrag) with their answers and parameter segments, the bank's rules for dates, rhythms and days, the Bestand read (Aufsetzpunkt followed) with each order's pain.001 decoded (`lib/xml-tree.ts`), and the deletion that sends the bank's own order data back. The sources for each layout are listed at the top of the file; `lib/order-schedule.ts` checks a schedule and says it in words. |
 | `lib/fints-vop.ts` | Adds **HKVPP**/**HKVPA** (Namensabgleich — Verification of Payee): segment definitions, a collector that merges a result delivered over several messages (Aufsetzpunkt, return code 3040) incl. a pain.002 fallback, the HIVPPS lookup that says which transactions the bank checks, and the return codes that steer the flow (3090/3091/3945/9076). |
 | `lib/fints-pending.ts` | Adds **HKVMK** (Vormerkposten / pending entries): segment definitions + a `PendingInteraction` that parses the returned **MT942** with lib-fints' MT940 parser (MT942 reuses the `:61:`/`:86:` entry format). |
 | `lib/fints-statements.ts`, `lib/noted.ts` | Umsätze with the Vormerkposten a bank sends beside them (**HIKAZ** MT942, **HICAZ** camt.052 `PDNG`), which lib-fints decodes but drops — the only way Sparkassen deliver them. Subclasses of lib-fints' statement interactions keep its request and its reading of the booked part, and parse the noted part on its own, so it can never cost the Umsätze. |
@@ -355,13 +485,15 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `lib/merchants.ts` | The Brandfetch lookup behind it: Brand Search API for recall, name/domain scoring for precision, the Logo CDN fetch, process-level caching of hits *and* misses, and the logo proxy's allowlist. |
 | `lib/state-store.ts` | Encrypted device-profile persistence (`.fints-state/`, gitignored, or wherever `FINTS_STATE_DIR` points): AES-256-GCM, key derived from the PIN via scrypt. Stores systemId + cached BPD/UPD + TAN method so logins skip a fresh sync SCA. |
 | `patches/` | Patch for lib-fints (via `patch-package`, applied on `npm install`): exports the internal `registerSegmentDefinition` so the custom segments can be registered, reads camt.053 as well as camt.052, and keeps the ultimate creditor/debtor (MT940 `ABWE+`/`ABWA+`, CAMT `UltmtCdtr`/`UltmtDbtr`) that the parser otherwise drops — where the shop behind a card payment is named. |
-| `lib/vault.ts`, `lib/crypto-box.ts` | The encrypted personal-data vault (templates, account names, category rules) and the AES-256-GCM/scrypt helpers it shares with the device profile. Sanitised server-side, written atomically. |
+| `lib/vault.ts`, `lib/crypto-box.ts` | The encrypted personal-data vault (templates, account names, category rules, budgets, notes) and the AES-256-GCM/scrypt helpers it shares with the device profile. Sanitised server-side, written atomically. |
+| `lib/budgets.ts`, `lib/notes.ts`, `lib/category-check.ts` | Monthly budgets (what counts, a month's coverage of the loaded days, under/over), notes on bookings (one line each, capped to stay well inside the vault) and the Kategorie-Check's counting. Pure and tested; the vault and the page sanitise with the same functions. |
+| `lib/history.ts`, `lib/history-store.ts` | The Umsätze kept on this computer: the pure rules (what the bank delivered, the merge where the bank is authoritative for its days, caps, what to ask the bank for, the list and the Kontoverlauf over kept days — shared by server and browser) and the sealed per-login file. The server keeps each statement answer itself once it is sent, when the vault says so; the browser never uploads a booking. `lib/sealed-file.ts` is the atomic-write plumbing both stores share. |
 | `lib/categorize.ts`, `lib/analytics.ts`, `lib/recurring.ts`, `lib/balance-history.ts` | Pure, tested analysis: categories, period totals and comparisons, recurring-payment detection, and the verified balance history. They handle both MT940 and CAMT shapes. |
 | `lib/csv.ts`, `lib/girocode.ts`, `lib/qr.ts`, `lib/qr-read.ts` | CSV export, the EPC069-12 GiroCode payload (build + parse) and QR rendering/reading (bundled `qrcode-generator` and `jsqr`, no network). |
-| `components/FintsProvider.tsx` | The client state machine: login → TAN method → dashboard, with every bank read serialised behind one `busy` flag (each read can cost its own approval), the decoupled poll loop, the applied date range, auto-logout, the vault and the inbox. |
+| `components/FintsProvider.tsx` | The client state machine: login → TAN method → dashboard, with every bank read serialised behind one `busy` flag (each read can cost its own approval), the decoupled poll loop, the applied date range, auto-logout, the vault and the inbox. Further banks are logins of their own beside the first (`links`); `lib/linked-banks.ts` routes each request to the session of the account's login, refuses a bank whose account numbers would collide with ones shown, and sanitises what the vault keeps about it. |
 | `components/*` | The UI: `shell/` (masthead, tabs, stage, footer, bottom bar), `overview/`, `transactions/`, `insights/` (Analyse, Verträge), `transfer/`, `auth/`, `updates/` (the desktop updater's dialog and notices), plus the command palette, inbox and primitives in `ui.tsx`. |
 | `app/globals.css` | Design tokens (chrome navy, action blue, white tiles on a blue-grey page, navy-black dark theme, chart palette) as CSS variables mapped into Tailwind v4 via `@theme inline`. The print styles for the Kontoauszug are frozen separately. |
-| `app/design-preview` | Dev-only harness that renders every screen with generated data (`/design-preview?view=overview`, `analysis`, `contracts`, `transfer`, `login`, …; `&theme=dark`, `&privacy=1`). Returns 404 in production. |
+| `app/design-preview` | Dev-only harness that renders every screen with generated data (`/design-preview?view=overview`, `analysis`, `analysis-budgets`, `category-check`, `detail-note`, `contracts`, `transfer`, `login`, …; `&theme=dark`, `&privacy=1`). Returns 404 in production. |
 | `electron/main.cjs` | The desktop shell: boots the standalone server on loopback, opens the window, denies every device permission and sends outside links to the real browser. Paired with `scripts/build-electron.mjs` and `electron-builder.yml`. |
 | `electron/updater.cjs`, `electron/update-logic.cjs` | The [updater](#updates): checks GitHub releases, downloads and verifies against GitHub's SHA-256 digest, starts the installer (or the new portable build). Node built-ins and Electron only; the decisions (versions, files, install kind) are pure and tested on their own. The page side is `components/updates/`. |
 
@@ -380,13 +512,16 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `POST /api/balance` | Kontostand for one account |
 | `POST /api/transactions` | Umsätze (optional date range), with the Vorgemerkte the bank sent beside them |
 | `POST /api/pending` | Vorgemerkte Umsätze (HKVMK; on-demand) |
-| `POST /api/transfer` | SEPA-Überweisung (`instant: true` → HKIPZ); answers `needsVop` when a Namensabgleich needs the user's decision |
+| `POST /api/transfer` | SEPA-Überweisung (`instant: true` → HKIPZ; a `schedule` → HKCSE or HKCDE); answers `needsVop` when a Namensabgleich needs the user's decision |
 | `POST /api/vop-confirm` | Send the parked transfer anyway, confirming the Namensabgleich result (HKVPA) |
+| `POST /api/bank-orders` | The bank's Daueraufträge or Terminüberweisungen for one account (HKCDB/HKCSB; `kind`) |
+| `POST /api/bank-orders/delete` | Delete one of them (HKCDL/HKCSL), named by the handle the last read gave it |
 | `POST /api/merchants` | Resolve counterparty names to company logos (Brandfetch) |
 | `GET  /api/merchant-logo?id=` | Proxy a resolved logo; only ids this process minted |
 | `POST /api/device-status` | Whether a remembered device exists for (BLZ, user) — a POST so the login name never lands in a URL |
-| `POST /api/forget-device` | Delete the encrypted device profile (`wipeData: true` also deletes the vault) |
-| `POST /api/vault` | Read / save / reset / wipe the encrypted personal-data vault (`op`) |
+| `POST /api/forget-device` | Delete the encrypted device profile (`wipeData: true` also deletes the vault and the kept Umsätze) |
+| `POST /api/vault` | Read / save / reset / wipe the encrypted personal-data vault (`op`; `wipe` takes the kept Umsätze too) |
+| `POST /api/history` | Read / start over / wipe the Umsätze kept on this computer (`op`: `get`, `reset`, `wipe`) — there is no op that writes bookings |
 | `POST /api/keepalive` | Keep an active session alive (no bank traffic) |
 | `POST /api/logout` | Drop the session |
 
@@ -418,7 +553,8 @@ decides, on the machine (`lib/category-model.ts`):
 - **Where it shows:** the guess comes after the keywords and is labelled as a
   guess like theirs. The contract detection (`lib/recurring.ts`) uses it too,
   so a card payment at a shop the keywords do not know is judged as a habit,
-  not a subscription.
+  not a subscription. The Analyse's Kategorie-Check counts how many bookings
+  it filed and how many of those you changed — on the machine, for you alone.
 - **Privacy:** nothing leaves the machine — the page asks the app's own server
   on `127.0.0.1`, and the server keeps the vectors in memory only, logging no
   text. The model takes about 600 MB of memory while loaded; it is loaded on
@@ -543,6 +679,13 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
   honoured — see the note on `MAX_VOP_POLLS` in `lib/fints-vop.ts`.
 - Opt-Out (`HKVOO`, waiving the name check) is a business-customer feature for
   Sammelaufträge and is not implemented.
+- Terminüberweisungen and Daueraufträge are built from the specification and
+  open implementations (see the top of `lib/fints-orders.ts`) and have **not
+  yet been tried against a real bank**. Changing one (HKCSA/HKCDN) is not
+  offered: delete it and place it again. A device remembered by an earlier
+  version keeps its stored BPD, which lacks the parameters for them; until the bank sends a
+  new BPD the app offers a narrower, safe choice (monthly, quarterly,
+  half-yearly, yearly on the 1st–28th, up to a year ahead) and says so.
 - If the bank closes the dialog during a transfer approval, the app shows
   **„Status unklar“** and asks you to check the Umsätze before retrying —
   never blindly resend a transfer.
@@ -554,14 +697,25 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
   *Stand*. Nothing is being predicted — it is the bank's own dating.
 - The app logs you out after 5–30 minutes without input (your choice, default
   10, with a one-minute warning; never while an approval is in flight). The
-  server drops sessions after 30 minutes of inactivity regardless.
+  server drops sessions after 30 minutes of inactivity regardless. With more
+  than one bank, the keepalive covers every session, and logging out (by hand
+  or idle) ends all of them.
+- Accounts are told apart by their account number. A further bank that lists
+  an account under a number already shown (another account than the one
+  shown) is not added — the login says so. The same account seen by two
+  logins (same number and IBAN) is shown once.
 - Analysis, Verträge & Abos and the Kontoverlauf only know the period you have
   loaded (the bank's default is ~90 days). "Mehr Verlauf laden (12 Monate)" asks
-  the bank for more — that can require a TAN, and some banks keep less.
+  the bank for more — that can require a TAN, and some banks keep less. With
+  *Umsätze auf diesem Rechner behalten* on they also know what was kept from
+  earlier logins (at most ten years and 20,000 bookings per account; the oldest
+  days go first).
 
 ## Security
 
-- Credentials live only in memory and vanish on logout / restart.
+- Credentials live only in memory and vanish on logout / restart — with
+  several banks, each bank's PIN in its own session, all of them dropped at the
+  logout.
 - Banking traffic goes directly from your machine to the bank's FinTS endpoint
   over TLS — no third party sits in that path.
 - Besides the bank, the app makes these outside requests:
@@ -582,7 +736,19 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 - Updates are verified against the SHA-256 digest GitHub publishes for the
   release file before they run, and are only downloaded and installed when you
   click.
-- Templates, account names and category rules are encrypted with your PIN.
+- Templates, account names and category rules are encrypted with your PIN —
+  with several banks, in the first login's vault, which also keeps the further
+  banks' BLZ, name and login name (never their PIN).
+- With *Umsätze auf diesem Rechner behalten* on (off by default), the booked
+  Umsätze themselves — names, IBANs, Verwendungszweck, amounts — and the
+  balances proven for them are on disk too: one file per login in the state
+  directory, named by a hash, sealed with AES-256-GCM under a key from your PIN
+  like the vault, and never in a log. The same offline-brute-force caveat as
+  for the device profile applies to a short PIN. A file another PIN sealed is
+  never overwritten; *Neu beginnen …* sets it aside. Switching the option off,
+  *Gespeicherte Daten → Löschen …* and *Gerät vergessen* with its box ticked
+  delete the file and every backup of it — for every bank logged in at that
+  moment (a further bank that is not logged in keeps its file until it is).
   Preferences are plain settings: theme, privacy mode, logout timer, the
   company-logo and usage-data answers (with usage data shared, a random install
   id), and the last bank with its login name (to fill in the

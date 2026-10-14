@@ -16,12 +16,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ActivityEntry, InboxMessage } from '@/lib/app-types';
 import { copyText } from '@/lib/clipboard';
-import { fmtShortIban } from '@/lib/format';
+import { fmtDate, fmtShortIban, toLocalDate } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { answerBeyondOutcome } from '@/lib/session-log';
+import { useShowBankOrders } from './BankOrders';
 import { useFints } from './FintsProvider';
 import { Money } from './Money';
-import { AlertTriangleIcon, CheckIcon, ChevronIcon, CopyIcon, HelpIcon, TransferIcon } from './icons';
+import { AlertTriangleIcon, CheckIcon, ChevronIcon, CopyIcon, FileIcon, HelpIcon, TransferIcon } from './icons';
 import { Alert, Button, CountBadge, Dot, Drawer, EmptyState, Tag, cx } from './ui';
 import { fmtSince } from './shell/session';
 import { useShowOnAccount } from './shell/actions';
@@ -44,7 +45,7 @@ export function Inbox() {
 }
 
 function InboxBody() {
-  const { messages, activity, markAllRead, setInboxOpen } = useFints();
+  const { messages, activity, markAllRead, setInboxOpen, banks } = useFints();
   const t = useT();
   const update = useUpdateNotice();
   // What was unread at the moment the drawer opened.
@@ -62,7 +63,14 @@ function InboxBody() {
           <>
             <ul className="-mx-4 border-y border-line sm:-mx-6">
               {messages.map((m) => (
-                <MessageItem key={m.id} message={m} isNew={fresh.has(m.id)} defaultOpen={messages.length === 1} />
+                <MessageItem
+                  key={m.id}
+                  message={m}
+                  isNew={fresh.has(m.id)}
+                  defaultOpen={messages.length === 1}
+                  // Which bank said it, once there is more than one to tell apart.
+                  showBank={banks.length > 1}
+                />
               ))}
             </ul>
             <p className="mt-3 text-[13px] leading-snug text-ink-3">
@@ -114,10 +122,15 @@ function SectionHead({ id, title, count }: { id: string; title: string; count: n
   );
 }
 
-function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage; isNew: boolean; defaultOpen: boolean }) {
+function MessageItem({
+  message: m, isNew, defaultOpen, showBank,
+}: { message: InboxMessage; isNew: boolean; defaultOpen: boolean; showBank: boolean }) {
+  const { printMessage } = useFints();
   const t = useT();
   const id = useId();
   const subjectId = `${id}-subject`;
+  const bankId = `${id}-bank`;
+  const fromBank = showBank && m.bank ? m.bank : null;
   const body = m.text.trim();
   // A message whose text only repeats its subject has nothing to unfold.
   const expandable = !!body && body !== m.subject.trim();
@@ -127,6 +140,9 @@ function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage
     <>
       <span className="flex w-3 shrink-0 justify-center pt-[7px]">{isNew && <Dot />}</span>
       <span className="min-w-0 flex-1">
+        {fromBank && (
+          <span id={bankId} className="mb-0.5 block truncate text-[12.5px] leading-snug text-ink-3">{t.banks.from(fromBank)}</span>
+        )}
         {/* Semibold whether new or not: the orange dot says "new". */}
         <span id={subjectId} className="block text-[15px] leading-snug font-semibold text-ink">
           {m.subject}
@@ -148,7 +164,7 @@ function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage
           type="button"
           aria-expanded={open}
           aria-controls={id}
-          aria-labelledby={subjectId}
+          aria-labelledby={fromBank ? `${bankId} ${subjectId}` : subjectId}
           onClick={() => setOpen((o) => !o)}
           className="row-focus flex w-full items-start gap-3 px-4 py-3.5 text-left hover:bg-inset sm:px-6"
         >
@@ -162,7 +178,17 @@ function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage
         <div id={id} hidden={!open} className="px-4 pb-3 pl-[46px] sm:px-6 sm:pl-[54px]">
           {/* The bank's own words, as text: never markup. */}
           <p className="text-[14.5px] leading-relaxed whitespace-pre-line text-ink [overflow-wrap:anywhere]">{body}</p>
-          <CopyMessage text={`${m.subject}\n\n${body}`} />
+          <div className="mt-1.5 -ml-3.5 flex flex-wrap gap-1">
+            <CopyMessage text={`${m.subject}\n\n${body}`} />
+            <Button
+              variant="tertiary"
+              size="xs"
+              iconLeft={<FileIcon size={15} />}
+              onClick={() => printMessage(m)}
+            >
+              {t.shell.inbox.savePdf}
+            </Button>
+          </div>
         </div>
       )}
     </li>
@@ -172,7 +198,8 @@ function MessageItem({ message: m, isNew, defaultOpen }: { message: InboxMessage
 /**
  * Messages are not kept after the logout, so a notice like "Neue
  * Sonderbedingungen" can be taken along: subject and text, as the bank sent
- * them, onto the clipboard.
+ * them, onto the clipboard — or, beside it, onto paper or into a PDF
+ * (printMessage, the sheet in components/Statement.tsx).
  */
 function CopyMessage({ text }: { text: string }) {
   const t = useT();
@@ -190,7 +217,6 @@ function CopyMessage({ text }: { text: string }) {
       <Button
         variant="tertiary"
         size="xs"
-        className="mt-1.5 -ml-3.5"
         iconLeft={state === 'done' ? <CheckIcon size={15} strokeWidth={2.2} /> : <CopyIcon size={15} />}
         onClick={() => void copy()}
       >
@@ -214,6 +240,7 @@ function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
   const { accounts, accountLabel, setInboxOpen } = useFints();
   const t = useT();
   const showOnAccount = useShowOnAccount();
+  const showBankOrders = useShowBankOrders();
   const o = OUTCOME[e.outcome];
   const outcome = e.outcome === 'unknown' ? t.common.statusUnclear : t.shell.inbox.outcome[e.outcome];
   const account = accounts.find((a) => a.accountNumber === e.accountNumber);
@@ -247,6 +274,14 @@ function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <Tag tone={o.tone} size="sm">{outcome}</Tag>
           {e.instant && <Tag size="sm">{t.common.booking.instant}</Tag>}
+          {/* An order for later: placed now, carried out on its date or rhythm. */}
+          {e.schedule && (
+            <Tag size="sm">
+              {e.schedule.kind === 'dated'
+                ? t.orders.activity.dated(fmtDate(toLocalDate(e.schedule.date)))
+                : t.orders.activity.standing}
+            </Tag>
+          )}
         </div>
         {answer && (
           <p className="mt-2 text-[13.5px] leading-snug whitespace-pre-line text-ink-2 [overflow-wrap:anywhere]">{answer}</p>
@@ -254,10 +289,21 @@ function ActivityItem({ entry: e }: { entry: ActivityEntry }) {
         {/* A caution, not information: the warning's inset with the orange edge. */}
         {e.outcome === 'unknown' && (
           <Alert tone="warn" className="mt-2.5">
-            {t.shell.inbox.unclear}
+            {e.schedule ? t.orders.activity.unclear(t.common.nav.contracts) : t.shell.inbox.unclear}
           </Alert>
         )}
-        {e.outcome === 'unknown' && e.iban && (
+        {/* Not booked before its day: an order for later is looked for in the bank's list. */}
+        {e.outcome === 'unknown' && e.schedule && (
+          <Button
+            variant="tertiary"
+            size="xs"
+            className="mt-1.5 -ml-3"
+            onClick={() => { setInboxOpen(false); showBankOrders(); }}
+          >
+            {t.orders.sheet.showOrders}
+          </Button>
+        )}
+        {e.outcome === 'unknown' && e.iban && !e.schedule && (
           <Button
             variant="tertiary"
             size="xs"

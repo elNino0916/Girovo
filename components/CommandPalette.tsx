@@ -37,6 +37,7 @@ import { txMatcher } from '@/lib/analytics';
 import { dayKey, fmtDate, initials, translateType } from '@/lib/format';
 import { MESSAGES, msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { paletteResults } from '@/lib/palette';
 import { setThemePref } from '@/lib/theme';
 import type { DashboardTab } from '@/lib/app-types';
@@ -46,9 +47,11 @@ import { isCardAccount } from '@/lib/balances';
 import { Money } from './Money';
 import { useThemePref } from './ThemeToggle';
 import {
-  AccountTypeIcon, BellIcon, ChartIcon, CheckIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon, FileIcon, HomeIcon,
-  KeyboardIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon, RefreshIcon, RepeatIcon, SearchIcon, SunIcon, TransferIcon,
+  AccountTypeIcon, BellIcon, CalendarIcon, ChartIcon, CheckIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon, FileIcon,
+  HomeIcon, KeyboardIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon, RefreshIcon, RepeatIcon, SearchIcon, SunIcon,
+  TransferIcon,
 } from './icons';
+import { listsOrders, useShowBankOrders } from './BankOrders';
 import { EmptyState, IconButton, Kbd, Overlay, cx } from './ui';
 import { searchText, txText } from './transactions/model';
 import { useShellActions, useShowOnAccount } from './shell/actions';
@@ -109,10 +112,14 @@ function Palette({ onClose }: { onClose: () => void }) {
   const { locale } = useLocale();
   const a = useShellActions();
   const showOnAccount = useShowOnAccount();
+  const showBankOrders = useShowBankOrders();
   const themePref = useThemePref();
   const { state: update } = useUpdates();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
+  // On a phone the first row is lit only once an arrow key moves the choice:
+  // a finger never steers with them, and the ring would read as a selection.
+  const [steered, setSteered] = useState(!IS_ANDROID);
   const inputRef = useRef<HTMLInputElement>(null);
   const downOnBackdrop = useRef(false);
   const base = useId();
@@ -209,10 +216,22 @@ function Palette({ onClose }: { onClose: () => void }) {
       tab('overview', <HomeIcon />, '1'),
       tab('analysis', <ChartIcon />, '2'),
       tab('contracts', <RepeatIcon />, '3'),
-      theme('light', <SunIcon />),
-      theme('dark', <MoonIcon />),
-      theme('system', <MonitorIcon />),
-      {
+      // The bank's own list, at the end of Verträge & Abos — where an account has one.
+      f.accounts.some(listsOrders) && {
+        id: 'bank-orders', group: 'actions', icon: <CalendarIcon />,
+        label: tr.orders.palette.label,
+        keywords: locale === 'de'
+          ? [...tr.orders.palette.words]
+          : [...tr.orders.palette.words, de.orders.palette.label, ...de.orders.palette.words],
+        description: tr.orders.palette.description,
+        run: showBankOrders,
+      },
+      // The Android app follows the phone's light and dark, and a phone has no
+      // keys worth a shortcut.
+      !IS_ANDROID && theme('light', <SunIcon />),
+      !IS_ANDROID && theme('dark', <MoonIcon />),
+      !IS_ANDROID && theme('system', <MonitorIcon />),
+      !IS_ANDROID && {
         id: 'single-keys', group: 'actions',
         ...named((m) => (f.singleKeyShortcuts ? m.shell.singleKeys.turnOff : m.shell.singleKeys.turnOn), 'singleKeys'),
         icon: <KeyboardIcon />,
@@ -237,7 +256,7 @@ function Palette({ onClose }: { onClose: () => void }) {
           updates.openDialog();
         },
       },
-      {
+      !IS_ANDROID && {
         id: 'shortcuts', group: 'actions', ...named((m) => m.common.shortcuts, 'shortcuts'), icon: <KeyboardIcon />,
         hint: single(['?']),
         run: () => f.setShortcutsOpen(true),
@@ -251,7 +270,7 @@ function Palette({ onClose }: { onClose: () => void }) {
       },
     ];
     return list.filter((x): x is Item => !!x);
-  }, [a, f, themePref, update, tr, locale]);
+  }, [a, f, themePref, update, tr, locale, showBankOrders]);
 
   const accounts = useMemo<Item[]>(() => f.accounts.map((acct, i) => {
     const balance = f.balances[acct.accountNumber];
@@ -300,9 +319,13 @@ function Palette({ onClose }: { onClose: () => void }) {
 
   // Bookings: only once something is typed, newest first, across every
   // account loaded in this session — found by what their rows show (the
-  // tidied name, the town, the category), as in the Umsätze search.
+  // tidied name, the town, the category) and by the user's own notes, as in
+  // the Umsätze search.
   const q = query.trim();
-  const searchCtx = useMemo(() => ({ categoryOf: f.categoryOf, shownText: searchText }), [f.categoryOf]);
+  const searchCtx = useMemo(
+    () => ({ categoryOf: f.categoryOf, shownText: searchText, noteOf: f.noteOf }),
+    [f.categoryOf, f.noteOf],
+  );
   const txMatches = useMemo(() => {
     if (q.length < MIN_TX_QUERY) return { list: [] as { tx: SerializedTransaction; account: SerializedAccount }[], total: 0, inActive: 0 };
     const match = txMatcher(q, searchCtx);
@@ -381,6 +404,7 @@ function Palette({ onClose }: { onClose: () => void }) {
     if (!items.length) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
+      setSteered(true);
       const step = e.key === 'ArrowDown' ? 1 : -1;
       setActive((current + step + items.length) % items.length);
     } else if (e.key === 'PageDown' || e.key === 'PageUp') {
@@ -483,7 +507,7 @@ function Palette({ onClose }: { onClose: () => void }) {
                     key={item.id}
                     id={optId(i)}
                     item={item}
-                    active={i === current}
+                    active={steered && i === current}
                     onHover={() => setActive(i)}
                     onChoose={() => choose(item)}
                   />

@@ -9,8 +9,9 @@
 // bookings it loaded, and nothing here may claim to be the bank's.
 //
 // The header row, the Status column and the file name follow the interface
-// language (lib/i18n/messages/transactions.ts), and so do the app's own words
-// in a cell (a category). The format never does: a file saved from the
+// language (lib/i18n/messages/transactions.ts; the Notiz column's name is in
+// budgets.ts), and so do the app's own words in a cell (a category). A note
+// is the user's own text and stays as typed. The format never does: a file saved from the
 // English interface is still German Excel's — semicolons, decimal commas,
 // dd.mm.yyyy.
 //
@@ -51,11 +52,13 @@ export const CSV_COLUMNS = [
   'mandateRef',
   'e2eRef',
   'status',
+  'note',
 ] as const;
 
 /** The header row's names, in the language speaking right now. */
 export function csvHeader(): string[] {
-  const names = msgs().transactions.csv.columns;
+  const { transactions, budgets } = msgs();
+  const names = { ...transactions.csv.columns, note: budgets.notes.csvColumn };
   return CSV_COLUMNS.map((column) => names[column]);
 }
 
@@ -66,6 +69,12 @@ export type CsvOptions = {
   accountLabel?: string;
   /** The category the app shows for a booking — the provider's `categoryOf`. Omitted: empty column. */
   categoryOf?: (tx: SerializedTransaction) => CategoryResult | CategoryId | null | undefined;
+  /**
+   * The user's own note on a booking (lib/notes.ts) — the last column, as
+   * typed. The file is the user's own, like the vault the note comes from.
+   * Omitted: empty column.
+   */
+  noteOf?: (tx: SerializedTransaction) => string | null | undefined;
   /** The day the Status column measures a Buchungstag against; defaults to today. */
   today?: Date;
 };
@@ -208,6 +217,8 @@ function row(tx: SerializedTransaction, opts: CsvOptions, accountCells: string[]
     csvIdCell(reference(tx.mandateReference) || reference(field('MREF'))),
     csvIdCell(reference(tx.e2eReference) || reference(field('EREF'))),
     csvTextCell(csvStatus(tx, opts.today)),
+    // Text the user typed is guarded like the bank's: "=…" stays text.
+    csvTextCell(opts.noteOf?.(tx) ?? ''),
   ];
   return cells.join(SEPARATOR);
 }

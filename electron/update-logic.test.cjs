@@ -146,7 +146,16 @@ test('pickAsset finds the file for each kind of install', () => {
   assert.equal(logic.pickAsset(r, 'nsis').name, 'Sooskasse-FinTS-4.1.0-Setup.exe');
   assert.equal(logic.pickAsset(r, 'portable').name, 'Sooskasse-FinTS-4.1.0-portable.exe');
   assert.equal(logic.pickAsset(r, 'manual'), null);
+  assert.equal(logic.pickAsset(r, 'android'), null);
   assert.equal(logic.pickAsset(r, 'dev'), null);
+});
+
+test('pickAsset finds the Android APK beside the desktop files', () => {
+  const r = logic.parseRelease(release({
+    assets: [asset('Girovo-5.3.0-Setup.exe'), asset('Girovo-5.3.0-android.apk'), asset('Girovo-5.3.0-android.apk.sha256')],
+  }));
+  assert.equal(logic.pickAsset(r, 'android').name, 'Girovo-5.3.0-android.apk');
+  assert.equal(logic.pickAsset(r, 'nsis').name, 'Girovo-5.3.0-Setup.exe');
 });
 
 test('installKind tells the installed, portable and unpacked builds apart', () => {
@@ -161,6 +170,10 @@ test('installKind tells the installed, portable and unpacked builds apart', () =
   const renamedExe = 'C:\\Users\\max\\AppData\\Local\\Programs\\Sooskasse-FinTS\\Girovo.exe';
   const renamedUninstaller = path.join(path.dirname(renamedExe), 'Uninstall Girovo.exe');
   assert.equal(logic.installKind({ ...base, execPath: renamedExe, exists: (f) => f === renamedUninstaller }), 'nsis');
+  // The Linux packages do not update themselves: the AppImage and the .deb's /opt install.
+  const appImage = { isPackaged: true, env: { APPIMAGE: '/home/max/Apps/Girovo-5.2.2-x86_64.AppImage' }, execPath: '/tmp/.mount_GirovoX1y2Z3/girovo', exists: () => false };
+  assert.equal(logic.installKind(appImage), 'manual');
+  assert.equal(logic.installKind({ ...appImage, env: {}, execPath: '/opt/Girovo/girovo' }), 'manual');
 });
 
 test('installArgs: silent and restarting for the installer, nothing for the rest', () => {

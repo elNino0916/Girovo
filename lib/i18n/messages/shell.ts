@@ -181,6 +181,8 @@ export const de = {
     new: '(neu)',
     copyText: 'Text kopieren',
     messageCopied: 'Mitteilung kopiert',
+    /** The message on paper (components/Statement.tsx): the desktop app's save dialog, a browser's print dialog. */
+    savePdf: 'Als PDF speichern',
     /** A transfer's outcome; the unclear one is t.common.statusUnclear. */
     outcome: { executed: 'Ausgeführt', failed: 'Nicht ausgeführt' },
     /** Before the payee's name, for a screen reader. */
@@ -476,6 +478,7 @@ export const en: typeof de = {
     new: '(new)',
     copyText: 'Copy text',
     messageCopied: 'Message copied',
+    savePdf: 'Save as PDF',
     outcome: { executed: 'Completed', failed: 'Not completed' },
     transferTo: 'Transfer to',
     unknownPayee: 'Unknown recipient',

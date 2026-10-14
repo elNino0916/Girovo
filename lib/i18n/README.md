@@ -109,6 +109,7 @@ The rules:
 | Girokonto, Sparkonto, Tagesgeld, Festgeld, Depot, Kreditkarte | current account, savings account, instant-access savings, fixed deposit, securities account, credit card |
 | Überweisung, Echtzeitüberweisung | transfer, instant transfer |
 | Dauerauftrag, Lastschrift, Rücklastschrift | standing order, direct debit, returned direct debit |
+| Terminüberweisung, Termin, Turnus, Ausführungstag | scheduled transfer, when, frequency, execution day |
 | Gutschrift, Belastung | credit, debit |
 | Eingänge, Ausgänge, Ausgaben, Einnahmen | money in, money out, spending, income |
 | Empfänger, Zahlungsempfänger, Auftraggeber | recipient, payee, payer |

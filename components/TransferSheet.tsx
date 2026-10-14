@@ -28,8 +28,12 @@ import { fmtAmountInput, fmtDate, fmtIban, fmtShortIban, isoDate, parseAmount } 
 import { msgs, type Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { sepaLength, sepaSanitize } from '@/lib/sepa-text';
-import { findDuplicate, findSentTransfer, fundsWarning, spendable, type FundsWarning } from '@/lib/transfer-checks';
+import { scheduleSentence } from '@/lib/order-schedule';
+import {
+  findDuplicate, findPlacedOrder, findSentTransfer, fundsWarning, spendable, type FundsWarning,
+} from '@/lib/transfer-checks';
 import { useFints, type TransferHandlers } from './FintsProvider';
+import { useShowBankOrders } from './BankOrders';
 import {
   AccountTypeIcon, AlertTriangleIcon, BoltIcon, ClockIcon, InfoIcon, QrIcon, RepeatIcon, StarIcon, UndoIcon,
 } from './icons';
@@ -47,6 +51,7 @@ import { RefusedMark, SuccessMark, SummaryList, SummaryRow, UnsureMark } from '.
 import {
   BusyNote, CreditDate, FundsWarningText, REVIEW_WARNINGS_ID, ReviewStep, StepError,
 } from './transfer/Review';
+import { ScheduleFields, useScheduleForm } from './transfer/Schedule';
 import { Stepper, TRANSFER_STEPS } from './transfer/Stepper';
 import { ManageTemplates, SaveAsTemplate, TemplatesMenu } from './transfer/Templates';
 
@@ -60,8 +65,8 @@ type Step = 'form' | 'review' | 'vop' | 'awaiting' | 'done' | 'unknown' | 'refus
 
 type Draft = TransferDraft;
 
-type FieldKey = 'account' | 'name' | 'iban' | 'amount' | 'purpose';
-const FIELD_ORDER: FieldKey[] = ['account', 'name', 'iban', 'amount', 'purpose'];
+type FieldKey = 'account' | 'name' | 'iban' | 'amount' | 'schedule' | 'purpose';
+const FIELD_ORDER: FieldKey[] = ['account', 'name', 'iban', 'amount', 'schedule', 'purpose'];
 
 type Source = { kind: NonNullable<TransferPrefill['source']>; label?: string };
 
@@ -69,12 +74,19 @@ type Source = { kind: NonNullable<TransferPrefill['source']>; label?: string };
 // never reached.
 const STEP_INDEX: Record<Step, number> = { form: 0, review: 1, vop: 2, awaiting: 2, refused: 2, done: 3, unknown: 3 };
 
-/** The sheet's heading on a step. */
-function stepTitle(tr: Messages, step: Step): string {
+/**
+ * The sheet's heading on a step. `kind`: a terminierte Überweisung or a
+ * Dauerauftrag — chosen on the form, or the draft's.
+ */
+function stepTitle(tr: Messages, step: Step, kind?: OrderKind | null): string {
   if (step === 'awaiting') return tr.common.approval;
   if (step === 'unknown') return tr.common.statusUnclear;
+  if (kind && step === 'form') return tr.orders.kind[kind];
+  if (kind && (step === 'review' || step === 'done' || step === 'refused')) return tr.orders.sheet.titles[kind][step];
   return tr.transfer.titles[step];
 }
+
+type OrderKind = 'dated' | 'standing';
 
 const SOURCE_ICON: Record<Source['kind'], ReactNode> = {
   girocode: <QrIcon size={14} />,
@@ -129,6 +141,8 @@ function formProblems(tr: Messages, f: {
   raw: string;
   amount: string;
   purposeLen: number;
+  /** The schedule's first problem in words (components/transfer/Schedule.tsx shows them per field). */
+  schedule: string | null;
 }): Partial<Record<FieldKey, string>> {
   const words = tr.transfer;
   const out: Partial<Record<FieldKey, string>> = {};
@@ -141,6 +155,7 @@ function formProblems(tr: Messages, f: {
   if (ip) out.iban = ip;
   const a = checkAmount(f.amount);
   if (a.cents == null) out.amount = a.error ?? words.form.amountMissing;
+  if (f.schedule) out.schedule = f.schedule;
   if (f.purposeLen > MAX_PURPOSE) out.purpose = words.form.purposeTooLong(f.purposeLen - MAX_PURPOSE);
   return out;
 }
@@ -165,18 +180,38 @@ type Check =
   // statements: null — the account has no Umsätze over FinTS to read (a
   // statement load for it settles at once, without going busy).
   | { stage: 'pending'; startedAt: number; statements: boolean | null }
-  | { stage: 'done'; at: number; statements: boolean | null; pending: boolean | null };
+  // A terminierte Überweisung or a Dauerauftrag is looked for where it would
+  // be: the bank's list of them — read-only, like the rest.
+  | { stage: 'orders'; startedAt: number }
+  | { stage: 'done'; at: number; statements: boolean | null; pending: boolean | null; orders?: boolean | null };
 
 export function TransferSheet() {
   const {
     accounts, balances, transferPrefill, closeTransfer, submitTransfer, confirmVop, abandonVop,
     refreshAfterTransfer, loadPending, range, txByAccount, pendingCache, pendingInfo, statementInfo, activity,
-    accountLabel, vault, touchTemplate, wait, busy, toast,
+    accountLabel, vault, touchTemplate, wait, busy, toast, banks, bankOf, bankOrders, loadBankOrders,
   } = useFints();
+  const showBankOrders = useShowBankOrders();
   const tr = useT();
   const money = useMoneyText();
   const narrow = useNarrow();
-  const eligible = useMemo(() => accounts.filter((a) => a.canTransfer), [accounts]);
+  // Not from a linked bank that is logged out: nothing could send it.
+  const eligible = useMemo(
+    () => accounts.filter((a) => a.canTransfer && bankOf(a)?.state !== 'loggedOut'),
+    [accounts, bankOf],
+  );
+  // With more than one bank, the picker groups the accounts under their bank's name.
+  const byBank = useMemo(() => {
+    if (banks.length < 2) return null;
+    const groups = new Map<string, { name: string; accounts: typeof eligible }>();
+    for (const a of eligible) {
+      const b = bankOf(a);
+      const key = b?.key ?? '';
+      if (!groups.has(key)) groups.set(key, { name: b?.bank.name ?? '', accounts: [] });
+      groups.get(key)!.accounts.push(a);
+    }
+    return [...groups.entries()];
+  }, [banks.length, eligible, bankOf]);
 
   // What opened the sheet, for focus to return to. The overlay would capture
   // it itself, but it unmounts while the TAN dialog owns the screen and comes
@@ -236,15 +271,21 @@ export function TransferSheet() {
 
   const account = eligible.find((a) => a.accountNumber === accountNumber);
   const canInstant = !!account?.canInstant;
-  const useInstant = instant && canInstant;
+  // "Sofort", "An einem Datum" or "Regelmäßig" — what the account offers (transfer/Schedule.tsx).
+  const sched = useScheduleForm(account);
+  // Echtzeit is a transfer carried out now: a date or a rhythm leaves it out.
+  const useInstant = instant && canInstant && sched.when === 'now';
 
   const titleRef = useRef<HTMLHeadingElement>(null);
   const accountRef = useRef<HTMLSelectElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const ibanRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
+  const scheduleRef = useRef<HTMLInputElement>(null);
   const purposeRef = useRef<HTMLInputElement>(null);
-  const fieldRefs = { account: accountRef, name: nameRef, iban: ibanRef, amount: amountRef, purpose: purposeRef };
+  const fieldRefs = {
+    account: accountRef, name: nameRef, iban: ibanRef, amount: amountRef, schedule: scheduleRef, purpose: purposeRef,
+  };
 
   // ---- guard: nothing to send from --------------------------------------
   const empty = eligible.length === 0;
@@ -257,7 +298,8 @@ export function TransferSheet() {
   // ---- derived form state -------------------------------------------------
   const raw = rawIban(iban);
   const purposeLen = sepaLength(purpose);
-  const problems = formProblems(tr, { account, name, raw, amount, purposeLen });
+  const scheduleProblem = Object.keys(sched.problems).length ? tr.orders.route.scheduleInvalid : null;
+  const problems = formProblems(tr, { account, name, raw, amount, purposeLen, schedule: scheduleProblem });
   const errors: Partial<Record<FieldKey, string>> = {};
   for (const k of FIELD_ORDER) if (flagged[k]) errors[k] = problems[k];
   const ibanLiveProblem = raw && ibanTouched ? ibanProblem(raw, account?.iban) : null;
@@ -294,13 +336,20 @@ export function TransferSheet() {
     [accounts],
   );
 
-  const snapshot = `${accountNumber}|${name}|${raw}|${amount}|${purpose}|${useInstant}`;
+  const snapshot = `${accountNumber}|${name}|${raw}|${amount}|${purpose}|${useInstant}|${sched.snapshot}`;
   const [initialSnapshot] = useState(snapshot);
   const dirty = step === 'review' || (step === 'form' && snapshot !== initialSnapshot);
 
   // ---- the review step's second looks -------------------------------------
   const draftAccount = draft ? eligible.find((a) => a.accountNumber === draft.accountNumber) ?? account : account;
+  /** A terminierte Überweisung or a Dauerauftrag, once it is the draft. */
+  const kind: OrderKind | null = draft?.schedule?.kind ?? null;
   const sentOrders = vault?.sentOrders;
+  // What the bank's own lists of orders for later hold, as far as read.
+  const heldOrders = useMemo(
+    () => Object.values(bankOrders).flatMap((byKind) => [...(byKind.standing?.orders ?? []), ...(byKind.dated?.orders ?? [])]),
+    [bankOrders],
+  );
   // The check, not its words: the sentence is worded when it is read
   // (lib/transfer-checks.ts), in the language on screen.
   const duplicateCheck = useMemo(() => (draft
@@ -308,21 +357,26 @@ export function TransferSheet() {
       iban: draft.iban,
       cents: draft.cents,
       name: draft.name,
+      schedule: draft.schedule,
       activity,
       sent: sentOrders ?? [],
+      bankOrders: heldOrders,
       pending: pendingCache,
       txByAccount,
       fmt: (v) => formatMoney(v),
     })
-    : null), [draft, activity, sentOrders, pendingCache, txByAccount]);
+    : null), [draft, activity, sentOrders, heldOrders, pendingCache, txByAccount]);
   const duplicate = duplicateCheck?.sentence ?? null;
-  const reviewWarning: FundsWarning | null = draft && draftAccount
+  // A balance says nothing about a day that has not come: no funds warning for an order for later.
+  const reviewWarning: FundsWarning | null = draft && draftAccount && !draft.schedule
     ? fundsWarning(balances[draft.accountNumber], draft.cents, {
       currency: draftAccount.currency, overdraft: !isCardAccount(draftAccount),
     })
     : null;
   // The commit names the risk it takes: a hint, never a block.
-  const sendLabel = duplicate ? tr.transfer.actions.sendAnyway : tr.transfer.actions.sendNow;
+  const sendLabel = kind
+    ? (duplicate ? tr.orders.sheet.sendAnyway[kind] : tr.orders.sheet.send[kind])
+    : (duplicate ? tr.transfer.actions.sendAnyway : tr.transfer.actions.sendNow);
   /** What the review step warns about, as the step's announcement says it — in the language `m` speaks. */
   const reviewNote = (m: Messages) => [
     duplicateCheck?.sentence,
@@ -332,6 +386,9 @@ export function TransferSheet() {
   ].filter(Boolean).join(' ');
   const reviewNoteRef = useRef(reviewNote);
   reviewNoteRef.current = reviewNote;
+  /** The kind the heading names, for the announcement below (a step change reads it after the render). */
+  const titleKindRef = useRef<OrderKind | null>(null);
+  titleKindRef.current = step === 'form' ? (sched.when === 'now' ? null : sched.when) : kind;
 
   // ---- step changes: move focus to the new heading, say where we are ----
   // The body scrolls back to its top (Panel's scrollKey), so a step's
@@ -346,10 +403,11 @@ export function TransferSheet() {
     // heading, and a screen reader tabbing on to the buttons would never
     // hear them otherwise. They are the ones on screen as the step opens.
     const note = step === 'review' ? reviewNoteRef.current : null;
+    const titleKind = titleKindRef.current;
     setLive({
       say: (m) => {
         const said = note?.(m);
-        return `${m.transfer.live.step(STEP_INDEX[step] + 1, TRANSFER_STEPS.length, stepTitle(m, step))}${said ? ` ${said}` : ''}`;
+        return `${m.transfer.live.step(STEP_INDEX[step] + 1, TRANSFER_STEPS.length, stepTitle(m, step, titleKind))}${said ? ` ${said}` : ''}`;
       },
     });
   }, [step]);
@@ -385,6 +443,14 @@ export function TransferSheet() {
     if (!check || check.stage === 'done' || !checkAccount) return;
     if (busy || wait.open) { checkStarted.current = true; return; }
     const acct = checkAccount.accountNumber;
+    if (check.stage === 'orders') {
+      const read = kind ? bankOrders[acct]?.[kind] : undefined;
+      const landed = (read?.loadedAt ?? 0) >= check.startedAt;
+      if (!landed && !checkStarted.current) return;
+      checkStarted.current = false;
+      setCheck({ stage: 'done', at: Date.now(), statements: null, pending: null, orders: landed });
+      return;
+    }
     if (check.stage === 'statements') {
       const landed = (statementInfo[acct]?.loadedAt ?? 0) >= check.startedAt;
       if (!landed && !checkStarted.current) return;
@@ -405,10 +471,10 @@ export function TransferSheet() {
     if (!landed && !checkStarted.current) return;
     checkStarted.current = false;
     setCheck({ stage: 'done', at: Date.now(), statements: check.statements, pending: landed });
-  }, [check, checkAccount, busy, wait.open, statementInfo, pendingInfo, loadPending]);
+  }, [check, checkAccount, busy, wait.open, statementInfo, pendingInfo, loadPending, kind, bankOrders]);
 
   const checking = !!check && check.stage !== 'done';
-  const sighting = check?.stage === 'done' && draft && sentAt != null
+  const sighting = check?.stage === 'done' && draft && sentAt != null && !draft.schedule
     ? findSentTransfer({
       iban: draft.iban,
       cents: draft.cents,
@@ -417,10 +483,27 @@ export function TransferSheet() {
       pending: check.pending ? pendingCache[draft.accountNumber] : null,
     })
     : null;
+  // An order for later, found in the bank's list just read.
+  const placed = check?.stage === 'done' && check.orders && draft?.schedule && kind
+    ? findPlacedOrder({
+      iban: draft.iban, cents: draft.cents, schedule: draft.schedule, orders: bankOrders[draft.accountNumber]?.[kind]?.orders,
+    })
+    : null;
+  const found = !!sighting || !!placed;
 
   const lookAgain = () => {
     if (!checkAccount || busy) return;
     checkStarted.current = false;
+    if (kind) {
+      // Where an order for later would be: the bank's list of that kind.
+      if (checkAccount[kind]?.list) {
+        setCheck({ stage: 'orders', startedAt: Date.now() });
+        loadBankOrders(checkAccount, [kind]);
+      } else {
+        setCheck({ stage: 'done', at: Date.now(), statements: null, pending: null, orders: null });
+      }
+      return;
+    }
     if (checkAccount.canStatements) {
       setCheck({ stage: 'statements', startedAt: Date.now() });
       refreshAfterTransfer(checkAccount);
@@ -523,6 +606,7 @@ export function TransferSheet() {
       cents: a.cents,
       purpose: squash(purpose),
       instant: useInstant,
+      ...(sched.schedule ? { schedule: sched.schedule } : {}),
     });
     setError(null);
     setStep('review');
@@ -565,6 +649,7 @@ export function TransferSheet() {
         amount: wireAmount(draft.cents),
         purpose: draft.purpose,
         instant: draft.instant,
+        ...(draft.schedule ? { schedule: draft.schedule } : {}),
       },
       handlers,
     );
@@ -673,6 +758,11 @@ export function TransferSheet() {
 
   const words = tr.transfer;
   const act = words.actions;
+  const later = tr.orders.sheet;
+  // The order's own verbs at the Namensabgleich: an order for later is set up, not transferred.
+  const vopActs = kind
+    ? { sendAnyway: later.sendAnyway[kind], sendUnchecked: later.sendUnchecked[kind], sendNoResult: later.sendNoResult[kind], approve: later.approve[kind] }
+    : { sendAnyway: act.sendAnyway, sendUnchecked: act.sendUnchecked, sendNoResult: act.sendNoResult, approve: act.approve };
 
   return (
     <Overlay
@@ -687,7 +777,7 @@ export function TransferSheet() {
       <Panel
         titleId="transfer-title"
         titleRef={titleRef}
-        title={stepTitle(tr, step)}
+        title={stepTitle(tr, step, titleKindRef.current)}
         onClose={requestClose}
         closeDisabled={submitting}
         headerExtra={<Stepper current={STEP_INDEX[step]} unsure={step === 'unknown'} refused={step === 'refused'} />}
@@ -739,7 +829,7 @@ export function TransferSheet() {
               <StackRow>
                 <Button variant="quiet" className="sm:-ml-3" disabled={submitting} onClick={dropVop}>{act.back}</Button>
                 <Button className="sm:flex-1" busy={submitting} disabled={busy && !submitting} onClick={sendDespiteVop}>
-                  {act.sendAnyway}
+                  {vopActs.sendAnyway}
                 </Button>
                 <Button variant="primary" className="sm:flex-1" disabled={submitting} onClick={() => adoptSuggested(vopSuggestion)}>
                   {act.adoptName}
@@ -748,7 +838,7 @@ export function TransferSheet() {
             ) : vopCheckFirst ? (
               <StackRow>
                 <Button className="sm:flex-1" busy={submitting} disabled={busy && !submitting} onClick={sendDespiteVop}>
-                  {act.sendAnyway}
+                  {vopActs.sendAnyway}
                 </Button>
                 <Button variant="primary" className="sm:flex-1" disabled={submitting} onClick={dropVop}>{act.check}</Button>
               </StackRow>
@@ -762,20 +852,28 @@ export function TransferSheet() {
                   disabled={busy && !submitting}
                   onClick={sendDespiteVop}
                 >
-                  {vopDeviates(vop) ? act.sendAnyway
-                    : vop.verdict === 'NOT_APPLICABLE' ? act.sendUnchecked
-                      : vopUnchecked(vop) ? act.sendNoResult
-                        : act.approve}
+                  {vopDeviates(vop) ? vopActs.sendAnyway
+                    : vop.verdict === 'NOT_APPLICABLE' ? vopActs.sendUnchecked
+                      : vopUnchecked(vop) ? vopActs.sendNoResult
+                        : vopActs.approve}
                 </Button>
               </FooterRow>
             )
           ) : step === 'done' ? (
-            <FooterRow>
-              <Button className="flex-1" onClick={refreshStatements} disabled={busy}>{act.refresh}</Button>
-              <Button variant="primary" className="flex-1" onClick={closeTransfer}>{tr.common.done}</Button>
-            </FooterRow>
+            kind ? (
+              // Nothing is booked yet: the way on is the bank's list, not the Umsätze.
+              <FooterRow>
+                <Button className="flex-1" onClick={() => { closeTransfer(); showBankOrders(); }}>{later.showOrders}</Button>
+                <Button variant="primary" className="flex-1" onClick={closeTransfer}>{tr.common.done}</Button>
+              </FooterRow>
+            ) : (
+              <FooterRow>
+                <Button className="flex-1" onClick={refreshStatements} disabled={busy}>{act.refresh}</Button>
+                <Button variant="primary" className="flex-1" onClick={closeTransfer}>{tr.common.done}</Button>
+              </FooterRow>
+            )
           ) : step === 'unknown' ? (
-            sighting ? (
+            found ? (
               <FooterRow>
                 <Button variant="primary" className="flex-1" onClick={closeTransfer}>{tr.common.done}</Button>
               </FooterRow>
@@ -812,11 +910,21 @@ export function TransferSheet() {
                 value={accountNumber}
                 onChange={(e) => { setAccountNumber(e.target.value); setFlagged((x) => ({ ...x, account: false })); }}
               >
-                {eligible.map((a) => (
-                  <option key={a.accountNumber} value={a.accountNumber}>
-                    {accountOption(tr, a, accountLabel(a), narrow ? null : spendable(balances[a.accountNumber]), money)}
-                  </option>
-                ))}
+                {byBank
+                  ? byBank.map(([key, group]) => (
+                    <optgroup key={key} label={group.name}>
+                      {group.accounts.map((a) => (
+                        <option key={a.accountNumber} value={a.accountNumber}>
+                          {accountOption(tr, a, accountLabel(a), narrow ? null : spendable(balances[a.accountNumber]), money)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))
+                  : eligible.map((a) => (
+                    <option key={a.accountNumber} value={a.accountNumber}>
+                      {accountOption(tr, a, accountLabel(a), narrow ? null : spendable(balances[a.accountNumber]), money)}
+                    </option>
+                  ))}
               </Select>
             </Field>
 
@@ -979,18 +1087,27 @@ export function TransferSheet() {
                     onChange={(v) => setInstant(v === 'instant')}
                     options={[
                       { value: 'standard', label: words.form.standard },
-                      { value: 'instant', label: tr.common.booking.instant, icon: <BoltIcon size={16} />, disabled: !canInstant },
+                      {
+                        value: 'instant', label: tr.common.booking.instant, icon: <BoltIcon size={16} />,
+                        disabled: !canInstant || sched.when !== 'now',
+                      },
                     ]}
                   />
                   <p className="text-[13px] leading-snug text-ink-3">
                     {!canInstant
                       ? words.form.noInstant
-                      : useInstant
-                        ? words.form.instantHint
-                        : <CreditDate short />}
+                      : sched.when !== 'now'
+                        // Why Echtzeit went grey: a date or a rhythm is not "now".
+                        ? tr.orders.form.noInstant
+                        : useInstant
+                          ? words.form.instantHint
+                          : <CreditDate short />}
                   </p>
                 </div>
               </div>
+
+              {/* Sofort, an einem Datum, regelmäßig — only what the account offers (transfer/Schedule.tsx). */}
+              <ScheduleFields form={sched} showErrors={!!flagged.schedule} dateRef={scheduleRef} />
 
               <Field
                 label={tr.common.booking.purpose}
@@ -1040,6 +1157,7 @@ export function TransferSheet() {
             funds={spendable(balances[draft.accountNumber])}
             warning={reviewWarning}
             duplicate={duplicate}
+            duplicateTitle={duplicateCheck?.title ?? null}
             primaryLabel={sendLabel}
             busyElsewhere={busy && !submitting}
             error={error}
@@ -1080,8 +1198,10 @@ export function TransferSheet() {
               <Money value={draft.cents / 100} className="text-[24px] font-bold text-headline" />
               <span className="mt-1 block break-words">{words.done.to(sepaSanitize(draft.name))}</span>
             </p>
-            <p className="mt-2 text-[14px] text-ink-2">
-              {draft.instant ? (
+            <p className="tnum mt-2 text-[14px] text-ink-2">
+              {draft.schedule ? (
+                scheduleSentence(draft.schedule)
+              ) : draft.instant ? (
                 <>
                   <BoltIcon size={15} className="mr-1 inline-block align-[-2px]" />
                   {words.done.instant}
@@ -1092,8 +1212,15 @@ export function TransferSheet() {
             </p>
             {answerLines.length > 0 && <BankAnswer lines={answerLines} className="mt-5" />}
             <p className="mt-5 max-w-[46ch] text-[13.5px] leading-relaxed text-ink-3">
-              {words.done.appears}{' '}
-              {pastRange ? words.done.pastRange(fmtDate(range.to), act.refresh) : words.done.refreshHint(act.refresh)}
+              {kind ? (
+                // Nothing is booked yet: where the order is kept is the bank's list.
+                `${later.done[kind]} ${later.done.where(tr.common.nav.contracts)}`
+              ) : (
+                <>
+                  {words.done.appears}{' '}
+                  {pastRange ? words.done.pastRange(fmtDate(range.to), act.refresh) : words.done.refreshHint(act.refresh)}
+                </>
+              )}
             </p>
             {templatePayee && (
               <div className="mt-6 w-full border-t border-line pt-5 text-left">
@@ -1107,16 +1234,24 @@ export function TransferSheet() {
           <div className="flex flex-col items-center pt-2 text-center">
             <UnsureMark />
             <p className="mt-5 max-w-[48ch] text-[15px] leading-relaxed text-ink">
-              {words.unknown.noConfirmation}
+              {kind ? later.unknown.noConfirmation[kind] : words.unknown.noConfirmation}
             </p>
-            {!sighting && (
+            {!found && (
               <p className="mt-2 max-w-[48ch] text-[14px] leading-relaxed text-ink-2">
-                {words.unknown.beforeResend(act.lookNow)}
+                {kind ? later.unknown.beforeResend[kind](act.lookNow) : words.unknown.beforeResend(act.lookNow)}
               </p>
             )}
 
             <div aria-live="polite" className="w-full text-left">
-              {check?.stage === 'done' && draft && (
+              {check?.stage === 'done' && draft && (kind && draft.schedule ? (
+                <PlacedCheckResult
+                  kind={kind}
+                  placed={placed}
+                  read={check.orders ?? null}
+                  at={check.at}
+                  name={sepaSanitize(draft.name)}
+                />
+              ) : (
                 <CheckResult
                   sighting={sighting}
                   statements={check.statements}
@@ -1124,12 +1259,13 @@ export function TransferSheet() {
                   at={check.at}
                   name={sepaSanitize(draft.name)}
                 />
-              )}
+              ))}
             </div>
             {checking && (
               <p className="mt-4 flex items-center gap-2 text-[13.5px] text-ink-2" role="status">
                 <Spinner size={14} />
-                {check?.stage === 'pending' ? words.unknown.loadingPending : words.unknown.loading}
+                {check?.stage === 'orders' && kind ? later.unknown.loading[kind]
+                  : check?.stage === 'pending' ? words.unknown.loadingPending : words.unknown.loading}
               </p>
             )}
             {busy && !checking && <BusyNote />}
@@ -1142,6 +1278,9 @@ export function TransferSheet() {
                 <SummaryRow label={tr.common.booking.purpose}>
                   {sepaSanitize(draft.purpose) || <span className="text-ink-3">{words.review.none}</span>}
                 </SummaryRow>
+                {draft.schedule && (
+                  <SummaryRow label={tr.orders.form.when}><span className="tnum">{scheduleSentence(draft.schedule)}</span></SummaryRow>
+                )}
                 {sentAt != null && <SummaryRow label={words.unknown.sent}><span className="tnum">{fmtWhen(tr, sentAt)}</span></SummaryRow>}
               </SummaryList>
             )}
@@ -1168,6 +1307,9 @@ export function TransferSheet() {
                 <SummaryRow label={tr.common.booking.amount}><Money value={draft.cents / 100} className="font-semibold" /></SummaryRow>
                 <SummaryRow label={words.recipient}>{sepaSanitize(draft.name)}</SummaryRow>
                 <SummaryRow label="IBAN"><span className="iban text-[14px]">{fmtIban(draft.iban)}</span></SummaryRow>
+                {draft.schedule && (
+                  <SummaryRow label={tr.orders.form.when}><span className="tnum">{scheduleSentence(draft.schedule)}</span></SummaryRow>
+                )}
               </SummaryList>
             )}
           </div>
@@ -1313,6 +1455,49 @@ function CheckResult({
         </span>
       ) : statements === null && pending === null ? (
         // Nothing this app could read for the account — trying again would not change that.
+        <span className="block">{words.nothingToRead}</span>
+      ) : (
+        <span className="block">{words.tryAgain}</span>
+      )}
+    </Alert>
+  );
+}
+
+/**
+ * What "Jetzt nachsehen" found for an order for later, in the bank's list of
+ * its kind. Found: do not place it again. Not found is no reason to place it
+ * again either — the answer never invites it.
+ */
+function PlacedCheckResult({
+  kind, placed, read, at, name,
+}: {
+  kind: 'standing' | 'dated';
+  placed: ReturnType<typeof findPlacedOrder>;
+  /** Whether the list was read; null: the account has no list to read. */
+  read: boolean | null;
+  at: number;
+  name: string;
+}) {
+  const tr = useT();
+  const words = tr.orders.sheet.unknown;
+  const checked = fmtTime(tr, new Date(at));
+  if (placed) {
+    return (
+      <Alert tone="success" title={words.found} className="mt-5">
+        {rich(words.foundText(
+          <Money value={placed.amount} currency={placed.currency} className="font-semibold text-ink" />,
+          name,
+          placed.schedule ? scheduleSentence(placed.schedule) : tr.orders.list.noSchedule,
+        ))}
+      </Alert>
+    );
+  }
+  return (
+    <Alert tone="warn" title={read ? words.notVisible : words.notChecked} className="mt-5">
+      {read === false && <span className="block">{words.failed}</span>}
+      {read ? (
+        <span className="block">{rich(words.notYet(words.listDative[kind], <span className="tnum">{checked}</span>))}</span>
+      ) : read === null ? (
         <span className="block">{words.nothingToRead}</span>
       ) : (
         <span className="block">{words.tryAgain}</span>

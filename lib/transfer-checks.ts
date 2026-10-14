@@ -9,11 +9,13 @@
 // `node --test`.
 
 import type { ActivityEntry } from './app-types';
-import type { SerializedBalance, SerializedTransaction } from './fints-types';
+import type { SerializedBalance, SerializedBankOrder, SerializedTransaction } from './fints-types';
+import type { OrderSchedule } from './order-schedule';
 import type { SentOrder } from './sent-orders';
 import { bookingKind } from './categorize.ts';
 import { dayKey, dayNumber, displayName, fmtDate, isoDate, toLocalDate } from './format.ts';
 import { msgs } from './i18n/index.ts';
+import { rhythmLine } from './order-schedule.ts';
 import { SENT_ORDER_DAYS } from './sent-orders.ts';
 
 /** Same amount to the same IBAN within this many days → ask. The vault keeps orders exactly this long. */
@@ -29,15 +31,21 @@ const fmtTime = (d: Date) => msgs().transfer.clock(`${d.getHours()}:${String(d.g
 
 /**
  * What the review step says about a payment that looks like one already made.
- * `sentence` is worded when it is read — amount, date and words in the
- * language speaking right now — so a check kept across a change of language
- * speaks the new one.
+ * `sentence` and `title` are worded when they are read — amount, date and
+ * words in the language speaking right now — so a check kept across a change
+ * of language speaks the new one.
  */
-export type Duplicate = { sentence: string };
+export type Duplicate = { sentence: string; title: string };
 
-const worded = (say: () => string): Duplicate => ({
+/** What the evidence was: a payment, or an order the bank keeps for later. */
+type Evidence = 'payment' | 'dated' | 'standing';
+
+const worded = (say: () => string, evidence: Evidence = 'payment'): Duplicate => ({
   get sentence() {
     return say();
+  },
+  get title() {
+    return evidence === 'payment' ? msgs().transfer.review.duplicateTitle : msgs().orders.duplicate.title[evidence];
   },
 });
 
@@ -48,17 +56,30 @@ const worded = (say: () => string): Duplicate => ({
  *  1. this session's own orders (`activity`), which know the payee's name;
  *  2. the orders of the last two weeks kept in the vault (`sent`), which
  *     survive a logout — the case of an order left "Status unklar";
- *  3. the vorgemerkte Umsätze, where they were fetched (`pending`);
- *  4. the loaded statements (`txByAccount`).
+ *  3. the bank's own lists of orders for later, where they were read
+ *     (`bankOrders`) — whenever they run;
+ *  4. the vorgemerkte Umsätze, where they were fetched (`pending`);
+ *  5. the loaded statements (`txByAccount`).
  *
  * Refused orders moved no money and never count.
+ *
+ * What counts depends on what is being placed (`schedule`). A transfer now or
+ * a terminierte Überweisung is one payment: any payment or terminierte
+ * Überweisung of the same amount to the same IBAN counts, never a
+ * Dauerauftrag — paying this month's rent by hand beside a new Dauerauftrag
+ * for it is ordinary. A Dauerauftrag is compared with Daueraufträge alone:
+ * that it matches a payment already made is what a recurring payment does.
  */
 export function findDuplicate(input: {
   iban: string;
   cents: number;
   name: string;
+  /** Absent: a transfer carried out now. */
+  schedule?: OrderSchedule | null;
   activity: readonly ActivityEntry[];
   sent: readonly SentOrder[];
+  /** The bank's lists of Daueraufträge and terminierte Überweisungen as read, any account. */
+  bankOrders?: readonly SerializedBankOrder[];
   pending: Record<string, readonly SerializedTransaction[]>;
   txByAccount: Record<string, readonly SerializedTransaction[]>;
   fmt: (value: number) => string;
@@ -67,32 +88,65 @@ export function findDuplicate(input: {
   const now = input.now ?? new Date();
   const today = dayNumber(isoDate(now));
   const iban = compactIban(input.iban);
+  const standing = input.schedule?.kind === 'standing';
+  /** Whether an earlier order of this kind (undefined: a transfer now) speaks for this one. */
+  const comparable = (kind: 'dated' | 'standing' | undefined) => (standing ? kind === 'standing' : kind !== 'standing');
   const within = (key: string) => {
     const n = dayNumber(key);
     return Number.isFinite(n) && today - n <= DUPLICATE_WINDOW_DAYS && n - today <= DUPLICATE_WINDOW_DAYS;
   };
   const words = () => msgs().transfer.duplicate;
+  const later = () => msgs().orders.duplicate;
   const money = () => input.fmt(input.cents / 100);
   const when = (at: Date) => (dayKey(at) === isoDate(now)
     ? words().todayAt(fmtTime(at))
     : words().dayAt(fmtDate(at), fmtTime(at)));
-  const sentence = (at: Date, who: string, outcome: 'executed' | 'unknown') => worded(() => (outcome === 'executed'
-    ? words().sent(when(at), money(), who)
-    : words().sentUnclear(when(at), money(), who)));
+  const due = (key: string | undefined) => fmtDate(toLocalDate(key ?? '') ?? key ?? '');
+  const sentence = (
+    at: Date, who: string, outcome: 'executed' | 'unknown', kind?: 'dated' | 'standing', dueOn?: string,
+  ): Duplicate => {
+    const done = outcome === 'executed';
+    if (kind === 'standing') {
+      return worded(() => (done
+        ? later().placedStanding(when(at), money(), who)
+        : later().placedStandingUnclear(when(at), money(), who)), 'standing');
+    }
+    if (kind === 'dated') {
+      return worded(() => (done
+        ? later().placedDated(when(at), money(), who, due(dueOn))
+        : later().placedDatedUnclear(when(at), money(), who, due(dueOn))), 'dated');
+    }
+    return worded(() => (done ? words().sent(when(at), money(), who) : words().sentUnclear(when(at), money(), who)));
+  };
 
   for (const a of input.activity) {
     if (a.outcome === 'failed' || compactIban(a.iban) !== iban || Math.round(a.amount * 100) !== input.cents) continue;
+    if (!comparable(a.schedule?.kind)) continue;
     const at = new Date(a.at);
     if (!within(dayKey(at))) continue;
-    return sentence(at, displayName(a.name) || input.name, a.outcome);
+    const s = a.schedule;
+    return sentence(at, displayName(a.name) || input.name, a.outcome, s?.kind, s ? (s.kind === 'dated' ? s.date : s.first) : undefined);
   }
 
   for (const o of input.sent) {
-    if (compactIban(o.iban) !== iban || o.cents !== input.cents) continue;
+    if (compactIban(o.iban) !== iban || o.cents !== input.cents || !comparable(o.kind)) continue;
     const at = new Date(o.at);
     if (!within(dayKey(at))) continue;
-    return sentence(at, input.name, o.outcome);
+    return sentence(at, input.name, o.outcome, o.kind, o.due);
   }
+
+  for (const b of input.bankOrders ?? []) {
+    if (compactIban(b.iban) !== iban || Math.round(b.amount * 100) !== input.cents || !comparable(b.kind)) continue;
+    const who = displayName(b.name) || input.name;
+    const s = b.schedule;
+    if (b.kind === 'standing') {
+      return worded(() => later().bankStanding(money(), who, s?.kind === 'standing' ? rhythmLine(s) : null), 'standing');
+    }
+    return worded(() => later().bankDated(money(), who, s?.kind === 'dated' ? due(s.date) : null), 'dated');
+  }
+
+  // Bookings and Vormerkposten are payments: they say nothing about a Dauerauftrag.
+  if (standing) return null;
 
   const newest = (lists: Record<string, readonly SerializedTransaction[]>) => {
     let best: { tx: SerializedTransaction; day: string } | null = null;
@@ -173,6 +227,32 @@ export function fundsWarning(
 // ---------------------------------------------------------------------------
 // "Status unklar": is it there?
 // ---------------------------------------------------------------------------
+
+/**
+ * After a terminierte Überweisung or a Dauerauftrag whose outcome is
+ * unknown: the order of the same kind, IBAN and amount in the bank's freshly
+ * read list — the one whose schedule matches best (the same date, or the same
+ * rhythm and day), else any. Null when the list holds none.
+ */
+export function findPlacedOrder(input: {
+  iban: string;
+  cents: number;
+  schedule: OrderSchedule;
+  orders?: readonly SerializedBankOrder[] | null;
+}): SerializedBankOrder | null {
+  const iban = compactIban(input.iban);
+  const want = input.schedule;
+  const same = (input.orders ?? []).filter((o) => o.kind === want.kind
+    && compactIban(o.iban) === iban && Math.round(o.amount * 100) === input.cents);
+  const exact = same.find((o) => {
+    const s = o.schedule;
+    if (!s || s.kind !== want.kind) return false;
+    if (s.kind === 'dated' && want.kind === 'dated') return s.date === want.date;
+    return s.kind === 'standing' && want.kind === 'standing'
+      && s.unit === want.unit && s.interval === want.interval && s.day === want.day;
+  });
+  return exact ?? same[0] ?? null;
+}
 
 export type SentTransferSighting = { where: 'booked' | 'pending'; tx: SerializedTransaction };
 

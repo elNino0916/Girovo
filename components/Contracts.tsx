@@ -13,6 +13,7 @@
 // Vertrag zählen"), which is remembered in the vault.
 
 import { useCallback, useId, useMemo } from 'react';
+import { BankOrders } from './BankOrders';
 import { useFints } from './FintsProvider';
 import { ArrowRightIcon } from './icons';
 import { Money } from './Money';
@@ -21,6 +22,7 @@ import { namesList } from '@/lib/balances';
 import { fmtRange, displayName, presetRange } from '@/lib/format';
 import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import type { Cadence, RecurringSeries } from '@/lib/recurring';
 import { ContractGroup, ContractRow, DismissedRow } from './insights/ContractRow';
 import { useRecurringModel, useUpcoming, type AccountBasis, type RecurringModel } from './insights/recurring-model';
@@ -54,7 +56,22 @@ function useDismiss() {
 // The tab
 // ---------------------------------------------------------------------------
 
+/**
+ * What the bookings show, then — where an account has it — what the bank
+ * itself holds and will carry out (components/BankOrders.tsx): the recognised
+ * contracts are the page's subject and an estimate; the bank's own list of
+ * Daueraufträge and Terminüberweisungen closes it, read only on request.
+ */
 export function Contracts() {
+  return (
+    <div className="min-w-0 space-y-4 sm:space-y-6">
+      <ContractsFromBookings />
+      <BankOrders />
+    </div>
+  );
+}
+
+function ContractsFromBookings() {
   const model = useRecurringModel();
   const { vaultStatus, accountLabel } = useFints();
   const { dismiss, restore } = useDismiss();
@@ -268,12 +285,14 @@ function SummaryTile({ model, shortHistory }: { model: RecurringModel; shortHist
       )}
       {/* "Schätzung" only once there is something estimated. */}
       <div className="px-4 py-3 sm:px-6">
-        {/* Where the "more than the bank" work happens, it says where it happened. */}
-        <p className="text-[13px] leading-relaxed text-ink-3">{words.computedHere}</p>
+        {/* Where the "more than the bank" work happens, it says where it
+            happened. Not in the Android app, which has nowhere else to work —
+            and its "ca." already says estimate. */}
+        {!IS_ANDROID && <p className="text-[13px] leading-relaxed text-ink-3">{words.computedHere}</p>}
         <p className="tnum text-[13px] leading-relaxed text-ink-3">
           <DotList
             items={[
-              live > 0 && !failed.length && words.estimate,
+              !IS_ANDROID && live > 0 && !failed.length && words.estimate,
               basis.bookings > 0 && words.excluded,
               otherCurrency > 0 && words.otherCurrency(otherCurrency),
             ]}
@@ -320,6 +339,9 @@ function AccountList({ accounts }: { accounts: AccountBasis[] }) {
   const words = t.insights.contracts;
   const listed = accounts.filter((b) => b.status !== 'unsupported' || accounts.length > 1);
   if (!listed.length) return null;
+  // One account, read in full: the period is the history notice's, the count
+  // a figure nobody acts on. The phone shows the list only when it offers something.
+  if (IS_ANDROID && listed.length === 1 && listed[0].status === 'included') return null;
   // Said once, under the buttons that may ask the bank for an approval.
   const needsHint = listed.some((b) => b.status === 'missing'
     || (b.status === 'included' && b.account.accountNumber !== activeAccount?.accountNumber && (b.span ?? 0) < YEAR_SPAN));
@@ -389,11 +411,11 @@ function HistoryNotice({ model, className }: { model: RecurringModel; className?
     ? words.reach(namesList(short.map((b) => accountLabel(b.account))), short.length !== 1, short[0].span ?? 0)
     : short.map((b) => words.reach(accountLabel(b.account), false, b.span ?? 0)).join(', ');
   return (
-    <div className={cx('bg-info-soft px-4 py-3.5 sm:px-6', className)}>
-      <p className="text-[14px] leading-snug text-ink">
+    <div className={cx(IS_ANDROID ? 'px-4 py-3' : 'bg-info-soft px-4 py-3.5 sm:px-6', className)}>
+      <p className={cx('text-[14px] leading-snug', IS_ANDROID ? 'text-ink-2' : 'text-ink')}>
         {reach}.
-        {' '}
-        {phrase ? words.unseenContracts(phrase) : words.loadYearForYearly}
+        {/* On Android the summary's "mind." line has said what a short history misses. */}
+        {!IS_ANDROID && <>{' '}{phrase ? words.unseenContracts(phrase) : words.loadYearForYearly}</>}
       </p>
       {activeShort && <LoadHistoryButton className="mt-2.5" />}
     </div>
@@ -473,7 +495,7 @@ const UPCOMING_MAX = 5;
  * account the Monatsbilanz beside it shows — with what that adds up to.
  */
 export function UpcomingPayments() {
-  const { setTab, activeAccount, accountLabel } = useFints();
+  const { setTab, activeAccount, accountLabel, accounts } = useFints();
   const t = useT();
   const words = t.insights.upcoming;
   const model = useRecurringModel();
@@ -505,14 +527,16 @@ export function UpcomingPayments() {
       title={words.title}
       // On a narrow tile the facts take a line each, rather than leave the
       // dot hanging — "voraussichtlich" stays: these are expectations.
-      subtitle={<DotList items={[name, words.next30, words.expected]} />}
-      actions={
+      // On Android: the account only when there are several, and no way on —
+      // Verträge is in the navigation bar.
+      subtitle={<DotList items={IS_ANDROID ? [accounts.length > 1 && name, words.next30] : [name, words.next30, words.expected]} />}
+      actions={!IS_ANDROID && (
         // -mr-2.5: the label's text, not the pill's padding, ends on the
         // tile's content edge, like the figures below it.
         <Button variant="tertiary" size="xs" iconRight={<ArrowRightIcon size={15} />} className="-mr-2.5" onClick={() => setTab('contracts')}>
           {words.all}
         </Button>
-      }
+      )}
     >
       {model.loading ? (
         <ul aria-hidden className="pb-3">

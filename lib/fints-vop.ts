@@ -48,7 +48,7 @@ import {
   CustomerOrderInteraction,
   registerSegmentDefinition,
 } from './fints-internals.js';
-import { repairBankText } from './format';
+import { repairBankText } from './format.ts';
 
 // ---------------------------------------------------------------------------
 // Segment definitions
@@ -526,8 +526,13 @@ export function reportDelivery(config: FinTSConfig): string | undefined {
  * to give. HKVPP is not TAN-pflichtig, so no challenge is attached.
  */
 export class VopPollInteraction extends CustomerOrderInteraction {
-  constructor(private readonly collector: VopCollector) {
+  // A plain field, not a parameter property: `node --test` loads this module
+  // (through lib/fints-sepa.ts) with type stripping only.
+  private readonly collector: VopCollector;
+
+  constructor(collector: VopCollector) {
     super(HKVPP.Id, HIVPP.Id);
+    this.collector = collector;
   }
 
   createSegments(config: FinTSConfig): Segment[] {

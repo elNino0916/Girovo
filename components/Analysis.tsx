@@ -11,6 +11,12 @@
 // over how many complete months. Every "show me those bookings" opens the
 // Umsätze list on exactly the days the figure counted.
 //
+// Two of the user's own things sit beside the figures: the Monatsbudgets
+// (components/insights/Budgets.tsx), compared with the month on view, and
+// the Kategorie-Check (components/insights/CategoryCheck.tsx), how the
+// automatic categories fared with the bookings in view. Both are worked out
+// here too, and neither leaves the machine.
+//
 // The period and the accounts live in the provider, not here: a look at the
 // Umsätze and back finds the analysis where it was left.
 
@@ -19,13 +25,16 @@ import { useFints } from './FintsProvider';
 import { Money, usePrivacy } from './Money';
 import { Button, DotList, EmptyState, ErrorState, Segmented, Spinner } from './ui';
 import type { Counterparty } from '@/lib/analytics';
+import { bookingDay, periodTotals } from '@/lib/analytics';
 import type { TxFilter } from '@/lib/app-types';
 import { namesList } from '@/lib/balances';
+import { averageByCategory } from '@/lib/budgets';
 import type { CategoryId } from '@/lib/categories';
 import { categoryDef, categoryLabel, counterpartyName, intermediaryName } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { fmtAmountInput, fmtIban, fmtMonth, fmtRange, prettyBookingText } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import {
   WHOLE_RANGE, averageExpense, defaultPeriod, firstBookingDay, loadedPeers, useMonths, usePeriodFigures, useScopeData,
 } from './insights/analysis-model';
@@ -33,6 +42,8 @@ import {
   AnalysisSkeleton, CategoryBreakdown, Kpi, LargestExpenses, MonthlyComparison, PeriodPicker, TopPayees,
   periodLabel,
 } from './insights/AnalysisParts';
+import { BudgetDialog, BudgetTile } from './insights/Budgets';
+import { CategoryCheckDrawer, CategoryCheckSummary, useCategoryCheck } from './insights/CategoryCheck';
 import { useRecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, YEAR_SPAN, fmtDayKey, spanDays, useShowInList } from './insights/shared';
 
@@ -41,6 +52,7 @@ export function Analysis() {
     activeAccount, accounts, transactions, txByAccount, statementInfo, categoryOf, loadingAccount, txError,
     busy, accountLabel, showTransactions, refreshAccount,
     analysisPeriod, setAnalysisPeriod, analysisScope, setAnalysisScope,
+    vault, vaultStatus, setBudgets,
   } = useFints();
   const headingId = useId();
   const privacy = usePrivacy();
@@ -97,6 +109,29 @@ export function Analysis() {
   const categoryName = useCallback((tx: SerializedTransaction) => categoryLabel(categoryOf(tx).id), [categoryOf]);
 
   const openOn = useShowInList();
+
+  // ---- Monatsbudgets and the Kategorie-Check ------------------------------
+  const budgets = vault?.budgets;
+  const hasBudgets = !!budgets && Object.keys(budgets).length > 0;
+  const [budgetsOpen, setBudgetsOpen] = useState(false);
+  const [checkOpen, setCheckOpen] = useState(false);
+  // What a category cost in an average complete month — a guide in the
+  // budget dialog, worked out only while it is open.
+  const averages = useMemo(() => {
+    if (!budgetsOpen || !data) return new Map<CategoryId, number>();
+    const opts = { categoryOf, currency: data.currency };
+    const complete = months.filter((m) => m.complete);
+    return averageByCategory(complete.map((m) => periodTotals(data.txs, { ...opts, from: m.from, to: m.to }).byCategory));
+  }, [budgetsOpen, data, months, categoryOf]);
+  // The check covers what the toolbar covers: the accounts in scope, the period picked.
+  const checkTxs = useMemo(() => {
+    if (!data || !figures) return [];
+    return data.txs.filter((tx) => {
+      const day = bookingDay(tx);
+      return day >= figures.from && day <= figures.to;
+    });
+  }, [data, figures]);
+  const check = useCategoryCheck(checkTxs);
 
   // The days every drill-down carries: the list then holds exactly the
   // bookings the figure counted. Left out when they are the whole loaded
@@ -228,6 +263,8 @@ export function Analysis() {
 
   const scopeNames = data.accounts.map((acc) => accountLabel(acc));
   const peerNames = peers.map((acc) => accountLabel(acc));
+  // The month the budgets offer while the whole range is on view: the newest with bookings.
+  const newestMonth = [...months].reverse().find((m) => !m.noData) ?? null;
 
   return (
     <div className="min-w-0 space-y-4 sm:space-y-6">
@@ -267,13 +304,16 @@ export function Analysis() {
         {/* The range never splits at its dash, and no dot is left hanging at
             a line's end where the facts wrap. */}
         <p className="tnum px-4 pt-3 text-[13px] leading-relaxed text-ink-3 sm:px-6">
+          {/* On Android: the period is the picker's, the account the only one
+              unless there are several, and where it was worked out goes
+              without saying. */}
           <DotList
             items={[
-              t.insights.basis(namesList(scopeNames)),
-              <span className="whitespace-nowrap">{rangeText}</span>,
+              (!IS_ANDROID || accounts.length > 1) && t.insights.basis(namesList(scopeNames)),
+              !IS_ANDROID && <span className="whitespace-nowrap">{rangeText}</span>,
               <>
                 {t.insights.count.bookings(totals.count)}
-                {period !== WHOLE_RANGE && <> {words.inPeriod(pLabel)}</>}
+                {period !== WHOLE_RANGE && !IS_ANDROID && <> {words.inPeriod(pLabel)}</>}
               </>,
               // The other accounts are one switch away — and a card's purchases
               // are there, not here, when this account pays the card's bill
@@ -284,7 +324,7 @@ export function Analysis() {
               data.clipped && words.commonPeriod,
               data.otherCurrencyAccounts > 0 && words.otherCurrencyAccounts(data.otherCurrencyAccounts),
               totals.otherCurrency > 0 && words.foreignBookings(totals.otherCurrency),
-              words.computedHere,
+              !IS_ANDROID && words.computedHere,
             ]}
           />
         </p>
@@ -301,22 +341,24 @@ export function Analysis() {
             >
               <Kpi
                 label={t.insights.income}
-                sub={words.fromBookings(figures.credits)}
+                sub={IS_ANDROID ? undefined : words.fromBookings(figures.credits)}
               >
                 <Money value={totals.income} currency={data.currency} tone="plain" />
               </Kpi>
               <Kpi
                 label={t.common.booking.spending}
-                sub={versusAverage ?? words.fromBookings(figures.debits)}
+                sub={versusAverage ?? (IS_ANDROID ? undefined : words.fromBookings(figures.debits))}
               >
                 <Money value={totals.expense} currency={data.currency} tone="plain" />
               </Kpi>
               <Kpi
                 label={t.common.booking.difference}
+                // On Android the sign says it.
                 sub={
-                  Math.round(totals.net * 100) === 0
-                    ? words.net.even
-                    : totals.net > 0 ? words.net.more : words.net.less
+                  IS_ANDROID ? undefined
+                    : Math.round(totals.net * 100) === 0
+                      ? words.net.even
+                      : totals.net > 0 ? words.net.more : words.net.less
                 }
               >
                 <Money value={totals.net} currency={data.currency} signed tone="credit" />
@@ -331,7 +373,7 @@ export function Analysis() {
                 }
                 sub={
                   average
-                    ? words.average.fromMonths(average.months.length)
+                    ? (IS_ANDROID ? undefined : words.average.fromMonths(average.months.length))
                     : words.average.needsTwo
                 }
               >
@@ -373,12 +415,30 @@ export function Analysis() {
               rows={totals.byCategory}
               total={totals.expense}
               currency={data.currency}
-              subtitle={pLabel}
+              subtitle={IS_ANDROID ? undefined : pLabel}
               onShow={showCategory}
+              // The way to budgets while there are none; once set, their tile carries it.
+              actions={!hasBudgets && (
+                <Button variant="tertiary" size="xs" onClick={() => setBudgetsOpen(true)}>{t.budgets.budget.set}</Button>
+              )}
+              footer={check.total > 0 && <CategoryCheckSummary check={check} onOpen={() => setCheckOpen(true)} />}
             />
+            {hasBudgets && (
+              <BudgetTile
+                budgets={budgets}
+                month={selectedMonth}
+                spending={totals.byCategory}
+                currency={data.currency}
+                subtitle={IS_ANDROID ? undefined : pLabel}
+                newest={newestMonth}
+                onShowMonth={choosePeriod}
+                onShow={showCategory}
+                onEdit={() => setBudgetsOpen(true)}
+              />
+            )}
             <LargestExpenses
               items={figures.biggest}
-              subtitle={words.largest.subtitle(pLabel)}
+              subtitle={IS_ANDROID ? undefined : words.largest.subtitle(pLabel)}
               categoryName={categoryName}
               onShow={showBooking}
             />
@@ -389,13 +449,33 @@ export function Analysis() {
               payees={figures.payees}
               expense={totals.expense}
               currency={data.currency}
-              subtitle={words.payees.subtitle(pLabel)}
+              subtitle={IS_ANDROID ? undefined : words.payees.subtitle(pLabel)}
               categoryName={categoryName}
               onShow={showPayee}
             />
           </div>
         </div>
       )}
+
+      {/* Overlays render in place (never portalled); this column is no stacking context. */}
+      <BudgetDialog
+        open={budgetsOpen}
+        onClose={() => setBudgetsOpen(false)}
+        budgets={budgets ?? {}}
+        averages={averages}
+        currency={data.currency}
+        sessionOnly={vaultStatus !== 'ready'}
+        onSave={setBudgets}
+      />
+      <CategoryCheckDrawer
+        open={checkOpen}
+        onClose={() => setCheckOpen(false)}
+        check={check}
+        basis={[
+          t.insights.basis(namesList(scopeNames)),
+          <span className="whitespace-nowrap">{pLabel}</span>,
+        ]}
+      />
     </div>
   );
 }

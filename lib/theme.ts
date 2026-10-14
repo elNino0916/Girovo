@@ -19,6 +19,7 @@
 // the shell darkens the buttons to match.
 
 import { store } from './client-api';
+import { IS_ANDROID } from './platform';
 
 export type ThemePref = 'light' | 'dark' | 'system';
 export type Theme = 'light' | 'dark';
@@ -29,8 +30,12 @@ const DARK_QUERY = '(prefers-color-scheme: dark)';
 
 export const isThemePref = (v: unknown): v is ThemePref => v === 'light' || v === 'dark' || v === 'system';
 
-/** The stored choice. Missing or unreadable means "System". */
+/**
+ * The stored choice. Missing or unreadable means "System" — and on Android
+ * it is always the phone's: the app offers no Darstellung of its own there.
+ */
 export function getThemePref(): ThemePref {
+  if (IS_ANDROID) return 'system';
   const v = store.get(THEME_KEY);
   return isThemePref(v) ? v : 'system';
 }

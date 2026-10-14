@@ -1,4 +1,4 @@
-// Umsätze: the list, its filters and periods, a booking's detail, pending entries, exports (CSV, PDF) and the printed Kontoauszug and Buchungsbeleg (components/Transactions, components/transactions, components/Statement).
+// Umsätze: the list, its filters and periods, a booking's detail, pending entries, exports (CSV, PDF) and the printed Kontoauszug, Buchungsbeleg and bank message (components/Transactions, components/transactions, components/Statement).
 
 import type { ReactNode } from 'react';
 
@@ -316,12 +316,13 @@ export const de = {
     remove: 'Entfernen',
   },
 
-  /** The printed Kontoauszug and Buchungsbeleg (components/Statement.tsx, lib/print-doc.ts). */
+  /** The printed Kontoauszug, Buchungsbeleg and bank message (components/Statement.tsx, lib/print-doc.ts). */
   doc: {
     pdfFailed: (error: string) => `PDF konnte nicht gespeichert werden: ${error}`,
     /** The file names the save dialog offers, ASCII only: "Kontoauszug_SK-20261004-1A2B3C4D.pdf". */
     statementFile: 'Kontoauszug',
     receiptFile: 'Buchungsbeleg',
+    messageFile: 'Mitteilung',
     /** "04.10.2026, 14:32 Uhr (MESZ)" — a timestamp that says which clock it is on. */
     created: (date: string, time: string, zone: string | undefined) => `${date}, ${time} Uhr${zone ? ` (${zone})` : ''}`,
     /** The page count in the page margin, around the printer's own counters: "Seite 2 von 3". */
@@ -398,6 +399,16 @@ export const de = {
     /** The credit line beside the balance: on an account, on a card. */
     overdraftLimit: 'Dispositionsrahmen',
     creditLimit: 'Kreditrahmen',
+    /** A message the bank sent at login, on paper. Its subject and text stay the bank's. */
+    message: 'Mitteilung der Bank',
+    /** When this session received it — the letterhead's first line. */
+    received: 'Erhalten',
+    subject: 'Betreff',
+    messageText: 'Text der Mitteilung',
+    messageEnd: 'Ende der Mitteilung',
+    /** The footer's sentence on a message — there are no Kontoauszüge to defer to. */
+    generatedFromMessage: (generator: string) =>
+      `Erstellt mit ${generator} aus einer Mitteilung, die die Bank bei der Anmeldung per FinTS übermittelt hat. Ihr Text steht hier so, wie die Bank ihn geschrieben hat. Die Bank hat dieses Dokument nicht ausgestellt.`,
   },
 
   /**
@@ -712,6 +723,7 @@ export const en: typeof de = {
     pdfFailed: (error) => `Could not save the PDF: ${error}`,
     statementFile: 'Account_statement',
     receiptFile: 'Transaction_receipt',
+    messageFile: 'Bank_message',
     created: (date, time, zone) => `${date}, ${time}${zone ? ` (${zone})` : ''}`,
     pageOf: (page, pages) => ['Page ', page, ' of ', pages],
     bank: 'Bank',
@@ -776,6 +788,13 @@ export const en: typeof de = {
     valueNote: 'The value date determines how interest is calculated and can differ from the booking date.',
     overdraftLimit: 'Overdraft limit',
     creditLimit: 'Credit limit',
+    message: 'Message from the bank',
+    received: 'Received',
+    subject: 'Subject',
+    messageText: 'Message text',
+    messageEnd: 'End of message',
+    generatedFromMessage: (generator) =>
+      `Created with ${generator} from a message the bank sent over FinTS at login. Its text appears here exactly as the bank wrote it. The bank did not issue this document.`,
   },
 
   csv: {

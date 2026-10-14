@@ -36,7 +36,7 @@ const EVENTS = {
   app_closed: { minutes: 'int' },
   screen_viewed: { screen: 'id' },
   login_result: { blz: 'blz', outcome: LOGIN_OUTCOMES, restored: 'bool', tanMethods: 'int', ms: 'int' },
-  export_created: { format: ['pdf', 'csv'], kind: ['statement', 'transaction', 'transactions'] },
+  export_created: { format: ['pdf', 'csv'], kind: ['statement', 'transaction', 'message', 'transactions'] },
   update_available: { version: 'version' },
   update_downloaded: { version: 'version' },
   update_installed: { from: 'version', to: 'version' },
@@ -46,6 +46,8 @@ const EVENTS = {
 const METRICS = {
   'bank.request_ms': { blz: 'blz', ok: 'bool' },
   'server.start_ms': {},
+  // From the process start to the app's window in view; after an update or not.
+  'app.start_ms': { updated: 'bool' },
 };
 
 /** Where an error happened — the only fields an error report carries. */

@@ -2,10 +2,14 @@ import type { Metadata, Viewport } from 'next';
 import { Barlow, Barlow_Condensed, Google_Sans_Flex, IBM_Plex_Mono } from 'next/font/google';
 import { cookies, headers } from 'next/headers';
 import { markSvg } from '@/lib/brand-mark';
-import { LOCALE_COOKIE, resolveLocale, type Locale } from '@/lib/i18n/locale';
+import { DEFAULT_LOCALE, LOCALE_COOKIE, resolveLocale, type Locale } from '@/lib/i18n/locale';
 import { MESSAGES } from '@/lib/i18n/messages';
 import { LocaleProvider } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import './globals.css';
+// The Android app's Material 3 Expressive layer, after the tokens it remaps —
+// inert everywhere else: every rule is scoped to <html data-platform="android">.
+import './android.css';
 
 // Self-hosted through next/font: the files are fetched once at build time and
 // served from this app's own origin, so no font request ever leaves the
@@ -63,6 +67,10 @@ const FAVICON = `data:image/svg+xml,${encodeURIComponent(markSvg({ plate: '#0a2c
  * already in the language the client will continue in.
  */
 async function requestLocale(): Promise<Locale> {
+  // The Android page is built ahead of time, with no request to read. It starts
+  // in German and LocaleProvider switches to the stored or the phone's
+  // language while the splash screen still covers it.
+  if (IS_ANDROID) return DEFAULT_LOCALE;
   const [jar, head] = await Promise.all([cookies(), headers()]);
   return resolveLocale(jar.get(LOCALE_COOKIE)?.value, head.get('accept-language'));
 }
@@ -96,15 +104,20 @@ export const viewport: Viewport = {
 // fenced: a throwing storage must cost the user their preference, never the
 // page. The resolved theme goes on data-theme (what the CSS reads) and the
 // choice itself on data-theme-pref (what the Darstellung control shows);
-// lib/theme.ts takes over from here and keeps both current.
-const THEME_SCRIPT = `(function(){var d=document.documentElement,p=null,k='fints.theme';try{var s=window.electronStore;if(s&&typeof s.get==='function')p=s.get(k);}catch(e){}if(p==null){try{p=localStorage.getItem(k);}catch(e){}}if(p!=='light'&&p!=='dark')p='system';var dark=p==='dark';if(p==='system'){try{dark=window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){dark=false;}}d.dataset.theme=dark?'dark':'light';d.dataset.themePref=p;try{if(window.electronTitleBar)window.electronTitleBar.setTheme(dark);}catch(e){}})();`;
+// lib/theme.ts takes over from here and keeps both current. The Android app
+// has no choice of its own: it always follows the phone.
+const THEME_SCRIPT = `(function(){var d=document.documentElement,p=${IS_ANDROID ? "'system'" : 'null'},k='fints.theme';if(p==null){try{var s=window.electronStore;if(s&&typeof s.get==='function')p=s.get(k);}catch(e){}}if(p==null){try{p=localStorage.getItem(k);}catch(e){}}if(p!=='light'&&p!=='dark')p='system';var dark=p==='dark';if(p==='system'){try{dark=window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){dark=false;}}d.dataset.theme=dark?'dark':'light';d.dataset.themePref=p;try{if(window.electronTitleBar)window.electronTitleBar.setTheme(dark);}catch(e){}})();`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await requestLocale();
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale} data-platform={IS_ANDROID ? 'android' : undefined} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        {/* The phone runtime: the route handlers and the Android bridges
+            (mobile/runtime.ts). Loaded and run before the app's own scripts,
+            so its first fetch('/api/…') already has someone to answer it. */}
+        {IS_ANDROID && <script src="/mobile-runtime.js" />}
       </head>
       <body className={`${googleSansFlex.variable} ${barlow.variable} ${barlowCondensed.variable} ${plexMono.variable}`}>
         <LocaleProvider initial={locale}>{children}</LocaleProvider>

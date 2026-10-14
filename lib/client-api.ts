@@ -6,6 +6,7 @@
 // page that asked (lib/i18n/server.ts).
 
 import { msgs } from './i18n/index.ts';
+import { IS_ANDROID } from './platform.ts';
 
 export class ApiError extends Error {
   status: number;
@@ -60,10 +61,40 @@ async function settle<T>(res: Response, payload?: unknown): Promise<T> {
   return data as T;
 }
 
+/**
+ * Android's back gesture with no layer open to close (mobile/bridges/back.ts).
+ * A listener that goes somewhere with it calls preventDefault().
+ */
+export const BACK_EVENT = 'girovo:back';
+
+/** What mobile/runtime.ts puts on window once its fetch answers /api calls. */
+type MobileRuntime = { ready: Promise<void> };
+export const MOBILE_READY_EVENT = 'girovo:mobile';
+
+/**
+ * In the Android app the route handlers run in this page (mobile/runtime.ts)
+ * and answer through the fetch it installs. Next's own scripts load async and
+ * may start before it has, so a call waits for it — on the desktop and the
+ * website, the server is simply there.
+ */
+function mobileReady(): Promise<void> {
+  const w = window as Window & { girovoMobile?: MobileRuntime };
+  if (w.girovoMobile) return w.girovoMobile.ready;
+  return new Promise((resolve) => {
+    window.addEventListener(MOBILE_READY_EVENT, () => resolve(w.girovoMobile?.ready), { once: true });
+  });
+}
+
+/** fetch, once there is someone to answer. */
+export function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  if (!IS_ANDROID) return fetch(input, init);
+  return mobileReady().then(() => fetch(input, init));
+}
+
 export async function post<T>(path: string, payload?: unknown, init?: { signal?: AbortSignal }): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(path, {
+    res = await apiFetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload || {}),
@@ -81,7 +112,7 @@ export async function post<T>(path: string, payload?: unknown, init?: { signal?:
 export async function get<T>(path: string): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(path);
+    res = await apiFetch(path);
   } catch {
     throw unreachable();
   }

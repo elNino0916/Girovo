@@ -135,6 +135,7 @@ function cardLabel(card: CardPurpose, credit: boolean): string {
 
 // The payment services whose own spelling the list uses for "über …".
 const SERVICE_NAMES: Record<string, string> = {
+  // i18n-data-next-line — brand names ("Sofort" is the service, not the transfer sheet's word)
   paypal: 'PayPal', klarna: 'Klarna', sofort: 'Sofort', stripe: 'Stripe', mollie: 'Mollie', adyen: 'Adyen',
   sumup: 'SumUp', unzer: 'Unzer', payone: 'Payone', giropay: 'giropay', paydirekt: 'paydirekt', wero: 'Wero',
 };
@@ -319,7 +320,10 @@ export function shortDay(d: Date | string | null | undefined): string {
  *   transfers): the day the money really moved, which is what interest and
  *   an overdraft are counted from.
  */
-export function rowNote(tx: SerializedTransaction, pending: boolean): { text: string; title: string } | null {
+export function rowNote(
+  tx: SerializedTransaction,
+  pending: boolean,
+): { text: string; title: string; kind: 'value' | 'booking' | 'pending' } | null {
   const words = msgs().transactions;
   const entry = dayKey(tx.entryDate);
   const value = dayKey(tx.valueDate);
@@ -328,13 +332,13 @@ export function rowNote(tx: SerializedTransaction, pending: boolean): { text: st
     .join(' · ');
   if (pending) {
     return value
-      ? { text: words.row.value(shortDay(tx.valueDate)), title }
-      : { text: words.state.pending, title: words.notBooked };
+      ? { text: words.row.value(shortDay(tx.valueDate)), title, kind: 'value' }
+      : { text: words.state.pending, title: words.notBooked, kind: 'pending' };
   }
   // Naming the field stops a forward-dated Buchungstag from reading like the
   // day the money moved.
-  if (entry && isFutureDate(tx.entryDate)) return { text: words.row.booking(shortDay(tx.entryDate)), title };
-  if (entry && value && entry !== value) return { text: words.row.value(shortDay(tx.valueDate)), title };
+  if (entry && isFutureDate(tx.entryDate)) return { text: words.row.booking(shortDay(tx.entryDate)), title, kind: 'booking' };
+  if (entry && value && entry !== value) return { text: words.row.value(shortDay(tx.valueDate)), title, kind: 'value' };
   return null;
 }
 

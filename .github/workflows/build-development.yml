@@ -1,10 +1,15 @@
-name: Build development desktop artifacts
+name: Build development artifacts
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      release:
+        description: Build the version in package.json as it is, without the -dev suffix (release artifacts)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -23,8 +28,12 @@ jobs:
         shell: pwsh
         run: |
           $baseVersion = node -p "require('./package.json').version"
-          $developmentVersion = "$baseVersion-dev.${{ github.run_number }}"
-          npm version $developmentVersion --no-git-tag-version --allow-same-version
+          if ('${{ inputs.release }}' -eq 'true') {
+            $developmentVersion = $baseVersion
+          } else {
+            $developmentVersion = "$baseVersion-dev.${{ github.run_number }}"
+            npm version $developmentVersion --no-git-tag-version --allow-same-version
+          }
           "version=$developmentVersion" >> $env:GITHUB_OUTPUT
           Write-Host "Building Girovo $developmentVersion"
 
@@ -47,5 +56,105 @@ jobs:
           path: |
             dist/*-Setup.exe
             dist/*-portable.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  build-linux:
+    name: Linux AppImage and deb build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set development version
+        id: version
+        run: |
+          baseVersion=$(node -p "require('./package.json').version")
+          if [ "${{ inputs.release }}" = "true" ]; then
+            developmentVersion="$baseVersion"
+          else
+            developmentVersion="$baseVersion-dev.${{ github.run_number }}"
+            npm version "$developmentVersion" --no-git-tag-version --allow-same-version
+          fi
+          echo "version=$developmentVersion" >> "$GITHUB_OUTPUT"
+          echo "Building Girovo $developmentVersion"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          # On Linux x64, onnxruntime-node's postinstall would fetch its CUDA
+          # libraries (hundreds of MB); the app ships the CPU runtime only.
+          ONNXRUNTIME_NODE_INSTALL: skip
+
+      - name: Build AppImage and deb
+        run: npm run electron:dist:linux
+
+      - name: Upload development artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Girovo-${{ steps.version.outputs.version }}-linux
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: error
+          retention-days: 14
+
+  build-android:
+    name: Android APK (GitHub build, debug-signed)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set development version
+        id: version
+        run: |
+          baseVersion=$(node -p "require('./package.json').version")
+          if [ "${{ inputs.release }}" = "true" ]; then
+            developmentVersion="$baseVersion"
+          else
+            developmentVersion="$baseVersion-dev.${{ github.run_number }}"
+            npm version "$developmentVersion" --no-git-tag-version --allow-same-version
+          fi
+          echo "version=$developmentVersion" >> "$GITHUB_OUTPUT"
+          echo "Building Girovo $developmentVersion"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Gradle runs on JDK 21; the runner's Android SDK fetches the platform
+      # and build tools the project names.
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          # The Android app runs the category model with ONNX Runtime for
+          # Android; the Node runtime's CUDA libraries are not needed here.
+          ONNXRUNTIME_NODE_INSTALL: skip
+
+      - name: Build APK
+        run: node scripts/build-android.mjs --flavor github
+
+      - name: Upload development artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Girovo-${{ steps.version.outputs.version }}-android
+          path: android/app/build/outputs/apk/github/debug/*.apk
           if-no-files-found: error
           retention-days: 14

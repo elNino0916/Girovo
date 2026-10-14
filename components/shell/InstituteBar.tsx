@@ -22,8 +22,12 @@ export const DASH_TABS_ID = 'dash';
 export const TAB_ITEMS: { id: DashboardTab }[] = [{ id: 'overview' }, { id: 'analysis' }, { id: 'contracts' }];
 
 export function InstituteBar() {
-  const { bank, logoFiles, deviceRemembered, tab, setTab } = useFints();
+  const { bank: primary, activeBank, logoFiles, deviceRemembered: primaryDevice, tab, setTab } = useFints();
   const t = useT();
+  // With more than one bank in the view, the bar names the bank of the
+  // account on screen, and whether that login's device is remembered.
+  const bank = activeBank?.bank ?? primary;
+  const deviceRemembered = activeBank ? activeBank.deviceRemembered : primaryDevice;
   const brand = bank?.brand || 'generic';
 
   // The white band and its rule span the window; the row inside is centred
@@ -38,6 +42,7 @@ export function InstituteBar() {
   // room is the row's own (a container query), not the window's.
   return (
     <div
+      data-subbar
       className="relative z-30 shrink-0 border-b border-line bg-surface"
       style={{ height: 'var(--subbar-h)', paddingRight: 'var(--sbw, 0px)' }}
     >

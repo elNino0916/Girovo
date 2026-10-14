@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SerializedTransaction } from './fints-types';
 import {
-  bookingReferences, bookingState, creditLine, cssString, fmtBalance, fmtBlz, fmtMovement, paperText, statementLedger,
-  statementNumberRange, statementPeriod,
+  bookingReferences, bookingState, creditLine, cssString, fmtBalance, fmtBlz, fmtMovement, messageLines, paperText,
+  statementLedger, statementNumberRange, statementPeriod,
 } from './print-doc.ts';
 import { block, camt, mt940, mt940Date, newestFirst } from './__fixtures__/transactions.ts';
 
@@ -260,6 +260,38 @@ test('statement numbers run in booking order, not text order', () => {
   assert.equal(statementNumberRange([{ statementNumber: '00009/001' }, { statementNumber: '00009/001' }]), '00009/001');
   assert.equal(statementNumberRange([{ statementNumber: '' }]), null);
   assert.equal(statementNumberRange([]), null);
+});
+
+// ---------------------------------------------------------------------------
+// A bank message
+
+test('a message prints line for line, blank lines and spacing kept', () => {
+  const lines = [
+    'Liebe Kundin, lieber Kunde,',
+    '',
+    'Was sich für Sie ändert:',
+    '- Namensabgleich vor jeder Überweisung',
+    '    Entgelt:  0,00 EUR',
+    '',
+    '',
+    'Ihre Volksbank Musterstadt eG',
+  ];
+  assert.deepEqual(messageLines('Neue Sonderbedingungen', lines.join('\r\n')), lines);
+  assert.deepEqual(messageLines('Neue Sonderbedingungen', lines.join('\n')), lines);
+});
+
+test('a message loses only the blank lines before it and the whitespace after it', () => {
+  assert.deepEqual(messageLines('Wartung', '\n  \r\n  Am Sonntag nicht erreichbar.  \n\n'), ['  Am Sonntag nicht erreichbar.']);
+  // A lone CR (old Mac line ends) is a line break too.
+  assert.deepEqual(messageLines('Wartung', 'Erste Zeile\rZweite Zeile'), ['Erste Zeile', 'Zweite Zeile']);
+});
+
+test('a message with nothing beyond its subject prints the subject alone', () => {
+  assert.deepEqual(messageLines('Wartungsarbeiten am Sonntag', ''), []);
+  assert.deepEqual(messageLines('Wartungsarbeiten am Sonntag', '  \n '), []);
+  assert.deepEqual(messageLines('Wartungsarbeiten am Sonntag', 'Wartungsarbeiten am Sonntag\n'), []);
+  // A subject taken from the text's first line: the text still has more to say.
+  assert.deepEqual(messageLines('Neue AGB', 'Neue AGB\nab 01.12.2026'), ['Neue AGB', 'ab 01.12.2026']);
 });
 
 // ---------------------------------------------------------------------------

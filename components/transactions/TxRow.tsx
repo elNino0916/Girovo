@@ -4,9 +4,11 @@ import { memo } from 'react';
 import { categoryLabel, txKey, type CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
+import { maskAmounts } from '@/lib/mask';
 import { BankText } from '../BankText';
-import { CategoryIcon } from '../icons';
-import { Money } from '../Money';
+import { CategoryIcon, NoteIcon } from '../icons';
+import { Money, usePrivacy } from '../Money';
 import { Skeleton, cx } from '../ui';
 import { CounterpartyAvatar } from './Avatar';
 import { rowNote, txText } from './model';
@@ -26,11 +28,13 @@ const QUIET_CATEGORIES = new Set<CategoryId>(['other', 'otherIn']);
  * change of it renders every row again, summary and category included.
  */
 export const TxRow = memo(function TxRow({
-  tx, merchant, category, pending = false, compact = false, onOpen,
+  tx, merchant, category, userNote, pending = false, compact = false, onOpen,
 }: {
   tx: SerializedTransaction;
   merchant: Merchant | null;
   category?: CategoryId | null;
+  /** The user's own note on the booking (lib/notes.ts): marked beside the name, read in the drawer. */
+  userNote?: string;
   pending?: boolean;
   /** The narrower Vorgemerkt panel: tighter padding, no category. */
   compact?: boolean;
@@ -39,7 +43,10 @@ export const TxRow = memo(function TxRow({
   const t = useT();
   const { name, summary, bankName } = txText(tx);
   const credit = tx.amount > 0;
-  const note = rowNote(tx, pending);
+  // On Android a booked row leaves its Wertstellung to its details; a
+  // Buchungstag still ahead it keeps — that one changes what the row means.
+  const fullNote = rowNote(tx, pending);
+  const note = IS_ANDROID && !pending && fullNote?.kind === 'value' ? null : fullNote;
   const showCategory = !compact && category && !QUIET_CATEGORIES.has(category);
 
   return (
@@ -61,11 +68,14 @@ export const TxRow = memo(function TxRow({
 
       <span className="min-w-0 flex-1">
         {/* The tidied name; hovering shows what the bank's FinTS answer said. */}
-        <span
-          className="block truncate text-[15px] leading-snug font-semibold text-ink"
-          title={bankName && bankName !== name ? t.transactions.row.perBank(bankName) : undefined}
-        >
-          {name}
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span
+            className="min-w-0 truncate text-[15px] leading-snug font-semibold text-ink"
+            title={bankName && bankName !== name ? t.transactions.row.perBank(bankName) : undefined}
+          >
+            {name}
+          </span>
+          {userNote && <NoteMark note={userNote} />}
         </span>
         {(summary || showCategory) && (
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] leading-snug text-ink-3">
@@ -111,6 +121,23 @@ export const TxRow = memo(function TxRow({
     </button>
   );
 });
+
+/**
+ * The mark of a booking the user wrote a note on: a quiet glyph after the
+ * name, "Mit Notiz" to a screen reader, the note itself as its tooltip — with
+ * the amounts in it masked while "Beträge ausblenden" is on. Its own
+ * component, so only the mark (not the memoised row) follows that mode.
+ */
+function NoteMark({ note }: { note: string }) {
+  const t = useT();
+  const privacy = usePrivacy();
+  return (
+    <span className="inline-flex shrink-0 text-ink-3" title={privacy ? maskAmounts(note) : note}>
+      <NoteIcon size={14} />
+      <span className="sr-only">{t.budgets.notes.marker}</span>
+    </span>
+  );
+}
 
 /** A placeholder row shaped like the real one — avatar, two lines, an amount. */
 export function TxRowSkeleton({ width = 60, compact = false }: { width?: number; compact?: boolean }) {

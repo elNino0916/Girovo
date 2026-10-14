@@ -54,19 +54,23 @@ export function trackUsage(name: string, props?: Record<string, string | number 
   window.electronTelemetry?.event(name, props);
 }
 
-// A component failing in a loop must not flood the reports.
+// A component failing in a loop must not flood the reports: the same error
+// (name and message) goes out once per page, and at most this many in all —
+// so one repeating failure cannot use up the reports a different one needs.
 const MAX_ERRORS_PER_PAGE = 20;
 let reported = 0;
+const alreadyReported = new Set<string>();
 
 /** An unexpected failure in the page. Always reported; the shell scrubs it. */
 export function reportClientError(err: unknown): void {
   const t = typeof window === 'undefined' ? undefined : window.electronTelemetry;
   if (!t || reported >= MAX_ERRORS_PER_PAGE) return;
-  reported++;
   const e = (err && typeof err === 'object' ? err : { message: String(err) }) as { name?: unknown; message?: unknown; stack?: unknown };
-  t.error({
-    name: typeof e.name === 'string' ? e.name : 'Error',
-    message: typeof e.message === 'string' ? e.message : '',
-    stack: typeof e.stack === 'string' ? e.stack : '',
-  });
+  const name = typeof e.name === 'string' ? e.name : 'Error';
+  const message = typeof e.message === 'string' ? e.message : '';
+  const key = `${name}\n${message}`;
+  if (alreadyReported.has(key)) return;
+  alreadyReported.add(key);
+  reported++;
+  t.error({ name, message, stack: typeof e.stack === 'string' ? e.stack : '' });
 }

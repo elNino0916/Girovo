@@ -21,6 +21,7 @@ import type { PopularBank } from '@/lib/banks';
 import { bankSearchTerm, parseBankQuery, type BankQuery } from '@/lib/bank-query';
 import { intlLocale, type Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { BankLogo } from '../BankLogo';
 import type { BankSearchHit, ChosenBank } from '../FintsProvider';
 import { CloseIcon, SearchIcon } from '../icons';
@@ -299,8 +300,9 @@ export function BankPicker({
             aria-controls={listId}
             aria-activedescendant={open && active >= 0 ? optId(active) : undefined}
             aria-describedby={`${inputId}-hint`}
-            // The first thing on the screen; nothing else competes for it.
-            autoFocus
+            // The first thing on the screen; nothing else competes for it. Not
+            // on a phone, where the keyboard would come up over the quick picks.
+            autoFocus={!IS_ANDROID}
             value={query}
             onChange={(e) => { setQuery(e.target.value); setDismissed(false); }}
             onFocus={() => setFocused(true)}

@@ -1,11 +1,11 @@
 'use client';
 
-// The printed Kontoauszug and Buchungsbeleg, on screen — for looking at and
-// screenshotting them without a printer. The mock's own printStatement /
-// printTransaction only toast (a print dialog over every screenshot would be
-// worse), so these views build the same PrintJob the real provider builds,
-// from the mock's state, and hand it to the real sheet (DocumentPreview from
-// components/Statement.tsx) at A4 width.
+// The printed Kontoauszug, Buchungsbeleg and bank message, on screen — for
+// looking at and screenshotting them without a printer. The mock's own
+// printStatement / printTransaction / printMessage only toast (a print dialog
+// over every screenshot would be worse), so these views build the same
+// PrintJob the real provider builds, from the mock's state, and hand it to the
+// real sheet (DocumentPreview from components/Statement.tsx) at A4 width.
 //
 // Printing one of these pages (Strg+P) gives the real pages, page marks
 // included: the preview frame drops away on paper.
@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFints, type PrintJob } from '@/components/FintsProvider';
 import { DocumentPreview } from '@/components/Statement';
-import type { StatementInfo } from '@/lib/app-types';
+import type { InboxMessage, StatementInfo } from '@/lib/app-types';
 import type { SerializedBalance, SerializedTransaction } from '@/lib/fints-types';
 import { isFutureDate, isoDate } from '@/lib/format';
 
@@ -29,10 +29,51 @@ import { isFutureDate, isoDate } from '@/lib/format';
  *   card                  a Visa Debit payment through the card processor, in US dollars
  *   ahead                 the card payment the bank already dates to the next business day
  *   pending               a Vormerkposten
+ * and for a message the bank sent at login:
+ *   message               the letter on new Sonderbedingungen (blank lines, a list, a signature)
+ *   message-short         the one-paragraph maintenance notice
+ *   message-long          the letter grown past a page: a long subject, a link longer than
+ *                         the line, an indented list
  */
 export type PrintPreviewKind =
   | 'statement' | 'statement-no-opening' | 'statement-difference'
-  | 'receipt' | 'credit' | 'card' | 'ahead' | 'pending';
+  | 'receipt' | 'credit' | 'card' | 'ahead' | 'pending'
+  | 'message' | 'message-short' | 'message-long';
+
+const MESSAGE_KINDS: readonly PrintPreviewKind[] = ['message', 'message-short', 'message-long'];
+
+/** The mock's first message, grown into what a long notice puts the sheet through. */
+function longNotice(m: InboxMessage): InboxMessage {
+  const topics = [
+    'Empfängerüberprüfung', 'Echtzeitüberweisung', 'Verfügungslimits im Online-Banking',
+    'Elektronisches Postfach', 'Sperre des Zugangs', 'Haftung bei nicht autorisierten Zahlungen',
+  ];
+  return {
+    ...m,
+    id: `${m.id}-long`,
+    subject: `${m.subject} und neues Preis- und Leistungsverzeichnis für Privatkunden (Kontomodelle, Karten, Entgelte)`,
+    text: [
+      m.text,
+      '',
+      'Die neuen Bedingungen zum Herunterladen: '
+        + 'https://www.volksbank-musterstadt.de/content/dam/privatkunden/service/bedingungen-und-verzeichnisse/Sonderbedingungen_Online-Banking_2026-12-01.pdf',
+      '',
+      'Anlage 1 – Entgelte ab 01.12.2026',
+      '    Kontoführung: 4,90 EUR im Monat',
+      '    girocard: 12,00 EUR im Jahr',
+      '    Echtzeitüberweisung: 0,00 EUR',
+      '',
+      'Anlage 2 – Die Änderungen im Einzelnen',
+      ...topics.flatMap((topic, i) => [
+        '',
+        `${i + 1}. ${topic}`,
+        'Die bisherige Regelung gilt bis zum 30.11.2026 unverändert weiter. Ab dem 01.12.2026 gilt die neue Fassung, '
+          + 'die Sie im Online-Banking unter Service > Bedingungen und Verzeichnisse einsehen können. Bitte lesen Sie '
+          + 'die Änderungen sorgfältig; bei Fragen hilft Ihnen Ihre Beraterin oder Ihr Berater gern weiter.',
+      ]),
+    ].join('\n'),
+  };
+}
 
 const newest = (txs: readonly SerializedTransaction[], pred: (t: SerializedTransaction) => boolean) =>
   txs.find(pred) ?? null;
@@ -71,10 +112,16 @@ function useFitToWidth(scroller: HTMLElement | null): number {
 }
 
 export function PrintPreview({ kind }: { kind: PrintPreviewKind }) {
-  const { activeAccount, bank, transactions, balances, statementInfo, pendingCache } = useFints();
+  const { activeAccount, bank, transactions, balances, statementInfo, pendingCache, messages } = useFints();
 
   // Built once per change of the data it reads: the sheet seals every new job.
   const job = useMemo((): PrintJob | null => {
+    if (MESSAGE_KINDS.includes(kind)) {
+      // As the inbox holds them: the conditions letter first, the maintenance notice second.
+      const message = messages[kind === 'message-short' ? 1 : 0];
+      if (!message) return null;
+      return { kind: 'message', bank, message: kind === 'message-long' ? longNotice(message) : message };
+    }
     if (!activeAccount) return null;
     const acct = activeAccount.accountNumber;
     const info = statementInfo[acct];
@@ -108,7 +155,7 @@ export function PrintPreview({ kind }: { kind: PrintPreviewKind }) {
             : newest(txs, (t) => !!t.creditorId && !!t.mandateReference && t.amount < 0);
     if (!tx) return null;
     return { kind: 'transaction', account: activeAccount, bank, tx, pending };
-  }, [kind, activeAccount, bank, transactions, balances, statementInfo, pendingCache]);
+  }, [kind, activeAccount, bank, transactions, balances, statementInfo, pendingCache, messages]);
 
   const [main, setMain] = useState<HTMLElement | null>(null);
   const fit = useFitToWidth(main);
@@ -128,7 +175,9 @@ export function PrintPreview({ kind }: { kind: PrintPreviewKind }) {
         </div>
       ) : (
         <p className="mx-auto max-w-[46ch] text-center text-[14px] text-ink-2">
-          Für diesen Beleg gibt es in den Beispieldaten dieses Kontos keine passende Buchung.
+          {MESSAGE_KINDS.includes(kind)
+            ? 'In diesen Beispieldaten hat die Bank keine Mitteilung gesendet.'
+            : 'Für diesen Beleg gibt es in den Beispieldaten dieses Kontos keine passende Buchung.'}
         </p>
       )}
     </main>

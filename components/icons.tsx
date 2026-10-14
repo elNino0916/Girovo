@@ -71,6 +71,18 @@ export function ShieldIcon({ size = 14, check = false, ...rest }: IconProps & { 
   );
 }
 
+/** A fingertip's ridges: fingerprint login (Android). */
+export function FingerprintIcon({ size = 18, ...rest }: IconProps) {
+  return (
+    <Icon size={size} {...rest}>
+      <path d="M3.5 9.5a9 9 0 0 1 17 0" />
+      <path d="M5.2 16c.4-1.1.6-2.3.6-3.5a6.2 6.2 0 0 1 12.4 0c0 2.6-.4 5.1-1.2 7.4" />
+      <path d="M8.2 19.4c.6-1.9.9-4.1.9-6.9a2.9 2.9 0 0 1 5.8 0c0 1.4-.1 2.8-.3 4" />
+      <path d="M12 12.5c0 3.4-.5 6.2-1.6 8.5" />
+    </Icon>
+  );
+}
+
 export function SearchIcon({ size = 16, ...rest }: IconProps) {
   return <Icon size={size} {...rest}><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.3-4.3" /></Icon>;
 }
@@ -217,6 +229,16 @@ export function TagIcon(p: IconProps) {
 
 export function PencilIcon(p: IconProps) {
   return <Icon {...p}><path d="M15.5 4.5l4 4-11 11-5 1 1-5 11-11zM13.5 6.5l4 4" /></Icon>;
+}
+
+/** A note the user wrote on a booking: a sheet with a turned corner and two lines. */
+export function NoteIcon(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M5.5 3.5h13a1 1 0 0 1 1 1v9.5l-6 6h-8a1 1 0 0 1-1-1v-14.5a1 1 0 0 1 1-1z" />
+      <path d="M19.5 14h-5a1 1 0 0 0-1 1v5M8.5 8.5h7M8.5 12h4" />
+    </Icon>
+  );
 }
 
 export function KeyboardIcon(p: IconProps) {

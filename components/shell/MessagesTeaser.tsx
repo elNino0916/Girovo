@@ -16,7 +16,7 @@ import { ChevronIcon, MailIcon } from '../icons';
 import { Dot, Tile } from '../ui';
 
 export function MessagesTeaser() {
-  const { messages, setInboxOpen } = useFints();
+  const { messages, setInboxOpen, banks } = useFints();
   const t = useT();
   const unread = messages.filter((m) => !m.read);
   if (!unread.length) return null;
@@ -37,6 +37,10 @@ export function MessagesTeaser() {
             <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-[var(--inset)]" />
           </span>
           <div className="min-w-0">
+            {/* Which bank said it, once there is more than one to tell apart. */}
+            {banks.length > 1 && first.bank && (
+              <p className="truncate text-[12.5px] leading-snug text-ink-3">{t.banks.from(first.bank)}</p>
+            )}
             <p className="line-clamp-2 text-[14px] leading-snug font-semibold text-ink">{first.subject}</p>
             {first.text && first.text !== first.subject && (
               // A preview reads as one run of text; the bank's line breaks are

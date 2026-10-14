@@ -22,8 +22,25 @@ import pkg from './package.json' with { type: 'json' };
 // workflow (`next build` → `next start`) is left on the default output.
 const isElectronBuild = process.env.ELECTRON_BUILD === '1';
 
+// The Android build (scripts/build-android.mjs) sets GIROVO_TARGET=android. It
+// has no server to run the page on: the page is exported as static files for
+// the app's WebView, and the route handlers run in that WebView instead
+// (mobile/server, bundled by scripts/build-mobile.mjs). So the export leaves
+// app/api out — `route.ts` is not a page extension there — and the page learns
+// that it is the phone's from NEXT_PUBLIC_GIROVO_PLATFORM.
+const isAndroidBuild = process.env.GIROVO_TARGET === 'android';
+
 const nextConfig: NextConfig = {
   ...(isElectronBuild ? { output: 'standalone' as const } : {}),
+  // `next dev` with the flag (the Android look in a browser, against the design
+  // preview's mock data) is not an export: the preview reads its query string.
+  ...(isAndroidBuild && process.env.NODE_ENV === 'production'
+    ? { output: 'export' as const, pageExtensions: ['tsx'], distDir: '.next-android' }
+    : isAndroidBuild
+      // 10.0.2.2: the emulator's name for this computer, when a debug build
+      // loads the preview from here (GIROVO_DEV_SERVER, capacitor.config.ts).
+      ? { pageExtensions: ['tsx'], distDir: '.next-android-dev', allowedDevOrigins: ['10.0.2.2'] }
+      : {}),
   // The institute database and the product registration are read from disk at
   // runtime; keep them traced into a standalone build.
   outputFileTracingIncludes: {
@@ -42,6 +59,7 @@ const nextConfig: NextConfig = {
   // the one number that is otherwise only in package.json.
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
+    NEXT_PUBLIC_GIROVO_PLATFORM: isAndroidBuild ? 'android' : '',
   },
 };
 

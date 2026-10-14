@@ -21,6 +21,7 @@ import type { ReactNode } from 'react';
 import { buildEpcPayload } from '@/lib/girocode';
 import { copyText } from '@/lib/clipboard';
 import { downloadBlob } from '@/lib/download';
+import { IS_ANDROID } from '@/lib/platform';
 import { fmtAmountInput, fmtIban, fmtShortIban, parseAmount } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { qrMatrix, qrPngBlob, qrSvgPath, type QrMatrix } from '@/lib/qr';
@@ -160,7 +161,11 @@ export function ShareAccount() {
       // "_1000-50": from the cents, not the formatted figure, so the name is the same in every language.
       const cents = amountState.value != null ? Math.round(amountState.value * 100) : null;
       const amt = cents != null ? `_${Math.floor(cents / 100)}-${String(cents % 100).padStart(2, '0')}` : '';
-      downloadBlob(`GiroCode_${tail}${amt}.png`, blob);
+      const name = `GiroCode_${tail}${amt}.png`;
+      // On a phone the code is wanted in a chat or a mail, so it goes to the share sheet.
+      const mobile = IS_ANDROID ? window.girovoMobile : undefined;
+      if (mobile) await mobile.share(name, blob, t.android.share.giroCode);
+      else downloadBlob(name, blob);
     } catch (e) {
       toast((e as Error).message || words.imageSaveFailed, 'error');
     } finally {
@@ -208,7 +213,7 @@ export function ShareAccount() {
               disabled={!code?.ok}
               onClick={() => void savePng()}
             >
-              {words.savePng}
+              {IS_ANDROID ? t.android.share.button : words.savePng}
             </Button>
             <span className="sr-only" aria-live="polite">
               {copied === 'account' ? words.detailsCopied : copied === 'image' ? words.imageCopied : ''}

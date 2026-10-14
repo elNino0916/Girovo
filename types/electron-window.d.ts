@@ -7,8 +7,11 @@ declare global {
   interface ElectronUpdateState {
     /** The running version. */
     current: string;
-    /** nsis: installed · portable: the portable .exe · manual: other packaging · dev: unpackaged. */
-    kind: 'nsis' | 'portable' | 'manual' | 'dev';
+    /**
+     * nsis: installed · portable: the portable .exe · manual: other packaging · dev: unpackaged ·
+     * android: the Android app from GitHub (mobile/bridges/updates.ts provides this bridge there).
+     */
+    kind: 'nsis' | 'portable' | 'manual' | 'dev' | 'android';
     /** Automatic checks (at start, then every 6 hours). */
     auto: boolean;
     phase: ElectronUpdatePhase;

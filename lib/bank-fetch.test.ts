@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpClient } from 'lib-fints';
 import {
-  BankRequestCancelled, BankUnavailable, bankErrorKind, describeError, fetchFromBank, withBankSignal,
+  BankRequestCancelled, BankUnavailable, bankErrorKind, bankPolicy, describeError, fetchFromBank, withBankSignal,
 } from './bank-fetch.ts';
 import { BANK_UNAVAILABLE, BANK_UNREACHABLE } from './bank-answer.ts';
 import { OrderUnanswered, startOrder } from './fints-order.ts';
@@ -37,6 +37,18 @@ test('no first byte within the limit: BankUnavailable, not a five-minute wait', 
     (e: unknown) => e instanceof BankUnavailable && e.reason === 'timeout',
   );
   assert.ok(Date.now() - started < 2000);
+});
+
+test('without a limit (Infinity: the transport times it, as on Android) no timer runs at all', async () => {
+  // setTimeout would take Infinity as 0 and end every request at once.
+  const was = bankPolicy.firstByteMs;
+  bankPolicy.firstByteMs = Infinity;
+  try {
+    const res = await fetchFromBank(slowFetch(40, () => new Response(FINTS_REPLY)), URL_, {}, quiet);
+    assert.equal(await res.text(), FINTS_REPLY);
+  } finally {
+    bankPolicy.firstByteMs = was;
+  }
 });
 
 test('the limit is on the first byte only: a slow body still arrives', async () => {

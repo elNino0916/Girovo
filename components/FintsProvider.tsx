@@ -11,9 +11,19 @@
 //
 // Around that core sits everything the browser keeps for itself: the applied
 // date range, the session clock that logs an unattended dashboard out, the
-// encrypted personal-data vault (aliases, templates, categories), the bank's
+// encrypted personal-data vault (aliases, templates, categories, budgets,
+// notes), the session's copy of the Umsätze kept on this computer, the bank's
 // messages and this session's own record of what it sent. None of it talks to
 // the bank; all of it is reset by a logout, except the user's preferences.
+//
+// More than one bank: the first login is the primary one — its vault holds
+// the personal data of the whole view — and "Weitere Bank anmelden" adds
+// logins beside it, each a session of its own on the server (`links`). Their
+// accounts join the one account list, still keyed by account number, and
+// every request about an account goes through the session of the login that
+// brought it (sessionFor, lib/linked-banks.ts). Keepalive and logout cover
+// every session; a linked bank whose session ends alone is marked logged
+// out, the rest of the view stays.
 //
 // Async rule of thumb: every continuation after an `await` first checks that
 // the session (and, for the TAN poll, the wait) it was started for is still
@@ -23,12 +33,15 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { ApiError, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail } from '@/lib/client-api';
+import { ApiError, BACK_EVENT, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail } from '@/lib/client-api';
+import { IS_ANDROID } from '@/lib/platform';
 import { msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { bankAnswerLines } from '@/lib/bank-answer';
-import { bookingKind, categorize, guessCategory } from '@/lib/categorize';
+import { bookingKind, categorize, explainGuess, guessCategory, type CategoryGuess } from '@/lib/categorize';
 import { OWN_PICTURE, isAvatarChoice, isAvatarImage } from '@/lib/avatars';
+import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
+import { sanitizeNotes, withNote } from '@/lib/notes';
 import { counterpartyKey, counterpartyName, isCategoryId, rawCounterparty, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
 import { isCardPurpose, parseCardAcceptor } from '@/lib/card-purpose';
 import { parsePurpose } from '@/lib/sepa-purpose';
@@ -39,7 +52,15 @@ import {
 } from '@/lib/format';
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
-import { acceptsBalance, balanceQueue, failureSentence } from '@/lib/balances';
+import { acceptsBalance, balanceQueue, failureSentence, namesList } from '@/lib/balances';
+import {
+  LINKED_BANK_LIMITS, forgetLinkedBank, joinAccounts, rememberLinkedBank, routeFor, sameLogin, sanitizeLinkedBanks,
+  type LinkedBankRef,
+} from '@/lib/linked-banks';
+import {
+  EMPTY_HISTORY, deliveredSpan, historyCoverage, historyView, mergeIntoHistory, planFetch, sanitizeHistory, savedPeriod,
+  type HistoryData, type HistoryGetResponse, type HistoryStatus,
+} from '@/lib/history';
 import { afterStatementRead, pendingView, type PendingRead } from '@/lib/pending';
 import { recordSentOrder, sanitizeSentOrders, type SentOrder } from '@/lib/sent-orders';
 import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-log';
@@ -52,11 +73,13 @@ import {
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import type {
-  BalanceResponse, BankMessage, ConnectResponse, Merchant, MerchantsResponse, MetaResponse, PendingResponse,
-  SelectTanResponse, SerializedAccount, SerializedBalance, SerializedTanMethod,
+  BalanceResponse, BankMessage, BankOrderKind, BankOrdersAnswer, BankOrdersResponse, ConnectResponse, DeleteOrderResponse,
+  Merchant, MerchantsResponse, MetaResponse, PendingResponse,
+  SelectTanResponse, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedTanMethod,
   SerializedTransaction, SerializedVop, TanPollResponse, TransactionsResponse,
   TransferResponse,
 } from '@/lib/fints-types';
+import type { OrderSchedule } from '@/lib/order-schedule';
 import type { PopularBank } from '@/lib/banks';
 
 export type ChosenBank = {
@@ -69,6 +92,50 @@ export type ChosenBank = {
 
 export type BankSearchHit = {
   blz: string; name: string; location: string; bic: string; brand: string;
+};
+
+/**
+ * A further bank in the view ("Weitere Bank anmelden"): a login of its own
+ * on the server, beside the primary one (lib/linked-banks.ts).
+ */
+export type LinkedLogin = {
+  /** The browser's own id for it, never derived from the login. */
+  id: string;
+  bank: ChosenBank;
+  userId: string;
+  /** Null once its session has ended: its accounts stay, marked logged out, until it logs in again. */
+  sessionId: string | null;
+  /** The accounts this login brought, in the bank's order. */
+  accountNumbers: string[];
+  /** The approval method of this login, for the pace and the words of its approvals. */
+  method: SerializedTanMethod | null;
+  deviceRemembered: boolean;
+};
+
+/** One bank of the view, as the account list and the Sitzung panel show it. */
+export type BankEntry = {
+  /** 'primary', a LinkedLogin's id, or `remembered:…` for a linked bank not logged in now. */
+  key: string;
+  bank: ChosenBank;
+  state: 'primary' | 'active' | 'loggedOut' | 'remembered';
+  /** What the vault keeps about a linked bank (null for the primary). */
+  ref: LinkedBankRef | null;
+  deviceRemembered: boolean;
+};
+
+/**
+ * "Weitere Bank anmelden" while its sheet is open: the login's own steps,
+ * for a session beside the primary one. The Freigabe is the usual overlay.
+ */
+export type AddBankState = {
+  step: 'bank' | 'credentials' | 'method';
+  bank: ChosenBank | null;
+  /** The login name the form starts with, for this BLZ: a remembered bank's, or the one that logged out. */
+  prefill: { blz: string; userId: string } | null;
+  tanMethods: SerializedTanMethod[];
+  selectedMethod: SerializedTanMethod | null;
+  mediaChoice: string[] | null;
+  error: string | null;
 };
 
 export type ToastTone = 'info' | 'error' | 'success';
@@ -95,7 +162,7 @@ export type IdleMinutes = (typeof IDLE_MINUTE_CHOICES)[number];
  */
 export type LogoConsent = 'unasked' | 'on' | 'off';
 
-/** A snapshot of what to render on the print-only Kontoauszug/receipt sheet. */
+/** A snapshot of what to render on the print-only Kontoauszug, receipt or message sheet. */
 export type PrintJob =
   | {
       kind: 'statement';
@@ -119,6 +186,12 @@ export type PrintJob =
       tx: SerializedTransaction;
       /** A Vormerkposten: authorised, not yet booked. The receipt must say so. */
       pending: boolean;
+    }
+  | {
+      kind: 'message';
+      bank: ChosenBank | null;
+      /** As the inbox holds it: the bank's subject and text, and when this session received them. */
+      message: InboxMessage;
     };
 
 /** When an account's Vorgemerkt list was fetched, and how it stands against the statement. */
@@ -161,14 +234,43 @@ export type LoadSettled = (outcome: LoadOutcome, error?: string) => void;
  */
 type WaitPhase = 'waiting' | 'confirmed' | 'error' | 'ended' | 'refused';
 
-/** What an approval is for — the overlay asks before abandoning a transfer. */
-export type WaitKind = 'login' | 'statements' | 'pending' | 'balance' | 'transfer';
+/**
+ * Approvals around the orders a bank keeps for later (lib/fints-orders.ts):
+ * placing a Dauerauftrag or a terminierte Überweisung, reading the bank's
+ * list of them, deleting one. Their words are in lib/i18n/messages/orders.ts.
+ */
+export type OrderWaitKind = 'standingOrder' | 'datedTransfer' | 'bankOrders' | 'orderDelete';
+
+/** What an approval is for — the overlay asks before abandoning an order. */
+export type WaitKind = 'login' | 'statements' | 'pending' | 'balance' | 'transfer' | OrderWaitKind;
+
+const ORDER_WAIT_KINDS: readonly string[] = ['standingOrder', 'datedTransfer', 'bankOrders', 'orderDelete'];
+export const isOrderWaitKind = (k: WaitKind | null | undefined): k is OrderWaitKind => !!k && ORDER_WAIT_KINDS.includes(k);
+
+/** An approval for an order that may move money: a transfer, a terminierte Überweisung, a Dauerauftrag. */
+export const placesOrder = (k: WaitKind | null | undefined) => k === 'transfer' || k === 'standingOrder' || k === 'datedTransfer';
 
 /**
- * The transfer an approval is for, as the bank received it (name rewritten to
- * the SEPA character set), for the user to compare with their banking app.
+ * An approval for an order of any kind — one that may move money, or delete
+ * an order: never offered again behind the user's back, and leaving it is
+ * asked first, because the bank holds it either way.
  */
-export type WaitOrder = { amount: number; name: string; iban: string; instant: boolean };
+export const isOrderWait = (k: WaitKind | null | undefined) => placesOrder(k) || k === 'orderDelete';
+
+/** What an approval asks the user to confirm, as the object of "bestätige …", in `m`'s language. */
+export const waitSubject = (m: Messages, kind: WaitKind): string =>
+  (isOrderWaitKind(kind) ? m.orders.wait.subject[kind] : m.provider.wait.subject[kind]);
+
+/** The approval a submitted order waits for: a transfer's, a Dauerauftrag's or a terminierte Überweisung's. */
+export const orderWaitKind = (schedule: OrderSchedule | null | undefined): WaitKind =>
+  (schedule?.kind === 'standing' ? 'standingOrder' : schedule?.kind === 'dated' ? 'datedTransfer' : 'transfer');
+
+/**
+ * The order an approval is for, as the bank received it (name rewritten to
+ * the SEPA character set), for the user to compare with their banking app —
+ * with when it runs, for one the bank keeps for later.
+ */
+export type WaitOrder = { amount: number; name: string; iban: string; instant: boolean; schedule?: OrderSchedule | null };
 
 export type WaitState = {
   open: boolean;
@@ -207,6 +309,10 @@ export type WaitState = {
   order: WaitOrder | null;
   /** A line of context, e.g. that this is the second approval right after the login. */
   note: string | null;
+  /** Which bank asks — named once more than one bank is in the view, null otherwise. */
+  bank: { name: string; brand: string } | null;
+  /** The method this approval runs on: that of the login it belongs to. */
+  method: SerializedTanMethod | null;
 };
 
 /**
@@ -230,7 +336,18 @@ type KeptWait = Omit<WaitState, 'title' | 'text' | 'error' | 'note'> & {
 const IDLE_WAIT: KeptWait = {
   open: false, kind: null, title: null, text: null, challenge: null,
   phase: 'waiting', error: null, canRetry: false, startedAt: 0, settledAt: null, vop: null, tanMediaName: null,
-  order: null, note: null,
+  order: null, note: null, bank: null, method: null,
+};
+
+/** AddBankState as the provider keeps it: its error perhaps unwritten, and the login under way. */
+type KeptAddBank = Omit<AddBankState, 'error'> & {
+  error: KeptText | null;
+  /** The new login's session, once the bank answered — dropped if the flow does not finish. */
+  sessionId: string | null;
+  /** The login name it was opened with, as typed. */
+  login: string;
+  /** What the bank said at that login, added to Mitteilungen once the bank joins the view. */
+  messages: BankMessage[];
 };
 
 /** The wait as TanWaitOverlay reads it, in the language on screen. */
@@ -262,10 +379,35 @@ type WaitCallbacks = {
   onAnswer?: ((status: 'refused' | 'unclear', bankAnswers: string) => void) | null;
 };
 
-/** What the transfer form submits; the server parses `amount` itself. */
+/**
+ * What the transfer form submits; the server parses `amount` itself.
+ * `schedule`: a terminierte Überweisung or a Dauerauftrag instead of a
+ * transfer carried out now (never with `instant`).
+ */
 export type TransferPayload = {
   accountNumber: string; recipientName: string; iban: string;
   amount: string; purpose: string; instant: boolean;
+  schedule?: OrderSchedule;
+};
+
+/** One kind of the bank's orders for an account, as last read (loadBankOrders). */
+export type BankOrdersInfo = {
+  orders: SerializedBankOrder[];
+  /** False when the bank had more to send than the read collected. */
+  complete: boolean;
+  /** Orders the bank listed that the app could not read. */
+  unreadable: number;
+  /** epoch ms */
+  loadedAt: number;
+};
+
+/** What became of a deletion asked for in this session, by the order's handle (SerializedBankOrder.ref). */
+export type OrderDeletion = {
+  status: 'deleted' | 'refused' | 'unclear';
+  /** The bank's answer, codes included (shown without). */
+  answers?: string;
+  /** epoch ms */
+  at: number;
 };
 
 export type TransferHandlers = {
@@ -439,15 +581,21 @@ function typedAmount(raw: string): number {
   return Math.abs(parseAmount(raw) ?? 0);
 }
 
-/** A submitted order as the vault's two-week log keeps it (lib/sent-orders.ts), or null without amount or IBAN. */
+/**
+ * A submitted order as the vault's two-week log keeps it (lib/sent-orders.ts),
+ * or null without amount or IBAN. One the bank keeps for later says so, with
+ * its first date: it moves no money today.
+ */
 function sentOrderOf(p: TransferPayload, outcome: SentOrder['outcome'], at: string): SentOrder | null {
   const cents = Math.round(typedAmount(p.amount) * 100);
   const iban = normIban(p.iban);
-  return cents > 0 && iban ? { at, accountNumber: p.accountNumber, iban, cents, outcome } : null;
+  const s = p.schedule;
+  const later = s ? { kind: s.kind, due: s.kind === 'dated' ? s.date : s.first } : {};
+  return cents > 0 && iban ? { at, accountNumber: p.accountNumber, iban, cents, outcome, ...later } : null;
 }
 
 /** One login message as an inbox entry, or null when the bank sent nothing readable. */
-function toInboxMessage(m: BankMessage, receivedAt: string): InboxMessage | null {
+function toInboxMessage(m: BankMessage, receivedAt: string, bank?: string): InboxMessage | null {
   const text = repairBankText(String(m?.text ?? '').trim());
   let subject = repairBankText(String(m?.subject ?? '').trim());
   if (!subject && !text) return null;
@@ -455,7 +603,21 @@ function toInboxMessage(m: BankMessage, receivedAt: string): InboxMessage | null
     const first = text.split(/\r?\n/)[0].trim();
     subject = first.length > 80 ? `${first.slice(0, 79)}…` : first;
   }
-  return { id: newId(), subject, text, receivedAt, read: false };
+  return { id: newId(), subject, text, receivedAt, read: false, ...(bank ? { bank } : {}) };
+}
+
+/** A login's messages as inbox entries, each one once. */
+function inboxOf(list: readonly BankMessage[], receivedAt: string, bank: string): InboxMessage[] {
+  const seen = new Set<string>();
+  return list
+    .map((m) => toInboxMessage(m, receivedAt, bank))
+    .filter((m): m is InboxMessage => {
+      if (!m) return false;
+      const key = `${m.subject}\n${m.text}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 /** Removes `key` from a record without mutating it; the same object when it is absent. */
@@ -482,6 +644,8 @@ function normalizeVault(raw: VaultData | null | undefined): VaultData {
   };
   const aliases: Record<string, string> = {};
   for (const [k, a] of Object.entries(record(raw.aliases))) if (typeof a === 'string' && a.trim()) aliases[k] = a;
+  // Kept, or the next save would forget the linked banks.
+  const linkedBanks = sanitizeLinkedBanks(raw.linkedBanks);
   return {
     version: 1,
     templates: Array.isArray(raw.templates)
@@ -493,13 +657,26 @@ function normalizeVault(raw: VaultData | null | undefined): VaultData {
     dismissedRecurring: Array.isArray(raw.dismissedRecurring)
       ? raw.dismissedRecurring.filter((id): id is string => typeof id === 'string')
       : [],
+    // The same rules the vault applies (lib/budgets.ts, lib/notes.ts) — and
+    // an older vault without either reads as one without any.
+    budgets: sanitizeBudgets(raw.budgets),
+    notes: sanitizeNotes(raw.notes),
     sentOrders: sanitizeSentOrders(raw.sentOrders),
     ...(isAvatarChoice(raw.avatar) && (raw.avatar !== OWN_PICTURE || isAvatarImage(raw.avatarImage))
       ? { avatar: raw.avatar }
       : {}),
     ...(isAvatarImage(raw.avatarImage) ? { avatarImage: raw.avatarImage } : {}),
+    ...(linkedBanks.length ? { linkedBanks } : {}),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : EMPTY_VAULT.updatedAt,
   };
+}
+
+/** The vault with `list` as its linked banks — the key gone with the last one. */
+function withLinkedBanks(v: VaultData, list: LinkedBankRef[]): VaultData {
+  if (list.length) return { ...v, linkedBanks: list };
+  if (!v.linkedBanks) return v;
+  const { linkedBanks: _gone, ...rest } = v;
+  return rest as VaultData;
 }
 
 /**
@@ -539,11 +716,56 @@ function deliveredEnd(txs: readonly SerializedTransaction[], blocks: StatementIn
   return end || null;
 }
 
+/** One account's last answer from the bank, and the span the list made of it shows. */
+type AccountFetch = {
+  /** The span the list was asked to show (its cache key, rangeKey). */
+  span: DateRange;
+  /** The last day the answer covers — `span.to`, or earlier when the bank cut it short. */
+  coveredTo: string;
+  /** Where the bank was asked from (at `span.from`, or later with kept Umsätze before it); null: not asked at all. */
+  fetchFrom: string | null;
+  /** The bank's booked Umsätze exactly as it sent them. */
+  txs: SerializedTransaction[];
+  blocks: StatementInfo['blocks'];
+  /** epoch ms */
+  loadedAt: number;
+};
+
+/**
+ * The lists every view reads, made from the bank's answers and the kept
+ * Umsätze (lib/history.ts historyView): per account the bank's answer for
+ * what it was asked, the kept days before it. Without the kept days (not
+ * loaded, or switched off since), a list is the bank's answer alone and says
+ * so — its `from` is where the bank was asked from — and one that was made of
+ * kept days alone is gone.
+ */
+function listsOf(fetches: Record<string, AccountFetch>, kept: HistoryData | null) {
+  const txCache: Record<string, { key: string; txs: SerializedTransaction[] }> = {};
+  const statementInfo: Record<string, StatementInfo> = {};
+  for (const [acct, f] of Object.entries(fetches)) {
+    const view = historyView({
+      span: { from: f.span.from, to: f.coveredTo }, fetchFrom: f.fetchFrom, fetched: f.txs, history: kept?.accounts[acct],
+    });
+    if (!view.saved && f.fetchFrom == null) continue;
+    const from = view.saved || f.fetchFrom == null ? f.span.from : f.fetchFrom;
+    txCache[acct] = { key: rangeKey({ from, to: f.span.to }), txs: view.txs };
+    statementInfo[acct] = {
+      from, to: f.coveredTo, blocks: f.blocks, loadedAt: f.loadedAt, ...(view.saved ? { saved: view.saved } : {}),
+    };
+  }
+  return { txCache, statementInfo };
+}
+
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** A login's id, so "Abbrechen" can name it to the server. Random, never derived from the user. */
 const newAttemptId = () =>
   Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+
+/** Has the server forget a login's session — and the PIN it holds. No bank traffic. */
+function dropSession(sid: string | null | undefined): void {
+  if (sid) post('/api/logout', { sessionId: sid }).catch(() => { /* the 30-minute sweep remains */ });
+}
 
 // ---------------------------------------------------------------------------
 
@@ -575,12 +797,25 @@ function useFintsState() {
   const [accounts, setAccounts] = useState<SerializedAccount[]>([]);
   const [activeAccount, setActiveAccount] = useState<SerializedAccount | null>(null);
   const [balances, setBalances] = useState<Record<string, SerializedBalance>>({});
-  const [txCache, setTxCache] = useState<Record<string, { key: string; txs: SerializedTransaction[] }>>({});
+  /**
+   * Per account, the bank's last answer as it came, with what it was asked
+   * for — what the lists are made of (`txCache` and `statementInfo` below,
+   * together with the kept Umsätze).
+   */
+  const [fetches, setFetches] = useState<Record<string, AccountFetch>>({});
   /** Vorgemerkte as the bank listed them on request (HKVMK), with the moment it did (see `pendingCache` below). */
   const [pendingFetched, setPendingFetched] = useState<Record<string, PendingRead<SerializedTransaction>>>({});
   /** Vorgemerkte the bank sent beside the Umsätze of a statement read — the only way Sparkassen send them. */
   const [notedFetched, setNotedFetched] = useState<Record<string, PendingRead<SerializedTransaction>>>({});
-  const [statementInfo, setStatementInfo] = useState<Record<string, StatementInfo>>({});
+  /** This login's Umsätze kept on this computer (lib/history.ts): the session's copy, while the vault says keep. */
+  const [history, setHistory] = useState<HistoryData | null>(null);
+  const [historyStatus, setHistoryStatus] = useState<HistoryStatus>('off');
+  /** "Alles Gespeicherte": each account's list reaches back as far as what is kept for it (savedPeriod). */
+  const [savedRange, setSavedRange] = useState(false);
+  // What every view reads: the bank's answers, with the kept Umsätze before
+  // them where they serve (listsOf) — never before they are loaded.
+  const keptHistory = historyStatus === 'ready' ? history : null;
+  const { txCache, statementInfo } = useMemo(() => listsOf(fetches, keptHistory), [fetches, keptHistory]);
   /** Per account: why its last statement load failed (see LoadError). */
   const [txErrors, setTxErrors] = useState<Record<string, LoadError>>({});
   /** Per account: why its last balance enquiry failed (shown as `balanceErrors`). */
@@ -601,6 +836,14 @@ function useFintsState() {
   const [pendingLoading, setPendingLoading] = useState<string | null>(null);
   /** Per account: why its last Vorgemerkt fetch failed — the panel says so, not only a toast. */
   const [pendingErrors, setPendingErrors] = useState<Record<string, LoadError>>({});
+  /** The bank's Daueraufträge and terminierten Überweisungen, per account and kind, as last read (never on its own). */
+  const [bankOrders, setBankOrders] = useState<Record<string, Partial<Record<BankOrderKind, BankOrdersInfo>>>>({});
+  /** The read under way, if any. */
+  const [bankOrdersLoading, setBankOrdersLoading] = useState<{ accountNumber: string; kind: BankOrderKind } | null>(null);
+  /** Per account and kind: why its last read failed. */
+  const [bankOrderErrors, setBankOrderErrors] = useState<Record<string, Partial<Record<BankOrderKind, LoadError>>>>({});
+  /** What became of the deletions asked for in this session, by the order's handle. */
+  const [orderDeletions, setOrderDeletions] = useState<Record<string, OrderDeletion>>({});
   const [deviceRemembered, setDeviceRemembered] = useState(false);
 
   const [keptWait, setWait] = useState<KeptWait>(IDLE_WAIT);
@@ -649,6 +892,13 @@ function useFintsState() {
   const [vault, setVault] = useState<VaultData | null>(null);
   const [vaultStatus, setVaultStatus] = useState<VaultStatus>('idle');
 
+  // More banks in the view (lib/linked-banks.ts): the logins beside the
+  // primary one, the "Weitere Bank anmelden" flow, and what the bank list
+  // says about each remembered bank (its logo, its town).
+  const [links, setLinks] = useState<LinkedLogin[]>([]);
+  const [addBankKept, setAddBankState] = useState<KeptAddBank | null>(null);
+  const [bankInfo, setBankInfo] = useState<Record<string, ChosenBank>>({});
+
   // Refs mirror the state the async loops read, so a long-running approval
   // never closes over a stale render.
   const sessionRef = useRef<string | null>(null);
@@ -668,6 +918,19 @@ function useFintsState() {
   /** What an account is called on screen (alias or bank name), for a toast written after an await. */
   const accountLabelRef = useRef((a: SerializedAccount) => a.product?.trim() || translateType(a.accountType));
   const txCacheRef = useRef(txCache);
+  /** Written together with `fetches` (setFetchesBoth): a load reads the last answer within the same tick. */
+  const fetchesRef = useRef(fetches);
+  const historyRef = useRef<HistoryData | null>(null);
+  const historyStatusRef = useRef<HistoryStatus>('off');
+  /** Only the latest load of the kept Umsätze may land. */
+  const historyLoadGenRef = useRef(0);
+  const savedRangeRef = useRef(false);
+  /**
+   * The user picked a period since the login. Until then the lists reach as
+   * far back as what is kept, once that has arrived (adoptHistory) — after it,
+   * the user's choice stands.
+   */
+  const rangeChosenRef = useRef(false);
   const metaRef = useRef<MetaResponse | null>(null);
   const waitRef = useRef<WaitState>(wait);
   /** Names already sent for logo lookup — each is attempted once per session. */
@@ -724,12 +987,32 @@ function useFintsState() {
   const readySidRef = useRef<string | null>(null);
 
   const logoutRef = useRef<(reason?: LogoutReason) => Promise<void>>(async () => {});
+  /** Logs out one linked bank whose session the server no longer knows (endLink). */
+  const endLinkRef = useRef<(sid: string) => void>(() => {});
+
+  /** The linked logins, written together with their state (setLinksBoth): routing reads them after an await. */
+  const linksRef = useRef<LinkedLogin[]>([]);
+  const addBankRef = useRef<KeptAddBank | null>(null);
+  /** The add flow holds `busy` (its login is being asked, or approved): closing it lets go. */
+  const flowBusyRef = useRef(false);
+  /** The primary login's bank and login name, for the same-login check of a further one. */
+  const bankRef = useRef<ChosenBank | null>(null);
+  const userIdRef = useRef('');
+  /** The session the approval on screen belongs to: polled, and told when it is called off. */
+  const waitSidRef = useRef<string | null>(null);
+  /** The session the order in flight went to — a Namensabgleich is confirmed or dropped there. */
+  const transferSidRef = useRef<string | null>(null);
+  /** BLZs already looked up for a remembered bank. */
+  const bankInfoAsked = useRef(new Set<string>());
 
   sessionRef.current = sessionId;
+  bankRef.current = bank;
+  userIdRef.current = userId;
   accountsRef.current = accounts;
   activeAccountRef.current = activeAccount;
   balancesRef.current = balances;
   txCacheRef.current = txCache;
+  fetchesRef.current = fetches;
   metaRef.current = meta;
   waitRef.current = wait;
 
@@ -749,6 +1032,72 @@ function useFintsState() {
     tanMethodsRef.current = list;
     setTanMethods(list);
   }, []);
+
+  const setLinksBoth = useCallback((list: LinkedLogin[]) => {
+    linksRef.current = list;
+    setLinks(list);
+  }, []);
+
+  const setAddBankBoth = useCallback((next: KeptAddBank | null) => {
+    addBankRef.current = next;
+    setAddBankState(next);
+  }, []);
+
+  // ---- routing ------------------------------------------------------------
+  // Every request about an account goes through the session of the login
+  // that brought the account; the primary session is never a stand-in for a
+  // linked bank's (lib/linked-banks.ts). The checks after an await stay on
+  // the primary session (isCurrent): it is the dashboard's, and a logout
+  // ends every login at once.
+
+  /** The session for this account — null for one whose linked login has ended, which is then not asked at all. */
+  const sessionFor = useCallback(
+    (accountNumber: string) => routeFor(accountNumber, sessionRef.current, linksRef.current),
+    [],
+  );
+
+  /** The linked login an account belongs to; null for the primary's. */
+  const linkOf = useCallback(
+    (accountNumber: string | null | undefined) =>
+      (accountNumber ? linksRef.current.find((l) => l.accountNumbers.includes(accountNumber)) ?? null : null),
+    [],
+  );
+
+  /** Why an account of a linked login that has ended is not read, in the language on screen when shown. */
+  const loggedOutText = useCallback((accountNumber: string): OwnText => {
+    const name = linkOf(accountNumber)?.bank.name ?? '';
+    return (m) => m.banks.loggedOutRead(name);
+  }, [linkOf]);
+
+  /** The bank an approval on `sid` comes from — named only once the view holds more than one. */
+  const waitBankFor = useCallback((sid: string | null): WaitState['bank'] => {
+    if (!linksRef.current.length) return null;
+    const b = linksRef.current.find((l) => l.sessionId === sid)?.bank ?? (sid === sessionRef.current ? bankRef.current : null);
+    return b ? { name: b.name, brand: b.brand } : null;
+  }, []);
+
+  const setFetchesBoth = useCallback((next: Record<string, AccountFetch>) => {
+    fetchesRef.current = next;
+    setFetches(next);
+  }, []);
+
+  const setHistoryBoth = useCallback((data: HistoryData | null) => {
+    historyRef.current = data;
+    setHistory(data);
+  }, []);
+
+  const setHistoryStatusBoth = useCallback((s: HistoryStatus) => {
+    historyStatusRef.current = s;
+    setHistoryStatus(s);
+  }, []);
+
+  const setSavedRangeBoth = useCallback((on: boolean) => {
+    savedRangeRef.current = on;
+    setSavedRange(on);
+  }, []);
+
+  /** The kept Umsätze a load may plan with: only once they are loaded and readable. */
+  const keptOf = useCallback(() => (historyStatusRef.current === 'ready' ? historyRef.current : null), []);
 
   // ---- toasts -------------------------------------------------------------
   // How long one stays is decided in Toasts.tsx (lib/toast-time.ts): `ms` is
@@ -863,14 +1212,29 @@ function useFintsState() {
   }, [setAppliedRange]);
 
   /**
+   * The span a load of `account` shows when it follows the applied range: the
+   * range itself — or, with "Alles Gespeicherte", everything kept for that
+   * account that the bank's free window joins (savedPeriod), and the default
+   * ninety days where nothing older is kept.
+   */
+  const spanFor = useCallback((account: SerializedAccount): DateRange => {
+    const applied = resolveRange();
+    if (!savedRangeRef.current) return applied;
+    return savedPeriod(keptOf()?.accounts[account.accountNumber]?.coverage, isoDate(new Date())) ?? defaultRange();
+  }, [resolveRange, keptOf]);
+
+  /**
    * Whether switching to this account is answered from the cache — its
    * bookings are loaded for the very range a load would ask for now (after
    * midnight too) — or would ask the bank again, perhaps for a TAN. Read at
    * the moment of a click; nothing is applied.
    */
-  const isLoadedForAppliedRange = useCallback((accountNumber: string): boolean => (
-    txCacheRef.current[accountNumber]?.key === rangeKey(rangeForLoad(rangeRef.current, rangeAnchorRef.current))
-  ), []);
+  const isLoadedForAppliedRange = useCallback((accountNumber: string): boolean => {
+    const span = savedRangeRef.current
+      ? savedPeriod(keptOf()?.accounts[accountNumber]?.coverage, isoDate(new Date())) ?? defaultRange()
+      : rangeForLoad(rangeRef.current, rangeAnchorRef.current);
+    return txCacheRef.current[accountNumber]?.key === rangeKey(span);
+  }, [keptOf]);
 
   // ---- decoupled TAN wait -------------------------------------------------
   const stopTimers = useCallback(() => {
@@ -886,6 +1250,10 @@ function useFintsState() {
       /** What the user confirms, as the object of "bestätige …": "den Abruf der Umsätze von …". */
       subject?: OwnText;
       order?: WaitOrder | null;
+      /** The session the approval belongs to (sessionFor); the primary one when left out. */
+      sessionId?: string | null;
+      /** Which bank asks, when it is not one of the view's logins yet (a bank being added). */
+      bank?: WaitState['bank'];
     } = {},
   ) => {
     stopTimers();
@@ -898,9 +1266,10 @@ function useFintsState() {
     const second = kind === 'statements' && prev?.kind === 'login' && prev.gen === waitGenRef.current
       && Date.now() - prev.at < SECOND_APPROVAL_MS;
     const gen = ++waitGenRef.current;
-    const sid = sessionRef.current;
+    const sid = opts.sessionId !== undefined ? opts.sessionId : sessionRef.current;
+    waitSidRef.current = sid;
     waitCbRef.current = cbs;
-    const subject: OwnText = opts.subject ?? ((m) => m.provider.wait.subject[kind]);
+    const subject: OwnText = opts.subject ?? ((m) => waitSubject(m, kind));
     setWait({
       open: true,
       kind,
@@ -921,6 +1290,8 @@ function useFintsState() {
         || null,
       order: opts.order ?? null,
       note: second ? (m) => m.provider.wait.secondApproval : null,
+      bank: opts.bank !== undefined ? opts.bank : waitBankFor(sid),
+      method,
     });
 
     const interval = Math.max(1500, (method?.decoupled?.waitBetween || 2) * 1000);
@@ -990,7 +1361,7 @@ function useFintsState() {
     };
 
     pollTimer.current = setTimeout(poll, firstDelay);
-  }, [stopTimers]);
+  }, [stopTimers, waitBankFor]);
 
   const closeWait = useCallback(() => {
     waitGenRef.current++;
@@ -1006,21 +1377,25 @@ function useFintsState() {
 
   const cancelWait = useCallback(async () => {
     const { onCancelled } = waitCbRef.current;
+    // The login whose request this was — a linked bank's, perhaps.
+    const sid = waitSidRef.current;
     waitCbRef.current = {};
     closeWait();
     // Cancelling the very first approval (the login sync) leaves nothing to
     // show — go back to the login screen rather than an empty dashboard. As a
     // logout, so the half-open session (and the PIN it holds in the server's
-    // memory) is dropped now rather than by the 30-minute sweep.
-    if (!accountsRef.current.length) {
+    // memory) is dropped now rather than by the 30-minute sweep. A bank being
+    // added says what to do in its own onCancelled.
+    if (!accountsRef.current.length && sid === sessionRef.current) {
       void logoutRef.current('cancelled');
       return;
     }
     setBusy(false);
     setLoadingAccount(null);
     setPendingLoading(null);
+    setBankOrdersLoading(null);
     onCancelled?.();
-    try { await post('/api/cancel-pending', { sessionId: sessionRef.current }); } catch { /* best effort */ }
+    try { await post('/api/cancel-pending', { sessionId: sid }); } catch { /* best effort */ }
   }, [closeWait, setBusy]);
 
   /**
@@ -1036,6 +1411,12 @@ function useFintsState() {
     // deiner Banking-App" and polls at the default pace.
     return selectedMethodRef.current || tanMethodsRef.current.find((m) => m.isDecoupled) || null;
   }, []);
+
+  /** The method of the login that holds `accountNumber`: a linked bank's own, else decoupledMethod. */
+  const methodFor = useCallback((accountNumber: string | null | undefined) => {
+    const link = linkOf(accountNumber);
+    return link ? link.method : decoupledMethod();
+  }, [linkOf, decoupledMethod]);
 
   /** An account as an approval names it — the user's own name for it first (read from the ref: see above). */
   const approvalAccountName = useCallback((a: SerializedAccount) => (
@@ -1085,6 +1466,128 @@ function useFintsState() {
       setMerchants((m) => ({ ...m, ...found }));
     } catch { /* a missing logo is not worth surfacing */ }
   }, [isCurrent]);
+
+  // ---- kept Umsätze -------------------------------------------------------
+  // "Umsätze auf diesem Rechner behalten" (lib/history.ts). The server keeps
+  // what the bank answers, sealed with the PIN, whenever the vault says so;
+  // the browser reads the kept Umsätze once after the login (or after the
+  // switch went on) and from then on takes each answer into its own copy the
+  // same way (loadTransactions). Nothing here ever sends a booking anywhere.
+
+  /**
+   * "Alles Gespeicherte": every account's list reaches back as far as what is
+   * kept for it. Lists whose last bank answer already serves that span show
+   * it at once — no bank call; the active account's span becomes the applied
+   * range the screen names.
+   */
+  const enterSavedRange = useCallback(() => {
+    setSavedRangeBoth(true);
+    const today = isoDate(new Date());
+    const kept = keptOf();
+    const next = { ...fetchesRef.current };
+    let changed = false;
+    for (const [acct, f] of Object.entries(next)) {
+      const coverage = kept?.accounts[acct]?.coverage;
+      const want = savedPeriod(coverage, today) ?? defaultRange();
+      if (f.fetchFrom == null || want.to !== f.span.to || rangeKey(want) === rangeKey(f.span)) continue;
+      if (planFetch(want, coverage, today)?.from !== f.fetchFrom) continue;
+      next[acct] = { ...f, span: want };
+      changed = true;
+    }
+    if (changed) setFetchesBoth(next);
+    const active = activeAccountRef.current;
+    if (active) setAppliedRange(spanFor(active));
+  }, [setSavedRangeBoth, keptOf, setFetchesBoth, setAppliedRange, spanFor]);
+
+  /** The server's answer to `get` or `reset`, taken in. */
+  const adoptHistory = useCallback((res: HistoryGetResponse) => {
+    if (res.status !== 'ready') {
+      // Another PIN sealed it: nothing is kept until the user starts over.
+      setHistoryBoth(null);
+      setHistoryStatusBoth('error');
+      return;
+    }
+    const today = isoDate(new Date());
+    setHistoryBoth(res.data == null ? EMPTY_HISTORY : sanitizeHistory(res.data, today) ?? EMPTY_HISTORY);
+    setHistoryStatusBoth('ready');
+    // Unless the user picked a period since the login, the lists reach as far
+    // back as what is kept — Analyse and Verträge see it without being asked.
+    if (!rangeChosenRef.current) enterSavedRange();
+  }, [setHistoryBoth, setHistoryStatusBoth, enterSavedRange]);
+
+  /**
+   * A further bank's kept Umsätze, joined to the session's copy. Each login
+   * keeps its own file, sealed with its own PIN; the server keeps a further
+   * bank's answers when the primary login's vault says so (/api/history
+   * "follow", sent when the bank joins the view). Its accounts are its own —
+   * an account number is never shown twice (lib/linked-banks.ts). A file of
+   * its that does not open is left as it is: that bank's lists go on with
+   * its answers alone.
+   */
+  const loadLinkedHistory = useCallback(async (link: LinkedLogin) => {
+    const sid = sessionRef.current;
+    const gen = historyLoadGenRef.current;
+    if (!sid || !link.sessionId || historyStatusRef.current !== 'ready') return;
+    try {
+      const res = await post<HistoryGetResponse>('/api/history', { sessionId: link.sessionId, op: 'get' });
+      if (!isCurrent(sid) || gen !== historyLoadGenRef.current || historyStatusRef.current !== 'ready') return;
+      if (res.status !== 'ready' || !res.data) return;
+      const theirs = sanitizeHistory(res.data, isoDate(new Date()));
+      const base = historyRef.current;
+      if (!theirs || !base) return;
+      const accounts = { ...base.accounts };
+      let changed = false;
+      for (const n of link.accountNumbers) {
+        if (!theirs.accounts[n]) continue;
+        accounts[n] = theirs.accounts[n];
+        changed = true;
+      }
+      if (!changed) return;
+      setHistoryBoth({ ...base, accounts });
+      if (!rangeChosenRef.current) enterSavedRange();
+    } catch { /* best effort, as above */ }
+  }, [isCurrent, setHistoryBoth, enterSavedRange]);
+
+  const loadHistory = useCallback(async (sid: string | null) => {
+    if (!sid) return;
+    const gen = ++historyLoadGenRef.current;
+    const stale = () => !isCurrent(sid) || gen !== historyLoadGenRef.current;
+    setHistoryStatusBoth('loading');
+    try {
+      const res = await post<HistoryGetResponse>('/api/history', { sessionId: sid, op: 'get' });
+      if (stale()) return;
+      adoptHistory(res);
+      // Then every further bank logged in beside it, one after the other.
+      for (const link of linksRef.current) {
+        if (stale()) return;
+        await loadLinkedHistory(link);
+      }
+    } catch {
+      if (stale()) return;
+      // The session goes on with the bank's answers alone.
+      setHistoryBoth(null);
+      setHistoryStatusBoth('unavailable');
+    }
+  }, [isCurrent, adoptHistory, loadLinkedHistory, setHistoryBoth, setHistoryStatusBoth]);
+
+  /**
+   * Forgets the session's copy of the kept Umsätze (switched off, or deleted
+   * with the saved data). The lists that leaned on them shrink to the bank's
+   * answers (listsOf), and the applied range follows the active one's, so
+   * the screen never names a span it no longer shows.
+   */
+  const dropHistory = useCallback(() => {
+    historyLoadGenRef.current++;
+    setHistoryBoth(null);
+    setHistoryStatusBoth('off');
+    const wasSaved = savedRangeRef.current;
+    setSavedRangeBoth(false);
+    const active = activeAccountRef.current;
+    const f = active ? fetchesRef.current[active.accountNumber] : undefined;
+    if (wasSaved || (f && f.fetchFrom !== f.span.from)) {
+      setAppliedRange(f?.fetchFrom ? { from: f.fetchFrom, to: f.span.to } : defaultRange());
+    }
+  }, [setHistoryBoth, setHistoryStatusBoth, setSavedRangeBoth, setAppliedRange]);
 
   // ---- vault --------------------------------------------------------------
   // Personal data that must survive a restart without sitting in plaintext:
@@ -1160,7 +1663,11 @@ function useFintsState() {
     try {
       const res = await post<VaultGetResponse>('/api/vault', { sessionId: sid, op: 'get' });
       if (stale()) return;
-      if (res.status === 'ready') adoptVault(normalizeVault(res.data), 'ready');
+      if (res.status === 'ready') {
+        adoptVault(normalizeVault(res.data), 'ready');
+        // The choice to keep the Umsätze lives here; with it, they come next.
+        if (vaultRef.current?.keepBookings) void loadHistory(sid);
+      }
       // The file is there but this PIN cannot open it (changed at the bank).
       // Work on an empty vault in memory — never overwrite the file unasked;
       // resetVault is the explicit way out.
@@ -1171,7 +1678,7 @@ function useFintsState() {
       // this session, it just will not be remembered.
       adoptVault(EMPTY_VAULT, 'unavailable');
     }
-  }, [isCurrent, adoptVault, setVaultStatusBoth]);
+  }, [isCurrent, adoptVault, setVaultStatusBoth, loadHistory]);
 
   const updateVault = useCallback((fn: (v: VaultData) => VaultData) => {
     const status = vaultStatusRef.current;
@@ -1215,6 +1722,19 @@ function useFintsState() {
    * that is never written, and the login name this machine remembers for the
    * bank is forgotten too. Resolves whether it worked; failures are toasted.
    */
+  /**
+   * Deletes the kept Umsätze of every further bank logged in beside the
+   * primary one — each login has its own file. Resolves the first failure's
+   * message, or null. A bank that is not logged in now cannot be asked: its
+   * file stays until it is, or until its own login deletes it.
+   */
+  const wipeLinkedHistories = useCallback(async (): Promise<string | null> => {
+    const sids = linksRef.current.map((l) => l.sessionId).filter((x): x is string => !!x);
+    const results = await Promise.allSettled(sids.map((id) => post('/api/history', { sessionId: id, op: 'wipe' })));
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    return failed ? (failed.reason as Error)?.message || msgs().history.server.wipe : null;
+  }, []);
+
   const wipeVaultWith = useCallback(async (request: (sid: string) => Promise<unknown>): Promise<boolean> => {
     const sid = sessionRef.current;
     if (!sid) return false;
@@ -1243,6 +1763,10 @@ function useFintsState() {
     vaultRef.current = EMPTY_VAULT;
     setVault(EMPTY_VAULT);
     setVaultStatusBoth('unavailable');
+    // The kept Umsätze went with the saved data (both routes delete them) —
+    // the primary login's there, every further bank's here.
+    dropHistory();
+    void wipeLinkedHistories().then((problem) => { if (problem) toast(problem, 'error'); });
     if (bank) {
       store.del(`fints.userId.${bank.blz}`);
       try {
@@ -1251,7 +1775,7 @@ function useFintsState() {
       } catch { /* unreadable — nothing of ours to remove */ }
     }
     return true;
-  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast]);
+  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, wipeLinkedHistories]);
 
   /** Deletes the saved personal data from this machine, the device registration untouched. */
   const wipeVault = useCallback(async () => {
@@ -1260,10 +1784,82 @@ function useFintsState() {
     }
   }, [wipeVaultWith, toast]);
 
+  /**
+   * The Sitzung panel's "Umsätze auf diesem Rechner behalten". On: the
+   * choice goes into the vault and onto disk first — the server reads it
+   * there before it keeps anything — then the kept Umsätze are read (with
+   * what this session already loaded folded in by the server). Off: the kept
+   * Umsätze are deleted first, every backup with them (the panel has said so
+   * and asked), and only then the choice is forgotten; a deletion that fails
+   * leaves everything as it was. Resolves whether it took effect.
+   */
+  const setKeepBookings = useCallback(async (on: boolean): Promise<boolean> => {
+    const sid = sessionRef.current;
+    if (!sid || vaultStatusRef.current !== 'ready') return false;
+    if (on) {
+      updateVault((v) => (v.keepBookings ? v : { ...v, keepBookings: true }));
+      await flushVault();
+      if (!isCurrent(sid)) return false;
+      toast(msgs().history.turnedOn, 'success');
+      void loadHistory(sid);
+      return true;
+    }
+    try {
+      await post('/api/history', { sessionId: sid, op: 'wipe' });
+    } catch (err) {
+      if (isCurrent(sid)) toast((err as Error).message, 'error');
+      return false;
+    }
+    if (!isCurrent(sid)) return false;
+    // Every further bank's too. One that cannot be deleted keeps nothing
+    // more either (the server reads the choice from this login's vault),
+    // and the user hears of it.
+    const problem = await wipeLinkedHistories();
+    if (!isCurrent(sid)) return false;
+    if (problem) toast(problem, 'error');
+    dropHistory();
+    updateVault((v) => {
+      if (!v.keepBookings) return v;
+      const { keepBookings: _off, ...rest } = v;
+      return rest;
+    });
+    void flushVault();
+    toast(msgs().history.deleted, 'success', 8000);
+    return true;
+  }, [updateVault, flushVault, isCurrent, toast, loadHistory, dropHistory, wipeLinkedHistories]);
+
+  /**
+   * Starts the kept Umsätze over after the file stopped opening (a PIN
+   * changed at the bank): the server sets the old file aside — its bookings
+   * may be gone at the bank — and begins a new one.
+   */
+  const resetHistory = useCallback(async () => {
+    const sid = sessionRef.current;
+    if (!sid) return;
+    try {
+      const res = await post<HistoryGetResponse>('/api/history', { sessionId: sid, op: 'reset' });
+      if (!isCurrent(sid)) return;
+      adoptHistory(res);
+      toast(msgs().history.restarted, 'success');
+    } catch (err) {
+      if (isCurrent(sid)) toast((err as Error).message, 'error');
+    }
+  }, [isCurrent, adoptHistory, toast]);
+
   // ---- transactions -------------------------------------------------------
   /**
-   * Fetches one account's statement. `from`/`to` default to the applied range;
+   * Fetches one account's statement. `from`/`to` default to the applied range
+   * (with "Alles Gespeicherte", to what is kept for the account: spanFor);
    * the cache is keyed by the range actually asked for.
+   *
+   * Kept Umsätze (lib/history.ts): with "Umsätze auf diesem Rechner behalten"
+   * on, the bank is asked only for what they do not hold (planFetch) — from
+   * the bank's free window or a week before the kept days end, whichever is
+   * earlier — and the list shows the kept days before the answer. An answer
+   * already in hand that serves the new span is not asked for again; a past
+   * range the kept days hold entirely is not asked for at all. The server
+   * keeps each answer itself (the vault tells it whether); the session's copy
+   * of the kept Umsätze takes it in here the same way.
    *
    * Balances rule: a statement's balance is the balance *now*, so it is only
    * taken when the range runs up to today. A past range leaves the known
@@ -1278,7 +1874,7 @@ function useFintsState() {
    * request failed, or its approval was cancelled or ran out. `onSettled`
    * says which of these it was (or that it landed). A failure is kept for the
    * account (txErrors) and announced in a toast, unless `quiet` leaves that
-   * to the caller.
+   * to the caller. `force` asks the bank again even for a span in hand.
    */
   const loadTransactions = useCallback(async (
     account: SerializedAccount,
@@ -1286,7 +1882,9 @@ function useFintsState() {
     to?: string,
     opts: { force?: boolean; onNotApplied?: () => void; quiet?: boolean; onSettled?: LoadSettled } = {},
   ) => {
-    const applied = resolveRange();
+    // Without a span of its own, a load follows the applied range.
+    const follows = !from && !to;
+    const applied = follows ? spanFor(account) : resolveRange();
     const span = { from: from || applied.from, to: to || applied.to };
     const cacheKey = rangeKey(span);
     const acct = account.accountNumber;
@@ -1298,24 +1896,56 @@ function useFintsState() {
     // No Umsätze over FinTS for this account (a Depot, most often): asking
     // would only bring back the library's refusal, in English.
     if (!account.canStatements) { notApplied('skipped'); return; }
+    const today = isoDate(new Date());
+    const plan = planFetch(span, keptOf()?.accounts[acct]?.coverage, today);
     if (!opts.force) {
       const cached = txCacheRef.current[acct];
       if (cached && cached.key === cacheKey) { opts.onSettled?.('applied'); return; }
+      // The bank's last answer serves this span too, with kept days before
+      // it: only the list changes.
+      const last = fetchesRef.current[acct];
+      if (last && plan && last.fetchFrom === plan.from && last.span.to === span.to) {
+        setFetchesBoth({ ...fetchesRef.current, [acct]: { ...last, span } });
+        opts.onSettled?.('applied');
+        return;
+      }
+    }
+    if (!plan) {
+      // A past range the kept Umsätze hold whole, before the bank's free
+      // window: no bank call, and so no approval either.
+      setTxErrors((e) => without(e, acct));
+      setFetchesBoth({
+        ...fetchesRef.current,
+        [acct]: { span, coveredTo: span.to, fetchFrom: null, txs: [], blocks: [], loadedAt: Date.now() },
+      });
+      opts.onSettled?.('applied');
+      return;
     }
     if (busyRef.current) { notApplied('busy'); return; }
 
     const sid = sessionRef.current;
+    // The login that holds the account. A linked bank that is logged out is
+    // not asked: its list says so, and offers to log in again.
+    const route = sessionFor(acct);
+    if (!route) {
+      const message = written(loggedOutText(acct), msgs());
+      if (!opts.quiet) toast(message, 'info');
+      notApplied('failed', message);
+      return;
+    }
     setTxErrors((e) => without(e, acct));
     setBusy(true);
     setLoadingAccount(acct);
 
     const finish = () => { setBusy(false); setLoadingAccount(null); };
+    // What the bank is asked for: the span, or its part after the kept days.
+    const ask = { from: plan.from, to: span.to };
     // A range up to today goes out open-ended, as the login load always
     // did: banks date weekend and holiday bookings — and the interim
     // closing balance — to the next Buchungstag (see isFutureDate), and a
     // Bis-Datum of today would make one that filters by booking date leave
     // them out. The cache and statementInfo still name the span asked for.
-    const openEnd = span.to >= isoDate(new Date());
+    const openEnd = span.to >= today;
     const apply = (
       txs: SerializedTransaction[],
       balance: SerializedBalance | null,
@@ -1323,6 +1953,7 @@ function useFintsState() {
       pending: SerializedTransaction[] | null | undefined,
     ) => {
       const list = txs || [];
+      const blockList = blocks ?? [];
       // One moment for the statement and the Vorgemerkte it brought: read
       // together, they are never reconciled against each other (pendingView).
       const at = Date.now();
@@ -1336,18 +1967,33 @@ function useFintsState() {
           // already holds. Never just "an old closing date" — a quiet
           // account's :62F: carries the day of its last booking, and the
           // first load has nothing newer to compare with.
-          const end = deliveredEnd(list, blocks ?? []);
-          if (end && end < span.to) coveredTo = end > span.from ? end : span.from;
+          const end = deliveredEnd(list, blockList);
+          if (end && end < span.to) coveredTo = end > ask.from ? end : ask.from;
         } else {
           balancesRef.current = { ...balancesRef.current, [acct]: balance };
           setBalances((b) => ({ ...b, [acct]: balance }));
           setBalanceErrors((e) => without(e, acct));
         }
       }
-      setTxCache((c) => ({ ...c, [acct]: { key: cacheKey, txs: list } }));
-      setStatementInfo((s) => ({
-        ...s, [acct]: { from: span.from, to: coveredTo, blocks: blocks ?? [], loadedAt: at },
-      }));
+      // The server has kept this answer if the vault says so; the session's
+      // copy takes it in by the same rule, for the next plan and list.
+      const kept = keptOf();
+      if (kept && vaultRef.current?.keepBookings) {
+        const delivered = deliveredSpan({ asked: { from: ask.from, to: openEnd ? today : span.to }, txs: list, blocks: blockList, today });
+        if (delivered) setHistoryBoth(mergeIntoHistory(kept, acct, { span: delivered, txs: list, blocks: blockList }, today));
+      }
+      // "Alles Gespeicherte" may have come on while the bank was asked (the
+      // kept Umsätze arrived meanwhile): then the account's own span, if this
+      // answer serves it.
+      let shown = span;
+      if (follows && savedRangeRef.current) {
+        const now = spanFor(account);
+        if (now.to === span.to && planFetch(now, keptOf()?.accounts[acct]?.coverage, today)?.from === ask.from) shown = now;
+      }
+      setFetchesBoth({
+        ...fetchesRef.current,
+        [acct]: { span: shown, coveredTo, fetchFrom: ask.from, txs: list, blocks: blockList, loadedAt: at },
+      });
       setNotedFetched((c) => {
         const next = afterStatementRead(c[acct], pending, openEnd, at);
         if (next === c[acct]) return c;
@@ -1364,11 +2010,11 @@ function useFintsState() {
 
     try {
       const data = await post<TransactionsResponse>('/api/transactions', {
-        sessionId: sid, accountNumber: acct, from: span.from, ...(openEnd ? {} : { to: span.to }),
+        sessionId: route, accountNumber: acct, from: ask.from, ...(openEnd ? {} : { to: ask.to }),
       });
       if (!isCurrent(sid)) return;
       if (data.needsTan) {
-        startDecoupledWait(decoupledMethod(), data, {
+        startDecoupledWait(methodFor(acct), data, {
           onDone: (r) => {
             finish();
             if (r.kind === 'statements') apply(r.transactions, r.balance, r.blocks, r.pending);
@@ -1382,8 +2028,11 @@ function useFintsState() {
           onCancelled: () => notApplied('cancelled'),
         }, {
           kind: 'statements',
-          // Written when shown, like the rest of the wait: the account's name and the date follow the language.
-          subject: (m) => m.provider.wait.statementsOf(approvalAccountName(account), fmtDate(toLocalDate(span.from))),
+          // Written when shown, like the rest of the wait: the account's name
+          // and the date follow the language. The date is the one the bank
+          // was asked from — what the approval in the app names.
+          subject: (m) => m.provider.wait.statementsOf(approvalAccountName(account), fmtDate(toLocalDate(ask.from))),
+          sessionId: route,
         });
       } else {
         finish();
@@ -1399,7 +2048,10 @@ function useFintsState() {
       if (!opts.quiet) toast(failureSentence([{ name: accountLabelRef.current(account), message }])!, 'error');
       notApplied('failed', message);
     }
-  }, [resolveRange, setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, resolveMerchants, toast]);
+  }, [
+    resolveRange, spanFor, keptOf, setFetchesBoth, setHistoryBoth, setBusy, isCurrent, sessionFor, loggedOutText,
+    startDecoupledWait, methodFor, approvalAccountName, resolveMerchants, toast,
+  ]);
 
   // ---- balances -----------------------------------------------------------
   /**
@@ -1423,6 +2075,13 @@ function useFintsState() {
       return;
     }
     const sid = sessionRef.current;
+    const route = sessionFor(acct);
+    if (!route) {
+      const message = written(loggedOutText(acct), msgs());
+      if (!opts.quiet) toast(message, 'info');
+      settle('failed', message);
+      return;
+    }
     setBalanceErrors((e) => without(e, acct));
     setBusy(true);
     setBalanceLoading(acct);
@@ -1447,10 +2106,10 @@ function useFintsState() {
     };
 
     try {
-      const data = await post<BalanceResponse>('/api/balance', { sessionId: sid, accountNumber: acct });
+      const data = await post<BalanceResponse>('/api/balance', { sessionId: route, accountNumber: acct });
       if (!isCurrent(sid)) return;
       if (data.needsTan) {
-        startDecoupledWait(decoupledMethod(), data, {
+        startDecoupledWait(methodFor(acct), data, {
           onDone: (r) => {
             finish();
             if (r.kind === 'balance') apply(r.balance);
@@ -1458,7 +2117,9 @@ function useFintsState() {
           },
           retry: () => { finish(); void loadBalance(account, opts); },
           onCancelled: () => { finish(); settle('cancelled'); },
-        }, { kind: 'balance', subject: (m) => m.provider.wait.balanceOf(approvalAccountName(account)) });
+        }, {
+          kind: 'balance', subject: (m) => m.provider.wait.balanceOf(approvalAccountName(account)), sessionId: route,
+        });
       } else {
         finish();
         apply(data.balance);
@@ -1468,7 +2129,7 @@ function useFintsState() {
       finish();
       fail((err as Error).message);
     }
-  }, [setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, toast]);
+  }, [setBusy, isCurrent, sessionFor, loggedOutText, startDecoupledWait, methodFor, approvalAccountName, toast]);
 
   /**
    * "Alle Salden abrufen": every balance this session does not know yet, one
@@ -1483,11 +2144,13 @@ function useFintsState() {
       return;
     }
     const sid = sessionRef.current;
-    const queue = balanceQueue(accountsRef.current, balancesRef.current, resolveRange().to >= isoDate(new Date()));
+    // A linked bank that is logged out has nobody to ask; its list says so.
+    const reachable = accountsRef.current.filter((a) => sessionFor(a.accountNumber));
+    const queue = balanceQueue(reachable, balancesRef.current, resolveRange().to >= isoDate(new Date()));
     if (!queue.length) {
       // Only accounts whose statement is the way to their balance are left,
       // and the applied range ends before today.
-      if (accountsRef.current.some((a) => a.canStatements && !balancesRef.current[a.accountNumber])) {
+      if (reachable.some((a) => a.canStatements && !balancesRef.current[a.accountNumber])) {
         toast(msgs().provider.reads.balanceWithStatements, 'info', 8000);
       }
       return;
@@ -1516,16 +2179,19 @@ function useFintsState() {
       else void loadTransactions(account, undefined, undefined, { quiet: true, onSettled });
     };
     next();
-  }, [toast, resolveRange, isCurrent, loadBalance, loadTransactions]);
+  }, [toast, sessionFor, resolveRange, isCurrent, loadBalance, loadTransactions]);
 
   const selectAccount = useCallback((a: SerializedAccount) => {
     if (busyRef.current) return; // don't interrupt an in-flight approval
     setActiveAccount(a);
     activeAccountRef.current = a;
+    // "Alles Gespeicherte" reaches as far back for each account as is kept for
+    // it: the applied range names the one now on screen.
+    if (savedRangeRef.current) setAppliedRange(spanFor(a));
     void loadTransactions(a);
     // No Umsätze to read its balance from: ask for the balance alone.
     if (!a.canStatements && a.canBalance && !balancesRef.current[a.accountNumber]) void loadBalance(a);
-  }, [loadTransactions, loadBalance]);
+  }, [setAppliedRange, spanFor, loadTransactions, loadBalance]);
 
   /** Drop the cache for one account and re-read it from the bank. */
   const refreshAccount = useCallback((account: SerializedAccount, from?: string, to?: string) => {
@@ -1533,36 +2199,46 @@ function useFintsState() {
   }, [loadTransactions]);
 
   /**
-   * Applies `next` and reads `account` with it. The range is applied at
-   * once, so the list can say which span it is fetching — but it is kept only
-   * if that statement arrives. A cancelled approval or a refusal by the bank
-   * puts the previous range back: otherwise every later account switch or
-   * refresh would quietly ask for a span nobody has seen, perhaps with a TAN
-   * of its own, while the screen still names the one that is loaded.
+   * Applies `next` — a range, or 'saved' for "Alles Gespeicherte" — and reads
+   * `account` with it. The range is applied at once, so the list can say which
+   * span it is fetching — but it is kept only if that statement arrives. A
+   * cancelled approval or a refusal by the bank puts the previous range back:
+   * otherwise every later account switch or refresh would quietly ask for a
+   * span nobody has seen, perhaps with a TAN of its own, while the screen
+   * still names the one that is loaded.
+   *
+   * Not forced unless asked: a span the bank's last answer already serves
+   * (with the kept Umsätze before it) is shown without asking again.
    */
-  const applyAndLoad = useCallback((account: SerializedAccount, next: DateRange) => {
+  const applyAndLoad = useCallback((account: SerializedAccount, next: DateRange | 'saved', opts: { force?: boolean } = {}) => {
     const prev = rangeRef.current;
     const prevAnchor = rangeAnchorRef.current;
-    setAppliedRange(next);
-    void loadTransactions(account, next.from, next.to, {
-      force: true,
+    const prevSaved = savedRangeRef.current;
+    rangeChosenRef.current = true;
+    setSavedRangeBoth(next === 'saved');
+    const span = next === 'saved' ? spanFor(account) : next;
+    setAppliedRange(span);
+    const applied = rangeRef.current;
+    void loadTransactions(account, next === 'saved' ? undefined : next.from, next === 'saved' ? undefined : next.to, {
+      force: opts.force,
       onNotApplied: () => {
         // Applied over meanwhile (another pick, or midnight): leave that be.
-        if (rangeRef.current !== next) return;
+        if (rangeRef.current !== applied) return;
         rangeRef.current = prev;
         rangeAnchorRef.current = prevAnchor;
         setRange(prev);
+        setSavedRangeBoth(prevSaved);
       },
       // A failure says so in its own toast. An approval that was not given
       // closes without a word — so this says what the screen still shows.
       onSettled: (outcome) => {
         if (outcome !== 'cancelled' || rangeRef.current !== prev) return;
-        const span = fmtRange(prev.from, prev.to);
+        const shown = fmtRange(prev.from, prev.to);
         const said = msgs().provider.reads;
-        toast(next.from < prev.from ? said.olderNotFetched(span) : said.periodNotFetched(span), 'info', 8000);
+        toast(span.from < prev.from ? said.olderNotFetched(shown) : said.periodNotFetched(shown), 'info', 8000);
       },
     });
-  }, [setAppliedRange, loadTransactions, toast]);
+  }, [setSavedRangeBoth, spanFor, setAppliedRange, loadTransactions, toast]);
 
   /**
    * Makes `r` the range every statement load uses, and re-reads the active
@@ -1581,9 +2257,34 @@ function useFintsState() {
       return;
     }
     const account = activeAccountRef.current;
-    if (account) applyAndLoad(account, next);
-    else setAppliedRange(next);
-  }, [toast, setAppliedRange, applyAndLoad]);
+    if (account) {
+      applyAndLoad(account, next);
+    } else {
+      rangeChosenRef.current = true;
+      setSavedRangeBoth(false);
+      setAppliedRange(next);
+    }
+  }, [toast, setSavedRangeBoth, setAppliedRange, applyAndLoad]);
+
+  /**
+   * "Alles Gespeicherte" from the Zeitraum control: every account's list
+   * reaches back as far as what is kept for it — asking the bank only for its
+   * free window, where nothing older is kept for an account just the default
+   * ninety days. Undone like applyRange if the fetch does not land.
+   */
+  const applySavedRange = useCallback(() => {
+    if (busyRef.current) {
+      toast(msgs().provider.busy, 'info');
+      return;
+    }
+    const account = activeAccountRef.current;
+    if (account) {
+      applyAndLoad(account, 'saved');
+    } else {
+      rangeChosenRef.current = true;
+      setSavedRangeBoth(true);
+    }
+  }, [toast, setSavedRangeBoth, applyAndLoad]);
 
   /**
    * "Umsätze aktualisieren" after a transfer: shows the account the money
@@ -1603,13 +2304,17 @@ function useFintsState() {
     const r = resolveRange();
     setActiveAccount(account);
     activeAccountRef.current = account;
-    if (r.to < today) {
+    if (savedRangeRef.current) {
+      // Runs up to today already, for this account its own span.
+      setAppliedRange(spanFor(account));
+      void loadTransactions(account, undefined, undefined, { force: true });
+    } else if (r.to < today) {
       const floor = defaultRange().from;
-      applyAndLoad(account, { from: r.from > floor ? r.from : floor, to: today });
+      applyAndLoad(account, { from: r.from > floor ? r.from : floor, to: today }, { force: true });
     } else {
       void loadTransactions(account, r.from, r.to, { force: true });
     }
-  }, [toast, resolveRange, applyAndLoad, loadTransactions]);
+  }, [toast, resolveRange, setAppliedRange, spanFor, applyAndLoad, loadTransactions]);
 
   // ---- vorgemerkte Umsätze ------------------------------------------------
   const loadPending = useCallback(async (account: SerializedAccount) => {
@@ -1618,6 +2323,11 @@ function useFintsState() {
       return;
     }
     const sid = sessionRef.current;
+    const route = sessionFor(account.accountNumber);
+    if (!route) {
+      toast(written(loggedOutText(account.accountNumber), msgs()), 'info');
+      return;
+    }
     setPendingErrors((e) => without(e, account.accountNumber));
     setBusy(true);
     setPendingLoading(account.accountNumber);
@@ -1630,14 +2340,16 @@ function useFintsState() {
 
     try {
       const data = await post<PendingResponse>('/api/pending', {
-        sessionId: sid, accountNumber: account.accountNumber,
+        sessionId: route, accountNumber: account.accountNumber,
       });
       if (!isCurrent(sid)) return;
       if (data.needsTan) {
-        startDecoupledWait(decoupledMethod(), data, {
+        startDecoupledWait(methodFor(account.accountNumber), data, {
           onDone: (r) => { finish(); if (r.kind === 'pending') apply(r.pending); },
           retry: () => { finish(); void loadPending(account); },
-        }, { kind: 'pending', subject: (m) => m.provider.wait.pendingOf(approvalAccountName(account)) });
+        }, {
+          kind: 'pending', subject: (m) => m.provider.wait.pendingOf(approvalAccountName(account)), sessionId: route,
+        });
       } else {
         finish();
         apply(data.pending);
@@ -1651,7 +2363,157 @@ function useFintsState() {
       setPendingErrors((e) => ({ ...e, [account.accountNumber]: { message, at: Date.now() } }));
       toast(msgs().provider.reads.pendingFailed(accountLabelRef.current(account), message), 'error');
     }
-  }, [setBusy, isCurrent, startDecoupledWait, decoupledMethod, approvalAccountName, toast, resolveMerchants]);
+  }, [
+    setBusy, isCurrent, sessionFor, loggedOutText, startDecoupledWait, methodFor, approvalAccountName, toast,
+    resolveMerchants,
+  ]);
+
+  // ---- the bank's Daueraufträge and terminierte Überweisungen -------------
+  /**
+   * Reads one kind of the orders the bank keeps for an account (HKCDB or
+   * HKCSB). Only ever asked for — it can cost an approval like any read. A
+   * fresh list replaces the last one. `onSettled` as for loadTransactions.
+   */
+  const loadBankOrderKind = useCallback(async (account: SerializedAccount, kind: BankOrderKind, onSettled?: LoadSettled) => {
+    const acct = account.accountNumber;
+    if (!account[kind]?.list) { onSettled?.('skipped'); return; }
+    if (busyRef.current) {
+      toast(msgs().provider.busy, 'info');
+      onSettled?.('busy');
+      return;
+    }
+    const sid = sessionRef.current;
+    // Asked through the login that holds the account (sessionFor); a linked
+    // bank that is logged out is not asked at all.
+    const route = sessionFor(acct);
+    if (!route) {
+      const message = written(loggedOutText(acct), msgs());
+      toast(message, 'info');
+      onSettled?.('failed', message);
+      return;
+    }
+    setBankOrderErrors((e) => (e[acct]?.[kind] ? { ...e, [acct]: { ...e[acct], [kind]: undefined } } : e));
+    setBusy(true);
+    setBankOrdersLoading({ accountNumber: acct, kind });
+
+    const finish = () => { setBusy(false); setBankOrdersLoading(null); };
+    // Every read hands out new handles, so what this session's deletions said
+    // stays with the old list's entries and the fresh list speaks for itself.
+    const apply = (a: BankOrdersAnswer) => {
+      const info: BankOrdersInfo = { orders: a.orders, complete: a.complete, unreadable: a.unreadable, loadedAt: Date.now() };
+      setBankOrders((c) => ({ ...c, [acct]: { ...c[acct], [kind]: info } }));
+      onSettled?.('applied');
+    };
+    const fail = (message: string) => {
+      setBankOrderErrors((e) => ({ ...e, [acct]: { ...e[acct], [kind]: { message, at: Date.now() } } }));
+      toast(msgs().orders.list.failed(message), 'error');
+      onSettled?.('failed', message);
+    };
+
+    try {
+      const data = await post<BankOrdersResponse>('/api/bank-orders', { sessionId: route, accountNumber: acct, kind });
+      if (!isCurrent(sid)) return;
+      if (data.needsTan) {
+        startDecoupledWait(methodFor(acct), data, {
+          onDone: (r) => {
+            finish();
+            if (r.kind === 'bankOrders' && r.orderKind === kind) apply(r);
+            else fail(msgs().orders.route.listFailed);
+          },
+          retry: () => { finish(); void loadBankOrderKind(account, kind, onSettled); },
+          onCancelled: () => { finish(); onSettled?.('cancelled'); },
+        }, { kind: 'bankOrders', subject: (m) => m.orders.wait.listOf(kind, approvalAccountName(account)), sessionId: route });
+      } else {
+        finish();
+        apply(data);
+      }
+    } catch (err) {
+      if (!isCurrent(sid)) return;
+      finish();
+      fail((err as Error).message);
+    }
+  }, [setBusy, isCurrent, sessionFor, loggedOutText, startDecoupledWait, methodFor, approvalAccountName, toast]);
+
+  /**
+   * Reads the bank's orders of the given kinds (all the account can list,
+   * by default) one after the other, each perhaps with an approval of its
+   * own. A cancelled approval ends the run: no second request follows one the
+   * user just declined. `onSettled` hears once, at the end, how the last
+   * read ended.
+   */
+  const loadBankOrders = useCallback((account: SerializedAccount, kinds?: readonly BankOrderKind[], onSettled?: LoadSettled) => {
+    const list = (kinds ?? (['standing', 'dated'] as const)).filter((k) => account[k]?.list);
+    const step = (i: number) => {
+      if (i >= list.length) { onSettled?.('skipped'); return; }
+      void loadBankOrderKind(account, list[i], (outcome, error) => {
+        if ((outcome === 'applied' || outcome === 'failed') && i + 1 < list.length) step(i + 1);
+        else onSettled?.(outcome, error);
+      });
+    };
+    step(0);
+  }, [loadBankOrderKind]);
+
+  /**
+   * Deletes one order the bank keeps (HKCDL or HKCSL), as listed by the last
+   * read. Its outcome is kept per order (orderDeletions): deleted, refused, or
+   * unclear — an unclear deletion is never sent again by itself; the list
+   * read again says how it stands.
+   */
+  const deleteBankOrder = useCallback(async (account: SerializedAccount, order: SerializedBankOrder) => {
+    if (busyRef.current) {
+      toast(msgs().provider.busy, 'info');
+      return;
+    }
+    const sid = sessionRef.current;
+    // Through the login that holds the account and read the list — never another bank's.
+    const route = sessionFor(account.accountNumber);
+    if (!route) {
+      toast(written(loggedOutText(account.accountNumber), msgs()), 'info');
+      return;
+    }
+    setBusy(true);
+    const settle = (status: OrderDeletion['status'], answers?: string) => {
+      setBusy(false);
+      const text = answers ? repairBankText(answers) : answers;
+      setOrderDeletions((d) => ({ ...d, [order.ref]: { status, ...(text ? { answers: text } : {}), at: Date.now() } }));
+      if (status === 'deleted') toast(msgs().orders.list.deletedToast(order.kind, order.name), 'success');
+    };
+    try {
+      const data = await post<DeleteOrderResponse>('/api/bank-orders/delete', {
+        sessionId: route, accountNumber: account.accountNumber, ref: order.ref,
+      });
+      if (!isCurrent(sid)) return;
+      if ('outcome' in data) {
+        settle(data.outcome === 'refused' ? 'refused' : 'unclear', data.bankAnswers);
+        return;
+      }
+      if (data.needsTan) {
+        startDecoupledWait(methodFor(account.accountNumber), data, {
+          onDone: (r) => settle('deleted', r.kind === 'orderDeleted' ? r.bankAnswers : undefined),
+          retry: null,
+          onDialogEnded: () => { closeWait(); settle('unclear'); },
+          onAnswer: (status, answers) => { closeWait(); settle(status === 'refused' ? 'refused' : 'unclear', answers); },
+          // Approved in the app after we stopped asking, it is gone all the same.
+          onCancelled: () => settle('unclear'),
+        }, {
+          kind: 'orderDelete',
+          order: { amount: order.amount, name: order.name, iban: order.iban, instant: false, schedule: order.schedule },
+          sessionId: route,
+        });
+        return;
+      }
+      settle('deleted', data.bankAnswers);
+    } catch (err) {
+      if (!isCurrent(sid)) return;
+      // As for a transfer: no answer at all may still have reached the bank.
+      if (err instanceof ApiError && (err.status === 0 || err.status === ORDER_UNANSWERED_STATUS)) {
+        settle('unclear');
+        return;
+      }
+      setBusy(false);
+      toast((err as Error).message, 'error');
+    }
+  }, [setBusy, isCurrent, sessionFor, loggedOutText, startDecoupledWait, methodFor, closeWait, toast]);
 
   // ---- session clock ------------------------------------------------------
   // The dashboard logs itself out after `idleMinutes` without input. The exact
@@ -1670,14 +2532,16 @@ function useFintsState() {
     setIdleDeadline(deadline);
   }, []);
 
-  /** Keeps the server's 30-minute session alive. No bank traffic. */
+  /** Keeps the server's 30-minute sessions alive — every login of the view. No bank traffic. */
   const sendKeepalive = useCallback(() => {
     const sid = sessionRef.current;
     if (!sid) return;
     lastKeepaliveRef.current = Date.now();
-    // A 401 logs out through SESSION_EXPIRED_EVENT; anything else is retried
-    // with the next activity.
-    post('/api/keepalive', { sessionId: sid }).catch(() => {});
+    // A 401 logs out through SESSION_EXPIRED_EVENT (only that bank, for a
+    // linked one); anything else is retried with the next activity. A bank
+    // being added is kept too: its form is being filled in.
+    const sids = [sid, ...linksRef.current.map((l) => l.sessionId), addBankRef.current?.sessionId];
+    for (const s of sids) if (s) post('/api/keepalive', { sessionId: s }).catch(() => {});
   }, []);
 
   /**
@@ -1797,6 +2661,40 @@ function useFintsState() {
 
   // ---- navigation & launchers ---------------------------------------------
   const setTab = useCallback((t: DashboardTab) => setTabState(t), []);
+
+  // Android: while an approval in the bank's app is awaited, the app keeps its
+  // network (a short foreground service, android/…/ApprovalService.java).
+  // Approving means switching to that app, and from Android 15 an app in the
+  // background is cut off — the next "approved yet?" would never reach the bank.
+  const awaitingApproval = wait.open && wait.phase === 'waiting';
+  useEffect(() => {
+    const mobile = IS_ANDROID ? window.girovoMobile : undefined;
+    if (!mobile || !awaitingApproval) return;
+    const said = msgs().android.approval;
+    void mobile.approval.hold({ title: said.title, text: said.text });
+    return () => {
+      void mobile.approval.release();
+    };
+  }, [awaitingApproval]);
+
+  // Android's back gesture, once no layer is open to close (mobile/bridges/back.ts):
+  // from Analyse or Verträge back to the Übersicht, from the login form back to
+  // the bank list. Anywhere else the app goes to the background, session intact.
+  useEffect(() => {
+    if (!IS_ANDROID) return;
+    const onBack = (e: Event) => {
+      if (busyRef.current) return;
+      if (view === 'dashboard' && tab !== 'overview') {
+        e.preventDefault();
+        setTabState('overview');
+      } else if (view === 'login' && bank) {
+        e.preventDefault();
+        setBank(null);
+      }
+    };
+    window.addEventListener(BACK_EVENT, onBack);
+    return () => window.removeEventListener(BACK_EVENT, onBack);
+  }, [view, tab, bank]);
   const setInboxOpen = useCallback((b: boolean) => setInboxOpenState(b), []);
   const setPaletteOpen = useCallback((b: boolean) => setPaletteOpenState(b), []);
   const setShortcutsOpen = useCallback((b: boolean) => setShortcutsOpenState(b), []);
@@ -1825,20 +2723,23 @@ function useFintsState() {
     // A transfer in progress is never replaced by a launcher — its draft (or
     // its pending approval) would be lost.
     if (transferOpen) return;
-    const eligible = accounts.filter((a) => a.canTransfer);
+    // Not from a linked bank that is logged out: there is no session to send it with.
+    const eligible = accounts.filter((a) => a.canTransfer && sessionFor(a.accountNumber));
     if (!eligible.length) {
       toast(msgs().provider.launch.noTransferAccount, 'error');
       return;
     }
     const accountNumber =
       (p?.accountNumber && eligible.some((a) => a.accountNumber === p.accountNumber) && p.accountNumber)
-      || (activeAccount?.canTransfer ? activeAccount.accountNumber : eligible[0].accountNumber);
+      || (activeAccount && eligible.some((a) => a.accountNumber === activeAccount.accountNumber)
+        ? activeAccount.accountNumber
+        : eligible[0].accountNumber);
     clearTransients();
     setShareOpen(false);
     setSharePrefill(null);
     setTransferPrefill({ ...p, accountNumber });
     setTransferOpen(true);
-  }, [transferOpen, accounts, activeAccount, toast, clearTransients]);
+  }, [transferOpen, accounts, activeAccount, sessionFor, toast, clearTransients]);
 
   const closeTransfer = useCallback(() => {
     setTransferOpen(false);
@@ -1886,8 +2787,10 @@ function useFintsState() {
     setSessionStartedAt(now);
     startSessionClock(now);
     // Fresh per login: a window left on the login screen overnight must not
-    // start the next session with yesterday's "today".
+    // start the next session with yesterday's "today". Kept Umsätze, once
+    // they arrive, widen it unless the user has picked one by then.
     setAppliedRange(defaultRange());
+    rangeChosenRef.current = false;
     setView('dashboard');
     // The bank's messages are announced by the masthead's bell and the
     // Übersicht's Mitteilungen tile, both of which stay until they are read —
@@ -1945,22 +2848,13 @@ function useFintsState() {
       // Only drops it from the server's memory (and the PIN with it) — no bank traffic.
       post('/api/logout', { sessionId: previous }).catch(() => {});
     }
-    setBank({ ...chosen, name: data.bank.bankName || chosen.name, brand: data.bank.brand, bic: data.bank.bic });
+    const named = { ...chosen, name: data.bank.bankName || chosen.name, brand: data.bank.brand, bic: data.bank.bic };
+    setBank(named);
     setUserId(login);
 
     // The bank's notices arrive with the login synchronisation only; a
     // remembered device skips that round trip and so has none to show.
-    const receivedAt = new Date().toISOString();
-    const seen = new Set<string>();
-    const inbox = ('bankMessages' in data ? data.bankMessages || [] : [])
-      .map((m) => toInboxMessage(m, receivedAt))
-      .filter((m): m is InboxMessage => {
-        if (!m) return false;
-        const key = `${m.subject}\n${m.text}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+    const inbox = inboxOf('bankMessages' in data ? data.bankMessages || [] : [], new Date().toISOString(), named.name);
     messagesRef.current = inbox;
     setMessages(inbox);
 
@@ -2041,12 +2935,360 @@ function useFintsState() {
   /** "Anderes Verfahren wählen" from the device list: back to the methods. */
   const clearMediaChoice = useCallback(() => setMediaChoice(null), []);
 
+  // ---- more banks ---------------------------------------------------------
+  // "Weitere Bank anmelden" runs the login's own steps — bank, Anmeldename
+  // and PIN, Sicherheitsverfahren, Freigabe — for a session beside the
+  // primary one, in a sheet over the dashboard (components/AddBank.tsx). The
+  // new login joins the view only once its accounts are in and none of their
+  // numbers collides with one already shown (lib/linked-banks.ts); whenever
+  // the flow ends otherwise, its session is dropped. While its bank is asked
+  // it holds `busy`, so no read can open a second approval meanwhile.
+
+  const updateAddBank = useCallback((fn: (a: KeptAddBank) => KeptAddBank) => {
+    const cur = addBankRef.current;
+    if (cur) setAddBankBoth(fn(cur));
+  }, [setAddBankBoth]);
+
+  const holdFlowBusy = useCallback(() => {
+    flowBusyRef.current = true;
+    setBusy(true);
+  }, [setBusy]);
+
+  /** Lets go of `busy` — if the add flow is what holds it. */
+  const releaseFlowBusy = useCallback(() => {
+    if (!flowBusyRef.current) return;
+    flowBusyRef.current = false;
+    setBusy(false);
+  }, [setBusy]);
+
+  /** `from`: a bank to start with — a remembered one, or one logged out — and its login name. */
+  const openAddBank = useCallback((from?: { bank: ChosenBank; userId?: string }) => {
+    if (!sessionRef.current || addBankRef.current) return;
+    clearTransients();
+    setAddBankBoth({
+      step: from ? 'credentials' : 'bank',
+      bank: from?.bank ?? null,
+      prefill: from?.userId ? { blz: from.bank.blz, userId: from.userId } : null,
+      tanMethods: [],
+      selectedMethod: null,
+      mediaChoice: null,
+      error: null,
+      sessionId: null,
+      login: '',
+      messages: [],
+    });
+  }, [clearTransients, setAddBankBoth]);
+
+  /** Closes the sheet: a login still being asked is called off, a half-open one dropped. The view stays as it was. */
+  const closeAddBank = useCallback(() => {
+    const flow = addBankRef.current;
+    if (!flow) return;
+    cancelConnect();
+    dropSession(flow.sessionId);
+    releaseFlowBusy();
+    setAddBankBoth(null);
+  }, [cancelConnect, releaseFlowBusy, setAddBankBoth]);
+
+  /** A bank chosen in the sheet's picker, or null for "Ändern" (back to the picker). */
+  const pickAddBank = useCallback((b: ChosenBank | null) => {
+    updateAddBank((a) => ({ ...a, bank: b, step: b ? 'credentials' : 'bank', error: null }));
+  }, [updateAddBank]);
+
+  /** "Zurück zur Anmeldung" from the methods: the half-open login goes, the form comes back. */
+  const addBankBack = useCallback(() => {
+    const flow = addBankRef.current;
+    if (!flow) return;
+    dropSession(flow.sessionId);
+    releaseFlowBusy();
+    updateAddBank((a) => ({
+      ...a, step: 'credentials', sessionId: null, tanMethods: [], selectedMethod: null, mediaChoice: null, error: null, messages: [],
+    }));
+  }, [releaseFlowBusy, updateAddBank]);
+
+  const clearAddBankMedia = useCallback(() => updateAddBank((a) => ({ ...a, mediaChoice: null })), [updateAddBank]);
+
+  /** Forgets everything read for these accounts: they have left the view. */
+  const purgeAccounts = useCallback((numbers: readonly string[]) => {
+    if (!numbers.length) return;
+    const drop = <V,>(rec: Record<string, V>): Record<string, V> => numbers.reduce((r, n) => without(r, n), rec);
+    balancesRef.current = drop(balancesRef.current);
+    setBalances(drop);
+    // The lists and statementInfo are derived from these (listsOf).
+    setFetchesBoth(drop(fetchesRef.current));
+    setPendingFetched(drop);
+    setNotedFetched(drop);
+    setTxErrors(drop);
+    setBalanceErrors(drop);
+    setPendingErrors(drop);
+  }, []);
+
+  /**
+   * The flow's login joins the view with `list` as its accounts — or does not,
+   * and says why (KeptText, also kept as the sheet's error): an account
+   * number already shown under another account, or nothing new at all. Its
+   * session is dropped then. A linked bank logging in again takes its old
+   * place, and whatever it no longer lists leaves with its data. As after a
+   * login, the new bank's first account is opened.
+   */
+  const finishAddBank = useCallback((
+    list: SerializedAccount[], method: SerializedTanMethod | null, device: boolean,
+  ): KeptText | null => {
+    const flow = addBankRef.current;
+    const sid = flow?.sessionId;
+    if (!flow || !sid || !flow.bank) return null;
+    releaseFlowBusy();
+    const chosen = flow.bank;
+    const login = { blz: chosen.blz, userId: flow.login };
+    const again = linksRef.current.find((l) => !l.sessionId && sameLogin({ blz: l.bank.blz, userId: l.userId }, login)) ?? null;
+    const shown = again ? accountsRef.current.filter((a) => !again.accountNumbers.includes(a.accountNumber)) : accountsRef.current;
+    const joined = joinAccounts(shown, list);
+    let refusal: KeptText | null = null;
+    if (joined.collisions.length) {
+      const named = joined.collisions.map(({ incoming }) => incoming);
+      refusal = (m) => m.banks.refused.collision(
+        namesList(named.map((a) => m.insights.balances.quoted(a.product?.trim() || translateType(a.accountType)))),
+        named.length,
+        chosen.name,
+      );
+    } else if (!joined.added.length) {
+      refusal = (m) => m.banks.refused.nothingNew(chosen.name);
+    }
+    if (refusal) {
+      dropSession(sid);
+      const said = refusal;
+      // Back to the form, which says why: nothing further on this login would help.
+      updateAddBank((a) => ({
+        ...a, step: 'credentials', prefill: login, sessionId: null, tanMethods: [], selectedMethod: null, mediaChoice: null,
+        messages: [], error: said,
+      }));
+      return refusal;
+    }
+
+    const link: LinkedLogin = {
+      id: again?.id ?? newId(),
+      bank: chosen,
+      userId: flow.login,
+      sessionId: sid,
+      accountNumbers: joined.added.map((a) => a.accountNumber),
+      method,
+      deviceRemembered: device,
+    };
+    const before = linksRef.current;
+    const owned = new Set(before.flatMap((l) => l.accountNumbers));
+    const current = new Map(accountsRef.current.map((a) => [a.accountNumber, a] as const));
+    const nextLinks = again ? before.map((l) => (l.id === again.id ? link : l)) : [...before, link];
+    // The primary login's accounts first, then each linked bank's, in order.
+    const nextAccounts = [
+      ...accountsRef.current.filter((a) => !owned.has(a.accountNumber)),
+      ...nextLinks.flatMap((l) => (l.id === link.id ? joined.added : l.accountNumbers.flatMap((n) => current.get(n) ?? []))),
+    ];
+    if (again) purgeAccounts(again.accountNumbers.filter((n) => !link.accountNumbers.includes(n)));
+    setLinksBoth(nextLinks);
+    accountsRef.current = nextAccounts;
+    setAccounts(nextAccounts);
+
+    // Its login's messages, once — logging in again brings the same ones.
+    const known = new Set(messagesRef.current.map((m) => `${m.bank}\n${m.subject}\n${m.text}`));
+    const inbox = inboxOf(flow.messages, new Date().toISOString(), chosen.name)
+      .filter((m) => !known.has(`${m.bank}\n${m.subject}\n${m.text}`));
+    if (inbox.length) {
+      messagesRef.current = [...messagesRef.current, ...inbox];
+      setMessages(messagesRef.current);
+    }
+    // Kept in the primary login's store — BLZ, name and login name — for the next login's offer.
+    updateVault((v) => {
+      const next = rememberLinkedBank(v.linkedBanks ?? [], { ...login, name: chosen.name });
+      return JSON.stringify(next) === JSON.stringify(v.linkedBanks ?? []) ? v : withLinkedBanks(v, next);
+    });
+    setAddBankBoth(null);
+    // Its Umsätze are kept on this computer when this view keeps them: the
+    // server follows the primary login's choice for it from now on.
+    const primary = sessionRef.current;
+    if (primary && link.sessionId) {
+      void post('/api/history', { sessionId: link.sessionId, op: 'follow', primary })
+        .then(() => loadLinkedHistory(link))
+        .catch(() => { /* that bank's answers are then simply not kept */ });
+    }
+    toast(msgs().banks.added(chosen.name, joined.added.length), 'success');
+    selectAccount(joined.added[0]);
+    return null;
+  }, [releaseFlowBusy, updateAddBank, purgeAccounts, setLinksBoth, updateVault, setAddBankBoth, toast, selectAccount, loadLinkedHistory]);
+
+  /** Step two of the flow: the bank is asked for this login, a session of its own. */
+  const connectAddBank = useCallback(async (chosen: ChosenBank, login: string, pin: string) => {
+    const primary = sessionRef.current;
+    if (!primary || !addBankRef.current) return;
+    const said = msgs().banks;
+    const asked = { blz: chosen.blz, userId: login };
+    // The same login twice would be one access in two sessions. A linked bank
+    // whose session ended is the exception: that is logging in again.
+    const same = linksRef.current.find((l) => sameLogin({ blz: l.bank.blz, userId: l.userId }, asked));
+    const primaryLogin = bankRef.current ? { blz: bankRef.current.blz, userId: userIdRef.current } : null;
+    if ((primaryLogin && sameLogin(primaryLogin, asked)) || same?.sessionId) throw new Error(said.refused.sameLogin(chosen.name));
+    if (!same && linksRef.current.length >= LINKED_BANK_LIMITS.count) {
+      throw new Error(said.refused.tooMany(LINKED_BANK_LIMITS.count));
+    }
+    if (busyRef.current) throw new Error(msgs().provider.busy);
+
+    const attempt = { id: newAttemptId(), ctrl: new AbortController() };
+    connectAttemptRef.current = attempt;
+    updateAddBank((a) => (a.error === null ? a : { ...a, error: null }));
+    holdFlowBusy();
+    let data: ConnectResponse;
+    try {
+      data = await post<ConnectResponse>('/api/connect', {
+        blz: chosen.blz, userId: login, pin, attemptId: attempt.id,
+      }, { signal: attempt.ctrl.signal });
+    } catch (err) {
+      if (isCurrent(primary)) releaseFlowBusy();
+      throw err;
+    } finally {
+      if (connectAttemptRef.current === attempt) connectAttemptRef.current = null;
+    }
+    if (attempt.ctrl.signal.aborted) throw new DOMException(msgs().provider.login.cancelled, 'AbortError');
+    // Logged out, or the sheet closed, while the bank answered: the new session goes at once.
+    if (!isCurrent(primary) || !addBankRef.current) {
+      dropSession(data.sessionId);
+      return;
+    }
+    const named: ChosenBank = { ...chosen, name: data.bank.bankName || chosen.name, brand: data.bank.brand, bic: data.bank.bic };
+    updateAddBank((a) => ({
+      ...a, bank: named, sessionId: data.sessionId, login, messages: 'bankMessages' in data ? data.bankMessages || [] : [],
+    }));
+    if ('restored' in data && data.restored) {
+      // A remembered device: the accounts come at once, without an approval.
+      const refusal = finishAddBank(data.accounts || [], data.selectedTanMethod, true);
+      if (refusal) throw new Error(written(refusal, msgs()));
+      return;
+    }
+    releaseFlowBusy();
+    const methods = 'tanMethods' in data ? data.tanMethods || [] : [];
+    updateAddBank((a) => ({
+      ...a,
+      step: 'method',
+      tanMethods: methods,
+      selectedMethod: null,
+      mediaChoice: null,
+      error: methods.length ? null : (m: Messages) => m.provider.login.noTanMethod,
+    }));
+  }, [isCurrent, holdFlowBusy, releaseFlowBusy, updateAddBank, finishAddBank]);
+
+  /** Step three: the method (and device) that approves this login — then the usual approval, naming the bank. */
+  const chooseAddBankMethod = useCallback(async (method: SerializedTanMethod, tanMediaName?: string) => {
+    const primary = sessionRef.current;
+    const flow = addBankRef.current;
+    const sid = flow?.sessionId;
+    if (!primary || !flow?.bank || !sid) return;
+    if (busyRef.current) {
+      updateAddBank((a) => ({ ...a, error: (m) => m.provider.busy }));
+      return;
+    }
+    const asking = { name: flow.bank.name, brand: flow.bank.brand };
+    updateAddBank((a) => ({ ...a, selectedMethod: method, mediaChoice: null, error: null }));
+    const media = tanMediaName || (method.activeTanMedia?.length === 1 ? method.activeTanMedia[0] : undefined);
+    // Logged out, closed, or gone back to the form while the bank answered.
+    const stale = () => !isCurrent(primary) || addBankRef.current?.sessionId !== sid;
+    holdFlowBusy();
+    try {
+      const data = await post<SelectTanResponse>('/api/select-tan', {
+        sessionId: sid, tanMethodId: method.id, tanMediaName: media,
+      });
+      if (stale()) return;
+      if ('chooseTanMedia' in data) {
+        releaseFlowBusy();
+        updateAddBank((a) => ({ ...a, mediaChoice: data.chooseTanMedia }));
+        return;
+      }
+      if ('needsTan' in data && data.needsTan) {
+        // `busy` stays held through the approval.
+        startDecoupledWait(method, { ...data, tanMediaName: data.tanMediaName || media || null }, {
+          onDone: (r) => {
+            if (r.kind === 'accounts') finishAddBank(r.accounts || [], method, r.deviceSaved);
+            else releaseFlowBusy();
+          },
+          retry: () => {
+            releaseFlowBusy();
+            void chooseAddBankMethodRef.current(method, media);
+          },
+          // Called off (or closed once refused): the login goes, the view stays as it was.
+          onCancelled: () => {
+            closeAddBank();
+            toast(msgs().banks.cancelled(asking.name), 'info');
+          },
+        }, { kind: 'login', sessionId: sid, bank: asking });
+        return;
+      }
+      if ('accounts' in data) finishAddBank(data.accounts || [], method, data.deviceSaved);
+    } catch (err) {
+      if (stale()) return;
+      releaseFlowBusy();
+      updateAddBank((a) => ({ ...a, error: (err as Error).message }));
+    }
+  }, [isCurrent, updateAddBank, holdFlowBusy, releaseFlowBusy, startDecoupledWait, finishAddBank, closeAddBank, toast]);
+
+  const chooseAddBankMethodRef = useRef(chooseAddBankMethod);
+  chooseAddBankMethodRef.current = chooseAddBankMethod;
+
+  /**
+   * "Bank entfernen": a linked bank leaves the view — logged out, its
+   * accounts and what was read for them gone — and the primary login's store
+   * forgets it. A remembered one is only forgotten.
+   */
+  const removeBank = useCallback((entry: BankEntry) => {
+    if (entry.state === 'primary') return;
+    if (busyRef.current) {
+      toast(msgs().provider.busy, 'info');
+      return;
+    }
+    const link = linksRef.current.find((l) => l.id === entry.key) ?? null;
+    const login = link ? { blz: link.bank.blz, userId: link.userId } : entry.ref;
+    if (link) {
+      dropSession(link.sessionId);
+      const gone = new Set(link.accountNumbers);
+      setLinksBoth(linksRef.current.filter((l) => l.id !== link.id));
+      const nextAccounts = accountsRef.current.filter((a) => !gone.has(a.accountNumber));
+      accountsRef.current = nextAccounts;
+      setAccounts(nextAccounts);
+      purgeAccounts(link.accountNumbers);
+      const active = activeAccountRef.current;
+      if (active && gone.has(active.accountNumber) && nextAccounts[0]) selectAccount(nextAccounts[0]);
+    }
+    if (login) {
+      updateVault((v) => (v.linkedBanks?.some((r) => sameLogin(r, login))
+        ? withLinkedBanks(v, forgetLinkedBank(v.linkedBanks, login))
+        : v));
+    }
+    toast(msgs().banks.removed(entry.bank.name), 'info');
+  }, [toast, setLinksBoth, purgeAccounts, selectAccount, updateVault]);
+
+  /**
+   * A linked bank's session ended (the server answered 401 for it): only that
+   * bank is logged out. Its accounts stay as they were last read, marked, with
+   * the way to log in again.
+   */
+  const endLink = useCallback((sid: string) => {
+    const link = linksRef.current.find((l) => l.sessionId === sid);
+    if (!link) return;
+    setLinksBoth(linksRef.current.map((l) => (l.id === link.id ? { ...l, sessionId: null } : l)));
+    const said = msgs().banks;
+    toast(said.ended(link.bank.name), 'info', 10_000, {
+      label: said.loginAgain,
+      run: () => openAddBank({ bank: link.bank, userId: link.userId }),
+    });
+  }, [setLinksBoth, toast, openAddBank]);
+  endLinkRef.current = endLink;
+
   // ---- device + session ---------------------------------------------------
   /**
    * `wipeData`: delete the saved personal data from this machine as well —
    * what someone handing the computer on wants (wipeVaultWith).
    */
   const forgetDevice = useCallback(async (opts?: { wipeData?: boolean }) => {
+    // Android: a PIN kept behind the fingerprint is part of what this phone
+    // remembers about the login, so it goes with the device profile.
+    const name = userIdRef.current;
+    const blz = bankRef.current?.blz;
+    if (IS_ANDROID && blz && name) void window.girovoMobile?.biometric.forget(blz, name);
     if (opts?.wipeData === true) {
       if (await wipeVaultWith((sid) => post('/api/forget-device', { sessionId: sid, wipeData: true }))) {
         setDeviceRemembered(false);
@@ -2073,6 +3315,13 @@ function useFintsState() {
     sessionRef.current = null;
     readySidRef.current = null;
     setSessionId(null);
+    linksRef.current = [];
+    setLinks([]);
+    addBankRef.current = null;
+    setAddBankState(null);
+    flowBusyRef.current = false;
+    waitSidRef.current = null;
+    transferSidRef.current = null;
     accountsRef.current = [];
     setAccounts([]);
     activeAccountRef.current = null;
@@ -2080,10 +3329,14 @@ function useFintsState() {
     balancesRef.current = {};
     setBalances({});
     txCacheRef.current = {};
-    setTxCache({});
+    setFetchesBoth({});
     setPendingFetched({});
     setNotedFetched({});
-    setStatementInfo({});
+    historyLoadGenRef.current++;
+    setHistoryBoth(null);
+    setHistoryStatusBoth('off');
+    setSavedRangeBoth(false);
+    rangeChosenRef.current = false;
     setMerchants({});
     merchantsAsked.current.clear();
     setModelGuesses({});
@@ -2096,6 +3349,10 @@ function useFintsState() {
     setLoadingAccount(null);
     setPendingLoading(null);
     setPendingErrors({});
+    setBankOrders({});
+    setBankOrdersLoading(null);
+    setBankOrderErrors({});
+    setOrderDeletions({});
     setDeviceRemembered(false);
     setTxErrors({});
     setBalanceErrors({});
@@ -2142,7 +3399,10 @@ function useFintsState() {
     // A toast's action points into the session that just ended.
     setToasts((list) => list.filter((t) => !t.action));
     setView('login');
-  }, [stopTimers, setBusy, setAppliedRange, setVaultStatusBoth, setSelectedMethodBoth, setTanMethodsBoth]);
+  }, [
+    stopTimers, setBusy, setAppliedRange, setVaultStatusBoth, setSelectedMethodBoth, setTanMethodsBoth,
+    setFetchesBoth, setHistoryBoth, setHistoryStatusBoth, setSavedRangeBoth,
+  ]);
 
   /**
    * Ends the session. The screen is cleared at once; the network work
@@ -2176,9 +3436,14 @@ function useFintsState() {
     // inFlight, but the order may have gone through).
     const w = waitRef.current;
     const unclear = unclearTransfers(activityRef.current).map((e) => e.name);
-    if (w.open && w.kind === 'transfer' && !waitHoldsSession(w)) {
+    if (w.open && placesOrder(w.kind) && !waitHoldsSession(w)) {
       unclear.unshift(lastTransferRef.current?.recipientName.trim() ?? '');
     }
+    // Every login of the view goes with it: the linked banks', and one being
+    // added (still being asked: called off).
+    const sids = [sid, ...linksRef.current.map((l) => l.sessionId), addBankRef.current?.sessionId]
+      .filter((s): s is string => !!s);
+    cancelConnect();
     resetSession();
 
     let notice: number | null = null;
@@ -2191,15 +3456,14 @@ function useFintsState() {
     }
 
     await Promise.race([saved, delay(LOGOUT_FLUSH_TIMEOUT_MS)]);
-    let dropped = false;
-    try {
-      await post('/api/logout', { sessionId: sid });
-      dropped = true;
-    } catch { /* best effort — the server's 30-minute sweep remains */ }
+    // Best effort — the server's 30-minute sweep remains. The PIN is said to
+    // be gone only once every session that held one confirmed it.
+    const results = await Promise.allSettled(sids.map((s) => post('/api/logout', { sessionId: s })));
+    const dropped = results.every((r) => r.status === 'fulfilled');
     if (notice != null && dropped && (reason === 'user' || reason === 'cancelled')) {
       rewordToast(notice, logoutNotice(reason, true));
     }
-  }, [flushVault, resetSession, toast, rewordToast]);
+  }, [flushVault, cancelConnect, resetSession, toast, rewordToast]);
 
   logoutRef.current = logout;
 
@@ -2223,7 +3487,12 @@ function useFintsState() {
   useEffect(() => {
     const onExpired = (e: Event) => {
       const refused = (e as CustomEvent<SessionExpiredDetail>).detail?.sessionId;
-      if (!sessionRef.current || (refused && refused !== sessionRef.current)) return;
+      if (!sessionRef.current) return;
+      if (refused && refused !== sessionRef.current) {
+        // A linked bank's ends that bank alone; anything else is a straggler.
+        endLinkRef.current(refused);
+        return;
+      }
       void logoutRef.current('expired');
     };
     window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
@@ -2293,6 +3562,7 @@ function useFintsState() {
       iban: normIban(p.iban),
       amount: typedAmount(p.amount),
       instant: p.instant,
+      ...(p.schedule ? { schedule: p.schedule } : {}),
       ...(text ? { message: text } : {}),
     };
     setActivity((list) => [entry, ...list].slice(0, MAX_ACTIVITY));
@@ -2302,6 +3572,14 @@ function useFintsState() {
       if (inFlight) logSentOrder(null, inFlight);
     } else {
       logSentOrder(sentOrderOf(p, outcome, inFlight?.at ?? entry.at), inFlight);
+    }
+    // The bank's list of that kind no longer says how things stand: it is
+    // dropped rather than shown as if it did, and read again on request.
+    const s = p.schedule;
+    if (s && outcome !== 'failed') {
+      setBankOrders((c) => (c[p.accountNumber]?.[s.kind]
+        ? { ...c, [p.accountNumber]: { ...c[p.accountNumber], [s.kind]: undefined } }
+        : c));
     }
   }, [logSentOrder]);
 
@@ -2350,7 +3628,7 @@ function useFintsState() {
       const sent = p ? sentOrderOf(p, 'unknown', new Date().toISOString()) : null;
       sentOrderRef.current = sent;
       if (sent) logSentOrder(sent, null);
-      startDecoupledWait(decoupledMethod(), data, {
+      startDecoupledWait(methodFor(p?.accountNumber), data, {
         onDone: (r) => {
           setBusy(false);
           handlers.onExecuted(r.kind === 'transfer' ? r.bankAnswers : undefined);
@@ -2373,10 +3651,14 @@ function useFintsState() {
         // after we stop asking — abandoning the wait does not cancel it.
         onCancelled: () => handlers.onUnknown(),
       }, {
-        kind: 'transfer',
+        kind: orderWaitKind(p?.schedule),
         order: p
-          ? { amount: typedAmount(p.amount), name: sepaSanitize(p.recipientName), iban: normIban(p.iban), instant: p.instant }
+          ? {
+            amount: typedAmount(p.amount), name: sepaSanitize(p.recipientName), iban: normIban(p.iban), instant: p.instant,
+            schedule: p.schedule ?? null,
+          }
           : null,
+        sessionId: transferSidRef.current ?? undefined,
       });
       return;
     }
@@ -2384,7 +3666,7 @@ function useFintsState() {
     // bank texts cannot leave `busy` stuck on.
     setBusy(false);
     handlers.onExecuted(data.bankAnswers);
-  }, [setBusy, startDecoupledWait, decoupledMethod, closeWait, logSentOrder]);
+  }, [setBusy, startDecoupledWait, methodFor, closeWait, logSentOrder]);
 
   /**
    * A request that never got an answer may still have reached the bank: the
@@ -2405,13 +3687,20 @@ function useFintsState() {
       return;
     }
     const sid = sessionRef.current;
+    // Sent through the login that holds the account it goes from — never another bank's.
+    const route = sessionFor(payload.accountNumber);
+    if (!route) {
+      handlers.onError(written(loggedOutText(payload.accountNumber), msgs())); // never sent either
+      return;
+    }
     lastTransferRef.current = payload;
+    transferSidRef.current = route;
     sentOrderRef.current = null;
     const h = withActivity(handlers);
     setBusy(true);
     try {
       const data = await post<TransferResponse>('/api/transfer', {
-        sessionId: sid, ...payload,
+        sessionId: route, ...payload,
       });
       if (!isCurrent(sid)) return;
       handleTransferAnswer(data, h);
@@ -2419,7 +3708,7 @@ function useFintsState() {
       if (!isCurrent(sid)) return;
       settleTransferError(err, h);
     }
-  }, [withActivity, setBusy, isCurrent, handleTransferAnswer, settleTransferError]);
+  }, [withActivity, setBusy, isCurrent, sessionFor, loggedOutText, handleTransferAnswer, settleTransferError]);
 
   /**
    * "Send it anyway" after a Namensabgleich flagged the payee name. The server
@@ -2435,7 +3724,8 @@ function useFintsState() {
     const h = withActivity(handlers);
     setBusy(true);
     try {
-      const data = await post<TransferResponse>('/api/vop-confirm', { sessionId: sid });
+      // The session that holds the parked order: the one it was sent with.
+      const data = await post<TransferResponse>('/api/vop-confirm', { sessionId: transferSidRef.current ?? sid });
       if (!isCurrent(sid)) return;
       handleTransferAnswer(data, h);
     } catch (err) {
@@ -2447,7 +3737,9 @@ function useFintsState() {
   /** Drop a transfer the user decided not to send after seeing the check. */
   const abandonVop = useCallback(async () => {
     setBusy(false);
-    try { await post('/api/cancel-pending', { sessionId: sessionRef.current }); } catch { /* best effort */ }
+    try {
+      await post('/api/cancel-pending', { sessionId: transferSidRef.current ?? sessionRef.current });
+    } catch { /* best effort */ }
   }, [setBusy]);
 
   // ---- derived data -------------------------------------------------------
@@ -2460,6 +3752,23 @@ function useFintsState() {
     for (const [acct, entry] of Object.entries(txCache)) out[acct] = entry.txs;
     return out;
   }, [txCache]);
+
+  // Kept bookings a list adds get their company logos like the bank's —
+  // only with the user's yes, and each booking offered once (a kept history
+  // can run to thousands; resolveMerchants then asks for each name once).
+  // A yes given later catches up on everything loaded (setLogoConsent).
+  const offeredForLogos = useRef(new WeakSet<SerializedTransaction>());
+  useEffect(() => {
+    if (logoConsentRef.current !== 'on') return;
+    const fresh = Object.values(txByAccount).flat().filter((t) => !offeredForLogos.current.has(t));
+    for (const t of fresh) offeredForLogos.current.add(t);
+    if (fresh.length) void resolveMerchants(fresh);
+  }, [txByAccount, resolveMerchants]);
+
+  /** "Umsätze auf diesem Rechner behalten": the vault's word, off unless it says so. */
+  const keepBookings = vault?.keepBookings === true;
+  /** Per account, the days kept — what the Zeitraum control plans with (lib/history.ts). */
+  const keptCoverage = useMemo(() => historyCoverage(keptHistory), [keptHistory]);
 
   /**
    * Vorgemerkte per account, as they stand against the newest statement.
@@ -2494,6 +3803,79 @@ function useFintsState() {
   );
 
   const unreadCount = useMemo(() => messages.filter((m) => !m.read).length, [messages]);
+
+  // ---- the banks of the view ----------------------------------------------
+  const linkedBanks = vault?.linkedBanks;
+
+  // A remembered bank's logo and town, from this machine's own bank list —
+  // asked once per BLZ. Without an answer it gets a monogram.
+  useEffect(() => {
+    for (const r of linkedBanks ?? []) {
+      if (bankInfoAsked.current.has(r.blz)) continue;
+      bankInfoAsked.current.add(r.blz);
+      get<{ bank: BankSearchHit | null }>(`/api/banks?blz=${encodeURIComponent(r.blz)}`)
+        .then(({ bank: listed }) => {
+          if (!listed) return;
+          setBankInfo((m) => ({
+            ...m, [r.blz]: { blz: listed.blz, name: listed.name, location: listed.location, brand: listed.brand, bic: listed.bic },
+          }));
+        })
+        .catch(() => { /* a monogram, then */ });
+    }
+  }, [linkedBanks]);
+
+  /**
+   * Every bank of the view, in list order: the primary login, the linked
+   * ones (logged in, or logged out during this session), then the ones the
+   * primary login's store remembers but that are not logged in now.
+   */
+  const banks = useMemo((): BankEntry[] => {
+    if (!bank || !sessionId) return [];
+    const out: BankEntry[] = [{ key: 'primary', bank, state: 'primary', ref: null, deviceRemembered }];
+    for (const l of links) {
+      out.push({
+        key: l.id,
+        bank: l.bank,
+        state: l.sessionId ? 'active' : 'loggedOut',
+        ref: { blz: l.bank.blz, name: l.bank.name, userId: l.userId },
+        deviceRemembered: l.deviceRemembered,
+      });
+    }
+    (linkedBanks ?? []).forEach((r, i) => {
+      // Logged in already, or the primary login itself.
+      if (sameLogin({ blz: bank.blz, userId }, r)) return;
+      if (links.some((l) => sameLogin({ blz: l.bank.blz, userId: l.userId }, r))) return;
+      const listed = bankInfo[r.blz];
+      out.push({
+        key: `remembered:${i}`,
+        bank: { blz: r.blz, name: r.name, brand: listed?.brand ?? 'generic', bic: listed?.bic ?? null, ...(listed?.location ? { location: listed.location } : {}) },
+        state: 'remembered',
+        ref: r,
+        deviceRemembered: false,
+      });
+    });
+    return out;
+  }, [bank, sessionId, userId, deviceRemembered, links, linkedBanks, bankInfo]);
+
+  /** The bank an account belongs to, as the view shows it. */
+  const bankOf = useCallback((a: Pick<SerializedAccount, 'accountNumber'> | null | undefined): BankEntry | null => {
+    if (!a) return null;
+    const link = links.find((l) => l.accountNumbers.includes(a.accountNumber));
+    return banks.find((b) => b.key === (link?.id ?? 'primary')) ?? null;
+  }, [links, banks]);
+
+  /** The active account's bank: what the institute bar names. */
+  const activeBank = useMemo(() => bankOf(activeAccount), [bankOf, activeAccount]);
+
+  /** The add flow as the sheet reads it, its error in the language on screen. */
+  const addBank = useMemo((): AddBankState | null => {
+    if (!addBankKept) return null;
+    const { step, bank: chosen, prefill, tanMethods: methods, selectedMethod: picked, mediaChoice: devices, error } = addBankKept;
+    return {
+      step, bank: chosen, prefill, tanMethods: methods, selectedMethod: picked, mediaChoice: devices,
+      error: error === null ? null : written(error, texts),
+    };
+  }, [addBankKept, texts]);
 
   const categoryRules = vault?.categoryRules;
   const txCategories = vault?.txCategories;
@@ -2578,6 +3960,42 @@ function useFintsState() {
       return result;
     };
   }, [ownIbans, categoryRules, txCategories, merchants, modelGuesses]);
+
+  /**
+   * What the app would file a booking under on its own, and by which rung
+   * (lib/categorize.ts explainGuess) — the same own accounts, logos and model
+   * guesses as categoryOf, without the user's choices. The drawer's way back
+   * ("Automatisch (…)") and the Kategorie-Check read it.
+   */
+  const categoryGuessOf = useMemo(() => {
+    const own = new Set(ownIbans);
+    const memo = new WeakMap<SerializedTransaction, CategoryGuess>();
+    return (tx: SerializedTransaction): CategoryGuess => {
+      const hit = memo.get(tx);
+      if (hit) return hit;
+      const merchant = merchants[getMerchantKey(tx)] ?? merchants[counterpartyName(tx)] ?? null;
+      let result: CategoryGuess;
+      try {
+        result = explainGuess(tx, { ownIbans: own, merchantLabel: merchant?.label ?? null, modelGuesses });
+      } catch {
+        result = { id: tx.amount >= 0 ? 'otherIn' : 'other', basis: 'none' };
+      }
+      memo.set(tx, result);
+      return result;
+    };
+  }, [ownIbans, merchants, modelGuesses]);
+
+  // The user's notes on bookings (lib/notes.ts): one lookup for every place
+  // that shows or searches them. A new function whenever a note changes, so
+  // a search context built on it is built anew.
+  const notes = vault?.notes;
+  const noteOf = useCallback(
+    (tx: SerializedTransaction): string | undefined => {
+      const n = notes?.[txKey(tx)];
+      return typeof n === 'string' && n ? n : undefined;
+    },
+    [notes],
+  );
 
   const aliases = vault?.aliases;
   // translateType answers in the language on screen: `locale` makes a new
@@ -2706,7 +4124,38 @@ function useFintsState() {
     });
   }, [updateVault]);
 
-  // ---- printable Kontoauszug / transaction receipt ------------------------
+  /**
+   * Replaces the monthly budgets (CategoryId → whole cents). Cleaned by the
+   * rules the vault applies (lib/budgets.ts), so what is shown now is what
+   * comes back after the next login.
+   */
+  const setBudgets = useCallback((next: Budgets) => {
+    const clean = sanitizeBudgets(next);
+    updateVault((v) => {
+      const before = v.budgets;
+      const same = Object.keys(clean).length === Object.keys(before).length
+        && Object.entries(clean).every(([id, cents]) => before[id as CategoryId] === cents);
+      return same ? v : { ...v, budgets: clean };
+    });
+  }, [updateVault]);
+
+  /**
+   * The user's note on one booking — `null` or an empty text removes it. Kept
+   * as lib/notes.ts keeps it (one line, 280 characters, the newest within the
+   * caps); should the caps take the oldest to make room, the user is told.
+   */
+  const setNote = useCallback((tx: SerializedTransaction, text: string | null) => {
+    const key = txKey(tx);
+    let dropped = 0;
+    updateVault((v) => {
+      const res = withNote(v.notes, key, text);
+      dropped = res.dropped;
+      return res.notes === v.notes ? v : { ...v, notes: res.notes };
+    });
+    if (dropped > 0) toast(msgs().budgets.notes.oldestDropped(dropped), 'info', 10_000);
+  }, [updateVault, toast]);
+
+  // ---- printable Kontoauszug / transaction receipt / bank message ---------
   // A print job just snapshots what's already on screen (no extra bank call,
   // no PDF library): Statement.tsx renders it print-only, and the browser's
   // own "Save as PDF" print target is the actual PDF generator.
@@ -2722,33 +4171,50 @@ function useFintsState() {
     setPrintJob({
       kind: 'statement',
       account: activeAccount,
-      bank,
+      // The account's own bank is the kontoführendes Institut on paper.
+      bank: activeBank?.bank ?? bank,
       transactions: transactions ?? [],
       balance: past ? closingBalanceOf(info, activeAccount.currency) : balances[acct] ?? null,
       from: info?.from ?? from,
       to: info?.to ?? to,
-      blocks: info?.blocks ?? null,
+      // The bank's opening balance is the one at the start of its answer. A
+      // list with kept days before that starts earlier, so the sheet works
+      // its Alter Kontostand out and marks it so (The Bank's Figure Rule).
+      blocks: info?.saved ? null : info?.blocks ?? null,
     });
     // The desktop shell exports the PDF directly to a native save dialog (see
     // Statement.tsx); only the browser's own print dialog needs this nudge.
     if (typeof window === 'undefined' || !window.electronPDF) {
       toast(msgs().provider.printAsPdf, 'info', 6000);
     }
-  }, [activeAccount, statementInfo, bank, transactions, balances, toast]);
+  }, [activeAccount, statementInfo, activeBank, bank, transactions, balances, toast]);
 
   const printTransaction = useCallback((tx: SerializedTransaction, pending = false) => {
     if (!activeAccount) return;
     setPrintJob({
       kind: 'transaction',
       account: activeAccount,
-      bank,
+      bank: activeBank?.bank ?? bank,
       tx,
       pending,
     });
     if (typeof window === 'undefined' || !window.electronPDF) {
       toast(msgs().provider.printAsPdf, 'info', 6000);
     }
-  }, [activeAccount, bank, toast]);
+  }, [activeAccount, activeBank, bank, toast]);
+
+  // Messages are gone after the logout, so a notice the user must keep (new
+  // Sonderbedingungen, a changed fee) leaves as a document. It is the bank's,
+  // not an account's: no account needs to be open.
+  const printMessage = useCallback((message: InboxMessage) => {
+    // With more than one bank in the view the message names its sender
+    // (InboxMessage.bank); the letterhead is that bank's, not the primary's.
+    const sender = message.bank ? banks.find((b) => b.bank.name === message.bank)?.bank : null;
+    setPrintJob({ kind: 'message', bank: sender ?? bank, message });
+    if (typeof window === 'undefined' || !window.electronPDF) {
+      toast(msgs().provider.printAsPdf, 'info', 6000);
+    }
+  }, [bank, banks, toast]);
 
   const closePrintJob = useCallback(() => setPrintJob(null), []);
 
@@ -2761,9 +4227,11 @@ function useFintsState() {
     txErrors, balanceErrors, balanceLoading, loadingAllBalances,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     pendingErrors,
+    bankOrders, bankOrdersLoading, bankOrderErrors, orderDeletions,
     range, statementInfo, txByAccount, ownIbans,
     messages, unreadCount, activity,
     vault, vaultStatus,
+    keepBookings, historyStatus, historyCoverage: keptCoverage, savedRange,
     // prefs
     privacy, idleMinutes, singleKeyShortcuts,
     logoConsent,
@@ -2781,9 +4249,10 @@ function useFintsState() {
     loadBalance, loadAllBalances,
     isLoadedForAppliedRange,
     refreshAccount, refreshAfterTransfer, applyRange, loadPending, submitTransfer, confirmVop, abandonVop,
+    loadBankOrders, deleteBankOrder,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
     requestLogout, closeLogoutConfirm, setForgetDeviceOpen,
-    retryWait, cancelWait, closeWait, printStatement, printTransaction, closePrintJob,
+    retryWait, cancelWait, closeWait, printStatement, printTransaction, printMessage, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,
     setTab, setTxFilter, showTransactions,
@@ -2792,10 +4261,16 @@ function useFintsState() {
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
     updateVault, resetVault, wipeVault, accountLabel, renameAccount,
+    setKeepBookings, resetHistory, applySavedRange,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     categoryOf, setCategory,
     removeCategoryRule,
     modelGuesses,
+    categoryGuessOf, setBudgets, noteOf, setNote,
+    // more banks (lib/linked-banks.ts)
+    links, banks, bankOf, activeBank, addBank,
+    openAddBank, closeAddBank, pickAddBank, connectAddBank, chooseAddBankMethod, clearAddBankMedia, addBankBack,
+    removeBank,
   };
 }
 

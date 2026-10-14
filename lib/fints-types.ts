@@ -10,9 +10,11 @@
 import type { ClientResponse, FinTSClient, Statement } from 'lib-fints';
 import type { CustomerOrderInteraction } from './fints-internals.js';
 import type { VopVerdict } from './fints-vop';
+import type { DatedRules, OrderSchedule, StandingRules } from './order-schedule';
 
 export type { TanMethod } from './fints-internals.js';
 export type { VopVerdict };
+export type { DatedRules, OrderSchedule, StandingRules };
 
 // ---------------------------------------------------------------------------
 // lib-fints extensions
@@ -35,6 +37,32 @@ export type ClientResponseWithResult = ClientResponse & {
    * when it carried some the app could not read.
    */
   notedStatements?: Statement[] | null;
+  /** The Daueraufträge or terminierten Überweisungen of a Bestand read (HICDB/HICSB, lib/fints-orders.ts). */
+  bankOrders?: BankOrdersRead;
+};
+
+/**
+ * One order of the bank's Bestand as lib/fints-orders.ts read it: what the
+ * screen shows, plus the raw pieces a deletion has to send back unchanged.
+ * The raw part never leaves the server (lib/session.ts keeps it).
+ */
+export type ReadBankOrder = {
+  order: Omit<SerializedBankOrder, 'ref' | 'deletable'> & { deletable: boolean };
+  raw: {
+    sepaDescriptor: string;
+    sepaMessage: string;
+    /** The answer segment as decoded, for the delete segment's own fields. */
+    fields: Record<string, unknown>;
+  };
+};
+
+/** A Bestand read: the orders, and whether the bank delivered all of them. */
+export type BankOrdersRead = {
+  orders: ReadBankOrder[];
+  /** False when the bank had more to send than this read collected (an Aufsetzpunkt left over). */
+  complete: boolean;
+  /** Entries the app could not read (a pain message it could not parse); they are left out, and counted. */
+  unreadable: number;
 };
 
 /**
@@ -100,6 +128,53 @@ export type SerializedAccount = {
    * still send them with the Umsätze (`pending` on a statement answer).
    */
   canPending: boolean;
+  /**
+   * Terminierte Überweisungen (HKCSE/HKCSB/HKCSL) and Daueraufträge
+   * (HKCDE/HKCDB/HKCDL), each where the BPD declares the segment and the
+   * account's UPD allows it — with the bank's rules for them. Absent or null:
+   * the account offers none of it.
+   */
+  dated?: (OrderCaps & { rules: DatedRules }) | null;
+  standing?: (OrderCaps & { rules: StandingRules }) | null;
+};
+
+/** What an account can do with one kind of bank-held order. */
+export type OrderCaps = {
+  /** Can be placed (HKCSE / HKCDE). */
+  create: boolean;
+  /** The bank's list can be read (HKCSB / HKCDB). */
+  list: boolean;
+  /** One can be deleted (HKCSL / HKCDL). */
+  remove: boolean;
+};
+
+/** A Dauerauftrag ('standing') or a terminierte Überweisung ('dated'). */
+export type BankOrderKind = 'standing' | 'dated';
+
+/**
+ * One order the bank holds for the account, as its Bestand lists it — the
+ * payment as the bank keeps it in the pain.001, and when it runs.
+ */
+export type SerializedBankOrder = {
+  /** The server's handle for this entry of the last read: what a deletion names. Opaque. */
+  ref: string;
+  kind: BankOrderKind;
+  /** The bank's Auftragsidentifikation. */
+  orderId: string | null;
+  /** The payee, as the bank keeps the name. */
+  name: string;
+  iban: string;
+  bic: string | null;
+  /** Positive, in euros. */
+  amount: number;
+  currency: string;
+  purpose: string;
+  /** When it runs; null when the bank's answer did not say in a way the app could read. */
+  schedule: OrderSchedule | null;
+  /** Further payments in the same order (a bank may keep several in one); 0 for the usual single one. */
+  more: number;
+  /** Whether it can be deleted here: the account allows it and the bank did not mark it otherwise. */
+  deletable: boolean;
 };
 
 export type SerializedBalance = {
@@ -214,7 +289,29 @@ export type TanPollResponse =
   | { status: 'done'; kind: 'balance'; accountNumber?: string; balance: SerializedBalance | null }
   | { status: 'done'; kind: 'statements'; accountNumber?: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null; blocks?: StatementBlock[]; pending?: SerializedTransaction[] | null }
   | { status: 'done'; kind: 'pending'; accountNumber?: string; pending: SerializedTransaction[] }
-  | { status: 'done'; kind: 'transfer'; accountNumber?: string; transferResult: TransferResult | null; bankAnswers: string };
+  | { status: 'done'; kind: 'transfer'; accountNumber?: string; transferResult: TransferResult | null; bankAnswers: string }
+  | ({ status: 'done'; kind: 'bankOrders'; accountNumber?: string } & BankOrdersAnswer)
+  | { status: 'done'; kind: 'orderDeleted'; accountNumber?: string; bankAnswers: string };
+
+/** The bank's list of one kind of orders for an account (lib/fints-orders.ts). */
+export type BankOrdersAnswer = {
+  orderKind: BankOrderKind;
+  orders: SerializedBankOrder[];
+  /** False when the bank had more to send than the read collected: the list is incomplete. */
+  complete: boolean;
+  /** Orders the bank listed that the app could not read; left out of `orders`. */
+  unreadable: number;
+};
+
+export type BankOrdersResponse =
+  | TanRequired
+  | ({ needsTan: false; accountNumber: string } & BankOrdersAnswer);
+
+/** /api/bank-orders/delete: as a transfer's answer — refused, unclear, or done. */
+export type DeleteOrderResponse =
+  | TanRequired
+  | { outcome: 'refused' | 'unclear'; accountNumber: string; bankAnswers: string }
+  | { needsTan: false; accountNumber: string; bankAnswers: string };
 
 export type TransactionsResponse =
   | TanRequired

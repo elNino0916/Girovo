@@ -32,6 +32,9 @@ const MAX_NOTES_CHARS = 20_000;
 const ASSET_PATTERN = {
   nsis: /-Setup\.exe$/i,
   portable: /-portable\.exe$/i,
+  // The Android app from GitHub (mobile/bridges/updates.ts); the Google Play
+  // build is updated by Play and never asks.
+  android: /-android\.apk$/i,
 };
 
 /** "4.1.0", "v4.1.0", "4.1.0-dev.12" → { core: [4, 1, 0], pre: 'dev.12' }; null if not a version. */
@@ -220,7 +223,8 @@ function planDifferential(oldChunks, newChunks, { mergeGap = 64 * 1024 } = {}) {
  *             place, silently, and starts it again
  *   portable  the portable .exe — the next one is saved beside it and started
  *             instead (electron-builder's portable launcher sets the variable)
- *   manual    anything else, e.g. an unpacked build: the download page
+ *   manual    anything else, e.g. an unpacked build or the Linux AppImage
+ *             and .deb: the download page
  *   dev       not packaged at all
  */
 function installKind({ isPackaged, env, execPath, exists }) {

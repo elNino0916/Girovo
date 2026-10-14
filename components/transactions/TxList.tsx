@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import type { CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { Money } from '../Money';
-import { ClockIcon } from '../icons';
+import { ClockIcon, LockIcon } from '../icons';
 import { Button } from '../ui';
 import { rowKey, type DayGroup } from './model';
 import { TxRow } from './TxRow';
@@ -33,9 +34,13 @@ export const MORE_PAGE = 100;
  *
  * `resetKey` names the current list (account, loaded range, filter): a new
  * list starts from the first page again.
+ *
+ * Where the list goes on with Umsätze kept on this computer (`savedTo`, the
+ * last day they fill in — lib/history.ts), one quiet line says so before the
+ * first of those days: not a band, so it never competes with the dates.
  */
 export function TxList({
-  id, groups, total, resetKey, merchantOf, categoryOf, onOpen, balanceOn = null,
+  id, groups, total, resetKey, merchantOf, categoryOf, noteOf, onOpen, balanceOn = null, savedTo = null,
 }: {
   id: string;
   groups: DayGroup[];
@@ -43,9 +48,13 @@ export function TxList({
   resetKey: string;
   merchantOf: (tx: SerializedTransaction) => Merchant | null;
   categoryOf: (tx: SerializedTransaction) => { id: CategoryId };
+  /** The user's note on a booking, if any — its row is marked. */
+  noteOf?: (tx: SerializedTransaction) => string | undefined;
   onOpen: (tx: SerializedTransaction) => void;
   /** The verified end-of-day balance per local day, when the bank's balances prove one. */
   balanceOn?: { byDay: ReadonlyMap<string, number>; currency: string; card?: boolean } | null;
+  /** The last day the kept Umsätze fill in; the days from there back came from this computer. */
+  savedTo?: string | null;
 }) {
   const t = useT();
   const words = t.transactions.days;
@@ -83,6 +92,7 @@ export function TxList({
     budget -= g.txs.length;
   }
   const rest = total - Math.min(total, limit);
+  const firstSaved = savedTo ? visible.findIndex((g) => g.key <= savedTo) : -1;
 
   return (
     <div id={id} ref={rootRef} className="relative">
@@ -95,57 +105,66 @@ export function TxList({
       >
         {words.skip}
       </a>
-      {visible.map((g) => (
-        <section key={g.key} aria-labelledby={`${id}-${g.key}`}>
-          <div className="sticky top-0 z-5 flex min-h-9 items-center gap-2 bg-inset px-4 py-1.5 sm:px-5">
-            <h3 id={`${id}-${g.key}`} className="shrink-0 text-[13.5px] leading-snug font-semibold text-ink-2">
-              {g.label}
-            </h3>
-            {g.future && (
-              <span
-                className="inline-flex min-w-0 items-center gap-1 text-[12.5px] font-semibold text-ink-3"
-                title={words.future}
-              >
-                <ClockIcon size={13} />
-                {/* On a phone the clock alone; the rows below say "Buchung 05.10." anyway. */}
-                <span className="truncate max-sm:sr-only">{t.transactions.state.ahead}</span>
-              </span>
-            )}
-            {balanceOn ? (
-              // Days the proof does not reach (a Buchungstag still ahead) carry none.
-              balanceOn.byDay.has(g.key) && (
-                <span className="ml-auto shrink-0 text-[13px] text-ink-3">
-                  <span className="sm:hidden" aria-hidden>{words.balanceShort} </span>
-                  <span className="max-sm:sr-only">{t.common.account.balance} </span>
-                  <span className="sr-only">{words.endOfDay} </span>
-                  {/* A balance: red when below zero, like every balance (Money's "auto") —
-                      a credit card's is negative by nature and stays ink. */}
-                  <span className="font-semibold text-ink-2">
-                    <Money value={balanceOn.byDay.get(g.key)!} currency={balanceOn.currency} tone={balanceOn.card ? 'plain' : 'auto'} />
-                  </span>
+      {visible.map((g, i) => (
+        <Fragment key={g.key}>
+          {i === firstSaved && (
+            <p className="flex items-center gap-2 border-t border-line px-4 py-2.5 text-[13px] leading-snug text-ink-3 sm:px-5">
+              <LockIcon size={14} className="shrink-0" />
+              {t.history.list.divider}
+            </p>
+          )}
+          <section aria-labelledby={`${id}-${g.key}`}>
+            <div data-day-header className="sticky top-0 z-5 flex min-h-9 items-center gap-2 bg-inset px-4 py-1.5 sm:px-5">
+              <h3 id={`${id}-${g.key}`} className="shrink-0 text-[13.5px] leading-snug font-semibold text-ink-2">
+                {g.label}
+              </h3>
+              {g.future && (
+                <span
+                  className="inline-flex min-w-0 items-center gap-1 text-[12.5px] font-semibold text-ink-3"
+                  title={words.future}
+                >
+                  <ClockIcon size={13} />
+                  {/* On a phone the clock alone; the rows below say "Buchung 05.10." anyway. */}
+                  <span className="truncate max-sm:sr-only">{t.transactions.state.ahead}</span>
                 </span>
-              )
-            ) : g.net !== null && (
-              <span className="ml-auto shrink-0 text-[13px] text-ink-3">
-                <span aria-hidden>{t.transactions.sum} </span>
-                <span className="sr-only">{words.dayTotal} </span>
-                <Money value={g.net} currency={g.currency} signed tone="plain" className="font-semibold" />
-              </span>
-            )}
-          </div>
-          <ul>
-            {g.txs.map((tx) => (
-              // Inset hairlines that start where the text does — the avatar
-              // column reads as one, the way a printed statement's date column does.
-              <li
-                key={rowKey(tx)}
-                className="relative after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-[68px] after:h-px after:bg-line last:after:hidden sm:after:left-[72px]"
-              >
-                <TxRow tx={tx} merchant={merchantOf(tx)} category={categoryOf(tx).id} onOpen={onOpen} />
-              </li>
-            ))}
-          </ul>
-        </section>
+              )}
+              {/* Not on Android: the day's balance or sum is one figure too many on a phone's line. */}
+              {IS_ANDROID ? null : balanceOn ? (
+                // Days the proof does not reach (a Buchungstag still ahead) carry none.
+                balanceOn.byDay.has(g.key) && (
+                  <span className="ml-auto shrink-0 text-[13px] text-ink-3">
+                    <span className="sm:hidden" aria-hidden>{words.balanceShort} </span>
+                    <span className="max-sm:sr-only">{t.common.account.balance} </span>
+                    <span className="sr-only">{words.endOfDay} </span>
+                    {/* A balance: red when below zero, like every balance (Money's "auto") —
+                        a credit card's is negative by nature and stays ink. */}
+                    <span className="font-semibold text-ink-2">
+                      <Money value={balanceOn.byDay.get(g.key)!} currency={balanceOn.currency} tone={balanceOn.card ? 'plain' : 'auto'} />
+                    </span>
+                  </span>
+                )
+              ) : g.net !== null && (
+                <span className="ml-auto shrink-0 text-[13px] text-ink-3">
+                  <span aria-hidden>{t.transactions.sum} </span>
+                  <span className="sr-only">{words.dayTotal} </span>
+                  <Money value={g.net} currency={g.currency} signed tone="plain" className="font-semibold" />
+                </span>
+              )}
+            </div>
+            <ul>
+              {g.txs.map((tx) => (
+                // Inset hairlines that start where the text does — the avatar
+                // column reads as one, the way a printed statement's date column does.
+                <li
+                  key={rowKey(tx)}
+                  className="relative after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-[68px] after:h-px after:bg-line last:after:hidden sm:after:left-[72px]"
+                >
+                  <TxRow tx={tx} merchant={merchantOf(tx)} category={categoryOf(tx).id} userNote={noteOf?.(tx)} onOpen={onOpen} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        </Fragment>
       ))}
 
       {/* Where "Liste überspringen" leads: after the last row shown, before

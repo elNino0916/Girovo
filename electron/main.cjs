@@ -31,6 +31,8 @@ const { createFileSave } = require('./file-save.cjs');
 const { LOCALE_COOKIE, LOCALE_PREF, configure: configureLanguage, shellLocale, shellTexts, storedLocale } = require('./i18n.cjs');
 const { createTelemetryHub, lineSplitter, relayServerLine } = require('./telemetry.cjs');
 const updateLogic = require('./update-logic.cjs');
+const { nextZoomLevel, zoomCommand } = require('./zoom.cjs');
+const { createSplash } = require('./splash.cjs');
 
 // Up to 4.3 the app was called Sooskasse-FinTS, and the app's name is what
 // names its userData folder. An install that already has that folder keeps
@@ -44,6 +46,8 @@ if (fs.existsSync(LEGACY_USER_DATA)) app.setPath('userData', LEGACY_USER_DATA);
 
 const HOST = '127.0.0.1';
 const SERVER_START_TIMEOUT_MS = 60_000;
+/** The app's window comes into view after this at the latest, drawn or not. */
+const REVEAL_AFTER_MS = 20_000;
 
 // Matches --bar / --bar-ink in app/globals.css. The window has no native
 // title bar of its own — the app's navy identity bar (Dashboard.tsx) doubles
@@ -108,10 +112,25 @@ function serverDir() {
     : path.join(app.getAppPath(), '.next', 'standalone');
 }
 
+/**
+ * The windows' icon on Linux, where a window has none unless it is given one
+ * (on Windows it comes from the .exe). electron-builder.yml ships it beside
+ * the app; undefined elsewhere, and when it is missing.
+ */
+function windowIcon() {
+  if (process.platform !== 'linux') return undefined;
+  const file = app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(__dirname, '..', 'build', 'icon.png');
+  return fs.existsSync(file) ? file : undefined;
+}
+
 /** @type {import('node:child_process').ChildProcess | null} */
 let server = null;
 /** @type {BrowserWindow | null} */
 let win = null;
+/** The start window (electron/splash.cjs) until the app's window has drawn. */
+let splash = null;
 /** Origin of the page the window shows; the only one the IPC bridges answer. */
 let appOrigin = '';
 let quitting = false;
@@ -276,6 +295,19 @@ async function setupTelemetry() {
 }
 
 process.on('uncaughtExceptionMonitor', (err) => telemetry.error(err, { source: 'main', fatal: true }));
+// The monitor above only reports. Left at that, Electron answers an uncaught
+// exception in this process with its own "A JavaScript error occurred in the
+// main process" box — and carries on in a state nobody planned for. Girovo
+// ends instead, said in its own window with "Girovo neu starten" (showFatal),
+// like a server that stopped. Any listener here replaces Electron's box.
+let crashed = false;
+process.on('uncaughtException', (err) => {
+  console.error('[main] uncaught exception:', err);
+  if (crashed) return; // one window, however many follow
+  crashed = true;
+  const message = shellTexts().start.crashed(String(err?.message || err));
+  void showFatal(shellTexts().start.closed, message).finally(() => app.quit());
+});
 process.on('unhandledRejection', (reason) => {
   console.error('[main] unhandled rejection:', reason);
   telemetry.error(reason, { source: 'main' });
@@ -313,6 +345,38 @@ function prefersDark() {
   if (stored === 'dark') return true;
   if (stored === 'light') return false;
   return nativeTheme.shouldUseDarkColors;
+}
+
+/** A start the installer or the new portable .exe made after an update (electron/update-logic.cjs). */
+const startedByUpdate = process.argv.includes('--updated');
+
+/**
+ * The start window, opened once: from the moment Electron is ready until the
+ * app's window has drawn its first frame (createWindow). Closing it before
+ * then calls the start off.
+ */
+function openSplash() {
+  if (splash) return splash;
+  splash = createSplash({
+    BrowserWindow,
+    texts: () => shellTexts().splash,
+    version: app.getVersion(),
+    portable: !!process.env.PORTABLE_EXECUTABLE_FILE,
+    dark: prefersDark(),
+    updated: startedByUpdate,
+    icon: windowIcon(),
+  });
+  splash.onClosedByUser(() => {
+    splash = null;
+    if (!win || !win.isVisible()) app.quit();
+  });
+  return splash;
+}
+
+function closeSplash() {
+  const s = splash;
+  splash = null;
+  s?.close();
 }
 
 // ---------------------------------------------------------------------------
@@ -485,6 +549,7 @@ function createWindow(appUrl) {
   // the window would otherwise open dark and visibly flip on first paint.
   const dark = prefersDark();
   const initialBar = dark ? BAR_COLORS.dark : BAR_COLORS.light;
+  const icon = windowIcon();
 
   win = new BrowserWindow({
     width: 1280,
@@ -495,7 +560,11 @@ function createWindow(appUrl) {
     // while the first paint is on its way.
     backgroundColor: dark ? PAPER.dark : PAPER.light,
     title: 'Girovo',
+    ...(icon ? { icon } : {}),
     autoHideMenuBar: true,
+    // Shown once it has drawn (reveal, below); the start window says what
+    // happens until then.
+    show: false,
     // No native title bar: Dashboard.tsx's navy bar is dragged into service as
     // the title bar instead, via the Window Controls Overlay API. Not
     // supported on macOS, which keeps its usual traffic-light hidden bar.
@@ -515,10 +584,49 @@ function createWindow(appUrl) {
   // Permissions (deny all but clipboard writes) and the download dialog.
   configureSession(win.webContents.session);
 
+  // In view with its first frame, the start window gone with it — once that
+  // has been in view for its two seconds (splash.held). A page that fails to
+  // load is shown all the same (it says why), and so is one that takes longer
+  // than REVEAL_AFTER_MS — never only the start window.
+  const shown = win;
+  let revealed = false;
+  const reveal = () => {
+    if (revealed || shown.isDestroyed()) return;
+    revealed = true;
+    // How long the start really took, not counting the start window's hold.
+    telemetry.metric('app.start_ms', process.uptime() * 1000, { updated: startedByUpdate });
+    void (splash ? splash.held() : Promise.resolve()).then(() => {
+      if (shown.isDestroyed()) return;
+      shown.show();
+      closeSplash();
+    });
+  };
+  shown.once('ready-to-show', reveal);
+  shown.webContents.once('did-fail-load', reveal);
+  setTimeout(reveal, REVEAL_AFTER_MS).unref?.();
+
   // The page's own errors arrive through telemetry:error (preload.cjs); a
   // renderer that dies cannot send them, so its end is reported from here.
   win.webContents.on('render-process-gone', (_event, details) => {
     telemetry.error({ name: 'RenderProcessGone', message: String(details?.reason || 'gone') }, { source: 'renderer', fatal: true });
+  });
+
+  // Strg++ / Strg+- / Strg+0 by the character typed, on any keyboard layout
+  // (electron/zoom.cjs). Handled here rather than by the View menu, whose
+  // "Ctrl+Plus" a German keyboard never sends; the menu keeps the items.
+  // (event.sender is not set for this event: the page's contents are taken
+  // from here.)
+  const contents = win.webContents;
+  // Every start opens at 100 %. Chromium keeps a zoom level per host on disk,
+  // and the app always runs on 127.0.0.1 (only the port changes), so a
+  // Strg+- from one start would greet the next. Reset once the first page has
+  // committed — which also clears the stored level.
+  contents.once('did-navigate', () => contents.setZoomLevel(0));
+  contents.on('before-input-event', (event, input) => {
+    const command = zoomCommand(input);
+    if (!command) return;
+    event.preventDefault();
+    contents.setZoomLevel(nextZoomLevel(contents.getZoomLevel(), command));
   });
 
   // Bank and Brandfetch links belong in the real browser; the window itself
@@ -593,6 +701,7 @@ const UPDATE_WINDOW = 'Girovo-Update.exe';
  * box, which stays the fallback for when that window cannot be started.
  */
 async function showFatal(title, message) {
+  closeSplash();
   if (await showErrorWindow(title, message)) return;
   dialog.showErrorBox(title, message);
 }
@@ -712,10 +821,15 @@ function setupUpdater() {
   ses.setUserAgent(`Girovo/${app.getVersion()}`);
 
   // Beside electron-builder's own name for it (app-update.yml); out of the
-  // roaming profile, which is no place for 100 MB installers.
+  // roaming profile, which is no place for 100 MB installers. On Linux the
+  // user's own cache folder, never the /tmp every user of the machine can
+  // write to: the marker read from there is shown as the app's own words.
+  const cacheHome = process.env.XDG_CACHE_HOME;
   const cacheDir = testFeed
     ? path.join(app.getPath('temp'), 'sooskasse-fints-updater-dev')
-    : path.join(process.env.LOCALAPPDATA || app.getPath('temp'), 'sooskasse-fints-updater');
+    : process.platform === 'win32'
+      ? path.join(process.env.LOCALAPPDATA || app.getPath('temp'), 'sooskasse-fints-updater')
+      : path.join(cacheHome && path.isAbsolute(cacheHome) ? cacheHome : path.join(os.homedir(), '.cache'), 'girovo-updater');
 
   updater = createUpdater({
     currentVersion: app.getVersion(),
@@ -769,9 +883,10 @@ function setupUpdater() {
   updater.start();
 }
 
-// A minimal menu: hidden behind Alt, but it is what registers the zoom,
-// reload and devtools accelerators on Windows. Labelled in the shell's
-// language at the start.
+// A minimal menu: hidden behind Alt, but it is what registers the reload
+// and devtools accelerators on Windows (the zoom keys are read by the window
+// itself, see before-input-event). Labelled in the shell's language at the
+// start.
 function buildMenu() {
   const label = shellTexts().menu;
   Menu.setApplicationMenu(
@@ -826,7 +941,9 @@ function waitForLock(then) {
 // state; focus the existing window instead.
 if (app.requestSingleInstanceLock()) {
   run();
-} else if (process.argv.includes('--updated')) {
+} else if (startedByUpdate) {
+  // Says so while the old instance is still closing.
+  void app.whenReady().then(openSplash);
   waitForLock(run);
 } else {
   app.quit();
@@ -834,9 +951,11 @@ if (app.requestSingleInstanceLock()) {
 
 function run() {
   app.on('second-instance', () => {
-    if (win) {
+    if (win && win.isVisible()) {
       if (win.isMinimized()) win.restore();
       win.focus();
+    } else {
+      splash?.focus();
     }
   });
 
@@ -845,11 +964,13 @@ function run() {
 
   app.whenReady().then(async () => {
     buildMenu();
+    openSplash().step('preparing');
     await telemetryReady;
     try {
       // ELECTRON_START_URL points the shell at an already-running `npm run dev`
       // (see the electron:dev script) instead of the built server.
       const appUrl = process.env.ELECTRON_START_URL || (await startServer());
+      splash?.step('opening');
       createWindow(appUrl);
       // An updater that fails to come up must not take the app with it.
       try {

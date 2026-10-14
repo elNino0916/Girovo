@@ -13,6 +13,14 @@
 // name, no purpose. Old entries go whenever the vault is read or written, and
 // with the vault itself when it is wiped ("Gerät vergessen").
 //
+// A terminierte Überweisung or a Dauerauftrag is logged too, marked with its
+// kind and its first date (`due`): placing one moves no money today, but
+// typing the same payment in again within the two weeks is the same mistake —
+// and the duplicate check words it as what it was ("… einen Dauerauftrag …
+// eingerichtet"). For a new Dauerauftrag only earlier Daueraufträge count
+// (lib/transfer-checks.ts): a recurring payment that matches one already made
+// is the point of it, not a repeat.
+//
 // Pure and dependency-free apart from sibling lib modules, for the client, the
 // vault and `node --test`.
 
@@ -27,6 +35,10 @@ export type SentOrder = {
   iban: string;
   cents: number;
   outcome: 'executed' | 'unknown';
+  /** Absent: a transfer carried out at once. Otherwise an order the bank keeps for later. */
+  kind?: 'dated' | 'standing';
+  /** Its execution date, or a Dauerauftrag's first (yyyy-mm-dd). Only with `kind`. */
+  due?: string;
 };
 
 /** How far back the duplicate check looks — and so how long an order is kept. */
@@ -55,7 +67,13 @@ function entry(v: unknown): SentOrder | null {
   const cents = v.cents;
   if (typeof cents !== 'number' || !Number.isInteger(cents) || cents <= 0 || cents > MAX_CENTS) return null;
   if (typeof v.outcome !== 'string' || !OUTCOMES.has(v.outcome)) return null;
-  return { at: new Date(t).toISOString(), accountNumber, iban, cents, outcome: v.outcome as SentOrder['outcome'] };
+  const order: SentOrder = { at: new Date(t).toISOString(), accountNumber, iban, cents, outcome: v.outcome as SentOrder['outcome'] };
+  if (v.kind == null) return order;
+  // An order for later only with a kind and a date that are what they say:
+  // read as a transfer instead, it would word a warning about money that
+  // never left.
+  if ((v.kind !== 'dated' && v.kind !== 'standing') || typeof v.due !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v.due)) return null;
+  return { ...order, kind: v.kind, due: v.due };
 }
 
 /**

@@ -15,7 +15,8 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { store } from '../client-api';
 import { MESSAGES, type Messages } from './messages/index.ts';
-import { LOCALE_COOKIE, LOCALE_PREF, activeLocale, isLocale, setActiveLocale, type Locale } from './locale.ts';
+import { IS_ANDROID } from '../platform.ts';
+import { LOCALE_COOKIE, LOCALE_PREF, activeLocale, isLocale, pickLocale, setActiveLocale, type Locale } from './locale.ts';
 
 type LocaleState = { locale: Locale; setLocale: (next: Locale) => void };
 
@@ -47,9 +48,19 @@ export function LocaleProvider({ initial, children }: { initial: Locale; childre
   // was missing (cleared, or a browser that never had it), the server rendered
   // the system's language — the stored choice takes over now and the copy is
   // written again.
+  //
+  // The Android page has no server to have rendered the system's language: it
+  // was built ahead of time in German, so without a stored choice the phone's
+  // language is picked here.
   useEffect(() => {
     const stored = store.get(LOCALE_PREF);
-    if (!isLocale(stored)) return;
+    if (!isLocale(stored)) {
+      if (IS_ANDROID) {
+        const system = pickLocale(navigator.language);
+        if (system !== initial) setLocaleState(system);
+      }
+      return;
+    }
     writeCookie(stored);
     if (stored !== initial) setLocaleState(stored);
   }, [initial]);
