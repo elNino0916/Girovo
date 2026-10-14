@@ -12,3 +12,6 @@ Girovo for Android: your banking on your phone, from the phone straight to your 
 - **Updates** – the APK on this page updates itself, each download checked against GitHub's SHA-256.
 
 Android 8.0 or newer. Material You colours from Android 12.
+
+## Windows and Linux
+- Nothing changes on the desktop in this version.
