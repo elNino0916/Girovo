@@ -52,8 +52,12 @@ const nextConfig: NextConfig = {
   //
   // The category model (lib/category-model.ts) ships beside the server as a
   // resource of its own (electron-builder.yml) — traced in, it would ship twice.
+  //
+  // The Android project (android/, its exports .next-android*) is no part of
+  // the desktop server either: the tracer's guess at the state store's JSON
+  // would otherwise sweep Gradle's build intermediates into the installer.
   outputFileTracingExcludes: {
-    '*': ['./.fints-state/**', './models/**'],
+    '*': ['./.fints-state/**', './models/**', './android/**', './.next-android/**', './.next-android-dev/**'],
   },
   // Printed documents name the generator and its version, so the client needs
   // the one number that is otherwise only in package.json.
