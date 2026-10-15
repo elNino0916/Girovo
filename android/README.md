@@ -216,4 +216,18 @@ Before the first upload:
   neither is a setting. The colours that mean something — credit, negative,
   vorgemerkt — never follow the wallpaper.
 - **Back** closes the topmost sheet or dialog, then returns to the Übersicht,
-  then sends the app to the background. It never logs out.
+  then sends the app to the background. It never logs out. From Android 14
+  the sheet follows the gesture (predictive back).
+- **Shortcuts and sharing:** long-press the icon for Überweisen, GiroCode
+  scannen, Geld anfordern (LaunchPlugin); share an invoice (image or PDF) with
+  Girovo and its GiroCode opens a transfer — a PDF's first pages are drawn on
+  the phone (PdfRenderer) and read like an image.
+- **GiroCode scannen** is Google's code scanner from Play services
+  (ScannerPlugin): no camera permission, only the code's text comes back.
+  Without Play services the page offers an image or a PDF instead.
+- **Telemetry** follows the desktop's rules (mobile/bridges/telemetry.ts runs
+  electron/telemetry.cjs): error reports always, usage only after the user's
+  yes. A debug build sends nothing unless `localStorage['fints.telemetry.debug']`
+  is `'1'`, and then as "development".
+- **Store listing:** texts, Data safety draft, feature graphic and phone
+  screenshots are in `android/store/`.

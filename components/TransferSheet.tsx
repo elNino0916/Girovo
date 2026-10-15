@@ -27,6 +27,8 @@ import type { EpcPayment } from '@/lib/girocode';
 import { fmtAmountInput, fmtDate, fmtIban, fmtShortIban, isoDate, parseAmount } from '@/lib/format';
 import { msgs, type Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
+import { haptic } from './android/haptics';
+import { IS_ANDROID } from '@/lib/platform';
 import { sepaLength, sepaSanitize } from '@/lib/sepa-text';
 import { scheduleSentence } from '@/lib/order-schedule';
 import {
@@ -233,6 +235,7 @@ export function TransferSheet() {
       purpose: clip(p.purpose, MAX_PURPOSE),
       instant: !!p.instant,
       source: p.source ? ({ kind: p.source } as Source) : null,
+      girocode: p.girocode ?? null,
     };
   });
 
@@ -554,6 +557,15 @@ export function TransferSheet() {
   const reader = useGiroCodeReader(fromGiroCode);
   const drop = useFileDrop(step === 'form', (f) => void reader.readFile(f));
 
+  // Opened for a GiroCode (Android: a shared invoice, or the "GiroCode
+  // scannen" shortcut): read it straight away, once.
+  useEffect(() => {
+    if (initial.girocode?.file) void reader.readFile(initial.girocode.file);
+    else if (initial.girocode?.scan) void reader.scanCamera();
+    // The prefill is read once, like the rest of it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const applyTemplate = (t: TransferTemplate) => {
     fillPayee(
       { name: t.name, iban: t.iban, amount: t.amount, purpose: t.purpose, instant: !!t.instant },
@@ -619,6 +631,7 @@ export function TransferSheet() {
       setSubmitting(false);
       setBankAnswers(answers);
       setStep('done');
+      haptic('confirm');
     },
     onUnknown: (answers?: string) => {
       setSubmitting(false);
@@ -631,8 +644,9 @@ export function TransferSheet() {
       setBankAnswers(answers);
       setVop(null);
       setStep('refused');
+      haptic('reject');
     },
-    onError: (message: string) => { setSubmitting(false); setError(message); },
+    onError: (message: string) => { setSubmitting(false); setError(message); haptic('reject'); },
     onVop: (result: SerializedVop) => { setSubmitting(false); setVop(result); setStep('vop'); },
   };
 
@@ -780,7 +794,8 @@ export function TransferSheet() {
         title={stepTitle(tr, step, titleKindRef.current)}
         onClose={requestClose}
         closeDisabled={submitting}
-        headerExtra={<Stepper current={STEP_INDEX[step]} unsure={step === 'unknown'} refused={step === 'refused'} />}
+        // On Android the title names the step; the stepper would say it twice.
+        headerExtra={IS_ANDROID ? undefined : <Stepper current={STEP_INDEX[step]} unsure={step === 'unknown'} refused={step === 'refused'} />}
         compactExtra
         scrollKey={step}
         onPaste={onPaste}
@@ -982,7 +997,13 @@ export function TransferSheet() {
                 </div>
               )}
 
-              <GiroCodeDrop className="mb-5" scan={reader.scan} dragging={drop.dragging} onFile={(f) => void reader.readFile(f)} />
+              <GiroCodeDrop
+                className="mb-5"
+                scan={reader.scan}
+                dragging={drop.dragging}
+                onFile={(f) => void reader.readFile(f)}
+                onScan={() => void reader.scanCamera()}
+              />
 
               <Field
                 label={words.form.name}
@@ -1211,17 +1232,20 @@ export function TransferSheet() {
               )}
             </p>
             {answerLines.length > 0 && <BankAnswer lines={answerLines} className="mt-5" />}
-            <p className="mt-5 max-w-[46ch] text-[13.5px] leading-relaxed text-ink-3">
-              {kind ? (
-                // Nothing is booked yet: where the order is kept is the bank's list.
-                `${later.done[kind]} ${later.done.where(tr.common.nav.contracts)}`
-              ) : (
-                <>
-                  {words.done.appears}{' '}
-                  {pastRange ? words.done.pastRange(fmtDate(range.to), act.refresh) : words.done.refreshHint(act.refresh)}
-                </>
-              )}
-            </p>
+            {/* On Android a booked transfer needs no note: the list is a pull away. */}
+            {(kind || !IS_ANDROID) && (
+              <p className="mt-5 max-w-[46ch] text-[13.5px] leading-relaxed text-ink-3">
+                {kind ? (
+                  // Nothing is booked yet: where the order is kept is the bank's list.
+                  `${later.done[kind]} ${later.done.where(tr.common.nav.contracts)}`
+                ) : (
+                  <>
+                    {words.done.appears}{' '}
+                    {pastRange ? words.done.pastRange(fmtDate(range.to), act.refresh) : words.done.refreshHint(act.refresh)}
+                  </>
+                )}
+              </p>
+            )}
             {templatePayee && (
               <div className="mt-6 w-full border-t border-line pt-5 text-left">
                 <SaveAsTemplate payee={templatePayee} />

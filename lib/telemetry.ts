@@ -3,7 +3,8 @@
 // and hands to its hub (electron/telemetry.cjs) — the hub scrubs errors,
 // drops usage without the user's yes, and keeps only the fields it declares.
 // Outside the desktop shell (`npm run dev`, a website build) the pipe is not
-// set, and every call here is a no-op.
+// set, and every call here is a no-op. In the Android app the routes run in
+// the page, and a sink takes the reports to its hub instead.
 //
 // Context: wrap() (lib/api.ts) runs every route inside withTelemetryContext;
 // code deeper down notes what is known — the bank's BLZ — and an error that
@@ -22,7 +23,17 @@ type Props = Record<string, string | number | boolean | undefined | null>;
 const g = globalThis as typeof globalThis & { __girovoTelemetryScope?: AsyncLocalStorage<Props> };
 const scope: AsyncLocalStorage<Props> = (g.__girovoTelemetryScope ??= new AsyncLocalStorage<Props>());
 
+/** The Android app's hub (mobile/bridges/telemetry.ts): its route handlers run in the page. */
+type Sink = (message: Record<string, unknown>) => void;
+
 function send(message: Record<string, unknown>): void {
+  const sink = (globalThis as typeof globalThis & { __girovoTelemetrySink?: Sink }).__girovoTelemetrySink;
+  if (sink) {
+    try {
+      sink(message);
+    } catch { /* a report must never break a request */ }
+    return;
+  }
   if (!PIPE) return;
   try {
     process.stdout.write(`${MARK}${JSON.stringify(message)}\n`);

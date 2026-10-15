@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-pressing Girovo's icon (LaunchPlugin acts on them once someone is
+     logged in): a transfer, a transfer from a GiroCode the camera reads, and
+     the GiroCode with the user's own account details. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="transfer"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_transfer"
+        android:shortcutShortLabel="@string/shortcut_transfer"
+        android:shortcutLongLabel="@string/shortcut_transfer">
+        <intent
+            android:action="de.elnino0916.android.girovo.TRANSFER"
+            android:targetPackage="de.elnino0916.android.girovo"
+            android:targetClass="de.elnino0916.android.girovo.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="scan"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_scan"
+        android:shortcutShortLabel="@string/shortcut_scan"
+        android:shortcutLongLabel="@string/shortcut_scan_long">
+        <intent
+            android:action="de.elnino0916.android.girovo.SCAN"
+            android:targetPackage="de.elnino0916.android.girovo"
+            android:targetClass="de.elnino0916.android.girovo.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="request"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_request"
+        android:shortcutShortLabel="@string/shortcut_request"
+        android:shortcutLongLabel="@string/shortcut_request">
+        <intent
+            android:action="de.elnino0916.android.girovo.REQUEST"
+            android:targetPackage="de.elnino0916.android.girovo"
+            android:targetClass="de.elnino0916.android.girovo.MainActivity" />
+    </shortcut>
+</shortcuts>

@@ -15,6 +15,7 @@
 import logic from '../../electron/update-logic.cjs';
 import { msgs } from '../../lib/i18n/index.ts';
 import { GirovoDevice, GirovoUpdater, type UpdaterState } from '../native';
+import { reportError, track } from './telemetry';
 
 const AUTO_PREF = 'fints.autoUpdate';
 const LAST_VERSION_PREF = 'fints.lastVersion';
@@ -43,9 +44,25 @@ let latest: Release | null = null;
 const listeners = new Set<(s: ElectronUpdateState) => void>();
 
 function set(patch: Partial<ElectronUpdateState>): ElectronUpdateState {
+  const before = state;
   state = { ...state, ...patch };
+  report(before, state);
   for (const fn of listeners) fn(state);
   return state;
+}
+
+/** The updater's moves as telemetry, as the desktop reports them (electron/main.cjs). */
+function report(before: ElectronUpdateState | undefined, now: ElectronUpdateState): void {
+  if (!before) return;
+  if (now.release && now.phase === 'available' && before.release?.version !== now.release.version) {
+    track('update_available', { version: now.release.version });
+  }
+  if (now.release && now.phase === 'ready' && before.phase === 'downloading') {
+    track('update_downloaded', { version: now.release.version });
+  }
+  if (now.error && now.error !== before.error && now.error.during !== 'check') {
+    reportError({ name: 'UpdateError', message: now.error.message }, { source: 'updater', during: now.error.during });
+  }
 }
 
 async function check(): Promise<ElectronUpdateState> {
@@ -91,7 +108,13 @@ async function download(): Promise<ElectronUpdateState> {
   const apk = latest && logic.pickAsset(latest, 'android');
   if (!apk?.sha256) return state;
   set({ phase: 'downloading', received: 0, total: apk.size, error: null });
-  fromNative(await GirovoUpdater.download({ url: apk.url, sha256: apk.sha256, size: apk.size }));
+  try {
+    fromNative(await GirovoUpdater.download({ url: apk.url, sha256: apk.sha256, size: apk.size }));
+  } catch (err) {
+    // Refused before it began: back to the offer, with the reason — never a
+    // download that stays at 0 MB.
+    set({ phase: 'available', received: 0, error: { during: 'download', message: err instanceof Error ? err.message : String(err) } });
+  }
   return state;
 }
 
@@ -156,6 +179,8 @@ export async function installUpdates(): Promise<void> {
     failedInstall,
     installed,
   };
+
+  if (installed) track('update_installed', { from: installed.from, to: installed.version });
 
   void GirovoUpdater.addListener('state', fromNative);
   // Android's installer opened and was dismissed: the APK is still there to install.

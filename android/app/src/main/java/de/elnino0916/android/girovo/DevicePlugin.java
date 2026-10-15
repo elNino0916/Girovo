@@ -15,8 +15,14 @@ import android.print.PrintDocumentAdapter;
 import android.print.PrintJob;
 import android.print.PrintManager;
 import android.util.Base64;
+import android.view.HapticFeedbackConstants;
+import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebView;
+
+import androidx.activity.BackEventCompat;
+import androidx.activity.OnBackPressedCallback;
+import androidx.annotation.NonNull;
 
 import androidx.activity.result.ActivityResult;
 import androidx.core.content.FileProvider;
@@ -38,7 +44,8 @@ import java.util.Locale;
  * (mobile/bridges/*): the wallpaper's colours for Material You, printing a
  * document — "Save as PDF" is one of Android's printers — saving a file where
  * the user picks, handing one to another app, and keeping the screen out of
- * screenshots and the recent-apps preview.
+ * screenshots and the recent-apps preview. And what only a phone has: a touch
+ * of haptic feedback, and the back gesture's progress for an open sheet.
  */
 @CapacitorPlugin(name = "GirovoDevice")
 public class DevicePlugin extends Plugin {
@@ -306,8 +313,92 @@ public class DevicePlugin extends Plugin {
             result.put("versionCode", 0);
         }
         result.put("flavor", BuildConfig.DISTRIBUTION);
+        // A debug build (from Android Studio or build-android.mjs without
+        // --release): it sends no telemetry (mobile/bridges/telemetry.ts).
+        result.put("debug", BuildConfig.DEBUG);
         result.put("sdk", Build.VERSION.SDK_INT);
         result.put("locale", Locale.getDefault().toLanguageTag());
         call.resolve(result);
+    }
+    // ---------------------------------------------------------------------
+    // Haptics
+
+    /**
+     * The system's own short touches, so they follow the phone's setting for
+     * touch feedback: "confirm" (sent, approved), "reject" (refused, failed),
+     * "threshold" (pulled far enough to refresh).
+     */
+    @PluginMethod
+    public void haptic(PluginCall call) {
+        String kind = call.getString("kind", "threshold");
+        getActivity().runOnUiThread(() -> {
+            View view = getActivity().getWindow().getDecorView();
+            int effect;
+            if ("confirm".equals(kind)) {
+                effect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.LONG_PRESS;
+            } else if ("reject".equals(kind)) {
+                effect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ? HapticFeedbackConstants.REJECT : HapticFeedbackConstants.LONG_PRESS;
+            } else {
+                effect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                    ? HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE
+                    : HapticFeedbackConstants.CLOCK_TICK;
+            }
+            view.performHapticFeedback(effect);
+            call.resolve();
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // Predictive back
+
+    /** Enabled while the page has a layer open (mobile/bridges/back.ts). */
+    private OnBackPressedCallback layerBack;
+
+    /**
+     * While a sheet, dialog or menu is open the back gesture is the page's,
+     * with its progress (Android 14 and later): the sheet follows the finger,
+     * and closes when the gesture completes ("backInvoked"). With nothing
+     * open, Capacitor's own back handling takes the gesture as before.
+     */
+    @PluginMethod
+    public void setBackLayer(PluginCall call) {
+        boolean open = Boolean.TRUE.equals(call.getBoolean("open", false));
+        getActivity().runOnUiThread(() -> {
+            if (layerBack == null) {
+                layerBack = new OnBackPressedCallback(false) {
+                    @Override
+                    public void handleOnBackStarted(@NonNull BackEventCompat event) {
+                        notifyListeners("backProgress", backEvent(event));
+                    }
+
+                    @Override
+                    public void handleOnBackProgressed(@NonNull BackEventCompat event) {
+                        notifyListeners("backProgress", backEvent(event));
+                    }
+
+                    @Override
+                    public void handleOnBackCancelled() {
+                        notifyListeners("backCancelled", new JSObject());
+                    }
+
+                    @Override
+                    public void handleOnBackPressed() {
+                        notifyListeners("backInvoked", new JSObject());
+                    }
+                };
+                // Added after Capacitor's (at the first open layer), so it is
+                // asked first while enabled.
+                getActivity().getOnBackPressedDispatcher().addCallback(getActivity(), layerBack);
+            }
+            layerBack.setEnabled(open);
+            call.resolve();
+        });
+    }
+
+    private static JSObject backEvent(BackEventCompat event) {
+        JSObject result = new JSObject();
+        result.put("progress", event.getProgress());
+        result.put("edge", event.getSwipeEdge() == BackEventCompat.EDGE_LEFT ? "left" : "right");
+        return result;
     }
 }

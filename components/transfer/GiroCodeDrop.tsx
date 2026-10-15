@@ -5,6 +5,10 @@
 // desktop shell does not grant, and never through a web service: the pixels
 // are decoded right here (lib/qr-read.ts, jsQR).
 //
+// The Android app has the camera: "GiroCode scannen" is Google's code scanner
+// (android/…/ScannerPlugin.java), which hands back the code's text and no
+// picture. It also reads a PDF — the phone draws its first pages as images.
+//
 // What a code may fill in is decided by parseEpcPayload: only a SEPA credit
 // transfer, only in euros, only to an IBAN whose checksum holds. Anything it
 // fills goes through the same review step as typed values.
@@ -13,15 +17,17 @@ import { useCallback, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { parseEpcPayload, type EpcPayment } from '@/lib/girocode';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { readQrFromBlob } from '@/lib/qr-read';
-import { AlertTriangleIcon, QrIcon } from '../icons';
-import { Spinner, cx } from '../ui';
+import { AlertTriangleIcon, QrIcon, ScanIcon } from '../icons';
+import { Button, Spinner, cx } from '../ui';
 
 /**
- * Why a scan came to nothing: not an image, no code found on it, or a code
- * that is not a SEPA transfer in euros. Worded where it is shown.
+ * Why a scan came to nothing: not an image (on Android: nor a PDF), no code
+ * found on it, a code that is not a SEPA transfer in euros, or no scanner on
+ * the phone. Worded where it is shown.
  */
-export type ScanProblem = 'notAnImage' | 'noCode' | 'notEpc';
+export type ScanProblem = 'notAnImage' | 'notAnImageOrPdf' | 'noCode' | 'notEpc' | 'noScanner' | 'scanFailed';
 
 export type ScanState =
   | { status: 'idle' }
@@ -55,12 +61,22 @@ export function useGiroCodeReader(onPayment: (p: EpcPayment) => void) {
 
   const readFile = useCallback(async (file: File | null | undefined) => {
     const mine = ++gen.current;
-    if (!file || !file.type.startsWith('image/')) {
-      setScan({ status: 'error', problem: 'notAnImage' });
+    const pdfPages = IS_ANDROID && file?.type === 'application/pdf' ? window.girovoMobile?.pdfPages : undefined;
+    if (!file || (!file.type.startsWith('image/') && !pdfPages)) {
+      setScan({ status: 'error', problem: IS_ANDROID ? 'notAnImageOrPdf' : 'notAnImage' });
       return;
     }
     setScan({ status: 'reading' });
-    const text = await readQrFromBlob(file);
+    let text: string | null = null;
+    try {
+      // A PDF's first pages, one after the other, until one has the code.
+      for (const image of pdfPages ? await pdfPages(file) : [file]) {
+        text = await readQrFromBlob(image);
+        if (text || mine !== gen.current) break;
+      }
+    } catch {
+      text = null;
+    }
     if (mine !== gen.current) return;
     if (!text) { setScan({ status: 'error', problem: 'noCode' }); return; }
     const payment = parseEpcPayload(text);
@@ -80,9 +96,24 @@ export function useGiroCodeReader(onPayment: (p: EpcPayment) => void) {
     return true;
   }, []);
 
+  /** Android: Google's code scanner, its text read as a GiroCode. */
+  const scanCamera = useCallback(async () => {
+    const scanner = window.girovoMobile?.scanner;
+    if (!scanner) return;
+    const mine = ++gen.current;
+    setScan({ status: 'idle' });
+    const result = await scanner.scan();
+    if (mine !== gen.current || 'canceled' in result) return;
+    if ('unavailable' in result) { setScan({ status: 'error', problem: 'noScanner' }); return; }
+    if ('failed' in result) { setScan({ status: 'error', problem: 'scanFailed' }); return; }
+    const payment = parseEpcPayload(result.value);
+    if (!payment) { setScan({ status: 'error', problem: 'notEpc' }); return; }
+    deliver.current(payment);
+  }, []);
+
   const reset = useCallback(() => { gen.current++; setScan({ status: 'idle' }); }, []);
 
-  return { scan, readFile, readText, reset };
+  return { scan, readFile, readText, scanCamera, reset };
 }
 
 /**
@@ -129,17 +160,60 @@ export function useFileDrop(enabled: boolean, onFile: (f: File | null) => void) 
  * The drag and paste hints only appear where a mouse and keyboard are likely.
  */
 export function GiroCodeDrop({
-  scan, dragging, onFile, className,
+  scan, dragging, onFile, onScan, className,
 }: {
   scan: ScanState;
   dragging: boolean;
   onFile: (f: File | null) => void;
+  /** Android: the camera. */
+  onScan?: () => void;
   className?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const words = useT().transfer.giro;
   const reading = scan.status === 'reading';
   const errorId = 'girocode-error';
+
+  // The phone: the camera first, an image or a PDF of the invoice beside it.
+  if (IS_ANDROID && onScan) {
+    return (
+      <div className={className}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            iconLeft={reading ? <Spinner size={16} /> : <ScanIcon size={18} />}
+            disabled={reading}
+            aria-describedby={scan.status === 'error' ? errorId : undefined}
+            onClick={onScan}
+          >
+            {reading ? words.reading : words.scan}
+          </Button>
+          <Button variant="tertiary" disabled={reading} onClick={() => input.current?.click()}>
+            {words.fromFile}
+          </Button>
+        </div>
+        <input
+          ref={input}
+          type="file"
+          accept="image/*,application/pdf"
+          hidden
+          tabIndex={-1}
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            e.target.value = '';
+            if (f) onFile(f);
+          }}
+        />
+        <span className="sr-only" role="status">{reading ? words.readingStatus : ''}</span>
+        {scan.status === 'error' && (
+          <p id={errorId} role="alert" className="mt-2 flex items-start gap-1.5 text-[14px] leading-snug font-semibold text-red">
+            <AlertTriangleIcon size={16} className="mt-0.5 shrink-0" />
+            <span>{words.errors[scan.problem]}</span>
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={className}>

@@ -116,12 +116,25 @@ function BarItem({
 // while the page scrolls down and opens out again on the way up or at the
 // top. Colours come from the --nav-* and --fab-* tokens (app/android.css):
 // Material You's roles, or Girovo's palette.
+//
+// From 640px — a tablet, an open foldable, a phone on its side — Material's
+// navigation rail takes over down the left edge (80dp), with Überweisen as
+// the FAB at its top; the shell makes room for it ([data-shell]).
 
 function NavigationBar({ actions }: { actions: ShellActions }) {
   const { tab, setTab, setPaletteOpen } = useFints();
   const tr = useT();
   const go = (t: DashboardTab) => () => setTab(t);
   const extended = useFabExtended();
+  // The same four places in the bar and in the rail.
+  const items = (
+    <>
+      <NavItem icon={<HomeIcon size={22} />} label={tr.common.nav.overview} current={tab === 'overview'} onClick={go('overview')} />
+      <NavItem icon={<ChartIcon size={22} />} label={tr.common.nav.analysis} current={tab === 'analysis'} onClick={go('analysis')} />
+      <NavItem icon={<RepeatIcon size={22} />} label={tr.shell.bottomBar.contracts} current={tab === 'contracts'} onClick={go('contracts')} />
+      <NavItem icon={<MoreIcon size={22} />} label={tr.common.more} onClick={() => setPaletteOpen(true)} haspopup />
+    </>
+  );
 
   return (
     <>
@@ -130,12 +143,25 @@ function NavigationBar({ actions }: { actions: ShellActions }) {
         data-bottombar
         className="relative z-30 shrink-0 bg-[var(--nav-bg)] pb-[env(safe-area-inset-bottom)] sm:hidden"
       >
-        <ul className="grid h-16 grid-cols-4">
-          <NavItem icon={<HomeIcon size={22} />} label={tr.common.nav.overview} current={tab === 'overview'} onClick={go('overview')} />
-          <NavItem icon={<ChartIcon size={22} />} label={tr.common.nav.analysis} current={tab === 'analysis'} onClick={go('analysis')} />
-          <NavItem icon={<RepeatIcon size={22} />} label={tr.shell.bottomBar.contracts} current={tab === 'contracts'} onClick={go('contracts')} />
-          <NavItem icon={<MoreIcon size={22} />} label={tr.common.more} onClick={() => setPaletteOpen(true)} haspopup />
-        </ul>
+        <ul className="grid h-16 grid-cols-4">{items}</ul>
+      </nav>
+      <nav
+        aria-label={tr.shell.bottomBar.label}
+        data-rail
+        className="fixed inset-y-0 left-0 z-40 hidden w-20 flex-col items-center bg-[var(--nav-bg)] pt-[calc(env(safe-area-inset-top)+16px)] sm:flex"
+      >
+        {actions.canTransfer && (
+          <button
+            type="button"
+            onClick={actions.transfer}
+            aria-label={tr.shell.transfer}
+            title={tr.shell.transfer}
+            className="mb-8 grid size-14 shrink-0 place-items-center rounded-2xl bg-[var(--fab-bg)] text-[var(--fab-ink)] shadow-[0_1px_3px_rgb(0_0_0/0.3),0_4px_8px_3px_rgb(0_0_0/0.15)]"
+          >
+            <TransferIcon size={24} strokeWidth={2} />
+          </button>
+        )}
+        <ul className="flex w-full flex-col gap-3">{items}</ul>
       </nav>
       {actions.canTransfer && (
         <button

@@ -13,6 +13,7 @@ import type { SerializedAccount } from '@/lib/fints-types';
 import { expectedCreditDate, fmtDate, fmtIban } from '@/lib/format';
 import { intlLocale } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { scheduleSentence } from '@/lib/order-schedule';
 import { sepaSanitize } from '@/lib/sepa-text';
 import type { FundsWarning, spendable } from '@/lib/transfer-checks';
@@ -207,9 +208,12 @@ export function ReviewStep({
 
       {schedule && <p className="mt-2 text-[13px] leading-snug text-ink-3">{t.orders.sheet.noFunds}</p>}
 
-      <p className="mt-5 text-[13.5px] leading-relaxed text-ink-3">
-        {schedule ? t.orders.sheet.next(primaryLabel) : words.next(primaryLabel)}
-      </p>
+      {/* On Android the steps that follow announce themselves. */}
+      {!IS_ANDROID && (
+        <p className="mt-5 text-[13.5px] leading-relaxed text-ink-3">
+          {schedule ? t.orders.sheet.next(primaryLabel) : words.next(primaryLabel)}
+        </p>
+      )}
       {busyElsewhere && <BusyNote />}
     </div>
   );

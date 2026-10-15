@@ -87,7 +87,7 @@ export interface GirovoDevicePlugin {
   shareFile(opts: { name: string; mime: string; data: string; title?: string }): Promise<void>;
   /** FLAG_SECURE: no screenshots, no screen recording. */
   setSecure(opts: { secure: boolean }): Promise<void>;
-  info(): Promise<{ versionName: string; versionCode: number; flavor: 'play' | 'github'; sdk: number; locale: string }>;
+  info(): Promise<{ versionName: string; versionCode: number; flavor: 'play' | 'github'; debug: boolean; sdk: number; locale: string }>;
   /** Opens an https page in the phone's browser. */
   openExternal(opts: { url: string }): Promise<void>;
   /**
@@ -97,9 +97,45 @@ export interface GirovoDevicePlugin {
    */
   holdForApproval(opts: { title: string; text: string }): Promise<{ held: boolean }>;
   releaseApproval(): Promise<void>;
+  /** The system's own short touch: sent or approved, refused or failed, a gesture's threshold. */
+  haptic(opts: { kind: HapticKind }): Promise<void>;
+  /** While a layer is open the back gesture is the page's, with its progress (mobile/bridges/back.ts). */
+  setBackLayer(opts: { open: boolean }): Promise<void>;
+  addListener(event: 'backProgress', fn: (e: { progress: number; edge: 'left' | 'right' }) => void): Promise<PluginListenerHandle>;
+  addListener(event: 'backCancelled' | 'backInvoked', fn: () => void): Promise<PluginListenerHandle>;
 }
 
+export type HapticKind = 'confirm' | 'reject' | 'threshold';
+
 export const GirovoDevice = registerPlugin<GirovoDevicePlugin>('GirovoDevice');
+
+// ---------------------------------------------------------------------------
+// Launches: a shortcut on the icon, or an invoice another app shared.
+
+export type Launch =
+  | { kind: 'transfer' | 'scan' | 'request' }
+  | { kind: 'file'; uri: string; mime?: string };
+
+export interface GirovoLaunchPlugin {
+  /** A shared file's bytes (base64), its name and type. */
+  readShared(opts: { uri: string; mime?: string }): Promise<{ name: string; mime?: string; data: string }>;
+  /** A PDF's first pages, each drawn on white as a PNG (base64). */
+  renderPdf(opts: { data: string }): Promise<{ pages: string[] }>;
+  /** Kept by the app until the page listens: the launch that opened it comes then. */
+  addListener(event: 'launch', fn: (launch: Launch) => void): Promise<PluginListenerHandle>;
+}
+
+export const GirovoLaunch = registerPlugin<GirovoLaunchPlugin>('GirovoLaunch');
+
+// ---------------------------------------------------------------------------
+// "GiroCode scannen": Google's code scanner, from Play services.
+
+export interface GirovoScannerPlugin {
+  /** The QR code's text, or canceled; fails ("unavailable") without Play services. */
+  scan(): Promise<{ value?: string; canceled?: boolean }>;
+}
+
+export const GirovoScanner = registerPlugin<GirovoScannerPlugin>('GirovoScanner');
 
 // ---------------------------------------------------------------------------
 // Fingerprint unlock: the PIN sealed with a key that only a fingerprint opens.

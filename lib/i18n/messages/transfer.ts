@@ -122,8 +122,15 @@ export const de = {
     wait: 'Einen Moment bitte.',
     pick: 'Bild mit dem Code auswählen',
     pickOrDrop: 'Bild hierher ziehen, mit Strg+V einfügen oder auswählen',
+    /** Android: the camera, through Google's code scanner. */
+    scan: 'GiroCode scannen',
+    /** Android: the same from an image or a PDF of the invoice. */
+    fromFile: 'Aus Bild oder PDF',
     errors: {
       notAnImage: 'Bitte wähle ein Bild (PNG, JPG oder einen Screenshot) mit dem GiroCode.',
+      notAnImageOrPdf: 'Bitte wähle ein Bild oder ein PDF der Rechnung mit dem GiroCode.',
+      noScanner: 'Der Scanner ist auf diesem Telefon nicht verfügbar. Wähle stattdessen ein Bild oder PDF der Rechnung.',
+      scanFailed: 'Das Scannen hat nicht geklappt. Versuch es noch einmal oder wähle ein Bild oder PDF der Rechnung.',
       noCode: 'Kein GiroCode gefunden. Nutze ein scharfes Bild, auf dem der Code vollständig zu sehen ist.',
       notEpc: 'Kein gültiger GiroCode – unterstützt werden nur SEPA-Überweisungen in Euro.',
     },
@@ -511,8 +518,13 @@ export const en: typeof de = {
     wait: 'One moment, please.',
     pick: 'Choose an image with the code',
     pickOrDrop: 'Drag an image here, paste it with Ctrl+V or choose one',
+    scan: 'Scan GiroCode',
+    fromFile: 'From image or PDF',
     errors: {
       notAnImage: 'Please choose an image (PNG, JPG or a screenshot) with the GiroCode.',
+      notAnImageOrPdf: 'Please choose an image or a PDF of the invoice with the GiroCode.',
+      noScanner: 'The scanner isn’t available on this phone. Choose an image or PDF of the invoice instead.',
+      scanFailed: 'Scanning didn’t work. Try again, or choose an image or PDF of the invoice.',
       noCode: 'No GiroCode found. Use a sharp image that shows the whole code.',
       notEpc: 'Not a valid GiroCode – only SEPA transfers in euros are supported.',
     },

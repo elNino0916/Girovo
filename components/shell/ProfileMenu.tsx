@@ -142,7 +142,7 @@ export function ProfileMenu() {
               {vaultBroken && <Dot className="absolute -top-px -right-px ring-2 ring-bar" />}
             </span>
             {first && <span className="hidden max-w-[12ch] truncate @min-[900px]/mast:inline">{first}</span>}
-            <ChevronIcon size={14} className="max-sm:hidden" />
+            {!IS_ANDROID && <ChevronIcon size={14} className="max-sm:hidden" />}
           </button>
         )}
       >

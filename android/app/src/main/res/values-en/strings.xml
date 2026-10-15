@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="shortcut_transfer">Transfer</string>
+    <string name="shortcut_scan">Scan GiroCode</string>
+    <string name="shortcut_scan_long">Scan an invoice\'s GiroCode</string>
+    <string name="shortcut_request">Request money</string>
+</resources>

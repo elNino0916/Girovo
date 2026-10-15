@@ -4,4 +4,9 @@
     <string name="title_activity_main">Girovo</string>
     <string name="package_name">de.elnino0916.android.girovo</string>
     <string name="custom_url_scheme">de.elnino0916.android.girovo</string>
+    <!-- Long-pressing the icon (res/xml/shortcuts.xml). -->
+    <string name="shortcut_transfer">Überweisen</string>
+    <string name="shortcut_scan">GiroCode scannen</string>
+    <string name="shortcut_scan_long">GiroCode einer Rechnung scannen</string>
+    <string name="shortcut_request">Geld anfordern</string>
 </resources>

@@ -48,11 +48,15 @@ import { MessagesTeaser } from './shell/MessagesTeaser';
 import { MerchantLogoConsent } from './MerchantLogoConsent';
 import { UsageConsentTile } from './telemetry/UsageConsent';
 import { trackUsage } from './telemetry/usage';
+import { PullToRefresh } from './android/PullToRefresh';
+import { useLaunches } from './android/useLaunches';
 
 export function Dashboard() {
   const { tab, transferOpen, shareOpen } = useFints();
   const actions = useShellActions();
   useGlobalShortcuts(actions);
+  // Android: a shortcut on the icon, or an invoice shared with the app.
+  useLaunches(actions);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // A tab is a new page: it starts at its top.
@@ -72,7 +76,7 @@ export function Dashboard() {
   useScrollbarWidth(rootRef, scrollRef);
 
   return (
-    <div ref={rootRef} className="flex h-dvh flex-col bg-paper">
+    <div ref={rootRef} data-shell className="flex h-dvh flex-col bg-paper">
       {/* "Zum Inhalt springen" is the masthead's first child — see Masthead. */}
       <header className="shrink-0">
         <Masthead />
@@ -106,6 +110,7 @@ export function Dashboard() {
       </div>
 
       <BottomBar actions={actions} />
+      {IS_ANDROID && <PullToRefresh scrollRef={scrollRef} />}
 
       {transferOpen && <TransferSheet />}
       {shareOpen && <ShareAccount />}

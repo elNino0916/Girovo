@@ -127,7 +127,8 @@ export function Masthead() {
         <div className="min-w-2 flex-1" />
 
         <div className="flex shrink-0 items-center sm:gap-0.5" style={NO_DRAG}>
-          <button
+          {/* Android: search is "Mehr" at every width, and there is no Darstellung — the phone's light and dark. */}
+          {!IS_ANDROID && <button
             type="button"
             className={cx(ITEM, 'max-sm:hidden')}
             aria-label={t.common.search}
@@ -143,7 +144,7 @@ export function Masthead() {
             >
               {`${t.shell.ctrl} K`}
             </kbd>
-          </button>
+          </button>}
 
           <button
             type="button"
@@ -187,9 +188,9 @@ export function Masthead() {
             <span className={LABEL_MID}>{amounts}</span>
           </button>
 
-          <ThemeMenu className={cx(ITEM, 'max-sm:hidden')} labelClassName={LABEL_FULL} />
+          {!IS_ANDROID && <ThemeMenu className={cx(ITEM, 'max-sm:hidden')} labelClassName={LABEL_FULL} />}
 
-          <span aria-hidden className="mx-1.5 h-6 w-px bg-bar-line max-sm:hidden" />
+          {!IS_ANDROID && <span aria-hidden className="mx-1.5 h-6 w-px bg-bar-line max-sm:hidden" />}
 
           {/* Abmelden lives in the Sitzung panel behind this chip, with the
               session it ends — the bar stays a row of places to go. */}

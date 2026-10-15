@@ -179,6 +179,23 @@ export function CheckIcon(p: IconProps) {
 }
 
 /** Two opposing arrows — money moving from one place to another. */
+/** Handing something to another app (Android's share sheet). */
+export function ShareIcon(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <circle cx="18" cy="5.5" r="2.5" />
+      <circle cx="6" cy="12" r="2.5" />
+      <circle cx="18" cy="18.5" r="2.5" />
+      <path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1" />
+    </Icon>
+  );
+}
+
+/** A viewfinder: reading a code with the camera (Android's "GiroCode scannen"). */
+export function ScanIcon(p: IconProps) {
+  return <Icon {...p}><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M7.5 12h9" /></Icon>;
+}
+
 export function TransferIcon(p: IconProps) {
   return <Icon {...p}><path d="M4 8h14M14.5 4.5L18 8l-3.5 3.5M20 16H6M9.5 12.5L6 16l3.5 3.5" /></Icon>;
 }

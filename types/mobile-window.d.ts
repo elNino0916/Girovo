@@ -41,7 +41,29 @@ declare global {
       hold(texts: { title: string; text: string }): Promise<boolean>;
       release(): Promise<void>;
     };
+    /**
+     * How the app was opened beyond its icon: a shortcut (Überweisen, GiroCode
+     * scannen, Geld anfordern) or an invoice shared with it. The launch that
+     * opened the app is kept until something listens.
+     */
+    launch: {
+      on(fn: (launch: GirovoLaunch) => void): () => void;
+      /** A shared file, read through Android's content provider. */
+      readShared(uri: string, mime?: string): Promise<File>;
+    };
+    /** A PDF's first pages as PNG images, for reading a GiroCode off them. */
+    pdfPages(pdf: Blob): Promise<Blob[]>;
+    /** Google's code scanner: a QR code's text. */
+    scanner: {
+      scan(): Promise<{ value: string } | { canceled: true } | { unavailable: true } | { failed: true }>;
+    };
+    /** A short system touch; follows the phone's touch-feedback setting. */
+    haptic(kind: 'confirm' | 'reject' | 'threshold'): void;
   }
+
+  type GirovoLaunch =
+    | { kind: 'transfer' | 'scan' | 'request' }
+    | { kind: 'file'; uri: string; mime?: string };
 
   type GirovoBiometricState = { available: boolean; reason?: 'none-enrolled' | 'no-hardware' | 'unavailable' | 'security-update' };
   type GirovoPromptTexts = { title: string; subtitle: string; cancel: string };

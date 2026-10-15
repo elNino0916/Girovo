@@ -68,7 +68,10 @@ public class UpdaterPlugin extends Plugin {
     public void download(PluginCall call) {
         String url = call.getString("url");
         String sha256 = call.getString("sha256", "");
-        long size = call.getLong("size", 0L);
+        // Not call.getLong: Capacitor answers it only for a value that arrived
+        // as a Long, and a size under 2 GB arrives as an Integer — it would
+        // read 0, and every download would be refused before it began.
+        long size = call.getData().optLong("size", 0L);
         if (url == null || sha256 == null || sha256.length() != 64 || size <= 0) {
             call.reject("a release file with its size and SHA-256 is required");
             return;

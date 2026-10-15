@@ -124,6 +124,9 @@ dependencies {
     implementation project(':capacitor-android')
     // Fingerprint login (BiometricPlugin).
     implementation "androidx.biometric:biometric:1.1.0"
+    // "GiroCode scannen" (ScannerPlugin): Google's code scanner, run by Play
+    // services — no camera permission, and nothing of it in the APK but a stub.
+    implementation "com.google.android.gms:play-services-code-scanner:16.1.0"
     // The category model, once downloaded (ModelPlugin).
     implementation "com.microsoft.onnxruntime:onnxruntime-android:1.31.0"
     // Google Play's in-app update, in the Play build only (src/play/…/UpdaterPlugin).

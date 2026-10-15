@@ -32,7 +32,8 @@ const LOGIN_OUTCOMES = ['ok', 'refused', 'unreachable', 'unavailable', 'insecure
 
 /** The usage events and the fields each may carry. */
 const EVENTS = {
-  app_started: { installKind: ['nsis', 'portable', 'manual', 'dev'], locale: 'id' },
+  // apk / play: the Android app from GitHub, or from Google Play (mobile/bridges/telemetry.ts).
+  app_started: { installKind: ['nsis', 'portable', 'manual', 'dev', 'apk', 'play'], locale: 'id' },
   app_closed: { minutes: 'int' },
   screen_viewed: { screen: 'id' },
   login_result: { blz: 'blz', outcome: LOGIN_OUTCOMES, restored: 'bool', tanMethods: 'int', ms: 'int' },

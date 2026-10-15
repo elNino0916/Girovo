@@ -169,6 +169,25 @@
     box-shadow: none;
     transition: background-color var(--m3e-effects-default-ms) var(--m3e-effects-default);
   }
+  /* A drawer's header (Umsatzdetails, Mitteilungen) titles like the top app bar. */
+  :root[data-platform='android'] .anim-drawer [data-topbar] :is(h1, h2) {
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  /* A sheet's close button keeps its own ground over content scrolling under it. */
+  :root[data-platform='android'] [data-sheet] > [data-dialog-close] {
+    background-color: var(--raised);
+  }
+  /* A row that opens: its chevron turns over when it is open. */
+  :root[data-platform='android'] .chev-down {
+    transition: rotate var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast);
+  }
+  :root[data-platform='android'] .chev-down[data-open='true'] {
+    rotate: 180deg;
+  }
+
   /* Its title, the page's name (Masthead's PageTitle): title-large. */
   :root[data-platform='android'] [data-topbar-title] {
     font-size: 22px;
@@ -176,6 +195,20 @@
     font-weight: 400;
     letter-spacing: 0;
     color: var(--bar-ink);
+  }
+
+  /* From 640px the navigation is the rail down the left edge (BottomBar.tsx). */
+  @media (min-width: 640px) {
+    :root[data-platform='android'] [data-shell] {
+      padding-left: 80px;
+    }
+  }
+  :root[data-platform='android'] [data-rail] [data-nav-item] {
+    padding-top: 0;
+  }
+  /* Pull to refresh's indicator: a small raised disc, as Material draws it. */
+  :root[data-platform='android'] [data-pull-indicator] {
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.3), 0 4px 8px 3px rgb(0 0 0 / 0.15);
   }
 
   /* ---- the page: flat, list-first ----------------------------------------
@@ -233,10 +266,19 @@
     --chart-area: color-mix(in srgb, var(--stage-ink) 16%, transparent);
     --chart-grid: color-mix(in srgb, var(--stage-ink) 12%, transparent);
     --chart-axis: color-mix(in srgb, var(--stage-ink) 28%, transparent);
+    position: relative;
     border-radius: 28px;
     background-color: var(--stage);
     color: var(--stage-ink);
     box-shadow: none;
+  }
+  /* On a phone the IBAN takes its line alone; renaming goes to the corner. */
+  @media (max-width: 639.98px) {
+    :root[data-platform='android'] [data-hero] [data-rename] {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+    }
   }
 
   /* ---- the phone's edges ------------------------------------------------- */
@@ -247,6 +289,28 @@
   }
 
   /* ---- touch ------------------------------------------------------------- */
+  /* Every touch target at least 48dp, as Android asks, without changing how
+     the control looks: the top bar's icons are 48dp themselves; a smaller
+     icon button or a chip gets an invisible 48dp area round its middle. */
+  :root[data-platform='android'] [data-topbar] .navlink {
+    min-width: 48px;
+    min-height: 48px;
+    justify-content: center;
+  }
+  /* (Only where nothing positions it already: a close button sits in its corner.) */
+  :root[data-platform='android'] :where([data-icon-button], [data-chip]):not(:where(.absolute, .fixed, [data-rename])) {
+    position: relative;
+  }
+  :root[data-platform='android'] :is([data-icon-button], [data-chip])::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 48px);
+    height: max(100%, 48px);
+    translate: -50% -50%;
+  }
+
   /* Controls are pressed, not selected as text. */
   :root[data-platform='android'] :where(button, [role='button'], [role='tab'], nav, [data-topbar]) {
     -webkit-user-select: none;
@@ -696,6 +760,23 @@
     /* A sheet stops short of the status bar. */
     :root[data-platform='android'] :is([data-align='center'], [data-align='bottom']) {
       padding-top: calc(1.5rem + env(safe-area-inset-top, 0px));
+    }
+    /* A flow of several steps (the transfer, Geld anfordern): Material's
+       full-screen dialog — edge to edge, its header below the status bar. */
+    :root[data-platform='android'] :is([data-align='center'], [data-align='bottom']):has([data-panel]) {
+      padding: 0;
+    }
+    :root[data-platform='android'] [data-panel] {
+      height: 100dvh;
+      max-height: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    :root[data-platform='android'] [data-panel] > header {
+      padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+    }
+    :root[data-platform='android'] [data-panel] > header [data-dialog-close] {
+      top: calc(env(safe-area-inset-top, 0px) + 10px) !important;
     }
     /* Material's bottom sheet: its drag handle. */
     :root[data-platform='android'] [data-sheet]:not([data-dialog='basic'])::before {

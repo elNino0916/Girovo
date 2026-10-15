@@ -491,6 +491,7 @@ function AccountLine({ account, label, renamable, compact = false }: {
             {renamable && (
               <IconButton
                 ref={renameButton}
+                data-rename
                 size="md"
                 aria-label={t.insights.accounts.rename}
                 aria-describedby={noteOpen ? noteId : undefined}

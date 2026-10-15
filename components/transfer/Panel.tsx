@@ -17,6 +17,7 @@
 import { useLayoutEffect } from 'react';
 import type { ComponentProps, ReactNode, Ref } from 'react';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { CloseIcon } from '../icons';
 import { IconButton, cx, useScrollEdges } from '../ui';
 
@@ -66,6 +67,9 @@ export function Panel({
   return (
     <div
       {...rest}
+      // Android phones: a full-screen dialog (app/android.css) — a flow of
+      // several steps keeps one place instead of a sheet changing height.
+      data-panel
       className={cx(
         'anim-sheet relative flex max-h-full w-full flex-col overflow-hidden bg-raised shadow-[var(--shadow-pop)]',
         'rounded-t-[var(--radius-sheet)] sm:rounded-[var(--radius-sheet)]',
@@ -111,7 +115,9 @@ export function Panel({
             aria-label={t.common.close}
             onClick={onClose}
             disabled={closeDisabled}
-            className="absolute top-3.5 right-3 sm:top-[18px] sm:right-5 short:top-2.5!"
+            // Android: below the status bar (app/android.css), also in a short
+            // window — the keyboard up makes every phone one.
+            className={cx('absolute top-3.5 right-3 sm:top-[18px] sm:right-5', !IS_ANDROID && 'short:top-2.5!')}
           >
             <CloseIcon />
           </IconButton>

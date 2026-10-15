@@ -26,7 +26,7 @@ import { fmtAmountInput, fmtIban, fmtShortIban, parseAmount } from '@/lib/format
 import { useT } from '@/lib/i18n/react';
 import { qrMatrix, qrPngBlob, qrSvgPath, type QrMatrix } from '@/lib/qr';
 import { useFints } from './FintsProvider';
-import { AlertTriangleIcon, CheckIcon, CopyIcon, DownloadIcon, EyeIcon, EyeOffIcon, ImageIcon, InfoIcon, QrIcon } from './icons';
+import { AlertTriangleIcon, CheckIcon, CopyIcon, DownloadIcon, EyeIcon, EyeOffIcon, ImageIcon, InfoIcon, QrIcon, ShareIcon } from './icons';
 import { Money, useMoneyText, usePrivacy } from './Money';
 import { Alert, Button, CopyButton, Field, Input, Overlay, Select, cx } from './ui';
 import { Panel } from './transfer/Panel';
@@ -192,23 +192,29 @@ export function ShareAccount() {
           </p>
         )}
         footer={(
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          // Android: one row — the details to copy, the image to share. The
+          // share sheet copies an image too, so "Bild kopieren" stays on the desktop.
+          <div className={IS_ANDROID ? 'flex gap-2' : 'flex flex-col-reverse gap-3 sm:flex-row sm:justify-end'}>
             <Button
+              className={IS_ANDROID ? 'flex-1' : undefined}
               iconLeft={copied === 'account' ? <CheckIcon size={17} strokeWidth={2.2} /> : <CopyIcon size={17} />}
               onClick={() => void copyAccount()}
             >
               {copied === 'account' ? t.common.copied : words.copyDetails}
             </Button>
-            <Button
-              iconLeft={copied === 'image' ? <CheckIcon size={17} strokeWidth={2.2} /> : <ImageIcon size={17} />}
-              disabled={!code?.ok}
-              onClick={() => void copyImage()}
-            >
-              {copied === 'image' ? t.common.copied : words.copyImage}
-            </Button>
+            {!IS_ANDROID && (
+              <Button
+                iconLeft={copied === 'image' ? <CheckIcon size={17} strokeWidth={2.2} /> : <ImageIcon size={17} />}
+                disabled={!code?.ok}
+                onClick={() => void copyImage()}
+              >
+                {copied === 'image' ? t.common.copied : words.copyImage}
+              </Button>
+            )}
             <Button
               variant="primary"
-              iconLeft={<DownloadIcon size={17} />}
+              className={IS_ANDROID ? 'flex-1' : undefined}
+              iconLeft={IS_ANDROID ? <ShareIcon size={17} /> : <DownloadIcon size={17} />}
               busy={saving}
               disabled={!code?.ok}
               onClick={() => void savePng()}

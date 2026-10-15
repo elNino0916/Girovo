@@ -125,6 +125,12 @@ export type TransferPrefill = {
   instant?: boolean;
   /** Where the values came from — the form says so ("Aus GiroCode übernommen"). */
   source?: 'repeat' | 'refund' | 'template' | 'recent' | 'girocode';
+  /**
+   * Android: a GiroCode still to read when the sheet opens — an invoice
+   * shared with the app, or the camera from the "GiroCode scannen" shortcut
+   * (components/android/useLaunches.ts).
+   */
+  girocode?: { file?: File; scan?: boolean };
 };
 
 /** Seeds the "Geld anfordern" GiroCode sheet. */

@@ -8,6 +8,7 @@
 import { useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useFints } from '../FintsProvider';
+import { IS_ANDROID } from '@/lib/platform';
 import { CategoryIcon, ChevronIcon, ClockIcon, EyeOffIcon, MoreIcon, ReceiptIcon, UndoIcon } from '../icons';
 import { Money } from '../Money';
 import { Button, IconButton, Menu, MenuItem, Tag, cx } from '../ui';
@@ -137,7 +138,7 @@ export function ContractRow({
           {/* Who, how often. The chevron says the row opens: the bookings
               the guess rests on are behind it. */}
           <span className="flex min-w-0 items-start gap-3 md:items-center">
-            <ChevronIcon className="chev -mr-1 shrink-0 self-center text-ink-3" data-open={open} />
+            {!IS_ANDROID && <ChevronIcon className="chev -mr-1 shrink-0 self-center text-ink-3" data-open={open} />}
             <CounterpartyAvatar tx={s.transactions[0]} name={n} credit={credit} />
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-baseline justify-between gap-3">
@@ -171,6 +172,7 @@ export function ContractRow({
                 </span>
               )}
             </span>
+            {IS_ANDROID && <ChevronIcon dir="down" className="chev-down shrink-0 self-center text-ink-3" data-open={open} />}
           </span>
 
           {/* Columns from md up. Their header is visual only, so each cell

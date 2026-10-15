@@ -17,6 +17,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(DevicePlugin.class);
         registerPlugin(BiometricPlugin.class);
         registerPlugin(ModelPlugin.class);
+        registerPlugin(LaunchPlugin.class);
+        registerPlugin(ScannerPlugin.class);
         // One per distribution: src/github (APKs from GitHub) or src/play (Google Play).
         registerPlugin(UpdaterPlugin.class);
         super.onCreate(savedInstanceState);

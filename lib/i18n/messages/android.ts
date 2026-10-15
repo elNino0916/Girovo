@@ -52,6 +52,17 @@ export const de = {
     playUpdate: 'Über Google Play aktualisieren',
   },
 
+  /** An invoice shared with Girovo (components/android/useLaunches.ts). */
+  launch: {
+    unreadable: 'Die geteilte Datei ließ sich nicht öffnen.',
+  },
+
+  /** Pull to refresh (components/android/PullToRefresh.tsx), for a screen reader. */
+  refresh: {
+    pulled: 'Loslassen zum Aktualisieren',
+    refreshing: 'Umsätze werden abgerufen',
+  },
+
   /** The notification while an approval in the bank's app is awaited. */
   approval: {
     title: 'Warte auf deine Freigabe',
@@ -111,6 +122,15 @@ export const en: typeof de = {
     play: 'Updates come through Google Play.',
     playAvailable: 'A new version of Girovo is on Google Play.',
     playUpdate: 'Update through Google Play',
+  },
+
+  launch: {
+    unreadable: 'The shared file couldn’t be opened.',
+  },
+
+  refresh: {
+    pulled: 'Release to refresh',
+    refreshing: 'Fetching transactions',
   },
 
   approval: {
