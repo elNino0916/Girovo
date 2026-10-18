@@ -463,6 +463,8 @@ function Palette({ onClose }: { onClose: () => void }) {
             // Starts here with a keyboard; on a touch screen the dialog takes
             // focus instead, so the on-screen keyboard does not cover the list.
             data-autofocus="fine"
+            // No field outline of its own (app/material.css): the sheet is the field.
+            data-bare
             type="text"
             role="combobox"
             aria-expanded="true"

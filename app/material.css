@@ -466,7 +466,9 @@
   :root[data-look='material'] :is(input, select).h-12 {
     height: 56px;
   }
-  :root[data-look='material'] :is(input:not([type='checkbox'], [type='radio'], [type='range']), select, textarea):focus-visible {
+  /* A bare input — the palette's search line, where the whole sheet is the
+     field — has no outline to colour: the caret says where typing goes. */
+  :root[data-look='material'] :is(input:not([type='checkbox'], [type='radio'], [type='range'], [data-bare]), select, textarea):focus-visible {
     outline: none;
     border-color: var(--accent);
     box-shadow: inset 0 0 0 1px var(--accent);
