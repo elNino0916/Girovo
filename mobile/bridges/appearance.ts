@@ -1,8 +1,9 @@
 // How the Android app looks, beyond what the page decides itself:
 //
 //  - the palette: Material You, the wallpaper's colours, wherever the phone
-//    has them (Android 12 and later); Girovo's own navy and blue before that.
-//    <html data-palette="dynamic" | "girovo">; app/android.css does the rest.
+//    has them (Android 12 and later); Girovo's own Material colours — made
+//    from its blue, as on the desktop — before that.
+//    <html data-palette="dynamic" | "girovo">; app/material.css does the rest.
 //  - the system bars' icons, light or dark, so they stay readable on whatever
 //    the app draws under them (the bars are transparent — edge to edge).
 //
@@ -28,9 +29,8 @@ const paletteMode = (): PaletteMode => (dynamic ? 'dynamic' : 'girovo');
 function applyBars(): void {
   const root = document.documentElement;
   const dark = root.dataset.theme === 'dark';
-  // Girovo's masthead is navy in both themes; Material You's top bar is a
-  // surface, light by day and dark by night.
-  const statusOnDark = paletteMode() === 'girovo' || dark;
+  // The top app bar is a surface in either palette: light by day, dark by night.
+  const statusOnDark = dark;
   void SystemBars.setStyle({ bar: SystemBarType.StatusBar, style: statusOnDark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
   void SystemBars.setStyle({ bar: SystemBarType.NavigationBar, style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
 }

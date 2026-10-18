@@ -389,6 +389,21 @@ export function MinusIcon(p: IconProps) {
   return <Icon {...p}><path d="M5 12h14" /></Icon>;
 }
 
+/** A document attached to something (a receipt on a booking). */
+export function PaperclipIcon(p: IconProps) {
+  return <Icon {...p}><path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9" /></Icon>;
+}
+
+/** Holds a moving graphic (the chipTAN flicker code). */
+export function PauseIcon(p: IconProps) {
+  return <Icon {...p}><path d="M9 5.5v13M15 5.5v13" /></Icon>;
+}
+
+/** Sets it moving again. */
+export function ResumeIcon(p: IconProps) {
+  return <Icon {...p}><path d="M8 5.5v13l10.5-6.5L8 5.5z" /></Icon>;
+}
+
 /** Money going out. */
 export function ArrowUpRightIcon(p: IconProps) {
   return <Icon {...p}><path d="M7 17L17 7M8.5 7H17v8.5" /></Icon>;

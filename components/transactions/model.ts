@@ -435,11 +435,11 @@ const KIND_TONE: Partial<Record<BookingKind, StatusTag['tone']>> = {
 
 /** The words for the kind of booking and its state — never a code. */
 export function statusTags(tx: SerializedTransaction, pending: boolean): StatusTag[] {
-  const { common, transactions: words } = msgs();
+  const { transactions: words } = msgs();
   const { kind, bookingText } = txText(tx);
   const tags: StatusTag[] = [];
-  if (pending) tags.push({ label: common.booking.pending, tone: 'pending', icon: 'clock' });
-  else if (isFutureDate(tx.entryDate)) tags.push({ label: words.notBooked, tone: 'neutral', icon: 'clock' });
+  // A Vormerkposten needs no tag: the drawer's title says "Vorgemerkter Umsatz".
+  if (!pending && isFutureDate(tx.entryDate)) tags.push({ label: words.notBooked, tone: 'neutral', icon: 'clock' });
   if (kind !== 'sonstige') {
     const label = words.kinds[kind];
     // The bank's own booking text is already shown beside the tags; a tag

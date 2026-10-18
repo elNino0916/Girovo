@@ -7,8 +7,10 @@ import { MESSAGES } from '@/lib/i18n/messages';
 import { LocaleProvider } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import './globals.css';
-// The Android app's Material 3 Expressive layer, after the tokens it remaps —
-// inert everywhere else: every rule is scoped to <html data-platform="android">.
+// Girovo's look, Material 3 Expressive, on every platform — after the tokens
+// it remaps; its rules are scoped to <html data-look="material">.
+import './material.css';
+// What only a phone adds to it, scoped to <html data-platform="android">.
 import './android.css';
 
 // Self-hosted through next/font: the files are fetched once at build time and
@@ -111,7 +113,7 @@ const THEME_SCRIPT = `(function(){var d=document.documentElement,p=${IS_ANDROID 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await requestLocale();
   return (
-    <html lang={locale} data-platform={IS_ANDROID ? 'android' : undefined} suppressHydrationWarning>
+    <html lang={locale} data-look="material" data-platform={IS_ANDROID ? 'android' : undefined} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         {/* The phone runtime: the route handlers and the Android bridges

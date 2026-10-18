@@ -45,12 +45,12 @@ import { Money } from '../Money';
 import { updates } from '../updates/store';
 import { UpdateSessionRow } from '../updates/UpdateNotices';
 import {
-  AvatarGlyph, ChevronIcon, InfoIcon, KeyboardIcon, LandmarkIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, PencilIcon,
+  AvatarGlyph, InfoIcon, KeyboardIcon, LandmarkIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, PencilIcon,
   PlusIcon, ShieldIcon, SunIcon,
 } from '../icons';
 import { Button, Checkbox, Dialog, Dot, Kbd, Overlay, Popover, Segmented, Select, Sheet, Switch, cx, type TriggerProps } from '../ui';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
-import { fmtCountdown, fmtSince, holderName, nameInitials, firstName, sessionHolder, useCountdown } from './session';
+import { fmtCountdown, fmtSince, holderName, nameInitials, sessionHolder, useCountdown } from './session';
 import { useLookAtUnclear } from './actions';
 import { AvatarImageError, avatarFromFile } from './avatar-image';
 
@@ -102,7 +102,6 @@ export function ProfileMenu() {
   // The session's holder, as in the greeting — not the active account's.
   const holder = sessionHolder(accounts);
   const full = holderName(holder);
-  const first = firstName(holder);
   const initials = nameInitials(holder);
   // An unreadable store is the one thing in here worth a mark on the chip:
   // until it is reset, nothing the user changes is kept. The dot is only a
@@ -135,14 +134,13 @@ export function ProfileMenu() {
             type="button"
             aria-label={name}
             title={name}
-            className="navlink inline-flex pr-2.5! pl-1.5! sm:@max-[899.98px]/mast:pr-1.5! max-sm:px-1!"
+            // The account's avatar alone, as Material's top app bar ends; its name is the tooltip.
+            className="navlink inline-flex size-10 justify-center px-0!"
           >
             <span className="relative shrink-0">
               <Avatar initials={initials} picture={vault?.avatar} image={vault?.avatarImage} tone="bar" />
               {vaultBroken && <Dot className="absolute -top-px -right-px ring-2 ring-bar" />}
             </span>
-            {first && <span className="hidden max-w-[12ch] truncate @min-[900px]/mast:inline">{first}</span>}
-            {!IS_ANDROID && <ChevronIcon size={14} className="max-sm:hidden" />}
           </button>
         )}
       >
@@ -584,7 +582,7 @@ function bankHint(b: BankEntry, t: ReturnType<typeof useT>): string {
   if (b.state === 'primary') return t.banks.state.primary;
   if (b.state === 'loggedOut') return t.banks.state.loggedOut;
   if (b.state === 'remembered') return t.banks.state.remembered;
-  return b.deviceRemembered ? `${t.banks.state.active} · ${t.shell.instituteBar.device}` : t.banks.state.active;
+  return b.deviceRemembered ? `${t.banks.state.active} · ${t.session.deviceRemembered}` : t.banks.state.active;
 }
 
 /**

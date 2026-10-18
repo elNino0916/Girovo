@@ -10,10 +10,6 @@ const counted = (n: number, one: string, many: string) =>
   `${n.toLocaleString(INTL_LOCALES.de)}\u00a0${n === 1 ? one : many}`;
 
 export const de = {
-  /** Said beside every control that asks the bank for something. */
-  mayNeedApproval: 'Kann eine Freigabe erfordern.',
-  /** The same as a row's quiet label, without the full stop (the account list). */
-  mayNeedApprovalLabel: 'Kann eine Freigabe erfordern',
   income: 'Einnahmen',
   available: 'Verfügbar',
   loadBalance: 'Saldo abrufen',
@@ -120,22 +116,11 @@ export const de = {
     },
     periodMenu: 'Zeitraum der Analyse',
     wholeRange: 'Gesamter Zeitraum',
-    /** After the count of bookings: "103 Umsätze im Oktober 2026". */
-    inPeriod: (period: string) => `im ${period}`,
-    transfersLeftOut: (n: number) => `${counted(n, 'Umbuchung', 'Umbuchungen')} ausgeklammert`,
+    transfersLeftOut: (n: number) => `${counted(n, 'Umbuchung', 'Umbuchungen')} nicht mitgezählt`,
     firstBooking: (day: string) => `erste Buchung am ${day}`,
     commonPeriod: 'Zeitraum, den alle Konten abdecken',
     otherCurrencyAccounts: (n: number) => `${counted(n, 'Konto', 'Konten')} in anderer Währung nicht enthalten`,
     foreignBookings: (n: number) => `${counted(n, 'Umsatz', 'Umsätze')} in Fremdwährung nicht enthalten`,
-    computedHere: 'berechnet auf diesem Rechner',
-    /** What a headline figure is made of: "aus 12 Umsätzen". */
-    fromBookings: (n: number) => (n === 0 ? 'keine Umsätze' : `aus ${counted(n, 'Umsatz', 'Umsätzen')}`),
-    /** Under the difference. */
-    net: {
-      even: 'Einnahmen und Ausgaben gleich hoch',
-      more: 'mehr eingenommen als ausgegeben',
-      less: 'mehr ausgegeben als eingenommen',
-    },
     average: {
       /** On a phone. */
       short: 'Ø Monatsausgaben',
@@ -153,7 +138,8 @@ export const de = {
       more: (pct: number, basis: string) => `${pct}\u00a0% mehr als ${basis}`,
       less: (pct: number, basis: string) => `${pct}\u00a0% weniger als ${basis}`,
     },
-    emptyRange: (range: string, days: number) => `Für ${range} (${counted(days, 'Tag', 'Tage')}) liegen keine Buchungen vor.`,
+    /** Under "Keine Umsätze im geladenen Zeitraum": which period that is. */
+    emptyRange: (range: string, days: number) => `Geladen ist der Zeitraum ${range} (${counted(days, 'Tag', 'Tage')}).`,
     emptyRangeLonger: 'Mit einem längeren Verlauf gibt es vielleicht etwas auszuwerten.',
     noSpending: 'Keine Ausgaben',
     categories: {
@@ -164,7 +150,6 @@ export const de = {
     },
     monthly: {
       title: 'Monatsvergleich',
-      subtitle: 'Einnahmen und Ausgaben',
       asChart: 'Als Diagramm',
       asTable: 'Als Tabelle',
       partial: 'Unvollständiger Monat',
@@ -179,7 +164,6 @@ export const de = {
     },
     payees: {
       title: 'Top-Empfänger',
-      subtitle: (period: string) => `nach Ausgaben · ${period}`,
       empty: 'In diesem Zeitraum ist kein Geld an andere gegangen.',
       share: (share: string) => `${share} der Ausgaben`,
       /** The payment service a shop was paid through. */
@@ -189,7 +173,7 @@ export const de = {
     },
     largest: {
       title: 'Größte Einzelausgaben',
-      subtitle: (period: string) => `ohne Verträge, Abos und Bargeld · ${period}`,
+      subtitle: 'ohne Verträge, Abos und Bargeld',
       emptyTitle: 'Keine einzelnen Ausgaben',
       empty: 'In diesem Zeitraum gibt es außer Verträgen, Abos und Bargeld keine Ausgaben.',
       /** "3× in diesem Zeitraum · zuletzt 28.09.2026" — `wide` gets what only wider screens show. */
@@ -205,8 +189,6 @@ export const de = {
   contracts: {
     /** The tab, for a screen reader. */
     label: 'Verträge und Abos',
-    /** A series whose bookings name nobody (lib/recurring.ts). */
-    unknown: 'Unbekannt',
     /** The group for contracts that fit no other (lib/recurring.ts). */
     otherContracts: 'Weitere Verträge',
     columns: {
@@ -217,9 +199,9 @@ export const de = {
     },
     /** When a series is due, or why it is not. */
     due: {
-      endedCompact: (day: string) => `Zuletzt am ${day} · vermutlich beendet`,
+      /** In the "Vermutlich beendet" group, which already says why. */
+      endedCompact: (day: string) => `Zuletzt am ${day}`,
       last: (day: string) => `Zuletzt ${day}`,
-      ended: 'vermutlich beendet',
       overdueCompact: (day: string) => `Erwartet am ${day}, noch nicht gebucht`,
       overdue: 'erwartet, noch nicht gebucht',
       missingCompact: (day: string) => `Erwartet am ${day}, noch nicht in den Umsätzen`,
@@ -236,9 +218,9 @@ export const de = {
     /** Under the amount: when it was last booked. */
     lastShort: (day: string) => `zuletzt ${day}`,
     actionsFor: (name: string) => `Aktionen für ${name}`,
-    dismiss: 'Nicht als Vertrag zählen',
+    dismiss: 'Ausblenden',
     dismissHint: 'Aus dieser Liste und den Summen nehmen',
-    dismissed: (name: string) => `„${name}“ zählt nicht mehr als Vertrag.`,
+    dismissed: (name: string) => `„${name}“ ausgeblendet.`,
     undo: 'Rückgängig',
     since: (n: number, day: string) => `${n} Buchungen seit ${day}`,
     byDirectDebit: 'per Lastschrift',
@@ -246,10 +228,10 @@ export const de = {
     mandate: 'Mandatsreferenz',
     restore: 'Wieder anzeigen',
     /** Read after "Wieder anzeigen": which series comes back. */
-    restoreWhich: (name: string) => ` – ${name} als Vertrag`,
+    restoreWhich: (name: string) => ` – ${name}`,
     noneFound: 'Keine Verträge erkannt',
-    noneInRange: (range: string) =>
-      `Für ${range} liegen keine Buchungen vor, in denen sich regelmäßige Zahlungen erkennen ließen.`,
+    /** Under "Keine Umsätze im geladenen Zeitraum": which period that is. */
+    noneInRange: (range: string) => `Geladen ist der Zeitraum ${range}.`,
     noRegular: 'Keine regelmäßigen Zahlungen erkannt',
     noRegularHint: (range: string) =>
       `Im Zeitraum ${range} wiederholt sich keine Zahlung oft und gleichmäßig genug, um sie als Vertrag zu erkennen.`,
@@ -257,21 +239,20 @@ export const de = {
     regularIncome: 'Regelmäßige Eingänge',
     longerHistory: 'Längerer Verlauf',
     moreFound: 'Weitere erkannte Zahlungen',
-    endedTitle: (n: number) => `Beendet (${n})`,
+    endedTitle: (n: number) => `Vermutlich beendet (${n})`,
+    /** Beside "Vermutlich beendet" and "Ausgeblendet". */
     notInTotals: 'Nicht in den Summen',
-    endedHint: 'Zweimal ausgeblieben – vermutlich gekündigt oder umgestellt.',
+    endedHint: 'Zwei erwartete Buchungen sind ausgeblieben.',
     hiddenTitle: (n: number) => `Ausgeblendet (${n})`,
-    notCounted: 'Nicht als Vertrag gezählt',
-    vaultUnavailable: 'Deine persönlichen Daten sind gerade nicht verfügbar – diese Auswahl gilt nur bis zur Abmeldung.',
     /** After the bank's reason. */
     cannotRecognise: 'Ohne Umsätze lassen sich keine Verträge erkennen.',
-    notLoaded: 'Noch keine Umsätze abgerufen',
     howItWorks: 'Regelmäßige Zahlungen erkennt die App auf diesem Rechner in den Umsätzen deiner Konten.',
-    loadHint: (account: string) => `Ruf dafür die Umsätze von ${account} ab – das kann eine Freigabe erfordern.`,
+    loadHint: (account: string) => `Das Abrufen der Umsätze von ${account} kann eine Freigabe erfordern.`,
     summary: 'Zusammenfassung',
     /** Under a monthly figure: "pro Monat · 3 Verträge". */
     perMonthWith: (what: string) => `pro Monat · ${what}`,
-    subscriptions: 'Abos & Verträge',
+    /** Everything but Wohnen & Energie, when that has a figure of its own. */
+    subscriptions: 'Übrige Fixkosten',
     fixedCosts: 'Fixkosten',
     inLoadedHistory: 'im geladenen Verlauf',
     fixedPerYear: 'Fixkosten pro Jahr',
@@ -284,12 +265,8 @@ export const de = {
       yearly: 'jährliche',
     } as Partial<Record<Cadence, string>>,
     unseenPayments: (rhythms: string) => `${rhythms} Zahlungen zeigt erst ein längerer Verlauf`,
-    unseenContracts: (rhythms: string) => `${rhythms} Verträge zeigen sich erst in einem längeren Verlauf.`,
-    loadYearForYearly: 'Für jährliche Verträge 12 Monate abrufen.',
     projected: 'hochgerechnet aus dem Rhythmus',
-    computedHere: 'Berechnet auf diesem Rechner aus den geladenen Umsätzen.',
-    estimate: 'Schätzung',
-    excluded: 'Umbuchungen und Bargeld ausgenommen',
+    excluded: 'Umbuchungen und Bargeld nicht mitgezählt',
     otherCurrency: (n: number) => `${counted(n, 'Vertrag', 'Verträge')} in anderer Währung nicht summiert`,
     reloadAccount: (account: string) => `${account} erneut abrufen`,
     /** After the bank's reason, when an account in scope failed. */
@@ -302,7 +279,6 @@ export const de = {
     /** After a button's words, for a screen reader: "Umsätze abrufen für Tagesgeld". */
     forAccount: (account: string) => `für ${account}`,
     loadYear: '12 Monate abrufen',
-    noSwitch: 'Das Konto wird dafür nicht gewechselt.',
     /** "GiroKomfort und Visa reichen 91 Tage zurück". */
     reach: (accounts: string, several: boolean, days: number) =>
       `${accounts} ${several ? 'reichen' : 'reicht'} ${counted(days, 'Tag', 'Tage')} zurück`,
@@ -314,8 +290,6 @@ export const de = {
   upcoming: {
     title: 'Demnächst fällig',
     next30: 'nächste 30 Tage',
-    expected: 'voraussichtlich',
-    all: 'Alle Verträge',
     failed: (account: string) => `Abruf für ${account} fehlgeschlagen – ohne Umsätze lässt sich nichts vorhersehen.`,
     notLoaded: (account: string) =>
       `Sobald die Umsätze von ${account || 'diesem Konto'} abgerufen sind, stehen hier die nächsten erwarteten Buchungen.`,
@@ -323,14 +297,15 @@ export const de = {
     noneYet: 'In den geladenen Umsätzen sind noch keine regelmäßigen Zahlungen erkannt.',
     /** Before the rhythm, for a screen reader: "am 05.10., ". */
     on: (day: string) => `am ${day}, `,
-    more: (n: number) => `und ${counted(n, 'weitere Buchung', 'weitere Buchungen')} in den 30 Tagen`,
-    sum: 'Summe der 30 Tage, ca.',
+    more: (n: number) => `und ${counted(n, 'weitere Buchung', 'weitere Buchungen')}`,
+    sum: 'Summe, ca.',
   },
 
   /** The one button that asks the bank for a year (components/insights/shared.tsx). */
   loadYear: {
     label: 'Umsätze für 12 Monate abrufen',
-    hint: 'Kann eine Freigabe erfordern. Manche Banken liefern weniger Verlauf.',
+    /** While the Analyse counts every account: whose year it fetches. */
+    labelFor: (account: string) => `Umsätze von ${account} für 12 Monate abrufen`,
   },
 
   /** The account hero: the balance and what qualifies it (components/overview/AccountHero.tsx). */
@@ -357,7 +332,6 @@ export const de = {
     loadCurrent: (card: boolean) => `Aktuellen ${card ? 'Kartensaldo' : 'Kontostand'} abrufen`,
     pastRangeHint: (card: boolean) =>
       `Zeitraum endet vor heute – den aktuellen ${card ? 'Kartensaldo' : 'Kontostand'} zeigt ein Abruf bis heute.`,
-    fetching: 'Kontostand wird abgerufen',
     fetchingDots: 'Saldo wird abgerufen …',
     noBalanceYet: 'Noch kein Saldo abgerufen',
     noBalance: 'Kein Saldo abrufbar',
@@ -418,7 +392,6 @@ export const de = {
     busyApproval: 'Bitte warten – eine Freigabe läuft',
     busyFetch: 'Bitte warten – ein Abruf läuft',
     fetching: 'Saldo wird abgerufen',
-    cannotFetch: 'Kein Abruf möglich',
     total: 'Gesamtsaldo',
     incomplete: 'unvollständig',
     loadAll: 'Alle Salden abrufen',
@@ -435,14 +408,12 @@ export const de = {
     pending: 'Sobald die Umsätze dieses Kontos abgerufen sind, steht hier die Bilanz des Monats.',
     notLoaded: 'Keine Umsätze geladen',
     monthNotLoaded: (month: string) => `${month} ist nicht geladen`,
-    loadToToday: 'Bis heute laden',
-    loadToTodayHint: 'Lädt die letzten 90 Tage. Kann eine Freigabe erfordern.',
+    loadLast90Days: 'Letzte 90 Tage laden',
     loaded: (range: ReactNode): ReactNode[] => ['Geladen ist der Zeitraum ', range, '.'],
     noneYet: (month: string) => `Noch keine Umsätze im ${month}`,
     onlyTransfers: (n: number) =>
       `Bisher nur ${n === 1 ? 'eine Umbuchung' : `${n} Umbuchungen`} zwischen deinen eigenen Konten – die zählen hier nicht mit.`,
     empty: 'Sobald etwas gebucht ist, siehst du hier, was rein- und rausging.',
-    toAnalysis: 'Zur Analyse',
     withoutForeign: (n: number) => `ohne ${n} in Fremdwährung`,
   },
 
@@ -474,8 +445,6 @@ const countedEn = (n: number, one: string, many: string) =>
   `${n.toLocaleString(INTL_LOCALES.en)}\u00a0${n === 1 ? one : many}`;
 
 export const en: typeof de = {
-  mayNeedApproval: 'May need approval.',
-  mayNeedApprovalLabel: 'May need approval',
   income: 'Income',
   available: 'Available',
   loadBalance: 'Load balance',
@@ -563,19 +532,11 @@ export const en: typeof de = {
     },
     periodMenu: 'Analysis period',
     wholeRange: 'Whole period',
-    inPeriod: (period) => `in ${period}`,
-    transfersLeftOut: (n) => `${countedEn(n, 'internal transfer', 'internal transfers')} left out`,
+    transfersLeftOut: (n) => `${countedEn(n, 'internal transfer', 'internal transfers')} not counted`,
     firstBooking: (day) => `first transaction on ${day}`,
     commonPeriod: 'the period all accounts cover',
     otherCurrencyAccounts: (n) => `${countedEn(n, 'account', 'accounts')} in another currency not included`,
     foreignBookings: (n) => `${countedEn(n, 'transaction', 'transactions')} in a foreign currency not included`,
-    computedHere: 'worked out on this computer',
-    fromBookings: (n) => (n === 0 ? 'no transactions' : `from ${countedEn(n, 'transaction', 'transactions')}`),
-    net: {
-      even: 'Income and spending are the same',
-      more: 'more came in than went out',
-      less: 'more went out than came in',
-    },
     average: {
       short: 'Avg. monthly spending',
       label: 'Avg. spending per month',
@@ -591,7 +552,7 @@ export const en: typeof de = {
       more: (pct, basis) => `${pct}% more than ${basis}`,
       less: (pct, basis) => `${pct}% less than ${basis}`,
     },
-    emptyRange: (range, days) => `There are no transactions for ${range} (${countedEn(days, 'day', 'days')}).`,
+    emptyRange: (range, days) => `The loaded period is ${range} (${countedEn(days, 'day', 'days')}).`,
     emptyRangeLonger: 'With a longer history there may be something to analyse.',
     noSpending: 'No spending',
     categories: {
@@ -601,7 +562,6 @@ export const en: typeof de = {
     },
     monthly: {
       title: 'Monthly comparison',
-      subtitle: 'Income and spending',
       asChart: 'As a chart',
       asTable: 'As a table',
       partial: 'Incomplete month',
@@ -614,7 +574,6 @@ export const en: typeof de = {
     },
     payees: {
       title: 'Top payees',
-      subtitle: (period) => `by spending · ${period}`,
       empty: 'No money went to anyone else in this period.',
       share: (share) => `${share} of spending`,
       via: (service) => `via ${service}`,
@@ -623,7 +582,7 @@ export const en: typeof de = {
     },
     largest: {
       title: 'Largest single payments',
-      subtitle: (period) => `excluding contracts, subscriptions and cash · ${period}`,
+      subtitle: 'excluding contracts, subscriptions and cash',
       emptyTitle: 'No single payments',
       empty: 'Apart from contracts, subscriptions and cash, there is no spending in this period.',
       repeats: (n, wide, day) => [`${n}×`, wide(' in this period'), ` · last on ${day}`],
@@ -634,7 +593,6 @@ export const en: typeof de = {
 
   contracts: {
     label: 'Contracts and subscriptions',
-    unknown: 'Unknown',
     otherContracts: 'Other contracts',
     columns: {
       contract: 'Contract',
@@ -643,9 +601,8 @@ export const en: typeof de = {
       perYear: 'Per year',
     },
     due: {
-      endedCompact: (day) => `Last on ${day} · probably ended`,
+      endedCompact: (day) => `Last on ${day}`,
       last: (day) => `Last on ${day}`,
-      ended: 'probably ended',
       overdueCompact: (day) => `Expected on ${day}, not booked yet`,
       overdue: 'expected, not booked yet',
       missingCompact: (day) => `Expected on ${day}, not in your transactions yet`,
@@ -659,18 +616,18 @@ export const en: typeof de = {
     before: (amount) => ['previously ', amount],
     lastShort: (day) => `last on ${day}`,
     actionsFor: (name) => `Actions for ${name}`,
-    dismiss: 'Don’t count as a contract',
+    dismiss: 'Hide',
     dismissHint: 'Take it out of this list and the totals',
-    dismissed: (name) => `“${name}” no longer counts as a contract.`,
+    dismissed: (name) => `“${name}” hidden.`,
     undo: 'Undo',
     since: (n, day) => `${n} transactions since ${day}`,
     byDirectDebit: 'by direct debit',
     varies: 'amount varies',
     mandate: 'Mandate reference',
     restore: 'Show again',
-    restoreWhich: (name) => ` – ${name} as a contract`,
+    restoreWhich: (name) => ` – ${name}`,
     noneFound: 'No contracts recognised',
-    noneInRange: (range) => `There are no transactions for ${range} in which regular payments could be recognised.`,
+    noneInRange: (range) => `The loaded period is ${range}.`,
     noRegular: 'No regular payments recognised',
     noRegularHint: (range) =>
       `In the period ${range}, no payment repeats often and evenly enough to be recognised as a contract.`,
@@ -678,19 +635,16 @@ export const en: typeof de = {
     regularIncome: 'Regular incoming payments',
     longerHistory: 'Longer history',
     moreFound: 'Other recognised payments',
-    endedTitle: (n) => `Ended (${n})`,
+    endedTitle: (n) => `Probably ended (${n})`,
     notInTotals: 'Not in the totals',
-    endedHint: 'Missed twice – probably cancelled or changed.',
+    endedHint: 'Two expected transactions have not arrived.',
     hiddenTitle: (n) => `Hidden (${n})`,
-    notCounted: 'Not counted as a contract',
-    vaultUnavailable: 'Your personal data is not available right now – this choice only lasts until you log out.',
     cannotRecognise: 'Without transactions, no contracts can be recognised.',
-    notLoaded: 'No transactions loaded yet',
     howItWorks: 'The app recognises regular payments in your accounts’ transactions, on this computer.',
-    loadHint: (account) => `To do so, load the transactions of ${account} – this may need approval.`,
+    loadHint: (account) => `Loading the transactions of ${account} may need approval.`,
     summary: 'Summary',
     perMonthWith: (what) => `per month · ${what}`,
-    subscriptions: 'Subscriptions & contracts',
+    subscriptions: 'Other fixed costs',
     fixedCosts: 'Fixed costs',
     inLoadedHistory: 'in the loaded history',
     fixedPerYear: 'Fixed costs per year',
@@ -701,12 +655,8 @@ export const en: typeof de = {
       yearly: 'yearly',
     },
     unseenPayments: (rhythms) => `${rhythms} payments only show in a longer history`,
-    unseenContracts: (rhythms) => `${rhythms} contracts only show up in a longer history.`,
-    loadYearForYearly: 'For yearly contracts, load 12 months.',
     projected: 'projected from how often they recur',
-    computedHere: 'Worked out on this computer from the loaded transactions.',
-    estimate: 'Estimate',
-    excluded: 'Internal transfers and cash left out',
+    excluded: 'Internal transfers and cash not counted',
     otherCurrency: (n) => `${countedEn(n, 'contract', 'contracts')} in another currency not added up`,
     reloadAccount: (account) => `Load ${account} again`,
     failedHint: (n) =>
@@ -717,7 +667,6 @@ export const en: typeof de = {
     noFints: 'no transactions over FinTS',
     forAccount: (account) => `for ${account}`,
     loadYear: 'Load 12 months',
-    noSwitch: 'This does not switch the account.',
     reach: (accounts, several, days) => `${accounts} ${several ? 'go' : 'goes'} back ${countedEn(days, 'day', 'days')}`,
     noneRecognised: 'No regular ones recognised',
     recognising: 'Recognising contracts…',
@@ -726,21 +675,19 @@ export const en: typeof de = {
   upcoming: {
     title: 'Due soon',
     next30: 'next 30 days',
-    expected: 'expected',
-    all: 'All contracts',
     failed: (account) => `Could not load ${account} – without transactions, nothing can be predicted.`,
     notLoaded: (account) =>
       `Once the transactions of ${account || 'this account'} are loaded, the next expected transactions appear here.`,
     none: (account) => `No regular transaction is expected for ${account} in the next 30 days.`,
     noneYet: 'No regular payments have been recognised in the loaded transactions yet.',
     on: (day) => `on ${day}, `,
-    more: (n) => `and ${countedEn(n, 'more transaction', 'more transactions')} in the 30 days`,
-    sum: 'Total for the 30 days, approx.',
+    more: (n) => `and ${countedEn(n, 'more transaction', 'more transactions')}`,
+    sum: 'Total, approx.',
   },
 
   loadYear: {
     label: 'Load 12 months of transactions',
-    hint: 'May need approval. Some banks send less history.',
+    labelFor: (account) => `Load 12 months of transactions for ${account}`,
   },
 
   hero: {
@@ -762,7 +709,6 @@ export const en: typeof de = {
     loadCurrent: (card) => `Load current ${card ? 'card balance' : 'balance'}`,
     pastRangeHint: (card) =>
       `The period ends before today – loading up to today shows the current ${card ? 'card balance' : 'balance'}.`,
-    fetching: 'Loading balance',
     fetchingDots: 'Loading balance…',
     noBalanceYet: 'No balance loaded yet',
     noBalance: 'No balance available',
@@ -818,7 +764,6 @@ export const en: typeof de = {
     busyApproval: 'Please wait – an approval is in progress',
     busyFetch: 'Please wait – loading from your bank',
     fetching: 'Loading balance',
-    cannotFetch: 'Cannot be loaded',
     total: 'Total balance',
     incomplete: 'incomplete',
     loadAll: 'Load all balances',
@@ -833,14 +778,12 @@ export const en: typeof de = {
     pending: 'Once this account’s transactions are loaded, the month’s summary appears here.',
     notLoaded: 'No transactions loaded',
     monthNotLoaded: (month) => `${month} is not loaded`,
-    loadToToday: 'Load up to today',
-    loadToTodayHint: 'Loads the last 90 days. May need approval.',
+    loadLast90Days: 'Load last 90 days',
     loaded: (range) => ['The loaded period is ', range, '.'],
     noneYet: (month) => `No transactions in ${month} yet`,
     onlyTransfers: (n) =>
       `So far only ${n === 1 ? 'one internal transfer' : `${n} internal transfers`} between your own accounts – they do not count here.`,
     empty: 'Once something is booked, you can see here what came in and went out.',
-    toAnalysis: 'Open analysis',
     withoutForeign: (n) => `excluding ${n} in a foreign currency`,
   },
 

@@ -53,7 +53,7 @@ export const POST = wrap(async (req: Request) => {
 
   if (resp.requiresTan) {
     s.pending = { type: 'orderDelete', tanReference: resp.tanReference, accountNumber, segId: interaction.segId, ref: ref as string };
-    return json({ ...tanPayload(resp), accountNumber } satisfies DeleteOrderResponse);
+    return json({ ...tanPayload(resp, s), accountNumber } satisfies DeleteOrderResponse);
   }
   if (!resp.success) {
     // As for a transfer: only a clean refusal says nothing was done.

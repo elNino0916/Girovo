@@ -271,8 +271,7 @@ export function BankPicker({
 
   return (
     <>
-      <h1 className="text-[28px] leading-tight font-bold text-headline sm:text-[32px]">{tr.title}</h1>
-      <p className="mt-1.5 text-[15px] leading-snug text-ink-2">{tr.intro}</p>
+      <h1 className="text-[28px] leading-tight font-medium text-headline sm:text-[32px]">{tr.title}</h1>
 
       {staleBank && (
         <Alert tone="info" className="mt-5" title={tr.staleTitle}>

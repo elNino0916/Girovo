@@ -41,7 +41,7 @@ export function BudgetTile({
   /** That period's "Ausgaben nach Kategorie" (periodTotals().byCategory). */
   spending: readonly CategoryAmount[];
   currency: string;
-  subtitle: ReactNode;
+  subtitle?: ReactNode;
   /** The newest month of the range — offered while the whole range is on view. */
   newest: AnalysisMonth | null;
   onShowMonth: (month: string) => void;

@@ -6,9 +6,10 @@
 // same applyRange path (and the same TAN gate) as the Umsätze period control.
 //
 // Every figure states its basis: which account(s), which days, how many
-// bookings, that Umbuchungen between the user's own accounts were left out,
-// and that it was worked out on this machine. Figures that are averages say
-// over how many complete months. Every "show me those bookings" opens the
+// bookings, and that Umbuchungen between the user's own accounts were not
+// counted. Figures that are averages say over how many complete months.
+// The 12-month button is the tab's one control that asks the bank, so the
+// approval note stands beside it. Every "show me those bookings" opens the
 // Umsätze list on exactly the days the figure counted.
 //
 // Two of the user's own things sit beside the figures: the Monatsbudgets
@@ -34,7 +35,6 @@ import { categoryDef, categoryLabel, counterpartyName, intermediaryName } from '
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { fmtAmountInput, fmtIban, fmtMonth, fmtRange, prettyBookingText } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
 import {
   WHOLE_RANGE, averageExpense, defaultPeriod, firstBookingDay, loadedPeers, useMonths, usePeriodFigures, useScopeData,
 } from './insights/analysis-model';
@@ -241,6 +241,8 @@ export function Analysis() {
   const selectedMonth = period === WHOLE_RANGE ? null : months.find((m) => m.month === period) ?? null;
   const loadedSpan = spanDays(data.from, data.to);
   const showHistoryButton = !ownInfo || spanDays(ownInfo.from, ownInfo.to) < YEAR_SPAN;
+  // It fetches the active account's year: with every account counted, it says whose.
+  const yearLabel = data.scope === 'all' ? t.insights.loadYear.labelFor(accountLabel(activeAccount)) : undefined;
   const empty = data.txs.length === 0;
   const first = firstBookingDay(data);
   const lateStart = months.some((m) => m.noData) && !!first;
@@ -304,17 +306,12 @@ export function Analysis() {
         {/* The range never splits at its dash, and no dot is left hanging at
             a line's end where the facts wrap. */}
         <p className="tnum px-4 pt-3 text-[13px] leading-relaxed text-ink-3 sm:px-6">
-          {/* On Android: the period is the picker's, the account the only one
-              unless there are several, and where it was worked out goes
-              without saying. */}
+          {/* The period is the picker's, the account the only one unless there
+              are several, and where it was worked out goes without saying. */}
           <DotList
             items={[
-              (!IS_ANDROID || accounts.length > 1) && t.insights.basis(namesList(scopeNames)),
-              !IS_ANDROID && <span className="whitespace-nowrap">{rangeText}</span>,
-              <>
-                {t.insights.count.bookings(totals.count)}
-                {period !== WHOLE_RANGE && !IS_ANDROID && <> {words.inPeriod(pLabel)}</>}
-              </>,
+              accounts.length > 1 && t.insights.basis(namesList(scopeNames)),
+              t.insights.count.bookings(totals.count),
               // The other accounts are one switch away — and a card's purchases
               // are there, not here, when this account pays the card's bill
               // as an Umbuchung.
@@ -324,7 +321,6 @@ export function Analysis() {
               data.clipped && words.commonPeriod,
               data.otherCurrencyAccounts > 0 && words.otherCurrencyAccounts(data.otherCurrencyAccounts),
               totals.otherCurrency > 0 && words.foreignBookings(totals.otherCurrency),
-              !IS_ANDROID && words.computedHere,
             ]}
           />
         </p>
@@ -339,28 +335,17 @@ export function Analysis() {
               className="mt-4 grid grid-cols-2 gap-px border-t border-line bg-line transition-opacity duration-200 desk:grid-cols-4"
               style={{ opacity: loading ? 0.55 : 1 }}
             >
-              <Kpi
-                label={t.insights.income}
-                sub={IS_ANDROID ? undefined : words.fromBookings(figures.credits)}
-              >
+              <Kpi label={t.insights.income}>
                 <Money value={totals.income} currency={data.currency} tone="plain" />
               </Kpi>
               <Kpi
                 label={t.common.booking.spending}
-                sub={versusAverage ?? (IS_ANDROID ? undefined : words.fromBookings(figures.debits))}
+                sub={versusAverage}
               >
                 <Money value={totals.expense} currency={data.currency} tone="plain" />
               </Kpi>
-              <Kpi
-                label={t.common.booking.difference}
-                // On Android the sign says it.
-                sub={
-                  IS_ANDROID ? undefined
-                    : Math.round(totals.net * 100) === 0
-                      ? words.net.even
-                      : totals.net > 0 ? words.net.more : words.net.less
-                }
-              >
+              {/* The sign says it. */}
+              <Kpi label={t.common.booking.difference}>
                 <Money value={totals.net} currency={data.currency} signed tone="credit" />
               </Kpi>
               <Kpi
@@ -371,18 +356,14 @@ export function Analysis() {
                     <span className="sr-only">{words.average.spoken}</span>
                   </>
                 }
-                sub={
-                  average
-                    ? (IS_ANDROID ? undefined : words.average.fromMonths(average.months.length))
-                    : words.average.needsTwo
-                }
+                sub={average ? words.average.fromMonths(average.months.length) : words.average.needsTwo}
               >
                 {average ? <Money value={average.value} currency={data.currency} tone="plain" /> : <span className="text-[15px] font-semibold text-ink-3">{words.average.tooShort}</span>}
               </Kpi>
             </dl>
             {showHistoryButton && (
               <div className="border-t border-line px-4 py-3 sm:px-6">
-                <LoadHistoryButton variant="tertiary" flush />
+                <LoadHistoryButton variant="tertiary" flush note label={yearLabel} />
               </div>
             )}
           </>
@@ -394,7 +375,7 @@ export function Analysis() {
           <EmptyState
             illustration="chart"
             title={t.insights.bookings.noneInRange}
-            action={showHistoryButton ? <LoadHistoryButton layout="centered" /> : undefined}
+            action={showHistoryButton ? <LoadHistoryButton layout="centered" note label={yearLabel} /> : undefined}
           >
             {words.emptyRange(rangeText, loadedSpan)}
             {showHistoryButton && ` ${words.emptyRangeLonger}`}
@@ -415,7 +396,6 @@ export function Analysis() {
               rows={totals.byCategory}
               total={totals.expense}
               currency={data.currency}
-              subtitle={IS_ANDROID ? undefined : pLabel}
               onShow={showCategory}
               // The way to budgets while there are none; once set, their tile carries it.
               actions={!hasBudgets && (
@@ -429,7 +409,6 @@ export function Analysis() {
                 month={selectedMonth}
                 spending={totals.byCategory}
                 currency={data.currency}
-                subtitle={IS_ANDROID ? undefined : pLabel}
                 newest={newestMonth}
                 onShowMonth={choosePeriod}
                 onShow={showCategory}
@@ -438,7 +417,6 @@ export function Analysis() {
             )}
             <LargestExpenses
               items={figures.biggest}
-              subtitle={IS_ANDROID ? undefined : words.largest.subtitle(pLabel)}
               categoryName={categoryName}
               onShow={showBooking}
             />
@@ -449,7 +427,6 @@ export function Analysis() {
               payees={figures.payees}
               expense={totals.expense}
               currency={data.currency}
-              subtitle={IS_ANDROID ? undefined : words.payees.subtitle(pLabel)}
               categoryName={categoryName}
               onShow={showPayee}
             />

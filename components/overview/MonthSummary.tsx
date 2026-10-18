@@ -6,11 +6,9 @@ import type { PeriodTotals } from '@/lib/analytics';
 import { fmtMonth, fmtRange, isoDate, presetRange } from '@/lib/format';
 import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
 import { comparisonSpan, type ComparisonSpan } from '@/lib/month-summary';
 import { useFints } from '../FintsProvider';
 import { Money, usePrivacy } from '../Money';
-import { ChevronIcon } from '../icons';
 import { Button, DotList, EmptyState, Skeleton, TileHeader } from '../ui';
 
 const NBSP = '\u00a0';
@@ -52,7 +50,7 @@ type Coverage = { from: string; to: string; complete: boolean };
 export function MonthSummary() {
   const {
     activeAccount: a, accounts, statementInfo, txByAccount, txErrors, categoryOf, loadingAccount, busy, applyRange,
-    accountLabel, setTab, setAnalysisPeriod,
+    accountLabel,
   } = useFints();
   const titleId = useId();
   const t = useT();
@@ -129,7 +127,7 @@ export function MonthSummary() {
       ) : !info && txErrors[acct] ? (
         // The reason, and the way to try again, stand with the Kontostand and
         // the Umsätze; said a third time here it would only be louder.
-        <EmptyState compact title={t.common.fetchFailed} className="pt-1">
+        <EmptyState compact title={t.transactions.list.loadFailed} className="pt-1">
           {words.pending}
         </EmptyState>
       ) : !info || !data ? (
@@ -143,12 +141,13 @@ export function MonthSummary() {
           className="pt-1"
           action={
             <>
-              {/* The default window: this month and the one before, and the
-                  span most banks serve without an extra approval. */}
+              {/* The default window — the Umsätze's "Letzte 90 Tage": this
+                  month and the one before, and the span most banks serve
+                  without an extra approval. */}
               <Button size="sm" variant="secondary" disabled={busy} onClick={() => applyRange(presetRange('90d'))}>
-                {words.loadToToday}
+                {words.loadLast90Days}
               </Button>
-              <p className="w-full text-[13px] leading-snug text-ink-3">{words.loadToTodayHint}</p>
+              <p className="w-full text-[13px] leading-snug text-ink-3">{t.common.mayNeedApproval}</p>
             </>
           }
         >
@@ -168,20 +167,6 @@ export function MonthSummary() {
           accountName={accounts.length > 1 ? accountLabel(a) : null}
         />
       )}
-
-      {/* The way on, as a full-width row at the foot of the tile — the same
-          shape the other side tiles use, and it leaves the header to the
-          month and how far it goes. On Android the navigation bar is it. */}
-      {!IS_ANDROID && <button
-        type="button"
-        // The month this tile shows — the Analyse would otherwise open on the
-        // last complete one (yyyy-mm; a month without bookings falls back there).
-        onClick={() => { setAnalysisPeriod(month.start.slice(0, 7)); setTab('analysis'); }}
-        className="row-focus flex w-full items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-left text-[13.5px] font-semibold text-accent hover:bg-accent-soft sm:px-5"
-      >
-        {words.toAnalysis}
-        <ChevronIcon dir="right" size={15} />
-      </button>}
     </section>
   );
 }
@@ -195,7 +180,6 @@ function Body({
 
   // On Android only what changes how the figures read: what was left out.
   const facts = [
-    !IS_ANDROID && t.insights.count.bookings(totals.count),
     totals.excluded > 0 && t.insights.without(t.insights.count.transfers(totals.excluded)),
     totals.otherCurrency > 0 && t.insights.monthSummary.withoutForeign(totals.otherCurrency),
   ]
@@ -254,7 +238,7 @@ function Body({
       {/* Wrapping between whole facts, with no dot left hanging at a line's end. */}
       {basis.length > 0 && (
         <p className="tnum mt-3 text-[12.5px] leading-snug text-ink-3">
-          <DotList items={basis.map((part, i) => (i === 0 && !IS_ANDROID ? t.insights.basis(part) : part))} />
+          <DotList items={basis} />
         </p>
       )}
     </div>

@@ -13,11 +13,9 @@ import { CalendarIcon } from '../icons';
 import { fmtDayShort } from '@/lib/analytics';
 import type { TxFilter } from '@/lib/app-types';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { addDaysKey, dayKey, dayNumber, fmtDate, presetRange, toLocalDate } from '@/lib/format';
-import { FREE_WINDOW_DAYS, planFetch } from '@/lib/history';
+import { dayKey, dayNumber, fmtDate, presetRange, toLocalDate } from '@/lib/format';
 import { intlLocale, msgs } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
 
 /**
  * "28.09.2026" ("28/09/2026") from a local day key — never through
@@ -73,29 +71,32 @@ export const YEAR_SPAN = 360;
 export { CounterpartyAvatar } from '../transactions/Avatar';
 
 /**
- * "Umsätze für 12 Monate abrufen" with its honest small print. Applies the
- * range like the Umsätze period control does — an explicit action that may
- * need a TAN, for the active account. Hidden once a year is loaded. When the
- * older months are kept on this computer (lib/history.ts), the bank is asked
- * only for its free window, and the small print says where they come from.
+ * "Umsätze für 12 Monate abrufen". Applies the range like the Umsätze period
+ * control does — an explicit action that may need a TAN, for the active
+ * account (when the older months are kept on this computer, lib/history.ts,
+ * the bank is asked only for what they lack). Hidden once a year is loaded.
+ * Where it is its section's one control that asks the bank, `note` sets the
+ * approval note beside it (common.mayNeedApproval).
  */
 export function LoadHistoryButton({
-  className, size = 'sm', variant = 'secondary', layout = 'inline', flush,
+  className, size = 'sm', variant = 'secondary', layout = 'inline', flush, label, note,
 }: {
   className?: string;
   size?: 'sm' | 'md';
   variant?: 'secondary' | 'tertiary';
   /** A tertiary button whose label lines up with the text around it (pulls in its own padding). */
   flush?: boolean;
-  /** inline: hint beside the button (wraps under it when narrow) · stacked: hint below · centered: below, centred (empty states). */
+  /** inline: note beside the button (wraps under it when narrow) · stacked: note below · centered: below, centred (empty states). */
   layout?: 'inline' | 'stacked' | 'centered';
+  /** In place of "Umsätze für 12 Monate abrufen" — whose year, where several accounts are in view. */
+  label?: string;
+  /** The approval note beside the button. */
+  note?: boolean;
 }) {
-  const { applyRange, busy, loadingAccount, activeAccount, historyCoverage } = useFints();
+  const { applyRange, busy, loadingAccount, activeAccount } = useFints();
   const t = useT();
   const loading = !!activeAccount && loadingAccount === activeAccount.accountNumber;
   const target = useMemo(() => presetRange('365d'), []);
-  const plan = planFetch(target, activeAccount ? historyCoverage[activeAccount.accountNumber] : undefined, target.to);
-  const fromSaved = !!plan && plan.from >= addDaysKey(target.to, -FREE_WINDOW_DAYS);
   return (
     <div
       className={cx(
@@ -113,14 +114,9 @@ export function LoadHistoryButton({
         className={flush ? '-ml-4' : undefined}
         onClick={() => applyRange(target)}
       >
-        {t.insights.loadYear.label}
+        {label ?? t.insights.loadYear.label}
       </Button>
-      {/* On Android the button alone: the approval, if any, asks for itself. */}
-      {!IS_ANDROID && (
-        <span className="text-[13px] leading-snug text-ink-3">
-          {fromSaved ? t.history.fromSaved : t.insights.loadYear.hint}
-        </span>
-      )}
+      {note && <span className="text-[13px] leading-snug text-ink-3">{t.common.mayNeedApproval}</span>}
     </div>
   );
 }
@@ -199,7 +195,7 @@ export function useShowInList() {
 
 /**
  * Where focus goes when the row holding it is about to disappear (a series
- * marked "Kein Vertrag" or restored): the neighbouring row, else the list's
+ * hidden from the contracts, or shown again): the neighbouring row, else the list's
  * heading — never the document body, where a keyboard user would have to
  * start over from the top.
  */

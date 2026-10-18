@@ -152,7 +152,7 @@ test('every way a request breaks has its sentence; no body, no English', () => {
   assert.equal(describeError(new Error('Request failed with status code 503: <html>Wartung</html>')), BANK_UNAVAILABLE);
   assert.equal(
     describeError(new Error('TAN must be provided for non-decoupled TAN methods')),
-    'Dieses Verfahren braucht eine TAN-Eingabe. Hier geht nur die Freigabe in einer Banking-App.',
+    'Deine Bank wartet auf eine TAN. Starte den Vorgang bitte noch einmal.',
   );
   assert.match(describeError(new TypeError("Cannot read properties of undefined (reading 'x')")), /unerwarteter Fehler/);
   // Our own German messages pass through.

@@ -53,7 +53,8 @@ const carriesFiles = (data: DataTransfer | null) => !!data && Array.from(data.ty
  * Reads a GiroCode from a file or from text and hands the payment over.
  * One scan at a time; a newer one wins over an older one still running.
  */
-export function useGiroCodeReader(onPayment: (p: EpcPayment) => void) {
+/** `onPayment` gets the code's payment, and the file it was read from (an invoice) — null for a scan or pasted text. */
+export function useGiroCodeReader(onPayment: (p: EpcPayment, file: File | null) => void) {
   const [scan, setScan] = useState<ScanState>({ status: 'idle' });
   const gen = useRef(0);
   const deliver = useRef(onPayment);
@@ -82,7 +83,7 @@ export function useGiroCodeReader(onPayment: (p: EpcPayment) => void) {
     const payment = parseEpcPayload(text);
     if (!payment) { setScan({ status: 'error', problem: 'notEpc' }); return; }
     setScan({ status: 'idle' });
-    deliver.current(payment);
+    deliver.current(payment, file);
   }, []);
 
   /** A GiroCode's text pasted as text ("BCD\n002\n…"); false when it is not one. */
@@ -92,7 +93,7 @@ export function useGiroCodeReader(onPayment: (p: EpcPayment) => void) {
     const payment = parseEpcPayload(text);
     if (!payment) { setScan({ status: 'error', problem: 'notEpc' }); return true; }
     setScan({ status: 'idle' });
-    deliver.current(payment);
+    deliver.current(payment, null);
     return true;
   }, []);
 
@@ -108,7 +109,7 @@ export function useGiroCodeReader(onPayment: (p: EpcPayment) => void) {
     if ('failed' in result) { setScan({ status: 'error', problem: 'scanFailed' }); return; }
     const payment = parseEpcPayload(result.value);
     if (!payment) { setScan({ status: 'error', problem: 'notEpc' }); return; }
-    deliver.current(payment);
+    deliver.current(payment, null);
   }, []);
 
   const reset = useCallback(() => { gen.current++; setScan({ status: 'idle' }); }, []);
@@ -243,14 +244,13 @@ export function GiroCodeDrop({
           <span className="block text-[14.5px] font-semibold text-accent">
             {reading ? words.reading : dragging ? words.dropHere : words.read}
           </span>
-          <span className="block text-[13px] text-ink-3">
-            {reading ? words.wait : (
-              <>
-                <span className="pointer-fine:hidden">{words.pick}</span>
-                <span className="hidden pointer-fine:inline">{words.pickOrDrop}</span>
-              </>
-            )}
-          </span>
+          {/* While it reads, the spinner and "wird gelesen" say it all. */}
+          {!reading && (
+            <span className="block text-[13px] text-ink-3">
+              <span className="pointer-fine:hidden">{words.pick}</span>
+              <span className="hidden pointer-fine:inline">{words.pickOrDrop}</span>
+            </span>
+          )}
         </span>
       </button>
       <input

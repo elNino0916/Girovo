@@ -87,7 +87,7 @@ const CADENCE_BY_ID = new Map(CADENCES.map((c) => [c.id, c]));
 export const cadenceLabel = (c: Cadence): string => (CADENCE_BY_ID.has(c) ? msgs().insights.cadence[c] : '');
 
 export type RecurringSeries = {
-  /** Stable across reloads: a hash of the grouping key. What "Kein Vertrag" stores. */
+  /** Stable across reloads: a hash of the grouping key. What "Ausblenden" stores. */
   id: string;
   /** The grouping key itself, e.g. "out|cred:DE98ZZZ09999999999|mref:M-1". */
   key: string;
@@ -149,7 +149,7 @@ export type DetectOptions = {
    */
   until?: Date | string;
   ownIbans?: ReadonlySet<string> | readonly string[];
-  /** Series ids the user dismissed with "Kein Vertrag". */
+  /** Series ids the user hid with "Ausblenden". */
   dismissed?: readonly string[];
   /** The provider's categoryOf, so a series shows the category the user sees. */
   categoryOf?: (tx: SerializedTransaction) => CategoryResult;
@@ -544,7 +544,7 @@ function buildSeries(
     kind: group.credit ? 'income' : 'expense',
     // Words, not data, where the bookings name nobody: read when they are read.
     get name() {
-      return named || msgs().insights.contracts.unknown;
+      return named || msgs().insights.noName;
     },
     iban,
     creditorId: group.cred,

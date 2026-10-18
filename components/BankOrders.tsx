@@ -21,7 +21,6 @@ import { bankAnswerLines, formatBankAnswer, refusalReference } from '@/lib/bank-
 import type { BankOrderKind, SerializedAccount, SerializedBankOrder } from '@/lib/fints-types';
 import { fmtDate, fmtIban, isoDate, toLocalDate } from '@/lib/format';
 import { rich, useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
 import { nextExecution, rhythmLine, scheduleSentence } from '@/lib/order-schedule';
 import { BankText } from './BankText';
 import { useFints, type BankOrdersInfo, type OrderDeletion } from './FintsProvider';
@@ -123,11 +122,11 @@ export function BankOrders() {
 
       {!anyRead && !loadingKind ? (
         <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-          {/* On Android the tile's title and its button say it. */}
-          {!IS_ANDROID && <p className="max-w-[60ch] text-[14px] leading-relaxed text-ink-2">{words.intro}</p>}
-          <div className={cx('flex flex-wrap items-center gap-x-3 gap-y-1', !IS_ANDROID && 'mt-3')}>
+          {/* The tile's title and its button say it; the note says what the
+              press may cost, once, beside the one control that asks the bank. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Button variant="secondary" size="sm" disabled={busy} onClick={() => loadBankOrders(account)}>{words.load}</Button>
-            {!IS_ANDROID && <span className="text-[13px] text-ink-3">{words.mayNeedApproval}</span>}
+            <span className="text-[13px] leading-snug text-ink-3">{words.mayNeedApproval}</span>
           </div>
         </div>
       ) : (
@@ -144,7 +143,7 @@ export function BankOrders() {
               onRemove={setRemoving}
             />
           ))}
-          <p className="border-t border-line bg-inset px-4 py-2.5 text-[13px] leading-snug text-ink-3 sm:px-5">
+          <p className="px-4 py-2.5 text-[13px] leading-snug text-ink-3 sm:px-5">
             <DotList items={[lastRead > 0 && <span className="tnum">{words.asOf(clock(t, lastRead))}</span>, words.change]} />
           </p>
         </>

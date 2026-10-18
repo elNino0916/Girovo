@@ -11,6 +11,8 @@ import * as budgets from './budgets.ts';
 import * as banks from './banks.ts';
 import * as categories from './categories.ts';
 import * as common from './common.ts';
+import * as depot from './depot.ts';
+import * as docs from './docs.ts';
 import * as format from './format.ts';
 import * as history from './history.ts';
 import * as insights from './insights.ts';
@@ -40,6 +42,8 @@ const de = {
   banks: banks.de,
   history: history.de,
   android: android.de,
+  depot: depot.de,
+  docs: docs.de,
 };
 
 export type Messages = typeof de;
@@ -60,6 +64,8 @@ const en: Messages = {
   banks: banks.en,
   history: history.en,
   android: android.en,
+  depot: depot.en,
+  docs: docs.en,
 };
 
 // The Android app says "Telefon" where the desktop says "Rechner" (phone.ts).

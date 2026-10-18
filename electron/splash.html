@@ -3,63 +3,74 @@
 <head>
 <meta charset="utf-8">
 <!-- The start window's card (electron/splash.cjs): nothing loads from
-     anywhere, and everything it says arrives as data (splashModel). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+     anywhere but its own font file beside it, and everything it says arrives
+     as data (splashModel). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src file:">
 <title>Girovo</title>
 <style>
-  /* The palettes of build/update-window/UpdateWindow.cs (Palette.For). */
+  /* The palettes of build/update-window/UpdateWindow.cs (Palette.For): the
+     app's Material roles (app/material.css), the card as its basic dialog. */
   :root {
-    --surface: #ffffff; --ink: #1b1f24; --ink-2: #4f5761; --inset: #edf0f4;
-    --headline: #0a2c5e; --plate-ink: #ffffff; --accent: #0864ad;
-    --edge: transparent; --shadow: 0 10px 36px rgba(10, 30, 60, 0.22);
+    --surface: #e3e8f4; --ink: #161c24; --ink-2: #404753;
+    --tonal: #dde3ee; --track: #dae1ff; --ring: #bfc7d5;
+    --accent: #0060a8;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
   }
   :root.dark {
-    --surface: #0a1b2d; --ink: #e3e9ef; --ink-2: #a9b6c4; --inset: #0e2236;
-    /* At night the headline navy turns to ink. */
-    --headline: #e3e9ef; --plate-ink: #0a1b2d; --accent: #3ba4ef;
-    /* The Night Edge Rule: depth from a faint white edge, not only shadow. */
-    --edge: rgba(255, 255, 255, 0.08); --shadow: 0 10px 36px rgba(0, 0, 0, 0.55);
+    --surface: #252a33; --ink: #dde3ee; --ink-2: #bfc7d5;
+    --tonal: #2f353e; --track: #3c4665; --ring: #404753;
+    --accent: #a2c9ff;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  }
+  /* The app's interface face, as the app serves it (scripts/make-window-fonts.py):
+     variable, so weight and optical size follow the text as in the app. */
+  @font-face {
+    font-family: "Google Sans Flex";
+    src: url("fonts/google-sans-flex-latin.woff2") format("woff2");
+    font-weight: 1 1000;
+    font-display: block;
   }
   html, body { margin: 0; background: transparent; overflow: hidden; }
   body {
-    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    font-family: "Google Sans Flex", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased; user-select: none; cursor: default;
   }
   /* The shadow's room inside the transparent window (UpdateWindow.cs: 28, 20, 28, 36). */
   .frame { padding: 20px 28px 36px; }
+  /* Material's basic dialog: 28px corners, 24px in, one soft shadow. */
   .card {
-    width: 440px; box-sizing: border-box; padding: 24px 28px 26px;
-    background: var(--surface); border-radius: 16px;
-    border: 1px solid var(--edge); box-shadow: var(--shadow);
+    width: 440px; box-sizing: border-box; padding: 24px;
+    background: var(--surface); border-radius: 28px; box-shadow: var(--shadow);
     /* Frameless: the card is what moves the window. */
     -webkit-app-region: drag;
   }
-  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
-  .plate { width: 28px; height: 28px; border-radius: 8px; background: var(--headline); display: grid; place-items: center; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  /* The app's plate: Girovo's navy, the G€ in white, in either theme. */
+  .plate { width: 28px; height: 28px; border-radius: 8px; background: #0a2c5e; display: grid; place-items: center; }
   .plate svg { width: 28px; height: 28px; }
-  .wordmark { font-weight: 700; font-size: 15px; color: var(--ink-2); }
+  .wordmark { font-weight: 700; font-size: 15px; color: var(--ink); }
+  /* Headline small. */
   h1 {
-    margin: 0; font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-    font-weight: 700; font-size: 22px; line-height: 1.25; color: var(--headline);
+    margin: 0; font-family: "Google Sans Flex", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    font-weight: 500; font-size: 24px; line-height: 32px; color: var(--ink);
   }
-  ol { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 10px; }
+  ol { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 10px; }
   li { display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 20px; color: var(--ink-2); }
-  li.active { color: var(--ink); font-weight: 600; }
+  li.active { color: var(--ink); font-weight: 500; }
   .icon { width: 18px; height: 18px; flex: none; display: grid; place-items: center; }
   .icon svg { width: 18px; height: 18px; }
-  /* Pending: a quiet ring. Active: the accent ring turning. Done: an accent tick. */
-  .pending .ring { stroke: var(--inset); }
-  :root:not(.dark) .pending .ring { stroke: #c9d0d8; }
-  .active .track { stroke: var(--inset); }
+  /* Pending: a quiet ring. Active: the primary arc turning on its track. Done: a primary tick. */
+  .pending .ring { stroke: var(--ring); }
+  .active .track { stroke: var(--track); }
   .active .arc { stroke: var(--accent); transform-origin: 9px 9px; animation: turn 0.9s linear infinite; }
   .done .tick { stroke: var(--accent); }
   @keyframes turn { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .active .arc { animation: none; } }
   .note {
-    margin: 16px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--inset);
-    font-size: 13.5px; line-height: 20px; color: var(--ink-2);
+    margin: 16px 0 0; padding: 12px 16px; border-radius: 12px; background: var(--tonal);
+    font-size: 14px; line-height: 20px; color: var(--ink-2);
   }
-  .version { margin-top: 18px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .version { margin-top: 16px; font-size: 12px; line-height: 16px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -69,8 +80,8 @@
       <!-- The G€ mark: lib/brand-mark.ts (MARK_ARC, MARK_BARS and their widths). -->
       <div class="plate" aria-hidden="true">
         <svg viewBox="0 0 512 512" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M361.4 151.8A136 136 0 1 0 405.1 292H280" stroke-width="46" style="stroke: var(--plate-ink)"/>
-          <path d="M100 222H244M100 292H208" stroke-width="40" style="stroke: var(--plate-ink)"/>
+          <path d="M361.4 151.8A136 136 0 1 0 405.1 292H280" stroke-width="46" stroke="#ffffff"/>
+          <path d="M100 222H244M100 292H208" stroke-width="40" stroke="#ffffff"/>
         </svg>
       </div>
       <span class="wordmark">Girovo</span>

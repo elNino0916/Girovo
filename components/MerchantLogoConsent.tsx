@@ -58,7 +58,7 @@ export function MerchantLogoConsent() {
             <Button size="sm" variant="secondary" onClick={() => answer(false)}>{t.auth.noThanks}</Button>
           </div>
           <p className="mt-3 text-[13px] leading-snug text-ink-3">
-            {t.auth.logos.later}
+            {t.auth.changeLater}
           </p>
         </div>
       </div>

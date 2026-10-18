@@ -1,31 +1,33 @@
 'use client';
 
-// The shell: masthead, institute bar, and the page beneath them.
+// The shell: an app's, on every platform (DESIGN.md, Material 3 Expressive) —
+// one top app bar that names the page (Masthead), the page beneath it, and
+// the navigation: Material's bar on a phone, its rail down the left edge from
+// 640px (BottomBar), with Überweisen as its floating action button. The bank
+// is in the Sitzung panel and, with several, on the accounts; Geld anfordern
+// and Kontoauszug are under "Mehr" (the palette) and on the balance.
 //
-// The two header tiers never scroll. Everything under them scrolls in its
-// own container ([data-scroll-root]) — that is the box whose scrollbar the OS
+// The top app bar never scrolls. Everything under it scrolls in its own
+// container ([data-scroll-root]) — that is the box whose scrollbar the OS
 // draws, kept clear of the desktop shell's caption buttons, and the box the
 // overlays lock while they are open. Sticky things inside the page (day
-// headers in Umsätze, the right column) stick to its top edge.
+// headers in Umsätze, the side pane) stick to its top edge.
 //
-// The page opens the way a bank's start page does: a navy stage that says
-// where you are and who you are, then the tiles, the first row lapping over
-// the stage's lower edge. On the Übersicht the tiles sit in a 2:1 grid —
-// accounts, balance and bookings on the wide side, the smaller summaries
-// beside them — and fold into one column in reading order on a narrow screen.
-//
-// The Android app is an app, not a bank's web page: one top app bar that
-// names the page (Masthead), the tiles, the navigation bar. No institute bar
-// (the bank is in the Sitzung panel and, with several, on the accounts), no
-// stage (Geld anfordern and Kontoauszug are under "Mehr"), no footer.
+// The page is flat and list-first: sections stand on the page itself, and
+// the one container is the balance. On a wide window the Übersicht has two
+// panes — the balance and the bookings, and beside them the small summaries
+// in a pane of their own; below that it is the phone's: the balance,
+// Vorgemerkt and the bookings.
 
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
+import { isDepot } from '@/lib/balances';
 import { useFints } from './FintsProvider';
 import { AccountHero, AccountList, MonthSummary } from './AccountPanel';
 import { PendingPanel, Transactions } from './Transactions';
+import { Portfolio } from './Portfolio';
 import { Analysis } from './Analysis';
 import { Contracts, UpcomingPayments } from './Contracts';
 import { TransferSheet } from './TransferSheet';
@@ -35,14 +37,10 @@ import { Inbox } from './Inbox';
 import { CommandPalette } from './CommandPalette';
 import { SessionGuard } from './SessionGuard';
 import { ShortcutsHelp } from './ShortcutsHelp';
-import { ChevronIcon } from './icons';
-import { Button, TabPanel, cx } from './ui';
+import { cx } from './ui';
 import { useShellActions } from './shell/actions';
 import { useGlobalShortcuts } from './shell/useShortcuts';
 import { Masthead } from './shell/Masthead';
-import { DASH_TABS_ID, InstituteBar } from './shell/InstituteBar';
-import { Stage } from './shell/Stage';
-import { Footer } from './shell/Footer';
 import { BottomBar } from './shell/BottomBar';
 import { MessagesTeaser } from './shell/MessagesTeaser';
 import { MerchantLogoConsent } from './MerchantLogoConsent';
@@ -80,33 +78,15 @@ export function Dashboard() {
       {/* "Zum Inhalt springen" is the masthead's first child — see Masthead. */}
       <header className="shrink-0">
         <Masthead />
-        {!IS_ANDROID && <InstituteBar />}
       </header>
 
       <div ref={scrollRef} data-scroll-root className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="flex min-h-full flex-col">
-          {!IS_ANDROID && <Stage actions={actions} />}
-
-          <main
-            id="main"
-            className={cx(
-              'relative mx-auto w-full max-w-[1280px] px-4 sm:px-6',
-              IS_ANDROID ? 'pt-2 pb-6' : '-mt-12 pb-10 sm:pb-14',
-            )}
-          >
-            <TabPanel idBase={DASH_TABS_ID} id="overview" active={tab === 'overview'}>
-              <Overview scrollRef={scrollRef} />
-            </TabPanel>
-            <TabPanel idBase={DASH_TABS_ID} id="analysis" active={tab === 'analysis'}>
-              <Analysis />
-            </TabPanel>
-            <TabPanel idBase={DASH_TABS_ID} id="contracts" active={tab === 'contracts'}>
-              <Contracts />
-            </TabPanel>
-          </main>
-
-          {!IS_ANDROID && <Footer />}
-        </div>
+        {/* One page at a time, named by the top app bar's title (its h1). */}
+        <main id="main" className="relative mx-auto w-full max-w-[1280px] px-4 pt-2 pb-6 sm:px-6 sm:pb-12">
+          {tab === 'overview' && <Overview scrollRef={scrollRef} />}
+          {tab === 'analysis' && <Analysis />}
+          {tab === 'contracts' && <Contracts />}
+        </main>
       </div>
 
       <BottomBar actions={actions} />
@@ -143,6 +123,7 @@ export function Dashboard() {
  */
 function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
   const { activeAccount, pendingCache } = useFints();
+  const depot = !!activeAccount && isDepot(activeAccount);
   const sideRef = useRef<HTMLDivElement>(null);
   const stickyTop = useStickyTop(sideRef, scrollRef);
 
@@ -156,12 +137,11 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
     >
       <Slot name="accounts" className="desk:col-start-1"><AccountList /></Slot>
       <Slot name="hero" className="desk:col-start-1"><AccountHero /></Slot>
-      {/* A jump down the page is a web page's habit; the phone app scrolls. */}
-      {activeAccount && !IS_ANDROID && <ToTransactions />}
       <div
         ref={sideRef}
-        // Pinned beside the bookings while they scroll (sticky only applies
-        // on the two-column layout; the `top` is inert without it).
+        // The side pane: pinned beside the bookings while they scroll (sticky
+        // only applies on the two-pane layout; the `top` is inert without it).
+        data-side
         style={{ top: stickyTop }}
         className="flex min-w-0 flex-col gap-4 sm:gap-6 desk:sticky desk:col-start-2 desk:row-[1/-1]"
       >
@@ -171,18 +151,24 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
         {activeAccount && (activeAccount.canPending || pendingCache[activeAccount.accountNumber]) && (
           <Slot><PendingPanel /></Slot>
         )}
-        {/* On Android the Übersicht is the balance and the bookings: the month's
-            figures are the Analyse's, what is due the Verträge's, the bank's
-            messages the bell's. */}
+        {/* A phone's Übersicht — and a window too narrow for the side pane —
+            is the balance and the bookings: the month's figures are the
+            Analyse's, what is due the Verträge's, the bank's messages the
+            bell's. The side pane of a wide window has room for them — except
+            the two made of Umsätze while a Depot is chosen: it has none, so
+            they could only say so. */}
         {!IS_ANDROID && (
           <>
-            <Slot><MonthSummary /></Slot>
-            <Slot><UpcomingPayments /></Slot>
-            <Slot><MessagesTeaser /></Slot>
+            {!depot && <Slot className="max-desk:hidden"><MonthSummary /></Slot>}
+            {!depot && <Slot className="max-desk:hidden"><UpcomingPayments /></Slot>}
+            <Slot className="max-desk:hidden"><MessagesTeaser /></Slot>
           </>
         )}
       </div>
-      <Slot name="transactions" className="desk:col-start-1"><Transactions /></Slot>
+      {/* A Depot has no Umsätze over FinTS: its holdings take their place. */}
+      <Slot name="transactions" className="desk:col-start-1">
+        {depot ? <Portfolio /> : <Transactions />}
+      </Slot>
     </div>
   );
 }
@@ -190,30 +176,6 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
 /** A grid cell. Empty tiles (a component that renders nothing) leave no gap behind. */
 function Slot({ name, className, children }: { name?: string; className?: string; children: ReactNode }) {
   return <div data-slot={name} className={cx('min-w-0 empty:hidden', className)}>{children}</div>;
-}
-
-/**
- * Below the desk breakpoint the summaries stand between the balance and the
- * bookings. This goes past them in one press — the same jump as the palette's
- * "Umsätze durchsuchen" and "/", landing on the Umsätze heading, so the next
- * Tab is in the filters. On desk the bookings sit right under the balance.
- */
-function ToTransactions() {
-  const { showTransactions } = useFints();
-  const t = useT();
-  return (
-    <div className="-my-1 sm:-my-2 desk:hidden">
-      <Button
-        variant="tertiary"
-        size="sm"
-        className="-ml-3"
-        iconRight={<ChevronIcon dir="down" size={15} />}
-        onClick={() => showTransactions()}
-      >
-        {t.shell.dashboard.toTransactions}
-      </Button>
-    </div>
-  );
 }
 
 /**

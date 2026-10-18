@@ -5,9 +5,8 @@
 // fällig" tile so both always tell the same story.
 //
 // Detection runs once per change of the bookings, the categories or the
-// own-account list; the user's "Nicht als Vertrag zählen" list only
-// re-partitions the result, so dismissing a series never re-runs the
-// detection.
+// own-account list; the user's list of hidden series ("Ausblenden") only
+// re-partitions the result, so hiding a series never re-runs the detection.
 //
 // Every account is accounted for: the ones whose bookings are in, each with
 // its own period; the ones that are not (never fetched, failed, or without
@@ -54,7 +53,7 @@ export type RecurringModel = {
   groups: RecurringGroup[];
   /** Two expected bookings missed — most likely cancelled. Not in any total. */
   ended: RecurringSeries[];
-  /** Series the user marked "Nicht als Vertrag zählen", still detected in the data. */
+  /** Series the user hid ("Ausblenden"), still detected in the data. */
   dismissed: RecurringSeries[];
   totals: ReturnType<typeof recurringTotals>;
   /** Live series in another currency than the totals — listed, never added. */

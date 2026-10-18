@@ -26,6 +26,7 @@
 // verified — or, on request, deliberately broken.
 
 import type { ChosenBank } from '@/components/FintsProvider';
+import type { SerializedPortfolio } from '@/lib/fints-types';
 import type { ActivityEntry, DateRange, InboxMessage, VaultData } from '@/lib/app-types';
 import type { PopularBank } from '@/lib/banks';
 import type {
@@ -110,6 +111,16 @@ export const HOLDER = 'NINO BECKER';
 const BLZ = '57069999';
 const BIC = 'GENODED1MST';
 
+/**
+ * How each of the mock banks' methods approves: in the app, or with a TAN
+ * typed from a flicker code (chipTAN optisch), a graphic to scan (photoTAN,
+ * chipTAN QR), the challenge's words (chipTAN manuell) or an SMS. The design
+ * preview builds each one's challenge from it (mock.tsx).
+ */
+export type MockTanKind = 'app' | 'flicker' | 'photo' | 'manual' | 'sms';
+export const MOCK_TAN_KINDS: readonly MockTanKind[] = ['app', 'flicker', 'photo', 'manual', 'sms'];
+export const MOCK_TAN_KIND: Record<number, MockTanKind> = { 944: 'app', 962: 'flicker', 972: 'photo', 982: 'manual', 992: 'sms', 923: 'app' };
+
 export const MOCK_BANK: ChosenBank = {
   blz: BLZ,
   name: 'Volksbank Musterstadt eG',
@@ -124,6 +135,8 @@ export const ACCT = {
   karte: '4930XXXXXXXX1234',
   /** The second bank's Girokonto. */
   spk: '1902345678',
+  /** A Depot, listed only with MockOptions `depot`. */
+  depot: '0105593299',
 } as const;
 
 const GIRO_IBAN = makeIban('DE', `${BLZ}${ACCT.giro}`);
@@ -171,6 +184,8 @@ export const MOCK_ACCOUNTS: SerializedAccount[] = [
     canStatements: true, canBalance: true, canTransfer: true, canInstant: true, canPending: true,
     dated: { create: true, list: true, remove: true, rules: { minDays: 1, maxDays: 360, fromBank: true } },
     standing: { create: true, list: true, remove: true, rules: STANDING_RULES },
+    // The bank's own Kontoauszüge as PDF (HKEKA).
+    canBankStatements: true,
   },
   {
     // Daueraufträge only, and none at the bank yet.
@@ -185,6 +200,59 @@ export const MOCK_ACCOUNTS: SerializedAccount[] = [
     canStatements: true, canBalance: true, canTransfer: false, canInstant: false, canPending: false,
   },
 ];
+
+/** A Depot (MockOptions `depot`): no Umsätze, no balance over FinTS — its holdings instead (HKWPD). */
+export const MOCK_DEPOT: SerializedAccount = {
+  accountNumber: ACCT.depot, iban: null, bic: BIC, currency: 'EUR', accountType: 'SecuritiesAccount',
+  holder: HOLDER, product: 'VR-Depot', limit: null,
+  canStatements: false, canBalance: false, canTransfer: false, canInstant: false, canPending: false, canPortfolio: true,
+};
+
+/**
+ * The Depot's holdings, priced the day before `today`: an ETF, two shares,
+ * a fund and a bond (priced in percent). Made up, like every name here —
+ * the ISINs only have the right shape. The total is the bank's, the sum of
+ * the values.
+ */
+export function mockPortfolio(today: string, readAt = new Date()): SerializedPortfolio {
+  const priced = `${addDaysKey(today, -1)}T17:30:00.000Z`;
+  const holdings: SerializedPortfolio['holdings'] = [
+    { name: 'MUSTER MSCI WORLD UCITS ETF', isin: 'IE00MOCK0001', wkn: 'MCK001', quantity: 142.317, price: 104.62, value: 14889.20, acquisitionPrice: 82.15 },
+    { name: 'RHEINTAL SOFTWARE AG INHABER-AKTIEN', isin: 'DE000MOCK002', wkn: 'MCK002', quantity: 40, price: 61.3, value: 2452.00, acquisitionPrice: 68.9 },
+    { name: 'NORDWIND ENERGIE AG', isin: 'DE000MOCK003', wkn: 'MCK003', quantity: 25, price: 33.18, value: 829.50, acquisitionPrice: 24.4 },
+    { name: 'MUSTERFONDS NACHHALTIGKEIT A', isin: 'DE000MOCK004', wkn: 'MCK004', quantity: 18.552, price: 118.04, value: 2189.88, acquisitionPrice: 110.27 },
+    { name: '2,5 % MUSTERSTADT ANLEIHE 2024/2031', isin: 'DE000MOCK005', wkn: 'MCK005', quantity: null, price: 0.9842, value: 4921.00, acquisitionPrice: null, percent: true },
+  ].map((h) => ({
+    name: h.name, isin: h.isin, wkn: h.wkn, quantity: h.quantity, price: h.price, pricePercent: !!h.percent,
+    priceDate: priced, value: h.value, currency: 'EUR', acquisitionPrice: h.acquisitionPrice,
+  }));
+  const total = Math.round(holdings.reduce((n, h) => n + (h.value ?? 0), 0) * 100) / 100;
+  return { totalValue: total, currency: 'EUR', holdings, readAt: readAt.toISOString() };
+}
+
+/**
+ * A one-page PDF with a title and a few lines — what a bank's Kontoauszug
+ * comes as. Plain PDF 1.4, its cross-reference table counted out, so any
+ * viewer opens it.
+ */
+export function mockPdf(title: string, lines: string[]): Uint8Array {
+  const esc = (s: string) => s.replace(/[\\()]/g, (c) => `\\${c}`).replace(/[^\x20-\x7e]/g, '?');
+  const text = [`BT /F1 16 Tf 56 780 Td (${esc(title)}) Tj ET`, ...lines.map((l, i) => `BT /F1 11 Tf 56 ${748 - i * 18} Td (${esc(l)}) Tj ET`)].join('\n');
+  const objs = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objs.forEach((o, i) => { offsets.push(pdf.length); pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`;
+  pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
 
 const LIMIT: Record<string, number | null> = { [ACCT.giro]: 2000, [ACCT.tagesgeld]: null, [ACCT.karte]: 2500, [ACCT.spk]: 500 };
 
@@ -1040,12 +1108,20 @@ function buildMockData(today: string): MockData {
         decoupled: { waitBeforeFirst: 2, waitBetween: 2, maxStatusRequests: 60 },
       },
       {
+        id: 962, name: 'Smart-TAN plus optisch', version: 7, isDecoupled: false,
+        activeTanMedia: [], tanMediaRequirement: 0, decoupled: null, tanMaxLength: 6, tanNumeric: true,
+      },
+      {
         id: 972, name: 'Smart-TAN photo', version: 7, isDecoupled: false,
-        activeTanMedia: [], tanMediaRequirement: 0, decoupled: null,
+        activeTanMedia: [], tanMediaRequirement: 0, decoupled: null, tanMaxLength: 7, tanNumeric: true,
       },
       {
         id: 982, name: 'Smart-TAN plus manuell', version: 7, isDecoupled: false,
-        activeTanMedia: [], tanMediaRequirement: 0, decoupled: null,
+        activeTanMedia: [], tanMediaRequirement: 0, decoupled: null, tanMaxLength: 6, tanNumeric: true,
+      },
+      {
+        id: 992, name: 'mobileTAN', version: 7, isDecoupled: false,
+        activeTanMedia: ['Mein Handy'], tanMediaRequirement: 1, decoupled: null, tanMaxLength: 6, tanNumeric: true,
       },
     ],
     popularBanks: POPULAR,

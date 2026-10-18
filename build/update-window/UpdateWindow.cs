@@ -21,7 +21,8 @@
 // "Girovo neu starten" when --app-exe names the app to start again.
 //
 // Built by scripts/build-update-window.mjs with the C# compiler that ships with
-// Windows (.NET Framework 4.x): C# 5, WPF built in code, no XAML.
+// Windows (.NET Framework 4.x): C# 5, WPF built in code, no XAML. It carries
+// the app's interface face inside it (Faces, below).
 
 using System;
 using System.Collections.Generic;
@@ -107,11 +108,19 @@ namespace Girovo.UpdateWindow
         }
     }
 
-    /// <summary>The app's tokens (app/globals.css, DESIGN.md), light and dark.</summary>
+    /// <summary>
+    /// The app's Material roles (app/material.css, DESIGN.md), light and dark:
+    /// the card is the app's basic dialog (surface container high), the
+    /// progress and the buttons its primary, the track its secondary container.
+    /// electron/splash.html draws with the same values.
+    /// </summary>
     sealed class Palette
     {
-        public Color Surface, Ink, Ink2, Inset, Headline, PlateInk, Accent, AccentInk, Edge;
+        public Color Surface, Ink, Ink2, Track, Accent, AccentInk;
         public bool Dark;
+
+        /// <summary>The G€ plate: Girovo's navy, a logo's literal colour, the same in either theme.</summary>
+        public static readonly Color Plate = Color.FromRgb(0x0a, 0x2c, 0x5e);
 
         static Color Hex(string hex)
         {
@@ -125,31 +134,108 @@ namespace Girovo.UpdateWindow
                 return new Palette
                 {
                     Dark = true,
-                    Surface = Hex("#0a1b2d"),
-                    Ink = Hex("#e3e9ef"),
-                    Ink2 = Hex("#a9b6c4"),
-                    Inset = Hex("#0e2236"),
-                    // At night the headline navy turns to ink, progress with it.
-                    Headline = Hex("#e3e9ef"),
-                    PlateInk = Hex("#0a1b2d"),
-                    Accent = Hex("#3ba4ef"),
-                    AccentInk = Hex("#04121f"),
-                    // The Night Edge Rule: depth from a faint white edge, not shadow.
-                    Edge = Color.FromArgb(0x14, 0xff, 0xff, 0xff),
+                    Surface = Hex("#252a33"),
+                    Ink = Hex("#dde3ee"),
+                    Ink2 = Hex("#bfc7d5"),
+                    Track = Hex("#3c4665"),
+                    Accent = Hex("#a2c9ff"),
+                    AccentInk = Hex("#00315b"),
                 };
             }
             return new Palette
             {
-                Surface = Hex("#ffffff"),
-                Ink = Hex("#1b1f24"),
-                Ink2 = Hex("#4f5761"),
-                Inset = Hex("#edf0f4"),
-                Headline = Hex("#0a2c5e"),
-                PlateInk = Hex("#ffffff"),
-                Accent = Hex("#0864ad"),
+                Surface = Hex("#e3e8f4"),
+                Ink = Hex("#161c24"),
+                Ink2 = Hex("#404753"),
+                Track = Hex("#dae1ff"),
+                Accent = Hex("#0060a8"),
                 AccentInk = Hex("#ffffff"),
-                Edge = Colors.Transparent,
             };
+        }
+    }
+
+    /// <summary>
+    /// The app's interface face, Google Sans Flex, carried inside this program as
+    /// fixed instances (build/update-window/fonts, from scripts/make-window-fonts.py):
+    /// the installation it could read the app's copy from is what an update
+    /// replaces. WPF sets fonts from files only, so they are written to a folder
+    /// of their own under %TEMP% — rewritten wherever they differ from these
+    /// bytes, so only this program's own fonts are ever read from there — and set
+    /// from it. Without them, Segoe UI Variable, as before.
+    /// </summary>
+    static class Faces
+    {
+        static readonly string[] Files =
+        {
+            "GirovoSans-Regular.ttf",
+            "GirovoSans-Medium.ttf",
+            "GirovoSans-Bold.ttf",
+            "GirovoSansDisplay-Medium.ttf",
+        };
+
+        /// <summary>Text: Regular, Medium and Bold at the text's optical size.</summary>
+        public static FontFamily Text = new FontFamily("Segoe UI Variable Text, Segoe UI");
+        /// <summary>The headline: Medium at the headline's optical size.</summary>
+        public static FontFamily Display = new FontFamily("Segoe UI Variable Display, Segoe UI");
+
+        public static void Load()
+        {
+            try
+            {
+                var assembly = Assembly.GetExecutingAssembly();
+                var dir = Path.Combine(Path.GetTempPath(), "Girovo", "update-window-fonts");
+                Directory.CreateDirectory(dir);
+                foreach (var file in Files)
+                {
+                    byte[] bytes;
+                    using (var stream = assembly.GetManifestResourceStream("fonts." + file))
+                    {
+                        if (stream == null) return;
+                        bytes = new byte[stream.Length];
+                        int read = 0;
+                        while (read < bytes.Length)
+                        {
+                            int n = stream.Read(bytes, read, bytes.Length - read);
+                            if (n <= 0) return;
+                            read += n;
+                        }
+                    }
+                    var target = Path.Combine(dir, file);
+                    if (Same(target, bytes)) continue;
+                    // Another copy of this window may have the file open; a
+                    // fresh name, then swapped in, never a half-written font.
+                    var temp = target + "." + Process.GetCurrentProcess().Id + ".tmp";
+                    File.WriteAllBytes(temp, bytes);
+                    if (File.Exists(target)) File.Delete(target);
+                    File.Move(temp, target);
+                }
+                var folder = new Uri(dir + Path.DirectorySeparatorChar);
+                Text = new FontFamily(folder, "./#Girovo Sans, Segoe UI Variable Text, Segoe UI");
+                Display = new FontFamily(folder, "./#Girovo Sans Display, Segoe UI Variable Display, Segoe UI");
+            }
+            catch
+            {
+                // Segoe UI Variable, then: a window in the system's face beats none.
+            }
+        }
+
+        static bool Same(string path, byte[] bytes)
+        {
+            try
+            {
+                if (!File.Exists(path)) return false;
+                var existing = File.ReadAllBytes(path);
+                if (existing.Length != bytes.Length) return false;
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    if (existing[i] != bytes[i]) return false;
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 
@@ -161,6 +247,7 @@ namespace Girovo.UpdateWindow
             try
             {
                 var options = Options.Parse(args);
+                Faces.Load();
                 if (options.Snapshot.Length > 0) return Snapshot(options);
                 var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
                 return app.Run(new UpdateWindow(options));
@@ -196,9 +283,6 @@ namespace Girovo.UpdateWindow
 
     sealed class UpdateWindow : Window
     {
-        const string UiFont = "Segoe UI Variable Text, Segoe UI";
-        const string DisplayFont = "Segoe UI Variable Display, Segoe UI";
-
         readonly Options options;
         readonly Palette palette;
         readonly DateTime started = DateTime.UtcNow;
@@ -208,6 +292,7 @@ namespace Girovo.UpdateWindow
         readonly TextBlock percent = new TextBlock();
         readonly Border track = new Border();
         readonly Border fill = new Border();
+        readonly Border rest = new Border();
         readonly StackPanel progressBlock = new StackPanel();
         readonly StackPanel buttons = new StackPanel();
         readonly bool animate = SystemParameters.ClientAreaAnimation;
@@ -294,107 +379,124 @@ namespace Girovo.UpdateWindow
 
         UIElement BuildCard()
         {
-            // The dialog: 16px corners, lifted by the Pop shadow (light) or the
-            // night edge plus a deep shadow (dark). The margin leaves the
-            // shadow room inside the transparent window.
+            // Material's basic dialog: 28px corners, 24px in, one soft shadow.
+            // The margin leaves the shadow room inside the transparent window.
             var card = new Border
             {
                 Width = 440,
                 Margin = new Thickness(28, 20, 28, 36),
-                CornerRadius = new CornerRadius(16),
+                CornerRadius = new CornerRadius(28),
                 Background = Brush(palette.Surface),
-                BorderBrush = Brush(palette.Edge),
-                BorderThickness = new Thickness(palette.Dark ? 1 : 0),
-                Padding = new Thickness(28, 24, 28, 28),
+                Padding = new Thickness(24),
                 Effect = new DropShadowEffect
                 {
-                    Color = palette.Dark ? Colors.Black : Color.FromRgb(10, 30, 60),
-                    BlurRadius = 36,
-                    ShadowDepth = 10,
+                    Color = Colors.Black,
+                    BlurRadius = 24,
+                    ShadowDepth = 6,
                     Direction = 270,
-                    Opacity = palette.Dark ? 0.55 : 0.22,
+                    Opacity = palette.Dark ? 0.5 : 0.25,
                 },
             };
 
             var stack = new StackPanel();
             card.Child = stack;
 
-            // The masthead's mark: the G€ plate and the wordmark.
-            var brand = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 18) };
+            // The app's mark: the G€ plate and the wordmark.
+            var brand = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
             var plate = new Border
             {
                 Width = 28,
                 Height = 28,
                 CornerRadius = new CornerRadius(8),
-                Background = Brush(palette.Headline),
-                Child = Mark(palette.PlateInk),
+                Background = Brush(Palette.Plate),
+                Child = Mark(Colors.White),
             };
             brand.Children.Add(plate);
             brand.Children.Add(new TextBlock
             {
                 Text = "Girovo",
-                FontFamily = new FontFamily(UiFont),
+                FontFamily = Faces.Text,
                 FontWeight = FontWeights.Bold,
                 FontSize = 15,
-                Foreground = Brush(palette.Ink2),
+                Foreground = Brush(palette.Ink),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(10, 0, 0, 1),
             });
             stack.Children.Add(brand);
 
-            title.FontFamily = new FontFamily(DisplayFont);
-            title.FontWeight = FontWeights.Bold;
-            title.FontSize = 22;
-            title.Foreground = Brush(palette.Headline);
+            // Headline small.
+            title.FontFamily = Faces.Display;
+            title.FontWeight = FontWeights.Medium;
+            title.FontSize = 24;
+            title.LineHeight = 32;
+            title.Foreground = Brush(palette.Ink);
             title.TextWrapping = TextWrapping.Wrap;
             title.Text = options.Version.Length > 0
                 ? Say.Pick("Update auf " + options.Version + " wird installiert", "Installing update to " + options.Version)
                 : Say.Pick("Update wird installiert", "Installing update");
             stack.Children.Add(title);
 
-            description.FontFamily = new FontFamily(UiFont);
-            description.FontSize = 15;
-            description.LineHeight = 22;
+            description.FontFamily = Faces.Text;
+            description.FontSize = 14;
+            description.LineHeight = 20;
             description.Foreground = Brush(palette.Ink2);
             description.TextWrapping = TextWrapping.Wrap;
-            description.Margin = new Thickness(0, 6, 0, 0);
+            description.Margin = new Thickness(0, 8, 0, 0);
             description.Text = Say.Pick("Girovo startet danach von selbst wieder.", "Girovo restarts on its own afterwards.");
             stack.Children.Add(description);
 
             // The progress row, as in the update dialog: what is happening on
-            // the left, how far on the right, an 8px navy fill on the inset.
-            progressBlock.Margin = new Thickness(0, 22, 0, 0);
+            // the left, how far on the right, and Material's linear progress
+            // indicator — 4px of primary, 4px clear, the rest of the track,
+            // the stop dot at its end.
+            progressBlock.Margin = new Thickness(0, 24, 0, 0);
             var row = new DockPanel { LastChildFill = true };
-            percent.FontFamily = new FontFamily(UiFont);
+            percent.FontFamily = Faces.Text;
             percent.FontSize = 14;
             percent.Foreground = Brush(palette.Ink2);
             System.Windows.Documents.Typography.SetNumeralAlignment(percent, FontNumeralAlignment.Tabular);
             DockPanel.SetDock(percent, Dock.Right);
             row.Children.Add(percent);
-            phase.FontFamily = new FontFamily(UiFont);
-            phase.FontWeight = FontWeights.SemiBold;
+            phase.FontFamily = Faces.Text;
+            phase.FontWeight = FontWeights.Medium;
             phase.FontSize = 14;
             phase.Foreground = Brush(palette.Ink);
             phase.Text = Say.Pick("Wird vorbereitet …", "Preparing…");
             row.Children.Add(phase);
             progressBlock.Children.Add(row);
 
-            track.Height = 8;
-            track.CornerRadius = new CornerRadius(4);
-            track.Background = Brush(palette.Inset);
-            track.Margin = new Thickness(0, 8, 0, 0);
+            track.Height = 4;
+            track.Margin = new Thickness(0, 10, 0, 0);
             track.ClipToBounds = true;
+            rest.CornerRadius = new CornerRadius(2);
+            rest.Background = Brush(palette.Track);
             fill.HorizontalAlignment = HorizontalAlignment.Left;
             fill.Width = 0;
-            fill.CornerRadius = new CornerRadius(4);
-            fill.Background = Brush(palette.Headline);
-            track.Child = fill;
+            fill.CornerRadius = new CornerRadius(2);
+            fill.Background = Brush(palette.Accent);
+            // The track starts 4px after the fill, wherever the fill has got to.
+            fill.SizeChanged += delegate
+            {
+                rest.Margin = new Thickness(fill.ActualWidth > 0 ? fill.ActualWidth + 4 : 0, 0, 0, 0);
+            };
+            var bar = new Grid();
+            bar.Children.Add(rest);
+            bar.Children.Add(fill);
+            bar.Children.Add(new System.Windows.Shapes.Ellipse
+            {
+                Width = 4,
+                Height = 4,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Fill = Brush(palette.Accent),
+            });
+            track.Child = bar;
             progressBlock.Children.Add(track);
             stack.Children.Add(progressBlock);
 
+            // The actions at the end of one row, as in the app's dialogs.
             buttons.Orientation = Orientation.Horizontal;
             buttons.HorizontalAlignment = HorizontalAlignment.Right;
-            buttons.Margin = new Thickness(0, 22, 0, 0);
+            buttons.Margin = new Thickness(0, 24, 0, 0);
             buttons.Visibility = Visibility.Collapsed;
             stack.Children.Add(buttons);
 
@@ -403,31 +505,56 @@ namespace Girovo.UpdateWindow
 
         Button Pill(string text, bool primary, Action onClick)
         {
-            // Every button is a pill; Signal Blue is what can be pressed.
-            var face = new FrameworkElementFactory(typeof(Border));
-            face.SetValue(Border.CornerRadiusProperty, new CornerRadius(18));
-            face.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(BackgroundProperty));
-            face.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(BorderBrushProperty));
-            face.SetValue(Border.BorderThicknessProperty, new Thickness(1.5));
-            face.SetValue(Border.PaddingProperty, new Thickness(18, 0, 18, 0));
+            // Material's buttons, as in the app: the one to go on with filled
+            // in primary, the other a text button; 40px, fully round. A state
+            // layer in the label's colour answers the pointer and the press, and
+            // the keyboard's focus adds a ring outside the button.
+            var face = new FrameworkElementFactory(typeof(Grid));
+            var ground = new FrameworkElementFactory(typeof(Border));
+            ground.SetValue(Border.CornerRadiusProperty, new CornerRadius(20));
+            ground.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(BackgroundProperty));
+            face.AppendChild(ground);
+            var layer = new FrameworkElementFactory(typeof(Border), "layer");
+            layer.SetValue(Border.CornerRadiusProperty, new CornerRadius(20));
+            layer.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(ForegroundProperty));
+            layer.SetValue(OpacityProperty, 0.0);
+            face.AppendChild(layer);
+            var ring = new FrameworkElementFactory(typeof(Border), "ring");
+            ring.SetValue(Border.CornerRadiusProperty, new CornerRadius(23));
+            ring.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(BorderBrushProperty));
+            ring.SetValue(Border.BorderThicknessProperty, new Thickness(2));
+            ring.SetValue(MarginProperty, new Thickness(-3));
+            ring.SetValue(VisibilityProperty, Visibility.Collapsed);
+            face.AppendChild(ring);
             var label = new FrameworkElementFactory(typeof(ContentPresenter));
             label.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
             label.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            label.SetValue(ContentPresenter.MarginProperty, new TemplateBindingExtension(PaddingProperty));
             face.AppendChild(label);
+            var template = new ControlTemplate(typeof(Button)) { VisualTree = face };
+            template.Triggers.Add(new Trigger { Property = IsMouseOverProperty, Value = true, Setters = { new Setter(OpacityProperty, 0.08, "layer") } });
+            template.Triggers.Add(new Trigger
+            {
+                Property = IsKeyboardFocusedProperty,
+                Value = true,
+                Setters = { new Setter(OpacityProperty, 0.1, "layer"), new Setter(VisibilityProperty, Visibility.Visible, "ring") },
+            });
+            template.Triggers.Add(new Trigger { Property = Button.IsPressedProperty, Value = true, Setters = { new Setter(OpacityProperty, 0.1, "layer") } });
             var button = new Button
             {
                 Content = text,
-                Height = 36,
-                MinWidth = 96,
-                Margin = new Thickness(10, 0, 0, 0),
-                FontFamily = new FontFamily(UiFont),
-                FontWeight = FontWeights.SemiBold,
+                Height = 40,
+                MinWidth = 64,
+                Margin = new Thickness(8, 0, 0, 0),
+                Padding = new Thickness(primary ? 24 : 12, 0, primary ? 24 : 12, 0),
+                FontFamily = Faces.Text,
+                FontWeight = FontWeights.Medium,
                 FontSize = 14,
                 Cursor = Cursors.Hand,
                 Background = primary ? Brush(palette.Accent) : Brushes.Transparent,
                 BorderBrush = Brush(palette.Accent),
                 Foreground = primary ? Brush(palette.AccentInk) : Brush(palette.Accent),
-                Template = new ControlTemplate(typeof(Button)) { VisualTree = face },
+                Template = template,
                 FocusVisualStyle = null,
             };
             button.Click += delegate { onClick(); };

@@ -40,7 +40,10 @@ The jobs they come to do:
   (Terminüberweisung, Dauerauftrag)
 - understand where the money goes and keep to a budget (Analyse,
   Monatsbudgets, Verträge & Abos)
-- get statements and receipts out as PDF or CSV
+- get statements and receipts out as PDF or CSV — and keep the bank's own
+  Kontoauszüge and their own receipts (an invoice, a till receipt) on the
+  machine, sealed with the PIN
+- see what their Depot holds
 
 ## Product Purpose
 
@@ -107,17 +110,20 @@ The owner sees the position as the combination of three claims (confirmed
      BLZ (also typed with spaces), BIC or IBAN. The IBAN is read on the
      device, and only its BLZ goes to the search.
   2. Enter Anmeldename and PIN.
-  3. Choose the security method. Only approval in the bank's app works; when
-     the bank offers a single method and it is one, it is picked
-     automatically.
-  4. Approve in the banking app.
+  3. Choose the security method: approval in the bank's app, or a typed TAN
+     (chipTAN optisch, chipTAN QR, photoTAN, chipTAN manuell, smsTAN). When
+     the bank offers a single method, it is picked automatically.
+  4. Approve: in the banking app, or by typing the TAN into the approval
+     dialog — read off the flicker graphic or the bank's graphic it shows,
+     or made from the bank's words (a start code, an SMS).
   5. Land on the Finanzübersicht.
 
   What is needed is said before the PIN is typed: a "Was brauche ich?"
-  disclosure on the bank and credentials steps (the online-banking
-  credentials, the bank's FinTS access, approval in the bank's app; chipTAN,
-  smsTAN and TAN generators do not work), and a line on the credentials form
-  that names the brand's approval app where one name holds.
+  disclosure on the bank step (the online-banking credentials, the bank's
+  FinTS access, approval as in the bank's online banking — app or TAN); on
+  the credentials step it holds only what the form does not already say (the
+  FinTS access, a forgotten PIN), and a line on the form says how the login
+  is approved next, naming the brand's approval app where one name holds.
 
   More banks join the same view the same way: "Weitere Bank anmelden" runs
   these steps in a sheet over the Übersicht, for a session of its own beside
@@ -150,6 +156,12 @@ The owner sees the position as the combination of three claims (confirmed
   Monatsbudgets' bars hide too; whether a budget is over stays, in words.
 - **Documents.** The app produces:
   - a PDF Kontoauszug and Buchungsbeleg
+  - the bank's own Kontoauszüge (HKEKA), fetched on request and each kept
+    as it arrives, sealed with the PIN (lib/doc-store.ts): some banks hand
+    one out once. They live under the Umsätze's export menu
+  - receipts on bookings: a photo or PDF, sealed with the PIN; an invoice
+    paid from its GiroCode waits for its booking and goes to it by itself
+    (lib/receipts.ts)
   - a PDF of a bank message (Mitteilung), its subject and text as the bank
     sent them, so a notice outlives the logout that clears the inbox
   - a CSV export in the German Excel dialect, holding the booked Umsätze the
@@ -212,6 +224,14 @@ The owner sees the position as the combination of three claims (confirmed
   payments and other Terminüberweisungen, never with a Dauerauftrag
 - Geld anfordern (EPC QR)
 - the shop behind card payments
+- typed TANs: chipTAN optisch (lib/flicker.ts renders HHD 1.4/1.3 as the
+  flicker graphic, with size and speed kept per machine), chipTAN QR and
+  photoTAN (the bank's matrix graphic), chipTAN manuell and smsTAN —
+  **not yet tried against a real bank**
+- the Depot (HKWPD): holdings with quantity, the bank's last price, value
+  and the change since purchase; the bank's total is the account's figure
+- the bank's own Kontoauszüge (HKEKA) and receipts on bookings, kept on the
+  machine (see Documents above)
 - company logos via Brandfetch
 - Gerät merken and the encrypted personal-data vault
 - Umsätze auf diesem Rechner behalten: booked Umsätze (never Vorgemerkte)
@@ -343,9 +363,14 @@ raw name as "Name laut Bank" (owner's request).
   a design language, never another bank's or provider's branding.
 - **Interface typeface.** Google Sans Flex. This is binding for now (owner,
   2026-10-04).
-- **Look.** The current look is the modernised Atruvia online-banking
-  language: navy chrome and stage, action blue, white tiles, pill buttons. The
-  owner likes it and it stays the default. It is not locked: other looks may be
+- **Look.** Material 3 Expressive on every platform (owner, 2026-10-18): the
+  Android app's look, which the owner preferred, replaced the desktop's
+  Atruvia-style navy chrome, stage and white tiles. One top app bar naming the
+  page, the navigation rail (the bar on a phone) with Überweisen as its FAB,
+  flat list-first pages whose one container is the balance, and on a wide
+  window the Übersicht in two panes. The desktop's colours are a fixed
+  "Girovo blue" scheme from the brand's blue; only the Android app takes
+  Material You's wallpaper colours, which override it. Other looks may be
   explored, but only as alternatives for the owner to choose, never swapped in
   silently.
 - **Language and voice.** German and English (owner, 2026-10-05), switchable

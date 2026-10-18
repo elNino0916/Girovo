@@ -65,7 +65,7 @@ export const POST = wrap(async (req: Request) => {
   // on the review step. The sheet counts the same way (lib/sepa-text.ts), so
   // this only catches a client that did not.
   const name = sepaSanitize(recipientName);
-  if (!name) return fail(words.route.nameMissing);
+  if (!name) return fail(words.nameMissing);
   if (name.length > SEPA_NAME_MAX) {
     return fail(words.route.nameTooLong(SEPA_NAME_MAX));
   }
@@ -184,7 +184,7 @@ export const POST = wrap(async (req: Request) => {
 
   if (resp.requiresTan) {
     s.pending = { type: 'transfer', tanReference: resp.tanReference, accountNumber, segId };
-    return json({ ...tanPayload(resp), accountNumber, ...(vop ? { vop } : {}) } satisfies TransferResponse);
+    return json({ ...tanPayload(resp, s), accountNumber, ...(vop ? { vop } : {}) } satisfies TransferResponse);
   }
   if (!resp.success) {
     // The order went out and the bank answered it with an error. Only a clean

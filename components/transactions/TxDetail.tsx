@@ -6,7 +6,7 @@ import {
   CATEGORIES, categoryLabel, counterpartyKey, isCategoryId, txBic, type CategoryId, type CategorySource,
 } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry, isFutureDate, toLocalDate } from '@/lib/format';
+import { displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry } from '@/lib/format';
 import { intlLocale, msgs, type Messages } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import { AMOUNT_MASK } from '@/lib/mask';
@@ -21,6 +21,7 @@ import {
 } from '../ui';
 import { CounterpartyAvatar } from './Avatar';
 import { NoteSection } from './NoteSection';
+import { ReceiptSection } from './ReceiptSection';
 import {
   cardFacts, counterpartyQuery, countryName, referenceRows, shortDay, statusTags, transferSeeds, txText,
   type StatusTag,
@@ -92,7 +93,6 @@ export function TxDetail({
   const address = place ? [place.street, place.city, place.country ? countryName(place.country) : ''].filter(Boolean).join(', ') : '';
   // Behind a payment provider the IBAN's country is the provider's, not the shop's.
   const country = place || text.via ? null : ibanCountry(iban);
-  const future = !pending && isFutureDate(tx.entryDate);
   const when = tx.entryDate || tx.valueDate;
 
   // A transfer replaces the drawer rather than stacking on it. Opened on the
@@ -158,27 +158,18 @@ export function TxDetail({
       <Section title={words.payment}>
         <Row half label={tr.transactions.entryDate}>
           {pending
-            // A Vormerkposten's dates are the bank's provisional ones; the tag
-            // above already says "Vorgemerkt".
+            // A Vormerkposten's dates are the bank's provisional ones; the
+            // drawer's title already says "Vorgemerkter Umsatz".
             ? tr.transactions.notBooked
-            : (
-              <>
-                <span className="tnum">{fmtDate(tx.entryDate)}</span>
-                {future && <span className="block text-[13.5px] text-ink-2">{tr.transactions.state.ahead}</span>}
-              </>
-            )}
+            // A Buchungstag still ahead: the tag above says "Noch nicht gebucht".
+            : <span className="tnum">{fmtDate(tx.entryDate)}</span>}
         </Row>
         {tx.valueDate && (
           <Row half label={tr.transactions.valueDate}><span className="tnum">{fmtDate(tx.valueDate)}</span></Row>
         )}
-        {/* The card system's record, said in words: when, which card, what
-            it cost abroad. Amounts through <Money>, so "Beträge ausblenden"
-            masks them like every other. */}
-        {card?.usedAt && (
-          <Row half label={words.paidAt}>
-            <span className="tnum">{fmtDate(toLocalDate(card.usedAt.day))}{card.usedAt.time && `, ${tr.transactions.clock(card.usedAt.time)}`}</span>
-          </Row>
-        )}
+        {/* The card system's record, said in words: which card, what it cost
+            abroad (when it was used is in the header). Amounts through
+            <Money>, so "Beträge ausblenden" masks them like every other. */}
         {card?.card && <Row half label={words.card}>{card.card}</Row>}
         {card?.original && (
           <Row label={words.original}>
@@ -262,6 +253,9 @@ export function TxDetail({
 
       {/* The user's own line about this booking — on screen only, never on the Beleg. */}
       <NoteSection tx={tx} />
+
+      {/* An invoice or a till receipt for it, kept on this machine. */}
+      <ReceiptSection tx={tx} pending={pending} />
 
       {refs.length > 0 && (
         <div className="mt-6 border-t border-line pt-2">

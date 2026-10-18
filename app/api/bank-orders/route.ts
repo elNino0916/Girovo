@@ -34,7 +34,7 @@ export const POST = wrap(async (req: Request) => {
   logResp('bank-orders', s, resp);
   if (resp.requiresTan) {
     s.pending = { type: 'bankOrders', tanReference: resp.tanReference, accountNumber, segId: interaction.segId, kind };
-    return json({ ...tanPayload(resp), accountNumber } satisfies BankOrdersResponse);
+    return json({ ...tanPayload(resp, s), accountNumber } satisfies BankOrdersResponse);
   }
   if (!resp.success) return fail(bankAnswerText(resp) || msgs().orders.route.listFailed);
   return json({

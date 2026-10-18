@@ -1,7 +1,7 @@
 // Material You on the phone: the wallpaper's tonal palettes (GirovoDevice,
 // Android 12+) turned into Material 3's colour roles, as CSS custom
-// properties (--md-*) that app/globals.css maps Girovo's tokens onto when the
-// palette is "dynamic" (<html data-palette>).
+// properties (--md-*) in place of Girovo's own (app/material.css maps
+// Girovo's tokens onto them on every platform).
 //
 // Only surfaces, ink and the interactive colour follow the wallpaper. The
 // colours that mean something — a credit, a negative balance, vorgemerkt,

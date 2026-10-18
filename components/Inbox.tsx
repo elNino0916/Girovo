@@ -45,7 +45,7 @@ export function Inbox() {
 }
 
 function InboxBody() {
-  const { messages, activity, markAllRead, setInboxOpen, banks } = useFints();
+  const { messages, messagesAsked, activity, markAllRead, setInboxOpen, banks } = useFints();
   const t = useT();
   const update = useUpdateNotice();
   // What was unread at the moment the drawer opened.
@@ -79,7 +79,7 @@ function InboxBody() {
           </>
         ) : (
           <EmptyState illustration="inbox" compact title={t.shell.inbox.none}>
-            {t.shell.inbox.noneHint}
+            {messagesAsked ? t.shell.inbox.noneHint : t.shell.inbox.noneNotAsked}
           </EmptyState>
         )}
       </section>

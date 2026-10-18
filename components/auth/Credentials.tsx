@@ -269,7 +269,7 @@ export function Credentials({
 
   return (
     <>
-      <h1 className="text-[28px] leading-tight font-bold text-headline sm:text-[32px]">{words.title}</h1>
+      <h1 className="text-[28px] leading-tight font-medium text-headline sm:text-[32px]">{words.title}</h1>
       <p className="mt-1.5 text-[15px] leading-snug text-ink-2">{words.intro}</p>
 
       {meta && !meta.productRegistered && (
@@ -325,7 +325,6 @@ export function Credentials({
         <Field
           label={loginLabel}
           htmlFor={`login${uid}`}
-          hint={bank.brand in LOGIN_LABEL ? undefined : words.loginHint}
           error={fieldErrors.login ? words.loginMissing : undefined}
         >
           <Input

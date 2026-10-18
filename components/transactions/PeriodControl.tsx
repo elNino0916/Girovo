@@ -15,7 +15,7 @@ const PRESETS: RangePreset[] = ['30d', '90d', 'thisMonth', 'lastMonth', 'thisYea
 
 // PSD2 lets a bank skip the approval for the last 90 days of bookings;
 // reaching further back is what usually costs one. So the hint
-// (period.mayNeedApproval) is shown wherever a choice would ask the bank for
+// (common.mayNeedApproval) is shown wherever a choice would ask the bank for
 // more than it has answered — honestly hedged, because some banks ask anyway
 // and some never do. With Umsätze kept on this computer (lib/history.ts) the
 // bank is asked only for what they lack, so a longer choice the kept days
@@ -112,7 +112,7 @@ export function PeriodControl({
                   description={
                     <>
                       <span className="tnum block">{fmtRange(r.from, r.to)}</span>
-                      {reachesBack(r) && <span className="block">{words.mayNeedApproval}</span>}
+                      {reachesBack(r) && <span className="block">{t.common.mayNeedApproval}</span>}
                     </>
                   }
                   onSelect={() => { if (active !== id) applyRange(r); }}
@@ -208,7 +208,7 @@ function CustomRange({
       )}
       <DialogActions className="mt-4">
         <Button size="sm" variant="secondary" onClick={onCancel}>{t.common.cancel}</Button>
-        <Button size="sm" variant="primary" type="submit" disabled={!valid || busy || unchanged}>{words.apply}</Button>
+        <Button size="sm" variant="primary" type="submit" disabled={!valid || busy || unchanged}>{words.load}</Button>
       </DialogActions>
     </form>
   );

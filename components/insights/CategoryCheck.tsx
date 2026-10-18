@@ -19,7 +19,6 @@ import type { SerializedTransaction } from '@/lib/fints-types';
 import { dayKey } from '@/lib/format';
 import { intlLocale, type Messages } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { ChevronIcon } from '../icons';
 import { Money } from '../Money';
@@ -41,30 +40,15 @@ export function useCategoryCheck(txs: readonly SerializedTransaction[]): Categor
 export function CategoryCheckSummary({ check, onOpen }: { check: CategoryCheck; onOpen: () => void }) {
   const t = useT();
   const words = t.budgets.check;
-  const filed = check.auto.rules.filed + check.auto.model.filed;
-  // On Android a list row: the check's name, what is left open, the way in.
-  if (IS_ANDROID) {
-    return (
-      <button type="button" onClick={onOpen} className="row-focus flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left">
-        <span className="min-w-0 flex-1">
-          <span className="block text-[16px] leading-6 text-ink">{words.open}</span>
-          {check.open > 0 && <span className="tnum block text-[14px] leading-5 text-ink-2">{words.openCount(check.open)}</span>}
-        </span>
-        <ChevronIcon dir="right" size={18} className="shrink-0 text-ink-2" />
-      </button>
-    );
-  }
+  // A list row: the check's name, what is left open, the way in.
   return (
-    <div className="flex items-center gap-3 border-t border-line bg-inset px-4 py-2.5 sm:px-6">
-      {/* Two facts, one line each: the first is a sentence that may wrap. */}
-      <p className="tnum min-w-0 flex-1 text-[13.5px] leading-snug text-ink-2">
-        <span className="block">{filed > 0 ? words.summary(check.kept, filed) : words.noneFiled}</span>
-        {check.open > 0 && <span className="block text-ink-3">{words.openCount(check.open)}</span>}
-      </p>
-      <Button size="xs" variant="tertiary" className="-mr-2" iconRight={<ChevronIcon dir="right" size={14} />} onClick={onOpen}>
-        {words.open}
-      </Button>
-    </div>
+    <button type="button" onClick={onOpen} className="row-focus flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left">
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px] leading-6 text-ink">{words.open}</span>
+        {check.open > 0 && <span className="tnum block text-[14px] leading-5 text-ink-2">{words.openCount(check.open)}</span>}
+      </span>
+      <ChevronIcon dir="right" size={18} className="shrink-0 text-ink-2" />
+    </button>
   );
 }
 
@@ -109,25 +93,29 @@ export function CategoryCheckDrawer({
         ))}
       </dl>
 
-      <table className="mt-4 w-full border-collapse text-[14px]">
-        <caption className="sr-only">{words.sources.caption}</caption>
-        <thead>
-          <tr className="border-b border-line text-left text-[13px] text-ink-3">
-            <th scope="col" className="py-2 pr-3 font-semibold">{words.sources.source}</th>
-            <th scope="col" className="px-2 py-2 text-right font-semibold">{words.sources.filed}</th>
-            <th scope="col" className="py-2 pl-2 text-right font-semibold">{words.sources.changed}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(['rules', 'model'] as const).map((source) => (
-            <tr key={source} className="border-b border-line last:border-b-0">
-              <th scope="row" className="py-2.5 pr-3 text-left font-normal text-ink">{words.sources[source]}</th>
-              <td className="tnum px-2 py-2.5 text-right text-ink">{check.auto[source].filed}</td>
-              <td className="tnum py-2.5 pl-2 text-right text-ink">{check.auto[source].changed}</td>
+      {/* Where they came from, once both sources have filed something: with
+          one, the facts above already say it. */}
+      {check.auto.rules.filed > 0 && check.auto.model.filed > 0 && (
+        <table className="mt-4 w-full border-collapse text-[14px]">
+          <caption className="sr-only">{words.sources.caption}</caption>
+          <thead>
+            <tr className="border-b border-line text-left text-[13px] text-ink-3">
+              <th scope="col" className="py-2 pr-3 font-semibold">{words.sources.source}</th>
+              <th scope="col" className="px-2 py-2 text-right font-semibold">{words.sources.filed}</th>
+              <th scope="col" className="py-2 pl-2 text-right font-semibold">{words.sources.changed}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {(['rules', 'model'] as const).map((source) => (
+              <tr key={source} className="border-b border-line last:border-b-0">
+                <th scope="row" className="py-2.5 pr-3 text-left font-normal text-ink">{words.sources[source]}</th>
+                <td className="tnum px-2 py-2.5 text-right text-ink">{check.auto[source].filed}</td>
+                <td className="tnum py-2.5 pl-2 text-right text-ink">{check.auto[source].changed}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
       <OpenList groups={check.uncategorised} onFiled={setFiled} />
       <ChangeList groups={check.changes} />

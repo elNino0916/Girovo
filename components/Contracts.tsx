@@ -6,27 +6,25 @@
 // list of what the next 30 days are expected to bring, for the overview.
 //
 // All of it is a guess drawn from history (lib/recurring.ts) and says so:
-// amounts are "ca." and in whole euros, dates "voraussichtlich", totals a
-// "Schätzung". The basis — which accounts, each with its period, which are
-// missing — is always on screen; a history too short for the slower rhythms
-// says what it cannot show; and the user can overrule the guess ("Nicht als
-// Vertrag zählen"), which is remembered in the vault.
+// amounts are "ca." and in whole euros, dates "voraussichtlich", a yearly
+// total the history may be short of "mind.". The basis — which accounts,
+// each with its period, which are missing — is always on screen; a history
+// too short for the slower rhythms says what it cannot show; and the user can
+// overrule the guess ("Ausblenden"), which is remembered in the vault.
 
 import { useCallback, useId, useMemo } from 'react';
 import { BankOrders } from './BankOrders';
 import { useFints } from './FintsProvider';
-import { ArrowRightIcon } from './icons';
 import { Money } from './Money';
 import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, Skeleton, Spinner, Tile, cx } from './ui';
 import { namesList } from '@/lib/balances';
 import { fmtRange, displayName, presetRange } from '@/lib/format';
 import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
 import type { Cadence, RecurringSeries } from '@/lib/recurring';
 import { ContractGroup, ContractRow, DismissedRow } from './insights/ContractRow';
 import { useRecurringModel, useUpcoming, type AccountBasis, type RecurringModel } from './insights/recurring-model';
-import { LoadHistoryButton, RoundMoney, YEAR_SPAN, daysUntil, fmtDayKeyShort, fmtWeekday } from './insights/shared';
+import { LoadHistoryButton, RoundMoney, YEAR_SPAN, daysUntil, fmtDayKeyShort, fmtWeekday, spanDays } from './insights/shared';
 
 /**
  * "Vierteljährliche und jährliche" ("Quarterly and yearly") — the rhythms a
@@ -93,10 +91,13 @@ function ContractsFromBookings() {
 
   if (!basis) return <NoBasis model={model} />;
   const shortHistory = basis.shortestSpan < YEAR_SPAN;
+  // Where the coverage list names the accounts, each short one offers its
+  // own year; the history notice speaks only where the list does not.
+  const notice = shortHistory && coverageRows(model.accounts).length === 0;
 
   return (
     <div className="min-w-0 space-y-4 sm:space-y-6">
-      <SummaryTile model={model} shortHistory={shortHistory} />
+      <SummaryTile model={model} notice={notice} />
 
       {live === 0 && !model.incomplete && (
         <section className="panel" aria-label={words.noneFound}>
@@ -150,7 +151,7 @@ function ContractsFromBookings() {
 
       {/* On phones the "load a year" notice follows the list instead of
           pushing it below the first screen (see SummaryTile). */}
-      {shortHistory && (
+      {notice && (
         <section className="panel overflow-hidden sm:hidden" aria-label={words.longerHistory}>
           <HistoryNotice model={model} />
         </section>
@@ -173,13 +174,13 @@ function ContractsFromBookings() {
           {dismissed.length > 0 && (
             <Disclosure
               title={<span className="text-[15px] font-semibold text-ink">{words.hiddenTitle(dismissed.length)}</span>}
-              trailing={<span className="hidden text-[13px] text-ink-3 sm:inline">{words.notCounted}</span>}
+              trailing={<span className="hidden text-[13px] text-ink-3 sm:inline">{words.notInTotals}</span>}
               headerClassName="min-h-14 sm:px-6"
               className={ended.length > 0 ? 'border-t border-line' : undefined}
             >
               {vaultStatus === 'error' || vaultStatus === 'unavailable' ? (
                 <p className="border-t border-line px-4 pt-3 pb-1 text-[13px] text-ink-3 sm:px-6">
-                  {words.vaultUnavailable}
+                  {t.transactions.categorize.sessionOnly}
                 </p>
               ) : null}
               <ul className="border-t border-line">{dismissed.map((s) => <DismissedRow key={s.id} s={s} onRestore={restore} />)}</ul>
@@ -211,7 +212,7 @@ function NoBasis({ model }: { model: RecurringModel }) {
     <section className="panel" aria-label={words.label}>
       <EmptyState
         illustration="contracts"
-        title={words.notLoaded}
+        title={t.insights.analysis.notLoaded}
         action={canLoad && activeAccount ? (
           <Button variant="primary" size="sm" disabled={busy} onClick={() => refreshAccount(activeAccount)}>
             {t.insights.bookings.load}
@@ -225,7 +226,7 @@ function NoBasis({ model }: { model: RecurringModel }) {
   );
 }
 
-function SummaryTile({ model, shortHistory }: { model: RecurringModel; shortHistory: boolean }) {
+function SummaryTile({ model, notice }: { model: RecurringModel; notice: boolean }) {
   const { basis, totals, income, expense, groups, otherCurrency, unseen } = model;
   const headingId = useId();
   const t = useT();
@@ -283,24 +284,19 @@ function SummaryTile({ model, shortHistory }: { model: RecurringModel; shortHist
           </SummaryFigure>
         </dl>
       )}
-      {/* "Schätzung" only once there is something estimated. */}
+      {/* What the figures leave out, then which accounts they are drawn from. */}
       <div className="px-4 py-3 sm:px-6">
-        {/* Where the "more than the bank" work happens, it says where it
-            happened. Not in the Android app, which has nowhere else to work —
-            and its "ca." already says estimate. */}
-        {!IS_ANDROID && <p className="text-[13px] leading-relaxed text-ink-3">{words.computedHere}</p>}
         <p className="tnum text-[13px] leading-relaxed text-ink-3">
           <DotList
             items={[
-              !IS_ANDROID && live > 0 && !failed.length && words.estimate,
               basis.bookings > 0 && words.excluded,
               otherCurrency > 0 && words.otherCurrency(otherCurrency),
             ]}
           />
         </p>
-        <AccountList accounts={model.accounts} />
+        <AccountList rows={coverageRows(model.accounts)} />
       </div>
-      {shortHistory && <HistoryNotice model={model} className="hidden border-t border-line sm:block" />}
+      {notice && <HistoryNotice model={model} className="hidden border-t border-line sm:block" />}
     </section>
   );
 }
@@ -329,29 +325,40 @@ function FailedNotice({ failed }: { failed: AccountBasis[] }) {
 }
 
 /**
- * Which accounts the detection read, each with its own period — and which it
- * did not, with the way to add them. Fetching another account here does not
- * switch to it: it only adds its bookings.
+ * The accounts the coverage list names: all but a failed one, which the
+ * notice above names with its reason — and nothing for one account read in
+ * full, whose period is the history notice's: the list shows only when it
+ * offers something.
  */
-function AccountList({ accounts }: { accounts: AccountBasis[] }) {
-  const { busy, loadTransactions, accountLabel, activeAccount } = useFints();
+function coverageRows(accounts: AccountBasis[]): AccountBasis[] {
+  const listed = accounts.filter((b) => b.status !== 'failed' && (b.status !== 'unsupported' || accounts.length > 1));
+  return listed.length === 1 && listed[0].status === 'included' ? [] : listed;
+}
+
+/**
+ * Which accounts the detection read, each with its own period — and which it
+ * did not, with the way to add them, or a year of them. Fetching another
+ * account here does not switch to it: it only adds its bookings. The active
+ * account's year comes the way the 12-month button brings it, as its period.
+ */
+function AccountList({ rows }: { rows: AccountBasis[] }) {
+  const { busy, loadTransactions, applyRange, accountLabel, activeAccount } = useFints();
   const t = useT();
   const words = t.insights.contracts;
-  const listed = accounts.filter((b) => b.status !== 'unsupported' || accounts.length > 1);
-  if (!listed.length) return null;
-  // One account, read in full: the period is the history notice's, the count
-  // a figure nobody acts on. The phone shows the list only when it offers something.
-  if (IS_ANDROID && listed.length === 1 && listed[0].status === 'included') return null;
+  if (!rows.length) return null;
+  const short = (b: AccountBasis) => b.status === 'included' && (b.span ?? 0) < YEAR_SPAN;
   // Said once, under the buttons that may ask the bank for an approval.
-  const needsHint = listed.some((b) => b.status === 'missing'
-    || (b.status === 'included' && b.account.accountNumber !== activeAccount?.accountNumber && (b.span ?? 0) < YEAR_SPAN));
+  const needsHint = rows.some((b) => b.status === 'missing' || short(b));
   return (
     <div className="mt-2">
       <h3 className="text-[13px] font-semibold text-ink-2">{t.common.account.accounts}</h3>
       <ul className="mt-1">
-        {listed.map((b) => {
+        {rows.map((b) => {
           const name = accountLabel(b.account);
           const active = b.account.accountNumber === activeAccount?.accountNumber;
+          // Fewer days of history than the period asked for: the bank sent
+          // less, or the account is newer. Otherwise the period says it.
+          const thin = b.status === 'included' && !!b.from && !!b.to && (b.span ?? 0) < spanDays(b.from, b.to);
           return (
             <li key={b.account.accountNumber} className="flex min-h-9 flex-wrap items-center gap-x-3 py-1 text-[13.5px]">
               <span className="min-w-0 font-semibold text-ink">{name}</span>
@@ -359,12 +366,11 @@ function AccountList({ accounts }: { accounts: AccountBasis[] }) {
               <span className="tnum order-last w-full min-w-0 text-ink-3 sm:order-none sm:w-auto sm:flex-1">
                 {b.status === 'included' && (
                   <>
-                    {fmtRange(b.from, b.to)} · {t.insights.count.bookings(b.bookings ?? 0)}
-                    {(b.span ?? 0) < YEAR_SPAN && ` · ${words.historyDays(b.span ?? 0)}`}
+                    {fmtRange(b.from, b.to)}
+                    {thin && ` · ${words.historyDays(b.span ?? 0)}`}
                   </>
                 )}
                 {b.status === 'loading' && <span className="inline-flex items-center gap-1.5"><Spinner size={12} /> {words.loading}</span>}
-                {b.status === 'failed' && t.common.fetchFailed}
                 {b.status === 'missing' && words.notIncluded}
                 {b.status === 'unsupported' && words.noFints}
               </span>
@@ -373,7 +379,7 @@ function AccountList({ accounts }: { accounts: AccountBasis[] }) {
                   {t.insights.bookings.load}<span className="sr-only"> {words.forAccount(name)}</span>
                 </Button>
               )}
-              {b.status === 'included' && !active && (b.span ?? 0) < YEAR_SPAN && (
+              {short(b) && (
                 <Button
                   size="xs"
                   variant="tertiary"
@@ -381,7 +387,8 @@ function AccountList({ accounts }: { accounts: AccountBasis[] }) {
                   disabled={busy}
                   onClick={() => {
                     const r = presetRange('365d');
-                    void loadTransactions(b.account, r.from, r.to, { force: true });
+                    if (active) applyRange(r);
+                    else void loadTransactions(b.account, r.from, r.to, { force: true });
                   }}
                 >
                   {words.loadYear}<span className="sr-only"> {words.forAccount(name)}</span>
@@ -391,12 +398,16 @@ function AccountList({ accounts }: { accounts: AccountBasis[] }) {
           );
         })}
       </ul>
-      {needsHint && <p className="text-[12.5px] text-ink-3">{t.insights.mayNeedApproval} {words.noSwitch}</p>}
+      {needsHint && <p className="text-[12.5px] text-ink-3">{t.common.mayNeedApproval}</p>}
     </div>
   );
 }
 
-/** Too little history for the slower rhythms — which account, and the one button that fetches more. */
+/**
+ * Too little history for the slower rhythms — which account, and the one
+ * button that fetches more. Only where the coverage list names no accounts:
+ * there each short one offers its own year.
+ */
 function HistoryNotice({ model, className }: { model: RecurringModel; className?: string }) {
   const { activeAccount, accountLabel } = useFints();
   const t = useT();
@@ -404,20 +415,16 @@ function HistoryNotice({ model, className }: { model: RecurringModel; className?
   const short = model.accounts.filter((b) => b.status === 'included' && (b.span ?? 0) < YEAR_SPAN);
   const activeShort = short.some((b) => b.account.accountNumber === activeAccount?.accountNumber);
   if (!short.length) return null;
-  const phrase = unseenPhrase(model.unseen, t);
   // "GiroKomfort und Visa Classic reichen 91 Tage zurück" when they agree.
   const same = short.every((b) => b.span === short[0].span);
   const reach = same
     ? words.reach(namesList(short.map((b) => accountLabel(b.account))), short.length !== 1, short[0].span ?? 0)
     : short.map((b) => words.reach(accountLabel(b.account), false, b.span ?? 0)).join(', ');
   return (
-    <div className={cx(IS_ANDROID ? 'px-4 py-3' : 'bg-info-soft px-4 py-3.5 sm:px-6', className)}>
-      <p className={cx('text-[14px] leading-snug', IS_ANDROID ? 'text-ink-2' : 'text-ink')}>
-        {reach}.
-        {/* On Android the summary's "mind." line has said what a short history misses. */}
-        {!IS_ANDROID && <>{' '}{phrase ? words.unseenContracts(phrase) : words.loadYearForYearly}</>}
-      </p>
-      {activeShort && <LoadHistoryButton className="mt-2.5" />}
+    <div className={cx('px-4 py-3 sm:px-5', className)}>
+      {/* The summary's "mind." line has said what a short history misses. */}
+      <p className="text-[14px] leading-snug text-ink-2">{reach}.</p>
+      {activeShort && <LoadHistoryButton className="mt-2.5" note />}
     </div>
   );
 }
@@ -495,7 +502,7 @@ const UPCOMING_MAX = 5;
  * account the Monatsbilanz beside it shows — with what that adds up to.
  */
 export function UpcomingPayments() {
-  const { setTab, activeAccount, accountLabel, accounts } = useFints();
+  const { activeAccount, accountLabel, accounts } = useFints();
   const t = useT();
   const words = t.insights.upcoming;
   const model = useRecurringModel();
@@ -527,16 +534,9 @@ export function UpcomingPayments() {
       title={words.title}
       // On a narrow tile the facts take a line each, rather than leave the
       // dot hanging — "voraussichtlich" stays: these are expectations.
-      // On Android: the account only when there are several, and no way on —
-      // Verträge is in the navigation bar.
-      subtitle={<DotList items={IS_ANDROID ? [accounts.length > 1 && name, words.next30] : [name, words.next30, words.expected]} />}
-      actions={!IS_ANDROID && (
-        // -mr-2.5: the label's text, not the pill's padding, ends on the
-        // tile's content edge, like the figures below it.
-        <Button variant="tertiary" size="xs" iconRight={<ArrowRightIcon size={15} />} className="-mr-2.5" onClick={() => setTab('contracts')}>
-          {words.all}
-        </Button>
-      )}
+      // The account only when there are several, and no way on — Verträge is
+      // in the navigation.
+      subtitle={<DotList items={[accounts.length > 1 && name, words.next30]} />}
     >
       {model.loading ? (
         <ul aria-hidden className="pb-3">
@@ -562,7 +562,7 @@ export function UpcomingPayments() {
         <>
           <ul className="pb-1">
             {shown.map(({ series: s, date }) => {
-              const n = displayName(s.name) || t.insights.contracts.unknown;
+              const n = displayName(s.name) || t.insights.noName;
               const wd = fmtWeekday(date);
               const dm = fmtDayKeyShort(date);
               const soon = daysUntil(date) <= 1;
@@ -597,14 +597,14 @@ export function UpcomingPayments() {
               );
             })}
           </ul>
-          {/* Said, not linked: "Alle Verträge" in the header is the one way on. */}
+          {/* Said, not linked: Verträge is in the navigation. */}
           {more > 0 && (
             <p className="px-4 pb-2.5 text-[13px] leading-snug text-ink-3 sm:px-5">
               {words.more(more)}
             </p>
           )}
           {/* What the 30 days add up to — every expected booking, not only the five shown. */}
-          <dl className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-t border-line bg-inset px-4 py-2.5 text-[13px] sm:px-5">
+          <dl className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-4 py-2.5 text-[13px] sm:px-5">
             <dt className="text-ink-2">{words.sum}</dt>
             <dd className="flex items-baseline gap-2.5 font-semibold">
               {sums.out !== 0 && (

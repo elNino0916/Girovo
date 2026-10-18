@@ -122,13 +122,14 @@ export function UpdateInboxCard({ notice, onOpen }: { notice: UpdateNotice; onOp
               : u.available(notice.version)
             : u.updatedTo(notice.version)}
         </p>
-        <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
-          {!newer
-            ? u.seeChanges
-            : notice.ready
+        {/* After an update, "Was ist neu? …" below says it all. */}
+        {newer && (
+          <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+            {notice.ready
               ? rich(u.stillOn(<span className="tnum">{notice.current}</span>))
               : rich(u.notYetDownloaded(<span className="tnum">{notice.current}</span>))}
-        </p>
+          </p>
+        )}
         <Button variant="tertiary" size="xs" className="mt-1 -ml-3.5" aria-haspopup="dialog" onClick={onOpen}>
           {newer ? (notice.ready ? u.installNow : u.detailsAndDownload) : u.whatsNewOpen}
         </Button>

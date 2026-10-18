@@ -55,7 +55,7 @@ export function UsageConsentTile() {
             <Button size="sm" variant="secondary" onClick={() => answer(false)}>{t.auth.noThanks}</Button>
           </div>
           <p className="mt-3 text-[13px] leading-snug text-ink-3">
-            {t.auth.usage.errorReports} {t.auth.usage.later}
+            {t.auth.usage.errorReports} {t.auth.changeLater}
           </p>
         </div>
       </div>

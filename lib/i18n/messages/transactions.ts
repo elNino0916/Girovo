@@ -14,8 +14,6 @@ const lowerFirst = (s: string) => (/^\p{Lu}\p{Ll}\S*\s/u.test(s) ? s[0].toLowerC
 export const de = {
   /** "1 Umsatz", "1.234 Umsätze". */
   count: (n: number) => `${nDe(n)} ${n === 1 ? 'Umsatz' : 'Umsätze'}`,
-  /** Said wherever a fetch from the bank may ask for an approval. */
-  mayNeedApproval: 'Kann eine Freigabe erfordern.',
   refresh: 'Aktualisieren',
   notFetched: 'Noch nicht abgerufen',
   /** A booking whose Buchungstag is still ahead: the bank has sent it and books it on that day. */
@@ -42,10 +40,6 @@ export const de = {
   list: {
     busy: 'Möglich, sobald der laufende Vorgang fertig ist.',
     loadingRange: (range: string) => `Lädt ${range} …`,
-    /** After the loaded range: "05.07.–03.10.2026 · abgerufen 14:32 Uhr". */
-    fetchedAt: (time: string) => `abgerufen ${time} Uhr`,
-    /** After "Abruf fehlgeschlagen". */
-    failedAt: (time: string) => `um ${time} Uhr`,
     /** Leads to the Vorgemerkt panel, which the filter also reaches. */
     pendingMatch: (n: number) =>
       (n === 1 ? 'Außerdem passt 1 vorgemerkter Umsatz' : `Außerdem passen ${n} vorgemerkte Umsätze`),
@@ -56,8 +50,6 @@ export const de = {
     notFetched: 'Umsätze noch nicht abgerufen',
     fetch: 'Umsätze abrufen',
     empty: 'Keine Umsätze in diesem Zeitraum',
-    /** `range` as fmtRange writes it ("05.07.–03.10.2026"); its dash becomes the "und". */
-    nothingBooked: (range: string) => `Zwischen ${range.replace(/\s*–\s*/, ' und ')} wurde nichts gebucht.`,
     longerPeriod: 'Ein längerer Zeitraum zeigt vielleicht mehr.',
     noMatches: 'Keine passenden Umsätze',
     resetFilters: 'Filter zurücksetzen',
@@ -110,7 +102,7 @@ export const de = {
     daysAre: (days: string) => `Zeitraum der Liste: ${days}`,
     chooseMonth: 'Monat wählen',
     wholePeriod: 'Ganzer geladener Zeitraum',
-    monthsInPeriod: 'Monat im geladenen Zeitraum',
+    monthsInPeriod: 'Monate im geladenen Zeitraum',
     /** The cross beside a chosen month: "September 2026 entfernen". */
     remove: (what: string) => `${what} entfernen`,
   },
@@ -126,14 +118,14 @@ export const de = {
       thisYear: { label: 'Dieses Jahr', short: 'Dieses Jahr' },
       '365d': { label: 'Letzte 12 Monate', short: '12 Monate' },
     },
-    /** Under a preset that reaches further back than what is loaded. */
-    mayNeedApproval: 'Kann eine Freigabe erfordern',
     title: 'Zeitraum',
+    /** The button's name, and the line an empty list starts with: "Zeitraum: 05.07.–03.10.2026". */
     is: (label: string) => `Zeitraum: ${label}`,
     choose: 'Zeitraum wählen',
     custom: 'Eigener Zeitraum',
     customMenu: 'Eigener Zeitraum …',
     busy: 'Bitte warten – ein anderer Vorgang läuft noch.',
+    /** The menu's heading, and the custom range's button. */
     load: 'Zeitraum laden',
     startAfterEnd: 'Der Beginn liegt nach dem Ende.',
     startInFuture: 'Der Beginn liegt in der Zukunft.',
@@ -141,7 +133,6 @@ export const de = {
     from: 'Von',
     to: 'Bis',
     longerHistory: 'Kann eine Freigabe erfordern. Manche Banken liefern weniger Verlauf.',
-    apply: 'Übernehmen',
   },
 
   /** The export menu on the list (components/transactions/ExportMenu.tsx). */
@@ -170,7 +161,7 @@ export const de = {
     refresh: 'Vorgemerkte Umsätze aktualisieren.',
     loading: 'Vorgemerkte Umsätze werden geladen.',
     intro: 'Angekündigte Lastschriften und Kartenzahlungen, die deine Bank noch nicht gebucht hat.',
-    fetch: 'Vorgemerkte abrufen',
+    fetch: 'Vorgemerkte Umsätze abrufen',
     showLess: 'Weniger anzeigen',
     showAll: (n: number) => `Alle ${n} anzeigen`,
   },
@@ -260,9 +251,8 @@ export const de = {
     status: 'Status',
     repeat: 'Erneut überweisen',
     refund: 'Zurücküberweisen',
-    receipt: 'Beleg (PDF)',
+    receipt: 'Buchungsbeleg (PDF)',
     payment: 'Zahlung',
-    paidAt: 'Bezahlt am',
     card: 'Karte',
     original: 'Originalbetrag',
     /** The card system's exchange rate: "1 € = 1,1563 USD". */
@@ -469,7 +459,6 @@ export const de = {
 
 export const en: typeof de = {
   count: (n) => `${nEn(n)} ${n === 1 ? 'transaction' : 'transactions'}`,
-  mayNeedApproval: 'May need approval.',
   refresh: 'Refresh',
   notFetched: 'Not loaded yet',
   notBooked: 'Not booked yet',
@@ -490,8 +479,6 @@ export const en: typeof de = {
   list: {
     busy: 'Possible once the current operation has finished.',
     loadingRange: (range) => `Loading ${range}…`,
-    fetchedAt: (time) => `loaded at ${time}`,
-    failedAt: (time) => `at ${time}`,
     pendingMatch: (n) => (n === 1 ? '1 pending transaction also matches' : `${n} pending transactions also match`),
     noStatements: 'No transactions for this account',
     noStatementsBody: 'Your bank doesn’t offer transaction retrieval for this account over FinTS.',
@@ -500,7 +487,6 @@ export const en: typeof de = {
     notFetched: 'Transactions not loaded yet',
     fetch: 'Load transactions',
     empty: 'No transactions in this period',
-    nothingBooked: (range) => `Nothing was booked between ${range.replace(/\s*–\s*/, ' and ')}.`,
     longerPeriod: 'A longer period might show more.',
     noMatches: 'No matching transactions',
     resetFilters: 'Reset filters',
@@ -555,7 +541,6 @@ export const en: typeof de = {
       thisYear: { label: 'This year', short: 'This year' },
       '365d': { label: 'Last 12 months', short: '12 months' },
     },
-    mayNeedApproval: 'May need approval',
     title: 'Period',
     is: (label) => `Period: ${label}`,
     choose: 'Choose period',
@@ -569,7 +554,6 @@ export const en: typeof de = {
     from: 'From',
     to: 'To',
     longerHistory: 'May need approval. Some banks send less history.',
-    apply: 'Apply',
   },
 
   exportMenu: {
@@ -668,9 +652,8 @@ export const en: typeof de = {
     status: 'Status',
     repeat: 'Transfer again',
     refund: 'Transfer back',
-    receipt: 'Receipt (PDF)',
+    receipt: 'Transaction receipt (PDF)',
     payment: 'Payment',
-    paidAt: 'Paid on',
     card: 'Card',
     original: 'Original amount',
     rate: (rate, currency) => `€1 = ${rate} ${currency}`,

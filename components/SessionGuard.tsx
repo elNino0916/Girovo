@@ -117,7 +117,7 @@ function Warning({ left }: { left: number }) {
             </DialogActions>
           }
         >
-          <h2 id={titleId} className="text-center text-[22px] leading-tight font-bold text-headline">
+          <h2 id={titleId} className="text-center text-[22px] leading-tight font-medium text-headline">
             {sg.title}
           </h2>
           <p id={descId} className="mt-2 text-center text-[15px] leading-snug text-ink-2">

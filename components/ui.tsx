@@ -25,7 +25,6 @@ import type {
 import { anchorPosition, type Placement } from '@/lib/anchor';
 import { copyText } from '@/lib/clipboard';
 import { useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
 import { setCaptionDim } from '@/lib/theme';
 import {
   AlertTriangleIcon, CheckCircleIcon, CheckIcon, ChevronIcon, CloseIcon, CopyIcon, InfoIcon, XCircleIcon,
@@ -46,7 +45,7 @@ const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 // Button
 // ---------------------------------------------------------------------------
 export type ButtonVariant =
-  | 'primary' | 'secondary' | 'tertiary' | 'quiet' | 'bar' | 'stage' | 'stage-primary' | 'danger'
+  | 'primary' | 'secondary' | 'tertiary' | 'quiet' | 'danger'
   /** @deprecated the old outline button — same as `secondary`. */
   | 'ghost';
 export type ButtonSize = 'lg' | 'md' | 'sm' | 'xs';
@@ -78,16 +77,6 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
     'border-2 border-accent text-accent hover:bg-accent-soft active:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] disabled:hover:bg-transparent',
   tertiary: 'border-2 border-transparent text-accent hover:bg-accent-soft active:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]',
   quiet: 'border-2 border-transparent text-ink-2 hover:bg-inset hover:text-ink',
-  /* On the navy masthead, where the page's borders and hovers would vanish.
-     Never taller than the band allows (--band-ctl, see globals.css). */
-  bar:
-    'max-h-[var(--band-ctl)] border-[1.5px] border-bar-line text-bar-ink hover:border-bar-ink-2 hover:bg-[color-mix(in_srgb,var(--bar-ink)_12%,transparent)]',
-  /* On the navy stage band: white outline, and a filled white for the one
-     action the stage leads with. */
-  stage:
-    'border-[1.5px] border-stage-line text-stage-ink hover:border-stage-ink hover:bg-[color-mix(in_srgb,var(--stage-ink)_12%,transparent)]',
-  'stage-primary':
-    'border-2 border-transparent bg-stage-ink text-stage hover:bg-[color-mix(in_srgb,var(--stage-ink)_86%,var(--stage))]',
   danger: 'border-2 border-transparent bg-red text-red-ink hover:bg-[color-mix(in_srgb,var(--red)_86%,black)]',
 };
 
@@ -268,10 +257,10 @@ export function Field({
   const id = htmlFor ?? `field${auto}`;
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
-  // Android: Material's outlined text field, the label inside the outline and
-  // rising onto it (app/android.css) — for a label alone on its row. A row
-  // that also carries something (a counter, a link) keeps the label above.
-  const floating = IS_ANDROID && !labelHidden && !trailing;
+  // Material's outlined text field, the label inside the outline and rising
+  // onto it (app/material.css) — for a label alone on its row. A row that
+  // also carries something (a counter, a link) keeps the label above.
+  const floating = !labelHidden && !trailing;
   const wiring = useMemo<FieldWiring>(
     () => ({ id, describedBy: cx(errorId, hintId) || undefined, invalid: !!error, required: !!required, floating }),
     [id, errorId, hintId, error, required, floating],
@@ -499,13 +488,15 @@ export function Switch({
 // ---------------------------------------------------------------------------
 export type AlertTone = 'error' | 'warn' | 'info' | 'success';
 
+// A tonal container and a glyph in the tone's colour, Material's way — no
+// stripe down the side.
 const ALERT_TONES: Record<AlertTone, { box: string; icon: string; Glyph: typeof InfoIcon }> = {
-  error: { box: 'bg-red-soft shadow-[inset_3px_0_0_var(--red)]', icon: 'text-red', Glyph: AlertTriangleIcon },
+  error: { box: 'bg-red-soft', icon: 'text-red', Glyph: AlertTriangleIcon },
   // Amber is reserved for "vorgemerkt", so a warning is the neutral inset with
-  // the orange emphasis mark — the colour is only a pointer; the words carry it.
-  warn: { box: 'bg-inset shadow-[inset_3px_0_0_var(--emphasis)]', icon: 'text-emphasis', Glyph: AlertTriangleIcon },
-  info: { box: 'bg-info-soft shadow-[inset_3px_0_0_var(--info)]', icon: 'text-info', Glyph: InfoIcon },
-  success: { box: 'bg-green-soft shadow-[inset_3px_0_0_var(--green)]', icon: 'text-green', Glyph: CheckCircleIcon },
+  // the orange glyph — the colour is only a pointer; the words carry it.
+  warn: { box: 'bg-inset', icon: 'text-emphasis', Glyph: AlertTriangleIcon },
+  info: { box: 'bg-info-soft', icon: 'text-info', Glyph: InfoIcon },
+  success: { box: 'bg-green-soft', icon: 'text-green', Glyph: CheckCircleIcon },
 };
 
 export function Alert({
@@ -527,7 +518,7 @@ export function Alert({
   return (
     <div
       role={role ?? (tone === 'error' ? 'alert' : undefined)}
-      className={cx('flex items-start gap-3 rounded-[8px] py-3 pr-3 pl-4 text-[14px] leading-snug text-ink', t.box, className ?? 'mt-3')}
+      className={cx('flex items-start gap-3 rounded-[12px] py-3 pr-3 pl-4 text-[14px] leading-snug text-ink', t.box, className ?? 'mt-3')}
     >
       <span className={cx('mt-px shrink-0', t.icon)}>{icon ?? <t.Glyph size={18} />}</span>
       <div className="min-w-0 flex-1">
@@ -712,7 +703,7 @@ function recoverFocus(fallback: FocusFallback | undefined, neighbours: HTMLEleme
     own,
     ...neighbours,
     document.querySelector<HTMLElement>('[data-focus-fallback]'),
-    // shell/Stage's PAGE_TITLE_ID: the open tab's h1.
+    // shell/ids' PAGE_TITLE_ID: the page's h1 in the top app bar.
     document.getElementById('page-title'),
     document.querySelector<HTMLElement>('main'),
   ];
@@ -1094,7 +1085,7 @@ export function DialogHeader({
     <div data-dialog-header className={cx('flex items-start gap-3.5', className ?? 'mb-5')}>
       {icon && <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">{icon}</span>}
       <div className="min-w-0 flex-1">
-        <h2 id={titleId} className="text-[22px] leading-tight font-bold text-headline">{title}</h2>
+        <h2 id={titleId} className="text-[22px] leading-tight font-medium text-headline">{title}</h2>
         {description && <div className="mt-1.5 text-[15px] leading-snug text-ink-2">{description}</div>}
       </div>
       {onClose && (
@@ -2343,8 +2334,8 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
   return (
     <kbd
       className={cx(
-        'inline-grid h-[22px] min-w-[22px] place-items-center rounded-[5px] border border-b-2 border-line-strong bg-surface px-1.5',
-        'font-sans text-[12.5px] leading-none font-semibold text-ink-2',
+        'inline-grid h-[22px] min-w-[22px] place-items-center rounded-[5px] bg-[var(--md-surface-container-highest)] px-1.5',
+        'font-sans text-[12.5px] leading-none font-medium text-ink-2',
         className,
       )}
     >

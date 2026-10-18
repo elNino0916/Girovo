@@ -4,10 +4,9 @@ import { memo } from 'react';
 import { categoryLabel, txKey, type CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
 import { maskAmounts } from '@/lib/mask';
 import { BankText } from '../BankText';
-import { CategoryIcon, NoteIcon } from '../icons';
+import { CategoryIcon, NoteIcon, PaperclipIcon } from '../icons';
 import { Money, usePrivacy } from '../Money';
 import { Skeleton, cx } from '../ui';
 import { CounterpartyAvatar } from './Avatar';
@@ -28,13 +27,15 @@ const QUIET_CATEGORIES = new Set<CategoryId>(['other', 'otherIn']);
  * change of it renders every row again, summary and category included.
  */
 export const TxRow = memo(function TxRow({
-  tx, merchant, category, userNote, pending = false, compact = false, onOpen,
+  tx, merchant, category, userNote, receipt = false, pending = false, compact = false, onOpen,
 }: {
   tx: SerializedTransaction;
   merchant: Merchant | null;
   category?: CategoryId | null;
   /** The user's own note on the booking (lib/notes.ts): marked beside the name, read in the drawer. */
   userNote?: string;
+  /** A receipt is attached to it (lib/doc-store.ts): marked beside the name, opened in the drawer. */
+  receipt?: boolean;
   pending?: boolean;
   /** The narrower Vorgemerkt panel: tighter padding, no category. */
   compact?: boolean;
@@ -43,10 +44,10 @@ export const TxRow = memo(function TxRow({
   const t = useT();
   const { name, summary, bankName } = txText(tx);
   const credit = tx.amount > 0;
-  // On Android a booked row leaves its Wertstellung to its details; a
-  // Buchungstag still ahead it keeps — that one changes what the row means.
+  // A booked row leaves its Wertstellung to its details; a Buchungstag still
+  // ahead it keeps — that one changes what the row means.
   const fullNote = rowNote(tx, pending);
-  const note = IS_ANDROID && !pending && fullNote?.kind === 'value' ? null : fullNote;
+  const note = !pending && fullNote?.kind === 'value' ? null : fullNote;
   const showCategory = !compact && category && !QUIET_CATEGORIES.has(category);
 
   return (
@@ -76,6 +77,12 @@ export const TxRow = memo(function TxRow({
             {name}
           </span>
           {userNote && <NoteMark note={userNote} />}
+          {receipt && (
+            <span className="inline-flex shrink-0 text-ink-3">
+              <PaperclipIcon size={14} />
+              <span className="sr-only">{t.docs.receipts.marker}</span>
+            </span>
+          )}
         </span>
         {(summary || showCategory) && (
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] leading-snug text-ink-3">

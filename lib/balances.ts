@@ -27,6 +27,11 @@ export const canReportBalance = (a: Capabilities): boolean => a.canStatements ||
  * number, 50–59), never by the product name: "Giro mit Visa" is a Girokonto,
  * and reading it as a card would hide its overdraft.
  */
+/** A Depot whose holdings stand in for Umsätze and a balance (components/Portfolio.tsx). */
+export function isDepot(a: Pick<SerializedAccount, 'canStatements' | 'canPortfolio'>): boolean {
+  return !a.canStatements && !!a.canPortfolio;
+}
+
 export function isCardAccount(a: Pick<SerializedAccount, 'accountType'>): boolean {
   const t = String(a.accountType ?? '').trim();
   return t === 'CreditCardAccount' || /^5\d$/.test(t);

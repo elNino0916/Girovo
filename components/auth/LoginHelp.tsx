@@ -16,12 +16,12 @@ type Point = { title: string; text: string };
 
 /**
  * Per step, what is still open: once the bank is chosen, finding it is done,
- * the form itself already says which PIN it wants — and a forgotten one is
- * the question now.
+ * and the form itself already says which credentials it wants and how the
+ * login is approved — what is left is the FinTS access, and a forgotten PIN.
  */
 function pointsFor(step: 'bank' | 'credentials', help: Messages['auth']['help']): Point[] {
   if (step === 'bank') return [help.credentials, help.fints, help.approval, help.findBank];
-  return [{ ...help.credentials, text: help.credentialsShort }, help.fints, help.approval, help.forgotPin];
+  return [help.fints, help.forgotPin];
 }
 
 export function LoginHelp({ step, className }: { step: 'bank' | 'credentials'; className?: string }) {

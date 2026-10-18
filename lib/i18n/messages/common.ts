@@ -59,6 +59,13 @@ export const de = {
   /** An order whose outcome the bank did not confirm. */
   statusUnclear: 'Status unklar',
   approval: 'Freigabe',
+  /**
+   * Said once per section of a screen, beside the control there that asks
+   * the bank for something (a read, a longer period) — not on every row of a
+   * list, and not on a menu entry that only opens a panel: the panel's own
+   * control says it.
+   */
+  mayNeedApproval: 'Kann eine Freigabe erfordern.',
   fetchFailed: 'Abruf fehlgeschlagen',
 };
 
@@ -114,5 +121,6 @@ export const en: typeof de = {
   },
   statusUnclear: 'Status unclear',
   approval: 'Approval',
+  mayNeedApproval: 'May need approval.',
   fetchFailed: 'Could not load',
 };

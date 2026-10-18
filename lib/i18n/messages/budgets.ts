@@ -26,8 +26,8 @@ export const de = {
     over: (amount: ReactNode): ReactNode[] => [amount, ' drüber'],
     overAtLeast: (amount: ReactNode): ReactNode[] => ['mind. ', amount, ' drüber'],
     exact: 'Budget ausgeschöpft',
-    /** Under the budget so far, in a month that is not fully loaded. */
-    unknown: 'Rest offen – Monat nicht ganz geladen',
+    /** Under the budget so far, in a month that is not fully loaded (the tile's note says so). */
+    unknown: 'Rest offen',
     /** The whole range on view: a budget's own figure. */
     perMonth: (amount: ReactNode): ReactNode[] => [amount, ' pro Monat'],
     running: (day: string) => `Der Monat läuft noch – Stand ${day}.`,
@@ -60,7 +60,7 @@ export const de = {
     removeLabel: 'Notiz löschen',
     field: 'Deine Notiz zu diesem Umsatz',
     placeholder: 'z. B. Geschenk für Mama',
-    hint: 'Nur für dich, verschlüsselt auf diesem Rechner. Die Suche findet sie, der CSV-Export enthält sie, der Beleg nicht.',
+    hint: 'Nur für dich, verschlüsselt auf diesem Rechner. Die Suche findet sie, der CSV-Export enthält sie, der Buchungsbeleg nicht.',
     saved: 'Notiz gespeichert.',
     removed: 'Notiz gelöscht.',
     /** The row's mark: its tooltip, and what a screen reader hears. */
@@ -76,10 +76,7 @@ export const de = {
   check: {
     title: 'Kategorie-Check',
     open: 'Kategorie-Check',
-    /** The categories tile's footer: "31 von 35 automatisch zugeordneten Umsätzen hast du so gelassen". */
-    summary: (kept: number, filed: number) =>
-      `${kept.toLocaleString(INTL_LOCALES.de)} von ${counted(filed, 'automatisch zugeordnetem Umsatz', 'automatisch zugeordneten Umsätzen')} hast du so gelassen`,
-    noneFiled: 'Noch kein Umsatz automatisch zugeordnet',
+    /** The categories tile's footer, under "Kategorie-Check". */
     openCount: (n: number) => `${counted(n, 'Umsatz', 'Umsätze')} ohne Kategorie`,
     intro: 'Wie gut die automatischen Kategorien zu deinen Umsätzen passen. Ausgewertet auf diesem Rechner – nichts davon verlässt ihn.',
     facts: {
@@ -135,7 +132,7 @@ export const en: typeof de = {
     over: (amount) => [amount, ' over'],
     overAtLeast: (amount) => ['at least ', amount, ' over'],
     exact: 'Budget used up',
-    unknown: 'Rest unclear – month not fully loaded',
+    unknown: 'Amount left unknown',
     perMonth: (amount) => [amount, ' a month'],
     running: (day) => `The month is still running – as of ${day}.`,
     partial: (from, to) =>
@@ -143,7 +140,7 @@ export const en: typeof de = {
     none: 'No transactions are loaded for this month.',
     wholeRange: 'Budgets are per month. Choose a month above to compare your spending with them.',
     showMonth: (month) => `Show ${month}`,
-    basis: 'Counted as in “Spending by category”: booked transactions, refunds netted, transfers between your accounts left out.',
+    basis: 'Counted as in “Spending by category”: booked transactions, refunds netted, internal transfers not counted.',
     dialog: {
       title: 'Monthly budgets',
       intro: 'How much do you want to spend at most in a category each month? An empty field means no budget.',
@@ -165,7 +162,7 @@ export const en: typeof de = {
     removeLabel: 'Delete note',
     field: 'Your note on this transaction',
     placeholder: 'e.g. Birthday present for Mum',
-    hint: 'Only for you, encrypted on this computer. The search finds it and the CSV export includes it; the receipt does not.',
+    hint: 'Only for you, encrypted on this computer. The search finds it and the CSV export includes it; the transaction receipt does not.',
     saved: 'Note saved.',
     removed: 'Note deleted.',
     marker: 'With note',
@@ -178,9 +175,6 @@ export const en: typeof de = {
   check: {
     title: 'Category check',
     open: 'Category check',
-    summary: (kept, filed) =>
-      `You left ${kept.toLocaleString(INTL_LOCALES.en)} of ${countedEn(filed, 'automatically categorised transaction', 'automatically categorised transactions')} as they were`,
-    noneFiled: 'No transaction categorised automatically yet',
     openCount: (n) => `${countedEn(n, 'transaction', 'transactions')} without a category`,
     intro: 'How well the automatic categories fit your transactions. Worked out on this computer – none of it leaves it.',
     facts: {

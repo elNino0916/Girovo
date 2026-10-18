@@ -10,16 +10,19 @@ import { rich, useT } from '@/lib/i18n/react';
 import { BankLogo } from './BankLogo';
 import { scheduleSentence } from '@/lib/order-schedule';
 import { isOrderWait, isOrderWaitKind, useFints, type WaitKind, type WaitOrder, type WaitState } from './FintsProvider';
-import { AlertTriangleIcon, BoltIcon, CheckCircleIcon, ClockIcon, CloseIcon, InfoIcon, PhoneIcon } from './icons';
+import { AlertTriangleIcon, BoltIcon, CardIcon, CheckCircleIcon, ClockIcon, CloseIcon, InfoIcon, KeyboardIcon, PhoneIcon } from './icons';
 import { Money } from './Money';
+import { TanForm, TanGraphic } from './TanEntry';
 import { VopBadge } from './VopResult';
 import { Alert, Button, Dialog, DialogActions, Overlay, Sheet, Spinner, Tag, cx } from './ui';
 
 /**
- * The decoupled approval beat: the user leaves for their banking app and comes
- * back. The elapsed counter is deliberate — a spinner alone gives no sense of
- * whether the request has stalled — and where the bank has said how long it
- * will wait, a thin bar shows how much of that is used up.
+ * The approval beat. In the bank's app (decoupled): the user leaves for their
+ * banking app and comes back. The elapsed counter is deliberate — a spinner
+ * alone gives no sense of whether the request has stalled — and where the bank
+ * has said how long it will wait, a thin bar shows how much of that is used
+ * up. With a typed TAN, the dialog holds what the TAN is made from and the
+ * field for it (components/TanEntry.tsx) instead.
  *
  * Not dismissable by Escape or the backdrop: the only ways out are the
  * explicit buttons, because leaving abandons the bank's request.
@@ -54,14 +57,16 @@ function waitWords(t: Messages, kind: WaitKind): {
 }
 
 function TanWait() {
-  const { wait, retryWait, cancelWait, selectedMethod, tanMethods, logoFiles } = useFints();
+  const { wait, retryWait, cancelWait, submitTan, selectedMethod, tanMethods, logoFiles } = useFints();
   const t = useT();
   const tw = t.auth.tanWait;
   const uid = useId();
   const titleId = `tanwait${uid}-title`;
   const textId = `tanwait${uid}-text`;
   const helpId = `tanwait${uid}-help`;
+  const formId = `tanwait${uid}-form`;
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const tanRef = useRef<HTMLInputElement>(null);
   const [confirmAbort, setConfirmAbort] = useState(false);
   /** Null until the user opens or closes the help — from then on their choice holds. */
   const [helpChoice, setHelpChoice] = useState<boolean | null>(null);
@@ -71,6 +76,11 @@ function TanWait() {
   const confirmed = wait.phase === 'confirmed';
   const failed = wait.phase === 'error';
   const refused = wait.phase === 'refused';
+  const entry = wait.entry;
+  /** Waiting for the TAN the user types, not for the bank's app. */
+  const typing = waiting && !!entry;
+  /** …from a flicker code or a graphic to scan. */
+  const graphicFirst = typing && !!(entry.flicker || entry.image);
 
   // The method this approval runs on — the one the provider started it with
   // (a linked bank's own), else the one it attributes a mid-session approval to.
@@ -127,8 +137,9 @@ function TanWait() {
 
   const cancel = () => {
     // Abandoning an order's approval leaves the order's fate unknown — the
-    // bank may already have it. Make that a decision, not a reflex.
-    if (isOrderWait(wait.kind) && waiting) {
+    // bank may already have it. Make that a decision, not a reflex. Before a
+    // typed TAN has gone out, nothing can have run.
+    if (isOrderWait(wait.kind) && waiting && !(entry && !entry.sending)) {
       setConfirmAbort(true);
       return;
     }
@@ -152,14 +163,14 @@ function TanWait() {
       <Overlay open labelledBy={titleId} describedBy={textId} initialFocus={headingRef}>
         <Sheet
           size="sm"
-          band={{ icon: <BandIcon phase={wait.phase} />, tone: 'navy' }}
+          band={{ icon: <BandIcon phase={wait.phase} typed={!!entry} />, tone: 'navy' }}
           // Below the scrolling body: the wait's status (the counter, the
           // bank's limit, "Frist abgelaufen") and "Abbrechen" stay in view
           // together in a short window or at 200 %, while the order to
           // compare and the bank's request scroll.
           footer={
             <>
-              {live && (
+              {live && !typing && (
                 <WaitProgress
                   startedAt={wait.startedAt}
                   settledAt={wait.settledAt}
@@ -172,9 +183,12 @@ function TanWait() {
               {!confirmed && (
                 <DialogActions align="center" className="">
                   <Button onClick={cancel}>{waiting ? t.common.cancel : t.common.close}</Button>
+                  {typing && (
+                    <Button variant="primary" type="submit" form={formId} busy={entry.sending}>{tw.entry.send}</Button>
+                  )}
                   {offerRetry && (
                     <Button variant="primary" onClick={retryWait}>
-                      {refused || waiting ? tw.newRequest : t.common.retry}
+                      {refused || waiting || wait.phase === 'ended' ? tw.newRequest : t.common.retry}
                     </Button>
                   )}
                 </DialogActions>
@@ -190,7 +204,7 @@ function TanWait() {
                 ref={headingRef}
                 id={titleId}
                 tabIndex={-1}
-                className="text-[22px] leading-tight font-bold text-headline outline-none"
+                className="text-[22px] leading-tight font-medium text-headline outline-none"
               >
                 {title}
               </h2>
@@ -220,11 +234,39 @@ function TanWait() {
                 so the dialog does not collapse under the user's eyes. */}
             {device && live && (
               <p className="mt-3 inline-flex max-w-full items-center gap-1.5 text-[13.5px] text-ink-3">
-                <PhoneIcon size={16} className="shrink-0" />
+                {entry ? <CardIcon size={16} className="shrink-0" /> : <PhoneIcon size={16} className="shrink-0" />}
                 <span className="truncate">
                   {rich(tw.device(<span className="font-semibold text-ink-2">{device}</span>))}
                 </span>
               </p>
+            )}
+
+            {/* A graphic to read with the generator comes first, the field
+                right under it: on a phone it is held against the screen, so
+                it must not wait below the fold. The order and the bank's words
+                follow — the generator shows the order itself. */}
+            {graphicFirst && <TanGraphic entry={entry} />}
+            {graphicFirst && <TanForm entry={entry} formId={formId} inputRef={tanRef} onSubmit={submitTan} />}
+            {graphicFirst && (
+              <div className="mt-4 text-left">
+                <Button
+                  variant="tertiary"
+                  size="xs"
+                  className="-ml-3"
+                  aria-expanded={!!helpChoice}
+                  aria-controls={helpId}
+                  onClick={() => setHelpChoice(!helpChoice)}
+                >
+                  {tw.entry.helpToggle}
+                </Button>
+                <ul
+                  id={helpId}
+                  hidden={!helpChoice}
+                  className="mt-1.5 list-disc space-y-1 pl-5 text-[13.5px] leading-snug text-ink-2 marker:text-ink-3"
+                >
+                  {(entry.flicker ? tw.entry.flickerTips : tw.entry.imageTips).map((tip) => <li key={tip}>{tip}</li>)}
+                </ul>
+              </div>
             )}
 
             {/* The bank kept the challenge alive through its Namensabgleich, or
@@ -232,18 +274,22 @@ function TanWait() {
                 with the approval prompt. */}
             {wait.vop && <VopBadge vop={wait.vop} />}
 
-            {wait.order && live && <OrderToCompare order={wait.order} method={methodName} />}
+            {wait.order && live && <OrderToCompare order={wait.order} method={methodName} typed={!!entry} />}
 
             {challenge && live && (
               <figure className="mt-4 text-left">
-                {wait.order && <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">{tw.challenge}</figcaption>}
+                {(wait.order || entry) && <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">{tw.challenge}</figcaption>}
                 <p className="rounded-[var(--radius-chip)] bg-inset px-4 py-3 text-[14px] leading-relaxed text-balance whitespace-pre-line text-ink-2">
                   {challenge}
                 </p>
               </figure>
             )}
 
-            {waiting && (
+            {/* Without a graphic, the bank's words say what to type (a start
+                code, an SMS): the field follows them. */}
+            {entry && typing && !graphicFirst && <TanForm entry={entry} formId={formId} inputRef={tanRef} onSubmit={submitTan} />}
+
+            {waiting && !entry && (
               <div className="mt-4 text-left">
                 <Button
                   variant="tertiary"
@@ -261,7 +307,8 @@ function TanWait() {
                   className="mt-1.5 list-disc space-y-1 pl-5 text-[13.5px] leading-snug text-ink-2 marker:text-ink-3"
                 >
                   <li>{methodName ? tw.openMethod(methodName) : tw.openApp}</li>
-                  <li>{device ? tw.checkDevice(device) : tw.checkDevices}</li>
+                  {/* A named device is already the "Gerät: …" line above. */}
+                  {!device && <li>{tw.checkDevices}</li>}
                   <li>{tw.checkNotifications}</li>
                 </ul>
               </div>
@@ -323,7 +370,7 @@ function TanWait() {
  * is shown whatever "Beträge ausblenden" says: it is what is being checked,
  * as on the review step.
  */
-function OrderToCompare({ order, method }: { order: WaitOrder; method: string | null }) {
+function OrderToCompare({ order, method, typed }: { order: WaitOrder; method: string | null; typed: boolean }) {
   const t = useT();
   const tw = t.auth.tanWait;
   const schedule = order.schedule ?? null;
@@ -339,7 +386,7 @@ function OrderToCompare({ order, method }: { order: WaitOrder; method: string | 
       {/* When it runs, as the review step said it: the banking app shows the date or the rhythm too. */}
       {schedule && <p className="tnum mx-auto mt-1 max-w-[40ch] text-[13.5px] leading-snug text-ink-2">{scheduleSentence(schedule)}</p>}
       <p className="mx-auto mt-2 max-w-[36ch] text-[13.5px] leading-snug text-ink-3">
-        {method ? tw.compareIn(method) : tw.compareApp}
+        {typed ? tw.compareDevice : method ? tw.compareIn(method) : tw.compareApp}
       </p>
     </div>
   );
@@ -466,8 +513,8 @@ function WaitProgress({ startedAt, settledAt, limit, done, overdue, className }:
   );
 }
 
-/** The band's pictogram: a phone that pulses while the bank waits on it. */
-function BandIcon({ phase }: { phase: WaitState['phase'] }) {
+/** The band's pictogram: a phone that pulses while the bank waits on it — a keypad, still, while a TAN is typed. */
+function BandIcon({ phase, typed }: { phase: WaitState['phase']; typed: boolean }) {
   let glyph: ReactNode;
   if (phase === 'confirmed') {
     glyph = (
@@ -486,14 +533,14 @@ function BandIcon({ phase }: { phase: WaitState['phase'] }) {
   } else if (phase === 'refused') {
     glyph = <CloseIcon size={24} />;
   } else {
-    glyph = <PhoneIcon size={24} />;
+    glyph = typed ? <KeyboardIcon size={24} /> : <PhoneIcon size={24} />;
   }
   return (
     // Confirmed fills the disc green — the one moment green belongs here.
     // The check is drawn in the surface colour, which clears 3:1 on the
     // green of either theme.
     <span className={cx('relative grid size-12 place-items-center rounded-full', phase === 'confirmed' && 'bg-green text-surface')}>
-      {phase === 'waiting' && (
+      {phase === 'waiting' && !typed && (
         <>
           <span
             className="absolute inset-0 rounded-full border-2 border-[color-mix(in_srgb,var(--stage-ink)_55%,transparent)] opacity-0"

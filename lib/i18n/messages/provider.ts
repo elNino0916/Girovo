@@ -6,7 +6,7 @@ export const de = {
     /** The server no longer knows the session (HTTP 401). */
     sessionExpired: 'Sitzung abgelaufen. Bitte neu anmelden.',
     /** The request never reached the local server (crashed, restarting). */
-    unreachable: 'Keine Verbindung zum lokalen Server. Bitte versuche es erneut.',
+    unreachable: 'Girovo konnte die Anfrage gerade nicht bearbeiten. Versuche es noch einmal – hilft das nicht, starte Girovo neu.',
     /** An error answer that brought no message of its own. */
     failed: (status: number) => `Fehler (${status})`,
   },
@@ -26,7 +26,7 @@ export const de = {
     cancelled: 'Die Anfrage an deine Bank wurde abgebrochen.',
     unexpected: 'Bei der Verbindung mit deiner Bank ist ein unerwarteter Fehler aufgetreten.',
     /** lib-fints' English errors, as they concern the user. */
-    tanEntryNeeded: 'Dieses Verfahren braucht eine TAN-Eingabe. Hier geht nur die Freigabe in einer Banking-App.',
+    tanEntryNeeded: 'Deine Bank wartet auf eine TAN. Starte den Vorgang bitte noch einmal.',
     notOffered: 'Deine Bank bietet diesen Vorgang für dein Konto über FinTS nicht an.',
     noIban: 'Für dieses Konto meldet deine Bank keine IBAN.',
     /** The order went out and its answer never came back (lib/fints-order.ts): "Status unklar", never "failed". */
@@ -82,21 +82,31 @@ export const de = {
       pending: 'den Abruf der vorgemerkten Umsätze',
       balance: 'die Saldoabfrage',
       transfer: 'die Überweisung',
+      portfolio: 'die Depotabfrage',
+      bankStatements: 'den Abruf der Kontoauszüge',
     },
     /** The same, naming the account (the user's own name for it first) and the first day asked for. */
     statementsOf: (account: string, from: string) => `den Abruf der Umsätze von ${account} ab ${from}`,
     pendingOf: (account: string) => `den Abruf der vorgemerkten Umsätze von ${account}`,
     balanceOf: (account: string) => `die Saldoabfrage für ${account}`,
+    portfolioOf: (account: string) => `die Depotabfrage für ${account}`,
+    bankStatementsOf: (account: string) => `den Abruf der Kontoauszüge von ${account}`,
     /** With an app-approval method: the method as the bank names it ("pushTAN 2.0"). */
     openApp: (method: string, subject: string) => `Öffne „${method}“ und bestätige ${subject}.`,
     confirmInApp: (subject: string) => `Bestätige ${subject} in deiner Banking-App.`,
+    /** With a method whose TAN is typed (chipTAN, photoTAN, smsTAN). */
+    typeTan: (subject: string) => `Gib die TAN für ${subject} ein.`,
+    /** The route refused what was typed: it cannot be a TAN. */
+    badTan: 'Das ist keine gültige TAN.',
     /** A statement asking for its own approval right after the login's. */
     secondApproval: 'Die Anmeldung ist freigegeben – für die Umsätze fragt deine Bank ein zweites Mal.',
     /** The bank closed the dialog before the approval arrived — the bank's timeout, not the user's. */
     endedTitle: 'Freigabe nicht rechtzeitig angekommen',
-    endedText: 'Deine Bank hat die Anfrage beendet. Sende sie neu und bestätige sie in der App.',
+    endedText: 'Deine Bank hat die Anfrage beendet.',
     /** The bank refused, or left it unclear, without a word of its own. */
     notConfirmed: 'Deine Bank hat die Freigabe nicht bestätigt.',
+    /** An order's approval whose answer never came back: nothing about it may sound like "send it again". */
+    unverifiable: 'Girovo kann gerade nicht feststellen, ob die Freigabe angekommen ist.',
   },
 
   /** A wait, not a failure: said as a notice, never in the error's red. */
@@ -106,7 +116,6 @@ export const de = {
     /** A login the user called off while the bank was being asked. */
     cancelled: 'Die Anmeldung wurde abgebrochen.',
     deviceRecognised: 'Gerät erkannt – ohne neue Freigabe angemeldet.',
-    noTanMethod: 'Deine Bank bietet für diesen Zugang kein Sicherheitsverfahren an.',
   },
 
   device: {
@@ -151,7 +160,7 @@ export const de = {
 export const en: typeof de = {
   server: {
     sessionExpired: 'Session expired. Please log in again.',
-    unreachable: 'No connection to the local server. Please try again.',
+    unreachable: 'Girovo couldn’t handle the request just now. Try again – if that doesn’t help, restart Girovo.',
     failed: (status) => `Error (${status})`,
   },
 
@@ -163,7 +172,7 @@ export const en: typeof de = {
     insecure: 'A secure connection to your bank could not be established. Check the date and time on this computer.',
     cancelled: 'The request to your bank was cancelled.',
     unexpected: 'An unexpected error occurred in the connection to your bank.',
-    tanEntryNeeded: 'This method needs a TAN to be entered. Only approval in a banking app works here.',
+    tanEntryNeeded: 'Your bank is waiting for a TAN. Please start again.',
     notOffered: 'Your bank doesn’t offer this operation for your account over FinTS.',
     noIban: 'Your bank reports no IBAN for this account.',
     orderUnanswered:
@@ -207,16 +216,23 @@ export const en: typeof de = {
       pending: 'the request for your pending transactions',
       balance: 'the balance enquiry',
       transfer: 'the transfer',
+      portfolio: 'the holdings enquiry',
+      bankStatements: 'the retrieval of your statements',
     },
     statementsOf: (account, from) => `the request for the transactions of ${account} from ${from}`,
     pendingOf: (account) => `the request for the pending transactions of ${account}`,
     balanceOf: (account) => `the balance enquiry for ${account}`,
+    portfolioOf: (account) => `the holdings enquiry for ${account}`,
+    bankStatementsOf: (account) => `the retrieval of the statements of ${account}`,
     openApp: (method, subject) => `Open “${method}” and confirm ${subject}.`,
     confirmInApp: (subject) => `Confirm ${subject} in your banking app.`,
+    typeTan: (subject) => `Enter the TAN for ${subject}.`,
+    badTan: 'That is not a valid TAN.',
     secondApproval: 'The login is approved – your bank asks a second time for the transactions.',
     endedTitle: 'Approval did not arrive in time',
-    endedText: 'Your bank ended the request. Send it again and confirm it in the app.',
+    endedText: 'Your bank ended the request.',
     notConfirmed: 'Your bank did not confirm the approval.',
+    unverifiable: 'Girovo can’t tell right now whether the approval arrived.',
   },
 
   busy: 'Please wait – another operation is still in progress.',
@@ -224,7 +240,6 @@ export const en: typeof de = {
   login: {
     cancelled: 'The login was cancelled.',
     deviceRecognised: 'Device recognised – logged in without a new approval.',
-    noTanMethod: 'Your bank offers no security method for this login.',
   },
 
   device: {

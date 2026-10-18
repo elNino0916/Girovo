@@ -20,7 +20,7 @@ export const POST = wrap(async (req: Request) => {
   const resp = await s.client.getAccountBalance(accountNumber);
   if (resp.requiresTan) {
     s.pending = { type: 'balance', tanReference: resp.tanReference, accountNumber };
-    return json({ ...tanPayload(resp), accountNumber } satisfies BalanceResponse);
+    return json({ ...tanPayload(resp, s), accountNumber } satisfies BalanceResponse);
   }
   if (!resp.success) return fail(bankAnswerText(resp) || msgs().transactions.api.balanceFailed);
   return json({

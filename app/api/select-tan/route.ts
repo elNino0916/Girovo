@@ -1,5 +1,6 @@
 // Step 2: select TAN method (+ media) and run the authenticated sync that
-// pulls the account list (UPD). This usually triggers the decoupled approval.
+// pulls the account list (UPD). This usually triggers the first approval — in
+// the bank's app, or with a typed TAN (/api/tan-poll takes either).
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { msgs } from '@/lib/i18n';
@@ -18,12 +19,8 @@ export const POST = wrap(async (req: Request) => {
   const s = getSession(sessionId);
   if (!s) return sessionExpired();
 
-  // Only approval in the bank's app: the app has no field to type a TAN into.
-  // Started with a typed-TAN method, the approval wait would fail a second
-  // later with lib-fints' "TAN must be provided…" — and every retry again.
   const offered = (s.client.config.availableTanMethods || []).find((m) => m.id === Number(tanMethodId));
   if (!offered) return fail(msgs().auth.api.methodNotOffered);
-  if (!offered.isDecoupled) return fail(msgs().auth.api.methodNeedsTan);
 
   const method = s.client.selectTanMethod(offered.id);
 
@@ -59,7 +56,7 @@ export const POST = wrap(async (req: Request) => {
 
   if (sync.requiresTan) {
     s.pending = { type: 'sync', tanReference: sync.tanReference };
-    return json(tanPayload(sync));
+    return json(tanPayload(sync, s));
   }
   if (!sync.success) {
     return fail(bankAnswerText(sync) || msgs().auth.api.loginFailed);

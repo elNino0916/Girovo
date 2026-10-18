@@ -69,7 +69,7 @@ export const POST = wrap(async (req: Request) => {
     };
     // The check result travels with the approval prompt, so the user still
     // sees what the Namensabgleich said while confirming in the app.
-    return json({ ...tanPayload(resp), accountNumber: hold.accountNumber, vop: hold.vop } satisfies TransferResponse);
+    return json({ ...tanPayload(resp, s), accountNumber: hold.accountNumber, vop: hold.vop } satisfies TransferResponse);
   }
   if (!resp.success) {
     // As in /api/transfer: only a clean refusal says nothing was executed.

@@ -2,32 +2,71 @@
 name: Girovo
 description: German online banking over FinTS, on your own machine. A private branch for one customer.
 colors:
-  paper: "#f4f6f9"
-  surface: "#ffffff"
-  inset: "#edf0f4"
-  raised: "#ffffff"
-  ink: "#1b1f24"
-  ink-2: "#4f5761"
-  ink-3: "#5f6b78"
-  line: "#dfe5ec"
-  line-strong: "#c3cdd9"
-  field-line: "#8391a0"
-  field-bg: "#ffffff"
-  headline: "#0a2c5e"
-  bar: "#0a2c5e"
-  bar-ink: "#ffffff"
-  bar-ink-2: "#b9c8dc"
-  bar-line: "rgb(255 255 255 / 0.28)"
-  stage: "#0a2c5e"
-  stage-ink: "#ffffff"
-  stage-ink-2: "#c4d2e4"
-  stage-line: "rgb(255 255 255 / 0.28)"
-  accent: "#0864ad"
-  accent-hover: "#06589a"
-  accent-press: "#044a85"
+  md-primary: "#0060a8"
+  md-on-primary: "#ffffff"
+  md-primary-container: "#d3e4ff"
+  md-on-primary-container: "#004880"
+  md-inverse-primary: "#a2c9ff"
+  md-secondary: "#535d7e"
+  md-secondary-container: "#dae1ff"
+  md-on-secondary-container: "#3c4665"
+  md-tertiary-container: "#e2dfff"
+  md-on-tertiary-container: "#424271"
+  md-surface: "#f8f9ff"
+  md-surface-container-lowest: "#ffffff"
+  md-surface-container-low: "#eff4ff"
+  md-surface-container: "#e9eefa"
+  md-surface-container-high: "#e3e8f4"
+  md-surface-container-highest: "#dde3ee"
+  md-on-surface: "#161c24"
+  md-on-surface-variant: "#404753"
+  md-outline: "#707784"
+  md-outline-variant: "#bfc7d5"
+  md-inverse-surface: "#2b313a"
+  md-inverse-on-surface: "#ecf1fd"
+  paper: "#f8f9ff"
+  surface: "#eff4ff"
+  inset: "#e3e8f4"
+  raised: "#eff4ff"
+  ink: "#161c24"
+  ink-2: "#404753"
+  ink-3: "#404753"
+  line: "#bfc7d5"
+  line-strong: "#707784"
+  field-line: "#707784"
+  field-bg: "transparent"
+  headline: "#161c24"
+  bar: "#f8f9ff"
+  bar-ink: "#161c24"
+  bar-ink-2: "#404753"
+  stage: "#d3e4ff"
+  stage-ink: "#004880"
+  stage-ink-2: "#346699"
+  accent: "#0060a8"
+  accent-hover: "#256db0"
+  accent-press: "#3b79b7"
   accent-ink: "#ffffff"
-  accent-soft: "#e8f1f9"
-  focus: "#3a7fb8"
+  accent-soft: "#dae1ff"
+  tonal-ink: "#3c4665"
+  focus: "#0060a8"
+  nav-bg: "#e9eefa"
+  nav-indicator: "#dae1ff"
+  nav-active: "#3c4665"
+  nav-label-active: "#535d7e"
+  nav-ink: "#404753"
+  fab-bg: "#d3e4ff"
+  fab-ink: "#004880"
+  toggle-bg: "#e9eefa"
+  menu-bg: "#eff4ff"
+  menu-selected: "#e2dfff"
+  menu-selected-ink: "#424271"
+  dialog-bg: "#e3e8f4"
+  progress-track: "#dae1ff"
+  snackbar-bg: "#2b313a"
+  snackbar-ink: "#ecf1fd"
+  snackbar-action: "#a2c9ff"
+  scrim: "rgb(0 0 0 / 0.32)"
+  brand-plate: "#0a2c5e"
   emphasis: "#ee6a1f"
   green: "#0c7336"
   green-soft: "#eaf4ee"
@@ -38,7 +77,6 @@ colors:
   amber-soft: "#fff4dc"
   info: "#0074a3"
   info-soft: "#e9f4f8"
-  scrim: "rgb(10 22 40 / 0.45)"
   chart-1: "#0053a4"
   chart-2: "#0ca4a0"
   chart-3: "#5f38a7"
@@ -48,10 +86,10 @@ colors:
   chart-rest: "#8a96a3"
   chart-in: "#2a9a5a"
   chart-out: "#30588f"
-  chart-line: "#0864ad"
-  chart-area: "rgb(8 100 173 / 0.08)"
-  chart-grid: "#e8edf2"
-  chart-axis: "#c3cdd9"
+  chart-line: "#0060a8"
+  chart-area: "rgb(0 96 168 / 0.12)"
+  chart-grid: "rgb(191 199 213 / 0.6)"
+  chart-axis: "#bfc7d5"
   doc-rule: "#b4bfcc"
 typography:
   display:
@@ -70,19 +108,19 @@ typography:
     fontFeature: "'tnum', 'lnum'"
   headline:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
-    fontSize: "36px"
-    fontWeight: 700
-    lineHeight: 1.15
-  headline-md:
-    fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
     fontSize: "32px"
-    fontWeight: 700
-    lineHeight: 1.15
+    fontWeight: 500
+    lineHeight: 1.25
   headline-sm:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
     fontSize: "28px"
-    fontWeight: 700
-    lineHeight: 1.15
+    fontWeight: 500
+    lineHeight: 1.25
+  dialog-headline:
+    fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
+    fontSize: "24px"
+    fontWeight: 500
+    lineHeight: "32px"
   amount-review:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
     fontSize: "34px"
@@ -107,10 +145,22 @@ typography:
     fontWeight: 700
     lineHeight: 1.25
     fontFeature: "'tnum', 'lnum'"
-  title:
+  title-large:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
     fontSize: "22px"
-    fontWeight: 700
+    fontWeight: 400
+    lineHeight: "28px"
+    letterSpacing: "0"
+  section-title:
+    fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
+    fontSize: "22px"
+    fontWeight: 500
+    lineHeight: "28px"
+    letterSpacing: "0"
+  sheet-title:
+    fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
+    fontSize: "22px"
+    fontWeight: 500
     lineHeight: 1.25
   wordmark:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
@@ -126,7 +176,14 @@ typography:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
     fontSize: "16px"
     fontWeight: 400
-    lineHeight: 1.5
+    lineHeight: "24px"
+    letterSpacing: "0.5px"
+  button-lg:
+    fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: "0.15px"
   body:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
     fontSize: "15px"
@@ -137,21 +194,18 @@ typography:
     fontSize: "15px"
     fontWeight: 600
     lineHeight: 1.375
-  item:
-    fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
-    fontSize: "14.5px"
-    fontWeight: 600
-    lineHeight: 1.375
   button:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
     fontSize: "14px"
-    fontWeight: 600
+    fontWeight: 500
     lineHeight: 1
-  button-sm:
+    letterSpacing: "0.1px"
+  day-subheader:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
-    fontSize: "13.5px"
-    fontWeight: 600
-    lineHeight: 1
+    fontSize: "14px"
+    fontWeight: 500
+    lineHeight: "20px"
+    letterSpacing: "0.1px"
   small:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
     fontSize: "13.5px"
@@ -177,6 +231,18 @@ typography:
     fontSize: "12.5px"
     fontWeight: 600
     lineHeight: 1
+  nav-label:
+    fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
+    fontSize: "12px"
+    fontWeight: 500
+    lineHeight: "16px"
+    letterSpacing: "0.5px"
+  supporting:
+    fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.375
+    letterSpacing: "0.4px"
   badge:
     fontFamily: "Google Sans Flex, Segoe UI, system-ui, sans-serif"
     fontSize: "12px"
@@ -188,20 +254,24 @@ typography:
     letterSpacing: "0.06em"
     fontFeature: "'tnum'"
 rounded:
-  inline: "4px"
-  check: "5px"
-  field: "6px"
-  chip: "8px"
-  card: "12px"
-  sheet: "16px"
+  corner-xs: "4px"
+  keycap: "5px"
+  tag: "6px"
+  corner-sm: "8px"
+  corner-md: "12px"
+  corner-lg: "16px"
+  corner-lg-up: "20px"
+  corner-xl: "28px"
+  corner-xl-up: "32px"
+  corner-xxl: "48px"
   pill: "9999px"
   doc-panel: "1.5mm"
 spacing:
+  "0.5": "2px"
   "1": "4px"
   "1.5": "6px"
   "2": "8px"
   "3": "12px"
-  "3.5": "14px"
   "4": "16px"
   "5": "20px"
   "6": "24px"
@@ -210,164 +280,234 @@ spacing:
   "12": "48px"
   "16": "64px"
 components:
-  button-primary:
+  button-filled:
     backgroundColor: "{colors.accent}"
     textColor: "{colors.accent-ink}"
     typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "0 20px"
-    height: "44px"
-  button-primary-hover:
+    rounded: "{rounded.corner-lg-up}"
+    padding: "0 16px"
+    height: "40px"
+  button-filled-hover:
     backgroundColor: "{colors.accent-hover}"
-  button-primary-active:
+  button-filled-active:
     backgroundColor: "{colors.accent-press}"
-  button-secondary:
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "0 20px"
-    height: "44px"
-  button-secondary-hover:
+    rounded: "{rounded.corner-sm}"
+  button-tonal:
     backgroundColor: "{colors.accent-soft}"
-  button-tertiary:
+    textColor: "{colors.tonal-ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.corner-lg-up}"
+    padding: "0 16px"
+    height: "40px"
+  button-text:
     textColor: "{colors.accent}"
     typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "0 20px"
-    height: "44px"
+    rounded: "{rounded.corner-lg-up}"
+    padding: "0 16px"
+    height: "40px"
+  button-text-hover:
+    backgroundColor: "{colors.accent-soft}"
   button-quiet:
     textColor: "{colors.ink-2}"
     typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "0 20px"
-    height: "44px"
+    rounded: "{rounded.corner-lg-up}"
+    padding: "0 16px"
+    height: "40px"
   button-quiet-hover:
     backgroundColor: "{colors.inset}"
     textColor: "{colors.ink}"
-  button-sm:
-    typography: "{typography.button-sm}"
-    rounded: "{rounded.pill}"
-    padding: "0 16px"
-    height: "36px"
-  button-stage-primary:
-    backgroundColor: "{colors.stage-ink}"
-    textColor: "{colors.stage}"
-    typography: "{typography.button-sm}"
-    rounded: "{rounded.pill}"
-    padding: "0 16px"
-    height: "36px"
-  button-stage:
-    textColor: "{colors.stage-ink}"
-    typography: "{typography.button-sm}"
-    rounded: "{rounded.pill}"
-    padding: "0 16px"
-    height: "36px"
+  button-medium:
+    typography: "{typography.button-lg}"
+    rounded: "{rounded.corner-xl}"
+    padding: "0 24px"
+    height: "56px"
+  button-medium-active:
+    rounded: "{rounded.corner-md}"
+  button-xs:
+    typography: "{typography.button}"
+    rounded: "{rounded.corner-lg}"
+    padding: "0 12px"
+    height: "32px"
   button-danger:
     backgroundColor: "{colors.red}"
     textColor: "{colors.red-ink}"
     typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "0 20px"
-    height: "44px"
+    rounded: "{rounded.corner-lg-up}"
+    padding: "0 16px"
+    height: "40px"
   icon-button:
     textColor: "{colors.ink-2}"
     rounded: "{rounded.pill}"
-    size: "32px"
-  skip-link:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.accent-ink}"
-    typography: "{typography.button-sm}"
+    size: "40px"
+  icon-button-sm:
+    textColor: "{colors.ink-2}"
     rounded: "{rounded.pill}"
-    padding: "6px 16px"
-  input:
+    size: "32px"
+  top-app-bar:
+    backgroundColor: "{colors.bar}"
+    textColor: "{colors.bar-ink}"
+    typography: "{typography.title-large}"
+    height: "60px"
+  search-pill:
+    backgroundColor: "{colors.md-surface-container-high}"
+    textColor: "{colors.bar-ink-2}"
+    rounded: "{rounded.pill}"
+    height: "40px"
+  search-pill-hover:
+    backgroundColor: "{colors.md-surface-container-highest}"
+    textColor: "{colors.bar-ink}"
+  keycap:
+    backgroundColor: "{colors.md-surface-container-lowest}"
+    textColor: "{colors.bar-ink-2}"
+    typography: "{typography.caption-sm}"
+    rounded: "{rounded.keycap}"
+    height: "22px"
+    padding: "0 6px"
+  nav-bar:
+    backgroundColor: "{colors.nav-bg}"
+    height: "64px"
+  nav-rail:
+    backgroundColor: "{colors.paper}"
+    width: "80px"
+  nav-item:
+    textColor: "{colors.nav-ink}"
+    typography: "{typography.nav-label}"
+  nav-indicator:
+    backgroundColor: "{colors.nav-indicator}"
+    textColor: "{colors.nav-active}"
+    rounded: "{rounded.pill}"
+    width: "56px"
+    height: "32px"
+  nav-item-current:
+    textColor: "{colors.nav-label-active}"
+  fab:
+    backgroundColor: "{colors.fab-bg}"
+    textColor: "{colors.fab-ink}"
+    rounded: "{rounded.corner-lg}"
+    size: "56px"
+  fab-extended:
+    backgroundColor: "{colors.fab-bg}"
+    textColor: "{colors.fab-ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.corner-lg}"
+    padding: "0 16px"
+    height: "56px"
+  brand-plate:
+    backgroundColor: "{colors.brand-plate}"
+    textColor: "#ffffff"
+    rounded: "{rounded.corner-sm}"
+    size: "32px"
+  balance-hero:
+    backgroundColor: "{colors.stage}"
+    textColor: "{colors.stage-ink}"
+    rounded: "{rounded.corner-xl}"
+    padding: "28px 32px"
+  page-section:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    padding: "4px 0"
+  filled-card:
+    backgroundColor: "{colors.md-surface-container-low}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.corner-lg}"
+    padding: "24px"
+  account-row:
+    textColor: "{colors.ink}"
+    typography: "{typography.row}"
+    rounded: "{rounded.corner-lg}"
+    padding: "12px"
+  account-row-selected:
+    backgroundColor: "{colors.accent-soft}"
+  account-card-phone:
+    backgroundColor: "{colors.inset}"
+    rounded: "{rounded.corner-sm}"
+    padding: "14px"
+  day-subheader:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.accent}"
+    typography: "{typography.day-subheader}"
+    height: "40px"
+  booking-row:
+    textColor: "{colors.ink}"
+    typography: "{typography.row}"
+    padding: "12px 20px"
+    height: "64px"
+  text-field:
     backgroundColor: "{colors.field-bg}"
     textColor: "{colors.ink}"
     typography: "{typography.control}"
-    rounded: "{rounded.field}"
-    padding: "0 14px"
-    height: "48px"
-  input-amount:
-    backgroundColor: "{colors.field-bg}"
-    textColor: "{colors.ink}"
-    typography: "{typography.figure}"
-    rounded: "{rounded.field}"
-    padding: "0 48px 0 14px"
-    height: "48px"
+    rounded: "{rounded.corner-xs}"
+    padding: "0 16px"
+    height: "56px"
+  segmented-button:
+    backgroundColor: "{colors.toggle-bg}"
+    textColor: "{colors.nav-ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.corner-sm}"
+    padding: "0 16px"
+    height: "40px"
+  segmented-button-selected:
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.accent-ink}"
+    rounded: "{rounded.corner-lg-up}"
+  chip-filter:
+    textColor: "{colors.ink-2}"
+    typography: "{typography.button}"
+    rounded: "{rounded.corner-sm}"
+    padding: "0 12px"
+    height: "32px"
+  chip-filter-selected:
+    backgroundColor: "{colors.accent-soft}"
+    textColor: "{colors.tonal-ink}"
+  switch:
+    backgroundColor: "{colors.inset}"
+    rounded: "{rounded.pill}"
+    width: "52px"
+    height: "32px"
+  switch-on:
+    backgroundColor: "{colors.accent}"
   checkbox:
     backgroundColor: "{colors.field-bg}"
-    rounded: "{rounded.check}"
+    rounded: "{rounded.keycap}"
     size: "20px"
   checkbox-checked:
     backgroundColor: "{colors.accent}"
     textColor: "{colors.accent-ink}"
-  switch:
-    backgroundColor: "{colors.field-line}"
-    rounded: "{rounded.pill}"
-    width: "40px"
-    height: "24px"
-  switch-on:
-    backgroundColor: "{colors.accent}"
-  chip-filter:
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.chip}"
-    padding: "0 12px"
-    height: "36px"
-  chip-filter-selected:
-    backgroundColor: "{colors.accent-soft}"
-    textColor: "{colors.accent}"
-  chip-static:
-    textColor: "{colors.ink-2}"
-    typography: "{typography.button}"
-    rounded: "{rounded.chip}"
-    padding: "0 12px"
-    height: "36px"
   tag-pending:
     backgroundColor: "{colors.amber-soft}"
     textColor: "{colors.amber}"
     typography: "{typography.tag}"
-    rounded: "{rounded.field}"
+    rounded: "{rounded.tag}"
     padding: "0 8px"
     height: "24px"
   tag-positive:
     backgroundColor: "{colors.green-soft}"
     textColor: "{colors.green}"
     typography: "{typography.tag}"
-    rounded: "{rounded.field}"
+    rounded: "{rounded.tag}"
     padding: "0 8px"
     height: "24px"
   tag-negative:
     backgroundColor: "{colors.red-soft}"
     textColor: "{colors.red}"
     typography: "{typography.tag}"
-    rounded: "{rounded.field}"
+    rounded: "{rounded.tag}"
     padding: "0 8px"
     height: "24px"
   tag-info:
     backgroundColor: "{colors.info-soft}"
     textColor: "{colors.info}"
     typography: "{typography.tag}"
-    rounded: "{rounded.field}"
+    rounded: "{rounded.tag}"
     padding: "0 8px"
     height: "24px"
   tag-neutral:
     backgroundColor: "{colors.inset}"
     textColor: "{colors.ink-2}"
     typography: "{typography.tag}"
-    rounded: "{rounded.field}"
+    rounded: "{rounded.tag}"
     padding: "0 8px"
     height: "24px"
-  tag-emphasis:
-    textColor: "{colors.ink}"
-    typography: "{typography.tag}"
-    rounded: "{rounded.field}"
-    padding: "0 8px"
-    height: "24px"
-  tag-sm:
-    typography: "{typography.tag}"
-    rounded: "{rounded.field}"
-    padding: "0 6px"
-    height: "20px"
   count-badge:
     backgroundColor: "{colors.inset}"
     textColor: "{colors.ink-2}"
@@ -375,87 +515,45 @@ components:
     rounded: "{rounded.pill}"
     padding: "0 6px"
     height: "20px"
-  tile:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.card}"
-    padding: "20px"
-  tile-footer:
-    backgroundColor: "{colors.inset}"
-    textColor: "{colors.ink}"
-    padding: "14px 20px"
   well:
     backgroundColor: "{colors.inset}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.chip}"
+    rounded: "{rounded.corner-sm}"
     padding: "12px 16px"
-  option-row:
+  alert:
     textColor: "{colors.ink}"
-    typography: "{typography.item}"
-    rounded: "{rounded.chip}"
-    padding: "12px"
-    height: "64px"
-  option-row-hover:
-    backgroundColor: "{colors.inset}"
-  option-row-pending:
-    backgroundColor: "{colors.accent-soft}"
-  account-plate:
-    textColor: "{colors.headline}"
-    rounded: "{rounded.pill}"
-    size: "40px"
-  account-plate-selected:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.accent-ink}"
-    rounded: "{rounded.pill}"
-    size: "40px"
-  booking-row:
-    textColor: "{colors.ink}"
-    typography: "{typography.row}"
-    padding: "12px 20px"
-    height: "64px"
-  day-band:
-    backgroundColor: "{colors.inset}"
-    textColor: "{colors.ink-2}"
-    typography: "{typography.button-sm}"
-    padding: "6px 20px"
-    height: "36px"
-  alert-error:
-    backgroundColor: "{colors.red-soft}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.chip}"
+    rounded: "{rounded.corner-sm}"
     padding: "12px 12px 12px 16px"
-  alert-warning:
-    backgroundColor: "{colors.inset}"
+  menu:
+    backgroundColor: "{colors.menu-bg}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.chip}"
-    padding: "12px 12px 12px 16px"
-  alert-info:
-    backgroundColor: "{colors.info-soft}"
+    rounded: "{rounded.corner-lg}"
+    padding: "4px"
+  menu-item:
     textColor: "{colors.ink}"
-    rounded: "{rounded.chip}"
-    padding: "12px 12px 12px 16px"
-  alert-success:
-    backgroundColor: "{colors.green-soft}"
+    typography: "{typography.control}"
+    rounded: "{rounded.corner-md}"
+    padding: "8px 12px"
+    height: "44px"
+  menu-item-selected:
+    backgroundColor: "{colors.menu-selected}"
+    textColor: "{colors.menu-selected-ink}"
+  popover:
+    backgroundColor: "{colors.raised}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.chip}"
-    padding: "12px 12px 12px 16px"
+    rounded: "{rounded.corner-md}"
+    padding: "16px"
   sheet:
     backgroundColor: "{colors.raised}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.sheet}"
+    rounded: "{rounded.corner-xl}"
     padding: "28px"
-  sheet-title:
-    textColor: "{colors.headline}"
-    typography: "{typography.title}"
-  sheet-footer:
-    backgroundColor: "{colors.raised}"
-    padding: "20px 28px 28px"
-  attention-band:
-    backgroundColor: "{colors.stage}"
-    textColor: "{colors.stage-ink}"
-    height: "88px"
-  attention-band-short:
-    height: "56px"
+  dialog-basic:
+    backgroundColor: "{colors.dialog-bg}"
+    textColor: "{colors.ink}"
+    typography: "{typography.dialog-headline}"
+    rounded: "{rounded.corner-xl}"
+    padding: "28px"
   drawer:
     backgroundColor: "{colors.raised}"
     textColor: "{colors.ink}"
@@ -463,23 +561,12 @@ components:
   drawer-header:
     backgroundColor: "{colors.bar}"
     textColor: "{colors.bar-ink}"
-    typography: "{typography.section}"
+    typography: "{typography.title-large}"
     height: "60px"
-  popover:
-    backgroundColor: "{colors.raised}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.card}"
-    padding: "16px"
-  menu-item:
-    textColor: "{colors.ink}"
-    typography: "{typography.body}"
-    rounded: "{rounded.chip}"
-    padding: "8px 12px"
-    height: "40px"
-  toast:
-    backgroundColor: "{colors.raised}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.card}"
+  snackbar:
+    backgroundColor: "{colors.snackbar-bg}"
+    textColor: "{colors.snackbar-ink}"
+    rounded: "{rounded.corner-xs}"
     padding: "12px 8px 12px 16px"
   stepper-done:
     backgroundColor: "{colors.headline}"
@@ -493,15 +580,12 @@ components:
     typography: "{typography.badge}"
     rounded: "{rounded.pill}"
     size: "24px"
-  stepper-short:
-    size: "20px"
-  progress-fill:
-    backgroundColor: "{colors.headline}"
-    rounded: "{rounded.pill}"
-    height: "4px"
+  progress-wavy:
+    backgroundColor: "{colors.accent}"
+    height: "10px"
   progress-track:
-    backgroundColor: "{colors.inset}"
-    rounded: "{rounded.pill}"
+    backgroundColor: "{colors.progress-track}"
+    rounded: "{rounded.corner-xs}"
     height: "4px"
   mark-success:
     backgroundColor: "{colors.green-soft}"
@@ -518,65 +602,17 @@ components:
     textColor: "{colors.ink-2}"
     rounded: "{rounded.pill}"
     size: "72px"
-  masthead:
-    backgroundColor: "{colors.bar}"
-    textColor: "{colors.bar-ink}"
-    height: "60px"
-    padding: "0 24px"
-  navlink:
-    textColor: "{colors.bar-ink}"
-    typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "0 12px"
-    height: "40px"
-  institute-bar:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    height: "52px"
-    padding: "0 24px"
-  institute-bar-shorter:
-    height: "44px"
-  stage:
-    backgroundColor: "{colors.stage}"
-    textColor: "{colors.stage-ink}"
-    padding: "20px 24px 64px"
-  tab-underline:
-    textColor: "{colors.ink-2}"
-    typography: "{typography.row}"
-    padding: "0 12px"
-  tab-underline-selected:
-    textColor: "{colors.ink}"
-  tab-pill-selected:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.accent-ink}"
-    typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "0 16px"
-    height: "36px"
-  segmented:
+  tan-flicker:
+    backgroundColor: "#000000"
+    rounded: "{rounded.tag}"
+  tan-scan-plate:
+    backgroundColor: "#ffffff"
+    rounded: "{rounded.corner-sm}"
+    padding: "12px"
+  doc-row-thumb:
     backgroundColor: "{colors.inset}"
-    rounded: "{rounded.pill}"
-    padding: "4px"
-  segmented-selected:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "0 16px"
-    height: "36px"
-  bottom-bar:
-    backgroundColor: "{colors.surface}"
-    height: "64px"
-  bottom-bar-item:
-    textColor: "{colors.ink-2}"
-    typography: "{typography.tag}"
-  bottom-bar-item-current:
-    textColor: "{colors.accent}"
-  bottom-bar-action:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.accent-ink}"
-    rounded: "{rounded.pill}"
-    size: "52px"
+    rounded: "{rounded.corner-sm}"
+    size: "44px"
   doc-panel:
     backgroundColor: "{colors.inset}"
     textColor: "{colors.ink}"
@@ -590,130 +626,134 @@ components:
 
 **Creative North Star: "The Private Branch"**
 
-Girovo looks like the online banking its users already know: a navy
-masthead, a navy stage band that greets you by name, and white tiles on a
-quiet blue-grey page. It is rebuilt for one customer, on their own machine. It
-is a branch that opens for one person. Nothing on the walls sells anything,
-every figure is the bank's own, and the counter is tidy. The feel is
-**trustworthy, plain and precise**. Trust comes from familiarity and
-exactness, not from ornament. Where money could go wrong, the branch is
-careful first: at a risk decision the safe answer is the filled button, every
-layer opens on a harmless place, and every outcome is named with the same few
-words.
+Girovo is a bank branch that opens for one person, on their own machine.
+Nothing on the walls sells anything, every figure is the bank's own, and the
+counter is tidy. The feel is **trustworthy, plain and precise**. Trust comes
+from exactness and calm, not from ornament. Where money could go wrong, the
+branch is careful first: at a risk decision the safe answer is the filled
+button, every layer opens on a harmless place, and every outcome is named
+with the same few words.
 
-Density is that of a good bank start page. At the desktop shell's 900×600
-minimum, the account tiles are on screen without scrolling, and short or
-zoomed windows compact their chrome so the first account row and a dialog's
-way out stay in view. There is still room enough that a long Verwendungszweck
-reads like prose. Google Sans Flex sets everything, on screen and on paper,
-and amounts use tabular lining figures, so a column of bookings lines up on
-its decimal comma like a printed Kontoauszug. Colour is rationed:
+The branch is furnished in **Material 3 Expressive**, on every platform: the
+desktop app, the website and the Android app are one page in one look,
+`<html data-look="material">` (`app/layout.tsx`). `app/material.css` holds
+the look; `app/android.css` adds only what a phone needs. The colour is
+Girovo's own blue Material scheme (SchemeVibrant from the seed #0864ad), set
+at zero specificity so an Android phone's Material You colours can take its
+place. The page is flat and list-first: sections stand on the page, held
+apart by space, and the one container on a page is the balance. The shell is
+an app's, not a web page's: one top app bar that names the page, a
+navigation bar on phones and a navigation rail from 640px, and Überweisen as
+the floating action button.
 
-- navy is identity, and the colour of everything that only reports
-- Signal Blue is the one thing you can press
-- green, red, amber and orange each own exactly one meaning
-
-The look is the modernised Atruvia online-banking language. It is the
-owner's current choice and the default. Other looks may be explored, but only
-as alternatives for the owner to pick, never swapped in. The system borrows a
-language, never a bank's branding: the connected bank's logo appears only
-where the bank is the subject (the white institute bar under the app's own
-"G€" mark, the bank picker, the printed letterhead as kontoführendes
-Institut), never as the app's identity. The protocol stays out of the
-interface. FinTS segment codes and the structured tags inside a
-Verwendungszweck never reach the screen. A capability shows up as an action
-that is present or absent.
+Google Sans Flex sets everything, on screen and on paper, and amounts use
+tabular lining figures, so a column of bookings lines up on its decimal comma
+like a printed Kontoauszug. Colour is rationed: the scheme's primary is the
+one thing you can press, and green, red, amber and orange each own exactly
+one meaning that no wallpaper can change. The system borrows a language,
+never a bank's branding: the connected bank's logo appears only where the
+bank is the subject (the bank picker, the accounts of several banks, the
+Sitzung panel, the printed letterhead), never as the app's identity. The
+protocol stays out of the interface: FinTS segment codes and the structured
+tags inside a Verwendungszweck never reach the screen.
 
 **Key Characteristics:**
-- Three tiers on top: navy masthead, white institute bar, navy stage. Below them, white tiles lap 48px over the stage's lower edge.
-- One interactive hue (Signal Blue). Progress, steps and waits are navy. Each value colour owns one meaning.
-- Pill buttons, sentence-case labels, semibold rather than bold.
-- Tiles lifted by one soft shadow, never framed. Wells inside them sit on the inset grey.
+- One top app bar (title large, the page's name) over a flat page; navigation bar below 640px, navigation rail (80dp) from 640px, Überweisen as the FAB.
+- Flat and list-first: sections stand on the page with no surface, shadow or hairline; the balance hero (28px corners, primary container) is the one container.
+- Girovo's fixed blue Material scheme by default, Material You on an Android phone; value colours never follow either.
+- Round buttons that squeeze towards square while pressed, spring motion, Material's corner scale.
 - Tabular figures and a real minus on every amount. Monospace only for what is read character by character.
 - The safe choice is the filled primary, and a dialog's buttons never scroll away.
-- The dark theme is the same bank at night: navy-black, never grey. Paper is always light.
-- Motion is short and soft (150–250ms, one ease-out curve), and none of it is needed to read the screen.
+- The app's own mark is the navy "G€" plate, a logo in a fixed colour whatever the scheme.
 
 ## Colors
 
-A rationed palette: navy for identity and for what reports, one blue for
-action, and four value colours that each mean exactly one thing.
+Material's colour roles (`--md-*`) carry the surfaces, ink, lines and the
+one interactive colour; Girovo's tokens (`--paper`, `--accent`, …) are
+mapped onto them in `app/material.css`. The value colours and the chart
+slots are Girovo's own and stay fixed.
 
 ### Primary
-- **Night Navy** (#0a2c5e; `bar`, `stage`, `headline`): the masthead, the stage band, drawer header bands, attention bands, the footer, and every headline on white (page titles on the login screens, tile titles, dialog titles). It is identity, never interaction. It is also the colour of everything that reports rather than responds: the transfer stepper, progress fills (approval wait, update download, session countdown), the spinner of a wait that is not inside a button, and the account-type plate off its pressable row (an 8% navy tint, `color-mix(in srgb, var(--headline) 8%, transparent)`, with a navy glyph). In the desktop shell, `bar` and `bar-ink` must equal `BAR_COLORS` in `electron/main.cjs`, because Windows draws its caption buttons in those colours right next to the bar.
+- **Girovo Blue** (`md-primary`; `accent`, `focus`, `chart-line`): the one interactive colour. Filled buttons, links, the selected segment, a checked box or switch, a focused field's outline and its rising label, the day subheaders of the bookings, the focus ring and the Kontoverlauf line. Hover and press mix 8% and 16% of its ink into it. Text on it is `accent-ink`.
+- **Blue Container** (`md-primary-container`; `stage`, `fab-bg`): the balance hero's ground and the FAB. What sits on it takes `stage-ink` (`md-on-primary-container`).
 
 ### Secondary
-- **Signal Blue** (#0864ad; `accent`): the one interactive colour. It covers buttons, links, the active tab's 3px rule, selected chips, checked boxes and switches, the selected account row (its plate and its 3px rail), the skip link and the phone bar's Überweisen disc. Hover deepens it to #06589a (`accent-hover`) and press to #044a85 (`accent-press`). Text on it is white (`accent-ink`).
-- **Signal Wash** (#e8f1f9; `accent-soft`): the hover and selected tint for outline buttons, chips, option rows (while their request runs) and the selected phone account well. Also the disc behind empty-state illustrations and dialog pictograms.
-- **Focus Blue** (#3a7fb8; `focus`): the focus ring and nothing else. It is lighter than Signal Blue, so focus reads as its own state, and it holds 3:1 against the inset and every soft tint a control can sit on.
+- **Tonal Wash** (`md-secondary-container`; `accent-soft`, `nav-indicator`, `progress-track`): the tonal button, a selected filter chip, the selected account row, the navigation indicator pill and a progress track. Text on it is `tonal-ink`.
+- **Secondary Slate** (`md-secondary`; `nav-label-active`): the label of the current place in the navigation.
 
 ### Tertiary
-- **Marker Orange** (#ee6a1f; `emphasis`): a mark, never text. It is the unread dot, the glyph and 3px edge of a warning, the dot inside an emphasis tag ("Status unklar", "Betrag gestiegen"), the 3px inner edge of the unsure mark, the 2px ring of a "Status unklar" step, and the glyph of an approval wait past the bank's limit.
+- **Tertiary Lilac** (`md-tertiary-container`; `menu-selected`): the chosen item of a radio or checkbox menu, and nothing else.
+- **Marker Orange** (`emphasis`): a mark, never text. It is the unread dot, the glyph of a warning, the dot inside an emphasis tag ("Status unklar", "Betrag gestiegen"), the 3px inner edge of the unsure mark, the 2px ring of a "Status unklar" step, and the glyph of an approval wait past the bank's limit.
 
 ### Value Colours
-- **Credit Green** (#0c7336 on #eaf4ee): a credit booking, a confirmation, a successful outcome ("Ausgeführt", "Bestätigt").
-- **Soll Red** (#c8102e on #fcecee): a negative balance or an error, including an order the bank refused. Never a debit, and never a credit card's balance.
-- **Vorgemerkt Amber** (#8a6410 on #fff4dc): pending, not yet booked. Nothing else.
-- **Info Cyan** (#0074a3 on #e9f4f8): neutral status, such as "Gerät gemerkt" and info notices. One step deeper than its cyan, so tag text clears 4.5:1 on its own tint.
+- **Credit Green** (`green` on `green-soft`): a credit booking, a confirmation, a successful outcome ("Ausgeführt", "Bestätigt").
+- **Soll Red** (`red` on `red-soft`): a negative balance or an error, including an order the bank refused. Never a debit, and never a credit card's balance.
+- **Vorgemerkt Amber** (`amber` on `amber-soft`): pending, not yet booked. Nothing else.
+- **Info Cyan** (`info` on `info-soft`): neutral status, such as "Gerät gemerkt" and info notices.
 
 ### Neutral
-- **Blue-Grey Paper** (#f4f6f9; `paper`): the page ground the tiles float on.
-- **Tile White** (#ffffff; `surface`, `raised`, `field-bg`): tiles, sheets, drawers, menus, toasts and fields.
-- **Inset Grey** (#edf0f4; `inset`): wells inside a tile. Tile footers, the day band, the segmented track, bank answers, the phone account wells, read-only fields, skeletons, quiet hovers, and the ground of a warning.
-- **Ink** (#1b1f24; `ink`): primary text, debit amounts, and a credit card's balance.
-- **Slate Ink** (#4f5761; `ink-2`): secondary text, field labels, inactive tabs.
-- **Quiet Ink** (#5f6b78; `ink-3`): dates, a booking's second line, hints, notes and the "Rückmeldung der Bank" line. It still holds 4.5:1 on the inset it sits on, not only on white.
-- **Hairline** (#dfe5ec; `line`) and **Strong Line** (#c3cdd9; `line-strong`): one hairline between list rows and under a scrolled-under edge; the stronger line for static chips, open stepper marks and chart axes.
-- **Field Edge** (#8391a0; `field-line`): the boundary of a form control and the off track of a switch. It clears 3:1 (WCAG 1.4.11) because it is what tells you a field is a field.
-- **Bar Ink** (#ffffff) with **Mist** (#b9c8dc on the bar, #c4d2e4 on the stage): text and secondary text on navy. Dividers on navy are white at 28%.
-- **Scrim** (rgb(10 22 40 / 0.45)): behind modal sheets.
+- **Page** (`md-surface`; `paper`, `bar`): the page, the top app bar (the same surface, so bar and page are one plane) and the navigation rail. On a phone the bar takes `md-surface-container` once the page scrolls under it.
+- **Container Low** (`md-surface-container-low`; `surface`, `raised`, `menu-bg`): sheets, drawers, popovers, menus and the filled card off the page. Inside `#main` a section's `surface` is the page itself.
+- **Container** (`md-surface-container`; `nav-bg`, `toggle-bg`): the phone's navigation bar and unselected connected buttons.
+- **Container High** (`md-surface-container-high`; `inset`, `dialog-bg`): wells, read-only grounds, skeletons, the phone's account cards, the search pill and basic dialogs.
+- **On Surface** (`md-on-surface`; `ink`, `headline`, `bar-ink`): text, titles, debit amounts, a credit card's balance, and everything that reports rather than responds (see the Reporting Ink Rule).
+- **On Surface Variant** (`md-on-surface-variant`; `ink-2`, `ink-3`, `nav-ink`): secondary text, labels, hints, dates, the unselected navigation.
+- **Outline** (`md-outline`; `line-strong`, `field-line`): a field's outline, the switch's off track and handle, open stepper marks.
+- **Outline Variant** (`md-outline-variant`; `line`, `chart-axis`): a filter chip's edge, the hairline where a list still keeps one (inside sheets, drawers and popovers), chart axes.
+- **Inverse Surface** (`snackbar-bg`, with `snackbar-ink` and the `md-inverse-primary` action): the snackbar.
+- **Scrim** (black at 32%): behind modal layers. In the desktop shell the caption buttons are dimmed to the same colour while a scrim covers them (`electron/main.cjs`).
+- **Brand Navy** (`brand-plate`): the "G€" plate only, a literal colour because it is a logo.
 
 ### Chart Palette
 Categories take colours **by rank** within a chart: the top six get colours,
 the rest are grey (`chart-rest`). The slots are an order, not a mapping. They
 were validated so that adjacent slots stay apart under protan and deutan
 simulation (worst ΔE 19.1 light, 14.1 dark). Lightness alternates dark and
-light down the order, and every slot clears 3:1 on the tile. The set
+light down the order, and every slot clears 3:1 on its ground. The set
 deliberately avoids green, red, amber and orange, so a bar never reads as a
 credit, an error, a pending booking or a mark.
-
-For Einnahmen and Ausgaben:
 
 - Income is Credit Green's chart sibling (`chart-in`).
 - Spending is a navy-slate (`chart-out`), never red, because spending is not an error.
 
-The Kontoverlauf is a staircase line in `chart-line` (the same blue as
-Signal Blue; the chart can be pointed at and stepped through with the arrow
-keys) over a flat 8% area (`chart-area`), never a gradient. The area grows
-from zero. Below zero a Girokonto's line turns Soll Red over a `red-soft`
-area, and its Min. guide always shows, with a red label naming the day
-("Min. −137,42 € am 30.07."). Two exceptions:
+The Kontoverlauf is a staircase line in `chart-line` over a flat 12% area
+(`chart-area`), never a gradient. The area grows from zero. Inside the
+balance hero the line, area, grid and axis take the hero's ink instead
+(`stage-ink` at 100, 16, 12 and 28%). Below zero a Girokonto's line turns
+Soll Red over a `red-soft` area, and its Min. guide always shows, with a red
+label naming the day ("Min. −137,42 € am 30.07."). Two exceptions:
 
 - **A credit card** is never painted red. Zero stays in the scale; the sign is no secret there, only no alarm.
 - **Under "Beträge ausblenden"** the shape stays and the sign goes: the scale runs from the lowest to the highest balance (zero not forced), the area rises from the plot's bottom, there is no zero line, no "0 €" label and no red, and the line, area and dots are all `chart-line`. A flat line sits mid-plot.
 
-### Dark Theme: "the same bank at night"
-Even the darkest plane keeps the blue in it. The tokens keep their names; only
-the values change on `<html data-theme="dark">`:
+### Dark Theme
+The tokens keep their names; on `<html data-theme="dark">` the Material
+roles take the scheme's dark values, and the value colours their own:
 
 | Token | Dark value | Note |
 |---|---|---|
-| `paper` / `surface` / `inset` / `raised` | #061423 / #0a1b2d / #0e2236 / #102740 | Floating surfaces get lighter, not shadowed. |
-| `ink` / `ink-2` / `ink-3` | #e3e9ef / #a9b6c4 / #8d9bab | `headline` becomes ink (#e3e9ef), so navy progress and plates turn light too. |
-| `bar` / `stage` | #08192b / #0b2945 | The bar sits darker than the page, so it reads as the window's edge. |
-| `accent` / `accent-ink` | #3ba4ef / #04121f | The same blue lifted to clear contrast; its ink flips to near-black. |
+| `paper` / `bar` (`md-surface`) | #0e141c | Page and top app bar stay one plane. |
+| `surface` / `raised` / `inset` | #161c24 / #161c24 / #252a33 | Containers lift by tone. |
+| `ink` / `ink-2` | #dde3ee / #bfc7d5 | `headline` is ink, so reporting marks turn light too. |
+| `accent` / `accent-ink` / `accent-soft` | #a2c9ff / #00315b / #3c4665 | Primary, on-primary, secondary container. |
+| `stage` / `stage-ink` | #004880 / #d3e4ff | The hero and the FAB. |
+| `line` / `line-strong` | #404753 / #8a919e | |
 | `green` / `red` / `amber` / `info` | #54c279 / #fc6274 / #e0b155 / #4fb3dc | Each on a deep tint of itself. |
-| `focus` / `emphasis` | #4fa3e0 / #f2813f | |
+| `emphasis` | #f2813f | |
 
 Paper never follows the theme: the printed sheets use fixed light values (see
 Printed Documents).
 
 ### Named Rules
-**The One Signal Rule.** Signal Blue marks what can be pressed, and nothing that can be pressed is any other hue. What only reports (a progress fill, the stepper, a wait spinner outside a button, an account-type plate off its pressable row) is Night Navy, never blue. The sanctioned exceptions are the white lead pill on the navy stage, the red button that confirms a destructive action, and the drawn pictograms of empty states and dialogs (Signal Blue strokes on a Signal Wash disc).
+**The One Signal Rule.** The scheme's primary marks what can be pressed, and nothing that can be pressed is a value colour (a destructive confirm the user asked for excepted, which is Soll Red). Inside the balance hero the hero's ink stands in for it, because primary on primary-container would not read.
 
-**The Owned Colours Rule.** Green is a credit or a confirmation. Red is a negative balance or an error, never a debit: a debit is ordinary spending and stays ink. A credit card's balance is negative by nature, so it stays ink too; a card is known by its FinTS Kontoart alone (`isCardAccount`: CreditCardAccount or 50–59), never by a product name like "Giro mit Visa", and its Verfügbar still turns red below zero. Amber means "vorgemerkt" and nothing else, so a warning uses the inset grey with an orange edge instead. Orange is a mark, never text.
+**The Owned Colours Rule.** Green is a credit or a confirmation. Red is a negative balance or an error, never a debit: a debit is ordinary spending and stays ink. A credit card's balance is negative by nature, so it stays ink too; a card is known by its FinTS Kontoart alone (`isCardAccount`: CreditCardAccount or 50–59), never by a product name like "Giro mit Visa", and its Verfügbar still turns red below zero. Amber means "vorgemerkt" and nothing else, so a warning uses the inset with an orange glyph instead. Orange is a mark, never text.
 
-**The Tokens Only Rule.** Tailwind's default palette is switched off (`--color-*: initial`), so `red-500` does not even compile. Every colour is a token. Literal white and black exist only for literal things: a logo plate, a QR code, a switch thumb.
+**The Fixed Values Rule.** Credit Green, Soll Red, Vorgemerkt Amber, Info Cyan, Marker Orange and the chart slots never take a wallpaper colour, and neither does the brand plate. Only surfaces, ink, lines and the one interactive colour follow Material You.
+
+**The Reporting Ink Rule.** What only reports (the transfer stepper, the session countdown, budget bars, a wait spinner outside a button, the account-type plate off its row) is drawn in `headline`, which is the ink. Material's own progress indicators (the wavy bar, the loading indicator) take the primary, as Material draws them.
+
+**The Tokens Only Rule.** Tailwind's default palette is switched off (`--color-*: initial`), so `red-500` does not even compile. Every colour is a token. Literal white and black exist only for literal things: the brand plate, a QR code or TAN graphic plate, the chipTAN flicker field.
 
 ## Typography
 
@@ -721,208 +761,229 @@ Printed Documents).
 **Mono Font:** IBM Plex Mono (with Cascadia Mono, Consolas, ui-monospace)
 **Print:** the interface faces on paper. Google Sans Flex with its optical-size axis for text and figures, IBM Plex Mono for IBAN, BIC, BLZ and references. Barlow Condensed survives only in generated bank monograms.
 
-**Character:** Google Sans Flex is open, round-shouldered and calm. A long
-Verwendungszweck reads like prose rather than like a form, and its
-optical-size axis draws a 52px balance with display proportions, a 12.5px
-note with text proportions and 8pt paper type that still reads, all from one
-file. Plex Mono is the clerk's hand: it appears only where a person checks
-characters against another document. Google Sans Flex is a binding owner
-choice for now.
+**Character:** Google Sans Flex is open, round-shouldered and calm, and it is
+the face Material's own type scale is drawn for. A long Verwendungszweck reads
+like prose rather than like a form, and its optical-size axis draws a 52px
+balance with display proportions and 8pt paper type that still reads, all
+from one file. Plex Mono is the clerk's hand: it appears only where a person
+checks characters against another document.
 
 ### Hierarchy
-Every size below is a token in the frontmatter. A size that is not on this list needs a reason in the Floor Rule or a new token.
+Every size below is a token in the frontmatter.
 
-- **Display** (700, 52px, line-height 1, −0.015em, tabular): the balance in the account hero, in Night Navy, Soll Red for an overdrawn account, ink for a card. The cents are set at half size in 600. **Display compact** (40px) takes over when the tile is narrower than 520px, and sets the session countdown.
-- **Headline** (700; 36px at ≥1100px, 32px at ≥640px, 28px on phones; line-height 1.15): the page title on the stage, in stage ink. In very short windows it drops to 24px. The login titles ("Bank wählen", "Anmelden", the method step) use 32px and 28px in Night Navy.
+- **Display** (700, 52px, line-height 1, −0.015em, tabular): the balance in the hero, in the hero's ink; Soll Red for an overdrawn account, ink for a card. The cents are set at half size in 600. **Display compact** (40px) takes over when the hero is narrower than 520px, and sets the session countdown.
+- **Headline** (500, 32px from 640px, 28px on phones, line-height 1.25): the login screens' titles ("Bank wählen", "Anmelden", the method step).
+- **Dialog headline** (500, 24/32): a basic dialog's title, centred under its icon when it has one.
 - **Amounts** (700, line-height 1.25, tabular): 34px for the transfer review's amount, 32px for a booking's amount in its detail drawer.
-- **Figures** (700, line-height 1.25, tabular): one ladder below Display. 20px on phones and 24px from 640px for every KPI figure (Analyse, Verträge). 24px for the approval overlay's order amount and the transfer's Fertig amount. 20px for the Monatsbilanz Differenz and the phone account-card balance (600). Amount fields are 20px/600 with a 17px/600 Quiet Ink "€".
-- **Title** (700, 22px, 1.25): dialog and sheet titles at every width, with a 15px Slate Ink description beneath. Only a short window drops a transfer sheet's title to 20px. A hero with no figure ("Abruf fehlgeschlagen") sets its state in Title, in ink.
-- **Wordmark** (700, 18px, line-height 1; 17px on phones): "Girovo" in the masthead and the footer, and the "G€" in its plate.
-- **Section** (700, 17px, 1.3, Night Navy): the title of a tile, a group, a popover, a drawer section or a dialog's group (the update's "Was ist neu"), the transfer form's groups, the Sitzung panel's holder name, the Namensabgleich verdict. Drawer titles use the same size in bar ink. Empty-state and error-state titles use it in ink.
-- **Control** (400, 16px): form controls only, so a phone never zooms into a focused field. There is no 16px heading.
-- **Body** (400, 15px, 1.5): running text, menu items, dialog descriptions.
-- **Row** (600, 15px, 1.375): the counterparty's name on a booking row and its amount, account names, underline tabs.
-- **Item** (600, 14.5px, 1.375): the bank's name in the institute bar, the title of a side-tile point or a status line, an IBAN set as a value. Toasts and bank messages read at 14.5px in 400.
-- **Button** (600, line-height 1): 15px at lg, 14px at md, 13.5px at sm, 13px at xs. Every pill, tab and chip label.
-- **Small** (400, 13.5px, 1.375): side-tile text, help disclosures, notes under a figure. In 600 it is a field's error message and the day band's date.
-- **Label** (600, 13px, 1.35, Slate Ink or Quiet Ink): field labels, stat labels, group headings, eyebrows above a figure. Always sentence case.
-- **Caption** (400, 13px, 1.375, Quiet Ink): a booking's second line, dates, hints, tile subtitles. **Caption small** (12.5px) is the floor: the amount note on a row, "Rückmeldung der Bank", menu group labels, character counters.
-- **Tag** (600, 12.5px, line-height 1): tags at both heights, keycaps, and the phone bottom bar's labels.
+- **Figures** (700, line-height 1.25, tabular): 20px on phones and 24px from 640px for every KPI figure; 24px for the approval overlay's order amount and the transfer's Fertig amount. Amount fields are 20px/600; the typed TAN is 20px tabular with 0.12em tracking.
+- **Title large** (400, 22/28): the page's name in the top app bar, and a drawer's title (Umsatzdetails, Mitteilungen).
+- **Section title** (500, 22/28): a section's title on the page (`#main .section-head`), on every platform.
+- **Sheet title** (500, 22px, 1.25): a sheet's title (the transfer, Weitere Bank anmelden), with a 15px description beneath; the TAN wait's headline.
+- **Section** (700, 17px, 1.3): a title off the page: the login's side notes, a popover or a dialog's group, the Sitzung panel's holder name, empty-state titles. Receipts and the Kategorie-Check use 15px bold for their group headings inside a drawer.
+- **Wordmark** (700, 18px; 17px on phones): "Girovo" beside the plate in the login's top bar.
+- **Control** (400, 16/24, 0.5px): field text, a floating label at rest, menu items. 16px keeps phone browsers from zooming into a field.
+- **Body** (400, 15px, 1.5): running text and dialog descriptions.
+- **Row** (600, 15px, 1.375): the counterparty's name on a booking row and its amount, account names, a holding's name, a document's title.
+- **Button** (500, 14px, 0.1px): every button, chip and connected button label; **Button large** is 16px with 0.15px for the 56px button.
+- **Day subheader** (500, 14/20, 0.1px, primary): the date over a day's bookings.
+- **Small** (400, 13.5px, 1.375): side-note text, help, the TAN graphic's hints. In 600 it is a field's error message.
+- **Label** (600, 13px, 1.35): labels kept above a field (one with a trailing counter or link), stat labels, group headings. Always sentence case.
+- **Caption** (400, 13px, 1.375): a booking's second line, dates, hints. **Caption small** (12.5px) is the floor: the amount note on a row, "Rückmeldung der Bank", the version beside the wordmark, the keycap.
+- **Tag** (600, 12.5px, line-height 1): tags at both heights.
+- **Navigation label** (500, 12/16, 0.5px): the labels in the navigation bar and rail. **Supporting text** (12px, 0.4px) sits under a floating-label field.
 - **Badge** (700, 12px, tabular): count badges and the stepper's numerals.
+
+On a phone's width (`app/android.css`) the in-between sizes snap to Material's
+scale: 12.5 to 12, 13 to 14 to 14, 14.5 to 16 to 16, 20 to 22/28, 22 and 24 to 24/32,
+28 to 28/36; labels are 500 rather than 600; amounts and codes keep their spacing.
 
 ### Named Rules
 **The Kontoauszug Column Rule.** Every amount goes through `<Money>`. It uses tabular lining figures and a real minus (U+2212), never a hyphen, so a column of bookings lines up on its decimal comma. Dates, counts and countdowns take `.tnum` too.
 
-**The Semibold Rule.** 600 is for what you press or read as a label. 700 is only for what names a thing (page, dialog and tile titles) and for figures. Google Sans Flex at 700 thickens into a slab at 13–15px, and a row of bold pills out-shouts the headline it serves.
+**The Weight Rule.** 400 and 500 for Material's titles, buttons and labels; 600 for a row's name and its amount and for labels above a value; 700 only for figures and for the titles of sheets and of sections off the page. Google Sans Flex at 700 thickens into a slab at 13–15px.
 
-**The Sentence Case Rule.** Labels are sentence case and never letterspaced, on screen and on paper. A label's job is to be found, not to shout.
+**The Sentence Case Rule.** Labels are sentence case and never set in capitals, on screen and on paper. A label's job is to be found, not to shout.
 
 **The Character-by-Character Rule.** IBAN, BIC, BLZ and references are set in IBM Plex Mono. An IBAN gets 0.06em tracking and never wraps, because half an IBAN on each of two lines cannot be checked. A BLZ is grouped the way bank documents print it ("570 699 99") wherever it appears.
 
-**The One Ladder Rule.** One heading step (Section, 17px) and one figure ladder (20 to 24px) sit between Title and Body. A new heading or figure takes one of them; it never invents a 16px, 18px or 19px step.
-
-**The Floor Rule.** No HTML text is smaller than 12.5px. The only exceptions are count badges and stepper numerals (12px bold), monogram initials scaled to their avatar (12, 14 or 18px), and the labels charts draw in SVG (12px ticks, month labels and Min./Max. guides; the year under a bar chart's first month of a year at 11.5px).
+**The Floor Rule.** No HTML text is smaller than 12px, and only Material's 12px roles (navigation labels, supporting text) and badges go below 12.5px. Monogram initials scale to their avatar, and the labels charts draw in SVG may be 11.5–12px.
 
 ## Layout
 
-The window is one column of stacked bands, top to bottom:
+The window is an app's: the top app bar along the top, the navigation at the
+bottom (phones) or down the left edge (from 640px), and the page scrolling
+in its own container between them (`[data-scroll-root]`).
 
-1. **Masthead**: Night Navy, 60px (56px on phones). In the desktop shell it takes exactly the height of the Windows caption overlay (`env(titlebar-area-height)`), so the caption buttons and the bar are one band at any zoom.
-2. **Institute bar**: white with a hairline under it, 52px (48px on phones, 44px in very short windows).
-3. **The page scroller**:
-   - It opens with the **stage**: a compact navy band, about 140px on desktop, with 64px of padding below the title row.
-   - The **main column** follows: `max-width: 1280px`, centred, 16px gutters (24px from 640px). It is pulled up 48px, so the first row of tiles laps over the stage's lower edge.
-   - The navy **footer** closes the page.
+1. **Top app bar** (`Masthead.tsx`): the page's own surface, `--barbar-h` tall (60px by default, 56px on phones, 64dp plus the status bar on Android). In the desktop shell it is the window's title bar: exactly as tall as the Windows caption overlay at any zoom, a drag region except for its controls, and its right edge keeps clear of the caption buttons, whose colours (`BAR_COLORS` in `electron/main.cjs`) must equal `bar` and `bar-ink`. Its content shares the page's 1280px column and gutters, so the page title and the first section share one left edge.
+2. **Navigation rail** (from 640px): 80px wide, fixed down the left edge on the page surface; the shell pads 80px on the left for it. On the desktop its head, at the top app bar's height, carries the brand plate and is part of the title bar's drag region. Below it the FAB (Überweisen), then the four places.
+3. **The page:** `#main`, `max-width: 1280px`, centred, 16px gutters (24px from 640px), 8px from the bar, 24px (48px from 640px) at its end.
+4. **Navigation bar** (below 640px): 64px plus the safe area, a row of the shell's column, so the page ends above it by construction.
 
-**Grid and reading order.** The Übersicht's markup is its reading order:
-Konten und Karten, Kontostand, one wrapper for the summaries (the Firmenlogos
-question while it is unanswered, Vorgemerkt, Monatsbilanz, Demnächst fällig,
-Mitteilungen), then Umsätze. Below the `desk` breakpoint that is simply one
-column with 16px gaps (24px from 640px), and a tertiary "Zu den Umsätzen"
-under the hero jumps past the summaries to the Umsätze heading. From `desk`
-(68.75rem, 1100px) the grid runs two columns, `minmax(0, 2fr)` and
-`minmax(300px, 1fr)`, 24px apart, with rows `auto auto 1fr`. The summaries'
-wrapper is placed in the second column across every row (`grid-row: 1 / -1`)
-and is sticky; with a single account the list renders nothing and the grid
-drops to two rows. Placement does this, never CSS `order`, so eye, Tab and
-screen reader go the same way and nothing remounts at the breakpoint.
-Analyse stacks column by column the same way. Inside tiles, **container
-queries** decide layout by the tile's own width, not the window's: the
-balance figures move beside the balance at a tile width of 640px.
+**Übersicht.** The markup is the reading order: Konten und Karten, the
+balance, one side pane (`data-side`: the Firmenlogos and usage questions while
+unanswered, Vorgemerkt, then MonthSummary, UpcomingPayments and
+MessagesTeaser), then Umsätze, or a Depot's holdings in their place. Below the
+`desk` breakpoint that is one column with 16px gaps (24px from 640px) and the
+three summaries are hidden, as on the phone, where the month's figures are
+the Analyse's, what is due the Verträge's and the bank's messages the bell's.
+From `desk` (68.75rem, 1100px) it is two panes, `minmax(0, 2fr)` and
+`minmax(300px, 1fr)`, 24px apart, rows `auto auto 1fr`; the side pane spans
+every row and is sticky, 16px from the top while it fits and scrolling to its
+end when it is taller than the window. With a single account the list
+renders nothing and the grid drops to two rows. Placement does this, never
+CSS `order`. Inside the hero, **container queries** decide layout by its own
+width: the qualifying figures move beside the balance at 640px.
 
 **Rhythm.** Spacing follows Tailwind's 4px scale. Most gaps are 8, 12, 16 or
-24px.
+24px. Sections on the page pull 16px into the gutter on each side
+(`margin-inline: -16px`) so their rows reach the edge, and are held apart by
+the gap alone. List rows pad 16px or 20px horizontally and 12–14px
+vertically; a booking row is at least 64px tall. The hero pads 20px, or 28 to
+32px from 640px. Sheets pad 20px on phones and 28px from 640px.
 
-- Tile headers pad 16px, or 20px from 640px.
-- List rows pad 16px or 20px horizontally and 12–14px vertically. A booking row is at least 64px tall.
-- The account hero pads 20px, or 32px on wider screens.
-- Sheets pad 20px on phones and 28px from 640px.
+**Auth screens** (`AuthShell.tsx`): the top bar with the brand mark, the
+wordmark and the version (from 640px) on the left, "Update verfügbar" while
+one is known, the language switch and (not on Android) the theme toggle on
+the right; then the three-step stepper and the form straight on the page, no
+band and no card, in a 528px column. From 1024px a 316px side-notes card
+stands beside the form.
 
 **Breakpoints.**
 
-- Width: 640px (`sm`) and 1100px (`desk`).
+- Width: 640px (`sm`: rail, two-column details) and 1100px (`desk`: two panes).
 - Height: `short` (max-height 43.75rem, 700px) and `shorter` (max-height 32.5rem, 520px). Height in CSS pixels shrinks with page zoom, so these also catch a window at 200%.
-- Containers: the hero tile at 520px and 640px; the masthead at 900px and 1180px (label tiers); the institute bar's row at 48rem (the device tag gives up its words).
+- Containers: the hero at 520px and 640px; the top app bar at 720px (the search pill folds to an icon) and 900px (the keycap goes).
 
-**Short windows.** At `short` (the 900×600 minimum, a laptop at 125%,
-any window at 200%) an overlay's fixed parts give their room to what it
-says: the attention band slims from 88px to 56px with its 48px pictogram
-scaled to 0.8, sheet footers tighten, and the transfer sheet's header goes
-compact (a 20px title, tighter padding, the stepper beside the title as 20px
-marks only, wrapping under a long title, the close button in the corner). The
-approval wait's limit note ("Deine Bank wartet bis zu …") gives up its line
-to screen readers only, so its status and bar stay beside "Abbrechen". At
-`shorter` the page chrome compacts as well: the stage drops its greeting and
-sets a 24px title with the pills centred beside it, and the institute bar
-is 44px.
+**Short windows.** At `short` an overlay's fixed parts give their room to what
+it says: sheet footers tighten, and the transfer sheet's header goes compact
+(a 20px title, the stepper beside the title as 20px marks only). The approval
+wait's limit note gives up its line to screen readers only, so its status and
+bar stay beside "Abbrechen".
 
-**Phone (<640px):**
+**Desktop shell.** The minimum window is 900×600. Controls in the top app bar
+cap at `--band-ctl` (40px) and the plate at `--band-plate` (32px); both shrink
+with page zoom, never below the 24px target size.
 
-- The section tabs leave the institute bar for a 64px bottom bar, plus the safe area. Its middle slot is a raised 52px Signal Blue disc for Überweisen.
-- The stage drops Überweisen (the disc is that action) and shows Geld anfordern and Kontoauszug as one row of two 44px pills with glyphs.
-- Konten und Karten become a row of inset wells with a dot marker beneath.
-- Centred dialogs arrive as bottom sheets.
+**Start, update and error windows.** The windows outside the page — the start
+window (`electron/splash.html`) and the window that stands in for the app while
+an update installs or when it cannot go on (`build/update-window/UpdateWindow.cs`)
+— are the app's basic dialog on the desktop: a 440px card in
+`md-surface-container-high` with 28px corners, 24px padding and one soft shadow;
+the brand plate and the wordmark, the headline in headline small (24/32,
+weight 500), the body in `md-on-surface-variant`. Progress is the linear
+indicator (4px primary, a 4px gap, the `md-secondary-container` track, the stop
+dot); a start step that runs is a primary arc turning on that track. Their
+actions are Material buttons, 40px and fully round: the one to go on filled in
+primary, the other a text button, with an 8% state layer on hover and a ring
+on keyboard focus. Both files hold the same light and dark values, copied from
+`app/material.css`. Neither can reach the app's own font files, so each carries
+its own copy of Google Sans Flex, made by `scripts/make-window-fonts.py`: the
+start window the variable Latin subset the app serves (`electron/fonts`), the
+update window fixed instances of it inside the program
+(`build/update-window/fonts`, named Girovo Sans as a modified version: 400,
+500 and 700 at optical size 14 for the text, 500 at 24 for the headline),
+since WPF reads neither WOFF2 nor a variable font's axes. Segoe UI Variable is
+the fallback.
 
-**Desktop shell.**
+### Phone (Android)
+`app/android.css` applies on `<html data-platform="android">` only:
 
-- The minimum window is 900×600.
-- Controls inside the masthead cap at `--band-ctl` (40px). They shrink with page zoom, never below the 24px target size.
-- Right-hand edges of navy bars pad past the OS caption buttons (`.bar-caption-safe`, and the masthead's own edge maths).
+- Bars that are `[data-topbar]` reach under the status bar and keep their content below it; the top app bar takes `md-surface-container` once the page scrolls (`data-scrolled`).
+- Every touch target is at least 48dp: the bar's icons are 48dp, and smaller icon buttons and chips get an invisible 48dp area.
+- The extended FAB sits above the navigation bar's right end, folds to its icon while the page scrolls down and opens again on the way up; the page's end and the snackbars clear it.
+- Multi-step flows (Überweisung, Geld anfordern) are full-screen dialogs; other sheets are bottom sheets with a 32×4px drag handle; a basic dialog stays centred (280–560px, 28px corners).
+- Pull to refresh with Material's raised indicator disc; the ripple spreads from the touch (450ms in, 300ms fade); haptics confirm or reject a transfer.
+- The phone's type scale (see Typography). Words say "auf diesem Telefon" and "tippen" (`lib/i18n/messages/phone.ts`).
+- Colour is the phone's: with Material You the wallpaper's roles replace the Girovo scheme; light and dark follow the system and are no setting.
 
 ### Named Rules
-**The Fold Rule.** At the desktop shell's 900×600 minimum, the first row of account tiles is visible without scrolling, and at 200% zoom the first account row still shows. The stage stays compact, and its three Schnellzugriffe (Überweisen, Geld anfordern, Kontoauszug) stay on one line beside the title (between 640px and 1100px they drop to 36px pills without glyphs). Export is not one of them: it lives on the Umsätze tile it exports.
-
-**The Shared Edge Rule.** The masthead's content, the institute bar's row, the stage's content and the page column share one 1280px column and one gutter, so the "G€" mark, the bank's logo, the page title and the first tile align. The masthead's right edge gives way to the caption buttons when they need the room.
-
 **The Reading Order Rule.** The DOM order is the narrow reading order. A wider layout places blocks with the grid; it never reorders them with CSS `order`.
+
+**The Shared Edge Rule.** The top app bar's content and the page column share one 1280px column and one gutter (`MASTHEAD_EDGES`, corrected for the scrollbar's width), so the page title and the first section align. The bar's right edge gives way to the caption buttons when they need the room.
+
+**The Phone's Page Rule.** Below `desk` the Übersicht is the phone's: accounts, the balance, Vorgemerkt and the bookings. Summaries that would push the bookings away appear only in the side pane of a wide window.
 
 ## Elevation & Depth
 
-Surfaces are **lifted, never framed**. A tile separates from the blue-grey
-paper by one soft, navy-tinted shadow, never by a border. Inside a tile,
-structure comes from spacing, weight, one hairline per list and inset wells,
-never from a second frame. Floating layers (sheets, drawers, menus, popovers,
-toasts) take a deeper pop shadow. In the dark theme nothing casts a shadow,
-because it would be invisible. A surface lifts by being lighter than the
-paper, plus the faintest 1px edge.
+The page is **flat**. Sections have no surface, no shadow and no hairlines;
+depth on the page comes from tone alone: the balance hero is a container in
+the primary-container colour, a filled card is `surface-container-low`, wells
+are `surface-container-high`. Shadow is kept for what floats above the page,
+in Material's levels, and in the dark theme those layers lift by tone.
 
 ### Shadow Vocabulary
-- **Tile** (`box-shadow: 0 1px 2px rgb(10 30 60 / 0.05), 0 4px 12px rgb(10 30 60 / 0.07)`): every tile at rest. Dark: `0 0 0 1px rgb(255 255 255 / 0.06)`.
-- **Tile hover** (`box-shadow: 0 2px 4px rgb(10 30 60 / 0.06), 0 10px 24px rgb(10 30 60 / 0.12)` plus `translateY(-1px)`, the `.tile-hover` class): only where the whole tile is the button, and only on devices with a real hover. Dark: the edge rises to 12% white. No tile is a whole button today, so it is held in reserve.
-- **Pop** (`box-shadow: 0 8px 20px rgb(10 30 60 / 0.16), 0 28px 56px -16px rgb(10 30 60 / 0.28)`): sheets, drawers, menus, popovers, toasts. Dark: `0 0 0 1px rgb(255 255 255 / 0.08), 0 24px 48px rgb(0 0 0 / 0.55)`.
-- **Sticky** (`box-shadow: 0 6px 16px -8px rgb(10 30 60 / 0.18)`): reserved for a header that has started to stick over scrolling content. The token is defined; no surface uses it today (the day band sticks on its own inset ground).
-- **Scroll edge** (`box-shadow: 0 -1px 0 var(--line)` on a footer, `0 1px 0 var(--line)` on a header): a pinned edge that content is scrolling under.
-- **Bottom bar** (`box-shadow: 0 -6px 16px -10px rgb(10 30 60 / 0.18)`, and `0 4px 10px -2px rgb(10 30 60 / 0.35)` under its disc): light theme only. At night the bar has its hairline alone.
+- **Level 2** (`box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15)`): menus.
+- **Level 3** (`box-shadow: 0 4px 8px 3px rgb(0 0 0 / 0.15), 0 1px 3px rgb(0 0 0 / 0.3)`): the snackbar, the FAB (light theme only), the pull-to-refresh disc.
+- **Pop** (`box-shadow: 0 8px 20px rgb(10 30 60 / 0.16), 0 28px 56px -16px rgb(10 30 60 / 0.28)`): sheets, drawers and popovers. Dark: `0 0 0 1px rgb(255 255 255 / 0.08), 0 24px 48px rgb(0 0 0 / 0.55)`.
+- **Tile** (`box-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 1px 3px 1px rgb(0 0 0 / 0.04)`; dark `0 0 0 1px rgb(255 255 255 / 0.06)`): the token stays defined, but no `.panel` uses it any more: page sections drop it and the filled card off the page has none.
+- **Scroll edge** (`box-shadow: 0 -1px 0 var(--line)` on a footer, `0 1px 0 var(--line)` on a header): a pinned edge inside a sheet that content is scrolling under.
 
 ### Named Rules
-**The Lifted, Never Framed Rule.** A block is a `.panel` tile: 12px corners and one soft shadow. Never put a framed card inside a framed card, and never draw a border around a tile. What groups inside a tile is a well: the inset grey with 8px corners and no edge.
+**The Flat Page Rule.** A block on the page is a `.panel` section: no surface, no corners, no shadow, no hairline between its rows; sections are held apart by space. The balance hero is the one container. Never put a card on the page to group a section.
 
-**The Night Edge Rule.** In the dark theme, depth comes from tone (`paper` → `surface` → `raised` get lighter), not from shadow. The only shadow-like mark is a 1px white edge at 6–12%.
+**The Tonal Lift Rule.** A container is told from the page by tone, not by an edge or a shadow: the filled card, the hero, wells, the navigation bar. Shadow is for layers that float (menus, sheets, drawers, snackbars, the FAB).
 
-**The Scroll Edge Rule.** A pinned header or footer is flat while everything fits. A 1px `line` hairline appears on its edge only once content runs under it, and leaves again when the content ends.
+**The Scroll Edge Rule.** A pinned header or footer inside a sheet is flat while everything fits. A 1px `line` hairline appears on its edge only once content runs under it, and leaves again when the content ends.
 
 ## Shapes
 
-The form language is soft rectangles under round controls. There is one
-radius per job, and it climbs with the size of the thing:
+The form language is Material's corner scale, one radius per job, climbing
+with the size of the thing:
 
 | Radius | Used for |
 |---|---|
-| 3px | chart legend swatches |
-| 4px | skeleton text lines, the focus corner of inline text links, code in release notes |
-| 5px | checkboxes, keycaps |
-| 6px | fields, tags, skeleton figures, small bank-logo plates, the category share bar |
-| 8px | filter chips, wells, inline alerts, menu items, option rows, phone account wells, the "G€" plate |
-| 12px | tiles, menus, popovers, toasts, the chart tooltip, the review's amount card, GiroCode plates |
-| 16px | dialogs and sheets (top corners only when it is a phone bottom sheet) |
-| pill | every button, icon button, navlink, tab-inside-a-tile, segmented control, count badge, switch, stepper mark and avatar |
+| 4px (`corner-xs`) | outlined text fields, the snackbar, skeleton lines, the progress track's ends |
+| 5px | checkboxes, the keycap |
+| 6px | tags, the chipTAN flicker field, skeleton figures |
+| 8px (`corner-sm`) | filter chips, connected buttons' inner corners, wells, inline alerts, the phone's account cards, document thumbnails, the TAN scan plate, the brand plate; a pressed button |
+| 12px (`corner-md`) | popovers, menu items; a pressed 56px button or 40px icon button |
+| 16px (`corner-lg`) | menus, the account rows from 640px, the filled card, the FAB, 32px buttons |
+| 20px (`corner-lg-up`) | 40px buttons and icon buttons, the ends of a connected button group |
+| 28px (`corner-xl`) | the balance hero, sheets and dialogs, 56px buttons |
+| pill | the navigation indicator, icon buttons in the top app bar, the search pill, switches, count badges, stepper marks, avatars |
 
-There is no 10px step. A counterparty's logo plate is the one proportional
-corner, about 28% of its size (9, 11 and 14px at 32, 40 and 56px). Paper has
-its own: the Buchungsbeleg's amount panel takes 1.5mm.
+Buttons, icon buttons and connected buttons **squeeze** while pressed (to 8px,
+12px or 4px) and spring back. A selected connected button is round all over;
+a selected menu item rounds to 22px. A counterparty's logo plate is the one
+proportional corner, about 28% of its size. Paper has its own: the
+Buchungsbeleg's amount panel takes 1.5mm.
 
 Borders:
 
-- **Hairline:** 1px between list rows; in the booking list it starts where the row's text starts.
-- **Fields:** a 1px Field Edge.
-- **Secondary buttons:** a 2px Signal Blue outline.
-- **Buttons on navy:** a 1.5px white-at-28% outline.
-- **Selected wells and segments:** a 1.5px inset Signal Blue edge, drawn as a shadow so it never shifts the layout.
+- **Fields:** a 1px Outline, 2px (an inset 1px plus the border) in the primary on focus, red when invalid.
+- **Filter chips:** a 1px Outline Variant edge until selected.
+- **Switch:** a 2px Outline border while off.
+- **Selected phone account card:** a 1.5px inset primary edge, drawn as a shadow so it never shifts the layout.
 - **Drop zones:** a 1.5px dashed Strong Line.
 
 Icons are drawn on a 24px grid as round-capped line art: 1.8px stroke at
-18px by default, 2–2.1px for chevrons and close marks. The "G€" plate is a
-rounded 8px square with the mark (lib/brand-mark.ts) cut out in the bar's own navy.
+18px by default, 2–2.1px for chevrons and close marks; 22px in the
+navigation. A chevron that opens a row turns over on the fast spatial spring.
 
 ## Components
 
 ### Buttons
 Calm and unmistakable: every button looks pressable and says what it does, and none of them shouts.
 
-- **Shape:** full pill (9999px). Four sizes:
-
-  | Size | Height | Side padding | Label |
-  |---|---|---|---|
-  | lg | 48px | 24px | 15px |
-  | md | 44px | 20px | 14px |
-  | sm | 36px | 16px | 13.5px |
-  | xs | 30px | 12px | 13px |
-
-- **Primary:** filled Signal Blue, white label, 2px transparent border so it lines up with outlined neighbours. Hover goes to `accent-hover`, press to `accent-press`. Used once per decision, and on the safe answer (see the Safe Choice Rule).
-- **Secondary (the default):** 2px Signal Blue outline with a blue label. Signal Wash on hover, 18% blue on press.
-- **Tertiary:** a blue label only, washed on hover. **Quiet:** a Slate Ink label that turns ink on an inset hover ("Zurück" in a three-way decision).
-- **On navy:**
-  - **Bar** (masthead): a 1.5px white-at-28% outline, capped to the band height.
-  - **Stage:** a white outline.
-  - **Stage primary:** filled white with a navy label. This is the one lead action on the stage (Überweisen).
+- **Shape:** round (20px at 40px tall), squeezing to 8px while pressed and springing back (`--m3e-spatial-fast`). Three heights: 56px (`lg`, 24px sides, 16px label, 28px round, 12px pressed) for the one action a form leads to; 40px (`md` and `sm`, 16px sides, 14px label); 32px (`xs`, 12px sides, 16px round).
+- **Filled (primary):** the primary with its ink. Used once per decision, and on the safe answer (see the Safe Choice Rule).
+- **Tonal (secondary, the default):** the secondary container with its ink. Material's second emphasis, never an outline.
+- **Text (tertiary):** a primary label only, the wash on hover. **Quiet:** an On Surface Variant label that turns ink on an inset hover ("Zurück" in a three-way decision).
 - **Danger:** filled Soll Red. Only for confirming something destructive the user asked for, with the safe button focused.
-- **States:** disabled at 45% opacity. Busy swaps the left icon for a spinner in the label's colour, keeps the label and sets `aria-busy`. Transitions run 150ms. An action that is not available yet but must explain why (the stage's Kontoauszug) stays focusable with `aria-disabled`, looks disabled, carries its reason as a description and says it in a toast when pressed.
-- **Icon buttons:** round, 32px or 40px. The `aria-label` is mandatory and doubles as the hover tooltip. Pressed means wash plus blue glyph.
-- **Decision footers:** two actions side by side, the primary last and twice as wide. Three actions, or two that each need their full label, stack on phones with the primary on top (last in the markup) and stand side by side from 640px, with a quiet "Zurück" first.
+- **States:** disabled at 45% opacity. Busy swaps the left icon for the spinner, keeps the label and sets `aria-busy`. An action that is not available yet but must explain why stays focusable with `aria-disabled`, carries its reason as a description and says it in a snackbar when pressed.
+- **Icon buttons:** round, 32px or 40px, squeezing to 8px or 12px while pressed. The `aria-label` is mandatory and doubles as the hover tooltip. Pressed state is the wash with a primary glyph.
+- **Decision footers:** two actions side by side, the primary last. Three actions, or two that each need their full label, stack on phones with the primary on top (last in the markup) and stand side by side from 640px, with a quiet "Zurück" first. A basic dialog's actions sit at the end of one row, 8px apart.
+
+### Connected Button Groups (Segmented)
+2px apart, the group's outer corners round, the inner ones 8px (4px while
+pressed), the chosen button round all over and filled in the primary. 40px
+tall (32px small), on `toggle-bg` with an On Surface Variant label. Used for
+Sprache, Termin ("Sofort", "An einem Datum", "Regelmäßig") and the Analyse's
+period.
 
 ### Chips
-- **Filter chip:** 36px tall, 8px corners, a 1px Signal Blue edge, a blue 14px semibold label. Selected adds the wash **and a check glyph**: the check, not the tint, is what says "on" without colour. A chip that opens a menu shows a chevron instead. A removable menu chip (the month narrowing) attaches a 32px close segment in the wash.
-- **Value chip:** a recent payee, or a source note like "Aus GiroCode übernommen" or "Vorlage: Miete". Pressable ones look like filter chips. Static ones take a Strong Line edge and a Slate Ink label. Removable ones attach a 32px close segment.
+- **Filter chip:** 32px tall, 8px corners, a 1px Outline Variant edge, a 14px/500 label. Selected loses the edge and takes the tonal wash **and a check glyph**: the check, not the tint, is what says "on" without colour. A chip that opens a menu shows a chevron instead. A removable menu chip (the month narrowing) attaches a 32px close segment.
+- **Value chip:** a recent payee, or a source note like "Aus GiroCode übernommen" or "Vorlage: Miete". Pressable ones look like filter chips; removable ones attach a close segment.
 
 ### Tags
 Status words on a row or heading, such as "Vorgemerkt", "Echtzeit" or "Gerät
@@ -932,89 +993,44 @@ gemerkt". They are not interactive.
 - **Colour:** the tint of a value colour with that colour's ink (neutral, info, positive, negative, pending).
 - **Emphasis tags:** ink text on an 11% orange tint with an orange dot, because orange is never text.
 - **Outcome tags** in Vorgänge dieser Sitzung: "Ausgeführt" (positive), "Nicht ausgeführt" (negative), "Status unklar" (emphasis).
-- **Count badges:** 20px pills in 12px bold tabular figures. Where a count is news rather than a filter (the Mitteilungen tile), it is said in words, not as a badge.
-- **Device tag:** "Gerät gemerkt" (info) drops its words for its shield glyph when the institute bar's row is narrower than 48rem; its name and tooltip stay.
+- **Count badges:** 20px pills in 12px bold tabular figures. Where a count is news rather than a filter, it is said in words, not as a badge.
 
-### Cards / Containers (Tiles)
-- **Corner Style:** 12px (`rounded.card`).
-- **Background:** Tile White on Blue-Grey Paper.
-- **Shadow Strategy:** the Tile shadow at rest; Tile hover is reserved for a tile that is itself a button (see Elevation & Depth).
-- **Border:** none. One hairline between rows of a list. A tile's footer sits on Inset Grey under a hairline (the hero's holder and IBAN, the Gesamtsaldo, Demnächst fällig's "Summe der 30 Tage, ca.").
-- **Internal Padding:** 16px, or 20px from 640px. The header row holds a Section title, an optional 13px Quiet Ink subtitle, and right-aligned actions. A tile has one way on: Demnächst fällig links to Verträge once, in its header, and names further bookings in a 13px Quiet Ink note.
-- **Wells:** inside a tile, dialog, drawer or popover, a group of text that belongs together (a bank's answer, the approval challenge, the template undo row, a Mitteilungen teaser) sits on the inset with 8px corners and no edge.
+### Sections and Cards
+- **Page section** (`.panel` inside `#main`): no ground, corners, shadow or hairlines; it pulls into the gutter so its rows reach the edge, with 4px of padding top and bottom. Its header row holds a section title (22/28, 500), an optional 13px subtitle and right-aligned actions; it pads 16px, or 20px from 640px.
+- **Filled card** (`.panel` outside `#main`, the login's side notes): `surface-container-low`, 16px corners, no shadow, 24px padding. Its points are a 36px inset disc with an ink glyph, a 14.5px semibold title and a 13.5px line.
+- **Wells:** inside a section, dialog, drawer or popover, a group of text that belongs together (a bank's answer, the approval challenge, the template undo row, the schedule sentence) sits on the inset with 8px corners and no edge.
 
 ### Inputs / Fields
-- **Style:**
-  - 48px tall, 6px corners, a 1px Field Edge, white ground (Inset Grey in dark), 16px ink text.
-  - 14px side padding, or 40px with a leading glyph.
-  - The label sits above: 13px semibold Slate Ink, with "(optional)" in Quiet Ink. A 13px Quiet Ink hint sits below.
-- **Amount fields:** right-aligned 20px semibold tabular figures, the "€" a 17px semibold Quiet Ink suffix. No placeholder, because a "0,00" in that size reads as a prefilled amount.
-- **Hover:** the edge darkens to Quiet Ink.
-- **Focus:** the global double ring: a 2px outline in Focus Blue at a 2px offset. On navy the ring is drawn in bar ink. Inside a clipped full-bleed row it becomes an inset 2px ring.
-- **Error:** the edge turns Soll Red, and a 13.5px semibold red message with a 16px warning triangle appears under the control, linked by `aria-describedby`. A login form keeps its primary enabled and answers a submit with field errors, never with a silently disabled button.
-- **Disabled / Read-only:** Inset Grey ground, Strong Line edge, Quiet Ink text.
-- **Select** uses the same box, with a 16px chevron.
-- **Checkbox:** 20px with 5px corners, filled Signal Blue when checked.
-- **Switch:** a 40×24px pill track with an 18px white thumb, Signal Blue when on, Field Edge when off.
-
-### Option Rows
-A choice that is a whole row: the login's quick picks, a TAN method, a bank
-in the search list. Unframed, 8px corners, the inset tint on hover, Signal
-Wash while its request runs. A method row is at least 64px tall, with a 40px
-Signal Wash disc, its name in Row type and a 13px Quiet Ink line under it. A
-quick pick is a logo over a 12.5px label; picks that start a search carry a
-12px search glyph before their label.
-
-### Tabs and Segmented Controls
-- **Underline tabs** (the institute bar): 15px semibold, Slate Ink, turning ink when active. A 3px Signal Blue rule with rounded top corners sits on the bar's own bottom edge. The row scrolls sideways rather than wrapping, and never shrinks: the bank's name and the device tag give way first.
-- **Pill tabs** (inside a tile): 36px pills. The selected one is filled Signal Blue.
-- **Segmented:** an Inset Grey pill track with 4px padding. The selected thumb is white with a 1.5px inset Signal Blue edge and a blue label. In dark, the thumb is lifted with ink instead and keeps an ink label.
+- **Style:** Material's outlined text field on every platform: 56px tall, 4px corners, a 1px Outline, a transparent ground, 16px ink text, 16px side padding (40px with a leading glyph).
+- **Floating label** (`Field` in `components/ui.tsx`): inside the outline at 16px while the field is empty; on focus or with a value it rises onto the outline at 75% scale, cutting a notch in the surface beneath (`--field-notch`), on the fast spatial spring. A placeholder only shows once the label has made room. A field whose label row also carries a counter or a link keeps the label above (13px semibold).
+- **Focus:** the outline turns primary and doubles to 2px; the label turns primary.
+- **Supporting text:** 12px under the field, 16px in. **Error:** outline and label turn Soll Red, and a 13.5px semibold red message with a 16px warning triangle appears under the control, linked by `aria-describedby`. A login form keeps its primary enabled and answers a submit with field errors.
+- **Read-only:** dimmer text on the same transparent ground, never a grey fill the label would have to notch.
+- **Amount fields:** right-aligned 20px semibold tabular figures, the "€" a 17px semibold suffix. No placeholder.
+- **Checkbox:** 20px with 5px corners, filled primary when checked.
+- **Switch:** Material's: a 52×32px track with a 2px Outline border, a 16px Outline handle while off; on, the track fills primary and the handle grows to 24px in `accent-ink`; pressed, it grows to 28px.
 
 ### Navigation
-- **Masthead:**
-  - On the left: the "G€" plate (32px) and the wordmark "Girovo". No version: the footer and the Sitzung panel carry it.
-  - On the right: a cluster of line icons, each labelled with its name, the way a German bank's start page labels its header: Suche, Mitteilungen, Beträge ausblenden, Darstellung, then the profile chip.
-  - Each item is a 40px pill "navlink". Its glyph is in Mist and turns bar ink on a 12% white hover. While amounts are hidden, the privacy item keeps a 14% white tint.
-  - Labels follow the masthead's own width. From 1180px every word shows, with the "Strg K" keycap and Darstellung. From 900px: Suche, Mitteilungen, Beträge ausblenden and the first name. Below that every item is an icon with its name as tooltip.
-  - Mitteilungen: the count badge counts the bank's messages only. A new app version is marked by the orange dot alone, ringed in navy, at every width.
-- **Institute bar:** with more than one bank in the view it names the bank of the account on screen (and its device tag), switching with the account. The bank's logo (on a white plate in light; bare, or inverted when dark, in the dark theme; a mark drawn for a dark ground is set in one dark colour on light), its name in 14.5px semibold, and from 1100px "BLZ 570 699 99" in 12.5px Quiet Ink with the number in Plex Mono. Then a vertical hairline, then the section tabs (Übersicht, Analyse, Verträge & Abos). The device tag sits at the far right.
-- **Phone bottom bar:** 64px plus the safe area, white with a hairline. It holds Übersicht, Analyse, a centred 52px Signal Blue disc for Überweisen with the transfer glyph and a 4px surface ring, Verträge and "Mehr" (the palette). Labels are 12.5px semibold. The current item is blue with a 3px Signal Blue rule at the top; the disc's own label stays ink.
-- **Footer:** Night Navy. The wordmark with the version, the GitHub link, and one line on how the app reaches the bank ("Direkte FinTS-Verbindung von diesem Rechner zu …") beside "Angemeldet seit".
-- **Command palette ("Suche"):** an entry that ends something is a last resort. "Abmelden" ("Log out") answers only a deliberate query: three or more letters that start its name in the language on screen ("abm", "log"), or one of its words typed in full, in either language ("logout", "ausloggen", "sign out", "session") — a single word of a phrase only from five letters ("sitzung" of "sitzung beenden", never "out" or "sign"). Never "ab" and never a fuzzy hit ("med", "logo"), which could leave it alone and preselected. Every other entry is found by its words in the language on screen, and by its German words on an English screen too. When it answers, it is listed after every other result, bookings included, in its own "Sitzung" group. A booking from another account opens the Umsätze list as described under Outcome States: switched when that is answered from the cache, otherwise naming the account it could not show.
+- **Top app bar:** the page's name on the left in title large (Übersicht, Analyse, Verträge); on the right, icon-only actions at 40px: on wide windows (not Android) the search pill (40px, `surface-container-high`, a search glyph, "Suche" and the "Strg K" keycap; the label goes below 720px of bar, the keycap below 900px), Mitteilungen (a bell with the orange dot for unread bank messages or a new app version), Beträge ausblenden (eye; a 14% ink tint while amounts are hidden), Darstellung (desktop only, from 640px), and the avatar-only profile chip that opens the Sitzung panel. The skip link "Zum Inhalt springen" is its first child.
+- **Navigation bar** (phones): 64px on `nav-bg`, four places: Übersicht, Analyse, Verträge, Mehr (the command palette). Each is a 22px glyph over a 12px/500 label; the current place has the 56×32px pill (`nav-indicator`) behind its glyph, which springs open from the middle, and its label in `nav-label-active`. Überweisen is the extended FAB above the bar.
+- **Navigation rail** (from 640px): the same four places stacked 12px apart in an 80px column on the page surface; at its head on the desktop the brand plate in the title bar's strip, then the FAB (56px, 16px corners, `fab-bg`, the transfer glyph; it rounds to 20px on hover).
+- **Brand plate** (`BrandPlate`): the "G€" mark (`lib/brand-mark.ts`) in white on Brand Navy, a rounded 8px square, 32px (smaller only when zoom shrinks the bar). On the login's top bar it stands beside the 18px bold wordmark and the 12.5px version.
+- **Command palette ("Mehr", Strg K):** before any typing it lists the main actions (Geld anfordern, Kontoauszug, …), the accounts and, last, Abmelden. "Abmelden" answers only a deliberate query: three or more letters that start its name in the language on screen ("abm", "log"), or one of its words typed in full, in either language ("logout", "ausloggen", "sign out", "session"), a single word of a phrase only from five letters. Never "ab" and never a fuzzy hit. Every other entry is found by its words in the language on screen, and by its German words on an English screen too. When it answers, it is listed after every other result in its own "Sitzung" group.
 
 ### Overlays
-- **Dialog:**
-  - Raised white with 16px corners and the Pop shadow.
-  - Widths 440, 540 or 680px. Arrives in 220ms (fade, 12px rise, 0.985 scale). On phones it becomes a bottom sheet that slides up in 250ms.
-  - Attention dialogs open with an 88px navy band around a 48px pictogram disc (56px and 0.8 scale in short windows).
-  - Its actions are a **pinned footer**: they sit below the scrolling body and never scroll away, end-aligned (centred under a band). On phones they stack in reverse order, so the last action sits on top.
-  - Once more than one bank is in the view, the approval wait names the bank that asks — its mark and "‹Bank› fragt nach dieser Freigabe" in 13.5px Quiet Ink, the name semibold — above the device line.
-  - The approval wait pins its status in that footer too, above "Abbrechen": "Warte auf Bestätigung" with the counter, the navy bar and the bank's limit, or "Frist abgelaufen" once it has passed. The order to compare and the bank's request scroll above it.
-- **Transfer sheet:** 560px (720px for the larger one), the same surface with a fixed header (title, stepper, close) and a fixed footer. Both draw their hairline only while content scrolls under them. Every step starts scrolled to its top, where its warnings are.
-- **Drawer:** from the right, 440px or 560px wide, 240ms. Its header is a navy band at masthead height, carrying a 17px bold title and the close button. A drawer's footer keeps a standing hairline.
-- **Menu / Popover:**
-  - Raised with 12px corners, the Pop shadow, 150ms pop-in. A menu has 6px inner padding, a popover 16px.
-  - Menu items are at least 40px tall, with 8px corners and 15px text. Focus is shown by an inset ground plus an inset ring. Group labels are 12.5px semibold Quiet Ink.
-  - A popover can pin a footer the same way a dialog does (the Sitzung panel's "Abmelden").
-  - Layers render in place (never portalled), so they can never reach a printout.
-- **Weitere Bank anmelden:** a 540px sheet over the dashboard with the login's own steps in it — the bank picker, the credentials form, the security methods, the very components of the login screen — under a 13px semibold Quiet Ink overline ("Weitere Bank anmelden · Schritt 2 von 3"), their titles set at 24px. Its close button calls the login off; the backdrop does not close it (a typed PIN is not thrown away by a stray click). The Freigabe is the usual approval dialog, layered above the sheet and naming the bank. A login the view cannot take (an account number already shown) comes back to the form, saying why in its error alert.
-- **Sitzung panel:** a 352px popover from the profile chip, kept short: a row says what a setting is in a line or two, and the dialog an action opens says the rest. Three groups (four with several banks) under 13px semibold Quiet Ink headings, split by hairlines:
-  - **Who and since when:** the large avatar, the holder's name as a 17px navy Section with the bank under it, then one 13px line: "Seit 18:41 Uhr · Abmeldung in 9:51", the countdown in semibold ink.
-  - **Banken:** with one bank, only a tertiary xs "+ Weitere Bank anmelden" under the session line. With more, a group of its own before Einstellungen: one row per bank in the shape of the machine rows (its mark in a 52px column, its name, a 13px Quiet Ink state — "Hauptanmeldung – hier liegen deine gespeicherten Daten", "Angemeldet · Gerät gemerkt", "Abgemeldet", "Nicht angemeldet"), a tertiary "Entfernen …" on every bank but the primary (it opens "Bank entfernen?", with a red confirm and the safe button focused), then the add action.
-  - **Einstellungen:** label-left, control-right rows of at least 40px in 14px ink — "Automatisch abmelden nach" with a compact 36px select, "Sprache" with a small Segmented (Deutsch | English, each named in itself), Darstellung on phones — then the Firmenlogos and Nutzungsdaten switches with a one-line hint each, Updates and Tastenkürzel.
-  - **Auf diesem Rechner:** one row each for the device registration and the saved data: a 32px round mark, a 14px semibold title over a 13px Quiet Ink hint, and its one tertiary action on the right ("Vergessen …", "Löschen …").
-  - "Abmelden" is its pinned footer, a small block button.
-  - The large avatar is 44px: navy initials on the inset, or the picture the user chose. A 20px badge with a pencil at its corner says it can be pressed; it opens the pictures under the header — the initials, the user's own picture while there is one, and eleven line icons from the icon family, 40px each in a grid of six on an inset well, a radio group with one tab stop whose arrows move and choose. The chosen one carries the selected-segment edge (1.5px inset Signal Blue; an own picture shrinks inside it). Under the grid, two tertiary actions: "Eigenes Bild wählen …" (a file dialog; the page keeps the middle square at 128px as WebP, the file itself goes nowhere) and, with a picture, "Bild entfernen" — then a 12.5px Quiet Ink line that the picture stays encrypted on this computer, or in red why a file could not be used. The chip in the masthead shows the same picture at 28px (an icon at 16px). The choice and the picture are kept in the vault, so they belong to one login on one machine.
-- **Update and error window** (desktop, `build/update-window/UpdateWindow.cs`): a 440px card on a transparent window — 16px corners, the Pop shadow (the night edge in dark), the "G€" plate with the wordmark above a 22px bold headline and 15px Slate Ink text — in the app's language and theme. While an update installs it shows the phase and an 8px navy progress fill. When the app cannot go on (it could not start, its server stopped) it shows the title and reason with pill buttons: "Schließen", and "Girovo neu starten" as the filled one when the installed app can be started again. Windows' own message box is only the fallback.
-- **Start window** (desktop, `electron/splash.cjs` + `splash.html`): the same card, shown from the moment Electron is ready until the app's window has drawn its first frame, and for at least two seconds (owner, 2026-10-07: never a flash) — the plate and wordmark, a 22px bold "Girovo wird gestartet", the steps as a short list (an accent tick when done, the accent ring turning on the current one, a quiet ring for what is still to come; "Aktualisierung abschließen" only after an update), and the version in 13px Slate Ink. After 10 seconds an inset note says that the first start after an update or a restart of the computer often takes longer. The card is the drag handle; there are no buttons.
-- **The shell's windows take the system face.** The update, error and start windows appear before or without the web app, where Google Sans Flex is not available (next/font bundles it inside the server), so they set Segoe UI Variable (Text, and Display for the headline). Everything else about them is the app's: palette, plate, corners, shadow.
-- **Login bar:** the "G€" plate and wordmark on the left; on the right, "Update verfügbar" while a newer version is known, the language switch — a globe and the other language's name, in that language ("English" while German is shown) — and the light/dark toggle.
-- **Toast:** raised white, 12px corners, the Pop shadow plus a 3px inner edge in its tone, an 18px glyph and 14.5px text. Its lifetime follows reading time (at least 10s for an error, 12s with an action, 20s for both) and pauses while it is hovered, focused or the window is in the background. F6 moves to its button and back; Escape closes it. Because F6 lands on that button, a toast's action never does anything that needs a confirmation elsewhere: "Gerät vergessen …" on the "Gerät gemerkt" toast opens the same "Gerät vergessen?" dialog as the Sitzung panel.
-- **Inline alert:** 8px corners, a tinted ground and a 3px inner left edge in the tone colour, with an 18px glyph and 14px text.
-  - Error: red on red tint.
-  - Success: green on green tint.
-  - Info: cyan on cyan tint.
-  - Warning: the inset grey with an orange edge (amber is taken). "Status unklar" guidance uses it too.
+- **Sheet:** `raised` with 28px corners and the Pop shadow; widths 440, 540 or 680px. Arrives on the default spatial spring. On phones it is a bottom sheet (top corners only). Its actions are a **pinned footer**.
+- **Basic dialog** (`data-dialog="basic"`): `dialog-bg`, 28px corners, a 24/32 headline (centred under its icon when it has one), no close button (back, the scrim or its actions end it), actions at the end of one row.
+- **Attention dialogs** (the approval wait, outcomes) lead with a 48px pictogram disc in the wash and a 22px bold headline, centred.
+- **Approval wait** (`TanWaitOverlay`): names the bank that asks once more than one bank is in the view, the device line, the bank's challenge, and pins its status in the footer above "Abbrechen": "Warte auf Bestätigung" with the counter, the progress bar and the bank's limit, or "Frist abgelaufen".
+- **Typed TAN** (`TanEntry.tsx`, inside the approval wait): for chipTAN optisch, the flicker field: five black bars on a black 6px-cornered strip with two ink triangles above, always black and white whatever the theme, with "Größe" and "Tempo" steppers (minus/plus icon buttons around a semibold label) and play/pause; it waits for a click under reduced motion. For chipTAN QR and photoTAN, the bank's image on a white 8px plate with 12px padding, pixelated, up to 240px. Then the TAN field (20px tabular figures, 0.12em tracking, one-time-code), sent by the footer's button or Enter.
+- **Transfer sheet:** 560px (720px for the larger one), a fixed header (title, stepper, close) and a fixed footer, both drawing their hairline only while content scrolls under them. Every step starts scrolled to its top, where its warnings are.
+- **Drawer:** from the right, 440px or 560px, `raised`, the Pop shadow. Its header is a top-app-bar strip on the bar's surface at its height, with a title-large title and the close button. A drawer's footer keeps a standing hairline.
+- **Menu:** Material's: `menu-bg`, 16px corners, 4px padding, Level 2. Items are at least 44px, 12px corners, 16px text; a chosen radio or checkbox item takes `menu-selected` and 22px corners. Group labels are 12.5px semibold.
+- **Popover:** `raised`, 12px corners, the Pop shadow, the fast spatial spring. A popover can pin a footer (the Sitzung panel's "Abmelden"). Layers render in place (never portalled), so they can never reach a printout.
+- **Snackbar:** the inverse surface, 4px corners, Level 3, 14px text with 0.25px, its glyph in the text colour, its action in the inverse primary. Its lifetime follows reading time (at least 10s for an error, 12s with an action, 20s for both) and pauses while it is hovered, focused or the window is in the background. F6 moves to its button and back; Escape closes it. A snackbar's action never does anything that needs a confirmation elsewhere.
+- **Inline alert:** 12px corners and a tonal ground, with an 18px glyph in the tone colour and 14px text — no stripe down the side. Error red, success green, info cyan; a warning is the inset with an orange glyph (amber is taken). The name check's result box is drawn the same way.
+- **Weitere Bank anmelden:** a 540px sheet with the login's own steps in it, under a 13px semibold overline ("Weitere Bank anmelden · Schritt 2 von 3"), their titles at 24px. Its close button calls the login off; the backdrop does not close it.
+- **Sitzung panel:** a 352px popover from the profile chip (a modal bottom sheet on Android): who and since when (the 44px avatar, the holder's name as a Section, "Seit 18:41 Uhr · Abmeldung in 9:51"), Banken (with several), Einstellungen (label-left, control-right rows of at least 40px), Auf diesem Rechner, and "Abmelden" as its pinned footer. The avatar can be the initials, the user's own picture (kept at 128px as WebP in the vault) or one of eleven line icons, chosen in a grid of six.
 
 ### Money
 The signature primitive. Every amount on screen passes through it.
@@ -1023,155 +1039,164 @@ The signature primitive. Every amount on screen passes through it.
 - **Colour follows the role, not the sign:** a negative balance is red, except a credit card's, which stays ink; a debit booking is ink; a credit booking is green. Estimates ("ca.", "mind.") show whole euros.
 - **Large balances** split off the cents at half size.
 - **"Beträge ausblenden"** reaches three layers, with one exception:
-  - `<Money>` replaces the figure with "•••••" and the currency. The value is then absent from the DOM entirely (no title, no aria-label), so a screen share, a screenshot or the accessibility tree cannot leak it.
-  - The bank's free text (a row's purpose line, the drawer's Verwendungszweck and references) and the user's own notes are masked at render time with `lib/mask.ts`, best effort: German decimals, "149,-", any number next to a currency. Dates, identifiers and bare whole numbers ("Miete 850") stay. The masks are the same five dots, read as "Betrag ausgeblendet", with the sign masked and an adjacent currency left visible. Copy buttons keep the real text.
-  - Charts keep their shape and lose their sign (see Chart Palette). The hero's figure stays Night Navy whatever its sign, the Monatsbilanz split bar and the Monatsbudgets' bars are hidden, and a GiroCode that carries an amount is covered until asked for.
-  - The exception: two places show the figure regardless, because it is what is being checked: the transfer review and the approval wait's order block.
+  - `<Money>` replaces the figure with "•••••" and the currency. The value is then absent from the DOM entirely, so a screen share, a screenshot or the accessibility tree cannot leak it.
+  - The bank's free text and the user's own notes are masked at render time with `lib/mask.ts`, best effort. The masks are the same five dots, read as "Betrag ausgeblendet". Copy buttons keep the real text.
+  - Charts keep their shape and lose their sign (see Chart Palette). The hero's figure stays in the hero's ink whatever its sign, the Monatsbilanz split bar and the Monatsbudgets' bars are hidden, a Depot masks values, prices and quantities alike, and a GiroCode that carries an amount is covered until asked for.
+  - The exception: the transfer review and the approval wait's order block show the figure regardless, because it is what is being checked.
 
-### Account Hero
-The selected account's balance tile:
+### Balance Hero
+The selected account's balance, and the page's one container (`data-hero`):
+the primary container with 28px corners, everything inside in its ink
+(`stage-ink`, `stage-ink-2`, lines at 40%).
 
-- **Top:** a 14px semibold label that names the figure and the account ("Kontostand · Girokonto", "Kartensaldo · Visa", "Saldo am 30.09."), then the Display balance and a 13px tabular date line. While amounts are hidden the date line adds "Beträge ausgeblendet" and an inline blue "Anzeigen".
-- **No figure:** a Title in ink ("Abruf fehlgeschlagen" with a red warning glyph, "Noch kein Saldo abgerufen", "Kein Saldo abrufbar"), the reason in 14px Slate Ink at most 60ch wide, then a secondary sm button ("Erneut versuchen", "Saldo abrufen") beside the 13px Quiet Ink note "Kann eine Freigabe erfordern."
-- **Beside it** once the tile is 640px wide (stacked below otherwise): Verfügbar, Dispositionsrahmen (Kreditrahmen for a card), Vorgemerkt.
-- **Footer:** Inset Grey, holding the account plate (from 640px), the holder and the IBAN. The country and bank half of the IBAN recedes, and the account tail stays full strength. With a single account a tertiary xs "Umbenennen" sits here and the list tile is not rendered.
+- **Top:** a 14px semibold label naming the figure and the account ("Kontostand · Girokonto", "Kartensaldo · Visa", "Saldo am 30.09."), then the Display balance and a 13px tabular date line. While amounts are hidden the date line adds "Beträge ausgeblendet" and an inline "Anzeigen".
+- **No figure:** a title in ink ("Abruf fehlgeschlagen" with a red warning glyph, "Noch kein Saldo abgerufen", "Kein Saldo abrufbar"), the reason, then the read ("Erneut versuchen", "Saldo abrufen") beside "Kann eine Freigabe erfordern."
+- **Beside it** once the hero is 640px wide (below it otherwise, under a hairline): Verfügbar, Dispositionsrahmen (Kreditrahmen for a card), Vorgemerkt.
+- **Account line:** the IBAN with copy; with a single account a rename icon (in the hero's top-right corner on a phone). Then the Kontoverlauf in the hero's ink.
+- **Depot hero** (`DepotHero`): the value of the holdings at the bank's last report, with when that was, or the read that gets it.
 
 ### Konten und Karten
-- **Rows:** the account plate (40px), the name in Row type, the short IBAN, the balance right-aligned in Row type (a card's in ink). The selected row carries a 6% blue tint and a 3px Signal Blue rail, its plate turns Signal Blue, and it leaves its Verfügbar to the hero.
-- **Right column states:** the balance; a skeleton; "Saldo abrufen" (blue 14px semibold) over "Kann eine Freigabe erfordern"; "Abruf fehlgeschlagen" (red 14px semibold) over "Erneut versuchen"; "Kein Abruf möglich".
-- **Phones:** each account is an inset well with 8px corners; the selected one takes the wash with a 1.5px inset Signal Blue edge. A row of 6px dots under them marks the position.
-- **Several banks:** once a second bank is in the view, the rows group under a band per bank, the primary login first — an inset band (sm and up; on phones its hairline only) with the bank's mark in a 52px column, its name in 13.5px semibold Slate Ink as an h3, and, when it is not logged in, its state in 13px Quiet Ink ("Abgemeldet" with a tertiary xs "Erneut anmelden"; "Nicht angemeldet" for one remembered from an earlier session, followed by a full-width blue row "Auch bei … anmelden" with a chevron). On phones each bank keeps its own row of cards and dots. A logged-out bank's rows keep their last figures; without one they read "Abgemeldet". The tile then ends in a tertiary sm "+ Weitere Bank anmelden" under a hairline. With one bank nothing of this shows.
-- **Gesamtsaldo** (from two counted accounts, in the tile's inset footer): a figure only when every euro account that can report a balance is known, never a partial sum. Otherwise the figure's place reads "unvollständig" (13px Quiet Ink), a dot list names what failed, what is not fetched and what never counts ("ohne Depot"), and a tertiary sm "Alle Salden abrufen" follows with the approval note. Over several banks it adds every bank's accounts; a bank that is logged out without a figure, or not logged in at all ("Nicht angemeldet: …"), keeps it "unvollständig" too.
+- **Rows** (from 640px): Material list rows, 16px corners, 2px apart; the account plate (40px), the name in Row type, the short IBAN, the balance right-aligned. Hover is an 8% ink state layer. The selected row is filled `accent-soft`, its plate turns primary, and it leaves its Verfügbar to the hero.
+- **Right column states:** the balance; a skeleton; "Saldo abrufen" over "Kann eine Freigabe erfordern"; "Abruf fehlgeschlagen" (red) over "Erneut versuchen"; "Kein Abruf möglich".
+- **Phones:** a swipeable, snapping row of inset cards (8px corners, 80% wide, max 300px); the selected one takes the wash with a 1.5px inset primary edge. A row of 6px dots under them marks the position.
+- **Several banks:** the rows group under a band per bank, the primary login first: the bank's mark in a 52px column, its name in 13.5px semibold as an h3, and, when it is not logged in, its state. A logged-out bank's rows keep their last figures. The section then ends in "+ Weitere Bank anmelden".
+- **Gesamtsaldo** (from two counted accounts): a figure only when every euro account that can report a balance is known, never a partial sum. Otherwise "unvollständig", a dot list of what failed or is not fetched or never counts ("ohne Depot"), and "Alle Salden abrufen".
 
-### Booking Row and Day Band
-- **Day band:** a sticky inset band, at least 36px tall, with the date in 13.5px semibold Slate Ink. On its right, the verified end-of-day "Kontostand" ("Stand" on phones) when the app can prove the chain from the bank's balances, toned like any balance; otherwise a visibly labelled "Summe". A future Buchungstag adds a clock and "noch nicht gebucht".
-- **Row:** at least 64px tall, 16px or 20px side padding. The hairline below it starts where the text does, so the avatar column reads as one. Hover is a half-step of the band's inset.
+### Bookings
+- **Day subheader:** sticky on the page's surface, at least 40px tall, the date in 14/20 500 in the primary. On the desktop the verified end-of-day "Kontostand" sits on its right when the app can prove the chain from the bank's balances, otherwise a labelled "Summe"; Android carries neither. A future Buchungstag adds a clock and "noch nicht gebucht".
+- **Row:** at least 64px tall, 16px or 20px side padding, no hairline on the page.
 - **Avatar:** 40px. A verified company logo on a white plate, or a monogram. The same avatar appears wherever this counterparty does.
-- **Text:** the name in Row type, then a 13px Quiet Ink line: purpose summary · category glyph and name (the glyph alone beside prose on a phone). The category glyph is never Signal Blue.
+- **Text:** the name in Row type, then a 13px line: purpose summary · category glyph and name (the glyph alone on a phone). The category glyph is never the primary.
+- **Markers after the name:** a 14px note glyph when the user wrote a note (its tooltip is the note), and a 14px paperclip when a receipt is attached (screen readers hear the marker's words).
 - **Amount:** right-aligned in Row type (credit green with "+", debit ink with "−"), with an optional 12.5px note such as "Buchung 06.10.".
-- **Note mark:** a booking the user wrote a note on carries a 14px note glyph in Quiet Ink right after its name. Its tooltip is the note (amounts masked while hidden); a screen reader hears "Mit Notiz". The note itself is read in the drawer.
-- **Skip link:** the list opens with "Liste überspringen", a Signal Blue pill that appears only on focus and lands after the last row shown.
-- **Kept days:** where a list goes on with Umsätze kept on this computer, one quiet line sits before the first kept day's band: a 14px lock glyph and "Ab hier: auf diesem Rechner gespeichert" in 13px Quiet Ink, a hairline above. Not a band and never sticky, so the dates keep their rhythm. The period line adds "bis 07.07. gespeichert", and the Zeitraum menu names the kept span "Alles Gespeicherte · seit …".
-- **Pending entries** live in their own Vorgemerkt panel, marked by a 36px Vorgemerkt Amber disc. A failed fetch is said there, with "Erneut versuchen".
+- **Skip link:** the list opens with "Liste überspringen", a primary pill that appears only on focus.
+- **Kept days:** where a list goes on with Umsätze kept on this computer, one quiet line before the first kept day: a 14px lock glyph and "Ab hier: auf diesem Rechner gespeichert" in 13px. Never sticky.
+- **Pending entries** live in their own Vorgemerkt section, marked by a 36px Vorgemerkt Amber disc.
+
+### Kept Documents (Belege and Kontoauszüge)
+- **Doc row** (`DocRow.tsx`): at least 56px; a 44px thumbnail (8px corners, an inset ground, a hairline edge) for an image, or a 44px inset square with a file glyph; the title in Row type over a 13px tabular line; "Öffnen" on the phone (the share sheet), "Speichern" on the desktop; removing asks first. A pressed image opens large in a dialog.
+- **Belege** (`ReceiptSection.tsx`, in the Umsatzdetails): under a hairline, a 15px bold heading, the rows split by hairlines, then the add action and a 13px hint. Not for a vorgemerkt booking. An invoice paid from its GiroCode arrives by itself.
+- **Kontoauszüge deiner Bank** (`BankStatements.tsx`): a drawer opened from the Umsätze, for accounts that offer them: the account name, an intro, the fetch with "Kann eine Freigabe erfordern.", an alert with the outcome, the kept statements as doc rows, or an empty state. Beside, not instead of, Girovo's own Kontoauszug.
+
+### Depot
+`Portfolio.tsx` takes the Umsätze' place for a securities account: a page
+section with the title, the as-of line and a refresh, then one row per
+holding: the name (Row type, two lines at most), a 13px tabular line with
+identifiers, quantity and price, and on the right the value with its change
+since purchase in 12.5px green or red. A 12.5px note says prices are the
+bank's last report. The total is the hero's figure, never summed from the rows.
 
 ### Notes on Bookings
-The user's own line on a booking, in the Umsatzdetails right after "Kategorie" (what the user made of it), before the collapsed Referenzen.
-
-- **Empty:** a secondary sm "Notiz hinzufügen" with the note glyph, and a 13px Quiet Ink line on where a note goes: only the user's, encrypted on this machine, found by the search, in the CSV, never on the Beleg.
-- **Kept:** the note on an 8px inset well in 15px ink, its amounts masked like bank text while "Beträge ausblenden" is on; tertiary xs "Bearbeiten" and "Löschen" beneath, flush with the well's text.
-- **Editing:** a three-row textarea (its counter under it, "32/280") with the same hint, then a primary sm "Speichern" and a quiet "Abbrechen". A note is one line: Enter saves, Escape leaves the editor and not the drawer. Focus returns to the section's action.
-- **Paper:** the Buchungsbeleg never prints a note (the Third-Party Rule).
+The user's own line on a booking, in the Umsatzdetails after "Kategorie".
+Empty: a tonal sm "Notiz hinzufügen" and a 13px line on where a note goes.
+Kept: the note on an 8px well in 15px ink, with "Bearbeiten" and "Löschen"
+beneath. Editing: a three-row textarea with its counter ("32/280"), then
+"Speichern" and a quiet "Abbrechen"; Enter saves, Escape leaves the editor and
+not the drawer. The Buchungsbeleg never prints a note.
 
 ### Monatsbudgets and the Kategorie-Check
-Two of the user's own things beside the Analyse's figures, each following the toolbar's accounts and period.
-
-- **Budgets tile:** below "Ausgaben nach Kategorie", only once a budget exists; until then that tile's header carries a tertiary xs "Budgets festlegen". A row per budget: the category glyph (from 640px), its name, "212,40 € von 300,00 €" (the spending semibold ink, the budget Slate Ink), a 6px Night Navy fill on an inset track that is the budget itself, then what is left ("88,00 € übrig", Slate Ink), "Budget ausgeschöpft", or an emphasis tag "40,00 € drüber": being over is said in words and marked orange, never red, because spending is not an error. The bar never outgrows its track and stays empty at 0. The row opens the category's Umsätze for that month, like a category row.
-- **Partial months:** the running month says so ("Der Monat läuft noch – Stand 06.10.2026."). A month the loaded days cut names the loaded days, and its figures read "mind. …"; under the budget it says "Rest offen – Monat nicht ganz geladen", never what is left. Over the whole range the tile lists each budget "pro Monat" and offers the newest month. A 13px Quiet Ink line at the foot states what is counted.
-- **Hidden amounts:** every figure masks, and the bars go (how full a budget is says how much is spent), as the Monatsbilanz split bar does.
-- **Budget dialog:** 540px, "Monatsbudgets", one row per spending category: glyph, name with the average of the complete months as a 13px hint, and a 152px amount field (20px figures, "€" suffix). Empty means no budget. Errors appear under their field with the warning glyph, the first wrong field takes focus, Enter saves, and a backdrop click does not close a form with something typed in it.
-- **Kategorie-Check:** one line on the inset foot of "Ausgaben nach Kategorie" ("31 von 35 automatisch zugeordneten Umsätzen hast du so gelassen", then how many have no category) beside a tertiary xs "Kategorie-Check ›". It opens a 560px drawer: a sentence on what it is, the basis line, the facts on an inset well (label left, tabular figure right), a small table by source (Buchungscodes und Stichwörter, Kategoriemodell), "Noch ohne Kategorie" with a secondary xs "Zuordnen" menu per counterparty (the drawer's category groups; it files every booking of that counterparty by a rule), and "Von dir geändert" as "Shopping → Lebensmittel" with how ("deine Regel", "einzeln geändert"). Calm on purpose: a check, not a dashboard.
+- **Budgets:** a row per budget: the category glyph (from 640px), its name, "212,40 € von 300,00 €", a 6px ink fill on an inset track that is the budget itself, then what is left, "Budget ausgeschöpft", or an emphasis tag "40,00 € drüber": being over is said in words and marked orange, never red. Partial months say so and read "mind. …". Under hidden amounts the bars go.
+- **Budget dialog:** 540px, one row per spending category with a 152px amount field. Empty means no budget.
+- **Kategorie-Check:** one line at the foot of "Ausgaben nach Kategorie" beside "Kategorie-Check ›", opening a 560px drawer: what it is, the facts on a well, a small table by source, "Noch ohne Kategorie" with a "Zuordnen" menu per counterparty, and "Von dir geändert". Calm on purpose: a check, not a dashboard.
 
 ### Transfer Sheet
-- **Stepper:** Erfassen · Prüfen · Freigabe · Fertig, drawn in navy because progress cannot be pressed. A done step is a navy disc with a check in the raised colour; the current step a 2px navy ring; an open step a 1.5px Strong Line outline with its number; done connectors navy. "Status unklar" is a 2px Marker Orange ring with an ink "?"; a refusal a 2px red ring with a red cross, and "Fertig" stays open. Marks are 24px (20px in short windows); on a phone only the current step keeps its word.
-- **Prüfen:** warnings come first, above the order: "Schon einmal überwiesen?" (a payment like one sent in the last 14 days or still vorgemerkt), more than the account can spend, a Kontostand that ends in the Dispo. Each is a warning alert, linked from the button that sends. Then the order card: an inset 12px card with the 34px navy amount and the full IBAN.
-- **Decisions:** see the Safe Choice Rule. On a duplicate the footer stacks "Angaben prüfen" (filled) over "Trotzdem überweisen" (outline). At the Namensabgleich, a No Match or a Close Match with another name does the same with "Angaben prüfen" or "Namen übernehmen" as the primary. A Close Match that differs only in umlauts keeps "Trotzdem überweisen" as the primary, and a funds or Dispo warning alone leaves "Jetzt überweisen" the primary, linked to the warning.
-- **Fertig:** the 24px navy amount, and saving the order as a template ("Name der Vorlage" plus "Als Vorlage speichern").
-- **Termin:** where the account offers a Terminüberweisung or a Dauerauftrag, a full-width Segmented under the amount row — "Sofort" (the default, the plain transfer), "An einem Datum", "Regelmäßig" — offering only what the account supports; with neither, the sheet is unchanged. A date is a date field bounded by the bank's lead times, with the window said under it. "Regelmäßig" is a two-column grid: Turnus and Ausführungstag (selects of what the bank allows), Erste and Letzte Ausführung (dates); the first date always falls on the Ausführungstag, and the schedule is said in a sentence in an inset well under them. Echtzeit greys out with its reason while a date or rhythm is chosen. The sheet's title and verbs follow the kind ("Dauerauftrag prüfen", "Dauerauftrag einrichten", "Trotzdem anlegen"); the review adds a "Termin" row with the sentence and drops the balance-after figures, which say nothing about a day that has not come; Fertig points to the bank's list instead of the Umsätze.
+- **Stepper:** Erfassen · Prüfen · Freigabe · Fertig, drawn in ink (`headline`) because progress cannot be pressed. A done step is an ink disc with a check in the raised colour; the current step a 2px ink ring; an open step a 1.5px Strong Line outline with its number; done connectors ink. "Status unklar" is a 2px Marker Orange ring with an ink "?"; a refusal a 2px red ring with a red cross. Marks are 24px (20px in short windows); on a phone only the current step keeps its word, and on Android the full-screen flow drops the stepper.
+- **Prüfen:** warnings come first, above the order: "Schon einmal überwiesen?", more than the account can spend, a Kontostand that ends in the Dispo. Then the order card: an inset 12px card with the 34px amount and the full IBAN.
+- **Decisions:** see the Safe Choice Rule. At a duplicate the footer stacks "Angaben prüfen" (filled) over "Trotzdem überweisen" (tonal). At the Namensabgleich, a No Match or a Close Match with another name does the same with "Angaben prüfen" or "Namen übernehmen" as the primary.
+- **Fertig:** the 24px amount, and saving the order as a template.
+- **Termin:** where the account offers a Terminüberweisung or a Dauerauftrag, a full-width connected group under the amount row: "Sofort", "An einem Datum", "Regelmäßig", offering only what the account supports. The schedule is said in a sentence in a well.
 
 ### The Bank's Orders
-"Daueraufträge und Terminüberweisungen" closes Verträge & Abos: the page above is what the app recognises in the bookings, this tile is what the bank says it will carry out. Read only on request (a secondary sm "Aufträge abrufen" with "Kann eine Freigabe erfordern."), one group per kind under a 13px heading with its count. A row is a 40px inset disc with a navy glyph (repeat or calendar), the payee in Row type as the bank keeps it, a 13px Quiet Ink line with the rhythm and the next date (or the date) and one with the Verwendungszweck; the amount and a tertiary xs "Löschen …" share the right column, so amounts align. Deleting opens a dialog naming exactly what goes (the amount shown whatever "Beträge ausblenden" says, as on the review), "Behalten" focused, the red confirm beside it, then the Freigabe. The row keeps what came of it: struck through with a "Gelöscht" tag, the bank's refusal in its own words, or "Status unklar" with a warning — never sent again by itself; "Aktualisieren" reads the list again. The tile's inset footer says when it was read and that changing an order means deleting it and placing it again.
+"Daueraufträge und Terminüberweisungen" closes Verträge: read only on request,
+one group per kind. A row is a 40px inset disc with an ink glyph, the payee
+in Row type, its rhythm and next date, and the Verwendungszweck; the amount
+and "Löschen …" share the right column. Deleting opens a dialog naming
+exactly what goes, "Behalten" focused, the red confirm beside it, then the
+Freigabe. The row keeps what came of it: struck through with a "Gelöscht"
+tag, the bank's refusal in its own words, or "Status unklar", never sent again
+by itself.
 
 ### Outcome States
-One set of words, used by every tile, toast, sheet and dialog:
+One set of words, used by every section, snackbar, sheet and dialog:
 
 | Situation | Words | Mark |
 |---|---|---|
 | Read not tried | "Noch nicht abgerufen", plus "Kann eine Freigabe erfordern." on the trigger | none |
-| Read running | "Wird abgerufen …" | skeleton or navy spinner |
+| Read running | "Wird abgerufen …" | skeleton or loading indicator |
 | Read failed | "Abruf fehlgeschlagen", the bank's reason, "Erneut versuchen" | red text or red warning glyph |
-| Read partial | "unvollständig"; totals held back while a failed account is in scope | Quiet Ink |
+| Read partial | "unvollständig"; totals held back while a failed account is in scope | On Surface Variant |
 | Order confirmed | "Überweisung ausgeführt", tag "Ausgeführt" | the success mark |
 | Order refused | "Überweisung nicht ausgeführt", "Deine Bank hat den Auftrag abgelehnt:", tag "Nicht ausgeführt", primary "Angaben ändern" | the refused mark |
-| Order outcome unknown | "Status unklar" (never "offen" or "nicht bestätigt"), primary "Jetzt nachsehen", never resent | the unsure mark, orange edge or dot |
-| Approval waiting | "‹Vorgang› freigeben", "Warte auf Bestätigung" | navy spinner and navy progress fill |
+| Order outcome unknown | "Status unklar" (never "offen" or "nicht bestätigt"), primary "Jetzt nachsehen", never resent | the unsure mark, orange ring or dot |
+| Approval waiting | "‹Vorgang› freigeben", "Warte auf Bestätigung" | loading indicator and progress |
 | Approval refused or called off | "‹Vorgang› nicht freigegeben"; "Anmeldung abgebrochen." | red, or none |
-| Saved | "gespeichert", only once the write succeeded | toast |
+| Saved | "gespeichert", only once the write succeeded | snackbar |
 
 "Freigabe" is the app's word for the approval; "TAN" appears only inside a
-method's name or the "TAN-Eingabe" contrast. The three outcome marks are 72px
-discs: success is a green tint with a drawn check and a ring that leaves
-once; refused is a red tint with a red cross; unsure is the inset grey with a
-3px orange inner edge and a Slate Ink question mark.
+method's name, the "TAN-Eingabe" contrast and the typed TAN's field. The three
+outcome marks are 72px discs: success is a green tint with a drawn check and a
+ring that leaves once; refused is a red tint with a red cross; unsure is the
+inset with a 3px orange inner edge and a question mark.
 
-A look at an unclear order ("Umsätze mit diesem Empfänger" in Mitteilungen,
-"Umsätze prüfen" before a logout or a restart) never reads from the bank. The
-Umsätze list opens filtered to the payee's IBAN on the order's own account
-when that switch is answered from the cache. Otherwise it stays where it is
-and says so first, in a warning alert ("Die Überweisung ging von „Tagesgeld“
-aus. Diese Liste zeigt „GiroKomfort“ …") with "Zu „Tagesgeld“ wechseln"
-beside the approval note. A list fetched before the order went out says that
-too ("… vor deiner Überweisung – sie kann hier noch nicht stehen.") with
-"Aktualisieren". An empty search there must never read as "not executed". A
-palette hit on another account's booking uses the same line in the info tone.
-Any edit in the filter bar drops these notes.
+A look at an unclear order ("Umsätze mit diesem Empfänger", "Umsätze prüfen"
+before a logout or a restart) never reads from the bank. The Umsätze list
+opens filtered to the payee's IBAN on the order's own account when that switch
+is answered from the cache; otherwise it stays where it is and says so first,
+in a warning alert. An empty search there must never read as "not executed".
 
 ### Bank Answers
 The bank's sentences are shown verbatim, codes stripped, in an error alert or
-an 8px inset well. Under them, once and small, "Rückmeldung der Bank: 9210"
-in 12.5px Quiet Ink, as a reference for a call to the bank, never as the
-message. Dialog- and message-level codes (9000, 9050, 9800) are never shown,
-and beside a real error their sentences ("Dialog abgebrochen.") go too, so a
-refusal reads the same in the transfer sheet, the approval wait and the login.
-Only an unclear outcome keeps every line the bank sent. An order that was sent
-never gets "Versuche es noch einmal".
+an 8px well. Under them, once and small, "Rückmeldung der Bank: 9210" in
+12.5px, as a reference for a call to the bank, never as the message.
+Dialog- and message-level codes (9000, 9050, 9800) are never shown. Only an
+unclear outcome keeps every line the bank sent. An order that was sent never
+gets "Versuche es noch einmal".
 
-### Consent Tile
-The one question the app asks before anything leaves for a host other than
-the bank: "Firmenlogos anzeigen?". It is a tile in the Übersicht's summary
-column, never a dialog, and it shows only while the question is unanswered in
-a build that offers logos. A 36px inset disc with a navy glyph, the question
-as a Section title, the disclosure in 14px Slate Ink, two secondary sm pills
-of equal weight ("Logos laden", "Nein danke"), and a 13px Quiet Ink line on
-where to change it later. Answering removes the tile, says so in a toast and
-moves focus to the next control. The Sitzung panel's "Firmenlogos" switch
-changes the answer; a build without the feature shows neither.
+### Loading, Empty and Error States
+- **Loading indicator:** where a wait is shown on its own, Material's shape-morphing indicator (soft burst, cookie, pentagon, pill, sunny, oval) turning as it goes; a button's busy state uses the same element.
+- **Progress:** Material's wavy indicator: the done part a 40px wave, 3px high and 4px thick, travelling; the rest a flat 4px `progress-track` with a 4px stop at its end. The session countdown keeps a plain ink bar.
+- **Skeletons** are shaped like the rows they stand in for.
+- **Empty state:** a line drawing on a wash disc, a 17px bold title, at most 46ch of text, an optional action. Error states say the reason the way the bank or the app put it, and offer "Erneut versuchen".
 
-### Empty and Error States
-- **Illustration:** a 120×96 line drawing on a Signal Wash disc. Strokes are 2.4px, in Signal Blue for the subject and Quiet Ink for detail. It explains rather than decorates.
-- **Text:** a 17px bold ink title, then 14px Slate Ink at most 46ch wide, then an optional secondary button.
-- **Error states** say the reason the way the bank or the app put it, and offer "Erneut versuchen".
-- **Loading skeletons** are shaped like the rows they stand in for, with a 1.4s shimmer.
+### Motion
+Material 3 Expressive's springs, generated into CSS `linear()` easings by
+`scripts/build-m3e-css.mjs`: spatial ones (position, size, shape) overshoot a
+little, effects ones (colour, opacity) never do. Fast spatial (360ms) for
+presses, chevrons, labels and the nav indicator; default spatial (435ms) for
+sheets, drawers, snackbars and the FAB's fold; effects (150, 231, 327ms) for
+colour and fades. `prefers-reduced-motion` is honoured.
 
 ### Named Rules
-**The Safe Choice Rule.** At every risk decision the safe action is the filled primary and the risky one the outline beside it: "Angaben prüfen" at a duplicate or a name mismatch, "Namen übernehmen" when the bank suggests the name, "Angaben ändern" after a refusal, "Jetzt nachsehen" at Status unklar, "Umsätze prüfen" (or "In Mitteilungen ansehen" for several) before logging out over an unclear transfer, whether by "Abmelden" or by an update's restart. The restart then stays an outline beside it, with a quiet "Später" first, and the unclear transfer is said in a warning alert of its own. A destructive confirmation the user asked for keeps its red confirm, with the safe button focused.
+**The Safe Choice Rule.** At every risk decision the safe action is the filled primary and the risky one the tonal button beside it: "Angaben prüfen" at a duplicate or a name mismatch, "Namen übernehmen" when the bank suggests the name, "Angaben ändern" after a refusal, "Jetzt nachsehen" at Status unklar, "Umsätze prüfen" before logging out or restarting over an unclear transfer. A destructive confirmation the user asked for keeps its red confirm, with the safe button focused.
 
-**The Safe Focus Rule.** A layer opens on the safe place: what it names (`initialFocus`, or `[data-autofocus]` on its safe button), else its first text field, else its close button, else the layer itself. Never a checkbox, switch, radio, link or action by default. A `[data-autofocus="fine"]` field (the palette's search) takes focus only with a fine pointer, so a touch keyboard never covers a layer as it opens, and a target below the fold of the layer's body is scrolled into view.
+**The Safe Focus Rule.** A layer opens on the safe place: what it names (`initialFocus`, or `[data-autofocus]` on its safe button), else its first text field, else its close button, else the layer itself. Never a checkbox, switch, radio, link or action by default. A `[data-autofocus="fine"]` field takes focus only with a fine pointer, so a touch keyboard never covers a layer as it opens.
 
-**The Pinned Way Out Rule.** A dialog's actions and a panel's closing action sit in a footer below the scrolling body (Sheet's and Popover's `footer`, the transfer sheet's footer), so they never scroll away, whatever the window's height or zoom. A wait that runs against a deadline pins its status there with them, so the time running out is never below the fold.
+**The Pinned Way Out Rule.** A dialog's actions and a panel's closing action sit in a footer below the scrolling body, so they never scroll away, whatever the window's height or zoom. A wait that runs against a deadline pins its status there with them.
 
 ### Printed Documents (Kontoauszug, Buchungsbeleg, Mitteilung)
 The paper is the end of the user's journey and the only part a third party
 sees (a landlord, the Jobcenter, a Steuerberater). It is a record: plain,
-exact, fileable. The sheets are one family built on the `.doc` system.
+exact, fileable. The sheets are one family built on the `.doc` system, and no
+look or theme reaches them.
 
-- **Tokens:** fixed light values that never follow `data-theme`. `doc-ink`, `doc-ink-2` (labels), `doc-ink-3` (notes and page marks), `doc-navy` (document name, section headings, the letterhead rule), `doc-credit` and `doc-panel` take the light theme's `ink`, `ink-2`, `ink-3`, `headline`, `green` and `inset`. Hairlines take `doc-rule`, a step deeper than the screen's so toner keeps them.
-- **Type, in points:** display 20 (the Beleg's amount, 700), title 15 (the document's name, 700 navy; the Beleg's counterparty and a message's subject at 15/600 ink), lead 11 (names 600, section headings 700 navy, Neuer Kontostand 700), body 9.5 (bookings, values, Verwendungszweck), small 8 (labels at 500 in `doc-ink-2`, meta lines, notes, page marks). Mono at `max(8pt, 0.92em)`; an IBAN gets 0.06em and never wraps, a reference may break anywhere.
+- **Tokens:** fixed light values that never follow `data-theme` or the screen's scheme: `doc-ink` (#1b1f24), `doc-ink-2` (labels), `doc-ink-3` (notes and page marks), `doc-navy` (#0a2c5e: document name, section headings, the letterhead rule), `doc-credit` (#0c7336) and `doc-panel` (#edf0f4). Hairlines take `doc-rule`, a step deeper so toner keeps them.
+- **Type, in points:** display 20 (the Beleg's amount, 700), title 15 (the document's name, 700 navy), lead 11, body 9.5, small 8. Mono at `max(8pt, 0.92em)`; an IBAN gets 0.06em and never wraps.
 - **Spacing:** 2, 4, 6, 8, 12, 16, 24 and 32pt.
 - **Page:** A4, margins 15 / 13 / 16 / 20mm (top, right, bottom, left), white `@page` background.
 - **Structure:** one 33mm label rail every block aligns to; a 2px navy rule closes the letterhead; a 1px ink rule under every heading, the table head and above the footer; a 1px `doc-rule` hairline between bookings; one tinted panel (1.5mm corners), only for the Beleg's amount. No frames, no filled bands.
-- **Letterhead:** the bank's mark or monogram, its name, "Kontoführendes Institut", BIC · BLZ (grouped 3-3-2); on the right the document's name over an Informationsblock (Zeitraum, Auszug-Nr., Erhalten, Erstellt, Dokument — what the sheet has).
-- **Kontoauszug:** a ledger. Alter Kontostand is the first row, on the strong rule; then the bookings (column heads repeat on every page, no booking splits across a fold); then "n Gutschriften", "n Belastungen" and Neuer Kontostand right-aligned under the amount column; then Verfügbar and Dispositionsrahmen, or Kreditrahmen for a card (`isCardAccount`, the same rule as on screen, which also names the account "Kreditkarte"). The end line counts what the sums count, plus what is set apart ("120 Umsätze" becomes "119 Umsätze, dazu 1 noch nicht enthaltener").
-- **Buchungsbeleg:** the party and the amount in its panel, the state under it, the two accounts against one rail, the Verwendungszweck and references in words (Gläubiger-ID, Mandatsref., End-to-End-Ref.). A vorgemerkt booking is on no Kontoauszug yet, so it prints no Auszug-Nr. and no Primanota.
-- **Mitteilung der Bank:** a message the bank sent at login, which is gone after the logout. Erhalten (date and time, with the clock's zone) leads the Informationsblock; "Betreff" over the subject; then "Text der Mitteilung" with the bank's text line for line, as it sent it: blank lines and spaces kept, a 150mm measure, a word or link longer than the line broken anywhere. Each line the bank wrote is a block of its own, so a fold never strands one wrapped line, and the text is no `keep` block: a long notice runs on over the fold. The interface words follow the language; the subject and the text never do. The PDF is offered as "Mitteilung_SK-….pdf".
-- **Footer:** one sentence in the third person ("Erstellt mit Girovo … Die Bank hat dieses Dokument nicht ausgestellt; maßgeblich sind ihre eigenen Kontoauszüge.", on a message "… Ihr Text steht hier so, wie die Bank ihn geschrieben hat. Die Bank hat dieses Dokument nicht ausgestellt.") and the SHA-256 seal, grouped in eights.
+- **Letterhead:** the bank's mark or monogram, its name, "Kontoführendes Institut", BIC · BLZ (grouped 3-3-2); on the right the document's name over an Informationsblock.
+- **Kontoauszug:** a ledger. Alter Kontostand first, on the strong rule; then the bookings (column heads repeat on every page, no booking splits across a fold); then "n Gutschriften", "n Belastungen" and Neuer Kontostand; then Verfügbar and Dispositionsrahmen, or Kreditrahmen for a card.
+- **Buchungsbeleg:** the party and the amount in its panel, the state under it, the two accounts against one rail, the Verwendungszweck and references in words. A vorgemerkt booking prints no Auszug-Nr. and no Primanota.
+- **Mitteilung der Bank:** Erhalten leads the Informationsblock; "Betreff" over the subject; then the bank's text line for line, as it sent it, on a 150mm measure.
+- **Footer:** one sentence in the third person ("Erstellt mit Girovo … Die Bank hat dieses Dokument nicht ausgestellt; maßgeblich sind ihre eigenen Kontoauszüge.") and the SHA-256 seal, grouped in eights.
 
-**The Record Rule.** Paper prints the bank's words as the bank sent them, repairing only encoding damage. The screen's tidying never replaces bank text on paper: where the sheet leads with a name the app derived, "Name laut Bank" prints the whole string beside it.
+**The Record Rule.** Paper prints the bank's words as the bank sent them, repairing only encoding damage. Where the sheet leads with a name the app derived, "Name laut Bank" prints the whole string beside it.
 
-**The Bank's Figure Rule.** A balance is the bank's only when the bank sent it. Alter Kontostand is the bank's opening balance when the bookings carry it onto the closing; otherwise it is worked out and marked "(errechnet)". Future-dated bookings the closing lacks print apart ("Noch nicht enthalten"), and a gap the bookings cannot explain is printed with its size, never adjusted to fit.
+**The Bank's Figure Rule.** A balance is the bank's only when the bank sent it. Otherwise it is worked out and marked "(errechnet)". Future-dated bookings print apart ("Noch nicht enthalten"), and a gap the bookings cannot explain is printed with its size, never adjusted to fit.
 
 **The Same State Rule.** Paper states a booking's state the way the screen does (gebucht, vorgemerkt, noch nicht gebucht), and an unbooked state gets a sentence under the amount, not only a word.
 
-**The Third-Party Rule.** Paper speaks in the third person and carries only what its reader needs. The Buchungsbeleg shows the booking, never the account's balance or a merchant logo; a Mitteilung shows the message, never an account or the login name. The bank is named as the kontoführendes Institut, never as the author of the sheet; on a Mitteilung it wrote the text, not the page.
+**The Third-Party Rule.** Paper speaks in the third person and carries only what its reader needs. The Buchungsbeleg shows the booking, never the account's balance, a merchant logo, a note or a receipt; a Mitteilung shows the message, never an account or the login name.
 
 **The Two-Sign Rule.** On paper a debit is ink and a credit green, and both signs (+ and −) are written out, so a grey copy says the same. A balance carries only its minus.
 
@@ -1179,59 +1204,42 @@ exact, fileable. The sheets are one family built on the `.doc` system.
 
 **The Fileable Page Rule.** Nothing on paper is smaller than 8pt, mono included, and running text is 9.5pt. The 20mm left margin lets a punched, filed sheet keep every character, and every printed page carries the document, the account and "Seite x von y" in its bottom margin.
 
-## Android (Material 3 Expressive)
-
-The Android app is the same page with `<html data-platform="android">`, and `app/android.css` is the whole difference: it applies there only, and on screen only (paper is the same document everywhere). Its values are Material 3 Expressive's own, taken from Compose material3's token sources (ExpressiveMotionTokens, ShapeTokens, TypeScaleTokens, NavigationBarTokens, the Button, FAB, chip, field, menu, dialog, snackbar and progress tokens). Components carry no Android forks beyond the shell — the flexible navigation bar and its extended FAB (`components/shell/BottomBar.tsx`), the top app bar's title, the Sitzung sheet and the Android settings (`components/android`) — and the few lines a phone does without (`IS_ANDROID`); the primitives in `components/ui.tsx` carry data hooks (`data-size`, `data-segmented`, `data-field`, `data-dialog`, …) that the stylesheet styles.
-
-- **Motion is springs.** The six springs of the expressive motion scheme, generated into CSS `linear()` easings by `scripts/build-m3e-css.mjs`: spatial ones (position, size, shape) overshoot a little, effects ones (colour, opacity) never do. Sheets and dialogs arrive on the default spatial spring, menus on the fast one.
-- **Shape follows Material's corner scale:** tiles 16px, fields 4px, chips 8px, sheets and dialogs 28px. Buttons and icon buttons are round and squeeze to a rounded square while pressed (8px small, 12px medium), springing back. The secondary button is the filled tonal button. Segmented controls are connected button groups: 2px apart, inner corners small, the chosen one round and filled.
-- **Type is the M3E scale on a phone's width:** body small 12, medium 14, large 16; title medium (emphasized, bold) for tile titles; headlines small 24 and medium 28 (emphasized, 500). Labels are 500, not 600. A balance's big figures stay as they are.
-- **Components:** the 64dp flexible navigation bar (a 56 × 32 pill that springs open, the label in the secondary colour), the extended FAB that folds while scrolling, outlined text fields with floating labels, Material's switch, the expressive menu (16px, tertiary selection), basic dialogs centred on phones (icon above a centred headline, actions at the end of one row, no close button), bottom sheets with a drag handle that can be pulled down, the inverse-surface snackbar, the shape-morphing loading indicator and the wavy progress indicator. The ripple spreads from the touch.
-- **Flat, list-first.** The page is not a stack of tiles: a section stands on the page itself (`.panel` loses its surface, shadow and corners in `#main`, its rows reach the screen's edges, the hairlines inside it go), sections are held apart by space, and a section's title is title-large (22/28, 500). A list's day is a subheader in the primary colour on the page, not a grey band, and carries no balance or sum. A booked row keeps its Wertstellung for its details; a Buchungstag still ahead it shows. The one container is the balance (`[data-hero]`): 28px corners in the stage's colours — the wallpaper's primary-container with Material You, Girovo's navy without — with the account's name over the figure, the date only when it is not today, the IBAN with copy and a rename icon under it, and the Kontoverlauf drawn in the hero's ink. The Übersicht is the balance, Vorgemerkt and the Umsätze; Monatsbilanz and Demnächst fällig are the Analyse's and the Verträge's.
-- **An app's shell, not a bank's web page.** One top app bar that names the page (title large, 22/28, the section's word) with Mitteilungen, Beträge and the Sitzung chip; then the tiles; then the navigation bar. No institute bar (the bank is in the Sitzung panel, and on the accounts when there are several), no stage (Geld anfordern and Kontoauszug are under "Mehr"), no footer, no "Zu den Umsätzen" jump. A tile says what changes how its figures read and nothing more: no "Basis: 15 Umsätze", no "berechnet auf diesem Telefon", no "Zur Analyse" or "Alle Verträge" beside a navigation bar that has both. The Sitzung panel is a modal bottom sheet. The login is the steps and the form straight on the page — no band, no card — and does not raise the keyboard before the quick picks are seen.
-- **The phone's own ways in:** long-pressing the icon offers Überweisen, GiroCode scannen and Geld anfordern (res/xml/shortcuts.xml); an invoice shared with Girovo as an image or a PDF opens a transfer from its GiroCode; "GiroCode scannen" is Google's code scanner (no camera permission). Pull to refresh fetches what the Umsätze tile's refresh does, with Material's indicator coming down under the top bar. Haptics: confirm when a transfer went through, reject when it did not, a tick at the pull's threshold. The back gesture shows its progress on the topmost sheet (it shrinks towards its edge). Multi-step flows (Überweisung, Geld anfordern) are full-screen dialogs without the stepper. From 640px the navigation is a rail down the left edge with the FAB at its top. Every touch target is at least 48dp.
-- **Words:** the device is the phone. "Auf diesem Rechner" is "auf diesem Telefon", a click a tap (`lib/i18n/messages/phone.ts`, applied to every text in the Android build).
-- **The phone's edges:** every bar as tall as the masthead (`[data-topbar]`) reaches under the status bar and keeps its content below it; the top app bar takes a container colour once the page scrolls under it.
-- **Colour is the phone's** — neither the palette nor light and dark is a setting (`<html data-palette>`, `data-theme` from the system). In *dynamic* (Material You, from Android 12) the tokens map onto the phone's own colour roles — the ones Android 14+ publishes, else made from its tonal palettes: paper is `surface`, a tile `surface-container-low`, the top app bar `surface`, the stage `primary-container`, Signal Blue becomes `primary` and the soft accent `secondary-container`. Before Android 12 there are no wallpaper colours, and the tokens are the desktop's (*Girovo*), navy masthead included.
-
-**The Fixed Values Rule.** Credit Green, the negative red, vorgemerkt amber, the info cyan and the orange emphasis mark never take a wallpaper colour. Neither do the chart slots, which are validated as an order. Only surfaces, ink, lines and the one interactive colour follow the phone.
-
 ## Do's and Don'ts
 
 ### Do:
-- **Do** reach for tokens by name (`bg-surface`, `text-ink-2`, `bg-accent`, `rounded-[var(--radius-card)]`). The dark theme then resolves itself through `data-theme`.
-- **Do** build blocks from `<Tile>` / `.panel` (12px corners and the Tile shadow), separate list rows with one `line` hairline, and group inside a tile with an 8px inset well.
+- **Do** reach for tokens by name (`bg-surface`, `text-ink-2`, `bg-accent`, `var(--nav-bg)`), never a `--md-*` role straight in a component unless Material names that role for it (the search pill's container colours). The theme and Material You then resolve themselves.
+- **Do** put the look in `app/material.css` for every platform, and only phone behaviour (status bar, touch targets, sheets, type scale, ripple) in `app/android.css` behind `data-platform="android"`.
+- **Do** keep Girovo's scheme at zero specificity (`:where(:root[data-look='material'])`), so Material You's runtime roles always win on the phone.
+- **Do** build a page block as a `.panel` section on the page and let space separate sections; the balance hero is the only container in `#main`.
 - **Do** route every amount through `<Money>` (tabular figures, U+2212 minus, role-based colour, privacy mask), bank free text through `<BankText>`, and every IBAN through the `.iban` mono style, which never wraps.
 - **Do** decide whether a balance is a card's with `isCardAccount` (the Kontoart), and pass `tone="plain"` for it.
-- **Do** keep labels sentence case at 600, and reserve 700 for titles and figures.
-- **Do** take a size from the frontmatter ramp. A heading below Title is Section (17px); a figure below Display is on the 20/24px ladder.
-- **Do** make the safe answer the filled primary at every risk decision, with the risky action as the outline beside it.
-- **Do** give a dialog or panel its actions as a pinned `footer` (Sheet, Popover), so they stay in view in a 900×600 window and at 200%.
-- **Do** let layers open on the safe place (safeFocusTarget). Mark a safe button with `data-autofocus`, and a search field that should not raise a touch keyboard with `data-autofocus="fine"`.
-- **Do** draw progress, steps and waits in Night Navy (`headline`).
+- **Do** give primitives their data hooks (`data-size`, `data-variant`, `data-segmented`, `data-field`, `data-dialog`, `data-chip`, `data-icon-button`) so the Material rules reach them.
+- **Do** use the floating-label `Field` for a field whose label stands alone on its row.
+- **Do** make the safe answer the filled primary at every risk decision, with the risky action as the tonal button beside it.
+- **Do** give a dialog or panel its actions as a pinned `footer`, so they stay in view in a 900×600 window and at 200%.
+- **Do** let layers open on the safe place (safeFocusTarget).
 - **Do** name every outcome with the shared words: Freigabe, Abruf fehlgeschlagen, unvollständig, nicht ausgeführt, Status unklar.
 - **Do** give every icon-only control an `aria-label`. It doubles as its tooltip.
-- **Do** keep the double focus ring visible: 2px Focus Blue at a 2px offset, bar ink on navy, inset inside clipped rows.
-- **Do** keep motion between 150ms and 250ms on `cubic-bezier(0.2, 0.8, 0.2, 1)`. Animate a bar's fill with `translateX` behind its track's clip, never its width; only a countdown that ticks each second keeps a 1000ms linear width. Lift tiles only on hover-capable devices. Honour `prefers-reduced-motion`.
-- **Do** keep phones thumb-first: 44px controls, the section tabs in the bottom bar, dialogs as bottom sheets.
-- **Do** put anything Android-only behind `data-platform="android"` in `app/android.css`, or `IS_ANDROID` (`lib/platform.ts`) in a component, and keep the desktop and the website exactly as they are.
+- **Do** animate with the M3E springs: spatial for position, size and shape, effects for colour and opacity. Honour `prefers-reduced-motion`.
+- **Do** keep the desktop shell's `BAR_COLORS` equal to `bar` and `bar-ink` in both themes.
 - **Do** write the markup in the narrow reading order and place blocks with the grid on wider screens.
 - **Do** give charts colours by rank (top six, rest grey), Credit Green for income and navy-slate for spending.
 - **Do** use the spaced Gedankenstrich (" – ") in interface strings, and German quotes („…“).
 
 ### Don't:
-- **Don't** colour anything Signal Blue that cannot be pressed (the drawn pictograms of empty states and dialogs excepted), and don't make a pressable thing any other hue (except the stage's white lead pill and a destructive red confirm).
 - **Don't** colour a debit red, or a credit card's balance. Spending is not an error, and a card is negative by nature.
-- **Don't** use amber for a warning. Amber means "vorgemerkt"; a warning is inset grey plus an orange edge.
+- **Don't** let a value colour, a chart slot or the brand plate follow Material You.
+- **Don't** use amber for a warning. Amber means "vorgemerkt"; a warning is the inset plus an orange glyph.
 - **Don't** set orange as text. It is a dot, an edge, a ring or a glyph.
-- **Don't** frame a card inside a card or draw a border around a tile.
-- **Don't** letterspace labels or set them in capitals, on screen or on paper.
-- **Don't** set text below 12.5px outside the Floor Rule's exceptions, invent a 16px heading, or use a 10px radius.
+- **Don't** put a card, a shadow or a hairline grid on the page to group a section, or frame a card inside a card.
+- **Don't** bring back an outlined secondary button; the second emphasis is the tonal button.
+- **Don't** set labels in capitals or letterspace them beyond Material's own tracking, on screen or on paper.
 - **Don't** use Tailwind's default palette (`red-500`, `slate-200`). It is switched off on purpose.
-- **Don't** show FinTS segment codes or a Verwendungszweck's structured tags in the interface, or print them on paper. A bank code appears only as the small "Rückmeldung der Bank" reference.
+- **Don't** show FinTS segment codes or a Verwendungszweck's structured tags in the interface, or print them on paper.
 - **Don't** put the risky action in the filled button at a risk decision, or open a layer on a checkbox, a switch, a radio or an action.
 - **Don't** let a dialog's buttons scroll away with its text.
 - **Don't** sort blocks with CSS `order`.
 - **Don't** fill a chart area with a gradient. The Kontoverlauf area is flat.
-- **Don't** let a theme reach paper. The `.doc` tokens are fixed light values.
-- **Don't** use any bank's or Atruvia's logo, wordmark or name as the app's own identity. The app borrows a design language, not a brand.
+- **Don't** let a theme or the screen's scheme reach paper. The `.doc` tokens are fixed light values.
+- **Don't** colour the chipTAN flicker field or the TAN scan plate with the theme; the generator reads contrast.
+- **Don't** use any bank's logo, wordmark or name as the app's own identity.

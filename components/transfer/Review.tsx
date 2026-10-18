@@ -13,7 +13,6 @@ import type { SerializedAccount } from '@/lib/fints-types';
 import { expectedCreditDate, fmtDate, fmtIban } from '@/lib/format';
 import { intlLocale } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
 import { scheduleSentence } from '@/lib/order-schedule';
 import { sepaSanitize } from '@/lib/sepa-text';
 import type { FundsWarning, spendable } from '@/lib/transfer-checks';
@@ -29,7 +28,7 @@ export function BusyNote() {
   return (
     <p className="mt-3 flex items-center gap-2 text-[13.5px] text-ink-2" role="status">
       <Spinner size={14} />
-      {t.transfer.review.busy}
+      {t.provider.busy}
     </p>
   );
 }
@@ -80,7 +79,7 @@ export function StepError({ message, errorRef }: { message: string; errorRef?: R
 }
 
 export function ReviewStep({
-  draft, account, accountName, bank, funds, warning, duplicate, duplicateTitle, primaryLabel, busyElsewhere, error, errorRef,
+  draft, account, accountName, bank, funds, warning, duplicate, duplicateTitle, busyElsewhere, error, errorRef,
 }: {
   draft: TransferDraft;
   account: SerializedAccount;
@@ -91,8 +90,6 @@ export function ReviewStep({
   duplicate: string | null;
   /** The duplicate warning's title: "Schon einmal überwiesen?", or the order for later's own. */
   duplicateTitle?: string | null;
-  /** The footer's primary label, which the closing note names. */
-  primaryLabel: string;
   busyElsewhere: boolean;
   error: string | null;
   errorRef: Ref<HTMLDivElement>;
@@ -122,8 +119,9 @@ export function ReviewStep({
       {warned && (
         <div id={REVIEW_WARNINGS_ID} className="mb-4 flex flex-col gap-3">
           {duplicate && (
+            // The title asks the question; the sentence says what was found.
             <Alert tone="warn" title={duplicateTitle ?? words.duplicateTitle} className="mt-0">
-              {duplicate} {words.duplicateCheck}
+              {duplicate}
             </Alert>
           )}
           {warning && (
@@ -167,9 +165,12 @@ export function ReviewStep({
         <SummaryRow label={t.common.booking.purpose}>
           {sentPurpose || <span className="text-ink-3">{words.none}</span>}
         </SummaryRow>
-        <SummaryRow label={t.transfer.form.execution}>
-          {schedule ? t.orders.kind[schedule.kind] : draft.instant ? words.instantTransfer : words.standardTransfer}
-        </SummaryRow>
+        {/* An order for later is named by the title, the tag and the "Termin" row. */}
+        {!schedule && (
+          <SummaryRow label={t.transfer.form.execution}>
+            {draft.instant ? words.instantTransfer : words.standardTransfer}
+          </SummaryRow>
+        )}
         {schedule ? (
           // When it runs, in plain words — as the bank receives it in the order.
           <SummaryRow label={t.orders.form.when}><span className="tnum">{scheduleSentence(schedule)}</span></SummaryRow>
@@ -183,6 +184,8 @@ export function ReviewStep({
           // The balance is not part of the order, so it keeps following
           // "Beträge ausblenden".
           // A card's Kontostand is negative by nature: ink, not alarm red.
+          // Into the Dispo, the warning above already names the Kontostand
+          // danach; this row stays for what is left to spend.
           <SummaryRow label={funds.kind === 'available' ? words.availableAfter : words.balanceAfter}>
             {words.approx}{' '}
             <Money
@@ -194,11 +197,6 @@ export function ReviewStep({
             {funds.date && <span className="text-ink-3"> ({words.asOf(fmtDate(funds.date))})</span>}
           </SummaryRow>
         )}
-        {warning?.kind === 'overdraft' && (
-          <SummaryRow label={words.balanceAfter}>
-            {words.approx} <Money value={warning.balanceAfter} currency={account.currency} className="font-semibold" />
-          </SummaryRow>
-        )}
       </SummaryList>
       {rewritten && (
         <p className="mt-2 text-[13px] leading-snug text-ink-3">
@@ -208,12 +206,6 @@ export function ReviewStep({
 
       {schedule && <p className="mt-2 text-[13px] leading-snug text-ink-3">{t.orders.sheet.noFunds}</p>}
 
-      {/* On Android the steps that follow announce themselves. */}
-      {!IS_ANDROID && (
-        <p className="mt-5 text-[13.5px] leading-relaxed text-ink-3">
-          {schedule ? t.orders.sheet.next(primaryLabel) : words.next(primaryLabel)}
-        </p>
-      )}
       {busyElsewhere && <BusyNote />}
     </div>
   );

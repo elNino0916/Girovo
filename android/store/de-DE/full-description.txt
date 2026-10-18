@@ -1,0 +1,29 @@
+Girovo verbindet dein Telefon direkt mit deiner Bank – über FinTS, den Zugang, den deutsche Banken und Sparkassen für Banking-Apps anbieten. Kein Server dazwischen, kein Konto bei uns: deine Zugangsdaten und Umsätze bleiben zwischen deinem Telefon und deiner Bank.
+
+ÜBERSICHT
+• Kontostand mit Verlauf, verfügbarer Betrag, Dispo und Vorgemerktes auf einen Blick
+• Umsätze mit Suche, Filtern und Kategorien
+• Mehrere Banken in einer Ansicht
+
+ÜBERWEISEN
+• Überweisung, Echtzeitüberweisung, Terminüberweisung und Dauerauftrag
+• Empfängerüberprüfung, bevor das Geld rausgeht
+• GiroCode einer Rechnung mit der Kamera scannen – oder die Rechnung als Bild oder PDF mit Girovo teilen
+• Freigabe in deiner Banking-App (z. B. pushTAN): Girovo bleibt verbunden, während du freigibst
+
+AUSWERTEN
+• Einnahmen, Ausgaben und Kategorien pro Monat
+• Verträge und Abos erkennt Girovo selbst in deinen Umsätzen
+• Monatsbudgets und eigene Notizen zu Umsätzen
+
+SICHER UND PRIVAT
+• Anmeldung optional mit Fingerabdruck – deine PIN wird dafür mit einem Schlüssel verschlüsselt, den nur dein Fingerabdruck öffnet
+• Gespeicherte Daten verschlüsselt auf deinem Telefon
+• Keine Werbung, keine Tracker; Nutzungsdaten nur, wenn du zustimmst – Fehlerberichte ohne Kontodaten
+• Open Source (MIT-Lizenz): github.com/elNino0916/Girovo
+
+GEMACHT FÜR ANDROID
+• In den Farben deines Hintergrundbilds (Material You), hell oder dunkel wie dein Telefon
+• Aktualisieren durch Herunterziehen, Kurzbefehle am App-Symbol
+
+Girovo funktioniert mit Banken, die FinTS (HBCI mit PIN/TAN) anbieten – das sind fast alle Sparkassen, Volks- und Raiffeisenbanken und viele weitere Banken in Deutschland. Girovo ist ein unabhängiges Projekt und gehört zu keiner Bank.

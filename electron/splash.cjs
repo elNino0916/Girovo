@@ -11,8 +11,10 @@
 // start after an update or a restart often takes longer.
 //
 // It is the card of the update and error windows (build/update-window/
-// UpdateWindow.cs): the G€ plate and the wordmark, 16px corners, Segoe UI
-// Variable, the same light and dark palettes. A transparent, frameless window
+// UpdateWindow.cs), drawn as the app's Material basic dialog: the G€ plate
+// and the wordmark, 28px corners, the app's Google Sans Flex (its own copy in
+// electron/fonts — the app's server is not up yet), the same light and dark
+// palettes — the app's Material roles (app/material.css). A transparent, frameless window
 // draws it with its shadow (electron/splash.html); the window takes the
 // card's height.
 //
@@ -101,11 +103,11 @@ function createSplash({ BrowserWindow, texts, version, portable, dark, updated, 
   });
 
   // Drawn, then measured: the window takes the card's height, still centred
-  // where it was.
+  // where it was. Measured in the font it is shown in, so it waits for that.
   const fit = async () => {
     if (win.isDestroyed()) return;
     const height = await win.webContents
-      .executeJavaScript('Math.ceil(document.querySelector(".frame").getBoundingClientRect().height)')
+      .executeJavaScript('document.fonts.ready.then(() => Math.ceil(document.querySelector(".frame").getBoundingClientRect().height))')
       .catch(() => 0);
     if (!height || win.isDestroyed()) return;
     const b = win.getBounds();

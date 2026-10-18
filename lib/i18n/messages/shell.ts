@@ -1,4 +1,4 @@
-// The frame around every screen: masthead, navigation, footer, command palette, shortcuts, Mitteilungen, toasts, the shared UI primitives (components/shell, components/ui.tsx, CommandPalette, ShortcutsHelp, Inbox, Toasts), and the in-app updates (components/updates).
+// The frame around every screen: masthead, navigation, command palette, shortcuts, Mitteilungen, toasts, the shared UI primitives (components/shell, components/ui.tsx, CommandPalette, ShortcutsHelp, Inbox, Toasts), and the in-app updates (components/updates).
 
 import type { ReactNode } from 'react';
 
@@ -170,8 +170,14 @@ export const de = {
     received: (time: string) =>
       `Erhalten bei der Anmeldung um ${time}. Mitteilungen werden nicht gespeichert – nach dem Abmelden sind sie hier nicht mehr zu sehen.`,
     none: 'Keine Mitteilungen',
-    noneHint:
-      'Deine Bank hat bei dieser Anmeldung nichts mitgeteilt. Mitteilungen kommen nur mit der vollständigen Synchronisation beim Anmelden – neue siehst du also erst nach der nächsten Anmeldung.',
+    /**
+     * Messages come with the login's synchronisation only (app/api/connect).
+     * `noneHint` when the bank was asked and said nothing; a remembered
+     * device skips that round trip, and then the bank was not asked at all
+     * (`noneNotAsked`, FintsProvider's messagesAsked).
+     */
+    noneHint: 'Deine Bank hat bei dieser Anmeldung nichts mitgeteilt. Neue Mitteilungen siehst du nach der nächsten Anmeldung.',
+    noneNotAsked: 'Auf einem gemerkten Gerät fragt Girovo deine Bank beim Anmelden nicht nach Mitteilungen.',
     activity: 'Vorgänge dieser Sitzung',
     noActivity:
       'Noch keine Überweisungen in dieser Sitzung. Ausgeführte, abgelehnte und unklare Aufträge stehen hier, bis du dich abmeldest.',
@@ -193,33 +199,10 @@ export const de = {
     withPayee: 'Umsätze mit diesem Empfänger',
   },
 
-  dashboard: {
-    /** Below the desk breakpoint: past the summaries to the bookings. */
-    toTransactions: 'Zu den Umsätzen',
-  },
-
   bottomBar: {
     label: 'Hauptnavigation',
     /** Verträge & Abos, short enough for the phone's bar. */
     contracts: 'Verträge',
-  },
-
-  footer: {
-    project: 'Projekt',
-    source: 'Quellcode auf GitHub',
-    license: 'Open Source · MIT-Lizenz',
-    /** `bank`: its name, or '' when none is known. */
-    connection: (bank: string) => `Direkte FinTS-Verbindung von diesem Rechner zu ${bank || 'deiner Bank'}`,
-    since: (time: ReactNode) => ['Angemeldet seit ', time],
-  },
-
-  instituteBar: {
-    noBank: 'Keine Bank verbunden',
-    blz: (code: ReactNode) => ['BLZ ', code],
-    /** The section tabs. */
-    sections: 'Bereiche',
-    deviceHint: 'Dieses Gerät ist gemerkt – die Bank fragt seltener nach einer Freigabe.',
-    device: 'Gerät gemerkt',
   },
 
   masthead: {
@@ -232,16 +215,6 @@ export const de = {
   teaser: {
     subtitle: (n: number) => `${n} ungelesen · von deiner Bank, bei dieser Anmeldung`,
     read: (n: number) => (n === 1 ? 'Mitteilung lesen' : n === 2 ? 'Beide lesen' : `Alle ${n} lesen`),
-  },
-
-  /** The navy band at the top of the page. */
-  stage: {
-    titles: { overview: 'Finanzübersicht', analysis: 'Umsatzanalyse', contracts: 'Verträge & Abos' },
-    quickActions: 'Schnellzugriffe',
-    /** The quick action's pill. */
-    statement: 'Kontoauszug',
-    /** Its tooltip: whose statement and which period. */
-    statementTitle: (subject: string) => `Kontoauszug als PDF – ${subject}`,
   },
 
   /** The CSV export (components/shell/actions.ts). */
@@ -299,7 +272,6 @@ export const de = {
     checking: 'Suche nach Updates …',
     latest: 'Du nutzt die neueste Version.',
     lastChecked: (time: ReactNode) => ['Zuletzt geprüft: ', time],
-    autoOn: 'Die App sucht kurz nach dem Start von selbst nach Updates – oder jetzt, wenn du möchtest.',
     autoOff: 'Die App sucht nicht von selbst nach Updates.',
     whatsNew: 'Was ist neu',
     onGitHub: 'Auf GitHub',
@@ -320,7 +292,6 @@ export const de = {
     notCompleted: (v: string) => `Das Update auf Version ${v} wurde nicht abgeschlossen.`,
     readyToInstall: (v: string) => `Version ${v} ist bereit zur Installation`,
     updatedTo: (v: string) => `Aktualisiert auf Version ${v}`,
-    seeChanges: 'Sieh dir an, was sich geändert hat.',
     stillOn: (current: ReactNode) => ['Du nutzt noch Version ', current, '. Installiert wird erst, wenn du neu startest.'],
     notYetDownloaded: (current: ReactNode) => [
       'Du nutzt Version ', current, '. Heruntergeladen wird erst, wenn du auf „Herunterladen“ klickst.',
@@ -470,8 +441,8 @@ export const en: typeof de = {
     received: (time) =>
       `Received when you logged in at ${time}. Messages aren’t stored – after you log out, they’re no longer shown here.`,
     none: 'No messages',
-    noneHint:
-      'Your bank sent no messages at this login. Messages only arrive with the full synchronisation when you log in – so you’ll only see new ones after your next login.',
+    noneHint: 'Your bank sent no messages at this login. You’ll see new ones after your next login.',
+    noneNotAsked: 'On a remembered device, Girovo doesn’t ask your bank for messages when you log in.',
     activity: 'This session’s activity',
     noActivity: 'No transfers in this session yet. Completed, rejected and unclear orders stay here until you log out.',
     thisApp: 'This app',
@@ -487,29 +458,9 @@ export const en: typeof de = {
     withPayee: 'Transactions with this recipient',
   },
 
-  dashboard: {
-    toTransactions: 'Go to transactions',
-  },
-
   bottomBar: {
     label: 'Main navigation',
     contracts: 'Contracts',
-  },
-
-  footer: {
-    project: 'Project',
-    source: 'Source code on GitHub',
-    license: 'Open source · MIT licence',
-    connection: (bank) => `Direct FinTS connection from this computer to ${bank || 'your bank'}`,
-    since: (time) => ['Logged in since ', time],
-  },
-
-  instituteBar: {
-    noBank: 'No bank connected',
-    blz: (code) => ['Bank code ', code],
-    sections: 'Sections',
-    deviceHint: 'This device is remembered – the bank asks for approval less often.',
-    device: 'Device remembered',
   },
 
   masthead: {
@@ -520,13 +471,6 @@ export const en: typeof de = {
   teaser: {
     subtitle: (n) => `${n} unread · from your bank, at this login`,
     read: (n) => (n === 1 ? 'Read message' : n === 2 ? 'Read both' : `Read all ${n}`),
-  },
-
-  stage: {
-    titles: { overview: 'Financial overview', analysis: 'Spending analysis', contracts: 'Contracts & subscriptions' },
-    quickActions: 'Quick actions',
-    statement: 'Statement',
-    statementTitle: (subject) => `Account statement as PDF – ${subject}`,
   },
 
   csv: {
@@ -576,7 +520,6 @@ export const en: typeof de = {
     checking: 'Checking for updates…',
     latest: 'You’re using the latest version.',
     lastChecked: (time) => ['Last checked: ', time],
-    autoOn: 'The app checks for updates by itself shortly after it starts – or now, if you like.',
     autoOff: 'The app doesn’t check for updates by itself.',
     whatsNew: 'What’s new',
     onGitHub: 'On GitHub',
@@ -595,7 +538,6 @@ export const en: typeof de = {
     notCompleted: (v) => `The update to version ${v} was not completed.`,
     readyToInstall: (v) => `Version ${v} is ready to install`,
     updatedTo: (v) => `Updated to version ${v}`,
-    seeChanges: 'See what’s changed.',
     stillOn: (current) => ['You’re still using version ', current, '. It’s only installed when you restart.'],
     notYetDownloaded: (current) => ['You’re using version ', current, '. Nothing is downloaded until you click “Download”.'],
     installNow: 'Install now…',

@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = path.join(ROOT, 'build', 'update-window', 'UpdateWindow.cs');
 const OUT_DIR = path.join(ROOT, 'build', 'update-window', 'bin');
+const FONT_DIR = path.join(ROOT, 'build', 'update-window', 'fonts');
 export const UPDATE_WINDOW_EXE = path.join(OUT_DIR, 'Girovo-Update.exe');
 
 export function buildUpdateWindow() {
@@ -42,6 +43,10 @@ export function buildUpdateWindow() {
     '/r:WindowsBase.dll',
     '/r:System.Xaml.dll',
     `/resource:${path.join(ROOT, 'build', 'icon.png')},icon.png`,
+    // The app's face, carried inside (UpdateWindow.cs, Faces).
+    ...fs.readdirSync(FONT_DIR)
+      .filter((f) => f.endsWith('.ttf'))
+      .map((f) => `/resource:${path.join(FONT_DIR, f)},fonts.${f}`),
     SOURCE,
   ];
   const result = spawnSync(csc, args, { cwd: ROOT, stdio: 'inherit' });

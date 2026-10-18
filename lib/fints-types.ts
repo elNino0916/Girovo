@@ -108,6 +108,13 @@ export type SerializedTanMethod = {
     waitBetween: number;
     maxStatusRequests: number;
   } | null;
+  /**
+   * For a method with a typed TAN: the longest TAN the bank takes, and
+   * whether it is digits only — as its HITANS says. Null where it does not
+   * (and on a device remembered before the app read them).
+   */
+  tanMaxLength?: number | null;
+  tanNumeric?: boolean | null;
 };
 
 export type SerializedAccount = {
@@ -136,6 +143,54 @@ export type SerializedAccount = {
    */
   dated?: (OrderCaps & { rules: DatedRules }) | null;
   standing?: (OrderCaps & { rules: StandingRules }) | null;
+  /** A Depot whose holdings can be read (HKWPD in the account's UPD). */
+  canPortfolio?: boolean;
+  /** The bank hands out its own Kontoauszüge for the account (HKEKA). */
+  canBankStatements?: boolean;
+};
+
+/** What a fetch of the bank's Kontoauszüge brought (lib/bank-statements.ts). */
+export type BankStatementsAnswer = {
+  /** Statements the bank handed out. */
+  received: number;
+  /** Of them, the ones not kept before. */
+  added: number;
+  /** The bank has more waiting than this read fetched. */
+  more: boolean;
+  /** Some could not be kept on this machine: they are held for this session only. */
+  held: boolean;
+};
+
+/**
+ * One holding of a Depot, as the bank's statement of holdings (MT535 in
+ * HIWPD) states it. What the bank left out is null, never a stand-in.
+ */
+export type SerializedHolding = {
+  name: string;
+  isin: string | null;
+  wkn: string | null;
+  /** Units held (Stück), where the bank counts in units. */
+  quantity: number | null;
+  /** The last price per unit — a percentage of the nominal value for a bond (pricePercent). */
+  price: number | null;
+  pricePercent: boolean;
+  /** When the price was set (ISO). */
+  priceDate: string | null;
+  /** What the holding is worth, in `currency`. */
+  value: number | null;
+  currency: string;
+  /** The price per unit it was bought at, where the bank says. */
+  acquisitionPrice: number | null;
+};
+
+/** A Depot's holdings and their total, as one read of the bank's found them. */
+export type SerializedPortfolio = {
+  /** The bank's own total; null when it sent none. */
+  totalValue: number | null;
+  currency: string;
+  holdings: SerializedHolding[];
+  /** When the bank was asked (ISO): prices move, so the read is dated. */
+  readAt: string;
 };
 
 /** What an account can do with one kind of bank-held order. */
@@ -248,9 +303,17 @@ export type BankMessage = { subject: string; text: string };
 /** Every TAN-gated endpoint answers with this shape when the bank wants SCA. */
 export type TanRequired = {
   needsTan: true;
-  decoupled: true;
+  /**
+   * True: the approval happens in the bank's app, and /api/tan-poll is asked
+   * until it is in. False: the user types a TAN, which /api/tan-poll takes.
+   */
+  decoupled: boolean;
   tanChallenge: string | null;
   tanMediaName: string | null;
+  /** photoTAN or chipTAN QR: the graphic to scan, as a data URL. */
+  tanImage: string | null;
+  /** chipTAN optisch: the code the flicker graphic shows (lib/flicker.ts). */
+  flicker: string | null;
   accountNumber?: string;
 };
 
@@ -276,7 +339,8 @@ export type SelectTanResponse =
   | { needsTan: false; accounts: SerializedAccount[]; deviceSaved: boolean };
 
 export type TanPollResponse =
-  | { status: 'pending' }
+  /** Not approved yet. `again`: the bank asks for another TAN after the one sent, with its new challenge. */
+  | { status: 'pending'; again?: TanRequired }
   | { status: 'dialog_ended'; type: string; accountNumber?: string }
   /**
    * The bank answered the approval with an error. 'refused': its answer
@@ -287,6 +351,8 @@ export type TanPollResponse =
   | (({ status: 'refused' } | { status: 'unclear' }) & { type: string; accountNumber?: string; bankAnswers: string })
   | { status: 'done'; kind: 'accounts'; accounts: SerializedAccount[]; deviceSaved: boolean }
   | { status: 'done'; kind: 'balance'; accountNumber?: string; balance: SerializedBalance | null }
+  | { status: 'done'; kind: 'portfolio'; accountNumber?: string; portfolio: SerializedPortfolio | null }
+  | ({ status: 'done'; kind: 'bankStatements'; accountNumber?: string } & BankStatementsAnswer)
   | { status: 'done'; kind: 'statements'; accountNumber?: string; transactions: SerializedTransaction[]; balance: SerializedBalance | null; blocks?: StatementBlock[]; pending?: SerializedTransaction[] | null }
   | { status: 'done'; kind: 'pending'; accountNumber?: string; pending: SerializedTransaction[] }
   | { status: 'done'; kind: 'transfer'; accountNumber?: string; transferResult: TransferResult | null; bankAnswers: string }
@@ -336,6 +402,14 @@ export type PendingResponse =
 export type BalanceResponse =
   | TanRequired
   | { needsTan: false; accountNumber: string; balance: SerializedBalance | null };
+
+export type PortfolioResponse =
+  | TanRequired
+  | { needsTan: false; accountNumber: string; portfolio: SerializedPortfolio | null };
+
+export type BankStatementsResponse =
+  | TanRequired
+  | ({ needsTan: false; accountNumber: string } & BankStatementsAnswer);
 
 /**
  * What the Namensabgleich turned up, as shown to the user before the transfer

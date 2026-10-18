@@ -6,9 +6,9 @@
 </p>
 
 A modern, self-hosted banking app for German banks that speaks **FinTS 3.0
-(HBCI) PIN/TAN** with approval in your bank's app — the *decoupled* TAN
-methods such as S-pushTAN, SecureGo plus or BestSign. Methods where you type a
-TAN (chipTAN, smsTAN, TAN generators) are not supported.
+(HBCI) PIN/TAN** — with approval in your bank's app (the *decoupled* methods
+such as S-pushTAN, SecureGo plus or BestSign) or with a TAN you type: chipTAN
+optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
 
 **Features**
 - **Tested with major banks** — Girovo has been tested with Atruvia, Targobank, Commerzbank and FI infrastructure.
@@ -28,15 +28,16 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   the language (1.234,56 € / €1,234.56). What your bank sends — its messages,
   answers and Verwendungszwecke — is shown as the bank wrote it, and the CSV
   export stays in the German Excel dialect either way.
-- **Finanzübersicht** in the Atruvia online-banking language: navy masthead
-  and stage, *Konten und Karten* with a Gesamtsaldo that appears once every
+- **Finanzübersicht** in Material 3 Expressive, the same look on the desktop
+  and the phone: a top app bar naming the page, the navigation rail with
+  *Überweisen* as its floating button, *Konten und Karten* with a Gesamtsaldo that appears once every
   euro account's balance is known (*Alle Salden abrufen* asks for the missing
   ones by balance enquiry; rename accounts locally), the selected account's
   balance with Verfügbar / Dispositionsrahmen (Kreditrahmen for a card) /
   Vorgemerkt — or, when a fetch failed, the bank's reason and *Erneut
   versuchen* in its place — *Monatsbilanz* (compared with the same days of the
-  month before) and *Demnächst fällig* tiles, and Schnellzugriffe (Überweisen,
-  Geld anfordern, Kontoauszug).
+  month before) and *Demnächst fällig* in a side pane beside the bookings on a
+  wide window; *Geld anfordern* and *Kontoauszug* under *Mehr*.
 - **Several banks in one view** — *Weitere Bank anmelden* (in the Sitzung
   panel, and under the account list) runs the same login — bank, login name
   and PIN, security method, approval — for another bank, as a session of its
@@ -91,6 +92,19 @@ TAN (chipTAN, smsTAN, TAN generators) are not supported.
   Umsätze only, in the German Excel dialect (`;`, UTF-8 BOM, decimal comma,
   formula-injection guard), your notes in the last column, plus the existing
   PDF Kontoauszug and Buchungsbeleg.
+- **Your bank's own Kontoauszüge** (HKEKA) — fetched as PDF where the bank
+  offers them, from the Umsätze's export menu, and every one kept on this
+  machine as it arrives, sealed with your PIN: some banks hand a statement out
+  once and mark it as delivered.
+- **Receipts on bookings** — attach a photo or PDF (an invoice, a till
+  receipt) to any booking, sealed with your PIN on this machine. An invoice
+  paid from its GiroCode (shared to the app, dropped or pasted) can go to its
+  booking by itself: once the bank books the transfer — same IBAN, same
+  amount, within two weeks — the booking takes it.
+- **Depot** (HKWPD) — a securities account shows its holdings in place of the
+  Umsätze: name, ISIN/WKN, quantity, the bank's last price, value and the
+  change since purchase where the bank reports a purchase price; the bank's
+  total as the account's figure.
 - **Vorgemerkte Umsätze** (pending / not-yet-booked entries) — shows incoming
   SEPA-Lastschriften and card payments *before* they book. Loaded on demand
   via `HKVMK` where the bank offers it; banks that send them with the Umsätze
@@ -323,7 +337,8 @@ The desktop app updates itself from this repository's
   how far it is and closes once the new version is up
   (`build/update-window/UpdateWindow.cs`, built with the C# compiler that comes
   with Windows by `scripts/build-update-window.mjs` — `--demo light|dark|failure`
-  shows it, `--lang en` in English). It only watches: the update runs the same
+  shows it, `--lang en` in English; it carries the app's font inside it, made by
+  `scripts/make-window-fonts.py`). It only watches: the update runs the same
   without it. The same window says it when the app cannot go on — it could not
   start, or its server stopped — in the app's look and language, with "Restart
   Girovo"; Windows' plain message box is left only as the fallback.
@@ -429,12 +444,13 @@ npm run android:release    # signed releases into dist/ (see android/README.md)
 | `Girovo-<version>-android.apk` | The app from GitHub, for every current phone (arm64). It updates itself from this repository's releases, like the desktop app: downloaded, checked against GitHub's SHA-256, installed by Android. |
 | `Girovo-<version>-play.aab` | The same app for Google Play, which installs its updates. |
 
-On the phone the app looks the way Android apps look now: Material 3
-Expressive — springy motion, shape-morphing buttons, the flexible navigation
-bar — in the wallpaper's colours (Material You), the very colours the phone's
-own apps use, and in the phone's light or dark. It is laid out as an app, not
-a web page: one top bar naming the page, the tiles, the navigation bar, and the
-Sitzung panel as a bottom sheet. The colours that carry meaning (credit,
+On the phone the app looks the way Android apps look now — and the way the
+desktop app looks too: Material 3 Expressive, with springy motion,
+shape-morphing buttons and the flexible navigation bar. On the phone it takes
+the wallpaper's colours (Material You), the very colours the phone's own apps
+use, in the phone's light or dark; the desktop keeps Girovo's blue. One top
+bar naming the page, the flat pages, the navigation bar, and the Sitzung panel
+as a bottom sheet. The colours that carry meaning (credit,
 negative balance, vorgemerkt) stay Girovo's on every phone. Beyond the
 desktop app's features it has:
 
@@ -491,8 +507,8 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `lib/categorize.ts`, `lib/analytics.ts`, `lib/recurring.ts`, `lib/balance-history.ts` | Pure, tested analysis: categories, period totals and comparisons, recurring-payment detection, and the verified balance history. They handle both MT940 and CAMT shapes. |
 | `lib/csv.ts`, `lib/girocode.ts`, `lib/qr.ts`, `lib/qr-read.ts` | CSV export, the EPC069-12 GiroCode payload (build + parse) and QR rendering/reading (bundled `qrcode-generator` and `jsqr`, no network). |
 | `components/FintsProvider.tsx` | The client state machine: login → TAN method → dashboard, with every bank read serialised behind one `busy` flag (each read can cost its own approval), the decoupled poll loop, the applied date range, auto-logout, the vault and the inbox. Further banks are logins of their own beside the first (`links`); `lib/linked-banks.ts` routes each request to the session of the account's login, refuses a bank whose account numbers would collide with ones shown, and sanitises what the vault keeps about it. |
-| `components/*` | The UI: `shell/` (masthead, tabs, stage, footer, bottom bar), `overview/`, `transactions/`, `insights/` (Analyse, Verträge), `transfer/`, `auth/`, `updates/` (the desktop updater's dialog and notices), plus the command palette, inbox and primitives in `ui.tsx`. |
-| `app/globals.css` | Design tokens (chrome navy, action blue, white tiles on a blue-grey page, navy-black dark theme, chart palette) as CSS variables mapped into Tailwind v4 via `@theme inline`. The print styles for the Kontoauszug are frozen separately. |
+| `components/*` | The UI: `shell/` (top app bar, navigation bar and rail, Sitzung panel), `overview/`, `transactions/`, `insights/` (Analyse, Verträge), `transfer/`, `auth/`, `updates/` (the desktop updater's dialog and notices), plus the command palette, inbox and primitives in `ui.tsx`. |
+| `app/globals.css`, `app/material.css`, `app/android.css` | Design tokens as CSS variables mapped into Tailwind v4 via `@theme inline` (`globals.css`); the Material 3 Expressive look on every platform — the Girovo-blue scheme, shapes, motion, components, the flat page (`material.css`, generated in part by `scripts/build-m3e-css.mjs`); the phone's own behaviour (`android.css`). The print styles for the Kontoauszug are frozen separately. |
 | `app/design-preview` | Dev-only harness that renders every screen with generated data (`/design-preview?view=overview`, `analysis`, `analysis-budgets`, `category-check`, `detail-note`, `contracts`, `transfer`, `login`, …; `&theme=dark`, `&privacy=1`). Returns 404 in production. |
 | `electron/main.cjs` | The desktop shell: boots the standalone server on loopback, opens the window, denies every device permission and sends outside links to the real browser. Paired with `scripts/build-electron.mjs` and `electron-builder.yml`. |
 | `electron/updater.cjs`, `electron/update-logic.cjs` | The [updater](#updates): checks GitHub releases, downloads and verifies against GitHub's SHA-256 digest, starts the installer (or the new portable build). Node built-ins and Electron only; the decisions (versions, files, install kind) are pure and tested on their own. The page side is `components/updates/`. |
@@ -506,10 +522,13 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `GET  /api/bank-search?q=` | Search all institutes (name, city, BLZ, BIC — never an IBAN) |
 | `POST /api/connect` | First sync; returns TAN methods |
 | `POST /api/connect/cancel` | Call off a login in flight (`attemptId`); drops any session it created |
-| `POST /api/select-tan` | Select an app-approval method/media + authenticated sync (accounts); refuses methods that need a typed TAN |
-| `POST /api/tan-poll` | Poll/continue the pending decoupled approval |
+| `POST /api/select-tan` | Select a TAN method/media + authenticated sync (accounts) |
+| `POST /api/tan-poll` | Continue the pending approval: polled for a decoupled one, sent once with `tan` for a typed one (a flicker code or a matrix graphic travels with the challenge, `lib/flicker.ts`) |
 | `POST /api/cancel-pending` | Abandon the pending approval client-side |
 | `POST /api/balance` | Kontostand for one account |
+| `POST /api/portfolio` | A Depot's holdings (HKWPD) |
+| `POST /api/bank-statements` | The bank's own Kontoauszüge for one account (HKEKA), kept as they arrive |
+| `POST /api/docs` | Kept documents (`op`: list, get, addReceipt, link, remove) — statements and receipts, sealed with the PIN (`lib/doc-store.ts`) |
 | `POST /api/transactions` | Umsätze (optional date range), with the Vorgemerkte the bank sent beside them |
 | `POST /api/pending` | Vorgemerkte Umsätze (HKVMK; on-demand) |
 | `POST /api/transfer` | SEPA-Überweisung (`instant: true` → HKIPZ; a `schedule` → HKCSE or HKCDE); answers `needsVop` when a Namensabgleich needs the user's decision |
@@ -660,10 +679,15 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 
 ## Notes & limitations
 
-- You need a bank contract with **FinTS/HBCI access enabled** and **approval
-  in your bank's app** (decoupled TAN: S-pushTAN, SecureGo plus, BestSign, …).
-  The app has no TAN entry field, so chipTAN, smsTAN and other methods where
-  you type a TAN do not work; the login says so before you enter your PIN.
+- You need a bank contract with **FinTS/HBCI access enabled** and a TAN
+  method: approval in your bank's app (S-pushTAN, SecureGo plus, BestSign, …)
+  or a typed TAN — chipTAN optisch (the flicker code, HHD 1.4 and 1.3, with
+  size and speed controls), chipTAN QR and photoTAN (the bank's graphic),
+  chipTAN manuell and smsTAN (the bank's words). The typed methods are built
+  from the specification and the reference vectors of open implementations
+  and have not yet been tried against every bank's flavour of them.
+- The bank's own Kontoauszüge come over HKEKA only; a bank that offers them
+  over HKEKP alone (some Sparkassen) shows no menu entry for them yet.
 - A bank must start answering within 60 seconds, or the request is reported as
   "Deine Bank antwortet gerade nicht" (error pages and unreadable replies too —
   their content stays in the server log). A login can be cancelled after a few

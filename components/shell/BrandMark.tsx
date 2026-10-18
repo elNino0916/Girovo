@@ -1,10 +1,10 @@
-// The app's own mark: the "G€" plate and the wordmark, in the masthead, the
-// navy footer and the screens before the login. One component, so the three
-// never drift apart — the same plate, the same weight, the same one colour.
+// The app's own mark: the "G€" plate, and the wordmark beside it before the
+// login (the login's top bar); at the head of the navigation rail the plate
+// alone (BrandPlate). One component, so they never drift apart.
 //
-// Drawn for navy (--bar): a light plate with the G€ (lib/brand-mark.ts) cut
-// out in the bar's own navy, which reads as a stamp in both themes, and the
-// wordmark in bar-ink.
+// The plate is the app icon's: the G€ (lib/brand-mark.ts) in white on
+// Girovo's navy — a logo, so a literal colour, the same in every theme and
+// whatever the palette. The wordmark is in the bar's ink.
 //
 // The version stays legible for support questions, development builds
 // included ("3.1.3-dev.123"); `versionClassName` lets a caller hide it first
@@ -13,6 +13,25 @@
 
 import { MARK_ARC, MARK_ARC_WIDTH, MARK_BARS, MARK_BAR_WIDTH, MARK_GRID } from '@/lib/brand-mark';
 import { cx } from '../ui';
+
+/** The plate alone: 32px, smaller only when zoom has shrunk the top bar (--band-plate). */
+export function BrandPlate({ className }: { className?: string }) {
+  return (
+    <span aria-hidden className={cx('grid size-[var(--band-plate)] shrink-0 rounded-[8px] bg-[#0a2c5e] text-white', className)}>
+      <svg
+        viewBox={`0 0 ${MARK_GRID} ${MARK_GRID}`}
+        className="size-full"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d={MARK_ARC} strokeWidth={MARK_ARC_WIDTH} />
+        <path d={MARK_BARS} strokeWidth={MARK_BAR_WIDTH} />
+      </svg>
+    </span>
+  );
+}
 
 export function BrandMark({
   version, versionClassName, className,
@@ -24,20 +43,7 @@ export function BrandMark({
 }) {
   return (
     <span className={cx('flex min-w-0 items-center gap-2.5', className)}>
-      {/* 32px, smaller only when zoom has shrunk the masthead (--band-plate). */}
-      <span aria-hidden className="grid size-[var(--band-plate)] shrink-0 rounded-[8px] bg-bar-ink text-bar">
-        <svg
-          viewBox={`0 0 ${MARK_GRID} ${MARK_GRID}`}
-          className="size-full"
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d={MARK_ARC} strokeWidth={MARK_ARC_WIDTH} />
-          <path d={MARK_BARS} strokeWidth={MARK_BAR_WIDTH} />
-        </svg>
-      </span>
+      <BrandPlate />
       <span className="truncate text-[17px] leading-none font-bold whitespace-nowrap text-bar-ink sm:shrink-0 sm:text-[18px]">
         Girovo
       </span>

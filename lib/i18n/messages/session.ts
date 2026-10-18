@@ -11,8 +11,8 @@ export const de = {
   panel: 'Sitzung',
   /** Under the holder's name when the bank is not known. */
   loggedIn: 'Angemeldet',
-  /** "Seit 18:41 Uhr · Abmeldung in 9:51" — the countdown comes in as its own element. */
-  sinceAndLogout: (since: string, countdown: ReactNode): ReactNode[] => [`Seit ${since} · Abmeldung in `, countdown],
+  /** "Angemeldet seit 18:41 Uhr · Abmeldung in 9:51" — the countdown comes in as its own element. */
+  sinceAndLogout: (since: string, countdown: ReactNode): ReactNode[] => [`Angemeldet seit ${since} · Abmeldung in `, countdown],
 
   settings: 'Einstellungen',
   idle: 'Automatisch abmelden nach',
@@ -108,7 +108,7 @@ export const en: typeof de = {
     (holder ? `Session: ${holder}` : 'Session') + (vaultBroken ? ' – saved data unreadable' : ''),
   panel: 'Session',
   loggedIn: 'Logged in',
-  sinceAndLogout: (since, countdown) => [`Since ${since} · logout in `, countdown],
+  sinceAndLogout: (since, countdown) => [`Logged in since ${since} · logout in `, countdown],
 
   settings: 'Settings',
   idle: 'Log out automatically after',

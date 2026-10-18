@@ -24,7 +24,7 @@ export const POST = wrap(async (req: Request) => {
   logResp('pending', s, resp);
   if (resp.requiresTan) {
     s.pending = { type: 'pending', tanReference: resp.tanReference, accountNumber };
-    return json({ ...tanPayload(resp), accountNumber } satisfies PendingResponse);
+    return json({ ...tanPayload(resp, s), accountNumber } satisfies PendingResponse);
   }
   if (!resp.success) return fail(bankAnswerText(resp) || msgs().transactions.api.pendingFailed);
   return json({

@@ -60,6 +60,34 @@ index 0dc0042..a39993d 100644
                  e2eReference: endToEndId,
                  mandateReference: mandateId,
                  additionalInformation: additionalEntryInfo,
+diff --git a/node_modules/lib-fints/dist/interactions/customerInteraction.js b/node_modules/lib-fints/dist/interactions/customerInteraction.js
+index f6513b9..d3a9450 100644
+--- a/node_modules/lib-fints/dist/interactions/customerInteraction.js
++++ b/node_modules/lib-fints/dist/interactions/customerInteraction.js
+@@ -63,6 +63,8 @@ export class CustomerInteraction {
+                         bankAnswers.find((answer) => answer.code === 3957)?.text ??
+                         '',
+                     tanPhoto: hitan.challengeHhdUc ? this.parseHHDUC(hitan.challengeHhdUc) : undefined,
++                    // The challenge as it came: a chipTAN flicker code is text, not an image.
++                    tanChallengeHhdUc: hitan.challengeHhdUc || undefined,
+                     tanMediaName: hitan.tanMedia,
+                 };
+             }
+diff --git a/node_modules/lib-fints/dist/interactions/initDialogInteraction.js b/node_modules/lib-fints/dist/interactions/initDialogInteraction.js
+index fb1b0de..a1cbccc 100644
+--- a/node_modules/lib-fints/dist/interactions/initDialogInteraction.js
++++ b/node_modules/lib-fints/dist/interactions/initDialogInteraction.js
+@@ -73,6 +73,10 @@ export class InitDialogInteraction extends CustomerInteraction {
+                     activeTanMediaCount: method.activeTanMedia,
+                     activeTanMedia: [],
+                     tanMediaRequirement: method.tanMediaRequired,
++                    tanMaxLength: method.tanMaxLen,
++                    tanFormat: method.format,
++                    zkaMethod: method.zkaMethod,
++                    zkaVersion: method.zkaVersion,
+                     decoupled: isDecoupledTanMethod(method)
+                         ? {
+                             maxStatusRequests: method.decoupledMaxStatusRequests ?? 0,
 diff --git a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js b/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
 index d6874b6..264b2cf 100644
 --- a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
@@ -123,6 +151,19 @@ index 38b8d31..5746d97 100644
 +export function registerSegmentDefinition(definition) {
      registry.set(definition.id, definition);
  }
+diff --git a/node_modules/lib-fints/dist/types/interactions/customerInteraction.d.ts b/node_modules/lib-fints/dist/types/interactions/customerInteraction.d.ts
+index 5b73ecf..8a12c59 100644
+--- a/node_modules/lib-fints/dist/types/interactions/customerInteraction.d.ts
++++ b/node_modules/lib-fints/dist/types/interactions/customerInteraction.d.ts
+@@ -28,6 +28,8 @@ export interface ClientResponse {
+     tanReference?: string;
+     tanChallenge?: string;
+     tanPhoto?: PhotoTan;
++    /** The HHD_UC challenge as the bank sent it: a matrix image (see tanPhoto) or a chipTAN flicker code. */
++    tanChallengeHhdUc?: string;
+     tanMediaName?: string;
+ }
+ export interface StatementResponse extends ClientResponse {
 diff --git a/node_modules/lib-fints/dist/types/statement.d.ts b/node_modules/lib-fints/dist/types/statement.d.ts
 index 02aa9af..310450d 100644
 --- a/node_modules/lib-fints/dist/types/statement.d.ts
@@ -138,3 +179,21 @@ index 02aa9af..310450d 100644
      e2eReference?: string;
      mandateReference?: string;
      textKeyExtension?: string;
+diff --git a/node_modules/lib-fints/dist/types/tanMethod.d.ts b/node_modules/lib-fints/dist/types/tanMethod.d.ts
+index 58b87b0..3660691 100644
+--- a/node_modules/lib-fints/dist/types/tanMethod.d.ts
++++ b/node_modules/lib-fints/dist/types/tanMethod.d.ts
+@@ -19,6 +19,13 @@ export type TanMethod = {
+     activeTanMediaCount: number;
+     activeTanMedia: string[];
+     tanMediaRequirement: TanMediaRequirement;
++    /** The longest TAN the bank accepts (HITANS), when it says. */
++    tanMaxLength?: number;
++    /** 1 numeric, 2 alphanumeric (HITANS), when the bank says. */
++    tanFormat?: number;
++    /** The ZKA method name and version ("HHD", "1.4"; "Decoupled"), when the bank says. */
++    zkaMethod?: string;
++    zkaVersion?: string;
+     decoupled?: DecoupledParams;
+ };
+ export type DecoupledParams = {

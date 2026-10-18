@@ -10,7 +10,7 @@
 // And the filter belongs to the provider, not to this tile, so the palette,
 // the Analyse and the Verträge tab can open the list already narrowed.
 
-import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { calendarMonths, daysLabel, filterTransactions, searchReport, txMatcher, type SearchContext } from '@/lib/analytics';
 import { EMPTY_FILTER } from '@/lib/app-types';
 import { isCardAccount } from '@/lib/balances';
@@ -19,12 +19,12 @@ import { fmtRange } from '@/lib/format';
 import { accountBalanceHistory } from '@/lib/history';
 import { intlLocale } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
+import { BankStatements } from './BankStatements';
 import { useFints } from './FintsProvider';
 import { ArrowRightIcon, RefreshIcon } from './icons';
 import { Money } from './Money';
 import { Alert, Button, CountBadge, EmptyState, ErrorState, IconButton, Spinner, cx } from './ui';
-import { LoadHistoryButton, YEAR_SPAN, fmtDayKeyShort, spanDays } from './insights/shared';
+import { LoadHistoryButton, YEAR_SPAN, spanDays } from './insights/shared';
 import { TxDetailHost, openTxDetail } from './transactions/detail-host';
 import { ExportMenu } from './transactions/ExportMenu';
 import { groupByDay, listTotals, merchantFor, newestFirst, searchText } from './transactions/model';
@@ -52,9 +52,9 @@ const quoted = (words: string[], quote: (word: string) => string) =>
 
 export function Transactions() {
   const {
-    activeAccount: a, transactions, loadingAccount, txError, txErrors, refreshAccount, busy, statementInfo, range, applyRange,
+    activeAccount: a, transactions, loadingAccount, txError, refreshAccount, busy, statementInfo, range, applyRange,
     txFilter, setTxFilter, txFocusNonce, categoryOf, merchants, pendingCache, accountLabel, accounts, selectAccount,
-    noteOf,
+    noteOf, receiptKeys,
     historyCoverage, savedRange, applySavedRange,
   } = useFints();
   // `tr`, not `t`: the search's terms are `t` below.
@@ -65,6 +65,8 @@ export function Transactions() {
   const listId = `umsaetze${auto}-list`;
   const sectionRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  /** The bank's own Kontoauszüge, opened from the export menu (components/BankStatements.tsx). */
+  const [statementsOpen, setStatementsOpen] = useState(false);
 
   const loaded = a ? statementInfo[a.accountNumber] : undefined;
   const loading = !!a && loadingAccount === a.accountNumber;
@@ -144,7 +146,7 @@ export function Transactions() {
   if (!a) return null;
 
   const words = tr.transactions.list;
-  const mayNeedApproval = tr.transactions.mayNeedApproval;
+  const mayNeedApproval = tr.common.mayNeedApproval;
   const refresh = () => refreshAccount(a);
   const hasList = !!transactions && sorted.length > 0;
   // Less than a year loaded: "weiter zurück" is worth offering where nothing was found.
@@ -152,37 +154,6 @@ export function Transactions() {
   const days = txFilter.from || txFilter.to
     ? { from: txFilter.from || loaded?.from || '', to: txFilter.to || loaded?.to || '' }
     : null;
-
-  const rangeLine = loading
-    ? words.loadingRange(fmtRange(range.from, range.to))
-    : loaded
-      ? (
-        <>
-          {fmtRange(loaded.from, loaded.to)}
-          {/* When it was fetched matters less than what — on a phone the dates win the room
-              (and the list's own divider says where the kept part begins). Beside
-              the kept part's end, the time only where the line has room for both. */}
-          {loaded.saved && (
-            <span className="hidden sm:inline">
-              {' · '}
-              {loaded.saved.fetched ? tr.history.list.savedUntil(fmtDayKeyShort(loaded.saved.to)) : tr.history.list.allSaved}
-            </span>
-          )}
-          {(!loaded.saved || loaded.saved.fetched) && (
-            <span className={loaded.saved ? 'hidden 2xl:inline' : 'hidden sm:inline'}> · {words.fetchedAt(clock(loaded.loadedAt))}</span>
-          )}
-        </>
-      )
-      : txError
-        ? (
-          <>
-            {tr.common.fetchFailed}
-            {a && txErrors[a.accountNumber] && (
-              <span className="hidden sm:inline"> {words.failedAt(clock(txErrors[a.accountNumber].at))}</span>
-            )}
-          </>
-        )
-        : tr.transactions.notFetched;
 
   // A "show me" about one account (useShowOnAccount) that this list cannot
   // answer: it shows another account, or — for a transfer whose status is
@@ -247,7 +218,7 @@ export function Transactions() {
         title={words.notFetched}
         action={<Button variant="primary" size="sm" disabled={busy} onClick={refresh}>{words.fetch}</Button>}
       >
-        {fmtRange(range.from, range.to)}. {mayNeedApproval}
+        {tr.transactions.period.is(fmtRange(range.from, range.to))}. {mayNeedApproval}
       </EmptyState>
     );
   } else if (sorted.length === 0) {
@@ -257,7 +228,7 @@ export function Transactions() {
         title={words.empty}
         action={shortHistory ? <LoadHistoryButton layout="centered" /> : undefined}
       >
-        {loaded ? words.nothingBooked(fmtRange(loaded.from, loaded.to)) : ''}
+        {loaded && `${tr.transactions.period.is(fmtRange(loaded.from, loaded.to))}.`}
         {shortHistory && ` ${words.longerPeriod}`}
       </EmptyState>
     );
@@ -302,6 +273,7 @@ export function Transactions() {
         merchantOf={merchantOf}
         categoryOf={categoryOf}
         noteOf={noteOf}
+        receiptKeys={receiptKeys}
         onOpen={onOpen}
         balanceOn={balanceOn}
         savedTo={loaded?.saved?.to ?? null}
@@ -321,8 +293,10 @@ export function Transactions() {
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
               <h2 id={titleId} ref={headingRef} tabIndex={-1} className="section-head outline-none">{tr.common.nav.transactions}</h2>
-              {/* On Android the list's own days say what it covers; the line stays while it loads. */}
-              {(!IS_ANDROID || loading) && <p className="tnum mt-0.5 truncate text-[13.5px] text-ink-3">{rangeLine}</p>}
+              {/* The list's own days say what it covers; while it loads, this line says what is on its way. */}
+              {loading && (
+                <p className="tnum mt-0.5 truncate text-[13.5px] text-ink-3">{words.loadingRange(fmtRange(range.from, range.to))}</p>
+              )}
             </div>
             <div className="-mt-0.5 -mr-1.5 flex shrink-0 items-center gap-1 sm:gap-2">
               {a.canStatements && (
@@ -346,7 +320,7 @@ export function Transactions() {
                   {loading ? <Spinner size={16} /> : <RefreshIcon size={18} />}
                 </IconButton>
               )}
-              <ExportMenu loaded={loaded} all={sorted} filtered={filtered} />
+              <ExportMenu loaded={loaded} all={sorted} filtered={filtered} onBankStatements={() => setStatementsOpen(true)} />
             </div>
           </div>
 
@@ -428,8 +402,8 @@ export function Transactions() {
           <div
             className={cx(
               'flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[13.5px] text-ink-2',
-              // On Android only while a filter narrows the list: unfiltered, it is the whole list.
-              hasList && !loading && (!IS_ANDROID || filterCount > 0) ? 'mt-3' : 'sr-only',
+              // Only while a filter narrows the list: unfiltered, it is the whole list.
+              hasList && !loading && filterCount > 0 ? 'mt-3' : 'sr-only',
             )}
           >
             <div className="flex min-w-0 flex-wrap items-center gap-x-2">
@@ -484,6 +458,7 @@ export function Transactions() {
       </section>
 
       <TxDetailHost />
+      {a.canBankStatements && <BankStatements account={a} open={statementsOpen} onClose={() => setStatementsOpen(false)} />}
     </>
   );
 }

@@ -50,8 +50,8 @@ export function MessagesTeaser() {
           </div>
         </div>
       </div>
-      {/* The way on, as a full-width row at the foot of the tile — the shape
-          the Monatsbilanz beside it uses, its label on the tile's text edge. */}
+      {/* The way on, as a full-width row at the foot of the tile, its label
+          on the tile's text edge. */}
       <button
         type="button"
         aria-haspopup="dialog"

@@ -73,12 +73,18 @@ import {
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import type {
-  BalanceResponse, BankMessage, BankOrderKind, BankOrdersAnswer, BankOrdersResponse, ConnectResponse, DeleteOrderResponse,
-  Merchant, MerchantsResponse, MetaResponse, PendingResponse,
-  SelectTanResponse, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedTanMethod,
+  BalanceResponse, BankMessage, BankOrderKind, BankOrdersAnswer, BankOrdersResponse, BankStatementsAnswer, BankStatementsResponse,
+  ConnectResponse, DeleteOrderResponse,
+  Merchant, MerchantsResponse, MetaResponse, PendingResponse, PortfolioResponse,
+  SelectTanResponse, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedPortfolio, SerializedTanMethod,
   SerializedTransaction, SerializedVop, TanPollResponse, TransactionsResponse,
   TransferResponse,
 } from '@/lib/fints-types';
+import {
+  base64ToBytes, bytesToBase64, type AwaitedBooking, type DocGetResponse, type DocResponse, type DocsListResponse, type KeptDoc,
+} from '@/lib/docs';
+import { matchAwaiting } from '@/lib/receipts';
+import { saveFile } from '@/lib/download';
 import type { OrderSchedule } from '@/lib/order-schedule';
 import type { PopularBank } from '@/lib/banks';
 
@@ -242,7 +248,7 @@ type WaitPhase = 'waiting' | 'confirmed' | 'error' | 'ended' | 'refused';
 export type OrderWaitKind = 'standingOrder' | 'datedTransfer' | 'bankOrders' | 'orderDelete';
 
 /** What an approval is for — the overlay asks before abandoning an order. */
-export type WaitKind = 'login' | 'statements' | 'pending' | 'balance' | 'transfer' | OrderWaitKind;
+export type WaitKind = 'login' | 'statements' | 'pending' | 'balance' | 'portfolio' | 'bankStatements' | 'transfer' | OrderWaitKind;
 
 const ORDER_WAIT_KINDS: readonly string[] = ['standingOrder', 'datedTransfer', 'bankOrders', 'orderDelete'];
 export const isOrderWaitKind = (k: WaitKind | null | undefined): k is OrderWaitKind => !!k && ORDER_WAIT_KINDS.includes(k);
@@ -313,6 +319,29 @@ export type WaitState = {
   bank: { name: string; brand: string } | null;
   /** The method this approval runs on: that of the login it belongs to. */
   method: SerializedTanMethod | null;
+  /** A typed TAN instead of an app approval; null for an approval in the bank's app. */
+  entry: TanEntry | null;
+};
+
+/** A kept document as the view lists it: with the login (session) it is kept under. */
+export type ListedDoc = KeptDoc & { sid: string };
+
+/** The last fetch of an account's Kontoauszüge from the bank: what it brought, or why it failed. */
+export type StatementFetch = { at: number; answer: BankStatementsAnswer | null; error: string | null };
+
+/** What a typed TAN is entered from, and how far it got. */
+export type TanEntry = {
+  /** photoTAN or chipTAN QR: the graphic to scan, a data URL. */
+  image: string | null;
+  /** chipTAN optisch: the code the flicker graphic shows (lib/flicker.ts). */
+  flicker: string | null;
+  /** The longest TAN the bank takes, and whether it is digits only, where the method says. */
+  maxLength: number | null;
+  numeric: boolean | null;
+  /** The TAN is with the bank; its answer is awaited. */
+  sending: boolean;
+  /** The bank asked for another TAN after one was sent. */
+  again: boolean;
 };
 
 /**
@@ -336,7 +365,7 @@ type KeptWait = Omit<WaitState, 'title' | 'text' | 'error' | 'note'> & {
 const IDLE_WAIT: KeptWait = {
   open: false, kind: null, title: null, text: null, challenge: null,
   phase: 'waiting', error: null, canRetry: false, startedAt: 0, settledAt: null, vop: null, tanMediaName: null,
-  order: null, note: null, bank: null, method: null,
+  order: null, note: null, bank: null, method: null, entry: null,
 };
 
 /** AddBankState as the provider keeps it: its error perhaps unwritten, and the login under way. */
@@ -364,7 +393,16 @@ function shownWait(w: KeptWait, m: Messages): WaitState {
 /** A failed read as the provider keeps it (LoadError, its message perhaps unwritten). */
 type KeptLoadError = { message: KeptText; at: number };
 
-type TanGate = { needsTan?: boolean; tanChallenge?: string | null; tanMediaName?: string | null; vop?: SerializedVop };
+type TanGate = {
+  needsTan?: boolean;
+  /** False: the TAN is typed (TanRequired). Left out, the method decides. */
+  decoupled?: boolean;
+  tanChallenge?: string | null;
+  tanMediaName?: string | null;
+  tanImage?: string | null;
+  flicker?: string | null;
+  vop?: SerializedVop;
+};
 
 type WaitCallbacks = {
   onDone?: (r: TanPollResponse & { status: 'done' }) => void;
@@ -449,7 +487,7 @@ const VAULT_SAVE_DELAY_MS = 800;
 const LOGOUT_FLUSH_TIMEOUT_MS = 2000;
 /** How long "Freigabe bestätigt" stays up before the overlay leaves. */
 const CONFIRMED_LINGER_MS = 700;
-/** A statement approval this soon after the login's own is "the second one" (startDecoupledWait). */
+/** A statement approval this soon after the login's own is "the second one" (startApproval). */
 const SECOND_APPROVAL_MS = 30_000;
 const DEFAULT_RANGE_PRESET: RangePreset = '90d';
 const MAX_TOASTS = 4; // = Toasts.tsx MAX_VISIBLE: a queued toast nobody can see would expire unseen
@@ -824,6 +862,24 @@ function useFintsState() {
   const [balanceLoading, setBalanceLoading] = useState<string | null>(null);
   /** "Alle Salden abrufen" is working through the accounts. */
   const [loadingAllBalances, setLoadingAllBalances] = useState(false);
+  /** Per Depot: its holdings, as the last read found them. */
+  const [portfolios, setPortfolios] = useState<Record<string, SerializedPortfolio>>({});
+  /** Per Depot: why its last read failed (shown as `portfolioErrors`). */
+  const [portfolioErrorsKept, setPortfolioErrors] = useState<Record<string, KeptLoadError>>({});
+  /** The Depot whose holdings are being read. */
+  const [portfolioLoading, setPortfolioLoading] = useState<string | null>(null);
+  const portfoliosRef = useRef(portfolios);
+  portfoliosRef.current = portfolios;
+  /** The documents kept on this machine, of every login in the view (lib/doc-store.ts). */
+  const [docs, setDocs] = useState<ListedDoc[]>([]);
+  const docsRef = useRef<ListedDoc[]>([]);
+  const docsGenRef = useRef(0);
+  /** A login's store does not open with its PIN: what it fetches is held for the session only. */
+  const [docsLocked, setDocsLocked] = useState(false);
+  /** The account whose Kontoauszüge are being fetched from the bank. */
+  const [bankStatementsLoading, setBankStatementsLoading] = useState<string | null>(null);
+  /** Per account: how its last fetch of the bank's Kontoauszüge went. */
+  const [statementFetches, setStatementFetches] = useState<Record<string, StatementFetch>>({});
 
   /** Counterparty name → company, or null once we know there's no match. */
   const [merchants, setMerchants] = useState<Record<string, Merchant | null>>({});
@@ -887,6 +943,8 @@ function useFintsState() {
   const [range, setRange] = useState<DateRange>(() => defaultRange());
 
   const [messages, setMessages] = useState<InboxMessage[]>([]);
+  /** Whether this login asked the bank for its messages: a remembered device skips the sync that brings them. */
+  const [messagesAsked, setMessagesAsked] = useState(true);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
 
   const [vault, setVault] = useState<VaultData | null>(null);
@@ -1236,12 +1294,23 @@ function useFintsState() {
     return txCacheRef.current[accountNumber]?.key === rangeKey(span);
   }, [keptOf]);
 
-  // ---- decoupled TAN wait -------------------------------------------------
+  // ---- approval: in the bank's app, or a typed TAN ------------------------
   const stopTimers = useCallback(() => {
     if (pollTimer.current) { clearTimeout(pollTimer.current); pollTimer.current = null; }
   }, []);
 
-  const startDecoupledWait = useCallback((
+  /** Sends a typed TAN for the approval on screen; null while none is waited for. */
+  const tanSubmitRef = useRef<((tan: string) => Promise<void>) | null>(null);
+  /** matchReceipts, for the statement reads defined before it. */
+  const matchReceiptsRef = useRef<(accountNumber: string, txs: SerializedTransaction[]) => Promise<void>>(async () => {});
+
+  /**
+   * Waits for an approval the bank asked for. In the bank's app (decoupled),
+   * /api/tan-poll is asked at the pace the method's HITANS sets until the
+   * answer is in; with a typed TAN nothing is asked until the user sends one
+   * (submitTan). Either answer is read the same way.
+   */
+  const startApproval = useCallback((
     method: SerializedTanMethod | null,
     data: TanGate,
     cbs: WaitCallbacks,
@@ -1270,14 +1339,18 @@ function useFintsState() {
     waitSidRef.current = sid;
     waitCbRef.current = cbs;
     const subject: OwnText = opts.subject ?? ((m) => waitSubject(m, kind));
+    // The server says per approval whether the TAN is typed; the method, where it did not.
+    const typed = data.decoupled === false || (data.decoupled === undefined && !!method && !method.isDecoupled);
     setWait({
       open: true,
       kind,
       // The overlay names each kind of approval itself (TanWaitOverlay.tsx).
       title: null,
-      text: (m) => (method?.isDecoupled
-        ? m.provider.wait.openApp(method.name, subject(m))
-        : m.provider.wait.confirmInApp(subject(m))),
+      text: (m) => (typed
+        ? m.provider.wait.typeTan(subject(m))
+        : method?.isDecoupled
+          ? m.provider.wait.openApp(method.name, subject(m))
+          : m.provider.wait.confirmInApp(subject(m))),
       challenge: data.tanChallenge || null,
       phase: 'waiting',
       error: null,
@@ -1292,10 +1365,104 @@ function useFintsState() {
       note: second ? (m) => m.provider.wait.secondApproval : null,
       bank: opts.bank !== undefined ? opts.bank : waitBankFor(sid),
       method,
+      entry: typed
+        ? {
+            image: data.tanImage ?? null,
+            flicker: data.flicker ?? null,
+            maxLength: method?.tanMaxLength ?? null,
+            numeric: method?.tanNumeric ?? null,
+            sending: false,
+            again: false,
+          }
+        : null,
     });
 
     const interval = Math.max(1500, (method?.decoupled?.waitBetween || 2) * 1000);
     const firstDelay = Math.max(1000, (method?.decoupled?.waitBeforeFirst || 1) * 1000);
+
+    /** The bank's answer to a status request or to a typed TAN. */
+    const answer = (r: TanPollResponse) => {
+      if (r.status === 'pending') {
+        if (typed) {
+          // The bank wants another TAN, perhaps from a new challenge and graphic.
+          const again = r.again;
+          setWait((w) => ({
+            ...w,
+            challenge: again ? again.tanChallenge : w.challenge,
+            entry: w.entry && {
+              ...w.entry,
+              sending: false,
+              again: true,
+              ...(again ? { image: again.tanImage, flicker: again.flicker } : {}),
+            },
+          }));
+          return;
+        }
+        pollTimer.current = setTimeout(poll, interval);
+        return;
+      }
+      if (r.status === 'dialog_ended') {
+        stopTimers();
+        tanSubmitRef.current = null;
+        const handler = waitCbRef.current.onDialogEnded;
+        if (handler) { handler(r); return; }
+        setWait((w) => ({
+          ...w,
+          phase: 'ended',
+          settledAt: Date.now(),
+          title: (m) => m.provider.wait.endedTitle,
+          // The bank's timeout, not the user's: no "zügig" (critique auth #6).
+          text: (m) => m.provider.wait.endedText,
+          canRetry: !!waitCbRef.current.retry,
+          entry: w.entry && { ...w.entry, sending: false },
+        }));
+        return;
+      }
+      if (r.status === 'refused' || r.status === 'unclear') {
+        // The bank's own answer — never mistaken for a lost connection.
+        stopTimers();
+        tanSubmitRef.current = null;
+        const handler = waitCbRef.current.onAnswer;
+        if (handler) { handler(r.status, r.bankAnswers); return; }
+        setWait((w) => ({
+          ...w,
+          phase: r.status === 'refused' ? 'refused' : 'error',
+          settledAt: Date.now(),
+          error: r.bankAnswers || ((m: Messages) => m.provider.wait.notConfirmed),
+          canRetry: !!waitCbRef.current.retry,
+          entry: w.entry && { ...w.entry, sending: false },
+        }));
+        return;
+      }
+      stopTimers();
+      tanSubmitRef.current = null;
+      lastConfirmedRef.current = { kind, gen, at: Date.now() };
+      setWait((w) => ({ ...w, phase: 'confirmed', settledAt: Date.now(), entry: w.entry && { ...w.entry, sending: false } }));
+      // Only closes *this* wait: onDone may already have started the next
+      // one (a statement that needs its own approval right after login).
+      setTimeout(() => { if (gen === waitGenRef.current) setWait(IDLE_WAIT); }, CONFIRMED_LINGER_MS);
+      waitCbRef.current.onDone?.(r);
+    };
+
+    // A 401 has already logged out (and bumped the generation) by now.
+    // Anything else — the bank unreachable, "Kein offener Vorgang" — says
+    // nothing about the approval: the overlay calls it unverifiable. For an
+    // order the reason's own advice ("try again", "restart Girovo") could
+    // read as "send it again", so an order says only that its fate is open —
+    // closing then leads to "Status unklar".
+    const unverifiable = (err: unknown) => {
+      if (gen !== waitGenRef.current) return;
+      stopTimers();
+      tanSubmitRef.current = null;
+      setWait((w) => ({
+        ...w,
+        phase: 'error',
+        settledAt: Date.now(),
+        error: isOrderWait(kind) ? ((m: Messages) => m.provider.wait.unverifiable) : (err as Error).message,
+        canRetry: !!waitCbRef.current.retry,
+        entry: w.entry && { ...w.entry, sending: false },
+      }));
+    };
 
     const poll = async () => {
       pollTimer.current = null;
@@ -1304,68 +1471,44 @@ function useFintsState() {
         const r = await post<TanPollResponse>('/api/tan-poll', { sessionId: sid });
         // Cancelled, superseded or logged out while the request was out.
         if (gen !== waitGenRef.current) return;
-        if (r.status === 'pending') {
-          pollTimer.current = setTimeout(poll, interval);
-          return;
-        }
-        if (r.status === 'dialog_ended') {
-          stopTimers();
-          const handler = waitCbRef.current.onDialogEnded;
-          if (handler) { handler(r); return; }
-          setWait((w) => ({
-            ...w,
-            phase: 'ended',
-            settledAt: Date.now(),
-            title: (m) => m.provider.wait.endedTitle,
-            // The bank's timeout, not the user's: no "zügig" (critique auth #6).
-            text: (m) => m.provider.wait.endedText,
-            canRetry: !!waitCbRef.current.retry,
-          }));
-          return;
-        }
-        if (r.status === 'refused' || r.status === 'unclear') {
-          // The bank's own answer — never mistaken for a lost connection.
-          stopTimers();
-          const handler = waitCbRef.current.onAnswer;
-          if (handler) { handler(r.status, r.bankAnswers); return; }
-          setWait((w) => ({
-            ...w,
-            phase: r.status === 'refused' ? 'refused' : 'error',
-            settledAt: Date.now(),
-            error: r.bankAnswers || ((m: Messages) => m.provider.wait.notConfirmed),
-            canRetry: !!waitCbRef.current.retry,
-          }));
-          return;
-        }
-        stopTimers();
-        lastConfirmedRef.current = { kind, gen, at: Date.now() };
-        setWait((w) => ({ ...w, phase: 'confirmed', settledAt: Date.now() }));
-        // Only closes *this* wait: onDone may already have started the next
-        // one (a statement that needs its own approval right after login).
-        setTimeout(() => { if (gen === waitGenRef.current) setWait(IDLE_WAIT); }, CONFIRMED_LINGER_MS);
-        waitCbRef.current.onDone?.(r);
+        answer(r);
       } catch (err) {
-        // A 401 has already logged out (and bumped the generation) by now.
-        // Anything else — the bank unreachable, "Kein offener Vorgang" — says
-        // nothing about the approval: the overlay calls it unverifiable.
-        if (gen !== waitGenRef.current) return;
-        stopTimers();
-        setWait((w) => ({
-          ...w,
-          phase: 'error',
-          settledAt: Date.now(),
-          error: (err as Error).message,
-          canRetry: !!waitCbRef.current.retry,
-        }));
+        unverifiable(err);
       }
     };
 
-    pollTimer.current = setTimeout(poll, firstDelay);
+    const submit = async (tan: string) => {
+      if (gen !== waitGenRef.current) return;
+      // One TAN at a time: a second press while the first is out does nothing.
+      tanSubmitRef.current = null;
+      setWait((w) => ({ ...w, entry: w.entry && { ...w.entry, sending: true } }));
+      try {
+        const r = await post<TanPollResponse>('/api/tan-poll', { sessionId: sid, tan });
+        if (gen !== waitGenRef.current) return;
+        if (r.status === 'pending') tanSubmitRef.current = submit;
+        answer(r);
+      } catch (err) {
+        unverifiable(err);
+      }
+    };
+
+    if (typed) {
+      tanSubmitRef.current = submit;
+    } else {
+      tanSubmitRef.current = null;
+      pollTimer.current = setTimeout(poll, firstDelay);
+    }
   }, [stopTimers, waitBankFor]);
+
+  /** The TAN the user typed, for the approval on screen (TanWaitOverlay). */
+  const submitTan = useCallback((tan: string) => {
+    void tanSubmitRef.current?.(tan);
+  }, []);
 
   const closeWait = useCallback(() => {
     waitGenRef.current++;
     stopTimers();
+    tanSubmitRef.current = null;
     setWait(IDLE_WAIT);
   }, [stopTimers]);
 
@@ -1405,18 +1548,17 @@ function useFintsState() {
    * Read from refs, because the callers are often closures from an earlier
    * render (the first statement right after the login).
    */
-  const decoupledMethod = useCallback(() => {
-    // Never a typed-TAN method as a stand-in: an app-approval wait cannot
-    // succeed on one. Without a decoupled method the wait says only "in
-    // deiner Banking-App" and polls at the default pace.
+  const approvalMethod = useCallback(() => {
+    // The login's own. Without one, an app-approval method as the likeliest:
+    // whether a TAN is typed, the server says with each approval anyway.
     return selectedMethodRef.current || tanMethodsRef.current.find((m) => m.isDecoupled) || null;
   }, []);
 
-  /** The method of the login that holds `accountNumber`: a linked bank's own, else decoupledMethod. */
+  /** The method of the login that holds `accountNumber`: a linked bank's own, else approvalMethod. */
   const methodFor = useCallback((accountNumber: string | null | undefined) => {
     const link = linkOf(accountNumber);
-    return link ? link.method : decoupledMethod();
-  }, [linkOf, decoupledMethod]);
+    return link ? link.method : approvalMethod();
+  }, [linkOf, approvalMethod]);
 
   /** An account as an approval names it — the user's own name for it first (read from the ref: see above). */
   const approvalAccountName = useCallback((a: SerializedAccount) => (
@@ -2005,6 +2147,7 @@ function useFintsState() {
         toast(msgs().provider.reads.cutShort(fmtDate(toLocalDate(coveredTo))), 'info', 8000);
       }
       void resolveMerchants(pending?.length ? [...list, ...pending] : list);
+      void matchReceiptsRef.current(acct, list);
       opts.onSettled?.('applied');
     };
 
@@ -2014,7 +2157,7 @@ function useFintsState() {
       });
       if (!isCurrent(sid)) return;
       if (data.needsTan) {
-        startDecoupledWait(methodFor(acct), data, {
+        startApproval(methodFor(acct), data, {
           onDone: (r) => {
             finish();
             if (r.kind === 'statements') apply(r.transactions, r.balance, r.blocks, r.pending);
@@ -2050,7 +2193,7 @@ function useFintsState() {
     }
   }, [
     resolveRange, spanFor, keptOf, setFetchesBoth, setHistoryBoth, setBusy, isCurrent, sessionFor, loggedOutText,
-    startDecoupledWait, methodFor, approvalAccountName, resolveMerchants, toast,
+    startApproval, methodFor, approvalAccountName, resolveMerchants, toast,
   ]);
 
   // ---- balances -----------------------------------------------------------
@@ -2109,7 +2252,7 @@ function useFintsState() {
       const data = await post<BalanceResponse>('/api/balance', { sessionId: route, accountNumber: acct });
       if (!isCurrent(sid)) return;
       if (data.needsTan) {
-        startDecoupledWait(methodFor(acct), data, {
+        startApproval(methodFor(acct), data, {
           onDone: (r) => {
             finish();
             if (r.kind === 'balance') apply(r.balance);
@@ -2129,7 +2272,242 @@ function useFintsState() {
       finish();
       fail((err as Error).message);
     }
-  }, [setBusy, isCurrent, sessionFor, loggedOutText, startDecoupledWait, methodFor, approvalAccountName, toast]);
+  }, [setBusy, isCurrent, sessionFor, loggedOutText, startApproval, methodFor, approvalAccountName, toast]);
+
+  // ---- Depot -----------------------------------------------------------------
+  /**
+   * A Depot's holdings (HKWPD), as loadBalance reads a balance: behind
+   * `busy`, through the account's own login, perhaps with an approval.
+   */
+  const loadPortfolio = useCallback(async (
+    account: SerializedAccount,
+    opts: { quiet?: boolean; onSettled?: LoadSettled } = {},
+  ) => {
+    const acct = account.accountNumber;
+    const settle: LoadSettled = (outcome, error) => opts.onSettled?.(outcome, error);
+    if (!account.canPortfolio) { settle('skipped'); return; }
+    if (busyRef.current) {
+      if (!opts.quiet) toast(msgs().provider.busy, 'info');
+      settle('busy');
+      return;
+    }
+    const sid = sessionRef.current;
+    const route = sessionFor(acct);
+    if (!route) {
+      const message = written(loggedOutText(acct), msgs());
+      if (!opts.quiet) toast(message, 'info');
+      settle('failed', message);
+      return;
+    }
+    setPortfolioErrors((e) => without(e, acct));
+    setBusy(true);
+    setPortfolioLoading(acct);
+
+    const finish = () => { setBusy(false); setPortfolioLoading(null); };
+    const fail = (reason: KeptText) => {
+      setPortfolioErrors((e) => ({ ...e, [acct]: { message: reason, at: Date.now() } }));
+      const message = written(reason, msgs());
+      if (!opts.quiet) toast(failureSentence([{ name: accountLabelRef.current(account), message }])!, 'error');
+      settle('failed', message);
+    };
+    const apply = (portfolio: SerializedPortfolio | null) => {
+      // An answer the app could not read is not an empty Depot.
+      if (!portfolio) { fail((m) => m.depot.unreadable); return; }
+      setPortfolios((p) => ({ ...p, [acct]: portfolio }));
+      settle('applied');
+    };
+
+    try {
+      const data = await post<PortfolioResponse>('/api/portfolio', { sessionId: route, accountNumber: acct });
+      if (!isCurrent(sid)) return;
+      if (data.needsTan) {
+        startApproval(methodFor(acct), data, {
+          onDone: (r) => {
+            finish();
+            if (r.kind === 'portfolio') apply(r.portfolio);
+            else fail((m) => m.depot.unreadable);
+          },
+          retry: () => { finish(); void loadPortfolio(account, opts); },
+          onCancelled: () => { finish(); settle('cancelled'); },
+        }, {
+          kind: 'portfolio', subject: (m) => m.provider.wait.portfolioOf(approvalAccountName(account)), sessionId: route,
+        });
+      } else {
+        finish();
+        apply(data.portfolio);
+      }
+    } catch (err) {
+      if (!isCurrent(sid)) return;
+      finish();
+      fail((err as Error).message);
+    }
+  }, [setBusy, isCurrent, sessionFor, loggedOutText, startApproval, methodFor, approvalAccountName, toast]);
+
+  // ---- documents: the bank's Kontoauszüge, and receipts -----------------------
+  // Kept per login on this machine (lib/doc-store.ts) and listed for all of
+  // the view's logins together. Not bank calls: they run outside `busy`,
+  // except the fetch from the bank.
+
+  const setDocsBoth = useCallback((next: ListedDoc[]) => {
+    docsRef.current = next;
+    setDocs(next);
+  }, []);
+
+  /** Lists the documents of every login in the view that is logged in. */
+  const loadDocs = useCallback(async () => {
+    const gen = ++docsGenRef.current;
+    const sids = [sessionRef.current, ...linksRef.current.map((l) => l.sessionId)].filter((x): x is string => !!x);
+    const lists = await Promise.all(sids.map(async (sid) => {
+      try {
+        return { sid, ...(await post<DocsListResponse>('/api/docs', { sessionId: sid, op: 'list' })) };
+      } catch {
+        return { sid, docs: [], locked: false };
+      }
+    }));
+    if (gen !== docsGenRef.current || !sessionRef.current) return;
+    setDocsBoth(lists.flatMap((l) => l.docs.map((d) => ({ ...d, sid: l.sid }))));
+    setDocsLocked(lists.some((l) => l.locked));
+  }, [setDocsBoth]);
+
+  /** The bytes of a kept document, as a Blob of its type. */
+  const readDoc = useCallback(async (doc: ListedDoc): Promise<Blob> => {
+    const r = await post<DocGetResponse>('/api/docs', { sessionId: doc.sid, op: 'get', id: doc.id });
+    return new Blob([base64ToBytes(r.data) as BlobPart], { type: doc.mime });
+  }, []);
+
+  /**
+   * Hands a kept document to the user: on the phone "open" is the share
+   * sheet (a PDF viewer, a gallery), "save" Android's own picker; on the
+   * desktop both save it — the window opens no files of its own.
+   */
+  const openDoc = useCallback(async (doc: ListedDoc, how: 'open' | 'save') => {
+    try {
+      const blob = await readDoc(doc);
+      const mobile = typeof window !== 'undefined' ? window.girovoMobile : undefined;
+      if (how === 'open' && mobile) {
+        await mobile.share(doc.name, blob, doc.name);
+        return;
+      }
+      const outcome = await saveFile(doc.name, blob);
+      if (outcome === 'saved') toast(msgs().docs.saved(doc.name), 'success');
+    } catch (err) {
+      toast((err as Error).message || msgs().docs.openFailed, 'error');
+    }
+  }, [readDoc, toast]);
+
+  const removeDoc = useCallback(async (doc: ListedDoc) => {
+    try {
+      await post('/api/docs', { sessionId: doc.sid, op: 'remove', id: doc.id });
+      setDocsBoth(docsRef.current.filter((d) => d.id !== doc.id));
+      if (doc.kind === 'receipt') toast(msgs().docs.receipts.removed, 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  }, [setDocsBoth, toast]);
+
+  /**
+   * Keeps a receipt: on a booking (`tx`), or waiting for the booking of an
+   * order just sent (`awaiting`). Through the login of the account it is for.
+   * Resolves whether it was kept.
+   */
+  const keepReceipt = useCallback(async (file: Blob & { name?: string }, accountNumber: string, to: { tx: string } | { awaiting: AwaitedBooking }) => {
+    const sid = sessionFor(accountNumber);
+    if (!sid) {
+      toast(written(loggedOutText(accountNumber), msgs()), 'info');
+      return false;
+    }
+    try {
+      const data = bytesToBase64(new Uint8Array(await file.arrayBuffer()));
+      const r = await post<DocResponse>('/api/docs', {
+        sessionId: sid, op: 'addReceipt', name: file.name ?? '', data, accountNumber,
+        tx: 'tx' in to ? to.tx : null, awaiting: 'awaiting' in to ? to.awaiting : null,
+      });
+      if (!isCurrent(sid) && !linksRef.current.some((l) => l.sessionId === sid)) return false;
+      setDocsBoth([...docsRef.current, { ...r.doc, sid }]);
+      if ('tx' in to) toast(msgs().docs.receipts.attached, 'success');
+      return true;
+    } catch (err) {
+      toast((err as Error).message, 'error');
+      return false;
+    }
+  }, [sessionFor, loggedOutText, isCurrent, setDocsBoth, toast]);
+
+  /** A booking's receipts. */
+  const receiptsOf = useCallback((tx: SerializedTransaction) => {
+    const key = txKey(tx);
+    return docs.filter((d) => d.kind === 'receipt' && d.tx === key);
+  }, [docs]);
+
+  /** Bookings that have a receipt, by txKey — for the rows' marker. */
+  const receiptKeys = useMemo(
+    () => new Set(docs.filter((d) => d.kind === 'receipt' && d.tx).map((d) => d.tx!)),
+    [docs],
+  );
+
+  /**
+   * After a statement read: the invoices waiting for a booking of this
+   * account (lib/receipts.ts) go to the bookings that arrived for them.
+   */
+  const matchReceipts = useCallback(async (accountNumber: string, txs: SerializedTransaction[]) => {
+    const waiting = docsRef.current.filter((d) => d.kind === 'receipt' && !d.tx && d.awaiting && d.accountNumber === accountNumber);
+    if (!waiting.length || !txs.length) return;
+    let linked = 0;
+    for (const { doc, key } of matchAwaiting(waiting, txs)) {
+      const listed = doc as ListedDoc;
+      try {
+        const r = await post<DocResponse>('/api/docs', { sessionId: listed.sid, op: 'link', id: doc.id, tx: key, accountNumber });
+        setDocsBoth(docsRef.current.map((d) => (d.id === doc.id ? { ...r.doc, sid: listed.sid } : d)));
+        linked++;
+      } catch { /* it waits for the next read */ }
+    }
+    if (linked) toast(msgs().docs.receipts.matched(linked), 'success');
+  }, [setDocsBoth, toast]);
+  matchReceiptsRef.current = matchReceipts;
+
+  /**
+   * The bank's own Kontoauszüge for an account (HKEKA): fetched and kept by
+   * the server as they arrive (lib/bank-statements.ts), then listed again.
+   * Behind `busy`, like every bank call; perhaps with an approval.
+   */
+  const fetchBankStatements = useCallback(async (account: SerializedAccount) => {
+    const acct = account.accountNumber;
+    if (!account.canBankStatements) return;
+    if (busyRef.current) { toast(msgs().provider.busy, 'info'); return; }
+    const sid = sessionRef.current;
+    const route = sessionFor(acct);
+    if (!route) { toast(written(loggedOutText(acct), msgs()), 'info'); return; }
+    setBusy(true);
+    setBankStatementsLoading(acct);
+    const finish = () => { setBusy(false); setBankStatementsLoading(null); };
+    const report = (answer: BankStatementsAnswer | null, error: string | null) => {
+      setStatementFetches((f) => ({ ...f, [acct]: { at: Date.now(), answer, error } }));
+      if (answer) void loadDocs();
+    };
+    try {
+      const data = await post<BankStatementsResponse>('/api/bank-statements', { sessionId: route, accountNumber: acct });
+      if (!isCurrent(sid)) return;
+      if (data.needsTan) {
+        startApproval(methodFor(acct), data, {
+          onDone: (r) => {
+            finish();
+            if (r.kind === 'bankStatements') report(r, null);
+          },
+          retry: () => { finish(); void fetchBankStatements(account); },
+          onCancelled: finish,
+          onAnswer: (_status, answers) => { finish(); report(null, answers || msgs().docs.statements.failed); },
+        }, {
+          kind: 'bankStatements', subject: (m) => m.provider.wait.bankStatementsOf(approvalAccountName(account)), sessionId: route,
+        });
+      } else {
+        finish();
+        report(data, null);
+      }
+    } catch (err) {
+      if (!isCurrent(sid)) return;
+      finish();
+      report(null, (err as Error).message);
+    }
+  }, [setBusy, isCurrent, sessionFor, loggedOutText, startApproval, methodFor, approvalAccountName, loadDocs, toast]);
 
   /**
    * "Alle Salden abrufen": every balance this session does not know yet, one
@@ -2189,9 +2567,11 @@ function useFintsState() {
     // it: the applied range names the one now on screen.
     if (savedRangeRef.current) setAppliedRange(spanFor(a));
     void loadTransactions(a);
-    // No Umsätze to read its balance from: ask for the balance alone.
-    if (!a.canStatements && a.canBalance && !balancesRef.current[a.accountNumber]) void loadBalance(a);
-  }, [setAppliedRange, spanFor, loadTransactions, loadBalance]);
+    // No Umsätze to read its balance from: a Depot's holdings, else the balance alone.
+    if (!a.canStatements && a.canPortfolio) {
+      if (!portfoliosRef.current[a.accountNumber]) void loadPortfolio(a);
+    } else if (!a.canStatements && a.canBalance && !balancesRef.current[a.accountNumber]) void loadBalance(a);
+  }, [setAppliedRange, spanFor, loadTransactions, loadBalance, loadPortfolio]);
 
   /** Drop the cache for one account and re-read it from the bank. */
   const refreshAccount = useCallback((account: SerializedAccount, from?: string, to?: string) => {
@@ -2344,7 +2724,7 @@ function useFintsState() {
       });
       if (!isCurrent(sid)) return;
       if (data.needsTan) {
-        startDecoupledWait(methodFor(account.accountNumber), data, {
+        startApproval(methodFor(account.accountNumber), data, {
           onDone: (r) => { finish(); if (r.kind === 'pending') apply(r.pending); },
           retry: () => { finish(); void loadPending(account); },
         }, {
@@ -2364,7 +2744,7 @@ function useFintsState() {
       toast(msgs().provider.reads.pendingFailed(accountLabelRef.current(account), message), 'error');
     }
   }, [
-    setBusy, isCurrent, sessionFor, loggedOutText, startDecoupledWait, methodFor, approvalAccountName, toast,
+    setBusy, isCurrent, sessionFor, loggedOutText, startApproval, methodFor, approvalAccountName, toast,
     resolveMerchants,
   ]);
 
@@ -2414,7 +2794,7 @@ function useFintsState() {
       const data = await post<BankOrdersResponse>('/api/bank-orders', { sessionId: route, accountNumber: acct, kind });
       if (!isCurrent(sid)) return;
       if (data.needsTan) {
-        startDecoupledWait(methodFor(acct), data, {
+        startApproval(methodFor(acct), data, {
           onDone: (r) => {
             finish();
             if (r.kind === 'bankOrders' && r.orderKind === kind) apply(r);
@@ -2432,7 +2812,7 @@ function useFintsState() {
       finish();
       fail((err as Error).message);
     }
-  }, [setBusy, isCurrent, sessionFor, loggedOutText, startDecoupledWait, methodFor, approvalAccountName, toast]);
+  }, [setBusy, isCurrent, sessionFor, loggedOutText, startApproval, methodFor, approvalAccountName, toast]);
 
   /**
    * Reads the bank's orders of the given kinds (all the account can list,
@@ -2488,7 +2868,7 @@ function useFintsState() {
         return;
       }
       if (data.needsTan) {
-        startDecoupledWait(methodFor(account.accountNumber), data, {
+        startApproval(methodFor(account.accountNumber), data, {
           onDone: (r) => settle('deleted', r.kind === 'orderDeleted' ? r.bankAnswers : undefined),
           retry: null,
           onDialogEnded: () => { closeWait(); settle('unclear'); },
@@ -2513,7 +2893,7 @@ function useFintsState() {
       setBusy(false);
       toast((err as Error).message, 'error');
     }
-  }, [setBusy, isCurrent, sessionFor, loggedOutText, startDecoupledWait, methodFor, closeWait, toast]);
+  }, [setBusy, isCurrent, sessionFor, loggedOutText, startApproval, methodFor, closeWait, toast]);
 
   // ---- session clock ------------------------------------------------------
   // The dashboard logs itself out after `idleMinutes` without input. The exact
@@ -2666,7 +3046,8 @@ function useFintsState() {
   // network (a short foreground service, android/…/ApprovalService.java).
   // Approving means switching to that app, and from Android 15 an app in the
   // background is cut off — the next "approved yet?" would never reach the bank.
-  const awaitingApproval = wait.open && wait.phase === 'waiting';
+  // A typed TAN goes out with the app in front: nothing to hold for it.
+  const awaitingApproval = wait.open && wait.phase === 'waiting' && !wait.entry;
   useEffect(() => {
     const mobile = IS_ANDROID ? window.girovoMobile : undefined;
     if (!mobile || !awaitingApproval) return;
@@ -2803,7 +3184,8 @@ function useFintsState() {
     }
     // Not a bank call: it runs beside the first statement, outside `busy`.
     void loadVault(sid);
-  }, [startSessionClock, setAppliedRange, loadTransactions, loadVault]);
+    void loadDocs();
+  }, [startSessionClock, setAppliedRange, loadTransactions, loadVault, loadDocs]);
 
   // Said after the fact, so the way back is right there: on a shared
   // computer "Gerät vergessen" is one press away, not a trip to the Sitzung
@@ -2857,6 +3239,7 @@ function useFintsState() {
     const inbox = inboxOf('bankMessages' in data ? data.bankMessages || [] : [], new Date().toISOString(), named.name);
     messagesRef.current = inbox;
     setMessages(inbox);
+    setMessagesAsked(!('restored' in data && data.restored));
 
     if ('restored' in data && data.restored) {
       // Remembered device: cached accounts + TAN method, no sync SCA. Set
@@ -2871,7 +3254,8 @@ function useFintsState() {
       setTanMethodsBoth(data.tanMethods || []);
       setSelectedMethodBoth(null);
       setMediaChoice(null);
-      setTanMethodError(data.tanMethods?.length ? null : { text: (m) => m.provider.login.noTanMethod });
+      // No method at all: the step's own heading says so (auth.tanMethod.none).
+      setTanMethodError(null);
       setView('tanmethod');
     }
   }, [afterAccountsReady, toast, setSelectedMethodBoth, setTanMethodsBoth]);
@@ -2912,7 +3296,7 @@ function useFintsState() {
       if ('needsTan' in data && data.needsTan) {
         // The device the user just picked is the one being asked, even when
         // the bank's answer does not repeat its name.
-        startDecoupledWait(method, { ...data, tanMediaName: data.tanMediaName || media || null }, {
+        startApproval(method, { ...data, tanMediaName: data.tanMediaName || media || null }, {
           onDone: (r) => {
             if (r.kind !== 'accounts') return;
             if (r.deviceSaved) notifyDeviceSaved();
@@ -2930,7 +3314,7 @@ function useFintsState() {
       if (!isCurrent(sid)) return;
       setTanMethodError({ text: (err as Error).message });
     }
-  }, [isCurrent, startDecoupledWait, afterAccountsReady, notifyDeviceSaved, setSelectedMethodBoth]);
+  }, [isCurrent, startApproval, afterAccountsReady, notifyDeviceSaved, setSelectedMethodBoth]);
 
   /** "Anderes Verfahren wählen" from the device list: back to the methods. */
   const clearMediaChoice = useCallback(() => setMediaChoice(null), []);
@@ -3086,6 +3470,8 @@ function useFintsState() {
     setLinksBoth(nextLinks);
     accountsRef.current = nextAccounts;
     setAccounts(nextAccounts);
+    // Its login keeps documents of its own.
+    void loadDocs();
 
     // Its login's messages, once — logging in again brings the same ones.
     const known = new Set(messagesRef.current.map((m) => `${m.bank}\n${m.subject}\n${m.text}`));
@@ -3169,7 +3555,8 @@ function useFintsState() {
       tanMethods: methods,
       selectedMethod: null,
       mediaChoice: null,
-      error: methods.length ? null : (m: Messages) => m.provider.login.noTanMethod,
+      // No method at all: the step's own heading says so (auth.tanMethod.none).
+      error: null,
     }));
   }, [isCurrent, holdFlowBusy, releaseFlowBusy, updateAddBank, finishAddBank]);
 
@@ -3201,7 +3588,7 @@ function useFintsState() {
       }
       if ('needsTan' in data && data.needsTan) {
         // `busy` stays held through the approval.
-        startDecoupledWait(method, { ...data, tanMediaName: data.tanMediaName || media || null }, {
+        startApproval(method, { ...data, tanMediaName: data.tanMediaName || media || null }, {
           onDone: (r) => {
             if (r.kind === 'accounts') finishAddBank(r.accounts || [], method, r.deviceSaved);
             else releaseFlowBusy();
@@ -3224,7 +3611,7 @@ function useFintsState() {
       releaseFlowBusy();
       updateAddBank((a) => ({ ...a, error: (err as Error).message }));
     }
-  }, [isCurrent, updateAddBank, holdFlowBusy, releaseFlowBusy, startDecoupledWait, finishAddBank, closeAddBank, toast]);
+  }, [isCurrent, updateAddBank, holdFlowBusy, releaseFlowBusy, startApproval, finishAddBank, closeAddBank, toast]);
 
   const chooseAddBankMethodRef = useRef(chooseAddBankMethod);
   chooseAddBankMethodRef.current = chooseAddBankMethod;
@@ -3358,6 +3745,15 @@ function useFintsState() {
     setBalanceErrors({});
     setBalanceLoading(null);
     setLoadingAllBalances(false);
+    setPortfolios({});
+    setPortfolioErrors({});
+    setPortfolioLoading(null);
+    docsGenRef.current++;
+    docsRef.current = [];
+    setDocs([]);
+    setDocsLocked(false);
+    setBankStatementsLoading(null);
+    setStatementFetches({});
     setWait(IDLE_WAIT);
     setPrintJob(null);
 
@@ -3628,7 +4024,7 @@ function useFintsState() {
       const sent = p ? sentOrderOf(p, 'unknown', new Date().toISOString()) : null;
       sentOrderRef.current = sent;
       if (sent) logSentOrder(sent, null);
-      startDecoupledWait(methodFor(p?.accountNumber), data, {
+      startApproval(methodFor(p?.accountNumber), data, {
         onDone: (r) => {
           setBusy(false);
           handlers.onExecuted(r.kind === 'transfer' ? r.bankAnswers : undefined);
@@ -3666,7 +4062,7 @@ function useFintsState() {
     // bank texts cannot leave `busy` stuck on.
     setBusy(false);
     handlers.onExecuted(data.bankAnswers);
-  }, [setBusy, startDecoupledWait, methodFor, closeWait, logSentOrder]);
+  }, [setBusy, startApproval, methodFor, closeWait, logSentOrder]);
 
   /**
    * A request that never got an answer may still have reached the bank: the
@@ -4008,6 +4404,12 @@ function useFintsState() {
 
   // The kept reasons, written in the language on screen.
   const tanMethodError = tanMethodErrorKept ? written(tanMethodErrorKept.text, texts) : null;
+  const portfolioErrors = useMemo(() => {
+    const out: Record<string, LoadError> = {};
+    for (const [acct, e] of Object.entries(portfolioErrorsKept)) out[acct] = { message: written(e.message, texts), at: e.at };
+    return out;
+  }, [portfolioErrorsKept, texts]);
+
   const balanceErrors = useMemo(() => {
     const out: Record<string, LoadError> = {};
     for (const [acct, e] of Object.entries(balanceErrorsKept)) out[acct] = { message: written(e.message, texts), at: e.at };
@@ -4225,11 +4627,14 @@ function useFintsState() {
     tanMethods, selectedMethod, mediaChoice, tanMethodError,
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
     txErrors, balanceErrors, balanceLoading, loadingAllBalances,
+    portfolios, portfolioErrors, portfolioLoading, loadPortfolio,
+    docs, docsLocked, loadDocs, readDoc, openDoc, removeDoc, keepReceipt, receiptsOf, receiptKeys,
+    bankStatementsLoading, statementFetches, fetchBankStatements,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     pendingErrors,
     bankOrders, bankOrdersLoading, bankOrderErrors, orderDeletions,
     range, statementInfo, txByAccount, ownIbans,
-    messages, unreadCount, activity,
+    messages, messagesAsked, unreadCount, activity,
     vault, vaultStatus,
     keepBookings, historyStatus, historyCoverage: keptCoverage, savedRange,
     // prefs
@@ -4252,7 +4657,7 @@ function useFintsState() {
     loadBankOrders, deleteBankOrder,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
     requestLogout, closeLogoutConfirm, setForgetDeviceOpen,
-    retryWait, cancelWait, closeWait, printStatement, printTransaction, printMessage, closePrintJob,
+    retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,
     setTab, setTxFilter, showTransactions,

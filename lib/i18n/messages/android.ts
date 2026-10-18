@@ -59,14 +59,13 @@ export const de = {
 
   /** Pull to refresh (components/android/PullToRefresh.tsx), for a screen reader. */
   refresh: {
-    pulled: 'Loslassen zum Aktualisieren',
     refreshing: 'Umsätze werden abgerufen',
   },
 
   /** The notification while an approval in the bank's app is awaited. */
   approval: {
     title: 'Warte auf deine Freigabe',
-    text: 'Gib den Auftrag in deiner Banking-App frei – Girovo bleibt so lange mit deiner Bank verbunden.',
+    text: 'Gib die Anfrage in deiner Banking-App frei – Girovo bleibt so lange mit deiner Bank verbunden.',
   },
 
   share: {
@@ -129,13 +128,12 @@ export const en: typeof de = {
   },
 
   refresh: {
-    pulled: 'Release to refresh',
     refreshing: 'Fetching transactions',
   },
 
   approval: {
     title: 'Waiting for your approval',
-    text: 'Approve it in your banking app – Girovo stays connected to your bank meanwhile.',
+    text: 'Approve the request in your banking app – Girovo stays connected to your bank meanwhile.',
   },
 
   share: {

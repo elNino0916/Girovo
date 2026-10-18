@@ -5,7 +5,7 @@
 export const de = {
   /** The switch in the Sitzung panel's "Auf diesem Rechner". */
   keep: 'Umsätze auf diesem Rechner behalten',
-  keepHint: 'Mit deiner PIN verschlüsselt – sie bleiben auf diesem Rechner.',
+  keepHint: 'Mit deiner PIN verschlüsselt.',
   /** The hint once some are kept; `date` is the oldest kept day ("12.03.2025"). */
   keptSince: (date: string) => `Seit ${date} gespeichert, mit deiner PIN verschlüsselt.`,
   loading: 'Gespeicherte Umsätze werden geladen …',
@@ -37,10 +37,6 @@ export const de = {
   list: {
     /** Before the first day the list takes from this computer. */
     divider: 'Ab hier: auf diesem Rechner gespeichert',
-    /** In the period line, after the dates: "12.03.2025–06.10.2026 · bis 07.07. gespeichert". */
-    savedUntil: (day: string) => `bis ${day} gespeichert`,
-    /** In the period line of a list the bank was not asked for at all. */
-    allSaved: 'auf diesem Rechner gespeichert',
   },
 
   /** The Zeitraum control (components/transactions/PeriodControl.tsx). */
@@ -50,9 +46,6 @@ export const de = {
     /** Under it in the menu: "seit 12.03.2025 · von diesem Rechner". */
     since: (date: string) => `seit ${date} · von diesem Rechner`,
   },
-
-  /** Beside "Umsätze für 12 Monate abrufen" when the older months are kept. */
-  fromSaved: 'Ältere Umsätze kommen von diesem Rechner.',
 
   /** The server's refusals (lib/history-store.ts, app/api/history). */
   server: {
@@ -66,7 +59,7 @@ export const de = {
 
 export const en: typeof de = {
   keep: 'Keep transactions on this computer',
-  keepHint: 'Encrypted with your PIN – they stay on this computer.',
+  keepHint: 'Encrypted with your PIN.',
   keptSince: (date) => `Kept since ${date}, encrypted with your PIN.`,
   loading: 'Loading saved transactions…',
   unreadable: 'Can’t be opened with this PIN – usually because it has changed. Nothing is added until you start again.',
@@ -92,8 +85,6 @@ export const en: typeof de = {
 
   list: {
     divider: 'From here on: saved on this computer',
-    savedUntil: (day) => `saved up to ${day}`,
-    allSaved: 'saved on this computer',
   },
 
   period: {
@@ -101,8 +92,6 @@ export const en: typeof de = {
     short: 'Saved',
     since: (date) => `since ${date} · from this computer`,
   },
-
-  fromSaved: 'Older transactions come from this computer.',
 
   server: {
     unavailable: 'No transactions can be saved for this session.',

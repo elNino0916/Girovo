@@ -2,13 +2,13 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
-import { canReportBalance, isCardAccount } from '@/lib/balances';
+import { canReportBalance, isCardAccount, isDepot } from '@/lib/balances';
 import type { BalanceHistory } from '@/lib/balance-history';
 import { accountBalanceHistory } from '@/lib/history';
-import { dayKey, fmtDate, fmtIban, fmtRange, isFutureDate, isoDate, properName } from '@/lib/format';
+import { dayKey, fmtDate, fmtIban, fmtRange, isFutureDate, isoDate } from '@/lib/format';
 import type { SerializedAccount, SerializedBalance } from '@/lib/fints-types';
 import type { StatementInfo } from '@/lib/app-types';
-import type { Messages } from '@/lib/i18n';
+import { intlLocale, type Messages } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
@@ -16,7 +16,7 @@ import { Money } from '../Money';
 import { AlertTriangleIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
 import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx } from '../ui';
 import { fmtSince } from '../shell/session';
-import { AccountGlyph, MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
+import { MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
 import { BalanceChart } from './BalanceChart';
 
 /**
@@ -95,9 +95,9 @@ function HeroSkeleton() {
  * Kreditrahmen, in ink rather than red — a card's balance is negative by
  * nature, so red would raise an alarm after every purchase.
  *
- * No buttons for the account's actions: Überweisen, Geld anfordern and
- * Kontoauszug are the stage's Schnellzugriffe right above, and act on this
- * same account. With a single account the list above stays away, and its
+ * No buttons for the account's actions: Überweisen is the navigation's
+ * floating button, Geld anfordern and Kontoauszug are under "Mehr", and all
+ * three act on this same account. With a single account the list above stays away, and its
  * "Umbenennen" moves into the account line here.
  *
  * Past ranges: a statement fetched for a range that ended before today says
@@ -128,6 +128,8 @@ export function AccountHero() {
 
   // No account at all (the bank listed none): the list says so; nothing to hold a place for.
   if (!a) return accounts.length ? <HeroSkeleton /> : null;
+  // A Depot has no balance and no Kontoverlauf over FinTS: its value instead.
+  if (isDepot(a)) return <DepotHero account={a} renamable={accounts.length === 1} />;
 
   const bal = balances[acct];
   const statementLoading = loadingAccount === acct;
@@ -161,8 +163,8 @@ export function AccountHero() {
   const figureColour = privacy || !negative ? 'text-headline' : card ? 'text-ink' : undefined;
   // On Android today's balance goes without its name and its date: the
   // account's name heads the figure, and a date is said only when it is not today.
-  const plainNow = IS_ANDROID && (main?.label ?? nowLabel) === nowLabel;
-  const showDate = !(IS_ANDROID && !privacy && dayKey(bal?.date) === today);
+  const plainNow = (main?.label ?? nowLabel) === nowLabel;
+  const showDate = !(!privacy && dayKey(bal?.date) === today);
 
   /**
    * Fetches the figure the cheapest way that gets it: the statement while
@@ -300,10 +302,7 @@ export function AccountHero() {
               </>
             ) : figureLoading ? (
               <>
-                <span className="mt-2 block">
-                  <Skeleton className="h-10 w-56 max-w-full rounded-[6px] @min-[520px]:h-12" />
-                  <span className="sr-only">{words.fetching}</span>
-                </span>
+                <Skeleton className="mt-2 h-10 w-56 max-w-full rounded-[6px] @min-[520px]:h-12" />
                 <p className="mt-2 text-[13px] leading-snug text-ink-3">{words.fetchingDots}</p>
               </>
             ) : failure ? (
@@ -336,11 +335,86 @@ export function AccountHero() {
           )}
         </div>
 
-        {IS_ANDROID && <AccountLine compact account={a} label={label} renamable={accounts.length === 1} />}
+        <AccountLine account={a} renamable={accounts.length === 1} />
         <BalanceSection history={history} loading={statementLoading && !info} currency={currency} figure={!!main} />
       </div>
 
-      {!IS_ANDROID && <AccountLine account={a} label={label} renamable={accounts.length === 1} />}
+    </HeroFrame>
+  );
+}
+
+/**
+ * A Depot's hero: the value its holdings had at the bank's last report
+ * (components/Portfolio.tsx lists them), with when that was. Until there is
+ * one, this is the one place that offers the read, says it is under way, or
+ * says why it failed — the Depot tile below and the account's row in the
+ * list leave all of that here.
+ */
+function DepotHero({ account, renamable }: { account: SerializedAccount; renamable: boolean }) {
+  const { portfolios, portfolioLoading, portfolioErrors, loadPortfolio, busy, accountLabel } = useFints();
+  const tr = useT();
+  const words = tr.depot;
+  const figureRef = useRef<HTMLDivElement>(null);
+  const acct = account.accountNumber;
+  const p = portfolios[acct];
+  const loading = portfolioLoading === acct;
+  const label = accountLabel(account);
+  const failure = portfolioErrors[acct];
+  // The button that asked gives way to the read: focus waits on the figure's
+  // place for whatever arrives there — never dropped to <body>.
+  const read = () => {
+    if (busy) return;
+    figureRef.current?.focus({ preventScroll: true });
+    void loadPortfolio(account);
+  };
+  const asOf = p && (
+    <p className="tnum mt-2 text-[13px] leading-snug text-ink-3">
+      {words.asOf(new Intl.DateTimeFormat(intlLocale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(p.readAt)))}
+    </p>
+  );
+  return (
+    <HeroFrame label={label}>
+      <div className="@container px-5 pt-5 pb-6 sm:px-8 sm:pt-7 sm:pb-7">
+        <div ref={figureRef} tabIndex={-1} aria-busy={loading || undefined} className="min-w-0 outline-none">
+          <p className="text-[14px] leading-snug font-semibold text-ink-2">
+            {words.total}
+            <span className="font-normal text-ink-3"> · {label}</span>
+          </p>
+          {p?.totalValue != null ? (
+            <>
+              <p className="mt-1.5 leading-none font-bold tracking-[-0.015em] text-headline">
+                <Money
+                  value={p.totalValue}
+                  currency={p.currency}
+                  tone="plain"
+                  split
+                  className="text-[40px] @min-[520px]:text-[52px]"
+                  centsClassName="text-[0.5em] font-semibold"
+                />
+              </p>
+              {asOf}
+            </>
+          ) : loading ? (
+            <Skeleton className="mt-2 h-10 w-56 max-w-full rounded-[6px] @min-[520px]:h-12" />
+          ) : failure ? (
+            <FigureNote problem title={tr.common.fetchFailed} action={{ label: tr.common.retry, run: read }} busy={busy}>
+              {failure.message}
+            </FigureNote>
+          ) : p ? (
+            <>
+              <FigureNote title={words.noTotal} />
+              {asOf}
+            </>
+          ) : (
+            <FigureNote title={words.notRead} action={{ label: words.read, run: read }} busy={busy}>
+              {words.intro}
+            </FigureNote>
+          )}
+        </div>
+        {/* The read, announced once — here, not again by the tile below. */}
+        <p role="status" className="sr-only">{loading ? words.loading : ''}</p>
+        <AccountLine account={account} renamable={renamable} />
+      </div>
     </HeroFrame>
   );
 }
@@ -358,8 +432,9 @@ function HeroFrame({ label, children }: { label: string; children: ReactNode }) 
 
 /**
  * In the figure's place: why there is none — and, when a read can change
- * that, the read, with the note every fetch control carries. Not a live
- * region: the toast has already announced a failure once.
+ * that, the read, with the approval note beside it (the hero's one control
+ * that asks the bank). Not a live region: the toast has already announced a
+ * failure once.
  */
 function FigureNote({
   title, problem, action, busy, children,
@@ -384,7 +459,7 @@ function FigureNote({
           <Button size="sm" variant="secondary" iconLeft={<RefreshIcon size={16} />} disabled={busy} onClick={action.run}>
             {action.label}
           </Button>
-          <span className="text-[13px] leading-snug text-ink-3">{t.insights.mayNeedApproval}</span>
+          <span className="text-[13px] leading-snug text-ink-3">{t.common.mayNeedApproval}</span>
         </div>
       )}
     </div>
@@ -411,24 +486,19 @@ function FetchAction({ lead, label, busy, loading, run }: {
         >
           {label}
         </Button>
-        <span>{t.insights.mayNeedApproval}</span>
+        <span>{t.common.mayNeedApproval}</span>
       </p>
     </div>
   );
 }
 
 /**
- * The account line: what the account is called, whose it is, and the
- * identifiers to hand to somebody else — each copyable. For the only account
- * (no list above it) it is also where the account is renamed.
- *
- * `compact` (Android): inside the balance, whose first line already names the
- * account — the number to hand on, and renaming as an icon. The holder is
- * the user, and the BIC is in Geld anfordern.
+ * The account line, inside the balance, whose first line already names the
+ * account: the number to hand to somebody else, copyable, and — for the only
+ * account (no list above it) — renaming, as an icon. The holder is the user,
+ * and the BIC is in Geld anfordern.
  */
-function AccountLine({ account, label, renamable, compact = false }: {
-  account: SerializedAccount; label: string; renamable: boolean; compact?: boolean;
-}) {
+function AccountLine({ account, renamable }: { account: SerializedAccount; renamable: boolean }) {
   const { vaultStatus } = useFints();
   const t = useT();
   const [renaming, setRenaming] = useState(false);
@@ -455,7 +525,6 @@ function AccountLine({ account, label, renamable, compact = false }: {
 
   const iban = fmtIban(account.iban);
   const ident = accountIdent(account);
-  const holder = properName(account.holder);
   const idNode = iban ? (
     <span className="flex min-w-0 items-center gap-1">
       <span className="sr-only">IBAN </span>
@@ -480,70 +549,27 @@ function AccountLine({ account, label, renamable, compact = false }: {
     </Alert>
   );
 
-  if (compact) {
-    return (
-      <div className="mt-3">
-        {renaming && renamable ? (
-          <RenameForm account={account} onClose={() => setRenaming(false)} />
-        ) : (
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 flex-1">{idNode}</span>
-            {renamable && (
-              <IconButton
-                ref={renameButton}
-                data-rename
-                size="md"
-                aria-label={t.insights.accounts.rename}
-                aria-describedby={noteOpen ? noteId : undefined}
-                onClick={startRenaming}
-              >
-                <PencilIcon size={18} />
-              </IconButton>
-            )}
-          </div>
-        )}
-        {note}
-      </div>
-    );
-  }
-
   return (
-    <div className="border-t border-line bg-inset px-5 py-4 sm:px-8">
+    <div className="mt-3">
       {renaming && renamable ? (
         <RenameForm account={account} onClose={() => setRenaming(false)} />
       ) : (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <span className="flex min-w-0 flex-1 items-center gap-3">
-            <AccountGlyph account={account} size={36} className="hidden sm:grid" />
-            <span className="min-w-0">
-              <span className="block truncate text-[15px] leading-snug font-semibold">{label}</span>
-              {holder && <span className="block truncate text-[13px] leading-snug text-ink-3">{holder}</span>}
-            </span>
-            {renamable && (
-              <Button
-                ref={renameButton}
-                variant="tertiary"
-                size="xs"
-                iconLeft={<PencilIcon size={16} />}
-                aria-describedby={noteOpen ? noteId : undefined}
-                onClick={startRenaming}
-              >
-                {t.insights.accounts.rename}
-              </Button>
-            )}
-          </span>
-
-          <span className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 sm:justify-end">
-            {idNode}
-            {account.bic && (
-              <span className="text-[13px] text-ink-3">
-                BIC <span className="iban text-ink-2">{account.bic}</span>
-              </span>
-            )}
-          </span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1">{idNode}</span>
+          {renamable && (
+            <IconButton
+              ref={renameButton}
+              data-rename
+              size="md"
+              aria-label={t.insights.accounts.rename}
+              aria-describedby={noteOpen ? noteId : undefined}
+              onClick={startRenaming}
+            >
+              <PencilIcon size={18} />
+            </IconButton>
+          )}
         </div>
       )}
-
       {note}
     </div>
   );

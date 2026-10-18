@@ -1,8 +1,9 @@
 // Forget a remembered device — deletes the encrypted profile.
 //
 // With `wipeData` it also deletes this login's personal-data vault and every
-// backup of it (lib/vault.ts, wipeVault), and the Umsätze kept on this
-// computer with theirs (lib/history-store.ts, wipeHistory). All are sealed
+// backup of it (lib/vault.ts, wipeVault), the Umsätze kept on this computer
+// with theirs (lib/history-store.ts, wipeHistory), and the kept documents —
+// the bank's Kontoauszüge and the receipts (lib/doc-store.ts). All are sealed
 // under a key from the PIN, so any left on disk is something to try PINs
 // against offline; when the machine is handed on, all have to go. The wipe
 // is its own choice in the dialog because "Gerät vergessen" alone is also just
@@ -15,6 +16,7 @@
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { getSession } from '@/lib/session';
+import { DocError, wipeDocs } from '@/lib/doc-store';
 import { HistoryError, wipeHistory } from '@/lib/history-store';
 import { forgetProfile } from '@/lib/state-store';
 import { VaultError, wipeVault } from '@/lib/vault';
@@ -40,9 +42,10 @@ export const POST = wrap(async (req: Request) => {
     try {
       // The kept Umsätze first, as in app/api/vault: if they cannot go, the vault stays as it was.
       const history = await wipeHistory(s);
-      wiped = history + (await wipeVault(s));
+      const docs = await wipeDocs(s);
+      wiped = history + docs + (await wipeVault(s));
     } catch (err) {
-      if (err instanceof VaultError || err instanceof HistoryError) return fail(err.message, err.status);
+      if (err instanceof VaultError || err instanceof HistoryError || err instanceof DocError) return fail(err.message, err.status);
       throw err;
     }
   }

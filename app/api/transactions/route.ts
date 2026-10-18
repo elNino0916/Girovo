@@ -47,7 +47,7 @@ export const POST = wrap(async (req: Request) => {
   logResp('transactions', s, resp);
   if (resp.requiresTan) {
     s.pending = { type: 'statements', tanReference: resp.tanReference, accountNumber, asked };
-    return json({ ...tanPayload(resp), accountNumber } satisfies TransactionsResponse);
+    return json({ ...tanPayload(resp, s), accountNumber } satisfies TransactionsResponse);
   }
   if (!resp.success) return fail(bankAnswerText(resp) || msgs().transactions.api.transactionsFailed);
   logStatementDates(accountNumber, resp.statements);

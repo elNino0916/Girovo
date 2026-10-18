@@ -261,11 +261,12 @@ function Status({ state }: { state: UpdateState }) {
     );
   }
   // Not yet asked in this session (the first automatic check runs shortly
-  // after the start), or the automatic check is off.
-  if (state.installed) return null;
+  // after the start), or the automatic check is off: the switch below says
+  // which. Only a build without that switch says it here.
+  if (state.installed || state.kind !== 'dev') return null;
   return (
     <p className="text-[15px] leading-snug text-ink-2">
-      {state.auto && state.kind !== 'dev' ? u.autoOn : u.autoOff}
+      {u.autoOff}
     </p>
   );
 }

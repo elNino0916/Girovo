@@ -151,8 +151,8 @@ export function PendingPanel() {
           </div>
           {cached && onRequest && (
             <IconButton
-              aria-label={`${words.refresh} ${tr.transactions.mayNeedApproval}`}
-              title={`${tr.transactions.refresh}. ${tr.transactions.mayNeedApproval}`}
+              aria-label={`${words.refresh} ${tr.common.mayNeedApproval}`}
+              title={`${tr.transactions.refresh}. ${tr.common.mayNeedApproval}`}
               disabled={busy}
               onClick={load}
               className="-mt-0.5 -mr-1.5"
@@ -171,7 +171,7 @@ export function PendingPanel() {
         ) : !cached ? (
           <div className="px-4 pb-4 sm:px-5">
             <p className="text-[14px] leading-relaxed text-ink-2">
-              {failure ? failure.message : words.intro} {tr.transactions.mayNeedApproval}
+              {failure ? failure.message : words.intro} {tr.common.mayNeedApproval}
             </p>
             <Button size="sm" variant="secondary" className="mt-3" disabled={busy} onClick={load}>
               {failure ? tr.common.retry : words.fetch}

@@ -1,4 +1,4 @@
-// Writes the generated parts of app/android.css — the Android app's
+// Writes the generated parts of app/material.css — Girovo's
 // Material 3 Expressive layer — between their markers:
 //
 //   m3e:springs   the six springs of Compose's expressive motion scheme
@@ -23,7 +23,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CSS = path.join(ROOT, 'app', 'android.css');
+const CSS = path.join(ROOT, 'app', 'material.css');
 
 const round = (n, places) => Number(n.toFixed(places));
 
@@ -162,7 +162,7 @@ function between(css, name, lines) {
   const end = `/* ${name}:end */`;
   const from = css.indexOf(start);
   const to = css.indexOf(end);
-  if (from < 0 || to < from) throw new Error(`app/android.css has no ${name} markers`);
+  if (from < 0 || to < from) throw new Error(`app/material.css has no ${name} markers`);
   const eol = css.includes('\r\n') ? '\r\n' : '\n';
   return css.slice(0, from + start.length) + eol + lines.join(eol) + eol + css.slice(to);
 }
@@ -171,4 +171,4 @@ let css = fs.readFileSync(CSS, 'utf8');
 css = between(css, 'm3e:springs', springLines);
 css = between(css, 'm3e:loading', loadingLines);
 fs.writeFileSync(CSS, css);
-console.log(`✓ app/android.css: ${Object.keys(SPRINGS).length} springs, ${SHAPES.length} loading shapes`);
+console.log(`✓ app/material.css: ${Object.keys(SPRINGS).length} springs, ${SHAPES.length} loading shapes`);

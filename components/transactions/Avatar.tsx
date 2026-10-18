@@ -170,9 +170,8 @@ const CHIP = {
 /**
  * A booking the bank made itself — the Abschluss, a fee, interest — shows the
  * bank's own mark: there the bank is the counterparty, so its mark is the
- * subject, as in the institute bar. A compact logo file is drawn the way the
- * institute bar draws it (.logo-img: a light plate, navy and black marks
- * flipped in dark mode); a wordmark would be unreadable this small, so there
+ * subject. A compact logo file is drawn as every bank logo is (.logo-img: a
+ * light plate, navy and black marks flipped in dark mode); a wordmark would be unreadable this small, so there
  * the brand's chip stands in (lib/brands.ts COMPACT_LOGO). Only these rows
  * read the bank, so a long list stays off the provider. Without a bank, the
  * monogram stays.

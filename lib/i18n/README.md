@@ -120,6 +120,7 @@ The rules:
 | Freigabe, freigeben | approval, approve |
 | TAN, TAN-Verfahren | TAN, TAN method (pushTAN, SecureGo plus, chipTAN keep their names) |
 | Anmelden, Abmelden, Anmeldename | log in, log out, login name |
+| Zugang | login ("FinTS access" for FinTS-Zugang) |
 | Sitzung | session |
 | Gerät merken, Gerät vergessen | remember this device, forget device |
 | Bankleitzahl (BLZ) | bank code (BLZ) |

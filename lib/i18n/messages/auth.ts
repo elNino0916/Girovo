@@ -7,6 +7,8 @@ export const de = {
   connecting: 'Verbinde mit der Bank …',
   /** The no on both consent tiles (company logos, usage data). */
   noThanks: 'Nein danke',
+  /** On both consent tiles: where the answer can be changed later. */
+  changeLater: 'Du kannst das jederzeit im Sitzungsmenü oben rechts ändern.',
 
   /** The progress on the login's stage (AuthShell); the third step is common.approval. */
   steps: {
@@ -26,7 +28,7 @@ export const de = {
     },
     direct: {
       title: 'Direkte Verbindung',
-      text: 'Von diesem Rechner direkt zu deiner Bank, über ihren FinTS-Zugang.',
+      text: 'Von diesem Rechner zu deiner Bank, über ihren FinTS-Zugang.',
     },
     device: {
       title: 'Dieses Gerät wird gemerkt',
@@ -62,7 +64,6 @@ export const de = {
   /** Step one: find the bank (components/auth/BankPicker.tsx). */
   bankPicker: {
     title: 'Bank wählen',
-    intro: 'Bei welcher Bank führst du dein Konto?',
     /** The bank chosen last time has left the bank list. */
     staleTitle: 'Deine Bank vom letzten Mal steht nicht mehr in der Liste',
     staleText: (name: string, blz: ReactNode): ReactNode[] => [
@@ -125,8 +126,6 @@ export const de = {
       participantNumber: 'Teilnehmernummer',
       postbankId: 'Postbank ID',
     },
-    /** Under the generic login label. */
-    loginHint: 'So wie beim Online-Banking deiner Bank.',
     loginMissing: 'Bitte gib deinen Anmeldenamen ein.',
     /** What the bank calls the secret. "PIN" alone invites the bank card's four digits. */
     secrets: {
@@ -151,7 +150,7 @@ export const de = {
     capsLock: 'Feststelltaste ist aktiv',
     /** The one hard requirement, said before the PIN goes anywhere; the bank's app named where it is known. */
     approvalHint: (app?: string) =>
-      `Freigabe danach in deiner Banking-App${app ? `, z. B. ${app}` : ''}. chipTAN, smsTAN und TAN-Generator gehen hier nicht.`,
+      `Danach gibst du die Anmeldung frei: in deiner Banking-App${app ? ` (z. B. ${app})` : ''} oder mit einer TAN, etwa per chipTAN oder smsTAN.`,
     rememberedTitle: 'Dieses Gerät ist gemerkt',
     rememberedText: (withIt: string) => `${withIt} klappt die Anmeldung hier meist ohne neue Freigabe.`,
     locked: 'Entsperren kann nur deine Bank.',
@@ -170,15 +169,13 @@ export const de = {
       title: 'Die Zugangsdaten deines Online-Bankings',
       text: 'Anmeldename und PIN, so wie auf der Website deiner Bank. Nicht die PIN deiner Bankkarte.',
     },
-    /** The same point on the credentials step, where the form already says which PIN. */
-    credentialsShort: 'Anmeldename und PIN, so wie auf der Website deiner Bank.',
     fints: {
       title: 'FinTS-Zugang',
       text: 'Darüber spricht die App mit deiner Bank. Ist er für deinen Zugang nicht freigeschaltet, hilft dir deine Bank.',
     },
     approval: {
-      title: 'Freigabe per App',
-      text: 'Anmeldung und Aufträge gibst du in der Banking-App deiner Bank frei, z. B. mit S-pushTAN, SecureGo plus oder BestSign. chipTAN, smsTAN und TAN-Generator gehen hier nicht.',
+      title: 'Freigabe wie gewohnt',
+      text: 'Anmeldung und Aufträge gibst du frei wie im Online-Banking deiner Bank: in ihrer Banking-App, z. B. mit S-pushTAN, SecureGo plus oder BestSign, oder mit einer TAN von chipTAN, photoTAN oder smsTAN.',
     },
     findBank: {
       title: 'Deine Bank finden',
@@ -199,6 +196,8 @@ export const de = {
       pending: 'Vorgemerkte Umsätze freigeben',
       balance: 'Saldoabfrage freigeben',
       transfer: 'Überweisung freigeben',
+      portfolio: 'Depotabfrage freigeben',
+      bankStatements: 'Abruf der Kontoauszüge freigeben',
     },
     /** What the screen behind does once the approval is in. */
     afterConfirm: {
@@ -207,6 +206,8 @@ export const de = {
       pending: 'Vorgemerkte Umsätze werden geladen …',
       balance: 'Der Saldo wird abgerufen …',
       transfer: 'Die Überweisung ist freigegeben.',
+      portfolio: 'Der Bestand wird abgerufen …',
+      bankStatements: 'Die Kontoauszüge werden abgerufen …',
     },
     /**
      * The bank refused: "Ablehnen" in the app, or the bank said no. The
@@ -219,6 +220,8 @@ export const de = {
       pending: { title: 'Abruf nicht freigegeben', text: 'Deine Bank hat den Abruf abgelehnt:' },
       balance: { title: 'Saldoabfrage nicht freigegeben', text: 'Deine Bank hat die Abfrage abgelehnt:' },
       transfer: { title: 'Überweisung nicht ausgeführt', text: 'Deine Bank hat den Auftrag abgelehnt:' },
+      portfolio: { title: 'Depotabfrage nicht freigegeben', text: 'Deine Bank hat die Abfrage abgelehnt:' },
+      bankStatements: { title: 'Abruf nicht freigegeben', text: 'Deine Bank hat den Abruf abgelehnt:' },
     },
     confirmed: 'Freigabe bestätigt',
     /** The status of the approval could not be read. */
@@ -233,7 +236,6 @@ export const de = {
     helpToggle: 'Keine Anfrage bekommen?',
     openMethod: (method: string) => `Öffne „${method}“ selbst, auch wenn keine Mitteilung erschienen ist.`,
     openApp: 'Öffne deine Banking-App selbst, auch wenn keine Mitteilung erschienen ist.',
-    checkDevice: (device: string) => `Sieh auf dem Gerät nach, das deine Bank angefragt hat: „${device}“.`,
     checkDevices: 'Hast du mehrere Geräte für die Freigabe eingerichtet, sieh auf allen nach.',
     checkNotifications: 'Prüfe, ob die App auf deinem Telefon Mitteilungen senden darf.',
     /** Under a refusal: the bank's return codes, for whoever calls the bank. */
@@ -249,6 +251,41 @@ export const de = {
     to: (name: string) => `an ${name}`,
     compareIn: (method: string) => `Vergleiche das mit der Anzeige in „${method}“.`,
     compareApp: 'Vergleiche das mit der Anzeige in deiner Banking-App.',
+    /** With a typed TAN: the generator or the app on another device shows the order too. */
+    compareDevice: 'Vergleiche das mit der Anzeige deines TAN-Generators oder deiner TAN-App.',
+    /** Entering a TAN (a method without app approval). */
+    entry: {
+      label: 'TAN',
+      send: 'TAN senden',
+      /** The bank wanted another TAN after the first one. */
+      again: 'Deine Bank fragt nach einer weiteren TAN.',
+      missing: 'Bitte gib die TAN ein.',
+      digitsOnly: 'Die TAN besteht nur aus Ziffern.',
+      invalid: 'Das ist keine gültige TAN. Gib sie so ein, wie sie angezeigt wird.',
+      flickerHint: 'Halte deinen TAN-Generator an die Grafik, die Pfeile auf die Dreiecke.',
+      imageHint: 'Scanne die Grafik mit deinem TAN-Generator oder deiner TAN-App.',
+      imageAlt: 'Grafik deiner Bank zum Scannen',
+      /** The flicker graphic's controls. */
+      flicker: 'Flickergrafik',
+      size: 'Größe',
+      speed: 'Tempo',
+      larger: 'Größer',
+      smaller: 'Kleiner',
+      faster: 'Schneller',
+      slower: 'Langsamer',
+      pause: 'Anhalten',
+      play: 'Abspielen',
+      helpToggle: 'Grafik wird nicht erkannt?',
+      flickerTips: [
+        'Stell die Helligkeit deines Bildschirms hoch.',
+        'Ändere Größe und Geschwindigkeit, bis dein TAN-Generator die Grafik liest.',
+        'Halte den TAN-Generator ruhig und flach an den Bildschirm.',
+      ],
+      imageTips: [
+        'Stell die Helligkeit deines Bildschirms hoch.',
+        'Halte die Kamera ruhig, etwa eine Handbreit vom Bildschirm entfernt.',
+      ],
+    },
     // The status line above the buttons.
     confirmedShort: 'Bestätigt',
     noConfirmationYet: 'Noch keine Bestätigung',
@@ -267,7 +304,7 @@ export const de = {
   tanMethod: {
     title: 'Sicherheitsverfahren',
     /** Said before the fact, on the card and in the wide layout's side tile. */
-    deviceMemory: 'Nach der ersten Freigabe merkt sich die App dieses Gerät – rückgängig mit „Gerät vergessen“ im Sitzungsmenü.',
+    deviceMemory: 'Nach der ersten Freigabe merkt sich die App diesen Rechner – rückgängig mit „Gerät vergessen“ im Sitzungsmenü.',
     chooseDevice: 'Gerät wählen',
     chooseDeviceText: 'Auf welchem Gerät möchtest du freigeben?',
     method: (name: string) => `Verfahren: ${name}`,
@@ -275,26 +312,21 @@ export const de = {
     onlyOne: 'Deine Bank bietet für diesen Zugang nur ein Verfahren an.',
     /** The method's name comes in as its own element. */
     connectingVia: (method: ReactNode): ReactNode[] => ['Verbinde über ', method, ' …'],
-    choose: 'Wähle, wie du Anmeldung und Aufträge freigibst. Die Freigabe erfolgt direkt in deiner Banking-App.',
-    /** The methods that need a typed TAN, as one list ("chipTAN und smsTAN"), and how many they are. */
-    typedNote: (names: string, n: number) =>
-      `${names} ${n === 1 ? 'braucht' : 'brauchen'} eine TAN-Eingabe und ${n === 1 ? 'geht' : 'gehen'} hier nicht.`,
-    none: 'Für diesen Zugang gibt es kein Verfahren, das hier funktioniert.',
-    onlyTypedTitle: 'Nur Verfahren mit TAN-Eingabe',
-    onlyTyped: (names: string) =>
-      `Für deinen Zugang meldet deine Bank: ${names}. Hier geht aber nur die Freigabe in einer Banking-App.`,
-    askBank: (app?: string) =>
-      `Frag deine Bank nach der Freigabe per App${app ? ` (z. B. ${app})` : ''} oder stell sie in deinem Online-Banking um. Danach kannst du dich hier anmelden.`,
+    choose: 'Wähle, wie du Anmeldung und Aufträge freigibst – wie im Online-Banking deiner Bank.',
+    /** Under a method's name: how it approves. */
+    kind: {
+      app: 'Freigabe in der Banking-App',
+      typed: 'TAN-Eingabe',
+    },
+    none: 'Deine Bank bietet für diesen Zugang kein Sicherheitsverfahren an. Frag sie, wie du eines freischaltest.',
     back: 'Zurück zur Anmeldung',
     /** The wide layout's side tile: what is about to happen. */
     aside: {
       title: 'So läuft die Freigabe',
-      chooseTitle: 'Verfahren wählen',
-      chooseText: 'Das, mit dem du auch im Online-Banking deiner Bank freigibst.',
-      openTitle: 'Banking-App öffnen',
-      openText: 'Deine Bank schickt die Anfrage an das Gerät, das du dort hinterlegt hast.',
-      confirmTitle: 'Anfrage bestätigen',
-      confirmText: 'Danach geht es hier von selbst weiter.',
+      openTitle: 'Anfrage prüfen',
+      openText: 'Deine Bank schickt sie an deine Banking-App – oder zeigt sie hier, als Grafik für deinen TAN-Generator oder als Text.',
+      confirmTitle: 'Freigeben',
+      confirmText: 'In der App bestätigen oder die TAN hier eingeben. Danach geht es von selbst weiter.',
     },
   },
 
@@ -323,7 +355,6 @@ export const de = {
     /** What goes out. "Aus deinen Umsätzen", not "an die du zahlst": a salary's employer is looked up too. */
     disclosure: 'Dafür gehen Firmennamen aus deinen Umsätzen an den Logo-Dienst Brandfetch – keine Beträge, IBANs oder Verwendungszwecke. Wie bei jedem Abruf sieht Brandfetch dabei deine IP-Adresse.',
     load: 'Logos laden',
-    later: 'Du kannst das jederzeit im Sitzungsmenü oben rechts ändern.',
     /** The toasts after the answer. */
     on: 'Firmenlogos sind eingeschaltet.',
     off: 'Firmenlogos bleiben aus.',
@@ -336,7 +367,6 @@ export const de = {
     disclosure: 'Dann erfährt der Entwickler von Girovo, welche Bereiche du nutzt, wie Anmeldungen ausgehen und wie lange deine Bank für Abrufe braucht – mit ihrer Bankleitzahl. Nie dabei: Anmeldename, PIN, IBANs, Salden, Umsätze, Beträge oder Empfänger. Wie bei jeder Verbindung sieht der Server deine IP-Adresse.',
     /** Error reports need no yes; the user is told so wherever they are asked. */
     errorReports: 'Fehlerberichte schickt Girovo immer – ohne Kontodaten, Beträge und Namen.',
-    later: 'Ändern kannst du das jederzeit im Sitzungsmenü oben rechts.',
     share: 'Teilen',
     /** The toasts after the answer. */
     on: 'Nutzungsdaten werden geteilt.',
@@ -353,7 +383,6 @@ export const de = {
     /** The bank refused without words of its own. Names the PIN: lib/bank-answer.ts reads that as a credential answer. */
     refused: 'Deine Bank hat die Anmeldung abgelehnt. Prüfe Anmeldename und PIN.',
     methodNotOffered: 'Dieses Verfahren bietet deine Bank für deinen Zugang nicht an.',
-    methodNeedsTan: 'Dieses Verfahren braucht eine TAN-Eingabe. Hier geht nur die Freigabe in einer Banking-App.',
     loginFailed: 'Anmeldung fehlgeschlagen.',
     /** device-status asked with GET, the old query-string form. */
     usePost: 'Bitte per POST abfragen.',
@@ -363,6 +392,7 @@ export const de = {
 export const en: typeof de = {
   connecting: 'Connecting to the bank…',
   noThanks: 'No thanks',
+  changeLater: 'You can change this at any time in the session menu at the top right.',
 
   steps: {
     label: 'Login steps',
@@ -379,7 +409,7 @@ export const en: typeof de = {
     },
     direct: {
       title: 'Direct connection',
-      text: 'From this computer straight to your bank, through its FinTS access.',
+      text: 'From this computer to your bank, through its FinTS access.',
     },
     device: {
       title: 'This device will be remembered',
@@ -409,7 +439,6 @@ export const en: typeof de = {
 
   bankPicker: {
     title: 'Choose your bank',
-    intro: 'Which bank is your account with?',
     staleTitle: 'Your bank from last time is no longer on the list',
     staleText: (name, blz) => [
       `${name} (BLZ `,
@@ -458,7 +487,6 @@ export const en: typeof de = {
       participantNumber: 'Participant number (Teilnehmernummer)',
       postbankId: 'Postbank ID',
     },
-    loginHint: 'Just as in your bank’s online banking.',
     loginMissing: 'Please enter your login name.',
     secrets: {
       pin: {
@@ -480,11 +508,11 @@ export const en: typeof de = {
     reveal: (secret) => `Show ${secret}`,
     capsLock: 'Caps Lock is on',
     approvalHint: (app) =>
-      `You then approve in your banking app${app ? `, e.g. ${app}` : ''}. chipTAN, smsTAN and TAN generators do not work here.`,
+      `You then approve the login in your banking app${app ? ` (e.g. ${app})` : ''} or with a TAN, for example from chipTAN or smsTAN.`,
     rememberedTitle: 'This device is remembered',
     rememberedText: (withIt) => `${withIt}, logging in here usually works without a new approval.`,
     locked: 'Only your bank can unlock it.',
-    lockoutRisk: 'Several failed attempts can lock your online access.',
+    lockoutRisk: 'Several failed attempts can lock your online banking.',
     failed: 'The login failed.',
     slow: 'Your bank has not answered yet.',
     slowCanCancel: 'Your bank has not answered yet. You can cancel the login.',
@@ -497,14 +525,13 @@ export const en: typeof de = {
       title: 'Your online banking login details',
       text: 'Login name and PIN, just as on your bank’s website. Not the PIN of your bank card.',
     },
-    credentialsShort: 'Login name and PIN, just as on your bank’s website.',
     fints: {
       title: 'FinTS access',
-      text: 'The app talks to your bank through it. If it is not enabled for your access, your bank can help you.',
+      text: 'The app talks to your bank through it. If it isn’t enabled for your login, your bank can help.',
     },
     approval: {
-      title: 'Approval via app',
-      text: 'You approve logins and orders in your bank’s banking app, e.g. with S-pushTAN, SecureGo plus or BestSign. chipTAN, smsTAN and TAN generators do not work here.',
+      title: 'Approval as usual',
+      text: 'You approve logins and orders as in your bank’s online banking: in its banking app, e.g. with S-pushTAN, SecureGo plus or BestSign, or with a TAN from chipTAN, photoTAN or smsTAN.',
     },
     findBank: {
       title: 'Finding your bank',
@@ -524,6 +551,8 @@ export const en: typeof de = {
       pending: 'Approve retrieval of pending transactions',
       balance: 'Approve balance enquiry',
       transfer: 'Approve transfer',
+      portfolio: 'Approve holdings enquiry',
+      bankStatements: 'Approve retrieval of statements',
     },
     afterConfirm: {
       login: 'Loading your accounts…',
@@ -531,6 +560,8 @@ export const en: typeof de = {
       pending: 'Loading pending transactions…',
       balance: 'Retrieving the balance…',
       transfer: 'The transfer is approved.',
+      portfolio: 'Retrieving the holdings…',
+      bankStatements: 'Retrieving the statements…',
     },
     refused: {
       login: { title: 'Login not approved', text: 'Your bank declined the login:' },
@@ -538,6 +569,8 @@ export const en: typeof de = {
       pending: { title: 'Retrieval not approved', text: 'Your bank declined the retrieval:' },
       balance: { title: 'Balance enquiry not approved', text: 'Your bank declined the enquiry:' },
       transfer: { title: 'Transfer not completed', text: 'Your bank declined the order:' },
+      portfolio: { title: 'Holdings enquiry not approved', text: 'Your bank declined the enquiry:' },
+      bankStatements: { title: 'Retrieval not approved', text: 'Your bank declined the retrieval:' },
     },
     confirmed: 'Approval confirmed',
     checkFailed: 'Approval could not be checked',
@@ -549,7 +582,6 @@ export const en: typeof de = {
     helpToggle: 'No request received?',
     openMethod: (method) => `Open “${method}” yourself, even if no notification has appeared.`,
     openApp: 'Open your banking app yourself, even if no notification has appeared.',
-    checkDevice: (device) => `Check the device your bank sent the request to: “${device}”.`,
     checkDevices: 'If you have set up several devices for approval, check all of them.',
     checkNotifications: 'Check that the app is allowed to send notifications on your phone.',
     reference: (codes) => ['Bank response code: ', codes],
@@ -562,6 +594,37 @@ export const en: typeof de = {
     to: (name) => `to ${name}`,
     compareIn: (method) => `Compare this with what “${method}” shows.`,
     compareApp: 'Compare this with what your banking app shows.',
+    compareDevice: 'Compare this with what your TAN generator or TAN app shows.',
+    entry: {
+      label: 'TAN',
+      send: 'Send TAN',
+      again: 'Your bank asks for another TAN.',
+      missing: 'Please enter the TAN.',
+      digitsOnly: 'The TAN is made of digits only.',
+      invalid: 'That is not a valid TAN. Enter it as it is shown.',
+      flickerHint: 'Hold your TAN generator against the graphic, its arrows on the triangles.',
+      imageHint: 'Scan the graphic with your TAN generator or TAN app.',
+      imageAlt: 'Your bank’s graphic to scan',
+      flicker: 'Flicker graphic',
+      size: 'Size',
+      speed: 'Speed',
+      larger: 'Larger',
+      smaller: 'Smaller',
+      faster: 'Faster',
+      slower: 'Slower',
+      pause: 'Pause',
+      play: 'Play',
+      helpToggle: 'Graphic not recognised?',
+      flickerTips: [
+        'Turn up the brightness of your screen.',
+        'Change the size and speed until your TAN generator reads the graphic.',
+        'Hold the TAN generator steady and flat against the screen.',
+      ],
+      imageTips: [
+        'Turn up the brightness of your screen.',
+        'Hold the camera steady, about a hand’s width from the screen.',
+      ],
+    },
     confirmedShort: 'Confirmed',
     noConfirmationYet: 'No confirmation yet',
     waitingForConfirmation: 'Waiting for confirmation',
@@ -575,31 +638,26 @@ export const en: typeof de = {
 
   tanMethod: {
     title: 'Security method',
-    deviceMemory: 'After the first approval, the app remembers this device – you can undo this with “Forget device” in the session menu.',
+    deviceMemory: 'After the first approval, the app remembers this computer – you can undo this with “Forget device” in the session menu.',
     chooseDevice: 'Choose a device',
     chooseDeviceText: 'Which device do you want to approve on?',
     method: (name) => `Method: ${name}`,
     otherMethod: 'Other method',
-    onlyOne: 'Your bank offers only one method for this access.',
+    onlyOne: 'Your bank offers only one method for this login.',
     connectingVia: (method) => ['Connecting via ', method, '…'],
-    choose: 'Choose how you approve logins and orders. Approval takes place directly in your banking app.',
-    typedNote: (names, n) =>
-      `${names} ${n === 1 ? 'needs' : 'need'} a typed TAN and ${n === 1 ? 'does' : 'do'} not work here.`,
-    none: 'There is no method for this access that works here.',
-    onlyTypedTitle: 'Only methods with a typed TAN',
-    onlyTyped: (names) =>
-      `For your access, your bank reports: ${names}. But only approval in a banking app works here.`,
-    askBank: (app) =>
-      `Ask your bank for approval via app${app ? ` (e.g. ${app})` : ''} or switch to it in your online banking. Then you can log in here.`,
+    choose: 'Choose how you approve logins and orders – as in your bank’s online banking.',
+    kind: {
+      app: 'Approval in the banking app',
+      typed: 'Typed TAN',
+    },
+    none: 'Your bank offers no security method for this login. Ask your bank how to enable one.',
     back: 'Back to login',
     aside: {
       title: 'How approval works',
-      chooseTitle: 'Choose a method',
-      chooseText: 'The one you also use to approve in your bank’s online banking.',
-      openTitle: 'Open your banking app',
-      openText: 'Your bank sends the request to the device you have registered with it.',
-      confirmTitle: 'Confirm the request',
-      confirmText: 'After that, it carries on here by itself.',
+      openTitle: 'Check the request',
+      openText: 'Your bank sends it to your banking app – or shows it here, as a graphic for your TAN generator or as text.',
+      confirmTitle: 'Approve',
+      confirmText: 'Confirm in the app or enter the TAN here. After that, it carries on by itself.',
     },
   },
 
@@ -620,7 +678,6 @@ export const en: typeof de = {
     title: 'Show company logos?',
     disclosure: 'For this, company names from your transactions go to the logo service Brandfetch – no amounts, IBANs or payment references. As with any request, Brandfetch sees your IP address.',
     load: 'Load logos',
-    later: 'You can change this at any time in the session menu at the top right.',
     on: 'Company logos are on.',
     off: 'Company logos stay off.',
   },
@@ -629,7 +686,6 @@ export const en: typeof de = {
     title: 'Share usage data?',
     disclosure: 'Girovo’s developer then learns which parts you use, how logins turn out and how long your bank takes for data requests – along with its bank code. Never included: login name, PIN, IBANs, balances, transactions, amounts or recipients. As with any connection, the server sees your IP address.',
     errorReports: 'Girovo always sends error reports – without account data, amounts or names.',
-    later: 'You can change this at any time in the session menu at the top right.',
     share: 'Share',
     on: 'Usage data is shared from now on.',
     off: 'Usage data stays on this computer.',
@@ -641,8 +697,7 @@ export const en: typeof de = {
     bankGone: 'This bank is no longer on the list – it may have merged. Choose it again via “Change”.',
     missingCredentials: 'Please provide your login name and PIN.',
     refused: 'Your bank declined the login. Check your login name and PIN.',
-    methodNotOffered: 'Your bank does not offer this method for your access.',
-    methodNeedsTan: 'This method needs a typed TAN. Only approval in a banking app works here.',
+    methodNotOffered: 'Your bank does not offer this method for your login.',
     loginFailed: 'Login failed.',
     usePost: 'Please use POST.',
   },

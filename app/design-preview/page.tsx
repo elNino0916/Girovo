@@ -9,7 +9,8 @@
 //                  &privacy=1                 Beträge ausblenden
 //                  &preset=default|empty|past-range|unverified|loading|error   (&empty=1 = preset empty)
 //                  &range=90d|365d|all        statement range loaded at start
-//                  &tan=confirm|hold|ended|error|refused   how simulated approvals end
+//                  &tan=confirm|hold|ended|error|refused|again   how simulated approvals end
+//                  &method=app|flicker|photo|manual|sms   the TAN method approvals run on
 //                  &acct=giro|tagesgeld|karte  start on another account
 //                  &logos=unasked|on|off|unavailable   company logos: the user's answer, or a build without them
 //                  &still=0|1                 settle animations (default: on under Electron)
@@ -46,7 +47,9 @@ import { UpdateLayer } from '@/components/updates/UpdateNotices';
 import { txKey } from '@/lib/categories';
 import { addDaysKey, isoDate, presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
-import { ACCT, MOCK_PAYEES, SECOND_BANK } from './data';
+import { ACCT, MOCK_PAYEES, MOCK_TAN_KIND, MOCK_TAN_KINDS, SECOND_BANK, type MockTanKind } from './data';
+import { buildEpcPayload } from '@/lib/girocode';
+import { qrMatrix, qrPngBlob } from '@/lib/qr';
 import { MockFintsProvider, type MockOptions, type MockPreset } from './mock';
 import { PrintPreview, type PrintPreviewKind } from './print';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
@@ -71,7 +74,7 @@ type Script = (c: Ctx) => Promise<void> | void;
 
 type ViewDef = {
   label: string;
-  group: 'Dashboard' | 'Anmeldung' | 'Überweisung' | 'Dialoge' | 'Banken' | 'Updates' | 'Dokumente';
+  group: 'Dashboard' | 'Anmeldung' | 'Überweisung' | 'TAN-Verfahren' | 'Dialoge' | 'Banken' | 'Updates' | 'Dokumente';
   preset?: MockPreset;
   options?: MockOptions;
   /** The desktop updater this view shows (a fake, ./updater.ts), and whether its dialog is open. */
@@ -135,6 +138,50 @@ const loginAs = (name: string, waitMs?: number): Script => async (c) => {
   if (waitMs) await c.sleep(waitMs);
   else await c.poll(() => document.querySelector('main [role="alert"]'), 8000);
 };
+
+/** On the method step: picks the mock bank's method of this kind, and waits for its approval to open. */
+const approveWith = (kind: MockTanKind): Script => async (c) => {
+  const m = c.api().tanMethods.find((x) => MOCK_TAN_KIND[x.id] === kind) ?? c.api().tanMethods[0];
+  void c.api().chooseTanMethod(m, m.activeTanMedia[0]);
+  await c.until((f) => f.wait.open, 3000);
+};
+
+/** Types a TAN into the approval's field and sends it, as a person would. */
+async function enterTan(c: Ctx, tan = '482913') {
+  const input = await c.poll(() => document.querySelector<HTMLInputElement>('input[autocomplete="one-time-code"]'), 4000);
+  if (!input) return;
+  typeInto(input, tan);
+  await c.click(/^(TAN senden|Send TAN)$/, { within: 'dialog' });
+}
+
+/** The methods by kind, as the index names them. */
+const TAN_KIND_LABELS: Record<MockTanKind, string> = {
+  app: 'App-Freigabe',
+  flicker: 'chipTAN optisch',
+  photo: 'photoTAN / QR',
+  manual: 'chipTAN manuell',
+  sms: 'smsTAN',
+};
+
+/**
+ * Every TAN method, at the login and at a transfer: the approval as it opens.
+ * With a typed TAN the dialog waits for it — type any digits and send to see
+ * the rest; &tan=refused|again|error|ended decides how the bank answers.
+ */
+const TAN_METHOD_VIEWS: Record<string, ViewDef> = Object.fromEntries(MOCK_TAN_KINDS.flatMap((kind) => [
+  [`tan-${kind}-login`, {
+    label: `${TAN_KIND_LABELS[kind]}: Anmeldung`,
+    group: 'TAN-Verfahren',
+    options: { view: 'tanmethod', method: kind, ...(kind === 'app' ? { tan: 'hold' } : {}) },
+    script: approveWith(kind),
+  }],
+  [`tan-${kind}-transfer`, {
+    label: `${TAN_KIND_LABELS[kind]}: Überweisung`,
+    group: 'TAN-Verfahren',
+    options: transferWith(MOCK_PAYEES.lea, { method: kind, ...(kind === 'app' ? { tan: 'hold' } : {}) }),
+    script: sendOrder,
+  }],
+] satisfies [string, ViewDef][]));
 
 /** On the review step: the primary action that sends the order ("Trotzdem überweisen" after a duplicate hint). */
 const SUBMIT = /(freigeben|senden|ausführen|jetzt überweisen|trotzdem überweisen|^überweisen$|überweisung absenden|dauerauftrag einrichten|terminüberweisung anlegen|trotzdem einrichten|trotzdem anlegen)/i;
@@ -393,7 +440,8 @@ const VIEWS: Record<string, ViewDef> = {
   'category-check': {
     label: 'Kategorie-Check', group: 'Dashboard', options: { tab: 'analysis', personal: true, analysisPeriod: 'all' },
     script: async (c) => {
-      await c.click(/^(Kategorie-Check|Category check)$/);
+      // The summary row's name runs on into its count ("Kategorie-Check12 Umsätze ohne Kategorie").
+      await c.click(/^(Kategorie-Check|Category check)/);
       await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
     },
   },
@@ -404,6 +452,58 @@ const VIEWS: Record<string, ViewDef> = {
     async script(c) {
       await openFirstRow(c);
       await showDrawerSection(c, /^(Notiz|Note)$/);
+    },
+  },
+  'detail-receipt': {
+    label: 'Umsatzdetails mit Beleg', group: 'Dashboard', options: { docs: true, query: 'REWE' },
+    async script(c) {
+      await c.until((f) => f.docs.some((d) => d.kind === 'receipt'), 4000);
+      await openFirstRow(c);
+      await showDrawerSection(c, /^(Belege|Receipts)$/);
+    },
+  },
+  depot: {
+    label: 'Depot',
+    group: 'Dashboard',
+    options: { depot: true, account: ACCT.depot },
+    async script(c) {
+      const depot = c.api().accounts.find((a) => a.accountNumber === ACCT.depot);
+      if (depot) void c.api().loadPortfolio(depot);
+      await c.until((f) => !!f.portfolios[ACCT.depot], 4000);
+    },
+  },
+  'depot-unread': { label: 'Depot (noch nicht abgerufen)', group: 'Dashboard', options: { depot: true, account: ACCT.depot } },
+  'bank-statements': {
+    label: 'Kontoauszüge der Bank',
+    group: 'Dashboard',
+    options: { docs: true },
+    async script(c) {
+      await c.click(/^(Exportieren|Export)$/);
+      await c.click(/(Auszüge deiner Bank|Your bank’s statements)/);
+      await c.poll(() => document.querySelector('[role="dialog"]'), 3000);
+    },
+  },
+  'bank-statements-fetched': {
+    label: 'Kontoauszüge abgerufen',
+    group: 'Dashboard',
+    options: { docs: true, tanMs: 600 },
+    async script(c) {
+      await c.click(/^(Exportieren|Export)$/);
+      await c.click(/(Auszüge deiner Bank|Your bank’s statements)/);
+      await c.click(/^(Auszüge abrufen|Load statements)$/, { within: 'dialog' });
+      await c.until((f) => !!f.statementFetches[ACCT.giro], 6000);
+    },
+  },
+  'transfer-invoice': {
+    label: 'Prüfen (Rechnung per GiroCode)',
+    group: 'Überweisung',
+    async script(c) {
+      // An invoice as a file, its GiroCode read by the real reader — as when it is shared to the app.
+      const payload = buildEpcPayload({ name: 'Stadtwerke Musterstadt GmbH', iban: 'DE12500105170648489890', amount: 86.4, purpose: 'Rechnung 2026-4711' });
+      const png = await qrPngBlob(qrMatrix(payload));
+      c.api().openTransfer({ girocode: { file: new File([png], 'Rechnung Stadtwerke.png', { type: 'image/png' }) } });
+      await c.poll(() => document.querySelector<HTMLInputElement>('[role="dialog"] input[name="amount"], [role="dialog"] input[inputmode="decimal"]')?.value || null, 6000);
+      await toReview(c);
     },
   },
   'detail-note-edit': {
@@ -676,7 +776,7 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Dashboard',
     options: { failPending: true, tanMs: 600 },
     async script(c) {
-      await c.click(/^Vorgemerkte abrufen$/, { within: 'page' });
+      await c.click(/^Vorgemerkte Umsätze abrufen$/, { within: 'page' });
       await c.until((f) => Object.keys(f.pendingErrors).length > 0, 5000);
     },
   },
@@ -935,6 +1035,49 @@ const VIEWS: Record<string, ViewDef> = {
     script: loginAs('langsam', 8600),
   },
   'tanmethod-typed': { label: 'Nur TAN-Eingabe', group: 'Anmeldung', options: { view: 'tanmethod', methods: 'typed' } },
+
+  ...TAN_METHOD_VIEWS,
+  'tan-sent': {
+    label: 'TAN gesendet, Bank prüft',
+    group: 'TAN-Verfahren',
+    options: transferWith(MOCK_PAYEES.lea, { method: 'flicker', tan: 'hold' }),
+    async script(c) {
+      await sendOrder(c);
+      await enterTan(c);
+      await c.until((f) => !!f.wait.entry?.sending, 3000);
+    },
+  },
+  'tan-again': {
+    label: 'Weitere TAN verlangt',
+    group: 'TAN-Verfahren',
+    options: transferWith(MOCK_PAYEES.lea, { method: 'photo', tan: 'again', tanMs: 600 }),
+    async script(c) {
+      await sendOrder(c);
+      await enterTan(c);
+      await c.until((f) => !!f.wait.entry?.again, 3000);
+    },
+  },
+  'tan-wrong': {
+    label: 'TAN falsch (Anmeldung)',
+    group: 'TAN-Verfahren',
+    options: { view: 'tanmethod', method: 'sms', tan: 'refused', tanMs: 600 },
+    async script(c) {
+      await approveWith('sms')(c);
+      await enterTan(c, '000000');
+      await c.until((f) => f.wait.phase === 'refused', 3000);
+    },
+  },
+  'tan-done': {
+    label: 'Überweisung per TAN ausgeführt',
+    group: 'TAN-Verfahren',
+    options: transferWith(MOCK_PAYEES.lea, { method: 'manual', tanMs: 600 }),
+    async script(c) {
+      await sendOrder(c);
+      await enterTan(c);
+      await c.until((f) => !f.busy && !f.wait.open, 6000);
+      await c.sleep(300);
+    },
+  },
 
   transfer: { label: 'Erfassen', group: 'Überweisung', options: { open: 'transfer' } },
   'transfer-filled': { label: 'Erfassen (ausgefüllt)', group: 'Überweisung', options: transferWith(MOCK_PAYEES.lea) },
@@ -1223,7 +1366,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 
 const PRESETS: readonly MockPreset[] = ['default', 'empty', 'past-range', 'unverified', 'loading', 'error'];
 const RANGES = ['90d', '365d', 'all'] as const;
-const TANS = ['confirm', 'hold', 'ended', 'error', 'refused'] as const;
+const TANS = ['confirm', 'hold', 'ended', 'error', 'refused', 'again'] as const;
 const ACCOUNTS: Record<string, string> = { giro: ACCT.giro, tagesgeld: ACCT.tagesgeld, karte: ACCT.karte, spk: ACCT.spk };
 const SECONDS = ['linked', 'loggedOut', 'remembered'] as const;
 const LOGOS = ['unasked', 'on', 'off', 'unavailable'] as const;
@@ -1274,6 +1417,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
       : def.preset ?? 'default';
   const rangeParam = one(params.range) as (typeof RANGES)[number];
   const tanParam = one(params.tan) as (typeof TANS)[number];
+  const methodParam = one(params.method) as MockTanKind;
   const account = ACCOUNTS[one(params.acct)];
   const logosParam = one(params.logos) as (typeof LOGOS)[number];
   const secondParam = one(params.second) as (typeof SECONDS)[number];
@@ -1281,6 +1425,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     ...def.options,
     ...(RANGES.includes(rangeParam) ? { range: rangeParam } : {}),
     ...(TANS.includes(tanParam) ? { tan: tanParam } : {}),
+    ...(MOCK_TAN_KINDS.includes(methodParam) ? { method: methodParam } : {}),
     ...(one(params.privacy) === '1' ? { privacy: true } : {}),
     ...(account ? { account } : {}),
     ...(one(params.q) ? { query: one(params.q) } : {}),
@@ -1391,7 +1536,7 @@ function Driver({ setup, script }: { setup: Setup; script?: Script }) {
 
 // ---------------------------------------------------------------------------
 
-const GROUPS: ViewDef['group'][] = ['Dashboard', 'Anmeldung', 'Überweisung', 'Dialoge', 'Banken', 'Updates', 'Dokumente'];
+const GROUPS: ViewDef['group'][] = ['Dashboard', 'Anmeldung', 'Überweisung', 'TAN-Verfahren', 'Dialoge', 'Banken', 'Updates', 'Dokumente'];
 
 const PRESET_LABELS: Record<MockPreset, string> = {
   default: 'Standard',
@@ -1421,6 +1566,7 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=tanwait&tan=ended', label: 'Freigabe abgelaufen' },
   { q: 'view=tanwait&tan=error', label: 'Freigabe-Fehler' },
   { q: 'view=tanwait&tan=refused', label: 'Freigabe abgelehnt' },
+  ...MOCK_TAN_KINDS.filter((k) => k !== 'app').map((k) => ({ q: `view=tanwait&method=${k}`, label: `Umsatzabruf per ${TAN_KIND_LABELS[k]}` })),
   { q: 'view=print-statement&range=365d', label: 'Kontoauszug über 12 Monate' },
   { q: 'view=print-statement&preset=past-range', label: 'Kontoauszug, vergangener Zeitraum' },
   { q: 'view=print-statement&preset=empty', label: 'Kontoauszug ohne Umsätze' },
@@ -1489,7 +1635,8 @@ function Index() {
 
         <p className="mt-6 text-[12.5px] text-ink-3">
           Weitere Parameter: <code className="num">privacy=1</code>, <code className="num">preset=…</code>,{' '}
-          <code className="num">range=90d|365d|all</code>, <code className="num">tan=hold|ended|error|refused</code>,{' '}
+          <code className="num">range=90d|365d|all</code>, <code className="num">tan=hold|ended|error|refused|again</code>,{' '}
+          <code className="num">method=app|flicker|photo|manual|sms</code>,{' '}
           <code className="num">acct=tagesgeld|karte</code>, <code className="num">q=…</code>,{' '}
           <code className="num">logos=unasked|on|off|unavailable</code>,{' '}
           <code className="num">fail=1</code>, <code className="num">unclear=1</code>,{' '}

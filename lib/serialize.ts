@@ -1,8 +1,9 @@
 // Serialisers — map lib-fints objects to plain JSON for the frontend.
 
-import type { AccountBalance, Balance, ClientResponse, Statement } from 'lib-fints';
+import type { AccountBalance, Balance, ClientResponse, PortfolioResponse, Statement } from 'lib-fints';
 import type { TanMethod } from './fints-types';
 import { lookupBlz } from './banks';
+import { renderFlicker } from './flicker';
 import { nearestEntryYear } from './entry-date';
 import { repairBankText } from './format';
 import { parsePurpose } from './sepa-purpose';
@@ -12,7 +13,7 @@ import { PENDING_SEG } from './fints-pending';
 // decodes a BPD (the connect route imports this module).
 import { orderCaps } from './fints-orders';
 import type {
-  SerializedAccount, SerializedBalance, SerializedTanMethod, SerializedTransaction,
+  SerializedAccount, SerializedBalance, SerializedHolding, SerializedPortfolio, SerializedTanMethod, SerializedTransaction,
   SerializedVop, StatementBlock, TanRequired,
 } from './fints-types';
 import type { VopResult } from './fints-vop';
@@ -33,6 +34,9 @@ export function serializeTanMethod(m: TanMethod): SerializedTanMethod {
           maxStatusRequests: m.decoupled.maxStatusRequests,
         }
       : null,
+    tanMaxLength: m.tanMaxLength && m.tanMaxLength > 0 ? m.tanMaxLength : null,
+    // HITANS "Zulässiges Format": 1 numeric, 2 alphanumeric.
+    tanNumeric: m.tanFormat === 1 ? true : m.tanFormat === 2 ? false : null,
   };
 }
 
@@ -77,6 +81,10 @@ export function accountsFor(s: Session): SerializedAccount[] {
     // Terminierte Überweisungen and Daueraufträge: BPD and UPD both, with the
     // bank's rules (lib/fints-orders.ts).
     ...ordersOf(cfg, a.accountNumber),
+    // A Depot's holdings, and the bank's own Kontoauszüge: reads like the
+    // balance, granted per account.
+    canPortfolio: acctSupports(a, 'HKWPD'),
+    canBankStatements: acctSupports(a, 'HKEKA'),
   }));
 }
 
@@ -88,6 +96,38 @@ function ordersOf(cfg: Session['client']['config'], accountNumber: string): Pick
     console.warn('[accounts] order capabilities unreadable:', (err as Error)?.message || err);
     return { dated: null, standing: null };
   }
+}
+
+const finite = (n: unknown): number | null => (typeof n === 'number' && Number.isFinite(n) ? n : null);
+
+/**
+ * A Depot's holdings as the bank's MT535 states them (lib-fints' parser).
+ * The parser files a bond's percentage price under the currency "%"; a
+ * holding's own currency is then the Depot's. Null when the answer held no
+ * statement the parser could read — an empty Depot is a statement with no
+ * holdings, not null.
+ */
+export function serializePortfolio(resp: PortfolioResponse, fallbackCurrency: string, readAt = new Date()): SerializedPortfolio | null {
+  const stmt = resp.portfolioStatement;
+  if (!stmt) return null;
+  const currency = stmt.currency || fallbackCurrency;
+  const holdings = (stmt.holdings || []).map((h): SerializedHolding => {
+    const percent = h.currency === '%';
+    const date = h.date instanceof Date && !Number.isNaN(h.date.getTime()) ? h.date.toISOString() : null;
+    return {
+      name: repairBankText(h.name || '').trim() || h.isin || h.wkn || '',
+      isin: h.isin || null,
+      wkn: h.wkn || null,
+      quantity: finite(h.amount),
+      price: finite(h.price),
+      pricePercent: percent,
+      priceDate: date,
+      value: finite(h.value),
+      currency: !percent && h.currency ? h.currency : currency,
+      acquisitionPrice: finite(h.acquisitionPrice),
+    };
+  });
+  return { totalValue: finite(stmt.totalValue), currency, holdings, readAt: readAt.toISOString() };
 }
 
 export function serializeBalance(b: AccountBalance | undefined | null): SerializedBalance | null {
@@ -277,12 +317,26 @@ export function serializeNoted(
   return serializeTransactions(statements, accountCurrency(s, accountNumber));
 }
 
-export function tanPayload(resp: ClientResponse): TanRequired {
+/**
+ * The bank wants an approval: what the browser needs to ask for it. Whether
+ * the user types a TAN follows the login's method; what they type it from —
+ * a graphic to scan, a flicker code, or the challenge's words alone — follows
+ * the bank's HHD_UC.
+ */
+export function tanPayload(resp: ClientResponse, s: Session): TanRequired {
+  const decoupled = s.client.config.selectedTanMethod?.isDecoupled ?? true;
+  const photo = resp.tanPhoto;
+  const tanImage = !decoupled && photo && /^image\/(png|jpeg|gif)$/i.test(photo.mimeType.trim()) && photo.image.length
+    ? `data:${photo.mimeType.trim().toLowerCase()};base64,${Buffer.from(photo.image).toString('base64')}`
+    : null;
+  const flicker = !decoupled && !tanImage && resp.tanChallengeHhdUc ? renderFlicker(resp.tanChallengeHhdUc) : null;
   return {
     needsTan: true,
-    decoupled: true,
+    decoupled,
     tanChallenge: resp.tanChallenge || null,
     tanMediaName: resp.tanMediaName || null,
+    tanImage,
+    flicker,
   };
 }
 

@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
-import type { CategoryId } from '@/lib/categories';
+import { txKey, type CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
@@ -40,7 +40,7 @@ export const MORE_PAGE = 100;
  * first of those days: not a band, so it never competes with the dates.
  */
 export function TxList({
-  id, groups, total, resetKey, merchantOf, categoryOf, noteOf, onOpen, balanceOn = null, savedTo = null,
+  id, groups, total, resetKey, merchantOf, categoryOf, noteOf, receiptKeys, onOpen, balanceOn = null, savedTo = null,
 }: {
   id: string;
   groups: DayGroup[];
@@ -50,6 +50,8 @@ export function TxList({
   categoryOf: (tx: SerializedTransaction) => { id: CategoryId };
   /** The user's note on a booking, if any — its row is marked. */
   noteOf?: (tx: SerializedTransaction) => string | undefined;
+  /** The bookings with a receipt attached, by txKey. */
+  receiptKeys?: ReadonlySet<string>;
   onOpen: (tx: SerializedTransaction) => void;
   /** The verified end-of-day balance per local day, when the bank's balances prove one. */
   balanceOn?: { byDay: ReadonlyMap<string, number>; currency: string; card?: boolean } | null;
@@ -159,7 +161,7 @@ export function TxList({
                   key={rowKey(tx)}
                   className="relative after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-[68px] after:h-px after:bg-line last:after:hidden sm:after:left-[72px]"
                 >
-                  <TxRow tx={tx} merchant={merchantOf(tx)} category={categoryOf(tx).id} userNote={noteOf?.(tx)} onOpen={onOpen} />
+                  <TxRow tx={tx} merchant={merchantOf(tx)} category={categoryOf(tx).id} userNote={noteOf?.(tx)} receipt={!!receiptKeys?.has(txKey(tx))} onOpen={onOpen} />
                 </li>
               ))}
             </ul>

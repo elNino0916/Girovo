@@ -1,23 +1,19 @@
 'use client';
 
-// Tier 1 — the masthead: whose app this is, and whose session.
+// The top app bar: where you are, and whose session.
+//
+// Material's small top app bar on every platform: the page's name on the
+// left (title large), the actions on the right — icons, each named by its
+// tooltip and label, with the search as a pill on a wide window (Strg K).
+// The app's own mark sits at the head of the navigation rail (BottomBar).
 //
 // In the desktop shell it is also the window's title bar: the whole band is a
 // drag handle except for its controls, it is exactly as tall as the OS
 // caption overlay (--barbar-h follows titlebar-area-height, zoom included),
-// and its right padding keeps the cluster clear of the caption buttons that
-// float over its right edge (the .bar-caption-safe rule, see ./edges).
-//
-// On a wide window its content lines up with the page's 1280px column, so the
-// "€" mark, the bank's logo below it and the page title share one left edge.
-//
-// The cluster labels every icon the way a German bank's start page does, and
-// gives the words up in a fixed order as room runs out: first the
-// secondary labels, then the rest, and on a phone the items that live
-// elsewhere there (Suche is "Mehr" in the bottom bar, Darstellung moves into
-// the Sitzung panel). The room is measured on the masthead itself (a
-// container query), not on the window, because in the desktop shell the
-// caption buttons take ~140px of the same row.
+// and its right padding keeps the actions clear of the caption buttons that
+// float over its right edge (the .bar-caption-safe rule, see ./edges). On a
+// wide window its content lines up with the page's 1280px column, so the
+// page title and the first section share one left edge.
 
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
@@ -27,37 +23,18 @@ import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
 import { unseenUpdate, useUpdates } from '../updates/store';
 import { BellIcon, EyeIcon, EyeOffIcon, SearchIcon } from '../icons';
-import { CountBadge, Dot, cx } from '../ui';
-import { BrandMark } from './BrandMark';
+import { Dot, cx } from '../ui';
 import { MASTHEAD_EDGES } from './edges';
+import { PAGE_TITLE_ID } from './ids';
 import { ProfileMenu } from './ProfileMenu';
-import { PAGE_TITLE_ID } from './Stage';
 
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
-// Label tiers, as container widths of the masthead's content box.
-// FULL: every word, incl. the shortcut hint and Darstellung. MID: the words
-// that name a destination (Suche, Mitteilungen, the first name) and
-// "Beträge ausblenden" — the control a screen share most depends on, so it
-// keeps its words in the desktop app's default 1280px window, where the
-// caption buttons leave the masthead about 1,090px. Below MID everything is
-// an icon with its name as tooltip.
-const LABEL_FULL = 'hidden @min-[1180px]/mast:inline';
-const LABEL_MID = 'hidden @min-[900px]/mast:inline';
+/** An action: Material's standard icon button, 40px round (48px on a phone, app/android.css). */
+const ITEM = 'navlink inline-flex size-10 justify-center px-0!';
 
-/**
- * An icon-only item is a circle, not a pill with a label's padding: 40px, and
- * 36px on a phone, where the wordmark needs every pixel of the row.
- */
-const ITEM = 'navlink inline-flex sm:@max-[899.98px]/mast:px-[11px]! max-sm:px-[9px]!';
-
-/**
- * The Android app's top app bar says where you are, as Material's does — what
- * the desktop's navy stage says under the masthead (shell/Stage), which the
- * phone does without. The app's own mark there would only repeat the icon the
- * app was opened with.
- */
+/** The page's name, as Material's top app bar says where you are. */
 function PageTitle() {
   const { tab } = useFints();
   const t = useT();
@@ -120,27 +97,31 @@ export function Masthead() {
       </a>
 
       <div className="@container/mast flex h-full min-w-0 items-center gap-2 sm:gap-3">
-        {/* No version here: the footer and the Sitzung panel carry it, and
-            the bar's room goes to the labelled controls. */}
-        {IS_ANDROID ? <PageTitle /> : <BrandMark />}
+        <PageTitle />
 
         <div className="min-w-2 flex-1" />
 
-        <div className="flex shrink-0 items-center sm:gap-0.5" style={NO_DRAG}>
-          {/* Android: search is "Mehr" at every width, and there is no Darstellung — the phone's light and dark. */}
+        <div className="flex shrink-0 items-center gap-1" style={NO_DRAG}>
+          {/* Search: a pill, as Material's search bar sits in a wide top app
+              bar — on a phone it is "Mehr" in the navigation bar. Android has
+              no Darstellung either: the phone's light and dark. */}
           {!IS_ANDROID && <button
             type="button"
-            className={cx(ITEM, 'max-sm:hidden')}
+            className={cx(
+              'mr-1 inline-flex h-10 items-center gap-2.5 rounded-full bg-[var(--md-surface-container-high)] pr-2.5 pl-3.5 text-[14px] text-bar-ink-2',
+              'transition-colors duration-150 hover:bg-[var(--md-surface-container-highest)] hover:text-bar-ink max-sm:hidden',
+              '@max-[719.98px]/mast:size-10 @max-[719.98px]/mast:justify-center @max-[719.98px]/mast:px-0',
+            )}
             aria-label={t.common.search}
             aria-keyshortcuts="Control+K Meta+K"
             title={`${t.common.search} (${t.shell.ctrl}+K)`}
             onClick={() => setPaletteOpen(true)}
           >
             <SearchIcon size={18} />
-            <span className={LABEL_MID}>{t.common.search}</span>
+            <span className="w-[clamp(6rem,14vw,12rem)] text-left @max-[719.98px]/mast:hidden">{t.common.search}</span>
             <kbd
               aria-hidden
-              className="hidden h-[22px] items-center rounded-[5px] border border-bar-line px-1.5 font-sans text-[12.5px] leading-none font-semibold text-bar-ink-2 @min-[1180px]/mast:inline-flex"
+              className="inline-flex h-[22px] items-center rounded-[5px] bg-[var(--md-surface-container-lowest)] px-1.5 font-sans text-[12.5px] leading-none font-medium text-bar-ink-2 @max-[899.98px]/mast:hidden"
             >
               {`${t.shell.ctrl} K`}
             </kbd>
@@ -160,16 +141,8 @@ export function Masthead() {
               {/* The dot is the narrow-window form of the count (where the
                   badge shows, it would say the same thing twice) — and, at
                   every width, the mark of a new app version. */}
-              {(shownUnread > 0 || shown.update) && (
-                <Dot className={cx('absolute -top-0.5 -right-0.5 ring-2 ring-bar', !shown.update && '@min-[900px]/mast:hidden')} />
-              )}
+              {(shownUnread > 0 || shown.update) && <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-bar" />}
             </span>
-            <span className={LABEL_MID}>{t.common.nav.messages}</span>
-            {shownUnread > 0 && (
-              <span className={LABEL_MID}>
-                <CountBadge count={shownUnread} tone="bar" />
-              </span>
-            )}
           </button>
 
           {/* The label names what a press does, so it changes with the state
@@ -185,12 +158,9 @@ export function Masthead() {
             onClick={togglePrivacy}
           >
             {privacy ? <EyeOffIcon /> : <EyeIcon />}
-            <span className={LABEL_MID}>{amounts}</span>
           </button>
 
-          {!IS_ANDROID && <ThemeMenu className={cx(ITEM, 'max-sm:hidden')} labelClassName={LABEL_FULL} />}
-
-          {!IS_ANDROID && <span aria-hidden className="mx-1.5 h-6 w-px bg-bar-line max-sm:hidden" />}
+          {!IS_ANDROID && <ThemeMenu className={cx(ITEM, 'max-sm:hidden')} labelClassName="sr-only" />}
 
           {/* Abmelden lives in the Sitzung panel behind this chip, with the
               session it ends — the bar stays a row of places to go. */}

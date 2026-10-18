@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
-import { canReportBalance, isCardAccount, namesList } from '@/lib/balances';
+import { canReportBalance, isCardAccount, isDepot, namesList } from '@/lib/balances';
 import { translateType } from '@/lib/format';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
@@ -31,10 +31,13 @@ import { AccountGlyph, MAX_ALIAS, ShortIban, accountIdent, aliasFromDraft, bankN
  * Dispositionsrahmen and Vorgemerkt. With a single account there is nothing
  * to switch or add up: the hero is that account, and this tile stays away.
  *
- * A row says what its figure is waiting for: "Saldo abrufen" (which, like
- * every read, can need an approval), "Abruf fehlgeschlagen" with the way to
- * try again, or "Kein Abruf möglich" for an account the bank reports no
- * balance for over FinTS.
+ * A row says what its figure is waiting for: "Saldo abrufen", "Abruf
+ * fehlgeschlagen" with the way to try again, or "Kein Saldo abrufbar" for an
+ * account the bank reports no balance for over FinTS. That a read can need an
+ * approval is said once for the tile: beside "Alle Salden abrufen" when that
+ * is offered, else under the first row that offers a read. The selected
+ * Depot leaves its read to the hero, which offers it, shows it under way and
+ * reports how it went.
  *
  * With more than one bank in the view (lib/linked-banks.ts) the rows are
  * grouped under each bank's band — the primary login first — and the
@@ -46,6 +49,7 @@ import { AccountGlyph, MAX_ALIAS, ShortIban, accountIdent, aliasFromDraft, bankN
 export function AccountList() {
   const {
     accounts, activeAccount, balances, loadingAccount, balanceLoading, busy, wait, selectAccount, loadBalance,
+    portfolios, portfolioLoading,
     loadAllBalances, loadingAllBalances, isLoadedForAppliedRange, txErrors, balanceErrors,
     accountLabel, renameAccount, vault, vaultStatus, toast,
     banks, links, bankOf, logoFiles, openAddBank,
@@ -177,6 +181,18 @@ export function AccountList() {
   const busyTitle = busy
     ? wait.open ? words.busyApproval : words.busyFetch
     : undefined;
+
+  // The approval note, once for the tile: beside "Alle Salden abrufen" when
+  // the total row offers it, else under the first row that offers a read.
+  const footerNote = total.counted.length + total.absent.length >= 2 && fetchable.length > 0;
+  const offersRead = (a: SerializedAccount) => {
+    const acct = a.accountNumber;
+    if (isDepot(a)) {
+      return activeAccount?.accountNumber !== acct && portfolios[acct]?.totalValue == null && portfolioLoading !== acct;
+    }
+    return !balances[acct] && !loadingNow(acct) && !gone(a) && canReportBalance(a);
+  };
+  const noteRow = footerNote ? null : groups.flatMap((g) => g.accounts).find(offersRead)?.accountNumber ?? null;
 
   return (
     <section className="panel min-w-0 overflow-clip" aria-labelledby={titleId}>
@@ -313,10 +329,11 @@ export function AccountList() {
                     // The selected account's Verfügbar is the hero's to say.
                     const showAvailable = !active
                       && bal?.availableAmount != null && Math.round(bal.availableAmount * 100) !== Math.round(bal.balance * 100);
+                    const note = noteRow === acct;
                     return (
                       <li
                         key={acct}
-                        className="w-[80%] max-w-[300px] shrink-0 snap-start sm:w-auto sm:max-w-none sm:border-b sm:border-line sm:last:border-b-0"
+                        className="w-[80%] max-w-[300px] shrink-0 snap-start sm:w-auto sm:max-w-none"
                       >
                         <button
                           type="button"
@@ -331,19 +348,15 @@ export function AccountList() {
                             // framed card inside it (Lifted, Never Framed).
                             'row-focus group relative flex h-full w-full flex-col gap-3 rounded-[8px] p-3.5 text-left',
                             'transition-colors duration-150',
-                            'sm:flex-row sm:items-center sm:gap-4 sm:rounded-none sm:px-5 sm:py-3.5',
+                            'sm:flex-row sm:items-center sm:gap-4 sm:rounded-[16px] sm:px-3 sm:py-3',
                             busy ? 'cursor-progress' : 'cursor-pointer',
                             active
-                              ? cx(
-                                // Selected: the wash, edged in the action colour like
-                                // a segmented control's thumb.
-                                'bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent)]',
-                                'sm:bg-[color-mix(in_srgb,var(--accent)_6%,var(--surface))] sm:shadow-none',
-                                // The selected row is named by a rail in the action
-                                // colour — the same mark as the active tab above it.
-                                'sm:before:absolute sm:before:inset-y-0 sm:before:left-0 sm:before:w-[3px] sm:before:bg-accent',
-                              )
-                              : 'bg-inset sm:bg-transparent sm:hover:bg-inset',
+                              // Selected: the wash, edged in the action colour like a
+                              // segmented control's thumb; from sm up Material's
+                              // selected list item, filled and round.
+                              ? 'bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent)] sm:shadow-none'
+                              // At rest: a well on a phone; a row whose state layer shows on hover from sm up.
+                              : 'bg-inset sm:bg-transparent sm:hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)]',
                           )}
                         >
                           <span className="flex min-w-0 items-center gap-3 sm:flex-1 sm:gap-4">
@@ -358,7 +371,33 @@ export function AccountList() {
                           </span>
 
                           <span className="min-w-0 sm:shrink-0 sm:text-right">
-                            {bal ? (
+                            {isDepot(a) ? (
+                              // A Depot: its value as the last read of its holdings states it.
+                              portfolios[acct]?.totalValue != null ? (
+                                <>
+                                  <Money
+                                    value={portfolios[acct].totalValue}
+                                    currency={portfolios[acct].currency}
+                                    tone="plain"
+                                    className="block text-[20px] leading-tight font-semibold sm:text-[15px] sm:leading-snug"
+                                  />
+                                  <span className="block text-[13px] leading-snug text-ink-3">{t.depot.total}</span>
+                                </>
+                              ) : active ? (
+                                // The selected Depot's read is the hero's, like its Verfügbar is.
+                                null
+                              ) : portfolioLoading === acct ? (
+                                <span className="block py-1">
+                                  <Skeleton className="h-4 w-24 rounded-[4px] sm:ml-auto" />
+                                  <span className="sr-only">{t.depot.loading}</span>
+                                </span>
+                              ) : (
+                                <>
+                                  <RowAction busy={busy} className="text-[14px]">{t.depot.read}</RowAction>
+                                  {note && <span className="block text-[13px] leading-snug text-ink-3">{t.common.mayNeedApproval}</span>}
+                                </>
+                              )
+                            ) : bal ? (
                               <>
                                 <Money
                                   value={bal.balance}
@@ -383,17 +422,17 @@ export function AccountList() {
                               // Its bank's band says so, with the way back in.
                               <span className="block text-[13px] leading-snug text-ink-3">{t.banks.state.loggedOut}</span>
                             ) : !canReportBalance(a) ? (
-                              <span className="block text-[13px] leading-snug text-ink-3">{words.cannotFetch}</span>
+                              <span className="block text-[13px] leading-snug text-ink-3">{t.insights.hero.noBalance}</span>
                             ) : failure ? (
                               <>
                                 <span className="block text-[14px] leading-snug font-semibold text-red">{t.common.fetchFailed}</span>
                                 <RowAction busy={busy}>{t.common.retry}</RowAction>
-                                <span className="sr-only">. {t.insights.mayNeedApproval}</span>
+                                {note && <span className="sr-only">. {t.common.mayNeedApproval}</span>}
                               </>
                             ) : (
                               <>
                                 <RowAction busy={busy} className="text-[14px]">{t.insights.loadBalance}</RowAction>
-                                <span className="block text-[13px] leading-snug text-ink-3">{t.insights.mayNeedApprovalLabel}</span>
+                                {note && <span className="block text-[13px] leading-snug text-ink-3">{t.common.mayNeedApproval}</span>}
                               </>
                             )}
                           </span>
@@ -423,7 +462,7 @@ export function AccountList() {
               once two or more accounts can be added up — or one beside a
               bank that is not logged in. */}
           {total.counted.length + total.absent.length >= 2 && (
-            <div ref={totalRef} tabIndex={-1} className="border-t border-line bg-inset px-4 py-3.5 outline-none sm:px-5">
+            <div ref={totalRef} tabIndex={-1} className="px-4 py-3.5 outline-none sm:px-5">
               <div className="flex items-baseline justify-between gap-4">
                 <span className="text-[14px] font-semibold text-ink-2">{words.total}</span>
                 {total.cents != null ? (
@@ -437,7 +476,7 @@ export function AccountList() {
                   <DotList items={totalFacts} />
                 </p>
               )}
-              {fetchable.length > 0 && (
+              {footerNote && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                   <Button
                     variant="tertiary"
@@ -457,7 +496,7 @@ export function AccountList() {
                   >
                     {words.loadAll}
                   </Button>
-                  <span className="text-[13px] leading-snug text-ink-3">{t.insights.mayNeedApproval}</span>
+                  <span className="text-[13px] leading-snug text-ink-3">{t.common.mayNeedApproval}</span>
                 </div>
               )}
             </div>
@@ -508,8 +547,8 @@ function AccountRows({
           // this, that width would leak up as the tile's minimum width
           // and push the whole page sideways inside a grid column.
           '[contain:inline-size]',
-          'sm:block sm:overflow-visible sm:px-0 sm:pb-0',
-          grouped ? 'pt-3 sm:pt-0' : 'sm:border-t sm:border-line',
+          'sm:flex sm:flex-col sm:gap-0.5 sm:overflow-visible sm:px-2 sm:pb-1',
+          grouped && 'pt-3 sm:pt-1',
         )}
       >
         {accounts.map(children)}
@@ -544,7 +583,7 @@ function BankBand({ entry, logoFile, onLogin }: { entry: BankEntry; logoFile?: s
     : entry.state === 'remembered' ? t.banks.state.remembered
       : null;
   return (
-    <div className="flex min-h-11 items-center gap-2.5 border-t border-line px-4 py-1.5 sm:bg-inset sm:px-5">
+    <div className="flex min-h-11 items-center gap-2.5 px-4 pt-3 pb-1 sm:px-5">
       {/* One column for every bank's mark, so the names line up band under band. */}
       <span className="grid w-[52px] shrink-0 place-items-center [&>span]:max-w-full">
         <BankLogo brand={entry.bank.brand} size="sm" file={logoFile} />

@@ -1,25 +1,30 @@
-// Poll the pending decoupled operation. Called repeatedly by the frontend
-// while the user approves in their banking app. Returns the final data once
-// the bank confirms the approval.
+// Continue the operation that waits for an approval. With an app approval
+// (decoupled) the frontend asks repeatedly while the user approves in their
+// banking app; with a typed TAN it asks once, with the TAN. Returns the final
+// data once the bank confirms the approval.
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { isDefiniteRefusal } from '@/lib/bank-answer';
 import {
   accountCurrency, accountsFor, balanceFromStatements, bankAnswerCodes, bankAnswerText, logResp, logStatementDates,
-  serializeBalance, serializeNoted, serializeTransactions, statementBlocks,
+  serializeBalance, serializeNoted, serializePortfolio, serializeTransactions, statementBlocks, tanPayload,
 } from '@/lib/serialize';
 import { noteDelivery } from '@/lib/history-store';
 import { getSession, saveSessionProfile } from '@/lib/session';
+import { cleanTan, isPlausibleTan } from '@/lib/tan-entry';
+import { msgs } from '@/lib/i18n';
 import { PENDING_SEG } from '@/lib/fints-pending';
 import { holdBankOrders, orderCaps } from '@/lib/fints-orders';
 import type { ClientResponseWithResult, TanPollResponse } from '@/lib/fints-types';
-import type { AccountBalanceResponse, StatementResponse } from 'lib-fints';
+import type { AccountBalanceResponse, ElectronicStatementResponse, PortfolioResponse, StatementResponse } from 'lib-fints';
+import { collectStatements } from '@/lib/bank-statements';
+import { DocError } from '@/lib/doc-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export const POST = wrap(async (req: Request) => {
-  const { sessionId } = await body<{ sessionId: string }>(req);
+  const { sessionId, tan: typed } = await body<{ sessionId: string; tan?: string }>(req);
   const s = getSession(sessionId);
   if (!s) return sessionExpired();
   if (!s.pending) return fail('Kein offener Vorgang.');
@@ -27,26 +32,37 @@ export const POST = wrap(async (req: Request) => {
   const pending = s.pending;
   const { type, tanReference } = pending;
   const accountNumber = 'accountNumber' in pending ? pending.accountNumber : undefined;
+  // A typed TAN goes to the bank as typed, less the spaces around it; an app
+  // approval sends none. What cannot be a TAN (FinTS syntax characters among
+  // it) never leaves.
+  const tan = typeof typed === 'string' && cleanTan(typed) ? cleanTan(typed) : undefined;
+  if (tan !== undefined && !isPlausibleTan(tan)) return fail(msgs().provider.wait.badTan);
 
   let resp: ClientResponseWithResult;
   try {
     switch (type) {
       case 'sync':
-        resp = await s.client.synchronizeWithTan(tanReference!);
+        resp = await s.client.synchronizeWithTan(tanReference!, tan);
         break;
       case 'balance':
-        resp = await s.client.getAccountBalanceWithTan(tanReference!);
+        resp = await s.client.getAccountBalanceWithTan(tanReference!, tan);
+        break;
+      case 'portfolio':
+        resp = await s.client.getPortfolioWithTan(tanReference!, tan);
+        break;
+      case 'bankStatements':
+        resp = await s.client.getElectronicStatementsWithTan(tanReference!, tan);
         break;
       case 'statements':
-        resp = await s.client.getAccountStatementsWithTan(tanReference!);
+        resp = await s.client.getAccountStatementsWithTan(tanReference!, tan);
         break;
       case 'pending':
-        resp = await s.client.continueCustomerInteractionWithTan([PENDING_SEG], tanReference!);
+        resp = await s.client.continueCustomerInteractionWithTan([PENDING_SEG], tanReference!, tan);
         break;
       case 'transfer':
       case 'bankOrders':
       case 'orderDelete':
-        resp = await s.client.continueCustomerInteractionWithTan([pending.segId], tanReference!);
+        resp = await s.client.continueCustomerInteractionWithTan([pending.segId], tanReference!, tan);
         break;
       default:
         return fail('Unbekannter Vorgang.');
@@ -69,6 +85,8 @@ export const POST = wrap(async (req: Request) => {
   if (resp.requiresTan) {
     // Not approved yet — keep the same reference and ask the client to poll again.
     s.pending = { ...pending, tanReference: resp.tanReference || tanReference };
+    // After a typed TAN the bank asks for another one: its new challenge goes along.
+    if (tan !== undefined) return json({ status: 'pending', again: tanPayload(resp, s) } satisfies TanPollResponse);
     return json({ status: 'pending' } satisfies TanPollResponse);
   }
 
@@ -98,6 +116,22 @@ export const POST = wrap(async (req: Request) => {
     return json({
       status: 'done', kind: 'balance', accountNumber,
       balance: serializeBalance((resp as AccountBalanceResponse).balance),
+    } satisfies TanPollResponse);
+  }
+  if (type === 'bankStatements') {
+    // The approved read, then the statements the bank has waiting behind it.
+    try {
+      const got = await collectStatements(s, accountNumber!, resp as ElectronicStatementResponse);
+      return json({ status: 'done', kind: 'bankStatements', accountNumber, ...got } satisfies TanPollResponse);
+    } catch (err) {
+      if (err instanceof DocError) return fail(err.message, err.status);
+      throw err;
+    }
+  }
+  if (type === 'portfolio') {
+    return json({
+      status: 'done', kind: 'portfolio', accountNumber,
+      portfolio: serializePortfolio(resp as PortfolioResponse, accountCurrency(s, accountNumber!)),
     } satisfies TanPollResponse);
   }
   if (pending.type === 'statements') {

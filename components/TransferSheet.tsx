@@ -37,11 +37,11 @@ import {
 import { useFints, type TransferHandlers } from './FintsProvider';
 import { useShowBankOrders } from './BankOrders';
 import {
-  AccountTypeIcon, AlertTriangleIcon, BoltIcon, ClockIcon, InfoIcon, QrIcon, RepeatIcon, StarIcon, UndoIcon,
+  AccountTypeIcon, AlertTriangleIcon, BoltIcon, ClockIcon, InfoIcon, PaperclipIcon, QrIcon, RepeatIcon, StarIcon, UndoIcon,
 } from './icons';
 import { Money, formatMoney, useMoneyText } from './Money';
 import { VopReport, vopDeviates, vopUnchecked } from './VopResult';
-import { Alert, Button, Chip, Dialog, Field, Input, Overlay, Segmented, Select, Spinner, cx } from './ui';
+import { Alert, Button, Checkbox, Chip, Dialog, Field, Input, Overlay, Segmented, Select, Spinner, cx } from './ui';
 import { GiroCodeDrop, imageFromTransfer, useFileDrop, useGiroCodeReader } from './transfer/GiroCodeDrop';
 import { IbanHint, IbanInput, useBankLookup } from './transfer/IbanInput';
 import { expectedLength, groupIban, ibanProblem, rawIban } from './transfer/iban';
@@ -191,7 +191,7 @@ export function TransferSheet() {
   const {
     accounts, balances, transferPrefill, closeTransfer, submitTransfer, confirmVop, abandonVop,
     refreshAfterTransfer, loadPending, range, txByAccount, pendingCache, pendingInfo, statementInfo, activity,
-    accountLabel, vault, touchTemplate, wait, busy, toast, banks, bankOf, bankOrders, loadBankOrders,
+    accountLabel, vault, touchTemplate, wait, busy, toast, banks, bankOf, bankOrders, loadBankOrders, keepReceipt,
   } = useFints();
   const showBankOrders = useShowBankOrders();
   const tr = useT();
@@ -266,6 +266,14 @@ export function TransferSheet() {
   const [vop, setVop] = useState<SerializedVop | null>(null);
   /** When the order went to the bank (epoch ms) — the time "Status unklar" names and searches from. */
   const [sentAt, setSentAt] = useState<number | null>(null);
+  /**
+   * The invoice the GiroCode was read from, and whether it goes to the
+   * booking once the bank books the transfer (lib/receipts.ts) — kept for
+   * that booking the moment the order is through.
+   */
+  const [invoice, setInvoice] = useState<File | null>(null);
+  const [keepInvoice, setKeepInvoice] = useState(true);
+  const [invoiceKept, setInvoiceKept] = useState(false);
   const [check, setCheck] = useState<Check | null>(null);
   const [confirm, setConfirm] = useState<null | 'discard' | 'vop'>(null);
   const [managing, setManaging] = useState(false);
@@ -294,7 +302,7 @@ export function TransferSheet() {
   const empty = eligible.length === 0;
   useEffect(() => {
     if (!empty) return;
-    toast(msgs().transfer.noAccount, 'error');
+    toast(msgs().provider.launch.noTransferAccount, 'error');
     closeTransfer();
   }, [empty, toast, closeTransfer]);
 
@@ -540,7 +548,8 @@ export function TransferSheet() {
     setSource(from);
   }, []);
 
-  const fromGiroCode = useCallback((p: EpcPayment) => {
+  const fromGiroCode = useCallback((p: EpcPayment, file: File | null) => {
+    setInvoice(file);
     fillPayee({
       name: p.name,
       iban: p.iban,
@@ -574,6 +583,7 @@ export function TransferSheet() {
     );
     touchTemplate(t.id);
     reader.reset();
+    setInvoice(null);
     setLive({ say: (m) => m.transfer.live.template(t.label) });
   };
 
@@ -625,6 +635,13 @@ export function TransferSheet() {
   };
 
   // ---- the order ------------------------------------------------------------
+  /** The invoice waits for the booking of this order — not for a Termin or Dauerauftrag, booked who knows when. */
+  const fileInvoice = () => {
+    if (!invoice || !keepInvoice || !draft || draft.schedule) return;
+    const awaiting = { iban: draft.iban, cents: draft.cents, sentAt: new Date().toISOString() };
+    void keepReceipt(invoice, draft.accountNumber, { awaiting }).then(setInvoiceKept);
+  };
+
   const handlers: TransferHandlers = {
     onTanStarted: () => { setSubmitting(false); setStep('awaiting'); },
     onExecuted: (answers?: string) => {
@@ -632,12 +649,15 @@ export function TransferSheet() {
       setBankAnswers(answers);
       setStep('done');
       haptic('confirm');
+      fileInvoice();
     },
     onUnknown: (answers?: string) => {
       setSubmitting(false);
       setBankAnswers(answers);
       setCheck(null);
       setStep('unknown');
+      // It may have gone through: should it be booked, the invoice is there.
+      fileInvoice();
     },
     onRefused: (answers: string) => {
       setSubmitting(false);
@@ -773,6 +793,9 @@ export function TransferSheet() {
   const words = tr.transfer;
   const act = words.actions;
   const later = tr.orders.sheet;
+  // The kind the heading names (the form's choice, else the draft's): a
+  // Dauerauftrag or a Terminüberweisung is an Auftrag, so the discard dialogs say so.
+  const forLater = titleKindRef.current != null;
   // The order's own verbs at the Namensabgleich: an order for later is set up, not transferred.
   const vopActs = kind
     ? { sendAnyway: later.sendAnyway[kind], sendUnchecked: later.sendUnchecked[kind], sendNoResult: later.sendNoResult[kind], approve: later.approve[kind] }
@@ -1179,10 +1202,18 @@ export function TransferSheet() {
             warning={reviewWarning}
             duplicate={duplicate}
             duplicateTitle={duplicateCheck?.title ?? null}
-            primaryLabel={sendLabel}
             busyElsewhere={busy && !submitting}
             error={error}
             errorRef={errorRef}
+          />
+        )}
+        {step === 'review' && draft && invoice && !draft.schedule && (
+          <Checkbox
+            className="mt-4"
+            checked={keepInvoice}
+            onChange={(e) => setKeepInvoice(e.target.checked)}
+            label={tr.docs.receipts.keepInvoice}
+            description={tr.docs.receipts.keepInvoiceHint}
           />
         )}
 
@@ -1232,12 +1263,19 @@ export function TransferSheet() {
               )}
             </p>
             {answerLines.length > 0 && <BankAnswer lines={answerLines} className="mt-5" />}
+            {invoiceKept && (
+              <p className="mt-4 inline-flex max-w-[46ch] items-start gap-1.5 text-left text-[13.5px] leading-snug text-ink-2">
+                <PaperclipIcon size={15} className="mt-0.5 shrink-0" />
+                <span>{tr.docs.receipts.keepInvoiceHint}</span>
+              </p>
+            )}
             {/* On Android a booked transfer needs no note: the list is a pull away. */}
             {(kind || !IS_ANDROID) && (
               <p className="mt-5 max-w-[46ch] text-[13.5px] leading-relaxed text-ink-3">
                 {kind ? (
                   // Nothing is booked yet: where the order is kept is the bank's list.
-                  `${later.done[kind]} ${later.done.where(tr.common.nav.contracts)}`
+                  // When it runs is the line above.
+                  later.done.where(tr.common.nav.contracts)
                 ) : (
                   <>
                     {words.done.appears}{' '}
@@ -1260,7 +1298,9 @@ export function TransferSheet() {
             <p className="mt-5 max-w-[48ch] text-[15px] leading-relaxed text-ink">
               {kind ? later.unknown.noConfirmation[kind] : words.unknown.noConfirmation}
             </p>
-            {!found && (
+            {/* It names "Jetzt nachsehen": once the check is through, the result
+                below takes over and the button reads "Noch einmal nachsehen". */}
+            {!found && check?.stage !== 'done' && (
               <p className="mt-2 max-w-[48ch] text-[14px] leading-relaxed text-ink-2">
                 {kind ? later.unknown.beforeResend[kind](act.lookNow) : words.unknown.beforeResend(act.lookNow)}
               </p>
@@ -1346,7 +1386,7 @@ export function TransferSheet() {
           open
           onClose={() => setConfirm(null)}
           title={words.discard.title}
-          description={words.discard.body}
+          description={words.discard.body(forLater)}
           actions={(
             <>
               <Button data-autofocus onClick={() => setConfirm(null)}>{words.discard.keep}</Button>
@@ -1359,12 +1399,12 @@ export function TransferSheet() {
         <Dialog
           open
           onClose={() => setConfirm(null)}
-          title={words.discardVop.title}
+          title={words.discardVop.title(forLater)}
           description={words.discardVop.body}
           actions={(
             <>
               <Button data-autofocus onClick={() => setConfirm(null)}>{words.discardVop.keep}</Button>
-              <Button variant="danger" onClick={() => { setConfirm(null); closeAfterVop(); }}>{words.discardVop.confirm}</Button>
+              <Button variant="danger" onClick={() => { setConfirm(null); closeAfterVop(); }}>{words.discardVop.confirm(forLater)}</Button>
             </>
           )}
         />

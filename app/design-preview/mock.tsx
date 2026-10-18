@@ -86,19 +86,31 @@ import {
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import type {
-  BankOrderKind, Merchant, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedTanMethod,
+  BankOrderKind, Merchant, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedPortfolio, SerializedTanMethod,
   SerializedTransaction, SerializedVop,
 } from '@/lib/fints-types';
 import { scheduleSentence } from '@/lib/order-schedule';
-import { ACCT, MOCK_PAYEES, getMockData, type MockData, type MockStatement } from './data';
+import {
+  ACCT, MOCK_DEPOT, MOCK_PAYEES, MOCK_TAN_KIND, getMockData, mockPdf, mockPortfolio,
+  type MockData, type MockStatement, type MockTanKind,
+} from './data';
+import type { ListedDoc, StatementFetch } from '@/components/FintsProvider';
+import type { AwaitedBooking, KeptDoc } from '@/lib/docs';
+import { saveFile } from '@/lib/download';
+import { renderFlicker } from '@/lib/flicker';
+import { qrMatrix, qrSvgPath } from '@/lib/qr';
 
 export type MockPreset = 'default' | 'empty' | 'past-range' | 'unverified' | 'loading' | 'error';
 
 export type MockOptions = {
   /** The statement range loaded at start. Default '90d', like the real app after login. */
   range?: '90d' | '365d' | 'all';
-  /** How a simulated approval ends. 'hold' keeps it waiting (for screenshots of the wait). */
-  tan?: 'confirm' | 'hold' | 'ended' | 'error' | 'refused';
+  /**
+   * How a simulated approval ends. 'hold' keeps it waiting (for screenshots of
+   * the wait); with a typed TAN it keeps the sent TAN waiting for the bank.
+   * 'again': the bank asks for a second TAN after the first, then confirms.
+   */
+  tan?: 'confirm' | 'hold' | 'ended' | 'error' | 'refused' | 'again';
   /** How long a simulated approval takes before it ends as `tan` says. */
   tanMs?: number;
   /** A held approval that started this long ago — past the bank's limit, for the overdue state. */
@@ -113,8 +125,18 @@ export type MockOptions = {
   bankChosen?: boolean;
   /** With view 'login': the bank remembered from last time has left the list. */
   staleBank?: boolean;
-  /** 'typed': the bank offers only methods that need a typed TAN (the dead end). */
+  /** 'typed': the bank offers only methods that need a typed TAN. */
   methods?: 'typed';
+  /**
+   * The method the session's approvals run on, by kind (data.ts MOCK_TAN_KIND):
+   * the app approval by default; a typed TAN asks for one, from a flicker code,
+   * a graphic, the challenge's words or an SMS.
+   */
+  method?: MockTanKind;
+  /** The bank lists a Depot too (data.ts MOCK_DEPOT): its holdings in place of Umsätze. */
+  depot?: boolean;
+  /** A receipt is attached to a booking from the start (the drawer's "Belege"), and two of the bank's statements are kept. */
+  docs?: boolean;
   // First-frame navigation. Part of the initial state rather than set from an
   // effect, so nothing (a slow first compile, a hot reload) can race it.
   tab?: DashboardTab;
@@ -209,7 +231,7 @@ export type MockFintsProviderProps = MockOptions & {
 const IDLE_WAIT: WaitState = {
   open: false, kind: null, title: '', text: '', challenge: null,
   phase: 'waiting', error: null, canRetry: false, startedAt: 0, settledAt: null, vop: null, tanMediaName: null,
-  order: null, note: null, bank: null, method: null,
+  order: null, note: null, bank: null, method: null, entry: null,
 };
 /** As the provider's WAIT_SUBJECT. */
 const WAIT_SUBJECT: Record<WaitKind, string> = {
@@ -222,6 +244,8 @@ const WAIT_SUBJECT: Record<WaitKind, string> = {
   datedTransfer: 'die Terminüberweisung',
   bankOrders: 'den Abruf deiner Aufträge',
   orderDelete: 'das Löschen des Auftrags',
+  portfolio: 'die Depotabfrage',
+  bankStatements: 'den Abruf der Kontoauszüge',
 };
 const SECOND_APPROVAL_MS = 30_000;
 /** What the mock bank answers when an approval is refused in the app. */
@@ -240,6 +264,108 @@ const BUSY_MESSAGE = 'Bitte warten – ein anderer Vorgang läuft noch.';
 const LOAD_MS = 700;
 const BALANCE_MS = 500;
 const DEFAULT_TAN_MS = 2600;
+/** How long the bank takes over a typed TAN. */
+const TYPED_TAN_MS = 900;
+/** What a bank answers to a wrong TAN. */
+const MOCK_TAN_REFUSAL = '9941: TAN ungültig.';
+
+/** A till receipt, drawn: an image for the drawer's "Belege" (null where there is no canvas). */
+async function mockReceiptImage(): Promise<Blob | null> {
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas');
+  c.width = 360;
+  c.height = 560;
+  const g = c.getContext('2d');
+  if (!g) return null;
+  g.fillStyle = '#fbfaf6';
+  g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = '#222';
+  g.textAlign = 'center';
+  g.font = 'bold 26px monospace';
+  g.fillText('REWE', 180, 60);
+  g.font = '15px monospace';
+  g.fillText('Markt Musterstadt', 180, 88);
+  g.textAlign = 'left';
+  const rows: [string, string][] = [['Vollkornbrot', '2,49'], ['Bio-Milch 1 l', '1,39'], ['Äpfel 1 kg', '2,99'], ['Kaffee 500 g', '6,99'], ['Tomaten', '1,79']];
+  rows.forEach(([what, eur], i) => {
+    g.fillText(what, 30, 150 + i * 30);
+    g.textAlign = 'right';
+    g.fillText(eur, 330, 150 + i * 30);
+    g.textAlign = 'left';
+  });
+  g.fillRect(30, 310, 300, 2);
+  g.font = 'bold 18px monospace';
+  g.fillText('SUMME EUR', 30, 345);
+  g.textAlign = 'right';
+  g.fillText('15,65', 330, 345);
+  g.textAlign = 'center';
+  g.font = '13px monospace';
+  g.fillText('Beispielbeleg der Design-Vorschau', 180, 520);
+  return new Promise((resolve) => c.toBlob((b) => resolve(b), 'image/png'));
+}
+
+/** The method of a kind among the mock bank's, or its first. */
+const methodOfKind = (methods: SerializedTanMethod[], kind: MockTanKind | undefined) =>
+  methods.find((m) => MOCK_TAN_KIND[m.id] === (kind ?? 'app')) ?? methods[0];
+
+/**
+ * An HHD 1.4 challenge as a bank sends one for chipTAN optisch: one control
+ * byte, the start code, the data elements with their lengths.
+ */
+function hhd14(start: string, elements: string[]): string {
+  const body = (0x80 | start.length).toString(16).toUpperCase() + '01' + start
+    + elements.map((e) => String(e.length).padStart(2, '0') + e).join('');
+  return String(body.length).padStart(3, '0') + body;
+}
+
+/** A matrix graphic, as photoTAN and chipTAN QR send one: a QR code here, as an SVG data URL. */
+function mockMatrix(text: string): string {
+  const { d, size } = qrSvgPath(qrMatrix(text));
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges">`
+    + `<rect width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * What the simulated bank asks a typed TAN from, in its own words (German, as
+ * banks send them): the challenge text, and the flicker code or graphic the
+ * method uses — for an order, with its payee and amount, as a real challenge
+ * carries them.
+ */
+function mockTanRequest(kind: MockTanKind, order: WaitOrder | null | undefined, round: number) {
+  const iban = order ? order.iban.replace(/\s+/g, '') : '';
+  const amount = order ? order.amount.toFixed(2).replace('.', ',') : '';
+  const what = order ? `Überweisung an ${order.name}, IBAN …${iban.slice(-4)}, ${amount} EUR.` : 'Anmeldung im Online-Banking.';
+  const start = round ? '2087314' : '1049063';
+  switch (kind) {
+    case 'flicker':
+      return {
+        challenge: `${what} Stecken Sie Ihre Karte in den TAN-Generator, halten Sie ihn an die Grafik und prüfen Sie die Anzeige.`,
+        image: null,
+        flicker: renderFlicker(hhd14(start, order ? [iban.slice(-10), amount] : [])),
+      };
+    case 'photo':
+      return {
+        challenge: `${what} Scannen Sie die Grafik mit „Smart-TAN photo“ und prüfen Sie die Anzeige.`,
+        image: mockMatrix(`GIROVO-PREVIEW ${start} ${iban} ${amount}`),
+        flicker: null,
+      };
+    case 'manual':
+      return {
+        challenge: order
+          ? `${what}<br>Drücken Sie „TAN“ am TAN-Generator und geben Sie ein: Startcode ${start}, die letzten 10 Ziffern der Empfänger-IBAN (${iban.slice(-10)}) und den Betrag (${amount}).`
+          : `Drücken Sie „TAN“ am TAN-Generator und geben Sie den Startcode ${start} ein.`,
+        image: null,
+        flicker: null,
+      };
+    default:
+      return {
+        challenge: `${what} Die TAN wurde per SMS an Ihr Mobiltelefon „Mein Handy“ gesendet.`,
+        image: null,
+        flicker: null,
+      };
+  }
+}
 const MOCK_ERROR = 'Die Verbindung zur Bank wurde unterbrochen (Zeitüberschreitung). Bitte versuche es erneut.';
 
 const normIban = (iban: string | null | undefined) => String(iban ?? '').replace(/\s+/g, '').toUpperCase();
@@ -356,7 +482,8 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
     if (!opts.oneAccount) load(ACCT.karte, presetRange('90d'));
   } else {
     load(ACCT.giro, range);
-    if (opts.account && opts.account !== ACCT.giro && opts.account !== ACCT.karte) load(opts.account, range);
+    // A Depot has no statement to load (its holdings are read on their own).
+    if (opts.account && opts.account !== ACCT.giro && opts.account !== ACCT.karte && opts.account !== ACCT.depot) load(opts.account, range);
     // The card was looked at earlier in this session (with today's range, so
     // its balance is known); the Tagesgeld was not — "Saldo abrufen".
     if (!opts.oneAccount) load(ACCT.karte, preset === 'past-range' ? presetRange('90d') : range);
@@ -438,7 +565,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const [tanMethods, setTanMethods] = useState<SerializedTanMethod[]>(() => offeredMethods(data, opts.methods));
   const [selectedMethod, setSelectedMethod] = useState<SerializedTanMethod | null>(
-    opts.view === 'tanmethod' || opts.view === 'login' ? null : data.tanMethods[0],
+    opts.view === 'tanmethod' || opts.view === 'login' ? null : methodOfKind(data.tanMethods, opts.method),
   );
   const [mediaChoice, setMediaChoice] = useState<string[] | null>(null);
   const [tanMethodError, setTanMethodError] = useState<string | null>(null);
@@ -446,7 +573,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const loggedIn = !opts.view || opts.view === 'dashboard';
   // What the bank lists for this login; a first-frame option, so fixed per session.
   const [bankAccounts] = useState(() => {
-    let listed = opts.oneAccount ? data.accounts.slice(0, 1) : data.accounts;
+    let listed = opts.oneAccount ? data.accounts.slice(0, 1) : opts.depot ? [...data.accounts, MOCK_DEPOT] : data.accounts;
     if (opts.noOrders) listed = listed.map((a) => ({ ...a, dated: null, standing: null }));
     return opts.pendingWithStatements
       ? listed.map((a) => (a.accountNumber === ACCT.giro ? { ...a, canPending: false } : a))
@@ -666,6 +793,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     onAnswer?: ((status: 'refused' | 'unclear', bankAnswers: string) => void) | null;
   }>({});
   const waitGen = useRef(0);
+  /** Sends a typed TAN for the approval on screen; null while none is waited for. */
+  const tanSubmit = useRef<((tan: string) => void) | null>(null);
   /** As the provider: the last approval that came through, for the "second approval" line. */
   const lastConfirmed = useRef<{ kind: WaitKind; gen: number; at: number } | null>(null);
 
@@ -701,37 +830,58 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     const method = w.method ?? link?.method ?? selectedMethodRef.current ?? data.tanMethods[0];
     const asking = link?.bank ?? bankRef.current;
     const subject = w.subject || WAIT_SUBJECT[kind];
+    // A typed TAN: the simulated bank's challenge for the method's kind.
+    const tanKind = MOCK_TAN_KIND[method?.id ?? 0] ?? 'app';
+    const typed = tanKind !== 'app';
+    const request = typed ? mockTanRequest(tanKind, w.order, 0) : null;
+    tanSubmit.current = null;
     setWait({
       open: true,
       kind,
       title: '',
-      text: method?.isDecoupled
-        ? `Öffne „${method.name}“ und bestätige ${subject}.`
-        : `Bestätige ${subject} in deiner Banking-App.`,
-      challenge: w.challenge ?? null,
+      text: typed
+        ? `Gib die TAN für ${subject} ein.`
+        : method?.isDecoupled
+          ? `Öffne „${method.name}“ und bestätige ${subject}.`
+          : `Bestätige ${subject} in deiner Banking-App.`,
+      challenge: request ? request.challenge : w.challenge ?? null,
       phase: 'waiting',
       error: null,
       canRetry: !!w.retry,
       startedAt: Date.now() - (optsRef.current.tanElapsedMs ?? 0),
       settledAt: null,
       vop: w.vop ?? null,
-      tanMediaName: (link || w.method ? null : tanMediaRef.current)
+      // The device picked at the login belongs to its app method; a typed one names its own, if any.
+      tanMediaName: (link || w.method || typed ? null : tanMediaRef.current)
         ?? (method?.activeTanMedia.length === 1 ? method.activeTanMedia[0] : null),
       order: w.order ?? null,
       note: second ? 'Die Anmeldung ist freigegeben – für die Umsätze fragt deine Bank ein zweites Mal.' : null,
       bank: w.bank !== undefined ? w.bank
         : linksRef.current.length && asking ? { name: asking.name, brand: asking.brand } : null,
       method,
+      entry: request
+        ? {
+            image: request.image,
+            flicker: request.flicker,
+            maxLength: method?.tanMaxLength ?? null,
+            numeric: method?.tanNumeric ?? null,
+            sending: false,
+            again: false,
+          }
+        : null,
     });
 
     const outcome = w.outcome ?? optsRef.current.tan ?? 'confirm';
-    if (outcome === 'hold') return;
-    later(optsRef.current.tanMs ?? DEFAULT_TAN_MS, () => {
+
+    /** How the approval ends, as `outcome` says. */
+    const settle = () => {
       if (gen !== waitGen.current) return;
+      tanSubmit.current = null;
       if (outcome === 'refused') {
         const handler = waitCb.current.onAnswer;
-        if (handler) { handler('refused', MOCK_REFUSAL); return; }
-        setWait((s) => ({ ...s, phase: 'refused', settledAt: Date.now(), error: MOCK_REFUSAL, canRetry: !!waitCb.current.retry }));
+        const refusal = typed ? MOCK_TAN_REFUSAL : MOCK_REFUSAL;
+        if (handler) { handler('refused', refusal); return; }
+        setWait((s) => ({ ...s, phase: 'refused', settledAt: Date.now(), error: refusal, canRetry: !!waitCb.current.retry }));
         return;
       }
       if (outcome === 'ended') {
@@ -741,8 +891,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
           ...s,
           phase: 'ended',
           settledAt: Date.now(),
-          title: 'Freigabe nicht rechtzeitig angekommen',
-          text: 'Deine Bank hat die Anfrage beendet. Sende sie neu und bestätige sie in der App.',
+          title: msgs().provider.wait.endedTitle,
+          text: msgs().provider.wait.endedText,
           canRetry: !!waitCb.current.retry,
         }));
         return;
@@ -751,15 +901,52 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
         setWait((s) => ({ ...s, phase: 'error', settledAt: Date.now(), error: MOCK_ERROR, canRetry: !!waitCb.current.retry }));
         return;
       }
+      // 'again' ends as 'confirm' does, once its second TAN is in.
       lastConfirmed.current = { kind, gen, at: Date.now() };
       setWait((s) => ({ ...s, phase: 'confirmed', settledAt: Date.now() }));
       later(CONFIRMED_LINGER_MS, () => { if (gen === waitGen.current) setWait(IDLE_WAIT); });
       waitCb.current.onDone?.();
-    });
+    };
+
+    if (typed) {
+      // Nothing happens until a TAN is sent; 'again' asks for a second one first.
+      let round = 0;
+      const submit = () => {
+        if (gen !== waitGen.current) return;
+        tanSubmit.current = null;
+        setWait((s) => ({ ...s, entry: s.entry && { ...s.entry, sending: true } }));
+        if (outcome === 'hold') return;
+        later(optsRef.current.tanMs ?? TYPED_TAN_MS, () => {
+          if (gen !== waitGen.current) return;
+          if (outcome === 'again' && round === 0) {
+            round = 1;
+            const next = mockTanRequest(tanKind, w.order, 1);
+            tanSubmit.current = submit;
+            setWait((s) => ({
+              ...s,
+              challenge: next.challenge,
+              entry: s.entry && { ...s.entry, image: next.image, flicker: next.flicker, sending: false, again: true },
+            }));
+            return;
+          }
+          settle();
+        });
+      };
+      tanSubmit.current = submit;
+      return;
+    }
+
+    if (outcome === 'hold') return;
+    later(optsRef.current.tanMs ?? DEFAULT_TAN_MS, settle);
   }, [data, later]);
+
+  const submitTan = useCallback((tan: string) => {
+    if (tan) tanSubmit.current?.(tan);
+  }, []);
 
   const closeWait = useCallback(() => {
     waitGen.current++;
+    tanSubmit.current = null;
     setWait(IDLE_WAIT);
   }, []);
 
@@ -912,6 +1099,149 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     });
   }, [data, preset, later, setBusy, toast]);
 
+  // ---- Depot (as the provider's loadPortfolio, without an approval) ---------------
+  const [portfolios, setPortfolios] = useState<Record<string, SerializedPortfolio>>({});
+  const [portfolioErrors, setPortfolioErrors] = useState<Record<string, LoadError>>({});
+  const [portfolioLoading, setPortfolioLoading] = useState<string | null>(null);
+
+  const loadPortfolio = useCallback(async (account: SerializedAccount, o: { quiet?: boolean; onSettled?: LoadSettled } = {}) => {
+    const acct = account.accountNumber;
+    const settle: LoadSettled = (outcome, error) => o.onSettled?.(outcome, error);
+    if (!account.canPortfolio) { settle('skipped'); return; }
+    if (busyRef.current) {
+      if (!o.quiet) toast(BUSY_MESSAGE, 'info');
+      settle('busy');
+      return;
+    }
+    setPortfolioErrors((e) => without(e, acct));
+    setBusy(true);
+    setPortfolioLoading(acct);
+    later(BALANCE_MS * 2, () => {
+      setBusy(false);
+      setPortfolioLoading(null);
+      if (optsRef.current.fail) {
+        setPortfolioErrors((e) => ({ ...e, [acct]: { message: MOCK_ERROR, at: Date.now() } }));
+        if (!o.quiet) toast(failureSentence([{ name: accountLabelRef.current(account), message: MOCK_ERROR }])!, 'error');
+        settle('failed', MOCK_ERROR);
+        return;
+      }
+      setPortfolios((p) => ({ ...p, [acct]: mockPortfolio(data.today) }));
+      settle('applied');
+    });
+  }, [data, later, setBusy, toast]);
+
+  // ---- documents: the bank's Kontoauszüge and receipts, held in memory ------------
+  const docBlobs = useRef(new Map<string, Blob>());
+  const [docs, setDocs] = useState<ListedDoc[]>([]);
+  const docsRef = useRef(docs);
+  docsRef.current = docs;
+  const [bankStatementsLoading, setBankStatementsLoading] = useState<string | null>(null);
+  const [statementFetches, setStatementFetches] = useState<Record<string, StatementFetch>>({});
+
+  /** Keeps a document in memory, as lib/doc-store.ts keeps one on disk. */
+  const putDoc = useCallback((meta: Omit<KeptDoc, 'id' | 'addedAt' | 'size'>, blob: Blob, addedAt = new Date()): ListedDoc => {
+    const id = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+    docBlobs.current.set(id, blob);
+    return { ...meta, id, size: blob.size, addedAt: addedAt.toISOString(), sid: 'mock-session' };
+  }, []);
+
+  /** The bank's statement of a month, as it would hand it out. */
+  const statementDoc = useCallback((acct: string, year: number, month: number) => {
+    const last = new Date(year, month, 0);
+    const from = `${year}-${String(month).padStart(2, '0')}-01`;
+    const to = isoDate(last);
+    const label = accountLabelRef.current(accountsRef.current.find((a) => a.accountNumber === acct) ?? data.accounts[0]);
+    return putDoc({
+      kind: 'statement', mime: 'application/pdf', name: `Kontoauszug ${year}-${String(month).padStart(3, '0')}.pdf`,
+      accountNumber: acct, number: month, year, from, to, date: to,
+    }, new Blob([mockPdf(`Kontoauszug ${month}/${year}`, [
+      `${data.bank.name}`, `${label} (${acct})`, `Zeitraum ${fmtDate(from)} bis ${fmtDate(to)}`,
+      'Beispielauszug der Design-Vorschau - keine echten Daten.',
+    ]) as BlobPart], { type: 'application/pdf' }));
+  }, [data, putDoc]);
+
+  // MockOptions `docs`: two statements kept already, and a till receipt on the latest REWE booking.
+  useEffect(() => {
+    if (!opts.docs) return;
+    const [y, m] = data.today.split('-').map(Number);
+    const kept = [statementDoc(ACCT.giro, m <= 3 ? y - 1 : y, ((m + 8) % 12) + 1), statementDoc(ACCT.giro, m <= 2 ? y - 1 : y, ((m + 9) % 12) + 1)];
+    const rewe = data.statement(ACCT.giro, presetRange('90d')).txs.find((t) => /REWE/i.test(t.remoteName));
+    void mockReceiptImage().then((png) => {
+      const receipt = rewe && png ? [putDoc({ kind: 'receipt', mime: 'image/png', name: 'Kassenbon REWE.png', accountNumber: ACCT.giro, tx: txKey(rewe), awaiting: null }, png)] : [];
+      setDocs([...kept, ...receipt]);
+    });
+    // Seeded once, with the session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const readDoc = useCallback(async (doc: ListedDoc): Promise<Blob> => {
+    const blob = docBlobs.current.get(doc.id);
+    if (!blob) throw new Error('Dieses Dokument gibt es nicht mehr.');
+    return blob;
+  }, []);
+
+  // The preview has no share sheet: both save (a browser download).
+  const openDoc = useCallback(async (doc: ListedDoc) => {
+    const blob = await readDoc(doc);
+    await saveFile(doc.name, blob);
+  }, [readDoc]);
+
+  const removeDoc = useCallback(async (doc: ListedDoc) => {
+    docBlobs.current.delete(doc.id);
+    setDocs((d) => d.filter((x) => x.id !== doc.id));
+    if (doc.kind === 'receipt') toast('Beleg entfernt.', 'success');
+  }, [toast]);
+
+  const keepReceipt = useCallback(async (file: Blob & { name?: string }, accountNumber: string, to: { tx: string } | { awaiting: AwaitedBooking }) => {
+    const mime = file.type === 'application/pdf' ? 'application/pdf' : file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+    const doc = putDoc({
+      kind: 'receipt', mime, name: file.name || 'Beleg', accountNumber,
+      tx: 'tx' in to ? to.tx : null, awaiting: 'awaiting' in to ? to.awaiting : null,
+    }, file);
+    setDocs((d) => [...d, doc]);
+    if ('tx' in to) toast('Beleg angehängt.', 'success');
+    return true;
+  }, [putDoc, toast]);
+
+  const receiptsOf = useCallback((tx: SerializedTransaction) => {
+    const key = txKey(tx);
+    return docs.filter((d) => d.kind === 'receipt' && d.tx === key);
+  }, [docs]);
+  const receiptKeys = useMemo(() => new Set(docs.filter((d) => d.kind === 'receipt' && d.tx).map((d) => d.tx!)), [docs]);
+
+  /** As the provider: behind `busy`, with an approval; the bank has the last three months' statements waiting. */
+  const fetchBankStatements = useCallback(async (account: SerializedAccount) => {
+    const acct = account.accountNumber;
+    if (!account.canBankStatements) return;
+    if (busyRef.current) { toast(BUSY_MESSAGE, 'info'); return; }
+    setBusy(true);
+    setBankStatementsLoading(acct);
+    const finish = () => { setBusy(false); setBankStatementsLoading(null); };
+    startWait('bankStatements', {
+      subject: `den Abruf der Kontoauszüge von ${accountLabelRef.current(account)}`,
+      account: acct,
+      onDone: () => {
+        finish();
+        const [y, m] = data.today.split('-').map(Number);
+        const want = [1, 2, 3].map((back) => {
+          const at = new Date(y, m - 1 - back, 1);
+          return { year: at.getFullYear(), month: at.getMonth() + 1 };
+        });
+        const known = docsRef.current.filter((d) => d.kind === 'statement' && d.accountNumber === acct);
+        const fresh = want.filter((w) => !known.some((d) => d.year === w.year && d.number === w.month))
+          .map((w) => statementDoc(acct, w.year, w.month));
+        setDocs((d) => [...d, ...fresh]);
+        setStatementFetches((f) => ({ ...f, [acct]: { at: Date.now(), answer: { received: 3, added: fresh.length, more: false, held: false }, error: null } }));
+      },
+      retry: () => { finish(); void fetchBankStatements(account); },
+      onCancelled: finish,
+      onAnswer: (_status, answers) => {
+        finish();
+        setStatementFetches((f) => ({ ...f, [acct]: { at: Date.now(), answer: null, error: answers } }));
+      },
+    });
+  }, [data, setBusy, startWait, statementDoc, toast]);
+
   // As the provider's loadAllBalances: one after the other, one toast for what failed.
   const loadAllBalances = useCallback(() => {
     if (busyRef.current) {
@@ -966,8 +1296,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       setRange(span);
     }
     void loadTransactions(a);
-    if (!a.canStatements && a.canBalance && !balances[a.accountNumber]) void loadBalance(a);
-  }, [spanFor, loadTransactions, loadBalance, balances]);
+    // As the provider: a Depot's holdings, else the balance alone.
+    if (!a.canStatements && a.canPortfolio) {
+      if (!portfolios[a.accountNumber]) void loadPortfolio(a);
+    } else if (!a.canStatements && a.canBalance && !balances[a.accountNumber]) void loadBalance(a);
+  }, [spanFor, loadTransactions, loadBalance, balances, loadPortfolio, portfolios]);
 
   const selectAccountRef = useRef(selectAccount);
   selectAccountRef.current = selectAccount;
@@ -1457,11 +1790,6 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setTanMethodError(null);
     setMediaChoice(null);
     await new Promise<void>((resolve) => setTimeout(resolve, 400));
-    if (!method.isDecoupled) {
-      // As /api/select-tan refuses it.
-      setTanMethodError('Dieses Verfahren braucht eine TAN-Eingabe. Hier geht nur die Freigabe in einer Banking-App.');
-      return;
-    }
     const media = tanMediaName || (method.activeTanMedia.length === 1 ? method.activeTanMedia[0] : undefined);
     if (!media && method.activeTanMedia.length > 1) {
       setMediaChoice(method.activeTanMedia);
@@ -1647,11 +1975,6 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     holdFlowBusy();
     await new Promise<void>((resolve) => setTimeout(resolve, 400));
     if (addLoginRef.current !== login) return;
-    if (!method.isDecoupled) {
-      releaseFlowBusy();
-      updateAddBank((a) => ({ ...a, error: 'Dieses Verfahren braucht eine TAN-Eingabe. Hier geht nur die Freigabe in einer Banking-App.' }));
-      return;
-    }
     const media = tanMediaName || (method.activeTanMedia.length === 1 ? method.activeTanMedia[0] : undefined);
     if (!media && method.activeTanMedia.length > 1) {
       releaseFlowBusy();
@@ -2266,11 +2589,14 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     tanMethods, selectedMethod, mediaChoice, tanMethodError,
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
     txErrors, balanceErrors, balanceLoading, loadingAllBalances,
+    portfolios, portfolioErrors, portfolioLoading, loadPortfolio,
+    docs, docsLocked: false, loadDocs: async () => {}, readDoc, openDoc, removeDoc, keepReceipt, receiptsOf, receiptKeys,
+    bankStatementsLoading, statementFetches, fetchBankStatements,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     pendingErrors,
     bankOrders, bankOrdersLoading, bankOrderErrors, orderDeletions,
     range, statementInfo, txByAccount, ownIbans,
-    messages, unreadCount, activity,
+    messages, messagesAsked: true, unreadCount, activity,
     vault, vaultStatus,
     keepBookings: vault?.keepBookings === true,
     historyStatus,
@@ -2292,7 +2618,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     loadBankOrders, deleteBankOrder,
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
     requestLogout, closeLogoutConfirm, setForgetDeviceOpen,
-    retryWait, cancelWait, closeWait, printStatement, printTransaction, printMessage, closePrintJob,
+    retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,
     setTab, setTxFilter, showTransactions,

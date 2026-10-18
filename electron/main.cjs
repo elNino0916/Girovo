@@ -49,24 +49,26 @@ const SERVER_START_TIMEOUT_MS = 60_000;
 /** The app's window comes into view after this at the latest, drawn or not. */
 const REVEAL_AFTER_MS = 20_000;
 
-// Matches --bar / --bar-ink in app/globals.css. The window has no native
-// title bar of its own — the app's navy identity bar (Dashboard.tsx) doubles
-// as the title bar, with the OS caption buttons floating in its right side,
-// so there is exactly one bar instead of a native one stacked on the app's.
+// Matches --bar / --bar-ink in app/material.css: Material's surface and
+// on-surface in Girovo's colours (--md-surface, --md-on-surface). The window
+// has no native title bar of its own — the app's top app bar (Masthead.tsx)
+// doubles as the title bar, with the OS caption buttons floating in its right
+// side, so there is exactly one bar instead of a native one stacked on the
+// app's.
 const BAR_COLORS = {
-  light: { color: '#0a2c5e', symbolColor: '#ffffff' },
-  dark: { color: '#08192b', symbolColor: '#f1f5f9' },
+  light: { color: '#f8f9ff', symbolColor: '#161c24' },
+  dark: { color: '#0e141c', symbolColor: '#dde3ee' },
 };
-// Matches --scrim (app/globals.css). A dialog lays it over the whole page,
-// masthead included, but the caption buttons are drawn by the OS above the
-// page, where no scrim reaches: they stayed a bright navy block in the
-// darkened bar. So while a dialog is open the renderer reports how many
-// scrims lie over that corner (lib/theme.ts, setCaptionDim) and the overlay
-// takes BAR_COLORS composited under that many — the very colour the scrim
-// gives the masthead beside it.
+// Matches --scrim (app/material.css: Material's scrim at 32%). A dialog lays
+// it over the whole page, top bar included, but the caption buttons are
+// drawn by the OS above the page, where no scrim reaches: they stayed a
+// bright block in the darkened bar. So while a dialog is open the renderer
+// reports how many scrims lie over that corner (lib/theme.ts, setCaptionDim)
+// and the overlay takes BAR_COLORS composited under that many — the very
+// colour the scrim gives the bar beside it.
 const SCRIM = {
-  light: { rgb: [10, 22, 40], alpha: 0.45 },
-  dark: { rgb: [0, 0, 0], alpha: 0.6 },
+  light: { rgb: [0, 0, 0], alpha: 0.32 },
+  dark: { rgb: [0, 0, 0], alpha: 0.32 },
 };
 // Dialogs stack (a confirmation over a sheet); past this the bar is as good
 // as black in either theme.
@@ -90,9 +92,9 @@ function barColors(isDark, dim) {
     symbolColor: underScrim(base.symbolColor, SCRIM[theme], dim),
   };
 }
-// Matches --paper: what shows while the first frame is on its way and in the
-// strip a resize briefly uncovers.
-const PAPER = { light: '#f4f6f9', dark: '#061423' };
+// Matches --paper (Material's surface): what shows while the first frame is
+// on its way and in the strip a resize briefly uncovers.
+const PAPER = { light: '#f8f9ff', dark: '#0e141c' };
 // Must track --barbar-h's desktop value (app/globals.css). The mobile media
 // query drops that variable to 56px, but the window never gets that narrow
 // (minWidth below), so the desktop value is the only one that matters here.

@@ -106,7 +106,7 @@ export const MERCHANT_LOGOS = (() => {
 // ---------------------------------------------------------------------------
 export type PendingOperation =
   | { type: 'sync'; tanReference?: string }
-  | { type: 'balance' | 'pending'; tanReference?: string; accountNumber: string }
+  | { type: 'balance' | 'pending' | 'portfolio' | 'bankStatements'; tanReference?: string; accountNumber: string }
   /** `asked`: the days the bank was asked for, which the kept Umsätze need once it answers (lib/history-store.ts). */
   | { type: 'statements'; tanReference?: string; accountNumber: string; asked: DaySpan }
   /** An order: a transfer (HKCCS/HKIPZ), a terminierte Überweisung (HKCSE) or a Dauerauftrag (HKCDE). */

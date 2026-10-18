@@ -7,8 +7,8 @@ import { daysLabel } from '@/lib/analytics';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { useCsvExport } from '../shell/actions';
-import { ChevronIcon, DownloadIcon, FilterIcon } from '../icons';
-import { Button, Menu, MenuItem, cx } from '../ui';
+import { ChevronIcon, DownloadIcon, FileIcon, FilterIcon } from '../icons';
+import { Button, Menu, MenuItem, MenuSeparator, cx } from '../ui';
 
 /**
  * The Umsätze as a German-Excel CSV — all of them, or just what the filter
@@ -17,15 +17,23 @@ import { Button, Menu, MenuItem, cx } from '../ui';
  * stage. Both entries, and the palette's, go through the one export
  * (useCsvExport): the file holds the rows the list shows, booked Umsätze
  * only, and its name says which days — and that it was filtered.
+ *
+ * Where the bank provides its own Kontoauszüge over FinTS, the menu leads to
+ * them as well (components/BankStatements.tsx).
  */
 export function ExportMenu({
-  loaded, all, filtered,
+  loaded, all, filtered, onBankStatements,
 }: {
   loaded: StatementInfo | undefined;
   /** Every loaded booking, newest first — as the list shows them. */
   all: readonly SerializedTransaction[];
   /** The bookings the current filter leaves, newest first. */
   filtered: readonly SerializedTransaction[];
+  /**
+   * Opens the bank's Kontoauszüge — a drawer the tile renders beside its
+   * panel, never inside it: an overlay inside the panel would be clipped by it.
+   */
+  onBankStatements: () => void;
 }) {
   const { activeAccount, txFilter } = useFints();
   const saveCsv = useCsvExport();
@@ -81,6 +89,15 @@ export function ExportMenu({
       >
         {words.filtered}
       </MenuItem>
+      {activeAccount.canBankStatements && (
+        <>
+          <MenuSeparator />
+          {/* It only opens the drawer: the approval note is beside the drawer's own fetch. */}
+          <MenuItem icon={<FileIcon />} onSelect={onBankStatements}>
+            {t.docs.statements.menu}
+          </MenuItem>
+        </>
+      )}
     </Menu>
   );
 }

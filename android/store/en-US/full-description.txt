@@ -1,0 +1,29 @@
+Girovo connects your phone directly to your bank – over FinTS, the access German banks and savings banks offer for banking apps. No server in between, no account with us: your login and your transactions stay between your phone and your bank.
+
+OVERVIEW
+• Balance with its history, available amount, overdraft and pending bookings at a glance
+• Transactions with search, filters and categories
+• Several banks in one view
+
+TRANSFERS
+• Transfers, instant transfers, scheduled transfers and standing orders
+• Verification of Payee before the money leaves
+• Scan an invoice's GiroCode with the camera – or share the invoice as an image or PDF with Girovo
+• Approve in your banking app (e.g. pushTAN): Girovo stays connected while you approve
+
+INSIGHTS
+• Income, spending and categories per month
+• Girovo finds your contracts and subscriptions in your transactions by itself
+• Monthly budgets and your own notes on transactions
+
+SAFE AND PRIVATE
+• Optional fingerprint login – your PIN is encrypted with a key only your fingerprint opens
+• Saved data encrypted on your phone
+• No ads, no trackers; usage data only if you agree – error reports without account data
+• Open source (MIT licence): github.com/elNino0916/Girovo
+
+MADE FOR ANDROID
+• In your wallpaper's colours (Material You), light or dark as your phone is set
+• Pull to refresh, shortcuts on the app icon
+
+Girovo works with banks that offer FinTS (HBCI with PIN/TAN) – almost all Sparkassen, Volks- und Raiffeisenbanken and many other banks in Germany. Girovo is an independent project and not affiliated with any bank. The interface is in German and English.

@@ -50,10 +50,10 @@ function verdictText(tr: Messages, verdict: VopVerdict): { label: string; blurb:
 }
 
 const TONES: Record<Tone, { box: string; icon: string; Glyph: typeof InfoIcon; tag: 'positive' | 'emphasis' | 'negative' | 'neutral' }> = {
-  ok: { box: 'bg-green-soft shadow-[inset_3px_0_0_var(--green)]', icon: 'text-green', Glyph: CheckCircleIcon, tag: 'positive' },
-  warn: { box: 'bg-inset shadow-[inset_3px_0_0_var(--emphasis)]', icon: 'text-emphasis', Glyph: AlertTriangleIcon, tag: 'emphasis' },
-  bad: { box: 'bg-red-soft shadow-[inset_3px_0_0_var(--red)]', icon: 'text-red', Glyph: XCircleIcon, tag: 'negative' },
-  neutral: { box: 'bg-info-soft shadow-[inset_3px_0_0_var(--info)]', icon: 'text-info', Glyph: InfoIcon, tag: 'neutral' },
+  ok: { box: 'bg-green-soft', icon: 'text-green', Glyph: CheckCircleIcon, tag: 'positive' },
+  warn: { box: 'bg-inset', icon: 'text-emphasis', Glyph: AlertTriangleIcon, tag: 'emphasis' },
+  bad: { box: 'bg-red-soft', icon: 'text-red', Glyph: XCircleIcon, tag: 'negative' },
+  neutral: { box: 'bg-info-soft', icon: 'text-info', Glyph: InfoIcon, tag: 'neutral' },
 };
 
 /** The bank found a different name for the IBAN (Close Match, No Match). */

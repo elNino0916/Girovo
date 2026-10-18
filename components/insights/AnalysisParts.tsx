@@ -169,7 +169,7 @@ export function CategoryBreakdown({
   total: number;
   /** The scope's currency — every figure here is a sum in it. */
   currency: string;
-  subtitle: ReactNode;
+  subtitle?: ReactNode;
   onShow: (id: CategoryId) => void;
   /** Beside the title: the way to set budgets while there are none. */
   actions?: ReactNode;
@@ -306,9 +306,9 @@ export function MonthlyComparison({
         : '.');
 
   return (
+    // No subtitle: the legend names the two series.
     <InsightTile
       title={words.title}
-      subtitle={words.subtitle}
       actions={
         // An action, not a toggle: its label says what it switches to, so an
         // aria-pressed beside it would announce "Als Diagramm, gedrückt" while
@@ -461,7 +461,7 @@ export function TopPayees({
   payees: Counterparty[];
   expense: number;
   currency: string;
-  subtitle: ReactNode;
+  subtitle?: ReactNode;
   categoryName: (tx: SerializedTransaction) => string;
   onShow: (p: Counterparty) => void;
 }) {
@@ -514,17 +514,17 @@ export function TopPayees({
 }
 
 export function LargestExpenses({
-  items, subtitle, categoryName, onShow,
+  items, categoryName, onShow,
 }: {
   items: BigExpense[];
-  subtitle: ReactNode;
   categoryName: (tx: SerializedTransaction) => string;
   onShow: (tx: SerializedTransaction) => void;
 }) {
   const t = useT();
   const words = t.insights.analysis.largest;
   return (
-    <InsightTile title={words.title} subtitle={subtitle}>
+    // What it leaves out, said up front: the contracts and the cash have tiles of their own.
+    <InsightTile title={words.title} subtitle={words.subtitle}>
       {items.length === 0 ? (
         <EmptyState compact illustration="transactions" title={words.emptyTitle}>
           {words.empty}

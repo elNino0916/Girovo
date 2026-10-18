@@ -3,24 +3,22 @@
 /* ==========================================================================
    Girovo — design tokens
    ==========================================================================
-   Design language: the German Online-Banking shell, modernised — a navy
-   masthead and a navy stage band over a quiet blue-grey page of white tiles,
-   the way the cooperative banks build their start page, sharpened rather than
-   copied.
+   Design language: Material 3 Expressive on every platform (DESIGN.md). These
+   are the base tokens the components are written against; app/material.css
+   maps them onto the Girovo-blue Material scheme — on Android onto Material
+   You's — and holds the look's shapes, motion and components.
 
-   - Navy is identity, not interaction. It carries the masthead, the stage,
-     the headlines and the footer. Action blue is the ONE interactive colour:
-     buttons, links, the active tab, a selected chip, the focus ring. Anything
-     blue can be pressed; nothing that can be pressed is any other hue.
+   - Blue is the ONE interactive colour: buttons, links, the current place, a
+     selected chip, the focus ring. Anything blue can be pressed; nothing that
+     can be pressed is any other hue.
    - Values have their own colours and nothing else may borrow them. Green is
      a credit or a confirmation. Red is a negative balance or an error — never
      a debit, which is ordinary spending and stays ink. Amber means
      "vorgemerkt" and nothing else. Orange is a mark, never text: the unread
-     dot, a warning's edge and glyph, the dot in an emphasis tag. The active
-     tab's underline is action blue, like everything else that can be pressed.
-   - Tiles are surfaces, not boxes: 12px corners and one soft shadow, never a
-     framed card inside a framed card. Structure comes from spacing, weight
-     and one hairline per list.
+     dot, a warning's glyph, the dot in an emphasis tag.
+   - The page is flat and list-first: sections stand on the page, held apart
+     by space, and the one container is the balance. Never a framed card
+     inside a framed card.
    - Buttons are pills, labels are sentence case. Letterspaced capitals turn a
      form into noise; a label's job is to be found, not to shout.
    - Google Sans Flex sets the interface (variable weight and optical size),
@@ -45,11 +43,8 @@
 /* Short windows — the desktop shell's 900×600 minimum, a laptop at 125 %,
    any window at 200 % zoom. Height in CSS pixels shrinks with page zoom, so
    these match a zoomed window too. `short`: an overlay's fixed header and
-   footer get compact, so the form between them keeps its room. `shorter`:
-   the page chrome (stage, institute bar) gets compact as well, so a zoomed
-   window still opens on the first account row. */
+   footer get compact, so the form between them keeps its room. */
 @custom-variant short (@media (max-height: 43.75rem));
-@custom-variant shorter (@media (max-height: 32.5rem));
 
 /* Both token sets also apply to any element carrying data-theme, so a block
    can be shown in the other theme (a preview, a gallery) — its subtree simply
@@ -349,15 +344,13 @@
   --shadow-panel: var(--shadow-panel);
 }
 
-/* The header is two stacked tiers — the navy masthead carrying the app's
-   wordmark and the session cluster, and the white institute bar beneath it. */
+/* The header is the top app bar: the page's name and the session's actions. */
 :root {
   /* In the desktop shell the OS caption overlay is exactly this tall, and
      Chromium keeps the env value in lockstep with page zoom — so the
      masthead and the caption buttons stay one band at 90 % or 125 % too.
      Outside the shell the variable is undefined and the fallback applies. */
   --barbar-h: env(titlebar-area-height, 60px);
-  --subbar-h: 52px;
 
   /* The tallest a control in such a band may be. The overlay stays 60 device
      pixels, so page zoom shrinks the band in CSS pixels (42 at 144 %, 29 at
@@ -401,17 +394,9 @@
 @media (max-width: 639.98px) {
   :root {
     --barbar-h: env(titlebar-area-height, 56px);
-    --subbar-h: 48px;
   }
   :root:has([data-bottombar]) {
     --bottombar-h: calc(64px + env(safe-area-inset-bottom, 0px));
-  }
-}
-/* A zoomed or very short window: the institute bar gives back 8px of the
-   room the fixed header tiers take (see the `shorter` variant). */
-@media (min-width: 640px) and (max-height: 32.5rem) {
-  :root {
-    --subbar-h: 44px;
   }
 }
 
