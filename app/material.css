@@ -468,6 +468,14 @@
   :root[data-look='material'] :is(input, select).h-12 {
     height: 56px;
   }
+  /* A select's open list is drawn by the browser, on the select's own
+     background — and a field here is transparent, so the list fell back to
+     white while its entries kept the dark theme's light ink. Its entries
+     carry the menu's surface and ink instead, in either theme. */
+  :root[data-look='material'] select option {
+    background-color: var(--menu-bg);
+    color: var(--ink);
+  }
   /* A bare input — the palette's search line, where the whole sheet is the
      field — has no outline to colour: the caret says where typing goes. */
   :root[data-look='material'] :is(input:not([type='checkbox'], [type='radio'], [type='range'], [data-bare]), select, textarea):focus-visible {
