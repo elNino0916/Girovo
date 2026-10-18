@@ -8,7 +8,7 @@ export const de = {
   /** The no on both consent tiles (company logos, usage data). */
   noThanks: 'Nein danke',
   /** On both consent tiles: where the answer can be changed later. */
-  changeLater: 'Du kannst das jederzeit im Sitzungsmenü oben rechts ändern.',
+  changeLater: 'Du kannst das jederzeit in den Einstellungen ändern.',
 
   /** The progress on the login's stage (AuthShell); the third step is common.approval. */
   steps: {
@@ -32,7 +32,7 @@ export const de = {
     },
     device: {
       title: 'Dieses Gerät wird gemerkt',
-      text: 'Nach der Anmeldung, mit deiner PIN verschlüsselt – deine Bank fragt dann seltener nach einer Freigabe. Rückgängig mit „Gerät vergessen“ im Sitzungsmenü.',
+      text: 'Nach der Anmeldung, mit deiner PIN verschlüsselt – deine Bank fragt dann seltener nach einer Freigabe. Rückgängig mit „Gerät vergessen“ in den Einstellungen.',
     },
     /** Nothing leaves the machine but the bank traffic. The lines about outside lookups follow the text. */
     nothingOut: {
@@ -51,7 +51,7 @@ export const de = {
     },
     /** The desktop app's update check is on. */
     updates: 'Nach Updates fragt die App bei GitHub – dort kommen nur ihre Versionsnummer und deine IP-Adresse an.',
-    logosOn: 'Für Firmenlogos gehen Firmennamen an den Logo-Dienst Brandfetch – abschaltbar im Sitzungsmenü.',
+    logosOn: 'Für Firmenlogos gehen Firmennamen an den Logo-Dienst Brandfetch – abschaltbar in den Einstellungen.',
     logosOff: 'Die Firmenlogos von Brandfetch hast du ausgeschaltet.',
     logosUnasked: 'Firmenlogos nur mit deiner Zustimmung: Dafür gehen Firmennamen an den Logo-Dienst Brandfetch.',
     telemetryOn: 'Fehlerberichte und, mit deiner Zustimmung, Nutzungsdaten gehen an den Entwickler von Girovo – nie Kontodaten, Beträge oder Namen.',
@@ -304,7 +304,7 @@ export const de = {
   tanMethod: {
     title: 'Sicherheitsverfahren',
     /** Said before the fact, on the card and in the wide layout's side tile. */
-    deviceMemory: 'Nach der ersten Freigabe merkt sich die App diesen Rechner – rückgängig mit „Gerät vergessen“ im Sitzungsmenü.',
+    deviceMemory: 'Nach der ersten Freigabe merkt sich die App diesen Rechner – rückgängig mit „Gerät vergessen“ in den Einstellungen.',
     chooseDevice: 'Gerät wählen',
     chooseDeviceText: 'Auf welchem Gerät möchtest du freigeben?',
     method: (name: string) => `Verfahren: ${name}`,
@@ -392,7 +392,7 @@ export const de = {
 export const en: typeof de = {
   connecting: 'Connecting to the bank…',
   noThanks: 'No thanks',
-  changeLater: 'You can change this at any time in the session menu at the top right.',
+  changeLater: 'You can change this at any time in Settings.',
 
   steps: {
     label: 'Login steps',
@@ -413,7 +413,7 @@ export const en: typeof de = {
     },
     device: {
       title: 'This device will be remembered',
-      text: 'After you log in, encrypted with your PIN – your bank then asks for approval less often. You can undo this with “Forget device” in the session menu.',
+      text: 'After you log in, encrypted with your PIN – your bank then asks for approval less often. You can undo this with “Forget device” in Settings.',
     },
     nothingOut: {
       title: 'No data to third parties',
@@ -428,7 +428,7 @@ export const en: typeof de = {
       text: 'No ads, no usage statistics without your consent.',
     },
     updates: 'The app checks GitHub for updates – only its version number and your IP address arrive there.',
-    logosOn: 'For company logos, company names go to the logo service Brandfetch – you can switch this off in the session menu.',
+    logosOn: 'For company logos, company names go to the logo service Brandfetch – you can switch this off in Settings.',
     logosOff: 'You have switched off the company logos from Brandfetch.',
     logosUnasked: 'Company logos only with your consent: for them, company names go to the logo service Brandfetch.',
     telemetryOn: 'Error reports and, with your consent, usage data go to Girovo’s developer – never account data, amounts or names.',
@@ -638,7 +638,7 @@ export const en: typeof de = {
 
   tanMethod: {
     title: 'Security method',
-    deviceMemory: 'After the first approval, the app remembers this computer – you can undo this with “Forget device” in the session menu.',
+    deviceMemory: 'After the first approval, the app remembers this computer – you can undo this with “Forget device” in Settings.',
     chooseDevice: 'Choose a device',
     chooseDeviceText: 'Which device do you want to approve on?',
     method: (name) => `Method: ${name}`,

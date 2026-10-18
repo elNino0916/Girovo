@@ -1,9 +1,9 @@
 // Umsätze kept on this computer (lib/history.ts, lib/history-store.ts): the
-// switch in the Sitzung panel and its dialogs, what the list and the Zeitraum
+// switch on the Einstellungen page and its dialogs, what the list and the Zeitraum
 // control say about the kept part, and the server's refusals.
 
 export const de = {
-  /** The switch in the Sitzung panel's "Auf diesem Rechner". */
+  /** The switch in the Einstellungen page's "Auf diesem Rechner". */
   keep: 'Umsätze auf diesem Rechner behalten',
   keepHint: 'Mit deiner PIN verschlüsselt.',
   /** The hint once some are kept; `date` is the oldest kept day ("12.03.2025"). */

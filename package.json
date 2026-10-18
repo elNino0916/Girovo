@@ -1,6 +1,6 @@
 {
 	"name": "girovo",
-	"version": "5.4.1",
+	"version": "5.4.2",
 	"private": true,
 	"description": "Girovo — self-hosted banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled TAN, SEPA & Echtzeitueberweisung)",
 	"homepage": "https://github.com/elNino0916/Girovo",

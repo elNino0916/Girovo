@@ -81,7 +81,7 @@ import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-
 import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
-  type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SharePrefill, type StatementInfo,
+  type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SettingsTarget, type SharePrefill, type StatementInfo,
   type TransferPrefill, type TransferTemplate, type TxFilter, type VaultData, type VaultStatus,
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
@@ -1574,6 +1574,16 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   // ---- navigation & launchers ---------------------------------------------
   const setTab = useCallback((t: DashboardTab) => setTabState(t), []);
+  /**
+   * The Einstellungen page, at one setting when the search asked for one
+   * (components/settings/Settings.tsx scrolls there, focuses it, and clears it).
+   */
+  const [settingsTarget, setSettingsTarget] = useState<SettingsTarget | null>(null);
+  const openSettings = useCallback((target?: SettingsTarget) => {
+    setTabState('settings');
+    setSettingsTarget(target ?? null);
+  }, []);
+  const clearSettingsTarget = useCallback(() => setSettingsTarget(null), []);
   const setInboxOpen = useCallback((b: boolean) => setInboxOpenState(b), []);
   const setPaletteOpen = useCallback((b: boolean) => setPaletteOpenState(b), []);
   const setShortcutsOpen = useCallback((b: boolean) => setShortcutsOpenState(b), []);
@@ -2605,7 +2615,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     privacy, idleMinutes, singleKeyShortcuts,
     logoConsent,
     sessionStartedAt, idleDeadline,
-    tab, txFilter, txFocusNonce,
+    tab, settingsTarget, txFilter, txFocusNonce,
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
@@ -2621,7 +2631,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,
-    setTab, setTxFilter, showTransactions,
+    setTab, openSettings, clearSettingsTarget, setTxFilter, showTransactions,
     setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,

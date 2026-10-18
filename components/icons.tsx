@@ -71,6 +71,16 @@ export function ShieldIcon({ size = 14, check = false, ...rest }: IconProps & { 
   );
 }
 
+/** Einstellungen: a cog round its hub. */
+export function GearIcon({ size = 18, ...rest }: IconProps) {
+  return (
+    <Icon size={size} {...rest}>
+      <path d="M10.05 4.97L10.58 2.51L13.42 2.51L13.95 4.97L15.59 5.65L17.71 4.28L19.72 6.29L18.35 8.41L19.03 10.05L21.49 10.58L21.49 13.42L19.03 13.95L18.35 15.59L19.72 17.71L17.71 19.72L15.59 18.35L13.95 19.03L13.42 21.49L10.58 21.49L10.05 19.03L8.41 18.35L6.29 19.72L4.28 17.71L5.65 15.59L4.97 13.95L2.51 13.42L2.51 10.58L4.97 10.05L5.65 8.41L4.28 6.29L6.29 4.28L8.41 5.65Z" />
+      <circle cx="12" cy="12" r="3" />
+    </Icon>
+  );
+}
+
 /** A fingertip's ridges: fingerprint login (Android). */
 export function FingerprintIcon({ size = 18, ...rest }: IconProps) {
   return (

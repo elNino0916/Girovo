@@ -30,6 +30,7 @@ import { PendingPanel, Transactions } from './Transactions';
 import { Portfolio } from './Portfolio';
 import { Analysis } from './Analysis';
 import { Contracts, UpcomingPayments } from './Contracts';
+import { Settings } from './settings/Settings';
 import { TransferSheet } from './TransferSheet';
 import { AddBankSheet } from './AddBank';
 import { ShareAccount } from './ShareAccount';
@@ -86,6 +87,7 @@ export function Dashboard() {
           {tab === 'overview' && <Overview scrollRef={scrollRef} />}
           {tab === 'analysis' && <Analysis />}
           {tab === 'contracts' && <Contracts />}
+          {tab === 'settings' && <Settings />}
         </main>
       </div>
 

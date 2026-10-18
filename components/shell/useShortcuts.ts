@@ -109,6 +109,13 @@ export function useGlobalShortcuts(actions: ShellActions) {
         f.setPaletteOpen(true);
         return;
       }
+      // Strg+, / ⌘,: the Einstellungen, where desktop apps keep them.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === ',') {
+        if (layerOpen()) return;
+        e.preventDefault();
+        f.openSettings();
+        return;
+      }
 
       if (isTypingTarget(e.target) || layerOpen()) return;
       if (e.ctrlKey || e.metaKey) return;

@@ -21,8 +21,8 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   rewritten to their live successors — refresh anytime with
   `node scripts/update-banks.mjs`. If a bank's primary endpoint is down,
   the server automatically retries the known alternate URL.
-- **German or English** — switch at any time on the login screen or in the
-  Sitzung panel; without a choice the app follows the system's language
+- **German or English** — switch at any time on the login screen or in
+  *Einstellungen*; without a choice the app follows the system's language
   (German on a German system, English otherwise), and so does the Windows
   installer. Figures and dates follow
   the language (1.234,56 € / €1,234.56). What your bank sends — its messages,
@@ -148,7 +148,7 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   shows the PayPal mark. A match has to clear a deliberately high bar; anything
   short of it keeps the plain avatar rather than risking a wrong logo. It sends
   cleaned company names to Brandfetch, so it is **off until you agree**: the
-  app asks once, before the first lookup, and *Sitzung → Firmenlogos* switches
+  app asks once, before the first lookup, and *Einstellungen → Firmenlogos* switches
   it later. See [Company logos](#company-logos).
 - **Remember this device** — after the first login the bank's device identity
   (systemId) plus the cached accounts and TAN method are saved **encrypted with
@@ -161,7 +161,7 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   (AES-256-GCM, scrypt) next to the device profile, so they exist only while
   you are logged in. "Gerät vergessen" can delete them too.
 - **Umsätze auf diesem Rechner behalten** (opt-in per login, off by default,
-  *Sitzung → Auf diesem Rechner*) — every statement the bank delivers is kept
+  *Einstellungen → Auf diesem Rechner*) — every statement the bank delivers is kept
   **encrypted with your PIN** beside the vault: booked Umsätze only (never
   Vorgemerkte), the days the bank provably delivered, and the end-of-day
   balances its figures proved. Analyse, Verträge & Abos and the Kontoverlauf
@@ -319,7 +319,7 @@ The desktop app updates itself from this repository's
   GitHub's API for the latest release. The request carries the app's version
   (`User-Agent: Girovo/<version>`) and nothing about you or your
   accounts; it goes through a session of its own without cookies or cache.
-  Switch it off under *Sitzung → Updates* — a check is then only made when you
+  Switch it off under *Einstellungen → Updates* — a check is then only made when you
   press "Nach Updates suchen".
 - **Nothing happens without a click.** A newer version shows up in
   *Mitteilungen* (and on the login screen's bar); downloading it and restarting
@@ -410,7 +410,7 @@ main process decides what goes out (`electron/telemetry.cjs`):
   masked. Without the user's yes a report carries no install id, only the SDK's
   per-start session id.
 - **Usage, only after the user's yes** — asked once by a tile on the Übersicht,
-  changeable under *Sitzung → Nutzungsdaten teilen*: which screens are used,
+  changeable under *Einstellungen → Nutzungsdaten teilen*: which screens are used,
   how logins end (with the BLZ, never the login name), how long the bank takes
   to answer, how long the app takes to start, exports made (format and kind of document only), update events, and a random install
   id. Switching it off deletes the id.
@@ -507,7 +507,7 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `lib/categorize.ts`, `lib/analytics.ts`, `lib/recurring.ts`, `lib/balance-history.ts` | Pure, tested analysis: categories, period totals and comparisons, recurring-payment detection, and the verified balance history. They handle both MT940 and CAMT shapes. |
 | `lib/csv.ts`, `lib/girocode.ts`, `lib/qr.ts`, `lib/qr-read.ts` | CSV export, the EPC069-12 GiroCode payload (build + parse) and QR rendering/reading (bundled `qrcode-generator` and `jsqr`, no network). |
 | `components/FintsProvider.tsx` | The client state machine: login → TAN method → dashboard, with every bank read serialised behind one `busy` flag (each read can cost its own approval), the decoupled poll loop, the applied date range, auto-logout, the vault and the inbox. Further banks are logins of their own beside the first (`links`); `lib/linked-banks.ts` routes each request to the session of the account's login, refuses a bank whose account numbers would collide with ones shown, and sanitises what the vault keeps about it. |
-| `components/*` | The UI: `shell/` (top app bar, navigation bar and rail, Sitzung panel), `overview/`, `transactions/`, `insights/` (Analyse, Verträge), `transfer/`, `auth/`, `updates/` (the desktop updater's dialog and notices), plus the command palette, inbox and primitives in `ui.tsx`. |
+| `components/*` | The UI: `shell/` (top app bar, navigation bar and rail, Sitzung panel), `settings/` (the Einstellungen page), `overview/`, `transactions/`, `insights/` (Analyse, Verträge), `transfer/`, `auth/`, `updates/` (the desktop updater's dialog and notices), plus the command palette, inbox and primitives in `ui.tsx`. |
 | `app/globals.css`, `app/material.css`, `app/android.css` | Design tokens as CSS variables mapped into Tailwind v4 via `@theme inline` (`globals.css`); the Material 3 Expressive look on every platform — the Girovo-blue scheme, shapes, motion, components, the flat page (`material.css`, generated in part by `scripts/build-m3e-css.mjs`); the phone's own behaviour (`android.css`). The print styles for the Kontoauszug are frozen separately. |
 | `app/design-preview` | Dev-only harness that renders every screen with generated data (`/design-preview?view=overview`, `analysis`, `analysis-budgets`, `category-check`, `detail-note`, `contracts`, `transfer`, `login`, …; `&theme=dark`, `&privacy=1`). Returns 404 in production. |
 | `electron/main.cjs` | The desktop shell: boots the standalone server on loopback, opens the window, denies every device permission and sends outside links to the real browser. Paired with `scripts/build-electron.mjs` and `electron-builder.yml`. |
@@ -598,7 +598,7 @@ sized mark for that domain.
 other than your bank, so it is off until you agree.** The first Übersicht asks
 once — *Firmenlogos anzeigen?*, with exactly what is sent — and every lookup
 waits for the answer. The answer is kept on this machine with the other
-preferences; *Sitzung → Firmenlogos* changes it at any time, and switching it
+preferences; *Einstellungen → Firmenlogos* changes it at any time, and switching it
 off drops the logos at once.
 
 A build offers the feature only with a free client ID from
@@ -745,13 +745,13 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
 - Besides the bank, the app makes these outside requests:
   - [company logos](#company-logos) send cleaned merchant names to Brandfetch —
     only once you have agreed (the app asks before the first lookup); switch
-    them under *Sitzung → Firmenlogos*;
+    them under *Einstellungen → Firmenlogos*;
   - the desktop app's [update check](#updates) asks GitHub for the latest
     release, carrying the app's version and nothing else — switch it off under
-    *Sitzung → Updates*;
+    *Einstellungen → Updates*;
   - the desktop app's [telemetry](#telemetry) sends error reports to the
     developer's server — always, scrubbed of anything personal — and usage
-    data only once you have agreed (*Sitzung → Nutzungsdaten teilen*).
+    data only once you have agreed (*Einstellungen → Nutzungsdaten teilen*).
 
   Like any web request, each one shows the service your IP address. Error
   reports cannot be switched off in the app; everything else can, and with it

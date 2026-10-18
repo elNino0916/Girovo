@@ -67,7 +67,7 @@ import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-
 import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
-  type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SharePrefill,
+  type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SettingsTarget, type SharePrefill,
   type StatementInfo, type TransferPrefill, type TransferTemplate, type TxFilter, type VaultData,
   type VaultGetResponse, type VaultPutResponse, type VaultStatus,
 } from '@/lib/app-types';
@@ -3041,6 +3041,16 @@ function useFintsState() {
 
   // ---- navigation & launchers ---------------------------------------------
   const setTab = useCallback((t: DashboardTab) => setTabState(t), []);
+  /**
+   * The Einstellungen page, at one setting when the search asked for one
+   * (components/settings/Settings.tsx scrolls there, focuses it, and clears it).
+   */
+  const [settingsTarget, setSettingsTarget] = useState<SettingsTarget | null>(null);
+  const openSettings = useCallback((target?: SettingsTarget) => {
+    setTabState('settings');
+    setSettingsTarget(target ?? null);
+  }, []);
+  const clearSettingsTarget = useCallback(() => setSettingsTarget(null), []);
 
   // Android: while an approval in the bank's app is awaited, the app keeps its
   // network (a short foreground service, android/…/ApprovalService.java).
@@ -4643,7 +4653,7 @@ function useFintsState() {
     // session
     sessionStartedAt, idleDeadline,
     // navigation & launchers
-    tab, txFilter, txFocusNonce,
+    tab, settingsTarget, txFilter, txFocusNonce,
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill,
     inboxOpen, paletteOpen, shortcutsOpen,
@@ -4660,7 +4670,7 @@ function useFintsState() {
     retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,
-    setTab, setTxFilter, showTransactions,
+    setTab, openSettings, clearSettingsTarget, setTxFilter, showTransactions,
     setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,

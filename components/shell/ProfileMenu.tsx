@@ -1,19 +1,16 @@
 'use client';
 
-// The profile chip and its "Sitzung" panel, in three parts:
+// The profile chip and its "Sitzung" panel — the session, nothing else:
 //
 //   who and since when — the holder's picture (initials, or one they chose),
 //     the holder, the bank, and one line with the login time and the
 //     countdown to the automatic logout;
-//   Einstellungen — one row each: how soon that logout comes, the language,
-//     the appearance (phones), company logos, usage data, the app's updates
-//     (desktop) and the keyboard shortcuts;
 //   Banken — with more than one bank in the view, each of them and where it
 //     stands (a linked one can be removed); with one, only the way to log in
 //     to another ("Weitere Bank anmelden", lib/linked-banks.ts);
-//   Auf diesem Rechner — whether the bank remembers this machine, the
-//     encrypted store of personal data, each with its one action, and the
-//     switch that keeps the Umsätze here (lib/history.ts).
+//   Einstellungen — the way to the settings page (components/settings), with
+//     a mark while the saved data cannot be read: the one thing there that
+//     needs a look.
 //
 // Kept short on purpose: a row says what a setting is, in a line or two;
 // what an action does in full is said by the dialog it opens ("Gerät
@@ -28,36 +25,28 @@
 // read (a countdown, a status) with a few real controls in between, and a
 // menu would announce every line as something to press.
 
-import { useId, useMemo, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { AVATAR_IDS, OWN_PICTURE, type AvatarChoice } from '@/lib/avatars';
 import type { VaultData } from '@/lib/app-types';
 import { rich, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
-import { fmtDate, toLocalDate } from '@/lib/format';
-import { setThemePref } from '@/lib/theme';
 import { BankLogo } from '../BankLogo';
-import { IDLE_MINUTE_CHOICES, useFints, type BankEntry, type IdleMinutes } from '../FintsProvider';
-import { AndroidSettings } from '../android/AndroidSettings';
-import { useThemePref } from '../ThemeToggle';
-import { LanguageSegmented } from '../LanguageToggle';
+import { useFints, type BankEntry } from '../FintsProvider';
 import { Money } from '../Money';
-import { updates } from '../updates/store';
-import { UpdateSessionRow } from '../updates/UpdateNotices';
+import { MachineRow, ROW } from '../settings/rows';
 import {
-  AvatarGlyph, InfoIcon, KeyboardIcon, LandmarkIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, PencilIcon,
-  PlusIcon, ShieldIcon, SunIcon,
+  AvatarGlyph, ChevronIcon, GearIcon, LandmarkIcon, LogoutIcon, PencilIcon, PlusIcon, ShieldIcon,
 } from '../icons';
-import { Button, Checkbox, Dialog, Dot, Kbd, Overlay, Popover, Segmented, Select, Sheet, Switch, cx, type TriggerProps } from '../ui';
-import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
+import { Button, Checkbox, Dialog, Dot, Overlay, Popover, Segmented, Sheet, cx, type TriggerProps } from '../ui';
 import { fmtCountdown, fmtSince, holderName, nameInitials, sessionHolder, useCountdown } from './session';
 import { useLookAtUnclear } from './actions';
 import { AvatarImageError, avatarFromFile } from './avatar-image';
 
 /**
  * Where the Sitzung panel opens: a popover off the chip on the desktop and the
- * website. In the Android app, Material's modal bottom sheet — a settings page
- * in all but name, it takes the phone's width and goes with the back gesture.
+ * website. In the Android app, Material's modal bottom sheet: it takes the
+ * phone's width and goes with the back gesture.
  */
 function SessionLayer({ label, trigger, footer, children }: {
   label: string;
@@ -93,12 +82,8 @@ function SessionLayer({ label, trigger, footer, children }: {
 
 export function ProfileMenu() {
   const t = useT();
-  const { accounts, vault, vaultStatus, requestLogout, forgetDeviceOpen, setForgetDeviceOpen, openAddBank } = useFints();
-  const [confirmReset, setConfirmReset] = useState(false);
-  const [confirmWipe, setConfirmWipe] = useState(false);
+  const { accounts, vault, vaultStatus, requestLogout, forgetDeviceOpen, setForgetDeviceOpen, openAddBank, openSettings } = useFints();
   const [removing, setRemoving] = useState<BankEntry | null>(null);
-  const [confirmKeepOff, setConfirmKeepOff] = useState(false);
-  const [confirmHistoryReset, setConfirmHistoryReset] = useState(false);
   // The session's holder, as in the greeting — not the active account's.
   const holder = sessionHolder(accounts);
   const full = holderName(holder);
@@ -148,32 +133,9 @@ export function ProfileMenu() {
           <SessionPanel
             holder={full}
             initials={initials}
-            onForget={() => {
-              // Focus goes back to the chip first, so the confirmation returns
-              // it there too — the panel it was opened from is gone by then.
+            onSettings={() => {
               close();
-              setForgetDeviceOpen(true);
-            }}
-            onReset={() => {
-              close();
-              setConfirmReset(true);
-            }}
-            onWipe={() => {
-              close();
-              setConfirmWipe(true);
-            }}
-            onKeepOff={() => {
-              close();
-              setConfirmKeepOff(true);
-            }}
-            onHistoryReset={() => {
-              close();
-              setConfirmHistoryReset(true);
-            }}
-            onShortcuts={close}
-            onUpdates={() => {
-              close();
-              updates.openDialog();
+              openSettings();
             }}
             onAddBank={() => {
               close();
@@ -186,13 +148,11 @@ export function ProfileMenu() {
           />
         )}
       </SessionLayer>
-      {/* Also opened by the "Gerät gemerkt" toast's action: one confirmation, whatever the way in. */}
+      {/* Opened from the settings page and by the "Gerät gemerkt" toast's
+          action: one confirmation, whatever the way in — so it lives here,
+          where the masthead keeps it mounted on every page. */}
       <ForgetDeviceDialog open={forgetDeviceOpen} onClose={() => setForgetDeviceOpen(false)} />
-      <ResetVaultDialog open={confirmReset} onClose={() => setConfirmReset(false)} />
-      <WipeVaultDialog open={confirmWipe} onClose={() => setConfirmWipe(false)} />
       <RemoveBankDialog entry={removing} onClose={() => setRemoving(null)} />
-      <KeepOffDialog open={confirmKeepOff} onClose={() => setConfirmKeepOff(false)} />
-      <ResetHistoryDialog open={confirmHistoryReset} onClose={() => setConfirmHistoryReset(false)} />
       <LogoutConfirmDialog />
     </>
   );
@@ -236,78 +196,21 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** A setting: its name on the left, its control on the right, one row. */
-function SettingRow({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
-  const Label = htmlFor ? 'label' : 'span';
-  return (
-    <div className="flex min-h-10 items-center justify-between gap-3">
-      <Label htmlFor={htmlFor} className="min-w-0 text-[14px] leading-snug text-ink">{label}</Label>
-      {children}
-    </div>
-  );
-}
-
-/** A row that opens something: Updates, Tastenkürzel. */
-const ROW = '-mx-1.5 min-h-10 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] text-ink hover:bg-inset';
-
-/** A fact about this machine with its one action: the device registration, the saved data. */
-function MachineRow({
-  icon, title, hint, action,
-}: { icon: ReactNode; title: string; hint: string; action?: ReactNode }) {
-  return (
-    <div className="mt-3 flex items-center gap-3">
-      {icon}
-      <div className="min-w-0 flex-1">
-        <p className="text-[14px] leading-snug font-semibold text-ink">{title}</p>
-        <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{hint}</p>
-      </div>
-      {action}
-    </div>
-  );
-}
-
-/** The round mark at the start of a MachineRow. */
-function MachineIcon({ children, tone = 'quiet' }: { children: ReactNode; tone?: 'quiet' | 'info' }) {
-  return (
-    <span
-      aria-hidden
-      className={cx(
-        'relative grid size-8 shrink-0 place-items-center rounded-full',
-        tone === 'info' ? 'bg-info-soft text-info' : 'bg-inset text-ink-3',
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
 function SessionPanel({
-  holder, initials, onForget, onReset, onWipe, onKeepOff, onHistoryReset, onShortcuts, onUpdates, onAddBank, onRemoveBank,
+  holder, initials, onSettings, onAddBank, onRemoveBank,
 }: {
   holder: string;
   initials: string;
-  onForget: () => void;
-  onReset: () => void;
-  onWipe: () => void;
-  onKeepOff: () => void;
-  onHistoryReset: () => void;
-  onShortcuts: () => void;
-  onUpdates: () => void;
+  onSettings: () => void;
   onAddBank: () => void;
   onRemoveBank: (entry: BankEntry) => void;
 }) {
   const t = useT();
   const {
-    bank, sessionStartedAt, idleDeadline, idleMinutes, setIdleMinutes, deviceRemembered, setShortcutsOpen, vaultStatus,
-    singleKeyShortcuts, vault, updateVault,
-    meta, logoConsent, setLogoConsent,
-    banks, logoFiles,
+    bank, sessionStartedAt, idleDeadline, vaultStatus, vault, updateVault, banks, logoFiles,
   } = useFints();
   const left = useCountdown(idleDeadline);
-  const pref = useThemePref();
-  const usage = useUsageConsent();
   const [picking, setPicking] = useState(false);
-  const idleId = useId();
   const pickerId = useId();
 
   // Kept with the rest of the personal data (lib/vault.ts): it belongs to
@@ -416,163 +319,19 @@ function SessionPanel({
         </Button>
       )}
 
-      <Group title={t.session.settings}>
-        <div className="mt-1.5">
-          <SettingRow label={t.session.idle} htmlFor={idleId}>
-            <Select
-              id={idleId}
-              value={String(idleMinutes)}
-              onChange={(e) => setIdleMinutes(Number(e.target.value) as IdleMinutes)}
-              containerClassName="w-auto shrink-0"
-              // A row's control, not a form's field: the panel's size, not the form's 48px.
-              className="h-9! w-auto! pr-9! pl-3! text-[14px]!"
-            >
-              {IDLE_MINUTE_CHOICES.map((n) => (
-                <option key={n} value={String(n)}>{t.session.idleOption(n)}</option>
-              ))}
-            </Select>
-          </SettingRow>
-
-          <SettingRow label={t.session.language}>
-            <LanguageSegmented label={t.session.language} className="shrink-0" />
-          </SettingRow>
-        </div>
-
-        {/* On a phone the masthead has no room for Darstellung; it lives here.
-            The Android app has none: it follows the phone's light and dark. */}
-        {!IS_ANDROID && <div className="mt-2 sm:hidden">
-          <p aria-hidden className="mb-2 text-[14px] leading-snug text-ink">{t.common.theme.label}</p>
-          <Segmented
-            aria-label={t.common.theme.label}
-            size="sm"
-            block
-            value={pref}
-            onChange={setThemePref}
-            options={[
-              { value: 'light', label: t.common.theme.light, icon: <SunIcon size={15} /> },
-              { value: 'dark', label: t.common.theme.dark, icon: <MoonIcon size={15} /> },
-              { value: 'system', label: t.common.theme.system, icon: <MonitorIcon size={15} /> },
-            ]}
-          />
-        </div>}
-
-        {/* The Android app only: colours, fingerprint login, the category model. */}
-        <AndroidSettings />
-
-        {/* The one lookup that carries anything from the bookings off this
-            machine, so its switch says what goes out — in one line; the
-            consent it was switched on with said it in full. Off until the
-            user agreed; absent in a build that does not offer it. */}
-        {meta?.merchantLogos && (
-          <Switch
-            checked={logoConsent === 'on'}
-            onChange={setLogoConsent}
-            label={t.session.logos}
-            description={t.session.logosHint}
-            className="mt-3"
-          />
-        )}
-
-        {/* Desktop app only. Usage goes to the developer only with this on;
-            error reports go always, and the description says so — briefly:
-            the full account is the Übersicht tile's. */}
-        {usage && (
-          <Switch
-            checked={usage === 'on'}
-            onChange={(on) => void setUsageConsent(on)}
-            label={t.session.usage}
-            description={t.session.usageHint}
-            className="mt-3"
-          />
-        )}
-
-        <div className="mt-2 -mb-1 flex flex-col">
-          {/* Desktop app only. */}
-          <UpdateSessionRow onOpen={onUpdates} className={cx(ROW, 'flex')} />
-
-          {/* Shortcuts need a keyboard; a phone has none worth listing them for. */}
-          <button
-            type="button"
-            onClick={() => {
-              onShortcuts();
-              setShortcutsOpen(true);
-            }}
-            className={cx(ROW, 'hidden sm:flex')}
-          >
-            <KeyboardIcon className="text-ink-2" />
-            <span className="flex-1">{t.common.shortcuts}</span>
-            {/* With the single keys off, "?" would promise a key that does nothing. */}
-            {singleKeyShortcuts ? <Kbd>?</Kbd> : <span className="text-[13px] text-ink-3">{t.session.singleKeysOff}</span>}
-          </button>
-        </div>
-      </Group>
-
-      <Group title={t.session.thisComputer}>
-        <MachineRow
-          icon={(
-            <MachineIcon tone={deviceRemembered ? 'info' : 'quiet'}>
-              <ShieldIcon size={16} check={deviceRemembered} />
-            </MachineIcon>
-          )}
-          title={deviceRemembered ? t.session.deviceRemembered : t.session.deviceNotRemembered}
-          hint={deviceRemembered ? t.session.deviceRememberedHint : t.session.deviceNotRememberedHint}
-          action={deviceRemembered && (
-            <Button variant="tertiary" size="xs" className="-mr-2 shrink-0" aria-haspopup="dialog" onClick={onForget}>
-              {t.session.forget}
-            </Button>
-          )}
-        />
-
-        {vaultStatus === 'error' && (
-          <div className="mt-3 flex items-start gap-3">
-            <MachineIcon>
-              <LockIcon size={16} />
-              <Dot className="absolute -top-px -right-px ring-2 ring-[var(--raised)]" />
-            </MachineIcon>
-            <div className="min-w-0 flex-1">
-              <p className="text-[14px] leading-snug font-semibold text-ink">{t.session.vaultUnreadable}</p>
-              <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{t.session.vaultUnreadableHint}</p>
-              <div className="mt-1 -ml-3.5 flex flex-wrap">
-                <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={onReset}>
-                  {t.session.vaultReset}
-                </Button>
-                {/* Unreadable with this PIN, but not with the old one: it can
-                    still be tried against PINs, so it can be deleted too. */}
-                <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={onWipe}>
-                  {t.session.vaultDelete}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Whether or not the device is remembered: someone handing the
-            computer on needs a way to take their data with them. */}
-        {vaultStatus === 'ready' && (
-          <MachineRow
-            icon={<MachineIcon><LockIcon size={16} /></MachineIcon>}
-            title={t.session.vault}
-            hint={t.session.vaultHint}
-            action={(
-              <Button variant="tertiary" size="xs" className="-mr-2 shrink-0" aria-haspopup="dialog" onClick={onWipe}>
-                {t.session.vaultDelete}
-              </Button>
-            )}
-          />
-        )}
-
-        {/* The choice lives in the vault, so it is offered only while the
-            vault can be written. Off is the default (owner to confirm). */}
-        {vaultStatus === 'ready' && <KeepRow onOff={onKeepOff} onReset={onHistoryReset} />}
-
-        {/* Said once, quietly: there is nothing the user can do about it here. */}
-        {vaultStatus === 'unavailable' && (
-          <p className="mt-3 flex items-start gap-2.5 text-[13px] leading-snug text-ink-3">
-            <InfoIcon size={16} className="mt-px shrink-0" />
-            <span>{t.session.vaultUnavailable}</span>
-          </p>
-        )}
-      </Group>
+      {/* Everything that is set once lives on its own page; the panel says
+          where, and marks it while the saved data needs a look. */}
+      <div className="mt-4 border-t border-line pt-2">
+        <button type="button" onClick={onSettings} className={cx(ROW, 'flex w-full')}>
+          <GearIcon className="text-ink-2" />
+          <span className="min-w-0 flex-1">
+            <span className="block">{t.settings.open}</span>
+            {vaultStatus === 'error' && <span className="block text-[13px] leading-snug text-ink-3">{t.session.vaultUnreadable}</span>}
+          </span>
+          {vaultStatus === 'error' && <Dot />}
+          <ChevronIcon dir="right" className="text-ink-3" />
+        </button>
+      </div>
     </>
   );
 }
@@ -591,125 +350,6 @@ function bankHint(b: BankEntry, t: ReturnType<typeof useT>): string {
  * nothing is added while the kept file does not open with this PIN (with the
  * way to start over). Switching off asks first (KeepOffDialog): it deletes.
  */
-function KeepRow({ onOff, onReset }: { onOff: () => void; onReset: () => void }) {
-  const t = useT();
-  const { keepBookings, historyStatus, historyCoverage, setKeepBookings } = useFints();
-  const [busy, setBusy] = useState(false);
-  // The oldest day kept for any account of this login.
-  const oldest = useMemo(() => {
-    let day = '';
-    for (const spans of Object.values(historyCoverage)) {
-      const first = spans[0]?.from;
-      if (first && (!day || first < day)) day = first;
-    }
-    return day;
-  }, [historyCoverage]);
-  const hint = !keepBookings ? t.history.keepHint
-    : historyStatus === 'error' ? t.history.unreadable
-      : historyStatus === 'unavailable' ? t.history.unavailable
-        : historyStatus === 'loading' ? t.history.loading
-          : oldest ? t.history.keptSince(fmtDate(toLocalDate(oldest))) : t.history.keepHint;
-  const turnOn = async () => {
-    setBusy(true);
-    try {
-      await setKeepBookings(true);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="mt-3">
-      <Switch
-        checked={keepBookings}
-        disabled={busy}
-        onChange={(on) => (on ? void turnOn() : onOff())}
-        label={t.history.keep}
-        description={hint}
-      />
-      {keepBookings && historyStatus === 'error' && (
-        <Button variant="tertiary" size="xs" className="mt-0.5 -ml-3.5" aria-haspopup="dialog" onClick={onReset}>
-          {t.history.startOver}
-        </Button>
-      )}
-    </div>
-  );
-}
-
-/**
- * Switching "Umsätze auf diesem Rechner behalten" off deletes what is kept,
- * every backup with it — said here, before it is done, with the safe button
- * focused and the deletion in red (The Safe Choice Rule).
- */
-function KeepOffDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const t = useT();
-  const { setKeepBookings } = useFints();
-  const [busy, setBusy] = useState(false);
-  const run = async () => {
-    setBusy(true);
-    try {
-      // Reports its own outcome as a toast, success or failure.
-      await setKeepBookings(false);
-    } finally {
-      setBusy(false);
-      onClose();
-    }
-  };
-  return (
-    <Dialog
-      open={open}
-      onClose={busy ? undefined : onClose}
-      title={t.history.offDialog.title}
-      icon={<LockIcon size={20} />}
-      description={t.history.offDialog.description}
-      actions={
-        <>
-          <Button variant="secondary" data-autofocus onClick={onClose} disabled={busy}>{t.common.cancel}</Button>
-          <Button variant="danger" busy={busy} onClick={() => void run()}>{t.history.offDialog.confirm}</Button>
-        </>
-      }
-    >
-      {/* Indented to the title's edge, under the header's pictogram. */}
-      <p className="pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.history.offDialog.body}</p>
-    </Dialog>
-  );
-}
-
-/**
- * The way out of a kept file this PIN cannot open. Nothing is deleted: the
- * server sets the old file aside — its bookings may be gone at the bank — and
- * begins a new one.
- */
-function ResetHistoryDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const t = useT();
-  const { resetHistory } = useFints();
-  const [busy, setBusy] = useState(false);
-  const run = async () => {
-    setBusy(true);
-    try {
-      // Reports its own outcome as a toast, success or failure.
-      await resetHistory();
-    } finally {
-      setBusy(false);
-      onClose();
-    }
-  };
-  return (
-    <Dialog
-      open={open}
-      onClose={busy ? undefined : onClose}
-      title={t.history.resetDialog.title}
-      icon={<LockIcon size={20} />}
-      description={t.history.resetDialog.description}
-      actions={
-        <>
-          <Button variant="secondary" data-autofocus onClick={onClose} disabled={busy}>{t.common.cancel}</Button>
-          <Button variant="primary" busy={busy} onClick={() => void run()}>{t.history.resetDialog.confirm}</Button>
-        </>
-      }
-    />
-  );
-}
-
 /** Columns of the picture grid; the arrows move by one, up and down by a row. */
 const PICKER_COLUMNS = 6;
 /** What a file dialog offers: what the page can open. */
@@ -966,45 +606,6 @@ function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: () => v
 }
 
 /**
- * The way out of an unreadable store. Nothing is deleted: the server sets the
- * old file aside and starts an empty one, and what was changed in memory
- * during this session is kept and saved from then on.
- */
-function ResetVaultDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const t = useT();
-  const { resetVault } = useFints();
-  const [busy, setBusy] = useState(false);
-  const run = async () => {
-    setBusy(true);
-    try {
-      // Reports its own outcome as a toast, success or failure.
-      await resetVault();
-    } finally {
-      setBusy(false);
-      onClose();
-    }
-  };
-  return (
-    <Dialog
-      open={open}
-      onClose={busy ? undefined : onClose}
-      title={t.session.resetDialog.title}
-      icon={<LockIcon size={20} />}
-      description={t.session.resetDialog.description}
-      actions={
-        <>
-          <Button variant="secondary" data-autofocus onClick={onClose} disabled={busy}>{t.common.cancel}</Button>
-          <Button variant="primary" busy={busy} onClick={() => void run()}>{t.session.resetDialog.confirm}</Button>
-        </>
-      }
-    >
-      {/* Indented to the title's edge, under the header's pictogram. */}
-      <p className="pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.session.resetDialog.body}</p>
-    </Dialog>
-  );
-}
-
-/**
  * "Bank entfernen": a linked bank leaves the view and is forgotten by the
  * primary login's store (BLZ, name, login name) — logged out first, if it is
  * logged in. Nothing changes at the bank, and its remembered device stays.
@@ -1041,43 +642,3 @@ function RemoveBankDialog({ entry, onClose }: { entry: BankEntry | null; onClose
   );
 }
 
-/**
- * Deletes the saved personal data from this machine for good — the file and
- * every backup a reset left behind, and the login name and bank the login
- * screen fills in — without touching the device registration. The session
- * goes on; what changes until the logout is kept in memory only, so nothing
- * writes the file again.
- */
-function WipeVaultDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const t = useT();
-  const { wipeVault } = useFints();
-  const [busy, setBusy] = useState(false);
-  const run = async () => {
-    setBusy(true);
-    try {
-      // Reports its own outcome as a toast, success or failure.
-      await wipeVault();
-    } finally {
-      setBusy(false);
-      onClose();
-    }
-  };
-  return (
-    <Dialog
-      open={open}
-      onClose={busy ? undefined : onClose}
-      title={t.session.wipeDialog.title}
-      icon={<LockIcon size={20} />}
-      description={t.session.wipeDialog.description}
-      actions={
-        <>
-          <Button variant="secondary" data-autofocus onClick={onClose} disabled={busy}>{t.common.cancel}</Button>
-          <Button variant="danger" busy={busy} onClick={() => void run()}>{t.common.delete}</Button>
-        </>
-      }
-    >
-      {/* Indented to the title's edge, under the header's pictogram. */}
-      <p className="pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.session.wipeDialog.body}</p>
-    </Dialog>
-  );
-}

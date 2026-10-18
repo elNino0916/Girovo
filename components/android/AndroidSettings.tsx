@@ -1,7 +1,7 @@
 'use client';
 
-// The Android app's own settings, in the Sitzung panel's Einstellungen
-// (components/shell/ProfileMenu.tsx): fingerprint login, the category model
+// The Android app's own settings, on the Einstellungen page's "Auf diesem
+// Telefon" (components/settings/Settings.tsx): fingerprint login, the category model
 // as a download, and Play's updates. The colours and light or dark are the
 // phone's (mobile/bridges/appearance.ts) — not a setting here. Each talks to the phone runtime
 // (window.girovoMobile, mobile/runtime.ts); none of them exists on the

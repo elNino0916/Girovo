@@ -19,6 +19,7 @@ import * as insights from './insights.ts';
 import * as orders from './orders.ts';
 import * as provider from './provider.ts';
 import * as session from './session.ts';
+import * as settings from './settings.ts';
 import * as shell from './shell.ts';
 import * as transactions from './transactions.ts';
 import * as transfer from './transfer.ts';
@@ -31,6 +32,7 @@ const de = {
   format: format.de,
   categories: categories.de,
   session: session.de,
+  settings: settings.de,
   auth: auth.de,
   transfer: transfer.de,
   orders: orders.de,
@@ -53,6 +55,7 @@ const en: Messages = {
   format: format.en,
   categories: categories.en,
   session: session.en,
+  settings: settings.en,
   auth: auth.en,
   transfer: transfer.en,
   orders: orders.en,

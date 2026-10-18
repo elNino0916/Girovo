@@ -262,8 +262,8 @@ The owner sees the position as the combination of three claims (confirmed
   be switched off:
   - Brandfetch, which receives cleaned company names only. Off until the user
     agrees (owner decision, 2026-10-04): the app asks once, in a tile on the
-    Übersicht, before the first lookup, and the Sitzung panel's "Firmenlogos"
-    switch changes the answer. Builds without a client ID never offer it.
+    Übersicht, before the first lookup, and the "Firmenlogos" switch in
+    Einstellungen changes the answer. Builds without a client ID never offer it.
   - the update check, which goes to GitHub
 - Fonts are self-hosted.
 - A transfer whose outcome is unclear is never resent automatically.
@@ -374,7 +374,7 @@ raw name as "Name laut Bank" (owner's request).
   explored, but only as alternatives for the owner to choose, never swapped in
   silently.
 - **Language and voice.** German and English (owner, 2026-10-05), switchable
-  at any time — on the login bar and in the Sitzung panel — and defaulting to
+  at any time — on the login bar and in Einstellungen — and defaulting to
   the system's language: German on a German system, English on any other.
   German is the source and addresses the user informally as "du" (e.g. "Deine
   Daten bleiben bei dir"); English says the same in a plain, friendly "you",

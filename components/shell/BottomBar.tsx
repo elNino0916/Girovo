@@ -2,7 +2,7 @@
 
 // The navigation, Material 3 Expressive's on every platform: the flexible
 // navigation bar on a phone and, from 640px — the desktop window, a tablet,
-// an open foldable — the navigation rail down the left edge (80dp), with
+// an open foldable — the navigation rail down the left edge (96dp), with
 // Überweisen, the one action people open a banking app for, as the
 // floating action button.
 //
@@ -16,7 +16,8 @@
 // when the place is chosen, and a label in the secondary colour. On a phone
 // Überweisen is the extended FAB above the bar's right end, which folds to
 // its icon while the page scrolls down and opens out again on the way up or
-// at the top; on the rail it is the FAB at the top. Colours come from the
+// at the top; on the rail it is the FAB at the top. The rail ends in a fifth
+// place, Einstellungen, at its foot (components/settings). Colours come from the
 // --nav-* and --fab-* tokens (app/material.css). The bar is a row of the
 // page's flex column rather than a fixed layer, so the scrolling page ends
 // above it by construction; [data-bottombar] tells the stylesheet it exists
@@ -32,7 +33,7 @@ import type { DashboardTab } from '@/lib/app-types';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { ChartIcon, HomeIcon, MoreIcon, RepeatIcon, TransferIcon } from '../icons';
+import { ChartIcon, GearIcon, HomeIcon, MoreIcon, RepeatIcon, TransferIcon } from '../icons';
 import { cx } from '../ui';
 import type { ShellActions } from './actions';
 import { BrandPlate } from './BrandMark';
@@ -40,7 +41,7 @@ import { BrandPlate } from './BrandMark';
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 
 export function BottomBar({ actions }: { actions: ShellActions }) {
-  const { tab, setTab, setPaletteOpen } = useFints();
+  const { tab, setTab, setPaletteOpen, openSettings } = useFints();
   const tr = useT();
   const go = (t: DashboardTab) => () => setTab(t);
   const extended = useFabExtended();
@@ -68,7 +69,7 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
         data-rail
         className={cx(
           // The rail stands on the page's own surface, as Material's does.
-          'fixed inset-y-0 left-0 z-40 hidden w-20 flex-col items-center bg-paper sm:flex',
+          'fixed inset-y-0 left-0 z-40 hidden w-24 flex-col items-center bg-paper sm:flex',
           IS_ANDROID && 'pt-[calc(env(safe-area-inset-top)+16px)]',
         )}
       >
@@ -94,6 +95,12 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
           </button>
         )}
         <ul className="flex w-full flex-col gap-3">{items}</ul>
+        {/* Einstellungen at the rail's foot, as Material puts it: set once,
+            so out of the way of the places used every day. On a phone it is
+            the Sitzung panel's and the search's ("Mehr"). */}
+        <ul className="mt-auto flex w-full flex-col pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+          <NavItem icon={<GearIcon size={22} />} label={tr.common.nav.settings} current={tab === 'settings'} onClick={() => openSettings()} />
+        </ul>
       </nav>
       {actions.canTransfer && (
         <button

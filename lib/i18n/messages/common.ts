@@ -32,6 +32,7 @@ export const de = {
     transactions: 'Umsätze',
     analysis: 'Analyse',
     contracts: 'Verträge & Abos',
+    settings: 'Einstellungen',
     messages: 'Mitteilungen',
   },
   /** A booking's terms, as a bank statement uses them. */
@@ -96,6 +97,7 @@ export const en: typeof de = {
     transactions: 'Transactions',
     analysis: 'Analysis',
     contracts: 'Contracts & subscriptions',
+    settings: 'Settings',
     messages: 'Messages',
   },
   booking: {

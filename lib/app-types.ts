@@ -17,7 +17,10 @@ import type { LinkedBankRef } from './linked-banks';
 export type { CategoryId };
 
 /** The second-level navigation under the institute bar. */
-export type DashboardTab = 'overview' | 'analysis' | 'contracts';
+export type DashboardTab = 'overview' | 'analysis' | 'contracts' | 'settings';
+
+/** A setting the search can bring the user to on the Einstellungen page (components/settings). */
+export type SettingsTarget = 'language' | 'theme' | 'idle' | 'logos' | 'usage' | 'device' | 'data' | 'keep' | 'updates';
 
 /** A date range as `<input type="date">` speaks it: local yyyy-mm-dd. */
 export type DateRange = { from: string; to: string };

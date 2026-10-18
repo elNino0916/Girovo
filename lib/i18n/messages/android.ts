@@ -3,7 +3,7 @@
 
 export const de = {
   biometric: {
-    /** The switch in the Sitzung panel. */
+    /** The switch on the Einstellungen page. */
     label: 'Mit Fingerabdruck anmelden',
     hint: 'Deine PIN wird dafür auf diesem Telefon gespeichert, verschlüsselt mit einem Schlüssel, den nur dein Fingerabdruck öffnet. Kommt ein neuer Fingerabdruck dazu, ist sie gelöscht.',
     unavailable: {

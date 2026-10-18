@@ -368,7 +368,7 @@ components:
     height: "64px"
   nav-rail:
     backgroundColor: "{colors.paper}"
-    width: "80px"
+    width: "96px"
   nav-item:
     textColor: "{colors.nav-ink}"
     typography: "{typography.nav-label}"
@@ -658,7 +658,7 @@ protocol stays out of the interface: FinTS segment codes and the structured
 tags inside a Verwendungszweck never reach the screen.
 
 **Key Characteristics:**
-- One top app bar (title large, the page's name) over a flat page; navigation bar below 640px, navigation rail (80dp) from 640px, Überweisen as the FAB.
+- One top app bar (title large, the page's name) over a flat page; navigation bar below 640px, navigation rail (96dp, M3 Expressive's collapsed rail) from 640px, Überweisen as the FAB.
 - Flat and list-first: sections stand on the page with no surface, shadow or hairline; the balance hero (28px corners, primary container) is the one container.
 - Girovo's fixed blue Material scheme by default, Material You on an Android phone; value colours never follow either.
 - Round buttons that squeeze towards square while pressed, spring motion, Material's corner scale.
@@ -815,7 +815,7 @@ bottom (phones) or down the left edge (from 640px), and the page scrolling
 in its own container between them (`[data-scroll-root]`).
 
 1. **Top app bar** (`Masthead.tsx`): the page's own surface, `--barbar-h` tall (60px by default, 56px on phones, 64dp plus the status bar on Android). In the desktop shell it is the window's title bar: exactly as tall as the Windows caption overlay at any zoom, a drag region except for its controls, and its right edge keeps clear of the caption buttons, whose colours (`BAR_COLORS` in `electron/main.cjs`) must equal `bar` and `bar-ink`. Its content shares the page's 1280px column and gutters, so the page title and the first section share one left edge.
-2. **Navigation rail** (from 640px): 80px wide, fixed down the left edge on the page surface; the shell pads 80px on the left for it. On the desktop its head, at the top app bar's height, carries the brand plate and is part of the title bar's drag region. Below it the FAB (Überweisen), then the four places.
+2. **Navigation rail** (from 640px): 96px wide, fixed down the left edge on the page surface; the shell pads 96px on the left for it. On the desktop its head, at the top app bar's height, carries the brand plate and is part of the title bar's drag region. Below it the FAB (Überweisen), then the four places.
 3. **The page:** `#main`, `max-width: 1280px`, centred, 16px gutters (24px from 640px), 8px from the bar, 24px (48px from 640px) at its end.
 4. **Navigation bar** (below 640px): 64px plus the safe area, a row of the shell's column, so the page ends above it by construction.
 
@@ -1013,7 +1013,7 @@ gemerkt". They are not interactive.
 ### Navigation
 - **Top app bar:** the page's name on the left in title large (Übersicht, Analyse, Verträge); on the right, icon-only actions at 40px: on wide windows (not Android) the search pill (40px, `surface-container-high`, a search glyph, "Suche" and the "Strg K" keycap; the label goes below 720px of bar, the keycap below 900px), Mitteilungen (a bell with the orange dot for unread bank messages or a new app version), Beträge ausblenden (eye; a 14% ink tint while amounts are hidden), Darstellung (desktop only, from 640px), and the avatar-only profile chip that opens the Sitzung panel. The skip link "Zum Inhalt springen" is its first child.
 - **Navigation bar** (phones): 64px on `nav-bg`, four places: Übersicht, Analyse, Verträge, Mehr (the command palette). Each is a 22px glyph over a 12px/500 label; the current place has the 56×32px pill (`nav-indicator`) behind its glyph, which springs open from the middle, and its label in `nav-label-active`. Überweisen is the extended FAB above the bar.
-- **Navigation rail** (from 640px): the same four places stacked 12px apart in an 80px column on the page surface; at its head on the desktop the brand plate in the title bar's strip, then the FAB (56px, 16px corners, `fab-bg`, the transfer glyph; it rounds to 20px on hover).
+- **Navigation rail** (from 640px): the same four places stacked 12px apart in a 96px column on the page surface; at its head on the desktop the brand plate in the title bar's strip, then the FAB (56px, 16px corners, `fab-bg`, the transfer glyph; it rounds to 20px on hover); at its foot a fifth place, Einstellungen (the gear), set apart from the places used every day.
 - **Brand plate** (`BrandPlate`): the "G€" mark (`lib/brand-mark.ts`) in white on Brand Navy, a rounded 8px square, 32px (smaller only when zoom shrinks the bar). On the login's top bar it stands beside the 18px bold wordmark and the 12.5px version.
 - **Command palette ("Mehr", Strg K):** before any typing it lists the main actions (Geld anfordern, Kontoauszug, …), the accounts and, last, Abmelden. "Abmelden" answers only a deliberate query: three or more letters that start its name in the language on screen ("abm", "log"), or one of its words typed in full, in either language ("logout", "ausloggen", "sign out", "session"), a single word of a phrase only from five letters. Never "ab" and never a fuzzy hit. Every other entry is found by its words in the language on screen, and by its German words on an English screen too. When it answers, it is listed after every other result in its own "Sitzung" group.
 
@@ -1030,7 +1030,8 @@ gemerkt". They are not interactive.
 - **Snackbar:** the inverse surface, 4px corners, Level 3, 14px text with 0.25px, its glyph in the text colour, its action in the inverse primary. Its lifetime follows reading time (at least 10s for an error, 12s with an action, 20s for both) and pauses while it is hovered, focused or the window is in the background. F6 moves to its button and back; Escape closes it. A snackbar's action never does anything that needs a confirmation elsewhere.
 - **Inline alert:** 12px corners and a tonal ground, with an 18px glyph in the tone colour and 14px text — no stripe down the side. Error red, success green, info cyan; a warning is the inset with an orange glyph (amber is taken). The name check's result box is drawn the same way.
 - **Weitere Bank anmelden:** a 540px sheet with the login's own steps in it, under a 13px semibold overline ("Weitere Bank anmelden · Schritt 2 von 3"), their titles at 24px. Its close button calls the login off; the backdrop does not close it.
-- **Sitzung panel:** a 352px popover from the profile chip (a modal bottom sheet on Android): who and since when (the 44px avatar, the holder's name as a Section, "Seit 18:41 Uhr · Abmeldung in 9:51"), Banken (with several), Einstellungen (label-left, control-right rows of at least 40px), Auf diesem Rechner, and "Abmelden" as its pinned footer. The avatar can be the initials, the user's own picture (kept at 128px as WebP in the vault) or one of eleven line icons, chosen in a grid of six.
+- **Sitzung panel:** a 352px popover from the profile chip (a modal bottom sheet on Android), about the session only: who and since when (the 44px avatar, the holder's name as a Section, "Angemeldet seit 18:41 Uhr · Abmeldung in 9:51"), Banken (with several; else "Weitere Bank anmelden"), one row to Einstellungen (marked with a dot while the saved data cannot be read), and "Abmelden" as its pinned footer.
+- **Einstellungen page** (`components/settings`): a page like Analyse and Verträge, its name in the top app bar; reached from the rail's gear, the Sitzung panel, Strg+, and the search, which can open it at one setting (scrolled to the centre, its control focused). One 720px column on the page's left edge, sections as on every page (title-large heads, rows on the page, no cards): Allgemein (Sprache and Darstellung as connected buttons, Automatisch abmelden as a select, Tastenkürzel), Datenschutz (Firmenlogos, Nutzungsdaten as switches with their one-line hint), Auf diesem Rechner (Android's own rows, the remembered device, the saved data, "Umsätze behalten"; each action a text button that opens its confirming dialog) and Über Girovo (Updates, the version and licence, the GitHub and privacy links, opening in the browser). A row is label-left, control-right, at least 48px; a wide control goes under its label on a phone. The avatar can be the initials, the user's own picture (kept at 128px as WebP in the vault) or one of eleven line icons, chosen in a grid of six.
 
 ### Money
 The signature primitive. Every amount on screen passes through it.

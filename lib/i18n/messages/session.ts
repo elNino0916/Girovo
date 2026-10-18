@@ -1,5 +1,6 @@
 // The profile chip and its Sitzung panel (components/shell/ProfileMenu.tsx):
-// who is logged in, the settings, this computer, and the dialogs it opens.
+// who is logged in and since when — and the rows of the Einstellungen page
+// (components/settings) that began there, with the dialogs they open.
 
 import type { ReactNode } from 'react';
 import type { AvatarId } from '../../avatars';

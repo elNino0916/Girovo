@@ -38,6 +38,7 @@ function groups(t: Messages, mod: string): Group[] {
       title: s.groups.everywhere,
       rows: [
         { keys: [[mod, 'K']], label: t.common.search },
+        { keys: [[mod, ',']], label: t.common.nav.settings },
         { keys: [['?']], label: s.thisList, single: true },
         { keys: [[TOAST_KEY]], label: s.toToast },
       ],

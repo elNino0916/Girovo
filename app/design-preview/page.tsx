@@ -227,9 +227,8 @@ async function openSession(c: Ctx) {
   await c.poll(() => document.querySelector('[role="dialog"], [data-popover]'), 2000);
 }
 
-/** The Sitzung panel, scrolled to "Umsätze auf diesem Rechner behalten". */
-async function openSessionAtKeep(c: Ctx): Promise<HTMLElement | null> {
-  await openSession(c);
+/** The Einstellungen page (a view with tab: 'settings'), scrolled to "Umsätze auf diesem Rechner behalten". */
+async function settingsAtKeep(c: Ctx): Promise<HTMLElement | null> {
   const label = await c.poll(
     () => [...document.querySelectorAll<HTMLLabelElement>('label')].find((l) => /^Umsätze auf diesem Rechner/.test(l.textContent ?? '')),
     3000,
@@ -571,25 +570,26 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Dialoge',
     script: openSession,
   },
-  'session-history': {
-    label: 'Sitzungsmenü: Umsätze behalten',
-    group: 'Dialoge',
-    options: { history: 'saved' },
-    async script(c) { await openSessionAtKeep(c); },
+  settings: { label: 'Einstellungen', group: 'Dashboard', options: { tab: 'settings' } },
+  'settings-history': {
+    label: 'Einstellungen: Umsätze behalten',
+    group: 'Dashboard',
+    options: { history: 'saved', tab: 'settings' },
+    async script(c) { await settingsAtKeep(c); },
   },
-  'session-history-unreadable': {
-    label: 'Sitzungsmenü: gespeicherte Umsätze nicht lesbar',
-    group: 'Dialoge',
-    options: { history: 'unreadable' },
-    async script(c) { await openSessionAtKeep(c); },
+  'settings-history-unreadable': {
+    label: 'Einstellungen: gespeicherte Umsätze nicht lesbar',
+    group: 'Dashboard',
+    options: { history: 'unreadable', tab: 'settings' },
+    async script(c) { await settingsAtKeep(c); },
   },
   'history-off': {
     label: 'Gespeicherte Umsätze löschen?',
     group: 'Dialoge',
-    options: { history: 'saved' },
+    options: { history: 'saved', tab: 'settings' },
     // Switching it off asks first: it deletes what is kept.
     async script(c) {
-      const sw = await openSessionAtKeep(c);
+      const sw = await settingsAtKeep(c);
       sw?.click();
       await c.poll(() => [...document.querySelectorAll('[role="dialog"] h2')].find((h) => /Umsätze löschen/.test(h.textContent ?? '')), 3000);
     },
@@ -933,11 +933,11 @@ const VIEWS: Record<string, ViewDef> = {
   'update-portable': { label: 'Portable Version', group: 'Updates', update: { scenario: 'portable', dialog: true } },
   'update-inbox': { label: 'In Mitteilungen', group: 'Updates', options: { open: 'inbox' }, update: { scenario: 'available' } },
   'update-login': { label: 'Bei der Anmeldung', group: 'Updates', options: { view: 'login' }, update: { scenario: 'ready' } },
-  'update-session': {
-    label: 'Im Sitzungsmenü',
+  'update-settings': {
+    label: 'In den Einstellungen',
     group: 'Updates',
+    options: { tab: 'settings' },
     update: { scenario: 'available' },
-    script: openSession,
   },
   'update-background': {
     label: 'Im Hintergrund geladen',
@@ -950,11 +950,11 @@ const VIEWS: Record<string, ViewDef> = {
       await c.poll(() => [...document.querySelectorAll('[data-toast] p')].find((p) => /heruntergeladen/.test(p.textContent ?? '')), 8000);
     },
   },
-  'update-session-downloading': {
-    label: 'Download im Sitzungsmenü',
+  'update-settings-downloading': {
+    label: 'Download in den Einstellungen',
     group: 'Updates',
+    options: { tab: 'settings' },
     update: { scenario: 'downloading' },
-    script: openSession,
   },
 
   login: { label: 'Bank wählen', group: 'Anmeldung', options: { view: 'login' } },
@@ -1556,8 +1556,8 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=overview-single&preset=error', label: 'Ein Konto, Abruf fehlgeschlagen' },
   { q: 'view=overview&privacy=1', label: 'Beträge ausgeblendet' },
   { q: 'view=overview&acct=karte&privacy=1', label: 'Kreditkarte ausgeblendet' },
-  { q: 'view=session&logos=on', label: 'Sitzung: Firmenlogos an' },
-  { q: 'view=session&logos=unavailable', label: 'Sitzung: ohne Firmenlogos' },
+  { q: 'view=settings&logos=on', label: 'Einstellungen: Firmenlogos an' },
+  { q: 'view=settings&logos=unavailable', label: 'Einstellungen: ohne Firmenlogos' },
   { q: 'view=session&unclear=1', label: 'Sitzung: Überweisung unklar' },
   { q: 'view=palette-logout&unclear=1', label: 'Suche „abm“, Überweisung unklar' },
   { q: 'view=login&logos=on', label: 'Anmeldung: Firmenlogos an' },

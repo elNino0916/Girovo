@@ -235,10 +235,12 @@
     color: var(--bar-ink);
   }
 
-  /* From 640px the navigation is the rail down the left edge (BottomBar.tsx). */
+  /* From 640px the navigation is the rail down the left edge (BottomBar.tsx):
+     M3 Expressive's collapsed rail, 96dp — room for a label as long as
+     "Einstellungen". */
   @media (min-width: 640px) {
     :root[data-look='material'] [data-shell] {
-      padding-left: 80px;
+      padding-left: 96px;
     }
   }
   :root[data-look='material'] [data-rail] [data-nav-item] {

@@ -40,16 +40,16 @@ import { useLocale, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { paletteResults } from '@/lib/palette';
 import { setThemePref } from '@/lib/theme';
-import type { DashboardTab } from '@/lib/app-types';
+import type { DashboardTab, SettingsTarget } from '@/lib/app-types';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { useFints } from './FintsProvider';
 import { isCardAccount } from '@/lib/balances';
 import { Money } from './Money';
 import { useThemePref } from './ThemeToggle';
 import {
-  AccountTypeIcon, BellIcon, CalendarIcon, ChartIcon, CheckIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon, FileIcon,
-  HomeIcon, KeyboardIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon, RefreshIcon, RepeatIcon, SearchIcon, SunIcon,
-  TransferIcon,
+  AccountTypeIcon, BellIcon, CalendarIcon, ChartIcon, CheckIcon, ClockIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon,
+  FileIcon, GearIcon, GlobeIcon, HomeIcon, ImageIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon,
+  RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SunIcon, TransferIcon,
 } from './icons';
 import { listsOrders, useShowBankOrders } from './BankOrders';
 import { EmptyState, IconButton, Kbd, Overlay, cx } from './ui';
@@ -57,6 +57,7 @@ import { searchText, txText } from './transactions/model';
 import { useShellActions, useShowOnAccount } from './shell/actions';
 import { hasNewer, updates, useUpdates } from './updates/store';
 import { privacyNotice } from './shell/useShortcuts';
+import { useUsageConsent } from './telemetry/usage';
 import { ShortIban } from './overview/AccountIdentity';
 
 type Group = 'actions' | 'accounts' | 'transactions' | 'session';
@@ -115,6 +116,7 @@ function Palette({ onClose }: { onClose: () => void }) {
   const showBankOrders = useShowBankOrders();
   const themePref = useThemePref();
   const { state: update } = useUpdates();
+  const usage = useUsageConsent();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   // On a phone the first row is lit only once an arrow key moves the choice:
@@ -155,13 +157,20 @@ function Palette({ onClose }: { onClose: () => void }) {
     });
     // A one-key hint only while those keys work (they can be switched off).
     const single = (keys: string[]) => (f.singleKeyShortcuts ? <KeyHint keys={keys} /> : undefined);
-    // The sections are one press away in the institute bar (and the phone's
-    // bottom bar), so they are found by typing, not listed up front.
+    // The places are one press away in the navigation (the rail, the phone's
+    // bar), so they are found by typing, not listed up front.
     const tab = (t: DashboardTab, icon: ReactNode, key: string): Item => ({
       id: `tab-${t}`, group: 'actions', ...named((m) => m.common.nav[t], t), icon,
       hint: <KeyHint keys={['Alt', key]} />,
       description: f.tab === t ? p.youAreHere : undefined,
       run: () => f.setTab(t),
+    });
+    // One setting on the Einstellungen page: found by its name, opened there
+    // with its control focused (components/settings/Settings.tsx).
+    const setting = (target: SettingsTarget, words: WordsId, name: (m: Messages) => string, icon: ReactNode): Item => ({
+      id: `setting-${target}`, group: 'actions', ...named(name, words), icon,
+      description: tr.settings.inSettings,
+      run: () => f.openSettings(target),
     });
     const theme = (pref: 'light' | 'dark' | 'system', icon: ReactNode): Item => ({
       id: `theme-${pref}`, group: 'actions',
@@ -216,6 +225,19 @@ function Palette({ onClose }: { onClose: () => void }) {
       tab('overview', <HomeIcon />, '1'),
       tab('analysis', <ChartIcon />, '2'),
       tab('contracts', <RepeatIcon />, '3'),
+      {
+        id: 'tab-settings', group: 'actions', ...named((m) => m.common.nav.settings, 'settings'), icon: <GearIcon />,
+        hint: IS_ANDROID ? undefined : <KeyHint keys={[tr.shell.ctrl, ',']} />,
+        description: f.tab === 'settings' ? p.youAreHere : undefined,
+        run: () => f.openSettings(),
+      },
+      setting('language', 'language', (m) => m.session.language, <GlobeIcon />),
+      setting('idle', 'idle', (m) => m.settings.find.idle, <ClockIcon />),
+      !!f.meta?.merchantLogos && setting('logos', 'logos', (m) => m.session.logos, <ImageIcon />),
+      !!usage && setting('usage', 'usage', (m) => m.session.usage, <ChartIcon />),
+      setting('device', 'device', (m) => m.settings.find.device, <ShieldIcon />),
+      (f.vaultStatus === 'ready' || f.vaultStatus === 'error') && setting('data', 'data', (m) => m.session.vault, <LockIcon />),
+      f.vaultStatus === 'ready' && setting('keep', 'keep', (m) => m.history.keep, <CalendarIcon />),
       // The bank's own list, at the end of Verträge & Abos — where an account has one.
       f.accounts.some(listsOrders) && {
         id: 'bank-orders', group: 'actions', icon: <CalendarIcon />,
@@ -270,7 +292,7 @@ function Palette({ onClose }: { onClose: () => void }) {
       },
     ];
     return list.filter((x): x is Item => !!x);
-  }, [a, f, themePref, update, tr, locale, showBankOrders]);
+  }, [a, f, themePref, update, usage, tr, locale, showBankOrders]);
 
   const accounts = useMemo<Item[]>(() => f.accounts.map((acct, i) => {
     const balance = f.balances[acct.accountNumber];
