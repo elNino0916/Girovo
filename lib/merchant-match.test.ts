@@ -107,6 +107,28 @@ test('candidates: a branch town at the end is also tried without it', async () =
   assert.deepEqual(candidates('Dominos Aschaffenburg').map((r) => r.core), ['dominos aschaffenburg']);
 });
 
+test('candidates: a dotted legal form is no website', async () => {
+  const { candidates, looksCorporate } = await import('./merchant-match.ts');
+  const cores = (name: string, towns?: Set<string>) => candidates(name, undefined, { towns }).map((r) => r.core);
+  // "Co.KG" once looked like the Kyrgyz site co.kg, and every such company got its logo.
+  for (const name of ['Beyerdynamic GmbH CO.KG Heilbronn DE', 'Muster GmbH & Co.KG', 'Example GmbH CO.KGaA']) {
+    assert.ok(!cores(name).some((c) => c.includes('.')), `${name}: ${cores(name).join(' | ')}`);
+  }
+  assert.ok(cores('Beyerdynamic GmbH CO.KG Heilbronn DE').includes('beyerdynamic'));
+  assert.deepEqual(
+    cores('Beyerdynamic GmbH CO.KG Heilbronn DE', new Set(['heilbronn'])).slice(-1),
+    ['beyerdynamic'],
+    'without the town, the legal form before it goes too',
+  );
+  // Nor is a dotted abbreviation or a town with a dot.
+  assert.ok(!cores('Dr.Oetker Versorgung GmbH').some((c) => c.includes('.')));
+  assert.ok(!cores('Kantonsspital St.Gallen AG').some((c) => c.includes('.')));
+  // A real site still is one, and still proves a business.
+  assert.equal(cores('AMAZON.DE')[0], 'amazon.de amazon');
+  assert.equal(cores('audible.co.uk')[0], 'audible.co.uk audible');
+  assert.ok(looksCorporate('G2A.com'));
+});
+
 test('candidates: a card terminal\'s "SAGT DANKE" is no part of the name', async () => {
   const { candidates } = await import('./merchant-match.ts');
   const cores = (name: string) => candidates(name).map((r) => r.core);

@@ -39,6 +39,8 @@ const LEGAL_FORMS = new Set([
   'corporation', 'inc', 'llc', 'ltd', 'limited', 'plc', 'sa', 'sas', 'sarl',
   'sca', 'srl', 'sl', 'spa', 'bv', 'nv', 'ab', 'as', 'aps', 'oy', 'oyj', 'rl',
   'sp', 'zoo', 'dac', 'plc', 'pte', 'pty', 'plcs',
+  // "GmbH & Co.KG" written without the space: one token once the dot is gone.
+  'cokg', 'cokgaa',
 ]);
 
 // Legal forms that LEAD instead of trailing. German and EU forms sit at the
@@ -228,12 +230,9 @@ function stripDecoration(raw: string): string {
 function tokenize(raw: string): string[] {
   const dec = stripDecoration(raw);
   if (!dec) return [];
-  const domainMatch = dec.match(/\b(?:www\.)?([a-z0-9-]+\.[a-z]{2,})\b/i);
-  if (domainMatch) {
-    const host = domainMatch[1].toLowerCase();
-    const coreName = host.split('.')[0];
-    return [host, coreName];
-  }
+  // A name that is a site ("AMAZON.DE", "G2A.com") is looked up as that site.
+  const host = hostIn(dec);
+  if (host) return [host, hostCore(host)];
   return normalize(dec.replace(/\./g, '')).split(' ').filter(Boolean);
 }
 
@@ -320,7 +319,7 @@ function looksPersonal(tokens: string[]): boolean {
 export function looksCorporate(raw: string, businessBooking = false, purpose?: string): boolean {
   const decorated = stripDecoration(raw);
   if (decorated) {
-    if (/\b(?:www\.)?[a-z0-9-]+(?:\.[a-z]{2,})+\b/i.test(decorated)) return true;
+    if (hostIn(decorated)) return true;
 
     const tokens = tokenize(decorated);
     if (tokens.length) {
@@ -421,7 +420,32 @@ const HINT_NOISE = new Set([
 const PURCHASE_LEAD =
   /(?:ihr\s+einkauf\s+bei|einkauf\s+bei|kauf\s+bei|bestellung\s+bei|bestellung\s+vom|zahlung\s+an|bezahlung\s+an|payment\s+to|purchase\s+at)\s+/i;
 
-const DOMAIN_RE = /\b(?:www\.)?((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,})\b/i;
+const DOMAIN_RE = /\b(?:www\.)?((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,})\b/gi;
+
+// The endings a shop's site has on a German statement. Not any letters after
+// a dot: "GmbH & Co.KG" would be the Kyrgyz site co.kg, "Dr.Oetker" and
+// "St.Gallen" sites too — and a name taken for a site skips the search and
+// goes straight to that site's logo, the most confidently wrong logo there is.
+const SHOP_TLDS = new Set([
+  'com', 'de', 'net', 'org', 'eu', 'info', 'biz', 'io', 'co', 'app', 'dev', 'ai', 'me', 'tv', 'fm', 'gg',
+  'ly', 'to', 'cc', 'xyz', 'shop', 'store', 'online', 'site', 'page', 'tech', 'cloud', 'live', 'life',
+  'games', 'travel', 'berlin', 'hamburg', 'koeln', 'bayern', 'nrw', 'ruhr', 'wien',
+  'at', 'ch', 'li', 'lu', 'nl', 'be', 'fr', 'it', 'es', 'pt', 'ie', 'uk', 'us', 'ca', 'au', 'dk', 'se',
+  'no', 'fi', 'is', 'pl', 'cz', 'sk', 'hu', 'si', 'hr', 'ro', 'bg', 'gr', 'lt', 'lv', 'ee', 'tr',
+]);
+
+/**
+ * The first site named in a text ("amazon.de", "www.g2a.com", "audible.co.uk"),
+ * or null. A dotted legal form is none: "Co.KG", "Co.de".
+ */
+function hostIn(text: string): string | null {
+  for (const m of String(text ?? '').matchAll(DOMAIN_RE)) {
+    const host = m[1].toLowerCase();
+    const labels = host.split('.');
+    if (SHOP_TLDS.has(labels[labels.length - 1]) && !LEGAL_FORMS.has(labels[0])) return host;
+  }
+  return null;
+}
 
 /** "g2a.com" → "g2a"; the part that has to match a brand name. */
 const hostCore = (host: string) => host.split('.')[0] || host;
@@ -486,8 +510,8 @@ export function merchantHint(purpose?: string | null): string | null {
   if (!text) return null;
 
   // 2. A domain is unambiguous and needs no search to be understood.
-  const domain = text.match(DOMAIN_RE);
-  if (domain && !isFacilitator(domain[1].split('.')[0])) return domain[1].toLowerCase();
+  const domain = hostIn(text);
+  if (domain && !isFacilitator(hostCore(domain))) return domain;
 
   // 3. Otherwise the words introduced by a purchase phrase.
   const lead = text.match(PURCHASE_LEAD);
@@ -535,11 +559,10 @@ export function candidates(
   if (isFacilitatorWrapper && purpose) {
     const hint = merchantHint(purpose);
     if (hint) {
-      const domain = hint.match(DOMAIN_RE);
-      if (domain) {
+      const host = hostIn(hint);
+      if (host) {
         // A domain resolves against Brandfetch's CDN directly, so it needs no
         // search at all — see resolveOne in lib/merchants.ts.
-        const host = domain[1].toLowerCase();
         rungs.push({ query: host, core: hostCore(host), minScore: 0.85, fromPurpose: true });
       } else {
         for (const r of candidates(hint, undefined, opts)) push([r.core], r.minScore, true);
@@ -560,10 +583,12 @@ export function candidates(
     push(afterQualifiers, 0.85);
     push(afterLeading, 0.85);
 
-    // The branch's town at the end: the chain is what is left.
+    // The branch's town at the end: the chain is what is left — and a legal
+    // form the town stood behind goes with it ("Beyerdynamic GmbH Co.KG
+    // Heilbronn DE" is Beyerdynamic).
     const last = afterLeading[afterLeading.length - 1];
     if (afterLeading.length > 1 && (PLACE_NAMES.has(last) || opts.towns?.has(last))) {
-      push(afterLeading.slice(0, -1), 0.85);
+      push(stripTrailing(afterLeading.slice(0, -1), LEGAL_AND_QUALIFIERS), 0.85);
     }
 
     if (
