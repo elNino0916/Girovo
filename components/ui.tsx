@@ -366,6 +366,24 @@ function InFormField({
   );
 }
 
+/**
+ * A field says what is wrong in Girovo's words — its Field's error, which M3E
+ * holds as the control's custom validity. M3E's form field would also judge
+ * the control by the browser's own constraints (`required`, a date's min and
+ * max, which are there for its picker) on every blur and change, and show the
+ * browser's sentence ("Fülle dieses Feld aus.") in red under a field nobody
+ * has got wrong yet. So the control answers M3E's check with Girovo's verdict
+ * alone: invalid while an error stands, else valid. Girovo's forms are
+ * noValidate; nothing else asks the browser.
+ */
+function useOwnVerdict<T extends HTMLInputElement | HTMLTextAreaElement>(ref: Ref<T> | undefined): RefCallback<T> {
+  return useCallback((el: T | null) => {
+    if (el) el.checkValidity = () => !el.validity.customError;
+    if (typeof ref === 'function') return ref(el);
+    if (ref) (ref as RefObject<T | null>).current = el;
+  }, [ref]);
+}
+
 export type InputProps = ComponentProps<'input'> & {
   invalid?: boolean;
   /** Decorative mark inside the left edge (search glyph, currency). */
@@ -375,8 +393,9 @@ export type InputProps = ComponentProps<'input'> & {
   containerClassName?: string;
 };
 
-export function Input({ className, invalid, leading, trailing, containerClassName, ...rest }: InputProps) {
+export function Input({ className, invalid, leading, trailing, containerClassName, ref, ...rest }: InputProps) {
   const wiring = useFieldWiring({ ...rest, invalid });
+  const ownRef = useOwnVerdict(ref);
   return (
     <InFormField
       invalid={!!wiring['aria-invalid']}
@@ -387,7 +406,7 @@ export function Input({ className, invalid, leading, trailing, containerClassNam
           {trailing && <span slot="suffix" className="flex items-center">{trailing}</span>}
         </>
       )}
-      control={<input {...rest} {...wiring} className={className} />}
+      control={<input {...rest} {...wiring} ref={ownRef} className={className} />}
     />
   );
 }
@@ -482,8 +501,9 @@ export function Select({
 
 export type TextareaProps = ComponentProps<'textarea'> & { invalid?: boolean; showCount?: boolean };
 
-export function Textarea({ className, invalid, showCount, maxLength, value, ...rest }: TextareaProps) {
+export function Textarea({ className, invalid, showCount, maxLength, value, ref, ...rest }: TextareaProps) {
   const wiring = useFieldWiring({ ...rest, invalid });
+  const ownRef = useOwnVerdict(ref);
   const count = typeof value === 'string' ? value.length : null;
   return (
     <>
@@ -493,6 +513,7 @@ export function Textarea({ className, invalid, showCount, maxLength, value, ...r
           <textarea
             {...rest}
             {...wiring}
+            ref={ownRef}
             value={value}
             maxLength={maxLength}
             className={cx('block min-h-[96px] resize-y leading-[1.45]', className)}

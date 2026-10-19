@@ -429,9 +429,19 @@
     --m3e-form-field-line-height: 24px;
     --m3e-form-field-tracking: 0.5px;
   }
-  /* A bare input — the palette's search line, where the whole sheet is the
-     field — has no outline to colour: the caret says where typing goes. */
-  :root[data-look='material'] input[data-bare]:focus-visible {
+  /* Inside a form field the field's own outline is the focus — it turns
+     primary and doubles — so the input draws no ring of its own. Nor does a
+     bare input (the palette's search line, where the whole sheet is the
+     field): the caret says where typing goes. */
+  :root[data-look='material'] :is(m3e-form-field :is(input, textarea), input[data-bare]):focus-visible {
+    outline: none;
+  }
+
+  /* M3E's controls draw their own focus ring (Material's, inside their
+     shadow): the page's double ring (globals.css) would draw a second one
+     round the element. */
+  :root[data-look='material'] :is(m3e-button, m3e-icon-button, m3e-filter-chip, m3e-chip, m3e-checkbox, m3e-switch,
+    m3e-select, m3e-menu, m3e-menu-item, m3e-menu-item-radio, m3e-menu-item-checkbox, m3e-nav-item, m3e-fab):focus-visible {
     outline: none;
   }
 
