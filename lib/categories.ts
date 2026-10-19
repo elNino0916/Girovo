@@ -1,5 +1,5 @@
-// The fixed set of booking categories, and the two keys a category decision
-// is remembered by.
+// The booking categories — the app's fixed set plus the ones the user made —
+// and the two keys a category decision is remembered by.
 //
 // Pure and dependency-free on purpose: it is shared by the browser, by the
 // analysis code and by the `node --test` suite, which runs these files with
@@ -10,7 +10,8 @@ import type { SerializedTransaction } from './fints-types';
 import { cleanMerchantName } from './card-purpose.ts';
 import { msgs } from './i18n/index.ts';
 
-export type CategoryId =
+/** The app's own categories: translated, with a glyph each, known to the model and the keywords. */
+export type BuiltinCategoryId =
   | 'income'
   | 'otherIn'
   | 'transfer'
@@ -27,6 +28,25 @@ export type CategoryId =
   | 'fees'
   | 'savings'
   | 'other';
+
+/**
+ * A category the user made ("Spenden", "Handwerker", "Hund"): `c_` and a
+ * random part, never a word, so renaming it changes nothing it is keyed by.
+ */
+export type CustomCategoryId = `c_${string}`;
+
+export type CategoryId = BuiltinCategoryId | CustomCategoryId;
+
+/**
+ * A category of the user's own, as the vault keeps it. Its name is the
+ * user's text and is shown as typed, in either language. Only money going
+ * one way fits one: spending ("out") or income ("in").
+ */
+export type CustomCategory = {
+  id: CustomCategoryId;
+  name: string;
+  direction: 'in' | 'out';
+};
 
 export type CategoryDef = {
   id: CategoryId;
@@ -46,9 +66,11 @@ export type CategoryDef = {
    * accounts is neither — counting it would inflate both sides.
    */
   neutral?: boolean;
+  /** One of the user's own (CustomCategory). */
+  custom?: boolean;
 };
 
-const ROWS: readonly Omit<CategoryDef, 'label'>[] = [
+const ROWS: readonly (Omit<CategoryDef, 'label' | 'id'> & { id: BuiltinCategoryId })[] = [
   { id: 'income', direction: 'in' },
   { id: 'otherIn', direction: 'in' },
   { id: 'transfer', direction: 'both', neutral: true },
@@ -67,7 +89,7 @@ const ROWS: readonly Omit<CategoryDef, 'label'>[] = [
   { id: 'other', direction: 'both' },
 ];
 
-/** Every category, its label read when it is read — so a change of language reaches every list. */
+/** The app's own categories, their labels read when they are read — so a change of language reaches every list. */
 export const CATEGORIES: readonly CategoryDef[] = ROWS.map((row) => ({
   ...row,
   get label() {
@@ -75,15 +97,59 @@ export const CATEGORIES: readonly CategoryDef[] = ROWS.map((row) => ({
   },
 }));
 
-const BY_ID = new Map(CATEGORIES.map((c) => [c.id, c]));
+const BY_ID = new Map<CategoryId, CategoryDef>(CATEGORIES.map((c) => [c.id, c]));
 
-export const categoryDef = (id: CategoryId): CategoryDef => BY_ID.get(id) ?? BY_ID.get('other')!;
+export const isBuiltinCategoryId = (v: unknown): v is BuiltinCategoryId =>
+  typeof v === 'string' && BY_ID.has(v as CategoryId);
+
+/** How a custom category's id is spelled — the vault refuses any other. */
+export const CUSTOM_ID = /^c_[a-z0-9]{6,24}$/;
+export const isCustomCategoryId = (v: unknown): v is CustomCategoryId => typeof v === 'string' && CUSTOM_ID.test(v);
+
+// The user's own categories, as the vault on screen holds them. One list for
+// the whole page: the provider registers it whenever the vault changes
+// (setCustomCategories), before anything below it renders, so a label, a
+// filter or a sum asked for anywhere sees the same set. The server never
+// relies on this — its vault code checks ids against the file's own list.
+let customDefs = new Map<CategoryId, CategoryDef>();
+let customList: readonly CategoryDef[] = [];
+
+/** Makes `list` the user's own categories for every lookup below. */
+export function setCustomCategories(list: readonly CustomCategory[]): void {
+  const defs = list.map((c): CategoryDef => ({ id: c.id, label: c.name, direction: c.direction, custom: true }));
+  customList = defs;
+  customDefs = new Map(defs.map((d) => [d.id, d]));
+}
+
+/** The user's own categories as they stand now, in the order they were made. */
+export const customCategoryDefs = (): readonly CategoryDef[] => customList;
+
+/** Every category a booking can be filed under: the app's own, then the user's. */
+export const allCategories = (): readonly CategoryDef[] => (customList.length ? [...CATEGORIES, ...customList] : CATEGORIES);
+
+/** A category's definition. An id nobody knows (a deleted category of the user's) reads as "Sonstiges". */
+export const categoryDef = (id: CategoryId): CategoryDef => BY_ID.get(id) ?? customDefs.get(id) ?? BY_ID.get('other')!;
 export const categoryLabel = (id: CategoryId): string => categoryDef(id).label;
-export const isCategoryId = (v: unknown): v is CategoryId => typeof v === 'string' && BY_ID.has(v as CategoryId);
+export const isCategoryId = (v: unknown): v is CategoryId =>
+  typeof v === 'string' && (BY_ID.has(v as CategoryId) || customDefs.has(v as CategoryId));
 
 /** How a booking got its category — shown so a wrong guess is visibly a guess. */
 export type CategorySource = 'manual' | 'rule' | 'auto';
-export type CategoryResult = { id: CategoryId; source: CategorySource };
+
+/** One share of a booking the user split up (lib/splits.ts): signed like the booking, in its currency. */
+export type CategoryPart = { id: CategoryId; amount: number };
+
+export type CategoryResult = {
+  /** The category the booking is shown under — for a split one, its largest share's. */
+  id: CategoryId;
+  source: CategorySource;
+  /**
+   * Set only for a booking the user split across categories: the shares,
+   * largest first, summing exactly to the booking's amount. Every sum counts
+   * these instead of `id`.
+   */
+  parts?: readonly CategoryPart[];
+};
 
 const squash = (s: string | null | undefined) =>
   String(s ?? '')

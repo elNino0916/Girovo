@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
-import { txKey, type CategoryId } from '@/lib/categories';
+import { txKey, type CategoryId, type CategoryPart } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
@@ -47,7 +47,7 @@ export function TxList({
   total: number;
   resetKey: string;
   merchantOf: (tx: SerializedTransaction) => Merchant | null;
-  categoryOf: (tx: SerializedTransaction) => { id: CategoryId };
+  categoryOf: (tx: SerializedTransaction) => { id: CategoryId; parts?: readonly CategoryPart[] };
   /** The user's note on a booking, if any — its row is marked. */
   noteOf?: (tx: SerializedTransaction) => string | undefined;
   /** The bookings with a receipt attached, by txKey. */
@@ -161,7 +161,15 @@ export function TxList({
                   key={rowKey(tx)}
                   className="relative after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-[68px] after:h-px after:bg-line last:after:hidden sm:after:left-[72px]"
                 >
-                  <TxRow tx={tx} merchant={merchantOf(tx)} category={categoryOf(tx).id} userNote={noteOf?.(tx)} receipt={!!receiptKeys?.has(txKey(tx))} onOpen={onOpen} />
+                  <TxRow
+                    tx={tx}
+                    merchant={merchantOf(tx)}
+                    category={categoryOf(tx).id}
+                    parts={categoryOf(tx).parts}
+                    userNote={noteOf?.(tx)}
+                    receipt={!!receiptKeys?.has(txKey(tx))}
+                    onOpen={onOpen}
+                  />
                 </li>
               ))}
             </ul>

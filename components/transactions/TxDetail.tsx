@@ -3,7 +3,7 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { facilitatorShop } from '@/lib/analytics';
 import {
-  CATEGORIES, categoryLabel, counterpartyKey, isCategoryId, txBic, type CategoryId, type CategorySource,
+  allCategories, categoryLabel, counterpartyKey, isCategoryId, txBic, type CategoryId, type CategorySource,
 } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry } from '@/lib/format';
@@ -13,13 +13,15 @@ import { AMOUNT_MASK } from '@/lib/mask';
 import { BankText } from '../BankText';
 import { useFints } from '../FintsProvider';
 import {
-  ArrowRightIcon, BoltIcon, CategoryIcon, ChevronIcon, ClockIcon, ReceiptIcon, RepeatIcon, TransferIcon, UndoIcon,
+  ArrowRightIcon, BoltIcon, CategoryIcon, ChevronIcon, ClockIcon, PieIcon, PlusIcon, ReceiptIcon, RepeatIcon,
+  TransferIcon, UndoIcon,
 } from '../icons';
 import { maskedLabel, Money, usePrivacy } from '../Money';
 import {
   Button, CopyButton, Disclosure, Drawer, Menu, MenuGroup, MenuItem, MenuItemRadio, MenuSeparator, Tag, cx,
 } from '../ui';
 import { CounterpartyAvatar } from './Avatar';
+import { CategoryNameDialog, SplitDialog } from './CategoryDialogs';
 import { NoteSection } from './NoteSection';
 import { ReceiptSection } from './ReceiptSection';
 import {
@@ -249,7 +251,7 @@ export function TxDetail({
         </Section>
       )}
 
-      <CategorySection tx={tx} name={text.name} />
+      <CategorySection tx={tx} name={text.name} pending={pending} />
 
       {/* The user's own line about this booking — on screen only, never on the Beleg. */}
       <NoteSection tx={tx} />
@@ -320,12 +322,17 @@ function Row({
   );
 }
 
-/** The category groups of the menu, the booking's own direction first (the Kategorie-Check's menu too). */
+/**
+ * The category groups of the menu, the booking's own direction first (the
+ * Kategorie-Check's and the split dialog's menus too). The user's own
+ * categories close the group of their side.
+ */
 export function menuGroups(credit: boolean, tr: Messages): { label: string; ids: CategoryId[] }[] {
   const { common: { booking }, transactions: { categorize: words } } = tr;
-  const spend = CATEGORIES.filter((c) => !c.neutral && c.direction !== 'in').map((c) => c.id);
-  const income = CATEGORIES.filter((c) => c.direction === 'in').map((c) => c.id);
-  const own = CATEGORIES.filter((c) => c.neutral).map((c) => c.id);
+  const all = allCategories();
+  const spend = all.filter((c) => !c.neutral && c.direction !== 'in').map((c) => c.id);
+  const income = all.filter((c) => c.direction === 'in').map((c) => c.id);
+  const own = all.filter((c) => c.neutral).map((c) => c.id);
   return credit
     ? [
         // Interest received is a credit in "Bankentgelte & Zinsen".
@@ -346,7 +353,9 @@ type Step =
   | { kind: 'picked'; id: CategoryId }
   | { kind: 'ruled'; id: CategoryId }
   | { kind: 'undone'; id: CategoryId; byRule: boolean }
-  | { kind: 'unruled' };
+  | { kind: 'unruled' }
+  | { kind: 'split'; count: number }
+  | { kind: 'unsplit'; id: CategoryId };
 
 /**
  * How the app filed the booking, and where the user changes it. The source
@@ -356,13 +365,18 @@ type Step =
  * things. A choice for one booking can be undone ("Automatisch (…)"), a rule
  * removed, and every rule is listed below.
  */
-function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string }) {
+function CategorySection({ tx, name, pending }: { tx: SerializedTransaction; name: string; pending: boolean }) {
   const {
-    categoryOf, categoryGuessOf, setCategory, removeCategoryRule, vault, vaultStatus, txByAccount,
+    categoryOf, categoryGuessOf, setCategory, setSplit, removeCategoryRule, vault, vaultStatus, txByAccount,
   } = useFints();
   const tr = useT();
   const words = tr.transactions.categorize;
   const current = categoryOf(tx);
+  const parts = current.parts;
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
+  // A Vormerkposten has no lasting key yet: its split would not find the booking.
+  const canSplit = !pending && Math.round(Math.abs(tx.amount) * 100) >= 2;
   const who = counterpartyKey(tx);
   const canRule = who !== 'name:?';
   const rules = vault?.categoryRules;
@@ -406,6 +420,11 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
     setStep({ kind: 'unruled' });
     refocus();
   };
+  const unsplit = () => {
+    setSplit(tx, null);
+    setStep({ kind: 'unsplit', id: fallback.id });
+    refocus();
+  };
 
   // The offer to reach further — only after a pick a rule does not already make.
   const offer = canRule && step?.kind === 'picked' && current.source === 'manual' && ruled !== step.id ? step.id : null;
@@ -417,7 +436,11 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
         ? words.ruled(name, categoryLabel(step.id))
         : step.kind === 'undone'
           ? words.undone(categoryLabel(step.id), step.byRule)
-          : words.unruled(name);
+          : step.kind === 'split'
+            ? tr.transactions.split.saved(step.count)
+            : step.kind === 'unsplit'
+              ? tr.transactions.split.undone(categoryLabel(step.id))
+              : words.unruled(name);
 
   return (
     <section aria-labelledby={titleId} className="mt-6 border-t border-line pt-5">
@@ -425,12 +448,12 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
       <div className="mt-3 flex items-center gap-3">
         {/* A glyph, not a control: inset grey, so the one blue here is "Ändern". */}
         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-inset text-ink-2">
-          <CategoryIcon id={current.id} size={20} />
+          {parts ? <PieIcon size={20} /> : <CategoryIcon id={current.id} size={20} />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] leading-snug font-semibold text-ink">{categoryLabel(current.id)}</p>
+          <p className="text-[15px] leading-snug font-semibold text-ink">{parts ? tr.transactions.split.heading : categoryLabel(current.id)}</p>
           <p className="text-[13px] leading-snug text-ink-3">
-            {current.source === 'rule' ? words.ruleWith(name) : words.source[current.source]}
+            {parts ? tr.transactions.split.source : current.source === 'rule' ? words.ruleWith(name) : words.source[current.source]}
           </p>
         </div>
         <Menu
@@ -444,13 +467,13 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
               size="sm"
               variant="secondary"
               aria-label={words.changeLabel(categoryLabel(current.id))}
+              iconRight={<ChevronIcon size={14} strokeWidth={2} className={cx('transition-transform duration-150', open && 'rotate-180')} />}
             >
               {words.change}
-              <ChevronIcon size={14} strokeWidth={2} className={cx('-mr-1 transition-transform duration-150', open && 'rotate-180')} />
             </Button>
           )}
         >
-          {current.source === 'manual' && (
+          {current.source === 'manual' && !parts && (
             <>
               <MenuItem
                 icon={<UndoIcon size={18} />}
@@ -465,14 +488,40 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
           {menuGroups(tx.amount > 0, tr).map((g) => (
             <MenuGroup key={g.label} label={g.label}>
               {g.ids.map((id) => (
-                <MenuItemRadio key={id} checked={current.id === id} icon={<CategoryIcon id={id} />} onSelect={() => pick(id)}>
+                <MenuItemRadio key={id} checked={!parts && current.id === id} icon={<CategoryIcon id={id} />} onSelect={() => pick(id)}>
                   {categoryLabel(id)}
                 </MenuItemRadio>
               ))}
             </MenuGroup>
           ))}
+          <MenuSeparator />
+          {canSplit && (
+            <MenuItem icon={<PieIcon size={18} />} description={words.splitHint} onSelect={() => setSplitOpen(true)}>
+              {words.split}
+            </MenuItem>
+          )}
+          <MenuItem icon={<PlusIcon size={18} />} onSelect={() => setNewOpen(true)}>{words.newCategory}</MenuItem>
         </Menu>
       </div>
+
+      {parts && (
+        // The shares, largest first: each counts in its own category.
+        <ul className="mt-3 rounded-[8px] bg-inset px-4 py-1">
+          {parts.map((p) => (
+            <li key={p.id} className="flex items-center gap-3 border-b border-line py-2.5 last:border-b-0">
+              <CategoryIcon id={p.id} size={18} className="shrink-0 text-ink-2" />
+              <span className="min-w-0 flex-1 truncate text-[15px] text-ink">{categoryLabel(p.id)}</span>
+              <Money value={p.amount} currency={tx.currency} signed tone="credit" className="text-[15px] font-semibold" />
+            </li>
+          ))}
+        </ul>
+      )}
+      {parts && (
+        <div className="mt-2 -ml-3 flex flex-wrap gap-x-1">
+          <Button size="xs" variant="tertiary" onClick={() => setSplitOpen(true)}>{tr.transactions.split.edit}</Button>
+          <Button size="xs" variant="tertiary" onClick={unsplit}>{tr.transactions.split.undo}</Button>
+        </div>
+      )}
 
       {current.source === 'rule' && (
         <Button size="xs" variant="tertiary" className="mt-2 -ml-3" onClick={unrule}>
@@ -510,6 +559,30 @@ function CategorySection({ tx, name }: { tx: SerializedTransaction; name: string
           }}
         />
       )}
+
+      <SplitDialog
+        tx={tx}
+        open={splitOpen}
+        onClose={() => {
+          setSplitOpen(false);
+          refocus();
+        }}
+        onSaved={(count) => setStep({ kind: 'split', count })}
+      />
+      <CategoryNameDialog
+        open={newOpen}
+        onClose={() => {
+          setNewOpen(false);
+          refocus();
+        }}
+        direction={tx.amount > 0 ? 'in' : 'out'}
+        fileLabel
+        onCreated={(id) => {
+          // Made from this booking, so the booking goes there at once, as a pick would.
+          setCategory(tx, id);
+          setStep({ kind: 'picked', id });
+        }}
+      />
     </section>
   );
 }

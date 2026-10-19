@@ -79,7 +79,7 @@ export function isTypingTarget(el: EventTarget | null): boolean {
  * open state to themselves.
  */
 export function layerOpen(): boolean {
-  return !!document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]');
+  return !!document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]:not([popover]), [role="menu"]:popover-open');
 }
 
 const TAB_KEYS: Record<string, DashboardTab> = { Digit1: 'overview', Digit2: 'analysis', Digit3: 'contracts' };

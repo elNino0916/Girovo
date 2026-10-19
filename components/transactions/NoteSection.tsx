@@ -31,7 +31,7 @@ export function NoteSection({ tx }: { tx: SerializedTransaction }) {
   const [said, setSaid] = useState<'saved' | 'removed' | null>(null);
   // The control that stays when the one holding focus goes: the section's
   // own action once the editor closes.
-  const actionRef = useRef<HTMLButtonElement | null>(null);
+  const actionRef = useRef<HTMLElement | null>(null);
   const refocus = () => setTimeout(() => actionRef.current?.focus(), 0);
 
   const editing = draft !== null;

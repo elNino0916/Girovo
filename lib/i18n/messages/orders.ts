@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
 /** The two kinds of order the bank keeps for later. */
 type Kind = 'standing' | 'dated';
 /** What an approval for one of them is for (components/TanWaitOverlay.tsx). */
-type OrderWait = 'standingOrder' | 'datedTransfer' | 'bankOrders' | 'orderDelete';
+type OrderWait = 'standingOrder' | 'datedTransfer' | 'bankOrders' | 'orderDelete' | 'orderChange';
 
 /** "1." … "30." — or the end of the month, said in words. */
 const deMonthDay = (day: number) => (day === 99 ? 'Monatsletzter'
@@ -160,6 +160,7 @@ export const de = {
       datedTransfer: 'Terminüberweisung freigeben',
       bankOrders: 'Abruf freigeben',
       orderDelete: 'Löschen freigeben',
+      orderChange: 'Änderung freigeben',
     } as Record<OrderWait, string>,
     /** As the object of "bestätige …". */
     subject: {
@@ -167,6 +168,7 @@ export const de = {
       datedTransfer: 'die Terminüberweisung',
       bankOrders: 'den Abruf deiner Aufträge',
       orderDelete: 'das Löschen des Auftrags',
+      orderChange: 'die Änderung des Auftrags',
     } as Record<OrderWait, string>,
     /** `account`: the user's own name for it first. */
     listOf: (kind: Kind, account: string) =>
@@ -176,12 +178,14 @@ export const de = {
       datedTransfer: 'Die Terminüberweisung ist freigegeben.',
       bankOrders: 'Die Aufträge werden abgerufen …',
       orderDelete: 'Das Löschen ist freigegeben.',
+      orderChange: 'Die Änderung ist freigegeben.',
     } as Record<OrderWait, string>,
     refused: {
       standingOrder: { title: 'Dauerauftrag nicht eingerichtet', text: 'Deine Bank hat den Auftrag abgelehnt:' },
       datedTransfer: { title: 'Terminüberweisung nicht angelegt', text: 'Deine Bank hat den Auftrag abgelehnt:' },
       bankOrders: { title: 'Aufträge nicht abgerufen', text: 'Deine Bank hat den Abruf abgelehnt:' },
       orderDelete: { title: 'Auftrag nicht gelöscht', text: 'Deine Bank hat das Löschen abgelehnt:' },
+      orderChange: { title: 'Auftrag nicht geändert', text: 'Deine Bank hat die Änderung abgelehnt:' },
     } as Record<OrderWait, { title: string; text: string }>,
     /** "Freigabe abbrechen?" while one of these is waited for: what stays open. */
     abort: {
@@ -191,6 +195,8 @@ export const de = {
         + 'sieh bei den Aufträgen deiner Bank nach, bevor du sie noch einmal anlegst.',
       orderDelete: 'Der Auftrag ist vielleicht schon gelöscht. Brichst du jetzt ab, bleibt das unklar – '
         + 'ruf die Liste neu ab, bevor du ihn noch einmal löschst.',
+      orderChange: 'Der Auftrag ist vielleicht schon geändert. Brichst du jetzt ab, bleibt das unklar – '
+        + 'ruf die Liste neu ab, bevor du ihn noch einmal änderst.',
     } as Record<Exclude<OrderWait, 'bankOrders'>, string>,
   },
 
@@ -234,6 +240,32 @@ export const de = {
     failed: (reason: string) => `Abruf fehlgeschlagen: ${reason}`,
     /** The phone's Übersicht has no room for it: one link. */
     noAccount: 'Kein Konto bietet Daueraufträge oder Terminüberweisungen über FinTS an.',
+  },
+
+  /** Changing one (components/transfer/ChangeOrder.tsx): amount, purpose, date or rhythm — never the payee. */
+  change: {
+    button: 'Ändern …',
+    buttonLabel: (kind: Kind, name: string) => `${kind === 'standing' ? 'Dauerauftrag' : 'Terminüberweisung'} an ${name} ändern …`,
+    title: { standing: 'Dauerauftrag ändern', dated: 'Terminüberweisung ändern' } as Record<Kind, string>,
+    intro: 'Betrag, Verwendungszweck und Termin lassen sich ändern. Der Empfänger bleibt – für einen anderen legst du einen neuen Auftrag an.',
+    payee: 'Empfänger',
+    amount: 'Betrag',
+    purpose: 'Verwendungszweck',
+    purposeTooLong: (max: number) => `Der Verwendungszweck ist zu lang – höchstens ${max} Zeichen.`,
+    /** A Dauerauftrag's change applies from a run on, not to those already made. */
+    from: (date: string) => `Die Änderung gilt ab der Ausführung am ${date}.`,
+    unchanged: 'Du hast noch nichts geändert.',
+    send: 'Änderung senden',
+    approval: 'Danach bittet dich deine Bank um die Freigabe.',
+    done: { standing: 'Dauerauftrag geändert', dated: 'Terminüberweisung geändert' } as Record<Kind, string>,
+    doneText: 'Deine Bank hat die Änderung angenommen. „Aktualisieren“ zeigt den Auftrag, wie sie ihn jetzt führt.',
+    refused: 'Deine Bank hat die Änderung abgelehnt:',
+    refusedPlain: 'Deine Bank hat die Änderung abgelehnt.',
+    unclearText: 'Ob deine Bank die Änderung angenommen hat, ist unklar. Ändere den Auftrag nicht noch einmal, bevor du nachgesehen hast: „Aktualisieren“ ruft die Liste neu ab.',
+    vopIntro: 'Deine Bank hat den Namen des Empfängers geprüft. Sende die Änderung nur, wenn du sicher bist, dass er stimmt.',
+    vopSend: 'Trotzdem senden',
+    vopStop: 'Nicht senden',
+    changed: 'Geändert',
   },
 
   /** Deleting one (components/BankOrders.tsx). */
@@ -296,6 +328,10 @@ export const de = {
     noInstant: 'Eine Echtzeitüberweisung kann nicht terminiert werden.',
     unknownOrder: 'Diesen Auftrag kennt die App nicht mehr. Bitte ruf die Liste neu ab.',
     listFailed: 'Deine Bank hat die Liste nicht geliefert.',
+    /** A change the bank or the account does not offer for this order. */
+    cannotChange: (kind: Kind) => `${kind === 'standing' ? 'Diesen Dauerauftrag' : 'Diese Terminüberweisung'} kannst du hier nicht ändern.`,
+    /** A change may keep the payee only: another payee is another order. */
+    changePayee: 'Der Empfänger lässt sich nicht ändern – lege dafür einen neuen Auftrag an.',
   },
 };
 
@@ -411,12 +447,14 @@ export const en: typeof de = {
       datedTransfer: 'Approve scheduled transfer',
       bankOrders: 'Approve retrieval',
       orderDelete: 'Approve deletion',
+      orderChange: 'Approve change',
     },
     subject: {
       standingOrder: 'the standing order',
       datedTransfer: 'the scheduled transfer',
       bankOrders: 'the request for your orders',
       orderDelete: 'the deletion of the order',
+      orderChange: 'the change of the order',
     },
     listOf: (kind, account) =>
       `the request for the ${kind === 'standing' ? 'standing orders' : 'scheduled transfers'} of ${account}`,
@@ -425,12 +463,14 @@ export const en: typeof de = {
       datedTransfer: 'The scheduled transfer is approved.',
       bankOrders: 'Fetching the orders…',
       orderDelete: 'The deletion is approved.',
+      orderChange: 'The change is approved.',
     },
     refused: {
       standingOrder: { title: 'Standing order not set up', text: 'Your bank declined the order:' },
       datedTransfer: { title: 'Scheduled transfer not created', text: 'Your bank declined the order:' },
       bankOrders: { title: 'Orders not fetched', text: 'Your bank declined the retrieval:' },
       orderDelete: { title: 'Order not deleted', text: 'Your bank declined the deletion:' },
+      orderChange: { title: 'Order not changed', text: 'Your bank declined the change:' },
     },
     abort: {
       standingOrder: 'The standing order may already have been set up. If you cancel now, its status stays unclear – '
@@ -439,6 +479,8 @@ export const en: typeof de = {
         + 'check your bank’s orders before you schedule it again.',
       orderDelete: 'The order may already have been deleted. If you cancel now, that stays unclear – '
         + 'fetch the list again before you delete it again.',
+      orderChange: 'The order may already have been changed. If you cancel now, that stays unclear – '
+        + 'fetch the list again before you change it again.',
     },
   },
 
@@ -471,6 +513,30 @@ export const en: typeof de = {
     deleteUnclear: 'It is unclear whether your bank deleted the order. Do not delete it again before you have checked: “Refresh” fetches the list again.',
     failed: (reason) => `Could not load: ${reason}`,
     noAccount: 'No account offers standing orders or scheduled transfers over FinTS.',
+  },
+
+  change: {
+    button: 'Change …',
+    buttonLabel: (kind, name) => `Change ${kind === 'standing' ? 'standing order' : 'scheduled transfer'} to ${name} …`,
+    title: { standing: 'Change standing order', dated: 'Change scheduled transfer' },
+    intro: 'The amount, the purpose and the date can be changed. The payee stays – for another one, set up a new order.',
+    payee: 'Payee',
+    amount: 'Amount',
+    purpose: 'Purpose',
+    purposeTooLong: (max) => `The purpose is too long – at most ${max} characters.`,
+    from: (date) => `The change applies from the payment on ${date}.`,
+    unchanged: 'You have not changed anything yet.',
+    send: 'Send change',
+    approval: 'Your bank then asks you to approve it.',
+    done: { standing: 'Standing order changed', dated: 'Scheduled transfer changed' },
+    doneText: 'Your bank accepted the change. “Refresh” shows the order as the bank now keeps it.',
+    refused: 'Your bank refused the change:',
+    refusedPlain: 'Your bank refused the change.',
+    unclearText: 'Whether your bank accepted the change is unclear. Do not change the order again before you have checked: “Refresh” fetches the list again.',
+    vopIntro: 'Your bank checked the payee’s name. Only send the change if you are sure the name is right.',
+    vopSend: 'Send anyway',
+    vopStop: 'Do not send',
+    changed: 'Changed',
   },
 
   remove: {
@@ -518,5 +584,7 @@ export const en: typeof de = {
     noInstant: 'An instant transfer cannot be scheduled.',
     unknownOrder: 'The app no longer knows this order. Please fetch the list again.',
     listFailed: 'Your bank did not deliver the list.',
+    cannotChange: (kind) => `You cannot change this ${kind === 'standing' ? 'standing order' : 'scheduled transfer'} here.`,
+    changePayee: 'The payee cannot be changed – set up a new order for that.',
   },
 };

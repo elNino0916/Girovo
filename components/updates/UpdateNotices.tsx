@@ -178,18 +178,21 @@ export function UpdateBarButton({ className }: { className?: string }) {
   if (!hasNewer(state)) return null;
   const label = isReady(state) ? u.barReady : u.barAvailable;
   return (
-    <button
-      type="button"
+    <Button
+      variant="quiet"
+      size="sm"
       aria-haspopup="dialog"
       title={u.barTitle(label, state.release.version)}
       onClick={updates.openDialog}
-      className={cx('navlink inline-flex', className)}
+      iconLeft={(
+        <span className="relative inline-flex">
+          <DownloadIcon size={18} />
+          <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-bar" />
+        </span>
+      )}
+      className={className}
     >
-      <span className="relative">
-        <DownloadIcon size={18} />
-        <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-bar" />
-      </span>
-      <span>{label}</span>
-    </button>
+      {label}
+    </Button>
   );
 }

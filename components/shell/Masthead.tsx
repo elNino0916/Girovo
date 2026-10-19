@@ -23,7 +23,7 @@ import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
 import { unseenUpdate, useUpdates } from '../updates/store';
 import { BellIcon, EyeIcon, EyeOffIcon, SearchIcon } from '../icons';
-import { Dot, cx } from '../ui';
+import { Dot, IconButton, cx } from '../ui';
 import { MASTHEAD_EDGES } from './edges';
 import { PAGE_TITLE_ID } from './ids';
 import { ProfileMenu } from './ProfileMenu';
@@ -31,8 +31,6 @@ import { ProfileMenu } from './ProfileMenu';
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
-/** An action: Material's standard icon button, 40px round (48px on a phone, app/android.css). */
-const ITEM = 'navlink inline-flex size-10 justify-center px-0!';
 
 /** The page's name, as Material's top app bar says where you are. */
 function PageTitle() {
@@ -127,40 +125,41 @@ export function Masthead() {
             </kbd>
           </button>}
 
-          <button
-            type="button"
-            className={cx(ITEM, 'group')}
+          {/* The actions: M3E's standard icon buttons, 40px round. */}
+          <IconButton
+            tone="bar"
+            size="md"
             aria-label={inboxName}
             aria-haspopup="dialog"
-            title={inboxName}
             data-inbox-trigger
             onClick={() => setInboxOpen(true)}
           >
-            <span className="relative text-bar-ink-2 transition-colors duration-150 group-hover:text-bar-ink">
+            <span className="relative inline-flex">
               <BellIcon />
               {/* The dot is the narrow-window form of the count (where the
                   badge shows, it would say the same thing twice) — and, at
                   every width, the mark of a new app version. */}
               {(shownUnread > 0 || shown.update) && <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-bar" />}
             </span>
-          </button>
+          </IconButton>
 
           {/* The label names what a press does, so it changes with the state
               (and is not also a pressed toggle — that would announce
               "Beträge anzeigen, gedrückt"). While amounts are hidden the item
               keeps a tint, so the mode is visible from across the room. */}
-          <button
-            type="button"
-            className={cx(ITEM, privacy && 'bg-[color-mix(in_srgb,var(--bar-ink)_14%,transparent)]')}
+          <IconButton
+            tone="bar"
+            size="md"
             aria-label={amounts}
             aria-keyshortcuts={singleKeyShortcuts ? 'B' : undefined}
             title={amounts + (singleKeyShortcuts ? ' (B)' : '')}
             onClick={togglePrivacy}
+            className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--bar-ink)_14%,transparent)]')}
           >
             {privacy ? <EyeOffIcon /> : <EyeIcon />}
-          </button>
+          </IconButton>
 
-          {!IS_ANDROID && <ThemeMenu className={cx(ITEM, 'max-sm:hidden')} labelClassName="sr-only" />}
+          {!IS_ANDROID && <ThemeMenu variant="icon" className="max-sm:hidden" />}
 
           {/* Abmelden lives in the Sitzung panel behind this chip, with the
               session it ends — the bar stays a row of places to go. */}

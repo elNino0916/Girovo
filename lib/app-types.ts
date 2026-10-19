@@ -5,7 +5,7 @@
 // the encrypted personal-data vault, the inbox. One place, so a view and the
 // provider can never disagree about a shape.
 
-import type { CategoryId } from './categories';
+import type { CategoryId, CustomCategory } from './categories';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
 import type { SavedPart } from './history';
 import type { OrderSchedule } from './order-schedule';
@@ -13,6 +13,7 @@ import type { SentOrder } from './sent-orders';
 import type { AvatarChoice } from './avatars';
 import type { Budgets } from './budgets';
 import type { LinkedBankRef } from './linked-banks';
+import type { SplitPart } from './splits';
 
 export type { CategoryId };
 
@@ -20,7 +21,8 @@ export type { CategoryId };
 export type DashboardTab = 'overview' | 'analysis' | 'contracts' | 'settings';
 
 /** A setting the search can bring the user to on the Einstellungen page (components/settings). */
-export type SettingsTarget = 'language' | 'theme' | 'idle' | 'logos' | 'usage' | 'device' | 'data' | 'keep' | 'updates';
+export type SettingsTarget =
+  | 'language' | 'theme' | 'idle' | 'categories' | 'logos' | 'usage' | 'device' | 'data' | 'keep' | 'backup' | 'updates';
 
 /** A date range as `<input type="date">` speaks it: local yyyy-mm-dd. */
 export type DateRange = { from: string; to: string };
@@ -172,6 +174,13 @@ export type VaultData = {
   categoryRules: Record<string, CategoryId>;
   /** txKey() → category, for a single booking. Beats a rule. */
   txCategories: Record<string, CategoryId>;
+  /** The user's own categories (lib/splits.ts), in the order they were made. */
+  customCategories: CustomCategory[];
+  /**
+   * txKey() → the shares of a booking the user split across categories
+   * (lib/splits.ts), whole cents each. Beats a single category and a rule.
+   */
+  splits: Record<string, SplitPart[]>;
   /** recurring-series ids the user said are not a contract. */
   dismissedRecurring: string[];
   /** Spending category → the monthly budget in whole cents (lib/budgets.ts). */
@@ -205,6 +214,8 @@ export const EMPTY_VAULT: VaultData = {
   aliases: {},
   categoryRules: {},
   txCategories: {},
+  customCategories: [],
+  splits: {},
   dismissedRecurring: [],
   budgets: {},
   notes: {},

@@ -44,13 +44,13 @@ import type { Session } from './session';
 import { EMPTY_VAULT } from './app-types.ts';
 import { OWN_PICTURE, isAvatarChoice, isAvatarImage } from './avatars.ts';
 import { sanitizeBudgets } from './budgets.ts';
-import { isCategoryId } from './categories.ts';
 import { boxSalt, deriveKey, newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
 import { msgs } from './i18n/index.ts';
 import { sanitizeNotes } from './notes.ts';
 import { sanitizeLinkedBanks } from './linked-banks.ts';
 import { moveAside, removeFamily, serialized, writeFileAtomic } from './sealed-file.ts';
 import { sanitizeSentOrders } from './sent-orders.ts';
+import { categoryValidator, sanitizeCustomCategories, sanitizeSplits } from './splits.ts';
 import { STATE_DIR } from './state-store.ts';
 
 /**
@@ -217,17 +217,20 @@ function capMap<V>(v: unknown, max: number, keyMax: number, value: (raw: unknown
   return out;
 }
 
-const category = (raw: unknown): CategoryId | null => (isCategoryId(raw) ? raw : null);
-
 /**
  * The vault as this server version understands it, or null when `input` is not
  * a vault at all (wrong type or version). Unknown keys are dropped, strings
  * clipped, IBANs and category ids validated, collections capped, sent orders
- * older than two weeks (at `now`) pruned. A vault from before budgets and
- * notes existed reads as one without any.
+ * older than two weeks (at `now`) pruned. A vault from before budgets, notes,
+ * own categories or splits existed reads as one without any.
  */
 export function sanitizeVault(input: unknown, now = Date.now()): VaultData | null {
   if (!isRecord(input) || input.version !== 1) return null;
+  // A category id is valid when it is the app's or one of this file's own
+  // categories — never by what another login on this process registered.
+  const customCategories = sanitizeCustomCategories(input.customCategories);
+  const known = categoryValidator(customCategories);
+  const category = (raw: unknown): CategoryId | null => (known(raw) ? raw : null);
   const dismissed = Array.isArray(input.dismissedRecurring)
     ? [...new Set(input.dismissedRecurring.filter((d): d is string => keyOk(d, VAULT_LIMITS.key)))]
     : [];
@@ -242,9 +245,12 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     categoryRules: capMap(input.categoryRules, VAULT_LIMITS.rules, VAULT_LIMITS.key, (raw, k) =>
       /^(cred|iban|name):/.test(k) ? category(raw) : null),
     txCategories: capMap(input.txCategories, VAULT_LIMITS.txCategories, VAULT_LIMITS.key, category),
+    customCategories,
+    // Two to ten shares each, whole cents, known categories (lib/splits.ts).
+    splits: sanitizeSplits(input.splits, known),
     dismissedRecurring: dismissed.slice(-VAULT_LIMITS.dismissed),
     // Spending categories only, whole cents (lib/budgets.ts).
-    budgets: sanitizeBudgets(input.budgets),
+    budgets: sanitizeBudgets(input.budgets, customCategories),
     // One line each, at most 280 characters, the newest within the caps (lib/notes.ts).
     notes: sanitizeNotes(input.notes),
     sentOrders: sanitizeSentOrders(input.sentOrders, now),
@@ -475,4 +481,63 @@ export async function wipeVault(s: Session): Promise<number> {
     if (failed) throw new VaultError(msgs().provider.vault.wipe, 500);
     return removed;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Restoring a backup (lib/backup.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * A backup's vault folded into the one on this machine. What is here wins
+ * wherever both say something — a name, a rule, a note, a budget — and the
+ * backup fills in what is missing: templates and own categories it has and
+ * this one lacks, its rules and notes for bookings this one says nothing
+ * about. An own category of the backup with the name of one here is that one:
+ * its rules, budget and splits go to it. Both sanitised, so the caps apply.
+ */
+export function mergeVaults(current: VaultData, backup: VaultData): VaultData {
+  const own = new Map(current.customCategories.map((c) => [c.name.toLocaleLowerCase('de'), c.id]));
+  const ids = new Set(current.customCategories.map((c) => c.id));
+  const idMap = new Map<CategoryId, CategoryId>();
+  const added: VaultData['customCategories'] = [];
+  for (const c of backup.customCategories) {
+    const same = own.get(c.name.toLocaleLowerCase('de'));
+    if (same) idMap.set(c.id, same);
+    else if (!ids.has(c.id)) added.push(c);
+  }
+  const map = (id: CategoryId) => idMap.get(id) ?? id;
+  const mapped = <V>(rec: Record<string, V>, fn: (v: V) => V) =>
+    Object.fromEntries(Object.entries(rec).map(([k, v]) => [k, fn(v)])) as Record<string, V>;
+  const templateIds = new Set(current.templates.map((t) => t.id));
+  const merged: VaultData = {
+    ...current,
+    templates: [...current.templates, ...backup.templates.filter((t) => !templateIds.has(t.id))],
+    aliases: { ...backup.aliases, ...current.aliases },
+    customCategories: [...current.customCategories, ...added],
+    categoryRules: { ...mapped(backup.categoryRules, map), ...current.categoryRules },
+    txCategories: { ...mapped(backup.txCategories, map), ...current.txCategories },
+    splits: { ...mapped(backup.splits, (parts) => parts.map((p) => ({ ...p, id: map(p.id) }))), ...current.splits },
+    budgets: { ...Object.fromEntries(Object.entries(backup.budgets).map(([k, v]) => [map(k as CategoryId), v])), ...current.budgets },
+    notes: { ...backup.notes, ...current.notes },
+    dismissedRecurring: [...new Set([...current.dismissedRecurring, ...backup.dismissedRecurring])],
+    ...(current.avatar || !backup.avatar ? {} : { avatar: backup.avatar, ...(backup.avatarImage ? { avatarImage: backup.avatarImage } : {}) }),
+    ...(current.linkedBanks || backup.linkedBanks
+      ? { linkedBanks: [...(current.linkedBanks ?? []), ...(backup.linkedBanks ?? [])] }
+      : {}),
+    ...(current.keepBookings || backup.keepBookings ? { keepBookings: true as const } : {}),
+  };
+  return sanitizeVault(merged) ?? current;
+}
+
+/**
+ * Restores a backup's vault into this login's: written as it is when there
+ * is none here yet, folded in (mergeVaults) when there is. Refused (409) while
+ * the file here does not open with this PIN — a reset comes first.
+ */
+export async function restoreVault(s: Session, backup: unknown): Promise<VaultPutResponse> {
+  const incoming = sanitizeVault(backup);
+  if (!incoming) throw new VaultError(msgs().provider.vault.format, 400);
+  const current = await loadVault(s);
+  if (current.status === 'error') throw new VaultError(msgs().provider.vault.locked, 409);
+  return saveVault(s, current.data ? mergeVaults(current.data, incoming) : incoming);
 }

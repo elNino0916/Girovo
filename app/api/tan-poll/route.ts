@@ -17,7 +17,7 @@ import { PENDING_SEG } from '@/lib/fints-pending';
 import { holdBankOrders, orderCaps } from '@/lib/fints-orders';
 import type { ClientResponseWithResult, TanPollResponse } from '@/lib/fints-types';
 import type { AccountBalanceResponse, ElectronicStatementResponse, PortfolioResponse, StatementResponse } from 'lib-fints';
-import { collectStatements } from '@/lib/bank-statements';
+import { collectStatements, continueStatements, type StatementSeg } from '@/lib/bank-statements';
 import { DocError } from '@/lib/doc-store';
 
 export const runtime = 'nodejs';
@@ -51,7 +51,8 @@ export const POST = wrap(async (req: Request) => {
         resp = await s.client.getPortfolioWithTan(tanReference!, tan);
         break;
       case 'bankStatements':
-        resp = await s.client.getElectronicStatementsWithTan(tanReference!, tan);
+        // HKEKA or HKEKP, whichever the read went out as (lib/bank-statements.ts).
+        resp = await continueStatements(s, pending.segId, tanReference!, tan);
         break;
       case 'statements':
         resp = await s.client.getAccountStatementsWithTan(tanReference!, tan);
@@ -121,7 +122,7 @@ export const POST = wrap(async (req: Request) => {
   if (type === 'bankStatements') {
     // The approved read, then the statements the bank has waiting behind it.
     try {
-      const got = await collectStatements(s, accountNumber!, resp as ElectronicStatementResponse);
+      const got = await collectStatements(s, accountNumber!, resp as ElectronicStatementResponse, (pending as { segId?: StatementSeg }).segId ?? 'HKEKA');
       return json({ status: 'done', kind: 'bankStatements', accountNumber, ...got } satisfies TanPollResponse);
     } catch (err) {
       if (err instanceof DocError) return fail(err.message, err.status);
@@ -164,7 +165,7 @@ export const POST = wrap(async (req: Request) => {
     const read = resp.bankOrders ?? { orders: [], complete: false, unreadable: 0 };
     return json({
       status: 'done', kind: 'bankOrders', accountNumber,
-      ...holdBankOrders(s, pending.accountNumber, pending.kind, read, !!caps?.remove),
+      ...holdBankOrders(s, pending.accountNumber, pending.kind, read, !!caps?.remove, !!caps?.change),
     } satisfies TanPollResponse);
   }
   if (pending.type === 'orderDelete') {

@@ -65,12 +65,19 @@ import {
 import type { LogoConsent } from '@/components/FintsProvider';
 import { acceptsBalance, balanceQueue, failureSentence, namesList } from '@/lib/balances';
 import { forgetLinkedBank, joinAccounts, rememberLinkedBank, sameLogin } from '@/lib/linked-banks';
-import { msgs } from '@/lib/i18n';
+import { MESSAGES, msgs } from '@/lib/i18n';
 import { BANK_UNAVAILABLE, bankAnswerLines } from '@/lib/bank-answer';
 import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
 import { categorize, explainGuess, type CategoryGuess } from '@/lib/categorize';
 import { withNote } from '@/lib/notes';
-import { counterpartyKey, isCategoryId, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
+import {
+  counterpartyKey, isCategoryId, setCustomCategories, txKey, type CategoryId, type CategoryResult, type CustomCategoryId,
+} from '@/lib/categories';
+import {
+  categoryValidator, cleanCategoryName, CUSTOM_LIMITS, nameKey, newCustomId, sanitizeSplit, withoutCategory, type SplitPart,
+} from '@/lib/splits';
+import type { TaxYear } from '@/lib/tax-year';
+import type { BackupSummary, RestoreReport } from '@/lib/backup';
 import { addDaysKey, fmtDate, fmtRange, ibanValid, isoDate, parseAmount, presetRange, repairBankText, translateType } from '@/lib/format';
 import {
   EMPTY_HISTORY, deliveredSpan, historyCoverage as coverageOf, historyView, mergeIntoHistory, planFetch, savedPeriod,
@@ -244,6 +251,7 @@ const WAIT_SUBJECT: Record<WaitKind, string> = {
   datedTransfer: 'die Terminüberweisung',
   bankOrders: 'den Abruf deiner Aufträge',
   orderDelete: 'das Löschen des Auftrags',
+  orderChange: 'die Änderung des Auftrags',
   portfolio: 'die Depotabfrage',
   bankStatements: 'den Abruf der Kontoauszüge',
 };
@@ -2243,7 +2251,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     const what = p.schedule?.kind === 'standing' ? 'Dauerauftrag'
       : p.schedule?.kind === 'dated' ? 'Terminüberweisung'
         : p.instant ? 'Echtzeitüberweisung' : 'Überweisung';
-    startWait(orderWaitKind(p.schedule), {
+    startWait(p.change ? 'orderChange' : orderWaitKind(p.schedule), {
       account: p.accountNumber,
       challenge: `${what} über ${amount.toFixed(2).replace('.', ',')} EUR `
         + `an ${p.recipientName.trim()} (IBAN …${ibanTail})${p.schedule ? `, ${scheduleSentence(p.schedule)},` : ''} freigeben`,
@@ -2422,6 +2430,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const categoryRules = vault?.categoryRules;
   const txCategories = vault?.txCategories;
+  const splits = vault?.splits;
+  const customCategories = vault?.customCategories;
+  // As the provider does: registered during the render, for everything below.
+  useMemo(() => setCustomCategories(customCategories ?? []), [customCategories]);
 
   const categoryOf = useMemo(() => {
     const own = new Set(ownIbans);
@@ -2431,14 +2443,14 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       if (hit) return hit;
       let result: CategoryResult;
       try {
-        result = categorize(tx, { ownIbans: own, rules: categoryRules, overrides: txCategories, merchantLabel: null });
+        result = categorize(tx, { ownIbans: own, rules: categoryRules, overrides: txCategories, splits, merchantLabel: null });
       } catch {
         result = { id: tx.amount >= 0 ? 'otherIn' : 'other', source: 'auto' };
       }
       memo.set(tx, result);
       return result;
     };
-  }, [ownIbans, categoryRules, txCategories]);
+  }, [ownIbans, categoryRules, txCategories, splits, customCategories]);
 
   // As the provider's, without logos or a model: the keyword rules alone.
   const categoryGuessOf = useMemo(() => {
@@ -2526,6 +2538,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const setCategory = useCallback((tx: SerializedTransaction, id: CategoryId | null, o: { rule?: boolean } = {}) => {
     const k = txKey(tx);
+    // As the provider: a choice of one category ends a split of this booking.
+    updateVault((v) => {
+      const rest = without(v.splits, k);
+      return rest === v.splits ? v : { ...v, splits: rest };
+    });
     if (id === null) {
       updateVault((v) => {
         const overrides = without(v.txCategories, k);
@@ -2533,7 +2550,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       });
       return;
     }
-    if (!isCategoryId(id)) return;
+    if (!categoryValidator(vaultRef.current?.customCategories ?? [])(id)) return;
     const who = counterpartyKey(tx);
     if (o.rule && who !== 'name:?') {
       const stale = new Set([k]);
@@ -2558,8 +2575,56 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   }, [updateVault]);
 
   const setBudgets = useCallback((next: Budgets) => {
-    const clean = sanitizeBudgets(next);
-    updateVault((v) => ({ ...v, budgets: clean }));
+    updateVault((v) => ({ ...v, budgets: sanitizeBudgets(next, v.customCategories) }));
+  }, [updateVault]);
+
+  const setSplit = useCallback((tx: SerializedTransaction, parts: readonly SplitPart[] | null): boolean => {
+    const k = txKey(tx);
+    if (parts === null) {
+      updateVault((v) => {
+        const rest = without(v.splits, k);
+        return rest === v.splits ? v : { ...v, splits: rest };
+      });
+      return true;
+    }
+    const clean = sanitizeSplit(parts, categoryValidator(vaultRef.current?.customCategories ?? []));
+    if (!clean || clean.reduce((sum, p) => sum + p.cents, 0) !== Math.round(Math.abs(tx.amount) * 100)) return false;
+    updateVault((v) => {
+      const { [k]: _was, ...rest } = v.splits;
+      return { ...v, splits: { ...rest, [k]: clean }, txCategories: without(v.txCategories, k) };
+    });
+    return true;
+  }, [updateVault]);
+
+  const taken = (name: string, own: readonly { id: string; name: string }[], except?: string) => {
+    const key = nameKey(name);
+    return own.some((c) => c.id !== except && nameKey(c.name) === key)
+      || [...Object.values(MESSAGES.de.categories), ...Object.values(MESSAGES.en.categories)].some((l) => nameKey(l) === key);
+  };
+
+  const addCustomCategory = useCallback((
+    name: string, direction: 'in' | 'out',
+  ): { id: CustomCategoryId } | { error: 'empty' | 'taken' | 'full' } => {
+    const clean = cleanCategoryName(name);
+    if (!clean) return { error: 'empty' };
+    const list = vaultRef.current?.customCategories ?? [];
+    if (list.length >= CUSTOM_LIMITS.count) return { error: 'full' };
+    if (taken(clean, list)) return { error: 'taken' };
+    const id = newCustomId();
+    updateVault((v) => ({ ...v, customCategories: [...v.customCategories, { id, name: clean, direction }] }));
+    return { id };
+  }, [updateVault]);
+
+  const renameCustomCategory = useCallback((id: CustomCategoryId, name: string): 'ok' | 'empty' | 'taken' => {
+    const clean = cleanCategoryName(name);
+    if (!clean) return 'empty';
+    if (taken(clean, vaultRef.current?.customCategories ?? [], id)) return 'taken';
+    updateVault((v) => ({ ...v, customCategories: v.customCategories.map((c) => (c.id === id ? { ...c, name: clean } : c)) }));
+    return 'ok';
+  }, [updateVault]);
+
+  const deleteCustomCategory = useCallback((id: CustomCategoryId) => {
+    updateVault((v) => ({ ...withoutCategory(v, id), customCategories: v.customCategories.filter((c) => c.id !== id) }));
   }, [updateVault]);
 
   const setNote = useCallback((tx: SerializedTransaction, text: string | null) => {
@@ -2589,6 +2654,32 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const printMessage = useCallback((message: InboxMessage) => {
     toast(`Vorschau: Hier würde die Mitteilung „${message.subject}“ als PDF erstellt.`, 'info', 6000);
+  }, [toast]);
+
+  const printTaxYear = useCallback((summary: TaxYear) => {
+    toast(`Vorschau: Hier würde die Jahresübersicht ${summary.year} als PDF erstellt.`, 'info', 6000);
+  }, [toast]);
+
+  // The preview reads the year like any other range: the active account's list.
+  const loadRange = useCallback((_account: SerializedAccount, r: DateRange) => applyRange(r), [applyRange]);
+
+  // A preview has no server to seal or open a backup: it says what would happen.
+  const makeBackup = useCallback(async (_password: string) => {
+    toast('Vorschau: Hier würde die Sicherung erstellt und gespeichert.', 'info', 6000);
+    return { ok: true as const, saved: false, summary: [] as BackupSummary[] };
+  }, [toast]);
+  const restoreBackup = useCallback(async (_text: string, _password: string) => {
+    toast('Vorschau: Hier würde die Sicherung wiederhergestellt.', 'info', 6000);
+    return { ok: true as const, report: [] as RestoreReport[] };
+  }, [toast]);
+
+  const inspectBankFile = useCallback(async (_text: string) => ({
+    ok: true as const,
+    info: { format: 'csv' as const, bookings: 412, skipped: 3, from: '2024-01-02', to: '2025-06-30', account: ACCT.giro, foreign: false },
+  }), []);
+  const importBankFile = useCallback(async (_text: string, _account: string) => {
+    toast('Vorschau: Hier würden die Umsätze der Datei ergänzt.', 'info', 6000);
+    return { ok: true as const, days: 545, bookings: 412 };
   }, [toast]);
 
   const closePrintJob = useCallback(() => setPrintJob(null), []);
@@ -2639,8 +2730,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     updateVault, resetVault, wipeVault, accountLabel, renameAccount,
     setKeepBookings, resetHistory, applySavedRange,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
-    categoryOf, setCategory,
+    printTaxYear, loadRange,
+    makeBackup, restoreBackup, inspectBankFile, importBankFile,
+    categoryOf, setCategory, setSplit,
     removeCategoryRule,
+    addCustomCategory, renameCustomCategory, deleteCustomCategory,
     // The preview runs no model: its keyword rules alone file the mock bookings.
     modelGuesses: {},
     categoryGuessOf, setBudgets, noteOf, setNote,

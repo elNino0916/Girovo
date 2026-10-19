@@ -163,7 +163,7 @@ function OpenList({ groups, onFiled }: { groups: OpenGroup[]; onFiled: (what: { 
     const next = row?.nextElementSibling ?? row?.previousElementSibling;
     const heading = row?.closest('section')?.querySelector<HTMLElement>('h3') ?? null;
     setTimeout(() => {
-      const target = next?.querySelector<HTMLElement>('button') ?? heading;
+      const target = next?.querySelector<HTMLElement>('button, [role="button"]') ?? heading;
       if (target?.isConnected) target.focus();
       else heading?.focus();
     }, 0);
@@ -215,9 +215,14 @@ function OpenRow({ group, onPick }: { group: OpenGroup; onPick: (g: OpenGroup, i
         label={words.assignFor(name)}
         minWidth={280}
         trigger={(p) => (
-          <Button {...p} size="xs" variant="secondary" aria-label={words.assignFor(name)}>
+          <Button
+            {...p}
+            size="xs"
+            variant="secondary"
+            aria-label={words.assignFor(name)}
+            iconRight={<ChevronIcon size={14} strokeWidth={2} />}
+          >
             {words.assign}
-            <ChevronIcon size={14} strokeWidth={2} className="-mr-1" />
           </Button>
         )}
       >

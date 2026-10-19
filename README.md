@@ -68,6 +68,17 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   keyword table, and for what those miss a small text model that runs on the
   machine (see [Category model](#category-model)) — correctable per booking or
   as a rule for a counterparty, and every rule teaches the model.
+- **Your own categories and split bookings** — make a category of your own
+  ("Spenden", "Handwerker", "Hund") from a booking's category menu, as spending
+  or income; it counts in the Analyse, the Monatsbudgets and the CSV like any
+  other, and is kept, renamed or deleted under *Einstellungen → Eigene
+  Kategorien*. The keywords and the model never guess one — it takes a booking
+  only by your choice or rule. *Aufteilen …* spreads one booking across up to
+  ten categories (the supermarket receipt that was half a present): every sum
+  counts each share in its own category, the filter and the search find it
+  under each, the row says "Lebensmittel + Geschenke", and the CSV names every
+  share with its amount. A split that no longer adds up to the booking (the
+  bank re-issued it with another amount) is set aside, never forced.
 - **Umsatzanalyse** — Einnahmen/Ausgaben/Differenz, spending by category,
   month-by-month comparison, top payees and largest expenses for one or all
   loaded accounts. Umbuchungen between your own accounts are left out, refunds
@@ -78,6 +89,15 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   300,00 €", what is left, or how far over. The running month says it is
   still running; a month the loaded period cuts says so and gives its
   spending as a minimum ("mind."), never as the month's total.
+- **Steuer-Jahresübersicht** — at the foot of the Analyse: one calendar year's
+  bookings in the categories you pick (Steuern, Versicherungen, Gesundheit and
+  your own ones by default), grouped and summed per category, a split booking
+  with its share only — as a printed PDF for whoever does the return (no notes,
+  your accounts named as the bank names them, its seal like every sheet), as a
+  CSV, or as a ZIP of that CSV with the receipts kept on those bookings. Each
+  account says which days of the year are loaded; a year not loaded whole is
+  said to be incomplete and its sums are minimums, with *Ganzes Jahr laden* per
+  account. A compilation, not tax advice.
 - **Kategorie-Check** — how the automatic categories fare with your own
   bookings, worked out on the machine: how many the app filed by its rules or
   by the on-device model, how many of those you left as they were, which you
@@ -87,15 +107,25 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   debits, standing orders, subscriptions, salary) with rhythm, next expected
   date, yearly cost and a "Betrag gestiegen" flag. Labelled as an estimate;
   "Kein Vertrag" hides a false hit.
+- **Kontostand am Monatsende** — where the selected account is heading by the
+  month's end, worked out day by day from today's balance, the Vorgemerkten,
+  the regular payments the bookings show, the bank's own Daueraufträge and
+  Terminüberweisungen where they were read (counted once where both name the
+  same payment), and what the account usually spends besides them (the last up
+  to three whole loaded months). Whole euros after "ca.", the basis in words,
+  and the day the balance may go below zero — or past the Dispositionsrahmen —
+  said in time, as a warning, not an error. In the Übersicht's side pane, and
+  at the head of Verträge where there is none (phones).
 - **CSV export** of the Umsätze list — all of the loaded period, or what the
   filter shows (the file name says which days, and "_gefiltert") — booked
   Umsätze only, in the German Excel dialect (`;`, UTF-8 BOM, decimal comma,
   formula-injection guard), your notes in the last column, plus the existing
   PDF Kontoauszug and Buchungsbeleg.
-- **Your bank's own Kontoauszüge** (HKEKA) — fetched as PDF where the bank
-  offers them, from the Umsätze's export menu, and every one kept on this
-  machine as it arrives, sealed with your PIN: some banks hand a statement out
-  once and mark it as delivered.
+- **Your bank's own Kontoauszüge** (HKEKA, or HKEKP — "Kontoauszug im
+  PDF-Format" — where that is all the account offers, as some Sparkassen do)
+  — fetched as PDF where the bank offers them, from the Umsätze's export menu,
+  and every one kept on this machine as it arrives, sealed with your PIN: some
+  banks hand a statement out once and mark it as delivered.
 - **Receipts on bookings** — attach a photo or PDF (an invoice, a till
   receipt) to any booking, sealed with your PIN on this machine. An invoice
   paid from its GiroCode (shared to the app, dropped or pasted) can go to its
@@ -126,7 +156,11 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
 - **The bank's Daueraufträge and Terminüberweisungen** (HKCDB, HKCSB) — under
   *Verträge & Abos*, read on request (it can cost an approval): payee, amount,
   rhythm or date and purpose, each deletable where the bank allows it (HKCDL,
-  HKCSL) after a confirmation that names exactly what goes.
+  HKCSL) after a confirmation that names exactly what goes — and changeable
+  (HKCDN, HKCSA): *Ändern …* lets the amount, the purpose and the date or
+  rhythm change (a Dauerauftrag from its next run the bank's lead time allows),
+  never the payee, through the same Namensabgleich, approval and "Status
+  unklar" as placing one.
 - **Geld anfordern** — a GiroCode (EPC QR) for your own IBAN, optionally with
   amount and purpose, that any German banking app can scan; save as PNG or copy
   the account details.
@@ -175,6 +209,25 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   bank's balances. Switching it off deletes them. With several banks the
   choice is the first login's and covers every bank in the view; each login
   keeps its own file, sealed with its own PIN.
+- **Older Umsätze from your online banking** — while *Umsätze behalten* is on,
+  *Einstellungen → Ältere Umsätze importieren* reads an export you downloaded
+  from your bank's online banking — CSV in the Sparkasse, Volksbank (Atruvia)
+  and similar layouts, Girovo's own CSV, camt.052/053 or MT940 — says what it
+  holds and which account it names, and adds the days it covers to the kept
+  Umsätze where nothing is kept for them yet. What the bank delivered over
+  FinTS is never replaced by a file; camt and MT940 bring the bank's balances,
+  so their days stay proven for the Kontoverlauf. Use an unfiltered export of a
+  whole period: a CSV vouches for the days from its first booking to its last.
+- **Backup and restore** — *Einstellungen → Sicherung* puts everything this
+  machine keeps for the logins in the view — personal data (templates,
+  categories, rules, notes, budgets, splits), the kept Umsätze and the kept
+  documents — into one `.girovo` file, encrypted (AES-256-GCM, scrypt) with a
+  password you choose for it (at least ten characters; it is made to leave the
+  machine, so not the PIN). Restoring it on a new computer, the phone, or this
+  machine after a loss writes each login's part anew under that machine's PIN,
+  only for a login signed in there (same bank and login name), and only adds:
+  what is already there wins, Umsätze fill only days not kept yet, a document
+  is not added twice.
 - **Beträge ausblenden** (privacy mode for screen sharing — every amount,
   chart axis and tooltip is masked, amounts inside the bank's own text as far
   as they can be recognised, and the Kontoverlauf keeps its trend but not
@@ -191,7 +244,8 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   runs. See [Updates](#updates).
 
 Built with **Next.js 16** (App Router, React 19, TypeScript) and **Tailwind CSS
-v4**, set in **Google Sans Flex**. Fonts are self-hosted through `next/font`, so
+v4**, its controls **M3E**'s Material 3 Expressive web components
+(`@m3e/web`), set in **Google Sans Flex**. Fonts are self-hosted through `next/font`, so
 they add no outside request of their own.
 
 ## Run it
@@ -508,7 +562,7 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `lib/csv.ts`, `lib/girocode.ts`, `lib/qr.ts`, `lib/qr-read.ts` | CSV export, the EPC069-12 GiroCode payload (build + parse) and QR rendering/reading (bundled `qrcode-generator` and `jsqr`, no network). |
 | `components/FintsProvider.tsx` | The client state machine: login → TAN method → dashboard, with every bank read serialised behind one `busy` flag (each read can cost its own approval), the decoupled poll loop, the applied date range, auto-logout, the vault and the inbox. Further banks are logins of their own beside the first (`links`); `lib/linked-banks.ts` routes each request to the session of the account's login, refuses a bank whose account numbers would collide with ones shown, and sanitises what the vault keeps about it. |
 | `components/*` | The UI: `shell/` (top app bar, navigation bar and rail, Sitzung panel), `settings/` (the Einstellungen page), `overview/`, `transactions/`, `insights/` (Analyse, Verträge), `transfer/`, `auth/`, `updates/` (the desktop updater's dialog and notices), plus the command palette, inbox and primitives in `ui.tsx`. |
-| `app/globals.css`, `app/material.css`, `app/android.css` | Design tokens as CSS variables mapped into Tailwind v4 via `@theme inline` (`globals.css`); the Material 3 Expressive look on every platform — the Girovo-blue scheme, shapes, motion, components, the flat page (`material.css`, generated in part by `scripts/build-m3e-css.mjs`); the phone's own behaviour (`android.css`). The print styles for the Kontoauszug are frozen separately. |
+| `app/globals.css`, `app/material.css`, `app/android.css` | Design tokens as CSS variables mapped into Tailwind v4 via `@theme inline` (`globals.css`); the Material 3 Expressive look on every platform — the Girovo-blue scheme mapped onto Material's standard tokens for M3E's components, shapes, motion, the flat page (`material.css`, its springs generated by `scripts/build-m3e-css.mjs`); the phone's own behaviour (`android.css`). The print styles for the Kontoauszug are frozen separately. |
 | `app/design-preview` | Dev-only harness that renders every screen with generated data (`/design-preview?view=overview`, `analysis`, `analysis-budgets`, `category-check`, `detail-note`, `contracts`, `transfer`, `login`, …; `&theme=dark`, `&privacy=1`). Returns 404 in production. |
 | `electron/main.cjs` | The desktop shell: boots the standalone server on loopback, opens the window, denies every device permission and sends outside links to the real browser. Paired with `scripts/build-electron.mjs` and `electron-builder.yml`. |
 | `electron/updater.cjs`, `electron/update-logic.cjs` | The [updater](#updates): checks GitHub releases, downloads and verifies against GitHub's SHA-256 digest, starts the installer (or the new portable build). Node built-ins and Electron only; the decisions (versions, files, install kind) are pure and tested on their own. The page side is `components/updates/`. |
@@ -686,8 +740,11 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
   chipTAN manuell and smsTAN (the bank's words). The typed methods are built
   from the specification and the reference vectors of open implementations
   and have not yet been tried against every bank's flavour of them.
-- The bank's own Kontoauszüge come over HKEKA only; a bank that offers them
-  over HKEKP alone (some Sparkassen) shows no menu entry for them yet.
+- The bank's own Kontoauszüge come over HKEKA, or over HKEKP where the account
+  offers only that. HKEKP is built from the specification and open
+  implementations and **not yet tried against a real bank**; its answer is read
+  by what each element is (lib/fints-statement-pdf.ts), because its versions
+  order them differently. No receipt (Quittung) is sent back for either.
 - A bank must start answering within 60 seconds, or the request is reported as
   "Deine Bank antwortet gerade nicht" (error pages and unreadable replies too —
   their content stays in the server log). A login can be cancelled after a few
@@ -705,8 +762,10 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
   Sammelaufträge and is not implemented.
 - Terminüberweisungen and Daueraufträge are built from the specification and
   open implementations (see the top of `lib/fints-orders.ts`) and have **not
-  yet been tried against a real bank**. Changing one (HKCSA/HKCDN) is not
-  offered: delete it and place it again. A device remembered by an earlier
+  yet been tried against a real bank** — changing one (HKCSA/HKCDN) neither.
+  A change keeps the payee; the bank's parameters for it (which fields it lets
+  change) are not read, so a field it does not allow comes back as its
+  refusal, in its own words. A device remembered by an earlier
   version keeps its stored BPD, which lacks the parameters for them; until the bank sends a
   new BPD the app offers a narrower, safe choice (monthly, quarterly,
   half-yearly, yearly on the 1st–28th, up to a year ahead) and says so.
@@ -779,7 +838,14 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
   login form) — never a PIN, a balance or a booking. *Von diesem Rechner
   löschen …* and *Gerät vergessen* with its box ticked remove that login name
   too. A CSV or PNG you export is a normal file — treat it like a printed
-  statement.
+  statement; so is a Steuer-Jahresübersicht's ZIP with its receipts.
+- A backup (`.girovo`) is sealed with its own password, not the PIN, because
+  it is made to be stored elsewhere: AES-256-GCM under scrypt, nothing readable
+  without it — not even which bank it is for. Choose a long one: a stolen copy
+  can be tried offline. The password is never stored or logged.
+- An imported export of your online banking is read on this machine by the
+  app's own server and goes nowhere else; the file itself stays where you
+  saved it.
 - Keep this on `localhost`. It has no authentication of its own.
 
 ## Development

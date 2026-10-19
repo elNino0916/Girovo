@@ -1,5 +1,5 @@
 // Terminierte SEPA-Überweisungen and SEPA-Daueraufträge: placing one, reading
-// the bank's list of them (the Bestand), deleting one.
+// the bank's list of them (the Bestand), changing one, deleting one.
 //
 // lib-fints knows the codes but none of the segments, so they are added here
 // through the library's extension points, like the transfers in
@@ -11,9 +11,19 @@
 //   HKCDE v1 → HICDE   SEPA-Dauerauftrag einrichten              (HICDES)
 //   HKCDB v1/2 → HICDB SEPA-Dauerauftragsbestand abrufen         (HICDBS)
 //   HKCDL v1/2         SEPA-Dauerauftrag löschen                 (HICDLS)
+//   HKCSA v1           terminierte SEPA-Überweisung ändern       (HICSAS)
+//   HKCDN v1/2         SEPA-Dauerauftrag ändern                  (HICDNS)
 //
-// Changing an order (HKCSA, HKCDN) is left out: the spec itself names
-// deleting and placing it again as the way when a product does not offer it.
+// A change names the order by its Auftragsidentifikation and sends a new
+// pain.001 for it — the same payee, a new amount, purpose or date — and, for
+// a Dauerauftrag, the new Dauerauftragdetails. It goes through the same
+// Namensabgleich, approval and "Status unklar" as placing one (the transfer
+// route's `change`). The payee is never changed here: that is a different
+// order, placed anew. Only offered where the bank declares the segment, the
+// account's UPD allows it and the Bestand did not mark the order "nicht
+// änderbar". The bank's parameters for it (HICSAS/HICDNS: which fields it
+// lets change) are not decoded — a field it does not let change comes back
+// as its refusal, in its own words.
 //
 // Sources for every layout below:
 //   - the specification, "FinTS 3.0 Messages – Multibankfähige
@@ -54,6 +64,11 @@
 //     Dauerauftragdetails. A terminierte Überweisung carries its real date.
 //   - The Aufsetzpunkt is followed by sending the request again with it, at
 //     most MAX_LIST_ROUNDS times; a list cut short says so (`complete`).
+//   - HKCSA and HKCDN are hbci4java's TermUebSEPAEdit and DauerSEPAEdit: the
+//     account, descriptor and pain message, the Auftragsidentifikation, and
+//     for HKCDN the Dauerauftragdetails after it. Their answers (HICSA,
+//     HICDN) are not decoded: the first element, where there is one, is read
+//     as the order's (possibly new) Auftragsidentifikation.
 
 import type { FinTSConfig, Message, Segment } from 'lib-fints';
 import { randomBytes } from 'node:crypto';
@@ -219,6 +234,19 @@ class HICSLS extends SegmentDefinition {
   ];
 }
 
+/** HKCSA: a terminierte Überweisung changed — the new pain names the new day. */
+class HKCSA extends SegmentDefinition {
+  static Id = 'HKCSA';
+  constructor() { super(HKCSA.Id); }
+  version = 1;
+  elements = [
+    new InternationalAccountGroup('account', 1, 1),
+    new AlphaNumeric('sepaDescriptor', 1, 1, 256),
+    new Binary('sepaMessage', 1, 1),
+    new AlphaNumeric('orderId', 1, 1, 99),
+  ];
+}
+
 // ---------------------------------------------------------------------------
 // SEPA-Dauerauftrag
 // ---------------------------------------------------------------------------
@@ -348,18 +376,32 @@ class HICDLS extends SegmentDefinition {
   ];
 }
 
+/** HKCDN: a Dauerauftrag changed — its Auftragsidentifikation, then the new Dauerauftragdetails. */
+class HKCDN extends SegmentDefinition {
+  static Id = 'HKCDN';
+  constructor() { super(HKCDN.Id); }
+  version = 2;
+  elements = [
+    new InternationalAccountGroup('account', 1, 1),
+    new AlphaNumeric('sepaDescriptor', 1, 1, 256),
+    new Binary('sepaMessage', 1, 1),
+    new AlphaNumeric('orderId', 1, 1, 99),
+    details(1, true),
+  ];
+}
+
 for (const def of [
-  new HKCSE(), new HICSE(), new HICSES(), new HKCSB(), new HICSB(), new HICSBS(), new HKCSL(), new HICSLS(),
-  new HKCDE(), new HICDE(), new HICDES(), new HKCDB(), new HICDB(), new HICDBS(), new HKCDL(), new HICDLS(),
+  new HKCSE(), new HICSE(), new HICSES(), new HKCSB(), new HICSB(), new HICSBS(), new HKCSL(), new HICSLS(), new HKCSA(),
+  new HKCDE(), new HICDE(), new HICDES(), new HKCDB(), new HICDB(), new HICDBS(), new HKCDL(), new HICDLS(), new HKCDN(),
 ]) registerSegmentDefinition(def);
 
 export const DATED_SEG = HKCSE.Id;
 export const STANDING_SEG = HKCDE.Id;
 
-/** Each kind's segments: place, list, delete — and what answers a list. */
-export const ORDER_SEGS: Record<BankOrderKind, { create: string; list: string; listAnswer: string; remove: string }> = {
-  dated: { create: HKCSE.Id, list: HKCSB.Id, listAnswer: HICSB.Id, remove: HKCSL.Id },
-  standing: { create: HKCDE.Id, list: HKCDB.Id, listAnswer: HICDB.Id, remove: HKCDL.Id },
+/** Each kind's segments: place, list, change, delete — and what answers a list. */
+export const ORDER_SEGS: Record<BankOrderKind, { create: string; list: string; listAnswer: string; change: string; remove: string }> = {
+  dated: { create: HKCSE.Id, list: HKCSB.Id, listAnswer: HICSB.Id, change: HKCSA.Id, remove: HKCSL.Id },
+  standing: { create: HKCDE.Id, list: HKCDB.Id, listAnswer: HICDB.Id, change: HKCDN.Id, remove: HKCDL.Id },
 };
 
 // ---------------------------------------------------------------------------
@@ -448,7 +490,10 @@ export function orderCaps(config: FinTSConfig, accountNumber: string): {
   const caps = (kind: BankOrderKind): OrderCaps | null => {
     const s = ORDER_SEGS[kind];
     const list = can(s.list);
-    const c = { create: !!account.iban && can(s.create), list, remove: list && can(s.remove) };
+    // Changing, like deleting, needs the list: that is where an order to change comes from.
+    const c = {
+      create: !!account.iban && can(s.create), list, remove: list && can(s.remove), change: list && !!account.iban && can(s.change),
+    };
     return c.create || c.list ? c : null;
   };
   const dated = caps('dated');
@@ -549,10 +594,83 @@ export function standingDetails(s: Extract<OrderSchedule, { kind: 'standing' }>)
   };
 }
 
-/** The segment an order goes out as. */
-export function orderSegId(instant: boolean, schedule?: OrderSchedule | null): string {
-  if (schedule?.kind === 'dated') return HKCSE.Id;
-  if (schedule?.kind === 'standing') return HKCDE.Id;
+/**
+ * HKCSA: a terminierte Überweisung changed — a new pain for its new day,
+ * under the order's Auftragsidentifikation.
+ */
+export class DatedChangeInteraction extends SepaOrderInteraction {
+  readonly date: string;
+  readonly orderId: string;
+
+  constructor(
+    accountNumber: string,
+    transfer: TransferOrder,
+    date: string,
+    orderId: string,
+    vopMode: VopMode = 'auto',
+    prebuilt?: { descriptor: string; sepaMessage: string },
+  ) {
+    super(HKCSA.Id, 'HICSA', accountNumber, transfer, vopMode, prebuilt);
+    this.date = date;
+    this.orderId = orderId;
+  }
+
+  protected executionDate(): string {
+    return this.date;
+  }
+
+  protected orderElements(): Record<string, unknown> {
+    return { orderId: this.orderId };
+  }
+
+  handleResponse(response: Message, clientResponse: ClientResponseWithResult): void {
+    clientResponse.transferResult = changedOrderId(response, 'HICSA', this.orderId);
+  }
+}
+
+/** HKCDN: a Dauerauftrag changed — a new pain, its Auftragsidentifikation, the new Dauerauftragdetails. */
+export class StandingChangeInteraction extends SepaOrderInteraction {
+  readonly schedule: Extract<OrderSchedule, { kind: 'standing' }>;
+  readonly orderId: string;
+
+  constructor(
+    accountNumber: string,
+    transfer: TransferOrder,
+    schedule: Extract<OrderSchedule, { kind: 'standing' }>,
+    orderId: string,
+    vopMode: VopMode = 'auto',
+    prebuilt?: { descriptor: string; sepaMessage: string },
+  ) {
+    super(HKCDN.Id, 'HICDN', accountNumber, transfer, vopMode, prebuilt);
+    this.schedule = schedule;
+    this.orderId = orderId;
+  }
+
+  protected orderElements(): Record<string, unknown> {
+    return { orderId: this.orderId, details: standingDetails(this.schedule) };
+  }
+
+  handleResponse(response: Message, clientResponse: ClientResponseWithResult): void {
+    clientResponse.transferResult = changedOrderId(response, 'HICDN', this.orderId);
+  }
+}
+
+/**
+ * The Auftragsidentifikation after a change: the first element of the answer
+ * (HICSA/HICDN, not decoded — see the top of this file) where it reads as one,
+ * else the order's own.
+ */
+function changedOrderId(response: Message, segId: string, own: string): TransferResult {
+  const raw = (response.findAllUnknownSegments(segId)[0] as { rawData?: string } | undefined)?.rawData ?? '';
+  const first = raw.split('+')[0]?.replace(/\?(.)/g, '$1').trim();
+  const id = first && /^[\x20-\x7e]{1,99}$/.test(first) && !first.startsWith('@') ? first : own;
+  return { orderId: id, cancellationCode: null, orderStatus: null };
+}
+
+/** The segment an order goes out as — a change (`change`) of a bank-held one included. */
+export function orderSegId(instant: boolean, schedule?: OrderSchedule | null, change = false): string {
+  if (schedule?.kind === 'dated') return change ? HKCSA.Id : HKCSE.Id;
+  if (schedule?.kind === 'standing') return change ? HKCDN.Id : HKCDE.Id;
   return instant ? 'HKIPZ' : 'HKCCS';
 }
 
@@ -565,11 +683,17 @@ export function orderSegId(instant: boolean, schedule?: OrderSchedule | null): s
 export function orderInteraction(
   accountNumber: string,
   transfer: TransferOrder,
-  opts: { instant: boolean; schedule?: OrderSchedule | null },
+  opts: { instant: boolean; schedule?: OrderSchedule | null; change?: { orderId: string } | null },
   vopMode: VopMode = 'auto',
   prebuilt?: { descriptor: string; sepaMessage: string },
 ): SepaOrderInteraction {
   const s = opts.schedule;
+  if (opts.change && s?.kind === 'dated') {
+    return new DatedChangeInteraction(accountNumber, transfer, s.date, opts.change.orderId, vopMode, prebuilt);
+  }
+  if (opts.change && s?.kind === 'standing') {
+    return new StandingChangeInteraction(accountNumber, transfer, s, opts.change.orderId, vopMode, prebuilt);
+  }
   if (s?.kind === 'dated') return new DatedTransferInteraction(accountNumber, transfer, s.date, vopMode, prebuilt);
   if (s?.kind === 'standing') return new StandingOrderInteraction(accountNumber, transfer, s, vopMode, prebuilt);
   return new SepaTransferInteraction(accountNumber, transfer, opts.instant, vopMode, prebuilt);
@@ -681,6 +805,7 @@ type ListSegment = Segment & {
   orderId?: string;
   details?: DetailsFields;
   canDelete?: string;
+  canChange?: string;
 };
 
 /** A Dauerauftrag's schedule from its Dauerauftragdetails; null when they do not add up to one. */
@@ -716,6 +841,9 @@ export function readListEntry(kind: BankOrderKind, seg: ListSegment): ReadBankOr
   const descriptor = seg.sepaDescriptor?.trim() || descriptorOf(pain);
   const refused = seg.canDelete?.trim().toUpperCase() === 'N';
   const deletable = !refused && !!descriptor && (kind === 'standing' ? !!seg.details : !!orderId);
+  // A change names the order by its Auftragsidentifikation, which it must have;
+  // one the bank marks "nicht änderbar" is offered for deleting only.
+  const changeable = seg.canChange?.trim().toUpperCase() !== 'N' && !!descriptor && !!orderId && !!schedule && read.payments.length === 1;
   const fields: Record<string, unknown> = { account: seg.account, orderId: seg.orderId, details: seg.details };
   return {
     order: {
@@ -730,6 +858,7 @@ export function readListEntry(kind: BankOrderKind, seg: ListSegment): ReadBankOr
       schedule,
       more: read.payments.length - 1,
       deletable,
+      changeable,
     },
     raw: { sepaDescriptor: descriptor ?? '', sepaMessage: pain, fields },
   };
@@ -880,8 +1009,8 @@ export class BankOrderDeleteInteraction extends CustomerOrderInteraction {
 export const newOrderRef = () => randomBytes(12).toString('hex');
 
 /** An entry as the browser sees it: everything but the raw data, under a handle. */
-export function serializeBankOrder(entry: ReadBankOrder, ref: string, canRemove: boolean): SerializedBankOrder {
-  return { ...entry.order, ref, deletable: canRemove && entry.order.deletable };
+export function serializeBankOrder(entry: ReadBankOrder, ref: string, canRemove: boolean, canChange = false): SerializedBankOrder {
+  return { ...entry.order, ref, deletable: canRemove && entry.order.deletable, changeable: canChange && entry.order.changeable };
 }
 
 /**
@@ -895,6 +1024,7 @@ export function holdBankOrders(
   kind: BankOrderKind,
   read: BankOrdersRead,
   canRemove: boolean,
+  canChange = false,
 ): BankOrdersAnswer {
   for (const [ref, held] of s.bankOrders) {
     if (held.accountNumber === accountNumber && held.kind === kind) s.bankOrders.delete(ref);
@@ -902,7 +1032,7 @@ export function holdBankOrders(
   const orders = read.orders.map((entry) => {
     const ref = newOrderRef();
     s.bankOrders.set(ref, { ...entry, accountNumber, kind });
-    return serializeBankOrder(entry, ref, canRemove);
+    return serializeBankOrder(entry, ref, canRemove, canChange);
   });
   console.log(`[orders] ${ORDER_SEGS[kind].list} orders=${orders.length} unreadable=${read.unreadable} complete=${read.complete}`);
   return { orderKind: kind, orders, complete: read.complete, unreadable: read.unreadable };

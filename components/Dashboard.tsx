@@ -30,6 +30,7 @@ import { PendingPanel, Transactions } from './Transactions';
 import { Portfolio } from './Portfolio';
 import { Analysis } from './Analysis';
 import { Contracts, UpcomingPayments } from './Contracts';
+import { ForecastTile } from './insights/Forecast';
 import { Settings } from './settings/Settings';
 import { TransferSheet } from './TransferSheet';
 import { AddBankSheet } from './AddBank';
@@ -162,6 +163,7 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
         {!IS_ANDROID && (
           <>
             {!depot && <Slot className="max-desk:hidden"><MonthSummary /></Slot>}
+            {!depot && <Slot className="max-desk:hidden"><ForecastTile /></Slot>}
             {!depot && <Slot className="max-desk:hidden"><UpcomingPayments /></Slot>}
             <Slot className="max-desk:hidden"><MessagesTeaser /></Slot>
           </>

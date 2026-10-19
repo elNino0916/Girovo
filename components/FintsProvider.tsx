@@ -35,14 +35,21 @@ import {
 } from 'react';
 import { ApiError, BACK_EVENT, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail } from '@/lib/client-api';
 import { IS_ANDROID } from '@/lib/platform';
-import { msgs, type Messages } from '@/lib/i18n';
+import { MESSAGES, msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { bankAnswerLines } from '@/lib/bank-answer';
 import { bookingKind, categorize, explainGuess, guessCategory, type CategoryGuess } from '@/lib/categorize';
 import { OWN_PICTURE, isAvatarChoice, isAvatarImage } from '@/lib/avatars';
 import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
 import { sanitizeNotes, withNote } from '@/lib/notes';
-import { counterpartyKey, counterpartyName, isCategoryId, rawCounterparty, txKey, type CategoryId, type CategoryResult } from '@/lib/categories';
+import {
+  counterpartyKey, counterpartyName, isCategoryId, rawCounterparty, setCustomCategories, txKey,
+  type CategoryId, type CategoryResult, type CustomCategoryId,
+} from '@/lib/categories';
+import {
+  categoryValidator, cleanCategoryName, CUSTOM_LIMITS, nameKey, newCustomId, sanitizeCustomCategories, sanitizeSplit,
+  sanitizeSplits, withoutCategory, type SplitPart,
+} from '@/lib/splits';
 import { isCardPurpose, parseCardAcceptor } from '@/lib/card-purpose';
 import { parsePurpose } from '@/lib/sepa-purpose';
 import {
@@ -84,8 +91,23 @@ import {
   base64ToBytes, bytesToBase64, type AwaitedBooking, type DocGetResponse, type DocResponse, type DocsListResponse, type KeptDoc,
 } from '@/lib/docs';
 import { matchAwaiting } from '@/lib/receipts';
-import { saveFile } from '@/lib/download';
+import { saveFile, textBlob } from '@/lib/download';
 import type { OrderSchedule } from '@/lib/order-schedule';
+import type { TaxYear } from '@/lib/tax-year';
+import type { BackupSummary, RestoreReport } from '@/lib/backup';
+
+/** What /api/history-import says an export file holds (inspect). */
+export type ImportInfo = {
+  format: 'csv' | 'mt940' | 'camt';
+  bookings: number;
+  skipped: number;
+  from: string | null;
+  to: string | null;
+  /** The view's account the file names, if it names one this login has. */
+  account: string | null;
+  /** The file names an account this login does not have. */
+  foreign: boolean;
+};
 import type { PopularBank } from '@/lib/banks';
 
 export type ChosenBank = {
@@ -198,6 +220,15 @@ export type PrintJob =
       bank: ChosenBank | null;
       /** As the inbox holds it: the bank's subject and text, and when this session received them. */
       message: InboxMessage;
+    }
+  | {
+      /** The Steuer-Jahresübersicht (lib/tax-year.ts): one year in the categories the user picked. */
+      kind: 'taxYear';
+      summary: TaxYear;
+      /** The account holder, as the banks name them. */
+      holder: string;
+      /** The accounts in scope, as the sheet lists them. */
+      accounts: { accountNumber: string; iban: string; label: string; bank: string }[];
     };
 
 /** When an account's Vorgemerkt list was fetched, and how it stands against the statement. */
@@ -245,12 +276,12 @@ type WaitPhase = 'waiting' | 'confirmed' | 'error' | 'ended' | 'refused';
  * placing a Dauerauftrag or a terminierte Überweisung, reading the bank's
  * list of them, deleting one. Their words are in lib/i18n/messages/orders.ts.
  */
-export type OrderWaitKind = 'standingOrder' | 'datedTransfer' | 'bankOrders' | 'orderDelete';
+export type OrderWaitKind = 'standingOrder' | 'datedTransfer' | 'bankOrders' | 'orderDelete' | 'orderChange';
 
 /** What an approval is for — the overlay asks before abandoning an order. */
 export type WaitKind = 'login' | 'statements' | 'pending' | 'balance' | 'portfolio' | 'bankStatements' | 'transfer' | OrderWaitKind;
 
-const ORDER_WAIT_KINDS: readonly string[] = ['standingOrder', 'datedTransfer', 'bankOrders', 'orderDelete'];
+const ORDER_WAIT_KINDS: readonly string[] = ['standingOrder', 'datedTransfer', 'bankOrders', 'orderDelete', 'orderChange'];
 export const isOrderWaitKind = (k: WaitKind | null | undefined): k is OrderWaitKind => !!k && ORDER_WAIT_KINDS.includes(k);
 
 /** An approval for an order that may move money: a transfer, a terminierte Überweisung, a Dauerauftrag. */
@@ -261,7 +292,7 @@ export const placesOrder = (k: WaitKind | null | undefined) => k === 'transfer' 
  * an order: never offered again behind the user's back, and leaving it is
  * asked first, because the bank holds it either way.
  */
-export const isOrderWait = (k: WaitKind | null | undefined) => placesOrder(k) || k === 'orderDelete';
+export const isOrderWait = (k: WaitKind | null | undefined) => placesOrder(k) || k === 'orderDelete' || k === 'orderChange';
 
 /** What an approval asks the user to confirm, as the object of "bestätige …", in `m`'s language. */
 export const waitSubject = (m: Messages, kind: WaitKind): string =>
@@ -426,6 +457,12 @@ export type TransferPayload = {
   accountNumber: string; recipientName: string; iban: string;
   amount: string; purpose: string; instant: boolean;
   schedule?: OrderSchedule;
+  /**
+   * Changes the bank-held order of this handle (SerializedBankOrder.ref)
+   * instead of placing a new one (HKCSA/HKCDN). Not logged for the duplicate
+   * check: it is no new order.
+   */
+  change?: string;
 };
 
 /** One kind of the bank's orders for an account, as last read (loadBankOrders). */
@@ -658,6 +695,18 @@ function inboxOf(list: readonly BankMessage[], receivedAt: string, bank: string)
     });
 }
 
+/**
+ * Whether a category of that name exists already: one of the user's own, or
+ * one of the app's in either language ("Shopping" is both) — two rows of the
+ * same name in a menu could not be told apart.
+ */
+function categoryNameTaken(name: string, own: readonly { name: string }[]): boolean {
+  const key = nameKey(name);
+  if (own.some((c) => nameKey(c.name) === key)) return true;
+  const builtin = [...Object.values(MESSAGES.de.categories), ...Object.values(MESSAGES.en.categories)];
+  return builtin.some((label) => nameKey(label) === key);
+}
+
 /** Removes `key` from a record without mutating it; the same object when it is absent. */
 function without<V>(rec: Record<string, V>, key: string): Record<string, V> {
   if (!Object.prototype.hasOwnProperty.call(rec, key)) return rec;
@@ -675,9 +724,13 @@ function normalizeVault(raw: VaultData | null | undefined): VaultData {
   if (!raw || typeof raw !== 'object') return EMPTY_VAULT;
   const record = (v: unknown): Record<string, unknown> =>
     v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  // Checked against this vault's own categories, not the ones registered for
+  // the page — those belong to the vault this one replaces.
+  const customCategories = sanitizeCustomCategories(raw.customCategories);
+  const known = categoryValidator(customCategories);
   const categories = (v: unknown): Record<string, CategoryId> => {
     const out: Record<string, CategoryId> = {};
-    for (const [k, id] of Object.entries(record(v))) if (isCategoryId(id)) out[k] = id;
+    for (const [k, id] of Object.entries(record(v))) if (known(id)) out[k] = id;
     return out;
   };
   const aliases: Record<string, string> = {};
@@ -692,12 +745,14 @@ function normalizeVault(raw: VaultData | null | undefined): VaultData {
     aliases,
     categoryRules: categories(raw.categoryRules),
     txCategories: categories(raw.txCategories),
+    customCategories,
+    splits: sanitizeSplits(raw.splits, known),
     dismissedRecurring: Array.isArray(raw.dismissedRecurring)
       ? raw.dismissedRecurring.filter((id): id is string => typeof id === 'string')
       : [],
     // The same rules the vault applies (lib/budgets.ts, lib/notes.ts) — and
     // an older vault without either reads as one without any.
-    budgets: sanitizeBudgets(raw.budgets),
+    budgets: sanitizeBudgets(raw.budgets, customCategories),
     notes: sanitizeNotes(raw.notes),
     sentOrders: sanitizeSentOrders(raw.sentOrders),
     ...(isAvatarChoice(raw.avatar) && (raw.avatar !== OWN_PICTURE || isAvatarImage(raw.avatarImage))
@@ -705,6 +760,9 @@ function normalizeVault(raw: VaultData | null | undefined): VaultData {
       : {}),
     ...(isAvatarImage(raw.avatarImage) ? { avatarImage: raw.avatarImage } : {}),
     ...(linkedBanks.length ? { linkedBanks } : {}),
+    // Kept too, or the login would read "Umsätze behalten" as off: the kept
+    // Umsätze would not load, and the next save would switch it off for good.
+    ...(raw.keepBookings === true ? { keepBookings: true as const } : {}),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : EMPTY_VAULT.updatedAt,
   };
 }
@@ -2647,6 +2705,25 @@ function useFintsState() {
   }, [toast, setSavedRangeBoth, setAppliedRange, applyAndLoad]);
 
   /**
+   * Reads `account` over `r` — the Steuer-Jahresübersicht's "Ganzes Jahr
+   * laden". The range becomes the one every list shows, as a pick in the
+   * Zeitraum control would make it, and is undone the same way if the read
+   * does not land.
+   */
+  const loadRange = useCallback((account: SerializedAccount, r: DateRange) => {
+    const next = normalizeRange(r);
+    if (!next) {
+      toast(msgs().provider.reads.invalidPeriod, 'error');
+      return;
+    }
+    if (busyRef.current) {
+      toast(msgs().provider.busy, 'info');
+      return;
+    }
+    applyAndLoad(account, next);
+  }, [toast, applyAndLoad]);
+
+  /**
    * "Alles Gespeicherte" from the Zeitraum control: every account's list
    * reaches back as far as what is kept for it — asking the bank only for its
    * free window, where nothing older is kept for an account just the default
@@ -3976,7 +4053,7 @@ function useFintsState() {
     sentOrderRef.current = null;
     if (outcome === 'failed') {
       if (inFlight) logSentOrder(null, inFlight);
-    } else {
+    } else if (!p.change) {
       logSentOrder(sentOrderOf(p, outcome, inFlight?.at ?? entry.at), inFlight);
     }
     // The bank's list of that kind no longer says how things stand: it is
@@ -4031,7 +4108,7 @@ function useFintsState() {
       // From here the bank holds the order: approved in the app, it executes
       // whether or not this window is still open to hear about it. So it is
       // logged as unclear now, and settled by its outcome.
-      const sent = p ? sentOrderOf(p, 'unknown', new Date().toISOString()) : null;
+      const sent = p && !p.change ? sentOrderOf(p, 'unknown', new Date().toISOString()) : null;
       sentOrderRef.current = sent;
       if (sent) logSentOrder(sent, null);
       startApproval(methodFor(p?.accountNumber), data, {
@@ -4057,7 +4134,8 @@ function useFintsState() {
         // after we stop asking — abandoning the wait does not cancel it.
         onCancelled: () => handlers.onUnknown(),
       }, {
-        kind: orderWaitKind(p?.schedule),
+        // A change of a bank-held order says so: the order exists already.
+        kind: p?.change ? 'orderChange' : orderWaitKind(p?.schedule),
         order: p
           ? {
             amount: typedAmount(p.amount), name: sepaSanitize(p.recipientName), iban: normIban(p.iban), instant: p.instant,
@@ -4285,6 +4363,13 @@ function useFintsState() {
 
   const categoryRules = vault?.categoryRules;
   const txCategories = vault?.txCategories;
+  const splits = vault?.splits;
+  const customCategories = vault?.customCategories;
+  // The user's own categories, registered for every label, menu and sum on
+  // the page (lib/categories.ts). Here, during the render, rather than in an
+  // effect: whatever renders below the provider in this pass must already
+  // name them. Idempotent, so a repeated render does no harm.
+  useMemo(() => setCustomCategories(customCategories ?? []), [customCategories]);
 
   // The user's rules are the model's examples: with a new one, every
   // counterparty is asked again (the server keeps its vectors, so that is cheap).
@@ -4355,7 +4440,7 @@ function useFintsState() {
       let result: CategoryResult;
       try {
         result = categorize(tx, {
-          ownIbans: own, rules: categoryRules, overrides: txCategories, merchantLabel: merchant?.label ?? null,
+          ownIbans: own, rules: categoryRules, overrides: txCategories, splits, merchantLabel: merchant?.label ?? null,
           modelGuesses,
         });
       } catch {
@@ -4365,7 +4450,8 @@ function useFintsState() {
       memo.set(tx, result);
       return result;
     };
-  }, [ownIbans, categoryRules, txCategories, merchants, modelGuesses]);
+    // customCategories: a renamed or deleted category relabels every booking.
+  }, [ownIbans, categoryRules, txCategories, splits, customCategories, merchants, modelGuesses]);
 
   /**
    * What the app would file a booking under on its own, and by which rung
@@ -4497,14 +4583,23 @@ function useFintsState() {
    */
   const setCategory = useCallback((tx: SerializedTransaction, id: CategoryId | null, opts: { rule?: boolean } = {}) => {
     const key = txKey(tx);
+    // A choice of one category — or going back to the automatic one — ends a
+    // split of this booking: the booking is then filed whole again.
+    const unsplit = (v: VaultData): VaultData => {
+      const rest = without(v.splits, key);
+      return rest === v.splits ? v : { ...v, splits: rest };
+    };
     if (id === null) {
-      updateVault((v) => {
+      updateVault((v0) => {
+        const v = unsplit(v0);
         const overrides = without(v.txCategories, key);
         return overrides === v.txCategories ? v : { ...v, txCategories: overrides };
       });
       return;
     }
-    if (!isCategoryId(id)) return;
+    // Checked against the vault itself: a category made a moment ago is
+    // there before the page has registered it (the next render does).
+    if (!categoryValidator(vaultRef.current?.customCategories ?? [])(id)) return;
     const who = counterpartyKey(tx);
     // A counterparty with neither IBAN, creditor ID nor name cannot carry a rule.
     if (opts.rule && who !== 'name:?') {
@@ -4515,7 +4610,8 @@ function useFintsState() {
         ...Object.values(notedFetched).flatMap((e) => e.txs),
       ];
       for (const t of loaded) if (counterpartyKey(t) === who) stale.add(txKey(t));
-      updateVault((v) => {
+      updateVault((v0) => {
+        const v = unsplit(v0);
         let overrides = v.txCategories;
         for (const k of stale) overrides = without(overrides, k);
         if (v.categoryRules[who] === id && overrides === v.txCategories) return v;
@@ -4523,10 +4619,81 @@ function useFintsState() {
       });
       return;
     }
-    updateVault((v) => (v.txCategories[key] === id
-      ? v
-      : { ...v, txCategories: { ...v.txCategories, [key]: id } }));
+    updateVault((v0) => {
+      const v = unsplit(v0);
+      return v.txCategories[key] === id ? v : { ...v, txCategories: { ...v.txCategories, [key]: id } };
+    });
   }, [txCache, pendingFetched, notedFetched, updateVault]);
+
+  /**
+   * Splits one booking across categories (lib/splits.ts) — `parts` in whole
+   * cents, adding up to the booking — or, with `null`, files it whole again
+   * under what it had before. A split replaces a choice of one category for
+   * this booking; a rule for its counterparty stays and takes it back once
+   * the split goes.
+   */
+  const setSplit = useCallback((tx: SerializedTransaction, parts: readonly SplitPart[] | null): boolean => {
+    const key = txKey(tx);
+    if (parts === null) {
+      updateVault((v) => {
+        const rest = without(v.splits, key);
+        return rest === v.splits ? v : { ...v, splits: rest };
+      });
+      return true;
+    }
+    const clean = sanitizeSplit(parts, categoryValidator(vaultRef.current?.customCategories ?? []));
+    const total = Math.round(Math.abs(Number(tx.amount)) * 100);
+    if (!clean || clean.reduce((sum, p) => sum + p.cents, 0) !== total) return false;
+    updateVault((v) => {
+      const { [key]: _was, ...rest } = v.splits;
+      // Newest last, so the vault's cap keeps it (lib/splits.ts sanitizeSplits).
+      return { ...v, splits: { ...rest, [key]: clean }, txCategories: without(v.txCategories, key) };
+    });
+    return true;
+  }, [updateVault]);
+
+  /**
+   * A category of the user's own, made now (lib/splits.ts). The name must be
+   * new — neither one of theirs nor one of the app's, in either language —
+   * and there may be CUSTOM_LIMITS.count of them. Answers the new id, or why not.
+   */
+  const addCustomCategory = useCallback((
+    name: string, direction: 'in' | 'out',
+  ): { id: CustomCategoryId } | { error: 'empty' | 'taken' | 'full' } => {
+    const clean = cleanCategoryName(name);
+    if (!clean) return { error: 'empty' };
+    const list = vaultRef.current?.customCategories ?? [];
+    if (list.length >= CUSTOM_LIMITS.count) return { error: 'full' };
+    if (categoryNameTaken(clean, list)) return { error: 'taken' };
+    const id = newCustomId();
+    updateVault((v) => ({ ...v, customCategories: [...v.customCategories, { id, name: clean, direction }] }));
+    return { id };
+  }, [updateVault]);
+
+  /** A new name for one of the user's own categories; every booking filed under it relabels. */
+  const renameCustomCategory = useCallback((id: CustomCategoryId, name: string): 'ok' | 'empty' | 'taken' => {
+    const clean = cleanCategoryName(name);
+    if (!clean) return 'empty';
+    const list = vaultRef.current?.customCategories ?? [];
+    if (categoryNameTaken(clean, list.filter((c) => c.id !== id))) return 'taken';
+    updateVault((v) => ({
+      ...v,
+      customCategories: v.customCategories.map((c) => (c.id === id ? { ...c, name: clean } : c)),
+    }));
+    return 'ok';
+  }, [updateVault]);
+
+  /**
+   * Deletes one of the user's own categories. What it filed goes back to the
+   * automatic guess: its rules and single choices, its budget, and every
+   * split that used it (lib/splits.ts withoutCategory).
+   */
+  const deleteCustomCategory = useCallback((id: CustomCategoryId) => {
+    updateVault((v) => {
+      if (!v.customCategories.some((c) => c.id === id)) return v;
+      return { ...withoutCategory(v, id), customCategories: v.customCategories.filter((c) => c.id !== id) };
+    });
+  }, [updateVault]);
 
   /** Drops the user's rule for one counterparty (a counterpartyKey); its bookings go back to the automatic guess. */
   const removeCategoryRule = useCallback((who: string) => {
@@ -4542,8 +4709,8 @@ function useFintsState() {
    * comes back after the next login.
    */
   const setBudgets = useCallback((next: Budgets) => {
-    const clean = sanitizeBudgets(next);
     updateVault((v) => {
+      const clean = sanitizeBudgets(next, v.customCategories);
       const before = v.budgets;
       const same = Object.keys(clean).length === Object.keys(before).length
         && Object.entries(clean).every(([id, cents]) => before[id as CategoryId] === cents);
@@ -4566,6 +4733,113 @@ function useFintsState() {
     });
     if (dropped > 0) toast(msgs().budgets.notes.oldestDropped(dropped), 'info', 10_000);
   }, [updateVault, toast]);
+
+  // ---- backup (lib/backup.ts) ---------------------------------------------
+
+  /** The view's sessions besides the first login's: the further banks signed in now. */
+  const linkedSessionIds = useCallback(
+    () => linksRef.current.map((l) => l.sessionId).filter((id): id is string => !!id),
+    [],
+  );
+
+  /**
+   * Makes a backup of what this machine keeps for the view and offers it for
+   * saving. The vault is written first, so the file holds what the screen
+   * shows. Answers what went into it, or why there is none.
+   */
+  const makeBackup = useCallback(async (password: string): Promise<
+    { ok: true; saved: boolean; summary: BackupSummary[] } | { ok: false; error: string }
+  > => {
+    const sid = sessionRef.current;
+    if (!sid) return { ok: false, error: msgs().provider.server.sessionExpired };
+    await flushVault();
+    try {
+      const r = await post<{ name: string; text: string; summary: BackupSummary[] }>('/api/backup', {
+        sessionId: sid, linked: linkedSessionIds(), op: 'make', password,
+      });
+      const outcome = await saveFile(r.name, textBlob(r.text, 'application/octet-stream'));
+      return { ok: true, saved: outcome !== 'canceled', summary: r.summary };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message || msgs().provider.server.unreachable };
+    }
+  }, [flushVault, linkedSessionIds]);
+
+  /**
+   * Restores a backup file's text into the view's logins, then reads back
+   * what changed: the vault, the kept Umsätze, the documents. Pending vault
+   * edits are written first, so the merge on the server sees them.
+   */
+  const restoreBackup = useCallback(async (text: string, password: string): Promise<
+    { ok: true; report: RestoreReport[] } | { ok: false; error: string }
+  > => {
+    const sid = sessionRef.current;
+    if (!sid) return { ok: false, error: msgs().provider.server.sessionExpired };
+    await flushVault();
+    let report: RestoreReport[];
+    try {
+      ({ report } = await post<{ report: RestoreReport[] }>('/api/backup', {
+        sessionId: sid, linked: linkedSessionIds(), op: 'restore', text, password,
+      }));
+    } catch (e) {
+      return { ok: false, error: (e as Error).message || msgs().provider.server.unreachable };
+    }
+    if (!isCurrent(sid)) return { ok: true, report };
+    await loadVault(sid);
+    if (vaultRef.current?.keepBookings) await loadHistory(sid);
+    await loadDocs();
+    return { ok: true, report };
+  }, [flushVault, linkedSessionIds, isCurrent, loadVault, loadHistory, loadDocs]);
+
+  // ---- older Umsätze from the online banking's export (lib/bank-import.ts) --
+
+  /**
+   * What an export file holds: its format, how many bookings, the days it
+   * vouches for, and which of the view's accounts it names. Each login of the
+   * view is asked in turn until one recognises the account; the first
+   * login's answer stands when none does.
+   */
+  const inspectBankFile = useCallback(async (text: string): Promise<
+    { ok: true; info: ImportInfo } | { ok: false; error: string }
+  > => {
+    const sid = sessionRef.current;
+    if (!sid) return { ok: false, error: msgs().provider.server.sessionExpired };
+    let first: ImportInfo | null = null;
+    for (const id of [sid, ...linkedSessionIds()]) {
+      try {
+        const info = await post<ImportInfo>('/api/history-import', { sessionId: id, op: 'inspect', text });
+        if (info.account) return { ok: true, info };
+        first ??= info;
+      } catch (e) {
+        if (id === sid) return { ok: false, error: (e as Error).message || msgs().provider.server.unreachable };
+      }
+    }
+    return first ? { ok: true, info: first } : { ok: false, error: msgs().history.import.server.notReadable };
+  }, [linkedSessionIds]);
+
+  /**
+   * Fills the kept Umsätze of `accountNumber` from an export file, through
+   * the account's own login, then reads that login's kept Umsätze again.
+   */
+  const importBankFile = useCallback(async (text: string, accountNumber: string): Promise<
+    { ok: true; days: number; bookings: number } | { ok: false; error: string }
+  > => {
+    const sid = sessionRef.current;
+    const target = sessionFor(accountNumber);
+    if (!sid || !target) return { ok: false, error: msgs().provider.server.sessionExpired };
+    try {
+      const r = await post<{ days: number; bookings: number }>('/api/history-import', {
+        sessionId: target, op: 'import', text, accountNumber,
+      });
+      if (r.days && isCurrent(sid)) {
+        const link = linkOf(accountNumber);
+        if (link) await loadLinkedHistory(link);
+        else await loadHistory(sid);
+      }
+      return { ok: true, days: r.days, bookings: r.bookings };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message || msgs().provider.server.unreachable };
+    }
+  }, [sessionFor, isCurrent, linkOf, loadLinkedHistory, loadHistory]);
 
   // ---- printable Kontoauszug / transaction receipt / bank message ---------
   // A print job just snapshots what's already on screen (no extra bank call,
@@ -4628,6 +4902,31 @@ function useFintsState() {
     }
   }, [bank, banks, toast]);
 
+  /**
+   * The Steuer-Jahresübersicht on paper. The accounts are named as the bank
+   * names them (product or type), never by the user's own name for them: a
+   * third party reads this.
+   */
+  const printTaxYear = useCallback((summary: TaxYear) => {
+    const inScope = summary.accounts
+      .map((c) => accounts.find((a) => a.accountNumber === c.accountNumber))
+      .filter((a): a is SerializedAccount => !!a);
+    setPrintJob({
+      kind: 'taxYear',
+      summary,
+      holder: inScope.find((a) => a.holder?.trim())?.holder ?? '',
+      accounts: inScope.map((a) => ({
+        accountNumber: a.accountNumber,
+        iban: a.iban || '',
+        label: a.product?.trim() || translateType(a.accountType),
+        bank: bankOf(a)?.bank?.name ?? '',
+      })),
+    });
+    if (typeof window === 'undefined' || !window.electronPDF) {
+      toast(msgs().provider.printAsPdf, 'info', 6000);
+    }
+  }, [accounts, bankOf, toast]);
+
   const closePrintJob = useCallback(() => setPrintJob(null), []);
 
   return {
@@ -4668,6 +4967,8 @@ function useFintsState() {
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
     requestLogout, closeLogoutConfirm, setForgetDeviceOpen,
     retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
+    printTaxYear, loadRange,
+    makeBackup, restoreBackup, inspectBankFile, importBankFile,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,
     setTab, openSettings, clearSettingsTarget, setTxFilter, showTransactions,
@@ -4678,8 +4979,9 @@ function useFintsState() {
     updateVault, resetVault, wipeVault, accountLabel, renameAccount,
     setKeepBookings, resetHistory, applySavedRange,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
-    categoryOf, setCategory,
+    categoryOf, setCategory, setSplit,
     removeCategoryRule,
+    addCustomCategory, renameCustomCategory, deleteCustomCategory,
     modelGuesses,
     categoryGuessOf, setBudgets, noteOf, setNote,
     // more banks (lib/linked-banks.ts)

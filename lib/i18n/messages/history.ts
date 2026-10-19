@@ -2,6 +2,9 @@
 // switch on the Einstellungen page and its dialogs, what the list and the Zeitraum
 // control say about the kept part, and the server's refusals.
 
+const nDe = (n: number) => n.toLocaleString('de-DE');
+const nEn = (n: number) => n.toLocaleString('en-GB');
+
 export const de = {
   /** The switch in the Einstellungen page's "Auf diesem Rechner". */
   keep: 'Umsätze auf diesem Rechner behalten',
@@ -54,6 +57,35 @@ export const de = {
     write: 'Die Umsätze konnten nicht gespeichert werden.',
     wipe: 'Die gespeicherten Umsätze konnten nicht vollständig gelöscht werden. Bitte versuche es erneut.',
     unknownAction: 'Unbekannte Aktion.',
+    /** Restoring or importing Umsätze while "Umsätze behalten" is off. */
+    notKept: 'Umsätze werden auf diesem Rechner nicht behalten – schalte „Umsätze behalten“ zuerst ein.',
+    locked: 'Die gespeicherten Umsätze lassen sich mit dieser PIN nicht öffnen.',
+  },
+  /** Older Umsätze from the online banking's export (lib/bank-import.ts, components/settings/ImportDialog.tsx). */
+  import: {
+    row: 'Ältere Umsätze importieren',
+    rowHint: 'Aus einem Export deines Online-Bankings (CSV, camt oder MT940) – für die Zeit, bevor Girovo sie gespeichert hat.',
+    open: 'Importieren …',
+    title: 'Ältere Umsätze importieren',
+    intro: 'Lade im Online-Banking deiner Bank die Umsätze eines Zeitraums herunter – ungefiltert, als CSV, camt.053 oder MT940 – und wähle die Datei hier. Girovo ergänzt damit nur Tage, die es noch nicht gespeichert hat; was die Bank per FinTS geliefert hat, bleibt unverändert.',
+    choose: 'Datei wählen …',
+    none: 'Noch keine Datei gewählt',
+    reading: 'Datei wird gelesen …',
+    format: { csv: 'CSV', mt940: 'MT940', camt: 'camt' },
+    found: (format: string, count: string, from: string, to: string) => `${format} · ${count} vom ${from} bis ${to}`,
+    skipped: (n: number) => `${nDe(n)} ${n === 1 ? 'Zeile ist' : 'Zeilen sind'} kein gebuchter Umsatz und ${n === 1 ? 'bleibt' : 'bleiben'} außen vor.`,
+    account: 'Konto',
+    foreign: 'Die Datei nennt ein Konto, das zu dieser Anmeldung nicht gehört. Prüfe, ob du das richtige Konto gewählt hast.',
+    run: 'Importieren',
+    done: (days: number, count: string) =>
+      days ? `${nDe(days)} ${days === 1 ? 'Tag' : 'Tage'} mit ${count} ergänzt.` : 'Nichts Neues – diese Tage sind schon gespeichert.',
+    keepOff: 'Importieren geht nur, solange „Umsätze behalten“ an ist.',
+    server: {
+      tooLarge: 'Die Datei ist zu groß.',
+      notReadable: 'Diese Datei kann Girovo nicht lesen. Exportiere die Umsätze als CSV, camt.053 oder MT940.',
+      noAccount: 'Wähle das Konto, zu dem die Datei gehört.',
+      nothing: 'Die Datei enthält keine Tage, die sich ergänzen ließen.',
+    },
   },
 };
 
@@ -99,5 +131,31 @@ export const en: typeof de = {
     write: 'The transactions could not be saved.',
     wipe: 'The saved transactions could not be deleted completely. Please try again.',
     unknownAction: 'Unknown action.',
+    notKept: 'Transactions are not kept on this computer – switch on “Keep transactions” first.',
+    locked: 'The saved transactions cannot be opened with this PIN.',
+  },
+  import: {
+    row: 'Import older transactions',
+    rowHint: 'From an export of your online banking (CSV, camt or MT940) – for the time before Girovo saved them.',
+    open: 'Import …',
+    title: 'Import older transactions',
+    intro: 'Download a period’s transactions in your bank’s online banking – unfiltered, as CSV, camt.053 or MT940 – and choose the file here. Girovo only adds days it has not saved yet; what the bank delivered via FinTS stays as it is.',
+    choose: 'Choose file …',
+    none: 'No file chosen yet',
+    reading: 'Reading the file …',
+    format: { csv: 'CSV', mt940: 'MT940', camt: 'camt' },
+    found: (format, count, from, to) => `${format} · ${count} from ${from} to ${to}`,
+    skipped: (n) => `${nEn(n)} ${n === 1 ? 'row is' : 'rows are'} not a booked transaction and ${n === 1 ? 'is' : 'are'} left out.`,
+    account: 'Account',
+    foreign: 'The file names an account that does not belong to this login. Check that you chose the right account.',
+    run: 'Import',
+    done: (days, count) => (days ? `${nEn(days)} ${days === 1 ? 'day' : 'days'} with ${count} added.` : 'Nothing new – these days are already saved.'),
+    keepOff: 'Importing only works while “Keep transactions” is on.',
+    server: {
+      tooLarge: 'The file is too large.',
+      notReadable: 'Girovo cannot read this file. Export the transactions as CSV, camt.053 or MT940.',
+      noAccount: 'Choose the account the file belongs to.',
+      nothing: 'The file holds no days that could be added.',
+    },
   },
 };

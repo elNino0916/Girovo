@@ -35,7 +35,7 @@ android/                       the Capacitor project
   app/src/github/…             UpdaterPlugin: APK updates from GitHub
   app/src/play/…               UpdaterPlugin: Google Play's in-app update
 scripts/build-android.mjs      the whole build
-scripts/build-m3e-css.mjs      the springs and loading-indicator shapes in app/android.css
+scripts/build-m3e-css.mjs      the M3 Expressive springs in app/material.css
 ```
 
 ### Material 3 Expressive

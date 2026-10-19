@@ -16,6 +16,7 @@ const MIME: Record<string, string> = {
   pdf: 'application/pdf',
   png: 'image/png',
   txt: 'text/plain',
+  zip: 'application/zip',
 };
 
 const mimeOf = (name: string) => MIME[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream';

@@ -98,6 +98,68 @@
     --md-scrim: #000000;
   }
 
+  /* ---- M3E's colour tokens, read from Girovo's roles -----------------------
+     The controls are M3E's own web components (@m3e/web, components/ui.tsx),
+     which read Material's standard tokens (--md-sys-color-*). They are
+     Girovo's roles under their standard names — one source, so the dark
+     theme and Material You's wallpaper roles reach every M3E control with no
+     second scheme to keep in step. M3E's own <m3e-theme> is not used: it
+     would compute a scheme of its own and override the wallpaper's.
+     The error roles are Soll Red's, which no wallpaper changes. */
+  :where(:root[data-look='material']) {
+    --md-sys-color-primary: var(--md-primary);
+    --md-sys-color-on-primary: var(--md-on-primary);
+    --md-sys-color-primary-container: var(--md-primary-container);
+    --md-sys-color-on-primary-container: var(--md-on-primary-container);
+    --md-sys-color-inverse-primary: var(--md-inverse-primary);
+    --md-sys-color-secondary: var(--md-secondary);
+    --md-sys-color-on-secondary: var(--md-on-secondary);
+    --md-sys-color-secondary-container: var(--md-secondary-container);
+    --md-sys-color-on-secondary-container: var(--md-on-secondary-container);
+    --md-sys-color-tertiary: var(--md-tertiary);
+    --md-sys-color-on-tertiary: var(--md-on-tertiary);
+    --md-sys-color-tertiary-container: var(--md-tertiary-container);
+    --md-sys-color-on-tertiary-container: var(--md-on-tertiary-container);
+    --md-sys-color-surface: var(--md-surface);
+    --md-sys-color-surface-dim: var(--md-surface-dim);
+    --md-sys-color-surface-bright: var(--md-surface-bright);
+    --md-sys-color-surface-container-lowest: var(--md-surface-container-lowest);
+    --md-sys-color-surface-container-low: var(--md-surface-container-low);
+    --md-sys-color-surface-container: var(--md-surface-container);
+    --md-sys-color-surface-container-high: var(--md-surface-container-high);
+    --md-sys-color-surface-container-highest: var(--md-surface-container-highest);
+    --md-sys-color-surface-variant: var(--md-surface-container-highest);
+    --md-sys-color-on-surface: var(--md-on-surface);
+    --md-sys-color-on-surface-variant: var(--md-on-surface-variant);
+    --md-sys-color-background: var(--md-surface);
+    --md-sys-color-on-background: var(--md-on-surface);
+    --md-sys-color-outline: var(--md-outline);
+    --md-sys-color-outline-variant: var(--md-outline-variant);
+    --md-sys-color-inverse-surface: var(--md-inverse-surface);
+    --md-sys-color-inverse-on-surface: var(--md-inverse-on-surface);
+    --md-sys-color-scrim: var(--md-scrim);
+    --md-sys-color-shadow: #000000;
+    --md-sys-color-error: var(--red);
+    --md-sys-color-on-error: #ffffff;
+    --md-sys-color-error-container: var(--red-soft);
+    --md-sys-color-on-error-container: var(--red);
+  }
+  :where(:root[data-look='material'][data-theme='dark']) {
+    --md-sys-color-on-error: #3a0a12;
+  }
+
+  /* Until M3E has upgraded an element (its module registers it as the page
+     loads), it is not shown: an unstyled button or an option list must never
+     flash on the page. */
+  :where(m3e-button, m3e-icon-button, m3e-button-group, m3e-checkbox, m3e-switch, m3e-chip, m3e-filter-chip,
+    m3e-loading-indicator, m3e-linear-progress-indicator, m3e-nav-bar, m3e-nav-item, m3e-fab,
+    m3e-form-field, m3e-select, m3e-option, m3e-optgroup):not(:defined) {
+    visibility: hidden;
+  }
+  :where(m3e-option, m3e-optgroup):not(:defined) {
+    display: none;
+  }
+
   :root[data-look='material'] {
     /* ---- shape (ShapeTokens) -------------------------------------------- */
     --m3e-corner-xs: 4px;
@@ -139,8 +201,6 @@
     --shadow-tile: 0 1px 2px rgb(0 0 0 / 0.06), 0 1px 3px 1px rgb(0 0 0 / 0.04);
     --m3e-level2: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
     --m3e-level3: 0 4px 8px 3px rgb(0 0 0 / 0.15), 0 1px 3px rgb(0 0 0 / 0.3);
-    /* What a floating label sits on when it rises onto the outline. */
-    --field-notch: var(--surface);
 
     /* ---- Girovo's tokens on Material's roles ----------------------------- */
     --paper: var(--md-surface);
@@ -243,9 +303,6 @@
       padding-left: 96px;
     }
   }
-  :root[data-look='material'] [data-rail] [data-nav-item] {
-    padding-top: 0;
-  }
 
   /* ---- the page: flat, list-first ----------------------------------------
      On the phone the page is not a stack of boxes. A section stands on the
@@ -314,6 +371,14 @@
     --chart-area: color-mix(in srgb, var(--stage-ink) 16%, transparent);
     --chart-grid: color-mix(in srgb, var(--stage-ink) 12%, transparent);
     --chart-axis: color-mix(in srgb, var(--stage-ink) 28%, transparent);
+    --md-sys-color-primary: var(--stage-ink);
+    --md-sys-color-on-primary: var(--stage);
+    --md-sys-color-secondary-container: color-mix(in srgb, var(--stage-ink) 14%, transparent);
+    --md-sys-color-on-secondary-container: var(--stage-ink);
+    --md-sys-color-on-surface: var(--stage-ink);
+    --md-sys-color-on-surface-variant: var(--stage-ink-2);
+    --md-sys-color-outline: color-mix(in srgb, var(--stage-ink) 60%, transparent);
+    --md-sys-color-outline-variant: var(--stage-line);
     position: relative;
     border-radius: 28px;
     background-color: var(--stage);
@@ -329,302 +394,69 @@
     }
   }
 
-  /* ---- buttons: round, squeezed square while pressed (Button*Tokens) ------ */
-  :root[data-look='material'] button[data-size] {
-    --btn-r: 20px;
-    --btn-r-pressed: var(--m3e-corner-sm);
-    height: 40px;
-    padding-inline: 16px;
-    border-radius: var(--btn-r);
-    font-size: 14px;
-    font-weight: 500;
-    letter-spacing: 0.1px;
-    transition:
-      border-radius var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast),
-      background-color var(--m3e-effects-default-ms) var(--m3e-effects-default),
-      color var(--m3e-effects-default-ms) var(--m3e-effects-default),
-      opacity var(--m3e-effects-default-ms) var(--m3e-effects-default);
+  /* ---- buttons (@m3e/web button and icon-button) -------------------------
+     M3E draws them — the round shape squeezed square while pressed, the state
+     layers, the ripple. Here only what is Girovo's: a quiet text button in
+     the neutral ink, a danger button in Soll Red (each by other colour roles
+     for that one button, so M3E colours every state of it), and a top bar's
+     icon buttons sized by the caption band, which page zoom shrinks in the
+     desktop shell (--band-ctl, globals.css). */
+  :root[data-look='material'] m3e-button[data-variant='danger'] {
+    --md-sys-color-primary: var(--md-sys-color-error);
+    --md-sys-color-on-primary: var(--md-sys-color-on-error);
   }
-  /* lg: the medium button, 56dp, for the one action a form leads to. */
-  :root[data-look='material'] button[data-size='lg'] {
-    --btn-r: 28px;
-    --btn-r-pressed: var(--m3e-corner-md);
-    height: 56px;
-    padding-inline: 24px;
-    font-size: 16px;
-    letter-spacing: 0.15px;
+  :root[data-look='material'] m3e-button[data-variant='quiet'] {
+    --md-sys-color-primary: var(--md-sys-color-on-surface-variant);
   }
-  /* xs: the extra-small button, 32dp. */
-  :root[data-look='material'] button[data-size='xs'] {
-    --btn-r: 16px;
-    height: 32px;
-    padding-inline: 12px;
+  :root[data-look='material'] m3e-icon-button[data-tone='bar'] {
+    --md-sys-color-on-surface-variant: var(--bar-ink-2);
+    --m3e-icon-button-small-container-height: var(--band-ctl);
+    --m3e-icon-button-small-default-leading-space: calc((var(--band-ctl) - 24px) / 2);
+    --m3e-icon-button-small-default-trailing-space: calc((var(--band-ctl) - 24px) / 2);
   }
-  :root[data-look='material'] button[data-size]:not(:disabled):active {
-    border-radius: var(--btn-r-pressed);
-  }
-  /* The second emphasis is the filled tonal button, not an outline. */
-  :root[data-look='material'] button:is([data-variant='secondary'], [data-variant='ghost']) {
-    border-color: transparent;
-    background-color: var(--accent-soft);
-    color: var(--tonal-ink);
-  }
-  /* Icon buttons: round, a rounded square while pressed. */
-  :root[data-look='material'] [data-icon-button] {
-    border-radius: 9999px;
-    transition:
-      border-radius var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast),
-      background-color var(--m3e-effects-default-ms) var(--m3e-effects-default);
-  }
-  :root[data-look='material'] [data-icon-button='md'] {
-    border-radius: 20px;
-  }
-  :root[data-look='material'] [data-icon-button='sm'] {
-    border-radius: 16px;
-  }
-  :root[data-look='material'] [data-icon-button='md']:not(:disabled):active {
-    border-radius: var(--m3e-corner-md);
-  }
-  :root[data-look='material'] [data-icon-button='sm']:not(:disabled):active {
-    border-radius: var(--m3e-corner-sm);
+  :root[data-look='material'] m3e-icon-button[data-tone='stage'] {
+    --md-sys-color-on-surface-variant: var(--stage-ink-2);
+    --md-sys-color-primary: var(--stage-ink);
   }
 
-  /* ---- connected button group (instead of segmented buttons) -------------
-     ConnectedButtonGroup*Tokens: 2dp apart, the group's outer corners round,
-     the inner ones small — squeezed to extra-small while pressed — and the
-     chosen button round all over, filled. */
-  :root[data-look='material'] [data-segmented] {
-    gap: 2px;
-    padding: 0;
-    border-radius: 0;
-    background: none;
-  }
-  :root[data-look='material'] [data-segmented] > button {
-    --seg-h: 40px;
-    --seg-r: 20px;
-    height: var(--seg-h);
-    padding-inline: 16px;
-    border-radius: var(--m3e-corner-sm);
-    background-color: var(--toggle-bg);
-    color: var(--toggle-ink);
-    box-shadow: none;
-    font-size: 14px;
-    font-weight: 500;
-    letter-spacing: 0.1px;
-    transition:
-      border-radius var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast),
-      background-color var(--m3e-effects-default-ms) var(--m3e-effects-default),
-      color var(--m3e-effects-default-ms) var(--m3e-effects-default);
-  }
-  :root[data-look='material'] [data-segmented='sm'] > button {
-    --seg-h: 32px;
-    --seg-r: 16px;
-    padding-inline: 12px;
-  }
-  :root[data-look='material'] [data-segmented] > button:first-child {
-    border-start-start-radius: var(--seg-r);
-    border-end-start-radius: var(--seg-r);
-  }
-  :root[data-look='material'] [data-segmented] > button:last-child {
-    border-start-end-radius: var(--seg-r);
-    border-end-end-radius: var(--seg-r);
-  }
-  :root[data-look='material'] [data-segmented] > button:not([aria-checked='true']):not(:disabled):active {
-    border-radius: var(--m3e-corner-xs);
-  }
-  :root[data-look='material'] [data-segmented] > button:first-child:not([aria-checked='true']):active {
-    border-start-start-radius: var(--seg-r);
-    border-end-start-radius: var(--seg-r);
-  }
-  :root[data-look='material'] [data-segmented] > button:last-child:not([aria-checked='true']):active {
-    border-start-end-radius: var(--seg-r);
-    border-end-end-radius: var(--seg-r);
-  }
-  :root[data-look='material'] [data-segmented] > button[aria-checked='true'] {
-    border-radius: var(--seg-r);
-    background-color: var(--accent);
-    color: var(--accent-ink);
-  }
-
-  /* ---- filter chips (FilterChipTokens) ----------------------------------- */
-  :root[data-look='material'] [data-chip] {
-    height: 32px;
-    border-color: var(--line);
-    color: var(--ink-2);
-    font-size: 14px;
-    font-weight: 500;
-    letter-spacing: 0.1px;
-    transition:
-      background-color var(--m3e-effects-default-ms) var(--m3e-effects-default),
-      border-color var(--m3e-effects-default-ms) var(--m3e-effects-default);
-  }
-  :root[data-look='material'] [data-chip][aria-pressed='true'] {
-    border-color: transparent;
-    background-color: var(--accent-soft);
-    color: var(--tonal-ink);
-  }
-
-  /* ---- outlined text fields (OutlinedTextFieldTokens) --------------------- */
-  :root[data-look='material'] :is(input, select).h-12 {
-    height: 56px;
-  }
-  /* A select's open list is drawn by the browser, on the select's own
-     background — and a field here is transparent, so the list fell back to
-     white while its entries kept the dark theme's light ink. Its entries
-     carry the menu's surface and ink instead, in either theme. */
-  :root[data-look='material'] select option {
-    background-color: var(--menu-bg);
-    color: var(--ink);
+  /* ---- M3E's form field (outlined text field, select) ---------------------
+     @m3e/web form-field draws the outline, the floating label and the
+     subscript, and m3e-select opens its list as an M3 menu panel. Here only
+     what Girovo's type sets for its fields: 16px control text, as on every
+     field. */
+  :root[data-look='material'] m3e-form-field {
+    --m3e-form-field-font-size: 16px;
+    --m3e-form-field-line-height: 24px;
+    --m3e-form-field-tracking: 0.5px;
   }
   /* A bare input — the palette's search line, where the whole sheet is the
      field — has no outline to colour: the caret says where typing goes. */
-  :root[data-look='material'] :is(input:not([type='checkbox'], [type='radio'], [type='range'], [data-bare]), select, textarea):focus-visible {
+  :root[data-look='material'] input[data-bare]:focus-visible {
     outline: none;
-    border-color: var(--accent);
-    box-shadow: inset 0 0 0 1px var(--accent);
-  }
-  :root[data-look='material'] :is(input, select, textarea)[aria-invalid='true']:focus-visible {
-    border-color: var(--red);
-    box-shadow: inset 0 0 0 1px var(--red);
-  }
-  :root[data-look='material'] :is([role='dialog'], [data-sheet]) {
-    --field-notch: var(--raised);
-  }
-  :root[data-look='material'] [data-dialog='basic'] {
-    --field-notch: var(--dialog-bg);
   }
 
-  /* The floating label: inside the outline while the field is empty, on the
-     outline once it has focus or a value (components/ui.tsx, Field). */
-  :root[data-look='material'] [data-field='float'] {
-    position: relative;
-  }
-  :root[data-look='material'] [data-field='float'] > [data-field-label] {
-    position: absolute;
-    inset: 0 0 auto;
-    z-index: 1;
-    height: 56px;
-    padding-inline: 16px;
-    display: flex;
-    align-items: center;
-    pointer-events: none;
-  }
-  :root[data-look='material'] [data-field='float'] > [data-field-label] > label {
-    max-width: 100%;
-    overflow: hidden;
-    padding-inline: 4px;
-    margin-inline: -4px;
-    border-radius: 2px;
-    font-size: 16px;
-    font-weight: 400;
-    letter-spacing: 0.5px;
-    line-height: 24px;
-    color: var(--ink-2);
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    transform-origin: left center;
-    transition:
-      translate var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast),
-      scale var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast),
-      color var(--m3e-effects-fast-ms) var(--m3e-effects-fast);
-  }
-  /* Beside a leading glyph (the bank search), the resting label clears it. */
-  :root[data-look='material'] [data-field='float']:has(input.pl-10) > [data-field-label] > label {
-    translate: 28px 0;
-  }
-  :root[data-look='material'] [data-field='float']:is(
-      :has(:focus),
-      :has(input:not(:placeholder-shown)),
-      :has(textarea:not(:placeholder-shown)),
-      :has(select),
-      :has(input[type='date'])
-    ) > [data-field-label] > label {
-    translate: 0 -28px;
-    scale: 0.75;
-    background-color: var(--field-notch);
-  }
-  :root[data-look='material'] [data-field='float']:has(:focus) > [data-field-label] > label {
-    color: var(--accent);
-  }
-  :root[data-look='material'] [data-field='float']:has([aria-invalid='true']) > [data-field-label] > label {
-    color: var(--red);
-  }
-  /* Locked while the bank is asked: dimmer text, not a grey fill the rising
-     label would have to cut a notch into. */
-  :root[data-look='material'] [data-field='float'] :is(input, textarea):read-only {
-    background-color: var(--field-bg);
-    color: var(--ink-2);
-  }
-  /* A placeholder only shows where the label has made room for it. */
-  :root[data-look='material'] [data-field='float'] :is(input, textarea):not(:focus)::placeholder {
-    color: transparent;
-  }
-  /* Supporting text under the field. */
-  :root[data-look='material'] [data-field='float'] > :is([id$='-error'], [id$='-hint']) {
-    padding-inline: 16px;
-    font-size: 12px;
-    letter-spacing: 0.4px;
+  /* ---- skeletons (@m3e/web skeleton) -------------------------------------
+     M3E's wave over Girovo's inset colour — the tile's inset, the stage's on
+     the balance — rather than over the page's surface, which on a tile or on
+     the stage would read as a white block. */
+  :root[data-look='material'] m3e-skeleton {
+    --m3e-skeleton-color: var(--inset);
+    --m3e-skeleton-tint-opacity: 0%;
   }
 
-  /* ---- switch (SwitchTokens) --------------------------------------------- */
-  :root[data-look='material'] [role='switch'] {
-    width: 52px;
-    height: 32px;
-    border: 2px solid var(--field-line);
-    background-color: var(--inset);
-    transition:
-      background-color var(--m3e-effects-default-ms) var(--m3e-effects-default),
-      border-color var(--m3e-effects-default-ms) var(--m3e-effects-default);
+  /* ---- menus (@m3e/web menu) ---------------------------------------------
+     M3E draws the menu and its items. Girovo's part: as wide as a menu's
+     longest line needs, up to 360px; a danger item in Soll Red; and an item
+     with a description two lines tall, where M3E's are one. */
+  :root[data-look='material'] m3e-menu {
+    --m3e-menu-container-max-width: min(360px, calc(100vw - 16px));
   }
-  :root[data-look='material'] [role='switch'][aria-checked='true'] {
-    border-color: var(--accent);
-    background-color: var(--accent);
+  :root[data-look='material'] m3e-menu-item[data-tone='danger'] {
+    --m3e-menu-item-color: var(--md-sys-color-error);
   }
-  :root[data-look='material'] [role='switch'] > span {
-    width: 16px;
-    height: 16px;
-    translate: 6px 0;
-    background-color: var(--field-line);
-    box-shadow: none;
-    transition:
-      translate var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast),
-      width var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast),
-      height var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast),
-      background-color var(--m3e-effects-default-ms) var(--m3e-effects-default);
-  }
-  :root[data-look='material'] [role='switch'][aria-checked='true'] > span {
-    width: 24px;
-    height: 24px;
-    translate: 22px 0;
-    background-color: var(--accent-ink);
-  }
-  /* Pressed, the handle grows to 28dp either way. */
-  :root[data-look='material'] [role='switch']:not(:disabled):active > span {
-    width: 28px;
-    height: 28px;
-    translate: 0 0;
-  }
-  :root[data-look='material'] [role='switch'][aria-checked='true']:not(:disabled):active > span {
-    translate: 20px 0;
-  }
-
-  /* ---- menus (StandardMenuTokens / SegmentedMenuTokens) ------------------ */
-  :root[data-look='material'] [role='menu'] {
-    padding: 4px;
-    border-radius: var(--m3e-corner-lg);
-    background-color: var(--menu-bg);
-    box-shadow: var(--m3e-level2);
-  }
-  :root[data-look='material'] [role='menu'] :is([role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox']) {
+  :root[data-look='material'] :is(m3e-menu-item, m3e-menu-item-radio):has([data-two-line]) {
+    height: auto;
     min-height: 44px;
-    border-radius: var(--m3e-corner-md);
-    font-size: 16px;
-    letter-spacing: 0.5px;
-  }
-  :root[data-look='material'] [role='menu'] :is([role='menuitemradio'], [role='menuitemcheckbox'])[aria-checked='true'] {
-    border-radius: 22px;
-    background-color: var(--menu-selected);
-    color: var(--menu-selected-ink);
   }
 
   /* ---- dialogs and sheets ------------------------------------------------ */
@@ -665,90 +497,38 @@
     font-size: 14px;
     letter-spacing: 0.25px;
   }
-  /* Its glyph says what kind of message it is; on the inverse surface it takes the text's colour. */
-  :root[data-look='material'] [data-toast] > span:first-child,
-  :root[data-look='material'] [data-toast] [data-icon-button] {
+  /* Its glyph says what kind of message it is; on the inverse surface it
+     takes the text's colour, as its close button does; its action is a text
+     button in inverse-primary. */
+  :root[data-look='material'] [data-toast] > span:first-child {
     color: inherit;
   }
-  :root[data-look='material'] [data-toast] [data-toast-action] {
-    color: var(--snackbar-action);
-    background-color: transparent;
+  :root[data-look='material'] [data-toast] {
+    --md-sys-color-on-surface-variant: var(--snackbar-ink);
+    --md-sys-color-primary: var(--snackbar-action);
   }
 
-  /* ---- navigation bar and FAB -------------------------------------------- */
-  /* The indicator springs open from the middle when its place is chosen. */
-  :root[data-look='material'] [data-nav-indicator] {
-    scale: 0.4 1;
-    opacity: 0;
-    transition:
-      scale var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast),
-      opacity var(--m3e-effects-fast-ms) var(--m3e-effects-fast),
-      background-color var(--m3e-effects-fast-ms) var(--m3e-effects-fast);
+  /* ---- navigation bar, rail and FAB (@m3e/web nav-bar, fab) ---------------
+     M3E draws them; here Girovo's colours for the bar and its items, the
+     --nav-* tokens (Material You's on Android). The FAB is M3E's
+     primary-container variant. */
+  /* Four places share a phone's width: no 112dp floor under each, which
+     would push the row past a 375px screen. */
+  :root[data-look='material'] m3e-nav-bar {
+    --m3e-nav-bar-container-color: var(--nav-bg);
+    --m3e-nav-bar-vertical-item-width: 0px;
   }
-  :root[data-look='material'] [data-nav-item][aria-current='page'] [data-nav-indicator] {
-    scale: 1;
-    opacity: 1;
+  :root[data-look='material'] m3e-nav-item {
+    --m3e-nav-item-active-container-color: var(--nav-indicator);
+    --m3e-nav-item-active-icon-color: var(--nav-active);
+    --m3e-nav-item-active-label-text-color: var(--nav-label-active);
+    --m3e-nav-item-inactive-icon-color: var(--nav-ink);
+    --m3e-nav-item-inactive-label-text-color: var(--nav-ink);
   }
-  :root[data-look='material'] [data-nav-item]:active:not([aria-current]) [data-nav-indicator] {
-    scale: 1;
-    opacity: 1;
-    background-color: color-mix(in srgb, var(--nav-ink) 12%, transparent);
-  }
-  :root[data-look='material'] [data-fab] {
-    interpolate-size: allow-keywords;
-    transition:
-      width var(--m3e-spatial-default-ms) var(--m3e-spatial-default),
-      padding var(--m3e-spatial-default-ms) var(--m3e-spatial-default),
-      gap var(--m3e-spatial-default-ms) var(--m3e-spatial-default);
-  }
-
-  /* ---- loading indicator (LoadingIndicatorTokens) ------------------------- */
-  /* Where the desktop turns a ring, the phone morphs a shape through the
-     sequence Compose uses, turning as it goes (generated below). */
-  :root[data-look='material'] [data-spinner] {
-    border: 0 !important;
-    border-radius: 0 !important;
-    background-color: currentColor;
-    animation:
-      m3e-loading-morph var(--m3e-loading-morph-ms) infinite,
-      m3e-loading-turn 4666ms linear infinite !important;
-  }
-
-  /* ---- wavy progress indicator (LinearProgressIndicatorTokens) ------------
-     The done part a wave — 40dp long, 3dp high, 4dp thick — travelling along;
-     the rest a flat track 4dp after it, with the 4dp stop at its end. */
-  :root[data-look='material'] [role='progressbar']:has(> [data-progress-fill]) {
-    --p: attr(aria-valuenow type(<number>), 0);
-    position: relative;
-    height: 10px;
-    border-radius: 0;
-    background: none;
-  }
-  :root[data-look='material'] [role='progressbar']:has(> [data-progress-fill])::before {
-    content: '';
-    position: absolute;
-    inset: 3px 0 3px calc(var(--p) * 1% + 4px);
-    border-radius: 2px;
-    background-color: var(--progress-track);
-  }
-  :root[data-look='material'] [role='progressbar']:has(> [data-progress-fill])::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    right: 0;
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background-color: var(--accent);
-  }
-  :root[data-look='material'] [data-progress-fill] {
-    position: relative;
-    z-index: 1;
-    height: 10px;
-    border-radius: 0;
-    background-color: var(--accent);
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='10'%3E%3Cpath d='M0 5Q10-1 20 5T40 5' fill='none' stroke='%23000' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x 0 0 / 40px 10px;
-    animation: m3e-wave 1s linear infinite;
+  /* In the rail, an item is the rail's width (M3E's compact rail, 96dp), not a share of a row. */
+  :root[data-look='material'] [data-rail] m3e-nav-item {
+    flex: none;
+    width: 100%;
   }
 
   /* ---- motion ------------------------------------------------------------ */
@@ -766,27 +546,8 @@
   }
 }
 
-@keyframes m3e-wave {
-  to { mask-position: -40px 0; }
-}
 @keyframes m3e-dialog-in {
   from { opacity: 0; scale: 0.8; }
   to { opacity: 1; scale: 1; }
 }
 
-/* m3e:loading:start — generated by scripts/build-m3e-css.mjs */
-@keyframes m3e-loading-morph {
-  0% { clip-path: polygon(50% 17.61%, 52.93% 16.46%, 56.36% 13.95%, 60.12% 12.23%, 63.46% 13.01%, 65.73% 16.27%, 67.09% 20.39%, 68.61% 23.43%, 71.36% 24.55%, 75.45% 24.55%, 79.68% 25.1%, 82.38% 27.33%, 82.72% 31.11%, 81.5% 35.31%, 80.64% 38.85%, 81.75% 41.49%, 84.82% 43.86%, 88.15% 46.66%, 89.58% 50%, 88.15% 53.34%, 84.82% 56.14%, 81.75% 58.51%, 80.64% 61.15%, 81.5% 64.69%, 82.72% 68.89%, 82.38% 72.67%, 79.68% 74.9%, 75.45% 75.45%, 71.36% 75.45%, 68.61% 76.57%, 67.09% 79.61%, 65.73% 83.73%, 63.46% 86.99%, 60.12% 87.77%, 56.36% 86.05%, 52.93% 83.54%, 50% 82.39%, 47.07% 83.54%, 43.64% 86.05%, 39.88% 87.77%, 36.54% 86.99%, 34.27% 83.73%, 32.91% 79.61%, 31.39% 76.57%, 28.64% 75.45%, 24.55% 75.45%, 20.32% 74.9%, 17.62% 72.67%, 17.28% 68.89%, 18.5% 64.69%, 19.36% 61.15%, 18.25% 58.51%, 15.18% 56.14%, 11.85% 53.34%, 10.42% 50%, 11.85% 46.66%, 15.18% 43.86%, 18.25% 41.49%, 19.36% 38.85%, 18.5% 35.31%, 17.28% 31.11%, 17.62% 27.33%, 20.32% 25.1%, 24.55% 24.55%, 28.64% 24.55%, 31.39% 23.43%, 32.91% 20.39%, 34.27% 16.27%, 36.54% 13.01%, 39.88% 12.23%, 43.64% 13.95%, 47.07% 16.46%); animation-timing-function: linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1); } /* soft-burst */
-  14.286% { clip-path: polygon(50% 13.35%, 53.38% 11.42%, 56.87% 11.02%, 60.02% 12.59%, 62.54% 15.56%, 64.61% 18.66%, 66.86% 20.8%, 69.83% 21.68%, 73.56% 21.92%, 77.38% 22.62%, 80.32% 24.56%, 81.72% 27.79%, 81.74% 31.67%, 81.34% 35.39%, 81.69% 38.47%, 83.4% 41.05%, 86.09% 43.64%, 88.58% 46.62%, 89.58% 50%, 88.58% 53.38%, 86.09% 56.36%, 83.4% 58.95%, 81.69% 61.53%, 81.34% 64.61%, 81.74% 68.33%, 81.72% 72.21%, 80.32% 75.44%, 77.38% 77.38%, 73.56% 78.08%, 69.83% 78.32%, 66.86% 79.2%, 64.61% 81.34%, 62.54% 84.44%, 60.02% 87.41%, 56.87% 88.98%, 53.38% 88.58%, 50% 86.65%, 46.99% 84.45%, 44.14% 83.21%, 41.05% 83.4%, 37.46% 84.44%, 33.63% 85.1%, 30.21% 84.28%, 27.79% 81.72%, 26.44% 78.08%, 25.55% 74.45%, 24.17% 71.67%, 21.68% 69.83%, 18.26% 68.33%, 14.9% 66.37%, 12.8% 63.54%, 12.59% 60.02%, 13.91% 56.36%, 15.55% 53.01%, 16.28% 50%, 15.55% 46.99%, 13.91% 43.64%, 12.59% 39.98%, 12.8% 36.46%, 14.9% 33.63%, 18.26% 31.67%, 21.68% 30.17%, 24.17% 28.33%, 25.55% 25.55%, 26.44% 21.92%, 27.79% 18.28%, 30.21% 15.72%, 33.63% 14.9%, 37.46% 15.56%, 41.05% 16.6%, 44.14% 16.79%, 46.99% 15.55%); animation-timing-function: linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1); } /* cookie-9 */
-  28.571% { clip-path: polygon(50% 10.42%, 53.29% 12.38%, 56.31% 14.21%, 59.12% 15.95%, 61.78% 17.63%, 64.32% 19.3%, 66.76% 20.96%, 69.15% 22.65%, 71.5% 24.38%, 73.84% 26.16%, 76.19% 28.02%, 78.59% 29.98%, 81.06% 32.07%, 83.67% 34.3%, 86.46% 36.73%, 87.13% 40.05%, 86.31% 43.6%, 85.52% 46.89%, 84.74% 50%, 83.95% 52.97%, 83.13% 55.84%, 82.28% 58.65%, 81.39% 61.42%, 80.44% 64.19%, 79.42% 66.99%, 78.33% 69.84%, 77.15% 72.78%, 75.88% 75.88%, 74.48% 79.18%, 72.47% 82.1%, 68.72% 82.43%, 65.26% 82.72%, 61.99% 82.95%, 58.88% 83.14%, 55.87% 83.28%, 52.92% 83.36%, 50% 83.38%, 47.08% 83.36%, 44.13% 83.28%, 41.12% 83.14%, 38.01% 82.95%, 34.74% 82.72%, 31.28% 82.43%, 27.53% 82.1%, 25.52% 79.18%, 24.12% 75.88%, 22.85% 72.78%, 21.67% 69.84%, 20.58% 66.99%, 19.56% 64.19%, 18.61% 61.42%, 17.72% 58.65%, 16.87% 55.84%, 16.05% 52.97%, 15.26% 50%, 14.48% 46.89%, 13.69% 43.6%, 12.87% 40.05%, 13.54% 36.73%, 16.33% 34.3%, 18.94% 32.07%, 21.41% 29.98%, 23.81% 28.02%, 26.16% 26.16%, 28.5% 24.38%, 30.85% 22.65%, 33.24% 20.96%, 35.68% 19.3%, 38.22% 17.63%, 40.88% 15.95%, 43.69% 14.21%, 46.71% 12.38%); animation-timing-function: linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1); } /* pentagon */
-  42.857% { clip-path: polygon(50% 19.92%, 52.78% 18.17%, 55.84% 16.86%, 59.1% 16.03%, 62.48% 15.71%, 65.88% 15.93%, 69.23% 16.7%, 72.41% 17.99%, 75.36% 19.77%, 77.99% 22.01%, 80.23% 24.64%, 82.01% 27.59%, 83.3% 30.77%, 84.07% 34.12%, 84.29% 37.52%, 83.97% 40.9%, 83.14% 44.16%, 81.83% 47.22%, 80.08% 50%, 77.98% 52.45%, 75.86% 54.56%, 73.99% 56.43%, 72.31% 58.12%, 70.75% 59.68%, 69.29% 61.14%, 67.89% 62.53%, 66.54% 63.88%, 65.21% 65.21%, 63.88% 66.54%, 62.53% 67.89%, 61.14% 69.29%, 59.68% 70.75%, 58.12% 72.31%, 56.43% 73.99%, 54.56% 75.86%, 52.45% 77.98%, 50% 80.08%, 47.22% 81.83%, 44.16% 83.14%, 40.9% 83.97%, 37.52% 84.29%, 34.12% 84.07%, 30.77% 83.3%, 27.59% 82.01%, 24.64% 80.23%, 22.01% 77.99%, 19.77% 75.36%, 17.99% 72.41%, 16.7% 69.23%, 15.93% 65.88%, 15.71% 62.48%, 16.03% 59.1%, 16.86% 55.84%, 18.17% 52.78%, 19.92% 50%, 22.02% 47.55%, 24.14% 45.44%, 26.01% 43.57%, 27.69% 41.88%, 29.25% 40.32%, 30.71% 38.86%, 32.11% 37.47%, 33.46% 36.12%, 34.79% 34.79%, 36.12% 33.46%, 37.47% 32.11%, 38.86% 30.71%, 40.32% 29.25%, 41.88% 27.69%, 43.57% 26.01%, 45.44% 24.14%, 47.55% 22.02%); animation-timing-function: linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1); } /* pill */
-  57.143% { clip-path: polygon(50% 10.42%, 53.4% 11.17%, 56.5% 13.13%, 59.24% 15.52%, 61.82% 17.52%, 64.61% 18.68%, 67.85% 19.08%, 71.48% 19.33%, 75.05% 20.14%, 77.99% 22.01%, 79.86% 24.95%, 80.67% 28.52%, 80.92% 32.15%, 81.32% 35.39%, 82.48% 38.18%, 84.48% 40.76%, 86.87% 43.5%, 88.83% 46.6%, 89.58% 50%, 88.83% 53.4%, 86.87% 56.5%, 84.48% 59.24%, 82.48% 61.82%, 81.32% 64.61%, 80.92% 67.85%, 80.67% 71.48%, 79.86% 75.05%, 77.99% 77.99%, 75.05% 79.86%, 71.48% 80.67%, 67.85% 80.92%, 64.61% 81.32%, 61.82% 82.48%, 59.24% 84.48%, 56.5% 86.87%, 53.4% 88.83%, 50% 89.58%, 46.6% 88.83%, 43.5% 86.87%, 40.76% 84.48%, 38.18% 82.48%, 35.39% 81.32%, 32.15% 80.92%, 28.52% 80.67%, 24.95% 79.86%, 22.01% 77.99%, 20.14% 75.05%, 19.33% 71.48%, 19.08% 67.85%, 18.68% 64.61%, 17.52% 61.82%, 15.52% 59.24%, 13.13% 56.5%, 11.17% 53.4%, 10.42% 50%, 11.17% 46.6%, 13.13% 43.5%, 15.52% 40.76%, 17.52% 38.18%, 18.68% 35.39%, 19.08% 32.15%, 19.33% 28.52%, 20.14% 24.95%, 22.01% 22.01%, 24.95% 20.14%, 28.52% 19.33%, 32.15% 19.08%, 35.39% 18.68%, 38.18% 17.52%, 40.76% 15.52%, 43.5% 13.13%, 46.6% 11.17%); animation-timing-function: linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1); } /* sunny */
-  71.429% { clip-path: polygon(50% 10.42%, 53.43% 10.82%, 56.7% 12%, 59.7% 13.81%, 62.34% 16.1%, 64.63% 18.64%, 66.61% 21.23%, 68.41% 23.71%, 70.16% 25.98%, 71.99% 28.01%, 74.02% 29.84%, 76.29% 31.59%, 78.77% 33.39%, 81.36% 35.37%, 83.9% 37.66%, 86.19% 40.3%, 88% 43.3%, 89.18% 46.57%, 89.58% 50%, 89.18% 53.43%, 88% 56.7%, 86.19% 59.7%, 83.9% 62.34%, 81.36% 64.63%, 78.77% 66.61%, 76.29% 68.41%, 74.02% 70.16%, 71.99% 71.99%, 70.16% 74.02%, 68.41% 76.29%, 66.61% 78.77%, 64.63% 81.36%, 62.34% 83.9%, 59.7% 86.19%, 56.7% 88%, 53.43% 89.18%, 50% 89.58%, 46.57% 89.18%, 43.3% 88%, 40.3% 86.19%, 37.66% 83.9%, 35.37% 81.36%, 33.39% 78.77%, 31.59% 76.29%, 29.84% 74.02%, 28.01% 71.99%, 25.98% 70.16%, 23.71% 68.41%, 21.23% 66.61%, 18.64% 64.63%, 16.1% 62.34%, 13.81% 59.7%, 12% 56.7%, 10.82% 53.43%, 10.42% 50%, 10.82% 46.57%, 12% 43.3%, 13.81% 40.3%, 16.1% 37.66%, 18.64% 35.37%, 21.23% 33.39%, 23.71% 31.59%, 25.98% 29.84%, 28.01% 28.01%, 29.84% 25.98%, 31.59% 23.71%, 33.39% 21.23%, 35.37% 18.64%, 37.66% 16.1%, 40.3% 13.81%, 43.3% 12%, 46.57% 10.82%); animation-timing-function: linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1); } /* cookie-4 */
-  85.714% { clip-path: polygon(50% 18.52%, 52.84% 17.59%, 55.85% 16.85%, 59.02% 16.34%, 62.32% 16.15%, 65.7% 16.34%, 69.06% 16.98%, 72.32% 18.13%, 75.33% 19.81%, 77.99% 22.01%, 80.19% 24.67%, 81.87% 27.68%, 83.02% 30.94%, 83.66% 34.3%, 83.85% 37.68%, 83.66% 40.98%, 83.15% 44.15%, 82.41% 47.16%, 81.48% 50%, 80.4% 52.66%, 79.22% 55.15%, 77.95% 57.49%, 76.6% 59.68%, 75.2% 61.75%, 73.74% 63.71%, 72.23% 65.57%, 70.66% 67.34%, 69.03% 69.03%, 67.34% 70.66%, 65.57% 72.23%, 63.71% 73.74%, 61.75% 75.2%, 59.68% 76.6%, 57.49% 77.95%, 55.15% 79.22%, 52.66% 80.4%, 50% 81.48%, 47.16% 82.41%, 44.15% 83.15%, 40.98% 83.66%, 37.68% 83.85%, 34.3% 83.66%, 30.94% 83.02%, 27.68% 81.87%, 24.67% 80.19%, 22.01% 77.99%, 19.81% 75.33%, 18.13% 72.32%, 16.98% 69.06%, 16.34% 65.7%, 16.15% 62.32%, 16.34% 59.02%, 16.85% 55.85%, 17.59% 52.84%, 18.52% 50%, 19.6% 47.34%, 20.78% 44.85%, 22.05% 42.51%, 23.4% 40.32%, 24.8% 38.25%, 26.26% 36.29%, 27.77% 34.43%, 29.34% 32.66%, 30.97% 30.97%, 32.66% 29.34%, 34.43% 27.77%, 36.29% 26.26%, 38.25% 24.8%, 40.32% 23.4%, 42.51% 22.05%, 44.85% 20.78%, 47.34% 19.6%); animation-timing-function: linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1); } /* oval */
-  100% { clip-path: polygon(50% 17.61%, 52.93% 16.46%, 56.36% 13.95%, 60.12% 12.23%, 63.46% 13.01%, 65.73% 16.27%, 67.09% 20.39%, 68.61% 23.43%, 71.36% 24.55%, 75.45% 24.55%, 79.68% 25.1%, 82.38% 27.33%, 82.72% 31.11%, 81.5% 35.31%, 80.64% 38.85%, 81.75% 41.49%, 84.82% 43.86%, 88.15% 46.66%, 89.58% 50%, 88.15% 53.34%, 84.82% 56.14%, 81.75% 58.51%, 80.64% 61.15%, 81.5% 64.69%, 82.72% 68.89%, 82.38% 72.67%, 79.68% 74.9%, 75.45% 75.45%, 71.36% 75.45%, 68.61% 76.57%, 67.09% 79.61%, 65.73% 83.73%, 63.46% 86.99%, 60.12% 87.77%, 56.36% 86.05%, 52.93% 83.54%, 50% 82.39%, 47.07% 83.54%, 43.64% 86.05%, 39.88% 87.77%, 36.54% 86.99%, 34.27% 83.73%, 32.91% 79.61%, 31.39% 76.57%, 28.64% 75.45%, 24.55% 75.45%, 20.32% 74.9%, 17.62% 72.67%, 17.28% 68.89%, 18.5% 64.69%, 19.36% 61.15%, 18.25% 58.51%, 15.18% 56.14%, 11.85% 53.34%, 10.42% 50%, 11.85% 46.66%, 15.18% 43.86%, 18.25% 41.49%, 19.36% 38.85%, 18.5% 35.31%, 17.28% 31.11%, 17.62% 27.33%, 20.32% 25.1%, 24.55% 24.55%, 28.64% 24.55%, 31.39% 23.43%, 32.91% 20.39%, 34.27% 16.27%, 36.54% 13.01%, 39.88% 12.23%, 43.64% 13.95%, 47.07% 16.46%); } /* soft-burst */
-}
-@keyframes m3e-loading-turn {
-  to { rotate: 1turn; }
-}
-:root { --m3e-loading-morph-ms: 4550ms; }
-/* m3e:loading:end */

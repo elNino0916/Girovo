@@ -38,6 +38,6 @@ export const POST = wrap(async (req: Request) => {
   }
   if (!resp.success) return fail(bankAnswerText(resp) || msgs().orders.route.listFailed);
   return json({
-    needsTan: false, accountNumber, ...holdBankOrders(s, accountNumber, kind, resp.bankOrders ?? interaction.read, caps.remove),
+    needsTan: false, accountNumber, ...holdBankOrders(s, accountNumber, kind, resp.bankOrders ?? interaction.read, caps.remove, caps.change),
   } satisfies BankOrdersResponse);
 });

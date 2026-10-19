@@ -16,7 +16,7 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CategoryAmount } from '@/lib/analytics';
 import {
-  BUDGET_CATEGORIES, BUDGET_MAX_CENTS, budgetLines, monthCoverage, parseBudgetInput, type BudgetLine, type Budgets,
+  budgetCategories, BUDGET_MAX_CENTS, budgetLines, monthCoverage, parseBudgetInput, type BudgetLine, type Budgets,
 } from '@/lib/budgets';
 import { categoryLabel, type CategoryId } from '@/lib/categories';
 import { dayKey, fmtAmountInput, fmtMonth } from '@/lib/format';
@@ -208,10 +208,12 @@ function BudgetForm({
   const words = t.budgets.budget.dialog;
   const auto = useId();
   const fieldRefs = useRef(new Map<CategoryId, HTMLInputElement>());
+  // The app's spending categories, then the user's own — read once, as the form opens.
+  const [ids] = useState(budgetCategories);
   // Seeded once: what is typed is the user's until they save or leave.
   const [values, setValues] = useState<Record<string, string>>(() => {
     const out: Record<string, string> = {};
-    for (const id of BUDGET_CATEGORIES) {
+    for (const id of ids) {
       const cents = budgets[id];
       out[id] = cents ? fmtAmountInput(cents / 100) : '';
     }
@@ -238,12 +240,12 @@ function BudgetForm({
   const save = () => {
     const next: Budgets = {};
     const found: Partial<Record<CategoryId, FieldError>> = {};
-    for (const id of BUDGET_CATEGORIES) {
+    for (const id of ids) {
       const read = parseBudgetInput(values[id] ?? '');
       if (read.error) found[id] = read.error;
       else if (read.cents) next[id] = read.cents;
     }
-    const invalid = BUDGET_CATEGORIES.find((id) => found[id]);
+    const invalid = ids.find((id) => found[id]);
     if (invalid) {
       setErrors(found);
       fieldRefs.current.get(invalid)?.focus();
@@ -270,7 +272,7 @@ function BudgetForm({
       }
     >
       <ul className="-mt-1">
-        {BUDGET_CATEGORIES.map((id) => {
+        {ids.map((id) => {
           const fieldId = `budget${auto}-${id}`;
           const hintId = `${fieldId}-hint`;
           const errorId = `${fieldId}-error`;

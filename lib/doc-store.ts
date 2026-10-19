@@ -189,8 +189,11 @@ export async function readDoc(s: Session, docId: string): Promise<{ doc: KeptDoc
   });
 }
 
-/** Keeps one document: refused when it is too large, or the login's documents would be. */
-async function add(s: Session, meta: Omit<KeptDoc, 'id' | 'size' | 'addedAt'>, bytes: Buffer): Promise<KeptDoc> {
+/**
+ * Keeps one document: refused when it is too large, or the login's documents
+ * would be. `addedAt` is now, unless a restored one brings its own.
+ */
+async function add(s: Session, meta: Omit<KeptDoc, 'id' | 'size' | 'addedAt'>, bytes: Buffer, addedAt?: string): Promise<KeptDoc> {
   if (bytes.length > DOC_LIMITS.bytes) throw new DocError(msgs().docs.server.tooLarge, 413);
   const id = identityOf(s);
   const file = indexFile(id);
@@ -200,7 +203,7 @@ async function add(s: Session, meta: Omit<KeptDoc, 'id' | 'size' | 'addedAt'>, b
     if (docs.length >= DOC_LIMITS.count || total + bytes.length > DOC_LIMITS.total) {
       throw new DocError(msgs().docs.server.full, 413);
     }
-    const doc = sanitizeDoc({ ...meta, id: newId(), size: bytes.length, addedAt: new Date().toISOString() });
+    const doc = sanitizeDoc({ ...meta, id: newId(), size: bytes.length, addedAt: addedAt ?? new Date().toISOString() });
     if (!doc) throw new DocError(msgs().docs.server.format, 400);
     try {
       await writeFileAtomic(docFile(file, doc.id), JSON.stringify(sealBox(entry.key, entry.salt, bytes, docAad(doc.id))));
@@ -354,4 +357,62 @@ export async function keepStatements(s: Session, accountNumber: string, statemen
     added.push(doc);
   }
   return { added, held: heldAny };
+}
+
+// ---------------------------------------------------------------------------
+// Backup and restore (lib/backup.ts)
+// ---------------------------------------------------------------------------
+
+/** Every document of the login with its bytes — what a backup carries. One that cannot be read is left out and counted. */
+export async function exportDocs(s: Session): Promise<{ docs: { doc: KeptDoc; bytes: Buffer }[]; unreadable: number }> {
+  const { docs, locked } = await listDocs(s);
+  if (locked) throw new DocError(msgs().docs.server.locked, 409);
+  const out: { doc: KeptDoc; bytes: Buffer }[] = [];
+  let unreadable = 0;
+  for (const doc of docs) {
+    try {
+      out.push(await readDoc(s, doc.id));
+    } catch {
+      unreadable++;
+    }
+  }
+  return { docs: out, unreadable };
+}
+
+/** Whether `a` and `b` are the same document: a statement by its account, year and number, anything else by what it is and its size. */
+function sameDoc(a: KeptDoc, b: KeptDoc): boolean {
+  if (a.kind !== b.kind || a.size !== b.size || a.accountNumber !== b.accountNumber) return false;
+  if (a.kind === 'statement') {
+    return a.number != null && a.year != null
+      ? a.number === b.number && a.year === b.year
+      : a.from === b.from && a.to === b.to && a.date === b.date;
+  }
+  return a.name === b.name && (a.tx ?? null) === (b.tx ?? null);
+}
+
+/**
+ * Keeps the documents of a backup that the login does not have yet, each
+ * sealed anew under this PIN with a new id. Answers how many were added and
+ * how many did not fit (DOC_LIMITS).
+ */
+export async function restoreDocs(s: Session, items: readonly { doc: KeptDoc; bytes: Buffer }[]): Promise<{ added: number; full: number }> {
+  let known = (await listDocs(s)).docs;
+  let added = 0;
+  let full = 0;
+  for (const { doc, bytes } of items) {
+    if (bytes.length !== doc.size || known.some((k) => sameDoc(k, doc))) continue;
+    const { id: _id, size: _size, addedAt, ...meta } = doc;
+    try {
+      const kept = await add(s, meta, bytes, addedAt);
+      known = [...known, kept];
+      added++;
+    } catch (err) {
+      if (err instanceof DocError && err.status === 413) {
+        full++;
+        continue;
+      }
+      throw err;
+    }
+  }
+  return { added, full };
 }

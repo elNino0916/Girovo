@@ -461,6 +461,39 @@ const VIEWS: Record<string, ViewDef> = {
       await showDrawerSection(c, /^(Belege|Receipts)$/);
     },
   },
+  // The Amazon order the personal set splits between "Geschenke" (an own
+  // category) and Shopping: its drawer, and the dialog that changes the split.
+  'detail-split': {
+    label: 'Umsatzdetails, aufgeteilt', group: 'Dashboard', options: { personal: true, query: 'Kopfhörer' },
+    async script(c) {
+      await openFirstRow(c);
+      await showCategorySection(c);
+    },
+  },
+  'split-dialog': {
+    label: 'Umsatz aufteilen', group: 'Dashboard', options: { personal: true, query: 'Kopfhörer' },
+    async script(c) {
+      await openFirstRow(c);
+      await c.click(/^(Aufteilung ändern|Change split)$/, { within: 'dialog' });
+      await c.sleep(250);
+    },
+  },
+  // The Analyse's tax tile and its drawer, the year put together.
+  'tax-year': {
+    label: 'Jahresübersicht für die Steuer', group: 'Dashboard', options: { tab: 'analysis', personal: true, analysisPeriod: 'all' },
+    async script(c) {
+      await c.click(/^(Zusammenstellen|Put together)/);
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+    },
+  },
+  'settings-categories': {
+    label: 'Einstellungen: eigene Kategorien', group: 'Dashboard', options: { tab: 'settings', personal: true },
+    async script(c) {
+      const section = await c.poll(() => document.querySelector<HTMLElement>('[data-setting="categories"]'), 3000);
+      section?.scrollIntoView({ block: 'start' });
+      await c.sleep(150);
+    },
+  },
   depot: {
     label: 'Depot',
     group: 'Dashboard',
@@ -1247,6 +1280,17 @@ const VIEWS: Record<string, ViewDef> = {
       await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 3000);
     },
   },
+  'order-change': {
+    label: 'Dauerauftrag ändern',
+    group: 'Dialoge',
+    options: { tab: 'contracts', ordersLoaded: true },
+    async script(c) {
+      const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
+      tile?.scrollIntoView({ block: 'start' });
+      await c.click(/^dauerauftrag an .+ ändern …$/i, { within: 'page' });
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 3000);
+    },
+  },
   'order-deleted': {
     label: 'Dauerauftrag gelöscht',
     group: 'Dashboard',
@@ -1283,6 +1327,9 @@ const VIEWS: Record<string, ViewDef> = {
   'print-receipt-ahead': { label: 'Beleg: noch nicht gebucht', group: 'Dokumente', print: 'ahead', script: sheetShown },
   'print-receipt-pending': { label: 'Beleg: vorgemerkt', group: 'Dokumente', print: 'pending', script: sheetShown },
   'print-message': { label: 'Mitteilung der Bank', group: 'Dokumente', print: 'message', script: sheetShown },
+  'print-tax-year': {
+    label: 'Jahresübersicht (Steuer)', group: 'Dokumente', print: 'tax-year', options: { personal: true }, script: sheetShown,
+  },
   'print-message-short': { label: 'Mitteilung, kurz', group: 'Dokumente', print: 'message-short', script: sheetShown },
   'print-message-long': { label: 'Mitteilung über zwei Seiten', group: 'Dokumente', print: 'message-long', script: sheetShown },
 };

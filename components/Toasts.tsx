@@ -80,7 +80,7 @@ export function Toasts() {
       // The newest toast is the last one; its action first, else its close button.
       const cards = stack.querySelectorAll<HTMLElement>('[data-toast]');
       const newest = cards[cards.length - 1];
-      const target = newest?.querySelector<HTMLElement>('[data-toast-action]') ?? newest?.querySelector<HTMLElement>('button');
+      const target = newest?.querySelector<HTMLElement>('[data-toast-action]') ?? newest?.querySelector<HTMLElement>('[data-icon-button]');
       if (!target) return;
       e.preventDefault();
       returnTo = document.activeElement instanceof HTMLElement && document.activeElement !== document.body

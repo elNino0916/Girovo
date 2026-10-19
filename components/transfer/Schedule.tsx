@@ -22,7 +22,7 @@ import type { SerializedAccount } from '@/lib/fints-types';
 import { addDaysKey, fmtDate, isoDate, toLocalDate } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import {
-  dayOf, dayOption, earliestDate, isBankDay, isDayKey, latestDate, nextOnDay, rhythmText, scheduleProblems,
+  dayOf, dayOption, earliestDate, isBankDay, isDayKey, latestDate, nextExecution, nextOnDay, rhythmText, scheduleProblems,
   scheduleSentence, type DatedRules, type OrderSchedule, type ScheduleProblem, type StandingRules, type Unit,
 } from '@/lib/order-schedule';
 import { Field, Input, Segmented, Select } from '../ui';
@@ -37,21 +37,31 @@ const capitalised = (s: string) => s.charAt(0).toLocaleUpperCase() + s.slice(1);
  * The schedule part of the form: what is chosen, what the bank allows, and
  * what is wrong with it. Kept by the sheet, so the draft and the "discard?"
  * check see it.
+ *
+ * `change`: the form changes a bank-held order of this schedule instead
+ * (components/transfer/ChangeOrder.tsx) — its kind is the only choice, and it
+ * opens on the order's own rhythm and day, from its next execution the bank's
+ * lead time still allows (a change applies from there; the dates already run
+ * are the bank's).
  */
-export function useScheduleForm(account: SerializedAccount | undefined) {
-  const [chosen, setChosen] = useState<When>('now');
-  const [date, setDate] = useState('');
-  const [rhythm, setRhythm] = useState('');
-  const [day, setDay] = useState(0);
-  const [first, setFirst] = useState('');
-  const [last, setLast] = useState('');
+export function useScheduleForm(account: SerializedAccount | undefined, change?: OrderSchedule | null) {
+  const [seed] = useState(() => seedOf(change, account));
+  const [chosen, setChosen] = useState<When>(seed?.when ?? 'now');
+  const [date, setDate] = useState(seed?.date ?? '');
+  const [rhythm, setRhythm] = useState(seed?.rhythm ?? '');
+  const [day, setDay] = useState(seed?.day ?? 0);
+  const [first, setFirst] = useState(seed?.first ?? '');
+  const [last, setLast] = useState(seed?.last ?? '');
   const [touched, setTouched] = useState<Partial<Record<ScheduleField, boolean>>>({});
 
   // Read at render: a sheet left open past midnight moves the window.
   const today = isoDate(new Date());
-  const dated = account?.dated?.create ? account.dated : null;
-  const standing = account?.standing?.create ? account.standing : null;
-  const options: When[] = ['now', ...(dated ? ['dated' as const] : []), ...(standing ? ['standing' as const] : [])];
+  const offered = (caps: SerializedAccount['dated']) => (change ? caps?.change : caps?.create);
+  const dated = offered(account?.dated) ? account!.dated! : null;
+  const standing = offered(account?.standing) ? account!.standing! : null;
+  const options: When[] = change
+    ? [change.kind]
+    : ['now', ...(dated ? ['dated' as const] : []), ...(standing ? ['standing' as const] : [])];
   // Another account without the chosen kind falls back to a transfer now.
   const when: When = options.includes(chosen) ? chosen : 'now';
 
@@ -138,6 +148,26 @@ export function useScheduleForm(account: SerializedAccount | undefined) {
 
 export type ScheduleForm = ReturnType<typeof useScheduleForm>;
 
+/** Where a change of `s` opens: its own date, rhythm and day, from the first run the lead time still allows. */
+function seedOf(s: OrderSchedule | null | undefined, account: SerializedAccount | undefined) {
+  if (!s) return null;
+  const today = isoDate(new Date());
+  if (s.kind === 'dated') {
+    const rules = account?.dated?.rules;
+    const earliest = rules ? earliestDate(rules, today) : today;
+    return { when: 'dated' as const, date: s.date >= earliest ? s.date : earliest };
+  }
+  const rules = account?.standing?.rules;
+  const earliest = rules ? earliestDate(rules, today) : today;
+  return {
+    when: 'standing' as const,
+    rhythm: `${s.unit}${s.interval}`,
+    day: s.day,
+    first: nextExecution(s, earliest) ?? nextOnDay(earliest, s.unit, s.day),
+    last: s.last ?? '',
+  };
+}
+
 /** The sentence for one of scheduleProblems' findings. */
 export function problemText(form: ScheduleForm, p: ScheduleProblem, t: ReturnType<typeof useT>): string {
   const words = t.orders.form.problems;
@@ -164,7 +194,8 @@ export function ScheduleFields({
 }: { form: ScheduleForm; showErrors: boolean; dateRef: Ref<HTMLInputElement> }) {
   const t = useT();
   const words = t.orders.form;
-  if (form.options.length < 2) return null;
+  // Nothing to choose and nothing scheduled: a plain transfer. A change keeps its one kind and shows its fields.
+  if (form.options.length < 2 && form.when === 'now') return null;
 
   const err = (f: ScheduleField, p: ScheduleProblem | undefined) =>
     (p && (showErrors || form.touched[f]) ? problemText(form, p, t) : undefined);
@@ -177,18 +208,20 @@ export function ScheduleFields({
 
   return (
     <div className="mb-1">
-      <div className="mb-4 flex flex-col gap-1.5">
-        <span className="text-[13px] leading-snug font-semibold text-ink-2" aria-hidden>{words.when}</span>
-        <Segmented
-          aria-label={words.when}
-          block
-          // Tighter segments on a phone, so "An einem Datum" fits beside the others at 360px.
-          className="h-12 items-center [&>button]:px-3 sm:[&>button]:px-4"
-          value={form.when}
-          onChange={(v) => form.choose(v)}
-          options={form.options.map((w) => ({ value: w, label: words[w] }))}
-        />
-      </div>
+      {form.options.length > 1 && (
+        <div className="mb-4 flex flex-col gap-1.5">
+          <span className="text-[13px] leading-snug font-semibold text-ink-2" aria-hidden>{words.when}</span>
+          <Segmented
+            aria-label={words.when}
+            block
+            // Tighter segments on a phone, so "An einem Datum" fits beside the others at 360px.
+            className="h-12 items-center [&>button]:px-3 sm:[&>button]:px-4"
+            value={form.when}
+            onChange={(v) => form.choose(v)}
+            options={form.options.map((w) => ({ value: w, label: words[w] }))}
+          />
+        </div>
+      )}
 
       {form.when === 'dated' && (
         <Field

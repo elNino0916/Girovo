@@ -149,7 +149,7 @@ const standing = { kind: 'standing' as const, first: '2026-11-01', unit: 'M' as 
 const dated = { kind: 'dated' as const, date: '2026-10-20' };
 const bankOrder = (over: Partial<SerializedBankOrder> = {}): SerializedBankOrder => ({
   ref: 'r1', kind: 'standing', orderId: 'DA-1', name: 'LEA BECKER', iban: IBAN, bic: null, amount: 120, currency: 'EUR',
-  purpose: '', schedule: standing, more: 0, deletable: true, ...over,
+  purpose: '', schedule: standing, more: 0, deletable: true, changeable: true, ...over,
 });
 
 test('a new Dauerauftrag is never a repeat of payments made — only of another Dauerauftrag', () => {

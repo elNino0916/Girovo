@@ -188,6 +188,7 @@ function CustomRange({
 
   return (
     <form
+      noValidate
       className="w-[min(304px,calc(100vw-48px))]"
       onSubmit={(e) => {
         e.preventDefault();

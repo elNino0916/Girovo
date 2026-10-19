@@ -9,7 +9,7 @@
 
 import type { ReactNode, SVGProps } from 'react';
 import type { AvatarId } from '@/lib/avatars';
-import type { CategoryId } from '@/lib/categories';
+import type { BuiltinCategoryId, CategoryId } from '@/lib/categories';
 
 export type IconProps = Omit<SVGProps<SVGSVGElement>, 'children'> & {
   /** Rendered width and height in px. */
@@ -158,6 +158,16 @@ export function EyeOffIcon(p: IconProps) {
 
 export function DownloadIcon(p: IconProps) {
   return <Icon {...p}><path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" /></Icon>;
+}
+
+/** A box of kept things: a backup of what this machine keeps. */
+export function ArchiveIcon(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <rect x="3" y="4" width="18" height="4.5" rx="1.2" />
+      <path d="M4.8 8.5V18a2 2 0 0 0 2 2h10.4a2 2 0 0 0 2-2V8.5M10 12.5h4" />
+    </Icon>
+  );
 }
 
 export function UploadIcon(p: IconProps) {
@@ -622,7 +632,7 @@ export function DotsCircleIcon(p: IconProps) {
   );
 }
 
-const CATEGORY_ICONS: Record<CategoryId, (p: IconProps) => ReactNode> = {
+const CATEGORY_ICONS: Record<BuiltinCategoryId, (p: IconProps) => ReactNode> = {
   income: BriefcaseIcon,
   otherIn: InflowIcon,
   transfer: TransferIcon,
@@ -641,9 +651,12 @@ const CATEGORY_ICONS: Record<CategoryId, (p: IconProps) => ReactNode> = {
   other: DotsCircleIcon,
 };
 
-/** The pictogram for a booking category. Unknown ids fall back to "Sonstiges". */
+/**
+ * The pictogram for a booking category. A category of the user's own wears a
+ * tag; an id nobody knows falls back to "Sonstiges".
+ */
 export function CategoryIcon({ id, ...rest }: IconProps & { id: CategoryId }) {
-  const Glyph = CATEGORY_ICONS[id] ?? DotsCircleIcon;
+  const Glyph = CATEGORY_ICONS[id as BuiltinCategoryId] ?? (String(id).startsWith('c_') ? TagIcon : DotsCircleIcon);
   return <Glyph {...rest} />;
 }
 

@@ -38,7 +38,7 @@ import { MachineRow, ROW } from '../settings/rows';
 import {
   AvatarGlyph, ChevronIcon, GearIcon, LandmarkIcon, LogoutIcon, PencilIcon, PlusIcon, ShieldIcon,
 } from '../icons';
-import { Button, Checkbox, Dialog, Dot, Overlay, Popover, Segmented, Sheet, cx, type TriggerProps } from '../ui';
+import { Button, Checkbox, Dialog, Dot, IconButton, Overlay, Popover, Segmented, Sheet, cx, type TriggerProps } from '../ui';
 import { fmtCountdown, fmtSince, holderName, nameInitials, sessionHolder, useCountdown } from './session';
 import { useLookAtUnclear } from './actions';
 import { AvatarImageError, avatarFromFile } from './avatar-image';
@@ -114,19 +114,13 @@ export function ProfileMenu() {
           </Button>
         )}
         trigger={(props) => (
-          <button
-            {...props}
-            type="button"
-            aria-label={name}
-            title={name}
-            // The account's avatar alone, as Material's top app bar ends; its name is the tooltip.
-            className="navlink inline-flex size-10 justify-center px-0!"
-          >
-            <span className="relative shrink-0">
+          // The account's avatar alone, as Material's top app bar ends; its name is the tooltip.
+          <IconButton {...props} tone="bar" size="md" aria-label={name}>
+            <span className="relative inline-flex shrink-0">
               <Avatar initials={initials} picture={vault?.avatar} image={vault?.avatarImage} tone="bar" />
               {vaultBroken && <Dot className="absolute -top-px -right-px ring-2 ring-bar" />}
             </span>
-          </button>
+          </IconButton>
         )}
       >
         {(close) => (

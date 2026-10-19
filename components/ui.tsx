@@ -16,12 +16,27 @@
 //   the component takes the margin off when a className is given.
 
 import {
-  createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
+  Children, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo,
+  useRef, useState,
 } from 'react';
 import type {
   ComponentProps, CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent,
-  ReactNode, RefCallback, RefObject,
+  ReactNode, Ref, RefCallback, RefObject,
 } from 'react';
+import { M3eButton } from '@m3e/react/button';
+import { M3eButtonGroup } from '@m3e/react/button-group';
+import { M3eCheckbox } from '@m3e/react/checkbox';
+import { M3eChip, M3eFilterChip } from '@m3e/react/chips';
+import { M3eDivider } from '@m3e/react/divider';
+import { M3eFormField } from '@m3e/react/form-field';
+import { M3eIconButton } from '@m3e/react/icon-button';
+import { M3eLoadingIndicator } from '@m3e/react/loading-indicator';
+import { M3eMenu, M3eMenuItem, M3eMenuItemGroup, M3eMenuItemRadio } from '@m3e/react/menu';
+import { M3eOptGroup, M3eOption } from '@m3e/react/option';
+import { M3eLinearProgressIndicator } from '@m3e/react/progress-indicator';
+import { M3eSelect } from '@m3e/react/select';
+import { M3eSkeleton } from '@m3e/react/skeleton';
+import { M3eSwitch } from '@m3e/react/switch';
 import { anchorPosition, type Placement } from '@/lib/anchor';
 import { copyText } from '@/lib/clipboard';
 import { useT } from '@/lib/i18n/react';
@@ -43,6 +58,13 @@ const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
 // ---------------------------------------------------------------------------
 // Button
+//
+// Every button is M3E's (@m3e/web button): round, squeezed to a rounded
+// square while pressed, with Material's state layers and ripple. Girovo's
+// variants are Material's: the filled button leads, the filled tonal button
+// seconds it, a text button is the quiet third. `quiet` is a text button in
+// the neutral ink, `danger` a filled one in Soll Red — both by giving that
+// one button other colour roles, so M3E draws every state of them itself.
 // ---------------------------------------------------------------------------
 export type ButtonVariant =
   | 'primary' | 'secondary' | 'tertiary' | 'quiet' | 'danger'
@@ -50,9 +72,12 @@ export type ButtonVariant =
   | 'ghost';
 export type ButtonSize = 'lg' | 'md' | 'sm' | 'xs';
 
-export type ButtonProps = ComponentProps<'button'> & {
+export type ButtonProps = Omit<ComponentProps<'button'>, 'ref' | 'onClick'> & {
+  ref?: Ref<HTMLElement>;
+  /** M3E's element dispatches it: a DOM MouseEvent, not React's. */
+  onClick?: (e: MouseEvent) => void;
   variant?: ButtonVariant;
-  /** lg 48 · md 44 · sm 36 · xs 30 px tall. */
+  /** lg 56 (M3's medium button) · md and sm 40 (small) · xs 32 (extra-small) px tall. */
   size?: ButtonSize;
   block?: boolean;
   /** Shows a spinner, disables the button and marks it aria-busy. The label stays. */
@@ -61,59 +86,61 @@ export type ButtonProps = ComponentProps<'button'> & {
   iconRight?: ReactNode;
 };
 
-// Labels are semibold, not bold: Google Sans Flex at 700 thickens into a
-// slab at 13–15px, and a row of pills then out-shouts the headline it serves.
-// 700 is kept for what names a thing (dialog, tile and drawer titles).
-const BUTTON_BASE =
-  'relative inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold whitespace-nowrap ' +
-  'transition-[background-color,border-color,color,box-shadow,opacity] duration-150 ease-out ' +
-  'disabled:cursor-not-allowed disabled:opacity-45';
+const M3E_BUTTON_VARIANTS = {
+  primary: 'filled', secondary: 'tonal', ghost: 'tonal', tertiary: 'text', quiet: 'text', danger: 'filled',
+} as const satisfies Record<ButtonVariant, string>;
 
-const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'border-2 border-transparent bg-accent text-accent-ink hover:bg-accent-hover active:bg-accent-press disabled:hover:bg-accent',
-  secondary:
-    'border-2 border-accent text-accent hover:bg-accent-soft active:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] disabled:hover:bg-transparent',
-  ghost:
-    'border-2 border-accent text-accent hover:bg-accent-soft active:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] disabled:hover:bg-transparent',
-  tertiary: 'border-2 border-transparent text-accent hover:bg-accent-soft active:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]',
-  quiet: 'border-2 border-transparent text-ink-2 hover:bg-inset hover:text-ink',
-  danger: 'border-2 border-transparent bg-red text-red-ink hover:bg-[color-mix(in_srgb,var(--red)_86%,black)]',
-};
-
-const BUTTON_SIZES: Record<ButtonSize, string> = {
-  lg: 'h-12 gap-2.5 px-6 text-[15px]',
-  md: 'h-11 gap-2 px-5 text-[14px]',
-  sm: 'h-9 gap-1.5 px-4 text-[13.5px]',
-  xs: 'h-[30px] gap-1.5 px-3 text-[13px]',
-};
+const M3E_BUTTON_SIZES = {
+  lg: 'medium', md: 'small', sm: 'small', xs: 'extra-small',
+} as const satisfies Record<ButtonSize, string>;
 
 export function Button({
   variant = 'secondary', size = 'md', block, busy, iconLeft, iconRight, className, children, disabled, type = 'button', ...rest
 }: ButtonProps) {
+  const lead = busy ? <Spinner size={size === 'lg' ? 20 : 18} /> : iconLeft;
+  const off = disabled || busy;
   return (
-    <button
-      type={type}
-      disabled={disabled || busy}
-      aria-busy={busy || undefined}
-      data-variant={variant}
-      data-size={size}
-      className={cx(BUTTON_BASE, BUTTON_VARIANTS[variant], BUTTON_SIZES[size], block && 'w-full', className)}
-      {...rest}
-    >
-      {busy ? <Spinner size={size === 'lg' ? 17 : 15} /> : iconLeft}
-      {children}
-      {iconRight}
-    </button>
+    <>
+      <M3eButton
+        {...(rest as object)}
+        variant={M3E_BUTTON_VARIANTS[variant]}
+        size={M3E_BUTTON_SIZES[size]}
+        type={type}
+        disabled={!!off}
+        aria-busy={busy || undefined}
+        data-variant={variant}
+        className={cx(block && 'flex w-full', className)}
+      >
+        {lead && <span slot="icon" className="inline-flex">{lead}</span>}
+        {children}
+        {iconRight && <span slot="trailing-icon" className="inline-flex">{iconRight}</span>}
+      </M3eButton>
+      {/* Enter in a field submits a form through its first native submit
+          button, and a browser counts no custom element as one: this stands
+          in for M3E's, disabled when it is. */}
+      {type === 'submit' && <button type="submit" hidden tabIndex={-1} aria-hidden form={rest.form} disabled={off} />}
+    </>
   );
 }
 
+/**
+ * M3E's loading indicator (@m3e/web loading-indicator): M3 Expressive's
+ * shape morphing from one to the next as it turns, in the text's colour, at
+ * any size — the shape 38/48 of its box, as Material sizes it.
+ */
 export function Spinner({ className, size = 15, label }: { className?: string; size?: number; label?: string }) {
   const ring = (
-    <span
+    <M3eLoadingIndicator
       aria-hidden
       data-spinner
-      className={cx('inline-block shrink-0 rounded-full border-2 border-current border-t-transparent', className)}
-      style={{ width: size, height: size, animation: 'spin .7s linear infinite' }}
+      className={cx('shrink-0', className)}
+      style={{
+        width: size,
+        height: size,
+        '--m3e-loading-indicator-container-size': `${size}px`,
+        '--m3e-loading-indicator-active-indicator-size': `${Math.round((size * 38) / 48)}px`,
+        '--m3e-loading-indicator-active-indicator-color': 'currentColor',
+      } as CSSProperties}
     />
   );
   if (!label) return ring;
@@ -125,44 +152,48 @@ export function Spinner({ className, size = 15, label }: { className?: string; s
   );
 }
 
-export type IconButtonProps = ComponentProps<'button'> & {
+export type IconButtonProps = Omit<ComponentProps<'button'>, 'ref' | 'onClick'> & {
+  ref?: Ref<HTMLElement>;
+  /** M3E's element dispatches it: a DOM MouseEvent, not React's. */
+  onClick?: (e: MouseEvent) => void;
+  /** Where it stands: the page, the top bar, or the balance's stage (their own inks). */
   tone?: 'page' | 'bar' | 'stage';
-  /** sm 32 · md 40 px. */
+  /** sm 32 (M3's extra-small icon button) · md 40 (small) px. */
   size?: 'sm' | 'md';
   /** A glyph says nothing to a screen reader; the name is not optional. */
   'aria-label': string;
 };
 
-const ICON_TONES = {
-  page: 'text-ink-2 hover:bg-inset hover:text-ink aria-pressed:bg-accent-soft aria-pressed:text-accent',
-  bar: 'text-bar-ink-2 hover:bg-[color-mix(in_srgb,var(--bar-ink)_12%,transparent)] hover:text-bar-ink aria-pressed:text-bar-ink',
-  stage: 'text-stage-ink-2 hover:bg-[color-mix(in_srgb,var(--stage-ink)_12%,transparent)] hover:text-stage-ink',
-} as const;
-
+/**
+ * M3E's standard icon button (@m3e/web icon-button). With aria-pressed it is
+ * a toggle — selected, it takes the primary colour. A bar's controls live in
+ * a caption band that page zoom shrinks in the desktop shell (--band-ctl,
+ * app/material.css sizes them by it).
+ */
 export function IconButton({
-  className, tone = 'page', size = 'sm', type = 'button', title, children, ...rest
+  className, tone = 'page', size = 'sm', type = 'button', title, children, 'aria-pressed': pressed, ...rest
 }: IconButtonProps) {
+  const toggle = pressed !== undefined;
   return (
-    <button
+    <M3eIconButton
+      {...(rest as object)}
+      variant="standard"
+      size={size === 'md' ? 'small' : 'extra-small'}
       type={type}
+      disabled={!!rest.disabled}
+      toggle={toggle}
+      selected={toggle ? pressed === true || pressed === 'true' : undefined}
+      // The caller's state says whether it is pressed; M3E's own flip on a click would run ahead of it.
+      onBeforeInput={toggle ? (e: Event) => e.preventDefault() : undefined}
+      aria-pressed={pressed}
       data-icon-button={size}
+      data-tone={tone}
       // The name doubles as the hover tooltip, so a bare icon is never a guess.
       title={title ?? rest['aria-label']}
-      className={cx(
-        'grid shrink-0 place-items-center rounded-full transition-colors duration-150',
-        'disabled:cursor-not-allowed disabled:opacity-45',
-        size === 'md' ? 'size-10' : 'size-8',
-        // A bar's controls live in a caption band, which page zoom shrinks
-        // in the desktop shell (--band-ctl, see globals.css); max-* rather
-        // than a size so it wins whatever the order of the classes.
-        tone === 'bar' && 'max-h-[var(--band-ctl)] max-w-[var(--band-ctl)]',
-        ICON_TONES[tone],
-        className,
-      )}
-      {...rest}
+      className={cx('shrink-0', className)}
     >
       {children}
-    </button>
+    </M3eIconButton>
   );
 }
 
@@ -207,17 +238,18 @@ export function CopyButton({
 // ---------------------------------------------------------------------------
 // Form
 //
-// A Field hands its id, its hint/error ids and its invalid state to the one
-// control inside it through context, so `<Field label error><Input/></Field>`
-// is fully wired for a screen reader without the caller threading ids.
+// Every text field and select is M3E's outlined form field (@m3e/web
+// form-field): the label floats inside the outline and rises onto it, the
+// hint or the error sits in its subscript, and M3E links both to the control
+// for a screen reader. A Field is one such form field around the one control
+// it holds, handing it its id and invalid state through context; an Input or
+// a Select without a Field brings a form field of its own, without a label
+// (the caller names it with aria-label or a <label htmlFor> beside it).
 // ---------------------------------------------------------------------------
 type FieldWiring = {
   id: string;
-  describedBy?: string;
   invalid: boolean;
   required: boolean;
-  /** Android: the label floats inside the control (Material's outlined text field). */
-  floating?: boolean;
 };
 const FieldContext = createContext<FieldWiring | null>(null);
 
@@ -226,11 +258,18 @@ function useFieldWiring(props: { id?: string; 'aria-describedby'?: string; 'aria
   const invalid = !!props.invalid || props['aria-invalid'] === true || props['aria-invalid'] === 'true' || !!f?.invalid;
   return {
     id: props.id ?? f?.id,
-    'aria-describedby': cx(props['aria-describedby'], f?.describedBy) || undefined,
+    'aria-describedby': props['aria-describedby'] || undefined,
     'aria-invalid': invalid || undefined,
     'aria-required': f?.required || undefined,
   };
 }
+
+/**
+ * The subscript a form field shows: never one where there is nothing to say
+ * (a field in a row of others must not reserve the space), and always where
+ * there is — M3E would otherwise show a hint only while the field is focused.
+ */
+const subscript = (shown: boolean) => (shown ? 'never' : 'always');
 
 export function Field({
   label, htmlFor, hint, error, required, optional, trailing, labelHidden, className, children,
@@ -255,48 +294,77 @@ export function Field({
   const t = useT();
   const auto = useId();
   const id = htmlFor ?? `field${auto}`;
-  const hintId = hint ? `${id}-hint` : undefined;
-  const errorId = error ? `${id}-error` : undefined;
-  // Material's outlined text field, the label inside the outline and rising
-  // onto it (app/material.css) — for a label alone on its row. A row that
-  // also carries something (a counter, a link) keeps the label above.
+  // The label floats inside the outline when it is alone on its row. A row
+  // that also carries something (a counter, a link) keeps the label above
+  // the field, and the field goes without one.
   const floating = !labelHidden && !trailing;
   const wiring = useMemo<FieldWiring>(
-    () => ({ id, describedBy: cx(errorId, hintId) || undefined, invalid: !!error, required: !!required, floating }),
-    [id, errorId, hintId, error, required, floating],
+    () => ({ id, invalid: !!error, required: !!required }),
+    [id, error, required],
+  );
+  const labelText = (
+    <>
+      {label}
+      {optional && <span className="font-normal">{` ${t.shell.ui.optional}`}</span>}
+    </>
   );
 
   return (
-    <div data-field={floating ? 'float' : undefined} className={cx('flex flex-col gap-1.5', className ?? 'mb-4')}>
-      <div data-field-label className={cx('flex items-baseline justify-between gap-3', labelHidden && !trailing && 'sr-only')}>
-        <label htmlFor={id} className={cx('text-[13px] leading-snug font-semibold text-ink-2', labelHidden && 'sr-only')}>
-          {label}
-          {required && <span aria-hidden className="ml-0.5 text-ink-3">*</span>}
-          {optional && <span className="font-normal text-ink-3">{` ${t.shell.ui.optional}`}</span>}
-        </label>
-        {trailing}
-      </div>
-      <FieldContext.Provider value={wiring}>{children}</FieldContext.Provider>
-      {error && (
-        <p id={errorId} className="flex items-start gap-1.5 text-[13.5px] leading-snug font-semibold text-red">
-          <AlertTriangleIcon size={16} className="mt-px" />
-          <span>{error}</span>
-        </p>
+    <div className={cx('flex flex-col gap-1.5', className ?? 'mb-4')}>
+      {!floating && (
+        <div className={cx('flex items-baseline justify-between gap-3', labelHidden && !trailing && 'sr-only')}>
+          <label htmlFor={id} className={cx('text-[13px] leading-snug font-semibold text-ink-2', labelHidden && 'sr-only')}>
+            {labelText}
+            {required && <span aria-hidden className="ml-0.5 text-ink-3">*</span>}
+          </label>
+          {trailing}
+        </div>
       )}
-      {hint && <div id={hintId} className="text-[13px] leading-snug text-ink-3">{hint}</div>}
+      <M3eFormField
+        variant="outlined"
+        error={!!error}
+        hideSubscript={subscript(!!(error || hint))}
+        hideRequiredMarker={!required}
+        className="w-full"
+      >
+        {floating && <label slot="label" htmlFor={id}>{labelText}</label>}
+        <FieldContext.Provider value={wiring}>{children}</FieldContext.Provider>
+        {hint && <span slot="hint">{hint}</span>}
+        {error && <span slot="error">{error}</span>}
+      </M3eFormField>
     </div>
   );
 }
 
-const CONTROL_BASE =
-  'w-full rounded-[var(--radius-field)] border border-field-line bg-field-bg text-[16px] text-ink ' +
-  'transition-[border-color,background-color] duration-150 hover:border-ink-3 ' +
-  'aria-invalid:border-red aria-invalid:hover:border-red ' +
-  'disabled:cursor-not-allowed disabled:border-line-strong disabled:bg-inset disabled:text-ink-3';
-
-// Text controls only: a <select> always matches :read-only, so this cannot
-// live in the shared base.
-const TEXT_READONLY = 'read-only:bg-inset';
+/**
+ * A control inside M3E's form field: on its own a form field of its own, in
+ * a Field the Field's. `slots` are the form field's other children (prefix,
+ * suffix), handed over as siblings of the control, as M3E reads them.
+ */
+function InFormField({
+  control, slots, invalid, dense, className,
+}: { control: ReactNode; slots?: ReactNode; invalid: boolean; dense?: boolean; className?: string }) {
+  if (useContext(FieldContext)) {
+    return (
+      <>
+        {slots}
+        {control}
+      </>
+    );
+  }
+  return (
+    <M3eFormField
+      variant="outlined"
+      error={invalid}
+      hideSubscript="always"
+      className={className ?? 'w-full'}
+      style={dense ? ({ '--md-sys-density-scale': '-2' } as CSSProperties) : undefined}
+    >
+      {slots}
+      {control}
+    </M3eFormField>
+  );
+}
 
 export type InputProps = ComponentProps<'input'> & {
   invalid?: boolean;
@@ -309,59 +377,106 @@ export type InputProps = ComponentProps<'input'> & {
 
 export function Input({ className, invalid, leading, trailing, containerClassName, ...rest }: InputProps) {
   const wiring = useFieldWiring({ ...rest, invalid });
-  const floating = useContext(FieldContext)?.floating;
-  const input = (
-    <input
-      {...rest}
-      {...wiring}
-      // A floating label needs to know whether the field is empty: CSS can
-      // only tell through :placeholder-shown, so there always is one.
-      placeholder={rest.placeholder ?? (floating ? ' ' : undefined)}
-      className={cx(
-        CONTROL_BASE,
-        TEXT_READONLY,
-        'h-12',
-        leading ? 'pl-10' : 'pl-3.5',
-        trailing ? 'pr-12' : 'pr-3.5',
-        className,
-      )}
-    />
-  );
-  if (!leading && !trailing) return input;
   return (
-    <div className={cx('relative', containerClassName ?? 'w-full')}>
-      {input}
-      {leading && (
-        <span aria-hidden className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-3">
-          {leading}
-        </span>
+    <InFormField
+      invalid={!!wiring['aria-invalid']}
+      className={containerClassName}
+      slots={(
+        <>
+          {leading && <span slot="prefix" aria-hidden className="flex items-center text-ink-3">{leading}</span>}
+          {trailing && <span slot="suffix" className="flex items-center">{trailing}</span>}
+        </>
       )}
-      {trailing && <span className="absolute inset-y-0 right-1.5 flex items-center">{trailing}</span>}
-    </div>
+      control={<input {...rest} {...wiring} className={className} />}
+    />
   );
 }
 
-export type SelectProps = ComponentProps<'select'> & { invalid?: boolean; containerClassName?: string };
+/** What a Select's onChange hands over: the chosen value, where a native select's event has it. */
+export type SelectChange = { target: { value: string }; currentTarget: { value: string } };
 
-export function Select({ className, children, invalid, containerClassName, ...rest }: SelectProps) {
-  const wiring = useFieldWiring({ ...rest, invalid });
-  // One grid cell for the select and its chevron, so the chevron follows the
-  // select's own width whatever the caller sizes it to.
+export type SelectProps = {
+  /** The m3e-select itself — what an error moves focus to. */
+  ref?: Ref<HTMLElement>;
+  id?: string;
+  name?: string;
+  value: string;
+  onChange?: (e: SelectChange) => void;
+  disabled?: boolean;
+  invalid?: boolean;
+  /** A row's control rather than a form's field: M3E's density -2 (48px rather than 56). */
+  dense?: boolean;
+  /** Classes for the form field around the select (its width, its margins). */
+  containerClassName?: string;
+  className?: string;
+  'aria-label'?: string;
+  'aria-describedby'?: string;
+  /**
+   * <option> and <optgroup> elements, as for a native select: they become
+   * M3E's options in its own menu panel.
+   */
+  children: ReactNode;
+};
+
+/** <option>/<optgroup> children as M3E's: m3e-option, and m3e-optgroup with its label in the label slot. */
+function m3eOptions(children: ReactNode): ReactNode {
+  return Children.map(children, (child) => {
+    if (!isValidElement(child)) return child;
+    const props = child.props as { value?: string | number; disabled?: boolean; label?: ReactNode; children?: ReactNode };
+    if (child.type === 'option') {
+      return (
+        <M3eOption value={props.value == null ? undefined : String(props.value)} disabled={props.disabled}>
+          {props.children}
+        </M3eOption>
+      );
+    }
+    if (child.type === 'optgroup') {
+      return (
+        <M3eOptGroup>
+          <span slot="label">{props.label}</span>
+          {m3eOptions(props.children)}
+        </M3eOptGroup>
+      );
+    }
+    if (child.type === Fragment) return m3eOptions(props.children);
+    return child;
+  });
+}
+
+/**
+ * M3E's select (@m3e/web select): an outlined form field whose list opens as
+ * an M3 menu panel, never the browser's own popup — whose colours and shape
+ * no theme reaches.
+ */
+export function Select({
+  ref, id, name, value, onChange, disabled, invalid, dense, containerClassName, className, children, ...aria
+}: SelectProps) {
+  const wiring = useFieldWiring({ id, 'aria-describedby': aria['aria-describedby'], invalid });
   return (
-    <div className={cx('grid', containerClassName ?? 'w-full')}>
-      <select
-        {...rest}
-        {...wiring}
-        className={cx(CONTROL_BASE, 'col-start-1 row-start-1 h-12 cursor-pointer appearance-none pr-10 pl-3.5', className)}
-      >
-        {children}
-      </select>
-      <ChevronIcon
-        size={16}
-        strokeWidth={2}
-        className="pointer-events-none col-start-1 row-start-1 mr-3.5 self-center justify-self-end text-ink-3"
-      />
-    </div>
+    <InFormField
+      invalid={!!wiring['aria-invalid']}
+      dense={dense}
+      className={containerClassName}
+      control={(
+        <M3eSelect
+          ref={ref as Ref<never>}
+          id={wiring.id}
+          name={name}
+          value={value}
+          disabled={disabled}
+          aria-label={aria['aria-label']}
+          aria-describedby={wiring['aria-describedby']}
+          aria-invalid={wiring['aria-invalid']}
+          className={className}
+          onChange={(e: Event) => {
+            const v = String((e.currentTarget as unknown as { value: unknown }).value ?? '');
+            onChange?.({ target: { value: v }, currentTarget: { value: v } });
+          }}
+        >
+          {m3eOptions(children)}
+        </M3eSelect>
+      )}
+    />
   );
 }
 
@@ -369,17 +484,20 @@ export type TextareaProps = ComponentProps<'textarea'> & { invalid?: boolean; sh
 
 export function Textarea({ className, invalid, showCount, maxLength, value, ...rest }: TextareaProps) {
   const wiring = useFieldWiring({ ...rest, invalid });
-  const floating = useContext(FieldContext)?.floating;
   const count = typeof value === 'string' ? value.length : null;
   return (
     <>
-      <textarea
-        {...rest}
-        {...wiring}
-        placeholder={rest.placeholder ?? (floating ? ' ' : undefined)}
-        value={value}
-        maxLength={maxLength}
-        className={cx(CONTROL_BASE, TEXT_READONLY, 'block min-h-[96px] resize-y px-3.5 py-3 leading-[1.45]', className)}
+      <InFormField
+        invalid={!!wiring['aria-invalid']}
+        control={(
+          <textarea
+            {...rest}
+            {...wiring}
+            value={value}
+            maxLength={maxLength}
+            className={cx('block min-h-[96px] resize-y leading-[1.45]', className)}
+          />
+        )}
       />
       {showCount && maxLength != null && count != null && (
         <span className="tnum self-end text-[12.5px] text-ink-3" aria-hidden>
@@ -390,41 +508,47 @@ export function Textarea({ className, invalid, showCount, maxLength, value, ...r
   );
 }
 
+/** What a Checkbox's onChange hands over: the new state, where a native checkbox's event has it. */
+export type CheckboxChange = { target: { checked: boolean } };
+
+/**
+ * M3E's checkbox (@m3e/web checkbox), its label and description beside it.
+ * The label is a <label for> the checkbox, so a press on the words toggles
+ * it too.
+ */
 export function Checkbox({
-  label, description, className, disabled, ...input
-}: Omit<ComponentProps<'input'>, 'type'> & { label: ReactNode; description?: ReactNode }) {
+  label, description, className, disabled, checked, onChange, id, name,
+}: {
+  label: ReactNode;
+  description?: ReactNode;
+  className?: string;
+  disabled?: boolean;
+  checked: boolean;
+  onChange?: (e: CheckboxChange) => void;
+  id?: string;
+  name?: string;
+}) {
   const auto = useId();
-  const descId = description ? `cb${auto}-desc` : undefined;
+  const boxId = id ?? `cb${auto}`;
+  const descId = description ? `${boxId}-desc` : undefined;
   return (
-    <label
-      className={cx(
-        'inline-flex items-start gap-3 py-1 text-[15px] leading-snug text-ink',
-        disabled ? 'cursor-not-allowed opacity-55' : 'cursor-pointer',
-        className,
-      )}
-    >
-      <span className="relative mt-px grid size-5 shrink-0 place-items-center">
-        <input
-          type="checkbox"
-          disabled={disabled}
-          aria-describedby={descId}
-          className={cx(
-            'peer col-start-1 row-start-1 size-5 cursor-[inherit] appearance-none rounded-[5px] border-[1.5px] border-field-line bg-field-bg',
-            'transition-colors duration-150 hover:border-ink-3 checked:border-accent checked:bg-accent checked:hover:border-accent-hover checked:hover:bg-accent-hover',
-          )}
-          {...input}
-        />
-        <CheckIcon
-          size={14}
-          strokeWidth={2.8}
-          className="pointer-events-none col-start-1 row-start-1 text-accent-ink opacity-0 peer-checked:opacity-100"
-        />
-      </span>
-      <span className="min-w-0">
-        <span className="block">{label}</span>
+    <span className={cx('inline-flex items-start gap-1 text-[15px] leading-snug text-ink', disabled && 'opacity-55', className)}>
+      {/* The box is 18px in a 40px state layer: pulled up and in, its
+          middle stays on the label's first line and its edge on the text's. */}
+      <M3eCheckbox
+        id={boxId}
+        name={name}
+        checked={checked}
+        disabled={!!disabled}
+        aria-describedby={descId}
+        className="-my-2.5 -ml-2.5 shrink-0"
+        onChange={(e: Event) => onChange?.({ target: { checked: !!(e.currentTarget as unknown as { checked: boolean }).checked } })}
+      />
+      <span className="min-w-0 py-px">
+        <label htmlFor={boxId} className={cx('block', disabled ? 'cursor-not-allowed' : 'cursor-pointer')}>{label}</label>
         {description && <span id={descId} className="mt-0.5 block text-[13px] text-ink-3">{description}</span>}
       </span>
-    </label>
+    </span>
   );
 }
 
@@ -444,30 +568,19 @@ export function Switch({
   const auto = useId();
   const switchId = id ?? `sw${auto}`;
   const descId = description ? `${switchId}-desc` : undefined;
+  // M3E's switch (@m3e/web switch): the M3 track and handle, the check in
+  // the handle while on, the handle growing while pressed.
   const control = (
-    <button
+    <M3eSwitch
       id={switchId}
-      type="button"
-      role="switch"
-      aria-checked={checked}
+      icons="selected"
+      checked={checked}
+      disabled={!!disabled}
       aria-label={label ? undefined : ariaLabel}
       aria-describedby={descId}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cx(
-        'relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors duration-150',
-        checked ? 'bg-accent hover:bg-accent-hover' : 'bg-field-line hover:bg-ink-3',
-        'disabled:cursor-not-allowed disabled:opacity-45',
-      )}
-    >
-      <span
-        aria-hidden
-        className={cx(
-          'size-[18px] rounded-full bg-white shadow-[0_1px_2px_rgb(0_0_0/0.25)] transition-transform duration-150',
-          checked ? 'translate-x-[19px]' : 'translate-x-[3px]',
-        )}
-      />
-    </button>
+      className="shrink-0"
+      onChange={(e: Event) => onChange(!!(e.currentTarget as unknown as { checked: boolean }).checked)}
+    />
   );
   if (!label) return control;
   return (
@@ -480,6 +593,26 @@ export function Switch({
       </span>
       {control}
     </div>
+  );
+}
+
+/**
+ * How far something has got (a download): M3E's wavy linear progress
+ * indicator (@m3e/web progress-indicator) — the done part a travelling wave,
+ * the rest a flat track with its stop at the end.
+ */
+export function Progress({
+  value, label, valueText, className,
+}: { value: number; label: string; valueText?: string; className?: string }) {
+  return (
+    <M3eLinearProgressIndicator
+      variant="wavy"
+      value={Math.max(0, Math.min(100, value))}
+      max={100}
+      aria-label={label}
+      aria-valuetext={valueText}
+      className={cx('block w-full', className)}
+    />
   );
 }
 
@@ -1403,160 +1536,134 @@ export function Segmented<T extends string>({
   className?: string;
   'aria-label': string;
 }) {
-  const refs = useRef<Array<HTMLButtonElement | null>>([]);
-  const current = Math.max(0, options.findIndex((o) => o.value === value));
-
-  const onKeyDown = (e: ReactKeyboardEvent) => {
-    const n = rovingKey(e, options.length, current);
-    if (n == null) return;
-    e.preventDefault();
-    if (options[n].disabled) return;
-    onChange(options[n].value);
-    refs.current[n]?.focus();
-  };
-
+  // M3 Expressive's single-select choice: a connected button group of toggle
+  // buttons (@m3e/web button-group, variant "connected"). The chosen one is
+  // filled in the primary and round all over; the others keep the group's
+  // inner corners. One is always chosen: pressing the chosen one again is
+  // refused (beforeinput), as a radio group would.
+  const buttonSize = size === 'sm' ? 'extra-small' : 'small';
   return (
-    <div
-      role="radiogroup"
+    <M3eButtonGroup
+      variant="connected"
+      size={buttonSize}
+      role="group"
       aria-label={ariaLabel}
-      data-segmented={size}
-      onKeyDown={onKeyDown}
-      className={cx(
-        'max-w-full gap-1 overflow-x-auto rounded-full bg-inset p-1 [scrollbar-width:none]',
-        block ? 'flex' : 'inline-flex',
-        className,
-      )}
+      className={cx(block ? 'flex w-full' : 'inline-flex max-w-full', className)}
     >
-      {options.map((o, i) => {
+      {options.map((o) => {
         const checked = o.value === value;
         return (
-          <button
+          <M3eButton
             key={o.value}
-            ref={(el) => { refs.current[i] = el; }}
-            type="button"
-            role="radio"
-            aria-checked={checked}
-            tabIndex={checked ? 0 : -1}
+            toggle
+            variant="filled"
+            size={buttonSize}
+            selected={checked}
             disabled={o.disabled}
-            onClick={() => onChange(o.value)}
-            className={cx(
-              'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full font-semibold whitespace-nowrap transition-[background-color,color,box-shadow] duration-150',
-              size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-9 px-4 text-[14px]',
-              block && 'flex-1',
-              // The thumb alone is barely lighter than the track (1.14:1 in
-              // light), so the chosen value is told by an action-blue edge
-              // (over 4:1 against track and thumb in both themes) and, in
-              // light, a blue label. In the dark a surface-coloured thumb would
-              // sink into the track, so it is lifted with a touch of ink
-              // instead — and keeps ink text, as blue on that lift would fall
-              // under 4.5:1.
-              checked
-                ? 'bg-surface text-accent shadow-[inset_0_0_0_1.5px_var(--accent),var(--shadow-card)] dark:bg-[color-mix(in_srgb,var(--ink)_14%,var(--inset))] dark:text-ink'
-                : 'text-ink-2 hover:text-ink',
-              'disabled:cursor-not-allowed disabled:opacity-45',
-            )}
+            className={block ? 'flex-1' : undefined}
+            onBeforeInput={(e: Event) => {
+              if (checked) e.preventDefault();
+            }}
+            onChange={() => {
+              if (!checked) onChange(o.value);
+            }}
           >
-            {o.icon}
+            {o.icon && <span slot="icon" className="inline-flex">{o.icon}</span>}
+            {o.icon && <span slot="selected-icon" className="inline-flex">{o.icon}</span>}
             {o.label}
-          </button>
+          </M3eButton>
         );
       })}
-    </div>
+    </M3eButtonGroup>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Chips, tags, badges
 // ---------------------------------------------------------------------------
-const CHIP_BASE =
-  'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--radius-chip)] border px-3 text-[14px] font-semibold whitespace-nowrap ' +
-  'transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45';
+/** The cancel that keeps a chip's selected state the caller's: M3E would flip it on a click before the caller decides. */
+const keepSelection = (e: Event) => e.preventDefault();
 
 /**
- * A filter toggle: outlined in action blue; selected adds a 10 % tint and a
- * check (the check, not the tint, is what says "on" without colour).
- * `menu` makes it the trigger of a dropdown instead (a chevron, no check).
+ * M3E's filter chip (@m3e/web chips): outlined; selected, the secondary
+ * container and a check (the check, not the tint, is what says "on" without
+ * colour). `menu` makes it the trigger of a dropdown — a chevron after the
+ * label, selected while its filter is set. Standing alone, not in a chip
+ * set, it is a button: pressed or not, or a menu's trigger.
  */
 export function FilterChip({
-  selected = false, count, icon, menu, className, children, ...rest
-}: ComponentProps<'button'> & { selected?: boolean; count?: number; icon?: ReactNode; menu?: boolean }) {
+  selected = false, count, icon, menu, className, children, onClick, disabled, ...rest
+}: Omit<ComponentProps<'button'>, 'ref' | 'onClick'> & {
+  ref?: Ref<HTMLElement>;
+  onClick?: (e: MouseEvent) => void;
+  selected?: boolean;
+  count?: number;
+  icon?: ReactNode;
+  menu?: boolean;
+}) {
   return (
-    <button
-      type="button"
-      data-chip
+    <M3eFilterChip
+      {...(rest as object)}
+      role="button"
+      variant="outlined"
+      selected={selected}
+      disabled={!!disabled}
       aria-pressed={menu ? undefined : selected}
-      className={cx(
-        CHIP_BASE,
-        'border-accent text-accent',
-        selected ? 'bg-accent-soft' : 'hover:bg-accent-soft',
-        className,
-      )}
-      {...rest}
+      data-chip
+      onBeforeInput={keepSelection}
+      onClick={onClick as ((e: Event) => void) | undefined}
+      className={cx('shrink-0', className)}
     >
-      {selected && !menu && <CheckIcon size={16} strokeWidth={2.2} />}
-      {icon}
-      <span>{children}</span>
-      {count != null && count > 0 && <CountBadge count={count} tone="accent" />}
-      {menu && <ChevronIcon size={14} strokeWidth={2} className="-mr-0.5" />}
-    </button>
+      {icon && <span slot="icon" className="inline-flex">{icon}</span>}
+      {children}
+      {(menu || (count != null && count > 0)) && (
+        <span slot="trailing-icon" className="inline-flex items-center gap-1">
+          {count != null && count > 0 && <CountBadge count={count} tone="accent" />}
+          {menu && <ChevronIcon size={16} strokeWidth={2} />}
+        </span>
+      )}
+    </M3eFilterChip>
   );
 }
 
 /**
  * A chip that is a value rather than a filter — a recent payee to pick, a
- * source note ("Aus GiroCode übernommen"). Pressable when it has onClick,
- * removable when it has onRemove, otherwise a quiet label.
+ * source note ("Aus GiroCode übernommen"). Pressable when it has onClick — a
+ * filter chip, checked while picked — otherwise M3E's plain outlined chip.
  */
 export function Chip({
-  children, icon, onClick, onRemove, removeLabel, selected, className, title,
+  children, icon, onClick, selected, className, title,
 }: {
   children: ReactNode;
   icon?: ReactNode;
   onClick?: () => void;
-  onRemove?: () => void;
-  /** Accessible name of the remove button; defaults to "Entfernen". */
-  removeLabel?: string;
   selected?: boolean;
   className?: string;
   title?: string;
 }) {
-  const t = useT();
-  const look = onClick
-    ? cx('border-accent text-accent', selected ? 'bg-accent-soft' : 'hover:bg-accent-soft')
-    : 'border-line-strong text-ink-2';
-  // A picked chip carries FilterChip's check, not only the tint: the tint is
-  // a shade away from the surface, the check is a shape.
   const body = (
     <>
-      {onClick && selected && <CheckIcon size={16} strokeWidth={2.2} className="shrink-0" />}
-      {icon}
-      <span className="min-w-0 truncate">{children}</span>
+      {icon && <span slot="icon" className="inline-flex">{icon}</span>}
+      <span className="block min-w-0 truncate">{children}</span>
     </>
   );
+  if (!onClick) {
+    return <M3eChip variant="outlined" title={title} className={cx('max-w-full', className)}>{body}</M3eChip>;
+  }
   return (
-    <span className={cx('inline-flex max-w-full items-center', className)}>
-      {onClick ? (
-        <button type="button" data-chip title={title} aria-pressed={selected} onClick={onClick} className={cx(CHIP_BASE, 'max-w-full', look, onRemove && 'rounded-r-none border-r-0 pr-2')}>
-          {body}
-        </button>
-      ) : (
-        <span title={title} className={cx(CHIP_BASE, 'max-w-full', look, onRemove && 'rounded-r-none border-r-0 pr-1')}>{body}</span>
-      )}
-      {onRemove && (
-        <button
-          type="button"
-          aria-label={removeLabel ?? t.shell.ui.remove}
-          title={removeLabel ?? t.shell.ui.remove}
-          onClick={onRemove}
-          className={cx(
-            'grid h-9 w-8 shrink-0 place-items-center rounded-r-[var(--radius-chip)] border border-l-0 transition-colors duration-150',
-            onClick ? 'border-accent text-accent hover:bg-accent-soft' : 'border-line-strong text-ink-3 hover:bg-inset hover:text-ink',
-          )}
-        >
-          <CloseIcon size={14} />
-        </button>
-      )}
-    </span>
+    <M3eFilterChip
+      role="button"
+      variant="outlined"
+      selected={!!selected}
+      aria-pressed={!!selected}
+      data-chip
+      title={title}
+      onBeforeInput={keepSelection}
+      onClick={onClick}
+      className={cx('max-w-full', className)}
+    >
+      {body}
+    </M3eFilterChip>
   );
 }
 
@@ -1727,26 +1834,39 @@ export type TriggerProps = {
   'aria-haspopup': 'menu' | 'dialog';
   'aria-expanded': boolean;
   'aria-controls': string | undefined;
-  onClick: (e: ReactMouseEvent<HTMLElement>) => void;
+  onClick: () => void;
   onKeyDown: (e: ReactKeyboardEvent<HTMLElement>) => void;
 };
+
+/** M3E's menu element, as Menu drives it. */
+type M3eMenuEl = HTMLElement & { readonly isOpen: boolean; show(trigger: HTMLElement): Promise<void>; hide(restoreFocus?: boolean): void };
+
+const MENU_POSITION: Record<Placement, { x: 'before' | 'after'; y: 'above' | 'below' }> = {
+  'bottom-start': { x: 'after', y: 'below' },
+  'bottom-end': { x: 'before', y: 'below' },
+  'top-start': { x: 'after', y: 'above' },
+  'top-end': { x: 'before', y: 'above' },
+};
+
+const MENU_ITEMS = 'm3e-menu-item, m3e-menu-item-radio, m3e-menu-item-checkbox';
 
 type MenuCtx = { close: (returnFocus?: boolean) => void };
 const MenuContext = createContext<MenuCtx | null>(null);
 
-const ITEM_SELECTOR = '[role="menuitem"]:not([aria-disabled="true"]), [role="menuitemradio"]:not([aria-disabled="true"]), [role="menuitemcheckbox"]:not([aria-disabled="true"])';
-
 /**
- * A button-triggered menu (role=menu). The trigger is a render prop so any
- * control can open it — a pill, a chip, a masthead item:
+ * A button-triggered menu: M3E's (@m3e/web menu) — its surface, its items'
+ * state layers and selected shape, its placement at the trigger (flipping
+ * where there is no room), arrows, Home/End, Enter, a press outside and
+ * Escape. The trigger is a render prop so any control can open it — a
+ * button, a chip, a masthead item:
  *
  *   <Menu label="Export" trigger={(p) => <Button {...p}>Export</Button>}>
  *     <MenuItem onSelect={…}>Kontoauszug als PDF</MenuItem>
  *   </Menu>
  *
- * Keyboard: Enter/Space/↓ open on the first item, ↑ on the last; arrows,
- * Home/End and typeahead move; Enter selects; Escape closes and returns focus
- * to the trigger; Tab closes and moves on.
+ * Girovo's part: ↓ and ↑ on the trigger open on the first and the last
+ * item, a set of radios opens on its checked choice, Escape closes the menu
+ * and never the dialog under it, and Tab moves on from the trigger.
  */
 export function Menu({
   trigger, children, label, placement = 'bottom-start', className, minWidth = 220, onOpenChange,
@@ -1764,38 +1884,58 @@ export function Menu({
   const triggerId = `menu${auto}-trigger`;
   const menuId = `menu${auto}`;
   const [open, setOpenState] = useState(false);
-  const focusOnOpen = useRef<'first' | 'last' | null>(null);
+  // The items are there while the menu is open and a moment after, so
+  // M3E's closing animation has its surface to fold away.
+  const [rendered, setRendered] = useState(false);
+  const focusOnOpen = useRef<'first' | 'last'>('first');
   const triggerRef = useRef<HTMLElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const typeahead = useRef({ text: '', at: 0 });
-  const style = useAnchoredPosition(triggerRef, menuRef, open, placement);
+  const menuRef = useRef<M3eMenuEl | null>(null);
 
   const setOpen = useCallback((v: boolean) => {
     setOpenState(v);
     onOpenChange?.(v);
   }, [onOpenChange]);
 
+  const openMenu = (from: 'first' | 'last') => {
+    focusOnOpen.current = from;
+    setRendered(true);
+    setOpen(true);
+  };
+
   const close = useCallback((returnFocus = true) => {
-    setOpen(false);
-    if (returnFocus) triggerRef.current?.focus({ preventScroll: true });
-  }, [setOpen]);
+    const menu = menuRef.current;
+    if (menu?.isOpen) menu.hide(returnFocus);
+    else if (returnFocus) triggerRef.current?.focus({ preventScroll: true });
+  }, []);
 
-  useOutsidePress(open, [triggerRef, menuRef], () => close(false));
+  // Once its items are in, M3E shows the menu at its trigger. It puts focus
+  // on the first item; ↑ starts on the last, a set of radios on its choice.
+  useEffect(() => {
+    const menu = menuRef.current;
+    const anchor = triggerRef.current;
+    if (!open || !rendered || !menu || !anchor || menu.isOpen) return;
+    let gone = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void menu.show(anchor).then(() => {
+      timer = setTimeout(() => {
+        if (gone || !menu.isOpen) return;
+        const list = Array.from(menu.querySelectorAll<HTMLElement & { disabled?: boolean; checked?: boolean }>(MENU_ITEMS))
+          .filter((el) => !el.disabled);
+        const target = focusOnOpen.current === 'last' ? list[list.length - 1] : (list.find((el) => el.checked) ?? list[0]);
+        target?.focus({ preventScroll: true });
+      }, 80);
+    });
+    return () => {
+      gone = true;
+      clearTimeout(timer);
+    };
+  }, [open, rendered]);
 
-  const items = () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>(ITEM_SELECTOR) ?? []);
-
-  // Focus the first/last item (or the checked radio) once the menu is placed.
-  // Not on the first commit: the layer is still visibility:hidden while it
-  // is being measured, and a hidden element cannot take focus.
-  const placed = open && style.visibility === 'visible';
-  useLayoutEffect(() => {
-    if (!placed || !focusOnOpen.current) return;
-    const list = items();
-    const checked = list.find((el) => el.getAttribute('aria-checked') === 'true');
-    const target = focusOnOpen.current === 'last' ? list[list.length - 1] : (checked ?? list[0]);
-    (target ?? menuRef.current)?.focus({ preventScroll: true });
-    focusOnOpen.current = null;
-  }, [placed]);
+  useEffect(() => {
+    if (open || !rendered) return;
+    const t = setTimeout(() => setRendered(false), 250);
+    return () => clearTimeout(t);
+  }, [open, rendered]);
 
   const triggerProps: TriggerProps = {
     ref: (el) => { triggerRef.current = el; },
@@ -1804,88 +1944,53 @@ export function Menu({
     'aria-expanded': open,
     'aria-controls': open ? menuId : undefined,
     onClick: () => {
-      focusOnOpen.current = 'first';
       if (open) close(false);
-      else setOpen(true);
+      else openMenu('first');
     },
     onKeyDown: (e) => {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        focusOnOpen.current = e.key === 'ArrowUp' ? 'last' : 'first';
-        setOpen(true);
-      }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      e.preventDefault();
+      if (!open) openMenu(e.key === 'ArrowUp' ? 'last' : 'first');
     },
   };
 
-  const onMenuKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    const list = items();
-    const i = list.indexOf(document.activeElement as HTMLElement);
+  const onMenuKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
+    // M3E has closed the menu and given focus back; the key ends here, so a
+    // dialog under the menu stays open.
     if (e.key === 'Escape') {
-      e.preventDefault();
       e.stopPropagation();
-      close(true);
-      return;
-    }
-    if (e.key === 'Tab') {
-      // Focus goes back to the trigger first, so the browser's own Tab move
-      // continues from there instead of from an item that is about to vanish.
-      close(true);
-      return;
-    }
-    if (list.length && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
       e.preventDefault();
-      // From the menu itself (nothing focused yet) ↓/Home start at the top, ↑/End at the bottom.
-      const n = i < 0
-        ? (e.key === 'ArrowDown' || e.key === 'Home' ? 0 : list.length - 1)
-        : rovingKey(e, list.length, i, true)!;
-      list[n]?.focus();
       return;
     }
-    // Typeahead: jump to the next item starting with what was typed.
-    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && /\S/.test(e.key)) {
-      const now = Date.now();
-      const t = typeahead.current;
-      t.text = now - t.at > 600 ? e.key.toLowerCase() : t.text + e.key.toLowerCase();
-      t.at = now;
-      const start = t.text.length === 1 ? i + 1 : Math.max(i, 0);
-      for (let k = 0; k < list.length; k++) {
-        const el = list[(start + k) % list.length];
-        if ((el.textContent ?? '').trim().toLowerCase().startsWith(t.text)) {
-          el.focus();
-          break;
-        }
-      }
-    }
+    // M3E closes on Tab; the browser's own move then starts at the trigger,
+    // not at an item that is going away.
+    if (e.key === 'Tab') triggerRef.current?.focus({ preventScroll: true });
   };
 
   return (
     <MenuContext.Provider value={{ close }}>
       {trigger(triggerProps, { open })}
-      {open && (
-        <div
-          ref={menuRef}
+      {rendered && (
+        <M3eMenu
+          ref={menuRef as Ref<never>}
           id={menuId}
-          role="menu"
+          positionX={MENU_POSITION[placement].x}
+          positionY={MENU_POSITION[placement].y}
           aria-labelledby={label ? undefined : triggerId}
           aria-label={label}
-          tabIndex={-1}
+          onToggle={(e: Event) => {
+            if ((e as ToggleEvent).newState === 'closed') setOpen(false);
+          }}
           onKeyDown={onMenuKeyDown}
-          style={{ ...style, minWidth, ...NO_DRAG }}
-          className={cx(
-            'anim-pop z-120 max-w-[min(360px,calc(100vw-16px))] overflow-y-auto overscroll-contain rounded-[12px] bg-raised p-1.5 text-ink shadow-[var(--shadow-pop)] outline-none [--focus-ring:var(--focus)]',
-            className,
-          )}
+          style={{ minWidth, ...NO_DRAG }}
+          className={className}
         >
           {typeof children === 'function' ? children(() => close(true)) : children}
-        </div>
+        </M3eMenu>
       )}
     </MenuContext.Provider>
   );
 }
-
-const MENU_ITEM =
-  'flex min-h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 text-left text-[15px] leading-snug text-ink outline-none ' +
-  'focus:bg-inset focus-visible:shadow-[inset_0_0_0_2px_var(--focus)] aria-disabled:cursor-not-allowed aria-disabled:opacity-45';
 
 type MenuItemBase = {
   children: ReactNode;
@@ -1901,76 +2006,78 @@ type MenuItemBase = {
   className?: string;
 };
 
-function useMenuItem({ disabled, keepOpen, onSelect }: Pick<MenuItemBase, 'disabled' | 'keepOpen' | 'onSelect'>) {
+function useItemHandlers({ disabled, keepOpen, onSelect }: Pick<MenuItemBase, 'disabled' | 'keepOpen' | 'onSelect'>) {
   const menu = useContext(MenuContext);
   return {
-    tabIndex: -1,
-    'aria-disabled': disabled || undefined,
-    // Moving the pointer moves focus too, so keyboard and mouse share one
-    // highlight and arrows continue from where the pointer left off.
-    onMouseMove: (e: ReactMouseEvent<HTMLElement>) => {
-      if (!disabled && document.activeElement !== e.currentTarget) e.currentTarget.focus({ preventScroll: true });
-    },
+    // M3E closes the menu on an item's click unless it is cancelled, which
+    // has to happen before its own handler: in the capture phase.
+    onClickCapture: keepOpen ? (e: ReactMouseEvent) => e.preventDefault() : undefined,
     onClick: () => {
       if (disabled) return;
       onSelect?.();
+      // At once, focus back on the trigger: a radio's choice M3E closes only
+      // after 150ms, and what the choice changes may scroll the page first —
+      // which closes an M3E menu without giving focus back.
       if (!keepOpen) menu?.close(true);
     },
   };
 }
 
-function ItemBody({ icon, children, description, hint, lead }: Pick<MenuItemBase, 'icon' | 'children' | 'description' | 'hint'> & { lead?: ReactNode }) {
+function ItemBody({ icon, children, description, hint }: Pick<MenuItemBase, 'icon' | 'children' | 'description' | 'hint'>) {
   return (
     <>
-      {lead}
-      {icon && <span className="shrink-0 text-ink-2">{icon}</span>}
-      <span className="min-w-0 flex-1">
-        <span className="block">{children}</span>
-        {description && <span className="mt-0.5 block text-[13px] text-ink-3">{description}</span>}
+      {icon && <span slot="icon" className="inline-flex">{icon}</span>}
+      {/* M3E keeps an item to one line; a description makes it two, the
+          item's height following (app/material.css). */}
+      <span data-two-line={description ? '' : undefined} className={cx('flex w-full items-center gap-3', !!description && 'py-2.5')}>
+        <span className="min-w-0 flex-1 whitespace-normal">
+          <span className="block">{children}</span>
+          {description && <span className="mt-0.5 block text-[13px] font-normal opacity-75">{description}</span>}
+        </span>
+        {hint && <span className="shrink-0 text-[13px] font-normal opacity-75">{hint}</span>}
       </span>
-      {hint && <span className="shrink-0 text-[13px] text-ink-3">{hint}</span>}
     </>
   );
 }
 
 export function MenuItem({ tone = 'default', className, ...p }: MenuItemBase & { tone?: 'default' | 'danger' }) {
-  const handlers = useMenuItem(p);
   return (
-    <button type="button" role="menuitem" {...handlers} className={cx(MENU_ITEM, tone === 'danger' && 'text-red', className)}>
+    <M3eMenuItem
+      {...useItemHandlers(p)}
+      disabled={!!p.disabled}
+      data-tone={tone === 'danger' ? 'danger' : undefined}
+      className={className}
+    >
       <ItemBody {...p} />
-    </button>
+    </M3eMenuItem>
   );
 }
 
-/** One of a set of choices; put the set in a MenuGroup. */
+/** One of a set of choices; put the set in a MenuGroup. Checked, M3E's selected shape and a check. */
 export function MenuItemRadio({ checked, className, ...p }: MenuItemBase & { checked: boolean }) {
-  const handlers = useMenuItem(p);
   return (
-    <button type="button" role="menuitemradio" aria-checked={checked} {...handlers} className={cx(MENU_ITEM, className)}>
-      <ItemBody
-        {...p}
-        hint={p.hint ?? (checked ? <CheckIcon size={18} strokeWidth={2.2} className="text-accent" /> : <span className="inline-block w-[18px]" />)}
-      />
-    </button>
+    <M3eMenuItemRadio {...useItemHandlers(p)} checked={checked} disabled={!!p.disabled} className={className}>
+      <ItemBody {...p} />
+    </M3eMenuItemRadio>
   );
 }
 
 export function MenuGroup({ label, children }: { label?: ReactNode; children: ReactNode }) {
   const id = useId();
   return (
-    <div role="group" aria-labelledby={label ? id : undefined}>
+    <M3eMenuItemGroup aria-labelledby={label ? id : undefined}>
       {label && <MenuLabel id={id}>{label}</MenuLabel>}
       {children}
-    </div>
+    </M3eMenuItemGroup>
   );
 }
 
 export function MenuLabel({ id, children }: { id?: string; children: ReactNode }) {
-  return <div id={id} role="presentation" className="px-3 pt-2 pb-1 text-[12.5px] font-semibold text-ink-3">{children}</div>;
+  return <div id={id} role="presentation" className="px-3 pt-2 pb-1 text-[12.5px] font-medium text-ink-3">{children}</div>;
 }
 
 export function MenuSeparator() {
-  return <div role="separator" className="mx-1 my-1.5 h-px bg-line" />;
+  return <M3eDivider className="my-1" />;
 }
 
 /**
@@ -2150,15 +2257,22 @@ export function TileHeader({
 // ---------------------------------------------------------------------------
 // Loading, empty and failure states
 // ---------------------------------------------------------------------------
+/**
+ * A placeholder shaped like what it stands in for: M3E's skeleton (@m3e/web
+ * skeleton), its wave travelling over the shape. The shape is the span it
+ * covers — its size and corner the caller's classes (6px unless a
+ * `rounded-*` says otherwise; round with `circle`).
+ */
 export function Skeleton({
   className, width, height, circle, style,
 }: { className?: string; width?: number | string; height?: number | string; circle?: boolean; style?: CSSProperties }) {
   return (
-    <span
-      aria-hidden
-      className={cx('skel block', circle && 'rounded-full', className)}
-      style={{ width, height, ...style }}
-    />
+    <M3eSkeleton aria-hidden animation="wave" shape={circle ? 'circular' : 'auto'}>
+      <span
+        className={cx('block', circle ? 'rounded-full' : 'rounded-[6px]', className)}
+        style={{ width, height, ...style }}
+      />
+    </M3eSkeleton>
   );
 }
 
@@ -2166,12 +2280,12 @@ export function Skeleton({
 export function SkeletonRow({ width = 60 }: { width?: number }) {
   return (
     <div aria-hidden className="flex items-center gap-3.5 border-b border-line px-4 py-3.5 last:border-b-0 sm:px-5">
-      <div className="skel size-10 shrink-0 rounded-full" />
+      <Skeleton circle className="size-10 shrink-0" />
       <div className="flex-1">
-        <div className="skel h-3" style={{ width: `${width}%` }} />
-        <div className="skel mt-2 h-3" style={{ width: `${Math.max(20, width - 18)}%` }} />
+        <Skeleton className="h-3" width={`${width}%`} />
+        <Skeleton className="mt-2 h-3" width={`${Math.max(20, width - 18)}%`} />
       </div>
-      <div className="skel h-3.5 w-16" />
+      <Skeleton className="h-3.5 w-16" />
     </div>
   );
 }

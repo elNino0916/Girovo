@@ -9,6 +9,8 @@ import { repairBankText } from './format';
 import { parsePurpose } from './sepa-purpose';
 import { INSTANT_SEG, TRANSFER_SEG } from './fints-sepa';
 import { PENDING_SEG } from './fints-pending';
+// Registers HKEKP before any login decodes a BPD, like the order segments below.
+import { PDF_STATEMENT_SEG } from './fints-statement-pdf';
 // Also registers the order segments and their parameters, before any login
 // decodes a BPD (the connect route imports this module).
 import { orderCaps } from './fints-orders';
@@ -84,7 +86,8 @@ export function accountsFor(s: Session): SerializedAccount[] {
     // A Depot's holdings, and the bank's own Kontoauszüge: reads like the
     // balance, granted per account.
     canPortfolio: acctSupports(a, 'HKWPD'),
-    canBankStatements: acctSupports(a, 'HKEKA'),
+    // Over HKEKA, or as a PDF over HKEKP where that is all the account offers (lib/bank-statements.ts).
+    canBankStatements: acctSupports(a, 'HKEKA') || acctSupports(a, PDF_STATEMENT_SEG),
   }));
 }
 

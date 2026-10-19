@@ -10,7 +10,7 @@
 import { LOCALES, LOCALE_NAMES, type Locale } from '@/lib/i18n/locale';
 import { useLocale } from '@/lib/i18n/react';
 import { GlobeIcon } from './icons';
-import { Segmented, cx } from './ui';
+import { Button, Segmented } from './ui';
 
 /**
  * The login bar's switch: one button naming the other language, in that
@@ -20,15 +20,9 @@ export function LanguageSwitch({ className }: { className?: string }) {
   const { locale, setLocale } = useLocale();
   const other: Locale = locale === 'de' ? 'en' : 'de';
   return (
-    <button
-      type="button"
-      lang={other}
-      onClick={() => setLocale(other)}
-      className={cx('navlink inline-flex', className)}
-    >
-      <GlobeIcon size={18} />
-      <span>{LOCALE_NAMES[other]}</span>
-    </button>
+    <Button variant="quiet" size="sm" lang={other} iconLeft={<GlobeIcon size={18} />} onClick={() => setLocale(other)} className={className}>
+      {LOCALE_NAMES[other]}
+    </Button>
   );
 }
 

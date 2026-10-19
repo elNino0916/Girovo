@@ -2,6 +2,8 @@
 //
 // The decision is a ladder, strongest evidence first:
 //
+//   0. the user split this very booking across categories (manual — txKey,
+//      lib/splits.ts); shown under its largest share
 //   1. the user filed this very booking            (manual — txKey)
 //   2. the user filed this counterparty            (rule — counterpartyKey)
 //   3. the other side is one of the user's own accounts   → Umbuchung
@@ -27,6 +29,7 @@ import { categoryDef, counterpartyKey, counterpartyName, isCategoryId, txCredito
 import { isCardPurpose, stripCardBoilerplate } from './card-purpose.ts';
 import { isFacilitatorName } from './merchant-match.ts';
 import { parsePurpose } from './sepa-purpose.ts';
+import { splitParts, type SplitPart } from './splits.ts';
 
 export type { CategoryResult };
 
@@ -37,6 +40,8 @@ export type CategorizeContext = {
   rules?: Record<string, CategoryId> | null;
   /** txKey() → category: the user's choice for one booking. */
   overrides?: Record<string, CategoryId> | null;
+  /** txKey() → the shares of a booking the user split up (lib/splits.ts). */
+  splits?: Record<string, readonly SplitPart[]> | null;
   /** The company the logo lookup resolved this counterparty to, if any. */
   merchantLabel?: string | null;
   /**
@@ -576,6 +581,12 @@ export function isBusinessCredit(
 
 /** A booking's category: the user's choice if there is one, else a labelled guess. */
 export function categorize(tx: SerializedTransaction, ctx: CategorizeContext): CategoryResult {
+  if (ctx.splits) {
+    const split = ctx.splits[txKey(tx)];
+    // A split whose shares no longer add up to the booking is not this booking's.
+    const parts = split ? splitParts(split.filter((p) => isCategoryId(p.id)), tx.amount) : null;
+    if (parts) return { id: parts[0].id, source: 'manual', parts };
+  }
   if (ctx.overrides) {
     const manual = ctx.overrides[txKey(tx)];
     if (isCategoryId(manual)) return { id: manual, source: 'manual' };

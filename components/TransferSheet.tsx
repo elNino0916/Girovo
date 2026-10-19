@@ -288,7 +288,7 @@ export function TransferSheet() {
   const useInstant = instant && canInstant && sched.when === 'now';
 
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const accountRef = useRef<HTMLSelectElement>(null);
+  const accountRef = useRef<HTMLElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const ibanRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);

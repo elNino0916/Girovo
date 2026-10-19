@@ -43,6 +43,7 @@ import {
   periodLabel,
 } from './insights/AnalysisParts';
 import { BudgetDialog, BudgetTile } from './insights/Budgets';
+import { TaxYearTile } from './insights/TaxYear';
 import { CategoryCheckDrawer, CategoryCheckSummary, useCategoryCheck } from './insights/CategoryCheck';
 import { useRecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, YEAR_SPAN, fmtDayKey, spanDays, useShowInList } from './insights/shared';
@@ -433,6 +434,9 @@ export function Analysis() {
           </div>
         </div>
       )}
+
+      {/* The year's bookings for the tax return, whatever the period on view. */}
+      <TaxYearTile />
 
       {/* Overlays render in place (never portalled); this column is no stacking context. */}
       <BudgetDialog

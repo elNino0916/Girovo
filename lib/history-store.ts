@@ -46,8 +46,8 @@ import type { Session } from './session';
 import { boxSalt, deriveKey, newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
 import { isoDate } from './format.ts';
 import {
-  EMPTY_HISTORY, HISTORY_LIMITS, compactHistory, deliveredSpan, isDay, mergeIntoHistory, sanitizeBooking, sanitizeHistory,
-  type DaySpan, type HistoryData, type HistoryGetResponse,
+  EMPTY_HISTORY, HISTORY_LIMITS, compactHistory, deliveredSpan, fillHistoryGaps, isDay, mergeIntoHistory, sanitizeBooking,
+  sanitizeHistory, type DaySpan, type HistoryData, type HistoryGetResponse,
 } from './history.ts';
 import { msgs } from './i18n/index.ts';
 import { moveAside, removeFamily, serialized, writeFileAtomic } from './sealed-file.ts';
@@ -64,10 +64,13 @@ const AAD = Buffer.from('girovo/history/v1', 'utf8');
 /** A refusal the route turns into an HTTP status with a message for the user (msgs().history.server). */
 export class HistoryError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** Set where a caller decides by it: 'notKept' — this login does not keep its Umsätze. */
+  reason?: 'notKept';
+  constructor(message: string, status: number, reason?: 'notKept') {
     super(message);
     this.name = 'HistoryError';
     this.status = status;
+    this.reason = reason;
   }
 }
 
@@ -318,6 +321,35 @@ export async function loadHistory(s: Session): Promise<HistoryGetResponse> {
       unlocked.set(s, opened.entry);
     }
     return { status: 'ready', data: data ? compactHistory(data) : null };
+  });
+}
+
+/**
+ * Adds the days `other` covers and the kept file does not (lib/history.ts
+ * fillGaps): a restored backup's Umsätze, or an export from the bank's online
+ * banking the user imported. A day already kept is never touched. Only while
+ * this login keeps its Umsätze — the vault's choice, as for every answer —
+ * and only into a file this PIN opens (or none yet). Answers how many days
+ * and bookings were added.
+ */
+export async function fillKeptGaps(s: Session, other: HistoryData): Promise<{ days: number; bookings: number }> {
+  const id = identityOf(s);
+  const file = historyFile(id);
+  return serialized(file, async () => {
+    if (!(await keepWanted(s))) throw new HistoryError(msgs().history.server.notKept, 409, 'notKept');
+    const opened = await openHistoryFile(s, id, file);
+    if (opened.status === 'error') {
+      unlocked.delete(s);
+      throw new HistoryError(msgs().history.server.locked, 409);
+    }
+    const entry = opened.status === 'ready' ? opened.entry : await freshKey(id, file);
+    // What the session holds goes in first: the bank's answers outrank any copy.
+    const folded = foldHeld(s, opened.status === 'ready' ? opened.data : EMPTY_HISTORY);
+    const filled = fillHistoryGaps(folded.data, other, today());
+    if (filled.days || folded.count) await writeHistory(entry, filled.data);
+    unlocked.set(s, entry);
+    console.log(`[history] filled ${filled.days} day(s) (blz=${id.blz})`);
+    return { days: filled.days, bookings: filled.bookings };
   });
 }
 

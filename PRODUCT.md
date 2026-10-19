@@ -169,6 +169,11 @@ The owner sees the position as the combination of three claims (confirmed
     name. Its last column ("Notiz") holds the user's notes as typed; the
     printed Buchungsbeleg never carries a note (a third party reads it)
   - a GiroCode PNG for Geld anfordern
+  - the Steuer-Jahresübersicht: one year's bookings in the categories the
+    user picks, as a sealed PDF for a third party (no notes, accounts named as
+    the bank names them), a CSV, or a ZIP of the CSV with the receipts
+  - a backup (`.girovo`) of everything the machine keeps for the view's
+    logins, sealed with a password of its own (lib/backup.ts)
 - **What the bank sends that the UI has to absorb:**
   - bookings dated ahead of today ("noch nicht gebucht")
   - bank messages at login (Mitteilungen)
@@ -199,6 +204,14 @@ The owner sees the position as the combination of three claims (confirmed
   search, in the CSV, never on paper
 - automatic, correctable categories, and a Kategorie-Check of how they fare
   with the user's bookings (on the machine only)
+- categories of the user's own (spending or income), made from a booking's
+  menu and kept in Einstellungen, and bookings split across up to ten
+  categories — counted share by share in every sum, budget and export
+- the Steuer-Jahresübersicht (Analyse): a year by picked categories, as PDF,
+  CSV or ZIP with receipts, incomplete years said as such
+- the month-end forecast ("Kontostand Ende Oktober"): the balance, the
+  Vorgemerkten, the regular payments, the bank's own orders and the usual
+  spending, with the day it may go below zero or past the Dispo
 - Umsatzanalyse
 - Monatsbudgets per spending category, compared with the month on view
 - Verträge & Abos
@@ -230,8 +243,17 @@ The owner sees the position as the combination of three claims (confirmed
   **not yet tried against a real bank**
 - the Depot (HKWPD): holdings with quantity, the bank's last price, value
   and the change since purchase; the bank's total is the account's figure
-- the bank's own Kontoauszüge (HKEKA) and receipts on bookings, kept on the
-  machine (see Documents above)
+- the bank's own Kontoauszüge (HKEKA, or HKEKP where that is all the account
+  offers — not yet tried against a real bank) and receipts on bookings, kept
+  on the machine (see Documents above)
+- changing a Dauerauftrag or a Terminüberweisung (HKCDN/HKCSA): amount,
+  purpose, date or rhythm, never the payee — through the transfer's own
+  Namensabgleich, approval and "Status unklar"; not yet tried against a real
+  bank
+- importing older Umsätze from the online banking's export (CSV, camt, MT940)
+  into the kept history, only into days not kept yet
+- a backup of the vault, the kept Umsätze and the documents, and its restore
+  (merging: what is on the machine wins)
 - company logos via Brandfetch
 - Gerät merken and the encrypted personal-data vault
 - Umsätze auf diesem Rechner behalten: booked Umsätze (never Vorgemerkte)
@@ -355,6 +377,33 @@ raw name as "Name laut Bank" (owner's request).
   the holder's?
 - **Optional extras** proposed during the fix pass: a first-use toast for
   single-key shortcuts with "Kürzel ausschalten".
+- **Own categories and splits (Claude's choices, 2026-10-19).** An own
+  category is spending or income, never an Umbuchung; the model and the
+  keywords never guess one. A split's first share is the rest (worked out, not
+  typed), so a split always adds up. Deleting an own category drops its rules,
+  budget and every split that used it. Should an own category be able to sit
+  under one of the app's (a subcategory) instead?
+- **Steuer-Jahresübersicht.** Preselected: Steuern & Abgaben, Versicherungen,
+  Gesundheit and every own category; the choice is not remembered. The PDF
+  names the accounts by product, never by the user's alias (a third party reads
+  it), and has no bank letterhead (it may span several banks). Keep both?
+- **Forecast.** Usual spending is learnt from up to three whole loaded months
+  of bookings that belong to no series, Umbuchungen included, and a net inflow
+  counts as nothing. Shown on the Übersicht's side pane and, without one, at
+  the head of Verträge. Right place, right model?
+- **Backup.** Its own password (ten characters at least) rather than the PIN,
+  because the file is made to leave the machine. A restore merges and never
+  replaces; it restores only logins signed in at the time. Replacing on
+  request, or restoring a not-signed-in login later, are left out.
+- **Import.** Only while "Umsätze behalten" is on, and only into days not kept;
+  a CSV vouches for its first to its last booking's day, which a filtered
+  export would get wrong — the dialog asks for an unfiltered one. Should the
+  import switch keeping on itself instead of asking for it?
+- **Changing orders.** The payee never changes (another payee is another
+  order); a Dauerauftrag's change applies from its next run the lead time
+  allows. Changes are not logged for the duplicate check. The bank's HICDNS /
+  HICSAS (which fields it lets change) are not decoded, on purpose: a field it
+  refuses comes back as its refusal.
 
 ## Brand Commitments
 

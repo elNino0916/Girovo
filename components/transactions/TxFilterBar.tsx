@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { bookingDay, daysLabel, monthPartNote, type CalendarMonth } from '@/lib/analytics';
 import type { TxFilter } from '@/lib/app-types';
-import { CATEGORIES, categoryLabel, type CategoryId } from '@/lib/categories';
+import { allCategories, categoryLabel, type CategoryId } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { fmtRange } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
@@ -56,7 +56,7 @@ export function TxFilterBar({
   months: readonly CalendarMonth[];
   /** The loaded range, for "Ganzer geladener Zeitraum". */
   loaded: { from: string; to: string } | undefined;
-  categoryOf: (tx: SerializedTransaction) => { id: CategoryId };
+  categoryOf: (tx: SerializedTransaction) => { id: CategoryId; parts?: readonly { id: CategoryId }[] };
   /** The list the search controls. */
   listId: string;
 }) {
@@ -97,8 +97,9 @@ export function TxFilterBar({
   const counts = useMemo(() => {
     const m = new Map<CategoryId, number>();
     for (const tx of facetSource) {
-      const id = categoryOf(tx).id;
-      m.set(id, (m.get(id) ?? 0) + 1);
+      // A split booking is found under each of its categories (lib/analytics.ts filterTransactions).
+      const r = categoryOf(tx);
+      for (const id of r.parts?.length ? r.parts.map((p) => p.id) : [r.id]) m.set(id, (m.get(id) ?? 0) + 1);
     }
     return m;
   }, [facetSource, categoryOf]);
@@ -114,7 +115,7 @@ export function TxFilterBar({
 
   // Only categories that occur (plus the selected one, so it can be seen and
   // unselected) — a menu of sixteen where twelve lead nowhere is a chore.
-  const menuCategories = CATEGORIES.filter((c) => counts.has(c.id) || c.id === filter.category);
+  const menuCategories = allCategories().filter((c) => counts.has(c.id) || c.id === filter.category);
   const newestMonths = useMemo(() => [...months].reverse(), [months]);
   const days = filter.from || filter.to ? daysLabel(filter.from, filter.to) : '';
   const setDir = (dir: TxFilter['dir']) => setFilter((f) => edited(f, { dir }));
@@ -233,7 +234,6 @@ export function TxFilterBar({
                 selected={!!days}
                 icon={<CalendarIcon size={16} />}
                 aria-label={days ? words.daysAre(days) : words.chooseMonth}
-                className={cx(days && 'rounded-r-none border-r-0 pr-2')}
               >
                 {days || words.month}
               </FilterChip>
@@ -267,15 +267,9 @@ export function TxFilterBar({
             </MenuGroup>
           </Menu>
           {days && (
-            <button
-              type="button"
-              aria-label={words.remove(days)}
-              title={words.remove(days)}
-              onClick={() => setDays(undefined, undefined)}
-              className="grid h-9 w-8 shrink-0 place-items-center rounded-r-[var(--radius-chip)] border border-l-0 border-accent bg-accent-soft text-accent transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]"
-            >
-              <CloseIcon size={14} />
-            </button>
+            <IconButton aria-label={words.remove(days)} onClick={() => setDays(undefined, undefined)}>
+              <CloseIcon size={16} />
+            </IconButton>
           )}
         </span>
       </div>

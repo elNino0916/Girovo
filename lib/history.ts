@@ -205,7 +205,8 @@ function balanceMap(runs: readonly BalanceRun[] | undefined): Map<string, number
   return out;
 }
 
-function balanceRuns(map: ReadonlyMap<string, number>): BalanceRun[] {
+/** End-of-day balances (day → cents) as runs of consecutive days. */
+export function balanceRuns(map: ReadonlyMap<string, number>): BalanceRun[] {
   const days = [...map.keys()].sort();
   const out: BalanceRun[] = [];
   let run: BalanceRun | null = null;
@@ -703,4 +704,65 @@ export function mergeIntoHistory(
   if (!data.accounts[account] && Object.keys(data.accounts).length >= HISTORY_LIMITS.accounts) return data;
   const merged = mergeDelivery(data.accounts[account], delivery, today);
   return capHistory({ ...data, accounts: { ...data.accounts, [account]: merged } }, today);
+}
+
+/**
+ * The days `other` covers that `base` does not, as spans: what a restored
+ * backup or an imported file may add without touching a day the bank (or an
+ * earlier copy) already delivered complete.
+ */
+export function uncoveredSpans(base: readonly DaySpan[], other: readonly DaySpan[]): DaySpan[] {
+  const out: DaySpan[] = [];
+  for (const span of unionSpans(other)) {
+    let from = span.from;
+    for (const kept of unionSpans(base)) {
+      if (kept.to < from || kept.from > span.to) continue;
+      if (kept.from > from) out.push({ from, to: addDaysKey(kept.from, -1) });
+      from = addDaysKey(kept.to, 1);
+      if (from > span.to) break;
+    }
+    if (from <= span.to) out.push({ from, to: span.to });
+  }
+  return out;
+}
+
+/**
+ * `base` with the days only `other` covers added — their bookings and their
+ * proven balances, whole days as always. A day `base` covers stays exactly as
+ * it is: what was kept there came from the bank (or is newer), and is never
+ * replaced by a copy. Used for a restored backup (lib/backup.ts) and for an
+ * imported export of the bank's online banking (lib/bank-import.ts).
+ */
+export function fillGaps(base: AccountHistory | undefined, other: AccountHistory, today: string): AccountHistory {
+  const current = base ?? EMPTY_ACCOUNT;
+  const gaps = uncoveredSpans(current.coverage, other.coverage);
+  if (!gaps.length) return current;
+  const inGap = (day: string) => gaps.some((g) => inSpan(g, day));
+  const map = balanceMap(current.balances);
+  for (const [day, c] of balanceMap(other.balances)) if (inGap(day)) map.set(day, c);
+  return capAccount({
+    txs: newestFirst([...current.txs, ...other.txs.filter((t) => inGap(bookingDay(t)))]),
+    coverage: unionSpans([...current.coverage, ...gaps]),
+    balances: balanceRuns(map),
+  }, today);
+}
+
+/** `data` with every account of `other` gap-filled in (fillGaps), the caps applied. Answers how many days were added. */
+export function fillHistoryGaps(data: HistoryData, other: HistoryData, today: string): { data: HistoryData; days: number; bookings: number } {
+  let accounts = data.accounts;
+  let days = 0;
+  let bookings = 0;
+  for (const [acct, h] of Object.entries(other.accounts)) {
+    if (!keyOk(acct)) continue;
+    if (!accounts[acct] && Object.keys(accounts).length >= HISTORY_LIMITS.accounts) continue;
+    const before = accounts[acct];
+    const gaps = uncoveredSpans(before?.coverage ?? [], h.coverage);
+    if (!gaps.length) continue;
+    const merged = fillGaps(before, h, today);
+    days += gaps.reduce((n, g) => n + dayNumber(g.to) - dayNumber(g.from) + 1, 0);
+    bookings += merged.txs.length - (before?.txs.length ?? 0);
+    accounts = { ...accounts, [acct]: merged };
+  }
+  if (accounts === data.accounts) return { data, days: 0, bookings: 0 };
+  return { data: capHistory({ ...data, accounts }, today), days, bookings };
 }

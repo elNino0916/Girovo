@@ -23,6 +23,7 @@
 
 import { useEffect, useId, useState } from 'react';
 import type { ReactNode } from 'react';
+import type { SettingsTarget } from '@/lib/app-types';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { setThemePref } from '@/lib/theme';
@@ -38,6 +39,9 @@ import {
 } from '../icons';
 import { Button, Dot, Kbd, Segmented, Select, Switch, cx } from '../ui';
 import { KeepRow, KeepOffDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
+import { BackupRow } from './BackupDialogs';
+import { ImportRow } from './ImportDialog';
+import { CategorySettings } from './CategorySettings';
 import { MachineIcon, MachineRow, ROW, SettingRow } from './rows';
 
 // i18n-data-start — addresses, not words
@@ -53,7 +57,7 @@ export function Settings() {
   const {
     idleMinutes, setIdleMinutes, deviceRemembered, setForgetDeviceOpen, vaultStatus,
     meta, logoConsent, setLogoConsent, singleKeyShortcuts, setShortcutsOpen,
-    settingsTarget, clearSettingsTarget,
+    settingsTarget, clearSettingsTarget, keepBookings,
   } = useFints();
   const pref = useThemePref();
   const usage = useUsageConsent();
@@ -69,7 +73,9 @@ export function Settings() {
     const row = document.querySelector<HTMLElement>(`[data-setting="${settingsTarget}"]`);
     if (!row) return;
     row.scrollIntoView({ block: 'center' });
-    row.querySelector<HTMLElement>('button:not(:disabled), select, input, a[href]')?.focus({ preventScroll: true });
+    row.querySelector<HTMLElement>(
+      'button:not(:disabled), [role="button"]:not(:disabled), [role="switch"]:not(:disabled), [role="combobox"], select, input, a[href]',
+    )?.focus({ preventScroll: true });
   }, [settingsTarget, clearSettingsTarget]);
 
   return (
@@ -101,9 +107,9 @@ export function Settings() {
             id={idleId}
             value={String(idleMinutes)}
             onChange={(e) => setIdleMinutes(Number(e.target.value) as IdleMinutes)}
+            // A row's control, not a form's field: M3E's denser size, not the form's 56px.
+            dense
             containerClassName="w-auto shrink-0"
-            // A row's control, not a form's field: the row's size, not the form's 56px.
-            className="h-10! w-auto! pr-9! pl-3! text-[14px]!"
           >
             {IDLE_MINUTE_CHOICES.map((n) => (
               <option key={n} value={String(n)}>{t.session.idleOption(n)}</option>
@@ -120,6 +126,11 @@ export function Settings() {
             {singleKeyShortcuts ? <Kbd>?</Kbd> : <span className="text-[13px] text-ink-3">{t.session.singleKeysOff}</span>}
           </button>
         )}
+      </Section>
+
+      {/* The user's own categories: made from a booking's menu, kept here. */}
+      <Section title={t.transactions.custom.section} setting="categories">
+        <CategorySettings />
       </Section>
 
       {/* What can leave the machine besides the bank's own traffic — each off
@@ -217,6 +228,12 @@ export function Settings() {
           </div>
         )}
 
+        {/* Older Umsätze from the online banking's export, into the kept ones. */}
+        {vaultStatus === 'ready' && keepBookings && <ImportRow />}
+
+        {/* What all of the above keeps, as one file to take elsewhere — and back. */}
+        {vaultStatus === 'ready' && <BackupRow />}
+
         {/* Said once, quietly: there is nothing the user can do about it here. */}
         {vaultStatus === 'unavailable' && (
           <p className="mt-3 flex items-start gap-2.5 text-[13px] leading-snug text-ink-3">
@@ -249,10 +266,10 @@ export function Settings() {
 }
 
 /** A part of the page: its title, then its rows, standing on the page itself. */
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, setting, children }: { title: string; setting?: SettingsTarget; children: ReactNode }) {
   const id = useId();
   return (
-    <section aria-labelledby={id}>
+    <section aria-labelledby={id} data-setting={setting}>
       <h2 id={id} className="section-head">{title}</h2>
       <div className="mt-2 flex flex-col">{children}</div>
     </section>

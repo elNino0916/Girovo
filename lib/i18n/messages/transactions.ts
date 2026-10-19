@@ -304,6 +304,76 @@ export const de = {
     sessionOnly: 'Gilt nur für diese Sitzung – deine persönlichen Daten werden gerade nicht gespeichert.',
     rules: 'Deine Regeln',
     remove: 'Entfernen',
+    /** The menu's way to a category of the user's own (components/transactions/CategoryDialogs.tsx). */
+    newCategory: 'Neue Kategorie …',
+    /** The menu's way to split the booking. */
+    split: 'Aufteilen …',
+    splitHint: 'Auf mehrere Kategorien verteilen',
+  },
+
+  /** A booking split across categories (lib/splits.ts, components/transactions/CategoryDialogs.tsx). */
+  split: {
+    title: 'Umsatz aufteilen',
+    intro: (amount: ReactNode) => [
+      'Verteile ', amount, ' auf mehrere Kategorien. Analyse, Budgets und Export zählen jeden Teil in seiner Kategorie.',
+    ],
+    /** The first share: whatever the others leave. */
+    rest: 'Rest',
+    restHint: 'ergibt sich aus den anderen Teilen',
+    categoryFor: (n: number) => `Kategorie für Teil ${n}`,
+    amountFor: (label: string) => `Betrag für ${label}`,
+    addPart: 'Weitere Kategorie',
+    removePart: (label: string) => `Teil „${label}“ entfernen`,
+    /** Shown under the rows while the shares take more than the booking. */
+    over: (amount: ReactNode) => ['Die Teile sind zusammen ', amount, ' höher als der Umsatz.'],
+    /** The others take the whole booking: nothing is left for the first share. */
+    nothingLeft: (label: string) => `Für „${label}“ bleibt nichts übrig – jeder Teil braucht einen Betrag über 0.`,
+    emptyPart: 'Gib für jeden Teil einen Betrag über 0 ein.',
+    twice: 'Jede Kategorie nur einmal – fasse die Teile zusammen.',
+    save: 'Aufteilen',
+    /** Where the category section says how the booking got its categories. */
+    source: 'Von dir aufgeteilt',
+    heading: 'Aufgeteilt',
+    edit: 'Aufteilung ändern',
+    undo: 'Aufteilung aufheben',
+    saved: (n: number) => `Auf ${nDe(n)} Kategorien aufgeteilt.`,
+    undone: (label: string) => `Aufteilung aufgehoben – der Umsatz zählt wieder ganz als „${label}“.`,
+    /** A booking row's category line: "Lebensmittel & Drogerie + Geschenke", "Shopping + 2 weitere". */
+    summary: (first: string, second: string, more: number) =>
+      more > 0 ? `${first} + ${nDe(more + 1)} weitere` : `${first} + ${second}`,
+    /** For a screen reader, beside the row's category glyph. */
+    summaryLabel: (labels: string[]) => `Aufgeteilt: ${labels.join(', ')}`,
+  },
+
+  /** Categories of the user's own (lib/splits.ts): made from the category menu, kept in Einstellungen. */
+  custom: {
+    newTitle: 'Neue Kategorie',
+    newIntro: 'Eine eigene Kategorie, etwa „Spenden“, „Handwerker“ oder „Hund“. Analyse, Budgets und Export zählen sie wie jede andere; automatisch eingeordnet wird in sie nichts.',
+    renameTitle: 'Kategorie umbenennen',
+    name: 'Name',
+    kind: 'Für',
+    create: 'Anlegen',
+    createAndFile: 'Anlegen und einordnen',
+    empty: 'Gib einen Namen ein.',
+    taken: 'Eine Kategorie mit diesem Namen gibt es schon.',
+    full: (n: number) => `Du hast schon ${nDe(n)} eigene Kategorien – mehr gehen nicht.`,
+    created: (name: string) => `Kategorie „${name}“ angelegt.`,
+    /** Einstellungen → Kategorien. */
+    section: 'Eigene Kategorien',
+    sectionHint: 'Deine Kategorien gelten für alle Konten dieser Anmeldung und werden verschlüsselt mit deiner PIN gespeichert.',
+    none: 'Noch keine. Eine neue legst du hier an oder beim Umsatz unter „Ändern“.',
+    add: 'Neue Kategorie',
+    rename: 'Umbenennen',
+    renameLabel: (name: string) => `„${name}“ umbenennen`,
+    remove: 'Löschen',
+    removeLabel: (name: string) => `„${name}“ löschen`,
+    removeTitle: (name: string) => `„${name}“ löschen?`,
+    removeBody: 'Umsätze in dieser Kategorie werden wieder automatisch eingeordnet. Regeln, ein Budget und Aufteilungen mit ihr gehen verloren.',
+    keep: 'Behalten',
+    kindOut: 'Ausgaben',
+    kindIn: 'Eingänge',
+    used: (n: number) => (n === 1 ? '1 Umsatz geladen' : `${nDe(n)} Umsätze geladen`),
+    unused: 'Kein geladener Umsatz',
   },
 
   /** The printed Kontoauszug, Buchungsbeleg and bank message (components/Statement.tsx, lib/print-doc.ts). */
@@ -700,6 +770,64 @@ export const en: typeof de = {
     sessionOnly: 'Only applies to this session – your personal data isn’t being saved right now.',
     rules: 'Your rules',
     remove: 'Remove',
+    newCategory: 'New category …',
+    split: 'Split …',
+    splitHint: 'Spread across several categories',
+  },
+
+  split: {
+    title: 'Split transaction',
+    intro: (amount) => [
+      'Spread ', amount, ' across several categories. Analysis, budgets and export count each part in its own category.',
+    ],
+    rest: 'Remainder',
+    restHint: 'what the other parts leave',
+    categoryFor: (n) => `Category for part ${n}`,
+    amountFor: (label) => `Amount for ${label}`,
+    addPart: 'Another category',
+    removePart: (label) => `Remove part “${label}”`,
+    over: (amount) => ['Together the parts come to ', amount, ' more than the transaction.'],
+    nothingLeft: (label) => `Nothing is left for “${label}” – every part needs an amount above 0.`,
+    emptyPart: 'Enter an amount above 0 for every part.',
+    twice: 'Each category only once – combine the parts.',
+    save: 'Split',
+    source: 'Split by you',
+    heading: 'Split',
+    edit: 'Change split',
+    undo: 'Undo split',
+    saved: (n) => `Split across ${nEn(n)} categories.`,
+    undone: (label) => `Split undone – the transaction counts fully as “${label}” again.`,
+    summary: (first, second, more) => (more > 0 ? `${first} + ${nEn(more + 1)} more` : `${first} + ${second}`),
+    summaryLabel: (labels) => `Split: ${labels.join(', ')}`,
+  },
+
+  custom: {
+    newTitle: 'New category',
+    newIntro: 'A category of your own, such as “Donations”, “Tradespeople” or “Dog”. Analysis, budgets and export count it like any other; nothing is filed into it automatically.',
+    renameTitle: 'Rename category',
+    name: 'Name',
+    kind: 'For',
+    create: 'Create',
+    createAndFile: 'Create and file',
+    empty: 'Enter a name.',
+    taken: 'There is already a category with this name.',
+    full: (n) => `You already have ${nEn(n)} categories of your own – that’s the limit.`,
+    created: (name) => `Category “${name}” created.`,
+    section: 'Your categories',
+    sectionHint: 'Your categories apply to every account of this login and are stored encrypted with your PIN.',
+    none: 'None yet. Create one here, or on a transaction under “Change”.',
+    add: 'New category',
+    rename: 'Rename',
+    renameLabel: (name) => `Rename “${name}”`,
+    remove: 'Delete',
+    removeLabel: (name) => `Delete “${name}”`,
+    removeTitle: (name) => `Delete “${name}”?`,
+    removeBody: 'Transactions in this category are filed automatically again. Rules, a budget and splits that use it are lost.',
+    keep: 'Keep',
+    kindOut: 'Spending',
+    kindIn: 'Income',
+    used: (n) => (n === 1 ? '1 transaction loaded' : `${nEn(n)} transactions loaded`),
+    unused: 'No loaded transaction',
   },
 
   doc: {

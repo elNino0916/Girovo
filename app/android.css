@@ -33,13 +33,9 @@
 
   /* ---- touch ------------------------------------------------------------- */
   /* Every touch target at least 48dp, as Android asks, without changing how
-     the control looks: the top bar's icons are 48dp themselves; a smaller
-     icon button or a chip gets an invisible 48dp area round its middle. */
-  :root[data-platform='android'] [data-topbar] .navlink {
-    min-width: 48px;
-    min-height: 48px;
-    justify-content: center;
-  }
+     the control looks: M3E's controls bring their own 48dp touch area; a
+     control of Girovo's own that is smaller gets an invisible one round its
+     middle. */
   /* (Only where nothing positions it already: a close button sits in its corner.) */
   :root[data-platform='android'] :where([data-icon-button], [data-chip]):not(:where(.absolute, .fixed, [data-rename])) {
     position: relative;

@@ -201,6 +201,8 @@ export type OrderCaps = {
   list: boolean;
   /** One can be deleted (HKCSL / HKCDL). */
   remove: boolean;
+  /** One can be changed (HKCSA / HKCDN). */
+  change: boolean;
 };
 
 /** A Dauerauftrag ('standing') or a terminierte Überweisung ('dated'). */
@@ -230,6 +232,8 @@ export type SerializedBankOrder = {
   more: number;
   /** Whether it can be deleted here: the account allows it and the bank did not mark it otherwise. */
   deletable: boolean;
+  /** Whether it can be changed here (amount, purpose, date or rhythm — never the payee): as for deleting. */
+  changeable: boolean;
 };
 
 export type SerializedBalance = {

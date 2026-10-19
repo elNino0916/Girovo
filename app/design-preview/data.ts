@@ -182,8 +182,8 @@ export const MOCK_ACCOUNTS: SerializedAccount[] = [
     accountNumber: ACCT.giro, iban: GIRO_IBAN, bic: BIC, currency: 'EUR', accountType: 'CheckingAccount',
     holder: HOLDER, product: 'GiroKomfort', limit: 2000,
     canStatements: true, canBalance: true, canTransfer: true, canInstant: true, canPending: true,
-    dated: { create: true, list: true, remove: true, rules: { minDays: 1, maxDays: 360, fromBank: true } },
-    standing: { create: true, list: true, remove: true, rules: STANDING_RULES },
+    dated: { create: true, list: true, remove: true, change: true, rules: { minDays: 1, maxDays: 360, fromBank: true } },
+    standing: { create: true, list: true, remove: true, change: true, rules: STANDING_RULES },
     // The bank's own Kontoauszüge as PDF (HKEKA).
     canBankStatements: true,
   },
@@ -192,7 +192,7 @@ export const MOCK_ACCOUNTS: SerializedAccount[] = [
     accountNumber: ACCT.tagesgeld, iban: TG_IBAN, bic: BIC, currency: 'EUR', accountType: 'SavingsAccount',
     holder: HOLDER, product: 'Tagesgeld', limit: null,
     canStatements: true, canBalance: true, canTransfer: true, canInstant: false, canPending: false,
-    standing: { create: true, list: true, remove: true, rules: STANDING_RULES },
+    standing: { create: true, list: true, remove: true, change: true, rules: STANDING_RULES },
   },
   {
     accountNumber: ACCT.karte, iban: null, bic: null, currency: 'EUR', accountType: 'CreditCardAccount',
@@ -919,7 +919,7 @@ export type MockData = {
    * filed under Wohnen by a rule. The Kategorie-Check's and the drawer's
    * examples; off by default, so every other view keeps its data.
    */
-  personal: Pick<VaultData, 'notes' | 'txCategories' | 'categoryRules'>;
+  personal: Pick<VaultData, 'notes' | 'txCategories' | 'categoryRules' | 'customCategories' | 'splits'>;
   /** Monthly budgets a household might set (MockOptions `budgets`). */
   budgets: VaultData['budgets'];
   activity(now: number): ActivityEntry[];
@@ -950,19 +950,19 @@ function mockBankOrders(today: string, acct: string): Record<BankOrderKind, Seri
         ref: ref(), kind: 'standing', orderId: 'DA-0001', name: PARTY.landlord.name, iban: PARTY.landlord.iban,
         bic: PARTY.landlord.bic, amount: 850, currency: 'EUR', purpose: 'Miete Wohnung 3. OG links',
         schedule: { kind: 'standing', first: firstOf(26, 1), unit: 'M', interval: 1, day: 1, last: null },
-        more: 0, deletable: true,
+        more: 0, deletable: true, changeable: true,
       },
       {
         ref: ref(), kind: 'standing', orderId: 'DA-0002', name: HOLDER, iban: TG_IBAN, bic: BIC, amount: 150,
         currency: 'EUR', purpose: 'Sparrate Notgroschen',
         schedule: { kind: 'standing', first: firstOf(9, 15), unit: 'M', interval: 1, day: 15, last: null },
-        more: 0, deletable: true,
+        more: 0, deletable: true, changeable: true,
       },
       {
         ref: ref(), kind: 'standing', orderId: 'DA-0003', name: PARTY.club.name, iban: PARTY.club.iban,
         bic: PARTY.club.bic, amount: 45, currency: 'EUR', purpose: 'Mitgliedsbeitrag Nino Becker',
         schedule: { kind: 'standing', first: firstOf(14, 1), unit: 'M', interval: 3, day: 1, last: isoDate(new Date(y + 1, 11, 31)) },
-        more: 0, deletable: true,
+        more: 0, deletable: true, changeable: true,
       },
     ],
     dated: [
@@ -970,7 +970,7 @@ function mockBankOrders(today: string, acct: string): Record<BankOrderKind, Seri
         ref: ref(), kind: 'dated', orderId: 'TU-0417', name: PARTY.garage.name, iban: PARTY.garage.iban,
         bic: PARTY.garage.bic, amount: 1240, currency: 'EUR', purpose: 'Rechnung 2026-0931 Inspektion',
         schedule: { kind: 'dated', date: addDaysKey(today, 12) },
-        more: 0, deletable: true,
+        more: 0, deletable: true, changeable: true,
       },
     ],
   };
@@ -1145,6 +1145,8 @@ function buildMockData(today: string): MockData {
       aliases: { [ACCT.tagesgeld]: 'Notgroschen' },
       categoryRules: {},
       txCategories: {},
+      customCategories: [],
+      splits: {},
       dismissedRecurring: [],
       budgets: {},
       notes: {},
@@ -1205,10 +1207,21 @@ function personalData(gen: Generated, today: string): MockData['personal'] {
   if (rent) notes[txKey(rent)] = 'Mieterhöhung ab nächstem Monat angekündigt';
   if (amazon) notes[txKey(amazon)] = 'Kopfhörer für Lea, Rechnung liegt im Ordner';
   if (edeka) notes[txKey(edeka)] = 'Grillfest bei Jonas – Getränke für alle, 12,50 € Pfand zurück';
+  // An own category, and the Amazon order split between it and Shopping:
+  // the headphones were a present.
+  const gifts = 'c_geschenke2026' as const;
+  const splits: VaultData['splits'] = {};
+  const amazonCents = amazon ? Math.round(Math.abs(amazon.amount) * 100) : 0;
+  if (amazon && amazonCents > 1000) {
+    const present = Math.round(amazonCents * 0.6);
+    splits[txKey(amazon)] = [{ id: gifts, cents: present }, { id: 'shopping', cents: amazonCents - present }];
+  }
   return {
     notes,
     txCategories: edeka ? { [txKey(edeka)]: 'leisure' } : {},
     categoryRules: telekom ? { [counterpartyKey(telekom)]: 'housing' } : {},
+    customCategories: [{ id: gifts, name: 'Geschenke', direction: 'out' }],
+    splits,
   };
 }
 

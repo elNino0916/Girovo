@@ -1,9 +1,9 @@
 // The booking categories (lib/categories.ts), as lists, filters and the
 // analysis name them.
 
-import type { CategoryId } from '../../categories';
+import type { BuiltinCategoryId } from '../../categories';
 
-export const de: Record<CategoryId, string> = {
+export const de: Record<BuiltinCategoryId, string> = {
   income: 'Einkommen',
   otherIn: 'Sonstige Eingänge',
   transfer: 'Umbuchung',

@@ -25,7 +25,7 @@ import { rich, useT } from '@/lib/i18n/react';
 import { parseReleaseNotes } from '@/lib/release-notes';
 import { useFints, waitHoldsSession } from '../FintsProvider';
 import { CheckCircleIcon, DownloadIcon, ExternalIcon, InfoIcon, RefreshIcon } from '../icons';
-import { Alert, Button, Dialog, Spinner, Switch } from '../ui';
+import { Alert, Button, Dialog, Progress as ProgressBar, Spinner, Switch } from '../ui';
 import { fmtSince } from '../shell/session';
 import { useLookAtUnclear } from '../shell/actions';
 import { ReleaseNotes } from './ReleaseNotes';
@@ -316,23 +316,7 @@ function Progress({ received, total }: { received: number; total: number }) {
           {t.format.partOf(fmtBytes(received, { unitOf: total, bare: true }), fmtBytes(total))}
         </span>
       </div>
-      <div
-        role="progressbar"
-        aria-label={u.progress}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={pct}
-        aria-valuetext={u.percent(pct)}
-        className="mt-2 h-2 overflow-hidden rounded-full bg-inset"
-      >
-        {/* Navy, not Signal Blue: a progress fill cannot be pressed. It slides
-            in behind the track's clip (a transform, no layout per chunk). */}
-        <div
-          data-progress-fill
-          className="h-full rounded-full bg-headline transition-transform duration-200 ease-[var(--ease-out-soft)] motion-reduce:transition-none"
-          style={{ transform: `translateX(${pct - 100}%)` }}
-        />
-      </div>
+      <ProgressBar value={pct} label={u.progress} valueText={u.percent(pct)} className="mt-2" />
       <p className="mt-2 text-[13px] leading-snug text-ink-3">
         {u.checksum}
       </p>

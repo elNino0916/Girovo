@@ -7,6 +7,7 @@
 
 import * as android from './android.ts';
 import * as auth from './auth.ts';
+import * as backup from './backup.ts';
 import * as budgets from './budgets.ts';
 import * as banks from './banks.ts';
 import * as categories from './categories.ts';
@@ -21,6 +22,7 @@ import * as provider from './provider.ts';
 import * as session from './session.ts';
 import * as settings from './settings.ts';
 import * as shell from './shell.ts';
+import * as tax from './tax.ts';
 import * as transactions from './transactions.ts';
 import * as transfer from './transfer.ts';
 import type { Locale } from '../locale.ts';
@@ -46,6 +48,8 @@ const de = {
   android: android.de,
   depot: depot.de,
   docs: docs.de,
+  tax: tax.de,
+  backup: backup.de,
 };
 
 export type Messages = typeof de;
@@ -69,6 +73,8 @@ const en: Messages = {
   android: android.en,
   depot: depot.en,
   docs: docs.en,
+  tax: tax.en,
+  backup: backup.en,
 };
 
 // The Android app says "Telefon" where the desktop says "Rechner" (phone.ts).

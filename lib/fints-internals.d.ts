@@ -19,6 +19,8 @@ export { StatementInteractionCAMT } from '../node_modules/lib-fints/dist/types/i
 export { StatementInteractionMT940 } from '../node_modules/lib-fints/dist/types/interactions/statementInteractionMT940.js';
 export { CamtParser } from '../node_modules/lib-fints/dist/types/camtParser.js';
 export { TanMediaInteraction } from '../node_modules/lib-fints/dist/types/interactions/tanMediaInteraction.js';
+export { internationalAccount } from '../node_modules/lib-fints/dist/types/accountDescriptor.js';
+export { splitBySeparator } from '../node_modules/lib-fints/dist/types/parser.js';
 
 // lib-fints' entry point re-exports neither tanMethod.js nor codes.js, so the
 // TAN types are pulled straight from the published declarations.

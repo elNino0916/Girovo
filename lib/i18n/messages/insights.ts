@@ -301,6 +301,26 @@ export const de = {
     sum: 'Summe, ca.',
   },
 
+  /** Where the balance is heading by the month's end (lib/forecast.ts, components/insights/Forecast.tsx). */
+  forecast: {
+    /** "Ende Oktober" — the month's name as the language writes it. */
+    title: (month: string) => `Kontostand Ende ${month}`,
+    estimate: 'Prognose',
+    approx: 'ca.',
+    low: (amount: ReactNode, day: string) => ['Tiefster Stand ca. ', amount, ` am ${day}`],
+    zero: (day: string, amount: ReactNode) => [`Am ${day} könnte das Konto ins Minus rutschen – auf ca. `, amount, '. Im Dispo fallen Sollzinsen an.'],
+    limit: (day: string, amount: ReactNode) => [`Am ${day} könnte der Dispositionsrahmen nicht reichen – ca. `, amount, '. Eine Zahlung könnte dann zurückgehen.'],
+    basis: 'Gerechnet aus',
+    balance: 'Kontostand heute',
+    pending: (n: number) => counted(n, 'Vorgemerkter Umsatz', 'Vorgemerkte Umsätze'),
+    regular: (n: number) => counted(n, 'regelmäßige Zahlung', 'regelmäßige Zahlungen'),
+    orders: (n: number) => counted(n, 'Auftrag deiner Bank', 'Aufträge deiner Bank'),
+    usual: (months: number) => (months === 1 ? 'übliche Ausgaben des letzten Monats' : `übliche Ausgaben der letzten ${months} Monate`),
+    noUsual: 'ohne übliche Ausgaben – dafür fehlt noch ein ganzer geladener Monat',
+    notToday: 'Für eine Prognose braucht es den heutigen Kontostand.',
+    hint: 'Eine Schätzung aus deinen Umsätzen, keine Zusage: Was die Bank bucht, kann abweichen.',
+  },
+
   /** The one button that asks the bank for a year (components/insights/shared.tsx). */
   loadYear: {
     label: 'Umsätze für 12 Monate abrufen',
@@ -683,6 +703,24 @@ export const en: typeof de = {
     on: (day) => `on ${day}, `,
     more: (n) => `and ${countedEn(n, 'more transaction', 'more transactions')}`,
     sum: 'Total, approx.',
+  },
+
+  forecast: {
+    title: (month) => `Balance at the end of ${month}`,
+    estimate: 'Forecast',
+    approx: 'approx.',
+    low: (amount, day) => ['Lowest approx. ', amount, ` on ${day}`],
+    zero: (day, amount) => [`On ${day} the account could go overdrawn – to approx. `, amount, '. Overdraft interest applies.'],
+    limit: (day, amount) => [`On ${day} the overdraft limit may not be enough – approx. `, amount, '. A payment could then be returned.'],
+    basis: 'Worked out from',
+    balance: 'today’s balance',
+    pending: (n) => countedEn(n, 'pending transaction', 'pending transactions'),
+    regular: (n) => countedEn(n, 'regular payment', 'regular payments'),
+    orders: (n) => countedEn(n, 'order at your bank', 'orders at your bank'),
+    usual: (months) => `usual spending of the last ${months === 1 ? 'month' : `${months} months`}`,
+    noUsual: 'without usual spending – that needs a whole loaded month',
+    notToday: 'A forecast needs today’s balance.',
+    hint: 'An estimate from your transactions, not a promise: what the bank books may differ.',
   },
 
   loadYear: {

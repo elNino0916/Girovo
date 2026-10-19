@@ -468,8 +468,8 @@ components:
     backgroundColor: "{colors.accent}"
   checkbox:
     backgroundColor: "{colors.field-bg}"
-    rounded: "{rounded.keycap}"
-    size: "20px"
+    rounded: "{rounded.corner-xs}"
+    size: "18px"
   checkbox-checked:
     backgroundColor: "{colors.accent}"
     textColor: "{colors.accent-ink}"
@@ -525,15 +525,15 @@ components:
     rounded: "{rounded.corner-sm}"
     padding: "12px 12px 12px 16px"
   menu:
-    backgroundColor: "{colors.menu-bg}"
+    backgroundColor: "{colors.md-surface-container}"
     textColor: "{colors.ink}"
     rounded: "{rounded.corner-lg}"
     padding: "4px"
   menu-item:
     textColor: "{colors.ink}"
-    typography: "{typography.control}"
-    rounded: "{rounded.corner-md}"
-    padding: "8px 12px"
+    typography: "{typography.button}"
+    rounded: "{rounded.corner-xs}"
+    padding: "0 12px"
     height: "44px"
   menu-item-selected:
     backgroundColor: "{colors.menu-selected}"
@@ -646,6 +646,19 @@ an app's, not a web page's: one top app bar that names the page, a
 navigation bar on phones and a navigation rail from 640px, and Überweisen as
 the floating action button.
 
+The controls are **M3E**'s, the Material 3 Expressive web components
+(`@m3e/web`, MIT, through `@m3e/react`), not look-alikes: buttons, icon
+buttons, connected button groups, the outlined form field and the select,
+checkbox, switch, chips, menus, the loading and progress indicators,
+skeletons, the navigation bar's items and the FAB. `components/ui.tsx` wraps
+each in Girovo's API, so a screen never names an M3E element. They read
+Material's standard tokens (`--md-sys-color-*`), which `app/material.css`
+maps from Girovo's roles, so the dark theme and Material You's wallpaper
+colours reach every one of them; M3E's own `<m3e-theme>` is not used, as it
+would compute a scheme of its own. Girovo's own, because the safety and
+focus contract lives in them: the overlays (sheet, dialog, drawer, popover,
+snackbar), list rows, tags and the navigation rail's column.
+
 Google Sans Flex sets everything, on screen and on paper, and amounts use
 tabular lining figures, so a column of bookings lines up on its decimal comma
 like a printed Kontoauszug. Colour is rationed: the scheme's primary is the
@@ -661,7 +674,7 @@ tags inside a Verwendungszweck never reach the screen.
 - One top app bar (title large, the page's name) over a flat page; navigation bar below 640px, navigation rail (96dp, M3 Expressive's collapsed rail) from 640px, Überweisen as the FAB.
 - Flat and list-first: sections stand on the page with no surface, shadow or hairline; the balance hero (28px corners, primary container) is the one container.
 - Girovo's fixed blue Material scheme by default, Material You on an Android phone; value colours never follow either.
-- Round buttons that squeeze towards square while pressed, spring motion, Material's corner scale.
+- M3E's own controls: round buttons that squeeze towards square while pressed, state layers and ripples, spring motion, Material's corner scale.
 - Tabular figures and a real minus on every amount. Monospace only for what is read character by character.
 - The safe choice is the filled primary, and a dialog's buttons never scroll away.
 - The app's own mark is the navy "G€" plate, a logo in a fixed colour whatever the scheme.
@@ -965,25 +978,28 @@ navigation. A chevron that opens a row turns over on the fast spatial spring.
 ### Buttons
 Calm and unmistakable: every button looks pressable and says what it does, and none of them shouts.
 
-- **Shape:** round (20px at 40px tall), squeezing to 8px while pressed and springing back (`--m3e-spatial-fast`). Three heights: 56px (`lg`, 24px sides, 16px label, 28px round, 12px pressed) for the one action a form leads to; 40px (`md` and `sm`, 16px sides, 14px label); 32px (`xs`, 12px sides, 16px round).
+- **Element:** M3E's `m3e-button` (`Button` in `components/ui.tsx`), round, squeezing towards square while pressed on M3E's spring, with Material's state layers and ripple. Three of M3's sizes: medium, 56px (`lg`), for the one action a form leads to; small, 40px (`md` and `sm`); extra-small, 32px (`xs`). A leading icon goes in its icon slot, a trailing one (a menu's chevron) in its trailing slot.
+- **Submitting:** a browser counts no custom element as a form's submit button, so a submit `Button` brings a hidden native one that Enter in a field presses; it is disabled whenever the visible one is.
 - **Filled (primary):** the primary with its ink. Used once per decision, and on the safe answer (see the Safe Choice Rule).
 - **Tonal (secondary, the default):** the secondary container with its ink. Material's second emphasis, never an outline.
-- **Text (tertiary):** a primary label only, the wash on hover. **Quiet:** an On Surface Variant label that turns ink on an inset hover ("Zurück" in a three-way decision).
-- **Danger:** filled Soll Red. Only for confirming something destructive the user asked for, with the safe button focused.
-- **States:** disabled at 45% opacity. Busy swaps the left icon for the spinner, keeps the label and sets `aria-busy`. An action that is not available yet but must explain why stays focusable with `aria-disabled`, carries its reason as a description and says it in a snackbar when pressed.
-- **Icon buttons:** round, 32px or 40px, squeezing to 8px or 12px while pressed. The `aria-label` is mandatory and doubles as the hover tooltip. Pressed state is the wash with a primary glyph.
+- **Text (tertiary):** a primary label only, the wash on hover. **Quiet:** a text button in On Surface Variant ("Zurück" in a three-way decision).
+- **Danger:** filled Soll Red. Only for confirming something destructive the user asked for, with the safe button focused. Quiet and danger are M3E buttons given other colour roles for that one button, so M3E draws every state of them.
+- **States:** disabled as M3 draws it (On Surface at 38%, a 10% container). Busy swaps the left icon for the spinner, keeps the label and sets `aria-busy`. An action that is not available yet but must explain why stays focusable with `aria-disabled`, carries its reason as a description and says it in a snackbar when pressed.
+- **Icon buttons:** M3E's standard `m3e-icon-button`, extra-small (32px) or small (40px), squeezing while pressed. The `aria-label` is mandatory and doubles as the hover tooltip. With `aria-pressed` it is a toggle, selected in the primary. In the top bar its size follows the caption band (`--band-ctl`).
 - **Decision footers:** two actions side by side, the primary last. Three actions, or two that each need their full label, stack on phones with the primary on top (last in the markup) and stand side by side from 640px, with a quiet "Zurück" first. A basic dialog's actions sit at the end of one row, 8px apart.
 
 ### Connected Button Groups (Segmented)
-2px apart, the group's outer corners round, the inner ones 8px (4px while
-pressed), the chosen button round all over and filled in the primary. 40px
-tall (32px small), on `toggle-bg` with an On Surface Variant label. Used for
-Sprache, Termin ("Sofort", "An einem Datum", "Regelmäßig") and the Analyse's
-period.
+M3E's connected button group (`m3e-button-group variant="connected"` of
+toggle buttons): 2px apart, the group's outer corners round, the inner ones
+squared, the chosen button round all over and filled in the primary, the
+others on `surface-container`. 40px tall (32px small). Which one is chosen is
+the caller's state; M3E's own toggle on a press is cancelled. Used for
+Sprache, Darstellung, Termin ("Sofort", "An einem Datum", "Regelmäßig") and
+the Analyse's period.
 
 ### Chips
-- **Filter chip:** 32px tall, 8px corners, a 1px Outline Variant edge, a 14px/500 label. Selected loses the edge and takes the tonal wash **and a check glyph**: the check, not the tint, is what says "on" without colour. A chip that opens a menu shows a chevron instead. A removable menu chip (the month narrowing) attaches a 32px close segment.
-- **Value chip:** a recent payee, or a source note like "Aus GiroCode übernommen" or "Vorlage: Miete". Pressable ones look like filter chips; removable ones attach a close segment.
+- **Filter chip:** M3E's `m3e-filter-chip`, outlined: 32px tall, 8px corners, an Outline Variant edge, a 14px/500 label. Selected loses the edge and takes the secondary container **and a check**: the check, not the tint, is what says "on" without colour. A chip that opens a menu carries a chevron after its label and is selected while its filter is set. The month narrowing is cleared by an icon button beside its chip. Standing alone, a chip is a button (pressed or not), not a radio.
+- **Value chip:** a recent payee (a filter chip, checked while picked), or a source note like "Aus GiroCode übernommen" or "Vorlage: Miete" (M3E's plain outlined `m3e-chip`).
 
 ### Tags
 Status words on a row or heading, such as "Vorgemerkt", "Echtzeit" or "Gerät
@@ -1001,19 +1017,20 @@ gemerkt". They are not interactive.
 - **Wells:** inside a section, dialog, drawer or popover, a group of text that belongs together (a bank's answer, the approval challenge, the template undo row, the schedule sentence) sits on the inset with 8px corners and no edge.
 
 ### Inputs / Fields
-- **Style:** Material's outlined text field on every platform: 56px tall, 4px corners, a 1px Outline, a transparent ground, 16px ink text, 16px side padding (40px with a leading glyph).
-- **Floating label** (`Field` in `components/ui.tsx`): inside the outline at 16px while the field is empty; on focus or with a value it rises onto the outline at 75% scale, cutting a notch in the surface beneath (`--field-notch`), on the fast spatial spring. A placeholder only shows once the label has made room. A field whose label row also carries a counter or a link keeps the label above (13px semibold).
-- **Focus:** the outline turns primary and doubles to 2px; the label turns primary.
-- **Supporting text:** 12px under the field, 16px in. **Error:** outline and label turn Soll Red, and a 13.5px semibold red message with a 16px warning triangle appears under the control, linked by `aria-describedby`. A login form keeps its primary enabled and answers a submit with field errors.
+- **Style:** M3E's outlined form field (`m3e-form-field`) on every platform: 56px tall (48px for a settings row's select), 4px corners, an Outline edge, a transparent ground, 16px ink text; a leading glyph and a suffix ("€") in its prefix and suffix slots.
+- **Floating label** (`Field` in `components/ui.tsx`): M3E's — inside the outline while the field is empty, rising onto the outline and notching it on focus or with a value. A field whose label row also carries a counter or a link keeps the label above (13px semibold).
+- **Focus:** the outline turns primary and doubles; the label turns primary.
+- **Supporting text and errors:** the form field's subscript: the hint, or in its place the error in Soll Red with outline and label red too, linked to the control by M3E. Its error state is a custom validity, so every form is `noValidate` and checks itself. A login form keeps its primary enabled and answers a submit with field errors.
+- **Select:** M3E's `m3e-select`, whose list opens as an M3 menu panel — never the browser's own popup, which no theme reaches.
 - **Read-only:** dimmer text on the same transparent ground, never a grey fill the label would have to notch.
 - **Amount fields:** right-aligned 20px semibold tabular figures, the "€" a 17px semibold suffix. No placeholder.
-- **Checkbox:** 20px with 5px corners, filled primary when checked.
-- **Switch:** Material's: a 52×32px track with a 2px Outline border, a 16px Outline handle while off; on, the track fills primary and the handle grows to 24px in `accent-ink`; pressed, it grows to 28px.
+- **Checkbox:** M3E's `m3e-checkbox`, 18px in a 40px state layer, filled primary when checked; its label is a `<label for>` beside it.
+- **Switch:** M3E's `m3e-switch`: the 52×32px track, the handle growing as it turns on and while pressed, a check in the handle while on.
 
 ### Navigation
 - **Top app bar:** the page's name on the left in title large (Übersicht, Analyse, Verträge); on the right, icon-only actions at 40px: on wide windows (not Android) the search pill (40px, `surface-container-high`, a search glyph, "Suche" and the "Strg K" keycap; the label goes below 720px of bar, the keycap below 900px), Mitteilungen (a bell with the orange dot for unread bank messages or a new app version), Beträge ausblenden (eye; a 14% ink tint while amounts are hidden), Darstellung (desktop only, from 640px), and the avatar-only profile chip that opens the Sitzung panel. The skip link "Zum Inhalt springen" is its first child.
-- **Navigation bar** (phones): 64px on `nav-bg`, four places: Übersicht, Analyse, Verträge, Mehr (the command palette). Each is a 22px glyph over a 12px/500 label; the current place has the 56×32px pill (`nav-indicator`) behind its glyph, which springs open from the middle, and its label in `nav-label-active`. Überweisen is the extended FAB above the bar.
-- **Navigation rail** (from 640px): the same four places stacked 12px apart in a 96px column on the page surface; at its head on the desktop the brand plate in the title bar's strip, then the FAB (56px, 16px corners, `fab-bg`, the transfer glyph; it rounds to 20px on hover); at its foot a fifth place, Einstellungen (the gear), set apart from the places used every day.
+- **Navigation bar** (phones): M3E's `m3e-nav-bar`, 64px on `nav-bg`, four places sharing the width: Übersicht, Analyse, Verträge, Mehr (the command palette). Each is an `m3e-nav-item`, the glyph over a 12px label; the current place has the 56×32px pill (`nav-indicator`) behind its glyph, which springs open, and its label in `nav-label-active`. Which place is current is the app's state, never the item's own. Überweisen is M3E's extended FAB above the bar (56px, `primary-container`), folding to its icon while the page scrolls down.
+- **Navigation rail** (from 640px): Girovo's 96px column on the page surface, of M3E's nav items as M3E's compact rail lays them out, 12px apart; at its head on the desktop the brand plate in the title bar's strip, then the FAB (56px, flat on the rail); at its foot a fifth place, Einstellungen (the gear), set apart from the places used every day — a foot M3E's own rail cannot hold.
 - **Brand plate** (`BrandPlate`): the "G€" mark (`lib/brand-mark.ts`) in white on Brand Navy, a rounded 8px square, 32px (smaller only when zoom shrinks the bar). On the login's top bar it stands beside the 18px bold wordmark and the 12.5px version.
 - **Command palette ("Mehr", Strg K):** before any typing it lists the main actions (Geld anfordern, Kontoauszug, …), the accounts and, last, Abmelden. "Abmelden" answers only a deliberate query: three or more letters that start its name in the language on screen ("abm", "log"), or one of its words typed in full, in either language ("logout", "ausloggen", "sign out", "session"), a single word of a phrase only from five letters. Never "ab" and never a fuzzy hit. Every other entry is found by its words in the language on screen, and by its German words on an English screen too. When it answers, it is listed after every other result in its own "Sitzung" group.
 
@@ -1025,13 +1042,13 @@ gemerkt". They are not interactive.
 - **Typed TAN** (`TanEntry.tsx`, inside the approval wait): for chipTAN optisch, the flicker field: five black bars on a black 6px-cornered strip with two ink triangles above, always black and white whatever the theme, with "Größe" and "Tempo" steppers (minus/plus icon buttons around a semibold label) and play/pause; it waits for a click under reduced motion. For chipTAN QR and photoTAN, the bank's image on a white 8px plate with 12px padding, pixelated, up to 240px. Then the TAN field (20px tabular figures, 0.12em tracking, one-time-code), sent by the footer's button or Enter.
 - **Transfer sheet:** 560px (720px for the larger one), a fixed header (title, stepper, close) and a fixed footer, both drawing their hairline only while content scrolls under them. Every step starts scrolled to its top, where its warnings are.
 - **Drawer:** from the right, 440px or 560px, `raised`, the Pop shadow. Its header is a top-app-bar strip on the bar's surface at its height, with a title-large title and the close button. A drawer's footer keeps a standing hairline.
-- **Menu:** Material's: `menu-bg`, 16px corners, 4px padding, Level 2. Items are at least 44px, 12px corners, 16px text; a chosen radio or checkbox item takes `menu-selected` and 22px corners. Group labels are 12.5px semibold.
+- **Menu:** M3E's `m3e-menu` (`Menu` in `components/ui.tsx`): its surface, placement at the trigger (flipping where there is no room), arrows, Home/End, a press outside. Items are 44px (two lines with a description); a chosen radio takes the tertiary container, the selected shape and a check. Group labels are 12.5px medium. Girovo's part: ↓/↑ on the trigger open on the first/last item, a set of radios opens on its choice, Escape closes the menu and never the dialog under it, a choice gives focus back to the trigger at once.
 - **Popover:** `raised`, 12px corners, the Pop shadow, the fast spatial spring. A popover can pin a footer (the Sitzung panel's "Abmelden"). Layers render in place (never portalled), so they can never reach a printout.
 - **Snackbar:** the inverse surface, 4px corners, Level 3, 14px text with 0.25px, its glyph in the text colour, its action in the inverse primary. Its lifetime follows reading time (at least 10s for an error, 12s with an action, 20s for both) and pauses while it is hovered, focused or the window is in the background. F6 moves to its button and back; Escape closes it. A snackbar's action never does anything that needs a confirmation elsewhere.
 - **Inline alert:** 12px corners and a tonal ground, with an 18px glyph in the tone colour and 14px text — no stripe down the side. Error red, success green, info cyan; a warning is the inset with an orange glyph (amber is taken). The name check's result box is drawn the same way.
 - **Weitere Bank anmelden:** a 540px sheet with the login's own steps in it, under a 13px semibold overline ("Weitere Bank anmelden · Schritt 2 von 3"), their titles at 24px. Its close button calls the login off; the backdrop does not close it.
 - **Sitzung panel:** a 352px popover from the profile chip (a modal bottom sheet on Android), about the session only: who and since when (the 44px avatar, the holder's name as a Section, "Angemeldet seit 18:41 Uhr · Abmeldung in 9:51"), Banken (with several; else "Weitere Bank anmelden"), one row to Einstellungen (marked with a dot while the saved data cannot be read), and "Abmelden" as its pinned footer.
-- **Einstellungen page** (`components/settings`): a page like Analyse and Verträge, its name in the top app bar; reached from the rail's gear, the Sitzung panel, Strg+, and the search, which can open it at one setting (scrolled to the centre, its control focused). One 720px column on the page's left edge, sections as on every page (title-large heads, rows on the page, no cards): Allgemein (Sprache and Darstellung as connected buttons, Automatisch abmelden as a select, Tastenkürzel), Datenschutz (Firmenlogos, Nutzungsdaten as switches with their one-line hint), Auf diesem Rechner (Android's own rows, the remembered device, the saved data, "Umsätze behalten"; each action a text button that opens its confirming dialog) and Über Girovo (Updates, the version and licence, the GitHub and privacy links, opening in the browser). A row is label-left, control-right, at least 48px; a wide control goes under its label on a phone. The avatar can be the initials, the user's own picture (kept at 128px as WebP in the vault) or one of eleven line icons, chosen in a grid of six.
+- **Einstellungen page** (`components/settings`): a page like Analyse and Verträge, its name in the top app bar; reached from the rail's gear, the Sitzung panel, Strg+, and the search, which can open it at one setting (scrolled to the centre, its control focused). One 720px column on the page's left edge, sections as on every page (title-large heads, rows on the page, no cards): Allgemein (Sprache and Darstellung as connected buttons, Automatisch abmelden as a select, Tastenkürzel), Eigene Kategorien, Datenschutz (Firmenlogos, Nutzungsdaten as switches with their one-line hint), Auf diesem Rechner (Android's own rows, the remembered device, the saved data, "Umsätze behalten", "Ältere Umsätze importieren" while that is on, and "Sicherung" with "Erstellen …" and "Wiederherstellen …"; each action a text button that opens its dialog) and Über Girovo (Updates, the version and licence, the GitHub and privacy links, opening in the browser). The backup dialogs ask for a password (twice when making one) and answer bank by bank what the file held or what came back; the import dialog reads the file first and says what it holds (format, count, days) on an inset well before "Importieren". A row is label-left, control-right, at least 48px; a wide control goes under its label on a phone. The avatar can be the initials, the user's own picture (kept at 128px as WebP in the vault) or one of eleven line icons, chosen in a grid of six.
 
 ### Money
 The signature primitive. Every amount on screen passes through it.
@@ -1095,6 +1112,21 @@ beneath. Editing: a three-row textarea with its counter ("32/280"), then
 "Speichern" and a quiet "Abbrechen"; Enter saves, Escape leaves the editor and
 not the drawer. The Buchungsbeleg never prints a note.
 
+### Own Categories and Split Bookings
+- **Category menu** (Umsatzdetails → "Ändern"): after the groups, a separator, then "Aufteilen …" (pie glyph, with its one-line description) and "Neue Kategorie …" (plus glyph). An own category sits at the end of its side's group and wears the tag glyph wherever a category glyph stands.
+- **New/rename dialog:** a basic dialog with the floating-label "Name" field and, for a new one, a full-width connected group "Ausgaben" / "Eingänge"; made from a booking, its primary says "Anlegen und einordnen".
+- **Split dialog:** 540px; one row per share — the 36px glyph disc (from 640px), the category select, and a 152px amount field. The first row's amount is the rest, worked out and never typed: 20px semibold figures with a 12.5px "Rest" under them, Soll Red only when the others take more than the booking. "+ Weitere Kategorie" as a text button; a share beyond the first two can be removed (minus icon button). Problems are one red 13.5px line with the warning triangle.
+- **A split booking:** in the drawer the pie glyph, "Aufgeteilt" over "Von dir aufgeteilt", the shares on an 8px inset well (glyph, name, amount in the row's tones), then "Aufteilung ändern" and "Aufteilung aufheben" as text buttons. On its row the pie glyph and "Lebensmittel + Geschenke" (or "+ 2 weitere"), the full list for a screen reader.
+- **Einstellungen → Eigene Kategorien:** a section of its own after Allgemein; a row per category (32px tag disc, the name in Row type over "Ausgaben · 3 Umsätze geladen"), "Umbenennen" and "Löschen" as text buttons; "+ Neue Kategorie" tonal sm. Deleting asks first: "Behalten" focused, the red confirm beside it.
+
+### Steuer-Jahresübersicht
+- **Tile:** at the foot of the Analyse, full width, the title, one 14px line on what it is, and a tonal sm "Zusammenstellen …".
+- **Drawer:** 560px; the intro, a "Jahr" select, then two sections under hairlines: Konten (a checkbox per account, its coverage as the description — "Ganzes Jahr geladen", "Nur 21.07.2026 – 19.10.2026 geladen" — and "Ganzes Jahr laden" as a text button where it is not whole) and Kategorien (spending first, then income, each side under a 12.5px label; a checkbox per category with its count as the description and its sum right, "mind." before it while the year is not whole). A warning alert says when the year is incomplete; the disclaimer closes the body in 13px. Footer: "Als CSV" and "Mit Belegen als ZIP" tonal, "Als PDF" primary.
+- **Sheet:** a document of the family (see Printed Documents) with the holder in place of a bank letterhead — it may span several banks — an Informationsblock (Jahr, Zeitraum, Erstellt, Dokument), the accounts on the rail with the days each contributes, an "Übersicht" table (Kategorie · Umsätze · Betrag), then a table per category whose split shares carry "Anteil von −80,00" under their figure and whose last row is the category's sum. No notes, no aliases, no receipts on paper.
+
+### Kontostand am Monatsende
+A side-pane tile ("Kontostand Ende Oktober", "Prognose" in its subtitle): "ca." and the end figure in 24px bold whole euros (Soll Red below zero), the low and its day in 13px, then — only when the balance may go below zero or past the Dispo — the warning on the inset with the orange glyph (never red: nothing has happened), and the basis in 12.5px ("Gerechnet aus: Kontostand heute, 2 Vorgemerkte Umsätze, …"). Not for a card or a Depot. On a phone and below `desk` it heads Verträge.
+
 ### Monatsbudgets and the Kategorie-Check
 - **Budgets:** a row per budget: the category glyph (from 640px), its name, "212,40 € von 300,00 €", a 6px ink fill on an inset track that is the budget itself, then what is left, "Budget ausgeschöpft", or an emphasis tag "40,00 € drüber": being over is said in words and marked orange, never red. Partial months say so and read "mind. …". Under hidden amounts the bars go.
 - **Budget dialog:** 540px, one row per spending category with a 152px amount field. Empty means no budget.
@@ -1116,6 +1148,9 @@ exactly what goes, "Behalten" focused, the red confirm beside it, then the
 Freigabe. The row keeps what came of it: struck through with a "Gelöscht"
 tag, the bank's refusal in its own words, or "Status unklar", never sent again
 by itself.
+
+### Changing an Order
+"Ändern …" sits above "Löschen …" in an order's right column, where the bank and the account let it change. The dialog (540px) shows the payee on an 8px inset well (name, IBAN in mono, the schedule sentence) — fixed, never a field — then the amount (20px semibold, right-aligned), the Verwendungszweck and the schedule fields without the "Termin" choice (the order's kind is the only one), "Die Änderung gilt ab der Ausführung am …" for a Dauerauftrag, and "Danach bittet dich deine Bank um die Freigabe." It steps aside while the approval wait owns the screen, and comes back with the outcome: success mark and "Dauerauftrag geändert", the bank's refusal in its alert, or "Status unklar" with the warning. At a Namensabgleich the safe answer, "Nicht senden", is the filled one.
 
 ### Outcome States
 One set of words, used by every section, snackbar, sheet and dialog:
@@ -1154,18 +1189,19 @@ unclear outcome keeps every line the bank sent. An order that was sent never
 gets "Versuche es noch einmal".
 
 ### Loading, Empty and Error States
-- **Loading indicator:** where a wait is shown on its own, Material's shape-morphing indicator (soft burst, cookie, pentagon, pill, sunny, oval) turning as it goes; a button's busy state uses the same element.
-- **Progress:** Material's wavy indicator: the done part a 40px wave, 3px high and 4px thick, travelling; the rest a flat 4px `progress-track` with a 4px stop at its end. The session countdown keeps a plain ink bar.
-- **Skeletons** are shaped like the rows they stand in for.
+- **Loading indicator:** M3E's `m3e-loading-indicator`, the shape-morphing indicator turning as it goes, in the text's colour at any size; a button's busy state uses the same element.
+- **Progress:** M3E's wavy linear indicator (`Progress`): the done part a travelling wave, the rest a flat track with its stop at the end. The session countdown keeps a plain ink bar.
+- **Skeletons:** M3E's `m3e-skeleton`, its wave over Girovo's inset colour, shaped like the rows they stand in for.
 - **Empty state:** a line drawing on a wash disc, a 17px bold title, at most 46ch of text, an optional action. Error states say the reason the way the bank or the app put it, and offer "Erneut versuchen".
 
 ### Motion
-Material 3 Expressive's springs, generated into CSS `linear()` easings by
-`scripts/build-m3e-css.mjs`: spatial ones (position, size, shape) overshoot a
-little, effects ones (colour, opacity) never do. Fast spatial (360ms) for
-presses, chevrons, labels and the nav indicator; default spatial (435ms) for
-sheets, drawers, snackbars and the FAB's fold; effects (150, 231, 327ms) for
-colour and fades. `prefers-reduced-motion` is honoured.
+M3E's controls bring their own Material 3 Expressive motion. What Girovo
+animates itself uses the same springs, generated into CSS `linear()` easings
+by `scripts/build-m3e-css.mjs`: spatial ones (position, size, shape)
+overshoot a little, effects ones (colour, opacity) never do. Fast spatial
+(360ms) for chevrons and labels; default spatial (435ms) for sheets, drawers
+and snackbars; effects (150, 231, 327ms) for colour and fades.
+`prefers-reduced-motion` is honoured.
 
 ### Named Rules
 **The Safe Choice Rule.** At every risk decision the safe action is the filled primary and the risky one the tonal button beside it: "Angaben prüfen" at a duplicate or a name mismatch, "Namen übernehmen" when the bank suggests the name, "Angaben ändern" after a refusal, "Jetzt nachsehen" at Status unklar, "Umsätze prüfen" before logging out or restarting over an unclear transfer. A destructive confirmation the user asked for keeps its red confirm, with the safe button focused.

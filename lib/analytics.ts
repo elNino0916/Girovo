@@ -97,28 +97,40 @@ export type PeriodTotals = {
 
 type Acc = { net: number; credit: number; debit: number; count: number; credits: number; debits: number };
 
+/**
+ * What a booking adds to each category, in cents: its whole amount to its
+ * category — or, for a booking the user split (lib/splits.ts), each share to
+ * its own. Every sum below goes through this, so a split counts the same way
+ * in the Analyse, the budgets and the Monatsbilanz.
+ */
+export function categoryPieces(tx: SerializedTransaction, categoryOf: CategoryOf): { id: CategoryId; cents: number }[] {
+  const r = categoryOf(tx);
+  return r.parts?.length ? r.parts.map((p) => ({ id: p.id, cents: cents(p.amount) })) : [{ id: r.id, cents: cents(tx.amount) }];
+}
+
 function totalsOf(list: readonly SerializedTransaction[], categoryOf: CategoryOf) {
   const byCat = new Map<CategoryId, Acc>();
   let excluded = 0;
   let count = 0;
   for (const tx of list) {
-    const id = categoryOf(tx).id;
-    if (categoryDef(id).neutral) {
+    const pieces = categoryPieces(tx, categoryOf).filter((p) => !categoryDef(p.id).neutral);
+    if (!pieces.length) {
       excluded++;
       continue;
     }
     count++;
-    let acc = byCat.get(id);
-    if (!acc) byCat.set(id, (acc = { net: 0, credit: 0, debit: 0, count: 0, credits: 0, debits: 0 }));
-    const c = cents(tx.amount);
-    acc.net += c;
-    acc.count++;
-    if (c >= 0) {
-      acc.credit += c;
-      acc.credits++;
-    } else {
-      acc.debit -= c;
-      acc.debits++;
+    for (const { id, cents: c } of pieces) {
+      let acc = byCat.get(id);
+      if (!acc) byCat.set(id, (acc = { net: 0, credit: 0, debit: 0, count: 0, credits: 0, debits: 0 }));
+      acc.net += c;
+      acc.count++;
+      if (c >= 0) {
+        acc.credit += c;
+        acc.credits++;
+      } else {
+        acc.debit -= c;
+        acc.debits++;
+      }
     }
   }
 
@@ -432,25 +444,23 @@ function sideEntries(
   const rows: { tx: SerializedTransaction; id: CategoryId; c: number; both: boolean }[] = [];
   const net = new Map<CategoryId, number>();
   for (const tx of list) {
-    const id = categoryOf(tx).id;
-    const def = categoryDef(id);
-    if (def.neutral) continue;
-    const c = cents(tx.amount);
-    rows.push({ tx, id, c, both: def.direction === 'both' });
-    net.set(id, (net.get(id) ?? 0) + c);
+    for (const { id, cents: c } of categoryPieces(tx, categoryOf)) {
+      const def = categoryDef(id);
+      if (def.neutral) continue;
+      rows.push({ tx, id, c, both: def.direction === 'both' });
+      net.set(id, (net.get(id) ?? 0) + c);
+    }
   }
   // Signed towards the side asked for: a debit is +, for `out`.
   const s = dir === 'out' ? -1 : 1;
-  const out: { tx: SerializedTransaction; cents: number }[] = [];
+  // One entry per booking: the shares of a split one that land on this side, together.
+  const byTx = new Map<SerializedTransaction, number>();
   for (const r of rows) {
-    if (r.both) {
-      // Same split as totalsOf: a zero booking sits on the credit side.
-      if (dir === 'out' ? r.c < 0 : r.c >= 0) out.push({ tx: r.tx, cents: s * r.c });
-    } else if (s * net.get(r.id)! > 0) {
-      out.push({ tx: r.tx, cents: s * r.c });
-    }
+    // Same split as totalsOf: a zero booking sits on the credit side.
+    const counts = r.both ? (dir === 'out' ? r.c < 0 : r.c >= 0) : s * net.get(r.id)! > 0;
+    if (counts) byTx.set(r.tx, (byTx.get(r.tx) ?? 0) + s * r.c);
   }
-  return out;
+  return [...byTx].map(([tx, c]) => ({ tx, cents: c }));
 }
 
 /**
@@ -614,7 +624,8 @@ function haystack(tx: SerializedTransaction, ctx: SearchContext): string {
       ignorable(tx.e2eReference) ? '' : tx.e2eReference,
       ignorable(tx.mandateReference) ? '' : tx.mandateReference,
       ctx.shownText?.(tx) ?? '',
-      ctx.categoryOf ? categoryLabel(ctx.categoryOf(tx).id) : '',
+      // Every share's category, for a booking the user split up.
+      ctx.categoryOf ? categoryPieces(tx, ctx.categoryOf).map((p) => categoryLabel(p.id)).join(' ') : '',
       ctx.noteOf?.(tx) ?? '',
     ].join(' '),
   );
@@ -889,7 +900,11 @@ export function filterTransactions(
     if (filter.dir === 'in' && !(tx.amount > 0)) return false;
     if (filter.dir === 'out' && !(tx.amount < 0)) return false;
     if (!inFilterDays(tx, filter)) return false;
-    if (filter.category && opts.categoryOf(tx).id !== filter.category) return false;
+    if (filter.category) {
+      // A split booking is found under each of its categories.
+      const r = opts.categoryOf(tx);
+      if (r.id !== filter.category && !r.parts?.some((p) => p.id === filter.category)) return false;
+    }
     return match(tx);
   });
 }

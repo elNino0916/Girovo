@@ -73,6 +73,8 @@ const de = {
     png: 'PNG-Bild',
     pdf: 'PDF',
     pdfDocument: 'PDF-Dokument',
+    zip: 'ZIP-Archiv',
+    backup: 'Girovo-Sicherung',
   },
   /** Saving a file the app made (file-save.cjs). */
   files: {
@@ -151,6 +153,8 @@ const en = {
     png: 'PNG image',
     pdf: 'PDF',
     pdfDocument: 'PDF document',
+    zip: 'ZIP archive',
+    backup: 'Girovo backup',
   },
   files: {
     saveFailed: 'The file could not be saved.',

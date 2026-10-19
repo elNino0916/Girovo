@@ -12,7 +12,7 @@ import { fmtBytes } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { Button, Switch } from '../ui';
+import { Button, Progress, Switch } from '../ui';
 
 export function AndroidSettings() {
   if (!IS_ANDROID) return null;
@@ -137,20 +137,7 @@ function ModelRow() {
             <span className="tnum text-ink-2">{m.progress(fmtBytes(status.received, { unitOf: total, bare: true }), fmtBytes(total))}</span>
             <Button variant="tertiary" size="xs" className="-mr-3" onClick={() => void mobile.model.cancel()}>{m.cancel}</Button>
           </div>
-          <div
-            role="progressbar"
-            aria-label={m.title}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.min(100, Math.floor((status.received / total) * 100))}
-            className="mt-1.5 h-1 overflow-hidden rounded-full bg-inset"
-          >
-            <div
-              data-progress-fill
-              className="h-full rounded-full bg-accent transition-transform duration-200"
-              style={{ transform: `translateX(${Math.min(100, (status.received / total) * 100) - 100}%)` }}
-            />
-          </div>
+          <Progress value={Math.floor((status.received / total) * 100)} label={m.title} className="mt-1.5" />
         </div>
       ) : status.installed ? (
         <div className="mt-1.5 flex items-center justify-between gap-3">

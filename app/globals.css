@@ -356,7 +356,7 @@
      pixels, so page zoom shrinks the band in CSS pixels (42 at 144 %, 29 at
      207 %) while a 40px control would not — it would poke out of the band at
      both ends. 40px until the band is under 44px, then the band less 4px,
-     never below the 24px WCAG target. Bar-toned controls, .navlink and the
+     never below the 24px WCAG target. Bar-toned controls (app/material.css) and the
      "€" plate read it; outside the shell the band is fixed and so is this. */
   --band-ctl: max(24px, min(40px, calc(var(--barbar-h) - 4px)));
   --band-plate: max(20px, min(32px, calc(var(--barbar-h) - 6px)));
@@ -579,49 +579,6 @@
     font-weight: 600;
     color: var(--ink);
   }
-
-  /* One item of the masthead's right-hand cluster: a line icon with its name
-     beside it, the way a German bank's start page labels every icon in its
-     header rather than leaving the user to guess at a glyph. A pill on hover,
-     so the cluster reads as one row of equals, not buttons of differing
-     weight. */
-  /* Deliberately no `display`: it would sit in the same layer as Tailwind's own
-     display utilities at equal specificity, and quietly win over the `hidden`
-     that drops items from the cluster on a narrow window. Each use brings its
-     own `inline-flex`. */
-  .navlink {
-    position: relative;
-    align-items: center;
-    gap: 8px;
-    /* 40px, less once zoom has shrunk the band (see --band-ctl). */
-    min-height: var(--band-ctl);
-    border-radius: var(--radius-pill);
-    padding: 0 12px;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1;
-    white-space: nowrap;
-    color: var(--bar-ink);
-    transition:
-      background-color 0.15s,
-      color 0.15s;
-  }
-  .navlink > svg {
-    color: var(--bar-ink-2);
-    transition: color 0.15s;
-  }
-  /* Only the interactive ones light up — the identity chip beside them is a
-     statement of who is signed in, not something to press. */
-  button.navlink:hover,
-  a.navlink:hover,
-  .navlink[aria-expanded='true'] {
-    background: color-mix(in srgb, var(--bar-ink) 12%, transparent);
-  }
-  button.navlink:hover > svg,
-  a.navlink:hover > svg,
-  .navlink[aria-expanded='true'] > svg {
-    color: var(--bar-ink);
-  }
 }
 
 /* The masthead's Darstellung control shows the glyph of the CHOSEN setting
@@ -689,10 +646,6 @@
 @keyframes ping-ring {
   0% { transform: scale(0.6); opacity: 0.5; }
   100% { transform: scale(1.15); opacity: 0; }
-}
-@keyframes shimmer {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(100%); }
 }
 @keyframes check-draw {
   from { stroke-dashoffset: var(--check-len, 24); }
@@ -1142,26 +1095,3 @@
   }
 }
 
-/* Shimmer for loading skeletons — shaped like the content they stand in for. */
-.skel {
-  position: relative;
-  overflow: hidden;
-  background: var(--inset);
-}
-/* The corner is the one thing a skeleton's caller changes (a round avatar,
-   a pill), so it sits in a layer a `rounded-*` utility can beat. */
-@layer components {
-  .skel {
-    border-radius: 6px;
-  }
-}
-.skel::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 6%, transparent), transparent);
-  animation: shimmer 1.4s infinite;
-}
-[data-theme='dark'] .skel::after {
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 5%, transparent), transparent);
-}

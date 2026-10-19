@@ -114,7 +114,7 @@ export function ManageTemplates({ onClose }: { onClose: () => void }) {
   const [live, setLive] = useState<{ say: (m: Messages) => string } | null>(null);
   const line = useTemplateLine();
   const listRef = useRef<HTMLUListElement>(null);
-  const doneRef = useRef<HTMLButtonElement>(null);
+  const doneRef = useRef<HTMLElement>(null);
 
   // Deleting a row, leaving a rename or undoing removes the control that has
   // focus. Left alone, focus falls to the document body — outside the

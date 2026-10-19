@@ -33,7 +33,7 @@
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { isCardAccount } from '@/lib/balances';
-import { txBic } from '@/lib/categories';
+import { categoryLabel, txBic } from '@/lib/categories';
 import { dayKey, fmtDate, fmtDecimal, fmtIban, ibanCountry, translateType } from '@/lib/format';
 import { intlLocale, msgs } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
@@ -43,6 +43,7 @@ import {
   type BookingState, type DocRef, type LedgerFigure, type StatementLedger,
 } from '@/lib/print-doc';
 import type { SerializedAccount, SerializedBalance, SerializedTransaction } from '@/lib/fints-types';
+import { taxLineText, type YearCoverage } from '@/lib/tax-year';
 import type { ChosenBank, PrintJob } from './FintsProvider';
 import { useFints, useLogoFile } from './FintsProvider';
 import { trackUsage } from './telemetry/usage';
@@ -53,6 +54,7 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 type StatementJob = Extract<PrintJob, { kind: 'statement' }>;
 type TransactionJob = Extract<PrintJob, { kind: 'transaction' }>;
 type MessageJob = Extract<PrintJob, { kind: 'message' }>;
+type TaxYearJob = Extract<PrintJob, { kind: 'taxYear' }>;
 
 export function Statement() {
   const { printJob, closePrintJob, toast } = useFints();
@@ -125,7 +127,9 @@ function DocumentSheet({
         ? <StatementSheet job={job} stamp={stamp} />
         : job.kind === 'transaction'
           ? <TransactionSheet job={job} stamp={stamp} />
-          : <MessageSheet job={job} stamp={stamp} />}
+          : job.kind === 'taxYear'
+            ? <TaxYearSheet job={job} stamp={stamp} />
+            : <MessageSheet job={job} stamp={stamp} />}
     </div>
   );
 }
@@ -199,6 +203,7 @@ function marksSettled(root: HTMLElement | null): Promise<void> {
 /** The desktop save dialog's default filename — kept short and filesystem-safe. */
 function suggestedFileName(job: PrintJob, stamp: DocStamp): string {
   const { doc } = msgs().transactions;
+  if (job.kind === 'taxYear') return `${msgs().tax.doc.file}_${job.summary.year}_${stamp.docId}.pdf`;
   const base = { statement: doc.statementFile, transaction: doc.receiptFile, message: doc.messageFile }[job.kind];
   return `${base}_${stamp.docId}.pdf`;
 }
@@ -238,6 +243,21 @@ function canonical(job: PrintJob, created: Date): string {
       t.creditorId, t.purpose, t.bookingText, t.e2eReference, t.mandateReference, t.customerReference,
       t.bankReference, t.transactionCode, t.primeNotesNr, t.statementNumber, t.additionalInformation,
     ].map(s).join('|');
+
+  if (job.kind === 'taxYear') {
+    // The groups by their ids, never their labels: the same year gives the
+    // same seal in either language.
+    const t = job.summary;
+    return [
+      'jahresuebersicht', dayKey(created), String(t.year), t.from, t.to, s(job.holder),
+      ...job.accounts.map((a) => [a.accountNumber, a.iban, a.bank].map(s).join('|')),
+      ...t.accounts.map((a) => [a.accountNumber, a.coverage, a.from, a.to].map(s).join('|')),
+      ...t.groups.flatMap((g) => [
+        `#${g.id}|${g.total}`,
+        ...g.lines.map((l) => `${l.accountNumber}|${l.amount}|${l.share}|${entry(l.tx)}`),
+      ]),
+    ].join('\n');
+  }
 
   if (job.kind === 'message') {
     // When it arrived as the session stored it (ISO), so the seal is the same
@@ -1001,6 +1021,143 @@ function MessageSheet({ job, stamp }: { job: MessageJob; stamp: DocStamp }) {
 
       <EndMarker label={doc.messageEnd} />
       <SheetFooter stamp={stamp} notes={[]} made={doc.generatedFromMessage} />
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Jahresübersicht (Steuer)
+// ---------------------------------------------------------------------------
+
+/**
+ * One year's bookings in the categories the user picked, for whoever does the
+ * tax return. It may span several banks, so the head names the account
+ * holder rather than one institution; each account says which days of the
+ * year it contributes, and a sum over fewer than all of them says it is a
+ * minimum. The user's own notes stay off the paper, as on the Beleg.
+ */
+function TaxYearSheet({ job, stamp }: { job: TaxYearJob; stamp: DocStamp }) {
+  const tr = useT();
+  const doc = tr.transactions.doc;
+  const words = tr.tax.doc;
+  const { summary } = job;
+  const span = `${fmtDate(summary.from)} – ${fmtDate(summary.to)}`;
+  const lines = summary.groups.reduce((n, g) => n + g.lines.length, 0);
+  const shares = summary.groups.some((g) => g.lines.some((l) => l.share));
+  const coverageOf = new Map(summary.accounts.map((a) => [a.accountNumber, a]));
+  const coverText = (c: { coverage: YearCoverage; from?: string; to?: string } | undefined) =>
+    !c ? '' : c.coverage === 'partial' ? words.coverage.partial(fmtDate(c.from!), fmtDate(c.to!)) : words.coverage[c.coverage];
+  const notes = [!summary.complete ? words.incomplete : '', shares ? words.splitNote : '', words.basis].filter(Boolean);
+
+  return (
+    <article>
+      <PageMarks left={[words.title, String(summary.year), job.holder].filter(Boolean).join(' · ')} right={stamp.docId} />
+      <header className="doc-head keep">
+        <div className="min-w-0">
+          <p className="doc-lead">{bankLine(job.holder) || '—'}</p>
+          <p className="doc-small doc-soft mt-[var(--s-1)]">{words.holder}</p>
+        </div>
+        <div className="shrink-0">
+          <h1 className="doc-title">{words.title}</h1>
+          <div className="doc-info doc-small">
+            <span className="doc-soft">{words.year}</span>
+            <span className="doc-fig">{summary.year}</span>
+            <span className="doc-soft">{doc.period}</span>
+            <span className="doc-fig">{span}</span>
+            <span className="doc-soft">{doc.createdLabel}</span>
+            <span className="doc-fig">{fmtTimestamp(stamp.created)}</span>
+            <span className="doc-soft">{doc.document}</span>
+            <span className="doc-mono">{stamp.docId}</span>
+          </div>
+        </div>
+      </header>
+
+      <p className="doc-lead mt-[var(--s-5)]">{words.subtitle(summary.year)}</p>
+
+      {/* Which accounts it is made of, and which of their days. */}
+      <PairBlock
+        title={words.accounts}
+        rows={job.accounts.map((a) => ({
+          label: a.label,
+          value: (
+            <>
+              {a.iban ? <span className="doc-mono doc-iban">{fmtIban(a.iban)}</span> : <span className="doc-mono">{a.accountNumber}</span>}
+              {a.bank && <span className="doc-soft">{` · ${a.bank}`}</span>}
+              <span className="doc-small doc-soft block">{`${words.loaded}: ${coverText(coverageOf.get(a.accountNumber))}`}</span>
+            </>
+          ),
+        }))}
+      />
+
+      {/* The sums first: what a reader carries into the return. */}
+      <section className="doc-block doc-block-table">
+        <h2 className="doc-section keep-next">{words.overview}</h2>
+        <table className="doc-table">
+          <thead>
+            <tr>
+              <th scope="col" className="doc-col-text">{words.category}</th>
+              <th scope="col" className="doc-col-date">{words.bookings}</th>
+              <th scope="col" className="doc-col-amount">{doc.amountIn('EUR')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summary.groups.length === 0 && (
+              <tr>
+                <td colSpan={3} className="doc-quiet py-[var(--s-7)] text-center">{doc.empty}</td>
+              </tr>
+            )}
+            {summary.groups.map((g) => (
+              <tr key={g.id}>
+                <td className="doc-col-text doc-strong">{categoryLabel(g.id)}</td>
+                <td className="doc-col-date doc-fig">{g.lines.length}</td>
+                <td className={`doc-col-amount doc-fig doc-strong ${g.total > 0 ? 'doc-credit' : ''}`}>{fmtMovement(g.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {summary.groups.map((g) => (
+        <section key={g.id} className="doc-block doc-block-table">
+          <h2 className="doc-section keep-next">{categoryLabel(g.id)}</h2>
+          <table className="doc-table">
+            <thead>
+              <tr>
+                <th scope="col" className="doc-col-date">{tr.transactions.entryDate}</th>
+                <th scope="col" className="doc-col-text">{doc.details}</th>
+                <th scope="col" className="doc-col-amount">{doc.amountIn('EUR')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.lines.map((l, i) => {
+                const text = taxLineText(l.tx);
+                const iban = fmtIban(l.tx.remoteIban);
+                return (
+                  <tr key={i}>
+                    <td className="doc-col-date doc-fig">{fmtDate(l.tx.entryDate || l.tx.valueDate)}</td>
+                    <td className="doc-col-text">
+                      <p><span className="doc-strong">{text.name || tr.transactions.fallbackName}</span></p>
+                      {text.purpose && <p className="doc-soft">{text.purpose}</p>}
+                      {iban && <p className="doc-small doc-quiet"><span className="doc-mono doc-iban">{iban}</span></p>}
+                    </td>
+                    <td className={`doc-col-amount doc-fig doc-strong ${l.amount > 0 ? 'doc-credit' : ''}`}>
+                      {fmtMovement(l.amount)}
+                      {l.share && <span className="doc-small doc-soft block font-normal">{words.share(fmtMovement(l.tx.amount))}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="doc-row-balance">
+                <td colSpan={2} className="doc-col-text">{words.total}</td>
+                <td className="doc-col-amount doc-fig">{fmtMovement(g.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      ))}
+
+      <EndMarker label={words.end(lines)} />
+      <SheetFooter stamp={stamp} notes={notes} made={words.generatedBy} />
     </article>
   );
 }

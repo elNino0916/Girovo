@@ -47,9 +47,9 @@ import { isCardAccount } from '@/lib/balances';
 import { Money } from './Money';
 import { useThemePref } from './ThemeToggle';
 import {
-  AccountTypeIcon, BellIcon, CalendarIcon, ChartIcon, CheckIcon, ClockIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon,
+  AccountTypeIcon, ArchiveIcon, BellIcon, CalendarIcon, ChartIcon, CheckIcon, ClockIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon,
   FileIcon, GearIcon, GlobeIcon, HomeIcon, ImageIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon,
-  RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SunIcon, TransferIcon,
+  RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SunIcon, TagIcon, TransferIcon,
 } from './icons';
 import { listsOrders, useShowBankOrders } from './BankOrders';
 import { EmptyState, IconButton, Kbd, Overlay, cx } from './ui';
@@ -233,11 +233,13 @@ function Palette({ onClose }: { onClose: () => void }) {
       },
       setting('language', 'language', (m) => m.session.language, <GlobeIcon />),
       setting('idle', 'idle', (m) => m.settings.find.idle, <ClockIcon />),
+      setting('categories', 'categories', (m) => m.transactions.custom.section, <TagIcon />),
       !!f.meta?.merchantLogos && setting('logos', 'logos', (m) => m.session.logos, <ImageIcon />),
       !!usage && setting('usage', 'usage', (m) => m.session.usage, <ChartIcon />),
       setting('device', 'device', (m) => m.settings.find.device, <ShieldIcon />),
       (f.vaultStatus === 'ready' || f.vaultStatus === 'error') && setting('data', 'data', (m) => m.session.vault, <LockIcon />),
       f.vaultStatus === 'ready' && setting('keep', 'keep', (m) => m.history.keep, <CalendarIcon />),
+      f.vaultStatus === 'ready' && setting('backup', 'backup', (m) => m.backup.row.title, <ArchiveIcon />),
       // The bank's own list, at the end of Verträge & Abos — where an account has one.
       f.accounts.some(listsOrders) && {
         id: 'bank-orders', group: 'actions', icon: <CalendarIcon />,

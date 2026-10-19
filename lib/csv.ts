@@ -93,9 +93,10 @@ export function csvStatus(tx: Pick<SerializedTransaction, 'entryDate' | 'valueDa
   return day(d) > day(today) ? words.notBooked : words.csv.booked;
 }
 
-const SEPARATOR = ';';
-const EOL = '\r\n';
-const BOM = '﻿';
+// Shared with the Steuer-Jahresübersicht's file (lib/tax-year.ts): one dialect.
+export const CSV_SEPARATOR = ';';
+export const CSV_EOL = '\r\n';
+export const CSV_BOM = '﻿';
 
 /**
  * One text cell.
@@ -183,6 +184,14 @@ const OWN_COLUMN_TAGS = new Set(['EREF', 'MREF', 'CRED', 'SVWZ']);
 function categoryCell(tx: SerializedTransaction, categoryOf: CsvOptions['categoryOf']): string {
   if (!categoryOf) return '';
   const result = categoryOf(tx);
+  // A booking split across categories names each share with its amount, in
+  // the file's own number format: "Lebensmittel 30,00 / Geschenke 12,50".
+  if (result && typeof result === 'object' && result.parts?.length) {
+    return result.parts
+      .filter((p) => isCategoryId(p.id))
+      .map((p) => `${categoryLabel(p.id)} ${csvAmountCell(Math.abs(p.amount))}`)
+      .join(' / ');
+  }
   const id = typeof result === 'string' ? result : result?.id;
   return isCategoryId(id) ? categoryLabel(id) : '';
 }
@@ -220,7 +229,7 @@ function row(tx: SerializedTransaction, opts: CsvOptions, accountCells: string[]
     // Text the user typed is guarded like the bank's: "=…" stays text.
     csvTextCell(opts.noteOf?.(tx) ?? ''),
   ];
-  return cells.join(SEPARATOR);
+  return cells.join(CSV_SEPARATOR);
 }
 
 /**
@@ -237,8 +246,8 @@ export function transactionsToCsv(txs: readonly SerializedTransaction[], opts: C
     csvIdCell(compact(account.bic)),
     csvTextCell(opts.bankName),
   ];
-  const lines = [csvHeader().join(SEPARATOR), ...txs.map((tx) => row(tx, opts, accountCells))];
-  return BOM + lines.join(EOL) + EOL;
+  const lines = [csvHeader().join(CSV_SEPARATOR), ...txs.map((tx) => row(tx, opts, accountCells))];
+  return CSV_BOM + lines.join(CSV_EOL) + CSV_EOL;
 }
 
 /**

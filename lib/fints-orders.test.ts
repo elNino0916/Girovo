@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Message, decode, encode, type FinTSConfig, type Segment } from 'lib-fints';
 import {
-  BankOrderDeleteInteraction, BankOrderListInteraction, DatedTransferInteraction, MAX_LIST_ROUNDS,
-  StandingOrderInteraction, dayKeyOf, digitList, datedRules, holdBankOrders, orderCaps, readListEntry, readPain001,
+  BankOrderDeleteInteraction, BankOrderListInteraction, DatedChangeInteraction, DatedTransferInteraction, MAX_LIST_ROUNDS,
+  StandingChangeInteraction, StandingOrderInteraction, orderInteraction, orderSegId, dayKeyOf, digitList, datedRules, holdBankOrders, orderCaps, readListEntry, readPain001,
   standingRules,
 } from './fints-orders.ts';
 import { buildPain001 } from './fints-sepa.ts';
@@ -95,6 +95,30 @@ test('HKCSE: the transfer\'s layout, with the real date in the pain', () => {
   const built = new DatedTransferInteraction('1234567890', PAYEE, '2026-11-15');
   quietly(() => built.createSegments(config));
   assert.match(built.sepaMessage!, /<ReqdExctnDt>2026-11-15<\/ReqdExctnDt>/);
+});
+
+test('HKCDN: as HKCDE, with the Auftragsidentifikation before the new Dauerauftragdetails', () => {
+  const config = fakeConfig({ bpd: ['HKCDE', 'HKCDB', 'HKCDN', 'HKSPA'] });
+  const i = new StandingChangeInteraction('1234567890', PAYEE, {
+    kind: 'standing', first: '2026-12-01', unit: 'M', interval: 1, day: 1, last: null,
+  }, 'DA-0001', 'auto', PREBUILT);
+  assert.equal(wire(quietly(() => i.createSegments(config))[0]), `HKCDN:3:1+${KTI}+${WIRE_DESCRIPTOR}+@7@<pain/>+DA-0001+20261201:M:1:1'`);
+  // The one way in builds it from a change, for the transfer route and the Namensabgleich's re-submission alike.
+  const via = orderInteraction('1234567890', PAYEE, {
+    instant: false, schedule: { kind: 'standing', first: '2026-12-01', unit: 'M', interval: 1, day: 1 }, change: { orderId: 'DA-0001' },
+  });
+  assert.ok(via instanceof StandingChangeInteraction);
+  assert.equal(orderSegId(false, { kind: 'standing', first: '2026-12-01', unit: 'M', interval: 1, day: 1 }, true), 'HKCDN');
+});
+
+test('HKCSA: the new day in the pain, the Auftragsidentifikation after it', () => {
+  const config = fakeConfig({ bpd: ['HKCSE', 'HKCSB', 'HKCSA', 'HKSPA'] });
+  const prebuilt = new DatedChangeInteraction('1234567890', PAYEE, '2026-12-15', 'TU-0417', 'auto', PREBUILT);
+  assert.equal(wire(quietly(() => prebuilt.createSegments(config))[0]), `HKCSA:3:1+${KTI}+${WIRE_DESCRIPTOR}+@7@<pain/>+TU-0417'`);
+  const built = new DatedChangeInteraction('1234567890', PAYEE, '2026-12-15', 'TU-0417');
+  quietly(() => built.createSegments(config));
+  assert.match(built.sepaMessage!, /<ReqdExctnDt>2026-12-15<\/ReqdExctnDt>/);
+  assert.equal(orderSegId(false, { kind: 'dated', date: '2026-12-15' }, true), 'HKCSA');
 });
 
 test('the Namensabgleich rides along where HIVPPS lists the order\'s segment', () => {
@@ -262,6 +286,12 @@ test('orderCaps: the BPD and the account\'s UPD both, deleting only with the lis
   assert.equal(noList.dated, null);
   const noIban = orderCaps(fakeConfig({ iban: null }), '1234567890');
   assert.equal(noIban.standing?.create, false);
+  // Changing needs the segment, the account's grant and the list, like deleting.
+  assert.equal(all.standing?.change, false, 'HKCDN not in the BPD');
+  const changing = orderCaps(fakeConfig({ bpd: ['HKCDE', 'HKCDB', 'HKCDN', 'HKCSE', 'HKCSB', 'HKCSA', 'HKSPA'] }), '1234567890');
+  assert.deepEqual([changing.standing?.change, changing.dated?.change], [true, true]);
+  const unlisted = orderCaps(fakeConfig({ bpd: ['HKCDE', 'HKCDN', 'HKSPA'] }), '1234567890');
+  assert.equal(unlisted.standing?.change, false);
 });
 
 // ---------------------------------------------------------------------------
@@ -276,7 +306,7 @@ test('HICDB: the payment from its pain, the schedule from the Dauerauftragdetail
     kind: 'standing', orderId: 'DA-0001', name: 'Hausverwaltung Kraemer GmbH', iban: 'DE52512108001245126199', bic: null,
     amount: 850, currency: 'EUR', purpose: 'Miete Wohnung 3. OG',
     schedule: { kind: 'standing', first: '2024-08-01', unit: 'M', interval: 1, day: 1, last: null },
-    more: 0, deletable: true,
+    more: 0, deletable: true, changeable: true,
   });
   assert.equal(entry.raw.sepaDescriptor, DESCRIPTOR);
 });
@@ -298,6 +328,7 @@ test('HICSB: the date from the pain; deletable only with its Auftragsidentifikat
   const withId = decode(`HICSB:5:1:3+${OWN_IBAN}:${BIC}+${WIRE_DESCRIPTOR}+${bin(pain({ date: '2026-11-15' }))}+TU-0417+J+N'`);
   const e = readListEntry('dated', withId as never)!;
   assert.deepEqual([e.order.schedule, e.order.deletable, e.order.orderId], [{ kind: 'dated', date: '2026-11-15' }, true, 'TU-0417']);
+  assert.equal(e.order.changeable, false, 'the bank marks it "nicht änderbar"');
   const noId = decode(`HICSB:5:1:3+${OWN_IBAN}:${BIC}+${WIRE_DESCRIPTOR}+${bin(pain())}'`);
   assert.equal(readListEntry('dated', noId as never)!.order.deletable, false);
   // Version 2 has no "löschbar" (spec): a status and a SEPA-C-Code instead.

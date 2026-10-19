@@ -4,7 +4,9 @@
 // With a `schedule` the same order goes out as a terminierte Überweisung
 // (HKCSE) or a Dauerauftrag (HKCDE) instead — lib/fints-orders.ts — checked
 // against the bank's rules first, and with the same Namensabgleich, approval
-// and "Status unklar" as any transfer.
+// and "Status unklar" as any transfer. With a `change` as well — the handle of
+// an order of the last Bestand read — it changes that order instead (HKCSA,
+// HKCDN): its payee stays, the rest is the new order's.
 //
 // Where the bank performs a Namensabgleich (Verification of Payee) the order
 // carries a HKVPP and the bank answers with its comparison of the payee name.
@@ -47,11 +49,13 @@ type TransferBody = {
   instant?: boolean;
   /** A terminierte Überweisung or a Dauerauftrag (lib/order-schedule.ts). */
   schedule?: unknown;
+  /** The handle (SerializedBankOrder.ref) of a bank-held order this changes. */
+  change?: unknown;
 };
 
 export const POST = wrap(async (req: Request) => {
   const {
-    sessionId, accountNumber, recipientName, iban, bic, amount, purpose, instant, schedule: rawSchedule,
+    sessionId, accountNumber, recipientName, iban, bic, amount, purpose, instant, schedule: rawSchedule, change: rawChange,
   } = await body<TransferBody>(req);
   const s = getSession(sessionId);
   if (!s) return sessionExpired();
@@ -95,13 +99,27 @@ export const POST = wrap(async (req: Request) => {
   if (rawSchedule != null && !schedule) return fail(later.route.scheduleInvalid);
   if (schedule && instant) return fail(later.route.noInstant);
 
+  // A change of an order the bank holds: the one the last Bestand read named,
+  // of the same kind, still changeable, to the very same payee.
+  const changeRef = typeof rawChange === 'string' && rawChange ? rawChange : null;
+  const held = changeRef ? s.bankOrders.get(changeRef) : undefined;
+  if (changeRef) {
+    if (!held || held.accountNumber !== accountNumber) return fail(later.route.unknownOrder);
+    if (!schedule || schedule.kind !== held.kind) return fail(later.route.scheduleInvalid);
+    if (!held.order.changeable || !held.order.orderId) return fail(later.route.cannotChange(held.kind));
+    if (validateIban(held.order.iban) !== cleanIban) return fail(later.route.changePayee);
+  }
+  const change = held?.order.orderId ? { orderId: held.order.orderId } : null;
+
   const useInstant = !!instant;
-  const segId = schedule ? orderSegId(false, schedule) : useInstant ? INSTANT_SEG : TRANSFER_SEG;
+  const segId = schedule ? orderSegId(false, schedule, !!change) : useInstant ? INSTANT_SEG : TRANSFER_SEG;
 
   if (!account.iban) return fail(words.route.noIban);
   if (schedule) {
     const caps = orderCaps(s.client.config, accountNumber)[schedule.kind];
-    if (!caps?.create) return fail(later.route.unsupported(schedule.kind));
+    if (!caps || (change ? !caps.change : !caps.create)) {
+      return fail(change ? later.route.cannotChange(schedule.kind) : later.route.unsupported(schedule.kind));
+    }
     const problems = scheduleProblems(schedule, caps.rules, isoDate(new Date()));
     if (Object.keys(problems).length) {
       console.log(`[transfer] ${segId} schedule refused: ${Object.values(problems).join(', ')}`);
@@ -119,7 +137,9 @@ export const POST = wrap(async (req: Request) => {
     purpose: cleanPurpose,
     debtorBic: lookupBlz(s.client.config.bankId)?.bic || s.meta?.bic || undefined,
   };
-  const interaction = orderInteraction(accountNumber, transfer, { instant: useInstant, schedule });
+  const interaction = orderInteraction(accountNumber, transfer, { instant: useInstant, schedule, change });
+  // A handle names one order of one read: used once, whatever comes of it.
+  if (changeRef) s.bankOrders.delete(changeRef);
 
   // The segment only: no IBAN, no amount, no name in a log line (owner's rule).
   console.log(`[transfer] ${segId} acct=...${String(accountNumber).slice(-4)}`);
@@ -174,6 +194,7 @@ export const POST = wrap(async (req: Request) => {
       instant: useInstant,
       transfer,
       ...(schedule ? { schedule } : {}),
+      ...(change ? { change } : {}),
       descriptor: interaction.sepaDescriptor!,
       sepaMessage: interaction.sepaMessage!,
       vop,

@@ -37,7 +37,8 @@ const EVENTS = {
   app_closed: { minutes: 'int' },
   screen_viewed: { screen: 'id' },
   login_result: { blz: 'blz', outcome: LOGIN_OUTCOMES, restored: 'bool', tanMethods: 'int', ms: 'int' },
-  export_created: { format: ['pdf', 'csv'], kind: ['statement', 'transaction', 'message', 'transactions'] },
+  // taxYear: the Steuer-Jahresübersicht (PDF, CSV, or ZIP with its receipts).
+  export_created: { format: ['pdf', 'csv', 'zip'], kind: ['statement', 'transaction', 'message', 'transactions', 'taxYear'] },
   update_available: { version: 'version' },
   update_downloaded: { version: 'version' },
   update_installed: { from: 'version', to: 'version' },

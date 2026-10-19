@@ -23,6 +23,7 @@ import { fmtDate, fmtIban, isoDate, toLocalDate } from '@/lib/format';
 import { rich, useT } from '@/lib/i18n/react';
 import { nextExecution, rhythmLine, scheduleSentence } from '@/lib/order-schedule';
 import { BankText } from './BankText';
+import { ChangeOrderDialog } from './transfer/ChangeOrder';
 import { useFints, type BankOrdersInfo, type OrderDeletion } from './FintsProvider';
 import { CalendarIcon, RepeatIcon } from './icons';
 import { Money } from './Money';
@@ -72,6 +73,7 @@ export function BankOrders() {
   const eligible = useMemo(() => accounts.filter(listsOrders), [accounts]);
   const [chosen, setChosen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<SerializedBankOrder | null>(null);
+  const [changing, setChanging] = useState<SerializedBankOrder | null>(null);
 
   // The account on screen where it has a list, else the first that has one.
   const account = eligible.find((a) => a.accountNumber === chosen)
@@ -141,10 +143,17 @@ export function BankOrders() {
               loading={loadingKind === kind}
               deletions={orderDeletions}
               onRemove={setRemoving}
+              onChange={setChanging}
             />
           ))}
           <p className="px-4 py-2.5 text-[13px] leading-snug text-ink-3 sm:px-5">
-            <DotList items={[lastRead > 0 && <span className="tnum">{words.asOf(clock(t, lastRead))}</span>, words.change]} />
+            {/* "Ändern geht hier nicht" only where nothing listed can be changed here. */}
+            <DotList
+              items={[
+                lastRead > 0 && <span className="tnum">{words.asOf(clock(t, lastRead))}</span>,
+                !kinds.some((k) => reads[k]?.orders.some((o) => o.changeable)) && words.change,
+              ]}
+            />
           </p>
         </>
       )}
@@ -156,12 +165,13 @@ export function BankOrders() {
           onClose={() => setRemoving(null)}
         />
       )}
+      {changing && <ChangeOrderDialog account={account} order={changing} onClose={() => setChanging(null)} />}
     </section>
   );
 }
 
 function KindGroup({
-  kind, account, info, error, loading, deletions, onRemove,
+  kind, account, info, error, loading, deletions, onRemove, onChange,
 }: {
   kind: BankOrderKind;
   account: SerializedAccount;
@@ -170,6 +180,7 @@ function KindGroup({
   loading: boolean;
   deletions: Record<string, OrderDeletion>;
   onRemove: (o: SerializedBankOrder) => void;
+  onChange: (o: SerializedBankOrder) => void;
 }) {
   const { loadBankOrders, busy } = useFints();
   const t = useT();
@@ -213,7 +224,7 @@ function KindGroup({
           {info.orders.length > 0 && (
             <ul>
               {info.orders.map((o) => (
-                <OrderRow key={o.ref} order={o} glyph={<Glyph size={18} />} deletion={deletions[o.ref]} onRemove={onRemove} />
+                <OrderRow key={o.ref} order={o} glyph={<Glyph size={18} />} deletion={deletions[o.ref]} onRemove={onRemove} onChange={onChange} />
               ))}
             </ul>
           )}
@@ -246,12 +257,13 @@ function whenLine(t: ReturnType<typeof useT>, o: SerializedBankOrder): string {
 }
 
 function OrderRow({
-  order: o, glyph, deletion, onRemove,
+  order: o, glyph, deletion, onRemove, onChange,
 }: {
   order: SerializedBankOrder;
   glyph: React.ReactNode;
   deletion: OrderDeletion | undefined;
   onRemove: (o: SerializedBankOrder) => void;
+  onChange: (o: SerializedBankOrder) => void;
 }) {
   const { busy } = useFints();
   const t = useT();
@@ -287,6 +299,19 @@ function OrderRow({
       {/* The amount and its one action share a column, so every amount lines up. */}
       <div className="flex shrink-0 flex-col items-end gap-1">
         <Money value={-o.amount} currency={o.currency} signed tone="credit" className={cx('text-[15px] font-semibold', gone)} />
+        {o.changeable && !deletion && (
+          <Button
+            variant="tertiary"
+            size="xs"
+            className="-mr-3"
+            disabled={busy}
+            aria-haspopup="dialog"
+            aria-label={t.orders.change.buttonLabel(o.kind, o.name || fmtIban(o.iban))}
+            onClick={() => onChange(o)}
+          >
+            {t.orders.change.button}
+          </Button>
+        )}
         {o.deletable && !deletion && (
           <Button
             variant="tertiary"

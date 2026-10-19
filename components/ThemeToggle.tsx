@@ -17,7 +17,7 @@ import {
   appliedTheme, appliedThemePref, setThemePref, subscribeTheme, type Theme, type ThemePref,
 } from '@/lib/theme';
 import { MonitorIcon, MoonIcon, SunIcon } from './icons';
-import { IconButton, Menu, MenuGroup, MenuItemRadio, cx, type Placement } from './ui';
+import { Button, IconButton, Menu, MenuGroup, MenuItemRadio, type Placement } from './ui';
 
 /** The stored choice, live. 'system' on the server. */
 export function useThemePref(): ThemePref {
@@ -45,12 +45,12 @@ function PrefGlyph({ size = 18 }: { size?: number }) {
  *
  * `labelClassName` lets the shell collapse the word to the icon on a narrow
  * window (e.g. "hidden desk:inline"); the accessible name stays either way.
- * `variant="icon"` renders a round icon button instead of the masthead item.
+ * `variant="icon"` renders M3E's round icon button (the masthead's) instead of a text button.
  */
 export function ThemeMenu({
-  variant = 'navlink', tone = 'bar', labelClassName, className, placement = 'bottom-end',
+  variant = 'text', tone = 'bar', labelClassName, className, placement = 'bottom-end',
 }: {
-  variant?: 'navlink' | 'icon';
+  variant?: 'text' | 'icon';
   tone?: 'page' | 'bar' | 'stage';
   labelClassName?: string;
   className?: string;
@@ -71,10 +71,9 @@ export function ThemeMenu({
             <PrefGlyph />
           </IconButton>
         ) : (
-          <button {...props} type="button" aria-label={name} title={name} className={cx('navlink inline-flex', className)}>
-            <PrefGlyph />
+          <Button {...props} variant="quiet" size="sm" aria-label={name} title={name} iconLeft={<PrefGlyph />} className={className}>
             <span className={labelClassName}>{t.common.theme.label}</span>
-          </button>
+          </Button>
         )
       }
     >

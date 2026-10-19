@@ -404,6 +404,9 @@ function downloadFilters() {
     '.csv': { name: types.csv, extensions: ['csv'] },
     '.png': { name: types.png, extensions: ['png'] },
     '.pdf': { name: types.pdf, extensions: ['pdf'] },
+    // The Steuer-Jahresübersicht's receipts, and a backup of the saved data.
+    '.zip': { name: types.zip, extensions: ['zip'] },
+    '.girovo': { name: types.backup, extensions: ['girovo'] },
   };
 }
 

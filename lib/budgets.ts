@@ -26,8 +26,8 @@
 //
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
-import type { CategoryId } from './categories';
-import { CATEGORIES, categoryDef } from './categories.ts';
+import type { CategoryId, CustomCategory } from './categories';
+import { allCategories, categoryDef, CATEGORIES } from './categories.ts';
 import { parseAmount } from './format.ts';
 import type { Locale } from './i18n/locale.ts';
 
@@ -43,8 +43,11 @@ export function isBudgetCategory(id: CategoryId): boolean {
   return def.id === id && def.direction !== 'in' && !def.neutral;
 }
 
-/** The categories a budget can be set for, in the app's own order. */
+/** The app's own categories a budget can be set for, in the app's order. */
 export const BUDGET_CATEGORIES: readonly CategoryId[] = CATEGORIES.map((c) => c.id).filter(isBudgetCategory);
+
+/** Every category a budget can be set for now: the app's, then the user's own spending ones. */
+export const budgetCategories = (): readonly CategoryId[] => allCategories().map((c) => c.id).filter(isBudgetCategory);
 
 /** A budget as the vault may hold it: whole cents, above zero, at most BUDGET_MAX_CENTS. */
 export function budgetCents(v: unknown): number | null {
@@ -53,14 +56,18 @@ export function budgetCents(v: unknown): number | null {
 
 /**
  * The budgets as this version understands them: spending categories only,
- * valid amounts only, in the app's category order. Anything else — an income
- * category, a fraction of a cent, a string, a prototype key — is dropped.
+ * valid amounts only, in the app's category order, then the user's own
+ * spending categories from `customs` (the vault's list — never what the page
+ * happens to have registered, which may be another login's). Anything else —
+ * an income category, a fraction of a cent, a string, a prototype key — is
+ * dropped.
  */
-export function sanitizeBudgets(v: unknown): Budgets {
+export function sanitizeBudgets(v: unknown, customs: readonly CustomCategory[] = []): Budgets {
   const out: Budgets = {};
   if (!v || typeof v !== 'object' || Array.isArray(v)) return out;
   const rec = v as Record<string, unknown>;
-  for (const id of BUDGET_CATEGORIES) {
+  const ids: CategoryId[] = [...BUDGET_CATEGORIES, ...customs.filter((c) => c.direction === 'out').map((c) => c.id)];
+  for (const id of ids) {
     if (!Object.prototype.hasOwnProperty.call(rec, id)) continue;
     const cents = budgetCents(rec[id]);
     if (cents !== null) out[id] = cents;
@@ -157,7 +164,7 @@ export type BudgetLine = {
  * Every budget of `budgets` against one month's spending — `spending` is the
  * month's "Ausgaben nach Kategorie" (periodTotals().byCategory: positive
  * euros, refunds netted). A budgeted category the month spent nothing in is
- * listed with 0. In the app's category order.
+ * listed with 0. In the app's category order, the user's own after it.
  */
 export function budgetLines(
   budgets: Budgets,
@@ -167,7 +174,7 @@ export function budgetLines(
   const byId = new Map(spending.map((s) => [s.id, s]));
   const known = coverage === 'complete' || coverage === 'running';
   const out: BudgetLine[] = [];
-  for (const id of BUDGET_CATEGORIES) {
+  for (const id of budgetCategories()) {
     const budget = budgetCents(budgets[id]);
     if (budget === null) continue;
     const row = byId.get(id);

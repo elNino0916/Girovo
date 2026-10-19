@@ -1,12 +1,12 @@
 'use client';
 
 import { memo } from 'react';
-import { categoryLabel, txKey, type CategoryId } from '@/lib/categories';
+import { categoryLabel, txKey, type CategoryId, type CategoryPart } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
 import { maskAmounts } from '@/lib/mask';
 import { BankText } from '../BankText';
-import { CategoryIcon, NoteIcon, PaperclipIcon } from '../icons';
+import { CategoryIcon, NoteIcon, PaperclipIcon, PieIcon } from '../icons';
 import { Money, usePrivacy } from '../Money';
 import { Skeleton, cx } from '../ui';
 import { CounterpartyAvatar } from './Avatar';
@@ -27,11 +27,13 @@ const QUIET_CATEGORIES = new Set<CategoryId>(['other', 'otherIn']);
  * change of it renders every row again, summary and category included.
  */
 export const TxRow = memo(function TxRow({
-  tx, merchant, category, userNote, receipt = false, pending = false, compact = false, onOpen,
+  tx, merchant, category, parts, userNote, receipt = false, pending = false, compact = false, onOpen,
 }: {
   tx: SerializedTransaction;
   merchant: Merchant | null;
   category?: CategoryId | null;
+  /** The shares of a booking the user split up (lib/splits.ts), largest first — the row names them all. */
+  parts?: readonly CategoryPart[];
   /** The user's own note on the booking (lib/notes.ts): marked beside the name, read in the drawer. */
   userNote?: string;
   /** A receipt is attached to it (lib/doc-store.ts): marked beside the name, opened in the drawer. */
@@ -48,7 +50,13 @@ export const TxRow = memo(function TxRow({
   // ahead it keeps — that one changes what the row means.
   const fullNote = rowNote(tx, pending);
   const note = !pending && fullNote?.kind === 'value' ? null : fullNote;
-  const showCategory = !compact && category && !QUIET_CATEGORIES.has(category);
+  // A split booking always says so: the shares are the user's own doing.
+  const split = !compact && parts && parts.length > 1 ? parts : null;
+  const showCategory = !compact && category && (split || !QUIET_CATEGORIES.has(category));
+  const categoryText = split
+    ? t.transactions.split.summary(categoryLabel(split[0].id), categoryLabel(split[1].id), split.length - 2)
+    : category ? categoryLabel(category) : '';
+  const categoryTitle = split ? t.transactions.split.summaryLabel(split.map((p) => categoryLabel(p.id))) : categoryText;
 
   return (
     <button
@@ -98,12 +106,14 @@ export const TxRow = memo(function TxRow({
                   summary ? 'shrink-0 sm:max-w-[50%]' : 'shrink',
                 )}
               >
-                <span title={categoryLabel(category)} className="inline-flex shrink-0">
-                  <CategoryIcon id={category} size={14} />
+                <span title={categoryTitle} className="inline-flex shrink-0">
+                  {split ? <PieIcon size={14} /> : <CategoryIcon id={category} size={14} />}
                 </span>
                 {/* Beside prose on a phone the glyph stands in for the word; the
                     word is still there for a screen reader. */}
-                <span className={cx('min-w-0 truncate', summary && 'max-sm:sr-only')}>{categoryLabel(category)}</span>
+                <span className={cx('min-w-0 truncate', summary && 'max-sm:sr-only')}>
+                  {split ? <><span className="sr-only">{categoryTitle}</span><span aria-hidden>{categoryText}</span></> : categoryText}
+                </span>
               </span>
             )}
           </span>

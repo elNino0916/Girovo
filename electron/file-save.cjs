@@ -14,8 +14,12 @@
 const path = require('node:path');
 const { TEXTS, shellTexts } = require('./i18n.cjs');
 
-/** The largest file it writes: a year of bookings is well under 1 MB. */
-const SAVE_MAX_BYTES = 50 * 1024 * 1024;
+/**
+ * The largest file it writes. A year of bookings is well under 1 MB; a
+ * backup carries every kept document of a login (48 MB at most, lib/docs.ts)
+ * and its kept Umsätze beside them.
+ */
+const SAVE_MAX_BYTES = 128 * 1024 * 1024;
 /** @deprecated The German sentence, for code that compares; a save answers shellTexts().files.saveFailed. */
 const SAVE_FAILED = TEXTS.de.files.saveFailed;
 

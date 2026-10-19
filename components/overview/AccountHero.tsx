@@ -503,7 +503,7 @@ function AccountLine({ account, renamable }: { account: SerializedAccount; renam
   const t = useT();
   const [renaming, setRenaming] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
-  const renameButton = useRef<HTMLButtonElement>(null);
+  const renameButton = useRef<HTMLElement>(null);
   const noteId = useId();
 
   // Focus goes back to the button that started renaming — never lost to <body>.

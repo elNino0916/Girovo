@@ -23,6 +23,8 @@ import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import type { Cadence, RecurringSeries } from '@/lib/recurring';
 import { ContractGroup, ContractRow, DismissedRow } from './insights/ContractRow';
+import { ForecastTile } from './insights/Forecast';
+import { IS_ANDROID } from '@/lib/platform';
 import { useRecurringModel, useUpcoming, type AccountBasis, type RecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, RoundMoney, YEAR_SPAN, daysUntil, fmtDayKeyShort, fmtWeekday, spanDays } from './insights/shared';
 
@@ -63,6 +65,8 @@ function useDismiss() {
 export function Contracts() {
   return (
     <div className="min-w-0 space-y-4 sm:space-y-6">
+      {/* Where a narrow Übersicht has no side pane for it — and on the phone. */}
+      <ForecastTile className={IS_ANDROID ? undefined : 'desk:hidden'} />
       <ContractsFromBookings />
       <BankOrders />
     </div>

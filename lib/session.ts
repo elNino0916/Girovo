@@ -19,6 +19,7 @@ import type { FinTSClient } from 'lib-fints';
 import type { BankMeta, BankOrderKind, FinTSClientEx, ReadBankOrder, SerializedVop } from './fints-types';
 import type { TransferOrder } from './fints-sepa';
 import type { DaySpan } from './history';
+import type { StatementSeg } from './bank-statements';
 import type { OrderSchedule } from './order-schedule';
 import { findSessionsWith } from './history-store';
 import { saveProfile } from './state-store';
@@ -106,7 +107,9 @@ export const MERCHANT_LOGOS = (() => {
 // ---------------------------------------------------------------------------
 export type PendingOperation =
   | { type: 'sync'; tanReference?: string }
-  | { type: 'balance' | 'pending' | 'portfolio' | 'bankStatements'; tanReference?: string; accountNumber: string }
+  | { type: 'balance' | 'pending' | 'portfolio'; tanReference?: string; accountNumber: string }
+  /** The bank's Kontoauszüge: over HKEKA or HKEKP (lib/bank-statements.ts). */
+  | { type: 'bankStatements'; tanReference?: string; accountNumber: string; segId: StatementSeg }
   /** `asked`: the days the bank was asked for, which the kept Umsätze need once it answers (lib/history-store.ts). */
   | { type: 'statements'; tanReference?: string; accountNumber: string; asked: DaySpan }
   /** An order: a transfer (HKCCS/HKIPZ), a terminierte Überweisung (HKCSE) or a Dauerauftrag (HKCDE). */
@@ -133,6 +136,8 @@ export type VopHold = {
   instant: boolean;
   transfer: TransferOrder;
   schedule?: OrderSchedule;
+  /** A change of a bank-held order (HKCSA/HKCDN): the order it changes. */
+  change?: { orderId: string };
   descriptor: string;
   sepaMessage: string;
   vop: SerializedVop;

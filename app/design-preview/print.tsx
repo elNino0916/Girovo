@@ -15,7 +15,9 @@ import { useFints, type PrintJob } from '@/components/FintsProvider';
 import { DocumentPreview } from '@/components/Statement';
 import type { InboxMessage, StatementInfo } from '@/lib/app-types';
 import type { SerializedBalance, SerializedTransaction } from '@/lib/fints-types';
-import { isFutureDate, isoDate } from '@/lib/format';
+import { isFutureDate, isoDate, translateType } from '@/lib/format';
+import { allCategories } from '@/lib/categories';
+import { taxYear } from '@/lib/tax-year';
 
 /**
  * Which document, and for the receipt which booking of the mock data:
@@ -38,7 +40,8 @@ import { isFutureDate, isoDate } from '@/lib/format';
 export type PrintPreviewKind =
   | 'statement' | 'statement-no-opening' | 'statement-difference'
   | 'receipt' | 'credit' | 'card' | 'ahead' | 'pending'
-  | 'message' | 'message-short' | 'message-long';
+  | 'message' | 'message-short' | 'message-long'
+  | 'tax-year';
 
 const MESSAGE_KINDS: readonly PrintPreviewKind[] = ['message', 'message-short', 'message-long'];
 
@@ -112,10 +115,36 @@ function useFitToWidth(scroller: HTMLElement | null): number {
 }
 
 export function PrintPreview({ kind }: { kind: PrintPreviewKind }) {
-  const { activeAccount, bank, transactions, balances, statementInfo, pendingCache, messages } = useFints();
+  const {
+    activeAccount, bank, transactions, balances, statementInfo, pendingCache, messages, accounts, txByAccount, categoryOf,
+  } = useFints();
 
   // Built once per change of the data it reads: the sheet seals every new job.
   const job = useMemo((): PrintJob | null => {
+    if (kind === 'tax-year') {
+      // The running year of the mock's loaded accounts, in every spending
+      // category the personal set uses, an own category and a split included.
+      const inScope = accounts.filter((a) => txByAccount[a.accountNumber]?.length);
+      const spans: Record<string, { from: string; to: string } | null> = {};
+      for (const a of inScope) {
+        const info = statementInfo[a.accountNumber];
+        spans[a.accountNumber] = info ? { from: info.from, to: info.to } : null;
+      }
+      const include = new Set(allCategories().filter((c) => !c.neutral && c.direction !== 'in').map((c) => c.id));
+      include.delete('groceries');
+      include.delete('leisure');
+      const summary = taxYear({
+        year: new Date().getFullYear(), accounts: inScope, txsByAccount: txByAccount, spans, categoryOf, include,
+      });
+      return {
+        kind: 'taxYear',
+        summary,
+        holder: inScope.find((a) => a.holder)?.holder ?? '',
+        accounts: inScope.map((a) => ({
+          accountNumber: a.accountNumber, iban: a.iban ?? '', label: a.product || translateType(a.accountType), bank: bank?.name ?? '',
+        })),
+      };
+    }
     if (MESSAGE_KINDS.includes(kind)) {
       // As the inbox holds them: the conditions letter first, the maintenance notice second.
       const message = messages[kind === 'message-short' ? 1 : 0];
@@ -155,7 +184,7 @@ export function PrintPreview({ kind }: { kind: PrintPreviewKind }) {
             : newest(txs, (t) => !!t.creditorId && !!t.mandateReference && t.amount < 0);
     if (!tx) return null;
     return { kind: 'transaction', account: activeAccount, bank, tx, pending };
-  }, [kind, activeAccount, bank, transactions, balances, statementInfo, pendingCache, messages]);
+  }, [kind, activeAccount, bank, transactions, balances, statementInfo, pendingCache, messages, accounts, txByAccount, categoryOf]);
 
   const [main, setMain] = useState<HTMLElement | null>(null);
   const fit = useFitToWidth(main);

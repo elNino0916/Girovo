@@ -38,7 +38,7 @@ export const POST = wrap(async (req: Request) => {
   const interaction = orderInteraction(
     hold.accountNumber,
     hold.transfer,
-    { instant: hold.instant, schedule: hold.schedule },
+    { instant: hold.instant, schedule: hold.schedule, change: hold.change },
     { vopId: hold.vopId },
     { descriptor: hold.descriptor, sepaMessage: hold.sepaMessage },
   );
