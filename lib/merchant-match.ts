@@ -223,6 +223,9 @@ function stripDecoration(raw: string): string {
   s = s.replace(/\s{2,}/g, ' ');
   s = s.replace(/\.{2,}/g, ' ');
   s = s.replace(/[•|;]+/g, ' ');
+  // "WWW.Amazon." — a site named without its ending: the name is what is left.
+  // Before the dots go (tokenize), or it would be looked up as "wwwamazon".
+  s = s.trim().replace(/^www\./i, '').replace(/\.+$/, '');
   return s.trim();
 }
 
@@ -724,6 +727,14 @@ const INSTITUTIONS: { test: RegExp; domain: string; label: string }[] = [
   // Ridge (the wallet maker) sells in Europe as "The Ridge EU"; a search for
   // "The Ridge" finds a golf course, a venue and a pub before it.
   { test: /^the ridge eu$/, domain: 'ridge.com', label: 'Ridge' },
+  // Deutsche Bahn books through its companies: "DB Vertrieb GmbH" sells the
+  // tickets, "DB Dialog GmbH" pays the refunds, "DB Fernverkehr AG" … — and a
+  // search for "DB Dialog" finds nothing, while "DB" alone is Deutsche Bank's.
+  {
+    test: /^(?:deutsche bahn|db (?:dialog|vertrieb|fernverkehr|regio|netz|station|cargo|systel|energie|connect|services|bahn))\b/,
+    domain: 'bahn.de',
+    label: 'Deutsche Bahn',
+  },
 ];
 
 export function knownInstitution(raw: string | null | undefined): { domain: string; label: string } | null {

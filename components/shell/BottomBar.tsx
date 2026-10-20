@@ -50,6 +50,9 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
   const tr = useT();
   const go = (t: DashboardTab) => () => setTab(t);
   const extended = useFabExtended();
+  // Einstellungen is no place of the phone's bar but a page under one (the
+  // top app bar's way back): neither the bar nor Überweisen stands beneath it.
+  const subPage = tab === 'settings';
   // The same four places in the bar and in the rail.
   const items = (
     <>
@@ -62,11 +65,13 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
 
   return (
     <>
-      <div data-bottombar className="relative z-30 shrink-0 bg-[var(--nav-bg)] pb-[env(safe-area-inset-bottom)] sm:hidden">
-        <M3eNavBar mode="compact" aria-label={tr.shell.bottomBar.label} className="block h-16">
-          {items}
-        </M3eNavBar>
-      </div>
+      {!subPage && (
+        <div data-bottombar className="relative z-30 shrink-0 bg-[var(--nav-bg)] pb-[env(safe-area-inset-bottom)] sm:hidden">
+          <M3eNavBar mode="compact" aria-label={tr.shell.bottomBar.label} className="block h-16">
+            {items}
+          </M3eNavBar>
+        </div>
+      )}
       <nav
         aria-label={tr.shell.bottomBar.label}
         data-rail
@@ -104,7 +109,7 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
           <NavItem icon={<GearIcon size={22} />} label={tr.common.nav.settings} current={tab === 'settings'} onClick={() => openSettings()} />
         </div>
       </nav>
-      {actions.canTransfer && (
+      {actions.canTransfer && !subPage && (
         <M3eFab
           variant="primary-container"
           size="small"

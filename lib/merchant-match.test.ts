@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { knownInstitution, nameScore } from './merchant-match.ts';
+import { candidates, knownInstitution, nameScore } from './merchant-match.ts';
 
 test('the Sparkassen card processor is Helaba, however the bank spells it', () => {
   for (const n of [
@@ -142,4 +142,19 @@ test('candidates: the kind of payment is never searched as a shop', async () => 
   // Behind PayPal with only "Ratenzahlung" as the shop, PayPal is what is left to search.
   const viaPaypal = candidates('PayPal Europe S.a.r.l. et Cie S.C.A', 'PP.4711.PP . Ratenzahlung, Ihr Einkauf bei Ratenzahlung');
   assert.ok(!viaPaypal.some((r) => r.core === 'ratenzahlung'), viaPaypal.map((r) => r.core).join(' | '));
+});
+
+test('a site named without its ending is looked up by its name', () => {
+  assert.deepEqual(candidates('WWW.Amazon.').map((c) => c.core), ['amazon']);
+  // With its ending it is still the site.
+  assert.equal(candidates('WWW.AMAZON.DE')[0].query.startsWith('amazon.de'), true);
+});
+
+test("Deutsche Bahn's companies are Deutsche Bahn, not a search", () => {
+  for (const name of ['DB Dialog GmbH', 'DB Vertrieb GmbH', 'DB Fernverkehr AG', 'Deutsche Bahn AG']) {
+    assert.deepEqual(knownInstitution(name), { domain: 'bahn.de', label: 'Deutsche Bahn' }, name);
+  }
+  // Deutsche Bank is not.
+  assert.equal(knownInstitution('Deutsche Bank AG'), null);
+  assert.equal(knownInstitution('DB Privat- und Firmenkundenbank AG'), null);
 });

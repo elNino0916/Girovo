@@ -9,10 +9,10 @@ import { useMemo, useState } from 'react';
 import type { CustomCategory } from '@/lib/categories';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
-import { PlusIcon, TagIcon } from '../icons';
+import { PencilIcon, PlusIcon, TagIcon, TrashIcon } from '../icons';
 import { CategoryNameDialog } from '../transactions/CategoryDialogs';
-import { Button, Dialog } from '../ui';
-import { MachineIcon } from './rows';
+import { Button, Dialog, IconButton } from '../ui';
+import { ActionItem, SettingItem } from './rows';
 
 export function CategorySettings() {
   const { vault, vaultStatus, txByAccount, categoryOf, deleteCustomCategory } = useFints();
@@ -39,43 +39,39 @@ export function CategorySettings() {
     return n;
   }, [list.length, txByAccount, categoryOf]);
 
+  // Rows of the section's group (./rows.tsx): one per category, its two
+  // actions at its end, then the way to a new one. The section's note says
+  // where they apply and how they are kept.
   return (
     <>
-      <p className="text-[13px] leading-snug text-ink-3">{words.sectionHint}</p>
-      {list.length === 0 ? (
-        <p className="mt-3 text-[14px] leading-snug text-ink-2">{words.none}</p>
-      ) : (
-        <ul className="mt-1">
-          {list.map((c) => {
-            const count = used.get(c.id) ?? 0;
-            return (
-              <li key={c.id} className="flex min-h-14 items-center gap-3 py-2">
-                <MachineIcon><TagIcon size={16} /></MachineIcon>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] leading-snug font-semibold text-ink">{c.name}</p>
-                  <p className="text-[13px] leading-snug text-ink-3">
-                    {c.direction === 'in' ? words.kindIn : words.kindOut} · {count ? words.used(count) : words.unused}
-                  </p>
-                </div>
-                <div className="-mr-2 flex shrink-0">
-                  <Button variant="tertiary" size="xs" aria-label={words.renameLabel(c.name)} aria-haspopup="dialog" onClick={() => setRenaming(c)}>
-                    {words.rename}
-                  </Button>
-                  <Button variant="tertiary" size="xs" aria-label={words.removeLabel(c.name)} aria-haspopup="dialog" onClick={() => setRemoving(c)}>
-                    {words.remove}
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <div className="mt-2">
-        <Button variant="secondary" size="sm" aria-haspopup="dialog" iconLeft={<PlusIcon size={16} />} onClick={() => setAdding(true)}>
-          {words.add}
-        </Button>
-      </div>
-      {vaultStatus !== 'ready' && <p className="mt-2 text-[13px] leading-snug text-ink-3">{t.transactions.categorize.sessionOnly}</p>}
+      {list.map((c) => {
+        const count = used.get(c.id) ?? 0;
+        return (
+          <SettingItem
+            key={c.id}
+            icon={<TagIcon />}
+            title={<span className="block truncate">{c.name}</span>}
+            summary={`${c.direction === 'in' ? words.kindIn : words.kindOut} · ${count ? words.used(count) : words.unused}`}
+            trailing={(
+              <span className="-mr-2 flex">
+                <IconButton size="md" aria-label={words.renameLabel(c.name)} aria-haspopup="dialog" onClick={() => setRenaming(c)}>
+                  <PencilIcon size={18} />
+                </IconButton>
+                <IconButton size="md" aria-label={words.removeLabel(c.name)} aria-haspopup="dialog" onClick={() => setRemoving(c)}>
+                  <TrashIcon size={18} />
+                </IconButton>
+              </span>
+            )}
+          />
+        );
+      })}
+      <ActionItem
+        icon={<PlusIcon />}
+        title={words.add}
+        summary={list.length === 0 ? words.none : undefined}
+        onClick={() => setAdding(true)}
+      />
+      {vaultStatus !== 'ready' && <SettingItem title={t.transactions.categorize.sessionOnly} />}
 
       <CategoryNameDialog open={adding} onClose={() => setAdding(false)} />
       <CategoryNameDialog

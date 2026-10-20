@@ -22,7 +22,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
 import { unseenUpdate, useUpdates } from '../updates/store';
-import { BellIcon, EyeIcon, EyeOffIcon, SearchIcon } from '../icons';
+import { BackIcon, BellIcon, EyeIcon, EyeOffIcon, SearchIcon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
 import { MASTHEAD_EDGES } from './edges';
 import { PAGE_TITLE_ID } from './ids';
@@ -46,8 +46,13 @@ function PageTitle() {
 export function Masthead() {
   const {
     privacy, togglePrivacy, unreadCount: bankUnread, inboxOpen, setInboxOpen, setPaletteOpen, singleKeyShortcuts,
+    tab, leaveSettings,
   } = useFints();
   const t = useT();
+  // On a phone Einstellungen is a page under another, as Android's settings
+  // screens are: the way back in front of its name, and none of the places'
+  // actions behind it. From 640px it is the rail's fifth place.
+  const subPage = tab === 'settings';
   // A newer version of the app (desktop only) waits in Mitteilungen too. The
   // number counts the bank's messages only; the app's own news is marked by
   // the dot alone, so it never reads as one more message from the bank.
@@ -95,11 +100,24 @@ export function Masthead() {
       </a>
 
       <div className="@container/mast flex h-full min-w-0 items-center gap-2 sm:gap-3">
+        {subPage && (
+          <IconButton
+            tone="bar"
+            size="md"
+            aria-label={t.common.back}
+            onClick={leaveSettings}
+            // Material's navigation icon: its glyph, not its state layer, on the bar's edge.
+            className="-ml-2 sm:hidden"
+            style={NO_DRAG}
+          >
+            <BackIcon size={22} />
+          </IconButton>
+        )}
         <PageTitle />
 
         <div className="min-w-2 flex-1" />
 
-        <div className="flex shrink-0 items-center gap-1" style={NO_DRAG}>
+        <div className={cx('flex shrink-0 items-center gap-1', subPage && 'max-sm:hidden')} style={NO_DRAG}>
           {/* Search: a pill, as Material's search bar sits in a wide top app
               bar — on a phone it is "Mehr" in the navigation bar. Android has
               no Darstellung either: the phone's light and dark. */}

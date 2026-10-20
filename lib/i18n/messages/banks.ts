@@ -12,6 +12,8 @@ export const de = {
   step: (step: number, of: number) => `Weitere Bank anmelden · Schritt ${step} von ${of}`,
   /** After the next login: a remembered bank, one click from its login form. */
   alsoLogin: (bank: string) => `Auch bei ${bank} anmelden`,
+  /** The button on that bank's row; its accessible name is alsoLogin. */
+  login: 'Anmelden',
   loginAgain: 'Erneut anmelden',
   /** A bank's state, in the account list and the Sitzung panel. */
   state: {
@@ -65,6 +67,7 @@ export const en: typeof de = {
   add: 'Log in to another bank',
   step: (step, of) => `Log in to another bank · step ${step} of ${of}`,
   alsoLogin: (bank) => `Also log in to ${bank}`,
+  login: 'Log in',
   loginAgain: 'Log in again',
   state: {
     primary: 'Main login – your saved data lives here',

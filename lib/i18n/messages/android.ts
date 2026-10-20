@@ -6,7 +6,7 @@ export const de = {
   biometric: {
     /** The switch on the Einstellungen page. */
     label: 'Mit Fingerabdruck anmelden',
-    hint: 'Deine PIN wird dafür auf diesem Telefon gespeichert, verschlüsselt mit einem Schlüssel, den nur dein Fingerabdruck öffnet. Kommt ein neuer Fingerabdruck dazu, ist sie gelöscht.',
+    hint: 'Deine PIN liegt verschlüsselt auf dem Telefon – nur dein Fingerabdruck öffnet sie.',
     unavailable: {
       'none-enrolled': 'Richte zuerst in den Android-Einstellungen einen Fingerabdruck ein.',
       'no-hardware': 'Dieses Telefon hat keinen Fingerabdrucksensor, den Girovo nutzen kann.',
@@ -32,11 +32,13 @@ export const de = {
   /** The category guess with Gemini Nano (components/android: Einstellungen and the progress line). */
   categories: {
     title: 'Kategorien mit Gemini Nano',
-    hint: 'Ordnet Umsätze zu, die die Regeln nicht erkennen – mit dem Sprachmodell von Android, nur auf diesem Telefon.',
+    hint: 'Ordnet zu, was die Regeln nicht erkennen – nur auf diesem Telefon.',
     downloading: 'Android lädt Gemini Nano',
     downloadProgress: (got: string, total: string) => `${got} von ${total}`,
     downloadable: 'Android lädt Gemini Nano, sobald das Telefon so weit ist – oft erst im WLAN.',
     downloadNow: 'Jetzt laden',
+    /** Beside its row's check, for a screen reader: Android has Nano, and it sorts. */
+    running: 'Aktiv',
     unsupported: 'Nicht unterstütztes Telefon',
     unsupportedHint: 'Dieses Telefon bietet Gemini Nano nicht an. Umsätze ordnen hier nur die Regeln zu.',
     update: 'Gemini Nano braucht ein Systemupdate. Installiere die neuesten Updates, dann ordnet Girovo auch hier zu.',
@@ -56,6 +58,23 @@ export const de = {
     unknown: 'Dieses Telefon kann seinen Zustand nicht nachweisen, deshalb kann Girovo ihn nicht prüfen.',
     foreign: 'Diese Girovo-App ist nicht mit Girovos Schlüssel signiert. Lade Girovo nur von GitHub (elNino0916/Girovo) oder aus Google Play.',
     development: 'Ein Entwicklungs-Build: Seine Signatur wird nicht geprüft.',
+    /** The verdict in a few words, on the Einstellungen row; the sentences above are its dialog. */
+    short: {
+      trusted: 'Sicher – von der Hardware geprüft',
+      custom: 'Eigenes Android, Bootloader gesperrt',
+      modified: 'Verändert – nicht sicher',
+      unknown: 'Nicht nachweisbar',
+    },
+    foreignShort: 'Keine offizielle Girovo-App',
+    keepsNothingShort: 'Girovo speichert hier nichts',
+    /** A phone Girovo keeps nothing on (lib/device-integrity.ts keepsNothing): Einstellungen and the login. */
+    keepsNothing: 'Darum speichert Girovo auf diesem Telefon nichts: kein gemerktes Gerät, keine persönlichen Daten, Umsätze, Dokumente oder Anmeldenamen. Alles gilt nur bis zum Abmelden.',
+    keepsNothingTitle: 'Girovo speichert auf diesem Telefon nichts',
+    keepsNothingLogin: 'Dieses Telefon ist nicht als sicher nachgewiesen. Deine Bank fragt bei jeder Anmeldung nach einer Freigabe, und was du einrichtest, gilt nur bis zum Abmelden.',
+    /** A route that keeps something, refused on such a phone (mobile/server/index.ts). */
+    notKept: 'Auf diesem Telefon speichert Girovo nichts, weil es nicht als sicher nachgewiesen ist (Einstellungen → Gerätesicherheit).',
+    /** The fingerprint switch on such a phone. */
+    noFingerprint: 'Auf diesem Telefon nicht möglich',
     /** The login's warning, before the PIN is typed. */
     modifiedTitle: 'Dieses Telefon ist verändert',
     modifiedLogin: 'Der Bootloader ist entsperrt oder das System nicht geprüft. Eine App mit Root-Rechten könnte deine PIN mitlesen – melde dich nur an, wenn du diesem Telefon vertraust.',
@@ -100,7 +119,7 @@ export const de = {
 export const en: typeof de = {
   biometric: {
     label: 'Log in with fingerprint',
-    hint: 'Your PIN is stored on this phone for this, encrypted with a key only your fingerprint opens. If a new fingerprint is added, it is deleted.',
+    hint: 'Your PIN is kept encrypted on the phone – only your fingerprint opens it.',
     unavailable: {
       'none-enrolled': 'Set up a fingerprint in Android’s settings first.',
       'no-hardware': 'This phone has no fingerprint sensor Girovo can use.',
@@ -123,11 +142,12 @@ export const en: typeof de = {
 
   categories: {
     title: 'Categories with Gemini Nano',
-    hint: 'Sorts bookings the rules don’t recognise – with Android’s language model, only on this phone.',
+    hint: 'Sorts what the rules don’t recognise – only on this phone.',
     downloading: 'Android is downloading Gemini Nano',
     downloadProgress: (got: string, total: string) => `${got} of ${total}`,
     downloadable: 'Android downloads Gemini Nano once the phone is ready – often only on Wi-Fi.',
     downloadNow: 'Download now',
+    running: 'Active',
     unsupported: 'Unsupported phone',
     unsupportedHint: 'This phone doesn’t offer Gemini Nano. Here, only the rules sort bookings.',
     update: 'Gemini Nano needs a system update. Install the latest updates and Girovo sorts here too.',
@@ -145,6 +165,19 @@ export const en: typeof de = {
     unknown: "This phone can't prove its state, so Girovo can't check it.",
     foreign: "This Girovo app isn't signed with Girovo's key. Only get Girovo from GitHub (elNino0916/Girovo) or Google Play.",
     development: "A development build: its signature isn't checked.",
+    short: {
+      trusted: 'Safe – checked by the hardware',
+      custom: 'Own Android, bootloader locked',
+      modified: 'Modified – not safe',
+      unknown: "Can't be proven",
+    },
+    foreignShort: 'Not the official Girovo app',
+    keepsNothingShort: 'Girovo keeps nothing here',
+    keepsNothing: 'So Girovo keeps nothing on this phone: no remembered device, no personal data, transactions, documents or login names. Everything lasts only until you log out.',
+    keepsNothingTitle: 'Girovo keeps nothing on this phone',
+    keepsNothingLogin: "This phone isn't proven to be safe. Your bank asks for an approval at every login, and whatever you set up lasts only until you log out.",
+    notKept: "Girovo keeps nothing on this phone, because it isn't proven to be safe (Settings → Device security).",
+    noFingerprint: 'Not possible on this phone',
     modifiedTitle: 'This phone has been modified',
     modifiedLogin: 'The bootloader is unlocked or the system is not verified. An app with root rights could read your PIN – only sign in if you trust this phone.',
     foreignTitle: "This isn't the official Girovo app",

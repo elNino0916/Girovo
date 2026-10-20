@@ -35,6 +35,7 @@ import {
 } from 'react';
 import { ApiError, BACK_EVENT, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail } from '@/lib/client-api';
 import { IS_ANDROID } from '@/lib/platform';
+import { keepsNothing } from '@/lib/device-integrity';
 import { MESSAGES, msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { bankAnswerLines } from '@/lib/bank-answer';
@@ -3123,10 +3124,18 @@ function useFintsState() {
    * (components/settings/Settings.tsx scrolls there, focuses it, and clears it).
    */
   const [settingsTarget, setSettingsTarget] = useState<SettingsTarget | null>(null);
+  // On a phone Einstellungen is a page under another (reached from the Sitzung
+  // panel or the search, with no place of its own in the navigation bar): its
+  // way back leads to the page it was opened from.
+  const settingsFrom = useRef<DashboardTab>('overview');
   const openSettings = useCallback((target?: SettingsTarget) => {
-    setTabState('settings');
+    setTabState((current) => {
+      if (current !== 'settings') settingsFrom.current = current;
+      return 'settings';
+    });
     setSettingsTarget(target ?? null);
   }, []);
+  const leaveSettings = useCallback(() => setTabState(settingsFrom.current), []);
   const clearSettingsTarget = useCallback(() => setSettingsTarget(null), []);
 
   // Android: while an approval in the bank's app is awaited, the app keeps its
@@ -3146,13 +3155,17 @@ function useFintsState() {
   }, [awaitingApproval]);
 
   // Android's back gesture, once no layer is open to close (mobile/bridges/back.ts):
-  // from Analyse or Verträge back to the Übersicht, from the login form back to
-  // the bank list. Anywhere else the app goes to the background, session intact.
+  // from Einstellungen to the page it was opened from, from Analyse or Verträge
+  // back to the Übersicht, from the login form back to the bank list. Anywhere
+  // else the app goes to the background, session intact.
   useEffect(() => {
     if (!IS_ANDROID) return;
     const onBack = (e: Event) => {
       if (busyRef.current) return;
-      if (view === 'dashboard' && tab !== 'overview') {
+      if (view === 'dashboard' && tab === 'settings') {
+        e.preventDefault();
+        setTabState(settingsFrom.current);
+      } else if (view === 'dashboard' && tab !== 'overview') {
         e.preventDefault();
         setTabState('overview');
       } else if (view === 'login' && bank) {
@@ -3308,8 +3321,13 @@ function useFintsState() {
     // Called off while the answer was on its way: it goes nowhere.
     if (attempt.ctrl.signal.aborted) throw new DOMException(msgs().provider.login.cancelled, 'AbortError');
 
-    store.set('fints.lastBank', JSON.stringify(chosen));
-    store.set(`fints.userId.${chosen.blz}`, login);
+    // A phone Girovo keeps nothing on (lib/device-integrity.ts) keeps no
+    // login name either: the next login starts at the bank list again.
+    const phone = IS_ANDROID ? window.girovoMobile : undefined;
+    if (!phone || !keepsNothing(await phone.integrity().catch(() => null))) {
+      store.set('fints.lastBank', JSON.stringify(chosen));
+      store.set(`fints.userId.${chosen.blz}`, login);
+    }
 
     setSessionId(data.sessionId);
     sessionRef.current = data.sessionId;
@@ -4971,7 +4989,7 @@ function useFintsState() {
     makeBackup, restoreBackup, inspectBankFile, importBankFile,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,
-    setTab, openSettings, clearSettingsTarget, setTxFilter, showTransactions,
+    setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions,
     setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,

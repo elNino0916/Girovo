@@ -3,16 +3,16 @@
 // Pull to refresh, in the Android app: pulling the page down past its top
 // fetches the account's Umsätze and balance again — what the Umsätze tile's
 // refresh button does (refreshAccount), so it may ask for an approval as that
-// one may. Material's indicator comes down from under the top bar with the
-// finger, its arc filling until the pull is far enough (a haptic tick says
-// so), and turns into the loading indicator while the fetch runs.
+// one may. M3E's contained loading indicator comes down from under the top
+// bar with the finger, its shape turning and growing until the pull is far
+// enough (a haptic tick says so), and morphs from shape to shape while the
+// fetch runs.
 
+import { M3eLoadingIndicator } from '@m3e/react/loading-indicator';
 import { useEffect, useRef, useState } from 'react';
-import type { RefObject } from 'react';
+import type { CSSProperties, RefObject } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
-import { RefreshIcon } from '../icons';
-import { Spinner } from '../ui';
 import { haptic } from './haptics';
 
 /** How far (after damping) a pull must go to refresh, and how far it can. */
@@ -110,44 +110,31 @@ export function PullToRefresh({ scrollRef }: { scrollRef: RefObject<HTMLElement 
 
   const y = refreshing ? REST : pull;
   const progress = Math.min(1, pull / TRIGGER);
-  const circumference = 2 * Math.PI * 8;
 
   return (
     <>
       <span className="sr-only" role="status">{refreshing ? t.android.refresh.refreshing : ''}</span>
-      <div
+      {/* Material 3 Expressive's pull to refresh: M3E's contained loading
+          indicator, its shape turning with the pull and morphing from shape
+          to shape once the refresh runs. */}
+      <M3eLoadingIndicator
         aria-hidden
         data-pull-indicator
-        className="pointer-events-none fixed left-1/2 z-30 grid size-10 place-items-center rounded-full bg-raised text-accent"
+        variant="contained"
+        // A turn and a half over the pull; null once it refreshes, which starts the morph.
+        pullProgress={refreshing ? null : progress * 1.5}
+        className="pointer-events-none fixed left-1/2 z-30 rounded-full"
         style={{
           top: 'var(--barbar-h)',
-          transform: `translate(-50%, ${y - 48}px)`,
+          width: 48,
+          height: 48,
+          '--m3e-loading-indicator-container-size': '48px',
+          '--m3e-loading-indicator-active-indicator-size': '38px',
+          transform: `translate(-50%, ${y - 56}px) scale(${refreshing ? 1 : 0.6 + 0.4 * progress})`,
           opacity: y > 0 ? 1 : 0,
           transition: pull > 0 ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s',
-        }}
-      >
-        {refreshing ? (
-          <Spinner size={22} />
-        ) : (
-          <span className="relative grid size-6 place-items-center">
-            {/* The arc fills as the pull goes; the glyph turns with it. */}
-            <svg viewBox="0 0 20 20" className="absolute inset-0 size-6 -rotate-90">
-              <circle
-                cx="10"
-                cy="10"
-                r="8"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeDasharray={`${progress * circumference} ${circumference}`}
-                opacity={progress >= 1 ? 1 : 0.7}
-              />
-            </svg>
-            <RefreshIcon size={12} style={{ transform: `rotate(${progress * 270}deg)` }} />
-          </span>
-        )}
-      </div>
+        } as CSSProperties}
+      />
     </>
   );
 }

@@ -12,7 +12,7 @@ import { useT } from '@/lib/i18n/react';
 import { useFints, type ImportInfo } from '../FintsProvider';
 import { FileIcon, UploadIcon } from '../icons';
 import { Alert, Button, Dialog, Select, Spinner } from '../ui';
-import { MachineIcon, MachineRow } from './rows';
+import { ActionItem } from './rows';
 
 /** A file's text whatever the bank wrote it in: UTF-8 if it is that, else Windows-1252, which German banks' CSVs mostly are. */
 async function fileText(file: File): Promise<string> {
@@ -30,16 +30,7 @@ export function ImportRow() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <MachineRow
-        icon={<MachineIcon><FileIcon size={16} /></MachineIcon>}
-        title={words.row}
-        hint={words.rowHint}
-        action={(
-          <Button variant="tertiary" size="xs" className="-mr-2 shrink-0" aria-haspopup="dialog" onClick={() => setOpen(true)}>
-            {words.open}
-          </Button>
-        )}
-      />
+      <ActionItem icon={<FileIcon />} title={words.row} summary={words.rowHint} onClick={() => setOpen(true)} />
       {open && <ImportDialog onClose={() => setOpen(false)} />}
     </>
   );

@@ -12,7 +12,7 @@ export const de = {
   /** Einstellungen → Auf diesem Rechner. */
   row: {
     title: 'Sicherung',
-    hint: 'Persönliche Daten, gespeicherte Umsätze und Dokumente als eine Datei – für ein neues Gerät oder für den Fall, dass dieses verloren geht.',
+    hint: 'Daten, Umsätze und Dokumente als verschlüsselte Datei',
     make: 'Erstellen …',
     restore: 'Wiederherstellen …',
   },
@@ -62,7 +62,7 @@ export const en: typeof de = {
   file: 'Girovo-backup',
   row: {
     title: 'Backup',
-    hint: 'Personal data, saved transactions and documents as one file – for a new device, or in case this one is lost.',
+    hint: 'Data, transactions and documents as one encrypted file',
     make: 'Create …',
     restore: 'Restore …',
   },

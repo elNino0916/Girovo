@@ -64,7 +64,7 @@ export const de = {
   /** Older Umsätze from the online banking's export (lib/bank-import.ts, components/settings/ImportDialog.tsx). */
   import: {
     row: 'Ältere Umsätze importieren',
-    rowHint: 'Aus einem Export deines Online-Bankings (CSV, camt oder MT940) – für die Zeit, bevor Girovo sie gespeichert hat.',
+    rowHint: 'CSV, camt oder MT940 aus deinem Online-Banking',
     open: 'Importieren …',
     title: 'Ältere Umsätze importieren',
     intro: 'Lade im Online-Banking deiner Bank die Umsätze eines Zeitraums herunter – ungefiltert, als CSV, camt.053 oder MT940 – und wähle die Datei hier. Girovo ergänzt damit nur Tage, die es noch nicht gespeichert hat; was die Bank per FinTS geliefert hat, bleibt unverändert.',
@@ -136,7 +136,7 @@ export const en: typeof de = {
   },
   import: {
     row: 'Import older transactions',
-    rowHint: 'From an export of your online banking (CSV, camt or MT940) – for the time before Girovo saved them.',
+    rowHint: 'CSV, camt or MT940 from your online banking',
     open: 'Import …',
     title: 'Import older transactions',
     intro: 'Download a period’s transactions in your bank’s online banking – unfiltered, as CSV, camt.053 or MT940 – and choose the file here. Girovo only adds days it has not saved yet; what the bank delivered via FinTS stays as it is.',

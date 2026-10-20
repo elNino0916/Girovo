@@ -109,7 +109,7 @@ export function AccountHero() {
   const {
     activeAccount: a, accounts, balances, statementInfo, txByAccount, pendingCache, pendingInfo, loadingAccount,
     balanceLoading, txErrors, balanceErrors, busy, privacy, togglePrivacy, isLoadedForAppliedRange, refreshAccount,
-    loadBalance, accountLabel,
+    loadBalance, accountLabel, banks, bankOf,
   } = useFints();
   // `tr`, not `t`: a booking is `t` in the filters below.
   const tr = useT();
@@ -128,8 +128,12 @@ export function AccountHero() {
 
   // No account at all (the bank listed none): the list says so; nothing to hold a place for.
   if (!a) return accounts.length ? <HeroSkeleton /> : null;
+  // Renamed here when the list above stays away (a single account), and on a
+  // phone always: its cards are for switching, the list's "Umbenennen" is the
+  // wider window's.
+  const renamable: Renamable = accounts.length === 1 && banks.length <= 1 ? 'always' : 'phone';
   // A Depot has no balance and no Kontoverlauf over FinTS: its value instead.
-  if (isDepot(a)) return <DepotHero account={a} renamable={accounts.length === 1} />;
+  if (isDepot(a)) return <DepotHero account={a} renamable={renamable} />;
 
   const bal = balances[acct];
   const statementLoading = loadingAccount === acct;
@@ -148,6 +152,7 @@ export function AccountHero() {
   const dated = asOf(bal, tr);
   const label = accountLabel(a);
   const nowLabel = card ? words.cardBalance : tr.common.account.balance;
+  const soleOfSeveral = accounts.length === 1 && banks.length > 1 && !!bankOf(a)?.bank.name;
 
   // What the big figure is: today's balance when known; for a past range
   // without one, that range's closing balance under its own name.
@@ -246,6 +251,9 @@ export function AccountHero() {
                   <span className="font-normal text-ink-3"> · {label}</span>
                 </>
               )}
+              {/* A phone with several banks and this one account shows no card
+                  naming its bank (AccountList): the hero does. */}
+              {soleOfSeveral && <span className="font-normal text-ink-3 sm:hidden"> · {bankOf(a)?.bank.name}</span>}
             </p>
 
             {main ? (
@@ -335,7 +343,7 @@ export function AccountHero() {
           )}
         </div>
 
-        <AccountLine account={a} renamable={accounts.length === 1} />
+        <AccountLine account={a} renamable={renamable} />
         <BalanceSection history={history} loading={statementLoading && !info} currency={currency} figure={!!main} />
       </div>
 
@@ -350,7 +358,7 @@ export function AccountHero() {
  * says why it failed — the Depot tile below and the account's row in the
  * list leave all of that here.
  */
-function DepotHero({ account, renamable }: { account: SerializedAccount; renamable: boolean }) {
+function DepotHero({ account, renamable }: { account: SerializedAccount; renamable: Renamable }) {
   const { portfolios, portfolioLoading, portfolioErrors, loadPortfolio, busy, accountLabel } = useFints();
   const tr = useT();
   const words = tr.depot;
@@ -492,13 +500,17 @@ function FetchAction({ lead, label, busy, loading, run }: {
   );
 }
 
+/** Where the balance offers renaming its account: at every width, or only on a phone. */
+type Renamable = 'always' | 'phone';
+
 /**
  * The account line, inside the balance, whose first line already names the
- * account: the number to hand to somebody else, copyable, and — for the only
- * account (no list above it) — renaming, as an icon. The holder is the user,
- * and the BIC is in Geld anfordern.
+ * account: the number to hand to somebody else, copyable, and renaming, as an
+ * icon — for the only account (no list above it) at every width, on a phone
+ * for whichever is chosen. The holder is the user, and the BIC is in Geld
+ * anfordern.
  */
-function AccountLine({ account, renamable }: { account: SerializedAccount; renamable: boolean }) {
+function AccountLine({ account, renamable }: { account: SerializedAccount; renamable: Renamable }) {
   const { vaultStatus } = useFints();
   const t = useT();
   const [renaming, setRenaming] = useState(false);
@@ -564,6 +576,7 @@ function AccountLine({ account, renamable }: { account: SerializedAccount; renam
               aria-label={t.insights.accounts.rename}
               aria-describedby={noteOpen ? noteId : undefined}
               onClick={startRenaming}
+              className={renamable === 'phone' ? 'sm:hidden' : undefined}
             >
               <PencilIcon size={18} />
             </IconButton>

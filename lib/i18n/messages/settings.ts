@@ -6,10 +6,14 @@
 export const de = {
   sections: {
     general: 'Allgemein',
+    /** The phone's integrity, fingerprint login, the remembered device. */
+    security: 'Sicherheit',
+    /** Gemini Nano and the user's own categories. */
+    categories: 'Kategorien',
     privacy: 'Datenschutz',
     about: 'Über Girovo',
   },
-  idleHint: 'Ohne Eingabe meldet Girovo dich nach dieser Zeit ab. Eine Minute vorher fragt es nach – während einer Freigabe nie.',
+  idleHint: 'Eine Minute vorher fragt Girovo nach – während einer Freigabe nie.',
   licence: 'Freie Software unter der MIT-Lizenz',
   source: 'Quellcode auf GitHub',
   privacyPolicy: 'Datenschutzerklärung',
@@ -27,10 +31,12 @@ export const de = {
 export const en: typeof de = {
   sections: {
     general: 'General',
+    security: 'Security',
+    categories: 'Categories',
     privacy: 'Privacy',
     about: 'About Girovo',
   },
-  idleHint: 'Without input, Girovo logs you out after this time. It asks a minute before – never during an approval.',
+  idleHint: 'Girovo asks a minute before – never during an approval.',
   licence: 'Free software under the MIT licence',
   source: 'Source code on GitHub',
   privacyPolicy: 'Privacy policy',

@@ -86,8 +86,20 @@ async function quietly(task: Promise<unknown>): Promise<void> {
   }
 }
 
+// A phone Girovo keeps nothing on (lib/device-integrity.ts keepsNothing):
+// /data is never loaded, and a write under it is refused as a read-only file
+// system would refuse it — so every store answers "not saved" (state-store's
+// saveProfile, the vault's and the history's writes), and nothing reaches the
+// disk, nor is anything there deleted.
+let refused = false;
+
+/** From now on /data takes no writes. Call before the first request, instead of mountData(). */
+export function refuseData(): void {
+  refused = true;
+}
+
 function persistWrite(p: string, text: string): void {
-  if (!persisted(p)) return;
+  if (!persisted(p) || refused) return;
   const target = diskPath(p);
   enqueue(async () => {
     await Filesystem.writeFile({ path: `${target}.part`, data: text, directory: Directory.Data, encoding: Encoding.UTF8, recursive: true });
@@ -97,7 +109,7 @@ function persistWrite(p: string, text: string): void {
 }
 
 function persistRemove(p: string): void {
-  if (!persisted(p)) return;
+  if (!persisted(p) || refused) return;
   const target = diskPath(p);
   enqueue(() => quietly(Filesystem.deleteFile({ path: target, directory: Directory.Data })));
 }
@@ -162,6 +174,7 @@ export async function mountData(dir: string): Promise<number> {
 
 function put(p: string, text: string, persist = true): void {
   if (dirs.has(p)) throw fsError('EISDIR', 'open', p);
+  if (persist && refused && persisted(p)) throw fsError('EROFS', 'open', p);
   addDirs(parentOf(p));
   files.set(p, { text, size: encoder.encode(text).length, mtimeMs: Date.now() });
   stubs.delete(p);

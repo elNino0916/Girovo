@@ -152,7 +152,7 @@
      loads), it is not shown: an unstyled button or an option list must never
      flash on the page. */
   :where(m3e-button, m3e-icon-button, m3e-button-group, m3e-checkbox, m3e-switch, m3e-chip, m3e-filter-chip,
-    m3e-loading-indicator, m3e-linear-progress-indicator, m3e-nav-bar, m3e-nav-item, m3e-fab,
+    m3e-loading-indicator, m3e-linear-progress-indicator, m3e-circular-progress-indicator, m3e-nav-bar, m3e-nav-item, m3e-fab,
     m3e-form-field, m3e-select, m3e-option, m3e-optgroup):not(:defined) {
     visibility: hidden;
   }
@@ -332,6 +332,69 @@
     background: var(--md-surface-container-low);
     box-shadow: none;
   }
+  /* Einstellungen: Material 3 Expressive's grouped list, as Android's own
+     settings draw it — the one page whose sections stand on a ground of
+     their own (components/settings/rows.tsx). Each row is a tile of the
+     group, 2px from the next; the group's outer corners are round, the seams
+     nearly square. Rows other than [data-item] (a menu, a dialog) are not
+     tiles and leave no seam. */
+  :root[data-look='material'] [data-settings-group] {
+    display: flex;
+    flex-direction: column;
+  }
+  :root[data-look='material'] [data-settings-group] > [data-item] {
+    background-color: var(--md-surface-container);
+    border-radius: var(--m3e-corner-xs, 4px);
+  }
+  :root[data-look='material'] [data-settings-group] > [data-item] ~ [data-item] {
+    margin-top: 2px;
+  }
+  :root[data-look='material'] [data-settings-group] > [data-item]:not([data-item] ~ [data-item]) {
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+  }
+  :root[data-look='material'] [data-settings-group] > [data-item]:not(:has(~ [data-item])) {
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 20px;
+  }
+  /* Gemini Nano's row, the one AI feature: in Gemini's own colours, as
+     Google marks Gemini everywhere — its blue, purple and rose laid thinly
+     over the tile, and its spark filled with the three (GeminiSparkIcon).
+     Literal brand colours, like the G€ plate: no theme and no wallpaper
+     reaches them. The text keeps the row's own ink, so it reads in light and
+     dark alike. */
+  :root[data-look='material'] {
+    --gemini-blue: #4285f4;
+    --gemini-purple: #9b72cb;
+    --gemini-rose: #d96570;
+  }
+  :root[data-look='material'] [data-settings-group] > [data-item][data-tone='ai'] {
+    background-image: linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--gemini-blue) 26%, transparent) 0%,
+      color-mix(in srgb, var(--gemini-purple) 20%, transparent) 55%,
+      color-mix(in srgb, var(--gemini-rose) 18%, transparent) 100%
+    );
+  }
+  /* The state layer of a row pressed whole: 8% of the ink on hover, 10%
+     while pressed — an inset shadow, so the ripple (its background image on
+     Android) still spreads beneath the text. */
+  :root[data-look='material'] [data-settings-group] > [data-pressable] {
+    cursor: pointer;
+    transition: box-shadow var(--m3e-effects-fast-ms, 150ms) var(--m3e-effects-fast, ease);
+  }
+  @media (hover: hover) {
+    :root[data-look='material'] [data-settings-group] > [data-pressable]:hover {
+      box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--ink) 8%, transparent);
+    }
+  }
+  :root[data-look='material'] [data-settings-group] > [data-pressable]:active {
+    box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+  :root[data-look='material'] [data-settings-group] > [data-item]:focus-visible {
+    outline-offset: -2px;
+  }
+
   /* A section's title: title-large, emphasized. */
   :root[data-look='material'] #main .section-head {
     font-size: 22px;

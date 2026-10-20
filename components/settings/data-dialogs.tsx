@@ -8,8 +8,9 @@ import { useMemo, useState } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { fmtDate, toLocalDate } from '@/lib/format';
 import { useFints } from '../FintsProvider';
-import { LockIcon } from '../icons';
-import { Button, Dialog, Switch } from '../ui';
+import { HistoryIcon, LockIcon } from '../icons';
+import { Button, Dialog } from '../ui';
+import { SwitchItem } from './rows';
 
 export function KeepRow({ onOff, onReset }: { onOff: () => void; onReset: () => void }) {
   const t = useT();
@@ -38,20 +39,20 @@ export function KeepRow({ onOff, onReset }: { onOff: () => void; onReset: () => 
     }
   };
   return (
-    <div className="mt-3">
-      <Switch
-        checked={keepBookings}
-        disabled={busy}
-        onChange={(on) => (on ? void turnOn() : onOff())}
-        label={t.history.keep}
-        description={hint}
-      />
-      {keepBookings && historyStatus === 'error' && (
-        <Button variant="tertiary" size="xs" className="mt-0.5 -ml-3.5" aria-haspopup="dialog" onClick={onReset}>
+    <SwitchItem
+      setting="keep"
+      icon={<HistoryIcon />}
+      checked={keepBookings}
+      disabled={busy}
+      onChange={(on) => (on ? void turnOn() : onOff())}
+      title={t.history.keep}
+      summary={hint}
+      below={keepBookings && historyStatus === 'error' && (
+        <Button variant="tertiary" size="xs" className="mt-1 -ml-3" aria-haspopup="dialog" onClick={onReset}>
           {t.history.startOver}
         </Button>
       )}
-    </div>
+    />
   );
 }
 

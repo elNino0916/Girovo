@@ -1587,10 +1587,16 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
    * (components/settings/Settings.tsx scrolls there, focuses it, and clears it).
    */
   const [settingsTarget, setSettingsTarget] = useState<SettingsTarget | null>(null);
+  // As the provider: on a phone Einstellungen leads back to the page it was opened from.
+  const settingsFrom = useRef<DashboardTab>('overview');
   const openSettings = useCallback((target?: SettingsTarget) => {
-    setTabState('settings');
+    setTabState((current) => {
+      if (current !== 'settings') settingsFrom.current = current;
+      return 'settings';
+    });
     setSettingsTarget(target ?? null);
   }, []);
+  const leaveSettings = useCallback(() => setTabState(settingsFrom.current), []);
   const clearSettingsTarget = useCallback(() => setSettingsTarget(null), []);
   const setInboxOpen = useCallback((b: boolean) => setInboxOpenState(b), []);
   const setPaletteOpen = useCallback((b: boolean) => setPaletteOpenState(b), []);
@@ -2722,7 +2728,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
     setLogoConsent,
-    setTab, openSettings, clearSettingsTarget, setTxFilter, showTransactions,
+    setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions,
     setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,

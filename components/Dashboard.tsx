@@ -84,7 +84,14 @@ export function Dashboard() {
 
       <div ref={scrollRef} data-scroll-root className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {/* One page at a time, named by the top app bar's title (its h1). */}
-        <main id="main" className="relative mx-auto w-full max-w-[1280px] px-4 pt-2 pb-6 sm:px-6 sm:pb-12">
+        <main
+          id="main"
+          className={cx(
+            'relative mx-auto w-full max-w-[1280px] px-4 pt-2 pb-6 sm:px-6 sm:pb-12',
+            // No navigation bar under Einstellungen on a phone: the page's end clears the gesture bar itself.
+            tab === 'settings' && 'max-sm:pb-[calc(env(safe-area-inset-bottom,0px)+32px)]',
+          )}
+        >
           {tab === 'overview' && <Overview scrollRef={scrollRef} />}
           {tab === 'analysis' && <Analysis />}
           {tab === 'contracts' && <Contracts />}

@@ -16,9 +16,12 @@ import './assets';
 import { App } from '@capacitor/app';
 import { ROUTES } from 'girovo:routes';
 import { bankPolicy, describeError } from '../../lib/bank-fetch.ts';
+import { keepsNothing } from '../../lib/device-integrity.ts';
+import { msgs } from '../../lib/i18n/index.ts';
 import { activeLocale } from '../../lib/i18n/locale.ts';
+import { integrity } from '../bridges/integrity';
 import type { AsyncLocalStorage } from '../shims/async-hooks';
-import { flush, mountData } from '../shims/fs';
+import { flush, mountData, refuseData } from '../shims/fs';
 import { installFetch } from './fetch';
 import { startNano } from './categories';
 
@@ -39,8 +42,26 @@ const BEFORE: Record<string, () => Promise<unknown>> = {
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
+/**
+ * The routes that keep something on the phone: the vault, the kept Umsätze
+ * and their import, the documents and the bank's Kontoauszüge (each kept as
+ * it arrives — a bank may hand one out only once), the backup.
+ */
+const KEEPING = new Set(['/api/vault', '/api/history', '/api/history-import', '/api/docs', '/api/bank-statements', '/api/backup']);
+
+/** True on a phone that is modified or cannot prove it is not (lib/device-integrity.ts). */
+let nothingKept = false;
+
 async function boot(): Promise<void> {
-  await mountData('fints-state');
+  // Whether this phone may keep anything, before anything is read: on one it
+  // may not, what earlier starts saved stays where it is, unread, and nothing
+  // new is written (mobile/shims/fs.ts).
+  if (keepsNothing(await integrity())) {
+    nothingKept = true;
+    refuseData();
+  } else {
+    await mountData('fints-state');
+  }
   // A login the user calls off must end the bank request it is waiting on,
   // several awaits after withBankSignal set the signal (mobile/shims/async-hooks.ts).
   type BankScope = { signal?: AbortSignal; bankCall?: boolean; inPolicy?: boolean };
@@ -62,6 +83,8 @@ export async function handle(req: Request): Promise<Response> {
   const method = req.method.toUpperCase() as keyof typeof route;
   const handler = route[method];
   if (!handler) return json(405, { error: 'Method not allowed' });
+  // Refused as an unavailable vault is (409): the page goes on in memory, and says why.
+  if (nothingKept && KEEPING.has(url.pathname)) return json(409, { error: msgs().android.integrity.notKept });
 
   // What Next adds to a request, and what the browser would send: the page's
   // language (lib/i18n/server.ts answers in it).

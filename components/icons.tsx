@@ -7,6 +7,7 @@
 // alone. No emoji anywhere in the interface — they render differently on every
 // machine and cannot be coloured to the theme.
 
+import { useId } from 'react';
 import type { ReactNode, SVGProps } from 'react';
 import type { AvatarId } from '@/lib/avatars';
 import type { BuiltinCategoryId, CategoryId } from '@/lib/categories';
@@ -309,6 +310,11 @@ export function CheckCircleIcon(p: IconProps) {
   return <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.8 2.8L16 10" /></Icon>;
 }
 
+/** Something to look at, not an error: an exclamation mark in a circle. */
+export function AlertCircleIcon(p: IconProps) {
+  return <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></Icon>;
+}
+
 export function XCircleIcon(p: IconProps) {
   return <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6" /></Icon>;
 }
@@ -516,6 +522,43 @@ export function FileIcon(p: IconProps) {
     <Icon {...p}>
       <path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5l-5-5z" />
       <path d="M14 3.5v5h5M9 13h6M9 16.5h4" />
+    </Icon>
+  );
+}
+
+/** Kept over time: "Umsätze auf diesem Rechner behalten" — a clock turned back. */
+export function HistoryIcon(p: IconProps) {
+  return <Icon {...p}><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9M4.5 4.5V9H9M12 8v4l2.8 1.7" /></Icon>;
+}
+
+/** Source code: Einstellungen → Über Girovo → Quellcode auf GitHub. */
+export function CodeIcon(p: IconProps) {
+  return <Icon {...p}><path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5M13.5 5l-3 14" /></Icon>;
+}
+
+const SPARK = 'M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z';
+
+/** An AI's spark, as a line icon. */
+export function SparkleIcon(p: IconProps) {
+  return <Icon {...p}><path d={SPARK} /></Icon>;
+}
+
+/**
+ * Gemini's spark: filled with Gemini's blue, purple and rose (the
+ * --gemini-* tokens, app/material.css) — a brand mark, so no theme reaches it.
+ */
+export function GeminiSparkIcon({ size = 18, ...rest }: IconProps) {
+  const id = `gemini-${useId().replace(/:/g, '')}`;
+  return (
+    <Icon size={size} stroke="none" {...rest}>
+      <defs>
+        <linearGradient id={id} x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse">
+          <stop offset="0" style={{ stopColor: 'var(--gemini-blue)' }} />
+          <stop offset="0.55" style={{ stopColor: 'var(--gemini-purple)' }} />
+          <stop offset="1" style={{ stopColor: 'var(--gemini-rose)' }} />
+        </linearGradient>
+      </defs>
+      <path d={SPARK} fill={`url(#${id})`} />
     </Icon>
   );
 }

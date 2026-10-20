@@ -104,7 +104,13 @@ The owner sees the position as the combination of three claims (confirmed
     download checked against GitHub's SHA-256). Its look is Material 3
     Expressive, in Material You's colours and the phone's light or dark (neither is a
     setting); the colours that carry a value never follow the wallpaper. It speaks of
-    the device as "Telefon", never "Rechner".
+    the device as "Telefon", never "Rechner". On a phone that is modified, or
+    that cannot prove it is not (its hardware attests nothing), Girovo keeps
+    nothing (owner, 2026-10-20; lib/device-integrity.ts keepsNothing): no
+    remembered device, vault, kept Umsätze, documents, fingerprint PIN or
+    login name is written, and what an earlier start saved stays unread; the
+    session lives in memory until the logout, and the login and Einstellungen
+    say so. A debug build keeps its data.
 - **Getting in.** The login runs in this order:
   1. Pick the bank. Quick picks show real logos; search works by name, city,
      BLZ (also typed with spaces), BIC or IBAN. The IBAN is read on the

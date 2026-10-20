@@ -1,41 +1,35 @@
 'use client';
 
-// The Android app's own settings, on the Einstellungen page's "Auf diesem
-// Telefon" (components/settings/Settings.tsx): fingerprint login, the category guess
-// with Gemini Nano, Play's updates, and what the phone's integrity check found. The colours and light or dark are the
-// phone's (mobile/bridges/appearance.ts) — not a setting here. Each talks to the phone runtime
-// (window.girovoMobile, mobile/runtime.ts); none of them exists on the
-// desktop or the website, where this renders nothing.
+// The Android app's own rows of the Einstellungen page (components/settings/
+// Settings.tsx), each placed in its section there: what the phone's integrity
+// check found and fingerprint login under Sicherheit, the category guess with
+// Gemini Nano under Kategorien, Play's updates under Über Girovo. The colours
+// and light or dark are the phone's (mobile/bridges/appearance.ts) — not a
+// setting here. Each talks to the phone runtime (window.girovoMobile,
+// mobile/runtime.ts); none of them exists on the desktop or the website,
+// where each renders nothing.
 
 import { useEffect, useState } from 'react';
+import { keepsNothing } from '@/lib/device-integrity';
 import { fmtBytes } from '@/lib/format';
 import { useIntegrity } from './IntegrityNotice';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { Button, Progress, Switch, Tag, cx } from '../ui';
-
-export function AndroidSettings() {
-  if (!IS_ANDROID) return null;
-  return (
-    <>
-      <FingerprintSwitch />
-      <NanoRow />
-      <PlayUpdateRow />
-      <IntegrityRow />
-    </>
-  );
-}
+import { AlertCircleIcon, CheckCircleIcon, DownloadIcon, FingerprintIcon, GeminiSparkIcon, XCircleIcon } from '../icons';
+import { ActionItem, SettingItem, SwitchItem } from '../settings/rows';
+import { Button, Dialog, Progress, Tag, cx } from '../ui';
 
 /**
  * On for the login this session belongs to: turning it on seals that login's
  * PIN behind a fingerprint, turning it off deletes it. Only the first bank's
  * login — the one the app opens with.
  */
-function FingerprintSwitch() {
+export function FingerprintSwitch() {
   const t = useT();
   const b = t.android.biometric;
   const { bank, sessionId, userId, toast } = useFints();
+  const integrity = useIntegrity();
   const [available, setAvailable] = useState<GirovoBiometricState | null>(null);
   const [on, setOn] = useState(false);
   const [working, setWorking] = useState(false);
@@ -51,7 +45,10 @@ function FingerprintSwitch() {
     };
   }, [bank, userId]);
 
-  if (!available || !bank || !userId || !sessionId) return null;
+  if (!available || !bank || !userId || !sessionId || integrity === undefined) return null;
+  // Turning it on stores the PIN on the phone: not where Girovo keeps nothing.
+  // Off stays possible — it deletes what an earlier start sealed.
+  const refused = keepsNothing(integrity) && !on;
 
   const change = async (next: boolean) => {
     const mobile = window.girovoMobile;
@@ -81,13 +78,13 @@ function FingerprintSwitch() {
   };
 
   return (
-    <Switch
+    <SwitchItem
+      icon={<FingerprintIcon />}
       checked={on}
       onChange={(next) => void change(next)}
-      disabled={!available.available || working}
-      label={b.label}
-      description={available.available ? b.hint : b.unavailable[available.reason ?? 'unavailable']}
-      className="mt-3"
+      disabled={!available.available || working || refused}
+      title={b.label}
+      summary={refused ? t.android.integrity.noFingerprint : available.available ? b.hint : b.unavailable[available.reason ?? 'unavailable']}
     />
   );
 }
@@ -98,7 +95,7 @@ function FingerprintSwitch() {
  * fetching it, that is said; where the phone has none, "Nicht unterstütztes
  * Telefon" and the rules sort alone.
  */
-function NanoRow() {
+export function NanoRow() {
   const t = useT();
   const m = t.android.categories;
   const [status, setStatus] = useState<GirovoNanoStatus | null>(null);
@@ -125,59 +122,105 @@ function NanoRow() {
 
   if (status.state === 'unsupported') {
     return (
-      <div className="mt-4">
-        <p className="text-[15px] leading-snug text-ink">{m.title}</p>
-        <Tag className="mt-1.5">{m.unsupported}</Tag>
-        <p className="mt-1.5 text-[13px] leading-snug text-ink-3">
-          {status.reason === 'update' ? m.update : status.reason === 'aicore' ? m.aicore : m.unsupportedHint}
-        </p>
-      </div>
+      <SettingItem
+        tone="ai"
+        icon={<GeminiSparkIcon />}
+        title={m.title}
+        summary={status.reason === 'update' ? m.update : status.reason === 'aicore' ? m.aicore : m.unsupportedHint}
+        below={<Tag className="mt-2">{m.unsupported}</Tag>}
+      />
     );
   }
 
   const total = status.total ?? 0;
   return (
-    <div className="mt-4">
-      <p className="text-[15px] leading-snug text-ink">{m.title}</p>
-      <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{m.hint}</p>
-      {status.state === 'downloading' && (
-        <div className="mt-2.5">
-          <p className="flex items-baseline justify-between gap-3 text-[13px] leading-snug text-ink-2">
+    <SettingItem
+      tone="ai"
+      icon={<GeminiSparkIcon />}
+      title={m.title}
+      summary={m.hint}
+      // Android has it, and it sorts: a small confirmation, in Credit Green.
+      trailing={status.state === 'available' && (
+        <span className="grid size-6 place-items-center text-green">
+          <CheckCircleIcon size={22} strokeWidth={2} />
+          <span className="sr-only">{m.running}</span>
+        </span>
+      )}
+      below={status.state === 'downloading' ? (
+        <span className="mt-2.5 block">
+          <span className="flex items-baseline justify-between gap-3 text-[13px] leading-snug text-ink-2">
             <span className="min-w-0">{m.downloading}</span>
             {total > 0 && (
               <span className="tnum shrink-0">{m.downloadProgress(fmtBytes(status.received ?? 0, { unitOf: total, bare: true }), fmtBytes(total))}</span>
             )}
-          </p>
+          </span>
           {total > 0 && <Progress value={((status.received ?? 0) / total) * 100} label={m.downloading} className="mt-1.5" />}
-        </div>
-      )}
-      {status.state === 'downloadable' && (
-        <>
-          <p className="mt-1.5 text-[13px] leading-snug text-ink-2">{m.downloadable}</p>
+        </span>
+      ) : status.state === 'downloadable' ? (
+        <span className="mt-1.5 block">
+          <span className="block text-[13px] leading-snug text-ink-2">{m.downloadable}</span>
           <Button variant="secondary" size="sm" className="mt-2" onClick={() => void download()}>{m.downloadNow}</Button>
-        </>
-      )}
-    </div>
+        </span>
+      ) : undefined}
+    />
   );
 }
 
 /**
  * What the phone's integrity check found (lib/device-integrity.ts), said
  * always — the login warns only about a modified phone or a foreign copy.
+ * The row gives the verdict as its mark and in a few words; pressed, it says
+ * it in full, with what follows from it.
  */
-function IntegrityRow() {
+export function IntegrityRow() {
   const t = useT();
   const m = t.android.integrity;
   const integrity = useIntegrity();
-  if (integrity === undefined) return null;
+  const [open, setOpen] = useState(false);
+  if (!IS_ANDROID || integrity === undefined) return null;
   const device = integrity?.device ?? 'unknown';
+  const foreign = integrity?.copy === 'foreign';
+  const bad = foreign || device === 'modified';
+  const nothing = keepsNothing(integrity);
+  // The verdict as the row's mark: a check in Credit Green for a phone its
+  // hardware vouches for, a cross in Soll Red for a modified phone or a
+  // foreign copy, and the warning's orange mark for one that cannot prove
+  // anything (amber is Vorgemerkt's alone).
+  const mark = bad
+    ? <XCircleIcon className="text-red" strokeWidth={2} />
+    : device === 'unknown'
+      ? <AlertCircleIcon className="text-emphasis" strokeWidth={2} />
+      : <CheckCircleIcon className="text-green" strokeWidth={2} />;
   return (
-    <div className="mt-4">
-      <p className="text-[15px] leading-snug text-ink">{m.title}</p>
-      <p className={cx('mt-0.5 text-[13px] leading-snug', device === 'modified' ? 'text-red' : 'text-ink-3')}>{m[device]}</p>
-      {integrity?.copy === 'foreign' && <p className="mt-1 text-[13px] leading-snug text-red">{m.foreign}</p>}
-      {integrity?.copy === 'development' && <p className="mt-1 text-[13px] leading-snug text-ink-3">{m.development}</p>}
-    </div>
+    <>
+      <ActionItem
+        icon={mark}
+        title={m.title}
+        summary={(
+          <span className={cx(bad && 'text-red')}>
+            {foreign ? m.foreignShort : m.short[device]}
+            {nothing && ` · ${m.keepsNothingShort}`}
+          </span>
+        )}
+        onClick={() => setOpen(true)}
+      />
+      {open && (
+        <Dialog
+          open
+          onClose={() => setOpen(false)}
+          title={m.title}
+          actions={<Button variant="primary" data-autofocus onClick={() => setOpen(false)}>{t.common.close}</Button>}
+        >
+          <div className="flex flex-col gap-3 text-[15px] leading-normal text-ink-2">
+            {/* A modified phone is said in Soll Red, as the login's warning says it. */}
+            <p className={cx(device === 'modified' && 'text-red')}>{m[device]}</p>
+            {foreign && <p className="text-red">{m.foreign}</p>}
+            {integrity?.copy === 'development' && <p>{m.development}</p>}
+            {nothing && <p className="text-ink">{m.keepsNothing}</p>}
+          </div>
+        </Dialog>
+      )}
+    </>
   );
 }
 
@@ -186,7 +229,7 @@ function IntegrityRow() {
  * update, right here. Play may not be bypassed — the GitHub build's updater
  * (components/updates) is not in this build at all.
  */
-function PlayUpdateRow() {
+export function PlayUpdateRow() {
   const t = useT();
   const u = t.android.updates;
   const [play, setPlay] = useState<Awaited<ReturnType<GirovoMobile['playUpdate']>> | null>(null);
@@ -198,10 +241,14 @@ function PlayUpdateRow() {
     };
   }, []);
   if (!play?.available) return null;
+  // Play's own flow takes over from here: no dialog of Girovo's.
   return (
-    <div className="mt-4 flex flex-col items-start gap-2">
-      <p className="text-[13px] leading-snug text-ink-2">{u.playAvailable}</p>
-      <Button variant="primary" size="sm" onClick={() => void play.start()}>{u.playUpdate}</Button>
-    </div>
+    <ActionItem
+      icon={<DownloadIcon />}
+      title={u.playUpdate}
+      summary={u.playAvailable}
+      haspopup={false}
+      onClick={() => void play.start()}
+    />
   );
 }

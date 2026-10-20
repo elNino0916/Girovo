@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyVerdict, deviceVerdict, integrityOf, integrityWarning, RELEASE_SIGNERS, type IntegrityFacts } from './device-integrity.ts';
+import { copyVerdict, deviceVerdict, integrityOf, integrityWarning, keepsNothing, RELEASE_SIGNERS, type IntegrityFacts } from './device-integrity.ts';
 
 const attested: IntegrityFacts = {
   attestation: 'hardware', securityLevel: 'strongbox', chain: 'google', challengeOk: true,
@@ -57,4 +57,15 @@ test('the login warns about a foreign copy first, then a modified phone', () => 
   assert.equal(integrityWarning(integrityOf({ ...attested, deviceLocked: false })), 'modified');
   assert.equal(integrityWarning(integrityOf({ ...attested, deviceLocked: false, signers: ['ab'] })), 'foreign');
   assert.equal(integrityWarning(null), null);
+});
+
+test('Girovo keeps nothing on a phone that is modified or cannot prove it is not', () => {
+  assert.equal(keepsNothing(integrityOf(attested)), false);
+  assert.equal(keepsNothing(integrityOf({ ...attested, bootState: 'self-signed' })), false); // GrapheneOS
+  assert.equal(keepsNothing(integrityOf({ ...attested, deviceLocked: false })), true);
+  assert.equal(keepsNothing(integrityOf({ ...attested, attestation: 'software' })), true);
+  // The check itself failed: nothing proven.
+  assert.equal(keepsNothing(null), true);
+  // A debug build on an emulator keeps its data.
+  assert.equal(keepsNothing(integrityOf({ ...attested, chain: 'other', debug: true })), false);
 });

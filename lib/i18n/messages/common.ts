@@ -7,6 +7,8 @@ export const de = {
   appDescription: 'Direktzugang zu deiner Bank über FinTS 3.0',
   cancel: 'Abbrechen',
   close: 'Schließen',
+  /** The top app bar's way up from a page reached from another (Einstellungen on a phone). */
+  back: 'Zurück',
   done: 'Fertig',
   save: 'Speichern',
   delete: 'Löschen',
@@ -74,6 +76,7 @@ export const en: typeof de = {
   appDescription: 'Direct access to your bank over FinTS 3.0',
   cancel: 'Cancel',
   close: 'Close',
+  back: 'Back',
   done: 'Done',
   save: 'Save',
   delete: 'Delete',

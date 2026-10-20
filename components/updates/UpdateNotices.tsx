@@ -8,7 +8,7 @@
 //                     sent to the background is ready, the toast after an update
 //   UpdateInboxCard   Mitteilungen, at the foot, after the bank's own words
 //                     (the bell marks it until it was seen)
-//   UpdateSessionRow  the Sitzung panel, always there: the way to look
+//   UpdateSessionRow  Einstellungen → Über Girovo, always there: the way to look
 //   UpdateBarButton   the login screens' bar, which has room to spare
 
 import { useEffect, useRef } from 'react';
@@ -17,6 +17,8 @@ import { rich, useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { CheckCircleIcon, DownloadIcon, RefreshIcon } from '../icons';
 import { Button, Dot, Tag, cx } from '../ui';
+import type { SettingsTarget } from '@/lib/app-types';
+import { ActionItem } from '../settings/rows';
 import { UpdateDialog } from './UpdateDialog';
 import { hasNewer, isReady, updates, useUpdates, type UpdateState } from './store';
 
@@ -144,26 +146,28 @@ export function UpdateInboxCard({ notice, onOpen }: { notice: UpdateNotice; onOp
  * Always there in the desktop app, so a check is always one press away.
  * `className`: the panel's row style, shared with the rows beside it.
  */
-export function UpdateSessionRow({ onOpen, className }: { onOpen: () => void; className?: string }) {
+export function UpdateSessionRow({ onOpen, setting }: { onOpen: () => void; setting?: SettingsTarget }) {
   const { state } = useUpdates();
   const t = useT();
   if (!state) return null;
   const newer = hasNewer(state) ? state.release : null;
   const pct = state.total > 0 ? Math.min(100, Math.floor((state.received / state.total) * 100)) : 0;
+  // Einstellungen → Über Girovo: a row of its grouped list (components/settings/rows.tsx).
   return (
-    <button type="button" aria-haspopup="dialog" onClick={onOpen} className={className}>
-      <RefreshIcon size={18} className="text-ink-2" />
-      <span className="flex-1">{t.shell.updates.title}</span>
-      {newer && state.phase === 'downloading' ? (
-        <span className="tnum text-[13px] text-ink-3">{t.shell.updates.loadingPct(pct)}</span>
-      ) : newer ? (
+    <ActionItem
+      setting={setting}
+      icon={<RefreshIcon />}
+      title={t.shell.updates.title}
+      onClick={onOpen}
+      summary={newer && state.phase === 'downloading'
+        ? <span className="tnum">{t.shell.updates.loadingPct(pct)}</span>
+        : newer ? undefined : <span className="tnum">{t.shell.version(state.current)}</span>}
+      trailing={newer && state.phase !== 'downloading' ? (
         <Tag tone="emphasis" size="sm">
           {isReady(state) ? t.shell.updates.readyTag : t.shell.version(newer.version)}
         </Tag>
-      ) : (
-        <span className="tnum text-[13px] text-ink-3">{t.shell.version(state.current)}</span>
-      )}
-    </button>
+      ) : undefined}
+    />
   );
 }
 

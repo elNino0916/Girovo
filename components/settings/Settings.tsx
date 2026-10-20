@@ -2,32 +2,37 @@
 
 // Einstellungen: a page of its own, as Analyse and Verträge are — reached from
 // the gear at the foot of the navigation rail, from the Sitzung panel and from
-// the search, which can bring the user straight to one setting.
+// the search, which can bring the user straight to one setting. On a phone it
+// is a page under the one it was opened from, as Android's settings screens
+// are: the top app bar's way back, no navigation bar and no Überweisen.
 //
-// One calm column of sections on the page itself (no cards, DESIGN.md):
+// Material 3 Expressive's grouped list (./rows.tsx), the way Android's own
+// settings draw it — the one page whose sections stand on a ground of their
+// own (DESIGN.md):
 //
 //   Allgemein — the language, the appearance (not on Android: the phone's
-//     light and dark), how soon the automatic logout comes, the shortcuts;
+//     light and dark), the shortcuts, how soon the automatic logout comes;
+//   Sicherheit — on Android what the phone's integrity check found and
+//     fingerprint login; the bank's registration of the device;
+//   Kategorien — on Android the category guess with Gemini Nano (marked as
+//     the AI feature it is), then the user's own categories;
 //   Datenschutz — the two things that can leave the machine besides the
 //     bank's traffic: the shop names for company logos, and usage data;
 //   Auf diesem Rechner ("Telefon" on Android) — what is kept here: the
-//     bank's registration of the device, the encrypted personal data and the
-//     kept Umsätze, each with its one action; on Android also fingerprint
-//     login and the category guess with Gemini Nano;
-//   Über Girovo — updates (desktop), the version, the licence and the links.
+//     encrypted personal data and the kept Umsätze, the import into them and
+//     the backup of all of it;
+//   Über Girovo — updates, the version, the licence and the links.
 //
-// A row says what a setting is, in a line or two; what an action does in full
+// A row says what a setting is in a line, two at most; what an action does in full
 // is said by the dialog it opens ("Gerät vergessen?", "Gespeicherte Daten
 // löschen?"), right before it is done. The session itself — who, since when,
 // which banks, Abmelden — stays in the Sitzung panel (components/shell/ProfileMenu.tsx).
 
-import { useEffect, useId, useState } from 'react';
-import type { ReactNode } from 'react';
-import type { SettingsTarget } from '@/lib/app-types';
+import { useEffect, useState } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { setThemePref } from '@/lib/theme';
-import { AndroidSettings } from '../android/AndroidSettings';
+import { FingerprintSwitch, IntegrityRow, NanoRow, PlayUpdateRow } from '../android/AndroidSettings';
 import { IDLE_MINUTE_CHOICES, useFints, type IdleMinutes } from '../FintsProvider';
 import { LanguageSegmented } from '../LanguageToggle';
 import { useThemePref } from '../ThemeToggle';
@@ -35,14 +40,15 @@ import { updates, useUpdates } from '../updates/store';
 import { UpdateSessionRow } from '../updates/UpdateNotices';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
-  ExternalIcon, InfoIcon, KeyboardIcon, LockIcon, MonitorIcon, MoonIcon, ShieldIcon, SunIcon,
+  ChartIcon, ClockIcon, CodeIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon, LockIcon, MonitorIcon,
+  MoonIcon, ShieldIcon, SunIcon,
 } from '../icons';
-import { Button, Dot, Kbd, Segmented, Select, Switch, cx } from '../ui';
+import { Button, Dot, Kbd, Segmented } from '../ui';
 import { KeepRow, KeepOffDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
-import { BackupRow } from './BackupDialogs';
+import { BackupRows } from './BackupDialogs';
 import { ImportRow } from './ImportDialog';
 import { CategorySettings } from './CategorySettings';
-import { MachineIcon, MachineRow, ROW, SettingRow } from './rows';
+import { ActionItem, ChoiceItem, LinkItem, SegmentedItem, SettingItem, SettingsGroup, SwitchItem } from './rows';
 
 // i18n-data-start — addresses, not words
 const SOURCE_URL = 'https://github.com/elNino0916/Girovo';
@@ -62,7 +68,6 @@ export function Settings() {
   const pref = useThemePref();
   const usage = useUsageConsent();
   const { state: update } = useUpdates();
-  const idleId = useId();
   const [dialog, setDialog] = useState<DataDialog | null>(null);
   const closeDialog = () => setDialog(null);
 
@@ -73,21 +78,22 @@ export function Settings() {
     const row = document.querySelector<HTMLElement>(`[data-setting="${settingsTarget}"]`);
     if (!row) return;
     row.scrollIntoView({ block: 'center' });
-    row.querySelector<HTMLElement>(
+    // The row itself when it is what is pressed, else the control in it.
+    (row.matches('button, a[href]') ? row : row.querySelector<HTMLElement>(
       'button:not(:disabled), [role="button"]:not(:disabled), [role="switch"]:not(:disabled), [role="combobox"], select, input, a[href]',
-    )?.focus({ preventScroll: true });
+    ))?.focus({ preventScroll: true });
   }, [settingsTarget, clearSettingsTarget]);
 
   return (
-    <div className="flex w-full max-w-[720px] flex-col gap-10 pt-2">
-      <Section title={t.settings.sections.general}>
-        <SettingRow label={t.session.language} setting="language" wide>
+    <div className="flex w-full max-w-[720px] flex-col gap-7 pt-2 pb-2">
+      <SettingsGroup title={t.settings.sections.general}>
+        <SegmentedItem icon={<GlobeIcon />} title={t.session.language} setting="language">
           <LanguageSegmented label={t.session.language} />
-        </SettingRow>
+        </SegmentedItem>
 
         {/* The Android app has none: it follows the phone's light and dark. */}
         {!IS_ANDROID && (
-          <SettingRow label={t.common.theme.label} setting="theme" wide>
+          <SegmentedItem icon={pref === 'dark' ? <MoonIcon /> : pref === 'light' ? <SunIcon /> : <MonitorIcon />} title={t.common.theme.label} setting="theme" wide>
             <Segmented
               aria-label={t.common.theme.label}
               size="sm"
@@ -99,196 +105,170 @@ export function Settings() {
                 { value: 'system', label: t.common.theme.system, icon: <MonitorIcon size={15} /> },
               ]}
             />
-          </SettingRow>
+          </SegmentedItem>
         )}
-
-        <SettingRow label={t.session.idle} hint={t.settings.idleHint} htmlFor={idleId} setting="idle">
-          <Select
-            id={idleId}
-            value={String(idleMinutes)}
-            onChange={(e) => setIdleMinutes(Number(e.target.value) as IdleMinutes)}
-            // A row's control, not a form's field: M3E's denser size, not the form's 56px.
-            dense
-            containerClassName="w-auto shrink-0"
-          >
-            {IDLE_MINUTE_CHOICES.map((n) => (
-              <option key={n} value={String(n)}>{t.session.idleOption(n)}</option>
-            ))}
-          </Select>
-        </SettingRow>
 
         {/* Shortcuts need a keyboard; a phone has none worth listing them for. */}
         {!IS_ANDROID && (
-          <button type="button" onClick={() => setShortcutsOpen(true)} className={cx(ROW, 'mt-1 -mx-3! hidden w-[calc(100%+24px)] sm:flex')}>
-            <KeyboardIcon className="text-ink-2" />
-            <span className="flex-1">{t.common.shortcuts}</span>
-            {/* With the single keys off, "?" would promise a key that does nothing. */}
-            {singleKeyShortcuts ? <Kbd>?</Kbd> : <span className="text-[13px] text-ink-3">{t.session.singleKeysOff}</span>}
-          </button>
+          <ActionItem
+            icon={<KeyboardIcon />}
+            title={t.common.shortcuts}
+            onClick={() => setShortcutsOpen(true)}
+            // With the single keys off, "?" would promise a key that does nothing.
+            trailing={singleKeyShortcuts ? <Kbd>?</Kbd> : <span className="text-[13px] text-ink-2">{t.session.singleKeysOff}</span>}
+          />
         )}
-      </Section>
 
-      {/* The user's own categories: made from a booking's menu, kept here. */}
-      <Section title={t.transactions.custom.section} setting="categories">
+        <ChoiceItem
+          icon={<ClockIcon />}
+          // The short name: the value at the row's end says "nach 10 Min".
+          title={t.settings.find.idle}
+          summary={t.settings.idleHint}
+          setting="idle"
+          value={idleMinutes}
+          choices={IDLE_MINUTE_CHOICES.map((n) => ({ value: n, label: t.session.idleOption(n) }))}
+          onChange={(n) => setIdleMinutes(n as IdleMinutes)}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title={t.settings.sections.security}>
+        {/* The Android app only: what the integrity check found, and fingerprint login. */}
+        <IntegrityRow />
+        <FingerprintSwitch />
+        {deviceRemembered ? (
+          // The provider's dialog: the "Gerät gemerkt" toast opens the same one.
+          <ActionItem
+            setting="device"
+            icon={<ShieldIcon check />}
+            title={t.session.deviceRemembered}
+            summary={t.session.deviceRememberedHint}
+            action={t.session.forget}
+            onClick={() => setForgetDeviceOpen(true)}
+          />
+        ) : (
+          <SettingItem
+            setting="device"
+            icon={<ShieldIcon />}
+            title={t.session.deviceNotRemembered}
+            summary={t.session.deviceNotRememberedHint}
+          />
+        )}
+      </SettingsGroup>
+
+      {/* The guess with Gemini Nano (Android), then the user's own categories:
+          made from a booking's menu, kept here. */}
+      <SettingsGroup title={t.settings.sections.categories} setting="categories">
+        <NanoRow />
         <CategorySettings />
-      </Section>
+      </SettingsGroup>
 
       {/* What can leave the machine besides the bank's own traffic — each off
           until the user agreed, and absent in a build that does not offer it. */}
       {(meta?.merchantLogos || usage) && (
-        <Section title={t.settings.sections.privacy}>
+        <SettingsGroup title={t.settings.sections.privacy}>
           {meta?.merchantLogos && (
-            <div data-setting="logos" className="py-2">
-              <Switch
-                checked={logoConsent === 'on'}
-                onChange={setLogoConsent}
-                label={t.session.logos}
-                description={t.session.logosHint}
-              />
-            </div>
+            <SwitchItem
+              icon={<ImageIcon />}
+              setting="logos"
+              checked={logoConsent === 'on'}
+              onChange={setLogoConsent}
+              title={t.session.logos}
+              summary={t.session.logosHint}
+            />
           )}
           {usage && (
-            <div data-setting="usage" className="py-2">
-              <Switch
-                checked={usage === 'on'}
-                onChange={(on) => void setUsageConsent(on)}
-                label={t.session.usage}
-                description={t.session.usageHint}
-              />
-            </div>
+            <SwitchItem
+              icon={<ChartIcon />}
+              setting="usage"
+              checked={usage === 'on'}
+              onChange={(on) => void setUsageConsent(on)}
+              title={t.session.usage}
+              summary={t.session.usageHint}
+            />
           )}
-        </Section>
+        </SettingsGroup>
       )}
 
-      <Section title={t.session.thisComputer}>
-        {/* The Android app only: fingerprint login, the category guess with Gemini Nano, Play's updates, the phone's integrity. */}
-        <AndroidSettings />
-
-        <MachineRow
-          setting="device"
-          icon={(
-            <MachineIcon tone={deviceRemembered ? 'info' : 'quiet'}>
-              <ShieldIcon size={16} check={deviceRemembered} />
-            </MachineIcon>
+      {/* What is kept here, and the ways to take it elsewhere — once the saved data's state is known. */}
+      {(vaultStatus === 'ready' || vaultStatus === 'error' || vaultStatus === 'unavailable') && (
+        <SettingsGroup title={t.session.thisComputer}>
+          {vaultStatus === 'error' && (
+            <SettingItem
+              setting="data"
+              alert
+              icon={(
+                <span className="relative inline-flex">
+                  <LockIcon />
+                  <Dot className="absolute -top-px -right-px ring-2 ring-[var(--md-surface-container)]" />
+                </span>
+              )}
+              title={t.session.vaultUnreadable}
+              summary={t.session.vaultUnreadableHint}
+              below={(
+                <span className="mt-1 -ml-3 flex flex-wrap">
+                  <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={() => setDialog('reset')}>
+                    {t.session.vaultReset}
+                  </Button>
+                  {/* Unreadable with this PIN, but not with the old one: it can
+                      still be tried against PINs, so it can be deleted too. */}
+                  <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={() => setDialog('wipe')}>
+                    {t.session.vaultDelete}
+                  </Button>
+                </span>
+              )}
+            />
           )}
-          title={deviceRemembered ? t.session.deviceRemembered : t.session.deviceNotRemembered}
-          hint={deviceRemembered ? t.session.deviceRememberedHint : t.session.deviceNotRememberedHint}
-          action={deviceRemembered && (
-            // The provider's dialog: the "Gerät gemerkt" toast opens the same one.
-            <Button variant="tertiary" size="xs" className="-mr-2 shrink-0" aria-haspopup="dialog" onClick={() => setForgetDeviceOpen(true)}>
-              {t.session.forget}
-            </Button>
+
+          {/* Whether or not the device is remembered: someone handing the
+              computer on needs a way to take their data with them. */}
+          {vaultStatus === 'ready' && (
+            <ActionItem
+              setting="data"
+              icon={<LockIcon />}
+              title={t.session.vault}
+              summary={t.session.vaultHint}
+              action={t.session.vaultDelete}
+              onClick={() => setDialog('wipe')}
+            />
           )}
-        />
 
-        {vaultStatus === 'error' && (
-          <div data-setting="data" className="mt-3 flex items-start gap-3">
-            <MachineIcon>
-              <LockIcon size={16} />
-              <Dot className="absolute -top-px -right-px ring-2 ring-[var(--paper)]" />
-            </MachineIcon>
-            <div className="min-w-0 flex-1">
-              <p className="text-[14px] leading-snug font-semibold text-ink">{t.session.vaultUnreadable}</p>
-              <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{t.session.vaultUnreadableHint}</p>
-              <div className="mt-1 -ml-3.5 flex flex-wrap">
-                <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={() => setDialog('reset')}>
-                  {t.session.vaultReset}
-                </Button>
-                {/* Unreadable with this PIN, but not with the old one: it can
-                    still be tried against PINs, so it can be deleted too. */}
-                <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={() => setDialog('wipe')}>
-                  {t.session.vaultDelete}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Whether or not the device is remembered: someone handing the
-            computer on needs a way to take their data with them. */}
-        {vaultStatus === 'ready' && (
-          <MachineRow
-            setting="data"
-            icon={<MachineIcon><LockIcon size={16} /></MachineIcon>}
-            title={t.session.vault}
-            hint={t.session.vaultHint}
-            action={(
-              <Button variant="tertiary" size="xs" className="-mr-2 shrink-0" aria-haspopup="dialog" onClick={() => setDialog('wipe')}>
-                {t.session.vaultDelete}
-              </Button>
-            )}
-          />
-        )}
-
-        {/* The choice lives in the vault, so it is offered only while the
-            vault can be written. Off is the default (owner to confirm). */}
-        {vaultStatus === 'ready' && (
-          <div data-setting="keep">
+          {/* The choice lives in the vault, so it is offered only while the
+              vault can be written. Off is the default (owner to confirm). */}
+          {vaultStatus === 'ready' && (
             <KeepRow onOff={() => setDialog('keepOff')} onReset={() => setDialog('historyReset')} />
-          </div>
-        )}
+          )}
 
-        {/* Older Umsätze from the online banking's export, into the kept ones. */}
-        {vaultStatus === 'ready' && keepBookings && <ImportRow />}
+          {/* Older Umsätze from the online banking's export, into the kept ones. */}
+          {vaultStatus === 'ready' && keepBookings && <ImportRow />}
 
-        {/* What all of the above keeps, as one file to take elsewhere — and back. */}
-        {vaultStatus === 'ready' && <BackupRow />}
+          {/* What all of the above keeps, as one file to take elsewhere — and back. */}
+          {vaultStatus === 'ready' && <BackupRows />}
 
-        {/* Said once, quietly: there is nothing the user can do about it here. */}
-        {vaultStatus === 'unavailable' && (
-          <p className="mt-3 flex items-start gap-2.5 text-[13px] leading-snug text-ink-3">
-            <InfoIcon size={16} className="mt-px shrink-0" />
-            <span>{t.session.vaultUnavailable}</span>
-          </p>
-        )}
-      </Section>
+          {/* Said once, quietly: there is nothing the user can do about it here. */}
+          {vaultStatus === 'unavailable' && (
+            <SettingItem icon={<InfoIcon />} title={t.session.vaultUnavailable} />
+          )}
+        </SettingsGroup>
+      )}
 
-      <Section title={t.settings.sections.about}>
-        {/* Desktop app only: with it, the version is on its row. */}
-        <div data-setting="updates">
-          <UpdateSessionRow onOpen={() => updates.openDialog()} className={cx(ROW, '-mx-3! flex w-[calc(100%+24px)]')} />
-        </div>
-        <p className="mt-2 text-[13px] leading-snug text-ink-3">
-          {[!update && APP_VERSION ? t.shell.version(APP_VERSION) : '', t.settings.licence].filter(Boolean).join(' · ')}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
-          <ExternalLink href={SOURCE_URL}>{t.settings.source}</ExternalLink>
-          <ExternalLink href={PRIVACY_URL}>{t.settings.privacyPolicy}</ExternalLink>
-        </div>
-      </Section>
+      <SettingsGroup title={t.settings.sections.about}>
+        {/* The Google Play build, when Play has a newer version. */}
+        <PlayUpdateRow />
+        {/* With the updater (the desktop app, the GitHub build on Android) the version is on its row. */}
+        <UpdateSessionRow setting="updates" onOpen={() => updates.openDialog()} />
+        <SettingItem
+          icon={<InfoIcon />}
+          title={!update && APP_VERSION ? t.shell.version(APP_VERSION) : t.settings.licence}
+          summary={!update && APP_VERSION ? t.settings.licence : undefined}
+        />
+        <LinkItem icon={<CodeIcon />} title={t.settings.source} href={SOURCE_URL} opensExternally={t.shell.opensExternally} />
+        <LinkItem icon={<FileIcon />} title={t.settings.privacyPolicy} href={PRIVACY_URL} opensExternally={t.shell.opensExternally} />
+      </SettingsGroup>
 
       <ResetVaultDialog open={dialog === 'reset'} onClose={closeDialog} />
       <WipeVaultDialog open={dialog === 'wipe'} onClose={closeDialog} />
       <KeepOffDialog open={dialog === 'keepOff'} onClose={closeDialog} />
       <ResetHistoryDialog open={dialog === 'historyReset'} onClose={closeDialog} />
     </div>
-  );
-}
-
-/** A part of the page: its title, then its rows, standing on the page itself. */
-function Section({ title, setting, children }: { title: string; setting?: SettingsTarget; children: ReactNode }) {
-  const id = useId();
-  return (
-    <section aria-labelledby={id} data-setting={setting}>
-      <h2 id={id} className="section-head">{title}</h2>
-      <div className="mt-2 flex flex-col">{children}</div>
-    </section>
-  );
-}
-
-/** A page outside the app, opened in the browser (electron/main.cjs sends it there). */
-function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
-  const t = useT();
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex min-h-10 items-center gap-1 rounded-sm text-[14px] font-semibold text-accent underline-offset-4 hover:underline"
-    >
-      {children}
-      <ExternalIcon size={13} />
-      <span className="sr-only">{` ${t.shell.opensExternally}`}</span>
-    </a>
   );
 }

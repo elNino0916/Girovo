@@ -88,3 +88,17 @@ export function integrityWarning(i: Integrity | null): 'modified' | 'foreign' | 
   if (i.device === 'modified') return 'modified';
   return null;
 }
+
+/**
+ * Whether Girovo keeps nothing on this phone: one that is modified, or that
+ * cannot prove it is not (its check failed, or answered "unknown"). Then no
+ * device is remembered, no vault, no kept Umsätze, no documents and no login
+ * name are written to it, and none written by an earlier start are read — the
+ * session lives in memory and ends with the app (mobile/server/index.ts,
+ * mobile/shims/fs.ts). A debug build is a developer's, on an emulator that can
+ * never prove anything: it keeps its data.
+ */
+export function keepsNothing(i: Integrity | null): boolean {
+  if (i?.copy === 'development') return false;
+  return !i || i.device === 'modified' || i.device === 'unknown';
+}

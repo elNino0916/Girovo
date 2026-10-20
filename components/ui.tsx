@@ -33,7 +33,7 @@ import { M3eIconButton } from '@m3e/react/icon-button';
 import { M3eLoadingIndicator } from '@m3e/react/loading-indicator';
 import { M3eMenu, M3eMenuItem, M3eMenuItemGroup, M3eMenuItemRadio } from '@m3e/react/menu';
 import { M3eOptGroup, M3eOption } from '@m3e/react/option';
-import { M3eLinearProgressIndicator } from '@m3e/react/progress-indicator';
+import { M3eCircularProgressIndicator, M3eLinearProgressIndicator } from '@m3e/react/progress-indicator';
 import { M3eSelect } from '@m3e/react/select';
 import { M3eSkeleton } from '@m3e/react/skeleton';
 import { M3eSwitch } from '@m3e/react/switch';
@@ -123,13 +123,34 @@ export function Button({
   );
 }
 
+/** Below this, the loading indicator's shapes are a dot: Material sizes it from 24dp. */
+const LOADING_INDICATOR_MIN = 24;
+
 /**
- * M3E's loading indicator (@m3e/web loading-indicator): M3 Expressive's
- * shape morphing from one to the next as it turns, in the text's colour, at
- * any size — the shape 38/48 of its box, as Material sizes it.
+ * A wait, in the text's colour. From 24px M3E's loading indicator (@m3e/web
+ * loading-indicator): M3 Expressive's shapes morphing from one to the next as
+ * it turns, the shape 38/48 of its box, as Material sizes it. Smaller — a
+ * button's wait, a row's refresh — those shapes read as a still dot, so it is
+ * M3E's indeterminate circular progress indicator, the arc that grows,
+ * shrinks and turns, as Material puts a wait inside a control.
  */
 export function Spinner({ className, size = 15, label }: { className?: string; size?: number; label?: string }) {
-  const ring = (
+  const ring = size < LOADING_INDICATOR_MIN ? (
+    <M3eCircularProgressIndicator
+      indeterminate
+      aria-hidden
+      data-spinner
+      className={cx('shrink-0', className)}
+      style={{
+        width: size,
+        height: size,
+        '--m3e-circular-flat-progress-indicator-diameter': `${size}px`,
+        '--m3e-circular-progress-indicator-thickness': `${Math.max(2, Math.round(size / 8 * 2) / 2)}px`,
+        '--m3e-progress-indicator-color': 'currentColor',
+        '--m3e-progress-indicator-track-color': 'transparent',
+      } as CSSProperties}
+    />
+  ) : (
     <M3eLoadingIndicator
       aria-hidden
       data-spinner
@@ -574,13 +595,15 @@ export function Checkbox({
 }
 
 export function Switch({
-  checked, onChange, label, description, disabled, id, className, 'aria-label': ariaLabel,
+  checked, onChange, label, description, describedBy, disabled, id, className, 'aria-label': ariaLabel,
 }: {
   checked: boolean;
   onChange: (next: boolean) => void;
-  /** Visible label; without it, pass aria-label. */
+  /** Visible label; without it, pass aria-label — or label it with a `<label for>` of its own. */
   label?: ReactNode;
   description?: ReactNode;
+  /** A description drawn elsewhere (a settings row's summary), for a switch without `label`. */
+  describedBy?: string;
   disabled?: boolean;
   id?: string;
   className?: string;
@@ -588,7 +611,7 @@ export function Switch({
 }) {
   const auto = useId();
   const switchId = id ?? `sw${auto}`;
-  const descId = description ? `${switchId}-desc` : undefined;
+  const descId = description ? `${switchId}-desc` : describedBy;
   // M3E's switch (@m3e/web switch): the M3 track and handle, the check in
   // the handle while on, the handle growing while pressed.
   const control = (
@@ -599,7 +622,8 @@ export function Switch({
       disabled={!!disabled}
       aria-label={label ? undefined : ariaLabel}
       aria-describedby={descId}
-      className="shrink-0"
+      // Bare, the caller's classes are the control's own; with a label, its row's.
+      className={cx('shrink-0', !label && className)}
       onChange={(e: Event) => onChange(!!(e.currentTarget as unknown as { checked: boolean }).checked)}
     />
   );

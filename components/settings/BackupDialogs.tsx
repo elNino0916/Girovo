@@ -11,31 +11,27 @@ import { useRef, useState } from 'react';
 import type { BackupSummary, RestoreReport } from '@/lib/backup';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
-import { ArchiveIcon, UploadIcon } from '../icons';
+import { ArchiveIcon, UndoIcon, UploadIcon } from '../icons';
 import { Alert, Button, Dialog, Field, Input } from '../ui';
-import { MachineIcon, MachineRow } from './rows';
+import { ActionItem } from './rows';
 
 /** The shortest password the server takes (lib/backup.ts BACKUP_MIN_PASSWORD) — said before it refuses. */
 const MIN_PASSWORD = 10;
 
-export function BackupRow() {
+/** Two rows of the grouped list: making a backup (with what it holds), and restoring one. */
+export function BackupRows() {
   const t = useT();
-  const words = t.backup.row;
   const [open, setOpen] = useState<'make' | 'restore' | null>(null);
   return (
     <>
-      <MachineRow
+      <ActionItem
         setting="backup"
-        icon={<MachineIcon><ArchiveIcon size={16} /></MachineIcon>}
-        title={words.title}
-        hint={words.hint}
-        action={(
-          <div className="-mr-2 flex shrink-0 flex-col items-end sm:flex-row">
-            <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={() => setOpen('make')}>{words.make}</Button>
-            <Button variant="tertiary" size="xs" aria-haspopup="dialog" onClick={() => setOpen('restore')}>{words.restore}</Button>
-          </div>
-        )}
+        icon={<ArchiveIcon />}
+        title={t.backup.make.title}
+        summary={t.backup.row.hint}
+        onClick={() => setOpen('make')}
       />
+      <ActionItem icon={<UndoIcon />} title={t.backup.restore.title} onClick={() => setOpen('restore')} />
       {open === 'make' && <MakeBackupDialog onClose={() => setOpen(null)} />}
       {open === 'restore' && <RestoreBackupDialog onClose={() => setOpen(null)} />}
     </>
