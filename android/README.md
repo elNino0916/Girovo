@@ -14,8 +14,10 @@ the bank — the same promise the desktop app makes.
 - **Node's modules** the handlers import are replaced at bundle time
   (`mobile/shims`): `node:fs` by a file tree in memory written through to the
   app's private storage, `node:crypto` by the audited @noble libraries (sealing
-  exactly what Node seals — `mobile/shims/crypto.test.ts`), `onnxruntime-node`
-  by ONNX Runtime for Android.
+  exactly what Node seals — `mobile/shims/crypto.test.ts`). The category
+  guess is the one module swapped for another engine: the desktop's e5
+  (`lib/category-model.ts`) becomes Gemini Nano through AICore
+  (`mobile/server/categories.ts`, `NanoPlugin.java`).
 - **What the desktop shell gives the page** — saving a file, a PDF — the
   runtime gives it under the same names (`mobile/bridges`), the Android way:
   the system's "save to" picker, Android's print dialog ("Save as PDF").
@@ -29,9 +31,9 @@ mobile/runtime.ts              what the Android page loads before the app
   server/                      the route handlers in the page, the fetch router
   shims/                       node:fs, node:crypto, … for the WebView
   bridges/                     files, PDFs, back, Material You, ripple, fingerprint,
-                               the category model download, updates
+                               Gemini Nano's status and progress, updates
 android/                       the Capacitor project
-  app/src/main/java/…/girovo/  HttpPlugin, DevicePlugin (+ DeviceIntegrity: key attestation, signer), BiometricPlugin, ModelPlugin
+  app/src/main/java/…/girovo/  HttpPlugin, DevicePlugin (+ DeviceIntegrity: key attestation, signer), BiometricPlugin, NanoPlugin (Gemini Nano)
   app/src/github/…             UpdaterPlugin: APK updates from GitHub
   app/src/play/…               UpdaterPlugin: Google Play's in-app update
 scripts/build-android.mjs      the whole build
@@ -173,9 +175,9 @@ Before the first upload:
   - *Data safety:* nothing is collected by the developer. Account data goes
     from the phone straight to the user's bank at the user's request. With
     the user's consent, counterparty names that look like companies go to
-    Brandfetch for logos (lib/merchants.ts). The category model is downloaded
-    from Hugging Face on request. No analytics and no crash reporting in the
-    Android app.
+    Brandfetch for logos (lib/merchants.ts). The category guess runs on
+    Gemini Nano inside the phone's own AICore; nothing of it leaves the
+    phone. No analytics and no crash reporting in the Android app.
   - *Target API level:* the project targets SDK 36.
   - *Foreground service:* one, of type `shortService`, only while the user
     approves an order in their bank's app (see "On the phone" below).
@@ -210,10 +212,35 @@ Before the first upload:
   Android destroys when a fingerprint is added. A stored PIN the bank refuses
   is deleted at once, so it is never tried twice. Without the switch the PIN
   lives only in memory, as on the desktop.
-- **The category model** is an optional download (Sitzung panel, about
-  300 MB from Hugging Face, the revision `scripts/category-models.json` pins,
-  each file checked against its digest). Without it the keyword rules sort
-  alone, as on a desktop without the model.
+- **Categories with Gemini Nano.** What the keyword rules leave as
+  "Sonstiges" goes to Gemini Nano, the language model Android's AICore runs on
+  the phone for every app (ML Kit's Prompt API, `NanoPlugin.java`), in place
+  of the desktop's e5:
+  - *Which phones:* those whose AICore offers Nano (recent Pixel and Galaxy
+    flagships among them); Einstellungen shows "Nicht unterstütztes Telefon"
+    elsewhere, and there the rules sort alone. Where AICore offers it as a
+    download, the app asks AICore for it at start; AICore picks the moment.
+    The client asks for the fast, released variant (`ModelConfig` FAST,
+    STABLE): on the S26 the default client waited for a download that never
+    came, while that variant was there at once.
+  - *How it decides:* one prompt per counterparty — the calibrated
+    instruction and category list (`lib/nano-categories.ts`, temperature 0),
+    then the name and Verwendungszweck. A counterparty the user filed under a
+    nearly identical name takes that rule's category before Nano is asked;
+    examples in the prompt made Nano copy look-alikes. Answers are kept for as
+    long as the app runs, in memory only.
+  - *AICore's limits:* under sustained use AICore refuses about every 14th
+    request as busy, and none while the app is in the background. Both are
+    waited out — the booking is asked again after a growing pause, or once
+    the app is back — so every booking gets its answer. The Umsätze and the
+    Analyse show "Kategorien werden zugeordnet · 120 von 300" meanwhile.
+  - *Calibration:* on the owner's Galaxy S26 Ultra (nano-v4-fast), tuned on
+    hand-made bookings and measured once on others: of 115 with a category,
+    104 right and 12 wrong guesses, where e5 had 85 and 13; about 0.24 s a
+    booking. Its weak spot is money between people whose purpose names
+    something ("Familie Braun – Urlaubskasse" → Freizeit).
+  - The e5 model of 5.6 and before (an optional 280 MB download) is deleted
+    from the phone at the first start of this version.
 - **Material You** wherever the phone has wallpaper colours (Android 12+),
   Girovo's navy and blue before that, and always the phone's light or dark —
   neither is a setting. The colours that mean something — credit, negative,

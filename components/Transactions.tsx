@@ -19,6 +19,7 @@ import { fmtRange } from '@/lib/format';
 import { accountBalanceHistory } from '@/lib/history';
 import { intlLocale } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
+import { CategoryProgress } from './android/CategoryProgress';
 import { BankStatements } from './BankStatements';
 import { useFints } from './FintsProvider';
 import { ArrowRightIcon, RefreshIcon } from './icons';
@@ -323,6 +324,9 @@ export function Transactions() {
               <ExportMenu loaded={loaded} all={sorted} filtered={filtered} onBankStatements={() => setStatementsOpen(true)} />
             </div>
           </div>
+
+          {/* Android: Gemini Nano filling in the categories the rules left open. */}
+          {!loading && <CategoryProgress className="mt-3" />}
 
           {txError && transactions && !loading && (
             <Alert

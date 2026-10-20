@@ -511,9 +511,11 @@ desktop app's features it has:
 - **Fingerprint login** (opt-in): the PIN of one login, sealed with a key in
   the Android Keystore that only a fingerprint opens. Adding a fingerprint to
   the phone deletes it, and so does a PIN the bank refuses.
-- **The category model as a download** (about 300 MB, once, from Hugging Face;
-  each file checked against its pinned digest). Without it the keyword rules
-  sort alone.
+- **Categories with Gemini Nano** instead of the desktop's model: the
+  language model Android's AICore runs on the phone itself, so there is
+  nothing to download in the app. On a phone without it Einstellungen says
+  "Nicht unterstütztes Telefon" and the keyword rules sort alone
+  (android/README.md).
 - **A check of the phone itself**, on the phone alone — no server, no request
   to Google: a fresh key in the phone's secure hardware, its attestation
   verified up to Google's roots, says whether the bootloader is locked and the
@@ -640,6 +642,9 @@ decides, on the machine (`lib/category-model.ts`):
   on `127.0.0.1`, and the server keeps the vectors in memory only, logging no
   text. The model takes about 600 MB of memory while loaded; it is loaded on
   first use and released after a quiet minute.
+- **On Android** the same place is taken by Gemini Nano through the phone's
+  AICore (`lib/nano-categories.ts`, `mobile/server/categories.ts`), with the
+  user's rules matched by name before it is asked; see android/README.md.
 - **Calibration:** `node scripts/eval-category-model.mjs` (`--sweep` to search)
   scores two labelled sets of German bookings. The thresholds and the
   category descriptions are tuned on the first (87 of 99 right, 3 wrong); the

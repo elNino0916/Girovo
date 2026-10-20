@@ -5,7 +5,6 @@ const env: Record<string, string | undefined> = {
   NODE_ENV: 'production',
   NEXT_RUNTIME: 'nodejs',
   FINTS_STATE_DIR: '/data/fints-state',
-  GIROVO_MODEL_DIR: '/model',
 };
 
 export const process = {

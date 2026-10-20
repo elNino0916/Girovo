@@ -22,14 +22,17 @@ declare global {
       unlock(blz: string, userId: string, texts: GirovoPromptTexts): Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing'; pin?: string }>;
       forget(blz: string, userId: string): Promise<void>;
     };
-    /** The category model as a download (mobile/bridges/model.ts). */
-    model: {
-      bytes: number;
-      status(): Promise<GirovoModelStatus>;
-      onProgress(fn: (s: GirovoModelStatus) => void): () => void;
-      download(): Promise<GirovoModelStatus>;
-      cancel(): Promise<void>;
-      remove(): Promise<void>;
+    /**
+     * The category guess: Gemini Nano through AICore (mobile/bridges/categories.ts)
+     * — whether this phone has it, AICore's download, and how far the bookings
+     * waiting for it are.
+     */
+    categories: {
+      status(): Promise<GirovoNanoStatus>;
+      onStatus(fn: (s: GirovoNanoStatus) => void): () => void;
+      download(): Promise<GirovoNanoStatus>;
+      progress(): Promise<GirovoNanoProgress>;
+      onProgress(fn: (p: GirovoNanoProgress) => void): () => void;
     };
     /**
      * Whether this phone is one a PIN is safe on, and whether this is Girovo
@@ -74,7 +77,8 @@ declare global {
   type GirovoBiometricState = { available: boolean; reason?: 'none-enrolled' | 'no-hardware' | 'unavailable' | 'security-update' };
   type GirovoPromptTexts = { title: string; subtitle: string; cancel: string };
   type GirovoIntegrity = import('../lib/device-integrity').Integrity;
-  type GirovoModelStatus = { installed: boolean; files: { name: string; size: number }[]; downloading: boolean; received: number; total: number };
+  type GirovoNanoStatus = import('../mobile/native').NanoStatus;
+  type GirovoNanoProgress = import('../mobile/native').NanoProgress;
 
   interface Window {
     girovoMobile?: GirovoMobile;

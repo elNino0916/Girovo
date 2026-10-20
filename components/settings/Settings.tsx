@@ -13,7 +13,7 @@
 //   Auf diesem Rechner ("Telefon" on Android) — what is kept here: the
 //     bank's registration of the device, the encrypted personal data and the
 //     kept Umsätze, each with its one action; on Android also fingerprint
-//     login and the category model;
+//     login and the category guess with Gemini Nano;
 //   Über Girovo — updates (desktop), the version, the licence and the links.
 //
 // A row says what a setting is, in a line or two; what an action does in full
@@ -161,7 +161,7 @@ export function Settings() {
       )}
 
       <Section title={t.session.thisComputer}>
-        {/* The Android app only: fingerprint login, the category model, Play's updates. */}
+        {/* The Android app only: fingerprint login, the category guess with Gemini Nano, Play's updates, the phone's integrity. */}
         <AndroidSettings />
 
         <MachineRow

@@ -1,8 +1,8 @@
 'use client';
 
 // The Android app's own settings, on the Einstellungen page's "Auf diesem
-// Telefon" (components/settings/Settings.tsx): fingerprint login, the category model
-// as a download, Play's updates, and what the phone's integrity check found. The colours and light or dark are the
+// Telefon" (components/settings/Settings.tsx): fingerprint login, the category guess
+// with Gemini Nano, Play's updates, and what the phone's integrity check found. The colours and light or dark are the
 // phone's (mobile/bridges/appearance.ts) — not a setting here. Each talks to the phone runtime
 // (window.girovoMobile, mobile/runtime.ts); none of them exists on the
 // desktop or the website, where this renders nothing.
@@ -13,14 +13,14 @@ import { useIntegrity } from './IntegrityNotice';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { Button, Progress, Switch, cx } from '../ui';
+import { Button, Progress, Switch, Tag, cx } from '../ui';
 
 export function AndroidSettings() {
   if (!IS_ANDROID) return null;
   return (
     <>
       <FingerprintSwitch />
-      <ModelRow />
+      <NanoRow />
       <PlayUpdateRow />
       <IntegrityRow />
     </>
@@ -92,67 +92,71 @@ function FingerprintSwitch() {
   );
 }
 
-function ModelRow() {
+/**
+ * Whether this phone sorts with Gemini Nano (mobile/bridges/categories.ts).
+ * Nothing to switch: where Android has it, it works; where Android is still
+ * fetching it, that is said; where the phone has none, "Nicht unterstütztes
+ * Telefon" and the rules sort alone.
+ */
+function NanoRow() {
   const t = useT();
-  const m = t.android.model;
-  const { toast } = useFints();
-  const [status, setStatus] = useState<GirovoModelStatus | null>(null);
-  const [failed, setFailed] = useState(false);
+  const m = t.android.categories;
+  const [status, setStatus] = useState<GirovoNanoStatus | null>(null);
 
   useEffect(() => {
-    const mobile = window.girovoMobile;
-    if (!mobile) return;
-    void mobile.model.status().then(setStatus);
-    return mobile.model.onProgress(setStatus);
+    const categories = window.girovoMobile?.categories;
+    if (!categories) return;
+    let live = true;
+    void categories.status().then((s) => live && setStatus(s));
+    const off = categories.onStatus((s) => live && setStatus(s));
+    return () => {
+      live = false;
+      off();
+    };
   }, []);
 
-  const mobile = typeof window === 'undefined' ? undefined : window.girovoMobile;
-  if (!mobile || !status) return null;
-  const total = status.total || mobile.model.bytes;
+  const categories = typeof window === 'undefined' ? undefined : window.girovoMobile?.categories;
+  if (!categories || !status) return null;
 
   const download = async () => {
-    setFailed(false);
-    setStatus((s) => (s ? { ...s, downloading: true, received: 0, total } : s));
-    try {
-      setStatus(await mobile.model.download());
-      toast(m.ready, 'success');
-    } catch (err) {
-      setStatus(await mobile.model.status());
-      // Cancelled is the user's own doing, not a failure.
-      if ((err as { code?: string } | null)?.code !== 'CANCELLED') setFailed(true);
-    }
+    setStatus({ state: 'downloading' });
+    setStatus(await categories.download());
   };
 
-  const remove = async () => {
-    await mobile.model.remove();
-    setStatus(await mobile.model.status());
-    toast(m.removed, 'info');
-  };
+  if (status.state === 'unsupported') {
+    return (
+      <div className="mt-4">
+        <p className="text-[15px] leading-snug text-ink">{m.title}</p>
+        <Tag className="mt-1.5">{m.unsupported}</Tag>
+        <p className="mt-1.5 text-[13px] leading-snug text-ink-3">
+          {status.reason === 'update' ? m.update : status.reason === 'aicore' ? m.aicore : m.unsupportedHint}
+        </p>
+      </div>
+    );
+  }
 
+  const total = status.total ?? 0;
   return (
     <div className="mt-4">
       <p className="text-[15px] leading-snug text-ink">{m.title}</p>
       <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{m.hint}</p>
-      {status.downloading ? (
+      {status.state === 'downloading' && (
         <div className="mt-2.5">
-          <div className="flex items-baseline justify-between gap-3 text-[13px]">
-            <span className="tnum text-ink-2">{m.progress(fmtBytes(status.received, { unitOf: total, bare: true }), fmtBytes(total))}</span>
-            <Button variant="tertiary" size="xs" className="-mr-3" onClick={() => void mobile.model.cancel()}>{m.cancel}</Button>
-          </div>
-          <Progress value={Math.floor((status.received / total) * 100)} label={m.title} className="mt-1.5" />
-        </div>
-      ) : status.installed ? (
-        <div className="mt-1.5 flex items-center justify-between gap-3">
-          <span className="text-[13px] text-ink-2">{m.installed}</span>
-          <Button variant="tertiary" size="xs" className="-mr-3" onClick={() => void remove()}>{m.remove}</Button>
-        </div>
-      ) : (
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Button variant="secondary" size="sm" onClick={() => void download()}>{m.download}</Button>
-          <span className="text-[13px] text-ink-3">{m.size}</span>
+          <p className="flex items-baseline justify-between gap-3 text-[13px] leading-snug text-ink-2">
+            <span className="min-w-0">{m.downloading}</span>
+            {total > 0 && (
+              <span className="tnum shrink-0">{m.downloadProgress(fmtBytes(status.received ?? 0, { unitOf: total, bare: true }), fmtBytes(total))}</span>
+            )}
+          </p>
+          {total > 0 && <Progress value={((status.received ?? 0) / total) * 100} label={m.downloading} className="mt-1.5" />}
         </div>
       )}
-      {failed && <p role="alert" className="mt-1.5 text-[13px] leading-snug text-red">{m.failed}</p>}
+      {status.state === 'downloadable' && (
+        <>
+          <p className="mt-1.5 text-[13px] leading-snug text-ink-2">{m.downloadable}</p>
+          <Button variant="secondary" size="sm" className="mt-2" onClick={() => void download()}>{m.downloadNow}</Button>
+        </>
+      )}
     </div>
   );
 }

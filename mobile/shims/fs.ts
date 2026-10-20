@@ -14,8 +14,6 @@
 //                          (read-only, put in by mountAssets)
 //   /data/fints-state/…    FINTS_STATE_DIR — device profiles, vaults, history;
 //                          persisted to Directory.Data/fints-state
-//   /model/…               GIROVO_MODEL_DIR — the category model's small files
-//                          (mobile/server/model.ts); never persisted from here
 //
 // Every file the server writes is UTF-8 text (JSON envelopes of base64), so the
 // tree holds strings and the disk copy is written as UTF-8.
@@ -123,22 +121,6 @@ export function mountAssets(entries: Record<string, string>, listings: Record<st
       addDirs(parentOf(p));
     }
   }
-}
-
-/** Lists a file that exists natively (its size known) without holding its content. */
-export function mountStub(p: string, size: number): void {
-  const at = norm(p);
-  stubs.set(at, size);
-  addDirs(parentOf(at));
-}
-
-/** Forgets everything under `dir` (the category model removed). */
-export function unmount(dir: string): void {
-  const root = norm(dir);
-  const inside = (p: string) => p === root || p.startsWith(`${root}/`);
-  for (const p of [...files.keys()]) if (inside(p)) files.delete(p);
-  for (const p of [...stubs.keys()]) if (inside(p)) stubs.delete(p);
-  for (const p of [...dirs]) if (inside(p)) dirs.delete(p);
 }
 
 /** Loads /data/<dir> from the app's private storage. Call once, before the first request. */

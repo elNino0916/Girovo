@@ -20,7 +20,7 @@ import { activeLocale } from '../../lib/i18n/locale.ts';
 import type { AsyncLocalStorage } from '../shims/async-hooks';
 import { flush, mountData } from '../shims/fs';
 import { installFetch } from './fetch';
-import { mountModel, prepareModel } from './model';
+import { startNano } from './categories';
 
 // The bank's minute to start answering is timed by the native HTTP stack
 // (HttpPlugin.java): a timer in the page stops while the app is in the
@@ -28,9 +28,12 @@ import { mountModel, prepareModel } from './model';
 // on the way back, ending a request the bank had answered.
 bankPolicy.firstByteMs = Infinity;
 
+/** Whether this phone has Gemini Nano, asked once at start (mobile/server/categories.ts). */
+const nano = startNano();
+
 /** What a route needs done before it runs. */
 const BEFORE: Record<string, () => Promise<unknown>> = {
-  '/api/category-guesses': prepareModel,
+  '/api/category-guesses': () => nano,
 };
 
 const json = (status: number, body: unknown) =>
@@ -38,7 +41,6 @@ const json = (status: number, body: unknown) =>
 
 async function boot(): Promise<void> {
   await mountData('fints-state');
-  await mountModel();
   // A login the user calls off must end the bank request it is waiting on,
   // several awaits after withBankSignal set the signal (mobile/shims/async-hooks.ts).
   type BankScope = { signal?: AbortSignal; bankCall?: boolean; inPolicy?: boolean };
@@ -75,9 +77,6 @@ export async function handle(req: Request): Promise<Response> {
     return json(500, { error: describeError(err) });
   }
 }
-
-/** Remounts the category model after a download or removal (Sitzung → Kategorien). */
-export const refreshModel = mountModel;
 
 installFetch(handle);
 

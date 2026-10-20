@@ -42,31 +42,40 @@ export interface GirovoHttpPlugin {
 export const GirovoHttp = registerPlugin<GirovoHttpPlugin>('GirovoHttp');
 
 // ---------------------------------------------------------------------------
-// The category model: download it once, then run it natively.
+// The category guess: Gemini Nano through Android AICore (NanoPlugin.java).
 
-export type ModelFile = { name: string; url: string; size: number; sha256?: string; gitBlob?: string };
-
-export type ModelStatus = {
-  installed: boolean;
-  files: { name: string; size: number }[];
-  downloading: boolean;
-  received: number;
-  total: number;
+/**
+ * Whether this phone has Nano. `unsupported` covers phones without AICore,
+ * without Nano, or whose AICore needs a system update (`reason`).
+ */
+export type NanoStatus = {
+  state: 'available' | 'downloadable' | 'downloading' | 'unsupported';
+  /** AICore's name for the model, once available ("nano-v4-fast"). */
+  model?: string;
+  reason?: 'unavailable' | 'update' | 'aicore';
+  /** While AICore downloads it, in bytes — when AICore says. */
+  received?: number;
+  total?: number;
 };
 
-export interface GirovoModelPlugin {
-  status(): Promise<ModelStatus>;
-  download(opts: { files: ModelFile[] }): Promise<ModelStatus>;
-  cancelDownload(): Promise<void>;
-  remove(): Promise<void>;
-  load(opts: { file: string; threads: number }): Promise<{ inputNames: string[]; outputNames: string[] }>;
-  /** Per row, the sum of the last hidden state over its masked tokens: float32 [rows × dim], base64. */
-  embed(opts: { ids: number[][]; mask: number[][] }): Promise<{ dim: number; pooled: string }>;
-  release(): Promise<void>;
-  addListener(event: 'progress', fn: (status: ModelStatus) => void): Promise<PluginListenerHandle>;
+/** The bookings waiting for Nano, across every batch; `waiting` while AICore makes them wait. */
+export type NanoProgress = { active: boolean; done: number; total: number; waiting: 'busy' | 'background' | null };
+
+export interface GirovoNanoPlugin {
+  status(): Promise<NanoStatus>;
+  /** Asks AICore for Nano where it is downloadable; resolves with the status once AICore is done. */
+  download(): Promise<NanoStatus>;
+  /**
+   * One prompt per item, `prefix + text`, answered in order. An answer is null
+   * only after an error AICore calls final — busy and background are waited out.
+   */
+  classify(opts: { system: string; prefix: string; items: { id: string; text: string }[] }): Promise<{ answers: Record<string, string | null> }>;
+  progress(): Promise<NanoProgress>;
+  addListener(event: 'progress', fn: (progress: NanoProgress) => void): Promise<PluginListenerHandle>;
+  addListener(event: 'download', fn: (status: NanoStatus) => void): Promise<PluginListenerHandle>;
 }
 
-export const GirovoModel = registerPlugin<GirovoModelPlugin>('GirovoModel');
+export const GirovoNano = registerPlugin<GirovoNanoPlugin>('GirovoNano');
 
 // ---------------------------------------------------------------------------
 // The device: wallpaper colours, printing, saving, sharing, the screen-capture guard.

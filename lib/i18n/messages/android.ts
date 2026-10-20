@@ -1,5 +1,5 @@
-// What only the Android app says: fingerprint login, the category
-// model as a download, its updates, the phone's integrity check
+// What only the Android app says: fingerprint login, the category guess
+// with Gemini Nano, its updates, the phone's integrity check
 // (components/android, mobile/bridges).
 
 export const de = {
@@ -29,18 +29,22 @@ export const de = {
     refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht – melde dich mit deiner PIN an.',
   },
 
-  model: {
-    title: 'Textmodell für Kategorien',
-    hint: 'Ordnet Umsätze zu, die die Regeln nicht erkennen. Einmal rund 300 MB von Hugging Face; danach läuft es nur auf diesem Telefon.',
-    download: 'Herunterladen',
-    size: 'rund 300 MB, am besten im WLAN',
-    progress: (got: string, total: string) => `${got} von ${total}`,
-    cancel: 'Abbrechen',
-    installed: 'Installiert und geprüft.',
-    remove: 'Entfernen',
-    failed: 'Der Download hat nicht geklappt. Versuch es später noch einmal.',
-    removed: 'Das Textmodell ist entfernt. Die Regeln ordnen weiter zu.',
-    ready: 'Das Textmodell ist geladen und geprüft.',
+  /** The category guess with Gemini Nano (components/android: Einstellungen and the progress line). */
+  categories: {
+    title: 'Kategorien mit Gemini Nano',
+    hint: 'Ordnet Umsätze zu, die die Regeln nicht erkennen – mit dem Sprachmodell von Android, nur auf diesem Telefon.',
+    downloading: 'Android lädt Gemini Nano',
+    downloadProgress: (got: string, total: string) => `${got} von ${total}`,
+    downloadable: 'Android lädt Gemini Nano, sobald das Telefon so weit ist – oft erst im WLAN.',
+    downloadNow: 'Jetzt laden',
+    unsupported: 'Nicht unterstütztes Telefon',
+    unsupportedHint: 'Dieses Telefon bietet Gemini Nano nicht an. Umsätze ordnen hier nur die Regeln zu.',
+    update: 'Gemini Nano braucht ein Systemupdate. Installiere die neuesten Updates, dann ordnet Girovo auch hier zu.',
+    aicore: 'Gemini Nano braucht eine neuere Version von Android AICore aus Google Play.',
+    /** Under Umsätze and on Analyse while Nano works through the bookings. */
+    working: 'Kategorien werden zugeordnet',
+    count: (done: number, total: number) => `${done} von ${total}`,
+    waiting: 'Wartet auf Gemini Nano',
   },
 
   /** The phone's integrity check (lib/device-integrity.ts): Einstellungen and the login. */
@@ -117,18 +121,20 @@ export const en: typeof de = {
     refused: 'The bank didn’t accept the stored PIN. It has been deleted – log in with your PIN.',
   },
 
-  model: {
-    title: 'Text model for categories',
-    hint: 'Sorts bookings the rules don’t recognise. Around 300 MB from Hugging Face, once; after that it runs only on this phone.',
-    download: 'Download',
-    size: 'around 300 MB, ideally over Wi-Fi',
-    progress: (got: string, total: string) => `${got} of ${total}`,
-    cancel: 'Cancel',
-    installed: 'Installed and verified.',
-    remove: 'Remove',
-    failed: 'The download didn’t work. Try again later.',
-    removed: 'The text model has been removed. The rules keep sorting.',
-    ready: 'The text model is downloaded and verified.',
+  categories: {
+    title: 'Categories with Gemini Nano',
+    hint: 'Sorts bookings the rules don’t recognise – with Android’s language model, only on this phone.',
+    downloading: 'Android is downloading Gemini Nano',
+    downloadProgress: (got: string, total: string) => `${got} of ${total}`,
+    downloadable: 'Android downloads Gemini Nano once the phone is ready – often only on Wi-Fi.',
+    downloadNow: 'Download now',
+    unsupported: 'Unsupported phone',
+    unsupportedHint: 'This phone doesn’t offer Gemini Nano. Here, only the rules sort bookings.',
+    update: 'Gemini Nano needs a system update. Install the latest updates and Girovo sorts here too.',
+    aicore: 'Gemini Nano needs a newer version of Android AICore from Google Play.',
+    working: 'Assigning categories',
+    count: (done: number, total: number) => `${done} of ${total}`,
+    waiting: 'Waiting for Gemini Nano',
   },
 
   integrity: {

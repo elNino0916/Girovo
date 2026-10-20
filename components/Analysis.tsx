@@ -22,6 +22,7 @@
 // Umsätze and back finds the analysis where it was left.
 
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { CategoryProgress } from './android/CategoryProgress';
 import { useFints } from './FintsProvider';
 import { Money, usePrivacy } from './Money';
 import { Button, DotList, EmptyState, ErrorState, Segmented, Spinner } from './ui';
@@ -325,6 +326,9 @@ export function Analysis() {
             ]}
           />
         </p>
+
+        {/* Android: the sums move while Gemini Nano fills in categories. */}
+        <CategoryProgress className="px-4 pt-3 sm:px-6" />
 
         {/* Nothing booked means nothing to sum — a row of 0,00 € would read
             as a finding. The empty tile below says what is going on instead. */}

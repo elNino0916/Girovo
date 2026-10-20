@@ -21,11 +21,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ort from 'onnxruntime-node';
 import { Tokenizer } from '@huggingface/tokenizers';
-import type { CategoryId } from './categories.ts';
+import { GUESSABLE, type GuessExample, type GuessItem, type GuessableCategory } from './category-guess.ts';
 
-/** The categories a guess may name — the spending ones. */
-export type GuessableCategory = Extract<CategoryId,
-  'housing' | 'groceries' | 'mobility' | 'shopping' | 'leisure' | 'media' | 'health' | 'insurance' | 'taxes' | 'savings'>;
+export { GUESSABLE, type GuessExample, type GuessItem, type GuessableCategory };
 
 /**
  * What each category is, in the words its bookings use: several short
@@ -121,8 +119,6 @@ export const CATEGORY_PROTOTYPES: Record<GuessableCategory, string[]> = {
     'Einzahlung ins Depot, Geld anlegen, Kryptobörse',
   ],
 };
-
-export const GUESSABLE = Object.keys(CATEGORY_PROTOTYPES) as GuessableCategory[];
 
 /**
  * What money between people looks like. A booking closest to these gets no
@@ -404,8 +400,6 @@ function scoresOf(m: Loaded, v: Float32Array): CategoryScores {
   return scores;
 }
 
-export type GuessItem = { key: string; name: string; purpose?: string | null };
-export type GuessExample = { name: string; category: GuessableCategory };
 
 /**
  * Each item's category guess, or null where none is clear enough. `examples`

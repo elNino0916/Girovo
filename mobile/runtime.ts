@@ -20,7 +20,7 @@ import * as biometric from './bridges/biometric';
 import { revealWhenReady } from './bridges/boot';
 import { installFiles, shareFile } from './bridges/files';
 import { integrity } from './bridges/integrity';
-import * as model from './bridges/model';
+import * as categories from './bridges/categories';
 import { installRipple } from './bridges/ripple';
 import { installSheetDrag } from './bridges/sheet-drag';
 import { startTelemetry } from './bridges/telemetry';
@@ -48,13 +48,12 @@ window.girovoMobile = {
     unlock: biometric.unlock,
     forget: biometric.forget,
   },
-  model: {
-    bytes: model.MODEL_BYTES,
-    status: model.status,
-    onProgress: model.onProgress,
-    download: model.download,
-    cancel: model.cancel,
-    remove: model.remove,
+  categories: {
+    status: categories.status,
+    onStatus: categories.onStatus,
+    download: categories.download,
+    progress: categories.progress,
+    onProgress: categories.onProgress,
   },
   playUpdate,
   integrity,

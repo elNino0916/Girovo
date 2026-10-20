@@ -7,9 +7,11 @@
 // swapped in at bundle time:
 //
 //   node:fs, node:crypto, node:async_hooks,     mobile/shims/*
-//   next/server, server-only, onnxruntime-node
+//   next/server, server-only
 //   node:path                                   path-browserify
 //   Buffer, process, setImmediate (globals)     mobile/shims/globals.ts
+//   lib/category-model (e5)                     mobile/server/categories.ts
+//                                               (Gemini Nano, through AICore)
 //
 // and two modules are written here:
 //
@@ -48,7 +50,8 @@ const ALIASES = {
   path: 'path-browserify',
   'next/server': shim('next-server.ts'),
   'server-only': shim('empty.ts'),
-  'onnxruntime-node': shim('onnxruntime.ts'),
+  // The category guess (app/api/category-guesses/route.ts): Nano on the phone, not e5.
+  '@/lib/category-model': path.join(ROOT, 'mobile', 'server', 'categories.ts'),
 };
 
 /** Every route handler, by URL path: app/api/connect/cancel/route.ts → /api/connect/cancel. */

@@ -20,6 +20,7 @@
 //                  &unclear=1                 this session's log holds a "Status unklar" transfer
 //                  &second=linked|loggedOut|remembered   a second bank in the view (Weitere Bank anmelden)
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
+//                  &nano=working|unsupported|…  Android: a fake Gemini Nano (./nano.ts)
 //                  &updateDialog=1            …with its dialog open
 //                  &y=800                     scroll the page there once loaded
 //
@@ -47,11 +48,13 @@ import { UpdateLayer } from '@/components/updates/UpdateNotices';
 import { txKey } from '@/lib/categories';
 import { addDaysKey, isoDate, presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
+import { IS_ANDROID } from '@/lib/platform';
 import { ACCT, MOCK_PAYEES, MOCK_TAN_KIND, MOCK_TAN_KINDS, SECOND_BANK, type MockTanKind } from './data';
 import { buildEpcPayload } from '@/lib/girocode';
 import { qrMatrix, qrPngBlob } from '@/lib/qr';
 import { MockFintsProvider, type MockOptions, type MockPreset } from './mock';
 import { PrintPreview, type PrintPreviewKind } from './print';
+import { installFakeNano, isNanoScenario, type NanoScenario } from './nano';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
 import { USAGE_SCENARIOS, installFakeTelemetry } from './telemetry';
 
@@ -1428,6 +1431,14 @@ function prepareUpdater(key: string, scenario: UpdateScenario | null, dialog: bo
   installFakeUpdater(scenario, { dialog });
 }
 
+/** Likewise the fake Gemini Nano (?nano=…, Android preview only). */
+let nanoKey: string | null = null;
+function prepareNano(key: string, scenario: NanoScenario | null) {
+  if (nanoKey === key) return;
+  nanoKey = key;
+  if (IS_ANDROID) installFakeNano(scenario);
+}
+
 /** Likewise the fake telemetry bridge (?usage=…). */
 let telemetryKey: string | null = null;
 function prepareTelemetry(key: string, consent: (typeof USAGE_SCENARIOS)[number] | null) {
@@ -1455,6 +1466,8 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     isUpdateScenario(updateParam) ? updateParam : def.update?.scenario ?? null,
     def.update?.dialog || one(params.updateDialog) === '1',
   );
+  const nanoParam = one(params.nano);
+  prepareNano(JSON.stringify(params), isNanoScenario(nanoParam) ? nanoParam : null);
   const usageParam = one(params.usage) as (typeof USAGE_SCENARIOS)[number];
   prepareTelemetry(JSON.stringify(params), USAGE_SCENARIOS.includes(usageParam) ? usageParam : null);
 
