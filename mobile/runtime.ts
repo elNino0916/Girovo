@@ -19,6 +19,7 @@ import { installBack } from './bridges/back';
 import * as biometric from './bridges/biometric';
 import { revealWhenReady } from './bridges/boot';
 import { installFiles, shareFile } from './bridges/files';
+import { integrity } from './bridges/integrity';
 import * as model from './bridges/model';
 import { installRipple } from './bridges/ripple';
 import { installSheetDrag } from './bridges/sheet-drag';
@@ -56,6 +57,7 @@ window.girovoMobile = {
     remove: model.remove,
   },
   playUpdate,
+  integrity,
   approval: {
     hold: (texts) => GirovoDevice.holdForApproval(texts).then((r) => r.held, () => false),
     release: () => GirovoDevice.releaseApproval().catch(() => {}),

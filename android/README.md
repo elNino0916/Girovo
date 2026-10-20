@@ -31,7 +31,7 @@ mobile/runtime.ts              what the Android page loads before the app
   bridges/                     files, PDFs, back, Material You, ripple, fingerprint,
                                the category model download, updates
 android/                       the Capacitor project
-  app/src/main/java/…/girovo/  HttpPlugin, DevicePlugin, BiometricPlugin, ModelPlugin
+  app/src/main/java/…/girovo/  HttpPlugin, DevicePlugin (+ DeviceIntegrity: key attestation, signer), BiometricPlugin, ModelPlugin
   app/src/github/…             UpdaterPlugin: APK updates from GitHub
   app/src/play/…               UpdaterPlugin: Google Play's in-app update
 scripts/build-android.mjs      the whole build
@@ -158,6 +158,9 @@ Before the first upload:
   the GitHub APK must be signed with the same key Play uses to sign — upload
   your own key to Play App Signing for that. Otherwise switching between them
   means uninstalling (and with it the phone's remembered device and vault).
+  The app's own integrity check (`lib/device-integrity.ts`) knows Girovo's
+  release key; a Play build signed with Google's key counts as genuine when
+  Google Play installed it.
 - **Developer account.** Google asks developers of apps that offer financial
   services, banking included, to register as an organisation (D-U-N-S
   number). A personal account may be refused for this app. A personal account

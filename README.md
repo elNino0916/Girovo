@@ -514,6 +514,14 @@ desktop app's features it has:
 - **The category model as a download** (about 300 MB, once, from Hugging Face;
   each file checked against its pinned digest). Without it the keyword rules
   sort alone.
+- **A check of the phone itself**, on the phone alone — no server, no request
+  to Google: a fresh key in the phone's secure hardware, its attestation
+  verified up to Google's roots, says whether the bootloader is locked and the
+  system verified; the app's signing certificate says whether this is Girovo
+  as released. A modified phone or a copy someone else signed gets a warning
+  before the PIN is typed; *Einstellungen → Gerätesicherheit* always says what
+  was found. Nothing is blocked. (Google's Play Integrity verdict can only be
+  read on a server, which Girovo does not have.)
 - **The share sheet** for a GiroCode, Android's file picker for the CSV
   export, and Android's print dialog ("Save as PDF") for Kontoauszug,
   Buchungsbeleg and Mitteilungen.

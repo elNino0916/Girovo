@@ -5,6 +5,7 @@
 // update.
 
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core';
+import type { IntegrityFacts } from '../lib/device-integrity.ts';
 
 // ---------------------------------------------------------------------------
 // Bank and web requests outside the WebView's origin rules.
@@ -88,6 +89,8 @@ export interface GirovoDevicePlugin {
   /** FLAG_SECURE: no screenshots, no screen recording. */
   setSecure(opts: { secure: boolean }): Promise<void>;
   info(): Promise<{ versionName: string; versionCode: number; flavor: 'play' | 'github'; debug: boolean; sdk: number; locale: string }>;
+  /** Key attestation's boot state and the app's signer (DeviceIntegrity.java; lib/device-integrity.ts reads them). */
+  integrity(): Promise<IntegrityFacts>;
   /** Opens an https page in the phone's browser. */
   openExternal(opts: { url: string }): Promise<void>;
   /**

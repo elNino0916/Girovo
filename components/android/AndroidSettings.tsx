@@ -2,17 +2,18 @@
 
 // The Android app's own settings, on the Einstellungen page's "Auf diesem
 // Telefon" (components/settings/Settings.tsx): fingerprint login, the category model
-// as a download, and Play's updates. The colours and light or dark are the
+// as a download, Play's updates, and what the phone's integrity check found. The colours and light or dark are the
 // phone's (mobile/bridges/appearance.ts) — not a setting here. Each talks to the phone runtime
 // (window.girovoMobile, mobile/runtime.ts); none of them exists on the
 // desktop or the website, where this renders nothing.
 
 import { useEffect, useState } from 'react';
 import { fmtBytes } from '@/lib/format';
+import { useIntegrity } from './IntegrityNotice';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { Button, Progress, Switch } from '../ui';
+import { Button, Progress, Switch, cx } from '../ui';
 
 export function AndroidSettings() {
   if (!IS_ANDROID) return null;
@@ -21,6 +22,7 @@ export function AndroidSettings() {
       <FingerprintSwitch />
       <ModelRow />
       <PlayUpdateRow />
+      <IntegrityRow />
     </>
   );
 }
@@ -151,6 +153,26 @@ function ModelRow() {
         </div>
       )}
       {failed && <p role="alert" className="mt-1.5 text-[13px] leading-snug text-red">{m.failed}</p>}
+    </div>
+  );
+}
+
+/**
+ * What the phone's integrity check found (lib/device-integrity.ts), said
+ * always — the login warns only about a modified phone or a foreign copy.
+ */
+function IntegrityRow() {
+  const t = useT();
+  const m = t.android.integrity;
+  const integrity = useIntegrity();
+  if (integrity === undefined) return null;
+  const device = integrity?.device ?? 'unknown';
+  return (
+    <div className="mt-4">
+      <p className="text-[15px] leading-snug text-ink">{m.title}</p>
+      <p className={cx('mt-0.5 text-[13px] leading-snug', device === 'modified' ? 'text-red' : 'text-ink-3')}>{m[device]}</p>
+      {integrity?.copy === 'foreign' && <p className="mt-1 text-[13px] leading-snug text-red">{m.foreign}</p>}
+      {integrity?.copy === 'development' && <p className="mt-1 text-[13px] leading-snug text-ink-3">{m.development}</p>}
     </div>
   );
 }

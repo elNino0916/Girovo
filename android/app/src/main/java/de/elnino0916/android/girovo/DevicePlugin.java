@@ -301,6 +301,16 @@ public class DevicePlugin extends Plugin {
         }
     }
 
+    /**
+     * The phone's attested boot and this copy's signer (DeviceIntegrity);
+     * lib/device-integrity.ts says what they mean. Made a key in the secure
+     * hardware, so it runs on the plugin thread, never the main one.
+     */
+    @PluginMethod
+    public void integrity(PluginCall call) {
+        call.resolve(DeviceIntegrity.check(getContext()));
+    }
+
     @PluginMethod
     public void info(PluginCall call) {
         JSObject result = new JSObject();

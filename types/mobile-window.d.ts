@@ -31,6 +31,12 @@ declare global {
       cancel(): Promise<void>;
       remove(): Promise<void>;
     };
+    /**
+     * Whether this phone is one a PIN is safe on, and whether this is Girovo
+     * as elNino0916 builds it (mobile/bridges/integrity.ts). Checked once per
+     * start; null when the check itself failed.
+     */
+    integrity(): Promise<GirovoIntegrity | null>;
     /** The Google Play build: whether Play has a newer version, and Play's own update flow. */
     playUpdate(): Promise<{ available: boolean; start: () => Promise<'started' | 'canceled' | 'failed'> }>;
     /**
@@ -67,6 +73,7 @@ declare global {
 
   type GirovoBiometricState = { available: boolean; reason?: 'none-enrolled' | 'no-hardware' | 'unavailable' | 'security-update' };
   type GirovoPromptTexts = { title: string; subtitle: string; cancel: string };
+  type GirovoIntegrity = import('../lib/device-integrity').Integrity;
   type GirovoModelStatus = { installed: boolean; files: { name: string; size: number }[]; downloading: boolean; received: number; total: number };
 
   interface Window {

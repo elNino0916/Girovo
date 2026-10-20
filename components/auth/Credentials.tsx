@@ -18,6 +18,7 @@ import { rich, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { BankAnswerAlert } from '../BankAnswer';
 import { BankLogo } from '../BankLogo';
+import { IntegrityNotice } from '../android/IntegrityNotice';
 import type { ChosenBank } from '../FintsProvider';
 import { AlertTriangleIcon, EyeIcon, EyeOffIcon, FingerprintIcon, PhoneIcon, ShieldIcon } from '../icons';
 import { Alert, Button, Field, IconButton, Input } from '../ui';
@@ -277,6 +278,10 @@ export function Credentials({
           {rich(words.noProductId(<span className="num">config.json</span>))}
         </Alert>
       )}
+
+      {/* Before the PIN is typed: a modified phone, or a copy of Girovo
+          someone else signed (Android only). */}
+      <IntegrityNotice className="mt-5" />
 
       {/* The chosen bank: a filled row, not a card inside the card.
           Beside the privacy tile (lg) the card is wide enough for one line —

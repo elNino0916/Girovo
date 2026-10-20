@@ -1,5 +1,6 @@
 // What only the Android app says: fingerprint login, the category
-// model as a download, its updates (components/android, mobile/bridges).
+// model as a download, its updates, the phone's integrity check
+// (components/android, mobile/bridges).
 
 export const de = {
   biometric: {
@@ -40,6 +41,22 @@ export const de = {
     failed: 'Der Download hat nicht geklappt. Versuch es später noch einmal.',
     removed: 'Das Textmodell ist entfernt. Die Regeln ordnen weiter zu.',
     ready: 'Das Textmodell ist geladen und geprüft.',
+  },
+
+  /** The phone's integrity check (lib/device-integrity.ts): Einstellungen and the login. */
+  integrity: {
+    title: 'Gerätesicherheit',
+    trusted: 'Geprüft von der Sicherheitshardware dieses Telefons: Android des Herstellers, Bootloader gesperrt.',
+    custom: 'Auf diesem Telefon läuft ein eigenes Android mit gesperrtem Bootloader, etwa GrapheneOS. Die Sicherheitshardware bestätigt es – sicher, solange du diesem System vertraust.',
+    modified: 'Dieses Telefon ist verändert: Der Bootloader ist entsperrt oder das System nicht geprüft. Eine App mit Root-Rechten könnte mitlesen, was du eintippst – auch deine PIN.',
+    unknown: 'Dieses Telefon kann seinen Zustand nicht nachweisen, deshalb kann Girovo ihn nicht prüfen.',
+    foreign: 'Diese Girovo-App ist nicht mit Girovos Schlüssel signiert. Lade Girovo nur von GitHub (elNino0916/Girovo) oder aus Google Play.',
+    development: 'Ein Entwicklungs-Build: Seine Signatur wird nicht geprüft.',
+    /** The login's warning, before the PIN is typed. */
+    modifiedTitle: 'Dieses Telefon ist verändert',
+    modifiedLogin: 'Der Bootloader ist entsperrt oder das System nicht geprüft. Eine App mit Root-Rechten könnte deine PIN mitlesen – melde dich nur an, wenn du diesem Telefon vertraust.',
+    foreignTitle: 'Das ist nicht die offizielle Girovo-App',
+    foreignLogin: 'Sie ist nicht mit Girovos Schlüssel signiert und könnte deine PIN weitergeben. Gib sie hier nicht ein, sondern lade Girovo von GitHub (elNino0916/Girovo) oder aus Google Play.',
   },
 
   updates: {
@@ -112,6 +129,20 @@ export const en: typeof de = {
     failed: 'The download didn’t work. Try again later.',
     removed: 'The text model has been removed. The rules keep sorting.',
     ready: 'The text model is downloaded and verified.',
+  },
+
+  integrity: {
+    title: 'Device security',
+    trusted: "Checked by this phone's security hardware: the maker's Android, bootloader locked.",
+    custom: "This phone runs its own Android with a locked bootloader, such as GrapheneOS. The security hardware confirms it – safe as long as you trust that system.",
+    modified: 'This phone has been modified: the bootloader is unlocked or the system is not verified. An app with root rights could read what you type – your PIN too.',
+    unknown: "This phone can't prove its state, so Girovo can't check it.",
+    foreign: "This Girovo app isn't signed with Girovo's key. Only get Girovo from GitHub (elNino0916/Girovo) or Google Play.",
+    development: "A development build: its signature isn't checked.",
+    modifiedTitle: 'This phone has been modified',
+    modifiedLogin: 'The bootloader is unlocked or the system is not verified. An app with root rights could read your PIN – only sign in if you trust this phone.',
+    foreignTitle: "This isn't the official Girovo app",
+    foreignLogin: "It isn't signed with Girovo's key and could pass your PIN on. Don't enter it here – get Girovo from GitHub (elNino0916/Girovo) or Google Play.",
   },
 
   updates: {
