@@ -38,6 +38,14 @@ export type CategorizeContext = {
   ownIbans: ReadonlySet<string> | readonly string[];
   /** counterpartyKey() → category: the user's "always file X under Y". */
   rules?: Record<string, CategoryId> | null;
+  /**
+   * The same rules for another spelling of one payee ("HORNBACH BAUMARKT FIL.
+   * 0815" for a filed "Hornbach Baumarkt AG"): the category of a filed name
+   * nearly the same as this one (lib/nano-categories.ts exampleFor), or null.
+   * Asked after the exact rules and before every automatic rung — a keyword
+   * ("Baumarkt") must not overrule what the user filed.
+   */
+  ruleByName?: ((name: string) => CategoryId | null) | null;
   /** txKey() → category: the user's choice for one booking. */
   overrides?: Record<string, CategoryId> | null;
   /** txKey() → the shares of a booking the user split up (lib/splits.ts). */
@@ -341,6 +349,9 @@ const KEYWORDS: readonly (readonly [CategoryId, readonly string[]])[] = [
     // Web hosting, servers and domains.
     '@HETZNER', '@IONOS', '@STRATO', '@NETCUP', 'ALL INKL', '@HOSTINGER', 'DIGITALOCEAN', 'HOST EUROPE',
     'DOMAINFACTORY', '@GITHUB',
+    // Chat, travel data (eSIM) and game subscriptions — a game itself is Freizeit.
+    'DISCORD', '@GOMO', 'GOMOWORLD', 'AIRALO', 'HOLAFLY', 'UBIGI', 'GAME PASS', 'XBOX GAME PASS', 'PLAYSTATION PLUS',
+    'PS PLUS', 'NINTENDO SWITCH ONLINE', 'EA PLAY',
   ]],
   ['insurance', [
     'ALLIANZ', 'HUK', 'HUK24', 'HUK COBURG', 'AXA', '@ERGO', 'DEVK', 'GENERALI', '@R V', 'DEBEKA', 'HANSEMERKUR',
@@ -373,15 +384,28 @@ const KEYWORDS: readonly (readonly [CategoryId, readonly string[]])[] = [
     'CYBERPORT', 'NOTEBOOKSBILLIGER', 'CONRAD ELECTRONIC', '@POCO', 'XXXLUTZ', '*MOEBEL', 'MOEBEL*', '@ACTION',
     'TCHIBO', 'INTERSPORT', 'SPORTSCHECK', 'SNIPES', 'BREUNINGER', 'ETSY', 'VINTED', 'KLEINANZEIGEN',
     'BESTSECRET', 'JYSK', 'DEPOT GRIES', 'GRIES DECO',
+    // Electronics and computer gear.
+    'BEYERDYNAMIC', 'WOOTING', 'LOGITECH', 'RAZER', 'CORSAIR', 'STEELSERIES', '@ANKER', 'SENNHEISER', 'ALTERNATE',
+    'MINDFACTORY', 'CASEKING', 'GALAXUS', 'DIGITEC', 'BACK MARKET', 'BACKMARKET', 'REBUY', 'ASOS', '@NIKE', 'ADIDAS',
   ]],
-  ['leisure', [
+  // Eating out: restaurants, cafés, takeaway and delivery. Food for home is groceries.
+  ['dining', [
     'LIEFERANDO', 'MCDONALDS', 'MC DONALDS', 'MCDONALD S', 'MC DONALD S', 'BURGER KING', 'STARBUCKS',
-    '*RESTAURANT*', 'CAFE', '*CAFE', 'KINO*', '*KINO', 'EVENTIM', 'STEAM*', 'VALVE', 'PLAYSTATION',
-    'SONY INTERACTIVE', 'NINTENDO', 'XBOX', 'EPIC GAMES', 'BLIZZARD', 'UBER EATS', '@WOLT', 'DOMINOS',
-    'PIZZA*', '*PIZZA', 'PIZZERIA', 'KFC', '@SUBWAY', 'VAPIANO', 'NORDSEE', 'BACKWERK', 'BISTRO*',
-    'GASTSTAETTE', 'BIERGARTEN', 'IMBISS', '*DOENER', 'DOENER*', 'SUSHI*', 'TICKETMASTER', 'CINEMAXX',
-    'CINESTAR', 'KINOWELT', 'FITNESS*', '*FITNESS', 'MCFIT', 'FITX', 'URBAN SPORTS', 'CLEVER FIT', 'JOHN REED',
-    'HOTEL*', 'BOOKING COM', 'AIRBNB', 'MUSEUM', '*THEATER', 'EXPEDIA', '@TUI', 'SCHWIMMBAD', 'FREIZEITPARK',
+    '*RESTAURANT*', 'CAFE', '*CAFE', 'UBER EATS', '@WOLT', 'DOMINOS', 'PIZZA*', '*PIZZA', 'PIZZERIA', 'KFC',
+    '@SUBWAY', 'VAPIANO', 'NORDSEE', 'BACKWERK', 'BISTRO*', 'GASTSTAETTE', 'BIERGARTEN', 'IMBISS', '*DOENER',
+    'DOENER*', 'SUSHI*', 'GASTHAUS*', 'GASTHOF*', 'LANDGASTHOF*', 'TRATTORIA', 'RISTORANTE', 'OSTERIA', 'TAVERNA',
+    'STEAKHOUSE', 'KEBAB*', '*KEBAB', 'KEBAP*', '*KEBAP', 'BURGER*', '*BURGER', 'EISCAFE', 'EISDIELE', 'BRAUHAUS',
+    'WEINSTUBE', 'FIVE GUYS', 'HANS IM GLUECK', 'L OSTERIA', 'DUNKIN', 'COFFEE FELLOWS', 'BALZAC COFFEE',
+    'TOO GOOD TO GO', 'FOODORA', 'DELIVEROO', 'MENSA*', 'KANTINE',
+  ]],
+  // Free time: cinema, events, sport, games, hotels and days out.
+  ['leisure', [
+    'KINO*', '*KINO', 'EVENTIM', 'STEAM*', 'VALVE', 'PLAYSTATION', 'SONY INTERACTIVE', 'NINTENDO', 'XBOX',
+    'EPIC GAMES', 'BLIZZARD', 'FANATICAL', 'KINGUIN', 'GAMERS OUTLET', 'INSTANT GAMING', '@G2A', 'GOG COM',
+    'HUMBLE BUNDLE', 'GREEN MAN GAMING', 'RIOT GAMES', 'ROCKSTAR GAMES', 'UBISOFT', 'BATTLE NET', 'ROBLOX', 'MMOGA',
+    'TICKETMASTER', 'CINEMAXX', 'CINESTAR', 'KINOWELT', 'FITNESS*', '*FITNESS', 'MCFIT', 'FITX', 'URBAN SPORTS',
+    'CLEVER FIT', 'JOHN REED', 'HOTEL*', 'BOOKING COM', 'AIRBNB', 'MUSEUM', '*THEATER', 'EXPEDIA', '@TUI',
+    'SCHWIMMBAD', 'FREIZEITPARK',
   ]],
   ['cash', ['GELDAUTOMAT', 'BARGELD*', 'BARAUSZAHLUNG', 'BAREINZAHLUNG', '@ATM']],
   ['fees', [
@@ -480,6 +504,9 @@ export function keywordCategory(
   let bestScore = -Infinity;
 
   for (const e of ENTRIES) {
+    // A payment service's own name says nothing about money coming back from it
+    // (a payout of the PayPal balance is no Shopping); only a named shop would.
+    if (e.weak && credit) continue;
     if (e.business && !businessBooking) continue;
     if (e.notCard && kind === 'karte') continue;
     const dir = categoryDef(e.cat).direction;
@@ -518,6 +545,14 @@ type GuessContext = Pick<CategorizeContext, 'merchantLabel' | 'modelGuesses'> & 
   ownIbans?: ReadonlySet<string> | readonly string[] | null;
 };
 
+const PAYOUT_PURPOSE = /(^| )(INSTANT TRANSFER|AUSZAHLUNG|PAYOUT|STANDARD TRANSFER|BANKUEBERWEISUNG VON PAYPAL)( |$)/;
+
+/** A credit that pays a payment service's balance out to this account ("PAYPAL · INSTANT TRANSFER"). */
+function isPaymentPayout(tx: Pick<SerializedTransaction, 'remoteName' | 'purpose'> & { ultimateName?: string }): boolean {
+  if (!/(^| )PAYPAL( |$)/.test(foldText(tx.remoteName))) return false;
+  return PAYOUT_PURPOSE.test(foldText(parsePurpose(tx.purpose).text));
+}
+
 /** The automatic guess and the rung that decided it — guessCategory, explained. */
 export function explainGuess(tx: SerializedTransaction, ctx: GuessContext = {}): CategoryGuess {
   if (isOwnAccount(tx.remoteIban, ctx.ownIbans)) return { id: 'transfer', basis: 'own' };
@@ -530,6 +565,8 @@ export function explainGuess(tx: SerializedTransaction, ctx: GuessContext = {}):
   // "Umbuchung" is the banks' own word for moving money between one
   // customer's accounts — an own account this session just doesn't list.
   if (/(^| )UMBUCHUNG/.test(foldText(tx.bookingText))) return { id: 'transfer', basis: 'own' };
+  // The PayPal balance paid out to this account: the user's own money moving.
+  if (credit && isPaymentPayout(tx)) return { id: 'transfer', basis: 'own' };
 
   const keyword = keywordCategory(tx, ctx.merchantLabel, kind);
   if (keyword) return { id: keyword, basis: 'keyword' };
@@ -594,6 +631,10 @@ export function categorize(tx: SerializedTransaction, ctx: CategorizeContext): C
   if (ctx.rules) {
     const ruled = ctx.rules[counterpartyKey(tx)];
     if (isCategoryId(ruled)) return { id: ruled, source: 'rule' };
+  }
+  if (ctx.ruleByName) {
+    const near = ctx.ruleByName(counterpartyName(tx));
+    if (isCategoryId(near)) return { id: near, source: 'rule' };
   }
   return { id: guessCategory(tx, ctx), source: 'auto' };
 }

@@ -19,6 +19,7 @@ export type BuiltinCategoryId =
   | 'groceries'
   | 'mobility'
   | 'shopping'
+  | 'dining'
   | 'leisure'
   | 'media'
   | 'health'
@@ -78,6 +79,8 @@ const ROWS: readonly (Omit<CategoryDef, 'label' | 'id'> & { id: BuiltinCategoryI
   { id: 'groceries', direction: 'out' },
   { id: 'mobility', direction: 'out' },
   { id: 'shopping', direction: 'out' },
+  // Since 5.9.0 apart from Freizeit: "Restaurants im August" must not bring up Steam.
+  { id: 'dining', direction: 'out' },
   { id: 'leisure', direction: 'out' },
   { id: 'media', direction: 'out' },
   { id: 'health', direction: 'out' },

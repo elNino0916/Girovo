@@ -1,6 +1,8 @@
 // What the app says while it works with the bank (components/FintsProvider.tsx), and what the server answers: API routes, bank errors, bank answers, the session log, the vault (app/api, lib/api.ts, lib/bank-fetch.ts, lib/bank-answer.ts, lib/session-log.ts, lib/vault.ts).
 
 export const de = {
+  /** Once, after 5.9.0 split the category: to someone with own choices on Freizeit. */
+  diningSplit: 'Neu: „Essen & Trinken“ ist jetzt eine eigene Kategorie. Was du selbst unter Freizeit abgelegt oder budgetiert hast, bleibt dort.',
   /** The local server's own answers (lib/api.ts, lib/client-api.ts). */
   server: {
     /** The server no longer knows the session (HTTP 401). */
@@ -158,6 +160,7 @@ export const de = {
 };
 
 export const en: typeof de = {
+  diningSplit: 'New: “Eating out” is now a category of its own. Whatever you filed or budgeted under Leisure yourself stays there.',
   server: {
     sessionExpired: 'Session expired. Please log in again.',
     unreachable: 'Girovo couldn’t handle the request just now. Try again – if that doesn’t help, restart Girovo.',

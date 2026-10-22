@@ -34,10 +34,13 @@ const CASES = [
   ['Verkehrsverbund Rhein-Mosel', 'Monatskarte', 'mobility'], ['Taxi-Zentrale Koblenz', '', 'mobility'], ['Mr. Wash Autowaschanlage', '', 'mobility'],
   ['Fahrrad Franz', 'Reparatur', 'mobility'], ['FlixBus', 'Ticket', 'mobility'], ['Ladepark Ionity', '', 'mobility'],
   // leisure
-  ['Trattoria da Michele', '', 'leisure'], ['Gasthaus zur Linde', '', 'leisure'], ['Café Extrablatt', '', 'leisure'],
-  ['Kebaphaus Anatolia', '', 'leisure'], ['Eiscafe Venezia', '', 'leisure'], ['Kinopolis Koblenz', '', 'leisure'],
+  ['Trattoria da Michele', '', 'dining'], ['Gasthaus zur Linde', '', 'dining'], ['Café Extrablatt', '', 'dining'],
+  ['Kebaphaus Anatolia', '', 'dining'], ['Eiscafe Venezia', '', 'dining'], ['Kinopolis Koblenz', '', 'leisure'],
   ['Stadttheater Koblenz', 'Eintrittskarten', 'leisure'], ['Kletterhalle Bloc', '', 'leisure'], ['Hallenbad Koblenz', '', 'leisure'],
-  ['Hotel Mosellandhaus', '', 'leisure'], ['Biergarten Deutsches Eck', '', 'leisure'], ['Bowlingcenter Strike', '', 'leisure'],
+  ['Hotel Mosellandhaus', '', 'leisure'], ['Biergarten Deutsches Eck', '', 'dining'], ['Bowlingcenter Strike', '', 'leisure'],
+  // Since 5.9.0: games are free time, eating out is its own category.
+  ['Pixelpalast Games', '', 'leisure'], ['Retro Spiele Corner', '', 'leisure'], ['Keyforge Digital Ltd', 'Game Key', 'leisure'],
+  ['Asia Wok Express', '', 'dining'], ['Burgerladen Eck', '', 'dining'], ['Mensa Universität Koblenz', '', 'dining'],
   // shopping
   ['Schuhhaus Ebbinghaus', '', 'shopping'], ['Modehaus Sinn', '', 'shopping'], ['Buchhandlung Reuffel', '', 'shopping'],
   ['Spielwaren Kurtz', '', 'shopping'], ['Elektro Klein', '', 'shopping'], ['Möbelhaus Hess', '', 'shopping'],
@@ -94,10 +97,10 @@ const HOLDOUT = [
   ['Waschpark Sauber', '', 'mobility'], ['Busunternehmen Schäfer', 'Fahrkarte', 'mobility'], ['AUTOHAUS KOENIG', 'Reparatur', 'mobility'],
   ['Tankstelle Weber', '', 'mobility'],
   // leisure
-  ['Pizzeria Roma', '', 'leisure'], ['Restaurant Zum Hirschen', '', 'leisure'], ['Sushi Bar Kyoto', '', 'leisure'],
-  ['Cocktailbar Havana', '', 'leisure'], ['Freizeitbad Tropical', '', 'leisure'], ['Fitnessstudio Kraftwerk', 'Mitgliedsbeitrag', 'leisure'],
+  ['Pizzeria Roma', '', 'dining'], ['Restaurant Zum Hirschen', '', 'dining'], ['Sushi Bar Kyoto', '', 'dining'],
+  ['Cocktailbar Havana', '', 'dining'], ['Freizeitbad Tropical', '', 'leisure'], ['Fitnessstudio Kraftwerk', 'Mitgliedsbeitrag', 'leisure'],
   ['Zoo Neuwied', '', 'leisure'], ['Reisebüro Sonnenschein', 'Pauschalreise', 'leisure'], ['Ferienwohnung Seeblick', '', 'leisure'],
-  ['Imbiss bei Ali', '', 'leisure'], ['Weinstube Altstadt', '', 'leisure'], ['Landgasthof Krone', '', 'leisure'],
+  ['Imbiss bei Ali', '', 'dining'], ['Weinstube Altstadt', '', 'dining'], ['Landgasthof Krone', '', 'dining'],
   // shopping
   ['Parfümerie Pieper', '', 'shopping'], ['Gartencenter Grünland', '', 'shopping'], ['Haushaltswaren Krüger', '', 'shopping'],
   ['Bastelbedarf Kreativ', '', 'shopping'], ['Computerladen PC-Service', '', 'shopping'], ['Sportgeschäft Fit und Fun', '', 'shopping'],

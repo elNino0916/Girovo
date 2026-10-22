@@ -40,6 +40,7 @@ import { MESSAGES, msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { bankAnswerLines } from '@/lib/bank-answer';
 import { bookingKind, categorize, explainGuess, guessCategory, type CategoryGuess } from '@/lib/categorize';
+import { EXAMPLE_MIN, nameSimilarity } from '@/lib/nano-categories';
 import { OWN_PICTURE, isAvatarChoice, isAvatarImage } from '@/lib/avatars';
 import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
 import { sanitizeNotes, withNote } from '@/lib/notes';
@@ -52,6 +53,7 @@ import {
   sanitizeSplits, withoutCategory, type SplitPart,
 } from '@/lib/splits';
 import { isCardPurpose, parseCardAcceptor } from '@/lib/card-purpose';
+import { setBrandNames } from './transactions/model';
 import { parsePurpose } from '@/lib/sepa-purpose';
 import {
   dayKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, toLocalDate, translateType,
@@ -945,6 +947,14 @@ function useFintsState() {
   // The on-device model's category guesses (lib/category-model.ts), by counterpartyKey.
   const [modelGuesses, setModelGuesses] = useState<Record<string, CategoryId>>({});
   const guessesAsked = useRef(new Set<string>());
+  // Gemini Nano's brand per counterparty (lib/nano-names.ts), Android only:
+  // the lists' names. Kept in a ref too, for the logo lookup.
+  const [brandNames, setBrandNamesState] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const brandNamesRef = useRef(brandNames);
+  brandNamesRef.current = brandNames;
+  const namesAsked = useRef(new Set<string>());
+  // Registered for every row read in this render (components/transactions/model.ts).
+  useMemo(() => setBrandNames(brandNames), [brandNames]);
 
   const [busy, setBusyState] = useState(false);
   const [loadingAccount, setLoadingAccount] = useState<string | null>(null);
@@ -1645,7 +1655,8 @@ function useFintsState() {
     );
     const items = txs
       .map((t) => {
-        const name = counterpartyName(t);
+        // Nano's brand finds the logo a terminal's descriptor hides ("PAYPAL *EBAY").
+        const name = brandNamesRef.current.get(counterpartyKey(t)) ?? counterpartyName(t);
         const purpose = (t.purpose || '').trim();
         const key = getMerchantKey(t);
         // A name cut from a card terminal's descriptor is matched exactly or
@@ -3833,6 +3844,8 @@ function useFintsState() {
     merchantsAsked.current.clear();
     setModelGuesses({});
     guessesAsked.current.clear();
+    setBrandNamesState(new Map());
+    namesAsked.current.clear();
     setSelectedMethodBoth(null);
     setTanMethodsBoth([]);
     setMediaChoice(null);
@@ -4443,6 +4456,104 @@ function useFintsState() {
       });
   }, [sessionId, txByAccount, pendingFetched, notedFetched, ownIbans, categoryRules, isCurrent]);
 
+  // 5.9.0 took "Essen & Trinken" out of "Freizeit & Gastronomie". What Girovo
+  // filed itself moved along; what the user filed or budgeted stayed on
+  // Freizeit — said once, to whoever has such a choice, and never again.
+  useEffect(() => {
+    if (!vault || store.get('fints.notice.dining') === '1') return;
+    const own = [
+      ...Object.values(vault.categoryRules ?? {}),
+      ...Object.values(vault.txCategories ?? {}),
+      ...Object.keys(vault.budgets ?? {}),
+    ];
+    store.set('fints.notice.dining', '1');
+    if (own.includes('leisure')) toast(msgs().provider.diningSplit, 'info', 9000);
+  }, [vault, toast]);
+
+  // Gemini Nano's clean names for the lists (lib/nano-names.ts) — Android
+  // only, where Nano is; the desktop's route answers "unavailable". Card
+  // payments and direct debits only: their other side is a business, never a
+  // person. Each counterparty once per session; a brand that arrives asks for
+  // its logo again, now by the brand.
+  useEffect(() => {
+    const sid = sessionRef.current;
+    if (!IS_ANDROID || !sid) return;
+    const all = [
+      ...Object.values(txByAccount).flat(),
+      ...Object.values(pendingFetched).flatMap((p) => p.txs),
+      ...Object.values(notedFetched).flatMap((p) => p.txs),
+    ];
+    const byKey = new Map<string, SerializedTransaction[]>();
+    const items: { key: string; name: string }[] = [];
+    for (const tx of all) {
+      if (!(isBusinessBooking(tx) || bookingKind(tx) === 'karte')) continue;
+      const key = counterpartyKey(tx);
+      byKey.set(key, [...(byKey.get(key) ?? []), tx]);
+      if (namesAsked.current.has(key)) continue;
+      const name = counterpartyName(tx);
+      if (!name) continue;
+      namesAsked.current.add(key);
+      items.push({ key, name });
+    }
+    if (!items.length) return;
+    void post<{ names?: Record<string, string | null> }>('/api/merchant-names', { sessionId: sid, items })
+      .then(({ names }) => {
+        if (!isCurrent(sid) || !names) return;
+        const found = Object.entries(names).filter((e): e is [string, string] => typeof e[1] === 'string' && !!e[1]);
+        if (!found.length) return;
+        setBrandNamesState((prev) => {
+          const next = new Map(prev);
+          for (const [key, brand] of found) next.set(key, brand);
+          return next;
+        });
+        // Their logos once more, by the brand.
+        const again = found.flatMap(([key]) => byKey.get(key) ?? []);
+        for (const tx of again) merchantsAsked.current.delete(getMerchantKey(tx));
+        queueMicrotask(() => void resolveMerchants(again));
+      })
+      .catch(() => {
+        for (const it of items) namesAsked.current.delete(it.key);
+      });
+  }, [sessionId, txByAccount, pendingFetched, notedFetched, isCurrent, resolveMerchants]);
+
+  /**
+   * The user's rules for other spellings of a filed payee: the category of a
+   * filed name nearly the same (lib/nano-categories.ts nameSimilarity ≥
+   * EXAMPLE_MIN), so "HORNBACH BAUMARKT FIL. 0815" follows a filed "Hornbach
+   * Baumarkt AG" instead of the "Baumarkt" keyword. Null without rules.
+   */
+  const ruleByName = useMemo(() => {
+    const rules = categoryRules ?? {};
+    if (!Object.keys(rules).length) return null;
+    const filed: { name: string; category: CategoryId }[] = [];
+    const seen = new Set<string>();
+    const all = [
+      ...Object.values(txByAccount).flat(),
+      ...Object.values(pendingFetched).flatMap((p) => p.txs),
+      ...Object.values(notedFetched).flatMap((p) => p.txs),
+    ];
+    for (const tx of all) {
+      const key = counterpartyKey(tx);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const category = rules[key];
+      const name = counterpartyName(tx);
+      if (name && isCategoryId(category)) filed.push({ name, category });
+    }
+    const memo = new Map<string, CategoryId | null>();
+    return (name: string): CategoryId | null => {
+      const hit = memo.get(name);
+      if (hit !== undefined) return hit;
+      let best: { category: CategoryId; score: number } | null = null;
+      for (const f of filed) {
+        const score = nameSimilarity(name, f.name);
+        if (score >= EXAMPLE_MIN && (!best || score > best.score)) best = { category: f.category, score };
+      }
+      memo.set(name, best?.category ?? null);
+      return best?.category ?? null;
+    };
+  }, [categoryRules, txByAccount, pendingFetched, notedFetched]);
+
   /**
    * The category of a booking. Its identity changes only when a rule, an
    * override, a logo match or the own-account list does — analysis code can
@@ -4458,7 +4569,7 @@ function useFintsState() {
       let result: CategoryResult;
       try {
         result = categorize(tx, {
-          ownIbans: own, rules: categoryRules, overrides: txCategories, splits, merchantLabel: merchant?.label ?? null,
+          ownIbans: own, rules: categoryRules, ruleByName, overrides: txCategories, splits, merchantLabel: merchant?.label ?? null,
           modelGuesses,
         });
       } catch {
@@ -4469,7 +4580,7 @@ function useFintsState() {
       return result;
     };
     // customCategories: a renamed or deleted category relabels every booking.
-  }, [ownIbans, categoryRules, txCategories, splits, customCategories, merchants, modelGuesses]);
+  }, [ownIbans, categoryRules, ruleByName, txCategories, splits, customCategories, merchants, modelGuesses]);
 
   /**
    * What the app would file a booking under on its own, and by which rung
@@ -5000,7 +5111,7 @@ function useFintsState() {
     categoryOf, setCategory, setSplit,
     removeCategoryRule,
     addCustomCategory, renameCustomCategory, deleteCustomCategory,
-    modelGuesses,
+    modelGuesses, brandNames,
     categoryGuessOf, setBudgets, noteOf, setNote,
     // more banks (lib/linked-banks.ts)
     links, banks, bankOf, activeBank, addBank,

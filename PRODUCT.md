@@ -209,7 +209,14 @@ The owner sees the position as the combination of three claims (confirmed
 - notes on bookings: written in the drawer, marked on the row, found by the
   search, in the CSV, never on paper
 - automatic, correctable categories, and a Kategorie-Check of how they fare
-  with the user's bookings (on the machine only)
+  with the user's bookings (on the machine only). Since 5.9.0 "Essen &
+  Trinken" (restaurants, cafés, delivery) stands apart from "Freizeit"
+  (cinema, sport, games, hotels); a payee the user filed also decides its
+  other spellings, before any keyword
+- on Android, payees by their brand ("PAYPAL *EBAY" → "eBay", Gemini Nano;
+  only where the bank's text has the brand), the bank's own text in the
+  drawer and the search; and a search that says what it means ("Tanken im
+  August" becomes Mobilität in August)
 - categories of the user's own (spending or income), made from a booking's
   menu and kept in Einstellungen, and bookings split across up to ten
   categories — counted share by share in every sum, budget and export
@@ -225,8 +232,11 @@ The owner sees the position as the combination of three claims (confirmed
   answer, in or out, a category in its own words — is read by rule and wins.
   Girovo works the answer out on the phone with the Umsätze list's own
   filter, shows what the question was read as, and never lets Nano state a
-  figure (lib/nano-ask.ts). Phones with an older Nano, or none, see
-  "Nicht unterstützt" and the way to AICore's update in Google Play
+  figure (lib/nano-ask.ts). It also ranks ("Wofür gebe ich am meisten aus?",
+  "Wo kaufe ich am häufigsten ein?") and compares ("Mehr als letzten
+  Monat?" — a running month against as many days of the last). Phones with
+  an older Nano, or none, see "Nicht unterstützt" and the way to AICore's
+  update in Google Play
 - Monatsbudgets per spending category, compared with the month on view
 - Verträge & Abos
 - CSV and PDF export

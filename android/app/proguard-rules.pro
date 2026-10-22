@@ -13,3 +13,12 @@
 
 # Capacitor reads @CapacitorPlugin(name, permissions) and @PluginMethod at run time.
 -keepattributes RuntimeVisibleAnnotations,AnnotationDefault
+
+# MainActivity's EdgeToEdge.enable() under its own name: renamed or inlined,
+# Play's scan no longer recognises it and reports the app as not edge to edge
+# for Android 14 and older (5.8.0 was).
+-keep class androidx.activity.EdgeToEdge { public static *; }
+# …and its parameters' types, so the call keeps its whole public signature
+# (EdgeToEdge.enable(ComponentActivity, SystemBarStyle, SystemBarStyle)).
+-keepnames class androidx.activity.ComponentActivity
+-keepnames class androidx.activity.SystemBarStyle

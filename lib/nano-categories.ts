@@ -11,7 +11,8 @@
 // question and its thinking mode were all tried — so the prompt itself asks
 // for NONE whenever the name says nothing about the trade.
 //
-// The system text and the list are the calibration's own (round fast-v5).
+// The system text and the list are the calibration's own (round fast-v6:
+// v5 with Essen & Trinken apart from Freizeit, 5.9.0).
 // A change to them is a new calibration: raise NANO_PROMPT_VERSION with it.
 
 import { GUESSABLE, type GuessExample, type GuessableCategory } from './category-guess.ts';
@@ -19,17 +20,18 @@ import { GUESSABLE, type GuessExample, type GuessableCategory } from './category
 // i18n-data-start — the prompt is the model's input, calibrated in German
 /** Nano's instruction: one id or NONE, and when to say NONE. */
 export const NANO_SYSTEM =
-  "Du ordnest ausgehende Kontobuchungen genau einer von zehn Kategorien zu – oder keiner. Eine falsche Kategorie ist schlimmer als keine. Antworte NONE bei jeder Privatperson (Vor- und Nachname, Familie …), egal welcher Zweck dabeisteht, und bei einem Firmennamen, der nichts über die Art des Geschäfts verrät. Sonst entscheide nach der Art des Geschäfts, die der Empfängername oder der Verwendungszweck verrät – auch wenn der Name nur die Branche nennt (Getränke, Juwelier, Kino, Baumarkt, Optik). Umlaute stehen in Kontoauszügen oft als ae, oe, ue (BAECKER = Bäcker). Antworte mit genau einem Wort aus dieser Liste und sonst nichts: NONE, housing, groceries, mobility, shopping, leisure, media, health, insurance, taxes, savings.";
+  "Du ordnest ausgehende Kontobuchungen genau einer von elf Kategorien zu – oder keiner. Eine falsche Kategorie ist schlimmer als keine. Antworte NONE bei jeder Privatperson (Vor- und Nachname, Familie …), egal welcher Zweck dabeisteht, und bei einem Firmennamen, der nichts über die Art des Geschäfts verrät. Sonst entscheide nach der Art des Geschäfts, die der Empfängername oder der Verwendungszweck verrät – auch wenn der Name nur die Branche nennt (Getränke, Juwelier, Kino, Baumarkt, Optik). Umlaute stehen in Kontoauszügen oft als ae, oe, ue (BAECKER = Bäcker). Antworte mit genau einem Wort aus dieser Liste und sonst nichts: NONE, housing, groceries, mobility, shopping, dining, leisure, media, health, insurance, taxes, savings.";
 
-/** The ten categories with their boundaries, and invented examples — the fixed head of every prompt. */
+/** The eleven categories with their boundaries, and invented examples — the fixed head of every prompt. */
 export const NANO_CATEGORY_LIST =
   "Kategorien:\n"
   + "- housing: Wohnen & Energie – Miete, Hausverwaltung, Wohnungsbaugesellschaft, Hausgeld, Nebenkosten; Strom, Gas, Wasser, Fernwärme (Stadtwerke, Energieversorger); Schornsteinfeger und Hausmeister.\n"
   + "- groceries: Lebensmittel & Drogerie – alles zum Essen und Trinken für zu Hause: Supermarkt, Discounter, Bäckerei, Metzgerei, Getränkemarkt und Getränkehandel, Asia-, Bio- und Feinkostmarkt, Hofladen; Drogerie und Drogeriemarkt.\n"
   + "- mobility: Mobilität – Tankstelle, Ladesäule, Parkhaus, Parkplatz, Parken per App, Bahn, Bus, ÖPNV, Taxi; Autohaus, Kfz-Werkstatt, Inspektion, Reifen, Autowäsche; Fahrradladen und Fahrradreparatur.\n"
   + "- shopping: Shopping – Versandhandel, Kleidung, Schuhe, Elektronik und Elektrogeschäfte, Möbel, Baumarkt, Bücher, Spielwaren, Schreibwaren, Schmuck und Juwelier.\n"
-  + "- leisure: Freizeit & Gastronomie – Restaurant, Trattoria, Gasthaus, Café, Imbiss, Döner, Kebab und Kebaphaus, Bar; Kino, Theater, Konzert; Schwimmbad, Kletterhalle, Bowling, Sport; Hotel und Übernachtung.\n"
-  + "- media: Abos & Medien – Streaming, Musik, Zeitung, Mobilfunk, Internet; Software- und Cloud-Abos, Webhosting und Server.\n"
+  + "- dining: Essen & Trinken unterwegs – Restaurant, Trattoria, Gasthaus, Café, Eiscafé, Imbiss, Döner, Kebab und Kebaphaus, Pizzeria, Burger, Sushi, Bar, Kneipe, Biergarten, Mensa, Lieferdienst. Lebensmittel für zu Hause sind groceries.\n"
+  + "- leisure: Freizeit – Kino, Theater, Konzert, Tickets; Schwimmbad, Kletterhalle, Bowling, Fitnessstudio, Sport; Videospiele und Spieleshops (Steam, Game-Keys); Freizeitpark, Museum, Zoo; Hotel und Übernachtung.\n"
+  + "- media: Abos & Medien – Streaming, Musik, Zeitung, Mobilfunk, Internet, eSIM; Software- und Cloud-Abos, Spiele-Abos, Webhosting und Server.\n"
   + "- health: Gesundheit – Apotheke, Arzt- und Zahnarztpraxis, auch deren Privatrechnung oder Privatliquidation, Labor, Physiotherapie, Ergotherapie, Optiker und Optik, Hörakustiker. Eine Krankenversicherung ist insurance.\n"
   + "- insurance: Versicherungen – jeder Versicherungsbeitrag, auch Kranken-, Zahnzusatz-, Kfz-, Haftpflicht- und Hausratversicherung.\n"
   + "- taxes: Steuern & Abgaben – Finanzamt, Steuern, Stadt- oder Gemeindekasse, Gebühren, Bußgeld; der Rundfunkbeitrag (ARD, ZDF, Deutschlandradio, Beitragsservice) ist taxes, nicht media.\n"
@@ -46,7 +48,7 @@ export const NANO_CATEGORY_LIST =
 // i18n-data-end
 
 /** Raised with every change to the texts above: answers cached under another version are asked again. */
-export const NANO_PROMPT_VERSION = 5;
+export const NANO_PROMPT_VERSION = 6;
 
 /**
  * The part of the prompt that is the booking's own, after NANO_CATEGORY_LIST

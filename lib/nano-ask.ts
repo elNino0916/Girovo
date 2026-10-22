@@ -23,11 +23,11 @@
 
 import { bookingDay, categoryPieces, filterTransactions, type CategoryOf, type SearchContext } from './analytics.ts';
 import type { TxFilter } from './app-types.ts';
-import { CATEGORIES, type BuiltinCategoryId, type CategoryId } from './categories.ts';
+import { CATEGORIES, counterpartyName, type BuiltinCategoryId, type CategoryId } from './categories.ts';
 import { foldText } from './categorize.ts';
 import type { SerializedTransaction } from './fints-types.ts';
 
-export type AskKind = 'sum' | 'count' | 'largest' | 'last' | 'average';
+export type AskKind = 'sum' | 'count' | 'largest' | 'last' | 'average' | 'rank' | 'compare';
 export type AskDir = 'out' | 'in' | 'all';
 export type AskPeriod =
   | { kind: 'all' }
@@ -40,7 +40,12 @@ export type AskPeriod =
   | { kind: 'since'; month: string }
   | { kind: 'year'; year: number }
   | { kind: 'days'; days: number }
-  | { kind: 'months'; months: number };
+  | { kind: 'months'; months: number }
+  /** Exact days: the earlier side of a comparison, cut to as many days as the running one has. */
+  | { kind: 'range'; from: string; to: string };
+
+/** A ranking: of categories or payees, by the money or by how often. */
+export type AskRank = { by: 'category' | 'payee'; metric: 'sum' | 'count' };
 
 export type AskQuery = {
   kind: AskKind;
@@ -51,12 +56,16 @@ export type AskQuery = {
   period: AskPeriod;
   /** Nano's category, set aside for the name: asked instead when the name finds nothing. */
   hint?: CategoryId | null;
+  /** kind 'rank': what is ranked, and by what. */
+  rank?: AskRank;
+  /** kind 'compare': the period `period` is set against ("letzten Monat" in "mehr als letzten Monat?"). */
+  against?: AskPeriod;
 };
 
 /** The categories Nano may name: those a question can mean. */
 export const ASKABLE: readonly BuiltinCategoryId[] = [
-  'income', 'housing', 'groceries', 'mobility', 'shopping', 'leisure', 'media', 'health', 'insurance', 'taxes', 'cash',
-  'fees', 'savings',
+  'income', 'housing', 'groceries', 'mobility', 'shopping', 'dining', 'leisure', 'media', 'health', 'insurance', 'taxes',
+  'cash', 'fees', 'savings',
 ];
 
 /**
@@ -97,7 +106,8 @@ export const ASK_CATEGORY_LIST =
   + '- groceries: Lebensmittel, Supermarkt, Einkauf, Bäcker, Drogerie\n'
   + '- mobility: Tanken, Benzin, Bahn, Bus, Parken, Auto, Werkstatt\n'
   + '- shopping: Shopping, Kleidung, Elektronik, Möbel, Online-Shop\n'
-  + '- leisure: Essen gehen, Restaurant, Café, Lieferdienst, Kino, Sport, Hotel, Urlaub\n'
+  + '- dining: Essen gehen, Restaurant, Café, Imbiss, Lieferdienst, Bar\n'
+  + '- leisure: Freizeit, Kino, Konzert, Sport, Fitness, Videospiele, Hotel, Urlaub\n'
   + '- media: Abos, Streaming, Musik, Handy, Internet\n'
   + '- health: Apotheke, Arzt, Gesundheit\n'
   + '- insurance: Versicherung\n'
@@ -122,7 +132,7 @@ export const ASK_CATEGORY_LIST =
   + 'Frage: Was zahle ich für Spotify im Monat?\n'
   + '{"richtung":"aus","kategorie":null,"suche":"Spotify"}\n'
   + 'Frage: How much do I spend on eating out per month?\n'
-  + '{"richtung":"aus","kategorie":"leisure","suche":null}\n';
+  + '{"richtung":"aus","kategorie":"dining","suche":null}\n';
 // i18n-data-end
 
 /** Room for the line of JSON (about 30 tokens), with some to spare. */
@@ -198,9 +208,13 @@ const CATEGORY_WORDS: Array<[BuiltinCategoryId, string[]]> = [
   ['groceries', ['LEBENSMITTEL', 'SUPERMARKT', 'EINKAEUFE', 'EINKAUF', 'BAECKER', 'DROGERIE', 'GROCER', 'SUPERMARKET']],
   ['mobility', ['TANKEN', 'GETANKT', 'TANKSTELLE', 'BENZIN', 'SPRIT', 'BAHN', 'PARKEN', 'WERKSTATT', 'TAXI', 'FUEL', 'PETROL', 'TRAIN', 'PARKING']],
   ['shopping', ['SHOPPING', 'KLEIDUNG', 'KLAMOTTEN', 'ELEKTRONIK', 'MOEBEL', 'ONLINE SHOP', 'CLOTHES', 'CLOTHING']],
+  ['dining', [
+    'RESTAURANT', 'ESSEN GEHEN', 'ESSEN BESTELL', 'AUSWAERTS', 'LIEFERDIENST', 'GASTRONOMIE', 'IMBISS', 'CAFES', 'KNEIPE',
+    'DOENER', 'SUSHI', 'FAST FOOD', 'EATING OUT', 'DINING', 'TAKEAWAY', 'TAKE AWAY', 'FOOD DELIVERY',
+  ]],
   ['leisure', [
-    'RESTAURANT', 'ESSEN GEHEN', 'AUSWAERTS', 'LIEFERDIENST', 'KINO', 'FREIZEIT', 'URLAUB', 'HOTEL', 'FITNESS', 'EATING OUT',
-    'DINING', 'TAKEAWAY', 'CINEMA', 'HOLIDAY', 'VACATION', 'GYM',
+    'FREIZEIT', 'KINO', 'KONZERT', 'THEATER', 'URLAUB', 'HOTEL', 'FITNESS', 'VIDEOSPIEL', 'GAMES', 'GAMING', 'CINEMA',
+    'CONCERT', 'HOLIDAY', 'VACATION', 'GYM',
   ]],
   ['media', ['ABOS', 'ABONNEMENT', 'STREAMING', 'MUSIK', 'MOBILFUNK', 'HANDYVERTRAG', 'SUBSCRIPTION', 'MUSIC']],
   ['health', ['APOTHEKE', 'ARZT', 'AERZT', 'GESUNDHEIT', 'MEDIKAMENT', 'PHARMACY', 'DOCTOR', 'HEALTH']],
@@ -223,6 +237,52 @@ const KIND_RULES: Array<[RegExp, AskKind]> = [
   [/\bWIE OFT\b|\bWIE HAEUFIG\b|\bWIE VIELE (?:MAL|BUCHUNGEN|UMSAETZE|ZAHLUNGEN)\b|\bANZAHL\b|\bHOW OFTEN\b|\bHOW MANY\b/, 'count'],
   [/\bPRO MONAT\b|\bIM MONAT\b|\bMONATLICH|\bIM SCHNITT\b|\bDURCHSCHNITT|\bPER MONTH\b|\bA MONTH\b|\bMONTHLY\b|\bAVERAGE\b/, 'average'],
 ];
+
+/** A ranking: "am meisten", "am häufigsten", "Top 5" … — and of what, and by what. */
+const RANK = /\bAM (?:MEISTEN|HAEUFIGSTEN|OEFTESTEN)\b|\bMEISTE[NS]? GELD\b|\bMOST\b|\bTOP(?: \d+)?\b|\bRANGLISTE\b|\bRANKING\b|\bHAUPTAUSGABEN\b|\bGROESSTEN (?:POSTEN|AUSGABEPOSTEN|KATEGORIEN)\b/;
+const RANK_PAYEE = /(?:^| )(?:WO|BEI WEM|AN WEN|VON WEM|WELCHE[NMRS]? (?:LAEDEN|LADEN|HAENDLERN?|SHOPS?|GESCHAEFTEN?|FIRMEN|FIRMA|EMPFAENGER|RESTAURANTS?|CAFES?)|WHERE|WHO|WHICH (?:SHOPS?|STORES?|MERCHANTS?|RESTAURANTS?|PAYEES?))(?= |$)/;
+const RANK_COUNT = /\bAM (?:HAEUFIGSTEN|OEFTESTEN)\b|\bMOST OFTEN\b|\bHOW OFTEN\b/;
+/** A comparison: needs a period on top ("mehr als 100 Euro" is none). */
+const COMPARE = /\bVERGLICHEN MIT\b|\bIM VERGLEICH\b|\bVERGLEICH\b|\bVS\b|\bVERSUS\b|\bGEGENUEBER\b|\b(?:MEHR|WENIGER)\b.*\bALS\b|\b(?:MORE|LESS)\b.*\bTHAN\b|\bCOMPARED\b|\bCOMPARE\b/;
+
+/** A ranking the question asks for, or null. */
+export function rankFromQuestion(question: string): AskRank | null {
+  const text = fold(question);
+  if (!RANK.test(text)) return null;
+  return { by: RANK_PAYEE.test(text) ? 'payee' : 'category', metric: RANK_COUNT.test(text) ? 'count' : 'sum' };
+}
+
+/** What a running period is set against when the question names only one side. */
+function runningOf(other: AskPeriod): AskPeriod | null {
+  if (other.kind === 'lastMonth' || other.kind === 'month') return { kind: 'thisMonth' };
+  if (other.kind === 'lastYear' || other.kind === 'year') return { kind: 'thisYear' };
+  return null;
+}
+
+/** The previous period of a running one ("diesen Monat mehr?" is against last month). */
+function previousOf(running: AskPeriod): AskPeriod | null {
+  if (running.kind === 'thisMonth') return { kind: 'lastMonth' };
+  if (running.kind === 'thisYear') return { kind: 'lastYear' };
+  return null;
+}
+
+/**
+ * The two periods a comparison sets against each other — the first named
+ * first — or null when the question compares nothing or names no period.
+ */
+export function compareFromQuestion(question: string, today: string): { period: AskPeriod; against: AskPeriod } | null {
+  if (!COMPARE.test(fold(question))) return null;
+  const periods = periodsFromQuestion(question, today);
+  if (periods.length >= 2) return { period: periods[0], against: periods[1] };
+  if (periods.length === 1) {
+    const [only] = periods;
+    const running = runningOf(only);
+    if (running) return { period: running, against: only };
+    const previous = previousOf(only);
+    if (previous) return { period: only, against: previous };
+  }
+  return null;
+}
 
 /** Words that say the money went out or came in; prepositions only where no such word does. */
 const OUT_WORDS = /\b(?:AUSGEGEBEN|AUSGABE|AUSGABEN|BEZAHLT|GEZAHLT|ZAHLE|ZAHLT|KOSTET|KOSTEN|GEKOSTET|UEBERWIESEN|SPENT|SPEND|PAID|PAY|COST|COSTS)\b/;
@@ -361,6 +421,44 @@ export function periodFromQuestion(question: string, today: string): AskPeriod |
   return y && +y <= year ? { kind: 'year', year: +y } : null;
 }
 
+/** Every period the question names, in the order it names them ("diesen vs. letzten Monat"). */
+export function periodsFromQuestion(question: string, today: string): AskPeriod[] {
+  const folded = fold(question);
+  const found: { at: number; end: number; period: AskPeriod }[] = [];
+  const taken = (at: number, end: number) => found.some((f) => at < f.end && end > f.at);
+  for (const [re, make] of RULES) {
+    for (const m of folded.matchAll(new RegExp(re.source, 'g'))) {
+      const period = make(m as RegExpExecArray);
+      const at = m.index ?? 0;
+      if (period.kind !== 'all' && !taken(at, at + m[0].length)) found.push({ at, end: at + m[0].length, period });
+    }
+  }
+  // "letzten" alone after a period ("diesen vs. letzten Monat"): the same unit, one back.
+  if (found.length === 1 && /\bVS\b|\bVERSUS\b|\bGEGENUEBER\b/.test(folded) && /\bLETZTE[NMRS]?\b|\bVORIGE[NMRS]?\b/.test(folded)) {
+    const previous = previousOf(found[0].period);
+    if (previous) found.push({ at: folded.length, end: folded.length, period: previous });
+  }
+  const [year, month] = today.split('-').map(Number);
+  const words = [...folded.matchAll(/[A-Z0-9]+/g)];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const at = w.index ?? 0;
+    if (taken(at, at + w[0].length)) continue;
+    const next = words[i + 1]?.[0];
+    const withYear = !!next && /^(?:19|20)\d{2}$/.test(next);
+    const m = monthIn(w[0], withYear);
+    if (m != null) {
+      const y = withYear ? +next! : m > month ? year - 1 : year;
+      const end = withYear ? (words[i + 1].index ?? 0) + next!.length : at + w[0].length;
+      found.push({ at, end, period: { kind: 'month', month: `${y}-${String(m).padStart(2, '0')}` } });
+      if (withYear) i++;
+    } else if (/^(?:19|20)\d{2}$/.test(w[0]) && +w[0] <= year) {
+      found.push({ at, end: at + w[0].length, period: { kind: 'year', year: +w[0] } });
+    }
+  }
+  return found.sort((a, b) => a.at - b.at).map((f) => f.period);
+}
+
 /**
  * The search the question asks for: Nano's reading (null when it gave none),
  * with what the question says plainly in its place. Null only when neither
@@ -377,18 +475,25 @@ export function readQuestion(
   const nanoName = nano?.search && isName(nano.search) && bare(q).includes(bare(nano.search)) ? nano.search : null;
   const search = nanoName ?? searchFromQuestion(q);
   const ownNamed = own.find((c) => c.name.trim() && ` ${fold(q)} `.includes(` ${fold(c.name)} `));
-  let category: CategoryId | null = (ownNamed?.id as CategoryId | undefined) ?? categoryFromQuestion(q) ?? nano?.category ?? null;
+  const rank = rankFromQuestion(q);
+  // A ranking takes a category only from the question's own words: Nano read
+  // "Wo kaufe ich am häufigsten ein?" as Lebensmittel, which would rank the supermarkets alone.
+  const named = (ownNamed?.id as CategoryId | undefined) ?? categoryFromQuestion(q);
+  let category: CategoryId | null = named ?? (rank ? null : nano?.category ?? null);
   let hint: CategoryId | null = null;
   // A name beats a category: "Amazon" is every Amazon booking, whichever category each is in.
   if (search && category) {
     hint = category;
     category = null;
   }
-  const period = periodFromQuestion(q, today);
-  const kind = kindFromQuestion(q);
+  const compare = rank ? null : compareFromQuestion(q, today);
+  const period = compare?.period ?? periodFromQuestion(q, today);
+  const kind: AskKind | null = rank ? 'rank' : compare ? 'compare' : kindFromQuestion(q);
   const dir = dirFromQuestion(q);
   if (!nano && !search && !category && !period && !kind && !dir) return null;
   return {
+    ...(rank ? { rank } : {}),
+    ...(compare ? { against: compare.against } : {}),
     kind: kind ?? 'sum',
     // Income is what comes in, whatever else was said of the direction.
     dir: category === 'income' ? 'in' : dir ?? nano?.dir ?? 'out',
@@ -396,6 +501,64 @@ export function readQuestion(
     search,
     period: period ?? { kind: 'all' },
     hint,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The Umsätze search, read the same way (Android, 5.9.0)
+
+// i18n-data-start — words of a search that are no name, folded
+/** Time words and fillers a search leaves out of the text it searches for. */
+const NOT_SEARCHED = new Set(
+  ('IM IN AM VOM VON BEI BEIM AN FUER FUR DER DIE DAS DEN DEM DES UND ODER ALLE ALLES MEIN MEINE MEINEN MEINER MEINEM '
+    + 'WAS WIE VIEL VIELE ICH HABE HAB AUSGEGEBEN BEKOMMEN BEZAHLT GEZAHLT ZAHLUNG ZAHLUNGEN UMSATZ UMSAETZE BUCHUNGEN '
+    + 'AUSGABE AUSGABEN EINNAHME EINNAHMEN EINGANG EINGAENGE GELD '
+    + 'LETZTE LETZTEN LETZTER LETZTES LETZTEM DIESE DIESEN DIESER DIESES DIESEM VORIGE VORIGEN VORIGER VORIGES '
+    + 'VERGANGENE VERGANGENEN VERGANGENER LAUFENDE LAUFENDEN LAUFENDER MONAT MONATE MONATEN JAHR JAHRES WOCHE WOCHEN '
+    + 'TAG TAGE TAGEN HEUTE HEUER SEIT HALBE HALBEN HALBES VORMONAT VORJAHR '
+    + 'ZWEI DREI VIER FUENF SECHS SIEBEN ACHT NEUN ZEHN ZWOELF '
+    + 'THE AT ON FOR FROM TO OF AND MY ALL SPENT SPENDING PAID PAYMENTS INCOME LAST THIS PAST SINCE MONTH MONTHS YEAR '
+    + 'WEEK WEEKS DAY DAYS TODAY').split(' '),
+);
+const SEARCH_IN = /\b(?:EINNAHMEN?|EINGAENGE|EINGANG|BEKOMMEN|INCOME|RECEIVED)\b/;
+const SEARCH_OUT = /\b(?:AUSGABEN?|AUSGEGEBEN|BEZAHLT|SPENT|SPENDING)\b/;
+// i18n-data-end
+
+/**
+ * A search in the Umsätze list read as its filters — "Tanken im August" as
+ * Mobilität in August, "Amazon letzten Monat" as "Amazon" last month — or
+ * null for a plain search ("Rewe", "4711"), which stays text. By rule alone,
+ * so it is instant; what is left of the words is the text searched for. Only
+ * what the words name is returned: the rest of the filter stays as it was.
+ */
+export function searchAsFilter(
+  text: string,
+  today: string,
+  own: readonly { id: string; name: string }[] = [],
+): Pick<TxFilter, 'query'> & Partial<Pick<TxFilter, 'dir' | 'category' | 'from' | 'to'>> | null {
+  const q = text.trim();
+  if (!q) return null;
+  const folded = fold(q);
+  const period = periodFromQuestion(q, today);
+  const ownNamed = own.find((c) => c.name.trim() && ` ${folded} `.includes(` ${fold(c.name)} `));
+  const category = (ownNamed?.id as CategoryId | undefined) ?? categoryFromQuestion(q);
+  const dir: TxFilter['dir'] | null = category === 'income' || SEARCH_IN.test(folded) ? 'in' : SEARCH_OUT.test(folded) ? 'out' : null;
+  if (!period && !category && !dir) return null;
+  const ownWords = new Set(ownNamed ? fold(ownNamed.name).split(' ') : []);
+  const rest = q.split(/\s+/).filter((word) => {
+    const w = fold(word);
+    if (!w) return false;
+    if (NOT_SEARCHED.has(w) || ownWords.has(w) || isCategoryWord(w) || monthIn(w, true) != null) return false;
+    // A year, or the number in "letzte 30 Tage".
+    return !(/^\d+$/.test(w) && period);
+  });
+  // Only what the words name changes; a month picked before stays for "Ausgaben bei Rewe".
+  const days = period ? periodDays(period, today) : null;
+  return {
+    query: rest.join(' ').replace(/[?!.,;]+$/, ''),
+    ...(dir ? { dir } : {}),
+    ...(category ? { category } : {}),
+    ...(period ? { from: days?.from, to: days?.to } : {}),
   };
 }
 
@@ -442,6 +605,7 @@ export function periodDays(period: AskPeriod, today: string): { from: string; to
     case 'year': return { from: `${period.year}-01-01`, to: clip(`${period.year}-12-31`) };
     case 'days': return { from: addDays(today, -(period.days - 1)), to: today };
     case 'months': return { from: monthsBack(today, period.months), to: today };
+    case 'range': return { from: period.from, to: clip(period.to) };
   }
 }
 
@@ -469,7 +633,48 @@ export type AskAnswer = {
   tx: SerializedTransaction | null;
   /** For a per-month average: over how many whole months loaded; 0 when none is. */
   months: number;
+  /** kind 'rank': the first few, largest first. */
+  rank?: AskRankRow[];
+  /** kind 'compare': the asked period and the one it is set against, worked out alike. */
+  compare?: { a: AskAnswer; b: AskAnswer };
 };
+
+/** One line of a ranking: a category or a payee, its money and count, and the list's filter for it. */
+export type AskRankRow = {
+  key: string;
+  category: CategoryId | null;
+  /** The payee, as the lists name it. */
+  name: string | null;
+  cents: number;
+  count: number;
+  /** Of all that was ranked, 0–1, by the ranking's own measure. */
+  share: number;
+  filter: TxFilter;
+};
+
+/** How many lines a ranking shows. */
+export const RANK_ROWS = 5;
+
+/**
+ * The earlier side of a comparison, cut to the running side's length: the
+ * 1st to the 22nd of last month against this month's 1st to 22nd — a whole
+ * month against a half one would always say "less".
+ */
+function againstSpan(period: AskPeriod, against: AskPeriod, today: string): AskPeriod {
+  const days = periodDays(against, today);
+  if (!days) return against;
+  const [, m, d] = today.split('-').map(Number);
+  if (period.kind === 'thisMonth') {
+    const last = `${days.from.slice(0, 8)}${pad(Math.min(d, lastDay(+days.from.slice(0, 4), +days.from.slice(5, 7))))}`;
+    return { kind: 'range', from: days.from, to: last < days.to ? last : days.to };
+  }
+  if (period.kind === 'thisYear') {
+    const y = +days.from.slice(0, 4);
+    const last = `${y}-${pad(m)}-${pad(Math.min(d, lastDay(y, m)))}`;
+    return { kind: 'range', from: days.from, to: last < days.to ? last : days.to };
+  }
+  return against;
+}
 
 /**
  * Works the answer out over `txs` (the loaded bookings of the accounts in
@@ -479,7 +684,11 @@ export type AskAnswer = {
 export function computeAnswer(
   query: AskQuery,
   txs: readonly SerializedTransaction[],
-  ctx: SearchContext & { categoryOf: CategoryOf },
+  ctx: SearchContext & {
+    categoryOf: CategoryOf;
+    /** The payee as the lists name it (Nano's brand on Android) — what a ranking groups and shows. Default: the bank's name. */
+    payeeOf?: (tx: SerializedTransaction) => string;
+  },
   loaded: { from: string; to: string },
   today: string,
 ): AskAnswer {
@@ -498,6 +707,14 @@ export function computeAnswer(
   // The name finds nothing: the category Nano read is the better guess ("Streaming" names no payee).
   if (!matched.length && !outside && query.search && query.hint) {
     return computeAnswer({ ...query, search: null, category: query.hint, hint: null }, txs, ctx, loaded, today);
+  }
+
+  // Two periods, each worked out as a plain sum.
+  if (query.kind === 'compare' && query.against) {
+    const plain = { ...query, kind: 'sum' as const, against: undefined };
+    const a = computeAnswer(plain, txs, ctx, loaded, today);
+    const b = computeAnswer({ ...plain, period: againstSpan(query.period, query.against, today) }, txs, ctx, loaded, today);
+    return { ...a, query, compare: { a, b } };
   }
 
   // A split booking counts with its share in the category asked about.
@@ -523,7 +740,44 @@ export function computeAnswer(
   return {
     query, filter, from, to, outside, partial: !outside && asked.from < loaded.from,
     count: matched.length, cents, outCents, inCents, tx, months: outside ? 0 : wholeMonths(from, to, today),
+    ...(query.kind === 'rank' && query.rank ? { rank: rankRows(matched, query, filter, ctx.categoryOf, ctx.payeeOf ?? counterpartyName) } : {}),
   };
+}
+
+/** The first RANK_ROWS categories or payees of the matched bookings, by money or by count. */
+function rankRows(
+  matched: readonly SerializedTransaction[],
+  query: AskQuery,
+  filter: TxFilter,
+  categoryOf: CategoryOf,
+  payeeOf: (tx: SerializedTransaction) => string,
+): AskRankRow[] {
+  const rank = query.rank!;
+  const groups = new Map<string, { category: CategoryId | null; name: string | null; cents: number; count: number }>();
+  const add = (key: string, category: CategoryId | null, name: string | null, cents: number) => {
+    const g = groups.get(key) ?? { category, name, cents: 0, count: 0 };
+    g.cents += cents;
+    g.count += 1;
+    groups.set(key, g);
+  };
+  for (const tx of matched) {
+    if (rank.by === 'payee') {
+      const name = payeeOf(tx);
+      if (name) add(foldText(name), null, name, Math.abs(Math.round(tx.amount * 100)));
+    } else {
+      // A split booking ranks with each of its shares.
+      for (const piece of categoryPieces(tx, categoryOf)) add(piece.id, piece.id, null, Math.abs(piece.cents));
+    }
+  }
+  const measure = (g: { cents: number; count: number }) => (rank.metric === 'count' ? g.count : g.cents);
+  const total = [...groups.values()].reduce((s, g) => s + measure(g), 0) || 1;
+  return [...groups.entries()]
+    .sort(([, x], [, y]) => measure(y) - measure(x) || y.cents - x.cents)
+    .slice(0, RANK_ROWS)
+    .map(([key, g]) => ({
+      key, category: g.category, name: g.name, cents: g.cents, count: g.count, share: measure(g) / total,
+      filter: g.category ? { ...filter, category: g.category } : { ...filter, query: g.name ?? '' },
+    }));
 }
 
 /** How many calendar months lie wholly in [from, to] and are over by today. */

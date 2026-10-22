@@ -30,6 +30,11 @@ export const TxRow = memo(function TxRow({
   tx, merchant, category, parts, userNote, receipt = false, pending = false, compact = false, onOpen,
 }: {
   tx: SerializedTransaction;
+  /**
+   * Gemini Nano's brand for this counterparty (Android), which txText already
+   * shows as the name — a prop only so the row redraws when it arrives later.
+   */
+  brand?: string | null;
   merchant: Merchant | null;
   category?: CategoryId | null;
   /** The shares of a booking the user split up (lib/splits.ts), largest first — the row names them all. */

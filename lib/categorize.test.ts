@@ -139,15 +139,15 @@ test('German merchants by name, MT940 card payments', () => {
   assert.equal(card('IKEA DEUTSCHLAND'), 'shopping');
   assert.equal(card('H&M HENNES & MAURITZ'), 'shopping');
   assert.equal(card('MEDIAMARKT BERLIN'), 'shopping');
-  assert.equal(card('STARBUCKS COFFEE'), 'leisure');
-  assert.equal(card("MCDONALD'S 1234"), 'leisure');
-  assert.equal(card('BURGER KING 4401'), 'leisure');
-  assert.equal(card('RESTAURANT ZUM LOEWEN'), 'leisure');
-  assert.equal(card('CAFÉ EINSTEIN'), 'leisure');
+  assert.equal(card('STARBUCKS COFFEE'), 'dining');
+  assert.equal(card("MCDONALD'S 1234"), 'dining');
+  assert.equal(card('BURGER KING 4401'), 'dining');
+  assert.equal(card('RESTAURANT ZUM LOEWEN'), 'dining');
+  assert.equal(card('CAFÉ EINSTEIN'), 'dining');
   assert.equal(card('LÖWEN-APOTHEKE'), 'health');
   assert.equal(card('FIELMANN AG'), 'health');
   assert.equal(card('UBER *TRIP'), 'mobility');
-  assert.equal(card('UBER EATS'), 'leisure', 'the longer phrase wins');
+  assert.equal(card('UBER EATS'), 'dining', 'the longer phrase wins');
 });
 
 test('German direct debits and transfers, both wire shapes', () => {
@@ -181,7 +181,8 @@ test('the remittance text counts for debits, and only the name for credits', () 
   assert.equal(person(-850, 'Kaltmiete 10/2026'), 'housing');
   assert.equal(person(850, 'Miete Oktober Whg 3'), 'otherIn', "a tenant's rent is not the user's housing cost");
   assert.equal(person(-30, 'Zahnarzt Rechnung 4711'), 'health');
-  assert.equal(person(-20, 'Kino und Pizza'), 'leisure');
+  assert.equal(person(-20, 'Kinokarten'), 'leisure');
+  assert.equal(person(-20, 'Pizza Freitag'), 'dining');
   assert.equal(person(-500, 'Gehalt Oktober Kinderbetreuung'), 'other', 'paying a wage is not income');
   assert.equal(person(2500, 'Gehalt Oktober'), 'income');
   assert.equal(person(250, 'Kindergeld'), 'income');
@@ -348,4 +349,44 @@ test('keywords: a "Bäcker" by card, and web hosting', () => {
   assert.equal(guessCategory(person), 'other');
   const host = mt940({ day: '2026-10-02', amount: -4.51, text: 'FOLGELASTSCHRIFT', name: 'Hetzner Online GmbH', purpose: 'R0024173385' });
   assert.equal(guessCategory(host), 'media');
+});
+
+// Essen & Trinken apart from Freizeit (5.9.0): "Restaurants im August" must not bring up Steam.
+// Card descriptors in the shapes banks write them; the local places are invented.
+test('eating out and free time are two categories; games are free time', () => {
+  const card = (name: string) => guessCategory(mt940({ day: '2026-08-15', amount: -19.99, gvc: '106', text: 'KARTENZAHLUNG', name }));
+  assert.equal(card('Pizzeria Bella 2//Bonn/DE/0'), 'dining');
+  assert.equal(card('Cafe Sonne Marktplatz'), 'dining');
+  assert.equal(card('Trattoria da Michele'), 'dining');
+  assert.equal(card('WL .STEAM PURCHASE//425-889-9642/US/3'), 'leisure');
+  assert.equal(card('FANATICAL E69FEA42//RUGELEY/GB'), 'leisure');
+  assert.equal(card('GAMERS OUTLET INC.//GAMERS-OUTLET'), 'leisure');
+  assert.equal(card('CINEMAXX KOBLENZ'), 'leisure');
+  // A game subscription is a subscription.
+  assert.equal(card('XBOX GAME PASS ULTIMATE'), 'media');
+  assert.equal(card('DISCORD. NITROMONTHLY//DISCORD.COM'), 'media');
+  assert.equal(card('GOMOWORLD//DUBLIN 8/IE/1'), 'media');
+  assert.equal(card('BEYERDYNAMIC GMBH CO.KG//HEILBRONN'), 'shopping');
+  assert.equal(card('Wooting Store BV//Ermelo/NL/'), 'shopping');
+});
+
+test('money coming in from a payment service is no purchase; its payout is the user\'s own money', () => {
+  const paypal = (purpose: string) =>
+    explainGuess(camt({ day: '2026-09-05', amount: 120, code: 'RCDT', text: 'Echtzeit-Gutschrift', name: 'PAYPAL', purpose }));
+  assert.deepEqual(paypal('INSTANT TRANSFER'), { id: 'transfer', basis: 'own' });
+  assert.deepEqual(paypal('Erstattung Bestellung 4711'), { id: 'otherIn', basis: 'none' });
+  // Paying with PayPal is still Shopping where nothing better says what was bought.
+  const paid = explainGuess(camt({ day: '2026-09-05', amount: -30, code: 'ESDD', text: 'Lastschrift', name: 'PayPal Europe S.a.r.l. et Cie S.C.A', purpose: '1053469649178/PP.7266.PP' }));
+  assert.equal(paid.id, 'shopping');
+});
+
+test('a filed payee also decides its other spellings, before any keyword', () => {
+  const filed = mt940({ day: '2026-09-02', amount: -54, gvc: '106', text: 'KARTENZAHLUNG', name: 'Hornbach Baumarkt AG' });
+  const other = mt940({ day: '2026-09-20', amount: -12, gvc: '106', text: 'KARTENZAHLUNG', name: 'HORNBACH BAUMARKT FIL. 0815' });
+  const rules = { [counterpartyKey(filed)]: 'housing' as CategoryId };
+  const near = (name: string): CategoryId | null => (name.toUpperCase().includes('HORNBACH') ? 'housing' : null);
+  assert.equal(categorize(other, { ownIbans: OWN_IBANS, rules }).id, 'shopping', 'without it the keyword decides');
+  assert.deepEqual(categorize(other, { ownIbans: OWN_IBANS, rules, ruleByName: near }), { id: 'housing', source: 'rule' });
+  // A booking's own choice still comes first.
+  assert.equal(categorize(other, { ownIbans: OWN_IBANS, rules, ruleByName: near, overrides: { [txKey(other)]: 'shopping' } }).id, 'shopping');
 });

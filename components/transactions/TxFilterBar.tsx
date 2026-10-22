@@ -5,7 +5,9 @@ import { bookingDay, daysLabel, monthPartNote, type CalendarMonth } from '@/lib/
 import type { TxFilter } from '@/lib/app-types';
 import { allCategories, categoryLabel, type CategoryId } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { fmtRange } from '@/lib/format';
+import { dayKey, fmtRange } from '@/lib/format';
+import { searchAsFilter } from '@/lib/nano-ask';
+import { IS_ANDROID } from '@/lib/platform';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { CalendarIcon, CategoryIcon, CloseIcon, SearchIcon } from '../icons';
@@ -70,6 +72,18 @@ export function TxFilterBar({
   const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
   const hintId = useId();
+  const { vault } = useFints();
+  const ownCategories = useMemo(
+    () => (vault?.customCategories ?? []).map((c) => ({ id: c.id, name: c.name })),
+    [vault?.customCategories],
+  );
+  // The last Enter read the search as filters (said to a screen reader once).
+  const [readAs, setReadAs] = useState(false);
+  useEffect(() => {
+    if (!readAs) return;
+    const timer = setTimeout(() => setReadAs(false), 4000);
+    return () => clearTimeout(timer);
+  }, [readAs]);
 
   // A query set from elsewhere (a deep link, the palette, "Zurücksetzen")
   // replaces the draft — and wins over typing that has not been handed over yet.
@@ -137,10 +151,23 @@ export function TxFilterBar({
               setDraft('');
               commitQuery('');
             } else if (e.key === 'Enter') {
-              commitQuery(draft);
+              // On the phone a search may say what it means: "Tanken im
+              // August" becomes Mobilität in August (lib/nano-ask.ts), the
+              // chips below show it, and what is left is the text.
+              const read = IS_ANDROID ? searchAsFilter(draft, dayKey(new Date()), ownCategories) : null;
+              if (read) {
+                e.preventDefault();
+                clearTimeout(settle.current);
+                pushed.current = read.query;
+                setDraft(read.query);
+                setFilter((f) => edited(f, read));
+                setReadAs(true);
+              } else {
+                commitQuery(draft);
+              }
             }
           }}
-          placeholder={words.placeholder}
+          placeholder={IS_ANDROID ? words.placeholderPhone : words.placeholder}
           aria-label={words.searchLabel}
           aria-describedby={hintId}
           aria-controls={listId}
@@ -172,6 +199,8 @@ export function TxFilterBar({
           className="[&::-webkit-search-cancel-button]:hidden"
         />
         <p id={hintId} className="sr-only">{words.hint}</p>
+        {/* Said once, where the search turned into filters — the chips below carry it from here. */}
+        <p role="status" className="sr-only">{readAs ? words.readAs : ''}</p>
       </div>
 
       {/* One scrolling row on a phone rather than a wrap: the chips keep their

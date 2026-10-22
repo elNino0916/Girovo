@@ -7,10 +7,11 @@ import type { CategoryId } from './categories.ts';
 
 /** The categories a guess may name — the spending ones. */
 export type GuessableCategory = Extract<CategoryId,
-  'housing' | 'groceries' | 'mobility' | 'shopping' | 'leisure' | 'media' | 'health' | 'insurance' | 'taxes' | 'savings'>;
+  'housing' | 'groceries' | 'mobility' | 'shopping' | 'dining' | 'leisure' | 'media' | 'health' | 'insurance' | 'taxes'
+  | 'savings'>;
 
 export const GUESSABLE: GuessableCategory[] = [
-  'housing', 'groceries', 'mobility', 'shopping', 'leisure', 'media', 'health', 'insurance', 'taxes', 'savings',
+  'housing', 'groceries', 'mobility', 'shopping', 'dining', 'leisure', 'media', 'health', 'insurance', 'taxes', 'savings',
 ];
 
 /** A counterparty to guess for: its key (lib/categories.ts counterpartyKey), name and Verwendungszweck. */

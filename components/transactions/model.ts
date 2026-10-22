@@ -16,7 +16,7 @@ import { facilitatorShop } from '@/lib/analytics';
 import type { TransferPrefill } from '@/lib/app-types';
 import { parseCardAcceptor, parseCardPurpose, type CardPurpose } from '@/lib/card-purpose';
 import { bookingKind, foldText, isBusinessCredit, type BookingKind } from '@/lib/categorize';
-import { counterpartyName, intermediaryName, rawCounterparty, txCreditorId, type CategoryId } from '@/lib/categories';
+import { counterpartyKey, counterpartyName, intermediaryName, rawCounterparty, txCreditorId, type CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import {
   dayKey, displayName, fmtAmountInput, fmtDate, fmtDayHeader, fmtIban, ibanValid, isFutureDate, prettyBookingText,
@@ -74,6 +74,19 @@ export type TxText = {
 // object itself is a safe cache key — and the cache dies with it. One cache
 // per language: what a booking says in words is said in the language on screen.
 const textCaches = new Map<Locale, WeakMap<SerializedTransaction, TxText>>();
+
+/**
+ * Gemini Nano's brand per counterparty (lib/nano-names.ts, Android): the
+ * name the lists show — "eBay" for "PAYPAL *EBAY". Set by the provider as
+ * the names arrive; every booking is read again then.
+ */
+let brands: ReadonlyMap<string, string> = new Map();
+
+export function setBrandNames(next: ReadonlyMap<string, string>): void {
+  if (next === brands) return;
+  brands = next;
+  textCaches.clear();
+}
 
 function textCache(): WeakMap<SerializedTransaction, TxText> {
   const locale = activeLocale();
@@ -165,7 +178,10 @@ export function txText(tx: SerializedTransaction): TxText {
   // purpose names it ("Ihr Einkauf bei ZALANDO SE"); the service is named on
   // the second line and in the drawer, which keeps the bank's name.
   const shop = facilitatorShop(tx);
-  const name = (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || words.fallbackName;
+  // Nano's brand first, where it found one in the bank's text ("eBay"); the
+  // drawer keeps `rawName` and `bankName`, and the search reads all of them.
+  const brand = brands.get(counterpartyKey(tx));
+  const name = brand || (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || words.fallbackName;
   // The second line repeats nothing the first already says: a purpose that
   // is just the payee's name again gives way to the booking text.
   const kind = bookingKind(tx);
