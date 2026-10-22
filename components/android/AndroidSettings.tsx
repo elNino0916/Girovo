@@ -10,9 +10,10 @@
 // where each renders nothing.
 
 import { useEffect, useState } from 'react';
-import { keepsNothing } from '@/lib/device-integrity';
+import { keepsNothing, mayAllowSaving, unsafePhone } from '@/lib/device-integrity';
 import { fmtBytes } from '@/lib/format';
 import { useIntegrity } from './IntegrityNotice';
+import { HoldButton, SaveAnywayWarning } from './SaveAnyway';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
@@ -46,9 +47,10 @@ export function FingerprintSwitch() {
   }, [bank, userId]);
 
   if (!available || !bank || !userId || !sessionId || integrity === undefined) return null;
-  // Turning it on stores the PIN on the phone: not where Girovo keeps nothing.
-  // Off stays possible — it deletes what an earlier start sealed.
-  const refused = keepsNothing(integrity) && !on;
+  // Turning it on stores the PIN on the phone: never on an unsafe one, even
+  // where the user lets Girovo keep its data anyway. Off stays possible — it
+  // deletes what an earlier start sealed.
+  const refused = unsafePhone(integrity) && !on;
 
   const change = async (next: boolean) => {
     const mobile = window.girovoMobile;
@@ -95,10 +97,24 @@ export function FingerprintSwitch() {
  * fetching it, that is said; where the phone has none, "Nicht unterstütztes
  * Telefon" and the rules sort alone.
  */
+/** How long AICore may take to begin a download before the row says it has not. */
+const NOT_STARTED_MS = 60_000;
+
 export function NanoRow() {
   const t = useT();
   const m = t.android.categories;
   const [status, setStatus] = useState<GirovoNanoStatus | null>(null);
+  // Asked for, but AICore has not begun: only its own callbacks say it has
+  // (`started`, a size). After a minute of that, the row says so — and what helps.
+  const begun = status?.state === 'downloading' && (!!status.started || (status.total ?? 0) > 0 || (status.received ?? 0) > 0);
+  const waiting = status?.state === 'downloading' && !begun;
+  const [stalled, setStalled] = useState(false);
+  useEffect(() => {
+    setStalled(false);
+    if (!waiting) return;
+    const timer = setTimeout(() => setStalled(true), NOT_STARTED_MS);
+    return () => clearTimeout(timer);
+  }, [waiting]);
 
   useEffect(() => {
     const categories = window.girovoMobile?.categories;
@@ -127,7 +143,15 @@ export function NanoRow() {
         icon={<GeminiSparkIcon />}
         title={m.title}
         summary={status.reason === 'update' ? m.update : status.reason === 'aicore' ? m.aicore : m.unsupportedHint}
-        below={<Tag className="mt-2">{m.unsupported}</Tag>}
+        below={(
+          <>
+            <Tag className="mt-2">{m.unsupported}</Tag>
+            {/* AICore's own answer for each model variant, once and small — something to report, as a bank's code is. */}
+            {status.probed && (
+              <span className="mt-1.5 block text-[12.5px] leading-snug break-words text-ink-2">{m.aicoreSaid}: {status.probed}</span>
+            )}
+          </>
+        )}
       />
     );
   }
@@ -146,7 +170,12 @@ export function NanoRow() {
           <span className="sr-only">{m.running}</span>
         </span>
       )}
-      below={status.state === 'downloading' ? (
+      below={status.state === 'downloading' && stalled ? (
+        <span className="mt-1.5 block">
+          <span className="block text-[13px] leading-snug font-medium text-ink">{m.notStarted}</span>
+          <span className="mt-0.5 block text-[13px] leading-snug text-ink-2">{m.notStartedHint}</span>
+        </span>
+      ) : status.state === 'downloading' ? (
         <span className="mt-2.5 block">
           <span className="flex items-baseline justify-between gap-3 text-[13px] leading-snug text-ink-2">
             <span className="min-w-0">{m.downloading}</span>
@@ -177,11 +206,16 @@ export function IntegrityRow() {
   const m = t.android.integrity;
   const integrity = useIntegrity();
   const [open, setOpen] = useState(false);
+  const [warning, setWarning] = useState(false);
   if (!IS_ANDROID || integrity === undefined) return null;
   const device = integrity?.device ?? 'unknown';
   const foreign = integrity?.copy === 'foreign';
   const bad = foreign || device === 'modified';
   const nothing = keepsNothing(integrity);
+  // Kept anyway, past the warning: said in red wherever "keeps nothing" would stand.
+  const kept = !!integrity?.savingAllowed && mayAllowSaving(integrity);
+  // Held for 10 s, "Schließen" opens the warning — only where saving may be allowed and is not.
+  const canAllow = nothing && mayAllowSaving(integrity);
   // The verdict as the row's mark: a check in Credit Green for a phone its
   // hardware vouches for, a cross in Soll Red for a modified phone or a
   // foreign copy, and the warning's orange mark for one that cannot prove
@@ -197,19 +231,24 @@ export function IntegrityRow() {
         icon={mark}
         title={m.title}
         summary={(
-          <span className={cx(bad && 'text-red')}>
+          <span className={cx((bad || kept) && 'text-red')}>
             {foreign ? m.foreignShort : m.short[device]}
             {nothing && ` · ${m.keepsNothingShort}`}
+            {kept && ` · ${m.saveAnyway.keptShort}`}
           </span>
         )}
         onClick={() => setOpen(true)}
       />
-      {open && (
+      {open && !warning && (
         <Dialog
           open
           onClose={() => setOpen(false)}
           title={m.title}
-          actions={<Button variant="primary" data-autofocus onClick={() => setOpen(false)}>{t.common.close}</Button>}
+          actions={canAllow ? (
+            <HoldButton onClick={() => setOpen(false)} onHeld={() => setWarning(true)}>{t.common.close}</HoldButton>
+          ) : (
+            <Button variant="primary" data-autofocus onClick={() => setOpen(false)}>{t.common.close}</Button>
+          )}
         >
           <div className="flex flex-col gap-3 text-[15px] leading-normal text-ink-2">
             {/* A modified phone is said in Soll Red, as the login's warning says it. */}
@@ -217,8 +256,25 @@ export function IntegrityRow() {
             {foreign && <p className="text-red">{m.foreign}</p>}
             {integrity?.copy === 'development' && <p>{m.development}</p>}
             {nothing && <p className="text-ink">{m.keepsNothing}</p>}
+            {kept && (
+              <>
+                <p className="font-semibold text-red">{m.saveAnyway.kept}</p>
+                <Button variant="tertiary" size="sm" className="-ml-3 self-start" onClick={() => window.girovoMobile?.chooseSaving(null)}>
+                  {m.saveAnyway.revoke}
+                </Button>
+              </>
+            )}
           </div>
         </Dialog>
+      )}
+      {warning && integrity && (
+        <SaveAnywayWarning
+          verdict={integrity.device}
+          onCancel={() => {
+            setWarning(false);
+            setOpen(false);
+          }}
+        />
       )}
     </>
   );

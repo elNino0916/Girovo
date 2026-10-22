@@ -52,6 +52,14 @@ export type NanoStatus = {
   state: 'available' | 'downloadable' | 'downloading' | 'unsupported';
   /** AICore's name for the model, once available ("nano-v4-fast"). */
   model?: string;
+  /** The model questions go to — the newest generation any variant has; "Frag deine Umsätze" needs v4. */
+  askModel?: string;
+  /** The variant in use ("fast/stable", "full/preview" …): the first AICore had. */
+  variant?: string;
+  /** What AICore answered for each variant ("fast/stable: unavailable · full/stable: available"). */
+  probed?: string;
+  /** While downloading: AICore has begun (its own callback said so), not just been asked. */
+  started?: boolean;
   reason?: 'unavailable' | 'update' | 'aicore';
   /** While AICore downloads it, in bytes — when AICore says. */
   received?: number;
@@ -70,6 +78,8 @@ export interface GirovoNanoPlugin {
    * only after an error AICore calls final — busy and background are waited out.
    */
   classify(opts: { system: string; prefix: string; items: { id: string; text: string }[] }): Promise<{ answers: Record<string, string | null> }>;
+  /** One prompt on a worker of its own ("Frag deine Umsätze"); null after an error AICore calls final. */
+  prompt(opts: { system: string; text: string; maxTokens?: number }): Promise<{ text: string | null }>;
   progress(): Promise<NanoProgress>;
   addListener(event: 'progress', fn: (progress: NanoProgress) => void): Promise<PluginListenerHandle>;
   addListener(event: 'download', fn: (status: NanoStatus) => void): Promise<PluginListenerHandle>;

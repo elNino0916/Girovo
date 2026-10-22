@@ -219,6 +219,14 @@ The owner sees the position as the combination of three claims (confirmed
   Vorgemerkten, the regular payments, the bank's own orders and the usual
   spending, with the day it may go below zero or past the Dispo
 - Umsatzanalyse
+- "Frag deine Umsätze" (Android, with Gemini Nano v4 or later): a question
+  about the loaded bookings, which Nano only reads into a search (direction,
+  category, name); what the question says plainly — its period, the kind of
+  answer, in or out, a category in its own words — is read by rule and wins.
+  Girovo works the answer out on the phone with the Umsätze list's own
+  filter, shows what the question was read as, and never lets Nano state a
+  figure (lib/nano-ask.ts). Phones with an older Nano, or none, see
+  "Nicht unterstützt" and the way to AICore's update in Google Play
 - Monatsbudgets per spending category, compared with the month on view
 - Verträge & Abos
 - CSV and PDF export
