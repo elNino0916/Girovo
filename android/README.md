@@ -78,8 +78,9 @@ Studio to build and run from there. `--flavor play` builds the Google Play
 flavour.
 
 Gradle runs on Android Studio's own JDK (`jbr`) unless `JAVA_HOME` says
-otherwise. The wrapper is Gradle 9.5: Android Studio's JDK 25 needs Gradle
-9.1 or later, and the Android Gradle plugin 8.x stops at Gradle 9.5.
+otherwise. Since 5.9.0 the Android Gradle plugin is 9.4 on Gradle 9.8
+(AGP 9.4 needs Gradle 9.6 or later; the wrapper pins the distribution's
+SHA-256).
 
 ### The Android look in a browser
 
@@ -185,6 +186,16 @@ plugin needs nothing extra as long as it is a `@CapacitorPlugin`; anything
 reached by reflection or by name from elsewhere needs a `-keep` rule there. A
 debug build is not minified — test a release build on a phone after such a
 change (`build-android.mjs --release`, then `adb install -r`).
+
+AGP 9 reads keep rules strictly by default: `-keep class X` no longer keeps
+X's default constructor. The libraries' own rules predate that — ML Kit's
+component registrars lost theirs and the code scanner and Gemini Nano
+failed (`NoSuchMethodException … Registrar.<init>`, NanoPlugin's variants a
+NullPointerException) — so `gradle.properties` sets
+`android.r8.strictFullModeForKeepRules=false`. `EdgeToEdge`, and the names of
+its parameter types, are kept so Play's scan still sees the
+`EdgeToEdge.enable()` call; renamed, Play reported the app as not edge to
+edge. Look for both in `adb logcat` / `dexdump` after a toolchain update.
 
 ## Distribution
 

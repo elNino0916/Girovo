@@ -19,6 +19,7 @@ import { GUESSABLE, type GuessExample, type GuessItem, type GuessableCategory } 
 import {
   NANO_CATEGORY_LIST, NANO_PROMPT_VERSION, NANO_SYSTEM, exampleFor, nanoBookingText, parseNanoAnswer,
 } from '../../lib/nano-categories.ts';
+import { NAME_PROMPT_VERSION, NAME_SHOTS, NAME_SYSTEM, nameText, parseNameAnswer } from '../../lib/nano-names.ts';
 import { GirovoNano, type NanoStatus } from '../native';
 
 export { GUESSABLE, type GuessExample, type GuessItem, type GuessableCategory };
@@ -110,6 +111,54 @@ export async function guessCategories(
     // A booking AICore finally refused is asked again next time, not remembered as "none".
     if (raw != null) remember(key, category);
     for (const k of p.keys) out[k] = category;
+  });
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Clean payee names (lib/nano-names.ts): "PAYPAL *EBAY" → "eBay", for the
+// lists. Asked once per distinct name for as long as the app runs, kept in
+// memory like the categories' answers.
+
+const names = new Map<string, string | null>();
+
+/** Whether names can be asked now — the same Nano as the categories. */
+export function namesAvailable(): boolean {
+  return modelAvailable();
+}
+
+/** Each item's brand, or null where Nano names none (or one not in the bank's text). */
+export async function guessNames(items: { key: string; name: string }[]): Promise<Record<string, string | null>> {
+  const out: Record<string, string | null> = {};
+  const pending = new Map<string, string[]>();
+  for (const it of items) {
+    const name = it.name.trim();
+    const key = `${NAME_PROMPT_VERSION}\u0000${name}`;
+    if (names.has(key)) out[it.key] = names.get(key)!;
+    else pending.set(name, [...(pending.get(name) ?? []), it.key]);
+  }
+  if (!pending.size || !modelAvailable()) {
+    for (const keys of pending.values()) for (const k of keys) out[k] = null;
+    return out;
+  }
+  const asked = [...pending.entries()];
+  const { answers: got } = await GirovoNano.classify({
+    system: NAME_SYSTEM,
+    prefix: NAME_SHOTS,
+    items: asked.map(([name], i) => ({ id: String(i), text: nameText(name) })),
+  });
+  asked.forEach(([name, keys], i) => {
+    const raw = got[String(i)];
+    const brand = raw == null ? null : parseNameAnswer(raw, name);
+    // A name AICore finally refused is asked again next time.
+    if (raw != null) {
+      names.set(`${NAME_PROMPT_VERSION}\u0000${name}`, brand);
+      for (const old of names.keys()) {
+        if (names.size <= MAX_ANSWERS) break;
+        names.delete(old);
+      }
+    }
+    for (const k of keys) out[k] = brand;
   });
   return out;
 }

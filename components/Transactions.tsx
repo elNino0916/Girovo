@@ -55,7 +55,7 @@ export function Transactions() {
   const {
     activeAccount: a, transactions, loadingAccount, txError, refreshAccount, busy, statementInfo, range, applyRange,
     txFilter, setTxFilter, txFocusNonce, categoryOf, merchants, pendingCache, accountLabel, accounts, selectAccount,
-    noteOf, receiptKeys,
+    noteOf, receiptKeys, brandNames,
     historyCoverage, savedRange, applySavedRange,
   } = useFints();
   // `tr`, not `t`: the search's terms are `t` below.
@@ -275,6 +275,7 @@ export function Transactions() {
         categoryOf={categoryOf}
         noteOf={noteOf}
         receiptKeys={receiptKeys}
+        brandNames={brandNames}
         onOpen={onOpen}
         balanceOn={balanceOn}
         savedTo={loaded?.saved?.to ?? null}

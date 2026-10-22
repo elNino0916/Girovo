@@ -626,6 +626,16 @@ export function CutleryIcon(p: IconProps) {
   return <Icon {...p}><path d="M6 3.5V8a2.5 2.5 0 0 0 5 0V3.5M8.5 3.5v17M17.5 20.5v-17c-2 1-3 3.5-3 6.5v3h3" /></Icon>;
 }
 
+/** Freizeit: a ticket — for the cinema, a concert, a game, a day out. */
+export function TicketIcon(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M3 9a3 3 0 0 0 0 6v2.5A1.5 1.5 0 0 0 4.5 19h15a1.5 1.5 0 0 0 1.5-1.5V15a3 3 0 0 1 0-6V6.5A1.5 1.5 0 0 0 19.5 5h-15A1.5 1.5 0 0 0 3 6.5V9z" />
+      <path d="M14 5v2M14 11v2M14 17v2" />
+    </Icon>
+  );
+}
+
 export function PlayIcon(p: IconProps) {
   return (
     <Icon {...p}>
@@ -683,7 +693,8 @@ const CATEGORY_ICONS: Record<BuiltinCategoryId, (p: IconProps) => ReactNode> = {
   groceries: BasketIcon,
   mobility: CarIcon,
   shopping: BagIcon,
-  leisure: CutleryIcon,
+  dining: CutleryIcon,
+  leisure: TicketIcon,
   media: PlayIcon,
   health: HeartPulseIcon,
   insurance: UmbrellaIcon,

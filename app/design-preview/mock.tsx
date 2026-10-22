@@ -2743,6 +2743,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     addCustomCategory, renameCustomCategory, deleteCustomCategory,
     // The preview runs no model: its keyword rules alone file the mock bookings.
     modelGuesses: {},
+    // Gemini Nano's brands (Android): the preview shows the bank's names.
+    brandNames: new Map<string, string>(),
     categoryGuessOf, setBudgets, noteOf, setNote,
     links, banks, bankOf, activeBank, addBank,
     openAddBank, closeAddBank, pickAddBank, connectAddBank, chooseAddBankMethod, clearAddBankMedia, addBankBack,

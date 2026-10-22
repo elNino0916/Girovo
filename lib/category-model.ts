@@ -67,17 +67,22 @@ export const CATEGORY_PROTOTYPES: Record<GuessableCategory, string[]> = {
     'Kaufhaus, Warenhaus, Einkaufszentrum',
     'Juwelier, Uhren, Schmuck, Elektrogeschäft, Fachhandel',
   ],
-  leisure: [
+  dining: [
     'Restaurant, Gaststätte, essen gehen',
     'Café, Bistro, Imbiss, Döner, Pizzeria',
-    'Bar, Kneipe, Club, Diskothek',
+    'Bar, Kneipe, Biergarten, Weinstube',
+    'Lieferdienst, Essen bestellen',
+    'Trattoria, Ristorante, Steakhaus, Gasthaus, Kebab, Eiscafé',
+    'Fast Food, Burger, Sushi, Mensa, Kantine',
+  ],
+  leisure: [
     'Kino, Theater, Konzert, Tickets für eine Veranstaltung',
     'Fitnessstudio, Sportverein, Schwimmbad, Sauna',
     'Hotel, Urlaub, Reise, Ferienwohnung',
     'Freizeitpark, Museum, Zoo, Ausflug',
     'Bowling, Minigolf, Escape Room, Kletterhalle, Trampolinpark',
-    'Lieferdienst, Essen bestellen',
-    'Trattoria, Ristorante, Steakhaus, Gasthaus, Kebab, Eiscafé',
+    'Club, Diskothek, Party',
+    'Videospiele kaufen, Spieleplattform, Game-Keys, Gaming',
   ],
   media: [
     'Streaming-Abo für Filme, Serien oder Musik',
@@ -85,7 +90,6 @@ export const CATEGORY_PROTOTYPES: Record<GuessableCategory, string[]> = {
     'Zeitung, Zeitschrift, Abonnement',
     'Software-Abo, App, Cloud-Speicher',
     'Webhosting, Server, Domain, Rechenzentrum, Cloud-Hosting',
-    'Videospiele, Gaming, Spieleplattform',
     'Sport-Streaming, Fernsehen, Pay-TV',
   ],
   health: [
@@ -447,4 +451,17 @@ export async function releaseModel(): Promise<void> {
   // The vectors belong to this model; whatever loads next may be another.
   state.cache.clear();
   await was?.then((m) => m.session.release()).catch(() => {});
+}
+
+/**
+ * Clean payee names ("PAYPAL *EBAY" → "eBay") come from Gemini Nano on Android
+ * (mobile/server/categories.ts); e5 knows no brands, so the desktop has none
+ * and its route answers "unavailable".
+ */
+export function namesAvailable(): boolean {
+  return false;
+}
+
+export async function guessNames(_items: { key: string; name: string }[]): Promise<Record<string, string | null>> {
+  return {};
 }

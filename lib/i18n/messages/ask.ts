@@ -23,6 +23,25 @@ export const de = {
     months: (n: number) => `letzte ${n} Monate`,
     since: (month: string) => `seit ${month}`,
   },
+  /** In "Gesucht": what a ranking ranks, and what a comparison is set against. */
+  rankBy: { category: 'nach Kategorie', payee: 'nach Empfänger' },
+  versus: (period: string) => `gegenüber ${period}`,
+  /** Above a ranking's rows. */
+  rankTitle: {
+    category: {
+      sum: { out: 'Am meisten ausgegeben für', in: 'Am meisten bekommen als' },
+      count: { out: 'Am häufigsten bezahlt für', in: 'Am häufigsten bekommen als' },
+    },
+    payee: {
+      sum: { out: 'Am meisten ausgegeben bei', in: 'Am meisten bekommen von' },
+      count: { out: 'Am häufigsten bezahlt an', in: 'Am häufigsten bekommen von' },
+    },
+  },
+  /** A comparison's difference, after the amount. */
+  more: 'mehr',
+  less: 'weniger',
+  same: 'Genau gleich viel',
+  compareMissing: 'Für einen der Zeiträume sind keine Umsätze geladen.',
   /** On a phone without Gemini Nano v4: the tile says why, and where an update may help. */
   unsupported: {
     tag: 'Nicht unterstützt',
@@ -75,6 +94,22 @@ export const en: typeof de = {
     months: (n) => `last ${n} months`,
     since: (month) => `since ${month}`,
   },
+  rankBy: { category: 'by category', payee: 'by payee' },
+  versus: (period) => `against ${period}`,
+  rankTitle: {
+    category: {
+      sum: { out: 'Most spent on', in: 'Most received as' },
+      count: { out: 'Most often paid for', in: 'Most often received as' },
+    },
+    payee: {
+      sum: { out: 'Most spent at', in: 'Most received from' },
+      count: { out: 'Most often paid to', in: 'Most often received from' },
+    },
+  },
+  more: 'more',
+  less: 'less',
+  same: 'Exactly the same',
+  compareMissing: 'No transactions are loaded for one of the periods.',
   unsupported: {
     tag: 'Not supported',
     tooOld: (model, min) => `Asking needs Gemini Nano v${min} or later – this phone has ${model}.`,

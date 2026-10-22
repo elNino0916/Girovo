@@ -17,19 +17,20 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { bookingDay } from '@/lib/analytics';
-import { categoryLabel, counterpartyName } from '@/lib/categories';
+import type { SerializedTransaction } from '@/lib/fints-types';
+import { categoryLabel, counterpartyName, type CategoryId } from '@/lib/categories';
 import { dayKey, fmtDate, fmtMonth, fmtRange } from '@/lib/format';
 import { rich, useT } from '@/lib/i18n/react';
 import {
   ASK_MAX_TOKENS, ASK_MIN_NANO, ASK_SYSTEM, askText, asksWith, computeAnswer, parseAskAnswer, periodDays, readQuestion,
-  type AskAnswer, type AskQuery,
+  type AskAnswer, type AskPeriod, type AskQuery,
 } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { ArrowRightIcon, GeminiSparkIcon } from '../icons';
 import { Button, Chip, DotList, IconButton, Input, Spinner, Tag, TileHeader } from '../ui';
-import { searchText } from '../transactions/model';
+import { searchText, txText } from '../transactions/model';
 import type { ScopeData } from './analysis-model';
 import { LoadHistoryButton, RoundMoney, useShowInList } from './shared';
 
@@ -109,7 +110,7 @@ function AskUnsupported({ status }: { status: GirovoNanoStatus }) {
 }
 
 function AskForm({ data }: { data: ScopeData }) {
-  const { categoryOf, noteOf, vault } = useFints();
+  const { categoryOf, noteOf, vault, brandNames } = useFints();
   const t = useT();
   const words = t.ask;
   const titleId = useId();
@@ -125,7 +126,13 @@ function AskForm({ data }: { data: ScopeData }) {
     [vault?.customCategories],
   );
   // The search reads what the Umsätze list reads, so both find the same bookings.
-  const ctx = useMemo(() => ({ categoryOf, shownText: searchText, noteOf }), [categoryOf, noteOf]);
+  // A ranking groups payees by the lists' own name — Nano's brand on the phone ("eBay"), tidied by rule elsewhere.
+  // brandNames: a brand that arrives later regroups the ranking.
+  const ctx = useMemo(
+    () => ({ categoryOf, shownText: searchText, noteOf, payeeOf: (tx: SerializedTransaction) => txText(tx).name }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [categoryOf, noteOf, brandNames],
+  );
   // Worked out again whenever the bookings in view change: the reading stays, the figure follows.
   const answer = useMemo<AskAnswer | null>(
     () => (query ? computeAnswer(query, data.txs, ctx, { from: data.from, to: data.to }, dayKey(new Date())) : null),
@@ -233,22 +240,26 @@ function Answer({ answer, scopeAll, onShow, own }: {
   const today = dayKey(new Date());
   const range = fmtRange(answer.from, answer.to);
 
-  // What the question was read as.
-  const days = periodDays(q.period, today);
-  // A month by its name, a year by its number — as the question put it.
-  const periodText = q.period.kind === 'all' || !days ? words.period.all
-    : q.period.kind === 'today' ? words.period.today
-      : q.period.kind === 'days' ? words.period.days(q.period.days)
-        : q.period.kind === 'months' ? words.period.months(q.period.months)
-          : q.period.kind === 'since' ? words.period.since(fmtMonth(q.period.month))
-            : q.period.kind === 'month' || q.period.kind === 'lastMonth' || q.period.kind === 'thisMonth' ? fmtMonth(days.from.slice(0, 7))
-              : days.from.slice(0, 4);
-  const ownName = q.category ? own.find((c) => c.id === q.category)?.name : undefined;
+  // What the question was read as. A month by its name, a year by its number — as the question put it.
+  const periodText = (period: AskPeriod): string => {
+    const days = periodDays(period, today);
+    return period.kind === 'all' || !days ? words.period.all
+      : period.kind === 'today' ? words.period.today
+        : period.kind === 'days' ? words.period.days(period.days)
+          : period.kind === 'months' ? words.period.months(period.months)
+            : period.kind === 'since' ? words.period.since(fmtMonth(period.month))
+              : period.kind === 'range' ? fmtRange(days.from, days.to)
+                : period.kind === 'month' || period.kind === 'lastMonth' || period.kind === 'thisMonth' ? fmtMonth(days.from.slice(0, 7))
+                  : days.from.slice(0, 4);
+  };
+  const nameOf = (id: CategoryId) => own.find((c) => c.id === id)?.name ?? categoryLabel(id);
   const read = [
     words.dir[q.dir],
-    q.category ? ownName ?? categoryLabel(q.category) : null,
+    q.category ? nameOf(q.category) : null,
     q.search ? `„${q.search}“` : null, // i18n-data
-    periodText,
+    q.kind === 'rank' && q.rank ? words.rankBy[q.rank.by] : null,
+    periodText(q.period),
+    q.kind === 'compare' && q.against ? words.versus(periodText(q.against)) : null,
   ].filter(Boolean);
 
   const atLeast = answer.partial ? <span className="text-[15px] font-normal text-ink-2">{words.atLeast} </span> : null;
@@ -265,7 +276,68 @@ function Answer({ answer, scopeAll, onShow, own }: {
   );
 
   let body;
-  if (answer.outside) {
+  if (q.kind === 'compare' && answer.compare) {
+    const { a, b } = answer.compare;
+    const diff = a.cents - b.cents;
+    const pct = b.cents > 0 ? Math.round((Math.abs(diff) / b.cents) * 100) : null;
+    const side = (x: AskAnswer) => (
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="tnum min-w-0 text-[14px] text-ink-2">{fmtRange(x.from, x.to)}</span>
+        <span className="shrink-0 text-[17px] font-bold text-ink">
+          {x.partial && <span className="text-[13px] font-normal text-ink-2">{words.atLeast} </span>}
+          <Money value={x.cents / 100} tone="plain" />
+        </span>
+      </div>
+    );
+    body = (
+      <>
+        <p className="text-[24px] leading-tight font-bold text-ink">
+          {diff === 0 ? words.same : (
+            <>
+              <Money value={Math.abs(diff) / 100} tone="plain" />
+              <span className="text-[15px] font-normal text-ink-2"> {diff > 0 ? words.more : words.less}{pct != null ? ` (${pct} %)` : ''}</span>
+            </>
+          )}
+        </p>
+        <div className="mt-2 flex flex-col gap-1">
+          {side(a)}
+          {side(b)}
+        </div>
+        {(a.outside || b.outside) && <p className="mt-1 text-[13px] leading-snug text-ink-2">{words.compareMissing}</p>}
+      </>
+    );
+  } else if (q.kind === 'rank' && answer.rank) {
+    const rank = q.rank!;
+    body = answer.rank.length === 0 ? (
+      <p className="text-[15px] leading-snug font-semibold text-ink">{words.none}</p>
+    ) : (
+      <>
+        <p className="text-[13px] leading-snug font-medium text-ink-2">{words.rankTitle[rank.by][rank.metric][q.dir === 'in' ? 'in' : 'out']}</p>
+        <ol className="mt-1 flex flex-col">
+          {answer.rank.map((row, i) => (
+            <li key={row.key}>
+              {/* The name gets the width; its share (or how often) goes under it. */}
+              <button
+                type="button"
+                className="flex w-full items-baseline gap-3 rounded-[10px] py-1.5 text-left"
+                onClick={() => onShow(null, { ...row.filter, ...(scopeAll ? { acrossAccounts: true } : {}) })}
+              >
+                <span className="tnum w-4 shrink-0 text-[13px] text-ink-2">{i + 1}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] leading-snug text-ink">{row.category ? nameOf(row.category) : row.name}</span>
+                  <span className="tnum block text-[12.5px] leading-snug text-ink-2">
+                    {rank.metric === 'count' ? words.times(row.count) : `${Math.round(row.share * 100)} %`}
+                  </span>
+                </span>
+                <Money value={row.cents / 100} tone="plain" className="shrink-0 text-[15px] font-semibold" />
+              </button>
+            </li>
+          ))}
+        </ol>
+        {bookingLine}
+      </>
+    );
+  } else if (answer.outside) {
     body = (
       <>
         <p className="text-[15px] leading-snug text-ink">{words.outside}</p>
@@ -349,7 +421,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
       <DotList items={read} className="mt-0.5 text-[14px] leading-snug text-ink" />
       <div className="mt-3">{body}</div>
       {answer.partial && <p className="mt-2 text-[13px] leading-snug text-ink-2">{words.partial(fmtDate(answer.from))}</p>}
-      {answer.count > 0 && !answer.outside && (
+      {answer.count > 0 && !answer.outside && q.kind !== 'rank' && (
         <Button
           variant="tertiary"
           size="sm"

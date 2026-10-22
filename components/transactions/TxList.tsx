@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
-import { txKey, type CategoryId, type CategoryPart } from '@/lib/categories';
+import { counterpartyKey, txKey, type CategoryId, type CategoryPart } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
@@ -40,7 +40,7 @@ export const MORE_PAGE = 100;
  * first of those days: not a band, so it never competes with the dates.
  */
 export function TxList({
-  id, groups, total, resetKey, merchantOf, categoryOf, noteOf, receiptKeys, onOpen, balanceOn = null, savedTo = null,
+  id, groups, total, resetKey, merchantOf, categoryOf, noteOf, receiptKeys, brandNames, onOpen, balanceOn = null, savedTo = null,
 }: {
   id: string;
   groups: DayGroup[];
@@ -52,6 +52,8 @@ export function TxList({
   noteOf?: (tx: SerializedTransaction) => string | undefined;
   /** The bookings with a receipt attached, by txKey. */
   receiptKeys?: ReadonlySet<string>;
+  /** Gemini Nano's brand per counterparty key (Android): a row redraws when its brand arrives. */
+  brandNames?: ReadonlyMap<string, string>;
   onOpen: (tx: SerializedTransaction) => void;
   /** The verified end-of-day balance per local day, when the bank's balances prove one. */
   balanceOn?: { byDay: ReadonlyMap<string, number>; currency: string; card?: boolean } | null;
@@ -163,6 +165,7 @@ export function TxList({
                 >
                   <TxRow
                     tx={tx}
+                    brand={brandNames?.get(counterpartyKey(tx))}
                     merchant={merchantOf(tx)}
                     category={categoryOf(tx).id}
                     parts={categoryOf(tx).parts}

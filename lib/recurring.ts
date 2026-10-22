@@ -446,7 +446,7 @@ function innerMerchant(tx: SerializedTransaction): string {
 }
 
 /** Card payments here are habits — eating out, shopping, rides — unless the price never moves. */
-const HABIT_CATEGORIES: ReadonlySet<CategoryId> = new Set<CategoryId>(['leisure', 'groceries', 'shopping', 'mobility']);
+const HABIT_CATEGORIES: ReadonlySet<CategoryId> = new Set<CategoryId>(['dining', 'leisure', 'groceries', 'shopping', 'mobility']);
 
 function groupKeyOf(tx: SerializedTransaction, credit: boolean, cred: string | null, mref: string | null): string | null {
   const dir = credit ? 'in' : 'out';

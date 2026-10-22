@@ -1,0 +1,14 @@
+<en-US>
+• Eating out is its own category, apart from Leisure – “Restaurants in August” no longer shows a Steam purchase
+• Ask your transactions now ranks and compares: “What do I spend most on?”, “More than last month?”
+• Payees by brand: “PAYPAL *EBAY” becomes “eBay”
+• Search “fuel in August” and get the matching filters
+• Better categories for game shops, tech gear and PayPal payouts; your own filings count for every spelling of a payee
+</en-US>
+<de-DE>
+• Essen & Trinken ist eine eigene Kategorie neben Freizeit – „Restaurants im August“ zeigt keinen Steam-Kauf mehr
+• Frag deine Umsätze vergleicht und erstellt Ranglisten: „Wofür gebe ich am meisten aus?“, „Mehr als letzten Monat?“
+• Empfänger mit Markennamen: aus „PAYPAL *EBAY“ wird „eBay“
+• Suche „Tanken im August“ und erhalte passende Filter
+• Bessere Kategorien für Spieleshops, Technik und PayPal-Auszahlungen; deine Zuordnung gilt für jede Schreibweise eines Empfängers
+</de-DE>

@@ -132,6 +132,7 @@ export function PrintPreview({ kind }: { kind: PrintPreviewKind }) {
       }
       const include = new Set(allCategories().filter((c) => !c.neutral && c.direction !== 'in').map((c) => c.id));
       include.delete('groceries');
+      include.delete('dining');
       include.delete('leisure');
       const summary = taxYear({
         year: new Date().getFullYear(), accounts: inScope, txsByAccount: txByAccount, spans, categoryOf, include,

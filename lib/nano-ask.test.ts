@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import type { CategoryResult } from './categories.ts';
 import type { SerializedTransaction } from './fints-types.ts';
 import {
-  askText, asksWith, computeAnswer, dirFromQuestion, kindFromQuestion, nanoGeneration, parseAskAnswer, periodDays,
-  periodFromQuestion, readQuestion, searchFromQuestion, wholeMonths,
+  askText, asksWith, compareFromQuestion, computeAnswer, dirFromQuestion, kindFromQuestion, nanoGeneration, parseAskAnswer,
+  periodDays, periodFromQuestion, periodsFromQuestion, rankFromQuestion, readQuestion, searchAsFilter, searchFromQuestion, wholeMonths,
   type AskQuery,
 } from './nano-ask.ts';
 
@@ -232,4 +232,66 @@ test('the prompt carries the question and the own categories', () => {
   const text = askText('  Wie viel?  ', [{ id: 'c_pet', name: 'Haustier' }]);
   assert.match(text, /\nFrage: Wie viel\?\n$/);
   assert.match(text, /Eigene Kategorien: c_pet \(Haustier\)/);
+});
+
+// ---- rankings and comparisons (5.9.0) -------------------------------------------
+
+test('a ranking: of categories or payees, by money or by how often', () => {
+  assert.deepEqual(rankFromQuestion('Wofür gebe ich am meisten aus?'), { by: 'category', metric: 'sum' });
+  assert.deepEqual(rankFromQuestion('Wo kaufe ich am häufigsten ein?'), { by: 'payee', metric: 'count' });
+  assert.deepEqual(rankFromQuestion('Bei wem gebe ich am meisten aus?'), { by: 'payee', metric: 'sum' });
+  assert.deepEqual(rankFromQuestion('Top 5 Ausgaben dieses Jahr'), { by: 'category', metric: 'sum' });
+  assert.equal(rankFromQuestion('Was war meine größte Ausgabe?'), null, 'one booking, not a ranking');
+  // A ranking within a category: the payees of "Essen & Trinken".
+  // Nano read "einkaufen" as Lebensmittel (S26, 2026-10-22): a ranking takes only a category the question names.
+  const shops = readQuestion('Wo kaufe ich am häufigsten ein?', parseAskAnswer('{"richtung":"aus","kategorie":"groceries","suche":null}'), TODAY);
+  assert.deepEqual([shops?.kind, shops?.category], ['rank', null]);
+  const q = readQuestion('Welche Restaurants am häufigsten?', null, TODAY);
+  assert.deepEqual([q?.kind, q?.category, q?.rank], ['rank', 'dining', { by: 'payee', metric: 'count' }]);
+});
+
+test('a comparison: two periods, the running one against the one it names', () => {
+  assert.deepEqual(compareFromQuestion('Mehr als letzten Monat?', TODAY), { period: { kind: 'thisMonth' }, against: { kind: 'lastMonth' } });
+  assert.deepEqual(compareFromQuestion('Tanken diesen vs. letzten Monat', TODAY), { period: { kind: 'thisMonth' }, against: { kind: 'lastMonth' } });
+  assert.deepEqual(compareFromQuestion('Lebensmittel im September im Vergleich zum August', TODAY), {
+    period: { kind: 'month', month: '2026-09' }, against: { kind: 'month', month: '2026-08' },
+  });
+  assert.deepEqual(compareFromQuestion('Gebe ich dieses Jahr mehr für Essen gehen aus als letztes Jahr?', TODAY), {
+    period: { kind: 'thisYear' }, against: { kind: 'lastYear' },
+  });
+  assert.equal(compareFromQuestion('Mehr als 100 Euro bei Rewe?', TODAY), null, 'an amount is no period');
+  assert.deepEqual(periodsFromQuestion('Amazon im August 2026 und September', TODAY), [
+    { kind: 'month', month: '2026-08' }, { kind: 'month', month: '2026-09' },
+  ]);
+});
+
+test('a ranking counts the same bookings as the sum, split shares in their categories', () => {
+  const byCategory = ask({ kind: 'rank', rank: { by: 'category', metric: 'sum' } });
+  assert.deepEqual(byCategory.rank?.map((r) => [r.category, r.cents]), [['shopping', 3000 + 1250 + 4000 + 3000], ['groceries', 5520 + 5000]]);
+  assert.equal(byCategory.rank?.[0].filter.category, 'shopping');
+  const byPayee = ask({ kind: 'rank', rank: { by: 'payee', metric: 'count' } });
+  assert.equal(byPayee.rank?.[0].count, 2);
+  assert.equal(byPayee.rank?.[0].filter.query, byPayee.rank?.[0].name);
+});
+
+test('a comparison sets the running month against as many days of the last', () => {
+  const a = ask({ kind: 'compare', period: { kind: 'thisMonth' }, against: { kind: 'lastMonth' } });
+  assert.equal(a.compare?.a.cents, 8000);
+  assert.deepEqual([a.compare?.b.from, a.compare?.b.to], ['2026-09-01', '2026-09-20']);
+  assert.equal(a.compare?.b.cents, 1250 + 4000 + 5520);
+  // Two whole months stay whole.
+  const months = ask({ kind: 'compare', period: { kind: 'month', month: '2026-09' }, against: { kind: 'month', month: '2026-08' } });
+  assert.deepEqual([months.compare?.b.from, months.compare?.b.to], ['2026-08-01', '2026-08-31']);
+});
+
+test('a search in the Umsätze list says what it means; a plain one stays text', () => {
+  assert.deepEqual(searchAsFilter('Tanken im August', TODAY), { query: '', category: 'mobility', from: '2026-08-01', to: '2026-08-31' });
+  assert.deepEqual(searchAsFilter('Amazon letzten Monat', TODAY), { query: 'Amazon', from: '2026-09-01', to: '2026-09-30' });
+  assert.deepEqual(searchAsFilter('Restaurants im August', TODAY), { query: '', category: 'dining', from: '2026-08-01', to: '2026-08-31' });
+  assert.deepEqual(searchAsFilter('Eingänge September', TODAY), { query: '', dir: 'in', from: '2026-09-01', to: '2026-09-30' });
+  // Only what it names: no period, so a month picked before stays.
+  assert.deepEqual(searchAsFilter('Ausgaben bei Rewe', TODAY), { query: 'Rewe', dir: 'out' });
+  assert.equal(searchAsFilter('Rewe', TODAY), null);
+  assert.equal(searchAsFilter('4711', TODAY), null);
+  assert.deepEqual(searchAsFilter('Futter für Haustier', TODAY, [{ id: 'c_pet', name: 'Haustier' }]), { query: 'Futter', category: 'c_pet' });
 });
