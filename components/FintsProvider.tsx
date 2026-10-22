@@ -54,6 +54,7 @@ import {
 } from '@/lib/splits';
 import { isCardPurpose, parseCardAcceptor } from '@/lib/card-purpose';
 import { setBrandNames } from './transactions/model';
+import { bankAllowed, reminderDue, type PlusStatus } from '@/lib/plus';
 import { parsePurpose } from '@/lib/sepa-purpose';
 import {
   dayKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, toLocalDate, translateType,
@@ -999,6 +1000,12 @@ function useFintsState() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferPrefill, setTransferPrefill] = useState<TransferPrefill | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  // Girovo Plus (lib/plus.ts): 'free' wherever Plus does not apply — and on
+  // Android until the bridge has answered, so nothing flashes locked.
+  const [plus, setPlus] = useState<PlusStatus>({ state: 'free', offers: [], icon: 'standard' });
+  const plusRef = useRef(plus);
+  plusRef.current = plus;
+  const [plusOpen, setPlusOpen] = useState(false);
   const [sharePrefill, setSharePrefill] = useState<SharePrefill | null>(null);
   const [inboxOpen, setInboxOpenState] = useState(false);
   const [paletteOpen, setPaletteOpenState] = useState(false);
@@ -3253,6 +3260,39 @@ function useFintsState() {
     setShareOpen(true);
   }, [transferOpen, shareOpen, accounts, activeAccount, toast, clearTransients]);
 
+  const openPlus = useCallback(() => setPlusOpen(true), []);
+  const closePlus = useCallback(() => setPlusOpen(false), []);
+
+  // Girovo Plus's state from the phone (mobile/bridges/plus.ts): asked at
+  // start — the plugin answers with what Play said last — and on every change
+  // (a purchase, a lapse noticed when the app comes back).
+  useEffect(() => {
+    const bridge = IS_ANDROID ? window.girovoMobile?.plus : undefined;
+    if (!bridge) return;
+    let live = true;
+    void bridge.status().then((s) => live && setPlus(s));
+    const off = bridge.onChange((s) => live && setPlus(s));
+    return () => {
+      live = false;
+      off();
+    };
+  }, []);
+
+  // The weekly Plus reminder (lib/plus.ts reminderDue): a toast once the user
+  // is in, at most every 7 days, only in the Play build without Plus. Its
+  // clock starts the first time the app sees them without it, so a new user
+  // first gets a week with the app.
+  useEffect(() => {
+    if (view !== 'dashboard' || plusOpen) return;
+    const key = 'girovo.plus.reminder';
+    const now = Date.now();
+    const raw = store.get(key);
+    const due = reminderDue(plus.state, raw == null ? null : Number(raw), now);
+    if (due === 'none' || due === 'wait') return;
+    store.set(key, String(now));
+    if (due === 'show') toast(msgs().plus.reminder, 'info', 12000, { label: msgs().plus.reminderAction, run: () => setPlusOpen(true) });
+  }, [view, plus.state, plusOpen, toast]);
+
   const closeShare = useCallback(() => {
     setShareOpen(false);
     setSharePrefill(null);
@@ -3461,9 +3501,17 @@ function useFintsState() {
     setBusy(false);
   }, [setBusy]);
 
-  /** `from`: a bank to start with — a remembered one, or one logged out — and its login name. */
+  /**
+   * `from`: a bank to start with — a remembered one, or one logged out — and
+   * its login name. Every bank beside the one the app opens with needs Girovo
+   * Plus in the Play build: without it, the Plus screen opens instead.
+   */
   const openAddBank = useCallback((from?: { bank: ChosenBank; userId?: string }) => {
     if (!sessionRef.current || addBankRef.current) return;
+    if (!bankAllowed(plusRef.current.state, false)) {
+      setPlusOpen(true);
+      return;
+    }
     clearTransients();
     setAddBankBoth({
       step: from ? 'credentials' : 'bank',
@@ -5112,6 +5160,8 @@ function useFintsState() {
     removeCategoryRule,
     addCustomCategory, renameCustomCategory, deleteCustomCategory,
     modelGuesses, brandNames,
+    // Girovo Plus (lib/plus.ts)
+    plus, plusOpen, openPlus, closePlus,
     categoryGuessOf, setBudgets, noteOf, setNote,
     // more banks (lib/linked-banks.ts)
     links, banks, bankOf, activeBank, addBank,

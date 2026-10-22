@@ -8,8 +8,10 @@ import type { SerializedAccount } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
 import { combinedTotal, groupByLogin } from '@/lib/linked-banks';
 import { BankLogo } from '../BankLogo';
+import { bankAllowed } from '@/lib/plus';
 import { useFints, type BankEntry } from '../FintsProvider';
 import { Money } from '../Money';
+import { PlusButton } from '../android/PlusTeaser';
 import { PencilIcon, PlusIcon, RefreshIcon, UndoIcon } from '../icons';
 import { Alert, Button, DotList, EmptyState, IconButton, Input, Skeleton, TileHeader, cx } from '../ui';
 import { AccountGlyph, MAX_ALIAS, ShortIban, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
@@ -667,6 +669,9 @@ function LoginRow({ entry, logoFile, onLogin, className }: {
   entry: BankEntry; logoFile?: string; onLogin: () => void; className?: string;
 }) {
   const t = useT();
+  const { plus } = useFints();
+  // Every bank beside the one the app opens with needs Girovo Plus in the Play build.
+  const locked = !bankAllowed(plus.state, false);
   const again = entry.state === 'loggedOut';
   return (
     <div className={cx('flex min-h-14 items-center gap-2.5 px-4 py-2 sm:px-5', className)}>
@@ -675,17 +680,23 @@ function LoginRow({ entry, logoFile, onLogin, className }: {
       </span>
       <span className="min-w-0 flex-1">
         <h3 className="truncate text-[14px] leading-snug font-semibold text-ink" title={entry.bank.name}>{entry.bank.name}</h3>
-        <span className="block text-[13px] leading-snug text-ink-3">{again ? t.banks.state.loggedOut : t.banks.state.remembered}</span>
+        <span className="block text-[13px] leading-snug text-ink-3">
+          {locked ? t.plus.bankLocked : again ? t.banks.state.loggedOut : t.banks.state.remembered}
+        </span>
       </span>
-      <Button
-        variant="secondary"
-        size="xs"
-        className="shrink-0"
-        aria-label={again ? undefined : t.banks.alsoLogin(entry.bank.name)}
-        onClick={onLogin}
-      >
-        {again ? t.banks.loginAgain : t.banks.login}
-      </Button>
+      {locked ? (
+        <PlusButton size="xs" className="shrink-0" label={t.plus.bankUnlock} aria-label={`${t.plus.name}: ${entry.bank.name}`} onClick={onLogin} />
+      ) : (
+        <Button
+          variant="secondary"
+          size="xs"
+          className="shrink-0"
+          aria-label={again ? undefined : t.banks.alsoLogin(entry.bank.name)}
+          onClick={onLogin}
+        >
+          {again ? t.banks.loginAgain : t.banks.login}
+        </Button>
+      )}
     </div>
   );
 }

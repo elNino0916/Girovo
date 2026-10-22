@@ -18,12 +18,14 @@ import { intlLocale } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { AlertTriangleIcon } from '../icons';
+import { forecastAllowed } from '@/lib/plus';
+import { PlusTeaser } from '../android/PlusTeaser';
 import { DotList, Tile, cx } from '../ui';
 import { useRecurringModel } from './recurring-model';
 import { RoundMoney, fmtDayKeyShort } from './shared';
 
 export function ForecastTile({ className }: { className?: string }) {
-  const { activeAccount, balances, pendingCache, bankOrders, txByAccount, statementInfo, accountLabel, accounts } = useFints();
+  const { activeAccount, balances, pendingCache, bankOrders, txByAccount, statementInfo, accountLabel, accounts, plus } = useFints();
   const model = useRecurringModel();
   const t = useT();
   const words = t.insights.forecast;
@@ -73,6 +75,17 @@ export function ForecastTile({ className }: { className?: string }) {
 
   const month = new Intl.DateTimeFormat(intlLocale(), { month: 'long' }).format(new Date());
   const name = accountLabel(activeAccount);
+
+  // Girovo Plus in the Play build: the card keeps its place, the figure waits for Plus.
+  if (!forecastAllowed(plus.state)) {
+    return (
+      <Tile className={cx('min-w-0', className)} title={words.title(month)}>
+        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+          <PlusTeaser text={t.plus.forecastTeaser} />
+        </div>
+      </Tile>
+    );
+  }
 
   if (result === 'stale') {
     return (

@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
+import { PlusScreen } from './android/Plus';
 import { isDepot } from '@/lib/balances';
 import { useFints } from './FintsProvider';
 import { AccountHero, AccountList, MonthSummary } from './AccountPanel';
@@ -104,6 +105,7 @@ export function Dashboard() {
 
       {transferOpen && <TransferSheet />}
       {shareOpen && <ShareAccount />}
+      {IS_ANDROID && <PlusScreen />}
       <AddBankSheet />
       <Inbox />
       <CommandPalette />

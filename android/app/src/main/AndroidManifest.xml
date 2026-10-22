@@ -40,11 +40,6 @@
             android:windowSoftInputMode="adjustResize"
             android:exported="true">
 
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
             <!-- An invoice shared with Girovo, as an image or a PDF: its
                  GiroCode opens a transfer (LaunchPlugin). -->
             <intent-filter>
@@ -58,12 +53,43 @@
                 <data android:mimeType="application/pdf" />
             </intent-filter>
 
-            <!-- Long-pressing the icon: Überweisen, GiroCode scannen, Geld anfordern. -->
+        </activity>
+
+        <!-- The app's icon in the launcher, as two entries for the one activity:
+             the navy G€, and the gold one a Girovo Plus subscriber may choose
+             (PlusPlugin switches them; the gold one goes when Plus does).
+             Before 5.10.0 MainActivity itself was the entry. Long-pressing
+             either: Überweisen, GiroCode scannen, Geld anfordern. -->
+        <activity-alias
+            android:name=".LauncherStandard"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
-
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherPlus"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_plus"
+            android:roundIcon="@mipmap/ic_launcher_plus"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
 
         <!-- Google's code scanner hands off to Play services through this
              activity of its own, locked to portrait in its manifest. Android 16

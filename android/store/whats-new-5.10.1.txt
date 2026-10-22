@@ -1,0 +1,8 @@
+<en-US>
+• Girovo Plus: support Girovo for €0.99 a month or €9.99 a year – with several banks, the month-end forecast, Ask your transactions and a gold app icon. Try it 3 days free.
+• After this update your phone may remove Girovo's icon from the home screen once – you'll find Girovo in the app drawer.
+</en-US>
+<de-DE>
+• Girovo Plus: Unterstütze Girovo für 0,99 € im Monat oder 9,99 € im Jahr – mit mehreren Banken, der Monatsprognose, „Frag deine Umsätze“ und einem goldenen App-Symbol. 3 Tage kostenlos testen.
+• Nach diesem Update kann dein Telefon das Girovo-Symbol einmal vom Startbildschirm entfernen – du findest Girovo dann im App-Menü.
+</de-DE>

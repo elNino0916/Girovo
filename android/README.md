@@ -258,6 +258,30 @@ Before the first upload:
   (`scripts/build-android-assets.mjs` draws it, and the launcher icon, from
   `lib/brand-mark.ts`).
 
+#### Girovo Plus
+
+The Play build's supporter subscription (docs/plus-plan.md, `lib/plus.ts`):
+more than one bank and the month-end forecast, and a gold app icon on
+request. The GitHub build's `PlusPlugin` (src/github) answers "free".
+
+- **Play Console:** a subscription `girovo_plus` with the base plans
+  `monthly` (0,99 €) and `yearly` (9,99 €), each with a 3-day free-trial
+  offer. Play shows its own localised prices; nothing is hard-coded. Add
+  licence testers to buy without being charged.
+- **Proof:** Play Billing's purchase state on the phone (no server). A
+  subscription confirmed within the last 7 days stands while Play cannot be
+  asked or takes no purchases (signed out, updating); only Play's own "no
+  purchase" ends it.
+- **The icon:** two launcher entries in the manifest, `.LauncherStandard`
+  (navy, enabled) and `.LauncherPlus` (gold, disabled), both for
+  MainActivity. PlusPlugin enables one and disables the other; the gold one
+  is switched back when Plus ends. Since 5.10.1 MainActivity itself is no
+  launcher entry — launchers may drop the old home-screen icon once with that
+  update.
+- **Testing without Play:** the emulator without a Google account answers
+  `BILLING_UNAVAILABLE` (state `unavailable`); the design preview has
+  `?plus=free|active|inactive|unavailable`.
+
 ## On the phone
 
 - **Storage.** The remembered device profiles, the vault and the kept Umsätze

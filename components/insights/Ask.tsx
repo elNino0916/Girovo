@@ -26,10 +26,12 @@ import {
   type AskAnswer, type AskPeriod, type AskQuery,
 } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
+import { askAllowed } from '@/lib/plus';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { ArrowRightIcon, GeminiSparkIcon } from '../icons';
 import { Button, Chip, DotList, IconButton, Input, Spinner, Tag, TileHeader } from '../ui';
+import { PlusTeaser } from '../android/PlusTeaser';
 import { searchText, txText } from '../transactions/model';
 import type { ScopeData } from './analysis-model';
 import { LoadHistoryButton, RoundMoney, useShowInList } from './shared';
@@ -61,14 +63,45 @@ function useNanoStatus(): GirovoNanoStatus | null | undefined {
   return status;
 }
 
+/** Whether this phone can take questions (Gemini Nano v4); undefined while unknown. */
+export function useAskable(): boolean | undefined {
+  const status = useNanoStatus();
+  return status ? status.state === 'available' && asksWith(status.askModel ?? status.model) : undefined;
+}
+
 type Phase = 'idle' | 'reading' | 'failed' | 'notUnderstood' | 'answered';
 
 export function AskTile({ data }: { data: ScopeData }) {
   const status = useNanoStatus();
+  const { plus } = useFints();
   if (!status) return null;
-  // Questions need Gemini Nano v4: an older one, or none, says so — and what may help.
+  // Questions need Gemini Nano v4: an older one, or none, says so — and what may
+  // help. Plus can't fix that, so it is said before Plus is asked for.
   if (status.state !== 'available' || !asksWith(status.askModel ?? status.model)) return <AskUnsupported status={status} />;
+  if (!askAllowed(plus.state)) return <AskLocked />;
   return <AskForm data={data} />;
+}
+
+/** "Frag deine Umsätze" in the Play build without Plus: what it does, and the way to Plus. */
+function AskLocked() {
+  const t = useT();
+  const titleId = useId();
+  return (
+    <section className="panel" aria-labelledby={titleId}>
+      <TileHeader
+        titleId={titleId}
+        title={(
+          <span className="inline-flex items-center gap-2">
+            <GeminiSparkIcon size={22} />
+            {t.ask.title}
+          </span>
+        )}
+      />
+      <div className="px-4 pb-4 sm:px-5">
+        <PlusTeaser text={t.plus.askTeaser} />
+      </div>
+    </section>
+  );
 }
 
 /** "Frag deine Umsätze" on a phone without Nano v4: why, and the way to AICore's update. */

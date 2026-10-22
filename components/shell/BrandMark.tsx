@@ -14,10 +14,24 @@
 import { MARK_ARC, MARK_ARC_WIDTH, MARK_BARS, MARK_BAR_WIDTH, MARK_GRID } from '@/lib/brand-mark';
 import { cx } from '../ui';
 
-/** The plate alone: 32px, smaller only when zoom has shrunk the top bar (--band-plate). */
-export function BrandPlate({ className }: { className?: string }) {
+/**
+ * The plate alone: 32px, smaller only when zoom has shrunk the top bar
+ * (--band-plate). `tone="plus"` is Girovo Plus's: the G€ in gold, as on the
+ * gold app icon (scripts/build-android-assets.mjs). `size` (px) draws it at
+ * that size anywhere else, its corners in the icon's proportion.
+ */
+export function BrandPlate({ className, tone = 'standard', size }: { className?: string; tone?: 'standard' | 'plus'; size?: number }) {
   return (
-    <span aria-hidden className={cx('grid size-[var(--band-plate)] shrink-0 rounded-[8px] bg-[#0a2c5e] text-white', className)}>
+    <span
+      aria-hidden
+      style={size ? { width: size, height: size, borderRadius: Math.round(size / 4) } : undefined}
+      className={cx(
+        'grid shrink-0 bg-[#0a2c5e]',
+        !size && 'size-[var(--band-plate)] rounded-[8px]',
+        tone === 'plus' ? 'text-[#f2c14e]' : 'text-white',
+        className,
+      )}
+    >
       <svg
         viewBox={`0 0 ${MARK_GRID} ${MARK_GRID}`}
         className="size-full"

@@ -199,3 +199,22 @@ export interface GirovoUpdaterPlugin {
 }
 
 export const GirovoUpdater = registerPlugin<GirovoUpdaterPlugin>('GirovoUpdater');
+
+// ---------------------------------------------------------------------------
+// Girovo Plus: the Play build's supporter subscription (PlusPlugin.java in
+// src/play, Play Billing; src/github answers "free"). lib/plus.ts says what
+// each state unlocks.
+
+export interface GirovoPlusPlugin {
+  /** The state now (the last one Play gave, until it answers again), the offers and the icon. */
+  status(): Promise<unknown>;
+  /** Play's purchase sheet for a plan; the outcome comes as a "change". */
+  buy(opts: { plan: 'monthly' | 'yearly' }): Promise<{ launched: boolean }>;
+  /** Play's own page for the subscription. */
+  manage(): Promise<void>;
+  /** The app icon: the gold one only while Plus is active. */
+  setIcon(opts: { icon: 'standard' | 'plus' }): Promise<unknown>;
+  addListener(event: 'change', fn: (status: unknown) => void): Promise<PluginListenerHandle>;
+}
+
+export const GirovoPlus = registerPlugin<GirovoPlusPlugin>('GirovoPlus');

@@ -73,6 +73,7 @@ import { withNote } from '@/lib/notes';
 import {
   counterpartyKey, isCategoryId, setCustomCategories, txKey, type CategoryId, type CategoryResult, type CustomCategoryId,
 } from '@/lib/categories';
+import { bankAllowed, type PlusStatus } from '@/lib/plus';
 import {
   categoryValidator, cleanCategoryName, CUSTOM_LIMITS, nameKey, newCustomId, sanitizeSplit, withoutCategory, type SplitPart,
 } from '@/lib/splits';
@@ -148,7 +149,7 @@ export type MockOptions = {
   // effect, so nothing (a slow first compile, a hot reload) can race it.
   tab?: DashboardTab;
   /** A launcher open from the start. */
-  open?: 'inbox' | 'palette' | 'shortcuts' | 'share' | 'transfer';
+  open?: 'inbox' | 'palette' | 'shortcuts' | 'share' | 'transfer' | 'plus';
   /** The transfer form's prefill with `open: 'transfer'`. */
   transferPrefill?: TransferPrefill;
   privacy?: boolean;
@@ -201,6 +202,12 @@ export type MockOptions = {
    * 'remembered' only in the vault — the offer after the next login.
    */
   secondBank?: 'linked' | 'loggedOut' | 'remembered';
+  /**
+   * Girovo Plus (lib/plus.ts), as the Play build sees it: 'inactive' locks a
+   * second bank and the forecast, 'active' is a subscriber, 'unavailable' a
+   * phone without Play billing. Default 'free' (desktop, GitHub APK).
+   */
+  plus?: 'free' | 'active' | 'inactive' | 'unavailable';
   /**
    * "Umsätze auf diesem Rechner behalten" is on. 'saved': every account with
    * Umsätze has them kept from the start of the mock window up to three days
@@ -691,6 +698,21 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     ? { ...opts.transferPrefill, accountNumber: opts.transferPrefill?.accountNumber ?? (startAccount.canTransfer ? startAccount.accountNumber : ACCT.giro) }
     : null);
   const [shareOpen, setShareOpen] = useState(opening === 'share');
+  // Girovo Plus with Play's offers as a German phone would see them; buying
+  // here subscribes at once, as a licence tester's purchase does.
+  const [plus, setPlus] = useState<PlusStatus>(() => ({
+    state: opts.plus ?? 'free',
+    plan: opts.plus === 'active' ? 'monthly' : null,
+    offers: opts.plus === 'inactive' || opts.plus === 'active'
+      ? [{ plan: 'monthly', price: '0,99 €', trialDays: 3 }, { plan: 'yearly', price: '9,99 €', trialDays: 3 }]
+      : [],
+    icon: 'standard',
+  }));
+  const plusRef = useRef(plus);
+  plusRef.current = plus;
+  const [plusOpen, setPlusOpen] = useState(opening === 'plus');
+  // The fake bridge (./nano.ts): a purchase or an icon chosen on the Plus screen.
+  useEffect(() => window.girovoMobile?.plus?.onChange?.(setPlus), []);
   const [sharePrefill, setSharePrefill] = useState<SharePrefill | null>(opening === 'share'
     ? { accountNumber: startAccount.iban ? startAccount.accountNumber : ACCT.giro }
     : null);
@@ -1865,6 +1887,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const openAddBank = useCallback((from?: { bank: ChosenBank; userId?: string }) => {
     if (addBankRef.current) return;
+    if (!bankAllowed(plusRef.current.state, false)) {
+      setPlusOpen(true);
+      return;
+    }
     clearTransients();
     setAddBank({
       step: from ? 'credentials' : 'bank',
@@ -2745,6 +2771,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     modelGuesses: {},
     // Gemini Nano's brands (Android): the preview shows the bank's names.
     brandNames: new Map<string, string>(),
+    // Girovo Plus (?plus=…); the Plus screen's purchase and icon go through window.girovoMobile.plus.
+    plus, plusOpen,
+    openPlus: () => setPlusOpen(true),
+    closePlus: () => setPlusOpen(false),
     categoryGuessOf, setBudgets, noteOf, setNote,
     links, banks, bankOf, activeBank, addBank,
     openAddBank, closeAddBank, pickAddBank, connectAddBank, chooseAddBankMethod, clearAddBankMedia, addBankBack,

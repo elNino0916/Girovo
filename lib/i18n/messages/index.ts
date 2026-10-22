@@ -7,6 +7,7 @@
 
 import * as android from './android.ts';
 import * as ask from './ask.ts';
+import * as plus from './plus.ts';
 import * as auth from './auth.ts';
 import * as backup from './backup.ts';
 import * as budgets from './budgets.ts';
@@ -52,6 +53,7 @@ const de = {
   tax: tax.de,
   backup: backup.de,
   ask: ask.de,
+  plus: plus.de,
 };
 
 export type Messages = typeof de;
@@ -78,6 +80,7 @@ const en: Messages = {
   tax: tax.en,
   backup: backup.en,
   ask: ask.en,
+  plus: plus.en,
 };
 
 // The Android app says "Telefon" where the desktop says "Rechner" (phone.ts).

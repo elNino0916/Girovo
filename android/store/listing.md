@@ -51,9 +51,11 @@ design preview from this computer:
 
 - **Category:** Finance
 - **Tags:** Banking, Finance, Budget
-- **Contact e-mail:** nino@elnino0916.de (as in the privacy policy)
+- **Developer:** MT-Media (owner Moritz Krug), as in the legal notice
+- **Contact e-mail:** moritz@mt-media.eu (as in the legal notice and the privacy policy)
 - **Website:** https://elnino0916.de/girovo
 - **Privacy policy:** https://elnino0916.de/girovo/privacy
+- **Legal notice (Impressum):** https://elnino0916.de/girovo/impressum — also linked in the app (Einstellungen → Über Girovo)
 - **Ads:** no
 - **Content rating:** answer the questionnaire with "Finance", no user-generated content, no ads
 - **Target audience:** 18 and over

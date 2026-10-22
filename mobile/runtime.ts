@@ -20,6 +20,7 @@ import * as biometric from './bridges/biometric';
 import { revealWhenReady } from './bridges/boot';
 import { installFiles, shareFile } from './bridges/files';
 import { chooseSaving, integrity } from './bridges/integrity';
+import * as plus from './bridges/plus';
 import * as categories from './bridges/categories';
 import { installRipple } from './bridges/ripple';
 import { installSheetDrag } from './bridges/sheet-drag';
@@ -61,6 +62,15 @@ window.girovoMobile = {
   playUpdate,
   integrity,
   chooseSaving,
+  // Girovo Plus (lib/plus.ts): Play Billing in the Play build, "free" in the GitHub build.
+  plus: {
+    status: plus.status,
+    onChange: plus.onChange,
+    buy: plus.buy,
+    manage: plus.manage,
+    setIcon: plus.setIcon,
+    openGitHub: plus.openGitHub,
+  },
   // "Frag deine Umsätze": one question to Gemini Nano (lib/nano-ask.ts builds and reads it).
   ask: (system, text, maxTokens) => GirovoNano.prompt({ system, text, maxTokens }).then((r) => r.text, () => null),
   // Where Nano is missing or too old: AICore's page in Google Play, to update it.

@@ -17,6 +17,8 @@ export const de = {
   licence: 'Freie Software unter der MIT-Lizenz',
   source: 'Quellcode auf GitHub',
   privacyPolicy: 'Datenschutzerklärung',
+  /** The provider's legal notice (§ 5 DDG), on the website. */
+  imprint: 'Impressum',
   /** The Sitzung panel's way here, and what it says when the saved data needs a look. */
   open: 'Einstellungen',
   /** Under a setting found in the search. */
@@ -40,6 +42,7 @@ export const en: typeof de = {
   licence: 'Free software under the MIT licence',
   source: 'Source code on GitHub',
   privacyPolicy: 'Privacy policy',
+  imprint: 'Legal notice',
   open: 'Settings',
   inSettings: 'In Settings',
   find: {

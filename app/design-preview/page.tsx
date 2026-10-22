@@ -22,6 +22,7 @@
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
 //                  &nano=working|unsupported|…  Android: a fake Gemini Nano (./nano.ts)
 //                  &integrity=modified|unknown|kept  Android: the integrity check's answer (./nano.ts)
+//                  &plus=free|active|inactive|unavailable  Android: Girovo Plus as the Play build sees it
 //                  &updateDialog=1            …with its dialog open
 //                  &y=800                     scroll the page there once loaded
 //
@@ -55,7 +56,10 @@ import { buildEpcPayload } from '@/lib/girocode';
 import { qrMatrix, qrPngBlob } from '@/lib/qr';
 import { MockFintsProvider, type MockOptions, type MockPreset } from './mock';
 import { PrintPreview, type PrintPreviewKind } from './print';
-import { installFakeNano, isIntegrityScenario, isNanoScenario, type IntegrityScenario, type NanoScenario } from './nano';
+import {
+  installFakeNano, isIntegrityScenario, isNanoScenario, isPlusScenario, type IntegrityScenario, type NanoScenario,
+} from './nano';
+import type { PlusState } from '@/lib/plus';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
 import { USAGE_SCENARIOS, installFakeTelemetry } from './telemetry';
 
@@ -1434,10 +1438,10 @@ function prepareUpdater(key: string, scenario: UpdateScenario | null, dialog: bo
 
 /** Likewise the fake Gemini Nano and integrity check (?nano=…, ?integrity=…, Android preview only). */
 let nanoKey: string | null = null;
-function prepareNano(key: string, scenario: NanoScenario | null, integrity: IntegrityScenario | null) {
+function prepareNano(key: string, scenario: NanoScenario | null, integrity: IntegrityScenario | null, plus: PlusState | null) {
   if (nanoKey === key) return;
   nanoKey = key;
-  if (IS_ANDROID) installFakeNano(scenario, integrity);
+  if (IS_ANDROID) installFakeNano(scenario, integrity, plus);
 }
 
 /** Likewise the fake telemetry bridge (?usage=…). */
@@ -1469,10 +1473,12 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
   );
   const nanoParam = one(params.nano);
   const integrityParam = one(params.integrity);
+  const plusParam = one(params.plus);
   prepareNano(
     JSON.stringify(params),
     isNanoScenario(nanoParam) ? nanoParam : null,
     isIntegrityScenario(integrityParam) ? integrityParam : null,
+    isPlusScenario(plusParam) ? plusParam : null,
   );
   const usageParam = one(params.usage) as (typeof USAGE_SCENARIOS)[number];
   prepareTelemetry(JSON.stringify(params), USAGE_SCENARIOS.includes(usageParam) ? usageParam : null);
@@ -1499,6 +1505,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     ...(one(params.fail) === '1' ? { fail: true } : {}),
     ...(one(params.unclear) === '1' ? { unclear: true } : {}),
     ...(SECONDS.includes(secondParam) ? { secondBank: secondParam } : {}),
+    ...(isPlusScenario(plusParam) ? { plus: plusParam } : {}),
   };
 
   const theme = one(params.theme);

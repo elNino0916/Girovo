@@ -528,7 +528,9 @@ desktop app's features it has:
   export, and Android's print dialog ("Save as PDF") for Kontoauszug,
   Buchungsbeleg and Mitteilungen.
 
-The Android app sends no telemetry. How it is built, signed and published —
+The Android app reports errors and, with the user's yes, usage by the
+desktop app's rules ([Telemetry](#telemetry); `mobile/bridges/telemetry.ts`).
+How it is built, signed and published —
 and what Google Play asks of an app like this — is in
 [android/README.md](android/README.md).
 
@@ -821,8 +823,8 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
   - the desktop app's [update check](#updates) asks GitHub for the latest
     release, carrying the app's version and nothing else — switch it off under
     *Einstellungen → Updates*;
-  - the desktop app's [telemetry](#telemetry) sends error reports to the
-    developer's server — always, scrubbed of anything personal — and usage
+  - the [telemetry](#telemetry) of the desktop and Android apps sends error
+    reports to the developer's server — always, scrubbed of anything personal — and usage
     data only once you have agreed (*Einstellungen → Nutzungsdaten teilen*).
 
   Like any web request, each one shows the service your IP address. Error
@@ -860,6 +862,14 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
   app's own server and goes nowhere else; the file itself stays where you
   saved it.
 - Keep this on `localhost`. It has no authentication of its own.
+
+## Legal
+
+Girovo is provided by MT-Media (owner Moritz Krug). The
+[legal notice (Impressum)](https://elnino0916.de/girovo/impressum) and the
+[privacy policy](https://elnino0916.de/girovo/privacy) cover every version —
+Google Play, the GitHub APK and the desktop app — and are linked in the app
+under *Einstellungen → Über Girovo*.
 
 ## Development
 

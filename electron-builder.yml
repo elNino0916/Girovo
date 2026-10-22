@@ -98,7 +98,7 @@ linux:
   category: Office;Finance
   synopsis: Banking for German banks via FinTS
   # Packages carry the author's address (Debian's Maintainer field).
-  maintainer: elNino0916 <admin@elnino0916.de>
+  maintainer: MT-Media <moritz@mt-media.eu>
   extraResources:
     # No .exe to take the window's icon from: main.cjs hands it this one.
     - from: build/icon.png

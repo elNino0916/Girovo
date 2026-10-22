@@ -238,6 +238,10 @@ The owner sees the position as the combination of three claims (confirmed
   an older Nano, or none, see "Nicht unterstützt" and the way to AICore's
   update in Google Play
 - Monatsbudgets per spending category, compared with the month on view
+- Girovo Plus (Google Play build only, docs/plus-plan.md): a supporter
+  subscription (0,99 € a month or 9,99 € a year, 3 days free) that opens a
+  second bank and the month-end forecast, with a gold app icon on request.
+  The GitHub APK and the desktop app keep everything free
 - Verträge & Abos
 - CSV and PDF export
 - Vorgemerkte Umsätze (HKVMK on request, or sent with the Umsätze as

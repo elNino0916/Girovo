@@ -33,6 +33,7 @@ import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { setThemePref } from '@/lib/theme';
 import { FingerprintSwitch, IntegrityRow, NanoRow, PlayUpdateRow } from '../android/AndroidSettings';
+import { PlusRow } from '../android/Plus';
 import { IDLE_MINUTE_CHOICES, useFints, type IdleMinutes } from '../FintsProvider';
 import { LanguageSegmented } from '../LanguageToggle';
 import { useThemePref } from '../ThemeToggle';
@@ -40,7 +41,7 @@ import { updates, useUpdates } from '../updates/store';
 import { UpdateSessionRow } from '../updates/UpdateNotices';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
-  ChartIcon, ClockIcon, CodeIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon, LockIcon, MonitorIcon,
+  BuildingIcon, ChartIcon, ClockIcon, CodeIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon, LockIcon, MonitorIcon,
   MoonIcon, ShieldIcon, SunIcon,
 } from '../icons';
 import { Button, Dot, Kbd, Segmented } from '../ui';
@@ -53,6 +54,7 @@ import { ActionItem, ChoiceItem, LinkItem, SegmentedItem, SettingItem, SettingsG
 // i18n-data-start — addresses, not words
 const SOURCE_URL = 'https://github.com/elNino0916/Girovo';
 const PRIVACY_URL = 'https://elnino0916.de/girovo/privacy';
+const IMPRINT_URL = 'https://elnino0916.de/girovo/impressum';
 // i18n-data-end
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 
@@ -87,6 +89,8 @@ export function Settings() {
   return (
     <div className="flex w-full max-w-[720px] flex-col gap-7 pt-2 pb-2">
       <SettingsGroup title={t.settings.sections.general}>
+        {/* The Google Play build's supporter subscription (components/android/Plus.tsx). */}
+        <PlusRow />
         <SegmentedItem icon={<GlobeIcon />} title={t.session.language} setting="language">
           <LanguageSegmented label={t.session.language} />
         </SegmentedItem>
@@ -263,6 +267,7 @@ export function Settings() {
         />
         <LinkItem icon={<CodeIcon />} title={t.settings.source} href={SOURCE_URL} opensExternally={t.shell.opensExternally} />
         <LinkItem icon={<FileIcon />} title={t.settings.privacyPolicy} href={PRIVACY_URL} opensExternally={t.shell.opensExternally} />
+        <LinkItem icon={<BuildingIcon />} title={t.settings.imprint} href={IMPRINT_URL} opensExternally={t.shell.opensExternally} />
       </SettingsGroup>
 
       <ResetVaultDialog open={dialog === 'reset'} onClose={closeDialog} />

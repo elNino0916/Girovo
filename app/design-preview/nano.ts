@@ -19,13 +19,51 @@
 // is not understood). The rest of the runtime is the quietest answer each
 // part has (no fingerprint, no Play update, an integrity check that cannot tell).
 //
+// ?plus=free|active|inactive|unavailable is Girovo Plus as the Play build sees it.
+//
 // ?integrity=modified|unknown|kept gives the integrity check an answer instead
 // (kept: a rooted phone the user lets keep its data anyway), for Gerätesicherheit's
 // dialog, its 10-second "Schließen" and the warning it opens.
 
 export const INTEGRITY_SCENARIOS = ['modified', 'unknown', 'kept'] as const;
+export const PLUS_SCENARIOS = ['free', 'active', 'inactive', 'unavailable'] as const;
+export const isPlusScenario = (s: string): s is PlusState => (PLUS_SCENARIOS as readonly string[]).includes(s);
+
+/**
+ * Girovo Plus without Play (?plus=…): Play's offers as a German phone shows
+ * them; buying subscribes after a moment, as a licence tester's purchase does.
+ */
+function fakePlus(start: PlusState): GirovoMobile['plus'] {
+  let status: PlusStatus = {
+    state: start,
+    plan: start === 'active' ? 'monthly' : null,
+    offers: start === 'inactive' || start === 'active'
+      ? [{ plan: 'monthly', price: '0,99 €', trialDays: 3 }, { plan: 'yearly', price: '9,99 €', trialDays: 3 }]
+      : [],
+    icon: 'standard',
+  };
+  const fns = new Set<(s: PlusStatus) => void>();
+  const set = (s: PlusStatus) => { status = s; for (const fn of fns) fn(s); };
+  return {
+    status: async () => status,
+    onChange: (fn) => { fns.add(fn); return () => fns.delete(fn); },
+    buy: async (plan) => {
+      setTimeout(() => set({ ...status, state: 'active', plan }), 700);
+      return true;
+    },
+    manage: async () => { window.open('https://play.google.com/store/account/subscriptions', '_blank'); },
+    setIcon: async (icon) => {
+      if (icon === 'plus' && status.state !== 'active') return null;
+      set({ ...status, icon });
+      return status;
+    },
+    openGitHub: async () => { window.open('https://github.com/elNino0916/Girovo/releases/latest', '_blank'); },
+  };
+}
 export type IntegrityScenario = (typeof INTEGRITY_SCENARIOS)[number];
 export const isIntegrityScenario = (s: string): s is IntegrityScenario => (INTEGRITY_SCENARIOS as readonly string[]).includes(s);
+
+import type { PlusState, PlusStatus } from '@/lib/plus';
 
 export const NANO_SCENARIOS = ['available', 'working', 'waiting', 'downloading', 'downloadable', 'stuck', 'unsupported', 'update', 'aicore', 'old'] as const;
 export type NanoScenario = (typeof NANO_SCENARIOS)[number];
@@ -33,8 +71,12 @@ export const isNanoScenario = (s: string): s is NanoScenario => (NANO_SCENARIOS 
 
 const GB = 1_000_000_000;
 
-export function installFakeNano(nanoScenario: NanoScenario | null, integrityScenario: IntegrityScenario | null = null): void {
-  if (!nanoScenario && !integrityScenario) return;
+export function installFakeNano(
+  nanoScenario: NanoScenario | null,
+  integrityScenario: IntegrityScenario | null = null,
+  plusScenario: PlusState | null = null,
+): void {
+  if (!nanoScenario && !integrityScenario && !plusScenario) return;
   const scenario: NanoScenario = nanoScenario ?? 'available';
   let status: GirovoNanoStatus =
     scenario === 'unsupported' ? { state: 'unsupported', reason: 'unavailable' }
@@ -140,6 +182,7 @@ export function installFakeNano(nanoScenario: NanoScenario | null, integrityScen
         savingAllowed: integrityScenario === 'kept',
       }
       : null),
+    plus: fakePlus(plusScenario ?? 'free'),
     // The phone restarts the app; here the address says what it starts with.
     chooseSaving: (verdict) => {
       const url = new URL(window.location.href);

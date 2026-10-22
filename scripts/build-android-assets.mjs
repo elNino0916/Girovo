@@ -5,9 +5,11 @@
 //   res/drawable/ic_launcher_mark.xml        the G€ for the adaptive icon (108 dp, safe zone 66 dp)
 //   res/mipmap-anydpi-v26/ic_launcher*.xml   navy plate + mark, with a monochrome layer
 //                                            for Android 13's themed icons
+//   res/mipmap-anydpi-v26/ic_launcher_plus.xml  the same in gold, for Girovo Plus
 //   res/drawable/splash_mark.xml             the Android 12 splash icon (288 dp, mark in the 192 dp circle)
 //   res/drawable/splash.xml                  the splash before Android 12
 //   android/store/icon-512.png               Google Play's hi-res icon
+//   android/store/plus-icon-512.png          the Girovo Plus subscription's icon (Play Console)
 //
 //   node scripts/build-android-assets.mjs
 //
@@ -26,6 +28,8 @@ const { MARK_GRID, MARK_ARC, MARK_ARC_WIDTH, MARK_BARS, MARK_BAR_WIDTH, markSvg 
 
 const NAVY = '#0A2C5E'; // --bar
 const INK = '#FFFFFF';
+/** The G€ of the Girovo Plus icon (PlusPlugin.java): gold on the same navy. */
+const GOLD = '#F2C14E';
 
 const write = (rel, text) => {
   const file = path.join(RES, rel);
@@ -80,6 +84,10 @@ const adaptive = `<?xml version="1.0" encoding="utf-8"?>
 `;
 write('mipmap-anydpi-v26/ic_launcher.xml', adaptive);
 write('mipmap-anydpi-v26/ic_launcher_round.xml', adaptive);
+// Girovo Plus: the mark in gold. Themed icons (Android 13) keep the plain mark.
+write('drawable/ic_launcher_mark_plus.xml', markVector(108, 72, GOLD));
+write('mipmap-anydpi-v26/ic_launcher_plus.xml', adaptive.replace('<foreground android:drawable="@drawable/ic_launcher_mark" />',
+  '<foreground android:drawable="@drawable/ic_launcher_mark_plus" />'));
 write('values/ic_launcher_background.xml', `<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">${NAVY}</color>
@@ -117,3 +125,8 @@ fs.mkdirSync(storeDir, { recursive: true });
 const square = markSvg({ plate: NAVY, ink: INK }).replace(/rx="\d+"/, 'rx="0"');
 await sharp(Buffer.from(square)).resize(512, 512).png().toFile(path.join(storeDir, 'icon-512.png'));
 console.log('  android/store/icon-512.png');
+
+// The Girovo Plus subscription's icon in the Play Console: the gold G€, 512 px, 32-bit.
+const plusSquare = markSvg({ plate: NAVY, ink: GOLD }).replace(/rx="\d+"/, 'rx="0"');
+await sharp(Buffer.from(plusSquare)).resize(512, 512).ensureAlpha().png().toFile(path.join(storeDir, 'plus-icon-512.png'));
+console.log('  android/store/plus-icon-512.png');

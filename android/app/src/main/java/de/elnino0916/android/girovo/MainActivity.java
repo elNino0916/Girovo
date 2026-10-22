@@ -23,6 +23,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ScannerPlugin.class);
         // One per distribution: src/github (APKs from GitHub) or src/play (Google Play).
         registerPlugin(UpdaterPlugin.class);
+        // Girovo Plus: Play Billing in src/play, "everything free" in src/github.
+        registerPlugin(PlusPlugin.class);
         super.onCreate(savedInstanceState);
         // Edge to edge on every Android, as Android 15 and later draw it
         // anyway: the page runs under the bars and keeps clear of them by

@@ -46,6 +46,18 @@ declare global {
      */
     chooseSaving(verdict: import('../lib/device-integrity').DeviceVerdict | null): void;
     /**
+     * Girovo Plus (lib/plus.ts, mobile/bridges/plus.ts): the Play build's
+     * subscription — its state, Play's offers, the purchase, the gold icon.
+     */
+    plus: {
+      status(): Promise<import('../lib/plus').PlusStatus>;
+      onChange(fn: (s: import('../lib/plus').PlusStatus) => void): () => void;
+      buy(plan: import('../lib/plus').PlusPlan): Promise<boolean>;
+      manage(): Promise<void>;
+      setIcon(icon: import('../lib/plus').PlusIcon): Promise<import('../lib/plus').PlusStatus | null>;
+      openGitHub(): Promise<void>;
+    };
+    /**
      * One question to Gemini Nano, on a worker of its own ("Frag deine
      * Umsätze", lib/nano-ask.ts): its answer, or null when AICore gave none.
      */
