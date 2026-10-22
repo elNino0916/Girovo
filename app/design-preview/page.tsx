@@ -21,6 +21,7 @@
 //                  &second=linked|loggedOut|remembered   a second bank in the view (Weitere Bank anmelden)
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
 //                  &nano=working|unsupported|…  Android: a fake Gemini Nano (./nano.ts)
+//                  &integrity=modified|unknown|kept  Android: the integrity check's answer (./nano.ts)
 //                  &updateDialog=1            …with its dialog open
 //                  &y=800                     scroll the page there once loaded
 //
@@ -54,7 +55,7 @@ import { buildEpcPayload } from '@/lib/girocode';
 import { qrMatrix, qrPngBlob } from '@/lib/qr';
 import { MockFintsProvider, type MockOptions, type MockPreset } from './mock';
 import { PrintPreview, type PrintPreviewKind } from './print';
-import { installFakeNano, isNanoScenario, type NanoScenario } from './nano';
+import { installFakeNano, isIntegrityScenario, isNanoScenario, type IntegrityScenario, type NanoScenario } from './nano';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
 import { USAGE_SCENARIOS, installFakeTelemetry } from './telemetry';
 
@@ -1431,12 +1432,12 @@ function prepareUpdater(key: string, scenario: UpdateScenario | null, dialog: bo
   installFakeUpdater(scenario, { dialog });
 }
 
-/** Likewise the fake Gemini Nano (?nano=…, Android preview only). */
+/** Likewise the fake Gemini Nano and integrity check (?nano=…, ?integrity=…, Android preview only). */
 let nanoKey: string | null = null;
-function prepareNano(key: string, scenario: NanoScenario | null) {
+function prepareNano(key: string, scenario: NanoScenario | null, integrity: IntegrityScenario | null) {
   if (nanoKey === key) return;
   nanoKey = key;
-  if (IS_ANDROID) installFakeNano(scenario);
+  if (IS_ANDROID) installFakeNano(scenario, integrity);
 }
 
 /** Likewise the fake telemetry bridge (?usage=…). */
@@ -1467,7 +1468,12 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     def.update?.dialog || one(params.updateDialog) === '1',
   );
   const nanoParam = one(params.nano);
-  prepareNano(JSON.stringify(params), isNanoScenario(nanoParam) ? nanoParam : null);
+  const integrityParam = one(params.integrity);
+  prepareNano(
+    JSON.stringify(params),
+    isNanoScenario(nanoParam) ? nanoParam : null,
+    isIntegrityScenario(integrityParam) ? integrityParam : null,
+  );
   const usageParam = one(params.usage) as (typeof USAGE_SCENARIOS)[number];
   prepareTelemetry(JSON.stringify(params), USAGE_SCENARIOS.includes(usageParam) ? usageParam : null);
 

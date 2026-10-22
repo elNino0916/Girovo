@@ -9,26 +9,41 @@
 //   waiting       AICore keeps it waiting — the wait gets named after 5 s
 //   downloading   AICore fetching the model, with its progress
 //   downloadable  AICore offers it; "Jetzt laden" starts the fake download
+//   stuck         AICore offers it, takes "Jetzt laden" and never begins (a Xiaomi
+//                 17 Ultra did so for hours): the row says so after a minute
 //   unsupported · update · aicore   a phone without Nano, and why
+//   old           Nano there, but v3: categories work, "Frag deine Umsätze" says it needs v4
 //
-// The rest of the runtime is the quietest answer each part has (no
-// fingerprint, no Play update, an integrity check that cannot tell).
+// With Nano v4 there, "Frag deine Umsätze" on the Analyse gets Nano's line for a
+// few words (Amazon, Rewe, Lebensmittel, größte, wie oft, pro Monat; "Unsinn"
+// is not understood). The rest of the runtime is the quietest answer each
+// part has (no fingerprint, no Play update, an integrity check that cannot tell).
+//
+// ?integrity=modified|unknown|kept gives the integrity check an answer instead
+// (kept: a rooted phone the user lets keep its data anyway), for Gerätesicherheit's
+// dialog, its 10-second "Schließen" and the warning it opens.
 
-export const NANO_SCENARIOS = ['available', 'working', 'waiting', 'downloading', 'downloadable', 'unsupported', 'update', 'aicore'] as const;
+export const INTEGRITY_SCENARIOS = ['modified', 'unknown', 'kept'] as const;
+export type IntegrityScenario = (typeof INTEGRITY_SCENARIOS)[number];
+export const isIntegrityScenario = (s: string): s is IntegrityScenario => (INTEGRITY_SCENARIOS as readonly string[]).includes(s);
+
+export const NANO_SCENARIOS = ['available', 'working', 'waiting', 'downloading', 'downloadable', 'stuck', 'unsupported', 'update', 'aicore', 'old'] as const;
 export type NanoScenario = (typeof NANO_SCENARIOS)[number];
 export const isNanoScenario = (s: string): s is NanoScenario => (NANO_SCENARIOS as readonly string[]).includes(s);
 
 const GB = 1_000_000_000;
 
-export function installFakeNano(scenario: NanoScenario | null): void {
-  if (!scenario) return;
+export function installFakeNano(nanoScenario: NanoScenario | null, integrityScenario: IntegrityScenario | null = null): void {
+  if (!nanoScenario && !integrityScenario) return;
+  const scenario: NanoScenario = nanoScenario ?? 'available';
   let status: GirovoNanoStatus =
     scenario === 'unsupported' ? { state: 'unsupported', reason: 'unavailable' }
       : scenario === 'update' ? { state: 'unsupported', reason: 'update' }
         : scenario === 'aicore' ? { state: 'unsupported', reason: 'aicore' }
-          : scenario === 'downloadable' ? { state: 'downloadable' }
+          : scenario === 'downloadable' || scenario === 'stuck' ? { state: 'downloadable' }
             : scenario === 'downloading' ? { state: 'downloading', received: 0, total: 1.2 * GB }
-              : { state: 'available', model: 'nano-v4-fast' };
+              : scenario === 'old' ? { state: 'available', model: 'nano-v3-fast', askModel: 'nano-v3-fast' }
+                : { state: 'available', model: 'nano-v4-fast', askModel: 'nano-v4-fast' };
   let progress: GirovoNanoProgress = { active: false, done: 0, total: 0, waiting: null };
   const statusFns = new Set<(s: GirovoNanoStatus) => void>();
   const progressFns = new Set<(p: GirovoNanoProgress) => void>();
@@ -42,8 +57,8 @@ export function installFakeNano(scenario: NanoScenario | null): void {
       received = Math.min(total, received + total / 40);
       if (received >= total) {
         clearInterval(timer);
-        setStatus({ state: 'available', model: 'nano-v4-fast' });
-      } else setStatus({ state: 'downloading', received, total });
+        setStatus({ state: 'available', model: 'nano-v4-fast', askModel: 'nano-v4-fast' });
+      } else setStatus({ state: 'downloading', started: true, received, total });
     }, 250);
   };
   if (scenario === 'downloading') fetchModel();
@@ -78,7 +93,12 @@ export function installFakeNano(scenario: NanoScenario | null): void {
     status: async () => status,
     onStatus: (fn) => { statusFns.add(fn); return () => statusFns.delete(fn); },
     download: async () => {
-      setStatus({ state: 'downloading', received: 0, total: 1.2 * GB });
+      // Asked, and never begun: AICore's own callbacks never come.
+      if (scenario === 'stuck') {
+        setStatus({ state: 'downloading' });
+        return new Promise<GirovoNanoStatus>(() => {});
+      }
+      setStatus({ state: 'downloading', started: true, received: 0, total: 1.2 * GB });
       fetchModel();
       return status;
     },
@@ -87,6 +107,20 @@ export function installFakeNano(scenario: NanoScenario | null): void {
   };
 
   const quiet = async () => {};
+  // "Frag deine Umsätze": Nano's line for a few words, after a Nano-like pause.
+  // Only the question's own line counts (after "Frage:"), not the examples.
+  const ask: GirovoMobile['ask'] = async (_system, text) => {
+    await new Promise((r) => setTimeout(r, 900));
+    const q = text.slice(text.lastIndexOf('Frage:')).toLowerCase(); // i18n-data
+    if (q.includes('unsinn') || q.includes('nonsense')) return 'Das weiß ich nicht.'; // i18n-data
+    const kind = /größte|groesste|largest/.test(q) ? 'groesste' : /wie oft|how often/.test(q) ? 'anzahl'
+      : /zuletzt|last time/.test(q) ? 'letzte' : /pro monat|per month|im schnitt/.test(q) ? 'durchschnitt' : 'summe'; // i18n-data
+    const category = /lebensmittel|groceries/.test(q) ? 'groceries' : /essen gehen|eating out|restaurant/.test(q) ? 'leisure'
+      : /tanken|fuel/.test(q) ? 'mobility' : null; // i18n-data
+    const search = /amazon/.test(q) ? 'Amazon' : /rewe/.test(q) ? 'Rewe' : null;
+    const dir = /bekommen|received|eingang/.test(q) ? 'ein' : 'aus'; // i18n-data
+    return JSON.stringify({ art: kind, richtung: dir, kategorie: category, suche: search });
+  };
   window.girovoMobile = {
     ...window.girovoMobile,
     ready: Promise.resolve(),
@@ -98,7 +132,20 @@ export function installFakeNano(scenario: NanoScenario | null): void {
       forget: quiet,
     },
     categories,
-    integrity: async () => null,
+    ask,
+    openAICore: async () => { window.open('https://play.google.com/store/apps/details?id=com.google.android.aicore', '_blank'); },
+    integrity: async () => (integrityScenario
+      ? {
+        device: integrityScenario === 'unknown' ? 'unknown' : 'modified', copy: 'official', level: 'tee', runtime: [],
+        savingAllowed: integrityScenario === 'kept',
+      }
+      : null),
+    // The phone restarts the app; here the address says what it starts with.
+    chooseSaving: (verdict) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('integrity', verdict ? 'kept' : 'modified');
+      window.location.assign(url);
+    },
     playUpdate: async () => ({ available: false, start: async () => 'canceled' }),
     launch: { on: () => () => {}, readShared: async () => new File([], '') },
     haptic: () => {},

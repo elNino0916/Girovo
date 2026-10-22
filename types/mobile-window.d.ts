@@ -40,6 +40,18 @@ declare global {
      * start; null when the check itself failed.
      */
     integrity(): Promise<GirovoIntegrity | null>;
+    /**
+     * On an unsafe phone: lets Girovo keep its data anyway, for the verdict
+     * the warning showed (null: keep nothing again), and restarts the app.
+     */
+    chooseSaving(verdict: import('../lib/device-integrity').DeviceVerdict | null): void;
+    /**
+     * One question to Gemini Nano, on a worker of its own ("Frag deine
+     * Umsätze", lib/nano-ask.ts): its answer, or null when AICore gave none.
+     */
+    ask(system: string, text: string, maxTokens?: number): Promise<string | null>;
+    /** Opens Android AICore in Google Play, where Nano is missing or too old for questions. */
+    openAICore(): Promise<void>;
     /** The Google Play build: whether Play has a newer version, and Play's own update flow. */
     playUpdate(): Promise<{ available: boolean; start: () => Promise<'started' | 'canceled' | 'failed'> }>;
     /**

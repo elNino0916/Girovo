@@ -7,6 +7,7 @@ import android.content.pm.Signature;
 import android.os.Build;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
+import android.util.Log;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -26,7 +27,7 @@ import java.util.List;
  * Whether this phone and this copy of Girovo are what they claim to be,
  * found out on the phone alone — no server of Girovo's and no request to
  * Google (Play Integrity's verdict can only be read on a server, and Girovo
- * has none). Two facts:
+ * has none). Three inputs:
  *
  *   - Key attestation. A fresh key made in the phone's secure hardware comes
  *     with a certificate chain that hardware signs, ending at one of Google's
@@ -36,6 +37,8 @@ import java.util.List;
  *     (self-signed: a custom system such as GrapheneOS), or one nobody
  *     vouches for. Rooting or flashing a phone cannot rewrite that record
  *     without the hardware's key.
+ *   - Read-only runtime observations in this app's own sandbox. A verified
+ *     boot does not exclude a kernel compromised after boot.
  *   - The certificate this copy of the app is signed with, and who installed it.
  *
  * Neither stops a modified copy of Girovo — it would simply drop this check.
@@ -67,7 +70,17 @@ final class DeviceIntegrity {
 
     static JSObject check(Context context) {
         JSObject result = new JSObject();
+        JSArray runtime = RuntimeIntegrity.check(context);
+        result.put("runtime", runtime);
+        // No banking data, hosts content or installed-app inventory. This is
+        // emitted by the app process, including release builds, for ADB verification.
+        String process = "pid=" + android.os.Process.myPid() + " uid=" + android.os.Process.myUid();
+        for (int i = 0; i < runtime.length(); i++) {
+            Log.i("GirovoIntegrity", process + " runtime=" + runtime.optJSONObject(i));
+        }
         attest(result);
+        Log.i("GirovoIntegrity", process + " boot=" + result.optString("bootState", "unavailable")
+            + " locked=" + result.opt("deviceLocked") + " attestation=" + result.optString("attestation", "unavailable"));
         signing(context, result);
         result.put("debug", BuildConfig.DEBUG);
         result.put("flavor", BuildConfig.DISTRIBUTION);

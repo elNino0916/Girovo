@@ -19,15 +19,18 @@ import { installBack } from './bridges/back';
 import * as biometric from './bridges/biometric';
 import { revealWhenReady } from './bridges/boot';
 import { installFiles, shareFile } from './bridges/files';
-import { integrity } from './bridges/integrity';
+import { chooseSaving, integrity } from './bridges/integrity';
 import * as categories from './bridges/categories';
 import { installRipple } from './bridges/ripple';
 import { installSheetDrag } from './bridges/sheet-drag';
 import { startTelemetry } from './bridges/telemetry';
 import { installUpdates, playUpdate } from './bridges/updates';
 import { Buffer } from 'buffer';
-import { GirovoDevice, GirovoLaunch, GirovoScanner } from './native';
+import { GirovoDevice, GirovoLaunch, GirovoNano, GirovoScanner } from './native';
 import { ready } from './server/index';
+
+/** Android AICore in Google Play: Play opens the https link as its own page. */
+const AICORE_IN_PLAY = 'https://play.google.com/store/apps/details?id=com.google.android.aicore';
 
 // First, so a failure in what follows is reported too.
 startTelemetry();
@@ -57,6 +60,11 @@ window.girovoMobile = {
   },
   playUpdate,
   integrity,
+  chooseSaving,
+  // "Frag deine Umsätze": one question to Gemini Nano (lib/nano-ask.ts builds and reads it).
+  ask: (system, text, maxTokens) => GirovoNano.prompt({ system, text, maxTokens }).then((r) => r.text, () => null),
+  // Where Nano is missing or too old: AICore's page in Google Play, to update it.
+  openAICore: () => GirovoDevice.openExternal({ url: AICORE_IN_PLAY }).catch(() => {}),
   approval: {
     hold: (texts) => GirovoDevice.holdForApproval(texts).then((r) => r.held, () => false),
     release: () => GirovoDevice.releaseApproval().catch(() => {}),

@@ -96,10 +96,16 @@ android {
         }
     }
 
+    // A release is shrunk and obfuscated by R8 (Play asks for it: "DEX-Code-
+    // optimierung", 1 % obfuscated in 5.7.0). The plugins the page calls stay
+    // as they are — Capacitor's own rules keep every @CapacitorPlugin and its
+    // @PluginMethods by name; proguard-rules.pro has the rest. Play gets the
+    // mapping with the app bundle, for its crash reports.
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (keystoreProperties['storeFile']) signingConfig signingConfigs.release
         }
     }

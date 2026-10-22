@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyVerdict, deviceVerdict, integrityOf, integrityWarning, keepsNothing, RELEASE_SIGNERS, type IntegrityFacts } from './device-integrity.ts';
+import {
+  copyVerdict, deviceVerdict, integrityOf, integrityWarning, keepsNothing, mayAllowSaving, RELEASE_SIGNERS, unsafePhone,
+  type IntegrityFacts,
+} from './device-integrity.ts';
 
 const attested: IntegrityFacts = {
   attestation: 'hardware', securityLevel: 'strongbox', chain: 'google', challengeOk: true,
@@ -17,6 +20,43 @@ test('an unlocked bootloader or an unverified system is a modified phone', () =>
   assert.equal(deviceVerdict({ ...attested, deviceLocked: false }), 'modified');
   assert.equal(deviceVerdict({ ...attested, deviceLocked: false, bootState: 'unverified' }), 'modified');
   assert.equal(deviceVerdict({ ...attested, bootState: 'failed' }), 'modified');
+});
+
+test('a root manager app alone is no finding; with system evidence the phone is modified anyway', () => {
+  const manager = { id: 'package:me.weishu.kernelsu', status: 'found' as const, detail: 'exact declared package query' };
+  // The owner's S26 on 2026-10-22: KernelSU's manager installed, locked verified boot, nothing else seen.
+  const alone = integrityOf({ ...attested, runtime: [manager, { id: 'mounts', status: 'nothing seen', detail: 'own mount table read' }] });
+  assert.equal(alone.device, 'trusted');
+  assert.equal(keepsNothing(alone), false);
+  assert.deepEqual(alone.runtime?.[0], manager, 'still shown as an observation');
+  assert.equal(deviceVerdict({ runtime: [manager] }), 'unknown');
+  assert.equal(deviceVerdict({ ...attested, runtime: [manager, { id: 'hosts', status: 'found', detail: 'bind mount' }] }), 'modified');
+});
+
+test('each positive system check overrides a verified boot, warning and persistence', () => {
+  for (const id of ['mounts', 'hosts', 'path:/system/bin/su']) {
+    const runtime = [{ id, status: 'found' as const, detail: 'observed in app process' }];
+    const result = integrityOf({ ...attested, runtime });
+    assert.equal(result.device, 'modified', id);
+    assert.equal(integrityWarning(result), 'modified', id);
+    assert.equal(keepsNothing(result), true, id);
+    assert.deepEqual(result.runtime, runtime, 'retain diagnostics for unavailable and positive observations');
+    assert.equal(deviceVerdict({ runtime }), 'modified', 'missing attestation cannot erase evidence');
+    assert.equal(deviceVerdict({ ...attested, bootState: 'self-signed', runtime }), 'modified');
+    assert.equal(keepsNothing(integrityOf({ ...attested, debug: true, runtime })), true, 'debug must not bypass the lock');
+  }
+});
+
+test('unavailable and negative runtime observations stay distinct and never manufacture a finding', () => {
+  const runtime = [
+    { id: 'mounts', status: 'unavailable' as const, detail: 'ErrnoException errno=13' },
+    { id: 'package:com.topjohnwu.magisk', status: 'nothing seen' as const, detail: 'not returned by exact declared query' },
+  ];
+  const result = integrityOf({ ...attested, runtime });
+  assert.equal(result.device, 'trusted', 'this verdict still describes the attested boot, not a clean runtime');
+  assert.deepEqual(result.runtime, runtime);
+  assert.equal(deviceVerdict({ runtime }), 'unknown');
+  assert.equal(deviceVerdict({ ...attested, runtime: [...runtime, { id: 'hosts', status: 'found', detail: 'zero links' }] }), 'modified');
 });
 
 test('a custom system with its own key and a locked bootloader is no warning', () => {
@@ -68,4 +108,32 @@ test('Girovo keeps nothing on a phone that is modified or cannot prove it is not
   assert.equal(keepsNothing(null), true);
   // A debug build on an emulator keeps its data.
   assert.equal(keepsNothing(integrityOf({ ...attested, chain: 'other', debug: true })), false);
+});
+
+test('past the warning, an unsafe phone keeps its data — for the verdict it was allowed on', () => {
+  const rooted: IntegrityFacts = { ...attested, deviceLocked: false };
+  const allowed = integrityOf(rooted, 'modified');
+  assert.equal(allowed.savingAllowed, true);
+  assert.equal(keepsNothing(allowed), false);
+  // Still a modified phone: the login warns, no PIN goes behind a fingerprint.
+  assert.equal(integrityWarning(allowed), 'modified');
+  assert.equal(unsafePhone(allowed), true);
+  // Allowed while it could not prove anything, then found modified: asked again.
+  assert.equal(keepsNothing(integrityOf(rooted, 'unknown')), true);
+  assert.equal(keepsNothing(integrityOf({ ...attested, attestation: 'software' }, 'unknown')), false);
+  // A positive runtime finding is a modified phone like any other.
+  const found = integrityOf({ ...attested, runtime: [{ id: 'su', status: 'found', detail: '/system/bin/su' }] }, 'modified');
+  assert.equal(keepsNothing(found), false);
+});
+
+test('a foreign copy, or a safe phone, has nothing to allow', () => {
+  const foreign = integrityOf({ ...attested, deviceLocked: false, signers: ['ab'.repeat(32)] }, 'modified');
+  assert.equal(mayAllowSaving(foreign), false);
+  assert.equal(foreign.savingAllowed, false);
+  assert.equal(keepsNothing(foreign), true);
+  // Even a hand-made answer claiming the choice cannot open a foreign copy.
+  assert.equal(keepsNothing({ ...foreign, savingAllowed: true }), true);
+  assert.equal(mayAllowSaving(integrityOf(attested)), false);
+  assert.equal(integrityOf(attested, 'modified').savingAllowed, false);
+  assert.equal(mayAllowSaving(null), false);
 });

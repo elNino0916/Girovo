@@ -1,8 +1,8 @@
 'use client';
 
 // The phone's integrity check (lib/device-integrity.ts) at the login: before
-// a PIN is typed, a warning when the phone has been modified (an unlocked
-// bootloader, an unverified system) or this copy of Girovo was signed by
+// a PIN is typed, a warning when the phone has been modified (runtime
+// findings, an unlocked bootloader, an unverified system) or this copy was signed by
 // someone else; on a phone that cannot prove its state, a note that Girovo
 // keeps nothing on it (no remembered device: an approval at every login). A
 // custom system with a locked bootloader is said in Einstellungen only. The

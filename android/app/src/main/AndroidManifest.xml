@@ -2,6 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Exact read-only integrity queries; no QUERY_ALL_PACKAGES permission. -->
+    <queries>
+        <package android:name="me.weishu.kernelsu" />
+        <package android:name="com.topjohnwu.magisk" />
+        <package android:name="me.bmax.apatch" />
+        <package android:name="eu.chainfire.supersu" />
+    </queries>
+
     <!-- No backups (allowBackup, data_extraction_rules): see
          res/xml/data_extraction_rules.xml. No cleartext — and this says so
          over Capacitor's plugin manifest too, which asks for it whenever a
@@ -56,6 +64,14 @@
                 android:resource="@xml/shortcuts" />
 
         </activity>
+
+        <!-- Google's code scanner hands off to Play services through this
+             activity of its own, locked to portrait in its manifest. Android 16
+             ignores such locks on large screens, and Play asks apps to drop
+             them: Girovo's layout follows any size and orientation. -->
+        <activity
+            android:name="com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity"
+            tools:remove="android:screenOrientation" />
 
         <!-- Play services fetches the code scanner's module with the app,
              not at the first scan. -->

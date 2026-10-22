@@ -98,6 +98,50 @@ injected (`mobile/bridges/material-you.ts` writes the stylesheet the phone uses)
 A debug build's WebView can be inspected from Chrome on the computer:
 `chrome://inspect` lists it while the phone is connected over `adb`.
 
+### Runtime integrity
+
+At start, `RuntimeIntegrity.java` reads `/proc/self/mountinfo`, the hosts
+file's metadata, a fixed set of root-interface path metadata and exact
+manager-package queries from Girovo's own process. It never executes a root
+binary, requests root, reads the manager's private files or inventories apps.
+The mount-table read is bounded to 256 KiB. The manifest declares only the
+four manager packages being queried.
+
+Each check returns `found`, `nothing seen` or `unavailable`, with a bounded
+explanation. `EACCES`/`EPERM`, failed reads and incomplete mount tables are
+unavailable, not clean. A negative package query is scoped to the current
+profile and declared query. A missing path is scoped to the app's own view.
+These local probes cannot prove the absence of root on a modified kernel.
+
+Any `found` result of the system checks (mounts, hosts, `su` paths)
+overrides even a verified, locked boot in `lib/device-integrity.ts`: the
+device is `modified`, the settings row shows the red cross, the login warns,
+and the existing storage refusal applies. An installed root manager app alone
+is logged but decides nothing — it runs without root, as on the owner's S26
+(KernelSU's manager beside a locked, verified boot and no module mounts).
+A tmpfs over an app folder (`/app`, `/priv-app`) hides a preinstalled app and
+is no finding either; one over `bin` or `lib` folders is.
+Debug builds cannot bypass storage refusal for a modified device. The debug
+exception for an emulator with unknown attestation and no finding remains.
+The new runtime probe is read-only; the pre-existing boot-attestation check
+still creates and deletes its temporary AndroidKeyStore key.
+
+The native `GirovoIntegrity` log tag reports the app PID/UID, each check and
+the attested boot, in release builds too. It contains no banking data or
+hosts-file content:
+
+```bash
+adb logcat -d -s GirovoIntegrity:I '*:S'
+```
+
+On the owner's SM-S948B (Android 17, 21 October 2026), the signed release ran
+as UID 10453 in `untrusted_app_34`. It found three tmpfs covers over
+`/product/app/YouTube` and `me.weishu.kernelsu`, despite hardware attestation
+reporting `boot=verified locked=true`. In that app's view, hosts had normal
+metadata and `su` was absent; `/data/adb/ksu/bin/ksud` returned permission
+denied and was correctly reported as unavailable. ADB's privileged view
+must not be substituted for these app-process results.
+
 ## Release builds
 
 A release is signed with your own upload key. Create it once and keep it
@@ -131,6 +175,16 @@ writes both releases to `dist/`:
 
 The version is `package.json`'s; the version code counts it as `MMmmpp × 10`
 (5.2.2 → 502020), so every release is higher than the last.
+
+Since 5.8.0 a release is shrunk and obfuscated by R8 (`minifyEnabled`,
+`shrinkResources`; Play flagged 5.7.0's 1 % obfuscation). The plugins the
+page calls keep their names through Capacitor's own keep rules for
+`@CapacitorPlugin` classes; `app/proguard-rules.pro` keeps line numbers for
+Play's crash reports, and Play receives the mapping inside the bundle. A new
+plugin needs nothing extra as long as it is a `@CapacitorPlugin`; anything
+reached by reflection or by name from elsewhere needs a `-keep` rule there. A
+debug build is not minified — test a release build on a phone after such a
+change (`build-android.mjs --release`, then `adb install -r`).
 
 ## Distribution
 

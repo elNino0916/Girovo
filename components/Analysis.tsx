@@ -12,6 +12,9 @@
 // approval note stands beside it. Every "show me those bookings" opens the
 // Umsätze list on exactly the days the figure counted.
 //
+// On Android with Gemini Nano, "Frag deine Umsätze" (components/insights/Ask.tsx)
+// heads the tab: a question read into a search, answered from these bookings.
+//
 // Two of the user's own things sit beside the figures: the Monatsbudgets
 // (components/insights/Budgets.tsx), compared with the month on view, and
 // the Kategorie-Check (components/insights/CategoryCheck.tsx), how the
@@ -43,6 +46,7 @@ import {
   AnalysisSkeleton, CategoryBreakdown, Kpi, LargestExpenses, MonthlyComparison, PeriodPicker, TopPayees,
   periodLabel,
 } from './insights/AnalysisParts';
+import { AskTile } from './insights/Ask';
 import { BudgetDialog, BudgetTile } from './insights/Budgets';
 import { TaxYearTile } from './insights/TaxYear';
 import { CategoryCheckDrawer, CategoryCheckSummary, useCategoryCheck } from './insights/CategoryCheck';
@@ -272,6 +276,9 @@ export function Analysis() {
 
   return (
     <div className="min-w-0 space-y-4 sm:space-y-6">
+      {/* Android, where the phone has Gemini Nano: a question about these bookings. */}
+      <AskTile data={data} />
+
       {/* ---- Toolbar, basis and the headline figures --------------------- */}
       <section className="panel overflow-hidden" aria-labelledby={headingId}>
         <h2 id={headingId} className="sr-only">{words.overview}</h2>

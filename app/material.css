@@ -367,14 +367,20 @@
     --gemini-blue: #4285f4;
     --gemini-purple: #9b72cb;
     --gemini-rose: #d96570;
-  }
-  :root[data-look='material'] [data-settings-group] > [data-item][data-tone='ai'] {
-    background-image: linear-gradient(
+    --gemini-wash: linear-gradient(
       115deg,
       color-mix(in srgb, var(--gemini-blue) 26%, transparent) 0%,
       color-mix(in srgb, var(--gemini-purple) 20%, transparent) 55%,
       color-mix(in srgb, var(--gemini-rose) 18%, transparent) 100%
     );
+  }
+  :root[data-look='material'] [data-settings-group] > [data-item][data-tone='ai'] {
+    background-image: var(--gemini-wash);
+  }
+  /* The same wash wherever Gemini answers (Frag deine Umsätze, components/insights/Ask.tsx). */
+  :root[data-look='material'] [data-gemini] {
+    background-color: var(--md-surface-container);
+    background-image: var(--gemini-wash);
   }
   /* The state layer of a row pressed whole: 8% of the ink on hover, 10%
      while pressed — an inset shadow, so the ripple (its background image on
