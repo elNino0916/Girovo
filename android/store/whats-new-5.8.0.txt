@@ -1,0 +1,14 @@
+<en-US>
+• Ask your transactions: at the top of Analysis, ask “How much went to Amazon?” – Gemini Nano reads the question, Girovo works out the answer on your phone (needs Gemini Nano v4)
+• A closer check for root on the running system – and on a phone you trust, you can still let Girovo keep your data
+• Gemini Nano categories on more phones
+• Half the download size
+• Edge to edge on every Android version, ready for tablets and foldables
+</en-US>
+<de-DE>
+• Frag deine Umsätze: Oben in der Analyse fragst du etwa „Wie viel ging an Amazon?“ – Gemini Nano versteht die Frage, Girovo rechnet die Antwort auf deinem Telefon aus (braucht Gemini Nano v4)
+• Genauere Prüfung auf Root im laufenden System – auf einem Telefon, dem du vertraust, kann Girovo trotzdem speichern
+• Kategorien mit Gemini Nano auf mehr Telefonen
+• Nur noch halb so groß
+• Randlos auf jeder Android-Version, bereit für Tablets und Foldables
+</de-DE>
