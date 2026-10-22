@@ -122,6 +122,14 @@ is logged but decides nothing — it runs without root, as on the owner's S26
 (KernelSU's manager beside a locked, verified boot and no module mounts).
 A tmpfs over an app folder (`/app`, `/priv-app`) hides a preinstalled app and
 is no finding either; one over `bin` or `lib` folders is.
+An overlay over a system partition counts only when a root tool made it: its
+source names one (KSU, Magisk, APatch), a layer lies in writable storage or
+memory (`/data`, `/debug_ramdisk`, `/sbin`, `/dev`, `/mnt` …), or it has a
+writable upper layer. Phone makers overlay their own read-only partitions —
+Xiaomi's HyperOS stacks `/mi_ext` onto `/product`, OPPO and OnePlus their
+`my_*` partitions — and every HyperOS phone read as rooted before 5.9.1.
+Likewise a writable ext4 or EROFS mount counts only on a partition root or
+its `bin`/`lib` folders, not on vendor firmware or persist folders.
 Debug builds cannot bypass storage refusal for a modified device. The debug
 exception for an emulator with unknown attestation and no finding remains.
 The new runtime probe is read-only; the pre-existing boot-attestation check

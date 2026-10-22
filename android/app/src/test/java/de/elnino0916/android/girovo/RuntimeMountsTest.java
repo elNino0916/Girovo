@@ -63,12 +63,37 @@ public class RuntimeMountsTest {
         assertTrue(scan.findings.isEmpty());
     }
 
-    @Test public void overlayAndWritableSystemAreFindingsButWritableDataIsNot() {
+    @Test public void rootOverlayAndWritableSystemAreFindingsButWritableDataIsNot() {
         RuntimeMounts.Scan scan = RuntimeMounts.scan(
-            "1 0 0:1 / /system ro - overlay overlay ro,lowerdir=/lower\n"
+            "1 0 0:1 / /system ro - overlay overlay ro,lowerdir=/data/adb/modules/m/system:/system\n"
             + "2 1 254:1 / /vendor rw - ext4 /dev/block/dm-1 rw\n"
             + "3 1 254:2 / /data rw - f2fs /dev/block/dm-2 rw\n", true);
         assertTrue(scan.complete);
         assertEquals(2, scan.findings.size());
+    }
+
+    // Phone makers overlay their own read-only partitions onto /product: never root.
+    @Test public void makersReadOnlyOverlaysAreNotFindings() {
+        RuntimeMounts.Scan scan = RuntimeMounts.scan(STOCK
+            // Xiaomi HyperOS: the regional /mi_ext partition over /product.
+            + "400 53 0:70 / /product/app ro,relatime shared:80 - overlay overlay ro,seclabel,lowerdir=/mi_ext/product/app:/product/app\n"
+            + "401 53 0:71 / /product/priv-app ro,relatime shared:81 - overlay overlay ro,seclabel,lowerdir=/mi_ext/product/priv-app:/product/priv-app\n"
+            + "402 53 0:72 / /product/etc ro,relatime shared:82 - overlay overlay ro,seclabel,lowerdir=/mi_ext/product/etc:/product/etc\n"
+            // OPPO / OnePlus: their my_* partitions.
+            + "403 53 0:73 / /product/overlay ro,relatime - overlay overlay ro,seclabel,lowerdir=/my_product/overlay:/product/overlay\n"
+            // Writable firmware and persist folders under /vendor.
+            + "404 60 259:5 / /vendor/firmware_mnt rw,relatime - ext4 /dev/block/sda11 rw,seclabel\n", true);
+        assertTrue(scan.complete);
+        assertTrue(scan.findings.toString(), scan.findings.isEmpty());
+    }
+
+    @Test public void overlaysARootToolMadeAreFindings() {
+        // KernelSU names itself; layers from a module folder, ramdisk or memory; a writable upper layer.
+        assertTrue(RuntimeMounts.rootOverlay("KSU", "ro,lowerdir=/system/bin"));
+        assertTrue(RuntimeMounts.rootOverlay("overlay", "ro,lowerdir=/data/adb/modules/x/system/bin:/system/bin"));
+        assertTrue(RuntimeMounts.rootOverlay("overlay", "ro,lowerdir=/debug_ramdisk/.magisk/mirror/system:/system"));
+        assertTrue(RuntimeMounts.rootOverlay("overlay", "rw,lowerdir=/mi_ext/product/app,upperdir=/data/x/up,workdir=/data/x/work"));
+        assertFalse(RuntimeMounts.rootOverlay("overlay", "ro,seclabel,lowerdir=/mi_ext/product/app:/product/app"));
+        assertFalse(RuntimeMounts.rootOverlay("overlay", "ro,seclabel"));
     }
 }
