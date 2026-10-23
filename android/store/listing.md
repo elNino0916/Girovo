@@ -11,12 +11,13 @@ translations").
 | Full description | `de-DE/full-description.txt`, `en-US/full-description.txt` | 4,000 characters |
 | App icon | `icon-512.png` — 512 × 512, 32-bit PNG, full square (Play rounds it) | 1 MB |
 | Feature graphic | `feature-graphic.png` — 1024 × 500, 24-bit PNG | 15 MB |
-| Phone screenshots | `screenshots/1-…png` to `7-…png` — 1080 × 2160 (9:18, Play's 2:1 limit), 24-bit PNG, German interface, in upload order | 2–8 |
+| Phone screenshots | `screenshots/1-…png` to `8-…png` — 1080 × 2160 (9:18, Play's 2:1 limit), 24-bit PNG, German interface, in upload order | 2–8 |
 
 The screenshots show the design preview's sample data (no real account):
-Übersicht, its Umsätze, "Frag deine Umsätze" answering "Wie viel ging an
-Amazon?", the Analyse's categories, Verträge, a filled-in Überweisung and
-Geld anfordern. Last made for 5.8.0.
+the Übersicht, the search ("dm"), "Frag deine Umsätze" answering "Wie viel
+ging an Amazon?", the Analyse's categories, Zahlungen, an Überweisung at its
+amount, a booking's Umsatzdetails and the bank choice at login. Last made for
+5.11.0.
 
 ### Making them again
 
@@ -29,23 +30,37 @@ design preview from this computer:
    `gradlew assembleGithubDebug` and install it on the emulator
 3. The emulator headless at Play's size — its skin file is missing, so give
    the size instead: `emulator -avd Pixel_10_Pro_XL -skin 1080x2160 -no-window`
-4. `adb shell wm density 420`, `adb shell cmd uimode night no`, and the
-   demo status bar: `settings put global sysui_demo_allowed 1`, then
-   `am broadcast -a com.android.systemui.demo -e command …` with `enter`,
-   `clock -e hhmm 0941`, `battery -e level 100 -e plugged false`,
-   `network -e wifi show -e level 4 -e fully true`,
-   `network -e mobile show -e datatype none -e level 4 -e fully true`,
-   `notifications -e visible false`
-5. Open each view in the app's WebView over the debug bridge
+4. The phone's own look at that size (5.11.0): the AVD's Pixel profile puts a
+   camera hole into the status bar and makes it 61 dp tall at 1080 × 2160, so
+   switch it off — `cmd overlay disable com.android.internal.emulation.pixel_10_pro_xl`
+   and `… com.android.systemui.emulation.pixel_10_pro_xl` — then
+   `wm density 420` (set 421 first and back if the status bar keeps its old
+   159 px; `dumpsys window | grep type=statusBars` should say 63).
+   `cmd uimode night no`, `settings put system time_12_24 24`.
+5. The real status bar, not demo mode: demo mode's mobile signal ignores the
+   network type and shows "3G". The emulator's modem is 5G already; turn
+   Wi-Fi off (`svc wifi disable`, else Android hides "5G"), `adb emu gsm
+   signal-profile 4`, and check `adb emu power display` says discharging at
+   100. The clock is then the emulator's own, the same one the app's "Stand"
+   shows. The signal still dips now and then: retake a shot until the fourth
+   bar is dark.
+6. The app in German: in its WebView `localStorage.setItem('fints.locale',
+   'de')` and the cookie `girovo-locale=de`, then reload.
+7. Open each view in the app's WebView over the debug bridge
    (`adb forward tcp:9333 localabstract:webview_devtools_remote_<pid>`, then
-   CDP `Runtime.evaluate` of `location.href = …`):
-   `/design-preview?view=overview-single`, the same scrolled to "Umsätze",
-   `view=analysis` with the question typed and sent, `view=analysis` scrolled
-   to "Ausgaben nach Kategorie", `view=contracts`, `view=transfer-filled`,
-   `view=share` — each with `&nano=available`. Hide the dev server's badge
-   (`nextjs-portal { display: none }`) before `adb exec-out screencap -p`.
-6. Afterwards: delete `public/mobile-runtime.js` (the desktop build must not
-   find it) and run `npx cap sync android` without `GIROVO_DEV_SERVER`.
+   CDP `Runtime.evaluate` of `location.href = …`), each with `&nano=available`:
+   `/design-preview?view=overview-single`; the same with the search bar
+   tapped and "dm" typed (`adb shell input text`); `view=analysis` with "Wie
+   viel ging an Amazon?" typed and sent; `view=analysis` scrolled to "Ausgaben
+   nach Kategorie"; `view=contracts`; `view=transfer-filled`; `view=detail`;
+   `view=login`. Before `adb exec-out screencap -p`: blur the focused element
+   (no keyboard, no focus ring) and hide the dev server's badge
+   (`nextjs-portal { display: none }`). Save as 24-bit PNG (screencap's has
+   an alpha channel).
+8. Afterwards: put the emulator back (both overlays enabled, `wm density
+   reset`, Wi-Fi on, `settings delete system time_12_24`), delete
+   `public/mobile-runtime.js` (the desktop build must not find it) and run
+   `npx cap sync android` without `GIROVO_DEV_SERVER`.
 
 ## Store settings
 
