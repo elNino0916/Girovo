@@ -55,6 +55,11 @@ declare global {
       buy(plan: import('../lib/plus').PlusPlan): Promise<boolean>;
       manage(): Promise<void>;
       setIcon(icon: import('../lib/plus').PlusIcon): Promise<import('../lib/plus').PlusStatus | null>;
+      /** The owner key (scripts/owner-key.mjs): this installation's ID, and whether a key opens Plus here. */
+      ownerInfo(): Promise<{ installId: string; owner: boolean } | null>;
+      /** Null when the key is not this installation's. */
+      setOwnerKey(key: string): Promise<import('../lib/plus').PlusStatus | null>;
+      clearOwnerKey(): Promise<import('../lib/plus').PlusStatus | null>;
       openGitHub(): Promise<void>;
     };
     /**

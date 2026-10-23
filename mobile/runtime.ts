@@ -69,6 +69,9 @@ window.girovoMobile = {
     buy: plus.buy,
     manage: plus.manage,
     setIcon: plus.setIcon,
+    ownerInfo: plus.ownerInfo,
+    setOwnerKey: plus.setOwnerKey,
+    clearOwnerKey: plus.clearOwnerKey,
     openGitHub: plus.openGitHub,
   },
   // "Frag deine Umsätze": one question to Gemini Nano (lib/nano-ask.ts builds and reads it).

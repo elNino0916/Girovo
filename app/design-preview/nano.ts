@@ -57,6 +57,18 @@ function fakePlus(start: PlusState): GirovoMobile['plus'] {
       set({ ...status, icon });
       return status;
     },
+    // Any "GPO1." key fits here; the phone checks the owner's signature.
+    ownerInfo: async () => ({ installId: 'K7Q2-9XMA-4HTB', owner: status.owner === true }),
+    setOwnerKey: async (key) => {
+      if (!key.trim().startsWith('GPO1.')) return null;
+      set({ ...status, state: 'active', owner: true });
+      return status;
+    },
+    clearOwnerKey: async () => {
+      const { owner: _, ...rest } = status;
+      set({ ...rest, state: rest.plan ? 'active' : 'inactive', icon: rest.plan ? rest.icon : 'standard' });
+      return status;
+    },
     openGitHub: async () => { window.open('https://github.com/elNino0916/Girovo/releases/latest', '_blank'); },
   };
 }

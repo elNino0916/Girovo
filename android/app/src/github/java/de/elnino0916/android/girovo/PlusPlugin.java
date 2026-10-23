@@ -39,4 +39,20 @@ public class PlusPlugin extends Plugin {
     public void setIcon(PluginCall call) {
         call.reject("free here", "UNAVAILABLE");
     }
+
+    /** No owner key either: nothing here needs unlocking. */
+    @PluginMethod
+    public void owner(PluginCall call) {
+        call.reject("free here", "UNAVAILABLE");
+    }
+
+    @PluginMethod
+    public void setOwnerKey(PluginCall call) {
+        call.reject("free here", "UNAVAILABLE");
+    }
+
+    @PluginMethod
+    public void clearOwnerKey(PluginCall call) {
+        call.reject("free here", "UNAVAILABLE");
+    }
 }

@@ -22,6 +22,7 @@
 		"android:build": "node scripts/build-android.mjs",
 		"android:release": "node scripts/build-android.mjs --release && node scripts/build-android.mjs --release --flavor play",
 		"android:preview": "cross-env GIROVO_TARGET=android next dev -p 3100",
+		"owner-key": "node scripts/owner-key.mjs",
 		"postinstall": "patch-package",
 		"test": "node --test \"lib/**/*.test.ts\" \"mobile/**/*.test.ts\" \"electron/**/*.test.cjs\""
 	},

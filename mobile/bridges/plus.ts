@@ -40,6 +40,25 @@ export async function setIcon(icon: PlusIcon): Promise<PlusStatus | null> {
   return GirovoPlus.setIcon({ icon }).then((raw) => readStatus(raw, onPlay), () => null);
 }
 
+/** This installation's ID and whether an owner key opens Plus here; null where there is none (the GitHub build). */
+export async function ownerInfo(): Promise<{ installId: string; owner: boolean } | null> {
+  return GirovoPlus.owner().then(
+    (r) => (typeof r?.installId === 'string' ? { installId: r.installId, owner: r.owner === true } : null),
+    () => null,
+  );
+}
+
+/** The status with the owner key in place, or null when the key is not this installation's. */
+export async function setOwnerKey(key: string): Promise<PlusStatus | null> {
+  const onPlay = await playBuild();
+  return GirovoPlus.setOwnerKey({ key }).then((raw) => readStatus(raw, onPlay), () => null);
+}
+
+export async function clearOwnerKey(): Promise<PlusStatus | null> {
+  const onPlay = await playBuild();
+  return GirovoPlus.clearOwnerKey().then((raw) => readStatus(raw, onPlay), () => null);
+}
+
 export async function openGitHub(): Promise<void> {
   await GirovoDevice.openExternal({ url: GITHUB_RELEASES }).catch(() => {});
 }

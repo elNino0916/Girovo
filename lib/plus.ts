@@ -36,6 +36,11 @@ export type PlusStatus = {
   plan?: PlusPlan | null;
   offers?: PlusOffer[];
   icon?: PlusIcon;
+  /**
+   * Plus opened by the owner key on this installation (scripts/owner-key.mjs:
+   * the developer's own phone), not by a purchase. Only ever true.
+   */
+  owner?: true;
 };
 
 /** Whether this state opens what Plus unlocks. */
@@ -99,5 +104,6 @@ export function readStatus(raw: unknown, playBuild: boolean): PlusStatus {
     plan: r.plan === 'monthly' || r.plan === 'yearly' ? r.plan : null,
     offers: offers.sort((a, b) => (a.plan === b.plan ? 0 : a.plan === 'monthly' ? -1 : 1)),
     icon: r.icon === 'plus' && state === 'active' ? 'plus' : 'standard',
+    ...(r.owner === true && state === 'active' ? { owner: true as const } : {}),
   };
 }

@@ -26,6 +26,12 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.SecureRandom;
+import java.security.Signature;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +46,10 @@ import java.util.Map;
  * Girovo has no server, so Play Billing's own purchase state on the phone is
  * the proof. The last answer is kept: a phone briefly without Play (no
  * network, Play updating) keeps what was paid for, for up to GRACE_MS.
+ *
+ * An owner key (scripts/owner-key.mjs) opens Plus on one installation without
+ * a purchase: the developer's own phone, so they need neither pay for their
+ * own app nor run licence-test subscriptions that lapse within the hour.
  *
  * The GitHub build has its own PlusPlugin (src/github): free, nothing locked.
  */
@@ -62,6 +72,19 @@ public class PlusPlugin extends Plugin implements PurchasesUpdatedListener {
     /** active · inactive · unavailable; null until Play has answered once this start. */
     private volatile String state;
     private volatile String plan;
+
+    /**
+     * The owner's public key (scripts/owner-key.mjs). A key is the owner's
+     * ECDSA P-256 signature over OWNER_MESSAGE + this installation's ID; only
+     * the public half is here, so no key can be made from this source.
+     */
+    private static final String OWNER_PUBLIC_KEY = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE7IhFdTIGU6bU97Eo5BtezUiaeM4rxURUKLbsTIrbcLsZVcSgXX/0KijC2aZBy4DIapCllAvaTm/hw+sW3Z//8Q==";
+    private static final String OWNER_MESSAGE = "girovo-plus-owner:";
+    private static final String OWNER_KEY_PREFIX = "GPO1.";
+    /** Crockford's base32: no I, L, O or U, so an ID read off the screen is typed right. */
+    private static final String ID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+    /** Whether the kept owner key fits this installation; null until checked. */
+    private volatile Boolean ownerFits;
 
     @Override
     public void load() {
@@ -191,8 +214,8 @@ public class PlusPlugin extends Plugin implements PurchasesUpdatedListener {
         edit.apply();
         state = now;
         plan = nowPlan;
-        // The gold icon is a Plus subscriber's: it goes when Plus does.
-        if (!"active".equals(now) && "plus".equals(currentIcon())) switchIcon("standard");
+        // The gold icon is a Plus subscriber's: it goes when Plus does (an owner key keeps it).
+        if (!"active".equals(now) && !ownerKeyHere() && "plus".equals(currentIcon())) switchIcon("standard");
         notifyListeners("change", statusNow());
     }
 
@@ -204,8 +227,11 @@ public class PlusPlugin extends Plugin implements PurchasesUpdatedListener {
             long at = prefs().getLong("activeAt", 0);
             s = at > 0 && System.currentTimeMillis() - at < GRACE_MS ? "active" : "inactive";
         }
-        out.put("state", s);
+        // An owner key opens Plus whatever Play says; the plan stays Play's own.
+        boolean own = ownerKeyHere();
+        out.put("state", own ? "active" : s);
         if ("active".equals(s)) out.put("plan", plan != null ? plan : prefs().getString("plan", null));
+        if (own) out.put("owner", true);
         out.put("icon", currentIcon());
         out.put("offers", offersNow());
         return out;
@@ -349,6 +375,85 @@ public class PlusPlugin extends Plugin implements PurchasesUpdatedListener {
             // Back to the manifest's own default: the standard entry enabled.
             pm.setComponentEnabledSetting(on, PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, PackageManager.DONT_KILL_APP);
         }
+    }
+
+    // --- The owner key ---------------------------------------------------
+
+    /** This installation's ID ("K7Q2-9XMA-4HTB"), made once; an owner key is bound to it. */
+    private String installId() {
+        String id = prefs().getString("installId", null);
+        if (id == null) {
+            SecureRandom random = new SecureRandom();
+            StringBuilder b = new StringBuilder();
+            for (int i = 0; i < 12; i++) {
+                if (i > 0 && i % 4 == 0) b.append('-');
+                b.append(ID_ALPHABET.charAt(random.nextInt(ID_ALPHABET.length())));
+            }
+            id = b.toString();
+            prefs().edit().putString("installId", id).apply();
+        }
+        return id;
+    }
+
+    /** Whether a kept owner key opens Plus here. */
+    private boolean ownerKeyHere() {
+        Boolean known = ownerFits;
+        if (known == null) {
+            String key = prefs().getString("ownerKey", null);
+            known = key != null && ownerKeyFits(key, installId());
+            ownerFits = known;
+        }
+        return known;
+    }
+
+    /** Whether a key is the owner's signature over this installation's ID. */
+    private static boolean ownerKeyFits(String key, String id) {
+        if (!key.startsWith(OWNER_KEY_PREFIX)) return false;
+        try {
+            byte[] signature = Base64.getUrlDecoder().decode(key.substring(OWNER_KEY_PREFIX.length()));
+            Signature check = Signature.getInstance("SHA256withECDSA");
+            check.initVerify(KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(OWNER_PUBLIC_KEY))));
+            check.update((OWNER_MESSAGE + id).getBytes(StandardCharsets.UTF_8));
+            return check.verify(signature);
+        } catch (Exception e) {
+            // Not base64, not a signature: not a key.
+            return false;
+        }
+    }
+
+    /** This installation's ID, and whether an owner key opens Plus on it. */
+    @PluginMethod
+    public void owner(PluginCall call) {
+        JSObject out = new JSObject();
+        out.put("installId", installId());
+        out.put("owner", ownerKeyHere());
+        call.resolve(out);
+    }
+
+    /** { key } → kept and Plus is on, when it is this installation's; INVALID otherwise. */
+    @PluginMethod
+    public void setOwnerKey(PluginCall call) {
+        String key = call.getString("key", "").replaceAll("\\s+", "");
+        if (!ownerKeyFits(key, installId())) {
+            call.reject("not this installation's key", "INVALID");
+            return;
+        }
+        prefs().edit().putString("ownerKey", key).apply();
+        ownerFits = true;
+        JSObject now = statusNow();
+        notifyListeners("change", now);
+        call.resolve(now);
+    }
+
+    /** Forgets the owner key: Plus is what Play says again, and the gold icon goes with it. */
+    @PluginMethod
+    public void clearOwnerKey(PluginCall call) {
+        prefs().edit().remove("ownerKey").apply();
+        ownerFits = false;
+        if (!"active".equals(statusNow().getString("state")) && "plus".equals(currentIcon())) switchIcon("standard");
+        JSObject now = statusNow();
+        notifyListeners("change", now);
+        call.resolve(now);
     }
 
     /** A launcher entry: the app's package, the class named in the manifest's namespace (MainActivity's). */

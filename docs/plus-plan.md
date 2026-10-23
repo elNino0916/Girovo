@@ -65,6 +65,24 @@ the desktop app keep everything free, as open source.
 - Preview: `/design-preview?view=contracts&plus=inactive`, `&second=remembered`
   for the locked bank, `view=settings` for the row.
 
+## The owner key (5.11.0)
+
+The developer's own phone gets Plus without a purchase, so the owner neither
+pays for their own app nor runs licence-test subscriptions (which Play renews
+every few minutes and ends after six renewals).
+
+- On the phone: Einstellungen → Girovo Plus, tap the gold plate seven times.
+  The screen shows this installation's ID ("K7Q2-9XMA-4HTB") and takes a key.
+- On the PC: `npm run owner-key -- K7Q2-9XMA-4HTB` prints the key; paste it.
+  The private key is `girovo-owner.pem` beside the release keystore (made once
+  with `npm run owner-key -- init`), never in this repository.
+- A key is an ECDSA P-256 signature over the installation's ID;
+  PlusPlugin.java (src/play) carries the public key and checks it. It opens
+  Plus whatever Play says, keeps the gold icon, and survives updates; a
+  reinstall or "Daten löschen" makes a new ID, which needs a new key.
+- Nothing points there and nothing is sold: keys are for the owner's own
+  phones. Selling them outside Play would break Play's payments policy.
+
 ## Outside the code (yours)
 
 - Play Console: create the subscription `girovo_plus` with both base plans,

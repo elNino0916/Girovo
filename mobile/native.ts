@@ -214,6 +214,12 @@ export interface GirovoPlusPlugin {
   manage(): Promise<void>;
   /** The app icon: the gold one only while Plus is active. */
   setIcon(opts: { icon: 'standard' | 'plus' }): Promise<unknown>;
+  /** This installation's ID, and whether an owner key opens Plus on it (scripts/owner-key.mjs). */
+  owner(): Promise<{ installId?: unknown; owner?: unknown }>;
+  /** An owner key: Plus without a purchase, when it is this installation's; rejected otherwise. */
+  setOwnerKey(opts: { key: string }): Promise<unknown>;
+  /** Forgets the owner key: Plus is what Play says again. */
+  clearOwnerKey(): Promise<unknown>;
   addListener(event: 'change', fn: (status: unknown) => void): Promise<PluginListenerHandle>;
 }
 

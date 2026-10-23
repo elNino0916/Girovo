@@ -63,3 +63,14 @@ test('the Plus reminder comes once a week, only to whom it could sell', () => {
   // A clock set back does not hold the reminder off for good.
   assert.equal(reminderDue('inactive', now + week, now), 'start');
 });
+
+test('the owner key opens Plus as a mark of its own, only while active', () => {
+  const own = readStatus({ state: 'active', owner: true, icon: 'plus' }, true);
+  assert.equal(own.owner, true);
+  assert.equal(own.plan, null);
+  assert.equal(unlocked(own.state), true);
+  assert.equal(iconChoosable(own.state), true);
+  assert.equal('owner' in readStatus({ state: 'inactive', owner: true }, true), false);
+  assert.equal('owner' in readStatus({ state: 'active', owner: 'yes' }, true), false);
+  assert.equal('owner' in readStatus({ state: 'active', plan: 'monthly' }, true), false);
+});

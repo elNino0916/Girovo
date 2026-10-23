@@ -40,6 +40,20 @@ export const de = {
   /** The weekly reminder toast, in the Play build without Plus. */
   reminder: 'Gefällt dir Girovo? Mit Girovo Plus unterstützt du die App – und bekommst mehrere Banken, die Monatsprognose und „Frag deine Umsätze“.',
   reminderAction: 'Ansehen',
+  /**
+   * The owner key (scripts/owner-key.mjs): Plus on the developer's own phone
+   * without a purchase. Reached only by tapping the Plus screen's plate seven times.
+   */
+  owner: {
+    title: 'Entwicklerschlüssel',
+    lead: 'Schaltet Girovo Plus auf diesem Telefon ohne Kauf frei – mit einem Schlüssel, der nur zu dieser Installation passt.',
+    installId: 'Installations-ID',
+    key: 'Schlüssel',
+    unlock: 'Freischalten',
+    invalid: 'Dieser Schlüssel passt nicht zu dieser Installation.',
+    active: 'Auf diesem Telefon mit dem Entwicklerschlüssel freigeschaltet.',
+    remove: 'Schlüssel entfernen',
+  },
 };
 
 export const en: typeof de = {
@@ -75,4 +89,14 @@ export const en: typeof de = {
   askTeaser: 'Ask about your transactions – Gemini Nano answers on the phone.',
   reminder: 'Enjoying Girovo? Girovo Plus supports the app – and brings several banks, the month-end forecast and “Ask your transactions”.',
   reminderAction: 'See',
+  owner: {
+    title: 'Developer key',
+    lead: 'Unlocks Girovo Plus on this phone without a purchase – with a key that fits only this installation.',
+    installId: 'Installation ID',
+    key: 'Key',
+    unlock: 'Unlock',
+    invalid: "This key doesn't fit this installation.",
+    active: 'Unlocked on this phone with the developer key.',
+    remove: 'Remove key',
+  },
 };
