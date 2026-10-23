@@ -35,10 +35,10 @@ import {
 } from 'react';
 import { ApiError, BACK_EVENT, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail } from '@/lib/client-api';
 import { IS_ANDROID } from '@/lib/platform';
-import { keepsNothing } from '@/lib/device-integrity';
+import { keepsNothing, unsafePhone } from '@/lib/device-integrity';
 import { MESSAGES, msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
-import { bankAnswerLines } from '@/lib/bank-answer';
+import { bankAnswerLines, notAboutPin } from '@/lib/bank-answer';
 import { bookingKind, categorize, explainGuess, guessCategory, type CategoryGuess } from '@/lib/categorize';
 import { EXAMPLE_MIN, nameSimilarity } from '@/lib/nano-categories';
 import { OWN_PICTURE, isAvatarChoice, isAvatarImage } from '@/lib/avatars';
@@ -168,6 +168,8 @@ export type AddBankState = {
   selectedMethod: SerializedTanMethod | null;
   mediaChoice: string[] | null;
   error: string | null;
+  /** Android: this login's PIN, which the first login's fingerprint opened — the form tries it at once. */
+  openedPin: string | null;
 };
 
 export type ToastTone = 'info' | 'error' | 'success';
@@ -412,6 +414,8 @@ type KeptAddBank = Omit<AddBankState, 'error'> & {
   login: string;
   /** What the bank said at that login, added to Mitteilungen once the bank joins the view. */
   messages: BankMessage[];
+  /** Android: its PIN came from behind the fingerprint, so it is sealed already. */
+  sealed: boolean;
 };
 
 /** The wait as TanWaitOverlay reads it, in the language on screen. */
@@ -1032,6 +1036,11 @@ function useFintsState() {
   const [links, setLinks] = useState<LinkedLogin[]>([]);
   const [addBankKept, setAddBankState] = useState<KeptAddBank | null>(null);
   const [bankInfo, setBankInfo] = useState<Record<string, ChosenBank>>({});
+  // Android: the further banks the first login's fingerprint opened, still to
+  // log in one after another — and the ones whose PIN the user chose not to
+  // seal this session ("Nicht jetzt").
+  const openedLinkedRef = useRef<GirovoSealedLogin[]>([]);
+  const sealDeclinedRef = useRef(new Set<string>());
 
   // Refs mirror the state the async loops read, so a long-running approval
   // never closes over a stale render.
@@ -3355,7 +3364,11 @@ function useFintsState() {
   /** The login the bank is being asked for right now, so it can be called off. */
   const connectAttemptRef = useRef<{ id: string; ctrl: AbortController } | null>(null);
 
-  const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string) => {
+  /**
+   * `unsealed` (Android): the PIN came from behind the fingerprint, and with
+   * it the further banks' PINs kept beside it, which log in next.
+   */
+  const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string, unsealed?: { linked: GirovoSealedLogin[] }) => {
     // "Zurück zur Anmeldung" from the TAN-method screen leaves the half-open
     // session behind; a new login replaces it.
     const previous = sessionRef.current;
@@ -3382,6 +3395,7 @@ function useFintsState() {
 
     setSessionId(data.sessionId);
     sessionRef.current = data.sessionId;
+    openedLinkedRef.current = unsealed?.linked ?? [];
     if (previous && previous !== data.sessionId) {
       // Only drops it from the server's memory (and the PIN with it) — no bank traffic.
       post('/api/logout', { sessionId: previous }).catch(() => {});
@@ -3503,10 +3517,11 @@ function useFintsState() {
 
   /**
    * `from`: a bank to start with — a remembered one, or one logged out — and
-   * its login name. Every bank beside the one the app opens with needs Girovo
+   * its login name, and (Android) its PIN when the first login's fingerprint
+   * opened it. Every bank beside the one the app opens with needs Girovo
    * Plus in the Play build: without it, the Plus screen opens instead.
    */
-  const openAddBank = useCallback((from?: { bank: ChosenBank; userId?: string }) => {
+  const openAddBank = useCallback((from?: { bank: ChosenBank; userId?: string; pin?: string }) => {
     if (!sessionRef.current || addBankRef.current) return;
     if (!bankAllowed(plusRef.current.state, false)) {
       setPlusOpen(true);
@@ -3524,13 +3539,20 @@ function useFintsState() {
       sessionId: null,
       login: '',
       messages: [],
+      openedPin: from?.pin ?? null,
+      sealed: false,
     });
   }, [clearTransients, setAddBankBoth]);
 
-  /** Closes the sheet: a login still being asked is called off, a half-open one dropped. The view stays as it was. */
+  /**
+   * Closes the sheet: a login still being asked is called off, a half-open
+   * one dropped. The view stays as it was, and the further banks a
+   * fingerprint opened stay unasked.
+   */
   const closeAddBank = useCallback(() => {
     const flow = addBankRef.current;
     if (!flow) return;
+    openedLinkedRef.current = [];
     cancelConnect();
     dropSession(flow.sessionId);
     releaseFlowBusy();
@@ -3569,6 +3591,32 @@ function useFintsState() {
     setBalanceErrors(drop);
     setPendingErrors(drop);
   }, []);
+
+  /**
+   * Android, with fingerprint login on: a further bank logged in with its PIN
+   * typed is sealed beside the first login's, after a fingerprint of its own
+   * — the prompt is the question, "Nicht jetzt" the answer for this session.
+   * Never on a phone no PIN may be sealed on.
+   */
+  const offerSeal = useCallback(async (link: LinkedLogin) => {
+    const phone = IS_ANDROID ? window.girovoMobile : undefined;
+    const primary = sessionRef.current;
+    const own = bankRef.current;
+    const name = userIdRef.current;
+    const declined = `${link.bank.blz}|${link.userId}`;
+    if (!phone || !primary || !own || !name || !link.sessionId || sealDeclinedRef.current.has(declined)) return;
+    if (!(await phone.biometric.isOn(own.blz, name))) return;
+    if (unsafePhone(await phone.integrity().catch(() => null)) || !isCurrent(primary)) return;
+    const bio = msgs().android.biometric;
+    const result = await phone.biometric.seal(primary, [link.sessionId], {
+      title: bio.sealTitle,
+      subtitle: bio.sealSubtitle(link.bank.name),
+      cancel: bio.notNow,
+    });
+    if (result === 'sealed') toast(bio.sealed(link.bank.name), 'success');
+    else if (result === 'canceled') sealDeclinedRef.current.add(declined);
+    else if (result === 'failed') toast(bio.sealFailed(link.bank.name), 'error');
+  }, [isCurrent, toast]);
 
   /**
    * The flow's login joins the view with `list` as its accounts — or does not,
@@ -3661,24 +3709,31 @@ function useFintsState() {
     }
     toast(msgs().banks.added(chosen.name, joined.added.length), 'success');
     selectAccount(joined.added[0]);
+    if (!flow.sealed) void offerSeal(link);
     return null;
-  }, [releaseFlowBusy, updateAddBank, purgeAccounts, setLinksBoth, updateVault, setAddBankBoth, toast, selectAccount, loadLinkedHistory]);
+  }, [releaseFlowBusy, updateAddBank, purgeAccounts, setLinksBoth, updateVault, setAddBankBoth, toast, selectAccount, loadLinkedHistory, offerSeal]);
 
-  /** Step two of the flow: the bank is asked for this login, a session of its own. */
-  const connectAddBank = useCallback(async (chosen: ChosenBank, login: string, pin: string) => {
+  /**
+   * Step two of the flow: the bank is asked for this login, a session of its
+   * own. `unsealed` (Android): its PIN came from behind the fingerprint.
+   */
+  const connectAddBank = useCallback(async (chosen: ChosenBank, login: string, pin: string, unsealed?: { linked: GirovoSealedLogin[] }) => {
     const primary = sessionRef.current;
     if (!primary || !addBankRef.current) return;
+    // An opened PIN is tried once: what happens next is this attempt's.
+    if (addBankRef.current.openedPin) updateAddBank((a) => ({ ...a, openedPin: null }));
     const said = msgs().banks;
     const asked = { blz: chosen.blz, userId: login };
     // The same login twice would be one access in two sessions. A linked bank
     // whose session ended is the exception: that is logging in again.
     const same = linksRef.current.find((l) => sameLogin({ blz: l.bank.blz, userId: l.userId }, asked));
     const primaryLogin = bankRef.current ? { blz: bankRef.current.blz, userId: userIdRef.current } : null;
-    if ((primaryLogin && sameLogin(primaryLogin, asked)) || same?.sessionId) throw new Error(said.refused.sameLogin(chosen.name));
+    // Turned down before the bank is asked: nothing said about the PIN.
+    if ((primaryLogin && sameLogin(primaryLogin, asked)) || same?.sessionId) throw notAboutPin(said.refused.sameLogin(chosen.name));
     if (!same && linksRef.current.length >= LINKED_BANK_LIMITS.count) {
-      throw new Error(said.refused.tooMany(LINKED_BANK_LIMITS.count));
+      throw notAboutPin(said.refused.tooMany(LINKED_BANK_LIMITS.count));
     }
-    if (busyRef.current) throw new Error(msgs().provider.busy);
+    if (busyRef.current) throw notAboutPin(msgs().provider.busy);
 
     const attempt = { id: newAttemptId(), ctrl: new AbortController() };
     connectAttemptRef.current = attempt;
@@ -3704,11 +3759,13 @@ function useFintsState() {
     const named: ChosenBank = { ...chosen, name: data.bank.bankName || chosen.name, brand: data.bank.brand, bic: data.bank.bic };
     updateAddBank((a) => ({
       ...a, bank: named, sessionId: data.sessionId, login, messages: 'bankMessages' in data ? data.bankMessages || [] : [],
+      sealed: !!unsealed,
     }));
     if ('restored' in data && data.restored) {
       // A remembered device: the accounts come at once, without an approval.
+      // A refusal now is the view's, after the bank took the PIN.
       const refusal = finishAddBank(data.accounts || [], data.selectedTanMethod, true);
-      if (refusal) throw new Error(written(refusal, msgs()));
+      if (refusal) throw notAboutPin(written(refusal, msgs()));
       return;
     }
     releaseFlowBusy();
@@ -3808,6 +3865,10 @@ function useFintsState() {
       updateVault((v) => (v.linkedBanks?.some((r) => sameLogin(r, login))
         ? withLinkedBanks(v, forgetLinkedBank(v.linkedBanks, login))
         : v));
+      // Android: its PIN kept beside the first login's goes with it.
+      openedLinkedRef.current = openedLinkedRef.current.filter((l) => !sameLogin(l, login));
+      const own = bankRef.current;
+      if (IS_ANDROID && own) void window.girovoMobile?.biometric.forgetLinked(own.blz, userIdRef.current, login.blz, login.userId);
     }
     toast(msgs().banks.removed(entry.bank.name), 'info');
   }, [toast, setLinksBoth, purgeAccounts, selectAccount, updateVault]);
@@ -3870,6 +3931,8 @@ function useFintsState() {
     setLinks([]);
     addBankRef.current = null;
     setAddBankState(null);
+    openedLinkedRef.current = [];
+    sealDeclinedRef.current.clear();
     flowBusyRef.current = false;
     waitSidRef.current = null;
     transferSidRef.current = null;
@@ -4433,12 +4496,39 @@ function useFintsState() {
   /** The add flow as the sheet reads it, its error in the language on screen. */
   const addBank = useMemo((): AddBankState | null => {
     if (!addBankKept) return null;
-    const { step, bank: chosen, prefill, tanMethods: methods, selectedMethod: picked, mediaChoice: devices, error } = addBankKept;
+    const { step, bank: chosen, prefill, tanMethods: methods, selectedMethod: picked, mediaChoice: devices, error, openedPin } = addBankKept;
     return {
       step, bank: chosen, prefill, tanMethods: methods, selectedMethod: picked, mediaChoice: devices,
-      error: error === null ? null : written(error, texts),
+      error: error === null ? null : written(error, texts), openedPin,
     };
   }, [addBankKept, texts]);
+
+  // Android: after a fingerprint login, the further banks it opened log in
+  // one after another, each in the add sheet with its PIN filled in and the
+  // approval as its bank asks — once the dashboard is up, nothing else is
+  // under way and the vault says which banks it remembers. Only those: a
+  // bank removed since is not asked. Without Girovo Plus none are, and the
+  // Plus screen does not open for them either.
+  useEffect(() => {
+    if (view !== 'dashboard' || busy || addBankKept || vaultStatus !== 'ready' || !openedLinkedRef.current.length) return;
+    if (!bankAllowed(plus.state, false)) {
+      openedLinkedRef.current = [];
+      return;
+    }
+    // A moment of quiet first: the first bank's reads come one after another,
+    // and a login started between two of them would find the bank busy.
+    const timer = setTimeout(() => {
+      while (openedLinkedRef.current.length) {
+        const [next, ...rest] = openedLinkedRef.current;
+        openedLinkedRef.current = rest;
+        const entry = banks.find((b) => b.state === 'remembered' && b.ref && sameLogin(b.ref, next));
+        if (!entry) continue;
+        openAddBank({ bank: entry.bank, userId: next.userId, pin: next.pin });
+        return;
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [view, busy, addBankKept, vaultStatus, banks, plus.state, openAddBank]);
 
   const categoryRules = vault?.categoryRules;
   const txCategories = vault?.txCategories;

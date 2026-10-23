@@ -160,17 +160,30 @@ export interface GirovoScannerPlugin {
 export const GirovoScanner = registerPlugin<GirovoScannerPlugin>('GirovoScanner');
 
 // ---------------------------------------------------------------------------
-// Fingerprint unlock: the PIN sealed with a key that only a fingerprint opens.
+// Fingerprint unlock: a login's PIN, and the further banks' beside it, sealed
+// with a key that only a fingerprint opens.
 
 export type BiometricState = { available: boolean; reason?: 'none-enrolled' | 'no-hardware' | 'unavailable' | 'security-update' };
 
+/** One sealed PIN, by its name (a hash). */
+export type BiometricItem = { id: string; secret: string };
+type PromptOpts = { title: string; subtitle: string; cancel: string };
+
 export interface GirovoBiometricPlugin {
   state(): Promise<BiometricState>;
-  /** Seals `secret` under `id` after a fingerprint; the key dies with a newly enrolled finger. */
-  enroll(opts: { id: string; secret: string; title: string; subtitle: string; cancel: string }): Promise<{ result: 'enrolled' | 'canceled' }>;
-  unlock(opts: { id: string; title: string; subtitle: string; cancel: string }): Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing'; secret?: string }>;
-  has(opts: { id: string }): Promise<{ enrolled: boolean }>;
-  remove(opts: { id: string }): Promise<void>;
+  /** A new entry for `id` after a fingerprint: `items`, `id`'s own among them. The key dies with a newly enrolled finger. */
+  enroll(opts: { id: string; items: BiometricItem[] } & PromptOpts): Promise<{ result: 'enrolled' | 'canceled' }>;
+  /** Adds `items` beside `id`'s own after a fingerprint; `missing` when `id` has no entry. */
+  seal(opts: { id: string; items: BiometricItem[] } & PromptOpts): Promise<{ result: 'sealed' | 'canceled' | 'invalidated' | 'missing' }>;
+  /**
+   * `secret`: `id`'s own PIN — sealed by itself in an entry of the old form;
+   * `items`: every other one kept beside it.
+   */
+  unlock(opts: { id: string } & PromptOpts): Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing'; secret?: string; items?: BiometricItem[] }>;
+  /** `enrolled`: an entry of its own; `held`: kept beside another login's. */
+  has(opts: { id: string }): Promise<{ enrolled: boolean; held: boolean }>;
+  /** With `item`: that one beside `id`. Without: `id`'s entry and `id` wherever it is kept. */
+  remove(opts: { id: string; item?: string }): Promise<void>;
   removeAll(): Promise<void>;
 }
 

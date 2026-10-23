@@ -177,6 +177,20 @@ export function isBankOutage(message: string | null | undefined): boolean {
   });
 }
 
+/**
+ * An error that says nothing about the PIN: the login was turned down before
+ * the bank was asked (another login under way, the same login twice), or
+ * after the bank took the PIN (a further bank whose accounts the view cannot
+ * take). A PIN kept behind a fingerprint stays (components/auth/Credentials.tsx).
+ */
+export function notAboutPin(message: string): Error {
+  const err = new Error(message);
+  err.name = 'NotAboutPinError';
+  return err;
+}
+
+export const isNotAboutPin = (err: unknown): boolean => (err as Error | null)?.name === 'NotAboutPinError';
+
 // ---------------------------------------------------------------------------
 // Login and reads: the answer a person reads
 // ---------------------------------------------------------------------------

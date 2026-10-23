@@ -16,11 +16,22 @@ declare global {
     /** Fingerprint login (mobile/bridges/biometric.ts). */
     biometric: {
       state(): Promise<GirovoBiometricState>;
+      /** Whether a fingerprint opens this login's PIN: sealed for it, or as a further bank of another login. */
       enrolled(blz: string, userId: string): Promise<boolean>;
-      /** Seals the PIN of this session's login behind a fingerprint. */
-      enroll(sessionId: string, texts: GirovoPromptTexts): Promise<'enrolled' | 'canceled' | 'failed'>;
-      unlock(blz: string, userId: string, texts: GirovoPromptTexts): Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing'; pin?: string }>;
+      /** Whether fingerprint login is on for this login itself — its switch. */
+      isOn(blz: string, userId: string): Promise<boolean>;
+      /** Seals the PIN of this session's login, and those of the further banks' sessions beside it, behind a fingerprint. */
+      enroll(sessionId: string, linkedSessionIds: readonly string[], texts: GirovoPromptTexts): Promise<'enrolled' | 'canceled' | 'failed'>;
+      /** Seals further banks' PINs beside this session's login, after a fingerprint; `off` when it has no fingerprint login. */
+      seal(sessionId: string, linkedSessionIds: readonly string[], texts: GirovoPromptTexts): Promise<'sealed' | 'canceled' | 'failed' | 'off'>;
+      /** The PIN after a fingerprint, with the further banks' sealed beside it. */
+      unlock(blz: string, userId: string, texts: GirovoPromptTexts): Promise<{
+        result: 'unlocked' | 'canceled' | 'invalidated' | 'missing'; pin?: string; linked?: GirovoSealedLogin[];
+      }>;
+      /** Everything sealed for this login, and its PIN wherever it is kept beside another login. */
       forget(blz: string, userId: string): Promise<void>;
+      /** "Bank entfernen": a further bank's PIN kept beside this login's. */
+      forgetLinked(blz: string, userId: string, linkedBlz: string, linkedUserId: string): Promise<void>;
     };
     /**
      * The category guess: Gemini Nano through AICore (mobile/bridges/categories.ts)
@@ -105,6 +116,8 @@ declare global {
 
   type GirovoBiometricState = { available: boolean; reason?: 'none-enrolled' | 'no-hardware' | 'unavailable' | 'security-update' };
   type GirovoPromptTexts = { title: string; subtitle: string; cancel: string };
+  /** A further bank's login as a fingerprint opened it: its BLZ, login name and PIN. */
+  type GirovoSealedLogin = { blz: string; userId: string; pin: string };
   type GirovoIntegrity = import('../lib/device-integrity').Integrity;
   type GirovoNanoStatus = import('../mobile/native').NanoStatus;
   type GirovoNanoProgress = import('../mobile/native').NanoProgress;

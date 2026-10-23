@@ -22,14 +22,16 @@ import { ActionItem, SettingItem, SwitchItem } from '../settings/rows';
 import { Button, Dialog, Progress, Tag, cx } from '../ui';
 
 /**
- * On for the login this session belongs to: turning it on seals that login's
- * PIN behind a fingerprint, turning it off deletes it. Only the first bank's
- * login — the one the app opens with.
+ * On for the login this session belongs to — the first bank's, the one the
+ * app opens with: turning it on seals that login's PIN behind a fingerprint,
+ * and the PINs of the further banks logged in beside it; turning it off
+ * deletes them all. A further bank logged in later is sealed beside them
+ * after a fingerprint of its own (the provider's offerSeal).
  */
 export function FingerprintSwitch() {
   const t = useT();
   const b = t.android.biometric;
-  const { bank, sessionId, userId, toast } = useFints();
+  const { bank, sessionId, userId, links, toast } = useFints();
   const integrity = useIntegrity();
   const [available, setAvailable] = useState<GirovoBiometricState | null>(null);
   const [on, setOn] = useState(false);
@@ -40,7 +42,7 @@ export function FingerprintSwitch() {
     if (!mobile || !bank || !userId) return;
     let live = true;
     void mobile.biometric.state().then((s) => live && setAvailable(s));
-    void mobile.biometric.enrolled(bank.blz, userId).then((e) => live && setOn(e));
+    void mobile.biometric.isOn(bank.blz, userId).then((e) => live && setOn(e));
     return () => {
       live = false;
     };
@@ -58,9 +60,10 @@ export function FingerprintSwitch() {
     setWorking(true);
     try {
       if (next) {
-        const result = await mobile.biometric.enroll(sessionId, {
+        const linked = links.flatMap((l) => (l.sessionId ? [l.sessionId] : []));
+        const result = await mobile.biometric.enroll(sessionId, linked, {
           title: b.enrollTitle,
-          subtitle: b.enrollSubtitle(bank.name),
+          subtitle: b.enrollSubtitle(bank.name, linked.length),
           cancel: b.cancel,
         });
         if (result === 'enrolled') {

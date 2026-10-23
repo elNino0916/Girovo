@@ -58,6 +58,8 @@ function AddBank() {
                 // A login the view could not take (an account number already
                 // shown) comes back here, saying why.
                 initialError={flow.error}
+                // Android: its PIN, opened with the first login's fingerprint.
+                openedPin={flow.openedPin ?? undefined}
                 onChange={() => pickAddBank(null)}
                 onSubmit={connectAddBank}
                 onCancel={cancelConnect}

@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { post, store } from '@/lib/client-api';
-import { formatBankAnswer, isBankOutage, isCredentialAnswer } from '@/lib/bank-answer';
+import { formatBankAnswer, isBankOutage, isCredentialAnswer, isNotAboutPin } from '@/lib/bank-answer';
 import { APPROVAL_APP } from '@/lib/brands';
 import type { MetaResponse } from '@/lib/fints-types';
 import type { Messages } from '@/lib/i18n';
@@ -56,20 +56,28 @@ const GENERIC_SECRET = 'pin';
 /** After this long without an answer, the login can be called off. */
 const CANCEL_AFTER_MS = 8000;
 
+/**
+ * Android: the PIN came from behind the fingerprint — with the PINs of the
+ * further banks kept beside it, which the provider logs in next.
+ */
+export type Unsealed = { linked: GirovoSealedLogin[] };
+
 export function Credentials({
-  bank, logoFile, meta, onChange, onSubmit, onCancel, initialLogin, initialError,
+  bank, logoFile, meta, onChange, onSubmit, onCancel, initialLogin, initialError, openedPin,
 }: {
   bank: ChosenBank;
   logoFile?: string;
   meta: MetaResponse | null;
   onChange: () => void;
-  onSubmit: (bank: ChosenBank, userId: string, pin: string) => Promise<void>;
+  onSubmit: (bank: ChosenBank, userId: string, pin: string, unsealed?: Unsealed) => Promise<void>;
   /** Calls off the login while the bank is being asked. */
   onCancel: () => void;
   /** The login name to start with, before the one this machine remembers (a linked bank's). */
   initialLogin?: string;
   /** Why the last login with this form did not go through, when it was found out after the form had gone. */
   initialError?: string | null;
+  /** Android: this login's PIN, which the first login's fingerprint already opened — tried at once. */
+  openedPin?: string;
 }) {
   const uid = useId();
   const tr = useT();
@@ -153,8 +161,8 @@ export function Credentials({
 
   const secret = words.secrets[SECRET[bank.brand] ?? GENERIC_SECRET];
 
-  /** One login with `secretValue`: typed, or opened with a fingerprint. */
-  const attempt = useCallback(async (secretValue: string, viaFingerprint: boolean) => {
+  /** One login with `secretValue`: typed (no `unsealed`), or opened with a fingerprint. */
+  const attempt = useCallback(async (secretValue: string, unsealed?: Unsealed) => {
     setFieldErrors({});
     setError(null);
     setFingerprintNotice(null);
@@ -164,7 +172,7 @@ export function Credentials({
     // left readable for whoever walks past during the wait.
     setReveal(false);
     try {
-      await onSubmit(bank, login.trim(), secretValue);
+      await onSubmit(bank, login.trim(), secretValue, unsealed);
       setPin('');
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
@@ -176,8 +184,9 @@ export function Credentials({
       setError(message);
       // A stored PIN the bank did not take is deleted at once: it is never
       // tried a second time, because a few wrong tries lock the access. Only
-      // a bank that could not be reached says nothing about the PIN.
-      if (viaFingerprint && !isBankOutage(message)) {
+      // a bank that could not be reached, or a login turned down before the
+      // bank was asked or after it took the PIN, says nothing about the PIN.
+      if (unsealed && !isBankOutage(message) && !isNotAboutPin(err)) {
         void window.girovoMobile?.biometric.forget(bank.blz, login.trim());
         setFingerprint(false);
         setFingerprintNotice(tr.android.biometric.refused);
@@ -207,7 +216,7 @@ export function Credentials({
       pinRef.current?.focus();
       return;
     }
-    await attempt(pin, false);
+    await attempt(pin);
   }, [login, pin, attempt, submitting]);
 
   /** Android: the PIN from behind the fingerprint, then the same login as a typed one. */
@@ -222,7 +231,7 @@ export function Credentials({
       cancel: bio.usePin,
     });
     if (opened.result === 'unlocked' && opened.pin) {
-      await attempt(opened.pin, true);
+      await attempt(opened.pin, { linked: opened.linked ?? [] });
       return;
     }
     if (opened.result === 'invalidated' || opened.result === 'missing') {
@@ -231,6 +240,16 @@ export function Credentials({
     }
     pinRef.current?.focus();
   }, [bank, login, submitting, attempt, tr]);
+
+  // Android: a further bank whose PIN the first login's fingerprint opened
+  // logs in at once, as if the fingerprint had just been given for it.
+  useEffect(() => {
+    if (!openedPin || fingerprintAsked.current) return;
+    fingerprintAsked.current = true;
+    void attempt(openedPin, { linked: [] });
+    // Once, on mount: the provider hands the PIN in only for this form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Android: whether this login name has a fingerprint login, and if so the
   // fingerprint is asked for once, straight away, as a bank's own app does.

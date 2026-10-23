@@ -304,11 +304,20 @@ request. The GitHub build's `PlusPlugin` (src/github) answers "free".
   Girovo is back in front (`mobile/server/fetch.ts`); and the bank's minute
   to start answering is timed natively (`HttpPlugin.java`), not by a page
   timer that stops in the background.
-- **Fingerprint login** (opt-in, Sitzung panel) keeps the PIN of one login,
-  sealed with a Keystore key that only a strong biometric opens and that
-  Android destroys when a fingerprint is added. A stored PIN the bank refuses
-  is deleted at once, so it is never tried twice. Without the switch the PIN
-  lives only in memory, as on the desktop.
+- **Fingerprint login** (opt-in, Einstellungen → Sicherheit) keeps the PIN of
+  the login the app opens with and those of the further banks beside it
+  (`BiometricPlugin.java`, `mobile/bridges/biometric.ts`). A Keystore key that
+  only a strong biometric opens, for every use, and that Android destroys when
+  a fingerprint is added seals a random data key; the data key seals each PIN
+  on its own, so one bank's can be deleted without a fingerprint. One
+  fingerprint at login opens them all, and the remembered further banks log
+  in one after another in the add sheet (approvals as each bank asks; closing
+  the sheet stops the rest). A further bank logged in with its PIN typed is
+  sealed after a fingerprint of its own ("Nicht jetzt" skips it for the
+  session). A stored PIN the bank refuses is deleted at once, so it is never
+  tried twice; "Bank entfernen" deletes that bank's; nothing is sealed on a
+  phone the integrity check calls unsafe. Without the switch the PINs live
+  only in memory, as on the desktop.
 - **Categories with Gemini Nano.** What the keyword rules leave as
   "Sonstiges" goes to Gemini Nano, the language model Android's AICore runs on
   the phone for every app (ML Kit's Prompt API, `NanoPlugin.java`), in place

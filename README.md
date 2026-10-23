@@ -519,9 +519,12 @@ Girovo's on every phone. The layout is the phone's own (since 5.11):
 
 Beyond the desktop app's features it has:
 
-- **Fingerprint login** (opt-in): the PIN of one login, sealed with a key in
-  the Android Keystore that only a fingerprint opens. Adding a fingerprint to
-  the phone deletes it, and so does a PIN the bank refuses.
+- **Fingerprint login** (opt-in): the PIN of the login the app opens with,
+  and those of the further banks logged in beside it, sealed under a key in
+  the Android Keystore that only a fingerprint opens. One fingerprint logs in
+  every one of them, the approvals still as each bank asks. Adding a
+  fingerprint to the phone deletes them all; a PIN the bank refuses, or
+  "Bank entfernen", deletes that bank's.
 - **Categories with Gemini Nano** instead of the desktop's model: the
   language model Android's AICore runs on the phone itself, so there is
   nothing to download in the app. On a phone without it Einstellungen says

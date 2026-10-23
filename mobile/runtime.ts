@@ -48,9 +48,12 @@ window.girovoMobile = {
   biometric: {
     state: biometric.state,
     enrolled: biometric.enrolled,
+    isOn: biometric.isOn,
     enroll: biometric.enroll,
+    seal: biometric.seal,
     unlock: biometric.unlock,
     forget: biometric.forget,
+    forgetLinked: biometric.forgetLinked,
   },
   categories: {
     status: categories.status,

@@ -181,9 +181,12 @@ export function installFakeNano(
     biometric: {
       state: async () => ({ available: false, reason: 'none-enrolled' }),
       enrolled: async () => false,
+      isOn: async () => false,
       enroll: async () => 'canceled',
+      seal: async () => 'off',
       unlock: async () => ({ result: 'missing' }),
       forget: quiet,
+      forgetLinked: quiet,
     },
     categories,
     ask,

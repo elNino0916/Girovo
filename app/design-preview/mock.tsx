@@ -1896,7 +1896,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       step: from ? 'credentials' : 'bank',
       bank: from?.bank ?? null,
       prefill: from?.userId ? { blz: from.bank.blz, userId: from.userId } : null,
-      tanMethods: [], selectedMethod: null, mediaChoice: null, error: null,
+      tanMethods: [], selectedMethod: null, mediaChoice: null, error: null, openedPin: null,
     });
   }, [clearTransients, setAddBank]);
 

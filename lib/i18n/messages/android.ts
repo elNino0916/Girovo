@@ -6,7 +6,7 @@ export const de = {
   biometric: {
     /** The switch on the Einstellungen page. */
     label: 'Mit Fingerabdruck anmelden',
-    hint: 'Deine PIN liegt verschlüsselt auf dem Telefon – nur dein Fingerabdruck öffnet sie.',
+    hint: 'Deine PIN und die deiner weiteren Banken liegen verschlüsselt auf dem Telefon – nur dein Fingerabdruck öffnet sie, alle zusammen.',
     unavailable: {
       'none-enrolled': 'Richte zuerst in den Android-Einstellungen einen Fingerabdruck ein.',
       'no-hardware': 'Dieses Telefon hat keinen Fingerabdrucksensor, den Girovo nutzen kann.',
@@ -14,7 +14,10 @@ export const de = {
       unavailable: 'Der Fingerabdrucksensor ist gerade nicht verfügbar.',
     },
     enrollTitle: 'Fingerabdruck für Girovo',
-    enrollSubtitle: (bank: string) => `Damit meldest du dich künftig bei ${bank} an.`,
+    /** `more`: the further banks logged in now, sealed along. */
+    enrollSubtitle: (bank: string, more = 0) => (more
+      ? `Damit meldest du dich künftig bei ${bank} an – und bei ${more === 1 ? 'einer weiteren Bank' : `${more} weiteren Banken`}.`
+      : `Damit meldest du dich künftig bei ${bank} an.`),
     unlockTitle: 'Bei Girovo anmelden',
     unlockSubtitle: (bank: string) => `${bank} · mit deinem Fingerabdruck`,
     /** The prompt's way out. */
@@ -27,6 +30,12 @@ export const de = {
     enrollFailed: 'Die Anmeldung mit Fingerabdruck ließ sich nicht einschalten.',
     invalidated: 'Auf diesem Telefon ist ein neuer Fingerabdruck dazugekommen. Melde dich einmal mit deiner PIN an und schalte die Anmeldung mit Fingerabdruck dann wieder ein.',
     refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht – melde dich mit deiner PIN an.',
+    /** The prompt after a further bank logged in with its PIN typed, while fingerprint login is on. */
+    sealTitle: 'PIN mit Fingerabdruck sichern',
+    sealSubtitle: (bank: string) => `Dann meldet dich dein Fingerabdruck auch bei ${bank} an.`,
+    notNow: 'Nicht jetzt',
+    sealed: (bank: string) => `Die PIN für ${bank} ist jetzt mit deinem Fingerabdruck gesichert.`,
+    sealFailed: (bank: string) => `Die PIN für ${bank} ließ sich nicht sichern.`,
   },
 
   /** The category guess with Gemini Nano (components/android: Einstellungen and the progress line). */
@@ -144,7 +153,7 @@ export const de = {
 export const en: typeof de = {
   biometric: {
     label: 'Log in with fingerprint',
-    hint: 'Your PIN is kept encrypted on the phone – only your fingerprint opens it.',
+    hint: 'Your PIN and those of your further banks are kept encrypted on the phone – only your fingerprint opens them, all together.',
     unavailable: {
       'none-enrolled': 'Set up a fingerprint in Android’s settings first.',
       'no-hardware': 'This phone has no fingerprint sensor Girovo can use.',
@@ -152,7 +161,9 @@ export const en: typeof de = {
       unavailable: 'The fingerprint sensor isn’t available right now.',
     },
     enrollTitle: 'Fingerprint for Girovo',
-    enrollSubtitle: (bank: string) => `You’ll use it to log in to ${bank} from now on.`,
+    enrollSubtitle: (bank: string, more = 0) => (more
+      ? `You’ll use it to log in to ${bank} from now on – and to ${more === 1 ? 'one more bank' : `${more} more banks`}.`
+      : `You’ll use it to log in to ${bank} from now on.`),
     unlockTitle: 'Log in to Girovo',
     unlockSubtitle: (bank: string) => `${bank} · with your fingerprint`,
     usePin: 'Enter PIN',
@@ -163,6 +174,11 @@ export const en: typeof de = {
     enrollFailed: 'Fingerprint login couldn’t be turned on.',
     invalidated: 'A new fingerprint was added on this phone. Log in once with your PIN, then turn fingerprint login back on.',
     refused: 'The bank didn’t accept the stored PIN. It has been deleted – log in with your PIN.',
+    sealTitle: 'Secure PIN with fingerprint',
+    sealSubtitle: (bank: string) => `Your fingerprint will then log you in to ${bank} too.`,
+    notNow: 'Not now',
+    sealed: (bank: string) => `Your PIN for ${bank} is now secured with your fingerprint.`,
+    sealFailed: (bank: string) => `Your PIN for ${bank} couldn’t be secured.`,
   },
 
   categories: {

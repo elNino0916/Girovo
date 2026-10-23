@@ -22,6 +22,22 @@ const MAX = 112;
 const DAMPING = 0.5;
 /** Where the indicator rests while the fetch runs. */
 const REST = 64;
+/** How far the finger moves before the gesture's direction counts — under the browser's own touch slop (8dp), so it has not started scrolling yet. */
+const SLOP = 6;
+
+/**
+ * Whether a touch can start a pull: only on the page itself. A touch in an
+ * open layer (a sheet, a dialog, a menu) belongs to that layer, and one in
+ * something that can still scroll up on its own scrolls that first.
+ */
+function onPage(target: EventTarget | null, root: HTMLElement): boolean {
+  // A sheet or dialog has locked the page.
+  if (getComputedStyle(root).overflowY === 'hidden') return false;
+  for (let el = target instanceof Element ? target : null; el && el !== root; el = el.parentElement) {
+    if (el.matches('[role="dialog"], m3e-menu') || el.scrollTop > 0) return false;
+  }
+  return true;
+}
 
 export function PullToRefresh({ scrollRef }: { scrollRef: RefObject<HTMLElement | null> }) {
   const { activeAccount, refreshAccount, busy } = useFints();
@@ -62,20 +78,36 @@ export function PullToRefresh({ scrollRef }: { scrollRef: RefObject<HTMLElement 
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
+    let startX = 0;
     let startY = 0;
     let active = false;
+    let decided = false;
     let armed = false;
     let distance = 0;
 
     const onStart = (e: TouchEvent) => {
-      active = live.current.can && root.scrollTop <= 0 && e.touches.length === 1;
+      active = live.current.can && root.scrollTop <= 0 && e.touches.length === 1 && onPage(e.target, root);
+      startX = e.touches[0]?.clientX ?? 0;
       startY = e.touches[0]?.clientY ?? 0;
+      decided = false;
       armed = false;
       distance = 0;
     };
     const onMove = (e: TouchEvent) => {
       if (!active) return;
+      const dx = (e.touches[0]?.clientX ?? 0) - startX;
       const dy = (e.touches[0]?.clientY ?? 0) - startY;
+      // The first few pixels say what the gesture is. Sideways (the filter
+      // chips' row) or up is a scroll, and the pull leaves it alone to the
+      // end: held back, it would end as a tap on whatever is under the finger.
+      if (!decided) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < SLOP) return;
+        decided = true;
+        if (Math.abs(dx) >= Math.abs(dy) || dy < 0) {
+          active = false;
+          return;
+        }
+      }
       if (dy <= 0 || root.scrollTop > 0) {
         if (distance) setPull((distance = 0));
         return;

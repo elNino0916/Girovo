@@ -4,7 +4,8 @@
 // what was pressed, and fades once the finger lifts (app/android.css,
 // [data-ripple]). It is drawn as the element's own background image, so it
 // needs no extra element, follows the element's corners and changes none of
-// its layout.
+// its layout. M3E's controls draw a ripple of their own, which ends where a
+// press ends in a native list: once the finger turns out to be scrolling.
 //
 // The top app bar takes a container colour once the page scrolls under it
 // (<html data-scrolled>, Material's on-scroll container colour).
@@ -55,6 +56,36 @@ function ripple(): void {
   );
 }
 
+type M3eRipple = HTMLElement & { hide(): void };
+
+/**
+ * M3E holds its ripple until the finger lifts — through a whole scroll that
+ * began on a menu item or a chip, so the scroll looked like a press. The
+ * browser says when it takes a touch for scrolling (pointercancel); the
+ * press is over then.
+ */
+function endM3ePressOnScroll(): void {
+  document.addEventListener(
+    'pointerdown',
+    (down) => {
+      if (down.pointerType !== 'touch' || !down.isPrimary) return;
+      const host = down.composedPath().find(
+        (n): n is HTMLElement => n instanceof HTMLElement && !!n.shadowRoot?.querySelector('m3e-ripple'),
+      );
+      if (!host) return;
+      const end = (e: PointerEvent) => {
+        if (e.pointerId !== down.pointerId) return;
+        window.removeEventListener('pointerup', end);
+        window.removeEventListener('pointercancel', end);
+        if (e.type === 'pointercancel') host.shadowRoot?.querySelectorAll<M3eRipple>('m3e-ripple').forEach((r) => r.hide());
+      };
+      window.addEventListener('pointerup', end);
+      window.addEventListener('pointercancel', end);
+    },
+    { passive: true },
+  );
+}
+
 function scrollState(): void {
   const root = document.documentElement;
   document.addEventListener(
@@ -71,5 +102,6 @@ function scrollState(): void {
 
 export function installRipple(): void {
   ripple();
+  endM3ePressOnScroll();
   scrollState();
 }
