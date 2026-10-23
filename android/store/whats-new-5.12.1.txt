@@ -1,0 +1,8 @@
+<en-US>
+• One fingerprint for all your banks: with fingerprint login on, the banks you added log in too – no PIN to type for each
+• The category menu and the filter chips scroll smoothly again
+</en-US>
+<de-DE>
+• Ein Fingerabdruck für alle deine Banken: Mit der Anmeldung per Fingerabdruck melden sich auch deine weiteren Banken an – ohne jede PIN einzutippen
+• Kategoriemenü und Filter-Chips lassen sich wieder sauber scrollen
+</de-DE>

@@ -416,6 +416,8 @@ type KeptAddBank = Omit<AddBankState, 'error'> & {
   messages: BankMessage[];
   /** Android: its PIN came from behind the fingerprint, so it is sealed already. */
   sealed: boolean;
+  /** Android: logged in on its own after the first login's fingerprint, not by the user's hand. */
+  auto: boolean;
 };
 
 /** The wait as TanWaitOverlay reads it, in the language on screen. */
@@ -3541,6 +3543,8 @@ function useFintsState() {
       messages: [],
       openedPin: from?.pin ?? null,
       sealed: false,
+      // Only the chain after a fingerprint login hands a PIN in.
+      auto: !!from?.pin,
     });
   }, [clearTransients, setAddBankBoth]);
 
@@ -3624,7 +3628,9 @@ function useFintsState() {
    * number already shown under another account, or nothing new at all. Its
    * session is dropped then. A linked bank logging in again takes its old
    * place, and whatever it no longer lists leaves with its data. As after a
-   * login, the new bank's first account is opened.
+   * login, the new bank's first account is opened — unless the bank logged
+   * in on its own after a fingerprint login (Android), when the account on
+   * screen stays.
    */
   const finishAddBank = useCallback((
     list: SerializedAccount[], method: SerializedTanMethod | null, device: boolean,
@@ -3708,7 +3714,9 @@ function useFintsState() {
         .catch(() => { /* that bank's answers are then simply not kept */ });
     }
     toast(msgs().banks.added(chosen.name, joined.added.length), 'success');
-    selectAccount(joined.added[0]);
+    // A bank logged in on its own after the fingerprint leaves the account on
+    // screen where it was: the user did not ask for that bank.
+    if (!flow.auto) selectAccount(joined.added[0]);
     if (!flow.sealed) void offerSeal(link);
     return null;
   }, [releaseFlowBusy, updateAddBank, purgeAccounts, setLinksBoth, updateVault, setAddBankBoth, toast, selectAccount, loadLinkedHistory, offerSeal]);
