@@ -27,8 +27,10 @@ const QUIET_CATEGORIES = new Set<CategoryId>(['other', 'otherIn']);
  * change of it renders every row again, summary and category included.
  */
 export const TxRow = memo(function TxRow({
-  tx, merchant, category, parts, userNote, receipt = false, pending = false, compact = false, onOpen,
+  tx, merchant, category, parts, userNote, receipt = false, pending = false, compact = false, inDay = false, onOpen,
 }: {
+  /** In a list grouped by Buchungstag: the day's header names a Buchungstag still ahead, so the row does not. */
+  inDay?: boolean;
   tx: SerializedTransaction;
   /**
    * Gemini Nano's brand for this counterparty (Android), which txText already
@@ -54,7 +56,12 @@ export const TxRow = memo(function TxRow({
   // A booked row leaves its Wertstellung to its details; a Buchungstag still
   // ahead it keeps — that one changes what the row means.
   const fullNote = rowNote(tx, pending);
-  const note = !pending && fullNote?.kind === 'value' ? null : fullNote;
+  const note = (!pending && fullNote?.kind === 'value') || (inDay && fullNote?.kind === 'booking') ? null : fullNote;
+  // A phone's line holds the category and how the money moved — the bank
+  // text's first word when it is one ("girocard", "Geldautomat"), never a
+  // reference or a mandate ("Spotify P2C8F1A9D2"); the rest is the drawer's.
+  const firstToken = summary ? summary.split(' · ')[0] : '';
+  const method = firstToken && firstToken.length <= 20 && !/\d{3,}|[A-Z0-9]{6,}/.test(firstToken) ? firstToken : '';
   // A split booking always says so: the shares are the user's own doing.
   const split = !compact && parts && parts.length > 1 ? parts : null;
   const showCategory = !compact && category && (split || !QUIET_CATEGORIES.has(category));
@@ -75,10 +82,18 @@ export const TxRow = memo(function TxRow({
         // reads as one more header.
         'row-focus flex w-full items-center gap-3 text-left transition-colors duration-150',
         'hover:bg-[color-mix(in_srgb,var(--inset)_55%,var(--surface))]',
-        compact ? 'min-h-[60px] px-4 py-2.5' : 'min-h-[64px] px-4 py-3 sm:px-5',
+        compact ? 'min-h-[60px] px-4 py-2.5' : 'min-h-[64px] px-4 py-3 max-sm:py-2.5 sm:px-5',
       )}
     >
-      <CounterpartyAvatar tx={tx} merchant={merchant} name={name} credit={credit} pending={pending} />
+      <CounterpartyAvatar
+        tx={tx}
+        merchant={merchant}
+        name={name}
+        credit={credit}
+        pending={pending}
+        // The category's glyph is the row's face; a person keeps their initials.
+        glyph={!compact && showCategory ? (split ? <PieIcon size={20} /> : <CategoryIcon id={category} size={20} />) : undefined}
+      />
 
       <span className="min-w-0 flex-1">
         {/* The tidied name; hovering shows what the bank's FinTS answer said. */}
@@ -98,29 +113,27 @@ export const TxRow = memo(function TxRow({
           )}
         </span>
         {(summary || showCategory) && (
-          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] leading-snug text-ink-3">
-            {/* Bank prose: an amount in it is masked with the row's own. */}
-            {summary && <span className="min-w-0 truncate"><BankText text={summary} /></span>}
-            {summary && showCategory && <span aria-hidden className="shrink-0">·</span>}
+          <span
+            className={cx(
+              'mt-0.5 flex min-w-0 items-center text-[13px] leading-snug text-ink-3',
+              // A phone: one line, and what does not fit beside the category
+              // wraps onto a second line that is never shown — whole or not at all.
+              showCategory && 'max-sm:h-[1.375em] max-sm:flex-wrap max-sm:overflow-hidden',
+            )}
+          >
+            {/* The category first — its glyph is the row's face — then the
+                bank's prose, which gives way when the line runs out. The
+                dot between them is spaced as the bank's own " · " are. */}
             {showCategory && (
-              <span
-                className={cx(
-                  'inline-flex min-w-0 items-center gap-1',
-                  // Prose first: when both don't fit, the category gives way
-                  // only once the prose has had at least half the line.
-                  summary ? 'shrink-0 sm:max-w-[50%]' : 'shrink',
-                )}
-              >
-                <span title={categoryTitle} className="inline-flex shrink-0">
-                  {split ? <PieIcon size={14} /> : <CategoryIcon id={category} size={14} />}
-                </span>
-                {/* Beside prose on a phone the glyph stands in for the word; the
-                    word is still there for a screen reader. */}
-                <span className={cx('min-w-0 truncate', summary && 'max-sm:sr-only')}>
-                  {split ? <><span className="sr-only">{categoryTitle}</span><span aria-hidden>{categoryText}</span></> : categoryText}
-                </span>
+              <span title={categoryTitle} className={cx('min-w-0 truncate', summary && 'max-w-[80%] shrink-0')}>
+                {split ? <><span className="sr-only">{categoryTitle}</span><span aria-hidden>{categoryText}</span></> : categoryText}
               </span>
             )}
+            {summary && showCategory && <span aria-hidden className="shrink-0 whitespace-pre max-sm:hidden"> · </span>}
+            {/* Bank prose: an amount in it is masked with the row's own. */}
+            {summary && <span className={cx('min-w-0 truncate', showCategory && 'max-sm:hidden')}><BankText text={summary} /></span>}
+            {/* A phone: the way the money moved, beside the category. */}
+            {showCategory && method && <span aria-hidden className="shrink-0 whitespace-pre sm:hidden"> · {method}</span>}
           </span>
         )}
       </span>

@@ -46,6 +46,20 @@
    footer get compact, so the form between them keeps its room. */
 @custom-variant short (@media (max-height: 43.75rem));
 
+/* The wide window's layout of a block, asked for by a [data-rows] ancestor
+   at any width: the account list's rows in a phone's accounts sheet
+   (components/overview/AccountList.tsx), where the cards of its strip would
+   be one swipe too many. `rows:` stands beside every `sm:` there; `narrow:`
+   is `max-sm:` except under [data-rows]. */
+@custom-variant rows (&:where([data-rows], [data-rows] *));
+@custom-variant narrow {
+  @media (width < 40rem) {
+    &:not(:where([data-rows], [data-rows] *)) {
+      @slot;
+    }
+  }
+}
+
 /* Both token sets also apply to any element carrying data-theme, so a block
    can be shown in the other theme (a preview, a gallery) — its subtree simply
    resolves the other values. */

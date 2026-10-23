@@ -128,8 +128,8 @@ export function TxList({
                   title={words.future}
                 >
                   <ClockIcon size={13} />
-                  {/* On a phone the clock alone; the rows below say "Buchung 05.10." anyway. */}
-                  <span className="truncate max-sm:sr-only">{t.transactions.state.ahead}</span>
+                  {/* Said in words at every width: the rows under it leave their "Buchung 05.10." to it. */}
+                  <span className="truncate">{t.transactions.state.ahead}</span>
                 </span>
               )}
               {/* Not on Android: the day's balance or sum is one figure too many on a phone's line. */}
@@ -171,6 +171,7 @@ export function TxList({
                     parts={categoryOf(tx).parts}
                     userNote={noteOf?.(tx)}
                     receipt={!!receiptKeys?.has(txKey(tx))}
+                    inDay
                     onOpen={onOpen}
                   />
                 </li>

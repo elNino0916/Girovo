@@ -187,6 +187,8 @@ export const de = {
 
   /** Verträge & Abos (components/Contracts.tsx, components/insights/ContractRow.tsx). */
   contracts: {
+    /** The section's title on the Zahlungen page. */
+    title: 'Verträge & Abos',
     /** The tab, for a screen reader. */
     label: 'Verträge und Abos',
     /** The group for contracts that fit no other (lib/recurring.ts). */
@@ -612,6 +614,7 @@ export const en: typeof de = {
   },
 
   contracts: {
+    title: 'Contracts & subscriptions',
     label: 'Contracts and subscriptions',
     otherContracts: 'Other contracts',
     columns: {

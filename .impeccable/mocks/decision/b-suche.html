@@ -1,0 +1,99 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=393"><title>Suche zuerst</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+:root{
+  --primary:#0060a8; --on-primary:#fff; --pc:#d3e4ff; --on-pc:#004880; --on-pc-2:#3a6898;
+  --sc:#dae1ff; --on-sc:#3c4665; --tc:#e2dfff; --on-tc:#424271;
+  --surface:#f8f9ff; --scl:#eff4ff; --sc1:#e9eefa; --sch:#e3e8f4; --schh:#dde3ee;
+  --ink:#161c24; --ink-2:#404753; --outline:#707784; --ov:#bfc7d5;
+  --green:#0c7336; --amber:#8a6410; --amber-soft:#fff4dc; --orange:#ee6a1f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface)}
+.phone{width:393px;height:852px;overflow:hidden;position:relative;background:var(--surface);
+  font-family:'Google Sans Flex',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;
+  font-variation-settings:'ROND' 0}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;font-size:24px;line-height:1;
+  letter-spacing:normal;text-transform:none;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';
+  font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block}
+.ms.fill{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em}
+.status{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;
+  font-weight:500;font-size:14px}
+.status .ms{font-size:17px;margin-left:3px}
+.iconbtn{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;position:relative;color:var(--ink-2)}
+.dot{position:absolute;top:12px;right:12px;width:7px;height:7px;border-radius:50%;background:var(--orange);
+  box-shadow:0 0 0 2px var(--dotring,var(--surface))}
+.avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;
+  background:var(--primary);color:var(--on-primary);letter-spacing:.02em}
+.nav{position:absolute;left:0;right:0;bottom:0;height:88px;background:var(--sc1);display:flex;padding-top:12px}
+.nav .it{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:500;
+  letter-spacing:.3px;color:var(--ink-2)}
+.nav .pill{width:56px;height:32px;border-radius:16px;display:grid;place-items:center}
+.nav .on .pill{background:var(--sc);color:var(--on-sc)}
+.nav .on{color:var(--ink)}
+.handle{position:absolute;bottom:8px;left:50%;width:108px;height:4px;margin-left:-54px;border-radius:2px;
+  background:var(--ink);opacity:.38}
+.day{display:flex;justify-content:space-between;align-items:baseline;padding:14px 16px 4px;font-size:14px;
+  line-height:20px;font-weight:500;color:var(--ink-2)}
+.row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;column-gap:16px;align-items:center;
+  padding:8px 16px;min-height:60px}
+.row .t{min-width:0}
+.name{font-size:16px;line-height:22px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:14px;line-height:20px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amt{font-size:16px;line-height:22px;font-weight:500;text-align:right}
+.amt.pos{color:var(--green)}
+.amt small{display:block;font-size:13px;line-height:18px;font-weight:400;color:var(--ink-2)}
+.shape{width:40px;height:40px;position:relative;display:grid;place-items:center}
+.shape svg{position:absolute;inset:0}
+.shape .ms{position:relative;font-size:20px}
+.circle{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--sch);color:var(--ink-2)}
+.circle .ms{font-size:20px}
+</style></head>
+<body><div class="phone">
+  <div class="status" style="color:var(--ink)"><span class="num">9:41</span>
+  <span><span class="ms ">signal_cellular_alt</span><span class="ms ">wifi</span><span class="ms ">battery_full</span></span></div>
+  <div style="padding:8px 16px 0">
+    <div style="height:56px;border-radius:28px;background:var(--sch);display:flex;align-items:center;padding:0 8px 0 16px;gap:12px;--dotring:var(--sch)">
+      <span class="ms ">search</span>
+      <div style="flex:1;font-size:16px;color:var(--ink-2)">Umsätze suchen oder fragen</div>
+      <svg width="22" height="22" viewBox="0 0 24 24"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient></defs><path d="M12 2c.6 5.3 4.7 9.4 10 10-5.3.6-9.4 4.7-10 10-.6-5.3-4.7-9.4-10-10 5.3-.6 9.4-4.7 10-10Z" fill="url(#g)"/></svg>
+      <div style="position:relative;width:40px;height:40px;display:grid;place-items:center"><div class="avatar">NB</div><i class="dot" style="top:4px;right:3px"></i></div>
+    </div>
+  </div>
+  <div style="padding:22px 20px 0;display:flex;justify-content:space-between;align-items:flex-end">
+    <div>
+      <div style="display:flex;align-items:center;gap:2px;font-size:14px;font-weight:500;color:var(--ink-2)">GiroKomfort<span style="font-size:20px" class="ms ">expand_more</span></div>
+      <div class="num" style="font-size:48px;line-height:56px;font-weight:500;letter-spacing:-0.025em">794<span style="font-size:28px;letter-spacing:-0.01em">,01&nbsp;€</span></div>
+      <div class="num" style="font-size:14px;line-height:20px;color:var(--ink-2)">Verfügbar 2.720,63&nbsp;€</div>
+    </div>
+    <svg width="112" height="44" viewBox="0 0 112 44" style="margin-bottom:6px"><path d="M2,36.587786259541986H3.2V36.6H4.4V36.6H5.6V37.3H6.7V37.3H7.9V37.3H9.1V37.8H10.3V42.0H11.5V20.2H12.7V28.5H13.9V28.5H15.1V28.5H16.2V28.9H17.4V28.9H18.6V28.9H19.8V29.2H21.0V29.2H22.2V29.2H23.4V30.0H24.5V30.0H25.7V30.0H26.9V30.6H28.1V30.6H29.3V30.6H30.5V31.1H31.7V31.1H32.9V31.1H34.0V31.6H35.2V31.6H36.4V31.6H37.6V32.0H38.8V32.0H40.0V32.0H41.2V32.3H42.4V32.3H43.5V32.3H44.7V33.0H45.9V33.0H47.1V11.1H48.3V19.5H49.5V19.5H50.7V19.5H51.8V20.0H53.0V20.0H54.2V20.0H55.4V20.4H56.6V20.4H57.8V20.4H59.0V20.7H60.2V20.7H61.3V20.7H62.5V21.5H63.7V21.5H64.9V21.5H66.1V22.1H67.3V22.1H68.5V22.1H69.6V22.7H70.8V22.7H72.0V22.7H73.2V23.1H74.4V23.1H75.6V23.1H76.8V23.5H78.0V23.5H79.1V23.5H80.3V23.8H81.5V23.8H82.7V23.8H83.9V2.0H85.1V10.3H86.3V10.3H87.5V10.9H88.6V10.9H89.8V10.9H91.0V11.4H92.2V11.4H93.4V11.4H94.6V11.9H95.8V11.9H96.9V11.9H98.1V12.2H99.3V12.2H100.5V12.2H101.7V13.0H102.9V13.0H104.1V13.0H105.3V13.6H106.4V13.6H107.6V13.6H108.8V14.2H110.0V34.9V42H2Z" fill="rgb(0 96 168 / .12)"/><path d="M2,36.587786259541986H3.2V36.6H4.4V36.6H5.6V37.3H6.7V37.3H7.9V37.3H9.1V37.8H10.3V42.0H11.5V20.2H12.7V28.5H13.9V28.5H15.1V28.5H16.2V28.9H17.4V28.9H18.6V28.9H19.8V29.2H21.0V29.2H22.2V29.2H23.4V30.0H24.5V30.0H25.7V30.0H26.9V30.6H28.1V30.6H29.3V30.6H30.5V31.1H31.7V31.1H32.9V31.1H34.0V31.6H35.2V31.6H36.4V31.6H37.6V32.0H38.8V32.0H40.0V32.0H41.2V32.3H42.4V32.3H43.5V32.3H44.7V33.0H45.9V33.0H47.1V11.1H48.3V19.5H49.5V19.5H50.7V19.5H51.8V20.0H53.0V20.0H54.2V20.0H55.4V20.4H56.6V20.4H57.8V20.4H59.0V20.7H60.2V20.7H61.3V20.7H62.5V21.5H63.7V21.5H64.9V21.5H66.1V22.1H67.3V22.1H68.5V22.1H69.6V22.7H70.8V22.7H72.0V22.7H73.2V23.1H74.4V23.1H75.6V23.1H76.8V23.5H78.0V23.5H79.1V23.5H80.3V23.8H81.5V23.8H82.7V23.8H83.9V2.0H85.1V10.3H86.3V10.3H87.5V10.9H88.6V10.9H89.8V10.9H91.0V11.4H92.2V11.4H93.4V11.4H94.6V11.9H95.8V11.9H96.9V11.9H98.1V12.2H99.3V12.2H100.5V12.2H101.7V13.0H102.9V13.0H104.1V13.0H105.3V13.6H106.4V13.6H107.6V13.6H108.8V14.2H110.0V34.9" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round"/><circle cx="110" cy="34.89312977099237" r="3.5" fill="var(--primary)"/></svg>
+  </div>
+  <div style="display:flex;gap:8px;padding:18px 16px 4px;overflow:hidden">
+    <div style="height:32px;display:flex;align-items:center;gap:6px;padding:0 12px 0 8px;border-radius:8px;white-space:nowrap;font-size:14px;font-weight:500;box-shadow:inset 0 0 0 1px var(--ov);color:var(--ink-2)"><i style="width:8px;height:8px;border-radius:50%;background:var(--amber);margin:0 2px 0 4px"></i>Vorgemerkt 2</div>
+    <div style="height:32px;display:flex;align-items:center;gap:6px;padding:0 12px 0 12px;border-radius:8px;white-space:nowrap;font-size:14px;font-weight:500;box-shadow:inset 0 0 0 1px var(--ov);color:var(--ink-2)">Eingänge</div><div style="height:32px;display:flex;align-items:center;gap:6px;padding:0 12px 0 12px;border-radius:8px;white-space:nowrap;font-size:14px;font-weight:500;box-shadow:inset 0 0 0 1px var(--ov);color:var(--ink-2)">Ausgänge</div><div style="height:32px;display:flex;align-items:center;gap:6px;padding:0 12px 0 12px;border-radius:8px;white-space:nowrap;font-size:14px;font-weight:500;box-shadow:inset 0 0 0 1px var(--ov);color:var(--ink-2)">Oktober</div>
+  </div>
+  <div class="day"><span>Morgen · noch nicht gebucht</span><span class="num"></span></div>
+  <div class="row"><div class="circle"><span class="ms ">directions_car</span></div>
+  <div class="t"><div class="name">ARAL Station 4711</div><div class="meta">Mobilität · girocard</div></div>
+  <div class="amt num">−64,18&nbsp;€</div></div>
+  <div class="day"><span>Heute</span><span class="num"></span></div>
+  <div class="row"><div class="circle"><span class="ms ">south_west</span></div>
+  <div class="t"><div class="name">Lea Becker</div><div class="meta">Gutschrift · Anteil Miete Oktober</div></div>
+  <div class="amt num pos">+450,00&nbsp;€</div></div>
+  <div class="row"><div class="circle"><span class="ms ">restaurant</span></div>
+  <div class="t"><div class="name">McDonalds 1182</div><div class="meta">Essen &amp; Trinken · girocard</div></div>
+  <div class="amt num">−9,75&nbsp;€</div></div>
+  <div class="row"><div class="circle"><span class="ms ">payments</span></div>
+  <div class="t"><div class="name">Volksbank Musterstadt eG</div><div class="meta">Bargeld · Geldautomat 11:45</div></div>
+  <div class="amt num">−100,00&nbsp;€</div></div>
+  <div class="day"><span>Gestern</span><span class="num"></span></div>
+  <div class="row"><div class="circle"><span class="ms ">play_arrow</span></div>
+  <div class="t"><div class="name">Spotify AB</div><div class="meta">Abos &amp; Medien · Lastschrift</div></div>
+  <div class="amt num">−11,99&nbsp;€</div></div>
+  <div class="nav">
+  <div class="it on"><div class="pill"><span class="ms fill">home</span></div>Übersicht</div>
+  <div class="it"><div class="pill"><span class="ms ">swap_horiz</span></div>Zahlungen</div>
+  <div class="it"><div class="pill"><span class="ms ">bar_chart</span></div>Analyse</div>
+</div><div class="handle"></div></div></body></html>

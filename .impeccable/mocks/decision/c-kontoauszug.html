@@ -1,0 +1,103 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=393"><title>Kontoauszug</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+:root{
+  --primary:#0060a8; --on-primary:#fff; --pc:#d3e4ff; --on-pc:#004880; --on-pc-2:#3a6898;
+  --sc:#dae1ff; --on-sc:#3c4665; --tc:#e2dfff; --on-tc:#424271;
+  --surface:#f8f9ff; --scl:#eff4ff; --sc1:#e9eefa; --sch:#e3e8f4; --schh:#dde3ee;
+  --ink:#161c24; --ink-2:#404753; --outline:#707784; --ov:#bfc7d5;
+  --green:#0c7336; --amber:#8a6410; --amber-soft:#fff4dc; --orange:#ee6a1f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface)}
+.phone{width:393px;height:852px;overflow:hidden;position:relative;background:var(--surface);
+  font-family:'Google Sans Flex',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;
+  font-variation-settings:'ROND' 0}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;font-size:24px;line-height:1;
+  letter-spacing:normal;text-transform:none;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';
+  font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block}
+.ms.fill{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em}
+.status{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;
+  font-weight:500;font-size:14px}
+.status .ms{font-size:17px;margin-left:3px}
+.iconbtn{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;position:relative;color:var(--ink-2)}
+.dot{position:absolute;top:12px;right:12px;width:7px;height:7px;border-radius:50%;background:var(--orange);
+  box-shadow:0 0 0 2px var(--dotring,var(--surface))}
+.avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;
+  background:var(--primary);color:var(--on-primary);letter-spacing:.02em}
+.nav{position:absolute;left:0;right:0;bottom:0;height:88px;background:var(--sc1);display:flex;padding-top:12px}
+.nav .it{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:500;
+  letter-spacing:.3px;color:var(--ink-2)}
+.nav .pill{width:56px;height:32px;border-radius:16px;display:grid;place-items:center}
+.nav .on .pill{background:var(--sc);color:var(--on-sc)}
+.nav .on{color:var(--ink)}
+.handle{position:absolute;bottom:8px;left:50%;width:108px;height:4px;margin-left:-54px;border-radius:2px;
+  background:var(--ink);opacity:.38}
+.day{display:flex;justify-content:space-between;align-items:baseline;padding:14px 16px 4px;font-size:14px;
+  line-height:20px;font-weight:500;color:var(--ink-2)}
+.row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;column-gap:16px;align-items:center;
+  padding:8px 16px;min-height:60px}
+.row .t{min-width:0}
+.name{font-size:16px;line-height:22px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:14px;line-height:20px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amt{font-size:16px;line-height:22px;font-weight:500;text-align:right}
+.amt.pos{color:var(--green)}
+.amt small{display:block;font-size:13px;line-height:18px;font-weight:400;color:var(--ink-2)}
+.shape{width:40px;height:40px;position:relative;display:grid;place-items:center}
+.shape svg{position:absolute;inset:0}
+.shape .ms{position:relative;font-size:20px}
+.circle{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--sch);color:var(--ink-2)}
+.circle .ms{font-size:20px}
+</style></head>
+<body><div class="phone">
+  <div class="status" style="color:var(--ink)"><span class="num">9:41</span>
+  <span><span class="ms ">signal_cellular_alt</span><span class="ms ">wifi</span><span class="ms ">battery_full</span></span></div>
+  <div style="display:flex;align-items:center;justify-content:flex-end;padding:0 4px;height:56px;--dotring:var(--surface)">
+    <div style="flex:1;padding-left:16px;display:flex;align-items:center;gap:4px;font-size:18px;font-weight:500">GiroKomfort<span class="ms ">expand_more</span></div>
+    <div class="iconbtn"><span class="ms ">search</span></div>
+    <div class="iconbtn"><span class="ms ">notifications</span><i class="dot"></i></div>
+    <div class="iconbtn"><div class="avatar">NB</div></div>
+  </div>
+  <div style="padding:4px 16px 0">
+    <div style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500;color:var(--ink-2)">Kontostand<span class="ms" style="font-size:18px">visibility</span></div>
+    <div class="num" style="font-size:52px;line-height:60px;font-weight:500;letter-spacing:-0.025em">794<span style="font-size:30px;letter-spacing:-0.01em">,01&nbsp;€</span></div>
+    <div class="num" style="font-size:14px;line-height:20px;color:var(--ink-2)">Verfügbar <b style="font-weight:500;color:var(--ink)">2.720,63&nbsp;€</b> · Dispo 2.000,00&nbsp;€</div>
+  </div>
+  <div style="position:relative;margin:14px 16px 0;height:56px">
+    <svg width="361" height="56" viewBox="0 0 361 56" style="display:block"><line x1="0" x2="361" y1="50.74503816793893" y2="50.74503816793893" stroke="var(--ov)" stroke-dasharray="2 3"/><path d="M4,45.50534351145038H7.9V45.5H11.8V45.5H15.6V46.3H19.5V46.3H23.4V46.3H27.3V47.0H31.2V52.0H35.0V25.8H38.9V35.8H42.8V35.8H46.7V35.8H50.5V36.3H54.4V36.3H58.3V36.3H62.2V36.7H66.1V36.7H69.9V36.7H73.8V37.6H77.7V37.6H81.6V37.6H85.5V38.3H89.3V38.3H93.2V38.3H97.1V39.0H101.0V39.0H104.9V39.0H108.7V39.5H112.6V39.5H116.5V39.5H120.4V40.0H124.3V40.0H128.1V40.0H132.0V40.3H135.9V40.3H139.8V40.3H143.6V41.2H147.5V41.2H151.4V15.0H155.3V24.9H159.2V24.9H163.0V24.9H166.9V25.6H170.8V25.6H174.7V25.6H178.6V26.1H182.4V26.1H186.3V26.1H190.2V26.5H194.1V26.5H198.0V26.5H201.8V27.4H205.7V27.4H209.6V27.4H213.5V28.1H217.4V28.1H221.2V28.1H225.1V28.8H229.0V28.8H232.9V28.8H236.7V29.4H240.6V29.4H244.5V29.4H248.4V29.8H252.3V29.8H256.1V29.8H260.0V30.2H263.9V30.2H267.8V30.2H271.7V4.0H275.5V14.0H279.4V14.0H283.3V14.7H287.2V14.7H291.1V14.7H294.9V15.3H298.8V15.3H302.7V15.3H306.6V15.9H310.5V15.9H314.3V15.9H318.2V16.3H322.1V16.3H326.0V16.3H329.8V17.2H333.7V17.2H337.6V17.2H341.5V17.9H345.4V17.9H349.2V17.9H353.1V18.6H357.0V43.5V52H4Z" fill="rgb(0 96 168 / .12)"/><path d="M4,45.50534351145038H7.9V45.5H11.8V45.5H15.6V46.3H19.5V46.3H23.4V46.3H27.3V47.0H31.2V52.0H35.0V25.8H38.9V35.8H42.8V35.8H46.7V35.8H50.5V36.3H54.4V36.3H58.3V36.3H62.2V36.7H66.1V36.7H69.9V36.7H73.8V37.6H77.7V37.6H81.6V37.6H85.5V38.3H89.3V38.3H93.2V38.3H97.1V39.0H101.0V39.0H104.9V39.0H108.7V39.5H112.6V39.5H116.5V39.5H120.4V40.0H124.3V40.0H128.1V40.0H132.0V40.3H135.9V40.3H139.8V40.3H143.6V41.2H147.5V41.2H151.4V15.0H155.3V24.9H159.2V24.9H163.0V24.9H166.9V25.6H170.8V25.6H174.7V25.6H178.6V26.1H182.4V26.1H186.3V26.1H190.2V26.5H194.1V26.5H198.0V26.5H201.8V27.4H205.7V27.4H209.6V27.4H213.5V28.1H217.4V28.1H221.2V28.1H225.1V28.8H229.0V28.8H232.9V28.8H236.7V29.4H240.6V29.4H244.5V29.4H248.4V29.8H252.3V29.8H256.1V29.8H260.0V30.2H263.9V30.2H267.8V30.2H271.7V4.0H275.5V14.0H279.4V14.0H283.3V14.7H287.2V14.7H291.1V14.7H294.9V15.3H298.8V15.3H302.7V15.3H306.6V15.9H310.5V15.9H314.3V15.9H318.2V16.3H322.1V16.3H326.0V16.3H329.8V17.2H333.7V17.2H337.6V17.2H341.5V17.9H345.4V17.9H349.2V17.9H353.1V18.6H357.0V43.5" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round"/></svg>
+    <span style="position:absolute;left:0;bottom:-18px;font-size:12px;color:var(--ink-2)">Aug</span><span style="position:absolute;left:47%;bottom:-18px;font-size:12px;color:var(--ink-2)">Sep</span><span style="position:absolute;right:0;bottom:-18px;font-size:12px;color:var(--ink-2)">Okt</span>
+  </div>
+  <div style="position:relative;margin-top:26px">
+    <i style="position:absolute;left:23px;top:24px;bottom:0;width:2px;background:var(--ov)"></i>
+    <div style="position:relative;display:flex;justify-content:space-between;align-items:baseline;padding:14px 16px 6px 44px;font-size:14px;line-height:20px">
+    <i style="position:absolute;left:19px;top:50%;margin-top:-5px;width:10px;height:10px;border-radius:50%;background:var(--amber)"></i><span style="font-weight:600;color:var(--ink)">Vorgemerkt</span>
+    <span style="color:var(--ink-2)"><b class="num" style="font-weight:600;color:var(--ink)">−73,38&nbsp;€</b></span></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:7px 16px 7px 44px;min-height:56px">
+    <div style="min-width:0"><div class="name">Amazon Payments Europe</div><div class="meta" style="display:flex;align-items:center;gap:6px"><span class="ms" style="font-size:16px">shopping_bag</span>Shopping · Lastschrift</div></div>
+    <div class="amt num">−49,90&nbsp;€</div></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:7px 16px 7px 44px;min-height:56px">
+    <div style="min-width:0"><div class="name">REWE Markt GmbH</div><div class="meta" style="display:flex;align-items:center;gap:6px"><span class="ms" style="font-size:16px">shopping_basket</span>Lebensmittel · girocard</div></div>
+    <div class="amt num">−23,48&nbsp;€</div></div>
+    <div style="position:relative;display:flex;justify-content:space-between;align-items:baseline;padding:14px 16px 6px 44px;font-size:14px;line-height:20px">
+    <i style="position:absolute;left:19px;top:50%;margin-top:-5px;width:10px;height:10px;border-radius:50%;background:var(--primary)"></i><span style="font-weight:600;color:var(--ink)">Heute</span>
+    <span style="color:var(--ink-2)">Kontostand <b class="num" style="font-weight:600;color:var(--ink)">794,01&nbsp;€</b></span></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:7px 16px 7px 44px;min-height:56px">
+    <div style="min-width:0"><div class="name">Lea Becker</div><div class="meta" style="display:flex;align-items:center;gap:6px"><span class="ms" style="font-size:16px">south_west</span>Gutschrift · Anteil Miete Oktober</div></div>
+    <div class="amt num pos">+450,00&nbsp;€</div></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:7px 16px 7px 44px;min-height:56px">
+    <div style="min-width:0"><div class="name">McDonalds 1182</div><div class="meta" style="display:flex;align-items:center;gap:6px"><span class="ms" style="font-size:16px">restaurant</span>Essen &amp; Trinken · girocard</div></div>
+    <div class="amt num">−9,75&nbsp;€</div></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:7px 16px 7px 44px;min-height:56px">
+    <div style="min-width:0"><div class="name">Volksbank Musterstadt eG</div><div class="meta" style="display:flex;align-items:center;gap:6px"><span class="ms" style="font-size:16px">payments</span>Bargeld · Geldautomat 11:45</div></div>
+    <div class="amt num">−100,00&nbsp;€</div></div>
+    <div style="position:relative;display:flex;justify-content:space-between;align-items:baseline;padding:14px 16px 6px 44px;font-size:14px;line-height:20px">
+    <i style="position:absolute;left:19px;top:50%;margin-top:-5px;width:10px;height:10px;border-radius:50%;background:var(--primary)"></i><span style="font-weight:600;color:var(--ink)">Gestern</span>
+    <span style="color:var(--ink-2)">Kontostand <b class="num" style="font-weight:600;color:var(--ink)">453,76&nbsp;€</b></span></div>
+  </div>
+  <div class="nav">
+  <div class="it on"><div class="pill"><span class="ms fill">home</span></div>Übersicht</div>
+  <div class="it"><div class="pill"><span class="ms ">swap_horiz</span></div>Zahlungen</div>
+  <div class="it"><div class="pill"><span class="ms ">bar_chart</span></div>Analyse</div>
+</div><div class="handle"></div></div></body></html>

@@ -10,6 +10,8 @@ export const de = {
   /** On both consent tiles: where the answer can be changed later. */
   changeLater: 'Du kannst das jederzeit in den Einstellungen ändern.',
 
+  /** Android's phone: the line under the name on the login's brand field. */
+  brandLine: 'Banking direkt mit deiner Bank – ohne jemanden dazwischen.',
   /** The progress on the login's stage (AuthShell); the third step is common.approval. */
   steps: {
     label: 'Schritte der Anmeldung',
@@ -394,6 +396,7 @@ export const en: typeof de = {
   noThanks: 'No thanks',
   changeLater: 'You can change this at any time in Settings.',
 
+  brandLine: 'Banking straight with your bank – no one in between.',
   steps: {
     label: 'Login steps',
     bank: 'Bank',

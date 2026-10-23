@@ -15,6 +15,11 @@ export const de = {
   },
   idleHint: 'Eine Minute vorher fragt Girovo nach – während einer Freigabe nie.',
   licence: 'Freie Software unter der MIT-Lizenz',
+  /** Über Girovo: the app's website (girovo.de) and its contact address. */
+  website: 'Website',
+  contact: 'Kontakt',
+  /** For a screen reader, after a link that opens the mail app. */
+  opensMail: '(öffnet die E-Mail-App)',
   source: 'Quellcode auf GitHub',
   privacyPolicy: 'Datenschutzerklärung',
   /** The provider's legal notice (§ 5 DDG), on the website. */
@@ -40,6 +45,9 @@ export const en: typeof de = {
   },
   idleHint: 'Girovo asks a minute before – never during an approval.',
   licence: 'Free software under the MIT licence',
+  website: 'Website',
+  contact: 'Contact',
+  opensMail: '(opens your e-mail app)',
   source: 'Source code on GitHub',
   privacyPolicy: 'Privacy policy',
   imprint: 'Legal notice',

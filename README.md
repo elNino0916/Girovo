@@ -28,8 +28,8 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   the language (1.234,56 € / €1,234.56). What your bank sends — its messages,
   answers and Verwendungszwecke — is shown as the bank wrote it, and the CSV
   export stays in the German Excel dialect either way.
-- **Finanzübersicht** in Material 3 Expressive, the same look on the desktop
-  and the phone: a top app bar naming the page, the navigation rail with
+- **Finanzübersicht** in Material 3 Expressive (the phone has a layout of its
+  own, see [Android app](#android-app)); on the desktop a top app bar naming the page, the navigation rail with
   *Überweisen* as its floating button, *Konten und Karten* with a Gesamtsaldo that appears once every
   euro account's balance is known (*Alle Salden abrufen* asks for the missing
   ones by balance enquiry; rename accounts locally), the selected account's
@@ -498,15 +498,26 @@ npm run android:release    # signed releases into dist/ (see android/README.md)
 | `Girovo-<version>-android.apk` | The app from GitHub, for every current phone (arm64). It updates itself from this repository's releases, like the desktop app: downloaded, checked against GitHub's SHA-256, installed by Android. |
 | `Girovo-<version>-play.aab` | The same app for Google Play, which installs its updates. |
 
-On the phone the app looks the way Android apps look now — and the way the
-desktop app looks too: Material 3 Expressive, with springy motion,
-shape-morphing buttons and the flexible navigation bar. On the phone it takes
-the wallpaper's colours (Material You), the very colours the phone's own apps
-use, in the phone's light or dark; the desktop keeps Girovo's blue. One top
-bar naming the page, the flat pages, the navigation bar, and the Sitzung panel
-as a bottom sheet. The colours that carry meaning (credit,
-negative balance, vorgemerkt) stay Girovo's on every phone. Beyond the
-desktop app's features it has:
+On the phone the app looks the way Android apps look now: Material 3
+Expressive, with springy motion, shape-morphing buttons and Material Symbols,
+in the wallpaper's colours (Material You), the very colours the phone's own
+apps use, in the phone's light or dark; the desktop keeps Girovo's blue. The
+colours that carry meaning (credit, negative balance, vorgemerkt) stay
+Girovo's on every phone. The layout is the phone's own (since 5.11):
+
+- **Three places** in the navigation bar: *Übersicht*, *Zahlungen*
+  (Überweisen, Geld anfordern, GiroCode scannen, Vorlagen and Zuletzt bezahlt
+  above Verträge & Abos) and *Analyse*.
+- **Search first**: the Übersicht opens with a search bar for Umsätze, payees
+  and the app's actions, where a question goes on to *Frag deine Umsätze*;
+  then the balance with Verfügbar and its course, the accounts as a bottom
+  sheet behind the account's name, and the bookings.
+- **A transfer starts with the amount**, on the number pad, then the payee,
+  then the review.
+- **A booking's details in tabs**: Details, Notiz & Belege, Kategorie.
+- **The Sitzung panel** as a bottom sheet, with the bank's Mitteilungen.
+
+Beyond the desktop app's features it has:
 
 - **Fingerprint login** (opt-in): the PIN of one login, sealed with a key in
   the Android Keystore that only a fingerprint opens. Adding a fingerprint to
@@ -869,7 +880,9 @@ Girovo is provided by MT-Media (owner Moritz Krug). The
 [legal notice (Impressum)](https://elnino0916.de/girovo/impressum) and the
 [privacy policy](https://elnino0916.de/girovo/privacy) cover every version —
 Google Play, the GitHub APK and the desktop app — and are linked in the app
-under *Einstellungen → Über Girovo*.
+under *Einstellungen → Über Girovo*, as are Girovo's website,
+[girovo.de](https://girovo.de), and its contact address,
+[contact@girovo.de](mailto:contact@girovo.de).
 
 ## Development
 

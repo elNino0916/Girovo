@@ -45,6 +45,7 @@ import { useShellActions } from './shell/actions';
 import { useGlobalShortcuts } from './shell/useShortcuts';
 import { Masthead } from './shell/Masthead';
 import { BottomBar } from './shell/BottomBar';
+import { usePhone } from './shell/usePhone';
 import { MessagesTeaser } from './shell/MessagesTeaser';
 import { MerchantLogoConsent } from './MerchantLogoConsent';
 import { UsageConsentTile } from './telemetry/UsageConsent';
@@ -93,10 +94,13 @@ export function Dashboard() {
             tab === 'settings' && 'max-sm:pb-[calc(env(safe-area-inset-bottom,0px)+32px)]',
           )}
         >
-          {tab === 'overview' && <Overview scrollRef={scrollRef} />}
-          {tab === 'analysis' && <Analysis />}
-          {tab === 'contracts' && <Contracts />}
-          {tab === 'settings' && <Settings />}
+          {/* Keyed by the place, so each opens with Material's fade-through (app/android.css). */}
+          <div key={tab} data-place>
+            {tab === 'overview' && <Overview scrollRef={scrollRef} />}
+            {tab === 'analysis' && <Analysis />}
+            {tab === 'contracts' && <Contracts />}
+            {tab === 'settings' && <Settings />}
+          </div>
         </main>
       </div>
 
@@ -135,6 +139,7 @@ export function Dashboard() {
  */
 function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
   const { activeAccount, pendingCache } = useFints();
+  const phone = usePhone();
   const depot = !!activeAccount && isDepot(activeAccount);
   const sideRef = useRef<HTMLDivElement>(null);
   const stickyTop = useStickyTop(sideRef, scrollRef);
@@ -142,12 +147,14 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
   return (
     <div
       className={cx(
-        'flex flex-col gap-4 sm:gap-6',
+        'flex flex-col gap-3 sm:gap-6',
         'desk:grid desk:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] desk:grid-rows-[auto_auto_1fr] desk:items-start',
         'desk:has-[>[data-slot=accounts]:empty]:grid-rows-[auto_1fr]',
       )}
     >
-      <Slot name="accounts" className="desk:col-start-1"><AccountList /></Slot>
+      {/* A phone switches accounts from the balance's name (a sheet with this
+          list, AccountHero), so the bookings start on the first screen. */}
+      {!phone && <Slot name="accounts" className="desk:col-start-1"><AccountList /></Slot>}
       <Slot name="hero" className="desk:col-start-1"><AccountHero /></Slot>
       <div
         ref={sideRef}
@@ -155,12 +162,14 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
         // only applies on the two-pane layout; the `top` is inert without it).
         data-side
         style={{ top: stickyTop }}
-        className="flex min-w-0 flex-col gap-4 sm:gap-6 desk:sticky desk:col-start-2 desk:row-[1/-1]"
+        // Nothing in it (a phone, where its tiles live elsewhere): no gap of its own either.
+        className="flex min-w-0 flex-col gap-4 sm:gap-6 desk:sticky desk:col-start-2 desk:row-[1/-1] [&:not(:has(>:not(:empty)))]:hidden"
       >
         <Slot><MerchantLogoConsent /></Slot>
         <Slot><UsageConsentTile /></Slot>
         {/* On request (HKVMK), or once the bank sent a list with the Umsätze. */}
-        {activeAccount && (activeAccount.canPending || pendingCache[activeAccount.accountNumber]) && (
+        {/* On a phone the Vorgemerkt are a chip at the head of the bookings, opening them in a sheet. */}
+        {!phone && activeAccount && (activeAccount.canPending || pendingCache[activeAccount.accountNumber]) && (
           <Slot><PendingPanel /></Slot>
         )}
         {/* A phone's Übersicht — and a window too narrow for the side pane —

@@ -53,6 +53,19 @@ import { CategoryCheckDrawer, CategoryCheckSummary, useCategoryCheck } from './i
 import { useRecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, YEAR_SPAN, fmtDayKey, spanDays, useShowInList } from './insights/shared';
 
+/** One of the phone's summary figures after the lead: the label left, the value right, a note under the label. */
+function SummaryRow({ label, sub, children }: { label: React.ReactNode; sub?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2">
+      <dt className="min-w-0">
+        <span className="block text-[14px] leading-5 text-ink-2">{label}</span>
+        {sub && <span className="block text-[12.5px] leading-4 text-ink-3">{sub}</span>}
+      </dt>
+      <dd className="shrink-0 text-[16px] leading-[22px] font-medium text-ink">{children}</dd>
+    </div>
+  );
+}
+
 export function Analysis() {
   const {
     activeAccount, accounts, transactions, txByAccount, statementInfo, categoryOf, loadingAccount, txError,
@@ -343,8 +356,32 @@ export function Analysis() {
           <div className="h-4 sm:h-5" />
         ) : (
           <>
+            {/* A phone: the month's spending leads — the figure people open
+                the Analyse for, with how it compares — and the other three
+                follow as a label and a value each. */}
+            <div className="px-4 pt-4 pb-2 transition-opacity duration-200 sm:hidden" style={{ opacity: loading ? 0.55 : 1 }}>
+              <p className="text-[14px] leading-5 font-medium text-ink-2">{t.common.booking.spending}</p>
+              <p data-figure className="leading-none">
+                <Money value={totals.expense} currency={data.currency} tone="plain" split className="text-[36px] leading-[44px] font-medium" centsClassName="text-[0.58em]" />
+              </p>
+              {versusAverage && <p className="mt-1 text-[14px] leading-5 text-ink-2">{versusAverage}</p>}
+              <dl className="mt-3">
+                <SummaryRow label={t.insights.income}>
+                  <Money value={totals.income} currency={data.currency} tone="plain" />
+                </SummaryRow>
+                <SummaryRow label={t.common.booking.difference}>
+                  <Money value={totals.net} currency={data.currency} signed tone="credit" />
+                </SummaryRow>
+                <SummaryRow
+                  label={<>{words.average.label}<span className="sr-only"> ({words.average.spoken})</span></>}
+                  sub={average ? words.average.fromMonths(average.months.length) : words.average.needsTwo}
+                >
+                  {average ? <Money value={average.value} currency={data.currency} tone="plain" /> : <span className="text-ink-3">{words.average.tooShort}</span>}
+                </SummaryRow>
+              </dl>
+            </div>
             <dl
-              className="mt-4 grid grid-cols-2 gap-px border-t border-line bg-line transition-opacity duration-200 desk:grid-cols-4"
+              className="mt-4 grid grid-cols-2 gap-px border-t border-line bg-line transition-opacity duration-200 max-sm:hidden desk:grid-cols-4"
               style={{ opacity: loading ? 0.55 : 1 }}
             >
               <Kpi label={t.insights.income}>
@@ -411,7 +448,7 @@ export function Analysis() {
               onShow={showCategory}
               // The way to budgets while there are none; once set, their tile carries it.
               actions={!hasBudgets && (
-                <Button variant="tertiary" size="xs" onClick={() => setBudgetsOpen(true)}>{t.budgets.budget.set}</Button>
+                <Button variant="tertiary" size="xs" className="max-sm:-ml-3" onClick={() => setBudgetsOpen(true)}>{t.budgets.budget.set}</Button>
               )}
               footer={check.total > 0 && <CategoryCheckSummary check={check} onOpen={() => setCheckOpen(true)} />}
             />

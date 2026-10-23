@@ -100,7 +100,7 @@ export function LoadHistoryButton({
   return (
     <div
       className={cx(
-        'flex flex-wrap gap-x-3 gap-y-1.5',
+        'flex flex-wrap gap-x-3 gap-y-1.5 max-sm:gap-y-0',
         layout === 'inline' ? 'items-center' : layout === 'stacked' ? 'flex-col items-start' : 'flex-col items-center text-center',
         className,
       )}

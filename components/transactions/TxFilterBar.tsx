@@ -46,8 +46,18 @@ const edited = (f: TxFilter, patch: Partial<TxFilter>): TxFilter => ({
  * keystroke would make typing feel sticky on a long statement.
  */
 export function TxFilterBar({
-  filter, setFilter, facetSource, monthSource, months, loaded, categoryOf, listId,
+  filter, setFilter, facetSource, monthSource, months, loaded, categoryOf, listId, phone = false, leading, trailing,
 }: {
+  /**
+   * A phone: the search is the Übersicht's head (the search bar, then the
+   * search view), so no field here — a search handed over from there shows
+   * as a chip that takes it away again.
+   */
+  phone?: boolean;
+  /** Before the chips (a phone: Vorgemerkt). */
+  leading?: React.ReactNode;
+  /** After them (a phone: the period, the export). */
+  trailing?: React.ReactNode;
   filter: TxFilter;
   setFilter: (f: TxFilter | ((f: TxFilter) => TxFilter)) => void;
   /** The loaded bookings narrowed by everything except the category — for the menu's counts. */
@@ -62,7 +72,7 @@ export function TxFilterBar({
   /** The list the search controls. */
   listId: string;
 }) {
-  const { singleKeyShortcuts: singleKeys } = useFints();
+  const { singleKeyShortcuts: singleKeys, setPaletteOpen } = useFints();
   const t = useT();
   const words = t.transactions.filter;
   const [draft, setDraft] = useState(filter.query);
@@ -137,7 +147,7 @@ export function TxFilterBar({
 
   return (
     <div className="flex flex-col gap-3">
-      <div role="search" className="relative">
+      {!phone && <div role="search" className="relative">
         <Input
           ref={inputRef}
           id={TX_SEARCH_ID}
@@ -201,17 +211,29 @@ export function TxFilterBar({
         <p id={hintId} className="sr-only">{words.hint}</p>
         {/* Said once, where the search turned into filters — the chips below carry it from here. */}
         <p role="status" className="sr-only">{readAs ? words.readAs : ''}</p>
-      </div>
+      </div>}
 
       {/* One scrolling row on a phone rather than a wrap: the chips keep their
           order and the list starts at the same height whatever is selected.
           The vertical padding is room for the focus ring, which a scroller
           would otherwise clip. */}
       <div className="-mx-4 -my-1 flex items-center gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:-mx-5 sm:px-5">
+        {leading}
+        {/* A search handed over from the phone's search view: shown, and taken away in one press. */}
+        {phone && filter.query.trim() && (
+          <span className="inline-flex shrink-0 items-center">
+            <FilterChip selected icon={<SearchIcon size={16} />} aria-label={words.searchLabel} onClick={() => setPaletteOpen(true)}>
+              „{filter.query.trim()}“
+            </FilterChip>
+            <IconButton aria-label={words.clear} onClick={() => commitQuery('')}>
+              <CloseIcon size={16} />
+            </IconButton>
+          </span>
+        )}
+        {/* In or out, each a toggle: pressed again, the list is whole again. */}
         <div role="group" aria-label={words.direction} className="flex shrink-0 gap-2">
-          <FilterChip selected={filter.dir === 'all'} onClick={() => setDir('all')}>{words.all}</FilterChip>
-          <FilterChip selected={filter.dir === 'in'} onClick={() => setDir('in')}>{t.common.booking.incoming}</FilterChip>
-          <FilterChip selected={filter.dir === 'out'} onClick={() => setDir('out')}>{t.common.booking.outgoing}</FilterChip>
+          <FilterChip selected={filter.dir === 'in'} onClick={() => setDir(filter.dir === 'in' ? 'all' : 'in')}>{t.common.booking.incoming}</FilterChip>
+          <FilterChip selected={filter.dir === 'out'} onClick={() => setDir(filter.dir === 'out' ? 'all' : 'out')}>{t.common.booking.outgoing}</FilterChip>
         </div>
         <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-line" />
         <Menu
@@ -301,6 +323,12 @@ export function TxFilterBar({
             </IconButton>
           )}
         </span>
+        {trailing && (
+          <>
+            <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-line" />
+            {trailing}
+          </>
+        )}
       </div>
     </div>
   );

@@ -221,7 +221,7 @@ export function AccountList() {
       <li
         key={acct}
         data-card
-        className="w-[min(80vw,300px)] shrink-0 snap-start sm:w-auto"
+        className="w-[min(80vw,300px)] shrink-0 snap-start sm:w-auto rows:w-auto"
       >
         <button
           type="button"
@@ -236,18 +236,18 @@ export function AccountList() {
             // framed card inside it (Lifted, Never Framed).
             'row-focus group relative flex h-full w-full flex-col gap-3 rounded-[8px] p-3.5 text-left',
             'transition-colors duration-150',
-            'sm:flex-row sm:items-center sm:gap-4 sm:rounded-[16px] sm:px-3 sm:py-3',
+            'sm:flex-row rows:flex-row sm:items-center rows:items-center sm:gap-4 rows:gap-4 sm:rounded-[16px] rows:rounded-[16px] sm:px-3 rows:px-3 sm:py-3 rows:py-3',
             busy ? 'cursor-progress' : 'cursor-pointer',
             active
               // Selected: the wash, edged in the action colour like a
               // segmented control's thumb; from sm up Material's
               // selected list item, filled and round.
-              ? 'bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent)] sm:shadow-none'
+              ? 'bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent)] sm:shadow-none rows:shadow-none'
               // At rest: a well on a phone; a row whose state layer shows on hover from sm up.
-              : 'bg-inset sm:bg-transparent sm:hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)]',
+              : 'bg-inset sm:bg-transparent rows:bg-transparent sm:hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] rows:hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)]',
           )}
         >
-          <span className="flex min-w-0 items-center gap-3 sm:flex-1 sm:gap-4">
+          <span className="flex min-w-0 items-center gap-3 sm:flex-1 rows:flex-1 sm:gap-4 rows:gap-4">
             <AccountGlyph account={a} selected={active} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[15px] leading-snug font-semibold text-ink">
@@ -258,7 +258,7 @@ export function AccountList() {
             </span>
           </span>
 
-          <span className="min-w-0 sm:shrink-0 sm:text-right">
+          <span className="min-w-0 sm:shrink-0 rows:shrink-0 sm:text-right rows:text-right">
             {isDepot(a) ? (
               // A Depot: its value as the last read of its holdings states it.
               portfolios[acct]?.totalValue != null ? (
@@ -267,7 +267,7 @@ export function AccountList() {
                     value={portfolios[acct].totalValue}
                     currency={portfolios[acct].currency}
                     tone="plain"
-                    className="block text-[20px] leading-tight font-semibold sm:text-[15px] sm:leading-snug"
+                    className="block text-[20px] leading-tight font-semibold sm:text-[15px] rows:text-[15px] sm:leading-snug rows:leading-snug"
                   />
                   <span className="block text-[13px] leading-snug text-ink-3">{t.depot.total}</span>
                 </>
@@ -276,7 +276,7 @@ export function AccountList() {
                 null
               ) : portfolioLoading === acct ? (
                 <span className="block py-1">
-                  <Skeleton className="h-4 w-24 rounded-[4px] sm:ml-auto" />
+                  <Skeleton className="h-4 w-24 rounded-[4px] sm:ml-auto rows:ml-auto" />
                   <span className="sr-only">{t.depot.loading}</span>
                 </span>
               ) : (
@@ -292,7 +292,7 @@ export function AccountList() {
                   currency={bal.currency}
                   // A card's balance is negative by nature — ink, not the red of an overdraft.
                   tone={isCardAccount(a) ? 'plain' : 'auto'}
-                  className="block text-[20px] leading-tight font-semibold sm:text-[15px] sm:leading-snug"
+                  className="block text-[20px] leading-tight font-semibold sm:text-[15px] rows:text-[15px] sm:leading-snug rows:leading-snug"
                 />
                 {showAvailable && (
                   <span className="block text-[13px] leading-snug text-ink-3">
@@ -303,7 +303,7 @@ export function AccountList() {
               </>
             ) : loading ? (
               <span className="block py-1">
-                <Skeleton className="h-4 w-24 rounded-[4px] sm:ml-auto" />
+                <Skeleton className="h-4 w-24 rounded-[4px] sm:ml-auto rows:ml-auto" />
                 <span className="sr-only">{words.fetching}</span>
               </span>
             ) : gone(a) ? (
@@ -355,7 +355,7 @@ export function AccountList() {
       className={cx(
         'panel min-w-0 overflow-clip',
         // A phone with one account and every bank logged in has nothing here the hero does not say.
-        !strip && outside.length === 0 && 'max-sm:hidden',
+        !strip && outside.length === 0 && 'narrow:hidden',
       )}
       aria-labelledby={titleId}
     >
@@ -363,13 +363,13 @@ export function AccountList() {
         title={words.title}
         titleId={titleId}
         // On a phone the title heads the cards: without them, the rows of the banks outside stand alone.
-        className={cx('px-4 pt-4 pb-3 sm:px-5 sm:pt-5', !strip && 'max-sm:hidden')}
+        className={cx('px-4 pt-4 pb-3 sm:px-5 rows:px-5 sm:pt-5 rows:pt-5', !strip && 'narrow:hidden')}
         actions={
           editing ? null : accounts.length > 0 ? (
             <>
               {/* A phone: the Gesamtsaldo, once it is a figure. */}
               {phoneTotal && (
-                <span className="mt-1 mr-1 text-right sm:hidden">
+                <span className="mt-1 mr-1 text-right sm:hidden rows:hidden">
                   <span className="block text-[12px] leading-4 text-ink-2">{words.total}</span>
                   <Money value={total.cents! / 100} tone="auto" className="block text-[15px] leading-snug font-semibold" />
                   {excluded && <span className="block text-[12px] leading-4 text-ink-2">{t.insights.without(excluded)}</span>}
@@ -383,7 +383,7 @@ export function AccountList() {
                 iconLeft={<PencilIcon size={16} />}
                 // The label's text, not the pill's padding, ends on the tile's
                 // content edge — over the balances' right edge.
-                className="-mr-2.5 max-sm:hidden"
+                className="-mr-2.5 narrow:hidden"
                 onClick={startEditing}
                 aria-describedby={noteOpen ? noteId : undefined}
                 aria-label={words.renameAll}
@@ -396,7 +396,7 @@ export function AccountList() {
       />
 
       {noteOpen && !editing && (
-        <div className="px-4 pb-3 sm:px-5">
+        <div className="px-4 pb-3 sm:px-5 rows:px-5">
           <Alert tone="info" role="status" className="mt-0" onDismiss={() => setNoteOpen(false)}>
             <span id={noteId}>{vaultNote(vaultStatus)}</span>
           </Alert>
@@ -409,7 +409,7 @@ export function AccountList() {
         </EmptyState>
       ) : editing ? (
         <form onSubmit={save} noValidate aria-label={words.renameAll}>
-          <p className="px-4 pb-3 text-[13px] leading-snug text-ink-3 sm:px-5">
+          <p className="px-4 pb-3 text-[13px] leading-snug text-ink-3 sm:px-5 rows:px-5">
             {words.renameHint}
           </p>
           <ul className="border-t border-line">
@@ -419,9 +419,9 @@ export function AccountList() {
               const custom = !!draft.trim();
               const ident = accountIdent(a).spoken;
               return (
-                <li key={a.accountNumber} className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 sm:gap-4 sm:px-5">
-                  <AccountGlyph account={a} className="hidden sm:grid" />
-                  <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-6">
+                <li key={a.accountNumber} className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 sm:gap-4 rows:gap-4 sm:px-5 rows:px-5">
+                  <AccountGlyph account={a} className="hidden sm:grid rows:grid" />
+                  <div className="min-w-0 flex-1 sm:flex rows:flex sm:items-center rows:items-center sm:gap-6 rows:gap-6">
                     <label htmlFor={fieldId} className="sr-only">
                       {words.nameFor(bankName(a), ident)}
                     </label>
@@ -436,7 +436,7 @@ export function AccountList() {
                       autoComplete="off"
                       spellCheck={false}
                       enterKeyHint="done"
-                      containerClassName="w-full sm:max-w-[400px]"
+                      containerClassName="w-full sm:max-w-[400px] rows:max-w-[400px]"
                       onChange={(e) => setDrafts((d) => ({ ...d, [a.accountNumber]: e.target.value }))}
                       onKeyDown={onFieldKey}
                       // Always rendered (only hidden while there is nothing to
@@ -456,7 +456,7 @@ export function AccountList() {
                         </IconButton>
                       }
                     />
-                    <span className="mt-1.5 block min-w-0 sm:mt-0">
+                    <span className="mt-1.5 block min-w-0 sm:mt-0 rows:mt-0">
                       <ShortIban account={a} />
                       {custom && (
                         <span className="block truncate text-[13px] leading-snug text-ink-3">{words.atBank(bankName(a))}</span>
@@ -468,7 +468,7 @@ export function AccountList() {
             })}
           </ul>
           {/* After the fields, where Tab arrives — the primary action last. */}
-          <div className="flex justify-end gap-2 border-t border-line px-4 py-3 sm:px-5">
+          <div className="flex justify-end gap-2 border-t border-line px-4 py-3 sm:px-5 rows:px-5">
             <Button variant="tertiary" size="sm" onClick={cancel}>{t.common.cancel}</Button>
             <Button variant="primary" size="sm" type="submit">{t.common.save}</Button>
           </div>
@@ -479,23 +479,23 @@ export function AccountList() {
               bank's band; on a phone one row of cards to swipe through, each
               bank's name over its own — and no card at all with one account,
               which the hero below is. */}
-          <AccountStrip count={accounts.length} className={cx(!strip && 'max-sm:hidden')}>
+          <AccountStrip count={accounts.length} className={cx(!strip && 'narrow:hidden')}>
             {groups.map(({ entry, accounts: list }) => (
-              <div key={entry?.key ?? 'all'} className="flex shrink-0 flex-col gap-2 sm:block">
+              <div key={entry?.key ?? 'all'} className="flex shrink-0 flex-col gap-2 sm:block rows:block">
                 {entry && (
                   <>
                     <BankBand
                       entry={entry}
                       logoFile={logoFiles[entry.bank.brand]}
                       onLogin={() => openAddBank({ bank: entry.bank, userId: entry.ref?.userId })}
-                      className="max-sm:hidden"
+                      className="narrow:hidden"
                     />
-                    <StripLabel entry={entry} logoFile={logoFiles[entry.bank.brand]} className="sm:hidden" />
+                    <StripLabel entry={entry} logoFile={logoFiles[entry.bank.brand]} className="sm:hidden rows:hidden" />
                   </>
                 )}
                 <ul
                   aria-label={entry ? t.banks.accountsAt(entry.bank.name) : t.common.account.accounts}
-                  className={cx('flex gap-3 sm:flex-col sm:gap-0.5 sm:px-2 sm:pb-1', grouped && 'sm:pt-1')}
+                  className={cx('flex gap-3 sm:flex-col rows:flex-col sm:gap-0.5 rows:gap-0.5 sm:px-2 rows:px-2 sm:pb-1 rows:pb-1', grouped && 'sm:pt-1 rows:pt-1')}
                 >
                   {list.map(card)}
                 </ul>
@@ -505,7 +505,7 @@ export function AccountList() {
 
           {/* A phone: what "Alle Salden abrufen" can still fetch, under the cards. */}
           {strip && footerNote && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 pb-2 sm:hidden">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 pb-2 sm:hidden rows:hidden">
               {loadAll}
               <span className="text-[13px] leading-snug text-ink-3">{t.common.mayNeedApproval}</span>
             </div>
@@ -520,7 +520,7 @@ export function AccountList() {
               entry={entry}
               logoFile={logoFiles[entry.bank.brand]}
               onLogin={() => openAddBank({ bank: entry.bank, userId: entry.ref?.userId })}
-              className={entry.state === 'loggedOut' ? 'sm:hidden' : undefined}
+              className={entry.state === 'loggedOut' ? 'sm:hidden rows:hidden' : undefined}
             />
           ))}
 
@@ -529,7 +529,7 @@ export function AccountList() {
               bank that is not logged in. A phone says it in the title row,
               and only as a figure. */}
           {total.counted.length + total.absent.length >= 2 && (
-            <div ref={totalRef} tabIndex={-1} className="px-4 py-3.5 outline-none max-sm:hidden sm:px-5">
+            <div ref={totalRef} tabIndex={-1} className="px-4 py-3.5 outline-none narrow:hidden sm:px-5 rows:px-5">
               <div className="flex items-baseline justify-between gap-4">
                 <span className="text-[14px] font-semibold text-ink-2">{words.total}</span>
                 {total.cents != null ? (
@@ -556,7 +556,7 @@ export function AccountList() {
               here too from sm up (otherwise, and on a phone, in the Sitzung
               panel). */}
           {grouped && (
-            <div className="border-t border-line px-4 py-2 max-sm:hidden sm:px-5">
+            <div className="border-t border-line px-4 py-2 narrow:hidden sm:px-5 rows:px-5">
               <Button variant="tertiary" size="sm" className="-ml-4" iconLeft={<PlusIcon size={16} />} onClick={() => openAddBank()}>
                 {t.banks.add}
               </Button>
@@ -590,7 +590,7 @@ function AccountStrip({ count, className, children }: { count: number; className
           // this, that width would leak up as the tile's minimum width
           // and push the whole page sideways inside a grid column.
           '[contain:inline-size]',
-          'sm:block sm:overflow-visible sm:p-0',
+          'sm:block rows:block sm:overflow-visible rows:overflow-visible sm:p-0 rows:p-0',
         )}
       >
         {children}
@@ -600,7 +600,7 @@ function AccountStrip({ count, className, children }: { count: number; className
           a secret until swiped to. Phones only; the lists themselves tell
           a screen reader how many there are. */}
       {count > 1 && (
-        <div aria-hidden className="flex justify-center gap-1.5 pb-3 sm:hidden">
+        <div aria-hidden className="flex justify-center gap-1.5 pb-3 sm:hidden rows:hidden">
           {Array.from({ length: count }, (_, i) => (
             <span
               key={i}
@@ -624,7 +624,7 @@ function BankBand({ entry, logoFile, onLogin, className }: {
 }) {
   const t = useT();
   return (
-    <div className={cx('flex min-h-11 items-center gap-2.5 px-4 pt-3 pb-1 sm:px-5', className)}>
+    <div className={cx('flex min-h-11 items-center gap-2.5 px-4 pt-3 pb-1 sm:px-5 rows:px-5', className)}>
       {/* One column for every bank's mark, so the names line up band under band. */}
       <span className="grid w-[52px] shrink-0 place-items-center [&>span]:max-w-full">
         <BankLogo brand={entry.bank.brand} size="sm" file={logoFile} />
@@ -674,7 +674,7 @@ function LoginRow({ entry, logoFile, onLogin, className }: {
   const locked = !bankAllowed(plus.state, false);
   const again = entry.state === 'loggedOut';
   return (
-    <div className={cx('flex min-h-14 items-center gap-2.5 px-4 py-2 sm:px-5', className)}>
+    <div className={cx('flex min-h-14 items-center gap-2.5 px-4 py-2 sm:px-5 rows:px-5', className)}>
       <span className="grid w-[52px] shrink-0 place-items-center [&>span]:max-w-full">
         <BankLogo brand={entry.bank.brand} size="sm" file={logoFile} />
       </span>

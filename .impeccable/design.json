@@ -1,27 +1,13 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-18T12:04:32.000Z",
+  "generatedAt": "2026-10-23T12:00:00.000Z",
   "title": "Design System: Girovo",
   "extensions": {
     "colorMeta": {
-      "accent": {
-        "role": "primary",
-        "displayName": "Girovo Blue",
-        "tonalRamp": [
-          "#00315b",
-          "#004880",
-          "#0060a8",
-          "#3b79b7",
-          "#a2c9ff",
-          "#d3e4ff",
-          "#e8f1ff",
-          "#f8f9ff"
-        ],
-        "dark": "#a2c9ff"
-      },
       "md-primary": {
         "role": "primary",
-        "displayName": "Girovo Blue (scheme role)",
+        "displayName": "Girovo Blue",
+        "canonical": "#0060a8",
         "tonalRamp": [
           "#00315b",
           "#004880",
@@ -34,9 +20,10 @@
         ],
         "dark": "#a2c9ff"
       },
-      "stage": {
+      "md-primary-container": {
         "role": "primary",
         "displayName": "Blue Container",
+        "canonical": "#d3e4ff",
         "tonalRamp": [
           "#00315b",
           "#004880",
@@ -49,24 +36,10 @@
         ],
         "dark": "#004880"
       },
-      "stage-ink": {
-        "role": "primary",
-        "displayName": "On Blue Container",
-        "tonalRamp": [
-          "#00315b",
-          "#004880",
-          "#0060a8",
-          "#3b79b7",
-          "#a2c9ff",
-          "#d3e4ff",
-          "#e8f1ff",
-          "#f8f9ff"
-        ],
-        "dark": "#d3e4ff"
-      },
-      "accent-soft": {
+      "md-secondary-container": {
         "role": "secondary",
         "displayName": "Tonal Wash",
+        "canonical": "#dae1ff",
         "tonalRamp": [
           "#252f4d",
           "#3c4665",
@@ -79,39 +52,10 @@
         ],
         "dark": "#3c4665"
       },
-      "tonal-ink": {
-        "role": "secondary",
-        "displayName": "On Tonal Wash",
-        "tonalRamp": [
-          "#252f4d",
-          "#3c4665",
-          "#535d7e",
-          "#6c7698",
-          "#bbc5ea",
-          "#dae1ff",
-          "#eef0ff",
-          "#f8f9ff"
-        ],
-        "dark": "#dae1ff"
-      },
-      "nav-label-active": {
-        "role": "secondary",
-        "displayName": "Secondary Slate",
-        "tonalRamp": [
-          "#252f4d",
-          "#3c4665",
-          "#535d7e",
-          "#6c7698",
-          "#bbc5ea",
-          "#dae1ff",
-          "#eef0ff",
-          "#f8f9ff"
-        ],
-        "dark": "#bbc5ea"
-      },
-      "menu-selected": {
+      "md-tertiary-container": {
         "role": "tertiary",
         "displayName": "Tertiary Lilac",
+        "canonical": "#e2dfff",
         "tonalRamp": [
           "#2b2b59",
           "#424271",
@@ -124,24 +68,10 @@
         ],
         "dark": "#424271"
       },
-      "emphasis": {
-        "role": "tertiary",
-        "displayName": "Marker Orange",
-        "tonalRamp": [
-          "#3d1704",
-          "#6b2a08",
-          "#a3420f",
-          "#ee6a1f",
-          "#f2813f",
-          "#f7a877",
-          "#fbcfb2",
-          "#fdeee4"
-        ],
-        "dark": "#f2813f"
-      },
-      "paper": {
+      "md-surface": {
         "role": "neutral",
         "displayName": "Page",
+        "canonical": "#f8f9ff",
         "tonalRamp": [
           "#090f16",
           "#161c24",
@@ -154,24 +84,10 @@
         ],
         "dark": "#0e141c"
       },
-      "bar": {
-        "role": "neutral",
-        "displayName": "Top App Bar (page surface)",
-        "tonalRamp": [
-          "#090f16",
-          "#161c24",
-          "#2b313a",
-          "#404753",
-          "#707784",
-          "#bfc7d5",
-          "#e3e8f4",
-          "#f8f9ff"
-        ],
-        "dark": "#0e141c"
-      },
-      "surface": {
+      "md-surface-container-low": {
         "role": "neutral",
         "displayName": "Container Low",
+        "canonical": "#eff4ff",
         "tonalRamp": [
           "#090f16",
           "#161c24",
@@ -184,9 +100,10 @@
         ],
         "dark": "#161c24"
       },
-      "nav-bg": {
+      "md-surface-container": {
         "role": "neutral",
         "displayName": "Container",
+        "canonical": "#e9eefa",
         "tonalRamp": [
           "#090f16",
           "#161c24",
@@ -199,9 +116,10 @@
         ],
         "dark": "#1a2028"
       },
-      "inset": {
+      "md-surface-container-high": {
         "role": "neutral",
         "displayName": "Container High",
+        "canonical": "#e3e8f4",
         "tonalRamp": [
           "#090f16",
           "#161c24",
@@ -214,9 +132,10 @@
         ],
         "dark": "#252a33"
       },
-      "ink": {
+      "md-on-surface": {
         "role": "neutral",
         "displayName": "On Surface",
+        "canonical": "#161c24",
         "tonalRamp": [
           "#090f16",
           "#161c24",
@@ -229,9 +148,10 @@
         ],
         "dark": "#dde3ee"
       },
-      "ink-2": {
+      "md-on-surface-variant": {
         "role": "neutral",
         "displayName": "On Surface Variant",
+        "canonical": "#404753",
         "tonalRamp": [
           "#090f16",
           "#161c24",
@@ -244,9 +164,10 @@
         ],
         "dark": "#bfc7d5"
       },
-      "line-strong": {
+      "md-outline": {
         "role": "neutral",
         "displayName": "Outline",
+        "canonical": "#707784",
         "tonalRamp": [
           "#090f16",
           "#161c24",
@@ -259,9 +180,10 @@
         ],
         "dark": "#8a919e"
       },
-      "line": {
+      "md-outline-variant": {
         "role": "neutral",
         "displayName": "Outline Variant",
+        "canonical": "#bfc7d5",
         "tonalRamp": [
           "#090f16",
           "#161c24",
@@ -274,9 +196,10 @@
         ],
         "dark": "#404753"
       },
-      "snackbar-bg": {
+      "md-inverse-surface": {
         "role": "neutral",
         "displayName": "Inverse Surface",
+        "canonical": "#2b313a",
         "tonalRamp": [
           "#090f16",
           "#161c24",
@@ -289,23 +212,10 @@
         ],
         "dark": "#dde3ee"
       },
-      "brand-plate": {
-        "role": "neutral",
-        "displayName": "Brand Navy (logo only)",
-        "tonalRamp": [
-          "#03101f",
-          "#061c36",
-          "#0a2c5e",
-          "#23477a",
-          "#4a6a98",
-          "#7d95b9",
-          "#b5c4da",
-          "#e6ecf4"
-        ]
-      },
       "green": {
         "role": "value",
         "displayName": "Credit Green",
+        "canonical": "#0c7336",
         "tonalRamp": [
           "#032412",
           "#07401f",
@@ -321,6 +231,7 @@
       "red": {
         "role": "value",
         "displayName": "Soll Red",
+        "canonical": "#c8102e",
         "tonalRamp": [
           "#3a030c",
           "#6b0818",
@@ -336,6 +247,7 @@
       "amber": {
         "role": "value",
         "displayName": "Vorgemerkt Amber",
+        "canonical": "#8a6410",
         "tonalRamp": [
           "#2c1f04",
           "#4f3808",
@@ -351,6 +263,7 @@
       "info": {
         "role": "value",
         "displayName": "Info Cyan",
+        "canonical": "#0074a3",
         "tonalRamp": [
           "#02202e",
           "#043a52",
@@ -362,399 +275,590 @@
           "#e9f4f8"
         ],
         "dark": "#4fb3dc"
+      },
+      "emphasis": {
+        "role": "value",
+        "displayName": "Marker Orange",
+        "canonical": "#ee6a1f",
+        "tonalRamp": [
+          "#3d1704",
+          "#6b2a08",
+          "#a3420f",
+          "#ee6a1f",
+          "#f2813f",
+          "#f7a877",
+          "#fbcfb2",
+          "#fdeee4"
+        ],
+        "dark": "#f2813f"
+      },
+      "brand-plate": {
+        "role": "brand",
+        "displayName": "Brand Navy (plate only)",
+        "canonical": "#0a2c5e",
+        "tonalRamp": [
+          "#03101f",
+          "#061c36",
+          "#0a2c5e",
+          "#23477a",
+          "#4a6a98",
+          "#7d95b9",
+          "#b5c4da",
+          "#e6ecf4"
+        ]
+      },
+      "plus-gold": {
+        "role": "brand",
+        "displayName": "Plus Gold (the G€ on the Plus plate)",
+        "canonical": "#f2c14e",
+        "tonalRamp": [
+          "#473405",
+          "#775609",
+          "#b07f0d",
+          "#eeac11",
+          "#f2c04a",
+          "#f6d483",
+          "#fae8bc",
+          "#fdf7e7"
+        ]
+      },
+      "gemini-blue": {
+        "role": "partner",
+        "displayName": "Gemini Blue",
+        "canonical": "#4285f4",
+        "tonalRamp": [
+          "#041e48",
+          "#073278",
+          "#0a4ab2",
+          "#0e63f1",
+          "#4889f4",
+          "#82aef8",
+          "#bcd3fb",
+          "#e7effe"
+        ]
+      },
+      "gemini-purple": {
+        "role": "partner",
+        "displayName": "Gemini Purple",
+        "canonical": "#9b72cb",
+        "tonalRamp": [
+          "#251538",
+          "#3d225d",
+          "#5b338a",
+          "#7b45ba",
+          "#9b71cb",
+          "#ba9edb",
+          "#dacbec",
+          "#f2ecf8"
+        ]
+      },
+      "gemini-rose": {
+        "role": "partner",
+        "displayName": "Gemini Rose",
+        "canonical": "#d96570",
+        "tonalRamp": [
+          "#3d0f14",
+          "#661921",
+          "#972530",
+          "#cd3241",
+          "#d9646f",
+          "#e5959c",
+          "#f1c6ca",
+          "#faebec"
+        ]
+      },
+      "chart-1": {
+        "role": "chart",
+        "displayName": "Chart slot 1 (by rank)",
+        "canonical": "#0053a4",
+        "tonalRamp": [
+          "#00274c",
+          "#004180",
+          "#0060bd",
+          "#0081ff",
+          "#3d9fff",
+          "#7abeff",
+          "#b8dcff",
+          "#e5f2ff"
+        ],
+        "android": "var(--md-primary)"
+      },
+      "chart-2": {
+        "role": "chart",
+        "displayName": "Chart slot 2 (by rank)",
+        "canonical": "#0ca4a0",
+        "tonalRamp": [
+          "#054746",
+          "#097774",
+          "#0db0ac",
+          "#11eee8",
+          "#4af2ed",
+          "#83f6f3",
+          "#bcfaf9",
+          "#e7fdfd"
+        ],
+        "android": "var(--md-tertiary)"
+      },
+      "chart-3": {
+        "role": "chart",
+        "displayName": "Chart slot 3 (by rank)",
+        "canonical": "#5f38a7",
+        "tonalRamp": [
+          "#211339",
+          "#36205f",
+          "#502f8d",
+          "#6d40bf",
+          "#906ece",
+          "#b39cde",
+          "#d6caed",
+          "#f0ecf9"
+        ],
+        "android": "color-mix(in oklab, var(--md-primary) 62%, var(--md-surface))"
+      },
+      "chart-4": {
+        "role": "chart",
+        "displayName": "Chart slot 4 (by rank)",
+        "canonical": "#e968a1",
+        "tonalRamp": [
+          "#430a23",
+          "#6f103a",
+          "#a51856",
+          "#df2074",
+          "#e65696",
+          "#ee8bb7",
+          "#f6c1d8",
+          "#fce9f1"
+        ],
+        "android": "var(--md-secondary)"
+      },
+      "chart-5": {
+        "role": "chart",
+        "displayName": "Chart slot 5 (by rank)",
+        "canonical": "#3846b1",
+        "tonalRamp": [
+          "#12173a",
+          "#1f2661",
+          "#2d398f",
+          "#3d4dc2",
+          "#6c77d0",
+          "#9aa2df",
+          "#c9cdee",
+          "#ecedf9"
+        ],
+        "android": "color-mix(in oklab, var(--md-tertiary) 62%, var(--md-surface))"
+      },
+      "chart-6": {
+        "role": "chart",
+        "displayName": "Chart slot 6 (by rank)",
+        "canonical": "#049cd1",
+        "tonalRamp": [
+          "#01384b",
+          "#025d7d",
+          "#048ab9",
+          "#05bbfa",
+          "#41cbfb",
+          "#7ddcfd",
+          "#b9ecfe",
+          "#e6f8ff"
+        ],
+        "android": "color-mix(in oklab, var(--md-secondary) 62%, var(--md-surface))"
+      },
+      "chart-rest": {
+        "role": "chart",
+        "displayName": "Chart rest (grey)",
+        "canonical": "#8a96a3",
+        "tonalRamp": [
+          "#22262b",
+          "#383f47",
+          "#535e6a",
+          "#707f8f",
+          "#939eaa",
+          "#b5bcc5",
+          "#d7dbe0",
+          "#f1f2f4"
+        ],
+        "android": "var(--md-outline)"
       }
     },
     "typographyMeta": {
-      "display": {
-        "displayName": "Display",
-        "purpose": "The balance in the hero; 40px compact under 520px of hero."
+      "display-entry": {
+        "displayName": "Display entry",
+        "purpose": "The amount typed into the transfer (Android phone), the € at 34px."
       },
-      "headline": {
-        "displayName": "Headline",
-        "purpose": "Login screen titles, 32px (28px on phones), weight 500."
+      "display-detail": {
+        "displayName": "Display detail",
+        "purpose": "A booking amount in the Umsatzdetails header (Android phone)."
       },
-      "dialog-headline": {
-        "displayName": "Dialog headline",
-        "purpose": "A basic dialog's title, 24/32, weight 400."
+      "icon": {
+        "displayName": "Material Symbols Rounded",
+        "purpose": "Android icons only, 1em box, sized in dp; FILL 1 for the current place."
       },
-      "title-large": {
-        "displayName": "Title large",
-        "purpose": "The page's name in the top app bar and a drawer's title."
+      "display-balance": {
+        "displayName": "Display balance",
+        "purpose": "The Übersicht balance on the phone; cents at 0.58em."
       },
-      "section-title": {
-        "displayName": "Section title",
-        "purpose": "A section title on the page (#main), 22/28 weight 500."
+      "display-lead": {
+        "displayName": "Display lead",
+        "purpose": "A screen's one lead figure (Analyse: Ausgaben); 32 to 36px."
+      },
+      "screen": {
+        "displayName": "Screen",
+        "purpose": "A screen or sheet title; the top bar's page name is the same size at 400."
       },
       "section": {
-        "displayName": "Section (off the page)",
-        "purpose": "Titles in the side-notes card, popovers, dialog groups; 17px bold."
+        "displayName": "Section",
+        "purpose": "A section on the page, in ink."
       },
       "row": {
         "displayName": "Row",
-        "purpose": "A booking's or account's name and amount."
+        "purpose": "A row's name and its amount."
       },
-      "button": {
-        "displayName": "Button",
-        "purpose": "Every button, chip and connected button label (14px/500)."
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text, fields, the search placeholder."
       },
-      "day-subheader": {
-        "displayName": "Day subheader",
-        "purpose": "The date over a day's bookings, in the primary."
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "A row's second line, Verfügbar, comparison lines; variant ink."
       },
-      "nav-label": {
-        "displayName": "Navigation label",
-        "purpose": "Labels in the navigation bar and rail."
+      "subheader": {
+        "displayName": "Subheader",
+        "purpose": "Day headers and groups inside a section; variant ink (primary in Einstellungen)."
       },
-      "caption-sm": {
-        "displayName": "Caption small",
-        "purpose": "The 12.5px floor for running UI text."
+      "label": {
+        "displayName": "Label",
+        "purpose": "Navigation labels, supporting text."
       },
       "mono": {
         "displayName": "Mono",
-        "purpose": "IBAN, BIC, BLZ and references only."
+        "purpose": "IBAN, BIC, BLZ, references; an IBAN never wraps."
       }
     },
     "shadows": [
       {
+        "name": "shadow-tile",
+        "value": "0 1px 2px rgb(0 0 0 / 0.06), 0 1px 3px 1px rgb(0 0 0 / 0.04)",
+        "purpose": "Desktop tile by day; the dark theme uses 0 0 0 1px rgb(255 255 255 / 0.06)."
+      },
+      {
         "name": "m3e-level2",
         "value": "0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15)",
-        "purpose": "Menus."
+        "purpose": "Menus and popovers."
       },
       {
         "name": "m3e-level3",
         "value": "0 4px 8px 3px rgb(0 0 0 / 0.15), 0 1px 3px rgb(0 0 0 / 0.3)",
-        "purpose": "Snackbar, FAB (light only), pull-to-refresh disc."
+        "purpose": "The snackbar."
       },
       {
-        "name": "shadow-pop",
-        "value": "0 8px 20px rgb(10 30 60 / 0.16), 0 28px 56px -16px rgb(10 30 60 / 0.28)",
-        "purpose": "Sheets, drawers, popovers. Dark: 0 0 0 1px rgb(255 255 255 / 0.08), 0 24px 48px rgb(0 0 0 / 0.55)."
-      },
-      {
-        "name": "scroll-edge",
-        "value": "0 1px 0 var(--line)",
-        "purpose": "A pinned sheet header or footer while content scrolls under it."
+        "name": "pull-indicator",
+        "value": "0 1px 3px rgb(0 0 0 / 0.3), 0 4px 8px 3px rgb(0 0 0 / 0.15)",
+        "purpose": "Android's pull-to-refresh disc."
       }
     ],
     "motion": [
       {
         "name": "m3e-spatial-fast",
-        "value": "360ms, linear() spring with ~9% overshoot",
-        "purpose": "Button squeeze, chevrons, floating labels, nav indicator, switch handle."
+        "value": "var(--m3e-spatial-fast) 360ms (spring, linear())",
+        "purpose": "Small spatial moves: a chevron turning, a pop."
       },
       {
         "name": "m3e-spatial-default",
-        "value": "435ms, linear() spring with ~1.5% overshoot",
-        "purpose": "Sheets, drawers, snackbars, the FAB fold, basic dialogs."
+        "value": "var(--m3e-spatial-default) 435ms (spring, linear())",
+        "purpose": "Sheets, drawers, dialogs, toasts; overshoots slightly."
       },
       {
         "name": "m3e-spatial-slow",
-        "value": "599ms, linear() spring",
-        "purpose": "Reserved for large spatial moves."
+        "value": "var(--m3e-spatial-slow) 599ms (spring, linear())",
+        "purpose": "Large spatial changes."
       },
       {
         "name": "m3e-effects-fast",
-        "value": "150ms, linear() without overshoot",
-        "purpose": "Label colour, nav indicator fade."
+        "value": "var(--m3e-effects-fast) 150ms (spring, linear())",
+        "purpose": "State layers."
       },
       {
         "name": "m3e-effects-default",
-        "value": "231ms, linear() without overshoot",
-        "purpose": "Background and colour changes, fades."
+        "value": "var(--m3e-effects-default) 231ms (spring, linear())",
+        "purpose": "Colour and opacity; never overshoots."
       },
       {
-        "name": "m3e-effects-slow",
-        "value": "327ms, linear() without overshoot",
-        "purpose": "Slow colour changes."
+        "name": "fade-through",
+        "value": "opacity 0 to 1, scale 0.98 to 1; var(--m3e-effects-slow) 327ms; fill-mode backwards",
+        "purpose": "Android: a place opening ([data-place]); reduced motion: none."
+      },
+      {
+        "name": "search-in",
+        "value": "clip-path from the search bar (inset 16px, round 28px) to the full screen; var(--m3e-spatial-default) 435ms; fill-mode backwards",
+        "purpose": "Android phone: the search view growing out of the search bar."
       },
       {
         "name": "ripple",
         "value": "450ms cubic-bezier(0.2, 0, 0, 1) in, 300ms linear out",
-        "purpose": "Android touch ripple."
+        "purpose": "The Android ripple from the touch point."
       }
     ],
     "breakpoints": [
       {
+        "name": "phone",
+        "value": "max-width: 639.98px",
+        "purpose": "Navigation bar, search-first home, the phone type scale (Android)."
+      },
+      {
         "name": "sm",
-        "value": "640px"
+        "value": "640px",
+        "purpose": "Navigation rail (96dp); the desktop layout, which follows the phone later."
       },
       {
         "name": "desk",
-        "value": "1100px (68.75rem)"
-      },
-      {
-        "name": "short",
-        "value": "max-height 700px (43.75rem)"
-      },
-      {
-        "name": "shorter",
-        "value": "max-height 520px (32.5rem)"
+        "value": "1100px",
+        "purpose": "Two-pane Übersicht."
       }
     ]
   },
   "components": [
     {
+      "name": "Search Bar",
+      "kind": "input",
+      "refersTo": "search-bar",
+      "description": "The phone Übersicht's head: opens the full-screen search; the avatar at its end opens the Sitzung panel and carries the unread dot.",
+      "html": "<div class=\"ds-search\"><button class=\"ds-search-field\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-3.5-3.5\"/></svg><span>Umsätze suchen oder fragen</span></button><span class=\"ds-search-avatar\">NB<i></i></span></div>",
+      "css": ".ds-search { display: flex; align-items: center; height: 56px; border-radius: 9999px; background: var(--md-surface-container-high, #e3e8f4); padding-right: 4px; font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; } .ds-search-field { flex: 1; display: flex; align-items: center; gap: 12px; height: 100%; padding-left: 16px; border: 0; background: none; border-radius: 9999px 0 0 9999px; font: inherit; font-size: 16px; color: var(--md-on-surface-variant, #404753); text-align: left; cursor: pointer; } .ds-search-field svg { color: var(--md-on-surface, #161c24); } .ds-search-field:hover { color: var(--md-on-surface, #161c24); } .ds-search-field:focus-visible { outline: 2px solid var(--md-primary, #0060a8); outline-offset: -2px; } .ds-search-avatar { position: relative; display: grid; place-items: center; width: 32px; height: 32px; margin: 0 8px; border-radius: 9999px; background: var(--md-primary-container, #d3e4ff); color: var(--md-on-primary-container, #004880); font-size: 13px; font-weight: 500; } .ds-search-avatar i { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 9999px; background: #ee6a1f; }"
+    },
+    {
       "name": "Filled Button",
       "kind": "button",
-      "refersTo": "button-filled",
-      "description": "The one action a decision leads to, and the safe answer at a risk decision.",
-      "html": "<button class=\"ds-btn-filled\">Angaben prüfen</button>",
-      "css": ".ds-btn-filled { height: 40px; padding: 0 16px; border: 0; border-radius: 20px; background: var(--accent, #0060a8); color: var(--accent-ink, #fff); font: 500 14px/1 \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; letter-spacing: 0.1px; cursor: pointer; transition: border-radius 360ms linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1), background-color 231ms ease-out; } .ds-btn-filled:hover { background: #256db0; } .ds-btn-filled:active { border-radius: 8px; background: #3b79b7; } .ds-btn-filled:focus-visible { outline: 2px solid #0060a8; outline-offset: 2px; }"
+      "refersTo": "button-primary",
+      "description": "The one primary action; the safe choice at a risk decision.",
+      "html": "<button class=\"ds-btn-filled\">Überweisen</button>",
+      "css": ".ds-btn-filled { height: 40px; padding: 0 24px; border: 0; border-radius: 9999px; background: var(--md-primary, #0060a8); color: var(--md-on-primary, #fff); font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: border-radius 360ms, background-color 150ms; } .ds-btn-filled:hover { background: color-mix(in oklab, var(--md-primary, #0060a8) 92%, #fff); } .ds-btn-filled:active { border-radius: 8px; } .ds-btn-filled:focus-visible { outline: 3px solid var(--md-primary, #0060a8); outline-offset: 2px; }"
     },
     {
       "name": "Tonal Button",
       "kind": "button",
       "refersTo": "button-tonal",
-      "description": "The second emphasis and the default variant: the risky choice beside the safe one, secondary actions.",
-      "html": "<button class=\"ds-btn-tonal\">Trotzdem überweisen</button>",
-      "css": ".ds-btn-tonal { height: 40px; padding: 0 16px; border: 0; border-radius: 20px; background: var(--accent-soft, #dae1ff); color: var(--tonal-ink, #3c4665); font: 500 14px/1 \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; letter-spacing: 0.1px; cursor: pointer; transition: border-radius 360ms linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1), background-color 231ms ease-out; } .ds-btn-tonal:hover { background: color-mix(in srgb, #dae1ff 92%, #3c4665); } .ds-btn-tonal:active { border-radius: 8px; } .ds-btn-tonal:focus-visible { outline: 2px solid #0060a8; outline-offset: 2px; }"
-    },
-    {
-      "name": "Outlined Text Field",
-      "kind": "input",
-      "refersTo": "text-field",
-      "description": "Floating label inside the outline, rising onto it on focus or with a value.",
-      "html": "<label class=\"ds-field\"><input placeholder=\" \" /><span>IBAN</span></label>",
-      "css": ".ds-field { position: relative; display: block; width: 320px; font-family: \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; } .ds-field input { box-sizing: border-box; width: 100%; height: 56px; padding: 0 16px; border: 1px solid #707784; border-radius: 4px; background: transparent; color: #161c24; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; outline: none; } .ds-field input:hover { border-color: #404753; } .ds-field input:focus { border-color: #0060a8; box-shadow: inset 0 0 0 1px #0060a8; } .ds-field span { position: absolute; left: 12px; top: 16px; padding: 0 4px; color: #404753; font-size: 16px; line-height: 24px; letter-spacing: 0.5px; background: #f8f9ff; pointer-events: none; transform-origin: left center; transition: translate 360ms linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1), scale 360ms linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1), color 150ms; } .ds-field input:focus + span, .ds-field input:not(:placeholder-shown) + span { translate: 0 -28px; scale: 0.75; } .ds-field input:focus + span { color: #0060a8; }"
+      "description": "The second emphasis; never an outlined button.",
+      "html": "<button class=\"ds-btn-tonal\">Geld anfordern</button>",
+      "css": ".ds-btn-tonal { height: 40px; padding: 0 24px; border: 0; border-radius: 9999px; background: var(--md-secondary-container, #dae1ff); color: var(--md-on-secondary-container, #3c4665); font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: border-radius 360ms, box-shadow 150ms; } .ds-btn-tonal:hover { box-shadow: inset 0 0 0 100vmax rgb(60 70 101 / 0.08); } .ds-btn-tonal:active { border-radius: 8px; } .ds-btn-tonal:focus-visible { outline: 3px solid var(--md-primary, #0060a8); outline-offset: 2px; }"
     },
     {
       "name": "Filter Chip",
       "kind": "chip",
-      "refersTo": "chip-filter",
-      "description": "Filters in the bookings and the Analyse; the check glyph says \"on\" without colour.",
-      "html": "<button class=\"ds-chip\">Einnahmen</button><button class=\"ds-chip\" aria-pressed=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12l5 5 9-10\"/></svg>Ausgaben</button>",
-      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; margin-right: 8px; padding: 0 12px; border: 1px solid #bfc7d5; border-radius: 8px; background: transparent; color: #404753; font: 500 14px/1 \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; letter-spacing: 0.1px; cursor: pointer; transition: background-color 231ms, border-color 231ms; } .ds-chip:hover { background: rgb(22 28 36 / 0.08); } .ds-chip[aria-pressed=\"true\"] { border-color: transparent; background: #dae1ff; color: #3c4665; } .ds-chip:focus-visible { outline: 2px solid #0060a8; outline-offset: 2px; }"
+      "refersTo": "filter-chip",
+      "description": "The Übersicht chip row; the Vorgemerkt chip carries the amber dot.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip\"><i></i>Vorgemerkt</button><button class=\"ds-chip\" aria-pressed=\"true\">Ausgänge</button><button class=\"ds-chip\">Kategorie</button></div>",
+      "css": ".ds-chips { display: flex; gap: 8px; font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; } .ds-chip { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px; border: 1px solid var(--md-outline-variant, #bfc7d5); border-radius: 8px; background: none; color: var(--md-on-surface-variant, #404753); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; } .ds-chip i { width: 8px; height: 8px; border-radius: 9999px; background: #8a6410; } .ds-chip[aria-pressed=true] { border-color: transparent; background: var(--md-secondary-container, #dae1ff); color: var(--md-on-secondary-container, #3c4665); } .ds-chip:hover { box-shadow: inset 0 0 0 100vmax rgb(64 71 83 / 0.08); } .ds-chip:focus-visible { outline: 3px solid var(--md-primary, #0060a8); outline-offset: 2px; }"
     },
     {
-      "name": "Top App Bar",
-      "kind": "nav",
-      "refersTo": "top-app-bar",
-      "description": "The page's name in title large, the search pill with its keycap, icon-only actions, the avatar chip.",
-      "html": "<div class=\"ds-topbar\"><h1>Übersicht</h1><span class=\"ds-grow\"></span><button class=\"ds-search\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"M20 20l-4-4\"/></svg><span>Suche</span><kbd>Strg K</kbd></button><button class=\"ds-icon\" aria-label=\"Mitteilungen\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0\"/></svg></button><span class=\"ds-avatar\">NB</span></div>",
-      "css": ".ds-topbar { display: flex; align-items: center; gap: 4px; height: 60px; padding: 0 16px; background: #f8f9ff; color: #161c24; font-family: \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; } .ds-topbar h1 { margin: 0; font-size: 22px; line-height: 28px; font-weight: 400; } .ds-grow { flex: 1; } .ds-search { display: inline-flex; align-items: center; gap: 10px; height: 40px; margin-right: 4px; padding: 0 10px 0 14px; border: 0; border-radius: 9999px; background: #e3e8f4; color: #404753; font: 400 14px \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: background-color 150ms; } .ds-search span { width: 160px; text-align: left; } .ds-search:hover { background: #dde3ee; color: #161c24; } .ds-search kbd { height: 22px; padding: 0 6px; border-radius: 5px; background: #fff; font: 500 12.5px/22px \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; } .ds-icon { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 9999px; background: transparent; color: #404753; cursor: pointer; } .ds-icon:hover { background: rgb(22 28 36 / 0.08); color: #161c24; } .ds-icon:focus-visible, .ds-search:focus-visible { outline: 2px solid #0060a8; outline-offset: 2px; } .ds-avatar { display: grid; place-items: center; width: 32px; height: 32px; margin-left: 4px; border-radius: 9999px; background: #e3e8f4; font-size: 13px; font-weight: 600; }"
+      "name": "Flat Balance",
+      "kind": "custom",
+      "description": "The phone Übersicht balance: 48/500, -0.025em, 0.58em cents, Verfügbar at 14px, a staircase sparkline that opens the details in place.",
+      "html": "<section class=\"ds-bal\"><div><p class=\"ds-bal-fig\">794<small>,01 €</small></p><p class=\"ds-bal-sub\">Verfügbar <b>1.794,01 €</b></p></div><button class=\"ds-spark\" aria-label=\"Kontoverlauf\"><svg width=\"96\" height=\"36\" viewBox=\"0 0 96 36\"><path d=\"M3,30H18V24H33V26H48V14H63V18H78V8H93V33H3Z\" fill=\"rgb(0 96 168 / 0.12)\"/><path d=\"M3,30H18V24H33V26H48V14H63V18H78V8H93\" fill=\"none\" stroke=\"#0060a8\" stroke-width=\"2\"/><circle cx=\"93\" cy=\"8\" r=\"3.5\" fill=\"#0060a8\"/></svg></button></section>",
+      "css": ".ds-bal { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; color: var(--md-on-surface, #161c24); } .ds-bal-fig { margin: 0; font-size: 48px; line-height: 56px; font-weight: 500; letter-spacing: -0.025em; font-variant-numeric: tabular-nums lining-nums; } .ds-bal-fig small { font-size: 0.58em; } .ds-bal-sub { margin: 4px 0 0; font-size: 14px; line-height: 20px; color: var(--md-on-surface-variant, #404753); } .ds-bal-sub b { font-weight: 500; color: var(--md-on-surface, #161c24); } .ds-spark { display: grid; place-items: center; width: 112px; height: 48px; margin-bottom: 4px; border: 0; border-radius: 9999px; background: none; cursor: pointer; transition: background-color 150ms; } .ds-spark:hover { background: rgb(22 28 36 / 0.06); } .ds-spark:focus-visible { outline: 3px solid var(--md-primary, #0060a8); outline-offset: 2px; }"
     },
     {
-      "name": "Navigation Rail",
-      "kind": "nav",
-      "refersTo": "nav-rail",
-      "description": "From 640px: the brand plate at its head (desktop), Überweisen as the FAB, the places with the indicator pill.",
-      "html": "<nav class=\"ds-rail\"><span class=\"ds-plate\">G€</span><button class=\"ds-fab\" aria-label=\"Überweisen\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 9h14l-4-4M20 15H6l4 4\"/></svg></button><a class=\"ds-nav\" aria-current=\"page\"><span class=\"ds-ind\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z\"/></svg></span>Übersicht</a><a class=\"ds-nav\"><span class=\"ds-ind\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\"><path d=\"M5 20V10M12 20V4M19 20v-7\"/></svg></span>Analyse</a></nav>",
-      "css": ".ds-rail { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 96px; padding: 14px 0; background: #f8f9ff; font-family: \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; } .ds-plate { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: #0a2c5e; color: #fff; font-size: 13px; font-weight: 700; } .ds-fab { display: grid; place-items: center; width: 56px; height: 56px; margin: 8px 0 20px; border: 0; border-radius: 16px; background: #d3e4ff; color: #004880; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3), 0 4px 8px 3px rgb(0 0 0 / 0.15); cursor: pointer; transition: border-radius 360ms; } .ds-fab:hover { border-radius: 20px; } .ds-nav { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #404753; font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px; text-decoration: none; cursor: pointer; } .ds-ind { display: grid; place-items: center; width: 56px; height: 32px; border-radius: 9999px; transition: background-color 150ms, scale 360ms linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1); } .ds-nav:hover .ds-ind { background: rgb(64 71 83 / 0.08); } .ds-nav[aria-current=\"page\"] { color: #535d7e; } .ds-nav[aria-current=\"page\"] .ds-ind { background: #dae1ff; color: #3c4665; }"
-    },
-    {
-      "name": "Balance Hero",
-      "kind": "card",
-      "refersTo": "balance-hero",
-      "description": "The page's one container: primary container, 28px corners, everything in its ink.",
-      "html": "<section class=\"ds-hero\"><p class=\"ds-hero-label\">Kontostand · Girokonto</p><p class=\"ds-hero-fig\">2.481<span>,37 €</span></p><p class=\"ds-hero-date\">Stand heute, 09:14</p><p class=\"ds-hero-iban\">DE89 3704 0044 0532 0130 00</p></section>",
-      "css": ".ds-hero { max-width: 560px; padding: 28px 32px; border-radius: 28px; background: #d3e4ff; color: #004880; font-family: \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; } .ds-hero p { margin: 0; } .ds-hero-label { font-size: 14px; font-weight: 600; color: #346699; } .ds-hero .ds-hero-fig { margin-top: 6px; font-size: 52px; line-height: 1; font-weight: 700; letter-spacing: -0.015em; font-variant-numeric: tabular-nums lining-nums; } .ds-hero-fig span { font-size: 0.5em; font-weight: 600; } .ds-hero .ds-hero-date { margin-top: 8px; font-size: 13px; color: #346699; } .ds-hero .ds-hero-iban { margin-top: 20px; font-family: \"IBM Plex Mono\", Consolas, monospace; font-size: 14px; letter-spacing: 0.06em; white-space: nowrap; }"
-    },
-    {
-      "name": "Bookings on the Page",
+      "name": "Booking Row",
       "kind": "custom",
       "refersTo": "booking-row",
-      "description": "Primary-coloured day subheader and flat 64px rows on the page; a paperclip marks a receipt.",
-      "html": "<div class=\"ds-list\"><h3 class=\"ds-day\">Montag, 12. Oktober</h3><div class=\"ds-row\"><span class=\"ds-av\">RE</span><span class=\"ds-txt\"><b>REWE Markt <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\"><path d=\"M20 11l-8 8a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7-7\"/></svg></b><small>Kartenzahlung · Lebensmittel</small></span><span class=\"ds-amt\">−42,18 €</span></div><div class=\"ds-row\"><span class=\"ds-av\">AG</span><span class=\"ds-txt\"><b>Arbeitgeber GmbH</b><small>Gehalt Oktober · Einkommen</small></span><span class=\"ds-amt ds-in\">+2.950,00 €</span></div></div>",
-      "css": ".ds-list { max-width: 560px; background: #f8f9ff; font-family: \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; } .ds-day { margin: 0; padding: 12px 20px 4px; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: #0060a8; } .ds-row { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 12px 20px; box-sizing: border-box; cursor: pointer; } .ds-row:hover { background: rgb(22 28 36 / 0.08); } .ds-av { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 9999px; background: #e3e8f4; color: #404753; font-size: 14px; font-weight: 600; } .ds-txt { flex: 1; min-width: 0; } .ds-txt b { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; color: #161c24; } .ds-txt b svg { color: #404753; } .ds-txt small { display: block; font-size: 13px; color: #404753; } .ds-amt { font-size: 15px; font-weight: 600; color: #161c24; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; } .ds-in { color: #0c7336; }"
+      "description": "A day header and bookings: 40dp neutral glyph disc (initials for a person), 16/500 name and amount, 14px meta; credits green, debits ink.",
+      "html": "<div class=\"ds-day\">Heute</div><button class=\"ds-row\"><span class=\"ds-disc\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M6 6h15l-2 9H8L6 3H3\"/><circle cx=\"9\" cy=\"20\" r=\"1\"/><circle cx=\"18\" cy=\"20\" r=\"1\"/></svg></span><span class=\"ds-row-text\"><b>REWE</b><span>Lebensmittel · girocard</span></span><span class=\"ds-amt\">−23,40 €</span></button><button class=\"ds-row\"><span class=\"ds-disc\">AM</span><span class=\"ds-row-text\"><b>Anna Meier</b><span>Überweisung</span></span><span class=\"ds-amt ds-credit\">+50,00 €</span></button>",
+      "css": ".ds-day { padding: 12px 16px 4px; font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--md-on-surface-variant, #404753); } .ds-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 16px; border: 0; background: none; text-align: left; font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; cursor: pointer; transition: background-color 150ms; } .ds-row:hover { background: color-mix(in srgb, var(--md-surface-container-high, #e3e8f4) 55%, transparent); } .ds-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--md-primary, #0060a8); } .ds-disc { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 9999px; background: var(--md-surface-container-high, #e3e8f4); color: var(--md-on-surface-variant, #404753); font-size: 14px; font-weight: 500; } .ds-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; } .ds-row-text b { font-size: 16px; font-weight: 500; color: var(--md-on-surface, #161c24); } .ds-row-text span { font-size: 14px; color: var(--md-on-surface-variant, #404753); } .ds-amt { font-size: 16px; font-weight: 500; letter-spacing: -0.01em; font-variant-numeric: tabular-nums lining-nums; color: var(--md-on-surface, #161c24); white-space: nowrap; } .ds-credit { color: #0c7336; }"
     },
     {
-      "name": "Connected Button Group",
-      "kind": "custom",
-      "refersTo": "segmented-button",
-      "description": "Material connected buttons in place of segmented controls: 2px apart, the chosen one round and filled.",
-      "html": "<div class=\"ds-seg\" role=\"radiogroup\"><button role=\"radio\" aria-checked=\"true\">Sofort</button><button role=\"radio\" aria-checked=\"false\">An einem Datum</button><button role=\"radio\" aria-checked=\"false\">Regelmäßig</button></div>",
-      "css": ".ds-seg { display: inline-flex; gap: 2px; } .ds-seg button { height: 40px; padding: 0 16px; border: 0; border-radius: 8px; background: #e9eefa; color: #404753; font: 500 14px/1 \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; letter-spacing: 0.1px; cursor: pointer; transition: border-radius 360ms linear(0, 0.0443, 0.1541, 0.2995, 0.4571, 0.61, 0.7468, 0.8614, 0.9511, 1.0165, 1.0598, 1.0844, 1.0941, 1.093, 1.0844, 1.0716, 1.0568, 1.042, 1.0284, 1.0168, 1.0074, 1.0004, 0.9956, 0.9927, 0.9913, 0.9911, 0.9916, 0.9927, 0.9941, 0.9955, 0.9969, 0.998, 1), background-color 231ms; } .ds-seg button:first-child { border-radius: 20px 8px 8px 20px; } .ds-seg button:last-child { border-radius: 8px 20px 20px 8px; } .ds-seg button:hover { background: #e3e8f4; } .ds-seg button[aria-checked=\"true\"] { border-radius: 20px; background: #0060a8; color: #fff; } .ds-seg button:focus-visible { outline: 2px solid #0060a8; outline-offset: 2px; }"
+      "name": "Navigation Bar",
+      "kind": "nav",
+      "refersTo": "nav-bar",
+      "description": "Three places on the phone; no FAB.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item\" aria-current=\"page\"><span><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M3 11 12 4l9 7v9H3z\"/></svg></span>Übersicht</a><a class=\"ds-nav-item\"><span><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 8h14l-4-4M20 16H6l4 4\"/></svg></span>Zahlungen</a><a class=\"ds-nav-item\"><span><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M5 20V10M12 20V4M19 20v-7\"/></svg></span>Analyse</a></nav>",
+      "css": ".ds-nav { display: flex; height: 64px; background: var(--md-surface-container, #e9eefa); font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; } .ds-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--md-on-surface-variant, #404753); cursor: pointer; } .ds-nav-item span { display: grid; place-items: center; width: 56px; height: 32px; border-radius: 9999px; transition: background-color 231ms; } .ds-nav-item:hover span { background: rgb(64 71 83 / 0.08); } .ds-nav-item[aria-current] { color: var(--md-secondary, #535d7e); } .ds-nav-item[aria-current] span { background: var(--md-secondary-container, #dae1ff); color: var(--md-on-secondary-container, #3c4665); } .ds-nav-item:focus-visible { outline: 3px solid var(--md-primary, #0060a8); outline-offset: -3px; }"
     },
     {
-      "name": "Snackbar",
+      "name": "Grouped Settings List",
       "kind": "custom",
-      "refersTo": "snackbar",
-      "description": "Inverse surface, 4px corners, Level 3; the action in the inverse primary.",
-      "html": "<div class=\"ds-snack\"><span>Vorlage gespeichert</span><button>Rückgängig</button></div>",
-      "css": ".ds-snack { display: inline-flex; align-items: center; gap: 16px; padding: 12px 8px 12px 16px; border-radius: 4px; background: #2b313a; color: #ecf1fd; box-shadow: 0 4px 8px 3px rgb(0 0 0 / 0.15), 0 1px 3px rgb(0 0 0 / 0.3); font: 400 14px/20px \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; letter-spacing: 0.25px; } .ds-snack button { height: 36px; padding: 0 12px; border: 0; border-radius: 18px; background: transparent; color: #a2c9ff; font: 500 14px \"Google Sans Flex\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; } .ds-snack button:hover { background: rgb(162 201 255 / 0.12); } .ds-snack button:focus-visible { outline: 2px solid #a2c9ff; outline-offset: 2px; }"
+      "refersTo": "settings-row",
+      "description": "Einstellungen only: tiles on Container, 2px seams, 20px outer corners, primary subheader; the Nano row on Gemini's wash.",
+      "html": "<div class=\"ds-set\"><h3>Darstellung</h3><div class=\"ds-set-row\">Design<span>System</span></div><div class=\"ds-set-row ds-ai\">Gemini Nano<span>Bereit</span></div></div>",
+      "css": ".ds-set { display: flex; flex-direction: column; gap: 2px; font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; } .ds-set h3 { margin: 0 0 6px; padding: 0 16px; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--md-primary, #0060a8); } .ds-set-row { display: flex; justify-content: space-between; padding: 16px; border-radius: 4px; background: var(--md-surface-container, #e9eefa); font-size: 16px; color: var(--md-on-surface, #161c24); cursor: pointer; } .ds-set-row span { font-size: 14px; color: var(--md-on-surface-variant, #404753); } .ds-set-row:first-of-type { border-radius: 20px 20px 4px 4px; } .ds-set-row:last-of-type { border-radius: 4px 4px 20px 20px; } .ds-set-row:hover { box-shadow: inset 0 0 0 100vmax rgb(22 28 36 / 0.08); } .ds-ai { background-image: linear-gradient(115deg, color-mix(in srgb, #4285f4 26%, transparent) 0%, color-mix(in srgb, #9b72cb 20%, transparent) 55%, color-mix(in srgb, #d96570 18%, transparent) 100%); }"
+    },
+    {
+      "name": "Primary Tabs",
+      "kind": "nav",
+      "refersTo": "tab-primary",
+      "description": "Umsatzdetails on an Android phone: Details, Notiz & Belege, Kategorie; a marked tab has a dot and sr-only text.",
+      "html": "<div class=\"ds-tabs\" role=\"tablist\"><button role=\"tab\" aria-selected=\"true\">Details</button><button role=\"tab\" aria-selected=\"false\">Notiz &amp; Belege<i></i><span class=\"ds-sr\">, etwas angehängt</span></button><button role=\"tab\" aria-selected=\"false\">Kategorie</button></div>",
+      "css": ".ds-tabs { display: flex; box-shadow: inset 0 -1px 0 var(--md-outline-variant, #bfc7d5); font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; } .ds-tabs button { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; height: 48px; padding: 0 8px; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 500; color: var(--md-on-surface-variant, #404753); cursor: pointer; transition: color 150ms; } .ds-tabs button:hover { background: rgb(64 71 83 / 0.06); } .ds-tabs button:focus-visible { outline: 3px solid var(--md-primary, #0060a8); outline-offset: -3px; } .ds-tabs [aria-selected=true] { color: var(--md-primary, #0060a8); } .ds-tabs [aria-selected=true]::after { content: \"\"; position: absolute; left: 22%; right: 22%; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--md-primary, #0060a8); } .ds-tabs i { width: 6px; height: 6px; border-radius: 9999px; background: var(--md-primary, #0060a8); } .ds-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }"
+    },
+    {
+      "name": "Amount Entry",
+      "kind": "input",
+      "description": "Überweisung part one on an Android phone: the amount typed into a 64/500 figure, the € at 34px, Verfügbar under it; the three-segment part bar above.",
+      "html": "<div class=\"ds-entry\"><div class=\"ds-parts\"><span class=\"on\"></span><span></span><span></span></div><div class=\"ds-fig\"><input inputmode=\"decimal\" placeholder=\"0\" value=\"25,00\" size=\"5\"><span>€</span></div><p>Verfügbar <b>1.794,01 €</b></p></div>",
+      "css": ".ds-entry { font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; text-align: center; } .ds-parts { display: flex; gap: 4px; margin-bottom: 32px; } .ds-parts span { flex: 1; height: 4px; border-radius: 9999px; background: var(--md-secondary-container, #dae1ff); } .ds-parts .on { background: var(--md-primary, #0060a8); } .ds-fig { display: flex; align-items: baseline; justify-content: center; } .ds-fig input { width: 5.4ch; border: 0; background: none; text-align: right; font: inherit; font-size: 64px; line-height: 72px; font-weight: 500; letter-spacing: -0.025em; font-variant-numeric: tabular-nums lining-nums; color: var(--md-on-surface, #161c24); caret-color: var(--md-primary, #0060a8); outline: none; } .ds-fig input:focus-visible { caret-color: var(--md-primary, #0060a8); } .ds-fig input::placeholder { color: var(--md-outline-variant, #bfc7d5); } .ds-fig span { margin-left: 6px; font-size: 34px; font-weight: 500; color: var(--md-on-surface-variant, #404753); } .ds-entry p { margin: 8px 0 0; font-size: 14px; color: var(--md-on-surface-variant, #404753); } .ds-entry b { font-weight: 500; color: var(--md-on-surface, #161c24); }"
+    },
+    {
+      "name": "Bank Tiles",
+      "kind": "custom",
+      "refersTo": "bank-tile",
+      "description": "Anmeldung quick picks on Android: four by two, 56px, 16px corners, white with an inset hairline by day; 12px one-line labels.",
+      "html": "<ul class=\"ds-banks\"><li><button><span class=\"ds-tile\">ING</span><span class=\"ds-lbl\">ING</span></button></li><li><button><span class=\"ds-tile\">S</span><span class=\"ds-lbl\">Sparkasse</span></button></li><li><button><span class=\"ds-tile\">DB</span><span class=\"ds-lbl\">Deutsche\nBank</span></button></li><li><button><span class=\"ds-tile\">VR</span><span class=\"ds-lbl\">Volksbank</span></button></li></ul>",
+      "css": ".ds-banks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px 10px; margin: 0; padding: 0; list-style: none; font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; } .ds-banks button { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; padding: 0; border: 0; border-radius: 16px; background: none; cursor: pointer; transition: background-color 150ms; } .ds-banks button:hover { background: var(--md-surface-container-high, #e3e8f4); } .ds-banks button:focus-visible { outline: 3px solid var(--md-primary, #0060a8); outline-offset: 2px; } .ds-tile { display: grid; place-items: center; width: 100%; height: 56px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1px var(--md-outline-variant, #bfc7d5); font-weight: 500; color: #0a2c5e; } .ds-lbl { font-size: 12px; line-height: 16px; white-space: pre-line; color: var(--md-on-surface-variant, #404753); }"
+    },
+    {
+      "name": "Plus Plate",
+      "kind": "custom",
+      "refersTo": "plus-plate",
+      "description": "Girovo Plus's mark: the navy plate with the G€ in gold.",
+      "html": "<span class=\"ds-plate\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\"><path d=\"M17 6.5A7 7 0 1 0 19 12h-6\"/><path d=\"M8 10.5h6M8 13.5h6\"/></svg></span>",
+      "css": ".ds-plate { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: #0a2c5e; color: #f2c14e; }"
     }
   ],
   "narrative": {
     "northStar": "The Private Branch",
-    "overview": "Girovo is a bank branch that opens for one person, on their own machine. Nothing on the walls sells anything, every figure is the bank's own, and the counter is tidy. The feel is **trustworthy, plain and precise**. Trust comes from exactness and calm, not from ornament. Where money could go wrong, the branch is careful first: at a risk decision the safe answer is the filled button, every layer opens on a harmless place, and every outcome is named with the same few words.\n\nThe branch is furnished in **Material 3 Expressive**, on every platform: the desktop app, the website and the Android app are one page in one look, `<html data-look=\"material\">` (`app/layout.tsx`). `app/material.css` holds the look; `app/android.css` adds only what a phone needs. The colour is Girovo's own blue Material scheme (SchemeVibrant from the seed #0864ad), set at zero specificity so an Android phone's Material You colours can take its place. The page is flat and list-first: sections stand on the page, held apart by space, and the one container on a page is the balance. The shell is an app's, not a web page's: one top app bar that names the page, a navigation bar on phones and a navigation rail from 640px, and Überweisen as the floating action button.\n\nGoogle Sans Flex sets everything, on screen and on paper, and amounts use tabular lining figures, so a column of bookings lines up on its decimal comma like a printed Kontoauszug. Colour is rationed: the scheme's primary is the one thing you can press, and green, red, amber and orange each own exactly one meaning that no wallpaper can change. The system borrows a language, never a bank's branding: the connected bank's logo appears only where the bank is the subject (the bank picker, the accounts of several banks, the Sitzung panel, the printed letterhead), never as the app's identity. The protocol stays out of the interface: FinTS segment codes and the structured tags inside a Verwendungszweck never reach the screen.",
+    "overview": "Girovo is a bank branch that opens for one person. Nothing on the walls sells anything, every figure is the bank's own, and the counter is tidy. The look is Material 3 Expressive, drawn by the real `@m3e/web` components (wrapped in `components/ui.tsx`), in Google Sans Flex, on Material You's wallpaper roles on an Android phone and on Girovo's own blue scheme everywhere else (`app/material.css`).\n\nThe phone is the system's reference. Its home has one field at the head that searches every booking, action and setting and, on Android, answers a question about the bookings. Below it the balance is set flat, then a row of chips, then the bookings, then three places at the foot. The page is flat and list-first; tone, weight and space carry the hierarchy, and the colours that carry a value never follow the wallpaper.\n\nThe desktop (from 640px) follows the phone later (owner, 2026-10-23: \"don't update desktop yet\"). It still has the two-pane Übersicht, the balance as a filled hero card, the navigation rail and the line icons; it inherits the colour rules below. Round two of the phone redesign (Material Symbols, wallpaper chart tones, the transitions, the transfer's two parts, the tabbed Umsatzdetails, the brand-field Anmeldung) is Android only: `IS_ANDROID` in code, `html[data-platform=\"android\"]` in CSS.",
     "keyCharacteristics": [
-      "One top app bar (title large, the page's name) over a flat page; navigation bar below 640px, navigation rail (96dp, M3 Expressive's collapsed rail) from 640px, Überweisen as the FAB.",
-      "Flat and list-first: sections stand on the page with no surface, shadow or hairline; the balance hero (28px corners, primary container) is the one container.",
-      "Girovo's fixed blue Material scheme by default, Material You on an Android phone; value colours never follow either.",
-      "Round buttons that squeeze towards square while pressed, spring motion, Material's corner scale.",
-      "Tabular figures and a real minus on every amount. Monospace only for what is read character by character.",
-      "The safe choice is the filled primary, and a dialog's buttons never scroll away.",
-      "The app's own mark is the navy \"G€\" plate, a logo in a fixed colour whatever the scheme."
+      "Search-first home: a 56dp search bar is the only tinted shape at the top.",
+      "A flat 48/500 balance with tight tracking; no balance card on the phone.",
+      "Three text sizes (12, 14, 16), one section step (18), one screen step (22), and display figures.",
+      "Weight 500 for emphasis on the phone; rank is weight and tone before size.",
+      "Owned value colours: green, red, amber and orange each mean one thing.",
+      "Three places, no FAB on the phone; Material Symbols Rounded, the current place filled."
     ],
     "rules": [
       {
-        "name": "The One Signal Rule",
-        "body": "The scheme's primary marks what can be pressed, and nothing that can be pressed is a value colour (a destructive confirm the user asked for excepted, which is Soll Red). Inside the balance hero the hero's ink stands in for it, because primary on primary-container would not read.",
-        "section": "colors"
-      },
-      {
         "name": "The Owned Colours Rule",
-        "body": "Green is a credit or a confirmation. Red is a negative balance or an error, never a debit: a debit is ordinary spending and stays ink. A credit card's balance is negative by nature, so it stays ink too; a card is known by its FinTS Kontoart alone (`isCardAccount`: CreditCardAccount or 50–59), never by a product name like \"Giro mit Visa\", and its Verfügbar still turns red below zero. Amber means \"vorgemerkt\" and nothing else, so a warning uses the inset with an orange glyph instead. Orange is a mark, never text.",
+        "body": "Green is a credit or a confirmation. Red is a negative balance or an error, never a debit: a debit is ink. A credit card's balance stays ink (a card is known by its Kontoart, `isCardAccount`). Amber means Vorgemerkt and nothing else; a warning is an orange glyph. Orange is never text.",
         "section": "colors"
       },
       {
         "name": "The Fixed Values Rule",
-        "body": "Credit Green, Soll Red, Vorgemerkt Amber, Info Cyan, Marker Orange and the chart slots never take a wallpaper colour, and neither does the brand plate. Only surfaces, ink, lines and the one interactive colour follow Material You.",
-        "section": "colors"
-      },
-      {
-        "name": "The Reporting Ink Rule",
-        "body": "What only reports (the transfer stepper, the session countdown, budget bars, a wait spinner outside a button, the account-type plate off its row) is drawn in `headline`, which is the ink. Material's own progress indicators (the wavy bar, the loading indicator) take the primary, as Material draws them.",
+        "body": "The value colours (including `chart-in` and `chart-out`), the brand plate, Plus Gold and Gemini's colours never take a wallpaper colour. Surfaces, ink, lines, the interactive colour and, on Android only, the six category slots and the rest follow Material You.",
         "section": "colors"
       },
       {
         "name": "The Tokens Only Rule",
-        "body": "Tailwind's default palette is switched off (`--color-*: initial`), so `red-500` does not even compile. Every colour is a token. Literal white and black exist only for literal things: the brand plate, a QR code or TAN graphic plate, the chipTAN flicker field.",
+        "body": "Tailwind's default palette is switched off; every colour is a token. Literal colours exist only for literal things: the plates, a QR or TAN plate, the chipTAN flicker field.",
         "section": "colors"
       },
       {
+        "name": "The Symbol Rule",
+        "body": "On Android every app icon is a Material Symbol (`Icon`'s `ms` name) in a box of exactly 1em, sized in dp: `text-size-adjust: none`, so the system's larger text grows the words, never the glyph. `filled` sets FILL 1, used only for the current place in the navigation bar (24px). Gemini's spark and the avatar glyphs are pictures and stay drawn. The desktop keeps the line icons (24 grid, 1.8 stroke).",
+        "section": "typography"
+      },
+      {
+        "name": "The Two Headings Rule",
+        "body": "A section is 18/500 in ink; a subheader is 14/500 in the variant ink. Einstellungen keeps its subheaders in the primary (owner, 2026-10-20). There is no third treatment.",
+        "section": "typography"
+      },
+      {
+        "name": "The Medium Weight Rule",
+        "body": "On the phone emphasis is 500, never 600 or 700. Rank comes from weight and tone before size.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tight Figures Rule",
+        "body": "No positive tracking on figures. An amount is −0.01em; a display figure (`[data-balance]`, `[data-figure]`) is −0.025em. Body text keeps the face's own spacing (0).",
+        "section": "typography"
+      },
+      {
         "name": "The Kontoauszug Column Rule",
-        "body": "Every amount goes through `<Money>`. It uses tabular lining figures and a real minus (U+2212), never a hyphen, so a column of bookings lines up on its decimal comma. Dates, counts and countdowns take `.tnum` too.",
-        "section": "typography"
-      },
-      {
-        "name": "The Weight Rule",
-        "body": "400 and 500 for Material's titles, buttons and labels; 600 for a row's name and its amount and for labels above a value; 700 only for figures and for the titles of sheets and of sections off the page. Google Sans Flex at 700 thickens into a slab at 13–15px.",
-        "section": "typography"
-      },
-      {
-        "name": "The Sentence Case Rule",
-        "body": "Labels are sentence case and never set in capitals, on screen and on paper. A label's job is to be found, not to shout.",
+        "body": "Every amount goes through `<Money>`: tabular lining figures, a real minus (U+2212), and the privacy mask (\"••• €\") under Beträge ausblenden. Dates and counts take `.tnum`.",
         "section": "typography"
       },
       {
         "name": "The Character-by-Character Rule",
-        "body": "IBAN, BIC, BLZ and references are set in IBM Plex Mono. An IBAN gets 0.06em tracking and never wraps, because half an IBAN on each of two lines cannot be checked. A BLZ is grouped the way bank documents print it (\"570 699 99\") wherever it appears.",
+        "body": "IBAN, BIC, BLZ and references are in Plex Mono. An IBAN gets 0.06em tracking and never wraps.",
         "section": "typography"
       },
       {
-        "name": "The Floor Rule",
-        "body": "No HTML text is smaller than 12px, and only Material's 12px roles (navigation labels, supporting text) and badges go below 12.5px. Monogram initials scale to their avatar, and the labels charts draw in SVG may be 11.5–12px.",
+        "name": "The Sentence Case Rule",
+        "body": "Labels are sentence case, never capitals, on screen and on paper.",
         "section": "typography"
       },
       {
         "name": "The Reading Order Rule",
-        "body": "The DOM order is the narrow reading order. A wider layout places blocks with the grid; it never reorders them with CSS `order`.",
-        "section": "layout"
-      },
-      {
-        "name": "The Shared Edge Rule",
-        "body": "The top app bar's content and the page column share one 1280px column and one gutter (`MASTHEAD_EDGES`, corrected for the scrollbar's width), so the page title and the first section align. The bar's right edge gives way to the caption buttons when they need the room.",
+        "body": "The DOM order is the narrow reading order. A wider layout places blocks with the grid, never with CSS `order`.",
         "section": "layout"
       },
       {
         "name": "The Phone's Page Rule",
-        "body": "Below `desk` the Übersicht is the phone's: accounts, the balance, Vorgemerkt and the bookings. Summaries that would push the bookings away appear only in the side pane of a wide window.",
+        "body": "On the phone's home the bookings are visible without scrolling. Whatever would push them down (summaries, the chart) goes behind a tap.",
         "section": "layout"
       },
       {
         "name": "The Flat Page Rule",
-        "body": "A block on the page is a `.panel` section: no surface, no corners, no shadow, no hairline between its rows; sections are held apart by space. The balance hero is the one container. Never put a card on the page to group a section.",
-        "section": "elevation"
-      },
-      {
-        "name": "The Tonal Lift Rule",
-        "body": "A container is told from the page by tone, not by an edge or a shadow: the filled card, the hero, wells, the navigation bar. Shadow is for layers that float (menus, sheets, drawers, snackbars, the FAB).",
+        "body": "A section on the page has no surface, corners, shadow or hairline between rows. The phone's page has no container at all; the desktop's one container is the balance hero. The exception is Einstellungen (owner, 2026-10-20): Material 3 Expressive's grouped list, rows as tiles on Container, 2px seams, 20px outer corners, 4px inner ones.",
         "section": "elevation"
       },
       {
         "name": "The Scroll Edge Rule",
-        "body": "A pinned header or footer inside a sheet is flat while everything fits. A 1px `line` hairline appears on its edge only once content runs under it, and leaves again when the content ends.",
+        "body": "A pinned header or footer inside a sheet is flat while everything fits; a 1px hairline appears only once content runs under it.",
         "section": "elevation"
       },
       {
         "name": "The Safe Choice Rule",
-        "body": "At every risk decision the safe action is the filled primary and the risky one the tonal button beside it: \"Angaben prüfen\" at a duplicate or a name mismatch, \"Namen übernehmen\" when the bank suggests the name, \"Angaben ändern\" after a refusal, \"Jetzt nachsehen\" at Status unklar, \"Umsätze prüfen\" before logging out or restarting over an unclear transfer. A destructive confirmation the user asked for keeps its red confirm, with the safe button focused.",
+        "body": "At every risk decision the safe action is the filled primary and the risky one the tonal button beside it. A destructive confirm the user asked for keeps its red button, with the safe one focused.",
         "section": "components"
       },
       {
         "name": "The Safe Focus Rule",
-        "body": "A layer opens on the safe place: what it names (`initialFocus`, or `[data-autofocus]` on its safe button), else its first text field, else its close button, else the layer itself. Never a checkbox, switch, radio, link or action by default. A `[data-autofocus=\"fine\"]` field takes focus only with a fine pointer, so a touch keyboard never covers a layer as it opens.",
+        "body": "A layer opens on the safe place (`safeFocusTarget`): what it names, else its first text field, else its close button, else the layer. Never a checkbox, switch, radio, link or action. A field marked `fine` takes focus only with a fine pointer, so a touch keyboard never covers a layer as it opens.",
         "section": "components"
       },
       {
         "name": "The Pinned Way Out Rule",
-        "body": "A dialog's actions and a panel's closing action sit in a footer below the scrolling body, so they never scroll away, whatever the window's height or zoom. A wait that runs against a deadline pins its status there with them.",
+        "body": "A dialog's actions and a panel's closing action sit in a footer below the scrolling body and never scroll away.",
+        "section": "components"
+      },
+      {
+        "name": "The Spring Rule",
+        "body": "Motion uses M3E's springs: spatial (position, size, shape) overshoots slightly; effects (colour, opacity) never do. `prefers-reduced-motion` is honoured.",
+        "section": "components"
+      },
+      {
+        "name": "The Backwards Fill Rule",
+        "body": "A page-level entrance animation uses `animation-fill-mode: backwards`, never `both` or `forwards`. A transform or opacity held after the animation ends creates a containing block and a stacking context, and the sheets and drawers that render in place inside it are trapped in the page instead of covering the screen.",
         "section": "components"
       },
       {
         "name": "The Record Rule",
-        "body": "Paper prints the bank's words as the bank sent them, repairing only encoding damage. Where the sheet leads with a name the app derived, \"Name laut Bank\" prints the whole string beside it.",
-        "section": "components"
-      },
-      {
-        "name": "The Bank's Figure Rule",
-        "body": "A balance is the bank's only when the bank sent it. Otherwise it is worked out and marked \"(errechnet)\". Future-dated bookings print apart (\"Noch nicht enthalten\"), and a gap the bookings cannot explain is printed with its size, never adjusted to fit.",
-        "section": "components"
-      },
-      {
-        "name": "The Same State Rule",
-        "body": "Paper states a booking's state the way the screen does (gebucht, vorgemerkt, noch nicht gebucht), and an unbooked state gets a sentence under the amount, not only a word.",
+        "body": "Paper prints the bank's words as the bank sent them. Where the sheet leads with a name the app derived, \"Name laut Bank\" prints the whole string beside it. A balance the bank did not send is marked \"(errechnet)\".",
         "section": "components"
       },
       {
         "name": "The Third-Party Rule",
-        "body": "Paper speaks in the third person and carries only what its reader needs. The Buchungsbeleg shows the booking, never the account's balance, a merchant logo, a note or a receipt; a Mitteilung shows the message, never an account or the login name.",
+        "body": "Paper speaks in the third person and carries only what its reader needs. A Buchungsbeleg never shows the account's balance, a logo, a note or a receipt.",
         "section": "components"
       },
       {
         "name": "The Two-Sign Rule",
-        "body": "On paper a debit is ink and a credit green, and both signs (+ and −) are written out, so a grey copy says the same. A balance carries only its minus.",
-        "section": "components"
-      },
-      {
-        "name": "The Summenstrich Rule",
-        "body": "The final balance sits between a 1px rule and a 3px double rule. No box.",
-        "section": "components"
-      },
-      {
-        "name": "The Fileable Page Rule",
-        "body": "Nothing on paper is smaller than 8pt, mono included, and running text is 9.5pt. The 20mm left margin lets a punched, filed sheet keep every character, and every printed page carries the document, the account and \"Seite x von y\" in its bottom margin.",
+        "body": "On paper a debit is ink and a credit green, and both signs are written out, so a grey copy says the same. A balance carries only its minus.",
         "section": "components"
       }
     ],
     "dos": [
-      "Do reach for tokens by name (`bg-surface`, `text-ink-2`, `bg-accent`, `var(--nav-bg)`), never a `--md-*` role straight in a component unless Material names that role for it (the search pill's container colours). The theme and Material You then resolve themselves.",
-      "Do put the look in `app/material.css` for every platform, and only phone behaviour (status bar, touch targets, sheets, type scale, ripple) in `app/android.css` behind `data-platform=\"android\"`.",
-      "Do keep Girovo's scheme at zero specificity (`:where(:root[data-look='material'])`), so Material You's runtime roles always win on the phone.",
-      "Do build a page block as a `.panel` section on the page and let space separate sections; the balance hero is the only container in `#main`.",
-      "Do route every amount through `<Money>` (tabular figures, U+2212 minus, role-based colour, privacy mask), bank free text through `<BankText>`, and every IBAN through the `.iban` mono style, which never wraps.",
-      "Do decide whether a balance is a card's with `isCardAccount` (the Kontoart), and pass `tone=\"plain\"` for it.",
-      "Do give primitives their data hooks (`data-size`, `data-variant`, `data-segmented`, `data-field`, `data-dialog`, `data-chip`, `data-icon-button`) so the Material rules reach them.",
-      "Do use the floating-label `Field` for a field whose label stands alone on its row.",
-      "Do make the safe answer the filled primary at every risk decision, with the risky action as the tonal button beside it.",
-      "Do give a dialog or panel its actions as a pinned `footer`, so they stay in view in a 900×600 window and at 200%.",
-      "Do let layers open on the safe place (safeFocusTarget).",
-      "Do name every outcome with the shared words: Freigabe, Abruf fehlgeschlagen, unvollständig, nicht ausgeführt, Status unklar.",
-      "Do give every icon-only control an `aria-label`. It doubles as its tooltip.",
-      "Do animate with the M3E springs: spatial for position, size and shape, effects for colour and opacity. Honour `prefers-reduced-motion`.",
-      "Do keep the desktop shell's `BAR_COLORS` equal to `bar` and `bar-ink` in both themes.",
-      "Do write the markup in the narrow reading order and place blocks with the grid on wider screens.",
-      "Do give charts colours by rank (top six, rest grey), Credit Green for income and navy-slate for spending.",
-      "Do use the spaced Gedankenstrich (\" – \") in interface strings, and German quotes („…“)."
+      "**Do** reach for tokens by name (`text-ink-2`, `bg-inset`, `var(--nav-bg)`) so the theme and Material You resolve themselves.",
+      "**Do** put the look in `app/material.css` and only what a phone needs in `app/android.css` behind `data-platform=\"android\"`.",
+      "**Do** route every amount through `<Money>` and every IBAN through `.iban`.",
+      "**Do** keep the phone to 12, 14, 16, 18 and 22 plus the display figures (48 for the balance, 32 to 36 for a lead).",
+      "**Do** use the two heading treatments: 18/500 ink for a section, 14/500 variant ink for a subheader.",
+      "**Do** keep the bookings visible on the phone's first screen; put charts and summaries behind a tap.",
+      "**Do** give charts colours by rank (top six, rest grey), green for income and navy-slate for spending.",
+      "**Do** give every new Android icon an `ms` name from Material Symbols Rounded and add it to the subset.",
+      "**Do** use the spaced Gedankenstrich (\" – \") and German quotes („…“) in interface strings."
     ],
     "donts": [
-      "Don't colour a debit red, or a credit card's balance. Spending is not an error, and a card is negative by nature.",
-      "Don't let a value colour, a chart slot or the brand plate follow Material You.",
-      "Don't use amber for a warning. Amber means \"vorgemerkt\"; a warning is the inset plus an orange glyph.",
-      "Don't set orange as text. It is a dot, an edge, a ring or a glyph.",
-      "Don't put a card, a shadow or a hairline grid on the page to group a section, or frame a card inside a card.",
-      "Don't bring back an outlined secondary button; the second emphasis is the tonal button.",
-      "Don't set labels in capitals or letterspace them beyond Material's own tracking, on screen or on paper.",
-      "Don't use Tailwind's default palette (`red-500`, `slate-200`). It is switched off on purpose.",
-      "Don't show FinTS segment codes or a Verwendungszweck's structured tags in the interface, or print them on paper.",
-      "Don't put the risky action in the filled button at a risk decision, or open a layer on a checkbox, a switch, a radio or an action.",
-      "Don't let a dialog's buttons scroll away with its text.",
-      "Don't sort blocks with CSS `order`.",
-      "Don't fill a chart area with a gradient. The Kontoverlauf area is flat.",
-      "Don't let a theme or the screen's scheme reach paper. The `.doc` tokens are fixed light values.",
-      "Don't colour the chipTAN flicker field or the TAN scan plate with the theme; the generator reads contrast.",
-      "Don't use any bank's logo, wordmark or name as the app's own identity."
+      "**Don't** colour a debit red, or a credit card's balance.",
+      "**Don't** use amber for anything but Vorgemerkt, or orange as text.",
+      "**Don't** let a value colour, a chart slot, a plate or Gemini's colours follow Material You.",
+      "**Don't** use 600 or 700 on the phone, or positive tracking on a figure.",
+      "**Don't** put a card, a shadow or a hairline grid on the page to group a section (Einstellungen's grouped list excepted).",
+      "**Don't** float a FAB over the phone's bookings or add a fourth place to the navigation.",
+      "**Don't** bring back an outlined secondary button.",
+      "**Don't** fill a chart area with a gradient.",
+      "**Don't** hold a page-level animation's end state (`forwards` or `both`).",
+      "**Don't** let the icons scale with the system's text size, or fill any icon but the current place.",
+      "**Don't** let a theme reach paper.",
+      "**Don't** use any bank's logo or name as the app's own identity."
     ]
   }
 }

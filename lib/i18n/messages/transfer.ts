@@ -57,6 +57,8 @@ export const de = {
   /** The GiroCode's check (lib/girocode.ts) and the transfer route's. */
   bicInvalid: 'Die BIC ist ungültig.',
   form: {
+    /** Android's phone flow, for a screen reader: Betrag, An wen?, Prüfen. */
+    part: (n: number, of: number) => `Schritt ${n} von ${of}`,
     fromAccount: 'Von Konto',
     recent: 'Letzte Empfänger',
     /** In a recent payee's tooltip, for one of your own accounts. */
@@ -142,6 +144,8 @@ export const de = {
   /** The sheet's buttons. */
   actions: {
     toReview: 'Weiter zur Prüfung',
+    /** Android's phone flow: from the amount on to the payee. */
+    toPayee: 'Weiter: An wen?',
     check: 'Angaben prüfen',
     back: 'Zurück',
     sendNow: 'Jetzt überweisen',
@@ -457,6 +461,7 @@ export const en: typeof de = {
   nameMissing: 'Please enter the recipient’s name.',
   bicInvalid: 'The BIC is invalid.',
   form: {
+    part: (n, of) => `Step ${n} of ${of}`,
     fromAccount: 'From account',
     recent: 'Recent recipients',
     ownAccount: 'Your own account',
@@ -526,6 +531,7 @@ export const en: typeof de = {
   },
   actions: {
     toReview: 'Continue to review',
+    toPayee: 'Next: to whom?',
     check: 'Check details',
     back: 'Back',
     sendNow: 'Transfer now',

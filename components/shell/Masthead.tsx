@@ -7,6 +7,14 @@
 // tooltip and label, with the search as a pill on a wide window (Strg K).
 // The app's own mark sits at the head of the navigation rail (BottomBar).
 //
+// On a phone the Übersicht has no title in it: its head is Material's search
+// bar — "Umsätze suchen oder fragen", the Gemini spark where Nano can
+// answer, the holder's avatar at its end — and a press opens the search
+// (components/CommandPalette.tsx). The other pages keep their name, with the
+// search as an icon beside "Beträge ausblenden". The bell is the wide
+// window's; on a phone the Mitteilungen are a row of the Sitzung panel, and
+// the avatar carries their dot.
+//
 // In the desktop shell it is also the window's title bar: the whole band is a
 // drag handle except for its controls, it is exactly as tall as the OS
 // caption overlay (--barbar-h follows titlebar-area-height, zoom included),
@@ -19,27 +27,59 @@ import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
+import { askAllowed } from '@/lib/plus';
 import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
+import { useAskable } from '../insights/Ask';
 import { unseenUpdate, useUpdates } from '../updates/store';
-import { BackIcon, BellIcon, EyeIcon, EyeOffIcon, SearchIcon } from '../icons';
+import { BackIcon, BellIcon, EyeIcon, EyeOffIcon, GeminiSparkIcon, SearchIcon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
 import { MASTHEAD_EDGES } from './edges';
 import { PAGE_TITLE_ID } from './ids';
 import { ProfileMenu } from './ProfileMenu';
+import { usePhone } from './usePhone';
 
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
 
 /** The page's name, as Material's top app bar says where you are. */
-function PageTitle() {
+function PageTitle({ hidden = false }: { hidden?: boolean }) {
   const { tab } = useFints();
   const t = useT();
   return (
-    <h1 id={PAGE_TITLE_ID} tabIndex={-1} data-topbar-title className="min-w-0 truncate outline-none">
+    <h1 id={PAGE_TITLE_ID} tabIndex={-1} data-topbar-title className={cx('min-w-0 truncate outline-none', hidden && 'sr-only')}>
       {t.common.nav[tab]}
     </h1>
+  );
+}
+
+/**
+ * The phone's Übersicht opens on this: Material's search bar, 56dp and fully
+ * round on the container-high tone, the one tinted shape at the top. The
+ * whole bar is the way into the search except the avatar at its end, which
+ * is the Sitzung panel's.
+ */
+function SearchBar() {
+  const { setPaletteOpen, plus } = useFints();
+  const t = useT();
+  const askable = useAskable();
+  const canAsk = IS_ANDROID && askable === true && askAllowed(plus.state);
+  const placeholder = canAsk ? t.shell.searchBar.ask : t.shell.searchBar.plain;
+  return (
+    <div data-search-bar className="flex h-14 min-w-0 flex-1 items-center rounded-full bg-[var(--md-surface-container-high)] pr-1 [--dot-ring:var(--md-surface-container-high)]">
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        onClick={() => setPaletteOpen(true)}
+        className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-l-full pl-4 text-left text-[16px] text-bar-ink-2 outline-offset-[-2px]"
+      >
+        <SearchIcon size={22} className="shrink-0 text-bar-ink" />
+        <span className="min-w-0 flex-1 truncate">{placeholder}</span>
+        {canAsk && <GeminiSparkIcon size={20} aria-hidden className="mr-1 shrink-0" />}
+      </button>
+      <ProfileMenu />
+    </div>
   );
 }
 
@@ -49,10 +89,13 @@ export function Masthead() {
     tab, leaveSettings,
   } = useFints();
   const t = useT();
+  const phone = usePhone();
   // On a phone Einstellungen is a page under another, as Android's settings
   // screens are: the way back in front of its name, and none of the places'
   // actions behind it. From 640px it is the rail's fifth place.
   const subPage = tab === 'settings';
+  // The phone's Übersicht: the search bar in place of the title and actions.
+  const searchHead = phone && tab === 'overview';
   // A newer version of the app (desktop only) waits in Mitteilungen too. The
   // number counts the bank's messages only; the app's own news is marked by
   // the dot alone, so it never reads as one more message from the bank.
@@ -99,6 +142,12 @@ export function Masthead() {
         {t.shell.masthead.skip}
       </a>
 
+      {searchHead ? (
+        <div className="flex h-full min-w-0 items-center" style={NO_DRAG}>
+          <PageTitle hidden />
+          <SearchBar />
+        </div>
+      ) : (
       <div className="@container/mast flex h-full min-w-0 items-center gap-2 sm:gap-3">
         {subPage && (
           <IconButton
@@ -143,8 +192,16 @@ export function Masthead() {
             </kbd>
           </button>}
 
-          {/* The actions: M3E's standard icon buttons, 40px round. */}
-          <IconButton
+          {/* A phone's search, on the pages whose head is their name. */}
+          {phone && (
+            <IconButton tone="bar" size="md" aria-label={t.common.search} aria-haspopup="dialog" onClick={() => setPaletteOpen(true)}>
+              <SearchIcon size={22} />
+            </IconButton>
+          )}
+
+          {/* The actions: M3E's standard icon buttons, 40px round. On a phone
+              the Mitteilungen are the Sitzung panel's (ProfileMenu). */}
+          {!phone && <IconButton
             tone="bar"
             size="md"
             aria-label={inboxName}
@@ -159,7 +216,7 @@ export function Masthead() {
                   every width, the mark of a new app version. */}
               {(shownUnread > 0 || shown.update) && <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-bar" />}
             </span>
-          </IconButton>
+          </IconButton>}
 
           {/* The label names what a press does, so it changes with the state
               (and is not also a pressed toggle — that would announce
@@ -184,6 +241,7 @@ export function Masthead() {
           <ProfileMenu />
         </div>
       </div>
+      )}
     </div>
   );
 }

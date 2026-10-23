@@ -249,6 +249,8 @@ export const de = {
   /** Umsatzdetails, the drawer (components/transactions/TxDetail.tsx). */
   detail: {
     title: 'Umsatzdetails',
+    /** Android's phone: the drawer's three tabs. */
+    tabs: { details: 'Details', notes: 'Notiz & Belege', category: 'Kategorie', attached: 'enthält eine Notiz oder einen Beleg' },
     pendingTitle: 'Vorgemerkter Umsatz',
     /** When a card was used: "bezahlt am 30.09. um 14:05". */
     paidOn: (day: string, time: string | null) => `bezahlt am ${day}${time ? ` um ${time}` : ''}`,
@@ -723,6 +725,7 @@ export const en: typeof de = {
 
   detail: {
     title: 'Transaction details',
+    tabs: { details: 'Details', notes: 'Note & receipts', category: 'Category', attached: 'has a note or a receipt' },
     pendingTitle: 'Pending transaction',
     paidOn: (day, time) => `paid on ${day}${time ? ` at ${time}` : ''}`,
     status: 'Status',

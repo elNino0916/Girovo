@@ -454,6 +454,11 @@
     color: var(--stage-ink);
     box-shadow: none;
   }
+  /* The phone's balance, flat under the search (AccountHero): display
+     figures drawn tighter than text, so 794,01 reads as one number. */
+  :root[data-look='material'] :is([data-balance], [data-figure]) .amount {
+    letter-spacing: -0.025em;
+  }
   /* On a phone the IBAN takes its line alone; renaming goes to the corner. */
   @media (max-width: 639.98px) {
     :root[data-look='material'] [data-hero] [data-rename] {
@@ -591,7 +596,7 @@
      M3E draws them; here Girovo's colours for the bar and its items, the
      --nav-* tokens (Material You's on Android). The FAB is M3E's
      primary-container variant. */
-  /* Four places share a phone's width: no 112dp floor under each, which
+  /* The places share a phone's width: no 112dp floor under each, which
      would push the row past a 375px screen. */
   :root[data-look='material'] m3e-nav-bar {
     --m3e-nav-bar-container-color: var(--nav-bg);

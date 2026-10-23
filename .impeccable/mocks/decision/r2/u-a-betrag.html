@@ -1,0 +1,64 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Betrag zuerst</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=block');
+:root{
+  --primary:#0060a8; --on-primary:#fff; --pc:#d3e4ff; --on-pc:#004880; --on-pc-2:#3a6898;
+  --sc:#dae1ff; --on-sc:#3c4665; --tc:#e2dfff; --on-tc:#424271;
+  --surface:#f8f9ff; --scl:#eff4ff; --sc1:#e9eefa; --sch:#e3e8f4; --schh:#dde3ee;
+  --ink:#161c24; --ink-2:#404753; --outline:#707784; --ov:#bfc7d5;
+  --green:#0c7336; --amber:#8a6410; --amber-soft:#fff4dc; --orange:#ee6a1f; --navy:#0a2c5e;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface)}
+.phone{width:393px;height:852px;overflow:hidden;position:relative;background:var(--surface);
+  font-family:'Google Sans Flex',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;font-size:24px;line-height:1;
+  white-space:nowrap;-webkit-font-feature-settings:'liga';font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block}
+.fill{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em}
+.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.04em}
+.status{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;font-weight:500;font-size:14px}
+.status .ms{font-size:17px;margin-left:3px}
+.bar{height:64px;display:flex;align-items:center;gap:4px;padding:0 4px}
+.bar .title{font-size:22px;line-height:28px;flex:1;padding-left:4px}
+.ib{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;color:var(--ink-2)}
+.sub{font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2);padding:16px 16px 6px}
+.sec{font-size:18px;line-height:24px;font-weight:500;padding:20px 16px 8px}
+.row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;column-gap:16px;align-items:center;padding:8px 16px;min-height:60px}
+.disc{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--sch);color:var(--ink-2);font-size:14px;font-weight:600}
+.disc .ms{font-size:20px}
+.name{font-size:16px;line-height:22px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:14px;line-height:20px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{height:40px;border-radius:20px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;font-size:14px;font-weight:500}
+.btn.lg{height:56px;border-radius:28px;font-size:16px;padding:0 24px}
+.filled{background:var(--primary);color:var(--on-primary)}
+.tonal{background:var(--sc);color:var(--on-sc)}
+.text{color:var(--primary)}
+.btn .ms{font-size:20px}
+.chip{height:32px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;font-size:14px;font-weight:500;box-shadow:inset 0 0 0 1px var(--ov);color:var(--ink-2);white-space:nowrap}
+.chip.on{box-shadow:none;background:var(--sc);color:var(--on-sc)}
+.chip .ms{font-size:18px}
+.field{height:56px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--outline);display:flex;align-items:center;padding:0 16px;font-size:16px;position:relative}
+.field label{position:absolute;top:-8px;left:12px;padding:0 4px;background:var(--surface);font-size:12px;color:var(--ink-2)}
+.handle{position:absolute;bottom:8px;left:50%;width:108px;height:4px;margin-left:-54px;border-radius:2px;background:var(--ink);opacity:.38}
+.plate{background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700;letter-spacing:-.02em}
+.tabs{display:flex;box-shadow:inset 0 -1px 0 var(--ov)}
+.tab{flex:1;text-align:center;font-size:14px;font-weight:500;color:var(--ink-2);padding:14px 0 12px;position:relative}
+.tab.on{color:var(--primary)}
+.tab.on:after{content:'';position:absolute;left:50%;bottom:0;width:56px;margin-left:-28px;height:3px;border-radius:3px 3px 0 0;background:var(--primary)}
+.kv{display:flex;flex-direction:column;padding:10px 16px}
+.kv .k{font-size:14px;line-height:20px;color:var(--ink-2)} .kv .v{font-size:16px;line-height:22px}
+</style></head><body><div class="phone"><div class="status" style="color:var(--ink)"><span class="num">9:41</span><span><span class="ms " style="">signal_cellular_alt</span><span class="ms " style="">wifi</span><span class="ms " style="">battery_full</span></span></div>
+  <div class="bar"><div class="ib"><span class="ms " style="">close</span></div><div class="title">Überweisung</div></div>
+  <div style="display:flex;gap:4px;padding:0 16px"><i style="flex:1;height:4px;border-radius:2px;background:var(--primary)"></i><i style="flex:1;height:4px;border-radius:2px;background:var(--sc)"></i><i style="flex:1;height:4px;border-radius:2px;background:var(--sc)"></i></div>
+  <div style="display:flex;justify-content:center;padding-top:28px"><div class="chip" style="height:36px;border-radius:18px"><span class="ms " style="">account_balance_wallet</span>Von GiroKomfort<span class="ms " style="">expand_more</span></div></div>
+  <div style="text-align:center;padding-top:44px">
+    <div class="num" style="font-size:72px;line-height:80px;font-weight:500;letter-spacing:-0.03em">120<span style="font-size:40px">,00&nbsp;€</span><span style="display:inline-block;width:2px;height:56px;background:var(--primary);vertical-align:-6px;margin-left:4px"></span></div>
+    <div class="num" style="font-size:14px;color:var(--ink-2);margin-top:8px">Verfügbar 2.706,73&nbsp;€</div>
+  </div>
+  <div style="display:flex;justify-content:center;gap:8px;padding-top:28px">
+    <div class="chip on"><span class="ms " style="">check</span>Sofort</div><div class="chip"><span class="ms " style="">bolt</span>Echtzeit</div><div class="chip"><span class="ms " style="">event</span>Später</div>
+  </div>
+  <div style="position:absolute;left:16px;right:16px;bottom:288px;display:flex;justify-content:flex-end"><div class="btn lg filled">Weiter: An wen?<span class="ms " style="">arrow_forward</span></div></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;height:272px;background:#e7ebf3;padding:10px 8px 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><div style="border-radius:10px;background:#fff;display:grid;place-items:center;font-size:24px;color:var(--ink)">1</div><div style="border-radius:10px;background:#fff;display:grid;place-items:center;font-size:24px;color:var(--ink)">2</div><div style="border-radius:10px;background:#fff;display:grid;place-items:center;font-size:24px;color:var(--ink)">3</div><div style="border-radius:10px;background:#fff;display:grid;place-items:center;font-size:24px;color:var(--ink)">4</div><div style="border-radius:10px;background:#fff;display:grid;place-items:center;font-size:24px;color:var(--ink)">5</div><div style="border-radius:10px;background:#fff;display:grid;place-items:center;font-size:24px;color:var(--ink)">6</div><div style="border-radius:10px;background:#fff;display:grid;place-items:center;font-size:24px;color:var(--ink)">7</div><div style="border-radius:10px;background:#fff;display:grid;place-items:center;font-size:24px;color:var(--ink)">8</div><div style="border-radius:10px;background:#fff;display:grid;place-items:center;font-size:24px;color:var(--ink)">9</div><div style="border-radius:10px;background:#d3d9e4;display:grid;place-items:center;font-size:24px;color:var(--ink)">,</div><div style="border-radius:10px;background:#fff;display:grid;place-items:center;font-size:24px;color:var(--ink)">0</div><div style="border-radius:10px;background:#d3d9e4;display:grid;place-items:center;font-size:24px;color:var(--ink)"><span class="ms " style="">backspace</span></div><div class="handle" style="bottom:6px"></div></div></div></body></html>

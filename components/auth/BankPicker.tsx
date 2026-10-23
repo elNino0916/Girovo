@@ -41,6 +41,10 @@ const QUICK_PICKS = 8;
 const TILE_LABEL: Record<string, string> = {
   vrbank: 'Volksbank / Raiffeisenbank',
 };
+/** Android's four-across tiles: a name that holds one line (the tile's logo and the search say the rest). */
+const PHONE_TILE_LABEL: Record<string, string> = {
+  vrbank: 'Volksbank',
+};
 
 // A tile is ~90px of text at four across, narrower than 'Raiffeisenbank' or
 // 'Commerzbank' set whole. Soft hyphens give the compound a place to break
@@ -443,14 +447,25 @@ function QuickPicks({
   // Raiffeisenbank") does not lift its logo above its neighbours'.
   const tileBase =
     'flex flex-col items-center justify-start gap-2 rounded-[var(--radius-chip)] px-1 pt-3 pb-2.5 text-center sm:gap-2.5 sm:pt-3.5 sm:pb-3';
-  const labelBox = 'flex min-h-[2lh] w-full items-center justify-center text-[12.5px] leading-tight';
+  const labelBox = IS_ANDROID
+    ? 'flex w-full items-center justify-center text-[12px] leading-4'
+    : 'flex min-h-[2lh] w-full items-center justify-center text-[12.5px] leading-tight';
+  // Android: the picks as logo tiles on the login's sheet, four by two — a
+  // white plate each by day, since banks draw their marks for white; by night
+  // the inset, where BankLogo already turns the dark marks light (owner's
+  // choice of the brand field with the sheet, 2026-10-23).
+  const grid = IS_ANDROID ? 'mt-2 grid grid-cols-4 gap-x-2.5 gap-y-3' : 'mt-1.5 -mx-1 grid grid-cols-2 gap-1 sm:grid-cols-4';
+  const logoBox = IS_ANDROID
+    ? 'grid h-14 w-full grid-cols-[minmax(0,1fr)] place-items-center rounded-[16px] bg-white px-2 shadow-[inset_0_0_0_1px_var(--line)] dark:bg-inset'
+    : 'grid h-8 w-full grid-cols-[minmax(0,1fr)] place-items-center sm:h-10';
+  const tile = IS_ANDROID ? 'flex flex-col items-center justify-start gap-1.5 rounded-[16px] text-center' : tileBase;
 
   if (!banks.length) {
     return (
-      <ul aria-hidden className="mt-1.5 -mx-1 grid grid-cols-2 gap-1 sm:grid-cols-4">
+      <ul aria-hidden className={grid}>
         {Array.from({ length: QUICK_PICKS }, (_, i) => (
-          <li key={i} className={tileBase}>
-            <span className="grid h-8 w-full grid-cols-[minmax(0,1fr)] place-items-center sm:h-10">
+          <li key={i} className={tile}>
+            <span className={logoBox}>
               <Skeleton className="h-6 w-16 sm:h-7" />
             </span>
             <span className={labelBox}>
@@ -463,9 +478,9 @@ function QuickPicks({
   }
 
   return (
-    <ul className="mt-1.5 -mx-1 grid grid-cols-2 gap-1 sm:grid-cols-4">
+    <ul className={grid}>
       {banks.slice(0, QUICK_PICKS).map((b) => {
-        const label = TILE_LABEL[b.key] ?? b.name;
+        const label = (IS_ANDROID ? PHONE_TILE_LABEL[b.key] : undefined) ?? TILE_LABEL[b.key] ?? b.name;
         // A group (Sparkasse, VR, …) has no one BLZ: its pick starts a
         // search instead of choosing — the glyph and the name say so.
         const searches = !b.blz;
@@ -476,18 +491,30 @@ function QuickPicks({
               onClick={() => onPick(b)}
               aria-label={searches ? tr.searchFor(label) : label}
               className={cx(
-                tileBase,
+                tile,
                 'w-full transition-colors duration-150 hover:bg-inset active:bg-[color-mix(in_srgb,var(--inset)_70%,var(--line))]',
               )}
             >
-              <span className="grid h-8 w-full grid-cols-[minmax(0,1fr)] place-items-center sm:h-10">
+              <span className={logoBox}>
                 <BankLogo brand={b.brand} size="tile" file={logoFiles[b.brand]} />
               </span>
               <span className={labelBox}>
-                <span className="min-w-0 font-semibold text-balance text-ink-2">
-                  {searches && <SearchIcon size={12} strokeWidth={2.2} className="mr-1 inline-block align-[-1px] text-ink-3" />}
-                  {softBreaks(label)}
-                </span>
+                {IS_ANDROID ? (
+                  // One line, no glyph: the label is the bank's name; that the
+                  // pick searches is the button's own name (aria-label).
+                  // A box a few px wider than the tile, centred over it: one word a
+                  // hair wider than its column (Commerzbank) stays centred under its
+                  // logo. A long name of two words takes two lines ("Deutsche /
+                  // Bank"), never a hyphen, so neighbours never run together.
+                  <span className="-mx-1.5 w-[calc(100%+12px)] shrink-0 text-center font-normal whitespace-pre-line text-ink-2">
+                    {label.length > 11 && label.includes(' ') ? label.replace(' ', '\n') : label}
+                  </span>
+                ) : (
+                  <span className="min-w-0 font-semibold text-balance text-ink-2">
+                    {searches && <SearchIcon size={12} strokeWidth={2.2} className="mr-1 inline-block align-[-1px] text-ink-3" />}
+                    {softBreaks(label)}
+                  </span>
+                )}
               </span>
             </button>
           </li>

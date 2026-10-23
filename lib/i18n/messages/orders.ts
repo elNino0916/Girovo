@@ -314,7 +314,7 @@ export const de = {
   /** The command palette's entry (components/CommandPalette.tsx). */
   palette: {
     label: 'Daueraufträge und Terminüberweisungen',
-    description: 'Bei deiner Bank, unter Verträge & Abos',
+    description: 'Bei deiner Bank, unter Zahlungen',
     words: ['dauerauftrag', 'daueraufträge', 'terminüberweisung', 'termin', 'regelmäßig', 'bestand', 'standing order', 'scheduled'],
   },
 
@@ -572,7 +572,7 @@ export const en: typeof de = {
 
   palette: {
     label: 'Standing orders and scheduled transfers',
-    description: 'At your bank, under Contracts & subscriptions',
+    description: 'At your bank, under Payments',
     words: ['standing order', 'standing orders', 'scheduled', 'scheduled transfer', 'recurring', 'regular'],
   },
 

@@ -41,7 +41,7 @@ import { updates, useUpdates } from '../updates/store';
 import { UpdateSessionRow } from '../updates/UpdateNotices';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
-  BuildingIcon, ChartIcon, ClockIcon, CodeIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon, LockIcon, MonitorIcon,
+  BuildingIcon, ChartIcon, ClockIcon, CodeIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon, LockIcon, MailIcon, MonitorIcon,
   MoonIcon, ShieldIcon, SunIcon,
 } from '../icons';
 import { Button, Dot, Kbd, Segmented } from '../ui';
@@ -52,6 +52,8 @@ import { CategorySettings } from './CategorySettings';
 import { ActionItem, ChoiceItem, LinkItem, SegmentedItem, SettingItem, SettingsGroup, SwitchItem } from './rows';
 
 // i18n-data-start — addresses, not words
+const WEBSITE_URL = 'https://girovo.de';
+const CONTACT_MAIL = 'contact@girovo.de';
 const SOURCE_URL = 'https://github.com/elNino0916/Girovo';
 const PRIVACY_URL = 'https://elnino0916.de/girovo/privacy';
 const IMPRINT_URL = 'https://elnino0916.de/girovo/impressum';
@@ -265,6 +267,9 @@ export function Settings() {
           title={!update && APP_VERSION ? t.shell.version(APP_VERSION) : t.settings.licence}
           summary={!update && APP_VERSION ? t.settings.licence : undefined}
         />
+        {/* Girovo's own site, and the way to write to its maker (owner, 2026-10-23). */}
+        <LinkItem icon={<GlobeIcon />} title={t.settings.website} summary="girovo.de" href={WEBSITE_URL} opensExternally={t.shell.opensExternally} />
+        <LinkItem icon={<MailIcon />} title={t.settings.contact} summary={CONTACT_MAIL} href={`mailto:${CONTACT_MAIL}`} opensExternally={t.settings.opensMail} />
         <LinkItem icon={<CodeIcon />} title={t.settings.source} href={SOURCE_URL} opensExternally={t.shell.opensExternally} />
         <LinkItem icon={<FileIcon />} title={t.settings.privacyPolicy} href={PRIVACY_URL} opensExternally={t.shell.opensExternally} />
         <LinkItem icon={<BuildingIcon />} title={t.settings.imprint} href={IMPRINT_URL} opensExternally={t.shell.opensExternally} />

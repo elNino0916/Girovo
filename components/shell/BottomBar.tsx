@@ -2,22 +2,21 @@
 
 // The navigation, Material 3 Expressive's on every platform: the flexible
 // navigation bar on a phone and, from 640px — the desktop window, a tablet,
-// an open foldable — the navigation rail down the left edge (96dp), with
-// Überweisen, the one action people open a banking app for, as the
-// floating action button.
+// an open foldable — the navigation rail down the left edge (96dp).
 //
-// The places: Übersicht, Analyse, Verträge, and "Mehr" — the command
-// palette, which before any typing lists the main actions (Geld anfordern,
-// Kontoauszug, …), the accounts and, last, Abmelden (lib/palette.ts). The
-// Umsätze are a place inside the Übersicht, not a section of their own.
+// Three places: Übersicht (the accounts and their Umsätze), Zahlungen
+// (Überweisen, Geld anfordern, the people paid lately, Verträge & Abos and
+// the bank's orders) and Analyse. "Mehr" is gone: the search — the head of
+// the phone's Übersicht, a search icon on the other pages, Strg K — lists
+// the actions, the accounts, the settings and the Umsätze (lib/palette.ts).
+// Nothing floats over the page on a phone: Überweisen is the first button
+// of Zahlungen, and the search finds it too.
 //
 // All of it is M3E's (@m3e/web): the bar is its navigation bar (64dp,
 // compact: the icon over the label), every place its nav item — the 56 × 32
 // pill behind the current place's icon springs open when the place is
-// chosen — and Überweisen its FAB in primary-container. On a phone that is
-// the extended FAB above the bar's right end, which folds to its icon while
-// the page scrolls down and opens out again on the way up or at the top; on
-// the rail it is the FAB at the top. The rail is Girovo's own column of M3E's
+// chosen. The rail keeps Überweisen as its FAB in primary-container at the
+// top, where it covers nothing. The rail is Girovo's own column of M3E's
 // nav items, as M3E's compact rail lays them out, because it ends in a fifth
 // place at its foot — Einstellungen (components/settings) — and on the
 // desktop begins in the window's title bar. Which place is current is the
@@ -32,13 +31,12 @@
 
 import { M3eFab } from '@m3e/react/fab';
 import { M3eNavBar, M3eNavItem } from '@m3e/react/nav-bar';
-import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { DashboardTab } from '@/lib/app-types';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { ChartIcon, GearIcon, HomeIcon, MoreIcon, RepeatIcon, TransferIcon } from '../icons';
+import { ChartIcon, GearIcon, HomeIcon, TransferIcon } from '../icons';
 import { cx } from '../ui';
 import type { ShellActions } from './actions';
 import { BrandPlate } from './BrandMark';
@@ -46,20 +44,21 @@ import { BrandPlate } from './BrandMark';
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 
 export function BottomBar({ actions }: { actions: ShellActions }) {
-  const { tab, setTab, setPaletteOpen, openSettings } = useFints();
+  const { tab, setTab, openSettings } = useFints();
   const tr = useT();
   const go = (t: DashboardTab) => () => setTab(t);
-  const extended = useFabExtended();
   // Einstellungen is no place of the phone's bar but a page under one (the
-  // top app bar's way back): neither the bar nor Überweisen stands beneath it.
+  // top app bar's way back): the bar does not stand beneath it.
   const subPage = tab === 'settings';
-  // The same four places in the bar and in the rail.
+  // The same three places in the bar and in the rail: what you have, paying,
+  // and where the money goes. The search (the Übersicht's head, the search
+  // icon elsewhere, Strg K) took the place of "Mehr".
   const items = (
     <>
-      <NavItem icon={<HomeIcon size={22} />} label={tr.common.nav.overview} current={tab === 'overview'} onClick={go('overview')} />
-      <NavItem icon={<ChartIcon size={22} />} label={tr.common.nav.analysis} current={tab === 'analysis'} onClick={go('analysis')} />
-      <NavItem icon={<RepeatIcon size={22} />} label={tr.shell.bottomBar.contracts} current={tab === 'contracts'} onClick={go('contracts')} />
-      <NavItem icon={<MoreIcon size={22} />} label={tr.common.more} onClick={() => setPaletteOpen(true)} haspopup />
+      {/* The current place's icon filled, as Android draws it (Material Symbols on the phone). */}
+      <NavItem icon={<HomeIcon size={IS_ANDROID ? 24 : 22} filled={tab === 'overview'} />} label={tr.common.nav.overview} current={tab === 'overview'} onClick={go('overview')} />
+      <NavItem icon={<TransferIcon size={IS_ANDROID ? 24 : 22} filled={tab === 'contracts'} />} label={tr.shell.bottomBar.contracts} current={tab === 'contracts'} onClick={go('contracts')} />
+      <NavItem icon={<ChartIcon size={IS_ANDROID ? 24 : 22} filled={tab === 'analysis'} />} label={tr.common.nav.analysis} current={tab === 'analysis'} onClick={go('analysis')} />
     </>
   );
 
@@ -109,20 +108,6 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
           <NavItem icon={<GearIcon size={22} />} label={tr.common.nav.settings} current={tab === 'settings'} onClick={() => openSettings()} />
         </div>
       </nav>
-      {actions.canTransfer && !subPage && (
-        <M3eFab
-          variant="primary-container"
-          size="small"
-          extended={extended}
-          data-fab
-          aria-label={tr.shell.transfer}
-          onClick={actions.transfer}
-          className="fixed right-4 bottom-[calc(var(--bottombar-h)+16px)] z-30 sm:hidden"
-        >
-          <TransferIcon size={24} strokeWidth={2} />
-          <span slot="label">{tr.shell.transfer}</span>
-        </M3eFab>
-      )}
     </>
   );
 }
@@ -131,13 +116,12 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
 const keepPlace = (e: Event) => e.preventDefault();
 
 function NavItem({
-  icon, label, current, onClick, haspopup,
-}: { icon: ReactNode; label: string; current?: boolean; onClick: () => void; haspopup?: boolean }) {
+  icon, label, current, onClick,
+}: { icon: ReactNode; label: string; current?: boolean; onClick: () => void }) {
   return (
     <M3eNavItem
       // Selected, M3E marks it aria-current itself.
       selected={!!current}
-      aria-haspopup={haspopup ? 'dialog' : undefined}
       data-nav-item
       onBeforeInput={keepPlace}
       onClick={onClick}
@@ -146,23 +130,4 @@ function NavItem({
       {label}
     </M3eNavItem>
   );
-}
-
-/** Whether the FAB shows its label: at the top of the page and while scrolling up; folded while scrolling down. */
-function useFabExtended(): boolean {
-  const [extended, setExtended] = useState(true);
-  useEffect(() => {
-    const root = document.querySelector<HTMLElement>('[data-scroll-root]');
-    if (!root) return;
-    let last = root.scrollTop;
-    const onScroll = () => {
-      const now = root.scrollTop;
-      if (now < 24) setExtended(true);
-      else if (Math.abs(now - last) > 6) setExtended(now < last);
-      last = now;
-    };
-    root.addEventListener('scroll', onScroll, { passive: true });
-    return () => root.removeEventListener('scroll', onScroll);
-  }, []);
-  return extended;
 }

@@ -24,6 +24,7 @@ import { rich, useT } from '@/lib/i18n/react';
 import type { Cadence, RecurringSeries } from '@/lib/recurring';
 import { ContractGroup, ContractRow, DismissedRow } from './insights/ContractRow';
 import { ForecastTile } from './insights/Forecast';
+import { PaymentsHead } from './transfer/PaymentsHead';
 import { IS_ANDROID } from '@/lib/platform';
 import { useRecurringModel, useUpcoming, type AccountBasis, type RecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, RoundMoney, YEAR_SPAN, daysUntil, fmtDayKeyShort, fmtWeekday, spanDays } from './insights/shared';
@@ -62,11 +63,20 @@ function useDismiss() {
  * contracts are the page's subject and an estimate; the bank's own list of
  * Daueraufträge and Terminüberweisungen closes it, read only on request.
  */
+/**
+ * Zahlungen: paying (Überweisen, Geld anfordern, the people paid lately),
+ * then what is paid regularly — the month-end forecast, the Verträge & Abos
+ * found in the bookings, and the bank's own orders.
+ */
 export function Contracts() {
+  const t = useT();
   return (
     <div className="min-w-0 space-y-4 sm:space-y-6">
+      <PaymentsHead />
       {/* Where a narrow Übersicht has no side pane for it — and on the phone. */}
       <ForecastTile className={IS_ANDROID ? undefined : 'desk:hidden'} />
+      {/* More room above the heading than below: it belongs to what follows. */}
+      <h2 className="section-head pt-4">{t.insights.contracts.title}</h2>
       <ContractsFromBookings />
       <BankOrders />
     </div>

@@ -2,7 +2,10 @@
 
 // "Suche" — one field for everything the dashboard can do.
 //
-// Strg+K / ⌘K, the masthead's Suche and the phone's "Mehr" open it. It finds
+// Strg+K / ⌘K, the masthead's Suche and, on a phone, the search bar at the
+// head of the Übersicht (and the search icon on the other pages) open it —
+// there as Material's full-screen search view: the way back before the
+// field, the results on the view's own container. It finds
 // three kinds of things, always in this order so the eye learns where to
 // look: Aktionen (everything a button elsewhere does), Konten (switch to one)
 // and Umsätze (bookings already loaded in this session, by name, purpose,
@@ -20,6 +23,11 @@
 //
 // Commands are found by their words in the language on screen; on an
 // English screen their German names and words find them too.
+//
+// On Android, where Gemini Nano can answer, a query that reads as a question
+// ("Wie viel ging an Amazon?") leads with "„…“ fragen": it hands the question
+// to "Frag deine Umsätze" at the head of the Analyse (components/insights/Ask.tsx),
+// which reads it and works the answer out on the phone.
 //
 // Nothing here bypasses anything: Überweisen opens the transfer sheet with
 // its review, Namensabgleich and TAN. Choosing a Konto is a switch like any
@@ -39,19 +47,22 @@ import { MESSAGES, msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { paletteResults } from '@/lib/palette';
+import { searchAsFilter } from '@/lib/nano-ask';
 import { setThemePref } from '@/lib/theme';
 import type { DashboardTab, SettingsTarget } from '@/lib/app-types';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { useFints } from './FintsProvider';
-import { isCardAccount } from '@/lib/balances';
+import { canReportBalance, isCardAccount } from '@/lib/balances';
 import { Money } from './Money';
 import { useThemePref } from './ThemeToggle';
 import {
-  AccountTypeIcon, ArchiveIcon, BellIcon, CalendarIcon, ChartIcon, CheckIcon, ClockIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon,
-  FileIcon, GearIcon, GlobeIcon, HomeIcon, ImageIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon,
+  AccountTypeIcon, ArchiveIcon, BackIcon, BellIcon, CategoryIcon, CalendarIcon, ChartIcon, CheckIcon, ClockIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon,
+  FileIcon, GearIcon, GeminiSparkIcon, GlobeIcon, HomeIcon, ImageIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon,
   RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SunIcon, TagIcon, TransferIcon,
 } from './icons';
 import { listsOrders, useShowBankOrders } from './BankOrders';
+import { askInAnalysis, useAskable } from './insights/Ask';
+import { askAllowed } from '@/lib/plus';
 import { EmptyState, IconButton, Kbd, Overlay, cx } from './ui';
 import { searchText, txText } from './transactions/model';
 import { useShellActions, useShowOnAccount } from './shell/actions';
@@ -84,6 +95,12 @@ type Item = {
 type WordsId = keyof Messages['shell']['palette']['words'];
 
 const GROUP_ORDER: readonly Group[] = ['actions', 'accounts', 'transactions', 'session'];
+
+// i18n-data-start — how a question starts, never shown
+const QUESTION_START = /^(wie|was|wo|wann|wof(ü|ue)r|wohin|welche[rsnm]?|wieso|warum|wieviel|how|what|where|when|which|why)\b/i;
+// i18n-data-end
+/** A query that reads as a question rather than a name: it ends in "?", starts like one, or runs to three words. */
+const looksLikeQuestion = (q: string) => q.endsWith('?') || QUESTION_START.test(q) || q.split(/\s+/).length >= 3;
 const MAX_TX = 6;
 const MIN_TX_QUERY = 2;
 
@@ -115,6 +132,9 @@ function Palette({ onClose }: { onClose: () => void }) {
   const showOnAccount = useShowOnAccount();
   const showBankOrders = useShowBankOrders();
   const themePref = useThemePref();
+  // Android with Gemini Nano (and, in the Play build, Plus): a question can be asked.
+  const askable = useAskable();
+  const canAsk = IS_ANDROID && askable === true && askAllowed(f.plus.state);
   const { state: update } = useUpdates();
   const usage = useUsageConsent();
   const [query, setQuery] = useState('');
@@ -315,7 +335,7 @@ function Palette({ onClose }: { onClose: () => void }) {
               <span className="max-sm:sr-only">{tr.shell.palette.selected}</span>
             </span>
           )}
-          {balance && (
+          {balance ? (
             // A card's balance is negative by nature: ink, never alarm red.
             <Money
               value={balance.balance}
@@ -323,6 +343,8 @@ function Palette({ onClose }: { onClose: () => void }) {
               tone={isCardAccount(acct) ? 'plain' : 'auto'}
               className="text-[14px] font-semibold"
             />
+          ) : canReportBalance(acct) && (
+            <span className="text-[13px] text-ink-3">{tr.transactions.notFetched}</span>
           )}
           {i < 9 && f.singleKeyShortcuts && <span className="hidden sm:inline-flex"><KeyHint keys={[String(i + 1)]} /></span>}
         </span>
@@ -383,24 +405,35 @@ function Palette({ onClose }: { onClose: () => void }) {
       // (shop again, city, timestamp, card number) or SEPA tags.
       const { name, summary } = txText(tx);
       const meta = [fmtDate(tx.entryDate), several ? f.accountLabel(account) : '', summary].filter(Boolean).join(' · ');
+      // The row's face, as in the Umsätze list: the category's glyph, a person's initials.
+      const category = f.categoryOf(tx).id;
+      const quiet = category === 'other' || category === 'otherIn';
       return {
         id: `tx-${i}`,
         group: 'transactions',
         label: name,
         description: <span className="block truncate">{meta}</span>,
-        icon: <span aria-hidden className="text-[12px] font-bold">{initials(name)}</span>,
+        icon: quiet
+          ? <span aria-hidden className="text-[12px] font-bold">{initials(name)}</span>
+          : <CategoryIcon id={category} size={18} />,
         hint: <Money value={tx.amount} currency={tx.currency} signed tone="credit" className="text-[14px] font-semibold" />,
         run: () => showBooking(account),
       };
     });
-    if (txMatches.inActive > 0) {
+    // On the phone a search may say what it means — "Tanken im August" is
+    // Mobilität in August (lib/nano-ask.ts) — and the list opens narrowed so,
+    // its chips showing it, even where no booking holds those words.
+    const read = IS_ANDROID && q
+      ? searchAsFilter(q, dayKey(new Date()), (f.vault?.customCategories ?? []).map((c) => ({ id: c.id, name: c.name })))
+      : null;
+    if (txMatches.inActive > 0 || read) {
       items.unshift({
         id: 'tx-all',
         group: 'transactions',
         label: tr.shell.palette.showAll(q),
-        description: tr.shell.palette.inSelected(txMatches.inActive),
+        description: txMatches.inActive > 0 ? tr.shell.palette.inSelected(txMatches.inActive) : undefined,
         icon: <SearchIcon size={18} />,
-        run: () => f.showTransactions({ query: q }),
+        run: () => f.showTransactions(read ?? { query: q }),
       });
     }
     return items;
@@ -408,10 +441,21 @@ function Palette({ onClose }: { onClose: () => void }) {
 
   const items = useMemo(() => {
     const r = paletteResults(actions, accounts, q);
+    // A question leads, so Enter asks it; a name never reads as one.
+    const ask: Item[] = canAsk && q.length >= 3 && looksLikeQuestion(q)
+      ? [{
+        id: 'ask', group: 'actions', label: tr.shell.palette.ask(q), description: tr.shell.palette.askHint,
+        icon: <GeminiSparkIcon size={18} />,
+        run: () => {
+          askInAnalysis(q);
+          f.setTab('analysis');
+        },
+      }]
+      : [];
     // Abmelden after everything, bookings included: never the row an Enter
     // meant for a search lands on.
-    return [...r.actions, ...r.accounts, ...(q ? transactions : []), ...r.last];
-  }, [q, actions, accounts, transactions]);
+    return [...ask, ...r.actions, ...r.accounts, ...(q ? transactions : []), ...r.last];
+  }, [q, actions, accounts, transactions, canAsk, tr, f]);
 
   // A new query starts at the top.
   useEffect(() => setActive(0), [q]);
@@ -475,18 +519,31 @@ function Palette({ onClose }: { onClose: () => void }) {
 
   return (
     <div
+      data-search-view
       className="flex h-full w-full flex-col items-center sm:pt-[min(10vh,88px)]"
       onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget; }}
       onClick={(e) => { if (e.target === e.currentTarget && downOnBackdrop.current) onClose(); }}
     >
-      <div className="anim-sheet flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-t-[var(--radius-sheet)] bg-raised shadow-[var(--shadow-pop)] sm:max-h-[min(620px,100%)] sm:max-w-[660px] sm:flex-none sm:rounded-[var(--radius-sheet)]">
-        <div className="flex h-[60px] shrink-0 items-center gap-3 border-b border-line pr-2 pl-5 sm:pr-4">
-          <SearchIcon size={20} className="text-ink-3" />
+      <div
+        className={cx(
+          'anim-sheet flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-raised sm:max-h-[min(620px,100%)] sm:max-w-[660px] sm:flex-none sm:rounded-[var(--radius-sheet)] sm:shadow-[var(--shadow-pop)]',
+          // A phone: Material's full-screen search view, on its own container.
+          'max-sm:bg-[var(--md-surface-container-high)] max-sm:[--raised:var(--md-surface-container-high)]',
+        )}
+      >
+        <div className="flex h-[60px] shrink-0 items-center gap-3 border-b border-line pr-2 pl-5 max-sm:h-[calc(72px+env(safe-area-inset-top,0px))] max-sm:gap-1 max-sm:pt-[env(safe-area-inset-top,0px)] max-sm:pl-1 sm:pr-4">
+          {/* The way back, where a phone's search view has it; a search glyph on a wide window. */}
+          <IconButton size="md" aria-label={tr.common.back} className="sm:hidden" onClick={onClose}>
+            <BackIcon size={22} />
+          </IconButton>
+          <SearchIcon size={20} className="text-ink-3 max-sm:hidden" />
           <input
             ref={inputRef}
-            // Starts here with a keyboard; on a touch screen the dialog takes
-            // focus instead, so the on-screen keyboard does not cover the list.
-            data-autofocus="fine"
+            // Starts here with a keyboard. On a touch screen of the website the
+            // dialog takes focus instead, so the on-screen keyboard does not
+            // cover the list; the phone's search view is opened to type into,
+            // as Material's is, so there the field takes it and the keyboard rises.
+            data-autofocus={IS_ANDROID ? '' : 'fine'}
             // No field outline of its own (app/material.css): the sheet is the field.
             data-bare
             type="text"
@@ -503,12 +560,23 @@ function Palette({ onClose }: { onClose: () => void }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            className="h-full min-w-0 flex-1 bg-transparent text-[17px] text-ink outline-none placeholder:text-ink-3"
+            className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-normal text-ink outline-none placeholder:text-ink-3 sm:text-[17px]"
           />
           <span aria-hidden className="hidden sm:contents"><Kbd>Esc</Kbd></span>
-          <IconButton size="md" aria-label={tr.common.close} data-dialog-close className="sm:hidden" onClick={onClose}>
-            <CloseIcon />
-          </IconButton>
+          {/* A phone empties the field here; the way out is the arrow before it. */}
+          {query && (
+            <IconButton
+              size="md"
+              aria-label={tr.transactions.filter.clear}
+              className="sm:hidden"
+              onClick={() => {
+                setQuery('');
+                inputRef.current?.focus();
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">

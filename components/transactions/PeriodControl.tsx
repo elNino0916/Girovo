@@ -5,9 +5,9 @@ import type { DateRange, StatementInfo } from '@/lib/app-types';
 import { addDaysKey, fmtDate, fmtRange, isoDate, presetRange, toLocalDate, type RangePreset } from '@/lib/format';
 import { planFetch, savedPeriod, type DaySpan } from '@/lib/history';
 import { useT } from '@/lib/i18n/react';
-import { CalendarIcon, ChevronIcon } from '../icons';
+import { CalendarIcon, ChevronIcon, HistoryIcon } from '../icons';
 import {
-  Alert, Button, DialogActions, Field, Input, Menu, MenuGroup, MenuItem, MenuItemRadio, MenuSeparator, Popover, cx,
+  Alert, Button, DialogActions, Field, FilterChip, Input, Menu, MenuGroup, MenuItem, MenuItemRadio, MenuSeparator, Popover, cx,
 } from '../ui';
 
 /** The presets, in menu order; their names are in lib/i18n/messages/transactions.ts (period.presets). */
@@ -35,8 +35,10 @@ const PRESETS: RangePreset[] = ['30d', '90d', 'thisMonth', 'lastMonth', 'thisYea
  * only for its free window.
  */
 export function PeriodControl({
-  loaded, applyRange, busy, coverage, savedRange = false, applySavedRange,
+  loaded, applyRange, busy, coverage, savedRange = false, applySavedRange, chip = false,
 }: {
+  /** A phone: a chip at the end of the list's chip row, naming the period ("90 Tage"). */
+  chip?: boolean;
   loaded: StatementInfo | undefined;
   applyRange: (r: DateRange) => void;
   busy: boolean;
@@ -83,6 +85,13 @@ export function PeriodControl({
           trigger={(menu, { open }) => {
             // One button anchors both layers: its ref is handed to each.
             const ref = (el: HTMLElement | null) => { menu.ref(el); pop.ref(el); };
+            if (chip) {
+              return (
+                <FilterChip {...menu} ref={ref} menu disabled={busy} aria-label={describe} icon={<HistoryIcon size={16} />}>
+                  {label}
+                </FilterChip>
+              );
+            }
             return (
               <Button
                 {...menu}

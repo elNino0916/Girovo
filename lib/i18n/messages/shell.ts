@@ -7,6 +7,21 @@ export const de = {
   transfer: 'Überweisen',
   requestMoney: 'Geld anfordern',
   searchTransactions: 'Umsätze durchsuchen',
+  /** The phone's search bar, at the head of the Übersicht: it opens the search. */
+  searchBar: {
+    /** Where Gemini Nano can answer a question about the bookings. */
+    ask: 'Umsätze suchen oder fragen',
+    plain: 'Umsätze und mehr suchen',
+  },
+  /** Zahlungen, the phone's second place: paying, and what is paid regularly. */
+  payments: {
+    recent: 'Zuletzt bezahlt',
+    templates: 'Vorlagen',
+    /** A recent payee's row, for a screen reader: what a press does. */
+    payAgain: (name: string) => `${name} überweisen`,
+    /** Under "GiroCode scannen". */
+    scanHint: 'Eine Rechnung mit der Kamera lesen',
+  },
   statementPdf: 'Kontoauszug als PDF',
   checkForUpdates: 'Nach Updates suchen',
   unread: (n: number) => `${n} ungelesen`,
@@ -61,6 +76,9 @@ export const de = {
     /** Beside the account that is selected now. */
     selected: 'Ausgewählt',
     showAll: (query: string) => `Alle Treffer für „${query}“ anzeigen`,
+    /** Android with Gemini Nano: the typed question, handed to "Frag deine Umsätze". */
+    ask: (question: string) => `„${question}“ fragen`,
+    askHint: 'Frag deine Umsätze · auf diesem Telefon gerechnet',
     inSelected: (n: number) => `${n} ${n === 1 ? 'Umsatz' : 'Umsätze'} im ausgewählten Konto`,
     newest: (shown: number, total: number) => `Die ${shown} neuesten von ${total} Treffern`,
     noResults: (query: string) => `Keine Treffer für „${query}“`,
@@ -90,7 +108,7 @@ export const de = {
       inbox: ['nachrichten', 'bank', 'vorgänge', 'hinweise', 'inbox'],
       overview: ['start', 'konten', 'finanzübersicht', 'kontostand'],
       analysis: ['auswertung', 'kategorien', 'ausgaben', 'einnahmen', 'statistik', 'umsatzanalyse'],
-      contracts: ['abos', 'abonnements', 'fixkosten', 'wiederkehrend', 'daueraufträge', 'verträge'],
+      contracts: ['zahlungen', 'abos', 'abonnements', 'fixkosten', 'wiederkehrend', 'daueraufträge', 'verträge', 'vorlagen'],
       settings: ['optionen', 'konfiguration', 'präferenzen', 'einstellung', 'zahnrad'],
       language: ['sprache', 'deutsch', 'englisch', 'english', 'language'],
       idle: ['abmeldezeit', 'timeout', 'inaktiv', 'zeitlimit'],
@@ -211,8 +229,8 @@ export const de = {
 
   bottomBar: {
     label: 'Hauptnavigation',
-    /** Verträge & Abos, short enough for the phone's bar. */
-    contracts: 'Verträge',
+    /** Zahlungen, short enough for the phone's bar. */
+    contracts: 'Zahlungen',
   },
 
   masthead: {
@@ -321,6 +339,16 @@ export const en: typeof de = {
   transfer: 'Transfer',
   requestMoney: 'Request money',
   searchTransactions: 'Search transactions',
+  searchBar: {
+    ask: 'Search or ask about transactions',
+    plain: 'Search transactions and more',
+  },
+  payments: {
+    recent: 'Recently paid',
+    templates: 'Templates',
+    payAgain: (name) => `Transfer to ${name}`,
+    scanHint: 'Read an invoice with the camera',
+  },
   statementPdf: 'Account statement as PDF',
   checkForUpdates: 'Check for updates',
   unread: (n) => `${n} unread`,
@@ -363,6 +391,8 @@ export const en: typeof de = {
     installed: (version) => `Installed: version ${version}`,
     selected: 'Selected',
     showAll: (query) => `Show all results for “${query}”`,
+    ask: (question) => `Ask “${question}”`,
+    askHint: 'Ask your transactions · worked out on this phone',
     inSelected: (n) => `${n} ${n === 1 ? 'transaction' : 'transactions'} in the selected account`,
     newest: (shown, total) => `The newest ${shown} of ${total} results`,
     noResults: (query) => `No results for “${query}”`,
@@ -384,7 +414,7 @@ export const en: typeof de = {
       inbox: ['notifications', 'bank', 'activity', 'notices', 'inbox', 'mailbox'],
       overview: ['home', 'start', 'accounts', 'financial overview', 'balance'],
       analysis: ['evaluation', 'categories', 'spending', 'income', 'statistics', 'spending analysis'],
-      contracts: ['subscriptions', 'fixed costs', 'recurring', 'standing orders', 'contracts'],
+      contracts: ['payments', 'subscriptions', 'fixed costs', 'recurring', 'standing orders', 'contracts', 'templates'],
       settings: ['settings', 'options', 'preferences', 'configuration', 'gear'],
       language: ['language', 'german', 'english', 'deutsch'],
       idle: ['auto logout', 'timeout', 'inactivity', 'idle'],
@@ -480,7 +510,7 @@ export const en: typeof de = {
 
   bottomBar: {
     label: 'Main navigation',
-    contracts: 'Contracts',
+    contracts: 'Payments',
   },
 
   masthead: {

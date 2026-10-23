@@ -2289,7 +2289,10 @@ export function TileHeader({
   title, titleId, subtitle, actions, className,
 }: { title: ReactNode; titleId?: string; subtitle?: ReactNode; actions?: ReactNode; className?: string }) {
   return (
-    <div className={cx('flex items-start justify-between gap-3', className ?? 'px-4 pt-4 pb-3 sm:px-5 sm:pt-5')}>
+    // The actions wrap under the title when both will not fit one line
+    // ("Ausgaben nach Kategorie" and "Budgets festlegen" on a phone), rather
+    // than squeezing the title onto two.
+    <div className={cx('flex flex-wrap items-start justify-between gap-x-3 gap-y-1', className ?? 'px-4 pt-4 pb-3 sm:px-5 sm:pt-5')}>
       <div className="min-w-0">
         <h2 id={titleId} className="section-head">{title}</h2>
         {subtitle && <div className="mt-0.5 text-[13px] text-ink-3">{subtitle}</div>}

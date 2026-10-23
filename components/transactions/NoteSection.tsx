@@ -70,7 +70,7 @@ export function NoteSection({ tx }: { tx: SerializedTransaction }) {
 
   return (
     <section aria-labelledby={titleId} className="mt-6 border-t border-line pt-5">
-      <h3 id={titleId} className="text-[15px] font-bold text-headline">{words.title}</h3>
+      <h3 id={titleId} className="text-[14px] font-semibold text-ink-2">{words.title}</h3>
 
       {editing ? (
         <div className="mt-3">

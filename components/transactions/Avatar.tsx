@@ -128,10 +128,16 @@ type AvatarProps = {
   tx: SerializedTransaction;
   /** The name the monogram is drawn from — the display name the row shows. */
   name: string;
-  /** Money came in: the monogram takes the credit tint. */
+  /** Money came in. (The disc no longer takes a tint for it: the amount says so in green.) */
   credit?: boolean;
   /** A Vormerkposten: the monogram takes the amber of "vorgemerkt". */
   pending?: boolean;
+  /**
+   * The booking's category glyph, drawn in place of the initials when there
+   * is no logo: a shop's initials say nothing, its category does. A person
+   * (no category worth naming) keeps their initials.
+   */
+  glyph?: ReactNode;
   size?: AvatarSize;
   /**
    * The brand behind the booking, when the caller has already resolved it.
@@ -214,7 +220,7 @@ function BankOwnAvatar({ size, children }: { size: 'sm' | 'md' | 'lg'; children:
 }
 
 function AvatarFace({
-  tx, merchant, name, credit = false, pending = false, size: requested = 'md',
+  tx, merchant, name, pending = false, glyph, size: requested = 'md',
 }: Omit<AvatarProps, 'merchant'> & { merchant: Merchant | null }) {
   const t = useT();
   // The logo that failed, rather than a flag: when the booking's brand
@@ -261,26 +267,21 @@ function AvatarFace({
     );
   }
 
-  // The counterparty's monogram, whichever way the money went: the circle is
-  // there to give the row a face to scan for, and an arrow repeated down every
-  // debit says nothing the amount's own sign has not already said. A credit's
-  // circle takes the credit tint; a Vormerkposten's the amber of "vorgemerkt".
-  // The plain one gets a hairline: on the dark surface --inset alone is only
-  // a shade off, and the circle would dissolve into the row.
+  // Without a logo: the category's glyph when the caller names one, else the
+  // counterparty's initials — a disc to scan down the column, whichever way
+  // the money went. It stays neutral: the amount already says credit in
+  // green, and a second green down the left edge would only repeat it. A
+  // Vormerkposten's disc takes the amber of "vorgemerkt", its one meaning.
   const monogram = (
     <span
       aria-hidden
       className={cx(
         'grid shrink-0 place-items-center rounded-full font-semibold',
         MONOGRAM[size],
-        pending
-          ? 'bg-amber-soft text-amber'
-          : credit
-            ? 'bg-green-soft text-green'
-            : 'border border-line bg-inset text-ink-2',
+        pending ? 'bg-amber-soft text-amber' : 'bg-inset text-ink-2',
       )}
     >
-      {initials(name)}
+      {glyph ?? initials(name)}
     </span>
   );
   return isBankOwnBooking(tx) ? <BankOwnAvatar size={size}>{monogram}</BankOwnAvatar> : monogram;

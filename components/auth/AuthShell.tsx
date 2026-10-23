@@ -15,7 +15,8 @@ import { ThemeToggle } from '../ThemeToggle';
 import { LanguageSwitch } from '../LanguageToggle';
 import { CheckIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../icons';
 import { cx } from '../ui';
-import { BrandMark } from '../shell/BrandMark';
+import { BrandMark, BrandPlate } from '../shell/BrandMark';
+import { usePhone } from '../shell/usePhone';
 import { MASTHEAD_EDGES } from '../shell/edges';
 import { useUpdates } from '../updates/store';
 import { UpdateBarButton } from '../updates/UpdateNotices';
@@ -42,6 +43,8 @@ export function AuthCard({
   step?: AuthStep;
   aside?: ReactNode;
 }) {
+  const phone = usePhone();
+  if (IS_ANDROID && phone) return <PhoneAuth step={step}>{children}</PhoneAuth>;
   return (
     <div className="flex h-dvh flex-col bg-paper">
       <AuthMasthead />
@@ -63,6 +66,45 @@ export function AuthCard({
             <div className="pb-2">{children}</div>
             {aside && <div className="hidden lg:block">{aside}</div>}
           </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Android's phone (owner, 2026-10-23): the brand's colour fills the top —
+ * the G€ plate, the name and, on the first step, one line of what Girovo
+ * is — and the step rises over it as Material's bottom sheet. After the
+ * first step the field shrinks to the plate and the name, so the form
+ * keeps the room. The whole page scrolls as one; the sheet's paper runs to
+ * the bottom of the screen.
+ */
+function PhoneAuth({ step, children }: { step?: AuthStep; children: ReactNode }) {
+  const t = useT();
+  const first = !step || step === 'bank';
+  return (
+    <div className="flex h-dvh flex-col bg-stage text-stage-ink">
+      <div data-scroll-root className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <header
+          data-topbar
+          className={cx('on-stage shrink-0 px-6', first ? 'pb-14' : 'pb-11')}
+        >
+          <div className="-mr-3 flex h-16 items-center justify-end [--md-sys-color-on-surface-variant:var(--stage-ink)]">
+            <LanguageSwitch />
+          </div>
+          <div className="flex items-center gap-3.5">
+            {/* By night the field is a deep blue too: a hairline of its ink keeps the navy plate's edge. */}
+            <BrandPlate size={first ? 48 : 36} className="dark:shadow-[0_0_0_1.5px_color-mix(in_srgb,var(--stage-ink)_45%,transparent)]" />
+            <span className={cx('font-medium', first ? 'text-[28px] leading-9' : 'text-[22px] leading-7')}>Girovo</span>
+          </div>
+          {first && <p className="mt-3 max-w-[30ch] text-lg leading-[26px]">{t.auth.brandLine}</p>}
+        </header>
+        <main className="relative -mt-7 flex-1 rounded-t-[28px] bg-paper px-4 pt-3 pb-12 text-ink shadow-[0_-2px_12px_rgb(0_0_0/0.08)]">
+          {/* Material's bottom sheet carries a handle; this one is a page, so it only looks like one. */}
+          <span aria-hidden className="mx-auto mb-4 block h-1 w-8 rounded-full bg-[color-mix(in_srgb,var(--ink-2)_40%,transparent)]" />
+          {step && <StepIndicator current={step} />}
+          <div className={step ? 'mt-5' : undefined}>{children}</div>
         </main>
       </div>
     </div>

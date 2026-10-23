@@ -134,7 +134,7 @@ export function ReviewStep({
 
       <div className="rounded-[12px] bg-inset px-4 py-4 sm:px-5">
         <p className="text-[13px] font-semibold text-ink-3">{t.common.booking.amount}</p>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div data-figure className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
           {/* The order's own figures are shown whatever "Beträge ausblenden"
               says — they are what is being checked. */}
           <Money
@@ -142,7 +142,7 @@ export function ReviewStep({
             currency="EUR"
             masked={false}
             split
-            className="text-[34px] leading-tight font-bold text-headline"
+            className="text-[34px] leading-tight font-medium text-headline"
           />
           {draft.instant && <Tag tone="info" icon={<BoltIcon size={13} />}>{t.common.booking.instant}</Tag>}
           {schedule && <Tag>{t.orders.kind[schedule.kind]}</Tag>}

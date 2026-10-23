@@ -1,0 +1,16 @@
+<en-US>
+• A new look: calmer type, clearer figures and three places – Overview, Payments and Analysis
+• Search first: find transactions and payees right at the top of the Overview
+• Transfers start with the amount, on the number pad
+• Transaction details in tabs: details, note & receipts, category
+• A new login with your bank's logo as a tile
+• New icons, and charts in your wallpaper's colours
+</en-US>
+<de-DE>
+• Neues Design: ruhigere Schrift, klarere Zahlen und drei Bereiche – Übersicht, Zahlungen und Analyse
+• Suche zuerst: Umsätze und Empfänger direkt oben in der Übersicht finden
+• Überweisungen beginnen mit dem Betrag, auf dem Ziffernblock
+• Umsatzdetails in Registerkarten: Details, Notiz & Belege, Kategorie
+• Neue Anmeldung mit dem Logo deiner Bank als Kachel
+• Neue Symbole und Diagramme in den Farben deines Hintergrundbilds
+</de-DE>

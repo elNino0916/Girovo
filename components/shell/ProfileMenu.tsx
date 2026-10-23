@@ -8,6 +8,9 @@
 //   Banken — with more than one bank in the view, each of them and where it
 //     stands (a linked one can be removed); with one, only the way to log in
 //     to another ("Weitere Bank anmelden", lib/linked-banks.ts);
+//   Mitteilungen — on a phone, where the top bar has no bell: the bank's
+//     messages and this session's activity (components/Inbox.tsx), with the
+//     unread count; the chip carries their dot;
 //   Einstellungen — the way to the settings page (components/settings), with
 //     a mark while the saved data cannot be read: the one thing there that
 //     needs a look.
@@ -36,8 +39,10 @@ import { useFints, type BankEntry } from '../FintsProvider';
 import { Money } from '../Money';
 import { MachineRow, ROW } from '../settings/rows';
 import {
-  AvatarGlyph, ChevronIcon, GearIcon, LandmarkIcon, LogoutIcon, PencilIcon, PlusIcon, ShieldIcon,
+  AvatarGlyph, BellIcon, ChevronIcon, GearIcon, LandmarkIcon, LogoutIcon, PencilIcon, PlusIcon, ShieldIcon,
 } from '../icons';
+import { unseenUpdate, useUpdates } from '../updates/store';
+import { usePhone } from './usePhone';
 import { Button, Checkbox, Dialog, Dot, IconButton, Overlay, Popover, Segmented, Sheet, cx, type TriggerProps } from '../ui';
 import { fmtCountdown, fmtSince, holderName, nameInitials, sessionHolder, useCountdown } from './session';
 import { useLookAtUnclear } from './actions';
@@ -82,8 +87,16 @@ function SessionLayer({ label, trigger, footer, children }: {
 
 export function ProfileMenu() {
   const t = useT();
-  const { accounts, vault, vaultStatus, requestLogout, forgetDeviceOpen, setForgetDeviceOpen, openAddBank, openSettings } = useFints();
+  const {
+    accounts, vault, vaultStatus, requestLogout, forgetDeviceOpen, setForgetDeviceOpen, openAddBank, openSettings,
+    unreadCount, setInboxOpen,
+  } = useFints();
   const [removing, setRemoving] = useState<BankEntry | null>(null);
+  // A phone's top bar has no bell: the Mitteilungen are a row in here, and
+  // what is unread there (the bank's messages, a new app version) marks the chip.
+  const phone = usePhone();
+  const updateUnseen = unseenUpdate(useUpdates());
+  const news = phone && (unreadCount > 0 || updateUnseen);
   // The session's holder, as in the greeting — not the active account's.
   const holder = sessionHolder(accounts);
   const full = holderName(holder);
@@ -92,7 +105,7 @@ export function ProfileMenu() {
   // until it is reset, nothing the user changes is kept. The dot is only a
   // mark — the name says it too.
   const vaultBroken = vaultStatus === 'error';
-  const name = t.session.chip(full, vaultBroken);
+  const name = [t.session.chip(full, vaultBroken), phone && unreadCount > 0 ? t.shell.unread(unreadCount) : ''].filter(Boolean).join(', ');
 
   return (
     <>
@@ -118,7 +131,10 @@ export function ProfileMenu() {
           <IconButton {...props} tone="bar" size="md" aria-label={name}>
             <span className="relative inline-flex shrink-0">
               <Avatar initials={initials} picture={vault?.avatar} image={vault?.avatarImage} tone="bar" />
-              {vaultBroken && <Dot className="absolute -top-px -right-px ring-2 ring-bar" />}
+              {/* Inside the avatar's corner: the icon button clips to its circle, and a
+                  dot on the corner itself would lose its top. Its ring is the
+                  ground it sits on (the bar's, or the search bar's). */}
+              {(vaultBroken || news) && <Dot className="absolute top-px right-px ring-2 ring-[var(--dot-ring,var(--bar))]" />}
             </span>
           </IconButton>
         )}
@@ -131,6 +147,12 @@ export function ProfileMenu() {
               close();
               openSettings();
             }}
+            onInbox={phone ? () => {
+              close();
+              setInboxOpen(true);
+            } : undefined}
+            unread={unreadCount}
+            news={news}
             onAddBank={() => {
               close();
               openAddBank();
@@ -191,11 +213,16 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function SessionPanel({
-  holder, initials, onSettings, onAddBank, onRemoveBank,
+  holder, initials, onSettings, onInbox, unread, news, onAddBank, onRemoveBank,
 }: {
   holder: string;
   initials: string;
   onSettings: () => void;
+  /** A phone: the Mitteilungen, which have no bell of their own there. */
+  onInbox?: () => void;
+  unread: number;
+  /** Something unread waits in the Mitteilungen. */
+  news: boolean;
   onAddBank: () => void;
   onRemoveBank: (entry: BankEntry) => void;
 }) {
@@ -316,6 +343,17 @@ function SessionPanel({
       {/* Everything that is set once lives on its own page; the panel says
           where, and marks it while the saved data needs a look. */}
       <div className="mt-4 border-t border-line pt-2">
+        {onInbox && (
+          <button type="button" aria-haspopup="dialog" onClick={onInbox} className={cx(ROW, 'flex w-full')}>
+            <BellIcon className="text-ink-2" />
+            <span className="min-w-0 flex-1">
+              <span className="block">{t.common.nav.messages}</span>
+              {unread > 0 && <span className="block text-[13px] leading-snug text-ink-3">{t.shell.unread(unread)}</span>}
+            </span>
+            {news && <Dot />}
+            <ChevronIcon dir="right" className="text-ink-3" />
+          </button>
+        )}
         <button type="button" onClick={onSettings} className={cx(ROW, 'flex w-full')}>
           <GearIcon className="text-ink-2" />
           <span className="min-w-0 flex-1">

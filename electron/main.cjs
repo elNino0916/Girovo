@@ -634,10 +634,11 @@ function createWindow(appUrl) {
     contents.setZoomLevel(nextZoomLevel(contents.getZoomLevel(), command));
   });
 
-  // Bank and Brandfetch links belong in the real browser; the window itself
-  // stays on the local server.
+  // Bank and Brandfetch links belong in the real browser, an e-mail address
+  // (Einstellungen → Kontakt) in the mail app; the window itself stays on
+  // the local server.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:$/.test(new URL(url).protocol)) shell.openExternal(url);
+    if (/^(https?|mailto):$/.test(new URL(url).protocol)) shell.openExternal(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (event, url) => {

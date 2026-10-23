@@ -9,7 +9,59 @@
    width, and the ripple (mobile/bridges/ripple.ts).
    ========================================================================== */
 
+/* The phone's icons: Material Symbols Rounded, a subset of the glyphs the app
+   names (components/icons.tsx), self-hosted. Block, never swap: until the face
+   is there a glyph would show as its name ("home"). */
+@font-face {
+  font-family: 'Material Symbols Rounded';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-symbols-rounded.woff2') format('woff2');
+}
+
 @media screen {
+  :root[data-platform='android'] .ms-icon {
+    display: inline-block;
+    overflow: hidden;
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    direction: ltr;
+    font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    -webkit-user-select: none;
+    user-select: none;
+    /* An icon is sized in dp, as Android sizes its icons: the system's larger
+       text grows the words beside it, never the glyph inside its fixed box,
+       where it would be cut off. */
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
+  }
+  /* The Analyse's categories in the wallpaper's own tones (owner, 2026-10-23):
+     by rank primary, tertiary, a lighter primary, secondary, a lighter
+     tertiary, a lighter secondary — each neighbour apart from the last in hue
+     or in strength. The rest takes the outline, which holds 3:1 on the page in
+     both themes. Labels and amounts beside every bar carry the meaning;
+     colour only groups. */
+  :root[data-platform='android'] {
+    --chart-1: var(--md-primary);
+    --chart-2: var(--md-tertiary);
+    --chart-3: color-mix(in oklab, var(--md-primary) 62%, var(--md-surface));
+    --chart-4: var(--md-secondary);
+    --chart-5: color-mix(in oklab, var(--md-tertiary) 62%, var(--md-surface));
+    --chart-6: color-mix(in oklab, var(--md-secondary) 62%, var(--md-surface));
+    --chart-rest: var(--md-outline);
+  }
+  /* Filled: the navigation's current place. The fill eases in with the pill. */
+  :root[data-platform='android'] .ms-icon[data-filled] {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
   :root[data-platform='android'] {
     /* The top app bar: 64dp, below the status bar it now reaches under. */
     --barbar-h: calc(64px + env(safe-area-inset-top, 0px));
@@ -62,17 +114,14 @@
     :root[data-platform='android']:has([data-bottombar]) {
       --bottombar-h: calc(64px + env(safe-area-inset-bottom, 0px));
     }
-    /* The page's end clears the floating Überweisen button. */
-    :root[data-platform='android']:has([data-fab]) #main {
-      padding-bottom: 96px;
-    }
-    /* A message rises above the FAB rather than covering it. */
-    :root[data-platform='android']:has([data-fab]) [data-toasts] {
-      bottom: calc(var(--bottombar-h) + 88px);
-    }
     /* A sheet stops short of the status bar. */
     :root[data-platform='android'] :is([data-align='center'], [data-align='bottom']) {
       padding-top: calc(1.5rem + env(safe-area-inset-top, 0px));
+    }
+    /* The search (components/CommandPalette.tsx): Material's full-screen
+       search view, its field below the status bar it reaches under. */
+    :root[data-platform='android'] [data-align]:has([data-search-view]) {
+      padding: 0;
     }
     /* A flow of several steps (the transfer, Geld anfordern): Material's
        full-screen dialog — edge to edge, its header below the status bar. */
@@ -117,15 +166,23 @@
       animation: m3e-dialog-in var(--m3e-spatial-default-ms) var(--m3e-spatial-default);
     }
 
-    /* The M3E type scale (TypeScaleTokens) for Girovo's sizes: body small,
-       medium and large; title medium and large (emphasized); headline small
-       and medium (emphasized). A balance's big figures stay as they are. */
+    /* The phone's type: three text sizes (12 for a label, 14 for what
+       qualifies, 16 for what is read), 18 for a section on the page, 22 for
+       a screen or a sheet, and the figures. Rank is weight and tone before
+       size: a row's name and its amount are both 16, the name 500, the line
+       under it 14 in the variant ink.
+       Tracking stays at Google Sans Flex's own. Material's +0.5px on 16px
+       body text is drawn for Roboto; on this face it spreads words apart and
+       figures most of all, so a column of amounts stops reading as a column. */
     :root[data-platform='android'] body {
       font-size: 16px;
-      letter-spacing: 0.5px;
+      letter-spacing: 0;
     }
     :root[data-platform='android'] :is(.text-\[12px\], .text-\[12\.5px\]) {
       font-size: 12px;
+    }
+    :root[data-platform='android'] :is(.text-\[12px\], .text-\[12\.5px\]):not(.iban) {
+      letter-spacing: 0.2px;
     }
     :root[data-platform='android'] :is(.text-\[13px\], .text-\[13\.5px\], .text-\[14px\]) {
       font-size: 14px;
@@ -133,20 +190,19 @@
     :root[data-platform='android'] :is(.text-\[14\.5px\], .text-\[15px\], .text-\[16px\]) {
       font-size: 16px;
     }
-    :root[data-platform='android'] :is(.text-\[12px\], .text-\[12\.5px\]):not(.iban) {
-      letter-spacing: 0.4px;
-    }
-    :root[data-platform='android'] :is(.text-\[13px\], .text-\[13\.5px\], .text-\[14px\]):not(.iban) {
-      letter-spacing: 0.2px;
-    }
-    :root[data-platform='android'] :is(.text-\[14\.5px\], .text-\[15px\], .text-\[16px\]):not(.iban) {
-      letter-spacing: 0.5px;
-    }
-    :root[data-platform='android'] :is(.text-\[17px\], .text-\[18px\], .section-head) {
+    /* A title off the page: an empty state's, a person's in the Sitzung panel. */
+    :root[data-platform='android'] :is(.text-\[17px\], .text-\[18px\]) {
       font-size: 16px;
       line-height: 24px;
-      font-weight: 700;
-      letter-spacing: 0.15px;
+      font-weight: 500;
+      letter-spacing: 0;
+    }
+    /* A section on the page: one line, a step above its rows and no more. */
+    :root[data-platform='android'] :is(#main .section-head, .section-head) {
+      font-size: 18px;
+      line-height: 24px;
+      font-weight: 500;
+      letter-spacing: 0;
     }
     :root[data-platform='android'] .text-\[20px\] {
       font-size: 22px;
@@ -155,8 +211,8 @@
       letter-spacing: 0;
     }
     :root[data-platform='android'] :is(.text-\[22px\], .text-\[24px\]) {
-      font-size: 24px;
-      line-height: 32px;
+      font-size: 22px;
+      line-height: 28px;
       font-weight: 500;
       letter-spacing: 0;
     }
@@ -166,12 +222,44 @@
       font-weight: 500;
       letter-spacing: 0;
     }
-    /* Labels are medium (500), not semibold; amounts and codes keep their spacing. */
+    /* Labels are medium (500), not semibold. */
     :root[data-platform='android'] .font-semibold {
       font-weight: 500;
     }
-    :root[data-platform='android'] :is(.num, .amount) {
+    /* Figures a hair tighter than text, so tabular digits close up into a
+       number rather than a row of cells. Codes keep their own spacing. */
+    :root[data-platform='android'] .amount {
+      letter-spacing: -0.01em;
+    }
+    :root[data-platform='android'] .num {
       letter-spacing: 0;
+    }
+    /* The account list in the phone's accounts sheet takes its rows' sizes
+       ([data-rows], components/overview/AccountList.tsx): a balance the
+       size of the name beside it. */
+    :root[data-platform='android'] [data-rows] .text-\[20px\] {
+      font-size: 16px;
+      line-height: 22px;
+    }
+    /* A full-width connected group (Termin: Sofort · An einem Datum ·
+       Regelmäßig) shares the phone's width: tighter sides, and a segment
+       may shrink below its label's natural room rather than push the group
+       past the screen's edge. */
+    :root[data-platform='android'] m3e-button-group > m3e-button.flex-1 {
+      flex: 1 1 auto;
+      min-width: 0;
+      --m3e-button-small-leading-space: 8px;
+      --m3e-button-small-trailing-space: 8px;
+    }
+    /* A drawer on a phone (Umsatzdetails, Mitteilungen) is a full page: its
+       body takes the page's own surface, so bar and body are one ground. */
+    :root[data-platform='android'] .anim-drawer {
+      --raised: var(--paper);
+      background-color: var(--paper);
+    }
+    /* A list's day: quiet, in the variant ink; the primary is for what can be pressed. */
+    :root[data-platform='android'] [data-day-header] h3 {
+      color: var(--ink-2);
     }
   }
 }
@@ -209,4 +297,33 @@
 @keyframes m3e-ripple-out {
   from { --m3e-ripple-o: 1; }
   to { --m3e-ripple-o: 0; }
+}
+
+/* ---- motion: Material's transitions, on the phone ---------------------------
+   A place opens with the fade-through; the search view grows out of the
+   search bar (its clip starts as the bar's own shape). Both on M3E's springs,
+   both gone under "reduce motion". */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-platform='android'] [data-place] {
+    /* backwards, never both: an animation still in effect after it ends would
+       keep a transform (a containing block) and an opacity (a stacking context)
+       on the page, and the layers that render in place inside it — sheets,
+       drawers — would be held inside the page instead of over the screen. */
+    animation: m3e-fade-through var(--m3e-effects-slow-ms, 327ms) var(--m3e-effects-slow, ease-out) backwards;
+  }
+  @media (max-width: 639.98px) {
+    :root[data-platform='android'] [data-search-view] > div {
+      animation: m3e-search-in var(--m3e-spatial-default-ms, 435ms) var(--m3e-spatial-default, ease-out) backwards;
+    }
+  }
+}
+@keyframes m3e-fade-through {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes m3e-search-in {
+  from {
+    clip-path: inset(calc(env(safe-area-inset-top, 0px) + 4px) 16px calc(100% - env(safe-area-inset-top, 0px) - 60px) 16px round 28px);
+  }
+  to { clip-path: inset(0 0 0 0 round 0); }
 }

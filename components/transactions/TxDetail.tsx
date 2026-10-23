@@ -1,9 +1,11 @@
 'use client';
 
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { IS_ANDROID } from '@/lib/platform';
+import { usePhone } from '../shell/usePhone';
 import { facilitatorShop } from '@/lib/analytics';
 import {
-  allCategories, categoryLabel, counterpartyKey, isCategoryId, txBic, type CategoryId, type CategorySource,
+  allCategories, categoryLabel, counterpartyKey, isCategoryId, txBic, txKey, type CategoryId, type CategorySource,
 } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry } from '@/lib/format';
@@ -59,8 +61,10 @@ export function TxDetail({
   onClose: () => void;
 }) {
   const {
-    activeAccount, categoryOf, openTransfer, showTransactions, printTransaction,
+    activeAccount, categoryOf, openTransfer, showTransactions, printTransaction, noteOf, receiptKeys,
   } = useFints();
+  const phone = usePhone();
+  const tabbed = IS_ANDROID && phone;
   // `tr`, not `t`: in this file `t` is a booking.
   const tr = useT();
   const words = tr.transactions.detail;
@@ -84,6 +88,11 @@ export function TxDetail({
   // The category as it stands now — refiling a credit as "Einkommen" in the
   // section below takes "Zurücküberweisen" away at once.
   const seeds = transferSeeds(tx, !!activeAccount?.canTransfer, categoryOf(tx).id);
+  // The face the row gave it: the category's glyph, a person's initials.
+  const cat = categoryOf(tx);
+  const detailGlyph = pending ? undefined
+    : cat.parts?.length ? <PieIcon size={26} />
+      : cat.id !== 'other' && cat.id !== 'otherIn' ? <CategoryIcon id={cat.id} size={26} /> : undefined;
   const query = counterpartyQuery(tx);
   const iban = String(tx.remoteIban ?? '').replace(/\s+/g, '');
   const bic = txBic(tx);
@@ -105,15 +114,227 @@ export function TxDetail({
     setTimeout(() => openTransfer(seed), 0);
   };
 
+  // Android's phone: the header on the left edge, then three tabs, so the
+  // facts, the user's own note and receipts, and the category each open
+  // without a long scroll (owner, 2026-10-23). The tab with a note or a
+  // receipt carries a dot, so what is attached still shows at a glance.
+  const attached = !!noteOf(tx) || receiptKeys.has(txKey(tx));
+  const recipientSection = (
+    <>
+        {(bankName || iban) && (
+          <Section
+            title={credit ? words.payer : words.recipient}
+            after={query && (
+              // A link in the run of the text rather than a padded pill: its
+              // words start on the same edge as the labels above it.
+              <button
+                type="button"
+                className="group mt-1 inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-[4px] text-[14px] font-semibold text-accent"
+                onClick={() => {
+                  onClose();
+                  showTransactions({ query });
+                }}
+              >
+                <span className="min-w-0 truncate underline-offset-[3px] group-hover:underline">{words.allWith(text.name)}</span>
+                <ArrowRightIcon size={16} />
+              </button>
+            )}
+          >
+            {/* What the bank's FinTS answer says, first and always under the
+                same label — the card terminal's descriptor unabridged, so
+                nothing the app derived is ever the only record. A shop the app
+                worked out from it sits below, called what it is. */}
+            {bankName && (
+              <Row label={words.bankName} copy={{ text: bankName, label: words.copy(words.bankName) }}>
+                <span className="break-words">{bankName}</span>
+              </Row>
+            )}
+            {recognised && <Row label={words.shop}><span className="break-words">{recognised}</span></Row>}
+            {address && <Row label={place?.street ? words.address : words.place}><span className="break-words">{address}</span></Row>}
+            {/* The account the money actually moved to or from belongs to the
+                payment provider (a card processor or acquirer), not to the shop
+                named above — said here, so the IBAN below is never mistaken for
+                the shop's. */}
+            {text.via && <Row label={words.provider}><span className="break-words">{text.via}</span></Row>}
+            {iban && (
+              <Row label={text.via ? words.providerIban : 'IBAN'} copy={{ text: iban, label: tr.common.account.copyIban }}>
+                <span className="iban text-[14px]">{fmtIban(iban)}</span>
+              </Row>
+            )}
+            {bic && (
+              <Row half label="BIC" copy={{ text: bic, label: words.copy('BIC') }}>
+                <span className="iban text-[14px]">{bic}</span>
+              </Row>
+            )}
+            {country && <Row half label={words.country}>{country.name}</Row>}
+          </Section>
+        )}
+    </>
+  );
+  const refsSection = (
+    <>
+        {refs.length > 0 && (
+          <div className="mt-6 border-t border-line pt-2">
+            <Disclosure
+              className="-mx-4"
+              title={
+                <span className="text-[14px] font-semibold text-ink-2">
+                  {tr.transactions.refs.title} <span className="tnum font-semibold text-ink-3">({refs.length})</span>
+                </span>
+              }
+            >
+              <dl className="px-4 pb-2">
+                {refs.map((r, i) => (
+                  <div key={`${r.label}-${i}`} className="flex items-start gap-2 border-b border-line py-2.5 last:border-b-0">
+                    <div className="min-w-0 flex-1">
+                      <dt className="text-[13px] font-semibold text-ink-3">{r.label}</dt>
+                      <dd className="num mt-0.5 text-[13.5px] break-all text-ink">
+                        {/* An Ursprungsbetrag is an amount whatever its shape; the rest
+                            (the original purpose above all) is masked like prose. */}
+                        {privacy && amountRefs.has(r.value)
+                          ? <span role="img" aria-label={maskedLabel()}>{AMOUNT_MASK}</span>
+                          : <BankText text={r.value} />}
+                      </dd>
+                    </div>
+                    <CopyButton text={r.value} label={words.copy(r.label)} className="-mr-1" />
+                  </div>
+                ))}
+              </dl>
+            </Disclosure>
+          </div>
+        )}
+    </>
+  );
+
+  if (tabbed) {
+    return (
+      <Drawer open onClose={onClose} title={pending ? words.pendingTitle : words.title} bodyClassName="px-4 pt-4 pb-8">
+        <div className="flex items-center gap-4">
+          <CounterpartyAvatar tx={tx} name={text.name} credit={credit} pending={pending} size="lg" glyph={detailGlyph} />
+          <div className="min-w-0">
+            <p className="text-[22px] leading-7 font-medium break-words text-ink">{text.name}</p>
+            <p className="mt-0.5 text-[14px] leading-5 text-ink-2">
+              {/* A card payment says when the card was used — the Buchungstag
+                  below can be a day or two later, even still ahead. */}
+              {[
+                text.bookingText,
+                card?.usedAt
+                  ? words.paidOn(shortDay(card.usedAt.day), card.usedAt.time)
+                  : when ? fmtDayHeader(when) : '',
+              ].filter(Boolean).join(' · ')}
+            </p>
+
+          </div>
+        </div>
+        <p data-figure className="mt-4">
+          <span className="sr-only">{credit ? tr.common.booking.credit : tr.common.booking.debit}</span>
+          <Money value={tx.amount} currency={tx.currency} signed tone="credit" split className="text-[40px] leading-[48px] font-medium" centsClassName="text-[0.58em]" />
+        </p>
+          {tags.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={words.status}>
+              {tags.map((t) => (
+                <li key={t.label}>
+                  <Tag tone={t.tone} icon={t.icon ? TAG_ICON[t.icon] : undefined}>{t.label}</Tag>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {seeds.repeat && (
+              <Button size="sm" variant="secondary" iconLeft={<TransferIcon size={16} />} onClick={() => startTransfer(seeds.repeat!)}>
+                {words.repeat}
+              </Button>
+            )}
+            {seeds.refund && (
+              <Button size="sm" variant="secondary" iconLeft={<UndoIcon size={16} />} onClick={() => startTransfer(seeds.refund!)}>
+                {words.refund}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant={seeds.repeat || seeds.refund ? 'tertiary' : 'secondary'}
+              iconLeft={<ReceiptIcon size={16} />}
+              onClick={() => printTransaction(tx, pending)}
+            >
+              {words.receipt}
+            </Button>
+          </div>
+
+        <DetailTabs
+          labels={[words.tabs.details, words.tabs.notes, words.tabs.category]}
+          marked={attached ? 1 : null}
+          markedLabel={words.tabs.attached}
+          panels={[
+            <>
+              <Section title={words.payment}>
+                <Row half label={tr.transactions.entryDate}>
+                  {pending
+                    // A Vormerkposten's dates are the bank's provisional ones; the
+                    // drawer's title already says "Vorgemerkter Umsatz".
+                    ? tr.transactions.notBooked
+                    // A Buchungstag still ahead: the tag above says "Noch nicht gebucht".
+                    : <span className="tnum">{fmtDate(tx.entryDate)}</span>}
+                </Row>
+                {tx.valueDate && (
+                  <Row half label={tr.transactions.valueDate}><span className="tnum">{fmtDate(tx.valueDate)}</span></Row>
+                )}
+                {/* The card system's record, said in words: which card, what it cost
+                    abroad (when it was used is in the header). Amounts through
+                    <Money>, so "Beträge ausblenden" masks them like every other. */}
+                {card?.card && <Row half label={words.card}>{card.card}</Row>}
+                {card?.original && (
+                  <Row label={words.original}>
+                    <Money value={card.original.amount} currency={card.original.currency} tone="plain" />
+                    {card.original.rate != null && (
+                      <span className="tnum text-ink-2"> · {words.rate(fmtRate(card.original.rate), card.original.currency)}</span>
+                    )}
+                  </Row>
+                )}
+                {card?.fee != null && (
+                  <Row label={words.fee}>
+                    <Money value={card.fee} currency="EUR" tone="plain" />
+                    {card.feeIncluded && <span className="text-ink-2"> · {words.feeIncluded}</span>}
+                  </Row>
+                )}
+                {text.purposeLines.length > 0 && (
+                  // The copy stays unmasked: copying is the user's own act, and the
+                  // clipboard is not on the shared screen.
+                  <Row
+                    label={tr.common.booking.purpose}
+                    copy={{ text: text.purposeLines.join(' '), label: words.copy(tr.common.booking.purpose) }}
+                  >
+                    {/* Bank text is untrusted: plain text only, one line per line the bank wrote. */}
+                    {text.purposeLines.map((line, i) => (
+                      <span key={i} className="block break-words"><BankText text={line} /></span>
+                    ))}
+                  </Row>
+                )}
+              </Section>
+
+              {recipientSection}
+              {refsSection}
+            </>,
+            <>
+              <NoteSection tx={tx} />
+              <ReceiptSection tx={tx} pending={pending} />
+            </>,
+            <CategorySection key="category" tx={tx} name={text.name} pending={pending} />,
+          ]}
+        />
+      </Drawer>
+    );
+  }
+
   return (
     <Drawer open onClose={onClose} title={pending ? words.pendingTitle : words.title} bodyClassName="px-4 pt-6 pb-8 sm:px-6">
       {/* Who and how much — the two things the row already said, large. */}
       <div className="flex flex-col items-center text-center">
-        <CounterpartyAvatar tx={tx} name={text.name} credit={credit} pending={pending} size="lg" />
+        <CounterpartyAvatar tx={tx} name={text.name} credit={credit} pending={pending} size="lg" glyph={detailGlyph} />
         <p className="mt-3 max-w-full text-[17px] leading-snug font-semibold break-words text-ink">{text.name}</p>
-        <p className="mt-1">
+        <p data-figure className="mt-1">
           <span className="sr-only">{credit ? tr.common.booking.credit : tr.common.booking.debit}</span>
-          <Money value={tx.amount} currency={tx.currency} signed tone="credit" className="text-[32px] leading-tight font-bold" />
+          <Money value={tx.amount} currency={tx.currency} signed tone="credit" className="text-[32px] leading-tight font-medium" />
         </p>
         <p className="mt-1 text-[14px] text-ink-2">
           {/* A card payment says when the card was used — the Buchungstag
@@ -202,54 +423,7 @@ export function TxDetail({
         )}
       </Section>
 
-      {(bankName || iban) && (
-        <Section
-          title={credit ? words.payer : words.recipient}
-          after={query && (
-            // A link in the run of the text rather than a padded pill: its
-            // words start on the same edge as the labels above it.
-            <button
-              type="button"
-              className="group mt-1 inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-[4px] text-[14px] font-semibold text-accent"
-              onClick={() => {
-                onClose();
-                showTransactions({ query });
-              }}
-            >
-              <span className="min-w-0 truncate underline-offset-[3px] group-hover:underline">{words.allWith(text.name)}</span>
-              <ArrowRightIcon size={16} />
-            </button>
-          )}
-        >
-          {/* What the bank's FinTS answer says, first and always under the
-              same label — the card terminal's descriptor unabridged, so
-              nothing the app derived is ever the only record. A shop the app
-              worked out from it sits below, called what it is. */}
-          {bankName && (
-            <Row label={words.bankName} copy={{ text: bankName, label: words.copy(words.bankName) }}>
-              <span className="break-words">{bankName}</span>
-            </Row>
-          )}
-          {recognised && <Row label={words.shop}><span className="break-words">{recognised}</span></Row>}
-          {address && <Row label={place?.street ? words.address : words.place}><span className="break-words">{address}</span></Row>}
-          {/* The account the money actually moved to or from belongs to the
-              payment provider (a card processor or acquirer), not to the shop
-              named above — said here, so the IBAN below is never mistaken for
-              the shop's. */}
-          {text.via && <Row label={words.provider}><span className="break-words">{text.via}</span></Row>}
-          {iban && (
-            <Row label={text.via ? words.providerIban : 'IBAN'} copy={{ text: iban, label: tr.common.account.copyIban }}>
-              <span className="iban text-[14px]">{fmtIban(iban)}</span>
-            </Row>
-          )}
-          {bic && (
-            <Row half label="BIC" copy={{ text: bic, label: words.copy('BIC') }}>
-              <span className="iban text-[14px]">{bic}</span>
-            </Row>
-          )}
-          {country && <Row half label={words.country}>{country.name}</Row>}
-        </Section>
-      )}
+      {recipientSection}
 
       <CategorySection tx={tx} name={text.name} pending={pending} />
 
@@ -259,37 +433,75 @@ export function TxDetail({
       {/* An invoice or a till receipt for it, kept on this machine. */}
       <ReceiptSection tx={tx} pending={pending} />
 
-      {refs.length > 0 && (
-        <div className="mt-6 border-t border-line pt-2">
-          <Disclosure
-            className="-mx-4"
-            title={
-              <span className="text-[15px] font-bold text-headline">
-                {tr.transactions.refs.title} <span className="tnum font-semibold text-ink-3">({refs.length})</span>
-              </span>
-            }
-          >
-            <dl className="px-4 pb-2">
-              {refs.map((r, i) => (
-                <div key={`${r.label}-${i}`} className="flex items-start gap-2 border-b border-line py-2.5 last:border-b-0">
-                  <div className="min-w-0 flex-1">
-                    <dt className="text-[13px] font-semibold text-ink-3">{r.label}</dt>
-                    <dd className="num mt-0.5 text-[13.5px] break-all text-ink">
-                      {/* An Ursprungsbetrag is an amount whatever its shape; the rest
-                          (the original purpose above all) is masked like prose. */}
-                      {privacy && amountRefs.has(r.value)
-                        ? <span role="img" aria-label={maskedLabel()}>{AMOUNT_MASK}</span>
-                        : <BankText text={r.value} />}
-                    </dd>
-                  </div>
-                  <CopyButton text={r.value} label={words.copy(r.label)} className="-mr-1" />
-                </div>
-              ))}
-            </dl>
-          </Disclosure>
-        </div>
-      )}
+      {refsSection}
     </Drawer>
+  );
+}
+
+/**
+ * Material's primary tabs over the phone's details: the labels share the
+ * width, the current one in the primary over a 3dp indicator. Arrow keys
+ * move between them (the ARIA tabs pattern); a tab marked carries a dot.
+ */
+function DetailTabs({ labels, panels, marked, markedLabel }: {
+  labels: string[]; panels: ReactNode[]; marked: number | null; markedLabel: string;
+}) {
+  const [current, setCurrent] = useState(0);
+  const base = useId();
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const go = (i: number) => {
+    const n = (i + labels.length) % labels.length;
+    setCurrent(n);
+    refs.current[n]?.focus();
+  };
+  return (
+    <div className="mt-5">
+      <div role="tablist" className="-mx-4 flex shadow-[inset_0_-1px_0_var(--line)]">
+        {labels.map((label, i) => (
+          <button
+            key={label}
+            ref={(el) => { refs.current[i] = el; }}
+            type="button"
+            role="tab"
+            id={`${base}-tab-${i}`}
+            aria-selected={current === i}
+            aria-controls={`${base}-panel-${i}`}
+            tabIndex={current === i ? 0 : -1}
+            onClick={() => setCurrent(i)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight') { e.preventDefault(); go(i + 1); }
+              else if (e.key === 'ArrowLeft') { e.preventDefault(); go(i - 1); }
+            }}
+            className={cx(
+              'relative flex h-12 min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-[14px] font-medium transition-colors duration-150',
+              current === i ? 'text-accent' : 'text-ink-2',
+            )}
+          >
+            <span className="truncate">{label}</span>
+            {marked === i && (
+              <>
+                <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-accent" />
+                <span className="sr-only">, {markedLabel}</span>
+              </>
+            )}
+            {current === i && <span aria-hidden className="absolute inset-x-[22%] bottom-0 h-[3px] rounded-t-[3px] bg-accent" />}
+          </button>
+        ))}
+      </div>
+      {panels.map((panel, i) => (
+        <div
+          key={i}
+          role="tabpanel"
+          id={`${base}-panel-${i}`}
+          aria-labelledby={`${base}-tab-${i}`}
+          hidden={current !== i}
+          // The first section in a panel needs no rule above it: the tabs are the edge.
+          className="[&>section:first-child]:mt-3 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0"
+        >
+          {panel}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -297,7 +509,7 @@ function Section({ title, children, after }: { title: string; children: ReactNod
   const id = useId();
   return (
     <section aria-labelledby={id} className="mt-6 border-t border-line pt-5">
-      <h3 id={id} className="text-[15px] font-bold text-headline">{title}</h3>
+      <h3 id={id} className="text-[14px] font-semibold text-ink-2">{title}</h3>
       <dl className="mt-1 grid grid-cols-2 gap-x-4">{children}</dl>
       {after}
     </section>
@@ -444,7 +656,7 @@ function CategorySection({ tx, name, pending }: { tx: SerializedTransaction; nam
 
   return (
     <section aria-labelledby={titleId} className="mt-6 border-t border-line pt-5">
-      <h3 id={titleId} className="text-[15px] font-bold text-headline">{tr.transactions.category}</h3>
+      <h3 id={titleId} className="text-[14px] font-semibold text-ink-2">{tr.transactions.category}</h3>
       <div className="mt-3 flex items-center gap-3">
         {/* A glyph, not a control: inset grey, so the one blue here is "Ändern". */}
         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-inset text-ink-2">

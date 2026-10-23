@@ -69,6 +69,18 @@ export function useAskable(): boolean | undefined {
   return status ? status.state === 'available' && asksWith(status.askModel ?? status.model) : undefined;
 }
 
+/**
+ * A question typed into the search (components/CommandPalette.tsx), handed to
+ * the Analyse's "Frag deine Umsätze": asked there once it is on screen, as if
+ * typed into its own field. The search names the Analyse; the form takes it.
+ */
+let handedOver: string | null = null;
+const takers = new Set<() => void>();
+export function askInAnalysis(question: string): void {
+  handedOver = question;
+  for (const take of takers) take();
+}
+
 type Phase = 'idle' | 'reading' | 'failed' | 'notUnderstood' | 'answered';
 
 export function AskTile({ data }: { data: ScopeData }) {
@@ -196,6 +208,25 @@ function AskForm({ data }: { data: ScopeData }) {
     e.preventDefault();
     void ask(question);
   };
+
+  // A question handed over by the search: on arrival, or at once when the
+  // Analyse was already open.
+  const askRef = useRef(ask);
+  askRef.current = ask;
+  useEffect(() => {
+    const take = () => {
+      const q = handedOver;
+      if (!q) return;
+      handedOver = null;
+      setQuestion(q);
+      void askRef.current(q);
+    };
+    takers.add(take);
+    take();
+    return () => {
+      takers.delete(take);
+    };
+  }, []);
 
   return (
     <section className="panel" aria-labelledby={titleId}>

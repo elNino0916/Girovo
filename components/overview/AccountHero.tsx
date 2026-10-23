@@ -13,10 +13,12 @@ import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
-import { AlertTriangleIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
-import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx } from '../ui';
+import { AlertTriangleIcon, ChevronIcon, EyeIcon, EyeOffIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
+import { Alert, Button, CopyButton, Field, IconButton, Input, Overlay, Sheet, Skeleton, cx } from '../ui';
 import { fmtSince } from '../shell/session';
+import { usePhone } from '../shell/usePhone';
 import { MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
+import { AccountList } from './AccountList';
 import { BalanceChart } from './BalanceChart';
 
 /**
@@ -126,6 +128,14 @@ export function AccountHero() {
   // their kept balances agree (lib/history.ts).
   const history = useMemo(() => (info && txs ? accountBalanceHistory(txs, info) : null), [info, txs]);
 
+  // A phone shows the balance flat, under the search: the figure, Verfügbar
+  // and a sparkline that opens the rest (the qualifying figures, the IBAN,
+  // the Kontoverlauf) in place.
+  const phone = usePhone();
+  const [details, setDetails] = useState(false);
+  const detailsId = useId();
+  const phoneTitleId = useId();
+
   // No account at all (the bank listed none): the list says so; nothing to hold a place for.
   if (!a) return accounts.length ? <HeroSkeleton /> : null;
   // Renamed here when the list above stays away (a single account), and on a
@@ -133,7 +143,14 @@ export function AccountHero() {
   // wider window's.
   const renamable: Renamable = accounts.length === 1 && banks.length <= 1 ? 'always' : 'phone';
   // A Depot has no balance and no Kontoverlauf over FinTS: its value instead.
-  if (isDepot(a)) return <DepotHero account={a} renamable={renamable} />;
+  if (isDepot(a)) {
+    return phone ? (
+      <div className="min-w-0">
+        <div className="mb-3 flex min-h-12 items-center"><AccountSwitch label={accountLabel(a)} /></div>
+        <DepotHero account={a} renamable={renamable} />
+      </div>
+    ) : <DepotHero account={a} renamable={renamable} />;
+  }
 
   const bal = balances[acct];
   const statementLoading = loadingAccount === acct;
@@ -231,6 +248,117 @@ export function AccountHero() {
       <Figure key="closing" label={words.balanceOn(fmtDate(info.to))} title={words.closingHint}>
         <Money value={closing.balance} currency={closing.currency} tone={card ? 'plain' : 'auto'} />
       </Figure>,
+    );
+  }
+
+  if (phone) {
+    const available = bal?.availableAmount;
+    const fresh = bal && info?.loadedAt ? tr.transactions.pending.asOf(fmtSince(info.loadedAt)) : null;
+    // The sparkline is the way into the details: drawn only from a proven history.
+    const spark = history?.verified && history.points.length > 1 ? history.points : null;
+    return (
+      <section aria-labelledby={phoneTitleId} className="min-w-0">
+        <h2 id={phoneTitleId} className="sr-only">{words.title(label)}</h2>
+        <div className="-mr-2 flex min-h-10 items-center justify-between gap-2">
+          <AccountSwitch label={label} />
+          <IconButton
+            size="md"
+            aria-label={privacy ? tr.common.showAmounts : tr.common.hideAmounts}
+            onClick={togglePrivacy}
+            className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--ink)_12%,transparent)]')}
+          >
+            {privacy ? <EyeOffIcon /> : <EyeIcon />}
+          </IconButton>
+        </div>
+
+        <div className="flex items-end justify-between gap-4">
+          <div ref={figureRef} tabIndex={-1} aria-busy={figureLoading || undefined} className="min-w-0 outline-none">
+            {main ? (
+              <>
+                {!plainNow && <p className="text-[14px] leading-5 font-medium text-ink-2">{main.label}</p>}
+                <p data-balance className={cx('leading-none', figureColour)}>
+                  <Money
+                    value={main.value}
+                    currency={main.currency}
+                    tone={card ? 'plain' : 'auto'}
+                    split
+                    className="text-[48px] leading-[56px] font-medium"
+                    centsClassName="text-[0.58em]"
+                  />
+                </p>
+                <p className="tnum mt-1 text-[14px] leading-5 text-ink-2">
+                  {available != null && bal ? (
+                    <>
+                      {tr.insights.available}{' '}
+                      <Money value={available} currency={bal.currency} tone="auto" className="font-medium text-ink" />
+                    </>
+                  ) : null}
+                  {/* The date, or for today's figure how fresh it is (the time of the
+                      read that brought it), on a line of its own under Verfügbar. */}
+                  {(showDate ? dated : fresh) && (
+                    <span className="block whitespace-nowrap" title={showDate ? dated?.title : undefined}>
+                      {showDate ? dated?.text : fresh}
+                    </span>
+                  )}
+                </p>
+                {!bal && a.canBalance && (
+                  <FetchAction
+                    lead={balanceErrors[acct]
+                      ? `${words.pastRange} ${words.currentFailed(card, balanceErrors[acct].message)}`
+                      : words.pastRange}
+                    label={balanceErrors[acct] ? tr.common.retry : words.loadCurrent(card)}
+                    busy={busy}
+                    loading={balanceLoading === acct}
+                    run={() => fetchFigure('balance')}
+                  />
+                )}
+              </>
+            ) : figureLoading ? (
+              <>
+                <Skeleton className="mt-1 h-12 w-56 max-w-full rounded-[6px]" />
+                <p className="mt-2 text-[14px] leading-5 text-ink-2">{words.fetchingDots}</p>
+              </>
+            ) : failure ? (
+              <FigureNote
+                problem
+                title={tr.common.fetchFailed}
+                action={{ label: tr.common.retry, run: () => fetchFigure() }}
+                busy={busy}
+              >
+                {failure.message}
+              </FigureNote>
+            ) : canReportBalance(a) ? (
+              <FigureNote title={words.noBalanceYet} action={{ label: tr.insights.loadBalance, run: () => fetchFigure() }} busy={busy} />
+            ) : (
+              <FigureNote title={words.noBalance}>
+                {words.noBalanceHint}
+              </FigureNote>
+            )}
+          </div>
+
+          {(spark || figures.length > 0) && (
+            // The figures behind the balance, opened in place: a press on the sparkline.
+            <button
+              type="button"
+              aria-expanded={details}
+              aria-controls={detailsId}
+              aria-label={tr.insights.balanceChart.title}
+              onClick={() => setDetails((d) => !d)}
+              className="mb-1 grid h-12 w-[112px] shrink-0 place-items-center rounded-full outline-offset-2 transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]"
+            >
+              {spark ? <Sparkline points={spark} /> : <ChevronIcon dir={details ? 'up' : 'down'} className="text-ink-2" />}
+            </button>
+          )}
+        </div>
+
+        {details && (
+          <div id={detailsId} className="mt-4">
+            {figures.length > 0 && <dl className="grid gap-y-2">{figures}</dl>}
+            <AccountLine account={a} renamable={renamable} />
+            <BalanceSection history={history} loading={statementLoading && !info} currency={currency} figure={!!main} />
+          </div>
+        )}
+      </section>
     );
   }
 
@@ -424,6 +552,71 @@ function DepotHero({ account, renamable }: { account: SerializedAccount; renamab
         <AccountLine account={account} renamable={renamable} />
       </div>
     </HeroFrame>
+  );
+}
+
+/**
+ * The account's name heading the phone's balance — and, where there is
+ * another account or bank to go to, the way there: Material's bottom sheet
+ * with the account list in its rows (components/overview/AccountList.tsx,
+ * under [data-rows]), the banks apart, the Gesamtsaldo and "Anmelden" for a
+ * bank not logged in. Choosing an account closes it.
+ */
+function AccountSwitch({ label }: { label: string }) {
+  const { accounts, banks, activeAccount } = useFints();
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const acct = activeAccount?.accountNumber;
+  const shown = useRef(acct);
+  useEffect(() => {
+    if (shown.current !== acct) setOpen(false);
+    shown.current = acct;
+  }, [acct]);
+  const several = accounts.length > 1 || banks.length > 1;
+  if (!several) return <p className="min-w-0 truncate text-[16px] leading-6 font-medium text-ink-2">{label}</p>;
+  return (
+    <>
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        className="-ml-2 flex h-10 min-w-0 items-center gap-1 rounded-full pr-2 pl-2 text-[16px] font-medium text-ink-2 transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)]"
+      >
+        <span className="min-w-0 truncate">{label}</span>
+        <ChevronIcon dir="down" size={16} className="shrink-0" />
+      </button>
+      <Overlay open={open} onClose={() => setOpen(false)} label={t.insights.accounts.title} align="bottom">
+        <Sheet onClose={() => setOpen(false)}>
+          <div data-rows className="-mx-1">
+            <AccountList />
+          </div>
+        </Sheet>
+      </Overlay>
+    </>
+  );
+}
+
+/** The Kontoverlauf as a glyph: a staircase in the primary, its last day a dot. */
+function Sparkline({ points }: { points: readonly { balance: number }[] }) {
+  const W = 96;
+  const H = 36;
+  const pad = 3;
+  const values = points.map((p) => p.balance);
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const span = hi - lo || 1;
+  const x = (i: number) => pad + (i / (points.length - 1)) * (W - pad * 2);
+  const y = (v: number) => pad + (1 - (v - lo) / span) * (H - pad * 2);
+  let d = `M${x(0).toFixed(1)},${y(values[0]).toFixed(1)}`;
+  for (let i = 1; i < values.length; i++) d += `H${x(i).toFixed(1)}V${y(values[i]).toFixed(1)}`;
+  const last = values.length - 1;
+  return (
+    <svg aria-hidden width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+      <path d={`${d}V${H - pad}H${x(0).toFixed(1)}Z`} fill="var(--chart-area)" />
+      <path d={d} fill="none" stroke="var(--chart-line)" strokeWidth={2} strokeLinejoin="round" />
+      <circle cx={x(last)} cy={y(values[last])} r={3.5} fill="var(--chart-line)" />
+    </svg>
   );
 }
 

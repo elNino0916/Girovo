@@ -33,7 +33,8 @@ export const de = {
     overview: 'Übersicht',
     transactions: 'Umsätze',
     analysis: 'Analyse',
-    contracts: 'Verträge & Abos',
+    /** The place for paying: Überweisen, Geld anfordern, the regular payments (Verträge & Abos, the bank's orders). */
+    contracts: 'Zahlungen',
     settings: 'Einstellungen',
     messages: 'Mitteilungen',
   },
@@ -99,7 +100,7 @@ export const en: typeof de = {
     overview: 'Overview',
     transactions: 'Transactions',
     analysis: 'Analysis',
-    contracts: 'Contracts & subscriptions',
+    contracts: 'Payments',
     settings: 'Settings',
     messages: 'Messages',
   },
