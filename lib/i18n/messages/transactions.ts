@@ -264,6 +264,17 @@ export const de = {
       ? `${names[0]} bekommt einen GiroCode`
       : `Erst ${names.slice(0, -1).join(', ')}, dann ${names[names.length - 1]} – je ein GiroCode`),
     requestAll: (n: number): string => (n === 1 ? 'Anfordern' : 'Alle anfordern'),
+    /** The desktop's requests, every person's code at once (SplitRequests). */
+    requests: {
+      /** "Sushi Yana · 30,79 € geteilt durch 4" */
+      eyebrow: (name: string, total: string, n: number) => `${name} · ${total} geteilt durch ${n}`,
+      intro: 'Für jede Person ein GiroCode mit ihrem Anteil – als Bild in einen Chat, oder vom Bildschirm gescannt.',
+      purpose: (purpose: ReactNode): ReactNode[] => ['Verwendungszweck: ', purpose],
+      own: (amount: ReactNode, to: string): ReactNode[] => ['Dein Anteil: ', amount, ` · an ${to}`],
+      /** The buttons' names, with whose code it is: "Bild kopieren: Lea". */
+      copyFor: (label: string, name: string) => `${label}: ${name}`,
+      done: 'Fertig',
+    },
   },
 
   detail: {
@@ -759,6 +770,14 @@ export const en: typeof de = {
       ? `${names[0]} gets a GiroCode`
       : `First ${names.slice(0, -1).join(', ')}, then ${names[names.length - 1]} – one GiroCode each`),
     requestAll: (n) => (n === 1 ? 'Request' : 'Request all'),
+    requests: {
+      eyebrow: (name, total, n) => `${name} · ${total} split ${n} ways`,
+      intro: 'A GiroCode with their share for each person – as an image in a chat, or scanned off the screen.',
+      purpose: (purpose) => ['Reference: ', purpose],
+      own: (amount, to) => ['Your share: ', amount, ` · to ${to}`],
+      copyFor: (label, name) => `${label}: ${name}`,
+      done: 'Done',
+    },
   },
 
   detail: {

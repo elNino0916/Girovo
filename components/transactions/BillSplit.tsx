@@ -11,7 +11,9 @@
 // always what is left, so the shares add up by construction, and shares that
 // ask for more than the booking stop the requests until they are fixed.
 // "Alle anfordern" closes the booking and opens Geld anfordern for each
-// person in turn, their amount and the purpose filled in.
+// person, their amount and the purpose filled in: on the phone one after the
+// other, on the desktop all at once (SplitRequests, owner's pick "Alle
+// nebeneinander", 2026-10-24). A dialog of its own on the desktop.
 
 import { useId, useMemo, useRef, useState } from 'react';
 import { canRequest, resplit, type SplitPerson } from '@/lib/bill-split';
@@ -41,7 +43,8 @@ export function BillSplit({
   glyph: React.ReactNode;
   defaultPurpose: string;
   onClose: () => void;
-  onRequest: (list: SharePrefill[]) => void;
+  /** One request per person, and the user's own share in cents. */
+  onRequest: (list: SharePrefill[], own: number) => void;
 }) {
   const t = useT();
   const words = t.transactions.billSplit;
@@ -93,7 +96,7 @@ export function BillSplit({
       purpose: purpose.trim(),
       forName: label(p, i),
       step: { at: i + 1, of, ...(i + 1 < of ? { next: label(split.others[i + 1], i + 1) } : {}) },
-    })));
+    })), split.own);
   };
   const anyTyped = people.some((p) => p.typed);
 

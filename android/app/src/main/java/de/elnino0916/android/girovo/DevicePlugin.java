@@ -360,7 +360,7 @@ public class DevicePlugin extends Plugin {
         try {
             PackageInfo info = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0);
             result.put("versionName", info.versionName);
-            result.put("versionCode", Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? info.getLongVersionCode() : info.versionCode);
+            result.put("versionCode", info.getLongVersionCode());
         } catch (PackageManager.NameNotFoundException e) {
             result.put("versionName", "");
             result.put("versionCode", 0);
@@ -388,9 +388,9 @@ public class DevicePlugin extends Plugin {
             View view = getActivity().getWindow().getDecorView();
             int effect;
             if ("confirm".equals(kind)) {
-                effect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.LONG_PRESS;
+                effect = HapticFeedbackConstants.CONFIRM;
             } else if ("reject".equals(kind)) {
-                effect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ? HapticFeedbackConstants.REJECT : HapticFeedbackConstants.LONG_PRESS;
+                effect = HapticFeedbackConstants.REJECT;
             } else {
                 effect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
                     ? HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE

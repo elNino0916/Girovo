@@ -240,6 +240,8 @@ export const de = {
     openApp: 'Öffne deine Banking-App selbst, auch wenn keine Mitteilung erschienen ist.',
     /** Android: the footer's way into the bank's approval app ("S-pushTAN öffnen"). */
     openApprovalApp: (app: string) => `${app} öffnen`,
+    /** The desktop: where the approval is waiting. */
+    approveOnPhone: (app: string) => `Bestätige in ${app} auf deinem Telefon.`,
     checkDevices: 'Hast du mehrere Geräte für die Freigabe eingerichtet, sieh auf allen nach.',
     checkNotifications: 'Prüfe, ob die App auf deinem Telefon Mitteilungen senden darf.',
     /** Under a refusal: the bank's return codes, for whoever calls the bank. */
@@ -588,6 +590,7 @@ export const en: typeof de = {
     openMethod: (method) => `Open “${method}” yourself, even if no notification has appeared.`,
     openApp: 'Open your banking app yourself, even if no notification has appeared.',
     openApprovalApp: (app) => `Open ${app}`,
+    approveOnPhone: (app) => `Approve in ${app} on your phone.`,
     checkDevices: 'If you have set up several devices for approval, check all of them.',
     checkNotifications: 'Check that the app is allowed to send notifications on your phone.',
     reference: (codes) => ['Bank response code: ', codes],

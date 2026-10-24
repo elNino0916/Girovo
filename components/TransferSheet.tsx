@@ -17,7 +17,7 @@
 // Launch state comes from the provider (`transferPrefill`, `closeTransfer`);
 // the shell mounts this while `transferOpen` is true.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ClipboardEvent, FormEvent, ReactNode } from 'react';
 import type { TransferPrefill, TransferTemplate } from '@/lib/app-types';
 import { isCardAccount } from '@/lib/balances';
@@ -43,8 +43,8 @@ import {
 import { Money, formatMoney, useMoneyText } from './Money';
 import { VopReport, vopDeviates, vopUnchecked } from './VopResult';
 import { Alert, Button, Checkbox, Chip, Dialog, Field, Input, Overlay, Segmented, Select, Spinner, coarsePointer, cx } from './ui';
-import { GiroCodeDrop, imageFromTransfer, useFileDrop, useGiroCodeReader, type InvoicePage } from './transfer/GiroCodeDrop';
-import { InvoicePreview } from './transfer/InvoicePreview';
+import { GiroCodeDrop, imageFromTransfer, useFileDrop, useGiroCodeReader, type InvoiceField, type InvoicePage } from './transfer/GiroCodeDrop';
+import { InvoicePane, InvoicePreview } from './transfer/InvoicePreview';
 import type { InvoiceRead } from '@/lib/invoice-text';
 import { IbanHint, IbanInput, useBankLookup } from './transfer/IbanInput';
 import { expectedLength, groupIban, ibanProblem, rawIban } from './transfer/iban';
@@ -198,6 +198,20 @@ type Check =
   // be: the bank's list of them — read-only, like the rest.
   | { stage: 'orders'; startedAt: number }
   | { stage: 'done'; at: number; statements: boolean | null; pending: boolean | null; orders?: boolean | null };
+
+/** Which of the invoice's boxes a field of the form lights (InvoicePane). */
+const FIELD_OF: Record<string, InvoiceField> = { 'tf-name': 'name', 'tf-iban': 'iban', 'tf-purpose': 'purpose', 'tf-amount': 'amount' };
+
+const WIDE = '(min-width: 1024px)';
+const wideSubscribe = (onChange: () => void) => {
+  const mq = window.matchMedia(WIDE);
+  mq.addEventListener('change', onChange);
+  return () => mq.removeEventListener('change', onChange);
+};
+/** Whether the window has room for the invoice beside the form. */
+function useWide(): boolean {
+  return useSyncExternalStore(wideSubscribe, () => window.matchMedia(WIDE).matches, () => false);
+}
 
 export function TransferSheet() {
   const {
@@ -631,7 +645,14 @@ export function TransferSheet() {
     requestAnimationFrame(() => (read.amount == null ? amountRef : !read.name ? nameRef : !read.iban ? ibanRef : purposeRef).current?.focus());
   }, [fillPayee]);
 
-  const reader = useGiroCodeReader(fromGiroCode, IS_ANDROID ? fromInvoice : undefined, ownIbans);
+  const reader = useGiroCodeReader(fromGiroCode, fromInvoice, ownIbans);
+
+  // The desktop's invoice beside the form on a wide window (owner's pick
+  // "Rechnung daneben"): the box of the field in use is lit on the page.
+  const wide = useWide();
+  const [hotField, setHotField] = useState<InvoiceField | null>(null);
+  const invoiceAside = !IS_ANDROID && !!invoicePage && wide && (step === 'form' || step === 'review');
+  const onFieldFocus = (e: React.FocusEvent) => setHotField(FIELD_OF[(e.target as HTMLElement).id] ?? null);
   const drop = useFileDrop(step === 'form', (f) => void reader.readFile(f));
 
   // Opened for a GiroCode (Android: a shared invoice, or the "GiroCode
@@ -980,6 +1001,9 @@ export function TransferSheet() {
         scrollKey={step}
         onPaste={onPaste}
         {...drop.handlers}
+        aside={invoiceAside && invoicePage ? <InvoicePane page={invoicePage} hot={hotField} /> : undefined}
+        onFocusCapture={invoiceAside ? onFieldFocus : undefined}
+        onBlurCapture={invoiceAside ? () => setHotField(null) : undefined}
         footer={
           step === 'form' ? (
             part === 'amount' ? (
@@ -1136,7 +1160,7 @@ export function TransferSheet() {
                 <TemplatesMenu onPick={applyTemplate} onManage={() => setManaging(true)} />
               </div>
 
-              {invoicePage && account && (
+              {invoicePage && account && !invoiceAside && (
                 <InvoicePreview
                   page={invoicePage}
                   amount={checkAmount(amount).cents != null ? checkAmount(amount).cents! / 100 : null}

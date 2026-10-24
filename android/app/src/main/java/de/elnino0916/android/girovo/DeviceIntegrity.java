@@ -180,15 +180,8 @@ final class DeviceIntegrity {
         String pkg = context.getPackageName();
         JSArray signers = new JSArray();
         try {
-            Signature[] signatures;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                PackageInfo info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES);
-                signatures = info.signingInfo == null ? new Signature[0] : info.signingInfo.getApkContentsSigners();
-            } else {
-                @SuppressWarnings("deprecation")
-                PackageInfo info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNATURES);
-                signatures = info.signatures;
-            }
+            PackageInfo info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES);
+            Signature[] signatures = info.signingInfo == null ? new Signature[0] : info.signingInfo.getApkContentsSigners();
             for (Signature s : signatures) signers.put(sha256(s.toByteArray()));
         } catch (Exception e) {
             // Left empty: the page then knows nothing about the signer.
@@ -196,9 +189,7 @@ final class DeviceIntegrity {
         result.put("signers", signers);
         String installer = null;
         try {
-            installer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-                ? pm.getInstallSourceInfo(pkg).getInstallingPackageName()
-                : pm.getInstallerPackageName(pkg);
+            installer = pm.getInstallSourceInfo(pkg).getInstallingPackageName();
         } catch (Exception e) {
             // Unknown installer.
         }

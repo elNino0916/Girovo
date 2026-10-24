@@ -419,7 +419,8 @@ export const de = {
     perMonth: (amount: ReactNode): ReactNode[] => ['Das sind ', amount, ' im Monat'],
     perMonthDetail: (left: ReactNode, months: number): ReactNode[] =>
       ['noch ', left, months === 1 ? ' in einem Monat' : ` in ${months} Monaten`],
-    sealed: 'Verschlüsselt nur auf diesem Telefon',
+    /** "diesem Rechner": the phone build says Telefon (phone.ts). */
+    sealed: 'Verschlüsselt nur auf diesem Rechner',
     save: 'Speichern',
     remove: 'Sparziel löschen',
     missing: (amount: ReactNode): ReactNode[] => ['noch ', amount],
@@ -810,7 +811,7 @@ export const en: typeof de = {
     targetInvalid: 'Enter an amount above 0.',
     perMonth: (amount) => ['That is ', amount, ' a month'],
     perMonthDetail: (left, months) => ['', left, months === 1 ? ' to go in one month' : ` to go in ${months} months`],
-    sealed: 'Encrypted, only on this phone',
+    sealed: 'Encrypted, only on this computer',
     save: 'Save',
     remove: 'Delete savings goal',
     missing: (amount) => [amount, ' to go'],

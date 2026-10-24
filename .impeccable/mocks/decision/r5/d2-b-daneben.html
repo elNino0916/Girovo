@@ -1,0 +1,116 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=1440"><title>Rechnung: daneben</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=block');
+:root{
+  --primary:#0060a8; --on-primary:#fff; --pc:#d3e4ff; --on-pc:#004880;
+  --sc:#dae1ff; --on-sc:#3c4665; --tertiary:#5a5a8b; --tc:#e2dfff;
+  --surface:#f8f9ff; --scl:#eff4ff; --sc1:#e9eefa; --sch:#e3e8f4; --schh:#dde3ee;
+  --ink:#161c24; --ink-2:#404753; --outline:#707784; --ov:#bfc7d5;
+  --green:#0c7336; --green-soft:#eaf4ee; --orange:#d9540f; --mark:rgba(0,96,168,.14); --mark-line:#0060a8;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface)}
+body{width:1440px;height:900px;overflow:hidden;position:relative;font-family:'Google Sans Flex',sans-serif;
+  color:var(--ink);-webkit-font-smoothing:antialiased;font-size:16px;line-height:24px;font-variation-settings:'ROND' 0}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;font-size:24px;line-height:1;width:1em;height:1em;
+  overflow:hidden;letter-spacing:normal;text-transform:none;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';
+  font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block;flex:none}
+.fill{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em}
+.fig{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.025em;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:15px;letter-spacing:.02em}
+/* ---- the app behind */
+.rail{position:absolute;left:0;top:0;bottom:0;width:96px;display:flex;flex-direction:column;align-items:center;padding-top:14px;gap:4px}
+.logo{width:32px;height:32px;border-radius:9px;background:#0a2c5e;color:#fff;display:grid;place-items:center;font-size:20px}
+.fab{margin:22px 0 22px;width:56px;height:56px;border-radius:16px;background:var(--pc);display:grid;place-items:center;color:var(--on-pc);box-shadow:0 3px 8px rgba(0,0,0,.18)}
+.nav{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:500;color:var(--ink-2);margin-bottom:12px}
+.nav .pill{width:56px;height:32px;border-radius:16px;display:grid;place-items:center}
+.nav.on .pill{background:var(--sc);color:var(--on-sc)}
+.search{position:absolute;left:288px;top:6px;width:960px;height:48px;border-radius:24px;background:var(--sch);display:flex;align-items:center;gap:12px;padding:0 16px;color:var(--ink-2)}
+.main{position:absolute;left:304px;top:78px;width:928px}
+.acct{font-size:16px;color:var(--ink-2);display:flex;align-items:center;gap:4px}
+.bal{font-size:56px;line-height:64px;margin-top:6px}
+.bal small{font-size:32px}
+.chips{display:flex;gap:8px;margin-top:28px}
+.chip{height:32px;border:1px solid var(--outline);border-radius:8px;padding:0 12px;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500;color:var(--ink-2)}
+.day{font-size:14px;font-weight:500;color:var(--ink-2);margin:22px 0 6px}
+.row{display:grid;grid-template-columns:40px 1fr auto;gap:16px;align-items:center;min-height:64px}
+.disc{width:40px;height:40px;border-radius:50%;background:var(--sch);display:grid;place-items:center;color:var(--ink-2);font-weight:500;font-size:15px;flex:none}
+.disc .ms{font-size:20px}
+.rt{font-size:16px}.rs{font-size:14px;color:var(--ink-2);line-height:20px}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.32)}
+/* ---- the layer */
+.dlg{position:absolute;background:var(--scl);border-radius:28px;box-shadow:0 8px 24px rgba(0,0,0,.18);display:flex;flex-direction:column;overflow:hidden}
+.dh{padding:24px 28px 0;display:flex;align-items:flex-start;gap:12px}
+.dh h2{margin:0;font-size:22px;line-height:28px;font-weight:400;flex:1}
+.eyebrow{font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2);margin-bottom:2px}
+.x{width:40px;height:40px;margin:-6px -8px 0 0;display:grid;place-items:center;color:var(--ink-2);border-radius:50%}
+.db{padding:16px 28px 0;flex:1;min-height:0}
+.df{padding:20px 28px 24px;display:flex;gap:12px;justify-content:flex-end;align-items:center}
+.btn{height:40px;border-radius:20px;padding:0 24px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:14px;font-weight:500;white-space:nowrap}
+.btn .ms{font-size:18px}
+.filled{background:var(--primary);color:#fff}
+.tonal{background:var(--sc);color:var(--on-sc)}
+.text{color:var(--primary);padding:0 12px}
+.field{position:relative;border:1px solid var(--outline);border-radius:4px;height:56px;display:flex;align-items:center;padding:0 16px;font-size:16px;margin-top:8px}
+.field label{position:absolute;top:-9px;left:12px;padding:0 4px;background:var(--scl);font-size:12px;line-height:16px;color:var(--ink-2)}
+.field.on{border:2px solid var(--primary)}
+.field.on label{color:var(--primary)}
+.field + .field{margin-top:16px}
+.hint{font-size:12px;line-height:16px;color:var(--ink-2);padding:4px 16px 0}
+.code{background:#fff;border:1px solid var(--ov);border-radius:16px;display:grid;place-items:center}
+.code svg{display:block}
+.note{font-size:14px;line-height:20px;color:var(--ink-2)}
+.sec{font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+.bar3{display:flex;gap:4px;margin:16px 0 4px}.bar3 i{flex:1;height:4px;border-radius:2px;background:var(--pc)}.bar3 i.on{background:var(--primary)}
+/* ---- an invoice page */
+.paper{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18);font-family:'Arial',sans-serif;color:#222;position:relative}
+.mk{position:absolute;border:1.5px solid var(--mark-line);background:var(--mark);border-radius:3px}
+.mk.hot{border-width:2.5px;background:rgba(0,96,168,.22)}
+
+</style></head><body>
+<div class="rail">
+  <div class="logo"><span class="ms" style="font-size:20px">euro</span></div>
+  <div class="fab"><span class="ms">sync_alt</span></div>
+  <div class="nav on"><div class="pill"><span class="ms fill">home</span></div>Übersicht</div>
+  <div class="nav"><div class="pill"><span class="ms">sync_alt</span></div>Zahlungen</div>
+  <div class="nav"><div class="pill"><span class="ms">bar_chart</span></div>Analyse</div>
+</div>
+<div class="search"><span class="ms">search</span><span style="flex:1">Umsätze und mehr suchen</span><span class="disc" style="width:28px;height:28px;font-size:11px;background:var(--pc);color:var(--on-pc)">NB</span></div>
+<div class="main">
+  <div class="acct">GiroKomfort <span class="ms" style="font-size:18px">expand_more</span></div>
+  <div class="bal fig">780<small>,11 €</small></div>
+  <div class="rs" style="margin-top:4px">Verfügbar <b class="num" style="font-weight:500;color:var(--ink)">2.706,73 €</b></div>
+  <div class="chips"><span class="chip">Vorgemerkt 2</span><span class="chip">Eingänge</span><span class="chip">Ausgänge</span><span class="chip">Kategorie</span><span class="chip">Monat</span></div>
+  <div class="day">Mittwoch, 21. Oktober</div>
+  <div class="row"><span class="disc"><span class="ms">restaurant</span></span><div><div class="rt">Sushi Yana</div><div class="rs">Essen &amp; Trinken · girocard · Musterstadt</div></div><span class="fig num">−30,79 €</span></div>
+  <div class="row"><span class="disc"><span class="ms">play_circle</span></span><div><div class="rt">Spotify AB</div><div class="rs">Abos &amp; Medien · Premium 10/2026</div></div><span class="fig num">−11,99 €</span></div>
+  <div class="day">Dienstag, 20. Oktober</div>
+  <div class="row"><span class="disc"><span class="ms">shopping_basket</span></span><div><div class="rt">REWE Markt GmbH</div><div class="rs">Lebensmittel &amp; Drogerie · girocard</div></div><span class="fig num">−54,41 €</span></div>
+  <div class="row"><span class="disc"><span class="ms">home</span></span><div><div class="rt">Stadtwerke Musterstadt GmbH</div><div class="rs">Wohnen &amp; Energie · Abschlag 10/2026</div></div><span class="fig num">−148,00 €</span></div>
+  <div class="row"><span class="disc"><span class="ms">directions_car</span></span><div><div class="rt">Aral Station 4711</div><div class="rs">Mobilität · girocard</div></div><span class="fig num">−76,99 €</span></div>
+</div>
+<div class="scrim"></div>
+
+<div class="dlg" style="left:180px;top:40px;width:1080px;height:820px;flex-direction:row">
+  <div style="width:500px;background:var(--sch);display:grid;place-items:center;padding:28px;flex:none">
+    <div><div class="paper" style="width:440px;height:622px"><div style="position:absolute;left:34.7px;top:39.4px;font:bold 17.4px/25.2px Arial,sans-serif;white-space:nowrap">Stadtwerke Musterstadt GmbH</div><div class="mk" style="left:30.1px;top:37.1px;width:300.0px;height:29.8px"></div><div style="position:absolute;left:34.7px;top:69.2px;font:normal 12.7px/18.5px Arial,sans-serif;white-space:nowrap">Hafenstraße 12 · 12345 Musterstadt</div><div style="position:absolute;left:34.7px;top:106.2px;font:bold 15.1px/21.8px Arial,sans-serif;white-space:nowrap">Rechnung</div><div style="position:absolute;left:34.7px;top:132.6px;font:normal 12.7px/18.5px Arial,sans-serif;white-space:nowrap">Rechnungsnummer: 2026-104417</div><div class="mk" style="left:30.1px;top:130.3px;width:216.1px;height:23.1px"></div><div style="position:absolute;left:34.7px;top:155.7px;font:normal 12.7px/18.5px Arial,sans-serif;white-space:nowrap">Kundennummer: 4471 0293</div><div style="position:absolute;left:34.7px;top:192.7px;font:normal 12.7px/18.5px Arial,sans-serif;white-space:nowrap">Nettobetrag 70,76 €</div><div style="position:absolute;left:34.7px;top:215.8px;font:normal 12.7px/18.5px Arial,sans-serif;white-space:nowrap">Umsatzsteuer 19 % 13,44 €</div><div style="position:absolute;left:34.7px;top:238.9px;font:bold 13.9px/20.1px Arial,sans-serif;white-space:nowrap">Rechnungsbetrag 84,20 €</div><div class="mk" style="left:30.1px;top:236.6px;width:207.4px;height:24.8px"></div><div style="position:absolute;left:34.7px;top:277.6px;font:normal 12.7px/18.5px Arial,sans-serif;white-space:nowrap">Bitte überweisen Sie den Betrag bis zum 06.11.2026</div><div style="position:absolute;left:34.7px;top:300.7px;font:normal 12.7px/18.5px Arial,sans-serif;white-space:nowrap">IBAN DE89 3704 0044 0532 0130 00 · BIC COBADEFFXXX</div><div class="mk hot" style="left:30.1px;top:298.4px;width:378.6px;height:23.1px"></div><div style="position:absolute;left:34.7px;top:347.0px;width:347.4px;height:3.5px;background:#e4e6ea;border-radius:2px"></div><div style="position:absolute;left:34.7px;top:357.4px;width:301.1px;height:3.5px;background:#e4e6ea;border-radius:2px"></div><div style="position:absolute;left:34.7px;top:367.8px;width:254.7px;height:3.5px;background:#e4e6ea;border-radius:2px"></div><div style="position:absolute;left:34.7px;top:378.2px;width:208.4px;height:3.5px;background:#e4e6ea;border-radius:2px"></div></div><div class="note" style="margin-top:12px;display:flex;align-items:center;gap:6px"><span class="ms" style="font-size:18px">info</span>Rechnung Stadtwerke.pdf · Markiert ist, was übernommen wurde.</div></div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column">
+    <div class="dh"><h2>Überweisung</h2><span class="x"><span class="ms">close</span></span></div>
+    <div class="db" style="padding-top:0">
+      <div class="bar3"><i class="on"></i><i class="on"></i><i></i></div>
+        <div class="fig num" style="font-size:44px;line-height:52px;text-align:center;margin-top:4px">84<small style="font-size:26px">,20 €</small></div>
+        <div class="note" style="text-align:center">Verfügbar <b class="num" style="font-weight:500;color:var(--ink)">2.706,73 €</b></div>
+        <div class="field" style="margin-top:20px"><label>Name der Empfängerin oder des Empfängers</label>Stadtwerke Musterstadt GmbH</div>
+        <div class="field on"><label>IBAN</label><span class="mono">DE89 3704 0044 0532 0130 00</span><span class="ms" style="margin-left:auto;color:var(--green);font-size:20px">check_circle</span></div>
+        <div class="field"><label>Verwendungszweck</label>Rechnungsnummer: 2026-104417</div>
+
+      <div class="field"><label>Von Konto</label>GiroKomfort · DE62 ··· 5932 71<span class="ms" style="margin-left:auto">arrow_drop_down</span></div>
+    </div>
+    <div class="df"><span class="btn tonal" style="flex:1">Zurück</span><span class="btn filled" style="flex:2">Weiter zur Prüfung<span class="ms">chevron_right</span></span></div>
+  </div>
+</div>
+
+</body></html>

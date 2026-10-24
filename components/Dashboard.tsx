@@ -33,6 +33,7 @@ import { Settings } from './settings/Settings';
 import { TransferSheet } from './TransferSheet';
 import { AddBankSheet } from './AddBank';
 import { ShareAccount } from './ShareAccount';
+import { SplitRequests } from './transactions/SplitRequests';
 import { Inbox } from './Inbox';
 import { CommandPalette } from './CommandPalette';
 import { SessionGuard } from './SessionGuard';
@@ -49,7 +50,7 @@ import { PullToRefresh } from './android/PullToRefresh';
 import { useLaunches } from './android/useLaunches';
 
 export function Dashboard() {
-  const { tab, transferOpen, shareOpen } = useFints();
+  const { tab, transferOpen, shareOpen, shareAll } = useFints();
   const actions = useShellActions();
   useGlobalShortcuts(actions);
   // Android: a shortcut on the icon, or an invoice shared with the app.
@@ -106,6 +107,7 @@ export function Dashboard() {
 
       {transferOpen && <TransferSheet />}
       {shareOpen && <ShareAccount />}
+      {shareAll && <SplitRequests />}
       {IS_ANDROID && <PlusScreen />}
       <AddBankSheet />
       <Inbox />

@@ -90,7 +90,7 @@ import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-
 import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
-  type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SettingsTarget, type SharePrefill, type StatementInfo,
+  type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SettingsTarget, type ShareAllRequest, type SharePrefill, type StatementInfo,
   type TransferPrefill, type TransferTemplate, type TxFilter, type VaultData, type VaultStatus,
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
@@ -1700,6 +1700,17 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     openShare(next);
   }, [shareOpen, shareQueue, openShare]);
 
+  // Aufteilen on the desktop (components/transactions/SplitRequests.tsx): every
+  // person's GiroCode in one dialog, side by side, where the phone asks one
+  // after the other.
+  const [shareAll, setShareAll] = useState<ShareAllRequest | null>(null);
+  const openShareAll = useCallback((request: ShareAllRequest) => {
+    if (!request.people.length || transferOpen || shareOpen) return;
+    clearTransients();
+    setShareAll(request);
+  }, [transferOpen, shareOpen, clearTransients]);
+  const closeShareAll = useCallback(() => setShareAll(null), []);
+
   const markAllRead = useCallback(() => {
     if (!messagesRef.current.some((m) => !m.read)) return;
     const next = messagesRef.current.map((m) => (m.read ? m : { ...m, read: true }));
@@ -2767,7 +2778,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     sessionStartedAt, idleDeadline,
     tab, settingsTarget, txFilter, txFocusNonce,
     analysisPeriod, analysisScope,
-    transferOpen, transferPrefill, shareOpen, sharePrefill,
+    transferOpen, transferPrefill, shareOpen, sharePrefill, shareAll,
     inboxOpen, paletteOpen, shortcutsOpen,
     logoutConfirmOpen, forgetDeviceOpen,
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
@@ -2783,7 +2794,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setLogoConsent,
     setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions,
     setAnalysisPeriod, setAnalysisScope,
-    openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue,
+    openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue, openShareAll, closeShareAll,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
     updateVault, resetVault, wipeVault, accountLabel, renameAccount,

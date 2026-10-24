@@ -20,7 +20,6 @@ import { isSavingsAccount } from '@/lib/balances';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { fmtAmountInput, fmtMonth, parseAmount } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
 import { goalsAllowed } from '@/lib/plus';
 import { GOAL_LIMITS, goalProgress, monthKey, monthPlan, monthsUntil, type SavingsGoal } from '@/lib/savings-goal';
 import { useFints } from '../FintsProvider';
@@ -40,8 +39,7 @@ export function useGoalOf(account: SerializedAccount | null | undefined): Saving
 /**
  * Under a savings account's balance: its goal, or the way to set one (the
  * Plus door where Plus is locked). Nothing for other accounts, nor before the
- * vault is readable — a goal set then could not be kept. Android only, as
- * the desktop has not taken the phone's design yet (DESIGN.md, Sparziele).
+ * vault is readable — a goal set then could not be kept.
  */
 export function AccountGoal({ account, balance }: { account: SerializedAccount; balance: number | null }) {
   const { plus, openPlus, vaultStatus } = useFints();
@@ -49,7 +47,7 @@ export function AccountGoal({ account, balance }: { account: SerializedAccount; 
   const words = t.insights.goals;
   const goal = useGoalOf(account);
   const [editing, setEditing] = useState(false);
-  if (!IS_ANDROID || !isSavingsAccount(account) || vaultStatus !== 'ready') return null;
+  if (!isSavingsAccount(account) || vaultStatus !== 'ready') return null;
   const allowed = goalsAllowed(plus.state);
 
   return (
@@ -241,7 +239,7 @@ export function GoalsSection() {
   const words = t.insights.goals;
   const id = useId();
   const goals = (vault?.goals ?? []).filter((g) => accounts.some((a) => a.accountNumber === g.accountNumber));
-  if (!IS_ANDROID || !goals.length || !goalsAllowed(plus.state)) return null;
+  if (!goals.length || !goalsAllowed(plus.state)) return null;
   return (
     <section aria-labelledby={id} className="panel">
       <div className="px-4 py-4 sm:px-6">

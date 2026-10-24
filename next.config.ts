@@ -41,6 +41,12 @@ const nextConfig: NextConfig = {
       // loads the preview from here (GIROVO_DEV_SERVER, capacitor.config.ts).
       ? { pageExtensions: ['tsx'], distDir: '.next-android-dev', allowedDevOrigins: ['10.0.2.2'] }
       : {}),
+  // The desktop's invoice reading (components/transfer/desktop-read.ts) is
+  // loaded on demand behind IS_ANDROID, but a dynamic import still makes a
+  // chunk: on the phone its libraries are an empty module instead.
+  ...(isAndroidBuild
+    ? { turbopack: { resolveAlias: { 'pdfjs-dist': './mobile/desktop-only.ts', 'tesseract.js': './mobile/desktop-only.ts' } } }
+    : {}),
   // The institute database and the product registration are read from disk at
   // runtime; keep them traced into a standalone build.
   outputFileTracingIncludes: {

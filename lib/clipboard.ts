@@ -137,3 +137,19 @@ export async function copyText(text: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * A picture (a GiroCode's PNG) on the clipboard — the quickest way into a
+ * messenger or an e-mail. The blob is handed over as a promise, so the click's
+ * user activation still covers the write while the image renders. False when
+ * the browser (or the desktop shell's policy) does not allow it.
+ */
+export async function copyImage(blob: Promise<Blob>): Promise<boolean> {
+  try {
+    if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    return true;
+  } catch {
+    return false;
+  }
+}

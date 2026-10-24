@@ -11,7 +11,7 @@
 // The regular payments (Verträge & Abos, the bank's orders) follow on the
 // page (components/Contracts.tsx).
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { TransferPrefill, TransferTemplate } from '@/lib/app-types';
 import { initials } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
@@ -27,6 +27,7 @@ const RECENT = 5;
 
 export function PaymentsHead() {
   const { txByAccount, vault, openTransfer, accounts } = useFints();
+  const invoiceInput = useRef<HTMLInputElement>(null);
   const actions = useShellActions();
   const t = useT();
   const words = t.shell.payments;
@@ -83,6 +84,32 @@ export function PaymentsHead() {
             glyph={<DocScanIcon size={20} />}
             label={t.transfer.giro.scanInvoice}
             onClick={() => openTransfer({ girocode: { docScan: true } })}
+          />
+        </ul>
+      )}
+
+      {/* The desktop: an invoice as a PDF or a picture, with its GiroCode or
+          without — read into the transfer, the page beside the form. */}
+      {!IS_ANDROID && actions.canTransfer && (
+        <ul className="pt-1">
+          <PayeeRow
+            name={words.openInvoice}
+            detail={words.openInvoiceHint}
+            glyph={<DocScanIcon size={20} />}
+            label={words.openInvoice}
+            onClick={() => invoiceInput.current?.click()}
+          />
+          <input
+            ref={invoiceInput}
+            type="file"
+            accept="image/*,application/pdf"
+            hidden
+            tabIndex={-1}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (file) openTransfer({ girocode: { file } });
+            }}
           />
         </ul>
       )}

@@ -22,6 +22,9 @@ export const de = {
     /** Under "GiroCode scannen". */
     scanHint: 'Eine Rechnung mit der Kamera lesen',
     scanInvoiceHint: 'Auch ohne GiroCode',
+    /** The desktop: an invoice from a file, its GiroCode or its text read. */
+    openInvoice: 'Rechnung öffnen',
+    openInvoiceHint: 'PDF oder Bild, mit oder ohne GiroCode',
   },
   statementPdf: 'Kontoauszug als PDF',
   checkForUpdates: 'Nach Updates suchen',
@@ -345,6 +348,8 @@ export const en: typeof de = {
     payAgain: (name) => `Transfer to ${name}`,
     scanHint: 'Read an invoice with the camera',
     scanInvoiceHint: 'Also without a GiroCode',
+    openInvoice: 'Open an invoice',
+    openInvoiceHint: 'PDF or image, with or without a GiroCode',
   },
   statementPdf: 'Account statement as PDF',
   checkForUpdates: 'Check for updates',

@@ -377,20 +377,25 @@ Frag deine Umsätze and the Nano row in Einstellungen stand on Gemini's wash wit
 ### Girovo Plus
 The navy plate with the G€ in Plus Gold. Every door to Plus is the same tonal button with the gold plate as its icon. A locked figure is never shown blurred or greyed.
 
-### Freigabe-App öffnen (Android)
+### Freigabe-App (Android; named on the desktop)
 While the bank waits for a decoupled approval and its app is installed (`lib/brands.ts` APPROVAL_PACKAGES, each package also in the manifest's `<queries>`), the approval sheet's footer leads with the filled "S-pushTAN öffnen" (the app's own name), wide, and "Abbrechen" steps back to a quiet text button (owner's pick "Im Fuß", 2026-10-24). No app known for certain, or none installed: the footer as before.
+On the desktop the approval is on the phone: when the bank's app is known for certain and the bank's own words do not name it, a line under the request says "Bestätige in S-pushTAN auf deinem Telefon." with the phone glyph, and no button (owner, 2026-10-24).
 
-### Belege (Android)
+### Belege
 "Beleg hinzufügen", a tonal button, opens a menu: Foto aufnehmen (Google's document scanner, which crops and straightens; several pages are kept as one PDF) and Datei wählen (owner's pick "Ein Knopf mit Menü", 2026-10-24). Without the scanner the system's picker opens.
+On the desktop "Beleg anhängen" opens the system's picker, and a file dragged onto the section, or a screenshot or PDF pasted while it is in view (Strg+V), is kept as the booking's Beleg; dragging marks the section with a dashed primary outline, "Loslassen, um den Beleg anzuhängen" (owner, 2026-10-24).
 
-### Rechnung ohne GiroCode (Android)
+### Rechnung ohne GiroCode
 "Rechnung scannen" sits under "GiroCode scannen" at the head of Zahlungen. A page without a GiroCode is read for its text on the phone (`lib/invoice-text.ts`: an IBAN only with valid check digits and never the user's own, the amount only from a line that names it the amount to pay, the invoice number as Verwendungszweck, the payee from a label or a letterhead with a legal form). What it found fills the form; the page then heads the payee's part as a 150px thumbnail, the lines it took boxed in the primary at 14%, a press opens it large, and beside it the amount with "Ändern" and "Markiert ist, was übernommen wurde." (owner's pick "Rechnung daneben", 2026-10-24). An invoice that says it is collected by Lastschrift says so above the payee. Every check, the review and the Namensabgleich follow as for a typed transfer.
+On the desktop "Rechnung öffnen" heads Zahlungen and the transfer's GiroCode strip takes a PDF or a picture: a PDF is drawn and read by pdf.js (its own text, no recognition), a photo or a scan by Tesseract (German and English), both offline from the app's own files (`components/transfer/desktop-read.ts`, `scripts/ocr-assets.mjs`). From 1024px the transfer widens and the invoice stands beside the form (owner's pick "Rechnung daneben", 2026-10-24): the page at the left column's width with the read lines boxed, the box of the field in use lit, and above the page, sticky, "Auf der Rechnung" with that line magnified, since a whole page at 444px sets its text at a few pixels. Narrower windows show the phone's thumbnail.
 
-### Aufteilen (Android; a Plus perk in the Play build)
+### Aufteilen (a Plus perk in the Play build)
 From a debit's actions, a full-screen dialog (owner's pick "Anteile als Balken", 2026-10-24): the booking at its head; "Wer zahlt was?" over one bar of the shares, 48px, the user's own in the outline tone and the others in the chart slots by order, the chosen share drawn taller; a filter chip per person (their colour, name and share) and "+ Person"; the chosen person's name and share edited in place, the user's own share always what is left ("Dein Anteil passt sich an"); the Verwendungszweck ("Anteil Sushi Yana, 21.10."); the sum said in words with a green check, or in red when the shares ask for more than the booking. "Alle anfordern" closes the booking and opens Geld anfordern for each person in turn, its header naming them ("Für Lea · 1 von 2") and its footer going on ("Weiter: Jo", on the last "Fertig"); closing it ends the row.
+On the desktop the editor is a dialog, and "Alle anfordern" opens one wide Geld anfordern with a card per person instead of the row (owner's pick "Alle nebeneinander", 2026-10-24): the person's initials on their chart tone, their name and share, their GiroCode, "Bild kopieren" and the save icon; the user's own share and account in the footer beside "Kontodaten kopieren" and "Fertig". Three cards to a row from 1024px, two from 640px, one below.
 
-### Sparziele (Android; a Plus perk in the Play build)
+### Sparziele (a Plus perk in the Play build)
 One goal per savings or Festgeld account (FinTS Kontoart 10–29), kept in the vault. Under the account's balance (owner's pick "Monatsplan", 2026-10-24): the goal's name at 16/500 with "noch …" at the row's end, then a strip of one 10px segment per month from the month it was set to its date, filled by the money (the balance's share of the target, so it never claims more than the money says), then "Plan: 98 € im Monat bis Juni 2027 · Monat 9 von 17". Without a date the strip is one bar; a reached goal says "Erreicht" with the green check. "Sparziel setzen" (a text button with the solid flag, or the Plus door) opens a bottom sheet: Name, Zielbetrag, "Bis wann? (optional)", the live "Das sind … im Monat", "Verschlüsselt nur auf diesem Telefon" and Speichern. Analyse lists every goal.
+The desktop shows the same goal under the balance and in Analyse, free as everything there is.
 
 ### Large Text (Android)
 The system's font scale reaches the page as WebView text zoom: it multiplies every font size and line height, no length in px, em or ch, and `text-size-adjust` does not opt out of it (WebView 149). `app/layout.tsx` measures it before first paint as `--text-zoom`; at 100% every rule below comes to nothing.

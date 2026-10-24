@@ -79,7 +79,7 @@ import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-
 import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
-  type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SettingsTarget, type SharePrefill,
+  type ActivityEntry, type DashboardTab, type DateRange, type InboxMessage, type SettingsTarget, type ShareAllRequest, type SharePrefill,
   type StatementInfo, type TransferPrefill, type TransferTemplate, type TxFilter, type VaultData,
   type VaultGetResponse, type VaultPutResponse, type VaultStatus,
 } from '@/lib/app-types';
@@ -3333,6 +3333,17 @@ function useFintsState() {
     openShare(next);
   }, [shareOpen, shareQueue, openShare]);
 
+  // Aufteilen on the desktop (components/transactions/SplitRequests.tsx): every
+  // person's GiroCode in one dialog, side by side, where the phone asks one
+  // after the other.
+  const [shareAll, setShareAll] = useState<ShareAllRequest | null>(null);
+  const openShareAll = useCallback((request: ShareAllRequest) => {
+    if (!request.people.length || transferOpen || shareOpen) return;
+    clearTransients();
+    setShareAll(request);
+  }, [transferOpen, shareOpen, clearTransients]);
+  const closeShareAll = useCallback(() => setShareAll(null), []);
+
   // ---- bank messages ------------------------------------------------------
   const markAllRead = useCallback(() => {
     if (!messagesRef.current.some((m) => !m.read)) return;
@@ -5264,7 +5275,7 @@ function useFintsState() {
     // navigation & launchers
     tab, settingsTarget, txFilter, txFocusNonce,
     analysisPeriod, analysisScope,
-    transferOpen, transferPrefill, shareOpen, sharePrefill,
+    transferOpen, transferPrefill, shareOpen, sharePrefill, shareAll,
     inboxOpen, paletteOpen, shortcutsOpen,
     logoutConfirmOpen, forgetDeviceOpen,
     // actions
@@ -5283,7 +5294,7 @@ function useFintsState() {
     setLogoConsent,
     setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions,
     setAnalysisPeriod, setAnalysisScope,
-    openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue,
+    openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue, openShareAll, closeShareAll,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
     updateVault, resetVault, wipeVault, accountLabel, renameAccount,

@@ -192,6 +192,11 @@ function TanWait() {
   const methodName = method?.name ?? null;
   // Android: the bank's approval app, one tap away while the bank waits for it.
   const approvalApp = useApprovalApp(waiting && !entry ? wait.bank?.brand ?? bank?.brand ?? null : null);
+  // The desktop: the approval is on the phone, in the app named here when the
+  // bank's is known for certain (lib/brands.ts) and the bank's own words do
+  // not name it already — no button, the phone is where it opens.
+  const knownApp = !IS_ANDROID && waiting && !entry ? APPROVAL_APP[wait.bank?.brand ?? bank?.brand ?? ''] ?? null : null;
+  const phoneApp = knownApp && !`${text} ${methodName ?? ''}`.toLowerCase().includes(knownApp.toLowerCase()) ? knownApp : null;
 
   return (
     <>
@@ -253,6 +258,12 @@ function TanWait() {
                 {title}
               </h2>
               <p id={textId} className="mx-auto mt-1.5 max-w-[36ch] text-[15px] leading-snug text-ink-2">{text}</p>
+              {phoneApp && (
+                <p className="mx-auto mt-2.5 flex max-w-[40ch] items-center justify-center gap-1.5 text-[14px] leading-snug font-medium text-ink">
+                  <PhoneIcon size={18} className="shrink-0 text-ink-2" />
+                  <span>{tw.approveOnPhone(phoneApp)}</span>
+                </p>
+              )}
               {wait.note && waiting && (
                 <p className="mx-auto mt-2.5 flex max-w-[40ch] items-start justify-center gap-1.5 text-left text-[13.5px] leading-snug text-ink-2">
                   <InfoIcon size={16} className="mt-px shrink-0 text-info" />

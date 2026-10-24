@@ -21,3 +21,7 @@ build/update-window/bin/
 .next-android-dev/
 /out/
 /public/mobile-runtime.js
+
+# The desktop's invoice reading, copied from node_modules (scripts/ocr-assets.mjs)
+/public/ocr/
+/public/pdf/

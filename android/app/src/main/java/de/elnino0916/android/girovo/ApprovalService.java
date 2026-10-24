@@ -50,7 +50,7 @@ public class ApprovalService extends Service {
         String title = intent == null ? null : intent.getStringExtra(EXTRA_TITLE);
         String text = intent == null ? null : intent.getStringExtra(EXTRA_TEXT);
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager.getNotificationChannel(CHANNEL) == null) {
+        if (manager.getNotificationChannel(CHANNEL) == null) {
             NotificationChannel channel = new NotificationChannel(CHANNEL, title == null ? "Girovo" : title, NotificationManager.IMPORTANCE_LOW);
             channel.setShowBadge(false);
             manager.createNotificationChannel(channel);

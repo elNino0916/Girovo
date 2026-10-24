@@ -108,13 +108,13 @@ export const de = {
   },
   /** Reading a GiroCode off an image (components/transfer/GiroCodeDrop.tsx). */
   giro: {
-    read: 'GiroCode einlesen',
-    reading: 'GiroCode wird gelesen …',
+    read: 'GiroCode oder Rechnung einlesen',
+    reading: 'Wird gelesen …',
     /** The same, for a screen reader's status line. */
-    readingStatus: 'GiroCode wird gelesen',
-    dropHere: 'Bild hier ablegen',
-    pick: 'Bild mit dem Code auswählen',
-    pickOrDrop: 'Bild hierher ziehen, mit Strg+V einfügen oder auswählen',
+    readingStatus: 'Wird gelesen',
+    dropHere: 'Hier ablegen',
+    pick: 'Bild oder PDF auswählen',
+    pickOrDrop: 'Bild oder PDF hierher ziehen, mit Strg+V einfügen oder auswählen',
     /** Android: the camera, through Google's code scanner. */
     scan: 'GiroCode scannen',
     /** Android: an invoice without a GiroCode, photographed and read for its text. */
@@ -339,6 +339,8 @@ export const de = {
     from: (account: string) => `von ${account}`,
     change: 'Ändern',
     marked: 'Markiert ist, was übernommen wurde.',
+    /** The desktop: the line of the field in use, magnified. */
+    lens: 'Auf der Rechnung',
     enlarge: 'Rechnung groß anzeigen',
     debit: 'Laut Rechnung wird der Betrag per Lastschrift eingezogen – prüf, ob du überhaupt überweisen musst.',
   },
@@ -517,12 +519,12 @@ export const en: typeof de = {
     valid: (country) => `IBAN valid${country ? ` · account in ${theCountry(country)}` : ''}.`,
   },
   giro: {
-    read: 'Read a GiroCode',
-    reading: 'Reading GiroCode…',
-    readingStatus: 'Reading GiroCode',
-    dropHere: 'Drop the image here',
-    pick: 'Choose an image with the code',
-    pickOrDrop: 'Drag an image here, paste it with Ctrl+V or choose one',
+    read: 'Read a GiroCode or invoice',
+    reading: 'Reading…',
+    readingStatus: 'Reading',
+    dropHere: 'Drop it here',
+    pick: 'Choose an image or PDF',
+    pickOrDrop: 'Drag an image or PDF here, paste it with Ctrl+V or choose one',
     scan: 'Scan GiroCode',
     scanInvoice: 'Scan invoice',
     fromFile: 'From image or PDF',
@@ -710,6 +712,7 @@ export const en: typeof de = {
     from: (account) => `from ${account}`,
     change: 'Change',
     marked: 'Marked is what was taken over.',
+    lens: 'On the invoice',
     enlarge: 'Show the invoice large',
     debit: 'The invoice says the amount is collected by direct debit – check whether you need to transfer at all.',
   },

@@ -66,6 +66,10 @@ export const de = {
     scanFailed: 'Die Kamera ließ sich nicht öffnen. Versuch es noch einmal oder wähle eine Datei.',
     /** A photographed receipt's name: "Beleg vom 21.10.2026". */
     photoName: (day: string) => `Beleg vom ${day}`,
+    /** The desktop: a file dragged onto the section, or a screenshot pasted. */
+    dropHint: 'Du kannst eine Datei auch hierher ziehen oder einen Screenshot mit Strg+V einfügen.',
+    dropHere: 'Loslassen, um den Beleg anzuhängen',
+    wrongType: 'Als Beleg geht ein Foto oder ein PDF.',
     hint: 'Ein Foto oder PDF, etwa die Rechnung – auf diesem Rechner gespeichert, mit deiner PIN verschlüsselt.',
     attaching: 'Beleg wird gespeichert …',
     attached: 'Beleg angehängt.',
@@ -140,6 +144,9 @@ export const en: typeof de = {
     chooseFile: 'Choose a file',
     scanFailed: 'The camera could not be opened. Try again or choose a file.',
     photoName: (day) => `Receipt of ${day}`,
+    dropHint: 'You can also drag a file here or paste a screenshot with Ctrl+V.',
+    dropHere: 'Drop to attach the receipt',
+    wrongType: 'A receipt is a photo or a PDF.',
     hint: 'A photo or PDF, such as the invoice – saved on this computer, encrypted with your PIN.',
     attaching: 'Saving the receipt…',
     attached: 'Receipt attached.',

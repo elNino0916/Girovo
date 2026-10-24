@@ -483,7 +483,7 @@ judges like its own. `npm run dev` and an unpackaged `electron:dev` send nothing
 
 ## Android app
 
-The same app also runs on Android phones (Android 8 and later), with the
+The same app also runs on Android phones (Android 11 and later), with the
 banking done on the phone itself: the desktop server's route handlers run
 inside the app (`mobile/`), and the phone talks to the bank directly — no
 server in between, no cloud account.

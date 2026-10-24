@@ -97,10 +97,21 @@ async function check(): Promise<ElectronUpdateState> {
   }
 }
 
+/** Android's version for an API level, as the phone's settings name it. */
+const ANDROID_VERSION: Record<number, string> = { 30: '11', 31: '12', 32: '12L', 33: '13', 34: '14', 35: '15', 36: '16', 37: '17' };
+
+/** A failed download's reason in words: a release for a newer Android says which (UpdaterPlugin). */
+function downloadError(error: string | undefined): string {
+  const needs = /^needs-sdk:(\d+)$/.exec(error ?? '');
+  if (!needs) return error ?? '';
+  const sdk = Number(needs[1]);
+  return msgs().android.updates.needsAndroid(ANDROID_VERSION[sdk] ?? `API ${sdk}`);
+}
+
 function fromNative(s: UpdaterState): void {
   if (s.phase === 'downloading') set({ phase: 'downloading', received: s.received, total: s.total, error: null });
   else if (s.phase === 'ready') set({ phase: 'ready', received: s.total, total: s.total });
-  else if (s.phase === 'failed') set({ phase: 'available', error: { during: 'download', message: s.error ?? '' } });
+  else if (s.phase === 'failed') set({ phase: 'available', error: { during: 'download', message: downloadError(s.error) } });
   else if (s.phase === 'idle' && state.phase === 'downloading') set({ phase: 'available', received: 0 });
 }
 

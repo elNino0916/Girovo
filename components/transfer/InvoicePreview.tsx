@@ -11,9 +11,9 @@
 import { useState } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { Money } from '../Money';
-import { ExpandIcon } from '../icons';
-import { Button, Overlay, Sheet } from '../ui';
-import type { InvoicePage } from './GiroCodeDrop';
+import { ExpandIcon, InfoIcon } from '../icons';
+import { Button, Overlay, Sheet, cx } from '../ui';
+import type { InvoiceField, InvoicePage } from './GiroCodeDrop';
 
 export function InvoicePreview({
   page, amount, currency, account, onChangeAmount,
@@ -75,17 +75,92 @@ export function InvoicePreview({
   );
 }
 
-/** The page and, over it, a box round every line the reading took. */
-function PageWithBoxes({ page }: { page: InvoicePage }) {
+/**
+ * The desktop (owner's pick "Rechnung daneben", 2026-10-24): the page beside
+ * the transfer at a size it can be read at, the lines the reading took boxed,
+ * and the box of the field in use lit — the IBAN's while the IBAN is being
+ * checked — so the form is held against the paper line by line.
+ */
+export function InvoicePane({ page, hot }: { page: InvoicePage; hot: InvoiceField | null }) {
+  const words = useT().transfer.invoice;
+  const box = hot ? page.marks[hot] : undefined;
+  return (
+    <figure className="m-0">
+      {/* A whole page at the pane's width sets its text at a few pixels: the
+          line the field in use came from, magnified above it, is what the
+          form is checked against. A picture for the eye; the form says it. */}
+      {box && (
+        <div aria-hidden className="sticky top-0 z-1 -mx-1 mb-4 rounded-[14px] bg-inset px-1 pb-1">
+          <p className="pb-1.5 text-[13px] leading-5 font-medium text-ink-2">{words.lens}</p>
+          <Lens page={page} box={box} />
+        </div>
+      )}
+      <div
+        className="relative w-full overflow-hidden rounded-[8px] bg-white shadow-[0_1px_3px_rgb(0_0_0/0.18)]"
+        style={{ aspectRatio: `${page.width} / ${page.height}` }}
+      >
+        <PageWithBoxes page={page} hot={hot} />
+      </div>
+      <figcaption className="mt-3 flex items-start gap-1.5 text-[13.5px] leading-snug text-ink-2">
+        <InfoIcon size={17} className="mt-px shrink-0" />
+        <span className="min-w-0 break-words">{page.name ? `${page.name} · ${words.marked}` : words.marked}</span>
+      </figcaption>
+    </figure>
+  );
+}
+
+/** The inner width of the pane's column (Panel: 500px less 28px either side). */
+const LENS_WIDTH = 444;
+
+/**
+ * One line of the page, as large as the pane allows — at most three and a
+ * half times the whole page's scale, so a short line does not blur into
+ * pixels — with its box drawn round it as on the page.
+ */
+function Lens({ page, box: [l, t, r, b] }: { page: InvoicePage; box: [number, number, number, number] }) {
+  // Room round the line: wide at its ends, narrow above and below, so the
+  // neighbouring lines stay out of the lens.
+  const padX = Math.max(6, (b - t) * 0.6);
+  const padY = Math.max(3, (b - t) * 0.18);
+  const left = Math.max(0, l - padX);
+  const top = Math.max(0, t - padY);
+  const width = Math.min(page.width, r + padX) - left;
+  const height = Math.min(page.height, b + padY) - top;
+  const scale = Math.min(LENS_WIDTH / width, (LENS_WIDTH / page.width) * 3.5);
+  const offset = (LENS_WIDTH - width * scale) / 2;
+  return (
+    <div className="relative overflow-hidden rounded-[10px] bg-white" style={{ width: LENS_WIDTH, height: height * scale }}>
+      <img
+        src={page.url}
+        alt=""
+        className="absolute max-w-none"
+        style={{ width: page.width * scale, height: page.height * scale, left: offset - left * scale, top: -top * scale }}
+      />
+      <span
+        className="absolute rounded-[3px] bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] shadow-[0_0_0_2px_var(--accent)]"
+        style={{ left: offset + (l - left) * scale, top: (t - top) * scale, width: (r - l) * scale, height: (b - t) * scale }}
+      />
+    </div>
+  );
+}
+
+/** The page and, over it, a box round every line the reading took; the one in use, if any, lit. */
+function PageWithBoxes({ page, hot = null }: { page: InvoicePage; hot?: InvoiceField | null }) {
+  const marks = Object.entries(page.marks) as [InvoiceField, [number, number, number, number]][];
   return (
     <>
       {/* The user's own picture of their invoice; described by the button or heading around it. */}
       <img src={page.url} alt="" className="absolute inset-0 size-full object-contain" />
-      {page.boxes.map(([l, top, r, b], i) => (
+      {marks.map(([field, [l, top, r, b]]) => (
         <span
-          key={i}
+          key={field}
           aria-hidden
-          className="absolute rounded-[3px] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] shadow-[0_0_0_1.5px_var(--accent)]"
+          className={cx(
+            'absolute rounded-[3px] transition-[background-color,box-shadow] duration-150',
+            field === hot
+              ? 'bg-[color-mix(in_srgb,var(--accent)_24%,transparent)] shadow-[0_0_0_2.5px_var(--accent)]'
+              : 'bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] shadow-[0_0_0_1.5px_var(--accent)]',
+          )}
           style={{
             left: `${(l / page.width) * 100}%`,
             top: `${(top / page.height) * 100}%`,

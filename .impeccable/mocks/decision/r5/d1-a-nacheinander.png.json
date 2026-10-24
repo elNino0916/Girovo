@@ -1,0 +1,6 @@
+{
+  "source": "rendered, not generated",
+  "html": ".impeccable/mocks/decision/r5/d1-a-nacheinander.html",
+  "renderer": "Microsoft Edge headless, 1440x900 CSS px at 1x",
+  "prompt": "No image model. Hand-authored HTML/CSS mock of the Girovo desktop (rebased desktop-follows-phone: rail, search bar, 960px column, M3E dialogs) with design-preview data and real GiroCodes (lib/qr.ts). Geld anfordern opens for each person in turn (\"Für Lea · 1 von 3\"), with \"Weiter: Jo\" under the actions, as on the phone."
+}

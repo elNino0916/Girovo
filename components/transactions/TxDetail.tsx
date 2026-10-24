@@ -65,7 +65,7 @@ export function TxDetail({
 }) {
   const {
     activeAccount, categoryOf, openTransfer, showTransactions, printTransaction, noteOf, receiptKeys,
-    plus, openPlus, openShareQueue,
+    plus, openPlus, openShareQueue, openShareAll,
   } = useFints();
   const [splitting, setSplitting] = useState(false);
   // `tr`, not `t`: in this file `t` is a booking.
@@ -109,10 +109,11 @@ export function TxDetail({
   const country = place || text.via ? null : ibanCountry(iban);
   const when = tx.entryDate || tx.valueDate;
 
-  // Aufteilen (Android): a debit shared with others, each asked for their part
-  // (BillSplit); a Plus perk in the Play build, its door the gold plate. Its
-  // requests replace the drawer, as a transfer does.
-  const canSplit = IS_ANDROID && !pending && tx.amount < 0 && !!activeAccount?.iban;
+  // Aufteilen: a debit shared with others, each asked for their part
+  // (BillSplit); a Plus perk in the Play build, its door the gold plate (free
+  // on the desktop and the GitHub APK). Its requests replace the drawer, as a
+  // transfer does: the phone's one after the other, the desktop's at once.
+  const canSplit = !pending && tx.amount < 0 && !!activeAccount?.iban;
   const splitOk = splitAllowed(plus.state);
   const splitButton = canSplit && (
     <Button
@@ -132,10 +133,12 @@ export function TxDetail({
       glyph={<CategoryIcon id={cat.id} size={22} />}
       defaultPurpose={tr.transactions.billSplit.purposeFor(text.name, when ? fmtDayShort(dayKey(when)) : '')}
       onClose={() => setSplitting(false)}
-      onRequest={(list) => {
+      onRequest={(list, own) => {
         setSplitting(false);
         onClose();
-        setTimeout(() => openShareQueue(list), 0);
+        setTimeout(() => (IS_ANDROID
+          ? openShareQueue(list)
+          : openShareAll({ title: text.name, total: Math.abs(Math.round(tx.amount * 100)), own, people: list })), 0);
       }}
     />
   );

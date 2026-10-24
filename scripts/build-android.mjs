@@ -62,7 +62,8 @@ run(process.execPath, [path.join(ROOT, 'node_modules', 'next', 'dist', 'bin', 'n
   shell: false,
 });
 // The design preview is a development page; it answers 404 in production anyway.
-for (const stale of ['design-preview', 'design-preview.html', 'design-preview.txt']) {
+// The desktop's pdf.js and Tesseract files stay off the phone, which reads with ML Kit.
+for (const stale of ['design-preview', 'design-preview.html', 'design-preview.txt', 'ocr', 'pdf']) {
   fs.rmSync(path.join(OUT, stale), { recursive: true, force: true });
 }
 

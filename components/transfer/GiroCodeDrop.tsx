@@ -30,25 +30,60 @@ import { Button, Spinner, cx } from '../ui';
  */
 export type ScanProblem = 'notAnImage' | 'notAnImageOrPdf' | 'noCode' | 'nothingRead' | 'notEpc' | 'noScanner' | 'scanFailed';
 
-/**
- * An invoice's page read for its text (Android, "Rechnung ohne GiroCode"):
- * the picture (an object URL the transfer revokes), its size, and the boxes
- * of the lines the reading took, in the picture's pixels.
- */
-export type InvoicePage = { url: string; width: number; height: number; boxes: Array<[number, number, number, number]> };
+/** What the reading took from an invoice: payee, IBAN, amount, purpose (lib/invoice-text.ts). */
+export type InvoiceField = keyof InvoiceRead['at'];
 
-/** A page's text as the phone reads it, and what a transfer can take from it; null when nothing. */
-async function readInvoicePage(image: Blob, own: readonly string[]): Promise<{ read: InvoiceRead; page: InvoicePage | null } | null> {
-  const result = await window.girovoMobile?.readText(image);
-  if (!result || 'unavailable' in result) return null;
+type Box = [number, number, number, number];
+
+/**
+ * An invoice's page read for its text ("Rechnung ohne GiroCode"): the
+ * picture (an object URL the transfer revokes), its size, the boxes of the
+ * lines the reading took, in the picture's pixels, each by what it gave the
+ * transfer — the desktop lights the one of the field in use — and the file's
+ * name, when it came as one.
+ */
+export type InvoicePage = {
+  url: string;
+  width: number;
+  height: number;
+  boxes: Box[];
+  marks: Partial<Record<InvoiceField, Box>>;
+  name?: string;
+};
+
+/** A page's text: lines, each with its box when the reader gives one. */
+type PageLines = { text: string; lines: { text: string; box?: Box }[]; width: number; height: number };
+
+/** A picture's text: the phone's text recognition, Tesseract on the desktop (desktop-read.ts). */
+async function pictureText(image: Blob): Promise<PageLines | null> {
+  if (IS_ANDROID) {
+    const result = await window.girovoMobile?.readText(image);
+    return !result || 'unavailable' in result ? null : result;
+  }
+  const { imageText } = await import('./desktop-read');
+  return imageText(image);
+}
+
+/**
+ * A page's text and what a transfer can take from it; null when nothing.
+ * `known` is the text a PDF carries itself (the desktop's pdf.js): read as it
+ * is, without character recognition — unless the page is a scan without any.
+ */
+async function readInvoicePage(
+  image: Blob, own: readonly string[], known?: PageLines | null, name?: string,
+): Promise<{ read: InvoiceRead; page: InvoicePage | null } | null> {
+  const result = known?.lines.length ? known : await pictureText(image);
+  if (!result) return null;
   const text = result.lines.length ? result.lines.map((l) => l.text).join('\n') : result.text;
   const read = readInvoiceText(text, own);
   if (!readSomething(read)) return null;
-  const boxes = Object.values(read.at)
-    .map((i) => result.lines[i]?.box)
-    .filter((b): b is [number, number, number, number] => !!b);
+  const marks: InvoicePage['marks'] = {};
+  for (const [field, i] of Object.entries(read.at) as [InvoiceField, number][]) {
+    const box = result.lines[i]?.box;
+    if (box) marks[field] = box;
+  }
   const page = result.width > 0 && result.height > 0
-    ? { url: URL.createObjectURL(image), width: result.width, height: result.height, boxes }
+    ? { url: URL.createObjectURL(image), width: result.width, height: result.height, boxes: Object.values(marks), marks, name }
     : null;
   return { read, page };
 }
@@ -80,7 +115,7 @@ const carriesFiles = (data: DataTransfer | null) => !!data && Array.from(data.ty
 /** `onPayment` gets the code's payment, and the file it was read from (an invoice) — null for a scan or pasted text. */
 export function useGiroCodeReader(
   onPayment: (p: EpcPayment, file: File | null) => void,
-  /** Android: a page without a GiroCode, read for its text (lib/invoice-text.ts). */
+  /** A page without a GiroCode, read for its text (lib/invoice-text.ts). */
   onInvoice?: (read: InvoiceRead, page: InvoicePage | null, file: File | null) => void,
   /** The user's own IBANs, never a payee's. */
   own: readonly string[] = [],
@@ -96,17 +131,27 @@ export function useGiroCodeReader(
 
   const readFile = useCallback(async (file: File | null | undefined) => {
     const mine = ++gen.current;
-    const pdfPages = IS_ANDROID && file?.type === 'application/pdf' ? window.girovoMobile?.pdfPages : undefined;
-    if (!file || (!file.type.startsWith('image/') && !pdfPages)) {
-      setScan({ status: 'error', problem: IS_ANDROID ? 'notAnImageOrPdf' : 'notAnImage' });
+    const pdf = file?.type === 'application/pdf';
+    // A PDF's pages: the phone's PdfRenderer, or pdf.js on the desktop.
+    const phonePdf = IS_ANDROID && pdf ? window.girovoMobile?.pdfPages : undefined;
+    if (!file || (!file.type.startsWith('image/') && !phonePdf && !(pdf && !IS_ANDROID))) {
+      setScan({ status: 'error', problem: 'notAnImageOrPdf' });
       return;
     }
     setScan({ status: 'reading' });
     let text: string | null = null;
     let pages: Blob[] = [];
+    // The desktop's PDFs carry their own text, page by page.
+    let texts: (PageLines | null)[] = [];
     try {
+      if (pdf && !IS_ANDROID) {
+        const read = await (await import('./desktop-read')).pdfPages(file);
+        pages = read.map((p) => p.image);
+        texts = read.map((p) => p.text);
+      } else {
+        pages = phonePdf ? await phonePdf(file) : [file];
+      }
       // A PDF's first pages, one after the other, until one has the code.
-      pages = pdfPages ? await pdfPages(file) : [file];
       for (const image of pages) {
         text = await readQrFromBlob(image);
         if (text || mine !== gen.current) break;
@@ -115,9 +160,9 @@ export function useGiroCodeReader(
       text = null;
     }
     if (mine !== gen.current) return;
-    if (!text && deliverInvoice.current && IS_ANDROID && pages[0]) {
-      // No GiroCode: the first page's text, read on the phone.
-      const invoice = await readInvoicePage(pages[0], ownRef.current).catch(() => null);
+    if (!text && deliverInvoice.current && pages[0]) {
+      // No GiroCode: the first page's text, read on this device.
+      const invoice = await readInvoicePage(pages[0], ownRef.current, texts[0], file.name || undefined).catch(() => null);
       if (mine !== gen.current) return;
       if (!invoice) { setScan({ status: 'error', problem: 'nothingRead' }); return; }
       setScan({ status: 'idle' });
@@ -314,7 +359,7 @@ export function GiroCodeDrop({
       <input
         ref={input}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf"
         hidden
         tabIndex={-1}
         onChange={(e) => {

@@ -23,7 +23,7 @@
 		"android:release": "node scripts/build-android.mjs --release && node scripts/build-android.mjs --release --flavor play",
 		"android:preview": "cross-env GIROVO_TARGET=android next dev -p 3100",
 		"owner-key": "node scripts/owner-key.mjs",
-		"postinstall": "patch-package",
+		"postinstall": "patch-package && node scripts/ocr-assets.mjs",
 		"test": "node --test \"lib/**/*.test.ts\" \"mobile/**/*.test.ts\" \"electron/**/*.test.cjs\""
 	},
 	"keywords": [
@@ -50,6 +50,8 @@
 		"@m3e/web": "2.10.2",
 		"@noble/ciphers": "2.4.0",
 		"@noble/hashes": "2.4.0",
+		"@tesseract.js-data/deu": "1.0.0",
+		"@tesseract.js-data/eng": "1.0.0",
 		"buffer": "6.0.3",
 		"jsqr": "1.4.0",
 		"lib-fints": "^1.5.2",
@@ -57,9 +59,11 @@
 		"next": "^16.4.3",
 		"onnxruntime-node": "1.30.0",
 		"path-browserify": "1.0.1",
+		"pdfjs-dist": "6.4.299",
 		"qrcode-generator": "2.0.4",
 		"react": "^19.3.1",
 		"react-dom": "^19.3.1",
+		"tesseract.js": "7.0.0",
 		"tslib": "2.8.1"
 	},
 	"devDependencies": {

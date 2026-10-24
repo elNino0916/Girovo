@@ -149,6 +149,17 @@ export type SharePrefill = {
   step?: { at: number; of: number; next?: string };
 };
 
+/** Aufteilen on the desktop: every person's request at once (components/transactions/SplitRequests.tsx). */
+export type ShareAllRequest = {
+  /** The booking's counterparty, as its row names it. */
+  title: string;
+  /** The booking's amount and the user's own share, in cents. */
+  total: number;
+  own: number;
+  /** One request per person, as the phone's row of Geld anfordern takes them. */
+  people: SharePrefill[];
+};
+
 export type TransferTemplate = {
   id: string;
   label: string;

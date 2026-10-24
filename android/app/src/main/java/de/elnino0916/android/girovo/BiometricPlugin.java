@@ -2,7 +2,6 @@ package de.elnino0916.android.girovo;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
@@ -508,16 +507,12 @@ public class BiometricPlugin extends Plugin {
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setKeySize(256)
             .setUserAuthenticationRequired(true)
-            .setInvalidatedByBiometricEnrollment(true);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            spec.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            try {
-                return generate(spec.setIsStrongBoxBacked(true).build());
-            } catch (Exception noStrongBox) {
-                spec.setIsStrongBoxBacked(false);
-            }
+            .setInvalidatedByBiometricEnrollment(true)
+            .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
+        try {
+            return generate(spec.setIsStrongBoxBacked(true).build());
+        } catch (Exception noStrongBox) {
+            spec.setIsStrongBoxBacked(false);
         }
         return generate(spec.build());
     }

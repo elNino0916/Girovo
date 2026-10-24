@@ -19,7 +19,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { buildEpcPayload } from '@/lib/girocode';
-import { copyText } from '@/lib/clipboard';
+import { copyImage as copyPng, copyText } from '@/lib/clipboard';
 import { downloadBlob } from '@/lib/download';
 import { IS_ANDROID } from '@/lib/platform';
 import { fmtAmountInput, fmtIban, fmtShortIban, parseAmount } from '@/lib/format';
@@ -39,22 +39,6 @@ const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
 type Code =
   | { ok: true; matrix: QrMatrix; path: { d: string; size: number } }
   | { ok: false; message: string };
-
-/**
- * The code as a PNG on the clipboard — the quickest way into a messenger or an
- * e-mail. The blob is handed over as a promise, so the click's user
- * activation still covers the write while the image renders. False when the
- * browser (or the desktop shell's policy) does not allow it.
- */
-async function copyPng(blob: Promise<Blob>): Promise<boolean> {
-  try {
-    if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export function ShareAccount() {
   const { accounts, sharePrefill, closeShare, nextShare, accountLabel, toast } = useFints();

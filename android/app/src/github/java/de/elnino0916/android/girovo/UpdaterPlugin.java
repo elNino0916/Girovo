@@ -1,7 +1,9 @@
 package de.elnino0916.android.girovo;
 
 import android.content.Intent;
+import android.content.pm.PackageInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.Settings;
 
 import androidx.core.content.FileProvider;
@@ -122,6 +124,14 @@ public class UpdaterPlugin extends Plugin {
                 for (byte b : digest.digest()) hex.append(String.format(Locale.ROOT, "%02x", b));
                 if (!hex.toString().equalsIgnoreCase(sha256)) throw new SecurityException("the file does not match the SHA-256 GitHub published");
                 if (!part.renameTo(target)) throw new IllegalStateException("could not keep the file");
+                // A release for a newer Android than this phone's never reaches
+                // the installer, which would only say "App not installed": the
+                // page says which Android it needs (mobile/bridges/updates.ts).
+                int needs = minSdk(target);
+                if (needs > Build.VERSION.SDK_INT) {
+                    target.delete();
+                    throw new IllegalStateException("needs-sdk:" + needs);
+                }
                 phase = "ready";
                 emit();
                 call.resolve(state());
@@ -136,6 +146,12 @@ public class UpdaterPlugin extends Plugin {
                 if (c != null) c.disconnect();
             }
         });
+    }
+
+    /** The lowest Android (API level) the downloaded APK declares; 0 when it cannot be read. */
+    private int minSdk(File file) {
+        PackageInfo info = getContext().getPackageManager().getPackageArchiveInfo(file.getPath(), 0);
+        return info == null || info.applicationInfo == null ? 0 : info.applicationInfo.minSdkVersion;
     }
 
     @PluginMethod

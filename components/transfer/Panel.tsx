@@ -21,10 +21,10 @@ import { IS_ANDROID } from '@/lib/platform';
 import { CloseIcon } from '../icons';
 import { IconButton, cx, useScrollEdges, useUnpinned } from '../ui';
 
-const WIDTHS = { md: 'sm:max-w-[560px]', lg: 'sm:max-w-[720px]' } as const;
+const WIDTHS = { md: 'sm:max-w-[560px]', lg: 'sm:max-w-[720px]', xl: 'sm:max-w-[976px]' } as const;
 
 export function Panel({
-  size = 'md', title, titleId, titleRef, eyebrow, onClose, closeDisabled, headerExtra, compactExtra = false, intro, footer, children,
+  size = 'md', title, titleId, titleRef, eyebrow, onClose, closeDisabled, headerExtra, compactExtra = false, intro, aside, footer, children,
   className, bodyClassName, scrollKey, ...rest
 }: Omit<ComponentProps<'div'>, 'title'> & {
   size?: keyof typeof WIDTHS;
@@ -46,6 +46,12 @@ export function Panel({
    * would leave the form a strip of the screen.
    */
   intro?: ReactNode;
+  /**
+   * A column of its own beside header, body and footer, from 1024px — the
+   * invoice a transfer was read from (owner's pick "Rechnung daneben"). The
+   * panel widens for it; below that width the caller shows it otherwise.
+   */
+  aside?: ReactNode;
   footer?: ReactNode;
   bodyClassName?: string;
   /**
@@ -72,97 +78,111 @@ export function Panel({
     measure();
   }, [scrollKey, measure, body]);
 
+  // Header, body and footer; with an aside, in a column of their own beside
+  // it. The pinned parts are measured on whichever holds them (useUnpinned).
+  const column = (
+    <>
+        <header
+          data-pinned
+          className={cx(
+            'relative z-1 shrink-0 px-5 pt-5 pb-4 transition-shadow duration-150 sm:px-7 sm:pt-6 short:pt-4 short:pb-3',
+            edges.top && 'shadow-[0_1px_0_var(--line)]',
+          )}
+        >
+          {/* One wrapping row: the title, then the line under it. In a short
+              window a compact line asks for a place beside the title and only
+              drops under it when a long title leaves too little room. The close
+              button sits in the corner, so the order stays title, line, close. */}
+          <div
+            className={cx(
+              'flex flex-wrap items-center gap-x-5 gap-y-4 short:gap-y-3',
+              onClose && compactExtra && 'short:pr-9',
+            )}
+          >
+            <div className={cx('min-w-0 max-w-full', onClose && 'pr-9', onClose && compactExtra && 'short:pr-0')}>
+              {eyebrow && <p className="mb-0.5 text-[13px] font-semibold text-ink-3">{eyebrow}</p>}
+              <h2
+                id={titleId}
+                ref={titleRef}
+                tabIndex={-1}
+                className="text-[22px] leading-tight font-medium text-headline outline-none short:text-[20px]"
+              >
+                {title}
+              </h2>
+            </div>
+            {headerExtra && (
+              <div className={cx('min-w-0 basis-full', compactExtra && 'short:grow short:basis-40')}>{headerExtra}</div>
+            )}
+          </div>
+          {onClose && (
+            <IconButton
+              data-dialog-close
+              size="md"
+              aria-label={t.common.close}
+              onClick={onClose}
+              disabled={closeDisabled}
+              // Android: below the status bar (app/android.css), also in a short
+              // window — the keyboard up makes every phone one.
+              className={cx('absolute top-3.5 right-3 sm:top-[18px] sm:right-5', !IS_ANDROID && 'short:top-2.5!')}
+            >
+              <CloseIcon />
+            </IconButton>
+          )}
+        </header>
+
+        <div
+          ref={body}
+          onScroll={measure}
+          data-sheet-body
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]"
+        >
+          <div
+            className={cx(
+              'pr-[max(0px,calc(1.25rem_-_var(--sbw,0px)))] pl-5 sm:pr-[max(0px,calc(1.75rem_-_var(--sbw,0px)))] sm:pl-7',
+              bodyClassName ?? 'pt-1 pb-6',
+            )}
+          >
+            {intro}
+            {children}
+          </div>
+        </div>
+
+        {footer && (
+          <footer
+            data-pinned
+            className={cx(
+              'relative z-1 shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] transition-shadow duration-150 sm:px-7 sm:pt-4 sm:pb-6 short:pt-3 sm:short:pb-4',
+              edges.bottom && 'shadow-[0_-1px_0_var(--line)]',
+            )}
+          >
+            {footer}
+          </footer>
+        )}
+    
+    </>
+  );
   return (
     <div
       {...rest}
       // Android phones: a full-screen dialog (app/android.css) — a flow of
       // several steps keeps one place instead of a sheet changing height.
       data-panel
-      ref={panelRef}
-      data-unpinned={unpinned || undefined}
+      ref={aside ? undefined : panelRef}
+      data-unpinned={(!aside && unpinned) || undefined}
       className={cx(
         'anim-sheet relative flex max-h-full w-full flex-col overflow-hidden bg-raised shadow-[var(--shadow-pop)]',
         'rounded-t-[var(--radius-sheet)] sm:rounded-[var(--radius-sheet)]',
         WIDTHS[size],
+        !!aside && 'lg:max-w-[1080px] lg:flex-row',
         className,
       )}
     >
-      <header
-        data-pinned
-        className={cx(
-          'relative z-1 shrink-0 px-5 pt-5 pb-4 transition-shadow duration-150 sm:px-7 sm:pt-6 short:pt-4 short:pb-3',
-          edges.top && 'shadow-[0_1px_0_var(--line)]',
-        )}
-      >
-        {/* One wrapping row: the title, then the line under it. In a short
-            window a compact line asks for a place beside the title and only
-            drops under it when a long title leaves too little room. The close
-            button sits in the corner, so the order stays title, line, close. */}
-        <div
-          className={cx(
-            'flex flex-wrap items-center gap-x-5 gap-y-4 short:gap-y-3',
-            onClose && compactExtra && 'short:pr-9',
-          )}
-        >
-          <div className={cx('min-w-0 max-w-full', onClose && 'pr-9', onClose && compactExtra && 'short:pr-0')}>
-            {eyebrow && <p className="mb-0.5 text-[13px] font-semibold text-ink-3">{eyebrow}</p>}
-            <h2
-              id={titleId}
-              ref={titleRef}
-              tabIndex={-1}
-              className="text-[22px] leading-tight font-medium text-headline outline-none short:text-[20px]"
-            >
-              {title}
-            </h2>
-          </div>
-          {headerExtra && (
-            <div className={cx('min-w-0 basis-full', compactExtra && 'short:grow short:basis-40')}>{headerExtra}</div>
-          )}
-        </div>
-        {onClose && (
-          <IconButton
-            data-dialog-close
-            size="md"
-            aria-label={t.common.close}
-            onClick={onClose}
-            disabled={closeDisabled}
-            // Android: below the status bar (app/android.css), also in a short
-            // window — the keyboard up makes every phone one.
-            className={cx('absolute top-3.5 right-3 sm:top-[18px] sm:right-5', !IS_ANDROID && 'short:top-2.5!')}
-          >
-            <CloseIcon />
-          </IconButton>
-        )}
-      </header>
-
-      <div
-        ref={body}
-        onScroll={measure}
-        data-sheet-body
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]"
-      >
-        <div
-          className={cx(
-            'pr-[max(0px,calc(1.25rem_-_var(--sbw,0px)))] pl-5 sm:pr-[max(0px,calc(1.75rem_-_var(--sbw,0px)))] sm:pl-7',
-            bodyClassName ?? 'pt-1 pb-6',
-          )}
-        >
-          {intro}
-          {children}
-        </div>
-      </div>
-
-      {footer && (
-        <footer
-          data-pinned
-          className={cx(
-            'relative z-1 shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] transition-shadow duration-150 sm:px-7 sm:pt-4 sm:pb-6 short:pt-3 sm:short:pb-4',
-            edges.bottom && 'shadow-[0_-1px_0_var(--line)]',
-          )}
-        >
-          {footer}
-        </footer>
-      )}
+      {aside ? (
+        <>
+          <aside className="hidden min-h-0 w-[500px] shrink-0 overflow-y-auto overscroll-contain bg-inset p-7 lg:block">{aside}</aside>
+          <div ref={panelRef} data-unpinned={unpinned || undefined} className="flex min-h-0 min-w-0 flex-1 flex-col">{column}</div>
+        </>
+      ) : column}
     </div>
   );
 }

@@ -120,6 +120,9 @@ export const de = {
     install: 'Installieren',
     installs: 'Android fragt gleich, ob du die neue Version installieren willst. Girovo startet danach neu.',
     permission: 'Erlaube Girovo in den Android-Einstellungen, Apps zu installieren, und tippe dann noch einmal auf „Installieren“.',
+    /** A release for a newer Android than the phone's (mobile/bridges/updates.ts). */
+    needsAndroid: (version: string) =>
+      `Diese Version braucht Android ${version} oder neuer. Auf diesem Telefon bleibt Girovo bei der Version, die es hat.`,
     /** The Google Play build: Play brings updates. */
     play: 'Updates kommen über Google Play.',
     playAvailable: 'Bei Google Play gibt es eine neue Version von Girovo.',
@@ -251,6 +254,7 @@ export const en: typeof de = {
     install: 'Install',
     installs: 'Android will ask whether you want to install the new version. Girovo restarts afterwards.',
     permission: 'Allow Girovo to install apps in Android’s settings, then tap “Install” again.',
+    needsAndroid: (version) => `This version needs Android ${version} or later. On this phone, Girovo stays at the version it has.`,
     play: 'Updates come through Google Play.',
     playAvailable: 'A new version of Girovo is on Google Play.',
     playUpdate: 'Update through Google Play',
