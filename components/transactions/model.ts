@@ -178,9 +178,11 @@ export function txText(tx: SerializedTransaction): TxText {
   // purpose names it ("Ihr Einkauf bei ZALANDO SE"); the service is named on
   // the second line and in the drawer, which keeps the bank's name.
   const shop = facilitatorShop(tx);
-  // Nano's brand first, where it found one in the bank's text ("eBay"); the
-  // drawer keeps `rawName` and `bankName`, and the search reads all of them.
-  const brand = brands.get(counterpartyKey(tx));
+  // Nano's brand first, where it found one in the bank's text ("eBay") — but
+  // never over the shop behind a payment service, whose key every purchase
+  // through it shares. The drawer keeps `rawName` and `bankName`, and the
+  // search reads all of them.
+  const brand = shop ? undefined : brands.get(counterpartyKey(tx));
   const name = brand || (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || words.fallbackName;
   // The second line repeats nothing the first already says: a purpose that
   // is just the payee's name again gives way to the booking text.

@@ -1,0 +1,10 @@
+<en-US>
+• Purchases through PayPal show the shop again – Coolblue or Spotify instead of "PayPal"
+• Girovo now needs Android 11 or later
+• Small fixes to icons
+</en-US>
+<de-DE>
+• Käufe über PayPal zeigen wieder den Shop – Coolblue oder Spotify statt „PayPal“
+• Girovo braucht jetzt Android 11 oder neuer
+• Kleine Korrekturen an Symbolen
+</de-DE>

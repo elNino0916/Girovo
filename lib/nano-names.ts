@@ -14,6 +14,7 @@
 // Pure, so the tests run it on the desktop.
 
 import { foldText } from './categorize.ts';
+import { isFacilitatorName } from './merchant-match.ts';
 
 // i18n-data-start — the prompt is the model's input, calibrated in German
 /** Nano's instruction: the brand behind the name, or NONE. The calibration's own text. */
@@ -44,6 +45,19 @@ export function nameText(name: string): string {
 }
 
 const bare = (s: string) => foldText(s).replace(/[^A-Z0-9]/g, '');
+
+/**
+ * Whether Nano is asked for the brand behind a name. Not for a payment
+ * service itself ("PayPal Europe S.à r.l. et Cie S.C.A.", "Klarna"): every
+ * purchase through it carries its name and its creditor ID, so all of them
+ * share one key whose only brand is the service — and "PayPal" stood over
+ * Coolblue and Spotify alike, where the shop behind each is in its own purpose
+ * (lib/analytics.ts facilitatorShop). A shop's card descriptor with the
+ * service in it ("PAYPAL *EBAY") is still asked.
+ */
+export function asksForBrand(name: string): boolean {
+  return !!String(name).trim() && !isFacilitatorName(name);
+}
 
 /**
  * Nano's answer as a brand to show, or null: NONE, nothing usable, a brand

@@ -62,6 +62,7 @@ import {
   type RangePreset,
 } from '@/lib/format';
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
+import { asksForBrand } from '@/lib/nano-names';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
 import { acceptsBalance, balanceQueue, failureSentence, namesList } from '@/lib/balances';
 import {
@@ -4672,7 +4673,8 @@ function useFintsState() {
       byKey.set(key, [...(byKey.get(key) ?? []), tx]);
       if (namesAsked.current.has(key)) continue;
       const name = counterpartyName(tx);
-      if (!name) continue;
+      // Not a payment service: the shop behind PayPal comes from each purpose.
+      if (!asksForBrand(name)) continue;
       namesAsked.current.add(key);
       items.push({ key, name });
     }

@@ -19,7 +19,7 @@ import { GUESSABLE, type GuessExample, type GuessItem, type GuessableCategory } 
 import {
   NANO_CATEGORY_LIST, NANO_PROMPT_VERSION, NANO_SYSTEM, exampleFor, nanoBookingText, parseNanoAnswer,
 } from '../../lib/nano-categories.ts';
-import { NAME_PROMPT_VERSION, NAME_SHOTS, NAME_SYSTEM, nameText, parseNameAnswer } from '../../lib/nano-names.ts';
+import { NAME_PROMPT_VERSION, NAME_SHOTS, NAME_SYSTEM, asksForBrand, nameText, parseNameAnswer } from '../../lib/nano-names.ts';
 import { GirovoNano, type NanoStatus } from '../native';
 
 export { GUESSABLE, type GuessExample, type GuessItem, type GuessableCategory };
@@ -134,7 +134,9 @@ export async function guessNames(items: { key: string; name: string }[]): Promis
   for (const it of items) {
     const name = it.name.trim();
     const key = `${NAME_PROMPT_VERSION}\u0000${name}`;
-    if (names.has(key)) out[it.key] = names.get(key)!;
+    // A payment service has no brand of its own to show (asksForBrand).
+    if (!asksForBrand(name)) out[it.key] = null;
+    else if (names.has(key)) out[it.key] = names.get(key)!;
     else pending.set(name, [...(pending.get(name) ?? []), it.key]);
   }
   if (!pending.size || !modelAvailable()) {
