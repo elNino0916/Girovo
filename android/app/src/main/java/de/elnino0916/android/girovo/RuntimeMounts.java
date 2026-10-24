@@ -74,13 +74,27 @@ final class RuntimeMounts {
     };
 
     /**
+     * Where vendor init mounts the maker's own partitions. HyperOS mounts its
+     * regional mi_ext partition at /mnt/vendor/mi_ext and stacks
+     * /mnt/vendor/mi_ext/product/… onto /product/… — on every stock Xiaomi —
+     * so a layer here is the maker's, though /mnt is otherwise a root layer.
+     */
+    private static final String MAKER_MOUNTS = "/mnt/vendor";
+
+    /** A layer in the maker's own mounts, not one that only climbs out of them (".."). */
+    static boolean makerLayer(String layer) {
+        return within(layer, MAKER_MOUNTS) && !(layer + "/").contains("/../");
+    }
+
+    /**
      * An overlay over a system partition that a root tool made. Phone makers
      * overlay their own read-only partitions too — Xiaomi's HyperOS stacks
-     * /mi_ext onto /product, OPPO and OnePlus their /my_* partitions — so the
-     * overlay itself proves nothing. KernelSU, APatch and modules take their
-     * layers from writable storage or memory, often name themselves as the
-     * source, and may add a writable upper layer; a maker's overlay does none
-     * of that. Options it does not show are no evidence either way.
+     * /mnt/vendor/mi_ext onto /product (and read as rooted until 5.14.1),
+     * OPPO and OnePlus their /my_* partitions — so the overlay itself proves
+     * nothing. KernelSU, APatch and modules take their layers from writable
+     * storage or memory, often name themselves as the source, and may add a
+     * writable upper layer; a maker's overlay does none of that. Options it
+     * does not show are no evidence either way.
      */
     static boolean rootOverlay(String source, String options) {
         if (source.matches("(?i).*(ksu|magisk|apatch|zygisk).*")) return true;
@@ -92,6 +106,7 @@ final class RuntimeMounts {
             if (key.equals("upperdir") || key.equals("workdir")) return true;
             if (!key.equals("lowerdir")) continue;
             for (String layer : value.split(":")) {
+                if (makerLayer(layer)) continue;
                 for (String place : ROOT_LAYERS) if (within(layer, place)) return true;
             }
         }

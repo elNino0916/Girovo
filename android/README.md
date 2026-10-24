@@ -126,8 +126,12 @@ An overlay over a system partition counts only when a root tool made it: its
 source names one (KSU, Magisk, APatch), a layer lies in writable storage or
 memory (`/data`, `/debug_ramdisk`, `/sbin`, `/dev`, `/mnt` …), or it has a
 writable upper layer. Phone makers overlay their own read-only partitions —
-Xiaomi's HyperOS stacks `/mi_ext` onto `/product`, OPPO and OnePlus their
-`my_*` partitions — and every HyperOS phone read as rooted before 5.9.1.
+Xiaomi's HyperOS mounts its `mi_ext` partition at `/mnt/vendor/mi_ext` and
+stacks it onto `/product`, OPPO and OnePlus their `my_*` partitions — so a
+layer under `/mnt/vendor`, where vendor init mounts the maker's partitions,
+is the maker's. Every stock HyperOS phone read as rooted (and so could not
+use fingerprint login) until 5.14.1; 5.9.1 had only allowed `/mi_ext` at the
+root, which no phone uses.
 Likewise a writable ext4 or EROFS mount counts only on a partition root or
 its `bin`/`lib` folders, not on vendor firmware or persist folders.
 Debug builds cannot bypass storage refusal for a modified device. The debug

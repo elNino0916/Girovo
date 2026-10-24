@@ -75,7 +75,14 @@ public class RuntimeMountsTest {
     // Phone makers overlay their own read-only partitions onto /product: never root.
     @Test public void makersReadOnlyOverlaysAreNotFindings() {
         RuntimeMounts.Scan scan = RuntimeMounts.scan(STOCK
-            // Xiaomi HyperOS: the regional /mi_ext partition over /product.
+            // Xiaomi HyperOS as stock phones mount it: mi_ext at /mnt/vendor/mi_ext,
+            // over /product's apps, code and resources, some with redirect_dir.
+            + "390 53 0:60 / /product/app ro,relatime shared:70 - overlay overlay ro,seclabel,lowerdir=/mnt/vendor/mi_ext/product/app:/product/app\n"
+            + "391 53 0:61 / /product/priv-app ro,relatime shared:71 - overlay overlay ro,seclabel,lowerdir=/mnt/vendor/mi_ext/product/priv-app:/product/priv-app,redirect_dir=on\n"
+            + "392 53 0:62 / /product/lib64 ro,relatime shared:72 - overlay overlay ro,seclabel,lowerdir=/mnt/vendor/mi_ext/product/lib64:/product/lib64\n"
+            + "393 53 0:63 / /product/bin ro,relatime shared:73 - overlay overlay ro,seclabel,lowerdir=/mnt/vendor/mi_ext/product/bin:/product/bin\n"
+            + "394 53 0:64 / /system_ext/framework ro,relatime shared:74 - overlay overlay ro,seclabel,lowerdir=/mnt/vendor/mi_ext/system_ext/framework:/system_ext/framework\n"
+            // As 5.9.1 assumed it: /mi_ext at the root.
             + "400 53 0:70 / /product/app ro,relatime shared:80 - overlay overlay ro,seclabel,lowerdir=/mi_ext/product/app:/product/app\n"
             + "401 53 0:71 / /product/priv-app ro,relatime shared:81 - overlay overlay ro,seclabel,lowerdir=/mi_ext/product/priv-app:/product/priv-app\n"
             + "402 53 0:72 / /product/etc ro,relatime shared:82 - overlay overlay ro,seclabel,lowerdir=/mi_ext/product/etc:/product/etc\n"
@@ -94,6 +101,13 @@ public class RuntimeMountsTest {
         assertTrue(RuntimeMounts.rootOverlay("overlay", "ro,lowerdir=/debug_ramdisk/.magisk/mirror/system:/system"));
         assertTrue(RuntimeMounts.rootOverlay("overlay", "rw,lowerdir=/mi_ext/product/app,upperdir=/data/x/up,workdir=/data/x/work"));
         assertFalse(RuntimeMounts.rootOverlay("overlay", "ro,seclabel,lowerdir=/mi_ext/product/app:/product/app"));
+        assertFalse(RuntimeMounts.rootOverlay("overlay", "ro,seclabel,lowerdir=/mnt/vendor/mi_ext/product/app:/product/app,redirect_dir=on"));
+        // The rest of /mnt is still no maker's, nor a path that only climbs out of /mnt/vendor.
+        assertTrue(RuntimeMounts.rootOverlay("overlay", "ro,lowerdir=/mnt/working/system/bin:/system/bin"));
+        assertTrue(RuntimeMounts.rootOverlay("overlay", "ro,lowerdir=/mnt/vendor/../../data/adb/modules/x/system:/system"));
+        assertTrue(RuntimeMounts.rootOverlay("overlay", "ro,lowerdir=/mnt/vendor/..:/system"));
+        // A maker's layer beside a writable upper one is still a root overlay.
+        assertTrue(RuntimeMounts.rootOverlay("overlay", "rw,lowerdir=/mnt/vendor/mi_ext/product/app,upperdir=/data/x/up,workdir=/data/x/work"));
         assertFalse(RuntimeMounts.rootOverlay("overlay", "ro,seclabel"));
     }
 }
