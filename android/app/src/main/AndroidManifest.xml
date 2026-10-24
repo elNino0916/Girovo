@@ -8,6 +8,17 @@
         <package android:name="com.topjohnwu.magisk" />
         <package android:name="me.bmax.apatch" />
         <package android:name="eu.chainfire.supersu" />
+        <!-- The banks' approval apps, for "Freigabe-App öffnen" (lib/brands.ts APPROVAL_PACKAGES). -->
+        <package android:name="com.starfinanz.mobile.android.pushtan" />
+        <package android:name="de.fiduciagad.securego.wl" />
+        <package android:name="de.fiduciagad.securego.vr" />
+        <package android:name="de.ingdiba.bankingapp" />
+        <package android:name="de.dkb.portalapp" />
+        <package android:name="de.postbank.bestsign" />
+        <package android:name="com.commerzbank.photoTAN" />
+        <package android:name="com.comdirect.phototan" />
+        <package android:name="com.db.pbc.phototan.db" />
+        <package android:name="com.db.pbc.phototan.nb" />
     </queries>
 
     <!-- No backups (allowBackup, data_extraction_rules): see
@@ -99,11 +110,11 @@
             android:name="com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity"
             tools:remove="android:screenOrientation" />
 
-        <!-- Play services fetches the code scanner's module with the app,
-             not at the first scan. -->
+        <!-- Play services fetches the code scanner's and the text
+             recognition's modules with the app, not at the first scan. -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="barcode_ui" />
+            android:value="barcode_ui,ocr" />
 
         <!-- Keeps the network while the user approves in the bank's app
              (ApprovalService): a short service, at most about three minutes. -->

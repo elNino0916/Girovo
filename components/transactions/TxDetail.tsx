@@ -3,26 +3,29 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { IS_ANDROID } from '@/lib/platform';
 import { usePhone } from '../shell/usePhone';
-import { facilitatorShop } from '@/lib/analytics';
+import { facilitatorShop, fmtDayShort } from '@/lib/analytics';
 import {
   allCategories, categoryLabel, counterpartyKey, isCategoryId, txBic, txKey, type CategoryId, type CategorySource,
 } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry } from '@/lib/format';
+import { dayKey, displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry } from '@/lib/format';
 import { intlLocale, msgs, type Messages } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import { AMOUNT_MASK } from '@/lib/mask';
+import { splitAllowed } from '@/lib/plus';
 import { BankText } from '../BankText';
 import { useFints } from '../FintsProvider';
+import { BrandPlate } from '../shell/BrandMark';
 import {
   ArrowRightIcon, BoltIcon, CategoryIcon, ChevronIcon, ClockIcon, PieIcon, PlusIcon, ReceiptIcon, RepeatIcon,
-  TransferIcon, UndoIcon,
+  SplitIcon, TransferIcon, UndoIcon,
 } from '../icons';
 import { maskedLabel, Money, usePrivacy } from '../Money';
 import {
   Button, CopyButton, Disclosure, Drawer, Menu, MenuGroup, MenuItem, MenuItemRadio, MenuSeparator, Tag, cx,
 } from '../ui';
 import { CounterpartyAvatar } from './Avatar';
+import { BillSplit } from './BillSplit';
 import { CategoryNameDialog, SplitDialog } from './CategoryDialogs';
 import { NoteSection } from './NoteSection';
 import { ReceiptSection } from './ReceiptSection';
@@ -62,7 +65,9 @@ export function TxDetail({
 }) {
   const {
     activeAccount, categoryOf, openTransfer, showTransactions, printTransaction, noteOf, receiptKeys,
+    plus, openPlus, openShareQueue,
   } = useFints();
+  const [splitting, setSplitting] = useState(false);
   const phone = usePhone();
   const tabbed = IS_ANDROID && phone;
   // `tr`, not `t`: in this file `t` is a booking.
@@ -106,6 +111,37 @@ export function TxDetail({
   const country = place || text.via ? null : ibanCountry(iban);
   const when = tx.entryDate || tx.valueDate;
 
+  // Aufteilen (Android): a debit shared with others, each asked for their part
+  // (BillSplit); a Plus perk in the Play build, its door the gold plate. Its
+  // requests replace the drawer, as a transfer does.
+  const canSplit = IS_ANDROID && !pending && tx.amount < 0 && !!activeAccount?.iban;
+  const splitOk = splitAllowed(plus.state);
+  const splitButton = canSplit && (
+    <Button
+      size="sm"
+      variant="secondary"
+      iconLeft={splitOk ? <SplitIcon size={16} /> : <BrandPlate tone="plus" size={18} />}
+      onClick={splitOk ? () => setSplitting(true) : openPlus}
+    >
+      {tr.transactions.billSplit.action}
+    </Button>
+  );
+  const splitSheet = splitting && (
+    <BillSplit
+      name={text.name}
+      meta={[when ? fmtDayHeader(when) : '', card?.card].filter(Boolean).join(' · ')}
+      cents={Math.round(tx.amount * 100)}
+      glyph={<CategoryIcon id={cat.id} size={22} />}
+      defaultPurpose={tr.transactions.billSplit.purposeFor(text.name, when ? fmtDayShort(dayKey(when)) : '')}
+      onClose={() => setSplitting(false)}
+      onRequest={(list) => {
+        setSplitting(false);
+        onClose();
+        setTimeout(() => openShareQueue(list), 0);
+      }}
+    />
+  );
+
   // A transfer replaces the drawer rather than stacking on it. Opened on the
   // next tick, once the drawer has handed focus back to the row, so the
   // transfer sheet in turn returns focus there when it closes.
@@ -129,7 +165,7 @@ export function TxDetail({
               // words start on the same edge as the labels above it.
               <button
                 type="button"
-                className="group mt-1 inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-[4px] text-[14px] font-semibold text-accent"
+                className="group mt-1 inline-flex min-h-12 max-w-full items-center gap-1.5 rounded-[4px] text-[14px] font-semibold text-accent"
                 onClick={() => {
                   onClose();
                   showTransactions({ query });
@@ -251,9 +287,10 @@ export function TxDetail({
                 {words.refund}
               </Button>
             )}
+            {splitButton}
             <Button
               size="sm"
-              variant={seeds.repeat || seeds.refund ? 'tertiary' : 'secondary'}
+              variant={seeds.repeat || seeds.refund || canSplit ? 'tertiary' : 'secondary'}
               iconLeft={<ReceiptIcon size={16} />}
               onClick={() => printTransaction(tx, pending)}
             >
@@ -262,6 +299,7 @@ export function TxDetail({
           </div>
 
         <DetailTabs
+          label={pending ? words.pendingTitle : words.title}
           labels={[words.tabs.details, words.tabs.notes, words.tabs.category]}
           marked={attached ? 1 : null}
           markedLabel={words.tabs.attached}
@@ -322,6 +360,7 @@ export function TxDetail({
             <CategorySection key="category" tx={tx} name={text.name} pending={pending} />,
           ]}
         />
+        {splitSheet}
       </Drawer>
     );
   }
@@ -367,9 +406,10 @@ export function TxDetail({
               {words.refund}
             </Button>
           )}
+          {splitButton}
           <Button
             size="sm"
-            variant={seeds.repeat || seeds.refund ? 'tertiary' : 'secondary'}
+            variant={seeds.repeat || seeds.refund || canSplit ? 'tertiary' : 'secondary'}
             iconLeft={<ReceiptIcon size={16} />}
             onClick={() => printTransaction(tx, pending)}
           >
@@ -434,6 +474,7 @@ export function TxDetail({
       <ReceiptSection tx={tx} pending={pending} />
 
       {refsSection}
+      {splitSheet}
     </Drawer>
   );
 }
@@ -443,8 +484,8 @@ export function TxDetail({
  * width, the current one in the primary over a 3dp indicator. Arrow keys
  * move between them (the ARIA tabs pattern); a tab marked carries a dot.
  */
-function DetailTabs({ labels, panels, marked, markedLabel }: {
-  labels: string[]; panels: ReactNode[]; marked: number | null; markedLabel: string;
+function DetailTabs({ label, labels, panels, marked, markedLabel }: {
+  label: string; labels: string[]; panels: ReactNode[]; marked: number | null; markedLabel: string;
 }) {
   const [current, setCurrent] = useState(0);
   const base = useId();
@@ -456,7 +497,7 @@ function DetailTabs({ labels, panels, marked, markedLabel }: {
   };
   return (
     <div className="mt-5">
-      <div role="tablist" className="-mx-4 flex shadow-[inset_0_-1px_0_var(--line)]">
+      <div role="tablist" aria-label={label} className="-mx-4 flex shadow-[inset_0_-1px_0_var(--line)]">
         {labels.map((label, i) => (
           <button
             key={label}

@@ -66,6 +66,26 @@ export const COMPACT_LOGO = new Set(['sparkasse', 'deutschebank', 'consorsbank',
  * the PIN is typed. Brands whose banks differ, or whose app is not known for
  * certain, are left out on purpose: the form then just says "Banking-App".
  */
+/**
+ * The Android packages of those apps, for "Freigabe-App öffnen" (the approval
+ * wait opens the one that is installed). Each must also be listed in the
+ * manifest's <queries>, or Android hides it from the app. A brand whose
+ * package is not known for certain is left out: no button is better than a
+ * wrong app.
+ */
+export const APPROVAL_PACKAGES: Record<string, readonly string[]> = {
+  sparkasse: ['com.starfinanz.mobile.android.pushtan'],
+  vrbank: ['de.fiduciagad.securego.wl', 'de.fiduciagad.securego.vr'],
+  gls: ['de.fiduciagad.securego.wl', 'de.fiduciagad.securego.vr'],
+  ing: ['de.ingdiba.bankingapp'],
+  dkb: ['de.dkb.portalapp'],
+  postbank: ['de.postbank.bestsign'],
+  commerzbank: ['com.commerzbank.photoTAN'],
+  comdirect: ['com.comdirect.phototan'],
+  deutschebank: ['com.db.pbc.phototan.db'],
+  norisbank: ['com.db.pbc.phototan.nb'],
+};
+
 export const APPROVAL_APP: Record<string, string> = {
   sparkasse: 'S-pushTAN',
   vrbank: 'SecureGo plus',

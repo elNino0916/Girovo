@@ -59,6 +59,13 @@ export const de = {
   receipts: {
     title: 'Belege',
     attach: 'Beleg anhängen',
+    /** Android: the button whose menu offers the camera or a file. */
+    add: 'Beleg hinzufügen',
+    takePhoto: 'Foto aufnehmen',
+    chooseFile: 'Datei wählen',
+    scanFailed: 'Die Kamera ließ sich nicht öffnen. Versuch es noch einmal oder wähle eine Datei.',
+    /** A photographed receipt's name: "Beleg vom 21.10.2026". */
+    photoName: (day: string) => `Beleg vom ${day}`,
     hint: 'Ein Foto oder PDF, etwa die Rechnung – auf diesem Rechner gespeichert, mit deiner PIN verschlüsselt.',
     attaching: 'Beleg wird gespeichert …',
     attached: 'Beleg angehängt.',
@@ -128,6 +135,11 @@ export const en: typeof de = {
   receipts: {
     title: 'Receipts',
     attach: 'Attach a receipt',
+    add: 'Add a receipt',
+    takePhoto: 'Take a photo',
+    chooseFile: 'Choose a file',
+    scanFailed: 'The camera could not be opened. Try again or choose a file.',
+    photoName: (day) => `Receipt of ${day}`,
     hint: 'A photo or PDF, such as the invoice – saved on this computer, encrypted with your PIN.',
     attaching: 'Saving the receipt…',
     attached: 'Receipt attached.',

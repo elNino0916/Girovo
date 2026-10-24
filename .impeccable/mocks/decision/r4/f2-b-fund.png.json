@@ -1,0 +1,7 @@
+{
+  "source": "rendered, not generated",
+  "html": ".impeccable/mocks/decision/r4/f2-b-fund.html",
+  "renderer": "Microsoft Edge headless via DevTools, 393x852 CSS px at 3x",
+  "prompt": "No image model. Hand-authored HTML/CSS mock in Girovo's Android world (Google Sans Flex, Material Symbols Rounded, IBM Plex Mono, Girovo blue scheme) with design-preview data.",
+  "description": "Variant B: a bottom sheet \"In der Rechnung gefunden\" over the still empty \"An wen?\" part, one checkbox row per value (Empfänger, IBAN, Betrag, Verwendungszweck), \"Übernehmen\" filled and \"Verwerfen\" as a text button, a note that unclear values are left out."
+}

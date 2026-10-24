@@ -38,9 +38,8 @@ export function Icon({
         aria-hidden="true"
         data-filled={filled || undefined}
         className={join('ms-icon shrink-0', className)}
-        // The box is the glyph's own em: a control that sets its icons' size
-        // (M3E's icon button: 24dp) must not find a smaller box cutting it off.
-        style={{ fontSize: size, width: '1em', height: '1em', ...(rest.style as object) }}
+        // The box is the glyph's own em (app/android.css), at any text size.
+        style={{ fontSize: size, ...(rest.style as object) }}
       >
         {ms}
       </span>
@@ -429,6 +428,61 @@ export function LandmarkIcon(p: IconProps) {
     <Icon ms="account_balance" {...p}>
       <path d="M3.5 9.2L12 4.5l8.5 4.7H3.5zM3 20.5h18M4.5 17.5h15" />
       <path d="M6.5 11.5v6M10 11.5v6M14 11.5v6M17.5 11.5v6" />
+    </Icon>
+  );
+}
+
+/** Two arrows apart: showing a picture large. */
+export function ExpandIcon(p: IconProps) {
+  return <Icon ms="open_in_full" {...p}><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" /></Icon>;
+}
+
+/** A camera: photographing a paper receipt (the document scanner). */
+export function CameraIcon(p: IconProps) {
+  return (
+    <Icon ms="photo_camera" {...p}>
+      <path d="M4 8.5h3.2L8.8 6h6.4l1.6 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1z" />
+      <circle cx="12" cy="13.2" r="3.4" />
+    </Icon>
+  );
+}
+
+/** A page in a scanner's corners: reading an invoice's text ("Rechnung scannen"). */
+export function DocScanIcon(p: IconProps) {
+  return (
+    <Icon ms="document_scanner" {...p}>
+      <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+      <path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4.5" />
+    </Icon>
+  );
+}
+
+/** One amount going two ways: splitting a booking between people ("Aufteilen"). */
+export function SplitIcon(p: IconProps) {
+  return (
+    <Icon ms="call_split" {...p}>
+      <path d="M12 21v-7.5L6 7.5M6 12V7.5h4.5M12 13.5L18 7.5M18 12V7.5h-4.5" />
+    </Icon>
+  );
+}
+
+/** A person to add (Aufteilen's "Person hinzufügen"). */
+export function PersonAddIcon(p: IconProps) {
+  return (
+    <Icon ms="person_add" {...p}>
+      <circle cx="9.5" cy="8.5" r="3.5" />
+      <path d="M3.5 19.5c.6-3.2 3-5 6-5s5.4 1.8 6 5M18.5 8.5v5M16 11h5" />
+    </Icon>
+  );
+}
+
+/** A flag at the end of the way: a Sparziel. */
+/** A goal's flag, its cloth solid: drawn as an outline, at 18px it reads as an "F". */
+export function FlagIcon(p: IconProps) {
+  return (
+    <Icon ms="flag" filled {...p}>
+      <path d="M5.5 21.5V3.5" />
+      <path d="M5.5 4.5h13l-3.25 4.5 3.25 4.5h-13z" fill="currentColor" />
     </Icon>
   );
 }

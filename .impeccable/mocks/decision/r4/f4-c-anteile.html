@@ -1,0 +1,62 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Aufteilen – Anteile</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=block');
+:root{
+  --primary:#0060a8; --on-primary:#fff; --pc:#d3e4ff; --on-pc:#004880;
+  --sc:#dae1ff; --on-sc:#3c4665; --tertiary:#5a5a8b; --tc:#e2dfff;
+  --surface:#f8f9ff; --scl:#eff4ff; --sc1:#e9eefa; --sch:#e3e8f4; --schh:#dde3ee;
+  --ink:#161c24; --ink-2:#404753; --outline:#707784; --ov:#bfc7d5;
+  --green:#0c7336; --green-soft:#eaf4ee; --navy:#0a2c5e; --gold:#f2c14e;
+  --slot-1:var(--primary); --slot-2:var(--tertiary); --slot-self:var(--outline);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface)}
+.phone{width:393px;height:852px;overflow:hidden;position:relative;background:var(--surface);
+  font-family:'Google Sans Flex',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;font-size:16px;line-height:24px}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;font-size:24px;line-height:1;width:1em;height:1em;
+  overflow:hidden;letter-spacing:normal;text-transform:none;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';
+  font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block;flex:none}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em}
+.fig{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.025em;font-weight:500}
+.status{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;font-weight:500;font-size:14px}
+.status .ms{font-size:17px;margin-left:3px}
+.bar{height:64px;display:flex;align-items:center;gap:4px;padding:0 4px}
+.bar .title{font-size:22px;line-height:28px;flex:1;padding-left:4px}
+.ib{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;color:var(--ink-2);flex:none}
+.sub{font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2);padding:16px 16px 4px}
+.row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;column-gap:16px;align-items:center;padding:8px 16px;min-height:64px}
+.disc{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--sch);color:var(--ink-2);font-size:16px;font-weight:500;flex:none}
+.disc .ms{font-size:20px}
+.name{font-size:16px;line-height:22px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:14px;line-height:20px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amt{font-size:16px;line-height:22px;font-weight:500;text-align:right;white-space:nowrap}
+.btn{height:40px;border-radius:20px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;font-size:14px;line-height:20px;font-weight:500;white-space:nowrap;flex:none}
+.btn.lg{height:56px;border-radius:28px;font-size:16px;padding:0 24px}
+.btn.textb{padding:0 12px}
+.filled{background:var(--primary);color:var(--on-primary)}
+.tonal{background:var(--sc);color:var(--on-sc)}
+.text{color:var(--primary)}
+.quiet{color:var(--ink-2)}
+.btn .ms{font-size:20px}
+.chip{height:32px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;font-size:14px;line-height:20px;font-weight:500;box-shadow:inset 0 0 0 1px var(--ov);color:var(--ink-2);white-space:nowrap}
+.chip.on{box-shadow:none;background:var(--sc);color:var(--on-sc)}
+.chip .ms{font-size:18px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.field{height:56px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--outline);display:flex;align-items:center;padding:0 16px;font-size:16px;position:relative}
+.field label{position:absolute;top:-8px;left:12px;padding:0 4px;background:var(--surface);font-size:12px;line-height:16px;color:var(--ink-2)}
+.field.focus{box-shadow:inset 0 0 0 2px var(--primary)}
+.field.focus label{color:var(--primary)}
+.help{font-size:12px;line-height:16px;color:var(--ink-2);padding:4px 16px 0}
+.handle{position:absolute;bottom:8px;left:50%;width:108px;height:4px;margin-left:-54px;border-radius:2px;background:var(--ink);opacity:.38}
+.seg{display:flex;gap:2px}
+.seg > div{flex:1 1 auto;min-width:0;height:40px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;font-weight:500;
+  background:var(--sc1);color:var(--ink-2);border-radius:8px;padding:0 8px;white-space:nowrap}
+.seg > div:first-child{border-radius:20px 8px 8px 20px}
+.seg > div:last-child{border-radius:8px 20px 20px 8px}
+.seg > div.on{background:var(--primary);color:var(--on-primary);border-radius:20px}
+.seg .ms{font-size:18px}
+.plate{width:18px;height:18px;border-radius:5px;background:var(--navy);display:block;flex:none}
+.plate svg{display:block;width:100%;height:100%}
+.foot{position:absolute;left:0;right:0;bottom:0;padding:12px 16px 34px;display:flex;align-items:center;gap:8px;background:var(--surface)}
+</style></head><body><div class="phone"><div class="status"><span class="num">9:41</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div><div class="bar"><div class="ib"><span class="ms" style="">close</span></div><div class="title">Aufteilen</div></div><div class="row" style="padding:0 16px 8px"><div class="disc"><span class="ms" style="">restaurant</span></div><div style="min-width:0"><div class="name">Sushi Yana</div><div class="meta">Mittwoch, 21.10. · girocard</div></div><div class="amt num">−30,79&nbsp;€</div></div><div class="sub" style="padding-top:16px">Wer zahlt was?</div><div style="display:flex;gap:3px;align-items:center;height:48px;margin:8px 16px 0"><i style="flex:1027;height:36px;background:var(--slot-self);border-radius:18px 8px 8px 18px"></i><i style="flex:1026;height:48px;background:var(--slot-1);border-radius:12px 12px 12px 12px"></i><i style="flex:1026;height:36px;background:var(--slot-2);border-radius:8px 18px 18px 8px"></i></div><div style="display:flex;flex-wrap:wrap;gap:8px;padding:16px 16px 0"><span class="chip"><span class="dot" style="background:var(--slot-self)"></span>Du<span class="num" style="font-weight:400">10,27&nbsp;€</span></span><span class="chip on"><span class="dot" style="background:var(--slot-1)"></span>Lea<span class="num" style="font-weight:400">10,26&nbsp;€</span></span><span class="chip"><span class="dot" style="background:var(--slot-2)"></span>Jonas<span class="num" style="font-weight:400">10,26&nbsp;€</span></span><span class="chip"><span class="ms" style="">add</span>Person</span></div><div style="display:grid;grid-template-columns:minmax(0,1fr) 136px;gap:12px;padding:28px 16px 0"><div class="field"><label>Name</label>Lea</div><div class="field num" style="justify-content:flex-end"><label>Anteil von Lea</label>10,26&nbsp;€</div></div><div class="help">Dein Anteil passt sich an: <span class="num">10,27&nbsp;€</span></div><div style="display:flex;align-items:center;gap:8px;padding:12px 16px 0"><span class="btn textb quiet" style="margin-left:-12px">Lea entfernen</span><span style="flex:1"></span><span class="btn textb text" style="margin-right:-12px">Gleich verteilen</span></div><div style="padding:28px 16px 0"><div class="field"><label>Verwendungszweck</label>Anteil Sushi Yana, 21.10.</div></div><div style="display:flex;align-items:center;gap:8px;padding:20px 16px 0;font-size:14px;line-height:20px;color:var(--ink-2)"><span class="ms" style="font-size:20px;color:var(--green)">check_circle</span><span>Summe <span class="num" style="color:var(--ink);font-weight:500">30,79&nbsp;€</span> – passt</span></div><div class="foot" style="flex-direction:column;align-items:stretch;gap:8px"><div class="meta" style="text-align:center">Erst Lea, dann Jonas – je ein GiroCode</div><span class="btn lg filled"><span class="ms" style="">qr_code_2</span>Alle anfordern</span></div><div class="handle"></div></div></body></html>

@@ -238,6 +238,8 @@ export const de = {
     helpToggle: 'Keine Anfrage bekommen?',
     openMethod: (method: string) => `Öffne „${method}“ selbst, auch wenn keine Mitteilung erschienen ist.`,
     openApp: 'Öffne deine Banking-App selbst, auch wenn keine Mitteilung erschienen ist.',
+    /** Android: the footer's way into the bank's approval app ("S-pushTAN öffnen"). */
+    openApprovalApp: (app: string) => `${app} öffnen`,
     checkDevices: 'Hast du mehrere Geräte für die Freigabe eingerichtet, sieh auf allen nach.',
     checkNotifications: 'Prüfe, ob die App auf deinem Telefon Mitteilungen senden darf.',
     /** Under a refusal: the bank's return codes, for whoever calls the bank. */
@@ -585,6 +587,7 @@ export const en: typeof de = {
     helpToggle: 'No request received?',
     openMethod: (method) => `Open “${method}” yourself, even if no notification has appeared.`,
     openApp: 'Open your banking app yourself, even if no notification has appeared.',
+    openApprovalApp: (app) => `Open ${app}`,
     checkDevices: 'If you have set up several devices for approval, check all of them.',
     checkNotifications: 'Check that the app is allowed to send notifications on your phone.',
     reference: (codes) => ['Bank response code: ', codes],

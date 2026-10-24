@@ -89,7 +89,31 @@ declare global {
     approval: {
       hold(texts: { title: string; text: string }): Promise<boolean>;
       release(): Promise<void>;
+      /** Which of these approval apps (lib/brands.ts APPROVAL_PACKAGES) is installed; null for none. */
+      app(packages: readonly string[]): Promise<string | null>;
+      /** Opens it ("Freigabe-App öffnen"); false when it could not be opened. */
+      open(packages: readonly string[]): Promise<boolean>;
     };
+    /**
+     * Google's document scanner (Play services): photographed pages, cropped
+     * and straightened, as JPEG files, and as one PDF when asked.
+     */
+    docScanner: {
+      scan(opts?: { pages?: number; pdf?: boolean }): Promise<
+        { pages: File[]; pdf?: File } | { canceled: true } | { unavailable: true } | { failed: true }
+      >;
+    };
+    /**
+     * The text in a picture, read on the phone (Play services' text
+     * recognition): its lines, each with its box in the picture's pixels, and
+     * the picture's size; null when it could not be read.
+     */
+    readText(image: Blob): Promise<{
+      text: string;
+      lines: { text: string; box?: [number, number, number, number] }[];
+      width: number;
+      height: number;
+    } | { unavailable: true } | null>;
     /**
      * How the app was opened beyond its icon: a shortcut (Überweisen, GiroCode
      * scannen, Geld anfordern) or an invoice shared with it. The launch that

@@ -27,7 +27,7 @@ import { installSheetDrag } from './bridges/sheet-drag';
 import { startTelemetry } from './bridges/telemetry';
 import { installUpdates, playUpdate } from './bridges/updates';
 import { Buffer } from 'buffer';
-import { GirovoDevice, GirovoLaunch, GirovoNano, GirovoScanner } from './native';
+import { GirovoDevice, GirovoDocScanner, GirovoLaunch, GirovoNano, GirovoScanner, GirovoText } from './native';
 import { ready } from './server/index';
 
 /** Android AICore in Google Play: Play opens the https link as its own page. */
@@ -84,6 +84,37 @@ window.girovoMobile = {
   approval: {
     hold: (texts) => GirovoDevice.holdForApproval(texts).then((r) => r.held, () => false),
     release: () => GirovoDevice.releaseApproval().catch(() => {}),
+    app: (packages) => GirovoDevice.approvalApp({ packages: [...packages] }).then((r) => r.package ?? null, () => null),
+    open: (packages) => GirovoDevice.openApprovalApp({ packages: [...packages] }).then(() => true, () => false),
+  },
+  docScanner: {
+    scan: (opts = {}) => GirovoDocScanner.scan(opts).then(
+      (r) => {
+        if (r.canceled) return { canceled: true as const };
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
+        const pages = (r.pages ?? []).map((data, i) =>
+          new File([Buffer.from(data, 'base64')], `Scan-${stamp}-${i + 1}.jpg`, { type: 'image/jpeg' }));
+        if (!pages.length) return { failed: true as const };
+        const pdf = r.pdf ? new File([Buffer.from(r.pdf, 'base64')], `Scan-${stamp}.pdf`, { type: 'application/pdf' }) : undefined;
+        return pdf ? { pages, pdf } : { pages };
+      },
+      (err: { code?: string }) => (err?.code === 'unavailable' ? { unavailable: true as const } : { failed: true as const }),
+    ),
+  },
+  readText: async (image) => {
+    const data = Buffer.from(await image.arrayBuffer()).toString('base64');
+    return GirovoText.recognize({ data }).then(
+      (r) => ({
+        text: r.text ?? '',
+        lines: (r.lines ?? []).map((l) => ({
+          text: l.text ?? '',
+          box: l.box?.length === 4 ? [l.box[0], l.box[1], l.box[2], l.box[3]] as [number, number, number, number] : undefined,
+        })),
+        width: r.width ?? 0,
+        height: r.height ?? 0,
+      }),
+      (err: { code?: string }) => (err?.code === 'unavailable' ? { unavailable: true as const } : null),
+    );
   },
   launch: {
     on: (fn) => {

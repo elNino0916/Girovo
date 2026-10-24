@@ -503,6 +503,41 @@
     --m3e-form-field-line-height: 24px;
     --m3e-form-field-tracking: 0.5px;
   }
+  /* The phone's larger text (WebView text zoom, app/layout.tsx) multiplies
+     font sizes and line heights but no length, and M3E's field is built of
+     lengths: a 56px floor, a floated label lifted by half of a 16px line, a
+     resting one centred in a 56px line. At 200% the label sank into the
+     typed text and the field never grew. So here the field grows round its
+     text, measured in lh — the zoomed line — and at 100% every term is 0:
+     - the typed line gets the field's 16px above and below back as it grows
+       (two thirds of what the line grew: 0 at 24px, 16px at 48px);
+     - the floated label is lifted by half its own line instead of 8px;
+     - the resting one moves from the middle of its zoomed 56px line to the
+       middle of the field as it now is (max(56px, line + 32px)). */
+  :root[data-look='material'] m3e-form-field > :is(input, textarea) {
+    padding-block: max(0px, calc((1lh - 24px) * 2 / 3));
+  }
+  :root[data-look='material'] m3e-form-field:is(:state(--float-label), :not(:state(--float-label-auto))) > label[slot='label'] {
+    position: relative;
+    top: calc(8px - 0.5lh);
+  }
+  :root[data-look='material'] m3e-form-field:state(--float-label-auto):not(:state(--float-label)) > label[slot='label'] {
+    position: relative;
+    top: calc((max(56px, 1lh - 32px) - 1lh) / 2);
+  }
+  /* A sheet whose pinned parts would take most of the screen (useUnpinned,
+     the system's largest text) scrolls as one: band or header, body and
+     footer in one column. */
+  :root[data-look='material'] [data-unpinned] {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  :root[data-look='material'] [data-unpinned] > [data-sheet-body] {
+    flex: none;
+    min-height: auto;
+    overflow: visible;
+  }
+
   /* Inside a form field the field's own outline is the focus — it turns
      primary and doubles — so the input draws no ring of its own. Nor does a
      bare input (the palette's search line, where the whole sheet is the

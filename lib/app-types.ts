@@ -6,6 +6,7 @@
 // provider can never disagree about a shape.
 
 import type { CategoryId, CustomCategory } from './categories';
+import type { SavingsGoal } from './savings-goal';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
 import type { SavedPart } from './history';
 import type { OrderSchedule } from './order-schedule';
@@ -129,13 +130,13 @@ export type TransferPrefill = {
   purpose?: string;
   instant?: boolean;
   /** Where the values came from — the form says so ("Aus GiroCode übernommen"). */
-  source?: 'repeat' | 'refund' | 'template' | 'recent' | 'girocode';
+  source?: 'repeat' | 'refund' | 'template' | 'recent' | 'girocode' | 'invoice';
   /**
    * Android: a GiroCode still to read when the sheet opens — an invoice
    * shared with the app, or the camera from the "GiroCode scannen" shortcut
    * (components/android/useLaunches.ts).
    */
-  girocode?: { file?: File; scan?: boolean };
+  girocode?: { file?: File; scan?: boolean; docScan?: boolean };
 };
 
 /** Seeds the "Geld anfordern" GiroCode sheet. */
@@ -143,6 +144,9 @@ export type SharePrefill = {
   accountNumber?: string;
   amount?: string;
   purpose?: string;
+  /** Aufteilen: the person this request is for, and where it stands in the row of requests. */
+  forName?: string;
+  step?: { at: number; of: number; next?: string };
 };
 
 export type TransferTemplate = {
@@ -204,6 +208,8 @@ export type VaultData = {
    * with the PIN. Absent means off, the default; only `true` turns it on.
    */
   keepBookings?: true;
+  /** Sparziele: one per savings account (lib/savings-goal.ts). Absent while there are none. */
+  goals?: SavingsGoal[];
   /** ISO */
   updatedAt: string;
 };

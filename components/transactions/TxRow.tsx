@@ -118,7 +118,8 @@ export const TxRow = memo(function TxRow({
               'mt-0.5 flex min-w-0 items-center text-[13px] leading-snug text-ink-3',
               // A phone: one line, and what does not fit beside the category
               // wraps onto a second line that is never shown — whole or not at all.
-              showCategory && 'max-sm:h-[1.375em] max-sm:flex-wrap max-sm:overflow-hidden',
+              // One line high in the line's own unit, so it grows with the system's text size.
+              showCategory && 'max-sm:h-[1lh] max-sm:flex-wrap max-sm:overflow-hidden',
             )}
           >
             {/* The category first — its glyph is the row's face — then the

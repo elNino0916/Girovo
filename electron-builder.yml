@@ -56,10 +56,11 @@ win:
     # Both copy it out first, so it never holds this folder open.
     - from: build/update-window/bin/Girovo-Update.exe
       to: Girovo-Update.exe
+  # The installer only: no portable build since 5.13.0. A portable copy from
+  # before finds no -portable.exe in a newer release and its updater offers
+  # the release page, where the Setup.exe is.
   target:
     - target: nsis
-      arch: [x64]
-    - target: portable
       arch: [x64]
 
 # build/installer.nsh (the default `include` path, so nothing to wire up here)
@@ -78,9 +79,6 @@ nsis:
   installerLanguages: [en_US, de_DE]
   multiLanguageInstaller: true
   displayLanguageSelector: false
-
-portable:
-  artifactName: ${productName}-${version}-portable.${ext}
 
 # Built on Linux only (CI's ubuntu-latest): the AppImage and the .deb need
 # Linux's own tools, which electron-builder does not have on Windows.

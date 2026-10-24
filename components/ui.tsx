@@ -138,7 +138,7 @@ export function Spinner({ className, size = 15, label }: { className?: string; s
   const ring = size < LOADING_INDICATOR_MIN ? (
     <M3eCircularProgressIndicator
       indeterminate
-      aria-hidden
+      aria-hidden="true"
       data-spinner
       className={cx('shrink-0', className)}
       style={{
@@ -152,7 +152,7 @@ export function Spinner({ className, size = 15, label }: { className?: string; s
     />
   ) : (
     <M3eLoadingIndicator
-      aria-hidden
+      aria-hidden="true"
       data-spinner
       className={cx('shrink-0', className)}
       style={{
@@ -293,7 +293,7 @@ function useFieldWiring(props: { id?: string; 'aria-describedby'?: string; 'aria
 const subscript = (shown: boolean) => (shown ? 'never' : 'always');
 
 export function Field({
-  label, htmlFor, hint, error, required, optional, trailing, labelHidden, className, children,
+  label, htmlFor, hint, error, required, optional, trailing, labelHidden, floatLabel, className, children,
 }: {
   label: ReactNode;
   /** The control's id. Generated when omitted (and handed to the control). */
@@ -308,6 +308,8 @@ export function Field({
   trailing?: ReactNode;
   /** Keeps the label for screen readers only. */
   labelHidden?: boolean;
+  /** "always": the label stays above the value — for a control that draws its own empty state (a month field). */
+  floatLabel?: 'always';
   /** Replaces the default bottom margin. */
   className?: string;
   children: ReactNode;
@@ -343,6 +345,7 @@ export function Field({
       )}
       <M3eFormField
         variant="outlined"
+        floatLabel={floatLabel ?? 'auto'}
         error={!!error}
         hideSubscript={subscript(!!(error || hint))}
         hideRequiredMarker={!required}
@@ -843,6 +846,30 @@ function neighboursOf(el: Element | null, layer: HTMLElement): HTMLElement[] {
 // Modal layers currently open, innermost last. Only the top one answers
 // Escape and Tab, so a confirm over a sheet closes the confirm, not both.
 const layerStack: string[] = [];
+
+/**
+ * Everything outside an open layer leaves the accessibility tree and the
+ * touch path (`inert`): aria-modal alone is a hint a screen reader on a phone
+ * may not honour, and a swipe of TalkBack's would walk out of the sheet into
+ * the page behind it. Every sibling on the way from the layer up to <body>
+ * is marked, except what is inert already and the live regions that must
+ * keep speaking (the toasts, [data-live-outlet]); the returned function gives
+ * back exactly what it took, before focus returns to the opener.
+ */
+function inertOutside(root: HTMLElement): () => void {
+  const marked: Element[] = [];
+  for (let node: Element = root; node.parentElement && node !== document.body; node = node.parentElement) {
+    for (const sibling of Array.from(node.parentElement.children)) {
+      if (sibling === node || sibling.hasAttribute('inert')) continue;
+      if (sibling.matches('script, style, template, [data-live-outlet], [aria-live], [role="alert"], [role="status"], [role="log"]')) continue;
+      sibling.setAttribute('inert', '');
+      marked.push(sibling);
+    }
+  }
+  return () => {
+    for (const el of marked) el.removeAttribute('inert');
+  };
+}
 const layerRoots = new Map<string, HTMLElement>();
 // The layers that are right-hand drawers (see syncCaptionDim).
 const drawerLayers = new Set<string>();
@@ -988,11 +1015,24 @@ function OverlayLayer({
     syncCaptionDim();
     lockPageScroll();
     const neighbours = neighboursOf(returnTo, root);
+    const releaseInert = inertOutside(root);
 
     if (!root.contains(document.activeElement)) {
       const target = safeFocusTarget(root, initialFocus?.current);
       target.focus({ preventScroll: true });
       if (target !== root) revealInLayer(target, root);
+      // An M3E control is focusable only once it has rendered (its tabindex
+      // arrives in Lit's first update): until then focus() does nothing, and a
+      // screen reader would stay on the row behind the scrim. Once it has
+      // rendered — and only while nothing else took focus — again.
+      if (document.activeElement !== target) {
+        const retry = () => {
+          if (!root.contains(document.activeElement)) target.focus({ preventScroll: true });
+        };
+        const rendered = (target as HTMLElement & { updateComplete?: Promise<unknown> }).updateComplete;
+        if (rendered) void rendered.then(() => requestAnimationFrame(retry));
+        else requestAnimationFrame(retry);
+      }
     }
 
     // Focus that leaves the top layer by any route (a click on something
@@ -1013,6 +1053,8 @@ function OverlayLayer({
       drawerLayers.delete(layerId);
       syncCaptionDim();
       unlockPageScroll();
+      // The page comes back before focus does: an inert opener takes none.
+      releaseInert();
       if (returnTo instanceof HTMLElement && returnTo.isConnected) returnTo.focus({ preventScroll: true });
       // Checked again once the commit is through: the opener can still be
       // connected here and leave in the same commit that closes the layer.
@@ -1177,9 +1219,13 @@ export function Sheet({
   const t = useT();
   const navy = band && band.tone !== 'plain';
   const { ref: bodyRef, edges, measure } = useScrollEdges<HTMLDivElement>();
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const unpinned = useUnpinned(sheetRef);
   return (
     <div
+      ref={sheetRef}
       data-sheet
+      data-unpinned={unpinned || undefined}
       data-dialog={basic ? 'basic' : undefined}
       className={cx(
         'anim-sheet relative flex max-h-full w-full flex-col overflow-hidden bg-raised shadow-[var(--shadow-pop)]',
@@ -1191,6 +1237,7 @@ export function Sheet({
       {band && (
         <div
           aria-hidden
+          data-pinned
           className={cx(
             'grid h-[88px] shrink-0 place-items-center short:h-14',
             navy ? 'bg-stage text-stage-ink dark:bg-bar' : 'bg-accent-soft text-accent',
@@ -1220,6 +1267,7 @@ export function Sheet({
       <div
         ref={bodyRef}
         onScroll={measure}
+        data-sheet-body
         className={cx(
           'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-6 sm:px-7 sm:pt-7 short:pt-5',
           // With a footer the body keeps only room for a focus ring at its
@@ -1233,6 +1281,7 @@ export function Sheet({
       </div>
       {footer && (
         <div
+          data-pinned
           className={cx(
             'relative shrink-0 px-5 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] transition-shadow duration-150 sm:px-7 sm:pb-7',
             'short:pt-3 short:pb-[max(1rem,env(safe-area-inset-bottom))] sm:short:pb-5',
@@ -1244,6 +1293,39 @@ export function Sheet({
       )}
     </div>
   );
+}
+
+/** More than this share of the screen pinned, and a sheet scrolls as one (useUnpinned). */
+const PINNED_SHARE = 0.45;
+
+/**
+ * Whether a sheet's pinned parts — its band or header and its footer
+ * ([data-pinned]) — would take more than PINNED_SHARE of the screen, as the
+ * system's largest text does on a phone. Then the sheet scrolls as one
+ * ([data-unpinned], app/material.css): what it says gets the screen, and the
+ * way out is a scroll away at its end, rather than both pinned with two
+ * lines between them. Measured as the parts change size.
+ */
+export function useUnpinned(sheet: RefObject<HTMLElement | null>): boolean {
+  const [unpinned, setUnpinned] = useState(false);
+  useLayoutEffect(() => {
+    const el = sheet.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      let pinned = 0;
+      for (const part of Array.from(el.querySelectorAll<HTMLElement>(':scope > [data-pinned]'))) pinned += part.offsetHeight;
+      setUnpinned(pinned > window.innerHeight * PINNED_SHARE);
+    };
+    const ro = new ResizeObserver(measure);
+    for (const part of Array.from(el.children)) ro.observe(part);
+    window.addEventListener('resize', measure);
+    measure();
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [sheet]);
+  return unpinned;
 }
 
 /** Title row of a dialog: an optional pictogram, the title, a line of context, a close button. */
@@ -1439,7 +1521,7 @@ export function Disclosure({
           onClick={toggle}
           aria-expanded={open}
           aria-controls={id}
-          className="-ml-1 flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-md pl-1 text-left"
+          className="-ml-1 flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-md pl-1 text-left"
         >
           <ChevronIcon className="chev shrink-0 opacity-70" data-open={open} />
           <span className="min-w-0 truncate">{title}</span>
@@ -2315,7 +2397,7 @@ export function Skeleton({
   className, width, height, circle, style,
 }: { className?: string; width?: number | string; height?: number | string; circle?: boolean; style?: CSSProperties }) {
   return (
-    <M3eSkeleton aria-hidden animation="wave" shape={circle ? 'circular' : 'auto'}>
+    <M3eSkeleton aria-hidden="true" animation="wave" shape={circle ? 'circular' : 'auto'}>
       <span
         className={cx('block', circle ? 'rounded-full' : 'rounded-[6px]', className)}
         style={{ width, height, ...style }}

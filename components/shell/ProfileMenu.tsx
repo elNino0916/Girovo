@@ -180,6 +180,7 @@ function Avatar({
 }: { initials: string; picture?: AvatarChoice; image?: string; tone: 'bar' | 'page' }) {
   return (
     <span
+      data-initials
       aria-hidden
       className={cx(
         'grid shrink-0 place-items-center overflow-hidden rounded-full font-bold',
@@ -195,7 +196,7 @@ function Avatar({
       ) : picture && picture !== OWN_PICTURE ? (
         <AvatarGlyph id={picture} size={tone === 'bar' ? 16 : 22} />
       ) : (
-        initials || '•'
+        <span data-initials-text>{initials || '•'}</span>
       )}
     </span>
   );
@@ -487,7 +488,7 @@ function AvatarPicker({
               ) : picture && picture !== OWN_PICTURE ? (
                 <AvatarGlyph id={picture} size={20} />
               ) : (
-                <span className="text-[13px] font-bold">{initials || '•'}</span>
+                <span data-initials-text className="text-[13px] font-bold">{initials || '•'}</span>
               )}
             </button>
           );

@@ -119,8 +119,9 @@ changing, deleting), typed TANs, and HKEKP statements.
 
 **Girovo Plus** (Play build only): a supporter subscription, 0,99 € a month or
 9,99 € a year with three days free. It opens a second bank, the month-end
-forecast and "Frag deine Umsätze", plus a gold app icon on request. The GitHub
-APK and the desktop app keep everything free.
+forecast, "Frag deine Umsätze", Aufteilen (a booking split and each share
+asked for) and Sparziele, plus a gold app icon on request (owner, 2026-10-24
+for the last two). The GitHub APK and the desktop app keep everything free.
 
 **Constraints:**
 

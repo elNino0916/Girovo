@@ -38,10 +38,16 @@
     -webkit-user-select: none;
     user-select: none;
     /* An icon is sized in dp, as Android sizes its icons: the system's larger
-       text grows the words beside it, never the glyph inside its fixed box,
-       where it would be cut off. */
-    -webkit-text-size-adjust: none;
-    text-size-adjust: none;
+       text grows the words beside it, never the glyph. Its box is the glyph's
+       own em — a control that sets its icons' size (M3E's icon button: 24dp,
+       with !important) must not find a smaller box cutting it off. Text zoom
+       multiplies every font size, the glyph's too, whatever text-size-adjust
+       says (WebView 149), but no length: so the icon is zoomed out by it
+       (--text-zoom, app/layout.tsx) and its box zoomed back in — glyph and
+       box both at their size. At 100% both factors are 1. */
+    width: calc(1em * var(--text-zoom, 1));
+    height: calc(1em * var(--text-zoom, 1));
+    zoom: calc(1 / var(--text-zoom, 1));
   }
   /* The Analyse's categories in the wallpaper's own tones (owner, 2026-10-23):
      by rank primary, tertiary, a lighter primary, secondary, a lighter
@@ -61,6 +67,20 @@
   /* Filled: the navigation's current place. The fill eases in with the pill. */
   :root[data-platform='android'] .ms-icon[data-filled] {
     font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  /* The system's larger text (Android's font scale, which reaches the page
+     as text zoom, app/layout.tsx) grows what is read; a display figure — the
+     balance, a booking's amount, the transfer's amount — is already as large
+     as a phone sets type, and like Android 14's nonlinear scaling it grows a
+     third at most, so a five-digit balance never runs off the screen. Text
+     zoom ignores text-size-adjust (WebView 149), so the figure is zoomed out
+     by what the zoom adds beyond that. The avatar's initials keep their size
+     in their disc. At 100% every factor is 1. */
+  :root[data-platform='android'] :is([data-balance], [data-figure]) {
+    zoom: calc(min(var(--text-zoom, 1), 1.34) / var(--text-zoom, 1));
+  }
+  :root[data-platform='android'] [data-initials-text] {
+    zoom: calc(1 / var(--text-zoom, 1));
   }
   :root[data-platform='android'] {
     /* The top app bar: 64dp, below the status bar it now reaches under. */

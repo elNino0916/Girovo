@@ -150,7 +150,7 @@ export function PullToRefresh({ scrollRef }: { scrollRef: RefObject<HTMLElement 
           indicator, its shape turning with the pull and morphing from shape
           to shape once the refresh runs. */}
       <M3eLoadingIndicator
-        aria-hidden
+        aria-hidden="true"
         data-pull-indicator
         variant="contained"
         // A turn and a half over the pull; null once it refreshes, which starts the morph.

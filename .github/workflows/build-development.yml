@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build-windows:
-    name: Windows installer and portable build
+    name: Windows installer build
     runs-on: windows-latest
 
     steps:
@@ -46,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build installer and portable executable
+      - name: Build installer
         run: npm run electron:dist
 
       - name: Upload development artifacts
@@ -55,7 +55,6 @@ jobs:
           name: Girovo-${{ steps.version.outputs.version }}-windows
           path: |
             dist/*-Setup.exe
-            dist/*-portable.exe
           if-no-files-found: error
           retention-days: 14
 

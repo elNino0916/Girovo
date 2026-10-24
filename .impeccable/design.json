@@ -279,12 +279,12 @@
       "emphasis": {
         "role": "value",
         "displayName": "Marker Orange",
-        "canonical": "#ee6a1f",
+        "canonical": "#d9540f",
         "tonalRamp": [
           "#3d1704",
           "#6b2a08",
           "#a3420f",
-          "#ee6a1f",
+          "#d9540f",
           "#f2813f",
           "#f7a877",
           "#fbcfb2",
@@ -623,7 +623,7 @@
       "refersTo": "search-bar",
       "description": "The phone Übersicht's head: opens the full-screen search; the avatar at its end opens the Sitzung panel and carries the unread dot.",
       "html": "<div class=\"ds-search\"><button class=\"ds-search-field\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-3.5-3.5\"/></svg><span>Umsätze suchen oder fragen</span></button><span class=\"ds-search-avatar\">NB<i></i></span></div>",
-      "css": ".ds-search { display: flex; align-items: center; height: 56px; border-radius: 9999px; background: var(--md-surface-container-high, #e3e8f4); padding-right: 4px; font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; } .ds-search-field { flex: 1; display: flex; align-items: center; gap: 12px; height: 100%; padding-left: 16px; border: 0; background: none; border-radius: 9999px 0 0 9999px; font: inherit; font-size: 16px; color: var(--md-on-surface-variant, #404753); text-align: left; cursor: pointer; } .ds-search-field svg { color: var(--md-on-surface, #161c24); } .ds-search-field:hover { color: var(--md-on-surface, #161c24); } .ds-search-field:focus-visible { outline: 2px solid var(--md-primary, #0060a8); outline-offset: -2px; } .ds-search-avatar { position: relative; display: grid; place-items: center; width: 32px; height: 32px; margin: 0 8px; border-radius: 9999px; background: var(--md-primary-container, #d3e4ff); color: var(--md-on-primary-container, #004880); font-size: 13px; font-weight: 500; } .ds-search-avatar i { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 9999px; background: #ee6a1f; }"
+      "css": ".ds-search { display: flex; align-items: center; height: 56px; border-radius: 9999px; background: var(--md-surface-container-high, #e3e8f4); padding-right: 4px; font-family: 'Google Sans Flex', 'Segoe UI', system-ui, sans-serif; } .ds-search-field { flex: 1; display: flex; align-items: center; gap: 12px; height: 100%; padding-left: 16px; border: 0; background: none; border-radius: 9999px 0 0 9999px; font: inherit; font-size: 16px; color: var(--md-on-surface-variant, #404753); text-align: left; cursor: pointer; } .ds-search-field svg { color: var(--md-on-surface, #161c24); } .ds-search-field:hover { color: var(--md-on-surface, #161c24); } .ds-search-field:focus-visible { outline: 2px solid var(--md-primary, #0060a8); outline-offset: -2px; } .ds-search-avatar { position: relative; display: grid; place-items: center; width: 32px; height: 32px; margin: 0 8px; border-radius: 9999px; background: var(--md-primary-container, #d3e4ff); color: var(--md-on-primary-container, #004880); font-size: 13px; font-weight: 500; } .ds-search-avatar i { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 9999px; background: #d9540f; }"
     },
     {
       "name": "Filled Button",

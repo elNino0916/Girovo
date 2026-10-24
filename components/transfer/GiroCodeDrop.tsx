@@ -13,6 +13,7 @@
 // transfer, only in euros, only to an IBAN whose checksum holds. Anything it
 // fills goes through the same review step as typed values.
 
+import { readInvoiceText, readSomething, type InvoiceRead } from '@/lib/invoice-text';
 import { useCallback, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { parseEpcPayload, type EpcPayment } from '@/lib/girocode';
@@ -27,7 +28,30 @@ import { Button, Spinner, cx } from '../ui';
  * found on it, a code that is not a SEPA transfer in euros, or no scanner on
  * the phone. Worded where it is shown.
  */
-export type ScanProblem = 'notAnImage' | 'notAnImageOrPdf' | 'noCode' | 'notEpc' | 'noScanner' | 'scanFailed';
+export type ScanProblem = 'notAnImage' | 'notAnImageOrPdf' | 'noCode' | 'nothingRead' | 'notEpc' | 'noScanner' | 'scanFailed';
+
+/**
+ * An invoice's page read for its text (Android, "Rechnung ohne GiroCode"):
+ * the picture (an object URL the transfer revokes), its size, and the boxes
+ * of the lines the reading took, in the picture's pixels.
+ */
+export type InvoicePage = { url: string; width: number; height: number; boxes: Array<[number, number, number, number]> };
+
+/** A page's text as the phone reads it, and what a transfer can take from it; null when nothing. */
+async function readInvoicePage(image: Blob, own: readonly string[]): Promise<{ read: InvoiceRead; page: InvoicePage | null } | null> {
+  const result = await window.girovoMobile?.readText(image);
+  if (!result || 'unavailable' in result) return null;
+  const text = result.lines.length ? result.lines.map((l) => l.text).join('\n') : result.text;
+  const read = readInvoiceText(text, own);
+  if (!readSomething(read)) return null;
+  const boxes = Object.values(read.at)
+    .map((i) => result.lines[i]?.box)
+    .filter((b): b is [number, number, number, number] => !!b);
+  const page = result.width > 0 && result.height > 0
+    ? { url: URL.createObjectURL(image), width: result.width, height: result.height, boxes }
+    : null;
+  return { read, page };
+}
 
 export type ScanState =
   | { status: 'idle' }
@@ -54,11 +78,21 @@ const carriesFiles = (data: DataTransfer | null) => !!data && Array.from(data.ty
  * One scan at a time; a newer one wins over an older one still running.
  */
 /** `onPayment` gets the code's payment, and the file it was read from (an invoice) — null for a scan or pasted text. */
-export function useGiroCodeReader(onPayment: (p: EpcPayment, file: File | null) => void) {
+export function useGiroCodeReader(
+  onPayment: (p: EpcPayment, file: File | null) => void,
+  /** Android: a page without a GiroCode, read for its text (lib/invoice-text.ts). */
+  onInvoice?: (read: InvoiceRead, page: InvoicePage | null, file: File | null) => void,
+  /** The user's own IBANs, never a payee's. */
+  own: readonly string[] = [],
+) {
   const [scan, setScan] = useState<ScanState>({ status: 'idle' });
   const gen = useRef(0);
   const deliver = useRef(onPayment);
   deliver.current = onPayment;
+  const deliverInvoice = useRef(onInvoice);
+  deliverInvoice.current = onInvoice;
+  const ownRef = useRef(own);
+  ownRef.current = own;
 
   const readFile = useCallback(async (file: File | null | undefined) => {
     const mine = ++gen.current;
@@ -69,9 +103,11 @@ export function useGiroCodeReader(onPayment: (p: EpcPayment, file: File | null) 
     }
     setScan({ status: 'reading' });
     let text: string | null = null;
+    let pages: Blob[] = [];
     try {
       // A PDF's first pages, one after the other, until one has the code.
-      for (const image of pdfPages ? await pdfPages(file) : [file]) {
+      pages = pdfPages ? await pdfPages(file) : [file];
+      for (const image of pages) {
         text = await readQrFromBlob(image);
         if (text || mine !== gen.current) break;
       }
@@ -79,6 +115,15 @@ export function useGiroCodeReader(onPayment: (p: EpcPayment, file: File | null) 
       text = null;
     }
     if (mine !== gen.current) return;
+    if (!text && deliverInvoice.current && IS_ANDROID && pages[0]) {
+      // No GiroCode: the first page's text, read on the phone.
+      const invoice = await readInvoicePage(pages[0], ownRef.current).catch(() => null);
+      if (mine !== gen.current) return;
+      if (!invoice) { setScan({ status: 'error', problem: 'nothingRead' }); return; }
+      setScan({ status: 'idle' });
+      deliverInvoice.current(invoice.read, invoice.page, file);
+      return;
+    }
     if (!text) { setScan({ status: 'error', problem: 'noCode' }); return; }
     const payment = parseEpcPayload(text);
     if (!payment) { setScan({ status: 'error', problem: 'notEpc' }); return; }
@@ -112,9 +157,22 @@ export function useGiroCodeReader(onPayment: (p: EpcPayment, file: File | null) 
     deliver.current(payment, null);
   }, []);
 
+  /** Android: Google's document scanner — the invoice photographed, then read like a picked image. */
+  const scanDocument = useCallback(async () => {
+    const scanner = window.girovoMobile?.docScanner;
+    if (!scanner) return;
+    const mine = ++gen.current;
+    setScan({ status: 'idle' });
+    const result = await scanner.scan({ pages: 1 });
+    if (mine !== gen.current || 'canceled' in result) return;
+    if ('unavailable' in result) { setScan({ status: 'error', problem: 'noScanner' }); return; }
+    if ('failed' in result) { setScan({ status: 'error', problem: 'scanFailed' }); return; }
+    await readFile(result.pages[0]);
+  }, [readFile]);
+
   const reset = useCallback(() => { gen.current++; setScan({ status: 'idle' }); }, []);
 
-  return { scan, readFile, readText, scanCamera, reset };
+  return { scan, readFile, readText, scanCamera, scanDocument, reset };
 }
 
 /**

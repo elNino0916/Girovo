@@ -1,0 +1,85 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Rechnung markiert</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=block');
+:root{
+  --primary:#0060a8; --on-primary:#fff; --pc:#d3e4ff; --on-pc:#004880;
+  --sc:#dae1ff; --on-sc:#3c4665; --tc:#e2dfff;
+  --surface:#f8f9ff; --scl:#eff4ff; --sc1:#e9eefa; --sch:#e3e8f4; --schh:#dde3ee;
+  --ink:#161c24; --ink-2:#404753; --outline:#707784; --ov:#bfc7d5; --inv:#2b313a;
+  --green:#0c7336; --orange:#ee6a1f; --navy:#0a2c5e;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface)}
+.phone{width:393px;height:852px;overflow:hidden;position:relative;background:var(--surface);
+  font-family:'Google Sans Flex',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.phone.tx{background:var(--scl)}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;font-size:24px;line-height:1;width:1em;height:1em;overflow:hidden;
+  white-space:nowrap;-webkit-font-feature-settings:'liga';font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block}
+.fill{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em}
+.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.06em;white-space:nowrap}
+.status{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;font-weight:500;font-size:14px}
+.status .ms{font-size:17px;margin-left:3px}
+.handle{position:absolute;bottom:8px;left:50%;width:108px;height:4px;margin-left:-54px;border-radius:2px;background:var(--ink);opacity:.38}
+
+/* The transfer dialog (Panel): title left, close right, the part bar. */
+.thead{height:64px;display:flex;align-items:center;padding:0 4px 0 20px}
+.thead .ttl{flex:1;font-size:22px;line-height:28px}
+.ib{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;color:var(--ink-2)}
+.pbar{display:flex;gap:4px;padding:0 20px}
+.pbar i{flex:1;height:4px;border-radius:2px;background:var(--sc)}
+.pbar i.on{background:var(--primary)}
+.body{padding:20px 20px 0}
+.shead{display:flex;align-items:center;justify-content:space-between;min-height:40px;margin-bottom:12px}
+.sec-t{font-size:18px;line-height:24px;font-weight:500}
+.tbtn{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 12px;border-radius:20px;font-size:14px;font-weight:500;color:var(--primary);white-space:nowrap}
+.tbtn .ms{font-size:18px}
+.tbtn .cnt{color:var(--ink-2);font-weight:400}
+.tbtn.quiet{color:var(--ink-2)}
+.foot{position:absolute;left:0;right:0;bottom:0;padding:12px 20px 28px;display:flex;gap:12px;background:var(--scl)}
+.btn{height:40px;border-radius:20px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 20px;font-size:14px;font-weight:500;white-space:nowrap}
+.btn .ms{font-size:20px}
+.filled{background:var(--primary);color:var(--on-primary)}
+.tonal{background:var(--sc);color:var(--on-sc)}
+
+/* Outlined fields with supporting text. */
+.of{height:56px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--outline);display:flex;align-items:center;padding:0 16px;position:relative;font-size:16px;line-height:24px;white-space:nowrap}
+.of label{position:absolute;top:-8px;left:12px;padding:0 4px;background:var(--scl);font-size:12px;line-height:16px;color:var(--ink-2)}
+.of .ph{color:var(--ink-2)}
+.sup{font-size:12px;line-height:16px;color:var(--ink-2);padding:4px 16px 0}
+.sup .src{font-weight:500}
+.sup .ms{font-size:14px;vertical-align:-3px;margin-right:4px}
+.sup .bank{display:inline-flex;align-items:flex-start;gap:6px}
+.lrow{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;line-height:20px;color:var(--ink-2);margin-bottom:8px}
+.lrow b{font-weight:500}
+.chip{height:32px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;padding:0 12px 0 8px;font-size:14px;font-weight:500;box-shadow:inset 0 0 0 1px var(--ov);color:var(--ink-2);white-space:nowrap}
+.chip.on{box-shadow:none;background:var(--sc);color:var(--on-sc)}
+.chip .ms{font-size:18px}
+.scrim{position:absolute;inset:0;background:rgba(22,28,36,.32)}
+
+.amt{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;column-gap:8px;margin:20px 0 24px}
+.amt .k{font-size:14px;line-height:20px;color:var(--ink-2)}
+.amt .v{font-size:22px;line-height:28px;font-weight:500;margin-top:2px}
+.amt .sup{padding:4px 0 0}
+.amt .tbtn{margin:8px -12px 0 0}
+</style></head><body><div class="phone tx">
+<div class="status"><span class="num">9:41</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div><div class="thead"><div class="ttl">Überweisung</div><div class="ib"><span class="ms">close</span></div></div><div class="pbar"><i class="on"></i><i class="on"></i><i></i></div>
+<div class="body">
+  <div class="chip"><span class="ms">document_scanner</span>Aus der Rechnung gelesen – bitte prüfen</div>
+  <div class="amt">
+    <div><div class="k">Betrag von GiroKomfort</div><div class="v num">84,20&nbsp;€</div>
+      <div class="sup"><span class="src"><span class="ms">document_scanner</span>Aus der Rechnung</span> („Rechnungsbetrag“)</div></div>
+    <div class="tbtn">Ändern</div>
+  </div>
+  <div class="shead"><div class="sec-t">Empfänger</div><div class="tbtn"><span class="ms">star</span>Vorlagen<span class="cnt">2</span><span class="ms">expand_more</span></div></div>
+  <div class="of"><label>Name</label>Stadtwerke Musterstadt GmbH</div>
+  <div class="sup"><span class="src"><span class="ms">document_scanner</span>Aus der Rechnung</span> – deine Bank gleicht den Namen mit der IBAN ab.</div>
+  <div class="of" style="margin-top:20px"><label>IBAN</label><span class="mono">DE89 3704 0044 0532 0130 00</span></div>
+  <div class="sup"><span class="src"><span class="ms">document_scanner</span>Aus der Rechnung</span> · gültig · Commerzbank</div>
+  <div style="margin-top:24px" class="lrow"><span>Verwendungszweck (optional)</span><span class="num">20/140</span></div>
+  <div class="of">Rechnung 2026-104417</div>
+  <div class="sup"><span class="src"><span class="ms">document_scanner</span>Aus der Rechnung</span> („Rechnungsnr.“)</div>
+</div>
+<div class="foot"><div class="btn tonal" style="flex:1">Zurück</div><div class="btn filled" style="flex:2">Weiter zur Prüfung</div></div>
+<div class="handle"></div></div></body></html>

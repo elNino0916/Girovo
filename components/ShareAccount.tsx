@@ -26,7 +26,7 @@ import { fmtAmountInput, fmtIban, fmtShortIban, parseAmount } from '@/lib/format
 import { useT } from '@/lib/i18n/react';
 import { qrMatrix, qrPngBlob, qrSvgPath, type QrMatrix } from '@/lib/qr';
 import { useFints } from './FintsProvider';
-import { AlertTriangleIcon, CheckIcon, CopyIcon, DownloadIcon, EyeIcon, EyeOffIcon, ImageIcon, InfoIcon, QrIcon, ShareIcon } from './icons';
+import { AlertTriangleIcon, ArrowRightIcon, CheckIcon, CopyIcon, DownloadIcon, EyeIcon, EyeOffIcon, ImageIcon, InfoIcon, QrIcon, ShareIcon } from './icons';
 import { Money, useMoneyText, usePrivacy } from './Money';
 import { Alert, Button, CopyButton, Field, Input, Overlay, Select, cx } from './ui';
 import { Panel } from './transfer/Panel';
@@ -57,7 +57,7 @@ async function copyPng(blob: Promise<Blob>): Promise<boolean> {
 }
 
 export function ShareAccount() {
-  const { accounts, sharePrefill, closeShare, accountLabel, toast } = useFints();
+  const { accounts, sharePrefill, closeShare, nextShare, accountLabel, toast } = useFints();
   const t = useT();
   const words = t.transfer.share;
   const money = useMoneyText();
@@ -177,6 +177,8 @@ export function ShareAccount() {
     ? money(amountState.value, account.currency)
     : words.anyAmount;
   const covered = privacy && amountState.value != null && !revealed;
+  // Aufteilen asks one person after the other (FintsProvider openShareQueue).
+  const queue = sharePrefill?.step && sharePrefill.step.of > 1 ? sharePrefill.step : null;
 
   return (
     <Overlay open onClose={closeShare} labelledBy="share-title" describedBy="share-desc">
@@ -184,17 +186,21 @@ export function ShareAccount() {
         size="lg"
         titleId="share-title"
         title={words.title}
+        // Aufteilen: whom this request is for, in the row of them.
+        eyebrow={sharePrefill?.forName ? words.forWhom(sharePrefill.forName, sharePrefill.step) : undefined}
         onClose={closeShare}
         bodyClassName="pt-0 pb-6"
-        headerExtra={(
-          <p id="share-desc" className="-mt-2 text-[15px] leading-snug text-ink-2">
+        intro={(
+          <p id="share-desc" className="mb-4 text-[15px] leading-snug text-ink-2">
             {words.intro}
           </p>
         )}
         footer={(
-          // Android: one row — the details to copy, the image to share. The
-          // share sheet copies an image too, so "Bild kopieren" stays on the desktop.
-          <div className={IS_ANDROID ? 'flex gap-2' : 'flex flex-col-reverse gap-3 sm:flex-row sm:justify-end'}>
+          <div className="flex flex-col gap-3">
+          {/* Android: one row — the details to copy, the image to share. The
+              share sheet copies an image too, so "Bild kopieren" stays on the desktop.
+              Side by side while both labels fit; at a phone's large text they stack. */}
+          <div className={IS_ANDROID ? 'flex flex-wrap gap-2 [&>*]:min-w-fit' : 'flex flex-col-reverse gap-3 sm:flex-row sm:justify-end'}>
             <Button
               className={IS_ANDROID ? 'flex-1' : undefined}
               iconLeft={copied === 'account' ? <CheckIcon size={17} strokeWidth={2.2} /> : <CopyIcon size={17} />}
@@ -224,6 +230,18 @@ export function ShareAccount() {
             <span className="sr-only" aria-live="polite">
               {copied === 'account' ? words.detailsCopied : copied === 'image' ? words.imageCopied : ''}
             </span>
+          </div>
+          {/* Aufteilen's row of requests: on to the next person; after the last, done. */}
+          {queue && (
+            <Button
+              variant={queue.next ? 'secondary' : 'tertiary'}
+              block
+              iconRight={queue.next ? <ArrowRightIcon size={18} /> : undefined}
+              onClick={queue.next ? nextShare : closeShare}
+            >
+              {queue.next ? words.next(queue.next) : words.done}
+            </Button>
+          )}
           </div>
         )}
       >

@@ -21,6 +21,7 @@ export const de = {
     payAgain: (name: string) => `${name} überweisen`,
     /** Under "GiroCode scannen". */
     scanHint: 'Eine Rechnung mit der Kamera lesen',
+    scanInvoiceHint: 'Auch ohne GiroCode',
   },
   statementPdf: 'Kontoauszug als PDF',
   checkForUpdates: 'Nach Updates suchen',
@@ -348,6 +349,7 @@ export const en: typeof de = {
     templates: 'Templates',
     payAgain: (name) => `Transfer to ${name}`,
     scanHint: 'Read an invoice with the camera',
+    scanInvoiceHint: 'Also without a GiroCode',
   },
   statementPdf: 'Account statement as PDF',
   checkForUpdates: 'Check for updates',

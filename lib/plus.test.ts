@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { REMINDER_EVERY_MS, askAllowed, bankAllowed, forecastAllowed, iconChoosable, readStatus, reminderDue, trialDaysOf, unlocked } from './plus.ts';
+import {
+  REMINDER_EVERY_MS, askAllowed, bankAllowed, forecastAllowed, goalsAllowed, iconChoosable, readStatus, reminderDue, splitAllowed,
+  trialDaysOf, unlocked,
+} from './plus.ts';
 
 test('Plus locks only in the Play build without it', () => {
   for (const s of ['free', 'active'] as const) {
@@ -8,11 +11,15 @@ test('Plus locks only in the Play build without it', () => {
     assert.equal(bankAllowed(s, false), true, s);
     assert.equal(forecastAllowed(s), true, s);
     assert.equal(askAllowed(s), true, s);
+    assert.equal(splitAllowed(s), true, s);
+    assert.equal(goalsAllowed(s), true, s);
   }
   for (const s of ['inactive', 'unavailable'] as const) {
     assert.equal(unlocked(s), false, s);
     assert.equal(forecastAllowed(s), false, s);
     assert.equal(askAllowed(s), false, s);
+    assert.equal(splitAllowed(s), false, s);
+    assert.equal(goalsAllowed(s), false, s);
     // The bank the app opens with always stays usable.
     assert.equal(bankAllowed(s, true), true, s);
     assert.equal(bankAllowed(s, false), false, s);

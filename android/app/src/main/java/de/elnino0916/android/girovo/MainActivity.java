@@ -21,6 +21,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NanoPlugin.class);
         registerPlugin(LaunchPlugin.class);
         registerPlugin(ScannerPlugin.class);
+        registerPlugin(DocScannerPlugin.class);
+        registerPlugin(TextPlugin.class);
         // One per distribution: src/github (APKs from GitHub) or src/play (Google Play).
         registerPlugin(UpdaterPlugin.class);
         // Girovo Plus: Play Billing in src/play, "everything free" in src/github.

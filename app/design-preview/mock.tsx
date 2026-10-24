@@ -53,6 +53,7 @@
 // Nothing here persists: privacy, idle limit and theme stay in memory, so the
 // harness can never change the preferences of the real app on the same origin.
 
+import { sanitizeGoals, type SavingsGoal } from '@/lib/savings-goal';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   FintsContext, countsAsActivity, orderWaitKind, waitHoldsSession,
@@ -1675,10 +1676,29 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setShareOpen(true);
   }, [transferOpen, shareOpen, accounts, activeAccount, toast, clearTransients]);
 
+  // Aufteilen's row of requests, as FintsProvider keeps it: "Weiter" closes
+  // this one and the effect opens the next; closing ends the row.
+  const [shareQueue, setShareQueue] = useState<SharePrefill[]>([]);
   const closeShare = useCallback(() => {
     setShareOpen(false);
     setSharePrefill(null);
+    setShareQueue([]);
   }, []);
+  const nextShare = useCallback(() => {
+    setShareOpen(false);
+    setSharePrefill(null);
+  }, []);
+  const openShareQueue = useCallback((list: SharePrefill[]) => {
+    if (!list.length) return;
+    setShareQueue(list.slice(1));
+    openShare(list[0]);
+  }, [openShare]);
+  useEffect(() => {
+    if (shareOpen || !shareQueue.length) return;
+    const [next, ...rest] = shareQueue;
+    setShareQueue(rest);
+    openShare(next);
+  }, [shareOpen, shareQueue, openShare]);
 
   const markAllRead = useCallback(() => {
     if (!messagesRef.current.some((m) => !m.read)) return;
@@ -2610,6 +2630,13 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     updateVault((v) => ({ ...v, budgets: sanitizeBudgets(next, v.customCategories) }));
   }, [updateVault]);
 
+  const setGoal = useCallback((accountNumber: string, goal: Omit<SavingsGoal, 'accountNumber'> | null) => {
+    updateVault((v) => {
+      const others = (v.goals ?? []).filter((g) => g.accountNumber !== accountNumber);
+      return { ...v, goals: goal ? sanitizeGoals([...others, { ...goal, accountNumber }]) : others };
+    });
+  }, [updateVault]);
+
   const setSplit = useCallback((tx: SerializedTransaction, parts: readonly SplitPart[] | null): boolean => {
     const k = txKey(tx);
     if (parts === null) {
@@ -2756,7 +2783,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setLogoConsent,
     setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions,
     setAnalysisPeriod, setAnalysisScope,
-    openTransfer, closeTransfer, openShare, closeShare,
+    openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
     updateVault, resetVault, wipeVault, accountLabel, renameAccount,
@@ -2775,7 +2802,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     plus, plusOpen,
     openPlus: () => setPlusOpen(true),
     closePlus: () => setPlusOpen(false),
-    categoryGuessOf, setBudgets, noteOf, setNote,
+    categoryGuessOf, setBudgets, setGoal, noteOf, setNote,
     links, banks, bankOf, activeBank, addBank,
     openAddBank, closeAddBank, pickAddBank, connectAddBank, chooseAddBankMethod, clearAddBankMedia, addBankBack,
     removeBank,

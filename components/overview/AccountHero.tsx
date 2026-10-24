@@ -19,6 +19,7 @@ import { fmtSince } from '../shell/session';
 import { usePhone } from '../shell/usePhone';
 import { MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
 import { AccountList } from './AccountList';
+import { AccountGoal } from './SavingsGoal';
 import { BalanceChart } from './BalanceChart';
 
 /**
@@ -351,6 +352,8 @@ export function AccountHero() {
           )}
         </div>
 
+        <AccountGoal account={a} balance={bal?.balance ?? null} />
+
         {details && (
           <div id={detailsId} className="mt-4">
             {figures.length > 0 && <dl className="grid gap-y-2">{figures}</dl>}
@@ -581,7 +584,7 @@ function AccountSwitch({ label }: { label: string }) {
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="-ml-2 flex h-10 min-w-0 items-center gap-1 rounded-full pr-2 pl-2 text-[16px] font-medium text-ink-2 transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)]"
+        className="-ml-2 flex h-12 min-w-0 items-center gap-1 rounded-full pr-2 pl-2 text-[16px] font-medium text-ink-2 transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)]"
       >
         <span className="min-w-0 truncate">{label}</span>
         <ChevronIcon dir="down" size={16} className="shrink-0" />

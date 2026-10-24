@@ -1,0 +1,16 @@
+<en-US>
+• Split a payment (Plus): share it out and ask each person with a GiroCode
+• Savings goals (Plus) for savings accounts, with a plan for each month
+• Scan an invoice without a GiroCode – Girovo fills in the transfer
+• Photograph receipts with the document scanner
+• Open your bank's approval app straight from the waiting screen
+• Better with large text: fields grow, icons stay whole, buttons stack
+</en-US>
+<de-DE>
+• Zahlungen aufteilen (Plus): Anteile festlegen und jede Person per GiroCode anfragen
+• Sparziele (Plus) für Sparkonten, mit Plan für jeden Monat
+• Rechnungen ohne GiroCode scannen – Girovo füllt die Überweisung aus
+• Belege mit dem Dokumentenscanner fotografieren
+• Die Freigabe-App deiner Bank direkt aus dem Warten öffnen
+• Besser mit großer Schrift: Felder wachsen mit, Symbole bleiben ganz, Schaltflächen stapeln sich
+</de-DE>

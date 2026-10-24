@@ -5,19 +5,27 @@
 // (lib/doc-store.ts), under the booking's txKey. An invoice paid from its
 // GiroCode arrives here by itself once its booking does (lib/receipts.ts).
 //
+// On Android a paper receipt is photographed with Google's document scanner
+// (it finds the edges, crops and straightens): "Beleg hinzufügen" opens a
+// menu, Foto aufnehmen or Datei wählen (owner's pick, 2026-10-24). Several
+// pages are kept as one PDF. Without the scanner (no Play services) the
+// system's picker opens instead, which offers the camera too.
+//
 // Not for a Vormerkposten: its key changes when the bank books it.
 
 import { useId, useRef, useState } from 'react';
 import { txKey } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
+import { fmtDate } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { DocRow } from '../DocRow';
 import { useFints } from '../FintsProvider';
-import { PaperclipIcon } from '../icons';
-import { Button } from '../ui';
+import { CameraIcon, PaperclipIcon, PlusIcon } from '../icons';
+import { Button, Menu, MenuItem } from '../ui';
 
 export function ReceiptSection({ tx, pending }: { tx: SerializedTransaction; pending: boolean }) {
-  const { receiptsOf, keepReceipt, activeAccount } = useFints();
+  const { receiptsOf, keepReceipt, activeAccount, toast } = useFints();
   const t = useT();
   const words = t.docs.receipts;
   const titleId = useId();
@@ -37,6 +45,25 @@ export function ReceiptSection({ tx, pending }: { tx: SerializedTransaction; pen
     }
   };
 
+  // The document scanner: one page as its JPEG, several as one PDF, named for the booking's day.
+  const scan = async () => {
+    const scanner = window.girovoMobile?.docScanner;
+    const result = scanner ? await scanner.scan({ pages: 5, pdf: true }) : { unavailable: true as const };
+    if ('unavailable' in result) {
+      input.current?.click();
+      return;
+    }
+    if ('failed' in result) {
+      toast(words.scanFailed, 'error');
+      return;
+    }
+    if ('canceled' in result) return;
+    const file = result.pages.length > 1 && result.pdf ? result.pdf : result.pages[0];
+    const day = fmtDate(tx.entryDate || tx.valueDate);
+    const ext = file.type === 'application/pdf' ? 'pdf' : 'jpg';
+    await pick(new File([file], `${words.photoName(day)}.${ext}`, { type: file.type }));
+  };
+
   return (
     <section aria-labelledby={titleId} className="mt-6 border-t border-line pt-5">
       <h3 id={titleId} className="text-[14px] font-semibold text-ink-2">{words.title}</h3>
@@ -53,16 +80,30 @@ export function ReceiptSection({ tx, pending }: { tx: SerializedTransaction; pen
           ))}
         </ul>
       )}
-      <Button
-        size="sm"
-        variant="secondary"
-        iconLeft={<PaperclipIcon size={16} />}
-        busy={saving}
-        className="mt-3"
-        onClick={() => input.current?.click()}
-      >
-        {words.attach}
-      </Button>
+      {IS_ANDROID ? (
+        <Menu
+          label={words.add}
+          trigger={(p) => (
+            <Button {...p} size="sm" variant="secondary" iconLeft={<PlusIcon size={16} />} busy={saving} className="mt-3">
+              {words.add}
+            </Button>
+          )}
+        >
+          <MenuItem icon={<CameraIcon />} onSelect={() => void scan()}>{words.takePhoto}</MenuItem>
+          <MenuItem icon={<PaperclipIcon />} onSelect={() => input.current?.click()}>{words.chooseFile}</MenuItem>
+        </Menu>
+      ) : (
+        <Button
+          size="sm"
+          variant="secondary"
+          iconLeft={<PaperclipIcon size={16} />}
+          busy={saving}
+          className="mt-3"
+          onClick={() => input.current?.click()}
+        >
+          {words.attach}
+        </Button>
+      )}
       {/* The system's own picker: a file, or — on a phone — the camera. */}
       <input
         ref={input}

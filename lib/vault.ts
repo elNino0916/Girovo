@@ -48,6 +48,7 @@ import { boxSalt, deriveKey, newSalt, openBox, parseBox, sealBox } from './crypt
 import { msgs } from './i18n/index.ts';
 import { sanitizeNotes } from './notes.ts';
 import { sanitizeLinkedBanks } from './linked-banks.ts';
+import { sanitizeGoals } from './savings-goal.ts';
 import { moveAside, removeFamily, serialized, writeFileAtomic } from './sealed-file.ts';
 import { sanitizeSentOrders } from './sent-orders.ts';
 import { categoryValidator, sanitizeCustomCategories, sanitizeSplits } from './splits.ts';
@@ -237,6 +238,7 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
   // BLZ, name and login name of each further bank in the view — whatever
   // else an entry carries (a PIN, say) never reaches the file.
   const linkedBanks = sanitizeLinkedBanks(input.linkedBanks);
+  const goals = sanitizeGoals(input.goals);
   return {
     version: 1,
     templates: templates(input.templates),
@@ -263,6 +265,8 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     // Keeping the Umsätze on this computer (lib/history-store.ts) is off
     // unless the vault says so in so many words: a true, nothing else.
     ...(input.keepBookings === true ? { keepBookings: true as const } : {}),
+    // One goal per savings account, well formed and within the caps (lib/savings-goal.ts).
+    ...(goals.length ? { goals } : {}),
     updatedAt: iso(input.updatedAt) ?? EMPTY_VAULT.updatedAt,
   };
 }

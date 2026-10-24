@@ -247,6 +247,32 @@ export const de = {
   },
 
   /** Umsatzdetails, the drawer (components/transactions/TxDetail.tsx). */
+  /** Aufteilen (components/transactions/BillSplit.tsx): a booking shared, each share asked for. */
+  billSplit: {
+    action: 'Aufteilen',
+    title: 'Aufteilen',
+    who: 'Wer zahlt was?',
+    you: 'Du',
+    person: 'Person',
+    unnamed: (n: number) => `Person ${n}`,
+    name: 'Name',
+    /** A person's share; the chip above says whose. */
+    share: 'Anteil',
+    yourShare: (amount: ReactNode): ReactNode[] => ['Dein Anteil passt sich an: ', amount],
+    youRest: (amount: ReactNode): ReactNode[] => ['Dein Anteil ist, was übrig bleibt: ', amount],
+    remove: (name: string) => `${name} entfernen`,
+    equal: 'Gleich verteilen',
+    purpose: 'Verwendungszweck',
+    /** Each request's purpose: "Anteil Sushi Yana, 21.10." */
+    purposeFor: (name: string, day: string) => `Anteil ${name}, ${day}`,
+    sumOk: (sum: ReactNode): ReactNode[] => ['Summe ', sum, ' – passt'],
+    over: (diff: ReactNode): ReactNode[] => ['Die Anteile sind ', diff, ' mehr als die Buchung'],
+    order: (names: string[]) => (names.length === 1
+      ? `${names[0]} bekommt einen GiroCode`
+      : `Erst ${names.slice(0, -1).join(', ')}, dann ${names[names.length - 1]} – je ein GiroCode`),
+    requestAll: (n: number): string => (n === 1 ? 'Anfordern' : 'Alle anfordern'),
+  },
+
   detail: {
     title: 'Umsatzdetails',
     /** Android's phone: the drawer's three tabs. */
@@ -721,6 +747,29 @@ export const en: typeof de = {
   seeds: {
     refund: (purpose) => `Refund: ${purpose}`,
     refundDated: (date) => `Refund of payment dated ${date}`,
+  },
+
+  billSplit: {
+    action: 'Split',
+    title: 'Split',
+    who: 'Who pays what?',
+    you: 'You',
+    person: 'Person',
+    unnamed: (n) => `Person ${n}`,
+    name: 'Name',
+    share: 'Share',
+    yourShare: (amount) => ['Your share adjusts: ', amount],
+    youRest: (amount) => ['Your share is what is left: ', amount],
+    remove: (name) => `Remove ${name}`,
+    equal: 'Split equally',
+    purpose: 'Payment reference',
+    purposeFor: (name, day) => `Share ${name}, ${day}`,
+    sumOk: (sum) => ['Total ', sum, ' – adds up'],
+    over: (diff) => ['The shares are ', diff, ' more than the transaction'],
+    order: (names) => (names.length === 1
+      ? `${names[0]} gets a GiroCode`
+      : `First ${names.slice(0, -1).join(', ')}, then ${names[names.length - 1]} – one GiroCode each`),
+    requestAll: (n) => (n === 1 ? 'Request' : 'Request all'),
   },
 
   detail: {

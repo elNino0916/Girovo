@@ -17,7 +17,7 @@ import { initials } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { QrIcon, ScanIcon, StarIcon, TransferIcon } from '../icons';
+import { DocScanIcon, QrIcon, ScanIcon, StarIcon, TransferIcon } from '../icons';
 import { useShellActions } from '../shell/actions';
 import { Button } from '../ui';
 import { recentPayees, shortIbanText, sortTemplates } from './model';
@@ -51,15 +51,17 @@ export function PaymentsHead() {
 
   return (
     <section aria-label={t.common.nav.contracts} className="panel">
-      {/* The two reasons to come here, side by side and the same width. */}
-      <div className="grid auto-cols-fr grid-flow-col gap-2 px-4 pt-1 pb-2 sm:flex sm:px-5">
+      {/* The two reasons to come here, side by side and the same width —
+          stacked once the system's large text no longer fits both labels
+          (each at least as wide as its own label, so the row wraps). */}
+      <div className="flex flex-wrap gap-2 px-4 pt-1 pb-2 sm:px-5">
         {actions.canTransfer && (
-          <Button variant="primary" block iconLeft={<TransferIcon size={20} strokeWidth={2} />} onClick={actions.transfer}>
+          <Button variant="primary" className="min-w-fit flex-1" iconLeft={<TransferIcon size={20} strokeWidth={2} />} onClick={actions.transfer}>
             {t.shell.transfer}
           </Button>
         )}
         {actions.canShare && (
-          <Button variant="secondary" block iconLeft={<QrIcon size={20} />} onClick={actions.share}>
+          <Button variant="secondary" className="min-w-fit flex-1" iconLeft={<QrIcon size={20} />} onClick={actions.share}>
             {t.shell.requestMoney}
           </Button>
         )}
@@ -73,6 +75,14 @@ export function PaymentsHead() {
             glyph={<ScanIcon size={20} />}
             label={t.transfer.giro.scan}
             onClick={() => openTransfer({ girocode: { scan: true } })}
+          />
+          {/* An invoice without a GiroCode: photographed, and its text read on the phone. */}
+          <PayeeRow
+            name={t.transfer.giro.scanInvoice}
+            detail={words.scanInvoiceHint}
+            glyph={<DocScanIcon size={20} />}
+            label={t.transfer.giro.scanInvoice}
+            onClick={() => openTransfer({ girocode: { docScan: true } })}
           />
         </ul>
       )}
@@ -113,7 +123,7 @@ export function PaymentsHead() {
 function PayeeGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="pt-2">
-      <h3 className="px-4 pt-2 pb-1 text-[14px] leading-5 font-medium text-ink-2 sm:px-5">{title}</h3>
+      <h2 className="px-4 pt-2 pb-1 text-[14px] leading-5 font-medium text-ink-2 sm:px-5">{title}</h2>
       <ul>{children}</ul>
     </div>
   );

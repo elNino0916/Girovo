@@ -73,6 +73,7 @@ import {
   type HistoryData, type HistoryGetResponse, type HistoryStatus,
 } from '@/lib/history';
 import { afterStatementRead, pendingView, type PendingRead } from '@/lib/pending';
+import { sanitizeGoals, type SavingsGoal } from '@/lib/savings-goal';
 import { recordSentOrder, sanitizeSentOrders, type SentOrder } from '@/lib/sent-orders';
 import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-log';
 import { sepaSanitize } from '@/lib/sepa-text';
@@ -747,6 +748,7 @@ function normalizeVault(raw: VaultData | null | undefined): VaultData {
   for (const [k, a] of Object.entries(record(raw.aliases))) if (typeof a === 'string' && a.trim()) aliases[k] = a;
   // Kept, or the next save would forget the linked banks.
   const linkedBanks = sanitizeLinkedBanks(raw.linkedBanks);
+  const goals = sanitizeGoals(raw.goals);
   return {
     version: 1,
     templates: Array.isArray(raw.templates)
@@ -773,6 +775,8 @@ function normalizeVault(raw: VaultData | null | undefined): VaultData {
     // Kept too, or the login would read "Umsätze behalten" as off: the kept
     // Umsätze would not load, and the next save would switch it off for good.
     ...(raw.keepBookings === true ? { keepBookings: true as const } : {}),
+    // Kept too, or the next save would drop the Sparziele.
+    ...(goals.length ? { goals } : {}),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : EMPTY_VAULT.updatedAt,
   };
 }
@@ -3304,10 +3308,30 @@ function useFintsState() {
     if (due === 'show') toast(msgs().plus.reminder, 'info', 12000, { label: msgs().plus.reminderAction, run: () => setPlusOpen(true) });
   }, [view, plus.state, plusOpen, toast]);
 
+  // Aufteilen (components/transactions/BillSplit.tsx): one Geld anfordern per
+  // person, one after the other. The sheet's "Weiter: Lea" (nextShare) closes
+  // this one and the effect below opens the next; closing it ends the row.
+  const [shareQueue, setShareQueue] = useState<SharePrefill[]>([]);
   const closeShare = useCallback(() => {
     setShareOpen(false);
     setSharePrefill(null);
+    setShareQueue([]);
   }, []);
+  const nextShare = useCallback(() => {
+    setShareOpen(false);
+    setSharePrefill(null);
+  }, []);
+  const openShareQueue = useCallback((list: SharePrefill[]) => {
+    if (!list.length) return;
+    setShareQueue(list.slice(1));
+    openShare(list[0]);
+  }, [openShare]);
+  useEffect(() => {
+    if (shareOpen || !shareQueue.length) return;
+    const [next, ...rest] = shareQueue;
+    setShareQueue(rest);
+    openShare(next);
+  }, [shareOpen, shareQueue, openShare]);
 
   // ---- bank messages ------------------------------------------------------
   const markAllRead = useCallback(() => {
@@ -4983,6 +5007,17 @@ function useFintsState() {
    * rules the vault applies (lib/budgets.ts), so what is shown now is what
    * comes back after the next login.
    */
+  /** The Sparziel of a savings account (lib/savings-goal.ts); null removes it. */
+  const setGoal = useCallback((accountNumber: string, goal: Omit<SavingsGoal, 'accountNumber'> | null) => {
+    updateVault((v) => {
+      const others = (v.goals ?? []).filter((g) => g.accountNumber !== accountNumber);
+      const goals = goal ? sanitizeGoals([...others, { ...goal, accountNumber }]) : others;
+      if (goals.length) return { ...v, goals };
+      const { goals: _gone, ...rest } = v;
+      return rest as VaultData;
+    });
+  }, [updateVault]);
+
   const setBudgets = useCallback((next: Budgets) => {
     updateVault((v) => {
       const clean = sanitizeBudgets(next, v.customCategories);
@@ -5248,7 +5283,7 @@ function useFintsState() {
     setLogoConsent,
     setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions,
     setAnalysisPeriod, setAnalysisScope,
-    openTransfer, closeTransfer, openShare, closeShare,
+    openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
     updateVault, resetVault, wipeVault, accountLabel, renameAccount,
@@ -5260,7 +5295,7 @@ function useFintsState() {
     modelGuesses, brandNames,
     // Girovo Plus (lib/plus.ts)
     plus, plusOpen, openPlus, closePlus,
-    categoryGuessOf, setBudgets, noteOf, setNote,
+    categoryGuessOf, setBudgets, setGoal, noteOf, setNote,
     // more banks (lib/linked-banks.ts)
     links, banks, bankOf, activeBank, addBank,
     openAddBank, closeAddBank, pickAddBank, connectAddBank, chooseAddBankMethod, clearAddBankMedia, addBankBack,

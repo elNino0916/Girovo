@@ -224,7 +224,7 @@ export function SegmentedItem({
 }
 
 /** A row that opens something: Updates, Tastenkürzel (the Sitzung panel's way to Einstellungen too). */
-export const ROW = '-mx-1.5 min-h-10 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] text-ink hover:bg-inset';
+export const ROW = '-mx-1.5 min-h-12 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] text-ink hover:bg-inset';
 
 /** A fact about this machine with its one action: a bank of the view, in the Sitzung panel. */
 export function MachineRow({

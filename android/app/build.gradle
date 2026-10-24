@@ -133,6 +133,12 @@ dependencies {
     // "GiroCode scannen" (ScannerPlugin): Google's code scanner, run by Play
     // services — no camera permission, and nothing of it in the APK but a stub.
     implementation "com.google.android.gms:play-services-code-scanner:16.1.0"
+    // "Beleg fotografieren" and "Rechnung scannen" (DocScannerPlugin): Google's
+    // document scanner, run by Play services like the code scanner.
+    implementation "com.google.android.gms:play-services-mlkit-document-scanner:16.0.0"
+    // An invoice's text without a GiroCode (TextPlugin): text recognition, its
+    // model from Play services rather than in the APK.
+    implementation "com.google.android.gms:play-services-mlkit-text-recognition:19.0.1"
     // Gemini Nano through AICore, for the category guess (NanoPlugin).
     implementation "com.google.mlkit:genai-prompt:1.0.0-beta4"
     // Google Play's in-app update, in the Play build only (src/play/…/UpdaterPlugin).

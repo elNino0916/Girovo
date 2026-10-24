@@ -420,6 +420,33 @@ export const de = {
   },
 
   /** Monatsbilanz, this month in and out (components/overview/MonthSummary.tsx). */
+  /** Sparziele (components/overview/SavingsGoal.tsx, lib/savings-goal.ts). */
+  goals: {
+    title: 'Sparziele',
+    set: 'Sparziel setzen',
+    edit: 'Sparziel ändern',
+    intro: (account: string) => `Für ${account}. Der Kontostand ist der Fortschritt.`,
+    name: 'Name',
+    target: 'Zielbetrag',
+    by: 'Bis wann? (optional)',
+    nameInvalid: 'Gib dem Ziel einen Namen.',
+    targetInvalid: 'Gib einen Betrag über 0 an.',
+    perMonth: (amount: ReactNode): ReactNode[] => ['Das sind ', amount, ' im Monat'],
+    perMonthDetail: (left: ReactNode, months: number): ReactNode[] =>
+      ['noch ', left, months === 1 ? ' in einem Monat' : ` in ${months} Monaten`],
+    sealed: 'Verschlüsselt nur auf diesem Telefon',
+    save: 'Speichern',
+    remove: 'Sparziel löschen',
+    missing: (amount: ReactNode): ReactNode[] => ['noch ', amount],
+    reached: 'Erreicht',
+    /** "Plan: 98 € im Monat bis Juni 2027 · Monat 9 von 17" */
+    plan: (amount: ReactNode, month: string, current: number, months: number): ReactNode[] =>
+      ['Plan: ', amount, ` im Monat bis ${month} · Monat ${current} von ${months}`],
+    share: (percent: number) => `${percent} % erreicht`,
+    shareSaid: (percent: number) => `Fortschritt: ${percent} Prozent`,
+    due: 'Der Termin ist vorbei.',
+  },
+
   monthSummary: {
     title: 'Monatsbilanz',
     /** Last month as a yardstick: "Im September", "Im September bis 04.09.". */
@@ -808,6 +835,29 @@ export const en: typeof de = {
     total: 'Total balance',
     incomplete: 'incomplete',
     loadAll: 'Load all balances',
+  },
+
+  goals: {
+    title: 'Savings goals',
+    set: 'Set a savings goal',
+    edit: 'Change savings goal',
+    intro: (account) => `For ${account}. The balance is the progress.`,
+    name: 'Name',
+    target: 'Target',
+    by: 'By when? (optional)',
+    nameInvalid: 'Give the goal a name.',
+    targetInvalid: 'Enter an amount above 0.',
+    perMonth: (amount) => ['That is ', amount, ' a month'],
+    perMonthDetail: (left, months) => ['', left, months === 1 ? ' to go in one month' : ` to go in ${months} months`],
+    sealed: 'Encrypted, only on this phone',
+    save: 'Save',
+    remove: 'Delete savings goal',
+    missing: (amount) => [amount, ' to go'],
+    reached: 'Reached',
+    plan: (amount, month, current, months) => ['Plan: ', amount, ` a month until ${month} · month ${current} of ${months}`],
+    share: (percent) => `${percent}% reached`,
+    shareSaid: (percent) => `Progress: ${percent} percent`,
+    due: 'The date has passed.',
   },
 
   monthSummary: {

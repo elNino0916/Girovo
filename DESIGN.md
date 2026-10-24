@@ -28,7 +28,7 @@ colors:
   amber-soft: "#fff4dc"
   info: "#0074a3"
   info-soft: "#e9f4f8"
-  emphasis: "#ee6a1f"
+  emphasis: "#d9540f"
   brand-plate: "#0a2c5e"
   plus-gold: "#f2c14e"
   gemini-blue: "#4285f4"
@@ -235,7 +235,7 @@ Material's colour roles carry surfaces, ink, lines and the one interactive colou
 - **Soll Red** (`red` on `red-soft`): a negative balance or an error. Never a debit, never a credit card's balance.
 - **Vorgemerkt Amber** (`amber` on `amber-soft`): pending and nothing else. The Vorgemerkt chip's dot, a Vormerkposten's disc.
 - **Info Cyan** (`info` on `info-soft`): neutral status notices.
-- **Marker Orange** (`emphasis`): a mark, never text. The unread dot, a warning's glyph, an emphasis tag's dot.
+- **Marker Orange** (`emphasis`): a mark, never text. The unread dot, a warning's glyph, an emphasis tag's dot. Dark enough to hold 3:1 as a mark on the page and on the avatar's disc (#d9540f; the brighter #ee6a1f fell to 2.4:1 on the disc).
 
 ### Neutral
 - **Page** (`md-surface`; `paper`, `bar`): the page and the top bar, one plane. On Android the bar takes Container once the page scrolls under it.
@@ -289,7 +289,7 @@ Categories take `chart-1` to `chart-6` **by rank** within a chart; the rest are 
 Sizes in between snap on the phone: 12.5 to 12; 13 to 14 to 14; 14.5 to 16 to 16; 17 and 18 to 16/500; 20 to 24 to 22/500.
 
 ### Named Rules
-**The Symbol Rule.** On Android every app icon is a Material Symbol (`Icon`'s `ms` name) in a box of exactly 1em, sized in dp: `text-size-adjust: none`, so the system's larger text grows the words, never the glyph. `filled` sets FILL 1, used only for the current place in the navigation bar (24px). Gemini's spark and the avatar glyphs are pictures and stay drawn. The desktop keeps the line icons (24 grid, 1.8 stroke).
+**The Symbol Rule.** On Android every app icon is a Material Symbol (`Icon`'s `ms` name) in a box of exactly 1em, sized in dp, so the system's larger text grows the words, never the glyph: the icon is zoomed out by the text zoom and its box zoomed back in (see Large Text). `filled` sets FILL 1, used only for the current place in the navigation bar (24px). Gemini's spark and the avatar glyphs are pictures and stay drawn. A glyph that is only an outline at 18px may read as a letter (the flag read as an "F"): such an icon is drawn solid. The desktop keeps the line icons (24 grid, 1.8 stroke).
 
 **The Two Headings Rule.** A section is 18/500 in ink; a subheader is 14/500 in the variant ink. Einstellungen keeps its subheaders in the primary (owner, 2026-10-20). There is no third treatment.
 
@@ -373,12 +373,37 @@ Frag deine Umsätze and the Nano row in Einstellungen stand on Gemini's wash wit
 ### Girovo Plus
 The navy plate with the G€ in Plus Gold. Every door to Plus is the same tonal button with the gold plate as its icon. A locked figure is never shown blurred or greyed.
 
+### Freigabe-App öffnen (Android)
+While the bank waits for a decoupled approval and its app is installed (`lib/brands.ts` APPROVAL_PACKAGES, each package also in the manifest's `<queries>`), the approval sheet's footer leads with the filled "S-pushTAN öffnen" (the app's own name), wide, and "Abbrechen" steps back to a quiet text button (owner's pick "Im Fuß", 2026-10-24). No app known for certain, or none installed: the footer as before.
+
+### Belege (Android)
+"Beleg hinzufügen", a tonal button, opens a menu: Foto aufnehmen (Google's document scanner, which crops and straightens; several pages are kept as one PDF) and Datei wählen (owner's pick "Ein Knopf mit Menü", 2026-10-24). Without the scanner the system's picker opens.
+
+### Rechnung ohne GiroCode (Android)
+"Rechnung scannen" sits under "GiroCode scannen" at the head of Zahlungen. A page without a GiroCode is read for its text on the phone (`lib/invoice-text.ts`: an IBAN only with valid check digits and never the user's own, the amount only from a line that names it the amount to pay, the invoice number as Verwendungszweck, the payee from a label or a letterhead with a legal form). What it found fills the form; the page then heads the payee's part as a 150px thumbnail, the lines it took boxed in the primary at 14%, a press opens it large, and beside it the amount with "Ändern" and "Markiert ist, was übernommen wurde." (owner's pick "Rechnung daneben", 2026-10-24). An invoice that says it is collected by Lastschrift says so above the payee. Every check, the review and the Namensabgleich follow as for a typed transfer.
+
+### Aufteilen (Android; a Plus perk in the Play build)
+From a debit's actions, a full-screen dialog (owner's pick "Anteile als Balken", 2026-10-24): the booking at its head; "Wer zahlt was?" over one bar of the shares, 48px, the user's own in the outline tone and the others in the chart slots by order, the chosen share drawn taller; a filter chip per person (their colour, name and share) and "+ Person"; the chosen person's name and share edited in place, the user's own share always what is left ("Dein Anteil passt sich an"); the Verwendungszweck ("Anteil Sushi Yana, 21.10."); the sum said in words with a green check, or in red when the shares ask for more than the booking. "Alle anfordern" closes the booking and opens Geld anfordern for each person in turn, its header naming them ("Für Lea · 1 von 2") and its footer going on ("Weiter: Jo", on the last "Fertig"); closing it ends the row.
+
+### Sparziele (Android; a Plus perk in the Play build)
+One goal per savings or Festgeld account (FinTS Kontoart 10–29), kept in the vault. Under the account's balance (owner's pick "Monatsplan", 2026-10-24): the goal's name at 16/500 with "noch …" at the row's end, then a strip of one 10px segment per month from the month it was set to its date, filled by the money (the balance's share of the target, so it never claims more than the money says), then "Plan: 98 € im Monat bis Juni 2027 · Monat 9 von 17". Without a date the strip is one bar; a reached goal says "Erreicht" with the green check. "Sparziel setzen" (a text button with the solid flag, or the Plus door) opens a bottom sheet: Name, Zielbetrag, "Bis wann? (optional)", the live "Das sind … im Monat", "Verschlüsselt nur auf diesem Telefon" and Speichern. Analyse lists every goal.
+
+### Large Text (Android)
+The system's font scale reaches the page as WebView text zoom: it multiplies every font size and line height, no length in px, em or ch, and `text-size-adjust` does not opt out of it (WebView 149). `app/layout.tsx` measures it before first paint as `--text-zoom`; at 100% every rule below comes to nothing.
+- What keeps its size is zoomed out by the text zoom: icons (box and glyph at their dp) and the avatar's initials. Display figures (`[data-balance]`, `[data-figure]`) grow a third at most, as Android 14's nonlinear scaling treats large type, so a five-digit balance stays on the screen.
+- A length that must follow the text is written in `lh`, or times `--text-zoom` (the transfer amount's width in `ch`, the Aufteilen share field). A row's meta line is one `lh` high.
+- M3E's text field grows round its text: the typed line gets its 16px above and below back as it grows, and the floating label sits on the outline and in the field's middle by its own line (`app/material.css`).
+- A row of buttons, or a note beside a button, stays side by side while both fit and wraps when they don't: basis 0 and `min-width: fit-content`, never a fixed grid.
+- What a sheet is for is said at the head of its scrolling body (`Panel`'s `intro`), never in the pinned header.
+
 ### Named Rules
 **The Safe Choice Rule.** At every risk decision the safe action is the filled primary and the risky one the tonal button beside it. A destructive confirm the user asked for keeps its red button, with the safe one focused.
 
 **The Safe Focus Rule.** A layer opens on the safe place (`safeFocusTarget`): what it names, else its first text field, else its close button, else the layer. Never a checkbox, switch, radio, link or action. A field marked `fine` takes focus only with a fine pointer, so a touch keyboard never covers a layer as it opens.
 
-**The Pinned Way Out Rule.** A dialog's actions and a panel's closing action sit in a footer below the scrolling body and never scroll away.
+**The Pinned Way Out Rule.** A dialog's actions and a panel's closing action sit in a footer below the scrolling body and never scroll away — unless pinned header and footer together would take more than 45% of the screen (`useUnpinned`, the system's largest text): then the sheet scrolls as one, its way out at the end.
+
+**The Inert Rule.** While a layer is open everything outside it is `inert`, so neither touch nor a screen reader's swipe walks out of it into the page behind; live regions (toasts, status lines) stay outside it and keep speaking.
 
 **The Spring Rule.** Motion uses M3E's springs: spatial (position, size, shape) overshoots slightly; effects (colour, opacity) never do. `prefers-reduced-motion` is honoured.
 

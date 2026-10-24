@@ -3,14 +3,18 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { bankAnswerLines, formatBankAnswer, refusalReference } from '@/lib/bank-answer';
+import { APPROVAL_APP, APPROVAL_PACKAGES } from '@/lib/brands';
 import { fmtIban } from '@/lib/format';
 import type { SerializedTanMethod } from '@/lib/fints-types';
 import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { BankLogo } from './BankLogo';
 import { scheduleSentence } from '@/lib/order-schedule';
 import { isOrderWait, isOrderWaitKind, useFints, type WaitKind, type WaitOrder, type WaitState } from './FintsProvider';
-import { AlertTriangleIcon, BoltIcon, CardIcon, CheckCircleIcon, ClockIcon, CloseIcon, InfoIcon, KeyboardIcon, PhoneIcon } from './icons';
+import {
+  AlertTriangleIcon, BoltIcon, CardIcon, CheckCircleIcon, ClockIcon, CloseIcon, ExternalIcon, InfoIcon, KeyboardIcon, PhoneIcon,
+} from './icons';
 import { Money } from './Money';
 import { TanForm, TanGraphic } from './TanEntry';
 import { VopBadge } from './VopResult';
@@ -27,6 +31,35 @@ import { Alert, Button, Dialog, DialogActions, Overlay, Sheet, Spinner, Tag, cx 
  * Not dismissable by Escape or the backdrop: the only ways out are the
  * explicit buttons, because leaving abandons the bank's request.
  */
+/**
+ * "Freigabe-App öffnen" (Android): the bank's approval app (lib/brands.ts
+ * APPROVAL_PACKAGES), when one of its packages is installed — its name and
+ * the way to open it. Asked once per wait; Back from that app brings the
+ * user to this sheet, still waiting. Null on the desktop, for a brand
+ * whose app is not known for certain, and on a phone without it.
+ */
+function useApprovalApp(brand: string | null): { name: string; open: () => void } | null {
+  const packages = brand ? APPROVAL_PACKAGES[brand] : undefined;
+  const [installed, setInstalled] = useState<readonly string[] | null>(null);
+  useEffect(() => {
+    const mobile = IS_ANDROID ? window.girovoMobile : undefined;
+    if (!mobile || !packages?.length) return;
+    let live = true;
+    void mobile.approval.app(packages).then((found) => {
+      if (live) setInstalled(found ? packages : null);
+    });
+    return () => {
+      live = false;
+      setInstalled(null);
+    };
+  }, [packages]);
+  if (!brand || !installed || installed !== packages) return null;
+  return {
+    name: APPROVAL_APP[brand] ?? brand,
+    open: () => void window.girovoMobile?.approval.open(installed),
+  };
+}
+
 export function TanWaitOverlay() {
   const { wait } = useFints();
   if (!wait.open) return null;
@@ -57,7 +90,7 @@ function waitWords(t: Messages, kind: WaitKind): {
 }
 
 function TanWait() {
-  const { wait, retryWait, cancelWait, submitTan, selectedMethod, tanMethods, logoFiles } = useFints();
+  const { wait, retryWait, cancelWait, submitTan, selectedMethod, tanMethods, logoFiles, bank } = useFints();
   const t = useT();
   const tw = t.auth.tanWait;
   const uid = useId();
@@ -157,6 +190,8 @@ function TanWait() {
   // order: it is not sent twice behind the user's back.
   const offerRetry = wait.canRetry && !isOrderWait(kind) && (!waiting || overdue);
   const methodName = method?.name ?? null;
+  // Android: the bank's approval app, one tap away while the bank waits for it.
+  const approvalApp = useApprovalApp(waiting && !entry ? wait.bank?.brand ?? bank?.brand ?? null : null);
 
   return (
     <>
@@ -182,7 +217,16 @@ function TanWait() {
               )}
               {!confirmed && (
                 <DialogActions align="center" className="">
-                  <Button onClick={cancel}>{waiting ? t.common.cancel : t.common.close}</Button>
+                  {/* With the app at hand, opening it is the way on — the filled
+                      primary, wide; leaving the wait steps back to a quiet one. */}
+                  <Button variant={approvalApp ? 'tertiary' : undefined} onClick={cancel}>
+                    {waiting ? t.common.cancel : t.common.close}
+                  </Button>
+                  {approvalApp && (
+                    <Button variant="primary" className="flex-1" iconLeft={<ExternalIcon size={18} />} onClick={approvalApp.open}>
+                      {tw.openApprovalApp(approvalApp.name)}
+                    </Button>
+                  )}
                   {typing && (
                     <Button variant="primary" type="submit" form={formId} busy={entry.sending}>{tw.entry.send}</Button>
                   )}

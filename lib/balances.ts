@@ -32,6 +32,15 @@ export function isDepot(a: Pick<SerializedAccount, 'canStatements' | 'canPortfol
   return !a.canStatements && !!a.canPortfolio;
 }
 
+/**
+ * A Sparkonto, Tagesgeld or Festgeld (FinTS Kontoart 10–29): the accounts a
+ * Sparziel belongs to (lib/savings-goal.ts). By the Kontoart alone, like a card.
+ */
+export function isSavingsAccount(a: Pick<SerializedAccount, 'accountType'>): boolean {
+  const t = String(a.accountType ?? '').trim();
+  return t === 'SavingsAccount' || t === 'FixedDepositAccount' || /^[12]\d$/.test(t);
+}
+
 export function isCardAccount(a: Pick<SerializedAccount, 'accountType'>): boolean {
   const t = String(a.accountType ?? '').trim();
   return t === 'CreditCardAccount' || /^5\d$/.test(t);

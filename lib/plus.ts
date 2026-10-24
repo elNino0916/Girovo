@@ -58,6 +58,12 @@ export const forecastAllowed = (state: PlusState | null | undefined): boolean =>
 /** Whether "Frag deine Umsätze" takes questions, or the Plus teaser instead. */
 export const askAllowed = (state: PlusState | null | undefined): boolean => unlocked(state);
 
+/** Whether a booking can be split and its shares asked for (lib/bill-split.ts), or the Plus door instead. */
+export const splitAllowed = (state: PlusState | null | undefined): boolean => unlocked(state);
+
+/** Whether a savings account takes a Sparziel (lib/savings-goal.ts), or the Plus door instead. */
+export const goalsAllowed = (state: PlusState | null | undefined): boolean => unlocked(state);
+
 /** Whether the Plus icon may be chosen — only while Plus is active. */
 export const iconChoosable = (state: PlusState | null | undefined): boolean => state === 'active';
 

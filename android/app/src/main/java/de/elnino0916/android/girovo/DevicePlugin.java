@@ -27,6 +27,7 @@ import androidx.annotation.NonNull;
 import androidx.activity.result.ActivityResult;
 import androidx.core.content.FileProvider;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -299,6 +300,48 @@ public class DevicePlugin extends Plugin {
         } catch (ActivityNotFoundException e) {
             call.reject("no browser", "UNAVAILABLE");
         }
+    }
+
+    /**
+     * The bank's approval app (S-pushTAN, SecureGo plus, …: lib/brands.ts
+     * APPROVAL_PACKAGES), if one of `packages` is installed. Only packages the
+     * manifest names in <queries> can be seen, so the app never learns what
+     * else is on the phone.
+     */
+    @PluginMethod
+    public void approvalApp(PluginCall call) {
+        JSObject result = new JSObject();
+        String found = firstLaunchable(call.getArray("packages"));
+        if (found != null) result.put("package", found);
+        call.resolve(result);
+    }
+
+    /** Opens that app, where the user approves; Back brings them to Girovo, which waits on. */
+    @PluginMethod
+    public void openApprovalApp(PluginCall call) {
+        String found = firstLaunchable(call.getArray("packages"));
+        Intent launch = found == null ? null : getContext().getPackageManager().getLaunchIntentForPackage(found);
+        if (launch == null) {
+            call.reject("not installed", "UNAVAILABLE");
+            return;
+        }
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            getActivity().startActivity(launch);
+            call.resolve();
+        } catch (ActivityNotFoundException e) {
+            call.reject("not installed", "UNAVAILABLE");
+        }
+    }
+
+    private String firstLaunchable(JSArray packages) {
+        if (packages == null) return null;
+        PackageManager pm = getContext().getPackageManager();
+        for (int i = 0; i < packages.length(); i++) {
+            String name = packages.optString(i, "");
+            if (!name.isEmpty() && pm.getLaunchIntentForPackage(name) != null) return name;
+        }
+        return null;
     }
 
     /**

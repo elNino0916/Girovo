@@ -37,12 +37,15 @@ import {
 import { useFints, type TransferHandlers } from './FintsProvider';
 import { useShowBankOrders } from './BankOrders';
 import {
-  AccountTypeIcon, AlertTriangleIcon, ArrowRightIcon, BoltIcon, ClockIcon, InfoIcon, PaperclipIcon, QrIcon, RepeatIcon, StarIcon, UndoIcon,
+  AccountTypeIcon, AlertTriangleIcon, ArrowRightIcon, BoltIcon, ClockIcon, DocScanIcon, InfoIcon, PaperclipIcon, QrIcon, RepeatIcon,
+  StarIcon, UndoIcon,
 } from './icons';
 import { Money, formatMoney, useMoneyText } from './Money';
 import { VopReport, vopDeviates, vopUnchecked } from './VopResult';
 import { Alert, Button, Checkbox, Chip, Dialog, Field, Input, Overlay, Segmented, Select, Spinner, cx } from './ui';
-import { GiroCodeDrop, imageFromTransfer, useFileDrop, useGiroCodeReader } from './transfer/GiroCodeDrop';
+import { GiroCodeDrop, imageFromTransfer, useFileDrop, useGiroCodeReader, type InvoicePage } from './transfer/GiroCodeDrop';
+import { InvoicePreview } from './transfer/InvoicePreview';
+import type { InvoiceRead } from '@/lib/invoice-text';
 import { IbanHint, IbanInput, useBankLookup } from './transfer/IbanInput';
 import { expectedLength, groupIban, ibanProblem, rawIban } from './transfer/iban';
 import {
@@ -95,6 +98,7 @@ type OrderKind = 'dated' | 'standing';
 
 const SOURCE_ICON: Record<Source['kind'], ReactNode> = {
   girocode: <QrIcon size={14} />,
+  invoice: <DocScanIcon size={14} />,
   template: <StarIcon size={14} />,
   repeat: <RepeatIcon size={14} />,
   refund: <UndoIcon size={14} />,
@@ -105,6 +109,7 @@ function sourceLabel(tr: Messages, s: Source): string {
   const words = tr.transfer.source;
   switch (s.kind) {
     case 'girocode': return words.girocode;
+    case 'invoice': return words.invoice;
     case 'template': return s.label ? words.template(s.label) : words.templateUnnamed;
     case 'repeat': return words.repeat;
     case 'refund': return words.refund;
@@ -432,10 +437,24 @@ export function TransferSheet() {
     setLive({
       say: (m) => {
         const said = note?.(m);
-        return `${m.transfer.live.step(STEP_INDEX[step] + 1, TRANSFER_STEPS.length, stepTitle(m, step, titleKind))}${said ? ` ${said}` : ''}`;
+        // The phone's flow counts its own three parts, as its bar shows them.
+        const where = phoneFlow && (step === 'form' || step === 'review')
+          ? `${m.transfer.form.part(step === 'review' ? 3 : 1, 3)}: ${stepTitle(m, step, titleKind)}.`
+          : m.transfer.live.step(STEP_INDEX[step] + 1, TRANSFER_STEPS.length, stepTitle(m, step, titleKind));
+        return `${where}${said ? ` ${said}` : ''}`;
       },
     });
   }, [step]);
+
+  // The phone's two form parts: moving between them is said, as the bar shows it.
+  const shownPart = useRef(part);
+  useEffect(() => {
+    if (!phoneFlow || shownPart.current === part) return;
+    shownPart.current = part;
+    setLive({
+      say: (m) => `${m.transfer.form.part(part === 'amount' ? 1 : 2, 3)}: ${part === 'amount' ? m.common.booking.amount : m.transfer.recipient}`,
+    });
+  }, [part, phoneFlow]);
 
   // An error that arrives on a step already open (a retry refused, the line
   // busy) is brought into view. A smooth scroll asked for from script
@@ -564,6 +583,8 @@ export function TransferSheet() {
 
   const fromGiroCode = useCallback((p: EpcPayment, file: File | null) => {
     setInvoice(file);
+    setInvoicePage(null);
+    setInvoiceDebit(false);
     fillPayee({
       name: p.name,
       iban: p.iban,
@@ -577,7 +598,35 @@ export function TransferSheet() {
     requestAnimationFrame(() => (p.amount == null ? amountRef : nameRef).current?.focus());
   }, [fillPayee]);
 
-  const reader = useGiroCodeReader(fromGiroCode);
+  // "Rechnung ohne GiroCode" (Android): a page without a code, read for its
+  // text (lib/invoice-text.ts). What it found fills the form like a GiroCode
+  // — nothing more: every check, the review and the Namensabgleich follow —
+  // and the page stays beside the payee, the lines it took marked
+  // (InvoicePreview), until another payee takes its place.
+  const [invoicePage, setInvoicePage] = useState<InvoicePage | null>(null);
+  const [invoiceDebit, setInvoiceDebit] = useState(false);
+  useEffect(() => () => { if (invoicePage) URL.revokeObjectURL(invoicePage.url); }, [invoicePage]);
+  const ownIbans = useMemo(
+    () => accounts.map((a) => String(a.iban ?? '').replace(/\s+/g, '').toUpperCase()).filter(Boolean),
+    [accounts],
+  );
+  const fromInvoice = useCallback((read: InvoiceRead, page: InvoicePage | null, file: File | null) => {
+    setInvoice(file);
+    fillPayee({
+      name: read.name ?? '',
+      iban: read.iban ?? '',
+      amount: read.amount != null ? fmtAmountInput(read.amount) : '',
+      purpose: read.purpose ?? '',
+    }, { kind: 'invoice' }, true);
+    setInvoicePage(page);
+    setInvoiceDebit(read.debit);
+    setLive({ say: (m) => m.transfer.live.invoice });
+    // What the page could not say first: the amount, else whom.
+    setPart(read.amount == null ? 'amount' : 'payee');
+    requestAnimationFrame(() => (read.amount == null ? amountRef : !read.name ? nameRef : !read.iban ? ibanRef : purposeRef).current?.focus());
+  }, [fillPayee]);
+
+  const reader = useGiroCodeReader(fromGiroCode, IS_ANDROID ? fromInvoice : undefined, ownIbans);
   const drop = useFileDrop(step === 'form', (f) => void reader.readFile(f));
 
   // Opened for a GiroCode (Android: a shared invoice, or the "GiroCode
@@ -585,6 +634,7 @@ export function TransferSheet() {
   useEffect(() => {
     if (initial.girocode?.file) void reader.readFile(initial.girocode.file);
     else if (initial.girocode?.scan) void reader.scanCamera();
+    else if (initial.girocode?.docScan) void reader.scanDocument();
     // The prefill is read once, like the rest of it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -596,6 +646,7 @@ export function TransferSheet() {
       true,
     );
     touchTemplate(t.id);
+    setInvoicePage(null);
     reader.reset();
     setInvoice(null);
     setLive({ say: (m) => m.transfer.live.template(t.label) });
@@ -869,8 +920,9 @@ export function TransferSheet() {
           }}
           // A hint of the figure's shape, in the hairline's tone — no value.
           placeholder="0"
-          style={{ width: `${Math.max(1, amount.length) + 0.4}ch` }}
-          className="amount min-w-[1.4ch] bg-transparent text-right text-[64px] leading-[72px] font-medium text-ink caret-[var(--accent)] outline-none placeholder:text-[var(--line)]"
+          // Its width in ch, times the phone's text zoom, which grows the glyphs and not the ch.
+          style={{ width: `calc(${Math.max(1, amount.length) + 0.4}ch * var(--text-zoom, 1))` }}
+          className="amount min-w-[calc(1.4ch_*_var(--text-zoom,1))] bg-transparent text-right text-[64px] leading-[72px] font-medium text-ink caret-[var(--accent)] outline-none placeholder:text-[var(--line)]"
         />
         <span aria-hidden className="ml-1.5 text-[34px] font-medium text-ink-2">€</span>
       </div>
@@ -1079,7 +1131,23 @@ export function TransferSheet() {
                 <TemplatesMenu onPick={applyTemplate} onManage={() => setManaging(true)} />
               </div>
 
-              {source && (
+              {invoicePage && account && (
+                <InvoicePreview
+                  page={invoicePage}
+                  amount={checkAmount(amount).cents != null ? checkAmount(amount).cents! / 100 : null}
+                  currency={account.currency}
+                  account={accountLabel(account)}
+                  onChangeAmount={() => setPart('amount')}
+                />
+              )}
+              {invoiceDebit && (
+                <p className="mb-5 flex items-start gap-2 text-[14px] leading-5 text-ink-2">
+                  <InfoIcon size={18} className="mt-px shrink-0 text-info" />
+                  <span>{tr.transfer.invoice.debit}</span>
+                </p>
+              )}
+
+              {source && !invoicePage && (
                 // A source note is a static value, not a status: Strong Line
                 // edge, Slate Ink label.
                 <p className="mb-4">
@@ -1087,7 +1155,7 @@ export function TransferSheet() {
                 </p>
               )}
 
-              {recents.length > 0 && (
+              {recents.length > 0 && !invoicePage && (
                 <div className="mb-4">
                   <p id="tf-recent" className="mb-2 text-[13px] font-semibold text-ink-3">{words.form.recent}</p>
                   <div
@@ -1112,6 +1180,7 @@ export function TransferSheet() {
                           selected={raw === r.iban && squash(name) === r.name}
                           onClick={() => {
                             fillPayee({ name: r.name, iban: r.iban }, null, false);
+                            setInvoicePage(null);
                             reader.reset();
                             requestAnimationFrame(() => (phoneFlow ? purposeRef : amountRef).current?.focus());
                           }}
@@ -1127,13 +1196,13 @@ export function TransferSheet() {
                 </div>
               )}
 
-              <GiroCodeDrop
+              {!invoicePage && <GiroCodeDrop
                 className="mb-5"
                 scan={reader.scan}
                 dragging={drop.dragging}
                 onFile={(f) => void reader.readFile(f)}
                 onScan={() => void reader.scanCamera()}
-              />
+              />}
 
               <Field
                 label={words.form.name}
@@ -1562,8 +1631,12 @@ function PartBar({ at, label }: { at: number; label: string }) {
   );
 }
 
+/**
+ * Two actions side by side; when the system's large text no longer fits
+ * them in a row, they stack with the primary (the last) on top.
+ */
 function FooterRow({ children }: { children: ReactNode }) {
-  return <div className="flex gap-3">{children}</div>;
+  return <div className="flex flex-wrap-reverse gap-3 [&>*]:min-w-fit">{children}</div>;
 }
 
 /**

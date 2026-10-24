@@ -1,0 +1,111 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Beleg, Zeile</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+:root{
+  --primary:#0060a8; --on-primary:#fff; --pc:#d3e4ff; --on-pc:#004880;
+  --sc:#dae1ff; --on-sc:#3c4665;
+  --surface:#f8f9ff; --scl:#eff4ff; --sc1:#e9eefa; --sch:#e3e8f4; --schh:#dde3ee;
+  --ink:#161c24; --ink-2:#404753; --outline:#707784; --ov:#bfc7d5;
+  --green:#0c7336; --orange:#ee6a1f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface)}
+.phone{width:393px;height:852px;overflow:hidden;position:relative;background:var(--surface);
+  font-family:'Google Sans Flex',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;font-size:16px;line-height:24px}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;font-size:24px;line-height:1;width:1em;height:1em;
+  overflow:hidden;letter-spacing:normal;text-transform:none;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';
+  font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block;flex:none}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em}
+.status{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;font-weight:500;font-size:14px}
+.status .ms{font-size:17px;margin-left:3px}
+.handle{position:absolute;bottom:8px;left:50%;width:108px;height:4px;margin-left:-54px;border-radius:2px;background:var(--ink);opacity:.38;z-index:9}
+.btn{height:40px;border-radius:20px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;
+  font-size:14px;line-height:20px;font-weight:500;white-space:nowrap;flex:none}
+.btn .ms{font-size:20px}
+.filled{background:var(--primary);color:var(--on-primary)}
+.tonal{background:var(--sc);color:var(--on-sc)}
+.text{color:var(--primary);padding:0 12px}
+.quiet{color:var(--ink-2);padding:0 12px}
+.disc{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--sch);color:var(--ink-2);flex:none}
+.name{font-size:16px;line-height:22px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:14px;line-height:20px;color:var(--ink-2)}
+.sub{font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+
+/* ---------- the Übersicht behind the approval sheet ---------- */
+.search{margin:8px 16px 0;height:56px;border-radius:28px;background:var(--sch);display:flex;align-items:center;gap:16px;padding:0 12px 0 16px;color:var(--ink-2)}
+.search .ph{flex:1;font-size:16px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--schh);display:grid;place-items:center;font-size:12px;font-weight:500;color:var(--ink-2);position:relative}
+.avatar:after{content:'';position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 2px var(--sch)}
+.acct{display:flex;align-items:center;justify-content:space-between;padding:20px 16px 0 16px;font-size:16px;font-weight:500}
+.acct .ms{font-size:20px;vertical-align:-4px;color:var(--ink-2)}
+.bal{padding:4px 16px 0;font-size:48px;line-height:56px;font-weight:500;letter-spacing:-0.025em;font-variant-numeric:tabular-nums lining-nums}
+.bal .c{font-size:.58em;letter-spacing:-0.01em}
+.skel{height:12px;border-radius:6px;background:var(--sch)}
+.scrim{position:absolute;inset:0;background:rgba(22,28,36,.32);z-index:2}
+
+/* ---------- the approval sheet ---------- */
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:3;background:var(--scl);border-radius:28px 28px 0 0;overflow:hidden;
+  box-shadow:0 -2px 12px rgba(0,0,0,.08)}
+.band{height:88px;background:var(--pc);position:relative;display:grid;place-items:center}
+.band .grab{position:absolute;top:10px;left:50%;width:32px;height:4px;margin-left:-16px;border-radius:2px;background:var(--on-pc);opacity:.4}
+.bdisc{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;color:var(--on-pc);margin-top:8px;position:relative;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--on-pc) 26%,transparent),0 0 0 7px color-mix(in srgb,var(--on-pc) 9%,transparent)}
+.sbody{padding:24px 20px 0;text-align:center}
+.sbody h2{margin:0;font-size:22px;line-height:28px;font-weight:500}
+.lead{margin:6px auto 0;max-width:36ch;font-size:16px;line-height:22px;color:var(--ink-2)}
+.dev{margin:12px 0 0;display:inline-flex;align-items:center;gap:6px;font-size:14px;line-height:20px;color:var(--ink-2)}
+.dev .ms{font-size:16px}
+.dev b{font-weight:500}
+.challenge{margin-top:16px;text-align:left;border-radius:8px;background:var(--sch);padding:12px 16px;font-size:14px;line-height:21px;color:var(--ink-2)}
+.help{margin-top:12px;text-align:left}
+.help span{display:inline-flex;align-items:center;height:40px;margin-left:-12px;padding:0 12px;border-radius:20px;color:var(--primary);font-size:14px;font-weight:500}
+.sfoot{padding:16px 20px 28px}
+.wait{display:flex;align-items:center;justify-content:space-between;font-size:14px;line-height:20px}
+.wait .l{display:flex;align-items:center;gap:10px;font-weight:500;color:var(--ink-2)}
+.track{margin-top:10px;height:4px;border-radius:2px;background:var(--sch);overflow:hidden}
+.track i{display:block;height:100%;border-radius:2px;background:var(--on-pc)}
+.limit{margin:8px 0 0;font-size:12px;line-height:16px;color:var(--ink-2)}
+.actions{margin-top:20px;display:flex;gap:8px;align-items:center}
+.actions .grow{flex:1}
+
+/* f1-c: the row that opens the approval app */
+.openrow{margin:12px -20px 0;padding:10px 16px 10px 20px;display:grid;grid-template-columns:40px minmax(0,1fr) 24px;column-gap:16px;align-items:center;text-align:left;min-height:64px}
+.openrow .disc{color:var(--primary)}
+.openrow .chev{color:var(--ink-2)}
+
+/* ---------- Umsatzdetails ---------- */
+.bar{height:64px;display:flex;align-items:center;padding:0 4px 0 16px}
+.bar .title{font-size:22px;line-height:28px;flex:1}
+.ib{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;color:var(--ink-2)}
+.dhead{padding:16px 16px 0}
+.who{display:flex;align-items:center;gap:16px}
+.who .disc{width:56px;height:56px}
+.who .disc .ms{font-size:26px}
+.who .n{font-size:22px;line-height:28px;font-weight:500}
+.fig{margin-top:16px;font-size:40px;line-height:48px;font-weight:500;letter-spacing:-0.025em;font-variant-numeric:tabular-nums lining-nums}
+.fig .c{font-size:.58em;letter-spacing:-0.01em}
+.tabs{margin-top:20px;display:flex;box-shadow:inset 0 -1px 0 var(--ov)}
+.tab{flex:1;height:48px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:500;color:var(--ink-2);position:relative}
+.tab.on{color:var(--primary)}
+.tab.on:after{content:'';position:absolute;left:22%;right:22%;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--primary)}
+.tab .dot{width:6px;height:6px;border-radius:50%;background:var(--primary)}
+.panel{padding:12px 16px 0}
+.well{margin-top:12px;border-radius:8px;background:var(--sch);padding:12px 16px;font-size:16px;line-height:22px}
+.noteacts{margin:8px 0 0 -12px;display:flex;gap:4px}
+.noteacts .btn{height:36px;font-size:14px}
+.noteacts .btn .ms{font-size:18px}
+.rule{margin-top:24px;border-top:1px solid var(--ov);padding-top:20px}
+.hint{margin-top:8px;font-size:14px;line-height:20px;color:var(--ink-2)}
+.docrow{display:grid;grid-template-columns:44px minmax(0,1fr) auto 40px;column-gap:12px;align-items:center;min-height:56px;padding:8px 0}
+.thumb{width:44px;height:44px;border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--ov);background:#e7e9ee;display:grid;place-items:center}
+.slip{width:30px;height:52px;margin-top:10px;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.12);padding:5px 4px;display:flex;flex-direction:column;gap:3px}
+.slip i{display:block;height:2px;background:#9aa1ab;border-radius:1px}
+.menu{position:absolute;z-index:4;background:var(--sc1);border-radius:8px;padding:4px;width:208px;
+  box-shadow:0 2px 6px 2px rgba(0,0,0,.15),0 1px 2px rgba(0,0,0,.3)}
+.mi{height:48px;display:flex;align-items:center;gap:12px;padding:0 12px;border-radius:4px;font-size:14px;font-weight:500;color:var(--ink)}
+.mi .ms{color:var(--ink-2)}
+.mi.hover{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.addrow{margin:4px -16px 0;padding:10px 16px;display:grid;grid-template-columns:44px minmax(0,1fr);column-gap:12px;align-items:center;min-height:64px}
+.addrow .disc{margin-left:2px;color:var(--primary)}
+.link{color:var(--primary);font-weight:500;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+</style></head><body><div class="phone"><div class="status"><span class="num">9:41</span><span><span class="ms" style="">signal_cellular_alt</span><span class="ms" style="">wifi</span><span class="ms" style="">battery_full</span></span></div><div class="bar"><div class="title">Umsatzdetails</div><div class="ib"><span class="ms" style="">close</span></div></div><div class="dhead"><div class="who"><div class="disc"><span class="ms" style="">restaurant</span></div><div style="min-width:0"><div class="n">Sushi Yana</div><div class="meta">Kartenzahlung · bezahlt am 21.10. um 19:42</div></div></div><div class="fig">−30<span class="c">,79&nbsp;€</span></div><div style="margin-top:16px"><div class="btn tonal"><span class="ms" style="font-size:18px">receipt_long</span>Buchungsbeleg (PDF)</div></div></div><div class="tabs"><div class="tab">Details</div><div class="tab on">Notiz &amp; Belege<span class="dot"></span></div><div class="tab">Kategorie</div></div><div class="panel"><div class="sub">Notiz</div><div class="well">Mit Lea – sie überweist mir ihre Hälfte.</div><div class="noteacts"><div class="btn text"><span class="ms" style="">edit</span>Bearbeiten</div><div class="btn text"><span class="ms" style="">delete</span>Löschen</div></div><div class="rule"><div class="sub">Belege</div><div style="margin-top:4px" class="docrow"><div class="thumb"><div class="slip"><i style="width:60%"></i><i style="width:100%"></i><i style="width:85%"></i><i style="width:100%"></i><i style="width:70%"></i><i style="width:100%"></i><i style="width:50%"></i></div></div><div style="min-width:0"><div class="name">Kassenbon 21.10.</div><div class="meta num">248 kB · 21.10.2026</div></div><div class="btn text" style="padding:0 8px"><span class="ms" style="font-size:18px">open_in_new</span>Öffnen</div><div class="ib" style="width:40px;height:40px"><span class="ms" style="font-size:22px">delete</span></div></div><div class="addrow"><div class="disc"><span class="ms" style="">photo_camera</span></div><div style="min-width:0"><div class="name">Beleg fotografieren</div><div class="meta">oder <span class="link">eine Datei wählen</span></div></div></div></div></div><div class="handle"></div></div></body></html>

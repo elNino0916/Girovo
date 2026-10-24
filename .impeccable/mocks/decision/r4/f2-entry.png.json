@@ -1,0 +1,7 @@
+{
+  "source": "rendered, not generated",
+  "html": ".impeccable/mocks/decision/r4/f2-entry.html",
+  "renderer": "Microsoft Edge headless via DevTools, 393x852 CSS px at 3x",
+  "prompt": "No image model. Hand-authored HTML/CSS mock in Girovo's Android world (Google Sans Flex, Material Symbols Rounded, IBM Plex Mono, Girovo blue scheme) with design-preview data.",
+  "description": "Entry (not a choice): the head of Zahlungen with \"GiroCode scannen\" and the new row \"Rechnung scannen\" (document_scanner, \"Auch ohne GiroCode\")."
+}

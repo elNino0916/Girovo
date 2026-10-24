@@ -110,12 +110,22 @@ export const viewport: Viewport = {
 // has no choice of its own: it always follows the phone.
 const THEME_SCRIPT = `(function(){var d=document.documentElement,p=${IS_ANDROID ? "'system'" : 'null'},k='fints.theme';if(p==null){try{var s=window.electronStore;if(s&&typeof s.get==='function')p=s.get(k);}catch(e){}}if(p==null){try{p=localStorage.getItem(k);}catch(e){}}if(p!=='light'&&p!=='dark')p='system';var dark=p==='dark';if(p==='system'){try{dark=window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){dark=false;}}d.dataset.theme=dark?'dark':'light';d.dataset.themePref=p;try{if(window.electronTitleBar)window.electronTitleBar.setTheme(dark);}catch(e){}})();`;
 
+// The phone's font scale reaches the page as WebView text zoom: every
+// computed font size (and line height) is multiplied by it, no px or em
+// length is, and text-size-adjust no longer opts out (WebView 149). An icon
+// is sized in dp, as Android sizes its icons, so its glyph is set that much
+// smaller (app/android.css, --text-zoom) to come out at its size in its box.
+// Measured here, before first paint; a new font scale recreates the activity
+// and so runs it again.
+const TEXT_ZOOM_SCRIPT = `(function(){var d=document.documentElement,p=document.createElement('i');p.style.cssText='position:absolute;visibility:hidden;font-size:100px';d.appendChild(p);var z=parseFloat(getComputedStyle(p).fontSize)/100;p.remove();if(z>0&&z!==1)d.style.setProperty('--text-zoom',String(z));})();`;
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await requestLocale();
   return (
     <html lang={locale} data-look="material" data-platform={IS_ANDROID ? 'android' : undefined} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        {IS_ANDROID && <script dangerouslySetInnerHTML={{ __html: TEXT_ZOOM_SCRIPT }} />}
         {/* The phone runtime: the route handlers and the Android bridges
             (mobile/runtime.ts). Loaded and run before the app's own scripts,
             so its first fetch('/api/…') already has someone to answer it. */}

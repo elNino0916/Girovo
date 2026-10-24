@@ -35,6 +35,7 @@ export const de = {
   },
   /** The chip above the payee: where the prefilled values came from. */
   source: {
+    invoice: 'Aus der Rechnung gelesen – bitte prüfen',
     girocode: 'Aus GiroCode übernommen',
     template: (label: string) => `Vorlage: ${label}`,
     templateUnnamed: 'Aus Vorlage übernommen',
@@ -46,6 +47,7 @@ export const de = {
   live: {
     step: (n: number, total: number, title: string) => `Schritt ${n} von ${total}: ${title}.`,
     girocode: (name: string, amount: string | null) => `GiroCode übernommen: ${name}${amount != null ? `, ${amount}` : ''}.`,
+    invoice: 'Angaben aus der Rechnung übernommen. Bitte prüfe sie.',
     template: (label: string) => `Vorlage „${label}“ übernommen.`,
     checkFields: (n: number) => (n === 1 ? 'Bitte prüfe das markierte Feld.' : `Bitte prüfe die ${n} markierten Felder.`),
   },
@@ -124,6 +126,8 @@ export const de = {
     pickOrDrop: 'Bild hierher ziehen, mit Strg+V einfügen oder auswählen',
     /** Android: the camera, through Google's code scanner. */
     scan: 'GiroCode scannen',
+    /** Android: an invoice without a GiroCode, photographed and read for its text. */
+    scanInvoice: 'Rechnung scannen',
     /** Android: the same from an image or a PDF of the invoice. */
     fromFile: 'Aus Bild oder PDF',
     errors: {
@@ -132,6 +136,7 @@ export const de = {
       noScanner: 'Der Scanner ist auf diesem Telefon nicht verfügbar. Wähle stattdessen ein Bild oder PDF der Rechnung.',
       scanFailed: 'Das Scannen hat nicht geklappt. Versuch es noch einmal oder wähle ein Bild oder PDF der Rechnung.',
       noCode: 'Kein GiroCode gefunden. Nutze ein scharfes Bild, auf dem der Code vollständig zu sehen ist.',
+      nothingRead: 'Weder ein GiroCode noch eine IBAN gefunden. Nutze ein scharfes Bild der ganzen Rechnung.',
       notEpc: 'Kein gültiger GiroCode – unterstützt werden nur SEPA-Überweisungen in Euro.',
     },
   },
@@ -335,8 +340,26 @@ export const de = {
     save: 'Als Vorlage speichern',
   },
   /** Geld anfordern (components/ShareAccount.tsx). */
+  /** The invoice's page beside the transfer (components/transfer/InvoicePreview.tsx). */
+  invoice: {
+    title: 'Rechnung',
+    amount: 'Betrag',
+    noAmount: 'Kein Betrag gefunden',
+    from: (account: string) => `von ${account}`,
+    change: 'Ändern',
+    marked: 'Markiert ist, was übernommen wurde.',
+    enlarge: 'Rechnung groß anzeigen',
+    debit: 'Laut Rechnung wird der Betrag per Lastschrift eingezogen – prüf, ob du überhaupt überweisen musst.',
+  },
+
   share: {
     title: 'Geld anfordern',
+    /** Aufteilen: on to the next person's request; after the last, done. */
+    next: (name: string) => `Weiter: ${name}`,
+    done: 'Fertig',
+    /** Aufteilen's requests, one per person: "Für Lea · 1 von 2". */
+    forWhom: (name: string, step?: { at: number; of: number }) =>
+      (step && step.of > 1 ? `Für ${name} · ${step.at} von ${step.of}` : `Für ${name}`),
     intro: 'Ein GiroCode für dein Konto. Die zahlende Person scannt ihn mit ihrer Banking-App und bekommt die Überweisung '
       + 'an dich fertig ausgefüllt.',
     amountInvalid: 'Bitte gib einen gültigen Betrag an, zum Beispiel 25,00 – oder lass das Feld leer.',
@@ -443,6 +466,7 @@ export const en: typeof de = {
     states: { done: 'completed', refused: 'declined', current: 'current', open: 'upcoming' },
   },
   source: {
+    invoice: 'Read from the invoice – please check',
     girocode: 'From GiroCode',
     template: (label) => `Template: ${label}`,
     templateUnnamed: 'From template',
@@ -453,6 +477,7 @@ export const en: typeof de = {
   live: {
     step: (n, total, title) => `Step ${n} of ${total}: ${title}.`,
     girocode: (name, amount) => `GiroCode applied: ${name}${amount != null ? `, ${amount}` : ''}.`,
+    invoice: 'Details taken from the invoice. Please check them.',
     template: (label) => `Template “${label}” applied.`,
     checkFields: (n) => (n === 1 ? 'Please check the highlighted field.' : `Please check the ${n} highlighted fields.`),
   },
@@ -515,6 +540,7 @@ export const en: typeof de = {
     pick: 'Choose an image with the code',
     pickOrDrop: 'Drag an image here, paste it with Ctrl+V or choose one',
     scan: 'Scan GiroCode',
+    scanInvoice: 'Scan invoice',
     fromFile: 'From image or PDF',
     errors: {
       notAnImage: 'Please choose an image (PNG, JPG or a screenshot) with the GiroCode.',
@@ -522,6 +548,7 @@ export const en: typeof de = {
       noScanner: 'The scanner isn’t available on this phone. Choose an image or PDF of the invoice instead.',
       scanFailed: 'Scanning didn’t work. Try again, or choose an image or PDF of the invoice.',
       noCode: 'No GiroCode found. Use a sharp image that shows the whole code.',
+      nothingRead: 'Found neither a GiroCode nor an IBAN. Use a sharp picture of the whole invoice.',
       notEpc: 'Not a valid GiroCode – only SEPA transfers in euros are supported.',
     },
   },
@@ -692,8 +719,22 @@ export const en: typeof de = {
     saveHint: 'Recipient, IBAN, amount and payment reference – encrypted on this computer.',
     save: 'Save as template',
   },
+  invoice: {
+    title: 'Invoice',
+    amount: 'Amount',
+    noAmount: 'No amount found',
+    from: (account) => `from ${account}`,
+    change: 'Change',
+    marked: 'Marked is what was taken over.',
+    enlarge: 'Show the invoice large',
+    debit: 'The invoice says the amount is collected by direct debit – check whether you need to transfer at all.',
+  },
+
   share: {
     title: 'Request money',
+    next: (name) => `Next: ${name}`,
+    done: 'Done',
+    forWhom: (name, step) => (step && step.of > 1 ? `For ${name} · ${step.at} of ${step.of}` : `For ${name}`),
     intro: 'A GiroCode for your account. The person paying scans it with their banking app and gets the transfer to you '
       + 'ready filled in.',
     amountInvalid: 'Please enter a valid amount, for example 25.00 – or leave the field empty.',

@@ -284,15 +284,15 @@ Electron into one package**:
 npm run electron:dist
 ```
 
-That produces two files in `dist/`:
+That produces the installer in `dist/`:
 
 | File | What it is |
 |------|------------|
 | `Girovo-<version>-Setup.exe` | Standard NSIS installer — double-click to install, uninstall via *Programs & Features*. German on a German Windows, English on any other; its own texts are in `build/installer.nsh`. |
-| `Girovo-<version>-portable.exe` | Single executable, no installation needed — run from anywhere. |
+| `Girovo-<version>-Setup.exe.blockmap` | What the updater compares to download only what changed (see [Updates](#updates)). |
 
-Both are about 400 MB: the category model is most of it, the Electron runtime
-most of the rest.
+It is about 400 MB: the category model is most of it, the Electron runtime
+most of the rest. There is no portable build since 5.13.0.
 
 ### What the installer contains
 
@@ -405,9 +405,9 @@ The desktop app updates itself from this repository's
   is checked against GitHub's digest like any download; if anything does not
   fit (no blockmap, an installation from a local build, nothing reusable at
   all), the whole `Setup.exe` is downloaded instead.
-- **Portable copies**: the new `portable.exe` is saved next to the old one (or in
-  *Downloads* if that folder is read-only) and started instead. The old file
-  stays — delete it when you like.
+- **Portable copies** (up to 5.12.1; there is no portable build since): a newer
+  release has no `portable.exe`, so the dialog links to the release page, where
+  the `Setup.exe` is.
 - **Linux** (AppImage and `.deb`): the check and "what's new" work the same,
   but the app does not replace itself — the dialog links to the release page
   to download the new file from.
@@ -416,9 +416,9 @@ The desktop app updates itself from this repository's
 **Publishing a release** the updater picks up needs nothing beyond what
 `npm run electron:dist` produces: create a normal GitHub release (not a draft,
 not a pre-release) whose tag is the version (`4.1.0` or `v4.1.0`) and attach
-`Girovo-<version>-Setup.exe`, `Girovo-<version>-Setup.exe.blockmap`
-and `Girovo-<version>-portable.exe` from `dist/` — upload the files of
-one build, the blockmap has to describe exactly that `Setup.exe`. GitHub adds
+`Girovo-<version>-Setup.exe` and `Girovo-<version>-Setup.exe.blockmap`
+from `dist/` — upload the files of one build, the blockmap has to describe
+exactly that `Setup.exe`. GitHub adds
 the digests by itself; no `latest.yml` is needed. Without the blockmap the
 release still works, it is just downloaded whole — by the copies updating to
 it and, later, by the copies updating *from* it. Attach the `.AppImage` and

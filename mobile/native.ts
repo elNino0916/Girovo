@@ -119,6 +119,10 @@ export interface GirovoDevicePlugin {
    */
   holdForApproval(opts: { title: string; text: string }): Promise<{ held: boolean }>;
   releaseApproval(): Promise<void>;
+  /** Which of the bank's approval apps is installed (only those the manifest queries). */
+  approvalApp(opts: { packages: string[] }): Promise<{ package?: string }>;
+  /** Opens it; fails "UNAVAILABLE" when none is installed. */
+  openApprovalApp(opts: { packages: string[] }): Promise<void>;
   /** The system's own short touch: sent or approved, refused or failed, a gesture's threshold. */
   haptic(opts: { kind: HapticKind }): Promise<void>;
   /** While a layer is open the back gesture is the page's, with its progress (mobile/bridges/back.ts). */
@@ -158,6 +162,26 @@ export interface GirovoScannerPlugin {
 }
 
 export const GirovoScanner = registerPlugin<GirovoScannerPlugin>('GirovoScanner');
+
+// ---------------------------------------------------------------------------
+// Google's document scanner and text recognition, from Play services:
+// "Beleg fotografieren", "Rechnung scannen" (DocScannerPlugin, TextPlugin).
+
+export interface GirovoDocScannerPlugin {
+  /** The pages as JPEGs (base64), and as one PDF when asked; canceled, or fails ("unavailable"). */
+  scan(opts: { pages?: number; pdf?: boolean }): Promise<{ pages?: string[]; pdf?: string; canceled?: boolean }>;
+}
+
+export const GirovoDocScanner = registerPlugin<GirovoDocScannerPlugin>('GirovoDocScanner');
+
+export interface GirovoTextPlugin {
+  /** A picture's text, line by line with each line's box, and the picture's size; fails ("unavailable") without Play services' model. */
+  recognize(opts: { data: string }): Promise<{
+    text: string; lines?: { text: string; box?: number[] }[]; width?: number; height?: number;
+  }>;
+}
+
+export const GirovoText = registerPlugin<GirovoTextPlugin>('GirovoText');
 
 // ---------------------------------------------------------------------------
 // Fingerprint unlock: a login's PIN, and the further banks' beside it, sealed

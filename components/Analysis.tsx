@@ -24,6 +24,7 @@
 // The period and the accounts live in the provider, not here: a look at the
 // Umsätze and back finds the analysis where it was left.
 
+import { GoalsSection } from './overview/SavingsGoal';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { CategoryProgress } from './android/CategoryProgress';
 import { useFints } from './FintsProvider';
@@ -505,6 +506,9 @@ export function Analysis() {
           <span className="whitespace-nowrap">{pLabel}</span>,
         ]}
       />
+
+      {/* Sparziele: every goal with its account (components/overview/SavingsGoal.tsx). */}
+      <GoalsSection />
     </div>
   );
 }

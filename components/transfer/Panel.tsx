@@ -14,17 +14,17 @@
 // `compactExtra`, for the stepper — the line under the title moves up beside
 // it. What a step asks for then starts above the fold.
 
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import type { ComponentProps, ReactNode, Ref } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { CloseIcon } from '../icons';
-import { IconButton, cx, useScrollEdges } from '../ui';
+import { IconButton, cx, useScrollEdges, useUnpinned } from '../ui';
 
 const WIDTHS = { md: 'sm:max-w-[560px]', lg: 'sm:max-w-[720px]' } as const;
 
 export function Panel({
-  size = 'md', title, titleId, titleRef, eyebrow, onClose, closeDisabled, headerExtra, compactExtra = false, footer, children,
+  size = 'md', title, titleId, titleRef, eyebrow, onClose, closeDisabled, headerExtra, compactExtra = false, intro, footer, children,
   className, bodyClassName, scrollKey, ...rest
 }: Omit<ComponentProps<'div'>, 'title'> & {
   size?: keyof typeof WIDTHS;
@@ -40,6 +40,12 @@ export function Panel({
   headerExtra?: ReactNode;
   /** In a short window the header line sits beside the title instead of under it (one line: the stepper). */
   compactExtra?: boolean;
+  /**
+   * What the sheet is for, in a sentence or two: at the head of the
+   * scrolling body, not pinned — at a phone's large text a pinned paragraph
+   * would leave the form a strip of the screen.
+   */
+  intro?: ReactNode;
   footer?: ReactNode;
   bodyClassName?: string;
   /**
@@ -54,6 +60,8 @@ export function Panel({
   // back (--sbw, see below), so the fields end where the header and footer
   // end, scrollbar or not.
   const { ref: body, edges, measure } = useScrollEdges<HTMLDivElement>();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const unpinned = useUnpinned(panelRef);
   const t = useT();
 
   // Before paint, so the new step is never seen scrolled.
@@ -70,6 +78,8 @@ export function Panel({
       // Android phones: a full-screen dialog (app/android.css) — a flow of
       // several steps keeps one place instead of a sheet changing height.
       data-panel
+      ref={panelRef}
+      data-unpinned={unpinned || undefined}
       className={cx(
         'anim-sheet relative flex max-h-full w-full flex-col overflow-hidden bg-raised shadow-[var(--shadow-pop)]',
         'rounded-t-[var(--radius-sheet)] sm:rounded-[var(--radius-sheet)]',
@@ -78,6 +88,7 @@ export function Panel({
       )}
     >
       <header
+        data-pinned
         className={cx(
           'relative z-1 shrink-0 px-5 pt-5 pb-4 transition-shadow duration-150 sm:px-7 sm:pt-6 short:pt-4 short:pb-3',
           edges.top && 'shadow-[0_1px_0_var(--line)]',
@@ -127,6 +138,7 @@ export function Panel({
       <div
         ref={body}
         onScroll={measure}
+        data-sheet-body
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]"
       >
         <div
@@ -135,12 +147,14 @@ export function Panel({
             bodyClassName ?? 'pt-1 pb-6',
           )}
         >
+          {intro}
           {children}
         </div>
       </div>
 
       {footer && (
         <footer
+          data-pinned
           className={cx(
             'relative z-1 shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] transition-shadow duration-150 sm:px-7 sm:pt-4 sm:pb-6 short:pt-3 sm:short:pb-4',
             edges.bottom && 'shadow-[0_-1px_0_var(--line)]',

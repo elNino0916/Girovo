@@ -181,7 +181,7 @@ export function Transactions() {
     <button
       type="button"
       onClick={phone ? () => setPendingOpen(true) : showPendingMatches}
-      className="group inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-[4px] text-left text-[13.5px] font-semibold text-accent"
+      className="group inline-flex min-h-12 max-w-full items-center gap-1.5 rounded-[4px] text-left text-[13.5px] font-semibold text-accent"
     >
       <span className="underline-offset-[3px] group-hover:underline">
         {words.pendingMatch(pendingHits)}
