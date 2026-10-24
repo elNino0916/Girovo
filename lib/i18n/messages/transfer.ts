@@ -24,15 +24,6 @@ export const de = {
     done: 'Überweisung ausgeführt',
     refused: 'Überweisung nicht ausgeführt',
   },
-  /** Erfassen · Prüfen · Freigabe · Fertig — the last two are common's. */
-  stepper: {
-    label: 'Fortschritt der Überweisung',
-    enter: 'Erfassen',
-    review: 'Prüfen',
-    /** What a screen reader hears for one step: "Schritt 2 von 4: Prüfen (aktuell)". */
-    step: (n: number, total: number, label: string, state: string) => `Schritt ${n} von ${total}: ${label} (${state})`,
-    states: { done: 'erledigt', refused: 'abgelehnt', current: 'aktuell', open: 'offen' },
-  },
   /** The chip above the payee: where the prefilled values came from. */
   source: {
     invoice: 'Aus der Rechnung gelesen – bitte prüfen',
@@ -457,13 +448,6 @@ export const en: typeof de = {
     vop: 'Name check',
     done: 'Transfer completed',
     refused: 'Transfer not completed',
-  },
-  stepper: {
-    label: 'Transfer progress',
-    enter: 'Details',
-    review: 'Review',
-    step: (n, total, label, state) => `Step ${n} of ${total}: ${label} (${state})`,
-    states: { done: 'completed', refused: 'declined', current: 'current', open: 'upcoming' },
   },
   source: {
     invoice: 'Read from the invoice – please check',

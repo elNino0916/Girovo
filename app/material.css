@@ -6,7 +6,7 @@
    applies on screen only — a printed Kontoauszug is the same document
    everywhere. Imported by app/layout.tsx after globals.css; unlayered, so it
    wins over the utilities. What only a phone needs (its status bar, touch
-   targets, bottom sheets, its type scale, the ripple) is app/android.css.
+   targets, bottom sheets, the ripple) is app/android.css.
 
    The values are Material 3 Expressive's own, from the token sources of
    Compose's material3 (androidx: ExpressiveMotionTokens, ShapeTokens,
@@ -33,7 +33,60 @@
      one container is the balance.
    ========================================================================== */
 
+/* The icons: Material Symbols Rounded, a subset of the glyphs the app names
+   (components/icons.tsx), self-hosted. The phone's first (owner, 2026-10-23),
+   every platform's since the desktop followed it (2026-10-24). Block, never
+   swap: until the face is there a glyph would show as its name ("home"). */
+@font-face {
+  font-family: 'Material Symbols Rounded';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-symbols-rounded.woff2') format('woff2');
+}
+
+/* In the base layer, so the page's own classes — Tailwind's `hidden`, the
+   Darstellung's one glyph of three (.theme-glyph, .mode-glyph) — decide
+   whether an icon shows at all. */
+@layer base {
+  :root[data-look='material'] .ms-icon {
+    display: inline-block;
+  }
+}
+
 @media screen {
+  :root[data-look='material'] .ms-icon {
+    overflow: hidden;
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    direction: ltr;
+    font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    -webkit-user-select: none;
+    user-select: none;
+    /* An icon is sized in px (dp on a phone): larger system or browser text
+       grows the words beside it, never the glyph. Its box is the glyph's own
+       em — a control that sets its icons' size (M3E's icon button: 24px,
+       with !important) must not find a smaller box cutting it off. The
+       phone's text zoom multiplies every font size, the glyph's too, whatever
+       text-size-adjust says (WebView 149), but no length: so the icon is
+       zoomed out by it (--text-zoom, app/layout.tsx; unset on the desktop,
+       so 1) and its box zoomed back in — glyph and box both at their size. */
+    width: calc(1em * var(--text-zoom, 1));
+    height: calc(1em * var(--text-zoom, 1));
+    zoom: calc(1 / var(--text-zoom, 1));
+  }
+  /* Filled: the navigation's current place. The fill eases in with the pill. */
+  :root[data-look='material'] .ms-icon[data-filled] {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
   /* ---- Girovo's colour roles (the defaults; Material You overrides them) ---
      Zero specificity, so the wallpaper's roles — a plain :root rule added at
      run time — always win where the phone has them. */
@@ -320,6 +373,14 @@
     box-shadow: none;
     overflow: visible;
   }
+  /* From 640px a section's rows are inset 20px (px-5), not 16: the section
+     reaches out as far, so its rows and chips share the page's left edge
+     with the balance and the headings. */
+  @media (min-width: 640px) {
+    :root[data-look='material'] #main .panel:not([data-hero]) {
+      margin-inline: -20px;
+    }
+  }
   /* What floats over a flat section — a menu, a list box, a popover — is not
      the page: its dividers and surface come back. */
   :root[data-look='material'] #main .panel:not([data-hero]) :is([role='menu'], [role='listbox'], [role='dialog']) {
@@ -401,14 +462,15 @@
     outline-offset: -2px;
   }
 
-  /* A section's title: title-large, emphasized. */
-  :root[data-look='material'] #main .section-head {
-    font-size: 22px;
-    line-height: 28px;
+  /* A section on the page: one line, a step above its rows and no more. */
+  :root[data-look='material'] :is(#main .section-head, .section-head) {
+    font-size: 18px;
+    line-height: 24px;
     font-weight: 500;
     letter-spacing: 0;
   }
-  /* A list's day: a subheader in the primary colour, on the page — not a grey band. */
+  /* A list's day: a subheader on the page, quiet in the variant ink — the
+     primary is for what can be pressed — never a grey band. */
   :root[data-look='material'] [data-day-header] {
     min-height: 40px;
     padding-top: 12px;
@@ -419,8 +481,71 @@
     font-size: 14px;
     line-height: 20px;
     font-weight: 500;
-    letter-spacing: 0.1px;
-    color: var(--accent);
+    letter-spacing: 0;
+    color: var(--ink-2);
+  }
+
+  /* The type: three text sizes (12 for a label, 14 for what qualifies, 16
+     for what is read), 18 for a section on the page, 22 for a screen or a
+     sheet, and the figures. Rank is weight and tone before size: a row's
+     name and its amount are both 16, the name 500, the line under it 14 in
+     the variant ink. The phone's first (owner, 2026-10-23), every
+     platform's since the desktop followed it (2026-10-24).
+     Tracking stays at Google Sans Flex's own. Material's +0.5px on 16px
+     body text is drawn for Roboto; on this face it spreads words apart and
+     figures most of all, so a column of amounts stops reading as a column. */
+  :root[data-look='material'] body {
+    font-size: 16px;
+    letter-spacing: 0;
+  }
+  :root[data-look='material'] :is(.text-\[12px\], .text-\[12\.5px\]) {
+    font-size: 12px;
+  }
+  :root[data-look='material'] :is(.text-\[12px\], .text-\[12\.5px\]):not(.iban) {
+    letter-spacing: 0.2px;
+  }
+  :root[data-look='material'] :is(.text-\[13px\], .text-\[13\.5px\], .text-\[14px\]) {
+    font-size: 14px;
+  }
+  :root[data-look='material'] :is(.text-\[14\.5px\], .text-\[15px\], .text-\[16px\]) {
+    font-size: 16px;
+  }
+  /* A title off the page: an empty state's, a person's in the Sitzung panel. */
+  :root[data-look='material'] :is(.text-\[17px\], .text-\[18px\]) {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+  :root[data-look='material'] .text-\[20px\] {
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+  :root[data-look='material'] :is(.text-\[22px\], .text-\[24px\]) {
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+  :root[data-look='material'] .text-\[28px\] {
+    font-size: 28px;
+    line-height: 36px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+  /* Labels are medium (500), not semibold. */
+  :root[data-look='material'] .font-semibold {
+    font-weight: 500;
+  }
+  /* Figures a hair tighter than text, so tabular digits close up into a
+     number rather than a row of cells. Codes keep their own spacing. */
+  :root[data-look='material'] .amount {
+    letter-spacing: -0.01em;
+  }
+  :root[data-look='material'] .num {
+    letter-spacing: 0;
   }
 
   /* The balance: the screen's one container, in the wallpaper's own colour

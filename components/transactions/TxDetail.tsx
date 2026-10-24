@@ -2,7 +2,6 @@
 
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { IS_ANDROID } from '@/lib/platform';
-import { usePhone } from '../shell/usePhone';
 import { facilitatorShop, fmtDayShort } from '@/lib/analytics';
 import {
   allCategories, categoryLabel, counterpartyKey, isCategoryId, txBic, txKey, type CategoryId, type CategorySource,
@@ -48,9 +47,10 @@ const TAG_ICON: Record<NonNullable<StatusTag['icon']>, ReactNode> = {
 
 /**
  * Umsatzdetails — everything one booking says, in the order a person asks:
- * how much and with whom, then the payment itself, the other account, how the
- * app filed it, the user's own note, and only last (collapsed) the
- * identifiers the bank attached.
+ * with whom and how much at the head, with its state and the actions; then
+ * three tabs — the payment itself and the other account (only last, and
+ * collapsed, the identifiers the bank attached), the user's own note and
+ * receipts, and how the app filed it.
  *
  * The actions reuse existing flows only: a transfer is prefilled and still
  * goes through review, Namensabgleich and TAN; the receipt is the print
@@ -68,8 +68,6 @@ export function TxDetail({
     plus, openPlus, openShareQueue,
   } = useFints();
   const [splitting, setSplitting] = useState(false);
-  const phone = usePhone();
-  const tabbed = IS_ANDROID && phone;
   // `tr`, not `t`: in this file `t` is a booking.
   const tr = useT();
   const words = tr.transactions.detail;
@@ -150,10 +148,11 @@ export function TxDetail({
     setTimeout(() => openTransfer(seed), 0);
   };
 
-  // Android's phone: the header on the left edge, then three tabs, so the
-  // facts, the user's own note and receipts, and the category each open
-  // without a long scroll (owner, 2026-10-23). The tab with a note or a
-  // receipt carries a dot, so what is attached still shows at a glance.
+  // The header on the left edge, then three tabs, so the facts, the user's
+  // own note and receipts, and the category each open without a long scroll
+  // (owner, 2026-10-23, the phone's; the desktop's since 2026-10-24). The tab
+  // with a note or a receipt carries a dot, so what is attached still shows
+  // at a glance.
   const attached = !!noteOf(tx) || receiptKeys.has(txKey(tx));
   const recipientSection = (
     <>
@@ -242,151 +241,31 @@ export function TxDetail({
     </>
   );
 
-  if (tabbed) {
-    return (
-      <Drawer open onClose={onClose} title={pending ? words.pendingTitle : words.title} bodyClassName="px-4 pt-4 pb-8">
-        <div className="flex items-center gap-4">
-          <CounterpartyAvatar tx={tx} name={text.name} credit={credit} pending={pending} size="lg" glyph={detailGlyph} />
-          <div className="min-w-0">
-            <p className="text-[22px] leading-7 font-medium break-words text-ink">{text.name}</p>
-            <p className="mt-0.5 text-[14px] leading-5 text-ink-2">
-              {/* A card payment says when the card was used — the Buchungstag
-                  below can be a day or two later, even still ahead. */}
-              {[
-                text.bookingText,
-                card?.usedAt
-                  ? words.paidOn(shortDay(card.usedAt.day), card.usedAt.time)
-                  : when ? fmtDayHeader(when) : '',
-              ].filter(Boolean).join(' · ')}
-            </p>
-
-          </div>
-        </div>
-        <p data-figure className="mt-4">
-          <span className="sr-only">{credit ? tr.common.booking.credit : tr.common.booking.debit}</span>
-          <Money value={tx.amount} currency={tx.currency} signed tone="credit" split className="text-[40px] leading-[48px] font-medium" centsClassName="text-[0.58em]" />
-        </p>
-          {tags.length > 0 && (
-            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={words.status}>
-              {tags.map((t) => (
-                <li key={t.label}>
-                  <Tag tone={t.tone} icon={t.icon ? TAG_ICON[t.icon] : undefined}>{t.label}</Tag>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {seeds.repeat && (
-              <Button size="sm" variant="secondary" iconLeft={<TransferIcon size={16} />} onClick={() => startTransfer(seeds.repeat!)}>
-                {words.repeat}
-              </Button>
-            )}
-            {seeds.refund && (
-              <Button size="sm" variant="secondary" iconLeft={<UndoIcon size={16} />} onClick={() => startTransfer(seeds.refund!)}>
-                {words.refund}
-              </Button>
-            )}
-            {splitButton}
-            <Button
-              size="sm"
-              variant={seeds.repeat || seeds.refund || canSplit ? 'tertiary' : 'secondary'}
-              iconLeft={<ReceiptIcon size={16} />}
-              onClick={() => printTransaction(tx, pending)}
-            >
-              {words.receipt}
-            </Button>
-          </div>
-
-        <DetailTabs
-          label={pending ? words.pendingTitle : words.title}
-          labels={[words.tabs.details, words.tabs.notes, words.tabs.category]}
-          marked={attached ? 1 : null}
-          markedLabel={words.tabs.attached}
-          panels={[
-            <>
-              <Section title={words.payment}>
-                <Row half label={tr.transactions.entryDate}>
-                  {pending
-                    // A Vormerkposten's dates are the bank's provisional ones; the
-                    // drawer's title already says "Vorgemerkter Umsatz".
-                    ? tr.transactions.notBooked
-                    // A Buchungstag still ahead: the tag above says "Noch nicht gebucht".
-                    : <span className="tnum">{fmtDate(tx.entryDate)}</span>}
-                </Row>
-                {tx.valueDate && (
-                  <Row half label={tr.transactions.valueDate}><span className="tnum">{fmtDate(tx.valueDate)}</span></Row>
-                )}
-                {/* The card system's record, said in words: which card, what it cost
-                    abroad (when it was used is in the header). Amounts through
-                    <Money>, so "Beträge ausblenden" masks them like every other. */}
-                {card?.card && <Row half label={words.card}>{card.card}</Row>}
-                {card?.original && (
-                  <Row label={words.original}>
-                    <Money value={card.original.amount} currency={card.original.currency} tone="plain" />
-                    {card.original.rate != null && (
-                      <span className="tnum text-ink-2"> · {words.rate(fmtRate(card.original.rate), card.original.currency)}</span>
-                    )}
-                  </Row>
-                )}
-                {card?.fee != null && (
-                  <Row label={words.fee}>
-                    <Money value={card.fee} currency="EUR" tone="plain" />
-                    {card.feeIncluded && <span className="text-ink-2"> · {words.feeIncluded}</span>}
-                  </Row>
-                )}
-                {text.purposeLines.length > 0 && (
-                  // The copy stays unmasked: copying is the user's own act, and the
-                  // clipboard is not on the shared screen.
-                  <Row
-                    label={tr.common.booking.purpose}
-                    copy={{ text: text.purposeLines.join(' '), label: words.copy(tr.common.booking.purpose) }}
-                  >
-                    {/* Bank text is untrusted: plain text only, one line per line the bank wrote. */}
-                    {text.purposeLines.map((line, i) => (
-                      <span key={i} className="block break-words"><BankText text={line} /></span>
-                    ))}
-                  </Row>
-                )}
-              </Section>
-
-              {recipientSection}
-              {refsSection}
-            </>,
-            <>
-              <NoteSection tx={tx} />
-              <ReceiptSection tx={tx} pending={pending} />
-            </>,
-            <CategorySection key="category" tx={tx} name={text.name} pending={pending} />,
-          ]}
-        />
-        {splitSheet}
-      </Drawer>
-    );
-  }
-
   return (
-    <Drawer open onClose={onClose} title={pending ? words.pendingTitle : words.title} bodyClassName="px-4 pt-6 pb-8 sm:px-6">
-      {/* Who and how much — the two things the row already said, large. */}
-      <div className="flex flex-col items-center text-center">
+    <Drawer open onClose={onClose} title={pending ? words.pendingTitle : words.title} bodyClassName="px-4 pt-4 pb-8 sm:px-6">
+      <div className="flex items-center gap-4">
         <CounterpartyAvatar tx={tx} name={text.name} credit={credit} pending={pending} size="lg" glyph={detailGlyph} />
-        <p className="mt-3 max-w-full text-[17px] leading-snug font-semibold break-words text-ink">{text.name}</p>
-        <p data-figure className="mt-1">
-          <span className="sr-only">{credit ? tr.common.booking.credit : tr.common.booking.debit}</span>
-          <Money value={tx.amount} currency={tx.currency} signed tone="credit" className="text-[32px] leading-tight font-medium" />
-        </p>
-        <p className="mt-1 text-[14px] text-ink-2">
-          {/* A card payment says when the card was used — the Buchungstag
-              below can be a day or two later, even still ahead. */}
-          {[
-            text.bookingText,
-            card?.usedAt
-              ? words.paidOn(shortDay(card.usedAt.day), card.usedAt.time)
-              : when ? fmtDayHeader(when) : '',
-          ].filter(Boolean).join(' · ')}
-        </p>
+        <div className="min-w-0">
+          <p className="text-[22px] leading-7 font-medium break-words text-ink">{text.name}</p>
+          <p className="mt-0.5 text-[14px] leading-5 text-ink-2">
+            {/* A card payment says when the card was used — the Buchungstag
+                below can be a day or two later, even still ahead. */}
+            {[
+              text.bookingText,
+              card?.usedAt
+                ? words.paidOn(shortDay(card.usedAt.day), card.usedAt.time)
+                : when ? fmtDayHeader(when) : '',
+            ].filter(Boolean).join(' · ')}
+          </p>
+
+        </div>
+      </div>
+      <p data-figure className="mt-4">
+        <span className="sr-only">{credit ? tr.common.booking.credit : tr.common.booking.debit}</span>
+        <Money value={tx.amount} currency={tx.currency} signed tone="credit" split className="text-[40px] leading-[48px] font-medium" centsClassName="text-[0.58em]" />
+      </p>
         {tags.length > 0 && (
-          <ul className="mt-3 flex flex-wrap justify-center gap-1.5" aria-label={words.status}>
+          <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={words.status}>
             {tags.map((t) => (
               <li key={t.label}>
                 <Tag tone={t.tone} icon={t.icon ? TAG_ICON[t.icon] : undefined}>{t.label}</Tag>
@@ -395,7 +274,7 @@ export function TxDetail({
           </ul>
         )}
 
-        <div className="mt-5 flex flex-wrap justify-center gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {seeds.repeat && (
             <Button size="sm" variant="secondary" iconLeft={<TransferIcon size={16} />} onClick={() => startTransfer(seeds.repeat!)}>
               {words.repeat}
@@ -416,71 +295,76 @@ export function TxDetail({
             {words.receipt}
           </Button>
         </div>
-      </div>
 
-      <Section title={words.payment}>
-        <Row half label={tr.transactions.entryDate}>
-          {pending
-            // A Vormerkposten's dates are the bank's provisional ones; the
-            // drawer's title already says "Vorgemerkter Umsatz".
-            ? tr.transactions.notBooked
-            // A Buchungstag still ahead: the tag above says "Noch nicht gebucht".
-            : <span className="tnum">{fmtDate(tx.entryDate)}</span>}
-        </Row>
-        {tx.valueDate && (
-          <Row half label={tr.transactions.valueDate}><span className="tnum">{fmtDate(tx.valueDate)}</span></Row>
-        )}
-        {/* The card system's record, said in words: which card, what it cost
-            abroad (when it was used is in the header). Amounts through
-            <Money>, so "Beträge ausblenden" masks them like every other. */}
-        {card?.card && <Row half label={words.card}>{card.card}</Row>}
-        {card?.original && (
-          <Row label={words.original}>
-            <Money value={card.original.amount} currency={card.original.currency} tone="plain" />
-            {card.original.rate != null && (
-              <span className="tnum text-ink-2"> · {words.rate(fmtRate(card.original.rate), card.original.currency)}</span>
-            )}
-          </Row>
-        )}
-        {card?.fee != null && (
-          <Row label={words.fee}>
-            <Money value={card.fee} currency="EUR" tone="plain" />
-            {card.feeIncluded && <span className="text-ink-2"> · {words.feeIncluded}</span>}
-          </Row>
-        )}
-        {text.purposeLines.length > 0 && (
-          // The copy stays unmasked: copying is the user's own act, and the
-          // clipboard is not on the shared screen.
-          <Row
-            label={tr.common.booking.purpose}
-            copy={{ text: text.purposeLines.join(' '), label: words.copy(tr.common.booking.purpose) }}
-          >
-            {/* Bank text is untrusted: plain text only, one line per line the bank wrote. */}
-            {text.purposeLines.map((line, i) => (
-              <span key={i} className="block break-words"><BankText text={line} /></span>
-            ))}
-          </Row>
-        )}
-      </Section>
+      <DetailTabs
+        label={pending ? words.pendingTitle : words.title}
+        labels={[words.tabs.details, words.tabs.notes, words.tabs.category]}
+        marked={attached ? 1 : null}
+        markedLabel={words.tabs.attached}
+        panels={[
+          <>
+            <Section title={words.payment}>
+              <Row half label={tr.transactions.entryDate}>
+                {pending
+                  // A Vormerkposten's dates are the bank's provisional ones; the
+                  // drawer's title already says "Vorgemerkter Umsatz".
+                  ? tr.transactions.notBooked
+                  // A Buchungstag still ahead: the tag above says "Noch nicht gebucht".
+                  : <span className="tnum">{fmtDate(tx.entryDate)}</span>}
+              </Row>
+              {tx.valueDate && (
+                <Row half label={tr.transactions.valueDate}><span className="tnum">{fmtDate(tx.valueDate)}</span></Row>
+              )}
+              {/* The card system's record, said in words: which card, what it cost
+                  abroad (when it was used is in the header). Amounts through
+                  <Money>, so "Beträge ausblenden" masks them like every other. */}
+              {card?.card && <Row half label={words.card}>{card.card}</Row>}
+              {card?.original && (
+                <Row label={words.original}>
+                  <Money value={card.original.amount} currency={card.original.currency} tone="plain" />
+                  {card.original.rate != null && (
+                    <span className="tnum text-ink-2"> · {words.rate(fmtRate(card.original.rate), card.original.currency)}</span>
+                  )}
+                </Row>
+              )}
+              {card?.fee != null && (
+                <Row label={words.fee}>
+                  <Money value={card.fee} currency="EUR" tone="plain" />
+                  {card.feeIncluded && <span className="text-ink-2"> · {words.feeIncluded}</span>}
+                </Row>
+              )}
+              {text.purposeLines.length > 0 && (
+                // The copy stays unmasked: copying is the user's own act, and the
+                // clipboard is not on the shared screen.
+                <Row
+                  label={tr.common.booking.purpose}
+                  copy={{ text: text.purposeLines.join(' '), label: words.copy(tr.common.booking.purpose) }}
+                >
+                  {/* Bank text is untrusted: plain text only, one line per line the bank wrote. */}
+                  {text.purposeLines.map((line, i) => (
+                    <span key={i} className="block break-words"><BankText text={line} /></span>
+                  ))}
+                </Row>
+              )}
+            </Section>
 
-      {recipientSection}
-
-      <CategorySection tx={tx} name={text.name} pending={pending} />
-
-      {/* The user's own line about this booking — on screen only, never on the Beleg. */}
-      <NoteSection tx={tx} />
-
-      {/* An invoice or a till receipt for it, kept on this machine. */}
-      <ReceiptSection tx={tx} pending={pending} />
-
-      {refsSection}
+            {recipientSection}
+            {refsSection}
+          </>,
+          <>
+            <NoteSection tx={tx} />
+            <ReceiptSection tx={tx} pending={pending} />
+          </>,
+          <CategorySection key="category" tx={tx} name={text.name} pending={pending} />,
+        ]}
+      />
       {splitSheet}
     </Drawer>
   );
 }
 
 /**
- * Material's primary tabs over the phone's details: the labels share the
+ * Material's primary tabs over the details: the labels share the
  * width, the current one in the primary over a 3dp indicator. Arrow keys
  * move between them (the ARIA tabs pattern); a tab marked carries a dot.
  */
@@ -497,7 +381,7 @@ function DetailTabs({ label, labels, panels, marked, markedLabel }: {
   };
   return (
     <div className="mt-5">
-      <div role="tablist" aria-label={label} className="-mx-4 flex shadow-[inset_0_-1px_0_var(--line)]">
+      <div role="tablist" aria-label={label} className="-mx-4 flex shadow-[inset_0_-1px_0_var(--line)] sm:-mx-6">
         {labels.map((label, i) => (
           <button
             key={label}

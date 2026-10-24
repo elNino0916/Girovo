@@ -1,0 +1,6 @@
+{
+  "source": "rendered, not generated",
+  "html": ".impeccable/mocks/decision/desktop/c-konten-links.html",
+  "renderer": "Microsoft Edge headless, 1440x900 CSS px at 1x",
+  "prompt": "No image model. Hand-authored HTML/CSS mock of the Girovo desktop Uebersicht (Konten links: Material's list-detail layout, a 380px list pane (Konten und Karten, Gesamtsaldo, Vorgemerkt, Demnaechst faellig) beside the chosen account's flat balance, chips and Umsaetze), using Google Sans Flex, Material Symbols Rounded, IBM Plex Mono and Girovo's own blue scheme, with design-preview data."
+}

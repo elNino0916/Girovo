@@ -241,11 +241,6 @@ export const de = {
   },
 
   /** The Übersicht's tile for unread bank messages (MessagesTeaser). */
-  teaser: {
-    subtitle: (n: number) => `${n} ungelesen · von deiner Bank, bei dieser Anmeldung`,
-    read: (n: number) => (n === 1 ? 'Mitteilung lesen' : n === 2 ? 'Beide lesen' : `Alle ${n} lesen`),
-  },
-
   /** The CSV export (components/shell/actions.ts). */
   csv: {
     notCreated: 'Die CSV-Datei konnte nicht erstellt werden.',
@@ -518,11 +513,6 @@ export const en: typeof de = {
   masthead: {
     skip: 'Skip to content',
     newAppVersion: 'new app version',
-  },
-
-  teaser: {
-    subtitle: (n) => `${n} unread · from your bank, at this login`,
-    read: (n) => (n === 1 ? 'Read message' : n === 2 ? 'Read both' : `Read all ${n}`),
   },
 
   csv: {

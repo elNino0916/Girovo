@@ -89,14 +89,16 @@ export function ProfileMenu() {
   const t = useT();
   const {
     accounts, vault, vaultStatus, requestLogout, forgetDeviceOpen, setForgetDeviceOpen, openAddBank, openSettings,
-    unreadCount, setInboxOpen,
+    unreadCount, setInboxOpen, tab,
   } = useFints();
   const [removing, setRemoving] = useState<BankEntry | null>(null);
-  // A phone's top bar has no bell: the Mitteilungen are a row in here, and
-  // what is unread there (the bank's messages, a new app version) marks the chip.
+  // Where the top bar has no bell — a phone, and the Übersicht, whose head is
+  // the search bar — the Mitteilungen are a row in here, and what is unread
+  // there (the bank's messages, a new app version) marks the chip.
   const phone = usePhone();
+  const noBell = phone || tab === 'overview';
   const updateUnseen = unseenUpdate(useUpdates());
-  const news = phone && (unreadCount > 0 || updateUnseen);
+  const news = noBell && (unreadCount > 0 || updateUnseen);
   // The session's holder, as in the greeting — not the active account's.
   const holder = sessionHolder(accounts);
   const full = holderName(holder);
@@ -105,7 +107,7 @@ export function ProfileMenu() {
   // until it is reset, nothing the user changes is kept. The dot is only a
   // mark — the name says it too.
   const vaultBroken = vaultStatus === 'error';
-  const name = [t.session.chip(full, vaultBroken), phone && unreadCount > 0 ? t.shell.unread(unreadCount) : ''].filter(Boolean).join(', ');
+  const name = [t.session.chip(full, vaultBroken), noBell && unreadCount > 0 ? t.shell.unread(unreadCount) : ''].filter(Boolean).join(', ');
 
   return (
     <>
@@ -147,7 +149,7 @@ export function ProfileMenu() {
               close();
               openSettings();
             }}
-            onInbox={phone ? () => {
+            onInbox={noBell ? () => {
               close();
               setInboxOpen(true);
             } : undefined}

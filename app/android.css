@@ -5,50 +5,13 @@
    asks of it, on <html data-platform="android"> only (scripts/build-android.mjs):
    bars that reach under the status bar, 48dp touch targets, the top app bar
    that takes a container colour once the page scrolls, pull to refresh,
-   Material's bottom and full-screen sheets and its type scale at a phone's
-   width, and the ripple (mobile/bridges/ripple.ts).
+   Material's bottom and full-screen sheets at a phone's width, and the
+   ripple (mobile/bridges/ripple.ts). The icons and the type scale were the
+   phone's first; since the desktop followed (2026-10-24) they are
+   app/material.css's, on every platform.
    ========================================================================== */
 
-/* The phone's icons: Material Symbols Rounded, a subset of the glyphs the app
-   names (components/icons.tsx), self-hosted. Block, never swap: until the face
-   is there a glyph would show as its name ("home"). */
-@font-face {
-  font-family: 'Material Symbols Rounded';
-  font-style: normal;
-  font-weight: 400;
-  font-display: block;
-  src: url('/fonts/material-symbols-rounded.woff2') format('woff2');
-}
-
 @media screen {
-  :root[data-platform='android'] .ms-icon {
-    display: inline-block;
-    overflow: hidden;
-    font-family: 'Material Symbols Rounded';
-    font-weight: normal;
-    font-style: normal;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
-    white-space: nowrap;
-    direction: ltr;
-    font-feature-settings: 'liga';
-    -webkit-font-smoothing: antialiased;
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-    -webkit-user-select: none;
-    user-select: none;
-    /* An icon is sized in dp, as Android sizes its icons: the system's larger
-       text grows the words beside it, never the glyph. Its box is the glyph's
-       own em — a control that sets its icons' size (M3E's icon button: 24dp,
-       with !important) must not find a smaller box cutting it off. Text zoom
-       multiplies every font size, the glyph's too, whatever text-size-adjust
-       says (WebView 149), but no length: so the icon is zoomed out by it
-       (--text-zoom, app/layout.tsx) and its box zoomed back in — glyph and
-       box both at their size. At 100% both factors are 1. */
-    width: calc(1em * var(--text-zoom, 1));
-    height: calc(1em * var(--text-zoom, 1));
-    zoom: calc(1 / var(--text-zoom, 1));
-  }
   /* The Analyse's categories in the wallpaper's own tones (owner, 2026-10-23):
      by rank primary, tertiary, a lighter primary, secondary, a lighter
      tertiary, a lighter secondary — each neighbour apart from the last in hue
@@ -63,10 +26,6 @@
     --chart-5: color-mix(in oklab, var(--md-tertiary) 62%, var(--md-surface));
     --chart-6: color-mix(in oklab, var(--md-secondary) 62%, var(--md-surface));
     --chart-rest: var(--md-outline);
-  }
-  /* Filled: the navigation's current place. The fill eases in with the pill. */
-  :root[data-platform='android'] .ms-icon[data-filled] {
-    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
   /* The system's larger text (Android's font scale, which reaches the page
      as text zoom, app/layout.tsx) grows what is read; a display figure — the
@@ -186,74 +145,6 @@
       animation: m3e-dialog-in var(--m3e-spatial-default-ms) var(--m3e-spatial-default);
     }
 
-    /* The phone's type: three text sizes (12 for a label, 14 for what
-       qualifies, 16 for what is read), 18 for a section on the page, 22 for
-       a screen or a sheet, and the figures. Rank is weight and tone before
-       size: a row's name and its amount are both 16, the name 500, the line
-       under it 14 in the variant ink.
-       Tracking stays at Google Sans Flex's own. Material's +0.5px on 16px
-       body text is drawn for Roboto; on this face it spreads words apart and
-       figures most of all, so a column of amounts stops reading as a column. */
-    :root[data-platform='android'] body {
-      font-size: 16px;
-      letter-spacing: 0;
-    }
-    :root[data-platform='android'] :is(.text-\[12px\], .text-\[12\.5px\]) {
-      font-size: 12px;
-    }
-    :root[data-platform='android'] :is(.text-\[12px\], .text-\[12\.5px\]):not(.iban) {
-      letter-spacing: 0.2px;
-    }
-    :root[data-platform='android'] :is(.text-\[13px\], .text-\[13\.5px\], .text-\[14px\]) {
-      font-size: 14px;
-    }
-    :root[data-platform='android'] :is(.text-\[14\.5px\], .text-\[15px\], .text-\[16px\]) {
-      font-size: 16px;
-    }
-    /* A title off the page: an empty state's, a person's in the Sitzung panel. */
-    :root[data-platform='android'] :is(.text-\[17px\], .text-\[18px\]) {
-      font-size: 16px;
-      line-height: 24px;
-      font-weight: 500;
-      letter-spacing: 0;
-    }
-    /* A section on the page: one line, a step above its rows and no more. */
-    :root[data-platform='android'] :is(#main .section-head, .section-head) {
-      font-size: 18px;
-      line-height: 24px;
-      font-weight: 500;
-      letter-spacing: 0;
-    }
-    :root[data-platform='android'] .text-\[20px\] {
-      font-size: 22px;
-      line-height: 28px;
-      font-weight: 500;
-      letter-spacing: 0;
-    }
-    :root[data-platform='android'] :is(.text-\[22px\], .text-\[24px\]) {
-      font-size: 22px;
-      line-height: 28px;
-      font-weight: 500;
-      letter-spacing: 0;
-    }
-    :root[data-platform='android'] .text-\[28px\] {
-      font-size: 28px;
-      line-height: 36px;
-      font-weight: 500;
-      letter-spacing: 0;
-    }
-    /* Labels are medium (500), not semibold. */
-    :root[data-platform='android'] .font-semibold {
-      font-weight: 500;
-    }
-    /* Figures a hair tighter than text, so tabular digits close up into a
-       number rather than a row of cells. Codes keep their own spacing. */
-    :root[data-platform='android'] .amount {
-      letter-spacing: -0.01em;
-    }
-    :root[data-platform='android'] .num {
-      letter-spacing: 0;
-    }
     /* The account list in the phone's accounts sheet takes its rows' sizes
        ([data-rows], components/overview/AccountList.tsx): a balance the
        size of the name beside it. */
@@ -276,10 +167,6 @@
     :root[data-platform='android'] .anim-drawer {
       --raised: var(--paper);
       background-color: var(--paper);
-    }
-    /* A list's day: quiet, in the variant ink; the primary is for what can be pressed. */
-    :root[data-platform='android'] [data-day-header] h3 {
-      color: var(--ink-2);
     }
   }
 }

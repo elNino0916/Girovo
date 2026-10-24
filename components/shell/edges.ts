@@ -22,3 +22,12 @@ export const MASTHEAD_EDGES =
   'sm:pl-[max(1.5rem,calc((100%_-_var(--sbw,0px)_-_1280px)/2_+_1.5rem))] ' +
   'pr-[max(calc(1rem_+_var(--caption-inset)),calc(1rem_+_var(--sbw,0px)),calc((100%_-_var(--sbw,0px)_-_1280px)/2_+_1rem_+_var(--sbw,0px)))] ' +
   'sm:pr-[max(calc(1.5rem_+_var(--caption-inset)),calc(1.5rem_+_var(--sbw,0px)),calc((100%_-_var(--sbw,0px)_-_1280px)/2_+_1.5rem_+_var(--sbw,0px)))]';
+
+// The Übersicht's search bar (Masthead): on a phone the page's gutters; from
+// 640px it spans the Übersicht's 960px column (components/Dashboard.tsx),
+// centred like it beside the scrollbar. On the right it stays clear of the
+// caption buttons, so on a window too narrow for both the bar gives way there.
+export const SEARCH_EDGES =
+  'px-4 ' +
+  'sm:pl-[max(0.5rem,calc((100%_-_var(--sbw,0px)_-_960px)/2))] ' +
+  'sm:pr-[max(calc(0.5rem_+_var(--caption-inset)),calc(0.5rem_+_var(--sbw,0px)),calc((100%_-_var(--sbw,0px)_-_960px)/2_+_var(--sbw,0px)))]';

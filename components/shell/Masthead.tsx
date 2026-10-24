@@ -7,13 +7,16 @@
 // tooltip and label, with the search as a pill on a wide window (Strg K).
 // The app's own mark sits at the head of the navigation rail (BottomBar).
 //
-// On a phone the Übersicht has no title in it: its head is Material's search
-// bar — "Umsätze suchen oder fragen", the Gemini spark where Nano can
-// answer, the holder's avatar at its end — and a press opens the search
-// (components/CommandPalette.tsx). The other pages keep their name, with the
-// search as an icon beside "Beträge ausblenden". The bell is the wide
-// window's; on a phone the Mitteilungen are a row of the Sitzung panel, and
-// the avatar carries their dot.
+// The Übersicht has no title in it: its head is Material's search bar —
+// "Umsätze suchen oder fragen", the Gemini spark where Nano can answer, Strg K
+// where there is a keyboard, the holder's avatar at its end — and a press
+// opens the search (components/CommandPalette.tsx). The phone's first
+// (owner, 2026-10-23), every width's since the desktop followed it ("Suche
+// oben", 2026-10-24); there the bar spans the Übersicht's column. The other
+// pages keep their name, with the search as an icon (a phone) or a pill (a
+// wide window) beside "Beträge ausblenden". The bell stands on those pages
+// of a wide window; elsewhere the Mitteilungen are a row of the Sitzung
+// panel, and the avatar carries their dot.
 //
 // In the desktop shell it is also the window's title bar: the whole band is a
 // drag handle except for its controls, it is exactly as tall as the OS
@@ -21,7 +24,8 @@
 // and its right padding keeps the actions clear of the caption buttons that
 // float over its right edge (the .bar-caption-safe rule, see ./edges). On a
 // wide window its content lines up with the page's 1280px column, so the
-// page title and the first section share one left edge.
+// page title and the first section share one left edge; only the search
+// bar stops dragging the window.
 
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
@@ -34,7 +38,7 @@ import { useAskable } from '../insights/Ask';
 import { unseenUpdate, useUpdates } from '../updates/store';
 import { BackIcon, BellIcon, EyeIcon, EyeOffIcon, GeminiSparkIcon, SearchIcon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
-import { MASTHEAD_EDGES } from './edges';
+import { MASTHEAD_EDGES, SEARCH_EDGES } from './edges';
 import { PAGE_TITLE_ID } from './ids';
 import { ProfileMenu } from './ProfileMenu';
 import { usePhone } from './usePhone';
@@ -67,16 +71,31 @@ function SearchBar() {
   const canAsk = IS_ANDROID && askable === true && askAllowed(plus.state);
   const placeholder = canAsk ? t.shell.searchBar.ask : t.shell.searchBar.plain;
   return (
-    <div data-search-bar className="flex h-14 min-w-0 flex-1 items-center rounded-full bg-[var(--md-surface-container-high)] pr-1 [--dot-ring:var(--md-surface-container-high)]">
+    // 56dp on a phone; in the desktop's title bar (60px, less when zoomed) 48 at most.
+    <div
+      data-search-bar
+      className="flex h-14 min-w-0 flex-1 items-center rounded-full bg-[var(--md-surface-container-high)] pr-1 [--dot-ring:var(--md-surface-container-high)] sm:h-[max(32px,min(48px,calc(var(--barbar-h)_-_12px)))]"
+      style={NO_DRAG}
+    >
       <button
         type="button"
         aria-haspopup="dialog"
+        aria-keyshortcuts={IS_ANDROID ? undefined : 'Control+K Meta+K'}
         onClick={() => setPaletteOpen(true)}
         className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-l-full pl-4 text-left text-[16px] text-bar-ink-2 outline-offset-[-2px]"
       >
         <SearchIcon size={22} className="shrink-0 text-bar-ink" />
         <span className="min-w-0 flex-1 truncate">{placeholder}</span>
         {canAsk && <GeminiSparkIcon size={20} aria-hidden className="mr-1 shrink-0" />}
+        {/* Where there is likely a keyboard: the way in without the mouse. */}
+        {!IS_ANDROID && (
+          <kbd
+            aria-hidden
+            className="mr-2 hidden h-[22px] shrink-0 items-center rounded-[5px] bg-[var(--md-surface-container-lowest)] px-1.5 font-sans text-[12px] leading-none font-medium text-bar-ink-2 sm:inline-flex"
+          >
+            {`${t.shell.ctrl} K`}
+          </kbd>
+        )}
       </button>
       <ProfileMenu />
     </div>
@@ -94,8 +113,8 @@ export function Masthead() {
   // screens are: the way back in front of its name, and none of the places'
   // actions behind it. From 640px it is the rail's fifth place.
   const subPage = tab === 'settings';
-  // The phone's Übersicht: the search bar in place of the title and actions.
-  const searchHead = phone && tab === 'overview';
+  // The Übersicht: the search bar in place of the title and actions.
+  const searchHead = tab === 'overview';
   // A newer version of the app (desktop only) waits in Mitteilungen too. The
   // number counts the bank's messages only; the app's own news is marked by
   // the dot alone, so it never reads as one more message from the bank.
@@ -121,7 +140,7 @@ export function Masthead() {
   return (
     <div
       data-topbar
-      className={cx('on-bar relative z-40 shrink-0 bg-bar text-bar-ink', MASTHEAD_EDGES)}
+      className={cx('on-bar relative z-40 shrink-0 bg-bar text-bar-ink', searchHead ? SEARCH_EDGES : MASTHEAD_EDGES)}
       style={{ height: 'var(--barbar-h)', ...DRAG }}
     >
       {/* The page's first stop for a keyboard. It lives in here, not before
@@ -143,7 +162,7 @@ export function Masthead() {
       </a>
 
       {searchHead ? (
-        <div className="flex h-full min-w-0 items-center" style={NO_DRAG}>
+        <div className="flex h-full min-w-0 items-center">
           <PageTitle hidden />
           <SearchBar />
         </div>

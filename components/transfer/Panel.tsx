@@ -1,7 +1,7 @@
 'use client';
 
-// The dialog body both money sheets share: a fixed header (title, close, the
-// stepper), a scrolling middle, and a fixed footer for the actions.
+// The dialog body both money sheets share: a fixed header (title, close, how
+// far along), a scrolling middle, and a fixed footer for the actions.
 //
 // The plain Sheet scrolls everything together, which is right for a short
 // confirmation but not for a form taller than a 900×600 window: there the
@@ -11,8 +11,8 @@
 //
 // In a short window (the 900×600 minimum, 200 % zoom) the fixed parts give
 // room back to the form: a smaller title, tighter padding, and — with
-// `compactExtra`, for the stepper — the line under the title moves up beside
-// it. What a step asks for then starts above the fold.
+// `compactExtra`, for the transfer's part bar — the line under the title
+// moves up beside it. What a step asks for then starts above the fold.
 
 import { useLayoutEffect, useRef } from 'react';
 import type { ComponentProps, ReactNode, Ref } from 'react';
@@ -36,9 +36,9 @@ export function Panel({
   /** Omit to show no close button (while an order is on its way). */
   onClose?: () => void;
   closeDisabled?: boolean;
-  /** Under the title: the stepper. */
+  /** Under the title: how far along (the transfer's part bar). */
   headerExtra?: ReactNode;
-  /** In a short window the header line sits beside the title instead of under it (one line: the stepper). */
+  /** In a short window the header line sits beside the title instead of under it (one line: the part bar). */
   compactExtra?: boolean;
   /**
    * What the sheet is for, in a sentence or two: at the head of the

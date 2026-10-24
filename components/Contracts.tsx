@@ -12,11 +12,10 @@
 // too short for the slower rhythms says what it cannot show; and the user can
 // overrule the guess ("Ausblenden"), which is remembered in the vault.
 
-import { useCallback, useId, useMemo } from 'react';
+import { useCallback, useId } from 'react';
 import { BankOrders } from './BankOrders';
 import { useFints } from './FintsProvider';
-import { Money } from './Money';
-import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, Skeleton, Spinner, Tile, cx } from './ui';
+import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, Skeleton, Spinner, cx } from './ui';
 import { namesList } from '@/lib/balances';
 import { fmtRange, displayName, presetRange } from '@/lib/format';
 import type { Messages } from '@/lib/i18n';
@@ -25,9 +24,8 @@ import type { Cadence, RecurringSeries } from '@/lib/recurring';
 import { ContractGroup, ContractRow, DismissedRow } from './insights/ContractRow';
 import { ForecastTile } from './insights/Forecast';
 import { PaymentsHead } from './transfer/PaymentsHead';
-import { IS_ANDROID } from '@/lib/platform';
-import { useRecurringModel, useUpcoming, type AccountBasis, type RecurringModel } from './insights/recurring-model';
-import { LoadHistoryButton, RoundMoney, YEAR_SPAN, daysUntil, fmtDayKeyShort, fmtWeekday, spanDays } from './insights/shared';
+import { useRecurringModel, type AccountBasis, type RecurringModel } from './insights/recurring-model';
+import { LoadHistoryButton, RoundMoney, YEAR_SPAN, spanDays } from './insights/shared';
 
 /**
  * "Vierteljährliche und jährliche" ("Quarterly and yearly") — the rhythms a
@@ -74,7 +72,7 @@ export function Contracts() {
     <div className="min-w-0 space-y-4 sm:space-y-6">
       <PaymentsHead />
       {/* Where a narrow Übersicht has no side pane for it — and on the phone. */}
-      <ForecastTile className={IS_ANDROID ? undefined : 'desk:hidden'} />
+      <ForecastTile />
       {/* More room above the heading than below: it belongs to what follows. */}
       <h2 className="section-head pt-4">{t.insights.contracts.title}</h2>
       <ContractsFromBookings />
@@ -502,141 +500,5 @@ function ContractsSkeleton() {
       </div>
       <span role="status" className="sr-only">{t.insights.contracts.recognising}</span>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Demnächst fällig — the overview's sidebar tile
-// ---------------------------------------------------------------------------
-
-const UPCOMING_MAX = 5;
-
-/**
- * What the next 30 days are expected to bring on the active account — the
- * account the Monatsbilanz beside it shows — with what that adds up to.
- */
-export function UpcomingPayments() {
-  const { activeAccount, accountLabel, accounts } = useFints();
-  const t = useT();
-  const words = t.insights.upcoming;
-  const model = useRecurringModel();
-  const acct = activeAccount?.accountNumber ?? null;
-  const items = useUpcoming(model, 30, acct);
-  const shown = items.slice(0, UPCOMING_MAX);
-  const more = items.length - shown.length;
-  const any = model.income.length + model.expense.length > 0;
-  const own = model.accounts.find((b) => b.account.accountNumber === acct);
-  const currency = activeAccount?.currency || 'EUR';
-  // What the 30 days add up to, each way, in the account's currency only.
-  const sums = useMemo(() => {
-    let out = 0;
-    let inc = 0;
-    for (const { series: s } of items) {
-      if (s.currency !== currency) continue;
-      if (s.amount < 0) out += Math.round(s.amount * 100);
-      else inc += Math.round(s.amount * 100);
-    }
-    return { out: out / 100, in: inc / 100 };
-  }, [items, currency]);
-  const name = activeAccount ? accountLabel(activeAccount) : '';
-
-  return (
-    <Tile
-      // A grid track sizes to its widest unbreakable line unless told otherwise;
-      // the truncated names below must be allowed to give way instead.
-      className="min-w-0"
-      title={words.title}
-      // On a narrow tile the facts take a line each, rather than leave the
-      // dot hanging — "voraussichtlich" stays: these are expectations.
-      // The account only when there are several, and no way on — Verträge is
-      // in the navigation.
-      subtitle={<DotList items={[accounts.length > 1 && name, words.next30]} />}
-    >
-      {model.loading ? (
-        <ul aria-hidden className="pb-3">
-          {[0, 1, 2].map((i) => (
-            <li key={i} className="flex items-center gap-3 px-4 py-2.5 sm:px-5">
-              <Skeleton className="h-8 w-11 rounded-[8px]" />
-              <Skeleton className="h-3 flex-1" />
-              <Skeleton className="h-3 w-14" />
-            </li>
-          ))}
-        </ul>
-      ) : shown.length === 0 ? (
-        <p className="px-4 pb-4 text-[14px] leading-relaxed text-ink-2 sm:px-5 sm:pb-5">
-          {own?.status === 'failed'
-            ? words.failed(name)
-            : own?.status !== 'included'
-              ? words.notLoaded(name)
-              : any
-                ? words.none(name)
-                : words.noneYet}
-        </p>
-      ) : (
-        <>
-          <ul className="pb-1">
-            {shown.map(({ series: s, date }) => {
-              const n = displayName(s.name) || t.insights.noName;
-              const wd = fmtWeekday(date);
-              const dm = fmtDayKeyShort(date);
-              const soon = daysUntil(date) <= 1;
-              return (
-                <li key={s.id} className="flex items-center gap-3 px-4 py-2 sm:px-5">
-                  <span
-                    className="tnum grid w-14 shrink-0 place-items-center rounded-[8px] bg-inset py-1 leading-tight"
-                    aria-hidden
-                  >
-                    <span className="text-[12.5px] font-semibold text-ink-3">{wd}</span>
-                    <span className="text-[13px] font-semibold text-ink">{dm}</span>
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-semibold text-ink">{n}</span>
-                    <span className="block truncate text-[12.5px] text-ink-3">
-                      <span className="sr-only">{words.on(dm)}</span>
-                      {soon ? `${daysUntil(date) === 0 ? t.insights.relative.today : t.insights.relative.tomorrow} · ` : ''}
-                      {s.cadenceLabel}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-[14px] font-semibold">
-                    {s.variable ? (
-                      <>
-                        <span className="mr-1 text-[12.5px] font-normal text-ink-3">{t.insights.approx}</span>
-                        <RoundMoney value={s.amount} currency={s.currency} signed className={s.amount > 0 ? 'text-green' : undefined} />
-                      </>
-                    ) : (
-                      <Money value={s.amount} currency={s.currency} signed tone="credit" />
-                    )}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-          {/* Said, not linked: Verträge is in the navigation. */}
-          {more > 0 && (
-            <p className="px-4 pb-2.5 text-[13px] leading-snug text-ink-3 sm:px-5">
-              {words.more(more)}
-            </p>
-          )}
-          {/* What the 30 days add up to — every expected booking, not only the five shown. */}
-          <dl className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-4 py-2.5 text-[13px] sm:px-5">
-            <dt className="text-ink-2">{words.sum}</dt>
-            <dd className="flex items-baseline gap-2.5 font-semibold">
-              {sums.out !== 0 && (
-                <span>
-                  <span className="sr-only">{t.common.booking.outgoing} </span>
-                  <RoundMoney value={sums.out} currency={currency} className="text-ink" />
-                </span>
-              )}
-              {sums.in !== 0 && (
-                <span>
-                  <span className="sr-only">{t.common.booking.incoming} </span>
-                  <RoundMoney value={sums.in} currency={currency} signed className="text-green" />
-                </span>
-              )}
-            </dd>
-          </dl>
-        </>
-      )}
-    </Tile>
   );
 }

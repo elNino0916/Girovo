@@ -55,10 +55,10 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
   // icon elsewhere, Strg K) took the place of "Mehr".
   const items = (
     <>
-      {/* The current place's icon filled, as Android draws it (Material Symbols on the phone). */}
-      <NavItem icon={<HomeIcon size={IS_ANDROID ? 24 : 22} filled={tab === 'overview'} />} label={tr.common.nav.overview} current={tab === 'overview'} onClick={go('overview')} />
-      <NavItem icon={<TransferIcon size={IS_ANDROID ? 24 : 22} filled={tab === 'contracts'} />} label={tr.shell.bottomBar.contracts} current={tab === 'contracts'} onClick={go('contracts')} />
-      <NavItem icon={<ChartIcon size={IS_ANDROID ? 24 : 22} filled={tab === 'analysis'} />} label={tr.common.nav.analysis} current={tab === 'analysis'} onClick={go('analysis')} />
+      {/* The current place's icon filled, as Android draws it. */}
+      <NavItem icon={<HomeIcon size={24} filled={tab === 'overview'} />} label={tr.common.nav.overview} current={tab === 'overview'} onClick={go('overview')} />
+      <NavItem icon={<TransferIcon size={24} filled={tab === 'contracts'} />} label={tr.shell.bottomBar.contracts} current={tab === 'contracts'} onClick={go('contracts')} />
+      <NavItem icon={<ChartIcon size={24} filled={tab === 'analysis'} />} label={tr.common.nav.analysis} current={tab === 'analysis'} onClick={go('analysis')} />
     </>
   );
 
@@ -105,7 +105,7 @@ export function BottomBar({ actions }: { actions: ShellActions }) {
             so out of the way of the places used every day. On a phone it is
             the Sitzung panel's and the search's ("Mehr"). */}
         <div className="mt-auto flex w-full flex-col pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]">
-          <NavItem icon={<GearIcon size={22} />} label={tr.common.nav.settings} current={tab === 'settings'} onClick={() => openSettings()} />
+          <NavItem icon={<GearIcon size={24} />} label={tr.common.nav.settings} current={tab === 'settings'} onClick={() => openSettings()} />
         </div>
       </nav>
     </>

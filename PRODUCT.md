@@ -9,7 +9,7 @@ web
 One Next.js page in three shells: the Android app (Capacitor WebView,
 Google Play and a GitHub APK), the desktop app (Electron, Windows and Linux)
 and localhost for developers. Design work is phone-first (owner, 2026-10-23);
-the desktop follows the phone later.
+the desktop follows the phone (it caught up on 2026-10-24).
 
 ## Users
 

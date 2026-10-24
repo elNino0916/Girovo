@@ -89,15 +89,8 @@ export const de = {
 
   /** Search, direction chips, category and month (components/transactions/TxFilterBar.tsx). */
   filter: {
-    placeholder: 'Name, Zweck, Kategorie, Betrag, Monat',
-    /** On the phone, where a search may say what it means ("Tanken im August"). */
-    placeholderPhone: 'Suchen – auch „Tanken im August“',
-    /** Said to a screen reader when Enter turned the search into filters. */
-    readAs: 'Als Filter übernommen',
     searchLabel: 'Umsätze durchsuchen',
     clear: 'Suche leeren',
-    /** For a screen reader: what the search reads, and how to type an amount, a day, a month. */
-    hint: 'Sucht im Namen, Verwendungszweck, in der Kategorie und IBAN. Beträge wie 12,99, über 100 als >100, von 50 bis 100 als 50-100, ein Tag wie 28.09. und ein Monat wie August.',
     direction: 'Richtung',
     all: 'Alle',
     categoryIs: (label: string) => `Kategorie: ${label}`,
@@ -618,12 +611,8 @@ export const en: typeof de = {
   },
 
   filter: {
-    placeholder: 'Name, reference, category, amount, month',
-    placeholderPhone: 'Search – also “fuel in August”',
-    readAs: 'Applied as filters',
     searchLabel: 'Search transactions',
     clear: 'Clear search',
-    hint: 'Searches the name, payment reference, category and IBAN. Amounts like 12.99, over 100 as >100, 50 to 100 as 50-100, a day like 28/09 and a month like August.',
     direction: 'Direction',
     all: 'All',
     categoryIs: (label) => `Category: ${label}`,

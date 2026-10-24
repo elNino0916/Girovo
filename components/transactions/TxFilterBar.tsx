@@ -1,25 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { bookingDay, daysLabel, monthPartNote, type CalendarMonth } from '@/lib/analytics';
 import type { TxFilter } from '@/lib/app-types';
 import { allCategories, categoryLabel, type CategoryId } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { dayKey, fmtRange } from '@/lib/format';
-import { searchAsFilter } from '@/lib/nano-ask';
-import { IS_ANDROID } from '@/lib/platform';
+import { fmtRange } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { CalendarIcon, CategoryIcon, CloseIcon, SearchIcon } from '../icons';
-import {
-  FilterChip, IconButton, Input, Kbd, Menu, MenuGroup, MenuItemRadio, MenuSeparator, cx,
-} from '../ui';
-
-/** The search field's id — the shell's "/" shortcut focuses it. */
-export const TX_SEARCH_ID = 'umsatz-suche';
-
-/** How long typing rests before the filter (and every view reading it) updates. */
-const SEARCH_SETTLE_MS = 140;
+import { FilterChip, IconButton, Menu, MenuGroup, MenuItemRadio, MenuSeparator } from '../ui';
 
 export function activeFilterCount(f: TxFilter): number {
   return (f.dir !== 'all' ? 1 : 0) + (f.category ? 1 : 0) + (f.query.trim() ? 1 : 0) + (f.from || f.to ? 1 : 0);
@@ -31,32 +21,27 @@ const edited = (f: TxFilter, patch: Partial<TxFilter>): TxFilter => ({
 });
 
 /**
- * Search, direction chips, the category menu and the month. The filter itself
- * lives in the provider (`txFilter`) so the palette, the Analyse and the
- * Verträge tab can deep-link into a narrowed list; this only edits it. The
- * way back ("Zurücksetzen") sits with the count above the list, where it is
- * always in view.
+ * The chips over the Umsätze: direction, the category menu and the month,
+ * one row that scrolls sideways. The filter itself lives in the provider
+ * (`txFilter`) so the search, the Analyse and the Verträge tab can deep-link
+ * into a narrowed list; this only edits it. The way back ("Zurücksetzen")
+ * sits with the count above the list, where it is always in view.
+ *
+ * There is no search field here: the search is the Übersicht's head (the
+ * search bar, then the search view, components/CommandPalette.tsx) — the
+ * phone's first, every width's since the desktop followed it (2026-10-24).
+ * A search handed over from there shows as a chip that takes it away again.
  *
  * The month narrows what is loaded and never fetches: loading another period
  * is the Zeitraum control's job, and what it shows as selected is what was
  * fetched.
- *
- * The search box keeps its own draft and hands it over once typing rests:
- * every provider update re-renders the whole dashboard, and doing that per
- * keystroke would make typing feel sticky on a long statement.
  */
 export function TxFilterBar({
-  filter, setFilter, facetSource, monthSource, months, loaded, categoryOf, listId, phone = false, leading, trailing,
+  filter, setFilter, facetSource, monthSource, months, loaded, categoryOf, leading, trailing,
 }: {
-  /**
-   * A phone: the search is the Übersicht's head (the search bar, then the
-   * search view), so no field here — a search handed over from there shows
-   * as a chip that takes it away again.
-   */
-  phone?: boolean;
-  /** Before the chips (a phone: Vorgemerkt). */
+  /** Before the chips (Vorgemerkt). */
   leading?: React.ReactNode;
-  /** After them (a phone: the period, the export). */
+  /** After them (the period, the refresh, the export). */
   trailing?: React.ReactNode;
   filter: TxFilter;
   setFilter: (f: TxFilter | ((f: TxFilter) => TxFilter)) => void;
@@ -69,54 +54,11 @@ export function TxFilterBar({
   /** The loaded range, for "Ganzer geladener Zeitraum". */
   loaded: { from: string; to: string } | undefined;
   categoryOf: (tx: SerializedTransaction) => { id: CategoryId; parts?: readonly { id: CategoryId }[] };
-  /** The list the search controls. */
-  listId: string;
 }) {
-  const { singleKeyShortcuts: singleKeys, setPaletteOpen } = useFints();
+  const { setPaletteOpen } = useFints();
   const t = useT();
   const words = t.transactions.filter;
-  const [draft, setDraft] = useState(filter.query);
-  // The query this field last handed to the provider. A provider query that
-  // differs from it was set from elsewhere.
-  const pushed = useRef(filter.query);
-  const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const hintId = useId();
-  const { vault } = useFints();
-  const ownCategories = useMemo(
-    () => (vault?.customCategories ?? []).map((c) => ({ id: c.id, name: c.name })),
-    [vault?.customCategories],
-  );
-  // The last Enter read the search as filters (said to a screen reader once).
-  const [readAs, setReadAs] = useState(false);
-  useEffect(() => {
-    if (!readAs) return;
-    const timer = setTimeout(() => setReadAs(false), 4000);
-    return () => clearTimeout(timer);
-  }, [readAs]);
-
-  // A query set from elsewhere (a deep link, the palette, "Zurücksetzen")
-  // replaces the draft — and wins over typing that has not been handed over yet.
-  useEffect(() => {
-    if (filter.query === pushed.current) return;
-    clearTimeout(settle.current);
-    pushed.current = filter.query;
-    setDraft(filter.query);
-  }, [filter.query]);
-
-  useEffect(() => () => clearTimeout(settle.current), []);
-
-  const commitQuery = useCallback((q: string) => {
-    clearTimeout(settle.current);
-    pushed.current = q;
-    setFilter((f) => (f.query === q ? f : edited(f, { query: q })));
-  }, [setFilter]);
-
-  const onType = (q: string) => {
-    setDraft(q);
-    clearTimeout(settle.current);
-    settle.current = setTimeout(() => commitQuery(q), SEARCH_SETTLE_MS);
-  };
+  const clearQuery = () => setFilter((f) => edited(f, { query: '' }));
 
   const counts = useMemo(() => {
     const m = new Map<CategoryId, number>();
@@ -147,85 +89,20 @@ export function TxFilterBar({
 
   return (
     <div className="flex flex-col gap-3">
-      {!phone && <div role="search" className="relative">
-        <Input
-          ref={inputRef}
-          id={TX_SEARCH_ID}
-          type="search"
-          value={draft}
-          onChange={(e) => onType(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape' && draft) {
-              e.preventDefault();
-              e.stopPropagation();
-              setDraft('');
-              commitQuery('');
-            } else if (e.key === 'Enter') {
-              // On the phone a search may say what it means: "Tanken im
-              // August" becomes Mobilität in August (lib/nano-ask.ts), the
-              // chips below show it, and what is left is the text.
-              const read = IS_ANDROID ? searchAsFilter(draft, dayKey(new Date()), ownCategories) : null;
-              if (read) {
-                e.preventDefault();
-                clearTimeout(settle.current);
-                pushed.current = read.query;
-                setDraft(read.query);
-                setFilter((f) => edited(f, read));
-                setReadAs(true);
-              } else {
-                commitQuery(draft);
-              }
-            }
-          }}
-          placeholder={IS_ANDROID ? words.placeholderPhone : words.placeholder}
-          aria-label={words.searchLabel}
-          aria-describedby={hintId}
-          aria-controls={listId}
-          autoComplete="off"
-          spellCheck={false}
-          enterKeyHint="search"
-          leading={<SearchIcon size={18} />}
-          trailing={
-            draft ? (
-              <IconButton
-                aria-label={words.clear}
-                onClick={() => {
-                  setDraft('');
-                  commitQuery('');
-                  inputRef.current?.focus();
-                }}
-              >
-                <CloseIcon size={16} />
-              </IconButton>
-            ) : singleKeys ? (
-              // Says where the "/" shortcut goes; a keyboard hint, so only
-              // where there is likely a keyboard — and only while single-key
-              // shortcuts are on.
-              <span aria-hidden className="pointer-events-none mr-2 hidden desk:inline-flex">
-                <Kbd>/</Kbd>
-              </span>
-            ) : undefined
-          }
-          className="[&::-webkit-search-cancel-button]:hidden"
-        />
-        <p id={hintId} className="sr-only">{words.hint}</p>
-        {/* Said once, where the search turned into filters — the chips below carry it from here. */}
-        <p role="status" className="sr-only">{readAs ? words.readAs : ''}</p>
-      </div>}
-
       {/* One scrolling row on a phone rather than a wrap: the chips keep their
           order and the list starts at the same height whatever is selected.
           The vertical padding is room for the focus ring, which a scroller
-          would otherwise clip. */}
-      <div className="-mx-4 -my-1 flex items-center gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:-mx-5 sm:px-5">
+          would otherwise clip. A wide window wraps instead: a mouse has no
+          sideways swipe, and a scrollbar-less row would hide its end. */}
+      <div className="-mx-4 -my-1 flex items-center gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:-mx-5 sm:flex-wrap sm:overflow-x-visible sm:px-5">
         {leading}
-        {/* A search handed over from the phone's search view: shown, and taken away in one press. */}
-        {phone && filter.query.trim() && (
+        {/* A search handed over from the search view: shown, and taken away in one press. */}
+        {filter.query.trim() && (
           <span className="inline-flex shrink-0 items-center">
             <FilterChip selected icon={<SearchIcon size={16} />} aria-label={words.searchLabel} onClick={() => setPaletteOpen(true)}>
               „{filter.query.trim()}“
             </FilterChip>
-            <IconButton aria-label={words.clear} onClick={() => commitQuery('')}>
+            <IconButton aria-label={words.clear} onClick={clearQuery}>
               <CloseIcon size={16} />
             </IconButton>
           </span>

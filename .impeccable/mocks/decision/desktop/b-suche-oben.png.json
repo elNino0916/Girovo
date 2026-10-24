@@ -1,0 +1,6 @@
+{
+  "source": "rendered, not generated",
+  "html": ".impeccable/mocks/decision/desktop/b-suche-oben.html",
+  "renderer": "Microsoft Edge headless, 1440x900 CSS px at 1x",
+  "prompt": "No image model. Hand-authored HTML/CSS mock of the Girovo desktop Uebersicht (Suche oben: the phone's search-first head at desktop scale, a 56dp search bar over one 880px column with the account name, flat balance and sparkline, a quiet line of figures, the chip row and the Umsaetze), using Google Sans Flex, Material Symbols Rounded, IBM Plex Mono and Girovo's own blue scheme, with design-preview data."
+}
