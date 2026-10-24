@@ -208,13 +208,13 @@ Girovo is a bank branch that opens for one person. Nothing on the walls sells an
 
 The phone is the system's reference. Its home has one field at the head that searches every booking, action and setting and, on Android, answers a question about the bookings. Below it the balance is set flat, then a row of chips, then the bookings, then three places at the foot. The page is flat and list-first; tone, weight and space carry the hierarchy, and the colours that carry a value never follow the wallpaper.
 
-The desktop (from 640px) follows the phone later (owner, 2026-10-23: "don't update desktop yet"). It still has the two-pane Übersicht, the balance as a filled hero card, the navigation rail and the line icons; it inherits the colour rules below. Round two of the phone redesign (Material Symbols, wallpaper chart tones, the transitions, the transfer's two parts, the tabbed Umsatzdetails, the brand-field Anmeldung) is Android only: `IS_ANDROID` in code, `html[data-platform="android"]` in CSS.
+The desktop (from 640px) followed the phone on 2026-10-24 (owner's choice): the Material Symbols, the type, the transfer's two parts, the tabbed Umsatzdetails, the brand-field Anmeldung and the search-first Übersicht ("Suche oben", picked from three mocks in `.impeccable/mocks/decision/desktop/`). It keeps the 96dp rail and, on its other pages, the 1280px column with the page's name in the top bar. What stays Android only — the wallpaper's colours and chart tones, the transitions, the phone's sheets and touch targets — is `IS_ANDROID` in code and `html[data-platform="android"]` in CSS.
 
 **Key Characteristics:**
 - Search-first home: a 56dp search bar is the only tinted shape at the top.
-- A flat 48/500 balance with tight tracking; no balance card on the phone.
+- A flat 48/500 balance with tight tracking; no balance card at any width.
 - Three text sizes (12, 14, 16), one section step (18), one screen step (22), and display figures.
-- Weight 500 for emphasis on the phone; rank is weight and tone before size.
+- Weight 500 for emphasis; rank is weight and tone before size.
 - Owned value colours: green, red, amber and orange each mean one thing.
 - Three places, no FAB on the phone; Material Symbols Rounded, the current place filled.
 
@@ -223,8 +223,8 @@ The desktop (from 640px) follows the phone later (owner, 2026-10-23: "don't upda
 Material's colour roles carry surfaces, ink, lines and the one interactive colour; Girovo's tokens (`--paper`, `--ink`, `--accent`, …) map onto them in `app/material.css`. Girovo's scheme sits at zero specificity so Material You's runtime roles win on the phone. The frontmatter holds the light values; the dark theme keeps the names.
 
 ### Primary
-- **Girovo Blue** (`md-primary`; `accent`, `focus`, `chart-line`): what can be pressed. Filled buttons, links, a checked control, a focused field, the sparkline, the Kontoverlauf line, Einstellungen's group subheaders and, on the desktop, the day subheaders.
-- **Blue Container** (`md-primary-container`; `stage`): the desktop hero card and the rail's FAB.
+- **Girovo Blue** (`md-primary`; `accent`, `focus`, `chart-line`): what can be pressed. Filled buttons, links, a checked control, a focused field, the sparkline, the Kontoverlauf line, Einstellungen's group subheaders.
+- **Blue Container** (`md-primary-container`; `stage`): the rail's FAB and the Anmeldung's brand field.
 
 ### Secondary
 - **Tonal Wash** (`md-secondary-container`): the tonal button, a selected chip, the navigation indicator pill.
@@ -269,11 +269,11 @@ Categories take `chart-1` to `chart-6` **by rank** within a chart; the rest are 
 
 **Interface Font:** Google Sans Flex (with Segoe UI, system-ui, sans-serif)
 **Mono Font:** IBM Plex Mono (with Cascadia Mono, Consolas, ui-monospace)
-**Icon Font (Android):** Material Symbols Rounded, a self-hosted 14 KB subset (`public/fonts/material-symbols-rounded.woff2`, `font-display: block`, declared in `app/android.css`). It sets icons only, never words.
+**Icon Font:** Material Symbols Rounded, a self-hosted 14 KB subset (`public/fonts/material-symbols-rounded.woff2`, `font-display: block`, declared in `app/material.css`). It sets icons only, never words.
 
 **Character:** Google Sans Flex is round, calm and Material's own face; its optical-size axis draws a 48px balance and 8pt paper from one file. Plex Mono appears only where someone checks characters against another document.
 
-### Hierarchy (the phone: Android below 640px, `app/android.css`)
+### Hierarchy (every platform, `app/material.css`; the phone's first)
 - **Display entry** (500, 64/72, −0.025em): the amount typed into the transfer, with the € at 34px in the variant ink.
 - **Display balance** (500, 48/56, −0.025em): the Übersicht's balance, cents at 0.58em (about 28px).
 - **Display lead** (500, 36/44, −0.025em): a screen's one lead figure, such as Analyse's Ausgaben. The range is 32 to 36.
@@ -286,14 +286,14 @@ Categories take `chart-1` to `chart-6` **by rank** within a chart; the rest are 
 - **Subheader** (500, 14/20, variant ink): a day header, a group inside a section ("Vorlagen", "Zuletzt bezahlt"), a figure's label.
 - **Label** (500, 12/16): navigation labels, supporting text, small notes.
 
-Sizes in between snap on the phone: 12.5 to 12; 13 to 14 to 14; 14.5 to 16 to 16; 17 and 18 to 16/500; 20 to 24 to 22/500.
+Sizes in between snap: 12.5 to 12; 13 to 14 to 14; 14.5 to 16 to 16; 17 and 18 to 16/500; 20 to 24 to 22/500.
 
 ### Named Rules
-**The Symbol Rule.** On Android every app icon is a Material Symbol (`Icon`'s `ms` name) in a box of exactly 1em, sized in dp: `text-size-adjust: none`, so the system's larger text grows the words, never the glyph. `filled` sets FILL 1, used only for the current place in the navigation bar (24px). Gemini's spark and the avatar glyphs are pictures and stay drawn. The desktop keeps the line icons (24 grid, 1.8 stroke).
+**The Symbol Rule.** Every app icon is a Material Symbol (`Icon`'s `ms` name) in a box of exactly 1em, sized in px (dp on the phone): `text-size-adjust: none`, so the system's larger text grows the words, never the glyph. `filled` sets FILL 1, used only for the current place in the navigation (24px). Gemini's spark and the avatar glyphs are pictures and stay drawn. The icon's own `display` sits in the base layer, so `hidden` and the Darstellung's glyph switch decide whether it shows.
 
 **The Two Headings Rule.** A section is 18/500 in ink; a subheader is 14/500 in the variant ink. Einstellungen keeps its subheaders in the primary (owner, 2026-10-20). There is no third treatment.
 
-**The Medium Weight Rule.** On the phone emphasis is 500, never 600 or 700. Rank comes from weight and tone before size.
+**The Medium Weight Rule.** Emphasis is 500, never 600 or 700. Rank comes from weight and tone before size.
 
 **The Tight Figures Rule.** No positive tracking on figures. An amount is −0.01em; a display figure (`[data-balance]`, `[data-figure]`) is −0.025em. Body text keeps the face's own spacing (0).
 
@@ -309,17 +309,21 @@ Sizes in between snap on the phone: 12.5 to 12; 13 to 14 to 14; 14.5 to 16 to 16
 
 **The Übersicht, top to bottom:** the search bar (56dp, fully round, 8dp under the status bar, holding the search glyph, "Umsätze suchen oder fragen", the Gemini spark where Nano can answer, and the 32dp avatar with the unread dot); the account name with its chevron and, at the row's end, the eye for Beträge ausblenden; the balance with Verfügbar under it, then on its own line the date or, for today's figure, its freshness ("Stand 13:57 Uhr", the time of the read), and the sparkline (96×36 in a 112×48 target) at its baseline, which opens the details in place; one sideways-scrolling chip row (Vorgemerkt, Eingänge, Ausgänge, Kategorie, Monat, then the period and the export); then day headers and rows. The account chevron opens a bottom sheet with the account list in its rows layout (`[data-rows]`, with the `rows:` and `narrow:` variants in `app/globals.css`).
 
+**The Übersicht on the desktop (640px and up), "Suche oben":** the phone's, in one 960px column centred beside the scrollbar (the mock's 880 plus room for the whole chip row on one line). The search bar spans the column in the title bar (48px there, since the Electron caption overlay holds the bar at 60px; Strg K inside it, the avatar at its end) and only it stops dragging the window; the bar gives way to the caption buttons on a narrow window (`SEARCH_EDGES`). Under the balance a quiet line of three figures (`MonthFigures`): Eingänge and Ausgänge for the month's loaded days ("1.–24. Oktober"), and Demnächst fällig over 30 days, labels 14 in the variant ink over values 16/500, with no tile. The chip row ends with the period chip and two icon buttons, refresh and export, and wraps instead of scrolling sideways when a window is too narrow for it. What stood beside the bookings has a place of its own: the Vorgemerkt behind their chip, the Mitteilungen behind the avatar (its dot and a row of the Sitzung panel, as on the phone), what is due and the forecast in Zahlungen, the month in Analyse; "/" opens the search like Strg K.
+
 **Zahlungen, top to bottom:** Überweisen (filled) and Geld anfordern (tonal), equal width; "GiroCode scannen" (Android); Vorlagen; Zuletzt bezahlt; the forecast; "Verträge & Abos"; the bank's orders.
 
-**Überweisung, "Betrag zuerst" (Android phone):** two parts and the review, with a three-segment bar (4px, the primary over the progress track) in the header: Betrag, An wen?, Prüfen. Part one holds the account, the amount typed into the figure (decimal keyboard), Verfügbar and any funds warning under it, Ausführung and Termin; its footer is "Abbrechen" with "Weiter: An wen?". Part two holds the payee section and the Verwendungszweck; its footer is "Zurück" with "Weiter zur Prüfung". Every check stays the form's; a problem in the amount part sends the user back to it.
+**Überweisung, "Betrag zuerst" (every platform; a full-screen dialog on the phone, the centred dialog on the desktop):** two parts and the review, with a three-segment bar (4px, the primary over the progress track) in the header: Betrag, An wen?, Prüfen. Part one holds the account, the amount typed into the figure (decimal keyboard), Verfügbar and any funds warning under it, Ausführung and Termin; its footer is "Abbrechen" with "Weiter: An wen?". Part two holds the payee section and the Verwendungszweck; its footer is "Zurück" with "Weiter zur Prüfung". Every check stays the form's; a problem in the amount part sends the user back to it. After the review the title names the step; there is no stepper. With a fine pointer, part two starts in the name.
 
-**Umsatzdetails, "Registerkarten" (Android phone):** a full-page drawer whose body takes the page surface. A left-aligned header (the 56dp disc, the name at 22/500, the booking text and time at 14, the amount as display detail, the state tags, the actions) over primary tabs: Details, Notiz & Belege, Kategorie.
+**Umsatzdetails, "Registerkarten" (every platform):** on the phone a full-page drawer whose body takes the page surface, on the desktop the side drawer, the tabs running to its edges. A left-aligned header (the 56dp disc, the name at 22/500, the booking text and time at 14, the amount as display detail, the state tags, the actions) over primary tabs: Details, Notiz & Belege, Kategorie.
 
-**Anmeldung, "Markenfläche mit Blatt" (Android phone):** a primary-container field holds the language switch, the G€ plate (48, then 36 after the first step), "Girovo" at 28 (22 after) and, on the first step only, "Banking direkt mit deiner Bank – ohne jemanden dazwischen." The steps sit on a paper sheet with 28px top corners that rises 28px over the field, with a handle-shaped mark. Quick picks are logo tiles, four by two.
+**Anmeldung, "Markenfläche mit Blatt" (the phone, and a narrow browser window):** a primary-container field holds the language switch, the G€ plate (48, then 36 after the first step), "Girovo" at 28 (22 after) and, on the first step only, "Banking direkt mit deiner Bank – ohne jemanden dazwischen." The steps sit on a paper sheet with 28px top corners that rises 28px over the field, with a handle-shaped mark. Quick picks are logo tiles, four by two, on every platform.
+
+**Anmeldung on the desktop (640px and up):** the field is the window's left column (`clamp(240px, 28vw, 400px)`, top to bottom, dragging the window) with the plate at 48, "Girovo" at 28, the brand line and the version at its foot; the paper sheet rises 28px over it from the right with 28px left corners. The sheet's top strip is the title bar (language, Darstellung, the update), on paper so the OS caption buttons match it. The side tile beside the form switches on the sheet's width (the `auth` container, 59rem), not the window's.
 
 **Analyse:** Ausgaben leads as the display lead with its comparison line; the other figures are label and value rows (14 label, 16/500 value).
 
-**Desktop (640px and up), follows the phone later.** The navigation is the 96dp rail; the Übersicht is two panes from `desk` (1100px) with the hero card; the page column is 1280px wide with the top bar sharing its edge.
+**Desktop (640px and up).** The navigation is the 96dp rail; the Übersicht is the 960px column above; every other page's column is 1280px wide with the top bar sharing its edge. A flat section reaches 20px out (its rows are inset 20px), so rows, chips and headings share the page's left edge.
 
 ### Named Rules
 **The Reading Order Rule.** The DOM order is the narrow reading order. A wider layout places blocks with the grid, never with CSS `order`.
@@ -331,13 +335,13 @@ Sizes in between snap on the phone: 12.5 to 12; 13 to 14 to 14; 14.5 to 16 to 16
 Flat by default. A container is told from the page by tone, not by edge or shadow. Shadow belongs only to what floats: menus, sheets, drawers, the snackbar (`level3`), Android's pull-to-refresh disc, the Anmeldung's sheet over its brand field (a soft upward shadow). On the desktop a white tile keeps a whisper of shadow (`shadow-tile`) by day and a 1px light edge by night. The full values are in the sidecar.
 
 ### Named Rules
-**The Flat Page Rule.** A section on the page has no surface, corners, shadow or hairline between rows. The phone's page has no container at all; the desktop's one container is the balance hero. The exception is Einstellungen (owner, 2026-10-20): Material 3 Expressive's grouped list, rows as tiles on Container, 2px seams, 20px outer corners, 4px inner ones.
+**The Flat Page Rule.** A section on the page has no surface, corners, shadow or hairline between rows. The page has no container at all. The exception is Einstellungen (owner, 2026-10-20): Material 3 Expressive's grouped list, rows as tiles on Container, 2px seams, 20px outer corners, 4px inner ones.
 
 **The Scroll Edge Rule.** A pinned header or footer inside a sheet is flat while everything fits; a 1px hairline appears only once content runs under it.
 
 ## Shapes
 
-Material's corner scale (`--m3e-corner-*`). Fully round: the search bar, buttons at rest (they squeeze square while pressed and spring back), the avatar disc, the navigation pill. Small (8px): chips, the brand plate. Large (16px): tiles, the Gemini answer, the Anmeldung's bank tiles. Extra-large (28px): sheets, the Anmeldung's sheet, basic dialogs, the desktop hero. Extra-small (4px): outlined fields, snackbars, a grouped row's inner corners. On a phone a multi-step flow is a full-screen dialog with no corners, and a bottom sheet has a 32×4 drag handle.
+Material's corner scale (`--m3e-corner-*`). Fully round: the search bar, buttons at rest (they squeeze square while pressed and spring back), the avatar disc, the navigation pill. Small (8px): chips, the brand plate. Large (16px): tiles, the Gemini answer, the Anmeldung's bank tiles. Extra-large (28px): sheets, the Anmeldung's sheet, basic dialogs. Extra-small (4px): outlined fields, snackbars, a grouped row's inner corners. On a phone a multi-step flow is a full-screen dialog with no corners, and a bottom sheet has a 32×4 drag handle.
 
 ## Components
 
@@ -347,7 +351,7 @@ Material's corner scale (`--m3e-corner-*`). Fully round: the search bar, buttons
 - **Connected groups** that span the phone's width (Termin: Sofort · An einem Datum · Regelmäßig) take 8px sides, and each segment is sized by its label and may shrink, so the group never runs past the screen.
 
 ### Search
-The phone's head (`Masthead.tsx` SearchBar) opens the search (`CommandPalette.tsx`) as Material's full-screen search view. On Android a question-like query hands over to "Frag deine Umsätze" in Analyse. Elsewhere the search is an icon in the top bar or Strg K.
+The Übersicht's head (`Masthead.tsx` SearchBar) opens the search (`CommandPalette.tsx`), on the phone as Material's full-screen search view. On Android a question-like query hands over to "Frag deine Umsätze" in Analyse. On the other pages the search is an icon (a phone) or a pill (a wide window) in the top bar, and Strg K or "/" everywhere. The Umsätze have no search field of their own: a search handed over shows as a chip.
 
 ### Chips
 M3E filter chips, 8px corners; a selected chip is the tonal wash. The Vorgemerkt chip carries an 8px amber dot and opens the pending sheet; Eingänge and Ausgänge toggle; Kategorie and Monat open menus.
@@ -401,18 +405,18 @@ Paper is a record for a third party: A4, fixed light `doc-*` values that no them
 - **Do** reach for tokens by name (`text-ink-2`, `bg-inset`, `var(--nav-bg)`) so the theme and Material You resolve themselves.
 - **Do** put the look in `app/material.css` and only what a phone needs in `app/android.css` behind `data-platform="android"`.
 - **Do** route every amount through `<Money>` and every IBAN through `.iban`.
-- **Do** keep the phone to 12, 14, 16, 18 and 22 plus the display figures (48 for the balance, 32 to 36 for a lead).
+- **Do** keep the text to 12, 14, 16, 18 and 22 plus the display figures (48 for the balance, 32 to 36 for a lead).
 - **Do** use the two heading treatments: 18/500 ink for a section, 14/500 variant ink for a subheader.
 - **Do** keep the bookings visible on the phone's first screen; put charts and summaries behind a tap.
 - **Do** give charts colours by rank (top six, rest grey), green for income and navy-slate for spending.
-- **Do** give every new Android icon an `ms` name from Material Symbols Rounded and add it to the subset.
+- **Do** give every new icon an `ms` name from Material Symbols Rounded and add it to the subset.
 - **Do** use the spaced Gedankenstrich (" – ") and German quotes („…“) in interface strings.
 
 ### Don't:
 - **Don't** colour a debit red, or a credit card's balance.
 - **Don't** use amber for anything but Vorgemerkt, or orange as text.
 - **Don't** let a value colour, a chart slot, a plate or Gemini's colours follow Material You.
-- **Don't** use 600 or 700 on the phone, or positive tracking on a figure.
+- **Don't** use 600 or 700, or positive tracking on a figure.
 - **Don't** put a card, a shadow or a hairline grid on the page to group a section (Einstellungen's grouped list excepted).
 - **Don't** float a FAB over the phone's bookings or add a fourth place to the navigation.
 - **Don't** bring back an outlined secondary button.

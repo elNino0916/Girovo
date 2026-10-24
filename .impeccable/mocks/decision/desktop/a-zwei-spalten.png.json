@@ -1,0 +1,6 @@
+{
+  "source": "rendered, not generated",
+  "html": ".impeccable/mocks/decision/desktop/a-zwei-spalten.html",
+  "renderer": "Microsoft Edge headless, 1440x900 CSS px at 1x",
+  "prompt": "No image model. Hand-authored HTML/CSS mock of the Girovo desktop Uebersicht (Zwei Spalten, flach: today's two-pane grid (2fr/1fr, 1280 page) with Konten und Karten as rows, the flat balance and sparkline, chips and Umsaetze in the main column; Vorgemerkt, Monatsbilanz, Demnaechst faellig and Mitteilungen as flat sections in the side column), using Google Sans Flex, Material Symbols Rounded, IBM Plex Mono and Girovo's own blue scheme, with design-preview data."
+}

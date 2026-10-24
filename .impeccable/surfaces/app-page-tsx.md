@@ -29,7 +29,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
 ## Unresolved
 
-- The desktop's own pass (two panes, rail) follows later.
+- ~~The desktop's own pass (two panes, rail) follows later.~~ Done 2026-10-24 (Round 3).
 - Whether the Kontoverlauf deserves more than a sheet behind the sparkline.
 
 ## Round 2 (owner, 2026-10-23): three more surfaces, each chosen from three dealt variants
@@ -41,3 +41,9 @@ Android only; the desktop is untouched. Icons are Material Symbols Rounded with 
 UMSATZDETAILS, Registerkarten (seed 8b9c4559, dealt index 4, lead). THESIS: a left-aligned header (the 56dp glyph disc, the 22px name, the bank's booking text and time, the 40px amount, the state tags, the actions) over Material's primary tabs: Details, Notiz & Belege, Kategorie. The Notiz & Belege tab carries a dot when something is attached.
 
 ANMELDUNG, Markenfläche mit Blatt (seed 20ad6a35, dealt index 5). THESIS: the brand's primary-container field holds the G€ plate, "Girovo" and, on the first step, "Banking direkt mit deiner Bank – ohne jemanden dazwischen."; the steps rise over it as a 28px-cornered sheet. After the first step the field shrinks to the plate and the name. Quick picks are logo tiles, four by two: white tiles by day, the inset by night.
+
+## Round 3 (owner, 2026-10-24): the desktop follows
+
+The owner chose what the desktop (640px and up) takes from the phone: Material Symbols and the type, the tabbed Umsatzdetails and Betrag zuerst, the brand-field Anmeldung (as a left column with the sheet risen from the right); the plain-language Umsätze search stays Android only. For the Übersicht they asked for mocks first and picked "Suche oben" (decision page, `.impeccable/mocks/decision/desktop/b-suche-oben.png`, rendered from HTML; the unchosen a-zwei-spalten and c-konten-links beside it). Code-led: the comp is the finish review's reference.
+
+ÜBERSICHT, Suche oben. THESIS: the phone's home at desktop scale. One search bar heads one column (880px in the mock, built at 960 so the chip row with the period, refresh and export fits on one line); the balance is flat with the account name as the way to the others and the eye at its row's end; a quiet line of month figures replaces the side pane; the chips (Vorgemerkt first) and about six bookings fill the first screen. RISK the owner accepted: wide margins, and other accounts, the Vormerkposten and the Mitteilungen are one click away; no Gesamtsaldo on the page (it is in the accounts sheet).

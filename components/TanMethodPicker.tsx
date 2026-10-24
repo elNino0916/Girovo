@@ -175,7 +175,7 @@ export function TanMethodChoice({
               {t.common.retry}
             </Button>
           )}
-          <p className="mt-5 text-[13px] leading-snug text-ink-3 lg:hidden">{tm.deviceMemory}</p>
+          <p className="mt-5 text-[13px] leading-snug text-ink-3 @min-[59rem]/auth:hidden">{tm.deviceMemory}</p>
         </>
       ) : rows.length ? (
         <>
@@ -196,7 +196,7 @@ export function TanMethodChoice({
               </li>
             ))}
           </ul>
-          <p className="mt-5 text-[13px] leading-snug text-ink-3 lg:hidden">{tm.deviceMemory}</p>
+          <p className="mt-5 text-[13px] leading-snug text-ink-3 @min-[59rem]/auth:hidden">{tm.deviceMemory}</p>
         </>
       ) : (
         <>

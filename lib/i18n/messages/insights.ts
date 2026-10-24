@@ -289,20 +289,6 @@ export const de = {
   },
 
   /** Demnächst fällig, the overview's tile of what the next 30 days bring (components/Contracts.tsx). */
-  upcoming: {
-    title: 'Demnächst fällig',
-    next30: 'nächste 30 Tage',
-    failed: (account: string) => `Abruf für ${account} fehlgeschlagen – ohne Umsätze lässt sich nichts vorhersehen.`,
-    notLoaded: (account: string) =>
-      `Sobald die Umsätze von ${account || 'diesem Konto'} abgerufen sind, stehen hier die nächsten erwarteten Buchungen.`,
-    none: (account: string) => `Für ${account} ist in den nächsten 30 Tagen keine regelmäßige Buchung zu erwarten.`,
-    noneYet: 'In den geladenen Umsätzen sind noch keine regelmäßigen Zahlungen erkannt.',
-    /** Before the rhythm, for a screen reader: "am 05.10., ". */
-    on: (day: string) => `am ${day}, `,
-    more: (n: number) => `und ${counted(n, 'weitere Buchung', 'weitere Buchungen')}`,
-    sum: 'Summe, ca.',
-  },
-
   /** Where the balance is heading by the month's end (lib/forecast.ts, components/insights/Forecast.tsx). */
   forecast: {
     /** "Ende Oktober" — the month's name as the language writes it. */
@@ -420,23 +406,12 @@ export const de = {
   },
 
   /** Monatsbilanz, this month in and out (components/overview/MonthSummary.tsx). */
-  monthSummary: {
-    title: 'Monatsbilanz',
-    /** Last month as a yardstick: "Im September", "Im September bis 04.09.". */
-    inMonth: (month: string) => `Im ${month}`,
-    inMonthUntil: (month: string, day: string) => `Im ${month} bis ${day}`,
-    inMonthSpan: (month: string, days: string) => `Im ${month}, ${days}`,
-    unsupported: 'Deine Bank bietet für dieses Konto keine Umsatzabfrage über FinTS an.',
-    pending: 'Sobald die Umsätze dieses Kontos abgerufen sind, steht hier die Bilanz des Monats.',
-    notLoaded: 'Keine Umsätze geladen',
-    monthNotLoaded: (month: string) => `${month} ist nicht geladen`,
-    loadLast90Days: 'Letzte 90 Tage laden',
-    loaded: (range: ReactNode): ReactNode[] => ['Geladen ist der Zeitraum ', range, '.'],
-    noneYet: (month: string) => `Noch keine Umsätze im ${month}`,
-    onlyTransfers: (n: number) =>
-      `Bisher nur ${n === 1 ? 'eine Umbuchung' : `${n} Umbuchungen`} zwischen deinen eigenen Konten – die zählen hier nicht mit.`,
-    empty: 'Sobald etwas gebucht ist, siehst du hier, was rein- und rausging.',
-    withoutForeign: (n: number) => `ohne ${n} in Fremdwährung`,
+  /** The line of figures under the balance on a wide window (components/overview/MonthFigures.tsx). */
+  monthFigures: {
+    /** "Eingänge 1.–24. Oktober": the days of this month the loaded Umsätze cover. */
+    income: (days: string) => `Eingänge ${days}`,
+    spending: (days: string) => `Ausgänge ${days}`,
+    due: 'Demnächst fällig, 30 Tage',
   },
 
   /** Why there is no Kontoverlauf (lib/balance-history.ts). */
@@ -695,19 +670,6 @@ export const en: typeof de = {
     recognising: 'Recognising contracts…',
   },
 
-  upcoming: {
-    title: 'Due soon',
-    next30: 'next 30 days',
-    failed: (account) => `Could not load ${account} – without transactions, nothing can be predicted.`,
-    notLoaded: (account) =>
-      `Once the transactions of ${account || 'this account'} are loaded, the next expected transactions appear here.`,
-    none: (account) => `No regular transaction is expected for ${account} in the next 30 days.`,
-    noneYet: 'No regular payments have been recognised in the loaded transactions yet.',
-    on: (day) => `on ${day}, `,
-    more: (n) => `and ${countedEn(n, 'more transaction', 'more transactions')}`,
-    sum: 'Total, approx.',
-  },
-
   forecast: {
     title: (month) => `Balance at the end of ${month}`,
     estimate: 'Forecast',
@@ -810,22 +772,10 @@ export const en: typeof de = {
     loadAll: 'Load all balances',
   },
 
-  monthSummary: {
-    title: 'Monthly summary',
-    inMonth: (month) => `In ${month}`,
-    inMonthUntil: (month, day) => `In ${month} until ${day}`,
-    inMonthSpan: (month, days) => `In ${month}, ${days}`,
-    unsupported: 'Your bank does not offer transaction queries for this account over FinTS.',
-    pending: 'Once this account’s transactions are loaded, the month’s summary appears here.',
-    notLoaded: 'No transactions loaded',
-    monthNotLoaded: (month) => `${month} is not loaded`,
-    loadLast90Days: 'Load last 90 days',
-    loaded: (range) => ['The loaded period is ', range, '.'],
-    noneYet: (month) => `No transactions in ${month} yet`,
-    onlyTransfers: (n) =>
-      `So far only ${n === 1 ? 'one internal transfer' : `${n} internal transfers`} between your own accounts – they do not count here.`,
-    empty: 'Once something is booked, you can see here what came in and went out.',
-    withoutForeign: (n) => `excluding ${n} in a foreign currency`,
+  monthFigures: {
+    income: (days) => `Money in ${days}`,
+    spending: (days) => `Money out ${days}`,
+    due: 'Due in the next 30 days',
   },
 
   balanceHistory: {

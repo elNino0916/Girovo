@@ -26,13 +26,12 @@ import { useFints } from './FintsProvider';
 import { ArrowRightIcon, RefreshIcon } from './icons';
 import { Money } from './Money';
 import { Alert, Button, CountBadge, EmptyState, ErrorState, FilterChip, IconButton, Overlay, Sheet, Spinner, cx } from './ui';
-import { usePhone } from './shell/usePhone';
 import { LoadHistoryButton, YEAR_SPAN, spanDays } from './insights/shared';
 import { TxDetailHost, openTxDetail } from './transactions/detail-host';
 import { ExportMenu } from './transactions/ExportMenu';
 import { groupByDay, listTotals, merchantFor, newestFirst, searchText } from './transactions/model';
 import { PeriodControl } from './transactions/PeriodControl';
-import { PendingPanel, showPendingMatches } from './transactions/PendingPanel';
+import { PendingPanel } from './transactions/PendingPanel';
 import { TxFilterBar, activeFilterCount } from './transactions/TxFilterBar';
 import { TxList } from './transactions/TxList';
 import { TxRowSkeleton } from './transactions/TxRow';
@@ -70,10 +69,10 @@ export function Transactions() {
   const headingRef = useRef<HTMLHeadingElement>(null);
   /** The bank's own Kontoauszüge, opened from the export menu (components/BankStatements.tsx). */
   const [statementsOpen, setStatementsOpen] = useState(false);
-  // A phone: the list has no header row of its own — the search is the
-  // Übersicht's head, the period and the export end the chip row, and the
-  // Vorgemerkt are a chip at its start that opens them in a bottom sheet.
-  const phone = usePhone();
+  // No header row of its own (the phone's first, every width's since the
+  // desktop followed it, 2026-10-24): the search is the Übersicht's head,
+  // the period and the export end the chip row, and the Vorgemerkt are a
+  // chip at its start that opens them in a sheet.
   const [pendingOpen, setPendingOpen] = useState(false);
 
   const loaded = a ? statementInfo[a.accountNumber] : undefined;
@@ -180,7 +179,7 @@ export function Transactions() {
   const pendingLine = pendingHits > 0 && (
     <button
       type="button"
-      onClick={phone ? () => setPendingOpen(true) : showPendingMatches}
+      onClick={() => setPendingOpen(true)}
       className="group inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-[4px] text-left text-[13.5px] font-semibold text-accent"
     >
       <span className="underline-offset-[3px] group-hover:underline">
@@ -300,43 +299,15 @@ export function Transactions() {
         aria-busy={loading || undefined}
         className="panel scroll-mt-4 overflow-clip"
       >
-        <div className="px-4 pt-4 pb-4 sm:px-5 sm:pt-5 max-sm:pt-0 max-sm:pb-0">
-          <div className={cx('flex items-start gap-3', phone && 'sr-only')}>
-            <div className="min-w-0 flex-1">
-              <h2 id={titleId} ref={headingRef} tabIndex={-1} className="section-head outline-none">{tr.common.nav.transactions}</h2>
-              {/* The list's own days say what it covers; while it loads, this line says what is on its way. */}
-              {loading && (
-                <p className="tnum mt-0.5 truncate text-[13.5px] text-ink-3">{words.loadingRange(fmtRange(range.from, range.to))}</p>
-              )}
-            </div>
-            {!phone && <div className="-mt-0.5 -mr-1.5 flex shrink-0 items-center gap-1 sm:gap-2">
-              {a.canStatements && (
-                <PeriodControl
-                  loaded={loaded}
-                  applyRange={applyRange}
-                  busy={busy}
-                  coverage={historyCoverage[a.accountNumber]}
-                  savedRange={savedRange}
-                  applySavedRange={applySavedRange}
-                />
-              )}
-              {a.canStatements && (
-                <IconButton
-                  size="md"
-                  aria-label={`${words.refresh} ${mayNeedApproval}`}
-                  title={`${tr.transactions.refresh}. ${mayNeedApproval}`}
-                  disabled={busy}
-                  onClick={refresh}
-                >
-                  {loading ? <Spinner size={16} /> : <RefreshIcon size={18} />}
-                </IconButton>
-              )}
-              <ExportMenu loaded={loaded} all={sorted} filtered={filtered} onBankStatements={() => setStatementsOpen(true)} />
-            </div>}
+        <div className="px-4 sm:px-5">
+          <div className="sr-only">
+            <h2 id={titleId} ref={headingRef} tabIndex={-1} className="section-head outline-none">{tr.common.nav.transactions}</h2>
+            {/* The list's own days say what it covers; while it loads, this line says what is on its way. */}
+            {loading && <p>{words.loadingRange(fmtRange(range.from, range.to))}</p>}
           </div>
 
           {/* Android: Gemini Nano filling in the categories the rules left open. */}
-          {!loading && <CategoryProgress className={phone ? 'mb-3' : 'mt-3'} />}
+          {!loading && <CategoryProgress className="mb-3" />}
 
           {txError && transactions && !loading && (
             <Alert
@@ -385,8 +356,8 @@ export function Transactions() {
             </Alert>
           )}
 
-          {(hasList || filterCount > 0 || (phone && hasPending)) && !loading && (
-            <div className={phone ? undefined : 'mt-4'}>
+          {(hasList || filterCount > 0 || hasPending) && !loading && (
+            <div>
               <TxFilterBar
                 filter={txFilter}
                 setFilter={setTxFilter}
@@ -395,9 +366,7 @@ export function Transactions() {
                 months={months}
                 loaded={loaded}
                 categoryOf={categoryOf}
-                listId={listId}
-                phone={phone}
-                leading={phone && hasPending ? (
+                leading={hasPending ? (
                   <FilterChip
                     menu
                     aria-haspopup="dialog"
@@ -408,7 +377,7 @@ export function Transactions() {
                     {pending?.length ? <span className="tnum"> {pending.length}</span> : null}
                   </FilterChip>
                 ) : undefined}
-                trailing={phone ? (
+                trailing={(
                   <>
                     {a.canStatements && (
                       <PeriodControl
@@ -429,7 +398,7 @@ export function Transactions() {
                     )}
                     <ExportMenu loaded={loaded} all={sorted} filtered={filtered} onBankStatements={() => setStatementsOpen(true)} />
                   </>
-                ) : undefined}
+                )}
               />
             </div>
           )}
@@ -507,13 +476,11 @@ export function Transactions() {
 
       <TxDetailHost />
       {a.canBankStatements && <BankStatements account={a} open={statementsOpen} onClose={() => setStatementsOpen(false)} />}
-      {phone && (
-        <Overlay open={pendingOpen} onClose={() => setPendingOpen(false)} label={tr.common.booking.pending} align="bottom">
-          <Sheet onClose={() => setPendingOpen(false)}>
-            <PendingPanel />
-          </Sheet>
-        </Overlay>
-      )}
+      <Overlay open={pendingOpen} onClose={() => setPendingOpen(false)} label={tr.common.booking.pending} align="bottom">
+        <Sheet onClose={() => setPendingOpen(false)}>
+          <PendingPanel />
+        </Sheet>
+      </Overlay>
     </>
   );
 }

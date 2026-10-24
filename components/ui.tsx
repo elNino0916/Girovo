@@ -781,7 +781,7 @@ function safeFocusTarget(root: HTMLElement, named?: HTMLElement | null): HTMLEle
 }
 
 /** A touch screen as the main pointer (a phone, a tablet): focusing a field there opens the on-screen keyboard. */
-const coarsePointer = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+export const coarsePointer = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 
 /**
  * Focus was put somewhere with preventScroll (the layer must not jump while

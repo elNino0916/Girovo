@@ -7,8 +7,8 @@ import { daysLabel } from '@/lib/analytics';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { useCsvExport } from '../shell/actions';
-import { ChevronIcon, DownloadIcon, FileIcon, FilterIcon } from '../icons';
-import { Button, Menu, MenuItem, MenuSeparator, cx } from '../ui';
+import { DownloadIcon, FileIcon, FilterIcon } from '../icons';
+import { IconButton, Menu, MenuItem, MenuSeparator } from '../ui';
 
 /**
  * The Umsätze as a German-Excel CSV — all of them, or just what the filter
@@ -53,18 +53,11 @@ export function ExportMenu({
       label={words.label}
       placement="bottom-end"
       minWidth={288}
-      trigger={(p, { open }) => (
-        <Button
-          {...p}
-          size="sm"
-          variant="tertiary"
-          aria-label={words.button}
-          iconLeft={<DownloadIcon size={16} />}
-          iconRight={<ChevronIcon size={14} strokeWidth={2} className={cx('-mr-1 hidden transition-transform duration-150 sm:block', open && 'rotate-180')} />}
-          className="max-sm:px-2.5"
-        >
-          <span className="hidden sm:inline">{words.button}</span>
-        </Button>
+      // The glyph alone at the end of the chip row, beside the refresh: the menu names what it saves.
+      trigger={(p) => (
+        <IconButton {...p} size="md" aria-label={words.button} title={words.button}>
+          <DownloadIcon size={18} />
+        </IconButton>
       )}
     >
       <MenuItem

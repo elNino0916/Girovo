@@ -1,11 +1,18 @@
 'use client';
 
-// The frame every screen before the dashboard shares: an app's screen, as
-// on the phone — the top bar with the app's mark, then the three-step
-// progress and the form straight on the page, no band and no card around
-// them. On a wide window a side tile beside the form says what happens to the
-// data. The Android app has no Darstellung here: it follows the phone's light
-// and dark.
+// The frame every screen before the dashboard shares, "Markenfläche mit
+// Blatt" (owner, 2026-10-23, the phone's; the desktop's since 2026-10-24):
+// the brand's colour holds the G€ plate, the name and one line of what
+// Girovo is, and the steps stand on a paper sheet that rises over it — from
+// below on a phone, from the right on a wide window. On the sheet the
+// three-step progress and the form stand straight on the page, no card
+// around them; where the sheet is wide enough a side tile beside the form
+// says what happens to the data. The Android app has no Darstellung here:
+// it follows the phone's light and dark.
+//
+// The sheet's width is a container (`auth`): the side tile, and the form's
+// rows that make room for it, switch on what the sheet holds, not on the
+// window — the brand field beside it takes its share.
 
 import type { CSSProperties, ReactNode } from 'react';
 import { useT } from '@/lib/i18n/react';
@@ -15,9 +22,8 @@ import { ThemeToggle } from '../ThemeToggle';
 import { LanguageSwitch } from '../LanguageToggle';
 import { CheckIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../icons';
 import { cx } from '../ui';
-import { BrandMark, BrandPlate } from '../shell/BrandMark';
+import { BrandPlate } from '../shell/BrandMark';
 import { usePhone } from '../shell/usePhone';
-import { MASTHEAD_EDGES } from '../shell/edges';
 import { useUpdates } from '../updates/store';
 import { UpdateBarButton } from '../updates/UpdateNotices';
 import { useUsageConsent } from '../telemetry/usage';
@@ -32,9 +38,10 @@ const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
 /**
- * The auth screens' page. `step` draws the progress on the stage; `aside` is a
- * second tile beside the main one on a wide window (≥1024px) and is simply
- * left out below that — whatever it says must not be the only place it is said.
+ * The auth screens' page. `step` draws the progress above the form; `aside` is
+ * a second tile beside the main one on a wide sheet (the `auth` container
+ * from 59rem) and is simply left out below that — whatever it says must not
+ * be the only place it is said.
  */
 export function AuthCard({
   children, step, aside,
@@ -43,42 +50,63 @@ export function AuthCard({
   step?: AuthStep;
   aside?: ReactNode;
 }) {
+  const t = useT();
   const phone = usePhone();
-  if (IS_ANDROID && phone) return <PhoneAuth step={step}>{children}</PhoneAuth>;
+  if (phone) return <PhoneAuth step={step}>{children}</PhoneAuth>;
   return (
-    <div className="flex h-dvh flex-col bg-paper">
-      <AuthMasthead />
+    <div className="flex h-dvh bg-stage text-stage-ink">
+      {/* The brand field: the window's left edge, top to bottom. Nothing in
+          it is pressed, so all of it drags the window, like the bar beside it. */}
+      <div className="on-stage flex w-[clamp(240px,28vw,400px)] shrink-0 flex-col pr-7 pl-8 xl:pl-12" style={DRAG}>
+        <div className="flex flex-1 flex-col justify-center pb-[18vh]">
+          {/* By night the field is a deep blue too: a hairline of its ink keeps the navy plate's edge. */}
+          <BrandPlate size={48} className="dark:shadow-[0_0_0_1.5px_color-mix(in_srgb,var(--stage-ink)_45%,transparent)]" />
+          <p className="mt-5 text-[28px] leading-9 font-medium">Girovo</p>
+          <p className="mt-3 max-w-[24ch] text-lg leading-[26px]">{t.auth.brandLine}</p>
+        </div>
+        {/* For support questions, development builds included ("3.1.3-dev.123"). */}
+        {APP_VERSION && (
+          <p title={`Version ${APP_VERSION}`} className="tnum truncate pb-6 text-[12px] leading-4 text-stage-ink-2">
+            {APP_VERSION}
+          </p>
+        )}
+      </div>
 
-      {/* The page scrolls here, not the window (the window sits fixed under
-          the desktop caption bar). Marked as the scroll root so an open
-          dialog — the TAN wait over the method picker — can lock it. */}
-      <div data-scroll-root className="relative min-h-0 flex-1 overflow-y-auto">
+      {/* The sheet, risen 28px over the field from the right. */}
+      <div className="relative -ml-7 flex min-w-0 flex-1 flex-col rounded-l-[28px] bg-paper text-ink shadow-[-2px_0_12px_rgb(0_0_0/0.08)]">
+        <AuthBar />
 
-        <main
-          className={cx(
-            'relative mx-auto w-full px-4 pt-5 pb-12 sm:px-6 sm:pb-16 sm:[@media(min-height:721px)]:pt-8 sm:[@media(max-height:720px)]:pt-5',
-            aside ? 'max-w-[528px] lg:max-w-[900px]' : 'max-w-[528px]',
-          )}
-        >
-          {step && <StepIndicator current={step} />}
+        {/* The page scrolls here, not the window (the window sits fixed under
+            the desktop caption bar). Marked as the scroll root so an open
+            dialog — the TAN wait over the method picker — can lock it. */}
+        <div data-scroll-root className="@container/auth relative min-h-0 flex-1 overflow-y-auto">
+          <main
+            className={cx(
+              'relative mx-auto w-full px-6 pb-16 [@media(min-height:721px)]:pt-6 [@media(max-height:720px)]:pt-2',
+              aside ? 'max-w-[528px] @min-[59rem]/auth:max-w-[900px]' : 'max-w-[528px]',
+            )}
+          >
+            {step && <StepIndicator current={step} />}
 
-          <div className={cx('mt-5 sm:[@media(min-height:721px)]:mt-7', !!aside && 'lg:grid lg:grid-cols-[minmax(0,1fr)_316px] lg:items-start lg:gap-6')}>
-            <div className="pb-2">{children}</div>
-            {aside && <div className="hidden lg:block">{aside}</div>}
-          </div>
-        </main>
+            <div className={cx('mt-5 [@media(min-height:721px)]:mt-7', !!aside && '@min-[59rem]/auth:grid @min-[59rem]/auth:grid-cols-[minmax(0,1fr)_316px] @min-[59rem]/auth:items-start @min-[59rem]/auth:gap-6')}>
+              <div className="pb-2">{children}</div>
+              {aside && <div className="hidden @min-[59rem]/auth:block">{aside}</div>}
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );
 }
 
 /**
- * Android's phone (owner, 2026-10-23): the brand's colour fills the top —
- * the G€ plate, the name and, on the first step, one line of what Girovo
- * is — and the step rises over it as Material's bottom sheet. After the
- * first step the field shrinks to the plate and the name, so the form
- * keeps the room. The whole page scrolls as one; the sheet's paper runs to
- * the bottom of the screen.
+ * A phone (owner, 2026-10-23): the brand's colour fills the top — the G€
+ * plate, the name and, on the first step, one line of what Girovo is — and
+ * the step rises over it as Material's bottom sheet. After the first step
+ * the field shrinks to the plate and the name, so the form keeps the room.
+ * The whole page scrolls as one; the sheet's paper runs to the bottom of
+ * the screen. A narrow browser window (the website) gets the same, with its
+ * Darstellung beside the language.
  */
 function PhoneAuth({ step, children }: { step?: AuthStep; children: ReactNode }) {
   const t = useT();
@@ -92,6 +120,7 @@ function PhoneAuth({ step, children }: { step?: AuthStep; children: ReactNode })
         >
           <div className="-mr-3 flex h-16 items-center justify-end [--md-sys-color-on-surface-variant:var(--stage-ink)]">
             <LanguageSwitch />
+            {!IS_ANDROID && <ThemeToggle tone="stage" />}
           </div>
           <div className="flex items-center gap-3.5">
             {/* By night the field is a deep blue too: a hairline of its ink keeps the navy plate's edge. */}
@@ -100,7 +129,7 @@ function PhoneAuth({ step, children }: { step?: AuthStep; children: ReactNode })
           </div>
           {first && <p className="mt-3 max-w-[30ch] text-lg leading-[26px]">{t.auth.brandLine}</p>}
         </header>
-        <main className="relative -mt-7 flex-1 rounded-t-[28px] bg-paper px-4 pt-3 pb-12 text-ink shadow-[0_-2px_12px_rgb(0_0_0/0.08)]">
+        <main className="@container/auth relative -mt-7 flex-1 rounded-t-[28px] bg-paper px-4 pt-3 pb-12 text-ink shadow-[0_-2px_12px_rgb(0_0_0/0.08)]">
           {/* Material's bottom sheet carries a handle; this one is a page, so it only looks like one. */}
           <span aria-hidden className="mx-auto mb-4 block h-1 w-8 rounded-full bg-[color-mix(in_srgb,var(--ink-2)_40%,transparent)]" />
           {step && <StepIndicator current={step} />}
@@ -113,29 +142,20 @@ function PhoneAuth({ step, children }: { step?: AuthStep; children: ReactNode })
 
 /**
  * No session yet to put a bar over, but the window still needs one: with no
- * native frame (electron/main.cjs) this is also the only place on the login
- * screen the user can grab to drag it.
+ * native frame (electron/main.cjs) this strip along the sheet's top is,
+ * with the brand field beside it, where the user grabs the window to drag
+ * it. On the sheet's paper, so the OS-drawn caption buttons at its right
+ * end are the colour they are everywhere else.
  */
-function AuthMasthead() {
+function AuthBar() {
   return (
     // Not a scroll container, same reason as the dashboard's masthead: kept
-    // clear of the row so the OS-drawn scrollbar never crosses it. Its edges
-    // are the dashboard masthead's (1280px column, toggle clear of the OS
-    // caption buttons), so the "€" mark is where the dashboard will put it.
+    // clear of the row so the OS-drawn scrollbar never crosses it.
     <header
       data-topbar
-      // A faint hairline: the bar and the page are the same surface, and the
-      // line is what says where the window's drag handle ends.
-      className={cx(
-        'on-bar flex shrink-0 items-center gap-3 bg-bar text-bar-ink shadow-[inset_0_-1px_0_color-mix(in_srgb,var(--bar-ink)_10%,transparent)]',
-        MASTHEAD_EDGES,
-      )}
+      className="on-bar bar-caption-safe flex shrink-0 items-center justify-end gap-1 pl-6"
       style={{ height: 'var(--barbar-h)', ...DRAG }}
     >
-      <BrandMark version={APP_VERSION} versionClassName="hidden sm:inline" />
-
-      <div className="flex-1" />
-
       <div className="flex items-center gap-1" style={NO_DRAG}>
         {/* Desktop app, and only while a newer version is known. */}
         <UpdateBarButton />
@@ -228,7 +248,7 @@ function useTelemetryLine(mentionUsage = true): string | null {
 }
 
 /**
- * What happens to the credentials, said once in the wide layout's side tile.
+ * What happens to the credentials, said once in the wide sheet's side tile.
  * Honest about what is kept on this machine and about every outside lookup
  * the app can make: company names to Brandfetch only with the user's yes,
  * with the desktop app's update check on, its version number to GitHub, and
@@ -295,7 +315,7 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
 }
 
 /**
- * The narrow layout's version of the side tile, under the form. Short, but
+ * The narrow sheet's version of the side tile, under the form. Short, but
  * it keeps what matters most: the device the app remembers, and the one
  * lookup that would carry anything from the bookings.
  */
@@ -304,7 +324,7 @@ export function PrivacyNote() {
   const logoLine = useLogoLine();
   const telemetryLine = useTelemetryLine();
   return (
-    <p className="mt-6 flex items-start gap-2.5 border-t border-line pt-5 text-[13px] leading-snug text-ink-3 lg:hidden">
+    <p className="mt-6 flex items-start gap-2.5 border-t border-line pt-5 text-[13px] leading-snug text-ink-3 @min-[59rem]/auth:hidden">
       <ShieldIcon size={16} className="mt-px shrink-0" />
       <span>
         {t.auth.privacy.note}{logoLine && ` ${logoLine}`}{telemetryLine && ` ${telemetryLine}`}

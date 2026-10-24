@@ -21,20 +21,6 @@ const PREVIEW_ROWS = 4;
 export const PENDING_PANEL_ID = 'vorgemerkt';
 
 /**
- * Brings the Vorgemerkt panel into view with focus on the first row that
- * matches the Umsätze filter (the panel's heading when none is shown).
- */
-export function showPendingMatches(): void {
-  const panel = document.getElementById(PENDING_PANEL_ID);
-  if (!panel) return;
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  panel.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
-  const target = panel.querySelector<HTMLElement>('[data-pending-match] [data-tx-row]') ?? panel.querySelector<HTMLElement>('h2');
-  if (target && !target.matches('button, [tabindex]')) target.setAttribute('tabindex', '-1');
-  target?.focus({ preventScroll: true });
-}
-
-/**
  * Vorgemerkte Umsätze: bookings the bank knows about but has not booked yet —
  * an announced Lastschrift, a card payment still being cleared.
  *

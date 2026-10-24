@@ -22,9 +22,6 @@ import { useFints } from '../FintsProvider';
 import { newestFirst } from '../transactions/model';
 import { trackUsage } from '../telemetry/usage';
 
-/** The Umsätze search field's id (components/transactions/TxFilterBar.tsx). */
-const TX_SEARCH_ID = 'umsatz-suche';
-
 /**
  * The one CSV export, for every place that offers it (the Umsätze tile's
  * Export menu, the palette).
@@ -133,7 +130,7 @@ export type ShellActions = ReturnType<typeof useShellActions>;
 export function useShellActions() {
   const {
     accounts, activeAccount, transactions, statementInfo, loadingAccount,
-    accountLabel, toast, openTransfer, openShare, printStatement, setTab,
+    accountLabel, toast, openTransfer, openShare, printStatement, setPaletteOpen,
   } = useFints();
   const t = useT();
   const saveCsv = useCsvExport();
@@ -175,27 +172,10 @@ export function useShellActions() {
   }, [loaded, transactions, info, saveCsv]);
 
   /**
-   * Puts the cursor into the Umsätze search. The list may not be on screen
-   * (another tab), so the Übersicht is brought back first and the field
-   * looked up once it has rendered. Deliberately not showTransactions(): that
-   * hands focus to the list's heading, which would take it from the field.
+   * The Umsätze search, for "/": the search view (components/CommandPalette.tsx),
+   * the Übersicht's head, which finds the bookings among everything else.
    */
-  const focusSearch = useCallback(() => {
-    setTab('overview');
-    let tries = 0;
-    const find = () => {
-      const el = document.getElementById(TX_SEARCH_ID) as HTMLInputElement | null
-        ?? document.querySelector<HTMLInputElement>('[data-scroll-root] [role="search"] input, [data-scroll-root] input[type="search"]');
-      if (el) {
-        el.scrollIntoView({ block: 'center' });
-        el.focus({ preventScroll: true });
-        el.select();
-      } else if (++tries < 40) {
-        setTimeout(find, 25);
-      }
-    };
-    setTimeout(find, 0);
-  }, [setTab]);
+  const focusSearch = useCallback(() => setPaletteOpen(true), [setPaletteOpen]);
 
   return {
     canTransfer, transfer,

@@ -16,7 +16,6 @@ import { Money } from '../Money';
 import { AlertTriangleIcon, ChevronIcon, EyeIcon, EyeOffIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
 import { Alert, Button, CopyButton, Field, IconButton, Input, Overlay, Sheet, Skeleton, cx } from '../ui';
 import { fmtSince } from '../shell/session';
-import { usePhone } from '../shell/usePhone';
 import { MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
 import { AccountList } from './AccountList';
 import { BalanceChart } from './BalanceChart';
@@ -63,31 +62,28 @@ function Figure({ label, labelClassName, title, children }: {
   );
 }
 
-/** Shaped like the hero, for the moment before there is an account to show. */
+/** Shaped like the balance, for the moment before there is an account to show. */
 function HeroSkeleton() {
   const t = useT();
   return (
-    <section data-hero aria-busy="true" aria-label={t.insights.hero.loading} className="panel min-w-0 overflow-clip">
-      <div className="px-5 pt-6 pb-6 sm:px-8 sm:pt-7">
-        <Skeleton className="h-3.5 w-36 rounded-[4px]" />
-        <Skeleton className="mt-4 h-11 w-64 max-w-full rounded-[6px]" />
-        <Skeleton className="mt-3 h-3 w-28 rounded-[4px]" />
-        <Skeleton className="mt-8 h-[152px] w-full rounded-[8px]" />
-      </div>
+    <section aria-busy="true" aria-label={t.insights.hero.loading} className="min-w-0">
+      <Skeleton className="mt-3 h-4 w-32 rounded-[4px]" />
+      <Skeleton className="mt-4 h-12 w-64 max-w-full rounded-[6px]" />
+      <Skeleton className="mt-3 h-3.5 w-40 rounded-[4px]" />
     </section>
   );
 }
 
 /**
- * The balance, given the room a balance deserves — and what qualifies it.
- *
- * The figure leads, set at display size in the headline navy with the cents
- * stepped down, the way a bank's start page states it, under a label that
- * names the account it belongs to. Right under it, the day it is true for;
- * beside it the handful of figures that change what the balance means (how
- * much is actually available, the overdraft line, what is already reserved).
- * Then the verified Kontoverlauf, and finally the account line: whose
- * account, which IBAN, which BIC.
+ * The balance, set flat under the search — the phone's first (owner,
+ * 2026-10-23), every width's since the desktop followed it ("Suche oben",
+ * 2026-10-24). The account's name heads it, and is the way to the others;
+ * the eye that hides amounts stands at that row's end. The figure leads at
+ * display size with the cents stepped down, the way a bank's start page
+ * states it, with Verfügbar and how fresh it is under it. A sparkline at its
+ * baseline opens the rest in place: the handful of figures that change what
+ * the balance means (the overdraft line, what is already reserved), the
+ * account line (the IBAN, renaming) and the verified Kontoverlauf.
  *
  * Where there is no figure, the hero says why in its place — not fetched yet,
  * or failed with the bank's own reason — and offers the read that gets it.
@@ -97,10 +93,9 @@ function HeroSkeleton() {
  * Kreditrahmen, in ink rather than red — a card's balance is negative by
  * nature, so red would raise an alarm after every purchase.
  *
- * No buttons for the account's actions: Überweisen is the navigation's
- * floating button, Geld anfordern and Kontoauszug are under "Mehr", and all
- * three act on this same account. With a single account the list above stays away, and its
- * "Umbenennen" moves into the account line here.
+ * No buttons for the account's actions: Überweisen and Geld anfordern head
+ * Zahlungen, the Kontoauszug is the export's, and all of them act on this
+ * same account.
  *
  * Past ranges: a statement fetched for a range that ended before today says
  * nothing about the balance *now*. Its closing figure is shown as "Saldo am
@@ -111,7 +106,7 @@ export function AccountHero() {
   const {
     activeAccount: a, accounts, balances, statementInfo, txByAccount, pendingCache, pendingInfo, loadingAccount,
     balanceLoading, txErrors, balanceErrors, busy, privacy, togglePrivacy, isLoadedForAppliedRange, refreshAccount,
-    loadBalance, accountLabel, banks, bankOf,
+    loadBalance, accountLabel,
   } = useFints();
   // `tr`, not `t`: a booking is `t` in the filters below.
   const tr = useT();
@@ -128,28 +123,20 @@ export function AccountHero() {
   // their kept balances agree (lib/history.ts).
   const history = useMemo(() => (info && txs ? accountBalanceHistory(txs, info) : null), [info, txs]);
 
-  // A phone shows the balance flat, under the search: the figure, Verfügbar
-  // and a sparkline that opens the rest (the qualifying figures, the IBAN,
-  // the Kontoverlauf) in place.
-  const phone = usePhone();
   const [details, setDetails] = useState(false);
   const detailsId = useId();
-  const phoneTitleId = useId();
+  const titleId = useId();
 
   // No account at all (the bank listed none): the list says so; nothing to hold a place for.
   if (!a) return accounts.length ? <HeroSkeleton /> : null;
-  // Renamed here when the list above stays away (a single account), and on a
-  // phone always: its cards are for switching, the list's "Umbenennen" is the
-  // wider window's.
-  const renamable: Renamable = accounts.length === 1 && banks.length <= 1 ? 'always' : 'phone';
   // A Depot has no balance and no Kontoverlauf over FinTS: its value instead.
   if (isDepot(a)) {
-    return phone ? (
+    return (
       <div className="min-w-0">
         <div className="mb-3 flex min-h-12 items-center"><AccountSwitch label={accountLabel(a)} /></div>
-        <DepotHero account={a} renamable={renamable} />
+        <DepotHero account={a} />
       </div>
-    ) : <DepotHero account={a} renamable={renamable} />;
+    );
   }
 
   const bal = balances[acct];
@@ -169,7 +156,6 @@ export function AccountHero() {
   const dated = asOf(bal, tr);
   const label = accountLabel(a);
   const nowLabel = card ? words.cardBalance : tr.common.account.balance;
-  const soleOfSeveral = accounts.length === 1 && banks.length > 1 && !!bankOf(a)?.bank.name;
 
   // What the big figure is: today's balance when known; for a past range
   // without one, that range's closing balance under its own name.
@@ -251,231 +237,113 @@ export function AccountHero() {
     );
   }
 
-  if (phone) {
-    const available = bal?.availableAmount;
-    const fresh = bal && info?.loadedAt ? tr.transactions.pending.asOf(fmtSince(info.loadedAt)) : null;
-    // The sparkline is the way into the details: drawn only from a proven history.
-    const spark = history?.verified && history.points.length > 1 ? history.points : null;
-    return (
-      <section aria-labelledby={phoneTitleId} className="min-w-0">
-        <h2 id={phoneTitleId} className="sr-only">{words.title(label)}</h2>
-        <div className="-mr-2 flex min-h-10 items-center justify-between gap-2">
-          <AccountSwitch label={label} />
-          <IconButton
-            size="md"
-            aria-label={privacy ? tr.common.showAmounts : tr.common.hideAmounts}
-            onClick={togglePrivacy}
-            className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--ink)_12%,transparent)]')}
-          >
-            {privacy ? <EyeOffIcon /> : <EyeIcon />}
-          </IconButton>
-        </div>
-
-        <div className="flex items-end justify-between gap-4">
-          <div ref={figureRef} tabIndex={-1} aria-busy={figureLoading || undefined} className="min-w-0 outline-none">
-            {main ? (
-              <>
-                {!plainNow && <p className="text-[14px] leading-5 font-medium text-ink-2">{main.label}</p>}
-                <p data-balance className={cx('leading-none', figureColour)}>
-                  <Money
-                    value={main.value}
-                    currency={main.currency}
-                    tone={card ? 'plain' : 'auto'}
-                    split
-                    className="text-[48px] leading-[56px] font-medium"
-                    centsClassName="text-[0.58em]"
-                  />
-                </p>
-                <p className="tnum mt-1 text-[14px] leading-5 text-ink-2">
-                  {available != null && bal ? (
-                    <>
-                      {tr.insights.available}{' '}
-                      <Money value={available} currency={bal.currency} tone="auto" className="font-medium text-ink" />
-                    </>
-                  ) : null}
-                  {/* The date, or for today's figure how fresh it is (the time of the
-                      read that brought it), on a line of its own under Verfügbar. */}
-                  {(showDate ? dated : fresh) && (
-                    <span className="block whitespace-nowrap" title={showDate ? dated?.title : undefined}>
-                      {showDate ? dated?.text : fresh}
-                    </span>
-                  )}
-                </p>
-                {!bal && a.canBalance && (
-                  <FetchAction
-                    lead={balanceErrors[acct]
-                      ? `${words.pastRange} ${words.currentFailed(card, balanceErrors[acct].message)}`
-                      : words.pastRange}
-                    label={balanceErrors[acct] ? tr.common.retry : words.loadCurrent(card)}
-                    busy={busy}
-                    loading={balanceLoading === acct}
-                    run={() => fetchFigure('balance')}
-                  />
-                )}
-              </>
-            ) : figureLoading ? (
-              <>
-                <Skeleton className="mt-1 h-12 w-56 max-w-full rounded-[6px]" />
-                <p className="mt-2 text-[14px] leading-5 text-ink-2">{words.fetchingDots}</p>
-              </>
-            ) : failure ? (
-              <FigureNote
-                problem
-                title={tr.common.fetchFailed}
-                action={{ label: tr.common.retry, run: () => fetchFigure() }}
-                busy={busy}
-              >
-                {failure.message}
-              </FigureNote>
-            ) : canReportBalance(a) ? (
-              <FigureNote title={words.noBalanceYet} action={{ label: tr.insights.loadBalance, run: () => fetchFigure() }} busy={busy} />
-            ) : (
-              <FigureNote title={words.noBalance}>
-                {words.noBalanceHint}
-              </FigureNote>
-            )}
-          </div>
-
-          {(spark || figures.length > 0) && (
-            // The figures behind the balance, opened in place: a press on the sparkline.
-            <button
-              type="button"
-              aria-expanded={details}
-              aria-controls={detailsId}
-              aria-label={tr.insights.balanceChart.title}
-              onClick={() => setDetails((d) => !d)}
-              className="mb-1 grid h-12 w-[112px] shrink-0 place-items-center rounded-full outline-offset-2 transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]"
-            >
-              {spark ? <Sparkline points={spark} /> : <ChevronIcon dir={details ? 'up' : 'down'} className="text-ink-2" />}
-            </button>
-          )}
-        </div>
-
-        {details && (
-          <div id={detailsId} className="mt-4">
-            {figures.length > 0 && <dl className="grid gap-y-2">{figures}</dl>}
-            <AccountLine account={a} renamable={renamable} />
-            <BalanceSection history={history} loading={statementLoading && !info} currency={currency} figure={!!main} />
-          </div>
-        )}
-      </section>
-    );
-  }
-
+  const available = bal?.availableAmount;
+  const fresh = bal && info?.loadedAt ? tr.transactions.pending.asOf(fmtSince(info.loadedAt)) : null;
+  // The sparkline is the way into the details: drawn only from a proven history.
+  const spark = history?.verified && history.points.length > 1 ? history.points : null;
   return (
-    <HeroFrame label={label}>
-      {/* A size container: whether the figures fit BESIDE the balance depends
-          on the tile's own width (a two-column dashboard at 1100px gives it
-          less room than a single column at 900px), not on the window's. */}
-      <div className="@container px-5 pt-5 pb-6 sm:px-8 sm:pt-7 sm:pb-7">
-        {/* The figure, and beside it (under it when narrow) what qualifies it. */}
-        <div className="grid gap-x-10 gap-y-5 @min-[640px]:grid-cols-[minmax(0,1fr)_auto] @min-[640px]:items-end">
-          <div ref={figureRef} tabIndex={-1} aria-busy={figureLoading || undefined} className="min-w-0 outline-none">
-            {/* Which figure, and whose: two Girokonten must not look alike up here. */}
-            <p className="text-[14px] leading-snug font-semibold text-ink-2">
-              {plainNow ? label : (
-                <>
-                  {main?.label ?? nowLabel}
-                  <span className="font-normal text-ink-3"> · {label}</span>
-                </>
-              )}
-              {/* A phone with several banks and this one account shows no card
-                  naming its bank (AccountList): the hero does. */}
-              {soleOfSeveral && <span className="font-normal text-ink-3 sm:hidden"> · {bankOf(a)?.bank.name}</span>}
-            </p>
-
-            {main ? (
-              <>
-                <p className={cx('mt-1.5 leading-none font-bold tracking-[-0.015em]', figureColour)}>
-                  <Money
-                    value={main.value}
-                    currency={main.currency}
-                    tone={card ? 'plain' : 'auto'}
-                    split
-                    className="text-[40px] @min-[520px]:text-[52px]"
-                    centsClassName="text-[0.5em] font-semibold"
-                  />
-                </p>
-                {bal ? (showDate && (
-                  <p className="tnum mt-2 text-[13px] leading-snug text-ink-3">
-                    <span title={dated?.title}>
-                      {dated?.text}
-                      {dated?.title && <span className="sr-only">. {dated.title}</span>}
-                    </span>
-                    {/* Hidden amounts outlast a restart: whoever comes back to a
-                        page of dots learns why here, and the way back. */}
-                    {privacy && (
-                      <>
-                        {` · ${tr.insights.amountsHidden} `}
-                        <button
-                          type="button"
-                          aria-label={tr.common.showAmounts}
-                          onClick={togglePrivacy}
-                          className="ml-1 font-semibold text-accent underline-offset-2 hover:underline"
-                        >
-                          {words.show}
-                        </button>
-                      </>
-                    )}
-                  </p>
-                )) : a.canBalance ? (
-                  // A past range's closing figure stands in for a balance the
-                  // app does not know — the enquiry can still add it.
-                  <FetchAction
-                    lead={balanceErrors[acct]
-                      ? `${words.pastRange} ${words.currentFailed(card, balanceErrors[acct].message)}`
-                      : words.pastRange}
-                    label={balanceErrors[acct] ? tr.common.retry : words.loadCurrent(card)}
-                    busy={busy}
-                    loading={balanceLoading === acct}
-                    run={() => fetchFigure('balance')}
-                  />
-                ) : (
-                  <p className="tnum mt-2 text-[13px] leading-snug text-ink-3">
-                    {words.pastRangeHint(card)}
-                  </p>
-                )}
-              </>
-            ) : figureLoading ? (
-              <>
-                <Skeleton className="mt-2 h-10 w-56 max-w-full rounded-[6px] @min-[520px]:h-12" />
-                <p className="mt-2 text-[13px] leading-snug text-ink-3">{words.fetchingDots}</p>
-              </>
-            ) : failure ? (
-              <FigureNote
-                problem
-                title={tr.common.fetchFailed}
-                action={{ label: tr.common.retry, run: () => fetchFigure() }}
-                busy={busy}
-              >
-                {failure.message}
-              </FigureNote>
-            ) : canReportBalance(a) ? (
-              <FigureNote title={words.noBalanceYet} action={{ label: tr.insights.loadBalance, run: () => fetchFigure() }} busy={busy} />
-            ) : (
-              <FigureNote title={words.noBalance}>
-                {words.noBalanceHint}
-              </FigureNote>
-            )}
-          </div>
-
-          {figures.length > 0 && (
-            <dl
-              className={cx(
-                'grid max-w-[440px] gap-y-2 border-t border-line pt-4',
-                '@min-[640px]:max-w-none @min-[640px]:min-w-[264px] @min-[640px]:border-t-0 @min-[640px]:border-l @min-[640px]:py-1 @min-[640px]:pl-6',
-              )}
-            >
-              {figures}
-            </dl>
-          )}
-        </div>
-
-        <AccountLine account={a} renamable={renamable} />
-        <BalanceSection history={history} loading={statementLoading && !info} currency={currency} figure={!!main} />
+    <section aria-labelledby={titleId} className="min-w-0">
+      <h2 id={titleId} className="sr-only">{words.title(label)}</h2>
+      <div className="-mr-2 flex min-h-10 items-center justify-between gap-2">
+        <AccountSwitch label={label} />
+        <IconButton
+          size="md"
+          aria-label={privacy ? tr.common.showAmounts : tr.common.hideAmounts}
+          onClick={togglePrivacy}
+          className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--ink)_12%,transparent)]')}
+        >
+          {privacy ? <EyeOffIcon /> : <EyeIcon />}
+        </IconButton>
       </div>
 
-    </HeroFrame>
+      <div className="flex items-end justify-between gap-4">
+        <div ref={figureRef} tabIndex={-1} aria-busy={figureLoading || undefined} className="min-w-0 outline-none">
+          {main ? (
+            <>
+              {!plainNow && <p className="text-[14px] leading-5 font-medium text-ink-2">{main.label}</p>}
+              <p data-balance className={cx('leading-none', figureColour)}>
+                <Money
+                  value={main.value}
+                  currency={main.currency}
+                  tone={card ? 'plain' : 'auto'}
+                  split
+                  className="text-[48px] leading-[56px] font-medium"
+                  centsClassName="text-[0.58em]"
+                />
+              </p>
+              <p className="tnum mt-1 text-[14px] leading-5 text-ink-2">
+                {available != null && bal ? (
+                  <>
+                    {tr.insights.available}{' '}
+                    <Money value={available} currency={bal.currency} tone="auto" className="font-medium text-ink" />
+                  </>
+                ) : null}
+                {/* The date, or for today's figure how fresh it is (the time of the
+                    read that brought it), on a line of its own under Verfügbar. */}
+                {(showDate ? dated : fresh) && (
+                  <span className="block whitespace-nowrap" title={showDate ? dated?.title : undefined}>
+                    {showDate ? dated?.text : fresh}
+                  </span>
+                )}
+              </p>
+              {!bal && a.canBalance && (
+                <FetchAction
+                  lead={balanceErrors[acct]
+                    ? `${words.pastRange} ${words.currentFailed(card, balanceErrors[acct].message)}`
+                    : words.pastRange}
+                  label={balanceErrors[acct] ? tr.common.retry : words.loadCurrent(card)}
+                  busy={busy}
+                  loading={balanceLoading === acct}
+                  run={() => fetchFigure('balance')}
+                />
+              )}
+            </>
+          ) : figureLoading ? (
+            <>
+              <Skeleton className="mt-1 h-12 w-56 max-w-full rounded-[6px]" />
+              <p className="mt-2 text-[14px] leading-5 text-ink-2">{words.fetchingDots}</p>
+            </>
+          ) : failure ? (
+            <FigureNote
+              problem
+              title={tr.common.fetchFailed}
+              action={{ label: tr.common.retry, run: () => fetchFigure() }}
+              busy={busy}
+            >
+              {failure.message}
+            </FigureNote>
+          ) : canReportBalance(a) ? (
+            <FigureNote title={words.noBalanceYet} action={{ label: tr.insights.loadBalance, run: () => fetchFigure() }} busy={busy} />
+          ) : (
+            <FigureNote title={words.noBalance}>
+              {words.noBalanceHint}
+            </FigureNote>
+          )}
+        </div>
+
+        {(spark || figures.length > 0) && (
+          // The figures behind the balance, opened in place: a press on the sparkline.
+          <button
+            type="button"
+            aria-expanded={details}
+            aria-controls={detailsId}
+            aria-label={tr.insights.balanceChart.title}
+            onClick={() => setDetails((d) => !d)}
+            className="mb-1 grid h-12 w-[112px] shrink-0 place-items-center rounded-full outline-offset-2 transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]"
+          >
+            {spark ? <Sparkline points={spark} /> : <ChevronIcon dir={details ? 'up' : 'down'} className="text-ink-2" />}
+          </button>
+        )}
+      </div>
+
+      {details && (
+        <div id={detailsId} className="mt-4">
+          {figures.length > 0 && <dl className="grid gap-y-2">{figures}</dl>}
+          <AccountLine account={a} />
+          <BalanceSection history={history} loading={statementLoading && !info} currency={currency} figure={!!main} />
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -486,7 +354,7 @@ export function AccountHero() {
  * says why it failed — the Depot tile below and the account's row in the
  * list leave all of that here.
  */
-function DepotHero({ account, renamable }: { account: SerializedAccount; renamable: Renamable }) {
+function DepotHero({ account }: { account: SerializedAccount }) {
   const { portfolios, portfolioLoading, portfolioErrors, loadPortfolio, busy, accountLabel } = useFints();
   const tr = useT();
   const words = tr.depot;
@@ -549,14 +417,14 @@ function DepotHero({ account, renamable }: { account: SerializedAccount; renamab
         </div>
         {/* The read, announced once — here, not again by the tile below. */}
         <p role="status" className="sr-only">{loading ? words.loading : ''}</p>
-        <AccountLine account={account} renamable={renamable} />
+        <AccountLine account={account} />
       </div>
     </HeroFrame>
   );
 }
 
 /**
- * The account's name heading the phone's balance — and, where there is
+ * The account's name heading the balance — and, where there is
  * another account or bank to go to, the way there: Material's bottom sheet
  * with the account list in its rows (components/overview/AccountList.tsx,
  * under [data-rows]), the banks apart, the Gesamtsaldo and "Anmelden" for a
@@ -693,17 +561,12 @@ function FetchAction({ lead, label, busy, loading, run }: {
   );
 }
 
-/** Where the balance offers renaming its account: at every width, or only on a phone. */
-type Renamable = 'always' | 'phone';
-
 /**
- * The account line, inside the balance, whose first line already names the
- * account: the number to hand to somebody else, copyable, and renaming, as an
- * icon — for the only account (no list above it) at every width, on a phone
- * for whichever is chosen. The holder is the user, and the BIC is in Geld
- * anfordern.
+ * The account line, inside the balance's details, whose head already names
+ * the account: the number to hand to somebody else, copyable, and renaming
+ * it, as an icon. The holder is the user, and the BIC is in Geld anfordern.
  */
-function AccountLine({ account, renamable }: { account: SerializedAccount; renamable: Renamable }) {
+function AccountLine({ account }: { account: SerializedAccount }) {
   const { vaultStatus } = useFints();
   const t = useT();
   const [renaming, setRenaming] = useState(false);
@@ -756,24 +619,21 @@ function AccountLine({ account, renamable }: { account: SerializedAccount; renam
 
   return (
     <div className="mt-3">
-      {renaming && renamable ? (
+      {renaming ? (
         <RenameForm account={account} onClose={() => setRenaming(false)} />
       ) : (
         <div className="flex min-w-0 items-center gap-2">
           <span className="min-w-0 flex-1">{idNode}</span>
-          {renamable && (
-            <IconButton
-              ref={renameButton}
-              data-rename
-              size="md"
-              aria-label={t.insights.accounts.rename}
-              aria-describedby={noteOpen ? noteId : undefined}
-              onClick={startRenaming}
-              className={renamable === 'phone' ? 'sm:hidden' : undefined}
-            >
-              <PencilIcon size={18} />
-            </IconButton>
-          )}
+          <IconButton
+            ref={renameButton}
+            data-rename
+            size="md"
+            aria-label={t.insights.accounts.rename}
+            aria-describedby={noteOpen ? noteId : undefined}
+            onClick={startRenaming}
+          >
+            <PencilIcon size={18} />
+          </IconButton>
         </div>
       )}
       {note}

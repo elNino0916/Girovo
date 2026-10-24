@@ -209,12 +209,6 @@ function Palette({ onClose }: { onClose: () => void }) {
         description: p.shareHint,
         run: a.share,
       },
-      {
-        // Not listed up front: this field already searches the Umsätze.
-        id: 'search', group: 'actions', ...named((m) => m.shell.searchTransactions, 'search'), icon: <SearchIcon size={18} />,
-        hint: single(['/']),
-        run: a.focusSearch,
-      },
       a.canStatement && {
         id: 'statement', group: 'actions', ...named((m) => m.shell.statementPdf, 'statement'), icon: <FileIcon />, featured: true,
         description: a.rangeLabel,

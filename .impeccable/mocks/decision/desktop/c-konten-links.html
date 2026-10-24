@@ -1,0 +1,159 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=1440"><title>Konten links</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=block');
+:root{
+  --primary:#0060a8; --on-primary:#fff; --pc:#d3e4ff; --on-pc:#004880;
+  --sc:#dae1ff; --on-sc:#3c4665;
+  --surface:#f8f9ff; --scl:#eff4ff; --sc1:#e9eefa; --sch:#e3e8f4; --schh:#dde3ee;
+  --ink:#161c24; --ink-2:#404753; --outline:#707784; --ov:#bfc7d5;
+  --green:#0c7336; --amber:#8a6410; --amber-soft:#fff4dc; --orange:#ee6a1f;
+  --chart-in:#2a9a5a; --chart-out:#30588f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface)}
+body{width:1440px;height:900px;overflow:hidden;position:relative;font-family:'Google Sans Flex',sans-serif;
+  color:var(--ink);-webkit-font-smoothing:antialiased;font-size:16px;line-height:24px;font-variation-settings:'ROND' 0}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;font-size:24px;line-height:1;width:1em;height:1em;
+  overflow:hidden;letter-spacing:normal;text-transform:none;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';
+  font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block;flex:none}
+.ms.fill{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:14px;line-height:20px;letter-spacing:.06em;white-space:nowrap}
+
+/* navigation rail, 96dp */
+.rail{position:absolute;left:0;top:0;bottom:0;width:96px;display:flex;flex-direction:column;align-items:center}
+.fab{margin-top:8px;width:56px;height:56px;border-radius:16px;background:var(--pc);color:var(--on-pc);display:grid;place-items:center;flex:none}
+.places{margin-top:40px;display:flex;flex-direction:column;gap:12px;width:100%}
+.place{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+.place .pill{width:56px;height:32px;border-radius:16px;display:grid;place-items:center}
+.place.on .pill{background:var(--sc);color:var(--on-sc)}
+.place.on{color:var(--ink)}
+.rail .foot{margin-top:auto;margin-bottom:24px}
+.main{position:absolute;left:96px;top:0;right:0;bottom:0;overflow:hidden}
+
+/* type */
+.title{font-size:22px;line-height:28px;font-weight:400}
+.sec{font-size:18px;line-height:24px;font-weight:500}
+.sub{font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+.meta{font-size:14px;line-height:20px;color:var(--ink-2)}
+.ink{color:var(--ink);font-weight:500}
+
+/* controls */
+.ib{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);position:relative;flex:none}
+.ib.s{width:40px;height:40px}
+.dot{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 2px var(--ring,var(--surface))}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--sch);color:var(--ink-2);display:grid;place-items:center;
+  font-size:14px;line-height:20px;font-weight:500}
+.search{height:48px;border-radius:24px;background:var(--sch);display:flex;align-items:center;gap:12px;padding:0 8px 0 14px;color:var(--ink-2);flex:none}
+.search .ph{flex:1;font-size:16px;line-height:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.key{font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2);background:var(--surface);border-radius:8px;padding:4px 8px;white-space:nowrap}
+.tb{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 12px;border-radius:20px;color:var(--primary);
+  font-size:14px;line-height:20px;font-weight:500;white-space:nowrap}
+.tb .ms{font-size:18px}
+.link{color:var(--primary);font-weight:500}
+
+/* section heads */
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:0 16px}
+.head .meta{margin-top:2px}
+
+/* rows */
+.row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;column-gap:16px;align-items:center;padding:10px 16px;min-height:64px}
+.row .t{min-width:0}
+.name{font-size:16px;line-height:22px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amt{font-size:16px;line-height:22px;font-weight:500;text-align:right;white-space:nowrap}
+.amt.pos{color:var(--green)}
+.amt .meta{display:block;font-weight:400;letter-spacing:0}
+.disc{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--sch);color:var(--ink-2);position:relative}
+.disc .ms{font-size:20px}
+.disc.amber{background:var(--amber-soft);color:var(--amber);font-size:14px;line-height:20px;font-weight:500}
+.disc.none{background:none}
+.row.sel{background:var(--sc);border-radius:16px}
+.row.sel .disc{background:var(--surface);color:var(--on-sc)}
+.day{display:flex;align-items:center;gap:6px;padding:16px 16px 4px;font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+.day .ms{font-size:16px}
+.day .sep{width:4px}
+
+/* chips */
+.chips{display:flex;align-items:center;gap:8px;padding:0 16px}
+.chip{height:32px;display:flex;align-items:center;gap:8px;padding:0 16px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--ov);
+  font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2);white-space:nowrap;flex:none}
+.chip .ms{font-size:18px}
+.chip.tr{padding-right:8px}
+.chip.ld{padding-left:12px}
+.adot{width:8px;height:8px;border-radius:50%;background:var(--amber);flex:none}
+.grow{flex:1}
+
+/* balance */
+.bal{font-size:48px;line-height:56px;font-weight:500;letter-spacing:-0.025em;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+.bal .c{font-size:.58em;letter-spacing:-0.01em}
+.spark{display:block;flex:none}
+
+/* figures */
+.fig{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.bar{height:4px;margin-top:8px}
+.bar i{display:block;height:4px;border-radius:2px}
+</style></head>
+<body>
+<nav class="rail" aria-label="Navigation">
+  <div class="fab" title="Überweisen"><span class="ms">swap_horiz</span></div>
+  <div class="places">
+    <div class="place on"><div class="pill"><span class="ms fill">home</span></div>Übersicht</div>
+    <div class="place"><div class="pill"><span class="ms">swap_horiz</span></div>Zahlungen</div>
+    <div class="place"><div class="pill"><span class="ms">bar_chart</span></div>Analyse</div>
+  </div>
+  <div class="place foot"><div class="pill"><span class="ms">settings</span></div>Einstellungen</div>
+</nav>
+<div class="main">
+  <header style="height:72px;display:flex;align-items:center;padding:0 32px 0 24px">
+    <div class="title" style="width:412px;padding-left:16px">Übersicht</div>
+    <div class="search" style="width:440px"><span class="ms">search</span><span class="ph">Umsätze und Aktionen suchen</span><span class="key">Strg K</span></div>
+    <div class="grow"></div>
+    <div class="ib"><span class="ms">notifications</span><i class="dot" style="top:12px;right:13px"></i></div>
+    <div class="ib"><span class="ms">visibility</span></div>
+    <div class="ib" style="margin-right:-4px"><div class="avatar">NB</div></div>
+  </header>
+  <div style="display:grid;grid-template-columns:380px minmax(0,1fr);column-gap:32px;padding:8px 32px 0 24px">
+    <nav style="min-width:0" aria-label="Konten">
+      <div class="head"><div class="sec">Konten und Karten</div><div class="ib s" style="margin:-8px -8px -8px 0" title="Konten umbenennen"><span class="ms" style="font-size:20px">edit</span></div></div>
+      <div style="margin-top:8px"><div class="row sel"><div class="disc "><span class="ms">account_balance_wallet</span></div><div class="t"><div class="name">GiroKomfort</div><div class="meta mono">DE62 ··· 5932 71</div></div><div class="amt num">780,11&nbsp;€</div></div><div class="row"><div class="disc "><span class="ms">savings</span></div><div class="t"><div class="name">Notgroschen</div><div class="meta mono">DE13 ··· 5932 80</div></div><div class="tb" style="margin-right:-12px;padding:0 12px">Saldo abrufen</div></div><div class="row"><div class="disc "><span class="ms">credit_card</span></div><div class="t"><div class="name">Visa Classic</div><div class="meta mono">4930 ••• 1234</div></div><div class="amt num">−36,48&nbsp;€</div></div></div>
+      <div class="row" style="min-height:56px;padding-top:4px"><div class="disc none"></div>
+        <div class="t"><div class="name" style="color:var(--ink-2)">Gesamtsaldo</div>
+        <div class="meta">Notgroschen fehlt</div></div>
+        <div class="meta" style="text-align:right">unvollständig</div></div>
+
+      <div class="head" style="margin-top:24px"><div><div class="sec">Vorgemerkt</div>
+        <div class="meta">2 Umsätze · <span class="num">−73,38&nbsp;€</span></div></div>
+        <div class="ib s" style="margin:-8px -8px 0 0"><span class="ms" style="font-size:20px">refresh</span></div></div>
+      <div style="margin-top:8px"><div class="row"><div class="disc amber">AE</div><div class="t"><div class="name">Amazon Payments Europe S.C.A.</div><div class="meta">Amazon.de Bestellung</div></div><div class="amt num">−49,90&nbsp;€<span class="meta">Wert 23.10.</span></div></div><div class="row"><div class="disc amber">RM</div><div class="t"><div class="name">REWE Markt GmbH-Zwnl</div><div class="meta">girocard · Musterstadt</div></div><div class="amt num">−23,48&nbsp;€<span class="meta">Wert 23.10.</span></div></div></div>
+
+      <div class="head" style="margin-top:24px"><div><div class="sec">Demnächst fällig</div><div class="meta">nächste 30 Tage</div></div></div>
+      <div style="margin-top:8px"><div class="row"><div class="disc "><span class="ms">apartment</span></div><div class="t"><div class="name">Hausverwaltung Berger</div><div class="meta">Mo 02.11. · monatlich</div></div><div class="amt num">−850,00&nbsp;€</div></div><div class="row"><div class="disc "><span class="ms">play_circle</span></div><div class="t"><div class="name">Spotify AB</div><div class="meta">Sa 21.11. · monatlich</div></div><div class="amt num">−11,99&nbsp;€</div></div><div class="fig" style="padding:4px 16px 0"><span class="meta">Summe, ca.</span><span class="amt num">−861,99&nbsp;€</span></div></div>
+    </nav>
+    <section style="min-width:0">
+      <div style="display:flex;align-items:center;gap:12px;padding:0 16px;height:24px">
+        <span style="font-size:16px;line-height:24px;font-weight:500;color:var(--ink-2)">GiroKomfort</span>
+        <span class="mono" style="color:var(--ink-2)">DE62 5706 9999 0105 5932 71</span>
+        <span class="ms" style="font-size:18px;color:var(--ink-2)">content_copy</span>
+      </div>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:0 16px"><div><div class="bal">780<span class="c">,11&nbsp;€</span></div><div class="meta">Verfügbar <span class="num ink">2.706,73&nbsp;€</span><span style="margin:0 8px">·</span>Dispositionsrahmen <span class="num">2.000,00&nbsp;€</span></div><div class="meta">Stand <span class="num" style="letter-spacing:0">13:51</span> Uhr</div></div><div style="padding:0 0 4px" title="Kontoverlauf öffnen"><svg class="spark" width="168" height="52" viewBox="0 0 168 52" aria-label="Kontoverlauf, 90 Tage"><path d="M3.0,48.5H4.8V48.5H6.6V48.5H8.5V49.0H10.3V21.2H12.1V21.7H13.9V21.9H15.7V31.8H17.6V31.9H19.4V32.5H21.2V33.0H23.0V33.0H24.8V36.7H26.7V36.7H28.5V37.2H30.3V38.0H32.1V38.6H33.9V39.1H35.8V39.5H37.6V39.9H39.4V40.4H41.2V40.9H43.0V41.2H44.9V41.8H46.7V42.0H48.5V42.1H50.3V42.6H52.1V42.6H54.0V43.0H55.8V43.3H57.6V43.3H59.4V43.6H61.2V44.2H63.1V44.9H64.9V45.4H66.7V45.4H68.5V3.0H70.3V13.4H72.2V14.2H74.0V27.9H75.8V28.6H77.6V29.4H79.4V29.4H81.3V29.4H83.1V30.1H84.9V30.1H86.7V30.9H88.6V31.2H90.4V31.6H92.2V32.3H94.0V32.3H95.8V32.5H97.7V32.7H99.5V33.4H101.3V33.8H103.1V33.8H104.9V34.1H106.8V34.1H108.6V34.1H110.4V34.1H112.2V34.5H114.0V35.2H115.9V35.4H117.7V35.8H119.5V35.8H121.3V36.3H123.1V8.6H125.0V18.4H126.8V19.1H128.6V19.8H130.4V20.0H132.2V20.9H134.1V21.6H135.9V22.1H137.7V22.7H139.5V23.5H141.3V24.1H143.2V32.1H145.0V33.0H146.8V33.7H148.6V34.4H150.4V34.7H152.3V35.3H154.1V36.0H155.9V36.7H157.7V37.6H159.5V38.5H161.4V38.7H163.2V39.5H165.0V40.2V52H3.0Z" fill="rgb(0 96 168 / .12)"/><path d="M3.0,48.5H4.8V48.5H6.6V48.5H8.5V49.0H10.3V21.2H12.1V21.7H13.9V21.9H15.7V31.8H17.6V31.9H19.4V32.5H21.2V33.0H23.0V33.0H24.8V36.7H26.7V36.7H28.5V37.2H30.3V38.0H32.1V38.6H33.9V39.1H35.8V39.5H37.6V39.9H39.4V40.4H41.2V40.9H43.0V41.2H44.9V41.8H46.7V42.0H48.5V42.1H50.3V42.6H52.1V42.6H54.0V43.0H55.8V43.3H57.6V43.3H59.4V43.6H61.2V44.2H63.1V44.9H64.9V45.4H66.7V45.4H68.5V3.0H70.3V13.4H72.2V14.2H74.0V27.9H75.8V28.6H77.6V29.4H79.4V29.4H81.3V29.4H83.1V30.1H84.9V30.1H86.7V30.9H88.6V31.2H90.4V31.6H92.2V32.3H94.0V32.3H95.8V32.5H97.7V32.7H99.5V33.4H101.3V33.8H103.1V33.8H104.9V34.1H106.8V34.1H108.6V34.1H110.4V34.1H112.2V34.5H114.0V35.2H115.9V35.4H117.7V35.8H119.5V35.8H121.3V36.3H123.1V8.6H125.0V18.4H126.8V19.1H128.6V19.8H130.4V20.0H132.2V20.9H134.1V21.6H135.9V22.1H137.7V22.7H139.5V23.5H141.3V24.1H143.2V32.1H145.0V33.0H146.8V33.7H148.6V34.4H150.4V34.7H152.3V35.3H154.1V36.0H155.9V36.7H157.7V37.6H159.5V38.5H161.4V38.7H163.2V39.5H165.0V40.2" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round"/><circle cx="165.0" cy="40.2" r="3.5" fill="var(--primary)"/></svg></div></div>
+      <div style="margin-top:28px"><div class="chips"><div class="chip">Eingänge</div><div class="chip">Ausgänge</div><div class="chip tr">Kategorie<span class="ms">expand_more</span></div><div class="chip tr">Monat<span class="ms">expand_more</span></div><div class="grow"></div><span class="meta num" style="letter-spacing:0">27.07. – 24.10.</span><div class="ib s" style="margin-right:-8px" title="Umsätze exportieren"><span class="ms">download</span></div></div></div>
+      <div style="margin-top:4px"><div class="day"><span>Montag, 26. Oktober</span><span class="sep"></span><span class="ms">schedule</span><span>noch nicht gebucht</span></div>
+<div class="row"><div class="disc "><span class="ms">directions_car</span></div><div class="t"><div class="name">Aral Station 4711</div><div class="meta">Mobilität · girocard</div></div><div class="amt num">−64,18&nbsp;€</div></div>
+<div class="day"><span>Heute</span></div>
+<div class="row"><div class="disc "><span class="ms">shopping_basket</span></div><div class="t"><div class="name">DM-Drogerie Markt Sagt Danke</div><div class="meta">Drogerie &amp; Lebensmittel · girocard</div></div><div class="amt num">−13,90&nbsp;€</div></div>
+<div class="day"><span>Gestern</span></div>
+<div class="row"><div class="disc "><span class="ms">restaurant</span></div><div class="t"><div class="name">McDonalds 1182</div><div class="meta">Essen &amp; Trinken · girocard</div></div><div class="amt num">−9,75&nbsp;€</div></div>
+<div class="row"><div class="disc "><span class="ms">payments</span></div><div class="t"><div class="name">Volksbank Musterstadt eG</div><div class="meta">Bargeld · Geldautomat</div></div><div class="amt num">−100,00&nbsp;€</div></div>
+<div class="day"><span>Mittwoch, 21. Oktober</span></div>
+<div class="row"><div class="disc "><span class="ms">play_circle</span></div><div class="t"><div class="name">Spotify AB</div><div class="meta">Abos &amp; Medien · Lastschrift</div></div><div class="amt num">−11,99&nbsp;€</div></div>
+<div class="row"><div class="disc "><span class="ms">restaurant</span></div><div class="t"><div class="name">Sushi Yana</div><div class="meta">Essen &amp; Trinken · girocard</div></div><div class="amt num">−30,79&nbsp;€</div></div>
+<div class="day"><span>Dienstag, 20. Oktober</span></div>
+<div class="row"><div class="disc "><span class="ms">shopping_basket</span></div><div class="t"><div class="name">DM-Drogerie Markt Sagt Danke</div><div class="meta">Drogerie &amp; Lebensmittel · girocard</div></div><div class="amt num">−19,87&nbsp;€</div></div>
+<div class="day"><span>Donnerstag, 1. Oktober</span></div>
+<div class="row"><div class="disc "><span class="ms">work</span></div><div class="t"><div class="name">Muster GmbH</div><div class="meta">Gehalt · Gutschrift</div></div><div class="amt num pos">+2.450,00&nbsp;€</div></div></div>
+    </section>
+  </div>
+</div>
+</body></html>

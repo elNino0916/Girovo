@@ -41,7 +41,7 @@ import {
 } from './icons';
 import { Money, formatMoney, useMoneyText } from './Money';
 import { VopReport, vopDeviates, vopUnchecked } from './VopResult';
-import { Alert, Button, Checkbox, Chip, Dialog, Field, Input, Overlay, Segmented, Select, Spinner, cx } from './ui';
+import { Alert, Button, Checkbox, Chip, Dialog, Field, Input, Overlay, Segmented, Select, Spinner, coarsePointer, cx } from './ui';
 import { GiroCodeDrop, imageFromTransfer, useFileDrop, useGiroCodeReader } from './transfer/GiroCodeDrop';
 import { IbanHint, IbanInput, useBankLookup } from './transfer/IbanInput';
 import { expectedLength, groupIban, ibanProblem, rawIban } from './transfer/iban';
@@ -54,8 +54,6 @@ import {
   BusyNote, CreditDate, FundsWarningText, REVIEW_WARNINGS_ID, ReviewStep, StepError,
 } from './transfer/Review';
 import { ScheduleFields, useScheduleForm } from './transfer/Schedule';
-import { Stepper, TRANSFER_STEPS } from './transfer/Stepper';
-import { usePhone } from './shell/usePhone';
 import { ManageTemplates, SaveAsTemplate, TemplatesMenu } from './transfer/Templates';
 
 /**
@@ -70,10 +68,16 @@ type Draft = TransferDraft;
 
 type FieldKey = 'account' | 'name' | 'iban' | 'amount' | 'schedule' | 'purpose';
 const FIELD_ORDER: FieldKey[] = ['account', 'name', 'iban', 'amount', 'schedule', 'purpose'];
-/** The phone flow's first part: what leaves which account, and when. */
+/** The form's first part: what leaves which account, and when. */
 const AMOUNT_PART: readonly FieldKey[] = ['account', 'amount', 'schedule'];
 
 type Source = { kind: NonNullable<TransferPrefill['source']>; label?: string };
+
+// Erfassen · Prüfen · Freigabe · Fertig — where in the transfer you are, as a
+// screen reader hears it on a step change: you write the order, you check
+// it, the bank (Namensabgleich, then your approval in the app) clears it, and
+// it is done. On screen the title names the step.
+const TRANSFER_STEPS = ['enter', 'review', 'approve', 'done'] as const;
 
 // A refusal stops at "Freigabe": the bank cleared nothing, and "Fertig" was
 // never reached.
@@ -301,15 +305,13 @@ export function TransferSheet() {
     account: accountRef, name: nameRef, iban: ibanRef, amount: amountRef, schedule: scheduleRef, purpose: purposeRef,
   };
 
-  // ---- Android's phone flow: the amount first (owner, 2026-10-23) --------
+  // ---- the amount first (owner, 2026-10-23; the desktop's since 2026-10-24)
   // One form in two parts — the amount (with the account and when), then
   // whom and what for — and Prüfen as the third. Every check stays the
   // form's own: "Weiter" checks the amount's part before the payee's opens,
   // and "Weiter zur Prüfung" checks all and goes back to whichever part
   // holds a problem. A GiroCode to read opens on the payee's part, where it
   // is read.
-  const phone = usePhone();
-  const phoneFlow = IS_ANDROID && phone;
   const [part, setPart] = useState<'amount' | 'payee'>(initial.girocode ? 'payee' : 'amount');
 
   // ---- guard: nothing to send from --------------------------------------
@@ -573,7 +575,10 @@ export function TransferSheet() {
       purpose: p.purpose ?? p.reference ?? '',
     }, { kind: 'girocode' }, true);
     setLive({ say: (m) => m.transfer.live.girocode(p.name, p.amount != null ? formatMoney(p.amount) : null) });
-    // Straight on to what the code could not say.
+    // Straight on to what the code could not say: the amount, else the
+    // payee's part, where the code's payee now stands (dropped or pasted
+    // while the amount's part was open).
+    setPart(p.amount == null ? 'amount' : 'payee');
     requestAnimationFrame(() => (p.amount == null ? amountRef : nameRef).current?.focus());
   }, [fillPayee]);
 
@@ -618,7 +623,7 @@ export function TransferSheet() {
     if (text && reader.readText(text)) e.preventDefault();
   };
 
-  // ---- the phone: Betrag → An wen? ------------------------------------------
+  // ---- Betrag → An wen? ------------------------------------------------------
   const toPayee = () => {
     const next: Partial<Record<FieldKey, boolean>> = {};
     for (const k of AMOUNT_PART) if (problems[k]) next[k] = true;
@@ -635,13 +640,16 @@ export function TransferSheet() {
     setPart('payee');
     // Name and IBAN known (a payee chosen in Zahlungen): on to what for.
     if (squash(name) && raw) requestAnimationFrame(() => purposeRef.current?.focus());
+    // Else, with a keyboard at hand, on to whom; on a touch screen the
+    // keyboard would rise over the recent payees and the GiroCode.
+    else if (!coarsePointer()) requestAnimationFrame(() => nameRef.current?.focus());
   };
 
   // ---- Erfassen → Prüfen --------------------------------------------------
   const toReview = (e: FormEvent) => {
     e.preventDefault();
     // Enter in the amount: the amount's part is done, not the order.
-    if (phoneFlow && part === 'amount') {
+    if (part === 'amount') {
       toPayee();
       return;
     }
@@ -653,7 +661,7 @@ export function TransferSheet() {
     setAmountTouched(true);
     const first = FIELD_ORDER.find((k) => next[k]);
     if (first || !account || a.cents == null) {
-      if (first && phoneFlow && AMOUNT_PART.includes(first)) {
+      if (first && AMOUNT_PART.includes(first)) {
         setPart('amount');
         requestAnimationFrame(() => fieldRefs[first].current?.focus());
       } else if (first) fieldRefs[first].current?.focus();
@@ -838,10 +846,10 @@ export function TransferSheet() {
   // Dauerauftrag or a Terminüberweisung is an Auftrag, so the discard dialogs say so.
   const forLater = titleKindRef.current != null;
   // The order's own verbs at the Namensabgleich: an order for later is set up, not transferred.
-  // The phone's amount: typed into the figure itself, as large as the
+  // The amount: typed into the figure itself, as large as the
   // balance, with the number keyboard (inputMode decimal). What the account
   // can spend and a warning stand under it, as under the form's field.
-  const phoneAmount = (
+  const amountFigure = (
     <div className="flex flex-col items-center pt-8 pb-6 text-center">
       <label htmlFor="tf-amount" className="sr-only">{tr.common.booking.amount}</label>
       <div data-figure className="flex max-w-full items-baseline justify-center">
@@ -911,28 +919,25 @@ export function TransferSheet() {
         title={stepTitle(tr, step, titleKindRef.current)}
         onClose={requestClose}
         closeDisabled={submitting}
-        // On Android the title names the step; the stepper would say it twice.
-        headerExtra={IS_ANDROID
-          ? (phoneFlow && (step === 'form' || step === 'review')
-            ? <PartBar at={step === 'review' ? 2 : part === 'amount' ? 0 : 1} label={words.form.part(step === 'review' ? 3 : part === 'amount' ? 1 : 2, 3)} />
-            : undefined)
-          : <Stepper current={STEP_INDEX[step]} unsure={step === 'unknown'} refused={step === 'refused'} />}
+        // The title names the step; over the form and its review the bar
+        // shows how far: Betrag · An wen? · Prüfen.
+        headerExtra={step === 'form' || step === 'review'
+          ? <PartBar at={step === 'review' ? 2 : part === 'amount' ? 0 : 1} label={words.form.part(step === 'review' ? 3 : part === 'amount' ? 1 : 2, 3)} />
+          : undefined}
         compactExtra
         scrollKey={step}
         onPaste={onPaste}
         {...drop.handlers}
         footer={
           step === 'form' ? (
-            phoneFlow && part === 'amount' ? (
+            part === 'amount' ? (
               <FooterRow>
                 <Button className="flex-1" onClick={requestClose}>{tr.common.cancel}</Button>
                 <Button variant="primary" className="flex-[2]" iconRight={<ArrowRightIcon size={18} />} onClick={toPayee}>{act.toPayee}</Button>
               </FooterRow>
             ) : (
               <FooterRow>
-                {phoneFlow
-                  ? <Button className="flex-1" onClick={() => setPart('amount')}>{tr.common.back}</Button>
-                  : <Button className="flex-1" onClick={requestClose}>{tr.common.cancel}</Button>}
+                <Button className="flex-1" onClick={() => setPart('amount')}>{tr.common.back}</Button>
                 <Button type="submit" form="transfer-form" variant="primary" className="flex-[2]">{act.toReview}</Button>
               </FooterRow>
             )
@@ -1048,7 +1053,7 @@ export function TransferSheet() {
 
         {step === 'form' && (
           <form id="transfer-form" onSubmit={toReview} noValidate className="pt-1">
-            {(!phoneFlow || part === 'amount') && <Field label={words.form.fromAccount} htmlFor="tf-account" error={errors.account}>
+            {part === 'amount' && <Field label={words.form.fromAccount} htmlFor="tf-account" error={errors.account}>
               <Select
                 id="tf-account"
                 ref={accountRef}
@@ -1073,7 +1078,7 @@ export function TransferSheet() {
               </Select>
             </Field>}
 
-            {(!phoneFlow || part === 'payee') && <section aria-labelledby="tf-payee" className={phoneFlow ? 'pt-1' : 'mt-7'}>
+            {part === 'payee' && <section aria-labelledby="tf-payee" className="pt-1">
               <div className="mb-3 flex min-h-9 items-center justify-between gap-3">
                 <h3 id="tf-payee" className="section-head">{words.recipient}</h3>
                 <TemplatesMenu onPick={applyTemplate} onManage={() => setManaging(true)} />
@@ -1113,7 +1118,7 @@ export function TransferSheet() {
                           onClick={() => {
                             fillPayee({ name: r.name, iban: r.iban }, null, false);
                             reader.reset();
-                            requestAnimationFrame(() => (phoneFlow ? purposeRef : amountRef).current?.focus());
+                            requestAnimationFrame(() => purposeRef.current?.focus());
                           }}
                         >
                           {own ? accountLabel(own) : r.name}
@@ -1180,53 +1185,10 @@ export function TransferSheet() {
               </Field>
             </section>}
 
-            <section aria-labelledby="tf-payment" className={phoneFlow ? (part === 'payee' ? 'mt-6' : '') : 'mt-7'}>
-              <h3 id="tf-payment" className={phoneFlow ? 'sr-only' : 'section-head mb-3'}>{words.form.payment}</h3>
-              {(!phoneFlow || part === 'amount') && <div className="grid gap-x-4 sm:grid-cols-2">
-                {phoneFlow ? phoneAmount : <Field
-                  label={tr.common.booking.amount}
-                  htmlFor="tf-amount"
-                  error={amountError}
-                  hint={amountError || !funds ? undefined : (
-                    <span className="flex flex-col gap-1">
-                      <span>
-                        {funds.kind === 'available' ? words.form.available : tr.common.account.balance}{' '}
-                        <Money value={funds.value} currency={account?.currency} className="font-semibold text-ink-2" />
-                      </span>
-                      {formWarning && (
-                        <span className="flex items-start gap-1.5 text-ink-2">
-                          <AlertTriangleIcon size={15} className="mt-0.5 shrink-0 text-emphasis" />
-                          <span><FundsWarningText warning={formWarning} currency={account?.currency} /></span>
-                        </span>
-                      )}
-                    </span>
-                  )}
-                >
-                  <Input
-                    id="tf-amount"
-                    ref={amountRef}
-                    data-autofocus={initial.name && initial.iban && !initial.amount ? true : undefined}
-                    inputMode="decimal"
-                    autoComplete="off"
-                    value={amount}
-                    onChange={(e) => {
-                      setAmount(e.target.value);
-                      setFlagged((x) => ({ ...x, amount: false }));
-                      setAmountTouched(false);
-                    }}
-                    onBlur={(e) => {
-                      const text = e.currentTarget.value;
-                      if (!text.trim()) return;
-                      setAmountTouched(true);
-                      const a = checkAmount(text);
-                      if (a.cents != null) setAmount(fmtAmountInput(a.cents / 100));
-                    }}
-                    // No placeholder: a "0,00" in the field's own large
-                    // figure style reads as a prefilled amount.
-                    className="amount text-right text-[20px] font-semibold"
-                    trailing={<span aria-hidden className="pr-2.5 text-[17px] font-semibold text-ink-3">€</span>}
-                  />
-                </Field>}
+            <section aria-labelledby="tf-payment" className={part === 'payee' ? 'mt-6' : undefined}>
+              <h3 id="tf-payment" className="sr-only">{words.form.payment}</h3>
+              {part === 'amount' && <div>
+                {amountFigure}
 
                 <div className="mb-4 flex flex-col gap-1.5">
                   <span className="text-[13px] leading-snug font-semibold text-ink-2" aria-hidden>{words.form.execution}</span>
@@ -1258,9 +1220,9 @@ export function TransferSheet() {
               </div>}
 
               {/* Sofort, an einem Datum, regelmäßig — only what the account offers (transfer/Schedule.tsx). */}
-              {(!phoneFlow || part === 'amount') && <ScheduleFields form={sched} showErrors={!!flagged.schedule} dateRef={scheduleRef} />}
+              {part === 'amount' && <ScheduleFields form={sched} showErrors={!!flagged.schedule} dateRef={scheduleRef} />}
 
-              {(!phoneFlow || part === 'payee') && <Field
+              {part === 'payee' && <Field
                 label={tr.common.booking.purpose}
                 htmlFor="tf-purpose"
                 optional
@@ -1540,7 +1502,7 @@ function useNarrow(): boolean {
 }
 
 /**
- * The phone's progress over Betrag · An wen? · Prüfen: three segments, the
+ * The progress over Betrag · An wen? · Prüfen: three segments, the
  * done ones and the current in the primary. Said once, in words.
  */
 function PartBar({ at, label }: { at: number; label: string }) {

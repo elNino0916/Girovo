@@ -309,7 +309,7 @@ export function Credentials({
           Ändern share the top line and the name gets the whole width beneath
           them. One grid, one DOM order (logo, name, button), so the reading
           order is the same either way. */}
-      <div className="mt-6 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-[var(--radius-chip)] bg-inset py-3 pr-2 pl-3 sm:pl-4 lg:gap-x-3.5">
+      <div className="mt-6 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-[var(--radius-chip)] bg-inset py-3 pr-2 pl-3 sm:pl-4 @min-[59rem]/auth:gap-x-3.5">
         {/* A phone gets the small mark: the md plate is up to 100px wide. */}
         <span className="col-start-1 row-start-1 flex sm:hidden">
           <BankLogo brand={bank.brand} size="sm" file={logoFile} />
@@ -317,7 +317,7 @@ export function Credentials({
         <span className="col-start-1 row-start-1 hidden sm:flex">
           <BankLogo brand={bank.brand} size="md" file={logoFile} />
         </span>
-        <div className="col-span-3 row-start-2 min-w-0 pr-1 sm:pr-2 lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:pr-0">
+        <div className="col-span-3 row-start-2 min-w-0 pr-1 sm:pr-2 @min-[59rem]/auth:col-span-1 @min-[59rem]/auth:col-start-2 @min-[59rem]/auth:row-start-1 @min-[59rem]/auth:pr-0">
           {/* Wraps rather than truncates: a bank's full name is often the only
               thing that tells two institutes in one town apart. It breaks
               between words, balanced so "eG" is not left alone on a line;
@@ -337,7 +337,7 @@ export function Credentials({
         <Button
           variant="tertiary"
           size="sm"
-          className="col-start-3 row-start-1 justify-self-end max-lg:-mr-2 max-lg:px-3"
+          className="col-start-3 row-start-1 justify-self-end @max-[58.99rem]/auth:-mr-2 @max-[58.99rem]/auth:px-3"
           onClick={onChange}
           disabled={submitting}
         >

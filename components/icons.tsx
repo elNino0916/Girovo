@@ -1,13 +1,13 @@
-// The app's line icons — one family, drawn on a 24-unit grid with a 1.8 stroke,
-// round caps and joins, in currentColor so an icon always takes the colour of
-// the text it stands beside.
-//
-// On Android each of them is Material Symbols Rounded instead (`ms`, the
-// symbol's name): the phone's own icon family, self-hosted as a subset of the
-// glyphs named here (public/fonts/material-symbols-rounded.woff2, app/android.css).
-// `filled` sets its fill axis — the current place in the navigation bar, as
-// Android draws it. A glyph that is a picture (Gemini's spark, an avatar)
-// stays drawn.
+// The app's icons: Material Symbols Rounded (`ms`, the symbol's name), in
+// currentColor so an icon always takes the colour of the text it stands
+// beside. Android's own icon family, the phone's first and every platform's
+// since the desktop followed it (2026-10-24); self-hosted as a subset of the
+// glyphs named here (public/fonts/material-symbols-rounded.woff2,
+// app/material.css). `filled` sets its fill axis — the current place in the
+// navigation, as Android draws it. A glyph that is a picture (Gemini's spark,
+// an avatar) has no symbol and stays drawn. Every icon still carries its line
+// drawing (a 24-unit grid, a 1.8 stroke, round caps and joins): what `Icon`
+// draws without a symbol.
 //
 // Every icon is decorative (aria-hidden): meaning is carried by the visible
 // label or the aria-label of the control that holds it, never by the glyph
@@ -15,7 +15,6 @@
 // machine and cannot be coloured to the theme.
 
 import { useId } from 'react';
-import { IS_ANDROID } from '@/lib/platform';
 import type { ReactNode, SVGProps } from 'react';
 import type { AvatarId } from '@/lib/avatars';
 import type { BuiltinCategoryId, CategoryId } from '@/lib/categories';
@@ -23,7 +22,7 @@ import type { BuiltinCategoryId, CategoryId } from '@/lib/categories';
 export type IconProps = Omit<SVGProps<SVGSVGElement>, 'children'> & {
   /** Rendered width and height in px. */
   size?: number | string;
-  /** Android: the Material Symbol drawn filled (the navigation's current place). */
+  /** The Material Symbol drawn filled (the navigation's current place). */
   filled?: boolean;
 };
 
@@ -32,9 +31,12 @@ const join = (...parts: Array<string | false | null | undefined>) => parts.filte
 export function Icon({
   size = 18, strokeWidth = 1.8, className, children, ms, filled, ...rest
 }: IconProps & { children: ReactNode; ms?: string }) {
-  if (IS_ANDROID && ms) {
+  if (ms) {
+    // What the page keys on (`data-glyph`, `data-open`) rides along; the drawing's own attributes do not.
+    const data = Object.fromEntries(Object.entries(rest).filter(([k]) => k.startsWith('data-')));
     return (
       <span
+        {...data}
         aria-hidden="true"
         data-filled={filled || undefined}
         className={join('ms-icon shrink-0', className)}

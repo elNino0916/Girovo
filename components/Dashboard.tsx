@@ -13,25 +13,22 @@
 // overlays lock while they are open. Sticky things inside the page (day
 // headers in Umsätze, the side pane) stick to its top edge.
 //
-// The page is flat and list-first: sections stand on the page itself, and
-// the one container is the balance. On a wide window the Übersicht has two
-// panes — the balance and the bookings, and beside them the small summaries
-// in a pane of their own; below that it is the phone's: the balance,
-// Vorgemerkt and the bookings.
+// The page is flat and list-first: sections stand on the page itself. The
+// Übersicht is the phone's at every width, search first, in one column
+// (Overview below).
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { PlusScreen } from './android/Plus';
 import { isDepot } from '@/lib/balances';
 import { useFints } from './FintsProvider';
-import { AccountHero, AccountList, MonthSummary } from './AccountPanel';
-import { PendingPanel, Transactions } from './Transactions';
+import { AccountHero } from './AccountPanel';
+import { MonthFigures } from './overview/MonthFigures';
+import { Transactions } from './Transactions';
 import { Portfolio } from './Portfolio';
 import { Analysis } from './Analysis';
-import { Contracts, UpcomingPayments } from './Contracts';
-import { ForecastTile } from './insights/Forecast';
+import { Contracts } from './Contracts';
 import { Settings } from './settings/Settings';
 import { TransferSheet } from './TransferSheet';
 import { AddBankSheet } from './AddBank';
@@ -45,8 +42,6 @@ import { useShellActions } from './shell/actions';
 import { useGlobalShortcuts } from './shell/useShortcuts';
 import { Masthead } from './shell/Masthead';
 import { BottomBar } from './shell/BottomBar';
-import { usePhone } from './shell/usePhone';
-import { MessagesTeaser } from './shell/MessagesTeaser';
 import { MerchantLogoConsent } from './MerchantLogoConsent';
 import { UsageConsentTile } from './telemetry/UsageConsent';
 import { trackUsage } from './telemetry/usage';
@@ -89,14 +84,16 @@ export function Dashboard() {
         <main
           id="main"
           className={cx(
-            'relative mx-auto w-full max-w-[1280px] px-4 pt-2 pb-6 sm:px-6 sm:pb-12',
+            'relative mx-auto w-full px-4 pt-2 pb-6 sm:pb-12',
+            // The Übersicht is one column under the search bar, as wide as it (Masthead, SEARCH_EDGES).
+            tab === 'overview' ? 'max-w-[960px]' : 'max-w-[1280px] sm:px-6',
             // No navigation bar under Einstellungen on a phone: the page's end clears the gesture bar itself.
             tab === 'settings' && 'max-sm:pb-[calc(env(safe-area-inset-bottom,0px)+32px)]',
           )}
         >
           {/* Keyed by the place, so each opens with Material's fade-through (app/android.css). */}
           <div key={tab} data-place>
-            {tab === 'overview' && <Overview scrollRef={scrollRef} />}
+            {tab === 'overview' && <Overview />}
             {tab === 'analysis' && <Analysis />}
             {tab === 'contracts' && <Contracts />}
             {tab === 'settings' && <Settings />}
@@ -120,75 +117,33 @@ export function Dashboard() {
 }
 
 /**
- * The Übersicht grid.
+ * The Übersicht: one column, search first — the phone's (owner, 2026-10-23),
+ * every width's since the desktop followed it ("Suche oben", 2026-10-24).
+ * The search bar is the top bar (Masthead). Under it the balance, set flat,
+ * with the account's name as the way to the others (a sheet with the
+ * account list, the Gesamtsaldo and the banks); on a wide window a quiet line
+ * of the month's figures; then the chips and the bookings, which start on
+ * the first screen.
  *
- * The markup is the reading order — Konten und Karten, Kontostand, the small
- * summaries (Vorgemerkt, Monatsbilanz, Demnächst fällig, Mitteilungen), then
- * Umsätze — so the eye, Tab and a screen reader go the same way at every
- * width. Below the desk breakpoint that is simply one column: the bookings
- * are a long list, and anything after them would never be seen on a phone.
- *
- * From desk it is two columns (2:1). The summaries' wrapper is placed in the
- * second column across every row and stays pinned beside the bookings; the
- * other three fill the first column in order. Placement, not CSS `order`, and
- * nothing remounts (and loses its state) when the window crosses the
- * breakpoint. The rows are `auto auto 1fr`, so a side column taller than the
- * list and the hero (Umsätze still loading, or none) grows the last row,
- * never the first two. With a single account the list renders nothing, and
- * the grid drops to two rows rather than keep a gap where it would be.
+ * What stood beside them once has a place of its own: the Vorgemerkt behind
+ * their chip, the Mitteilungen behind the avatar, what is due and the
+ * forecast in Zahlungen, the month in Analyse. A consent that asks once
+ * (company logos, usage data) stands between the balance and the bookings
+ * while it asks. The markup is the reading order.
  */
-function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
-  const { activeAccount, pendingCache } = useFints();
-  const phone = usePhone();
+function Overview() {
+  const { activeAccount } = useFints();
   const depot = !!activeAccount && isDepot(activeAccount);
-  const sideRef = useRef<HTMLDivElement>(null);
-  const stickyTop = useStickyTop(sideRef, scrollRef);
 
   return (
-    <div
-      className={cx(
-        'flex flex-col gap-3 sm:gap-6',
-        'desk:grid desk:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] desk:grid-rows-[auto_auto_1fr] desk:items-start',
-        'desk:has-[>[data-slot=accounts]:empty]:grid-rows-[auto_1fr]',
-      )}
-    >
-      {/* A phone switches accounts from the balance's name (a sheet with this
-          list, AccountHero), so the bookings start on the first screen. */}
-      {!phone && <Slot name="accounts" className="desk:col-start-1"><AccountList /></Slot>}
-      <Slot name="hero" className="desk:col-start-1"><AccountHero /></Slot>
-      <div
-        ref={sideRef}
-        // The side pane: pinned beside the bookings while they scroll (sticky
-        // only applies on the two-pane layout; the `top` is inert without it).
-        data-side
-        style={{ top: stickyTop }}
-        // Nothing in it (a phone, where its tiles live elsewhere): no gap of its own either.
-        className="flex min-w-0 flex-col gap-4 sm:gap-6 desk:sticky desk:col-start-2 desk:row-[1/-1] [&:not(:has(>:not(:empty)))]:hidden"
-      >
-        <Slot><MerchantLogoConsent /></Slot>
-        <Slot><UsageConsentTile /></Slot>
-        {/* On request (HKVMK), or once the bank sent a list with the Umsätze. */}
-        {/* On a phone the Vorgemerkt are a chip at the head of the bookings, opening them in a sheet. */}
-        {!phone && activeAccount && (activeAccount.canPending || pendingCache[activeAccount.accountNumber]) && (
-          <Slot><PendingPanel /></Slot>
-        )}
-        {/* A phone's Übersicht — and a window too narrow for the side pane —
-            is the balance and the bookings: the month's figures are the
-            Analyse's, what is due the Verträge's, the bank's messages the
-            bell's. The side pane of a wide window has room for them — except
-            the two made of Umsätze while a Depot is chosen: it has none, so
-            they could only say so. */}
-        {!IS_ANDROID && (
-          <>
-            {!depot && <Slot className="max-desk:hidden"><MonthSummary /></Slot>}
-            {!depot && <Slot className="max-desk:hidden"><ForecastTile /></Slot>}
-            {!depot && <Slot className="max-desk:hidden"><UpcomingPayments /></Slot>}
-            <Slot className="max-desk:hidden"><MessagesTeaser /></Slot>
-          </>
-        )}
-      </div>
+    <div className="flex flex-col gap-3 sm:gap-6">
+      <Slot name="hero"><AccountHero /></Slot>
+      {/* A Depot has no Umsätze to add up. */}
+      {!depot && <Slot className="max-sm:hidden"><MonthFigures /></Slot>}
+      <Slot><MerchantLogoConsent /></Slot>
+      <Slot><UsageConsentTile /></Slot>
       {/* A Depot has no Umsätze over FinTS: its holdings take their place. */}
-      <Slot name="transactions" className="desk:col-start-1">
+      <Slot name="transactions">
         {depot ? <Portfolio /> : <Transactions />}
       </Slot>
     </div>
@@ -199,34 +154,6 @@ function Overview({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }
 function Slot({ name, className, children }: { name?: string; className?: string; children: ReactNode }) {
   return <div data-slot={name} className={cx('min-w-0 empty:hidden', className)}>{children}</div>;
 }
-
-/**
- * The `top` for a sticky column: 16px when it fits in the scroller's visible
- * height, otherwise negative by the overflow — so a column taller than the
- * window scrolls with the page until its END is in view and only then stays.
- * Pinning a tall column at its top would hide its last tiles until the page
- * ran out. Re-measured whenever the column or the scroller changes size.
- */
-function useStickyTop(
-  el: RefObject<HTMLElement | null>,
-  scroller: RefObject<HTMLElement | null>,
-): number {
-  const [top, setTop] = useState(GAP);
-  useEffect(() => {
-    const target = el.current;
-    const root = scroller.current;
-    if (!target || !root || typeof ResizeObserver === 'undefined') return;
-    const measure = () => setTop(Math.min(GAP, root.clientHeight - target.offsetHeight - GAP));
-    const ro = new ResizeObserver(measure);
-    ro.observe(target);
-    ro.observe(root);
-    measure();
-    return () => ro.disconnect();
-  }, [el, scroller]);
-  return top;
-}
-
-const GAP = 16;
 
 /**
  * Publishes the scroller's scrollbar width as `--sbw` on the shell root.
