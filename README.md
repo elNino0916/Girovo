@@ -498,6 +498,16 @@ npm run android:release    # signed releases into dist/ (see android/README.md)
 | `Girovo-<version>-android.apk` | The app from GitHub, for every current phone (arm64). It updates itself from this repository's releases, like the desktop app: downloaded, checked against GitHub's SHA-256, installed by Android. |
 | `Girovo-<version>-play.aab` | The same app for Google Play, which installs its updates. |
 
+[Obtainium](https://github.com/ImranR98/Obtainium) can install the APK and keep
+it current from this repository's releases, beside the app's own update check:
+
+[<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="54">](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/elNino0916/Girovo)
+
+The APK's signing certificate — the same since the first one — and how to
+check it are in [SECURITY.md](SECURITY.md#checking-that-a-download-is-girovo).
+The Play app is signed by Google's key instead, so the two cannot update over
+each other.
+
 On the phone the app looks the way Android apps look now: Material 3
 Expressive, with springy motion, shape-morphing buttons and Material Symbols,
 in the wallpaper's colours (Material You), the very colours the phone's own
@@ -824,6 +834,8 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
   days go first).
 
 ## Security
+
+Found a weakness? Report it privately, as [SECURITY.md](SECURITY.md) says.
 
 - Credentials live only in memory and vanish on logout / restart — with
   several banks, each bank's PIN in its own session, all of them dropped at the
