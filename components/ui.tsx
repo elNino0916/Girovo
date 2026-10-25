@@ -41,6 +41,7 @@ import { anchorPosition, type Placement } from '@/lib/anchor';
 import { copyText } from '@/lib/clipboard';
 import { useT } from '@/lib/i18n/react';
 import { setCaptionDim } from '@/lib/theme';
+import { usePhone } from './shell/usePhone';
 import {
   AlertTriangleIcon, CheckCircleIcon, CheckIcon, ChevronIcon, CloseIcon, CopyIcon, InfoIcon, XCircleIcon,
 } from './icons';
@@ -1440,7 +1441,11 @@ export function Dialog({
  * A panel from the right edge — details, Mitteilungen. Its header is a navy
  * band exactly as tall as the masthead, so in the desktop shell the OS
  * caption buttons (which stay on top of everything) sit on the same navy and
- * the header's own controls are padded clear of them.
+ * the header's own controls are padded clear of them. The drawer grows by
+ * their width there, so its title keeps the room it has in a browser
+ * ("Vorgemerkter Umsatz" was cut to "Vorgemerkter Umsa…"), and from 640px up
+ * its close button leads the header: at the trailing end it stood right
+ * beside the window's own close and read as a fourth caption button.
  */
 export function Drawer({
   open, onClose, title, titleId, actions, footer, width = 'md', children, bodyClassName, fallbackFocus,
@@ -1460,21 +1465,30 @@ export function Drawer({
 }) {
   const t = useT();
   const auto = useId();
+  const phone = usePhone();
   const id = titleId ?? `drawer${auto}-title`;
+  // Rendered where it shows, not moved with CSS order: focus and a screen
+  // reader then meet it in the order the eye does.
+  const close = (
+    // -ml-1: the glyph lines up with the body's 24px edge.
+    <IconButton data-dialog-close tone="bar" size="md" aria-label={t.common.close} onClick={onClose} className={phone ? '-mr-2' : '-ml-1'}>
+      <CloseIcon />
+    </IconButton>
+  );
   return (
     <Overlay open={open} onClose={onClose} align="right" labelledBy={id} fallbackFocus={fallbackFocus}>
       <div
         className={cx(
           'anim-drawer flex h-dvh w-full flex-col bg-raised shadow-[var(--shadow-pop)]',
-          width === 'lg' ? 'sm:max-w-[560px]' : 'sm:max-w-[440px]',
+          // Plus the caption buttons' width: 0 outside the desktop shell.
+          width === 'lg' ? 'sm:max-w-[calc(560px_+_var(--caption-inset))]' : 'sm:max-w-[calc(440px_+_var(--caption-inset))]',
         )}
       >
-        <header data-topbar className="on-bar bar-caption-safe flex shrink-0 items-center gap-2 bg-bar pl-4 text-bar-ink sm:pl-6" style={{ height: 'var(--barbar-h)' }}>
+        <header data-topbar className="on-bar bar-caption-safe flex shrink-0 items-center gap-2 bg-bar pl-4 text-bar-ink" style={{ height: 'var(--barbar-h)' }}>
+          {!phone && close}
           <h2 id={id} className="min-w-0 flex-1 truncate text-[17px] font-bold">{title}</h2>
           {actions}
-          <IconButton data-dialog-close tone="bar" size="md" aria-label={t.common.close} onClick={onClose} className="-mr-2">
-            <CloseIcon />
-          </IconButton>
+          {phone && close}
         </header>
         <div className={cx('min-h-0 flex-1 overflow-y-auto overscroll-contain', bodyClassName ?? 'px-4 py-5 sm:px-6')}>
           {children}
