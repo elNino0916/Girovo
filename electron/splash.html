@@ -44,33 +44,58 @@
     /* Frameless: the card is what moves the window. */
     -webkit-app-region: drag;
   }
-  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
   /* The app's plate: Girovo's navy, the G€ in white, in either theme. */
   .plate { width: 28px; height: 28px; border-radius: 8px; background: #0a2c5e; display: grid; place-items: center; }
   .plate svg { width: 28px; height: 28px; }
-  .wordmark { font-weight: 700; font-size: 15px; color: var(--ink); }
+  /* The wordmark is a quiet brand tag, not a heading: Medium, as everything the
+     design emphasises (never 700). The title below carries the message. */
+  .wordmark { font-weight: 500; font-size: 15px; color: var(--ink); }
   /* Headline small. */
   h1 {
     margin: 0; font-family: "Google Sans Flex", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
     font-weight: 500; font-size: 24px; line-height: 32px; color: var(--ink);
   }
-  ol { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 10px; }
+  ol { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
   li { display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 20px; color: var(--ink-2); }
-  li.active { color: var(--ink); font-weight: 500; }
+  /* The current step leads: row type, so the action in progress has presence. */
+  li.active { color: var(--ink); font-weight: 500; font-size: 16px; line-height: 22px; }
   .icon { width: 18px; height: 18px; flex: none; display: grid; place-items: center; }
   .icon svg { width: 18px; height: 18px; }
-  /* Pending: a quiet ring. Active: the primary arc turning on its track. Done: a primary tick. */
+  /* Pending: a quiet ring. Active: M3 Expressive's loading indicator. Done: a primary tick. */
   .pending .ring { stroke: var(--ring); }
-  .active .track { stroke: var(--track); }
-  .active .arc { stroke: var(--accent); transform-origin: 9px 9px; animation: turn 0.9s linear infinite; }
+  /* The active step's wait, as M3 Expressive draws it: the loading indicator
+     (@m3e/web loading-indicator) — the seven Material shapes (soft-burst,
+     cookie, pentagon, pill, sunny, cookie, oval) tumbling as the filled mark
+     morphs from one to the next, inside a steady outer turn. The shapes are the
+     component's own, resampled to one outline so the morph is smooth, and drawn
+     in CSS since no component can load in the start window's sandbox. */
+  .active .ld-outer { width: 18px; height: 18px; animation: ld-outer 4666ms linear infinite; }
+  .active .ld-shape {
+    fill: var(--accent); transform-origin: 9px 9px;
+    animation: ld-inner 4666ms cubic-bezier(0.34, 0.88, 0.34, 1) infinite;
+    will-change: d, transform;
+  }
   .done .tick { stroke: var(--accent); }
-  @keyframes turn { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .active .arc { animation: none; } }
+  @keyframes ld-outer { to { transform: rotate(360deg); } }
+  @keyframes ld-inner {
+    0% { d: path("M15.15 8.96L15.53 9.73L16.1 10.41L16.47 11.18L15.99 11.87L15.13 12.09L14.28 12.32L13.82 13.02L13.88 13.91L13.9 14.79L13.3 15.37L12.45 15.19L11.62 14.85L10.77 14.82L10.22 15.49L9.75 16.24L9.04 16.71L8.3 16.31L7.82 15.56L7.29 14.86L6.45 14.83L5.63 15.16L4.78 15.38L4.12 14.86L4.11 13.98L4.18 13.1L3.79 12.35L2.94 12.11L2.08 11.9L1.54 11.26L1.85 10.46L2.42 9.79L2.85 9.04L2.47 8.27L1.9 7.59L1.53 6.82L2.01 6.13L2.87 5.91L3.72 5.68L4.18 4.98L4.12 4.09L4.1 3.21L4.7 2.63L5.55 2.81L6.38 3.15L7.23 3.18L7.78 2.51L8.25 1.76L8.96 1.29L9.7 1.69L10.18 2.44L10.71 3.14L11.55 3.17L12.37 2.84L13.22 2.62L13.88 3.14L13.89 4.02L13.82 4.9L14.21 5.65L15.06 5.89L15.92 6.1L16.46 6.74L16.15 7.54L15.58 8.21Z"); transform: rotate(0deg); }
+    14% { d: path("M16.4 9.14L16.06 9.81L15.87 10.54L15.91 11.28L15.93 12.03L15.73 12.75L15.32 13.38L14.74 13.85L14.06 14.15L13.43 14.56L12.96 15.14L12.52 15.74L11.91 16.19L11.2 16.43L10.46 16.45L9.73 16.25L8.99 16.14L8.26 16.25L7.53 16.45L6.78 16.43L6.08 16.18L5.48 15.74L5.03 15.13L4.56 14.56L3.93 14.15L3.25 13.84L2.67 13.37L2.26 12.74L2.07 12.02L2.09 11.27L2.12 10.52L1.93 9.8L1.6 9.13L1.44 8.4L1.51 7.66L1.8 6.97L2.28 6.4L2.8 5.86L3.14 5.19L3.32 4.46L3.64 3.79L4.16 3.25L4.81 2.89L5.54 2.74L6.29 2.67L6.99 2.4L7.59 1.96L8.27 1.63L9.01 1.52L9.74 1.64L10.41 1.97L11.02 2.41L11.72 2.68L12.47 2.74L13.2 2.89L13.85 3.26L14.36 3.8L14.69 4.47L14.86 5.2L15.2 5.87L15.73 6.4L16.21 6.98L16.5 7.67L16.56 8.41Z"); transform: rotate(154deg); }
+    29% { d: path("M16.04 9.45L15.82 10.13L15.6 10.81L15.38 11.48L15.16 12.16L14.94 12.84L14.72 13.52L14.5 14.2L14.19 14.85L13.74 15.4L13.16 15.81L12.5 16.07L11.79 16.15L11.08 16.15L10.36 16.15L9.65 16.15L8.94 16.15L8.22 16.15L7.51 16.15L6.79 16.15L6.08 16.15L5.38 16.03L4.73 15.73L4.18 15.28L3.76 14.71L3.49 14.05L3.27 13.37L3.04 12.69L2.82 12.01L2.6 11.33L2.38 10.65L2.16 9.97L1.94 9.29L1.73 8.61L1.67 7.9L1.79 7.2L2.08 6.55L2.52 5.99L3.08 5.55L3.66 5.13L4.24 4.71L4.81 4.29L5.39 3.87L5.97 3.45L6.55 3.03L7.12 2.61L7.72 2.22L8.39 1.97L9.1 1.9L9.8 2.01L10.45 2.3L11.04 2.71L11.61 3.13L12.19 3.55L12.77 3.97L13.35 4.39L13.93 4.81L14.5 5.23L15.08 5.64L15.62 6.11L16.03 6.69L16.29 7.35L16.36 8.06L16.26 8.77Z"); transform: rotate(309deg); }
+    43% { d: path("M16.3 8.95L16.15 9.65L15.93 10.33L15.62 10.97L15.25 11.58L14.81 12.14L14.31 12.66L13.81 13.16L13.3 13.67L12.8 14.17L12.29 14.67L11.74 15.13L11.15 15.53L10.51 15.85L9.84 16.1L9.15 16.27L8.44 16.36L7.72 16.37L7.01 16.31L6.31 16.16L5.64 15.94L4.99 15.64L4.38 15.27L3.81 14.83L3.3 14.33L2.85 13.78L2.46 13.19L2.14 12.55L1.89 11.88L1.73 11.18L1.64 10.47L1.63 9.76L1.7 9.05L1.85 8.35L2.07 7.67L2.38 7.03L2.75 6.42L3.19 5.86L3.69 5.34L4.19 4.84L4.7 4.33L5.2 3.83L5.71 3.33L6.26 2.87L6.85 2.47L7.49 2.15L8.16 1.9L8.85 1.73L9.56 1.64L10.28 1.63L10.99 1.69L11.69 1.84L12.36 2.06L13.01 2.36L13.62 2.73L14.19 3.17L14.7 3.67L15.15 4.22L15.54 4.81L15.86 5.45L16.11 6.12L16.27 6.82L16.36 7.53L16.37 8.24Z"); transform: rotate(463deg); }
+    57% { d: path("M16.47 8.98L16.25 9.68L15.77 10.25L15.28 10.81L14.84 11.4L14.72 12.13L14.67 12.87L14.61 13.61L14.3 14.27L13.65 14.61L12.91 14.67L12.16 14.72L11.43 14.83L10.83 15.26L10.27 15.75L9.7 16.23L9.02 16.47L8.32 16.25L7.75 15.77L7.19 15.28L6.6 14.84L5.87 14.72L5.13 14.67L4.39 14.61L3.73 14.3L3.39 13.65L3.33 12.91L3.28 12.16L3.17 11.43L2.74 10.83L2.25 10.27L1.77 9.7L1.53 9.02L1.75 8.32L2.23 7.75L2.72 7.19L3.16 6.6L3.28 5.87L3.33 5.13L3.39 4.39L3.7 3.73L4.35 3.39L5.09 3.33L5.84 3.28L6.57 3.17L7.17 2.74L7.73 2.25L8.3 1.77L8.98 1.53L9.68 1.75L10.25 2.23L10.81 2.72L11.4 3.16L12.13 3.28L12.87 3.33L13.61 3.39L14.27 3.7L14.61 4.35L14.67 5.09L14.72 5.84L14.83 6.57L15.26 7.17L15.75 7.73L16.23 8.3Z"); transform: rotate(617deg); }
+    71% { d: path("M15.02 8.98L15.1 9.75L15.34 10.48L15.63 11.19L15.8 11.95L15.79 12.72L15.61 13.47L15.27 14.16L14.79 14.76L14.19 15.25L13.51 15.6L12.76 15.79L11.99 15.8L11.23 15.65L10.52 15.36L9.79 15.11L9.02 15.02L8.25 15.1L7.52 15.34L6.81 15.63L6.05 15.8L5.28 15.79L4.53 15.61L3.84 15.27L3.24 14.79L2.75 14.19L2.4 13.51L2.21 12.76L2.2 11.99L2.35 11.23L2.64 10.52L2.89 9.79L2.98 9.02L2.9 8.25L2.66 7.52L2.37 6.81L2.2 6.05L2.21 5.28L2.39 4.53L2.73 3.84L3.21 3.24L3.81 2.75L4.49 2.4L5.24 2.21L6.01 2.2L6.77 2.35L7.48 2.64L8.21 2.89L8.98 2.98L9.75 2.9L10.48 2.66L11.19 2.37L11.95 2.2L12.72 2.21L13.47 2.39L14.16 2.73L14.76 3.21L15.25 3.81L15.6 4.49L15.79 5.24L15.8 6.01L15.65 6.77L15.36 7.48L15.11 8.21Z"); transform: rotate(771deg); }
+    83% { d: path("M15.37 9.03L15.09 9.64L14.77 10.24L14.41 10.82L14.02 11.38L13.6 11.92L13.15 12.43L12.68 12.91L12.18 13.37L11.66 13.81L11.11 14.22L10.54 14.59L9.95 14.93L9.35 15.23L8.72 15.49L8.07 15.71L7.41 15.87L6.74 15.97L6.06 16L5.38 15.96L4.72 15.82L4.08 15.57L3.5 15.22L3 14.76L2.59 14.22L2.29 13.61L2.1 12.96L2.01 12.29L2 11.61L2.07 10.93L2.2 10.26L2.39 9.61L2.63 8.97L2.91 8.36L3.23 7.76L3.59 7.18L3.98 6.62L4.4 6.08L4.85 5.57L5.32 5.09L5.82 4.63L6.34 4.19L6.89 3.78L7.46 3.41L8.05 3.07L8.65 2.77L9.28 2.51L9.93 2.29L10.59 2.13L11.26 2.03L11.94 2L12.62 2.04L13.28 2.18L13.92 2.43L14.5 2.78L15 3.24L15.41 3.78L15.71 4.39L15.9 5.04L15.99 5.71L16 6.39L15.93 7.07L15.8 7.74L15.61 8.39Z"); transform: rotate(926deg); }
+    100% { d: path("M15.15 8.96L15.53 9.73L16.1 10.41L16.47 11.18L15.99 11.87L15.13 12.09L14.28 12.32L13.82 13.02L13.88 13.91L13.9 14.79L13.3 15.37L12.45 15.19L11.62 14.85L10.77 14.82L10.22 15.49L9.75 16.24L9.04 16.71L8.3 16.31L7.82 15.56L7.29 14.86L6.45 14.83L5.63 15.16L4.78 15.38L4.12 14.86L4.11 13.98L4.18 13.1L3.79 12.35L2.94 12.11L2.08 11.9L1.54 11.26L1.85 10.46L2.42 9.79L2.85 9.04L2.47 8.27L1.9 7.59L1.53 6.82L2.01 6.13L2.87 5.91L3.72 5.68L4.18 4.98L4.12 4.09L4.1 3.21L4.7 2.63L5.55 2.81L6.38 3.15L7.23 3.18L7.78 2.51L8.25 1.76L8.96 1.29L9.7 1.69L10.18 2.44L10.71 3.14L11.55 3.17L12.37 2.84L13.22 2.62L13.88 3.14L13.89 4.02L13.82 4.9L14.21 5.65L15.06 5.89L15.92 6.1L16.46 6.74L16.15 7.54L15.58 8.21Z"); transform: rotate(1080deg); }
+  }
+  /* Reduced motion: the mark holds still (soft-burst, no turn, no morph). */
+  @media (prefers-reduced-motion: reduce) { .active .ld-outer, .active .ld-shape { animation: none; } }
   .note {
     margin: 16px 0 0; padding: 12px 16px; border-radius: 12px; background: var(--tonal);
     font-size: 14px; line-height: 20px; color: var(--ink-2);
   }
-  .version { margin-top: 16px; font-size: 12px; line-height: 16px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  /* A small note; its figure is tight and tabular, as every figure is. */
+  .version { margin-top: 16px; font-size: 12px; line-height: 16px; color: var(--ink-2); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 </style>
 </head>
 <body>
@@ -105,12 +130,19 @@
     }
     return el;
   };
+  // The active step's loading indicator (M3 Expressive): a filled mark that
+  // morphs through the Material shapes while it tumbles, inside a steady outer
+  // turn (both driven by the CSS above).
+  const LD_SHAPE = 'M15.15 8.96L15.53 9.73L16.1 10.41L16.47 11.18L15.99 11.87L15.13 12.09L14.28 12.32L13.82 13.02L13.88 13.91L13.9 14.79L13.3 15.37L12.45 15.19L11.62 14.85L10.77 14.82L10.22 15.49L9.75 16.24L9.04 16.71L8.3 16.31L7.82 15.56L7.29 14.86L6.45 14.83L5.63 15.16L4.78 15.38L4.12 14.86L4.11 13.98L4.18 13.1L3.79 12.35L2.94 12.11L2.08 11.9L1.54 11.26L1.85 10.46L2.42 9.79L2.85 9.04L2.47 8.27L1.9 7.59L1.53 6.82L2.01 6.13L2.87 5.91L3.72 5.68L4.18 4.98L4.12 4.09L4.1 3.21L4.7 2.63L5.55 2.81L6.38 3.15L7.23 3.18L7.78 2.51L8.25 1.76L8.96 1.29L9.7 1.69L10.18 2.44L10.71 3.14L11.55 3.17L12.37 2.84L13.22 2.62L13.88 3.14L13.89 4.02L13.82 4.9L14.21 5.65L15.06 5.89L15.92 6.1L16.46 6.74L16.15 7.54L15.58 8.21Z';
+  const loader = () => {
+    const outer = document.createElement('div');
+    outer.className = 'ld-outer';
+    outer.appendChild(svg([['path', { class: 'ld-shape', d: LD_SHAPE }]]));
+    return outer;
+  };
   const ICONS = {
     pending: () => svg([['circle', { class: 'ring', cx: 9, cy: 9, r: 7, 'stroke-width': 2 }]]),
-    active: () => svg([
-      ['circle', { class: 'track', cx: 9, cy: 9, r: 7, 'stroke-width': 2 }],
-      ['path', { class: 'arc', d: 'M9 2a7 7 0 0 1 7 7', 'stroke-width': 2, 'stroke-linecap': 'round' }],
-    ]),
+    active: loader,
     done: () => svg([['path', { class: 'tick', d: 'M3.5 9.5l3.5 3.5 7.5-8', 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }]]),
   };
 

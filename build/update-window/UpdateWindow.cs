@@ -268,6 +268,11 @@ namespace Girovo.UpdateWindow
             card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             card.Arrange(new Rect(card.DesiredSize));
             card.UpdateLayout();
+            if (options.Demo.Length > 0)
+            {
+                window.RenderDemoFrame(0.62);
+                card.UpdateLayout();
+            }
             const double scale = 2;
             var bitmap = new RenderTargetBitmap(
                 (int)Math.Ceiling(card.ActualWidth * scale + card.Margin.Left * scale + card.Margin.Right * scale),
@@ -290,13 +295,26 @@ namespace Girovo.UpdateWindow
         readonly TextBlock description = new TextBlock();
         readonly TextBlock phase = new TextBlock();
         readonly TextBlock percent = new TextBlock();
+        System.Windows.Documents.Run percentNumber;
         readonly Border track = new Border();
-        readonly Border fill = new Border();
+        readonly System.Windows.Shapes.Path wave = new System.Windows.Shapes.Path();
         readonly Border rest = new Border();
         readonly StackPanel progressBlock = new StackPanel();
         readonly StackPanel buttons = new StackPanel();
         readonly bool animate = SystemParameters.ClientAreaAnimation;
+        // Material 3 Expressive's wavy linear indicator, in the measures @m3e/web uses.
+        const double WaveAmplitude = 3;
+        const double WaveLength = 40;
+        const double BarThickness = 4;
+        const double BarGap = 4;
+        const double BandHeight = 14;
+        const double WaveTaper = 8;
         double shown;
+        double shownWidth;
+        double targetWidth;
+        double wavePhase;
+        DateTime lastRender;
+        bool rendering;
         bool finished;
         StreamWriter log;
 
@@ -412,15 +430,17 @@ namespace Girovo.UpdateWindow
                 Child = Mark(Colors.White),
             };
             brand.Children.Add(plate);
+            // The wordmark is a quiet brand tag: Medium, as everything the design
+            // emphasises (never Bold). The title below carries the message.
             brand.Children.Add(new TextBlock
             {
                 Text = "Girovo",
                 FontFamily = Faces.Text,
-                FontWeight = FontWeights.Bold,
+                FontWeight = FontWeights.Medium,
                 FontSize = 15,
                 Foreground = Brush(palette.Ink),
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(10, 0, 0, 1),
+                Margin = new Thickness(8, 0, 0, 1),
             });
             stack.Children.Add(brand);
 
@@ -445,47 +465,49 @@ namespace Girovo.UpdateWindow
             description.Text = Say.Pick("Girovo startet danach von selbst wieder.", "Girovo restarts on its own afterwards.");
             stack.Children.Add(description);
 
-            // The progress row, as in the update dialog: what is happening on
-            // the left, how far on the right, and Material's linear progress
-            // indicator — 4px of primary, 4px clear, the rest of the track,
-            // the stop dot at its end.
+            // The live figure leads, exact and tabular — the app's balance
+            // treatment: the per-cent big in the display face, its sign small in
+            // the variant ink, and what is happening a quiet subheader beneath.
             progressBlock.Margin = new Thickness(0, 24, 0, 0);
-            var row = new DockPanel { LastChildFill = true };
-            percent.FontFamily = Faces.Text;
-            percent.FontSize = 14;
-            percent.Foreground = Brush(palette.Ink2);
+            percent.FontFamily = Faces.Display;
+            percent.FontWeight = FontWeights.Medium;
             System.Windows.Documents.Typography.SetNumeralAlignment(percent, FontNumeralAlignment.Tabular);
-            DockPanel.SetDock(percent, Dock.Right);
-            row.Children.Add(percent);
+            percentNumber = new System.Windows.Documents.Run("0") { Foreground = Brush(palette.Ink), FontSize = 36 };
+            percent.Inlines.Add(percentNumber);
+            percent.Inlines.Add(new System.Windows.Documents.Run(Say.Pick(" %", "%")) { Foreground = Brush(palette.Ink2), FontSize = 20 });
+            progressBlock.Children.Add(percent);
             phase.FontFamily = Faces.Text;
             phase.FontWeight = FontWeights.Medium;
             phase.FontSize = 14;
-            phase.Foreground = Brush(palette.Ink);
+            phase.Foreground = Brush(palette.Ink2);
+            phase.Margin = new Thickness(0, 2, 0, 0);
             phase.Text = Say.Pick("Wird vorbereitet …", "Preparing…");
-            row.Children.Add(phase);
-            progressBlock.Children.Add(row);
+            progressBlock.Children.Add(phase);
 
-            track.Height = 4;
-            track.Margin = new Thickness(0, 10, 0, 0);
-            track.ClipToBounds = true;
-            rest.CornerRadius = new CornerRadius(2);
+            // The done part is M3 Expressive's travelling wave (amplitude 3,
+            // wavelength 40), then a 4px gap, then the flat track, the stop at its
+            // end — the same indicator as the app's download bar (@m3e/web
+            // progress-indicator, variant "wavy"). The band is tall enough to hold
+            // the wave's crests; the wave itself is rebuilt each frame (BuildWave).
+            track.Height = BandHeight;
+            track.Margin = new Thickness(0, 16, 0, 0);
+            rest.Height = BarThickness;
+            rest.VerticalAlignment = VerticalAlignment.Center;
+            rest.CornerRadius = new CornerRadius(BarThickness / 2);
             rest.Background = Brush(palette.Track);
-            fill.HorizontalAlignment = HorizontalAlignment.Left;
-            fill.Width = 0;
-            fill.CornerRadius = new CornerRadius(2);
-            fill.Background = Brush(palette.Accent);
-            // The track starts 4px after the fill, wherever the fill has got to.
-            fill.SizeChanged += delegate
-            {
-                rest.Margin = new Thickness(fill.ActualWidth > 0 ? fill.ActualWidth + 4 : 0, 0, 0, 0);
-            };
+            wave.Stroke = Brush(palette.Accent);
+            wave.StrokeThickness = BarThickness;
+            wave.StrokeStartLineCap = PenLineCap.Round;
+            wave.StrokeEndLineCap = PenLineCap.Round;
+            wave.StrokeLineJoin = PenLineJoin.Round;
             var bar = new Grid();
             bar.Children.Add(rest);
-            bar.Children.Add(fill);
+            bar.Children.Add(wave);
             bar.Children.Add(new System.Windows.Shapes.Ellipse
             {
-                Width = 4,
-                Height = 4,
+                Width = BarThickness,
+                Height = BarThickness,
+                VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Fill = Brush(palette.Accent),
             });
@@ -590,19 +612,92 @@ namespace Girovo.UpdateWindow
             if (target < shown) return;
             shown = target;
             var whole = ((int)Math.Floor(target * 100)).ToString(CultureInfo.InvariantCulture);
-            percent.Text = Say.Pick(whole + " %", whole + "%");
-            double width = track.ActualWidth * target;
+            percentNumber.Text = whole;
+            targetWidth = track.ActualWidth * target;
             if (!animate)
             {
-                fill.BeginAnimation(WidthProperty, null);
-                fill.Width = width;
+                // No travel, no easing: the wave is drawn once at its new length.
+                shownWidth = targetWidth;
+                BuildWave();
                 return;
             }
-            var anim = new DoubleAnimation(width, TimeSpan.FromMilliseconds(250))
+            EnsureRendering();
+        }
+
+        /// <summary>
+        /// Keeps the wave alive once there is progress to show: the crests travel
+        /// and the length eases towards its target, a frame at a time, until the
+        /// window closes. Only started when the system allows animation.
+        /// </summary>
+        void EnsureRendering()
+        {
+            if (rendering || !animate) return;
+            rendering = true;
+            lastRender = DateTime.UtcNow;
+            CompositionTarget.Rendering += OnRender;
+        }
+
+        void OnRender(object sender, EventArgs e)
+        {
+            var now = DateTime.UtcNow;
+            double dt = (now - lastRender).TotalSeconds;
+            lastRender = now;
+            if (dt <= 0) return;
+            if (dt > 0.1) dt = 0.1;
+            // One wavelength every 1.5s, as the web indicator travels.
+            wavePhase = (wavePhase + (WaveLength / 1.5) * dt) % WaveLength;
+            // Ease the length towards its target (about a quarter-second to settle).
+            shownWidth += (targetWidth - shownWidth) * (1 - Math.Exp(-dt / 0.12));
+            if (Math.Abs(targetWidth - shownWidth) < 0.5) shownWidth = targetWidth;
+            BuildWave();
+        }
+
+        /// <summary>
+        /// Draws the done part as a sine wave from the start to the current length,
+        /// its amplitude easing to nothing at both ends so the round caps sit on
+        /// the centre line, and starts the flat track a gap beyond it.
+        /// </summary>
+        void BuildWave()
+        {
+            double w = track.ActualWidth;
+            double len = Math.Max(0, Math.Min(shownWidth, w));
+            rest.Margin = new Thickness(len > 0 ? len + BarGap : 0, 0, 0, 0);
+            if (len <= 0.5)
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            };
-            fill.BeginAnimation(WidthProperty, anim);
+                wave.Data = Geometry.Empty;
+                return;
+            }
+            double cy = BandHeight / 2;
+            double k = 2 * Math.PI / WaveLength;
+            var geo = new StreamGeometry();
+            using (var ctx = geo.Open())
+            {
+                ctx.BeginFigure(new Point(0, cy), false, false);
+                const double step = 1.5;
+                for (double x = step; x <= len + 0.001; x += step)
+                {
+                    double xx = x > len ? len : x;
+                    double env = Math.Min(xx, len - xx) / WaveTaper;
+                    if (env > 1) env = 1;
+                    if (env < 0) env = 0;
+                    double y = cy - env * WaveAmplitude * Math.Sin(k * (xx + wavePhase));
+                    ctx.LineTo(new Point(xx, y), true, false);
+                }
+            }
+            geo.Freeze();
+            wave.Data = geo;
+        }
+
+        /// <summary>A still, representative frame for --snapshot (dev only).</summary>
+        internal void RenderDemoFrame(double fraction)
+        {
+            shown = fraction;
+            shownWidth = targetWidth = track.ActualWidth * fraction;
+            wavePhase = WaveLength * 0.25;
+            var whole = ((int)Math.Floor(fraction * 100)).ToString(CultureInfo.InvariantCulture);
+            percentNumber.Text = whole;
+            SetPhase(Say.Pick("Neue Version wird entpackt …", "Unpacking the new version…"));
+            BuildWave();
         }
 
         void SetPhase(string text)
@@ -940,6 +1035,7 @@ namespace Girovo.UpdateWindow
 
         protected override void OnClosed(EventArgs e)
         {
+            if (rendering) { CompositionTarget.Rendering -= OnRender; rendering = false; }
             Log("closed");
             base.OnClosed(e);
             var w = log;
