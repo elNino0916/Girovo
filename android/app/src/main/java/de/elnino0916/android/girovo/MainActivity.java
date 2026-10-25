@@ -27,6 +27,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(UpdaterPlugin.class);
         // Girovo Plus: Play Billing in src/play, "everything free" in src/github.
         registerPlugin(PlusPlugin.class);
+        // Google Play's rating card: In-App Review in src/play, unavailable in src/github.
+        registerPlugin(ReviewPlugin.class);
         super.onCreate(savedInstanceState);
         // Edge to edge on every Android, as Android 15 and later draw it
         // anyway: the page runs under the bars and keeps clear of them by

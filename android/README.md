@@ -286,6 +286,27 @@ request. The GitHub build's `PlusPlugin` (src/github) answers "free".
   `BILLING_UNAVAILABLE` (state `unavailable`); the design preview has
   `?plus=free|active|inactive|unavailable`.
 
+#### Rating card
+
+Google Play's own rating card (In-App Review: `lib/play-review.ts`,
+`mobile/bridges/review.ts`, `ReviewPlugin`), asked for after a good moment and
+at most once per version: a transfer that just went through, or a bank read
+once there have been five, on a phone used for at least seven days. Never
+within ten minutes of an error or an approval that ran out, never for a read
+that needed an approval, never on a phone the integrity check warns about.
+Girovo shows nothing of its own before or around it — Play's guidelines forbid
+asking first. Play decides whether the card shows (it has its own quota) and
+never says; the count is kept in the WebView's storage (`girovo.review`).
+
+Only the Play build has the library (`playImplementation`). The GitHub build's
+`ReviewPlugin` answers "unavailable" and is never asked; its APK holds none of
+the review library's code.
+
+- **Testing:** an app not installed by Play gets no card — install it through
+  Play's internal app sharing or a testing track to see it. On the emulator
+  image without the Play Store, `adb logcat -s GirovoReview` says
+  "not asked: … Failed to bind to the service".
+
 ## On the phone
 
 - **Storage.** The remembered device profiles, the vault and the kept Umsätze

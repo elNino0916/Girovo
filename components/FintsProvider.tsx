@@ -55,6 +55,7 @@ import {
 import { isCardPurpose, parseCardAcceptor } from '@/lib/card-purpose';
 import { setBrandNames } from './transactions/model';
 import { bankAllowed, reminderDue, type PlusStatus } from '@/lib/plus';
+import { reviewMoment } from './android/review';
 import { parsePurpose } from '@/lib/sepa-purpose';
 import {
   dayKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, toLocalDate, translateType,
@@ -1254,6 +1255,8 @@ function useFintsState() {
   // the least the caller asks for, and reading time or an action lengthen it.
   const toast = useCallback((message: string, tone: ToastTone = 'info', ms?: number, action?: ToastAction): number => {
     const id = ++toastId.current;
+    // Something failed: Google Play's rating card is not asked for right after it.
+    if (tone === 'error') reviewMoment('trouble');
     const entry: Toast = {
       id, message, tone, ms: ms ?? (tone === 'error' ? 10_000 : 4200), ...(action ? { action } : {}),
     };
@@ -2242,6 +2245,7 @@ function useFintsState() {
       void resolveMerchants(pending?.length ? [...list, ...pending] : list);
       void matchReceiptsRef.current(acct, list);
       opts.onSettled?.('applied');
+      reviewMoment('refresh');
     };
 
     try {
@@ -3187,6 +3191,14 @@ function useFintsState() {
       void mobile.approval.release();
     };
   }, [awaitingApproval]);
+
+  // Google Play's rating card (lib/play-review.ts) waits while an approval is
+  // under way, and is not asked for right after one that ran out or failed.
+  useEffect(() => {
+    if (!wait.open) return;
+    if (wait.phase === 'waiting') reviewMoment('approval');
+    else if (wait.phase !== 'confirmed') reviewMoment('trouble');
+  }, [wait.open, wait.phase, wait.startedAt]);
 
   // Android's back gesture, once no layer is open to close (mobile/bridges/back.ts):
   // from Einstellungen to the page it was opened from, from Analyse or Verträge

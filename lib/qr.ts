@@ -108,25 +108,41 @@ export function qrSvgPath(matrix: QrMatrix, quiet = 4): { d: string; size: numbe
  *
  * An integer scale keeps every module edge on a pixel boundary, so the image
  * stays sharp however it is later printed or scaled down by a viewer.
+ *
+ * A `caption` is one grey line under the code, set below the quiet zone so a
+ * scanner never meets it: what the payer reads under a code sent in a chat.
  */
-export async function qrPngBlob(matrix: QrMatrix, scale = 8, quiet = 4): Promise<Blob> {
+export async function qrPngBlob(matrix: QrMatrix, scale = 8, quiet = 4, caption?: string): Promise<Blob> {
   if (typeof document === 'undefined') throw new Error(msgs().transfer.qr.browserOnly);
   const q = quietZone(quiet);
   const px = Math.max(1, Math.round(Number.isFinite(scale) ? scale : 8));
   const size = (matrix.length + 2 * q) * px;
+  // The line is two modules high, with three modules of white under it.
+  const band = caption ? 5 * px : 0;
 
   const canvas = document.createElement('canvas');
   canvas.width = size;
-  canvas.height = size;
+  canvas.height = size + band;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error(msgs().transfer.qr.imageFailed);
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, size, size);
+  ctx.fillRect(0, 0, size, size + band);
   ctx.fillStyle = '#000000';
   forEachRun(matrix, (x, y, length) => {
     ctx.fillRect((x + q) * px, (y + q) * px, length * px, px);
   });
+
+  if (caption) {
+    // The app's own face, once it is loaded; the system's sans otherwise.
+    const font = `500 ${2 * px}px ${getComputedStyle(document.body).fontFamily || 'sans-serif'}`;
+    await document.fonts?.load(font, caption).catch(() => undefined);
+    ctx.font = font;
+    ctx.fillStyle = '#5f6368';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(caption, size / 2, size + px, size - 2 * q * px);
+  }
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {

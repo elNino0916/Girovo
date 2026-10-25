@@ -132,7 +132,7 @@ export function ShareAccount() {
 
   const copyImage = async () => {
     if (!code?.ok) return;
-    if (await copyPng(qrPngBlob(code.matrix, 8))) flashCopied('image');
+    if (await copyPng(qrPngBlob(code.matrix, 8, 4, words.imageCaption))) flashCopied('image');
     else toast(words.imageCopyFailed, 'error');
   };
 
@@ -140,7 +140,7 @@ export function ShareAccount() {
     if (!code?.ok) return;
     setSaving(true);
     try {
-      const blob = await qrPngBlob(code.matrix, 8);
+      const blob = await qrPngBlob(code.matrix, 8, 4, words.imageCaption);
       const tail = iban.replace(/\s+/g, '').slice(-6);
       // "_1000-50": from the cents, not the formatted figure, so the name is the same in every language.
       const cents = amountState.value != null ? Math.round(amountState.value * 100) : null;

@@ -78,7 +78,7 @@ export function SplitRequests() {
   };
   const copyCode = async (card: Card, key: string) => {
     if (!('matrix' in card.code)) return;
-    if (await copyImage(qrPngBlob(card.code.matrix, 8))) flash(key, share.imageCopied);
+    if (await copyImage(qrPngBlob(card.code.matrix, 8, 4, share.imageCaption))) flash(key, share.imageCopied);
     else toast(share.imageCopyFailed, 'error');
   };
   const saveCode = async (card: Card) => {
@@ -88,7 +88,7 @@ export function SplitRequests() {
       const amt = `_${Math.floor(card.cents / 100)}-${String(card.cents % 100).padStart(2, '0')}`;
       // The person's name too, so three codes saved side by side are told apart.
       const who = card.name.normalize('NFKD').replace(/[^\w-]+/g, '').slice(0, 24);
-      downloadBlob(`GiroCode_${tail}${amt}${who ? `_${who}` : ''}.png`, await qrPngBlob(card.code.matrix, 8));
+      downloadBlob(`GiroCode_${tail}${amt}${who ? `_${who}` : ''}.png`, await qrPngBlob(card.code.matrix, 8, 4, share.imageCaption));
     } catch (e) {
       toast((e as Error).message || share.imageSaveFailed, 'error');
     }

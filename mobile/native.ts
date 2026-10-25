@@ -261,3 +261,14 @@ export interface GirovoPlusPlugin {
 }
 
 export const GirovoPlus = registerPlugin<GirovoPlusPlugin>('GirovoPlus');
+
+// ---------------------------------------------------------------------------
+// Google Play's rating card (ReviewPlugin.java in src/play, In-App Review;
+// src/github answers "unavailable"). lib/play-review.ts says when it is asked for.
+
+export interface GirovoReviewPlugin {
+  /** Asks Play for its card: "done" whether or not Play showed it (it never says), "failed" when Play was not asked. */
+  request(): Promise<{ result: 'done' | 'failed' }>;
+}
+
+export const GirovoReview = registerPlugin<GirovoReviewPlugin>('GirovoReview');

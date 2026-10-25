@@ -368,6 +368,8 @@ export const de = {
     savePng: 'Als PNG speichern',
     detailsCopied: 'Kontodaten kopiert',
     imageCopied: 'GiroCode als Bild kopiert',
+    /** Under the code in a copied, saved or shared image. */
+    imageCaption: 'Erstellt mit Girovo · girovo.de',
     covered: 'Beträge sind ausgeblendet – der Code enthält den Betrag und ließe sich vom Bildschirm scannen.',
     showCode: 'Code anzeigen',
     /** The code's description for a screen reader. */
@@ -736,6 +738,7 @@ export const en: typeof de = {
     savePng: 'Save as PNG',
     detailsCopied: 'Account details copied',
     imageCopied: 'GiroCode copied as an image',
+    imageCaption: 'Made with Girovo · girovo.de',
     covered: 'Amounts are hidden – the code contains the amount and could be scanned off the screen.',
     showCode: 'Show code',
     codeLabel: (name, amount) => `GiroCode: transfer to ${name}, ${amount}`,

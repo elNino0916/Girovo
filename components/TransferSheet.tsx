@@ -28,6 +28,7 @@ import { fmtAmountInput, fmtDate, fmtIban, fmtShortIban, isoDate, parseAmount } 
 import { msgs, type Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { haptic } from './android/haptics';
+import { reviewMoment } from './android/review';
 import { IS_ANDROID } from '@/lib/platform';
 import { sepaLength, sepaSanitize } from '@/lib/sepa-text';
 import { scheduleSentence } from '@/lib/order-schedule';
@@ -770,6 +771,7 @@ export function TransferSheet() {
       setBankAnswers(answers);
       setStep('done');
       haptic('confirm');
+      reviewMoment('transfer');
       fileInvoice();
     },
     onUnknown: (answers?: string) => {
@@ -777,6 +779,7 @@ export function TransferSheet() {
       setBankAnswers(answers);
       setCheck(null);
       setStep('unknown');
+      reviewMoment('trouble');
       // It may have gone through: should it be booked, the invoice is there.
       fileInvoice();
     },
@@ -786,8 +789,9 @@ export function TransferSheet() {
       setVop(null);
       setStep('refused');
       haptic('reject');
+      reviewMoment('trouble');
     },
-    onError: (message: string) => { setSubmitting(false); setError(message); haptic('reject'); },
+    onError: (message: string) => { setSubmitting(false); setError(message); haptic('reject'); reviewMoment('trouble'); },
     onVop: (result: SerializedVop) => { setSubmitting(false); setVop(result); setStep('vop'); },
   };
 

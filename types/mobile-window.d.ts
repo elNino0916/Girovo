@@ -83,6 +83,14 @@ declare global {
     /** The Google Play build: whether Play has a newer version, and Play's own update flow. */
     playUpdate(): Promise<{ available: boolean; start: () => Promise<'started' | 'canceled' | 'failed'> }>;
     /**
+     * Google Play's rating card (mobile/bridges/review.ts): what just
+     * happened. The Play build asks Play after a good moment, at most once
+     * per version (lib/play-review.ts); elsewhere nothing happens.
+     */
+    review: {
+      note(moment: import('../lib/play-review').ReviewMoment): void;
+    };
+    /**
      * While an approval in the bank's app is awaited: keeps the app's network
      * when the user switches to that app (Android 15 cuts it off otherwise).
      */

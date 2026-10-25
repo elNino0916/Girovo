@@ -1,0 +1,10 @@
+<en-US>
+• Security updates for the tools Girovo is built with
+• A GiroCode you share as an image now says "Made with Girovo · girovo.de" underneath
+• Girovo may ask for a rating through Google Play – at most once per version, and only after things went well
+</en-US>
+<de-DE>
+• Sicherheitsupdates für die Werkzeuge, mit denen Girovo gebaut wird
+• Ein als Bild geteilter GiroCode trägt jetzt darunter „Erstellt mit Girovo · girovo.de“
+• Girovo bittet eventuell über Google Play um eine Bewertung – höchstens einmal pro Version und nur, wenn alles geklappt hat
+</de-DE>

@@ -145,6 +145,9 @@ dependencies {
     playImplementation "com.google.android.play:app-update:2.1.0"
     // Girovo Plus, the Play build's supporter subscription (src/play/…/PlusPlugin).
     playImplementation "com.android.billingclient:billing:8.3.0"
+    // Google Play's rating card (In-App Review), in the Play build only (src/play/…/ReviewPlugin):
+    // the GitHub build stays free of Play's code.
+    playImplementation "com.google.android.play:review:2.0.2"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
