@@ -1,0 +1,12 @@
+<en-US>
+• Vorgemerkt: a booking opened from the list shows on top again – no more frozen screen
+• Xiaomi phones: fingerprint login and saving work again
+• Purchases through PayPal show the shop again – Coolblue or Spotify instead of "PayPal"
+• Girovo now needs Android 11 or later
+</en-US>
+<de-DE>
+• Vorgemerkt: Ein Umsatz aus der Liste öffnet sich wieder obenauf – der Bildschirm hängt nicht mehr
+• Xiaomi-Telefone: Anmeldung per Fingerabdruck und Speichern gehen wieder
+• Käufe über PayPal zeigen wieder den Shop – Coolblue oder Spotify statt „PayPal“
+• Girovo braucht jetzt Android 11 oder neuer
+</de-DE>

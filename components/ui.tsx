@@ -998,6 +998,12 @@ function OverlayLayer({
   const layerId = useId();
   // Captured during the first render — before any child's autoFocus runs —
   // so focus goes back to what opened the layer, not to its first field.
+  // Above every layer already open when this one opens. Overlays render in
+  // place, so two of them at the same z-index paint in page order: the
+  // Umsatzdetails drawer, hosted by the Umsätze tile, opened from the
+  // Vorgemerkt sheet further down the page and stayed under it — hidden
+  // behind a sheet that was inert, so nothing on the screen took a tap.
+  const [depth] = useState(() => layerStack.length);
   const [returnTo] = useState<Element | null>(
     () => returnFocus ?? (typeof document === 'undefined' ? null : document.activeElement),
   );
@@ -1127,7 +1133,9 @@ function OverlayLayer({
       // A light surface: the page's focus ring, also when opened from inside
       // the navy masthead (see :focus-visible in globals.css).
       className={cx('anim-fade fixed inset-0 z-100 flex bg-scrim outline-none [--focus-ring:var(--focus)]', placement, className)}
-      style={NO_DRAG}
+      // z-100 for the first layer, one more for each above it; a layer that
+      // must stay on top (SessionGuard's z-110!) overrides it.
+      style={depth ? { ...NO_DRAG, zIndex: 100 + depth } : NO_DRAG}
     >
       {children}
     </div>
