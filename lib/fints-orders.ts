@@ -87,6 +87,7 @@ import type {
   TransferResult,
 } from './fints-types';
 import type { Session } from './session';
+import { bankAccountOf } from './account-key.ts';
 import { repairBankText } from './format.ts';
 import { pickSepaDescriptor, SepaOrderInteraction, SepaTransferInteraction, type TransferOrder, type VopMode } from './fints-sepa.ts';
 import {
@@ -481,7 +482,7 @@ export function orderCaps(config: FinTSConfig, accountNumber: string): {
 } {
   let account;
   try {
-    account = config.getBankAccount(accountNumber);
+    account = bankAccountOf(config, accountNumber);
   } catch {
     return { dated: null, standing: null };
   }
@@ -908,8 +909,8 @@ export class BankOrderListInteraction extends CustomerOrderInteraction {
   }
 
   createSegments(config: FinTSConfig): Segment[] {
-    const account = config.getBankAccount(this.accountNumber);
-    if (!config.isAccountTransactionSupported(this.accountNumber, this.segId)) {
+    const account = bankAccountOf(config, this.accountNumber);
+    if (!config.isAccountTransactionSupported(account, this.segId)) {
       throw Error(`Account ${this.accountNumber} does not support business transaction '${this.segId}'`);
     }
     const version = config.getMaxSupportedTransactionVersion(this.segId) ?? 1;
@@ -975,12 +976,12 @@ export class BankOrderDeleteInteraction extends CustomerOrderInteraction {
 
   createSegments(config: FinTSConfig): Segment[] {
     const kind = this.entry.order.kind;
-    if (!config.isAccountTransactionSupported(this.accountNumber, this.segId)) {
+    const own = bankAccountOf(config, this.accountNumber);
+    if (!config.isAccountTransactionSupported(own, this.segId)) {
       throw Error(`Account ${this.accountNumber} does not support business transaction '${this.segId}'`);
     }
     if (!this.entry.order.deletable) throw Error(`${this.segId}: this order cannot be deleted`);
     const version = config.getMaxSupportedTransactionVersion(this.segId) ?? 1;
-    const own = config.getBankAccount(this.accountNumber);
     const fields = this.entry.raw.fields as { account?: Record<string, unknown>; orderId?: string; details?: DetailsFields };
     // The account as the Bestand named it — the pain's DbtrAcct and DbtrAgt
     // match it — or, where it named none, as this app names it.

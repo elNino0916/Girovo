@@ -2,6 +2,7 @@
 
 import type { AccountBalance, Balance, ClientResponse, PortfolioResponse, Statement } from 'lib-fints';
 import type { TanMethod } from './fints-types';
+import { accountKeyOf, bankAccountOf } from './account-key';
 import { lookupBlz } from './banks';
 import { renderFlicker } from './flicker';
 import { nearestEntryYear } from './entry-date';
@@ -63,7 +64,8 @@ export function accountsFor(s: Session): SerializedAccount[] {
   }
 
   return accts.map((a) => ({
-    accountNumber: a.accountNumber,
+    // The number, with the sub-account id where the bank uses the number twice (lib/account-key.ts).
+    accountNumber: accountKeyOf(a, accts),
     iban: a.iban || null,
     bic: lookupBlz(a.bank?.bankId)?.bic || null,
     currency: a.currency || 'EUR',
@@ -82,7 +84,7 @@ export function accountsFor(s: Session): SerializedAccount[] {
     canPending: acctSupports(a, PENDING_SEG),
     // Terminierte Überweisungen and Daueraufträge: BPD and UPD both, with the
     // bank's rules (lib/fints-orders.ts).
-    ...ordersOf(cfg, a.accountNumber),
+    ...ordersOf(cfg, accountKeyOf(a, accts)),
     // A Depot's holdings, and the bank's own Kontoauszüge: reads like the
     // balance, granted per account.
     canPortfolio: acctSupports(a, 'HKWPD'),
@@ -300,7 +302,7 @@ export function serializeTransactions(statements: Statement[] | undefined, curre
 /** The account's currency as the UPD names it — 'EUR' when it names none. */
 export function accountCurrency(s: Pick<Session, 'client'>, accountNumber: string): string {
   try {
-    return s.client.config.getBankAccount(accountNumber)?.currency || 'EUR';
+    return bankAccountOf(s.client.config, accountNumber)?.currency || 'EUR';
   } catch {
     return 'EUR'; // not in the UPD, or not unique there
   }

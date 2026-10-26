@@ -1,0 +1,6 @@
+<en-US>
+• Accounts that share one account number at your bank – such as a Girokonto and its Depot – now load their Umsätze, and each is asked for as itself
+</en-US>
+<de-DE>
+• Konten, die sich bei deiner Bank eine Kontonummer teilen – etwa ein Girokonto und sein Depot – laden jetzt ihre Umsätze, und jedes wird einzeln abgefragt
+</de-DE>

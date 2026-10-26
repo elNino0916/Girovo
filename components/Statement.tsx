@@ -32,6 +32,7 @@
 // either language.
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react';
+import { bankNumberOf } from '@/lib/account-key';
 import { isCardAccount } from '@/lib/balances';
 import { categoryLabel, txBic } from '@/lib/categories';
 import { dayKey, fmtDate, fmtDecimal, fmtIban, ibanCountry, translateType } from '@/lib/format';
@@ -585,7 +586,7 @@ function StatementSheet({ job, stamp }: { job: StatementJob; stamp: DocStamp }) 
   return (
     <article>
       <PageMarks
-        left={[doc.statement, iban || account.accountNumber, periodText].filter(Boolean).join(' · ')}
+        left={[doc.statement, iban || bankNumberOf(account.accountNumber), periodText].filter(Boolean).join(' · ')}
         right={stamp.docId}
       />
       <Letterhead
@@ -611,7 +612,7 @@ function StatementSheet({ job, stamp }: { job: StatementJob; stamp: DocStamp }) 
           rail="auto"
           rows={[
             ...(iban ? [{ label: 'IBAN', value: iban, cast: 'iban' } satisfies Pair] : []),
-            { label: doc.accountNumber, value: account.accountNumber, cast: 'mono' },
+            { label: doc.accountNumber, value: bankNumberOf(account.accountNumber), cast: 'mono' },
           ]}
         />
       </section>
@@ -892,7 +893,7 @@ function TransactionSheet({ job, stamp }: { job: TransactionJob; stamp: DocStamp
           <span>{bankLine(tx.remoteName) || '—'}</span>
 
           <span className="doc-label">IBAN</span>
-          <span className="doc-mono doc-iban">{fmtIban(account.iban) || account.accountNumber}</span>
+          <span className="doc-mono doc-iban">{fmtIban(account.iban) || bankNumberOf(account.accountNumber)}</span>
           <span className="doc-mono doc-iban">{fmtIban(tx.remoteIban) || '—'}</span>
 
           <span className="doc-label">BIC</span>
@@ -1081,7 +1082,7 @@ function TaxYearSheet({ job, stamp }: { job: TaxYearJob; stamp: DocStamp }) {
           label: a.label,
           value: (
             <>
-              {a.iban ? <span className="doc-mono doc-iban">{fmtIban(a.iban)}</span> : <span className="doc-mono">{a.accountNumber}</span>}
+              {a.iban ? <span className="doc-mono doc-iban">{fmtIban(a.iban)}</span> : <span className="doc-mono">{bankNumberOf(a.accountNumber)}</span>}
               {a.bank && <span className="doc-soft">{` · ${a.bank}`}</span>}
               <span className="doc-small doc-soft block">{`${words.loaded}: ${coverText(coverageOf.get(a.accountNumber))}`}</span>
             </>

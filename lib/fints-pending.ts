@@ -28,6 +28,7 @@ import {
   CustomerOrderInteraction,
   registerSegmentDefinition,
 } from './fints-internals.js';
+import { bankAccountOf } from './account-key.ts';
 import type { ClientResponseWithResult } from './fints-types';
 import { parseMt942 } from './noted.ts';
 
@@ -68,8 +69,8 @@ export class PendingInteraction extends CustomerOrderInteraction {
   }
 
   createSegments(config: FinTSConfig): Segment[] {
-    const bankAccount = config.getBankAccount(this.accountNumber);
-    if (!config.isAccountTransactionSupported(this.accountNumber, HKVMK.Id)) {
+    const bankAccount = bankAccountOf(config, this.accountNumber);
+    if (!config.isAccountTransactionSupported(bankAccount, HKVMK.Id)) {
       throw Error(`Account ${this.accountNumber} does not support business transaction '${HKVMK.Id}'`);
     }
     const version = config.getMaxSupportedTransactionVersion(HKVMK.Id) ?? 1;

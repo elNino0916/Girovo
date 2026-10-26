@@ -1,6 +1,7 @@
 // Read a Depot's holdings (HKWPD): what it holds, at which prices, and its
 // total — like the balance, a read that may ask for an approval.
 
+import { bankAccountOf } from '@/lib/account-key';
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { accountCurrency, bankAnswerText, serializePortfolio, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
@@ -18,7 +19,7 @@ export const POST = wrap(async (req: Request) => {
   if (!s) return sessionExpired();
   if (!accountNumber) return fail(msgs().transactions.api.noAccount);
 
-  const resp = await s.client.getPortfolio(accountNumber);
+  const resp = await s.client.getPortfolio(bankAccountOf(s.client.config, accountNumber));
   if (resp.requiresTan) {
     s.pending = { type: 'portfolio', tanReference: resp.tanReference, accountNumber };
     return json({ ...tanPayload(resp, s), accountNumber } satisfies PortfolioResponse);

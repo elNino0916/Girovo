@@ -17,6 +17,7 @@
 //   • challenge voided   → park the order, ask the user, then /api/vop-confirm
 //   • already executed   → nothing left to approve
 
+import { findBankAccount } from '@/lib/account-key';
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { isDefiniteRefusal } from '@/lib/bank-answer';
 import { msgs } from '@/lib/i18n';
@@ -84,10 +85,7 @@ export const POST = wrap(async (req: Request) => {
     return fail(words.route.purposeTooLong(SEPA_PURPOSE_MAX));
   }
 
-  const account = accountNumber
-    ? (s.client.config.bankingInformation?.upd?.bankAccounts || [])
-      .find((a) => a.accountNumber === accountNumber)
-    : undefined;
+  const account = accountNumber ? findBankAccount(s.client.config, accountNumber) : undefined;
   if (!accountNumber || !account) return fail(words.route.unknownAccount);
   if (cleanIban === account.iban) return fail(words.route.sameIban);
 
@@ -125,7 +123,7 @@ export const POST = wrap(async (req: Request) => {
       console.log(`[transfer] ${segId} schedule refused: ${Object.values(problems).join(', ')}`);
       return fail(later.route.scheduleInvalid);
     }
-  } else if (!s.client.config.isAccountTransactionSupported(accountNumber, segId)) {
+  } else if (!s.client.config.isAccountTransactionSupported(account, segId)) {
     return fail(words.route.unsupported(useInstant));
   }
 

@@ -1,5 +1,6 @@
 // Fetch current balance (Kontostand) for one account.
 
+import { bankAccountOf } from '@/lib/account-key';
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { bankAnswerText, serializeBalance, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
@@ -17,7 +18,7 @@ export const POST = wrap(async (req: Request) => {
   if (!s) return sessionExpired();
   if (!accountNumber) return fail(msgs().transactions.api.noAccount);
 
-  const resp = await s.client.getAccountBalance(accountNumber);
+  const resp = await s.client.getAccountBalance(bankAccountOf(s.client.config, accountNumber));
   if (resp.requiresTan) {
     s.pending = { type: 'balance', tanReference: resp.tanReference, accountNumber };
     return json({ ...tanPayload(resp, s), accountNumber } satisfies BalanceResponse);

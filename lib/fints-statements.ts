@@ -13,6 +13,7 @@
 // `notedStatements` from that answer like this one does.
 
 import type { FinTSConfig, Message, Segment, Statement, StatementResponse } from 'lib-fints';
+import { bankAccountOf } from './account-key.ts';
 import { StatementInteractionCAMT, StatementInteractionMT940 } from './fints-internals.js';
 import type { ClientResponseWithResult, FinTSClientEx } from './fints-types';
 import { msgs } from './i18n/index.ts';
@@ -103,9 +104,10 @@ export class NotedStatementInteractionMT940 extends StatementInteractionMT940 {
 
 /** Whether the account's Umsätze come as camt (HKCAZ) or MT940 (HKKAZ) — lib-fints' own choice. */
 export function statementFormat(config: FinTSConfig, accountNumber: string): Format | null {
+  const account = bankAccountOf(config, accountNumber);
   // getAccountStatements prefers camt whenever the account has it.
-  if (config.isAccountTransactionSupported(accountNumber, 'HKCAZ')) return 'camt';
-  if (config.isAccountTransactionSupported(accountNumber, 'HKKAZ')) return 'mt940';
+  if (config.isAccountTransactionSupported(account, 'HKCAZ')) return 'camt';
+  if (config.isAccountTransactionSupported(account, 'HKKAZ')) return 'mt940';
   return null;
 }
 
@@ -121,8 +123,10 @@ export async function fetchStatements(
 ): Promise<StatementsResponse> {
   const format = statementFormat(client.config, accountNumber);
   if (!format) throw new Error(msgs().transactions.api.noStatements);
+  // The account itself, not its number: a number the bank uses twice names neither (lib/account-key.ts).
+  const account = bankAccountOf(client.config, accountNumber);
   const interaction = format === 'camt'
-    ? new NotedStatementInteractionCAMT(accountNumber, from, to)
-    : new NotedStatementInteractionMT940(accountNumber, from, to);
+    ? new NotedStatementInteractionCAMT(account, from, to)
+    : new NotedStatementInteractionMT940(account, from, to);
   return (await client.startCustomerOrderInteraction(interaction)) as StatementsResponse;
 }

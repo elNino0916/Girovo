@@ -18,6 +18,7 @@
 // Pure and dependency-free apart from sibling lib modules, so the
 // `node --test` suite can run it under Node's own type stripping.
 
+import { bankNumberOf } from './account-key.ts';
 import { categoryLabel, intermediaryName, isCategoryId, txBic, txCreditorId } from './categories.ts';
 import type { CategoryId, CategoryResult } from './categories.ts';
 import { prettyBookingText, repairBankText, translateType } from './format.ts';
@@ -284,7 +285,7 @@ export function csvFileName(
   opts: { filtered?: boolean } = {},
 ): string {
   const words = msgs().transactions.csv;
-  const id = compact(account.iban || account.accountNumber).replace(/[^A-Z0-9]/g, '').slice(-6) || words.fileNoAccount;
+  const id = compact(account.iban || bankNumberOf(account.accountNumber)).replace(/[^A-Z0-9]/g, '').slice(-6) || words.fileNoAccount;
   const day = (s: string) => String(s ?? '').replace(/[^0-9-]/g, '');
   const span = [day(range.from), day(range.to)].filter(Boolean).join('_');
   return `${words.file}_${id}${span ? `_${span}` : ''}${opts.filtered ? `_${words.fileFiltered}` : ''}.csv`;

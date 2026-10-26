@@ -36,6 +36,7 @@ import {
   CustomerOrderInteraction,
   registerSegmentDefinition,
 } from './fints-internals.js';
+import { bankAccountOf } from './account-key.ts';
 import type { ClientResponseWithResult, TransferResult } from './fints-types';
 import {
   VopCollector, isVopRequired, queueVopPoll, reportDelivery, vopAuthSegment, vopCheckSegment,
@@ -391,8 +392,8 @@ export class SepaOrderInteraction extends CustomerOrderInteraction {
   }
 
   createSegments(config: FinTSConfig): Segment[] {
-    const account = config.getBankAccount(this.accountNumber);
-    if (!config.isAccountTransactionSupported(this.accountNumber, this.segId)) {
+    const account = bankAccountOf(config, this.accountNumber);
+    if (!config.isAccountTransactionSupported(account, this.segId)) {
       throw Error(`Account ${this.accountNumber} does not support business transaction '${this.segId}'`);
     }
     if (!account.iban) {

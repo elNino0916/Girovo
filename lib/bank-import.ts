@@ -25,6 +25,7 @@
 //
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
+import { bankNumberOf } from './account-key.ts';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
 import type { AccountHistory, DaySpan, HistoryData } from './history';
 import { buildBalanceHistory } from './balance-history.ts';
@@ -360,6 +361,9 @@ export function matchAccount(named: string | null, accounts: readonly { accountN
   const v = String(named ?? '').replace(/\s+/g, '').toUpperCase();
   if (!v) return null;
   const hit = accounts.find((a) => String(a.iban ?? '').replace(/\s+/g, '').toUpperCase() === v)
-    ?? accounts.find((a) => a.accountNumber === v || v.endsWith(a.accountNumber.padStart(10, '0')));
+    ?? accounts.find((a) => {
+      const number = bankNumberOf(a.accountNumber);
+      return number === v || v.endsWith(number.padStart(10, '0'));
+    });
   return hit?.accountNumber ?? null;
 }

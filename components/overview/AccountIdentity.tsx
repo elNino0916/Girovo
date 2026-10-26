@@ -1,5 +1,6 @@
 'use client';
 
+import { bankNumberOf } from '@/lib/account-key';
 import { fmtShortIban, translateType } from '@/lib/format';
 import type { SerializedAccount } from '@/lib/fints-types';
 import type { VaultStatus } from '@/lib/app-types';
@@ -80,7 +81,7 @@ export function accountIdent(account: Pick<SerializedAccount, 'iban' | 'accountN
     if (tail) return { kind: 'iban', head, tail, spoken: words.ibanEnds(tail) };
   }
 
-  const raw = String(account.accountNumber ?? '').replace(/\s+/g, '').toUpperCase();
+  const raw = bankNumberOf(String(account.accountNumber ?? '')).replace(/\s+/g, '').toUpperCase();
   if (!raw) return { kind: 'number', head: '', tail: '', spoken: '' };
 
   // A masked card number: some leading digits (or none), the mask, the last digits.

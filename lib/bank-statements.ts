@@ -13,6 +13,7 @@
 
 import { StatementFormat, type ElectronicStatement, type ElectronicStatementOptions, type ElectronicStatementResponse } from 'lib-fints';
 import type { BankStatementsAnswer } from './fints-types';
+import { bankAccountOf } from './account-key.ts';
 import { keepStatements } from './doc-store.ts';
 import { PDF_STATEMENT_SEG, PdfStatementInteraction } from './fints-statement-pdf.ts';
 import type { Session } from './session';
@@ -23,8 +24,9 @@ export type StatementSeg = 'HKEKA' | typeof PDF_STATEMENT_SEG;
 /** How this account's statements are fetched: HKEKA where the account offers it, else HKEKP; null for neither. */
 export function statementSeg(s: Session, accountNumber: string): StatementSeg | null {
   const config = s.client.config;
-  if (config.isAccountTransactionSupported(accountNumber, 'HKEKA')) return 'HKEKA';
-  if (config.isAccountTransactionSupported(accountNumber, PDF_STATEMENT_SEG)) return PDF_STATEMENT_SEG;
+  const account = bankAccountOf(config, accountNumber);
+  if (config.isAccountTransactionSupported(account, 'HKEKA')) return 'HKEKA';
+  if (config.isAccountTransactionSupported(account, PDF_STATEMENT_SEG)) return PDF_STATEMENT_SEG;
   return null;
 }
 
@@ -32,7 +34,7 @@ export function statementSeg(s: Session, accountNumber: string): StatementSeg | 
 export async function requestStatements(
   s: Session, accountNumber: string, seg: StatementSeg, offset?: string,
 ): Promise<ElectronicStatementResponse> {
-  if (seg === 'HKEKA') return s.client.getElectronicStatements(accountNumber, { ...statementOptions(s), offset });
+  if (seg === 'HKEKA') return s.client.getElectronicStatements(bankAccountOf(s.client.config, accountNumber), { ...statementOptions(s), offset });
   return (await s.client.startCustomerOrderInteraction(new PdfStatementInteraction(accountNumber, { offset }))) as ElectronicStatementResponse;
 }
 

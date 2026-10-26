@@ -34,6 +34,7 @@ import {
   AlphaNumeric, CustomerOrderInteraction, InternationalAccountGroup, Numeric, SegmentDefinition, internationalAccount,
   registerSegmentDefinition, splitBySeparator,
 } from './fints-internals.js';
+import { bankAccountOf } from './account-key.ts';
 
 class HKEKP extends SegmentDefinition {
   static Id = 'HKEKP';
@@ -160,11 +161,12 @@ export class PdfStatementInteraction extends CustomerOrderInteraction {
   }
 
   createSegments(config: FinTSConfig): Segment[] {
-    if (!config.isAccountTransactionSupported(this.accountNumber, HKEKP.Id)) {
+    const bankAccount = bankAccountOf(config, this.accountNumber);
+    if (!config.isAccountTransactionSupported(bankAccount, HKEKP.Id)) {
       throw Error(`Account ${this.accountNumber} does not support business transaction '${HKEKP.Id}'`);
     }
     const version = config.getMaxSupportedTransactionVersion(HKEKP.Id) ?? 1;
-    const account = internationalAccount(config, config.getBankAccount(this.accountNumber));
+    const account = internationalAccount(config, bankAccount);
     return [{
       header: { segId: HKEKP.Id, segNr: 0, version },
       account,
