@@ -34,6 +34,12 @@ export type DeviceProfile = {
   bankingInformation: BankingInformation;
   tanMethodId?: number;
   tanMediaName?: string;
+  /**
+   * The product ID the bank issued the profile's Kundensystem-ID under: the
+   * bank refuses the Kundensystem-ID beside any other ("9391 Kundensystem-ID
+   * ungültig"). Absent in profiles from before 5.15.2 (lib/product-fallback.ts).
+   */
+  productId?: string;
 };
 
 // Profiles older than this are treated as expired and ignored — the bank's own

@@ -51,6 +51,7 @@ export const asClientEx = (client: FinTSClient): FinTSClientEx =>
 // ---------------------------------------------------------------------------
 type FileConfig = {
   productId?: string;
+  fallbackProductId?: string;
   productVersion?: string;
   debug?: boolean;
   merchantLogos?: boolean;
@@ -64,6 +65,8 @@ try {
 
 export const PLACEHOLDER_ID = 'MEINEBANKINGAPP0001';
 export const PRODUCT_ID = process.env.FINTS_PRODUCT_ID || fileConfig.productId || PLACEHOLDER_ID;
+/** Tried where a bank does not know PRODUCT_ID yet (9078) — lib/product-fallback.ts. */
+export const FALLBACK_PRODUCT_ID = process.env.FINTS_FALLBACK_PRODUCT_ID || fileConfig.fallbackProductId || null;
 export const PRODUCT_VERSION = fintsProductVersion(
   process.env.FINTS_PRODUCT_VERSION || fileConfig.productVersion,
   process.env.NEXT_PUBLIC_APP_VERSION,
@@ -241,6 +244,8 @@ export function saveSessionProfile(s: Session): void {
       bankingInformation: cfg.bankingInformation,
       tanMethodId: cfg.tanMethodId,
       tanMediaName: cfg.tanMediaName,
+      // The ID this session's Kundensystem-ID was issued under: the new one or, where the bank does not know it yet, the previous.
+      productId: cfg.productId,
     });
     if (ok) {
       s.deviceSaved = true;

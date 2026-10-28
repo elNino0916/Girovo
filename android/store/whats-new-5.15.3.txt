@@ -1,0 +1,8 @@
+<en-US>
+• Girovo now signs in with its own registered FinTS product ID – and, at banks that don't know it yet, with the previous one
+• Accounts that share one account number at your bank – such as a Girokonto and its Depot – now load their Umsätze
+</en-US>
+<de-DE>
+• Girovo meldet sich jetzt mit seiner eigenen, registrierten FinTS-Produkt-ID an – und bei Banken, die sie noch nicht kennen, mit der bisherigen
+• Konten, die sich bei deiner Bank eine Kontonummer teilen – etwa ein Girokonto und sein Depot – laden jetzt ihre Umsätze
+</de-DE>
