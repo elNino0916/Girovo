@@ -567,8 +567,12 @@ banks reject dialogs without one (code 9078). Register at
 `config.json`:
 
 ```json
-{ "productId": "YOURID", "productVersion": "1.0" }
+{ "productId": "YOURID" }
 ```
+Release builds carry Girovo's own ID. The product version sent beside it is
+Girovo's major.minor ("5.15") unless `productVersion` sets one; FinTS allows
+it five characters, and a longer one is cut to its major.minor.
+
 If you do not want to request a product ID from DK, a simple Google search will give you plenty of IDs you could use,
 however, using a officially obtained key is recommended to prevent your Girovo from being detected as automated
 traffic and therefore being blocked by your bank's infrastructure.

@@ -22,6 +22,7 @@ import type { DaySpan } from './history';
 import type { StatementSeg } from './bank-statements';
 import type { OrderSchedule } from './order-schedule';
 import { findSessionsWith } from './history-store';
+import { fintsProductVersion } from './product-version';
 import { saveProfile } from './state-store';
 import { noteTelemetry } from './telemetry';
 
@@ -44,6 +45,9 @@ export const asClientEx = (client: FinTSClient): FinTSClientEx =>
 // The ID is read (in order of priority) from:
 //   1. the FINTS_PRODUCT_ID environment variable, or
 //   2. config.json in the project root  { "productId": "...", … }
+//
+// The version beside it is Girovo's own major.minor unless one is set
+// (lib/product-version.ts): FinTS allows it five characters.
 // ---------------------------------------------------------------------------
 type FileConfig = {
   productId?: string;
@@ -60,7 +64,10 @@ try {
 
 export const PLACEHOLDER_ID = 'MEINEBANKINGAPP0001';
 export const PRODUCT_ID = process.env.FINTS_PRODUCT_ID || fileConfig.productId || PLACEHOLDER_ID;
-export const PRODUCT_VERSION = process.env.FINTS_PRODUCT_VERSION || fileConfig.productVersion || '1.0';
+export const PRODUCT_VERSION = fintsProductVersion(
+  process.env.FINTS_PRODUCT_VERSION || fileConfig.productVersion,
+  process.env.NEXT_PUBLIC_APP_VERSION,
+);
 export const DEBUG = !!(process.env.FINTS_DEBUG || fileConfig.debug);
 
 // ---------------------------------------------------------------------------
