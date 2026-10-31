@@ -4,9 +4,8 @@
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { msgs } from '@/lib/i18n';
-import { withProductFallback } from '@/lib/product-fallback';
-import { accountsFor, bankAnswerCodes, bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
-import { FALLBACK_PRODUCT_ID, getSession, saveSessionProfile } from '@/lib/session';
+import { accountsFor, bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
+import { getSession, saveSessionProfile } from '@/lib/session';
 import { fetchTanMediaNames } from '@/lib/tan-media';
 import type { SelectTanResponse, TanMethod } from '@/lib/fints-types';
 
@@ -52,8 +51,7 @@ export const POST = wrap(async (req: Request) => {
     }
   }
 
-  // Some banks name their TAN methods even to a product ID they refuse, and only this step says so (9078).
-  const sync = await withProductFallback(s.client.config, FALLBACK_PRODUCT_ID, bankAnswerCodes, () => s.client.synchronize());
+  const sync = await s.client.synchronize();
   logResp('select-tan', s, sync);
 
   if (sync.requiresTan) {

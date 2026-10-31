@@ -1,0 +1,8 @@
+<en-US>
+• Girovo now signs in only with its own registered FinTS product ID – a remembered device asks for one approval in your TAN app once
+• Accounts that share one account number at your bank – such as a Girokonto and its Depot – now load their Umsätze
+</en-US>
+<de-DE>
+• Girovo meldet sich jetzt nur noch mit seiner eigenen, registrierten FinTS-Produkt-ID an – ein gemerktes Gerät fragt dafür einmal nach einer Freigabe in der TAN-App
+• Konten, die sich bei deiner Bank eine Kontonummer teilen – etwa ein Girokonto und sein Depot – laden jetzt ihre Umsätze
+</de-DE>

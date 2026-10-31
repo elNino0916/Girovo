@@ -569,10 +569,9 @@ banks reject dialogs without one (code 9078). Register at
 ```json
 { "productId": "YOURID" }
 ```
-Release builds carry Girovo's own ID. Banks learn a new ID only days after it is
-issued, so a `fallbackProductId` is tried once where a bank answers 9078
-("Banking-Programm ist nicht registriert"), and a remembered device keeps the ID
-it was set up with (`lib/product-fallback.ts`). The product version sent beside it is
+Release builds carry Girovo's own ID. A remembered device whose Kundensystem-ID
+was issued under another product ID is synchronised afresh, since the bank refuses
+it beside a different one (`canRestore`, `lib/state-store.ts`). The product version sent beside it is
 Girovo's major.minor ("5.15") unless `productVersion` sets one; FinTS allows
 it five characters, and a longer one is cut to its major.minor.
 

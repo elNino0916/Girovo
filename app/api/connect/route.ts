@@ -11,10 +11,9 @@ import { body, fail, json, wrap } from '@/lib/api';
 import { bankErrorKind, withBankSignal } from '@/lib/bank-fetch';
 import { beginAttempt, settleAttempt, type ConnectAttempt } from '@/lib/connect-attempts';
 import { msgs } from '@/lib/i18n';
-import { accountsFor, bankAnswerCodes, bankAnswerText, logResp, serializeTanMethod } from '@/lib/serialize';
-import { restoreProductId, withProductFallback } from '@/lib/product-fallback';
-import { DEBUG, FALLBACK_PRODUCT_ID, PRODUCT_ID, PRODUCT_VERSION, asClientEx, getSession, newSession } from '@/lib/session';
-import { loadProfile } from '@/lib/state-store';
+import { accountsFor, bankAnswerText, logResp, serializeTanMethod } from '@/lib/serialize';
+import { DEBUG, PRODUCT_ID, PRODUCT_VERSION, asClientEx, getSession, newSession } from '@/lib/session';
+import { canRestore, loadProfile } from '@/lib/state-store';
 import { noteTelemetry, reportEvent } from '@/lib/telemetry';
 import type { BankMeta, ConnectResponse, FinTSClientEx } from '@/lib/fints-types';
 
@@ -90,15 +89,14 @@ async function login(
   // dashboard — no synchronisation SCA. The bank may then serve reads TAN-free
   // within its exemption window. ANY failure here falls through to first-time.
   const saved = loadProfile(bankId, userId, pin);
-  // Under the product ID its Kundensystem-ID was issued under: beside any other the bank refuses it (9391).
-  const restoreId = restoreProductId(saved, PRODUCT_ID, FALLBACK_PRODUCT_ID);
-  if (saved && !restoreId) {
-    console.log(`[connect] device profile from a product ID no longer sent (blz=${bankId}) — synchronising afresh`);
+  // Its Kundensystem-ID belongs to the product ID it was issued under: beside any other the bank refuses it (9391).
+  if (saved && !canRestore(saved, PRODUCT_ID)) {
+    console.log(`[connect] device profile from another product ID (blz=${bankId}) — synchronising afresh`);
   }
-  if (saved && restoreId) {
+  if (canRestore(saved, PRODUCT_ID)) {
     try {
       const config = FinTSConfig.fromBankingInformation(
-        restoreId, PRODUCT_VERSION, saved.bankingInformation, userId, pin,
+        PRODUCT_ID, PRODUCT_VERSION, saved.bankingInformation, userId, pin,
         saved.tanMethodId, undefined, // media set manually below to avoid a throw
       );
       config.debugEnabled = DEBUG;
@@ -139,11 +137,8 @@ async function login(
     );
     config.debugEnabled = DEBUG;
     const client = asClientEx(new FinTSClient(config));
-    // Called off → the bank request ends now, not when the bank answers. A
-    // bank that does not know Girovo's own ID yet is asked once more with the previous one.
-    const sync = await withBankSignal(attempt.signal, () => withProductFallback(
-      client.config, FALLBACK_PRODUCT_ID, bankAnswerCodes, () => client.synchronize(),
-    ));
+    // Called off → the bank request ends now, not when the bank answers.
+    const sync = await withBankSignal(attempt.signal, () => client.synchronize());
     return { client, sync };
   };
 

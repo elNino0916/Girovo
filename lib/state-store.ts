@@ -37,10 +37,22 @@ export type DeviceProfile = {
   /**
    * The product ID the bank issued the profile's Kundensystem-ID under: the
    * bank refuses the Kundensystem-ID beside any other ("9391 Kundensystem-ID
-   * ungültig"). Absent in profiles from before 5.15.2 (lib/product-fallback.ts).
+   * ungültig"). Absent in profiles from before 5.15.2, all of them made under
+   * the ID Girovo sent before it had its own.
    */
   productId?: string;
 };
+
+/**
+ * Whether a remembered profile can open a session as it is, under
+ * `productId`: one with a real Kundensystem-ID, issued under that same ID.
+ * Any other is synchronised afresh — one approval, and a Kundensystem-ID
+ * the bank takes beside this product ID.
+ */
+export function canRestore(profile: DeviceProfile | null | undefined, productId: string): profile is DeviceProfile {
+  const systemId = profile?.bankingInformation?.systemId;
+  return !!systemId && systemId !== '0' && profile?.productId === productId;
+}
 
 // Profiles older than this are treated as expired and ignored — the bank's own
 // SCA-exemption window is ~90 days, so a full re-sync before then is prudent
