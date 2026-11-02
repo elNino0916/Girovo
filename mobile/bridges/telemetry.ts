@@ -103,7 +103,7 @@ export function startTelemetry(): void {
       });
       client.setContext({ osVersion: `Android API ${info.sdk}`, device: 'phone' });
       hub = telemetry.createTelemetryHub({ client, ...prefs });
-      hub.event('app_started', { installKind: info.flavor === 'play' ? 'play' : 'apk', locale: info.locale });
+      hub.event('app_started', { installKind: info.flavor === 'play' ? 'play' : info.flavor === 'fdroid' ? 'fdroid' : 'apk', locale: info.locale });
     } catch (err) {
       console.warn('[telemetry] unavailable:', err instanceof Error ? err.message : err);
     }

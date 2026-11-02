@@ -1,0 +1,8 @@
+<en-US>
+• Banks that don't know Girovo's new FinTS product ID yet accept the login again: Girovo signs in there with the previous one
+• As soon as your bank knows the new ID, Girovo asks for one approval in your TAN app – after that, your device is recognised again
+</en-US>
+<de-DE>
+• Banken, die Girovos neue FinTS-Produkt-ID noch nicht kennen, nehmen die Anmeldung wieder an: Girovo meldet sich dort mit der bisherigen an
+• Sobald deine Bank die neue ID kennt, fragt Girovo einmal nach einer Freigabe in der TAN-App – danach erkennt sie dein Gerät wieder
+</de-DE>

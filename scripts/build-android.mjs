@@ -8,7 +8,8 @@
 // Usage:
 //   node scripts/build-android.mjs                       debug APK, "github" flavour
 //   node scripts/build-android.mjs --flavor play         … "play" flavour
-//   node scripts/build-android.mjs --release             signed release APK (github) / AAB (play)
+//   node scripts/build-android.mjs --flavor fdroid       … "fdroid" flavour: no Google code, Tesseract inside
+//   node scripts/build-android.mjs --release             signed release APK (github, fdroid) / AAB (play)
 //   node scripts/build-android.mjs --install             … and install it on the connected device
 //   node scripts/build-android.mjs --web-only            steps 1–3 only (Android Studio builds the rest)
 //
@@ -36,8 +37,8 @@ const arg = (name, fallback) => {
 const FLAVOR = arg('--flavor', 'github');
 const RELEASE = has('--release');
 const WEB_ONLY = has('--web-only');
-if (!['github', 'play'].includes(FLAVOR)) {
-  console.error(`✗ unknown flavour "${FLAVOR}" — github or play`);
+if (!['github', 'play', 'fdroid'].includes(FLAVOR)) {
+  console.error(`✗ unknown flavour "${FLAVOR}" — github, play or fdroid`);
   process.exit(1);
 }
 // An unsigned release cannot be installed or uploaded: stop before the long build.
@@ -73,6 +74,21 @@ await buildMobile({ out: OUT });
 console.log('› cap sync android');
 run('npx', ['cap', 'sync', 'android'], { cwd: ROOT });
 
+// The F-Droid build reads an invoice with Tesseract instead of ML Kit: its
+// files (scripts/ocr-assets.mjs, at npm install) go into that flavour's
+// assets alone, beside the page's, so Play and GitHub stay ~8 MB lighter.
+const FDROID_OCR = path.join(ANDROID, 'app', 'src', 'fdroid', 'assets', 'public', 'ocr');
+fs.rmSync(FDROID_OCR, { recursive: true, force: true });
+if (FLAVOR === 'fdroid') {
+  const ocr = path.join(ROOT, 'public', 'ocr');
+  if (!fs.existsSync(path.join(ocr, 'worker.min.js'))) {
+    console.error('✗ public/ocr is missing — run npm install (scripts/ocr-assets.mjs)');
+    process.exit(1);
+  }
+  fs.cpSync(ocr, FDROID_OCR, { recursive: true });
+  console.log(`› Tesseract's files into the F-Droid assets (${fs.readdirSync(FDROID_OCR).length} files)`);
+}
+
 if (WEB_ONLY) process.exit(0);
 
 function javaHome() {
@@ -104,8 +120,9 @@ for (const file of built) console.log(`  ${path.relative(ROOT, file)}  ${(fs.sta
 
 // A release goes to dist/ under the names the release page carries: the
 // GitHub build's phone APK as "Girovo-<version>-android.apk" — the name the
-// app's own updater looks for (electron/update-logic.cjs) — and the Play
-// bundle for the Play Console.
+// app's own updater looks for (electron/update-logic.cjs) — the F-Droid
+// build's as "Girovo-<version>-fdroid.apk" for Girovo's F-Droid repository
+// (scripts/fdroid-repo.mjs), and the Play bundle for the Play Console.
 if (RELEASE) {
   const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
   const dist = path.join(ROOT, 'dist');
@@ -115,7 +132,8 @@ if (RELEASE) {
     console.error('✗ no arm64-v8a APK among the outputs');
     process.exit(1);
   }
-  const name = kind === 'bundle' ? `Girovo-${version}-play.aab` : `Girovo-${version}-android.apk`;
+  const name = kind === 'bundle' ? `Girovo-${version}-play.aab`
+    : FLAVOR === 'fdroid' ? `Girovo-${version}-fdroid.apk` : `Girovo-${version}-android.apk`;
   fs.copyFileSync(pick, path.join(dist, name));
   const digest = crypto.createHash('sha256').update(fs.readFileSync(pick)).digest('hex');
   console.log(`› dist/${name}

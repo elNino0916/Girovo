@@ -24,4 +24,14 @@ build/update-window/bin/
 
 # The desktop's invoice reading, copied from node_modules (scripts/ocr-assets.mjs)
 /public/ocr/
+# Tesseract's files for the F-Droid APK, copied from public/ocr by scripts/build-android.mjs
+/android/app/src/fdroid/assets/
 /public/pdf/
+# Girovo's F-Droid repository (scripts/fdroid-repo.mjs): its config and the app's
+# metadata are source; the key's properties, fdroidserver and the repository it
+# writes stay on this computer
+/fdroid/*
+!/fdroid/config.yml
+!/fdroid/metadata/
+/fdroid/metadata/*
+!/fdroid/metadata/de.elnino0916.android.girovo.yml

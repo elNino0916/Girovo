@@ -335,12 +335,29 @@ export type ConnectResponse =
       restored?: false;
       tanMethods: SerializedTanMethod[];
       bankMessages: BankMessage[];
+      /**
+       * A remembered device that must log in afresh: its bank knows Girovo's
+       * own product ID now, and the device was set up under the previous one
+       * (lib/product-fallback.ts).
+       */
+      productChanged?: true;
     };
 
 export type SelectTanResponse =
   | { chooseTanMedia: string[] }
   | TanRequired
-  | { needsTan: false; accounts: SerializedAccount[]; deviceSaved: boolean };
+  | {
+      needsTan: false;
+      accounts: SerializedAccount[];
+      deviceSaved: boolean;
+      /**
+       * The bank refused Girovo's own product ID only at this step, and the
+       * remembered device opened as it is, under the previous one, with
+       * the TAN method it was set up with.
+       */
+      restored?: true;
+      selectedTanMethod?: SerializedTanMethod | null;
+    };
 
 export type TanPollResponse =
   /** Not approved yet. `again`: the bank asks for another TAN after the one sent, with its new challenge. */

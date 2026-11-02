@@ -33,7 +33,9 @@ mobile/runtime.ts              what the Android page loads before the app
   bridges/                     files, PDFs, back, Material You, ripple, fingerprint,
                                Gemini Nano's status and progress, updates
 android/                       the Capacitor project
-  app/src/main/java/…/girovo/  HttpPlugin, DevicePlugin (+ DeviceIntegrity: key attestation, signer), BiometricPlugin, NanoPlugin (Gemini Nano)
+  app/src/main/java/…/girovo/  HttpPlugin, DevicePlugin (+ DeviceIntegrity: key attestation, signer), BiometricPlugin
+  app/src/gms/…                Play and GitHub builds: Google's code scanner, document scanner, text recognition, Gemini Nano
+  app/src/fdroid/…             F-Droid build: ZXing's scanner; no document scanner, text recognition or Nano
   app/src/github/…             UpdaterPlugin: APK updates from GitHub
   app/src/play/…               UpdaterPlugin: Google Play's in-app update
 scripts/build-android.mjs      the whole build
@@ -179,11 +181,12 @@ Then
 npm run android:release
 ```
 
-writes both releases to `dist/`:
+writes the releases to `dist/`:
 
 | File | Where it goes |
 |------|---------------|
 | `Girovo-<version>-android.apk` | GitHub release, beside `Setup.exe`. arm64-v8a, every current phone. The name is what the app's updater looks for. |
+| `Girovo-<version>-fdroid.apk` | Girovo's F-Droid repository (`npm run android:fdroid-repo`, below); not the release page, where Obtainium would have to choose between two APKs. The F-Droid build, arm64-v8a. |
 | `Girovo-<version>-play.aab` | The Play Console. Play serves each device its own ABI. |
 
 The version is `package.json`'s; the version code counts it as `MMmmpp × 10`
@@ -211,7 +214,7 @@ edge. Look for both in `adb logcat` / `dexdump` after a toolchain update.
 
 ## Distribution
 
-The app ID is `de.elnino0916.android.girovo` in both flavours. It can never
+The app ID is `de.elnino0916.android.girovo` in every flavour. It can never
 change on Google Play.
 
 ### GitHub (the `github` flavour)
@@ -223,6 +226,64 @@ keeps it only when its size and SHA-256 are what GitHub published for it, and
 hands it to Android's installer — which refuses it unless it is signed with
 the same key as the installed app. The first time, Android asks to allow
 Girovo to install apps (`REQUEST_INSTALL_PACKAGES`, in this flavour only).
+
+### F-Droid (the `fdroid` flavour)
+
+The GitHub build without any of Google's code, signed with the GitHub APK's
+key and served by Girovo's own F-Droid repository, https://girovo.de/fdroid/repo
+(since 5.16.0). IzzyOnDroid turns down apps written in part with generative
+AI, and F-Droid's own repository builds from source and signs with its own
+key; neither carries Girovo (2026-11-02).
+
+- **No Google libraries.** ML Kit's plugins live in `app/src/gms` (Play and
+  GitHub builds); `app/src/fdroid` has its own of the same names. "GiroCode
+  scannen" is ZXing's camera screen (`zxing-android-embedded`, Apache 2.0),
+  which asks for the camera permission itself. The document scanner is
+  "unavailable", so the page opens the system's picker. Text recognition is
+  "unavailable" too, and the page reads an invoice with Tesseract — the
+  desktop's offline reader — whose files `scripts/build-android.mjs` copies
+  into this flavour's assets alone (Android's packaging unpacks the `.gz`
+  language files and drops the suffix, so the page asks for them unpacked).
+  Gemini Nano is "unsupported": the keyword rules sort the categories.
+- **No updater.** The repository brings the updates; a repository's app must
+  not install code past it. No `REQUEST_INSTALL_PACKAGES`.
+- **Free.** Girovo Plus is the Play build's; its `PlusPlugin` answers "free".
+- **Anti-features, declared:** error reports always go to the developer's
+  server (Tracking, owner's choice, 2026-11-02), and company logos come from
+  Brandfetch after a yes (NonFreeNet).
+- **Metadata:** the texts, pictures and each version's changelog
+  (`changelogs/<versionCode>.txt`, at most 500 bytes, in the tagged commit) are
+  in `fastlane/metadata/android`; categories, links, anti-features and the one
+  APK signing key the repository accepts in
+  `fdroid/metadata/de.elnino0916.android.girovo.yml`.
+
+`npm run android:release` builds it between the GitHub APK and the Play
+bundle. Check after a toolchain or dependency change that it still holds none
+of Google's code: `dexdump` the APK and look for `com/google/android/gms`,
+`com/google/mlkit`, `com/android/billingclient` and `com/google/android/play`.
+
+#### The repository
+
+After `npm run android:release`, `npm run android:fdroid-repo`
+(`scripts/fdroid-repo.mjs`) adds `dist/Girovo-<version>-fdroid.apk` to
+`fdroid/repo/`, signs the index with the repository key (fdroidserver's
+`fdroid update`) and copies the repository into the girovo-website checkout's
+`public/fdroid/repo/` (gitignored there); `npm run build` and
+`npx wrangler deploy` in that checkout publish it. The three newest versions
+stay in it, older ones go to an archive that is never published.
+
+- **Once per computer:** `python -m venv fdroid/.venv`, then
+  `fdroid/.venv/Scripts/pip install fdroidserver`. fdroidserver splits paths on
+  "/", so it runs through `scripts/fdroid-update.py`, which hands its update
+  module "/" paths on Windows.
+- **The repository key** is not the app's: `girovo-fdroid-repo.p12`, beside
+  the app's keystore, named by `fdroid/repo-key.properties` (`storeFile`,
+  `storePassword`, `keyAlias`; never committed). Clients pin its fingerprint
+  from the address they added (`528444df…04067974`): without the key the
+  repository cannot publish again, and every user would have to add a new
+  one. Back up both files.
+- `fdroid/` is the workspace; only `config.yml` and the metadata file are
+  committed.
 
 ### Google Play (the `play` flavour)
 

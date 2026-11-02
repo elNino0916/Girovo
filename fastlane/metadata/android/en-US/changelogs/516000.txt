@@ -1,0 +1,2 @@
+First version in Girovo's own F-Droid repository: no Google code. ZXing scans a GiroCode, Tesseract reads an invoice on your phone.
+Banks that don't know Girovo's new FinTS product ID yet accept the login again. Once your bank knows it, Girovo asks for one approval in your TAN app.

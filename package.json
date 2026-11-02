@@ -1,6 +1,6 @@
 {
 	"name": "girovo",
-	"version": "5.15.4",
+	"version": "5.16.0",
 	"private": true,
 	"description": "Girovo — self-hosted banking app for German banks via FinTS 3.0 (PIN/TAN, decoupled TAN, SEPA & Echtzeitueberweisung)",
 	"homepage": "https://github.com/elNino0916/Girovo",
@@ -20,7 +20,8 @@
 		"electron:dist:linux": "npm run electron:build -- --platform linux && electron-builder --linux --publish never",
 		"android": "node scripts/build-android.mjs --install",
 		"android:build": "node scripts/build-android.mjs",
-		"android:release": "node scripts/build-android.mjs --release && node scripts/build-android.mjs --release --flavor play",
+		"android:release": "node scripts/build-android.mjs --release && node scripts/build-android.mjs --release --flavor fdroid && node scripts/build-android.mjs --release --flavor play",
+		"android:fdroid-repo": "node scripts/fdroid-repo.mjs",
 		"android:preview": "cross-env GIROVO_TARGET=android next dev -p 3100",
 		"owner-key": "node scripts/owner-key.mjs",
 		"postinstall": "patch-package && node scripts/ocr-assets.mjs",

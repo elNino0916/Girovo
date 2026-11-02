@@ -48,6 +48,9 @@ android {
     //            in-app update. It may not download and install APKs itself.
     //  - github: the APK on GitHub's releases; the app checks GitHub and
     //            installs a downloaded, SHA-256-checked APK, like the desktop app.
+    //  - fdroid: the same APK without any of Google's code, for F-Droid
+    //            repositories (IzzyOnDroid first): ZXing scans a GiroCode,
+    //            Tesseract reads an invoice, and the repository brings updates.
     flavorDimensions = ['distribution']
     productFlavors {
         play {
@@ -58,6 +61,18 @@ android {
             dimension 'distribution'
             buildConfigField 'String', 'DISTRIBUTION', '"github"'
         }
+        fdroid {
+            dimension 'distribution'
+            buildConfigField 'String', 'DISTRIBUTION', '"fdroid"'
+        }
+    }
+
+    // The plugins built on Google's ML Kit (scanner, document scanner, text
+    // recognition, Gemini Nano) are the Play and GitHub builds' only; the
+    // F-Droid build has its own of the same names (src/fdroid).
+    sourceSets {
+        play.java.srcDirs += 'src/gms/java'
+        github.java.srcDirs += 'src/gms/java'
     }
 
     buildFeatures {
@@ -132,15 +147,22 @@ dependencies {
     implementation "androidx.biometric:biometric:1.1.0"
     // "GiroCode scannen" (ScannerPlugin): Google's code scanner, run by Play
     // services — no camera permission, and nothing of it in the APK but a stub.
-    implementation "com.google.android.gms:play-services-code-scanner:16.1.0"
+    playImplementation "com.google.android.gms:play-services-code-scanner:16.1.0"
+    githubImplementation "com.google.android.gms:play-services-code-scanner:16.1.0"
     // "Beleg fotografieren" and "Rechnung scannen" (DocScannerPlugin): Google's
     // document scanner, run by Play services like the code scanner.
-    implementation "com.google.android.gms:play-services-mlkit-document-scanner:16.0.0"
+    playImplementation "com.google.android.gms:play-services-mlkit-document-scanner:16.0.0"
+    githubImplementation "com.google.android.gms:play-services-mlkit-document-scanner:16.0.0"
     // An invoice's text without a GiroCode (TextPlugin): text recognition, its
     // model from Play services rather than in the APK.
-    implementation "com.google.android.gms:play-services-mlkit-text-recognition:19.0.1"
+    playImplementation "com.google.android.gms:play-services-mlkit-text-recognition:19.0.1"
+    githubImplementation "com.google.android.gms:play-services-mlkit-text-recognition:19.0.1"
     // Gemini Nano through AICore, for the category guess (NanoPlugin).
-    implementation "com.google.mlkit:genai-prompt:1.0.0-beta4"
+    playImplementation "com.google.mlkit:genai-prompt:1.0.0-beta4"
+    githubImplementation "com.google.mlkit:genai-prompt:1.0.0-beta4"
+    // The F-Droid build's "GiroCode scannen": ZXing's own camera screen
+    // (Apache 2.0), which asks for the camera permission itself.
+    fdroidImplementation "com.journeyapps:zxing-android-embedded:4.3.0"
     // Google Play's in-app update, in the Play build only (src/play/…/UpdaterPlugin).
     playImplementation "com.google.android.play:app-update:2.1.0"
     // Girovo Plus, the Play build's supporter subscription (src/play/…/PlusPlugin).

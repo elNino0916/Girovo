@@ -4,8 +4,9 @@
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { msgs } from '@/lib/i18n';
-import { accountsFor, bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
-import { getSession, saveSessionProfile } from '@/lib/session';
+import { UNREGISTERED, withProductFallback } from '@/lib/product-fallback';
+import { accountsFor, bankAnswerCodes, bankAnswerText, logResp, serializeTanMethod, tanPayload } from '@/lib/serialize';
+import { FALLBACK_PRODUCT_ID, getSession, restoredClient, saveSessionProfile } from '@/lib/session';
 import { fetchTanMediaNames } from '@/lib/tan-media';
 import type { SelectTanResponse, TanMethod } from '@/lib/fints-types';
 
@@ -51,8 +52,28 @@ export const POST = wrap(async (req: Request) => {
     }
   }
 
-  const sync = await s.client.synchronize();
+  // A bank may name its TAN methods even to a product ID it does not know,
+  // and say so only now (9078). A fresh login is asked once more with the
+  // previous ID; a remembered device that came to set itself up under
+  // Girovo's own ID (app/api/connect) opens as it is instead, no approval.
+  const { remembered } = s;
+  const sync = await withProductFallback(
+    s.client.config, remembered ? null : FALLBACK_PRODUCT_ID, bankAnswerCodes, () => s.client.synchronize(),
+  );
   logResp('select-tan', s, sync);
+  s.remembered = undefined;
+
+  if (remembered && bankAnswerCodes(sync).has(UNREGISTERED)) {
+    console.log('[product] the bank refused the own product ID at the Sicherheitsverfahren (9078) — the device opens under the previous one');
+    const { userId, pin } = s.client.config;
+    s.client = restoredClient(remembered.profile, remembered.productId, userId, pin);
+    const selMethod = s.client.config.selectedTanMethod;
+    const restored: SelectTanResponse = {
+      needsTan: false, accounts: accountsFor(s), deviceSaved: false, restored: true,
+      selectedTanMethod: selMethod ? serializeTanMethod(selMethod) : null,
+    };
+    return json(restored);
+  }
 
   if (sync.requiresTan) {
     s.pending = { type: 'sync', tanReference: sync.tanReference };

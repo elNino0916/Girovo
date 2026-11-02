@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The F-Droid build: none of Google's code, so none of its entries either.
+     ZXing's scanner (ScannerPlugin) brings its own camera permission and
+     screen; the repository brings updates, so no permission to install
+     packages. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!-- Google's code scanner and ML Kit's module list: Play and GitHub builds only. -->
+        <activity
+            android:name="com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity"
+            tools:node="remove" />
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            tools:node="remove" />
+
+        <!-- ZXing's scanner is locked to landscape in its manifest; Girovo's
+             layout follows any orientation, and the scan with it. -->
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            tools:remove="android:screenOrientation" />
+    </application>
+</manifest>

@@ -54,11 +54,22 @@ export type InvoicePage = {
 /** A page's text: lines, each with its box when the reader gives one. */
 type PageLines = { text: string; lines: { text: string; box?: Box }[]; width: number; height: number };
 
-/** A picture's text: the phone's text recognition, Tesseract on the desktop (desktop-read.ts). */
+/**
+ * A picture's text: the phone's text recognition, Tesseract on the desktop
+ * (desktop-read.ts) — and on a phone without the former, which is how the
+ * F-Droid build reads: it carries Tesseract's files instead of ML Kit. Where
+ * neither is there, nothing.
+ */
 async function pictureText(image: Blob): Promise<PageLines | null> {
   if (IS_ANDROID) {
     const result = await window.girovoMobile?.readText(image);
-    return !result || 'unavailable' in result ? null : result;
+    if (!result) return null;
+    if (!('unavailable' in result)) return result;
+    try {
+      return await (await import('./desktop-read')).imageText(image);
+    } catch {
+      return null; // a Play or GitHub build on a phone without Play services: no Tesseract files either
+    }
   }
   const { imageText } = await import('./desktop-read');
   return imageText(image);

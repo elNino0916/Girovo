@@ -51,6 +51,15 @@ de.elnino0916.android.girovo
 7E:4B:7B:7E:A6:0E:7A:19:B8:64:9D:F0:62:D6:39:A2:CB:0D:AA:85:AB:F2:0D:E9:39:98:0B:AD:9A:E6:CE:4C
 ```
 
+The F-Droid build (`Girovo-<version>-fdroid.apk`) carries the same
+certificate. Girovo's F-Droid repository signs its index with a key of its
+own, which an F-Droid client checks against the fingerprint in the address
+you add:
+
+```
+https://girovo.de/fdroid/repo?fingerprint=528444df4d581c2b0fae20758636d526c55ef41cf099b4947b96ae8204067974
+```
+
 Girovo from Google Play is signed by Google's app signing key instead, so the
 two cannot update over each other: install one or the other.
 

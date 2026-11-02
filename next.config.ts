@@ -42,10 +42,12 @@ const nextConfig: NextConfig = {
       ? { pageExtensions: ['tsx'], distDir: '.next-android-dev', allowedDevOrigins: ['10.0.2.2'] }
       : {}),
   // The desktop's invoice reading (components/transfer/desktop-read.ts) is
-  // loaded on demand behind IS_ANDROID, but a dynamic import still makes a
-  // chunk: on the phone its libraries are an empty module instead.
+  // loaded on demand, but a dynamic import still makes a chunk: on the phone,
+  // which draws a PDF with Android's PdfRenderer, pdf.js is an empty module.
+  // Tesseract's loader stays: the F-Droid build, without ML Kit, reads an
+  // invoice's text with it (its files are in that APK alone).
   ...(isAndroidBuild
-    ? { turbopack: { resolveAlias: { 'pdfjs-dist': './mobile/desktop-only.ts', 'tesseract.js': './mobile/desktop-only.ts' } } }
+    ? { turbopack: { resolveAlias: { 'pdfjs-dist': './mobile/desktop-only.ts' } } }
     : {}),
   // The institute database and the product registration are read from disk at
   // runtime; keep them traced into a standalone build.

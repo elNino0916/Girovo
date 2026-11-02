@@ -1,0 +1,26 @@
+---
+# Girovo's own F-Droid repository, https://girovo.de/fdroid/repo — made by
+# scripts/fdroid-repo.mjs (android/README.md). The repository key's file,
+# alias and password come from fdroid/repo-key.properties, never committed.
+
+repo_url: https://girovo.de/fdroid/repo
+repo_name: Girovo
+repo_description: >-
+  Girovo's own repository: the F-Droid build of Girovo, without any of Google's
+  code, signed by its developer with the same key as the APK on GitHub.
+  Girovo connects your phone straight to your German bank over FinTS.
+
+# The three newest versions stay in the repository; older ones go to an
+# archive that is never published (they remain on the GitHub release pages).
+archive_older: 3
+make_current_version_link: false
+
+# fdroidserver looks for "apksigner" by that exact name, which misses Windows'
+# apksigner.bat; the script names the newest build-tools' one.
+apksigner: {env: GIROVO_APKSIGNER}
+
+repo_keyalias: {env: GIROVO_FDROID_KEYALIAS}
+keystore: {env: GIROVO_FDROID_KEYSTORE}
+keystorepass: {env: GIROVO_FDROID_STOREPASS}
+keypass: {env: GIROVO_FDROID_STOREPASS}
+keydname: CN=Girovo F-Droid repository, O=elNino0916

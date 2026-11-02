@@ -498,11 +498,20 @@ npm run android:release    # signed releases into dist/ (see android/README.md)
 |------|------------|
 | `Girovo-<version>-android.apk` | The app from GitHub, for every current phone (arm64). It updates itself from this repository's releases, like the desktop app: downloaded, checked against GitHub's SHA-256, installed by Android. |
 | `Girovo-<version>-play.aab` | The same app for Google Play, which installs its updates. |
+| `Girovo-<version>-fdroid.apk` | The same app without any of Google's code, served by Girovo's own F-Droid repository (below), which brings its updates. It is not on the release page, where Obtainium would have to choose between two APKs. |
 
 [Obtainium](https://github.com/ImranR98/Obtainium) can install the APK and keep
 it current from this repository's releases, beside the app's own update check:
 
 [<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="54">](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/elNino0916/Girovo)
+
+F-Droid, Droid-ify or Neo Store can add Girovo's own F-Droid repository
+(since 5.16.0). It serves the F-Droid build — no Google code, signed with the
+GitHub APK's key — and its updates:
+
+```
+https://girovo.de/fdroid/repo?fingerprint=528444df4d581c2b0fae20758636d526c55ef41cf099b4947b96ae8204067974
+```
 
 The APK's signing certificate — the same since the first one — and how to
 check it are in [SECURITY.md](SECURITY.md#checking-that-a-download-is-girovo).
@@ -569,9 +578,12 @@ banks reject dialogs without one (code 9078). Register at
 ```json
 { "productId": "YOURID" }
 ```
-Release builds carry Girovo's own ID. A remembered device whose Kundensystem-ID
-was issued under another product ID is synchronised afresh, since the bank refuses
-it beside a different one (`canRestore`, `lib/state-store.ts`). The product version sent beside it is
+Release builds carry Girovo's own ID. Banks learn a new ID only days after it is
+issued, so a `fallbackProductId` is tried once where a bank answers 9078
+("Banking-Programm ist nicht registriert"). A remembered device set up under that
+previous ID asks the bank with the own one first: where the bank knows it now, that
+login is a full one with one approval, and elsewhere the device opens as it is
+(`lib/product-fallback.ts`). The product version sent beside it is
 Girovo's major.minor ("5.15") unless `productVersion` sets one; FinTS allows
 it five characters, and a longer one is cut to its major.minor.
 

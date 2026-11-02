@@ -118,6 +118,8 @@ export const de = {
     /** A login the user called off while the bank was being asked. */
     cancelled: 'Die Anmeldung wurde abgebrochen.',
     deviceRecognised: 'Gerät erkannt – ohne neue Freigabe angemeldet.',
+    /** A remembered device logs in afresh: its bank now knows Girovo's own product ID (lib/product-fallback.ts). */
+    productChanged: 'Deine Bank kennt jetzt Girovos eigene Produkt-ID. Dafür braucht diese Anmeldung einmal eine Freigabe – danach erkennt sie dein Gerät wieder.',
   },
 
   device: {
@@ -243,6 +245,7 @@ export const en: typeof de = {
   login: {
     cancelled: 'The login was cancelled.',
     deviceRecognised: 'Device recognised – logged in without a new approval.',
+    productChanged: 'Your bank now knows Girovo’s own product ID. This login needs one approval for it – after that, it recognises your device again.',
   },
 
   device: {

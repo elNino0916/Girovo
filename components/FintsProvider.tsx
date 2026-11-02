@@ -3477,6 +3477,8 @@ function useFintsState() {
       // No method at all: the step's own heading says so (auth.tanMethod.none).
       setTanMethodError(null);
       setView('tanmethod');
+      // A remembered device asked for an approval after all: say why.
+      if (data.productChanged) toast(msgs().provider.login.productChanged, 'info', 10_000);
     }
   }, [afterAccountsReady, toast, setSelectedMethodBoth, setTanMethodsBoth]);
 
@@ -3527,14 +3529,19 @@ function useFintsState() {
         return;
       }
       if ('accounts' in data) {
-        if (data.deviceSaved) notifyDeviceSaved();
+        if (data.restored) {
+          // The bank knows this device under the previous product ID only: it opened as it is.
+          setSelectedMethodBoth(data.selectedTanMethod ?? method);
+          setDeviceRemembered(true);
+          toast(msgs().provider.login.deviceRecognised);
+        } else if (data.deviceSaved) notifyDeviceSaved();
         afterAccountsReady(data.accounts || []);
       }
     } catch (err) {
       if (!isCurrent(sid)) return;
       setTanMethodError({ text: (err as Error).message });
     }
-  }, [isCurrent, startApproval, afterAccountsReady, notifyDeviceSaved, setSelectedMethodBoth]);
+  }, [isCurrent, startApproval, afterAccountsReady, notifyDeviceSaved, setSelectedMethodBoth, toast]);
 
   /** "Anderes Verfahren wählen" from the device list: back to the methods. */
   const clearMediaChoice = useCallback(() => setMediaChoice(null), []);
@@ -3835,7 +3842,8 @@ function useFintsState() {
       // No method at all: the step's own heading says so (auth.tanMethod.none).
       error: null,
     }));
-  }, [isCurrent, holdFlowBusy, releaseFlowBusy, updateAddBank, finishAddBank]);
+    if ('productChanged' in data && data.productChanged) toast(msgs().provider.login.productChanged, 'info', 10_000);
+  }, [isCurrent, holdFlowBusy, releaseFlowBusy, updateAddBank, finishAddBank, toast]);
 
   /** Step three: the method (and device) that approves this login — then the usual approval, naming the bank. */
   const chooseAddBankMethod = useCallback(async (method: SerializedTanMethod, tanMediaName?: string) => {
@@ -3882,7 +3890,11 @@ function useFintsState() {
         }, { kind: 'login', sessionId: sid, bank: asking });
         return;
       }
-      if ('accounts' in data) finishAddBank(data.accounts || [], method, data.deviceSaved);
+      // `restored`: the bank knows this device under the previous product ID only, and it opened as it is.
+      if ('accounts' in data) {
+        if (data.restored) finishAddBank(data.accounts || [], data.selectedTanMethod ?? method, true);
+        else finishAddBank(data.accounts || [], method, data.deviceSaved);
+      }
     } catch (err) {
       if (stale()) return;
       releaseFlowBusy();

@@ -15,7 +15,7 @@ import 'server-only';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { FinTSClient } from 'lib-fints';
+import { FinTSClient, FinTSConfig } from 'lib-fints';
 import type { BankMeta, BankOrderKind, FinTSClientEx, ReadBankOrder, SerializedVop } from './fints-types';
 import type { TransferOrder } from './fints-sepa';
 import type { DaySpan } from './history';
@@ -23,7 +23,7 @@ import type { StatementSeg } from './bank-statements';
 import type { OrderSchedule } from './order-schedule';
 import { findSessionsWith } from './history-store';
 import { fintsProductVersion } from './product-version';
-import { saveProfile } from './state-store';
+import { saveProfile, type DeviceProfile } from './state-store';
 import { noteTelemetry } from './telemetry';
 
 /**
@@ -51,6 +51,7 @@ export const asClientEx = (client: FinTSClient): FinTSClientEx =>
 // ---------------------------------------------------------------------------
 type FileConfig = {
   productId?: string;
+  fallbackProductId?: string;
   productVersion?: string;
   debug?: boolean;
   merchantLogos?: boolean;
@@ -64,6 +65,8 @@ try {
 
 export const PLACEHOLDER_ID = 'MEINEBANKINGAPP0001';
 export const PRODUCT_ID = process.env.FINTS_PRODUCT_ID || fileConfig.productId || PLACEHOLDER_ID;
+/** Tried where a bank does not know PRODUCT_ID yet (9078) — lib/product-fallback.ts. */
+export const FALLBACK_PRODUCT_ID = process.env.FINTS_FALLBACK_PRODUCT_ID || fileConfig.fallbackProductId || null;
 export const PRODUCT_VERSION = fintsProductVersion(
   process.env.FINTS_PRODUCT_VERSION || fileConfig.productVersion,
   process.env.NEXT_PUBLIC_APP_VERSION,
@@ -170,6 +173,14 @@ export type Session = {
   lastSeen: number;
   deviceSaved?: boolean;
   /**
+   * A remembered device set up under the previous product ID, while this
+   * login sets it up afresh because the bank knows Girovo's own ID now
+   * (lib/product-fallback.ts). A bank that refuses the own ID only once the
+   * Sicherheitsverfahren is chosen opens the device from it after all
+   * (/api/select-tan), under `productId`.
+   */
+  remembered?: { profile: DeviceProfile; productId: string };
+  /**
    * A further bank of the view ("Weitere Bank anmelden"): the id of the
    * primary login's session, whose vault decides whether this login keeps
    * its Umsätze on this computer (lib/history-store.ts). Set by /api/history
@@ -227,6 +238,26 @@ export function dropSession(id: unknown): void {
 }
 
 /**
+ * A client for a remembered device: its Kundensystem-ID, cached BPD/UPD and
+ * TAN method, under `productId` — the ID that Kundensystem-ID was issued
+ * under (lib/product-fallback.ts). No bank traffic; it may throw on a
+ * profile lib-fints cannot read.
+ */
+export function restoredClient(saved: DeviceProfile, productId: string, userId?: string, pin?: string): FinTSClientEx {
+  const config = FinTSConfig.fromBankingInformation(
+    productId, PRODUCT_VERSION, saved.bankingInformation, userId, pin,
+    saved.tanMethodId, undefined, // media set manually below to avoid a throw
+  );
+  config.debugEnabled = DEBUG;
+  if (saved.tanMediaName && config.selectedTanMethod) {
+    const m = config.selectedTanMethod;
+    m.activeTanMedia = Array.from(new Set([...(m.activeTanMedia || []), saved.tanMediaName]));
+    config.tanMediaName = saved.tanMediaName;
+  }
+  return asClientEx(new FinTSClient(config));
+}
+
+/**
  * Remember this session's device profile (systemId + cached BPD/UPD + selected
  * TAN method), encrypted with the PIN, so future logins can skip a fresh SCA.
  * Called once we hold a real systemId and the account list.
@@ -241,7 +272,8 @@ export function saveSessionProfile(s: Session): void {
       bankingInformation: cfg.bankingInformation,
       tanMethodId: cfg.tanMethodId,
       tanMediaName: cfg.tanMediaName,
-      // The ID this session's Kundensystem-ID was issued under (canRestore, lib/state-store.ts).
+      // The ID this session's Kundensystem-ID was issued under: the own one or, where the bank
+      // does not know it yet, the previous (lib/product-fallback.ts).
       productId: cfg.productId,
     });
     if (ok) {

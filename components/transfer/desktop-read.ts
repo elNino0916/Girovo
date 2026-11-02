@@ -7,8 +7,12 @@
 // workers from the app's own files (scripts/ocr-assets.mjs); nothing leaves
 // the computer.
 //
-// Loaded on demand, and only by the desktop build (GiroCodeDrop imports it
-// behind IS_ANDROID): neither library reaches the phone's bundle.
+// Loaded on demand: by the desktop build, and for a photo's text by the
+// F-Droid build, which has no ML Kit (GiroCodeDrop). pdf.js never reaches the
+// phone's bundle (next.config.ts); Tesseract's files reach the F-Droid APK
+// alone (scripts/build-android.mjs).
+
+import { IS_ANDROID } from '@/lib/platform';
 
 /** A page's text as the phone's text recognition gives it: lines with their boxes, in the picture's pixels. */
 export type PageText = {
@@ -121,7 +125,8 @@ function loadWorker(): Promise<TesseractWorker> {
     workerPath: '/ocr/worker.min.js',
     corePath: '/ocr/tesseract-core-simd-lstm.wasm.js',
     langPath: '/ocr',
-    gzip: true,
+    // An APK holds them unpacked: Android's packaging inflates a .gz asset and drops the suffix.
+    gzip: !IS_ANDROID,
     // The language data is the app's own file: nothing to keep in IndexedDB.
     cacheMethod: 'none',
     workerBlobURL: false,

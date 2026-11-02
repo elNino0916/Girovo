@@ -1,0 +1,22 @@
+Categories:
+  - Money
+License: MIT
+AuthorName: elNino0916
+WebSite: https://girovo.de
+SourceCode: https://github.com/elNino0916/Girovo
+IssueTracker: https://github.com/elNino0916/Girovo/issues
+Changelog: https://github.com/elNino0916/Girovo/releases
+
+# The name, texts, pictures and each version's changelog come from
+# fastlane/metadata/android, copied here by scripts/fdroid-repo.mjs.
+
+AntiFeatures:
+  Tracking:
+    de-DE: Fehlerberichte gehen immer an den Server des Entwicklers – ohne Kontodaten, Namen, IBANs oder Beträge.
+    en-US: Error reports always go to the developer's server – without account data, names, IBANs or amounts.
+  NonFreeNet:
+    de-DE: Firmenlogos kommen von Brandfetch, erst wenn du zustimmst.
+    en-US: Company logos come from Brandfetch, only once you agree.
+
+# Only APKs signed with the GitHub APK's key enter the repository.
+AllowedAPKSigningKeys: 7e4b7b7ea60e7a19b8649df062d639a2cb0daa85abf20de939980bad9ae6ce4c
