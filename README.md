@@ -7,8 +7,14 @@
 </p>
 
 <p align="center">
+  <a href="https://play.google.com/store/apps/details?id=de.elnino0916.android.girovo">
+    <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80">
+  </a>
   <a href="https://fdroid.link/#https://girovo.de/fdroid/repo?fingerprint=528444df4d581c2b0fae20758636d526c55ef41cf099b4947b96ae8204067974">
     <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">
+  </a>
+  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/elNino0916/Girovo">
+    <img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="80">
   </a>
 </p>
 
