@@ -125,13 +125,15 @@ const digest = crypto.createHash('sha256').update(fs.readFileSync(target)).diges
 console.log(`› repository  https://girovo.de/fdroid/repo?fingerprint=${fingerprint ?? '?'}
   apk sha256  ${digest}`);
 
-// 4. The website's copy: the repository as it stands, nothing else.
+// 4. The website's copy: the repository as it stands, but for fdroid update's
+// status/ (running.json, update.json), which no client reads and which name
+// this computer's tool paths.
 if (!has('--no-site')) {
   const site = process.env.GIROVO_WEBSITE ?? path.join(os.homedir(), 'Documents', 'GitHub', 'girovo-website');
   if (!fs.existsSync(path.join(site, 'wrangler.toml'))) fail(`no girovo-website checkout at ${site} — set GIROVO_WEBSITE, or pass --no-site`);
   const copy = path.join(site, 'public', 'fdroid', 'repo');
   fs.rmSync(copy, { recursive: true, force: true });
-  fs.cpSync(repo, copy, { recursive: true });
+  fs.cpSync(repo, copy, { recursive: true, filter: (from) => path.relative(repo, from) !== 'status' });
   console.log(`› ${copy}
   publish it there: npm run build && npx wrangler deploy`);
 }
