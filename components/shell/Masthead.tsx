@@ -47,13 +47,13 @@ const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
 
-/** The page's name, as Material's top app bar says where you are. */
-function PageTitle({ hidden = false }: { hidden?: boolean }) {
+/** The page's name, as Material's top app bar says where you are — or an account's, on its page. */
+function PageTitle({ hidden = false, text }: { hidden?: boolean; text?: string }) {
   const { tab } = useFints();
   const t = useT();
   return (
     <h1 id={PAGE_TITLE_ID} tabIndex={-1} data-topbar-title className={cx('min-w-0 truncate outline-none', hidden && 'sr-only')}>
-      {t.common.nav[tab]}
+      {text ?? t.common.nav[tab]}
     </h1>
   );
 }
@@ -105,7 +105,7 @@ function SearchBar() {
 export function Masthead() {
   const {
     privacy, togglePrivacy, unreadCount: bankUnread, inboxOpen, setInboxOpen, setPaletteOpen, singleKeyShortcuts,
-    tab, leaveSettings,
+    tab, leaveSettings, accountOpen, accounts, banks, activeAccount, accountLabel, closeAccount,
   } = useFints();
   const t = useT();
   const phone = usePhone();
@@ -113,8 +113,13 @@ export function Masthead() {
   // screens are: the way back in front of its name, and none of the places'
   // actions behind it. From 640px it is the rail's fifth place.
   const subPage = tab === 'settings';
+  // An account's page under every account (issue #19): on a phone its own top
+  // bar — the way back, the account's name, the search and the eye; from
+  // 640px the search bar stays and the way back heads the balance (AccountHero).
+  const accountPage = tab === 'overview' && accountOpen && !!activeAccount && (accounts.length > 1 || banks.length > 1);
+  const phoneAccount = phone && accountPage;
   // The Übersicht: the search bar in place of the title and actions.
-  const searchHead = tab === 'overview';
+  const searchHead = tab === 'overview' && !phoneAccount;
   // A newer version of the app (desktop only) waits in Mitteilungen too. The
   // number counts the bank's messages only; the app's own news is marked by
   // the dot alone, so it never reads as one more message from the bank.
@@ -168,12 +173,12 @@ export function Masthead() {
         </div>
       ) : (
       <div className="@container/mast flex h-full min-w-0 items-center gap-2 sm:gap-3">
-        {subPage && (
+        {(subPage || phoneAccount) && (
           <IconButton
             tone="bar"
             size="md"
-            aria-label={t.common.back}
-            onClick={leaveSettings}
+            aria-label={subPage ? t.common.back : t.insights.accounts.back}
+            onClick={subPage ? leaveSettings : closeAccount}
             // Material's navigation icon: its glyph, not its state layer, on the bar's edge.
             className="-ml-2 sm:hidden"
             style={NO_DRAG}
@@ -181,7 +186,7 @@ export function Masthead() {
             <BackIcon size={22} />
           </IconButton>
         )}
-        <PageTitle />
+        <PageTitle text={phoneAccount && activeAccount ? accountLabel(activeAccount) : undefined} />
 
         <div className="min-w-2 flex-1" />
 
@@ -256,8 +261,9 @@ export function Masthead() {
           {!IS_ANDROID && <ThemeMenu variant="icon" className="max-sm:hidden" />}
 
           {/* Abmelden lives in the Sitzung panel behind this chip, with the
-              session it ends — the bar stays a row of places to go. */}
-          <ProfileMenu />
+              session it ends — the bar stays a row of places to go. An
+              account's page on a phone leaves it to every account's search bar. */}
+          {!phoneAccount && <ProfileMenu />}
         </div>
       </div>
       )}

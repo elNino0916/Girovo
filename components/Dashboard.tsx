@@ -24,6 +24,7 @@ import { PlusScreen } from './android/Plus';
 import { isDepot } from '@/lib/balances';
 import { useFints } from './FintsProvider';
 import { AccountHero } from './AccountPanel';
+import { AccountsOverview } from './overview/AccountsOverview';
 import { MonthFigures } from './overview/MonthFigures';
 import { Transactions } from './Transactions';
 import { Portfolio } from './Portfolio';
@@ -40,6 +41,7 @@ import { SessionGuard } from './SessionGuard';
 import { ShortcutsHelp } from './ShortcutsHelp';
 import { cx } from './ui';
 import { useShellActions } from './shell/actions';
+import { PAGE_TITLE_ID } from './shell/ids';
 import { useGlobalShortcuts } from './shell/useShortcuts';
 import { Masthead } from './shell/Masthead';
 import { BottomBar } from './shell/BottomBar';
@@ -50,14 +52,21 @@ import { PullToRefresh } from './android/PullToRefresh';
 import { useLaunches } from './android/useLaunches';
 
 export function Dashboard() {
-  const { tab, transferOpen, shareOpen, shareAll } = useFints();
+  const { tab, transferOpen, shareOpen, shareAll, accounts, banks, accountOpen } = useFints();
   const actions = useShellActions();
   useGlobalShortcuts(actions);
   // Android: a shortcut on the icon, or an invoice shared with the app.
   useLaunches(actions);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // The Übersicht starts on every account once there is more than one
+  // (issue #19); an account's page is a level below it.
+  const allAccounts = tab === 'overview' && !accountOpen && (accounts.length > 1 || banks.length > 1);
+  const place = allAccounts ? 'accounts' : tab;
 
-  // A tab is a new page: it starts at its top.
+  // A tab is a new page, and so is each level of the Übersicht: it starts at
+  // its top. Focus the control that led here had is gone with the old page:
+  // it goes to the page's name, never to <body> (the overview puts it back on
+  // the account's row itself).
   const firstTab = useRef(true);
   useEffect(() => {
     if (firstTab.current) {
@@ -65,7 +74,10 @@ export function Dashboard() {
       return;
     }
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [tab]);
+    if (!document.activeElement || document.activeElement === document.body) {
+      document.getElementById(PAGE_TITLE_ID)?.focus({ preventScroll: true });
+    }
+  }, [place]);
 
   // Usage (with the user's yes): which of the three pages is in use.
   useEffect(() => trackUsage('screen_viewed', { screen: tab }), [tab]);
@@ -93,8 +105,8 @@ export function Dashboard() {
           )}
         >
           {/* Keyed by the place, so each opens with Material's fade-through (app/android.css). */}
-          <div key={tab} data-place>
-            {tab === 'overview' && <Overview />}
+          <div key={place} data-place>
+            {tab === 'overview' && (allAccounts ? <AccountsOverview /> : <Overview />)}
             {tab === 'analysis' && <Analysis />}
             {tab === 'contracts' && <Contracts />}
             {tab === 'settings' && <Settings />}
@@ -119,13 +131,14 @@ export function Dashboard() {
 }
 
 /**
- * The Übersicht: one column, search first — the phone's (owner, 2026-10-23),
- * every width's since the desktop followed it ("Suche oben", 2026-10-24).
- * The search bar is the top bar (Masthead). Under it the balance, set flat,
- * with the account's name as the way to the others (a sheet with the
- * account list, the Gesamtsaldo and the banks); on a wide window a quiet line
- * of the month's figures; then the chips and the bookings, which start on
- * the first screen.
+ * An account's page, the Übersicht itself with a single account: one column,
+ * search first — the phone's (owner, 2026-10-23), every width's since the
+ * desktop followed it ("Suche oben", 2026-10-24). The search bar is the top
+ * bar (Masthead; on a phone, under every account, the account's own top bar
+ * with the way back). Under it the balance, set flat; on a wide window a
+ * quiet line of the month's figures; then the chips and the bookings, which
+ * start on the first screen. With more than one account, every account is a
+ * level above (components/overview/AccountsOverview.tsx).
  *
  * What stood beside them once has a place of its own: the Vorgemerkt behind
  * their chip, the Mitteilungen behind the avatar, what is due and the

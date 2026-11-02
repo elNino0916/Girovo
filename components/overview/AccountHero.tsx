@@ -13,11 +13,11 @@ import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
-import { AlertTriangleIcon, ChevronIcon, EyeIcon, EyeOffIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
-import { Alert, Button, CopyButton, Field, IconButton, Input, Overlay, Sheet, Skeleton, cx } from '../ui';
+import { AlertTriangleIcon, BackIcon, ChevronIcon, EyeIcon, EyeOffIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
+import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx } from '../ui';
 import { fmtSince } from '../shell/session';
 import { MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
-import { AccountList } from './AccountList';
+import { BankMark } from './AccountsOverview';
 import { AccountGoal } from './SavingsGoal';
 import { BalanceChart } from './BalanceChart';
 
@@ -106,7 +106,7 @@ function HeroSkeleton() {
 export function AccountHero() {
   const {
     activeAccount: a, accounts, balances, statementInfo, txByAccount, pendingCache, pendingInfo, loadingAccount,
-    balanceLoading, txErrors, balanceErrors, busy, privacy, togglePrivacy, isLoadedForAppliedRange, refreshAccount,
+    balanceLoading, txErrors, balanceErrors, busy, privacy, isLoadedForAppliedRange, refreshAccount,
     loadBalance, accountLabel,
   } = useFints();
   // `tr`, not `t`: a booking is `t` in the filters below.
@@ -134,7 +134,7 @@ export function AccountHero() {
   if (isDepot(a)) {
     return (
       <div className="min-w-0">
-        <div className="mb-3 flex min-h-12 items-center"><AccountSwitch label={accountLabel(a)} /></div>
+        <div className="mb-3"><AccountHead account={a} label={accountLabel(a)} /></div>
         <DepotHero account={a} />
       </div>
     );
@@ -245,17 +245,7 @@ export function AccountHero() {
   return (
     <section aria-labelledby={titleId} className="min-w-0">
       <h2 id={titleId} className="sr-only">{words.title(label)}</h2>
-      <div className="-mr-2 flex min-h-10 items-center justify-between gap-2">
-        <AccountSwitch label={label} />
-        <IconButton
-          size="md"
-          aria-label={privacy ? tr.common.showAmounts : tr.common.hideAmounts}
-          onClick={togglePrivacy}
-          className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--ink)_12%,transparent)]')}
-        >
-          {privacy ? <EyeOffIcon /> : <EyeIcon />}
-        </IconButton>
-      </div>
+      <AccountHead account={a} label={label} />
 
       <div className="flex items-end justify-between gap-4">
         <div ref={figureRef} tabIndex={-1} aria-busy={figureLoading || undefined} className="min-w-0 outline-none">
@@ -427,44 +417,53 @@ function DepotHero({ account }: { account: SerializedAccount }) {
 }
 
 /**
- * The account's name heading the balance — and, where there is
- * another account or bank to go to, the way there: Material's bottom sheet
- * with the account list in its rows (components/overview/AccountList.tsx,
- * under [data-rows]), the banks apart, the Gesamtsaldo and "Anmelden" for a
- * bank not logged in. Choosing an account closes it.
+ * The account's head over its balance. With a single account: its name, and
+ * the eye that hides amounts at the row's end. With every account a level
+ * above (issue #19, components/overview/AccountsOverview.tsx): from 640px the
+ * way back, the name and the eye — a phone has them in the account's own top
+ * bar (Masthead) — and under them the account's bank and the end of its
+ * number, so two accounts of one name are never mistaken.
  */
-function AccountSwitch({ label }: { label: string }) {
-  const { accounts, banks, activeAccount } = useFints();
+function AccountHead({ account, label }: { account: SerializedAccount; label: string }) {
+  const { accounts, banks, bankOf, logoFiles, privacy, togglePrivacy, closeAccount } = useFints();
   const t = useT();
-  const [open, setOpen] = useState(false);
-  const acct = activeAccount?.accountNumber;
-  const shown = useRef(acct);
-  useEffect(() => {
-    if (shown.current !== acct) setOpen(false);
-    shown.current = acct;
-  }, [acct]);
-  const several = accounts.length > 1 || banks.length > 1;
-  if (!several) return <p className="min-w-0 truncate text-[16px] leading-6 font-medium text-ink-2">{label}</p>;
+  const eye = (
+    <IconButton
+      size="md"
+      aria-label={privacy ? t.common.showAmounts : t.common.hideAmounts}
+      onClick={togglePrivacy}
+      className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--ink)_12%,transparent)]')}
+    >
+      {privacy ? <EyeOffIcon /> : <EyeIcon />}
+    </IconButton>
+  );
+  if (accounts.length <= 1 && banks.length <= 1) {
+    return (
+      <div className="-mr-2 flex min-h-10 items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-[16px] leading-6 font-medium text-ink-2">{label}</p>
+        {eye}
+      </div>
+    );
+  }
+  const entry = bankOf(account);
+  const ident = accountIdent(account);
   return (
-    <>
-      <button
-        type="button"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen(true)}
-        className="-ml-2 flex h-12 min-w-0 items-center gap-1 rounded-full pr-2 pl-2 text-[16px] font-medium text-ink-2 transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)]"
-      >
-        <span className="min-w-0 truncate">{label}</span>
-        <ChevronIcon dir="down" size={16} className="shrink-0" />
-      </button>
-      <Overlay open={open} onClose={() => setOpen(false)} label={t.insights.accounts.title} align="bottom">
-        <Sheet onClose={() => setOpen(false)}>
-          <div data-rows className="-mx-1">
-            <AccountList />
-          </div>
-        </Sheet>
-      </Overlay>
-    </>
+    <div className="min-w-0">
+      <div className="-mr-2 -ml-3 flex min-h-12 items-center gap-1 max-sm:hidden">
+        <IconButton size="md" aria-label={t.insights.accounts.back} onClick={closeAccount}>
+          <BackIcon size={22} />
+        </IconButton>
+        <p className="min-w-0 flex-1 truncate text-[16px] leading-6 font-medium text-ink">{label}</p>
+        {eye}
+      </div>
+      <p className="flex min-w-0 items-center gap-2 pt-1 pb-1 text-[14px] leading-5 text-ink-2 sm:pt-0">
+        {entry && <BankMark entry={entry} logoFile={logoFiles[entry.bank.brand]} className="size-4 rounded-[4px]" />}
+        <span className="min-w-0 truncate">{entry?.bank.name}</span>
+        {ident.tail && !isDepot(account) && (
+          <span className="shrink-0 whitespace-pre">· <span className="iban text-[13px]">··· {ident.tail}</span></span>
+        )}
+      </p>
+    </div>
   );
 }
 

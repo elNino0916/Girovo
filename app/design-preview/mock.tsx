@@ -64,7 +64,9 @@ import {
   type WaitOrder, type WaitState,
 } from '@/components/FintsProvider';
 import type { LogoConsent } from '@/components/FintsProvider';
-import { acceptsBalance, balanceQueue, failureSentence, namesList } from '@/lib/balances';
+import type { AccountGrouping } from '@/lib/account-overview';
+import { sanitizeAccountOrder } from '@/lib/account-overview';
+import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
 import { forgetLinkedBank, joinAccounts, rememberLinkedBank, sameLogin } from '@/lib/linked-banks';
 import { MESSAGES, msgs } from '@/lib/i18n';
 import { BANK_UNAVAILABLE, bankAnswerLines } from '@/lib/bank-answer';
@@ -166,6 +168,17 @@ export type MockOptions = {
   query?: string;
   /** The bank lists only the Girokonto — the customer with a single account. */
   oneAccount?: boolean;
+  /**
+   * The Übersicht opens on the start account's page rather than on every
+   * account (issue #19); `account` implies it.
+   */
+  accountOpen?: boolean;
+  /**
+   * Every account was opened this session: each one's Umsätze and balance
+   * are loaded, and the Depot's holdings read — the overview with every
+   * figure, as in the issue #19 mock.
+   */
+  allBalances?: boolean;
   /** Every statement load and balance enquiry from now on fails (read live). */
   fail?: boolean;
   /** The Umsätze list's narrowing beyond the search: a month chip, a category. */
@@ -509,6 +522,10 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
     }
     // The second bank, logged in beside the first: its Girokonto read once.
     if (opts.secondBank === 'linked' || opts.secondBank === 'loggedOut') load(ACCT.spk, range);
+    // Every account opened once: the overview with every figure.
+    if (opts.allBalances && !opts.oneAccount) {
+      for (const a of data.accounts) if (a.canStatements && !txCache[a.accountNumber]) load(a.accountNumber, range);
+    }
   }
 
   // With failPending the list was never fetched, so its failure has the panel to itself.
@@ -635,6 +652,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   );
   const [activeAccount, setActiveAccount] = useState<SerializedAccount | null>(loggedIn ? startAccount : null);
   const [balances, setBalances] = useState<Record<string, SerializedBalance>>(loggedIn ? init.balances : {});
+  // As the provider: when each balance was read; the preset's a minute ago.
+  const [balanceAt, setBalanceAt] = useState<Record<string, number>>(() => (
+    loggedIn ? Object.fromEntries(Object.keys(init.balances).map((k) => [k, Date.now() - 60_000])) : {}
+  ));
+  const [accountOpen, setAccountOpen] = useState(!!opts.account || !!opts.accountOpen);
   const [txCache, setTxCache] = useState<Cache>(loggedIn ? init.txCache : {});
   const [pendingCache, setPendingCache] = useState<Record<string, SerializedTransaction[]>>(loggedIn ? init.pendingCache : {});
   // When each Vorgemerkt list was fetched: a preset's after its statement
@@ -1062,6 +1084,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       if (s?.balance && span.to >= today) {
         const balance = s.balance;
         setBalances((b) => (acceptsBalance(b[acct], balance) ? { ...b, [acct]: balance } : b));
+        setBalanceAt((t) => ({ ...t, [acct]: Date.now() }));
       }
       const at = Date.now();
       setTxCache((c) => ({ ...c, [acct]: { key: cacheKey, txs: l.txs } }));
@@ -1126,12 +1149,15 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       }
       const balance = data.balance(acct, { empty: preset === 'empty' });
       setBalances((b) => (acceptsBalance(b[acct], balance) ? { ...b, [acct]: balance } : b));
+      setBalanceAt((t) => ({ ...t, [acct]: Date.now() }));
       settle('applied');
     });
   }, [data, preset, later, setBusy, toast]);
 
   // ---- Depot (as the provider's loadPortfolio, without an approval) ---------------
-  const [portfolios, setPortfolios] = useState<Record<string, SerializedPortfolio>>({});
+  const [portfolios, setPortfolios] = useState<Record<string, SerializedPortfolio>>(() => (
+    loggedIn && opts.allBalances && opts.depot ? { [MOCK_DEPOT.accountNumber]: mockPortfolio(data.today) } : {}
+  ));
   const [portfolioErrors, setPortfolioErrors] = useState<Record<string, LoadError>>({});
   const [portfolioLoading, setPortfolioLoading] = useState<string | null>(null);
 
@@ -1280,7 +1306,12 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       return;
     }
     const gen = sessionGen.current;
-    const queue = balanceQueue(accounts.filter((a) => !loggedOutBank(a.accountNumber)), balances, rangeRef.current.to >= today);
+    const reachable = accounts.filter((a) => !loggedOutBank(a.accountNumber));
+    // As the provider: every Depot not read yet as well.
+    const queue: Array<{ account: SerializedAccount; via: 'balance' | 'statement' | 'portfolio' }> = [
+      ...balanceQueue(reachable, balances, rangeRef.current.to >= today),
+      ...reachable.filter((a) => isDepot(a) && !portfolios[a.accountNumber]).map((account) => ({ account, via: 'portfolio' as const })),
+    ];
     if (!queue.length) {
       if (accounts.some((a) => a.canStatements && !balances[a.accountNumber])) {
         toast('Diese Konten melden ihren Saldo nur mit den Umsätzen. Wähle bei den Umsätzen einen Zeitraum bis heute.', 'info', 8000);
@@ -1305,10 +1336,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
         else next();
       };
       if (step.via === 'balance') void loadBalance(account, { quiet: true, onSettled });
+      else if (step.via === 'portfolio') void loadPortfolio(account, { quiet: true, onSettled });
       else void loadTransactionsRef.current(account, undefined, undefined, { quiet: true, onSettled });
     };
     next();
-  }, [accounts, balances, today, toast, loadBalance]);
+  }, [accounts, balances, portfolios, today, toast, loadBalance, loadPortfolio]);
 
   // The mock's range never rolls over at midnight; the cache key is the whole answer.
   const isLoadedForAppliedRange = useCallback((accountNumber: string) => {
@@ -1320,6 +1352,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     if (busyRef.current) return;
     setActiveAccount(a);
     activeRef.current = a;
+    setAccountOpen(true);
     if (savedRangeRef.current) {
       // As the provider: "Alles Gespeicherte" names the account on screen's own span.
       const span = spanFor(a.accountNumber);
@@ -1625,8 +1658,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const setPaletteOpen = useCallback((b: boolean) => setPaletteOpenState(b), []);
   const setShortcutsOpen = useCallback((b: boolean) => setShortcutsOpenState(b), []);
 
+  const closeAccount = useCallback(() => setAccountOpen(false), []);
+
   const showTransactions = useCallback((f?: Partial<TxFilter>) => {
     setTabState('overview');
+    setAccountOpen(true);
     if (f) setTxFilter({ ...EMPTY_FILTER, ...f });
     setPaletteOpenState(false);
     setInboxOpenState(false);
@@ -2151,7 +2187,9 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setAccounts([]);
     setActiveAccount(null);
     activeRef.current = null;
+    setAccountOpen(false);
     setBalances({});
+    setBalanceAt({});
     setTxCache({});
     setPendingCache({});
     setPendingAt({});
@@ -2557,6 +2595,15 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     });
   }, [updateVault]);
 
+  const arrangeAccounts = useCallback((next: { order?: readonly string[]; grouping?: AccountGrouping }) => {
+    updateVault((v) => {
+      let out = v;
+      if (next.order) out = { ...out, accountOrder: sanitizeAccountOrder(next.order) };
+      if (next.grouping && next.grouping !== v.accountGrouping) out = { ...out, accountGrouping: next.grouping };
+      return out;
+    });
+  }, [updateVault]);
+
   const saveTemplate = useCallback((t: Omit<TransferTemplate, 'id' | 'createdAt'>) => {
     const clip = (s: string | undefined, n: number) => (s == null ? undefined : [...s.trim()].slice(0, n).join(''));
     const iban = normIban(t.iban);
@@ -2766,7 +2813,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     pendingErrors,
     bankOrders, bankOrdersLoading, bankOrderErrors, orderDeletions,
-    range, statementInfo, txByAccount, ownIbans,
+    range, statementInfo, txByAccount, ownIbans, balanceAt,
     messages, messagesAsked: true, unreadCount, activity,
     vault, vaultStatus,
     keepBookings: vault?.keepBookings === true,
@@ -2776,12 +2823,12 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     privacy, idleMinutes, singleKeyShortcuts,
     logoConsent,
     sessionStartedAt, idleDeadline,
-    tab, settingsTarget, txFilter, txFocusNonce,
+    tab, settingsTarget, txFilter, txFocusNonce, accountOpen,
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill, shareAll,
     inboxOpen, paletteOpen, shortcutsOpen,
     logoutConfirmOpen, forgetDeviceOpen,
-    setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
+    setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, closeAccount, loadTransactions,
     cancelConnect,
     loadBalance, loadAllBalances,
     isLoadedForAppliedRange,
@@ -2797,7 +2844,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue, openShareAll, closeShareAll,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
-    updateVault, resetVault, wipeVault, accountLabel, renameAccount,
+    updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts,
     setKeepBookings, resetHistory, applySavedRange,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     printTaxYear, loadRange,

@@ -272,6 +272,12 @@ function pressKey(key: string) {
   document.body.dispatchEvent(new KeyboardEvent('keydown', { key, code: /^\d$/.test(key) ? `Digit${key}` : '', bubbles: true }));
 }
 
+/** "Konten anordnen", open: the overview's swap icon (a phone) or its "Anordnen" (wider). */
+async function openArrange(c: Ctx) {
+  await c.click(/^(konten anordnen|anordnen)$/i, { within: 'page' });
+  await c.poll(() => document.querySelector('[data-arrange]'), 3000);
+}
+
 async function fetchAllBalances(c: Ctx) {
   await c.click(/^alle salden abrufen/i, { within: 'page' });
   await c.until((f) => f.loadingAllBalances, 2000);
@@ -375,6 +381,14 @@ function fakeFileSave(answer: { ok: true } | { ok: false; canceled: true } | { o
 const VIEWS: Record<string, ViewDef> = {
   overview: { label: 'Übersicht', group: 'Dashboard' },
   'overview-single': { label: 'Nur ein Konto', group: 'Dashboard', options: { oneAccount: true } },
+  // Issue #19: every account first, each one's page a level below.
+  'overview-all': {
+    label: 'Alle Konten, jede Zahl', group: 'Dashboard', options: { allBalances: true, depot: true, secondBank: 'linked' },
+  },
+  'overview-arrange': {
+    label: 'Konten anordnen', group: 'Dashboard', options: { allBalances: true, depot: true, secondBank: 'linked' }, script: openArrange,
+  },
+  'overview-account': { label: 'Ein Konto, aus allen Konten geöffnet', group: 'Dashboard', options: { accountOpen: true } },
   'overview-balances': { label: 'Alle Salden abgerufen', group: 'Dashboard', script: fetchAllBalances },
   'overview-balances-error': {
     label: 'Saldenabruf fehlgeschlagen', group: 'Dashboard', options: { fail: true }, script: fetchAllBalances,

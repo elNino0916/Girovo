@@ -145,13 +145,6 @@
       animation: m3e-dialog-in var(--m3e-spatial-default-ms) var(--m3e-spatial-default);
     }
 
-    /* The account list in the phone's accounts sheet takes its rows' sizes
-       ([data-rows], components/overview/AccountList.tsx): a balance the
-       size of the name beside it. */
-    :root[data-platform='android'] [data-rows] .text-\[20px\] {
-      font-size: 16px;
-      line-height: 22px;
-    }
     /* A full-width connected group (Termin: Sofort · An einem Datum ·
        Regelmäßig) shares the phone's width: tighter sides, and a segment
        may shrink below its label's natural room rather than push the group

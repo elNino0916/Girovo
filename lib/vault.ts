@@ -37,6 +37,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
 import type { TransferTemplate, VaultData, VaultGetResponse, VaultPutResponse } from './app-types.ts';
 import type { CategoryId } from './categories.ts';
 import type { SealedBox } from './crypto-box.ts';
@@ -239,6 +240,7 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
   // else an entry carries (a PIN, say) never reaches the file.
   const linkedBanks = sanitizeLinkedBanks(input.linkedBanks);
   const goals = sanitizeGoals(input.goals);
+  const accountOrder = sanitizeAccountOrder(input.accountOrder, VAULT_LIMITS.accountKey);
   return {
     version: 1,
     templates: templates(input.templates),
@@ -267,6 +269,9 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     ...(input.keepBookings === true ? { keepBookings: true as const } : {}),
     // One goal per savings account, well formed and within the caps (lib/savings-goal.ts).
     ...(goals.length ? { goals } : {}),
+    // "Konten anordnen" (lib/account-overview.ts): account keys each once, and one of the three groupings.
+    ...(accountOrder.length ? { accountOrder } : {}),
+    ...(isGrouping(input.accountGrouping) ? { accountGrouping: input.accountGrouping } : {}),
     updatedAt: iso(input.updatedAt) ?? EMPTY_VAULT.updatedAt,
   };
 }
@@ -529,6 +534,9 @@ export function mergeVaults(current: VaultData, backup: VaultData): VaultData {
       ? { linkedBanks: [...(current.linkedBanks ?? []), ...(backup.linkedBanks ?? [])] }
       : {}),
     ...(current.keepBookings || backup.keepBookings ? { keepBookings: true as const } : {}),
+    // How the accounts are arranged is this computer's while it says anything; else the backup's.
+    ...(current.accountOrder || !backup.accountOrder ? {} : { accountOrder: backup.accountOrder }),
+    ...(current.accountGrouping || !backup.accountGrouping ? {} : { accountGrouping: backup.accountGrouping }),
   };
   return sanitizeVault(merged) ?? current;
 }

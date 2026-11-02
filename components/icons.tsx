@@ -248,6 +248,25 @@ export function TransferIcon(p: IconProps) {
   return <Icon ms="swap_horiz" {...p}><path d="M4 8h14M14.5 4.5L18 8l-3.5 3.5M20 16H6M9.5 12.5L6 16l3.5 3.5" /></Icon>;
 }
 
+/** "Konten anordnen": two arrows, up and down. */
+export function SwapVertIcon(p: IconProps) {
+  return <Icon ms="swap_vert" {...p}><path d="M8 18V5M4.5 8.5L8 5l3.5 3.5M16 6v13M12.5 15.5L16 19l3.5-3.5" /></Icon>;
+}
+
+/** A row's handle for dragging it to another place. */
+export function DragIcon(p: IconProps) {
+  return (
+    <Icon ms="drag_indicator" {...p}>
+      <circle cx="9" cy="6" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="6" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="18" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="18" r="1.2" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}
+
 /** Echtzeit. */
 export function BoltIcon(p: IconProps) {
   return <Icon ms="bolt" {...p}><path d="M13.5 2.5L5 13.5h6.5l-1 8 8.5-11h-6.5l1-8z" /></Icon>;

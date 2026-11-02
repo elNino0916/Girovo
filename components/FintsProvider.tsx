@@ -65,7 +65,8 @@ import {
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { asksForBrand } from '@/lib/nano-names';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
-import { acceptsBalance, balanceQueue, failureSentence, namesList } from '@/lib/balances';
+import { sanitizeAccountOrder, type AccountGrouping } from '@/lib/account-overview';
+import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
 import {
   LINKED_BANK_LIMITS, forgetLinkedBank, joinAccounts, rememberLinkedBank, routeFor, sameLogin, sanitizeLinkedBanks,
   type LinkedBankRef,
@@ -908,7 +909,19 @@ function useFintsState() {
 
   const [accounts, setAccounts] = useState<SerializedAccount[]>([]);
   const [activeAccount, setActiveAccount] = useState<SerializedAccount | null>(null);
+  /**
+   * The Übersicht's two levels once there is more than one account (issue
+   * #19, components/overview/AccountsOverview.tsx): every account (false), or
+   * the active one's page (true). The login starts on every account; choosing
+   * one anywhere — the overview, the search, a deep link into its Umsätze —
+   * opens its page.
+   */
+  const [accountOpen, setAccountOpen] = useState(false);
+  /** Whether every account stands before the active one's page (several accounts or banks): set below `banks`. */
+  const overviewShownRef = useRef(false);
   const [balances, setBalances] = useState<Record<string, SerializedBalance>>({});
+  /** When each balance above was read (ms): the overview's "Stand" is its oldest. */
+  const [balanceAt, setBalanceAt] = useState<Record<string, number>>({});
   /**
    * Per account, the bank's last answer as it came, with what it was asked
    * for — what the lists are made of (`txCache` and `statementInfo` below,
@@ -2210,6 +2223,7 @@ function useFintsState() {
         } else {
           balancesRef.current = { ...balancesRef.current, [acct]: balance };
           setBalances((b) => ({ ...b, [acct]: balance }));
+          setBalanceAt((t) => ({ ...t, [acct]: Date.now() }));
           setBalanceErrors((e) => without(e, acct));
         }
       }
@@ -2341,6 +2355,7 @@ function useFintsState() {
       if (acceptsBalance(balancesRef.current[acct], balance)) {
         balancesRef.current = { ...balancesRef.current, [acct]: balance };
         setBalances((b) => ({ ...b, [acct]: balance }));
+        setBalanceAt((t) => ({ ...t, [acct]: Date.now() }));
       }
       settle('applied');
     };
@@ -2621,7 +2636,14 @@ function useFintsState() {
     const sid = sessionRef.current;
     // A linked bank that is logged out has nobody to ask; its list says so.
     const reachable = accountsRef.current.filter((a) => sessionFor(a.accountNumber));
-    const queue = balanceQueue(reachable, balancesRef.current, resolveRange().to >= isoDate(new Date()));
+    // And every Depot whose holdings were not read yet: on the overview its
+    // value stands among the balances and counts in the Gesamtsaldo.
+    const queue: Array<{ account: SerializedAccount; via: 'balance' | 'statement' | 'portfolio' }> = [
+      ...balanceQueue(reachable, balancesRef.current, resolveRange().to >= isoDate(new Date())),
+      ...reachable
+        .filter((a) => isDepot(a) && !portfoliosRef.current[a.accountNumber])
+        .map((account) => ({ account, via: 'portfolio' as const })),
+    ];
     if (!queue.length) {
       // Only accounts whose statement is the way to their balance are left,
       // and the applied range ends before today.
@@ -2651,15 +2673,17 @@ function useFintsState() {
         else next();
       };
       if (step.via === 'balance') void loadBalance(account, { quiet: true, onSettled });
+      else if (step.via === 'portfolio') void loadPortfolio(account, { quiet: true, onSettled });
       else void loadTransactions(account, undefined, undefined, { quiet: true, onSettled });
     };
     next();
-  }, [toast, sessionFor, resolveRange, isCurrent, loadBalance, loadTransactions]);
+  }, [toast, sessionFor, resolveRange, isCurrent, loadBalance, loadPortfolio, loadTransactions]);
 
   const selectAccount = useCallback((a: SerializedAccount) => {
     if (busyRef.current) return; // don't interrupt an in-flight approval
     setActiveAccount(a);
     activeAccountRef.current = a;
+    setAccountOpen(true);
     // "Alles Gespeicherte" reaches as far back for each account as is kept for
     // it: the applied range names the one now on screen.
     if (savedRangeRef.current) setAppliedRange(spanFor(a));
@@ -2669,6 +2693,9 @@ function useFintsState() {
       if (!portfoliosRef.current[a.accountNumber]) void loadPortfolio(a);
     } else if (!a.canStatements && a.canBalance && !balancesRef.current[a.accountNumber]) void loadBalance(a);
   }, [setAppliedRange, spanFor, loadTransactions, loadBalance, loadPortfolio]);
+
+  /** Back from an account's page to every account (the overview's first level). */
+  const closeAccount = useCallback(() => setAccountOpen(false), []);
 
   /** Drop the cache for one account and re-read it from the bank. */
   const refreshAccount = useCallback((account: SerializedAccount, from?: string, to?: string) => {
@@ -3202,8 +3229,9 @@ function useFintsState() {
 
   // Android's back gesture, once no layer is open to close (mobile/bridges/back.ts):
   // from Einstellungen to the page it was opened from, from Analyse or Verträge
-  // back to the Übersicht, from the login form back to the bank list. Anywhere
-  // else the app goes to the background, session intact.
+  // back to the Übersicht, from an account's page back to every account, from
+  // the login form back to the bank list. Anywhere else the app goes to the
+  // background, session intact.
   useEffect(() => {
     if (!IS_ANDROID) return;
     const onBack = (e: Event) => {
@@ -3211,6 +3239,9 @@ function useFintsState() {
       if (view === 'dashboard' && tab === 'settings') {
         e.preventDefault();
         setTabState(settingsFrom.current);
+      } else if (view === 'dashboard' && tab === 'overview' && accountOpen && overviewShownRef.current) {
+        e.preventDefault();
+        setAccountOpen(false);
       } else if (view === 'dashboard' && tab !== 'overview') {
         e.preventDefault();
         setTabState('overview');
@@ -3221,7 +3252,7 @@ function useFintsState() {
     };
     window.addEventListener(BACK_EVENT, onBack);
     return () => window.removeEventListener(BACK_EVENT, onBack);
-  }, [view, tab, bank]);
+  }, [view, tab, bank, accountOpen]);
   const setInboxOpen = useCallback((b: boolean) => setInboxOpenState(b), []);
   const setPaletteOpen = useCallback((b: boolean) => setPaletteOpenState(b), []);
   const setShortcutsOpen = useCallback((b: boolean) => setShortcutsOpenState(b), []);
@@ -3233,6 +3264,7 @@ function useFintsState() {
    */
   const showTransactions = useCallback((f?: Partial<TxFilter>) => {
     setTabState('overview');
+    setAccountOpen(true);
     if (f) setTxFilter({ ...EMPTY_FILTER, ...f });
     setPaletteOpenState(false);
     setInboxOpenState(false);
@@ -3642,6 +3674,7 @@ function useFintsState() {
     const drop = <V,>(rec: Record<string, V>): Record<string, V> => numbers.reduce((r, n) => without(r, n), rec);
     balancesRef.current = drop(balancesRef.current);
     setBalances(drop);
+    setBalanceAt(drop);
     // The lists and statementInfo are derived from these (listsOf).
     setFetchesBoth(drop(fetchesRef.current));
     setPendingFetched(drop);
@@ -4008,8 +4041,10 @@ function useFintsState() {
     setAccounts([]);
     activeAccountRef.current = null;
     setActiveAccount(null);
+    setAccountOpen(false);
     balancesRef.current = {};
     setBalances({});
+    setBalanceAt({});
     txCacheRef.current = {};
     setFetchesBoth({});
     setPendingFetched({});
@@ -4551,6 +4586,13 @@ function useFintsState() {
     return out;
   }, [bank, sessionId, userId, deviceRemembered, links, linkedBanks, bankInfo]);
 
+  // The same rule as the Übersicht's (components/overview/AccountsOverview.tsx):
+  // the back gesture leads from an account's page to every account only where
+  // that page has one in front of it.
+  useEffect(() => {
+    overviewShownRef.current = accounts.length > 1 || banks.length > 1;
+  }, [accounts.length, banks.length]);
+
   /** The bank an account belongs to, as the view shows it. */
   const bankOf = useCallback((a: Pick<SerializedAccount, 'accountNumber'> | null | undefined): BankEntry | null => {
     if (!a) return null;
@@ -4857,6 +4899,16 @@ function useFintsState() {
         return aliasesNext === v.aliases ? v : { ...v, aliases: aliasesNext };
       }
       return v.aliases[accountNumber] === clean ? v : { ...v, aliases: { ...v.aliases, [accountNumber]: clean } };
+    });
+  }, [updateVault]);
+
+  /** "Konten anordnen": the accounts' order and grouping, kept in the vault (lib/account-overview.ts). */
+  const arrangeAccounts = useCallback((next: { order?: readonly string[]; grouping?: AccountGrouping }) => {
+    updateVault((v) => {
+      let out = v;
+      if (next.order) out = { ...out, accountOrder: sanitizeAccountOrder(next.order) };
+      if (next.grouping && next.grouping !== v.accountGrouping) out = { ...out, accountGrouping: next.grouping };
+      return out;
     });
   }, [updateVault]);
 
@@ -5289,7 +5341,7 @@ function useFintsState() {
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     pendingErrors,
     bankOrders, bankOrdersLoading, bankOrderErrors, orderDeletions,
-    range, statementInfo, txByAccount, ownIbans,
+    range, statementInfo, txByAccount, ownIbans, balanceAt,
     messages, messagesAsked, unreadCount, activity,
     vault, vaultStatus,
     keepBookings, historyStatus, historyCoverage: keptCoverage, savedRange,
@@ -5299,13 +5351,13 @@ function useFintsState() {
     // session
     sessionStartedAt, idleDeadline,
     // navigation & launchers
-    tab, settingsTarget, txFilter, txFocusNonce,
+    tab, settingsTarget, txFilter, txFocusNonce, accountOpen,
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill, shareAll,
     inboxOpen, paletteOpen, shortcutsOpen,
     logoutConfirmOpen, forgetDeviceOpen,
     // actions
-    setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, loadTransactions,
+    setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, closeAccount, loadTransactions,
     cancelConnect,
     loadBalance, loadAllBalances,
     isLoadedForAppliedRange,
@@ -5323,7 +5375,7 @@ function useFintsState() {
     openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue, openShareAll, closeShareAll,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
-    updateVault, resetVault, wipeVault, accountLabel, renameAccount,
+    updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts,
     setKeepBookings, resetHistory, applySavedRange,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     categoryOf, setCategory, setSplit,

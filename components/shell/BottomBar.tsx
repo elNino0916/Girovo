@@ -44,9 +44,13 @@ import { BrandPlate } from './BrandMark';
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 
 export function BottomBar({ actions }: { actions: ShellActions }) {
-  const { tab, setTab, openSettings } = useFints();
+  const { tab, setTab, openSettings, closeAccount } = useFints();
   const tr = useT();
-  const go = (t: DashboardTab) => () => setTab(t);
+  // The Übersicht chosen again while on it goes back to its start: every account.
+  const go = (t: DashboardTab) => () => {
+    if (t === 'overview' && tab === 'overview') closeAccount();
+    setTab(t);
+  };
   // Einstellungen is no place of the phone's bar but a page under one (the
   // top app bar's way back): the bar does not stand beneath it.
   const subPage = tab === 'settings';

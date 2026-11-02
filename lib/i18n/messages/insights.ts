@@ -383,7 +383,7 @@ export const de = {
     accountNumber: (number: string) => `Kontonummer ${number}`,
   },
 
-  /** Konten und Karten, the account list (components/overview/AccountList.tsx). */
+  /** Konten und Karten: every account at once (components/overview/AccountsOverview.tsx). */
   accounts: {
     title: 'Konten und Karten',
     rename: 'Umbenennen',
@@ -396,13 +396,46 @@ export const de = {
     none: 'Keine Konten',
     noneHint: 'Deine Bank hat für diesen Zugang keine Konten gemeldet.',
     notYet: (accounts: string) => `Noch nicht abgerufen: ${accounts}`,
-    excludedHint: 'Konten, für die deine Bank keinen Saldo meldet, und Konten in anderer Währung zählen nicht mit.',
+    excludedHint: 'Konten, für die deine Bank keinen Saldo meldet, ein noch nicht abgerufenes Depot und Konten in anderer Währung zählen nicht mit.',
     busyApproval: 'Bitte warten – eine Freigabe läuft',
     busyFetch: 'Bitte warten – ein Abruf läuft',
     fetching: 'Saldo wird abgerufen',
     total: 'Gesamtsaldo',
     incomplete: 'unvollständig',
     loadAll: 'Alle Salden abrufen',
+
+    // ---- the overview, every account at once (components/overview/AccountsOverview.tsx)
+    /** The groups "Nach Art", in their order. */
+    groups: { giro: 'Girokonten', saving: 'Sparen & Anlegen', credit: 'Karten & Kredite', other: 'Weitere Konten' },
+    all: 'Alle',
+    filterLabel: 'Konten nach Art zeigen',
+    /** "6 Konten bei 2 Banken" */
+    count: (accounts: number, banks: number) =>
+      `${accounts === 1 ? '1 Konto' : `${accounts} Konten`}${banks > 1 ? ` bei ${banks} Banken` : ''}`,
+    assets: 'Vermögen',
+    liabilities: 'Verbindlichkeiten',
+    /** In the Gesamtsaldo's place while a balance is missing: no partial sum. */
+    pending: 'Noch nicht vollständig',
+    /** A row's figure that was not read in this session. */
+    notFetched: 'Nicht abgerufen',
+    /** The table's heads (from 640px). */
+    columns: { account: 'Konto', last: 'Letzter Umsatz', balance: 'Kontostand' },
+    /** Under a figure in the table: what kind of figure it is. */
+    loanBalance: 'Restschuld',
+    card: 'Karte',
+    /** The account's page, a level below: the way back. */
+    back: 'Alle Konten',
+    /** "Konten anordnen": the sheet, and its trigger. */
+    arrange: 'Konten anordnen',
+    arrangeShort: 'Anordnen',
+    arrangeHint: 'Halte ein Konto fest und zieh es an seinen Platz.',
+    arrangeKeys: 'Mit der Tastatur: den Griff wählen, dann Pfeil hoch oder runter.',
+    grouping: 'Gruppieren',
+    groupings: { type: 'Nach Art', bank: 'Nach Bank', none: 'Keine' },
+    /** The grip's name, and what a screen reader hears after a move. */
+    move: (name: string) => `${name} verschieben`,
+    moved: (name: string, place: number, of: number) => `${name}: Platz ${place} von ${of}`,
+    done: 'Fertig',
   },
 
   /** Sparziele (components/overview/SavingsGoal.tsx, lib/savings-goal.ts). */
@@ -790,13 +823,36 @@ export const en: typeof de = {
     none: 'No accounts',
     noneHint: 'Your bank reported no accounts for this access.',
     notYet: (accounts) => `Not loaded yet: ${accounts}`,
-    excludedHint: 'Accounts your bank reports no balance for, and accounts in another currency, are not counted.',
+    excludedHint: 'Accounts your bank reports no balance for, a securities account not loaded yet and accounts in another currency are not counted.',
     busyApproval: 'Please wait – an approval is in progress',
     busyFetch: 'Please wait – loading from your bank',
     fetching: 'Loading balance',
     total: 'Total balance',
     incomplete: 'incomplete',
     loadAll: 'Load all balances',
+
+    groups: { giro: 'Current accounts', saving: 'Savings & investments', credit: 'Cards & loans', other: 'Other accounts' },
+    all: 'All',
+    filterLabel: 'Show accounts by type',
+    count: (accounts, banks) =>
+      `${accounts === 1 ? '1 account' : `${accounts} accounts`}${banks > 1 ? ` at ${banks} banks` : ''}`,
+    assets: 'Assets',
+    liabilities: 'Liabilities',
+    pending: 'Not complete yet',
+    notFetched: 'Not loaded',
+    columns: { account: 'Account', last: 'Latest transaction', balance: 'Balance' },
+    loanBalance: 'Outstanding',
+    card: 'Card',
+    back: 'All accounts',
+    arrange: 'Arrange accounts',
+    arrangeShort: 'Arrange',
+    arrangeHint: 'Hold an account and drag it into place.',
+    arrangeKeys: 'With the keyboard: pick the handle, then the up or down arrow.',
+    grouping: 'Group',
+    groupings: { type: 'By type', bank: 'By bank', none: 'None' },
+    move: (name) => `Move ${name}`,
+    moved: (name, place, of) => `${name}: position ${place} of ${of}`,
+    done: 'Done',
   },
 
   goals: {

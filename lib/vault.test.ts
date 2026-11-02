@@ -147,6 +147,15 @@ test('over 200 templates, the least recently used go and the order stays', () =>
   assert.deepEqual(out.templates.slice(1, 3).map((t) => t.id), ['t6', 't7']);
 });
 
+test('accountOrder and accountGrouping: kept when well formed, dropped otherwise', () => {
+  const out = vault.sanitizeVault(base({ accountOrder: ['b', 'a', 'b', 3] as never, accountGrouping: 'bank' }));
+  assert.deepEqual(out?.accountOrder, ['b', 'a']);
+  assert.equal(out?.accountGrouping, 'bank');
+  const bad = vault.sanitizeVault(base({ accountOrder: 'a' as never, accountGrouping: 'alphabet' as never }));
+  assert.equal(bad && 'accountOrder' in bad, false);
+  assert.equal(bad && 'accountGrouping' in bad, false);
+});
+
 test('aliases: clipped, empty ones dropped, at most 50 (newest kept)', () => {
   const aliases: Record<string, unknown> = { '1234567890': 'Girokonto für alles und noch viel mehr Text der zu lang ist', '42': '   ', '43': 7 };
   for (let i = 0; i < 60; i++) aliases[`ACC-${i}`] = `Konto ${i}`;

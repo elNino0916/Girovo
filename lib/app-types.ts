@@ -5,6 +5,7 @@
 // the encrypted personal-data vault, the inbox. One place, so a view and the
 // provider can never disagree about a shape.
 
+import type { AccountGrouping } from './account-overview';
 import type { CategoryId, CustomCategory } from './categories';
 import type { SavingsGoal } from './savings-goal';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
@@ -221,6 +222,13 @@ export type VaultData = {
   keepBookings?: true;
   /** Sparziele: one per savings account (lib/savings-goal.ts). Absent while there are none. */
   goals?: SavingsGoal[];
+  /**
+   * "Konten anordnen" (lib/account-overview.ts): the accounts in the user's
+   * order, by accountNumber, and how the overview groups them. Absent while
+   * the user has not arranged them: the banks' order, grouped by kind.
+   */
+  accountOrder?: string[];
+  accountGrouping?: AccountGrouping;
   /** ISO */
   updatedAt: string;
 };

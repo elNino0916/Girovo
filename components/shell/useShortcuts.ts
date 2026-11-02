@@ -15,6 +15,7 @@
 // visible trace near the eye — every amount masked at once — it says.
 
 import { useEffect, useRef } from 'react';
+import { orderAccounts } from '@/lib/account-overview';
 import type { DashboardTab } from '@/lib/app-types';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { msgs } from '@/lib/i18n';
@@ -180,12 +181,13 @@ export function useGlobalShortcuts(actions: ShellActions) {
           return;
       }
 
-      // 1–9: the n-th account in the list, as AccountList orders them.
+      // 1–9: the n-th account in the user's order ("Konten anordnen",
+      // lib/account-overview.ts) — its page, from every account too.
       if (/^[1-9]$/.test(key) && !e.shiftKey) {
-        const account = f.accounts[Number(key) - 1];
+        const account = orderAccounts(f.accounts, f.vault?.accountOrder)[Number(key) - 1];
         if (!account) return;
         e.preventDefault();
-        if (account.accountNumber !== f.activeAccount?.accountNumber) switchByKey(f, account);
+        if (account.accountNumber !== f.activeAccount?.accountNumber || !f.accountOpen) switchByKey(f, account);
       }
     };
     window.addEventListener('keydown', onKeyDown);
