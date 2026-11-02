@@ -89,6 +89,7 @@ export const updates = {
   cancel: () => call((b) => b.cancel()),
   install: () => call((b) => b.install()),
   setAuto: (on: boolean) => call((b) => b.setAuto(on)),
+  setChannel: (channel: UpdateChannel) => call((b) => b.setChannel(channel)),
   openRelease: () => call((b) => b.openRelease()),
 };
 

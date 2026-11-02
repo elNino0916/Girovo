@@ -33,6 +33,23 @@ export const de = {
     idle: 'Automatisch abmelden',
     device: 'Gerät merken',
   },
+  /**
+   * Über Girovo → which releases the updater offers (components/settings/UpdateChannel.tsx;
+   * the desktop app and the GitHub APK only). `stable` and `preview` are also the row's value.
+   */
+  channel: {
+    title: 'Update-Kanal',
+    stable: 'Stabil',
+    preview: '6.0-Vorschau',
+    intro: 'Welche Versionen dir Girovo zum Update anbietet.',
+    stableHint: 'Nur fertige Versionen. Empfohlen.',
+    previewHint: 'Auch Vorabversionen von Girovo 6.0, sobald es sie gibt.',
+    unstable: 'Vorschauversionen sind noch nicht fertig: Sie können Fehler haben, und bis zur fertigen Version ändert sich manches noch.',
+    back: 'Zurück zu „Stabil“ geht jederzeit – Girovo bietet dir dann aber erst die nächste stabile Version an, die höher ist als deine installierte.',
+    noOlder: 'Eine ältere Version installiert das Update nicht.',
+    noOlderAndroid: 'Eine ältere Version kann Android nicht über eine neuere installieren.',
+    apply: 'Übernehmen',
+  },
 };
 
 export const en: typeof de = {
@@ -56,5 +73,18 @@ export const en: typeof de = {
   find: {
     idle: 'Automatic logout',
     device: 'Remember this device',
+  },
+  channel: {
+    title: 'Update channel',
+    stable: 'Stable',
+    preview: '6.0 preview',
+    intro: 'Which versions Girovo offers you as updates.',
+    stableHint: 'Finished versions only. Recommended.',
+    previewHint: 'Also early versions of Girovo 6.0, as soon as there are any.',
+    unstable: 'Preview versions aren’t finished: they can have bugs, and some things will still change before the final version.',
+    back: 'You can go back to “Stable” at any time – but Girovo will then only offer you the next stable version that’s higher than the one installed.',
+    noOlder: 'The update won’t install an older version.',
+    noOlderAndroid: 'Android can’t install an older version over a newer one.',
+    apply: 'Apply',
   },
 };

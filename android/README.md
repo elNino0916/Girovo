@@ -192,6 +192,18 @@ writes the releases to `dist/`:
 The version is `package.json`'s; the version code counts it as `MMmmpp × 10`
 (5.2.2 → 502020), so every release is higher than the last.
 
+A preview of a release (a GitHub pre-release, for the app's "6.0-Vorschau"
+update channel) is versioned `X.Y.Z-preview.N`, N from 1 to 99. Its code sits
+just below the release's: the release's code − 100 + N, so 6.0.0-preview.3 →
+599903 — above every 5.x, each preview above the one before, and 6.0.0
+(600000) above all of them. Name every preview `preview.N` and keep counting
+up: an `rc.1` after `preview.12` would get a lower code, which Android refuses
+to install over it, so `app/build.gradle` refuses every other pre-release
+name. CI's development builds (`-dev.<run>`) count as the version they are
+numbered after. Previews go to the GitHub release page (as pre-releases) and
+Play's closed testing track only — never into the F-Droid repository, which
+hands the highest code to everyone.
+
 Since 5.8.0 a release is shrunk and obfuscated by R8 (`minifyEnabled`,
 `shrinkResources`; Play flagged 5.7.0's 1 % obfuscation). The plugins the
 page calls keep their names through Capacitor's own keep rules for
@@ -226,6 +238,12 @@ keeps it only when its size and SHA-256 are what GitHub published for it, and
 hands it to Android's installer — which refuses it unless it is signed with
 the same key as the installed app. The first time, Android asks to allow
 Girovo to install apps (`REQUEST_INSTALL_PACKAGES`, in this flavour only).
+
+Einstellungen → Update-Kanal (this flavour and the desktop app only) switches
+to "6.0-Vorschau": the app then reads the list of releases and offers the
+highest version above the installed one, pre-releases included. Back on
+"Stabil" it waits for the next stable release above the installed version —
+Android installs no older version over a newer one.
 
 ### F-Droid (the `fdroid` flavour)
 

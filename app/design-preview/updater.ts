@@ -8,7 +8,7 @@
 import { resetUpdatesForPreview } from '@/components/updates/store';
 
 export const UPDATE_SCENARIOS = [
-  'idle', 'checking', 'current', 'available', 'downloading', 'ready', 'installed', 'manual', 'portable', 'error',
+  'idle', 'checking', 'current', 'available', 'downloading', 'ready', 'installed', 'manual', 'portable', 'error', 'preview',
 ] as const;
 export type UpdateScenario = (typeof UPDATE_SCENARIOS)[number];
 
@@ -21,6 +21,8 @@ const NEXT = (() => {
   const [major, minor] = CURRENT.split(/[.-]/).map(Number);
   return `${major || 0}.${(minor || 0) + 1}.0`;
 })();
+/** What the preview channel offers: the next major's first preview. */
+const PREVIEW = `${(Number(CURRENT.split('.')[0]) || 0) + 1}.0.0-preview.1`;
 
 const NOTES = [
   `# Girovo ${NEXT}`,
@@ -54,6 +56,7 @@ function initial(scenario: UpdateScenario): ElectronUpdateState {
     current: CURRENT,
     kind: 'nsis',
     auto: true,
+    channel: 'stable',
     phase: 'idle',
     checkedAt: null,
     release: null,
@@ -98,7 +101,13 @@ function initial(scenario: UpdateScenario): ElectronUpdateState {
         release: RELEASE,
         error: { during: 'download', message: 'Die Verbindung zu GitHub ist abgebrochen. Versuche es noch einmal.' },
       };
+    case 'preview':
+      return { ...base, channel: 'preview', phase: 'available', checkedAt, release: previewRelease() };
   }
+}
+
+function previewRelease(): NonNullable<ElectronUpdateState['release']> {
+  return { ...RELEASE, version: PREVIEW, name: PREVIEW, url: `https://github.com/elNino0916/Girovo/releases/tag/${PREVIEW}` };
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -149,6 +158,15 @@ export function installFakeUpdater(scenario: UpdateScenario | null, { dialog = f
     },
     install: async () => set({ phase: 'installing' }),
     setAuto: async (on) => set({ auto: on }),
+    // As the real one: the other channel's offer goes, a check in the new one follows.
+    setChannel: async (channel) => {
+      if (progress) clearInterval(progress);
+      set({ channel, phase: 'checking', release: null, received: 0, total: 0, error: null });
+      await sleep(900);
+      return channel === 'preview'
+        ? set({ phase: 'available', checkedAt: Date.now(), release: previewRelease() })
+        : set({ phase: 'current', checkedAt: Date.now() });
+    },
     openRelease: async () => {
       console.info('[design-preview] would open', state.release?.url ?? state.installed?.url);
       return state;

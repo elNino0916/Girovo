@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronUpdater', {
   cancel: () => ipcRenderer.invoke('updater:cancel'),
   install: () => ipcRenderer.invoke('updater:install'),
   setAuto: (on) => ipcRenderer.invoke('updater:set-auto', on === true),
+  setChannel: (channel) => ipcRenderer.invoke('updater:set-channel', channel === 'preview' ? 'preview' : 'stable'),
   openRelease: () => ipcRenderer.invoke('updater:open-release'),
   onState: (callback) => {
     if (typeof callback !== 'function') return () => {};

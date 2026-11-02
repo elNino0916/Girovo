@@ -52,22 +52,80 @@ function compareCore(a, b) {
 }
 
 /**
+ * Semver's order of two pre-release tags ("preview.2" against "preview.10"):
+ * field by field, numbers by value and below words, words by their ASCII
+ * order; with all fields equal, the one with more fields is the later one.
+ */
+function comparePre(a, b) {
+  const x = a.split('.');
+  const y = b.split('.');
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if (i >= x.length) return -1;
+    if (i >= y.length) return 1;
+    const xNum = /^\d+$/.test(x[i]);
+    const yNum = /^\d+$/.test(y[i]);
+    if (xNum && yNum) {
+      const order = Number(x[i]) - Number(y[i]);
+      if (order !== 0) return order < 0 ? -1 : 1;
+    } else if (xNum !== yNum) {
+      return xNum ? -1 : 1;
+    } else if (x[i] !== y[i]) {
+      return x[i] < y[i] ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
+/** Two parsed versions in semver's order: a pre-release comes before its release. */
+function compareParsed(a, b) {
+  const order = compareCore(a.core, b.core);
+  if (order !== 0) return order;
+  if (!a.pre || !b.pre) return a.pre ? -1 : b.pre ? 1 : 0;
+  return comparePre(a.pre, b.pre);
+}
+
+/** -1, 0 or 1 as `a` comes before, with or after `b` (semver); null when either is not a version. */
+function compareVersions(a, b) {
+  const x = parseVersion(a);
+  const y = parseVersion(b);
+  return x && y ? compareParsed(x, y) : null;
+}
+
+/**
+ * The version a CI build was numbered after: CI stamps development builds
+ * `<package.json version>-dev.<run>` — "4.0.0-dev.57", or
+ * "6.0.0-preview.2-dev.3" while package.json holds a pre-release.
+ */
+function withoutDev(parsed) {
+  const m = /^(?:(.*)-)?dev(?:\.[0-9A-Za-z.-]*)?$/i.exec(parsed.pre);
+  return m ? { core: parsed.core, pre: m[1] ?? '' } : parsed;
+}
+
+/** Whether `version` is a CI development build (see withoutDev). */
+function isDevBuild(version) {
+  const parsed = parseVersion(version);
+  return !!parsed && withoutDev(parsed) !== parsed;
+}
+
+/**
  * Whether the release `candidate` is an update for the running `current`.
  *
- * Semver, with one turn for this project's development builds: CI stamps them
- * `<package.json version>-dev.<run>`, and package.json keeps the last
- * release's number until the next one is cut — so 4.0.0-dev.57 is built from
- * code *after* 4.0.0, not before it. For a dev build a release only counts as
- * newer when its x.y.z is higher. Any other pre-release (4.1.0-beta.1) does
- * come before its release, as semver has it. A pre-release is never offered.
+ * Semver, with one turn for this project's development builds: package.json
+ * keeps the last release's number until the next one is cut — so
+ * 4.0.0-dev.57 is built from code *after* 4.0.0, not before it, and a
+ * release only counts as newer when it is higher than 4.0.0 itself. Any
+ * other pre-release (4.1.0-beta.1) does come before its release, as semver
+ * has it.
+ *
+ * A pre-release is offered only with `prerelease` (the preview channel):
+ * 6.0.0-preview.2 after 6.0.0-preview.1 after 5.16.1, and 6.0.0 after every
+ * 6.0.0-preview.N.
  */
-function isNewer(candidate, current) {
+function isNewer(candidate, current, { prerelease = false } = {}) {
   const c = parseVersion(candidate);
   const v = parseVersion(current);
-  if (!c || !v || c.pre) return false;
-  const order = compareCore(c.core, v.core);
-  if (order !== 0) return order > 0;
-  return !!v.pre && !/^dev(?:\.|$)/i.test(v.pre);
+  if (!c || !v || (c.pre && !prerelease)) return false;
+  return compareParsed(c, withoutDev(v)) > 0;
 }
 
 /** A file name that can safely become a path on disk: no folders, no tricks. */
@@ -98,15 +156,16 @@ function releasePageOr(url, releasesPage = RELEASES_PAGE) {
 }
 
 /**
- * GitHub's "latest release" answer, reduced to what the updater needs — or
- * null when it is not a usable release (a draft, a pre-release, a tag that is
- * not a version).
+ * GitHub's answer for one release, reduced to what the updater needs — or
+ * null when it is not a usable release: a draft, a tag that is not a
+ * version, and without `prerelease` a pre-release (one GitHub marks as such,
+ * or one whose tag is one).
  */
-function parseRelease(json, { downloadPrefix = DOWNLOAD_PREFIXES, releasesPage = RELEASES_PAGE } = {}) {
-  if (!json || typeof json !== 'object' || json.draft || json.prerelease) return null;
+function parseRelease(json, { downloadPrefix = DOWNLOAD_PREFIXES, releasesPage = RELEASES_PAGE, prerelease = false } = {}) {
+  if (!json || typeof json !== 'object' || json.draft || (json.prerelease && !prerelease)) return null;
   const parsed = parseVersion(json.tag_name);
-  if (!parsed || parsed.pre) return null;
-  const version = parsed.core.join('.');
+  if (!parsed || (parsed.pre && !prerelease)) return null;
+  const version = parsed.pre ? `${parsed.core.join('.')}-${parsed.pre}` : parsed.core.join('.');
   const name = typeof json.name === 'string' && json.name.trim() ? json.name.trim().slice(0, 200) : version;
   const pageUrl = releasePageOr(json.html_url, releasesPage);
   const published = typeof json.published_at === 'string' ? Date.parse(json.published_at) : NaN;
@@ -118,6 +177,23 @@ function parseRelease(json, { downloadPrefix = DOWNLOAD_PREFIXES, releasesPage =
     publishedAt: Number.isFinite(published) ? new Date(published).toISOString() : null,
     assets: Array.isArray(json.assets) ? json.assets.map((a) => parseAsset(a, downloadPrefix)).filter(Boolean) : [],
   };
+}
+
+/**
+ * The update for `current` in GitHub's list of releases (…/releases, the
+ * preview channel's feed): the release with the highest version above it,
+ * pre-releases included, drafts never. Null when none is newer, or when
+ * `list` is not a list.
+ */
+function newestRelease(list, current, opts = {}) {
+  if (!Array.isArray(list)) return null;
+  let best = null;
+  for (const json of list) {
+    const release = parseRelease(json, { ...opts, prerelease: true });
+    if (!release || !isNewer(release.version, current, { prerelease: true })) continue;
+    if (!best || compareVersions(release.version, best.version) > 0) best = release;
+  }
+  return best;
 }
 
 /** The file of `release` that updates an install of `kind`, or null. */
@@ -132,6 +208,23 @@ function tagUrl(feedUrl, tag) {
   if (typeof feedUrl !== 'string' || !feedUrl.endsWith('/latest')) return null;
   return `${feedUrl.slice(0, -'latest'.length)}tags/${encodeURIComponent(tag)}`;
 }
+
+// The list starts with the newest releases; a preview is never far down it.
+const LIST_PAGE_SIZE = 20;
+
+/** The list of releases beside `feedUrl` (…/releases/latest → …/releases), or null when there is none. */
+function listUrl(feedUrl) {
+  if (typeof feedUrl !== 'string' || !feedUrl.endsWith('/latest')) return null;
+  return `${feedUrl.slice(0, -'/latest'.length)}?per_page=${LIST_PAGE_SIZE}`;
+}
+
+/**
+ * Which releases are offered: `stable` asks for the latest release, which
+ * GitHub never lets a pre-release be; `preview` reads the list of releases,
+ * pre-releases included (newestRelease). Anything stored that is not a
+ * channel is the stable one.
+ */
+const channelOf = (value) => (value === 'preview' ? 'preview' : 'stable');
 
 /** The blockmap electron-builder writes beside `asset` (name + ".blockmap"), if the release has it. */
 function pickBlockmap(release, asset) {
@@ -259,12 +352,17 @@ module.exports = {
   DOWNLOAD_PREFIX,
   DOWNLOAD_PREFIXES,
   MAX_NOTES_CHARS,
+  channelOf,
   parseVersion,
+  compareVersions,
+  isDevBuild,
   isNewer,
   releasePageOr,
   parseRelease,
+  newestRelease,
   pickAsset,
   tagUrl,
+  listUrl,
   pickBlockmap,
   parseBlockmap,
   planDifferential,

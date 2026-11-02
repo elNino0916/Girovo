@@ -884,6 +884,7 @@ function setupUpdater() {
   handle('updater:cancel', () => updater.cancel());
   handle('updater:install', () => updater.install());
   handle('updater:set-auto', (on) => updater.setAuto(on === true));
+  handle('updater:set-channel', (channel) => updater.setChannel(channel));
   handle('updater:open-release', () => updater.openRelease());
 
   updater.start();
