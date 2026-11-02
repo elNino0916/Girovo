@@ -6,6 +6,12 @@
   />
 </p>
 
+<p align="center">
+  <a href="https://fdroid.link/#https://girovo.de/fdroid/repo?fingerprint=528444df4d581c2b0fae20758636d526c55ef41cf099b4947b96ae8204067974">
+    <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">
+  </a>
+</p>
+
 A modern, self-hosted banking app for German banks that speaks **FinTS 3.0
 (HBCI) PIN/TAN** — with approval in your bank's app (the *decoupled* methods
 such as S-pushTAN, SecureGo plus or BestSign) or with a TAN you type: chipTAN
