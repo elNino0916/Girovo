@@ -5,9 +5,26 @@ import groovy.json.JsonSlurper
 // One version for every build of Girovo: package.json's. The version code
 // counts major.minor.patch as MMmmpp (5.2.2 → 50202), times 10, plus a last
 // digit left for a rebuild of the same version.
+//
+// A preview of a release, "6.0.0-preview.N" (N from 1 to 99), sits just below
+// that release: its code minus 100, plus N (6.0.0-preview.3 → 599903). Above
+// every 5.x, each preview above the one before, 6.0.0 above them all — Android
+// installs nothing over a higher code. Any other pre-release name is refused:
+// an rc.1 after preview.12 would count lower. CI's development builds
+// ("-dev.<run>", also after a preview) count as the version they are numbered
+// after. See android/README.md.
 def pkg = new JsonSlurper().parse(rootProject.file('../package.json'))
-def (major, minor, patch) = pkg.version.tokenize('-')[0].tokenize('.').collect { it as int }
+def (versionCore, versionPre) = (pkg.version.split('-', 2) as List) + ['']
+def (major, minor, patch) = versionCore.tokenize('.').collect { it as int }
 def girovoVersionCode = ((major * 10000) + (minor * 100) + patch) * 10
+def preview = versionPre.replaceFirst('(?:^|-)dev(?:\\.[0-9A-Za-z.-]*)?$', '')
+if (preview) {
+    def number = preview =~ '^preview\\.([1-9][0-9]?)$'
+    if (!number.matches()) {
+        throw new GradleException("package.json's version ${pkg.version}: a pre-release is X.Y.Z-preview.N, N from 1 to 99 (android/README.md)")
+    }
+    girovoVersionCode = girovoVersionCode - 100 + (number.group(1) as int)
+}
 
 // Release signing, from android/keystore.properties (never committed):
 //   storeFile=…  storePassword=…  keyAlias=…  keyPassword=…

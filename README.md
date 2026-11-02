@@ -388,6 +388,13 @@ The desktop app updates itself from this repository's
   accounts; it goes through a session of its own without cookies or cache.
   Switch it off under *Einstellungen → Updates* — a check is then only made when you
   press "Nach Updates suchen".
+- **Update-Kanal** — *Einstellungen → Update-Kanal* chooses between "Stabil"
+  (the latest release, as above) and "6.0-Vorschau": the app then reads the
+  list of releases and offers the highest version above the installed one,
+  GitHub pre-releases included. Back on "Stabil" nothing older than the
+  installed version is offered, only the next stable release above it. The
+  Android app from GitHub has the same setting; the Google Play and F-Droid
+  builds do not.
 - **Nothing happens without a click.** A newer version shows up in
   *Mitteilungen* (and on the login screen's bar); downloading it and restarting
   into it are separate, explicit steps. The restart waits while a TAN approval
@@ -428,7 +435,9 @@ The desktop app updates itself from this repository's
 
 **Publishing a release** the updater picks up needs nothing beyond what
 `npm run electron:dist` produces: create a normal GitHub release (not a draft,
-not a pre-release) whose tag is the version (`4.1.0` or `v4.1.0`) and attach
+not a pre-release — a pre-release, tagged `X.Y.Z-preview.N`, reaches only the
+copies on the "6.0-Vorschau" channel; android/README.md has its Android
+version code) whose tag is the version (`4.1.0` or `v4.1.0`) and attach
 `Girovo-<version>-Setup.exe` and `Girovo-<version>-Setup.exe.blockmap`
 from `dist/` — upload the files of one build, the blockmap has to describe
 exactly that `Setup.exe`. GitHub adds

@@ -14,7 +14,9 @@
 //   check     one GET to api.github.com for the latest release — no account,
 //             no identifier; the request says nothing but the app's version
 //             (main.cjs sets the User-Agent). Automatically 15 s after start
-//             and every 6 hours, unless the user switched that off.
+//             and every 6 hours, unless the user switched that off. On the
+//             preview channel (Einstellungen → Update-Kanal) the list of
+//             releases instead, pre-releases included.
 //   download  only when the user asks for it (a banking app is not replaced
 //             behind anyone's back), with progress, cancellable. For an
 //             installed copy usually only the part of the Setup.exe that
@@ -38,6 +40,8 @@ const logic = require('./update-logic.cjs');
 const said = () => shellTexts().updates;
 
 const PREF_AUTO = 'fints.updates.auto';
+// 'stable' (unset) or 'preview': whether pre-releases are offered too.
+const PREF_CHANNEL = 'fints.updates.channel';
 const FIRST_CHECK_DELAY_MS = 15_000;
 const CHECK_INTERVAL_MS = 6 * 60 * 60_000;
 // Turning the automatic check on runs one soon, so the switch visibly does something.
@@ -197,6 +201,8 @@ function createUpdater(deps) {
   let abort = null;
   /** @type {Promise<object> | null} */
   let checking = null;
+  /** @type {Promise<object> | null} */
+  let downloading = null;
   /** @type {ReturnType<typeof setTimeout> | null} */
   let timer = null;
 
@@ -204,6 +210,8 @@ function createUpdater(deps) {
     current: currentVersion,
     kind,
     auto: getPref(PREF_AUTO) !== 'off',
+    /** stable · preview (pre-releases too) */
+    channel: logic.channelOf(getPref(PREF_CHANNEL)),
     /** idle · checking · current · available · downloading · ready · installing */
     phase: 'idle',
     checkedAt: null,
@@ -378,7 +386,9 @@ function createUpdater(deps) {
           : null,
       };
       void clearCache();
-    } else if (Number.isFinite(marker.at) && now() - marker.at < MARKER_MAX_AGE_MS && logic.isNewer(to, currentVersion)) {
+    } else if (
+      Number.isFinite(marker.at) && now() - marker.at < MARKER_MAX_AGE_MS && logic.isNewer(to, currentVersion, { prerelease: true })
+    ) {
       state.failedInstall = to;
       state.error = { during: 'install', message: said().notCompleted(to) };
     }
@@ -386,8 +396,8 @@ function createUpdater(deps) {
 
   // ---- check ---------------------------------------------------------------
 
-  /** The release at `url` (GitHub's API), or null when there is none (HTTP 404). */
-  async function fetchRelease(url) {
+  /** GitHub's API answer at `url`, parsed, or null when there is none (HTTP 404). */
+  async function fetchJson(url) {
     const res = await fetch(url, {
       headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
       signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
@@ -399,16 +409,35 @@ function createUpdater(deps) {
       throw new UpdateError(said().rateLimited);
     }
     if (!res.ok) throw new UpdateError(said().httpError(res.status));
-    let json;
     try {
-      json = JSON.parse((await readBytes(res, MAX_FEED_BYTES)).toString('utf8'));
+      return JSON.parse((await readBytes(res, MAX_FEED_BYTES)).toString('utf8'));
     } catch (err) {
       if (err instanceof UpdateError) throw err;
       throw new UpdateError(said().unreadable);
     }
-    const release = logic.parseRelease(json, { downloadPrefix, releasesPage });
+  }
+
+  /** The release at `url`, or null when there is none. `prerelease`: one may be (see logic.parseRelease). */
+  async function fetchRelease(url, { prerelease = false } = {}) {
+    const json = await fetchJson(url);
+    if (json === null) return null;
+    const release = logic.parseRelease(json, { downloadPrefix, releasesPage, prerelease });
     if (!release) throw new UpdateError(said().unreadable);
     return release;
+  }
+
+  /**
+   * The release this channel offers: the latest release, or on the preview
+   * channel the highest version above this one in the list, pre-releases
+   * included. Null when there is none to offer.
+   */
+  async function fetchOffer() {
+    const list = state.channel === 'preview' ? logic.listUrl(feedUrl) : null;
+    if (!list) return fetchRelease(feedUrl);
+    const json = await fetchJson(list);
+    if (json === null) return null;
+    if (!Array.isArray(json)) throw new UpdateError(said().unreadable);
+    return logic.newestRelease(json, currentVersion, { downloadPrefix, releasesPage });
   }
 
   // ---- differential --------------------------------------------------------
@@ -452,7 +481,8 @@ function createUpdater(deps) {
     for (const tag of [currentVersion, `v${currentVersion}`]) {
       const url = logic.tagUrl(feedUrl, tag);
       if (!url) return null;
-      const release = await fetchRelease(url);
+      // A preview's own release is a pre-release.
+      const release = await fetchRelease(url, { prerelease: true });
       if (release) return release.version === currentVersion ? release : null;
     }
     return null;
@@ -467,7 +497,7 @@ function createUpdater(deps) {
     try {
       const newMap = logic.pickBlockmap(release, asset);
       // A dev build is no release; nothing to compare its installer with.
-      if (!newMap || logic.parseVersion(currentVersion)?.pre) return null;
+      if (!newMap || logic.isDevBuild(currentVersion)) return null;
       await fs.promises.access(baseFile, fs.constants.R_OK);
       const current = await fetchCurrentRelease();
       const oldAsset = logic.pickAsset(current, kind);
@@ -586,10 +616,11 @@ function createUpdater(deps) {
   async function runCheck(manual) {
     const before = state.phase;
     set({ phase: 'checking', ...(manual ? { error: null } : {}) });
+    const { channel } = state;
     try {
-      const release = await fetchRelease(feedUrl);
+      const release = await fetchOffer();
       const checkedAt = now();
-      if (!release || !logic.isNewer(release.version, currentVersion)) {
+      if (!release || !logic.isNewer(release.version, currentVersion, { prerelease: channel === 'preview' })) {
         pending = null;
         readyFile = null;
         await clearCache();
@@ -640,8 +671,15 @@ function createUpdater(deps) {
 
   // ---- download ------------------------------------------------------------
 
-  async function download() {
-    if (state.phase !== 'available' || !pending?.asset || abort) return state;
+  function download() {
+    if (state.phase !== 'available' || !pending?.asset || abort) return Promise.resolve(state);
+    downloading = runDownload().finally(() => {
+      downloading = null;
+    });
+    return downloading;
+  }
+
+  async function runDownload() {
     const { asset, plan } = pending;
     const controller = new AbortController();
     abort = controller;
@@ -793,6 +831,24 @@ function createUpdater(deps) {
     return state;
   }
 
+  /**
+   * Switches between the stable and the preview channel, and asks again at
+   * once: what the other channel offered — found, downloading or downloaded —
+   * is dropped unless this one offers it too. Going back to stable never
+   * offers an older version than the installed one (see logic.isNewer).
+   */
+  async function setChannel(value) {
+    const channel = logic.channelOf(value);
+    setPref(PREF_CHANNEL, channel);
+    if (channel === state.channel) return state;
+    set({ channel });
+    abort?.abort();
+    // A check or download still running is of the old channel: let it end first.
+    await downloading;
+    await checking;
+    return check({ manual: true });
+  }
+
   function openRelease() {
     const url = state.release?.url || state.installed?.url || releasesPage;
     if (url.startsWith(releasesPage)) void openExternal(url);
@@ -826,8 +882,9 @@ function createUpdater(deps) {
     cancel,
     install,
     setAuto,
+    setChannel,
     openRelease,
   };
 }
 
-module.exports = { createUpdater, PREF_AUTO };
+module.exports = { createUpdater, PREF_AUTO, PREF_CHANNEL };

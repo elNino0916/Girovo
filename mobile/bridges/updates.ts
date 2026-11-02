@@ -7,10 +7,15 @@
 // desktop's own, tested rules (electron/update-logic.cjs: the release's
 // "-android.apk"). The APK is downloaded natively and kept only when its size
 // and SHA-256 are what GitHub published for it (GirovoUpdater); Android's
-// installer then checks that it is signed like the installed app.
+// installer then checks that it is signed like the installed app. On the
+// preview channel (Einstellungen → Update-Kanal) the list of releases is
+// read instead of the latest one, pre-releases included — Android installs
+// no older version over a newer one, so going back to stable waits for the
+// next stable release above the installed preview.
 //
 // The Google Play build has no such bridge: Play brings its updates, and the
-// Sitzung panel offers Play's own in-app update (components/android).
+// Sitzung panel offers Play's own in-app update (components/android). Nor has
+// the F-Droid build: its repository serves stable releases only.
 
 import logic from '../../electron/update-logic.cjs';
 import { msgs } from '../../lib/i18n/index.ts';
@@ -18,6 +23,8 @@ import { GirovoDevice, GirovoUpdater, type UpdaterState } from '../native';
 import { reportError, track } from './telemetry';
 
 const AUTO_PREF = 'fints.autoUpdate';
+/** 'stable' (unset) or 'preview': whether pre-releases are offered too. */
+const CHANNEL_PREF = 'fints.updateChannel';
 const LAST_VERSION_PREF = 'fints.lastVersion';
 /** The release an install was started for: { version, notes, url } — what the next start greets. */
 const INSTALLING_PREF = 'fints.installing';
@@ -41,6 +48,8 @@ const write = (k: string, v: string | null) => {
 
 let state: ElectronUpdateState;
 let latest: Release | null = null;
+/** Counts the checks: an answer that a newer check (another channel's) overtook is dropped. */
+let checks = 0;
 const listeners = new Set<(s: ElectronUpdateState) => void>();
 
 function set(patch: Partial<ElectronUpdateState>): ElectronUpdateState {
@@ -67,12 +76,16 @@ function report(before: ElectronUpdateState | undefined, now: ElectronUpdateStat
 
 async function check(): Promise<ElectronUpdateState> {
   if (state.phase === 'downloading' || state.phase === 'installing') return state;
+  const run = ++checks;
+  const preview = state.channel === 'preview';
   set({ phase: 'checking', error: null });
   try {
-    const res = await fetch(logic.FEED_URL, { headers: { accept: 'application/vnd.github+json' } });
+    const res = await fetch(preview ? logic.listUrl(logic.FEED_URL)! : logic.FEED_URL, { headers: { accept: 'application/vnd.github+json' } });
     if (!res.ok) throw new Error(`GitHub answered HTTP ${res.status}`);
-    const release: Release | null = logic.parseRelease(await res.json());
-    if (!release || !logic.isNewer(release.version, state.current)) {
+    const json: unknown = await res.json();
+    if (run !== checks) return state;
+    const release: Release | null = preview ? logic.newestRelease(json, state.current) : logic.parseRelease(json);
+    if (!release || !logic.isNewer(release.version, state.current, { prerelease: preview })) {
       latest = null;
       return set({ phase: 'current', release: null, checkedAt: Date.now() });
     }
@@ -93,8 +106,21 @@ async function check(): Promise<ElectronUpdateState> {
       },
     });
   } catch (err) {
+    if (run !== checks) return state;
     return set({ phase: 'idle', error: { during: 'check', message: err instanceof Error ? err.message : String(err) } });
   }
+}
+
+/** Switches the channel and asks again at once: the other channel's offer, even a downloaded one, is dropped. */
+async function setChannel(value: UpdateChannel): Promise<ElectronUpdateState> {
+  const channel = logic.channelOf(value);
+  write(CHANNEL_PREF, channel);
+  if (channel === state.channel) return state;
+  set({ channel });
+  if (state.phase === 'downloading') await cancel();
+  // An install the other channel's APK opened is not this channel's to finish.
+  if (state.phase === 'installing') set({ phase: 'available' });
+  return check();
 }
 
 /** Android's version for an API level, as the phone's settings name it. */
@@ -170,7 +196,7 @@ export async function installUpdates(): Promise<void> {
     if (pending && pending.version === current) installed = { version: current, from: last ?? '', notes: pending.notes, url: pending.url, previousFile: null };
     else if (pending) failedInstall = pending.version;
   } catch { /* nothing pending */ }
-  if (!installed && last && last !== current && logic.isNewer(current, last)) {
+  if (!installed && last && last !== current && logic.isNewer(current, last, { prerelease: true })) {
     installed = { version: current, from: last, notes: '', url: `${logic.RELEASES_PAGE}/tag/${current}`, previousFile: null };
   }
   write(INSTALLING_PREF, null);
@@ -180,6 +206,7 @@ export async function installUpdates(): Promise<void> {
     current,
     kind: 'android',
     auto: read(AUTO_PREF) !== 'off',
+    channel: logic.channelOf(read(CHANNEL_PREF)),
     phase: 'idle',
     checkedAt: null,
     release: null,
@@ -209,6 +236,7 @@ export async function installUpdates(): Promise<void> {
       write(AUTO_PREF, on ? 'on' : 'off');
       return set({ auto: on });
     },
+    setChannel,
     openRelease,
     onState: (fn) => {
       listeners.add(fn);

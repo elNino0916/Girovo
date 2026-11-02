@@ -12,7 +12,7 @@ const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const zlib = require('node:zlib');
-const { createUpdater, PREF_AUTO } = require('./updater.cjs');
+const { createUpdater, PREF_AUTO, PREF_CHANNEL } = require('./updater.cjs');
 
 const PAYLOAD = crypto.randomBytes(300_000);
 const SHA = crypto.createHash('sha256').update(PAYLOAD).digest('hex');
@@ -415,6 +415,141 @@ test('the automatic check is a stored preference, on by default', () => {
   updater.setAuto(true);
   updater.stop();
   assert.equal(prefs.get(PREF_AUTO), 'on');
+});
+
+// ---- channels ----------------------------------------------------------------
+
+/**
+ * GitHub with previews: 9.9.9 is the latest release; the list also has
+ * 10.0.0-preview.1 and .2 (pre-releases, not in order) and a draft .3.
+ * `hang`: downloads send their headers and then nothing.
+ */
+const withPreviews = ({ hang = null } = {}) => (req, res, base) => {
+  const json = (body) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(body));
+  if (req.url === '/latest') {
+    json(releaseJson(base, { tag: '9.9.9' }));
+  } else if (req.url === '/?per_page=20') {
+    json([
+      { ...releaseJson(base, { tag: '10.0.0-preview.3' }), draft: true },
+      { ...releaseJson(base, { tag: '10.0.0-preview.1' }), prerelease: true },
+      { ...releaseJson(base, { tag: '10.0.0-preview.2' }), prerelease: true },
+      releaseJson(base, { tag: '9.9.9' }),
+    ]);
+  } else if (req.url.startsWith('/dl/')) {
+    res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': PAYLOAD.length });
+    if (hang) hang.push(res);
+    else res.end(PAYLOAD);
+  } else {
+    res.writeHead(404).end();
+  }
+};
+
+test('the channel is a stored preference, stable unless it says preview', () => {
+  assert.equal(makeUpdater('http://127.0.0.1:9/').updater.getState().channel, 'stable');
+  const stored = (value) => makeUpdater('http://127.0.0.1:9/', { getPref: (k) => (k === PREF_CHANNEL ? value : null) });
+  assert.equal(stored('preview').updater.getState().channel, 'preview');
+  assert.equal(stored('nightly').updater.getState().channel, 'stable');
+});
+
+test('stable reads the latest release, preview the newest pre-release in the list', async () => {
+  const srv = await startServer(withPreviews());
+  try {
+    const stable = await makeUpdater(srv.base).updater.check({ manual: true });
+    assert.equal(stable.release.version, '9.9.9');
+    const { updater } = makeUpdater(srv.base, { getPref: (k) => (k === PREF_CHANNEL ? 'preview' : null) });
+    const preview = await updater.check({ manual: true });
+    assert.equal(preview.phase, 'available');
+    assert.equal(preview.release.version, '10.0.0-preview.2', 'the highest, never the draft');
+    assert.equal(preview.release.canInstall, true);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('switching the channel asks again: a preview is offered, and dropped on the way back', async () => {
+  const srv = await startServer(withPreviews());
+  try {
+    const { updater, prefs, cacheDir } = makeUpdater(srv.base, { currentVersion: '9.9.9' });
+    assert.equal((await updater.check({ manual: true })).phase, 'current');
+
+    let s = await updater.setChannel('preview');
+    assert.equal(prefs.get(PREF_CHANNEL), 'preview');
+    assert.equal(s.channel, 'preview');
+    assert.equal(s.phase, 'available');
+    assert.equal(s.release.version, '10.0.0-preview.2');
+    s = await updater.download();
+    assert.equal(s.phase, 'ready');
+
+    s = await updater.setChannel('stable');
+    assert.equal(prefs.get(PREF_CHANNEL), 'stable');
+    assert.equal(s.channel, 'stable');
+    assert.equal(s.phase, 'current');
+    assert.equal(s.release, null);
+    assert.equal(fs.existsSync(path.join(cacheDir, SETUP)), false, 'the preview\'s installer is gone');
+  } finally {
+    await srv.close();
+  }
+});
+
+test('back on stable from a preview, nothing older is offered', async () => {
+  const srv = await startServer(withPreviews());
+  try {
+    const { updater } = makeUpdater(srv.base, { currentVersion: '10.0.0-preview.1' });
+    assert.equal((await updater.check({ manual: true })).phase, 'current', '9.9.9 is older than the preview');
+    const s = await updater.setChannel('preview');
+    assert.equal(s.release.version, '10.0.0-preview.2');
+  } finally {
+    await srv.close();
+  }
+});
+
+test('switching the channel stops a download of the other one\'s release', async () => {
+  const hang = [];
+  const srv = await startServer(withPreviews({ hang }));
+  try {
+    const { updater, cacheDir } = makeUpdater(srv.base, { currentVersion: '9.0.0' });
+    await updater.check({ manual: true });
+    const running = updater.download();
+    for (let i = 0; i < 100 && hang.length === 0; i++) await new Promise((r) => setTimeout(r, 20));
+    assert.equal(updater.getState().phase, 'downloading');
+    const s = await updater.setChannel('preview');
+    assert.equal((await running).channel, 'preview');
+    assert.equal(s.phase, 'available');
+    assert.equal(s.release.version, '10.0.0-preview.2');
+    assert.equal(s.error, null);
+    assert.deepEqual(fs.readdirSync(cacheDir).filter((n) => n.endsWith('.partial')), []);
+  } finally {
+    for (const res of hang) res.destroy();
+    await srv.close();
+  }
+});
+
+test('an install of a preview that did not happen is reported at the next start', async () => {
+  const srv = await startServer(withPreviews());
+  try {
+    const preview = { currentVersion: '9.9.9', getPref: (k) => (k === PREF_CHANNEL ? 'preview' : null) };
+    const { updater, cacheDir } = makeUpdater(srv.base, preview);
+    await updater.check({ manual: true });
+    await updater.download();
+    await updater.install();
+
+    const again = makeUpdater(srv.base, { ...preview, cacheDir });
+    again.updater.start();
+    again.updater.stop();
+    assert.equal(again.updater.getState().failedInstall, '10.0.0-preview.2');
+
+    // And the start that is the preview greets it.
+    const second = makeUpdater(srv.base, { ...preview, cacheDir });
+    await second.updater.check({ manual: true });
+    await second.updater.download();
+    await second.updater.install();
+    const next = makeUpdater(srv.base, { ...preview, currentVersion: '10.0.0-preview.2', cacheDir });
+    next.updater.start();
+    next.updater.stop();
+    assert.equal(next.updater.getState().installed.version, '10.0.0-preview.2');
+  } finally {
+    await srv.close();
+  }
 });
 
 // ---- differential downloads ------------------------------------------------

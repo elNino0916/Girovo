@@ -21,7 +21,7 @@
 //   Auf diesem Rechner ("Telefon" on Android) — what is kept here: the
 //     encrypted personal data and the kept Umsätze, the import into them and
 //     the backup of all of it;
-//   Über Girovo — updates, the version, the licence and the links.
+//   Über Girovo — updates and their channel, the version, the licence and the links.
 //
 // A row says what a setting is in a line, two at most; what an action does in full
 // is said by the dialog it opens ("Gerät vergessen?", "Gespeicherte Daten
@@ -49,6 +49,7 @@ import { KeepRow, KeepOffDialog, ResetHistoryDialog, ResetVaultDialog, WipeVault
 import { BackupRows } from './BackupDialogs';
 import { ImportRow } from './ImportDialog';
 import { CategorySettings } from './CategorySettings';
+import { UpdateChannelRow } from './UpdateChannel';
 import { ActionItem, ChoiceItem, LinkItem, SegmentedItem, SettingItem, SettingsGroup, SwitchItem } from './rows';
 
 // i18n-data-start — addresses, not words
@@ -262,6 +263,8 @@ export function Settings() {
         <PlayUpdateRow />
         {/* With the updater (the desktop app, the GitHub build on Android) the version is on its row. */}
         <UpdateSessionRow setting="updates" onOpen={() => updates.openDialog()} />
+        {/* Stable or the 6.0 previews too: with the updater only, like the row above. */}
+        <UpdateChannelRow />
         <SettingItem
           icon={<InfoIcon />}
           title={!update && APP_VERSION ? t.shell.version(APP_VERSION) : t.settings.licence}

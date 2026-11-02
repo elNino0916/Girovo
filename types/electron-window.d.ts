@@ -4,6 +4,9 @@ declare global {
   /** The desktop app's updater as electron/updater.cjs reports it. */
   type ElectronUpdatePhase = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'ready' | 'installing';
 
+  /** Which releases the updater offers: finished ones, or GitHub's pre-releases too (Einstellungen → Update-Kanal). */
+  type UpdateChannel = 'stable' | 'preview';
+
   interface ElectronUpdateState {
     /** The running version. */
     current: string;
@@ -14,6 +17,7 @@ declare global {
     kind: 'nsis' | 'portable' | 'manual' | 'dev' | 'android';
     /** Automatic checks (at start, then every 6 hours). */
     auto: boolean;
+    channel: UpdateChannel;
     phase: ElectronUpdatePhase;
     /** When GitHub last answered, ms since the epoch. */
     checkedAt: number | null;
@@ -62,6 +66,8 @@ declare global {
       cancel: () => Promise<ElectronUpdateState | null>;
       install: () => Promise<ElectronUpdateState | null>;
       setAuto: (on: boolean) => Promise<ElectronUpdateState | null>;
+      /** Answers once the check in the new channel is done. */
+      setChannel: (channel: UpdateChannel) => Promise<ElectronUpdateState | null>;
       openRelease: () => Promise<ElectronUpdateState | null>;
       onState: (callback: (state: ElectronUpdateState) => void) => () => void;
     };

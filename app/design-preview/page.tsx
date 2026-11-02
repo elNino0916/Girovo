@@ -1011,6 +1011,23 @@ const VIEWS: Record<string, ViewDef> = {
     options: { tab: 'settings' },
     update: { scenario: 'downloading' },
   },
+  // Einstellungen → Update-Kanal: the dialog, and the page once the preview channel found a preview.
+  'update-channel': {
+    label: 'Update-Kanal wählen',
+    group: 'Updates',
+    options: { tab: 'settings' },
+    update: { scenario: 'current' },
+    async script(c) {
+      // The row's text begins with its glyph's name.
+      await c.click(/Update-Kanal/);
+    },
+  },
+  'update-channel-preview': {
+    label: 'Auf der 6.0-Vorschau',
+    group: 'Updates',
+    options: { tab: 'settings' },
+    update: { scenario: 'preview' },
+  },
 
   login: { label: 'Bank wählen', group: 'Anmeldung', options: { view: 'login' } },
   credentials: {

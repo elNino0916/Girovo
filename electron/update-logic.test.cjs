@@ -42,6 +42,57 @@ test('isNewer: a dev build is newer than the release it was numbered after', () 
   assert.equal(logic.isNewer('4.1.0', '4.1.0-beta.2'), true);
 });
 
+test('compareVersions orders pre-releases as semver does', () => {
+  // Each one after the one before it.
+  const order = [
+    '5.16.0', '5.16.1', '6.0.0-alpha', '6.0.0-alpha.1', '6.0.0-alpha.beta', '6.0.0-preview.1', '6.0.0-preview.2',
+    '6.0.0-preview.10', '6.0.0-rc.1', '6.0.0', '6.0.1',
+  ];
+  for (let i = 1; i < order.length; i++) {
+    assert.equal(logic.compareVersions(order[i], order[i - 1]), 1, `${order[i]} after ${order[i - 1]}`);
+    assert.equal(logic.compareVersions(order[i - 1], order[i]), -1, `${order[i - 1]} before ${order[i]}`);
+  }
+  assert.equal(logic.compareVersions('v6.0.0-preview.2', '6.0.0-preview.2'), 0);
+  // Build metadata does not count.
+  assert.equal(logic.compareVersions('6.0.0-preview.2+abc', '6.0.0-preview.2'), 0);
+  assert.equal(logic.compareVersions('6.0.0', 'latest'), null);
+});
+
+test('isNewer on the preview channel: previews in order, then their release', () => {
+  const preview = { prerelease: true };
+  assert.equal(logic.isNewer('6.0.0-preview.1', '5.16.1', preview), true);
+  assert.equal(logic.isNewer('6.0.0-preview.2', '6.0.0-preview.1', preview), true);
+  assert.equal(logic.isNewer('6.0.0-preview.10', '6.0.0-preview.9', preview), true);
+  assert.equal(logic.isNewer('6.0.0', '6.0.0-preview.10', preview), true);
+  assert.equal(logic.isNewer('6.0.0-preview.1', '6.0.0-preview.1', preview), false);
+  assert.equal(logic.isNewer('6.0.0-preview.1', '6.0.0-preview.2', preview), false);
+  assert.equal(logic.isNewer('6.0.0-preview.3', '6.0.0', preview), false);
+  // A 5.x fix released after the first preview is older than it.
+  assert.equal(logic.isNewer('5.16.2', '6.0.0-preview.1', preview), false);
+});
+
+test('isNewer on the stable channel: from a preview, only a higher release', () => {
+  // Back on stable, nothing below the installed preview is offered: Android cannot go back.
+  assert.equal(logic.isNewer('5.16.3', '6.0.0-preview.2'), false);
+  assert.equal(logic.isNewer('6.0.0-preview.3', '6.0.0-preview.2'), false);
+  assert.equal(logic.isNewer('6.0.0', '6.0.0-preview.2'), true);
+  assert.equal(logic.isNewer('6.0.1', '6.0.0-preview.2'), true);
+});
+
+test('isNewer: a dev build of a preview comes after that preview', () => {
+  const preview = { prerelease: true };
+  // CI stamps "<package.json version>-dev.<run>" on a pre-release too.
+  assert.equal(logic.isNewer('6.0.0-preview.2', '6.0.0-preview.2-dev.7', preview), false);
+  assert.equal(logic.isNewer('6.0.0-preview.3', '6.0.0-preview.2-dev.7', preview), true);
+  assert.equal(logic.isNewer('6.0.0', '6.0.0-preview.2-dev.7'), true);
+  assert.equal(logic.isNewer('6.0.0-preview.1', '5.16.1-dev.3', preview), true);
+  assert.equal(logic.isDevBuild('5.16.1-dev.3'), true);
+  assert.equal(logic.isDevBuild('6.0.0-preview.2-dev.7'), true);
+  assert.equal(logic.isDevBuild('6.0.0-preview.2'), false);
+  assert.equal(logic.isDevBuild('6.0.0-development'), false);
+  assert.equal(logic.isDevBuild('5.16.1'), false);
+});
+
 test('isNewer: pre-releases and garbage are never offered', () => {
   assert.equal(logic.isNewer('4.2.0-beta.1', '4.0.0'), false);
   assert.equal(logic.isNewer('latest', '4.0.0'), false);
@@ -72,6 +123,46 @@ test('parseRelease refuses drafts, pre-releases and non-versions', () => {
   assert.equal(logic.parseRelease(release({ tag_name: 'nightly' })), null);
   assert.equal(logic.parseRelease(null), null);
   assert.equal(logic.parseRelease('{"tag_name":"4.1.0"}'), null);
+});
+
+test('parseRelease with prerelease: a preview keeps its whole version, a draft is still refused', () => {
+  const r = logic.parseRelease(release({ tag_name: 'v6.0.0-preview.2', prerelease: true }), { prerelease: true });
+  assert.equal(r.version, '6.0.0-preview.2');
+  // GitHub's flag alone, and the tag alone, are both pre-releases.
+  assert.equal(logic.parseRelease(release({ tag_name: '6.0.0', prerelease: true }), { prerelease: true }).version, '6.0.0');
+  assert.equal(logic.parseRelease(release({ tag_name: '6.0.0-preview.1' }), { prerelease: true }).version, '6.0.0-preview.1');
+  assert.equal(logic.parseRelease(release({ tag_name: '6.0.0-preview.1', draft: true }), { prerelease: true }), null);
+  assert.equal(logic.parseRelease(release({ tag_name: 'preview' }), { prerelease: true }), null);
+});
+
+test('newestRelease: the highest version above the installed one, pre-releases included', () => {
+  const list = [
+    release({ tag_name: '6.0.0-preview.3', draft: true }),
+    release({ tag_name: '6.0.0-preview.1', prerelease: true }),
+    release({ tag_name: '5.16.2' }),
+    release({ tag_name: '6.0.0-preview.2', prerelease: true }),
+    release({ tag_name: 'nightly', prerelease: true }),
+    release({ tag_name: '5.16.1' }),
+  ];
+  assert.equal(logic.newestRelease(list, '5.16.1').version, '6.0.0-preview.2', 'drafts never, garbage skipped');
+  assert.equal(logic.newestRelease(list, '6.0.0-preview.1').version, '6.0.0-preview.2');
+  assert.equal(logic.newestRelease(list, '6.0.0-preview.2'), null);
+  // The release itself wins over every preview of it.
+  assert.equal(logic.newestRelease([...list, release({ tag_name: '6.0.0' })], '6.0.0-preview.2').version, '6.0.0');
+  // Without any preview newer, the newest stable release.
+  assert.equal(logic.newestRelease(list.slice(2, 3), '5.16.1').version, '5.16.2');
+  assert.equal(logic.newestRelease({ tag_name: '6.0.0' }, '5.16.1'), null);
+  assert.equal(logic.newestRelease(null, '5.16.1'), null);
+});
+
+test('the preview channel reads the list beside the latest release', () => {
+  assert.equal(logic.listUrl(logic.FEED_URL), `https://api.github.com/repos/${logic.REPO}/releases?per_page=20`);
+  assert.equal(logic.listUrl('http://127.0.0.1:5000/latest'), 'http://127.0.0.1:5000?per_page=20');
+  assert.equal(logic.listUrl('http://127.0.0.1:5000/feed.json'), null);
+  assert.equal(logic.channelOf('preview'), 'preview');
+  assert.equal(logic.channelOf('stable'), 'stable');
+  assert.equal(logic.channelOf(null), 'stable');
+  assert.equal(logic.channelOf('beta'), 'stable');
 });
 
 test('parseRelease drops files it could not check or place safely', () => {
