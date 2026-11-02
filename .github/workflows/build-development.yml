@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - '6.0' # quoted: unquoted, YAML reads 6.0 as a number
   workflow_dispatch:
     inputs:
       release:
