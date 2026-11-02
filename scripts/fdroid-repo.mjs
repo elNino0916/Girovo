@@ -77,6 +77,9 @@ const javaHome = process.env.JAVA_HOME ?? {
 // jarsigner) and signs the index, on Android Studio's Java.
 const env = {
   ...process.env,
+  // Python reads text files in the system's encoding unless told otherwise:
+  // on Windows the store texts' dashes and umlauts came out as "â€“".
+  PYTHONUTF8: '1',
   ANDROID_HOME: sdk,
   JAVA_HOME: javaHome,
   PATH: [path.join(javaHome, 'bin'), process.env.PATH].join(path.delimiter),

@@ -513,6 +513,9 @@ GitHub APK's key — and its updates:
 https://girovo.de/fdroid/repo?fingerprint=528444df4d581c2b0fae20758636d526c55ef41cf099b4947b96ae8204067974
 ```
 
+On the phone, [this link](https://fdroid.link/#https://girovo.de/fdroid/repo?fingerprint=528444df4d581c2b0fae20758636d526c55ef41cf099b4947b96ae8204067974)
+opens it in F-Droid.
+
 The APK's signing certificate — the same since the first one — and how to
 check it are in [SECURITY.md](SECURITY.md#checking-that-a-download-is-girovo).
 The Play app is signed by Google's key instead, so the two cannot update over
