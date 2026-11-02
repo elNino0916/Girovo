@@ -64,8 +64,10 @@ const nextConfig: NextConfig = {
   // The Android project (android/, its exports .next-android*) is no part of
   // the desktop server either: the tracer's guess at the state store's JSON
   // would otherwise sweep Gradle's build intermediates into the installer.
+  // Nor is the F-Droid workspace (fdroid/, scripts/fdroid-repo.mjs): its
+  // index files and fdroidserver's status files, which name local paths.
   outputFileTracingExcludes: {
-    '*': ['./.fints-state/**', './models/**', './android/**', './.next-android/**', './.next-android-dev/**'],
+    '*': ['./.fints-state/**', './models/**', './android/**', './.next-android/**', './.next-android-dev/**', './fdroid/**'],
   },
   // Printed documents name the generator and its version, so the client needs
   // the one number that is otherwise only in package.json.
