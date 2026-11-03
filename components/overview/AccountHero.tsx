@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
+import { hasOverview } from '@/lib/account-overview';
 import { canReportBalance, isCardAccount, isDepot } from '@/lib/balances';
 import type { BalanceHistory } from '@/lib/balance-history';
 import { accountBalanceHistory } from '@/lib/history';
@@ -428,7 +429,7 @@ function DepotHero({ account }: { account: SerializedAccount }) {
 function AccountHead({ account, label }: { account: SerializedAccount; label: string }) {
   const { accounts, banks, bankOf, logoFiles, closeAccount } = useFints();
   const t = useT();
-  if (accounts.length <= 1 && banks.length <= 1) {
+  if (!hasOverview(accounts, banks)) {
     return (
       <div className="-mr-2 flex min-h-10 items-center justify-between gap-2">
         <p className="min-w-0 truncate text-[16px] leading-6 font-medium text-ink-2">{label}</p>

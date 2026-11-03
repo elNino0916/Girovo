@@ -21,6 +21,7 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { IS_ANDROID } from '@/lib/platform';
 import { PlusScreen } from './android/Plus';
+import { hasOverview } from '@/lib/account-overview';
 import { isDepot } from '@/lib/balances';
 import { useFints } from './FintsProvider';
 import { AccountHero } from './AccountPanel';
@@ -65,7 +66,7 @@ export function Dashboard() {
   // (issue #19); an account's page is a level below it — or, from 1280px,
   // beside it (SplitOverview).
   const split = useSplitOverview();
-  const allAccounts = tab === 'overview' && !split && !accountOpen && (accounts.length > 1 || banks.length > 1);
+  const allAccounts = tab === 'overview' && !split && !accountOpen && hasOverview(accounts, banks);
   // Zahlungen has a level below too: the bank's orders (6.0).
   const orders = tab === 'contracts' && ordersOpen;
   const place = split ? 'split' : allAccounts ? 'accounts' : orders ? 'orders' : tab;

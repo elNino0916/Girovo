@@ -29,6 +29,7 @@
 
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
+import { hasOverview } from '@/lib/account-overview';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { askAllowed } from '@/lib/plus';
@@ -118,7 +119,7 @@ export function Masthead() {
   // An account's page under every account (issue #19): on a phone its own top
   // bar — the way back, the account's name, the search and the eye; from
   // 640px the search bar stays and the way back heads the balance (AccountHero).
-  const accountPage = tab === 'overview' && accountOpen && !!activeAccount && (accounts.length > 1 || banks.length > 1);
+  const accountPage = tab === 'overview' && accountOpen && !!activeAccount && hasOverview(accounts, banks);
   const phoneAccount = phone && accountPage;
   // The bank's orders, a level below Zahlungen (6.0): the way back at every width — the rail has no other.
   const ordersPage = tab === 'contracts' && ordersOpen;

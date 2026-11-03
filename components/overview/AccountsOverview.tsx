@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  GROUP_KINDS, groupAccounts, groupKindOf, groupSum, liveValue, orderAccounts, overviewFigures,
+  GROUP_KINDS, GROUPINGS, groupAccounts, groupKindOf, groupSum, liveValue, orderAccounts, overviewFigures,
   type AccountGroup, type AccountGroupKind, type AccountGrouping, type AccountValue,
 } from '@/lib/account-overview';
 import { isCardAccount, isDepot, namesList } from '@/lib/balances';
@@ -23,7 +23,7 @@ import { txText } from '../transactions/model';
 import { Alert, Button, DotList, FilterChip, IconButton, Menu, MenuItemRadio, Skeleton, cx } from '../ui';
 import { accountIdent, vaultNote } from './AccountIdentity';
 import { AccountDisc } from './AccountMarks';
-import { ArrangeSheet, GROUPING_ORDER } from './ArrangeSheet';
+import { ArrangeSheet } from './ArrangeSheet';
 import { BalanceChart, Sparkline } from './BalanceChart';
 
 /**
@@ -350,7 +350,7 @@ export function AccountsOverview({ pane = false }: {
                 <FilterChip {...p} menu className="max-sm:hidden">{words.groupings[grouping]}</FilterChip>
               )}
             >
-              {GROUPING_ORDER.map((g) => (
+              {GROUPINGS.map((g) => (
                 <MenuItemRadio
                   key={g}
                   checked={grouping === g}

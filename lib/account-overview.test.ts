@@ -1,9 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  groupAccounts, groupKindOf, groupSum, moveAccount, orderAccounts, overviewFigures, sanitizeAccountOrder,
+  groupAccounts, groupKindOf, groupSum, hasOverview, moveAccount, orderAccounts, overviewFigures, sanitizeAccountOrder,
   type AccountValue,
 } from './account-overview.ts';
+
+test('hasOverview: more than one account, or more than one bank', () => {
+  assert.equal(hasOverview([1], [1]), false);
+  assert.equal(hasOverview([], [1]), false);
+  assert.equal(hasOverview([1, 2], [1]), true);
+  // One account, a second bank not logged in: its row needs the overview.
+  assert.equal(hasOverview([1], [1, 2]), true);
+});
 
 const acct = (accountType: string, over: { canStatements?: boolean; canPortfolio?: boolean } = {}) => ({
   accountType,

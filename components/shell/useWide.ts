@@ -6,6 +6,7 @@
 // is more than one account (components/Dashboard.tsx SplitOverview). For
 // what CSS alone cannot switch: which of two layouts renders at all.
 
+import { hasOverview } from '@/lib/account-overview';
 import { useFints } from '../FintsProvider';
 import { useMediaQuery } from './useMediaQuery';
 
@@ -17,5 +18,5 @@ export function useWide(): boolean {
 export function useSplitOverview(): boolean {
   const { tab, accounts, banks } = useFints();
   const wide = useWide();
-  return wide && tab === 'overview' && (accounts.length > 1 || banks.length > 1);
+  return wide && tab === 'overview' && hasOverview(accounts, banks);
 }

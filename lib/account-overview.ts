@@ -26,6 +26,14 @@ export const GROUPINGS: readonly AccountGrouping[] = ['type', 'bank', 'none'];
 /** The most account numbers an order keeps — the vault's cap for aliases, for the same accounts. */
 export const MAX_ORDER = 50;
 
+/**
+ * Whether the Übersicht is this overview, a level above every account's
+ * page: more than one account, or more than one bank (one not logged in is a
+ * row of its own). With a single account the Übersicht is that account's page.
+ */
+export const hasOverview = (accounts: readonly unknown[], banks: readonly unknown[]): boolean =>
+  accounts.length > 1 || banks.length > 1;
+
 const SAVING_TYPES = new Set(['SavingsAccount', 'FixedDepositAccount', 'SecuritiesAccount', 'InvestmentCompanyFund', 'HomeSavingsContract']);
 
 /**

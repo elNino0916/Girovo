@@ -5,7 +5,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { type AccountGroup, type AccountGrouping, groupAccounts, groupKindOf, moveAccount, orderAccounts } from '@/lib/account-overview';
+import { type AccountGroup, type AccountGrouping, GROUPINGS, groupAccounts, groupKindOf, moveAccount, orderAccounts } from '@/lib/account-overview';
 import { isDepot } from '@/lib/balances';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
@@ -15,9 +15,6 @@ import { DragIcon } from '../icons';
 import { Button, cx, Overlay, Segmented, Sheet } from '../ui';
 import { accountIdent } from './AccountIdentity';
 import { AccountDisc } from './AccountMarks';
-
-/** The groupings in the order the menu and the sheet offer them. */
-export const GROUPING_ORDER: readonly AccountGrouping[] = ['type', 'bank', 'none'];
 
 /** How far a finger or the mouse moves before a press on a row stops being a press. */
 const SLOP = 8;
@@ -185,7 +182,7 @@ export function ArrangeSheet({ onClose }: { onClose: () => void }) {
             aria-label={words.grouping}
             value={grouping}
             onChange={(g) => arrangeAccounts({ grouping: g })}
-            options={GROUPING_ORDER.map((g) => ({ value: g, label: words.groupings[g] }))}
+            options={GROUPINGS.map((g) => ({ value: g, label: words.groupings[g] }))}
           />
 
           <div ref={listRef} className="-mx-4 mt-2 sm:-mx-6">
