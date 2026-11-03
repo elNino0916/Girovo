@@ -138,6 +138,18 @@ declare global {
     };
     /**
      * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Windows Hello (electron/windows-hello.cjs): whether this Windows has it
+     * set up, and the key a gesture brings about — enroll makes the Windows
+     * Hello key the first time — for lib/windows-hello.ts to keep the first
+     * login's PIN under, with the secret above. Never a PIN.
+     */
+    electronHello?: {
+      available: () => Promise<boolean>;
+      enroll: () => Promise<{ result: 'enrolled' | 'canceled' | 'failed' | 'unavailable'; key?: string; fresh?: boolean }>;
+      unlock: () => Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing' | 'failed'; key?: string }>;
+    };
+    /**
+     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
      * Synchronous preference storage in userData/prefs.json — the packaged
      * app's localStorage does not survive a restart (random port per start).
      * Keys must match /^fints\.[\w.-]{1,80}$/ and values be ≤ 4096 chars;

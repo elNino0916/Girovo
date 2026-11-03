@@ -179,7 +179,7 @@ export function ResetVaultDialog({ open, onClose }: { open: boolean; onClose: ()
  */
 export function WipeVaultDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT();
-  const { wipeVault, linkedUnlock } = useFints();
+  const { wipeVault, linkedUnlock, windowsHello } = useFints();
   const [busy, setBusy] = useState(false);
   const run = async () => {
     setBusy(true);
@@ -208,6 +208,7 @@ export function WipeVaultDialog({ open, onClose }: { open: boolean; onClose: () 
       {/* Indented to the title's edge, under the header's pictogram. */}
       <p className="pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.session.wipeDialog.body}</p>
       {linkedUnlock === true && <p className="mt-2 pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.settings.linkedUnlock.goesToo}</p>}
+      {windowsHello === true && <p className="mt-2 pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.settings.windowsHello.goesToo}</p>}
     </Dialog>
   );
 }

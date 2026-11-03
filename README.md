@@ -79,6 +79,21 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   remembered device, so a changed PIN is never tried twice. *Bank entfernen*,
   switching it off, *Gerät vergessen* and deleting the saved data delete what
   they cover.
+- **Mit Windows Hello anmelden** (Windows, opt-in, *Einstellungen →
+  Sicherheit*; offered once in a toast after a login with the PIN typed) —
+  the face, the finger or the Windows Hello PIN in place of the first login's
+  PIN, which the login form then asks for at once, as Android's fingerprint
+  login does; the further banks follow as with a typed PIN. Girovo makes
+  its own Windows Hello key for the user account (in the TPM where there is
+  one) and derives a key from its signature over a fixed challenge, which
+  only the gesture brings about — an RSA PKCS#1 v1.5 signature, the same
+  each time, checked when the key is made. The PIN is sealed under that key
+  **and** the shell's DPAPI secret, and only once the bank has taken it in
+  this session. A PIN the bank turns down, a Windows Hello key that was
+  replaced, switching it off, *Gerät vergessen* and deleting the saved data
+  delete it. Windows PowerShell runs the Windows Hello calls
+  (`electron/windows-hello.ps1`, shipped beside the app); on Windows 11 24H2
+  and later the prompt opens over Girovo's window.
 - **Kontoverlauf** — the end-of-day balance over the loaded period as a step
   chart, reconstructed from the bookings and *checked against every opening and
   closing balance the bank sent*. If the numbers don't add up, no chart is drawn.
@@ -302,11 +317,11 @@ npm run build && npm start
 
 > ⚠️ **Runs locally only.** Your PIN is held in server memory for the session
 > and is never written to disk or logged — unless you turn on *Weitere Banken
-> mit anmelden* in the desktop app, which keeps the further banks' PINs sealed
-> as described above (never the first login's). Do not expose this on a public
-> host. Only the desktop app's own server keeps a PIN, plus the development
-> server (`npm run dev`), so that `npm run electron:dev` can try the switch;
-> that one keeps them in the project's `.fints-state/`.
+> mit anmelden* or *Mit Windows Hello anmelden* in the desktop app, which keep
+> PINs sealed as described above. Do not expose this on a public host. Only
+> the desktop app's own server keeps a PIN, plus the development server
+> (`npm run dev`), so that `npm run electron:dev` can try the switches; that
+> one keeps them in the project's `.fints-state/`.
 
 ## Windows desktop app
 
@@ -919,10 +934,12 @@ Found a weakness? Report it privately, as [SECURITY.md](SECURITY.md) says.
 - Credentials live only in memory and vanish on logout / restart — with
   several banks, each bank's PIN in its own session, all of them dropped at the
   logout. The opt-in exceptions: Android's *Fingerprint login* (PINs sealed
-  under a Keystore key only a fingerprint opens) and the desktop's *Weitere
+  under a Keystore key only a fingerprint opens), the desktop's *Weitere
   Banken mit anmelden* (the further banks' PINs, never the first login's, in
   one file per first login, sealed under a key from both that login's PIN and
-  a secret the shell keeps with DPAPI or the keyring).
+  a secret the shell keeps with DPAPI or the keyring) and *Mit Windows Hello
+  anmelden* (the first login's PIN, sealed under a key from a Windows Hello
+  signature and that DPAPI secret together).
 - Banking traffic goes directly from your machine to the bank's FinTS endpoint
   over TLS — no third party sits in that path.
 - Besides the bank, the app makes these outside requests:

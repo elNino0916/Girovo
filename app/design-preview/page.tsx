@@ -642,9 +642,9 @@ const VIEWS: Record<string, ViewDef> = {
   },
   settings: { label: 'Einstellungen', group: 'Dashboard', options: { tab: 'settings' } },
   'settings-linked-unlock': {
-    label: 'Einstellungen: Weitere Banken mit anmelden (Desktop)',
+    label: 'Einstellungen: Windows Hello, Weitere Banken mit anmelden (Desktop)',
     group: 'Dashboard',
-    options: { tab: 'settings', linkedUnlock: true, secondBank: 'linked' },
+    options: { tab: 'settings', linkedUnlock: true, windowsHello: false, secondBank: 'linked' },
   },
   'linked-unlock-ask': {
     label: 'Weitere Banken mit anmelden?',

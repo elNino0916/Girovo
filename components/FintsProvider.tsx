@@ -40,6 +40,7 @@ import {
   ApiError, BACK_EVENT, PIN_REFUSED_EVENT, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail,
 } from '@/lib/client-api';
 import { IS_ANDROID } from '@/lib/platform';
+import { forgetHello, helloAvailable, helloOn, sealWithHello } from '@/lib/windows-hello-client';
 import { keepsNothing, unsafePhone } from '@/lib/device-integrity';
 import { msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
@@ -338,6 +339,17 @@ function useFintsState() {
   const setLinkedUnlockBoth = useCallback((on: boolean | null) => {
     linkedUnlockRef.current = on;
     setLinkedUnlockState(on);
+  }, []);
+  // The desktop: whether the first login opens with Windows Hello
+  // (lib/windows-hello.ts) — null until the login says, and where Windows
+  // has none — and the login this session came in with: its BLZ and name,
+  // and whether its PIN came from behind Windows Hello.
+  const [windowsHello, setWindowsHelloState] = useState<boolean | null>(null);
+  const windowsHelloRef = useRef<boolean | null>(null);
+  const helloLoginRef = useRef<{ blz: string; userId: string; bank: string; hello: boolean } | null>(null);
+  const setWindowsHelloBoth = useCallback((on: boolean | null) => {
+    windowsHelloRef.current = on;
+    setWindowsHelloState(on);
   }, []);
 
   // Refs mirror the state the async loops read, so a long-running approval
@@ -1301,6 +1313,8 @@ function useFintsState() {
     openedLinkedRef.current = [];
     setLinkedUnlockBoth(null);
     setLinkedUnlockAsk(false);
+    // The login's PIN kept for Windows Hello went too (app/api/vault).
+    if (windowsHelloRef.current) setWindowsHelloBoth(false);
     if (bank) {
       store.del(`fints.userId.${bank.blz}`);
       try {
@@ -1309,7 +1323,7 @@ function useFintsState() {
       } catch { /* unreadable — nothing of ours to remove */ }
     }
     return true;
-  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, wipeLinkedHistories, setLinkedUnlockBoth]);
+  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, wipeLinkedHistories, setLinkedUnlockBoth, setWindowsHelloBoth]);
 
   /** Deletes the saved personal data from this machine, the device registration untouched. */
   const wipeVault = useCallback(async () => {
@@ -2735,6 +2749,61 @@ function useFintsState() {
     }
   }, [isCurrent, setLinkedUnlockBoth, toast]);
 
+  /**
+   * The desktop's "Mit Windows Hello anmelden": on keeps this login's PIN
+   * under a Windows Hello gesture (lib/windows-hello.ts; the first time
+   * Windows sets its key up too) — only once the bank has taken the PIN;
+   * off deletes it.
+   */
+  const setWindowsHello = useCallback(async (on: boolean) => {
+    const sid = sessionRef.current;
+    const login = helloLoginRef.current;
+    if (!sid || !login || windowsHelloRef.current === null) return;
+    const said = msgs().settings.windowsHello;
+    if (!on) {
+      await forgetHello({ blz: login.blz, userId: login.userId });
+      if (isCurrent(sid)) setWindowsHelloBoth(false);
+      toast(said.nowOff, 'info');
+      return;
+    }
+    try {
+      const sealed = await sealWithHello(sid);
+      if (sealed === 'canceled') return;
+      if (sealed === 'failed') {
+        toast(said.failed, 'error');
+        return;
+      }
+      if (isCurrent(sid)) setWindowsHelloBoth(true);
+      toast(said.nowOn, 'success');
+    } catch (err) {
+      toast((err as Error).message || said.failed, 'error');
+    }
+  }, [isCurrent, setWindowsHelloBoth, toast]);
+
+  /**
+   * The desktop, once the bank has taken the first login's PIN: whether the
+   * login opens with Windows Hello — the row in Sicherheit — and, after a
+   * login with the PIN typed on a Windows that has it, a toast that offers
+   * it, once ever (the row stays).
+   */
+  const checkWindowsHello = useCallback(async (sid: string) => {
+    const login = helloLoginRef.current;
+    if (IS_ANDROID || !login || !(await helloAvailable())) return;
+    const on = await helloOn({ blz: login.blz, userId: login.userId });
+    if (!isCurrent(sid)) return;
+    setWindowsHelloBoth(on);
+    if (on || login.hello || store.get(HELLO_OFFERED) === '1') return;
+    store.set(HELLO_OFFERED, '1');
+    const said = msgs().settings.windowsHello;
+    toast(said.offer(login.bank), 'info', 12_000, { label: said.offerAction, run: () => void setWindowsHello(true) });
+  }, [isCurrent, setWindowsHelloBoth, setWindowsHello, toast]);
+
+  /** The desktop: the bank took the first login's PIN — what was kept with it may open now. */
+  const pinTaken = useCallback((sid: string) => {
+    void openLinkedUnlock(sid);
+    void checkWindowsHello(sid);
+  }, [openLinkedUnlock, checkWindowsHello]);
+
   const afterAccountsReady = useCallback((list: SerializedAccount[]) => {
     const sid = sessionRef.current;
     // Once per session: a method pick that fired twice (auto-pick plus a
@@ -2763,13 +2832,13 @@ function useFintsState() {
       // its word on the PIN, and only then do the kept PINs open (connect).
       const afterRead = linkedAfterReadRef.current === sid;
       void loadTransactions(list[0], undefined, undefined, afterRead
-        ? { onSettled: (outcome) => { if (outcome === 'applied') void openLinkedUnlock(sid); } }
+        ? { onSettled: (outcome) => { if (outcome === 'applied') pinTaken(sid); } }
         : {});
     }
     // Not a bank call: it runs beside the first statement, outside `busy`.
     void loadVault(sid);
     void loadDocs();
-  }, [startSessionClock, setAppliedRange, loadTransactions, loadVault, loadDocs, openLinkedUnlock]);
+  }, [startSessionClock, setAppliedRange, loadTransactions, loadVault, loadDocs, pinTaken]);
 
   // Said after the fact, so the way back is right there: on a shared
   // computer "Gerät vergessen" is one press away, not a trip to the Sitzung
@@ -2791,9 +2860,10 @@ function useFintsState() {
   /**
    * `unsealed` (Android): the PIN came from behind the fingerprint, and with
    * it the further banks' PINs kept beside it, which log in next. On the
-   * desktop the typed PIN opens theirs (openLinkedUnlock).
+   * desktop the PIN — typed, or from behind Windows Hello (`hello`) — opens
+   * theirs (openLinkedUnlock).
    */
-  const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string, unsealed?: { linked: GirovoSealedLogin[] }) => {
+  const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string, unsealed?: { linked: GirovoSealedLogin[]; hello?: true }) => {
     // "Zurück zur Anmeldung" from the TAN-method screen leaves the half-open
     // session behind; a new login replaces it.
     const previous = sessionRef.current;
@@ -2826,9 +2896,10 @@ function useFintsState() {
     // first statement read for a remembered device, which opens on this
     // computer alone, with an old PIN too (afterAccountsReady).
     linkedAfterReadRef.current = null;
+    helloLoginRef.current = { blz: chosen.blz, userId: login, bank: data.bank.bankName || chosen.name, hello: unsealed?.hello === true };
     if (!IS_ANDROID) {
       if ('restored' in data && data.restored) linkedAfterReadRef.current = data.sessionId;
-      else void openLinkedUnlock(data.sessionId);
+      else pinTaken(data.sessionId);
     }
     if (previous && previous !== data.sessionId) {
       // Only drops it from the server's memory (and the PIN with it) — no bank traffic.
@@ -2864,7 +2935,7 @@ function useFintsState() {
       // A remembered device asked for an approval after all: say why.
       if (data.productChanged) toast(msgs().provider.login.productChanged, 'info', 10_000);
     }
-  }, [afterAccountsReady, toast, setSelectedMethodBoth, setTanMethodsBoth]);
+  }, [afterAccountsReady, pinTaken, toast, setSelectedMethodBoth, setTanMethodsBoth]);
 
   /**
    * "Abbrechen" while the bank is being asked for the login: its answer is
@@ -3457,14 +3528,16 @@ function useFintsState() {
     try {
       await post('/api/forget-device', { sessionId: sessionRef.current });
       setDeviceRemembered(false);
-      // The route deleted the further banks' PINs kept beside the login too.
+      // The route deleted the further banks' PINs kept beside the login too,
+      // and the login's own one kept for Windows Hello.
       openedLinkedRef.current = [];
       if (linkedUnlockRef.current) setLinkedUnlockBoth(false);
+      if (windowsHelloRef.current) setWindowsHelloBoth(false);
       toast(msgs().provider.device.forgotten, 'info', 6000);
     } catch (err) {
       toast((err as Error).message, 'error');
     }
-  }, [toast, wipeVaultWith, setLinkedUnlockBoth]);
+  }, [toast, wipeVaultWith, setLinkedUnlockBoth, setWindowsHelloBoth]);
 
   /** Everything a session owns, back to its pre-login state. Preferences stay. */
   const resetSession = useCallback(() => {
@@ -3486,6 +3559,8 @@ function useFintsState() {
     setLinkedUnlockAsk(false);
     linkedAfterReadRef.current = null;
     linkedOfferedRef.current = false;
+    setWindowsHelloBoth(null);
+    helloLoginRef.current = null;
     flowBusyRef.current = false;
     waitSidRef.current = null;
     transferSidRef.current = null;
@@ -3713,11 +3788,16 @@ function useFintsState() {
       void post('/api/forget-device', { sessionId: sid }).catch(() => { /* asked again with the next refusal */ });
       setDeviceRemembered(false);
       if (IS_ANDROID && userIdRef.current) void window.girovoMobile?.biometric.forget(own.blz, userIdRef.current);
+      // The desktop: the PIN kept for Windows Hello is that same refused one.
+      if (!IS_ANDROID && userIdRef.current) {
+        void forgetHello({ blz: own.blz, userId: userIdRef.current });
+        if (windowsHelloRef.current) setWindowsHelloBoth(false);
+      }
       toast(said.firstPinRefused(own.name), 'error', 20_000);
     };
     window.addEventListener(PIN_REFUSED_EVENT, onRefused);
     return () => window.removeEventListener(PIN_REFUSED_EVENT, onRefused);
-  }, [setLinksBoth, forgetLinkedPin, openAddBank, toast]);
+  }, [setLinksBoth, forgetLinkedPin, openAddBank, setWindowsHelloBoth, toast]);
 
   // Activity tracking and the idle check — only while a dashboard is open.
   useEffect(() => {
@@ -4952,6 +5032,8 @@ function useFintsState() {
     // further banks with the first login on the desktop (lib/linked-unlock.ts)
     linkedUnlock, linkedUnlockAsk, setLinkedUnlock, openLinkedUnlockAsk, closeLinkedUnlockAsk, declineLinkedUnlock,
     forgetLinkedPin,
+    // Windows Hello in place of the first login's PIN on the desktop (lib/windows-hello.ts)
+    windowsHello, setWindowsHello,
   };
 }
 
@@ -4963,6 +5045,8 @@ const NO_DAYS: NetWorthDay[] = [];
 
 /** The shell pref that says the offer of "Weitere Banken mit anmelden" is not to come again. */
 const LINKED_OFFER_DECLINED = 'fints.linkedUnlock.declined';
+/** The shell pref that says Windows Hello was offered once (the toast after a typed login). */
+const HELLO_OFFERED = 'fints.windowsHello.offered';
 
 /** The desktop shell's secret for the further banks' PINs (electron/linked-unlock.cjs); null anywhere else. */
 async function linkedUnlockSecret(): Promise<string | null> {

@@ -15,6 +15,7 @@ import { msgs } from '@/lib/i18n';
 import { loginOfSession, removeLinkedUnlock } from '@/lib/linked-unlock';
 import { getSession } from '@/lib/session';
 import { loadVault, resetVault, saveVault, VAULT_REQUEST_MAX_BYTES, VaultError, wipeVault } from '@/lib/vault';
+import { removeWindowsHello } from '@/lib/windows-hello';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,10 +45,14 @@ export const POST = wrap(async (req: Request) => {
         // before. "Gerät vergessen" can do the same in one go
         // (app/api/forget-device); this is the way when no device is
         // remembered. The further banks' PINs kept beside the login on the
-        // desktop (lib/linked-unlock.ts) go first: should they not, nothing
-        // else has gone either.
+        // desktop (lib/linked-unlock.ts) go first, and the login's own PIN
+        // kept for Windows Hello (lib/windows-hello.ts): should they not,
+        // nothing else has gone either.
         const own = loginOfSession(s);
-        if (own) await removeLinkedUnlock(own);
+        if (own) {
+          await removeLinkedUnlock(own);
+          await removeWindowsHello(own);
+        }
         const history = await wipeHistory(s);
         const docs = await wipeDocs(s);
         return json({ ok: true, wiped: history + docs + (await wipeVault(s)) });

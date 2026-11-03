@@ -191,6 +191,12 @@ export type MockOptions = {
    * `'ask'`: off, with the dialog that turns it on open.
    */
   linkedUnlock?: boolean | 'ask';
+  /**
+   * The desktop's "Mit Windows Hello anmelden" (lib/windows-hello.ts): the
+   * row in Sicherheit, off or on; left out, the row is not there (no
+   * Windows Hello).
+   */
+  windowsHello?: boolean;
   /** Every statement load and balance enquiry from now on fails (read live). */
   fail?: boolean;
   /** The Umsätze list's narrowing beyond the search: a month chip, a category. */
@@ -787,6 +793,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     opts.linkedUnlock === undefined ? null : opts.linkedUnlock === true,
   );
   const [linkedUnlockAsk, setLinkedUnlockAsk] = useState(opts.linkedUnlock === 'ask');
+  // The desktop's Windows Hello: a switch, nothing kept.
+  const [windowsHello, setWindowsHelloState] = useState<boolean | null>(opts.windowsHello ?? null);
   // The fake bridge (./nano.ts): a purchase or an icon chosen on the Plus screen.
   useEffect(() => window.girovoMobile?.plus?.onChange?.(setPlus), []);
   const [sharePrefill, setSharePrefill] = useState<SharePrefill | null>(opening === 'share'
@@ -2954,6 +2962,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     closeLinkedUnlockAsk: () => setLinkedUnlockAsk(false),
     declineLinkedUnlock: () => setLinkedUnlockAsk(false),
     forgetLinkedPin: async () => {},
+    windowsHello,
+    setWindowsHello: async (on: boolean) => {
+      setWindowsHelloState(on);
+      toast(on ? msgs().settings.windowsHello.nowOn : msgs().settings.windowsHello.nowOff, on ? 'success' : 'info');
+    },
   } satisfies FintsApi;
 }
 

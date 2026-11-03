@@ -29,6 +29,7 @@ const { pathToFileURL } = require('node:url');
 const { createUpdater } = require('./updater.cjs');
 const { createFileSave } = require('./file-save.cjs');
 const { createLinkedUnlockSecret } = require('./linked-unlock.cjs');
+const { createHelperRunner, createWindowsHello } = require('./windows-hello.cjs');
 const { LOCALE_COOKIE, LOCALE_PREF, configure: configureLanguage, shellLocale, shellTexts, storedLocale } = require('./i18n.cjs');
 const { createTelemetryHub, lineSplitter, relayServerLine } = require('./telemetry.cjs');
 const updateLogic = require('./update-logic.cjs');
@@ -1015,6 +1016,33 @@ function run() {
     platform: process.platform,
   });
   ipcMain.handle('linked-unlock:secret', (event) => (fromApp(event) ? linkedUnlock.secret() : null));
+
+  // window.electronHello (preload.cjs): Windows Hello in place of typing the
+  // first login's PIN (electron/windows-hello.cjs, lib/windows-hello.ts).
+  // The prompt opens over the window that asked; the helper script is a real
+  // file beside the app (electron-builder.yml), since PowerShell cannot run
+  // one from inside app.asar.
+  const windowsHello = createWindowsHello({
+    run: createHelperRunner({
+      spawn,
+      script: () => (app.isPackaged
+        ? path.join(process.resourcesPath, 'windows-hello.ps1')
+        : path.join(__dirname, 'windows-hello.ps1')),
+    }),
+    file: () => path.join(app.getPath('userData'), 'windows-hello.json'),
+    fs: fs.promises,
+    crypto,
+    platform: process.platform,
+  });
+  /** The asking window's handle as a decimal string, for the prompt to open over it. */
+  const windowHandleOf = (event) => {
+    const handle = BrowserWindow.fromWebContents(event.sender)?.getNativeWindowHandle();
+    if (!handle) return undefined;
+    return (handle.length >= 8 ? handle.readBigUInt64LE(0) : BigInt(handle.readUInt32LE(0))).toString();
+  };
+  ipcMain.handle('hello:available', (event) => (fromApp(event) ? windowsHello.available() : false));
+  ipcMain.handle('hello:enroll', (event) => (fromApp(event) ? windowsHello.enroll(windowHandleOf(event)) : { result: 'failed' }));
+  ipcMain.handle('hello:unlock', (event) => (fromApp(event) ? windowsHello.unlock(windowHandleOf(event)) : { result: 'failed' }));
   ipcMain.on('telemetry:event', (event, name, props) => {
     if (fromApp(event) && typeof name === 'string') telemetry.event(name, props);
   });

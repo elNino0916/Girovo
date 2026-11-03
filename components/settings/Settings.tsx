@@ -50,6 +50,7 @@ import { BackupRows } from './BackupDialogs';
 import { ImportRow } from './ImportDialog';
 import { CategorySettings } from './CategorySettings';
 import { LinkedUnlockSwitch } from './LinkedUnlock';
+import { WindowsHelloSwitch } from './WindowsHello';
 import { UpdateChannelRow } from './UpdateChannel';
 import { ActionItem, ChoiceItem, LinkItem, SegmentedItem, SettingItem, SettingsGroup, SwitchItem } from './rows';
 
@@ -154,7 +155,10 @@ export function Settings() {
         {/* The Android app only: what the integrity check found, and fingerprint login. */}
         <IntegrityRow />
         <FingerprintSwitch />
-        {/* The desktop app only: the further banks log in with the first (lib/linked-unlock.ts). */}
+        {/* The desktop app only: Windows Hello in place of the first login's PIN
+            (lib/windows-hello.ts), and the further banks log in with the first
+            (lib/linked-unlock.ts). */}
+        <WindowsHelloSwitch />
         <LinkedUnlockSwitch />
         {deviceRemembered ? (
           // The provider's dialog: the "Gerät gemerkt" toast opens the same one.

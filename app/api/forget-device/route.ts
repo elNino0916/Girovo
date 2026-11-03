@@ -24,6 +24,7 @@ import { DocError, wipeDocs } from '@/lib/doc-store';
 import { HistoryError, wipeHistory } from '@/lib/history-store';
 import { removeLinkedUnlock } from '@/lib/linked-unlock';
 import { forgetProfile } from '@/lib/state-store';
+import { removeWindowsHello } from '@/lib/windows-hello';
 import { VaultError, wipeVault } from '@/lib/vault';
 
 export const runtime = 'nodejs';
@@ -42,7 +43,10 @@ export const POST = wrap(async (req: Request) => {
   }
 
   if (wipeData === true && !s) return sessionExpired();
-  if (b && u) await removeLinkedUnlock({ blz: String(b), userId: String(u) });
+  if (b && u) {
+    await removeLinkedUnlock({ blz: String(b), userId: String(u) });
+    await removeWindowsHello({ blz: String(b), userId: String(u) });
+  }
 
   let wiped: number | undefined;
   if (wipeData === true && s) {

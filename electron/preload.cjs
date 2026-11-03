@@ -108,6 +108,15 @@ contextBridge.exposeInMainWorld('electronLinkedUnlock', {
   secret: () => ipcRenderer.invoke('linked-unlock:secret'),
 });
 
+// Windows Hello in place of typing the first login's PIN (lib/windows-hello.ts):
+// the shell turns a gesture into a key, the server keeps the PIN under it and
+// the secret above. Nothing but Windows says whether it is there.
+contextBridge.exposeInMainWorld('electronHello', {
+  available: () => ipcRenderer.invoke('hello:available'),
+  enroll: () => ipcRenderer.invoke('hello:enroll'),
+  unlock: () => ipcRenderer.invoke('hello:unlock'),
+});
+
 contextBridge.exposeInMainWorld('electronTelemetry', {
   consent: () => {
     try {

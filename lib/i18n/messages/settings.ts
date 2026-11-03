@@ -76,6 +76,30 @@ export const de = {
     refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht – melde dich mit deiner PIN an.',
   },
   /**
+   * 6.0, Windows: Windows Hello in place of typing the first login's PIN
+   * (lib/windows-hello.ts, electron/windows-hello.cjs; on Android the
+   * fingerprint does it, android.biometric). The further banks follow as
+   * with a typed PIN (linkedUnlock).
+   */
+  windowsHello: {
+    title: 'Mit Windows Hello anmelden',
+    hint: (bank: string) => `Gesicht, Finger oder deine Windows-PIN statt deiner PIN für ${bank}.`,
+    /** The login form's button. */
+    loginButton: 'Mit Windows Hello anmelden',
+    /** A toast after a login with the PIN typed, while it is off. */
+    offer: (bank: string) => `Bei ${bank} nächstes Mal mit Windows Hello anmelden?`,
+    offerAction: 'Einrichten',
+    nowOn: 'Windows Hello ist an. Beim nächsten Mal genügt dein Gesicht, dein Finger oder deine Windows-PIN.',
+    nowOff: 'Windows Hello ist aus, die gespeicherte PIN ist gelöscht.',
+    failed: 'Windows Hello ließ sich nicht einrichten. Versuche es noch einmal.',
+    /** The Windows Hello key was replaced or is gone: the kept PIN went with it. */
+    invalidated: 'Windows Hello hat sich geändert, die gespeicherte PIN ist gelöscht. Melde dich mit deiner PIN an und schalte es danach wieder ein.',
+    /** A kept PIN the bank refused: it is deleted, never tried twice. */
+    refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht – melde dich mit deiner PIN an.',
+    /** In the dialogs of "Gerät vergessen" and "Gespeicherte Daten löschen", while it is on. */
+    goesToo: 'Die PIN für Windows Hello wird dabei auch gelöscht.',
+  },
+  /**
    * Über Girovo → which releases the updater offers (components/settings/UpdateChannel.tsx;
    * the desktop app and the GitHub APK only). `stable` and `preview` are also the row's value.
    */
@@ -143,6 +167,19 @@ export const en: typeof de = {
     goesToo: 'This also deletes your further banks’ PINs – “Log in to further banks too” is then off.',
     privacyNote: 'With “Log in to further banks too” on, this bank’s PIN is kept encrypted on this computer, and the connection runs straight to your bank. After you log in, the app remembers this device, encrypted with your PIN.',
     refused: 'The bank didn’t accept the saved PIN. It has been deleted – log in with your PIN.',
+  },
+  windowsHello: {
+    title: 'Log in with Windows Hello',
+    hint: (bank) => `Your face, finger or Windows PIN instead of your PIN for ${bank}.`,
+    loginButton: 'Log in with Windows Hello',
+    offer: (bank) => `Log in to ${bank} with Windows Hello next time?`,
+    offerAction: 'Set up',
+    nowOn: 'Windows Hello is on. Next time your face, finger or Windows PIN is enough.',
+    nowOff: 'Windows Hello is off, the saved PIN has been deleted.',
+    failed: 'Windows Hello couldn’t be set up. Please try again.',
+    invalidated: 'Windows Hello has changed, so the saved PIN has been deleted. Log in with your PIN and turn it on again afterwards.',
+    refused: 'The bank didn’t accept the saved PIN. It has been deleted – log in with your PIN.',
+    goesToo: 'This also deletes the PIN saved for Windows Hello.',
   },
   channel: {
     title: 'Update channel',

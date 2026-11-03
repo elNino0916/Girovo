@@ -16,6 +16,7 @@ import type { MetaResponse } from '@/lib/fints-types';
 import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
+import { forgetHello, helloOn, openWithHello } from '@/lib/windows-hello-client';
 import { BankAnswerAlert } from '../BankAnswer';
 import { BankLogo } from '../BankLogo';
 import { IntegrityNotice } from '../android/IntegrityNotice';
@@ -58,9 +59,10 @@ const CANCEL_AFTER_MS = 8000;
 
 /**
  * Android: the PIN came from behind the fingerprint — with the PINs of the
- * further banks kept beside it, which the provider logs in next.
+ * further banks kept beside it, which the provider logs in next. The
+ * desktop: `hello`, it came from behind Windows Hello (lib/windows-hello.ts).
  */
-export type Unsealed = { linked: GirovoSealedLogin[] };
+export type Unsealed = { linked: GirovoSealedLogin[]; hello?: true };
 
 export function Credentials({
   bank, logoFile, meta, onChange, onSubmit, onCancel, initialLogin, initialError, openedPin, onOpenedPinRefused, pinKept,
@@ -114,6 +116,8 @@ export function Credentials({
   const [fingerprint, setFingerprint] = useState(false);
   const [fingerprintNotice, setFingerprintNotice] = useState<string | null>(null);
   const fingerprintAsked = useRef(false);
+  // The desktop: this login name opens with Windows Hello (lib/windows-hello.ts).
+  const [hello, setHello] = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
   const loginRef = useRef<HTMLInputElement>(null);
 
@@ -198,6 +202,10 @@ export function Credentials({
           void window.girovoMobile?.biometric.forget(bank.blz, login.trim());
           setFingerprint(false);
           setFingerprintNotice(tr.android.biometric.refused);
+        } else if (unsealed.hello) {
+          void forgetHello({ blz: bank.blz, userId: login.trim() });
+          setHello(false);
+          setFingerprintNotice(tr.settings.windowsHello.refused);
         } else {
           onOpenedPinRefused?.(bank.blz, login.trim());
           setFingerprintNotice(tr.settings.linkedUnlock.refused);
@@ -253,6 +261,22 @@ export function Credentials({
     pinRef.current?.focus();
   }, [bank, login, submitting, attempt, tr]);
 
+  /** The desktop: the PIN from behind Windows Hello, then the same login as a typed one. */
+  const withHello = useCallback(async () => {
+    const name = login.trim();
+    if (submitting || !name) return;
+    const opened = await openWithHello({ blz: bank.blz, userId: name });
+    if (opened.result === 'opened') {
+      await attempt(opened.pin, { linked: [], hello: true });
+      return;
+    }
+    if (opened.result === 'gone' || opened.result === 'off') {
+      setHello(false);
+      if (opened.result === 'gone') setFingerprintNotice(tr.settings.windowsHello.invalidated);
+    }
+    pinRef.current?.focus();
+  }, [bank, login, submitting, attempt, tr]);
+
   // Android: a further bank whose PIN the first login's fingerprint opened
   // logs in at once, as if the fingerprint had just been given for it.
   useEffect(() => {
@@ -285,6 +309,34 @@ export function Credentials({
       current = false;
     };
     // Per bank and login name; withFingerprint is current when it runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bank.blz, login]);
+
+  // The desktop: whether this login name opens with Windows Hello, and if so
+  // Windows asks for the gesture once, straight away, like the fingerprint.
+  // Never for a further bank's form (openedPin) — its PIN is already here.
+  useEffect(() => {
+    const name = login.trim();
+    if (IS_ANDROID || openedPin || !name) {
+      setHello(false);
+      return;
+    }
+    let current = true;
+    const t = setTimeout(() => {
+      void helloOn({ blz: bank.blz, userId: name }).then((on) => {
+        if (!current) return;
+        setHello(on);
+        if (on && !fingerprintAsked.current && !initialError) {
+          fingerprintAsked.current = true;
+          void withHello();
+        }
+      });
+    }, 250);
+    return () => {
+      current = false;
+      clearTimeout(t);
+    };
+    // Per bank and login name; withHello is current when it runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bank.blz, login]);
 
@@ -475,6 +527,19 @@ export function Credentials({
             onClick={() => void withFingerprint()}
           >
             {tr.android.biometric.loginButton}
+          </Button>
+        )}
+
+        {hello && !submitting && (
+          <Button
+            variant="secondary"
+            size="lg"
+            block
+            className="mt-3"
+            iconLeft={<FingerprintIcon size={20} />}
+            onClick={() => void withHello()}
+          >
+            {tr.settings.windowsHello.loginButton}
           </Button>
         )}
 

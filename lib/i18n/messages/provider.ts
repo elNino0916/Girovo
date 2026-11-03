@@ -62,6 +62,13 @@ export const de = {
     noSecret: 'Die PINs lassen sich hier nicht geschützt aufbewahren.',
     unknownAction: 'Unbekannte Aktion.',
   },
+  /** app/api/windows-hello (lib/windows-hello.ts). */
+  windowsHello: {
+    unavailable: 'Windows Hello gibt es nur in der Desktop-App.',
+    notYet: 'Die PIN lässt sich erst speichern, wenn deine Bank sie angenommen hat. Lade einmal deine Umsätze und versuche es dann noch einmal.',
+    noKey: 'Windows Hello hat keinen Schlüssel geliefert.',
+    unknownAction: 'Unbekannte Aktion.',
+  },
 
   /** What a logout says (lib/session-log.ts, components/FintsProvider.tsx). */
   logout: {
@@ -211,6 +218,12 @@ export const en: typeof de = {
   linkedUnlock: {
     unavailable: 'Logging in to further banks too is only available in the desktop app.',
     noSecret: 'The PINs can’t be kept protected here.',
+    unknownAction: 'Unknown action.',
+  },
+  windowsHello: {
+    unavailable: 'Windows Hello is only available in the desktop app.',
+    notYet: 'The PIN can only be saved once your bank has accepted it. Load your transactions once, then try again.',
+    noKey: 'Windows Hello didn’t return a key.',
     unknownAction: 'Unknown action.',
   },
 
