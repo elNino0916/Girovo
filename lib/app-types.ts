@@ -7,6 +7,7 @@
 
 import type { AccountGrouping } from './account-overview';
 import type { CategoryId, CustomCategory } from './categories';
+import type { KeptBalance, NetWorthDay } from './kept-balances';
 import type { SavingsGoal } from './savings-goal';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
 import type { SavedPart } from './history';
@@ -25,7 +26,7 @@ export type DashboardTab = 'overview' | 'analysis' | 'contracts' | 'settings';
 /** A setting the search can bring the user to on the Einstellungen page (components/settings). */
 export type SettingsTarget =
   | 'language' | 'theme' | 'idle' | 'categories' | 'logos' | 'usage' | 'device' | 'data' | 'keep' | 'backup' | 'updates'
-  | 'channel';
+  | 'channel' | 'loginBalances' | 'keepBalances';
 
 /** A date range as `<input type="date">` speaks it: local yyyy-mm-dd. */
 export type DateRange = { from: string; to: string };
@@ -230,6 +231,15 @@ export type VaultData = {
    */
   accountOrder?: string[];
   accountGrouping?: AccountGrouping;
+  /**
+   * The last balance each account was read at, and the overview's figures
+   * once a day (lib/kept-balances.ts) — so the overview has every figure at
+   * once, dated. Kept unless the user said no: `keepBalances: false`, which
+   * also deletes both.
+   */
+  keptBalances?: Record<string, KeptBalance>;
+  netWorth?: NetWorthDay[];
+  keepBalances?: false;
   /** ISO */
   updatedAt: string;
 };

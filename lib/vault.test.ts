@@ -156,6 +156,18 @@ test('accountOrder and accountGrouping: kept when well formed, dropped otherwise
   assert.equal(bad && 'accountGrouping' in bad, false);
 });
 
+test('keptBalances and netWorth: kept when well formed; switched off, neither is kept', () => {
+  const kept = { '1234': { cents: 78011, currency: 'EUR', readAt: '2026-11-02T18:02:00.000Z' } };
+  const days = [{ day: '2026-11-02', total: 78011, assets: 78011, liabilities: 0 }];
+  const on = vault.sanitizeVault(base({ keptBalances: kept, netWorth: days }));
+  assert.deepEqual(on?.keptBalances, kept);
+  assert.deepEqual(on?.netWorth, days);
+  assert.equal(on && 'keepBalances' in on, false);
+  const off = vault.sanitizeVault(base({ keptBalances: kept, netWorth: days, keepBalances: false }));
+  assert.equal(off?.keepBalances, false);
+  assert.equal(off && ('keptBalances' in off || 'netWorth' in off), false);
+});
+
 test('aliases: clipped, empty ones dropped, at most 50 (newest kept)', () => {
   const aliases: Record<string, unknown> = { '1234567890': 'Girokonto für alles und noch viel mehr Text der zu lang ist', '42': '   ', '43': 7 };
   for (let i = 0; i < 60; i++) aliases[`ACC-${i}`] = `Konto ${i}`;

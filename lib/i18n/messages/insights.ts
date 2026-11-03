@@ -418,6 +418,9 @@ export const de = {
     pending: 'Noch nicht vollständig',
     /** A row's figure that was not read in this session. */
     notFetched: 'Nicht abgerufen',
+    /** The Gesamtsaldo's curve behind its sparkline (lib/kept-balances.ts). */
+    netWorth: 'Verlauf des Gesamtsaldos',
+    netWorthCaption: 'Aus den Tagen, an denen jeder Saldo abgerufen war; dazwischen gilt der letzte Stand.',
     /** The table's heads (from 640px). */
     columns: { account: 'Konto', last: 'Letzter Umsatz', balance: 'Kontostand' },
     /** Under a figure in the table: what kind of figure it is. */
@@ -840,6 +843,8 @@ export const en: typeof de = {
     liabilities: 'Liabilities',
     pending: 'Not complete yet',
     notFetched: 'Not loaded',
+    netWorth: 'Total balance over time',
+    netWorthCaption: 'From the days every balance was loaded; in between, the last one counts.',
     columns: { account: 'Account', last: 'Latest transaction', balance: 'Balance' },
     loanBalance: 'Outstanding',
     card: 'Card',

@@ -58,7 +58,7 @@ import { useThemePref } from './ThemeToggle';
 import {
   AccountTypeIcon, ArchiveIcon, BackIcon, BellIcon, CategoryIcon, CalendarIcon, ChartIcon, CheckIcon, ClockIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon,
   FileIcon, GearIcon, GeminiSparkIcon, GlobeIcon, HomeIcon, ImageIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon,
-  RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SplitIcon, SunIcon, TagIcon, TransferIcon,
+  RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SplitIcon, SunIcon, TagIcon, TransferIcon, WalletIcon,
 } from './icons';
 import { listsOrders, useShowBankOrders } from './BankOrders';
 import { askInAnalysis, useAskable } from './insights/Ask';
@@ -247,6 +247,7 @@ function Palette({ onClose }: { onClose: () => void }) {
       },
       setting('language', 'language', (m) => m.session.language, <GlobeIcon />),
       setting('idle', 'idle', (m) => m.settings.find.idle, <ClockIcon />),
+      setting('loginBalances', 'loginBalances', (m) => m.settings.balances.atLogin, <RefreshIcon />),
       setting('categories', 'categories', (m) => m.transactions.custom.section, <TagIcon />),
       !!f.meta?.merchantLogos && setting('logos', 'logos', (m) => m.session.logos, <ImageIcon />),
       !!usage && setting('usage', 'usage', (m) => m.session.usage, <ChartIcon />),
@@ -254,6 +255,7 @@ function Palette({ onClose }: { onClose: () => void }) {
       (f.vaultStatus === 'ready' || f.vaultStatus === 'error') && setting('data', 'data', (m) => m.session.vault, <LockIcon />),
       f.vaultStatus === 'ready' && setting('keep', 'keep', (m) => m.history.keep, <CalendarIcon />),
       f.vaultStatus === 'ready' && setting('backup', 'backup', (m) => m.backup.row.title, <ArchiveIcon />),
+      f.vaultStatus === 'ready' && setting('keepBalances', 'keepBalances', (m) => m.settings.balances.keep, <WalletIcon />),
       // With the updater only (the desktop app, the GitHub APK), as on the page.
       !!update && setting('channel', 'channel', (m) => m.settings.channel.title, <SplitIcon />),
       // The bank's own list, at the end of Verträge & Abos — where an account has one.

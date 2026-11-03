@@ -75,18 +75,43 @@ function useWidth<T extends HTMLElement>(): [RefObject<T | null>, number] {
   return [ref, width];
 }
 
+/** A curve as a glyph: a staircase in the primary, its last day a dot — the account's or the Gesamtsaldo's. */
+export function Sparkline({ points }: { points: readonly { balance: number }[] }) {
+  const W = 96;
+  const H = 36;
+  const pad = 3;
+  const values = points.map((p) => p.balance);
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const span = hi - lo || 1;
+  const x = (i: number) => pad + (i / (points.length - 1)) * (W - pad * 2);
+  const y = (v: number) => pad + (1 - (v - lo) / span) * (H - pad * 2);
+  let d = `M${x(0).toFixed(1)},${y(values[0]).toFixed(1)}`;
+  for (let i = 1; i < values.length; i++) d += `H${x(i).toFixed(1)}V${y(values[i]).toFixed(1)}`;
+  const last = values.length - 1;
+  return (
+    <svg aria-hidden width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+      <path d={`${d}V${H - pad}H${x(0).toFixed(1)}Z`} fill="var(--chart-area)" />
+      <path d={d} fill="none" stroke="var(--chart-line)" strokeWidth={2} strokeLinejoin="round" />
+      <circle cx={x(last)} cy={y(values[last])} r={3.5} fill="var(--chart-line)" />
+    </svg>
+  );
+}
+
 export function BalanceChart({
-  points, currency = 'EUR', className,
+  points, currency = 'EUR', className, card: cardProp,
 }: {
   /** One per day, oldest first, no gaps — buildBalanceHistory's `points`. */
   points: readonly BalancePoint[];
   currency?: string;
   className?: string;
+  /** A card's curve (no red below zero); by default the selected account's kind decides. */
+  card?: boolean;
 }) {
   const privacy = usePrivacy();
-  // The chart always draws the selected account (the account hero's).
+  // The chart draws the selected account (the account hero's) unless told otherwise (the overview's Gesamtsaldo).
   const account = useContext(FintsContext)?.activeAccount;
-  const card = !!account && isCardAccount(account);
+  const card = cardProp ?? (!!account && isCardAccount(account));
   /** Whether the stretch below zero is red — see the exceptions at the top. */
   const redBelowZero = !privacy && !card;
   const money = useMoneyText();

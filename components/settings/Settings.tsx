@@ -42,7 +42,7 @@ import { UpdateSessionRow } from '../updates/UpdateNotices';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
   BuildingIcon, ChartIcon, ClockIcon, CodeIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon, LockIcon, MailIcon, MonitorIcon,
-  MoonIcon, ShieldIcon, SunIcon,
+  MoonIcon, RefreshIcon, ShieldIcon, SunIcon, WalletIcon,
 } from '../icons';
 import { Button, Dot, Kbd, Segmented } from '../ui';
 import { KeepRow, KeepOffDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
@@ -69,6 +69,7 @@ export function Settings() {
     idleMinutes, setIdleMinutes, deviceRemembered, setForgetDeviceOpen, vaultStatus,
     meta, logoConsent, setLogoConsent, singleKeyShortcuts, setShortcutsOpen,
     settingsTarget, clearSettingsTarget, keepBookings,
+    balancesAtLogin, setBalancesAtLogin, vault, setKeepBalances, toast,
   } = useFints();
   const pref = useThemePref();
   const usage = useUsageConsent();
@@ -135,6 +136,16 @@ export function Settings() {
           value={idleMinutes}
           choices={IDLE_MINUTE_CHOICES.map((n) => ({ value: n, label: t.session.idleOption(n) }))}
           onChange={(n) => setIdleMinutes(n as IdleMinutes)}
+        />
+
+        {/* 6.0: every balance after the login, as "Alle Salden abrufen" reads them. Off unless switched on. */}
+        <SwitchItem
+          icon={<RefreshIcon />}
+          setting="loginBalances"
+          checked={balancesAtLogin}
+          onChange={setBalancesAtLogin}
+          title={t.settings.balances.atLogin}
+          summary={t.settings.balances.atLoginHint}
         />
       </SettingsGroup>
 
@@ -243,6 +254,21 @@ export function Settings() {
               vault can be written. Off is the default (owner to confirm). */}
           {vaultStatus === 'ready' && (
             <KeepRow onOff={() => setDialog('keepOff')} onReset={() => setDialog('historyReset')} />
+          )}
+
+          {/* 6.0: the last balances, for the overview's first look (lib/kept-balances.ts). On unless switched off; off deletes them. */}
+          {vaultStatus === 'ready' && (
+            <SwitchItem
+              icon={<WalletIcon />}
+              setting="keepBalances"
+              checked={vault?.keepBalances !== false}
+              onChange={(on) => {
+                setKeepBalances(on);
+                if (!on) toast(t.settings.balances.deleted, 'info');
+              }}
+              title={t.settings.balances.keep}
+              summary={t.settings.balances.keepHint}
+            />
           )}
 
           {/* Older Umsätze from the online banking's export, into the kept ones. */}

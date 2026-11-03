@@ -12,7 +12,7 @@
 //
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
-import { isCardAccount, isDepot } from './balances.ts';
+import { canReportBalance, isCardAccount, isDepot } from './balances.ts';
 import type { SerializedAccount } from './fints-types';
 
 /** The overview's groups, in the order a Kontenübersicht lists them. */
@@ -144,10 +144,28 @@ export function groupAccounts<A>(
  *   never    the bank reports no figure for it over FinTS
  */
 export type AccountValue =
-  | { state: 'known'; cents: number; currency: string }
+  | { state: 'known'; cents: number; currency: string; /** From an earlier session (lib/kept-balances.ts). */ kept?: true }
   | { state: 'missing'; currency: string }
   | { state: 'unread' }
   | { state: 'never' };
+
+/**
+ * What this session read of an account's figure: its balance, or a Depot's
+ * value at the last read of its holdings.
+ */
+export function liveValue(
+  a: Pick<SerializedAccount, 'currency' | 'canStatements' | 'canBalance' | 'canPortfolio'>,
+  balance: { balance: number; currency?: string | null } | null | undefined,
+  portfolio: { totalValue: number | null; currency?: string | null } | null | undefined,
+): AccountValue {
+  if (isDepot(a)) {
+    if (portfolio?.totalValue != null) return { state: 'known', cents: Math.round(portfolio.totalValue * 100), currency: portfolio.currency || 'EUR' };
+    // Read, but the bank stated no total: nothing to add, for good.
+    return portfolio ? { state: 'never' } : { state: 'unread' };
+  }
+  if (balance) return { state: 'known', cents: Math.round(balance.balance * 100), currency: balance.currency || a.currency || 'EUR' };
+  return canReportBalance(a) ? { state: 'missing', currency: a.currency || 'EUR' } : { state: 'never' };
+}
 
 export type OverviewFigures<A> = {
   /** Accounts whose euro figure the total is about. */

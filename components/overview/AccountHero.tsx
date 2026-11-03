@@ -19,7 +19,7 @@ import { fmtSince } from '../shell/session';
 import { MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
 import { BankMark } from './AccountsOverview';
 import { AccountGoal } from './SavingsGoal';
-import { BalanceChart } from './BalanceChart';
+import { BalanceChart, Sparkline } from './BalanceChart';
 
 /**
  * The bank's own balance at the end of a fetched range: the newest statement
@@ -464,29 +464,6 @@ function AccountHead({ account, label }: { account: SerializedAccount; label: st
         )}
       </p>
     </div>
-  );
-}
-
-/** The Kontoverlauf as a glyph: a staircase in the primary, its last day a dot. */
-function Sparkline({ points }: { points: readonly { balance: number }[] }) {
-  const W = 96;
-  const H = 36;
-  const pad = 3;
-  const values = points.map((p) => p.balance);
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  const span = hi - lo || 1;
-  const x = (i: number) => pad + (i / (points.length - 1)) * (W - pad * 2);
-  const y = (v: number) => pad + (1 - (v - lo) / span) * (H - pad * 2);
-  let d = `M${x(0).toFixed(1)},${y(values[0]).toFixed(1)}`;
-  for (let i = 1; i < values.length; i++) d += `H${x(i).toFixed(1)}V${y(values[i]).toFixed(1)}`;
-  const last = values.length - 1;
-  return (
-    <svg aria-hidden width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
-      <path d={`${d}V${H - pad}H${x(0).toFixed(1)}Z`} fill="var(--chart-area)" />
-      <path d={d} fill="none" stroke="var(--chart-line)" strokeWidth={2} strokeLinejoin="round" />
-      <circle cx={x(last)} cy={y(values[last])} r={3.5} fill="var(--chart-line)" />
-    </svg>
   );
 }
 

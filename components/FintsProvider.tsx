@@ -65,7 +65,8 @@ import {
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { asksForBrand } from '@/lib/nano-names';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
-import { sanitizeAccountOrder, type AccountGrouping } from '@/lib/account-overview';
+import { liveValue, overviewFigures, sanitizeAccountOrder, type AccountGrouping } from '@/lib/account-overview';
+import { keepBalances as foldKeptBalances, recordNetWorth, type KeptBalance, type NetWorthDay } from '@/lib/kept-balances';
 import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
 import {
   LINKED_BANK_LIMITS, forgetLinkedBank, joinAccounts, rememberLinkedBank, routeFor, sameLogin, sanitizeLinkedBanks,
@@ -1007,6 +1008,8 @@ function useFintsState() {
   const [idleMinutes, setIdleMinutesState] = useState<IdleMinutes>(DEFAULT_IDLE_MINUTES);
   /** Shortcuts on one unmodified key (/, ?, N, B, G, 1–9). On unless turned off. */
   const [singleKeyShortcuts, setSingleKeyShortcutsState] = useState(true);
+  /** "Salden beim Anmelden abrufen" (Einstellungen): off unless the user switched it on. */
+  const [balancesAtLogin, setBalancesAtLoginState] = useState(false);
   /** Company logos: off until the user answers the dashboard's one-time question. */
   const [logoConsent, setLogoConsentState] = useState<LogoConsent>('unasked');
 
@@ -1340,6 +1343,7 @@ function useFintsState() {
       setIdleMinutesState(idle);
     }
     if (store.get('fints.singleKeys') === '0') setSingleKeyShortcutsState(false);
+    if (store.get('fints.balancesAtLogin') === '1') setBalancesAtLoginState(true);
     const logos = store.get('fints.merchantLogos');
     if (logos === 'on' || logos === 'off') {
       logoConsentRef.current = logos;
@@ -3160,6 +3164,16 @@ function useFintsState() {
   }, []);
 
   /**
+   * "Salden beim Anmelden abrufen": after the login every balance is read
+   * as "Alle Salden abrufen" reads them. Kept on this device, not in the
+   * vault — the choice is needed before the vault is open.
+   */
+  const setBalancesAtLogin = useCallback((on: boolean) => {
+    setBalancesAtLoginState(on);
+    store.set('fints.balancesAtLogin', on ? '1' : '0');
+  }, []);
+
+  /**
    * The answer to "Firmenlogos anzeigen?" (the dashboard asks once), or the
    * Sitzung panel's switch. Yes looks up what is loaded already. No drops
    * every logo of this session at once, so the logo proxy is not asked for
@@ -4593,6 +4607,57 @@ function useFintsState() {
     overviewShownRef.current = accounts.length > 1 || banks.length > 1;
   }, [accounts.length, banks.length]);
 
+  // "Salden beim Anmelden abrufen": once the login's own reads are done, every
+  // balance still missing — and again for a further bank's accounts when it
+  // joins the view later. Each account is asked for once per session, so a
+  // refused approval is not asked again; never while a read runs.
+  const autoBalancesRef = useRef<{ sid: string | null; asked: Set<string> }>({ sid: null, asked: new Set() });
+  useEffect(() => {
+    if (!balancesAtLogin || view !== 'dashboard' || busy || accounts.length < 2) return;
+    if (autoBalancesRef.current.sid !== sessionId) autoBalancesRef.current = { sid: sessionId, asked: new Set() };
+    const asked = autoBalancesRef.current.asked;
+    const fresh = accounts.filter((a) => !asked.has(a.accountNumber));
+    if (!fresh.length) return;
+    for (const a of fresh) asked.add(a.accountNumber);
+    loadAllBalances();
+  }, [balancesAtLogin, view, busy, accounts, sessionId, loadAllBalances]);
+
+  // Kept balances (lib/kept-balances.ts): every balance this session read
+  // goes into the vault as the account's last, with when it was read — and,
+  // on a day every figure is known, the overview's figures for that day.
+  // Nothing of it while the user said no.
+  const keepingBalances = vaultStatus === 'ready' && vault?.keepBalances !== false;
+  useEffect(() => {
+    if (!keepingBalances) return;
+    const read: Record<string, KeptBalance> = {};
+    for (const [acct, b] of Object.entries(balances)) {
+      const at = balanceAt[acct];
+      if (at) read[acct] = { cents: Math.round(b.balance * 100), currency: (b.currency || 'EUR').toUpperCase(), readAt: new Date(at).toISOString() };
+    }
+    for (const [acct, p] of Object.entries(portfolios)) {
+      if (p.totalValue != null) read[acct] = { cents: Math.round(p.totalValue * 100), currency: (p.currency || 'EUR').toUpperCase(), readAt: p.readAt };
+    }
+    if (!Object.keys(read).length) return;
+    updateVault((v) => {
+      const had = v.keptBalances ?? NO_KEPT;
+      const kept = foldKeptBalances(had, read);
+      return kept === had ? v : { ...v, keptBalances: kept };
+    });
+  }, [keepingBalances, balances, balanceAt, portfolios, updateVault]);
+  useEffect(() => {
+    if (!keepingBalances || !accounts.length) return;
+    const absent = banks.filter((b) => b.state === 'remembered').length;
+    const f = overviewFigures(accounts, (a) => liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]), absent);
+    // A day's figure is a whole one: not while a Depot is still to be read.
+    if (f.total == null || f.excluded.some((e) => e.reason === 'unread')) return;
+    const entry: NetWorthDay = { day: isoDate(new Date()), total: f.total, assets: f.assets ?? 0, liabilities: f.liabilities ?? 0 };
+    updateVault((v) => {
+      const had = v.netWorth ?? NO_DAYS;
+      const days = recordNetWorth(had, entry);
+      return days === had ? v : { ...v, netWorth: days };
+    });
+  }, [keepingBalances, accounts, banks, balances, portfolios, updateVault]);
+
   /** The bank an account belongs to, as the view shows it. */
   const bankOf = useCallback((a: Pick<SerializedAccount, 'accountNumber'> | null | undefined): BankEntry | null => {
     if (!a) return null;
@@ -4899,6 +4964,22 @@ function useFintsState() {
         return aliasesNext === v.aliases ? v : { ...v, aliases: aliasesNext };
       }
       return v.aliases[accountNumber] === clean ? v : { ...v, aliases: { ...v.aliases, [accountNumber]: clean } };
+    });
+  }, [updateVault]);
+
+  /** "Letzte Salden behalten" (Einstellungen): on by default; off deletes what is kept. */
+  const setKeepBalances = useCallback((on: boolean) => {
+    updateVault((v) => {
+      if (on) {
+        if (v.keepBalances !== false) return v;
+        const rest = { ...v };
+        delete rest.keepBalances;
+        return rest;
+      }
+      const rest = { ...v };
+      delete rest.keptBalances;
+      delete rest.netWorth;
+      return { ...rest, keepBalances: false };
     });
   }, [updateVault]);
 
@@ -5346,7 +5427,7 @@ function useFintsState() {
     vault, vaultStatus,
     keepBookings, historyStatus, historyCoverage: keptCoverage, savedRange,
     // prefs
-    privacy, idleMinutes, singleKeyShortcuts,
+    privacy, idleMinutes, singleKeyShortcuts, balancesAtLogin,
     logoConsent,
     // session
     sessionStartedAt, idleDeadline,
@@ -5368,14 +5449,14 @@ function useFintsState() {
     retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
     printTaxYear, loadRange,
     makeBackup, restoreBackup, inspectBankFile, importBankFile,
-    togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
+    togglePrivacy, setIdleMinutes, setSingleKeyShortcuts, setBalancesAtLogin,
     setLogoConsent,
     setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions,
     setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue, openShareAll, closeShareAll,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
-    updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts,
+    updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
     setKeepBookings, resetHistory, applySavedRange,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     categoryOf, setCategory, setSplit,
@@ -5393,6 +5474,10 @@ function useFintsState() {
 }
 
 export type FintsApi = ReturnType<typeof useFintsState>;
+
+/** What an empty vault field stands for, one object each, so "nothing changed" can be told by identity. */
+const NO_KEPT: Record<string, KeptBalance> = {};
+const NO_DAYS: NetWorthDay[] = [];
 
 export const FintsContext = createContext<FintsApi | null>(null);
 

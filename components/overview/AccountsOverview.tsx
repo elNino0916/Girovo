@@ -3,12 +3,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import {
-  GROUP_KINDS, groupAccounts, groupKindOf, groupSum, moveAccount, orderAccounts, overviewFigures,
+  GROUP_KINDS, groupAccounts, groupKindOf, groupSum, liveValue, moveAccount, orderAccounts, overviewFigures,
   type AccountGroup, type AccountGroupKind, type AccountGrouping, type AccountValue,
 } from '@/lib/account-overview';
-import { canReportBalance, isCardAccount, isDepot, namesList } from '@/lib/balances';
+import { isCardAccount, isDepot, namesList } from '@/lib/balances';
 import { COMPACT_LOGO } from '@/lib/brands';
-import { dayKey, fmtIban, isoDate } from '@/lib/format';
+import { dayKey, fmtIban, fmtRange, isoDate } from '@/lib/format';
+import { netWorthPoints } from '@/lib/kept-balances';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { intlLocale, msgs } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
@@ -18,10 +19,10 @@ import { useFints, type BankEntry } from '../FintsProvider';
 import { Money } from '../Money';
 import { PlusButton } from '../android/PlusTeaser';
 import { AccountTypeIcon, ChevronIcon, DragIcon, EyeIcon, EyeOffIcon, PlusIcon, RefreshIcon, SwapVertIcon } from '../icons';
-import { fmtSince } from '../shell/session';
 import { txText } from '../transactions/model';
 import { Alert, Button, DotList, FilterChip, IconButton, Menu, MenuItemRadio, Overlay, Segmented, Sheet, Skeleton, cx } from '../ui';
 import { accountIdent, vaultNote } from './AccountIdentity';
+import { BalanceChart, Sparkline } from './BalanceChart';
 
 /**
  * The Übersicht's start once there is more than one account (issue #19):
@@ -61,6 +62,8 @@ export function AccountsOverview() {
   const [filter, setFilter] = useState<AccountGroupKind | null>(null);
   const [arranging, setArranging] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [curveOpen, setCurveOpen] = useState(false);
+  const curveId = useId();
 
   // The explanation answers a press on "Anordnen"; once the vault is readable it is moot.
   useEffect(() => {
@@ -82,18 +85,23 @@ export function AccountsOverview() {
   // A logged-out bank's accounts are its own fact: nothing can fetch them now.
   const gone = (a: SerializedAccount) => bankOf(a)?.state === 'loggedOut';
 
-  /** What the overview knows of an account's figure (lib/account-overview.ts AccountValue). */
+  // The balances kept from earlier reads (lib/kept-balances.ts), unless the user said no.
+  const kept = vault?.keepBalances === false ? undefined : vault?.keptBalances;
+
+  /**
+   * What the overview knows of an account's figure (lib/account-overview.ts
+   * AccountValue): this session's read, else the one kept from an earlier
+   * session — dated wherever it is shown, and replaced by the next read.
+   */
   const valueOf = (a: SerializedAccount): AccountValue => {
-    const acct = a.accountNumber;
-    if (isDepot(a)) {
-      const p = portfolios[acct];
-      if (p?.totalValue != null) return { state: 'known', cents: Math.round(p.totalValue * 100), currency: p.currency || 'EUR' };
-      // Read, but the bank stated no total: nothing to add, for good.
-      return p ? { state: 'never' } : { state: 'unread' };
-    }
-    const b = balances[acct];
-    if (b) return { state: 'known', cents: Math.round(b.balance * 100), currency: b.currency || a.currency || 'EUR' };
-    return canReportBalance(a) ? { state: 'missing', currency: a.currency || 'EUR' } : { state: 'never' };
+    const live = liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]);
+    const k = kept?.[a.accountNumber];
+    if (live.state === 'known' || live.state === 'never' || !k) return live;
+    return { state: 'known', cents: k.cents, currency: k.currency, kept: true };
+  };
+  const isKept = (a: SerializedAccount) => {
+    const v = valueOf(a);
+    return v.state === 'known' && !!v.kept;
   };
 
   const absent = banks.filter((b) => b.state === 'remembered').map((b) => b.bank.name);
@@ -126,8 +134,10 @@ export function AccountsOverview() {
     loggedOut.length > 0 && `${t.banks.state.loggedOut}: ${names(loggedOut)}`,
     absent.length > 0 && t.banks.notLoggedIn(namesList(absent)),
   ].filter(Boolean);
-  // What "Alle Salden abrufen" can still fetch: not a logged-out bank's.
-  const fetchable = [...figures.missing, ...unreadDepots].filter((a) => !gone(a));
+  // What "Alle Salden abrufen" can still fetch: not a logged-out bank's — and
+  // every figure shown from an earlier read, which a read of today replaces.
+  const stale = figures.counted.filter(isKept);
+  const fetchable = [...figures.missing, ...unreadDepots, ...stale].filter((a) => !gone(a));
   const busyTitle = busy ? (wait.open ? words.busyApproval : words.busyFetch) : undefined;
   const loadAll = () => {
     // The button gives way to the result: focus waits on the figure for it.
@@ -136,10 +146,14 @@ export function AccountsOverview() {
   };
 
   // "Stand": as fresh as the oldest figure the total is made of.
-  const readTimes = figures.counted.map((a) => (isDepot(a)
-    ? (portfolios[a.accountNumber] ? Date.parse(portfolios[a.accountNumber].readAt) : NaN)
-    : balanceAt[a.accountNumber] ?? NaN)).filter(Number.isFinite);
-  const stand = figures.total != null && readTimes.length ? t.transactions.pending.asOf(fmtSince(Math.min(...readTimes))) : null;
+  const readTimes = figures.counted.map((a) => (isKept(a)
+    ? Date.parse(kept?.[a.accountNumber]?.readAt ?? '')
+    : isDepot(a)
+      ? (portfolios[a.accountNumber] ? Date.parse(portfolios[a.accountNumber].readAt) : NaN)
+      : balanceAt[a.accountNumber] ?? NaN)).filter(Number.isFinite);
+  // The Gesamtsaldo's curve: one figure a day from the days every figure was known.
+  const curve = kept ? netWorthPoints(vault?.netWorth ?? [], isoDate(new Date())) : null;
+  const stand = figures.total != null && readTimes.length ? t.transactions.pending.asOf(sinceShort(Math.min(...readTimes))) : null;
   const bankCount = new Set([...accounts.map((a) => bankOf(a)?.key ?? 'primary'), ...banks.filter((b) => b.state === 'remembered').map((b) => b.key)]).size;
 
   const openArrange = () => {
@@ -209,15 +223,30 @@ export function AccountsOverview() {
       <div className="sm:flex sm:items-end sm:justify-between sm:gap-6">
         <div ref={figureRef} tabIndex={-1} aria-busy={loadingAllBalances || undefined} className="min-w-0 outline-none">
           {figures.total != null ? (
-            <p data-balance className={cx('leading-none', (privacy || figures.total >= 0) && 'text-headline')}>
-              <Money
-                value={figures.total / 100}
-                tone="auto"
-                split
-                className="text-[48px] leading-[56px] font-medium"
-                centsClassName="text-[0.58em]"
-              />
-            </p>
+            <div className="flex items-end justify-between gap-4">
+              <p data-balance className={cx('min-w-0 leading-none', (privacy || figures.total >= 0) && 'text-headline')}>
+                <Money
+                  value={figures.total / 100}
+                  tone="auto"
+                  split
+                  className="text-[48px] leading-[56px] font-medium"
+                  centsClassName="text-[0.58em]"
+                />
+              </p>
+              {/* The Gesamtsaldo's days, opened in place — as an account's sparkline opens its Kontoverlauf. */}
+              {curve && (
+                <button
+                  type="button"
+                  aria-expanded={curveOpen}
+                  aria-controls={curveId}
+                  aria-label={words.netWorth}
+                  onClick={() => setCurveOpen((o) => !o)}
+                  className="grid h-12 w-[112px] shrink-0 place-items-center rounded-full outline-offset-2 transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]"
+                >
+                  <Sparkline points={curve} />
+                </button>
+              )}
+            </div>
           ) : loadingAllBalances ? (
             <>
               <Skeleton className="mt-1 h-12 w-56 max-w-full rounded-[6px]" />
@@ -247,6 +276,24 @@ export function AccountsOverview() {
           {figures.total != null && excluded && (
             <p className="text-[14px] leading-5 text-ink-2" title={words.excludedHint}>{t.insights.without(excluded)}</p>
           )}
+          {/* Figures from an earlier read: the way to today's, on a phone (wider, the refresh at the chip row's end). */}
+          {figures.total != null && fetchable.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 sm:hidden">
+              <Button
+                variant="tertiary"
+                size="sm"
+                className="-ml-3"
+                iconLeft={<RefreshIcon size={16} />}
+                busy={loadingAllBalances}
+                disabled={busy}
+                title={busyTitle}
+                onClick={loadAll}
+              >
+                {words.loadAll}
+              </Button>
+              <span className="text-[14px] leading-5 text-ink-2">{t.common.mayNeedApproval}</span>
+            </div>
+          )}
         </div>
 
         {/* Vermögen and Verbindlichkeiten — once something is owed; otherwise the first is the Gesamtsaldo again. */}
@@ -263,6 +310,17 @@ export function AccountsOverview() {
           </dl>
         )}
       </div>
+
+      {curveOpen && curve && (
+        <figure id={curveId} className="mt-4">
+          <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4">
+            <span className="text-[14px] leading-5 font-medium text-ink">{words.netWorth}</span>
+            <span className="tnum text-[14px] leading-5 text-ink-2">{fmtRange(curve[0].date, curve[curve.length - 1].date)}</span>
+          </figcaption>
+          <BalanceChart points={curve} card={false} />
+          <p className="mt-1 text-[12px] leading-4 text-ink-2">{words.netWorthCaption}</p>
+        </figure>
+      )}
 
       {/* The kinds as filters; from 640px the grouping and "Alle Salden abrufen" at the row's end. */}
       <div className="-mx-4 mt-5 flex items-center gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:mt-6 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
@@ -336,6 +394,7 @@ export function AccountsOverview() {
                 entry={bankOf(a)}
                 badge={severalBanks}
                 value={valueOf(a)}
+                keptAt={kept?.[a.accountNumber]?.readAt ?? null}
                 last={lastBooking(txByAccount[a.accountNumber])}
                 loading={loadingNow(a)}
                 failed={!!(isDepot(a) ? portfolioErrors[a.accountNumber] : failureOf(a.accountNumber))}
@@ -441,13 +500,15 @@ function AccountGroupList({ group, grouping, entry, sum, render }: {
  * The whole row opens the account's page.
  */
 function AccountRow({
-  account: a, label, entry, badge, value, last, loading, failed, gone, busy, busyTitle, onOpen,
+  account: a, label, entry, badge, value, keptAt, last, loading, failed, gone, busy, busyTitle, onOpen,
 }: {
   account: SerializedAccount;
   label: string;
   entry: BankEntry | null;
   badge: boolean;
   value: AccountValue;
+  /** When a kept figure was read (ISO): said with it. */
+  keptAt: string | null;
   last: SerializedTransaction | null;
   loading: boolean;
   failed: boolean;
@@ -469,8 +530,13 @@ function AccountRow({
 
   // The figure, or what it waits for. A credit's or loan's balance is
   // negative by nature: ink, not the red of an overdrawn Girokonto.
+  // A figure kept from an earlier read: in the variant ink, with its "Stand".
+  const keptStand = value.state === 'known' && value.kept && keptAt ? t.transactions.pending.asOf(sinceShort(Date.parse(keptAt))) : null;
   const figure: ReactNode = value.state === 'known' ? (
-    <Money value={value.cents / 100} currency={value.currency} tone={kind === 'credit' || depot ? 'plain' : 'auto'} />
+    <span className={keptStand ? 'text-ink-2' : undefined} title={keptStand ?? undefined}>
+      <Money value={value.cents / 100} currency={value.currency} tone={kind === 'credit' || depot ? 'plain' : 'auto'} />
+      {keptStand && <span className="sr-only"> ({keptStand})</span>}
+    </span>
   ) : loading ? (
     <span className="inline-block py-0.5 align-middle">
       <Skeleton className="h-4 w-20 rounded-[4px]" />
@@ -490,6 +556,7 @@ function AccountRow({
   const available = bal?.availableAmount != null && Math.round(bal.availableAmount * 100) !== Math.round(bal.balance * 100)
     ? bal.availableAmount : null;
   const figureKind: ReactNode = value.state !== 'known' ? null
+    : keptStand ? <span aria-hidden>{keptStand}</span>
     : depot ? t.depot.total
       : kind === 'credit' ? (card ? t.insights.hero.cardBalance : words.loanBalance)
         : available != null ? <>{t.insights.available} <Money value={available} currency={bal?.currency} tone="plain" /></> : null;
@@ -643,6 +710,23 @@ function lastBooking(txs: readonly SerializedTransaction[] | undefined): Seriali
     }
   }
   return best ?? ahead;
+}
+
+/**
+ * When a figure was read, short enough for the line under the Gesamtsaldo:
+ * "14:02 Uhr" today, "gestern, 18:02 Uhr", "2.11., 18:02 Uhr" before.
+ */
+function sinceShort(ms: number): string {
+  const d = new Date(ms);
+  const time = msgs().shell.clock(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
+  const day = isoDate(d);
+  if (day === isoDate(new Date())) return time;
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const when = day === isoDate(yesterday)
+    ? msgs().format.yesterday.toLocaleLowerCase(intlLocale())
+    : new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'numeric' }).format(d);
+  return `${when}, ${time}`;
 }
 
 /** "Heute", "Gestern", "23.10." on a phone; "Fr., 23. Oktober" in the table. */

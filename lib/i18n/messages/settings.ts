@@ -33,6 +33,14 @@ export const de = {
     idle: 'Automatisch abmelden',
     device: 'Gerät merken',
   },
+  /** 6.0: balances read after the login (a device's choice), and the last ones kept in the vault (lib/kept-balances.ts). */
+  balances: {
+    atLogin: 'Salden beim Anmelden abrufen',
+    atLoginHint: 'Nach der Anmeldung liest Girovo jeden Saldo – das kann eine Freigabe erfordern.',
+    keep: 'Letzte Salden behalten',
+    keepHint: 'Die Übersicht zeigt sie gleich, mit ihrem Stand. Verschlüsselt auf diesem Rechner.',
+    deleted: 'Gespeicherte Salden gelöscht.',
+  },
   /**
    * Über Girovo → which releases the updater offers (components/settings/UpdateChannel.tsx;
    * the desktop app and the GitHub APK only). `stable` and `preview` are also the row's value.
@@ -73,6 +81,13 @@ export const en: typeof de = {
   find: {
     idle: 'Automatic logout',
     device: 'Remember this device',
+  },
+  balances: {
+    atLogin: 'Load balances when logging in',
+    atLoginHint: 'After logging in, Girovo loads every balance – this may need an approval.',
+    keep: 'Keep the last balances',
+    keepHint: 'The overview shows them straight away, with when they were loaded. Encrypted on this computer.',
+    deleted: 'Kept balances deleted.',
   },
   channel: {
     title: 'Update channel',

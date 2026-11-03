@@ -38,6 +38,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
+import { sanitizeKeptBalances, sanitizeNetWorth } from './kept-balances.ts';
 import type { TransferTemplate, VaultData, VaultGetResponse, VaultPutResponse } from './app-types.ts';
 import type { CategoryId } from './categories.ts';
 import type { SealedBox } from './crypto-box.ts';
@@ -241,6 +242,10 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
   const linkedBanks = sanitizeLinkedBanks(input.linkedBanks);
   const goals = sanitizeGoals(input.goals);
   const accountOrder = sanitizeAccountOrder(input.accountOrder, VAULT_LIMITS.accountKey);
+  // Switched off, nothing of them is kept, whatever the file says.
+  const keepBalances = input.keepBalances !== false;
+  const keptBalances = keepBalances ? sanitizeKeptBalances(input.keptBalances, VAULT_LIMITS.accountKey) : {};
+  const netWorth = keepBalances ? sanitizeNetWorth(input.netWorth) : [];
   return {
     version: 1,
     templates: templates(input.templates),
@@ -272,6 +277,10 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     // "Konten anordnen" (lib/account-overview.ts): account keys each once, and one of the three groupings.
     ...(accountOrder.length ? { accountOrder } : {}),
     ...(isGrouping(input.accountGrouping) ? { accountGrouping: input.accountGrouping } : {}),
+    // The last balances and the daily figures (lib/kept-balances.ts), unless switched off.
+    ...(Object.keys(keptBalances).length ? { keptBalances } : {}),
+    ...(netWorth.length ? { netWorth } : {}),
+    ...(keepBalances ? {} : { keepBalances: false as const }),
     updatedAt: iso(input.updatedAt) ?? EMPTY_VAULT.updatedAt,
   };
 }
@@ -537,6 +546,11 @@ export function mergeVaults(current: VaultData, backup: VaultData): VaultData {
     // How the accounts are arranged is this computer's while it says anything; else the backup's.
     ...(current.accountOrder || !backup.accountOrder ? {} : { accountOrder: backup.accountOrder }),
     ...(current.accountGrouping || !backup.accountGrouping ? {} : { accountGrouping: backup.accountGrouping }),
+    // The newest read of each account, and every day either of them knows — unless this computer said no.
+    ...(current.keepBalances === false ? {} : {
+      keptBalances: { ...(backup.keptBalances ?? {}), ...(current.keptBalances ?? {}) },
+      netWorth: [...(backup.netWorth ?? []), ...(current.netWorth ?? [])],
+    }),
   };
   return sanitizeVault(merged) ?? current;
 }

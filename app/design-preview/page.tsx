@@ -389,6 +389,10 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Konten anordnen', group: 'Dashboard', options: { allBalances: true, depot: true, secondBank: 'linked' }, script: openArrange,
   },
   'overview-account': { label: 'Ein Konto, aus allen Konten geöffnet', group: 'Dashboard', options: { accountOpen: true } },
+  // 6.0: yesterday's balances kept, today's read only for the Girokonto; the net-worth curve.
+  'overview-kept': {
+    label: 'Alle Konten mit gespeicherten Salden', group: 'Dashboard', options: { kept: true, depot: true, secondBank: 'linked' },
+  },
   'overview-balances': { label: 'Alle Salden abgerufen', group: 'Dashboard', script: fetchAllBalances },
   'overview-balances-error': {
     label: 'Saldenabruf fehlgeschlagen', group: 'Dashboard', options: { fail: true }, script: fetchAllBalances,

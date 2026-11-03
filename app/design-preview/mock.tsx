@@ -179,6 +179,12 @@ export type MockOptions = {
    * figure, as in the issue #19 mock.
    */
   allBalances?: boolean;
+  /**
+   * The vault keeps every account's balance from yesterday evening and three
+   * months of the overview's daily figures (lib/kept-balances.ts): the
+   * overview opens with every figure, dated, and the net-worth curve.
+   */
+  kept?: boolean;
   /** Every statement load and balance enquiry from now on fails (read live). */
   fail?: boolean;
   /** The Umsätze list's narrowing beyond the search: a month chip, a category. */
@@ -475,6 +481,38 @@ function mockList(
   };
 }
 
+/**
+ * What the vault keeps with `kept`: every account's balance as read
+ * yesterday at 18:02, and the overview's figures for each of the last 90
+ * days but today — a gentle walk up to yesterday's total.
+ */
+function balancesKeptAtStart(data: MockData, opts: MockOptions): Pick<VaultData, 'keptBalances' | 'netWorth'> {
+  const yesterday = addDaysKey(data.today, -1);
+  const readAt = new Date(`${yesterday}T18:02:00`).toISOString();
+  const accounts = [
+    ...data.accounts,
+    ...(opts.depot ? [MOCK_DEPOT] : []),
+    ...(opts.secondBank ? data.second.accounts : []),
+  ];
+  const keptBalances: VaultData['keptBalances'] = {};
+  for (const a of accounts) {
+    const cents = a.accountNumber === MOCK_DEPOT.accountNumber
+      ? Math.round((mockPortfolio(data.today).totalValue ?? 0) * 100)
+      : Math.round(data.balance(a.accountNumber).balance * 100);
+    keptBalances[a.accountNumber] = { cents, currency: 'EUR', readAt };
+  }
+  const values = Object.values(keptBalances).map((k) => k.cents);
+  const assets = values.filter((c) => c >= 0).reduce((s, c) => s + c, 0);
+  const liabilities = values.filter((c) => c < 0).reduce((s, c) => s + c, 0);
+  const netWorth: NonNullable<VaultData['netWorth']> = [];
+  for (let i = 90; i >= 1; i--) {
+    // Salary at the start of each month, spending in between; the last day is yesterday's figures.
+    const drift = Math.round((i * 2900) - (i % 30) * 4100 + Math.sin(i / 3) * 18_000);
+    netWorth.push({ day: addDaysKey(data.today, -i), total: assets + liabilities - (i === 1 ? 0 : drift), assets: assets - (i === 1 ? 0 : drift), liabilities });
+  }
+  return { keptBalances, netWorth };
+}
+
 /** Everything a preset decides about the first frame. */
 function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
   const range = startRange(data, preset, opts.range);
@@ -542,6 +580,7 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
     ...(opts.personal ? data.personal : {}),
     ...(opts.categoryRules ? { categoryRules: opts.categoryRules } : {}),
     ...(opts.budgets ? { budgets: data.budgets } : {}),
+    ...(opts.kept && !opts.oneAccount ? balancesKeptAtStart(data, opts) : {}),
   };
   return {
     range: kept ? spanOf(ACCT.giro, range) : range,
@@ -700,6 +739,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [privacy, setPrivacy] = useState(opts.privacy ?? false);
   const [idleMinutes, setIdleMinutesState] = useState<IdleMinutes>(DEFAULT_IDLE_MINUTES);
   const [singleKeyShortcuts, setSingleKeyShortcuts] = useState(true);
+  // As the provider: "Salden beim Anmelden abrufen", off until switched on (a preview reads nothing on its own).
+  const [balancesAtLogin, setBalancesAtLogin] = useState(false);
   const [logoConsent, setLogoConsentState] = useState<LogoConsent>(() => (
     opts.logos && opts.logos !== 'unavailable' ? opts.logos : loggedIn ? 'off' : 'unasked'
   ));
@@ -2595,6 +2636,22 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     });
   }, [updateVault]);
 
+  // As the provider: off deletes what is kept.
+  const setKeepBalances = useCallback((on: boolean) => {
+    updateVault((v) => {
+      if (on) {
+        if (v.keepBalances !== false) return v;
+        const rest = { ...v };
+        delete rest.keepBalances;
+        return rest;
+      }
+      const rest = { ...v };
+      delete rest.keptBalances;
+      delete rest.netWorth;
+      return { ...rest, keepBalances: false };
+    });
+  }, [updateVault]);
+
   const arrangeAccounts = useCallback((next: { order?: readonly string[]; grouping?: AccountGrouping }) => {
     updateVault((v) => {
       let out = v;
@@ -2820,7 +2877,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     historyStatus,
     historyCoverage,
     savedRange,
-    privacy, idleMinutes, singleKeyShortcuts,
+    privacy, idleMinutes, singleKeyShortcuts, balancesAtLogin,
     logoConsent,
     sessionStartedAt, idleDeadline,
     tab, settingsTarget, txFilter, txFocusNonce, accountOpen,
@@ -2837,14 +2894,14 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
     requestLogout, closeLogoutConfirm, setForgetDeviceOpen,
     retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
-    togglePrivacy, setIdleMinutes, setSingleKeyShortcuts,
+    togglePrivacy, setIdleMinutes, setSingleKeyShortcuts, setBalancesAtLogin,
     setLogoConsent,
     setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions,
     setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue, openShareAll, closeShareAll,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
-    updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts,
+    updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
     setKeepBookings, resetHistory, applySavedRange,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     printTaxYear, loadRange,
