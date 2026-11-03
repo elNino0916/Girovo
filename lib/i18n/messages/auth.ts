@@ -106,6 +106,21 @@ export const de = {
     statusMany: (n: number, atLeast: boolean) => `${atLeast ? `Mindestens ${n}` : n} Banken gefunden.`,
   },
 
+  /**
+   * 6.0: Girovo without a bank (components/demo) — the design preview's
+   * made-up bank, accounts and Umsätze; nothing reaches a bank, nothing is kept.
+   */
+  demo: {
+    /** Under the bank search. */
+    start: 'Ohne Bank ausprobieren',
+    startHint: 'Mit ausgedachten Konten und Umsätzen. Nichts geht an eine Bank.',
+    /** On every screen of the demo. */
+    banner: 'Demo: ausgedachte Konten',
+    end: 'Demo beenden',
+    /** The same, where the banner is narrow (a phone). */
+    endShort: 'Beenden',
+  },
+
   /** Step two: the online-banking credentials (components/auth/Credentials.tsx). */
   credentials: {
     /** The heading and the submit button. */
@@ -474,6 +489,14 @@ export const en: typeof de = {
     statusIbanBank: (name, blz) => `The bank for your IBAN: ${name}, BLZ ${blz}`,
     statusOne: (name, blz) => `1 bank found: ${name}, BLZ ${blz}`,
     statusMany: (n, atLeast) => `${atLeast ? `At least ${n}` : n} banks found.`,
+  },
+
+  demo: {
+    start: 'Try it without a bank',
+    startHint: 'With made-up accounts and transactions. Nothing goes to a bank.',
+    banner: 'Demo: made-up accounts',
+    end: 'End demo',
+    endShort: 'End',
   },
 
   credentials: {

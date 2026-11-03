@@ -41,6 +41,11 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   the language (1.234,56 € / €1,234.56). What your bank sends — its messages,
   answers and Verwendungszwecke — is shown as the bank wrote it, and the CSV
   export stays in the German Excel dialect either way.
+- **Ohne Bank ausprobieren** (6.0) — under the bank search, a demo with a
+  made-up bank, accounts and Umsätze: approvals, transfers and the rest are
+  simulated, nothing reaches a bank and nothing is kept (the design preview's
+  stand-in for the provider, `app/design-preview/mock.tsx`, loaded only then).
+  A banner says it is a demo; *Beenden*, *Abmelden* or a reload end it.
 - **Finanzübersicht** in Material 3 Expressive (the phone has a layout of its
   own, see [Android app](#android-app)); on the desktop a top app bar naming the page, the navigation rail with
   *Überweisen* as its floating button, *Konten und Karten* with a Gesamtsaldo that appears once every

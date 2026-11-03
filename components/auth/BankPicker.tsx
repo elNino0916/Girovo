@@ -25,7 +25,8 @@ import { IS_ANDROID } from '@/lib/platform';
 import { BankLogo } from '../BankLogo';
 import type { BankSearchHit, ChosenBank } from '../FintsProvider';
 import { CloseIcon, SearchIcon } from '../icons';
-import { Alert, IconButton, Input, Skeleton, Spinner, cx } from '../ui';
+import { Alert, Button, IconButton, Input, Skeleton, Spinner, cx } from '../ui';
+import { startDemo } from '../demo/demo-mode';
 import { PrivacyNote } from './AuthShell';
 import { LoginHelp } from './LoginHelp';
 import { fmtBlz } from './format';
@@ -104,6 +105,7 @@ export function BankPicker({
 }) {
   const uid = useId();
   const tr = useT().auth.bankPicker;
+  const demoWords = useT().auth.demo;
   const inputId = `banksearch${uid}`;
   const listId = `${inputId}-list`;
   const optId = (i: number) => `${inputId}-opt-${i}`;
@@ -412,6 +414,14 @@ export function BankPicker({
       )}
 
       <LoginHelp step="bank" />
+
+      {/* 6.0: a look around first, with a made-up bank (components/demo). */}
+      <div className="mt-2">
+        <Button variant="tertiary" size="sm" className="-ml-2" onClick={startDemo}>
+          {demoWords.start}
+        </Button>
+        <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{demoWords.startHint}</p>
+      </div>
 
       <PrivacyNote />
     </>

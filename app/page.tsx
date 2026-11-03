@@ -10,11 +10,25 @@ import { Statement } from '@/components/Statement';
 import { UpdateLayer } from '@/components/updates/UpdateNotices';
 import { TelemetryErrors } from '@/components/telemetry/TelemetryErrors';
 import { trackUsage } from '@/components/telemetry/usage';
-import { useEffect } from 'react';
+import { useDemo } from '@/components/demo/demo-mode';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
+
+// Girovo without a bank (components/demo): loaded only when the demo starts.
+const DemoProvider = lazy(() => import('@/components/demo/DemoProvider'));
 
 export default function Page() {
+  const demo = useDemo();
+  const app = <AppLayers />;
+  // The demo is another session altogether: the real provider unmounts (it
+  // sat at the login screen) and comes back fresh when the demo ends.
+  return demo
+    ? <Suspense fallback={null}><DemoProvider>{app}</DemoProvider></Suspense>
+    : <FintsProvider>{app}</FintsProvider>;
+}
+
+function AppLayers(): ReactNode {
   return (
-    <FintsProvider>
+    <>
       {/* Only the printable Kontoauszug/receipt sheet should reach paper —
           everything else is app chrome that a PDF export shouldn't include.
           Every interactive layer therefore lives in here: the dashboard
@@ -32,7 +46,7 @@ export default function Page() {
         <TelemetryErrors />
       </div>
       <Statement />
-    </FintsProvider>
+    </>
   );
 }
 
