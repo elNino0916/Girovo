@@ -43,6 +43,8 @@ import { ShortcutsHelp } from './ShortcutsHelp';
 import { cx } from './ui';
 import { useShellActions } from './shell/actions';
 import { PAGE_TITLE_ID } from './shell/ids';
+import { useSplitOverview } from './shell/useWide';
+import { useT } from '@/lib/i18n/react';
 import { useGlobalShortcuts } from './shell/useShortcuts';
 import { Masthead } from './shell/Masthead';
 import { BottomBar } from './shell/BottomBar';
@@ -60,11 +62,13 @@ export function Dashboard() {
   useLaunches(actions);
   const scrollRef = useRef<HTMLDivElement>(null);
   // The Übersicht starts on every account once there is more than one
-  // (issue #19); an account's page is a level below it.
-  const allAccounts = tab === 'overview' && !accountOpen && (accounts.length > 1 || banks.length > 1);
+  // (issue #19); an account's page is a level below it — or, from 1280px,
+  // beside it (SplitOverview).
+  const split = useSplitOverview();
+  const allAccounts = tab === 'overview' && !split && !accountOpen && (accounts.length > 1 || banks.length > 1);
   // Zahlungen has a level below too: the bank's orders (6.0).
   const orders = tab === 'contracts' && ordersOpen;
-  const place = allAccounts ? 'accounts' : orders ? 'orders' : tab;
+  const place = split ? 'split' : allAccounts ? 'accounts' : orders ? 'orders' : tab;
 
   // A tab is a new page, and so is each level of the Übersicht: it starts at
   // its top. Focus the control that led here had is gone with the old page:
@@ -101,15 +105,16 @@ export function Dashboard() {
           id="main"
           className={cx(
             'relative mx-auto w-full px-4 pt-2 pb-6 sm:pb-12',
-            // The Übersicht is one column under the search bar, as wide as it (Masthead, SEARCH_EDGES).
-            tab === 'overview' ? 'max-w-[960px]' : 'max-w-[1280px] sm:px-6',
+            // The Übersicht is one column under the search bar, as wide as it (Masthead, SEARCH_EDGES) —
+            // the wider column of the two panes side by side (SPLIT_SEARCH_EDGES).
+            tab === 'overview' ? (split ? 'max-w-[1360px] sm:px-6' : 'max-w-[960px]') : 'max-w-[1280px] sm:px-6',
             // No navigation bar under Einstellungen on a phone: the page's end clears the gesture bar itself.
             tab === 'settings' && 'max-sm:pb-[calc(env(safe-area-inset-bottom,0px)+32px)]',
           )}
         >
           {/* Keyed by the place, so each opens with Material's fade-through (app/android.css). */}
           <div key={place} data-place>
-            {tab === 'overview' && (allAccounts ? <AccountsOverview /> : <Overview />)}
+            {tab === 'overview' && (split ? <SplitOverview /> : allAccounts ? <AccountsOverview /> : <Overview />)}
             {tab === 'analysis' && <Analysis />}
             {tab === 'contracts' && (orders ? <OrdersPage /> : <Contracts />)}
             {tab === 'settings' && <Settings />}
@@ -164,6 +169,31 @@ function Overview() {
       <Slot name="transactions">
         {depot ? <Portfolio /> : <Transactions />}
       </Slot>
+    </div>
+  );
+}
+
+/**
+ * The Übersicht side by side (6.0, the owner's pick from the mock
+ * .impeccable/mocks/issue-19/desktop-nebeneinander.png): from 1280px with
+ * more than one account, every account in a pane on the left — sticky, with
+ * its own scroll, the open one marked — and that account's page beside it.
+ * A press on a row changes the page beside; there is nothing to go back to.
+ */
+function SplitOverview() {
+  const t = useT();
+  return (
+    <div className="grid grid-cols-[420px_minmax(0,1fr)] gap-x-10">
+      <aside
+        aria-label={t.insights.accounts.title}
+        // Bled out by the rows' 16px so the scroll box does not clip them, and back in by as much.
+        className="sticky top-0 -ml-4 max-h-[calc(100dvh_-_var(--barbar-h))] min-w-0 self-start overflow-y-auto overscroll-contain border-r border-line pr-6 pb-6 pl-4 [scrollbar-width:thin]"
+      >
+        <AccountsOverview pane />
+      </aside>
+      <div className="min-w-0">
+        <Overview />
+      </div>
     </div>
   );
 }

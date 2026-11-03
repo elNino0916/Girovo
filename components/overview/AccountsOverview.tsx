@@ -47,12 +47,20 @@ import { BalanceChart, Sparkline } from './BalanceChart';
  * fetches the rest, Depots included. A row opens its account's page, where
  * a figure that failed says why.
  */
-export function AccountsOverview() {
+export function AccountsOverview({ pane = false }: {
+  /**
+   * The left pane of the Übersicht side by side (from 1280px, Dashboard
+   * SplitOverview): the figure as a lead, compact rows with each account's
+   * last booking, the open account marked — no table, no back and forth.
+   */
+  pane?: boolean;
+} = {}) {
   const {
     accounts, balances, balanceAt, portfolios, portfolioLoading, portfolioErrors, txByAccount,
     banks, bankOf, logoFiles, accountLabel, privacy, togglePrivacy, busy, wait,
     loadAllBalances, loadingAllBalances, loadBalance, selectAccount, isLoadedForAppliedRange,
     txErrors, balanceErrors, loadingAccount, balanceLoading, vault, vaultStatus, openAddBank, arrangeAccounts,
+    activeAccount,
   } = useFints();
   const t = useT();
   const words = t.insights.accounts;
@@ -184,7 +192,7 @@ export function AccountsOverview() {
         <div className="flex shrink-0 items-center gap-1">
           <IconButton
             size="md"
-            className="sm:hidden"
+            className={pane ? undefined : 'sm:hidden'}
             aria-label={words.arrange}
             aria-haspopup="dialog"
             aria-describedby={noteOpen ? noteId : undefined}
@@ -195,7 +203,7 @@ export function AccountsOverview() {
           <Button
             variant="tertiary"
             size="sm"
-            className="max-sm:hidden"
+            className={pane ? 'hidden' : 'max-sm:hidden'}
             iconLeft={<SwapVertIcon size={18} />}
             aria-haspopup="dialog"
             aria-describedby={noteOpen ? noteId : undefined}
@@ -220,7 +228,7 @@ export function AccountsOverview() {
         </Alert>
       )}
 
-      <div className="sm:flex sm:items-end sm:justify-between sm:gap-6">
+      <div className={pane ? undefined : 'sm:flex sm:items-end sm:justify-between sm:gap-6'}>
         <div ref={figureRef} tabIndex={-1} aria-busy={loadingAllBalances || undefined} className="min-w-0 outline-none">
           {figures.total != null ? (
             <div className="flex items-end justify-between gap-4">
@@ -229,7 +237,8 @@ export function AccountsOverview() {
                   value={figures.total / 100}
                   tone="auto"
                   split
-                  className="text-[48px] leading-[56px] font-medium"
+                  // In the pane a lead (36), so the open account's balance beside it stays the larger figure.
+                  className={pane ? 'text-[36px] leading-[44px] font-medium' : 'text-[48px] leading-[56px] font-medium'}
                   centsClassName="text-[0.58em]"
                 />
               </p>
@@ -278,7 +287,7 @@ export function AccountsOverview() {
           )}
           {/* Figures from an earlier read: the way to today's, on a phone (wider, the refresh at the chip row's end). */}
           {figures.total != null && fetchable.length > 0 && (
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 sm:hidden">
+            <div className={cx('mt-1 flex flex-wrap items-center gap-x-3', !pane && 'sm:hidden')}>
               <Button
                 variant="tertiary"
                 size="sm"
@@ -298,7 +307,7 @@ export function AccountsOverview() {
 
         {/* Vermögen and Verbindlichkeiten — once something is owed; otherwise the first is the Gesamtsaldo again. */}
         {figures.total != null && figures.liabilities != null && figures.liabilities < 0 && (
-          <dl className="mt-4 flex gap-10 sm:mt-0 sm:mb-1 sm:shrink-0 sm:gap-12">
+          <dl className={pane ? 'mt-3 flex gap-8' : 'mt-4 flex gap-10 sm:mt-0 sm:mb-1 sm:shrink-0 sm:gap-12'}>
             <div>
               <dt className="text-[14px] leading-5 text-ink-2">{words.assets}</dt>
               <dd><Money value={(figures.assets ?? 0) / 100} tone="plain" className="text-[16px] leading-6 font-medium text-ink" /></dd>
@@ -325,7 +334,7 @@ export function AccountsOverview() {
       {/* The kinds as filters; from 640px the grouping and "Alle Salden abrufen" at the row's end. */}
       <div className="-mx-4 mt-5 flex items-center gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:mt-6 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
         {kinds.length > 1 && (
-          <div role="group" aria-label={words.filterLabel} className="flex shrink-0 gap-2 sm:flex-wrap">
+          <div role="group" aria-label={words.filterLabel} className={pane ? 'flex min-w-0 flex-wrap gap-2' : 'flex shrink-0 gap-2 sm:flex-wrap'}>
             <FilterChip selected={!shownFilter} onClick={() => setFilter(null)}>{words.all}</FilterChip>
             {kinds.map((k) => (
               <FilterChip key={k} selected={shownFilter === k} onClick={() => setFilter(shownFilter === k ? null : k)}>
@@ -334,51 +343,58 @@ export function AccountsOverview() {
             ))}
           </div>
         )}
-        <div className="flex-1 max-sm:hidden" />
-        <Menu
-          label={words.grouping}
-          placement="bottom-end"
-          minWidth={200}
-          trigger={(p) => (
-            <FilterChip {...p} menu className="max-sm:hidden">{words.groupings[grouping]}</FilterChip>
-          )}
-        >
-          {GROUPING_ORDER.map((g) => (
-            <MenuItemRadio
-              key={g}
-              checked={grouping === g}
-              onSelect={() => {
-                if (vaultStatus !== 'ready') setNoteOpen(true);
-                else arrangeAccounts({ grouping: g });
-              }}
+        {/* The pane has the grouping in "Konten anordnen" and the read under the figure. */}
+        {!pane && (
+          <>
+            <div className="flex-1 max-sm:hidden" />
+            <Menu
+              label={words.grouping}
+              placement="bottom-end"
+              minWidth={200}
+              trigger={(p) => (
+                <FilterChip {...p} menu className="max-sm:hidden">{words.groupings[grouping]}</FilterChip>
+              )}
             >
-              {words.groupings[g]}
-            </MenuItemRadio>
-          ))}
-        </Menu>
-        {fetchable.length > 0 && (
-          <IconButton
-            size="md"
-            className="-mr-2 max-sm:hidden"
-            aria-label={words.loadAll}
-            title={busyTitle ?? `${words.loadAll} – ${t.common.mayNeedApproval}`}
-            disabled={busy}
-            onClick={loadAll}
-          >
-            <RefreshIcon size={20} />
-          </IconButton>
+              {GROUPING_ORDER.map((g) => (
+                <MenuItemRadio
+                  key={g}
+                  checked={grouping === g}
+                  onSelect={() => {
+                    if (vaultStatus !== 'ready') setNoteOpen(true);
+                    else arrangeAccounts({ grouping: g });
+                  }}
+                >
+                  {words.groupings[g]}
+                </MenuItemRadio>
+              ))}
+            </Menu>
+            {fetchable.length > 0 && (
+              <IconButton
+                size="md"
+                className="-mr-2 max-sm:hidden"
+                aria-label={words.loadAll}
+                title={busyTitle ?? `${words.loadAll} – ${t.common.mayNeedApproval}`}
+                disabled={busy}
+                onClick={loadAll}
+              >
+                <RefreshIcon size={20} />
+              </IconButton>
+            )}
+          </>
         )}
       </div>
 
       {/* The table's heads, from 640px; the rows say the same to a screen reader. */}
-      <div aria-hidden className={cx(TABLE, 'px-5 pt-5 pb-1 text-[12px] leading-4 font-medium text-ink-2 max-sm:hidden sm:-mx-5')}>
-        <span className="col-span-2">{words.columns.account}</span>
-        <span>{words.columns.last}</span>
-        <span className="text-right">{words.columns.balance}</span>
-        <span />
-      </div>
+      {!pane && (
+        <div aria-hidden className={cx(TABLE, 'px-5 pt-5 pb-1 text-[12px] leading-4 font-medium text-ink-2 max-sm:hidden sm:-mx-5')}>
+          <span className="col-span-2">{words.columns.account}</span>
+          <span>{words.columns.last}</span>
+          <span className="text-right">{words.columns.balance}</span>
+          <span />
+        </div>
+      )}
 
-      <div className="-mx-4 sm:-mx-5">
+      <div className={pane ? '-mx-4 pt-1' : '-mx-4 sm:-mx-5'}>
         {groups.map((g) => (
           <AccountGroupList
             key={g.key}
@@ -386,6 +402,7 @@ export function AccountsOverview() {
             grouping={grouping}
             entry={grouping === 'bank' ? banks.find((b) => b.key === g.key) ?? null : null}
             sum={groupSum(g.accounts, valueOf)}
+            pane={pane}
             render={(a) => (
               <AccountRow
                 key={a.accountNumber}
@@ -401,6 +418,8 @@ export function AccountsOverview() {
                 gone={gone(a)}
                 busy={busy}
                 busyTitle={busyTitle}
+                pane={pane}
+                selected={pane && activeAccount?.accountNumber === a.accountNumber}
                 onOpen={() => open(a)}
               />
             )}
@@ -418,7 +437,7 @@ export function AccountsOverview() {
       </div>
 
       {/* The footing, from 640px: the Gesamtsaldo under a rule, as a statement sums up. */}
-      {figures.total != null && !shownFilter && (
+      {figures.total != null && !shownFilter && !pane && (
         <div className={cx(TABLE_FOOT, 'mt-2 border-t border-line pt-3 max-sm:hidden')}>
           <span className="text-[16px] leading-[22px] font-medium text-ink">{words.total}</span>
           <Money value={figures.total / 100} tone="auto" className="text-right text-[16px] leading-[22px] font-medium" />
@@ -451,11 +470,12 @@ const TABLE = 'grid grid-cols-[40px_minmax(0,1fr)_minmax(0,300px)_180px_24px] it
 const TABLE_FOOT = 'grid grid-cols-[minmax(0,1fr)_180px_24px] items-baseline gap-x-4';
 
 /** A group's head and its rows: a kind or a bank with its sum, or the rows alone. */
-function AccountGroupList({ group, grouping, entry, sum, render }: {
+function AccountGroupList({ group, grouping, entry, sum, pane, render }: {
   group: AccountGroup<SerializedAccount>;
   grouping: AccountGrouping;
   entry: BankEntry | null;
   sum: number | null;
+  pane: boolean;
   render: (a: SerializedAccount) => ReactNode;
 }) {
   const t = useT();
@@ -465,7 +485,10 @@ function AccountGroupList({ group, grouping, entry, sum, render }: {
   return (
     <section aria-labelledby={title ? headId : undefined} aria-label={title ? undefined : t.common.account.accounts}>
       {title && grouping !== 'none' && (
-        <div className="flex items-baseline gap-x-4 px-4 pt-4 pb-1 sm:grid sm:grid-cols-[minmax(0,1fr)_180px_24px] sm:px-5 sm:pt-[18px]">
+        <div className={pane
+          ? 'flex items-baseline justify-between gap-x-4 px-4 pt-3 pb-1'
+          : 'flex items-baseline gap-x-4 px-4 pt-4 pb-1 sm:grid sm:grid-cols-[minmax(0,1fr)_180px_24px] sm:px-5 sm:pt-[18px]'}
+        >
           <h3 id={headId} className="flex min-w-0 flex-1 items-center gap-2 text-[14px] leading-5 font-medium text-ink-2">
             {entry && <BankLogo brand={entry.bank.brand} size="sm" file={logoFiles[entry.bank.brand]} />}
             <span className="min-w-0 truncate">{title}</span>
@@ -500,8 +523,11 @@ function AccountGroupList({ group, grouping, entry, sum, render }: {
  * The whole row opens the account's page.
  */
 function AccountRow({
-  account: a, label, entry, badge, value, keptAt, last, loading, failed, gone, busy, busyTitle, onOpen,
+  account: a, label, entry, badge, value, keptAt, last, loading, failed, gone, busy, busyTitle, pane = false, selected = false, onOpen,
 }: {
+  /** The pane's compact row (AccountsOverview `pane`), the open account marked. */
+  pane?: boolean;
+  selected?: boolean;
   account: SerializedAccount;
   label: string;
   entry: BankEntry | null;
@@ -574,6 +600,51 @@ function AccountRow({
   const lastName = last ? txText(last).name : '';
   const lastAmount = last ? <Money value={last.amount} currency={last.currency} signed tone="credit" /> : null;
   const depotNote = depot && portfolio ? t.depot.asOf(new Intl.DateTimeFormat(intlLocale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(portfolio.readAt))) : null;
+
+  if (pane) {
+    // The pane's row: kind, name over the last booking (else the end of its number), figure.
+    // The open account in Material's selected list item: the secondary container, round.
+    const meta = selected ? 'text-[var(--md-on-secondary-container)]' : 'text-ink-2';
+    return (
+      <li>
+        <button
+          type="button"
+          data-account-row={acct}
+          onClick={onOpen}
+          aria-current={selected || undefined}
+          aria-disabled={busy || undefined}
+          title={busyTitle}
+          style={selected ? { ['--disc-ring' as string]: 'var(--md-secondary-container)' } : undefined}
+          className={cx(
+            'row-focus group grid min-h-[60px] w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[16px] px-4 py-2 text-left transition-colors duration-150',
+            selected
+              ? 'bg-[var(--md-secondary-container)] text-[var(--md-on-secondary-container)]'
+              : 'text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]',
+            busy ? 'cursor-progress' : 'cursor-pointer',
+          )}
+        >
+          <AccountDisc account={a} entry={badge ? entry : null} logoFile={entry ? logoFiles[entry.bank.brand] : undefined} selected={selected} />
+          <span className="min-w-0">
+            <span className="block truncate text-[16px] leading-[22px] font-medium">{label}</span>
+            <span className={cx('block truncate text-[14px] leading-5', meta)}>
+              {last ? (
+                <>
+                  <span className="sr-only">{words.columns.last}: </span>
+                  {lastName} · {lastWhen}
+                </>
+              ) : depotNote ?? (
+                <>
+                  {bank}
+                  {short && <> · <span className={idClass}>{short}</span></>}
+                </>
+              )}
+            </span>
+          </span>
+          <span className="text-right text-[16px] leading-[22px] font-medium">{figure}</span>
+        </button>
+      </li>
+    );
+  }
 
   return (
     <li>
@@ -650,17 +721,27 @@ function AccountRow({
  * ink) — and, with accounts at more than one bank, the bank's mark on its
  * edge: a compact logo on its white plate, else the brand's chip.
  */
-function AccountDisc({ account, entry, logoFile, className }: {
-  account: SerializedAccount; entry: BankEntry | null; logoFile?: string; className?: string;
+function AccountDisc({ account, entry, logoFile, selected = false, className }: {
+  account: SerializedAccount; entry: BankEntry | null; logoFile?: string; selected?: boolean; className?: string;
 }) {
   return (
-    <span aria-hidden className={cx('relative grid size-10 shrink-0 place-items-center rounded-full bg-inset text-ink-2', className)}>
+    <span
+      aria-hidden
+      className={cx(
+        'relative grid size-10 shrink-0 place-items-center rounded-full',
+        // On the selected row's container the disc is a tint of its ink, as Material's selected list item draws it.
+        selected
+          ? 'bg-[color-mix(in_srgb,var(--md-on-secondary-container)_12%,transparent)] text-[var(--md-on-secondary-container)]'
+          : 'bg-inset text-ink-2',
+        className,
+      )}
+    >
       <AccountTypeIcon type={account.accountType} product={account.product} size={20} />
       {entry && (
         <BankMark
           entry={entry}
           logoFile={logoFile}
-          className="absolute -right-[3px] -bottom-[3px] size-[18px] rounded-full shadow-[0_0_0_2px_var(--paper)]"
+          className="absolute -right-[3px] -bottom-[3px] size-[18px] rounded-full shadow-[0_0_0_2px_var(--disc-ring,var(--paper))]"
         />
       )}
     </span>

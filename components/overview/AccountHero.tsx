@@ -449,8 +449,9 @@ function AccountHead({ account, label }: { account: SerializedAccount; label: st
   const ident = accountIdent(account);
   return (
     <div className="min-w-0">
-      <div className="-mr-2 -ml-3 flex min-h-12 items-center gap-1 max-sm:hidden">
-        <IconButton size="md" aria-label={t.insights.accounts.back} onClick={closeAccount}>
+      {/* From 1280px every account stands beside this page (Dashboard SplitOverview): no way back to show. */}
+      <div className="-mr-2 -ml-3 flex min-h-12 items-center gap-1 max-sm:hidden xl:ml-0">
+        <IconButton size="md" aria-label={t.insights.accounts.back} onClick={closeAccount} className="xl:hidden">
           <BackIcon size={22} />
         </IconButton>
         <p className="min-w-0 flex-1 truncate text-[16px] leading-6 font-medium text-ink">{label}</p>

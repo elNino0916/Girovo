@@ -38,7 +38,8 @@ import { useAskable } from '../insights/Ask';
 import { unseenUpdate, useUpdates } from '../updates/store';
 import { BackIcon, BellIcon, EyeIcon, EyeOffIcon, GeminiSparkIcon, SearchIcon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
-import { MASTHEAD_EDGES, SEARCH_EDGES } from './edges';
+import { MASTHEAD_EDGES, SEARCH_EDGES, SPLIT_SEARCH_EDGES } from './edges';
+import { useSplitOverview } from './useWide';
 import { PAGE_TITLE_ID } from './ids';
 import { ProfileMenu } from './ProfileMenu';
 import { usePhone } from './usePhone';
@@ -120,8 +121,10 @@ export function Masthead() {
   const phoneAccount = phone && accountPage;
   // The bank's orders, a level below Zahlungen (6.0): the way back at every width — the rail has no other.
   const ordersPage = tab === 'contracts' && ordersOpen;
-  // The Übersicht: the search bar in place of the title and actions.
+  // The Übersicht: the search bar in place of the title and actions — over
+  // the wider column when every account stands beside the open one.
   const searchHead = tab === 'overview' && !phoneAccount;
+  const split = useSplitOverview();
   // A newer version of the app (desktop only) waits in Mitteilungen too. The
   // number counts the bank's messages only; the app's own news is marked by
   // the dot alone, so it never reads as one more message from the bank.
@@ -147,7 +150,7 @@ export function Masthead() {
   return (
     <div
       data-topbar
-      className={cx('on-bar relative z-40 shrink-0 bg-bar text-bar-ink', searchHead ? SEARCH_EDGES : MASTHEAD_EDGES)}
+      className={cx('on-bar relative z-40 shrink-0 bg-bar text-bar-ink', searchHead ? (split ? SPLIT_SEARCH_EDGES : SEARCH_EDGES) : MASTHEAD_EDGES)}
       style={{ height: 'var(--barbar-h)', ...DRAG }}
     >
       {/* The page's first stop for a keyboard. It lives in here, not before
