@@ -23,6 +23,7 @@ import { integrity } from '../bridges/integrity';
 import type { AsyncLocalStorage } from '../shims/async-hooks';
 import { flush, mountData, refuseData } from '../shims/fs';
 import { installFetch } from './fetch';
+import { GirovoBackground } from '../native';
 import { startNano } from './categories';
 
 // The bank's minute to start answering is timed by the native HTTP stack
@@ -47,7 +48,7 @@ const json = (status: number, body: unknown) =>
  * and their import, the documents and the bank's Kontoauszüge (each kept as
  * it arrives — a bank may hand one out only once), the backup.
  */
-const KEEPING = new Set(['/api/vault', '/api/history', '/api/history-import', '/api/docs', '/api/bank-statements', '/api/backup', '/api/background']);
+const KEEPING = new Set(['/api/vault', '/api/history', '/api/history-import', '/api/docs', '/api/bank-statements', '/api/backup']);
 
 /** True on a phone that is modified or cannot prove it is not (lib/device-integrity.ts). */
 let nothingKept = false;
@@ -59,6 +60,9 @@ async function boot(): Promise<void> {
   if (keepsNothing(await integrity())) {
     nothingKept = true;
     refuseData();
+    // …and "Neue Umsätze melden" keeps no PIN on it either: the box and the job go.
+    void GirovoBackground.write({ text: null }).catch(() => {});
+    void GirovoBackground.schedule({ on: false }).catch(() => {});
   } else {
     await mountData('fints-state');
   }

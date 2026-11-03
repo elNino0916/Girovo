@@ -29,11 +29,12 @@ const RETRY_MS = 30 * 60_000;
  * @param {() => Promise<string | null>} deps.secret  The shell's secret (linked-unlock.cjs).
  * @param {(secret: string) => Promise<{ checked: number, notices: Array<{ key: string, kind: string, title: string, text: string, lines: string[] }> }>} deps.check
  * @param {(notice: { key: string, kind: string, title: string, text: string, lines: string[] }) => void} deps.notify
+ * @param {() => void} [deps.stopped]  The server says nothing is kept any more: the shell lets go too.
  * @param {() => number} [deps.now]
  * @param {{ setTimeout: typeof setTimeout, clearTimeout: typeof clearTimeout }} [deps.timers]
  * @param {{ warn(...args: unknown[]): void }} [deps.log]
  */
-function createBackgroundChecks({ prefs, secret, check, notify, now = Date.now, timers = { setTimeout, clearTimeout }, log = console }) {
+function createBackgroundChecks({ prefs, secret, check, notify, stopped = () => {}, now = Date.now, timers = { setTimeout, clearTimeout }, log = console }) {
   let timer = null;
   let running = null;
 
@@ -76,6 +77,13 @@ function createBackgroundChecks({ prefs, secret, check, notify, now = Date.now, 
             log.warn('[background] notice failed:', err?.message || err);
           }
         }
+        // The last PIN refused, or the box gone: no more checks, no more tray.
+        if (result?.on === false) {
+          prefs.set(ON_PREF, null);
+          clear();
+          stopped();
+          return result;
+        }
         schedule(INTERVAL_MS);
         return result;
       } catch (err) {
@@ -97,6 +105,11 @@ function createBackgroundChecks({ prefs, secret, check, notify, now = Date.now, 
     },
     /** The switch in Einstellungen (the server already keeps or dropped the PINs). */
     setEnabled(on) {
+      // Said again at every login (the page keeps the shell in step): the plan stands.
+      if (on && enabled()) {
+        if (!timer) schedule(dueIn());
+        return;
+      }
       prefs.set(ON_PREF, on ? '1' : null);
       if (on) schedule(SETTLE_MS);
       else clear();

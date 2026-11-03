@@ -17,6 +17,8 @@ import { getSession } from '@/lib/session';
 import { loadVault, resetVault, saveVault, VAULT_REQUEST_MAX_BYTES, VaultError, wipeVault } from '@/lib/vault';
 import { removeWindowsHello } from '@/lib/windows-hello';
 import { removeMeta } from '@/lib/sync-meta';
+import { disable as disableBackground } from '@/lib/background-check';
+import { backgroundServed, backgroundStore } from '@/lib/background-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,6 +58,8 @@ export const POST = wrap(async (req: Request) => {
           // This device leaves its sync group: its settings are personal data too.
           await removeMeta(own.blz, own.userId);
         }
+        // The PINs kept for "Neue Umsätze melden" go too — all of them, as the dialog says.
+        if (backgroundServed()) await disableBackground(backgroundStore());
         const history = await wipeHistory(s);
         const docs = await wipeDocs(s);
         return json({ ok: true, wiped: history + docs + (await wipeVault(s)) });

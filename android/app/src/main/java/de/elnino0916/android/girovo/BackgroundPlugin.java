@@ -45,6 +45,7 @@ public class BackgroundPlugin extends Plugin {
         call.resolve(out);
     }
 
+    /** {text, expected?}: with `expected`, a compare-and-set (BackgroundState.writeBoxIf). */
     @PluginMethod
     public void write(PluginCall call) {
         String text = call.getData().has("text") && !call.getData().isNull("text") ? call.getString("text") : null;
@@ -52,8 +53,17 @@ public class BackgroundPlugin extends Plugin {
             call.reject("too large", "invalid");
             return;
         }
-        BackgroundState.writeBox(getContext(), text);
-        call.resolve();
+        boolean written;
+        if (call.getData().has("expected")) {
+            String expected = call.getData().isNull("expected") ? null : call.getString("expected");
+            written = BackgroundState.writeBoxIf(getContext(), expected, text);
+        } else {
+            BackgroundState.writeBox(getContext(), text);
+            written = true;
+        }
+        JSObject out = new JSObject();
+        out.put("written", written);
+        call.resolve(out);
     }
 
     /** {on}: plans the job every six hours, or cancels it. */

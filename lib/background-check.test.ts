@@ -13,7 +13,11 @@ function memoryStore(): BackgroundStore & { text: string | null } {
   const s = {
     text: null as string | null,
     read: async () => s.text,
-    write: async (t: string | null) => { s.text = t; },
+    write: async (t: string | null, expected?: string | null) => {
+      if (expected !== undefined && s.text !== expected) return false;
+      s.text = t;
+      return true;
+    },
   };
   return s;
 }
@@ -188,6 +192,75 @@ test('re-enrolling keeps what each account was seen with', async () => {
   await enroll(store, secret, [spk, dkb], true);
   const r = await runCheck(store, secret, fakeBank({ '50050201:DE01': [tx('2026-11-01', -5, 'KIOSK')] }).side, NOW + 1);
   assert.deepEqual(r.notices, []);
+});
+
+test('anything but Umsätze ends that login\'s round: no second dialog with the PIN', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  const bank = fakeBank({ '50050201:open': ['DE01', 'DE02', 'DE03'], '50050201:DE01': 'failed' });
+  await runCheck(store, secret, bank.side, NOW);
+  assert.deepEqual(bank.asked.map((a) => a.split(':')[1]), ['DE01']);
+});
+
+test('a round where every read failed does not move the window on', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  await runCheck(store, secret, fakeBank({ '50050201:DE01': 'failed' }).side, NOW);
+  assert.equal((await enrolled(store, secret))?.logins[0].checkedAt, undefined);
+  await runCheck(store, secret, fakeBank({ '50050201:DE01': [] }).side, NOW);
+  assert.ok((await enrolled(store, secret))?.logins[0].checkedAt);
+});
+
+test('new bookings are still reported when a later account wants an approval', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  await runCheck(store, secret, fakeBank({ '50050201:open': ['DE01', 'DE02'], '50050201:DE01': [], '50050201:DE02': [] }).side, NOW);
+  const r = await runCheck(store, secret, fakeBank({
+    '50050201:open': ['DE01', 'DE02'], '50050201:DE01': [tx('2026-11-03', -20, 'TANKSTELLE')], '50050201:DE02': 'approval',
+  }).side, NOW + 1);
+  assert.deepEqual(r.notices.map((n) => n.kind).sort(), ['approval', 'new']);
+});
+
+test('switched off while a check runs: the check does not bring the PINs back', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk, dkb], true);
+  const bank = fakeBank({});
+  const read = bank.side.read;
+  bank.side.read = async (...args) => {
+    await disable(store);
+    return read(...args);
+  };
+  const r = await runCheck(store, secret, bank.side, NOW);
+  assert.equal(store.text, null);
+  assert.equal(r.on, false);
+  assert.equal(await isOn(store), false);
+});
+
+test('a PIN the user changed during the check is never deleted for the old one\'s refusal', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  const bank = fakeBank({ '50050201:DE01': 'refused' });
+  const read = bank.side.read;
+  bank.side.read = async (...args) => {
+    await touch(store, secret, { ...spk, pin: '77777' });
+    return read(...args);
+  };
+  await runCheck(store, secret, bank.side, NOW);
+  assert.deepEqual((await enrolled(store, secret))?.logins.map((l) => l.blz), ['50050201']);
+});
+
+test('a refused PIN is saved as gone before the next login is checked', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk, dkb], true);
+  const bank = fakeBank({ '50050201:DE01': 'refused' });
+  const open = bank.side.open;
+  let seenWhenDkb: string[] | undefined;
+  bank.side.open = async (login) => {
+    if (login.blz === dkb.blz) seenWhenDkb = (await enrolled(store, secret))?.logins.map((l) => l.blz);
+    return open(login);
+  };
+  await runCheck(store, secret, bank.side, NOW);
+  assert.deepEqual(seenWhenDkb, ['12030000']);
 });
 
 test('mergeSeen keeps each key as often as either side has it, and forgets old days', () => {

@@ -22,6 +22,8 @@ test('cardAmount: German and plain figures, signed by C/D whatever sign they car
   assert.equal(cardAmount('-12,34', 'D'), -12.34);
   assert.equal(cardAmount('-12,34', 'C'), 12.34);
   assert.equal(cardAmount('12.34', undefined), 12.34);
+  // A whole amount as FinTS writes it.
+  assert.equal(cardAmount('50,', 'D'), -50);
   assert.equal(cardAmount('-7,50', ''), -7.5);
   assert.equal(cardAmount('', 'D'), null);
   assert.equal(cardAmount('zwölf', 'D'), null);

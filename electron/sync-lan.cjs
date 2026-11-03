@@ -8,9 +8,11 @@
 // It is a dumb file shelf: GET and PUT of one file by name under
 // /girovo-sync/v1/, nothing else. Every file is sealed with the group's key
 // before it gets here, so the network and this shelf see sizes and times,
-// never content. A name must look like a sync file, and its group must
-// already have a devices file here — written by this computer's own sync —
-// so nobody on the network can start storing things of their own.
+// never content. A name must look like a sync file, and every request must
+// carry its group's token — derived from the key, kept here by this
+// computer's own sync (lib/sync-stores.ts keepLanToken) — so nobody else on
+// the network can read, overwrite or store anything. A group holds at most
+// MAX_FILES files, and only a few uploads run at once.
 //
 // Kept apart from main.cjs (http, fs and the folder come in as arguments) so
 // `npm test` runs it without Electron (sync-lan.test.cjs).
@@ -18,11 +20,17 @@
 const NAME = /^([0-9a-f]{24})(\.[0-9a-f]{16,32})?\.(devices|state|doc)$/;
 const PREFIX = '/girovo-sync/v1/';
 const MAX_BYTES = 64 * 1024 * 1024;
+const MAX_FILES = 600;
+const MAX_UPLOADS = 3;
+const TOKEN_HEADER = 'x-girovo-sync';
+/** Adapters of virtual machines and containers: never where the phone is. */
+const VIRTUAL = /vEthernet|VirtualBox|VMware|Hyper-V|WSL|Docker|vbox|veth|^br-|virbr|tailscale|zerotier/i;
 
 /** This computer's addresses on private networks, the ones the phone can reach. */
 function privateAddresses(interfaces) {
   const out = [];
-  for (const list of Object.values(interfaces || {})) {
+  for (const [name, list] of Object.entries(interfaces || {})) {
+    if (VIRTUAL.test(name)) continue;
     for (const a of list || []) {
       if (a.family !== 'IPv4' && a.family !== 4) continue;
       if (a.internal) continue;
@@ -42,6 +50,7 @@ function privateAddresses(interfaces) {
  */
 function createLanServer({ http, fs, path, dir, log = console }) {
   let server = null;
+  let uploads = 0;
 
   function handle(req, res) {
     // With its length, never chunked: the phone reads the answer over a plain socket (SyncPlugin.java).
@@ -55,14 +64,32 @@ function createLanServer({ http, fs, path, dir, log = console }) {
     const m = NAME.exec(name);
     if (!m) return done(404);
     const folder = dir();
-    // Only groups this computer is in: its own sync writes the devices file first.
-    if (!fs.existsSync(path.join(folder, `${m[1]}.devices`))) return done(404);
+    // Only groups this computer is in, and only with their token.
+    let token = null;
+    try {
+      token = fs.readFileSync(path.join(folder, `${m[1]}.token`), 'utf8');
+    } catch {
+      return done(404);
+    }
+    if (!token || req.headers[TOKEN_HEADER] !== token) return done(404);
     const file = path.join(folder, name);
     if (req.method === 'GET') {
       fs.readFile(file, (err, data) => (err ? done(404) : done(200, data)));
       return undefined;
     }
     if (req.method === 'PUT') {
+      if (!fs.existsSync(file)) {
+        const count = fs.readdirSync(folder).filter((f) => f.startsWith(`${m[1]}.`)).length;
+        if (count >= MAX_FILES) return done(507);
+      }
+      if (uploads >= MAX_UPLOADS) return done(503);
+      uploads++;
+      let counted = true;
+      const release = () => {
+        if (counted) uploads--;
+        counted = false;
+      };
+      res.on('close', release);
       const chunks = [];
       let size = 0;
       req.on('data', (c) => {

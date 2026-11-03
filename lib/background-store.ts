@@ -12,10 +12,14 @@ import { IS_ANDROID } from './platform.ts';
 import { removeFamily, serialized, writeFileAtomic } from './sealed-file.ts';
 import { STATE_DIR } from './state-store.ts';
 
-/** The sealed box as text, or null when there is none; writing null deletes it. */
+/**
+ * The sealed box as text, or null when there is none; writing null deletes
+ * it. With `expected`, a compare-and-set: written only while the box is still
+ * that text (null: still none), answering whether it was.
+ */
 export type BackgroundStore = {
   read(): Promise<string | null>;
-  write(text: string | null): Promise<void>;
+  write(text: string | null, expected?: string | null): Promise<boolean>;
 };
 
 type StoreGlobal = typeof globalThis & { __girovoBackgroundStore?: BackgroundStore };
@@ -47,17 +51,27 @@ export function backgroundStore(): BackgroundStore {
         throw err;
       }
     },
-    write(text) {
+    write(text, expected) {
       return serialized(file, async () => {
+        if (expected !== undefined) {
+          let now: string | null = null;
+          try {
+            now = await fs.promises.readFile(file, 'utf8');
+          } catch (err) {
+            if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err;
+          }
+          if (now !== expected) return false;
+        }
         if (text != null) {
           await writeFileAtomic(file, text);
-          return;
+          return true;
         }
         // The file and every copy beside it: a cut-short write leaves one that opens too.
         const { failed } = await removeFamily(path.dirname(file), path.basename(file), (code) => {
           console.warn('[background] could not delete a file:', code);
         });
         if (failed) throw new Error(`background: ${failed} file(s) left`);
+        return true;
       });
     },
   };

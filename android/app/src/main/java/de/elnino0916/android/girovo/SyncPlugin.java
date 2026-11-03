@@ -37,15 +37,30 @@ public class SyncPlugin extends Plugin {
     private static final int READ_MS = 30_000;
     private static final int MAX_BYTES = 64 * 1024 * 1024;
 
+    /** One request at a time, off Capacitor's plugin thread: a computer that does not answer holds nothing else up. */
+    private final java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+
     @PluginMethod
     public void lan(PluginCall call) {
+        worker.execute(() -> request(call));
+    }
+
+    private static boolean privateLiteral(String host) {
+        if (!PRIVATE.matcher(host).matches()) return false;
+        for (String octet : host.split("\\.")) if (Integer.parseInt(octet) > 255) return false;
+        return true;
+    }
+
+    private void request(PluginCall call) {
         try {
             String method = call.getString("method", "GET");
             URI uri = new URI(call.getString("url", ""));
             String host = uri.getHost();
             int port = uri.getPort();
             String path = uri.getRawPath();
-            if (!"http".equals(uri.getScheme()) || host == null || !PRIVATE.matcher(host).matches()
+            String token = call.getString("token", "");
+            if (!"http".equals(uri.getScheme()) || host == null || !privateLiteral(host)
+                    || token == null || !token.matches("[0-9a-f]{32}")
                     || port < 1024 || port > 65535 || path == null || !path.startsWith(PATH) || path.contains("..")
                     || !("GET".equals(method) || "PUT".equals(method))) {
                 call.reject("not the desktop app's shelf", "invalid");
@@ -60,6 +75,7 @@ public class SyncPlugin extends Plugin {
                 String head = method + " " + path + " HTTP/1.1\r\n"
                         + "Host: " + host + ":" + port + "\r\n"
                         + "Connection: close\r\n"
+                        + "X-Girovo-Sync: " + token + "\r\n"
                         + "Content-Type: application/octet-stream\r\n"
                         + "Content-Length: " + body.length + "\r\n\r\n";
                 out.write(head.getBytes(StandardCharsets.US_ASCII));
@@ -76,7 +92,12 @@ public class SyncPlugin extends Plugin {
                 boolean chunked = false;
                 for (String line : lines) {
                     String lower = line.toLowerCase(Locale.ROOT);
-                    if (lower.startsWith("content-length:")) length = Math.min(length, Integer.parseInt(line.substring(15).trim()));
+                    if (lower.startsWith("content-length:")) {
+                        int declared = Integer.parseInt(line.substring(15).trim());
+                        // Cut short on the way: an error, never a file that is less than it says.
+                        if (declared > length) throw new IOException("short body");
+                        length = declared;
+                    }
                     if (lower.startsWith("transfer-encoding:") && lower.contains("chunked")) chunked = true;
                 }
                 byte[] received = chunked ? unchunk(answer, split + 4) : java.util.Arrays.copyOfRange(answer, split + 4, split + 4 + Math.max(0, length));

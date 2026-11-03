@@ -81,6 +81,23 @@ test('a check that fails is tried again in half an hour; no secret counts as fai
   assert.deepEqual(secretless.pending().map((t) => t.ms), [RETRY_MS]);
 });
 
+test('the server says nothing is kept any more: off, unplanned, and the shell lets go', async () => {
+  let stopped = 0;
+  const store = new Map([[ON_PREF, '1']]);
+  const bg = createBackgroundChecks({
+    prefs: { get: (k) => store.get(k) ?? null, set: (k, v) => (v == null ? store.delete(k) : store.set(k, v)) },
+    secret: async () => 's',
+    check: async () => ({ checked: 1, notices: [], on: false }),
+    notify: () => {},
+    stopped: () => { stopped++; },
+    timers: { setTimeout: () => ({}), clearTimeout: () => {} },
+    log: { warn() {} },
+  });
+  await bg.runNow();
+  assert.equal(bg.enabled(), false);
+  assert.equal(stopped, 1);
+});
+
 test('two calls at once run one check', async () => {
   const r = rig();
   await Promise.all([r.bg.runNow(), r.bg.runNow()]);

@@ -142,8 +142,15 @@ export function openPin(
   });
 }
 
-/** Turns it off for the login: its kept PIN goes, copies included. Needs no key. */
+/**
+ * Turns it off for the login: its kept PIN goes, copies included. Needs no
+ * key. Made unopenable first, so a file the system will not let go of (a
+ * virus scanner holding it) can never hand out that PIN again.
+ */
 export function removeWindowsHello(login: Pick<SealedLogin, 'blz' | 'userId'>): Promise<void> {
   const file = windowsHelloFile(login.blz, login.userId);
-  return serialized(file, () => removeAll(file));
+  return serialized(file, async () => {
+    if (fs.existsSync(file)) await writeFileAtomic(file, '{}').catch(() => {});
+    await removeAll(file);
+  });
 }

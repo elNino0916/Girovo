@@ -92,9 +92,12 @@ final class BackgroundState {
                 cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)));
                 byte[] plain = cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP));
                 if (plain.length == SECRET_BYTES) return Base64.encodeToString(plain, Base64.NO_WRAP);
-            } catch (Exception ignored) {
-                // Unreadable for good: a new one below.
+            } catch (javax.crypto.AEADBadTagException | android.security.keystore.KeyPermanentlyInvalidatedException
+                     | IllegalArgumentException | ArrayIndexOutOfBoundsException e) {
+                // Unreadable for good (another key, a damaged entry): a new one below.
             }
+            // Anything else may pass (the Keystore busy, say): no secret this time,
+            // rather than a new one that would leave every kept PIN unopenable.
         }
         byte[] fresh = new byte[SECRET_BYTES];
         new SecureRandom().nextBytes(fresh);
@@ -111,6 +114,18 @@ final class BackgroundState {
 
     static String readBox(Context context) {
         return prefs(context).getString(KEY_BOX, null);
+    }
+
+    /**
+     * Written only while the box is still `expected` (null: none) — the page's
+     * runtime and the job's each read, change and write it, and neither may
+     * undo what the other did meanwhile. Answers whether it was written.
+     */
+    static synchronized boolean writeBoxIf(Context context, String expected, String text) {
+        String now = readBox(context);
+        if (expected == null ? now != null : !expected.equals(now)) return false;
+        writeBox(context, text);
+        return true;
     }
 
     static synchronized void writeBox(Context context, String text) {
@@ -131,6 +146,8 @@ final class BackgroundState {
             scheduler.cancel(JOB_ID);
             return;
         }
+        // Planned already: said again at every login, the plan stands.
+        if (scheduler.getPendingJob(JOB_ID) != null) return;
         scheduler.schedule(new JobInfo.Builder(JOB_ID, new ComponentName(context, BackgroundJob.class))
                 .setPeriodic(PERIOD_MS, FLEX_MS)
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)

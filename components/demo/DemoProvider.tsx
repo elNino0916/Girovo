@@ -3,9 +3,13 @@
 // Girovo without a bank (6.0): the design preview's stand-in for
 // <FintsProvider> (app/design-preview/mock.tsx) behind the real app. Its bank,
 // accounts and Umsätze are made up, approvals and transfers are simulated, and
-// nothing persists — privacy mode, the idle limit and the theme stay in
-// memory, the vault and the kept Umsätze never touch the real ones. Loaded
-// only when the demo starts (app/page.tsx), so the real app never carries it.
+// nothing of a login persists — privacy mode and the idle limit stay in
+// memory, the vault and the kept Umsätze never touch the real ones, and the
+// login form keeps its hands off the real login's name, fingerprint and
+// Windows Hello (components/auth/Credentials.tsx). The app's own settings —
+// theme, language, update channel — are the app's: changed here, they stay.
+// Loaded only when the demo starts (app/page.tsx), so the real app never
+// carries it.
 //
 // The demo ends where a session would: "Abmelden", the idle limit, or the
 // banner's "Demo beenden". Its login screen is never shown — that would be a

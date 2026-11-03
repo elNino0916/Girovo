@@ -63,7 +63,8 @@ public class BackgroundJob extends JobService {
 
     @Override
     public boolean onStartJob(JobParameters params) {
-        if (MainActivity.inFront) return false;
+        // The app in front, or waiting for an approval: its own session reads the banks.
+        if (MainActivity.inFront || ApprovalService.running) return false;
         running = params;
         main.post(this::start);
         main.postDelayed(() -> finish("watchdog"), WATCHDOG_MS);
@@ -94,6 +95,15 @@ public class BackgroundJob extends JobService {
         settings.setAllowContentAccess(false);
         web.addJavascriptInterface(new Bridge(), "GirovoBg");
         web.setWebViewClient(new WebViewClient() {
+            /** A renderer the system took back must not take the app down with it. */
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                if (view == web) web = null;
+                view.destroy();
+                finish("renderer gone");
+                return true;
+            }
+
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 // The app's own files, as Capacitor serves them to the page.
@@ -152,6 +162,21 @@ public class BackgroundJob extends JobService {
         @JavascriptInterface
         public void writeBox(String text) {
             BackgroundState.writeBox(getApplicationContext(), text);
+        }
+
+        @JavascriptInterface
+        public boolean writeBoxIf(String expected, String text) {
+            return BackgroundState.writeBoxIf(getApplicationContext(), expected, text);
+        }
+
+        @JavascriptInterface
+        public boolean inFront() {
+            return MainActivity.inFront || ApprovalService.running;
+        }
+
+        @JavascriptInterface
+        public void cancel() {
+            BackgroundState.schedule(getApplicationContext(), false);
         }
 
         /** The state folder's file names (JSON array) — the page's runtime keeps it under files/fints-state. */

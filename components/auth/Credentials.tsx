@@ -17,6 +17,7 @@ import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { forgetHello, helloOn, openWithHello } from '@/lib/windows-hello-client';
+import { useDemo } from '../demo/demo-mode';
 import { BankAnswerAlert } from '../BankAnswer';
 import { BankLogo } from '../BankLogo';
 import { IntegrityNotice } from '../android/IntegrityNotice';
@@ -91,7 +92,10 @@ export function Credentials({
   const uid = useId();
   const tr = useT();
   const words = tr.auth.credentials;
-  const [login, setLogin] = useState(() => initialLogin || store.get(`fints.userId.${bank.blz}`) || '');
+  // The demo (components/demo) never touches what this device keeps for a
+  // real login: no remembered login name, no fingerprint, no Windows Hello.
+  const demo = useDemo();
+  const [login, setLogin] = useState(() => initialLogin || (demo ? '' : store.get(`fints.userId.${bank.blz}`)) || '');
   const [pin, setPin] = useState('');
   const [reveal, setReveal] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
@@ -197,7 +201,7 @@ export function Credentials({
       // tried a second time, because a few wrong tries lock the access. Only
       // a bank that could not be reached, or a login turned down before the
       // bank was asked or after it took the PIN, says nothing about the PIN.
-      if (unsealed && !isBankOutage(message) && !isNotAboutPin(err)) {
+      if (unsealed && !demo && !isBankOutage(message) && !isNotAboutPin(err)) {
         if (IS_ANDROID) {
           void window.girovoMobile?.biometric.forget(bank.blz, login.trim());
           setFingerprint(false);
@@ -290,7 +294,7 @@ export function Credentials({
   // Android: whether this login name has a fingerprint login, and if so the
   // fingerprint is asked for once, straight away, as a bank's own app does.
   useEffect(() => {
-    const mobile = IS_ANDROID ? window.girovoMobile : undefined;
+    const mobile = IS_ANDROID && !demo ? window.girovoMobile : undefined;
     const name = login.trim();
     if (!mobile || !name) {
       setFingerprint(false);
@@ -317,7 +321,7 @@ export function Credentials({
   // Never for a further bank's form (openedPin) — its PIN is already here.
   useEffect(() => {
     const name = login.trim();
-    if (IS_ANDROID || openedPin || !name) {
+    if (IS_ANDROID || demo || openedPin || !name) {
       setHello(false);
       return;
     }

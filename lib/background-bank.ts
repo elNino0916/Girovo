@@ -10,7 +10,7 @@
 
 import { lookupBlz } from './banks';
 import type { BankSide, CheckedLogin } from './background-check';
-import { isPinRefusal } from './bank-answer';
+import { isCredentialAnswer } from './bank-answer';
 import { fetchStatements } from './fints-statements';
 import { restorePlan } from './product-fallback';
 import { accountsFor, bankAnswerText, serializeTransactions } from './serialize';
@@ -48,7 +48,9 @@ export const bankSide: BankSide = {
     try {
       const resp = await fetchStatements(s.client, accountNumber, from);
       if (resp.requiresTan) return { kind: 'approval' };
-      if (!resp.success) return isPinRefusal(bankAnswerText(resp)) ? { kind: 'refused' } : { kind: 'failed' };
+      // Every answer that reads as the credentials turned down counts — banks
+      // do not all send 9931/9942 — and is never tried again.
+      if (!resp.success) return isCredentialAnswer(bankAnswerText(resp)) ? { kind: 'refused' } : { kind: 'failed' };
       // The bank took the PIN: for this session's own sake, like a read in the app.
       s.pinAccepted = true;
       return { kind: 'ok', transactions: serializeTransactions(resp.statements) };
@@ -64,6 +66,9 @@ export const bankSide: BankSide = {
   },
 
   busy(login) {
-    return loginInUse(login.blz, login.userId);
+    // On the phone the job's runtime has no sessions of its own to look at:
+    // the app in front, or waiting for an approval, counts as in use.
+    const appInFront = (globalThis as typeof globalThis & { __girovoAppInFront?: () => boolean }).__girovoAppInFront;
+    return loginInUse(login.blz, login.userId) || appInFront?.() === true;
   },
 };

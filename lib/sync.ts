@@ -48,6 +48,12 @@ export type ReceiptsSide = {
 /** What this device keeps about the group, beside its vault (lib/sync-meta.ts). */
 export type SyncLocal = {
   stamps: Stamps;
+  /**
+   * Set when this device joined and has not had its first round: what it
+   * brought counts as older than anything the group has, so it never
+   * overwrites the group's newer notes or brings back what the group deleted.
+   */
+  joining?: true;
   /** Receipts whose bytes this device has left in the place, by content hash. */
   uploaded: string[];
   /** Each local receipt's content hash, by its id — reading every receipt each time is slow. */
@@ -67,6 +73,12 @@ export type SyncResult = {
 
 export const KEY_BYTES = 32;
 const DEVICES_MAX = 8;
+/**
+ * A device not seen this long is left out — its state no longer read, its
+ * entry dropped — well before a deletion's tombstone is forgotten
+ * (sync-entries.ts TOMBSTONE_MS), so it can never bring a deleted note back.
+ */
+export const DEVICE_STALE_MS = 90 * 86_400_000;
 const NAME_MAX = 40;
 const FILE_MAX = 64 * 1024 * 1024;
 const IV = 12;
@@ -154,15 +166,23 @@ export async function runSync(opts: {
   local: SyncLocal;
   /** null: this device's receipts cannot be read now — they are left as they are, here and in the others' view. */
   receipts: ReceiptsSide | null;
+  /**
+   * The vault as it will be kept (lib/vault.ts sanitizeVault): an entry the
+   * keeping drops (a cap, a category this version does not know) is not one
+   * this device deleted, and must not reach the others as deleted.
+   */
+  keep?: (vault: VaultData) => VaultData;
   now?: number;
 }): Promise<SyncResult> {
   const { store, key, device, vault, receipts } = opts;
   const now = opts.now ?? Date.now();
 
-  // Who is in the group: this device joins (or says it was here) first.
+  // Who is in the group: this device says it is here; long-silent ones are left out.
   const known = readDevices(await readJson(store, key, devicesFile(key)));
-  const devices = [{ id: device.id, name: device.name.slice(0, NAME_MAX), at: now }, ...known.filter((d) => d.id !== device.id)]
-    .slice(0, DEVICES_MAX);
+  const devices = [
+    { id: device.id, name: device.name.slice(0, NAME_MAX), at: now },
+    ...known.filter((d) => d.id !== device.id && now - d.at < DEVICE_STALE_MS),
+  ].slice(0, DEVICES_MAX);
   await writeJson(store, key, devicesFile(key), devices);
 
   // This device's entries: the vault's, and one per receipt (by content).
@@ -171,12 +191,16 @@ export async function runSync(opts: {
   for (const d of docs) hashes[d.id] = opts.local.hashes[d.id] ?? contentHash(await receipts!.read(d.id));
   const entries = vaultEntries(vault);
   for (const d of docs) entries.set(`docs/${hashes[d.id]}`, receiptEntry(d));
-  let stamps = restamp(entries, opts.local.stamps, now);
+  // Unreadable receipts are not deleted ones: they take no part in this
+  // round, and their stamps are kept aside as they were.
+  const asideDocs: Stamps = {};
+  let prior = opts.local.stamps;
   if (!receipts) {
-    // Unreadable receipts are not deleted ones: their stamps stay as they were.
-    stamps = Object.fromEntries(Object.entries(stamps).filter(([p]) => !p.startsWith('docs/')));
-    for (const [p, st] of Object.entries(opts.local.stamps)) if (p.startsWith('docs/')) stamps[p] = st;
+    prior = {};
+    for (const [p, st] of Object.entries(opts.local.stamps)) (p.startsWith('docs/') ? asideDocs : prior)[p] = st;
   }
+  // A device's first round after joining: what it brought is older than the group's.
+  const stamps = restamp(entries, prior, opts.local.joining && !Object.keys(prior).length ? 0 : now);
 
   // Every other device's state.
   const remotes: RemoteState[] = [];
@@ -190,11 +214,13 @@ export async function runSync(opts: {
   // The receipts: what the others added comes here, what they deleted goes,
   // a changed match follows — and this device's bytes go to the place once.
   const localByHash = new Map(docs.map((d) => [hashes[d.id], d]));
+  const receivedHere = new Set<string>();
   let added = 0;
   let removed = 0;
   for (const [path, value] of receipts ? merged.entries : []) {
     if (!path.startsWith('docs/')) continue;
     const hash = path.slice(5);
+    if (!value || typeof value !== 'object' || typeof (value as ReceiptEntry).mime !== 'string') continue;
     const meta = value as ReceiptEntry;
     const mine = localByHash.get(hash);
     if (mine) {
@@ -209,6 +235,8 @@ export async function runSync(opts: {
     const id = await receipts!.add({ id: crypto.randomBytes(16).toString('hex'), kind: 'receipt', ...meta, size: bytes.length }, bytes);
     if (!id) continue;
     hashes[id] = hash;
+    // Its bytes are in the place already: never left there a second time.
+    receivedHere.add(hash);
     added++;
   }
   for (const d of docs) {
@@ -217,7 +245,7 @@ export async function runSync(opts: {
     delete hashes[d.id];
     removed++;
   }
-  const uploaded = new Set(opts.local.uploaded.filter((h) => merged.entries.has(`docs/${h}`)));
+  const uploaded = new Set([...opts.local.uploaded, ...receivedHere].filter((h) => merged.entries.has(`docs/${h}`)));
   for (const d of docs) {
     const h = hashes[d.id];
     if (!h || uploaded.has(h)) continue;
@@ -228,19 +256,37 @@ export async function runSync(opts: {
   await writeJson(store, key, stateFile(key, device.id), { v: 1, device: { id: device.id, name: device.name }, at: now, entries: merged.state });
 
   const vaultEntriesOnly = new Map([...merged.entries].filter(([p]) => !p.startsWith('docs/')));
-  const next = vaultFromEntries(vaultEntriesOnly, vault);
+  const built = vaultFromEntries(vaultEntriesOnly, vault);
+  const next = opts.keep ? opts.keep(built) : built;
   const sorted = (v: VaultData) => stableJson([...vaultEntries(v)].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
   const changed = sorted(next) !== sorted(vault);
   // Kept hashes only for receipts still here.
   const keptHashes: Record<string, string> = {};
   for (const [id, h] of Object.entries(hashes)) if (merged.entries.has(`docs/${h}`)) keptHashes[id] = h;
+  // Stamps only for what this device really holds now. An entry the vault
+  // did not keep, or a receipt that did not arrive, gets none: it is not this
+  // device's to delete, and the next round tries it again. A tombstone stays.
+  const held = vaultEntries(next);
+  const heldDocs = new Set(Object.values(keptHashes));
+  const stampsNow: Stamps = { ...asideDocs };
+  for (const [p, st] of Object.entries(merged.stamps)) {
+    if (st.h === '-') stampsNow[p] = st;
+    else if (p.startsWith('docs/') ? receipts && heldDocs.has(p.slice(5)) : held.has(p)) stampsNow[p] = st;
+  }
   return {
     vault: changed ? next : vault,
-    local: { stamps: merged.stamps, uploaded: [...uploaded], hashes: keptHashes },
+    local: { stamps: stampsNow, uploaded: [...uploaded], hashes: keptHashes },
     changed,
     devices,
     receipts: { added, removed },
   };
+}
+
+/** This device leaves the group's list (its state file stays, sealed, for no one). */
+export async function leaveGroup(store: SyncStore, key: Buffer, deviceId: string): Promise<void> {
+  const known = readDevices(await readJson(store, key, devicesFile(key)));
+  if (!known.some((d) => d.id === deviceId)) return;
+  await writeJson(store, key, devicesFile(key), known.filter((d) => d.id !== deviceId));
 }
 
 // ---------------------------------------------------------------------------
@@ -280,13 +326,18 @@ export function readCode(code: string): { key: Buffer; tag: string; place: SyncP
 }
 
 const PRIVATE_V4 = /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})$/;
+const privateV4 = (a: string) => PRIVATE_V4.test(a) && a.split('.').every((o) => Number(o) <= 255);
+
+/** What the desktop app's shelf asks of every request (electron/sync-lan.cjs): from the key, never the key. */
+export const lanToken = (key: Buffer) =>
+  crypto.createHash('sha256').update('girovo/sync/lan').update(key).digest('hex').slice(0, 32);
 
 /** A place as a request or a code names it, checked; null when it is none. */
 export function readPlace(v: unknown): SyncPlace | null {
   if (!v || typeof v !== 'object') return null;
   const r = v as Record<string, unknown>;
   if (r.kind === 'lan') {
-    const addresses = Array.isArray(r.addresses) ? r.addresses.filter((a): a is string => typeof a === 'string' && PRIVATE_V4.test(a)).slice(0, 4) : [];
+    const addresses = Array.isArray(r.addresses) ? r.addresses.filter((a): a is string => typeof a === 'string' && privateV4(a)).slice(0, 4) : [];
     const port = Number(r.port);
     if (!addresses.length || !Number.isInteger(port) || port < 1024 || port > 65535) return null;
     return { kind: 'lan', addresses, port };

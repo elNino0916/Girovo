@@ -136,13 +136,16 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
  */
 export function restamp(entries: ReadonlyMap<string, unknown>, stamps: Stamps, now: number): Stamps {
   const out: Stamps = {};
+  // A change is newer than what it changes, even when another device's clock
+  // ran ahead and stamped that later than this device's now.
+  const after = (s: Stamp | undefined) => (s ? Math.max(now, s.t + 1) : now);
   for (const [path, value] of entries) {
     const h = hashOf(value);
-    out[path] = stamps[path]?.h === h ? stamps[path] : { h, t: now };
+    out[path] = stamps[path]?.h === h ? stamps[path] : { h, t: after(stamps[path]) };
   }
   for (const [path, s] of Object.entries(stamps)) {
     if (entries.has(path)) continue;
-    const tomb = s.h === '-' ? s : { h: '-', t: now };
+    const tomb = s.h === '-' ? s : { h: '-', t: after(s) };
     if (now - tomb.t < TOMBSTONE_MS) out[path] = tomb;
   }
   return out;

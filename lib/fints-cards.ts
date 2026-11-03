@@ -67,7 +67,8 @@ export function cardAmount(text: string | undefined, creditDebit: string | undef
   let s = (text ?? '').replace(/\s/g, '');
   if (!s) return null;
   if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
-  if (!/^[+-]?\d+(\.\d+)?$/.test(s)) return null;
+  // FinTS writes a whole amount with its separator and nothing after it ("50,").
+  if (!/^[+-]?\d+(\.\d*)?$/.test(s)) return null;
   const value = Number(s);
   if (!Number.isFinite(value)) return null;
   const cd = (creditDebit ?? '').trim().toUpperCase();

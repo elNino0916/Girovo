@@ -33,6 +33,8 @@ public class ApprovalService extends Service {
     static final String EXTRA_TEXT = "text";
     private static final String CHANNEL = "approval";
     private static final int NOTIFICATION_ID = 4711;
+    /** Whether an approval is awaited right now: the background check (BackgroundJob) waits then. */
+    static volatile boolean running;
 
     static void start(Context context, String title, String text) {
         Intent intent = new Intent(context, ApprovalService.class);
@@ -47,6 +49,7 @@ public class ApprovalService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        running = true;
         String title = intent == null ? null : intent.getStringExtra(EXTRA_TITLE);
         String text = intent == null ? null : intent.getStringExtra(EXTRA_TEXT);
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -85,6 +88,12 @@ public class ApprovalService extends Service {
     @Override
     public void onTimeout(int startId, int fgsType) {
         stopSelf();
+    }
+
+    @Override
+    public void onDestroy() {
+        running = false;
+        super.onDestroy();
     }
 
     @Override

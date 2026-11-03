@@ -57,12 +57,24 @@ try {
     $windowId = New-Object Windows.UI.WindowId
     $windowId.Value = [UInt64]$request.window
   }
-  $raised = $null -ne $windowId
-  if (-not $raised -and ($request.op -eq 'create' -or $request.op -eq 'sign')) {
+  # Only a prompt needs bringing forward; the probe and delete show none.
+  $prompts = $request.op -eq 'create' -or $request.op -eq 'sign'
+  $raised = -not $prompts -or $null -ne $windowId
+  function Add-Raiser {
+    if ('GirovoHello.Prompt' -as [Type]) { return }
     Add-Type -Namespace GirovoHello -Name Prompt -MemberDefinition @'
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string className, string title);
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
 '@
+  }
+  if (-not $raised) { Add-Raiser }
+
+  # A ...ForWindowAsync call that refuses Girovo's window (another process's
+  # handle) falls back to the plain call, brought to the front by class.
+  function Use-PlainCalls {
+    $script:windowId = $null
+    $script:raised = $false
+    Add-Raiser
   }
 
   function Wait-Result($asyncOperation, [Type]$resultType) {
@@ -82,10 +94,13 @@ try {
   function Request-Signature($credential) {
     $data = $buffers::AsBuffer([Convert]::FromBase64String($request.challenge))
     if ($null -ne $windowId) {
-      Wait-Result ($credential.RequestSignForWindowAsync($windowId, $data)) $operation
-    } else {
-      Wait-Result ($credential.RequestSignAsync($data)) $operation
+      try {
+        $signed = Wait-Result ($credential.RequestSignForWindowAsync($windowId, $data)) $operation
+        if ([string]$signed.Status -ne 'UnknownError') { return $signed }
+      } catch { }
+      Use-PlainCalls
     }
+    Wait-Result ($credential.RequestSignAsync($data)) $operation
   }
 
   function Out-Signed($signed, $extra) {
@@ -102,9 +117,15 @@ try {
       Out-Answer @{ supported = [bool](Wait-Result ($manager::IsSupportedAsync()) ([bool])) }
     }
     'create' {
+      $created = $null
       if ($null -ne $windowId) {
-        $created = Wait-Result ($manager::RequestCreateForWindowAsync($windowId, $request.name, $replace)) $retrieval
-      } else {
+        try {
+          $created = Wait-Result ($manager::RequestCreateForWindowAsync($windowId, $request.name, $replace)) $retrieval
+          if ([string]$created.Status -eq 'UnknownError') { $created = $null }
+        } catch { $created = $null }
+        if ($null -eq $created) { Use-PlainCalls }
+      }
+      if ($null -eq $created) {
         $created = Wait-Result ($manager::RequestCreateAsync($request.name, $replace)) $retrieval
       }
       if ($created.Status -ne 'Success') {

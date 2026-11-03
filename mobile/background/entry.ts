@@ -28,9 +28,17 @@ bankPolicy.firstByteMs = Infinity;
 
 const store: BackgroundStore = {
   read: async () => bg().readBox(),
-  write: async (text) => bg().writeBox(text),
+  write: async (text, expected) => {
+    if (expected === undefined) {
+      bg().writeBox(text);
+      return true;
+    }
+    return bg().writeBoxIf(expected, text);
+  },
 };
 (globalThis as typeof globalThis & { __girovoBackgroundStore?: BackgroundStore }).__girovoBackgroundStore = store;
+// The app in front, or waiting for an approval: its own session reads the banks then (lib/background-bank.ts).
+(globalThis as typeof globalThis & { __girovoAppInFront?: () => boolean }).__girovoAppInFront = () => bg().inFront();
 
 async function main(): Promise<string> {
   const files = await mountData('fints-state');
@@ -41,6 +49,8 @@ async function main(): Promise<string> {
   if (result.notices.length) {
     bg().notify(JSON.stringify({ channel: msgs().background.channel, notices: result.notices }));
   }
+  // Nothing kept any more (the last PIN refused, the box gone): no more jobs.
+  if (!result.on) bg().cancel();
   // Counts only.
   return `files=${files} checked=${result.checked} notices=${result.notices.length}`;
 }

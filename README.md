@@ -113,7 +113,8 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   turned on. A bank that asks for an approval, or a remembered device that
   no longer opens with the kept PIN, pauses that bank (said once) until the
   user logs in again; a PIN the bank refuses is deleted at once and never
-  tried again. *Bank entfernen*, *Gerät vergessen*, deleting the saved data
+  tried again, and any other answer from a bank ends that bank's check for the
+  round, so one round never sends a PIN twice after it went wrong. *Bank entfernen*, *Gerät vergessen*, deleting the saved data
   and switching it off delete what they cover. The desktop checks while the
   app runs — closing the window leaves it in the notification area, and on
   Windows it starts with the system, hidden (`--background`); the phone runs
@@ -129,8 +130,9 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   device scans it — both logged in to the same bank with the same login, or
   the code is refused. The devices meet **directly on the Wi-Fi** (the desktop
   app serves a folder to the home network while it runs, `electron/sync-lan.cjs`;
-  the phone reaches it over plain HTTP to a private address — Windows asks
-  once whether Girovo may be reached), in a **WebDAV folder** (Nextcloud,
+  the phone reaches it over plain HTTP to a private address, every request
+  carrying a token derived from the group's key — Windows asks once whether
+  Girovo may be reached), in a **WebDAV folder** (Nextcloud,
   ownCloud, a NAS; HTTPS, an existing folder, an app password) or, between
   two computers, in a **folder** a sync tool keeps in step (OneDrive,
   Dropbox, Google Drive for desktop, Syncthing). Each device only writes its

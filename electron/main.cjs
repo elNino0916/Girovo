@@ -1071,8 +1071,9 @@ if (app.requestSingleInstanceLock()) {
 function run() {
   app.on('second-instance', () => {
     // Visible, or waiting hidden in the notification area: brought forward.
+    // Opened by hand while a start with Windows is still under way: shown once ready.
+    keepHidden = false;
     if (win && !win.isDestroyed() && (win.isVisible() || !splash)) {
-      keepHidden = false;
       showWindow();
     } else {
       splash?.focus();
@@ -1147,6 +1148,10 @@ function run() {
     secret: () => linkedUnlock.secret(),
     check: serverCheck({ origin: () => appOrigin, locale: () => storedLocale(), cookie: LOCALE_COOKIE }),
     notify: notifyNotice,
+    stopped: () => {
+      dropTray();
+      setLoginItem(false);
+    },
   });
   // window.electronSync (preload.cjs): sync between devices (lib/sync.ts).
   // "Direkt im WLAN" serves the sync folder to the home network while the app

@@ -50,6 +50,7 @@ function sanitize(raw: unknown): SyncMeta | null {
     deviceName: typeof r.deviceName === 'string' ? r.deviceName.slice(0, 40) : '',
     place,
     local: {
+      ...(local.joining === true ? { joining: true as const } : {}),
       stamps: local.stamps && typeof local.stamps === 'object' ? local.stamps : {},
       uploaded: Array.isArray(local.uploaded) ? local.uploaded.filter((h): h is string => typeof h === 'string') : [],
       hashes: local.hashes && typeof local.hashes === 'object' ? local.hashes : {},

@@ -118,6 +118,82 @@ test('a receipt deleted on one device is deleted on the other; a new match follo
   assert.equal(desk.receipts.docs.size, 0);
 });
 
+test('a receipt whose bytes did not arrive is never deleted on the device that has it', async () => {
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const desk = device('Computer');
+  const phone = device('Telefon');
+  desk.receipts.docs.set('r1', { doc: receipt('r1', 'Bon.pdf'), bytes: Buffer.from('bon') });
+  await round(place, key, desk, 1000);
+  // The blob is lost on its way (a folder tool brought the state first, say).
+  for (const name of [...place.files.keys()]) if (name.endsWith('.doc')) place.files.delete(name);
+  await round(place, key, phone, 2000);
+  await round(place, key, phone, 3000);
+  await round(place, key, desk, 4000);
+  assert.equal(desk.receipts.docs.size, 1);
+});
+
+test('a round with unreadable receipts deletes none and crashes no other device', async () => {
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const desk = device('Computer');
+  const phone = device('Telefon');
+  desk.receipts.docs.set('r1', { doc: receipt('r1', 'Bon.pdf'), bytes: Buffer.from('bon') });
+  await round(place, key, desk, 1000);
+  await round(place, key, phone, 1100);
+  // The phone's receipts cannot be read for a round.
+  const r = await runSync({ store: place, key, device: { id: phone.id, name: phone.name }, vault: phone.vault, local: phone.local, receipts: null, now: 2000 });
+  phone.local = r.local;
+  await round(place, key, desk, 3000);
+  await round(place, key, phone, 4000);
+  assert.equal(desk.receipts.docs.size, 1);
+  assert.equal(phone.receipts.docs.size, 1);
+});
+
+test('what one device does not keep (balances switched off) is not deleted on the others', async () => {
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const kept = { DE01: { cents: 12345, currency: 'EUR', readAt: '2026-11-01T18:02:00Z' } };
+  const desk = device('Computer', { keptBalances: kept });
+  const phone = device('Telefon', { keepBalances: false });
+  await round(place, key, desk, 1000);
+  await round(place, key, phone, 2000);
+  assert.equal(phone.vault.keptBalances, undefined);
+  await round(place, key, phone, 3000);
+  await round(place, key, desk, 4000);
+  assert.deepEqual(desk.vault.keptBalances, kept);
+});
+
+test('a device that joins never overwrites the group\'s newer data with what it brought', async () => {
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const desk = device('Computer', { notes: { a: 'neu' }, accountGrouping: 'bank' });
+  await round(place, key, desk, 5000);
+  const phone = device('Telefon', { notes: { a: 'alt', b: 'nur hier' }, accountGrouping: 'none' });
+  phone.local = { ...phone.local, joining: true };
+  await round(place, key, phone, 6000);
+  assert.deepEqual(phone.vault.notes, { a: 'neu', b: 'nur hier' });
+  assert.equal(phone.vault.accountGrouping, 'bank');
+  await round(place, key, desk, 7000);
+  assert.deepEqual(desk.vault.notes, { a: 'neu', b: 'nur hier' });
+});
+
+test('a device silent for months is left out and cannot bring a deleted note back', async () => {
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const desk = device('Computer', { notes: { a: 'x' } });
+  const old = device('Altes Telefon');
+  await round(place, key, desk, 1000);
+  await round(place, key, old, 1100);
+  desk.vault = { ...desk.vault, notes: {} };
+  await round(place, key, desk, 2000);
+  // Half a year later the tombstone is gone; the old phone's state still has the note.
+  const later = 2000 + 200 * 86_400_000;
+  const r = await round(place, key, desk, later);
+  assert.deepEqual(desk.vault.notes, {});
+  assert.equal(r.devices.length, 1);
+});
+
 test('a state file of another group, or a damaged one, is skipped', async () => {
   const place = memoryPlace();
   const key = newGroupKey();

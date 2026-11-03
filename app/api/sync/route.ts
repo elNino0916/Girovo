@@ -20,10 +20,11 @@ import { linkReceipt, listDocs, readDoc, removeDoc, restoreDocs } from '@/lib/do
 import { loginOfSession } from '@/lib/linked-unlock';
 import { getSession, type Session } from '@/lib/session';
 import {
-  loginTag, makeCode, newDeviceId, newGroupKey, readCode, readPlace, runSync, type ReceiptsSide, type SyncPlace,
+  leaveGroup, loginTag, makeCode, newDeviceId, newGroupKey, readCode, readPlace, runSync, type ReceiptsSide, type SyncPlace,
 } from '@/lib/sync';
-import { readMeta, removeMeta, writeMeta } from '@/lib/sync-meta';
-import { storeFor } from '@/lib/sync-stores';
+import { readMeta, removeMeta, syncMetaFileOf, writeMeta, type SyncMeta } from '@/lib/sync-meta';
+import { keepLanToken, storeFor } from '@/lib/sync-stores';
+import { serialized } from '@/lib/sealed-file';
 import { sanitizeVault, saveVault, VAULT_REQUEST_MAX_BYTES, vaultKeyOf } from '@/lib/vault';
 
 export const runtime = 'nodejs';
@@ -77,7 +78,18 @@ export const POST = wrap(async (req: Request) => {
   const login = loginOfSession(s);
   if (!login) return fail(said.noVault, 409);
 
+  // One operation per login at a time: two rounds at once would add a
+  // receipt twice and keep only one round's stamps.
+  return serialized(`${syncMetaFileOf(login.blz, login.userId)}#op`, () => handle(b, s, login));
+});
+
+async function handle(b: SyncBody, s: Session, login: { blz: string; userId: string }) {
+  const said = msgs().sync.api;
   if (b.op === 'leave') {
+    // Out of the group's list first (its files stay, sealed, for no one), then the settings go.
+    const before = vaultKeyOf(s) ? await readMeta(s) : null;
+    const store = before ? safeStore(before) : null;
+    if (before && store) await leaveGroup(store, before.key, before.deviceId).catch(() => {});
     await removeMeta(login.blz, login.userId);
     return json({ on: false });
   }
@@ -118,12 +130,13 @@ export const POST = wrap(async (req: Request) => {
       const place: SyncPlace = code.place.kind === 'folder' ? (chosen?.kind === 'folder' ? chosen : { kind: 'folder' }) : code.place;
       const refused = placeHere(place);
       if (refused) return fail(refused);
-      await writeMeta(s, { key: code.key, deviceId: newDeviceId(), deviceName: nameOf(b.deviceName), place, local: { stamps: {}, uploaded: [], hashes: {} } });
+      // What this device brought counts as older than the group's (lib/sync.ts SyncLocal.joining).
+      await writeMeta(s, { key: code.key, deviceId: newDeviceId(), deviceName: nameOf(b.deviceName), place, local: { stamps: {}, uploaded: [], hashes: {}, joining: true } });
       return json({ on: true });
     }
     case 'run': {
       if (!meta) return fail(said.notSetUp, 409);
-      const store = storeFor(meta.place);
+      const store = safeStore(meta);
       if (!store) return fail(said.badPlace, 409);
       // The vault exactly as the server keeps it, never something it would not.
       const sent = sanitizeVault(b.vault);
@@ -132,7 +145,11 @@ export const POST = wrap(async (req: Request) => {
       const vault = { ...sent, updatedAt: saved.updatedAt };
       const result = await runSync({
         store, key: meta.key, device: { id: meta.deviceId, name: meta.deviceName }, vault, local: meta.local, receipts: await receiptsOf(s),
+        keep: (v) => sanitizeVault(v) ?? v,
       });
+      // The saved data was deleted meanwhile ("Gespeicherte Daten löschen"):
+      // nothing of this round may bring it back.
+      if (!vaultKeyOf(s)) return fail(said.noVault, 409);
       const lastSync = Date.now();
       if (result.changed) await saveVault(s, result.vault);
       await writeMeta(s, { ...meta, local: result.local, lastSync, devices: result.devices });
@@ -148,4 +165,10 @@ export const POST = wrap(async (req: Request) => {
     default:
       return fail(said.unknownAction);
   }
-});
+}
+
+/** The place for this group; the desktop's shelf learns the group's token first (electron/sync-lan.cjs). */
+function safeStore(meta: SyncMeta) {
+  if (meta.place.kind === 'lan' && !IS_ANDROID) keepLanToken(meta.key);
+  return storeFor(meta.place, meta.key);
+}

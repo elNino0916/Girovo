@@ -166,7 +166,8 @@ export const GirovoWidget = registerPlugin<GirovoWidgetPlugin>('GirovoWidget');
 export interface GirovoBackgroundPlugin {
   secret(): Promise<{ secret: string }>;
   read(): Promise<{ text: string | null }>;
-  write(opts: { text: string | null }): Promise<void>;
+  /** With `expected`, written only while the box is still that (null: none) — `written` says whether. */
+  write(opts: { text: string | null; expected?: string | null }): Promise<{ written: boolean }>;
   schedule(opts: { on: boolean }): Promise<{ scheduled: boolean }>;
   notifications(): Promise<{ allowed: boolean }>;
   requestNotifications(): Promise<{ allowed: boolean }>;
@@ -179,7 +180,7 @@ export const GirovoBackground = registerPlugin<GirovoBackgroundPlugin>('GirovoBa
 // of a sealed file on the desktop app's shelf, over plain HTTP to a private address.
 
 export interface GirovoSyncPlugin {
-  lan(opts: { method: 'GET' | 'PUT'; url: string; body?: string }): Promise<{ status: number; body?: string }>;
+  lan(opts: { method: 'GET' | 'PUT'; url: string; token: string; body?: string }): Promise<{ status: number; body?: string }>;
 }
 
 export const GirovoSync = registerPlugin<GirovoSyncPlugin>('GirovoSync');

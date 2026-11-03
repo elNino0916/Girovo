@@ -48,12 +48,13 @@ const appearance = startAppearance();
 // for this runtime and the background job's alike (lib/background-store.ts).
 (globalThis as typeof globalThis & { __girovoBackgroundStore?: unknown }).__girovoBackgroundStore = {
   read: () => GirovoBackground.read().then((r) => r.text ?? null),
-  write: (text: string | null) => GirovoBackground.write({ text }),
+  write: (text: string | null, expected?: string | null) =>
+    GirovoBackground.write(expected === undefined ? { text } : { text, expected }).then((r) => r.written),
 };
 
 // Sync "Direkt im WLAN": the way to the desktop app's shelf (lib/sync-stores.ts lanStore).
 (globalThis as typeof globalThis & { __girovoLanHttp?: unknown }).__girovoLanHttp =
-  (req: { method: 'GET' | 'PUT'; url: string; body?: string }) => GirovoSync.lan(req);
+  (req: { method: 'GET' | 'PUT'; url: string; token: string; body?: string }) => GirovoSync.lan(req);
 
 window.girovoMobile = {
   ready,

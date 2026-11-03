@@ -14,6 +14,8 @@ import { getSession, saveSessionProfile } from '@/lib/session';
 import { cleanTan, isPlausibleTan } from '@/lib/tan-entry';
 import { msgs } from '@/lib/i18n';
 import { PENDING_SEG } from '@/lib/fints-pending';
+import { CARD_STATEMENT_SEG } from '@/lib/fints-cards';
+import { statementFormat } from '@/lib/fints-statements';
 import { holdBankOrders, orderCaps } from '@/lib/fints-orders';
 import type { ClientResponseWithResult, TanPollResponse } from '@/lib/fints-types';
 import type { AccountBalanceResponse, ElectronicStatementResponse, PortfolioResponse, StatementResponse } from 'lib-fints';
@@ -55,7 +57,11 @@ export const POST = wrap(async (req: Request) => {
         resp = await continueStatements(s, pending.segId, tanReference!, tan);
         break;
       case 'statements':
-        resp = await s.client.getAccountStatementsWithTan(tanReference!, tan);
+        // A Sparkasse card's Umsätze went out as DKKKU (lib/fints-cards.ts): its
+        // answer, not the dialog's last one, which after DKKKU is the end's.
+        resp = statementFormat(s.client.config, pending.accountNumber) === 'card'
+          ? await s.client.continueCustomerInteractionWithTan([CARD_STATEMENT_SEG], tanReference!, tan)
+          : await s.client.getAccountStatementsWithTan(tanReference!, tan);
         break;
       case 'pending':
         resp = await s.client.continueCustomerInteractionWithTan([PENDING_SEG], tanReference!, tan);

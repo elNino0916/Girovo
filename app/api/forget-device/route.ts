@@ -26,6 +26,8 @@ import { removeLinkedUnlock } from '@/lib/linked-unlock';
 import { forgetProfile } from '@/lib/state-store';
 import { removeWindowsHello } from '@/lib/windows-hello';
 import { removeMeta } from '@/lib/sync-meta';
+import { disable as disableBackground } from '@/lib/background-check';
+import { backgroundServed, backgroundStore } from '@/lib/background-store';
 import { VaultError, wipeVault } from '@/lib/vault';
 
 export const runtime = 'nodejs';
@@ -48,6 +50,9 @@ export const POST = wrap(async (req: Request) => {
     await removeLinkedUnlock({ blz: String(b), userId: String(u) });
     await removeWindowsHello({ blz: String(b), userId: String(u) });
   }
+  // "Gerät vergessen" by the user (with a session, not a refused further
+  // bank's): the PINs kept for "Neue Umsätze melden" go, all of them.
+  if (s && backgroundServed()) await disableBackground(backgroundStore());
 
   let wiped: number | undefined;
   if (wipeData === true && s) {

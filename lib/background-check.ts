@@ -17,11 +17,18 @@
 //   asks for one anyway pauses its login until the user logs in again
 //   (touch); so does a remembered device that no longer opens with the kept
 //   PIN — then nothing is sent to the bank at all.
-// - A PIN the bank turns down is deleted at once and never tried again: a few
-//   wrong tries lock the online banking.
+// - A PIN the bank turns down is deleted at once — saved before the next
+//   login is checked — and never tried again: a few wrong tries lock the
+//   online banking. Any other answer from the bank ends that login's check
+//   for this round, so one round never sends a PIN more than once after it
+//   went wrong.
 // - What is new is told by the booking's key (lib/categories.ts txKey),
 //   counted, so two equal bookings on one day are two. The first check of an
 //   account only learns what is there.
+//
+// Every change to the box is a compare-and-set (lib/background-store.ts): on
+// the phone the page and the job are two runtimes, and a check must never
+// bring back what the user just switched off or changed meanwhile.
 //
 // The bank's side (opening a login, reading Umsätze) comes in as `BankSide`,
 // so `node --test` runs everything else (lib/background-check.test.ts); the
@@ -42,7 +49,7 @@ export type CheckedLogin = SealedLogin & {
   bank: string;
   /** 'approval': the bank asked for one; 'login': the remembered device no longer opens. */
   paused?: 'approval' | 'login';
-  /** When the last check reached its bank. */
+  /** When the last check read from its bank. */
   checkedAt?: string;
 };
 
@@ -66,7 +73,8 @@ export type Notice = {
   lines: string[];
 };
 
-export type CheckResult = { checked: number; notices: Notice[] };
+/** `on`: whether the checks are still on afterwards — the shell stops planning them when not. */
+export type CheckResult = { checked: number; notices: Notice[]; on: boolean };
 
 /** One account of an opened login. */
 export type CheckedAccount = { accountNumber: string };
@@ -80,7 +88,7 @@ export type BankSide = {
     | { kind: 'approval' | 'refused' | 'failed' }
   >;
   close(handle: string): void;
-  /** Whether the user is logged in to this login right now (their own session reads it then). */
+  /** Whether the user is in this login right now (their own session reads it then). */
   busy(login: CheckedLogin): boolean;
 };
 
@@ -94,6 +102,8 @@ const LINES_MAX = 5;
 const LOGINS_MAX = 8;
 const PIN_MAX = 64;
 const BOX_MAX_BYTES = 512 * 1024;
+/** Tries of a compare-and-set before a change is given up for this round. */
+const CAS_TRIES = 5;
 const DOMAIN = 'girovo/background/v1';
 const DAY_MS = 86_400_000;
 
@@ -149,7 +159,11 @@ function sanitizeBox(v: unknown): Box {
   return { v: 1, amounts: r.amounts !== false, logins, seen };
 }
 
-/** Every change to the box, one after another: a check and a touch must not overwrite each other. */
+/**
+ * One check at a time in a runtime. Every other change goes through
+ * compare-and-set (`change`), which keeps it right beside a running check —
+ * in this runtime or the other one on the phone.
+ */
 let queue: Promise<unknown> = Promise.resolve();
 function serialized<T>(task: () => Promise<T>): Promise<T> {
   const next = queue.then(task, task);
@@ -157,9 +171,8 @@ function serialized<T>(task: () => Promise<T>): Promise<T> {
   return next;
 }
 
-/** The box, opened: null when there is none; 'stale' when it does not open with this secret. */
-async function readBox(store: BackgroundStore, secret: Buffer): Promise<Box | null | 'stale'> {
-  const raw = await store.read();
+/** The box opened from its text: null when there is none; 'stale' when it does not open with this secret. */
+function openText(raw: string | null, secret: Buffer): Box | null | 'stale' {
   if (raw == null) return null;
   if (raw.length > BOX_MAX_BYTES) return 'stale';
   try {
@@ -171,9 +184,34 @@ async function readBox(store: BackgroundStore, secret: Buffer): Promise<Box | nu
   }
 }
 
-async function writeBox(store: BackgroundStore, secret: Buffer, box: Box): Promise<void> {
-  const plain = Buffer.from(JSON.stringify(box), 'utf8');
-  await store.write(JSON.stringify(sealBox(keyFor(secret), newSalt(), plain, AAD)));
+const sealText = (secret: Buffer, box: Box): string =>
+  JSON.stringify(sealBox(keyFor(secret), newSalt(), Buffer.from(JSON.stringify(box), 'utf8'), AAD));
+
+/**
+ * One change to the box, made on what is there now: `apply` gets the box (or
+ * null) and answers the new one, null to delete it, or 'keep'. Written only
+ * if nobody changed the box meanwhile — else read again and made again.
+ * Answers the box as it stands afterwards (null when there is none).
+ */
+async function change(
+  store: BackgroundStore, secret: Buffer, apply: (box: Box | null) => Box | null | 'keep',
+): Promise<Box | null> {
+  for (let i = 0; i < CAS_TRIES; i++) {
+    const raw = await store.read();
+    const opened = openText(raw, secret);
+    // A box this secret does not open can never be used again: it goes.
+    const box = opened === 'stale' ? null : opened;
+    const next = opened === 'stale' ? (() => { const n = apply(null); return n === 'keep' ? null : n; })() : apply(box);
+    if (next === 'keep') return box;
+    if (next && !next.logins.length) {
+      if (await store.write(null, raw)) return null;
+      continue;
+    }
+    if (await store.write(next ? sealText(secret, next) : null, raw)) return next;
+  }
+  // Someone keeps changing it: this round's change is given up, the next one tries again.
+  const opened = openText(await store.read(), secret);
+  return opened === 'stale' ? null : opened;
 }
 
 /** Whether the checks are on — the switch's state; needs no secret. */
@@ -182,12 +220,10 @@ export async function isOn(store: BackgroundStore): Promise<boolean> {
 }
 
 /** The logins the checks are on for, without their PINs (the settings row); null when off or unreadable. */
-export function enrolled(store: BackgroundStore, secret: Buffer): Promise<{ amounts: boolean; logins: Array<Omit<CheckedLogin, 'pin'>> } | null> {
-  return serialized(async () => {
-    const box = await readBox(store, secret);
-    if (!box || box === 'stale') return null;
-    return { amounts: box.amounts, logins: box.logins.map(({ pin: _pin, ...rest }) => rest) };
-  });
+export async function enrolled(store: BackgroundStore, secret: Buffer): Promise<{ amounts: boolean; logins: Array<Omit<CheckedLogin, 'pin'>> } | null> {
+  const box = openText(await store.read(), secret);
+  if (!box || box === 'stale') return null;
+  return { amounts: box.amounts, logins: box.logins.map(({ pin: _pin, ...rest }) => rest) };
 }
 
 /**
@@ -195,36 +231,31 @@ export function enrolled(store: BackgroundStore, secret: Buffer): Promise<{ amou
  * the PINs the bank took this session — replacing the logins kept before
  * (and keeping what each one's accounts were seen with). Returns how many.
  */
-export function enroll(store: BackgroundStore, secret: Buffer, logins: readonly CheckedLogin[], amounts: boolean): Promise<number> {
-  return serialized(async () => {
-    const found = await readBox(store, secret);
-    const prior = found && found !== 'stale' ? found : null;
+export async function enroll(store: BackgroundStore, secret: Buffer, logins: readonly CheckedLogin[], amounts: boolean): Promise<number> {
+  const after = await change(store, secret, (prior) => {
     const kept = sanitizeBox({ logins: logins.map(({ paused: _p, ...l }) => l) }).logins.map((l) => {
       const before = prior?.logins.find((p) => sameLogin(p, l));
       return before?.checkedAt ? { ...l, checkedAt: before.checkedAt } : l;
     });
     const seen: Box['seen'] = {};
     for (const l of kept) if (prior?.seen[loginKey(l)]) seen[loginKey(l)] = prior.seen[loginKey(l)];
-    await writeBox(store, secret, { v: 1, amounts, logins: kept, seen });
-    return kept.length;
+    return { v: 1, amounts, logins: kept, seen };
   });
+  return after?.logins.length ?? 0;
 }
 
-/** Turns the checks off: every kept PIN goes. Needs no secret. */
-export function disable(store: BackgroundStore): Promise<void> {
-  return serialized(() => store.write(null));
+/** Turns the checks off: every kept PIN goes, whatever else is happening. Needs no secret. */
+export async function disable(store: BackgroundStore): Promise<void> {
+  await store.write(null);
 }
 
 /** One login's PIN goes (its bank refused it in the app, or the bank was removed); the rest stay. */
-export function forget(store: BackgroundStore, secret: Buffer, login: Pick<SealedLogin, 'blz' | 'userId'>): Promise<void> {
-  return serialized(async () => {
-    const box = await readBox(store, secret);
-    if (!box || box === 'stale') return;
-    if (!box.logins.some((l) => sameLogin(l, login))) return;
-    const logins = box.logins.filter((l) => !sameLogin(l, login));
-    delete box.seen[loginKey(login)];
-    if (logins.length) await writeBox(store, secret, { ...box, logins });
-    else await store.write(null);
+export async function forget(store: BackgroundStore, secret: Buffer, login: Pick<SealedLogin, 'blz' | 'userId'>): Promise<void> {
+  await change(store, secret, (box) => {
+    if (!box || !box.logins.some((l) => sameLogin(l, login))) return 'keep';
+    const seen = { ...box.seen };
+    delete seen[loginKey(login)];
+    return { ...box, logins: box.logins.filter((l) => !sameLogin(l, login)), seen };
   });
 }
 
@@ -233,25 +264,26 @@ export function forget(store: BackgroundStore, secret: Buffer, login: Pick<Seale
  * (it may have been changed) and checks resume. With `account` and `keys`,
  * the bookings the app just showed count as seen — no notice for them later.
  */
-export function touch(
+export async function touch(
   store: BackgroundStore, secret: Buffer, login: SealedLogin, account?: string, keys?: readonly string[],
 ): Promise<boolean> {
-  return serialized(async () => {
-    const box = await readBox(store, secret);
-    if (!box || box === 'stale') return false;
-    const at = box.logins.findIndex((l) => sameLogin(l, login));
-    if (at < 0) return false;
+  let kept = false;
+  await change(store, secret, (box) => {
+    const at = box ? box.logins.findIndex((l) => sameLogin(l, login)) : -1;
+    if (!box || at < 0) return 'keep';
+    kept = true;
     const { paused: _p, ...rest } = box.logins[at];
-    box.logins[at] = { ...rest, pin: login.pin };
+    const logins = [...box.logins];
+    logins[at] = { ...rest, pin: login.pin };
+    const seen = { ...box.seen };
     if (account && keys?.length && account.length <= 64) {
       const lk = loginKey(login);
-      const prior = box.seen[lk]?.[account];
       // An account never checked yet starts from what the app has shown.
-      box.seen[lk] = { ...box.seen[lk], [account]: mergeSeen(prior ?? [], [...keys]) };
+      seen[lk] = { ...seen[lk], [account]: mergeSeen(seen[lk]?.[account] ?? [], [...keys]) };
     }
-    await writeBox(store, secret, box);
-    return true;
+    return { ...box, logins, seen };
   });
+  return kept;
 }
 
 const countOf = (keys: readonly string[]) => {
@@ -312,84 +344,118 @@ function noticeFor(kind: Notice['kind'], login: CheckedLogin, lines: string[] = 
   }
 }
 
+/** What one login's check came to, made on the box as it is then (see `change`). */
+type Outcome =
+  | { kind: 'pause'; why: 'approval' | 'login'; seen?: Record<string, string[]> }
+  | { kind: 'refused' }
+  | { kind: 'read'; seen: Record<string, string[]>; checkedAt?: string };
+
+function settle(box: Box | null, login: CheckedLogin, outcome: Outcome, now: number): Box | 'keep' {
+  const at = box ? box.logins.findIndex((l) => sameLogin(l, login)) : -1;
+  // Switched off, or this login forgotten, meanwhile: nothing comes back.
+  if (!box || at < 0) return 'keep';
+  const current = box.logins[at];
+  const lk = loginKey(login);
+  const logins = [...box.logins];
+  const seen = { ...box.seen };
+  const mergeIn = (read?: Record<string, string[]>) => {
+    if (!read) return;
+    const merged = { ...seen[lk] };
+    for (const [acct, keys] of Object.entries(read)) merged[acct] = mergeSeen(merged[acct] ?? [], keys, now);
+    seen[lk] = merged;
+  };
+  if (outcome.kind === 'refused') {
+    // The user typed a new PIN meanwhile (touch): that one was never tried.
+    if (current.pin !== login.pin) return 'keep';
+    delete seen[lk];
+    return { ...box, logins: logins.filter((_, i) => i !== at), seen };
+  }
+  mergeIn(outcome.seen);
+  if (outcome.kind === 'pause') {
+    if (current.pin === login.pin) logins[at] = { ...current, paused: outcome.why };
+  } else if (outcome.checkedAt) {
+    logins[at] = { ...current, checkedAt: outcome.checkedAt };
+  }
+  return { ...box, logins, seen };
+}
+
 /**
  * One check of every kept login that is not paused and not in use: new
  * bookings as notices, a bank that wants an approval or a device that no
- * longer opens paused (said once), a refused PIN deleted.
+ * longer opens paused (said once), a refused PIN deleted — each saved before
+ * the next login is checked.
  */
 export function runCheck(store: BackgroundStore, secret: Buffer, bank: BankSide, now = Date.now()): Promise<CheckResult> {
   return serialized(async () => {
-    const box = await readBox(store, secret);
+    const start = openText(await store.read(), secret);
     // A box this secret does not open (the shell's secret is new) can never
     // be used: it goes, and the switch reads as off.
-    if (box === 'stale') {
+    if (start === 'stale') {
       await store.write(null);
-      return { checked: 0, notices: [] };
+      return { checked: 0, notices: [], on: false };
     }
-    if (!box) return { checked: 0, notices: [] };
+    if (!start) return { checked: 0, notices: [], on: false };
     const notices: Notice[] = [];
-    const logins: CheckedLogin[] = [];
     let checked = 0;
-    for (const login of box.logins) {
-      if (login.paused || bank.busy(login)) {
-        logins.push(login);
-        continue;
-      }
+    let on = true;
+    for (const login of start.logins) {
+      if (login.paused || bank.busy(login)) continue;
       const opened = await bank.open(login).catch(() => null);
-      if (opened === 'login') {
-        logins.push({ ...login, paused: 'login' });
-        notices.push(noticeFor('login', login));
-        continue;
-      }
-      if (!opened) {
-        logins.push(login);
-        continue;
-      }
-      checked++;
-      let outcome: 'ok' | 'approval' | 'refused' = 'ok';
+      if (!opened) continue;
+      let outcome: Outcome;
       const fresh: SerializedTransaction[] = [];
-      const lk = loginKey(login);
-      const seen = { ...box.seen[lk] };
-      const last = login.checkedAt ? Date.parse(login.checkedAt) : NaN;
-      const from = new Date(Math.max(now - WINDOW_DAYS * DAY_MS, Number.isNaN(last) ? 0 : last - 3 * DAY_MS));
-      try {
-        for (const account of opened.accounts) {
-          const read = await bank.read(opened.handle, account.accountNumber, from).catch(() => ({ kind: 'failed' as const }));
-          if (read.kind === 'approval' || read.kind === 'refused') {
-            outcome = read.kind;
-            break;
+      if (opened === 'login') {
+        outcome = { kind: 'pause', why: 'login' };
+        notices.push(noticeFor('login', login));
+      } else {
+        checked++;
+        const seenNow = start.seen[loginKey(login)] ?? {};
+        const read: Record<string, string[]> = {};
+        let stop: 'approval' | 'refused' | 'failed' | null = null;
+        const last = login.checkedAt ? Date.parse(login.checkedAt) : NaN;
+        const from = new Date(Math.max(now - WINDOW_DAYS * DAY_MS, Number.isNaN(last) ? 0 : last - 3 * DAY_MS));
+        try {
+          for (const account of opened.accounts) {
+            const got = await bank.read(opened.handle, account.accountNumber, from).catch(() => ({ kind: 'failed' as const }));
+            // Whatever the bank said instead of Umsätze ends this login's
+            // round: never one more dialog with a PIN that may be wrong.
+            if (got.kind !== 'ok') {
+              stop = got.kind;
+              break;
+            }
+            const prior = seenNow[account.accountNumber];
+            // The first check of an account only learns what is there.
+            if (prior) fresh.push(...newBookings(prior, got.transactions));
+            read[account.accountNumber] = got.transactions.map(txKey);
           }
-          if (read.kind !== 'ok') continue;
-          const prior = seen[account.accountNumber];
-          // The first check of an account only learns what is there.
-          if (prior) fresh.push(...newBookings(prior, read.transactions));
-          seen[account.accountNumber] = mergeSeen(prior ?? [], read.transactions.map(txKey), now);
+        } finally {
+          bank.close(opened.handle);
         }
-      } finally {
-        bank.close(opened.handle);
+        const anyRead = Object.keys(read).length > 0;
+        if (stop === 'refused') {
+          outcome = { kind: 'refused' };
+          notices.push(noticeFor('refused', login));
+        } else if (stop === 'approval') {
+          outcome = { kind: 'pause', why: 'approval', seen: read };
+          notices.push(noticeFor('approval', login));
+        } else {
+          // A round where the bank answered nothing does not count as read:
+          // the next one reaches back as far as this one would have.
+          outcome = { kind: 'read', seen: read, ...(anyRead ? { checkedAt: new Date(now).toISOString() } : {}) };
+        }
+        if (fresh.length) {
+          const newest = [...fresh].sort((x, y) => String(y.entryDate || y.valueDate).localeCompare(String(x.entryDate || x.valueDate)));
+          const lines = newest.slice(0, LINES_MAX).map((t) => lineOf(t, start.amounts));
+          if (newest.length > LINES_MAX) lines.push(msgs().background.more(newest.length - LINES_MAX));
+          notices.push(noticeFor('new', login, lines, fresh.length));
+        }
       }
-      if (outcome === 'refused') {
-        // Never tried again: the PIN and what was seen with it go.
-        delete box.seen[lk];
-        notices.push(noticeFor('refused', login));
-        continue;
-      }
-      box.seen[lk] = seen;
-      if (outcome === 'approval') {
-        logins.push({ ...login, paused: 'approval' });
-        notices.push(noticeFor('approval', login));
-        continue;
-      }
-      logins.push({ ...login, checkedAt: new Date(now).toISOString() });
-      if (fresh.length) {
-        const newest = [...fresh].sort((x, y) => String(y.entryDate || y.valueDate).localeCompare(String(x.entryDate || x.valueDate)));
-        const lines = newest.slice(0, LINES_MAX).map((t) => lineOf(t, box.amounts));
-        if (newest.length > LINES_MAX) lines.push(msgs().background.more(newest.length - LINES_MAX));
-        notices.push(noticeFor('new', login, lines, fresh.length));
+      const after = await change(store, secret, (box) => settle(box, login, outcome, now));
+      if (!after) {
+        on = false;
+        break;
       }
     }
-    if (logins.length) await writeBox(store, secret, { ...box, logins });
-    else await store.write(null);
-    return { checked, notices };
+    return { checked, notices, on };
   });
 }

@@ -368,6 +368,13 @@ function useFintsState() {
   const syncRef = useRef<SyncInfo | null>(null);
   const [syncOpen, setSyncOpen] = useState(false);
   const syncQueueRef = useRef<Array<(v: VaultData) => VaultData> | null>(null);
+  // The round under way, if any: a second waits for none, a save or a wipe waits for it.
+  const syncRunRef = useRef<Promise<void> | null>(null);
+  const flushVaultRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const syncRoundRef = useRef<(sid: string, quiet: boolean) => Promise<void>>(() => Promise.resolve());
+  // Android: the home screen widget was cleared ("Gerät vergessen", the wiped
+  // data) — it gets no figure again until the next login.
+  const widgetClearedRef = useRef(false);
   const setSyncBoth = useCallback((info: SyncInfo | null) => {
     syncRef.current = info;
     setSyncState(info);
@@ -1168,7 +1175,7 @@ function useFintsState() {
   const flushVault = useCallback((): Promise<void> => {
     if (vaultTimerRef.current) { clearTimeout(vaultTimerRef.current); vaultTimerRef.current = null; }
     // A sync round is under way: saved after it, onto the merged vault.
-    if (syncQueueRef.current) return vaultChainRef.current;
+    if (syncQueueRef.current) return (syncRunRef.current ?? Promise.resolve()).then(() => flushVaultRef.current());
     const sid = sessionRef.current;
     const data = vaultRef.current;
     if (vaultDirtyRef.current && sid && data && vaultStatusRef.current === 'ready') {
@@ -1194,6 +1201,8 @@ function useFintsState() {
     }
     return vaultChainRef.current;
   }, [isCurrent, toast]);
+
+  flushVaultRef.current = flushVault;
 
   const scheduleVaultSave = useCallback(() => {
     if (vaultTimerRef.current) clearTimeout(vaultTimerRef.current);
@@ -1308,6 +1317,8 @@ function useFintsState() {
     if (vaultTimerRef.current) { clearTimeout(vaultTimerRef.current); vaultTimerRef.current = null; }
     if (before === 'loading') vaultLoadGenRef.current++;
     vaultStatusRef.current = 'unavailable';
+    // A sync round under way finishes first: it must not bring back what goes now.
+    await syncRunRef.current?.catch(() => {});
     await vaultChainRef.current;
     try {
       await request(sid);
@@ -1336,12 +1347,23 @@ function useFintsState() {
     void wipeLinkedHistories().then((problem) => { if (problem) toast(problem, 'error'); });
     // Nothing is kept for the rest of the session: no row, no offer, no PIN —
     // and the home screen widget forgets its Gesamtsaldo.
-    if (IS_ANDROID) void window.girovoMobile?.widget?.clear();
+    if (IS_ANDROID) {
+      widgetClearedRef.current = true;
+      void window.girovoMobile?.widget?.clear();
+    }
     openedLinkedRef.current = [];
     setLinkedUnlockBoth(null);
     setLinkedUnlockAsk(false);
-    // The login's PIN kept for Windows Hello went too (app/api/vault).
+    // This device left its sync group (app/api/vault): the shelf on the home network closes.
+    if (syncRef.current?.place === 'lan' && !IS_ANDROID) void window.electronSync?.lan(false);
+    setSyncBoth(null);
+    // The login's PIN kept for Windows Hello went too (app/api/vault), and
+    // every PIN kept for "Neue Umsätze melden".
     if (windowsHelloRef.current) setWindowsHelloBoth(false);
+    if (backgroundRef.current) {
+      setBackgroundBoth(false);
+      void shellSchedule(false);
+    }
     if (bank) {
       store.del(`fints.userId.${bank.blz}`);
       try {
@@ -1350,7 +1372,7 @@ function useFintsState() {
       } catch { /* unreadable — nothing of ours to remove */ }
     }
     return true;
-  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, wipeLinkedHistories, setLinkedUnlockBoth, setWindowsHelloBoth]);
+  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, wipeLinkedHistories, setLinkedUnlockBoth, setWindowsHelloBoth, setBackgroundBoth, setSyncBoth]);
 
   /** Deletes the saved personal data from this machine, the device registration untouched. */
   const wipeVault = useCallback(async () => {
@@ -2910,10 +2932,22 @@ function useFintsState() {
    * on it and saved after. `quiet`: the rounds that run by themselves say
    * nothing unless something came.
    */
-  const syncNow = useCallback(async (quiet = false) => {
+  const syncNow = useCallback((quiet = false): Promise<void> => {
+    // One round at a time — decided at once, before anything is awaited.
+    if (syncRunRef.current) return syncRunRef.current;
     const sid = sessionRef.current;
-    if (!sid || syncQueueRef.current || syncRef.current?.on !== true || vaultStatusRef.current !== 'ready') return;
+    if (!sid || syncRef.current?.on !== true || vaultStatusRef.current !== 'ready') return Promise.resolve();
+    const run = syncRoundRef.current(sid, quiet).finally(() => {
+      if (syncRunRef.current === run) syncRunRef.current = null;
+    });
+    syncRunRef.current = run;
+    return run;
+  }, []);
+
+  /** One round's work, current with every render (syncNow is made once). */
+  const syncRound = async (sid: string, quiet: boolean): Promise<void> => {
     const said = msgs().sync;
+    // Whatever waits to be saved goes first; then saves wait for the round.
     await flushVault();
     syncQueueRef.current = [];
     let r: SyncRunResponse | null = null;
@@ -2943,7 +2977,8 @@ function useFintsState() {
       }
       if (vaultDirtyRef.current) scheduleVaultSave();
     }
-  }, [isCurrent, flushVault, scheduleVaultSave, loadDocs, setSyncBoth, toast]);
+  };
+  syncRoundRef.current = syncRound;
 
   /** The place as this device offers it: the desktop's shelf with where the phone finds it. */
   const withAddresses = async (place: SyncPlaceChoice): Promise<SyncPlaceChoice | null> => {
@@ -3066,6 +3101,8 @@ function useFintsState() {
       void loadTransactions(list[0], undefined, undefined, afterRead
         ? { onSettled: (outcome) => { if (outcome === 'applied') pinTaken(sid); } }
         : {});
+      // Synchronised (and approved, where the bank asked): the bank took the PIN.
+      if (!afterRead && !IS_ANDROID) pinTaken(sid);
     }
     // Not a bank call: it runs beside the first statement, outside `busy`.
     void loadVault(sid);
@@ -3129,10 +3166,12 @@ function useFintsState() {
     // computer alone, with an old PIN too (afterAccountsReady).
     linkedAfterReadRef.current = null;
     helloLoginRef.current = { blz: chosen.blz, userId: login, bank: data.bank.bankName || chosen.name, hello: unsealed?.hello === true };
-    if (!IS_ANDROID) {
-      if ('restored' in data && data.restored) linkedAfterReadRef.current = data.sessionId;
-      else pinTaken(data.sessionId);
-    }
+    widgetClearedRef.current = false;
+    // What was kept with this PIN opens once the bank has taken it: when the
+    // Übersicht comes up after a synchronisation (and any approval it asked
+    // for), after the first statement read for a remembered device
+    // (afterAccountsReady).
+    if (!IS_ANDROID) linkedAfterReadRef.current = 'restored' in data && data.restored ? data.sessionId : null;
     if (previous && previous !== data.sessionId) {
       // Only drops it from the server's memory (and the PIN with it) — no bank traffic.
       post('/api/logout', { sessionId: previous }).catch(() => {});
@@ -3167,7 +3206,7 @@ function useFintsState() {
       // A remembered device asked for an approval after all: say why.
       if (data.productChanged) toast(msgs().provider.login.productChanged, 'info', 10_000);
     }
-  }, [afterAccountsReady, pinTaken, toast, setSelectedMethodBoth, setTanMethodsBoth]);
+  }, [afterAccountsReady, toast, setSelectedMethodBoth, setTanMethodsBoth]);
 
   /**
    * "Abbrechen" while the bank is being asked for the login: its answer is
@@ -3751,10 +3790,11 @@ function useFintsState() {
     const name = userIdRef.current;
     const blz = bankRef.current?.blz;
     if (IS_ANDROID && blz && name) void window.girovoMobile?.biometric.forget(blz, name);
-    // …and so is the Gesamtsaldo the home screen widget shows, and the PIN
-    // the checks for new Umsätze would use.
-    if (IS_ANDROID) void window.girovoMobile?.widget?.clear();
-    if (blz && name) void forgetBackgroundLogin({ blz, userId: name });
+    // …and so is the Gesamtsaldo the home screen widget shows.
+    if (IS_ANDROID) {
+      widgetClearedRef.current = true;
+      void window.girovoMobile?.widget?.clear();
+    }
     if (opts?.wipeData === true) {
       if (await wipeVaultWith((sid) => post('/api/forget-device', { sessionId: sid, wipeData: true }))) {
         setDeviceRemembered(false);
@@ -3766,15 +3806,20 @@ function useFintsState() {
       await post('/api/forget-device', { sessionId: sessionRef.current });
       setDeviceRemembered(false);
       // The route deleted the further banks' PINs kept beside the login too,
-      // and the login's own one kept for Windows Hello.
+      // the login's own one kept for Windows Hello, and every one kept for
+      // "Neue Umsätze melden".
       openedLinkedRef.current = [];
       if (linkedUnlockRef.current) setLinkedUnlockBoth(false);
       if (windowsHelloRef.current) setWindowsHelloBoth(false);
+      if (backgroundRef.current) {
+        setBackgroundBoth(false);
+        void shellSchedule(false);
+      }
       toast(msgs().provider.device.forgotten, 'info', 6000);
     } catch (err) {
       toast((err as Error).message, 'error');
     }
-  }, [toast, wipeVaultWith, setLinkedUnlockBoth, setWindowsHelloBoth, forgetBackgroundLogin]);
+  }, [toast, wipeVaultWith, setLinkedUnlockBoth, setWindowsHelloBoth, setBackgroundBoth]);
 
   /** Everything a session owns, back to its pre-login state. Preferences stay. */
   const resetSession = useCallback(() => {
@@ -4468,7 +4513,8 @@ function useFintsState() {
   // a phone Girovo keeps nothing on (lib/device-integrity.ts).
   useEffect(() => {
     const phone = IS_ANDROID ? window.girovoMobile : undefined;
-    if (!phone?.widget || view !== 'dashboard' || !accounts.length) return;
+    // Cleared by "Gerät vergessen" or the wiped data: nothing goes back this session.
+    if (!phone?.widget || widgetClearedRef.current || view !== 'dashboard' || !accounts.length) return;
     const absent = banks.filter((b) => b.state === 'remembered').length;
     const f = overviewFigures(accounts, (a) => liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]), absent);
     if (f.total == null || f.excluded.some((e) => e.reason === 'unread')) return;
@@ -4488,7 +4534,11 @@ function useFintsState() {
     void (async () => {
       if (!backgroundShell() || !(await backgroundSecret())) return;
       const r = await post<{ on: boolean }>('/api/background', { op: 'status' }).catch(() => null);
-      if (current && r && isCurrent(sessionId)) setBackgroundBoth(r.on === true);
+      if (!current || !r || !isCurrent(sessionId)) return;
+      setBackgroundBoth(r.on === true);
+      // The shell follows the box: a box gone (a refused last PIN, a new
+      // secret) stops the checks; a job Android dropped is planned again.
+      void shellSchedule(r.on === true);
     })();
     return () => {
       current = false;

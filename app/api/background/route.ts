@@ -106,6 +106,7 @@ export const POST = wrap(async (req: Request) => {
       return json({ on: await isOn(store) });
     }
     case 'check':
+      // `on: false` tells the shell to stop planning checks (electron/background.cjs).
       return json(await runCheck(store, secret, bankSide));
     default:
       return fail(said.unknownAction);
