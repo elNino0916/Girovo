@@ -13,7 +13,7 @@
 		"start": "next start -p 3000",
 		"typecheck": "tsc --noEmit",
 		"update-banks": "node scripts/update-banks.mjs",
-		"electron:dev": "cross-env ELECTRON_START_URL=http://127.0.0.1:3000 electron .",
+		"electron:dev": "node scripts/build-windows-hello.mjs && cross-env ELECTRON_START_URL=http://127.0.0.1:3000 electron .",
 		"electron:build": "node scripts/build-electron.mjs",
 		"electron:start": "electron .",
 		"electron:dist": "npm run electron:build -- --platform win32 && electron-builder --win --publish never",

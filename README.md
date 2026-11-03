@@ -96,9 +96,11 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   **and** the shell's DPAPI secret, and only once the bank has taken it in
   this session. A PIN the bank turns down, a Windows Hello key that was
   replaced, switching it off, *Gerät vergessen* and deleting the saved data
-  delete it. Windows PowerShell runs the Windows Hello calls
-  (`electron/windows-hello.ps1`, shipped beside the app); on Windows 11 24H2
-  and later the prompt opens over Girovo's window.
+  delete it. A small helper program makes the Windows Hello calls
+  (`build/windows-hello/WindowsHello.cs`, built with the C# compiler Windows
+  ships and placed beside the app); it brings Windows' prompt to the front.
+  Where Windows reports an error, Girovo names it, and for a damaged Windows
+  Hello storage (0x80090011) says how to set the PIN up again in Windows.
 - **Neue Umsätze melden** (both apps, opt-in, *Einstellungen → Sicherheit*) —
   every six hours Girovo logs in on its own, on each bank's remembered
   device, reads the last two weeks' Umsätze (within PSD2's exemption, no

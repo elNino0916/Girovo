@@ -24,6 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildUpdateWindow } from './build-update-window.mjs';
+import { buildWindowsHello } from './build-windows-hello.mjs';
 import { fetchModel } from './fetch-model.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -145,4 +146,6 @@ console.log(`✓ desktop server for ${PLATFORM} ready in .next/standalone`);
 if (PLATFORM === 'win32') {
   console.log('› update window');
   buildUpdateWindow();
+  console.log('› Windows Hello helper');
+  buildWindowsHello();
 }

@@ -19,10 +19,10 @@
 //   (the key was replaced, by another copy of Girovo for one) or a key Windows
 //   no longer has: 'invalidated', and what was sealed under it is gone.
 //
-// The work is done by windows-hello.ps1 (Windows PowerShell 5.1 reaches the
-// WinRT API without anything installed); main.cjs passes in how to run it.
-// Kept apart from main.cjs so `npm test` runs it without Electron
-// (windows-hello.test.cjs).
+// The work is done by Girovo-Hello.exe (build/windows-hello/WindowsHello.cs,
+// compiled with the C# compiler Windows ships, beside the app in resources/);
+// main.cjs passes in where it is. Kept apart from main.cjs so `npm test` runs
+// it without Electron (windows-hello.test.cjs).
 
 const CHALLENGE_DOMAIN = 'girovo/windows-hello/challenge/v1';
 const KEY_DOMAIN = 'girovo/windows-hello/key/v1';
@@ -43,21 +43,18 @@ function windowsCode(answer) {
 const failed = (code) => (code ? { result: 'failed', code } : { result: 'failed' });
 
 /**
- * Runs windows-hello.ps1 with one request and resolves its one-line answer.
+ * Runs Girovo-Hello.exe with one request and resolves its one-line answer.
  *
  * @param {object} deps
  * @param {(cmd: string, args: string[], opts: object) => import('node:child_process').ChildProcess} deps.spawn
- * @param {() => string} deps.script  The .ps1's path (a real file: resources/, never inside app.asar).
- * @param {string} [deps.powershell]  powershell.exe
+ * @param {() => string} deps.helper  Girovo-Hello.exe's path (a real file: resources/, never inside app.asar).
  * @param {number} [deps.timeoutMs]
  */
-function createHelperRunner({ spawn, script, powershell, timeoutMs = HELPER_TIMEOUT_MS }) {
-  const exe = powershell
-    ?? `${process.env.SystemRoot || 'C:\\Windows'}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
+function createHelperRunner({ spawn, helper, timeoutMs = HELPER_TIMEOUT_MS }) {
   return (request) => new Promise((resolve, reject) => {
     let child;
     try {
-      child = spawn(exe, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script()], {
+      child = spawn(helper(), [], {
         windowsHide: true,
         stdio: ['pipe', 'pipe', 'ignore'],
       });
@@ -163,9 +160,9 @@ function createWindowsHello({ run, file, fs, crypto, platform, log = console }) 
   const dropState = () => fs.rm(file(), { force: true }).catch(() => {});
 
   /** Signs with the key named in `state`: the key, or why there is none. */
-  async function sign(state, windowHandle) {
+  async function sign(state) {
     const challenge = challengeOf(state.salt);
-    const answer = await run({ op: 'sign', name: state.name, challenge: challenge.toString('base64'), window: windowHandle });
+    const answer = await run({ op: 'sign', name: state.name, challenge: challenge.toString('base64') });
     if (CANCELED.has(answer.status)) return { result: 'canceled' };
     if (answer.status === 'NotFound') return { result: 'invalidated' };
     if (answer.status !== 'Success' || typeof answer.signature !== 'string') {
@@ -204,12 +201,12 @@ function createWindowsHello({ run, file, fs, crypto, platform, log = console }) 
      * lost or replaced is made anew — whatever was sealed under it is gone anyway.
      * @returns {Promise<{ result: 'enrolled' | 'canceled' | 'failed' | 'unavailable', key?: string, fresh?: boolean, code?: string }>}
      */
-    enroll: (windowHandle) => serial(async () => {
+    enroll: () => serial(async () => {
       if (!(await available())) return { result: 'unavailable' };
       try {
         const prior = await readState();
         if (prior) {
-          const signed = await sign(prior, windowHandle);
+          const signed = await sign(prior);
           if (signed.result === 'unlocked') return { result: 'enrolled', key: signed.key, fresh: false };
           if (signed.result === 'canceled') return { result: 'canceled' };
           if (signed.result !== 'invalidated') return failed(signed.code);
@@ -217,7 +214,7 @@ function createWindowsHello({ run, file, fs, crypto, platform, log = console }) 
         const name = prior?.name ?? `Girovo-${crypto.randomBytes(6).toString('hex')}`;
         const salt = crypto.randomBytes(SALT_BYTES);
         const challenge = challengeOf(salt);
-        const answer = await run({ op: 'create', name, challenge: challenge.toString('base64'), window: windowHandle });
+        const answer = await run({ op: 'create', name, challenge: challenge.toString('base64') });
         if (CANCELED.has(answer.status)) return { result: 'canceled' };
         if (answer.status !== 'Success' || typeof answer.signature !== 'string' || typeof answer.publicKey !== 'string') {
           log.warn('[windows-hello] create failed:', answer.status || answer.error || 'unknown', windowsCode(answer) || '');
@@ -243,11 +240,11 @@ function createWindowsHello({ run, file, fs, crypto, platform, log = console }) 
      * The key, after the gesture.
      * @returns {Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing' | 'failed', key?: string, code?: string }>}
      */
-    unlock: (windowHandle) => serial(async () => {
+    unlock: () => serial(async () => {
       const state = await readState();
       if (!state) return { result: 'missing' };
       try {
-        const signed = await sign(state, windowHandle);
+        const signed = await sign(state);
         if (signed.result === 'invalidated') await dropState();
         if (signed.result === 'failed') {
           log.warn('[windows-hello] sign failed:', signed.why || 'unknown', signed.code || '');

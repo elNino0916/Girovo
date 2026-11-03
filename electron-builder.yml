@@ -23,8 +23,6 @@ files:
   - electron/**/*
   # The updater's tests (npm test) have no business in the shipped app.
   - "!electron/**/*.test.cjs"
-  # Windows Hello's helper goes beside the archive instead (win.extraResources).
-  - "!electron/**/*.ps1"
   - package.json
   # electron-builder collects the production dependencies into the archive on
   # its own, which here would mean a second copy of Next and React. The shell
@@ -58,10 +56,11 @@ win:
     # Both copy it out first, so it never holds this folder open.
     - from: build/update-window/bin/Girovo-Update.exe
       to: Girovo-Update.exe
-    # Windows Hello's helper (electron/windows-hello.cjs): PowerShell runs a
-    # script from a real file only, never from inside app.asar.
-    - from: electron/windows-hello.ps1
-      to: windows-hello.ps1
+    # Windows Hello's helper (electron/windows-hello.cjs,
+    # scripts/build-windows-hello.mjs): a program runs from a real file only,
+    # never from inside app.asar.
+    - from: build/windows-hello/bin/Girovo-Hello.exe
+      to: Girovo-Hello.exe
   # The installer only: no portable build since 5.13.0. A portable copy from
   # before finds no -portable.exe in a newer release and its updater offers
   # the release page, where the Setup.exe is.

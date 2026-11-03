@@ -1,6 +1,6 @@
 'use strict';
 
-// Electron and PowerShell are not needed: the helper comes in through
+// Electron and Girovo-Hello.exe are not needed: the helper comes in through
 // createWindowsHello's arguments, faked here with a real RSA key, so the
 // PKCS#1 v1.5 check and the key it yields are the real thing.
 
@@ -78,14 +78,12 @@ test('the first enroll makes a key, and unlock brings the same key back', async 
   const r = rig();
   const hello = r.make();
   assert.equal(await hello.enrolled(), false);
-  const enrolled = await hello.enroll('123456');
+  const enrolled = await hello.enroll();
   assert.equal(enrolled.result, 'enrolled');
   assert.equal(enrolled.fresh, true);
   assert.equal(Buffer.from(enrolled.key, 'base64').length, 32);
   assert.equal(await hello.enrolled(), true);
-  // The window handle goes along, for the prompt to open over Girovo.
-  assert.equal(r.calls.find((c) => c.op === 'create').window, '123456');
-  const unlocked = await hello.unlock('123456');
+  const unlocked = await hello.unlock();
   assert.deepEqual(unlocked, { result: 'unlocked', key: enrolled.key });
   // A new start of the app reads the same state and gets the same key.
   assert.deepEqual(await r.make().unlock(), { result: 'unlocked', key: enrolled.key });
@@ -227,16 +225,17 @@ function fakeSpawn(reply, { hang = false } = {}) {
 }
 
 test('the runner sends one JSON line and reads the last line back', async () => {
-  const { spawn, seen } = fakeSpawn('WARNING: noise\r\n{"supported":true}\r\n');
-  const run = createHelperRunner({ spawn, script: () => 'C:/app/windows-hello.ps1', powershell: 'powershell.exe' });
+  const { spawn, seen } = fakeSpawn('noise\r\n{"supported":true}\r\n');
+  const run = createHelperRunner({ spawn, helper: () => 'C:/app/resources/Girovo-Hello.exe' });
   assert.deepEqual(await run({ op: 'probe' }), { supported: true });
   assert.deepEqual(JSON.parse(seen.stdin), { op: 'probe' });
-  assert.deepEqual(seen.args.slice(-2), ['-File', 'C:/app/windows-hello.ps1']);
+  assert.equal(seen.cmd, 'C:/app/resources/Girovo-Hello.exe');
+  assert.deepEqual(seen.args, []);
 });
 
 test('the runner rejects garbage and gives up on a helper that never answers', async () => {
-  const garbage = createHelperRunner({ spawn: fakeSpawn('not json').spawn, script: () => 'x.ps1', powershell: 'p' });
+  const garbage = createHelperRunner({ spawn: fakeSpawn('not json').spawn, helper: () => 'x.exe' });
   await assert.rejects(garbage({ op: 'probe' }));
-  const hanging = createHelperRunner({ spawn: fakeSpawn('', { hang: true }).spawn, script: () => 'x.ps1', powershell: 'p', timeoutMs: 50 });
+  const hanging = createHelperRunner({ spawn: fakeSpawn('', { hang: true }).spawn, helper: () => 'x.exe', timeoutMs: 50 });
   await assert.rejects(hanging({ op: 'sign' }), /timed out/);
 });
