@@ -40,7 +40,10 @@ const nextConfig: NextConfig = {
       // 10.0.2.2: the emulator's name for this computer, when a debug build
       // loads the preview from here (GIROVO_DEV_SERVER, capacitor.config.ts).
       ? { pageExtensions: ['tsx'], distDir: '.next-android-dev', allowedDevOrigins: ['10.0.2.2'] }
-      : {}),
+      // 127.0.0.1: the desktop shell's window in `npm run electron:dev`
+      // (ELECTRON_START_URL). Next 16 blocks its dev scripts for any host but
+      // localhost unless named here — the window then stops at the bank list.
+      : { allowedDevOrigins: ['127.0.0.1'] }),
   // The desktop's invoice reading (components/transfer/desktop-read.ts) is
   // loaded on demand, but a dynamic import still makes a chunk: on the phone,
   // which draws a PDF with Android's PdfRenderer, pdf.js is an empty module.
