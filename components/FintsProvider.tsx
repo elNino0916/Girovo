@@ -918,6 +918,8 @@ function useFintsState() {
    * opens its page.
    */
   const [accountOpen, setAccountOpen] = useState(false);
+  /** Zahlungen's level below (6.0): the bank's own orders on a page of their own (components/BankOrders.tsx). */
+  const [ordersOpen, setOrdersOpen] = useState(false);
   /** Whether every account stands before the active one's page (several accounts or banks): set below `banks`. */
   const overviewShownRef = useRef(false);
   const [balances, setBalances] = useState<Record<string, SerializedBalance>>({});
@@ -3256,6 +3258,9 @@ function useFintsState() {
       } else if (view === 'dashboard' && tab === 'overview' && accountOpen && overviewShownRef.current) {
         e.preventDefault();
         setAccountOpen(false);
+      } else if (view === 'dashboard' && tab === 'contracts' && ordersOpen) {
+        e.preventDefault();
+        setOrdersOpen(false);
       } else if (view === 'dashboard' && tab !== 'overview') {
         e.preventDefault();
         setTabState('overview');
@@ -3266,7 +3271,7 @@ function useFintsState() {
     };
     window.addEventListener(BACK_EVENT, onBack);
     return () => window.removeEventListener(BACK_EVENT, onBack);
-  }, [view, tab, bank, accountOpen]);
+  }, [view, tab, bank, accountOpen, ordersOpen]);
   const setInboxOpen = useCallback((b: boolean) => setInboxOpenState(b), []);
   const setPaletteOpen = useCallback((b: boolean) => setPaletteOpenState(b), []);
   const setShortcutsOpen = useCallback((b: boolean) => setShortcutsOpenState(b), []);
@@ -3284,6 +3289,19 @@ function useFintsState() {
     setInboxOpenState(false);
     setTxFocusNonce((n) => n + 1);
   }, []);
+
+  /**
+   * "Aufträge" (6.0): the bank's Daueraufträge and Terminüberweisungen on a
+   * page of their own, a level below Zahlungen — from its row there, the
+   * search, a Mitteilung, the transfer sheet's "Aufträge ansehen".
+   */
+  const openOrders = useCallback(() => {
+    setTabState('contracts');
+    setOrdersOpen(true);
+    setPaletteOpenState(false);
+    setInboxOpenState(false);
+  }, []);
+  const closeOrders = useCallback(() => setOrdersOpen(false), []);
 
   /** The launchers are modal; a new one replaces whatever transient surface was up. */
   const clearTransients = useCallback(() => {
@@ -4058,6 +4076,7 @@ function useFintsState() {
     activeAccountRef.current = null;
     setActiveAccount(null);
     setAccountOpen(false);
+    setOrdersOpen(false);
     balancesRef.current = {};
     setBalances({});
     setBalanceAt({});
@@ -5434,7 +5453,7 @@ function useFintsState() {
     // session
     sessionStartedAt, idleDeadline,
     // navigation & launchers
-    tab, settingsTarget, txFilter, txFocusNonce, accountOpen,
+    tab, settingsTarget, txFilter, txFocusNonce, accountOpen, ordersOpen,
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill, shareAll,
     inboxOpen, paletteOpen, shortcutsOpen,
@@ -5453,7 +5472,7 @@ function useFintsState() {
     makeBackup, restoreBackup, inspectBankFile, importBankFile,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts, setBalancesAtLogin,
     setLogoConsent,
-    setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions,
+    setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions, openOrders, closeOrders,
     setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue, openShareAll, closeShareAll,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,

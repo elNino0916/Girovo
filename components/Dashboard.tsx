@@ -30,6 +30,7 @@ import { Transactions } from './Transactions';
 import { Portfolio } from './Portfolio';
 import { Analysis } from './Analysis';
 import { Contracts } from './Contracts';
+import { OrdersPage } from './BankOrders';
 import { Settings } from './settings/Settings';
 import { TransferSheet } from './TransferSheet';
 import { AddBankSheet } from './AddBank';
@@ -52,7 +53,7 @@ import { PullToRefresh } from './android/PullToRefresh';
 import { useLaunches } from './android/useLaunches';
 
 export function Dashboard() {
-  const { tab, transferOpen, shareOpen, shareAll, accounts, banks, accountOpen } = useFints();
+  const { tab, transferOpen, shareOpen, shareAll, accounts, banks, accountOpen, ordersOpen } = useFints();
   const actions = useShellActions();
   useGlobalShortcuts(actions);
   // Android: a shortcut on the icon, or an invoice shared with the app.
@@ -61,7 +62,9 @@ export function Dashboard() {
   // The Übersicht starts on every account once there is more than one
   // (issue #19); an account's page is a level below it.
   const allAccounts = tab === 'overview' && !accountOpen && (accounts.length > 1 || banks.length > 1);
-  const place = allAccounts ? 'accounts' : tab;
+  // Zahlungen has a level below too: the bank's orders (6.0).
+  const orders = tab === 'contracts' && ordersOpen;
+  const place = allAccounts ? 'accounts' : orders ? 'orders' : tab;
 
   // A tab is a new page, and so is each level of the Übersicht: it starts at
   // its top. Focus the control that led here had is gone with the old page:
@@ -108,7 +111,7 @@ export function Dashboard() {
           <div key={place} data-place>
             {tab === 'overview' && (allAccounts ? <AccountsOverview /> : <Overview />)}
             {tab === 'analysis' && <Analysis />}
-            {tab === 'contracts' && <Contracts />}
+            {tab === 'contracts' && (orders ? <OrdersPage /> : <Contracts />)}
             {tab === 'settings' && <Settings />}
           </div>
         </main>

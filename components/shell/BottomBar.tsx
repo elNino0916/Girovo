@@ -44,11 +44,12 @@ import { BrandPlate } from './BrandMark';
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 
 export function BottomBar({ actions }: { actions: ShellActions }) {
-  const { tab, setTab, openSettings, closeAccount } = useFints();
+  const { tab, setTab, openSettings, closeAccount, closeOrders } = useFints();
   const tr = useT();
-  // The Übersicht chosen again while on it goes back to its start: every account.
+  // A place chosen again while on it goes back to its start: every account, Zahlungen itself.
   const go = (t: DashboardTab) => () => {
     if (t === 'overview' && tab === 'overview') closeAccount();
+    if (t === 'contracts' && tab === 'contracts') closeOrders();
     setTab(t);
   };
   // Einstellungen is no place of the phone's bar but a page under one (the

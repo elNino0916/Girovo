@@ -105,7 +105,7 @@ function SearchBar() {
 export function Masthead() {
   const {
     privacy, togglePrivacy, unreadCount: bankUnread, inboxOpen, setInboxOpen, setPaletteOpen, singleKeyShortcuts,
-    tab, leaveSettings, accountOpen, accounts, banks, activeAccount, accountLabel, closeAccount,
+    tab, leaveSettings, accountOpen, accounts, banks, activeAccount, accountLabel, closeAccount, ordersOpen, closeOrders,
   } = useFints();
   const t = useT();
   const phone = usePhone();
@@ -118,6 +118,8 @@ export function Masthead() {
   // 640px the search bar stays and the way back heads the balance (AccountHero).
   const accountPage = tab === 'overview' && accountOpen && !!activeAccount && (accounts.length > 1 || banks.length > 1);
   const phoneAccount = phone && accountPage;
+  // The bank's orders, a level below Zahlungen (6.0): the way back at every width — the rail has no other.
+  const ordersPage = tab === 'contracts' && ordersOpen;
   // The Übersicht: the search bar in place of the title and actions.
   const searchHead = tab === 'overview' && !phoneAccount;
   // A newer version of the app (desktop only) waits in Mitteilungen too. The
@@ -173,20 +175,20 @@ export function Masthead() {
         </div>
       ) : (
       <div className="@container/mast flex h-full min-w-0 items-center gap-2 sm:gap-3">
-        {(subPage || phoneAccount) && (
+        {(subPage || phoneAccount || ordersPage) && (
           <IconButton
             tone="bar"
             size="md"
-            aria-label={subPage ? t.common.back : t.insights.accounts.back}
-            onClick={subPage ? leaveSettings : closeAccount}
+            aria-label={subPage ? t.common.back : ordersPage ? t.common.nav.contracts : t.insights.accounts.back}
+            onClick={subPage ? leaveSettings : ordersPage ? closeOrders : closeAccount}
             // Material's navigation icon: its glyph, not its state layer, on the bar's edge.
-            className="-ml-2 sm:hidden"
+            className={cx('-ml-2', !ordersPage && 'sm:hidden')}
             style={NO_DRAG}
           >
             <BackIcon size={22} />
           </IconButton>
         )}
-        <PageTitle text={phoneAccount && activeAccount ? accountLabel(activeAccount) : undefined} />
+        <PageTitle text={phoneAccount && activeAccount ? accountLabel(activeAccount) : ordersPage ? t.orders.page.title : undefined} />
 
         <div className="min-w-2 flex-1" />
 

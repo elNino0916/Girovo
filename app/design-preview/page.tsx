@@ -389,6 +389,14 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Konten anordnen', group: 'Dashboard', options: { allBalances: true, depot: true, secondBank: 'linked' }, script: openArrange,
   },
   'overview-account': { label: 'Ein Konto, aus allen Konten geöffnet', group: 'Dashboard', options: { accountOpen: true } },
+  // 6.0: the bank's orders on a page of their own, under Zahlungen (read a few minutes ago).
+  'orders-page': {
+    label: 'Aufträge (eigene Seite)', group: 'Dashboard', options: { tab: 'contracts', ordersLoaded: true },
+    async script(c) {
+      c.api().openOrders();
+      await c.until((f) => f.ordersOpen, 2000);
+    },
+  },
   // 6.0: yesterday's balances kept, today's read only for the Girokonto; the net-worth curve.
   'overview-kept': {
     label: 'Alle Konten mit gespeicherten Salden', group: 'Dashboard', options: { kept: true, depot: true, secondBank: 'linked' },

@@ -696,6 +696,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     loggedIn ? Object.fromEntries(Object.keys(init.balances).map((k) => [k, Date.now() - 60_000])) : {}
   ));
   const [accountOpen, setAccountOpen] = useState(!!opts.account || !!opts.accountOpen);
+  const [ordersOpen, setOrdersOpen] = useState(false);
   const [txCache, setTxCache] = useState<Cache>(loggedIn ? init.txCache : {});
   const [pendingCache, setPendingCache] = useState<Record<string, SerializedTransaction[]>>(loggedIn ? init.pendingCache : {});
   // When each Vorgemerkt list was fetched: a preset's after its statement
@@ -1701,6 +1702,15 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const closeAccount = useCallback(() => setAccountOpen(false), []);
 
+  // As the provider: the bank's orders, a level below Zahlungen.
+  const openOrders = useCallback(() => {
+    setTabState('contracts');
+    setOrdersOpen(true);
+    setPaletteOpenState(false);
+    setInboxOpenState(false);
+  }, []);
+  const closeOrders = useCallback(() => setOrdersOpen(false), []);
+
   const showTransactions = useCallback((f?: Partial<TxFilter>) => {
     setTabState('overview');
     setAccountOpen(true);
@@ -2231,6 +2241,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setActiveAccount(null);
     activeRef.current = null;
     setAccountOpen(false);
+    setOrdersOpen(false);
     setBalances({});
     setBalanceAt({});
     setTxCache({});
@@ -2882,7 +2893,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     privacy, idleMinutes, singleKeyShortcuts, balancesAtLogin,
     logoConsent,
     sessionStartedAt, idleDeadline,
-    tab, settingsTarget, txFilter, txFocusNonce, accountOpen,
+    tab, settingsTarget, txFilter, txFocusNonce, accountOpen, ordersOpen,
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill, shareAll,
     inboxOpen, paletteOpen, shortcutsOpen,
@@ -2898,7 +2909,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts, setBalancesAtLogin,
     setLogoConsent,
-    setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions,
+    setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions, openOrders, closeOrders,
     setAnalysisPeriod, setAnalysisScope,
     openTransfer, closeTransfer, openShare, closeShare, nextShare, openShareQueue, openShareAll, closeShareAll,
     setInboxOpen, setPaletteOpen, setShortcutsOpen,

@@ -13,7 +13,7 @@
 // overrule the guess ("Ausblenden"), which is remembered in the vault.
 
 import { useCallback, useId } from 'react';
-import { BankOrders } from './BankOrders';
+import { OrdersEntry } from './BankOrders';
 import { useFints } from './FintsProvider';
 import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, Skeleton, Spinner, cx } from './ui';
 import { namesList } from '@/lib/balances';
@@ -63,8 +63,9 @@ function useDismiss() {
  */
 /**
  * Zahlungen: paying (Überweisen, Geld anfordern, the people paid lately),
- * then what is paid regularly — the month-end forecast, the Verträge & Abos
- * found in the bookings, and the bank's own orders.
+ * then what is paid regularly — the month-end forecast, the way to the
+ * bank's own orders (a page of their own since 6.0), and the Verträge & Abos
+ * found in the bookings.
  */
 export function Contracts() {
   const t = useT();
@@ -73,10 +74,10 @@ export function Contracts() {
       <PaymentsHead />
       {/* Where a narrow Übersicht has no side pane for it — and on the phone. */}
       <ForecastTile />
+      <OrdersEntry />
       {/* More room above the heading than below: it belongs to what follows. */}
       <h2 className="section-head pt-4">{t.insights.contracts.title}</h2>
       <ContractsFromBookings />
-      <BankOrders />
     </div>
   );
 }

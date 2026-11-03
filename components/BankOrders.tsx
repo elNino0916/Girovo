@@ -2,8 +2,10 @@
 
 // "Daueraufträge und Terminüberweisungen" — what the bank itself holds for an
 // account and will carry out later, as its Bestand lists it (HKCDB / HKCSB,
-// lib/fints-orders.ts). The close of Verträge & Abos: the page above is what
-// the app recognises in the bookings, this is what the bank says it will do.
+// lib/fints-orders.ts). A page of its own since 6.0, a level below Zahlungen
+// ("Aufträge", OrdersPage), reached from its row there (OrdersEntry): Verträge
+// & Abos is what the app recognises in the bookings, this is what the bank
+// says it will do.
 //
 // Read only on request, because a read can cost a Freigabe; one press reads
 // every kind the account can list, one after the other. Each order can be
@@ -25,7 +27,7 @@ import { nextExecution, rhythmLine, scheduleSentence } from '@/lib/order-schedul
 import { BankText } from './BankText';
 import { ChangeOrderDialog } from './transfer/ChangeOrder';
 import { useFints, type BankOrdersInfo, type OrderDeletion } from './FintsProvider';
-import { CalendarIcon, RepeatIcon } from './icons';
+import { CalendarIcon, ChevronIcon, RepeatIcon } from './icons';
 import { Money } from './Money';
 import { Alert, Button, Dialog, DotList, Select, Skeleton, Tag, TileHeader, cx } from './ui';
 
@@ -38,22 +40,62 @@ const KINDS: readonly BankOrderKind[] = ['standing', 'dated'];
 export const listsOrders = (a: SerializedAccount) => !!(a.standing?.list || a.dated?.list);
 
 /**
- * Opens Verträge & Abos on the bank's list — the transfer sheet's "Aufträge
- * ansehen", the palette. Once the tab has rendered, the tile is scrolled into
- * view and its heading takes focus, so a screen reader lands there too.
+ * Opens the bank's list on its page — the transfer sheet's "Aufträge
+ * ansehen", the palette, a Mitteilung. Once the page has rendered, the
+ * list's heading takes focus, so a screen reader lands there too.
  */
 export function useShowBankOrders() {
-  const { setTab } = useFints();
+  const { openOrders } = useFints();
   return useCallback(() => {
-    setTab('contracts');
-    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    // Two frames: the tab's content mounts in the first.
+    openOrders();
+    // Two frames: the page mounts in the first.
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      const tile = document.getElementById(BANK_ORDERS_ID);
-      tile?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
-      tile?.querySelector<HTMLElement>('[data-focus-target]')?.focus({ preventScroll: true });
+      document.getElementById(BANK_ORDERS_ID)?.querySelector<HTMLElement>('[data-focus-target]')?.focus({ preventScroll: true });
     }));
-  }, [setTab]);
+  }, [openOrders]);
+}
+
+/** "Aufträge": the bank's orders, a level below Zahlungen (its top bar names it and leads back). */
+export function OrdersPage() {
+  return (
+    <div className="min-w-0 space-y-4 sm:space-y-6">
+      <BankOrders />
+    </div>
+  );
+}
+
+/**
+ * Zahlungen's row to the bank's orders, where an account can list them:
+ * what is known of them after a read — "2 Daueraufträge · 1
+ * Terminüberweisung" — or that they wait at the bank.
+ */
+export function OrdersEntry() {
+  const { accounts, bankOrders, openOrders } = useFints();
+  const t = useT();
+  const words = t.orders.page;
+  const eligible = accounts.filter(listsOrders);
+  if (!eligible.length) return null;
+  const known = KINDS
+    .filter((k) => eligible.some((a) => bankOrders[a.accountNumber]?.[k]))
+    .map((k) => words.count(k, eligible.reduce((n, a) => n + (bankOrders[a.accountNumber]?.[k]?.orders.length ?? 0), 0)));
+  return (
+    <section className="panel" aria-label={t.orders.list.title}>
+      <button
+        type="button"
+        onClick={openOrders}
+        className="row-focus flex min-h-16 w-full items-center gap-4 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] sm:px-5"
+      >
+        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-inset text-ink-2">
+          <RepeatIcon size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[16px] leading-[22px] font-medium text-ink">{t.orders.list.title}</span>
+          <span className="block truncate text-[14px] leading-5 text-ink-2">{known.length ? known.join(' · ') : words.notRead}</span>
+        </span>
+        <ChevronIcon dir="right" size={24} className="shrink-0 text-ink-2" />
+      </button>
+    </section>
+  );
 }
 
 /** "13:12 Uhr" ("13:12"). */

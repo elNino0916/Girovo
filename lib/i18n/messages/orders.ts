@@ -201,6 +201,16 @@ export const de = {
   },
 
   /** The bank's Bestand, under Verträge & Abos (components/BankOrders.tsx). */
+  /** 6.0: the bank's orders on a page of their own, a level below Zahlungen (components/BankOrders.tsx). */
+  page: {
+    title: 'Aufträge',
+    /** Zahlungen's row to the page, once the list was read: "2 Daueraufträge · 1 Terminüberweisung". */
+    count: (kind: Kind, n: number): string => (kind === 'standing'
+      ? (n === 1 ? '1 Dauerauftrag' : `${n} Daueraufträge`)
+      : (n === 1 ? '1 Terminüberweisung' : `${n} Terminüberweisungen`)),
+    notRead: 'Bei deiner Bank – noch nicht abgerufen',
+  },
+
   list: {
     title: 'Daueraufträge und Terminüberweisungen',
     /** The tile's subtitle: whose orders, and that they are the bank's. */
@@ -482,6 +492,14 @@ export const en: typeof de = {
       orderChange: 'The order may already have been changed. If you cancel now, that stays unclear – '
         + 'fetch the list again before you change it again.',
     },
+  },
+
+  page: {
+    title: 'Orders',
+    count: (kind, n) => (kind === 'standing'
+      ? (n === 1 ? '1 standing order' : `${n} standing orders`)
+      : (n === 1 ? '1 scheduled transfer' : `${n} scheduled transfers`)),
+    notRead: 'At your bank – not fetched yet',
   },
 
   list: {
