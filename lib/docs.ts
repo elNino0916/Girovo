@@ -64,19 +64,6 @@ export const DOC_REQUEST_MAX_BYTES = Math.ceil((DOC_LIMITS.bytes * 4) / 3) + 64 
 
 const isMime = (v: unknown): v is DocMime => typeof v === 'string' && (DOC_MIMES as readonly string[]).includes(v);
 
-/** The type a file says it is, if it is one the store keeps (an image whose type the picker left out counts by its name). */
-export function docMime(type: string | null | undefined, name?: string | null): DocMime | null {
-  const t = String(type ?? '').toLowerCase().trim();
-  if (t === 'image/jpg') return 'image/jpeg';
-  if (isMime(t)) return t;
-  const ext = String(name ?? '').toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
-  if (ext === 'pdf') return 'application/pdf';
-  if (ext === 'png') return 'image/png';
-  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
-  if (ext === 'webp') return 'image/webp';
-  return null;
-}
-
 /** What the bytes are by their first ones, for a receipt: the name or type a picker gives may be wrong. */
 export function sniffMime(bytes: Uint8Array): DocMime | null {
   const b = bytes;

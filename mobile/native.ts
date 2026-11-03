@@ -23,13 +23,6 @@ export type HttpRequest = {
 /** The head of an answer: open() resolves once it is in, before the body. */
 export type HttpHead = { status: number; statusText: string; headers: Record<string, string> };
 
-/**
- * Why a request failed, in the error codes Node's fetch reports
- * (lib/bank-fetch.ts sorts them): ENOTFOUND, ECONNREFUSED, ECONNRESET,
- * ETIMEDOUT, CERT_INVALID, or EUNKNOWN.
- */
-export type HttpErrorCode = string;
-
 export interface GirovoHttpPlugin {
   /** Sends the request and resolves with the answer's head — lib/bank-fetch.ts times the first byte on it. */
   open(req: HttpRequest): Promise<HttpHead>;

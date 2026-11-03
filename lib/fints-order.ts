@@ -13,16 +13,10 @@
 
 import type { ClientResponseWithResult, FinTSClientEx } from './fints-types';
 import type { CustomerOrderInteraction } from './fints-internals.js';
-import { MESSAGES, msgs } from './i18n/index.ts';
+import { msgs } from './i18n/index.ts';
 
 /** The HTTP status for "the order went out, its answer did not come back". */
 export const ORDER_UNANSWERED_STATUS = 502;
-
-/**
- * @deprecated The German sentence, for code that compares. An OrderUnanswered
- * carries msgs().provider.bank.orderUnanswered, in the language of the request.
- */
-export const ORDER_UNANSWERED_MESSAGE = MESSAGES.de.provider.bank.orderUnanswered;
 
 /** The order may have reached the bank; its answer never arrived. */
 export class OrderUnanswered extends Error {

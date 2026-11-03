@@ -6,7 +6,6 @@ import type { SerializedAccount } from '@/lib/fints-types';
 import type { VaultStatus } from '@/lib/app-types';
 import { msgs } from '@/lib/i18n';
 import { useLocale } from '@/lib/i18n/react';
-import { AccountTypeIcon } from '../icons';
 import { cx } from '../ui';
 
 // ---- names ----------------------------------------------------------------
@@ -138,32 +137,6 @@ export function ShortIban({ account, className }: { account: SerializedAccount; 
         <span className="id-tail shrink-0">{tail}</span>
       </span>
       <span className="sr-only">{spoken}</span>
-    </span>
-  );
-}
-
-/**
- * The account-type pictogram in its round plate. Not the bank's logo again:
- * every account here is at the same bank, so the logo would say nothing — the
- * kind of account (Giro, Tagesgeld, Kreditkarte …) is what tells rows apart.
- */
-export function AccountGlyph({
-  account, selected = false, size = 40, className,
-}: { account: SerializedAccount; selected?: boolean; size?: 36 | 40 | 44; className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={cx(
-        'grid shrink-0 place-items-center rounded-full transition-colors duration-150',
-        // Signal Blue only on the selected row of the list, which can be
-        // pressed; elsewhere (the hero's footer, the rename form) the plate is
-        // a navy tint that reads on white and on the inset alike.
-        selected ? 'bg-accent text-accent-ink' : 'bg-[color-mix(in_srgb,var(--headline)_8%,transparent)] text-headline',
-        className,
-      )}
-      style={{ width: size, height: size }}
-    >
-      <AccountTypeIcon type={account.accountType} product={account.product} size={size >= 44 ? 22 : 20} />
     </span>
   );
 }

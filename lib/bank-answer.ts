@@ -161,9 +161,6 @@ export const BANK_UNAVAILABLE = MESSAGES.de.provider.bank.unavailable;
 /** @deprecated The German sentence, for code that compares — a screen shows msgs().provider.bank.unreachable. */
 export const BANK_UNREACHABLE = MESSAGES.de.provider.bank.unreachable;
 
-/** @deprecated The German sentence — a screen shows msgs().provider.bank.tryAgainLater (t.provider.bank.tryAgainLater). */
-export const TRY_AGAIN_LATER = MESSAGES.de.provider.bank.tryAgainLater;
-
 /**
  * Whether a message is one of the two "the bank is not answering" sentences —
  * in either language: the server wrote it in the language of the request,

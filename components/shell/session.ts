@@ -10,24 +10,6 @@ import { fmtDate, properName } from '@/lib/format';
 import { msgs } from '@/lib/i18n';
 
 /**
- * The current time, re-read every `intervalMs` (or only once with null).
- *
- * Null until mounted: a clock rendered on the server would report another
- * moment than the one the browser hydrates at, and the dashboard is never
- * worth a hydration mismatch.
- */
-export function useNow(intervalMs: number | null): number | null {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    setNow(Date.now());
-    if (intervalMs == null) return;
-    const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
-}
-
-/**
  * Milliseconds left until `deadline`, ticking once a second while `enabled`.
  *
  * The provider publishes the deadline only every ~10 s while it is far away

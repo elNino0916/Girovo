@@ -74,7 +74,7 @@ import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
 import { categorize, explainGuess, type CategoryGuess } from '@/lib/categorize';
 import { withNote } from '@/lib/notes';
 import {
-  counterpartyKey, isCategoryId, setCustomCategories, txKey, type CategoryId, type CategoryResult, type CustomCategoryId,
+  counterpartyKey, setCustomCategories, txKey, type CategoryId, type CategoryResult, type CustomCategoryId,
 } from '@/lib/categories';
 import { bankAllowed, type PlusStatus } from '@/lib/plus';
 import {

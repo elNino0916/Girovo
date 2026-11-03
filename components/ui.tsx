@@ -67,10 +67,7 @@ const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 // the neutral ink, `danger` a filled one in Soll Red — both by giving that
 // one button other colour roles, so M3E draws every state of them itself.
 // ---------------------------------------------------------------------------
-export type ButtonVariant =
-  | 'primary' | 'secondary' | 'tertiary' | 'quiet' | 'danger'
-  /** @deprecated the old outline button — same as `secondary`. */
-  | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'quiet' | 'danger';
 export type ButtonSize = 'lg' | 'md' | 'sm' | 'xs';
 
 export type ButtonProps = Omit<ComponentProps<'button'>, 'ref' | 'onClick'> & {
@@ -88,7 +85,7 @@ export type ButtonProps = Omit<ComponentProps<'button'>, 'ref' | 'onClick'> & {
 };
 
 const M3E_BUTTON_VARIANTS = {
-  primary: 'filled', secondary: 'tonal', ghost: 'tonal', tertiary: 'text', quiet: 'text', danger: 'filled',
+  primary: 'filled', secondary: 'tonal', tertiary: 'text', quiet: 'text', danger: 'filled',
 } as const satisfies Record<ButtonVariant, string>;
 
 const M3E_BUTTON_SIZES = {
@@ -1208,11 +1205,9 @@ const FOOTER_EDGE = 'shadow-[0_-1px_0_var(--line)]';
  * also slims down, giving its room to what the dialog says.
  */
 export function Sheet({
-  size, wide, band, onClose, closeLabel, className, bodyClassName, footer, basic, children,
+  size, band, onClose, closeLabel, className, bodyClassName, footer, basic, children,
 }: {
   size?: 'sm' | 'md' | 'lg';
-  /** @deprecated use size="md". */
-  wide?: boolean;
   band?: { icon: ReactNode; tone?: 'navy' | 'plain' };
   /** Renders a close button in the top-right corner. */
   onClose?: () => void;
@@ -1239,7 +1234,7 @@ export function Sheet({
       className={cx(
         'anim-sheet relative flex max-h-full w-full flex-col overflow-hidden bg-raised shadow-[var(--shadow-pop)]',
         'rounded-t-[var(--radius-sheet)] sm:rounded-[var(--radius-sheet)]',
-        SHEET_WIDTHS[size ?? (wide ? 'md' : 'sm')],
+        SHEET_WIDTHS[size ?? 'sm'],
         className,
       )}
     >
@@ -1849,9 +1844,6 @@ export function Tag({
   );
 }
 
-/** Same thing, the other name people reach for. */
-export const Badge = Tag;
-
 /** A small count bubble — filters applied, unread messages. */
 export function CountBadge({
   count, tone = 'neutral', max = 99, className,
@@ -2428,20 +2420,6 @@ export function Skeleton({
   );
 }
 
-/** One placeholder booking row, shaped like the real one. */
-export function SkeletonRow({ width = 60 }: { width?: number }) {
-  return (
-    <div aria-hidden className="flex items-center gap-3.5 border-b border-line px-4 py-3.5 last:border-b-0 sm:px-5">
-      <Skeleton circle className="size-10 shrink-0" />
-      <div className="flex-1">
-        <Skeleton className="h-3" width={`${width}%`} />
-        <Skeleton className="mt-2 h-3" width={`${Math.max(20, width - 18)}%`} />
-      </div>
-      <Skeleton className="h-3.5 w-16" />
-    </div>
-  );
-}
-
 export type Illustration = 'transactions' | 'search' | 'inbox' | 'chart' | 'contracts' | 'error' | 'done';
 
 /**
@@ -2608,8 +2586,4 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
       {children}
     </kbd>
   );
-}
-
-export function VisuallyHidden({ children }: { children: ReactNode }) {
-  return <span className="sr-only">{children}</span>;
 }

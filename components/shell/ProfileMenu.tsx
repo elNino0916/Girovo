@@ -43,7 +43,7 @@ import {
 } from '../icons';
 import { unseenUpdate, useUpdates } from '../updates/store';
 import { usePhone } from './usePhone';
-import { Button, Checkbox, Dialog, Dot, IconButton, Overlay, Popover, Segmented, Sheet, cx, type TriggerProps } from '../ui';
+import { Button, Checkbox, Dialog, Dot, IconButton, Overlay, Popover, Sheet, cx, type TriggerProps } from '../ui';
 import { fmtCountdown, fmtSince, holderName, nameInitials, sessionHolder, useCountdown } from './session';
 import { useLookAtUnclear } from './actions';
 import { AvatarImageError, avatarFromFile } from './avatar-image';

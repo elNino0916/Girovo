@@ -141,9 +141,6 @@ registerSegmentDefinition(new HIVPP());
 registerSegmentDefinition(new HIVPPS());
 registerSegmentDefinition(new HKVPA());
 
-export const VOP_CHECK_SEG = HKVPP.Id;
-export const VOP_AUTH_SEG = HKVPA.Id;
-
 // ---------------------------------------------------------------------------
 // Return codes that steer the flow (spec chapter E.8.1)
 // ---------------------------------------------------------------------------

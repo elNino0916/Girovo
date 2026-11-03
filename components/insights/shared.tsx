@@ -36,13 +36,6 @@ export function fmtWeekday(key: string): string {
   return d ? new Intl.DateTimeFormat(intlLocale(), { weekday: 'short' }).format(d) : '';
 }
 
-/** "Mo. 05.10." ("Mon 5 Oct") — for a short list of upcoming dates where the weekday helps. */
-export function fmtWeekdayShort(key: string): string {
-  const d = toLocalDate(key);
-  if (!d) return '';
-  return `${fmtWeekday(key)} ${fmtDayShort(key)}`;
-}
-
 /** Whole calendar days from today to `key` (negative: in the past). */
 export function daysUntil(key: string, today: Date = new Date()): number {
   return dayNumber(key) - dayNumber(dayKey(today));

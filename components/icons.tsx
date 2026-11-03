@@ -334,11 +334,6 @@ export function KeyboardIcon(p: IconProps) {
   );
 }
 
-/** ⌘ — the command palette. */
-export function CommandIcon(p: IconProps) {
-  return <Icon ms="keyboard_command_key" {...p}><path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6z" /></Icon>;
-}
-
 export function InfoIcon(p: IconProps) {
   return <Icon ms="info" {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5M12 7.6h.01" /></Icon>;
 }
@@ -376,19 +371,6 @@ export function HelpIcon(p: IconProps) {
 
 export function MailIcon(p: IconProps) {
   return <Icon ms="mail" {...p}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3.5 6.5l8.5 6.5 8.5-6.5" /></Icon>;
-}
-
-export function InboxIcon(p: IconProps) {
-  return (
-    <Icon ms="inbox" {...p}>
-      <path d="M3.5 13.5l2.6-7.4A1.6 1.6 0 0 1 7.6 5h8.8a1.6 1.6 0 0 1 1.5 1.1l2.6 7.4" />
-      <path d="M3.5 13.5V18a1.5 1.5 0 0 0 1.5 1.5h14a1.5 1.5 0 0 0 1.5-1.5v-4.5h-5l-1.5 2.5h-4l-1.5-2.5h-5z" />
-    </Icon>
-  );
-}
-
-export function MenuIcon(p: IconProps) {
-  return <Icon ms="menu" {...p}><path d="M4 7h16M4 12h16M4 17h16" /></Icon>;
 }
 
 export function MoreIcon(p: IconProps) {
@@ -487,16 +469,6 @@ export function SplitIcon(p: IconProps) {
   );
 }
 
-/** A person to add (Aufteilen's "Person hinzufügen"). */
-export function PersonAddIcon(p: IconProps) {
-  return (
-    <Icon ms="person_add" {...p}>
-      <circle cx="9.5" cy="8.5" r="3.5" />
-      <path d="M3.5 19.5c.6-3.2 3-5 6-5s5.4 1.8 6 5M18.5 8.5v5M16 11h5" />
-    </Icon>
-  );
-}
-
 /** A flag at the end of the way: a Sparziel. */
 /** A goal's flag, its cloth solid: drawn as an outline, at 18px it reads as an "F". */
 export function FlagIcon(p: IconProps) {
@@ -531,22 +503,8 @@ export function ResumeIcon(p: IconProps) {
   return <Icon ms="play_arrow" {...p}><path d="M8 5.5v13l10.5-6.5L8 5.5z" /></Icon>;
 }
 
-/** Money going out. */
-export function ArrowUpRightIcon(p: IconProps) {
-  return <Icon ms="north_east" {...p}><path d="M7 17L17 7M8.5 7H17v8.5" /></Icon>;
-}
-
-/** Money coming in. */
-export function ArrowDownLeftIcon(p: IconProps) {
-  return <Icon ms="south_west" {...p}><path d="M17 7L7 17M15.5 17H7V8.5" /></Icon>;
-}
-
 export function BackIcon(p: IconProps) {
   return <Icon ms="arrow_back" {...p}><path d="M19.5 12h-15M10.5 6l-6 6 6 6" /></Icon>;
-}
-
-export function ForwardIcon(p: IconProps) {
-  return <Icon ms="arrow_forward" {...p}><path d="M4.5 12h15M13.5 6l6 6-6 6" /></Icon>;
 }
 
 /** Zurücküberweisen — sending something back the way it came. */
@@ -638,11 +596,6 @@ export function CodeIcon(p: IconProps) {
 }
 
 const SPARK = 'M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z';
-
-/** An AI's spark, as a line icon. */
-export function SparkleIcon(p: IconProps) {
-  return <Icon ms="auto_awesome" {...p}><path d={SPARK} /></Icon>;
-}
 
 /**
  * Gemini's spark: filled with Gemini's blue, purple and rose (the

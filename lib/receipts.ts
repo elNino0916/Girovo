@@ -44,8 +44,3 @@ export function matchAwaiting(docs: KeptDoc[], txs: SerializedTransaction[]): { 
   }
   return out;
 }
-
-/** A receipt that has waited longer than any booking would take: the transfer never arrived as sent. */
-export function awaitedTooLong(doc: KeptDoc, now = Date.now()): boolean {
-  return !!doc.awaiting && now - Date.parse(doc.awaiting.sentAt) > (AWAIT_DAYS + 2) * DAY;
-}

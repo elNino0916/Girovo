@@ -396,9 +396,6 @@ for (const def of [
   new HKCDE(), new HICDE(), new HICDES(), new HKCDB(), new HICDB(), new HICDBS(), new HKCDL(), new HICDLS(), new HKCDN(),
 ]) registerSegmentDefinition(def);
 
-export const DATED_SEG = HKCSE.Id;
-export const STANDING_SEG = HKCDE.Id;
-
 /** Each kind's segments: place, list, change, delete — and what answers a list. */
 export const ORDER_SEGS: Record<BankOrderKind, { create: string; list: string; listAnswer: string; change: string; remove: string }> = {
   dated: { create: HKCSE.Id, list: HKCSB.Id, listAnswer: HICSB.Id, change: HKCSA.Id, remove: HKCSL.Id },
