@@ -24,6 +24,8 @@ public class BalanceWidget extends AppWidgetProvider {
     static final String PREFS = "girovo_widget";
     static final String KEY_AMOUNT = "amount";
     static final String KEY_STAMP = "stamp";
+    /** The title in the app's language, which may not be the phone's (until then the resource's). */
+    static final String KEY_TITLE = "title";
     private static final String KEY_REVEAL_UNTIL = "revealUntil";
     private static final String ACTION_REVEAL = "de.elnino0916.android.girovo.widget.REVEAL";
     private static final String ACTION_HIDE = "de.elnino0916.android.girovo.widget.HIDE";
@@ -79,10 +81,12 @@ public class BalanceWidget extends AppWidgetProvider {
         SharedPreferences prefs = prefs(context);
         String amount = prefs.getString(KEY_AMOUNT, null);
         String stamp = prefs.getString(KEY_STAMP, null);
+        String title = prefs.getString(KEY_TITLE, null);
         boolean revealed = prefs.getLong(KEY_REVEAL_UNTIL, 0L) > System.currentTimeMillis();
         for (int id : ids) {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_balance);
             views.setOnClickPendingIntent(R.id.widget_root, openApp(context));
+            views.setTextViewText(R.id.widget_title, title != null ? title : context.getString(R.string.widget_title));
             if (amount == null) {
                 views.setViewVisibility(R.id.widget_figure, View.GONE);
                 views.setViewVisibility(R.id.widget_eye, View.GONE);

@@ -28,7 +28,9 @@ public class WidgetPlugin extends Plugin {
     public void update(PluginCall call) {
         String amount = call.getString("amount");
         String stamp = call.getString("stamp", "");
-        if (amount == null || amount.isEmpty() || amount.length() > MAX_TEXT || stamp == null || stamp.length() > MAX_TEXT) {
+        String title = call.getString("title", "");
+        if (amount == null || amount.isEmpty() || amount.length() > MAX_TEXT || stamp == null || stamp.length() > MAX_TEXT
+                || title == null || title.length() > MAX_TEXT) {
             call.reject("not a figure", "invalid");
             return;
         }
@@ -37,6 +39,7 @@ public class WidgetPlugin extends Plugin {
             BalanceWidget.prefs(getContext()).edit()
                     .putString(BalanceWidget.KEY_AMOUNT, amount)
                     .putString(BalanceWidget.KEY_STAMP, stamp)
+                    .putString(BalanceWidget.KEY_TITLE, title.isEmpty() ? null : title)
                     .apply();
             BalanceWidget.renderAll(getContext());
         }

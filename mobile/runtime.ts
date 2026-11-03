@@ -136,7 +136,7 @@ window.girovoMobile = {
   },
   // The home screen widget: the Gesamtsaldo, hidden until tapped (BalanceWidget.java).
   widget: {
-    update: (amount, stamp) => GirovoWidget.update({ amount, stamp }).then((r) => r.stored, () => false),
+    update: (amount, stamp, title) => GirovoWidget.update({ amount, stamp, title }).then((r) => r.stored, () => false),
     clear: () => GirovoWidget.clear().catch(() => {}),
   },
   launch: {

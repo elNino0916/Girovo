@@ -4320,9 +4320,10 @@ function useFintsState() {
     const f = overviewFigures(accounts, (a) => liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]), absent);
     if (f.total == null || f.excluded.some((e) => e.reason === 'unread')) return;
     const amount = fmtMoney(f.total);
-    const stamp = msgs().android.widget.stamp(new Date());
+    const said = msgs().android.widget;
+    const stamp = said.stamp(new Date());
     void phone.integrity().catch(() => null).then((facts) => {
-      if (!keepsNothing(facts)) void phone.widget.update(amount, stamp);
+      if (!keepsNothing(facts)) void phone.widget.update(amount, stamp, said.title);
     });
   }, [view, accounts, banks, balances, portfolios]);
 

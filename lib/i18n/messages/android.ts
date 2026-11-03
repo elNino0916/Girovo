@@ -65,6 +65,8 @@ export const de = {
 
   /** The home screen widget (BalanceWidget.java): since when its Gesamtsaldo stands. */
   widget: {
+    /** The widget's title, in the app's language (the phone's may differ). */
+    title: 'Gesamtsaldo',
     stamp: (at: Date) =>
       `Stand ${at.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' })}, ${at.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
   },
@@ -211,6 +213,7 @@ export const en: typeof de = {
   },
 
   widget: {
+    title: 'Total balance',
     stamp: (at) =>
       `As of ${at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`,
   },

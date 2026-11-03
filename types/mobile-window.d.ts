@@ -144,7 +144,7 @@ declare global {
      * widget is on the home screen (`update` answers whether it was).
      */
     widget: {
-      update(amount: string, stamp: string): Promise<boolean>;
+      update(amount: string, stamp: string, title: string): Promise<boolean>;
       clear(): Promise<void>;
     };
     launch: {

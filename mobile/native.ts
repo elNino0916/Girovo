@@ -153,7 +153,7 @@ export const GirovoLaunch = registerPlugin<GirovoLaunchPlugin>('GirovoLaunch');
 export interface GirovoWidgetPlugin {
   placed(): Promise<{ placed: boolean }>;
   /** The figure, formatted, and since when it stands; `stored` is false with no widget on the home screen. */
-  update(opts: { amount: string; stamp: string }): Promise<{ stored: boolean }>;
+  update(opts: { amount: string; stamp: string; title: string }): Promise<{ stored: boolean }>;
   clear(): Promise<void>;
 }
 
