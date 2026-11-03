@@ -1,28 +1,29 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
-  GROUP_KINDS, groupAccounts, groupKindOf, groupSum, liveValue, moveAccount, orderAccounts, overviewFigures,
+  GROUP_KINDS, groupAccounts, groupKindOf, groupSum, liveValue, orderAccounts, overviewFigures,
   type AccountGroup, type AccountGroupKind, type AccountGrouping, type AccountValue,
 } from '@/lib/account-overview';
 import { isCardAccount, isDepot, namesList } from '@/lib/balances';
-import { COMPACT_LOGO } from '@/lib/brands';
 import { dayKey, fmtIban, fmtRange, isoDate } from '@/lib/format';
 import { netWorthPoints } from '@/lib/kept-balances';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { intlLocale, msgs } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import { bankAllowed } from '@/lib/plus';
-import { BankChip, BankLogo } from '../BankLogo';
+import { BankLogo } from '../BankLogo';
 import { useFints, type BankEntry } from '../FintsProvider';
 import { Money } from '../Money';
 import { PlusButton } from '../android/PlusTeaser';
-import { AccountTypeIcon, ChevronIcon, DragIcon, PlusIcon, RefreshIcon, SwapVertIcon } from '../icons';
+import { ChevronIcon, PlusIcon, RefreshIcon, SwapVertIcon } from '../icons';
 import { PrivacyToggle } from '../shell/PrivacyToggle';
 import { txText } from '../transactions/model';
-import { Alert, Button, DotList, FilterChip, IconButton, Menu, MenuItemRadio, Overlay, Segmented, Sheet, Skeleton, cx } from '../ui';
+import { Alert, Button, DotList, FilterChip, IconButton, Menu, MenuItemRadio, Skeleton, cx } from '../ui';
 import { accountIdent, vaultNote } from './AccountIdentity';
+import { AccountDisc } from './AccountMarks';
+import { ArrangeSheet, GROUPING_ORDER } from './ArrangeSheet';
 import { BalanceChart, Sparkline } from './BalanceChart';
 
 /**
@@ -38,7 +39,7 @@ import { BalanceChart, Sparkline } from './BalanceChart';
  * chips; then the accounts under their groups (Girokonten, Sparen & Anlegen,
  * Karten & Kredite) with each group's sum, every row with its balance and
  * its last booking. "Konten anordnen" sets the order and the grouping
- * (ArrangeSheet below, kept in the vault). From 640px the rows are a table
+ * (ArrangeSheet.tsx, kept in the vault). From 640px the rows are a table
  * — Konto · Letzter Umsatz · Kontostand — footed by the Gesamtsaldo.
  *
  * The figures follow the Gesamtsaldo's rules (lib/account-overview.ts): only
@@ -456,8 +457,6 @@ export function AccountsOverview({ pane = false }: {
 /** The account whose page was opened last: its row takes focus when the overview comes back. */
 let lastOpened: string | null = null;
 
-const GROUPING_ORDER: readonly AccountGrouping[] = ['type', 'bank', 'none'];
-
 // The desktop table's columns (the mock's): the disc, the account, the last
 // booking, the figure, the chevron. Its foot shares the figure's column.
 const TABLE = 'grid grid-cols-[40px_minmax(0,1fr)_minmax(0,300px)_180px_24px] items-center gap-x-4';
@@ -711,58 +710,6 @@ function AccountRow({
 }
 
 /**
- * The account's kind on the booking rows' disc (Container High, the variant
- * ink) — and, with accounts at more than one bank, the bank's mark on its
- * edge: a compact logo on its white plate, else the brand's chip.
- */
-function AccountDisc({ account, entry, logoFile, selected = false, className }: {
-  account: SerializedAccount; entry: BankEntry | null; logoFile?: string; selected?: boolean; className?: string;
-}) {
-  return (
-    <span
-      aria-hidden
-      className={cx(
-        'relative grid size-10 shrink-0 place-items-center rounded-full',
-        // On the selected row's container the disc is a tint of its ink, as Material's selected list item draws it.
-        selected
-          ? 'bg-[color-mix(in_srgb,var(--md-on-secondary-container)_12%,transparent)] text-[var(--md-on-secondary-container)]'
-          : 'bg-inset text-ink-2',
-        className,
-      )}
-    >
-      <AccountTypeIcon type={account.accountType} product={account.product} size={20} />
-      {entry && (
-        <BankMark
-          entry={entry}
-          logoFile={logoFile}
-          className="absolute -right-[3px] -bottom-[3px] size-[18px] rounded-full shadow-[0_0_0_2px_var(--disc-ring,var(--paper))]"
-        />
-      )}
-    </span>
-  );
-}
-
-/**
- * A bank's mark at a few pixels: its logo on the white plate where the file
- * is a compact mark, else the brand's chip — a wordmark would be unreadable
- * this small (lib/brands.ts COMPACT_LOGO). `className` sets size and shape.
- */
-export function BankMark({ entry, logoFile, className }: { entry: BankEntry; logoFile?: string; className: string }) {
-  const brand = entry.bank.brand;
-  const logo = logoFile && COMPACT_LOGO.has(brand) ? logoFile : null;
-  return (
-    <span aria-hidden title={entry.bank.name} className={cx('grid shrink-0 place-items-center overflow-hidden', logo && 'logo-img p-[3px]', className)}>
-      {logo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={`/logos/${logo}`} alt="" draggable={false} className="size-full object-contain" />
-      ) : (
-        <BankChip brand={brand} className="size-full" />
-      )}
-    </span>
-  );
-}
-
-/**
  * The newest booked item of an account's loaded (or kept) Umsätze, up to
  * today: a booking the bank dated ahead ("noch nicht gebucht") is the
  * account page's to show, unless there is nothing else.
@@ -857,267 +804,4 @@ function LoginRow({ entry, logoFile, onLogin }: { entry: BankEntry; logoFile?: s
       )}
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Konten anordnen
-
-/** How far a finger or the mouse moves before a press on a row stops being a press. */
-const SLOP = 8;
-/** How long a finger rests on a row before the row lifts (the grip lifts at once). */
-const HOLD_MS = 350;
-
-type Drag = {
-  key: string;
-  group: string;
-  members: string[];
-  from: number;
-  over: number;
-  dy: number;
-  /** The rows' tops and heights, measured when the drag began. */
-  rects: Array<{ top: number; height: number }>;
-};
-
-/**
- * "Konten anordnen": the grouping (Nach Art, Nach Bank, Keine) and the order
- * within each group. A row is moved by its grip, or by resting a finger on
- * it, and with the keyboard by the grip's arrow keys; each change is kept in
- * the vault as it is made, so the sheet can be closed any way. A bottom sheet
- * on a phone, a dialog from 640px.
- */
-function ArrangeSheet({ onClose }: { onClose: () => void }) {
-  const { accounts, vault, arrangeAccounts, bankOf, banks, accountLabel, logoFiles } = useFints();
-  const t = useT();
-  const words = t.insights.accounts;
-  const id = useId();
-  const listRef = useRef<HTMLDivElement>(null);
-  const [said, setSaid] = useState('');
-  const grouping: AccountGrouping = vault?.accountGrouping ?? 'type';
-  const order = useMemo(() => orderAccounts(accounts, vault?.accountOrder).map((a) => a.accountNumber), [accounts, vault?.accountOrder]);
-  const byKey = useMemo(() => new Map(accounts.map((a) => [a.accountNumber, a])), [accounts]);
-  const severalBanks = new Set(accounts.map((a) => bankOf(a)?.key ?? 'primary')).size > 1;
-  const groups = groupAccounts(
-    order.map((n) => byKey.get(n)!).filter(Boolean),
-    grouping,
-    { kindOf: groupKindOf, bankOf: (a) => bankOf(a)?.key ?? 'primary', banks: banks.map((b) => b.key) },
-  );
-
-  const [drag, setDrag] = useState<Drag | null>(null);
-  const dragRef = useRef<Drag | null>(null);
-  dragRef.current = drag;
-  const hold = useRef<{ timer: number; x: number; y: number } | null>(null);
-
-  const move = (members: string[], from: number, to: number) => {
-    const next = moveAccount(order, members, from, to);
-    arrangeAccounts({ order: next });
-    const name = accountLabel(byKey.get(members[from])!);
-    setSaid(words.moved(name, to + 1, members.length));
-  };
-
-  /** Lifts a row: measures its group's rows, so the others can make room as it moves. */
-  const lift = (key: string, group: AccountGroup<SerializedAccount>, startY: number) => {
-    const members = group.accounts.map((a) => a.accountNumber);
-    const rows = members.map((n) => listRef.current?.querySelector<HTMLElement>(`[data-order-row="${CSS.escape(n)}"]`));
-    const rects = rows.map((r) => {
-      const box = r?.getBoundingClientRect();
-      return { top: box?.top ?? 0, height: box?.height ?? 0 };
-    });
-    const from = members.indexOf(key);
-    startYRef.current = startY;
-    setDrag({ key, group: group.key, members, from, over: from, dy: 0, rects });
-    navigator.vibrate?.(10);
-  };
-  const startYRef = useRef(0);
-
-  const follow = (y: number) => {
-    const d = dragRef.current;
-    if (!d) return;
-    const dy = y - startYRef.current;
-    const me = d.rects[d.from];
-    const centre = me.top + me.height / 2 + dy;
-    let over = d.from;
-    // The place whose row the lifted one's middle has passed.
-    for (let i = 0; i < d.rects.length; i++) {
-      const r = d.rects[i];
-      if (i < d.from && centre < r.top + r.height / 2) { over = i; break; }
-      if (i > d.from && centre > r.top + r.height / 2) over = i;
-    }
-    setDrag({ ...d, dy, over });
-  };
-
-  const drop = () => {
-    const d = dragRef.current;
-    setDrag(null);
-    if (d && d.over !== d.from) move(d.members, d.from, d.over);
-  };
-
-  // While a row is lifted the page under the finger must not scroll.
-  useEffect(() => {
-    if (!drag) return;
-    const stop = (e: TouchEvent) => e.preventDefault();
-    document.addEventListener('touchmove', stop, { passive: false });
-    return () => document.removeEventListener('touchmove', stop);
-  }, [drag]);
-
-  const onGripDown = (e: ReactPointerEvent<HTMLElement>, key: string, group: AccountGroup<SerializedAccount>) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    lift(key, group, e.clientY);
-  };
-
-  const onRowDown = (e: ReactPointerEvent<HTMLElement>, key: string, group: AccountGroup<SerializedAccount>) => {
-    if (e.pointerType !== 'touch' || (e.target as HTMLElement).closest('[data-grip]')) return;
-    const target = e.currentTarget;
-    const pointer = e.pointerId;
-    const y = e.clientY;
-    hold.current = {
-      x: e.clientX,
-      y,
-      timer: window.setTimeout(() => {
-        hold.current = null;
-        try { target.setPointerCapture(pointer); } catch { /* the finger has left */ }
-        lift(key, group, y);
-      }, HOLD_MS),
-    };
-  };
-
-  const onRowMove = (e: ReactPointerEvent<HTMLElement>) => {
-    const h = hold.current;
-    if (h && Math.hypot(e.clientX - h.x, e.clientY - h.y) > SLOP) {
-      // A scroll, not a hold.
-      clearTimeout(h.timer);
-      hold.current = null;
-    }
-    if (dragRef.current) follow(e.clientY);
-  };
-
-  const onRowUp = () => {
-    if (hold.current) {
-      clearTimeout(hold.current.timer);
-      hold.current = null;
-    }
-    if (dragRef.current) drop();
-  };
-
-  const onGripKey = (e: KeyboardEvent<HTMLButtonElement>, key: string, members: string[]) => {
-    const from = members.indexOf(key);
-    const to = e.key === 'ArrowUp' ? from - 1 : e.key === 'ArrowDown' ? from + 1 : -1;
-    if (to < 0 || to >= members.length) return;
-    e.preventDefault();
-    move(members, from, to);
-  };
-
-  return (
-    <Overlay open onClose={onClose} labelledBy={`${id}-title`} describedBy={`${id}-hint`}>
-      <Sheet
-        onClose={onClose}
-        className="select-none"
-        footer={<Button variant="primary" className="w-full" onClick={onClose}>{words.done}</Button>}
-      >
-        <div data-arrange>
-          <h2 id={`${id}-title`} className="text-[22px] leading-7 font-medium text-ink">{words.arrange}</h2>
-          <p id={`${id}-hint`} className="mt-1 text-[14px] leading-5 text-ink-2">
-            {words.arrangeHint}
-            <span className="sr-only"> {words.arrangeKeys}</span>
-          </p>
-
-          <p className="mt-4 mb-2 text-[14px] leading-5 font-medium text-ink-2">{words.grouping}</p>
-          <Segmented
-            block
-            aria-label={words.grouping}
-            value={grouping}
-            onChange={(g) => arrangeAccounts({ grouping: g })}
-            options={GROUPING_ORDER.map((g) => ({ value: g, label: words.groupings[g] }))}
-          />
-
-          <div ref={listRef} className="-mx-4 mt-2 sm:-mx-6">
-            {groups.map((g) => {
-              const members = g.accounts.map((a) => a.accountNumber);
-              const entry = grouping === 'bank' ? banks.find((b) => b.key === g.key) ?? null : null;
-              const title = g.kind ? words.groups[g.kind] : entry?.bank.name ?? null;
-              const lifted = drag?.group === g.key ? drag : null;
-              return (
-                <section key={g.key} aria-label={title ?? t.common.account.accounts}>
-                  {title && grouping !== 'none' && (
-                    <h3 className="px-4 pt-3.5 pb-1 text-[14px] leading-5 font-medium text-ink-2 sm:px-6">{title}</h3>
-                  )}
-                  <ul>
-                    {g.accounts.map((a, i) => {
-                      const key = a.accountNumber;
-                      const isLifted = lifted?.key === key;
-                      // The others make room: each row between the lifted one's place and where it is over moves a row's height.
-                      let shift = 0;
-                      if (lifted && !isLifted) {
-                        const h = lifted.rects[lifted.from].height;
-                        if (lifted.from < lifted.over && i > lifted.from && i <= lifted.over) shift = -h;
-                        if (lifted.from > lifted.over && i < lifted.from && i >= lifted.over) shift = h;
-                      }
-                      const entryOf = bankOf(a);
-                      const ident = accountIdent(a);
-                      return (
-                        <li
-                          key={key}
-                          data-order-row={key}
-                          onPointerDown={(e) => onRowDown(e, key, g)}
-                          onPointerMove={onRowMove}
-                          onPointerUp={onRowUp}
-                          onPointerCancel={onRowUp}
-                          // A held finger brings up no menu of its own.
-                          onContextMenu={(e) => e.preventDefault()}
-                          style={{
-                            transform: isLifted ? `translateY(${lifted!.dy}px) rotate(-0.6deg)` : shift ? `translateY(${shift}px)` : undefined,
-                            // Only while a row is lifted: once it is dropped, the new order puts every row where it already stands.
-                            transition: lifted && !isLifted ? 'transform var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast)' : undefined,
-                          }}
-                          className={cx(
-                            'relative grid min-h-16 grid-cols-[24px_40px_minmax(0,1fr)_auto] items-center gap-x-3 py-2 pr-4 pl-3 sm:pr-6 sm:pl-5',
-                            isLifted && 'z-10 mx-2 rounded-[16px] bg-paper pr-2 pl-1 shadow-[var(--shadow-pop)] sm:pr-4 sm:pl-3',
-                          )}
-                        >
-                          <button
-                            type="button"
-                            data-grip
-                            aria-label={words.move(accountLabel(a))}
-                            aria-describedby={`${id}-hint`}
-                            onPointerDown={(e) => onGripDown(e, key, g)}
-                            onKeyDown={(e) => onGripKey(e, key, members)}
-                            className="-m-3 grid size-12 cursor-grab touch-none place-items-center rounded-full text-ink-2 outline-offset-[-4px] active:cursor-grabbing"
-                          >
-                            <DragIcon size={24} />
-                          </button>
-                          <AccountDisc account={a} entry={severalBanks ? entryOf : null} logoFile={entryOf ? logoFiles[entryOf.bank.brand] : undefined} />
-                          <span className="min-w-0">
-                            <span className="block truncate text-[16px] leading-[22px] font-medium text-ink">{accountLabel(a)}</span>
-                            {/* The end of its number tells it apart; the disc's mark already names its bank. */}
-                            <span className="block truncate text-[14px] leading-5 text-ink-2">
-                              {ident.tail && !isDepot(a) ? (
-                                <span className="iban text-[13px]">{ident.kind === 'card' ? `${words.card} ` : ''}··· {ident.tail}</span>
-                              ) : entryOf?.bank.name}
-                            </span>
-                          </span>
-                          <ArrangeFigure account={a} />
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
-              );
-            })}
-          </div>
-          <p role="status" className="sr-only">{said}</p>
-        </div>
-      </Sheet>
-    </Overlay>
-  );
-}
-
-/** A row's figure in the sheet, as far as this session knows it. */
-function ArrangeFigure({ account }: { account: SerializedAccount }) {
-  const { balances, portfolios } = useFints();
-  const acct = account.accountNumber;
-  const value = isDepot(account) ? portfolios[acct]?.totalValue : balances[acct]?.balance;
-  const currency = isDepot(account) ? portfolios[acct]?.currency : balances[acct]?.currency;
-  if (value == null) return <span />;
-  return <Money value={value} currency={currency} tone="plain" className="text-right text-[14px] leading-5 font-medium text-ink" />;
 }

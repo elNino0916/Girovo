@@ -18,7 +18,7 @@ import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx } fro
 import { PrivacyToggle } from '../shell/PrivacyToggle';
 import { fmtSince } from '../shell/session';
 import { MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
-import { BankMark } from './AccountsOverview';
+import { BankMark } from './AccountMarks';
 import { AccountGoal } from './SavingsGoal';
 import { BalanceChart, Sparkline } from './BalanceChart';
 
