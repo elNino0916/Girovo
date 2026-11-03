@@ -56,8 +56,7 @@ export function UpdateChannelRow() {
         )}
       >
         <ChannelChoice value={choice} onChange={setChoice} />
-        <p className="mt-4 text-[14px] leading-relaxed text-ink-2">{c.unstable}</p>
-        <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{IS_ANDROID ? `${c.backAndroid} ${c.noOlderAndroid}` : c.back}</p>
+        <p className="mt-4 text-[14px] leading-relaxed text-ink-2">{IS_ANDROID ? c.noteAndroid : c.note}</p>
       </Dialog>
     </>
   );
