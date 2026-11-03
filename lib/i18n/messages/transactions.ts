@@ -555,6 +555,11 @@ export const de = {
     transactionsFailed: 'Umsätze konnten nicht geladen werden.',
     pendingFailed: 'Vorgemerkte Umsätze konnten nicht geladen werden.',
     balanceFailed: 'Kontostand konnte nicht geladen werden.',
+    /** A credit card booking read over DKKKU (lib/fints-cards.ts): its Buchungstext. */
+    cardBooking: 'Kreditkartenumsatz',
+    /** …and, for a payment in another currency, what it was there — beside the place. */
+    cardForeign: (amount: number, currency: string, rate: number | null) =>
+      `${amount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}${rate ? `, Kurs ${rate.toLocaleString('de-DE', { maximumFractionDigits: 6 })}` : ''}`,
   },
 
   /** The frame around a bank's answer in an error alert (components/BankAnswer.tsx): its return codes. */
@@ -1012,6 +1017,9 @@ export const en: typeof de = {
     transactionsFailed: 'Could not load transactions.',
     pendingFailed: 'Could not load pending transactions.',
     balanceFailed: 'Could not load the balance.',
+    cardBooking: 'Credit card transaction',
+    cardForeign: (amount, currency, rate) =>
+      `${amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}${rate ? `, rate ${rate.toLocaleString('en-GB', { maximumFractionDigits: 6 })}` : ''}`,
   },
 
   bankAnswer: {

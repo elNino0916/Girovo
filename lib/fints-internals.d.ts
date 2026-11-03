@@ -17,6 +17,7 @@ export { InternationalAccountGroup } from '../node_modules/lib-fints/dist/types/
 export { CustomerOrderInteraction } from '../node_modules/lib-fints/dist/types/interactions/customerInteraction.js';
 export { StatementInteractionCAMT } from '../node_modules/lib-fints/dist/types/interactions/statementInteractionCAMT.js';
 export { StatementInteractionMT940 } from '../node_modules/lib-fints/dist/types/interactions/statementInteractionMT940.js';
+export { CreditCardStatementInteraction } from '../node_modules/lib-fints/dist/types/interactions/creditcardStatementInteraction.js';
 export { CamtParser } from '../node_modules/lib-fints/dist/types/camtParser.js';
 export { TanMediaInteraction } from '../node_modules/lib-fints/dist/types/interactions/tanMediaInteraction.js';
 export { internationalAccount } from '../node_modules/lib-fints/dist/types/accountDescriptor.js';

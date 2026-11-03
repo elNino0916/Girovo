@@ -185,6 +185,12 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   Umsätze: name, ISIN/WKN, quantity, the bank's last price, value and the
   change since purchase where the bank reports a purchase price; the bank's
   total as the account's figure.
+- **Kreditkartenumsätze der Sparkassen** (DKKKU, 6.0) — a credit card that
+  offers neither HKCAZ nor HKKAZ, as Sparkassen' cards do, gets its Umsätze
+  over DKKKU instead: the shop as the counterparty, its town and — for a
+  payment abroad — what it cost there and at which rate, the card's balance
+  as its figure. DKKKU is not in the FinTS catalogue; its fields follow
+  hbci4java (`lib/fints-cards.ts`). Not yet tried against a real Sparkasse.
 - **Vorgemerkte Umsätze** (pending / not-yet-booked entries) — shows incoming
   SEPA-Lastschriften and card payments *before* they book. Loaded on demand
   via `HKVMK` where the bank offers it; banks that send them with the Umsätze

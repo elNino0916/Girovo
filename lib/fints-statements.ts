@@ -15,6 +15,7 @@
 import type { FinTSConfig, Message, Segment, Statement, StatementResponse } from 'lib-fints';
 import { bankAccountOf } from './account-key.ts';
 import { StatementInteractionCAMT, StatementInteractionMT940 } from './fints-internals.js';
+import { CardStatementInteraction, CARD_STATEMENT_SEG } from './fints-cards.ts';
 import type { ClientResponseWithResult, FinTSClientEx } from './fints-types';
 import { msgs } from './i18n/index.ts';
 import { collectNoted, countPendingInBooked, parseMt942, parseNotedCamt, type NotedField } from './noted.ts';
@@ -102,12 +103,17 @@ export class NotedStatementInteractionMT940 extends StatementInteractionMT940 {
   }
 }
 
-/** Whether the account's Umsätze come as camt (HKCAZ) or MT940 (HKKAZ) — lib-fints' own choice. */
-export function statementFormat(config: FinTSConfig, accountNumber: string): Format | null {
+/**
+ * Whether the account's Umsätze come as camt (HKCAZ) or MT940 (HKKAZ) —
+ * lib-fints' own choice — or, for a Sparkasse's credit card that has
+ * neither, over DKKKU (lib/fints-cards.ts).
+ */
+export function statementFormat(config: FinTSConfig, accountNumber: string): Format | 'card' | null {
   const account = bankAccountOf(config, accountNumber);
   // getAccountStatements prefers camt whenever the account has it.
   if (config.isAccountTransactionSupported(account, 'HKCAZ')) return 'camt';
   if (config.isAccountTransactionSupported(account, 'HKKAZ')) return 'mt940';
+  if (config.isAccountTransactionSupported(account, CARD_STATEMENT_SEG)) return 'card';
   return null;
 }
 
@@ -125,6 +131,10 @@ export async function fetchStatements(
   if (!format) throw new Error(msgs().transactions.api.noStatements);
   // The account itself, not its number: a number the bank uses twice names neither (lib/account-key.ts).
   const account = bankAccountOf(client.config, accountNumber);
+  // A card's bookings from `from` up to today: DKKKU takes no end.
+  if (format === 'card') {
+    return (await client.startCustomerOrderInteraction(new CardStatementInteraction(account, from))) as StatementsResponse;
+  }
   const interaction = format === 'camt'
     ? new NotedStatementInteractionCAMT(account, from, to)
     : new NotedStatementInteractionMT940(account, from, to);
