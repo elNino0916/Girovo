@@ -60,14 +60,14 @@ import { bankAllowed, reminderDue, type PlusStatus } from '@/lib/plus';
 import { reviewMoment } from './android/review';
 import { parsePurpose } from '@/lib/sepa-purpose';
 import {
-  dayKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, toLocalDate, translateType,
+  compactIban, dayKey, fmtDate, ibanValid, isoDate, parseAmount, presetRange, repairBankText, toLocalDate, translateType,
   fmtRange,
   type RangePreset,
 } from '@/lib/format';
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { asksForBrand } from '@/lib/nano-names';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
-import { liveValue, overviewFigures, sanitizeAccountOrder, type AccountGrouping } from '@/lib/account-overview';
+import { hasOverview, liveValue, overviewFigures, sanitizeAccountOrder, type AccountGrouping } from '@/lib/account-overview';
 import { keepBalances as foldKeptBalances, recordNetWorth, type KeptBalance, type NetWorthDay } from '@/lib/kept-balances';
 import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
 import {
@@ -649,8 +649,6 @@ function normalizeRange(r: DateRange, today = isoDate(new Date())): DateRange | 
   return { from, to };
 }
 
-const normIban = (iban: string | null | undefined) => String(iban ?? '').replace(/\s+/g, '').toUpperCase();
-
 /** An id for a template or a log entry. */
 function newId(): string {
   const c = globalThis.crypto;
@@ -680,7 +678,7 @@ function typedAmount(raw: string): number {
  */
 function sentOrderOf(p: TransferPayload, outcome: SentOrder['outcome'], at: string): SentOrder | null {
   const cents = Math.round(typedAmount(p.amount) * 100);
-  const iban = normIban(p.iban);
+  const iban = compactIban(p.iban);
   const s = p.schedule;
   const later = s ? { kind: s.kind, due: s.kind === 'dated' ? s.date : s.first } : {};
   return cents > 0 && iban ? { at, accountNumber: p.accountNumber, iban, cents, outcome, ...later } : null;
@@ -4527,7 +4525,7 @@ function useFintsState() {
       outcome,
       accountNumber: p.accountNumber,
       name: p.recipientName.trim(),
-      iban: normIban(p.iban),
+      iban: compactIban(p.iban),
       amount: typedAmount(p.amount),
       instant: p.instant,
       ...(p.schedule ? { schedule: p.schedule } : {}),
@@ -4623,7 +4621,7 @@ function useFintsState() {
         kind: p?.change ? 'orderChange' : orderWaitKind(p?.schedule),
         order: p
           ? {
-            amount: typedAmount(p.amount), name: sepaSanitize(p.recipientName), iban: normIban(p.iban), instant: p.instant,
+            amount: typedAmount(p.amount), name: sepaSanitize(p.recipientName), iban: compactIban(p.iban), instant: p.instant,
             schedule: p.schedule ?? null,
           }
           : null,
@@ -4767,7 +4765,7 @@ function useFintsState() {
   }, [notedFetched, pendingFetched, statementInfo, txCache]);
 
   const ownIbans = useMemo(
-    () => [...new Set(accounts.map((a) => normIban(a.iban)).filter(Boolean))],
+    () => [...new Set(accounts.map((a) => compactIban(a.iban)).filter(Boolean))],
     [accounts],
   );
 
@@ -4826,12 +4824,12 @@ function useFintsState() {
     return out;
   }, [bank, sessionId, userId, deviceRemembered, links, linkedBanks, bankInfo]);
 
-  // The same rule as the Übersicht's (components/overview/AccountsOverview.tsx):
-  // the back gesture leads from an account's page to every account only where
-  // that page has one in front of it.
+  // The Übersicht's own rule (lib/account-overview.ts hasOverview): the back
+  // gesture leads from an account's page to every account only where that
+  // page has one in front of it.
   useEffect(() => {
-    overviewShownRef.current = accounts.length > 1 || banks.length > 1;
-  }, [accounts.length, banks.length]);
+    overviewShownRef.current = hasOverview(accounts, banks);
+  }, [accounts, banks]);
 
   // "Salden beim Anmelden abrufen": once the login's own reads are done, every
   // balance still missing — and again for a further bank's accounts when it
@@ -5225,7 +5223,7 @@ function useFintsState() {
     // so what the user sees now is what comes back after the next login
     // instead of a template the server quietly clipped or dropped.
     const clip = (s: string | undefined, n: number) => (s == null ? undefined : [...s.trim()].slice(0, n).join(''));
-    const iban = normIban(t.iban);
+    const iban = compactIban(t.iban);
     if (!t.name.trim() || !ibanValid(iban)) {
       toast(msgs().provider.vault.templateInvalid, 'error');
       return;
