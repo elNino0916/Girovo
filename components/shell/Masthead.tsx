@@ -36,11 +36,12 @@ import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
 import { useAskable } from '../insights/Ask';
 import { unseenUpdate, useUpdates } from '../updates/store';
-import { BackIcon, BellIcon, EyeIcon, EyeOffIcon, GeminiSparkIcon, SearchIcon } from '../icons';
+import { BackIcon, BellIcon, GeminiSparkIcon, SearchIcon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
 import { MASTHEAD_EDGES, SEARCH_EDGES, SPLIT_SEARCH_EDGES } from './edges';
 import { useSplitOverview } from './useWide';
 import { PAGE_TITLE_ID } from './ids';
+import { PrivacyToggle } from './PrivacyToggle';
 import { ProfileMenu } from './ProfileMenu';
 import { usePhone } from './usePhone';
 
@@ -105,7 +106,7 @@ function SearchBar() {
 
 export function Masthead() {
   const {
-    privacy, togglePrivacy, unreadCount: bankUnread, inboxOpen, setInboxOpen, setPaletteOpen, singleKeyShortcuts,
+    unreadCount: bankUnread, inboxOpen, setInboxOpen, setPaletteOpen, singleKeyShortcuts,
     tab, leaveSettings, accountOpen, accounts, banks, activeAccount, accountLabel, closeAccount, ordersOpen, closeOrders,
   } = useFints();
   const t = useT();
@@ -135,8 +136,6 @@ export function Masthead() {
     bankUnread > 0 ? t.shell.unread(bankUnread) : '',
     updateUnseen ? t.shell.masthead.newAppVersion : '',
   ].filter(Boolean).join(', ');
-  // What a press on the privacy item does — the label changes with the state.
-  const amounts = privacy ? t.common.showAmounts : t.common.hideAmounts;
   // Opening the drawer marks everything read. Were the count badge to go out
   // at that moment, the items left of it would jump sideways behind the
   // scrim; so the bell keeps showing what it showed when it was pressed, and
@@ -247,21 +246,7 @@ export function Masthead() {
             </span>
           </IconButton>}
 
-          {/* The label names what a press does, so it changes with the state
-              (and is not also a pressed toggle — that would announce
-              "Beträge anzeigen, gedrückt"). While amounts are hidden the item
-              keeps a tint, so the mode is visible from across the room. */}
-          <IconButton
-            tone="bar"
-            size="md"
-            aria-label={amounts}
-            aria-keyshortcuts={singleKeyShortcuts ? 'B' : undefined}
-            title={amounts + (singleKeyShortcuts ? ' (B)' : '')}
-            onClick={togglePrivacy}
-            className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--bar-ink)_14%,transparent)]')}
-          >
-            {privacy ? <EyeOffIcon /> : <EyeIcon />}
-          </IconButton>
+          <PrivacyToggle bar shortcut={singleKeyShortcuts} />
 
           {!IS_ANDROID && <ThemeMenu variant="icon" className="max-sm:hidden" />}
 

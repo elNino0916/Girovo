@@ -13,8 +13,9 @@ import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
-import { AlertTriangleIcon, BackIcon, ChevronIcon, EyeIcon, EyeOffIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
+import { AlertTriangleIcon, BackIcon, ChevronIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
 import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx } from '../ui';
+import { PrivacyToggle } from '../shell/PrivacyToggle';
 import { fmtSince } from '../shell/session';
 import { MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
 import { BankMark } from './AccountsOverview';
@@ -425,23 +426,13 @@ function DepotHero({ account }: { account: SerializedAccount }) {
  * number, so two accounts of one name are never mistaken.
  */
 function AccountHead({ account, label }: { account: SerializedAccount; label: string }) {
-  const { accounts, banks, bankOf, logoFiles, privacy, togglePrivacy, closeAccount } = useFints();
+  const { accounts, banks, bankOf, logoFiles, closeAccount } = useFints();
   const t = useT();
-  const eye = (className?: string) => (
-    <IconButton
-      size="md"
-      aria-label={privacy ? t.common.showAmounts : t.common.hideAmounts}
-      onClick={togglePrivacy}
-      className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--ink)_12%,transparent)]', className)}
-    >
-      {privacy ? <EyeOffIcon /> : <EyeIcon />}
-    </IconButton>
-  );
   if (accounts.length <= 1 && banks.length <= 1) {
     return (
       <div className="-mr-2 flex min-h-10 items-center justify-between gap-2">
         <p className="min-w-0 truncate text-[16px] leading-6 font-medium text-ink-2">{label}</p>
-        {eye()}
+        <PrivacyToggle />
       </div>
     );
   }
@@ -456,7 +447,7 @@ function AccountHead({ account, label }: { account: SerializedAccount; label: st
           <BackIcon size={22} />
         </IconButton>
         <p className="min-w-0 flex-1 truncate text-[16px] leading-6 font-medium text-ink">{label}</p>
-        {eye('xl:hidden')}
+        <PrivacyToggle className="xl:hidden" />
       </div>
       <p className="flex min-w-0 items-center gap-2 pt-1 pb-1 text-[14px] leading-5 text-ink-2 sm:pt-0">
         {entry && <BankMark entry={entry} logoFile={logoFiles[entry.bank.brand]} className="size-4 rounded-[4px]" />}

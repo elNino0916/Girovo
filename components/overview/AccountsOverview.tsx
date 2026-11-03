@@ -18,7 +18,8 @@ import { BankChip, BankLogo } from '../BankLogo';
 import { useFints, type BankEntry } from '../FintsProvider';
 import { Money } from '../Money';
 import { PlusButton } from '../android/PlusTeaser';
-import { AccountTypeIcon, ChevronIcon, DragIcon, EyeIcon, EyeOffIcon, PlusIcon, RefreshIcon, SwapVertIcon } from '../icons';
+import { AccountTypeIcon, ChevronIcon, DragIcon, PlusIcon, RefreshIcon, SwapVertIcon } from '../icons';
+import { PrivacyToggle } from '../shell/PrivacyToggle';
 import { txText } from '../transactions/model';
 import { Alert, Button, DotList, FilterChip, IconButton, Menu, MenuItemRadio, Overlay, Segmented, Sheet, Skeleton, cx } from '../ui';
 import { accountIdent, vaultNote } from './AccountIdentity';
@@ -57,7 +58,7 @@ export function AccountsOverview({ pane = false }: {
 } = {}) {
   const {
     accounts, balances, balanceAt, portfolios, portfolioLoading, portfolioErrors, txByAccount,
-    banks, bankOf, logoFiles, accountLabel, privacy, togglePrivacy, busy, wait,
+    banks, bankOf, logoFiles, accountLabel, privacy, busy, wait,
     loadAllBalances, loadingAllBalances, loadBalance, selectAccount, isLoadedForAppliedRange,
     txErrors, balanceErrors, loadingAccount, balanceLoading, vault, vaultStatus, openAddBank, arrangeAccounts,
     activeAccount,
@@ -211,14 +212,7 @@ export function AccountsOverview({ pane = false }: {
           >
             {words.arrangeShort}
           </Button>
-          <IconButton
-            size="md"
-            aria-label={privacy ? t.common.showAmounts : t.common.hideAmounts}
-            onClick={togglePrivacy}
-            className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--ink)_12%,transparent)]')}
-          >
-            {privacy ? <EyeOffIcon /> : <EyeIcon />}
-          </IconButton>
+          <PrivacyToggle />
         </div>
       </div>
 
