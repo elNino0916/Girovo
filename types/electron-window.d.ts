@@ -33,6 +33,8 @@ declare global {
       size: number | null;
       /** False: only the download page can be offered (no verifiable file for this install). */
       canInstall: boolean;
+      /** An older stable release, offered as the way back from a preview (the desktop's "Stabil"). */
+      back?: boolean;
     } | null;
     received: number;
     total: number;

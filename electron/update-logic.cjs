@@ -128,6 +128,21 @@ function isNewer(candidate, current, { prerelease = false } = {}) {
   return compareParsed(c, withoutDev(v)) > 0;
 }
 
+/**
+ * Whether `candidate`, a stable release, is the way back for an install of a
+ * preview (`current`, a pre-release): on "Stabil" the desktop app offers the
+ * latest stable release even where it is older than the preview it runs
+ * (owner, 2026-11-03) — going back to the channel goes back to its version.
+ * Never for a CI development build, never a pre-release, never a newer one
+ * (that is isNewer's).
+ */
+function isSwitchBack(candidate, current) {
+  const c = parseVersion(candidate);
+  const v = parseVersion(current);
+  if (!c || !v || c.pre || !v.pre || isDevBuild(current)) return false;
+  return compareParsed(c, v) < 0;
+}
+
 /** A file name that can safely become a path on disk: no folders, no tricks. */
 const SAFE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,150}$/;
 
@@ -367,6 +382,7 @@ module.exports = {
   compareVersions,
   isDevBuild,
   isNewer,
+  isSwitchBack,
   releasePageOr,
   parseRelease,
   newestRelease,

@@ -75,7 +75,7 @@ export function UpdateLayer() {
 }
 
 export type UpdateNotice =
-  | { kind: 'newer'; version: string; ready: boolean; current: string }
+  | { kind: 'newer'; version: string; ready: boolean; current: string; back?: boolean }
   | { kind: 'installed'; version: string };
 
 /** What Mitteilungen should say about the app itself, if anything. */
@@ -91,6 +91,7 @@ function noticeOf(state: UpdateState | null): UpdateNotice | null {
       version: state.release.version,
       ready: isReady(state),
       current: state.current,
+      back: !!state.release.back,
     };
   }
   if (state?.installed) return { kind: 'installed', version: state.installed.version };
@@ -121,7 +122,7 @@ export function UpdateInboxCard({ notice, onOpen }: { notice: UpdateNotice; onOp
           {newer
             ? notice.ready
               ? u.readyToInstall(notice.version)
-              : u.available(notice.version)
+              : notice.back ? u.backTo(notice.version) : u.available(notice.version)
             : u.updatedTo(notice.version)}
         </p>
         {/* After an update, "Was ist neu? …" below says it all. */}

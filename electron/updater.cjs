@@ -47,6 +47,8 @@ const CHECK_INTERVAL_MS = 6 * 60 * 60_000;
 // Turning the automatic check on runs one soon, so the switch visibly does something.
 const AUTO_ON_DELAY_MS = 1_500;
 const CHECK_TIMEOUT_MS = 20_000;
+/** How long to wait before asking GitHub once more after a 502, 503 or 504. */
+const RETRY_DELAY_MS = 1500;
 const PROGRESS_EVERY_MS = 200;
 const STALL_MS = 60_000;
 const STALL_CHECK_MS = 5_000;
@@ -184,8 +186,22 @@ function createUpdater(deps) {
     currentVersion, kind, fetch, cacheDir, portableDir = null, downloadsDir = null, baseFile = null, autoCheck = true,
     getPref, setPref, send = () => {}, spawnDetached, showInstallWindow = null, quit, openExternal,
     feedUrl = logic.FEED_URL, downloadPrefix = logic.DOWNLOAD_PREFIXES, releasesPage = logic.RELEASES_PAGE,
-    previousExe = null, now = Date.now, log = console,
+    previousExe = null, now = Date.now, log = console, retryDelayMs = RETRY_DELAY_MS,
   } = deps;
+
+  /**
+   * fetch, asked once more after a breath when GitHub answers 502, 503 or
+   * 504: its API and its file servers do that now and then for a moment (a
+   * release just published, a busy minute). Any other answer is the answer.
+   */
+  async function fetchRetrying(url, init = {}) {
+    const res = await fetch(url, init);
+    if (res.status !== 502 && res.status !== 503 && res.status !== 504) return res;
+    await res.body?.cancel().catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    if (init.signal?.aborted) throw init.signal.reason;
+    return fetch(url, init);
+  }
 
   const installable = kind === 'nsis' || kind === 'portable';
 
@@ -236,8 +252,10 @@ function createUpdater(deps) {
     } catch { /* the window is gone; the next one asks for the state */ }
   }
 
-  function publicRelease(release, asset, plan) {
+  function publicRelease(release, asset, plan, back = false) {
     return {
+      // An older stable release, offered as the way back from a preview (logic.isSwitchBack).
+      back,
       version: release.version,
       name: release.name,
       notes: release.notes,
@@ -387,7 +405,9 @@ function createUpdater(deps) {
       };
       void clearCache();
     } else if (
-      Number.isFinite(marker.at) && now() - marker.at < MARKER_MAX_AGE_MS && logic.isNewer(to, currentVersion, { prerelease: true })
+      // Another version than the one the installer was started for: it did not
+      // run — an update, or the way back from a preview to an older release.
+      Number.isFinite(marker.at) && now() - marker.at < MARKER_MAX_AGE_MS && !!logic.parseVersion(to) && to !== currentVersion
     ) {
       state.failedInstall = to;
       state.error = { during: 'install', message: said().notCompleted(to) };
@@ -398,7 +418,7 @@ function createUpdater(deps) {
 
   /** GitHub's API answer at `url`, parsed, or null when there is none (HTTP 404). */
   async function fetchJson(url) {
-    const res = await fetch(url, {
+    const res = await fetchRetrying(url, {
       headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
       signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
       cache: 'no-store',
@@ -458,7 +478,7 @@ function createUpdater(deps) {
 
   /** A small release file (a blockmap), checked against its digest when GitHub lists one. */
   async function fetchSmall(asset, max) {
-    const res = await fetch(asset.url, { signal: AbortSignal.timeout(CHECK_TIMEOUT_MS), cache: 'no-store' });
+    const res = await fetchRetrying(asset.url, { signal: AbortSignal.timeout(CHECK_TIMEOUT_MS), cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status} for ${asset.name}`);
     const buf = await readBytes(res, max);
     if (buf.length !== asset.size) throw new Error(`${asset.name} is not the announced size`);
@@ -621,7 +641,10 @@ function createUpdater(deps) {
     try {
       const release = await fetchOffer();
       const checkedAt = now();
-      if (!release || !logic.isNewer(release.version, currentVersion, { prerelease: channel === 'preview' })) {
+      const newer = !!release && logic.isNewer(release.version, currentVersion, { prerelease: channel === 'preview' });
+      // Back on "Stabil" from a preview: the latest stable release, older as it may be.
+      const back = !newer && !!release && channel === 'stable' && logic.isSwitchBack(release.version, currentVersion);
+      if (!newer && !back) {
         pending = null;
         readyFile = null;
         await clearCache();
@@ -643,7 +666,7 @@ function createUpdater(deps) {
       set({
         phase: file ? 'ready' : 'available',
         checkedAt,
-        release: publicRelease(release, usable, file ? null : pending.plan),
+        release: publicRelease(release, usable, file ? null : pending.plan, back),
         location: file && kind === 'portable' ? path.dirname(file) : null,
         received: 0,
         total: 0,
@@ -730,7 +753,7 @@ function createUpdater(deps) {
           lastReport = 0;
           set({ received: 0, total: asset.size, release: state.release && { ...state.release, size: asset.size } });
         }
-        const res = await fetch(asset.url, { signal: controller.signal, cache: 'no-store' });
+        const res = await fetchRetrying(asset.url, { signal: controller.signal, cache: 'no-store' });
         if (!res.ok || !res.body) throw new UpdateError(said().downloadHttp(res.status));
         const digest = await save(res.body, partial, asset.size, onChunk);
         if (digest !== asset.sha256) {
@@ -835,8 +858,9 @@ function createUpdater(deps) {
   /**
    * Switches between the stable and the preview channel, and asks again at
    * once: what the other channel offered — found, downloading or downloaded —
-   * is dropped unless this one offers it too. Going back to stable never
-   * offers an older version than the installed one (see logic.isNewer).
+   * is dropped unless this one offers it too. Going back to stable from a
+   * preview offers the latest stable release, older as it may be
+   * (logic.isSwitchBack): the channel's own version, a click away.
    */
   async function setChannel(value) {
     const channel = logic.channelOf(value);

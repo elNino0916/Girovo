@@ -53,8 +53,10 @@ export const de = {
     stableHint: 'Nur fertige Versionen. Empfohlen.',
     previewHint: 'Auch Vorabversionen von Girovo 6.0, sobald es sie gibt.',
     unstable: 'Vorschauversionen sind noch nicht fertig: Sie können Fehler haben, und bis zur fertigen Version ändert sich manches noch.',
-    back: 'Zurück zu „Stabil“ geht jederzeit – Girovo bietet dir dann aber erst die nächste stabile Version an, die höher ist als deine installierte.',
-    noOlder: 'Eine ältere Version installiert das Update nicht.',
+    /** The desktop: back to "Stabil" offers the latest stable release, older as it may be. */
+    back: 'Zurück zu „Stabil“ geht jederzeit: Girovo sucht dann gleich nach Updates und bietet dir die aktuelle stabile Version an, auch wenn sie älter ist als deine Vorschau.',
+    /** Android cannot install an older version over a newer one. */
+    backAndroid: 'Zurück zu „Stabil“ geht jederzeit – Girovo bietet dir dann aber erst die nächste stabile Version an, die höher ist als deine installierte.',
     noOlderAndroid: 'Eine ältere Version kann Android nicht über eine neuere installieren.',
     apply: 'Übernehmen',
   },
@@ -97,8 +99,8 @@ export const en: typeof de = {
     stableHint: 'Finished versions only. Recommended.',
     previewHint: 'Also early versions of Girovo 6.0, as soon as there are any.',
     unstable: 'Preview versions aren’t finished: they can have bugs, and some things will still change before the final version.',
-    back: 'You can go back to “Stable” at any time – but Girovo will then only offer you the next stable version that’s higher than the one installed.',
-    noOlder: 'The update won’t install an older version.',
+    back: 'You can go back to “Stable” at any time: Girovo then checks for updates straight away and offers you the current stable version, even if it’s older than your preview.',
+    backAndroid: 'You can go back to “Stable” at any time – but Girovo will then only offer you the next stable version that’s higher than the one installed.',
     noOlderAndroid: 'Android can’t install an older version over a newer one.',
     apply: 'Apply',
   },

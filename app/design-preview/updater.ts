@@ -8,7 +8,7 @@
 import { resetUpdatesForPreview } from '@/components/updates/store';
 
 export const UPDATE_SCENARIOS = [
-  'idle', 'checking', 'current', 'available', 'downloading', 'ready', 'installed', 'manual', 'portable', 'error', 'preview',
+  'idle', 'checking', 'current', 'available', 'downloading', 'ready', 'installed', 'manual', 'portable', 'error', 'preview', 'back',
 ] as const;
 export type UpdateScenario = (typeof UPDATE_SCENARIOS)[number];
 
@@ -103,7 +103,14 @@ function initial(scenario: UpdateScenario): ElectronUpdateState {
       };
     case 'preview':
       return { ...base, channel: 'preview', phase: 'available', checkedAt, release: previewRelease() };
+    case 'back':
+      // A preview installed, back on "Stabil": the older stable release as the way back.
+      return { ...base, current: PREVIEW, phase: 'available', checkedAt, release: backRelease() };
   }
+}
+
+function backRelease(): NonNullable<ElectronUpdateState['release']> {
+  return { ...RELEASE, version: CURRENT, name: CURRENT, url: `https://github.com/elNino0916/Girovo/releases/tag/${CURRENT}`, back: true };
 }
 
 function previewRelease(): NonNullable<ElectronUpdateState['release']> {
@@ -165,7 +172,10 @@ export function installFakeUpdater(scenario: UpdateScenario | null, { dialog = f
       await sleep(900);
       return channel === 'preview'
         ? set({ phase: 'available', checkedAt: Date.now(), release: previewRelease() })
-        : set({ phase: 'current', checkedAt: Date.now() });
+        // Back on stable from a preview: the stable release, older as it is.
+        : state.current.includes('-')
+          ? set({ phase: 'available', checkedAt: Date.now(), release: backRelease() })
+          : set({ phase: 'current', checkedAt: Date.now() });
     },
     openRelease: async () => {
       console.info('[design-preview] would open', state.release?.url ?? state.installed?.url);
