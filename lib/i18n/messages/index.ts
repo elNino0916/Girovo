@@ -25,6 +25,7 @@ import * as provider from './provider.ts';
 import * as session from './session.ts';
 import * as settings from './settings.ts';
 import * as shell from './shell.ts';
+import * as sync from './sync.ts';
 import * as tax from './tax.ts';
 import * as transactions from './transactions.ts';
 import * as transfer from './transfer.ts';
@@ -54,6 +55,7 @@ const de = {
   tax: tax.de,
   backup: backup.de,
   background: background.de,
+  sync: sync.de,
   ask: ask.de,
   plus: plus.de,
 };
@@ -82,6 +84,7 @@ const en: Messages = {
   tax: tax.en,
   backup: backup.en,
   background: background.en,
+  sync: sync.en,
   ask: ask.en,
   plus: plus.en,
 };

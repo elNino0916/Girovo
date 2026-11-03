@@ -63,7 +63,7 @@ import {
   type ToastAction, type ToastTone, type TransferHandlers, type TransferPayload, type View, type WaitKind,
   type WaitOrder, type WaitState,
 } from '@/components/FintsProvider';
-import type { LogoConsent } from '@/components/FintsProvider';
+import type { LogoConsent, SyncInfo } from '@/components/FintsProvider';
 import type { AccountGrouping } from '@/lib/account-overview';
 import { sanitizeAccountOrder } from '@/lib/account-overview';
 import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
@@ -203,6 +203,11 @@ export type MockOptions = {
    * the dialog that turns it on open.
    */
   backgroundChecks?: boolean | 'ask';
+  /**
+   * Sync between devices (lib/sync.ts): off, or on with the phone beside this
+   * device; 'open' on, with its dialog open. Left out: off, the row there.
+   */
+  sync?: boolean | 'open';
   /** Every statement load and balance enquiry from now on fails (read live). */
   fail?: boolean;
   /** The Umsätze list's narrowing beyond the search: a month chip, a category. */
@@ -806,6 +811,18 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     opts.backgroundChecks === undefined ? null : opts.backgroundChecks === true,
   );
   const [backgroundAsk, setBackgroundAsk] = useState(opts.backgroundChecks === 'ask');
+  // Sync between devices: a state to show, nothing synced.
+  const [sync, setSync] = useState<SyncInfo>(() => (opts.sync
+    ? {
+      on: true, place: 'lan', deviceName: 'Computer', deviceId: 'aaaaaaaaaaaaaaaa', lastSync: Date.now() - 4 * 60_000,
+      devices: [
+        { id: 'aaaaaaaaaaaaaaaa', name: 'Computer', at: Date.now() - 4 * 60_000 },
+        { id: 'bbbbbbbbbbbbbbbb', name: 'Android', at: Date.now() - 2 * 3600_000 },
+      ],
+    }
+    : { on: false }));
+  const [syncOpen, setSyncOpen] = useState(opts.sync === 'open');
+  const mockCode = 'girovo-sync:1:eyJrIjoiQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQT0iLCJsIjoiMDEyMzQ1Njc4OWFiIiwicCI6eyJraW5kIjoibGFuIiwiYWRkcmVzc2VzIjpbIjE5Mi4xNjguMS4yMCJdLCJwb3J0Ijo0NTEyM319';
   // The fake bridge (./nano.ts): a purchase or an icon chosen on the Plus screen.
   useEffect(() => window.girovoMobile?.plus?.onChange?.(setPlus), []);
   const [sharePrefill, setSharePrefill] = useState<SharePrefill | null>(opening === 'share'
@@ -2985,6 +3002,27 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     },
     openBackgroundAsk: () => setBackgroundAsk(true),
     closeBackgroundAsk: () => setBackgroundAsk(false),
+    sync, syncOpen,
+    openSync: () => setSyncOpen(true),
+    closeSync: () => setSyncOpen(false),
+    syncNow: async () => {
+      setSync((s) => ({ ...s, lastSync: Date.now() }));
+      toast(msgs().sync.synced, 'success');
+    },
+    createSync: async () => {
+      setSync({ on: true, place: 'lan', deviceName: 'Computer', deviceId: 'aaaaaaaaaaaaaaaa', lastSync: Date.now(), devices: [{ id: 'aaaaaaaaaaaaaaaa', name: 'Computer', at: Date.now() }] });
+      return mockCode;
+    },
+    syncCode: async () => mockCode,
+    joinSync: async () => {
+      setSync({ on: true, place: 'lan', deviceName: 'Android', deviceId: 'bbbbbbbbbbbbbbbb', lastSync: Date.now(), devices: [] });
+      toast(msgs().sync.joined, 'success');
+      return true;
+    },
+    leaveSync: async () => {
+      setSync({ on: false });
+      toast(msgs().sync.left, 'info');
+    },
   } satisfies FintsApi;
 }
 

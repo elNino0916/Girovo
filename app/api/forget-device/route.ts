@@ -25,6 +25,7 @@ import { HistoryError, wipeHistory } from '@/lib/history-store';
 import { removeLinkedUnlock } from '@/lib/linked-unlock';
 import { forgetProfile } from '@/lib/state-store';
 import { removeWindowsHello } from '@/lib/windows-hello';
+import { removeMeta } from '@/lib/sync-meta';
 import { VaultError, wipeVault } from '@/lib/vault';
 
 export const runtime = 'nodejs';
@@ -52,6 +53,7 @@ export const POST = wrap(async (req: Request) => {
   if (wipeData === true && s) {
     try {
       // The kept Umsätze first, as in app/api/vault: if they cannot go, the vault stays as it was.
+      if (b && u) await removeMeta(String(b), String(u));
       const history = await wipeHistory(s);
       const docs = await wipeDocs(s);
       wiped = history + docs + (await wipeVault(s));

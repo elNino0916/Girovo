@@ -646,6 +646,11 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Dashboard',
     options: { tab: 'settings', linkedUnlock: true, windowsHello: false, backgroundChecks: true, secondBank: 'linked' },
   },
+  'sync-status': {
+    label: 'Geräte abgleichen',
+    group: 'Dialoge',
+    options: { tab: 'settings', sync: 'open' },
+  },
   'background-ask': {
     label: 'Neue Umsätze melden?',
     group: 'Dialoge',

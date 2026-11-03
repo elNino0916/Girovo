@@ -52,6 +52,7 @@ import { CategorySettings } from './CategorySettings';
 import { LinkedUnlockSwitch } from './LinkedUnlock';
 import { WindowsHelloSwitch } from './WindowsHello';
 import { BackgroundSwitch } from './BackgroundChecks';
+import { SyncRow } from './Sync';
 import { UpdateChannelRow } from './UpdateChannel';
 import { ActionItem, ChoiceItem, LinkItem, SegmentedItem, SettingItem, SettingsGroup, SwitchItem } from './rows';
 
@@ -72,7 +73,7 @@ export function Settings() {
     idleMinutes, setIdleMinutes, deviceRemembered, setForgetDeviceOpen, vaultStatus,
     meta, logoConsent, setLogoConsent, singleKeyShortcuts, setShortcutsOpen,
     settingsTarget, clearSettingsTarget, keepBookings,
-    balancesAtLogin, setBalancesAtLogin, vault, setKeepBalances, toast,
+    balancesAtLogin, setBalancesAtLogin, vault, setKeepBalances, toast, sync,
   } = useFints();
   const pref = useThemePref();
   const usage = useUsageConsent();
@@ -185,6 +186,13 @@ export function Settings() {
 
       {/* The guess with Gemini Nano (Android), then the user's own categories:
           made from a booking's menu, kept here. */}
+      {/* Sync between devices (lib/sync.ts): once the first login's vault is loaded. */}
+      {sync && (
+        <SettingsGroup title={t.sync.section}>
+          <SyncRow />
+        </SettingsGroup>
+      )}
+
       <SettingsGroup title={t.settings.sections.categories} setting="categories">
         <NanoRow />
         <CategorySettings />

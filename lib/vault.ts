@@ -315,6 +315,17 @@ type Unlocked = { file: string; salt: Buffer; key: Buffer };
 // idle sweeper or a hot reload drop it without any bookkeeping here.
 const unlocked = new WeakMap<Session, Unlocked>();
 
+/**
+ * The key this session's vault opened with, and its salt — for what is kept
+ * beside the vault under the same key (lib/sync-meta.ts) — with the vault's
+ * file name. Null until the vault was loaded or saved this session.
+ */
+export function vaultKeyOf(s: Session): { key: Buffer; salt: Buffer; base: string } | null {
+  const entry = unlocked.get(s);
+  if (!entry) return null;
+  return { key: entry.key, salt: entry.salt, base: path.basename(entry.file, '.vault') };
+}
+
 // One operation per file at a time (serialized, lib/sealed-file.ts): the
 // client debounces its saves, but a save can still overlap a reset, or a
 // second window of the same login.

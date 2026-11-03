@@ -120,6 +120,29 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   a JobScheduler job that loads Girovo's own code (`mobile-background.js`)
   into a WebView nobody sees, read-only on the app's files, and skips while
   the app is in front.
+- **Mit anderen Geräten abgleichen** (both apps, *Einstellungen → Geräte*) —
+  the first login's notes, categories and rules, budgets, Sparziele,
+  templates, account names, the overview's arrangement, kept balances and its
+  receipts, the same on the phone and the computer, end-to-end encrypted,
+  with no server of Girovo's in between (`lib/sync.ts`). The first device
+  makes a key and shows it as a QR code (or a text code to paste); the next
+  device scans it — both logged in to the same bank with the same login, or
+  the code is refused. The devices meet **directly on the Wi-Fi** (the desktop
+  app serves a folder to the home network while it runs, `electron/sync-lan.cjs`;
+  the phone reaches it over plain HTTP to a private address — Windows asks
+  once whether Girovo may be reached), in a **WebDAV folder** (Nextcloud,
+  ownCloud, a NAS; HTTPS, an existing folder, an app password) or, between
+  two computers, in a **folder** a sync tool keeps in step (OneDrive,
+  Dropbox, Google Drive for desktop, Syncthing). Each device only writes its
+  own files there, each sealed with the group's key (AES-256-GCM, bound to
+  its name): the place learns sizes and times, nothing else. Per entry the
+  newest change wins, deletions included; edits made while a round runs are
+  kept. Rounds run at login, every five minutes and half a minute after a
+  change. What a device decides for itself (keeping Umsätze or balances)
+  stays its own; kept Umsätze and Kontoauszüge are not synced, nor the
+  receipts of further banks' accounts. The group's settings sit beside the
+  vault, sealed with its key; wiping the saved data or resetting the vault
+  leaves the group on that device.
 - **Kontoverlauf** — the end-of-day balance over the loaded period as a step
   chart, reconstructed from the bookings and *checked against every opening and
   closing balance the bank sent*. If the numbers don't add up, no chart is drawn.

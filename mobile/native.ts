@@ -175,6 +175,16 @@ export interface GirovoBackgroundPlugin {
 export const GirovoBackground = registerPlugin<GirovoBackgroundPlugin>('GirovoBackground');
 
 // ---------------------------------------------------------------------------
+// Sync "Direkt im WLAN" (SyncPlugin.java, lib/sync-stores.ts): one GET or PUT
+// of a sealed file on the desktop app's shelf, over plain HTTP to a private address.
+
+export interface GirovoSyncPlugin {
+  lan(opts: { method: 'GET' | 'PUT'; url: string; body?: string }): Promise<{ status: number; body?: string }>;
+}
+
+export const GirovoSync = registerPlugin<GirovoSyncPlugin>('GirovoSync');
+
+// ---------------------------------------------------------------------------
 // "GiroCode scannen": Google's code scanner, from Play services.
 
 export interface GirovoScannerPlugin {

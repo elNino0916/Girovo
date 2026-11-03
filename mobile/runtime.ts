@@ -28,7 +28,7 @@ import { installSheetDrag } from './bridges/sheet-drag';
 import { startTelemetry } from './bridges/telemetry';
 import { installUpdates, playUpdate } from './bridges/updates';
 import { Buffer } from 'buffer';
-import { GirovoBackground, GirovoDevice, GirovoDocScanner, GirovoLaunch, GirovoNano, GirovoScanner, GirovoText, GirovoWidget } from './native';
+import { GirovoBackground, GirovoDevice, GirovoDocScanner, GirovoLaunch, GirovoNano, GirovoScanner, GirovoSync, GirovoText, GirovoWidget } from './native';
 import { ready } from './server/index';
 
 /** Android AICore in Google Play: Play opens the https link as its own page. */
@@ -50,6 +50,10 @@ const appearance = startAppearance();
   read: () => GirovoBackground.read().then((r) => r.text ?? null),
   write: (text: string | null) => GirovoBackground.write({ text }),
 };
+
+// Sync "Direkt im WLAN": the way to the desktop app's shelf (lib/sync-stores.ts lanStore).
+(globalThis as typeof globalThis & { __girovoLanHttp?: unknown }).__girovoLanHttp =
+  (req: { method: 'GET' | 'PUT'; url: string; body?: string }) => GirovoSync.lan(req);
 
 window.girovoMobile = {
   ready,

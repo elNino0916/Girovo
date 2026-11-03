@@ -149,6 +149,17 @@ declare global {
      * six-hourly checks, with the notification area and the start with
      * Windows; answers whether they are on now.
      */
+    /**
+     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Sync between devices (lib/sync.ts): "Direkt im WLAN" on — answering the
+     * port and this computer's private addresses — or off; a folder picked by
+     * the user; this computer's name.
+     */
+    electronSync?: {
+      lan: (on: boolean) => Promise<{ port: number; addresses: string[] } | null>;
+      pickFolder: () => Promise<string | null>;
+      deviceName: () => Promise<string | null>;
+    };
     electronBackground?: {
       set: (on: boolean) => Promise<boolean>;
     };

@@ -30,6 +30,7 @@ const { createUpdater } = require('./updater.cjs');
 const { createFileSave } = require('./file-save.cjs');
 const { createLinkedUnlockSecret } = require('./linked-unlock.cjs');
 const { createBackgroundChecks, serverCheck } = require('./background.cjs');
+const { createLanServer, privateAddresses } = require('./sync-lan.cjs');
 const { createHelperRunner, createWindowsHello } = require('./windows-hello.cjs');
 const { LOCALE_COOKIE, LOCALE_PREF, configure: configureLanguage, shellLocale, shellTexts, storedLocale } = require('./i18n.cjs');
 const { createTelemetryHub, lineSplitter, relayServerLine } = require('./telemetry.cjs');
@@ -1147,6 +1148,53 @@ function run() {
     check: serverCheck({ origin: () => appOrigin, locale: () => storedLocale(), cookie: LOCALE_COOKIE }),
     notify: notifyNotice,
   });
+  // window.electronSync (preload.cjs): sync between devices (lib/sync.ts).
+  // "Direkt im WLAN" serves the sync folder to the home network while the app
+  // runs (electron/sync-lan.cjs) — the folder the server keeps it in
+  // (lib/sync-stores.ts lanHostDir: the state folder's sync-lan); a folder
+  // of the user's choosing for the other way.
+  const lanDir = () => (process.env.ELECTRON_START_URL
+    ? path.join(process.cwd(), '.fints-state', 'sync-lan')
+    : path.join(app.getPath('userData'), 'fints-state', 'sync-lan'));
+  const lanServer = createLanServer({ http, fs, path, dir: lanDir });
+  /** One port per install, kept: the phone keeps the address it was given. */
+  const lanPort = () => {
+    let port = Number(prefs().get('fints.sync.lanPort'));
+    if (!Number.isInteger(port) || port < 41000 || port > 48999) {
+      port = 41000 + crypto.randomInt(8000);
+      setPref('fints.sync.lanPort', String(port));
+    }
+    return port;
+  };
+  const lanInfo = () => ({ port: lanPort(), addresses: privateAddresses(os.networkInterfaces()) });
+  const startLan = async () => {
+    fs.mkdirSync(lanDir(), { recursive: true });
+    await lanServer.start(lanPort());
+  };
+  if (prefs().get('fints.sync.lan') === '1') void startLan().catch(() => {});
+  ipcMain.handle('sync:lan', async (event, on) => {
+    if (!fromApp(event)) return null;
+    if (on !== true) {
+      delPref('fints.sync.lan');
+      lanServer.stop();
+      return null;
+    }
+    setPref('fints.sync.lan', '1');
+    try {
+      await startLan();
+    } catch {
+      return null;
+    }
+    return lanInfo();
+  });
+  ipcMain.handle('sync:pick-folder', async (event) => {
+    if (!fromApp(event)) return null;
+    const owner = BrowserWindow.fromWebContents(event.sender) ?? win;
+    const picked = await dialog.showOpenDialog(owner ?? undefined, { properties: ['openDirectory', 'createDirectory'] });
+    return picked.canceled ? null : picked.filePaths[0] ?? null;
+  });
+  ipcMain.handle('sync:device-name', (event) => (fromApp(event) ? os.hostname().slice(0, 40) : null));
+
   ipcMain.handle('background:set', async (event, on) => {
     if (!fromApp(event)) return false;
     background.setEnabled(on === true);

@@ -16,6 +16,7 @@ import { loginOfSession, removeLinkedUnlock } from '@/lib/linked-unlock';
 import { getSession } from '@/lib/session';
 import { loadVault, resetVault, saveVault, VAULT_REQUEST_MAX_BYTES, VaultError, wipeVault } from '@/lib/vault';
 import { removeWindowsHello } from '@/lib/windows-hello';
+import { removeMeta } from '@/lib/sync-meta';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,6 +53,8 @@ export const POST = wrap(async (req: Request) => {
         if (own) {
           await removeLinkedUnlock(own);
           await removeWindowsHello(own);
+          // This device leaves its sync group: its settings are personal data too.
+          await removeMeta(own.blz, own.userId);
         }
         const history = await wipeHistory(s);
         const docs = await wipeDocs(s);

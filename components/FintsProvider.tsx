@@ -361,6 +361,17 @@ function useFintsState() {
     backgroundRef.current = on;
     setBackgroundState(on);
   }, []);
+  // Sync between devices (lib/sync.ts): how this login's sync stands — null
+  // until its vault is loaded — and its sheet. While a round runs, edits are
+  // shown at once, kept for the merged vault and saved after it.
+  const [sync, setSyncState] = useState<SyncInfo | null>(null);
+  const syncRef = useRef<SyncInfo | null>(null);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const syncQueueRef = useRef<Array<(v: VaultData) => VaultData> | null>(null);
+  const setSyncBoth = useCallback((info: SyncInfo | null) => {
+    syncRef.current = info;
+    setSyncState(info);
+  }, []);
 
   // Refs mirror the state the async loops read, so a long-running approval
   // never closes over a stale render.
@@ -1156,6 +1167,8 @@ function useFintsState() {
    */
   const flushVault = useCallback((): Promise<void> => {
     if (vaultTimerRef.current) { clearTimeout(vaultTimerRef.current); vaultTimerRef.current = null; }
+    // A sync round is under way: saved after it, onto the merged vault.
+    if (syncQueueRef.current) return vaultChainRef.current;
     const sid = sessionRef.current;
     const data = vaultRef.current;
     if (vaultDirtyRef.current && sid && data && vaultStatusRef.current === 'ready') {
@@ -1238,6 +1251,8 @@ function useFintsState() {
     const base = vaultRef.current ?? EMPTY_VAULT;
     const changed = fn(base);
     if (changed === base) return;
+    // During a sync round, made again on the vault it brings (syncNow).
+    syncQueueRef.current?.push(fn);
     const next = { ...changed, updatedAt: new Date().toISOString() };
     vaultRef.current = next;
     setVault(next);
@@ -2877,6 +2892,141 @@ function useFintsState() {
     }
   }, [setBackgroundBoth]);
 
+  // ---- sync between devices (lib/sync.ts) ---------------------------------
+  const refreshSync = useCallback(async () => {
+    const sid = sessionRef.current;
+    if (!sid || vaultStatusRef.current !== 'ready') return;
+    try {
+      const r = await post<SyncInfo>('/api/sync', { op: 'status', sessionId: sid });
+      if (isCurrent(sid)) setSyncBoth(r);
+    } catch {
+      // Not offered this session.
+    }
+  }, [isCurrent, setSyncBoth]);
+
+  /**
+   * One round: the vault as it is (saved first) merged with the other
+   * devices', the result shown and kept. Edits made meanwhile are made again
+   * on it and saved after. `quiet`: the rounds that run by themselves say
+   * nothing unless something came.
+   */
+  const syncNow = useCallback(async (quiet = false) => {
+    const sid = sessionRef.current;
+    if (!sid || syncQueueRef.current || syncRef.current?.on !== true || vaultStatusRef.current !== 'ready') return;
+    const said = msgs().sync;
+    await flushVault();
+    syncQueueRef.current = [];
+    let r: SyncRunResponse | null = null;
+    try {
+      r = await post<SyncRunResponse>('/api/sync', { op: 'run', sessionId: sid, vault: vaultRef.current });
+    } catch (err) {
+      if (!quiet) {
+        const lanPhone = IS_ANDROID && syncRef.current?.place === 'lan';
+        toast(lanPhone ? said.unreachableLan : (err as Error).message || said.failed, 'error');
+      }
+    } finally {
+      const queued = syncQueueRef.current ?? [];
+      syncQueueRef.current = null;
+      if (r && isCurrent(sid)) {
+        if (r.changed && r.vault) {
+          let next = normalizeVault(r.vault);
+          for (const fn of queued) next = fn(next);
+          vaultRef.current = next;
+          setVault(next);
+          if (queued.length) vaultDirtyRef.current = true;
+        }
+        if (syncRef.current) setSyncBoth({ ...syncRef.current, lastSync: r.lastSync, devices: r.devices });
+        if (r.receipts.added || r.receipts.removed) void loadDocs();
+        if (!quiet || r.changed || r.receipts.added) {
+          toast(r.changed || r.receipts.added ? said.syncedChanges(r.receipts.added) : said.synced, quiet ? 'info' : 'success');
+        }
+      }
+      if (vaultDirtyRef.current) scheduleVaultSave();
+    }
+  }, [isCurrent, flushVault, scheduleVaultSave, loadDocs, setSyncBoth, toast]);
+
+  /** The place as this device offers it: the desktop's shelf with where the phone finds it. */
+  const withAddresses = async (place: SyncPlaceChoice): Promise<SyncPlaceChoice | null> => {
+    if (place.kind !== 'lan') return place;
+    const info = await window.electronSync?.lan(true).catch(() => null);
+    return info?.addresses.length ? { kind: 'lan', addresses: info.addresses, port: info.port } : null;
+  };
+  const deviceName = async (): Promise<string> =>
+    (IS_ANDROID ? 'Android' : await window.electronSync?.deviceName().catch(() => null)) || 'Computer';
+
+  /** This device as the group's first: answers the code the next device takes, or null. */
+  const createSync = useCallback(async (place: SyncPlaceChoice): Promise<string | null> => {
+    const sid = sessionRef.current;
+    if (!sid) return null;
+    const said = msgs().sync;
+    try {
+      const full = await withAddresses(place);
+      if (!full) {
+        toast(said.failed, 'error');
+        return null;
+      }
+      const r = await post<{ code: string }>('/api/sync', { op: 'create', sessionId: sid, place: full, deviceName: await deviceName() });
+      await refreshSync();
+      void syncNow(true);
+      return r.code;
+    } catch (err) {
+      toast((err as Error).message || said.failed, 'error');
+      return null;
+    }
+  }, [refreshSync, syncNow, toast]);
+
+  /** The code for one more device (the desktop's addresses as they are now). */
+  const syncCode = useCallback(async (): Promise<string | null> => {
+    const sid = sessionRef.current;
+    if (!sid) return null;
+    try {
+      const place = syncRef.current?.place === 'lan' && !IS_ANDROID ? await withAddresses({ kind: 'lan', addresses: [], port: 0 }) : null;
+      const r = await post<{ code: string }>('/api/sync', { op: 'code', sessionId: sid, ...(place ? { place } : {}) });
+      return r.code;
+    } catch (err) {
+      toast((err as Error).message || msgs().sync.failed, 'error');
+      return null;
+    }
+  }, [toast]);
+
+  /** This device into the group the code names (a folder of its own where the group meets in one). */
+  const joinSync = useCallback(async (code: string, folder?: string): Promise<boolean> => {
+    const sid = sessionRef.current;
+    if (!sid) return false;
+    const said = msgs().sync;
+    try {
+      await post('/api/sync', {
+        op: 'join', sessionId: sid, code, deviceName: await deviceName(),
+        ...(folder ? { place: { kind: 'folder', path: folder } } : {}),
+      });
+      await refreshSync();
+      toast(said.joined, 'success');
+      void syncNow(false);
+      return true;
+    } catch (err) {
+      toast((err as Error).message || said.failed, 'error');
+      return false;
+    }
+  }, [refreshSync, syncNow, toast]);
+
+  const leaveSync = useCallback(async () => {
+    const sid = sessionRef.current;
+    if (!sid) return;
+    const said = msgs().sync;
+    try {
+      const wasLan = syncRef.current?.place === 'lan';
+      await post('/api/sync', { op: 'leave', sessionId: sid });
+      if (wasLan && !IS_ANDROID) void window.electronSync?.lan(false);
+      await refreshSync();
+      toast(said.left, 'info');
+    } catch (err) {
+      toast((err as Error).message || said.failed, 'error');
+    }
+  }, [refreshSync, toast]);
+
+  const openSync = useCallback(() => setSyncOpen(true), []);
+  const closeSync = useCallback(() => setSyncOpen(false), []);
+
   const openBackgroundAsk = useCallback(() => setBackgroundAsk(true), []);
   const closeBackgroundAsk = useCallback(() => setBackgroundAsk(false), []);
 
@@ -3651,6 +3801,9 @@ function useFintsState() {
     setBackgroundBoth(null);
     setBackgroundAsk(false);
     touchedRef.current = {};
+    setSyncBoth(null);
+    setSyncOpen(false);
+    syncQueueRef.current = null;
     flowBusyRef.current = false;
     waitSidRef.current = null;
     transferSidRef.current = null;
@@ -4341,6 +4494,25 @@ function useFintsState() {
       current = false;
     };
   }, [view, sessionId, isCurrent, setBackgroundBoth]);
+
+  // Sync between devices: how it stands once the vault is loaded; with it on,
+  // a round at once, every five minutes, and half a minute after a change.
+  useEffect(() => {
+    if (view === 'dashboard' && vaultStatus === 'ready' && syncRef.current === null) void refreshSync();
+  }, [view, vaultStatus, refreshSync]);
+  const syncOn = sync?.on === true && vaultStatus === 'ready' && view === 'dashboard';
+  useEffect(() => {
+    if (!syncOn) return;
+    void syncNow(true);
+    const every = setInterval(() => void syncNow(true), 5 * 60_000);
+    return () => clearInterval(every);
+  }, [syncOn, syncNow]);
+  const vaultStamp = vault?.updatedAt;
+  useEffect(() => {
+    if (!syncOn || !vaultStamp) return;
+    const t = setTimeout(() => void syncNow(true), 30_000);
+    return () => clearTimeout(t);
+  }, [syncOn, vaultStamp, syncNow]);
 
   // …and with it on, what the bank just answered in the app counts as seen —
   // no notice for it later — while a kept login takes the PIN the bank took
@@ -5181,6 +5353,8 @@ function useFintsState() {
     windowsHello, setWindowsHello,
     // "Neue Umsätze melden" (lib/background-check.ts)
     backgroundChecks, backgroundAsk, setBackgroundChecks, openBackgroundAsk, closeBackgroundAsk,
+    // sync between devices (lib/sync.ts)
+    sync, syncOpen, openSync, closeSync, syncNow, createSync, syncCode, joinSync, leaveSync,
   };
 }
 
@@ -5194,6 +5368,28 @@ const NO_DAYS: NetWorthDay[] = [];
 const LINKED_OFFER_DECLINED = 'fints.linkedUnlock.declined';
 /** The shell pref that says Windows Hello was offered once (the toast after a typed login). */
 const HELLO_OFFERED = 'fints.windowsHello.offered';
+
+/** How this login's sync stands (app/api/sync, op status). */
+export type SyncInfo = {
+  on: boolean;
+  place?: 'lan' | 'webdav' | 'folder';
+  deviceName?: string;
+  deviceId?: string;
+  lastSync?: number | null;
+  devices?: Array<{ id: string; name: string; at: number }>;
+};
+/** Where the devices meet, as the sheet sets it up (lib/sync.ts SyncPlace). */
+export type SyncPlaceChoice =
+  | { kind: 'lan'; addresses: string[]; port: number }
+  | { kind: 'webdav'; url: string; user: string; password: string }
+  | { kind: 'folder'; path?: string };
+type SyncRunResponse = {
+  changed: boolean;
+  vault?: VaultData;
+  devices: Array<{ id: string; name: string; at: number }>;
+  lastSync: number;
+  receipts: { added: number; removed: number };
+};
 
 /** Where "Neue Umsätze melden" can keep its PINs: the desktop shell, or the Android app. */
 function backgroundShell(): 'desktop' | 'android' | null {

@@ -108,6 +108,15 @@ contextBridge.exposeInMainWorld('electronLinkedUnlock', {
   secret: () => ipcRenderer.invoke('linked-unlock:secret'),
 });
 
+// Sync between devices (lib/sync.ts): the home network's file shelf
+// (electron/sync-lan.cjs) — on, with where the phone finds it, or off — a
+// folder of the user's choosing, and this computer's name for the others.
+contextBridge.exposeInMainWorld('electronSync', {
+  lan: (on) => ipcRenderer.invoke('sync:lan', on === true),
+  pickFolder: () => ipcRenderer.invoke('sync:pick-folder'),
+  deviceName: () => ipcRenderer.invoke('sync:device-name'),
+});
+
 // "Neue Umsätze melden" (lib/background-check.ts): the shell plans the checks,
 // keeps running in the notification area and shows the notices; the server
 // keeps the PINs.

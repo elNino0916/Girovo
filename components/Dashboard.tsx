@@ -38,6 +38,7 @@ import { AddBankSheet } from './AddBank';
 import { ShareAccount } from './ShareAccount';
 import { LinkedUnlockDialog } from './settings/LinkedUnlock';
 import { BackgroundDialog } from './settings/BackgroundChecks';
+import { SyncDialog } from './settings/Sync';
 import { ForgetDeviceDialog, LogoutConfirmDialog } from './shell/ProfileMenu';
 import { SplitRequests } from './transactions/SplitRequests';
 import { Inbox } from './Inbox';
@@ -144,6 +145,7 @@ export function Dashboard() {
       <LogoutConfirmDialog />
       <LinkedUnlockDialog />
       <BackgroundDialog />
+      <SyncDialog />
       <Inbox />
       <CommandPalette />
       <SessionGuard />
