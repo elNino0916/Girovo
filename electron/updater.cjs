@@ -47,8 +47,6 @@ const CHECK_INTERVAL_MS = 6 * 60 * 60_000;
 // Turning the automatic check on runs one soon, so the switch visibly does something.
 const AUTO_ON_DELAY_MS = 1_500;
 const CHECK_TIMEOUT_MS = 20_000;
-/** How long to wait before asking GitHub once more after a 502, 503 or 504. */
-const RETRY_DELAY_MS = 1500;
 const PROGRESS_EVERY_MS = 200;
 const STALL_MS = 60_000;
 const STALL_CHECK_MS = 5_000;
@@ -186,17 +184,13 @@ function createUpdater(deps) {
     currentVersion, kind, fetch, cacheDir, portableDir = null, downloadsDir = null, baseFile = null, autoCheck = true,
     getPref, setPref, send = () => {}, spawnDetached, showInstallWindow = null, quit, openExternal,
     feedUrl = logic.FEED_URL, downloadPrefix = logic.DOWNLOAD_PREFIXES, releasesPage = logic.RELEASES_PAGE,
-    previousExe = null, now = Date.now, log = console, retryDelayMs = RETRY_DELAY_MS,
+    previousExe = null, now = Date.now, log = console, retryDelayMs = logic.RETRY_DELAY_MS,
   } = deps;
 
-  /**
-   * fetch, asked once more after a breath when GitHub answers 502, 503 or
-   * 504: its API and its file servers do that now and then for a moment (a
-   * release just published, a busy minute). Any other answer is the answer.
-   */
+  /** fetch, asked once more after a breath when GitHub's answer is a passing failure (logic.passingFailure). */
   async function fetchRetrying(url, init = {}) {
     const res = await fetch(url, init);
-    if (res.status !== 502 && res.status !== 503 && res.status !== 504) return res;
+    if (!logic.passingFailure(res.status)) return res;
     await res.body?.cancel().catch(() => {});
     await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
     if (init.signal?.aborted) throw init.signal.reason;

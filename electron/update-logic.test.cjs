@@ -384,6 +384,11 @@ test('planDifferential: same checksum but another size is not the same chunk', (
   assert.deepEqual(plan.fetches, [{ start: 0, size: 11 }]);
 });
 
+test('passingFailure: only 502, 503 and 504 are asked once more', () => {
+  for (const status of [502, 503, 504]) assert.equal(logic.passingFailure(status), true, String(status));
+  for (const status of [200, 304, 403, 404, 429, 500]) assert.equal(logic.passingFailure(status), false, String(status));
+});
+
 test('planDifferential: a short copy between two fetches is fetched along', () => {
   const old = chunks([['a', 100], ['b', 1000]]);
   const next = chunks([['X', 10], ['a', 100], ['Y', 10], ['b', 1000], ['Z', 10]]);

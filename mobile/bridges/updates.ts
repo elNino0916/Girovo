@@ -83,9 +83,9 @@ async function check(): Promise<ElectronUpdateState> {
     const url = preview ? logic.listUrl(logic.FEED_URL)! : logic.FEED_URL;
     const ask = () => fetch(url, { headers: { accept: 'application/vnd.github+json' } });
     let res = await ask();
-    // As the desktop's updater: GitHub's passing 502, 503 or 504 is asked once more after a breath.
-    if (res.status === 502 || res.status === 503 || res.status === 504) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+    // As the desktop's updater: GitHub's passing failure is asked once more after a breath.
+    if (logic.passingFailure(res.status)) {
+      await new Promise((resolve) => setTimeout(resolve, logic.RETRY_DELAY_MS));
       res = await ask();
     }
     if (!res.ok) throw new Error(`GitHub answered HTTP ${res.status}`);

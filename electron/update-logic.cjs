@@ -27,6 +27,16 @@ const DOWNLOAD_PREFIXES = [DOWNLOAD_PREFIX, `https://github.com/${LEGACY_REPO}/r
 const MAX_ASSET_BYTES = 1024 * 1024 * 1024;
 // Release notes are shown in a dialog, not archived.
 const MAX_NOTES_CHARS = 20_000;
+/** How long both updaters wait before asking GitHub once more after a passing failure. */
+const RETRY_DELAY_MS = 1500;
+
+/**
+ * Whether GitHub's answer is one of its passing failures — 502, 503 or 504:
+ * its API and its file servers do that now and then for a moment (a release
+ * just published, a busy minute). The desktop's updater and the GitHub APK's
+ * ask once more after RETRY_DELAY_MS; any other answer is the answer.
+ */
+const passingFailure = (status) => status === 502 || status === 503 || status === 504;
 
 /** The file of a release that updates each kind of install (see installKind). */
 const ASSET_PATTERN = {
@@ -377,6 +387,8 @@ module.exports = {
   DOWNLOAD_PREFIX,
   DOWNLOAD_PREFIXES,
   MAX_NOTES_CHARS,
+  RETRY_DELAY_MS,
+  passingFailure,
   channelOf,
   parseVersion,
   compareVersions,
