@@ -63,7 +63,7 @@ const CANCEL_AFTER_MS = 8000;
 export type Unsealed = { linked: GirovoSealedLogin[] };
 
 export function Credentials({
-  bank, logoFile, meta, onChange, onSubmit, onCancel, initialLogin, initialError, openedPin,
+  bank, logoFile, meta, onChange, onSubmit, onCancel, initialLogin, initialError, openedPin, onOpenedPinRefused, pinKept,
 }: {
   bank: ChosenBank;
   logoFile?: string;
@@ -76,8 +76,15 @@ export function Credentials({
   initialLogin?: string;
   /** Why the last login with this form did not go through, when it was found out after the form had gone. */
   initialError?: string | null;
-  /** Android: this login's PIN, which the first login's fingerprint already opened — tried at once. */
+  /**
+   * This login's PIN, already opened by the first login — its fingerprint on
+   * Android, its PIN on the desktop (lib/linked-unlock.ts) — tried at once.
+   */
   openedPin?: string;
+  /** The desktop: the bank refused that opened PIN, which has to go (FintsProvider forgetLinkedPin). */
+  onOpenedPinRefused?: (blz: string, userId: string) => void;
+  /** The desktop's add-bank sheet with "Weitere Banken mit anmelden" on: this PIN is kept, and the note says so. */
+  pinKept?: boolean;
 }) {
   const uid = useId();
   const tr = useT();
@@ -187,9 +194,14 @@ export function Credentials({
       // a bank that could not be reached, or a login turned down before the
       // bank was asked or after it took the PIN, says nothing about the PIN.
       if (unsealed && !isBankOutage(message) && !isNotAboutPin(err)) {
-        void window.girovoMobile?.biometric.forget(bank.blz, login.trim());
-        setFingerprint(false);
-        setFingerprintNotice(tr.android.biometric.refused);
+        if (IS_ANDROID) {
+          void window.girovoMobile?.biometric.forget(bank.blz, login.trim());
+          setFingerprint(false);
+          setFingerprintNotice(tr.android.biometric.refused);
+        } else {
+          onOpenedPinRefused?.(bank.blz, login.trim());
+          setFingerprintNotice(tr.settings.linkedUnlock.refused);
+        }
       }
       // A locked access is not one more wrong try: no lockout warning, and
       // no PIN selected for another attempt — only the bank can help now.
@@ -199,7 +211,7 @@ export function Credentials({
     } finally {
       setSubmitting(false);
     }
-  }, [bank, login, onSubmit, tr]);
+  }, [bank, login, onSubmit, onOpenedPinRefused, tr]);
 
   const submit = useCallback(async (e: FormEvent) => {
     e.preventDefault();
@@ -487,7 +499,7 @@ export function Credentials({
 
       <LoginHelp step="credentials" />
 
-      <PrivacyNote />
+      <PrivacyNote note={pinKept ? tr.settings.linkedUnlock.privacyNote : undefined} />
     </>
   );
 }

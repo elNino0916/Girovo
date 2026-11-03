@@ -88,7 +88,7 @@ function SessionLayer({ label, trigger, footer, children }: {
 export function ProfileMenu() {
   const t = useT();
   const {
-    accounts, vault, vaultStatus, requestLogout, forgetDeviceOpen, setForgetDeviceOpen, openAddBank, openSettings,
+    accounts, vault, vaultStatus, requestLogout, openAddBank, openSettings,
     unreadCount, setInboxOpen, tab,
   } = useFints();
   const [removing, setRemoving] = useState<BankEntry | null>(null);
@@ -166,12 +166,7 @@ export function ProfileMenu() {
           />
         )}
       </SessionLayer>
-      {/* Opened from the settings page and by the "Gerät gemerkt" toast's
-          action: one confirmation, whatever the way in — so it lives here,
-          where the masthead keeps it mounted on every page. */}
-      <ForgetDeviceDialog open={forgetDeviceOpen} onClose={() => setForgetDeviceOpen(false)} />
       <RemoveBankDialog entry={removing} onClose={() => setRemoving(null)} />
-      <LogoutConfirmDialog />
     </>
   );
 }
@@ -533,7 +528,7 @@ function AvatarPicker({
  * palette). The logout clears that log, the one record in the app of an
  * order that may have moved money, so the safe answer comes first: look.
  */
-function LogoutConfirmDialog() {
+export function LogoutConfirmDialog() {
   const t = useT();
   const { logoutConfirmOpen, closeLogoutConfirm, logout } = useFints();
   // One order: its payee's bookings, on its own account — never a bank read
@@ -589,9 +584,9 @@ function LogoutConfirmDialog() {
  * box takes the login name and the bank the login screen fills in too
  * (wipeVaultWith in the provider).
  */
-function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT();
-  const { bank, forgetDevice } = useFints();
+  const { bank, forgetDevice, linkedUnlock } = useFints();
   const [busy, setBusy] = useState(false);
   const [wipe, setWipe] = useState(false);
   const close = () => {
@@ -627,6 +622,7 @@ function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: () => v
       {/* Indented to the title's edge, under the header's pictogram. */}
       <div className="pl-[54px]">
         <p className="text-[14px] leading-relaxed text-ink-2">{t.session.forgetDialog.body}</p>
+        {linkedUnlock === true && <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{t.settings.linkedUnlock.goesToo}</p>}
         <Checkbox
           className="mt-3"
           label={t.session.forgetDialog.wipe}

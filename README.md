@@ -62,6 +62,23 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   PIN), so the next login offers *Auch bei … anmelden*; *Bank entfernen*
   forgets one. A bank whose session ends on its own is marked logged out, the
   others stay.
+- **Weitere Banken mit anmelden** (desktop, opt-in, *Einstellungen →
+  Sicherheit*; offered once after a further bank's login, never again after
+  *Nicht jetzt*) — the first login's PIN logs the further banks in too, one
+  after another, the approvals still as each bank asks. Their PINs (those
+  logged in when it is turned on, and each one logged in later) are kept
+  beside the first login in one file sealed under a key from **both** that
+  login's PIN and a secret the desktop shell keeps with the system's
+  protection (DPAPI on Windows, the keyring on Linux; none on a Linux desktop
+  without one, where the switch is not offered) — a copy of the file opens
+  with neither alone. It opens only once the bank has taken the first login's
+  PIN in this session (a remembered device opens on the computer alone, with
+  an old PIN too); a first PIN changed at the bank leaves it unopenable, and
+  it is deleted. A bank that turns a PIN down — at the login or on any later
+  read — ends that bank's login at once and deletes its kept PIN and its
+  remembered device, so a changed PIN is never tried twice. *Bank entfernen*,
+  switching it off, *Gerät vergessen* and deleting the saved data delete what
+  they cover.
 - **Kontoverlauf** — the end-of-day balance over the loaded period as a step
   chart, reconstructed from the bookings and *checked against every opening and
   closing balance the bank sent*. If the numbers don't add up, no chart is drawn.
@@ -284,7 +301,12 @@ npm run build && npm start
 > request landing on the wrong instance loses the session mid-approval.
 
 > ⚠️ **Runs locally only.** Your PIN is held in server memory for the session
-> and is never written to disk or logged. Do not expose this on a public host.
+> and is never written to disk or logged — unless you turn on *Weitere Banken
+> mit anmelden* in the desktop app, which keeps the further banks' PINs sealed
+> as described above (never the first login's). Do not expose this on a public
+> host. Only the desktop app's own server keeps a PIN, plus the development
+> server (`npm run dev`), so that `npm run electron:dev` can try the switch;
+> that one keeps them in the project's `.fints-state/`.
 
 ## Windows desktop app
 
@@ -896,7 +918,11 @@ Found a weakness? Report it privately, as [SECURITY.md](SECURITY.md) says.
 
 - Credentials live only in memory and vanish on logout / restart — with
   several banks, each bank's PIN in its own session, all of them dropped at the
-  logout.
+  logout. The opt-in exceptions: Android's *Fingerprint login* (PINs sealed
+  under a Keystore key only a fingerprint opens) and the desktop's *Weitere
+  Banken mit anmelden* (the further banks' PINs, never the first login's, in
+  one file per first login, sealed under a key from both that login's PIN and
+  a secret the shell keeps with DPAPI or the keyring).
 - Banking traffic goes directly from your machine to the bank's FinTS endpoint
   over TLS — no third party sits in that path.
 - Besides the bank, the app makes these outside requests:

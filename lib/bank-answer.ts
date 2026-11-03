@@ -258,6 +258,18 @@ const CREDENTIAL_WORDS = /\bPIN\b|Anmeldename|Kennung|Legitimation|Zugangsdaten|
 /** A bank that says it cannot be reached is no refusal of the credentials. */
 const NOT_REACHABLE = /nicht erreichbar/i; // i18n-data
 
+/**
+ * Whether the bank turned the PIN down with one of its own codes (9931,
+ * 9942) — the strict test for a call within a session, where a word like
+ * "Benutzer" may belong to any other refusal: that session's PIN is not the
+ * bank's any more (lib/client-api.ts PIN_REFUSED_EVENT).
+ */
+export function isPinRefusal(message: string | null | undefined): boolean {
+  if (isBankOutage(message)) return false;
+  const codes = new Set(parts(message).map((p) => p.code));
+  return CREDENTIAL_CODES.some((c) => codes.has(c));
+}
+
 export function isCredentialAnswer(message: string | null | undefined): boolean {
   if (isBankOutage(message)) return false;
   const codes = new Set(parts(message).map((p) => p.code));

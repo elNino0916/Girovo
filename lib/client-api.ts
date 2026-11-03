@@ -5,6 +5,7 @@
 // with a message that is already written for the user, in the language of the
 // page that asked (lib/i18n/server.ts).
 
+import { isPinRefusal } from './bank-answer.ts';
 import { msgs } from './i18n/index.ts';
 import { IS_ANDROID } from './platform.ts';
 
@@ -29,6 +30,17 @@ export class ApiError extends Error {
 export const SESSION_EXPIRED_EVENT = 'fints:expired';
 export type SessionExpiredDetail = { sessionId: string };
 
+/**
+ * Fired on `window` when a call within a session comes back with the bank
+ * turning its PIN down (lib/bank-answer.ts isPinRefusal): a PIN that opened
+ * the remembered device on this computer but is not the bank's any more —
+ * changed there since, then kept (Android's fingerprint, the desktop's
+ * "Weitere Banken mit anmelden") or typed from habit. Every further call with
+ * it is one more wrong try, and a few lock the online banking, so the
+ * provider ends that login at once. `detail` as for SESSION_EXPIRED_EVENT.
+ */
+export const PIN_REFUSED_EVENT = 'fints:pin-refused';
+
 /** fetch itself threw: the local server is gone (crashed, restarting) or unreachable. */
 const unreachable = () => new ApiError(msgs().provider.server.unreachable, 0);
 
@@ -47,14 +59,13 @@ async function settle<T>(res: Response, payload?: unknown): Promise<T> {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const message = (data as { error?: string }).error || msgs().provider.server.failed(res.status);
-    const sessionId = res.status === 401 ? sessionOf(payload) : null;
-    if (sessionId && typeof window !== 'undefined') {
+    const sessionId = sessionOf(payload);
+    const event = res.status === 401 ? SESSION_EXPIRED_EVENT : isPinRefusal(message) ? PIN_REFUSED_EVENT : null;
+    if (sessionId && event && typeof window !== 'undefined') {
       // Dispatched before the throw, so the logout is already under way when
       // the caller's catch runs — a caller that checks whether its session is
       // still current then sees that it is not, and stays quiet.
-      window.dispatchEvent(
-        new CustomEvent<SessionExpiredDetail>(SESSION_EXPIRED_EVENT, { detail: { sessionId } }),
-      );
+      window.dispatchEvent(new CustomEvent<SessionExpiredDetail>(event, { detail: { sessionId } }));
     }
     throw new ApiError(message, res.status);
   }

@@ -214,6 +214,9 @@ async function login(
     outcome('cancelled');
     return cancelled();
   }
+  // A synchronisation the bank answered took the PIN; one that only listed
+  // the approval methods may not have, and select-tan finds out.
+  if (sync.success) getSession(sessionId)!.pinAccepted = true;
   if (remembered) {
     console.log(`[product] the bank takes the own product ID now (blz=${bankId}) — this login sets the device up afresh`);
     // Kept for /api/select-tan, where a bank may still refuse the own ID.

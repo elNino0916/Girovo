@@ -36,6 +36,8 @@ import { Settings } from './settings/Settings';
 import { TransferSheet } from './TransferSheet';
 import { AddBankSheet } from './AddBank';
 import { ShareAccount } from './ShareAccount';
+import { LinkedUnlockDialog } from './settings/LinkedUnlock';
+import { ForgetDeviceDialog, LogoutConfirmDialog } from './shell/ProfileMenu';
 import { SplitRequests } from './transactions/SplitRequests';
 import { Inbox } from './Inbox';
 import { CommandPalette } from './CommandPalette';
@@ -56,7 +58,9 @@ import { PullToRefresh } from './android/PullToRefresh';
 import { useLaunches } from './android/useLaunches';
 
 export function Dashboard() {
-  const { tab, transferOpen, shareOpen, shareAll, accounts, banks, accountOpen, ordersOpen } = useFints();
+  const {
+    tab, transferOpen, shareOpen, shareAll, accounts, banks, accountOpen, ordersOpen, forgetDeviceOpen, setForgetDeviceOpen,
+  } = useFints();
   const actions = useShellActions();
   useGlobalShortcuts(actions);
   // Android: a shortcut on the icon, or an invoice shared with the app.
@@ -131,6 +135,13 @@ export function Dashboard() {
       {shareAll && <SplitRequests />}
       {IS_ANDROID && <PlusScreen />}
       <AddBankSheet />
+      {/* The dialogs the provider opens from anywhere (a toast's action, the
+          palette, Einstellungen), mounted where every width and page keeps
+          them: the masthead's actions are hidden or dropped on a phone-width
+          page, and an open layer there would make the page inert unseen. */}
+      <ForgetDeviceDialog open={forgetDeviceOpen} onClose={() => setForgetDeviceOpen(false)} />
+      <LogoutConfirmDialog />
+      <LinkedUnlockDialog />
       <Inbox />
       <CommandPalette />
       <SessionGuard />

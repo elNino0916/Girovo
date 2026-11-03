@@ -25,7 +25,7 @@ export function AddBankSheet() {
 function AddBank() {
   const {
     addBank: flow, popularBanks, logoFiles, meta, closeAddBank, pickAddBank, connectAddBank, cancelConnect,
-    chooseAddBankMethod, clearAddBankMedia, addBankBack,
+    chooseAddBankMethod, clearAddBankMedia, addBankBack, forgetLinkedPin, linkedUnlock,
   } = useFints();
   const t = useT();
   if (!flow) return null;
@@ -58,8 +58,10 @@ function AddBank() {
                 // A login the view could not take (an account number already
                 // shown) comes back here, saying why.
                 initialError={flow.error}
-                // Android: its PIN, opened with the first login's fingerprint.
+                // Its PIN, opened by the first login (Android: its fingerprint; the desktop: its PIN).
                 openedPin={flow.openedPin ?? undefined}
+                onOpenedPinRefused={(blz, userId) => void forgetLinkedPin({ blz, userId })}
+                pinKept={linkedUnlock === true}
                 onChange={() => pickAddBank(null)}
                 onSubmit={connectAddBank}
                 onCancel={cancelConnect}

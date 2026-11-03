@@ -56,6 +56,13 @@ export const de = {
     templateInvalid: 'Vorlage nicht gespeichert: Name oder IBAN ist ungültig.',
   },
 
+  /** "Weitere Banken mit anmelden" on the desktop (lib/linked-unlock.ts, app/api/linked-unlock). */
+  linkedUnlock: {
+    unavailable: 'Weitere Banken mit anmelden gibt es nur in der Desktop-App.',
+    noSecret: 'Die PINs lassen sich hier nicht geschützt aufbewahren.',
+    unknownAction: 'Unbekannte Aktion.',
+  },
+
   /** What a logout says (lib/session-log.ts, components/FintsProvider.tsx). */
   logout: {
     /** "an Lea Becker", "an A, B und C": each payee once, `others` before the last one. */
@@ -199,6 +206,12 @@ export const en: typeof de = {
     reset: 'Personal data reset. Changes will be saved again.',
     wiped: 'Your saved data has been deleted from this computer. Nothing more will be saved until you log out.',
     templateInvalid: 'Template not saved: the name or IBAN is invalid.',
+  },
+
+  linkedUnlock: {
+    unavailable: 'Logging in to further banks too is only available in the desktop app.',
+    noSecret: 'The PINs can’t be kept protected here.',
+    unknownAction: 'Unknown action.',
   },
 
   logout: {

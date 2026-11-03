@@ -17,7 +17,7 @@
 // being reachable from the LAN, and a fixed port would collide with `npm run
 // dev` on port 3000.
 
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, safeStorage, session, shell } = require('electron');
 const { spawn } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -28,6 +28,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createUpdater } = require('./updater.cjs');
 const { createFileSave } = require('./file-save.cjs');
+const { createLinkedUnlockSecret } = require('./linked-unlock.cjs');
 const { LOCALE_COOKIE, LOCALE_PREF, configure: configureLanguage, shellLocale, shellTexts, storedLocale } = require('./i18n.cjs');
 const { createTelemetryHub, lineSplitter, relayServerLine } = require('./telemetry.cjs');
 const updateLogic = require('./update-logic.cjs');
@@ -504,6 +505,9 @@ async function startServer() {
       // The installed app directory is read-only, so remembered device profiles
       // go to the per-user data folder instead of next to the executable.
       FINTS_STATE_DIR: path.join(app.getPath('userData'), 'fints-state'),
+      // This is the desktop app's own server: the one that may keep the
+      // further banks' PINs for "Weitere Banken mit anmelden" (lib/linked-unlock.ts).
+      GIROVO_DESKTOP: '1',
       // The server's reports come out on its stdout (lib/telemetry.ts), for
       // the hub here to judge like the shell's own.
       GIROVO_TELEMETRY_PIPE: '1',
@@ -998,6 +1002,19 @@ function run() {
   // its usage events (the hub drops them without the yes), and the yes itself.
   onSync('telemetry:consent', () => telemetry.consent(), 'unasked');
   ipcMain.handle('telemetry:set-consent', (event, on) => (fromApp(event) ? telemetry.setConsent(on === true) : null));
+
+  // window.electronLinkedUnlock (preload.cjs): the secret the further banks'
+  // PINs are sealed with besides the first login's PIN, kept with safeStorage
+  // (electron/linked-unlock.cjs). Asked for only after the window exists, so
+  // safeStorage is ready by then.
+  const linkedUnlock = createLinkedUnlockSecret({
+    safeStorage,
+    file: () => path.join(app.getPath('userData'), 'linked-unlock.key'),
+    fs: fs.promises,
+    randomBytes: crypto.randomBytes,
+    platform: process.platform,
+  });
+  ipcMain.handle('linked-unlock:secret', (event) => (fromApp(event) ? linkedUnlock.secret() : null));
   ipcMain.on('telemetry:event', (event, name, props) => {
     if (fromApp(event) && typeof name === 'string') telemetry.event(name, props);
   });

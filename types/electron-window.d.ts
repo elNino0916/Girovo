@@ -128,6 +128,16 @@ declare global {
     };
     /**
      * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * The secret of this user account that the further banks' PINs are sealed
+     * with, besides the first login's PIN (electron/linked-unlock.cjs,
+     * lib/linked-unlock.ts): base64, or null where the system has no
+     * protected store for it (or the main process refused the caller).
+     */
+    electronLinkedUnlock?: {
+      secret: () => Promise<string | null>;
+    };
+    /**
+     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
      * Synchronous preference storage in userData/prefs.json — the packaged
      * app's localStorage does not survive a restart (random port per start).
      * Keys must match /^fints\.[\w.-]{1,80}$/ and values be ≤ 4096 chars;

@@ -43,6 +43,12 @@ export const de = {
   loggedOutRead: (bank: string) => `Bei ${bank} bist du nicht mehr angemeldet. Melde dich dort erneut an.`,
   /** A linked bank's session ended (the server forgot it): that bank only, the rest stays. */
   ended: (bank: string) => `Deine Sitzung bei ${bank} ist beendet. Deine anderen Banken bleiben angemeldet.`,
+  /**
+   * A bank turned the PIN down on a read (FintsProvider, PIN_REFUSED_EVENT): a
+   * further bank is logged out at once; the first login is told what to do.
+   */
+  pinRefused: (bank: string) => `${bank} hat die PIN nicht angenommen und ist abgemeldet. Melde dich dort mit deiner aktuellen PIN an.`,
+  firstPinRefused: (bank: string) => `${bank} hat deine PIN nicht angenommen. Melde dich ab und mit deiner aktuellen PIN wieder an.`,
   /** Opens the confirmation; the bank's name for screen readers. */
   remove: 'Entfernen …',
   removeNamed: (bank: string) => `${bank} entfernen …`,
@@ -88,6 +94,8 @@ export const en: typeof de = {
   cancelled: (bank) => `Login to ${bank} cancelled.`,
   loggedOutRead: (bank) => `You are no longer logged in to ${bank}. Log in there again.`,
   ended: (bank) => `Your session with ${bank} has ended. Your other banks stay logged in.`,
+  pinRefused: (bank) => `${bank} didn’t accept the PIN and has been logged out. Log in there with your current PIN.`,
+  firstPinRefused: (bank) => `${bank} didn’t accept your PIN. Log out and back in with your current PIN.`,
   remove: 'Remove…',
   removeNamed: (bank) => `Remove ${bank}…`,
   removeDialog: {

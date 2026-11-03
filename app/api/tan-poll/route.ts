@@ -105,6 +105,7 @@ export const POST = wrap(async (req: Request) => {
 
   // Approved — deliver the result for whatever was pending.
   s.pending = null;
+  s.pinAccepted = true;
 
   if (type === 'sync') {
     saveSessionProfile(s); // remember the device now that we hold a systemId + UPD

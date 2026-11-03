@@ -20,10 +20,12 @@ export const POST = wrap(async (req: Request) => {
 
   const resp = await s.client.getAccountBalance(bankAccountOf(s.client.config, accountNumber));
   if (resp.requiresTan) {
+    s.pinAccepted = true;
     s.pending = { type: 'balance', tanReference: resp.tanReference, accountNumber };
     return json({ ...tanPayload(resp, s), accountNumber } satisfies BalanceResponse);
   }
   if (!resp.success) return fail(bankAnswerText(resp) || msgs().transactions.api.balanceFailed);
+  s.pinAccepted = true;
   return json({
     needsTan: false, accountNumber, balance: serializeBalance(resp.balance),
   } satisfies BalanceResponse);

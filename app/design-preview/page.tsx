@@ -638,6 +638,16 @@ const VIEWS: Record<string, ViewDef> = {
     script: openSession,
   },
   settings: { label: 'Einstellungen', group: 'Dashboard', options: { tab: 'settings' } },
+  'settings-linked-unlock': {
+    label: 'Einstellungen: Weitere Banken mit anmelden (Desktop)',
+    group: 'Dashboard',
+    options: { tab: 'settings', linkedUnlock: true, secondBank: 'linked' },
+  },
+  'linked-unlock-ask': {
+    label: 'Weitere Banken mit anmelden?',
+    group: 'Dialoge',
+    options: { tab: 'settings', linkedUnlock: 'ask', secondBank: 'linked' },
+  },
   'settings-history': {
     label: 'Einstellungen: Umsätze behalten',
     group: 'Dashboard',

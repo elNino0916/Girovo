@@ -2,8 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BANK_UNAVAILABLE, BANK_UNREACHABLE, bankAnswerCodes, bankAnswerLines, formatBankAnswer, isBankOutage,
-  isCredentialAnswer, isDefiniteRefusal, refusalReference,
+  isCredentialAnswer, isDefiniteRefusal, isPinRefusal, refusalReference,
 } from './bank-answer.ts';
+
+test('isPinRefusal: the bank\'s own codes, never a word alone', () => {
+  assert.equal(isPinRefusal('9931: Anmeldename oder PIN ist falsch. | 9800: Dialog abgebrochen'), true);
+  assert.equal(isPinRefusal('9942: Der Zugang ist gesperrt. | 9800: Dialog abgebrochen'), true);
+  assert.equal(isPinRefusal('9210: Benutzer nicht berechtigt für dieses Konto.'), false);
+  assert.equal(isPinRefusal('PIN falsch.'), false);
+  assert.equal(isPinRefusal(BANK_UNREACHABLE), false);
+  assert.equal(isPinRefusal(null), false);
+});
 
 test('a refusal of the order itself is definite', () => {
   assert.equal(isDefiniteRefusal([9050, 9210, 9800]), true);

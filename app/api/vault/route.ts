@@ -12,6 +12,7 @@ import type { VaultGetResponse, VaultPutResponse } from '@/lib/app-types';
 import { DocError, wipeDocs } from '@/lib/doc-store';
 import { HistoryError, wipeHistory } from '@/lib/history-store';
 import { msgs } from '@/lib/i18n';
+import { loginOfSession, removeLinkedUnlock } from '@/lib/linked-unlock';
 import { getSession } from '@/lib/session';
 import { loadVault, resetVault, saveVault, VAULT_REQUEST_MAX_BYTES, VaultError, wipeVault } from '@/lib/vault';
 
@@ -42,7 +43,11 @@ export const POST = wrap(async (req: Request) => {
         // cannot, the vault is untouched and the client carries on as
         // before. "Gerät vergessen" can do the same in one go
         // (app/api/forget-device); this is the way when no device is
-        // remembered.
+        // remembered. The further banks' PINs kept beside the login on the
+        // desktop (lib/linked-unlock.ts) go first: should they not, nothing
+        // else has gone either.
+        const own = loginOfSession(s);
+        if (own) await removeLinkedUnlock(own);
         const history = await wipeHistory(s);
         const docs = await wipeDocs(s);
         return json({ ok: true, wiped: history + docs + (await wipeVault(s)) });

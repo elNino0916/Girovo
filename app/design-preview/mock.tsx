@@ -185,6 +185,12 @@ export type MockOptions = {
    * overview opens with every figure, dated, and the net-worth curve.
    */
   kept?: boolean;
+  /**
+   * The desktop's "Weitere Banken mit anmelden" (lib/linked-unlock.ts): the
+   * row in Sicherheit, off or on; left out, the row is not there (no shell).
+   * `'ask'`: off, with the dialog that turns it on open.
+   */
+  linkedUnlock?: boolean | 'ask';
   /** Every statement load and balance enquiry from now on fails (read live). */
   fail?: boolean;
   /** The Umsätze list's narrowing beyond the search: a month chip, a category. */
@@ -776,6 +782,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const plusRef = useRef(plus);
   plusRef.current = plus;
   const [plusOpen, setPlusOpen] = useState(opening === 'plus');
+  // The desktop's "Weitere Banken mit anmelden": a switch and its dialog, nothing kept.
+  const [linkedUnlock, setLinkedUnlockState] = useState<boolean | null>(
+    opts.linkedUnlock === undefined ? null : opts.linkedUnlock === true,
+  );
+  const [linkedUnlockAsk, setLinkedUnlockAsk] = useState(opts.linkedUnlock === 'ask');
   // The fake bridge (./nano.ts): a purchase or an icon chosen on the Plus screen.
   useEffect(() => window.girovoMobile?.plus?.onChange?.(setPlus), []);
   const [sharePrefill, setSharePrefill] = useState<SharePrefill | null>(opening === 'share'
@@ -2934,6 +2945,15 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     links, banks, bankOf, activeBank, addBank,
     openAddBank, closeAddBank, pickAddBank, connectAddBank, chooseAddBankMethod, clearAddBankMedia, addBankBack,
     removeBank,
+    linkedUnlock, linkedUnlockAsk,
+    setLinkedUnlock: async (on: boolean) => {
+      setLinkedUnlockState(on);
+      toast(on ? msgs().settings.linkedUnlock.nowOn : msgs().settings.linkedUnlock.nowOff, on ? 'success' : 'info');
+    },
+    openLinkedUnlockAsk: () => setLinkedUnlockAsk(true),
+    closeLinkedUnlockAsk: () => setLinkedUnlockAsk(false),
+    declineLinkedUnlock: () => setLinkedUnlockAsk(false),
+    forgetLinkedPin: async () => {},
   } satisfies FintsApi;
 }
 

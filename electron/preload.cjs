@@ -99,6 +99,15 @@ contextBridge.exposeInMainWorld('electronStore', {
 // synchronously so the Übersicht knows at first paint whether to ask.
 const short = (value, max) => (typeof value === 'string' ? value.slice(0, max) : '');
 
+// "Weitere Banken mit anmelden" (lib/linked-unlock.ts): the secret of this
+// user account that the further banks' PINs are sealed with, besides the
+// first login's PIN. The provider hands it to the server with each request
+// about them; null where the system cannot keep it protected, and the switch
+// is then not offered.
+contextBridge.exposeInMainWorld('electronLinkedUnlock', {
+  secret: () => ipcRenderer.invoke('linked-unlock:secret'),
+});
+
 contextBridge.exposeInMainWorld('electronTelemetry', {
   consent: () => {
     try {

@@ -77,11 +77,13 @@ export const POST = wrap(async (req: Request) => {
 
   if (sync.requiresTan) {
     s.pending = { type: 'sync', tanReference: sync.tanReference };
+    s.pinAccepted = true;
     return json(tanPayload(sync, s));
   }
   if (!sync.success) {
     return fail(bankAnswerText(sync) || msgs().auth.api.loginFailed);
   }
+  s.pinAccepted = true;
 
   saveSessionProfile(s);
   const payload: SelectTanResponse = {

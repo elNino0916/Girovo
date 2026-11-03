@@ -187,6 +187,13 @@ export type Session = {
    * "follow"; this login's own vault, if it has one, belongs to another view.
    */
   keepChoiceFrom?: string;
+  /**
+   * The bank has taken this session's PIN: it synchronised the login, or
+   * answered a read (or asked an approval for one). A remembered device opens
+   * on this computer with an old PIN too, so until then nothing kept under
+   * that PIN for other banks leaves (app/api/linked-unlock).
+   */
+  pinAccepted?: true;
 };
 
 /**

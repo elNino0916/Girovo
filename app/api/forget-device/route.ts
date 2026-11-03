@@ -13,11 +13,16 @@
 // The wipe only ever acts for the session's own login, never for a blz/userId
 // named in the request, and runs first: if it fails, the device is not
 // forgotten either and the user can simply try again.
+//
+// The further banks' PINs kept beside the login on the desktop
+// (lib/linked-unlock.ts) go either way, and first: they are part of what this
+// machine remembers about the login, like the fingerprint's PINs on the phone.
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { getSession } from '@/lib/session';
 import { DocError, wipeDocs } from '@/lib/doc-store';
 import { HistoryError, wipeHistory } from '@/lib/history-store';
+import { removeLinkedUnlock } from '@/lib/linked-unlock';
 import { forgetProfile } from '@/lib/state-store';
 import { VaultError, wipeVault } from '@/lib/vault';
 
@@ -36,9 +41,11 @@ export const POST = wrap(async (req: Request) => {
     u = u || s.client?.config?.userId;
   }
 
+  if (wipeData === true && !s) return sessionExpired();
+  if (b && u) await removeLinkedUnlock({ blz: String(b), userId: String(u) });
+
   let wiped: number | undefined;
-  if (wipeData === true) {
-    if (!s) return sessionExpired();
+  if (wipeData === true && s) {
     try {
       // The kept Umsätze first, as in app/api/vault: if they cannot go, the vault stays as it was.
       const history = await wipeHistory(s);

@@ -46,10 +46,12 @@ export const POST = wrap(async (req: Request) => {
   const resp = await fetchStatements(s.client, accountNumber, fromDate, toDate);
   logResp('transactions', s, resp);
   if (resp.requiresTan) {
+    s.pinAccepted = true;
     s.pending = { type: 'statements', tanReference: resp.tanReference, accountNumber, asked };
     return json({ ...tanPayload(resp, s), accountNumber } satisfies TransactionsResponse);
   }
   if (!resp.success) return fail(bankAnswerText(resp) || msgs().transactions.api.transactionsFailed);
+  s.pinAccepted = true;
   logStatementDates(accountNumber, resp.statements);
   const transactions = serializeTransactions(resp.statements);
   // Per-block opening/closing balances — what a Kontoverlauf is checked against.

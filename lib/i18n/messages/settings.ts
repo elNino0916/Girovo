@@ -6,7 +6,7 @@
 export const de = {
   sections: {
     general: 'Allgemein',
-    /** The phone's integrity, fingerprint login, the remembered device. */
+    /** The phone's integrity, fingerprint login, further banks with the first (desktop), the remembered device. */
     security: 'Sicherheit',
     /** Gemini Nano and the user's own categories. */
     categories: 'Kategorien',
@@ -40,6 +40,40 @@ export const de = {
     keep: 'Letzte Salden behalten',
     keepHint: 'Die Übersicht zeigt sie gleich, mit ihrem Stand. Verschlüsselt auf diesem Rechner.',
     deleted: 'Gespeicherte Salden gelöscht.',
+  },
+  /**
+   * 6.0, the desktop: the further banks log in with the first one — their PINs
+   * kept beside it, opened by its PIN (lib/linked-unlock.ts; on Android the
+   * fingerprint does it, android.biometric).
+   */
+  linkedUnlock: {
+    title: 'Weitere Banken mit anmelden',
+    hint: (bank: string) => `Deine PIN für ${bank} meldet dich auch bei deinen weiteren Banken an.`,
+    /** The dialog that turns it on: the switch's, and the one a further bank's login offers. */
+    askTitle: 'Weitere Banken mit anmelden?',
+    askText: (bank: string) =>
+      `Meldest du dich bei ${bank} an, meldet Girovo dich auch bei deinen weiteren Banken an – bei denen, die jetzt angemeldet sind, und bei jeder, bei der du dich später anmeldest. Ihre PINs liegen dafür verschlüsselt auf diesem Rechner. Öffnen kann sie nur deine PIN für ${bank}, in deinem Benutzerkonto.`,
+    turnOn: 'Einschalten',
+    notNow: 'Nicht jetzt',
+    /** A toast after a further bank logged in with its PIN typed, while it is off. */
+    offer: (bank: string) => `${bank} beim nächsten Mal gleich mit anmelden?`,
+    offerAction: 'Einrichten …',
+    nowOn: 'Deine weiteren Banken melden sich jetzt mit an.',
+    /** On with no further bank logged in: none is kept until each one logs in once. */
+    nowOnLater: 'Eingeschaltet. Melde dich einmal bei deinen weiteren Banken an – danach melden sie sich mit an.',
+    nowOff: 'Die PINs deiner weiteren Banken sind gelöscht.',
+    sealed: (bank: string) => `${bank} meldet sich künftig mit an.`,
+    /** Keeping one bank's PIN failed while it is on (no control to try again from). */
+    sealFailed: (bank: string) => `Die PIN für ${bank} ließ sich nicht speichern.`,
+    failed: 'Das hat nicht geklappt. Versuche es noch einmal.',
+    /** The file no longer opened at the login (the first PIN changed at the bank, a new secret): deleted. */
+    dropped: 'Die gespeicherten PINs deiner weiteren Banken ließen sich nicht mehr öffnen und sind gelöscht. „Weitere Banken mit anmelden“ ist aus.',
+    /** In the dialogs of "Gerät vergessen" and "Gespeicherte Daten löschen", while it is on. */
+    goesToo: 'Dabei werden auch die PINs deiner weiteren Banken gelöscht – „Weitere Banken mit anmelden“ ist danach aus.',
+    /** The add-bank sheet's note while it is on, in place of auth.privacy.note: this PIN is kept. */
+    privacyNote: 'Mit „Weitere Banken mit anmelden“ bleibt die PIN dieser Bank verschlüsselt auf diesem Rechner, die Verbindung läuft direkt zu deiner Bank. Nach der Anmeldung merkt sich die App dieses Gerät, mit deiner PIN verschlüsselt.',
+    /** A kept PIN the bank refused: it is deleted, never tried twice. */
+    refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht – melde dich mit deiner PIN an.',
   },
   /**
    * Über Girovo → which releases the updater offers (components/settings/UpdateChannel.tsx;
@@ -88,6 +122,27 @@ export const en: typeof de = {
     keep: 'Keep the last balances',
     keepHint: 'The overview shows them straight away, with when they were loaded. Encrypted on this computer.',
     deleted: 'Kept balances deleted.',
+  },
+  linkedUnlock: {
+    title: 'Log in to further banks too',
+    hint: (bank) => `Your PIN for ${bank} logs you in to your further banks too.`,
+    askTitle: 'Log in to further banks too?',
+    askText: (bank) =>
+      `When you log in to ${bank}, Girovo logs you in to your further banks too – those logged in now and each one you log in to later. Their PINs are kept encrypted on this computer for that. Only your PIN for ${bank} opens them, in your user account.`,
+    turnOn: 'Turn on',
+    notNow: 'Not now',
+    offer: (bank) => `Log in to ${bank} automatically next time?`,
+    offerAction: 'Set up…',
+    nowOn: 'Your further banks now log in too.',
+    nowOnLater: 'On. Log in to your further banks once – from then on they log in too.',
+    nowOff: 'Your further banks’ PINs have been deleted.',
+    sealed: (bank) => `${bank} will now log in too.`,
+    sealFailed: (bank) => `Your PIN for ${bank} couldn’t be saved.`,
+    failed: 'That didn’t work. Please try again.',
+    dropped: 'Your further banks’ saved PINs could no longer be opened and have been deleted. “Log in to further banks too” is off.',
+    goesToo: 'This also deletes your further banks’ PINs – “Log in to further banks too” is then off.',
+    privacyNote: 'With “Log in to further banks too” on, this bank’s PIN is kept encrypted on this computer, and the connection runs straight to your bank. After you log in, the app remembers this device, encrypted with your PIN.',
+    refused: 'The bank didn’t accept the saved PIN. It has been deleted – log in with your PIN.',
   },
   channel: {
     title: 'Update channel',

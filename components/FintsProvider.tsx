@@ -33,7 +33,9 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { ApiError, BACK_EVENT, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail } from '@/lib/client-api';
+import {
+  ApiError, BACK_EVENT, PIN_REFUSED_EVENT, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail,
+} from '@/lib/client-api';
 import { IS_ANDROID } from '@/lib/platform';
 import { keepsNothing, unsafePhone } from '@/lib/device-integrity';
 import { MESSAGES, msgs, type Messages } from '@/lib/i18n';
@@ -1062,11 +1064,29 @@ function useFintsState() {
   const [links, setLinks] = useState<LinkedLogin[]>([]);
   const [addBankKept, setAddBankState] = useState<KeptAddBank | null>(null);
   const [bankInfo, setBankInfo] = useState<Record<string, ChosenBank>>({});
-  // Android: the further banks the first login's fingerprint opened, still to
-  // log in one after another — and the ones whose PIN the user chose not to
-  // seal this session ("Nicht jetzt").
+  // The further banks the first login opened — on Android with its
+  // fingerprint, on the desktop with its PIN (lib/linked-unlock.ts) — still to
+  // log in one after another, and the ones whose PIN the user chose not to
+  // keep this session ("Nicht jetzt", or the desktop's offer left alone).
   const openedLinkedRef = useRef<GirovoSealedLogin[]>([]);
   const sealDeclinedRef = useRef(new Set<string>());
+  // Bumped when the desktop's further banks arrive after the Übersicht is up:
+  // the chain that logs them in reads a ref, which wakes nothing.
+  const [openedLinkedTick, setOpenedLinkedTick] = useState(0);
+  // The desktop: whether the further banks log in with the first login
+  // ("Weitere Banken mit anmelden") — null until the login says, and where
+  // the shell cannot keep their PINs — and the dialog that turns it on.
+  const [linkedUnlock, setLinkedUnlockState] = useState<boolean | null>(null);
+  const linkedUnlockRef = useRef<boolean | null>(null);
+  const [linkedUnlockAsk, setLinkedUnlockAsk] = useState(false);
+  // A remembered device's login, whose kept PINs wait for the bank's word on
+  // its PIN (afterAccountsReady) — and whether this session offered the switch.
+  const linkedAfterReadRef = useRef<string | null>(null);
+  const linkedOfferedRef = useRef(false);
+  const setLinkedUnlockBoth = useCallback((on: boolean | null) => {
+    linkedUnlockRef.current = on;
+    setLinkedUnlockState(on);
+  }, []);
 
   // Refs mirror the state the async loops read, so a long-running approval
   // never closes over a stale render.
@@ -2021,9 +2041,14 @@ function useFintsState() {
     setVault(EMPTY_VAULT);
     setVaultStatusBoth('unavailable');
     // The kept Umsätze went with the saved data (both routes delete them) —
-    // the primary login's there, every further bank's here.
+    // the primary login's there, every further bank's here — and so did the
+    // further banks' PINs kept beside the login on the desktop.
     dropHistory();
     void wipeLinkedHistories().then((problem) => { if (problem) toast(problem, 'error'); });
+    // Nothing is kept for the rest of the session: no row, no offer, no PIN.
+    openedLinkedRef.current = [];
+    setLinkedUnlockBoth(null);
+    setLinkedUnlockAsk(false);
     if (bank) {
       store.del(`fints.userId.${bank.blz}`);
       try {
@@ -2032,7 +2057,7 @@ function useFintsState() {
       } catch { /* unreadable — nothing of ours to remove */ }
     }
     return true;
-  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, wipeLinkedHistories]);
+  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, wipeLinkedHistories, setLinkedUnlockBoth]);
 
   /** Deletes the saved personal data from this machine, the device registration untouched. */
   const wipeVault = useCallback(async () => {
@@ -3430,6 +3455,34 @@ function useFintsState() {
   }, []);
 
   // ---- login --------------------------------------------------------------
+  /**
+   * The desktop, once the bank has taken the first login's PIN (connect,
+   * afterAccountsReady): the further banks' PINs kept beside it open with it
+   * (lib/linked-unlock.ts), and the chain below logs them in once the
+   * Übersicht is up — as after a fingerprint login on Android. Whatever goes
+   * wrong, the further banks are simply logged in by hand, as before.
+   */
+  const openLinkedUnlock = useCallback(async (sid: string) => {
+    const secret = await linkedUnlockSecret();
+    if (!secret || !isCurrent(sid)) return;
+    try {
+      const r = await post<{ on: boolean; linked: GirovoSealedLogin[]; dropped?: boolean }>(
+        '/api/linked-unlock', { op: 'open', sessionId: sid, secret },
+      );
+      if (!isCurrent(sid)) return;
+      setLinkedUnlockBoth(r.on === true);
+      // A file this PIN no longer opens is gone: said, or the switch would just be off.
+      if (r.dropped) toast(msgs().settings.linkedUnlock.dropped, 'info', 12_000);
+      const linked = Array.isArray(r.linked) ? r.linked : [];
+      if (linked.length && !openedLinkedRef.current.length) {
+        openedLinkedRef.current = linked;
+        setOpenedLinkedTick((n) => n + 1);
+      }
+    } catch {
+      // Not offered this session.
+    }
+  }, [isCurrent, setLinkedUnlockBoth, toast]);
+
   const afterAccountsReady = useCallback((list: SerializedAccount[]) => {
     const sid = sessionRef.current;
     // Once per session: a method pick that fired twice (auto-pick plus a
@@ -3454,12 +3507,17 @@ function useFintsState() {
     if (list[0]) {
       setActiveAccount(list[0]);
       activeAccountRef.current = list[0];
-      void loadTransactions(list[0]);
+      // A remembered device's login: the first statement the bank answers is
+      // its word on the PIN, and only then do the kept PINs open (connect).
+      const afterRead = linkedAfterReadRef.current === sid;
+      void loadTransactions(list[0], undefined, undefined, afterRead
+        ? { onSettled: (outcome) => { if (outcome === 'applied') void openLinkedUnlock(sid); } }
+        : {});
     }
     // Not a bank call: it runs beside the first statement, outside `busy`.
     void loadVault(sid);
     void loadDocs();
-  }, [startSessionClock, setAppliedRange, loadTransactions, loadVault, loadDocs]);
+  }, [startSessionClock, setAppliedRange, loadTransactions, loadVault, loadDocs, openLinkedUnlock]);
 
   // Said after the fact, so the way back is right there: on a shared
   // computer "Gerät vergessen" is one press away, not a trip to the Sitzung
@@ -3480,7 +3538,8 @@ function useFintsState() {
 
   /**
    * `unsealed` (Android): the PIN came from behind the fingerprint, and with
-   * it the further banks' PINs kept beside it, which log in next.
+   * it the further banks' PINs kept beside it, which log in next. On the
+   * desktop the typed PIN opens theirs (openLinkedUnlock).
    */
   const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string, unsealed?: { linked: GirovoSealedLogin[] }) => {
     // "Zurück zur Anmeldung" from the TAN-method screen leaves the half-open
@@ -3510,6 +3569,15 @@ function useFintsState() {
     setSessionId(data.sessionId);
     sessionRef.current = data.sessionId;
     openedLinkedRef.current = unsealed?.linked ?? [];
+    // The desktop's kept PINs of the further banks open once the bank has
+    // taken this PIN: at once after a synchronisation it answered, after the
+    // first statement read for a remembered device, which opens on this
+    // computer alone, with an old PIN too (afterAccountsReady).
+    linkedAfterReadRef.current = null;
+    if (!IS_ANDROID) {
+      if ('restored' in data && data.restored) linkedAfterReadRef.current = data.sessionId;
+      else void openLinkedUnlock(data.sessionId);
+    }
     if (previous && previous !== data.sessionId) {
       // Only drops it from the server's memory (and the PIN with it) — no bank traffic.
       post('/api/logout', { sessionId: previous }).catch(() => {});
@@ -3717,6 +3785,95 @@ function useFintsState() {
   }, []);
 
   /**
+   * The desktop: keeps the PINs of the further banks' sessions `sids` beside
+   * the first login's, and turns it on. How many are kept now; null when
+   * nothing could be.
+   */
+  const sealLinked = useCallback(async (sids: string[]): Promise<number | null> => {
+    const primary = sessionRef.current;
+    const secret = await linkedUnlockSecret();
+    if (!primary || !secret) return null;
+    try {
+      const r = await post<{ on: boolean; count?: number }>('/api/linked-unlock', { op: 'seal', sessionId: primary, secret, linked: sids });
+      if (isCurrent(primary)) setLinkedUnlockBoth(true);
+      return typeof r.count === 'number' ? r.count : 0;
+    } catch {
+      return null;
+    }
+  }, [isCurrent, setLinkedUnlockBoth]);
+
+  /**
+   * The desktop's "Weitere Banken mit anmelden": on keeps the PINs of the
+   * further banks logged in now (the dialog asked first) and of each one
+   * logged in later; off deletes every one kept beside this login — and the
+   * offer after a further bank's login does not come again.
+   */
+  const setLinkedUnlock = useCallback(async (on: boolean) => {
+    const primary = sessionRef.current;
+    if (!primary) return;
+    const said = msgs().settings.linkedUnlock;
+    if (on) {
+      const sids = linksRef.current.flatMap((l) => (l.sessionId ? [l.sessionId] : []));
+      const kept = await sealLinked(sids);
+      // With no further bank logged in yet, nothing is kept until each one logs in once.
+      if (kept === null) toast(said.failed, 'error');
+      else toast(kept ? said.nowOn : said.nowOnLater, 'success');
+      return;
+    }
+    // The further banks this login opened stay unasked: their PINs are what goes.
+    openedLinkedRef.current = [];
+    store.set(LINKED_OFFER_DECLINED, '1');
+    try {
+      await post('/api/linked-unlock', { op: 'off', sessionId: primary });
+      if (isCurrent(primary)) setLinkedUnlockBoth(false);
+      toast(said.nowOff, 'info');
+    } catch {
+      toast(said.failed, 'error');
+    }
+  }, [sealLinked, isCurrent, setLinkedUnlockBoth, toast]);
+
+  const openLinkedUnlockAsk = useCallback(() => setLinkedUnlockAsk(true), []);
+  const closeLinkedUnlockAsk = useCallback(() => setLinkedUnlockAsk(false), []);
+  /** "Nicht jetzt" in its dialog: closed, and the offer after a further bank's login does not come again. */
+  const declineLinkedUnlock = useCallback(() => {
+    store.set(LINKED_OFFER_DECLINED, '1');
+    setLinkedUnlockAsk(false);
+  }, []);
+
+  /**
+   * The desktop: one further bank's PIN kept beside the first login's goes —
+   * its bank refused it (never tried twice: a few wrong tries lock the
+   * online banking), or the bank was removed.
+   */
+  const forgetLinkedPin = useCallback(async (login: { blz: string; userId: string }) => {
+    const primary = sessionRef.current;
+    if (IS_ANDROID || !primary || linkedUnlockRef.current !== true) return;
+    const secret = await linkedUnlockSecret();
+    if (!secret) return;
+    await post('/api/linked-unlock', { op: 'forget', sessionId: primary, secret, login: { blz: login.blz, userId: login.userId } })
+      .catch(() => { /* the next refusal asks again */ });
+  }, []);
+
+  /**
+   * The desktop: a further bank logged in with its PIN typed. With "Weitere
+   * Banken mit anmelden" on, its PIN is kept beside the first login's at
+   * once; off, a toast offers to turn it on — once a session, and never again
+   * after a "Nicht jetzt" in its dialog or the switch turned off.
+   */
+  const offerLinkedUnlock = useCallback(async (link: LinkedLogin) => {
+    if (!link.sessionId || linkedUnlockRef.current === null) return;
+    const said = msgs().settings.linkedUnlock;
+    if (linkedUnlockRef.current) {
+      if ((await sealLinked([link.sessionId])) !== null) toast(said.sealed(link.bank.name), 'success');
+      else toast(said.sealFailed(link.bank.name), 'error');
+      return;
+    }
+    if (linkedOfferedRef.current || store.get(LINKED_OFFER_DECLINED) === '1') return;
+    linkedOfferedRef.current = true;
+    toast(said.offer(link.bank.name), 'info', 12_000, { label: said.offerAction, run: () => setLinkedUnlockAsk(true) });
+  }, [sealLinked, toast]);
+
+  /**
    * Android, with fingerprint login on: a further bank logged in with its PIN
    * typed is sealed beside the first login's, after a fingerprint of its own
    * — the prompt is the question, "Nicht jetzt" the answer for this session.
@@ -3839,9 +3996,9 @@ function useFintsState() {
     // A bank logged in on its own after the fingerprint leaves the account on
     // screen where it was: the user did not ask for that bank.
     if (!flow.auto) selectAccount(joined.added[0]);
-    if (!flow.sealed) void offerSeal(link);
+    if (!flow.sealed) void (IS_ANDROID ? offerSeal(link) : offerLinkedUnlock(link));
     return null;
-  }, [releaseFlowBusy, updateAddBank, purgeAccounts, setLinksBoth, updateVault, setAddBankBoth, toast, selectAccount, loadLinkedHistory, offerSeal]);
+  }, [releaseFlowBusy, updateAddBank, purgeAccounts, setLinksBoth, updateVault, setAddBankBoth, toast, selectAccount, loadLinkedHistory, offerSeal, offerLinkedUnlock]);
 
   /**
    * Step two of the flow: the bank is asked for this login, a session of its
@@ -4000,13 +4157,15 @@ function useFintsState() {
       updateVault((v) => (v.linkedBanks?.some((r) => sameLogin(r, login))
         ? withLinkedBanks(v, forgetLinkedBank(v.linkedBanks, login))
         : v));
-      // Android: its PIN kept beside the first login's goes with it.
+      // Its PIN kept beside the first login's goes with it (Android: behind
+      // the fingerprint; the desktop: lib/linked-unlock.ts).
       openedLinkedRef.current = openedLinkedRef.current.filter((l) => !sameLogin(l, login));
       const own = bankRef.current;
       if (IS_ANDROID && own) void window.girovoMobile?.biometric.forgetLinked(own.blz, userIdRef.current, login.blz, login.userId);
+      else void forgetLinkedPin(login);
     }
     toast(msgs().banks.removed(entry.bank.name), 'info');
-  }, [toast, setLinksBoth, purgeAccounts, selectAccount, updateVault]);
+  }, [toast, setLinksBoth, purgeAccounts, selectAccount, updateVault, forgetLinkedPin]);
 
   /**
    * A linked bank's session ended (the server answered 401 for it): only that
@@ -4046,11 +4205,14 @@ function useFintsState() {
     try {
       await post('/api/forget-device', { sessionId: sessionRef.current });
       setDeviceRemembered(false);
+      // The route deleted the further banks' PINs kept beside the login too.
+      openedLinkedRef.current = [];
+      if (linkedUnlockRef.current) setLinkedUnlockBoth(false);
       toast(msgs().provider.device.forgotten, 'info', 6000);
     } catch (err) {
       toast((err as Error).message, 'error');
     }
-  }, [toast, wipeVaultWith]);
+  }, [toast, wipeVaultWith, setLinkedUnlockBoth]);
 
   /** Everything a session owns, back to its pre-login state. Preferences stay. */
   const resetSession = useCallback(() => {
@@ -4068,6 +4230,10 @@ function useFintsState() {
     setAddBankState(null);
     openedLinkedRef.current = [];
     sealDeclinedRef.current.clear();
+    setLinkedUnlockBoth(null);
+    setLinkedUnlockAsk(false);
+    linkedAfterReadRef.current = null;
+    linkedOfferedRef.current = false;
     flowBusyRef.current = false;
     waitSidRef.current = null;
     transferSidRef.current = null;
@@ -4261,6 +4427,45 @@ function useFintsState() {
     window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
   }, []);
+
+  // A bank turned a session's PIN down on a call within it (lib/client-api.ts
+  // PIN_REFUSED_EVENT): a PIN that opened the remembered device on this
+  // computer but is not the bank's any more. Nothing more may go out with it
+  // — a few wrong tries lock the online banking. A further bank's session
+  // ends at once, so its next reads stay unasked; its remembered device
+  // (which opens with that PIN alone) goes, and so does its PIN where it is
+  // kept. The first login's own: its remembered device goes and, on Android,
+  // the PIN behind the fingerprint, so the next login asks the bank first.
+  useEffect(() => {
+    const onRefused = (e: Event) => {
+      const sid = (e as CustomEvent<SessionExpiredDetail>).detail?.sessionId;
+      if (!sid || !sessionRef.current) return;
+      const said = msgs().banks;
+      const own = bankRef.current;
+      const link = linksRef.current.find((l) => l.sessionId === sid);
+      if (link) {
+        const login = { blz: link.bank.blz, userId: link.userId };
+        setLinksBoth(linksRef.current.map((l) => (l.id === link.id ? { ...l, sessionId: null } : l)));
+        openedLinkedRef.current = openedLinkedRef.current.filter((l) => !sameLogin(l, login));
+        dropSession(sid);
+        void post('/api/forget-device', login).catch(() => { /* asked again with the next refusal */ });
+        if (IS_ANDROID && own) void window.girovoMobile?.biometric.forgetLinked(own.blz, userIdRef.current, login.blz, login.userId);
+        else void forgetLinkedPin(login);
+        toast(said.pinRefused(link.bank.name), 'error', 15_000, {
+          label: said.loginAgain,
+          run: () => openAddBank({ bank: link.bank, userId: link.userId }),
+        });
+        return;
+      }
+      if (sid !== sessionRef.current || !own) return;
+      void post('/api/forget-device', { sessionId: sid }).catch(() => { /* asked again with the next refusal */ });
+      setDeviceRemembered(false);
+      if (IS_ANDROID && userIdRef.current) void window.girovoMobile?.biometric.forget(own.blz, userIdRef.current);
+      toast(said.firstPinRefused(own.name), 'error', 20_000);
+    };
+    window.addEventListener(PIN_REFUSED_EVENT, onRefused);
+    return () => window.removeEventListener(PIN_REFUSED_EVENT, onRefused);
+  }, [setLinksBoth, forgetLinkedPin, openAddBank, toast]);
 
   // Activity tracking and the idle check — only while a dashboard is open.
   useEffect(() => {
@@ -4699,7 +4904,8 @@ function useFintsState() {
     };
   }, [addBankKept, texts]);
 
-  // Android: after a fingerprint login, the further banks it opened log in
+  // After a fingerprint login (Android) or a PIN login with "Weitere Banken
+  // mit anmelden" on (the desktop), the further banks it opened log in
   // one after another, each in the add sheet with its PIN filled in and the
   // approval as its bank asks — once the dashboard is up, nothing else is
   // under way and the vault says which banks it remembers. Only those: a
@@ -4724,7 +4930,7 @@ function useFintsState() {
       }
     }, 1500);
     return () => clearTimeout(timer);
-  }, [view, busy, addBankKept, vaultStatus, banks, plus.state, openAddBank]);
+  }, [view, busy, addBankKept, vaultStatus, banks, plus.state, openAddBank, openedLinkedTick]);
 
   const categoryRules = vault?.categoryRules;
   const txCategories = vault?.txCategories;
@@ -5491,6 +5697,9 @@ function useFintsState() {
     links, banks, bankOf, activeBank, addBank,
     openAddBank, closeAddBank, pickAddBank, connectAddBank, chooseAddBankMethod, clearAddBankMedia, addBankBack,
     removeBank,
+    // further banks with the first login on the desktop (lib/linked-unlock.ts)
+    linkedUnlock, linkedUnlockAsk, setLinkedUnlock, openLinkedUnlockAsk, closeLinkedUnlockAsk, declineLinkedUnlock,
+    forgetLinkedPin,
   };
 }
 
@@ -5499,6 +5708,15 @@ export type FintsApi = ReturnType<typeof useFintsState>;
 /** What an empty vault field stands for, one object each, so "nothing changed" can be told by identity. */
 const NO_KEPT: Record<string, KeptBalance> = {};
 const NO_DAYS: NetWorthDay[] = [];
+
+/** The shell pref that says the offer of "Weitere Banken mit anmelden" is not to come again. */
+const LINKED_OFFER_DECLINED = 'fints.linkedUnlock.declined';
+
+/** The desktop shell's secret for the further banks' PINs (electron/linked-unlock.cjs); null anywhere else. */
+async function linkedUnlockSecret(): Promise<string | null> {
+  if (IS_ANDROID || typeof window === 'undefined' || !window.electronLinkedUnlock) return null;
+  return window.electronLinkedUnlock.secret().catch(() => null);
+}
 
 export const FintsContext = createContext<FintsApi | null>(null);
 

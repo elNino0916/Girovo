@@ -319,7 +319,8 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
  * it keeps what matters most: the device the app remembers, and the one
  * lookup that would carry anything from the bookings.
  */
-export function PrivacyNote() {
+/** `note`: in place of auth.privacy.note — the add-bank sheet's, while that bank's PIN is kept. */
+export function PrivacyNote({ note }: { note?: string }) {
   const t = useT();
   const logoLine = useLogoLine();
   const telemetryLine = useTelemetryLine();
@@ -327,7 +328,7 @@ export function PrivacyNote() {
     <p className="mt-6 flex items-start gap-2.5 border-t border-line pt-5 text-[13px] leading-snug text-ink-3 @min-[59rem]/auth:hidden">
       <ShieldIcon size={16} className="mt-px shrink-0" />
       <span>
-        {t.auth.privacy.note}{logoLine && ` ${logoLine}`}{telemetryLine && ` ${telemetryLine}`}
+        {note ?? t.auth.privacy.note}{logoLine && ` ${logoLine}`}{telemetryLine && ` ${telemetryLine}`}
       </span>
     </p>
   );
