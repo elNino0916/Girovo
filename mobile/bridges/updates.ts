@@ -84,7 +84,8 @@ async function check(): Promise<ElectronUpdateState> {
     if (!res.ok) throw new Error(`GitHub answered HTTP ${res.status}`);
     const json: unknown = await res.json();
     if (run !== checks) return state;
-    const release: Release | null = preview ? logic.newestRelease(json, state.current) : logic.parseRelease(json);
+    // On the preview channel only a release with an APK: the nightly previews are the desktop's alone.
+    const release: Release | null = preview ? logic.newestRelease(json, state.current, { kind: 'android' }) : logic.parseRelease(json);
     if (!release || !logic.isNewer(release.version, state.current, { prerelease: preview })) {
       latest = null;
       return set({ phase: 'current', release: null, checkedAt: Date.now() });

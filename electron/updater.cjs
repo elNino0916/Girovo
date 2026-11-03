@@ -437,7 +437,8 @@ function createUpdater(deps) {
     const json = await fetchJson(list);
     if (json === null) return null;
     if (!Array.isArray(json)) throw new UpdateError(said().unreadable);
-    return logic.newestRelease(json, currentVersion, { downloadPrefix, releasesPage });
+    // Only a release with this install's file: a nightly may hold the desktop's alone.
+    return logic.newestRelease(json, currentVersion, { downloadPrefix, releasesPage, kind });
   }
 
   // ---- differential --------------------------------------------------------

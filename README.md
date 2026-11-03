@@ -394,7 +394,15 @@ The desktop app updates itself from this repository's
   GitHub pre-releases included. Back on "Stabil" nothing older than the
   installed version is offered, only the next stable release above it. The
   Android app from GitHub has the same setting; the Google Play and F-Droid
-  builds do not.
+  builds do not. Each copy takes only a release with a file for it: the
+  nightly previews (below) are the desktop's, and the Android app passes over
+  them.
+- **Nightly previews (desktop)** — every night that the `6.0` branch has new
+  commits, `.github/workflows/nightly.yml` builds Windows and Linux and
+  publishes them as a pre-release, `6.0.0-preview.<yyyymmddhhmm>.g<commit>`:
+  the time orders it after the hand-made `6.0.0-preview.N` and before 6.0.0,
+  the commit names it. Run it by hand from the Actions tab too. The Android
+  previews stay hand-made, because the release key is not on GitHub.
 - **Nothing happens without a click.** A newer version shows up in
   *Mitteilungen* (and on the login screen's bar); downloading it and restarting
   into it are separate, explicit steps. The restart waits while a TAN approval
