@@ -7,21 +7,9 @@
 // "yes" so a phone never paints the wide window's bar first; a tablet
 // corrects it on the first frame.
 
-import { useSyncExternalStore } from 'react';
 import { IS_ANDROID } from '@/lib/platform';
-
-const QUERY = '(max-width: 639.98px)';
-
-function subscribe(onChange: () => void) {
-  const mq = window.matchMedia(QUERY);
-  mq.addEventListener('change', onChange);
-  return () => mq.removeEventListener('change', onChange);
-}
+import { useMediaQuery } from './useMediaQuery';
 
 export function usePhone(): boolean {
-  return useSyncExternalStore(
-    subscribe,
-    () => window.matchMedia(QUERY).matches,
-    () => IS_ANDROID,
-  );
+  return useMediaQuery('(max-width: 639.98px)', IS_ANDROID);
 }

@@ -6,19 +6,11 @@
 // is more than one account (components/Dashboard.tsx SplitOverview). For
 // what CSS alone cannot switch: which of two layouts renders at all.
 
-import { useSyncExternalStore } from 'react';
 import { useFints } from '../FintsProvider';
-
-const QUERY = '(min-width: 1280px)';
-
-function subscribe(onChange: () => void) {
-  const mq = window.matchMedia(QUERY);
-  mq.addEventListener('change', onChange);
-  return () => mq.removeEventListener('change', onChange);
-}
+import { useMediaQuery } from './useMediaQuery';
 
 export function useWide(): boolean {
-  return useSyncExternalStore(subscribe, () => window.matchMedia(QUERY).matches, () => false);
+  return useMediaQuery('(min-width: 1280px)');
 }
 
 /** The Übersicht side by side: a wide window, the Übersicht, more than one account or bank. */

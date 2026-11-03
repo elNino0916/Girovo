@@ -17,7 +17,7 @@
 // Launch state comes from the provider (`transferPrefill`, `closeTransfer`);
 // the shell mounts this while `transferOpen` is true.
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ClipboardEvent, FormEvent, ReactNode } from 'react';
 import type { TransferPrefill, TransferTemplate } from '@/lib/app-types';
 import { isCardAccount } from '@/lib/balances';
@@ -59,6 +59,8 @@ import {
 } from './transfer/Review';
 import { ScheduleFields, useScheduleForm } from './transfer/Schedule';
 import { ManageTemplates, SaveAsTemplate, TemplatesMenu } from './transfer/Templates';
+import { useMediaQuery } from './shell/useMediaQuery';
+import { usePhone } from './shell/usePhone';
 
 /**
  * `awaiting` = the TAN overlay owns the screen; this sheet steps aside.
@@ -203,16 +205,8 @@ type Check =
 /** Which of the invoice's boxes a field of the form lights (InvoicePane). */
 const FIELD_OF: Record<string, InvoiceField> = { 'tf-name': 'name', 'tf-iban': 'iban', 'tf-purpose': 'purpose', 'tf-amount': 'amount' };
 
-const WIDE = '(min-width: 1024px)';
-const wideSubscribe = (onChange: () => void) => {
-  const mq = window.matchMedia(WIDE);
-  mq.addEventListener('change', onChange);
-  return () => mq.removeEventListener('change', onChange);
-};
 /** Whether the window has room for the invoice beside the form. */
-function useWide(): boolean {
-  return useSyncExternalStore(wideSubscribe, () => window.matchMedia(WIDE).matches, () => false);
-}
+const useWide = () => useMediaQuery('(min-width: 1024px)');
 
 export function TransferSheet() {
   const {
@@ -223,7 +217,9 @@ export function TransferSheet() {
   const showBankOrders = useShowBankOrders();
   const tr = useT();
   const money = useMoneyText();
-  const narrow = useNarrow();
+  // Below 640px a native <option> is one unstyled line, and on a phone the full "Konto · IBAN ·
+  // Verfügbar" no longer fits: there the figure moves to the hint under the amount, shown there anyway.
+  const narrow = usePhone();
   // Not from a linked bank that is logged out: nothing could send it.
   const eligible = useMemo(
     () => accounts.filter((a) => a.canTransfer && bankOf(a)?.state !== 'loggedOut'),
@@ -1580,23 +1576,6 @@ export function TransferSheet() {
 }
 
 // ---------------------------------------------------------------------------
-
-/**
- * Below 640px. A native <option> is one unstyled line, and on a phone the
- * full "Konto · IBAN · Verfügbar" no longer fits — there the figure moves to
- * the hint under the amount, where it is shown anyway.
- */
-function useNarrow(): boolean {
-  const [narrow, setNarrow] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 639.98px)');
-    const sync = () => setNarrow(mq.matches);
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
-  }, []);
-  return narrow;
-}
 
 /**
  * The progress over Betrag · An wen? · Prüfen: three segments, the
