@@ -109,9 +109,12 @@ const transferWith = (
 
 /** From the filled form on to the review step, as a person would: "Weiter". */
 async function toReview(c: Ctx) {
-  await c.click(/^(weiter|prüfen|weiter zur prüfung|überweisung prüfen|zur prüfung)/i, { within: 'dialog' });
-  // The review step's own primary button marks its arrival.
-  await c.poll(() => findButton(SUBMIT, 'dialog', true), 4000);
+  // Betrag, then An wen?: one "Weiter" per part, until the review step's own
+  // primary button marks its arrival.
+  for (let part = 0; part < 2 && !findButton(SUBMIT, 'dialog', true); part++) {
+    await c.click(/^(weiter|prüfen|weiter zur prüfung|überweisung prüfen|zur prüfung)/i, { within: 'dialog' });
+    await c.poll(() => findButton(SUBMIT, 'dialog', true), 4000);
+  }
 }
 
 /** Types into a field the way a person would, so React sees the change. */
