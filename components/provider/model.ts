@@ -7,6 +7,7 @@
 import {
   type DateRange, EMPTY_VAULT, type InboxMessage, type StatementInfo, type TransferTemplate, type VaultData,
 } from '@/lib/app-types';
+import { isGrouping, sanitizeAccountOrder } from '@/lib/account-overview';
 import { isAvatarChoice, isAvatarImage, OWN_PICTURE } from '@/lib/avatars';
 import { sanitizeBudgets } from '@/lib/budgets';
 import type { CategoryId } from '@/lib/categories';
@@ -18,6 +19,7 @@ import type {
 } from '@/lib/fints-types';
 import { compactIban, dayKey, isoDate, parseAmount, presetRange, type RangePreset, repairBankText } from '@/lib/format';
 import { type HistoryData, historyView } from '@/lib/history';
+import { sanitizeKeptBalances, sanitizeNetWorth } from '@/lib/kept-balances';
 import { type Messages, MESSAGES } from '@/lib/i18n';
 import { type LinkedBankRef, sanitizeLinkedBanks } from '@/lib/linked-banks';
 import { sanitizeNotes } from '@/lib/notes';
@@ -672,6 +674,11 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
   // Kept, or the next save would forget the linked banks.
   const linkedBanks = sanitizeLinkedBanks(raw.linkedBanks);
   const goals = sanitizeGoals(raw.goals);
+  const accountOrder = sanitizeAccountOrder(raw.accountOrder);
+  // As the vault does (lib/vault.ts sanitizeVault): switched off, none are kept.
+  const keepBalances = raw.keepBalances !== false;
+  const keptBalances = keepBalances ? sanitizeKeptBalances(raw.keptBalances) : {};
+  const netWorth = keepBalances ? sanitizeNetWorth(raw.netWorth) : [];
   return {
     version: 1,
     templates: Array.isArray(raw.templates)
@@ -700,6 +707,14 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
     ...(raw.keepBookings === true ? { keepBookings: true as const } : {}),
     // Kept too, or the next save would drop the Sparziele.
     ...(goals.length ? { goals } : {}),
+    // Kept too, or the next save would forget Konten anordnen, the last
+    // balances and the Gesamtsaldo's days, and read "Letzte Salden behalten"
+    // as on again after it was switched off.
+    ...(accountOrder.length ? { accountOrder } : {}),
+    ...(isGrouping(raw.accountGrouping) ? { accountGrouping: raw.accountGrouping } : {}),
+    ...(Object.keys(keptBalances).length ? { keptBalances } : {}),
+    ...(netWorth.length ? { netWorth } : {}),
+    ...(keepBalances ? {} : { keepBalances: false as const }),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : EMPTY_VAULT.updatedAt,
   };
 }
