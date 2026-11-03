@@ -123,6 +123,12 @@
             android:exported="false"
             android:foregroundServiceType="shortService" />
 
+        <!-- "Neue Umsätze melden": the six-hourly check while the app is not open (BackgroundJob). -->
+        <service
+            android:name=".BackgroundJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
         <!-- The home screen widget: the Gesamtsaldo, hidden until tapped (BalanceWidget). -->
         <receiver
             android:name=".BalanceWidget"
@@ -150,4 +156,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- "Neue Umsätze melden": its notices (asked for when it is turned on), and its
+         six-hourly job kept through a restart of the phone (BackgroundState). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>

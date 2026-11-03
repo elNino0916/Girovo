@@ -143,6 +143,15 @@ declare global {
      * Hello key the first time — for lib/windows-hello.ts to keep the first
      * login's PIN under, with the secret above. Never a PIN.
      */
+    /**
+     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * "Neue Umsätze melden" (electron/background.cjs): plans or stops the
+     * six-hourly checks, with the notification area and the start with
+     * Windows; answers whether they are on now.
+     */
+    electronBackground?: {
+      set: (on: boolean) => Promise<boolean>;
+    };
     electronHello?: {
       available: () => Promise<boolean>;
       enroll: () => Promise<{ result: 'enrolled' | 'canceled' | 'failed' | 'unavailable'; key?: string; fresh?: boolean }>;

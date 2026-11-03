@@ -138,7 +138,56 @@ export async function buildMobile({ out = OUT, dev = DEV } = {}) {
   });
   const bytes = fs.statSync(path.join(out, 'mobile-runtime.js')).size;
   console.log(`  mobile-runtime.js  ${(bytes / 1024).toFixed(0)} KB`);
+  await buildBackground({ out, dev });
   return result;
+}
+
+/** Fails the background bundle on anything of Capacitor's: its WebView has no bridge (mobile/background/). */
+const noCapacitor = {
+  name: 'girovo-no-capacitor',
+  setup(build) {
+    build.onResolve({ filter: /^@capacitor\// }, (args) => {
+      if (Object.hasOwn(BACKGROUND_ALIASES, args.path)) return undefined;
+      return { errors: [{ text: `${args.path} cannot run in the background check (imported by ${path.relative(ROOT, args.importer)})` }] };
+    });
+  },
+};
+
+const BACKGROUND_ALIASES = {
+  ...ALIASES,
+  // The state folder, read through BackgroundJob.java instead of Capacitor.
+  '@capacitor/filesystem': path.join(ROOT, 'mobile', 'background', 'filesystem.ts'),
+};
+
+/**
+ * "Neue Umsätze melden" on the phone: mobile/background/entry.ts as
+ * mobile-background.js, which BackgroundJob.java runs every six hours in a
+ * WebView of its own — the same shims as the page's runtime, no Capacitor.
+ */
+export async function buildBackground({ out = OUT, dev = DEV } = {}) {
+  await esbuild.build({
+    absWorkingDir: ROOT,
+    entryPoints: [path.join(ROOT, 'mobile', 'background', 'entry.ts')],
+    outfile: path.join(out, 'mobile-background.js'),
+    bundle: true,
+    format: 'iife',
+    platform: 'browser',
+    target: ['chrome111'],
+    alias: BACKGROUND_ALIASES,
+    inject: [shim('globals.ts')],
+    define: {
+      global: 'globalThis',
+      'process.env.NEXT_PUBLIC_GIROVO_PLATFORM': JSON.stringify('android'),
+      'process.env.NEXT_PUBLIC_APP_VERSION': JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version),
+    },
+    plugins: [virtual, noStrayBuiltins, noCapacitor],
+    minify: !dev,
+    sourcemap: dev ? 'inline' : false,
+    legalComments: 'none',
+    logLevel: 'warning',
+  });
+  const bytes = fs.statSync(path.join(out, 'mobile-background.js')).size;
+  console.log(`  mobile-background.js  ${(bytes / 1024).toFixed(0)} KB`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

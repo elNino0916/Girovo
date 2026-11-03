@@ -160,6 +160,21 @@ export interface GirovoWidgetPlugin {
 export const GirovoWidget = registerPlugin<GirovoWidgetPlugin>('GirovoWidget');
 
 // ---------------------------------------------------------------------------
+// "Neue Umsätze melden" (BackgroundPlugin.java, lib/background-check.ts): the
+// secret its box is sealed with, the box, the six-hourly job, the permission.
+
+export interface GirovoBackgroundPlugin {
+  secret(): Promise<{ secret: string }>;
+  read(): Promise<{ text: string | null }>;
+  write(opts: { text: string | null }): Promise<void>;
+  schedule(opts: { on: boolean }): Promise<{ scheduled: boolean }>;
+  notifications(): Promise<{ allowed: boolean }>;
+  requestNotifications(): Promise<{ allowed: boolean }>;
+}
+
+export const GirovoBackground = registerPlugin<GirovoBackgroundPlugin>('GirovoBackground');
+
+// ---------------------------------------------------------------------------
 // "GiroCode scannen": Google's code scanner, from Play services.
 
 export interface GirovoScannerPlugin {

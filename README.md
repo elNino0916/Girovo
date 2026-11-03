@@ -99,6 +99,27 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   delete it. Windows PowerShell runs the Windows Hello calls
   (`electron/windows-hello.ps1`, shipped beside the app); on Windows 11 24H2
   and later the prompt opens over Girovo's window.
+- **Neue Umsätze melden** (both apps, opt-in, *Einstellungen → Sicherheit*) —
+  every six hours Girovo logs in on its own, on each bank's remembered
+  device, reads the last two weeks' Umsätze (within PSD2's exemption, no
+  approval) and says what is new as the system's notification: "2 neue
+  Umsätze bei Sparkasse", with the amounts unless switched off; Android's lock
+  screen shows only "Neue Umsätze". The first check of an account only learns
+  what is there; bookings already shown in the app count as seen. For this
+  the PINs of the banks it was turned on for are kept in one sealed box whose
+  key comes from a secret the system protects — DPAPI or the keyring on the
+  desktop, an Android Keystore key on the phone — and from nothing else:
+  there is no finger in front of it, which the dialog says before it is
+  turned on. A bank that asks for an approval, or a remembered device that
+  no longer opens with the kept PIN, pauses that bank (said once) until the
+  user logs in again; a PIN the bank refuses is deleted at once and never
+  tried again. *Bank entfernen*, *Gerät vergessen*, deleting the saved data
+  and switching it off delete what they cover. The desktop checks while the
+  app runs — closing the window leaves it in the notification area, and on
+  Windows it starts with the system, hidden (`--background`); the phone runs
+  a JobScheduler job that loads Girovo's own code (`mobile-background.js`)
+  into a WebView nobody sees, read-only on the app's files, and skips while
+  the app is in front.
 - **Kontoverlauf** — the end-of-day balance over the loaded period as a step
   chart, reconstructed from the bookings and *checked against every opening and
   closing balance the bank sent*. If the numbers don't add up, no chart is drawn.
@@ -328,8 +349,8 @@ npm run build && npm start
 
 > ⚠️ **Runs locally only.** Your PIN is held in server memory for the session
 > and is never written to disk or logged — unless you turn on *Weitere Banken
-> mit anmelden* or *Mit Windows Hello anmelden* in the desktop app, which keep
-> PINs sealed as described above. Do not expose this on a public host. Only
+> mit anmelden*, *Mit Windows Hello anmelden* or *Neue Umsätze melden* in the
+> desktop app, which keep PINs sealed as described above. Do not expose this on a public host. Only
 > the desktop app's own server keeps a PIN, plus the development server
 > (`npm run dev`), so that `npm run electron:dev` can try the switches; that
 > one keeps them in the project's `.fints-state/`.
@@ -956,7 +977,10 @@ Found a weakness? Report it privately, as [SECURITY.md](SECURITY.md) says.
   one file per first login, sealed under a key from both that login's PIN and
   a secret the shell keeps with DPAPI or the keyring) and *Mit Windows Hello
   anmelden* (the first login's PIN, sealed under a key from a Windows Hello
-  signature and that DPAPI secret together).
+  signature and that DPAPI secret together) and, on both, *Neue Umsätze
+  melden* (the PINs of the banks it is on for, sealed under a key from a
+  secret the system protects alone — DPAPI, the keyring, the Android Keystore
+  — so that a check can log in while nobody is there).
 - Banking traffic goes directly from your machine to the bank's FinTS endpoint
   over TLS — no third party sits in that path.
 - Besides the bank, the app makes these outside requests:

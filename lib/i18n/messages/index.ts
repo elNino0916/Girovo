@@ -9,6 +9,7 @@ import * as android from './android.ts';
 import * as ask from './ask.ts';
 import * as plus from './plus.ts';
 import * as auth from './auth.ts';
+import * as background from './background.ts';
 import * as backup from './backup.ts';
 import * as budgets from './budgets.ts';
 import * as banks from './banks.ts';
@@ -52,6 +53,7 @@ const de = {
   docs: docs.de,
   tax: tax.de,
   backup: backup.de,
+  background: background.de,
   ask: ask.de,
   plus: plus.de,
 };
@@ -79,6 +81,7 @@ const en: Messages = {
   docs: docs.en,
   tax: tax.en,
   backup: backup.en,
+  background: background.en,
   ask: ask.en,
   plus: plus.en,
 };

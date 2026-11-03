@@ -28,7 +28,7 @@ import { installSheetDrag } from './bridges/sheet-drag';
 import { startTelemetry } from './bridges/telemetry';
 import { installUpdates, playUpdate } from './bridges/updates';
 import { Buffer } from 'buffer';
-import { GirovoDevice, GirovoDocScanner, GirovoLaunch, GirovoNano, GirovoScanner, GirovoText, GirovoWidget } from './native';
+import { GirovoBackground, GirovoDevice, GirovoDocScanner, GirovoLaunch, GirovoNano, GirovoScanner, GirovoText, GirovoWidget } from './native';
 import { ready } from './server/index';
 
 /** Android AICore in Google Play: Play opens the https link as its own page. */
@@ -43,6 +43,13 @@ installRipple();
 const updates = installUpdates();
 review.startReview();
 const appearance = startAppearance();
+
+// "Neue Umsätze melden": its sealed box lives in the app's preferences, one
+// for this runtime and the background job's alike (lib/background-store.ts).
+(globalThis as typeof globalThis & { __girovoBackgroundStore?: unknown }).__girovoBackgroundStore = {
+  read: () => GirovoBackground.read().then((r) => r.text ?? null),
+  write: (text: string | null) => GirovoBackground.write({ text }),
+};
 
 window.girovoMobile = {
   ready,
@@ -119,6 +126,13 @@ window.girovoMobile = {
       }),
       (err: { code?: string }) => (err?.code === 'unavailable' ? { unavailable: true as const } : null),
     );
+  },
+  // "Neue Umsätze melden" (lib/background-check.ts): the secret, the job, the permission.
+  background: {
+    secret: () => GirovoBackground.secret().then((r) => r.secret, () => null),
+    schedule: (on) => GirovoBackground.schedule({ on }).then((r) => r.scheduled, () => false),
+    notifications: () => GirovoBackground.notifications().then((r) => r.allowed, () => false),
+    requestNotifications: () => GirovoBackground.requestNotifications().then((r) => r.allowed, () => false),
   },
   // The home screen widget: the Gesamtsaldo, hidden until tapped (BalanceWidget.java).
   widget: {

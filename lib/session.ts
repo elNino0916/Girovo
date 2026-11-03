@@ -240,6 +240,19 @@ export function getSession(id: unknown): Session | null {
   return s;
 }
 
+/**
+ * Whether someone is in this login right now: a session of it seen within
+ * `withinMs` ("Neue Umsätze melden" leaves such a login to the app,
+ * lib/background-check.ts). Counts as no activity itself.
+ */
+export function loginInUse(blz: string, userId: string, withinMs = SESSION_TTL_MS): boolean {
+  const now = Date.now();
+  for (const s of sessions.values()) {
+    if (s.meta?.blz === blz && s.client?.config?.userId === userId && now - s.lastSeen < withinMs) return true;
+  }
+  return false;
+}
+
 export function dropSession(id: unknown): void {
   if (typeof id === 'string') sessions.delete(id);
 }

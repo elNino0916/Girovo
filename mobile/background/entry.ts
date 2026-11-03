@@ -1,0 +1,54 @@
+// The background check on the phone (lib/background-check.ts), as
+// BackgroundJob.java runs it every six hours in a WebView nobody sees:
+// scripts/build-mobile.mjs bundles this as mobile-background.js, with the
+// same shims as the page's runtime — but no Capacitor: the bank, the files
+// and the notifications are reached through window.GirovoBg (./bridge.ts).
+//
+// It mounts the state folder read-only (the remembered devices), opens the
+// sealed box with the shell's secret, runs one check, hands the notices to
+// Android and ends the job. Whatever happens, the job ends.
+
+// First: fetch() through the job's HTTPS stack, then the files the desktop
+// ships beside its server (lib/banks.ts and lib/session.ts read them while
+// they load).
+import './fetch';
+import '../server/assets';
+import { bankPolicy } from '../../lib/bank-fetch.ts';
+import { bankSide } from '../../lib/background-bank';
+import { parseSecret, runCheck } from '../../lib/background-check';
+import type { BackgroundStore } from '../../lib/background-store';
+import { backgroundStore } from '../../lib/background-store';
+import { msgs } from '../../lib/i18n/index.ts';
+import { mountData, refuseData } from '../shims/fs';
+import { bg } from './bridge';
+
+// A request blocks until the bank answers (BackgroundJob.java times it); a
+// timer here could not end it anyway.
+bankPolicy.firstByteMs = Infinity;
+
+const store: BackgroundStore = {
+  read: async () => bg().readBox(),
+  write: async (text) => bg().writeBox(text),
+};
+(globalThis as typeof globalThis & { __girovoBackgroundStore?: BackgroundStore }).__girovoBackgroundStore = store;
+
+async function main(): Promise<string> {
+  const files = await mountData('fints-state');
+  refuseData();
+  const secret = parseSecret(bg().secret());
+  if (!secret) return 'no secret';
+  const result = await runCheck(backgroundStore(), secret, bankSide);
+  if (result.notices.length) {
+    bg().notify(JSON.stringify({ channel: msgs().background.channel, notices: result.notices }));
+  }
+  // Counts only.
+  return `files=${files} checked=${result.checked} notices=${result.notices.length}`;
+}
+
+main().then(
+  (summary) => bg().done(summary),
+  (err) => {
+    bg().log(`failed: ${(err as Error)?.name || 'Error'}`);
+    bg().done('failed');
+  },
+);

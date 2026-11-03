@@ -197,6 +197,12 @@ export type MockOptions = {
    * Windows Hello).
    */
   windowsHello?: boolean;
+  /**
+   * "Neue Umsätze melden" (lib/background-check.ts): the row in Sicherheit,
+   * off or on; left out, the row is not there (no shell). `'ask'`: off, with
+   * the dialog that turns it on open.
+   */
+  backgroundChecks?: boolean | 'ask';
   /** Every statement load and balance enquiry from now on fails (read live). */
   fail?: boolean;
   /** The Umsätze list's narrowing beyond the search: a month chip, a category. */
@@ -795,6 +801,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [linkedUnlockAsk, setLinkedUnlockAsk] = useState(opts.linkedUnlock === 'ask');
   // The desktop's Windows Hello: a switch, nothing kept.
   const [windowsHello, setWindowsHelloState] = useState<boolean | null>(opts.windowsHello ?? null);
+  // "Neue Umsätze melden": a switch and its dialog, nothing kept, nothing checked.
+  const [backgroundChecks, setBackgroundState] = useState<boolean | null>(
+    opts.backgroundChecks === undefined ? null : opts.backgroundChecks === true,
+  );
+  const [backgroundAsk, setBackgroundAsk] = useState(opts.backgroundChecks === 'ask');
   // The fake bridge (./nano.ts): a purchase or an icon chosen on the Plus screen.
   useEffect(() => window.girovoMobile?.plus?.onChange?.(setPlus), []);
   const [sharePrefill, setSharePrefill] = useState<SharePrefill | null>(opening === 'share'
@@ -2967,6 +2978,13 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       setWindowsHelloState(on);
       toast(on ? msgs().settings.windowsHello.nowOn : msgs().settings.windowsHello.nowOff, on ? 'success' : 'info');
     },
+    backgroundChecks, backgroundAsk,
+    setBackgroundChecks: async (on: boolean) => {
+      setBackgroundState(on);
+      toast(on ? msgs().background.nowOn(2) : msgs().background.nowOff, on ? 'success' : 'info');
+    },
+    openBackgroundAsk: () => setBackgroundAsk(true),
+    closeBackgroundAsk: () => setBackgroundAsk(false),
   } satisfies FintsApi;
 }
 

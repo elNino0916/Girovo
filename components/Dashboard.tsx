@@ -37,6 +37,7 @@ import { TransferSheet } from './TransferSheet';
 import { AddBankSheet } from './AddBank';
 import { ShareAccount } from './ShareAccount';
 import { LinkedUnlockDialog } from './settings/LinkedUnlock';
+import { BackgroundDialog } from './settings/BackgroundChecks';
 import { ForgetDeviceDialog, LogoutConfirmDialog } from './shell/ProfileMenu';
 import { SplitRequests } from './transactions/SplitRequests';
 import { Inbox } from './Inbox';
@@ -142,6 +143,7 @@ export function Dashboard() {
       <ForgetDeviceDialog open={forgetDeviceOpen} onClose={() => setForgetDeviceOpen(false)} />
       <LogoutConfirmDialog />
       <LinkedUnlockDialog />
+      <BackgroundDialog />
       <Inbox />
       <CommandPalette />
       <SessionGuard />

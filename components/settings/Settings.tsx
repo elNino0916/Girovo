@@ -51,6 +51,7 @@ import { ImportRow } from './ImportDialog';
 import { CategorySettings } from './CategorySettings';
 import { LinkedUnlockSwitch } from './LinkedUnlock';
 import { WindowsHelloSwitch } from './WindowsHello';
+import { BackgroundSwitch } from './BackgroundChecks';
 import { UpdateChannelRow } from './UpdateChannel';
 import { ActionItem, ChoiceItem, LinkItem, SegmentedItem, SettingItem, SettingsGroup, SwitchItem } from './rows';
 
@@ -160,6 +161,8 @@ export function Settings() {
             (lib/linked-unlock.ts). */}
         <WindowsHelloSwitch />
         <LinkedUnlockSwitch />
+        {/* Both apps: new Umsätze reported, with PINs kept for it (lib/background-check.ts). */}
+        <BackgroundSwitch />
         {deviceRemembered ? (
           // The provider's dialog: the "Gerät gemerkt" toast opens the same one.
           <ActionItem

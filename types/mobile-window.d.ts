@@ -128,6 +128,17 @@ declare global {
      * opened the app is kept until something listens.
      */
     /**
+     * "Neue Umsätze melden" (BackgroundPlugin.java): the secret the PINs' box
+     * is sealed with (base64, null when it cannot be had), the six-hourly job
+     * (answers whether it is planned), and the permission to notify.
+     */
+    background: {
+      secret(): Promise<string | null>;
+      schedule(on: boolean): Promise<boolean>;
+      notifications(): Promise<boolean>;
+      requestNotifications(): Promise<boolean>;
+    };
+    /**
      * The home screen widget (BalanceWidget.java): the Gesamtsaldo, formatted
      * as the app shows it, and since when it stands — kept only while a
      * widget is on the home screen (`update` answers whether it was).

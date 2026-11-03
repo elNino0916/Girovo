@@ -17,7 +17,7 @@
 // being reachable from the LAN, and a fixed port would collide with `npm run
 // dev` on port 3000.
 
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, safeStorage, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, nativeTheme, powerMonitor, safeStorage, session, shell } = require('electron');
 const { spawn } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -29,6 +29,7 @@ const { pathToFileURL } = require('node:url');
 const { createUpdater } = require('./updater.cjs');
 const { createFileSave } = require('./file-save.cjs');
 const { createLinkedUnlockSecret } = require('./linked-unlock.cjs');
+const { createBackgroundChecks, serverCheck } = require('./background.cjs');
 const { createHelperRunner, createWindowsHello } = require('./windows-hello.cjs');
 const { LOCALE_COOKIE, LOCALE_PREF, configure: configureLanguage, shellLocale, shellTexts, storedLocale } = require('./i18n.cjs');
 const { createTelemetryHub, lineSplitter, relayServerLine } = require('./telemetry.cjs');
@@ -353,6 +354,91 @@ function prefersDark() {
 
 /** A start the installer or the new portable .exe made after an update (electron/update-logic.cjs). */
 const startedByUpdate = process.argv.includes('--updated');
+/**
+ * Started with Windows for "Neue Umsätze melden" (setLoginItem): no start
+ * window, and the app's window stays hidden — Girovo waits in the
+ * notification area until someone opens it.
+ */
+const startedHidden = process.argv.includes('--background');
+let keepHidden = startedHidden;
+
+// ---------------------------------------------------------------------------
+// "Neue Umsätze melden" (electron/background.cjs, lib/background-check.ts):
+// the six-hourly checks, the notification area while the window is closed,
+// and the system's notifications for what a check found.
+// ---------------------------------------------------------------------------
+
+/** @type {ReturnType<typeof createBackgroundChecks> | null} */
+let background = null;
+/** @type {Tray | null} */
+let tray = null;
+/** The notices on screen, by key: a newer one for the same bank and kind replaces the older. */
+const shownNotices = new Map();
+
+function showWindow() {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+/** The icon in the notification area, while the checks are on: open, look now, quit. */
+async function ensureTray() {
+  if (tray || !background?.enabled()) return;
+  const icon = process.platform === 'win32'
+    ? await app.getFileIcon(process.execPath, { size: 'small' }).catch(() => null)
+    : windowIcon();
+  if (tray || !background?.enabled()) return;
+  const texts = shellTexts().background;
+  tray = new Tray(icon ?? nativeImage.createEmpty());
+  tray.setToolTip(texts.tooltip);
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: texts.open, click: showWindow },
+    { label: texts.check, click: () => void background?.runNow() },
+    { type: 'separator' },
+    { label: texts.quit, click: () => app.quit() },
+  ]));
+  tray.on('click', showWindow);
+}
+
+function dropTray() {
+  tray?.destroy();
+  tray = null;
+}
+
+/** Windows: start with the system, into the notification area, while the checks are on. */
+function setLoginItem(on) {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  try {
+    // The same arguments either way: Windows finds the entry to remove by them.
+    app.setLoginItemSettings({ openAtLogin: on, args: ['--background'] });
+  } catch (err) {
+    console.warn('[background] login item:', err?.message || err);
+  }
+}
+
+function notifyNotice(notice) {
+  if (!Notification.isSupported()) return;
+  shownNotices.get(notice.key)?.close();
+  const body = Array.isArray(notice.lines) && notice.lines.length ? notice.lines.join('\n') : String(notice.text || '');
+  const n = new Notification({ title: String(notice.title || 'Girovo'), body, ...(windowIcon() ? { icon: windowIcon() } : {}) });
+  n.on('click', showWindow);
+  n.on('close', () => {
+    if (shownNotices.get(notice.key) === n) shownNotices.delete(notice.key);
+  });
+  shownNotices.set(notice.key, n);
+  n.show();
+}
+
+/** The first time the window closes into the notification area: said, once ever. */
+function tellStillRunning() {
+  if (prefs().get('fints.background.told') === '1' || !Notification.isSupported()) return;
+  setPref('fints.background.told', '1');
+  const texts = shellTexts().background;
+  const n = new Notification({ title: texts.stillRunningTitle, body: texts.stillRunning });
+  n.on('click', showWindow);
+  n.show();
+}
 
 /**
  * The start window, opened once: from the moment Electron is ready until the
@@ -607,6 +693,12 @@ function createWindow(appUrl) {
     telemetry.metric('app.start_ms', process.uptime() * 1000, { updated: startedByUpdate });
     void (splash ? splash.held() : Promise.resolve()).then(() => {
       if (shown.isDestroyed()) return;
+      // Started with Windows: the window waits, hidden, until it is opened.
+      if (keepHidden) {
+        keepHidden = false;
+        closeSplash();
+        return;
+      }
       shown.show();
       closeSplash();
     });
@@ -655,6 +747,20 @@ function createWindow(appUrl) {
 
   win.on('closed', () => {
     win = null;
+  });
+
+  // With "Neue Umsätze melden" on, closing the window leaves Girovo running in
+  // the notification area; its menu's "Beenden" (or an update, or logging
+  // off Windows) quits for real.
+  win.on('close', (event) => {
+    if (quitting || !background?.enabled()) return;
+    event.preventDefault();
+    win.hide();
+    void ensureTray();
+    tellStillRunning();
+  });
+  win.on('session-end', () => {
+    quitting = true;
   });
 
   // The first frame in the language the user chose: the server renders it in
@@ -963,9 +1069,10 @@ if (app.requestSingleInstanceLock()) {
 
 function run() {
   app.on('second-instance', () => {
-    if (win && win.isVisible()) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
+    // Visible, or waiting hidden in the notification area: brought forward.
+    if (win && !win.isDestroyed() && (win.isVisible() || !splash)) {
+      keepHidden = false;
+      showWindow();
     } else {
       splash?.focus();
     }
@@ -976,7 +1083,12 @@ function run() {
 
   app.whenReady().then(async () => {
     buildMenu();
-    openSplash().step('preparing');
+    if (process.platform === 'win32' && app.isPackaged) {
+      // The installer's shortcuts carry the appId as their AppUserModelID:
+      // the same here, so Windows files the notifications under Girovo.
+      app.setAppUserModelId('de.elnino0916.sooskasse-fints');
+    }
+    if (!startedHidden) openSplash().step('preparing');
     await telemetryReady;
     try {
       // ELECTRON_START_URL points the shell at an already-running `npm run dev`
@@ -984,6 +1096,14 @@ function run() {
       const appUrl = process.env.ELECTRON_START_URL || (await startServer());
       splash?.step('opening');
       createWindow(appUrl);
+      // "Neue Umsätze melden": the next check, the notification area, the
+      // start with Windows — and a check soon after waking from sleep.
+      background?.start();
+      if (background?.enabled()) {
+        void ensureTray();
+        setLoginItem(true);
+      }
+      powerMonitor.on('resume', () => background?.resumed());
       // An updater that fails to come up must not take the app with it.
       try {
         setupUpdater();
@@ -1016,6 +1136,25 @@ function run() {
     platform: process.platform,
   });
   ipcMain.handle('linked-unlock:secret', (event) => (fromApp(event) ? linkedUnlock.secret() : null));
+
+  // window.electronBackground (preload.cjs): "Neue Umsätze melden" switched
+  // in Einstellungen. The server keeps or dropped the PINs already; here the
+  // checks are planned or stopped, with the notification area and the start
+  // with Windows.
+  background = createBackgroundChecks({
+    prefs: { get: (k) => prefs().get(k) ?? null, set: (k, v) => (v == null ? delPref(k) : setPref(k, v)) },
+    secret: () => linkedUnlock.secret(),
+    check: serverCheck({ origin: () => appOrigin, locale: () => storedLocale(), cookie: LOCALE_COOKIE }),
+    notify: notifyNotice,
+  });
+  ipcMain.handle('background:set', async (event, on) => {
+    if (!fromApp(event)) return false;
+    background.setEnabled(on === true);
+    setLoginItem(on === true);
+    if (on === true) await ensureTray();
+    else dropTray();
+    return background.enabled();
+  });
 
   // window.electronHello (preload.cjs): Windows Hello in place of typing the
   // first login's PIN (electron/windows-hello.cjs, lib/windows-hello.ts).

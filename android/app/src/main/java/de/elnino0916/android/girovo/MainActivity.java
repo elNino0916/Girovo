@@ -13,6 +13,21 @@ import com.getcapacitor.BridgeActivity;
  * calls on.
  */
 public class MainActivity extends BridgeActivity {
+    /** Whether the app is in front: BackgroundJob leaves the banks to the page then. */
+    static volatile boolean inFront;
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        inFront = true;
+    }
+
+    @Override
+    public void onPause() {
+        inFront = false;
+        super.onPause();
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(HttpPlugin.class);
@@ -24,6 +39,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(DocScannerPlugin.class);
         registerPlugin(TextPlugin.class);
         registerPlugin(WidgetPlugin.class);
+        registerPlugin(BackgroundPlugin.class);
         // One per distribution: src/github (APKs from GitHub) or src/play (Google Play).
         registerPlugin(UpdaterPlugin.class);
         // Girovo Plus: Play Billing in src/play, "everything free" in src/github.

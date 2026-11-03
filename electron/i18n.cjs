@@ -108,6 +108,16 @@ const de = {
     digestMismatch: 'Die Datei stimmt nicht mit der Prüfsumme von GitHub überein und wurde gelöscht.',
     changed: 'Die heruntergeladene Datei fehlt oder wurde verändert. Lade das Update noch einmal herunter.',
   },
+  /** "Neue Umsätze melden": the icon in the notification area and its menu (background.cjs, main.cjs). */
+  background: {
+    tooltip: 'Girovo – meldet neue Umsätze',
+    open: 'Girovo öffnen',
+    check: 'Jetzt nach neuen Umsätzen sehen',
+    quit: 'Beenden',
+    /** The first time the window closes into the notification area. */
+    stillRunningTitle: 'Girovo läuft weiter',
+    stillRunning: 'Im Infobereich, und meldet neue Umsätze. Beenden kannst du es über das Symbol dort.',
+  },
 };
 
 /** @type {typeof de} */
@@ -184,6 +194,14 @@ const en = {
     downloadHttp: (status) => `The download failed (HTTP ${status}).`,
     digestMismatch: 'The file does not match GitHub’s checksum and was deleted.',
     changed: 'The downloaded file is missing or was changed. Download the update again.',
+  },
+  background: {
+    tooltip: 'Girovo – reports new transactions',
+    open: 'Open Girovo',
+    check: 'Look for new transactions now',
+    quit: 'Quit',
+    stillRunningTitle: 'Girovo keeps running',
+    stillRunning: 'In the notification area, reporting new transactions. Quit it from the icon there.',
   },
 };
 

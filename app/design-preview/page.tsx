@@ -644,7 +644,12 @@ const VIEWS: Record<string, ViewDef> = {
   'settings-linked-unlock': {
     label: 'Einstellungen: Windows Hello, Weitere Banken mit anmelden (Desktop)',
     group: 'Dashboard',
-    options: { tab: 'settings', linkedUnlock: true, windowsHello: false, secondBank: 'linked' },
+    options: { tab: 'settings', linkedUnlock: true, windowsHello: false, backgroundChecks: true, secondBank: 'linked' },
+  },
+  'background-ask': {
+    label: 'Neue Umsätze melden?',
+    group: 'Dialoge',
+    options: { tab: 'settings', backgroundChecks: 'ask', secondBank: 'linked' },
   },
   'linked-unlock-ask': {
     label: 'Weitere Banken mit anmelden?',

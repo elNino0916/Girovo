@@ -47,7 +47,7 @@ const json = (status: number, body: unknown) =>
  * and their import, the documents and the bank's Kontoauszüge (each kept as
  * it arrives — a bank may hand one out only once), the backup.
  */
-const KEEPING = new Set(['/api/vault', '/api/history', '/api/history-import', '/api/docs', '/api/bank-statements', '/api/backup']);
+const KEEPING = new Set(['/api/vault', '/api/history', '/api/history-import', '/api/docs', '/api/bank-statements', '/api/backup', '/api/background']);
 
 /** True on a phone that is modified or cannot prove it is not (lib/device-integrity.ts). */
 let nothingKept = false;

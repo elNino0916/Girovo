@@ -351,6 +351,16 @@ function useFintsState() {
     windowsHelloRef.current = on;
     setWindowsHelloState(on);
   }, []);
+  // "Neue Umsätze melden" (lib/background-check.ts): whether it is on — null
+  // until the login says, and where the shell cannot keep the PINs — and the
+  // dialog that turns it on.
+  const [backgroundChecks, setBackgroundState] = useState<boolean | null>(null);
+  const backgroundRef = useRef<boolean | null>(null);
+  const [backgroundAsk, setBackgroundAsk] = useState(false);
+  const setBackgroundBoth = useCallback((on: boolean | null) => {
+    backgroundRef.current = on;
+    setBackgroundState(on);
+  }, []);
 
   // Refs mirror the state the async loops read, so a long-running approval
   // never closes over a stale render.
@@ -2800,6 +2810,76 @@ function useFintsState() {
     toast(said.offer(login.bank), 'info', 12_000, { label: said.offerAction, run: () => void setWindowsHello(true) });
   }, [isCurrent, setWindowsHelloBoth, setWindowsHello, toast]);
 
+  /**
+   * "Neue Umsätze melden": on keeps the PINs of the logged-in banks that have
+   * a remembered device (the dialog said what that means), plans the checks
+   * and — on Android 13 and later — asks to notify first; off deletes every
+   * kept PIN and stops them.
+   */
+  const setBackgroundChecks = useCallback(async (on: boolean, amounts = true) => {
+    const primary = sessionRef.current;
+    if (!primary || backgroundRef.current === null) return;
+    const said = msgs().background;
+    if (!on) {
+      try {
+        await post('/api/background', { op: 'off' });
+        await shellSchedule(false);
+        if (isCurrent(primary)) setBackgroundBoth(false);
+        toast(said.nowOff, 'info');
+      } catch {
+        toast(said.failed, 'error');
+      }
+      return;
+    }
+    const phone = IS_ANDROID ? window.girovoMobile?.background : undefined;
+    if (phone && !(await phone.requestNotifications())) {
+      toast(said.noPermission, 'error', 12_000);
+      return;
+    }
+    const secret = await backgroundSecret();
+    if (!secret) {
+      toast(said.failed, 'error');
+      return;
+    }
+    try {
+      const sessionIds = [primary, ...linksRef.current.flatMap((l) => (l.sessionId ? [l.sessionId] : []))];
+      const r = await post<{ on: boolean; count: number; skipped: string[] }>(
+        '/api/background', { op: 'enroll', secret, sessionIds, amounts },
+      );
+      if (!r.count) {
+        toast(said.noneTaken, 'info', 12_000);
+        return;
+      }
+      await shellSchedule(true);
+      if (isCurrent(primary)) setBackgroundBoth(true);
+      toast(said.nowOn(r.count), 'success');
+      if (r.skipped?.length) toast(said.noDevice(namesList(r.skipped)), 'info', 12_000);
+    } catch (err) {
+      toast((err as Error).message || said.failed, 'error');
+    }
+  }, [isCurrent, setBackgroundBoth, toast]);
+
+  /** One login's PIN kept for the checks goes (its bank refused it, it was removed, its device forgotten). */
+  const forgetBackgroundLogin = useCallback(async (login: { blz: string; userId: string }) => {
+    if (backgroundRef.current !== true) return;
+    const secret = await backgroundSecret();
+    if (!secret) return;
+    try {
+      await post('/api/background', { op: 'forget', secret, login: { blz: login.blz, userId: login.userId } });
+      const r = await post<{ on: boolean }>('/api/background', { op: 'status' });
+      // The last one gone: the checks stop too.
+      if (!r.on) {
+        await shellSchedule(false);
+        setBackgroundBoth(false);
+      }
+    } catch {
+      // Asked again with the next refusal; a check never tries a refused PIN anyway.
+    }
+  }, [setBackgroundBoth]);
+
+  const openBackgroundAsk = useCallback(() => setBackgroundAsk(true), []);
+  const closeBackgroundAsk = useCallback(() => setBackgroundAsk(false), []);
+
   /** The desktop: the bank took the first login's PIN — what was kept with it may open now. */
   const pinTaken = useCallback((sid: string) => {
     void openLinkedUnlock(sid);
@@ -3488,9 +3568,10 @@ function useFintsState() {
       const own = bankRef.current;
       if (IS_ANDROID && own) void window.girovoMobile?.biometric.forgetLinked(own.blz, userIdRef.current, login.blz, login.userId);
       else void forgetLinkedPin(login);
+      void forgetBackgroundLogin(login);
     }
     toast(msgs().banks.removed(entry.bank.name), 'info');
-  }, [toast, setLinksBoth, purgeAccounts, selectAccount, updateVault, forgetLinkedPin]);
+  }, [toast, setLinksBoth, purgeAccounts, selectAccount, updateVault, forgetLinkedPin, forgetBackgroundLogin]);
 
   /**
    * A linked bank's session ended (the server answered 401 for it): only that
@@ -3520,8 +3601,10 @@ function useFintsState() {
     const name = userIdRef.current;
     const blz = bankRef.current?.blz;
     if (IS_ANDROID && blz && name) void window.girovoMobile?.biometric.forget(blz, name);
-    // …and so is the Gesamtsaldo the home screen widget shows.
+    // …and so is the Gesamtsaldo the home screen widget shows, and the PIN
+    // the checks for new Umsätze would use.
     if (IS_ANDROID) void window.girovoMobile?.widget?.clear();
+    if (blz && name) void forgetBackgroundLogin({ blz, userId: name });
     if (opts?.wipeData === true) {
       if (await wipeVaultWith((sid) => post('/api/forget-device', { sessionId: sid, wipeData: true }))) {
         setDeviceRemembered(false);
@@ -3541,7 +3624,7 @@ function useFintsState() {
     } catch (err) {
       toast((err as Error).message, 'error');
     }
-  }, [toast, wipeVaultWith, setLinkedUnlockBoth, setWindowsHelloBoth]);
+  }, [toast, wipeVaultWith, setLinkedUnlockBoth, setWindowsHelloBoth, forgetBackgroundLogin]);
 
   /** Everything a session owns, back to its pre-login state. Preferences stay. */
   const resetSession = useCallback(() => {
@@ -3565,6 +3648,9 @@ function useFintsState() {
     linkedOfferedRef.current = false;
     setWindowsHelloBoth(null);
     helloLoginRef.current = null;
+    setBackgroundBoth(null);
+    setBackgroundAsk(false);
+    touchedRef.current = {};
     flowBusyRef.current = false;
     waitSidRef.current = null;
     transferSidRef.current = null;
@@ -3782,6 +3868,7 @@ function useFintsState() {
         void post('/api/forget-device', login).catch(() => { /* asked again with the next refusal */ });
         if (IS_ANDROID && own) void window.girovoMobile?.biometric.forgetLinked(own.blz, userIdRef.current, login.blz, login.userId);
         else void forgetLinkedPin(login);
+        void forgetBackgroundLogin(login);
         toast(said.pinRefused(link.bank.name), 'error', 15_000, {
           label: said.loginAgain,
           run: () => openAddBank({ bank: link.bank, userId: link.userId }),
@@ -3797,11 +3884,13 @@ function useFintsState() {
         void forgetHello({ blz: own.blz, userId: userIdRef.current });
         if (windowsHelloRef.current) setWindowsHelloBoth(false);
       }
+      // …and so is the one the checks for new Umsätze would use.
+      if (userIdRef.current) void forgetBackgroundLogin({ blz: own.blz, userId: userIdRef.current });
       toast(said.firstPinRefused(own.name), 'error', 20_000);
     };
     window.addEventListener(PIN_REFUSED_EVENT, onRefused);
     return () => window.removeEventListener(PIN_REFUSED_EVENT, onRefused);
-  }, [setLinksBoth, forgetLinkedPin, openAddBank, setWindowsHelloBoth, toast]);
+  }, [setLinksBoth, forgetLinkedPin, forgetBackgroundLogin, openAddBank, setWindowsHelloBoth, toast]);
 
   // Activity tracking and the idle check — only while a dashboard is open.
   useEffect(() => {
@@ -4236,6 +4325,40 @@ function useFintsState() {
       if (!keepsNothing(facts)) void phone.widget.update(amount, stamp);
     });
   }, [view, accounts, banks, balances, portfolios]);
+
+  // "Neue Umsätze melden": whether the shell here can keep the PINs, and
+  // whether the checks are on — asked once the Übersicht is up.
+  useEffect(() => {
+    if (view !== 'dashboard' || !sessionId || backgroundRef.current !== null) return;
+    let current = true;
+    void (async () => {
+      if (!backgroundShell() || !(await backgroundSecret())) return;
+      const r = await post<{ on: boolean }>('/api/background', { op: 'status' }).catch(() => null);
+      if (current && r && isCurrent(sessionId)) setBackgroundBoth(r.on === true);
+    })();
+    return () => {
+      current = false;
+    };
+  }, [view, sessionId, isCurrent, setBackgroundBoth]);
+
+  // …and with it on, what the bank just answered in the app counts as seen —
+  // no notice for it later — while a kept login takes the PIN the bank took
+  // and resumes where it waited for the user (lib/background-check.ts touch).
+  const touchedRef = useRef<Record<string, number>>({});
+  useEffect(() => {
+    if (backgroundChecks !== true) return;
+    const cutoff = isoDate(new Date(Date.now() - 45 * 86_400_000));
+    for (const [acct, f] of Object.entries(fetches)) {
+      if (!f.fetchFrom || touchedRef.current[acct] === f.loadedAt) continue;
+      touchedRef.current[acct] = f.loadedAt;
+      const sid = sessionFor(acct);
+      if (!sid) continue;
+      const keys = f.txs.filter((t) => String(t.entryDate || t.valueDate || '').slice(0, 10) >= cutoff).map(txKey).slice(-600);
+      void backgroundSecret().then((secret) => secret && post('/api/background', {
+        op: 'touch', secret, sessionId: sid, accountNumber: acct, keys,
+      }).catch(() => {}));
+    }
+  }, [backgroundChecks, fetches, sessionFor]);
 
   /** The bank an account belongs to, as the view shows it. */
   const bankOf = useCallback((a: Pick<SerializedAccount, 'accountNumber'> | null | undefined): BankEntry | null => {
@@ -5055,6 +5178,8 @@ function useFintsState() {
     forgetLinkedPin,
     // Windows Hello in place of the first login's PIN on the desktop (lib/windows-hello.ts)
     windowsHello, setWindowsHello,
+    // "Neue Umsätze melden" (lib/background-check.ts)
+    backgroundChecks, backgroundAsk, setBackgroundChecks, openBackgroundAsk, closeBackgroundAsk,
   };
 }
 
@@ -5068,6 +5193,28 @@ const NO_DAYS: NetWorthDay[] = [];
 const LINKED_OFFER_DECLINED = 'fints.linkedUnlock.declined';
 /** The shell pref that says Windows Hello was offered once (the toast after a typed login). */
 const HELLO_OFFERED = 'fints.windowsHello.offered';
+
+/** Where "Neue Umsätze melden" can keep its PINs: the desktop shell, or the Android app. */
+function backgroundShell(): 'desktop' | 'android' | null {
+  if (typeof window === 'undefined') return null;
+  if (IS_ANDROID) return window.girovoMobile?.background ? 'android' : null;
+  return window.electronBackground && window.electronLinkedUnlock ? 'desktop' : null;
+}
+
+/** The shell's secret the checks' box is sealed with (lib/background-check.ts); null where there is none. */
+async function backgroundSecret(): Promise<string | null> {
+  const shell = backgroundShell();
+  if (shell === 'android') return window.girovoMobile!.background.secret().catch(() => null);
+  if (shell === 'desktop') return window.electronLinkedUnlock!.secret().catch(() => null);
+  return null;
+}
+
+/** Plans the shell's checks, or stops them (electron/background.cjs; BackgroundState.java). */
+async function shellSchedule(on: boolean): Promise<void> {
+  const shell = backgroundShell();
+  if (shell === 'android') await window.girovoMobile!.background.schedule(on);
+  else if (shell === 'desktop') await window.electronBackground!.set(on);
+}
 
 /** The desktop shell's secret for the further banks' PINs (electron/linked-unlock.cjs); null anywhere else. */
 async function linkedUnlockSecret(): Promise<string | null> {
