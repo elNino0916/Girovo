@@ -629,6 +629,12 @@ Beyond the desktop app's features it has:
   every one of them, the approvals still as each bank asks. Adding a
   fingerprint to the phone deletes them all; a PIN the bank refuses, or
   "Bank entfernen", deletes that bank's.
+- **Home screen widget** (6.0): the Gesamtsaldo, covered until the eye is
+  tapped, which shows it for 15 seconds; a tap anywhere else opens Girovo.
+  It shows the figure the Übersicht last had, with since when it stands —
+  formatted by the app, kept by the phone only while a widget is on the home
+  screen, never on a phone Girovo keeps nothing on, and gone with *Gerät
+  vergessen* or the saved data. Material You's colours from Android 12 on.
 - **Categories with Gemini Nano** instead of the desktop's model: the
   language model Android's AICore runs on the phone itself, so there is
   nothing to download in the app. On a phone without it Einstellungen says

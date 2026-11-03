@@ -28,7 +28,7 @@ import { installSheetDrag } from './bridges/sheet-drag';
 import { startTelemetry } from './bridges/telemetry';
 import { installUpdates, playUpdate } from './bridges/updates';
 import { Buffer } from 'buffer';
-import { GirovoDevice, GirovoDocScanner, GirovoLaunch, GirovoNano, GirovoScanner, GirovoText } from './native';
+import { GirovoDevice, GirovoDocScanner, GirovoLaunch, GirovoNano, GirovoScanner, GirovoText, GirovoWidget } from './native';
 import { ready } from './server/index';
 
 /** Android AICore in Google Play: Play opens the https link as its own page. */
@@ -119,6 +119,11 @@ window.girovoMobile = {
       }),
       (err: { code?: string }) => (err?.code === 'unavailable' ? { unavailable: true as const } : null),
     );
+  },
+  // The home screen widget: the Gesamtsaldo, hidden until tapped (BalanceWidget.java).
+  widget: {
+    update: (amount, stamp) => GirovoWidget.update({ amount, stamp }).then((r) => r.stored, () => false),
+    clear: () => GirovoWidget.clear().catch(() => {}),
   },
   launch: {
     on: (fn) => {

@@ -63,7 +63,7 @@ import { bankAllowed, reminderDue, type PlusStatus } from '@/lib/plus';
 import { reviewMoment } from './android/review';
 import { parsePurpose } from '@/lib/sepa-purpose';
 import {
-  compactIban, dayKey, fmtDate, ibanValid, isoDate, repairBankText, toLocalDate, translateType,
+  compactIban, dayKey, fmtDate, fmtMoney, ibanValid, isoDate, repairBankText, toLocalDate, translateType,
   fmtRange,
 } from '@/lib/format';
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
@@ -1309,7 +1309,9 @@ function useFintsState() {
     // further banks' PINs kept beside the login on the desktop.
     dropHistory();
     void wipeLinkedHistories().then((problem) => { if (problem) toast(problem, 'error'); });
-    // Nothing is kept for the rest of the session: no row, no offer, no PIN.
+    // Nothing is kept for the rest of the session: no row, no offer, no PIN —
+    // and the home screen widget forgets its Gesamtsaldo.
+    if (IS_ANDROID) void window.girovoMobile?.widget?.clear();
     openedLinkedRef.current = [];
     setLinkedUnlockBoth(null);
     setLinkedUnlockAsk(false);
@@ -3518,6 +3520,8 @@ function useFintsState() {
     const name = userIdRef.current;
     const blz = bankRef.current?.blz;
     if (IS_ANDROID && blz && name) void window.girovoMobile?.biometric.forget(blz, name);
+    // …and so is the Gesamtsaldo the home screen widget shows.
+    if (IS_ANDROID) void window.girovoMobile?.widget?.clear();
     if (opts?.wipeData === true) {
       if (await wipeVaultWith((sid) => post('/api/forget-device', { sessionId: sid, wipeData: true }))) {
         setDeviceRemembered(false);
@@ -4215,6 +4219,23 @@ function useFintsState() {
       return days === had ? v : { ...v, netWorth: days };
     });
   }, [keepingBalances, accounts, banks, balances, portfolios, updateVault]);
+
+  // Android: the home screen widget (BalanceWidget.java) shows the Gesamtsaldo
+  // the overview shows, with since when — handed over whenever a whole figure
+  // is known. The phone keeps it only while a widget is placed, and never on
+  // a phone Girovo keeps nothing on (lib/device-integrity.ts).
+  useEffect(() => {
+    const phone = IS_ANDROID ? window.girovoMobile : undefined;
+    if (!phone?.widget || view !== 'dashboard' || !accounts.length) return;
+    const absent = banks.filter((b) => b.state === 'remembered').length;
+    const f = overviewFigures(accounts, (a) => liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]), absent);
+    if (f.total == null || f.excluded.some((e) => e.reason === 'unread')) return;
+    const amount = fmtMoney(f.total);
+    const stamp = msgs().android.widget.stamp(new Date());
+    void phone.integrity().catch(() => null).then((facts) => {
+      if (!keepsNothing(facts)) void phone.widget.update(amount, stamp);
+    });
+  }, [view, accounts, banks, balances, portfolios]);
 
   /** The bank an account belongs to, as the view shows it. */
   const bankOf = useCallback((a: Pick<SerializedAccount, 'accountNumber'> | null | undefined): BankEntry | null => {

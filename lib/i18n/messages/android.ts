@@ -63,6 +63,12 @@ export const de = {
     waiting: 'Wartet auf Gemini Nano',
   },
 
+  /** The home screen widget (BalanceWidget.java): since when its Gesamtsaldo stands. */
+  widget: {
+    stamp: (at: Date) =>
+      `Stand ${at.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' })}, ${at.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+  },
+
   /** The phone's integrity check (lib/device-integrity.ts): Einstellungen and the login. */
   integrity: {
     title: 'Gerätesicherheit',
@@ -202,6 +208,11 @@ export const en: typeof de = {
     working: 'Assigning categories',
     count: (done: number, total: number) => `${done} of ${total}`,
     waiting: 'Waiting for Gemini Nano',
+  },
+
+  widget: {
+    stamp: (at) =>
+      `As of ${at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`,
   },
 
   integrity: {

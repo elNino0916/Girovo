@@ -127,6 +127,15 @@ declare global {
      * scannen, Geld anfordern) or an invoice shared with it. The launch that
      * opened the app is kept until something listens.
      */
+    /**
+     * The home screen widget (BalanceWidget.java): the Gesamtsaldo, formatted
+     * as the app shows it, and since when it stands — kept only while a
+     * widget is on the home screen (`update` answers whether it was).
+     */
+    widget: {
+      update(amount: string, stamp: string): Promise<boolean>;
+      clear(): Promise<void>;
+    };
     launch: {
       on(fn: (launch: GirovoLaunch) => void): () => void;
       /** A shared file, read through Android's content provider. */

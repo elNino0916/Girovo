@@ -4,4 +4,9 @@
     <color name="girovo_navy">#08192B</color>
     <color name="girovo_action">#3BA4EF</color>
     <color name="girovo_paper">#061423</color>
+    <color name="widget_surface">#102740</color>
+    <color name="widget_ink">#E3E9EF</color>
+    <color name="widget_ink_2">#A9B6C4</color>
+    <color name="widget_accent">#3BA4EF</color>
+    <color name="widget_ripple">#1FE3E9EF</color>
 </resources>

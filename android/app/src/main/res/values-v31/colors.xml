@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home screen widget in Material You's colours (Android 12 and later):
+     the wallpaper's palette, as the launcher's own widgets have it. -->
+<resources>
+    <color name="widget_surface">@android:color/system_neutral1_50</color>
+    <color name="widget_ink">@android:color/system_neutral1_900</color>
+    <color name="widget_ink_2">@android:color/system_neutral2_700</color>
+    <color name="widget_accent">@android:color/system_accent1_600</color>
+    <color name="widget_ripple">#1F000000</color>
+</resources>

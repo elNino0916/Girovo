@@ -123,6 +123,19 @@
             android:exported="false"
             android:foregroundServiceType="shortService" />
 
+        <!-- The home screen widget: the Gesamtsaldo, hidden until tapped (BalanceWidget). -->
+        <receiver
+            android:name=".BalanceWidget"
+            android:exported="false"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_balance_info" />
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

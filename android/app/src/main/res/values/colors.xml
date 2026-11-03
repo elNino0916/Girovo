@@ -4,4 +4,10 @@
     <color name="girovo_navy">#0A2C5E</color>
     <color name="girovo_action">#0864AD</color>
     <color name="girovo_paper">#F4F6F9</color>
+    <!-- The home screen widget (layout/widget_balance.xml) before Android 12; values-v31 has Material You's. -->
+    <color name="widget_surface">#FFFFFF</color>
+    <color name="widget_ink">#1B1F24</color>
+    <color name="widget_ink_2">#4F5761</color>
+    <color name="widget_accent">#0864AD</color>
+    <color name="widget_ripple">#1F1B1F24</color>
 </resources>
