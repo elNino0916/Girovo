@@ -184,13 +184,23 @@ function parseRelease(json, { downloadPrefix = DOWNLOAD_PREFIXES, releasesPage =
  * preview channel's feed): the release with the highest version above it,
  * pre-releases included, drafts never. Null when none is newer, or when
  * `list` is not a list.
+ *
+ * With `kind`, only a release that carries that install's file counts: the
+ * nightly previews are the desktop's alone (.github/workflows/nightly.yml),
+ * and one without an APK is nothing the GitHub APK could install.
+ *
+ * @param {unknown} list
+ * @param {string} current
+ * @param {{ downloadPrefix?: string | readonly string[], releasesPage?: string, kind?: string }} [opts]
  */
 function newestRelease(list, current, opts = {}) {
   if (!Array.isArray(list)) return null;
+  const { kind, ...parse } = opts;
   let best = null;
   for (const json of list) {
-    const release = parseRelease(json, { ...opts, prerelease: true });
+    const release = parseRelease(json, { ...parse, prerelease: true });
     if (!release || !isNewer(release.version, current, { prerelease: true })) continue;
+    if (kind && ASSET_PATTERN[kind] && !pickAsset(release, kind)) continue;
     if (!best || compareVersions(release.version, best.version) > 0) best = release;
   }
   return best;

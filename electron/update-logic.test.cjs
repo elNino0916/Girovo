@@ -135,6 +135,22 @@ test('parseRelease with prerelease: a preview keeps its whole version, a draft i
   assert.equal(logic.parseRelease(release({ tag_name: 'preview' }), { prerelease: true }), null);
 });
 
+test('newestRelease with a kind: a nightly without that install\'s file is passed over', () => {
+  const apk = (v) => asset(`Girovo-${v}-android.apk`);
+  const exe = (v) => asset(`Girovo-${v}-Setup.exe`);
+  const list = [
+    release({ tag_name: '6.0.0-preview.202611040217.g5a9a41f', prerelease: true, assets: [exe('6.0.0-preview.202611040217.g5a9a41f')] }),
+    release({ tag_name: '6.0.0-preview.1', prerelease: true, assets: [exe('6.0.0-preview.1'), apk('6.0.0-preview.1')] }),
+  ];
+  // The desktop takes the nightly: its date orders it after preview.1.
+  assert.equal(logic.newestRelease(list, '5.16.1', { kind: 'nsis' }).version, '6.0.0-preview.202611040217.g5a9a41f');
+  // The GitHub APK has nothing to install in it, so preview.1 is its newest.
+  assert.equal(logic.newestRelease(list, '5.16.1', { kind: 'android' }).version, '6.0.0-preview.1');
+  assert.equal(logic.newestRelease(list, '6.0.0-preview.1', { kind: 'android' }), null);
+  // A kind without files of its own (a manual install, a dev build) filters nothing.
+  assert.equal(logic.newestRelease(list, '5.16.1', { kind: 'manual' }).version, '6.0.0-preview.202611040217.g5a9a41f');
+});
+
 test('newestRelease: the highest version above the installed one, pre-releases included', () => {
   const list = [
     release({ tag_name: '6.0.0-preview.3', draft: true }),
