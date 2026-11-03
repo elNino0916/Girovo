@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { COMPACT_LOGO, DARK_INVERT, ON_DARK } from '@/lib/brands';
+import { compactMark } from '@/lib/brands';
 import { isBankOwnBooking } from '@/lib/categorize';
 import { apiFetch } from '@/lib/client-api';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
@@ -176,9 +176,10 @@ const CHIP = {
 /**
  * A booking the bank made itself — the Abschluss, a fee, interest — shows the
  * bank's own mark: there the bank is the counterparty, so its mark is the
- * subject. A compact logo file is drawn as every bank logo is (.logo-img: a
- * light plate, navy and black marks flipped in dark mode); a wordmark would be unreadable this small, so there
- * the brand's chip stands in (lib/brands.ts COMPACT_LOGO). Only these rows
+ * subject. A compact logo file — or the mark cut from a wordmark's file — is
+ * drawn as every bank logo is (.logo-img: a light plate, navy and black marks
+ * flipped in dark mode); a wordmark would be unreadable this small, so where
+ * there is neither the brand's chip stands in (lib/brands.ts compactMark). Only these rows
  * read the bank, so a long list stays off the provider. Without a bank, the
  * monogram stays.
  */
@@ -187,11 +188,11 @@ function BankOwnAvatar({ size, children }: { size: 'sm' | 'md' | 'lg'; children:
   const { bank: primary, activeBank } = useFints();
   const bank = activeBank?.bank ?? primary;
   const brand = bank?.brand ?? '';
-  const file = useLogoFile(brand || undefined);
+  const mark = compactMark(brand, useLogoFile(brand || undefined));
   const [broken, setBroken] = useState(false);
-  const probe = useEarlyFailure(() => setBroken(true), file ?? '');
+  const probe = useEarlyFailure(() => setBroken(true), mark?.file ?? '');
   if (!bank) return children;
-  if (!file || broken || !COMPACT_LOGO.has(brand)) {
+  if (!mark || broken) {
     return (
       <span aria-hidden title={bank.name} className="shrink-0">
         <BankChip brand={brand} className={CHIP[size]} />
@@ -202,14 +203,14 @@ function BankOwnAvatar({ size, children }: { size: 'sm' | 'md' | 'lg'; children:
     <span
       aria-hidden
       title={bank?.name}
-      data-invert={DARK_INVERT.has(brand)}
-      data-on-dark={ON_DARK.has(brand)}
+      data-invert={mark.invert}
+      data-on-dark={mark.onDark}
       className={cx('logo-img flex shrink-0 items-center justify-center overflow-hidden', TILE[size])}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         ref={probe}
-        src={`/logos/${file}`}
+        src={`/logos/${mark.file}`}
         alt=""
         draggable={false}
         onError={() => setBroken(true)}

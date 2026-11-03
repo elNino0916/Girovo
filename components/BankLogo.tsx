@@ -83,8 +83,8 @@ export function BankLogo({
 /**
  * A brand's chip: its colour and mark on a square, drawn on a 100 grid so it
  * reads at any size — where a bank has no logo file, and as a booking's avatar
- * where its file is a wordmark (lib/brands.ts COMPACT_LOGO). `className` sets
- * the size and the corners.
+ * where its file is a wordmark with no compact mark beside it (lib/brands.ts
+ * compactMark). `className` sets the size and the corners.
  */
 export function BankChip({ brand, className }: { brand: string; className: string }) {
   const b = BRANDS[brand] || BRANDS.generic;

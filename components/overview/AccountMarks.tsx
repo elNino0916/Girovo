@@ -3,7 +3,7 @@
 // The small marks the account rows share: the account's kind on its disc,
 // and the bank's mark at a few pixels (also on an account's head).
 
-import { COMPACT_LOGO } from '@/lib/brands';
+import { compactMark } from '@/lib/brands';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { BankChip } from '../BankLogo';
 import type { BankEntry } from '../FintsProvider';
@@ -43,18 +43,25 @@ export function AccountDisc({ account, entry, logoFile, selected = false, classN
 }
 
 /**
- * A bank's mark at a few pixels: its logo on the white plate where the file
- * is a compact mark, else the brand's chip — a wordmark would be unreadable
- * this small (lib/brands.ts COMPACT_LOGO). `className` sets size and shape.
+ * A bank's mark at a few pixels: its compact logo on the white plate (the
+ * file itself, or the mark cut from a wordmark's file), else the brand's chip
+ * — a wordmark would be unreadable this small (lib/brands.ts compactMark).
+ * `className` sets size and shape.
  */
 export function BankMark({ entry, logoFile, className }: { entry: BankEntry; logoFile?: string; className: string }) {
   const brand = entry.bank.brand;
-  const logo = logoFile && COMPACT_LOGO.has(brand) ? logoFile : null;
+  const logo = compactMark(brand, logoFile);
   return (
-    <span aria-hidden title={entry.bank.name} className={cx('grid shrink-0 place-items-center overflow-hidden', logo && 'logo-img p-[3px]', className)}>
+    <span
+      aria-hidden
+      title={entry.bank.name}
+      data-invert={logo?.invert}
+      data-on-dark={logo?.onDark}
+      className={cx('grid shrink-0 place-items-center overflow-hidden', logo && 'logo-img p-[3px]', className)}
+    >
       {logo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`/logos/${logo}`} alt="" draggable={false} className="size-full object-contain" />
+        <img src={`/logos/${logo.file}`} alt="" draggable={false} className="size-full object-contain" />
       ) : (
         <BankChip brand={brand} className="size-full" />
       )}

@@ -12,7 +12,6 @@ export type BrandMark = {
 
 export const BRANDS: Record<string, BrandMark> = {
   sparkasse: { bg: '#e8412c', mark: 'S' },
-  vrbank: { bg: '#0a4a8a', mark: 'VR', accent: '#f60' },
   deutschebank: { bg: '#0018a8', mark: 'slash' },
   commerzbank: { bg: '#ffcc33', mark: 'C', fg: '#1a1a1a' },
   postbank: { bg: '#ffcc00', mark: 'P', fg: '#0066b3' },
@@ -59,6 +58,29 @@ export const ON_DARK = new Set(['comdirect']);
  * (BankChip in components/BankLogo.tsx).
  */
 export const COMPACT_LOGO = new Set(['sparkasse', 'deutschebank', 'consorsbank', 'triodos']);
+
+/**
+ * Brands whose logo file is a wordmark but whose own compact mark sits beside
+ * it in public/logos, cut from that same file: drawn where COMPACT_LOGO's
+ * files are, in place of a chip. Coloured as the brand draws it, so never
+ * flipped in dark mode.
+ */
+export const MARK_FILE: Record<string, string> = {
+  vrbank: 'vrbank-mark.svg',
+};
+
+/**
+ * What a bank's mark is drawn from at a few pixels (a booking's avatar, an
+ * account's corner): its compact file, and whether to flip it in dark mode —
+ * or null, for the brand's chip. `logoFile` is the brand's file from
+ * public/logos, absent where there is none.
+ */
+export function compactMark(brand: string, logoFile: string | undefined): { file: string; invert: boolean; onDark: boolean } | null {
+  if (!logoFile) return null;
+  if (COMPACT_LOGO.has(brand)) return { file: logoFile, invert: DARK_INVERT.has(brand), onDark: ON_DARK.has(brand) };
+  const mark = MARK_FILE[brand];
+  return mark ? { file: mark, invert: false, onDark: false } : null;
+}
 
 /**
  * The app a brand's customers approve in, where one name holds for the whole
