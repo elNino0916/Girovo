@@ -275,7 +275,7 @@ export const de = {
     available: (v: string) => `Version ${v} ist verfügbar`,
     /** The desktop's way back from a preview to the stable release (Update-Kanal "Stabil"). */
     backTo: (v: string) => `Zurück zu Version ${v}`,
-    backNote: 'Die stabile Version ist älter als deine Vorschau. Was es nur in der Vorschau gibt – etwa die Anordnung deiner Konten und die gespeicherten Salden –, kennt sie nicht und vergisst es.',
+    backNote: 'Diese Version ist älter als deine Vorschau. Was es nur in der Vorschau gibt, etwa die Anordnung deiner Konten, geht dabei verloren.',
     newIn: (v: string) => `Neu in Version ${v}`,
     releaseOf: (version: ReactNode, date: ReactNode, current: ReactNode) => [
       'Version ', version, ' vom ', date, ' · du nutzt ', current,
@@ -551,7 +551,7 @@ export const en: typeof de = {
     ready: (v) => `Version ${v} is ready`,
     available: (v) => `Version ${v} is available`,
     backTo: (v) => `Back to version ${v}`,
-    backNote: 'The stable version is older than your preview. What only the preview has – such as the order of your accounts and the kept balances – it doesn’t know, and forgets.',
+    backNote: 'This version is older than your preview. Anything only the preview has, such as the order of your accounts, is lost.',
     newIn: (v) => `New in version ${v}`,
     releaseOf: (version, date, current) => ['Version ', version, ' from ', date, ' · you’re using ', current],
     youUse: (current) => ['You’re using version ', current],

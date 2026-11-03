@@ -141,28 +141,12 @@ jobs:
           merge-multiple: true
       - name: Notes and checksums
         env:
-          VERSION: ${{ needs.plan.outputs.version }}
           SHA: ${{ needs.plan.outputs.sha }}
-          LAST: ${{ needs.plan.outputs.last }}
         run: |
           cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt && cd ..
-          if [ -n "$LAST" ] && git merge-base --is-ancestor "$LAST" "$SHA" 2>/dev/null; then
-            changes=$(git log --no-merges --format='- %s' "$LAST..$SHA" | head -40)
-            since="Seit der letzten nächtlichen Vorschau"
-          else
-            changes=$(git log --no-merges --format='- %s' -20 "$SHA")
-            since="Die letzten Änderungen"
-          fi
-          {
-            echo "# Girovo $VERSION"
-            echo
-            echo "Nächtliche Vorschau aus dem Branch \`${{ inputs.branch || '6.0' }}\`, Commit \`${SHA:0:7}\`. Nur für den Desktop (Windows und Linux) – die APK von GitHub bekommt die Vorschauen, die von Hand erscheinen."
-            echo
-            echo "> **Vorschauversion.** Noch nicht fertig, sie kann Fehler haben. Du bekommst sie in der Desktop-App über **Einstellungen → Update-Kanal → 6.0-Vorschau**."
-            echo
-            echo "## $since"
-            echo "$changes"
-          } > notes.md
+          # What the app shows under "Was ist neu": the branch's last five
+          # commits, without their "(feat) " or "(fix) " — nothing else.
+          git log --no-merges --format='%s' -5 "$SHA" | sed -E 's/^\([a-z]+\) +//; s/^/- /' > notes.md
           cat notes.md
       - name: Publish (a draft first, then the pre-release)
         env:

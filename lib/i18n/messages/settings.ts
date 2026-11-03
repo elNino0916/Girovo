@@ -49,15 +49,13 @@ export const de = {
     title: 'Update-Kanal',
     stable: 'Stabil',
     preview: '6.0-Vorschau',
-    intro: 'Welche Versionen dir Girovo zum Update anbietet.',
-    stableHint: 'Nur fertige Versionen. Empfohlen.',
-    previewHint: 'Auch Vorabversionen von Girovo 6.0, sobald es sie gibt.',
-    unstable: 'Vorschauversionen sind noch nicht fertig: Sie können Fehler haben, und bis zur fertigen Version ändert sich manches noch.',
-    /** The desktop: back to "Stabil" offers the latest stable release, older as it may be. */
-    back: 'Zurück zu „Stabil“ geht jederzeit: Girovo sucht dann gleich nach Updates und bietet dir die aktuelle stabile Version an, auch wenn sie älter ist als deine Vorschau.',
-    /** Android cannot install an older version over a newer one. */
-    backAndroid: 'Zurück zu „Stabil“ geht jederzeit – Girovo bietet dir dann aber erst die nächste stabile Version an, die höher ist als deine installierte.',
-    noOlderAndroid: 'Eine ältere Version kann Android nicht über eine neuere installieren.',
+    intro: 'Welche Updates du bekommst.',
+    stableHint: 'Fertige Versionen. Empfohlen.',
+    previewHint: 'Was in Girovo 6.0 kommt, schon vorab.',
+    /** Under the choice. The desktop: back to "Stabil" offers the latest stable release, older as it may be. */
+    note: 'Vorschauen sind noch nicht fertig und können Fehler haben. Zurück zu „Stabil“ kannst du jederzeit – du bekommst dann die aktuelle stabile Version, auch wenn sie älter ist.',
+    /** Android installs no older version over a newer one. */
+    noteAndroid: 'Vorschauen sind noch nicht fertig und können Fehler haben. Gehst du zurück zu „Stabil“, kommt dein nächstes Update mit der nächsten stabilen Version – eine ältere kann Android nicht installieren.',
     apply: 'Übernehmen',
   },
 };
@@ -95,13 +93,11 @@ export const en: typeof de = {
     title: 'Update channel',
     stable: 'Stable',
     preview: '6.0 preview',
-    intro: 'Which versions Girovo offers you as updates.',
-    stableHint: 'Finished versions only. Recommended.',
-    previewHint: 'Also early versions of Girovo 6.0, as soon as there are any.',
-    unstable: 'Preview versions aren’t finished: they can have bugs, and some things will still change before the final version.',
-    back: 'You can go back to “Stable” at any time: Girovo then checks for updates straight away and offers you the current stable version, even if it’s older than your preview.',
-    backAndroid: 'You can go back to “Stable” at any time – but Girovo will then only offer you the next stable version that’s higher than the one installed.',
-    noOlderAndroid: 'Android can’t install an older version over a newer one.',
+    intro: 'Which updates you get.',
+    stableHint: 'Finished versions. Recommended.',
+    previewHint: 'What’s coming in Girovo 6.0, ahead of time.',
+    note: 'Previews aren’t finished and may have bugs. You can go back to “Stable” at any time – you’ll then get the current stable version, even if it’s older.',
+    noteAndroid: 'Previews aren’t finished and may have bugs. If you go back to “Stable”, your next update is the next stable version – Android can’t install an older one.',
     apply: 'Apply',
   },
 };
