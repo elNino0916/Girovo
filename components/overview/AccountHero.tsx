@@ -427,12 +427,12 @@ function DepotHero({ account }: { account: SerializedAccount }) {
 function AccountHead({ account, label }: { account: SerializedAccount; label: string }) {
   const { accounts, banks, bankOf, logoFiles, privacy, togglePrivacy, closeAccount } = useFints();
   const t = useT();
-  const eye = (
+  const eye = (className?: string) => (
     <IconButton
       size="md"
       aria-label={privacy ? t.common.showAmounts : t.common.hideAmounts}
       onClick={togglePrivacy}
-      className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--ink)_12%,transparent)]')}
+      className={cx('rounded-full', privacy && 'bg-[color-mix(in_srgb,var(--ink)_12%,transparent)]', className)}
     >
       {privacy ? <EyeOffIcon /> : <EyeIcon />}
     </IconButton>
@@ -441,7 +441,7 @@ function AccountHead({ account, label }: { account: SerializedAccount; label: st
     return (
       <div className="-mr-2 flex min-h-10 items-center justify-between gap-2">
         <p className="min-w-0 truncate text-[16px] leading-6 font-medium text-ink-2">{label}</p>
-        {eye}
+        {eye()}
       </div>
     );
   }
@@ -449,13 +449,14 @@ function AccountHead({ account, label }: { account: SerializedAccount; label: st
   const ident = accountIdent(account);
   return (
     <div className="min-w-0">
-      {/* From 1280px every account stands beside this page (Dashboard SplitOverview): no way back to show. */}
+      {/* From 1280px every account stands beside this page (Dashboard SplitOverview): no way back to
+          show, and the eye is the Gesamtsaldo's there, beside it — one for the window. */}
       <div className="-mr-2 -ml-3 flex min-h-12 items-center gap-1 max-sm:hidden xl:ml-0">
         <IconButton size="md" aria-label={t.insights.accounts.back} onClick={closeAccount} className="xl:hidden">
           <BackIcon size={22} />
         </IconButton>
         <p className="min-w-0 flex-1 truncate text-[16px] leading-6 font-medium text-ink">{label}</p>
-        {eye}
+        {eye('xl:hidden')}
       </div>
       <p className="flex min-w-0 items-center gap-2 pt-1 pb-1 text-[14px] leading-5 text-ink-2 sm:pt-0">
         {entry && <BankMark entry={entry} logoFile={logoFiles[entry.bank.brand]} className="size-4 rounded-[4px]" />}
