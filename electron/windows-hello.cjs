@@ -33,6 +33,15 @@ const HELPER_TIMEOUT_MS = 3 * 60_000;
 /** What the helper's statuses mean here (KeyCredentialStatus). */
 const CANCELED = new Set(['UserCanceled', 'UserPrefersPassword']);
 
+/** The HRESULT Windows threw, as the helper reports it ("0x80090011"), or undefined. */
+function windowsCode(answer) {
+  const code = answer?.code;
+  return typeof code === 'string' && /^0x[0-9A-F]{8}$/.test(code) ? code : undefined;
+}
+
+/** A failure, with what Windows threw where it did: the page names it, since trying again rarely helps then. */
+const failed = (code) => (code ? { result: 'failed', code } : { result: 'failed' });
+
 /**
  * Runs windows-hello.ps1 with one request and resolves its one-line answer.
  *
@@ -159,7 +168,9 @@ function createWindowsHello({ run, file, fs, crypto, platform, log = console }) 
     const answer = await run({ op: 'sign', name: state.name, challenge: challenge.toString('base64'), window: windowHandle });
     if (CANCELED.has(answer.status)) return { result: 'canceled' };
     if (answer.status === 'NotFound') return { result: 'invalidated' };
-    if (answer.status !== 'Success' || typeof answer.signature !== 'string') return { result: 'failed', why: answer.status || answer.error };
+    if (answer.status !== 'Success' || typeof answer.signature !== 'string') {
+      return { result: 'failed', why: answer.status || answer.error, code: windowsCode(answer) };
+    }
     const signature = Buffer.from(answer.signature, 'base64');
     if (!verifies(state.publicKey, challenge, signature)) return { result: 'invalidated' };
     return { result: 'unlocked', key: keyOf(signature) };
@@ -191,7 +202,7 @@ function createWindowsHello({ run, file, fs, crypto, platform, log = console }) 
      * The key for sealing a PIN: the existing Windows Hello key's (one gesture),
      * or a new key's (Windows asks to set it up, then to use it). A key Windows
      * lost or replaced is made anew — whatever was sealed under it is gone anyway.
-     * @returns {Promise<{ result: 'enrolled' | 'canceled' | 'failed' | 'unavailable', key?: string, fresh?: boolean }>}
+     * @returns {Promise<{ result: 'enrolled' | 'canceled' | 'failed' | 'unavailable', key?: string, fresh?: boolean, code?: string }>}
      */
     enroll: (windowHandle) => serial(async () => {
       if (!(await available())) return { result: 'unavailable' };
@@ -200,7 +211,8 @@ function createWindowsHello({ run, file, fs, crypto, platform, log = console }) 
         if (prior) {
           const signed = await sign(prior, windowHandle);
           if (signed.result === 'unlocked') return { result: 'enrolled', key: signed.key, fresh: false };
-          if (signed.result !== 'invalidated') return { result: signed.result === 'canceled' ? 'canceled' : 'failed' };
+          if (signed.result === 'canceled') return { result: 'canceled' };
+          if (signed.result !== 'invalidated') return failed(signed.code);
         }
         const name = prior?.name ?? `Girovo-${crypto.randomBytes(6).toString('hex')}`;
         const salt = crypto.randomBytes(SALT_BYTES);
@@ -208,8 +220,8 @@ function createWindowsHello({ run, file, fs, crypto, platform, log = console }) 
         const answer = await run({ op: 'create', name, challenge: challenge.toString('base64'), window: windowHandle });
         if (CANCELED.has(answer.status)) return { result: 'canceled' };
         if (answer.status !== 'Success' || typeof answer.signature !== 'string' || typeof answer.publicKey !== 'string') {
-          log.warn('[windows-hello] create failed:', answer.status || answer.error || 'unknown');
-          return { result: 'failed' };
+          log.warn('[windows-hello] create failed:', answer.status || answer.error || 'unknown', windowsCode(answer) || '');
+          return failed(windowsCode(answer));
         }
         const signature = Buffer.from(answer.signature, 'base64');
         if (!verifies(answer.publicKey, challenge, signature)) {
@@ -229,7 +241,7 @@ function createWindowsHello({ run, file, fs, crypto, platform, log = console }) 
 
     /**
      * The key, after the gesture.
-     * @returns {Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing' | 'failed', key?: string }>}
+     * @returns {Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing' | 'failed', key?: string, code?: string }>}
      */
     unlock: (windowHandle) => serial(async () => {
       const state = await readState();
@@ -237,7 +249,10 @@ function createWindowsHello({ run, file, fs, crypto, platform, log = console }) 
       try {
         const signed = await sign(state, windowHandle);
         if (signed.result === 'invalidated') await dropState();
-        if (signed.result === 'failed') log.warn('[windows-hello] sign failed:', signed.why || 'unknown');
+        if (signed.result === 'failed') {
+          log.warn('[windows-hello] sign failed:', signed.why || 'unknown', signed.code || '');
+          return failed(signed.code);
+        }
         return signed.result === 'unlocked' ? { result: 'unlocked', key: signed.key } : { result: signed.result };
       } catch (err) {
         log.warn('[windows-hello] unlock failed:', err?.message || 'unknown');

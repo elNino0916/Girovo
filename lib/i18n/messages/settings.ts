@@ -92,6 +92,15 @@ export const de = {
     nowOn: 'Windows Hello ist an. Beim nächsten Mal genügt dein Gesicht, dein Finger oder deine Windows-PIN.',
     nowOff: 'Windows Hello ist aus, die gespeicherte PIN ist gelöscht.',
     failed: 'Windows Hello ließ sich nicht einrichten. Versuche es noch einmal.',
+    /** Windows threw an error while setting it up (its HRESULT, "0x80090016"). */
+    failedCode: (code: string) => `Windows Hello ließ sich nicht einrichten. Windows meldet den Fehler ${code}.`,
+    /** Windows threw an error at the login form's gesture. */
+    openFailedCode: (code: string) => `Windows Hello hat nicht geklappt, Windows meldet den Fehler ${code}. Melde dich mit deiner PIN an.`,
+    /**
+     * Windows' own Windows Hello key storage is missing or damaged (0x80090011,
+     * 0x80090016): no app gets a key until the Windows Hello PIN is set up anew.
+     */
+    brokenStore: (code: string) => `Windows findet seinen Speicher für Windows Hello nicht (Fehler ${code}). Das lässt sich in Windows beheben: unter Einstellungen → Konten → Anmeldeoptionen die PIN entfernen und neu einrichten. Danach versuche es hier noch einmal.`,
     /** The Windows Hello key was replaced or is gone: the kept PIN went with it. */
     invalidated: 'Windows Hello hat sich geändert, die gespeicherte PIN ist gelöscht. Melde dich mit deiner PIN an und schalte es danach wieder ein.',
     /** A kept PIN the bank refused: it is deleted, never tried twice. */
@@ -177,6 +186,9 @@ export const en: typeof de = {
     nowOn: 'Windows Hello is on. Next time your face, finger or Windows PIN is enough.',
     nowOff: 'Windows Hello is off, the saved PIN has been deleted.',
     failed: 'Windows Hello couldn’t be set up. Please try again.',
+    failedCode: (code) => `Windows Hello couldn’t be set up. Windows reports error ${code}.`,
+    openFailedCode: (code) => `Windows Hello didn’t work, Windows reports error ${code}. Log in with your PIN.`,
+    brokenStore: (code) => `Windows can’t find its Windows Hello storage (error ${code}). This can be fixed in Windows: under Settings → Accounts → Sign-in options, remove your PIN and set it up again. Then try again here.`,
     invalidated: 'Windows Hello has changed, so the saved PIN has been deleted. Log in with your PIN and turn it on again afterwards.',
     refused: 'The bank didn’t accept the saved PIN. It has been deleted – log in with your PIN.',
     goesToo: 'This also deletes the PIN saved for Windows Hello.',

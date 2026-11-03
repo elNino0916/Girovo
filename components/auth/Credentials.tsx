@@ -16,7 +16,7 @@ import type { MetaResponse } from '@/lib/fints-types';
 import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
-import { forgetHello, helloOn, openWithHello } from '@/lib/windows-hello-client';
+import { forgetHello, helloOn, helloStoreBroken, openWithHello } from '@/lib/windows-hello-client';
 import { useDemo } from '../demo/demo-mode';
 import { BankAnswerAlert } from '../BankAnswer';
 import { BankLogo } from '../BankLogo';
@@ -277,6 +277,10 @@ export function Credentials({
     if (opened.result === 'gone' || opened.result === 'off') {
       setHello(false);
       if (opened.result === 'gone') setFingerprintNotice(tr.settings.windowsHello.invalidated);
+    }
+    if (opened.result === 'failed' && opened.code) {
+      const said = tr.settings.windowsHello;
+      setFingerprintNotice(helloStoreBroken(opened.code) ? said.brokenStore(opened.code) : said.openFailedCode(opened.code));
     }
     pinRef.current?.focus();
   }, [bank, login, submitting, attempt, tr]);

@@ -174,6 +174,25 @@ test('a helper that fails or says nothing useful: failed, never a key', async ()
   assert.deepEqual(await h.enroll(), { result: 'failed' });
 });
 
+test('what Windows threw comes back with its code, a made-up code never', async () => {
+  const r = rig();
+  const hello = r.make();
+  await hello.available();
+  // Windows Hello's key storage gone (NTE_NOT_FOUND): the create throws.
+  r.answerNext({ error: 'Das Objekt wurde nicht gefunden.', code: '0x80090011' });
+  assert.deepEqual(await hello.enroll(), { result: 'failed', code: '0x80090011' });
+  assert.equal(await hello.enrolled(), false);
+  r.answerNext({ error: 'odd', code: 'rm -rf' });
+  assert.deepEqual(await hello.enroll(), { result: 'failed' });
+  // An enrolled key whose signing throws: the code too, and the state stays.
+  await hello.enroll();
+  r.answerNext({ error: 'Das Objekt wurde nicht gefunden.', code: '0x80090011' });
+  assert.deepEqual(await hello.unlock(), { result: 'failed', code: '0x80090011' });
+  r.answerNext({ error: 'Das Objekt wurde nicht gefunden.', code: '0x80090011' });
+  assert.deepEqual(await hello.enroll(), { result: 'failed', code: '0x80090011' });
+  assert.equal(await hello.enrolled(), true);
+});
+
 test('one helper at a time: a second request waits for the first', async () => {
   const r = rig();
   const hello = r.make();

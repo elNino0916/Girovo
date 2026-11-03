@@ -13,6 +13,9 @@
 #   {"op":"sign","name","challenge","window"}       → {"status","signature"}
 #   {"op":"delete","name"}                          → {"status"}
 #
+# What Windows throws instead comes back as {"error","code"}, the code its
+# HRESULT ("0x80090011"), so the page can say what Windows reported.
+#
 # `window` is Girovo's window handle: where Windows has the ...ForWindowAsync
 # calls (Windows 11 24H2 and later), its prompt opens over that window.
 # Elsewhere the plain calls open it on its own, often behind Girovo, and it is
@@ -153,5 +156,6 @@ try {
     }
   }
 } catch {
-  Out-Answer @{ error = [string]$_.Exception.GetBaseException().Message }
+  $thrown = $_.Exception.GetBaseException()
+  Out-Answer @{ error = [string]$thrown.Message; code = '0x{0:X8}' -f $thrown.HResult }
 }

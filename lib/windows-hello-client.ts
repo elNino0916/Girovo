@@ -9,6 +9,18 @@ import { IS_ANDROID } from './platform.ts';
 
 type Login = { blz: string; userId: string };
 
+/**
+ * What Windows threw that means its Windows Hello key storage is missing or
+ * damaged (NTE_NOT_FOUND, NTE_BAD_KEYSET): no app can make or use a key
+ * then. Setting the Windows Hello PIN up again in Windows mends it.
+ */
+const BROKEN_STORE = new Set(['0x80090011', '0x80090016']);
+
+/** Whether the code Windows threw says its Windows Hello storage needs mending (in Windows, not here). */
+export function helloStoreBroken(code: string | undefined): boolean {
+  return code !== undefined && BROKEN_STORE.has(code);
+}
+
 /** The shell's Windows Hello, where there is one (never on Android, never in a browser). */
 export function helloShell(): NonNullable<Window['electronHello']> | null {
   if (IS_ANDROID || typeof window === 'undefined') return null;
@@ -40,17 +52,18 @@ export async function helloOn(login: Login): Promise<boolean> {
  * Windows Hello key changed) and was deleted; 'off': nothing kept for it.
  */
 export async function openWithHello(login: Login): Promise<
-  { result: 'opened'; pin: string } | { result: 'canceled' | 'failed' | 'gone' | 'off' }
+  { result: 'opened'; pin: string } | { result: 'canceled' | 'gone' | 'off' } | { result: 'failed'; code?: string }
 > {
   const shell = helloShell();
   if (!shell) return { result: 'off' };
-  const gesture = await shell.unlock().catch(() => ({ result: 'failed' as const, key: undefined }));
+  const gesture = await shell.unlock().catch(() => ({ result: 'failed' as const, key: undefined, code: undefined }));
   if (gesture.result === 'invalidated' || gesture.result === 'missing') {
     // No key opens the kept PIN any more: it goes too.
     await forgetHello(login);
     return { result: gesture.result === 'invalidated' ? 'gone' : 'off' };
   }
-  if (gesture.result !== 'unlocked' || !gesture.key) return { result: gesture.result === 'canceled' ? 'canceled' : 'failed' };
+  if (gesture.result === 'canceled') return { result: 'canceled' };
+  if (gesture.result !== 'unlocked' || !gesture.key) return { result: 'failed', code: gesture.code };
   const s = await secret();
   if (!s) return { result: 'failed' };
   try {
@@ -68,17 +81,18 @@ export async function openWithHello(login: Login): Promise<
  * Keeps the session's PIN for Windows Hello, after the gesture (the first
  * time Windows sets the key up too). The server takes it only once the bank
  * has taken it; its answer otherwise comes back as the thrown message.
+ * `code`: what Windows threw, where it did.
  */
-export async function sealWithHello(sessionId: string): Promise<'sealed' | 'canceled' | 'failed'> {
+export async function sealWithHello(sessionId: string): Promise<{ result: 'sealed' | 'canceled' | 'failed'; code?: string }> {
   const shell = helloShell();
-  if (!shell) return 'failed';
-  const gesture = await shell.enroll().catch(() => ({ result: 'failed' as const, key: undefined }));
-  if (gesture.result === 'canceled') return 'canceled';
-  if (gesture.result !== 'enrolled' || !gesture.key) return 'failed';
+  if (!shell) return { result: 'failed' };
+  const gesture = await shell.enroll().catch(() => ({ result: 'failed' as const, key: undefined, code: undefined }));
+  if (gesture.result === 'canceled') return { result: 'canceled' };
+  if (gesture.result !== 'enrolled' || !gesture.key) return { result: 'failed', code: gesture.code };
   const s = await secret();
-  if (!s) return 'failed';
+  if (!s) return { result: 'failed' };
   await post('/api/windows-hello', { op: 'seal', sessionId, key: gesture.key, secret: s });
-  return 'sealed';
+  return { result: 'sealed' };
 }
 
 /** Deletes what is kept for the login (off, a refused PIN, a key that changed). */

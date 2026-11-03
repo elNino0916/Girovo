@@ -40,7 +40,7 @@ import {
   ApiError, BACK_EVENT, PIN_REFUSED_EVENT, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail,
 } from '@/lib/client-api';
 import { IS_ANDROID } from '@/lib/platform';
-import { forgetHello, helloAvailable, helloOn, sealWithHello } from '@/lib/windows-hello-client';
+import { forgetHello, helloAvailable, helloOn, helloStoreBroken, sealWithHello } from '@/lib/windows-hello-client';
 import { keepsNothing, unsafePhone } from '@/lib/device-integrity';
 import { msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
@@ -2817,9 +2817,12 @@ function useFintsState() {
     }
     try {
       const sealed = await sealWithHello(sid);
-      if (sealed === 'canceled') return;
-      if (sealed === 'failed') {
-        toast(said.failed, 'error');
+      if (sealed.result === 'canceled') return;
+      if (sealed.result === 'failed') {
+        // What Windows threw is named: trying again rarely helps then.
+        const { code } = sealed;
+        if (!code) toast(said.failed, 'error');
+        else toast(helloStoreBroken(code) ? said.brokenStore(code) : said.failedCode(code), 'error', 15_000);
         return;
       }
       if (isCurrent(sid)) setWindowsHelloBoth(true);

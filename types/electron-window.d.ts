@@ -165,8 +165,9 @@ declare global {
     };
     electronHello?: {
       available: () => Promise<boolean>;
-      enroll: () => Promise<{ result: 'enrolled' | 'canceled' | 'failed' | 'unavailable'; key?: string; fresh?: boolean }>;
-      unlock: () => Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing' | 'failed'; key?: string }>;
+      /** `code`: the HRESULT Windows threw, where it threw ("0x80090011"). */
+      enroll: () => Promise<{ result: 'enrolled' | 'canceled' | 'failed' | 'unavailable'; key?: string; fresh?: boolean; code?: string }>;
+      unlock: () => Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing' | 'failed'; key?: string; code?: string }>;
     };
     /**
      * Exposed by electron/preload.cjs; undefined outside the desktop shell.
