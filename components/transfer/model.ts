@@ -5,12 +5,13 @@
 // lib/bank-answer.ts — both with tests.
 
 import type { TransferTemplate } from '@/lib/app-types';
-import type { SerializedTransaction } from '@/lib/fints-types';
+import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import type { OrderSchedule } from '@/lib/order-schedule';
 import { intermediaryName } from '@/lib/categories';
 import { bookingKind } from '@/lib/categorize';
 import { dayKey, displayName, fmtShortIban, ibanValid, parseAmount } from '@/lib/format';
-import { intlLocale, msgs } from '@/lib/i18n';
+import { intlLocale, msgs, type Messages } from '@/lib/i18n';
+import type { spendable } from '@/lib/transfer-checks';
 import { rawIban } from './iban';
 
 /** The order as the review step shows it and the bank receives it. */
@@ -140,4 +141,20 @@ export function sameTemplate(t: TransferTemplate, d: { name: string; iban: strin
     && t.name.trim() === d.name.trim()
     && amt(t.amount) === amt(d.amount)
     && (t.purpose ?? '').trim() === (d.purpose ?? '').trim();
+}
+
+/** "13:12 Uhr" ("13:12"). */
+export const fmtTime = (tr: Messages, d: Date) => tr.transfer.clock(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
+
+/** "Girokonto · DE78 ··· 5932 71 · Verfügbar 2.196,22 €" — one line, as a native option must be. */
+export function accountOption(
+  tr: Messages,
+  a: SerializedAccount,
+  label: string,
+  funds: ReturnType<typeof spendable>,
+  money: (v: number, c?: string) => string,
+): string {
+  const parts = [label, shortIbanText(a.iban)];
+  if (funds) parts.push(`${funds.kind === 'available' ? tr.transfer.form.available : tr.common.account.balance} ${money(funds.value, a.currency)}`);
+  return parts.filter(Boolean).join(' · ');
 }

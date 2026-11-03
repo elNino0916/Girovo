@@ -82,3 +82,43 @@ export function RefusedMark() {
     </span>
   );
 }
+
+/**
+ * The progress over Betrag · An wen? · Prüfen: three segments, the
+ * done ones and the current in the primary. Said once, in words.
+ */
+export function PartBar({ at, label }: { at: number; label: string }) {
+  return (
+    <div className="pt-3">
+      <p className="sr-only">{label}</p>
+      <div aria-hidden className="flex gap-1">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className={cx(
+              'h-1 flex-1 rounded-full transition-colors duration-200',
+              i <= at ? 'bg-accent' : 'bg-[var(--progress-track)]',
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Two actions side by side; when the system's large text no longer fits
+ * them in a row, they stack with the primary (the last) on top.
+ */
+export function FooterRow({ children }: { children: ReactNode }) {
+  return <div className="flex flex-wrap-reverse gap-3 [&>*]:min-w-fit">{children}</div>;
+}
+
+/**
+ * Three actions, or two that each need their full label: stacked on a phone
+ * with the primary on top (it goes last in the markup, as in a dialog), side
+ * by side from 640px.
+ */
+export function StackRow({ children }: { children: ReactNode }) {
+  return <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">{children}</div>;
+}

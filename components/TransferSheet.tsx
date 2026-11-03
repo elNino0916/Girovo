@@ -43,17 +43,18 @@ import {
 } from './icons';
 import { Money, formatMoney, useMoneyText } from './Money';
 import { VopReport, vopDeviates, vopUnchecked } from './VopResult';
-import { Alert, Button, Checkbox, Chip, Dialog, Field, Input, Overlay, Segmented, Select, Spinner, coarsePointer, cx } from './ui';
+import { Button, Checkbox, Chip, Dialog, Field, Input, Overlay, Segmented, Select, Spinner, coarsePointer, cx } from './ui';
 import { GiroCodeDrop, imageFromTransfer, useFileDrop, useGiroCodeReader, type InvoiceField, type InvoicePage } from './transfer/GiroCodeDrop';
 import { InvoicePane, InvoicePreview } from './transfer/InvoicePreview';
 import type { InvoiceRead } from '@/lib/invoice-text';
 import { IbanHint, IbanInput, useBankLookup } from './transfer/IbanInput';
 import { expectedLength, groupIban, ibanProblem, rawIban } from './transfer/iban';
 import {
-  MAX_NAME, MAX_PURPOSE, checkAmount, recentPayees, shortIbanText, wireAmount, type TransferDraft,
+  MAX_NAME, MAX_PURPOSE, accountOption, checkAmount, fmtTime, recentPayees, wireAmount, type TransferDraft,
 } from './transfer/model';
 import { Panel } from './transfer/Panel';
-import { RefusedMark, SuccessMark, SummaryList, SummaryRow, UnsureMark } from './transfer/parts';
+import { BankAnswer, CheckResult, PlacedCheckResult } from './transfer/Outcome';
+import { FooterRow, PartBar, RefusedMark, StackRow, SuccessMark, SummaryList, SummaryRow, UnsureMark } from './transfer/parts';
 import {
   BusyNote, CreditDate, FundsWarningText, REVIEW_WARNINGS_ID, ReviewStep, StepError,
 } from './transfer/Review';
@@ -132,8 +133,6 @@ type Say = { say: (m: Messages) => string };
 
 const clip = (s: string | null | undefined, n: number) => [...String(s ?? '')].slice(0, n).join('');
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
-/** "13:12 Uhr" ("13:12"). */
-const fmtTime = (tr: Messages, d: Date) => tr.transfer.clock(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
 /** "13:12 Uhr" today, "03.10.2026, 18:40 Uhr" any other day. */
 const fmtWhen = (tr: Messages, t: number) => {
   const d = new Date(t);
@@ -1573,184 +1572,4 @@ export function TransferSheet() {
       )}
     </Overlay>
   );
-}
-
-// ---------------------------------------------------------------------------
-
-/**
- * The progress over Betrag · An wen? · Prüfen: three segments, the
- * done ones and the current in the primary. Said once, in words.
- */
-function PartBar({ at, label }: { at: number; label: string }) {
-  return (
-    <div className="pt-3">
-      <p className="sr-only">{label}</p>
-      <div aria-hidden className="flex gap-1">
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className={cx(
-              'h-1 flex-1 rounded-full transition-colors duration-200',
-              i <= at ? 'bg-accent' : 'bg-[var(--progress-track)]',
-            )}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Two actions side by side; when the system's large text no longer fits
- * them in a row, they stack with the primary (the last) on top.
- */
-function FooterRow({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap-reverse gap-3 [&>*]:min-w-fit">{children}</div>;
-}
-
-/**
- * Three actions, or two that each need their full label: stacked on a phone
- * with the primary on top (it goes last in the markup, as in a dialog), side
- * by side from 640px.
- */
-function StackRow({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">{children}</div>;
-}
-
-/**
- * The bank's own words, codes stripped; under a refusal its code once, small, for a call to the bank.
- * `label`: left out, the usual caption; null, none.
- */
-function BankAnswer({
-  lines, label, reference, className,
-}: { lines: string[]; label?: string | null; reference?: string; className?: string }) {
-  const tr = useT();
-  const caption = label === undefined ? tr.transfer.bankAnswer.label : label;
-  return (
-    <figure className={cx('w-full text-left', className)}>
-      {caption && <figcaption className="mb-1.5 text-[13px] font-semibold text-ink-2">{caption}</figcaption>}
-      <ul className="rounded-[var(--radius-chip)] bg-inset px-4 py-3 text-[14px] leading-relaxed break-words text-ink">
-        {lines.map((l) => <li key={l}>{l}</li>)}
-      </ul>
-      {reference && (
-        <p className="mt-1.5 text-[12.5px] text-ink-3">
-          {rich(tr.transfer.bankAnswer.reference(<span className="tnum">{reference}</span>))}
-        </p>
-      )}
-    </figure>
-  );
-}
-
-/**
- * What "Jetzt nachsehen" found. Found means: do not send it again. Not found
- * is no reason to send it again either — a transfer can take a while to
- * appear — so the answer never invites it.
- */
-function CheckResult({
-  sighting, statements, pending, at, name,
-}: {
-  sighting: ReturnType<typeof findSentTransfer>;
-  /** null: the account has no Umsätze over FinTS to read. */
-  statements: boolean | null;
-  /** null: the account has no Vorgemerkt list to read. */
-  pending: boolean | null;
-  at: number;
-  name: string;
-}) {
-  const tr = useT();
-  const words = tr.transfer.unknown;
-  const checked = fmtTime(tr, new Date(at));
-  if (sighting) {
-    const tx = sighting.tx;
-    return (
-      <Alert tone="success" title={sighting.where === 'booked' ? words.foundBooked : words.foundPending} className="mt-5">
-        {rich(words.found(
-          <Money value={-tx.amount} className="font-semibold text-ink" />,
-          name,
-          sighting.where === 'booked' ? <span className="tnum">{fmtDate(tx.entryDate || tx.valueDate)}</span> : null,
-        ))}
-      </Alert>
-    );
-  }
-  const failed = [
-    statements === false && words.failedBooked,
-    pending === false && words.failedPending,
-  ].filter(Boolean) as string[];
-  // Only what was actually read is named as searched.
-  const searched = statements === true || pending === true;
-  return (
-    <Alert
-      tone="warn"
-      title={searched ? words.notVisible : words.notChecked}
-      className="mt-5"
-    >
-      {failed.map((f) => <span key={f} className="block">{f}</span>)}
-      {searched ? (
-        <span className="block">
-          {rich(words.notYet(words.searched(statements === true, pending === true), <span className="tnum">{checked}</span>))}
-        </span>
-      ) : statements === null && pending === null ? (
-        // Nothing this app could read for the account — trying again would not change that.
-        <span className="block">{words.nothingToRead}</span>
-      ) : (
-        <span className="block">{words.tryAgain}</span>
-      )}
-    </Alert>
-  );
-}
-
-/**
- * What "Jetzt nachsehen" found for an order for later, in the bank's list of
- * its kind. Found: do not place it again. Not found is no reason to place it
- * again either — the answer never invites it.
- */
-function PlacedCheckResult({
-  kind, placed, read, at, name,
-}: {
-  kind: 'standing' | 'dated';
-  placed: ReturnType<typeof findPlacedOrder>;
-  /** Whether the list was read; null: the account has no list to read. */
-  read: boolean | null;
-  at: number;
-  name: string;
-}) {
-  const tr = useT();
-  const words = tr.orders.sheet.unknown;
-  const checked = fmtTime(tr, new Date(at));
-  if (placed) {
-    return (
-      <Alert tone="success" title={words.found} className="mt-5">
-        {rich(words.foundText(
-          <Money value={placed.amount} currency={placed.currency} className="font-semibold text-ink" />,
-          name,
-          placed.schedule ? scheduleSentence(placed.schedule) : tr.orders.list.noSchedule,
-        ))}
-      </Alert>
-    );
-  }
-  return (
-    <Alert tone="warn" title={read ? words.notVisible : words.notChecked} className="mt-5">
-      {read === false && <span className="block">{words.failed}</span>}
-      {read ? (
-        <span className="block">{rich(words.notYet(words.listDative[kind], <span className="tnum">{checked}</span>))}</span>
-      ) : read === null ? (
-        <span className="block">{words.nothingToRead}</span>
-      ) : (
-        <span className="block">{words.tryAgain}</span>
-      )}
-    </Alert>
-  );
-}
-
-/** "Girokonto · DE78 ··· 5932 71 · Verfügbar 2.196,22 €" — one line, as a native option must be. */
-function accountOption(
-  tr: Messages,
-  a: SerializedAccount,
-  label: string,
-  funds: ReturnType<typeof spendable>,
-  money: (v: number, c?: string) => string,
-): string {
-  const parts = [label, shortIbanText(a.iban)];
-  if (funds) parts.push(`${funds.kind === 'available' ? tr.transfer.form.available : tr.common.account.balance} ${money(funds.value, a.currency)}`);
-  return parts.filter(Boolean).join(' · ');
 }
