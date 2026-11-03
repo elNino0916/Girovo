@@ -135,6 +135,16 @@ test('parseRelease with prerelease: a preview keeps its whole version, a draft i
   assert.equal(logic.parseRelease(release({ tag_name: 'preview' }), { prerelease: true }), null);
 });
 
+test('isSwitchBack: a stable release older than the installed preview, nothing else', () => {
+  assert.equal(logic.isSwitchBack('5.16.1', '6.0.0-preview.202611031200.ge9d8b1b'), true);
+  assert.equal(logic.isSwitchBack('5.16.1', '6.0.0-preview.1'), true);
+  assert.equal(logic.isSwitchBack('6.0.0', '6.0.0-preview.1'), false, 'newer: isNewer offers it');
+  assert.equal(logic.isSwitchBack('5.16.0', '5.16.1'), false, 'a stable install is not going back');
+  assert.equal(logic.isSwitchBack('6.0.0-preview.1', '6.0.0-preview.2'), false, 'never a pre-release');
+  assert.equal(logic.isSwitchBack('5.16.1', '6.0.0-preview.1-dev.4'), false, 'never a CI build');
+  assert.equal(logic.isSwitchBack('nonsense', '6.0.0-preview.1'), false);
+});
+
 test('newestRelease with a kind: a nightly without that install\'s file is passed over', () => {
   const apk = (v) => asset(`Girovo-${v}-android.apk`);
   const exe = (v) => asset(`Girovo-${v}-Setup.exe`);

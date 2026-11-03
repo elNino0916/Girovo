@@ -391,10 +391,14 @@ The desktop app updates itself from this repository's
 - **Update-Kanal** — *Einstellungen → Update-Kanal* chooses between "Stabil"
   (the latest release, as above) and "6.0-Vorschau": the app then reads the
   list of releases and offers the highest version above the installed one,
-  GitHub pre-releases included. Back on "Stabil" nothing older than the
-  installed version is offered, only the next stable release above it. The
-  Android app from GitHub has the same setting; the Google Play and F-Droid
-  builds do not. Each copy takes only a release with a file for it: the
+  GitHub pre-releases included. Back on "Stabil" the desktop app checks at
+  once and offers the latest stable release as "Zurück zu Version …", even
+  when it is older than the installed preview (what only the preview keeps,
+  such as the accounts' order, is forgotten). The Android app from GitHub has
+  the same setting, but Android installs no older version over a newer one:
+  there the next stable release above the installed one is offered. The
+  Google Play and F-Droid builds have no such setting. A passing 502, 503 or
+  504 from GitHub is asked once more. Each copy takes only a release with a file for it: the
   nightly previews (below) are the desktop's, and the Android app passes over
   them.
 - **Nightly previews (desktop)** — every night that the `6.0` branch has new

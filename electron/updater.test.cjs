@@ -491,13 +491,60 @@ test('switching the channel asks again: a preview is offered, and dropped on the
   }
 });
 
-test('back on stable from a preview, nothing older is offered', async () => {
+test('back on stable from a preview, the latest stable release is offered as the way back', async () => {
   const srv = await startServer(withPreviews());
   try {
-    const { updater } = makeUpdater(srv.base, { currentVersion: '10.0.0-preview.1' });
-    assert.equal((await updater.check({ manual: true })).phase, 'current', '9.9.9 is older than the preview');
-    const s = await updater.setChannel('preview');
+    const { updater, calls } = makeUpdater(srv.base, {
+      currentVersion: '10.0.0-preview.1',
+      getPref: (k) => (k === PREF_CHANNEL ? 'preview' : null),
+    });
+    let s = await updater.check({ manual: true });
     assert.equal(s.release.version, '10.0.0-preview.2');
+    assert.equal(s.release.back, false);
+    // Back to stable: checked again at once, 9.9.9 offered though it is older.
+    s = await updater.setChannel('stable');
+    assert.equal(s.phase, 'available');
+    assert.equal(s.release.version, '9.9.9');
+    assert.equal(s.release.back, true);
+    s = await updater.download();
+    assert.equal(s.phase, 'ready');
+    await updater.install();
+    assert.equal(calls.spawned.length, 1, 'its installer runs like an update\'s');
+  } finally {
+    await srv.close();
+  }
+});
+
+test('a stable install on stable is never offered an older release', async () => {
+  const srv = await startServer(githubLike());
+  try {
+    const s = await makeUpdater(srv.base, { currentVersion: '10.0.0' }).updater.check({ manual: true });
+    assert.equal(s.phase, 'current');
+  } finally {
+    await srv.close();
+  }
+});
+
+test('GitHub\'s passing 502, 503 or 504 is asked once more; a second one is the answer', async () => {
+  let failures = 2;
+  const flaky = (req, res, base) => {
+    if (req.url === '/latest' && failures > 0) {
+      failures--;
+      res.writeHead(failures === 1 ? 502 : 503).end();
+      return;
+    }
+    githubLike()(req, res, base);
+  };
+  const srv = await startServer(flaky);
+  try {
+    const { updater } = makeUpdater(srv.base, { retryDelayMs: 0 });
+    let s = await updater.check({ manual: true });
+    assert.equal(s.phase, 'idle', 'two in a row: the check fails');
+    assert.match(s.error.message, /HTTP 503/);
+    failures = 1;
+    s = await updater.check({ manual: true });
+    assert.equal(s.phase, 'available', 'one: the second ask brings the release');
+    assert.equal(s.release.version, '9.9.9');
   } finally {
     await srv.close();
   }

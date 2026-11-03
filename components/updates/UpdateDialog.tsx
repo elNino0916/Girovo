@@ -58,7 +58,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   const title = release
     ? state.phase === 'ready' || state.phase === 'installing'
       ? u.ready(release.version)
-      : u.available(release.version)
+      : release.back ? u.backTo(release.version) : u.available(release.version)
     : installed
       ? u.newIn(installed.version)
       : u.title;
@@ -170,6 +170,10 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   return (
     <Dialog open={open} onClose={close} size="md" title={title} description={description} icon={icon} actions={actions}>
       <div className="flex flex-col gap-4">
+        {/* The way back from a preview to the stable release: what stays behind. */}
+        {release?.back && (
+          <Alert tone="info" className="mt-0">{u.backNote}</Alert>
+        )}
         {/* First, above the notes: it is why "Umsätze prüfen" is the filled
             button, so it must be in view in a short window too. A caution,
             not information — the warning's inset with the orange edge, as
