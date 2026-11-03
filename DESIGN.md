@@ -204,7 +204,7 @@ components:
 
 **Creative North Star: "The Private Branch"**
 
-Girovo is a bank branch that opens for one person. Nothing on the walls sells anything, every figure is the bank's own, and the counter is tidy. The look is Material 3 Expressive, drawn by the real `@m3e/web` components (wrapped in `components/ui.tsx`), in Google Sans Flex, on Material You's wallpaper roles on an Android phone and on Girovo's own blue scheme everywhere else (`app/material.css`).
+Girovo is a bank branch that opens for one person. Nothing on the walls sells anything, every figure is the bank's own, and the counter is tidy. The look is Material 3 Expressive, drawn by the real `@m3e/web` components (wrapped in `components/ui/`), in Google Sans Flex, on Material You's wallpaper roles on an Android phone and on Girovo's own blue scheme everywhere else (`app/material.css`).
 
 The phone is the system's reference. Its home has one field at the head that searches every booking, action and setting and, on Android, answers a question about the bookings. Below it, with more than one account, every account at once: the Gesamtsaldo set flat, the kinds as chips, the accounts under their groups with their last booking (issue #19, 6.0). A press opens an account's page: its balance set flat, a row of chips, then the bookings. Three places stand at the foot. The page is flat and list-first; tone, weight and space carry the hierarchy, and the colours that carry a value never follow the wallpaper.
 

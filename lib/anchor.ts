@@ -1,7 +1,7 @@
 // Where a menu or a popover opens, given the control that opened it.
 //
 // Kept apart from the DOM so the arithmetic can be tested on its own: the
-// hook in components/ui.tsx measures the trigger, the layer and the window,
+// hook in components/ui/floating.tsx measures the trigger, the layer and the window,
 // and this decides.
 //
 // Below the trigger by default, flipped above when there is more room there,

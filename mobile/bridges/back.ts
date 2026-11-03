@@ -1,7 +1,7 @@
 // Android's back gesture, mapped onto what the page already does with Escape.
 //
 // Every layer (dialog, sheet, drawer, menu) closes on Escape, topmost first
-// (components/ui.tsx), and so do the search lists (the bank picker), so back
+// (components/ui/overlay.tsx), and so do the search lists (the bank picker), so back
 // sends Escape to whatever has focus first; a component that took it says so
 // with preventDefault(). With nothing to close, the page gets a "girovo:back"
 // event of its own (FintsProvider: from Analyse or Verträge back to the

@@ -1,4 +1,4 @@
-// The frame around every screen: masthead, navigation, command palette, shortcuts, Mitteilungen, toasts, the shared UI primitives (components/shell, components/ui.tsx, CommandPalette, ShortcutsHelp, Inbox, Toasts), and the in-app updates (components/updates).
+// The frame around every screen: masthead, navigation, command palette, shortcuts, Mitteilungen, toasts, the shared UI primitives (components/shell, components/ui, CommandPalette, ShortcutsHelp, Inbox, Toasts), and the in-app updates (components/updates).
 
 import type { ReactNode } from 'react';
 
@@ -186,7 +186,7 @@ export const de = {
     reachAction: (key: string, label: string) => `Mit ${key} zur Schaltfläche „${label}“.`,
   },
 
-  /** The shared primitives (components/ui.tsx). */
+  /** The shared primitives (components/ui). */
   ui: {
     copy: 'Kopieren',
     copyFailed: 'Kopieren nicht möglich',

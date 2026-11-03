@@ -152,7 +152,7 @@
   }
 
   /* ---- M3E's colour tokens, read from Girovo's roles -----------------------
-     The controls are M3E's own web components (@m3e/web, components/ui.tsx),
+     The controls are M3E's own web components (@m3e/web, components/ui/),
      which read Material's standard tokens (--md-sys-color-*). They are
      Girovo's roles under their standard names — one source, so the dark
      theme and Material You's wallpaper roles reach every M3E control with no

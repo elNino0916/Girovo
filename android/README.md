@@ -51,7 +51,7 @@ styles, and the specs of the flexible navigation bar, buttons and their press
 shapes, connected button groups, filter chips, outlined text fields, the
 switch, menus, dialogs, bottom sheets, the snackbar, the loading indicator
 and the wavy progress indicator. They are applied by `app/android.css` to
-Girovo's own components, which the desktop shares — `components/ui.tsx` gives
+Girovo's own components, which the desktop shares — `components/ui/` gives
 the stylesheet its hooks (`data-size`, `data-segmented`, `data-field`, …).
 
 The colours are the phone's: on Android 14 and later the roles it publishes

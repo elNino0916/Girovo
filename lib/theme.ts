@@ -67,7 +67,7 @@ function tellShell(theme: Theme): void {
 }
 
 /**
- * Called by the Overlay (components/ui.tsx) whenever a modal layer opens or
+ * Called by the Overlay (components/ui/layers.ts) whenever a modal layer opens or
  * closes: how many scrims now lie over the top-right corner, where the desktop
  * shell's caption buttons sit. A no-op outside the shell.
  */

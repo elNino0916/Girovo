@@ -222,7 +222,7 @@ function useScrollbarWidth(root: RefObject<HTMLElement | null>, scroller: RefObj
     if (!target || !el || typeof ResizeObserver === 'undefined') return;
     // What the page column cannot use at the scroller's right edge: the
     // scrollbar, or — while an overlay locks the page — the padding that
-    // stands in for it (lockPageScroll in ui.tsx), so the header holds still
+    // stands in for it (lockPageScroll in ui/layers.ts), so the header holds still
     // when a dialog opens. A scrollbar coming or going changes the scroller's
     // content box, which is what the (default content-box) observer reports;
     // the lock swapping one for the other leaves it, and the value, as is.
@@ -230,7 +230,7 @@ function useScrollbarWidth(root: RefObject<HTMLElement | null>, scroller: RefObj
       const pad = parseFloat(getComputedStyle(el).paddingRight) || 0;
       target.style.setProperty('--sbw', `${Math.max(0, el.offsetWidth - el.clientWidth + pad)}px`);
     };
-    // In the next frame, as in useScrollEdges (ui.tsx): written inside the
+    // In the next frame, as in useScrollEdges (ui/overlay.tsx): written inside the
     // observer's callback, --sbw would move the layout within the same
     // delivery — a "ResizeObserver loop" on every zoom step.
     let frame = 0;

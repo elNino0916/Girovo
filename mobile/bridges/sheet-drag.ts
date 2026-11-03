@@ -5,7 +5,7 @@
 // The pull starts only on the sheet's top edge — the handle and the title
 // row above the content — so it never fights the sheet's own scrolling. A
 // pull far or fast enough closes the sheet the way back and Escape do (the
-// topmost layer's own close, components/ui.tsx); a shorter one springs back.
+// topmost layer's own close, components/ui/overlay.tsx); a shorter one springs back.
 
 const EDGE_PX = 56;
 const CLOSE_PX = 120;
