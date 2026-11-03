@@ -865,10 +865,12 @@ vergessen"** to wipe the saved profile, and profiles auto-expire after 60 days.
   server drops sessions after 30 minutes of inactivity regardless. With more
   than one bank, the keepalive covers every session, and logging out (by hand
   or idle) ends all of them.
-- Accounts are told apart by their account number. A further bank that lists
-  an account under a number already shown (another account than the one
-  shown) is not added — the login says so. The same account seen by two
-  logins (same number and IBAN) is shown once.
+- Accounts are told apart by their account number. Since 6.0 a further bank
+  that lists another account under a number already shown adds it anyway,
+  told apart by its bank. Only the same number without an IBAN at the same
+  bank (a card two logins see) still keeps that login out: it may be the same
+  card. The same account seen by two logins (same number and IBAN) is shown
+  once.
 - Analysis, Verträge & Abos and the Kontoverlauf only know the period you have
   loaded (the bank's default is ~90 days). "Mehr Verlauf laden (12 Monate)" asks
   the bank for more — that can require a TAN, and some banks keep less. With

@@ -12,10 +12,26 @@
 // The page and the route handlers pass keys; every request to the bank
 // turns its key back into the UPD's own entry (bankAccountOf), so lib-fints
 // is told the very account and never has to guess from a number.
+//
+// One more qualifier, the page's alone (6.0): a further bank's account that
+// shares its number with an account already shown — at another bank, or
+// under another IBAN — is keyed by its number and its bank's BLZ after an
+// "@" (qualifiedKey). Every other key stays as it was; a session only ever
+// gets its own bank's keys, and drops the "@" part before it asks its UPD.
 
 import type { BankAccount, FinTSConfig } from 'lib-fints';
 
 const SUB = ':';
+const BANK = '@';
+
+/** A further bank's key for an account whose number is shown already: the key and the bank's BLZ. */
+export const qualifiedKey = (key: string, blz: string): string => `${key}${BANK}${blz}`;
+
+/** The key as its own session's UPD knows it: without the bank qualifier. */
+export function localKey(key: string): string {
+  const at = key.lastIndexOf(BANK);
+  return at < 0 ? key : key.slice(0, at);
+}
 
 type Numbered = Pick<BankAccount, 'accountNumber' | 'subAccountId'>;
 
@@ -27,14 +43,16 @@ export function accountKeyOf(account: Numbered, all: readonly Numbered[]): strin
 
 /** The bank's own account number in a key — what a screen or a statement shows. */
 export function bankNumberOf(key: string): string {
-  const at = key.indexOf(SUB);
-  return at < 0 ? key : key.slice(0, at);
+  const local = localKey(key);
+  const at = local.indexOf(SUB);
+  return at < 0 ? local : local.slice(0, at);
 }
 
 /** The UPD's account behind a key, or undefined where the UPD has none by that key. */
 export function findBankAccount(config: FinTSConfig, key: string): BankAccount | undefined {
   const accounts = config.bankingInformation?.upd?.bankAccounts ?? [];
-  return accounts.find((a) => accountKeyOf(a, accounts) === key);
+  const local = localKey(key);
+  return accounts.find((a) => accountKeyOf(a, accounts) === local);
 }
 
 /**
@@ -43,5 +61,5 @@ export function findBankAccount(config: FinTSConfig, key: string): BankAccount |
  * library says what it always said: not found, or not unique.
  */
 export function bankAccountOf(config: FinTSConfig, key: string): BankAccount {
-  return findBankAccount(config, key) ?? config.getBankAccount(key);
+  return findBankAccount(config, key) ?? config.getBankAccount(localKey(key));
 }

@@ -927,13 +927,14 @@ const VIEWS: Record<string, ViewDef> = {
     },
   },
   'banks-collision': {
-    label: 'Weitere Bank: Kontonummer doppelt',
+    label: 'Weitere Bank: Kontonummer doppelt, nach Bank getrennt',
     group: 'Banken',
-    // "doppelt" in the login name: the bank lists an account under the Girokonto's number.
+    // "doppelt" in the login name: the bank lists another account under the
+    // Girokonto's number — since 6.0 it joins as "number@BLZ" (lib/linked-banks.ts joinQualified).
     options: { tanMs: 600 },
     async script(c) {
       await addSecondBank('doppelt')(c);
-      await c.until((f) => !!f.addBank?.error, 8000);
+      await c.until((f) => f.links.length === 1 && !f.addBank, 8000);
     },
   },
   'banks-session': { label: 'Sitzungsmenü mit zwei Banken', group: 'Banken', options: { secondBank: 'linked' }, script: openSession },

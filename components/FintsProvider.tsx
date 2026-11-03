@@ -69,7 +69,7 @@ import { liveValue, overviewFigures, sanitizeAccountOrder, type AccountGrouping 
 import { keepBalances as foldKeptBalances, recordNetWorth, type KeptBalance, type NetWorthDay } from '@/lib/kept-balances';
 import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
 import {
-  LINKED_BANK_LIMITS, forgetLinkedBank, joinAccounts, rememberLinkedBank, routeFor, sameLogin, sanitizeLinkedBanks,
+  LINKED_BANK_LIMITS, forgetLinkedBank, joinQualified, rememberLinkedBank, routeFor, sameLogin, sanitizeLinkedBanks,
   type LinkedBankRef,
 } from '@/lib/linked-banks';
 import {
@@ -3745,7 +3745,9 @@ function useFintsState() {
     const login = { blz: chosen.blz, userId: flow.login };
     const again = linksRef.current.find((l) => !l.sessionId && sameLogin({ blz: l.bank.blz, userId: l.userId }, login)) ?? null;
     const shown = again ? accountsRef.current.filter((a) => !again.accountNumbers.includes(a.accountNumber)) : accountsRef.current;
-    const joined = joinAccounts(shown, list);
+    // An account that only shares its number with one shown joins under its bank's key (lib/linked-banks.ts joinQualified).
+    const blzOf = (a: SerializedAccount) => linksRef.current.find((l) => l.accountNumbers.includes(a.accountNumber))?.bank.blz ?? bankRef.current?.blz;
+    const joined = joinQualified(shown, list, chosen.blz, blzOf);
     let refusal: KeptText | null = null;
     if (joined.collisions.length) {
       const named = joined.collisions.map(({ incoming }) => incoming);

@@ -127,8 +127,11 @@ for the last two). The GitHub APK and the desktop app keep everything free.
 
 - Features depend on the bank and the account (BPD/UPD). The app offers only
   what the user's bank supports and shows its behaviour as delivered.
-- Accounts are identified by account number; a further bank listing a number
-  already shown is refused, and the same IBAN seen by two logins shows once.
+- Accounts are identified by account number; since 6.0 a further bank's
+  account under a number already shown joins told apart by its bank's BLZ
+  (`number@BLZ`, only where numbers clash). The same number without an IBAN at
+  the same bank is still refused, and the same IBAN seen by two logins shows
+  once.
 - Outside requests besides the bank are disclosed and can be switched off:
   company logos via Brandfetch (cleaned company names only, off until the user
   agrees) and the update check (GitHub). Desktop error reports always go to
@@ -220,8 +223,8 @@ first-class.
 - **Curated lists** in `lib/brands.ts`: the banks named as offering no FinTS,
   and the approval-app name per brand, need the owner's confirmation.
 - **Several banks.** Should "Bank entfernen" also forget the device? Should a
-  total over only the logged-in banks be shown, named as such? Are composite
-  account keys wanted instead of refusing a duplicate number?
+  total over only the logged-in banks be shown, named as such? (A duplicate
+  number at another bank joins under `number@BLZ` since 6.0, owner 2026-11-03.)
 - **Daueraufträge and Terminüberweisungen** from the bank close Verträge &
   Abos today. Keep them there, or give them a place of their own?
 - **Paper.** Should the Buchungsbeleg show the balance again? Keep the bank's

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FinTSConfig, type BankAccount } from 'lib-fints';
-import { accountKeyOf, bankAccountOf, bankNumberOf, findBankAccount } from './account-key.ts';
+import { accountKeyOf, bankAccountOf, bankNumberOf, findBankAccount, localKey, qualifiedKey } from './account-key.ts';
 import { matchAccount } from './bank-import.ts';
 import { fetchStatements, statementFormat } from './fints-statements.ts';
 import type { FinTSClientEx } from './fints-types';
@@ -71,6 +71,17 @@ test('the Girokonto\'s Umsätze are read from the Girokonto, never from the Depo
   } as unknown as FinTSClientEx;
   await fetchStatements(client, '1234567:Girokonto');
   assert.equal(asked?.account, GIRO);
+});
+
+test('a further bank\'s qualified key: shown by its number, its own session finds the account without the "@"', () => {
+  const key = qualifiedKey('7654321', '50010517');
+  assert.equal(key, '7654321@50010517');
+  assert.equal(localKey(key), '7654321');
+  assert.equal(bankNumberOf(key), '7654321');
+  assert.equal(bankNumberOf(qualifiedKey('1234567:Depot', '50010517')), '1234567');
+  const c = config();
+  assert.equal(findBankAccount(c, key), TAGESGELD);
+  assert.equal(bankAccountOf(c, qualifiedKey('1234567:Depot', '50010517')), DEPOT);
 });
 
 test('what a screen, a statement or an import shows of a key is the bank\'s number', () => {

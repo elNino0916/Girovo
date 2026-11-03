@@ -67,7 +67,7 @@ import type { LogoConsent } from '@/components/FintsProvider';
 import type { AccountGrouping } from '@/lib/account-overview';
 import { sanitizeAccountOrder } from '@/lib/account-overview';
 import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
-import { forgetLinkedBank, joinAccounts, rememberLinkedBank, sameLogin } from '@/lib/linked-banks';
+import { forgetLinkedBank, joinQualified, rememberLinkedBank, sameLogin } from '@/lib/linked-banks';
 import { MESSAGES, msgs } from '@/lib/i18n';
 import { BANK_UNAVAILABLE, bankAnswerLines } from '@/lib/bank-answer';
 import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
@@ -2044,7 +2044,9 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     const shown = again
       ? accountsRef.current.filter((a) => !again.accountNumbers.includes(a.accountNumber))
       : accountsRef.current;
-    const joined = joinAccounts(shown, incoming);
+    // As the provider: an account that only shares its number with one shown joins under its bank's key.
+    const blzOf = (a: SerializedAccount) => linksRef.current.find((l) => l.accountNumbers.includes(a.accountNumber))?.bank.blz ?? bankRef.current?.blz;
+    const joined = joinQualified(shown, incoming, login.bank.blz, blzOf);
     let refusal: string | null = null;
     if (joined.collisions.length) {
       refusal = said.refused.collision(

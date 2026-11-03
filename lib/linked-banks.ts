@@ -18,6 +18,7 @@
 // Pure and dependency-free apart from sibling lib modules, so the
 // `node --test` suite can run it under Node's own type stripping.
 
+import { qualifiedKey } from './account-key.ts';
 import { totalBalance, type TotalBalance } from './balances.ts';
 import type { SerializedAccount, SerializedBalance } from './fints-types';
 
@@ -118,7 +119,11 @@ export type Joined<A> = {
    * bank). It stays with the login that showed it first.
    */
   shared: A[];
-  /** The same number as an account on screen, but not that account. Any one refuses the whole login. */
+  /**
+   * The same number as an account on screen, but not that account — and
+   * nothing to tell them apart by (joinQualified). Any one refuses the whole
+   * login.
+   */
   collisions: Array<{ incoming: A; shown: A }>;
 };
 
@@ -136,6 +141,29 @@ export function joinAccounts<A extends Identified>(shown: readonly A[], incoming
     else joined.collisions.push({ incoming: a, shown: there });
   }
   return joined;
+}
+
+/**
+ * A further login's accounts against the ones on screen, as joinAccounts —
+ * but an account that only shares its number with one on screen joins
+ * under its bank's qualified key ("number@BLZ", lib/account-key.ts), where
+ * the two can be told apart: both have an IBAN (and they differ), or the
+ * two are at different banks (`blzOf` the shown account's bank). The same
+ * number without an IBAN at the same bank (a card two logins see) stays a
+ * collision: it may well be the one card, and counted twice it would make
+ * the Gesamtsaldo wrong.
+ */
+export function joinQualified<A extends Identified>(
+  shown: readonly A[],
+  incoming: readonly A[],
+  blz: string,
+  blzOf: (a: A) => string | null | undefined,
+): Joined<A> {
+  const first = joinAccounts(shown, incoming);
+  const apart = first.collisions.filter(({ incoming: a, shown: s }) => (ibanKey(a.iban) && ibanKey(s.iban)) || blzOf(s) !== blz);
+  if (!apart.length) return first;
+  const move = new Set(apart.map((c) => c.incoming));
+  return joinAccounts(shown, incoming.map((a) => (move.has(a) ? { ...a, accountNumber: qualifiedKey(a.accountNumber, blz) } : a)));
 }
 
 // ---------------------------------------------------------------------------

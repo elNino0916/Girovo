@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  LINKED_BANK_LIMITS, combinedTotal, forgetLinkedBank, groupByLogin, joinAccounts, rememberLinkedBank, routeFor,
+  LINKED_BANK_LIMITS, combinedTotal, forgetLinkedBank, groupByLogin, joinAccounts, joinQualified, rememberLinkedBank, routeFor,
   sameLogin, sanitizeLinkedBanks,
 } from './linked-banks.ts';
 import type { SerializedAccount, SerializedBalance } from './fints-types';
@@ -72,6 +72,21 @@ test('the same number under another IBAN — or without one to compare — is a 
     ['4930XXXXXXXX1234', null],
   ]);
   assert.deepEqual(j.added.map((a) => a.accountNumber), ['5']);
+});
+
+test('joinQualified: another IBAN, or another bank, joins under "number@BLZ"; one card two logins at one bank see stays a collision', () => {
+  const shown = [account('1', { iban: 'DE02120300000000202051' }), account('4930XXXXXXXX1234'), account('9')];
+  const blzOf = (a: { accountNumber: string }) => (a.accountNumber === '9' ? '50010517' : '12030000');
+  // Another bank: the IBAN differs, the card is another bank's card.
+  const other = joinQualified(shown, [account('1', { iban: 'DE89370400440532013000' }), account('4930XXXXXXXX1234'), account('5')], '37040044', blzOf);
+  assert.deepEqual(other.added.map((a) => a.accountNumber), ['1@37040044', '4930XXXXXXXX1234@37040044', '5']);
+  assert.deepEqual(other.collisions, []);
+  // The same bank, a second login: the card without an IBAN may be the same card.
+  const same = joinQualified(shown, [account('4930XXXXXXXX1234'), account('6')], '12030000', blzOf);
+  assert.deepEqual(same.collisions.map((c) => c.incoming.accountNumber), ['4930XXXXXXXX1234']);
+  // The same number and IBAN is still the one account, shown once.
+  const shared = joinQualified(shown, [account('1', { iban: 'DE02120300000000202051' })], '37040044', blzOf);
+  assert.deepEqual(shared.shared.map((a) => a.accountNumber), ['1']);
 });
 
 test('a number the bank lists twice is taken once', () => {
