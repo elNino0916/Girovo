@@ -55,6 +55,9 @@ export const fmtDate = (d: Date | string | null | undefined) =>
 export const fmtIban = (iban: string | null | undefined) =>
   iban ? String(iban).replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim() : '';
 
+/** An IBAN as it is compared and checked: no spaces, upper case. */
+export const compactIban = (iban: string | null | undefined) => String(iban ?? '').replace(/\s+/g, '').toUpperCase();
+
 /**
  * Splits a formatted amount so euros can be set large and cents small.
  *
@@ -370,7 +373,7 @@ export function isoDate(d: Date): string {
 
 /** Mirrors the server's ISO 13616 mod-97 check so the form can validate live. */
 export function ibanValid(input: string): boolean {
-  const iban = String(input || '').replace(/\s+/g, '').toUpperCase();
+  const iban = compactIban(input);
   if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban)) return false;
   if (iban.startsWith('DE') && iban.length !== 22) return false;
   const re = iban.slice(4) + iban.slice(0, 4);

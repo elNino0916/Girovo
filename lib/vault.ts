@@ -38,6 +38,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
+import { isRecord } from './guards.ts';
 import { sanitizeKeptBalances, sanitizeNetWorth } from './kept-balances.ts';
 import type { TransferTemplate, VaultData, VaultGetResponse, VaultPutResponse } from './app-types.ts';
 import type { CategoryId } from './categories.ts';
@@ -114,9 +115,6 @@ export class VaultError extends Error {
 // one-line label, and a stray one breaks a SEPA field or a CSV cell later on.
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
 const HAS_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** A one-line string, clipped to `max` characters ('' for anything else). */
 function text(v: unknown, max: number): string {

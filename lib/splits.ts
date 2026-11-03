@@ -23,6 +23,7 @@
 
 import type { CategoryId, CategoryPart, CustomCategory, CustomCategoryId } from './categories';
 import { CUSTOM_ID, isBuiltinCategoryId } from './categories.ts';
+import { isRecord } from './guards.ts';
 
 export const CUSTOM_LIMITS = {
   /** Own categories per login. */
@@ -48,8 +49,6 @@ export type SplitPart = { id: CategoryId; cents: number };
 // C0/C1 controls and the line/paragraph separators, as lib/vault.ts.
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
 const HAS_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
-
-const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** A category name as it may be kept: one line, trimmed, at most CUSTOM_LIMITS.name characters. '' for nothing. */
 export function cleanCategoryName(v: unknown): string {

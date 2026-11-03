@@ -37,6 +37,7 @@ import type { DateRange, StatementInfo } from './app-types';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
 import { buildBalanceHistory, fail, type BalanceHistory, type BalancePoint } from './balance-history.ts';
 import { addDaysKey, dayFromNumber, dayKey, dayNumber } from './format.ts';
+import { isRecord } from './guards.ts';
 
 // ---------------------------------------------------------------------------
 // Shapes
@@ -522,9 +523,6 @@ export function historyCoverage(data: HistoryData | null | undefined): Record<st
 // ---------------------------------------------------------------------------
 // Sanitisation, and the compact form on disk and on the wire
 // ---------------------------------------------------------------------------
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  !!v && typeof v === 'object' && !Array.isArray(v);
 
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 

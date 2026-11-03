@@ -37,6 +37,7 @@ import type { Session } from './session';
 import { boxSalt, deriveKey, newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
 import { exportDocs, restoreDocs } from './doc-store.ts';
 import { sanitizeDoc } from './docs.ts';
+import { isRecord } from './guards.ts';
 import { HistoryError, fillKeptGaps, loadHistory } from './history-store.ts';
 import { compactHistory, sanitizeHistory } from './history.ts';
 import { msgs } from './i18n/index.ts';
@@ -246,8 +247,6 @@ export async function makeBackup(sessions: readonly Session[], password: string,
 // ---------------------------------------------------------------------------
 // Reading one
 // ---------------------------------------------------------------------------
-
-const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** A backup file's contents, opened with `password` and checked part by part as if it came from anywhere. */
 export async function readBackup(text: string, password: string): Promise<BackupContents> {

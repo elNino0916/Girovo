@@ -25,6 +25,7 @@
 // vault and `node --test`.
 
 import { ibanValid } from './format.ts';
+import { isRecord } from './guards.ts';
 
 export type SentOrder = {
   /** When it was sent (ISO). */
@@ -52,8 +53,6 @@ const FUTURE_SLACK_MS = 24 * 60 * 60 * 1000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const OUTCOMES = new Set(['executed', 'unknown']);
-
-const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** One entry as this version understands it, or null. */
 function entry(v: unknown): SentOrder | null {

@@ -15,7 +15,7 @@
 import type { RecurringSeries } from './recurring';
 import type { SerializedBankOrder, SerializedTransaction } from './fints-types';
 import { bookingDay } from './analytics.ts';
-import { addDaysKey, dayKey } from './format.ts';
+import { addDaysKey, compactIban, dayKey } from './format.ts';
 import { nextExecution } from './order-schedule.ts';
 
 export type ForecastEvent = {
@@ -79,17 +79,15 @@ export function seriesDates(s: Pick<RecurringSeries, 'nextDate' | 'cadence' | 'e
   return out;
 }
 
-const normIban = (s: string | null | undefined) => String(s ?? '').replace(/\s+/g, '').toUpperCase();
-
 /**
  * Whether a detected series is the bank's own order: the same IBAN and,
  * within a cent per euro, the same amount. Then the order speaks for it — its
  * days are the bank's, the series' only a guess.
  */
 function sameAsOrder(s: RecurringSeries, orders: readonly SerializedBankOrder[]): boolean {
-  const iban = normIban(s.iban);
+  const iban = compactIban(s.iban);
   if (!iban || s.amount >= 0) return false;
-  return orders.some((o) => normIban(o.iban) === iban && Math.abs(Math.abs(s.amount) - o.amount) <= Math.max(0.01, o.amount * 0.01));
+  return orders.some((o) => compactIban(o.iban) === iban && Math.abs(Math.abs(s.amount) - o.amount) <= Math.max(0.01, o.amount * 0.01));
 }
 
 /**

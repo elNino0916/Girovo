@@ -21,6 +21,7 @@
 import { qualifiedKey } from './account-key.ts';
 import { totalBalance, type TotalBalance } from './balances.ts';
 import type { SerializedAccount, SerializedBalance } from './fints-types';
+import { isRecord } from './guards.ts';
 
 /**
  * What the primary login's vault remembers about a linked bank, so the next
@@ -38,9 +39,6 @@ export const LINKED_BANK_LIMITS = {
 };
 
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** Whether two logins are the same one: the same bank and the same login name. */
 export const sameLogin = (a: { blz: string; userId: string }, b: { blz: string; userId: string }): boolean =>

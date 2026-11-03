@@ -27,6 +27,7 @@ import type { SerializedTransaction } from './fints-types';
 import type { CategoryId, CategoryResult } from './categories';
 import { categoryDef, counterpartyKey, counterpartyName, isCategoryId, txCreditorId, txKey } from './categories.ts';
 import { isCardPurpose, stripCardBoilerplate } from './card-purpose.ts';
+import { compactIban } from './format.ts';
 import { isFacilitatorName } from './merchant-match.ts';
 import { parsePurpose } from './sepa-purpose.ts';
 import { splitParts, type SplitPart } from './splits.ts';
@@ -82,17 +83,15 @@ export function foldText(input: string | null | undefined): string {
     .trim();
 }
 
-const normIban = (s: string | null | undefined) => String(s ?? '').replace(/\s+/g, '').toUpperCase();
-
 /** Whether the counterparty IBAN is one of the user's own accounts. */
 export function isOwnAccount(
   remoteIban: string | null | undefined,
   ownIbans: ReadonlySet<string> | readonly string[] | null | undefined,
 ): boolean {
-  const iban = normIban(remoteIban);
+  const iban = compactIban(remoteIban);
   if (!iban || !ownIbans) return false;
   if (ownIbans instanceof Set && ownIbans.has(iban)) return true;
-  for (const own of ownIbans) if (normIban(own) === iban) return true;
+  for (const own of ownIbans) if (compactIban(own) === iban) return true;
   return false;
 }
 
