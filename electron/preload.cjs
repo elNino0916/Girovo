@@ -122,6 +122,13 @@ contextBridge.exposeInMainWorld('electronSync', {
 // keeps the PINs.
 contextBridge.exposeInMainWorld('electronBackground', {
   set: (on) => ipcRenderer.invoke('background:set', on === true),
+  // The window closed into the notification area: the page ends its bank session.
+  onHidden: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('window:hidden-to-tray', listener);
+    return () => ipcRenderer.removeListener('window:hidden-to-tray', listener);
+  },
 });
 
 // Windows Hello in place of typing the first login's PIN (lib/windows-hello.ts):

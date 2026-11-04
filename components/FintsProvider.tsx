@@ -4112,6 +4112,17 @@ function useFintsState() {
     return () => window.removeEventListener(PIN_REFUSED_EVENT, onRefused);
   }, [setLinksBoth, forgetLinkedPin, forgetBackgroundLogin, openAddBank, setWindowsHelloBoth, toast]);
 
+  // The desktop with "Neue Umsätze melden" on: closing the window leaves the
+  // app in the notification area (electron/main.cjs). The bank session ends
+  // as it did when closing quit the app, so the window opened again from
+  // there shows the login. The login screen names any transfer left unclear.
+  useEffect(() => {
+    const off = window.electronBackground?.onHidden?.(() => {
+      if (sessionRef.current) void logout();
+    });
+    return off;
+  }, [logout]);
+
   // Activity tracking and the idle check — only while a dashboard is open.
   useEffect(() => {
     if (view !== 'dashboard') return;

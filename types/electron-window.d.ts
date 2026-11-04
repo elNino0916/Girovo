@@ -162,6 +162,8 @@ declare global {
     };
     electronBackground?: {
       set: (on: boolean) => Promise<boolean>;
+      /** The window closed into the notification area (main.cjs): the page logs out. */
+      onHidden?: (callback: () => void) => () => void;
     };
     electronHello?: {
       available: () => Promise<boolean>;

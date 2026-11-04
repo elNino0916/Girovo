@@ -780,6 +780,10 @@ function createWindow(appUrl) {
     if (quitting || !background?.enabled()) return;
     event.preventDefault();
     win.hide();
+    // Closing still ends the bank session, as it did when closing quit the
+    // app: whoever opens the window from the notification area meets the
+    // login, not the accounts. The checks run on their own kept PINs.
+    if (!win.webContents.isDestroyed()) win.webContents.send('window:hidden-to-tray');
     void ensureTray();
     tellStillRunning();
   });
