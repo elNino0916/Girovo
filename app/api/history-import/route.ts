@@ -9,6 +9,7 @@
 // FinTS is never replaced by a file. Nothing of a file is ever logged.
 
 import { boundedBody, fail, json, sessionExpired, wrap } from '@/lib/api';
+import { localKey } from '@/lib/account-key';
 import { IMPORT_MAX_BYTES, importHistory, importSpan, matchAccount } from '@/lib/bank-import';
 import { parseBankExport } from '@/lib/bank-import-fints';
 import { isoDate } from '@/lib/format';
@@ -49,12 +50,13 @@ export const POST = wrap(async (req: Request) => {
         skipped: parsed.skipped,
         from: span?.from ?? null,
         to: span?.to ?? null,
-        account: matchAccount(parsed.account, accounts),
+        account: matchAccount(parsed.account, accounts, s.meta?.blz),
         // The file names an account this login does not have: said, so the user does not pick a wrong one blindly.
-        foreign: !!parsed.account && !matchAccount(parsed.account, accounts),
+        foreign: !!parsed.account && !matchAccount(parsed.account, accounts, s.meta?.blz),
       });
     case 'import': {
-      const account = accounts.find((a) => a.accountNumber === b.accountNumber)?.accountNumber;
+      // The view names a further bank's account "123@BLZ"; this login knows it as "123".
+      const account = accounts.find((a) => a.accountNumber === localKey(String(b.accountNumber ?? '')))?.accountNumber;
       if (!account) return fail(words.noAccount, 400);
       const built = importHistory(parsed, account, today);
       if (!built) return fail(words.nothing, 400);

@@ -11,13 +11,15 @@ import { CamtParser } from './fints-internals.js';
 import { normalizeMt94x } from './noted';
 import { serializeTransactions, statementBlocks } from './serialize';
 
-/** The account a statement names: a camt IBAN, or MT940's ":25:" (BLZ/Kontonummer) as its account number. */
+/**
+ * The account a statement names: a camt IBAN, or MT940's ":25:" as written
+ * (BLZ/Kontonummer) — the BLZ tells one bank's account 123 from another's
+ * (lib/bank-import.ts matchAccount).
+ */
 function accountOf(statements: readonly Statement[]): string | null {
   for (const st of statements) {
     const raw = String((st as { account?: unknown }).account ?? '').replace(/\s+/g, '').toUpperCase();
-    if (!raw) continue;
-    const slash = raw.lastIndexOf('/');
-    return slash >= 0 ? raw.slice(slash + 1).replace(/^0+/, '') : raw;
+    if (raw) return raw;
   }
   return null;
 }

@@ -357,11 +357,24 @@ export function importHistory(parsed: ParsedImport, accountNumber: string, today
  * Which of the view's accounts a file is for: the one whose IBAN or account
  * number it names. Null when it names none of them — the user picks then.
  */
-export function matchAccount(named: string | null, accounts: readonly { accountNumber: string; iban?: string | null }[]): string | null {
+export function matchAccount(
+  named: string | null,
+  accounts: readonly { accountNumber: string; iban?: string | null }[],
+  blz?: string | null,
+): string | null {
   const v = String(named ?? '').replace(/\s+/g, '').toUpperCase();
   if (!v) return null;
   const byIban = accounts.find((a) => String(a.iban ?? '').replace(/\s+/g, '').toUpperCase() === v);
   if (byIban) return byIban.accountNumber;
+  // Matched by number only: a file that names another bank (the BLZ of its
+  // German IBAN, or of MT940's "BLZ/Kontonummer") is not this login's account
+  // of the same number. This login's BLZ, and those inside its accounts'
+  // IBANs (a merged bank's older ones), count as its own.
+  const namedBlz = /^DE\d{2}(\d{8})\d{10}$/.exec(v)?.[1] ?? /^(\d{8})\/\d+$/.exec(v)?.[1] ?? null;
+  if (blz && namedBlz) {
+    const own = new Set([blz, ...accounts.map((a) => /^DE\d{2}(\d{8})/.exec(String(a.iban ?? '').replace(/\s+/g, '').toUpperCase())?.[1] ?? '')]);
+    if (!own.has(namedBlz)) return null;
+  }
   const byNumber = accounts.filter((a) => {
     const number = bankNumberOf(a.accountNumber);
     return number === v || v.endsWith(number.padStart(10, '0'));

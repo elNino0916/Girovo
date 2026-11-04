@@ -103,3 +103,16 @@ test('an import naming a BLZ finds that bank\'s account, not another of the same
   assert.equal(matchAccount('12030000/0000000123', accounts), '123');
   assert.equal(matchAccount('0000000123', accounts), '123');
 });
+
+test('a login refuses a file naming another bank\'s account of the same number', () => {
+  const mine = [{ accountNumber: '123', iban: 'DE02500105170000000999' }];
+  // MT940's "BLZ/Kontonummer" of another bank: not this login's 123.
+  assert.equal(matchAccount('12030000/0000000123', mine, '10010010'), null);
+  // Its own BLZ, or one inside its accounts' IBANs (a merged bank's older one): its own.
+  assert.equal(matchAccount('10010010/0000000123', mine, '10010010'), '123');
+  assert.equal(matchAccount('50010517/0000000123', mine, '10010010'), '123');
+  // A German IBAN of another bank that ends in the same number.
+  assert.equal(matchAccount('DE89120300000000000123', mine, '10010010'), null);
+  // Without a BLZ to compare (a bare number): matched by number as before.
+  assert.equal(matchAccount('0000000123', mine, '10010010'), '123');
+});

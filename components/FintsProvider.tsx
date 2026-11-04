@@ -70,6 +70,7 @@ import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { asksForBrand } from '@/lib/nano-names';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
 import { hasOverview, keepAbsentPlaces, liveValue, overviewFigures, sanitizeAccountOrder, type AccountGrouping } from '@/lib/account-overview';
+import { localKey } from '@/lib/account-key';
 import { keepBalances as foldKeptBalances, recordNetWorth, type KeptBalance, type NetWorthDay } from '@/lib/kept-balances';
 import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
 import {
@@ -5282,17 +5283,26 @@ function useFintsState() {
     const sid = sessionRef.current;
     if (!sid) return { ok: false, error: msgs().provider.server.sessionExpired };
     let first: ImportInfo | null = null;
-    for (const id of [sid, ...linkedSessionIds()]) {
+    // Each login in turn; a further bank answers with its own key ("123"),
+    // which the view knows as that bank's ("123@BLZ").
+    const logins = [
+      { id: sid, keys: null as readonly string[] | null },
+      ...linksRef.current.filter((l) => !!l.sessionId).map((l) => ({ id: l.sessionId!, keys: l.accountNumbers })),
+    ];
+    for (const { id, keys } of logins) {
       try {
         const info = await post<ImportInfo>('/api/history-import', { sessionId: id, op: 'inspect', text });
-        if (info.account) return { ok: true, info };
+        if (info.account) {
+          const own = keys?.find((k) => localKey(k) === info.account) ?? info.account;
+          return { ok: true, info: { ...info, account: own } };
+        }
         first ??= info;
       } catch (e) {
         if (id === sid) return { ok: false, error: (e as Error).message || msgs().provider.server.unreachable };
       }
     }
     return first ? { ok: true, info: first } : { ok: false, error: msgs().history.import.server.notReadable };
-  }, [linkedSessionIds]);
+  }, []);
 
   /**
    * Fills the kept Umsätze of `accountNumber` from an export file, through
