@@ -1,0 +1,6 @@
+{
+  "source": "rendered, not generated",
+  "html": ".impeccable/mocks/decision/desktop-shell/c-details.html",
+  "renderer": "Microsoft Edge headless, 1440x900 CSS px at 1x",
+  "prompt": "No image model. Hand-authored HTML/CSS mock of the Girovo desktop on Windows in Google's desktop M3E: tinted canvas, white sheets, expanded navigation rail with Überweisen. Details beside the list like Google Drive: accounts as sidebar destinations, the open account as a sortable table, the selected booking's details with tabs in a second sheet. Design-preview data, made-up bank details."
+}

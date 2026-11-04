@@ -232,6 +232,12 @@ export type VaultData = {
   accountOrder?: string[];
   accountGrouping?: AccountGrouping;
   /**
+   * Konten als Ebenen (the desktop's sidebar): the accounts unticked there,
+   * by accountNumber — their Umsätze and balance stay out of the Übersicht.
+   * This device's view only: never synced. Absent while every one is ticked.
+   */
+  accountsHidden?: string[];
+  /**
    * The last balance each account was read at, and the overview's figures
    * once a day (lib/kept-balances.ts) — so the overview has every figure at
    * once, dated. Kept unless the user said no: `keepBalances: false`, which

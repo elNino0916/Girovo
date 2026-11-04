@@ -16,10 +16,12 @@ import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { AlertTriangleIcon, BackIcon, ChevronIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
 import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx } from '../ui';
+import { useDesktopFrame } from '../shell/frame';
 import { PrivacyToggle } from '../shell/PrivacyToggle';
 import { fmtSince } from '../shell/session';
 import { MAX_ALIAS, accountIdent, aliasFromDraft, bankName, vaultNote } from './AccountIdentity';
 import { BankMark } from './AccountMarks';
+import { useLayers } from './layers';
 import { AccountGoal } from './SavingsGoal';
 import { BalanceChart, Sparkline } from './BalanceChart';
 
@@ -429,6 +431,31 @@ function DepotHero({ account }: { account: SerializedAccount }) {
 function AccountHead({ account, label }: { account: SerializedAccount; label: string }) {
   const { accounts, banks, bankOf, logoFiles, closeAccount } = useFints();
   const t = useT();
+  // The desktop's frame: the one account ticked of several ("Konten als
+  // Ebenen") — no way back, the sidebar is it; the eye is the title bar's.
+  const frame = useDesktopFrame();
+  const { all } = useLayers();
+  if (frame && accounts.length > 1) {
+    const entry = bankOf(account);
+    const ident = accountIdent(account);
+    return (
+      <div className="min-w-0">
+        <p className="text-[14px] leading-5 font-medium text-ink-2">
+          {t.shell.frame.onlyThis}
+          {' · '}
+          <button type="button" onClick={all} className="text-accent underline-offset-2 hover:underline">{t.shell.frame.showAll}</button>
+        </p>
+        <p className="mt-1 min-w-0 truncate text-[22px] leading-7 font-medium text-ink">{label}</p>
+        <p className="flex min-w-0 items-center gap-2 pb-1 text-[14px] leading-5 text-ink-2">
+          {entry && <BankMark entry={entry} logoFile={logoFiles[entry.bank.brand]} className="size-4 rounded-[4px]" />}
+          <span className="min-w-0 truncate">{entry?.bank.name}</span>
+          {ident.tail && !isDepot(account) && (
+            <span className="shrink-0 whitespace-pre">· <span className="iban text-[13px]">··· {ident.tail}</span></span>
+          )}
+        </p>
+      </div>
+    );
+  }
   if (!hasOverview(accounts, banks)) {
     return (
       <div className="-mr-2 flex min-h-10 items-center justify-between gap-2">

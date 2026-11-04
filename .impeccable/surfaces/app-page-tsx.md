@@ -55,3 +55,21 @@ Shaped with the owner: Sparziele live on the account (and in Analyse); Aufteilen
 ## Round 5 (owner, 2026-10-24): 5.14, the desktop takes 5.13's features
 
 On the rebased desktop-follows-phone branch. Shaped with the owner: invoices on the desktop as PDFs (pdf.js) and photos (offline Tesseract); stand-ins for the phone-only parts are the approval app named in the wait and receipts by drop or paste; Aufteilen and Sparziele are free on the desktop. Picked on the decision page from three rendered mocks each (`.impeccable/mocks/decision/r5/`, 1440x900, approved sidecars): Aufteilen's requests "Alle nebeneinander" (d1-b: one wide Geld anfordern, a card per person), the invoice "Rechnung daneben" (d2-b: the page beside the form, the field in use lit). The build added a magnifier over the page ("Auf der Rechnung", the line of the field in use), because a real A4 page at the column's 444px sets its text at about 8px; the mock's half-empty page hid that.
+
+## Round 6 (owner, 2026-11-04): the desktop shell, "Konten als Ebenen"
+
+The owner said the Windows app reads as a big Android window and asked for mockups in Google's desktop Material 3 Expressive (answers: Google's desktop M3E, not Windows 11's Fluent; the desktop is used to glance and pay; every place plus Einstellungen). Three structures dealt on the decision page; the owner locked the lead. Mocks: `.impeccable/mocks/decision/desktop-shell/a-ebenen.png` (the chosen comp) and `.impeccable/mocks/desktop-shell/` (dark, one account, Zahlungen, Analyse, Einstellungen), rendered from HTML. Code-led, as Rounds 3 to 5: the comps are the finish review's critique reference.
+
+## Direction contract: the desktop shell (Round 6)
+
+THESIS: The desktop window is Google's desktop M3E, not the phone's rail scaled up: a tinted canvas holds a title bar and a labelled sidebar, the page is one white sheet beside them, and the accounts are layers ticked on and off like Calendar's calendars. It refuses the dashboard of balance cards and the phone's 96dp rail with 64px rows.
+
+OWN-WORLD: Girovo's blue scheme and Google Sans Flex. Canvas surface-container-low (dark: lowest), the sheet surface-container-lowest (dark: low) with 16px corners, a 16px margin right and below. Title bar at the caption overlay's height: menu button, G€ plate, wordmark; a 44px search pill at the sheet's edge; bell, eye, Darstellung, avatar; Windows' caption buttons in the canvas tone. A 272px expanded rail: M3E's extended FAB "Überweisen" in primary container, M3E nav items lying horizontal as 40px pills, M3E's calendar as the month, M3E check boxes in each account's chart colour. Rows 48px at 14px, the balance 36px, the value colours unchanged.
+
+STORY: Someone opens Girovo on their PC, sees what all their ticked accounts hold and every booking of them in one ledger, unticks the savings they do not want to see, picks one account to see it alone, and pays from the button that never moves.
+
+FIRST VIEWPORT: Title bar across the window. Sidebar: Überweisen, Übersicht · Zahlungen · Analyse, the month (today outlined, payment days marked), "Konten" with each account's tick, name and balance, Einstellungen at the foot. Sheet: "Gesamtsaldo · 3 von 4 Konten", the 36px sum, what is hidden; the month's Eingänge, Ausgänge and Demnächst fällig at the right; the chips; then day headers and 48px rows, each with its account's colour dot and name before the amount.
+
+FORM: Accounts as layers (Google Calendar's sidebar), position 3 of my seven grounded structures, dealt as the lead; seed key 6317aba8 (surface, operate). Signature move: ticking an account recomputes the ledger and the sum; one tick is that account's page.
+
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

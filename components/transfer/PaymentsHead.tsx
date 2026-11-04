@@ -19,6 +19,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { DocScanIcon, QrIcon, ScanIcon, StarIcon, TransferIcon } from '../icons';
 import { useShellActions } from '../shell/actions';
+import { useDesktopFrame } from '../shell/frame';
 import { Button } from '../ui';
 import { recentPayees, shortIbanText, sortTemplates } from './model';
 
@@ -31,6 +32,7 @@ export function PaymentsHead() {
   const actions = useShellActions();
   const t = useT();
   const words = t.shell.payments;
+  const frame = useDesktopFrame();
 
   const templates = useMemo(() => sortTemplates(vault?.templates ?? []).slice(0, RECENT), [vault?.templates]);
   const recent = useMemo(() => {
@@ -55,6 +57,21 @@ export function PaymentsHead() {
       {/* The two reasons to come here, side by side and the same width —
           stacked once the system's large text no longer fits both labels
           (each at least as wide as its own label, so the row wraps). */}
+      {/* The desktop's frame: Überweisen is the sidebar's; the page's name
+          with Geld anfordern and the invoice beside it, as quieter buttons. */}
+      {frame ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-1 pb-3 sm:px-5">
+          <p aria-hidden className="text-[22px] leading-7 font-medium text-ink">{t.common.nav.contracts}</p>
+          <div className="flex flex-wrap gap-2">
+            {actions.canShare && (
+              <Button variant="secondary" size="sm" iconLeft={<QrIcon size={18} />} onClick={actions.share}>{t.shell.requestMoney}</Button>
+            )}
+            {actions.canTransfer && (
+              <Button variant="secondary" size="sm" iconLeft={<DocScanIcon size={18} />} onClick={() => invoiceInput.current?.click()}>{words.openInvoice}</Button>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="flex flex-wrap gap-2 px-4 pt-1 pb-2 sm:px-5">
         {actions.canTransfer && (
           <Button variant="primary" className="min-w-fit flex-1" iconLeft={<TransferIcon size={20} strokeWidth={2} />} onClick={actions.transfer}>
@@ -67,6 +84,7 @@ export function PaymentsHead() {
           </Button>
         )}
       </div>
+      )}
       {/* Android: an invoice on paper, read by the camera into the transfer. */}
       {IS_ANDROID && actions.canTransfer && (
         <ul className="pt-1">
@@ -91,7 +109,7 @@ export function PaymentsHead() {
       {/* The desktop: an invoice as a PDF or a picture, with its GiroCode or
           without — read into the transfer, the page beside the form. */}
       {!IS_ANDROID && actions.canTransfer && (
-        <ul className="pt-1">
+        <ul className={frame ? 'hidden' : 'pt-1'}>
           <PayeeRow
             name={words.openInvoice}
             detail={words.openInvoiceHint}

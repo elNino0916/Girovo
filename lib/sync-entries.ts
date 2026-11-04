@@ -117,6 +117,8 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
   if (scalars.avatarImage !== undefined) out.avatarImage = scalars.avatarImage as string;
   if (lists.linkedBanks.length) out.linkedBanks = ordered('linkedBanks', lists.linkedBanks as NonNullable<VaultData['linkedBanks']>);
   if (base.keepBookings) out.keepBookings = true;
+  // This device's view (Konten als Ebenen), never another's.
+  if (base.accountsHidden?.length) out.accountsHidden = base.accountsHidden;
   if (lists.goals.length) out.goals = ordered('goals', lists.goals as NonNullable<VaultData['goals']>);
   if (scalars.accountOrder !== undefined) out.accountOrder = scalars.accountOrder as string[];
   if (scalars.accountGrouping !== undefined) out.accountGrouping = scalars.accountGrouping as VaultData['accountGrouping'];

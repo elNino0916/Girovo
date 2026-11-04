@@ -1,0 +1,6 @@
+{
+  "source": "rendered, not generated",
+  "html": ".impeccable/mocks/desktop-shell/2-konto.html",
+  "renderer": "Microsoft Edge headless, 1440x900 CSS px at 1x",
+  "prompt": "No image model. Hand-authored HTML/CSS mock in the chosen desktop shell (Konten als Ebenen: tinted canvas, white sheet, expanded navigation rail with Überweisen, mini month, accounts as coloured layers). One account on its own: only GiroKomfort ticked, its name, bank and IBAN, balance and Verfügbar, the Kontoverlauf, Kontostand per day, Vorgemerkt. Design-preview data, made-up bank details."
+}

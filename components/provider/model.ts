@@ -675,6 +675,7 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
   const linkedBanks = sanitizeLinkedBanks(raw.linkedBanks);
   const goals = sanitizeGoals(raw.goals);
   const accountOrder = sanitizeAccountOrder(raw.accountOrder);
+  const accountsHidden = sanitizeAccountOrder(raw.accountsHidden);
   // As the vault does (lib/vault.ts sanitizeVault): switched off, none are kept.
   const keepBalances = raw.keepBalances !== false;
   const keptBalances = keepBalances ? sanitizeKeptBalances(raw.keptBalances) : {};
@@ -712,6 +713,7 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
     // as on again after it was switched off.
     ...(accountOrder.length ? { accountOrder } : {}),
     ...(isGrouping(raw.accountGrouping) ? { accountGrouping: raw.accountGrouping } : {}),
+    ...(accountsHidden.length ? { accountsHidden } : {}),
     ...(Object.keys(keptBalances).length ? { keptBalances } : {}),
     ...(netWorth.length ? { netWorth } : {}),
     ...(keepBalances ? {} : { keepBalances: false as const }),

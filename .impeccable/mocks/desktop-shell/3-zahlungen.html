@@ -1,0 +1,81 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=1440"><title>Zahlungen – Desktop</title>
+<link rel="stylesheet" href="../decision/desktop-shell/shell.css">
+<style>
+  .month{margin:16px 16px 0;padding:0 4px}
+  .month-h{display:flex;align-items:center;justify-content:space-between;padding:0 0 4px 8px}
+  .month-h .t{font-weight:500}
+  .month-h .ib{width:32px;height:32px}
+  .grid7{display:grid;grid-template-columns:repeat(7,32px);justify-content:space-between}
+  .wd{height:24px;display:grid;place-items:center;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+  .d{height:32px;display:grid;place-items:center;position:relative;font-size:12px;line-height:16px;font-weight:500;font-variant-numeric:tabular-nums}
+  .d.out{color:var(--ink-2);opacity:.75}
+  .d.today span{width:28px;height:28px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:grid;place-items:center}
+  .d.has::after,.d.due::after,.d.low::after{content:'';position:absolute;bottom:1px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%}
+  .d.has::after{background:var(--ink-2)}
+  .d.today.has::after{background:var(--primary)}
+  .d.due::after{box-shadow:inset 0 0 0 1px var(--ink-2)}
+  .d.low::after{background:var(--orange)}
+  .d.band{background:var(--sc);color:var(--on-sc)}
+  .d.band.s{border-radius:16px 0 0 16px}.d.band.e{border-radius:0 16px 16px 0}
+  .legend{display:flex;gap:16px;padding:6px 8px 0;font-size:12px;line-height:16px;color:var(--ink-2)}
+  .legend i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .layer{height:36px;display:flex;align-items:center;gap:12px;padding:0 16px;margin:0 12px;border-radius:18px}
+  .tick{width:18px;height:18px;border-radius:4px;display:grid;place-items:center;flex:none;color:var(--sheet)}
+  .tick .ms{font-size:16px;font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 20}
+  .tick.off{box-shadow:inset 0 0 0 2px var(--c)}
+  .layer .nm{flex:1;font-weight:400}
+  .layer.dim .nm,.layer.dim .num{color:var(--ink-2)}
+  .layer .num{font-weight:500}
+  .layer.hov{background:var(--sc1)}
+  .acc{display:flex;align-items:center;gap:8px;color:var(--ink-2);white-space:nowrap}
+  .acc i{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+
+  .prow{height:56px;display:grid;grid-template-columns:32px minmax(0,1fr) auto;column-gap:16px;align-items:center;padding:0 12px;margin:0 -12px;border-radius:12px}
+  .prow.hov{background:var(--sc1)}
+  .prow>div:nth-child(2){min-width:0}
+  .prow .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .disc.ini{font-size:12px;line-height:16px;font-weight:500;letter-spacing:.02em}
+  .warn{display:flex;gap:12px;align-items:flex-start;margin-top:14px;padding:12px 16px;border-radius:12px;background:var(--sc1)}
+  .drow{height:40px;display:grid;grid-template-columns:52px minmax(0,1fr) 150px 104px;column-gap:12px;align-items:center}
+</style></head>
+<body>
+<header class="titlebar"><div class="brand"><div class="ib"><span class="ms l">menu</span></div><svg class="plate" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0a2c5e"/><g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M361.4 151.8A136 136 0 1 0 405.1 292H280" stroke-width="46"/><path d="M100 222H244M100 292H208" stroke-width="40"/></g></svg><span class="wm">Girovo</span></div><div class="search" style="width:640px"><span class="ms">search</span><span class="ph">Empfänger, Vorlagen und Aufträge suchen</span><span class="key">Strg K</span></div><div class="tools"><div class="ib"><span class="ms">visibility</span></div><div class="ib"><span class="ms">notifications</span><i class="dot" style="top:9px;right:10px"></i></div><div class="ib"><div class="avatar">NB</div></div></div><div class="caption"><i><svg viewBox="0 0 10 10"><path d="M0 5.5H10"/></svg></i><i><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" rx="1.5"/></svg></i><i><svg viewBox="0 0 10 10"><path d="M.5 .5L9.5 9.5M9.5 .5L.5 9.5"/></svg></i></div></header><nav class="side" aria-label="Navigation"><div class="fab"><span class="ms">swap_horiz</span>Überweisen</div><div class="nav"><div class="item"><span class="ms">home</span>Übersicht</div><div class="item on"><span class="ms">payments</span>Zahlungen<span class="end num">3 fällig</span></div><div class="item"><span class="ms">bar_chart</span>Analyse</div></div><div class="month"><div class="month-h"><span class="t">November 2026</span><span style="display:flex"><span class="ib"><span class="ms">chevron_left</span></span><span class="ib"><span class="ms">chevron_right</span></span></span></div><div class="grid7"><div class="wd">Mo</div><div class="wd">Di</div><div class="wd">Mi</div><div class="wd">Do</div><div class="wd">Fr</div><div class="wd">Sa</div><div class="wd">So</div><div class="d out">26</div><div class="d out">27</div><div class="d out">28</div><div class="d out">29</div><div class="d out">30</div><div class="d out">31</div><div class="d ">1</div><div class="d ">2</div><div class="d ">3</div><div class="d today has"><span>4</span></div><div class="d ">5</div><div class="d ">6</div><div class="d ">7</div><div class="d ">8</div><div class="d ">9</div><div class="d ">10</div><div class="d ">11</div><div class="d ">12</div><div class="d ">13</div><div class="d ">14</div><div class="d due">15</div><div class="d ">16</div><div class="d ">17</div><div class="d ">18</div><div class="d ">19</div><div class="d ">20</div><div class="d ">21</div><div class="d ">22</div><div class="d ">23</div><div class="d ">24</div><div class="d due">25</div><div class="d ">26</div><div class="d ">27</div><div class="d due">28</div><div class="d low">29</div><div class="d due">30</div><div class="d out">1</div><div class="d out">2</div><div class="d out">3</div><div class="d out">4</div><div class="d out">5</div><div class="d out">6</div></div><div class="legend"><span><i style="box-shadow:inset 0 0 0 1px var(--ink-2)"></i>Fällig</span><span><i style="background:var(--orange)"></i>Tiefster Stand</span></div></div><div class="sect"><span class="sub">Konten</span><span class="ib" title="Weitere Bank anmelden"><span class="ms">add</span></span></div><div class="layer" style="--c:var(--acc-1)"><span class="tick" style="background:var(--c)"><span class="ms">check</span></span><span class="nm trunc">GiroKomfort</span><span class="num">1.530,84&nbsp;€</span></div><div class="layer" style="--c:var(--acc-2)"><span class="tick" style="background:var(--c)"><span class="ms">check</span></span><span class="nm trunc">Giro Haushalt</span><span class="num">1.142,52&nbsp;€</span></div><div class="layer dim" style="--c:var(--acc-3)"><span class="tick off"></span><span class="nm trunc">Notgroschen</span><span class="num">4.200,00&nbsp;€</span></div><div class="layer" style="--c:var(--acc-4)"><span class="tick" style="background:var(--c)"><span class="ms">check</span></span><span class="nm trunc">Visa Classic</span><span class="num">−153,64&nbsp;€</span></div><div class="nav foot"><div class="item"><span class="ms">settings</span>Einstellungen</div></div></nav><main class="sheet">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:22px 24px 0 28px">
+    <span style="font-size:22px;line-height:28px;font-weight:500">Zahlungen</span>
+    <span style="display:flex;gap:8px"><span class="btn tonal"><span class="ms">qr_code_2</span>Geld anfordern</span><span class="btn tonal"><span class="ms">description</span>Rechnung öffnen</span></span>
+  </div>
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:40px;padding:12px 28px 0">
+    <section>
+      <div class="sub" style="padding:12px 0 4px">Vorlagen</div>
+      <div class="prow"><div class="disc"><span class="ms">star</span></div><div><div class="nm">Taschengeld Lea</div><div class="meta">Lea Becker · <span class="mono">DE12 ··· 4898 90</span></div></div><div class="amt num">25,00&nbsp;€</div></div>
+      <div class="prow hov"><div class="disc"><span class="ms">star</span></div><div><div class="nm">Garage Kraemer</div><div class="meta">Hausverwaltung Kraemer GmbH · <span class="mono">DE75 ··· 1261 99</span></div></div><div style="display:flex;align-items:center;gap:4px"><span class="btn text" style="padding:0 10px">Überweisen</span><span class="amt num">80,00&nbsp;€</span></div></div>
+      <div class="sub" style="padding:20px 0 4px">Zuletzt bezahlt</div>
+      <div class="prow"><div class="disc ini">LB</div><div><div class="nm">Lea Becker</div><div class="meta">vor 3 Tagen · Taschengeld November</div></div><div class="amt num">25,00&nbsp;€</div></div>
+      <div class="prow"><div class="disc ini">HK</div><div><div class="nm">Hausverwaltung Kraemer GmbH</div><div class="meta">2. November · Miete November</div></div><div class="amt num">1.090,00&nbsp;€</div></div>
+      <div class="prow"><div class="disc ini">SM</div><div><div class="nm">Stadtwerke Musterstadt</div><div class="meta">28. Oktober · Abschlag Strom</div></div><div class="amt num">86,00&nbsp;€</div></div>
+      <div class="prow"><div class="disc ini">JW</div><div><div class="nm">Jonas Weber</div><div class="meta">20. Oktober · Konzertkarten</div></div><div class="amt num">42,50&nbsp;€</div></div>
+      <div class="hairline" style="margin:16px 0 8px"></div>
+      <div class="prow"><div class="disc"><span class="ms">repeat</span></div><div><div class="nm">Daueraufträge und Terminüberweisungen</div><div class="meta">3 Daueraufträge · 1 Terminüberweisung</div></div><span class="ms" style="color:var(--ink-2)">chevron_right</span></div>
+      <div class="prow"><div class="disc"><span class="ms">receipt_long</span></div><div><div class="nm">Verträge &amp; Abos</div><div class="meta">12 erkannt · Fixkosten pro Jahr mind. 15.790&nbsp;€</div></div><span class="ms" style="color:var(--ink-2)">chevron_right</span></div>
+    </section>
+    <section>
+      <div class="sub" style="padding:12px 0 4px">Kontostand Ende November</div>
+      <div style="display:flex;align-items:baseline;gap:10px"><span class="meta" style="font-size:16px">ca.</span><span class="lead">3.075&nbsp;€</span><span class="meta">GiroKomfort · Prognose</span></div>
+      <svg width="100%" height="128" viewBox="0 0 560 128" preserveAspectRatio="none" aria-hidden="true" style="display:block;margin-top:12px">
+        <line x1="0" y1="92" x2="560" y2="92" stroke="var(--ov)" stroke-dasharray="3 4"/>
+        <path d="M0 52H20V54H96V60H186V61H366V70H396V72H474V100H508V22H560V128H0Z" fill="var(--primary)" fill-opacity=".12"/>
+        <path d="M0 52H20V54H96V60H186V61H366V70H396V72H474V100H508V22H560" fill="none" stroke="var(--primary)" stroke-width="2"/>
+        <circle cx="490" cy="100" r="4" fill="var(--orange)"/>
+      </svg>
+      <div style="display:flex;justify-content:space-between" class="meta"><span>Heute</span><span>15.</span><span>30. November</span></div>
+      <div class="warn"><span class="ms" style="color:var(--orange)">warning</span><span>Am 29.11. könnte das Konto ins Minus rutschen – auf ca. −62&nbsp;€. Im Dispo fallen Sollzinsen an.</span></div>
+      <div class="sub" style="padding:20px 0 4px">Demnächst fällig</div>
+      <div class="drow"><span class="meta num">15.11.</span><span class="nm">Sparrate Notgroschen</span><span class="meta">Dauerauftrag</span><span class="amt num">−150,00&nbsp;€</span></div>
+      <div class="drow"><span class="meta num">25.11.</span><span class="nm">Taschengeld Lea</span><span class="meta">Dauerauftrag</span><span class="amt num">−25,00&nbsp;€</span></div>
+      <div class="drow"><span class="meta num">28.11.</span><span class="nm">Telekom Deutschland GmbH</span><span class="meta">Lastschrift, erwartet</span><span class="amt num">−39,95&nbsp;€</span></div>
+      <div class="drow"><span class="meta num">28.11.</span><span class="nm">Stadtwerke Musterstadt</span><span class="meta">Abschlag, erwartet</span><span class="amt num">−86,00&nbsp;€</span></div>
+      <div class="drow"><span class="meta num">30.11.</span><span class="nm">Rheintal Software GmbH</span><span class="meta">Gehalt, erwartet</span><span class="amt num pos">+2.840,00&nbsp;€</span></div>
+    </section>
+  </div>
+</main>
+</body></html>

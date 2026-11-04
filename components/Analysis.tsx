@@ -53,6 +53,8 @@ import { TaxYearTile } from './insights/TaxYear';
 import { CategoryCheckDrawer, CategoryCheckSummary, useCategoryCheck } from './insights/CategoryCheck';
 import { useRecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, YEAR_SPAN, fmtDayKey, spanDays, useShowInList } from './insights/shared';
+import { useLayers } from './overview/layers';
+import { useDesktopFrame } from './shell/frame';
 
 /** One of the phone's summary figures after the lead: the label left, the value right, a note under the label. */
 function SummaryRow({ label, sub, children }: { label: React.ReactNode; sub?: React.ReactNode; children: React.ReactNode }) {
@@ -79,7 +81,23 @@ export function Analysis() {
   const t = useT();
   const words = t.insights.analysis;
 
-  const data = useScopeData({ scope: analysisScope, activeAccount, accounts, transactions, txByAccount, statementInfo });
+  // The desktop's frame: the ticked accounts are the basis ("Konten als
+  // Ebenen") — several make the analysis across accounts, one its own.
+  const frame = useDesktopFrame();
+  const { shown } = useLayers();
+  const framedBase = frame && activeAccount && !shown.some((a) => a.accountNumber === activeAccount.accountNumber)
+    ? shown.find((a) => txByAccount[a.accountNumber]) ?? activeAccount
+    : activeAccount;
+  const data = useScopeData(frame
+    ? {
+      scope: shown.length > 1 ? 'all' : 'account',
+      activeAccount: framedBase,
+      accounts: shown,
+      transactions: framedBase ? txByAccount[framedBase.accountNumber] ?? (framedBase === activeAccount ? transactions : null) : null,
+      txByAccount,
+      statementInfo,
+    }
+    : { scope: analysisScope, activeAccount, accounts, transactions, txByAccount, statementInfo });
   const months = useMonths(data, categoryOf);
   // Until the user picks one, the last complete month: the question is
   // "where did the money go this month", and households think in months.
@@ -299,7 +317,7 @@ export function Analysis() {
         <p className="sr-only" aria-live="polite">{announced}</p>
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 pt-4 sm:px-6 sm:pt-5">
           <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
-            {peers.length > 0 && (
+            {peers.length > 0 && !frame && (
               <Segmented
                 aria-label={words.scope.label}
                 size="sm"

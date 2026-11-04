@@ -246,6 +246,45 @@ export const de = {
     newAppVersion: 'neue App-Version',
   },
 
+  /**
+   * The desktop's frame (components/shell/TitleBar.tsx, Sidebar.tsx;
+   * "Konten als Ebenen", 2026-11-04): the sidebar's month and accounts.
+   */
+  frame: {
+    menu: 'Seitenleiste ein- und ausklappen',
+    accounts: 'Konten',
+    /** A layer's name: a click shows that account alone. */
+    showOnly: (name: string) => `Nur ${name} zeigen`,
+    /** A layer's tick box. */
+    tick: (name: string) => `${name} in der Übersicht`,
+    /** Over an account's page when it is the one ticked. */
+    onlyThis: 'Nur dieses Konto',
+    showAll: 'Alle Konten zeigen',
+    /** "3 von 4 Konten" */
+    shownCount: (shown: number, all: number) => `${shown} von ${all} Konten`,
+    /** "Notgroschen ausgeblendet" */
+    hidden: (names: string) => `${names} ausgeblendet`,
+    /** Ticked accounts whose Umsätze this session has not read. */
+    notLoaded: (names: string) => `Umsätze noch nicht abgerufen: ${names}`,
+    load: 'Umsätze abrufen',
+    /** Nothing ticked. */
+    noneShown: 'Kein Konto angehakt. Hake links ein Konto an, um seine Umsätze zu sehen.',
+    /** The month in the sidebar. */
+    month: 'Monat',
+    /** The day picked in the month, as a chip over the ledger. */
+    day: (day: string) => `Am ${day}`,
+    clearDay: 'Ganzen Zeitraum zeigen',
+    /** The month: a day's marks, to a screen reader and in the legend. */
+    hasBookings: 'mit Umsätzen',
+    hasDue: 'Zahlung fällig',
+    legendBookings: 'Umsätze',
+    legendDue: 'Fällig',
+    /** Einstellungen's sections in the sidebar. */
+    sections: 'Bereiche der Einstellungen',
+    prevMonth: 'Vorheriger Monat',
+    nextMonth: 'Nächster Monat',
+  },
+
   /** The Übersicht's tile for unread bank messages (MessagesTeaser). */
   /** The CSV export (components/shell/actions.ts). */
   csv: {
@@ -527,6 +566,30 @@ export const en: typeof de = {
   masthead: {
     skip: 'Skip to content',
     newAppVersion: 'new app version',
+  },
+
+  frame: {
+    menu: 'Expand or collapse the sidebar',
+    accounts: 'Accounts',
+    showOnly: (name) => `Show only ${name}`,
+    tick: (name) => `${name} in the overview`,
+    onlyThis: 'Only this account',
+    showAll: 'Show all accounts',
+    shownCount: (shown, all) => `${shown} of ${all} accounts`,
+    hidden: (names) => `${names} hidden`,
+    notLoaded: (names) => `Transactions not loaded yet: ${names}`,
+    load: 'Load transactions',
+    noneShown: 'No account ticked. Tick an account on the left to see its transactions.',
+    month: 'Month',
+    day: (day) => `On ${day}`,
+    clearDay: 'Show the whole period',
+    hasBookings: 'with transactions',
+    hasDue: 'payment due',
+    legendBookings: 'Transactions',
+    legendDue: 'Due',
+    sections: 'Settings sections',
+    prevMonth: 'Previous month',
+    nextMonth: 'Next month',
   },
 
   csv: {

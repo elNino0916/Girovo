@@ -1,0 +1,127 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=1440"><title>Details neben der Liste – Desktop</title>
+<link rel="stylesheet" href="shell.css">
+<style>
+  .sheet.main{right:calc(var(--gap) + 384px + 12px)}
+  .sheet.pane{left:auto;width:384px}
+  .side .item{gap:12px;padding:0 12px 0 16px}
+  .item .nm2{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .item .end.num{font-weight:500}
+  .thead{height:40px;display:grid;grid-template-columns:32px minmax(0,1fr) 190px 96px 108px;column-gap:16px;align-items:center;padding:0 24px;margin:0 12px;
+    font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+  .thead .s{color:var(--ink);display:flex;align-items:center;gap:4px}
+  .thead .s .ms{font-size:16px}
+  .table .row{grid-template-columns:32px minmax(0,1fr) 190px 96px 108px;margin:0 12px;border-radius:12px;padding:0 12px}
+  .table .row.sel{background:var(--sc)}
+  .table .row.sel .meta,.table .row.sel .disc{color:var(--on-sc)}
+  .table .row.sel .disc{background:color-mix(in srgb,var(--on-sc) 12%,transparent)}
+  .bankdisc{background:#fff;box-shadow:inset 0 0 0 1px var(--hair)}
+  .bankdisc img{width:22px;height:16px;object-fit:contain}
+  /* the details pane */
+  .tabs{display:flex;box-shadow:inset 0 -1px 0 var(--hair);margin:20px -24px 0;padding:0 8px}
+  .tab{height:48px;display:grid;place-items:center;padding:0 16px;font-weight:500;color:var(--ink-2);position:relative}
+  .tab.on{color:var(--primary)}
+  .tab.on::after{content:'';position:absolute;left:50%;bottom:0;width:44px;margin-left:-22px;height:3px;border-radius:3px 3px 0 0;background:var(--primary)}
+  .kv{padding-top:14px}
+  .kv .k{font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+  .kv .v{margin-top:2px}
+  .tag{height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px 0 8px;border-radius:8px;background:var(--sc1);color:var(--ink-2);font-size:12px;line-height:16px;font-weight:500}
+  .tag .ms{font-size:16px}
+</style></head>
+<body>
+<header class="titlebar">
+  <div class="brand">
+    <div class="ib"><span class="ms l">menu</span></div>
+    <svg class="plate" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0a2c5e"/><g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M361.4 151.8A136 136 0 1 0 405.1 292H280" stroke-width="46"/><path d="M100 222H244M100 292H208" stroke-width="40"/></g></svg>
+    <span class="wm">Girovo</span>
+  </div>
+  <div class="search" style="width:640px"><span class="ms">search</span><span class="ph">In GiroKomfort suchen</span><span class="key">Strg K</span></div>
+  <div class="tools">
+    <div class="ib"><span class="ms">visibility</span></div>
+    <div class="ib"><span class="ms">notifications</span><i class="dot" style="top:9px;right:10px"></i></div>
+    <div class="ib"><div class="avatar">NB</div></div>
+  </div>
+  <div class="caption"><i><svg viewBox="0 0 10 10"><path d="M0 5.5H10"/></svg></i><i><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" rx="1.5"/></svg></i><i><svg viewBox="0 0 10 10"><path d="M.5 .5L9.5 9.5M9.5 .5L.5 9.5"/></svg></i></div>
+</header>
+
+<nav class="side" aria-label="Navigation">
+  <div class="fab"><span class="ms">swap_horiz</span>Überweisen</div>
+  <div class="nav">
+    <div class="item"><span class="ms">home</span>Übersicht<span class="end num">6.719,72&nbsp;€</span></div>
+    <div class="item"><span class="ms">payments</span>Zahlungen<span class="end num">3 fällig</span></div>
+    <div class="item"><span class="ms">bar_chart</span>Analyse</div>
+  </div>
+  <div class="sect"><span class="sub">Konten</span><span class="ib" title="Weitere Bank anmelden"><span class="ms">add</span></span></div>
+  <div class="nav">
+    <div class="item on"><span class="ms">account_balance_wallet</span><span class="nm2">GiroKomfort</span><span class="end num">1.530,84&nbsp;€</span></div>
+    <div class="item"><span class="ms">account_balance_wallet</span><span class="nm2">Giro Haushalt</span><span class="end num">1.142,52&nbsp;€</span></div>
+    <div class="item"><span class="ms">savings</span><span class="nm2">Notgroschen</span><span class="end num">4.200,00&nbsp;€</span></div>
+    <div class="item"><span class="ms">credit_card</span><span class="nm2">Visa Classic</span><span class="end num">−153,64&nbsp;€</span></div>
+  </div>
+  <div class="nav foot"><div class="item"><span class="ms">settings</span>Einstellungen</div></div>
+</nav>
+
+<main class="sheet main table">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:22px 20px 0 28px">
+    <div>
+      <div style="font-size:22px;line-height:28px;font-weight:500">GiroKomfort</div>
+      <div class="meta" style="margin-top:2px">Volksbank Musterstadt eG · <span class="num">···· 5932 71</span></div>
+    </div>
+    <div style="display:flex"><div class="ib"><span class="ms">refresh</span></div><div class="ib"><span class="ms">download</span></div><div class="ib"><span class="ms">more_vert</span></div></div>
+  </div>
+  <div style="padding:14px 28px 0">
+    <div class="lead">1.530<span class="c">,84&nbsp;€</span></div>
+    <div class="meta">Verfügbar <span class="num" style="color:var(--ink);font-weight:500">3.457,46&nbsp;€</span> · Stand <span class="num" style="letter-spacing:0">14:56</span> Uhr</div>
+  </div>
+  <div class="chips" style="padding:18px 28px 14px">
+    <div class="chip tr"><span class="amb"></span>Vorgemerkt <span class="num">2</span><span class="ms">expand_more</span></div>
+    <div class="chip">Eingänge</div>
+    <div class="chip">Ausgänge</div>
+    <div class="chip tr">Kategorie<span class="ms">expand_more</span></div>
+    <div class="chip tr" style="padding-left:10px"><span class="ms">calendar_month</span>90 Tage<span class="ms">expand_more</span></div>
+  </div>
+  <div class="thead"><span></span><span>Name</span><span>Kategorie</span><span class="s">Datum<span class="ms">arrow_downward</span></span><span style="text-align:right">Betrag</span></div>
+  <div class="hairline" style="margin:0 24px"></div>
+  <div style="height:6px"></div>
+  <div class="row"><div class="disc"><span class="ms">directions_car</span></div><div class="nm">Aral Station 4711</div><div class="meta trunc">Mobilität</div><div class="meta"><span class="ms" style="font-size:16px;vertical-align:-3px">schedule</span> Morgen</div><div class="amt num">−64,18&nbsp;€</div></div>
+  <div class="row sel"><div class="disc"><span class="ms">smartphone</span></div><div class="nm">Telekom Deutschland GmbH</div><div class="meta trunc">Abos &amp; Medien</div><div class="meta">Heute</div><div class="amt num">−39,95&nbsp;€</div></div>
+  <div class="row"><div class="disc"><span class="ms">shopping_bag</span></div><div class="nm">Zalando SE</div><div class="meta trunc">Shopping</div><div class="meta">Heute</div><div class="amt num">−33,52&nbsp;€</div></div>
+  <div class="row"><div class="disc"><span class="ms">restaurant</span></div><div class="nm">Cafe Extrablatt</div><div class="meta trunc">Essen &amp; Trinken</div><div class="meta">Gestern</div><div class="amt num">−23,61&nbsp;€</div></div>
+  <div class="row"><div class="disc"><span class="ms">shopping_basket</span></div><div class="nm">DM-Drogerie Markt</div><div class="meta trunc">Lebensmittel &amp; Drogerie</div><div class="meta">Gestern</div><div class="amt num">−10,76&nbsp;€</div></div>
+  <div class="row"><div class="disc"><span class="ms">work</span></div><div class="nm">Rheintal Software GmbH</div><div class="meta trunc">Einkommen</div><div class="meta num">30. Okt.</div><div class="amt num pos">+2.840,00&nbsp;€</div></div>
+  <div class="row"><div class="disc bankdisc"><img src="../../../../public/logos/vrbank-mark.svg" alt=""></div><div class="nm">Entgeltabschluss</div><div class="meta trunc">Bankentgelte &amp; Zinsen</div><div class="meta num">30. Okt.</div><div class="amt num">−7,90&nbsp;€</div></div>
+  <div class="row"><div class="disc"><span class="ms">train</span></div><div class="nm">DB Vertrieb GmbH</div><div class="meta trunc">Mobilität</div><div class="meta num">29. Okt.</div><div class="amt num">−49,90&nbsp;€</div></div>
+  <div class="row"><div class="disc"><span class="ms">sync_alt</span></div><div class="nm">Nino Becker</div><div class="meta trunc">Umbuchung</div><div class="meta num">29. Okt.</div><div class="amt num">−200,00&nbsp;€</div></div>
+</main>
+
+<aside class="sheet pane" style="padding:16px 24px 0">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin:0 -12px 0 0">
+    <span class="sub">Umsatzdetails</span>
+    <span style="display:flex"><span class="ib"><span class="ms">open_in_full</span></span><span class="ib"><span class="ms">close</span></span></span>
+  </div>
+  <div style="display:flex;gap:16px;align-items:center;margin-top:12px">
+    <div class="disc" style="width:48px;height:48px"><span class="ms" style="font-size:24px">smartphone</span></div>
+    <div style="min-width:0">
+      <div style="font-size:18px;line-height:24px;font-weight:500" class="trunc">Telekom Deutschland GmbH</div>
+      <div class="meta">Lastschrift · Heute, 4. November</div>
+    </div>
+  </div>
+  <div class="lead" style="margin-top:16px">−39<span class="c">,95&nbsp;€</span></div>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <span class="tag"><span class="ms">smartphone</span>Abos &amp; Medien</span>
+    <span class="tag"><span class="ms">event_repeat</span>Monatlich</span>
+  </div>
+  <div class="tabs"><div class="tab on">Details</div><div class="tab">Notiz &amp; Belege</div><div class="tab">Kategorie</div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:16px">
+    <div class="kv"><div class="k">Buchungstag</div><div class="v num">04.11.2026</div></div>
+    <div class="kv"><div class="k">Valuta</div><div class="v num">04.11.2026</div></div>
+  </div>
+  <div class="kv"><div class="k">Verwendungszweck</div><div class="v">Kd-Nr. 6113 4401 22 RG 11/2026 Mobilfunk</div></div>
+  <div class="kv"><div class="k">Name laut Bank</div><div class="v">TELEKOM DEUTSCHLAND GMBH</div></div>
+  <div class="kv"><div class="k">Gläubiger-ID</div><div class="v mono">DE21ZZZ00000192833</div></div>
+  <div class="kv"><div class="k">Mandatsreferenz</div><div class="v mono">TDG6113440122</div></div>
+  <div style="position:absolute;left:24px;right:24px;bottom:20px;display:flex;gap:8px">
+    <span class="btn tonal"><span class="ms">attach_file</span>Beleg anhängen</span>
+    <span class="btn text"><span class="ms">edit_note</span>Notiz</span>
+  </div>
+</aside>
+</body></html>

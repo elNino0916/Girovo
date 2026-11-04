@@ -1,0 +1,121 @@
+/* Desktop shell mocks (Windows): Girovo in Google's desktop Material 3
+   Expressive — a tinted window canvas, a white content sheet, an expanded
+   navigation rail with labels, desktop density. Girovo's own blue scheme and
+   type (DESIGN.md). Mock only, rendered at 1440x900. */
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=block');
+
+:root{
+  --primary:#0060a8; --on-primary:#fff; --pc:#d3e4ff; --on-pc:#004880;
+  --sc:#dae1ff; --on-sc:#3c4665;
+  --sheet:#ffffff; --surface:#f8f9ff; --canvas:#eff4ff; --sc1:#e9eefa; --sch:#e3e8f4; --schh:#dde3ee;
+  --ink:#161c24; --ink-2:#404753; --outline:#707784; --ov:#bfc7d5; --hair:#e3e8f4;
+  --green:#0c7336; --amber:#8a6410; --amber-soft:#fff4dc; --orange:#d9540f;
+  --navy:#0a2c5e;
+  /* account layers: the chart slots, one per account */
+  --acc-1:#0053a4; --acc-2:#0ca4a0; --acc-3:#5f38a7; --acc-4:#e968a1;
+  --bar:56px; --side:272px; --gap:16px;
+}
+/* the dark theme: Girovo's dark roles (app/material.css, app/globals.css) */
+body.dark{
+  --primary:#a2c9ff; --on-primary:#00315b; --pc:#004880; --on-pc:#d3e4ff;
+  --sc:#3c4665; --on-sc:#dae1ff;
+  --sheet:#161c24; --surface:#0e141c; --canvas:#090f16; --sc1:#1a2028; --sch:#252a33; --schh:#2f353e;
+  --ink:#dde3ee; --ink-2:#bfc7d5; --outline:#8a919e; --ov:#404753; --hair:#252a33;
+  --green:#54c279; --amber:#e0b155; --amber-soft:#2c220c; --orange:#f2813f;
+  --acc-1:#4d8fdc; --acc-2:#0aa7a4; --acc-3:#8a66d9; --acc-4:#d0558f;
+}
+body.dark .fab{box-shadow:none}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{position:relative;width:1440px;height:900px;overflow:hidden;background:var(--canvas);
+  font-family:'Google Sans Flex',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;
+  font-size:14px;line-height:20px;font-variation-settings:'ROND' 0}
+::selection{background:var(--pc);color:var(--on-pc)}
+
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;font-size:20px;line-height:1;width:1em;height:1em;
+  overflow:hidden;letter-spacing:normal;text-transform:none;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';
+  font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20;display:inline-block;flex:none}
+.ms.fill{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 20}
+.ms.l{font-size:24px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em;white-space:nowrap}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.04em;white-space:nowrap}
+.pos{color:var(--green)}
+.meta{color:var(--ink-2)}
+.sub{font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+.trunc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+/* ---------- the window: title bar on the canvas ---------- */
+.titlebar{position:absolute;left:0;right:0;top:0;height:var(--bar);display:flex;align-items:center}
+.brand{width:var(--side);display:flex;align-items:center;gap:4px;padding-left:8px;flex:none}
+.brand .wm{font-size:18px;line-height:24px;font-weight:700;letter-spacing:-0.01em;margin-left:10px}
+.plate{width:28px;height:28px;border-radius:7px;background:var(--navy);display:block;flex:none}
+.ib{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);position:relative;flex:none}
+.ib.on{background:var(--sch)}
+.search{height:44px;border-radius:22px;background:var(--sch);display:flex;align-items:center;gap:14px;padding:0 8px 0 16px;color:var(--ink-2)}
+.search .ph{flex:1;font-size:16px;line-height:24px}
+.key{font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2);padding:2px 6px;border-radius:6px;box-shadow:inset 0 0 0 1px var(--ov)}
+.tools{display:flex;align-items:center;gap:2px;margin-left:auto;padding-right:6px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;
+  font-size:12px;line-height:16px;font-weight:500;letter-spacing:.02em}
+.dot{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 2px var(--canvas)}
+/* Windows 11 caption buttons, drawn thin as the system draws them */
+.caption{display:flex;align-self:flex-start;height:40px;flex:none}
+.caption i{width:46px;height:40px;display:grid;place-items:center;color:var(--ink)}
+.caption svg{width:10px;height:10px;stroke:currentColor;stroke-width:1;fill:none}
+
+/* ---------- the sidebar: M3E's expanded navigation rail ---------- */
+.side{position:absolute;left:0;top:var(--bar);bottom:0;width:var(--side);display:flex;flex-direction:column;padding:8px 0 16px}
+.fab{margin:0 0 16px 16px;height:56px;border-radius:16px;background:var(--pc);color:var(--on-pc);display:inline-flex;align-items:center;gap:12px;
+  padding:0 22px 0 18px;font-size:14px;line-height:20px;font-weight:500;align-self:flex-start;
+  box-shadow:0 1px 2px rgb(22 28 36 / .10),0 2px 6px rgb(22 28 36 / .08)}
+.fab .ms{font-size:24px}
+.nav{display:flex;flex-direction:column;gap:2px;padding:0 12px}
+.item{height:40px;border-radius:20px;display:flex;align-items:center;gap:14px;padding:0 16px;color:var(--ink);font-weight:500;white-space:nowrap}
+.item .ms{color:var(--ink-2)}
+.item .end{margin-left:auto;color:var(--ink-2);font-weight:500}
+.item.on{background:var(--sc);color:var(--on-sc)}
+.item.on .ms{color:var(--on-sc);font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 20}
+.item.on .end{color:var(--on-sc)}
+.sect{display:flex;align-items:center;justify-content:space-between;padding:20px 16px 6px 28px}
+.sect .ib{width:32px;height:32px}
+.foot{margin-top:auto}
+
+/* ---------- the sheet: where the work is ---------- */
+.sheet{position:absolute;top:var(--bar);bottom:var(--gap);left:var(--side);right:var(--gap);background:var(--sheet);border-radius:16px;overflow:hidden}
+
+/* figures */
+.lead{font-size:36px;line-height:44px;font-weight:500;letter-spacing:-0.025em;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+.lead .c{font-size:.58em;letter-spacing:-0.01em}
+.fig .l{font-size:14px;line-height:20px;color:var(--ink-2)}
+.fig .v{font-size:16px;line-height:24px;font-weight:500}
+
+/* chips */
+.chips{display:flex;align-items:center;gap:8px}
+.chip{height:32px;display:flex;align-items:center;gap:8px;padding:0 14px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--ov);
+  font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2);white-space:nowrap;flex:none}
+.chip .ms{font-size:18px}
+.chip.tr{padding-right:8px}
+.chip.on{background:var(--sc);color:var(--on-sc);box-shadow:none;padding-left:8px}
+.chip .amb{width:8px;height:8px;border-radius:50%;background:var(--amber)}
+
+/* booking rows at desktop density */
+.day{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+.day .ms{font-size:16px;margin-right:6px;vertical-align:-3px}
+.row{height:48px;display:grid;align-items:center;column-gap:16px;padding:0 24px;position:relative}
+.disc{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--sch);color:var(--ink-2);flex:none;position:relative}
+.disc .ms{font-size:18px}
+.disc.amber{background:var(--amber-soft);color:var(--amber)}
+.nm{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amt{font-weight:500;text-align:right}
+/* new since the last visit: lit until seen */
+.row.new{background:color-mix(in srgb,var(--primary) 5%,var(--sheet))}
+.row.new::before{content:'';position:absolute;left:10px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--primary)}
+
+.btn{height:40px;border-radius:20px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 20px;
+  font-size:14px;line-height:20px;font-weight:500;white-space:nowrap}
+.btn.tonal{background:var(--sc);color:var(--on-sc)}
+.btn.text{color:var(--primary);padding:0 12px}
+.btn .ms{font-size:18px}
+.hairline{height:1px;background:var(--hair)}

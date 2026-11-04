@@ -240,6 +240,7 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
   const linkedBanks = sanitizeLinkedBanks(input.linkedBanks);
   const goals = sanitizeGoals(input.goals);
   const accountOrder = sanitizeAccountOrder(input.accountOrder, VAULT_LIMITS.accountKey);
+  const accountsHidden = sanitizeAccountOrder(input.accountsHidden, VAULT_LIMITS.accountKey);
   // Switched off, nothing of them is kept, whatever the file says.
   const keepBalances = input.keepBalances !== false;
   const keptBalances = keepBalances ? sanitizeKeptBalances(input.keptBalances, VAULT_LIMITS.accountKey) : {};
@@ -275,6 +276,8 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     // "Konten anordnen" (lib/account-overview.ts): account keys each once, and one of the three groupings.
     ...(accountOrder.length ? { accountOrder } : {}),
     ...(isGrouping(input.accountGrouping) ? { accountGrouping: input.accountGrouping } : {}),
+    // Konten als Ebenen: the accounts unticked in the desktop's sidebar, each once.
+    ...(accountsHidden.length ? { accountsHidden } : {}),
     // The last balances and the daily figures (lib/kept-balances.ts), unless switched off.
     ...(Object.keys(keptBalances).length ? { keptBalances } : {}),
     ...(netWorth.length ? { netWorth } : {}),

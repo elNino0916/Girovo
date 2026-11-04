@@ -59,9 +59,11 @@ const REVEAL_AFTER_MS = 20_000;
 // doubles as the title bar, with the OS caption buttons floating in its right
 // side, so there is exactly one bar instead of a native one stacked on the
 // app's.
+// The canvas of the window's frame (app/material.css --frame-canvas: Material's
+// surface-container-low by day, -lowest by night), which the title bar stands on.
 const BAR_COLORS = {
-  light: { color: '#f8f9ff', symbolColor: '#161c24' },
-  dark: { color: '#0e141c', symbolColor: '#dde3ee' },
+  light: { color: '#eff4ff', symbolColor: '#161c24' },
+  dark: { color: '#090f16', symbolColor: '#dde3ee' },
 };
 // Matches --scrim (app/material.css: Material's scrim at 32%). A dialog lays
 // it over the whole page, top bar included, but the caption buttons are

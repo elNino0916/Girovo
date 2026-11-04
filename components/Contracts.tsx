@@ -26,6 +26,7 @@ import { ForecastTile } from './insights/Forecast';
 import { PaymentsHead } from './transfer/PaymentsHead';
 import { useRecurringModel, type AccountBasis, type RecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, RoundMoney, YEAR_SPAN, spanDays } from './insights/shared';
+import { useDesktopFrame } from './shell/frame';
 
 /**
  * "Vierteljährliche und jährliche" ("Quarterly and yearly") — the rhythms a
@@ -69,6 +70,26 @@ function useDismiss() {
  */
 export function Contracts() {
   const t = useT();
+  const frame = useDesktopFrame();
+  // The desktop's frame: paying and the bank's orders on the left, the
+  // month-end forecast beside them on a wide sheet, the contracts below.
+  if (frame) {
+    return (
+      <div className="min-w-0 space-y-6">
+        <div className="grid gap-x-12 gap-y-6 min-[1180px]:grid-cols-2">
+          <div className="min-w-0 space-y-4">
+            <PaymentsHead />
+            <OrdersEntry />
+          </div>
+          <div className="min-w-0">
+            <ForecastTile />
+          </div>
+        </div>
+        <h2 className="section-head pt-4">{t.insights.contracts.title}</h2>
+        <ContractsFromBookings />
+      </div>
+    );
+  }
   return (
     <div className="min-w-0 space-y-4 sm:space-y-6">
       <PaymentsHead />

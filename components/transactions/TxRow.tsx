@@ -27,7 +27,7 @@ const QUIET_CATEGORIES = new Set<CategoryId>(['other', 'otherIn']);
  * change of it renders every row again, summary and category included.
  */
 export const TxRow = memo(function TxRow({
-  tx, merchant, category, parts, userNote, receipt = false, pending = false, compact = false, inDay = false, onOpen,
+  tx, merchant, category, parts, userNote, receipt = false, pending = false, compact = false, inDay = false, layer = null, onOpen,
 }: {
   /** In a list grouped by Buchungstag: the day's header names a Buchungstag still ahead, so the row does not. */
   inDay?: boolean;
@@ -48,6 +48,8 @@ export const TxRow = memo(function TxRow({
   pending?: boolean;
   /** The narrower Vorgemerkt panel: tighter padding, no category. */
   compact?: boolean;
+  /** The account it belongs to, in a ledger of several (Konten als Ebenen): its colour's dot and its name before the amount. */
+  layer?: { name: string; color: string } | null;
   onOpen: (tx: SerializedTransaction) => void;
 }) {
   const t = useT();
@@ -139,6 +141,12 @@ export const TxRow = memo(function TxRow({
         )}
       </span>
 
+      {layer && (
+        <span data-tx-layer className="flex w-[150px] shrink-0 items-center gap-2 text-[14px] leading-5 text-ink-2">
+          <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: layer.color }} />
+          <span className="min-w-0 truncate">{layer.name}</span>
+        </span>
+      )}
       <span className="shrink-0 pl-1 text-right">
         <span className="sr-only">{credit ? t.common.booking.credit : t.common.booking.debit}</span>
         <Money

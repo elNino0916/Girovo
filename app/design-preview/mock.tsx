@@ -306,6 +306,8 @@ const WAIT_SUBJECT: Record<WaitKind, string> = {
   bankStatements: 'den Abruf der Kontoauszüge',
 };
 const SECOND_APPROVAL_MS = 30_000;
+/** Konten als Ebenen with every account ticked. */
+const NO_ACCOUNTS: readonly string[] = [];
 /** What the mock bank answers when an approval is refused in the app. */
 const MOCK_REFUSAL = '9210: Der Auftrag wurde abgelehnt – die Freigabe wurde in der App verweigert. | 9800: Dialog abgebrochen.';
 const DEFAULT_IDLE_MINUTES: IdleMinutes = 10;
@@ -2721,6 +2723,16 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     });
   }, [updateVault]);
 
+  const setAccountsHidden = useCallback((next: readonly string[]) => {
+    const list = sanitizeAccountOrder(next);
+    updateVault((v) => {
+      if (list.length) return { ...v, accountsHidden: list };
+      const rest = { ...v };
+      delete rest.accountsHidden;
+      return rest;
+    });
+  }, [updateVault]);
+
   const saveTemplate = useCallback((t: Omit<TransferTemplate, 'id' | 'createdAt'>) => {
     const clip = (s: string | undefined, n: number) => (s == null ? undefined : [...s.trim()].slice(0, n).join(''));
     const iban = normIban(t.iban);
@@ -2962,6 +2974,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
     updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
+    accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     printTaxYear, loadRange,

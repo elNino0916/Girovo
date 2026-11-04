@@ -1,0 +1,6 @@
+{
+  "source": "rendered, not generated",
+  "html": ".impeccable/mocks/desktop-shell/3-zahlungen.html",
+  "renderer": "Microsoft Edge headless, 1440x900 CSS px at 1x",
+  "prompt": "No image model. Hand-authored HTML/CSS mock in the chosen desktop shell (Konten als Ebenen: tinted canvas, white sheet, expanded navigation rail with Überweisen, mini month, accounts as coloured layers). Zahlungen: the mini month marks due days and the forecast's low point; Vorlagen, Zuletzt bezahlt, Aufträge and Verträge on the left; the month-end forecast with its warning and what is due on the right. Design-preview data, made-up bank details."
+}

@@ -24,7 +24,8 @@ export function SettingsGroup({
 }: { title: string; setting?: SettingsTarget; note?: ReactNode; children: ReactNode }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} data-setting={setting}>
+    // data-settings-section: the frame's sidebar lists the sections by it (components/shell/Sidebar.tsx).
+    <section aria-labelledby={id} data-setting={setting} data-settings-section={title}>
       <h2 id={id} className="px-4 pb-2 text-[14px] leading-5 font-medium tracking-[0.1px] text-accent">{title}</h2>
       <div data-settings-group>{children}</div>
       {note && <p className="px-4 pt-2 text-[13px] leading-snug text-ink-2">{note}</p>}

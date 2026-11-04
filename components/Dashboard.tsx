@@ -17,8 +17,8 @@
 // Übersicht is the phone's at every width, search first, in one column
 // (Overview below).
 
-import { useEffect, useRef } from 'react';
-import type { ReactNode, RefObject } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode, RefObject } from 'react';
 import { IS_ANDROID } from '@/lib/platform';
 import { PlusScreen } from './android/Plus';
 import { hasOverview } from '@/lib/account-overview';
@@ -53,16 +53,116 @@ import { useT } from '@/lib/i18n/react';
 import { useGlobalShortcuts } from './shell/useShortcuts';
 import { Masthead } from './shell/Masthead';
 import { BottomBar } from './shell/BottomBar';
+import { useDesktopFrame, useSidebarOpen } from './shell/frame';
+import { Sidebar } from './shell/Sidebar';
+import { TitleBar } from './shell/TitleBar';
+import { Ledger } from './overview/Ledger';
+import { useLayers } from './overview/layers';
 import { MerchantLogoConsent } from './MerchantLogoConsent';
 import { UsageConsentTile } from './telemetry/UsageConsent';
 import { trackUsage } from './telemetry/usage';
 import { PullToRefresh } from './android/PullToRefresh';
 import { useLaunches } from './android/useLaunches';
 
+/**
+ * Which shell: the desktop's frame from 640px ("Konten als Ebenen",
+ * components/shell/frame.ts), else the phone's and Android's (below).
+ */
 export function Dashboard() {
-  const {
-    tab, transferOpen, shareOpen, shareAll, accounts, banks, accountOpen, ordersOpen, forgetDeviceOpen, setForgetDeviceOpen,
-  } = useFints();
+  const frame = useDesktopFrame();
+  return frame ? <FramedDashboard /> : <ClassicDashboard />;
+}
+
+/**
+ * The desktop's frame (the owner's pick, 2026-11-04): the title bar and the
+ * sidebar on a tinted canvas, the page one white sheet beside them with its
+ * own scroll ([data-scroll-root], as the classic shell's). The Übersicht is
+ * the ticked accounts ("Konten als Ebenen"): their ledger, or the one
+ * account's page when it is ticked alone. The other places keep their pages,
+ * in the sheet.
+ */
+function FramedDashboard() {
+  const { tab, ordersOpen, accounts, activeAccount, selectAccount } = useFints();
+  const t = useT();
+  const actions = useShellActions();
+  useGlobalShortcuts(actions);
+  const [sidebarOpen, toggleSidebar] = useSidebarOpen();
+  const [pickedDay, setPickedDay] = useState<string | null>(null);
+  const { shown } = useLayers();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useScrollbarWidth(rootRef, scrollRef);
+
+  // One account ticked is its page: it is the active one.
+  const alone = shown.length === 1 ? shown[0] : null;
+  useEffect(() => {
+    if (tab === 'overview' && alone && activeAccount?.accountNumber !== alone.accountNumber) selectAccount(alone);
+  }, [tab, alone, activeAccount, selectAccount]);
+  const ledger = tab === 'overview' && accounts.length > 1 && !alone;
+  const orders = tab === 'contracts' && ordersOpen;
+  const place = ledger ? 'ledger' : orders ? 'orders' : tab;
+
+  // A new place starts at its top, focus on its name (as the classic shell).
+  const firstPlace = useRef(true);
+  useEffect(() => {
+    if (firstPlace.current) {
+      firstPlace.current = false;
+      return;
+    }
+    scrollRef.current?.scrollTo({ top: 0 });
+    if (!document.activeElement || document.activeElement === document.body) {
+      document.getElementById(PAGE_TITLE_ID)?.focus({ preventScroll: true });
+    }
+  }, [place]);
+  useEffect(() => trackUsage('screen_viewed', { screen: tab }), [tab]);
+
+  // The bank's orders say their name on the sheet (Zahlungen draws its own beside its buttons); the others say it to a screen reader.
+  const visibleTitle = orders;
+  return (
+    <div
+      ref={rootRef}
+      data-shell
+      data-frame
+      data-side-open={sidebarOpen || undefined}
+      className="flex h-dvh flex-col bg-[var(--frame-canvas)]"
+      style={{ '--frame-side': sidebarOpen ? '272px' : '80px' } as CSSProperties}
+    >
+      <header className="shrink-0">
+        <TitleBar sidebarOpen={sidebarOpen} onMenu={toggleSidebar} />
+      </header>
+      <div className="flex min-h-0 flex-1">
+        <Sidebar open={sidebarOpen} actions={actions} onPickDay={setPickedDay} pickedDay={pickedDay} />
+        <div data-frame-sheet className="mr-4 mb-4 min-w-0 flex-1 overflow-hidden rounded-[16px] bg-[var(--frame-sheet)]">
+          <div ref={scrollRef} data-scroll-root className="relative h-full overflow-y-auto overscroll-contain">
+            <main id="main" className={cx('relative mx-auto w-full', !ledger && 'max-w-[1280px] px-7 pt-5 pb-12')}>
+              <h1
+                id={PAGE_TITLE_ID}
+                tabIndex={-1}
+                className={visibleTitle ? 'mb-2 text-[22px] leading-7 font-medium text-ink outline-none' : 'sr-only'}
+              >
+                {orders ? t.orders.page.title : t.common.nav[tab]}
+              </h1>
+              <div key={place} data-place>
+                {tab === 'overview' && (ledger ? <Ledger pickedDay={pickedDay} onClearDay={() => setPickedDay(null)} /> : <Overview />)}
+                {tab === 'analysis' && <Analysis />}
+                {tab === 'contracts' && (orders ? <OrdersPage /> : <Contracts />)}
+                {tab === 'settings' && <Settings />}
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+      <ShellLayers />
+    </div>
+  );
+}
+
+/**
+ * The phone's shell and Android's at every width: the top app bar, the page,
+ * and Material's navigation bar or rail.
+ */
+function ClassicDashboard() {
+  const { tab, accounts, banks, accountOpen, ordersOpen } = useFints();
   const actions = useShellActions();
   useGlobalShortcuts(actions);
   // Android: a shortcut on the icon, or an invoice shared with the app.
@@ -131,16 +231,26 @@ export function Dashboard() {
 
       <BottomBar actions={actions} />
       {IS_ANDROID && <PullToRefresh scrollRef={scrollRef} />}
+      <ShellLayers />
+    </div>
+  );
+}
 
+/**
+ * The dialogs the provider opens from anywhere (a toast's action, the
+ * palette, Einstellungen), mounted where every width and page keeps them:
+ * the masthead's actions are hidden or dropped on a phone-width page, and an
+ * open layer there would make the page inert unseen. Both shells hold them.
+ */
+function ShellLayers() {
+  const { transferOpen, shareOpen, shareAll, forgetDeviceOpen, setForgetDeviceOpen } = useFints();
+  return (
+    <>
       {transferOpen && <TransferSheet />}
       {shareOpen && <ShareAccount />}
       {shareAll && <SplitRequests />}
       {IS_ANDROID && <PlusScreen />}
       <AddBankSheet />
-      {/* The dialogs the provider opens from anywhere (a toast's action, the
-          palette, Einstellungen), mounted where every width and page keeps
-          them: the masthead's actions are hidden or dropped on a phone-width
-          page, and an open layer there would make the page inert unseen. */}
       <ForgetDeviceDialog open={forgetDeviceOpen} onClose={() => setForgetDeviceOpen(false)} />
       <LogoutConfirmDialog />
       <LinkedUnlockDialog />
@@ -150,7 +260,7 @@ export function Dashboard() {
       <CommandPalette />
       <SessionGuard />
       <ShortcutsHelp />
-    </div>
+    </>
   );
 }
 

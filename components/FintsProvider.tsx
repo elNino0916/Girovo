@@ -4922,6 +4922,24 @@ function useFintsState() {
     });
   }, [updateVault]);
 
+  /**
+   * Konten als Ebenen (the desktop's frame, 2026-11-04): the accounts the
+   * user unticked in the sidebar. A ticked account's Umsätze join the
+   * Übersicht's ledger and its balance the sum; one ticked alone is its page.
+   * Kept in the vault on this device only (never synced: a phone has no
+   * layers); without a readable vault the change lives in memory.
+   */
+  const setAccountsHidden = useCallback((next: readonly string[]) => {
+    const list = sanitizeAccountOrder(next);
+    updateVault((v) => {
+      if (list.length) return { ...v, accountsHidden: list };
+      if (!v.accountsHidden) return v;
+      const rest = { ...v };
+      delete rest.accountsHidden;
+      return rest;
+    });
+  }, [updateVault]);
+
   const saveTemplate = useCallback((t: Omit<TransferTemplate, 'id' | 'createdAt'>) => {
     // The same limits lib/vault.ts enforces on the way in — applied here too,
     // so what the user sees now is what comes back after the next login
@@ -5386,6 +5404,7 @@ function useFintsState() {
     setInboxOpen, setPaletteOpen, setShortcutsOpen,
     markAllRead,
     updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
+    accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
     categoryOf, setCategory, setSplit,
@@ -5421,6 +5440,8 @@ const NO_DAYS: NetWorthDay[] = [];
 const LINKED_OFFER_DECLINED = 'fints.linkedUnlock.declined';
 /** The shell pref that says Windows Hello was offered once (the toast after a typed login). */
 const HELLO_OFFERED = 'fints.windowsHello.offered';
+/** Konten als Ebenen with every account ticked: one list, so the value keeps its identity. */
+const NO_ACCOUNTS: readonly string[] = [];
 
 /** How this login's sync stands (app/api/sync, op status). */
 export type SyncInfo = {

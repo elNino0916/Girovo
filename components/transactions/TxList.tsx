@@ -40,7 +40,7 @@ export const MORE_PAGE = 100;
  * first of those days: not a band, so it never competes with the dates.
  */
 export function TxList({
-  id, groups, total, resetKey, merchantOf, categoryOf, noteOf, receiptKeys, brandNames, onOpen, balanceOn = null, savedTo = null,
+  id, groups, total, resetKey, merchantOf, categoryOf, noteOf, receiptKeys, brandNames, onOpen, balanceOn = null, savedTo = null, layerOf,
 }: {
   id: string;
   groups: DayGroup[];
@@ -59,6 +59,8 @@ export function TxList({
   balanceOn?: { byDay: ReadonlyMap<string, number>; currency: string; card?: boolean } | null;
   /** The last day the kept Umsätze fill in; the days from there back came from this computer. */
   savedTo?: string | null;
+  /** Konten als Ebenen (the desktop's ledger): the account a booking belongs to, named and coloured on its row. */
+  layerOf?: (tx: SerializedTransaction) => { name: string; color: string } | null;
 }) {
   const t = useT();
   const words = t.transactions.days;
@@ -171,6 +173,7 @@ export function TxList({
                     parts={categoryOf(tx).parts}
                     userNote={noteOf?.(tx)}
                     receipt={!!receiptKeys?.has(txKey(tx))}
+                    layer={layerOf?.(tx) ?? null}
                     inDay
                     onOpen={onOpen}
                   />

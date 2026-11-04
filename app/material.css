@@ -352,9 +352,64 @@
      M3 Expressive's collapsed rail, 96dp — room for a label as long as
      "Einstellungen". */
   @media (min-width: 640px) {
-    :root[data-look='material'] [data-shell] {
+    :root[data-look='material'] [data-shell]:not([data-frame]) {
       padding-left: 96px;
     }
+  }
+
+  /* ---- the desktop's frame ("Konten als Ebenen", 2026-11-04) --------------
+     Google's desktop M3 Expressive (components/shell/frame.ts): a tinted
+     canvas holds the title bar and the sidebar, the page is a white sheet
+     beside them. By night the canvas is the darkest tone and the sheet a step
+     up, as Google's apps draw it. Inside the sheet the page's own ground is
+     the sheet's, so a sticky day header matches it. */
+  :root[data-look='material'] {
+    --frame-canvas: var(--md-surface-container-low);
+    --frame-sheet: var(--md-surface-container-lowest);
+  }
+  :root[data-look='material'][data-theme='dark'] {
+    --frame-canvas: var(--md-surface-container-lowest);
+    --frame-sheet: var(--md-surface-container-low);
+  }
+  :root[data-look='material'] [data-frame-sheet] {
+    --paper: var(--frame-sheet);
+  }
+  :root[data-look='material'] [data-frame-bar] {
+    --bar: var(--frame-canvas);
+  }
+
+  /* The sidebar: M3E's nav items lying horizontal as 40px pills the
+     sidebar's width, or standing as a rail's when it is folded. */
+  :root[data-look='material'] [data-frame-side] m3e-nav-item {
+    flex: none;
+    width: 100%;
+  }
+  :root[data-look='material'] [data-frame-side][data-open] m3e-nav-item {
+    --m3e-nav-item-horizontal-height: 40px;
+    --m3e-nav-item-label-text-font-size: 14px;
+    --m3e-nav-item-label-text-font-weight: 500;
+    justify-content: flex-start;
+  }
+
+  /* The sheet's density: a desktop's rows, 48px at 14px with a 32px face,
+     the day a 36px subheader — the phone's 64px rows were drawn for a thumb. */
+  :root[data-look='material'] [data-frame] #main [data-tx-row] {
+    min-height: 48px;
+    padding-block: 6px;
+    gap: 16px;
+  }
+  :root[data-look='material'] [data-frame] #main [data-tx-row] > :first-child {
+    zoom: 0.8;
+  }
+  :root[data-look='material'] [data-frame] #main [data-tx-row] :is(.text-\[15px\], .text-\[16px\]) {
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+  }
+  :root[data-look='material'] [data-frame] #main [data-day-header] {
+    min-height: 36px;
+    padding-top: 10px;
+    padding-bottom: 2px;
   }
 
   /* ---- the page: flat, list-first ----------------------------------------

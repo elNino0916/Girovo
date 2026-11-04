@@ -1,0 +1,63 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=1440"><title>Ein Konto allein – Desktop</title>
+<link rel="stylesheet" href="../decision/desktop-shell/shell.css">
+<style>
+  .month{margin:16px 16px 0;padding:0 4px}
+  .month-h{display:flex;align-items:center;justify-content:space-between;padding:0 0 4px 8px}
+  .month-h .t{font-weight:500}
+  .month-h .ib{width:32px;height:32px}
+  .grid7{display:grid;grid-template-columns:repeat(7,32px);justify-content:space-between}
+  .wd{height:24px;display:grid;place-items:center;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+  .d{height:32px;display:grid;place-items:center;position:relative;font-size:12px;line-height:16px;font-weight:500;font-variant-numeric:tabular-nums}
+  .d.out{color:var(--ink-2);opacity:.75}
+  .d.today span{width:28px;height:28px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:grid;place-items:center}
+  .d.has::after,.d.due::after,.d.low::after{content:'';position:absolute;bottom:1px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%}
+  .d.has::after{background:var(--ink-2)}
+  .d.today.has::after{background:var(--primary)}
+  .d.due::after{box-shadow:inset 0 0 0 1px var(--ink-2)}
+  .d.low::after{background:var(--orange)}
+  .d.band{background:var(--sc);color:var(--on-sc)}
+  .d.band.s{border-radius:16px 0 0 16px}.d.band.e{border-radius:0 16px 16px 0}
+  .legend{display:flex;gap:16px;padding:6px 8px 0;font-size:12px;line-height:16px;color:var(--ink-2)}
+  .legend i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .layer{height:36px;display:flex;align-items:center;gap:12px;padding:0 16px;margin:0 12px;border-radius:18px}
+  .tick{width:18px;height:18px;border-radius:4px;display:grid;place-items:center;flex:none;color:var(--sheet)}
+  .tick .ms{font-size:16px;font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 20}
+  .tick.off{box-shadow:inset 0 0 0 2px var(--c)}
+  .layer .nm{flex:1;font-weight:400}
+  .layer.dim .nm,.layer.dim .num{color:var(--ink-2)}
+  .layer .num{font-weight:500}
+  .layer.hov{background:var(--sc1)}
+  .acc{display:flex;align-items:center;gap:8px;color:var(--ink-2);white-space:nowrap}
+  .acc i{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+.ledger .row{grid-template-columns:32px minmax(0,300px) minmax(0,1fr) 112px}</style></head>
+<body>
+<header class="titlebar"><div class="brand"><div class="ib"><span class="ms l">menu</span></div><svg class="plate" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0a2c5e"/><g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M361.4 151.8A136 136 0 1 0 405.1 292H280" stroke-width="46"/><path d="M100 222H244M100 292H208" stroke-width="40"/></g></svg><span class="wm">Girovo</span></div><div class="search" style="width:640px"><span class="ms">search</span><span class="ph">In GiroKomfort suchen</span><span class="key">Strg K</span></div><div class="tools"><div class="ib"><span class="ms">visibility</span></div><div class="ib"><span class="ms">notifications</span><i class="dot" style="top:9px;right:10px"></i></div><div class="ib"><div class="avatar">NB</div></div></div><div class="caption"><i><svg viewBox="0 0 10 10"><path d="M0 5.5H10"/></svg></i><i><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" rx="1.5"/></svg></i><i><svg viewBox="0 0 10 10"><path d="M.5 .5L9.5 9.5M9.5 .5L.5 9.5"/></svg></i></div></header><nav class="side" aria-label="Navigation"><div class="fab"><span class="ms">swap_horiz</span>Überweisen</div><div class="nav"><div class="item on"><span class="ms">home</span>Übersicht</div><div class="item"><span class="ms">payments</span>Zahlungen<span class="end num">3 fällig</span></div><div class="item"><span class="ms">bar_chart</span>Analyse</div></div><div class="month"><div class="month-h"><span class="t">November 2026</span><span style="display:flex"><span class="ib"><span class="ms">chevron_left</span></span><span class="ib"><span class="ms">chevron_right</span></span></span></div><div class="grid7"><div class="wd">Mo</div><div class="wd">Di</div><div class="wd">Mi</div><div class="wd">Do</div><div class="wd">Fr</div><div class="wd">Sa</div><div class="wd">So</div><div class="d out">26</div><div class="d out">27</div><div class="d out">28</div><div class="d out">29</div><div class="d out">30</div><div class="d out">31</div><div class="d has">1</div><div class="d has">2</div><div class="d has">3</div><div class="d today has"><span>4</span></div><div class="d due">5</div><div class="d ">6</div><div class="d ">7</div><div class="d ">8</div><div class="d ">9</div><div class="d ">10</div><div class="d ">11</div><div class="d ">12</div><div class="d ">13</div><div class="d ">14</div><div class="d due">15</div><div class="d ">16</div><div class="d ">17</div><div class="d ">18</div><div class="d ">19</div><div class="d ">20</div><div class="d ">21</div><div class="d ">22</div><div class="d ">23</div><div class="d ">24</div><div class="d ">25</div><div class="d ">26</div><div class="d ">27</div><div class="d due">28</div><div class="d ">29</div><div class="d due">30</div><div class="d out">1</div><div class="d out">2</div><div class="d out">3</div><div class="d out">4</div><div class="d out">5</div><div class="d out">6</div></div><div class="legend"><span><i style="background:var(--ink-2)"></i>Umsätze</span><span><i style="box-shadow:inset 0 0 0 1px var(--ink-2)"></i>Fällig</span></div></div><div class="sect"><span class="sub">Konten</span><span class="ib" title="Weitere Bank anmelden"><span class="ms">add</span></span></div><div class="layer" style="--c:var(--acc-1)"><span class="tick" style="background:var(--c)"><span class="ms">check</span></span><span class="nm trunc">GiroKomfort</span><span class="num">1.530,84&nbsp;€</span></div><div class="layer dim" style="--c:var(--acc-2)"><span class="tick off"></span><span class="nm trunc">Giro Haushalt</span><span class="num">1.142,52&nbsp;€</span></div><div class="layer dim" style="--c:var(--acc-3)"><span class="tick off"></span><span class="nm trunc">Notgroschen</span><span class="num">4.200,00&nbsp;€</span></div><div class="layer dim" style="--c:var(--acc-4)"><span class="tick off"></span><span class="nm trunc">Visa Classic</span><span class="num">−153,64&nbsp;€</span></div><div class="nav foot"><div class="item"><span class="ms">settings</span>Einstellungen</div></div></nav><main class="sheet ledger">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;padding:22px 28px 0">
+    <div>
+      <div class="sub">Nur dieses Konto · <span style="color:var(--primary)">Alle Konten zeigen</span></div>
+      <div style="font-size:22px;line-height:28px;font-weight:500;margin-top:6px">GiroKomfort</div>
+      <div class="meta" style="white-space:nowrap">Volksbank Musterstadt eG · <span class="mono">DE89 5509 9999 0105 5932 71</span></div>
+      <div class="lead" style="margin-top:6px">1.530<span class="c">,84&nbsp;€</span></div>
+      <div class="meta">Verfügbar <span class="num" style="color:var(--ink);font-weight:500">3.457,46&nbsp;€</span> · Stand <span class="num" style="letter-spacing:0">14:56</span> Uhr</div>
+    </div>
+    <div style="display:flex;gap:40px;align-items:flex-end;padding-bottom:2px">
+      <div class="fig"><div class="l" style="white-space:nowrap">Eingänge November</div><div class="v num">0,00&nbsp;€</div></div>
+      <div class="fig"><div class="l" style="white-space:nowrap">Ausgänge November</div><div class="v num">−107,84&nbsp;€</div></div>
+      <svg width="132" height="52" viewBox="0 0 132 52" aria-hidden="true" style="margin-bottom:-4px"><title>Kontoverlauf</title>
+        <path d="M2 40H22V36H40V18H58V22H76V20H92V12H110V16H130V50H2Z" fill="var(--primary)" fill-opacity=".12"/>
+        <path d="M2 40H22V36H40V18H58V22H76V20H92V12H110V16H130" fill="none" stroke="var(--primary)" stroke-width="2"/>
+        <circle cx="130" cy="16" r="3.5" fill="var(--primary)"/></svg>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 10px 28px">
+    <div class="chips">
+      <div class="chip tr"><span class="amb"></span>Vorgemerkt <span class="num">2</span><span class="ms">expand_more</span></div>
+      <div class="chip">Eingänge</div><div class="chip">Ausgänge</div>
+      <div class="chip tr">Kategorie<span class="ms">expand_more</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:4px">
+      <div class="chip tr" style="padding-left:10px"><span class="ms">calendar_month</span>November<span class="ms">expand_more</span></div>
+      <div class="ib"><span class="ms">refresh</span></div><div class="ib"><span class="ms">download</span></div>
+    </div>
+  </div><div class="day"><span><span class="ms">schedule</span>Morgen · noch nicht gebucht</span></div><div class="row"><div class="disc"><span class="ms">directions_car</span></div><div class="nm">Aral Station 4711</div><div class="meta trunc">Mobilität · girocard · Musterstadt</div><div class="amt num ">−64,18&nbsp;€</div></div><div class="day"><span>Vorgemerkt</span></div><div class="row"><div class="disc amber"><span class="ms">local_mall</span></div><div class="nm">Kaufland Musterstadt</div><div class="meta trunc">Lebensmittel &amp; Drogerie · girocard</div><div class="amt num ">−41,27&nbsp;€</div></div><div class="row"><div class="disc amber"><span class="ms">local_gas_station</span></div><div class="nm">Shell Deutschland</div><div class="meta trunc">Mobilität · girocard</div><div class="amt num ">−58,00&nbsp;€</div></div><div class="day"><span>Heute</span><span>Kontostand 1.530,84&nbsp;€</span></div><div class="row new"><div class="disc"><span class="ms">smartphone</span></div><div class="nm">Telekom Deutschland GmbH</div><div class="meta trunc">Abos &amp; Medien · Kd-Nr. 6113 4401 22 RG 11/2026 Mobilfunk</div><div class="amt num ">−39,95&nbsp;€</div></div><div class="row new"><div class="disc"><span class="ms">shopping_bag</span></div><div class="nm">Zalando SE</div><div class="meta trunc">Shopping · über PayPal</div><div class="amt num ">−33,52&nbsp;€</div></div><div class="day"><span>Gestern</span><span>Kontostand 1.604,31&nbsp;€</span></div><div class="row"><div class="disc"><span class="ms">restaurant</span></div><div class="nm">Cafe Extrablatt</div><div class="meta trunc">Essen &amp; Trinken · girocard · Musterstadt</div><div class="amt num ">−23,61&nbsp;€</div></div><div class="row"><div class="disc"><span class="ms">shopping_basket</span></div><div class="nm">DM-Drogerie Markt</div><div class="meta trunc">Lebensmittel &amp; Drogerie · girocard</div><div class="amt num ">−10,76&nbsp;€</div></div><div class="day"><span>Freitag, 30. Oktober</span><span>Kontostand 1.638,68&nbsp;€</span></div><div class="row"><div class="disc"><span class="ms">work</span></div><div class="nm">Rheintal Software GmbH</div><div class="meta trunc">Einkommen · Gehalt Oktober</div><div class="amt num pos">+2.840,00&nbsp;€</div></div></main>
+</body></html>
