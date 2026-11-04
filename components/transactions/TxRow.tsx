@@ -8,6 +8,7 @@ import { maskAmounts } from '@/lib/mask';
 import { BankText } from '../BankText';
 import { CategoryIcon, NoteIcon, PaperclipIcon, PieIcon } from '../icons';
 import { Money, usePrivacy } from '../Money';
+import { useDesktopFrame } from '../shell/frame';
 import { Skeleton, cx } from '../ui';
 import { CounterpartyAvatar } from './Avatar';
 import { rowNote, txText } from './model';
@@ -53,6 +54,7 @@ export const TxRow = memo(function TxRow({
   onOpen: (tx: SerializedTransaction) => void;
 }) {
   const t = useT();
+  const frame = useDesktopFrame();
   const { name, summary, bankName } = txText(tx);
   const credit = tx.amount > 0;
   // A booked row leaves its Wertstellung to its details; a Buchungstag still
@@ -71,6 +73,67 @@ export const TxRow = memo(function TxRow({
     ? t.transactions.split.summary(categoryLabel(split[0].id), categoryLabel(split[1].id), split.length - 2)
     : category ? categoryLabel(category) : '';
   const categoryTitle = split ? t.transactions.split.summaryLabel(split.map((p) => categoryLabel(p.id))) : categoryText;
+
+  // The desktop's frame: a desktop's row, one line at 48px — the name, then
+  // the category and how the money moved, then (in a ledger of several) the
+  // account, then the amount. The bank's prose waits for the detail.
+  if (frame && !compact) {
+    // A row without a category to show says how the money moved, or the
+    // quiet category it has ("Sonstiges") — never the bank's reference prose.
+    const meta = showCategory
+      ? [categoryText, method].filter(Boolean).join(' · ')
+      : method || (category ? categoryLabel(category) : '');
+    return (
+      <button
+        type="button"
+        data-tx-row
+        data-tx-key={txKey(tx)}
+        onClick={() => onOpen(tx)}
+        title={note?.title}
+        className="row-focus flex min-h-12 w-full items-center gap-4 px-5 py-1 text-left transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--inset)_55%,var(--surface))]"
+      >
+        <CounterpartyAvatar
+          tx={tx}
+          merchant={merchant}
+          name={name}
+          credit={credit}
+          pending={pending}
+          size="sm"
+          glyph={showCategory ? (split ? <PieIcon size={18} /> : <CategoryIcon id={category} size={18} />) : undefined}
+        />
+        <span className="flex w-[34%] min-w-0 shrink-0 items-center gap-1.5">
+          <span
+            className="min-w-0 truncate text-[14px] leading-5 font-medium text-ink"
+            title={bankName && bankName !== name ? t.transactions.row.perBank(bankName) : undefined}
+          >
+            {name}
+          </span>
+          {userNote && <NoteMark note={userNote} />}
+          {receipt && (
+            <span className="inline-flex shrink-0 text-ink-3">
+              <PaperclipIcon size={14} />
+              <span className="sr-only">{t.docs.receipts.marker}</span>
+            </span>
+          )}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-ink-2" title={split ? categoryTitle : undefined}>
+          {split && <span className="sr-only">{categoryTitle}</span>}
+          {meta && <span aria-hidden={split ? true : undefined}>{meta}</span>}
+          {note && <span className="sr-only">{`, ${note.text}`}</span>}
+        </span>
+        {layer && (
+          <span data-tx-layer className="flex w-[150px] shrink-0 items-center gap-2 text-[14px] leading-5 text-ink-2">
+            <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: layer.color }} />
+            <span className="min-w-0 truncate">{layer.name}</span>
+          </span>
+        )}
+        <span className="w-[112px] shrink-0 text-right">
+          <span className="sr-only">{credit ? t.common.booking.credit : t.common.booking.debit}</span>
+          <Money value={tx.amount} currency={tx.currency} signed tone="credit" className="text-[14px] leading-5 font-medium" />
+        </span>
+      </button>
+    );
+  }
 
   return (
     <button

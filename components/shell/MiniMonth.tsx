@@ -65,7 +65,7 @@ export function MiniMonth({
   });
 
   return (
-    <div data-frame-month role="group" aria-label={label} className="px-2">
+    <div data-frame-month role="group" aria-label={label} className="px-5">
       <div className="flex items-center justify-between pl-2">
         <span className="text-[14px] leading-5 font-medium text-ink">{title}</span>
         <span className="flex">

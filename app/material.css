@@ -378,34 +378,33 @@
     --bar: var(--frame-canvas);
   }
 
-  /* The sidebar: M3E's nav items lying horizontal as 40px pills the
-     sidebar's width, or standing as a rail's when it is folded. */
+  /* The sidebar open: M3E's navigation drawer items, 40px pills the
+     sidebar's width, the badge in the variant ink at the end. Folded: the
+     rail's nav items, each the rail's width. */
+  :root[data-look='material'] [data-frame-side] m3e-nav-menu-item {
+    --m3e-nav-menu-item-height: 40px;
+    /* M3E draws the icon 8px into its padding: 24px puts it on the
+       sidebar's 28px edge with the month, Konten and the checkboxes. */
+    --m3e-nav-menu-item-padding: 24px;
+    --m3e-nav-menu-item-spacing: 12px;
+    --m3e-nav-menu-item-icon-size: 24px;
+    --m3e-nav-menu-item-font-size: 14px;
+    --m3e-nav-menu-item-font-weight: 500;
+    --m3e-nav-menu-item-line-height: 20px;
+    --m3e-nav-menu-item-label-color: var(--ink);
+    --m3e-nav-menu-item-selected-label-color: var(--md-on-secondary-container);
+    --m3e-nav-menu-item-selected-container-color: var(--md-secondary-container);
+    --m3e-nav-menu-item-badge-font-size: 14px;
+    --m3e-nav-menu-item-badge-font-weight: 500;
+  }
   :root[data-look='material'] [data-frame-side] m3e-nav-item {
     flex: none;
     width: 100%;
   }
-  :root[data-look='material'] [data-frame-side][data-open] m3e-nav-item {
-    --m3e-nav-item-horizontal-height: 40px;
-    --m3e-nav-item-label-text-font-size: 14px;
-    --m3e-nav-item-label-text-font-weight: 500;
-    justify-content: flex-start;
-  }
 
-  /* The sheet's density: a desktop's rows, 48px at 14px with a 32px face,
-     the day a 36px subheader — the phone's 64px rows were drawn for a thumb. */
-  :root[data-look='material'] [data-frame] #main [data-tx-row] {
-    min-height: 48px;
-    padding-block: 6px;
-    gap: 16px;
-  }
-  :root[data-look='material'] [data-frame] #main [data-tx-row] > :first-child {
-    zoom: 0.8;
-  }
-  :root[data-look='material'] [data-frame] #main [data-tx-row] :is(.text-\[15px\], .text-\[16px\]) {
-    font-size: 14px;
-    line-height: 20px;
-    font-weight: 500;
-  }
+  /* The sheet's density: the rows are one line at 48px (TxRow's frame
+     branch), the day a 36px subheader — the phone's 64px rows were drawn
+     for a thumb. */
   :root[data-look='material'] [data-frame] #main [data-day-header] {
     min-height: 36px;
     padding-top: 10px;

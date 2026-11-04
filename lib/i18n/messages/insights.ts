@@ -189,6 +189,9 @@ export const de = {
   contracts: {
     /** The section's title on the Zahlungen page. */
     title: 'Verträge & Abos',
+    /** The desktop's row to them (Zahlungen): "12 erkannt · Fixkosten pro Jahr mind. 15.790 €". */
+    entrySummary: (count: number, yearly: ReactNode): ReactNode[] => [`${count} erkannt · Fixkosten pro Jahr mind. `, yearly],
+    entryNone: 'Noch keine regelmäßigen Zahlungen erkannt',
     /** The tab, for a screen reader. */
     label: 'Verträge und Abos',
     /** The group for contracts that fit no other (lib/recurring.ts). */
@@ -295,6 +298,12 @@ export const de = {
     title: (month: string) => `Kontostand Ende ${month}`,
     estimate: 'Prognose',
     approx: 'ca.',
+    /** The desktop's chart of the forecast (components/insights/Forecast.tsx ForecastChart). */
+    chartLabel: 'Erwarteter Kontostand bis zum Monatsende',
+    /** A Vorgemerkter in what is due, which carries no name. */
+    pendingName: 'Vorgemerkter Umsatz',
+    /** The heading of what is due under the chart: the chart runs to the month's end. */
+    dueToMonthEnd: 'Fällig bis Monatsende',
     low: (amount: ReactNode, day: string) => ['Tiefster Stand ca. ', amount, ` am ${day}`],
     zero: (day: string, amount: ReactNode) => [`Am ${day} könnte das Konto ins Minus rutschen – auf ca. `, amount, '. Im Dispo fallen Sollzinsen an.'],
     limit: (day: string, amount: ReactNode) => [`Am ${day} könnte der Dispositionsrahmen nicht reichen – ca. `, amount, '. Eine Zahlung könnte dann zurückgehen.'],
@@ -653,6 +662,8 @@ export const en: typeof de = {
 
   contracts: {
     title: 'Contracts & subscriptions',
+    entrySummary: (count, yearly) => [`${count} found · fixed costs at least `, yearly, ' a year'],
+    entryNone: 'No regular payments found yet',
     label: 'Contracts and subscriptions',
     otherContracts: 'Other contracts',
     columns: {
@@ -737,6 +748,9 @@ export const en: typeof de = {
     title: (month) => `Balance at the end of ${month}`,
     estimate: 'Forecast',
     approx: 'approx.',
+    chartLabel: 'Expected balance to the end of the month',
+    pendingName: 'Pending transaction',
+    dueToMonthEnd: 'Due by the end of the month',
     low: (amount, day) => ['Lowest approx. ', amount, ` on ${day}`],
     zero: (day, amount) => [`On ${day} the account could go overdrawn – to approx. `, amount, '. Overdraft interest applies.'],
     limit: (day, amount) => [`On ${day} the overdraft limit may not be enough – approx. `, amount, '. A payment could then be returned.'],

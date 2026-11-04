@@ -264,6 +264,10 @@ export const de = {
     shownCount: (shown: number, all: number) => `${shown} von ${all} Konten`,
     /** "Notgroschen ausgeblendet" */
     hidden: (names: string) => `${names} ausgeblendet`,
+    /** The ledger's heading while a ticked account's balance is missing: no partial sum. */
+    totalPending: 'Gesamtsaldo noch nicht vollständig',
+    /** On Zahlungen in the sidebar: payments due in the next 30 days. */
+    dueBadge: (n: number) => `${n} fällig`,
     /** Ticked accounts whose Umsätze this session has not read. */
     notLoaded: (names: string) => `Umsätze noch nicht abgerufen: ${names}`,
     load: 'Umsätze abrufen',
@@ -577,6 +581,8 @@ export const en: typeof de = {
     showAll: 'Show all accounts',
     shownCount: (shown, all) => `${shown} of ${all} accounts`,
     hidden: (names) => `${names} hidden`,
+    totalPending: 'Total balance not complete yet',
+    dueBadge: (n) => `${n} due`,
     notLoaded: (names) => `Transactions not loaded yet: ${names}`,
     load: 'Load transactions',
     noneShown: 'No account ticked. Tick an account on the left to see its transactions.',

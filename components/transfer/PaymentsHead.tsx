@@ -26,6 +26,43 @@ import { recentPayees, shortIbanText, sortTemplates } from './model';
 /** Payees listed under "Zuletzt bezahlt", at most. */
 const RECENT = 5;
 
+/**
+ * The desktop's frame: Geld anfordern and the invoice (a PDF or a picture,
+ * read into the transfer) at the edge of Zahlungen's head. Überweisen is the
+ * sidebar's own button.
+ */
+export function PayActions() {
+  const { openTransfer } = useFints();
+  const actions = useShellActions();
+  const t = useT();
+  const words = t.shell.payments;
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex flex-wrap gap-2">
+      {actions.canShare && (
+        <Button variant="secondary" size="sm" iconLeft={<QrIcon size={18} />} onClick={actions.share}>{t.shell.requestMoney}</Button>
+      )}
+      {actions.canTransfer && (
+        <>
+          <Button variant="secondary" size="sm" iconLeft={<DocScanIcon size={18} />} onClick={() => input.current?.click()}>{words.openInvoice}</Button>
+          <input
+            ref={input}
+            type="file"
+            accept="image/*,application/pdf"
+            hidden
+            tabIndex={-1}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (file) openTransfer({ girocode: { file } });
+            }}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 export function PaymentsHead() {
   const { txByAccount, vault, openTransfer, accounts } = useFints();
   const invoiceInput = useRef<HTMLInputElement>(null);
@@ -57,21 +94,9 @@ export function PaymentsHead() {
       {/* The two reasons to come here, side by side and the same width —
           stacked once the system's large text no longer fits both labels
           (each at least as wide as its own label, so the row wraps). */}
-      {/* The desktop's frame: Überweisen is the sidebar's; the page's name
-          with Geld anfordern and the invoice beside it, as quieter buttons. */}
-      {frame ? (
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-1 pb-3 sm:px-5">
-          <p aria-hidden className="text-[22px] leading-7 font-medium text-ink">{t.common.nav.contracts}</p>
-          <div className="flex flex-wrap gap-2">
-            {actions.canShare && (
-              <Button variant="secondary" size="sm" iconLeft={<QrIcon size={18} />} onClick={actions.share}>{t.shell.requestMoney}</Button>
-            )}
-            {actions.canTransfer && (
-              <Button variant="secondary" size="sm" iconLeft={<DocScanIcon size={18} />} onClick={() => invoiceInput.current?.click()}>{words.openInvoice}</Button>
-            )}
-          </div>
-        </div>
-      ) : (
+      {/* The desktop's frame: Überweisen is the sidebar's, Geld anfordern and
+          the invoice stand at the edge of Zahlungen's head (PayActions). */}
+      {frame ? null : (
       <div className="flex flex-wrap gap-2 px-4 pt-1 pb-2 sm:px-5">
         {actions.canTransfer && (
           <Button variant="primary" className="min-w-fit flex-1" iconLeft={<TransferIcon size={20} strokeWidth={2} />} onClick={actions.transfer}>

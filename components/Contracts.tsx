@@ -12,10 +12,11 @@
 // too short for the slower rhythms says what it cannot show; and the user can
 // overrule the guess ("Ausblenden"), which is remembered in the vault.
 
-import { useCallback, useId } from 'react';
+import { useCallback, useId, useState } from 'react';
 import { OrdersEntry } from './BankOrders';
 import { useFints } from './FintsProvider';
-import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, Skeleton, Spinner, cx } from './ui';
+import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, IconButton, Skeleton, Spinner, cx } from './ui';
+import { BackIcon, ChevronIcon, Icon } from './icons';
 import { namesList } from '@/lib/balances';
 import { fmtRange, displayName, presetRange } from '@/lib/format';
 import type { Messages } from '@/lib/i18n';
@@ -23,7 +24,7 @@ import { rich, useT } from '@/lib/i18n/react';
 import type { Cadence, RecurringSeries } from '@/lib/recurring';
 import { ContractGroup, ContractRow, DismissedRow } from './insights/ContractRow';
 import { ForecastTile } from './insights/Forecast';
-import { PaymentsHead } from './transfer/PaymentsHead';
+import { PayActions, PaymentsHead } from './transfer/PaymentsHead';
 import { useRecurringModel, type AccountBasis, type RecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, RoundMoney, YEAR_SPAN, spanDays } from './insights/shared';
 import { useDesktopFrame } from './shell/frame';
@@ -71,22 +72,41 @@ function useDismiss() {
 export function Contracts() {
   const t = useT();
   const frame = useDesktopFrame();
-  // The desktop's frame: paying and the bank's orders on the left, the
-  // month-end forecast beside them on a wide sheet, the contracts below.
+  // The desktop's frame (its mock, .impeccable/mocks/desktop-shell/3-zahlungen.png):
+  // the page's name with Geld anfordern and the invoice at the sheet's edge;
+  // paying and the bank's orders on the left, the month-end forecast and what
+  // is due beside them; Verträge & Abos a row that opens them as a view.
+  const [contractsOpen, setContractsOpen] = useState(false);
   if (frame) {
+    if (contractsOpen) {
+      return (
+        <div className="min-w-0 space-y-4">
+          <div className="-ml-3 flex items-center gap-1">
+            <IconButton size="md" aria-label={t.common.nav.contracts} onClick={() => setContractsOpen(false)}>
+              <BackIcon size={22} />
+            </IconButton>
+            <h2 className="text-[22px] leading-7 font-medium text-ink">{t.insights.contracts.title}</h2>
+          </div>
+          <ContractsFromBookings />
+        </div>
+      );
+    }
     return (
-      <div className="min-w-0 space-y-6">
+      <div className="min-w-0 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <p aria-hidden className="text-[22px] leading-7 font-medium text-ink">{t.common.nav.contracts}</p>
+          <PayActions />
+        </div>
         <div className="grid gap-x-12 gap-y-6 min-[1180px]:grid-cols-2">
-          <div className="min-w-0 space-y-4">
+          <div className="min-w-0 space-y-2">
             <PaymentsHead />
             <OrdersEntry />
+            <ContractsEntry onOpen={() => setContractsOpen(true)} />
           </div>
           <div className="min-w-0">
             <ForecastTile />
           </div>
         </div>
-        <h2 className="section-head pt-4">{t.insights.contracts.title}</h2>
-        <ContractsFromBookings />
       </div>
     );
   }
@@ -100,6 +120,37 @@ export function Contracts() {
       <h2 className="section-head pt-4">{t.insights.contracts.title}</h2>
       <ContractsFromBookings />
     </div>
+  );
+}
+
+/** The desktop's row to Verträge & Abos: what was found, and what it costs a year. */
+function ContractsEntry({ onOpen }: { onOpen: () => void }) {
+  const model = useRecurringModel();
+  const t = useT();
+  const words = t.insights.contracts;
+  const count = model.income.length + model.expense.length;
+  const summary = model.loading || !model.basis
+    ? null
+    : count > 0
+      ? rich(words.entrySummary(count, <RoundMoney value={model.totals.yearlyExpense} currency={model.totals.currency} />))
+      : words.entryNone;
+  return (
+    <section className="panel" aria-label={words.title}>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="row-focus flex min-h-16 w-full items-center gap-4 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] sm:px-5"
+      >
+        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-inset text-ink-2">
+          <Icon ms="receipt_long" size={20}>{null}</Icon>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[16px] leading-[22px] font-medium text-ink">{words.title}</span>
+          {summary && <span className="block truncate text-[14px] leading-5 text-ink-2">{summary}</span>}
+        </span>
+        <ChevronIcon dir="right" size={24} className="shrink-0 text-ink-2" />
+      </button>
+    </section>
   );
 }
 

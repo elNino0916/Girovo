@@ -17,7 +17,7 @@
 // Übersicht is the phone's at every width, search first, in one column
 // (Overview below).
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CSSProperties, ReactNode, RefObject } from 'react';
 import { IS_ANDROID } from '@/lib/platform';
 import { PlusScreen } from './android/Plus';
@@ -87,7 +87,6 @@ function FramedDashboard() {
   const actions = useShellActions();
   useGlobalShortcuts(actions);
   const [sidebarOpen, toggleSidebar] = useSidebarOpen();
-  const [pickedDay, setPickedDay] = useState<string | null>(null);
   const { shown } = useLayers();
   const scrollRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -125,13 +124,14 @@ function FramedDashboard() {
       data-frame
       data-side-open={sidebarOpen || undefined}
       className="flex h-dvh flex-col bg-[var(--frame-canvas)]"
-      style={{ '--frame-side': sidebarOpen ? '272px' : '80px' } as CSSProperties}
+      // Folded, the rail is 96px, room for a label as long as "Einstellungen" (as the classic rail).
+      style={{ '--frame-side': sidebarOpen ? '272px' : '96px' } as CSSProperties}
     >
       <header className="shrink-0">
         <TitleBar sidebarOpen={sidebarOpen} onMenu={toggleSidebar} />
       </header>
       <div className="flex min-h-0 flex-1">
-        <Sidebar open={sidebarOpen} actions={actions} onPickDay={setPickedDay} pickedDay={pickedDay} />
+        <Sidebar open={sidebarOpen} actions={actions} />
         <div data-frame-sheet className="mr-4 mb-4 min-w-0 flex-1 overflow-hidden rounded-[16px] bg-[var(--frame-sheet)]">
           <div ref={scrollRef} data-scroll-root className="relative h-full overflow-y-auto overscroll-contain">
             <main id="main" className={cx('relative mx-auto w-full', !ledger && 'max-w-[1280px] px-7 pt-5 pb-12')}>
@@ -143,7 +143,7 @@ function FramedDashboard() {
                 {orders ? t.orders.page.title : t.common.nav[tab]}
               </h1>
               <div key={place} data-place>
-                {tab === 'overview' && (ledger ? <Ledger pickedDay={pickedDay} onClearDay={() => setPickedDay(null)} /> : <Overview />)}
+                {tab === 'overview' && (ledger ? <Ledger /> : <Overview />)}
                 {tab === 'analysis' && <Analysis />}
                 {tab === 'contracts' && (orders ? <OrdersPage /> : <Contracts />)}
                 {tab === 'settings' && <Settings />}

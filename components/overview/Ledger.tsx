@@ -3,37 +3,41 @@
 // The Übersicht of the desktop's frame with more than one account ticked
 // ("Konten als Ebenen", components/overview/layers.ts): one ledger of the
 // ticked accounts. At its head the Gesamtsaldo of what is ticked — never a
-// partial sum: until every figure is known it says so and offers "Alle Salden
-// abrufen", as the overview of every account does — with what is left out,
-// and the month's Eingänge, Ausgänge and what is due. Then the chips and the
-// bookings of every ticked account by day, each row with its account's
-// colour and name. A ticked account whose Umsätze this session has not read
-// is named, with the way to read them (each read may ask for a Freigabe).
+// partial sum: until every figure is known the heading says so and offers
+// "Alle Salden abrufen", as the overview of every account does — with what
+// is left out, and the month's Eingänge, Ausgänge and what is due. Then the
+// account page's own chips over the merged bookings (the same filter, so a
+// day picked in the sidebar's month or a category narrows both), the period,
+// the refresh, and the bookings of every ticked account by day, each row with
+// its account's colour and name. The CSV and the bank's Kontoauszüge belong
+// to one account: they are on its page (one account ticked).
 
-import { useCallback, useId, useMemo, useState } from 'react';
-import { periodTotals } from '@/lib/analytics';
+import { useCallback, useId, useMemo } from 'react';
+import { calendarMonths, filterTransactions, periodTotals, type SearchContext } from '@/lib/analytics';
 import { namesList } from '@/lib/balances';
 import { overviewFigures } from '@/lib/account-overview';
+import type { StatementInfo } from '@/lib/app-types';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { dayKey, isoDate } from '@/lib/format';
+import { isoDate } from '@/lib/format';
 import { intlLocale } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { useRecurringModel, useUpcoming } from '../insights/recurring-model';
-import { Icon } from '../icons';
+import { RefreshIcon } from '../icons';
 import { Money } from '../Money';
 import { TxDetailHost, openTxDetail } from '../transactions/detail-host';
-import { groupByDay, merchantFor, newestFirst } from '../transactions/model';
+import { groupByDay, merchantFor, newestFirst, searchText } from '../transactions/model';
+import { PeriodControl } from '../transactions/PeriodControl';
+import { TxFilterBar } from '../transactions/TxFilterBar';
 import { TxList } from '../transactions/TxList';
-import { Button, FilterChip } from '../ui';
+import { Button, IconButton, Spinner } from '../ui';
 import { hasBookings, useAccountValue, useLayers } from './layers';
 
-type Dir = 'all' | 'in' | 'out';
-
-export function Ledger({ pickedDay, onClearDay }: { pickedDay: string | null; onClearDay: () => void }) {
+export function Ledger() {
   const {
-    txByAccount, categoryOf, merchants, noteOf, receiptKeys, brandNames, accountLabel,
-    loadTransactions, loadAllBalances, loadingAllBalances, busy, banks,
+    txByAccount, statementInfo, categoryOf, merchants, noteOf, receiptKeys, brandNames, accountLabel,
+    loadTransactions, loadAllBalances, loadingAllBalances, loadingAccount, busy, banks,
+    txFilter, setTxFilter, range, applyRange, savedRange, applySavedRange,
   } = useFints();
   const t = useT();
   const words = t.shell.frame;
@@ -42,7 +46,6 @@ export function Ledger({ pickedDay, onClearDay }: { pickedDay: string | null; on
   const listId = useId();
   const { layers, shown } = useLayers();
   const valueOf = useAccountValue();
-  const [dir, setDir] = useState<Dir>('all');
 
   // ---- the sum of what is ticked ------------------------------------------
   const absent = banks.filter((b) => b.state === 'remembered').length;
@@ -50,7 +53,7 @@ export function Ledger({ pickedDay, onClearDay }: { pickedDay: string | null; on
   const hidden = layers.filter((l) => !l.shown).map((l) => accountLabel(l.account));
   const missing = namesList(figures.missing.map(accountLabel));
 
-  // ---- the bookings ---------------------------------------------------------
+  // ---- the bookings, through the account page's filter --------------------
   const layerOf = useMemo(() => {
     const map = new Map<SerializedTransaction, { name: string; color: string }>();
     for (const l of layers) {
@@ -60,13 +63,33 @@ export function Ledger({ pickedDay, onClearDay }: { pickedDay: string | null; on
     }
     return map;
   }, [layers, txByAccount, accountLabel]);
-  const all = useMemo(() => newestFirst([...layerOf.keys()]), [layerOf]);
-  const filtered = useMemo(() => all.filter((tx) => (
-    (dir === 'in' ? tx.amount > 0 : dir === 'out' ? tx.amount < 0 : true)
-    && (!pickedDay || dayKey(tx.entryDate || tx.valueDate) === pickedDay)
-  )), [all, dir, pickedDay]);
+  const searchCtx = useMemo<SearchContext & { categoryOf: typeof categoryOf }>(
+    () => ({ categoryOf, shownText: searchText, noteOf }),
+    [categoryOf, noteOf, t],
+  );
+  const sorted = useMemo(() => newestFirst([...layerOf.keys()]), [layerOf]);
+  const filtered = useMemo(() => filterTransactions(sorted, txFilter, searchCtx), [sorted, txFilter, searchCtx]);
+  const facetSource = useMemo(
+    () => (txFilter.category ? filterTransactions(sorted, { ...txFilter, category: null }, searchCtx) : filtered),
+    [sorted, filtered, txFilter, searchCtx],
+  );
+  const monthSource = useMemo(
+    () => (txFilter.from || txFilter.to ? filterTransactions(sorted, { ...txFilter, from: '', to: '' }, searchCtx) : filtered),
+    [sorted, filtered, txFilter, searchCtx],
+  );
   const groups = useMemo(() => groupByDay(filtered), [filtered, t]);
-  const notLoaded = shown.filter((a) => hasBookings(a) && !txByAccount[a.accountNumber]);
+  const withBookings = shown.filter(hasBookings);
+  const notLoaded = withBookings.filter((a) => !txByAccount[a.accountNumber]);
+  // The span the ticked accounts' lists cover between them, for the period chip and the months.
+  const loaded = useMemo<StatementInfo | undefined>(() => {
+    const infos = withBookings.map((a) => statementInfo[a.accountNumber]).filter(Boolean) as StatementInfo[];
+    if (!infos.length) return undefined;
+    const from = infos.reduce((m, i) => (i.from < m ? i.from : m), infos[0].from);
+    const to = infos.reduce((m, i) => (i.to > m ? i.to : m), infos[0].to);
+    return { ...infos[0], from, to, saved: undefined };
+  }, [withBookings, statementInfo]);
+  const months = useMemo(() => (loaded ? calendarMonths(loaded.from, loaded.to) : []), [loaded, t]);
+  const loading = withBookings.some((a) => loadingAccount === a.accountNumber);
 
   // ---- the month's figures, over every ticked account -----------------------
   const today = new Date();
@@ -100,8 +123,8 @@ export function Ledger({ pickedDay, onClearDay }: { pickedDay: string | null; on
 
   const merchantOf = useCallback((tx: SerializedTransaction) => merchantFor(merchants, tx), [merchants]);
   const onOpen = useCallback((tx: SerializedTransaction) => openTxDetail(tx, false), []);
-  const loadMissing = async () => {
-    for (const a of notLoaded) await loadTransactions(a);
+  const loadEach = async (list: typeof withBookings, force = false) => {
+    for (const a of list) await loadTransactions(a, undefined, undefined, force ? { force: true } : {});
   };
 
   if (shown.length === 0) {
@@ -112,18 +135,21 @@ export function Ledger({ pickedDay, onClearDay }: { pickedDay: string | null; on
     <section aria-labelledby={titleId} className="pb-10">
       <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4 px-7 pt-6">
         <div className="min-w-0">
-          <h2 id={titleId} className="text-[14px] leading-5 font-medium text-ink-2">
-            {totalWords.total}
-            {hidden.length > 0 && ` · ${words.shownCount(shown.length, layers.length)}`}
-          </h2>
           {figures.total != null ? (
-            <p data-balance className="mt-0.5 text-[36px] leading-[44px] font-medium tracking-[-0.025em]">
-              <Money value={figures.total / 100} currency="EUR" tone="plain" split centsClassName="text-[0.58em]" />
-            </p>
-          ) : (
             <>
-              <p className="mt-0.5 text-[22px] leading-7 font-medium">{totalWords.pending}</p>
-              {missing && <p className="text-[14px] leading-5 text-ink-2">{totalWords.notYet(missing)}</p>}
+              <h2 id={titleId} className="text-[14px] leading-5 font-medium text-ink-2">
+                {totalWords.total}
+                {hidden.length > 0 && ` · ${words.shownCount(shown.length, layers.length)}`}
+              </h2>
+              <p data-balance className="mt-0.5 text-[36px] leading-[44px] font-medium tracking-[-0.025em]">
+                <Money value={figures.total / 100} currency="EUR" tone="plain" split centsClassName="text-[0.58em]" />
+              </p>
+            </>
+          ) : (
+            // No partial sum: the heading says what is missing, and the one way to complete it.
+            <>
+              <h2 id={titleId} className="text-[22px] leading-7 font-medium">{words.totalPending}</h2>
+              {missing && <p className="mt-0.5 text-[14px] leading-5 text-ink-2">{totalWords.notYet(missing)}</p>}
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <Button size="sm" variant="secondary" onClick={() => loadAllBalances()} disabled={busy || loadingAllBalances}>
                   {totalWords.loadAll}
@@ -133,6 +159,13 @@ export function Ledger({ pickedDay, onClearDay }: { pickedDay: string | null; on
             </>
           )}
           {hidden.length > 0 && <p className="text-[14px] leading-5 text-ink-2">{words.hidden(namesList(hidden))}</p>}
+          {/* The balances complete, Umsätze still to read: a quiet line, never a second prompt beside the first. */}
+          {figures.total != null && notLoaded.length > 0 && (
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[14px] leading-5 text-ink-2">
+              <span>{words.notLoaded(namesList(notLoaded.map(accountLabel)))}</span>
+              <Button size="sm" variant="tertiary" className="-my-1" onClick={() => void loadEach(notLoaded)} disabled={busy}>{words.load}</Button>
+            </p>
+          )}
         </div>
         {(month || due !== 0) && (
           <dl className="flex flex-wrap gap-x-10 gap-y-3">
@@ -155,41 +188,54 @@ export function Ledger({ pickedDay, onClearDay }: { pickedDay: string | null; on
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 px-7 pt-5 pb-2">
-        <FilterChip selected={dir === 'in'} onClick={() => setDir(dir === 'in' ? 'all' : 'in')}>{t.common.booking.incoming}</FilterChip>
-        <FilterChip selected={dir === 'out'} onClick={() => setDir(dir === 'out' ? 'all' : 'out')}>{t.common.booking.outgoing}</FilterChip>
-        {pickedDay && (
-          <FilterChip selected onClick={onClearDay} aria-label={words.clearDay}>
-            {words.day(new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'long' }).format(new Date(`${pickedDay}T12:00:00`)))}
-            <Icon ms="close" size={18}>{null}</Icon>
-          </FilterChip>
-        )}
+      <div className="px-7 pt-5 pb-1">
+        <TxFilterBar
+          filter={txFilter}
+          setFilter={setTxFilter}
+          facetSource={facetSource}
+          monthSource={monthSource}
+          months={months}
+          loaded={loaded}
+          categoryOf={categoryOf}
+          trailing={(
+            <>
+              <PeriodControl
+                chip
+                loaded={loaded}
+                applyRange={applyRange}
+                busy={busy}
+                savedRange={savedRange}
+                applySavedRange={applySavedRange}
+              />
+              <IconButton
+                size="md"
+                aria-label={`${t.transactions.list.refresh} ${t.common.mayNeedApproval}`}
+                disabled={busy}
+                onClick={() => void loadEach(withBookings, true)}
+              >
+                {loading ? <Spinner size={16} /> : <RefreshIcon size={18} />}
+              </IconButton>
+            </>
+          )}
+        />
       </div>
-
-      {notLoaded.length > 0 && (
-        <div className="mx-7 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[12px] bg-[var(--md-surface-container)] px-4 py-3">
-          <span className="min-w-0 flex-1 text-[14px] leading-5 text-ink">{words.notLoaded(namesList(notLoaded.map(accountLabel)))}</span>
-          <Button size="sm" variant="tertiary" onClick={() => void loadMissing()} disabled={busy}>{words.load}</Button>
-          <span className="text-[14px] leading-5 text-ink-2">{t.common.mayNeedApproval}</span>
-        </div>
-      )}
 
       <div className="px-7">
-      <div className="panel">
-      <TxList
-        id={listId}
-        groups={groups}
-        total={filtered.length}
-        resetKey={`${shown.map((a) => a.accountNumber).join(',')}|${dir}|${pickedDay ?? ''}|${all.length}`}
-        merchantOf={merchantOf}
-        categoryOf={categoryOf}
-        noteOf={noteOf}
-        receiptKeys={receiptKeys}
-        brandNames={brandNames}
-        onOpen={onOpen}
-        layerOf={(tx) => layerOf.get(tx) ?? null}
-      />
-      </div>
+        <div className="panel">
+          <TxList
+            id={listId}
+            groups={groups}
+            total={filtered.length}
+            resetKey={`${shown.map((a) => a.accountNumber).join(',')}|${range.from}|${range.to}|${txFilter.dir}|${txFilter.category ?? ''}|${txFilter.from ?? ''}|${txFilter.to ?? ''}|${txFilter.query}|${sorted.length}`}
+            merchantOf={merchantOf}
+            categoryOf={categoryOf}
+            noteOf={noteOf}
+            receiptKeys={receiptKeys}
+            brandNames={brandNames}
+            onOpen={onOpen}
+            layerOf={(tx) => layerOf.get(tx) ?? null}
+          />
+        </div>
       </div>
       <TxDetailHost />
     </section>

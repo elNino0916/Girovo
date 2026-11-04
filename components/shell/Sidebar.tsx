@@ -12,6 +12,7 @@
 
 import { M3eFab } from '@m3e/react/fab';
 import { M3eNavItem } from '@m3e/react/nav-bar';
+import { M3eNavMenu, M3eNavMenuItem } from '@m3e/react/nav-menu';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { DashboardTab } from '@/lib/app-types';
@@ -29,13 +30,7 @@ import { MiniMonth } from './MiniMonth';
 /** Which place is current is the app's to say: M3E would select an item on its own click. */
 const keepPlace = (e: Event) => e.preventDefault();
 
-export function Sidebar({ open, actions, onPickDay, pickedDay }: {
-  open: boolean;
-  actions: ShellActions;
-  /** The Übersicht's day filter (components/overview/Ledger.tsx), set from the month. */
-  onPickDay: (day: string | null) => void;
-  pickedDay: string | null;
-}) {
+export function Sidebar({ open, actions }: { open: boolean; actions: ShellActions }) {
   const { tab, setTab, openSettings, closeAccount, closeOrders } = useFints();
   const t = useT();
   const go = (place: DashboardTab) => () => {
@@ -43,8 +38,15 @@ export function Sidebar({ open, actions, onPickDay, pickedDay }: {
     if (place === 'contracts' && tab === 'contracts') closeOrders();
     setTab(place);
   };
-  const orientation = open ? 'horizontal' : 'vertical';
   const settings = tab === 'settings' && open;
+  // The payments due in the next 30 days from the ticked accounts: Zahlungen's badge.
+  const { shown } = useLayers();
+  const model = useRecurringModel();
+  const upcoming = useUpcoming(model, 30);
+  const dueCount = useMemo(() => {
+    const own = new Set(shown.map((a) => a.accountNumber));
+    return upcoming.filter((u) => u.series.amount < 0 && own.has(model.accountOf(u.series) ?? '')).length;
+  }, [upcoming, model, shown]);
 
   return (
     <nav
@@ -72,29 +74,47 @@ export function Sidebar({ open, actions, onPickDay, pickedDay }: {
               {open && <span slot="label">{t.shell.transfer}</span>}
             </M3eFab>
           )}
-          <div className={cx('flex flex-col', open ? 'gap-0.5 px-3' : 'gap-3')}>
-            <Place orientation={orientation} icon={<HomeIcon size={24} filled={tab === 'overview'} />} label={t.common.nav.overview} current={tab === 'overview'} onClick={go('overview')} />
-            <Place orientation={orientation} icon={<TransferIcon size={24} filled={tab === 'contracts'} />} label={t.shell.bottomBar.contracts} current={tab === 'contracts'} onClick={go('contracts')} />
-            <Place orientation={orientation} icon={<ChartIcon size={24} filled={tab === 'analysis'} />} label={t.common.nav.analysis} current={tab === 'analysis'} onClick={go('analysis')} />
-          </div>
-          {open && <PlaceMonth onPickDay={onPickDay} pickedDay={pickedDay} />}
+          {open ? (
+            // Open: M3E's navigation drawer items, their pill the sidebar's width.
+            <M3eNavMenu className="block">
+              <MenuPlace icon={<HomeIcon size={24} filled={tab === 'overview'} />} label={t.common.nav.overview} current={tab === 'overview'} onClick={go('overview')} />
+              <MenuPlace icon={<TransferIcon size={24} filled={tab === 'contracts'} />} label={t.shell.bottomBar.contracts} current={tab === 'contracts'} onClick={go('contracts')} badge={dueCount > 0 ? t.shell.frame.dueBadge(dueCount) : undefined} />
+              <MenuPlace icon={<ChartIcon size={24} filled={tab === 'analysis'} />} label={t.common.nav.analysis} current={tab === 'analysis'} onClick={go('analysis')} />
+            </M3eNavMenu>
+          ) : (
+            // Folded: M3E's rail items, icon over label.
+            <div className="flex flex-col gap-3">
+              <Place icon={<HomeIcon size={24} filled={tab === 'overview'} />} label={t.common.nav.overview} current={tab === 'overview'} onClick={go('overview')} />
+              <Place icon={<TransferIcon size={24} filled={tab === 'contracts'} />} label={t.shell.bottomBar.contracts} current={tab === 'contracts'} onClick={go('contracts')} />
+              <Place icon={<ChartIcon size={24} filled={tab === 'analysis'} />} label={t.common.nav.analysis} current={tab === 'analysis'} onClick={go('analysis')} />
+            </div>
+          )}
+          {open && <PlaceMonth />}
           {open && <AccountLayers />}
         </>
       )}
-      <div className={cx('mt-auto flex flex-col pt-3', open ? 'px-3' : '')}>
-        <Place orientation={orientation} icon={<GearIcon size={24} />} label={t.common.nav.settings} current={tab === 'settings'} onClick={() => openSettings()} />
-      </div>
+      {open ? (
+        // On Einstellungen the sidebar's head already says where you are: the foot stays quiet there.
+        <M3eNavMenu className="mt-auto block pt-3">
+          <MenuPlace icon={<GearIcon size={24} />} label={t.common.nav.settings} current={tab === 'settings' && !settings} onClick={() => openSettings()} />
+        </M3eNavMenu>
+      ) : (
+        <div className="mt-auto flex flex-col pt-3">
+          <Place icon={<GearIcon size={24} />} label={t.common.nav.settings} current={tab === 'settings'} onClick={() => openSettings()} />
+        </div>
+      )}
     </nav>
   );
 }
 
-function Place({ icon, label, current, onClick, orientation }: {
-  icon: ReactNode; label: string; current?: boolean; onClick: () => void; orientation: 'horizontal' | 'vertical';
+/** A place in the folded rail: M3E's nav item, icon over label. */
+function Place({ icon, label, current, onClick }: {
+  icon: ReactNode; label: string; current?: boolean; onClick: () => void;
 }) {
   return (
     <M3eNavItem
       selected={!!current}
-      orientation={orientation}
+      orientation="vertical"
       data-nav-item
       onBeforeInput={keepPlace}
       onClick={onClick}
@@ -106,12 +126,35 @@ function Place({ icon, label, current, onClick, orientation }: {
 }
 
 /**
+ * A place in the open sidebar: M3E's navigation drawer item, its pill the
+ * sidebar's width, a badge at its end (Zahlungen: "3 fällig").
+ */
+function MenuPlace({ icon, label, current, onClick, badge }: {
+  icon: ReactNode; label: string; current?: boolean; onClick: () => void;
+  badge?: string;
+}) {
+  return (
+    <M3eNavMenuItem selected={!!current} aria-current={current ? 'page' : undefined} data-nav-item onClick={onClick}>
+      <span slot="icon" className="inline-flex">{icon}</span>
+      <span slot="label">{label}</span>
+      {badge && <span slot="badge">{badge}</span>}
+    </M3eNavMenuItem>
+  );
+}
+
+/**
  * The month for the place: the days a payment is due marked (Übersicht,
  * Zahlungen), a day picked narrowing the Übersicht's bookings to it; in
  * Analyse the analysis's month as a range, a day picked choosing its month.
  */
-function PlaceMonth({ onPickDay, pickedDay }: { onPickDay: (day: string | null) => void; pickedDay: string | null }) {
-  const { tab, analysisPeriod, setAnalysisPeriod, txByAccount } = useFints();
+function PlaceMonth() {
+  const { tab, analysisPeriod, setAnalysisPeriod, txByAccount, txFilter, setTxFilter } = useFints();
+  // A day picked is the bookings' own filter (one day, from and to), shared by the ledger and an account's page.
+  const pickedDay = txFilter.from && txFilter.from === txFilter.to ? txFilter.from : null;
+  const pick = (day: string) => {
+    const off = day === pickedDay;
+    setTxFilter((f) => ({ ...f, from: off ? '' : day, to: off ? '' : day, acrossAccounts: undefined }));
+  };
   const t = useT();
   const { shown } = useLayers();
   const model = useRecurringModel();
@@ -154,7 +197,7 @@ function PlaceMonth({ onPickDay, pickedDay }: { onPickDay: (day: string | null) 
         bookingDays={bookingDays}
         selected={tab === 'overview' ? pickedDay : null}
         startAt={pickedDay ?? today}
-        onSelect={tab === 'overview' ? (day) => onPickDay(day === pickedDay ? null : day) : undefined}
+        onSelect={tab === 'overview' ? pick : undefined}
       />
     </div>
   );

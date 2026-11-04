@@ -75,7 +75,7 @@ export function TitleBar({ sidebarOpen, onMenu }: { sidebarOpen: boolean; onMenu
         {sidebarOpen && (
           <>
             <BrandPlate size={28} className="ml-1" />
-            <span className="ml-2.5 truncate text-[18px] leading-6 font-bold tracking-[-0.01em]">Girovo</span>
+            <span className="ml-2.5 truncate text-[18px] leading-6 font-medium">Girovo</span>
           </>
         )}
       </div>

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-23T12:00:00.000Z",
+  "generatedAt": "2026-11-04T12:00:00.000Z",
   "title": "Design System: Girovo",
   "extensions": {
     "colorMeta": {
@@ -83,6 +83,22 @@
           "#f8f9ff"
         ],
         "dark": "#0e141c"
+      },
+      "md-surface-container-lowest": {
+        "role": "neutral",
+        "displayName": "Sheet",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#090f16",
+          "#161c24",
+          "#2b313a",
+          "#404753",
+          "#707784",
+          "#bfc7d5",
+          "#e3e8f4",
+          "#f8f9ff"
+        ],
+        "dark": "#090f16"
       },
       "md-surface-container-low": {
         "role": "neutral",
@@ -607,12 +623,17 @@
       {
         "name": "sm",
         "value": "640px",
-        "purpose": "Navigation rail (96dp); the desktop layout, which follows the phone later."
+        "purpose": "The desktop's frame (not Android): title bar, sidebar and sheet; Android's 96dp rail."
       },
       {
         "name": "desk",
         "value": "1100px",
-        "purpose": "Two-pane Übersicht."
+        "purpose": "The frame's sidebar opens on its own (272px); below it folds to the 96px rail."
+      },
+      {
+        "name": "pay-two",
+        "value": "1180px",
+        "purpose": "Zahlungen in two columns in the frame."
       }
     ]
   },
@@ -714,7 +735,7 @@
   ],
   "narrative": {
     "northStar": "The Private Branch",
-    "overview": "Girovo is a bank branch that opens for one person. Nothing on the walls sells anything, every figure is the bank's own, and the counter is tidy. The look is Material 3 Expressive, drawn by the real `@m3e/web` components (wrapped in `components/ui.tsx`), in Google Sans Flex, on Material You's wallpaper roles on an Android phone and on Girovo's own blue scheme everywhere else (`app/material.css`).\n\nThe phone is the system's reference. Its home has one field at the head that searches every booking, action and setting and, on Android, answers a question about the bookings. Below it the balance is set flat, then a row of chips, then the bookings, then three places at the foot. The page is flat and list-first; tone, weight and space carry the hierarchy, and the colours that carry a value never follow the wallpaper.\n\nThe desktop (from 640px) follows the phone later (owner, 2026-10-23: \"don't update desktop yet\"). It still has the two-pane Übersicht, the balance as a filled hero card, the navigation rail and the line icons; it inherits the colour rules below. Round two of the phone redesign (Material Symbols, wallpaper chart tones, the transitions, the transfer's two parts, the tabbed Umsatzdetails, the brand-field Anmeldung) is Android only: `IS_ANDROID` in code, `html[data-platform=\"android\"]` in CSS.",
+    "overview": "Girovo is a bank branch that opens for one person. Nothing on the walls sells anything, every figure is the bank's own, and the counter is tidy. The look is Material 3 Expressive, drawn by the real `@m3e/web` components (wrapped in `components/ui.tsx`), in Google Sans Flex, on Material You's wallpaper roles on an Android phone and on Girovo's own blue scheme everywhere else (`app/material.css`).\n\nThe phone is the system's reference. Its home has one field at the head that searches every booking, action and setting and, on Android, answers a question about the bookings. Below it the balance is set flat, then a row of chips, then the bookings, then three places at the foot. The page is flat and list-first; tone, weight and space carry the hierarchy, and the colours that carry a value never follow the wallpaper.\n\nThe desktop (from 640px) followed the phone on 2026-10-24 (owner's choice): the Material Symbols, the type, the transfer's two parts, the tabbed Umsatzdetails and the brand-field Anmeldung. On 2026-11-04 it got a frame of its own, \"Konten als Ebenen\" (Round 6, the owner's pick; mocks in `.impeccable/mocks/desktop-shell/`): Google's desktop Material 3 Expressive instead of the phone's rail scaled up. A title bar and a labelled sidebar stand on a tinted canvas, the page is one white sheet beside them, and the accounts are layers ticked on and off like Calendar's calendars. The frame is the desktop's alone (`useDesktopFrame`: not `IS_ANDROID`, and at least 640px wide); Android keeps the classic shell at every width. What stays Android only — the wallpaper's colours and chart tones, the transitions, the phone's sheets and touch targets — is `IS_ANDROID` in code and `html[data-platform=\"android\"]` in CSS.",
     "keyCharacteristics": [
       "Search-first home: a 56dp search bar is the only tinted shape at the top.",
       "A flat 48/500 balance with tight tracking; no balance card on the phone.",
@@ -786,7 +807,7 @@
       },
       {
         "name": "The Flat Page Rule",
-        "body": "A section on the page has no surface, corners, shadow or hairline between rows. The phone's page has no container at all; the desktop's one container is the balance hero. The exception is Einstellungen (owner, 2026-10-20): Material 3 Expressive's grouped list, rows as tiles on Container, 2px seams, 20px outer corners, 4px inner ones.",
+        "body": "A section on the page has no surface, corners, shadow or hairline between rows. The page has no container at all; on the desktop the page is the frame's sheet itself, and nothing inside it is boxed. The first exception is Einstellungen (owner, 2026-10-20): Material 3 Expressive's grouped list, rows as tiles on Container, 2px seams, 20px outer corners, 4px inner ones. The second is a warning the reader must not miss, as the forecast's overdraft warning: a tonal callout on Container High, 12px round, its glyph in Marker Orange.",
         "section": "elevation"
       },
       {
@@ -833,6 +854,11 @@
         "name": "The Two-Sign Rule",
         "body": "On paper a debit is ink and a credit green, and both signs are written out, so a grey copy says the same. A balance carries only its minus.",
         "section": "components"
+      },
+      {
+        "name": "The Layers Rule",
+        "body": "On the desktop the ticked accounts are the Übersicht: their bookings one ledger, their balances one sum (never a partial one), and one ticked alone is that account's page. Zahlungen's badge, the month's marks and Analyse's scope (across the ticked accounts when there are several, the one account otherwise) follow the same ticks. A layer's colour is its chart slot by order, the same on its checkbox and on its rows' dot.",
+        "section": "layout"
       }
     ],
     "dos": [
