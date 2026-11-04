@@ -33,10 +33,11 @@ import { VaultError, wipeVault } from '@/lib/vault';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type ForgetBody = { sessionId?: string; blz?: string; userId?: string; wipeData?: boolean };
+/** `refused`: the bank turned the first login's PIN down — not the user's "Gerät vergessen". */
+type ForgetBody = { sessionId?: string; blz?: string; userId?: string; wipeData?: boolean; refused?: boolean };
 
 export const POST = wrap(async (req: Request) => {
-  const { sessionId, blz, userId, wipeData } = await body<ForgetBody>(req);
+  const { sessionId, blz, userId, wipeData, refused } = await body<ForgetBody>(req);
   const s = sessionId ? getSession(sessionId) : null;
   let b = blz;
   let u = userId;
@@ -51,8 +52,9 @@ export const POST = wrap(async (req: Request) => {
     await removeWindowsHello({ blz: String(b), userId: String(u) });
   }
   // "Gerät vergessen" by the user (with a session, not a refused further
-  // bank's): the PINs kept for "Neue Umsätze melden" go, all of them.
-  if (s && backgroundServed()) await disableBackground(backgroundStore());
+  // bank's): the PINs kept for "Neue Umsätze melden" go, all of them. A
+  // refused PIN takes only its own login's out (the page asks for that).
+  if (s && refused !== true && backgroundServed()) await disableBackground(backgroundStore());
 
   let wiped: number | undefined;
   if (wipeData === true && s) {

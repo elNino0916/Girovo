@@ -4095,7 +4095,8 @@ function useFintsState() {
         return;
       }
       if (sid !== sessionRef.current || !own) return;
-      void post('/api/forget-device', { sessionId: sid }).catch(() => { /* asked again with the next refusal */ });
+      // Refused, not forgotten: the other banks' kept PINs for the checks stay (forgetBackgroundLogin below).
+      void post('/api/forget-device', { sessionId: sid, refused: true }).catch(() => { /* asked again with the next refusal */ });
       setDeviceRemembered(false);
       if (IS_ANDROID && userIdRef.current) void window.girovoMobile?.biometric.forget(own.blz, userIdRef.current);
       // The desktop: the PIN kept for Windows Hello is that same refused one.
