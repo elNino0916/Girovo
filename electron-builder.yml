@@ -61,6 +61,10 @@ win:
     # never from inside app.asar.
     - from: build/windows-hello/bin/Girovo-Hello.exe
       to: Girovo-Hello.exe
+    # The notification area's icon (main.cjs trayIcon): the .exe's own icon
+    # cannot be read back at that size.
+    - from: build/icon.png
+      to: icon.png
   # The installer only: no portable build since 5.13.0. A portable copy from
   # before finds no -portable.exe in a newer release and its updater offers
   # the release page, where the Setup.exe is.

@@ -48,6 +48,18 @@ function useFieldWiring(props: { id?: string; 'aria-describedby'?: string; 'aria
  */
 const subscript = (shown: boolean) => (shown ? 'never' : 'always');
 
+/**
+ * Inputs that draw their own empty state ("tt.mm.jjjj"): a label resting
+ * inside the outline would sit on top of it, so theirs stays above the value.
+ */
+const OWN_EMPTY_STATE = new Set(['date', 'month', 'week', 'time', 'datetime-local']);
+const drawsOwnEmptyState = (children: ReactNode) =>
+  Children.toArray(children).some((child) => {
+    if (!isValidElement<{ type?: unknown }>(child)) return false;
+    const type = child.props.type;
+    return typeof type === 'string' && OWN_EMPTY_STATE.has(type);
+  });
+
 export function Field({
   label, htmlFor, hint, error, required, optional, trailing, labelHidden, floatLabel, className, children,
 }: {
@@ -64,7 +76,7 @@ export function Field({
   trailing?: ReactNode;
   /** Keeps the label for screen readers only. */
   labelHidden?: boolean;
-  /** "always": the label stays above the value — for a control that draws its own empty state (a month field). */
+  /** "always": the label stays above the value. A date, month or time Input gets it by itself (it draws its own empty state). */
   floatLabel?: 'always';
   /** Replaces the default bottom margin. */
   className?: string;
@@ -101,7 +113,7 @@ export function Field({
       )}
       <M3eFormField
         variant="outlined"
-        floatLabel={floatLabel ?? 'auto'}
+        floatLabel={floatLabel ?? (drawsOwnEmptyState(children) ? 'always' : 'auto')}
         error={!!error}
         hideSubscript={subscript(!!(error || hint))}
         hideRequiredMarker={!required}

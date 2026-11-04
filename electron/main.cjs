@@ -131,6 +131,27 @@ function windowIcon() {
   return fs.existsSync(file) ? file : undefined;
 }
 
+/**
+ * The notification area's icon: the app icon (shipped beside the app on
+ * Windows and Linux, electron-builder.yml) drawn at the tray's sizes, 16px at
+ * 100% up to 32px at 200%. Not the .exe's own icon: app.getFileIcon hands
+ * back Windows' generic program icon for an .exe, not the one inside it.
+ */
+function trayIcon() {
+  const file = app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(__dirname, '..', 'build', 'icon.png');
+  if (!fs.existsSync(file)) return nativeImage.createEmpty();
+  const full = nativeImage.createFromPath(file);
+  if (process.platform !== 'win32') return full;
+  const image = nativeImage.createEmpty();
+  for (const scaleFactor of [1, 1.25, 1.5, 2]) {
+    const size = Math.round(16 * scaleFactor);
+    image.addRepresentation({ scaleFactor, buffer: full.resize({ width: size, height: size, quality: 'best' }).toPNG() });
+  }
+  return image;
+}
+
 /** @type {import('node:child_process').ChildProcess | null} */
 let server = null;
 /** @type {BrowserWindow | null} */
@@ -386,12 +407,8 @@ function showWindow() {
 /** The icon in the notification area, while the checks are on: open, look now, quit. */
 async function ensureTray() {
   if (tray || !background?.enabled()) return;
-  const icon = process.platform === 'win32'
-    ? await app.getFileIcon(process.execPath, { size: 'small' }).catch(() => null)
-    : windowIcon();
-  if (tray || !background?.enabled()) return;
   const texts = shellTexts().background;
-  tray = new Tray(icon ?? nativeImage.createEmpty());
+  tray = new Tray(trayIcon());
   tray.setToolTip(texts.tooltip);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: texts.open, click: showWindow },
