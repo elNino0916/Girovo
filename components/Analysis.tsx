@@ -85,9 +85,16 @@ export function Analysis() {
   // Ebenen") — several make the analysis across accounts, one its own.
   const frame = useDesktopFrame();
   const { shown } = useLayers();
-  const framedBase = frame && activeAccount && !shown.some((a) => a.accountNumber === activeAccount.accountNumber)
-    ? shown.find((a) => txByAccount[a.accountNumber]) ?? activeAccount
-    : activeAccount;
+  // The basis among the ticked: the active account when it is one of them
+  // and loaded, else the first loaded ticked one, else the active one if
+  // ticked, else the first ticked. Never an unticked account.
+  const activeShown = !!activeAccount && shown.some((a) => a.accountNumber === activeAccount.accountNumber);
+  const loadedOf = (a: { accountNumber: string }) => !!txByAccount[a.accountNumber] || (a === activeAccount && !!transactions);
+  const framedBase = !frame
+    ? activeAccount
+    : (activeShown && activeAccount && loadedOf(activeAccount) ? activeAccount : null)
+      ?? shown.find(loadedOf)
+      ?? (activeShown ? activeAccount : shown[0] ?? null);
   const data = useScopeData(frame
     ? {
       scope: shown.length > 1 ? 'all' : 'account',
@@ -221,7 +228,15 @@ export function Analysis() {
   }, [openOn, privacy, drill]);
 
   // ---- states before there is anything to analyse ------------------------
-  if (!activeAccount) {
+  // In the frame these are the ticked basis's, not the active account's.
+  const baseAccount = frame ? framedBase : activeAccount;
+  const baseTx = frame
+    ? (framedBase ? txByAccount[framedBase.accountNumber] ?? (framedBase === activeAccount ? transactions : null) : null)
+    : transactions;
+  if (frame && !shown.length) {
+    return <p className="py-10 text-[16px] leading-6 text-ink-2">{t.shell.frame.noneShown}</p>;
+  }
+  if (!baseAccount) {
     return (
       <section className="panel" aria-label={words.label}>
         <EmptyState illustration="chart" title={words.noAccount}>
@@ -230,22 +245,22 @@ export function Analysis() {
       </section>
     );
   }
-  const loading = loadingAccount === activeAccount.accountNumber;
-  if (!transactions) {
-    if (txError && !loading) {
+  const loading = loadingAccount === baseAccount.accountNumber;
+  if (!baseTx) {
+    if (txError && !loading && baseAccount === activeAccount) {
       return (
         <section className="panel" aria-label={words.label}>
-          <ErrorState title={words.loadFailed} onRetry={() => refreshAccount(activeAccount)} busy={busy}>
+          <ErrorState title={words.loadFailed} onRetry={() => refreshAccount(baseAccount)} busy={busy}>
             {txError}
           </ErrorState>
         </section>
       );
     }
-    if (!activeAccount.canStatements) {
+    if (!baseAccount.canStatements) {
       return (
         <section className="panel" aria-label={words.label}>
           <EmptyState illustration="chart" title={t.insights.bookings.noneForAccount}>
-            {words.unsupported(accountLabel(activeAccount))}
+            {words.unsupported(accountLabel(baseAccount))}
           </EmptyState>
         </section>
       );
@@ -258,9 +273,9 @@ export function Analysis() {
           <EmptyState
             illustration="chart"
             title={words.notLoaded}
-            action={<Button variant="primary" size="sm" disabled={busy} onClick={() => refreshAccount(activeAccount)}>{t.insights.bookings.load}</Button>}
+            action={<Button variant="primary" size="sm" disabled={busy} onClick={() => refreshAccount(baseAccount)}>{t.insights.bookings.load}</Button>}
           >
-            {words.notLoadedHint(accountLabel(activeAccount))}
+            {words.notLoadedHint(accountLabel(baseAccount))}
           </EmptyState>
         </section>
       );
@@ -280,7 +295,7 @@ export function Analysis() {
   const loadedSpan = spanDays(data.from, data.to);
   const showHistoryButton = !ownInfo || spanDays(ownInfo.from, ownInfo.to) < YEAR_SPAN;
   // It fetches the active account's year: with every account counted, it says whose.
-  const yearLabel = data.scope === 'all' ? t.insights.loadYear.labelFor(accountLabel(activeAccount)) : undefined;
+  const yearLabel = data.scope === 'all' ? t.insights.loadYear.labelFor(accountLabel(baseAccount)) : undefined;
   const empty = data.txs.length === 0;
   const first = firstBookingDay(data);
   const lateStart = months.some((m) => m.noData) && !!first;
