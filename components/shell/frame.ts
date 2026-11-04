@@ -38,3 +38,10 @@ export function useSidebarOpen(): [boolean, () => void] {
   }, [open]);
   return [open, toggle];
 }
+
+/**
+ * A place in the sidebar pressed while it is the current one: back to its
+ * first level. Pages that open a view of their own (Zahlungen's Verträge &
+ * Abos) listen for it; the provider's own levels close in the sidebar.
+ */
+export const PLACE_ROOT_EVENT = 'girovo:place-root';

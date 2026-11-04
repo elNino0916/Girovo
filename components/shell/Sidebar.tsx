@@ -25,6 +25,7 @@ import { useLayers } from '../overview/layers';
 import { BackIcon, ChartIcon, GearIcon, HomeIcon, TransferIcon } from '../icons';
 import { IconButton, cx } from '../ui';
 import type { ShellActions } from './actions';
+import { PLACE_ROOT_EVENT } from './frame';
 import { MiniMonth } from './MiniMonth';
 
 /** Which place is current is the app's to say: M3E would select an item on its own click. */
@@ -36,6 +37,7 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
   const go = (place: DashboardTab) => () => {
     if (place === 'overview' && tab === 'overview') closeAccount();
     if (place === 'contracts' && tab === 'contracts') closeOrders();
+    if (place === tab) window.dispatchEvent(new CustomEvent(PLACE_ROOT_EVENT, { detail: place }));
     setTab(place);
   };
   const settings = tab === 'settings' && open;

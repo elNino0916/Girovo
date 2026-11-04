@@ -12,7 +12,7 @@
 // too short for the slower rhythms says what it cannot show; and the user can
 // overrule the guess ("Ausblenden"), which is remembered in the vault.
 
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { OrdersEntry } from './BankOrders';
 import { useFints } from './FintsProvider';
 import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, IconButton, Skeleton, Spinner, cx } from './ui';
@@ -27,7 +27,7 @@ import { ForecastTile } from './insights/Forecast';
 import { PayActions, PaymentsHead } from './transfer/PaymentsHead';
 import { useRecurringModel, type AccountBasis, type RecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, RoundMoney, YEAR_SPAN, spanDays } from './insights/shared';
-import { useDesktopFrame } from './shell/frame';
+import { PLACE_ROOT_EVENT, useDesktopFrame } from './shell/frame';
 
 /**
  * "Vierteljährliche und jährliche" ("Quarterly and yearly") — the rhythms a
@@ -77,6 +77,12 @@ export function Contracts() {
   // paying and the bank's orders on the left, the month-end forecast and what
   // is due beside them; Verträge & Abos a row that opens them as a view.
   const [contractsOpen, setContractsOpen] = useState(false);
+  // Zahlungen pressed again in the sidebar: back from Verträge & Abos.
+  useEffect(() => {
+    const back = (e: Event) => { if ((e as CustomEvent).detail === 'contracts') setContractsOpen(false); };
+    window.addEventListener(PLACE_ROOT_EVENT, back);
+    return () => window.removeEventListener(PLACE_ROOT_EVENT, back);
+  }, []);
   if (frame) {
     if (contractsOpen) {
       return (
