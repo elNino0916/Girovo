@@ -183,7 +183,6 @@ export async function runSync(opts: {
     { id: device.id, name: device.name.slice(0, NAME_MAX), at: now },
     ...known.filter((d) => d.id !== device.id && now - d.at < DEVICE_STALE_MS),
   ].slice(0, DEVICES_MAX);
-  await writeJson(store, key, devicesFile(key), devices);
 
   // This device's entries: the vault's, and one per receipt (by content).
   const docs = receipts ? (await receipts.list()).filter((d) => d.kind === 'receipt') : [];
@@ -260,6 +259,10 @@ export async function runSync(opts: {
   }
 
   await writeJson(store, key, stateFile(key, device.id), { v: 1, device: { id: device.id, name: device.name }, at: now, entries: merged.state });
+  // "Last seen" only once this round's state is written: a device whose
+  // rounds keep failing ages out of the others' view (DEVICE_STALE_MS)
+  // instead of keeping its old state, tombstones expired, in it.
+  await writeJson(store, key, devicesFile(key), devices);
 
   const vaultEntriesOnly = new Map([...merged.entries].filter(([p]) => !p.startsWith('docs/')));
   const built = vaultFromEntries(vaultEntriesOnly, vault);
