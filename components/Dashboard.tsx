@@ -152,7 +152,7 @@ function FramedDashboard() {
           </div>
         </div>
       </div>
-      <ShellLayers />
+      <ShellLayers frame />
     </div>
   );
 }
@@ -241,8 +241,10 @@ function ClassicDashboard() {
  * palette, Einstellungen), mounted where every width and page keeps them:
  * the masthead's actions are hidden or dropped on a phone-width page, and an
  * open layer there would make the page inert unseen. Both shells hold them.
+ * The frame has no search dialog: its title bar's field is the search
+ * (components/shell/FrameSearch.tsx).
  */
-function ShellLayers() {
+function ShellLayers({ frame = false }: { frame?: boolean }) {
   const { transferOpen, shareOpen, shareAll, forgetDeviceOpen, setForgetDeviceOpen } = useFints();
   return (
     <>
@@ -257,7 +259,7 @@ function ShellLayers() {
       <BackgroundDialog />
       <SyncDialog />
       <Inbox />
-      <CommandPalette />
+      {!frame && <CommandPalette />}
       <SessionGuard />
       <ShortcutsHelp />
     </>

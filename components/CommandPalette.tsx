@@ -36,11 +36,15 @@
 // midnight), the list opens on the current account, says whose booking it
 // was and offers the switch — with the note that it may need an approval.
 //
+// On the desktop's frame the search has no dialog: the title bar's field is
+// the input, and what it finds drops under it (components/shell/FrameSearch.tsx).
+// Both faces share usePalette and PaletteResults below.
+//
 // ARIA: the input is a combobox that owns a listbox; arrow keys move the
 // active option (aria-activedescendant), focus never leaves the field.
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { ChangeEvent, KeyboardEvent, ReactNode } from 'react';
 import { txMatcher } from '@/lib/analytics';
 import { dayKey, fmtDate, initials, translateType } from '@/lib/format';
 import { MESSAGES, msgs, type Messages } from '@/lib/i18n';
@@ -124,7 +128,13 @@ export function CommandPalette() {
   );
 }
 
-function Palette({ onClose }: { onClose: () => void }) {
+/**
+ * The search itself: the query, what it finds and the keys that move through
+ * it, for either face — the dialog below, or the frame's title bar field.
+ * `onClose` ends the search; a choice ends it first, then runs.
+ * `steerFromStart`: the first row is lit before an arrow key moves it.
+ */
+export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose: () => void; steerFromStart?: boolean }) {
   const f = useFints();
   const tr = useT();
   const { locale } = useLocale();
@@ -141,9 +151,7 @@ function Palette({ onClose }: { onClose: () => void }) {
   const [active, setActive] = useState(0);
   // On a phone the first row is lit only once an arrow key moves the choice:
   // a finger never steers with them, and the ring would read as a selection.
-  const [steered, setSteered] = useState(!IS_ANDROID);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const downOnBackdrop = useRef(false);
+  const [steered, setSteered] = useState(steerFromStart);
   const base = useId();
   const listId = `${base}-list`;
   const optId = (i: number) => `${base}-opt-${i}`;
@@ -467,6 +475,12 @@ function Palette({ onClose }: { onClose: () => void }) {
   }, [current]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      // The same keys that opened it close it again.
+      e.preventDefault();
+      onClose();
+      return;
+    }
     if (!items.length) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -479,10 +493,6 @@ function Palette({ onClose }: { onClose: () => void }) {
     } else if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       e.preventDefault();
       choose(items[current]);
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-      // The same keys that opened it close it again.
-      e.preventDefault();
-      onClose();
     }
   };
 
@@ -515,6 +525,36 @@ function Palette({ onClose }: { onClose: () => void }) {
     return () => clearTimeout(t);
   }, [status]);
 
+  /** The field's half of the combobox; a face adds whether the list is shown. */
+  const field = {
+    type: 'text',
+    role: 'combobox',
+    'aria-controls': listId,
+    'aria-autocomplete': 'list',
+    'aria-activedescendant': items.length ? optId(current) : undefined,
+    'aria-label': tr.shell.palette.field,
+    autoComplete: 'off',
+    spellCheck: false,
+    enterKeyHint: 'go',
+    value: query,
+    onChange: (e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value),
+    onKeyDown,
+  } as const;
+
+  return {
+    query, setQuery, q, items, groups, groupLabel, current, steered, setActive, choose,
+    onKeyDown, field, listId, optId, base, txNote, announced,
+  };
+}
+
+export type PaletteSearch = ReturnType<typeof usePalette>;
+
+/** The dialog: a phone's full-screen search view, a centred sheet on a wide window. */
+function Palette({ onClose }: { onClose: () => void }) {
+  const tr = useT();
+  const p = usePalette({ onClose });
+  const inputRef = useRef<HTMLInputElement>(null);
+  const downOnBackdrop = useRef(false);
   return (
     <div
       data-search-view
@@ -537,6 +577,7 @@ function Palette({ onClose }: { onClose: () => void }) {
           <SearchIcon size={20} className="text-ink-3 max-sm:hidden" />
           <input
             ref={inputRef}
+            {...p.field}
             // Starts here with a keyboard. On a touch screen of the website the
             // dialog takes focus instead, so the on-screen keyboard does not
             // cover the list; the phone's search view is opened to type into,
@@ -544,31 +585,19 @@ function Palette({ onClose }: { onClose: () => void }) {
             data-autofocus={IS_ANDROID ? '' : 'fine'}
             // No field outline of its own (app/material.css): the sheet is the field.
             data-bare
-            type="text"
-            role="combobox"
             aria-expanded="true"
-            aria-controls={listId}
-            aria-autocomplete="list"
-            aria-activedescendant={items.length ? optId(current) : undefined}
-            aria-label={tr.shell.palette.field}
             placeholder={tr.shell.palette.placeholder}
-            autoComplete="off"
-            spellCheck={false}
-            enterKeyHint="go"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
             className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-normal text-ink outline-none placeholder:text-ink-3 sm:text-[17px]"
           />
           <span aria-hidden className="hidden sm:contents"><Kbd>Esc</Kbd></span>
           {/* A phone empties the field here; the way out is the arrow before it. */}
-          {query && (
+          {p.query && (
             <IconButton
               size="md"
               aria-label={tr.transactions.filter.clear}
               className="sm:hidden"
               onClick={() => {
-                setQuery('');
+                p.setQuery('');
                 inputRef.current?.focus();
               }}
             >
@@ -578,53 +607,74 @@ function Palette({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
-          {/* Said first, while the field is (nearly) empty: the masthead calls
-              this "Suche", so before anything else it says what it searches. */}
-          {q.length < MIN_TX_QUERY && (
-            <p className="px-5 pt-1.5 pb-1 text-[13px] leading-snug text-ink-3">
-              {tr.shell.palette.intro}
-            </p>
-          )}
+          <PaletteResults p={p} />
+        </div>
 
-          {/* Always rendered, so aria-controls never points at nothing. */}
-          <div id={listId} role="listbox" aria-label={tr.shell.palette.resultsLabel}>
-            {groups.map(({ g, rows }) => (
-              <div key={g} role="group" aria-labelledby={`${base}-g-${g}`} className="pb-1">
-                <div id={`${base}-g-${g}`} role="presentation" className="flex items-baseline justify-between px-5 pt-2.5 pb-1.5">
-                  <span className="text-[13px] font-semibold text-ink-3">{groupLabel[g]}</span>
-                  {g === 'transactions' && txNote && <span className="text-[12.5px] text-ink-3">{txNote}</span>}
-                </div>
-                {rows.map(({ item, i }) => (
-                  <Option
-                    key={item.id}
-                    id={optId(i)}
-                    item={item}
-                    active={steered && i === current}
-                    onHover={() => setActive(i)}
-                    onChoose={() => choose(item)}
-                  />
-                ))}
-              </div>
+        <PaletteKeys className="border-t border-line" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What the search found, under its field: what it searches while the field
+ * is (nearly) empty, the groups, what a screen reader hears, the empty state.
+ */
+export function PaletteResults({ p }: { p: PaletteSearch }) {
+  const tr = useT();
+  return (
+    <>
+      {/* Said first, while the field is (nearly) empty: the masthead calls
+          this "Suche", so before anything else it says what it searches. */}
+      {p.q.length < MIN_TX_QUERY && (
+        <p className="px-5 pt-1.5 pb-1 text-[13px] leading-snug text-ink-3">
+          {tr.shell.palette.intro}
+        </p>
+      )}
+
+      {/* Always rendered with the results, so aria-controls never points at nothing. */}
+      <div id={p.listId} role="listbox" aria-label={tr.shell.palette.resultsLabel}>
+        {p.groups.map(({ g, rows }) => (
+          <div key={g} role="group" aria-labelledby={`${p.base}-g-${g}`} className="pb-1">
+            <div id={`${p.base}-g-${g}`} role="presentation" className="flex items-baseline justify-between px-5 pt-2.5 pb-1.5">
+              <span className="text-[13px] font-semibold text-ink-3">{p.groupLabel[g]}</span>
+              {g === 'transactions' && p.txNote && <span className="text-[12.5px] text-ink-3">{p.txNote}</span>}
+            </div>
+            {rows.map(({ item, i }) => (
+              <Option
+                key={item.id}
+                id={p.optId(i)}
+                item={item}
+                active={p.steered && i === p.current}
+                onHover={() => p.setActive(i)}
+                onChoose={() => p.choose(item)}
+              />
             ))}
           </div>
-
-          {/* Always mounted: a live region that appears together with its text
-              is often not heard. */}
-          <p role="status" className="sr-only">{announced}</p>
-
-          {!items.length && (
-            <EmptyState illustration="search" compact title={tr.shell.palette.noResults(q)}>
-              {tr.shell.palette.emptyHint}
-            </EmptyState>
-          )}
-        </div>
-
-        <div aria-hidden className="hidden shrink-0 items-center gap-5 border-t border-line px-5 py-2.5 text-[12.5px] text-ink-3 sm:flex">
-          <span className="inline-flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> {tr.shell.palette.keys.select}</span>
-          <span className="inline-flex items-center gap-1.5"><Kbd>↵</Kbd> {tr.shell.palette.keys.open}</span>
-          <span className="inline-flex items-center gap-1.5"><Kbd>Esc</Kbd> {tr.shell.palette.keys.close}</span>
-        </div>
+        ))}
       </div>
+
+      {/* Always mounted: a live region that appears together with its text
+          is often not heard. */}
+      <p role="status" className="sr-only">{p.announced}</p>
+
+      {!p.items.length && (
+        <EmptyState illustration="search" compact title={tr.shell.palette.noResults(p.q)}>
+          {tr.shell.palette.emptyHint}
+        </EmptyState>
+      )}
+    </>
+  );
+}
+
+/** The keys that work in the field, at the results' foot (never on a phone). */
+export function PaletteKeys({ className }: { className?: string }) {
+  const tr = useT();
+  return (
+    <div aria-hidden className={cx('hidden shrink-0 items-center gap-5 px-5 py-2.5 text-[12.5px] text-ink-3 sm:flex', className)}>
+      <span className="inline-flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> {tr.shell.palette.keys.select}</span>
+      <span className="inline-flex items-center gap-1.5"><Kbd>↵</Kbd> {tr.shell.palette.keys.open}</span>
+      <span className="inline-flex items-center gap-1.5"><Kbd>Esc</Kbd> {tr.shell.palette.keys.close}</span>
     </div>
   );
 }
