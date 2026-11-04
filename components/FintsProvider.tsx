@@ -2163,9 +2163,24 @@ function useFintsState() {
    * free window, where nothing older is kept for an account just the default
    * ninety days. Undone like applyRange if the fetch does not land.
    */
-  const applySavedRange = useCallback(() => {
+  const applySavedRange = useCallback((accounts?: readonly SerializedAccount[]) => {
     if (busyRef.current) {
       toast(msgs().provider.busy, 'info');
+      return;
+    }
+    // `accounts`: the frame's ledger — every ticked account in turn, each as
+    // far back as is kept for it (as applyRange does for a period).
+    const live = accounts?.filter((a) => sessionFor(a.accountNumber));
+    if (live?.length) {
+      const [first, ...rest] = live;
+      const step = (i: number) => {
+        if (i >= rest.length) return;
+        void loadTransactions(rest[i], undefined, undefined, {
+          quiet: true,
+          onSettled: (o) => { if (o !== 'cancelled' && o !== 'busy') step(i + 1); },
+        });
+      };
+      applyAndLoad(first, 'saved', { then: (o) => { if (o === 'applied' || o === 'skipped') step(0); } });
       return;
     }
     const account = activeAccountRef.current;
@@ -2175,7 +2190,7 @@ function useFintsState() {
       rangeChosenRef.current = true;
       setSavedRangeBoth(true);
     }
-  }, [toast, setSavedRangeBoth, applyAndLoad]);
+  }, [toast, setSavedRangeBoth, applyAndLoad, loadTransactions, sessionFor]);
 
   /**
    * "Umsätze aktualisieren" after a transfer: shows the account the money

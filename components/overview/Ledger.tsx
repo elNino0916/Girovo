@@ -160,6 +160,7 @@ export function Ledger() {
   };
   // A period picked here is every ticked account's, not only the active one's.
   const applyLedgerRange = useCallback((r: DateRange) => applyRange(r, withBookings), [applyRange, withBookings]);
+  const applyLedgerSaved = useCallback(() => applySavedRange(withBookings), [applySavedRange, withBookings]);
 
   if (shown.length === 0) {
     return <p className="px-7 py-10 text-[16px] leading-6 text-ink-2">{words.noneShown}</p>;
@@ -243,7 +244,7 @@ export function Ledger() {
                 applyRange={applyLedgerRange}
                 busy={busy}
                 savedRange={savedRange}
-                applySavedRange={applySavedRange}
+                applySavedRange={applyLedgerSaved}
               />
               <IconButton
                 size="md"
