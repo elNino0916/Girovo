@@ -60,7 +60,7 @@ public class BalanceWidget extends AppWidgetProvider {
     /** The last widget left the home screen: nothing of the figure is kept. */
     @Override
     public void onDisabled(Context context) {
-        prefs(context).edit().clear().apply();
+        prefs(context).edit().clear().commit();
     }
 
     static SharedPreferences prefs(Context context) {

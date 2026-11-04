@@ -50,7 +50,9 @@ public class WidgetPlugin extends Plugin {
 
     @PluginMethod
     public void clear(PluginCall call) {
-        BalanceWidget.prefs(getContext()).edit().clear().apply();
+        // Written before it answers, as the box is: a process killed right
+        // after "Gerät vergessen" must not render the old figure again.
+        BalanceWidget.prefs(getContext()).edit().clear().commit();
         BalanceWidget.renderAll(getContext());
         call.resolve();
     }

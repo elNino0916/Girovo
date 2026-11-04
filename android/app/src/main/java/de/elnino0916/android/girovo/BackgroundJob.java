@@ -65,6 +65,10 @@ public class BackgroundJob extends JobService {
     public boolean onStartJob(JobParameters params) {
         // The app in front, or waiting for an approval: its own session reads the banks.
         if (MainActivity.inFront || ApprovalService.running) return false;
+        // Notifications switched off for Girovo: nothing found could be told,
+        // so no bank is asked with the kept PIN. Bookings stay unseen until a
+        // run can say so.
+        if (!androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()) return false;
         running = params;
         main.post(this::start);
         main.postDelayed(() -> finish("watchdog"), WATCHDOG_MS);
