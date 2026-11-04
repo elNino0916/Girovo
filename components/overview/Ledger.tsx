@@ -16,7 +16,7 @@ import { useCallback, useId, useMemo } from 'react';
 import { calendarMonths, filterTransactions, periodTotals, type SearchContext } from '@/lib/analytics';
 import { isDepot, namesList } from '@/lib/balances';
 import { overviewFigures } from '@/lib/account-overview';
-import type { StatementInfo } from '@/lib/app-types';
+import type { DateRange, StatementInfo } from '@/lib/app-types';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { isoDate } from '@/lib/format';
 import { intlLocale } from '@/lib/i18n';
@@ -138,9 +138,19 @@ export function Ledger() {
   const merchantOf = useCallback((tx: SerializedTransaction) => merchantFor(merchants, tx), [merchants]);
   // The drawer follows the booking's own account: its Beleg, receipts and transfers.
   const onOpen = useCallback((tx: SerializedTransaction) => openTxDetail(tx, false, layerOf.get(tx)?.account), [layerOf]);
-  const loadEach = async (list: typeof withBookings, force = false) => {
-    for (const a of list) await loadTransactions(a, undefined, undefined, force ? { force: true } : {});
+  // One after the other; a refused approval stops the rest, as "Alle Salden abrufen" does.
+  const loadEach = (list: typeof withBookings, force = false) => {
+    const step = (i: number) => {
+      if (i >= list.length) return;
+      void loadTransactions(list[i], undefined, undefined, {
+        force,
+        onSettled: (o) => { if (o !== 'cancelled' && o !== 'busy') step(i + 1); },
+      });
+    };
+    step(0);
   };
+  // A period picked here is every ticked account's, not only the active one's.
+  const applyLedgerRange = useCallback((r: DateRange) => applyRange(r, withBookings), [applyRange, withBookings]);
 
   if (shown.length === 0) {
     return <p className="px-7 py-10 text-[16px] leading-6 text-ink-2">{words.noneShown}</p>;
@@ -221,7 +231,7 @@ export function Ledger() {
               <PeriodControl
                 chip
                 loaded={loaded}
-                applyRange={applyRange}
+                applyRange={applyLedgerRange}
                 busy={busy}
                 savedRange={savedRange}
                 applySavedRange={applySavedRange}

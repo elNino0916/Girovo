@@ -2062,7 +2062,7 @@ function useFintsState() {
    * Not forced unless asked: a span the bank's last answer already serves
    * (with the kept Umsätze before it) is shown without asking again.
    */
-  const applyAndLoad = useCallback((account: SerializedAccount, next: DateRange | 'saved', opts: { force?: boolean } = {}) => {
+  const applyAndLoad = useCallback((account: SerializedAccount, next: DateRange | 'saved', opts: { force?: boolean; then?: LoadSettled } = {}) => {
     const prev = rangeRef.current;
     const prevAnchor = rangeAnchorRef.current;
     const prevSaved = savedRangeRef.current;
@@ -2083,7 +2083,8 @@ function useFintsState() {
       },
       // A failure says so in its own toast. An approval that was not given
       // closes without a word — so this says what the screen still shows.
-      onSettled: (outcome) => {
+      onSettled: (outcome, error) => {
+        opts.then?.(outcome, error);
         if (outcome !== 'cancelled' || rangeRef.current !== prev) return;
         const shown = fmtRange(prev.from, prev.to);
         const said = msgs().provider.reads;
@@ -2098,7 +2099,7 @@ function useFintsState() {
    * range never names something that is not being fetched — and undone if
    * the fetch does not land (applyAndLoad).
    */
-  const applyRange = useCallback((r: DateRange) => {
+  const applyRange = useCallback((r: DateRange, accounts?: readonly SerializedAccount[]) => {
     const next = normalizeRange(r);
     if (!next) {
       toast(msgs().provider.reads.invalidPeriod, 'error');
@@ -2106,6 +2107,21 @@ function useFintsState() {
     }
     if (busyRef.current) {
       toast(msgs().provider.busy, 'info');
+      return;
+    }
+    // `accounts`: the frame's ledger, whose ticked accounts all show the
+    // period. The first carries it (undone if its read does not land), the
+    // others follow one after the other; a refused approval stops them.
+    if (accounts?.length) {
+      const [first, ...rest] = accounts;
+      const step = (i: number) => {
+        if (i >= rest.length) return;
+        void loadTransactions(rest[i], next.from, next.to, {
+          quiet: true,
+          onSettled: (o) => { if (o !== 'cancelled' && o !== 'busy') step(i + 1); },
+        });
+      };
+      applyAndLoad(first, next, { then: (o) => { if (o === 'applied' || o === 'skipped') step(0); } });
       return;
     }
     const account = activeAccountRef.current;
@@ -2116,7 +2132,7 @@ function useFintsState() {
       setSavedRangeBoth(false);
       setAppliedRange(next);
     }
-  }, [toast, setSavedRangeBoth, setAppliedRange, applyAndLoad]);
+  }, [toast, setSavedRangeBoth, setAppliedRange, applyAndLoad, loadTransactions]);
 
   /**
    * Reads `account` over `r` — the Steuer-Jahresübersicht's "Ganzes Jahr
