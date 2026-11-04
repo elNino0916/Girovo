@@ -4145,9 +4145,10 @@ function useFintsState() {
   // there shows the login. The login screen names any transfer left unclear.
   useEffect(() => {
     const off = window.electronBackground?.onHidden?.(() => {
-      // Not while an approval runs (an order may be on its way): the idle
-      // logout follows once it is over, as it never cuts one off either.
-      if (sessionRef.current && !waitRef.current.open) void logout();
+      // Not while an approval runs or an order is on its way to the bank
+      // (busy, before any approval shows): the idle logout follows once it is
+      // over, as it never cuts one off either.
+      if (sessionRef.current && !waitRef.current.open && !busyRef.current) void logout();
     });
     return off;
   }, [logout]);
