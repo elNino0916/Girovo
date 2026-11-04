@@ -1975,10 +1975,11 @@ function useFintsState() {
    * cancelled; what failed is said once, at the end. Never started on its
    * own — each read can cost an approval.
    */
-  const loadAllBalances = useCallback((only?: readonly string[]) => {
+  /** Answers whether it started (false: a read was running, or nothing was left to read). */
+  const loadAllBalances = useCallback((only?: readonly string[]): boolean => {
     if (busyRef.current) {
       if (!only) toast(msgs().provider.busy, 'info');
-      return;
+      return false;
     }
     const sid = sessionRef.current;
     // A linked bank that is logged out has nobody to ask; its list says so.
@@ -1999,7 +2000,7 @@ function useFintsState() {
       if (!only && reachable.some((a) => a.canStatements && !balancesRef.current[a.accountNumber])) {
         toast(msgs().provider.reads.balanceWithStatements, 'info', 8000);
       }
-      return;
+      return false;
     }
 
     const failed: Array<{ name: string; message: string }> = [];
@@ -2026,6 +2027,7 @@ function useFintsState() {
       else void loadTransactions(account, undefined, undefined, { quiet: true, onSettled });
     };
     next();
+    return true;
   }, [toast, sessionFor, resolveRange, isCurrent, loadBalance, loadPortfolio, loadTransactions]);
 
   const selectAccount = useCallback((a: SerializedAccount) => {
@@ -2113,8 +2115,9 @@ function useFintsState() {
     // `accounts`: the frame's ledger, whose ticked accounts all show the
     // period. The first carries it (undone if its read does not land), the
     // others follow one after the other; a refused approval stops them.
-    if (accounts?.length) {
-      const [first, ...rest] = accounts;
+    const live = accounts?.filter((a) => sessionFor(a.accountNumber));
+    if (live?.length) {
+      const [first, ...rest] = live;
       const step = (i: number) => {
         if (i >= rest.length) return;
         void loadTransactions(rest[i], next.from, next.to, {
@@ -2133,7 +2136,7 @@ function useFintsState() {
       setSavedRangeBoth(false);
       setAppliedRange(next);
     }
-  }, [toast, setSavedRangeBoth, setAppliedRange, applyAndLoad, loadTransactions]);
+  }, [toast, setSavedRangeBoth, setAppliedRange, applyAndLoad, loadTransactions, sessionFor]);
 
   /**
    * Reads `account` over `r` — the Steuer-Jahresübersicht's "Ganzes Jahr
@@ -4127,7 +4130,9 @@ function useFintsState() {
   // there shows the login. The login screen names any transfer left unclear.
   useEffect(() => {
     const off = window.electronBackground?.onHidden?.(() => {
-      if (sessionRef.current) void logout();
+      // Not while an approval runs (an order may be on its way): the idle
+      // logout follows once it is over, as it never cuts one off either.
+      if (sessionRef.current && !waitRef.current.open) void logout();
     });
     return off;
   }, [logout]);
@@ -4509,8 +4514,10 @@ function useFintsState() {
     const asked = autoBalancesRef.current.asked;
     const fresh = accounts.filter((a) => !asked.has(a.accountNumber));
     if (!fresh.length) return;
-    for (const a of fresh) asked.add(a.accountNumber);
-    loadAllBalances(fresh.map((a) => a.accountNumber));
+    // Marked as asked only once queued: another effect's read may have taken
+    // `busy` first (the frame's one-account switch); this runs again after it.
+    const ids = fresh.map((a) => a.accountNumber);
+    if (loadAllBalances(ids) || ids.every((id) => !sessionFor(id))) for (const id of ids) asked.add(id);
   }, [balancesAtLogin, view, busy, accounts, sessionId, loadAllBalances]);
 
   // Kept balances (lib/kept-balances.ts): every balance this session read

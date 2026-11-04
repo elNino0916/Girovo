@@ -82,7 +82,7 @@ export function Dashboard() {
  * in the sheet.
  */
 function FramedDashboard() {
-  const { tab, ordersOpen, accounts, activeAccount, selectAccount, busy } = useFints();
+  const { tab, ordersOpen, accounts, activeAccount, selectAccount, busy, setAccountsHidden } = useFints();
   const t = useT();
   const actions = useShellActions();
   useGlobalShortcuts(actions, { frame: true });
@@ -92,13 +92,32 @@ function FramedDashboard() {
   const rootRef = useRef<HTMLDivElement>(null);
   useScrollbarWidth(rootRef, scrollRef);
 
-  // One account ticked is its page: it is the active one. selectAccount
-  // refuses while a read runs (the login's first statement, an approval), so
-  // the switch is tried again once it is done.
+  // One account ticked is its page: it is made the active one, once per
+  // tick — tried again after a read that refused it (the login's first
+  // statement, an approval). Once made active, a later switch to another
+  // account is the user's ("Wechseln zu", a search hit): that account is then
+  // shown alone instead of being switched back.
   const alone = shown.length === 1 ? shown[0] : null;
+  const madeActive = useRef<string | null>(null);
   useEffect(() => {
-    if (tab === 'overview' && alone && !busy && activeAccount?.accountNumber !== alone.accountNumber) selectAccount(alone);
-  }, [tab, alone, activeAccount, selectAccount, busy]);
+    if (!alone) {
+      madeActive.current = null;
+      return;
+    }
+    if (madeActive.current === alone.accountNumber) {
+      if (tab === 'overview' && activeAccount && activeAccount.accountNumber !== alone.accountNumber) {
+        const others = accounts.filter((a) => a.accountNumber !== activeAccount.accountNumber).map((a) => a.accountNumber);
+        const here = new Set(accounts.map((a) => a.accountNumber));
+        setAccountsHidden((current) => [...current.filter((x) => !here.has(x)), ...others]);
+      }
+      return;
+    }
+    if (activeAccount?.accountNumber === alone.accountNumber) {
+      madeActive.current = alone.accountNumber;
+      return;
+    }
+    if (tab === 'overview' && !busy) selectAccount(alone);
+  }, [tab, alone, activeAccount, accounts, selectAccount, setAccountsHidden, busy]);
   // Nothing ticked is the ledger's "Kein Konto angehakt", with one account as with several.
   const ledger = tab === 'overview' && ((accounts.length > 1 && !alone) || (accounts.length > 0 && shown.length === 0));
   const orders = tab === 'contracts' && ordersOpen;

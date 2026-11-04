@@ -191,7 +191,7 @@ export function useGlobalShortcuts(actions: ShellActions, { frame = false }: { f
         if (!account) return;
         e.preventDefault();
         const alreadyAlone = latest.current.frame
-          ? f.accounts.every((x) => x === account || f.accountsHidden.includes(x.accountNumber))
+          ? !f.accountsHidden.includes(account.accountNumber) && f.accounts.every((x) => x === account || f.accountsHidden.includes(x.accountNumber))
           : f.accountOpen;
         if (account.accountNumber !== f.activeAccount?.accountNumber || !alreadyAlone) switchByKey(f, account, latest.current.frame);
       }

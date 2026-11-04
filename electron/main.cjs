@@ -1137,7 +1137,7 @@ function run() {
       if (background?.enabled()) {
         void ensureTray();
         setLoginItem(true);
-      } else if (startedHidden) {
+      } else if (keepHidden) {
         // Started with Windows by an entry the checks no longer want (switched
         // off where the entry could not be removed, the settings lost): the
         // entry goes, and so does this start, which nobody asked to see.
@@ -1195,7 +1195,7 @@ function run() {
       // The window closed into the notification area, or never shown (a start
       // with Windows): without the icon there is no way back to it, so the
       // app ends instead of running on unseen. Its notice, if any, stays.
-      if (win && !win.isDestroyed() && !win.isVisible()) {
+      if (win && !win.isDestroyed() && !win.isVisible() && !win.isMinimized()) {
         quitting = true;
         app.quit();
       }

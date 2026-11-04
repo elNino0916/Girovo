@@ -1391,13 +1391,13 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   }, [data, setBusy, startWait, statementDoc, toast]);
 
   // As the provider's loadAllBalances: one after the other, one toast for what failed.
-  const loadAllBalances = useCallback(() => {
+  const loadAllBalances = useCallback((only?: readonly string[]): boolean => {
     if (busyRef.current) {
-      toast(BUSY_MESSAGE, 'info');
-      return;
+      if (!only) toast(BUSY_MESSAGE, 'info');
+      return false;
     }
     const gen = sessionGen.current;
-    const reachable = accounts.filter((a) => !loggedOutBank(a.accountNumber));
+    const reachable = accounts.filter((a) => !loggedOutBank(a.accountNumber) && (!only || only.includes(a.accountNumber)));
     // As the provider: every Depot not read yet as well.
     const queue: Array<{ account: SerializedAccount; via: 'balance' | 'statement' | 'portfolio' }> = [
       ...balanceQueue(reachable, balances, rangeRef.current.to >= today),
@@ -1407,7 +1407,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       if (accounts.some((a) => a.canStatements && !balances[a.accountNumber])) {
         toast('Diese Konten melden ihren Saldo nur mit den Umsätzen. Wähle bei den Umsätzen einen Zeitraum bis heute.', 'info', 8000);
       }
-      return;
+      return false;
     }
     const failed: Array<{ name: string; message: string }> = [];
     setLoadingAllBalances(true);
@@ -1431,6 +1431,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       else void loadTransactionsRef.current(account, undefined, undefined, { quiet: true, onSettled });
     };
     next();
+    return true;
   }, [accounts, balances, portfolios, today, toast, loadBalance, loadPortfolio]);
 
   // The mock's range never rolls over at midnight; the cache key is the whole answer.
