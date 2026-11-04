@@ -177,6 +177,15 @@ test('a restored backup keeps the kept balance read last, whichever side holds i
   assert.deepEqual(merged.keptBalances, { a: newer, b: newer, c: older });
 });
 
+test('a restored backup brings its Sparziele; this computer\'s stay where both have one', () => {
+  const mine = { accountNumber: 'tg', name: 'Urlaub', target: 100000 };
+  const theirs = { accountNumber: 'tg', name: 'Alt', target: 5000 };
+  const other = { accountNumber: 'bs', name: 'Auto', target: 800000 };
+  const here = vault.sanitizeVault(base({ goals: [mine] }))!;
+  const backup = vault.sanitizeVault(base({ goals: [theirs, other] }))!;
+  assert.deepEqual(vault.mergeVaults(here, backup).goals?.map((g) => g.name), ['Urlaub', 'Auto']);
+});
+
 test('aliases: clipped, empty ones dropped, at most 50 (newest kept)', () => {
   const aliases: Record<string, unknown> = { '1234567890': 'Girokonto für alles und noch viel mehr Text der zu lang ist', '42': '   ', '43': 7 };
   for (let i = 0; i < 60; i++) aliases[`ACC-${i}`] = `Konto ${i}`;

@@ -552,6 +552,12 @@ export function mergeVaults(current: VaultData, backup: VaultData): VaultData {
   const merged: VaultData = {
     ...current,
     templates: [...current.templates, ...backup.templates.filter((t) => !templateIds.has(t.id))],
+    // Sparziele, one per account: this computer's where both have one, the backup's for the rest.
+    ...(() => {
+      const here = new Set((current.goals ?? []).map((g) => g.accountNumber));
+      const goals = [...(current.goals ?? []), ...(backup.goals ?? []).filter((g) => !here.has(g.accountNumber))];
+      return goals.length ? { goals } : {};
+    })(),
     aliases: { ...backup.aliases, ...current.aliases },
     customCategories: [...current.customCategories, ...added],
     categoryRules: { ...mapped(backup.categoryRules, map), ...current.categoryRules },
