@@ -182,8 +182,10 @@ test('newestRelease: the highest version above the installed one, pre-releases i
 });
 
 test('the preview channel reads the list beside the latest release', () => {
-  assert.equal(logic.listUrl(logic.FEED_URL), `https://api.github.com/repos/${logic.REPO}/releases?per_page=20`);
-  assert.equal(logic.listUrl('http://127.0.0.1:5000/latest'), 'http://127.0.0.1:5000?per_page=20');
+  // A hundred: the nightly desktop previews (one a night, no APK) must not
+  // push the last preview the phone can install off the one page read.
+  assert.equal(logic.listUrl(logic.FEED_URL), `https://api.github.com/repos/${logic.REPO}/releases?per_page=100`);
+  assert.equal(logic.listUrl('http://127.0.0.1:5000/latest'), 'http://127.0.0.1:5000?per_page=100');
   assert.equal(logic.listUrl('http://127.0.0.1:5000/feed.json'), null);
   assert.equal(logic.channelOf('preview'), 'preview');
   assert.equal(logic.channelOf('stable'), 'stable');

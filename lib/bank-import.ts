@@ -360,10 +360,16 @@ export function importHistory(parsed: ParsedImport, accountNumber: string, today
 export function matchAccount(named: string | null, accounts: readonly { accountNumber: string; iban?: string | null }[]): string | null {
   const v = String(named ?? '').replace(/\s+/g, '').toUpperCase();
   if (!v) return null;
-  const hit = accounts.find((a) => String(a.iban ?? '').replace(/\s+/g, '').toUpperCase() === v)
-    ?? accounts.find((a) => {
-      const number = bankNumberOf(a.accountNumber);
-      return number === v || v.endsWith(number.padStart(10, '0'));
-    });
-  return hit?.accountNumber ?? null;
+  const byIban = accounts.find((a) => String(a.iban ?? '').replace(/\s+/g, '').toUpperCase() === v);
+  if (byIban) return byIban.accountNumber;
+  const byNumber = accounts.filter((a) => {
+    const number = bankNumberOf(a.accountNumber);
+    return number === v || v.endsWith(number.padStart(10, '0'));
+  });
+  // The same number at two banks ("123" and a further bank's "123@BLZ"):
+  // the one whose BLZ the file names, else the first bank's own.
+  const blzOf = (key: string) => (key.includes('@') ? key.slice(key.lastIndexOf('@') + 1) : '');
+  const atThatBank = byNumber.find((a) => blzOf(a.accountNumber) && v.startsWith(blzOf(a.accountNumber)));
+  const own = byNumber.find((a) => !blzOf(a.accountNumber));
+  return (atThatBank ?? own ?? byNumber[0])?.accountNumber ?? null;
 }

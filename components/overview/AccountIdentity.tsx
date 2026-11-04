@@ -111,7 +111,7 @@ export function accountIdent(account: Pick<SerializedAccount, 'iban' | 'accountN
 
   // Anything else (a short number, separators of the bank's own) is shown as
   // the bank sent it — all of it as the tail, so none of it is ever cut off.
-  return { kind: 'number', head: '', tail: String(account.accountNumber).trim(), spoken: words.accountNumber(raw) };
+  return { kind: 'number', head: '', tail: bankNumberOf(String(account.accountNumber)).trim(), spoken: words.accountNumber(raw) };
 }
 
 /**

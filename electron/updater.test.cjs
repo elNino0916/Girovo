@@ -428,7 +428,7 @@ const withPreviews = ({ hang = null } = {}) => (req, res, base) => {
   const json = (body) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(body));
   if (req.url === '/latest') {
     json(releaseJson(base, { tag: '9.9.9' }));
-  } else if (req.url === '/?per_page=20') {
+  } else if (req.url === '/?per_page=100') {
     json([
       { ...releaseJson(base, { tag: '10.0.0-preview.3' }), draft: true },
       { ...releaseJson(base, { tag: '10.0.0-preview.1' }), prerelease: true },

@@ -81,8 +81,8 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
     const slash = path.indexOf('/');
     const field = slash < 0 ? path : path.slice(0, slash);
     const key = slash < 0 ? '' : path.slice(slash + 1);
-    if (field in maps) maps[field][key] = value;
-    else if (field in lists) lists[field].push(value);
+    if (Object.hasOwn(maps, field)) maps[field][key] = value;
+    else if (Object.hasOwn(lists, field)) lists[field].push(value);
     else if (field === 'dismissedRecurring') dismissed.push(key);
     else if ((SCALARS as readonly string[]).includes(field)) scalars[field] = value;
   }

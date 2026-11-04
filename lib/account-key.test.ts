@@ -95,3 +95,11 @@ test('what a screen, a statement or an import shows of a key is the bank\'s numb
   assert.equal(matchAccount('DE02 1203 0000 0001 2345 67', accounts), '1234567:Girokonto');
   assert.equal(matchAccount('0007654321', accounts), '7654321');
 });
+
+test('an import naming a BLZ finds that bank\'s account, not another of the same number', () => {
+  // The first bank's 123 and a further bank's 123, listed first.
+  const accounts = [{ accountNumber: '123@50010517' }, { accountNumber: '123' }];
+  assert.equal(matchAccount('50010517/0000000123', accounts), '123@50010517');
+  assert.equal(matchAccount('12030000/0000000123', accounts), '123');
+  assert.equal(matchAccount('0000000123', accounts), '123');
+});

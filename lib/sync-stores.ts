@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { IS_ANDROID } from './platform.ts';
+import { renameRetrying } from './sealed-file.ts';
 import { STATE_DIR } from './state-store.ts';
 import { groupOf, lanToken, type SyncPlace, type SyncStore } from './sync.ts';
 
@@ -68,7 +69,14 @@ export function folderStore(dir: string): SyncStore {
       await fs.promises.mkdir(dir, { recursive: true });
       const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
       await fs.promises.writeFile(tmp, bytes);
-      await fs.promises.rename(tmp, file);
+      try {
+        // Riding out the brief locks OneDrive or a virus scanner hold on Windows.
+        await renameRetrying(tmp, file);
+      } catch (err) {
+        // No half-written file left for the other devices (or the shelf's file count).
+        await fs.promises.rm(tmp, { force: true }).catch(() => {});
+        throw err;
+      }
     },
   };
 }

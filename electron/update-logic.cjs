@@ -245,7 +245,7 @@ function tagUrl(feedUrl, tag) {
 }
 
 // The list starts with the newest releases; a preview is never far down it.
-const LIST_PAGE_SIZE = 20;
+const LIST_PAGE_SIZE = 100;
 
 /** The list of releases beside `feedUrl` (…/releases/latest → …/releases), or null when there is none. */
 function listUrl(feedUrl) {
