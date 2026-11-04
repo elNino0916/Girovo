@@ -6,7 +6,7 @@ import {
   serializeNoted, serializeTransactions, statementBlocks, tanPayload,
 } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
-import { fetchStatements } from '@/lib/fints-statements';
+import { cutToAsked, fetchStatements, statementFormat } from '@/lib/fints-statements';
 import type { TransactionsResponse } from '@/lib/fints-types';
 import { isoDate } from '@/lib/format';
 import { isDay } from '@/lib/history';
@@ -53,9 +53,12 @@ export const POST = wrap(async (req: Request) => {
   if (!resp.success) return fail(bankAnswerText(resp) || msgs().transactions.api.transactionsFailed);
   s.pinAccepted = true;
   logStatementDates(accountNumber, resp.statements);
-  const transactions = serializeTransactions(resp.statements);
   // Per-block opening/closing balances — what a Kontoverlauf is checked against.
-  const blocks = statementBlocks(resp.statements);
+  // A card's answer reaches past the asked end: cut to it.
+  const { transactions, blocks } = cutToAsked(
+    statementFormat(s.client.config, accountNumber), asked.to,
+    serializeTransactions(resp.statements), statementBlocks(resp.statements),
+  );
   // Kept on this computer if the vault says so — once this answer is on its
   // way; the Vorgemerkte never are.
   noteDelivery(s, accountNumber, asked, transactions, blocks);

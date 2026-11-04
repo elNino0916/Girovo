@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Message, StatementResponse } from 'lib-fints';
-import { NotedStatementInteractionCAMT, NotedStatementInteractionMT940, type StatementsResponse } from './fints-statements.ts';
+import { NotedStatementInteractionCAMT, NotedStatementInteractionMT940, cutToAsked, type StatementsResponse } from './fints-statements.ts';
+import type { SerializedTransaction, StatementBlock } from './fints-types';
 
 /** A bank answer with the given HIKAZ/HICAZ segments — all the interactions read of it. */
 const answer = (segId: string, segs: object[]) => ({
@@ -104,4 +105,15 @@ test('camt: sent empty is an empty list; an unreadable document makes the list u
     ]), partly,
   ));
   assert.equal(partly.notedStatements, null);
+});
+
+test('a card\'s answer is cut to the asked end; other accounts\' answers stand as sent', () => {
+  const tx = (day: string) => ({ entryDate: `${day}T00:00:00.000Z`, valueDate: `${day}T00:00:00.000Z`, amount: -1 }) as unknown as SerializedTransaction;
+  const all = [tx('2026-09-02'), tx('2026-09-30'), tx('2026-10-01'), tx('2026-11-03')];
+  const blocks = [{ closing: 1 }] as unknown as StatementBlock[];
+  const cut = cutToAsked('card', '2026-09-30', all, blocks, '2026-11-04');
+  assert.deepEqual(cut.transactions.map((t) => String(t.entryDate).slice(0, 10)), ['2026-09-02', '2026-09-30']);
+  assert.deepEqual(cut.blocks, [], 'today\'s closing balance belongs to no earlier day');
+  assert.equal(cutToAsked('card', '2026-11-04', all, blocks, '2026-11-04').transactions.length, 4, 'up to today: nothing to cut');
+  assert.equal(cutToAsked('camt', '2026-09-30', all, blocks, '2026-11-04').transactions.length, 4);
 });

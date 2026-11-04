@@ -15,7 +15,7 @@ import { cleanTan, isPlausibleTan } from '@/lib/tan-entry';
 import { msgs } from '@/lib/i18n';
 import { PENDING_SEG } from '@/lib/fints-pending';
 import { CARD_STATEMENT_SEG } from '@/lib/fints-cards';
-import { statementFormat } from '@/lib/fints-statements';
+import { cutToAsked, statementFormat } from '@/lib/fints-statements';
 import { holdBankOrders, orderCaps } from '@/lib/fints-orders';
 import type { ClientResponseWithResult, TanPollResponse } from '@/lib/fints-types';
 import type { AccountBalanceResponse, ElectronicStatementResponse, PortfolioResponse, StatementResponse } from 'lib-fints';
@@ -145,8 +145,11 @@ export const POST = wrap(async (req: Request) => {
   if (pending.type === 'statements') {
     const statements = (resp as StatementResponse).statements;
     logStatementDates(accountNumber!, statements);
-    const transactions = serializeTransactions(statements);
-    const blocks = statementBlocks(statements);
+    // A card's answer reaches past the asked end: cut to it (as app/api/transactions).
+    const { transactions, blocks } = cutToAsked(
+      statementFormat(s.client.config, pending.accountNumber), pending.asked.to,
+      serializeTransactions(statements), statementBlocks(statements),
+    );
     // As app/api/transactions: kept on this computer if the vault says so,
     // for the days the approved request asked for.
     noteDelivery(s, pending.accountNumber, pending.asked, transactions, blocks);

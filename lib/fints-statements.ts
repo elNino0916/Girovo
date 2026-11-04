@@ -16,7 +16,8 @@ import type { FinTSConfig, Message, Segment, Statement, StatementResponse } from
 import { bankAccountOf } from './account-key.ts';
 import { StatementInteractionCAMT, StatementInteractionMT940 } from './fints-internals.js';
 import { CardStatementInteraction, CARD_STATEMENT_SEG } from './fints-cards.ts';
-import type { ClientResponseWithResult, FinTSClientEx } from './fints-types';
+import type { ClientResponseWithResult, FinTSClientEx, SerializedTransaction, StatementBlock } from './fints-types';
+import { dayKey, isoDate } from './format.ts';
 import { msgs } from './i18n/index.ts';
 import { collectNoted, countPendingInBooked, parseMt942, parseNotedCamt, type NotedField } from './noted.ts';
 
@@ -115,6 +116,26 @@ export function statementFormat(config: FinTSConfig, accountNumber: string): For
   if (config.isAccountTransactionSupported(account, 'HKKAZ')) return 'mt940';
   if (config.isAccountTransactionSupported(account, CARD_STATEMENT_SEG)) return 'card';
   return null;
+}
+
+/**
+ * A card's answer runs up to today whatever end was asked (DKKKU takes
+ * none): cut to `to` (yyyy-mm-dd), as every other account's answer ends
+ * there. A cut answer has no balance block: its closing balance is today's,
+ * which no earlier day can be checked against.
+ */
+export function cutToAsked(
+  format: ReturnType<typeof statementFormat>,
+  to: string,
+  transactions: SerializedTransaction[],
+  blocks: StatementBlock[],
+  today = isoDate(new Date()),
+): { transactions: SerializedTransaction[]; blocks: StatementBlock[] } {
+  if (format !== 'card' || !to || to >= today) return { transactions, blocks };
+  return {
+    transactions: transactions.filter((t) => (dayKey(t.entryDate) || dayKey(t.valueDate)) <= to),
+    blocks: [],
+  };
 }
 
 /**
