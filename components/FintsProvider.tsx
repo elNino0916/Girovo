@@ -4113,11 +4113,13 @@ function useFintsState() {
       }
       // …and so is the one the checks for new Umsätze would use.
       if (userIdRef.current) void forgetBackgroundLogin({ blz: own.blz, userId: userIdRef.current });
+      // The route took the further banks' PINs sealed with it too (.linked): the switch says so.
+      if (linkedUnlockRef.current) setLinkedUnlockBoth(false);
       toast(said.firstPinRefused(own.name), 'error', 20_000);
     };
     window.addEventListener(PIN_REFUSED_EVENT, onRefused);
     return () => window.removeEventListener(PIN_REFUSED_EVENT, onRefused);
-  }, [setLinksBoth, forgetLinkedPin, forgetBackgroundLogin, openAddBank, setWindowsHelloBoth, toast]);
+  }, [setLinksBoth, forgetLinkedPin, forgetBackgroundLogin, openAddBank, setWindowsHelloBoth, setLinkedUnlockBoth, toast]);
 
   // The desktop with "Neue Umsätze melden" on: closing the window leaves the
   // app in the notification area (electron/main.cjs). The bank session ends
