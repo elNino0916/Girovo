@@ -94,7 +94,7 @@ function listNote(q: BankQuery, hits: BankSearchHit[], w: PickerWords): string |
 }
 
 export function BankPicker({
-  banks, logoFiles, bankCount, staleBank, onPick,
+  banks, logoFiles, bankCount, staleBank, onPick, demo = true,
 }: {
   banks: PopularBank[];
   logoFiles: Record<string, string>;
@@ -102,6 +102,8 @@ export function BankPicker({
   /** The bank chosen last time, when the list no longer has it. */
   staleBank?: ChosenBank | null;
   onPick: (b: ChosenBank) => void;
+  /** "Ohne Bank ausprobieren": on the login screen only, never beside a session ("Weitere Bank anmelden"). */
+  demo?: boolean;
 }) {
   const uid = useId();
   const tr = useT().auth.bankPicker;
@@ -416,12 +418,14 @@ export function BankPicker({
       <LoginHelp step="bank" />
 
       {/* 6.0: a look around first, with a made-up bank (components/demo). */}
-      <div className="mt-2">
-        <Button variant="tertiary" size="sm" className="-ml-2" onClick={startDemo}>
-          {demoWords.start}
-        </Button>
-        <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{demoWords.startHint}</p>
-      </div>
+      {demo && (
+        <div className="mt-2">
+          <Button variant="tertiary" size="sm" className="-ml-2" onClick={startDemo}>
+            {demoWords.start}
+          </Button>
+          <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{demoWords.startHint}</p>
+        </div>
+      )}
 
       <PrivacyNote />
     </>

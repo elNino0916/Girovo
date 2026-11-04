@@ -45,8 +45,9 @@ function AddBank() {
         <div className="[&_h1]:text-[24px]">
           <p className="pr-10 text-[13px] leading-snug font-semibold text-ink-3">{t.banks.step(STEP_NO[flow.step], 3)}</p>
           <div className="mt-2">
+            {/* The picker without the demo: it would replace a live session without a logout. */}
             {flow.step === 'bank' || !bank ? (
-              <BankPicker banks={popularBanks} logoFiles={logoFiles} bankCount={meta?.bankCount} onPick={pickAddBank} />
+              <BankPicker banks={popularBanks} logoFiles={logoFiles} bankCount={meta?.bankCount} onPick={pickAddBank} demo={false} />
             ) : flow.step === 'credentials' ? (
               <Credentials
                 // As on the login screen: another bank is another form.
