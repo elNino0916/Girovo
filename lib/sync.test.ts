@@ -164,6 +164,26 @@ test('what one device does not keep (balances switched off) is not deleted on th
   assert.deepEqual(desk.vault.keptBalances, kept);
 });
 
+test('switching balances off on one device later does not delete them on the others', async () => {
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const kept = { DE01: { cents: 12345, currency: 'EUR', readAt: '2026-11-01T18:02:00Z' } };
+  const curve = [{ day: '2026-11-01', total: 12345, assets: 12345, liabilities: 0 }];
+  const desk = device('Computer', { keptBalances: kept, netWorth: curve });
+  const phone = device('Telefon');
+  await round(place, key, desk, 1000);
+  await round(place, key, phone, 2000);
+  assert.deepEqual(phone.vault.keptBalances, kept, 'the phone held them, stamped');
+  // Switched off on the phone: its vault drops them (FintsProvider), the next rounds follow.
+  const { keptBalances: _k, netWorth: _n, ...rest } = phone.vault;
+  phone.vault = { ...rest, keepBalances: false } as VaultData;
+  await round(place, key, phone, 3000);
+  await round(place, key, desk, 4000);
+  assert.deepEqual(desk.vault.keptBalances, kept);
+  assert.deepEqual(desk.vault.netWorth, curve);
+  assert.equal(phone.vault.keptBalances, undefined);
+});
+
 test('a device that joins never overwrites the group\'s newer data with what it brought', async () => {
   const place = memoryPlace();
   const key = newGroupKey();

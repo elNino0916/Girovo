@@ -199,6 +199,12 @@ export async function runSync(opts: {
     prior = {};
     for (const [p, st] of Object.entries(opts.local.stamps)) (p.startsWith('docs/') ? asideDocs : prior)[p] = st;
   }
+  // "Letzte Salden behalten" is each device's own choice: switched off here,
+  // the kept balances and the curve it held are not this device's to delete
+  // for the others. Their stamps go without a tombstone.
+  if (vault.keepBalances === false) {
+    prior = Object.fromEntries(Object.entries(prior).filter(([p, st]) => st.h === '-' || !(p.startsWith('keptBalances/') || p.startsWith('netWorth/'))));
+  }
   // A device's first round after joining: what it brought is older than the group's.
   const stamps = restamp(entries, prior, opts.local.joining && !Object.keys(prior).length ? 0 : now);
 
