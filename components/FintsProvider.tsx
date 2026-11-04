@@ -1974,14 +1974,16 @@ function useFintsState() {
    * cancelled; what failed is said once, at the end. Never started on its
    * own — each read can cost an approval.
    */
-  const loadAllBalances = useCallback(() => {
+  const loadAllBalances = useCallback((only?: readonly string[]) => {
     if (busyRef.current) {
-      toast(msgs().provider.busy, 'info');
+      if (!only) toast(msgs().provider.busy, 'info');
       return;
     }
     const sid = sessionRef.current;
     // A linked bank that is logged out has nobody to ask; its list says so.
-    const reachable = accountsRef.current.filter((a) => sessionFor(a.accountNumber));
+    // `only`: these accounts alone ("Salden beim Anmelden abrufen" for the
+    // ones that just joined, never again for one whose approval was refused).
+    const reachable = accountsRef.current.filter((a) => sessionFor(a.accountNumber) && (!only || only.includes(a.accountNumber)));
     // And every Depot whose holdings were not read yet: on the overview its
     // value stands among the balances and counts in the Gesamtsaldo.
     const queue: Array<{ account: SerializedAccount; via: 'balance' | 'statement' | 'portfolio' }> = [
@@ -1992,8 +1994,8 @@ function useFintsState() {
     ];
     if (!queue.length) {
       // Only accounts whose statement is the way to their balance are left,
-      // and the applied range ends before today.
-      if (reachable.some((a) => a.canStatements && !balancesRef.current[a.accountNumber])) {
+      // and the applied range ends before today. Said to a press, not to the login's own read.
+      if (!only && reachable.some((a) => a.canStatements && !balancesRef.current[a.accountNumber])) {
         toast(msgs().provider.reads.balanceWithStatements, 'info', 8000);
       }
       return;
@@ -4471,7 +4473,7 @@ function useFintsState() {
     const fresh = accounts.filter((a) => !asked.has(a.accountNumber));
     if (!fresh.length) return;
     for (const a of fresh) asked.add(a.accountNumber);
-    loadAllBalances();
+    loadAllBalances(fresh.map((a) => a.accountNumber));
   }, [balancesAtLogin, view, busy, accounts, sessionId, loadAllBalances]);
 
   // Kept balances (lib/kept-balances.ts): every balance this session read
