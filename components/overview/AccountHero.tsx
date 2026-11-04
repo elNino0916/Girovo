@@ -471,11 +471,14 @@ function AccountHead({ account, label }: { account: SerializedAccount; label: st
       {/* From 1280px every account stands beside this page (Dashboard SplitOverview): no way back to
           show, and the eye is the Gesamtsaldo's there, beside it — one for the window. */}
       <div className="-mr-2 -ml-3 flex min-h-12 items-center gap-1 max-sm:hidden xl:ml-0">
-        <IconButton size="md" aria-label={t.insights.accounts.back} onClick={closeAccount} className="xl:hidden">
-          <BackIcon size={22} />
-        </IconButton>
+        {/* The frame has neither: its sidebar is the way, its title bar holds the eye. */}
+        {!frame && (
+          <IconButton size="md" aria-label={t.insights.accounts.back} onClick={closeAccount} className="xl:hidden">
+            <BackIcon size={22} />
+          </IconButton>
+        )}
         <p className="min-w-0 flex-1 truncate text-[16px] leading-6 font-medium text-ink">{label}</p>
-        <PrivacyToggle className="xl:hidden" />
+        {!frame && <PrivacyToggle className="xl:hidden" />}
       </div>
       <p className="flex min-w-0 items-center gap-2 pt-1 pb-1 text-[14px] leading-5 text-ink-2 sm:pt-0">
         {entry && <BankMark entry={entry} logoFile={logoFiles[entry.bank.brand]} className="size-4 rounded-[4px]" />}

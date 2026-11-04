@@ -46,7 +46,11 @@ export function FrameSearch() {
   const [wasOpen, setWasOpen] = useState(open);
   if (wasOpen !== open) {
     setWasOpen(open);
-    if (!open) p.setQuery('');
+    // And from its first row: Enter must never run what was lit last time.
+    if (!open) {
+      p.setQuery('');
+      p.setActive(0);
+    }
   }
 
   // Opened by a key or another control: the caret goes into the field.

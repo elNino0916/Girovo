@@ -5302,19 +5302,21 @@ function useFintsState() {
     }
   }, [activeAccount, statementInfo, activeBank, bank, transactions, balances, toast]);
 
-  const printTransaction = useCallback((tx: SerializedTransaction, pending = false) => {
-    if (!activeAccount) return;
+  /** A booking's Beleg; `account` where it is not the active one's (the frame's ledger). */
+  const printTransaction = useCallback((tx: SerializedTransaction, pending = false, account?: SerializedAccount) => {
+    const of = account ?? activeAccount;
+    if (!of) return;
     setPrintJob({
       kind: 'transaction',
-      account: activeAccount,
-      bank: activeBank?.bank ?? bank,
+      account: of,
+      bank: (account ? bankOf(account) : activeBank)?.bank ?? bank,
       tx,
       pending,
     });
     if (typeof window === 'undefined' || !window.electronPDF) {
       toast(msgs().provider.printAsPdf, 'info', 6000);
     }
-  }, [activeAccount, activeBank, bank, toast]);
+  }, [activeAccount, activeBank, bankOf, bank, toast]);
 
   // Messages are gone after the logout, so a notice the user must keep (new
   // Sonderbedingungen, a changed fee) leaves as a document. It is the bank's,

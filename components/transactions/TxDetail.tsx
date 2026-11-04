@@ -6,7 +6,7 @@ import { facilitatorShop, fmtDayShort } from '@/lib/analytics';
 import {
   allCategories, categoryLabel, counterpartyKey, isCategoryId, txBic, txKey, type CategoryId, type CategorySource,
 } from '@/lib/categories';
-import type { SerializedTransaction } from '@/lib/fints-types';
+import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { dayKey, displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry } from '@/lib/format';
 import { intlLocale, msgs, type Messages } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
@@ -57,16 +57,19 @@ const TAG_ICON: Record<NonNullable<StatusTag['icon']>, ReactNode> = {
  * sheet; "Alle Umsätze mit …" is a search on what is already loaded.
  */
 export function TxDetail({
-  tx, pending, onClose,
+  tx, pending, account, onClose,
 }: {
   tx: SerializedTransaction;
   pending: boolean;
+  /** The booking's account, where it may not be the active one (the frame's ledger). */
+  account?: SerializedAccount;
   onClose: () => void;
 }) {
   const {
-    activeAccount, categoryOf, openTransfer, showTransactions, printTransaction, noteOf, receiptKeys,
+    activeAccount: active, categoryOf, openTransfer, showTransactions, printTransaction, noteOf, receiptKeys,
     plus, openPlus, openShareQueue, openShareAll,
   } = useFints();
+  const activeAccount = account ?? active;
   const [splitting, setSplitting] = useState(false);
   // `tr`, not `t`: in this file `t` is a booking.
   const tr = useT();
@@ -148,7 +151,8 @@ export function TxDetail({
   // transfer sheet in turn returns focus there when it closes.
   const startTransfer = (seed: NonNullable<typeof seeds.repeat>) => {
     onClose();
-    setTimeout(() => openTransfer(seed), 0);
+    // From the booking's own account, when it is not the active one.
+    setTimeout(() => openTransfer(account ? { ...seed, accountNumber: account.accountNumber } : seed), 0);
   };
 
   // The header on the left edge, then three tabs, so the facts, the user's
@@ -293,7 +297,7 @@ export function TxDetail({
             size="sm"
             variant={seeds.repeat || seeds.refund || canSplit ? 'tertiary' : 'secondary'}
             iconLeft={<ReceiptIcon size={16} />}
-            onClick={() => printTransaction(tx, pending)}
+            onClick={() => printTransaction(tx, pending, account)}
           >
             {words.receipt}
           </Button>
@@ -356,7 +360,7 @@ export function TxDetail({
           </>,
           <>
             <NoteSection tx={tx} />
-            <ReceiptSection tx={tx} pending={pending} />
+            <ReceiptSection tx={tx} pending={pending} account={account} />
           </>,
           <CategorySection key="category" tx={tx} name={text.name} pending={pending} />,
         ]}

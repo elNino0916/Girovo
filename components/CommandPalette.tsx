@@ -74,6 +74,8 @@ import { hasNewer, updates, useUpdates } from './updates/store';
 import { privacyNotice } from './shell/useShortcuts';
 import { useUsageConsent } from './telemetry/usage';
 import { ShortIban } from './overview/AccountIdentity';
+import { showAlone } from './overview/layers';
+import { useDesktopFrame } from './shell/frame';
 
 type Group = 'actions' | 'accounts' | 'transactions' | 'session';
 
@@ -147,6 +149,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
   const canAsk = IS_ANDROID && askable === true && askAllowed(f.plus.state);
   const { state: update } = useUpdates();
   const usage = useUsageConsent();
+  const frame = useDesktopFrame();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   // On a phone the first row is lit only once an arrow key moves the choice:
@@ -363,11 +366,13 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
       ],
       ids: [acct.iban ?? '', acct.accountNumber],
       run: () => {
-        if (!isActive) f.selectAccount(acct);
+        // The frame shows the ticked accounts: the chosen one is shown alone, as its name in the sidebar does.
+        if (frame) showAlone(f, acct);
+        else if (!isActive) f.selectAccount(acct);
         f.setTab('overview');
       },
     } satisfies Item;
-  }), [f, tr, locale]);
+  }), [f, tr, locale, frame]);
 
   // Bookings: only once something is typed, newest first, across every
   // account loaded in this session — found by what their rows show (the

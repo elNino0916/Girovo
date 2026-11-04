@@ -17,7 +17,7 @@ import { calendarMonths, filterTransactions, periodTotals, type SearchContext } 
 import { namesList } from '@/lib/balances';
 import { overviewFigures } from '@/lib/account-overview';
 import type { StatementInfo } from '@/lib/app-types';
-import type { SerializedTransaction } from '@/lib/fints-types';
+import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { isoDate } from '@/lib/format';
 import { intlLocale } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
@@ -55,10 +55,10 @@ export function Ledger() {
 
   // ---- the bookings, through the account page's filter --------------------
   const layerOf = useMemo(() => {
-    const map = new Map<SerializedTransaction, { name: string; color: string }>();
+    const map = new Map<SerializedTransaction, { name: string; color: string; account: SerializedAccount }>();
     for (const l of layers) {
       if (!l.shown) continue;
-      const mark = { name: accountLabel(l.account), color: l.color };
+      const mark = { name: accountLabel(l.account), color: l.color, account: l.account };
       for (const tx of txByAccount[l.account.accountNumber] ?? []) map.set(tx, mark);
     }
     return map;
@@ -122,7 +122,8 @@ export function Ledger() {
   const monthName = new Intl.DateTimeFormat(intlLocale(), { month: 'long' }).format(today);
 
   const merchantOf = useCallback((tx: SerializedTransaction) => merchantFor(merchants, tx), [merchants]);
-  const onOpen = useCallback((tx: SerializedTransaction) => openTxDetail(tx, false), []);
+  // The drawer follows the booking's own account: its Beleg, receipts and transfers.
+  const onOpen = useCallback((tx: SerializedTransaction) => openTxDetail(tx, false, layerOf.get(tx)?.account), [layerOf]);
   const loadEach = async (list: typeof withBookings, force = false) => {
     for (const a of list) await loadTransactions(a, undefined, undefined, force ? { force: true } : {});
   };

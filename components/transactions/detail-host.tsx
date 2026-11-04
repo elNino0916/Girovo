@@ -11,11 +11,11 @@
 // panel ever stand without that tile, it hosts the drawer itself.
 
 import { useEffect, useSyncExternalStore } from 'react';
-import type { SerializedTransaction } from '@/lib/fints-types';
+import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { rowKey } from './model';
 import { TxDetail } from './TxDetail';
 
-type Shown = { tx: SerializedTransaction; pending: boolean } | null;
+type Shown = { tx: SerializedTransaction; pending: boolean; account?: SerializedAccount } | null;
 
 let shown: Shown = null;
 let hosts = 0;
@@ -30,9 +30,13 @@ const subscribe = (l: () => void) => {
   };
 };
 
-/** Opens the drawer on a booking — `pending` for a Vormerkposten. */
-export function openTxDetail(tx: SerializedTransaction, pending = false): void {
-  shown = { tx, pending };
+/**
+ * Opens the drawer on a booking — `pending` for a Vormerkposten. `account`:
+ * the booking's own, where it may not be the active one (the frame's ledger
+ * of several accounts); its receipt, Beleg and transfers then follow it.
+ */
+export function openTxDetail(tx: SerializedTransaction, pending = false, account?: SerializedAccount): void {
+  shown = { tx, pending, account };
   emit();
 }
 
@@ -63,5 +67,5 @@ export function TxDetailHost({ fallback = false }: { fallback?: boolean }) {
   if (!current || (fallback && primaries > 0)) return null;
   // Keyed by the booking, so the drawer's own state (the category choice)
   // never carries over to the next one.
-  return <TxDetail key={rowKey(current.tx)} tx={current.tx} pending={current.pending} onClose={closeTxDetail} />;
+  return <TxDetail key={rowKey(current.tx)} tx={current.tx} pending={current.pending} account={current.account} onClose={closeTxDetail} />;
 }

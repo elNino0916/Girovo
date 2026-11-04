@@ -2893,8 +2893,9 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     toast(`Vorschau: Hier würde der Kontoauszug${span ? ` ${span}` : ''} als PDF erstellt.`, 'info', 6000);
   }, [activeAccount, statementInfo, toast]);
 
-  const printTransaction = useCallback((tx: SerializedTransaction, pending = false) => {
+  const printTransaction = useCallback((tx: SerializedTransaction, pending = false, account?: SerializedAccount) => {
     void tx;
+    void account;
     toast(`Vorschau: Hier würde ${pending ? 'der Beleg zum Vormerkposten' : 'der Beleg'} als PDF erstellt.`, 'info', 6000);
   }, [toast]);
 

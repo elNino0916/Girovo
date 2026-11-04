@@ -20,7 +20,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { txKey } from '@/lib/categories';
-import type { SerializedTransaction } from '@/lib/fints-types';
+import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { fmtDate } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
@@ -42,8 +42,10 @@ function fileFromClipboard(data: DataTransfer | null): File | null {
   return null;
 }
 
-export function ReceiptSection({ tx, pending }: { tx: SerializedTransaction; pending: boolean }) {
-  const { receiptsOf, keepReceipt, activeAccount, toast } = useFints();
+export function ReceiptSection({ tx, pending, account }: { tx: SerializedTransaction; pending: boolean; account?: SerializedAccount }) {
+  const { receiptsOf, keepReceipt, activeAccount: active, toast } = useFints();
+  // Kept under the booking's own account, where it is not the active one (the frame's ledger).
+  const activeAccount = account ?? active;
   const t = useT();
   const words = t.docs.receipts;
   const titleId = useId();

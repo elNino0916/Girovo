@@ -82,21 +82,23 @@ export function Dashboard() {
  * in the sheet.
  */
 function FramedDashboard() {
-  const { tab, ordersOpen, accounts, activeAccount, selectAccount } = useFints();
+  const { tab, ordersOpen, accounts, activeAccount, selectAccount, busy } = useFints();
   const t = useT();
   const actions = useShellActions();
-  useGlobalShortcuts(actions);
+  useGlobalShortcuts(actions, { frame: true });
   const [sidebarOpen, toggleSidebar] = useSidebarOpen();
   const { shown } = useLayers();
   const scrollRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   useScrollbarWidth(rootRef, scrollRef);
 
-  // One account ticked is its page: it is the active one.
+  // One account ticked is its page: it is the active one. selectAccount
+  // refuses while a read runs (the login's first statement, an approval), so
+  // the switch is tried again once it is done.
   const alone = shown.length === 1 ? shown[0] : null;
   useEffect(() => {
-    if (tab === 'overview' && alone && activeAccount?.accountNumber !== alone.accountNumber) selectAccount(alone);
-  }, [tab, alone, activeAccount, selectAccount]);
+    if (tab === 'overview' && alone && !busy && activeAccount?.accountNumber !== alone.accountNumber) selectAccount(alone);
+  }, [tab, alone, activeAccount, selectAccount, busy]);
   const ledger = tab === 'overview' && accounts.length > 1 && !alone;
   const orders = tab === 'contracts' && ordersOpen;
   const place = ledger ? 'ledger' : orders ? 'orders' : tab;

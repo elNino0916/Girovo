@@ -20,6 +20,7 @@ import type { DashboardTab } from '@/lib/app-types';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { msgs } from '@/lib/i18n';
 import { useFints, type FintsApi } from '../FintsProvider';
+import { showAlone } from '../overview/layers';
 import type { ShellActions } from './actions';
 
 /** What switching "Beträge ausblenden" from a key or the palette says. */
@@ -36,7 +37,9 @@ export function privacyNotice(hidden: boolean, singleKeys: boolean): string {
  * bank — perhaps an approval — on one unmodified key, so the key says so and
  * offers the read as a deliberate press, the way the account list does.
  */
-function switchByKey(f: FintsApi, account: SerializedAccount) {
+function switchByKey(f: FintsApi, account: SerializedAccount, frame: boolean) {
+  // On the desktop's frame what shows is the ticked accounts: the account is shown alone.
+  const show = (a: SerializedAccount) => (frame ? showAlone(f, a) : f.selectAccount(a));
   const label = f.accountLabel(account);
   const t = msgs();
   const say = t.shell.switchByKey;
@@ -48,7 +51,7 @@ function switchByKey(f: FintsApi, account: SerializedAccount) {
     ? f.isLoadedForAppliedRange(account.accountNumber)
     : !account.canBalance || !!f.balances[account.accountNumber];
   if (free) {
-    f.selectAccount(account);
+    show(account);
     return;
   }
   const acct = account.accountNumber;
@@ -58,7 +61,7 @@ function switchByKey(f: FintsApi, account: SerializedAccount) {
     failed ? say.failed(label) : elsewhere ? say.otherPeriod(label) : say.notLoaded(label),
     'info',
     10_000,
-    { label: failed ? t.common.retry : say.loadNow, run: () => f.selectAccount(account) },
+    { label: failed ? t.common.retry : say.loadNow, run: () => show(account) },
   );
 }
 
@@ -87,12 +90,12 @@ const TAB_KEYS: Record<string, DashboardTab> = { Digit1: 'overview', Digit2: 'an
 const G_TABS: Record<string, DashboardTab> = { a: 'analysis', v: 'contracts', u: 'overview', ü: 'overview', o: 'overview' };
 const G_WINDOW_MS = 1200;
 
-export function useGlobalShortcuts(actions: ShellActions) {
+export function useGlobalShortcuts(actions: ShellActions, { frame = false }: { frame?: boolean } = {}) {
   const fints = useFints();
   // One listener for the dashboard's lifetime; it reads the latest state
   // through this ref instead of being re-attached on every render.
-  const latest = useRef({ fints, actions });
-  latest.current = { fints, actions };
+  const latest = useRef({ fints, actions, frame });
+  latest.current = { fints, actions, frame };
   const gPressedAt = useRef(0);
 
   useEffect(() => {
@@ -187,7 +190,10 @@ export function useGlobalShortcuts(actions: ShellActions) {
         const account = orderAccounts(f.accounts, f.vault?.accountOrder)[Number(key) - 1];
         if (!account) return;
         e.preventDefault();
-        if (account.accountNumber !== f.activeAccount?.accountNumber || !f.accountOpen) switchByKey(f, account);
+        const alreadyAlone = latest.current.frame
+          ? f.accounts.every((x) => x === account || f.accountsHidden.includes(x.accountNumber))
+          : f.accountOpen;
+        if (account.accountNumber !== f.activeAccount?.accountNumber || !alreadyAlone) switchByKey(f, account, latest.current.frame);
       }
     };
     window.addEventListener('keydown', onKeyDown);

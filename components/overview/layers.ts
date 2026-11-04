@@ -10,7 +10,7 @@ import { useCallback } from 'react';
 import { liveValue, orderAccounts, type AccountValue } from '@/lib/account-overview';
 import { isDepot } from '@/lib/balances';
 import type { SerializedAccount } from '@/lib/fints-types';
-import { useFints } from '../FintsProvider';
+import { useFints, type FintsApi } from '../FintsProvider';
 
 /**
  * Each account's colour, by its place in the user's order: the chart slots
@@ -23,6 +23,23 @@ const LAYER_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var
 export const hasBookings = (a: SerializedAccount): boolean => a.canStatements && !isDepot(a);
 
 export type Layer = { account: SerializedAccount; color: string; shown: boolean };
+
+/**
+ * One account alone, as a press on its name in the sidebar shows it: every
+ * other account on screen unticked, it the active one. Ticks of accounts not
+ * on screen (a further bank not logged in) are left as they were.
+ */
+export function showAlone(
+  f: Pick<FintsApi, 'accounts' | 'accountsHidden' | 'setAccountsHidden' | 'selectAccount'>,
+  a: SerializedAccount,
+): void {
+  const here = new Set(f.accounts.map((x) => x.accountNumber));
+  f.setAccountsHidden([
+    ...f.accountsHidden.filter((x) => !here.has(x)),
+    ...f.accounts.filter((x) => x.accountNumber !== a.accountNumber).map((x) => x.accountNumber),
+  ]);
+  f.selectAccount(a);
+}
 
 /** Every account as a layer, in the user's order, with its colour and whether it is ticked. */
 export function useLayers(): { layers: Layer[]; shown: SerializedAccount[]; setShown: (acct: string, on: boolean) => void; only: (a: SerializedAccount) => void; all: () => void } {
@@ -39,11 +56,15 @@ export function useLayers(): { layers: Layer[]; shown: SerializedAccount[]; setS
     setAccountsHidden(on ? rest : [...rest, acct]);
   }, [accountsHidden, setAccountsHidden]);
   // One account alone is its page: it becomes the active one too.
-  const only = useCallback((a: SerializedAccount) => {
-    setAccountsHidden(accounts.filter((x) => x.accountNumber !== a.accountNumber).map((x) => x.accountNumber));
-    selectAccount(a);
-  }, [accounts, setAccountsHidden, selectAccount]);
-  const all = useCallback(() => setAccountsHidden([]), [setAccountsHidden]);
+  const only = useCallback(
+    (a: SerializedAccount) => showAlone({ accounts, accountsHidden, setAccountsHidden, selectAccount }, a),
+    [accounts, accountsHidden, setAccountsHidden, selectAccount],
+  );
+  // Every account on screen ticked; a further bank not logged in keeps its ticks.
+  const all = useCallback(() => {
+    const here = new Set(accounts.map((x) => x.accountNumber));
+    setAccountsHidden(accountsHidden.filter((x) => !here.has(x)));
+  }, [accounts, accountsHidden, setAccountsHidden]);
   return { layers, shown, setShown, only, all };
 }
 

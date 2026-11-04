@@ -21,7 +21,7 @@ import { AlertTriangleIcon } from '../icons';
 import { forecastAllowed } from '@/lib/plus';
 import { PlusTeaser } from '../android/PlusTeaser';
 import { DotList, Tile, cx } from '../ui';
-import { Money } from '../Money';
+import { Money, usePrivacy } from '../Money';
 import { useDesktopFrame } from '../shell/frame';
 import { useRecurringModel } from './recurring-model';
 import { RoundMoney, fmtDayKeyShort } from './shared';
@@ -161,6 +161,9 @@ export function ForecastTile({ className }: { className?: string }) {
 function ForecastChart({ f, currency }: { f: Forecast; currency: string }) {
   const t = useT();
   const words = t.insights.forecast;
+  // With the amounts hidden the chart keeps only its shape: no zero line to
+  // say whether, and by how much, the balance goes below it (as BalanceChart).
+  const privacy = usePrivacy();
   const days = useMemo(() => {
     const out: { day: string; balance: number }[] = [];
     let cents = Math.round(f.start * 100);
@@ -180,7 +183,7 @@ function ForecastChart({ f, currency }: { f: Forecast; currency: string }) {
 
   const W = 520;
   const H = 120;
-  const min = Math.min(0, ...days.map((d) => d.balance));
+  const min = Math.min(privacy ? Infinity : 0, ...days.map((d) => d.balance));
   const max = Math.max(...days.map((d) => d.balance));
   const span = max - min || 1;
   // Each day is a step of its own width, so the last day's change (the
@@ -197,7 +200,7 @@ function ForecastChart({ f, currency }: { f: Forecast; currency: string }) {
   return (
     <div className="mt-4">
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={words.chartLabel} className="block h-[120px] w-full">
-        {min < 0 && <line x1="0" x2={W} y1={y(0)} y2={y(0)} stroke="var(--md-outline-variant)" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />}
+        {!privacy && min < 0 && <line x1="0" x2={W} y1={y(0)} y2={y(0)} stroke="var(--md-outline-variant)" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />}
         <path d={area} fill="var(--accent)" fillOpacity="0.12" />
         <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
       </svg>
