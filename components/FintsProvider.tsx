@@ -4969,11 +4969,13 @@ function useFintsState() {
    * user unticked in the sidebar. A ticked account's Umsätze join the
    * Übersicht's ledger and its balance the sum; one ticked alone is its page.
    * Kept in the vault on this device only (never synced: a phone has no
-   * layers); without a readable vault the change lives in memory.
+   * layers); without a readable vault the change lives in memory. `next`
+   * may be worked out from the list as it then stands: a tick while the
+   * vault still loads applies to the saved list, not to an empty one.
    */
-  const setAccountsHidden = useCallback((next: readonly string[]) => {
-    const list = sanitizeAccountOrder(next);
+  const setAccountsHidden = useCallback((next: readonly string[] | ((current: readonly string[]) => readonly string[])) => {
     updateVault((v) => {
+      const list = sanitizeAccountOrder(typeof next === 'function' ? next(v.accountsHidden ?? []) : next);
       if (list.length) return { ...v, accountsHidden: list };
       if (!v.accountsHidden) return v;
       const rest = { ...v };

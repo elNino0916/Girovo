@@ -34,10 +34,8 @@ export function showAlone(
   a: SerializedAccount,
 ): void {
   const here = new Set(f.accounts.map((x) => x.accountNumber));
-  f.setAccountsHidden([
-    ...f.accountsHidden.filter((x) => !here.has(x)),
-    ...f.accounts.filter((x) => x.accountNumber !== a.accountNumber).map((x) => x.accountNumber),
-  ]);
+  const others = f.accounts.filter((x) => x.accountNumber !== a.accountNumber).map((x) => x.accountNumber);
+  f.setAccountsHidden((current) => [...current.filter((x) => !here.has(x)), ...others]);
   f.selectAccount(a);
 }
 
@@ -51,10 +49,13 @@ export function useLayers(): { layers: Layer[]; shown: SerializedAccount[]; setS
     shown: !off.has(account.accountNumber),
   }));
   const shown = layers.filter((l) => l.shown).map((l) => l.account);
+  // From the list as it stands when the change applies (a tick while the vault still loads).
   const setShown = useCallback((acct: string, on: boolean) => {
-    const rest = accountsHidden.filter((x) => x !== acct);
-    setAccountsHidden(on ? rest : [...rest, acct]);
-  }, [accountsHidden, setAccountsHidden]);
+    setAccountsHidden((current) => {
+      const rest = current.filter((x) => x !== acct);
+      return on ? rest : [...rest, acct];
+    });
+  }, [setAccountsHidden]);
   // One account alone is its page: it becomes the active one too.
   const only = useCallback(
     (a: SerializedAccount) => showAlone({ accounts, accountsHidden, setAccountsHidden, selectAccount }, a),
@@ -63,8 +64,8 @@ export function useLayers(): { layers: Layer[]; shown: SerializedAccount[]; setS
   // Every account on screen ticked; a further bank not logged in keeps its ticks.
   const all = useCallback(() => {
     const here = new Set(accounts.map((x) => x.accountNumber));
-    setAccountsHidden(accountsHidden.filter((x) => !here.has(x)));
-  }, [accounts, accountsHidden, setAccountsHidden]);
+    setAccountsHidden((current) => current.filter((x) => !here.has(x)));
+  }, [accounts, setAccountsHidden]);
   return { layers, shown, setShown, only, all };
 }
 

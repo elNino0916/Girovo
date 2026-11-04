@@ -2723,9 +2723,9 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     });
   }, [updateVault]);
 
-  const setAccountsHidden = useCallback((next: readonly string[]) => {
-    const list = sanitizeAccountOrder(next);
+  const setAccountsHidden = useCallback((next: readonly string[] | ((current: readonly string[]) => readonly string[])) => {
     updateVault((v) => {
+      const list = sanitizeAccountOrder(typeof next === 'function' ? next(v.accountsHidden ?? []) : next);
       if (list.length) return { ...v, accountsHidden: list };
       const rest = { ...v };
       delete rest.accountsHidden;
