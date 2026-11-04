@@ -19,6 +19,7 @@ import { Money } from './Money';
 import { TanForm, TanGraphic } from './TanEntry';
 import { VopBadge } from './VopResult';
 import { Alert, Button, Dialog, DialogActions, Overlay, Sheet, Spinner, Tag, cx } from './ui';
+import { useDemo } from './demo/demo-mode';
 
 /**
  * The approval beat. In the bank's app (decoupled): the user leaves for their
@@ -191,7 +192,9 @@ function TanWait() {
   const offerRetry = wait.canRetry && !isOrderWait(kind) && (!waiting || overdue);
   const methodName = method?.name ?? null;
   // Android: the bank's approval app, one tap away while the bank waits for it.
-  const approvalApp = useApprovalApp(waiting && !entry ? wait.bank?.brand ?? bank?.brand ?? null : null);
+  // Never for the demo's made-up approval: nothing waits in the real app.
+  const demo = useDemo();
+  const approvalApp = useApprovalApp(waiting && !entry && !demo ? wait.bank?.brand ?? bank?.brand ?? null : null);
   // The desktop: the approval is on the phone, in the app named here when the
   // bank's is known for certain (lib/brands.ts) and the bank's own words do
   // not name it already — no button, the phone is where it opens.

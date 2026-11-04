@@ -20,6 +20,7 @@ import { useFints } from '../FintsProvider';
 import { AlertCircleIcon, CheckCircleIcon, DownloadIcon, FingerprintIcon, GeminiSparkIcon, XCircleIcon } from '../icons';
 import { ActionItem, SettingItem, SwitchItem } from '../settings/rows';
 import { Button, Dialog, Progress, Tag, cx } from '../ui';
+import { useDemo } from '../demo/demo-mode';
 
 /**
  * On for the login this session belongs to — the first bank's, the one the
@@ -33,22 +34,24 @@ export function FingerprintSwitch() {
   const b = t.android.biometric;
   const { bank, sessionId, userId, links, toast } = useFints();
   const integrity = useIntegrity();
+  // The made-up bank has no PIN to seal: the phone's real fingerprint stays out of it.
+  const demo = useDemo();
   const [available, setAvailable] = useState<GirovoBiometricState | null>(null);
   const [on, setOn] = useState(false);
   const [working, setWorking] = useState(false);
 
   useEffect(() => {
     const mobile = window.girovoMobile;
-    if (!mobile || !bank || !userId) return;
+    if (demo || !mobile || !bank || !userId) return;
     let live = true;
     void mobile.biometric.state().then((s) => live && setAvailable(s));
     void mobile.biometric.isOn(bank.blz, userId).then((e) => live && setOn(e));
     return () => {
       live = false;
     };
-  }, [bank, userId]);
+  }, [bank, userId, demo]);
 
-  if (!available || !bank || !userId || !sessionId || integrity === undefined) return null;
+  if (demo || !available || !bank || !userId || !sessionId || integrity === undefined) return null;
   // Turning it on stores the PIN on the phone: never on an unsafe one, even
   // where the user lets Girovo keep its data anyway. Off stays possible — it
   // deletes what an earlier start sealed.

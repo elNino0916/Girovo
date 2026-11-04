@@ -135,7 +135,8 @@ export function Credentials({
   // user knows the PIN they type will unlock it (fewer TAN prompts).
   useEffect(() => {
     const name = login.trim();
-    if (!bank.blz || !name) { setRemembered(false); return; }
+    // The demo asks nothing of this machine's real remembered devices.
+    if (demo || !bank.blz || !name) { setRemembered(false); return; }
     // The login name travels in a POST body, never the URL — a query string
     // lands in request logs and history. An answer for a name the user has
     // since typed past is dropped, so a slow reply cannot flip the hint back.
@@ -149,7 +150,7 @@ export function Credentials({
       current = false;
       clearTimeout(t);
     };
-  }, [bank.blz, login]);
+  }, [bank.blz, login, demo]);
 
   // Straight back to the PIN once the fields are editable again (an effect
   // rather than a call in the catch). Selected, so the next keystroke replaces
