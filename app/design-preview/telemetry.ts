@@ -9,6 +9,12 @@ import { forgetUsageConsent, type UsageConsent } from '@/components/telemetry/us
 export const USAGE_SCENARIOS = ['unasked', 'on', 'off'] as const;
 
 export function installFakeTelemetry(consent: UsageConsent | null): void {
+  // Opened in the desktop app itself, the preload's real bridge is there and
+  // can be neither removed nor replaced (contextBridge): the preview keeps it.
+  if (Object.getOwnPropertyDescriptor(window, 'electronTelemetry')?.configurable === false) {
+    forgetUsageConsent();
+    return;
+  }
   if (!consent) {
     delete window.electronTelemetry;
   } else {

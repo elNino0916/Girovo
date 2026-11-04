@@ -378,6 +378,8 @@ async function openExportMenu(c: Ctx) {
  * refusal, can be seen without the shell.
  */
 function fakeFileSave(answer: { ok: true } | { ok: false; canceled: true } | { ok: false; error: string }) {
+  // In the desktop app itself the real Save-As stays (contextBridge cannot be replaced).
+  if (Object.getOwnPropertyDescriptor(window, 'electronFiles')?.configurable === false) return;
   window.electronFiles = { save: async () => answer };
 }
 

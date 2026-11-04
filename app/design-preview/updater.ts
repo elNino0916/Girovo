@@ -122,6 +122,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Puts a fake updater on window for this view (null: none — the web app). */
 export function installFakeUpdater(scenario: UpdateScenario | null, { dialog = false } = {}) {
   resetUpdatesForPreview({ dialog });
+  // Opened in the desktop app itself, the preload's real updater is there and
+  // can be neither removed nor replaced (contextBridge): the preview keeps it.
+  if (Object.getOwnPropertyDescriptor(window, 'electronUpdater')?.configurable === false) return;
   if (!scenario) {
     delete window.electronUpdater;
     return;
