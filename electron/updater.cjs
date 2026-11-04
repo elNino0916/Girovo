@@ -177,12 +177,15 @@ async function writeAt(handle, buf, length, position) {
  * @param {(info: { installerPid: number|undefined, version: string }) => Promise<void>} [deps.showInstallWindow]
  *   shows the install's progress after the app has quit (main.cjs)
  * @param {() => void} deps.quit
+ * @param {(release: { version: string, back?: boolean }) => void} [deps.beforeInstall]
+ *   runs right before the installer starts: the way back to an older
+ *   release takes the start with Windows away, which the older one knows nothing of (main.cjs)
  * @param {(url: string) => unknown} deps.openExternal
  */
 function createUpdater(deps) {
   const {
     currentVersion, kind, fetch, cacheDir, portableDir = null, downloadsDir = null, baseFile = null, autoCheck = true,
-    getPref, setPref, send = () => {}, spawnDetached, showInstallWindow = null, quit, openExternal,
+    getPref, setPref, send = () => {}, spawnDetached, showInstallWindow = null, quit, openExternal, beforeInstall = null,
     feedUrl = logic.FEED_URL, downloadPrefix = logic.DOWNLOAD_PREFIXES, releasesPage = logic.RELEASES_PAGE,
     previousExe = null, now = Date.now, log = console, retryDelayMs = logic.RETRY_DELAY_MS,
   } = deps;
@@ -803,6 +806,11 @@ function createUpdater(deps) {
         url: release.url,
         previousFile: kind === 'portable' ? previousExe : null,
       });
+      try {
+        beforeInstall?.({ version: release.version, back: logic.isSwitchBack(release.version, currentVersion) });
+      } catch (err) {
+        log.warn('[updater] before install:', err?.message || err);
+      }
       installerPid = await spawnDetached(file, args, { cwd: path.dirname(file) });
     } catch (err) {
       await fs.promises.rm(markerFile(), { force: true }).catch(() => {});

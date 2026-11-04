@@ -515,6 +515,34 @@ test('back on stable from a preview, the latest stable release is offered as the
   }
 });
 
+test('the shell hears of an install before its installer runs, and whether it goes back', async () => {
+  const srv = await startServer(withPreviews());
+  try {
+    const heard = [];
+    const { updater, calls } = makeUpdater(srv.base, {
+      currentVersion: '10.0.0-preview.1',
+      getPref: (k) => (k === PREF_CHANNEL ? 'preview' : null),
+      beforeInstall: (release) => heard.push({ ...release, spawnedYet: calls.spawned.length }),
+    });
+    await updater.check({ manual: true });
+    await updater.download();
+    await updater.install();
+    assert.deepEqual(heard, [{ version: '10.0.0-preview.2', back: false, spawnedYet: 0 }]);
+    // The way back to stable (another start): told so, before the older installer runs.
+    const back = makeUpdater(srv.base, {
+      currentVersion: '10.0.0-preview.1',
+      getPref: (k) => (k === PREF_CHANNEL ? 'preview' : null),
+      beforeInstall: (release) => heard.push({ ...release, spawnedYet: back.calls.spawned.length }),
+    });
+    await back.updater.setChannel('stable');
+    await back.updater.download();
+    await back.updater.install();
+    assert.deepEqual(heard[1], { version: '9.9.9', back: true, spawnedYet: 0 });
+  } finally {
+    await srv.close();
+  }
+});
+
 test('a stable install on stable is never offered an older release', async () => {
   const srv = await startServer(githubLike());
   try {

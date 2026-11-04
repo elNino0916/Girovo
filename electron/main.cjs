@@ -431,6 +431,10 @@ function setLoginItem(on) {
   if (process.platform !== 'win32' || !app.isPackaged) return;
   try {
     // The same arguments either way: Windows finds the entry to remove by them.
+    // Written only when it changes: Electron's write also marks the entry as
+    // allowed, which would undo the user switching Girovo off under Task
+    // Manager's startup apps at every start.
+    if (app.getLoginItemSettings({ args: ['--background'] }).openAtLogin === on) return;
     app.setLoginItemSettings({ openAtLogin: on, args: ['--background'] });
   } catch (err) {
     console.warn('[background] login item:', err?.message || err);
@@ -995,6 +999,12 @@ function setupUpdater() {
       quitting = true;
       app.quit();
     },
+    // The way back to an older release (a preview to 5.x): it knows nothing of
+    // the start with Windows, so the entry would open it at every sign-in.
+    // A 6.0 started again puts it back while the checks are on.
+    beforeInstall: (release) => {
+      if (release.back) setLoginItem(false);
+    },
     openExternal: (url) => shell.openExternal(url),
   });
   // The start itself may be the result of an update; say so before any push.
@@ -1123,6 +1133,14 @@ function run() {
       if (background?.enabled()) {
         void ensureTray();
         setLoginItem(true);
+      } else if (startedHidden) {
+        // Started with Windows by an entry the checks no longer want (switched
+        // off where the entry could not be removed, the settings lost): the
+        // entry goes, and so does this start, which nobody asked to see.
+        setLoginItem(false);
+        quitting = true;
+        app.quit();
+        return;
       }
       powerMonitor.on('resume', () => background?.resumed());
       // An updater that fails to come up must not take the app with it.
@@ -1170,6 +1188,13 @@ function run() {
     stopped: () => {
       dropTray();
       setLoginItem(false);
+      // The window closed into the notification area, or never shown (a start
+      // with Windows): without the icon there is no way back to it, so the
+      // app ends instead of running on unseen. Its notice, if any, stays.
+      if (win && !win.isDestroyed() && !win.isVisible()) {
+        quitting = true;
+        app.quit();
+      }
     },
   });
   // window.electronSync (preload.cjs): sync between devices (lib/sync.ts).
