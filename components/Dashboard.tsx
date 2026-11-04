@@ -99,7 +99,8 @@ function FramedDashboard() {
   useEffect(() => {
     if (tab === 'overview' && alone && !busy && activeAccount?.accountNumber !== alone.accountNumber) selectAccount(alone);
   }, [tab, alone, activeAccount, selectAccount, busy]);
-  const ledger = tab === 'overview' && accounts.length > 1 && !alone;
+  // Nothing ticked is the ledger's "Kein Konto angehakt", with one account as with several.
+  const ledger = tab === 'overview' && ((accounts.length > 1 && !alone) || (accounts.length > 0 && shown.length === 0));
   const orders = tab === 'contracts' && ordersOpen;
   const place = ledger ? 'ledger' : orders ? 'orders' : tab;
 
