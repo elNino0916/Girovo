@@ -70,7 +70,16 @@ import { useLaunches } from './android/useLaunches';
  */
 export function Dashboard() {
   const frame = useDesktopFrame();
-  return frame ? <FramedDashboard /> : <ClassicDashboard />;
+  // The layers (a transfer and its approval, Konten anordnen, the inbox) are
+  // mounted beside the shell, not in it: a window crossing 640px (resized,
+  // zoomed) changes the shell, and a transfer in its TAN wait must not start
+  // over above an approval whose outcome it would then never show.
+  return (
+    <>
+      {frame ? <FramedDashboard /> : <ClassicDashboard />}
+      <ShellLayers frame={frame} />
+    </>
+  );
 }
 
 /**
@@ -174,7 +183,6 @@ function FramedDashboard() {
           </div>
         </div>
       </div>
-      <ShellLayers frame />
     </div>
   );
 }
@@ -253,7 +261,6 @@ function ClassicDashboard() {
 
       <BottomBar actions={actions} />
       {IS_ANDROID && <PullToRefresh scrollRef={scrollRef} />}
-      <ShellLayers />
     </div>
   );
 }
