@@ -517,6 +517,16 @@ export async function wipeVault(s: Session): Promise<number> {
 // Restoring a backup (lib/backup.ts)
 // ---------------------------------------------------------------------------
 
+/** Per account the kept balance read last, whichever side holds it (this computer's on a tie). */
+function newestKept(backup: VaultData['keptBalances'], current: VaultData['keptBalances']): NonNullable<VaultData['keptBalances']> {
+  const out = { ...(backup ?? {}) };
+  for (const [key, k] of Object.entries(current ?? {})) {
+    const other = out[key];
+    if (!other || !(Date.parse(other.readAt) > Date.parse(k.readAt))) out[key] = k;
+  }
+  return out;
+}
+
 /**
  * A backup's vault folded into the one on this machine. What is here wins
  * wherever both say something — a name, a rule, a note, a budget — and the
@@ -560,7 +570,7 @@ export function mergeVaults(current: VaultData, backup: VaultData): VaultData {
     ...(current.accountGrouping || !backup.accountGrouping ? {} : { accountGrouping: backup.accountGrouping }),
     // The newest read of each account, and every day either of them knows — unless this computer said no.
     ...(current.keepBalances === false ? {} : {
-      keptBalances: { ...(backup.keptBalances ?? {}), ...(current.keptBalances ?? {}) },
+      keptBalances: newestKept(backup.keptBalances, current.keptBalances),
       netWorth: [...(backup.netWorth ?? []), ...(current.netWorth ?? [])],
     }),
   };

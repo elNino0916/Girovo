@@ -103,6 +103,23 @@ export function orderAccounts<A extends Pick<SerializedAccount, 'accountNumber'>
  * whole order stay where they were and take the group's new sequence, so an
  * account never leaves its group and the other groups do not move.
  */
+/**
+ * A new order of the accounts on screen, saved over the old one without
+ * losing the places of accounts not on screen (a further bank not logged in):
+ * they keep their slots, the accounts on screen fill the others in their new
+ * sequence, and new ones follow at the end.
+ */
+export function keepAbsentPlaces(saved: readonly string[] | undefined, onScreen: readonly string[]): string[] {
+  const present = new Set(onScreen);
+  const queue = [...onScreen];
+  const out: string[] = [];
+  for (const key of saved ?? []) {
+    if (!present.has(key)) out.push(key);
+    else if (queue.length) out.push(queue.shift()!);
+  }
+  return [...out, ...queue];
+}
+
 export function moveAccount(order: readonly string[], members: readonly string[], from: number, to: number): string[] {
   if (from === to || from < 0 || to < 0 || from >= members.length || to >= members.length) return [...order];
   const next = [...members];

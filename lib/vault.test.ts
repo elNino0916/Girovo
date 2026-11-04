@@ -168,6 +168,15 @@ test('keptBalances and netWorth: kept when well formed; switched off, neither is
   assert.equal(off && ('keptBalances' in off || 'netWorth' in off), false);
 });
 
+test('a restored backup keeps the kept balance read last, whichever side holds it', () => {
+  const older = { cents: 100, currency: 'EUR', readAt: '2026-10-01T10:00:00.000Z' };
+  const newer = { cents: 200, currency: 'EUR', readAt: '2026-11-02T18:02:00.000Z' };
+  const here = vault.sanitizeVault(base({ keptBalances: { a: older, b: newer } }))!;
+  const backup = vault.sanitizeVault(base({ keptBalances: { a: newer, b: older, c: older } }))!;
+  const merged = vault.mergeVaults(here, backup);
+  assert.deepEqual(merged.keptBalances, { a: newer, b: newer, c: older });
+});
+
 test('aliases: clipped, empty ones dropped, at most 50 (newest kept)', () => {
   const aliases: Record<string, unknown> = { '1234567890': 'Girokonto für alles und noch viel mehr Text der zu lang ist', '42': '   ', '43': 7 };
   for (let i = 0; i < 60; i++) aliases[`ACC-${i}`] = `Konto ${i}`;

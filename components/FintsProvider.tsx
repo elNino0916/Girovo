@@ -69,7 +69,7 @@ import {
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
 import { asksForBrand } from '@/lib/nano-names';
 import { ORDER_UNANSWERED_STATUS } from '@/lib/fints-order';
-import { hasOverview, liveValue, overviewFigures, sanitizeAccountOrder, type AccountGrouping } from '@/lib/account-overview';
+import { hasOverview, keepAbsentPlaces, liveValue, overviewFigures, sanitizeAccountOrder, type AccountGrouping } from '@/lib/account-overview';
 import { keepBalances as foldKeptBalances, recordNetWorth, type KeptBalance, type NetWorthDay } from '@/lib/kept-balances';
 import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
 import {
@@ -3766,7 +3766,13 @@ function useFintsState() {
       setAccounts(nextAccounts);
       purgeAccounts(link.accountNumbers);
       const active = activeAccountRef.current;
-      if (active && gone.has(active.accountNumber) && nextAccounts[0]) selectAccount(nextAccounts[0]);
+      // Back to every account, the first remaining one active — without a
+      // read: removing a bank must not start one (it may ask for an approval).
+      if (active && gone.has(active.accountNumber) && nextAccounts[0]) {
+        activeAccountRef.current = nextAccounts[0];
+        setActiveAccount(nextAccounts[0]);
+        setAccountOpen(false);
+      }
     }
     if (login) {
       updateVault((v) => (v.linkedBanks?.some((r) => sameLogin(r, login))
@@ -4958,7 +4964,8 @@ function useFintsState() {
   const arrangeAccounts = useCallback((next: { order?: readonly string[]; grouping?: AccountGrouping }) => {
     updateVault((v) => {
       let out = v;
-      if (next.order) out = { ...out, accountOrder: sanitizeAccountOrder(next.order) };
+      // Accounts not on screen (a further bank not logged in) keep their places.
+      if (next.order) out = { ...out, accountOrder: sanitizeAccountOrder(keepAbsentPlaces(v.accountOrder, next.order)) };
       if (next.grouping && next.grouping !== v.accountGrouping) out = { ...out, accountGrouping: next.grouping };
       return out;
     });

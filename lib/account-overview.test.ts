@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  groupAccounts, groupKindOf, groupSum, hasOverview, moveAccount, orderAccounts, overviewFigures, sanitizeAccountOrder,
+  groupAccounts, groupKindOf, groupSum, hasOverview, keepAbsentPlaces, moveAccount, orderAccounts, overviewFigures, sanitizeAccountOrder,
   type AccountValue,
 } from './account-overview.ts';
 
@@ -139,4 +139,12 @@ test('groupSum: complete groups only; other currencies and unreported accounts a
   assert.equal(groupSum(['tg', 'giro'], of({ ...values, giro: { state: 'missing', currency: 'EUR' } })), null);
   assert.equal(groupSum(['tg', 'usd'], of({ ...values, usd: { state: 'missing', currency: 'USD' } })), 835000);
   assert.equal(groupSum(['bauspar'], of({ bauspar: { state: 'never' } })), null);
+});
+
+test('a new order keeps the places of accounts of a bank not logged in', () => {
+  // b1 and b2 are at a bank not logged in; giro and tg are moved on screen.
+  const saved = ['giro', 'b1', 'tg', 'b2'];
+  assert.deepEqual(keepAbsentPlaces(saved, ['tg', 'giro']), ['tg', 'b1', 'giro', 'b2']);
+  assert.deepEqual(keepAbsentPlaces(saved, ['tg', 'giro', 'new']), ['tg', 'b1', 'giro', 'b2', 'new']);
+  assert.deepEqual(keepAbsentPlaces(undefined, ['a', 'b']), ['a', 'b']);
 });
