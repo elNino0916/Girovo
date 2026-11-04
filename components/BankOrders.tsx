@@ -417,6 +417,8 @@ function RemoveDialog({ account, order: o, onClose }: { account: SerializedAccou
         <p className="iban mt-0.5 overflow-x-auto text-[14px] text-ink-2 [scrollbar-width:none]">{fmtIban(o.iban)}</p>
         {o.schedule && <p className="tnum mt-2 text-[14px] leading-snug text-ink-2">{scheduleSentence(o.schedule)}</p>}
         {o.purpose && <p className="mt-1 text-[14px] leading-snug break-words text-ink-2">{o.purpose}</p>}
+        {/* The bank deletes the whole order, its further payments with it: said before the red button. */}
+        {o.more > 0 && <p className="mt-2 text-[14px] leading-snug font-semibold text-ink">{t.orders.list.more(o.more)}</p>}
       </div>
     </Dialog>
   );
