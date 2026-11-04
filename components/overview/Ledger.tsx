@@ -19,7 +19,6 @@ import { overviewFigures } from '@/lib/account-overview';
 import type { DateRange, StatementInfo } from '@/lib/app-types';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { isoDate } from '@/lib/format';
-import { intlLocale } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { useRecurringModel, useUpcoming } from '../insights/recurring-model';
@@ -31,6 +30,7 @@ import { PeriodControl } from '../transactions/PeriodControl';
 import { TxFilterBar } from '../transactions/TxFilterBar';
 import { TxList } from '../transactions/TxList';
 import { sinceShort } from './AccountsOverview';
+import { daySpan } from './MonthFigures';
 import { Button, IconButton, Spinner } from '../ui';
 import { hasBookings, useAccountValue, useLayers } from './layers';
 
@@ -109,20 +109,30 @@ export function Ledger() {
   const today = new Date();
   const todayKey = isoDate(today);
   const monthStart = isoDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  // Only once every ticked account's Umsätze are here (never a partial
+  // figure), over the days of the month all of them cover, said in the label
+  // ("1.–24. November") as the account page's line says it.
   const month = useMemo(() => {
+    if (!withBookings.length || withBookings.some((a) => !txByAccount[a.accountNumber] || !statementInfo[a.accountNumber])) return null;
+    let from = monthStart;
+    let to = todayKey;
+    for (const a of withBookings) {
+      const info = statementInfo[a.accountNumber]!;
+      if (info.from > from) from = info.from;
+      if (info.to < to) to = info.to;
+    }
+    if (from > to) return null;
     let income = 0;
     let expense = 0;
     let count = 0;
-    for (const a of shown) {
-      const txs = txByAccount[a.accountNumber];
-      if (!txs) continue;
-      const p = periodTotals(txs, { categoryOf, from: monthStart, to: todayKey, currency: 'EUR' });
+    for (const a of withBookings) {
+      const p = periodTotals(txByAccount[a.accountNumber]!, { categoryOf, from, to, currency: 'EUR' });
       income += p.income;
       expense += p.expense;
       count += p.count;
     }
-    return count ? { income, expense } : null;
-  }, [shown, txByAccount, categoryOf, monthStart, todayKey]);
+    return count ? { income, expense, span: daySpan(from, to) } : null;
+  }, [withBookings, txByAccount, statementInfo, categoryOf, monthStart, todayKey]);
   const model = useRecurringModel();
   const upcoming = useUpcoming(model, 30);
   const due = useMemo(() => {
@@ -133,7 +143,6 @@ export function Ledger() {
     }
     return cents / 100;
   }, [upcoming, model, shown]);
-  const monthName = new Intl.DateTimeFormat(intlLocale(), { month: 'long' }).format(today);
 
   const merchantOf = useCallback((tx: SerializedTransaction) => merchantFor(merchants, tx), [merchants]);
   // The drawer follows the booking's own account: its Beleg, receipts and transfers.
@@ -200,10 +209,10 @@ export function Ledger() {
           <dl className="flex flex-wrap gap-x-10 gap-y-3">
             {month && (
               <>
-                <Figure label={t.insights.monthFigures.income(monthName)}>
+                <Figure label={t.insights.monthFigures.income(month.span)}>
                   <Money value={month.income} currency="EUR" signed tone="credit" />
                 </Figure>
-                <Figure label={t.insights.monthFigures.spending(monthName)}>
+                <Figure label={t.insights.monthFigures.spending(month.span)}>
                   <Money value={-month.expense} currency="EUR" signed tone="plain" />
                 </Figure>
               </>

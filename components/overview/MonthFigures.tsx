@@ -24,7 +24,7 @@ import { Money } from '../Money';
 import { useRecurringModel, useUpcoming } from '../insights/recurring-model';
 
 /** "1.–24. Oktober" ("1–24 October"): the days of the month the figures cover. */
-function daySpan(from: string, to: string): string {
+export function daySpan(from: string, to: string): string {
   const fmt = new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'long' });
   const a = new Date(`${from}T12:00:00`);
   const b = new Date(`${to}T12:00:00`);
