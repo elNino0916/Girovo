@@ -738,7 +738,7 @@ function lastBooking(txs: readonly SerializedTransaction[] | undefined): Seriali
  * When a figure was read, short enough for the line under the Gesamtsaldo:
  * "14:02 Uhr" today, "gestern, 18:02 Uhr", "2.11., 18:02 Uhr" before.
  */
-function sinceShort(ms: number): string {
+export function sinceShort(ms: number): string {
   const d = new Date(ms);
   const time = msgs().shell.clock(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
   const day = isoDate(d);
