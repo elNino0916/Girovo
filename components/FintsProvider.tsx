@@ -4518,16 +4518,28 @@ function useFintsState() {
     const phone = IS_ANDROID ? window.girovoMobile : undefined;
     // Cleared by "Gerät vergessen" or the wiped data: nothing goes back this session.
     if (!phone?.widget || widgetClearedRef.current || view !== 'dashboard' || !accounts.length) return;
+    // "Letzte Salden behalten" off: no balance stays on the phone, the widget's neither.
+    if (vaultStatus === 'ready' && vault?.keepBalances === false) {
+      void phone.widget.clear().catch(() => {});
+      return;
+    }
     const absent = banks.filter((b) => b.state === 'remembered').length;
     const f = overviewFigures(accounts, (a) => liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]), absent);
     if (f.total == null || f.excluded.some((e) => e.reason === 'unread')) return;
-    const amount = fmtMoney(f.total);
+    // The total is in cents (lib/account-overview.ts).
+    const amount = fmtMoney(f.total / 100);
     const said = msgs().android.widget;
-    const stamp = said.stamp(new Date());
+    // "Stand": as fresh as the oldest figure the total is made of, as the overview says it.
+    const readTimes = f.counted.map((a) => (isDepot(a)
+      ? (portfolios[a.accountNumber] ? Date.parse(portfolios[a.accountNumber].readAt) : NaN)
+      : balanceAt[a.accountNumber] ?? NaN)).filter(Number.isFinite);
+    const stamp = said.stamp(readTimes.length ? new Date(Math.min(...readTimes)) : new Date());
     void phone.integrity().catch(() => null).then((facts) => {
-      if (!keepsNothing(facts)) void phone.widget.update(amount, stamp, said.title);
+      // A forget or wipe while the check ran: nothing goes back.
+      if (widgetClearedRef.current || keepsNothing(facts)) return;
+      void phone.widget.update(amount, stamp, said.title);
     });
-  }, [view, accounts, banks, balances, portfolios]);
+  }, [view, accounts, banks, balances, balanceAt, portfolios, vault?.keepBalances, vaultStatus]);
 
   // "Neue Umsätze melden": whether the shell here can keep the PINs, and
   // whether the checks are on — asked once the Übersicht is up.
