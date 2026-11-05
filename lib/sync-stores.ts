@@ -81,24 +81,68 @@ export function folderStore(dir: string): SyncStore {
   };
 }
 
+/**
+ * The place could not be reached (no network, its server down or too slow)
+ * or turned this device away (WebDAV's login): an everyday state of a place
+ * on the network, said to the user and never reported as a fault.
+ */
+export class SyncPlaceError extends Error {
+  readonly reason: 'unreachable' | 'refused';
+  constructor(reason: 'unreachable' | 'refused', detail: string) {
+    super(`sync place ${reason}: ${detail}`);
+    this.name = 'SyncPlaceError';
+    this.reason = reason;
+  }
+}
+
+const OFFLINE_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'EPIPE', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT']);
+
+/** A request that never got an answer: fetch's "fetch failed", a timeout, a refused or reset connection. */
+function offline(err: unknown): boolean {
+  const e = err as { name?: string; message?: string; code?: string; cause?: { code?: string } } | null;
+  if (e?.name === 'TimeoutError' || e?.name === 'AbortError') return true;
+  if (e?.message === 'fetch failed') return true;
+  return OFFLINE_CODES.has(e?.cause?.code ?? '') || OFFLINE_CODES.has(e?.code ?? '');
+}
+
+/** An answer that says no: the login refused, or the server unable now. Anything else stays a fault. */
+function answerError(status: number, who: string): Error {
+  if (status === 401 || status === 403) return new SyncPlaceError('refused', `${who} ${status}`);
+  if (status >= 500 || status === 408 || status === 429) return new SyncPlaceError('unreachable', `${who} ${status}`);
+  return new Error(`${who} ${status}`);
+}
+
+async function reaching<T>(who: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (offline(err)) throw new SyncPlaceError('unreachable', `${who}: ${(err as Error)?.name || 'error'}`);
+    throw err;
+  }
+}
+
 export function webdavStore(place: Extract<SyncPlace, { kind: 'webdav' }>): SyncStore {
   const auth = `Basic ${Buffer.from(`${place.user}:${place.password}`, 'utf8').toString('base64')}`;
   const url = (name: string) => `${place.url}/${checked(name)}`;
   return {
-    async get(name) {
-      const res = await fetch(url(name), { headers: { authorization: auth }, signal: AbortSignal.timeout(30_000) });
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`WebDAV ${res.status}`);
-      return new Uint8Array(await res.arrayBuffer());
-    },
-    async put(name, bytes) {
-      const res = await fetch(url(name), {
-        method: 'PUT',
-        headers: { authorization: auth, 'content-type': 'application/octet-stream' },
-        body: Buffer.from(bytes),
-        signal: AbortSignal.timeout(120_000),
+    get(name) {
+      return reaching('WebDAV', async () => {
+        const res = await fetch(url(name), { headers: { authorization: auth }, signal: AbortSignal.timeout(30_000) });
+        if (res.status === 404) return null;
+        if (!res.ok) throw answerError(res.status, 'WebDAV');
+        return new Uint8Array(await res.arrayBuffer());
       });
-      if (!res.ok) throw new Error(`WebDAV ${res.status}`);
+    },
+    put(name, bytes) {
+      return reaching('WebDAV', async () => {
+        const res = await fetch(url(name), {
+          method: 'PUT',
+          headers: { authorization: auth, 'content-type': 'application/octet-stream' },
+          body: Buffer.from(bytes),
+          signal: AbortSignal.timeout(120_000),
+        });
+        if (!res.ok) throw answerError(res.status, 'WebDAV');
+      });
     },
   };
 }
@@ -130,18 +174,19 @@ export function lanStore(place: Extract<SyncPlace, { kind: 'lan' }>, key: Buffer
         lastError = err;
       }
     }
-    throw lastError ?? new Error('sync: the computer is not reachable');
+    // None of its addresses answered: the computer is off, Girovo closed there, another network.
+    throw new SyncPlaceError('unreachable', `computer: ${(lastError as Error)?.name || 'no answer'}`);
   }
   return {
     async get(name) {
       const res = await ask('GET', name);
       if (res.status === 404) return null;
-      if (res.status !== 200) throw new Error(`computer ${res.status}`);
+      if (res.status !== 200) throw answerError(res.status, 'computer');
       return Buffer.from(res.body ?? '', 'base64');
     },
     async put(name, bytes) {
       const res = await ask('PUT', name, bytes);
-      if (res.status !== 200 && res.status !== 204) throw new Error(`computer ${res.status}`);
+      if (res.status !== 200 && res.status !== 204) throw answerError(res.status, 'computer');
     },
   };
 }

@@ -66,6 +66,10 @@ export const de = {
     needFolder: 'Wähle den Ordner auf diesem PC.',
     badPlace: 'Der Ort ist unvollständig.',
     unknownAction: 'Unbekannte Aktion.',
+    /** The place on the network did not answer this round. */
+    unreachable: 'Der Ort für den Abgleich ist gerade nicht erreichbar. Girovo versucht es später noch einmal.',
+    /** WebDAV turned the login away. */
+    placeRefused: 'Der WebDAV-Server hat die Anmeldung abgelehnt. Prüfe dort Benutzername und Passwort.',
   },
 };
 
@@ -128,5 +132,7 @@ export const en: typeof de = {
     needFolder: 'Choose the folder on this PC.',
     badPlace: 'The place is incomplete.',
     unknownAction: 'Unknown action.',
+    unreachable: 'The place to sync with can’t be reached right now. Girovo will try again later.',
+    placeRefused: 'The WebDAV server turned the login away. Check the user name and password there.',
   },
 };

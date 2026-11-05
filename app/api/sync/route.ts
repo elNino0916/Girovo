@@ -23,7 +23,7 @@ import {
   leaveGroup, loginTag, makeCode, newDeviceId, newGroupKey, readCode, readPlace, runSync, type ReceiptsSide, type SyncPlace,
 } from '@/lib/sync';
 import { readMeta, removeMeta, syncMetaFileOf, writeMeta, type SyncMeta } from '@/lib/sync-meta';
-import { keepLanToken, storeFor } from '@/lib/sync-stores';
+import { keepLanToken, storeFor, SyncPlaceError } from '@/lib/sync-stores';
 import { serialized } from '@/lib/sealed-file';
 import { sanitizeVault, saveVault, VAULT_REQUEST_MAX_BYTES, vaultKeyOf } from '@/lib/vault';
 
@@ -143,10 +143,20 @@ async function handle(b: SyncBody, s: Session, login: { blz: string; userId: str
       if (!sent) return fail(said.unknownAction);
       const saved = await saveVault(s, sent);
       const vault = { ...sent, updatedAt: saved.updatedAt };
-      const result = await runSync({
-        store, key: meta.key, device: { id: meta.deviceId, name: meta.deviceName }, vault, local: meta.local, receipts: await receiptsOf(s),
-        keep: (v) => sanitizeVault(v) ?? v,
-      });
+      let result;
+      try {
+        result = await runSync({
+          store, key: meta.key, device: { id: meta.deviceId, name: meta.deviceName }, vault, local: meta.local, receipts: await receiptsOf(s),
+          keep: (v) => sanitizeVault(v) ?? v,
+        });
+      } catch (err) {
+        // The place out of reach or refusing: said, not reported as a fault (it is the network's state).
+        if (err instanceof SyncPlaceError) {
+          if (err.reason === 'refused') return fail(said.placeRefused, 503);
+          return fail(meta.place.kind === 'lan' ? msgs().sync.unreachableLan : said.unreachable, 503);
+        }
+        throw err;
+      }
       // The saved data was deleted meanwhile ("Gespeicherte Daten löschen"):
       // nothing of this round may bring it back.
       if (!vaultKeyOf(s)) return fail(said.noVault, 409);
