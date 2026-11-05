@@ -44,8 +44,10 @@ extraResources:
     to: models/category-model
 
 # Nothing shipped here is a native module — the traced server bundle is plain
-# JavaScript — so there is nothing for electron-rebuild to do.
-npmRebuild: false
+# JavaScript — so there is nothing for electron-rebuild to do. (electron-builder
+# 27 moved the old top-level npmRebuild here.)
+nativeModules:
+  npmRebuild: false
 
 win:
   icon: build/icon.png
@@ -100,8 +102,8 @@ linux:
   executableName: girovo
   # The .desktop file is named after package.json's desktopName, which is
   # also the app id Electron gives its windows — so the dock and the task
-  # switcher put the running window under the app's own icon.
-  syncDesktopName: true
+  # switcher put the running window under the app's own icon. (Always so since
+  # electron-builder 27, which removed the syncDesktopName switch.)
   category: Office;Finance
   synopsis: Banking for German banks via FinTS
   # Packages carry the author's address (Debian's Maintainer field).
