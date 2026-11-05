@@ -503,10 +503,20 @@ The desktop app updates itself from this repository's
   the time orders it after the hand-made `6.0.0-preview.N` and before 6.0.0,
   the commit names it. Run it by hand from the Actions tab too. The Android
   previews stay hand-made, because the release key is not on GitHub.
-- **Nothing happens without a click.** A newer version shows up in
-  *Mitteilungen* (and on the login screen's bar); downloading it and restarting
-  into it are separate, explicit steps. The restart waits while a TAN approval
-  is open, and says that it signs you out.
+- **Installed at start** (the installed Windows app, *Einstellungen → Updates
+  automatisch installieren*, on unless switched off): the start window adds
+  "Nach Updates suchen" after "Girovo vorbereiten". A newer release on the
+  chosen channel is downloaded there ("Version … herunterladen", with the
+  percentage) and installed ("Version … installieren") before the window opens;
+  the installer then starts the new version. GitHub out of reach (it waits six
+  seconds), a failed download or nothing new: Girovo opens as always. A start
+  with Windows (in the notification area) installs nothing, and the way back
+  from a preview to an older release always stays a click.
+- **Otherwise nothing happens without a click.** A newer version found while
+  the app runs (or on Linux, or with the switch off) shows up in *Mitteilungen*
+  (and on the login screen's bar); downloading it and restarting into it are
+  separate, explicit steps. The restart waits while a TAN approval is open, and
+  says that it signs you out.
 - **Verified** — GitHub computes a SHA-256 digest for every file attached to a
   release. The download is checked against it before it is kept and again right
   before it runs; a file that does not match is deleted. A release without

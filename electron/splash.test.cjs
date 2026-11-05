@@ -24,6 +24,23 @@ test('after an update, finishing it comes first', () => {
   );
 });
 
+test('updates at start: the check between getting ready and the window', () => {
+  assert.deepEqual(
+    states(splashModel({ ...base, current: 'checking', updated: false, checks: true })),
+    ['preparing:done', 'checking:active', 'opening:pending'],
+  );
+});
+
+test('an update found: its download with the progress, then its install, in place of the window', () => {
+  const at = (current, progress = null) => splashModel({ ...base, current, updated: false, checks: true, update: '6.0.1', progress });
+  assert.deepEqual(states(at('downloading', 42)), ['preparing:done', 'checking:done', 'downloading:active', 'installing:pending']);
+  assert.deepEqual(at('downloading', 42).steps.map((s) => s.label), [
+    'Girovo vorbereiten', 'Nach Updates suchen', 'Version 6.0.1 herunterladen · 42 %', 'Version 6.0.1 installieren',
+  ]);
+  assert.equal(at('installing').steps[2].label, 'Version 6.0.1 herunterladen', 'the progress only while it downloads');
+  assert.equal(splashModel({ ...base, current: 'downloading', updated: false, checks: true, update: '6.0.1', slow: true }).note, null);
+});
+
 test('the version, portable or not, and the note once it is slow', () => {
   const model = splashModel({ ...base, current: 'preparing', updated: false });
   assert.equal(model.version, 'Version 5.2.1');

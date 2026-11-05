@@ -334,11 +334,12 @@ function AutoCheck({ state }: { state: UpdateState }) {
   if (state.kind === 'dev') return null;
   return (
     <div className="border-t border-line pt-4">
+      {/* The installed Windows app also installs at start; the others can only look. */}
       <Switch
         checked={state.auto}
         onChange={(on) => void updates.setAuto(on)}
-        label={u.auto}
-        description={u.autoHint}
+        label={state.kind === 'nsis' ? u.autoInstall : u.auto}
+        description={state.kind === 'nsis' ? u.autoInstallHint : u.autoHint}
       />
     </div>
   );

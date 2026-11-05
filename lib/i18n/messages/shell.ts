@@ -358,6 +358,10 @@ export const de = {
     auto: 'Automatisch nach Updates suchen',
     autoHint:
       'Beim Start und alle sechs Stunden. Die Anfrage an GitHub enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht GitHub dabei deine IP-Adresse – nichts über deine Konten.',
+    /** The installed Windows app: the same switch, which also installs at start (electron/main.cjs updateAtStart). */
+    autoInstall: 'Updates automatisch installieren',
+    autoInstallHint:
+      'Beim Start sucht Girovo nach einer neuen Version, lädt sie herunter und installiert sie, bevor das Fenster aufgeht; zwischendurch wird alle sechs Stunden nachgesehen. Aus: nur, wenn du es sagst. Die Anfrage an GitHub enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht GitHub dabei deine IP-Adresse – nichts über deine Konten.',
     // The toasts, the Mitteilungen row, the Sitzung panel's row and the login bar's button.
     downloaded: (v: string) => `Version ${v} ist heruntergeladen. Installiert wird erst, wenn du neu startest.`,
     details: 'Details',
@@ -657,6 +661,9 @@ export const en: typeof de = {
     auto: 'Check for updates automatically',
     autoHint:
       'At start-up and every six hours. The request to GitHub contains only the app’s version number. As with any request, GitHub sees your IP address – nothing about your accounts.',
+    autoInstall: 'Install updates automatically',
+    autoInstallHint:
+      'At start-up Girovo looks for a new version, downloads it and installs it before the window opens; in between it checks every six hours. Off: only when you ask. The request to GitHub contains only the app’s version number. As with any request, GitHub sees your IP address – nothing about your accounts.',
     downloaded: (v) => `Version ${v} has been downloaded. It’s only installed when you restart.`,
     details: 'Details',
     renamed: (v) => `Sooskasse-FinTS is now called Girovo. Version ${v} is installed.`,

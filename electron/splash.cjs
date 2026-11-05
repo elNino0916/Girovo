@@ -23,8 +23,13 @@
 
 const path = require('node:path');
 
-/** The steps a start goes through, in order. `finishing` only after an update. */
-const STEPS = ['finishing', 'preparing', 'opening'];
+/**
+ * The steps a start goes through, in order. `finishing` only after an update;
+ * `checking` while updates install at start; `downloading` and `installing`
+ * once that check found a version to install — in place of `opening`, since
+ * the installer starts the new version.
+ */
+const STEPS = ['finishing', 'preparing', 'checking', 'downloading', 'installing', 'opening'];
 
 /** Window width: the 440px card and the margins its shadow needs (as UpdateWindow.cs). */
 const WIDTH = 440 + 2 * 28;
@@ -42,21 +47,38 @@ const MIN_VISIBLE_MS = 2_000;
 /**
  * What the page draws: the texts, the theme and each step's state — done
  * before `current`, active at it, pending after. `finishing` is shown only
- * for a start that follows an update.
+ * for a start that follows an update, `checking` while `checks`, and the
+ * download and install of `update` (the version found) with how far the
+ * download is (`progress`, 0–100).
  */
-function splashModel({ current, updated, texts, version, portable, dark, slow }) {
-  const steps = STEPS.filter((key) => key !== 'finishing' || updated);
+function splashModel({ current, updated, checks = false, update = null, progress = null, texts, version, portable, dark, slow }) {
+  const steps = STEPS.filter((key) => {
+    if (key === 'finishing') return updated;
+    if (key === 'checking') return checks;
+    if (key === 'downloading' || key === 'installing') return !!update;
+    if (key === 'opening') return !update;
+    return true;
+  });
   const at = Math.max(0, steps.indexOf(current));
+  const label = (key) => {
+    if (key === 'downloading') {
+      const base = texts.steps.downloading(update);
+      return current === 'downloading' && progress != null ? `${base} · ${texts.progress(progress)}` : base;
+    }
+    if (key === 'installing') return texts.steps.installing(update);
+    return texts.steps[key];
+  };
   return {
     dark: !!dark,
     title: texts.title,
     version: texts.version(version) + (portable ? ` · ${texts.portable}` : ''),
     steps: steps.map((key, i) => ({
       key,
-      label: texts.steps[key],
+      label: label(key),
       state: i < at ? 'done' : i === at ? 'active' : 'pending',
     })),
-    note: slow ? texts.slow : null,
+    // A download takes its time; the note is about a slow start.
+    note: slow && !update ? texts.slow : null,
   };
 }
 
@@ -71,8 +93,11 @@ function createSplash({ BrowserWindow, texts, version, portable, dark, updated, 
   let slow = false;
   let closing = false;
   let onUserClose = null;
+  let checks = false;
+  let update = null;
+  let progress = null;
 
-  const model = () => splashModel({ current, updated, texts: texts(), version, portable, dark, slow });
+  const model = () => splashModel({ current, updated, checks, update, progress, texts: texts(), version, portable, dark, slow });
 
   const win = new BrowserWindow({
     width: WIDTH,
@@ -150,6 +175,25 @@ function createSplash({ BrowserWindow, texts, version, portable, dark, updated, 
     step(key) {
       if (!STEPS.includes(key) || key === current) return;
       current = key;
+      render();
+    },
+    /** This start looks for an update: "Nach Updates suchen" is one of its steps. */
+    setChecks(on) {
+      if (checks === !!on) return;
+      checks = !!on;
+      render();
+    },
+    /** The version found to install (its download and install become the steps), or null again. */
+    setUpdate(found) {
+      update = found || null;
+      progress = null;
+      render();
+    },
+    /** How far the download is, 0–100. */
+    progress(percent) {
+      const p = Math.max(0, Math.min(100, Math.floor(percent)));
+      if (p === progress) return;
+      progress = p;
       render();
     },
     /** Resolves once the window has been in view for MIN_VISIBLE_MS (at once if it is gone). */

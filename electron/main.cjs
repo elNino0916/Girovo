@@ -904,7 +904,9 @@ async function showInstallWindow({ installerPid, version, cacheDir }) {
   // How many files the installation has: the new one will have about as many.
   const entries = await fs.promises.readdir(installDir, { recursive: true, withFileTypes: true });
   const files = entries.filter((e) => e.isFile()).length;
-  const bounds = win && !win.isDestroyed() ? win.getBounds() : null;
+  // Around the app's window — or, for an update installed at start, the start window.
+  const around = win && !win.isDestroyed() ? win : splash?.window && !splash.window.isDestroyed() ? splash.window : null;
+  const bounds = around ? around.getBounds() : null;
   await spawnDetached(exe, [
     '--installer-pid', String(installerPid),
     '--install-dir', installDir,
@@ -945,6 +947,59 @@ function reportUpdate(state) {
     telemetry.error({ name: 'UpdateError', message: state.error.message }, { source: 'updater', during: state.error.during });
   }
   lastUpdate.error = error;
+}
+
+/** Who else follows the updater's states (updateAtStart's progress). */
+const updateListeners = new Set();
+
+/** How long a start waits for GitHub's answer before it opens Girovo anyway. */
+const START_CHECK_MS = 6_000;
+
+/**
+ * Updates installed at start ("Updates automatisch installieren", on unless
+ * switched off; the installed copy only, never a start with Windows, which
+ * shows nothing). The check started beside the server's start (`check`); a
+ * newer release this copy can install is downloaded and installed with the
+ * start window showing how far it is, and the installer starts the new
+ * version. GitHub out of reach, a failed download or nothing new: Girovo
+ * opens as always, the app's own update notices saying the rest. Never the
+ * way back to an older release (that stays a click). Answers true when the
+ * installer runs and the app is quitting for it.
+ */
+async function updateAtStart(check) {
+  const ready = updater?.getState();
+  if (!check || !splash || !ready?.auto || ready.kind !== 'nsis') return false;
+  splash.step('checking');
+  let timer = null;
+  const late = new Promise((resolve) => { timer = setTimeout(() => resolve(null), START_CHECK_MS); });
+  const found = await Promise.race([check, late]);
+  clearTimeout(timer);
+  const release = found?.release;
+  if (!splash || !release || release.back || !release.canInstall || (found.phase !== 'available' && found.phase !== 'ready')) return false;
+  splash.setUpdate(release.version);
+  if (found.phase === 'available') {
+    splash.step('downloading');
+    const follow = (state) => {
+      if (state.phase === 'downloading' && state.total > 0) splash?.progress((state.received / state.total) * 100);
+    };
+    updateListeners.add(follow);
+    let done;
+    try {
+      done = await updater.download();
+    } finally {
+      updateListeners.delete(follow);
+    }
+    if (!splash) return false;
+    if (done.phase !== 'ready') {
+      splash.setUpdate(null);
+      return false;
+    }
+  }
+  splash.step('installing');
+  const after = await updater.install();
+  if (after.phase === 'installing') return true;
+  splash?.setUpdate(null);
+  return false;
 }
 
 function setupUpdater() {
@@ -995,6 +1050,7 @@ function setupUpdater() {
     setPref: (key, value) => setPref(key, value),
     send: (state) => {
       reportUpdate(state);
+      for (const listener of updateListeners) listener(state);
       if (win && !win.webContents.isDestroyed()) win.webContents.send('updater:state', state);
     },
     spawnDetached,
@@ -1126,9 +1182,26 @@ function run() {
     if (!startedHidden) openSplash().step('preparing');
     await telemetryReady;
     try {
+      // The updater before the window: with updates installed at start, the
+      // check runs while the server starts, and the start window says so.
+      // An updater that fails to come up must not take the app with it.
+      try {
+        setupUpdater();
+      } catch (err) {
+        console.warn('[updater] unavailable:', err?.message || err);
+        telemetry.error(err, { source: 'updater' });
+      }
+      const atStart = updater?.getState();
+      const startCheck = splash && atStart?.auto && atStart.kind === 'nsis' ? updater.check({ manual: false }) : null;
+      if (startCheck) splash.setChecks(true);
       // ELECTRON_START_URL points the shell at an already-running `npm run dev`
       // (see the electron:dev script) instead of the built server.
       const appUrl = process.env.ELECTRON_START_URL || (await startServer());
+      if (await updateAtStart(startCheck)) {
+        // The installer runs, its window in the start window's place; the app quits for it.
+        closeSplash();
+        return;
+      }
       splash?.step('opening');
       createWindow(appUrl);
       // "Neue Umsätze melden": the next check, the notification area, the
@@ -1147,13 +1220,6 @@ function run() {
         return;
       }
       powerMonitor.on('resume', () => background?.resumed());
-      // An updater that fails to come up must not take the app with it.
-      try {
-        setupUpdater();
-      } catch (err) {
-        console.warn('[updater] unavailable:', err?.message || err);
-        telemetry.error(err, { source: 'updater' });
-      }
       telemetry.event('app_started', { installKind: updater?.getState()?.kind, locale: app.getLocale() });
     } catch (err) {
       telemetry.error(err, { source: 'main', fatal: true });

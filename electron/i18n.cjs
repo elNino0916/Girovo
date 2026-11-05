@@ -39,12 +39,17 @@ const de = {
   /** The window shown while the app starts (electron/splash.cjs). */
   splash: {
     title: 'Girovo wird gestartet',
-    /** The steps, in their order; finishing only after an update. */
+    /** The steps, in their order; finishing only after an update, the update's three only while updates install at start. */
     steps: {
       finishing: 'Aktualisierung abschließen',
       preparing: 'Girovo vorbereiten',
+      checking: 'Nach Updates suchen',
+      downloading: (v) => `Version ${v} herunterladen`,
+      installing: (v) => `Version ${v} installieren`,
       opening: 'Fenster öffnen',
     },
+    /** How far the download is. */
+    progress: (n) => `${n} %`,
     version: (version) => `Version ${version}`,
     portable: 'portabel',
     /** After a while without the window: why it can take longer, without blaming anything. */
@@ -136,8 +141,12 @@ const en = {
     steps: {
       finishing: 'Finish the update',
       preparing: 'Get Girovo ready',
+      checking: 'Check for updates',
+      downloading: (v) => `Download version ${v}`,
+      installing: (v) => `Install version ${v}`,
       opening: 'Open the window',
     },
+    progress: (n) => `${n}%`,
     version: (version) => `Version ${version}`,
     portable: 'portable',
     slow: 'This is taking longer than usual. The first start after an update or after restarting the computer often takes more time.',
