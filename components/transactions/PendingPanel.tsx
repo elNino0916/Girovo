@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useMemo, useState } from 'react';
 import { filterTransactions } from '@/lib/analytics';
-import type { SerializedTransaction } from '@/lib/fints-types';
+import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ClockIcon, RefreshIcon } from '../icons';
@@ -36,17 +36,22 @@ export const PENDING_PANEL_ID = 'vorgemerkt';
  * its CSV, and twice once booked), but its search reaches them here: while
  * the list is narrowed, the rows that match it come first and say so.
  */
-export function PendingPanel() {
+/**
+ * `account`: one account's Vorgemerkte where it is not the active one (the
+ * frame's ledger lists every ticked account's, `named` with its name).
+ */
+export function PendingPanel({ account, named = false }: { account?: SerializedAccount; named?: boolean } = {}) {
   const {
-    activeAccount: a, pendingCache, pendingInfo, pendingLoading, loadPending, busy, merchants, txFilter, categoryOf,
-    pendingErrors, noteOf,
+    activeAccount, pendingCache, pendingInfo, pendingLoading, loadPending, busy, merchants, txFilter, categoryOf,
+    pendingErrors, noteOf, accountLabel,
   } = useFints();
+  const a = account ?? activeAccount;
   // `tr`, not `t`: here `t` is a booking.
   const tr = useT();
   const words = tr.transactions.pending;
   const [expanded, setExpanded] = useState(false);
   const titleId = useId();
-  const onOpen = useCallback((tx: SerializedTransaction) => openTxDetail(tx, true), []);
+  const onOpen = useCallback((tx: SerializedTransaction) => openTxDetail(tx, true, account), [account]);
 
   const cached = a ? pendingCache[a.accountNumber] : undefined;
   const fetched = a ? pendingInfo[a.accountNumber] : undefined;
@@ -82,13 +87,16 @@ export function PendingPanel() {
 
   return (
     <>
-      <section id={PENDING_PANEL_ID} aria-labelledby={titleId} aria-busy={loading || undefined} className="panel scroll-mt-4 overflow-clip">
+      <section id={account ? undefined : PENDING_PANEL_ID} aria-labelledby={titleId} aria-busy={loading || undefined} className="panel scroll-mt-4 overflow-clip">
         <div className="flex items-start gap-3 px-4 pt-4 pb-4 sm:px-5">
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-amber-soft text-amber">
             <ClockIcon size={18} />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="section-head">{tr.common.booking.pending}</h2>
+            <h2 id={titleId} className="section-head">
+              {tr.common.booking.pending}
+              {named && ` · ${accountLabel(a)}`}
+            </h2>
             {cached && !loading ? (
               <>
                 <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-[13.5px] text-ink-2">

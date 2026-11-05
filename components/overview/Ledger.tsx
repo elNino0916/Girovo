@@ -12,7 +12,7 @@
 // its account's colour and name. The CSV and the bank's Kontoauszüge belong
 // to one account: they are on its page (one account ticked).
 
-import { useCallback, useId, useMemo } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 import { calendarMonths, filterTransactions, periodTotals, type SearchContext } from '@/lib/analytics';
 import { isDepot, namesList } from '@/lib/balances';
 import { overviewFigures } from '@/lib/account-overview';
@@ -31,15 +31,17 @@ import { TxFilterBar } from '../transactions/TxFilterBar';
 import { TxList } from '../transactions/TxList';
 import { sinceShort } from './AccountsOverview';
 import { daySpan } from './MonthFigures';
-import { Button, IconButton, Spinner } from '../ui';
+import { Button, FilterChip, IconButton, Overlay, Sheet, Spinner } from '../ui';
+import { PendingPanel } from '../transactions/PendingPanel';
 import { hasBookings, useAccountValue, useLayers } from './layers';
 
 export function Ledger() {
   const {
     txByAccount, statementInfo, categoryOf, merchants, noteOf, receiptKeys, brandNames, accountLabel,
     loadTransactions, loadAllBalances, loadingAllBalances, loadingAccount, busy, banks,
-    txFilter, setTxFilter, range, applyRange, savedRange, applySavedRange, balanceAt, portfolios, vault,
+    txFilter, setTxFilter, range, applyRange, savedRange, applySavedRange, balanceAt, portfolios, vault, pendingCache,
   } = useFints();
+  const [pendingOpen, setPendingOpen] = useState(false);
   const t = useT();
   const words = t.shell.frame;
   const totalWords = t.insights.accounts;
@@ -93,6 +95,11 @@ export function Ledger() {
   );
   const groups = useMemo(() => groupByDay(filtered), [filtered, t]);
   const withBookings = shown.filter(hasBookings);
+  // The ticked accounts' Vorgemerkte: in their own panels, as on an account's
+  // page (merged in they would count in the sums, and twice once booked) —
+  // one per account that can ask for them or was sent some with its Umsätze.
+  const withPending = shown.filter((a) => a.canPending || !!pendingCache[a.accountNumber]);
+  const pendingCount = withPending.reduce((n, a) => n + (pendingCache[a.accountNumber]?.length ?? 0), 0);
   const notLoaded = withBookings.filter((a) => !txByAccount[a.accountNumber]);
   // The span the ticked accounts' lists cover between them, for the period chip and the months.
   const loaded = useMemo<StatementInfo | undefined>(() => {
@@ -236,6 +243,17 @@ export function Ledger() {
           months={months}
           loaded={loaded}
           categoryOf={categoryOf}
+          leading={withPending.length > 0 ? (
+            <FilterChip
+              menu
+              aria-haspopup="dialog"
+              icon={<span aria-hidden className="mx-1 size-2 rounded-full bg-amber" />}
+              onClick={() => setPendingOpen(true)}
+            >
+              {t.common.booking.pending}
+              {pendingCount > 0 ? <span className="tnum"> {pendingCount}</span> : null}
+            </FilterChip>
+          ) : undefined}
           trailing={(
             <>
               <PeriodControl
@@ -277,6 +295,13 @@ export function Ledger() {
         </div>
       </div>
       <TxDetailHost />
+      <Overlay open={pendingOpen} onClose={() => setPendingOpen(false)} label={t.common.booking.pending} align="bottom">
+        <Sheet onClose={() => setPendingOpen(false)}>
+          <div className="flex flex-col gap-4">
+            {withPending.map((a) => <PendingPanel key={a.accountNumber} account={a} named={withPending.length > 1} />)}
+          </div>
+        </Sheet>
+      </Overlay>
     </section>
   );
 }
