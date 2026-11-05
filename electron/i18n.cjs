@@ -39,6 +39,8 @@ const de = {
   /** The window shown while the app starts (electron/splash.cjs). */
   splash: {
     title: 'Girovo wird gestartet',
+    /** The title once an update found at start is downloaded and installed. */
+    titleUpdating: 'Girovo wird aktualisiert',
     /** The steps, in their order; finishing only after an update, the update's three only while updates install at start. */
     steps: {
       finishing: 'Aktualisierung abschließen',
@@ -138,6 +140,7 @@ const en = {
   },
   splash: {
     title: 'Starting Girovo',
+    titleUpdating: 'Updating Girovo',
     steps: {
       finishing: 'Finish the update',
       preparing: 'Get Girovo ready',

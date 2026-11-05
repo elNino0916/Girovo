@@ -70,7 +70,8 @@ function splashModel({ current, updated, checks = false, update = null, progress
   };
   return {
     dark: !!dark,
-    title: texts.title,
+    // An update found at start: the window is about the update now, not the start.
+    title: update ? texts.titleUpdating : texts.title,
     version: texts.version(version) + (portable ? ` · ${texts.portable}` : ''),
     steps: steps.map((key, i) => ({
       key,

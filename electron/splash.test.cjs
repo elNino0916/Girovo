@@ -38,6 +38,8 @@ test('an update found: its download with the progress, then its install, in plac
     'Girovo vorbereiten', 'Nach Updates suchen', 'Version 6.0.1 herunterladen · 42 %', 'Version 6.0.1 installieren',
   ]);
   assert.equal(at('installing').steps[2].label, 'Version 6.0.1 herunterladen', 'the progress only while it downloads');
+  assert.equal(at('downloading', 42).title, 'Girovo wird aktualisiert');
+  assert.equal(splashModel({ ...base, current: 'checking', updated: false, checks: true }).title, 'Girovo wird gestartet');
   assert.equal(splashModel({ ...base, current: 'downloading', updated: false, checks: true, update: '6.0.1', slow: true }).note, null);
 });
 
