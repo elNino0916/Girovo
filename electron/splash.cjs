@@ -61,19 +61,18 @@ function splashModel({ current, updated, checks = false, update = null, progress
     return true;
   });
   const at = Math.max(0, steps.indexOf(current));
+  // The steps stay short; which version it is says the line at the foot.
   const label = (key) => {
-    if (key === 'downloading') {
-      const base = texts.steps.downloading(update);
-      return current === 'downloading' && progress != null ? `${base} · ${texts.progress(progress)}` : base;
+    if (key === 'downloading' && current === 'downloading' && progress != null) {
+      return `${texts.steps.downloading} · ${texts.progress(progress)}`;
     }
-    if (key === 'installing') return texts.steps.installing(update);
     return texts.steps[key];
   };
   return {
     dark: !!dark,
     // An update found at start: the window is about the update now, not the start.
     title: update ? texts.titleUpdating : texts.title,
-    version: texts.version(version) + (portable ? ` · ${texts.portable}` : ''),
+    version: (update ? texts.versionTo(version, update) : texts.version(version)) + (portable ? ` · ${texts.portable}` : ''),
     steps: steps.map((key, i) => ({
       key,
       label: label(key),

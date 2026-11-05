@@ -580,6 +580,7 @@ namespace Girovo.UpdateWindow
                     footer.LineHeight = 16;
                     footer.Foreground = Brush(palette.Ink2);
                     footer.Margin = new Thickness(0, 16, 0, 0);
+                    footer.TextWrapping = TextWrapping.Wrap;
                     System.Windows.Documents.Typography.SetNumeralAlignment(footer, FontNumeralAlignment.Tabular);
                     stack.Children.Add(footer);
                 }
@@ -603,21 +604,23 @@ namespace Girovo.UpdateWindow
                 // Started without the start window's steps: the install and the start alone.
                 steps = new List<string[]>
                 {
-                    new[] { "active", options.Version.Length > 0
-                        ? Say.Pick("Version " + options.Version + " installieren", "Install version " + options.Version)
-                        : Say.Pick("Update installieren", "Install the update") },
+                    new[] { "active", Say.Pick("Update installieren", "Install the update") },
                     new[] { "pending", Say.Pick("Girovo starten", "Start Girovo") },
                 };
             }
             foreach (var s in steps)
             {
                 var row = new StepRow { State = s[0], Label = s[1], Icon = new Grid { Width = 18, Height = 18 }, Text = new TextBlock() };
-                var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, rows.Count == 0 ? 0 : 8, 0, 0) };
+                // A grid, not a horizontal stack: the label gets the card's width and wraps there.
+                var line = new Grid { Margin = new Thickness(0, rows.Count == 0 ? 0 : 8, 0, 0) };
+                line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 row.Icon.VerticalAlignment = VerticalAlignment.Center;
                 row.Text.FontFamily = Faces.Text;
                 row.Text.VerticalAlignment = VerticalAlignment.Center;
                 row.Text.Margin = new Thickness(12, 0, 0, 0);
                 row.Text.TextWrapping = TextWrapping.Wrap;
+                Grid.SetColumn(row.Text, 1);
                 line.Children.Add(row.Icon);
                 line.Children.Add(row.Text);
                 stepsPanel.Children.Add(line);

@@ -35,9 +35,12 @@ test('an update found: its download with the progress, then its install, in plac
   const at = (current, progress = null) => splashModel({ ...base, current, updated: false, checks: true, update: '6.0.1', progress });
   assert.deepEqual(states(at('downloading', 42)), ['preparing:done', 'checking:done', 'downloading:active', 'installing:pending', 'starting:pending']);
   assert.deepEqual(at('downloading', 42).steps.map((s) => s.label), [
-    'Girovo vorbereiten', 'Nach Updates suchen', 'Version 6.0.1 herunterladen · 42 %', 'Version 6.0.1 installieren', 'Girovo starten',
+    'Girovo vorbereiten', 'Nach Updates suchen', 'Update herunterladen · 42 %', 'Update installieren', 'Girovo starten',
   ]);
-  assert.equal(at('installing').steps[2].label, 'Version 6.0.1 herunterladen', 'the progress only while it downloads');
+  assert.equal(at('installing').steps[2].label, 'Update herunterladen', 'the progress only while it downloads');
+  assert.equal(at('installing').version, 'Version 5.2.1 → 6.0.1', 'which version to which, at the foot');
+  const nightly = splashModel({ ...base, version: '6.0.0-preview.202611042128.g348fe23', current: 'installing', updated: false, checks: true, update: '6.0.0-preview.202611051808.g043fa9c' });
+  assert.equal(nightly.version, 'Version 6.0.0-preview.202611042128.g348fe23\n→ 6.0.0-preview.202611051808.g043fa9c', 'long ones: the new one on a line of its own');
   assert.equal(at('downloading', 42).title, 'Girovo wird aktualisiert');
   assert.equal(splashModel({ ...base, current: 'checking', updated: false, checks: true }).title, 'Girovo wird gestartet');
   assert.equal(splashModel({ ...base, current: 'downloading', updated: false, checks: true, update: '6.0.1', slow: true }).note, null);
