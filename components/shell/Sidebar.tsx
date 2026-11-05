@@ -70,7 +70,8 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
               aria-label={open ? undefined : t.shell.transfer}
               title={open ? undefined : t.shell.transfer}
               onClick={actions.transfer}
-              className={cx('mb-4 shrink-0 self-start', open ? 'ml-4' : 'ml-3')}
+              // Open: on the sidebar's edge with the places. Folded: centred in the rail, over its items.
+              className={cx('mb-4 shrink-0', open ? 'ml-4 self-start' : 'self-center')}
             >
               <TransferIcon size={24} strokeWidth={2} />
               {open && <span slot="label">{t.shell.transfer}</span>}
