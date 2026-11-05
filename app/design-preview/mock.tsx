@@ -2957,7 +2957,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     tab, settingsTarget, txFilter, txFocusNonce, accountOpen, ordersOpen,
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill, shareAll,
-    inboxOpen, paletteOpen, shortcutsOpen,
+    inboxOpen, paletteOpen, shortcutsOpen, autoLoggedOut: false,
     logoutConfirmOpen, forgetDeviceOpen,
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, closeAccount, loadTransactions,
     cancelConnect,

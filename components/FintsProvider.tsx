@@ -296,6 +296,10 @@ function useFintsState() {
   const [inboxOpen, setInboxOpenState] = useState(false);
   const [paletteOpen, setPaletteOpenState] = useState(false);
   const [shortcutsOpen, setShortcutsOpenState] = useState(false);
+  // The last session ended by itself (the idle limit, an expired session):
+  // the login screen then asks for Windows Hello only from its button, never
+  // by itself — the user may be in the middle of something else.
+  const [autoLoggedOut, setAutoLoggedOut] = useState(false);
   /** "Trotzdem abmelden?" — asked only while the session log holds a transfer whose status is unclear. */
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   /** "Gerät vergessen?" — from the Sitzung panel or the "Gerät gemerkt" toast; one confirmation for both. */
@@ -4035,6 +4039,7 @@ function useFintsState() {
       .filter((s): s is string => !!s);
     cancelConnect();
     resetSession();
+    setAutoLoggedOut(reason === 'idle' || reason === 'expired');
 
     let notice: number | null = null;
     if (reason === 'idle') {
@@ -5470,7 +5475,7 @@ function useFintsState() {
     tab, settingsTarget, txFilter, txFocusNonce, accountOpen, ordersOpen,
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill, shareAll,
-    inboxOpen, paletteOpen, shortcutsOpen,
+    inboxOpen, paletteOpen, shortcutsOpen, autoLoggedOut,
     logoutConfirmOpen, forgetDeviceOpen,
     // actions
     setView, setBank, connect, chooseTanMethod, clearMediaChoice, selectAccount, closeAccount, loadTransactions,

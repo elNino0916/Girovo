@@ -17,11 +17,12 @@ import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { forgetHello, helloOn, helloStoreBroken, openWithHello } from '@/lib/windows-hello-client';
+import { useWindowInFront } from '../shell/useWindowInFront';
 import { useDemo } from '../demo/demo-mode';
 import { BankAnswerAlert } from '../BankAnswer';
 import { BankLogo } from '../BankLogo';
 import { IntegrityNotice } from '../android/IntegrityNotice';
-import type { ChosenBank } from '../FintsProvider';
+import { useFints, type ChosenBank } from '../FintsProvider';
 import { AlertTriangleIcon, EyeIcon, EyeOffIcon, FingerprintIcon, PhoneIcon, ShieldIcon } from '../icons';
 import { Alert, Button, Field, IconButton, Input } from '../ui';
 import { PrivacyNote } from './AuthShell';
@@ -122,6 +123,8 @@ export function Credentials({
   const fingerprintAsked = useRef(false);
   // The desktop: this login name opens with Windows Hello (lib/windows-hello.ts).
   const [hello, setHello] = useState(false);
+  const inFront = useWindowInFront();
+  const { autoLoggedOut } = useFints();
   const pinRef = useRef<HTMLInputElement>(null);
   const loginRef = useRef<HTMLInputElement>(null);
 
@@ -321,9 +324,8 @@ export function Credentials({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bank.blz, login]);
 
-  // The desktop: whether this login name opens with Windows Hello, and if so
-  // Windows asks for the gesture once, straight away, like the fingerprint.
-  // Never for a further bank's form (openedPin) — its PIN is already here.
+  // The desktop: whether this login name opens with Windows Hello. Never for
+  // a further bank's form (openedPin) — its PIN is already here.
   useEffect(() => {
     const name = login.trim();
     if (IS_ANDROID || demo || openedPin || !name) {
@@ -333,21 +335,29 @@ export function Credentials({
     let current = true;
     const t = setTimeout(() => {
       void helloOn({ blz: bank.blz, userId: name }).then((on) => {
-        if (!current) return;
-        setHello(on);
-        if (on && !fingerprintAsked.current && !initialError) {
-          fingerprintAsked.current = true;
-          void withHello();
-        }
+        if (current) setHello(on);
       });
     }, 250);
     return () => {
       current = false;
       clearTimeout(t);
     };
-    // Per bank and login name; withHello is current when it runs.
+    // Per bank and login name.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bank.blz, login]);
+
+  // …and if so, Windows asks for the gesture once by itself, like the
+  // fingerprint — but only with Girovo's window in front: never from a window
+  // still hidden behind the start window (the prompt would end up behind
+  // Girovo) or in the notification area (a start with Windows), and never
+  // after a session ended by itself (the idle limit): then the button alone.
+  useEffect(() => {
+    if (!hello || !inFront || autoLoggedOut || submitting || fingerprintAsked.current || initialError) return;
+    fingerprintAsked.current = true;
+    void withHello();
+    // withHello is current when it runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hello, inFront, autoLoggedOut]);
 
   const trackCapsLock = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     // getModifierState is the only way to know without a keypress of the
