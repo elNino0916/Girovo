@@ -51,6 +51,12 @@ nativeModules:
 
 win:
   icon: build/icon.png
+  # electron-builder 27 refuses to write app-update.yml without a publisher
+  # name from a code-signing certificate, for electron-updater's signature
+  # check. Girovo updates itself with electron/updater.cjs, which checks every
+  # download against GitHub's SHA-256 instead and never reads that file, so
+  # electron-updater's check is switched off explicitly.
+  verifyUpdateCodeSignature: false
   # Added to the extraResources above, not in place of them.
   extraResources:
     # The window shown while an update installs (scripts/build-update-window.mjs),
