@@ -88,6 +88,8 @@ export const updates = {
   download: () => call((b) => b.download()),
   cancel: () => call((b) => b.cancel()),
   install: () => call((b) => b.install()),
+  /** The installed Windows app: quit and start again; the start window installs the update. */
+  restartToUpdate: () => call((b) => (b.restartToUpdate ? b.restartToUpdate() : b.install())),
   setAuto: (on: boolean) => call((b) => b.setAuto(on)),
   setChannel: (channel: UpdateChannel) => call((b) => b.setChannel(channel)),
   openRelease: () => call((b) => b.openRelease()),
@@ -101,6 +103,13 @@ export const updates = {
 export function hasNewer(state: UpdateState | null): state is UpdateState & { release: NonNullable<UpdateState['release']> } {
   return !!state?.release && state.phase !== 'current' && state.phase !== 'idle';
 }
+
+/**
+ * The installed Windows app updates only through the start window
+ * (electron/main.cjs updateAtStart): no download in the app, a restart into
+ * the start window instead.
+ */
+export const updatesAtStart = (state: UpdateState | null) => state?.kind === 'nsis';
 
 /** The newer version is downloaded and waits for the restart. */
 export const isReady = (state: UpdateState | null) => state?.phase === 'ready' || state?.phase === 'installing';

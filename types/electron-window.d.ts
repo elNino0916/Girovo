@@ -67,6 +67,8 @@ declare global {
       download: () => Promise<ElectronUpdateState | null>;
       cancel: () => Promise<ElectronUpdateState | null>;
       install: () => Promise<ElectronUpdateState | null>;
+      /** The installed Windows app: quits, and the start window of the next start installs the update. */
+      restartToUpdate?: () => Promise<ElectronUpdateState | null>;
       setAuto: (on: boolean) => Promise<ElectronUpdateState | null>;
       /** Answers once the check in the new channel is done. */
       setChannel: (channel: UpdateChannel) => Promise<ElectronUpdateState | null>;

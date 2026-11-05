@@ -167,6 +167,11 @@ export function installFakeUpdater(scenario: UpdateScenario | null, { dialog = f
       return set({ phase: 'available', received: 0, total: 0 });
     },
     install: async () => set({ phase: 'installing' }),
+    // The installed Windows app: the start window would install it after the restart.
+    restartToUpdate: async () => {
+      console.info('[design-preview] would restart into the start window to install', state.release?.version);
+      return state;
+    },
     setAuto: async (on) => set({ auto: on }),
     // As the real one: the other channel's offer goes, a check in the new one follows.
     setChannel: async (channel) => {

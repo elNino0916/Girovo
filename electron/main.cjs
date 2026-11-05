@@ -907,6 +907,12 @@ async function showInstallWindow({ installerPid, version, cacheDir }) {
   // Around the app's window — or, for an update installed at start, the start window.
   const around = win && !win.isDestroyed() ? win : splash?.window && !splash.window.isDestroyed() ? splash.window : null;
   const bounds = around ? around.getBounds() : null;
+  // Taking over from the start window, it shows what that showed: its header,
+  // its steps (the install the active one) and its version line.
+  const view = splash?.view?.();
+  const handover = view
+    ? ['--header', view.title, '--footer', view.version, ...view.steps.flatMap((s) => ['--step', `${s.state}:${s.label}`])]
+    : [];
   await spawnDetached(exe, [
     '--installer-pid', String(installerPid),
     '--install-dir', installDir,
@@ -919,6 +925,7 @@ async function showInstallWindow({ installerPid, version, cacheDir }) {
     '--lang', shellLocale(),
     '--log', path.join(cacheDir, 'update-window.log'),
     ...(bounds ? ['--around', [bounds.x, bounds.y, bounds.width, bounds.height].join(',')] : []),
+    ...handover,
   ], { cwd: cacheDir });
 }
 
@@ -952,6 +959,28 @@ function reportUpdate(state) {
 /** Who else follows the updater's states (updateAtStart's progress). */
 const updateListeners = new Set();
 
+/**
+ * A start asked for by "Jetzt neu starten und installieren": its start window
+ * installs the update whatever the switch says, the way back to an older
+ * release included — the user asked for it.
+ */
+const UPDATE_ARG = '--update';
+const updateAsked = process.argv.includes(UPDATE_ARG);
+
+/**
+ * The installed Windows app updates only through the start window: the page's
+ * "Jetzt neu starten und installieren" quits (ending the session, as every
+ * quit does) and starts Girovo again with UPDATE_ARG.
+ */
+function restartToUpdate() {
+  if (updater?.getState().kind !== 'nsis') return updater?.getState() ?? null;
+  const args = process.argv.slice(1).filter((a) => a !== '--background' && a !== UPDATE_ARG);
+  app.relaunch({ args: [...args, UPDATE_ARG] });
+  quitting = true;
+  app.quit();
+  return updater.getState();
+}
+
 /** How long a start waits for GitHub's answer before it opens Girovo anyway. */
 const START_CHECK_MS = 6_000;
 
@@ -968,14 +997,15 @@ const START_CHECK_MS = 6_000;
  */
 async function updateAtStart(check) {
   const ready = updater?.getState();
-  if (!check || !splash || !ready?.auto || ready.kind !== 'nsis') return false;
+  if (!check || !splash || ready?.kind !== 'nsis' || !(ready.auto || updateAsked)) return false;
   splash.step('checking');
   let timer = null;
   const late = new Promise((resolve) => { timer = setTimeout(() => resolve(null), START_CHECK_MS); });
   const found = await Promise.race([check, late]);
   clearTimeout(timer);
   const release = found?.release;
-  if (!splash || !release || release.back || !release.canInstall || (found.phase !== 'available' && found.phase !== 'ready')) return false;
+  // The way back only when asked for ("Neu starten und zurück").
+  if (!splash || !release || (release.back && !updateAsked) || !release.canInstall || (found.phase !== 'available' && found.phase !== 'ready')) return false;
   splash.setUpdate(release.version);
   if (found.phase === 'available') {
     splash.step('downloading');
@@ -1084,6 +1114,7 @@ function setupUpdater() {
   });
   handle('updater:cancel', () => updater.cancel());
   handle('updater:install', () => updater.install());
+  handle('updater:restart', () => restartToUpdate());
   handle('updater:set-auto', (on) => updater.setAuto(on === true));
   handle('updater:set-channel', (channel) => updater.setChannel(channel));
   handle('updater:open-release', () => updater.openRelease());
@@ -1192,7 +1223,7 @@ function run() {
         telemetry.error(err, { source: 'updater' });
       }
       const atStart = updater?.getState();
-      const startCheck = splash && atStart?.auto && atStart.kind === 'nsis' ? updater.check({ manual: false }) : null;
+      const startCheck = splash && (atStart?.auto || updateAsked) && atStart?.kind === 'nsis' ? updater.check({ manual: updateAsked }) : null;
       if (startCheck) splash.setChecks(true);
       // ELECTRON_START_URL points the shell at an already-running `npm run dev`
       // (see the electron:dev script) instead of the built server.

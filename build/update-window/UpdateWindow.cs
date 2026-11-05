@@ -1,5 +1,13 @@
 // The window that stands in for the app while an update installs.
 //
+// It takes over from the start window (electron/splash.cjs), which downloaded
+// the update, and is drawn like it (owner, 2026-11-05): what is happening
+// beside the G€ plate ("Girovo wird aktualisiert", --header), the start's
+// steps (--step state:label, from electron/i18n.cjs) with the install's
+// progress on its active one, then "Girovo starten" until the new version's
+// window is up; the version line at its foot (--footer). The error window
+// (--error-title) keeps its title and text.
+//
 // The app quits before the installer may touch its files, and the installer
 // runs silently (its own progress page is plain Win32), so without this the
 // screen stays empty for half a minute — long enough to look like a crash.
@@ -61,6 +69,12 @@ namespace Girovo.UpdateWindow
         public string ErrorText = "";
         /// <summary>For development: render the card to this PNG and exit, no window shown.</summary>
         public string Snapshot = "";
+        /// <summary>What the window is doing, beside the plate (the start window's title).</summary>
+        public string Header = "";
+        /// <summary>The line at the card's foot (the start window's version line).</summary>
+        public string Footer = "";
+        /// <summary>The start window's steps, each "done", "active" or "pending" and its label.</summary>
+        public List<string[]> Steps = new List<string[]>();
 
         public bool IsError
         {
@@ -88,6 +102,12 @@ namespace Girovo.UpdateWindow
                     case "--error-title": o.ErrorTitle = value; break;
                     case "--error-text": o.ErrorText = value; break;
                     case "--snapshot": o.Snapshot = value; break;
+                    case "--header": o.Header = value; break;
+                    case "--footer": o.Footer = value; break;
+                    case "--step":
+                        int colon = value.IndexOf(':');
+                        if (colon > 0) o.Steps.Add(new[] { value.Substring(0, colon), value.Substring(colon + 1) });
+                        break;
                     case "--around":
                         var p = value.Split(',');
                         double x, y, w, h;
@@ -116,7 +136,7 @@ namespace Girovo.UpdateWindow
     /// </summary>
     sealed class Palette
     {
-        public Color Surface, Ink, Ink2, Track, Accent, AccentInk;
+        public Color Surface, Ink, Ink2, Track, Accent, AccentInk, Ring;
         public bool Dark;
 
         /// <summary>The G€ plate: Girovo's navy, a logo's literal colour, the same in either theme.</summary>
@@ -140,6 +160,7 @@ namespace Girovo.UpdateWindow
                     Track = Hex("#3c4665"),
                     Accent = Hex("#a2c9ff"),
                     AccentInk = Hex("#00315b"),
+                    Ring = Hex("#404753"),
                 };
             }
             return new Palette
@@ -150,6 +171,7 @@ namespace Girovo.UpdateWindow
                 Track = Hex("#dae1ff"),
                 Accent = Hex("#0060a8"),
                 AccentInk = Hex("#ffffff"),
+                Ring = Hex("#bfc7d5"),
             };
         }
     }
@@ -268,7 +290,14 @@ namespace Girovo.UpdateWindow
             card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             card.Arrange(new Rect(card.DesiredSize));
             card.UpdateLayout();
-            if (options.Demo.Length > 0)
+            if (options.Demo == "failure")
+            {
+                window.RenderFailureFrame();
+                card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                card.Arrange(new Rect(card.DesiredSize));
+                card.UpdateLayout();
+            }
+            else if (options.Demo.Length > 0)
             {
                 window.RenderDemoFrame(0.62);
                 card.UpdateLayout();
@@ -301,7 +330,23 @@ namespace Girovo.UpdateWindow
         readonly Border rest = new Border();
         readonly StackPanel progressBlock = new StackPanel();
         readonly StackPanel buttons = new StackPanel();
+        readonly TextBlock brandText = new TextBlock();
+        readonly StackPanel stepsPanel = new StackPanel();
+        readonly TextBlock footer = new TextBlock();
+        readonly List<StepRow> rows = new List<StepRow>();
+        int active = -1;
+        int installing = -1;
         readonly bool animate = SystemParameters.ClientAreaAnimation;
+        // The start window's active mark (electron/splash.html, M3 Expressive's loading indicator), here turning only.
+        const string LoaderShape = "M15.15 8.96L15.53 9.73L16.1 10.41L16.47 11.18L15.99 11.87L15.13 12.09L14.28 12.32L13.82 13.02L13.88 13.91L13.9 14.79L13.3 15.37L12.45 15.19L11.62 14.85L10.77 14.82L10.22 15.49L9.75 16.24L9.04 16.71L8.3 16.31L7.82 15.56L7.29 14.86L6.45 14.83L5.63 15.16L4.78 15.38L4.12 14.86L4.11 13.98L4.18 13.1L3.79 12.35L2.94 12.11L2.08 11.9L1.54 11.26L1.85 10.46L2.42 9.79L2.85 9.04L2.47 8.27L1.9 7.59L1.53 6.82L2.01 6.13L2.87 5.91L3.72 5.68L4.18 4.98L4.12 4.09L4.1 3.21L4.7 2.63L5.55 2.81L6.38 3.15L7.23 3.18L7.78 2.51L8.25 1.76L8.96 1.29L9.7 1.69L10.18 2.44L10.71 3.14L11.55 3.17L12.37 2.84L13.22 2.62L13.88 3.14L13.89 4.02L13.82 4.9L14.21 5.65L15.06 5.89L15.92 6.1L16.46 6.74L16.15 7.54L15.58 8.21Z";
+
+        sealed class StepRow
+        {
+            public string State;
+            public string Label;
+            public Grid Icon;
+            public TextBlock Text;
+        }
         // Material 3 Expressive's wavy linear indicator, in the measures @m3e/web uses.
         const double WaveAmplitude = 3;
         const double WaveLength = 40;
@@ -431,17 +476,20 @@ namespace Girovo.UpdateWindow
             };
             brand.Children.Add(plate);
             // The wordmark is a quiet brand tag: Medium, as everything the design
-            // emphasises (never Bold). The title below carries the message.
-            brand.Children.Add(new TextBlock
-            {
-                Text = "Girovo",
-                FontFamily = Faces.Text,
-                FontWeight = FontWeights.Medium,
-                FontSize = 15,
-                Foreground = Brush(palette.Ink),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(8, 0, 0, 1),
-            });
+            // emphasises (never Bold). An update says what is happening in its
+            // place, as the start window does; the error window keeps "Girovo"
+            // and its title below.
+            brandText.Text = options.IsError
+                ? "Girovo"
+                : options.Header.Length > 0 ? options.Header : Say.Pick("Girovo wird aktualisiert", "Updating Girovo");
+            brandText.FontFamily = Faces.Text;
+            brandText.FontWeight = FontWeights.Medium;
+            brandText.FontSize = 15;
+            brandText.LineHeight = 20;
+            brandText.Foreground = Brush(palette.Ink);
+            brandText.VerticalAlignment = VerticalAlignment.Center;
+            brandText.Margin = new Thickness(8, 0, 0, 1);
+            brand.Children.Add(brandText);
             stack.Children.Add(brand);
 
             // Headline small.
@@ -515,6 +563,28 @@ namespace Girovo.UpdateWindow
             progressBlock.Children.Add(track);
             stack.Children.Add(progressBlock);
 
+            // An update: the start window's steps in place of the title, the
+            // figure and the bar (which the error window never shows either).
+            if (!options.IsError)
+            {
+                title.Visibility = Visibility.Collapsed;
+                description.Visibility = Visibility.Collapsed;
+                progressBlock.Visibility = Visibility.Collapsed;
+                BuildSteps();
+                stack.Children.Add(stepsPanel);
+                if (options.Footer.Length > 0)
+                {
+                    footer.Text = options.Footer;
+                    footer.FontFamily = Faces.Text;
+                    footer.FontSize = 12;
+                    footer.LineHeight = 16;
+                    footer.Foreground = Brush(palette.Ink2);
+                    footer.Margin = new Thickness(0, 16, 0, 0);
+                    System.Windows.Documents.Typography.SetNumeralAlignment(footer, FontNumeralAlignment.Tabular);
+                    stack.Children.Add(footer);
+                }
+            }
+
             // The actions at the end of one row, as in the app's dialogs.
             buttons.Orientation = Orientation.Horizontal;
             buttons.HorizontalAlignment = HorizontalAlignment.Right;
@@ -523,6 +593,109 @@ namespace Girovo.UpdateWindow
             stack.Children.Add(buttons);
 
             return card;
+        }
+
+        void BuildSteps()
+        {
+            var steps = options.Steps;
+            if (steps.Count == 0)
+            {
+                // Started without the start window's steps: the install and the start alone.
+                steps = new List<string[]>
+                {
+                    new[] { "active", options.Version.Length > 0
+                        ? Say.Pick("Version " + options.Version + " installieren", "Install version " + options.Version)
+                        : Say.Pick("Update installieren", "Install the update") },
+                    new[] { "pending", Say.Pick("Girovo starten", "Start Girovo") },
+                };
+            }
+            foreach (var s in steps)
+            {
+                var row = new StepRow { State = s[0], Label = s[1], Icon = new Grid { Width = 18, Height = 18 }, Text = new TextBlock() };
+                var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, rows.Count == 0 ? 0 : 8, 0, 0) };
+                row.Icon.VerticalAlignment = VerticalAlignment.Center;
+                row.Text.FontFamily = Faces.Text;
+                row.Text.VerticalAlignment = VerticalAlignment.Center;
+                row.Text.Margin = new Thickness(12, 0, 0, 0);
+                row.Text.TextWrapping = TextWrapping.Wrap;
+                line.Children.Add(row.Icon);
+                line.Children.Add(row.Text);
+                stepsPanel.Children.Add(line);
+                rows.Add(row);
+                if (row.State == "active" && active < 0) active = rows.Count - 1;
+            }
+            installing = active;
+            for (int i = 0; i < rows.Count; i++) DrawRow(rows[i]);
+        }
+
+        /// <summary>A step as the start window draws it: a ring, the turning mark, or a tick.</summary>
+        void DrawRow(StepRow row)
+        {
+            bool isActive = row.State == "active";
+            row.Text.Text = row.Label;
+            row.Text.FontSize = isActive ? 16 : 14;
+            row.Text.LineHeight = isActive ? 22 : 20;
+            row.Text.FontWeight = isActive ? FontWeights.Medium : FontWeights.Normal;
+            row.Text.Foreground = Brush(isActive ? palette.Ink : palette.Ink2);
+            row.Icon.Children.Clear();
+            if (row.State == "done")
+            {
+                row.Icon.Children.Add(new System.Windows.Shapes.Path
+                {
+                    Data = Geometry.Parse("M3.5 9.5L7 13L14.5 5"),
+                    Stroke = Brush(palette.Accent),
+                    StrokeThickness = 2.2,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    StrokeLineJoin = PenLineJoin.Round,
+                });
+            }
+            else if (isActive)
+            {
+                var mark = new System.Windows.Shapes.Path { Data = Geometry.Parse(LoaderShape), Fill = Brush(palette.Accent) };
+                var turn = new RotateTransform(0, 9, 9);
+                mark.RenderTransform = turn;
+                row.Icon.Children.Add(mark);
+                if (animate)
+                {
+                    turn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(4666)) { RepeatBehavior = RepeatBehavior.Forever });
+                }
+            }
+            else
+            {
+                row.Icon.Children.Add(new System.Windows.Shapes.Ellipse
+                {
+                    Width = 14,
+                    Height = 14,
+                    Stroke = Brush(palette.Ring),
+                    StrokeThickness = 2,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                });
+            }
+        }
+
+        /// <summary>The install's progress on its step, as the start window says the download's.</summary>
+        void ShowPercent(double fraction)
+        {
+            if (installing < 0 || installing != active) return;
+            var row = rows[installing];
+            var whole = ((int)Math.Floor(fraction * 100)).ToString(CultureInfo.InvariantCulture);
+            row.Text.Text = row.Label + " · " + whole + Say.Pick(" %", "%");
+        }
+
+        /// <summary>The installer is done: its step ticks, the next one ("Girovo starten") is the active one.</summary>
+        void Advance()
+        {
+            if (active < 0) return;
+            rows[active].State = "done";
+            DrawRow(rows[active]);
+            active = active + 1 < rows.Count ? active + 1 : -1;
+            if (active >= 0)
+            {
+                rows[active].State = "active";
+                DrawRow(rows[active]);
+            }
         }
 
         Button Pill(string text, bool primary, Action onClick)
@@ -613,6 +786,7 @@ namespace Girovo.UpdateWindow
             shown = target;
             var whole = ((int)Math.Floor(target * 100)).ToString(CultureInfo.InvariantCulture);
             percentNumber.Text = whole;
+            ShowPercent(target);
             targetWidth = track.ActualWidth * target;
             if (!animate)
             {
@@ -688,6 +862,12 @@ namespace Girovo.UpdateWindow
             wave.Data = geo;
         }
 
+        /// <summary>The failure, still, for --snapshot --demo failure (dev only).</summary>
+        internal void RenderFailureFrame()
+        {
+            ShowFailure(1);
+        }
+
         /// <summary>A still, representative frame for --snapshot (dev only).</summary>
         internal void RenderDemoFrame(double fraction)
         {
@@ -696,6 +876,7 @@ namespace Girovo.UpdateWindow
             wavePhase = WaveLength * 0.25;
             var whole = ((int)Math.Floor(fraction * 100)).ToString(CultureInfo.InvariantCulture);
             percentNumber.Text = whole;
+            ShowPercent(fraction);
             SetPhase(Say.Pick("Neue Version wird entpackt …", "Unpacking the new version…"));
             BuildWave();
         }
@@ -857,7 +1038,7 @@ namespace Girovo.UpdateWindow
                     Log("installer exited, code " + code);
                     if (code == 0 || installer == null)
                     {
-                        Ui(delegate { SetPhase(Say.Pick("Wird gestartet …", "Starting…")); SetProgress(0.97); });
+                        Ui(delegate { SetPhase(Say.Pick("Wird gestartet …", "Starting…")); SetProgress(0.97); Advance(); });
                         WaitForApp();
                     }
                     else
@@ -911,6 +1092,11 @@ namespace Girovo.UpdateWindow
             finished = true;
             bool appThere = !string.IsNullOrEmpty(options.AppExe) && File.Exists(options.AppExe);
             title.Text = Say.Pick("Update nicht abgeschlossen", "Update not completed");
+            // Drawn like the start window: the header says it, the steps give way to the reason.
+            brandText.Text = title.Text;
+            stepsPanel.Visibility = Visibility.Collapsed;
+            description.Visibility = Visibility.Visible;
+            description.Margin = new Thickness(0, 0, 0, 0);
             description.Text = appThere
                 ? Say.Pick("Die Installation wurde abgebrochen – zum Beispiel, weil die Frage nach Administratorrechten abgelehnt wurde. Die bisherige Version ist noch da.", "The installation was cancelled — for example because the request for administrator rights was declined. The previous version is still there.")
                 : Say.Pick("Die Installation wurde abgebrochen, und Girovo ist nicht mehr vollständig installiert. Lade die neue Version von GitHub herunter und installiere sie.", "The installation was cancelled, and Girovo is no longer fully installed. Download the new version from GitHub and install it.");
@@ -1000,6 +1186,7 @@ namespace Girovo.UpdateWindow
                 }
                 SetPhase(steps[i].Item1);
                 SetProgress(steps[i].Item2);
+                if (i == steps.Count - 1) Advance();
                 i++;
             };
             timer.Start();

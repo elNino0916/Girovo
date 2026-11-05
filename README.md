@@ -503,20 +503,23 @@ The desktop app updates itself from this repository's
   the time orders it after the hand-made `6.0.0-preview.N` and before 6.0.0,
   the commit names it. Run it by hand from the Actions tab too. The Android
   previews stay hand-made, because the release key is not on GitHub.
-- **Installed at start** (the installed Windows app, *Einstellungen → Updates
-  automatisch installieren*, on unless switched off): the start window adds
-  "Nach Updates suchen" after "Girovo vorbereiten". A newer release on the
-  chosen channel is downloaded there ("Version … herunterladen", with the
-  percentage) and installed ("Version … installieren") before the window opens;
-  the installer then starts the new version. GitHub out of reach (it waits six
-  seconds), a failed download or nothing new: Girovo opens as always. A start
-  with Windows (in the notification area) installs nothing, and the way back
-  from a preview to an older release always stays a click.
-- **Otherwise nothing happens without a click.** A newer version found while
-  the app runs (or on Linux, or with the switch off) shows up in *Mitteilungen*
-  (and on the login screen's bar); downloading it and restarting into it are
-  separate, explicit steps. The restart waits while a TAN approval is open, and
-  says that it signs you out.
+- **Only through the start window** (the installed Windows app): the start
+  window adds "Nach Updates suchen" after "Girovo vorbereiten". A newer release
+  on the chosen channel is downloaded there ("Version … herunterladen", with the
+  percentage), the title becoming "Girovo wird aktualisiert", and installed
+  ("Version … installieren") before the window opens; the installer then starts
+  the new version ("Girovo starten"). With *Einstellungen → Updates automatisch
+  installieren* on (the default) every start does this; a version found while
+  the app runs shows up in *Mitteilungen* (and on the login screen's bar) with
+  "Jetzt neu starten und installieren", which quits and starts again into the
+  start window (`--update`) — with the switch off, too, and for the way back
+  from a preview to an older release, which is never automatic. GitHub out of
+  reach (it waits six seconds), a failed download or nothing new: Girovo opens
+  as always. A start with Windows (in the notification area) installs nothing.
+  The restart waits while a TAN approval is open, and says that it signs you out.
+- **Elsewhere nothing happens without a click.** The GitHub APK downloads a
+  newer version in the app and hands it to Android's installer; Linux points to
+  the release page.
 - **Verified** — GitHub computes a SHA-256 digest for every file attached to a
   release. The download is checked against it before it is kept and again right
   before it runs; a file that does not match is deleted. A release without
@@ -525,8 +528,9 @@ The desktop app updates itself from this repository's
   over the existing installation and starts the app again. The installer waits
   for the old app to close on its own before it touches a file
   (`build/installer.nsh`); an installation "for all users" asks for
-  administrator rights. While it works, a small window in the app's look shows
-  how far it is and closes once the new version is up
+  administrator rights. While it works, a small window takes over from the start
+  window looking the same — its header, its steps with the install's percentage,
+  then "Girovo starten" — and closes once the new version is up
   (`build/update-window/UpdateWindow.cs`, built with the C# compiler that comes
   with Windows by `scripts/build-update-window.mjs` — `--demo light|dark|failure`
   shows it, `--lang en` in English; it carries the app's font inside it, made by

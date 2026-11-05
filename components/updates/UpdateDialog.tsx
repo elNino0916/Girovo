@@ -5,10 +5,14 @@
 // updates on its own. Every other surface (Mitteilungen, the Sitzung panel,
 // the login bar, the palette) only points here.
 //
-// Nothing happens without a press: the download starts on "Herunterladen",
-// the install on "Jetzt neu starten". The restart ends the bank session like
-// any quit would, so it waits while an approval is open (the same rule as
-// the automatic logout), and says so when the user is signed in.
+// The installed Windows app updates only through its start window (owner,
+// 2026-11-05): here it offers "Jetzt neu starten und installieren", which
+// quits and starts again, the start window downloading and installing the
+// version; with the switch on, the next start does that by itself anyway.
+// The GitHub APK still downloads here ("Herunterladen", then Android's
+// installer). The restart ends the bank session like any quit would, so it
+// waits while an approval is open (the same rule as the automatic logout),
+// and says so when the user is signed in.
 //
 // Focus opens on the step the dialog is about when that step is harmless
 // (Herunterladen, Im Hintergrund laden, Nach Updates suchen) and on the way
@@ -29,7 +33,7 @@ import { Alert, Button, Dialog, Progress as ProgressBar, Spinner, Switch } from 
 import { fmtSince } from '../shell/session';
 import { useLookAtUnclear } from '../shell/actions';
 import { ReleaseNotes } from './ReleaseNotes';
-import { hasNewer, updates, useUpdates, type UpdateState } from './store';
+import { hasNewer, updates, updatesAtStart, useUpdates, type UpdateState } from './store';
 
 export function UpdateDialog() {
   const { state, dialog } = useUpdates();
@@ -51,12 +55,14 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   const portable = state.kind === 'portable';
   // The Android app from GitHub: Android's installer takes over, not a restart.
   const android = state.kind === 'android';
+  // The installed Windows app: a restart into the start window, which installs.
+  const atStart = updatesAtStart(state);
   // The restart is a logout too: what it would take with it is said, as on
   // every other way out of the session.
   const unclear = signedIn ? unclearList.length : 0;
 
   const title = release
-    ? state.phase === 'ready' || state.phase === 'installing'
+    ? (state.phase === 'ready' || state.phase === 'installing') && !atStart
       ? u.ready(release.version)
       : release.back ? u.backTo(release.version) : u.available(release.version)
     : installed
@@ -85,7 +91,31 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   const close = updates.closeDialog;
 
   let actions;
-  if (release && !release.canInstall) {
+  if (release && release.canInstall && atStart) {
+    // Quits and starts again: the start window downloads and installs it.
+    const restart = (
+      <Button
+        variant={unclear > 0 ? 'secondary' : 'primary'}
+        iconLeft={<RefreshIcon size={16} />}
+        disabled={holding}
+        onClick={() => void updates.restartToUpdate()}
+      >
+        {release.back ? u.restartToGoBack(release.version) : u.restartToInstall}
+      </Button>
+    );
+    actions = unclear > 0 ? (
+      <>
+        <Button variant="quiet" className="sm:mr-auto sm:-ml-3" onClick={close}>{u.later}</Button>
+        {restart}
+        <Button variant="primary" data-autofocus onClick={() => { close(); look(); }}>{lookLabel}</Button>
+      </>
+    ) : (
+      <>
+        <Button variant="secondary" data-autofocus onClick={close}>{u.later}</Button>
+        {restart}
+      </>
+    );
+  } else if (release && !release.canInstall) {
     actions = (
       <>
         <Button variant="secondary" data-autofocus onClick={close}>{t.common.close}</Button>
@@ -178,7 +208,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
             button, so it must be in view in a short window too. A caution,
             not information — the warning's inset with the orange edge, as
             everywhere Status unklar is said. */}
-        {release?.canInstall && (state.phase === 'ready' || state.phase === 'installing') && unclear > 0 && (
+        {release?.canInstall && (atStart || state.phase === 'ready' || state.phase === 'installing') && unclear > 0 && (
           <Alert tone="warn" className="mt-0">
             {u.unclearRestart(unclear)}
           </Alert>
@@ -189,7 +219,16 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         {release && <Notes notes={release.notes} name={release.name} />}
         {installed?.notes && <Notes notes={installed.notes} name={installed.version} />}
 
-        {release && state.phase === 'downloading' && <Progress received={state.received} total={state.total} />}
+        {release && state.phase === 'downloading' && !atStart && <Progress received={state.received} total={state.total} />}
+
+        {/* The installed Windows app: what the restart does, and when it happens anyway. */}
+        {release?.canInstall && atStart && (
+          <Alert tone="info" className="mt-0" role="status">
+            {u.restartsIntoStart}
+            {state.auto && !release.back && <> {u.orAtNextStart}</>}
+            {signedIn && <> {u.logsOut}</>}
+          </Alert>
+        )}
 
         {release && !release.canInstall && (
           <Alert tone="info" className="mt-0">
@@ -197,7 +236,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
           </Alert>
         )}
 
-        {release?.canInstall && (state.phase === 'ready' || state.phase === 'installing') && (
+        {release?.canInstall && !atStart && (state.phase === 'ready' || state.phase === 'installing') && (
           <Alert tone="info" className="mt-0" role="status">
             {android
               ? t.android.updates.installs
@@ -209,7 +248,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         )}
 
 
-        {release?.canInstall && state.phase === 'ready' && holding && (
+        {release?.canInstall && (state.phase === 'ready' || atStart) && holding && (
           <p className="flex items-start gap-2.5 text-[14px] leading-snug text-ink-2">
             <InfoIcon size={16} className="mt-px shrink-0 text-info" />
             <span>{u.approvalRunning}</span>

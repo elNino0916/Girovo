@@ -12,7 +12,7 @@
 //
 // It is the card of the update and error windows (build/update-window/
 // UpdateWindow.cs), drawn as the app's Material basic dialog: the G€ plate
-// and the wordmark, 28px corners, the app's Google Sans Flex (its own copy in
+// with what the window is doing beside it, 28px corners, the app's Google Sans Flex (its own copy in
 // electron/fonts — the app's server is not up yet), the same light and dark
 // palettes — the app's Material roles (app/material.css). A transparent, frameless window
 // draws it with its shadow (electron/splash.html); the window takes the
@@ -25,11 +25,12 @@ const path = require('node:path');
 
 /**
  * The steps a start goes through, in order. `finishing` only after an update;
- * `checking` while updates install at start; `downloading` and `installing`
- * once that check found a version to install — in place of `opening`, since
- * the installer starts the new version.
+ * `checking` while updates install at start; `downloading`, `installing` and
+ * `starting` once that check found a version to install — in place of
+ * `opening`, since the installer starts the new version. The install window
+ * (build/update-window/UpdateWindow.cs) takes the same list over (view()).
  */
-const STEPS = ['finishing', 'preparing', 'checking', 'downloading', 'installing', 'opening'];
+const STEPS = ['finishing', 'preparing', 'checking', 'downloading', 'installing', 'starting', 'opening'];
 
 /** Window width: the 440px card and the margins its shadow needs (as UpdateWindow.cs). */
 const WIDTH = 440 + 2 * 28;
@@ -55,7 +56,7 @@ function splashModel({ current, updated, checks = false, update = null, progress
   const steps = STEPS.filter((key) => {
     if (key === 'finishing') return updated;
     if (key === 'checking') return checks;
-    if (key === 'downloading' || key === 'installing') return !!update;
+    if (key === 'downloading' || key === 'installing' || key === 'starting') return !!update;
     if (key === 'opening') return !update;
     return true;
   });
@@ -177,6 +178,10 @@ function createSplash({ BrowserWindow, texts, version, portable, dark, updated, 
       if (!STEPS.includes(key) || key === current) return;
       current = key;
       render();
+    },
+    /** What it shows now — for the install window, which takes over looking the same. */
+    view() {
+      return model();
     },
     /** This start looks for an update: "Nach Updates suchen" is one of its steps. */
     setChecks(on) {

@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('electronUpdater', {
   download: () => ipcRenderer.invoke('updater:download'),
   cancel: () => ipcRenderer.invoke('updater:cancel'),
   install: () => ipcRenderer.invoke('updater:install'),
+  // The installed Windows app: quit and start again, the start window installing the update.
+  restartToUpdate: () => ipcRenderer.invoke('updater:restart'),
   setAuto: (on) => ipcRenderer.invoke('updater:set-auto', on === true),
   setChannel: (channel) => ipcRenderer.invoke('updater:set-channel', channel === 'preview' ? 'preview' : 'stable'),
   openRelease: () => ipcRenderer.invoke('updater:open-release'),

@@ -33,9 +33,9 @@ test('updates at start: the check between getting ready and the window', () => {
 
 test('an update found: its download with the progress, then its install, in place of the window', () => {
   const at = (current, progress = null) => splashModel({ ...base, current, updated: false, checks: true, update: '6.0.1', progress });
-  assert.deepEqual(states(at('downloading', 42)), ['preparing:done', 'checking:done', 'downloading:active', 'installing:pending']);
+  assert.deepEqual(states(at('downloading', 42)), ['preparing:done', 'checking:done', 'downloading:active', 'installing:pending', 'starting:pending']);
   assert.deepEqual(at('downloading', 42).steps.map((s) => s.label), [
-    'Girovo vorbereiten', 'Nach Updates suchen', 'Version 6.0.1 herunterladen · 42 %', 'Version 6.0.1 installieren',
+    'Girovo vorbereiten', 'Nach Updates suchen', 'Version 6.0.1 herunterladen · 42 %', 'Version 6.0.1 installieren', 'Girovo starten',
   ]);
   assert.equal(at('installing').steps[2].label, 'Version 6.0.1 herunterladen', 'the progress only while it downloads');
   assert.equal(at('downloading', 42).title, 'Girovo wird aktualisiert');

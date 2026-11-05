@@ -48,6 +48,7 @@ const de = {
       checking: 'Nach Updates suchen',
       downloading: (v) => `Version ${v} herunterladen`,
       installing: (v) => `Version ${v} installieren`,
+      starting: 'Girovo starten',
       opening: 'Fenster öffnen',
     },
     /** How far the download is. */
@@ -147,6 +148,7 @@ const en = {
       checking: 'Check for updates',
       downloading: (v) => `Download version ${v}`,
       installing: (v) => `Install version ${v}`,
+      starting: 'Start Girovo',
       opening: 'Open the window',
     },
     progress: (n) => `${n}%`,

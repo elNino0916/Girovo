@@ -20,7 +20,7 @@ import { Button, Dot, Tag, cx } from '../ui';
 import type { SettingsTarget } from '@/lib/app-types';
 import { ActionItem } from '../settings/rows';
 import { UpdateDialog } from './UpdateDialog';
-import { hasNewer, isReady, updates, useUpdates, type UpdateState } from './store';
+import { hasNewer, isReady, updates, updatesAtStart, useUpdates, type UpdateState } from './store';
 
 // Up to 4.3 the app was called Sooskasse-FinTS. The first start after the
 // update from such a version says so — the name in the bar has just changed.
@@ -75,7 +75,7 @@ export function UpdateLayer() {
 }
 
 export type UpdateNotice =
-  | { kind: 'newer'; version: string; ready: boolean; current: string; back?: boolean }
+  | { kind: 'newer'; version: string; ready: boolean; current: string; back?: boolean; atStart?: boolean }
   | { kind: 'installed'; version: string };
 
 /** What Mitteilungen should say about the app itself, if anything. */
@@ -90,6 +90,8 @@ function noticeOf(state: UpdateState | null): UpdateNotice | null {
       kind: 'newer',
       version: state.release.version,
       ready: isReady(state),
+      // The installed Windows app installs at the (re)start, never from here.
+      atStart: updatesAtStart(state),
       current: state.current,
       back: !!state.release.back,
     };
@@ -120,7 +122,7 @@ export function UpdateInboxCard({ notice, onOpen }: { notice: UpdateNotice; onOp
       <div className="min-w-0 flex-1">
         <p className="text-[14.5px] leading-snug font-semibold text-ink">
           {newer
-            ? notice.ready
+            ? notice.ready && !notice.atStart
               ? u.readyToInstall(notice.version)
               : notice.back ? u.backTo(notice.version) : u.available(notice.version)
             : u.updatedTo(notice.version)}
@@ -128,13 +130,15 @@ export function UpdateInboxCard({ notice, onOpen }: { notice: UpdateNotice; onOp
         {/* After an update, "Was ist neu? …" below says it all. */}
         {newer && (
           <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
-            {notice.ready
-              ? rich(u.stillOn(<span className="tnum">{notice.current}</span>))
-              : rich(u.notYetDownloaded(<span className="tnum">{notice.current}</span>))}
+            {notice.atStart
+              ? rich(u.atStartNote(<span className="tnum">{notice.current}</span>))
+              : notice.ready
+                ? rich(u.stillOn(<span className="tnum">{notice.current}</span>))
+                : rich(u.notYetDownloaded(<span className="tnum">{notice.current}</span>))}
           </p>
         )}
         <Button variant="tertiary" size="xs" className="mt-1 -ml-3.5" aria-haspopup="dialog" onClick={onOpen}>
-          {newer ? (notice.ready ? u.installNow : u.detailsAndDownload) : u.whatsNewOpen}
+          {newer ? (notice.atStart ? u.detailsAndRestart : notice.ready ? u.installNow : u.detailsAndDownload) : u.whatsNewOpen}
         </Button>
       </div>
     </div>

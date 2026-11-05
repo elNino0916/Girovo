@@ -48,15 +48,11 @@
   /* The app's plate: Girovo's navy, the G€ in white, in either theme. */
   .plate { width: 28px; height: 28px; border-radius: 8px; background: #0a2c5e; display: grid; place-items: center; }
   .plate svg { width: 28px; height: 28px; }
-  /* The wordmark is a quiet brand tag, not a heading: Medium, as everything the
-     design emphasises (never 700). The title below carries the message. */
-  .wordmark { font-weight: 500; font-size: 15px; color: var(--ink); }
-  /* Headline small. */
-  h1 {
-    margin: 0; font-family: "Google Sans Flex", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-    font-weight: 500; font-size: 24px; line-height: 32px; color: var(--ink);
-  }
-  ol { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+  /* What the window is doing ("Girovo wird gestartet", "…aktualisiert") in the
+     wordmark's place beside the plate: no headline under it, the steps say the
+     rest (the owner's call, 2026-11-05). Medium, never 700. */
+  .wordmark { font-weight: 500; font-size: 15px; line-height: 20px; color: var(--ink); }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   li { display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 20px; color: var(--ink-2); }
   /* The current step leads: row type, so the action in progress has presence. */
   li.active { color: var(--ink); font-weight: 500; font-size: 16px; line-height: 22px; }
@@ -109,9 +105,8 @@
           <path d="M100 222H244M100 292H208" stroke-width="40" stroke="#ffffff"/>
         </svg>
       </div>
-      <span class="wordmark">Girovo</span>
+      <span class="wordmark" id="title"></span>
     </div>
-    <h1 id="title"></h1>
     <ol id="steps" aria-live="polite"></ol>
     <p class="note" id="note" hidden></p>
     <div class="version" id="version"></div>
