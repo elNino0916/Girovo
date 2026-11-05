@@ -49,6 +49,12 @@ extraResources:
 nativeModules:
   npmRebuild: false
 
+# The blockmap beside the Setup.exe as gzipped JSON, as before: Girovo's own
+# updater reads it for its differential downloads (electron/updater.cjs,
+# planDifferential), and the installed copies compare it with their own.
+# electron-builder 27 would otherwise write its new binary format (v3).
+blockmap: v2
+
 win:
   icon: build/icon.png
   # electron-builder 27 refuses to write app-update.yml without a publisher
