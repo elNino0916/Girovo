@@ -60,19 +60,6 @@ index 0dc0042..a39993d 100644
                  e2eReference: endToEndId,
                  mandateReference: mandateId,
                  additionalInformation: additionalEntryInfo,
-diff --git a/node_modules/lib-fints/dist/interactions/customerInteraction.js b/node_modules/lib-fints/dist/interactions/customerInteraction.js
-index f6513b9..d3a9450 100644
---- a/node_modules/lib-fints/dist/interactions/customerInteraction.js
-+++ b/node_modules/lib-fints/dist/interactions/customerInteraction.js
-@@ -63,6 +63,8 @@ export class CustomerInteraction {
-                         bankAnswers.find((answer) => answer.code === 3957)?.text ??
-                         '',
-                     tanPhoto: hitan.challengeHhdUc ? this.parseHHDUC(hitan.challengeHhdUc) : undefined,
-+                    // The challenge as it came: a chipTAN flicker code is text, not an image.
-+                    tanChallengeHhdUc: hitan.challengeHhdUc || undefined,
-                     tanMediaName: hitan.tanMedia,
-                 };
-             }
 diff --git a/node_modules/lib-fints/dist/interactions/initDialogInteraction.js b/node_modules/lib-fints/dist/interactions/initDialogInteraction.js
 index fb1b0de..a1cbccc 100644
 --- a/node_modules/lib-fints/dist/interactions/initDialogInteraction.js
@@ -140,10 +127,10 @@ index 5d196e3..f11cdaf 100644
                      case 'SVWZ+':
                          transaction.purpose = text;
 diff --git a/node_modules/lib-fints/dist/segments/registry.js b/node_modules/lib-fints/dist/segments/registry.js
-index 38b8d31..5746d97 100644
+index f1c795e..ae46246 100644
 --- a/node_modules/lib-fints/dist/segments/registry.js
 +++ b/node_modules/lib-fints/dist/segments/registry.js
-@@ -94,6 +94,6 @@ export function registerSegments() {
+@@ -100,6 +100,6 @@ export function registerSegments() {
  export function getSegmentDefinition(id) {
      return registry.get(id);
  }
@@ -151,19 +138,6 @@ index 38b8d31..5746d97 100644
 +export function registerSegmentDefinition(definition) {
      registry.set(definition.id, definition);
  }
-diff --git a/node_modules/lib-fints/dist/types/interactions/customerInteraction.d.ts b/node_modules/lib-fints/dist/types/interactions/customerInteraction.d.ts
-index 5b73ecf..8a12c59 100644
---- a/node_modules/lib-fints/dist/types/interactions/customerInteraction.d.ts
-+++ b/node_modules/lib-fints/dist/types/interactions/customerInteraction.d.ts
-@@ -28,6 +28,8 @@ export interface ClientResponse {
-     tanReference?: string;
-     tanChallenge?: string;
-     tanPhoto?: PhotoTan;
-+    /** The HHD_UC challenge as the bank sent it: a matrix image (see tanPhoto) or a chipTAN flicker code. */
-+    tanChallengeHhdUc?: string;
-     tanMediaName?: string;
- }
- export interface StatementResponse extends ClientResponse {
 diff --git a/node_modules/lib-fints/dist/types/statement.d.ts b/node_modules/lib-fints/dist/types/statement.d.ts
 index 02aa9af..310450d 100644
 --- a/node_modules/lib-fints/dist/types/statement.d.ts
