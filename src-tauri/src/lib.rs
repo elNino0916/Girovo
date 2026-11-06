@@ -221,6 +221,7 @@ pub fn run() {
       frame::caption_is_maximized,
       frame::caption_rect,
       shell::window_attention,
+      shell::window_shown,
       shell::zoom_step,
       shell::open_url,
       splash::splash_fit,
@@ -289,6 +290,7 @@ fn start(app: tauri::AppHandle, splash: Option<Arc<splash::Splash>>, migration: 
       let _ = w.show();
       let _ = w.set_focus();
     }
+    shell::tell_shown(&app, true);
     shown.close();
   });
 }

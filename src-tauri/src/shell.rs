@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// The page's bridges (window.electron*), the same shape the Electron shell's preload.cjs gave them.
 const BRIDGE: &str = include_str!("bridge.js");
@@ -98,6 +98,23 @@ pub fn zoom_step(app: tauri::AppHandle, state: tauri::State<'_, Zoom>, command: 
     let _ = w.set_zoom(1.2f64.powf(*level));
   }
   *level
+}
+
+/// The page hears whether its window is on screen (components/shell/useWindowInFront.ts):
+/// WebView2 reports a page in a hidden window as visible, and even focused for
+/// a moment, so the page would ask for Windows Hello from behind the start
+/// window — through a whole update at start.
+pub const SHOWN_EVENT: &str = "window:shown";
+
+/// Called wherever the shell shows or hides the app's window.
+pub fn tell_shown(app: &tauri::AppHandle, shown: bool) {
+  let _ = app.emit_to("main", SHOWN_EVENT, shown);
+}
+
+/// Whether the app's window is on screen right now (a page loaded again asks).
+#[tauri::command]
+pub fn window_shown(app: tauri::AppHandle) -> bool {
+  app.get_webview_window("main").and_then(|w| w.is_visible().ok()).unwrap_or(false)
 }
 
 /// SessionGuard's last minute: the taskbar button flashes until the window is in front again.

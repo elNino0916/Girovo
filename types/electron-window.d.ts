@@ -79,6 +79,8 @@ declare global {
      */
     electronWindow?: {
       requestAttention: (on: boolean) => void;
+      /** Whether the shell has the window on screen; WebView2's own visibility says yes for a hidden one. */
+      shown?: () => boolean;
     };
     /** Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell. */
     electronTitleBar?: {

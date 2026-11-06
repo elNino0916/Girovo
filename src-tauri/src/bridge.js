@@ -79,10 +79,22 @@
     });
   }
 
+  // Whether the window is on screen (src/shell.rs SHOWN_EVENT): WebView2 says
+  // a page in a hidden window is visible, and even focused for a moment, so
+  // the page's "in front" (useWindowInFront) asks the shell as well.
+  var shown = false;
+  var setShown = function (on) {
+    if (shown === on) return;
+    shown = on;
+    window.dispatchEvent(new CustomEvent('girovo:window-shown', { detail: on }));
+  };
+  listen('window:shown', function (on) { setShown(on === true); });
+  invoke('window_shown').then(function (on) { setShown(on === true); }).catch(function () {});
   define('electronWindow', {
     requestAttention: function (on) {
       invoke('window_attention', { on: on === true }).catch(function () {});
     },
+    shown: function () { return shown; },
   });
 
   // The shell secret (src/secret.rs): base64, or null where this system has no

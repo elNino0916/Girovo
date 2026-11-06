@@ -211,6 +211,7 @@ pub fn show_window(app: &AppHandle) {
     let _ = w.show();
     let _ = w.set_focus();
   }
+  crate::shell::tell_shown(app, true);
 }
 
 pub fn quit(app: &AppHandle) {
@@ -265,6 +266,7 @@ pub fn hide_on_close(app: &AppHandle) -> bool {
   if let Some(w) = app.get_webview_window("main") {
     let _ = w.hide();
   }
+  crate::shell::tell_shown(app, false);
   let _ = app.emit_to("main", "window:hidden-to-tray", ());
   ensure_tray(app);
   tell_still_running(app);
