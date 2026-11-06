@@ -134,15 +134,35 @@ jobs:
           # As in build-development.yml: the CPU runtime only, not CUDA's libraries.
           ONNXRUNTIME_NODE_INSTALL: skip
       # The Tauri app's system libraries: WebKitGTK for its window, and what
-      # the AppImage bundler needs — from GitHub's own cache, not Ubuntu's
-      # mirror, which has crawled at 27 kB/s (45 MB in 28 minutes) and once
-      # hung outright. Only a changed list (or `version`) asks the mirror again.
+      # the AppImage bundler needs. Ubuntu's mirror has crawled at 27 kB/s
+      # (45 MB in 28 minutes) and once hung outright, so the packages it sends
+      # are kept in GitHub's cache, one set per runner image, and installed
+      # from there. Without them yet: the mirror once, after a fresh package
+      # list (an old one asks for files the mirror no longer has).
+      - name: Runner image
+        id: image
+        if: hashFiles('src-tauri/Cargo.toml') != ''
+        run: echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      - name: Tauri's system packages (cache)
+        if: hashFiles('src-tauri/Cargo.toml') != ''
+        uses: actions/cache@v4
+        with:
+          path: ~/tauri-debs
+          key: tauri-debs-1-${{ steps.image.outputs.id }}
       - name: Tauri's system packages
         if: hashFiles('src-tauri/Cargo.toml') != ''
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libwebkit2gtk-4.1-dev librsvg2-dev patchelf file
-          version: tauri-1
+        run: |
+          PKGS="libwebkit2gtk-4.1-dev librsvg2-dev patchelf file"
+          DEBS="$HOME/tauri-debs"
+          if compgen -G "$DEBS/*.deb" > /dev/null && sudo dpkg -i "$DEBS"/*.deb > /dev/null; then
+            echo "From the cache: $(ls "$DEBS"/*.deb | wc -l) packages"
+            exit 0
+          fi
+          mkdir -p "$DEBS/partial"
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 -o Dir::Cache::archives="$DEBS" install -y $PKGS
+          sudo rm -rf "$DEBS/partial" "$DEBS/lock"
+          sudo chown -R "$USER" "$DEBS"
       - name: Rust
         if: hashFiles('src-tauri/Cargo.toml') != ''
         uses: dtolnay/rust-toolchain@stable
