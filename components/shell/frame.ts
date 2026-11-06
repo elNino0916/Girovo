@@ -45,3 +45,21 @@ export function useSidebarOpen(): [boolean, () => void] {
  * Abos) listen for it; the provider's own levels close in the sidebar.
  */
 export const PLACE_ROOT_EVENT = 'girovo:place-root';
+
+/**
+ * Mitteilungen's "Ansehen" on a contract notice: Zahlungen with Verträge &
+ * Abos in view — the desktop's view of its own opened, the phone's section
+ * scrolled to. Zahlungen may not be mounted yet when it is asked for, so the
+ * wish waits here until it is.
+ */
+export const SHOW_CONTRACTS_EVENT = 'girovo:show-contracts';
+let contractsWanted = false;
+export function wantContracts(): void {
+  contractsWanted = true;
+  window.dispatchEvent(new Event(SHOW_CONTRACTS_EVENT));
+}
+export function takeContractsWanted(): boolean {
+  const wanted = contractsWanted;
+  contractsWanted = false;
+  return wanted;
+}

@@ -119,6 +119,15 @@ export type RecurringSeries = {
   changed: boolean;
   /** |last| − |previous| when `changed` (positive: it got bigger), else null. */
   change: number | null;
+  /**
+   * The current price against the one before it, for a year after it
+   * changed — `changed` looks at the last two bookings only, so it is gone
+   * with the next booking at the new price. A fixed price only. `since`:
+   * the first booking at the current price; `previous` and `delta` unsigned
+   * (delta positive: it got dearer); `perYear`: what the difference comes to
+   * in a year. Said in Verträge and Mitteilungen (lib/contract-watch.ts).
+   */
+  priceChange: { since: string; previous: number; delta: number; perYear: number } | null;
   /** The amount genuinely varies (salary, a phone bill) rather than being a fixed price. */
   variable: boolean;
   /** `amount` spread over a month / a year. Signed. */
@@ -546,6 +555,13 @@ function buildSeries(
   const lastAbs = abs[abs.length - 1];
   const prevAbs = abs.length > 1 ? abs[abs.length - 2] : null;
   const changed = prevAbs != null && differs(prevAbs, lastAbs);
+  // Where the current price began: back through the bookings at it.
+  let run = abs.length - 1;
+  while (run > 0 && !differs(abs[run - 1], lastAbs)) run--;
+  const before = run > 0 ? abs[run - 1] : null;
+  const priceChange = !variable && before != null && differs(before, lastAbs) && occ[run].n >= ref - 365
+    ? { since: occ[run].day, previous: before / 100, delta: (lastAbs - before) / 100, perYear: ((lastAbs - before) * cadence.perYear) / 100 }
+    : null;
   const nextDate = projectNext(occ, cadence, group.credit);
   const late = ref - 5 - dayNumber(nextDate);
 
@@ -583,6 +599,7 @@ function buildSeries(
     previousAmount: prevAbs == null ? null : (sign * prevAbs) / 100,
     changed,
     change: changed && prevAbs != null ? (lastAbs - prevAbs) / 100 : null,
+    priceChange,
     variable,
     monthlyAmount: Math.round((sign * typical * cadence.perYear) / 12) / 100,
     yearlyAmount: (sign * typical * cadence.perYear) / 100,

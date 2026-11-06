@@ -17,6 +17,7 @@ import type { AvatarChoice } from './avatars';
 import type { Budgets } from './budgets';
 import type { LinkedBankRef } from './linked-banks';
 import type { SplitPart } from './splits';
+import type { ContractReminder } from './contract-watch';
 
 export type { CategoryId };
 
@@ -201,6 +202,10 @@ export type VaultData = {
   splits: Record<string, SplitPart[]>;
   /** recurring-series ids the user said are not a contract. */
   dismissedRecurring: string[];
+  /** recurring-series id → its cancellation reminder (lib/contract-watch.ts). Older vaults have none. */
+  contractReminders?: Record<string, ContractReminder>;
+  /** The contract notices Mitteilungen has shown (lib/contract-watch.ts): no dot for them again. This device's own. */
+  noticedContracts?: string[];
   /** Spending category → the monthly budget in whole cents (lib/budgets.ts). */
   budgets: Budgets;
   /** txKey() → the user's own note on that booking, one line (lib/notes.ts). */

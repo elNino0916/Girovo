@@ -35,6 +35,7 @@ import { askAllowed } from '@/lib/plus';
 import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
 import { useAskable } from '../insights/Ask';
+import { useContractNotices } from '../insights/contract-notices';
 import { unseenUpdate, useUpdates } from '../updates/store';
 import { BackIcon, BellIcon, GeminiSparkIcon, SearchIcon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
@@ -70,7 +71,7 @@ function SearchBar() {
   const { setPaletteOpen, plus } = useFints();
   const t = useT();
   const askable = useAskable();
-  const canAsk = IS_ANDROID && askable === true && askAllowed(plus.state);
+  const canAsk = askable === true && askAllowed(plus.state);
   const placeholder = canAsk ? t.shell.searchBar.ask : t.shell.searchBar.plain;
   return (
     // 56dp on a phone; in the desktop's title bar (60px, less when zoomed) 48 at most.
@@ -131,18 +132,21 @@ export function Masthead() {
   // the dot alone, so it never reads as one more message from the bank.
   const updateSnapshot = useUpdates();
   const updateUnseen = unseenUpdate(updateSnapshot);
+  // So does what a contract's price or notice period has to say (lib/contract-watch.ts) — a dot as well.
+  const contractUnseen = useContractNotices().unseen.length > 0;
   const inboxName = [
     t.common.nav.messages,
     bankUnread > 0 ? t.shell.unread(bankUnread) : '',
     updateUnseen ? t.shell.masthead.newAppVersion : '',
+    contractUnseen ? t.shell.masthead.newContractNews : '',
   ].filter(Boolean).join(', ');
   // Opening the drawer marks everything read. Were the count badge to go out
   // at that moment, the items left of it would jump sideways behind the
   // scrim; so the bell keeps showing what it showed when it was pressed, and
   // settles once the drawer has closed.
-  const [shown, setShown] = useState({ unread: bankUnread, update: updateUnseen });
-  if (!inboxOpen && (shown.unread !== bankUnread || shown.update !== updateUnseen)) {
-    setShown({ unread: bankUnread, update: updateUnseen });
+  const [shown, setShown] = useState({ unread: bankUnread, update: updateUnseen, contract: contractUnseen });
+  if (!inboxOpen && (shown.unread !== bankUnread || shown.update !== updateUnseen || shown.contract !== contractUnseen)) {
+    setShown({ unread: bankUnread, update: updateUnseen, contract: contractUnseen });
   }
   const shownUnread = shown.unread;
 
@@ -242,7 +246,7 @@ export function Masthead() {
               {/* The dot is the narrow-window form of the count (where the
                   badge shows, it would say the same thing twice) — and, at
                   every width, the mark of a new app version. */}
-              {(shownUnread > 0 || shown.update) && <Dot className="absolute top-0.5 -right-0.5 ring-2 ring-bar" />}
+              {(shownUnread > 0 || shown.update || shown.contract) && <Dot className="absolute top-0.5 -right-0.5 ring-2 ring-bar" />}
             </span>
           </IconButton>}
 

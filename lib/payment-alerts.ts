@@ -14,11 +14,17 @@
 // bookings (seriesIdentity), so it belongs to the contract Verträge & Abos
 // would file it under.
 //
+// The watch list also carries the user's cancellation reminders
+// (lib/contract-watch.ts): the check has no vault to read them from, and a
+// reminder is said once, as a notification, from its lead until its day.
+// Each login's vault hands over its own, so they are kept by owner.
+//
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
 import type { SerializedTransaction } from './fints-types';
 import { bookingKind } from './categorize.ts';
 import { seriesBase, seriesIdentity, type RecurringSeries } from './recurring.ts';
+import { AFTER_DAYS, REMINDER_LEADS, REMINDERS_MAX, dayNum } from './contract-watch.ts';
 
 /** What the notices are about. Each booking is told once, by the most specific one that fits. */
 export type AlertPrefs = {
@@ -47,7 +53,20 @@ export type WatchedContract = {
 
 export type WatchedIncome = { key: string; at: string };
 
-export type Watch = { contracts: WatchedContract[]; income: WatchedIncome[] };
+/** A cancellation reminder as the check keeps it: whose vault it is from, and the day it was last said for. */
+export type WatchedReminder = {
+  /** The login whose vault set it (blz|userId): a vault's new list replaces only its own. */
+  owner: string;
+  /** The contract's series id. */
+  id: string;
+  by: string;
+  lead: number;
+  name: string;
+  /** The `by` it was said for: a new date says it again. */
+  told?: string;
+};
+
+export type Watch = { contracts: WatchedContract[]; income: WatchedIncome[]; reminders?: WatchedReminder[] };
 
 /** One account's limit: below `cents` (signed) it says so, once, until the balance is back above. */
 export type Limit = { cents: number; label: string };
@@ -111,11 +130,28 @@ function readIncome(v: unknown): WatchedIncome | null {
   return key && isDay(r.at) ? { key, at: r.at } : null;
 }
 
+/** A reminder as stored; `owner` may be left to the caller (the page does not know it, the route does). */
+export function readReminder(v: unknown, owner?: string): WatchedReminder | null {
+  if (!v || typeof v !== 'object') return null;
+  const r = v as Record<string, unknown>;
+  const who = owner ?? cleanKey(r.owner);
+  const id = cleanKey(r.id);
+  if (!who || !id || typeof r.by !== 'string' || dayNum(r.by) === null) return null;
+  if (!(REMINDER_LEADS as readonly unknown[]).includes(r.lead)) return null;
+  const told = typeof r.told === 'string' && dayNum(r.told) !== null ? r.told : undefined;
+  return { owner: who, id, by: r.by, lead: r.lead as number, name: cleanText(r.name, NAME_MAX), ...(told ? { told } : {}) };
+}
+
 export function readWatch(v: unknown): Watch {
   const r = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
   const contracts = (Array.isArray(r.contracts) ? r.contracts : []).map(readContract).filter((c): c is WatchedContract => !!c);
   const income = (Array.isArray(r.income) ? r.income : []).map(readIncome).filter((i): i is WatchedIncome => !!i);
-  return { contracts: contracts.slice(0, CONTRACTS_MAX), income: income.slice(0, INCOME_MAX) };
+  const reminders = (Array.isArray(r.reminders) ? r.reminders : []).map((x) => readReminder(x)).filter((x): x is WatchedReminder => !!x);
+  return {
+    contracts: contracts.slice(0, CONTRACTS_MAX),
+    income: income.slice(0, INCOME_MAX),
+    ...(reminders.length ? { reminders: reminders.slice(0, REMINDERS_MAX) } : {}),
+  };
 }
 
 export function readLimit(v: unknown): Limit | null {
@@ -161,15 +197,36 @@ export function watchOf(
  * it: the app sees only the period it loaded, which may not reach back to a
  * yearly contract's last booking.
  */
-export function mergeWatch(prior: Watch, next: Watch & { drop?: readonly string[] }, now = Date.now()): Watch {
+export function mergeWatch(prior: Watch, next: Watch & { drop?: readonly string[]; owner?: string }, now = Date.now()): Watch {
   const cutoff = new Date(now - WATCH_DAYS * DAY_MS).toISOString().slice(0, 10);
   const drop = next.drop ?? [];
   const namedContracts = new Set([...next.contracts.map((c) => c.key), ...drop]);
   const namedIncome = new Set([...next.income.map((i) => i.key), ...drop]);
+  const reminders = mergeReminders(prior.reminders ?? [], next.reminders, next.owner, now);
   return {
     contracts: [...next.contracts, ...prior.contracts.filter((c) => !namedContracts.has(c.key) && c.at >= cutoff)].slice(0, CONTRACTS_MAX),
     income: [...next.income, ...prior.income.filter((i) => !namedIncome.has(i.key) && i.at >= cutoff)].slice(0, INCOME_MAX),
+    ...(reminders.length ? { reminders } : {}),
   };
+}
+
+/**
+ * One vault's reminders over the kept ones: `owner`'s list is replaced whole
+ * (a removed reminder goes, an empty list clears them), what was said for an
+ * unchanged date stays said, other owners' stay as they were, and one past
+ * its day goes. Without an owner nothing is handed over.
+ */
+export function mergeReminders(
+  prior: readonly WatchedReminder[], next: readonly WatchedReminder[] | undefined, owner: string | undefined, now = Date.now(),
+): WatchedReminder[] {
+  const today = Math.floor(now / DAY_MS);
+  const current = (r: WatchedReminder) => (dayNum(r.by) ?? -Infinity) + AFTER_DAYS >= today;
+  if (!owner) return prior.filter(current);
+  const fresh = (next ?? []).map(({ told: _told, ...r }) => {
+    const was = prior.find((p) => p.owner === owner && p.id === r.id);
+    return { ...r, owner, ...(was?.told === r.by ? { told: r.by } : {}) };
+  });
+  return [...fresh, ...prior.filter((p) => p.owner !== owner)].filter(current).slice(0, REMINDERS_MAX);
 }
 
 /** More than `usual` by over 1 % and 0,50 €: Verträge & Abos' own rule for a changed price. */

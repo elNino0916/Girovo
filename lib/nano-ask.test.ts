@@ -4,7 +4,8 @@ import type { CategoryResult } from './categories.ts';
 import type { SerializedTransaction } from './fints-types.ts';
 import {
   askText, asksWith, compareFromQuestion, computeAnswer, dirFromQuestion, kindFromQuestion, nanoGeneration, parseAskAnswer,
-  periodDays, periodFromQuestion, periodsFromQuestion, rankFromQuestion, readQuestion, searchAsFilter, searchFromQuestion, wholeMonths,
+  nameFromPayees, periodDays, periodFromQuestion, periodsFromQuestion, questionTopic, rankFromQuestion, readQuestion, searchAsFilter,
+  searchFromQuestion, wholeMonths,
   type AskQuery,
 } from './nano-ask.ts';
 
@@ -294,4 +295,28 @@ test('a search in the Umsätze list says what it means; a plain one stays text',
   assert.equal(searchAsFilter('Rewe', TODAY), null);
   assert.equal(searchAsFilter('4711', TODAY), null);
   assert.deepEqual(searchAsFilter('Futter für Haustier', TODAY, [{ id: 'c_pet', name: 'Haustier' }]), { query: 'Futter', category: 'c_pet' });
+});
+
+test('desktop: what a question is about, for the category model', () => {
+  assert.equal(questionTopic('Wie viel habe ich letzten Monat für Essen gehen ausgegeben?'), 'Essen gehen');
+  assert.equal(questionTopic('Was gebe ich für Klamotten aus?'), 'Klamotten');
+  assert.equal(questionTopic('Wie oft war ich tanken?'), 'tanken');
+  assert.equal(questionTopic('How much did I spend on clothes last month?'), 'clothes');
+  assert.equal(questionTopic('Wo kaufe ich am häufigsten ein?'), '');
+  assert.equal(questionTopic('Ausgaben im August 2026'), '');
+});
+
+test('desktop: a name the question asks about, found among the payees in view', () => {
+  const payees = ['REWE Markt GmbH', 'NETFLIX.COM', 'Amazon EU S.a r.l.', 'Mama', 'Deutsche Bahn', 'H&M Hennes & Mauritz'];
+  assert.equal(nameFromPayees('Wie viel kostet mich Netflix im Jahr?', payees), 'Netflix');
+  assert.equal(nameFromPayees('Was habe ich bei Rewe gelassen?', payees), 'Rewe');
+  assert.equal(nameFromPayees('Was zahle ich an Mama?', payees), 'Mama');
+  assert.equal(nameFromPayees('Wie viel für die Deutsche Bahn?', payees), 'Deutsche Bahn');
+  assert.equal(nameFromPayees('Was gebe ich für Klamotten aus?', payees), null, 'no payee by that name');
+  assert.equal(nameFromPayees('Wie viel im Jahr?', payees), null);
+  assert.equal(nameFromPayees('Was kostet Ama?', payees), null, 'three letters only for a whole word');
+  // Read as on the phone: the name beats a category, and the rules keep the rest.
+  const read = readQuestion('Wie viel ging letzten Monat an Netflix?', { dir: null, category: null, search: nameFromPayees('Wie viel ging letzten Monat an Netflix?', payees) }, TODAY);
+  assert.equal(read?.search, 'Netflix');
+  assert.equal(read?.period.kind, 'lastMonth');
 });

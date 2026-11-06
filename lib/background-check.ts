@@ -30,6 +30,8 @@
 //   regular income, an account under a limit. A booking is told once, by the
 //   most specific notice; the contracts and incomes come from Verträge & Abos
 //   while the user is in (setWatch), kept in the box beside the PINs.
+// - A cancellation reminder the user set (lib/contract-watch.ts) is said
+//   once per date, from its lead until its day, whatever the bank answers.
 //
 // Every change to the box is a compare-and-set (lib/background-store.ts): on
 // the phone the page and the job are two runtimes, and a check must never
@@ -42,7 +44,8 @@
 import crypto from 'node:crypto';
 import { newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
 import { txKey } from './categories.ts';
-import { displayName, fmtMoney, fmtSignedMoney } from './format.ts';
+import { dayKey, displayName, fmtDate, fmtMoney, fmtSignedMoney, toLocalDate } from './format.ts';
+import { dayNum, reminderDue } from './contract-watch.ts';
 import type { SerializedTransaction } from './fints-types';
 import { msgs } from './i18n/index.ts';
 import type { SealedLogin } from './linked-unlock.ts';
@@ -50,7 +53,7 @@ import { sameLogin } from './linked-banks.ts';
 import type { BackgroundStore } from './background-store.ts';
 import {
   DEFAULT_PREFS, belowLimit, dearerCharge, isIncome, mergeWatch, readLimit, readPrefs, readWatch,
-  type AlertPrefs, type Limit, type Watch, type WatchedContract,
+  type AlertPrefs, type Limit, type Watch, type WatchedContract, type WatchedReminder,
 } from './payment-alerts.ts';
 
 /** A login kept for the checks: its PIN, its bank's name, and whether it waits for the user. */
@@ -85,7 +88,7 @@ const EMPTY_WATCH: Watch = { contracts: [], income: [] };
 export type Notice = {
   /** Stable per bank and kind, so a later notice replaces an earlier one. */
   key: string;
-  kind: 'new' | 'approval' | 'login' | 'refused' | 'dearer' | 'income' | 'low';
+  kind: 'new' | 'approval' | 'login' | 'refused' | 'dearer' | 'income' | 'low' | 'remind';
   title: string;
   text: string;
   /** The bookings, one line each (kinds 'new' and 'income'). */
@@ -377,7 +380,7 @@ export async function setAlerts(
  * mergeWatch). Answers whether the checks are on.
  */
 export async function setWatch(
-  store: BackgroundStore, secret: Buffer, next: Watch & { drop?: readonly string[] }, now = Date.now(),
+  store: BackgroundStore, secret: Buffer, next: Watch & { drop?: readonly string[]; owner?: string }, now = Date.now(),
 ): Promise<boolean> {
   const after = await change(store, secret, (box) => (box ? { ...box, watch: mergeWatch(box.watch, next, now) } : 'keep'));
   return !!after;
@@ -497,6 +500,25 @@ function lowNotice(
   };
 }
 
+/** A contract's notice period is near: its day, and how many days are left. */
+function remindNotice(r: WatchedReminder, today: string): Notice {
+  const said = msgs().background;
+  const left = Math.max(0, (dayNum(r.by) ?? 0) - (dayNum(today) ?? 0));
+  return {
+    key: `remind|${r.owner}|${r.id}`,
+    kind: 'remind',
+    title: said.remindTitle(displayName(r.name) || r.name),
+    text: said.remindText(fmtDate(toLocalDate(r.by)), left),
+    lines: [],
+  };
+}
+
+/** The reminders due today that were not said for their date yet — only for logins still kept. */
+export function dueReminders(box: Pick<Box, 'logins' | 'watch'>, today: string): WatchedReminder[] {
+  const kept = new Set(box.logins.map(loginKey));
+  return (box.watch.reminders ?? []).filter((r) => kept.has(r.owner) && r.told !== r.by && reminderDue(r, today));
+}
+
 function noticeFor(kind: 'new' | 'income' | 'approval' | 'login' | 'refused', login: CheckedLogin, lines: string[] = [], count = 0): Notice {
   const said = msgs().background;
   const key = `${login.blz}|${login.userId}|${kind}`;
@@ -595,6 +617,21 @@ export function runCheck(store: BackgroundStore, secret: Buffer, bank: BankSide,
     let checked = 0;
     let on = true;
     const { prefs, amounts } = start;
+    // Reminders need no bank: said first, and marked said before any login is opened.
+    const today = dayKey(new Date(now));
+    const due = dueReminders(start, today);
+    if (due.length) {
+      const said = new Set(due.map((r) => `${r.owner}|${r.id}|${r.by}`));
+      const after = await change(store, secret, (box) => (box ? {
+        ...box,
+        watch: {
+          ...box.watch,
+          reminders: (box.watch.reminders ?? []).map((r) => (said.has(`${r.owner}|${r.id}|${r.by}`) ? { ...r, told: r.by } : r)),
+        },
+      } : 'keep'));
+      if (!after) return { checked: 0, notices: [], on: false };
+      notices.push(...due.map((r) => remindNotice(r, today)));
+    }
     // A contract found dearer at one login is taken at its new price for the next.
     let contracts = start.watch.contracts;
     for (const login of start.logins) {

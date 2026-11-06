@@ -449,6 +449,19 @@ export async function guessCategories(
   return out;
 }
 
+/**
+ * "Frag deine Umsätze" on the desktop (lib/nano-ask.ts questionTopic): the
+ * category what is left of a question is about — "Essen gehen", "Klamotten"
+ * — judged as a booking's text is, or null when none is clearly closest.
+ */
+export async function questionCategory(topic: string): Promise<GuessableCategory | null> {
+  const text = readable(topic).slice(0, 120);
+  if (!text) return null;
+  const m = await model();
+  const [v] = await embed([`query: ${text}`]);
+  return pickCategory(scoresOf(m, v), null, m.thresholds);
+}
+
 /** For calibration (scripts/eval-category-model.mjs): every category's score for each text. */
 export async function scoreTexts(texts: string[]): Promise<CategoryScores[]> {
   const m = await model();

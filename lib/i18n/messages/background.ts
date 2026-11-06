@@ -17,6 +17,10 @@ export const de = {
   dearerTitle: (name: string) => `${name} ist teurer geworden`,
   dearerText: (now: string, was: string, bank: string) => `${now} statt ${was} · ${bank}`,
   dearerTextHidden: (bank: string) => `Abgebucht wurde mehr als sonst · ${bank}`,
+  /** A cancellation reminder (lib/contract-watch.ts): once, from its lead until its day. */
+  remindTitle: (name: string) => `${name}: Kündigungsfrist`,
+  remindText: (day: string, days: number) =>
+    days > 1 ? `Kündbar bis ${day} – noch ${days} Tage` : days === 1 ? `Kündbar bis ${day} – noch 1 Tag` : `Kündbar bis heute, ${day}`,
   incomeTitle: (n: number, bank: string) => (n === 1 ? `Geld eingegangen bei ${bank}` : `${n} Eingänge bei ${bank}`),
   lowTitle: (limit: string) => `Kontostand unter ${limit}`,
   lowTitleHidden: 'Kontostand unter deiner Grenze',
@@ -98,6 +102,9 @@ export const en: typeof de = {
   dearerTitle: (name) => `${name} got more expensive`,
   dearerText: (now, was, bank) => `${now} instead of ${was} · ${bank}`,
   dearerTextHidden: (bank) => `More was collected than usual · ${bank}`,
+  remindTitle: (name) => `${name}: notice period`,
+  remindText: (day, days) =>
+    days > 1 ? `Cancel by ${day} – ${days} days left` : days === 1 ? `Cancel by ${day} – 1 day left` : `Cancel by today, ${day}`,
   incomeTitle: (n, bank) => (n === 1 ? `Money came in at ${bank}` : `${n} payments came in at ${bank}`),
   lowTitle: (limit) => `Balance below ${limit}`,
   lowTitleHidden: 'Balance below your limit',

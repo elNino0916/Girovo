@@ -12,7 +12,7 @@
 // too short for the slower rhythms says what it cannot show; and the user can
 // overrule the guess ("Ausblenden"), which is remembered in the vault.
 
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { OrdersEntry } from './BankOrders';
 import { useFints } from './FintsProvider';
 import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, IconButton, Skeleton, Spinner, cx } from './ui';
@@ -27,7 +27,7 @@ import { ForecastTile } from './insights/Forecast';
 import { PayActions, PaymentsHead } from './transfer/PaymentsHead';
 import { useRecurringModel, type AccountBasis, type RecurringModel } from './insights/recurring-model';
 import { LoadHistoryButton, RoundMoney, YEAR_SPAN, spanDays } from './insights/shared';
-import { PLACE_ROOT_EVENT, useDesktopFrame } from './shell/frame';
+import { PLACE_ROOT_EVENT, SHOW_CONTRACTS_EVENT, takeContractsWanted, useDesktopFrame } from './shell/frame';
 
 /**
  * "Vierteljährliche und jährliche" ("Quarterly and yearly") — the rhythms a
@@ -77,12 +77,25 @@ export function Contracts() {
   // paying and the bank's orders on the left, the month-end forecast and what
   // is due beside them; Verträge & Abos a row that opens them as a view.
   const [contractsOpen, setContractsOpen] = useState(false);
+  const contractsHead = useRef<HTMLHeadingElement>(null);
   // Zahlungen pressed again in the sidebar: back from Verträge & Abos.
   useEffect(() => {
     const back = (e: Event) => { if ((e as CustomEvent).detail === 'contracts') setContractsOpen(false); };
     window.addEventListener(PLACE_ROOT_EVENT, back);
     return () => window.removeEventListener(PLACE_ROOT_EVENT, back);
   }, []);
+  // A contract notice's "Ansehen" (Mitteilungen): asked for before this page
+  // was there, or while it is.
+  useEffect(() => {
+    const show = () => {
+      if (!takeContractsWanted()) return;
+      if (frame) setContractsOpen(true);
+      else requestAnimationFrame(() => contractsHead.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    };
+    show();
+    window.addEventListener(SHOW_CONTRACTS_EVENT, show);
+    return () => window.removeEventListener(SHOW_CONTRACTS_EVENT, show);
+  }, [frame]);
   if (frame) {
     if (contractsOpen) {
       return (
@@ -123,7 +136,7 @@ export function Contracts() {
       <ForecastTile />
       <OrdersEntry />
       {/* More room above the heading than below: it belongs to what follows. */}
-      <h2 className="section-head pt-4">{t.insights.contracts.title}</h2>
+      <h2 ref={contractsHead} className="section-head scroll-mt-4 pt-4">{t.insights.contracts.title}</h2>
       <ContractsFromBookings />
     </div>
   );

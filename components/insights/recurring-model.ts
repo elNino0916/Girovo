@@ -108,13 +108,24 @@ function historySpan(from: string, to: string, txs: readonly SerializedTransacti
   return spanDays(start, to);
 }
 
+// One detection for every user of the hook — Verträge, the Analyse,
+// Mitteilungen and the bell's dot (contract-notices.ts) — so a second reader
+// costs nothing: the same provider state gives back the very same result.
+type Loaded = {
+  accts: string[]; txs: SerializedTransaction[]; owner: Map<SerializedTransaction, string>;
+  from: string; to: string; until: string; longest: number; shortest: number; spans: Record<string, number>;
+};
+let lastLoaded: { txByAccount: unknown; statementInfo: unknown; value: Loaded } | null = null;
+let lastDetected: { loaded: Loaded; ownIbans: unknown; categoryOf: unknown; modelGuesses: unknown; until: string; value: RecurringSeries[] } | null = null;
+
 export function useRecurringModel(): RecurringModel {
   const {
     accounts, txByAccount, statementInfo, ownIbans, categoryOf, vault, vaultStatus, loadingAccount, activeAccount, modelGuesses,
   } = useFints();
   const failures = useLoadFailures();
 
-  const loaded = useMemo(() => {
+  const loaded = useMemo((): Loaded => {
+    if (lastLoaded && lastLoaded.txByAccount === txByAccount && lastLoaded.statementInfo === statementInfo) return lastLoaded.value;
     const accts = Object.keys(txByAccount).filter((a) => statementInfo[a]);
     const txs: SerializedTransaction[] = [];
     const owner = new Map<SerializedTransaction, string>();
@@ -140,15 +151,20 @@ export function useRecurringModel(): RecurringModel {
       longest = Math.max(longest, span);
       shortest = Math.min(shortest, span);
     }
-    return { accts, txs, owner, from, to, until, longest, shortest: Number.isFinite(shortest) ? shortest : 0, spans };
+    const value = { accts, txs, owner, from, to, until, longest, shortest: Number.isFinite(shortest) ? shortest : 0, spans };
+    lastLoaded = { txByAccount, statementInfo, value };
+    return value;
   }, [txByAccount, statementInfo]);
 
-  const detected = useMemo(
-    () => (loaded.txs.length
-      ? detectRecurring(loaded.txs, { ownIbans, categoryOf, modelGuesses, until: loaded.until || dayKey(new Date()) })
-      : []),
-    [loaded, ownIbans, categoryOf, modelGuesses],
-  );
+  const detected = useMemo(() => {
+    const until = loaded.until || dayKey(new Date());
+    const last = lastDetected;
+    if (last && last.loaded === loaded && last.ownIbans === ownIbans && last.categoryOf === categoryOf
+      && last.modelGuesses === modelGuesses && last.until === until) return last.value;
+    const value = loaded.txs.length ? detectRecurring(loaded.txs, { ownIbans, categoryOf, modelGuesses, until }) : [];
+    lastDetected = { loaded, ownIbans, categoryOf, modelGuesses, until, value };
+    return value;
+  }, [loaded, ownIbans, categoryOf, modelGuesses]);
 
   const dismissedIds = vault?.dismissedRecurring;
   const currency = activeAccount?.currency || 'EUR';

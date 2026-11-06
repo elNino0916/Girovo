@@ -144,9 +144,9 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
   const showOnAccount = useShowOnAccount();
   const showBankOrders = useShowBankOrders();
   const themePref = useThemePref();
-  // Android with Gemini Nano (and, in the Play build, Plus): a question can be asked.
+  // Android with Gemini Nano (and, in the Play build, Plus), or the desktop: a question can be asked.
   const askable = useAskable();
-  const canAsk = IS_ANDROID && askable === true && askAllowed(f.plus.state);
+  const canAsk = askable === true && askAllowed(f.plus.state);
   const { state: update } = useUpdates();
   const usage = useUsageConsent();
   const frame = useDesktopFrame();

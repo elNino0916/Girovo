@@ -505,6 +505,82 @@ export function readQuestion(
 }
 
 // ---------------------------------------------------------------------------
+// The desktop's reading (6.0): no Nano, the built-in model
+//
+// The rules above read what the question says in so many words, as on the
+// phone. What Nano adds there comes from two other places here: the name is
+// looked for among the user's own payees ("Was zahle ich für Netflix" finds
+// the Netflix in the bookings, whatever stands before it), and the category
+// from the category model (lib/category-model.ts questionCategory), which
+// reads what is left of the question — "Essen gehen", "Klamotten" — the way
+// it reads a booking.
+
+// i18n-data-start — question words that are neither topic nor name, folded
+const NOT_TOPIC = new Set(
+  ('OFT HAEUFIG HAEUFIGSTEN OEFTESTEN MEISTEN MEISTE MEISTES PRO DURCHSCHNITT DURCHSCHNITTLICH SCHNITT GROESSTE GROESSTEN '
+    + 'TEUERSTE TEUERSTEN HOECHSTE HOECHSTEN WANN ZULETZT WO WER WEM WEN WELCHE WELCHER WELCHEN WELCHEM WELCHES SUMME GESAMT '
+    + 'KOSTEN KOSTET GEKOSTET ZAHLE ZAHLT ZAHLST ES SIND IST WAR WAREN HATTE HATTEN HABEN HAST WIR DU MIR MICH UNS EIN EINE EINEN '
+    + 'EINEM EINER INSGESAMT ETWA UNGEFAEHR DENN EIGENTLICH SO NOCH SCHON MEHR WENIGER ALS GEGENUEBER VERGLICHEN VERGLEICH MIT '
+    + 'ZU ZUM ZUR AUF AUS NACH UEBER UNTER FUERS INS BIS DAFUER DAVON MONATLICH JAEHRLICH WOECHENTLICH TAEGLICH AUSGEBEN BEZAHLE '
+    + 'GEBE GEBEN GEGEBEN KAUFE KAUFT GEKAUFT EINGEKAUFT EINKAUFEN '
+    + 'HOW MUCH MANY OFTEN AVERAGE PER BIGGEST LARGEST HIGHEST WHEN WHERE WHO WHOM WHICH WHAT DID DO DOES I WE YOU IS ARE WAS WERE '
+    + 'HAVE HAS HAD IN ON AT BY WITH ABOUT A AN MORE LESS THAN COMPARED VS MONTHLY YEARLY WEEKLY BUY BOUGHT PAY SPEND COST').split(' '),
+);
+// i18n-data-end
+
+const wordsOf = (question: string) => question.split(/\s+/).map((w) => w.replace(/^[„“"'(]+|[?!.,;:„“"')]+$/g, '')).filter(Boolean);
+
+/** Whether a word of a question says nothing of what it is about: a filler, a time, money, the kind of answer. */
+function noTopic(word: string): boolean {
+  const w = fold(word);
+  if (w.length < 2 || /^\d+$/.test(w)) return true;
+  if (NOT_SEARCHED.has(w) || NOT_A_SEARCH.has(w) || NOT_TOPIC.has(w)) return true;
+  return monthIn(w, true) != null || RULES.some(([re]) => re.test(w));
+}
+
+/**
+ * What a question is about, for the category model: its words without the
+ * fillers, times, money words and kinds of answer — "Wie viel habe ich
+ * letzten Monat für Essen gehen ausgegeben?" is "Essen gehen". Empty when
+ * nothing is left.
+ */
+export function questionTopic(question: string): string {
+  return wordsOf(question).filter((w) => !noTopic(w)).join(' ');
+}
+
+/**
+ * The name a question asks about, as written there, when it is one of the
+ * user's own payees: a word (or two in a row) that begins a word of a payee's
+ * name — "Netflix" for "NETFLIX.COM", "Rewe" for "REWE Markt GmbH". Two words
+ * before one; the first in the question wins. `payees` are the names the
+ * bookings in view are listed under.
+ */
+export function nameFromPayees(question: string, payees: readonly string[]): string | null {
+  const all = wordsOf(question);
+  const words = all.filter((w) => !noTopic(w) && isName(w));
+  if (!payees.length) return null;
+  const payeeWords = new Set<string>();
+  const payeeTexts: string[] = [];
+  for (const p of payees) {
+    const parts = fold(p).split(/[^A-Z0-9&]+/).filter(Boolean);
+    parts.forEach((x) => payeeWords.add(x));
+    payeeTexts.push(` ${parts.join(' ')} `);
+  }
+  const known = [...payeeWords];
+  const begins = (w: string) => {
+    const b = bare(w);
+    return b.length >= 3 && known.some((x) => x.startsWith(b) && (b.length >= 4 || x.length === b.length));
+  };
+  // Two words in a row as a payee has them ("Deutsche Bahn"), even where the second alone would be a category's.
+  for (let i = 0; i + 1 < all.length; i++) {
+    if (noTopic(all[i]) || noTopic(all[i + 1]) || bare(all[i]).length < 2) continue;
+    const two = ` ${bare(all[i])} ${bare(all[i + 1])} `;
+    if (payeeTexts.some((t) => t.includes(two))) return `${all[i]} ${all[i + 1]}`;
+  }
+  return words.find(begins) ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // The Umsätze search, read the same way (Android, 5.9.0)
 
 // i18n-data-start — words of a search that are no name, folded

@@ -139,10 +139,22 @@ test('a price increase: flagged, and the new price is the one projected', () => 
   assert.equal(older.amount, -11.99);
   assert.equal(older.changed, false);
   assert.equal(older.variable, false);
+  // …but the last change is still known, for a year: since when, from what, what a year adds up to.
+  assert.deepEqual(older.priceChange, { since: '2026-08-10', previous: 10.99, delta: 1, perYear: 12 });
+  assert.deepEqual(just.priceChange, { since: '2026-09-10', previous: 12.99, delta: 2, perYear: 24 });
 
   // A cent of rounding is not a price change.
   const tiny = only(detectRecurring([spotify('2026-07-10', -9.99), spotify('2026-08-10', -9.99), spotify('2026-09-10', -10.0)], { today: TODAY }));
   assert.equal(tiny.changed, false);
+  assert.equal(tiny.priceChange, null);
+
+  // A change more than a year back is old news.
+  const years = only(detectRecurring(
+    [['2025-07-10', -9.99], ['2025-08-11', -9.99], ['2025-09-10', -10.99], ['2025-10-10', -10.99], ['2025-11-10', -10.99], ['2025-12-10', -10.99], ['2026-01-12', -10.99], ['2026-02-10', -10.99], ['2026-03-10', -10.99], ['2026-04-10', -10.99], ['2026-05-11', -10.99], ['2026-06-10', -10.99], ['2026-07-10', -10.99], ['2026-08-10', -10.99], ['2026-09-10', -10.99]]
+      .map(([d, a]) => spotify(d as string, a as number)),
+    { today: TODAY },
+  ));
+  assert.equal(years.priceChange, null);
 });
 
 test('groceries by card are a habit, not a contract — however regular', () => {

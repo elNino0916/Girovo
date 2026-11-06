@@ -142,7 +142,7 @@ export function FrameSearch() {
           aria-controls={open ? p.listId : undefined}
           aria-activedescendant={open ? p.field['aria-activedescendant'] : undefined}
           aria-keyshortcuts="Control+K Meta+K"
-          placeholder={t.shell.searchBar.plain}
+          placeholder={t.shell.searchBar.ask}
           onFocus={onFocus}
           onClick={() => { if (!open) setPaletteOpen(true); }}
           onChange={(e) => {

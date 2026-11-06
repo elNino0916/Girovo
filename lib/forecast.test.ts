@@ -9,7 +9,7 @@ import { mt940 } from './__fixtures__/transactions.ts';
 const series = (over: Partial<RecurringSeries>): RecurringSeries => ({
   id: 'rec_x', key: 'x', kind: 'expense', name: 'Netflix', iban: null, creditorId: null, mandateReference: null,
   directDebit: true, category: 'media', cadence: 'monthly', cadenceLabel: '', intervalDays: 30, amount: -12.99,
-  lastAmount: -12.99, previousAmount: null, changed: false, change: null, variable: false, monthlyAmount: -12.99,
+  lastAmount: -12.99, previousAmount: null, changed: false, change: null, priceChange: null, variable: false, monthlyAmount: -12.99,
   yearlyAmount: -155.88, currency: 'EUR', count: 3, firstDate: '2026-07-15', lastDate: '2026-09-15',
   nextDate: '2026-10-15', overdue: false, ended: false, transactions: [], ...over,
 });

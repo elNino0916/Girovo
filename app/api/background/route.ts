@@ -29,7 +29,8 @@ import {
   alertSettings, disable, enroll, enrolled, forget, isOn, limitsKey, parseSecret, runCheck, setAlerts, setWatch, touch,
   type CheckedLogin, type LimitChange,
 } from '@/lib/background-check';
-import { readCents, readWatch } from '@/lib/payment-alerts';
+import { REMINDERS_MAX } from '@/lib/contract-watch';
+import { readCents, readReminder, readWatch } from '@/lib/payment-alerts';
 import { backgroundServed, backgroundStore } from '@/lib/background-store';
 import { msgs } from '@/lib/i18n';
 import { LINKED_BANK_LIMITS } from '@/lib/linked-banks';
@@ -55,6 +56,7 @@ type BackgroundBody = {
   contracts?: unknown;
   income?: unknown;
   drop?: unknown;
+  reminders?: unknown;
 };
 
 /** The page's accounts, at most this many, named by their session. */
@@ -165,7 +167,16 @@ export const POST = wrap(async (req: Request) => {
     case 'watch': {
       const next = readWatch({ contracts: b.contracts, income: b.income });
       const drop = (Array.isArray(b.drop) ? b.drop : []).filter((k): k is string => typeof k === 'string' && k.length <= 300).slice(0, 400);
-      return json({ on: await setWatch(store, secret, { ...next, drop }) });
+      // The cancellation reminders are the vault's, so its login owns them: the page's session says whose.
+      const owner = Array.isArray(b.reminders) ? loginOfSession(getSession(b.sessionId ?? '')) : null;
+      const reminders = owner
+        ? (b.reminders as unknown[]).slice(0, REMINDERS_MAX).map((r) => readReminder(r, `${owner.blz}|${owner.userId}`)).filter((r) => !!r)
+        : undefined;
+      return json({
+        on: await setWatch(store, secret, {
+          ...next, drop, ...(owner && reminders ? { reminders, owner: `${owner.blz}|${owner.userId}` } : {}),
+        }),
+      });
     }
     case 'check':
       // `on: false` tells the shell to stop planning checks (src-tauri/src/background.rs).

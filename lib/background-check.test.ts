@@ -381,3 +381,39 @@ test('alerts: settings stay through a new enrolment, go with their login, and on
   assert.equal(await setWatch(store, secret, { contracts: [], income: [] }, NOW), false);
   assert.equal(await isOn(store), false);
 });
+
+test('reminders: said once per date from their lead, only for kept logins, a new date says it again', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  const owner = `${spk.blz}|${spk.userId}`;
+  await setWatch(store, secret, {
+    contracts: [], income: [], owner,
+    reminders: [
+      { owner, id: 'gym', by: '2026-11-10', lead: 7, name: 'FitX' },
+      { owner, id: 'later', by: '2026-12-31', lead: 7, name: 'Strom' },
+    ],
+  }, NOW);
+  // Another login's reminder, set while it was kept, says nothing once it is gone.
+  await setWatch(store, secret, {
+    contracts: [], income: [], owner: 'x|y', reminders: [{ owner: 'x|y', id: 'tv', by: '2026-11-05', lead: 7, name: 'TV' }],
+  }, NOW);
+  const bank = () => fakeBank({ '50050201:DE01': 'failed' }).side;
+  const first = await runCheck(store, secret, bank(), NOW);
+  assert.deepEqual(first.notices.map((n) => n.kind), ['remind']);
+  assert.equal(first.notices[0].title, 'FitX: Kündigungsfrist');
+  assert.equal(first.notices[0].text, 'Kündbar bis 10.11.2026 – noch 7 Tage');
+  assert.deepEqual((await runCheck(store, secret, bank(), NOW + 3_600_000)).notices, [], 'said once');
+
+  // The app hands over the same list again: still said.
+  await setWatch(store, secret, {
+    contracts: [], income: [], owner,
+    reminders: [{ owner, id: 'gym', by: '2026-11-10', lead: 7, name: 'FitX' }],
+  }, NOW);
+  assert.deepEqual((await runCheck(store, secret, bank(), NOW + 7_200_000)).notices, []);
+  // A new date: said again.
+  await setWatch(store, secret, {
+    contracts: [], income: [], owner,
+    reminders: [{ owner, id: 'gym', by: '2026-11-08', lead: 7, name: 'FitX' }],
+  }, NOW);
+  assert.deepEqual((await runCheck(store, secret, bank(), NOW + 10_800_000)).notices.map((n) => n.text), ['Kündbar bis 08.11.2026 – noch 5 Tage']);
+});

@@ -9,7 +9,7 @@ export const de = {
   searchTransactions: 'Umsätze durchsuchen',
   /** The phone's search bar, at the head of the Übersicht: it opens the search. */
   searchBar: {
-    /** Where Gemini Nano can answer a question about the bookings. */
+    /** Where a question about the bookings can be answered: Gemini Nano on a phone, the desktop's own model. */
     ask: 'Umsätze suchen oder fragen',
     plain: 'Umsätze und mehr suchen',
   },
@@ -222,6 +222,14 @@ export const de = {
     /** After a new message's subject, for a screen reader. */
     new: '(neu)',
     copyText: 'Text kopieren',
+    /** Contract notices (lib/contract-watch.ts), after the session's activity. */
+    contracts: 'Verträge & Abos',
+    priceRose: (name: string, month: string) => `${name}: seit ${month} teurer`,
+    priceDetail: (delta: ReactNode, perYear: ReactNode): ReactNode[] => [delta, ' mehr pro Zahlung – ', perYear, ' im Jahr'],
+    cancelTitle: (name: string, day: string) => `${name}: kündbar bis ${day}`,
+    cancelLeft: (days: number) =>
+      days > 1 ? `Noch ${days} Tage` : days === 1 ? 'Noch 1 Tag' : days === 0 ? 'Heute ist der letzte Tag' : 'Die Frist ist vorbei',
+    openContracts: 'Ansehen',
     messageCopied: 'Mitteilung kopiert',
     /** The message on paper (components/Statement.tsx): the desktop app's save dialog, a browser's print dialog. */
     savePdf: 'Als PDF speichern',
@@ -245,6 +253,7 @@ export const de = {
     skip: 'Zum Inhalt springen',
     /** In the bell's name, after the unread count. */
     newAppVersion: 'neue App-Version',
+    newContractNews: 'Neues zu Verträgen',
   },
 
   /**
@@ -340,6 +349,9 @@ export const de = {
     updates: { title: 'Updates beim Start', text: 'Neue Versionen lädt und installiert Girovo im Startfenster, bevor sich das Fenster öffnet.' },
     /** The desktop app only: the Tauri shell (src-tauri) in place of Electron. */
     rust: { title: 'Rust in Girovo', text: 'Girovo für Windows und Linux läuft jetzt auf einer neuen, schlankeren Grundlage in Rust – vom Fenster bis zu den Updates.' },
+    contracts: { title: 'Verträge, die sich melden', text: 'Wird ein Abo teurer, steht seit wann und um wie viel im Jahr. Und wenn du willst, erinnert Girovo dich vor der Kündigungsfrist.' },
+    /** The desktop: "Frag deine Umsätze" with the built-in model (components/insights/Ask.tsx). */
+    ask: { title: 'Frag deine Umsätze', text: 'Stell in der Analyse eine Frage wie „Wie viel ging letzten Monat an Rewe?“. Girovo rechnet die Antwort auf diesem Rechner aus.' },
   },
 
   /** The update dialog and the places that point to it (components/updates). */
@@ -591,6 +603,13 @@ export const en: typeof de = {
     thisApp: 'This app',
     new: '(new)',
     copyText: 'Copy text',
+    contracts: 'Contracts & subscriptions',
+    priceRose: (name, month) => `${name}: dearer since ${month}`,
+    priceDetail: (delta, perYear) => [delta, ' more per payment – ', perYear, ' per year'],
+    cancelTitle: (name, day) => `${name}: cancel by ${day}`,
+    cancelLeft: (days) =>
+      days > 1 ? `${days} days left` : days === 1 ? '1 day left' : days === 0 ? 'Today is the last day' : 'The deadline has passed',
+    openContracts: 'View',
     messageCopied: 'Message copied',
     savePdf: 'Save as PDF',
     outcome: { executed: 'Completed', failed: 'Not completed' },
@@ -609,6 +628,7 @@ export const en: typeof de = {
   masthead: {
     skip: 'Skip to content',
     newAppVersion: 'new app version',
+    newContractNews: 'contract news',
   },
 
   caption: {
@@ -678,6 +698,8 @@ export const en: typeof de = {
     cards: { title: 'Sparkasse credit cards', text: 'The transactions of your Sparkasse credit card, where the bank offers them.' },
     updates: { title: 'Updates at start', text: 'Girovo downloads and installs new versions in the start window, before the window opens.' },
     rust: { title: 'Rust in Girovo', text: 'Girovo for Windows and Linux now runs on a new, leaner foundation built in Rust — from the window to the updates.' },
+    contracts: { title: 'Contracts that speak up', text: 'When a subscription gets dearer, you see since when and how much it adds up to in a year. And if you like, Girovo reminds you before the notice period ends.' },
+    ask: { title: 'Ask your transactions', text: 'Ask a question in the Analysis, such as “How much went to Rewe last month?”. Girovo works out the answer on this computer.' },
   },
 
   updates: {

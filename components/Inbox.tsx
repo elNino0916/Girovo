@@ -16,14 +16,18 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ActivityEntry, InboxMessage } from '@/lib/app-types';
 import { copyText } from '@/lib/clipboard';
-import { fmtDate, fmtShortIban, toLocalDate } from '@/lib/format';
-import { useT } from '@/lib/i18n/react';
+import type { ContractNotice } from '@/lib/contract-watch';
+import { fmtDate, fmtMonth, fmtShortIban, toLocalDate } from '@/lib/format';
+import { rich, useT } from '@/lib/i18n/react';
 import { answerBeyondOutcome } from '@/lib/session-log';
 import { useShowBankOrders } from './BankOrders';
 import { useFints } from './FintsProvider';
 import { Money } from './Money';
-import { AlertTriangleIcon, CheckIcon, ChevronIcon, CopyIcon, FileIcon, HelpIcon, TransferIcon } from './icons';
+import { AlertTriangleIcon, BellIcon, CheckIcon, ChevronIcon, CopyIcon, FileIcon, HelpIcon, TransferIcon, TrendUpIcon } from './icons';
 import { Alert, Button, CountBadge, Dot, Drawer, EmptyState, Tag, cx } from './ui';
+import { useContractNotices } from './insights/contract-notices';
+import { fmtDayKey } from './insights/shared';
+import { wantContracts } from './shell/frame';
 import { fmtSince } from './shell/session';
 import { useShowOnAccount } from './shell/actions';
 import { updates } from './updates/store';
@@ -45,15 +49,21 @@ export function Inbox() {
 }
 
 function InboxBody() {
-  const { messages, messagesAsked, activity, markAllRead, setInboxOpen, banks } = useFints();
+  const { messages, messagesAsked, activity, markAllRead, setInboxOpen, banks, markContractsNoticed } = useFints();
   const t = useT();
   const update = useUpdateNotice();
+  const contracts = useContractNotices();
   // What was unread at the moment the drawer opened.
   const [fresh] = useState(() => new Set(messages.filter((m) => !m.read).map((m) => m.id)));
+  const [freshContracts] = useState(() => new Set(contracts.unseen.map((n) => n.key)));
   useEffect(() => {
     markAllRead();
     updates.markSeen();
   }, [markAllRead]);
+  // Seen once the drawer has shown them — also those that turn up while it is open.
+  useEffect(() => {
+    markContractsNoticed(contracts.unseen);
+  }, [contracts.unseen, markContractsNoticed]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -97,6 +107,25 @@ function InboxBody() {
         )}
       </section>
 
+      {contracts.notices.length > 0 && (
+        <section aria-labelledby="inbox-contracts">
+          <SectionHead id="inbox-contracts" title={t.shell.inbox.contracts} count={contracts.notices.length} />
+          <ul className="-mx-4 border-y border-line sm:-mx-6">
+            {contracts.notices.map((n) => (
+              <ContractNoticeItem
+                key={n.key}
+                notice={n}
+                isNew={freshContracts.has(n.key)}
+                onOpen={() => {
+                  setInboxOpen(false);
+                  wantContracts();
+                }}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
+
       {update && (
         <section aria-labelledby="inbox-update">
           <SectionHead id="inbox-update" title={t.shell.inbox.thisApp} count={0} />
@@ -110,6 +139,56 @@ function InboxBody() {
         </section>
       )}
     </div>
+  );
+}
+
+/** A contract's price rise, or its notice period coming up (lib/contract-watch.ts). */
+function ContractNoticeItem({ notice: n, isNew, onOpen }: { notice: ContractNotice; isNew: boolean; onOpen: () => void }) {
+  const { setTab, closeOrders } = useFints();
+  const t = useT();
+  const words = t.shell.inbox;
+  const price = n.kind === 'price';
+  const urgent = n.kind === 'cancel' && n.daysLeft <= 7;
+  return (
+    <li className="flex items-start gap-3 border-b border-line px-4 py-4 last:border-b-0 sm:px-6">
+      <span
+        aria-hidden
+        className={cx(
+          'mt-0.5 grid size-9 shrink-0 place-items-center rounded-full',
+          urgent ? 'bg-amber-soft text-amber' : 'bg-inset text-ink-2',
+        )}
+      >
+        {price ? <TrendUpIcon size={17} /> : <BellIcon size={17} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="flex items-start gap-2 text-[15px] leading-snug font-semibold text-ink">
+          <span className="min-w-0 [overflow-wrap:anywhere]">
+            {price ? words.priceRose(n.name, fmtMonth(n.since)) : words.cancelTitle(n.name, fmtDayKey(n.by))}
+          </span>
+          {isNew && <><Dot className="mt-2" /><span className="sr-only">{` ${words.new}`}</span></>}
+        </p>
+        <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+          {price
+            ? rich(words.priceDetail(
+              <Money value={n.delta} currency={n.currency} signed tone="plain" />,
+              <Money value={n.perYear} currency={n.currency} tone="plain" />,
+            ))
+            : words.cancelLeft(n.daysLeft)}
+        </p>
+        <Button
+          variant="tertiary"
+          size="xs"
+          className="mt-1.5 -ml-3"
+          onClick={() => {
+            closeOrders();
+            setTab('contracts');
+            onOpen();
+          }}
+        >
+          {words.openContracts}
+        </Button>
+      </div>
+    </li>
   );
 }
 

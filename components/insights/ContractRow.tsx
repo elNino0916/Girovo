@@ -8,17 +8,19 @@
 import { useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useFints } from '../FintsProvider';
-import { CategoryIcon, ChevronIcon, ClockIcon, EyeOffIcon, MoreIcon, ReceiptIcon, UndoIcon } from '../icons';
+import { BellIcon, CategoryIcon, ChevronIcon, ClockIcon, EyeOffIcon, MoreIcon, ReceiptIcon, UndoIcon } from '../icons';
 import { Money } from '../Money';
 import { Button, IconButton, Menu, MenuItem, Tag, cx } from '../ui';
 import { categoryLabel } from '@/lib/categories';
-import { dayKey, displayName, fmtIban } from '@/lib/format';
+import { reminderDaysLeft } from '@/lib/contract-watch';
+import { dayKey, displayName, fmtIban, fmtMonth } from '@/lib/format';
 import { msgs } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import type { RecurringSeries } from '@/lib/recurring';
 import {
   CounterpartyAvatar, RoundMoney, daysUntil, fmtDayKey, fmtDayKeyShort, focusAfterRemoval, relativeDays, useShowInList,
 } from './shared';
+import { ReminderDialog } from './ReminderDialog';
 
 /** The column template shared by the header and every row from `md` up. */
 export const CONTRACT_COLUMNS = 'md:grid md:grid-cols-[minmax(0,1fr)_12rem_8.5rem_7.5rem] md:items-center md:gap-4';
@@ -93,16 +95,22 @@ export function ContractRow({
   /** The account it is paid from (or into) — named when the list spans several. */
   account?: string | null;
 }) {
-  const { categoryOf } = useFints();
+  const { categoryOf, vault } = useFints();
   const t = useT();
   const words = t.insights.contracts;
   const showInList = useShowInList();
   const [open, setOpen] = useState(false);
+  const [reminding, setReminding] = useState(false);
   const rowRef = useRef<HTMLLIElement>(null);
   const detailId = useId();
   const n = name(s);
   const credit = s.kind === 'income';
   const rose = s.changed && (s.change ?? 0) > 0 && !s.variable;
+  // A fixed price that changed within the year: since when, by how much.
+  const price = s.variable ? null : s.priceChange;
+  // Income is not cancelled; a reminder only for what is paid.
+  const reminder = credit ? undefined : vault?.contractReminders?.[s.id];
+  const reminderNear = reminder ? reminderDaysLeft(reminder, dayKey(new Date())) !== null : false;
   const show = () => showInList(s.transactions[0] ?? null, { query: s.iban ? fmtIban(s.iban) : s.name, dir: credit ? 'in' : 'out' });
   const dismiss = () => {
     focusAfterRemoval(rowRef.current);
@@ -158,11 +166,25 @@ export function ContractRow({
               <span className="mt-0.5 block text-[13px] text-ink-2 md:hidden">
                 <DueText s={s} compact />
               </span>
-              {rose && (
-                <span className="mt-1.5 flex">
-                  <Tag tone="emphasis" size="sm">
-                    {rich(words.rose(<Money value={s.change ?? 0} currency={s.currency} signed tone="plain" />))}
-                  </Tag>
+              {(price || rose || reminder) && (
+                <span className="mt-1.5 flex flex-wrap gap-1.5">
+                  {price ? (
+                    <Tag tone={price.delta > 0 && !credit ? 'emphasis' : 'neutral'} size="sm">
+                      {rich(words.roseSince(
+                        <Money value={price.delta} currency={s.currency} signed tone="plain" />,
+                        fmtMonth(price.since.slice(0, 7)),
+                      ))}
+                    </Tag>
+                  ) : rose && (
+                    <Tag tone="emphasis" size="sm">
+                      {rich(words.rose(<Money value={s.change ?? 0} currency={s.currency} signed tone="plain" />))}
+                    </Tag>
+                  )}
+                  {reminder && (
+                    <Tag tone={reminderNear ? 'pending' : 'neutral'} size="sm" icon={<BellIcon size={12} />}>
+                      {words.cancelBy(fmtDayKey(reminder.by))}
+                    </Tag>
+                  )}
                 </span>
               )}
             </span>
@@ -199,6 +221,11 @@ export function ContractRow({
             )}
           >
             <MenuItem icon={<ReceiptIcon size={18} />} onSelect={show}>{t.insights.bookings.show}</MenuItem>
+            {!credit && (
+              <MenuItem icon={<BellIcon size={18} />} onSelect={() => setReminding(true)}>
+                {reminder ? words.reminder.change : words.reminder.set}
+              </MenuItem>
+            )}
             <MenuItem
               icon={<EyeOffIcon size={18} />}
               description={words.dismissHint}
@@ -219,7 +246,14 @@ export function ContractRow({
               {s.directDebit && ` · ${words.byDirectDebit}`}
               {s.variable && ` · ${words.varies}`}
               {account && <span className="md:hidden"> · {account}</span>}
-              {rose && s.previousAmount != null && (
+              {price ? (
+                <>
+                  {' · '}{rich(words.before(<Money value={price.previous} currency={s.currency} tone="plain" />))}
+                  {price.delta > 0 && (
+                    <> · {rich(words.perYearMore(<Money value={price.perYear} currency={s.currency} tone="plain" />))}</>
+                  )}
+                </>
+              ) : rose && s.previousAmount != null && (
                 <> · {rich(words.before(<Money value={Math.abs(s.previousAmount)} currency={s.currency} tone="plain" />))}</>
               )}
             </p>
@@ -262,11 +296,18 @@ export function ContractRow({
             </ol>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button size="sm" variant="secondary" onClick={show}>{t.insights.bookings.show}</Button>
+              {/* Phones have no menu: the reminder is offered here. */}
+              {!credit && (
+                <Button size="sm" variant="secondary" className="md:hidden" onClick={() => setReminding(true)}>
+                  {reminder ? words.reminder.change : words.reminder.set}
+                </Button>
+              )}
               <Button size="sm" variant="tertiary" onClick={dismiss}>{words.dismiss}</Button>
             </div>
           </>
         )}
       </div>
+      {reminding && <ReminderDialog seriesId={s.id} name={n} onClose={() => setReminding(false)} />}
     </li>
   );
 }

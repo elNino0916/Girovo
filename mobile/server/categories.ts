@@ -123,6 +123,11 @@ export async function guessCategories(
 const names = new Map<string, string | null>();
 
 /** Whether names can be asked now — the same Nano as the categories. */
+/** The desktop's question reading (lib/category-model.ts): the phone asks Gemini Nano instead (components/insights/Ask.tsx). */
+export async function questionCategory(_topic: string): Promise<GuessableCategory | null> {
+  return null;
+}
+
 export function namesAvailable(): boolean {
   return modelAvailable();
 }

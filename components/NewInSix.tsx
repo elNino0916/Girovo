@@ -16,7 +16,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
 import { useFints } from './FintsProvider';
-import { CalendarIcon, CardIcon, CodeIcon, DownloadIcon, HistoryIcon, HomeIcon, MonitorIcon, StarIcon, WalletIcon } from './icons';
+import { BellIcon, CalendarIcon, CardIcon, CodeIcon, DownloadIcon, HistoryIcon, HomeIcon, MonitorIcon, SearchIcon, StarIcon, WalletIcon } from './icons';
 import { BackgroundSwitch } from './settings/BackgroundChecks';
 import { LinkedUnlockSwitch } from './settings/LinkedUnlock';
 import { SettingItem } from './settings/rows';
@@ -58,6 +58,9 @@ export function NewInSix() {
     // The desktop app's shell (src-tauri); the browser and the phone have none of it.
     ...(IS_DESKTOP_APP ? [{ icon: <CodeIcon />, ...words.rust }] : []),
     { icon: <CalendarIcon />, ...words.orders },
+    { icon: <BellIcon />, ...words.contracts },
+    // The phone asked Gemini Nano before 6; the desktop asks its own model since.
+    ...(IS_ANDROID ? [] : [{ icon: <SearchIcon />, ...words.ask }]),
     { icon: <HistoryIcon />, ...words.kept },
     { icon: <CardIcon />, ...words.cards },
     // Only the installed Windows app installs in its start window (src-tauri/src/updater/start.rs).

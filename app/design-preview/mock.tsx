@@ -53,6 +53,7 @@
 // Nothing here persists: privacy, idle limit and theme stay in memory, so the
 // harness can never change the preferences of the real app on the same origin.
 
+import { withNoticed, type ContractNotice, type ContractReminder } from '@/lib/contract-watch';
 import { sanitizeGoals, type SavingsGoal } from '@/lib/savings-goal';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
@@ -2782,6 +2783,22 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       : v));
   }, [updateVault]);
 
+  // As the provider's (components/FintsProvider.tsx).
+  const setContractReminder = useCallback((id: string, reminder: ContractReminder | null) => {
+    updateVault((v) => {
+      const next = { ...v.contractReminders };
+      if (reminder) next[id] = reminder;
+      else delete next[id];
+      const { contractReminders: _, ...rest } = v;
+      return Object.keys(next).length ? { ...rest, contractReminders: next } : rest;
+    });
+  }, [updateVault]);
+
+  const markContractsNoticed = useCallback((notices: readonly ContractNotice[]) => {
+    if (!notices.length) return;
+    updateVault((v) => ({ ...v, noticedContracts: withNoticed(v.noticedContracts, notices) }));
+  }, [updateVault]);
+
   const setCategory = useCallback((tx: SerializedTransaction, id: CategoryId | null, o: { rule?: boolean } = {}) => {
     const k = txKey(tx);
     // As the provider: a choice of one category ends a split of this booking.
@@ -2984,7 +3001,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
     accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
-    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
+    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, markContractsNoticed,
     printTaxYear, loadRange,
     makeBackup, restoreBackup, inspectBankFile, importBankFile,
     categoryOf, setCategory, setSplit,
@@ -3036,6 +3053,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       return { ...next, accounts: Object.fromEntries(keys.map((k) => [k, next.accounts[k] ?? { checked: true, cents: null }])) };
     },
     sendAlertWatch: async () => backgroundChecks === true,
+    askCategory: async () => null,
     newInSix,
     openNewInSix: () => setNewInSix('open'),
     closeNewInSix: () => setNewInSix(null),

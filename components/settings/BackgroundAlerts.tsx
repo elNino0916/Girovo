@@ -316,16 +316,24 @@ const WATCH_SETTLE_MS = 4000;
  * the detection it reads is not free. Sent again only when the list changed.
  */
 export function AlertWatch() {
-  const { sendAlertWatch } = useFints();
+  const { sendAlertWatch, vault, vaultStatus } = useFints();
   const model = useRecurringModel();
   const sent = useRef('');
   const ready = !model.loading && !!model.basis;
+  const kept = vault?.contractReminders;
+  // The vault's cancellation reminders, whole: an empty list clears what the check kept of them.
+  const reminders = useMemo(
+    () => (vaultStatus === 'ready' ? Object.entries(kept ?? {}).map(([id, r]) => ({ id, by: r.by, lead: r.lead, name: r.name })) : null),
+    [vaultStatus, kept],
+  );
   const payload = useMemo(() => {
-    if (!ready) return null;
-    const w = watchOf([...model.income, ...model.expense], [...model.ended, ...model.dismissed], dayKey(new Date()));
+    const w = ready
+      ? watchOf([...model.income, ...model.expense], [...model.ended, ...model.dismissed], dayKey(new Date()))
+      : { contracts: [], income: [], drop: [] };
     // Nothing to say yet: an empty list would drop nothing anyway.
-    return w.contracts.length || w.income.length || w.drop.length ? w : null;
-  }, [ready, model.income, model.expense, model.ended, model.dismissed]);
+    if (!reminders && !(w.contracts.length || w.income.length || w.drop.length)) return null;
+    return { ...w, ...(reminders ? { reminders } : {}) };
+  }, [ready, model.income, model.expense, model.ended, model.dismissed, reminders]);
 
   useEffect(() => {
     if (!payload) return;

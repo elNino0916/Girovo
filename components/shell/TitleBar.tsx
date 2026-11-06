@@ -15,6 +15,7 @@ import type { CSSProperties } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
+import { useContractNotices } from '../insights/contract-notices';
 import { unseenUpdate, useUpdates } from '../updates/store';
 import { BellIcon, Icon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
@@ -31,15 +32,18 @@ export function TitleBar({ sidebarOpen, onMenu }: { sidebarOpen: boolean; onMenu
   const { unreadCount, inboxOpen, setInboxOpen, singleKeyShortcuts } = useFints();
   const t = useT();
   const updateUnseen = unseenUpdate(useUpdates());
+  // A contract's price rise or notice period not yet seen in Mitteilungen: the dot, no number (as in Masthead).
+  const contractUnseen = useContractNotices().unseen.length > 0;
   const inboxName = [
     t.common.nav.messages,
     unreadCount > 0 ? t.shell.unread(unreadCount) : '',
     updateUnseen ? t.shell.masthead.newAppVersion : '',
+    contractUnseen ? t.shell.masthead.newContractNews : '',
   ].filter(Boolean).join(', ');
   // The bell keeps what it showed when it was pressed until its drawer closes (as in Masthead).
-  const [shown, setShown] = useState({ unread: unreadCount, update: updateUnseen });
-  if (!inboxOpen && (shown.unread !== unreadCount || shown.update !== updateUnseen)) {
-    setShown({ unread: unreadCount, update: updateUnseen });
+  const [shown, setShown] = useState({ unread: unreadCount, update: updateUnseen, contract: contractUnseen });
+  if (!inboxOpen && (shown.unread !== unreadCount || shown.update !== updateUnseen || shown.contract !== contractUnseen)) {
+    setShown({ unread: unreadCount, update: updateUnseen, contract: contractUnseen });
   }
 
   return (
@@ -91,7 +95,7 @@ export function TitleBar({ sidebarOpen, onMenu }: { sidebarOpen: boolean; onMenu
         <IconButton tone="bar" size="md" aria-label={inboxName} aria-haspopup="dialog" data-inbox-trigger onClick={() => setInboxOpen(true)}>
           <span className="relative inline-flex">
             <BellIcon />
-            {(shown.unread > 0 || shown.update) && <Dot className="absolute top-0.5 -right-0.5 ring-2 ring-bar" />}
+            {(shown.unread > 0 || shown.update || shown.contract) && <Dot className="absolute top-0.5 -right-0.5 ring-2 ring-bar" />}
           </span>
         </IconButton>
         <PrivacyToggle bar shortcut={singleKeyShortcuts} />

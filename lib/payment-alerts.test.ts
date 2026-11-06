@@ -134,3 +134,29 @@ test('belowLimit: under the limit in cents; nothing to tell without a limit or a
   assert.equal(belowLimit(undefined, 5), null);
   assert.equal(belowLimit({ cents: 100, label: '' }, null), null);
 });
+
+test('reminders: a vault replaces only its own list, an empty one clears it, past ones go', () => {
+  const now = Date.parse('2026-11-03T12:00:00Z');
+  const prior = readWatch({
+    contracts: [], income: [],
+    reminders: [
+      { owner: 'a|1', id: 'gym', by: '2026-11-10', lead: 7, name: 'FitX', told: '2026-11-10' },
+      { owner: 'a|1', id: 'gone', by: '2026-12-10', lead: 30, name: 'Weg' },
+      { owner: 'b|2', id: 'tv', by: '2026-11-20', lead: 14, name: 'TV' },
+      { owner: 'b|2', id: 'old', by: '2026-10-20', lead: 14, name: 'Alt' },
+      { owner: 'b|2', id: 'bad', by: '2026-11-31', lead: 14, name: 'x' },
+    ],
+  });
+  assert.equal(prior.reminders?.length, 4, 'a day that does not exist is not kept');
+  const next = mergeWatch(prior, {
+    contracts: [], income: [], owner: 'a|1',
+    reminders: [{ owner: 'ignored', id: 'gym', by: '2026-11-10', lead: 14, name: 'FitX', told: '2099-01-01' }],
+  }, now);
+  assert.deepEqual(next.reminders, [
+    { owner: 'a|1', id: 'gym', by: '2026-11-10', lead: 14, name: 'FitX', told: '2026-11-10' },
+    { owner: 'b|2', id: 'tv', by: '2026-11-20', lead: 14, name: 'TV' },
+  ]);
+  const cleared = mergeWatch(next, { contracts: [], income: [], owner: 'b|2', reminders: [] }, now);
+  assert.deepEqual(cleared.reminders?.map((r) => r.id), ['gym']);
+  assert.deepEqual(mergeWatch(cleared, { contracts: [], income: [] }, now).reminders?.map((r) => r.id), ['gym'], 'no owner: nothing handed over');
+});

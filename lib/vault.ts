@@ -39,6 +39,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
 import { isRecord } from './guards.ts';
+import { sanitizeNoticed, sanitizeReminders } from './contract-watch.ts';
 import { sanitizeKeptBalances, sanitizeNetWorth } from './kept-balances.ts';
 import type { TransferTemplate, VaultData, VaultGetResponse, VaultPutResponse } from './app-types.ts';
 import type { CategoryId } from './categories.ts';
@@ -257,6 +258,9 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     // Two to ten shares each, whole cents, known categories (lib/splits.ts).
     splits: sanitizeSplits(input.splits, known),
     dismissedRecurring: dismissed.slice(-VAULT_LIMITS.dismissed),
+    // A real date, a lead on offer, a name each (lib/contract-watch.ts).
+    ...(sanitizeReminders(input.contractReminders) ? { contractReminders: sanitizeReminders(input.contractReminders) } : {}),
+    ...(sanitizeNoticed(input.noticedContracts) ? { noticedContracts: sanitizeNoticed(input.noticedContracts) } : {}),
     // Spending categories only, whole cents (lib/budgets.ts).
     budgets: sanitizeBudgets(input.budgets, customCategories),
     // One line each, at most 280 characters, the newest within the caps (lib/notes.ts).
@@ -566,6 +570,9 @@ export function mergeVaults(current: VaultData, backup: VaultData): VaultData {
     budgets: { ...Object.fromEntries(Object.entries(backup.budgets).map(([k, v]) => [map(k as CategoryId), v])), ...current.budgets },
     notes: { ...backup.notes, ...current.notes },
     dismissedRecurring: [...new Set([...current.dismissedRecurring, ...backup.dismissedRecurring])],
+    ...(current.contractReminders || backup.contractReminders
+      ? { contractReminders: { ...backup.contractReminders, ...current.contractReminders } }
+      : {}),
     ...(current.avatar || !backup.avatar ? {} : { avatar: backup.avatar, ...(backup.avatarImage ? { avatarImage: backup.avatarImage } : {}) }),
     ...(current.linkedBanks || backup.linkedBanks
       ? { linkedBanks: [...(current.linkedBanks ?? []), ...(backup.linkedBanks ?? [])] }

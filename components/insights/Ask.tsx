@@ -1,7 +1,8 @@
 'use client';
 
 // "Frag deine Umsätze": a question about the bookings on view, at the head of
-// the Analyse — on Android, where the phone has Gemini Nano.
+// the Analyse — on Android, where the phone has Gemini Nano, and (6.0) on the
+// desktop, with the built-in category model in Nano's place.
 //
 // Gemini Nano only reads the question into a search (lib/nano-ask.ts): what
 // kind of answer, in or out, a category, a name, a period. Girovo works the
@@ -12,7 +13,9 @@
 // A period before the loaded days is said as such ("mind.", "Geladen erst
 // ab …"), with the way to load more where nothing at all is loaded.
 //
-// Nothing leaves the phone: AICore runs Nano on it.
+// Nothing leaves the device: AICore runs Nano on the phone; on the desktop the
+// category model runs in the app (app/api/ask-category), and the name is
+// looked for among the payees already loaded (lib/nano-ask.ts nameFromPayees).
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
@@ -22,14 +25,15 @@ import { categoryLabel, counterpartyName, type CategoryId } from '@/lib/categori
 import { dayKey, fmtDate, fmtMonth, fmtRange } from '@/lib/format';
 import { rich, useT } from '@/lib/i18n/react';
 import {
-  ASK_MAX_TOKENS, ASK_MIN_NANO, ASK_SYSTEM, askText, asksWith, computeAnswer, parseAskAnswer, periodDays, readQuestion,
-  type AskAnswer, type AskPeriod, type AskQuery,
+  ASK_MAX_TOKENS, ASK_MIN_NANO, ASK_SYSTEM, askText, asksWith, categoryFromQuestion, computeAnswer, nameFromPayees,
+  parseAskAnswer, periodDays, questionTopic, readQuestion,
+  type AskAnswer, type AskPeriod, type AskQuery, type NanoReading,
 } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
 import { askAllowed } from '@/lib/plus';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
-import { ArrowRightIcon, GeminiSparkIcon } from '../icons';
+import { ArrowRightIcon, GeminiSparkIcon, SearchIcon } from '../icons';
 import { Button, Chip, DotList, IconButton, Input, Spinner, Tag, TileHeader } from '../ui';
 import { PlusTeaser } from '../android/PlusTeaser';
 import { searchText, txText } from '../transactions/model';
@@ -63,10 +67,31 @@ function useNanoStatus(): GirovoNanoStatus | null | undefined {
   return status;
 }
 
-/** Whether this phone can take questions (Gemini Nano v4); undefined while unknown. */
+/** Whether questions can be asked: on a phone with Gemini Nano v4 (undefined while unknown), always off Android. */
 export function useAskable(): boolean | undefined {
   const status = useNanoStatus();
+  if (!IS_ANDROID) return true;
   return status ? status.state === 'available' && asksWith(status.askModel ?? status.model) : undefined;
+}
+
+/** The tile's mark: Gemini's where Nano reads the question, a search where the app's own model does. */
+function AskMark() {
+  return IS_ANDROID ? <GeminiSparkIcon size={22} /> : <SearchIcon size={22} className="text-ink-2" />;
+}
+
+/**
+ * The desktop's reading of a question, in Nano's place (lib/nano-ask.ts): a
+ * name from the payees in view, else — where the question's own words name no
+ * category — the built-in model's category for what it is about. Null when
+ * neither found anything; the rules then read the question alone.
+ */
+async function builtInReading(
+  question: string, payees: readonly string[], askCategory: (topic: string) => Promise<CategoryId | null>,
+): Promise<NanoReading | null> {
+  const search = nameFromPayees(question, payees);
+  const topic = questionTopic(question);
+  const category = search || !topic || categoryFromQuestion(question) ? null : await askCategory(topic);
+  return search || category ? { dir: null, category, search } : null;
 }
 
 /**
@@ -86,6 +111,8 @@ type Phase = 'idle' | 'reading' | 'failed' | 'notUnderstood' | 'answered';
 export function AskTile({ data }: { data: ScopeData }) {
   const status = useNanoStatus();
   const { plus } = useFints();
+  // The desktop reads questions with its own model: nothing to wait for, nothing to unlock.
+  if (!IS_ANDROID) return <AskForm data={data} />;
   if (!status) return null;
   // Questions need Gemini Nano v4: an older one, or none, says so — and what may
   // help. Plus can't fix that, so it is said before Plus is asked for.
@@ -104,7 +131,7 @@ function AskLocked() {
         titleId={titleId}
         title={(
           <span className="inline-flex items-center gap-2">
-            <GeminiSparkIcon size={22} />
+            <AskMark />
             {t.ask.title}
           </span>
         )}
@@ -155,7 +182,7 @@ function AskUnsupported({ status }: { status: GirovoNanoStatus }) {
 }
 
 function AskForm({ data }: { data: ScopeData }) {
-  const { categoryOf, noteOf, vault, brandNames } = useFints();
+  const { categoryOf, noteOf, vault, brandNames, askCategory } = useFints();
   const t = useT();
   const words = t.ask;
   const titleId = useId();
@@ -178,6 +205,11 @@ function AskForm({ data }: { data: ScopeData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [categoryOf, noteOf, brandNames],
   );
+  // The names the bookings in view are listed under: where the desktop looks for the name a question asks about.
+  const payees = useMemo(
+    () => (IS_ANDROID ? [] : [...new Set(data.txs.map((tx) => ctx.payeeOf(tx)).filter(Boolean))]),
+    [data.txs, ctx],
+  );
   // Worked out again whenever the bookings in view change: the reading stays, the figure follows.
   const answer = useMemo<AskAnswer | null>(
     () => (query ? computeAnswer(query, data.txs, ctx, { from: data.from, to: data.to }, dayKey(new Date())) : null),
@@ -186,18 +218,20 @@ function AskForm({ data }: { data: ScopeData }) {
 
   const ask = async (text: string) => {
     const q = text.trim();
-    const mobile = window.girovoMobile;
-    if (!q || !mobile?.ask) return;
+    const mobile = IS_ANDROID ? window.girovoMobile : undefined;
+    if (!q || (IS_ANDROID && !mobile?.ask)) return;
     const gen = ++generation.current;
     setPhase('reading');
-    const raw = await mobile.ask(ASK_SYSTEM, askText(q, own), ASK_MAX_TOKENS);
+    // The phone: Nano's line. The desktop: the payees and the built-in model.
+    const raw = mobile?.ask ? await mobile.ask(ASK_SYSTEM, askText(q, own), ASK_MAX_TOKENS) : null;
+    const reading = mobile?.ask ? parseAskAnswer(raw, own) : await builtInReading(q, payees, askCategory);
     // A newer question was asked meanwhile: this answer is for nobody.
     if (gen !== generation.current) return;
-    // Nano's reading, with what the question says plainly over it; the rules alone where Nano gave none.
-    const read = readQuestion(q, parseAskAnswer(raw, own), dayKey(new Date()), own);
+    // The reading, with what the question says plainly over it; the rules alone where there is none.
+    const read = readQuestion(q, reading, dayKey(new Date()), own);
     if (!read) {
       setQuery(null);
-      setPhase(raw == null ? 'failed' : 'notUnderstood');
+      setPhase(mobile?.ask && raw == null ? 'failed' : 'notUnderstood');
       return;
     }
     setQuery(read);
@@ -234,7 +268,7 @@ function AskForm({ data }: { data: ScopeData }) {
         titleId={titleId}
         title={(
           <span className="inline-flex items-center gap-2">
-            <GeminiSparkIcon size={22} />
+            <AskMark />
             {words.title}
           </span>
         )}
@@ -278,11 +312,11 @@ function AskForm({ data }: { data: ScopeData }) {
       <div role="status" aria-live="polite" className="px-4 pt-3 pb-2 empty:p-0 sm:px-5">
         {phase === 'reading' && (
           <p className="flex items-center gap-2 text-[14px] leading-snug text-ink-2">
-            <Spinner size={16} /> {words.reading}
+            <Spinner size={16} /> {IS_ANDROID ? words.reading : words.desktop.reading}
           </p>
         )}
         {phase === 'failed' && <p className="text-[14px] leading-snug text-ink-2">{words.failed}</p>}
-        {phase === 'notUnderstood' && <p className="text-[14px] leading-snug text-ink-2">{words.notUnderstood}</p>}
+        {phase === 'notUnderstood' && <p className="text-[14px] leading-snug text-ink-2">{IS_ANDROID ? words.notUnderstood : words.desktop.notUnderstood}</p>}
         {phase === 'answered' && answer && (
           <Answer answer={answer} scopeAll={data.scope === 'all'} onShow={openOn} own={own} />
         )}
@@ -497,7 +531,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
       )}
       <p className="mt-2 flex items-center gap-1.5 text-[12.5px] leading-snug text-ink-2">
         <GeminiSparkIcon size={14} />
-        {words.basis}
+        {IS_ANDROID ? words.basis : words.desktop.basis}
       </p>
     </div>
   );

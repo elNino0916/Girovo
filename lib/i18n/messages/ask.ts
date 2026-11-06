@@ -1,4 +1,4 @@
-// "Frag deine Umsätze" (Android, Gemini Nano — components/insights/Ask.tsx):
+// "Frag deine Umsätze" (Android, Gemini Nano — components/insights/Ask.tsx; the desktop with its own model, `desktop`):
 // a question about the loaded bookings, turned into a search by Gemini Nano
 // and answered by Girovo on the phone (lib/nano-ask.ts).
 
@@ -75,6 +75,12 @@ export const de = {
   atLeast: 'mind.',
   show: 'Umsätze zeigen',
   basis: 'Von Gemini Nano verstanden, auf diesem Telefon gerechnet.',
+  /** The desktop reads the question with the app's own category model, not Gemini Nano. */
+  desktop: {
+    reading: 'Girovo liest die Frage …',
+    notUnderstood: 'Daraus konnte Girovo keine Suche machen. Frag nach einem Empfänger, einer Kategorie oder einem Zeitraum – etwa „Tanken im August“.',
+    basis: 'Auf diesem Rechner verstanden und gerechnet.',
+  },
 };
 
 export const en: typeof de = {
@@ -140,4 +146,9 @@ export const en: typeof de = {
   atLeast: 'at least',
   show: 'Show transactions',
   basis: 'Understood by Gemini Nano, worked out on this phone.',
+  desktop: {
+    reading: 'Girovo is reading the question …',
+    notUnderstood: "Girovo couldn't make a search out of that. Ask about a recipient, a category or a period – such as “fuel in August”.",
+    basis: 'Understood and worked out on this computer.',
+  },
 };

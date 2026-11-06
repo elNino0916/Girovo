@@ -41,6 +41,7 @@ import {
 } from '@/lib/client-api';
 import { IS_ANDROID } from '@/lib/platform';
 import { forgetHello, helloAvailable, helloOn, helloStoreBroken, sealWithHello } from '@/lib/windows-hello-client';
+import { withNoticed, type ContractNotice, type ContractReminder } from '@/lib/contract-watch';
 import { keepsNothing, unsafePhone } from '@/lib/device-integrity';
 import { msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
@@ -2984,15 +2985,30 @@ function useFintsState() {
   }, [sessionFor]);
 
   /** Verträge & Abos' watch list for the checks (components/settings/BackgroundAlerts.tsx AlertWatch). */
-  const sendAlertWatch = useCallback(async (watch: Watch & { drop: string[] }): Promise<boolean> => {
+  const sendAlertWatch = useCallback(async (
+    watch: Omit<Watch, 'reminders'> & { drop: string[]; reminders?: Array<{ id: string; by: string; lead: number; name: string }> },
+  ): Promise<boolean> => {
     if (backgroundRef.current !== true) return false;
     const secret = await backgroundSecret();
     if (!secret) return false;
     try {
-      const r = await post<{ on: boolean }>('/api/background', { op: 'watch', secret, ...watch });
+      // The session tells the route whose vault the reminders are from.
+      const r = await post<{ on: boolean }>('/api/background', { op: 'watch', secret, sessionId: sessionRef.current, ...watch });
       return r.on === true;
     } catch {
       return false;
+    }
+  }, []);
+
+  /** "Frag deine Umsätze" on the desktop: the built-in model's category for what a question is about (app/api/ask-category). */
+  const askCategory = useCallback(async (topic: string): Promise<CategoryId | null> => {
+    const sid = sessionRef.current;
+    if (!sid || !topic.trim()) return null;
+    try {
+      const r = await post<{ category?: CategoryId | null }>('/api/ask-category', { sessionId: sid, topic });
+      return r.category ?? null;
+    } catch {
+      return null;
     }
   }, []);
 
@@ -5133,6 +5149,26 @@ function useFintsState() {
       : v));
   }, [updateVault]);
 
+  /** A contract's cancellation reminder (lib/contract-watch.ts), or `null` to take it away. */
+  const setContractReminder = useCallback((id: string, reminder: ContractReminder | null) => {
+    updateVault((v) => {
+      const next = { ...v.contractReminders };
+      if (reminder) next[id] = reminder;
+      else delete next[id];
+      const { contractReminders: _, ...rest } = v;
+      return Object.keys(next).length ? { ...rest, contractReminders: next } : rest;
+    });
+  }, [updateVault]);
+
+  /** The contract notices Mitteilungen showed: no dot for them again. */
+  const markContractsNoticed = useCallback((notices: readonly ContractNotice[]) => {
+    if (!notices.length) return;
+    updateVault((v) => {
+      const seen = new Set(v.noticedContracts ?? []);
+      return notices.every((n) => seen.has(n.key)) ? v : { ...v, noticedContracts: withNoticed(v.noticedContracts, notices) };
+    });
+  }, [updateVault]);
+
   /**
    * Files a booking under `id` — just this one, or (`rule`) every booking with
    * the same counterparty. A rule also lifts the single-booking overrides that
@@ -5561,7 +5597,7 @@ function useFintsState() {
     updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
     accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
-    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring,
+    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, markContractsNoticed,
     categoryOf, setCategory, setSplit,
     removeCategoryRule,
     addCustomCategory, renameCustomCategory, deleteCustomCategory,
@@ -5580,7 +5616,7 @@ function useFintsState() {
     windowsHello, setWindowsHello,
     // "Neue Umsätze melden" (lib/background-check.ts)
     backgroundChecks, backgroundAsk, setBackgroundChecks, openBackgroundAsk, closeBackgroundAsk,
-    backgroundAlerts, sendAlertWatch,
+    backgroundAlerts, sendAlertWatch, askCategory,
     // "Neu in Girovo 6" (components/NewInSix.tsx)
     newInSix, openNewInSix, closeNewInSix,
     // sync between devices (lib/sync.ts)
