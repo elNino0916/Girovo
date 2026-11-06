@@ -86,6 +86,19 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
   ]
 });
 
+/// Kept as they are, ahead of the rules: a hex code (an HRESULT such as
+/// `0x800700AA`) is never an account number or an amount; and Windows' own
+/// words for one, in the form the windows crate prints an error
+/// (`HRESULT(0x…), message: "…"`) — FormatMessage without inserts, so system
+/// text, never the user's. Masked, the very thing a report is for was gone:
+/// `HRESULT(0x[Zahl]AA), message: "…"`. Windows only, so this shell's alone;
+/// the phone's scrubber (mobile/telemetry) meets neither.
+static KEPT: LazyLock<Regex> =
+  LazyLock::new(|| re(r#"HRESULT\(0x[0-9A-Fa-f]{1,16}\), message: "[^"\n]{0,200}"|(?-u:\b)0x[0-9A-Fa-f]{1,16}(?-u:\b)"#));
+/// Where a kept part waits while the rules run: private-use marks around its index.
+const KEPT_OPEN: char = '\u{E000}';
+const KEPT_CLOSE: char = '\u{E001}';
+
 static SPACES: LazyLock<Regex> = LazyLock::new(|| re(r"[{S}]+"));
 static FRAME_LINE: LazyLock<Regex> = LazyLock::new(|| re(r"^[{S}]*at[{S}]"));
 static ERROR_NAME: LazyLock<Regex> = LazyLock::new(|| re(r"^[A-Za-z_$][A-Za-z0-9_$]{0,40}$"));
@@ -180,8 +193,18 @@ fn strip_queries(s: &str) -> String {
 /// `value` as one line of text with everything personal masked, at most `max` characters.
 pub fn text(value: &str, max: usize) -> String {
   let mut s = strip_queries(utf16_prefix(value, 4000));
+  let mut kept: Vec<String> = Vec::new();
+  s = KEPT
+    .replace_all(&s, |c: &Captures| {
+      kept.push(c[0].to_string());
+      format!("{KEPT_OPEN}{}{KEPT_CLOSE}", kept.len() - 1)
+    })
+    .into_owned();
   for rule in RULES.iter() {
     s = apply(rule, &s);
+  }
+  for (i, part) in kept.iter().enumerate() {
+    s = s.replace(&format!("{KEPT_OPEN}{i}{KEPT_CLOSE}"), part);
   }
   let s = js_trim(&SPACES.replace_all(&s, " ")).to_string();
   if utf16_len(&s) > max { format!("{}…", utf16_prefix(&s, max - 1)) } else { s }
@@ -348,6 +371,18 @@ mod tests {
     assert_eq!(t("ENOENT C:\\Users\\ninob\\AppData\\Roaming\\x"), "ENOENT C:\\Users\\~\\AppData\\Roaming\\x");
     assert_eq!(t("open /home/erika/file"), "open /home/~/file");
     assert_eq!(t("GET https://bank.example/fints?user=erika&pin=1 → 500"), "GET https://bank.example/fints → 500");
+  }
+
+  #[test]
+  fn windows_error_codes_and_their_system_text_stay() {
+    let panic = r#"Failed to setup app: runtime error: failed to create webview: WebView2 error: WindowsError(Error { code: HRESULT(0x800700AA), message: "Die angeforderte Ressource wird bereits verwendet." })"#;
+    assert_eq!(t(panic), panic);
+    assert_eq!(t("CreateCoreWebView2Environment failed 0x8007139F"), "CreateCoreWebView2Environment failed 0x8007139F");
+    // Everything else around them is masked as before.
+    assert_eq!(t("0x80004005 at DE89 3704 0044 0532 0130 00 for 12345678"), "0x80004005 at [IBAN] for [Zahl]");
+    // A quoted text that is no Windows message stays masked, a number in it too.
+    assert_eq!(t(r#"Bank said "Max Mustermann 1234567""#), r#"Bank said "…""#);
+    assert_eq!(t(r#"message: "Max Mustermann""#), r#"message: "…""#);
   }
 
   /// What the Electron shell's telemetry-scrub.cjs itself makes of these (run under Node, 2026-11-06).
