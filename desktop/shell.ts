@@ -9,6 +9,8 @@ type Shell = {
   platform: string;
   version: string;
   invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
+  /** Bytes as the request's body, with headers beside them (src-tauri/src/bridge.js). */
+  invokeRaw: <T>(cmd: string, bytes: Uint8Array, headers?: Record<string, string>) => Promise<T>;
   /** A shell event's payload as it comes; returns its own unsubscribe. */
   listen: (event: string, callback: (payload: unknown) => void) => () => void;
 };
@@ -28,6 +30,12 @@ export function shellError(err: unknown): Error & { code?: string } {
 
 export function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   return shell().invoke<T>(cmd, args).catch((err: unknown) => {
+    throw shellError(err);
+  });
+}
+
+export function invokeRaw<T>(cmd: string, bytes: Uint8Array, headers?: Record<string, string>): Promise<T> {
+  return shell().invokeRaw<T>(cmd, bytes, headers).catch((err: unknown) => {
     throw shellError(err);
   });
 }

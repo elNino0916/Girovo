@@ -215,5 +215,7 @@
   }, true);
 
   // The shell's own facts, for desktop/runtime.ts.
-  define('__girovoShell', { platform: String(boot.platform || ''), version: String(boot.version || ''), invoke: invoke, listen: listen });
+  // invokeRaw: bytes as the request's body, with headers (src/files.rs fs_write).
+  var invokeRaw = function (cmd, bytes, headers) { return tauri.invoke(cmd, bytes, { headers: headers || {} }); };
+  define('__girovoShell', { platform: String(boot.platform || ''), version: String(boot.version || ''), invoke: invoke, invokeRaw: invokeRaw, listen: listen });
 })();

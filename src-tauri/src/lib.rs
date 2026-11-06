@@ -44,7 +44,9 @@ use std::time::Duration;
 use tauri::webview::PageLoadEvent;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
-#[tauri::command]
+/// Off the main thread, like the file commands (files.rs): a write the disk or a
+/// virus scanner holds up must never stall the window.
+#[tauri::command(async)]
 fn prefs_set(state: tauri::State<'_, prefs::Prefs>, key: String, value: Option<String>) -> bool {
   // The consent and the install id are the telemetry hub's (telemetry::hub_key).
   if telemetry::hub_key(&key) {

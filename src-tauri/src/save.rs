@@ -143,7 +143,7 @@ pub async fn save_dialog(app: &tauri::AppHandle, window: tauri::WebviewWindow, d
 }
 
 /// What a header carries URI-encoded (encodeURIComponent), decoded.
-fn uri_decode(text: &str) -> String {
+pub(crate) fn uri_decode(text: &str) -> String {
   let bytes = text.as_bytes();
   let mut out = Vec::with_capacity(bytes.len());
   let mut i = 0;

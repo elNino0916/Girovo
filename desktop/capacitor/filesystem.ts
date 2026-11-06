@@ -4,7 +4,13 @@
 // the Electron shell used — so "fints-state/…" is where the device profiles,
 // vaults and kept Umsätze already are.
 
-import { invoke } from '../shell';
+import { invoke, invokeRaw } from '../shell';
+
+// The content goes both ways as bytes, never as a JSON string: a vault of a
+// few MB would otherwise be escaped and parsed on the shell's main thread
+// (src-tauri/src/files.rs).
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 
 export enum Directory {
   Data = 'DATA',
@@ -21,10 +27,10 @@ export const Filesystem = {
     return { files: await invoke('fs_list', { path }) };
   },
   async readFile({ path }: PathArgs & { encoding?: Encoding }): Promise<{ data: string }> {
-    return { data: await invoke<string>('fs_read', { path }) };
+    return { data: decoder.decode(await invoke<ArrayBuffer>('fs_read', { path })) };
   },
   async writeFile({ path, data }: PathArgs & { data: string; encoding?: Encoding; recursive?: boolean }): Promise<{ uri: string }> {
-    await invoke('fs_write', { path, data });
+    await invokeRaw('fs_write', encoder.encode(data), { 'girovo-path': encodeURIComponent(path) });
     return { uri: path };
   },
   async deleteFile({ path }: PathArgs): Promise<void> {

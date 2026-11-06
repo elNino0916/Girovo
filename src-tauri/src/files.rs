@@ -8,6 +8,11 @@
 // folder, which the phone writes into over the network (sync_lan.rs), and a
 // folder of the user's choosing. Those are read from disk each time — never
 // from the page's tree, which would not see what arrived meanwhile.
+//
+// Every command here runs off the main thread (`async`): a vault of a few MB
+// takes a moment to write, longer while a virus scanner looks at it, and on
+// the main thread that moment froze the whole window — its caption buttons,
+// dragging, every other call to the shell (measured: 750 ms for 14 MB).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -38,7 +43,7 @@ pub struct Listed {
   kind: &'static str,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fs_list(path: String) -> Result<Vec<Listed>, String> {
   let dir = resolve(&path)?;
   let mut out = Vec::new();
@@ -52,26 +57,43 @@ pub fn fs_list(path: String) -> Result<Vec<Listed>, String> {
   Ok(out)
 }
 
-#[tauri::command]
-pub fn fs_read(path: String) -> Result<String, String> {
-  fs::read_to_string(resolve(&path)?).map_err(io)
+/// The file's bytes as they are (the page decodes them): a JSON string of a
+/// few MB would be escaped, sent and parsed on the main thread.
+#[tauri::command(async)]
+pub fn fs_read(path: String) -> Result<tauri::ipc::Response, String> {
+  let bytes = fs::read(resolve(&path)?).map_err(io)?;
+  if std::str::from_utf8(&bytes).is_err() {
+    return Err(format!("EIO: not UTF-8: {path}"));
+  }
+  Ok(tauri::ipc::Response::new(bytes))
 }
 
+/// The path URI-encoded in this header, beside the content as the request's
+/// raw body — never a JSON argument, for the same reason as fs_read.
+const PATH_HEADER: &str = "girovo-path";
+
 #[tauri::command]
-pub fn fs_write(path: String, data: String) -> Result<(), String> {
+pub async fn fs_write(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+  let path = request.headers().get(PATH_HEADER).and_then(|v| v.to_str().ok()).map(crate::save::uri_decode).unwrap_or_default();
+  let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+    return Err("EINVAL: fs_write takes the content as bytes".into());
+  };
+  if std::str::from_utf8(bytes).is_err() {
+    return Err("EINVAL: not UTF-8".into());
+  }
   let file = resolve(&path)?;
   if let Some(parent) = file.parent() {
     fs::create_dir_all(parent).map_err(io)?;
   }
-  fs::write(file, data).map_err(io)
+  fs::write(file, bytes).map_err(io)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fs_delete(path: String) -> Result<(), String> {
   fs::remove_file(resolve(&path)?).map_err(io)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fs_rename(from: String, to: String) -> Result<(), String> {
   let (from, to) = (resolve(&from)?, resolve(&to)?);
   if let Some(parent) = to.parent() {
