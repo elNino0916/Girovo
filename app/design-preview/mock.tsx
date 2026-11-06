@@ -204,6 +204,8 @@ export type MockOptions = {
    * the dialog that turns it on open.
    */
   backgroundChecks?: boolean | 'ask';
+  /** "Neu in Girovo 6" (components/NewInSix.tsx) open over the page. */
+  newInSix?: boolean;
   /**
    * Sync between devices (lib/sync.ts): off, or on with the phone beside this
    * device; 'open' on, with its dialog open. Left out: off, the row there.
@@ -816,6 +818,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [backgroundAsk, setBackgroundAsk] = useState(opts.backgroundChecks === 'ask');
   // What the checks' notices are about, and the limits: in memory.
   const [alerts, setAlerts] = useState<AlertsView>({ prefs: { every: true, dearer: true, income: true }, amounts: true, accounts: {} });
+  const [newInSix, setNewInSix] = useState<'due' | 'open' | null>(opts.newInSix ? 'open' : null);
   // Sync between devices: a state to show, nothing synced.
   const [sync, setSync] = useState<SyncInfo>(() => (opts.sync
     ? {
@@ -3033,6 +3036,9 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       return { ...next, accounts: Object.fromEntries(keys.map((k) => [k, next.accounts[k] ?? { checked: true, cents: null }])) };
     },
     sendAlertWatch: async () => backgroundChecks === true,
+    newInSix,
+    openNewInSix: () => setNewInSix('open'),
+    closeNewInSix: () => setNewInSix(null),
     sync, syncOpen,
     openSync: () => setSyncOpen(true),
     closeSync: () => setSyncOpen(false),

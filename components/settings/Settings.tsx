@@ -42,7 +42,7 @@ import { UpdateSessionRow } from '../updates/UpdateNotices';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
   BuildingIcon, ChartIcon, ClockIcon, CodeIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon, LockIcon, MailIcon, MonitorIcon,
-  MoonIcon, RefreshIcon, ShieldIcon, SunIcon, WalletIcon,
+  MoonIcon, RefreshIcon, ShieldIcon, StarIcon, SunIcon, WalletIcon,
 } from '../icons';
 import { Button, Dot, Kbd, Segmented } from '../ui';
 import { KeepRow, KeepOffDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
@@ -74,7 +74,7 @@ export function Settings() {
     idleMinutes, setIdleMinutes, deviceRemembered, setForgetDeviceOpen, vaultStatus,
     meta, logoConsent, setLogoConsent, singleKeyShortcuts, setShortcutsOpen,
     settingsTarget, clearSettingsTarget, keepBookings,
-    balancesAtLogin, setBalancesAtLogin, vault, setKeepBalances, toast, sync,
+    balancesAtLogin, setBalancesAtLogin, vault, setKeepBalances, toast, sync, openNewInSix,
   } = useFints();
   const pref = useThemePref();
   const usage = useUsageConsent();
@@ -312,6 +312,8 @@ export function Settings() {
         <UpdateSessionRow setting="updates" onOpen={() => updates.openDialog()} />
         {/* Stable or the 6.0 previews too: with the updater only, like the row above. */}
         <UpdateChannelRow />
+        {/* What 6 brought, and its switches together (components/NewInSix.tsx). */}
+        <ActionItem icon={<StarIcon />} title={t.shell.newInSix.row} summary={t.shell.newInSix.rowHint} onClick={openNewInSix} />
         <SettingItem
           icon={<InfoIcon />}
           title={!update && APP_VERSION ? t.shell.version(APP_VERSION) : t.settings.licence}

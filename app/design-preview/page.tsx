@@ -668,6 +668,11 @@ const VIEWS: Record<string, ViewDef> = {
       await c.poll(() => document.querySelector('[role="dialog"] input[inputmode="decimal"]'), 6000);
     },
   },
+  'new-in-six': {
+    label: 'Neu in Girovo 6',
+    group: 'Dialoge',
+    options: { newInSix: true, windowsHello: false, backgroundChecks: false, linkedUnlock: false, secondBank: 'linked' },
+  },
   'linked-unlock-ask': {
     label: 'Weitere Banken mit anmelden?',
     group: 'Dialoge',

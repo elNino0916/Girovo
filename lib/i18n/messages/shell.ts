@@ -312,6 +312,26 @@ export const de = {
     several: 'In Mitteilungen ansehen',
   },
 
+  /** "Neu in Girovo 6" (components/NewInSix.tsx): once after the update, and from Einstellungen → Über Girovo. */
+  newInSix: {
+    title: 'Neu in Girovo 6',
+    intro: 'Ein paar Neuerungen schaltest du selbst ein, weil sie eine PIN aufbewahren oder über dieses Gerät hinausreichen. Das geht gleich hier oder später in den Einstellungen.',
+    introPlain: 'Was sich mit Version 6 geändert hat.',
+    toTurnOn: 'Zum Einschalten',
+    alsoNew: 'Außerdem neu',
+    done: 'Fertig',
+    /** Einstellungen → Über Girovo. */
+    row: 'Neu in Girovo 6',
+    rowHint: 'Was Version 6 mitbringt und was du dafür einschalten kannst',
+    overview: { title: 'Alle Konten auf einen Blick', text: 'Mit mehreren Konten zeigt die Übersicht sie alle zusammen, mit dem Gesamtsaldo darüber.' },
+    frame: { title: 'Ein neues Fenster', text: 'Eine Seitenleiste mit deinen Konten zum Ein- und Ausblenden, die Suche in der Titelleiste.' },
+    widget: { title: 'Widget für den Startbildschirm', text: 'Dein Gesamtsaldo, verdeckt, bis du tippst. Halte den Startbildschirm gedrückt und wähle „Widgets“.' },
+    orders: { title: 'Aufträge', text: 'Daueraufträge und terminierte Überweisungen deiner Bank auf einer eigenen Seite unter Zahlungen.' },
+    kept: { title: 'Letzte Salden', text: 'Die letzten Kontostände bleiben bis zur nächsten Anmeldung zu sehen, mit dem Verlauf des Gesamtsaldos.' },
+    cards: { title: 'Kreditkarten der Sparkassen', text: 'Die Umsätze deiner Sparkassen-Kreditkarte, wo die Bank sie anbietet.' },
+    updates: { title: 'Updates beim Start', text: 'Neue Versionen lädt und installiert Girovo im Startfenster, bevor sich das Fenster öffnet.' },
+  },
+
   /** The update dialog and the places that point to it (components/updates). */
   updates: {
     title: 'Updates',
@@ -626,6 +646,24 @@ export const en: typeof de = {
   lookAtUnclear: {
     one: 'Check transactions',
     several: 'View in Messages',
+  },
+
+  newInSix: {
+    title: 'New in Girovo 6',
+    intro: 'A few new features are yours to turn on, because they keep a PIN or reach beyond this device. You can do it right here or later in Settings.',
+    introPlain: 'What changed with version 6.',
+    toTurnOn: 'To turn on',
+    alsoNew: 'Also new',
+    done: 'Done',
+    row: 'New in Girovo 6',
+    rowHint: 'What version 6 brings, and what you can turn on for it',
+    overview: { title: 'All accounts at a glance', text: 'With several accounts, the overview shows them all together, with the total balance above.' },
+    frame: { title: 'A new window', text: 'A sidebar with your accounts to show and hide, and search in the title bar.' },
+    widget: { title: 'Home screen widget', text: 'Your total balance, covered until you tap. Touch and hold the home screen and pick “Widgets”.' },
+    orders: { title: 'Orders', text: 'Your bank’s standing orders and scheduled transfers on a page of their own under Payments.' },
+    kept: { title: 'Last balances', text: 'The last balances stay visible until your next login, with the total balance’s history.' },
+    cards: { title: 'Sparkasse credit cards', text: 'The transactions of your Sparkasse credit card, where the bank offers them.' },
+    updates: { title: 'Updates at start', text: 'Girovo downloads and installs new versions in the start window, before the window opens.' },
   },
 
   updates: {
