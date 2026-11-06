@@ -79,6 +79,26 @@ pub fn open_url(url: String) {
 #[tauri::command]
 pub fn titlebar_set_theme(_dark: bool, _dim: u32) {}
 
+/// The window's zoom level (electron/zoom.cjs): 1.2^level, in half steps from
+/// −4 (≈ 48 %) to 4 (≈ 207 %), every start at 100 %.
+#[derive(Default)]
+pub struct Zoom(std::sync::Mutex<f64>);
+
+/// Strg++ / Strg+- / Strg+0 (src/bridge.js reads the keys by the character they type).
+#[tauri::command]
+pub fn zoom_step(app: tauri::AppHandle, state: tauri::State<'_, Zoom>, command: String) -> f64 {
+  let mut level = state.0.lock().unwrap();
+  *level = match command.as_str() {
+    "in" => (*level + 0.5).min(4.0),
+    "out" => (*level - 0.5).max(-4.0),
+    _ => 0.0,
+  };
+  if let Some(w) = app.get_webview_window("main") {
+    let _ = w.set_zoom(1.2f64.powf(*level));
+  }
+  *level
+}
+
 /// SessionGuard's last minute: the taskbar button flashes until the window is in front again.
 #[tauri::command]
 pub fn window_attention(app: tauri::AppHandle, on: bool) {

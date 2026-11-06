@@ -117,6 +117,20 @@
     },
   });
 
+  // Zooming from the keyboard, as in a browser (electron/zoom.cjs): by the
+  // character the key types, so a German keyboard's "+" works; never with Alt,
+  // since AltGr is Ctrl+Alt and types characters of its own.
+  window.addEventListener('keydown', function (e) {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    var command = null;
+    if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') command = 'in';
+    else if (e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract') command = 'out';
+    else if (e.key === '0' || e.code === 'Numpad0') command = 'reset';
+    if (!command) return;
+    e.preventDefault();
+    invoke('zoom_step', { command: command }).catch(function () {});
+  }, true);
+
   // The shell's own facts, for desktop/runtime.ts.
   define('__girovoShell', { platform: String(boot.platform || ''), version: String(boot.version || ''), invoke: invoke, listen: listen });
 })();

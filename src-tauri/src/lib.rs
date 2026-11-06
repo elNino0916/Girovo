@@ -54,6 +54,7 @@ pub fn run() {
     .manage(prefs::Prefs::load())
     .manage(http::Requests::default())
     .manage(background::Background::default())
+    .manage(shell::Zoom::default())
     .register_uri_scheme_protocol("girovo-shell", |_ctx, request| shell::serve_shell(request.uri().path()))
     .setup(|app| {
       let handle = app.handle().clone();
@@ -153,6 +154,7 @@ pub fn run() {
       frame::caption_is_maximized,
       frame::caption_rect,
       shell::window_attention,
+      shell::zoom_step,
       shell::open_url,
       splash::splash_fit,
       background::background_set,
