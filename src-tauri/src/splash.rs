@@ -256,6 +256,17 @@ impl Splash {
     self.render();
   }
 
+  /// What the card shows now, for the install window, which takes over looking
+  /// the same (electron/splash.cjs view()): theme, language, title, version
+  /// line and the steps with their states.
+  pub fn install_view(&self) -> (bool, Lang, String, String, Vec<(String, String)>) {
+    let s = self.state.lock().unwrap();
+    let m = model(&s);
+    let text = |v: &Value| v.as_str().unwrap_or("").to_string();
+    let steps = m["steps"].as_array().map(|list| list.iter().map(|st| (text(&st["state"]), text(&st["label"]))).collect()).unwrap_or_default();
+    (s.dark, s.lang, text(&m["title"]), text(&m["version"]), steps)
+  }
+
   /// When the card came into view (None until it has).
   pub fn shown_at(&self) -> Option<Instant> {
     self.state.lock().unwrap().shown_at

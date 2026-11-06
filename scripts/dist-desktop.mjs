@@ -8,7 +8,7 @@
 //
 // Steps: the category model (scripts/fetch-model.mjs), the page and its
 // runtime (scripts/build-desktop.mjs), then `tauri build` for the platform's
-// bundles, renamed.
+// bundles, renamed; on Windows the installer's blockmap beside it.
 //
 // Usage:
 //   node scripts/dist-desktop.mjs                     this machine's platform
@@ -33,7 +33,8 @@ const BUNDLE = path.join(ROOT, 'src-tauri', 'target', 'release', 'bundle');
 
 function run(cmd, args) {
   console.log(`› ${cmd} ${args.join(' ')}`);
-  const r = spawnSync(cmd, args, { cwd: ROOT, stdio: 'inherit', shell: process.platform === 'win32' });
+  // npx is a .cmd on Windows and needs the shell; node (whose path has a space) must not go through it.
+  const r = spawnSync(cmd, args, { cwd: ROOT, stdio: 'inherit', shell: process.platform === 'win32' && cmd === 'npx' });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 
@@ -63,4 +64,11 @@ for (const [from, name] of outputs) {
   fs.copyFileSync(from, path.join(DIST, name));
   const mb = (fs.statSync(path.join(DIST, name)).size / 1048576).toFixed(0);
   console.log(`✓ dist/${name}  ${mb} MB`);
+}
+
+// The installer's blockmap, for the updater's differential downloads
+// (scripts/blockmap.mjs, docs/tauri-updater.md): the installer is built
+// uncompressed (tauri.conf.json), so the next one shares most of its bytes.
+if (PLATFORM === 'win32') {
+  run(process.execPath, [path.join(ROOT, 'scripts', 'blockmap.mjs'), path.join(DIST, `Girovo-${VERSION}-Setup.exe`)]);
 }

@@ -94,9 +94,40 @@ pub fn run() {
         Some(s)
       };
 
+      // Updates (updater/): the install window takes over from the start
+      // window once the app has quit for an installer, looking as it did; the
+      // way back to 5.x takes the start with Windows away first, as Electron's
+      // beforeInstall did (5.x would not know the entry's `--background`).
+      let card = splash.clone();
+      updater::set_install_window(&handle, move |started| {
+        let (dark, lang, header, footer, steps) = match &card {
+          Some(c) => c.install_view(),
+          None => (false, texts::Lang::De, String::new(), String::new(), Vec::new()),
+        };
+        let options = install_window::Options {
+          installer_pid: started.installer_pid,
+          app_exe: started.app_exe.as_ref().map(|p| p.display().to_string()).unwrap_or_default(),
+          version: started.version.clone(),
+          releases_url: started.releases_url.clone(),
+          dark,
+          lang: Some(lang),
+          header,
+          footer,
+          steps,
+        };
+        if let Err(err) = install_window::spawn(&options) {
+          eprintln!("[updater] no install window: {err}");
+        }
+      });
+      updater::get(&handle).on_before_install(|notice| {
+        if notice.back {
+          background::set_login_item(false);
+        }
+      });
+
       // The app's window, hidden until it is ready to be seen.
       let (loaded_tx, loaded) = mpsc::channel::<()>();
-      let script = shell::boot_script(&prefs.snapshot());
+      let script = shell::boot_script(&prefs.snapshot(), &app.package_info().version.to_string());
       let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()));
       if let Some(dir) = shell::webview_dir() {
         builder = builder.data_directory(dir);
@@ -193,10 +224,18 @@ pub fn run() {
 /// Without a start window (a start with Windows) the window stays hidden.
 fn start(app: tauri::AppHandle, splash: Option<Arc<splash::Splash>>, migration: Option<Vec<&'static str>>, loaded: mpsc::Receiver<()>) {
   let Some(splash) = splash else { return };
+  // An update at start (electron/main.cjs updateAtStart): its check runs
+  // beside the rest of the start; what it found is installed before the app's
+  // window opens — the app then quits for the installer.
+  let updater = updater::get(&app);
+  let check = updater.start_check(&*splash);
   if let Some(steps) = migration {
     migrate::run(&app, &splash, &app.state::<prefs::Prefs>(), steps);
   }
   let _ = loaded.recv_timeout(PAGE_LOAD_LIMIT);
+  if updater.update_at_start_blocking(check, &*splash) {
+    return;
+  }
   splash.step("opening");
   splash.wait_held();
   let shown = splash.clone();

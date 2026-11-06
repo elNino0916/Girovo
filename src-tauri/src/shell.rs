@@ -36,11 +36,12 @@ pub fn webview_dir() -> Option<std::path::PathBuf> {
 
 /// What the page needs before its first script runs: the preferences (read
 /// synchronously, the theme before the first frame), the platform, then the bridges.
-pub fn boot_script(prefs: &BTreeMap<String, String>) -> String {
+pub fn boot_script(prefs: &BTreeMap<String, String>, version: &str) -> String {
   let boot = serde_json::json!({
     "prefs": prefs,
     "platform": std::env::consts::OS,
-    "version": env!("CARGO_PKG_VERSION"),
+    // The app's version as package.json has it — a nightly's with its stamp — not Cargo's.
+    "version": version,
   });
   format!("window.__GIROVO_BOOT__ = {boot};\n{BRIDGE}")
 }
