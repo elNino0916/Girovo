@@ -28,7 +28,7 @@
 		"android:preview": "cross-env GIROVO_TARGET=android next dev -p 3100",
 		"owner-key": "node scripts/owner-key.mjs",
 		"postinstall": "patch-package && node scripts/ocr-assets.mjs",
-		"test": "node --test \"lib/**/*.test.ts\" \"mobile/**/*.test.ts\" \"electron/**/*.test.cjs\""
+		"test": "node --test \"lib/**/*.test.ts\" \"mobile/**/*.test.ts\" \"electron/**/*.test.cjs\" \"scripts/**/*.test.mjs\""
 	},
 	"keywords": [
 		"fints",
