@@ -15,10 +15,12 @@ const BRIDGE: &str = include_str!("bridge.js");
 const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection \
   --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows";
 
-/// The flags; a debug build also opens the page to DevTools on port 9350 (local only).
+/// The flags; a debug build also opens the page to DevTools on port 9350 (local
+/// only), or on GIROVO_DEVTOOLS_PORT when several debug builds run at once.
 pub fn browser_args() -> String {
   if cfg!(debug_assertions) {
-    format!("{BROWSER_ARGS} --remote-debugging-port=9350")
+    let port = std::env::var("GIROVO_DEVTOOLS_PORT").ok().and_then(|p| p.parse::<u16>().ok()).unwrap_or(9350);
+    format!("{BROWSER_ARGS} --remote-debugging-port={port}")
   } else {
     BROWSER_ARGS.to_string()
   }
