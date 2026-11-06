@@ -338,6 +338,8 @@ export const de = {
     kept: { title: 'Letzte Salden', text: 'Die letzten Kontostände bleiben bis zur nächsten Anmeldung zu sehen, mit dem Verlauf des Gesamtsaldos.' },
     cards: { title: 'Kreditkarten der Sparkassen', text: 'Die Umsätze deiner Sparkassen-Kreditkarte, wo die Bank sie anbietet.' },
     updates: { title: 'Updates beim Start', text: 'Neue Versionen lädt und installiert Girovo im Startfenster, bevor sich das Fenster öffnet.' },
+    /** The desktop app only: the Tauri shell (src-tauri) in place of Electron. */
+    rust: { title: 'Rust in Girovo', text: 'Girovo für Windows und Linux läuft jetzt auf einer neuen, schlankeren Grundlage in Rust – vom Fenster bis zu den Updates.' },
   },
 
   /** The update dialog and the places that point to it (components/updates). */
@@ -675,6 +677,7 @@ export const en: typeof de = {
     kept: { title: 'Last balances', text: 'The last balances stay visible until your next login, with the total balance’s history.' },
     cards: { title: 'Sparkasse credit cards', text: 'The transactions of your Sparkasse credit card, where the bank offers them.' },
     updates: { title: 'Updates at start', text: 'Girovo downloads and installs new versions in the start window, before the window opens.' },
+    rust: { title: 'Rust in Girovo', text: 'Girovo for Windows and Linux now runs on a new, leaner foundation built in Rust — from the window to the updates.' },
   },
 
   updates: {

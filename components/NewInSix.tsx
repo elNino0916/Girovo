@@ -14,9 +14,9 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
+import { IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
 import { useFints } from './FintsProvider';
-import { CalendarIcon, CardIcon, DownloadIcon, HistoryIcon, HomeIcon, MonitorIcon, StarIcon, WalletIcon } from './icons';
+import { CalendarIcon, CardIcon, CodeIcon, DownloadIcon, HistoryIcon, HomeIcon, MonitorIcon, StarIcon, WalletIcon } from './icons';
 import { BackgroundSwitch } from './settings/BackgroundChecks';
 import { LinkedUnlockSwitch } from './settings/LinkedUnlock';
 import { SettingItem } from './settings/rows';
@@ -55,6 +55,8 @@ export function NewInSix() {
   const more: Array<{ icon: ReactNode; title: string; text: string }> = [
     { icon: <WalletIcon />, ...words.overview },
     IS_ANDROID ? { icon: <HomeIcon />, ...words.widget } : { icon: <MonitorIcon />, ...words.frame },
+    // The desktop app's shell (src-tauri); the browser and the phone have none of it.
+    ...(IS_DESKTOP_APP ? [{ icon: <CodeIcon />, ...words.rust }] : []),
     { icon: <CalendarIcon />, ...words.orders },
     { icon: <HistoryIcon />, ...words.kept },
     { icon: <CardIcon />, ...words.cards },
