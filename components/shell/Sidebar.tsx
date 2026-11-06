@@ -240,7 +240,10 @@ function SettingsSections() {
     read();
     mark();
     const mo = new MutationObserver(read);
-    mo.observe(main, { childList: true, subtree: true });
+    // The titles too, not only sections coming and going: a change of language
+    // rewrites each section's name in place (the page starts in German and
+    // turns English once it has read the choice), and the list kept the first.
+    mo.observe(main, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-settings-section'] });
     scroller?.addEventListener('scroll', mark, { passive: true });
     return () => {
       mo.disconnect();
