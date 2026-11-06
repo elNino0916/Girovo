@@ -58,10 +58,14 @@ const PAGE_LOAD_LIMIT: Duration = Duration::from_secs(30);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
-    .runtime(tauri_runtime_wry::Wry::default())
-    // First: a second start (the Start menu, a click on a notice) brings the running window forward instead.
-    .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| background::show_window(app)))
+  let builder = tauri::Builder::default().runtime(tauri_runtime_wry::Wry::default());
+  // First: a second start (the Start menu, a click on a notice) brings the
+  // running window forward instead. Not for a test run (GIROVO_DATA_DIR): a
+  // copy of its own, which must never hand itself over to the installed app.
+  let test_run = std::env::var_os("GIROVO_DATA_DIR").is_some_and(|d| !d.is_empty());
+  let builder =
+    if test_run { builder } else { builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| background::show_window(app))) };
+  builder
     .plugin(tauri_plugin_notification::init())
     .manage(prefs::Prefs::load())
     .manage(http::Requests::default())
