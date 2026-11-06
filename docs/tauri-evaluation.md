@@ -1,8 +1,14 @@
 # Tauri 2 instead of Electron: first evaluation
 
-Status: desk evaluation, 2026-11-06; the owner then chose route B on Tauri 3
-(alpha) for 6.0.0, and the work started on `6.0` (`src-tauri/`, `desktop/`).
-Every size below marked "est." is an estimate, still to be measured.
+Status: desk evaluation, 2026-11-06. The owner then chose to ship it in
+6.0.0 after all — route B, on Tauri 3 (alpha), Linux too, Girovo's own
+updater ported, both C# helpers ported, Electron's secrets migrated behind a
+migration screen — and it was built on `6.0` the same day (`src-tauri/`,
+`desktop/`; docs/tauri-updater.md for the updater). The sections below are
+the evaluation as it stood before that; sizes marked "est." were estimates.
+Measured since: `Girovo.exe` 15 MB; the Windows installer, uncompressed for
+differential updates, 328 MiB with the model and ONNX Runtime (31 MB) inside —
+5.16.2's was 354 MB — and its blockmap 174 KB.
 
 ## Bottom line
 

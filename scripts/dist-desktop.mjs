@@ -41,11 +41,13 @@ function run(cmd, args) {
 await fetchModel();
 run(process.execPath, [path.join(ROOT, 'scripts', 'build-desktop.mjs')]);
 const bundles = PLATFORM === 'win32' ? 'nsis' : 'appimage,deb';
+// Bundles of earlier builds stay in the folder otherwise; only this one's should be found.
+fs.rmSync(BUNDLE, { recursive: true, force: true });
 run('npx', ['tauri', 'build', '--bundles', bundles]);
 
-/** The one file in `dir` whose name ends with `suffix`. */
+/** The one file in `dir` of this version whose name ends with `suffix`. */
 function single(dir, suffix) {
-  const found = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith(suffix)) : [];
+  const found = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith(suffix) && f.includes(VERSION)) : [];
   if (found.length !== 1) {
     console.error(`✗ expected one *${suffix} in ${path.relative(ROOT, dir)}, found ${found.length}`);
     process.exit(1);
