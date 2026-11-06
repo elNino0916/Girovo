@@ -15,7 +15,11 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "appimage", "deb"],
+    "targets": [
+      "nsis",
+      "appimage",
+      "deb"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -30,8 +34,12 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["English", "German"],
-        "displayLanguageSelector": false
+        "languages": [
+          "English",
+          "German"
+        ],
+        "displayLanguageSelector": false,
+        "installerHooks": "./windows/installer-hooks.nsh"
       }
     },
     "linux": {
@@ -39,5 +47,6 @@
         "section": "office"
       }
     }
-  }
+  },
+  "mainBinaryName": "Girovo"
 }

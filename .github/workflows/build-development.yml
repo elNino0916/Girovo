@@ -47,8 +47,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The Tauri app (6.0): Rust, then scripts/dist-desktop.mjs — the model,
+      # the page, the installer under the Electron build's name.
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
       - name: Build installer
-        run: npm run electron:dist
+        run: node scripts/dist-desktop.mjs --platform win32
 
       - name: Upload development artifacts
         uses: actions/upload-artifact@v4
@@ -93,8 +102,21 @@ jobs:
           # libraries (hundreds of MB); the app ships the CPU runtime only.
           ONNXRUNTIME_NODE_INSTALL: skip
 
+      # The Tauri app's system libraries: WebKitGTK for its window, and what
+      # the AppImage bundler needs.
+      - name: Install Tauri's system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf file
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
       - name: Build AppImage and deb
-        run: npm run electron:dist:linux
+        run: node scripts/dist-desktop.mjs --platform linux
 
       - name: Upload development artifacts
         uses: actions/upload-artifact@v4
