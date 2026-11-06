@@ -47,6 +47,7 @@ import { TanWaitOverlay } from '@/components/TanWaitOverlay';
 import { PENDING_PANEL_ID } from '@/components/transactions/PendingPanel';
 import { Toasts } from '@/components/Toasts';
 import { UpdateLayer } from '@/components/updates/UpdateNotices';
+import { Intro, type IntroKind } from '@/components/shell/Intro';
 import { txKey } from '@/lib/categories';
 import { addDaysKey, isoDate, presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
@@ -89,6 +90,8 @@ type ViewDef = {
   update?: { scenario: UpdateScenario; dialog?: boolean };
   /** A printed document, shown on screen in place of the app (./print.tsx). */
   print?: PrintPreviewKind;
+  /** The intro over the app (components/shell/Intro.tsx); ?t=<ms> holds it still there. */
+  intro?: IntroKind;
   script?: Script;
 };
 
@@ -1082,6 +1085,8 @@ const VIEWS: Record<string, ViewDef> = {
   },
 
   login: { label: 'Bank wählen', group: 'Anmeldung', options: { view: 'login' } },
+  intro: { label: 'Intro beim ersten Start', group: 'Anmeldung', options: { view: 'login' }, intro: 'welcome' },
+  'intro-six': { label: 'Intro beim ersten Start von Girovo 6', group: 'Anmeldung', options: { view: 'login', bankChosen: true }, intro: 'six' },
   credentials: {
     label: 'Zugangsdaten',
     group: 'Anmeldung',
@@ -1598,9 +1603,9 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     scrollY: Number(one(params.y)) || 0,
   };
 
-  // Still frames (settled animations, see mock.tsx): on by default under
-  // Electron, ?still=0|1 decides otherwise.
+  // Still frames (settled animations, see mock.tsx): ?still=1.
   const stillParam = one(params.still);
+  const introAt = Number(one(params.t));
   const still = stillParam ? stillParam === '1' : undefined;
 
   return (
@@ -1616,6 +1621,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
           <TanWaitOverlay />
           <UpdateLayer />
           <Toasts />
+          {def.intro && <Intro preview={{ kind: def.intro, at: Number.isFinite(introAt) && one(params.t) ? introAt : undefined }} />}
         </div>
       )}
       <Statement />

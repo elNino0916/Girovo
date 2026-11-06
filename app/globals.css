@@ -617,6 +617,44 @@
   from { transform: translateY(100%); }
   to { transform: none; }
 }
+/* The intro (components/shell/Intro.tsx): the plate springs in, the G and the
+   euro bars draw themselves, the wordmark rises, and it all lifts away into
+   the login screen beneath. Before .intro-run (the desktop window still
+   hidden) only the stage shows. */
+.intro .intro-plate,
+.intro .intro-word { opacity: 0; }
+.intro .intro-arc,
+.intro .intro-bars { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.intro-run { animation: intro-out 420ms cubic-bezier(0.3, 0, 0.8, 0.15) 1980ms both; }
+.intro-run .intro-lockup { animation: intro-lift 420ms cubic-bezier(0.3, 0, 0.8, 0.15) 1980ms both; }
+.intro-run .intro-plate { animation: intro-plate 640ms var(--m3e-spatial-default) both; }
+.intro-run .intro-arc { animation: intro-draw 720ms cubic-bezier(0.05, 0.7, 0.1, 1) 260ms both; }
+.intro-run .intro-bars { animation: intro-draw 440ms cubic-bezier(0.05, 0.7, 0.1, 1) 820ms both; }
+.intro-run .intro-word { animation: intro-word 560ms var(--m3e-spatial-default) 1040ms both; }
+/* A click or a key: everything at once, and gone. */
+.intro-skip { animation: intro-out 180ms ease-in both; }
+.intro-skip .intro-plate,
+.intro-skip .intro-word { opacity: 1; }
+.intro-skip .intro-arc,
+.intro-skip .intro-bars { stroke-dashoffset: 0; }
+@keyframes intro-plate {
+  from { opacity: 0; transform: scale(0.72); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes intro-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes intro-word {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes intro-lift {
+  to { transform: scale(1.04); }
+}
+@keyframes intro-out {
+  to { opacity: 0; visibility: hidden; }
+}
 @keyframes drawer-in {
   from { opacity: 0; transform: translateX(32px); }
   to { opacity: 1; transform: none; }

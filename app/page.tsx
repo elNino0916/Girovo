@@ -11,6 +11,7 @@ import { UpdateLayer } from '@/components/updates/UpdateNotices';
 import { TelemetryErrors } from '@/components/telemetry/TelemetryErrors';
 import { trackUsage } from '@/components/telemetry/usage';
 import { useDemo } from '@/components/demo/demo-mode';
+import { Intro } from '@/components/shell/Intro';
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 
 // Girovo without a bank (components/demo): loaded only when the demo starts.
@@ -44,6 +45,8 @@ function AppLayers(): ReactNode {
         <Toasts />
         {/* Desktop app only: the page's uncaught errors, reported. */}
         <TelemetryErrors />
+        {/* Once: the first start, and the first start of Girovo 6. */}
+        <Intro />
       </div>
       <Statement />
     </>

@@ -18,6 +18,7 @@ import { rich, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { forgetHello, helloOn, helloStoreBroken, openWithHello } from '@/lib/windows-hello-client';
 import { useWindowInFront } from '../shell/useWindowInFront';
+import { useIntroPlaying } from '../shell/Intro';
 import { useDemo } from '../demo/demo-mode';
 import { BankAnswerAlert } from '../BankAnswer';
 import { BankLogo } from '../BankLogo';
@@ -124,6 +125,8 @@ export function Credentials({
   // The desktop: this login name opens with Windows Hello (lib/windows-hello.ts).
   const [hello, setHello] = useState(false);
   const inFront = useWindowInFront();
+  // The intro covers the screen for a moment: Windows Hello asks once it has gone.
+  const intro = useIntroPlaying();
   const { autoLoggedOut } = useFints();
   const pinRef = useRef<HTMLInputElement>(null);
   const loginRef = useRef<HTMLInputElement>(null);
@@ -352,12 +355,12 @@ export function Credentials({
   // Girovo) or in the notification area (a start with Windows), and never
   // after a session ended by itself (the idle limit): then the button alone.
   useEffect(() => {
-    if (!hello || !inFront || autoLoggedOut || submitting || fingerprintAsked.current || initialError) return;
+    if (!hello || !inFront || intro || autoLoggedOut || submitting || fingerprintAsked.current || initialError) return;
     fingerprintAsked.current = true;
     void withHello();
     // withHello is current when it runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hello, inFront, autoLoggedOut]);
+  }, [hello, inFront, intro, autoLoggedOut]);
 
   const trackCapsLock = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     // getModifierState is the only way to know without a keypress of the
