@@ -26,6 +26,14 @@ pub fn browser_args() -> String {
   }
 }
 
+/// WebView2's own folder. A test run (GIROVO_DATA_DIR) keeps it inside its
+/// data folder: every process on one WebView2 folder must start it with the
+/// same flags, so two debug builds side by side (each with its DevTools port)
+/// would refuse each other otherwise (0x8007139F). A real install keeps Tauri's.
+pub fn webview_dir() -> Option<std::path::PathBuf> {
+  std::env::var_os("GIROVO_DATA_DIR").filter(|d| !d.is_empty()).map(|d| std::path::PathBuf::from(d).join("webview2"))
+}
+
 /// What the page needs before its first script runs: the preferences (read
 /// synchronously, the theme before the first frame), the platform, then the bridges.
 pub fn boot_script(prefs: &BTreeMap<String, String>) -> String {
@@ -35,6 +43,23 @@ pub fn boot_script(prefs: &BTreeMap<String, String>) -> String {
     "version": env!("CARGO_PKG_VERSION"),
   });
   format!("window.__GIROVO_BOOT__ = {boot};\n{BRIDGE}")
+}
+
+/// The shell's own pages (girovo-shell:), served from the binary: the start
+/// window's card and its font. Nothing else is there.
+pub fn serve_shell(path: &str) -> tauri::http::Response<Vec<u8>> {
+  let (body, kind): (&[u8], &str) = match path {
+    "/splash.html" => (include_bytes!("../shell/splash.html"), "text/html; charset=utf-8"),
+    "/fonts/google-sans-flex-latin.woff2" => (include_bytes!("../shell/fonts/google-sans-flex-latin.woff2"), "font/woff2"),
+    _ => {
+      return tauri::http::Response::builder().status(404).body(Vec::new()).unwrap();
+    }
+  };
+  tauri::http::Response::builder()
+    .header("Content-Type", kind)
+    .header("Cache-Control", "no-store")
+    .body(body.to_vec())
+    .unwrap()
 }
 
 /// Opens a link outside the app: http(s) and mailto only.
