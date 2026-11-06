@@ -34,7 +34,7 @@
     "category": "Finance",
     "shortDescription": "Banking for German banks via FinTS",
     "publisher": "MT-Media",
-    "copyright": "MT-Media",
+    "copyright": "elNino0916",
     "windows": {
       "nsis": {
         "installMode": "currentUser",
