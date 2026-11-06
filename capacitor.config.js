@@ -1,9 +1,14 @@
-import type { CapacitorConfig } from '@capacitor/cli';
-
 // The Android app: the page exported for the phone (GIROVO_TARGET=android,
 // next.config.ts) plus the phone runtime (mobile/), in a Capacitor shell.
 // scripts/build-android.mjs builds both into .next-android and syncs them here.
-const config: CapacitorConfig = {
+//
+// JavaScript, not TypeScript: the Capacitor CLI reads a .ts config through
+// TypeScript's JavaScript API, which TypeScript 7 no longer has. It loads a
+// .js one with require() — this package is "type": "module", so the config
+// is handed over as `module.exports` (Node's interop name for require(esm)).
+
+/** @type {import('@capacitor/cli').CapacitorConfig} */
+const config = {
   appId: 'de.elnino0916.android.girovo',
   appName: 'Girovo',
   webDir: '.next-android',
@@ -33,4 +38,4 @@ const config: CapacitorConfig = {
   },
 };
 
-export default config;
+export { config as 'module.exports' };

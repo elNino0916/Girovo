@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
       ? { output: 'export' as const, pageExtensions: ['tsx'], distDir: '.next-desktop' }
       : isAndroidBuild
       // 10.0.2.2: the emulator's name for this computer, when a debug build
-      // loads the preview from here (GIROVO_DEV_SERVER, capacitor.config.ts).
+      // loads the preview from here (GIROVO_DEV_SERVER, capacitor.config.js).
       ? { pageExtensions: ['tsx'], distDir: '.next-android-dev', allowedDevOrigins: ['10.0.2.2'] }
       : {}),
   // The desktop's invoice reading (components/transfer/desktop-read.ts) is
