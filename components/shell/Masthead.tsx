@@ -89,7 +89,7 @@ function SearchBar() {
       >
         <SearchIcon size={22} className="shrink-0 text-bar-ink" />
         <span className="min-w-0 flex-1 truncate">{placeholder}</span>
-        {canAsk && <GeminiSparkIcon size={20} aria-hidden className="mr-1 shrink-0" />}
+        {canAsk && IS_ANDROID && <GeminiSparkIcon size={20} aria-hidden className="mr-1 shrink-0" />}
         {/* Where there is likely a keyboard: the way in without the mouse. */}
         {!IS_ANDROID && (
           <kbd

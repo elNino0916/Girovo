@@ -325,7 +325,7 @@ function AskForm({ data }: { data: ScopeData }) {
   );
 }
 
-/** The answer, on Gemini's wash: what was searched, the figure, its basis, the way to the bookings. */
+/** The answer — on Gemini's wash on the phone: what was searched, the figure, the way to the bookings. */
 function Answer({ answer, scopeAll, onShow, own }: {
   answer: AskAnswer;
   scopeAll: boolean;
@@ -514,7 +514,8 @@ function Answer({ answer, scopeAll, onShow, own }: {
   }
 
   return (
-    <div data-gemini className="rounded-[16px] p-4">
+    // Gemini's wash only where Gemini Nano read the question; the desktop's own model answers on the plain inset.
+    <div data-gemini={IS_ANDROID || undefined} className={IS_ANDROID ? 'rounded-[16px] p-4' : 'rounded-[16px] bg-inset p-4'}>
       <p className="text-[12.5px] leading-snug font-medium text-ink-2">{words.understood}</p>
       <DotList items={read} className="mt-0.5 text-[14px] leading-snug text-ink" />
       <div className="mt-3">{body}</div>
@@ -529,10 +530,6 @@ function Answer({ answer, scopeAll, onShow, own }: {
           {words.show}
         </Button>
       )}
-      <p className="mt-2 flex items-center gap-1.5 text-[12.5px] leading-snug text-ink-2">
-        <GeminiSparkIcon size={14} />
-        {IS_ANDROID ? words.basis : words.desktop.basis}
-      </p>
     </div>
   );
 }

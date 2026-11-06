@@ -457,8 +457,10 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
     // A question leads, so Enter asks it; a name never reads as one.
     const ask: Item[] = canAsk && q.length >= 3 && looksLikeQuestion(q)
       ? [{
-        id: 'ask', group: 'actions', label: tr.shell.palette.ask(q), description: tr.shell.palette.askHint,
-        icon: <GeminiSparkIcon size={18} />,
+        id: 'ask', group: 'actions', label: tr.shell.palette.ask(q),
+        // Gemini's mark and "Telefon" only where Gemini Nano reads the question; the desktop asks its own model.
+        description: IS_ANDROID ? tr.shell.palette.askHint : tr.shell.palette.askHintDesktop,
+        icon: IS_ANDROID ? <GeminiSparkIcon size={18} /> : <ChartIcon size={18} />,
         run: () => {
           askInAnalysis(q);
           f.setTab('analysis');

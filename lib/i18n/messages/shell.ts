@@ -83,6 +83,8 @@ export const de = {
     /** Android with Gemini Nano: the typed question, handed to "Frag deine Umsätze". */
     ask: (question: string) => `„${question}“ fragen`,
     askHint: 'Frag deine Umsätze · auf diesem Telefon gerechnet',
+    /** The desktop: no Gemini Nano, the app's own model (components/insights/Ask.tsx). */
+    askHintDesktop: 'Frag deine Umsätze · auf diesem Rechner gerechnet',
     inSelected: (n: number) => `${n} ${n === 1 ? 'Umsatz' : 'Umsätze'} im ausgewählten Konto`,
     newest: (shown: number, total: number) => `Die ${shown} neuesten von ${total} Treffern`,
     noResults: (query: string) => `Keine Treffer für „${query}“`,
@@ -494,6 +496,7 @@ export const en: typeof de = {
     showAll: (query) => `Show all results for “${query}”`,
     ask: (question) => `Ask “${question}”`,
     askHint: 'Ask your transactions · worked out on this phone',
+    askHintDesktop: 'Ask your transactions · worked out on this computer',
     inSelected: (n) => `${n} ${n === 1 ? 'transaction' : 'transactions'} in the selected account`,
     newest: (shown, total) => `The newest ${shown} of ${total} results`,
     noResults: (query) => `No results for “${query}”`,
