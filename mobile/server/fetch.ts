@@ -1,9 +1,14 @@
 // The WebView's fetch, rerouted. On the phone there is no server across the
 // network: the page's `/api/…` calls are answered by the route handlers in
-// this same page (mobile/server/index.ts), and the server's own requests — to
-// the bank, to Brandfetch — leave through the app's native HTTP stack
-// (GirovoHttp), which is not held to the WebView's CORS rules. Banks' FinTS
-// endpoints send no CORS headers, so a WebView fetch to them would always fail.
+// this same app (mobile/server/index.ts, in a worker of their own —
+// mobile/worker/host.ts), and the server's own requests — to the bank, to
+// Brandfetch — leave through the app's native HTTP stack (GirovoHttp), which
+// is not held to the WebView's CORS rules. Banks' FinTS endpoints send no CORS
+// headers, so a WebView fetch to them would always fail.
+//
+// Installed on both sides of the worker: the page's (its /api calls to the
+// worker, its own requests out) and the worker's (the bank's traffic, through
+// the page's plugin — mobile/worker/capacitor/core.ts).
 //
 // Everything else (the app's own files) goes to the WebView's fetch as before.
 //
@@ -18,11 +23,14 @@
 import { Capacitor } from '@capacitor/core';
 import { Buffer } from 'buffer';
 import { GirovoHttp } from '../native';
+import { appHidden, onAppVisibility } from './visibility';
 
 type Handler = (req: Request) => Promise<Response>;
 
-const original: typeof fetch = window.fetch.bind(window);
+const original: typeof fetch = globalThis.fetch.bind(globalThis);
 let nextId = 0;
+/** The page's requests and the worker's share the native stack, which knows them by name. */
+const ID_PREFIX = typeof document === 'undefined' ? 'w' : 'r';
 
 /**
  * Failures that prove the request never left the phone: no address for the
@@ -36,23 +44,22 @@ const NOT_SENT = new Set(['ENOTFOUND', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNRE
 // foreground service keeps it (ApprovalService covers an approval being
 // awaited; this covers what slips past it — a race at the switch, the
 // service's three-minute limit). Its requests then fail before they leave.
-let hiddenAt = document.hidden ? Date.now() : 0;
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) hiddenAt = Date.now();
+let hiddenAt = appHidden() ? Date.now() : 0;
+onAppVisibility(() => {
+  if (appHidden()) hiddenAt = Date.now();
 });
 /** Whether the app is in the background, or was a moment ago (the failure can beat the event). */
-const awayNow = () => document.hidden || Date.now() - hiddenAt < 3000;
+const awayNow = () => appHidden() || Date.now() - hiddenAt < 3000;
 /** Resolves once the app is in front again, and its network back with it. */
 function backInFront(): Promise<void> {
   return new Promise((resolve) => {
     const settle = () => setTimeout(resolve, 400);
-    if (!document.hidden) return settle();
-    const onChange = () => {
-      if (document.hidden) return;
-      document.removeEventListener('visibilitychange', onChange);
+    if (!appHidden()) return settle();
+    const stop = onAppVisibility(() => {
+      if (appHidden()) return;
+      stop();
       settle();
-    };
-    document.addEventListener('visibilitychange', onChange);
+    });
   });
 }
 
@@ -98,7 +105,7 @@ export async function nativeFetch(input: RequestInfo | URL, init?: RequestInit):
   const signal = init?.signal ?? asRequest?.signal ?? null;
   if (signal?.aborted) throw abortReason(signal);
 
-  const base = `r${++nextId}`;
+  const base = `${ID_PREFIX}${++nextId}`;
   /** The native request under way: a resend gets a name of its own. */
   let id = base;
   const method = (init?.method ?? asRequest?.method ?? 'GET').toUpperCase();
@@ -172,14 +179,16 @@ export async function nativeFetch(input: RequestInfo | URL, init?: RequestInit):
   return new Response(stream, { status, statusText: head.statusText, headers: head.headers });
 }
 
-/** Routes every fetch of the page: `/api/…` to `handle`, other hosts to the native stack. */
+/** Routes every fetch of the page (or of the server's worker): `/api/…` to `handle`, other hosts to the native stack. */
 export function installFetch(handle: Handler): void {
   const native = Capacitor.isNativePlatform();
+  // A worker started from the script's bytes is at a blob: URL, which no relative URL resolves against.
+  const base = location.href.startsWith('blob:') ? location.href.slice('blob:'.length) : location.href;
   const routed: typeof fetch = (input, init) => {
     const href = input instanceof Request ? input.url : String(input instanceof URL ? input.href : input);
     let url: URL;
     try {
-      url = new URL(href, location.href);
+      url = new URL(href, base);
     } catch {
       return original(input, init);
     }
@@ -197,5 +206,5 @@ export function installFetch(handle: Handler): void {
     if (!native) return original(input, init);
     return nativeFetch(input, init);
   };
-  window.fetch = routed;
+  globalThis.fetch = routed;
 }

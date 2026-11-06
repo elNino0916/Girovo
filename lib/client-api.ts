@@ -8,6 +8,9 @@
 import { isPinRefusal } from './bank-answer.ts';
 import { msgs } from './i18n/index.ts';
 import { IN_PAGE_SERVER } from './platform.ts';
+import { MOBILE_READY_EVENT } from './runtime-ready.ts';
+
+export { MOBILE_READY_EVENT };
 
 export class ApiError extends Error {
   status: number;
@@ -80,7 +83,6 @@ export const BACK_EVENT = 'girovo:back';
 
 /** What mobile/runtime.ts puts on window once its fetch answers /api calls. */
 type MobileRuntime = { ready: Promise<void> };
-export const MOBILE_READY_EVENT = 'girovo:mobile';
 
 /**
  * In the Android app and the Tauri desktop app the route handlers run in this

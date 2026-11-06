@@ -5,7 +5,10 @@
 
 import type { PluginListenerHandle } from '@capacitor/core';
 import { GirovoNano, type NanoProgress, type NanoStatus } from '../native';
-import { refreshNano } from '../server/categories';
+import { serverCall } from '../worker/host';
+
+/** Asks the plugin again, through the server, whose copy decides whether a guess is made. */
+const refreshNano = () => serverCall<NanoStatus | null>('refreshNano').catch(() => null);
 
 const UNSUPPORTED: NanoStatus = { state: 'unsupported', reason: 'unavailable' };
 const IDLE: NanoProgress = { active: false, done: 0, total: 0, waiting: null };

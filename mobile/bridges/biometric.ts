@@ -3,10 +3,10 @@
 // Turning it on seals the PIN of the session's login — and the PINs of the
 // further banks logged in beside it — with a Keystore key that only a
 // fingerprint opens (GirovoBiometric). The PINs are taken from the live
-// sessions here, inside the phone runtime — the same place the route
-// handlers keep them (lib/session.ts, lib-fints' config) — so they never pass
-// through the page's own state on the way. A further bank logged in later is
-// sealed beside them the same way, after a fingerprint of its own (seal).
+// sessions, asked of the phone server that keeps them (lib/session.ts,
+// lib-fints' config; mobile/server/logins.ts) — so they never pass through
+// the page's own state on the way. A further bank logged in later is sealed
+// beside them the same way, after a fingerprint of its own (seal).
 //
 // Logging in with it hands the PIN to the login form's connect(), exactly as
 // if it had been typed, and the further banks' PINs to the provider, which
@@ -19,24 +19,20 @@
 // they are. Whose a further bank's PIN is — BLZ and login name — is sealed
 // with it.
 
-import { getSession } from '../../lib/session.ts';
 import { GirovoBiometric, type BiometricItem, type BiometricState } from '../native';
+import type { SealedLogin } from '../server/logins';
 import { createHash } from '../shims/crypto';
+import { serverCall } from '../worker/host';
+
+export type { SealedLogin };
 
 const idOf = (blz: string, userId: string) => createHash('sha256').update(`${blz}|${userId}|biometric`).digest('hex').slice(0, 32);
 
 export type PromptTexts = { title: string; subtitle: string; cancel: string };
 
-/** A sealed login, as a fingerprint opens it. */
-export type SealedLogin = { blz: string; userId: string; pin: string };
-
-/** The login of a live session, with its PIN; null once the session is gone. */
-function loginOf(sessionId: string): SealedLogin | null {
-  const s = getSession(sessionId);
-  const blz = s?.meta?.blz;
-  const userId = s?.client?.config?.userId;
-  const pin = s?.client?.config?.pin;
-  return blz && userId && pin ? { blz: String(blz), userId: String(userId), pin: String(pin) } : null;
+/** The logins of live sessions, with their PINs, in order; null for a session that is gone. */
+function loginsOf(sessionIds: readonly string[]): Promise<(SealedLogin | null)[]> {
+  return serverCall<(SealedLogin | null)[]>('logins', [...sessionIds]).catch(() => sessionIds.map(() => null));
 }
 
 const itemOf = (l: SealedLogin): BiometricItem => ({ id: idOf(l.blz, l.userId), secret: JSON.stringify(l) });
@@ -85,9 +81,9 @@ export async function enroll(
   linkedSessionIds: readonly string[],
   texts: PromptTexts,
 ): Promise<'enrolled' | 'canceled' | 'failed'> {
-  const own = loginOf(sessionId);
+  const [own, ...others] = await loginsOf([sessionId, ...linkedSessionIds]);
   if (!own) return 'failed';
-  const linked = linkedSessionIds.map(loginOf).filter((l): l is SealedLogin => !!l);
+  const linked = others.filter((l): l is SealedLogin => !!l);
   try {
     const { result } = await GirovoBiometric.enroll({ id: idOf(own.blz, own.userId), items: [own, ...linked].map(itemOf), ...texts });
     return result;
@@ -105,8 +101,8 @@ export async function seal(
   linkedSessionIds: readonly string[],
   texts: PromptTexts,
 ): Promise<'sealed' | 'canceled' | 'failed' | 'off'> {
-  const own = loginOf(sessionId);
-  const linked = linkedSessionIds.map(loginOf).filter((l): l is SealedLogin => !!l);
+  const [own, ...others] = await loginsOf([sessionId, ...linkedSessionIds]);
+  const linked = others.filter((l): l is SealedLogin => !!l);
   if (!own || !linked.length) return 'failed';
   try {
     // The login's own PIN goes along: an entry of the old form takes it in as an item.

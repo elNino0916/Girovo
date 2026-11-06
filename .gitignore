@@ -20,6 +20,7 @@ dist/
 .next-android-dev/
 /out/
 /public/mobile-runtime.js
+/public/mobile-server.js
 
 # The desktop's invoice reading, copied from node_modules (scripts/ocr-assets.mjs)
 /public/ocr/

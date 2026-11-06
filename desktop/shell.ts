@@ -1,11 +1,13 @@
 // The Tauri shell as the desktop runtime reaches it: src-tauri/src/bridge.js
 // puts window.__girovoShell up before any script of the page, with the
-// platform, the version and Tauri's invoke.
+// platform, the version and Tauri's invoke. In the server's worker, which has
+// no window, desktop/server/entry.ts puts up the same shape, every call made
+// on the page across the line (mobile/worker/link.ts).
 //
 // Tauri's errors arrive as plain strings, "ENOTFOUND: …"; the code the server
 // code reads from Node's errors (err.code) is put back on an Error here.
 
-type Shell = {
+export type Shell = {
   platform: string;
   version: string;
   invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
@@ -16,7 +18,7 @@ type Shell = {
 };
 
 export function shell(): Shell {
-  const s = (window as Window & { __girovoShell?: Shell }).__girovoShell;
+  const s = (globalThis as { __girovoShell?: Shell }).__girovoShell;
   if (!s) throw new Error('Girovo: no Tauri shell');
   return s;
 }

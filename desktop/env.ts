@@ -1,6 +1,7 @@
-// First of the desktop runtime's modules: the process the route handlers see
-// is the desktop app's own (mobile/shims/process.ts starts as the phone's).
-// Before any route module loads, since some read the environment as they do.
+// First of the desktop server's modules (desktop/server/entry.ts): the process
+// the route handlers see is the desktop app's own (mobile/shims/process.ts
+// starts as the phone's). Before any route module loads, since some read the
+// environment as they do.
 //
 //   GIROVO_DESKTOP   the server that may keep the further banks' PINs and the
 //                    background checks' box (lib/linked-unlock.ts,

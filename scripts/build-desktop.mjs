@@ -1,12 +1,15 @@
 // Builds the Tauri desktop app's page (6.0), the Android build's way:
 //
 //   1. the page, exported         GIROVO_TARGET=desktop next build → .next-desktop/
-//   2. the desktop runtime        desktop/runtime.ts → desktop-runtime.js beside it:
-//                                 the route handlers (app/api/**/route.ts) and
-//                                 lib-fints, with Node's modules swapped for the
-//                                 phone's shims (scripts/build-mobile.mjs) and
-//                                 Capacitor's for the Tauri shell's (desktop/)
-//   3. both into out-desktop/     what src-tauri/tauri.conf.json embeds
+//   2. the desktop runtime        desktop/runtime.ts → desktop-runtime.js beside it,
+//                                 which starts desktop/server/entry.ts →
+//                                 desktop-server.js in a Web Worker
+//                                 (mobile/worker/host.ts): the route handlers
+//                                 (app/api/**/route.ts) and lib-fints, with
+//                                 Node's modules swapped for the phone's shims
+//                                 (scripts/build-mobile.mjs) and Capacitor's for
+//                                 the Tauri shell's (desktop/)
+//   3. all into out-desktop/      what src-tauri/tauri.conf.json embeds
 //   4. the category model         models/category-model (scripts/fetch-model.mjs)
 //                                 and ONNX Runtime for this platform in
 //                                 src-tauri/onnxruntime/, both bundled as
@@ -22,7 +25,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
-import { ALIASES, noStrayBuiltins, virtual } from './build-mobile.mjs';
+import { ALIASES, noStrayBuiltins, serverOnly, virtual } from './build-mobile.mjs';
 import { fetchModel } from './fetch-model.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -74,30 +77,36 @@ const ALIAS = {
 
 const out = exportDir();
 const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
-await esbuild.build({
-  absWorkingDir: ROOT,
-  entryPoints: [desktop('runtime.ts')],
-  outfile: path.join(out, 'desktop-runtime.js'),
-  bundle: true,
-  format: 'iife',
-  platform: 'browser',
-  // WebView2 is evergreen on Windows; Linux has WebKitGTK.
-  target: ['chrome111', 'safari16'],
-  alias: ALIAS,
-  inject: [path.join(ROOT, 'mobile', 'shims', 'globals.ts')],
-  define: {
-    global: 'globalThis',
-    'process.env.NEXT_PUBLIC_GIROVO_PLATFORM': JSON.stringify('desktop'),
-    'process.env.NEXT_PUBLIC_APP_VERSION': JSON.stringify(version),
-  },
-  plugins: [virtual, noStrayBuiltins, desktopNative],
-  minify: !DEV,
-  sourcemap: DEV ? 'inline' : false,
-  legalComments: 'none',
-  logLevel: 'warning',
-});
-const bytes = fs.statSync(path.join(out, 'desktop-runtime.js')).size;
-console.log(`  desktop-runtime.js  ${(bytes / 1024).toFixed(0)} KB`);
+/** The page's runtime, then the server's bundle: the same shims, the same shell. */
+for (const [entry, file, guard] of [
+  ['runtime.ts', 'desktop-runtime.js', []],
+  ['server/entry.ts', 'desktop-server.js', [serverOnly(ALIAS)]],
+]) {
+  await esbuild.build({
+    absWorkingDir: ROOT,
+    entryPoints: [desktop(entry)],
+    outfile: path.join(out, file),
+    bundle: true,
+    format: 'iife',
+    platform: 'browser',
+    // WebView2 is evergreen on Windows; Linux has WebKitGTK.
+    target: ['chrome111', 'safari16'],
+    alias: ALIAS,
+    inject: [path.join(ROOT, 'mobile', 'shims', 'globals.ts')],
+    define: {
+      global: 'globalThis',
+      'process.env.NEXT_PUBLIC_GIROVO_PLATFORM': JSON.stringify('desktop'),
+      'process.env.NEXT_PUBLIC_APP_VERSION': JSON.stringify(version),
+    },
+    plugins: [virtual, noStrayBuiltins, desktopNative, ...guard],
+    minify: !DEV,
+    sourcemap: DEV ? 'inline' : false,
+    legalComments: 'none',
+    logLevel: 'warning',
+  });
+  const bytes = fs.statSync(path.join(out, file)).size;
+  console.log(`  ${file}  ${(bytes / 1024).toFixed(0)} KB`);
+}
 
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.cpSync(out, DIST, { recursive: true });

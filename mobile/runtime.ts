@@ -2,18 +2,15 @@
 // app itself starts (scripts/build-mobile.mjs bundles this; app/layout.tsx
 // loads it in the Android build only).
 //
-//  - mobile/server: the route handlers, answering the page's /api calls
+//  - mobile/server: the route handlers, answering the page's /api calls from
+//    a worker of their own (mobile-server.js, started by ./bridges/server)
 //  - mobile/bridges: what the desktop shell provides the page (saving files,
 //    PDFs), and what only a phone has (the back gesture, Material You)
 //
 // window.girovoMobile (types/mobile-window.d.ts) is how the page reaches the
 // Android-only parts; lib/client-api.ts waits for it before its first call.
 
-// First: banks-data.json and config.json in place before any module that
-// reads them while it loads (lib/banks.ts, lib/session.ts) — the bridges
-// below reach lib/session.ts as well as the route handlers do.
-import './server/assets';
-import { MOBILE_READY_EVENT } from '../lib/client-api.ts';
+import { MOBILE_READY_EVENT } from '../lib/runtime-ready.ts';
 import { startAppearance } from './bridges/appearance';
 import { installBack } from './bridges/back';
 import * as biometric from './bridges/biometric';
@@ -24,18 +21,20 @@ import * as plus from './bridges/plus';
 import * as review from './bridges/review';
 import * as categories from './bridges/categories';
 import { installRipple } from './bridges/ripple';
+import { startPhoneServer } from './bridges/server';
 import { installSheetDrag } from './bridges/sheet-drag';
 import { startTelemetry } from './bridges/telemetry';
 import { installUpdates, playUpdate } from './bridges/updates';
 import { Buffer } from 'buffer';
-import { GirovoBackground, GirovoDevice, GirovoDocScanner, GirovoLaunch, GirovoNano, GirovoScanner, GirovoSync, GirovoText, GirovoWidget } from './native';
-import { ready } from './server/index';
+import { GirovoBackground, GirovoDevice, GirovoDocScanner, GirovoLaunch, GirovoNano, GirovoScanner, GirovoText, GirovoWidget } from './native';
 
 /** Android AICore in Google Play: Play opens the https link as its own page. */
 const AICORE_IN_PLAY = 'https://play.google.com/store/apps/details?id=com.google.android.aicore';
 
 // First, so a failure in what follows is reported too.
 startTelemetry();
+// The server next: its start reads the saved files while the bridges set up.
+const { ready } = startPhoneServer();
 installFiles();
 installBack();
 installSheetDrag();
@@ -43,18 +42,6 @@ installRipple();
 const updates = installUpdates();
 review.startReview();
 const appearance = startAppearance();
-
-// "Neue Umsätze melden": its sealed box lives in the app's preferences, one
-// for this runtime and the background job's alike (lib/background-store.ts).
-(globalThis as typeof globalThis & { __girovoBackgroundStore?: unknown }).__girovoBackgroundStore = {
-  read: () => GirovoBackground.read().then((r) => r.text ?? null),
-  write: (text: string | null, expected?: string | null) =>
-    GirovoBackground.write(expected === undefined ? { text } : { text, expected }).then((r) => r.written),
-};
-
-// Sync "Direkt im WLAN": the way to the desktop app's shelf (lib/sync-stores.ts lanStore).
-(globalThis as typeof globalThis & { __girovoLanHttp?: unknown }).__girovoLanHttp =
-  (req: { method: 'GET' | 'PUT'; url: string; token: string; body?: string }) => GirovoSync.lan(req);
 
 window.girovoMobile = {
   ready,

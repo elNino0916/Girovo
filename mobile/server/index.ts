@@ -4,10 +4,11 @@
 // The desktop app is a Next.js server the Electron window talks to over
 // localhost. A phone has no such process, so scripts/build-mobile.mjs bundles
 // the same handlers — and lib-fints with them — for the WebView, with the Node
-// modules they import replaced by mobile/shims/*. The page's fetch('/api/…')
-// is answered here (mobile/server/fetch.ts), and the bank is reached through
-// the app's native HTTP stack. Nothing about a session leaves the phone except
-// the FinTS messages to the bank — the same promise the desktop makes.
+// modules they import replaced by mobile/shims/*. They run in a Web Worker
+// beside the page (mobile/server/entry.ts, mobile/worker/), which answers the
+// page's fetch('/api/…') here, and the bank is reached through the app's
+// native HTTP stack. Nothing about a session leaves the phone except the
+// FinTS messages to the bank — the same promise the desktop makes.
 //
 // Order matters: ./assets puts banks-data.json and config.json in place before
 // the route modules, which read them while they load.
@@ -16,14 +17,13 @@ import './assets';
 import { App } from '@capacitor/app';
 import { ROUTES } from 'girovo:routes';
 import { bankPolicy, describeError } from '../../lib/bank-fetch.ts';
-import { keepsNothing } from '../../lib/device-integrity.ts';
+import { keepsNothing, type Integrity } from '../../lib/device-integrity.ts';
 import { msgs } from '../../lib/i18n/index.ts';
 import { activeLocale } from '../../lib/i18n/locale.ts';
-import { integrity } from '../bridges/integrity';
 import type { AsyncLocalStorage } from '../shims/async-hooks';
 import { flush, mountData, refuseData } from '../shims/fs';
-import { installFetch } from './fetch';
-import { GirovoBackground } from '../native';
+import { GirovoBackground, GirovoSync } from '../native';
+import { page } from '../worker/server';
 import { startNano } from './categories';
 
 // The bank's minute to start answering is timed by the native HTTP stack
@@ -31,6 +31,18 @@ import { startNano } from './categories';
 // background — the user approving in their bank's app — and would fire late
 // on the way back, ending a request the bank had answered.
 bankPolicy.firstByteMs = Infinity;
+
+// "Neue Umsätze melden": its sealed box lives in the app's preferences, one
+// for this server and the background job's alike (lib/background-store.ts).
+(globalThis as typeof globalThis & { __girovoBackgroundStore?: unknown }).__girovoBackgroundStore = {
+  read: () => GirovoBackground.read().then((r) => r.text ?? null),
+  write: (text: string | null, expected?: string | null) =>
+    GirovoBackground.write(expected === undefined ? { text } : { text, expected }).then((r) => r.written),
+};
+
+// Sync "Direkt im WLAN": the way to the desktop app's shelf (lib/sync-stores.ts lanStore).
+(globalThis as typeof globalThis & { __girovoLanHttp?: unknown }).__girovoLanHttp =
+  (req: { method: 'GET' | 'PUT'; url: string; token: string; body?: string }) => GirovoSync.lan(req);
 
 /** Whether this phone has Gemini Nano, asked once at start (mobile/server/categories.ts). */
 const nano = startNano();
@@ -56,8 +68,10 @@ let nothingKept = false;
 async function boot(): Promise<void> {
   // Whether this phone may keep anything, before anything is read: on one it
   // may not, what earlier starts saved stays where it is, unread, and nothing
-  // new is written (mobile/shims/fs.ts).
-  if (keepsNothing(await integrity())) {
+  // new is written (mobile/shims/fs.ts). The check is the page's
+  // (mobile/bridges/integrity.ts): the user's choice is in its storage.
+  const verdict = await page().call<Integrity | null>('integrity').catch(() => null);
+  if (keepsNothing(verdict)) {
     nothingKept = true;
     refuseData();
     // …and "Neue Umsätze melden" keeps no PIN on it either: the box and the job go.
@@ -104,8 +118,6 @@ export async function handle(req: Request): Promise<Response> {
     return json(500, { error: describeError(err) });
   }
 }
-
-installFetch(handle);
 
 // What has been written is on disk before Android may end the app in the background.
 void App.addListener('pause', () => {

@@ -1,9 +1,10 @@
 // The desktop server: Girovo's route handlers (app/api/**/route.ts),
-// unchanged, running inside the Tauri window's page — the Android app's way
+// unchanged, running in a Web Worker beside the Tauri window's page
+// (desktop/server/entry.ts, mobile/worker/) — the Android app's way
 // (mobile/server/index.ts), which this follows step for step. The page's
-// fetch('/api/…') is answered here (mobile/server/fetch.ts), the bank is
-// reached through the shell (src-tauri/src/http.rs), and the files are the
-// ones the Electron shell kept, in the same folder (src-tauri/src/files.rs).
+// fetch('/api/…') is answered here, the bank is reached through the shell
+// (src-tauri/src/http.rs), and the files are the ones the Electron shell
+// kept, in the same folder (src-tauri/src/files.rs).
 //
 // Unlike the phone there is no integrity gate (a PC has no attestation to
 // ask) and no Gemini Nano: the e5 model answers the category guesses, as it
@@ -16,7 +17,6 @@ import { describeError } from '../../lib/bank-fetch.ts';
 import { activeLocale } from '../../lib/i18n/locale.ts';
 import type { AsyncLocalStorage } from '../../mobile/shims/async-hooks';
 import { flush, mountData } from '../../mobile/shims/fs';
-import { installFetch } from '../../mobile/server/fetch';
 import { installFolders } from './folders';
 import { mountModel } from './model';
 import { installTelemetry } from './telemetry';
@@ -65,8 +65,6 @@ export async function handle(req: Request): Promise<Response> {
     return json(500, { error: describeError(err) });
   }
 }
-
-installFetch(handle);
 
 // What has been written is on disk before the window hides or the page goes.
 void App.addListener('pause', () => {

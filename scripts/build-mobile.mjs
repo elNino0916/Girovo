@@ -1,7 +1,17 @@
-// Builds the phone runtime: mobile/runtime.ts and everything it pulls in —
-// Girovo's route handlers (app/api/**/route.ts), lib-fints, the Android
-// bridges — as one script the Android build's page loads before the app
-// (app/layout.tsx, `/mobile-runtime.js`).
+// Builds the phone runtime, as two scripts:
+//
+//   mobile-runtime.js   mobile/runtime.ts — the Android bridges — which the
+//                       Android build's page loads before the app
+//                       (app/layout.tsx, `/mobile-runtime.js`)
+//   mobile-server.js    mobile/server/entry.ts — Girovo's route handlers
+//                       (app/api/**/route.ts) and lib-fints — which the
+//                       runtime starts in a Web Worker beside the page, or
+//                       runs on the page's thread where no worker starts
+//                       (mobile/worker/host.ts)
+//
+// The server's bundle reaches Capacitor's plugins only through the page
+// (mobile/worker/capacitor/), and nothing of the bridges: a worker has no
+// window, and no Capacitor bridge.
 //
 // The handlers are the desktop server's, unchanged. What a WebView lacks is
 // swapped in at bundle time:
@@ -111,34 +121,78 @@ export const noStrayBuiltins = {
   },
 };
 
+/**
+ * Fails the server's bundle on what only the page has: the bridges
+ * (mobile/bridges/, window and Capacitor's), and a Capacitor package
+ * `allowed` does not stand in for.
+ */
+export function serverOnly(allowed) {
+  const bridges = path.join(ROOT, 'mobile', 'bridges') + path.sep;
+  return {
+    name: 'girovo-server-only',
+    setup(build) {
+      build.onResolve({ filter: /^@capacitor\// }, (args) => {
+        if (Object.hasOwn(allowed, args.path)) return undefined;
+        return { errors: [{ text: `${args.path} is the page's, not the server's (imported by ${path.relative(ROOT, args.importer)})` }] };
+      });
+      build.onResolve({ filter: /bridges/ }, (args) => {
+        const resolved = path.resolve(args.resolveDir, args.path);
+        if (!resolved.startsWith(bridges)) return undefined;
+        return { errors: [{ text: `${path.relative(ROOT, resolved)} is a page bridge, not part of the server (imported by ${path.relative(ROOT, args.importer)})` }] };
+      });
+    },
+  };
+}
+
+/** The phone server's Capacitor: the page's plugins, across the worker's line. */
+const SERVER_ALIASES = {
+  ...ALIASES,
+  '@capacitor/core': path.join(ROOT, 'mobile', 'worker', 'capacitor', 'core.ts'),
+  '@capacitor/filesystem': path.join(ROOT, 'mobile', 'worker', 'capacitor', 'filesystem.ts'),
+  '@capacitor/app': path.join(ROOT, 'mobile', 'worker', 'capacitor', 'app.ts'),
+};
+
+const size = (file) => `${(fs.statSync(file).size / 1024).toFixed(0)} KB`;
+
 export async function buildMobile({ out = OUT, dev = DEV } = {}) {
   fs.mkdirSync(out, { recursive: true });
-  const result = await esbuild.build({
+  const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+  const common = {
     absWorkingDir: ROOT,
-    entryPoints: [path.join(ROOT, 'mobile', 'runtime.ts')],
-    outfile: path.join(out, 'mobile-runtime.js'),
     bundle: true,
     format: 'iife',
     platform: 'browser',
     // Android System WebView updates through Play; Capacitor 8 needs a recent one anyway.
     target: ['chrome111'],
-    alias: ALIASES,
     inject: [shim('globals.ts')],
     define: {
       global: 'globalThis',
       // lib/platform.ts: the route handlers' texts in the phone's words (lib/i18n/messages/phone.ts).
       'process.env.NEXT_PUBLIC_GIROVO_PLATFORM': JSON.stringify('android'),
-      'process.env.NEXT_PUBLIC_APP_VERSION': JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version),
+      'process.env.NEXT_PUBLIC_APP_VERSION': JSON.stringify(version),
     },
-    plugins: [virtual, noStrayBuiltins],
     minify: !dev,
     sourcemap: dev ? 'inline' : false,
     legalComments: 'none',
     metafile: true,
     logLevel: 'warning',
+  };
+  const result = await esbuild.build({
+    ...common,
+    entryPoints: [path.join(ROOT, 'mobile', 'runtime.ts')],
+    outfile: path.join(out, 'mobile-runtime.js'),
+    alias: ALIASES,
+    plugins: [virtual, noStrayBuiltins],
   });
-  const bytes = fs.statSync(path.join(out, 'mobile-runtime.js')).size;
-  console.log(`  mobile-runtime.js  ${(bytes / 1024).toFixed(0)} KB`);
+  console.log(`  mobile-runtime.js  ${size(path.join(out, 'mobile-runtime.js'))}`);
+  await esbuild.build({
+    ...common,
+    entryPoints: [path.join(ROOT, 'mobile', 'server', 'entry.ts')],
+    outfile: path.join(out, 'mobile-server.js'),
+    alias: SERVER_ALIASES,
+    plugins: [virtual, noStrayBuiltins, serverOnly(SERVER_ALIASES)],
+  });
+  console.log(`  mobile-server.js  ${size(path.join(out, 'mobile-server.js'))}`);
   await buildBackground({ out, dev });
   return result;
 }

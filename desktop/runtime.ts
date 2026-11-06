@@ -4,14 +4,14 @@
 // mobile/runtime.ts; the server part is shared, the bridges are not — the
 // desktop's (window.electron*) are already up, from src-tauri/src/bridge.js.
 //
-// Order matters: ./env makes the process the desktop's before any route
-// module reads it.
+// The server itself is desktop-server.js, in a worker beside the page
+// (./host.ts; desktop/server/entry.ts).
 
-import './env';
-import { MOBILE_READY_EVENT } from '../lib/client-api.ts';
+import { MOBILE_READY_EVENT } from '../lib/runtime-ready.ts';
 import { startBackgroundChecks } from './background';
-import { ready } from './server/index';
+import { startDesktopServer } from './host';
 
+const { ready } = startDesktopServer();
 startBackgroundChecks();
 
 (window as Window & { girovoDesktop?: { ready: Promise<void> } }).girovoDesktop = { ready };
