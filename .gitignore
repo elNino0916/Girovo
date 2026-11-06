@@ -36,3 +36,8 @@ build/windows-hello/bin/
 !/fdroid/metadata/
 /fdroid/metadata/*
 !/fdroid/metadata/de.elnino0916.android.girovo.yml
+
+# The Tauri desktop build (scripts/build-desktop.mjs)
+.next-desktop/
+.next-desktop-dev/
+/out-desktop/

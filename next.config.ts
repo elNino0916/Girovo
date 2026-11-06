@@ -30,13 +30,20 @@ const isElectronBuild = process.env.ELECTRON_BUILD === '1';
 // that it is the phone's from NEXT_PUBLIC_GIROVO_PLATFORM.
 const isAndroidBuild = process.env.GIROVO_TARGET === 'android';
 
+// The Tauri desktop build (scripts/build-desktop.mjs) sets GIROVO_TARGET=desktop:
+// the desktop's page, exported like the Android one, with its route handlers
+// in the window (desktop/server).
+const isDesktopBuild = process.env.GIROVO_TARGET === 'desktop';
+
 const nextConfig: NextConfig = {
   ...(isElectronBuild ? { output: 'standalone' as const } : {}),
   // `next dev` with the flag (the Android look in a browser, against the design
   // preview's mock data) is not an export: the preview reads its query string.
   ...(isAndroidBuild && process.env.NODE_ENV === 'production'
     ? { output: 'export' as const, pageExtensions: ['tsx'], distDir: '.next-android' }
-    : isAndroidBuild
+    : isDesktopBuild && process.env.NODE_ENV === 'production'
+      ? { output: 'export' as const, pageExtensions: ['tsx'], distDir: '.next-desktop' }
+      : isAndroidBuild
       // 10.0.2.2: the emulator's name for this computer, when a debug build
       // loads the preview from here (GIROVO_DEV_SERVER, capacitor.config.ts).
       ? { pageExtensions: ['tsx'], distDir: '.next-android-dev', allowedDevOrigins: ['10.0.2.2'] }
@@ -70,13 +77,16 @@ const nextConfig: NextConfig = {
   // Nor is the F-Droid workspace (fdroid/, scripts/fdroid-repo.mjs): its
   // index files and fdroidserver's status files, which name local paths.
   outputFileTracingExcludes: {
-    '*': ['./.fints-state/**', './models/**', './android/**', './.next-android/**', './.next-android-dev/**', './fdroid/**'],
+    '*': [
+      './.fints-state/**', './models/**', './android/**', './.next-android/**', './.next-android-dev/**', './fdroid/**',
+      './src-tauri/**', './.next-desktop/**', './out-desktop/**',
+    ],
   },
   // Printed documents name the generator and its version, so the client needs
   // the one number that is otherwise only in package.json.
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
-    NEXT_PUBLIC_GIROVO_PLATFORM: isAndroidBuild ? 'android' : '',
+    NEXT_PUBLIC_GIROVO_PLATFORM: isAndroidBuild ? 'android' : isDesktopBuild ? 'desktop' : '',
   },
 };
 

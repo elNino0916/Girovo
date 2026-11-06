@@ -1,0 +1,42 @@
+[package]
+name = "girovo"
+version = "6.0.0"
+description = "Girovo: German online banking over FinTS, on your own machine"
+authors = ["MT-Media"]
+license = "MIT"
+repository = "https://github.com/elNino0916/Girovo"
+edition = "2024"
+rust-version = "1.95"
+
+[lib]
+name = "girovo_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=3.0.0-alpha.4", features = [] }
+
+[dependencies]
+tauri = { version = "=3.0.0-alpha.5", features = ["tray-icon", "image-png"] }
+tauri-runtime-wry = { version = "=3.0.0-alpha.5" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base64 = "0.22"
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2", "charset"] }
+sha2 = "0.10"
+dirs = "6"
+open = "5"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Security_Cryptography",
+  "Win32_System_Memory",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

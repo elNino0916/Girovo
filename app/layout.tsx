@@ -5,7 +5,7 @@ import { markSvg } from '@/lib/brand-mark';
 import { DEFAULT_LOCALE, LOCALE_COOKIE, resolveLocale, type Locale } from '@/lib/i18n/locale';
 import { MESSAGES } from '@/lib/i18n/messages';
 import { LocaleProvider } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
+import { IN_PAGE_SERVER, IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
 import './globals.css';
 // Girovo's look, Material 3 Expressive, on every platform — after the tokens
 // it remaps; its rules are scoped to <html data-look="material">.
@@ -69,10 +69,10 @@ const FAVICON = `data:image/svg+xml,${encodeURIComponent(markSvg({ plate: '#0a2c
  * already in the language the client will continue in.
  */
 async function requestLocale(): Promise<Locale> {
-  // The Android page is built ahead of time, with no request to read. It starts
-  // in German and LocaleProvider switches to the stored or the phone's
-  // language while the splash screen still covers it.
-  if (IS_ANDROID) return DEFAULT_LOCALE;
+  // The Android page (and the Tauri desktop's) is built ahead of time, with no
+  // request to read. It starts in German and LocaleProvider switches to the
+  // stored or the system's language while the splash screen still covers it.
+  if (IN_PAGE_SERVER) return DEFAULT_LOCALE;
   const [jar, head] = await Promise.all([cookies(), headers()]);
   return resolveLocale(jar.get(LOCALE_COOKIE)?.value, head.get('accept-language'));
 }
@@ -130,6 +130,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             (mobile/runtime.ts). Loaded and run before the app's own scripts,
             so its first fetch('/api/…') already has someone to answer it. */}
         {IS_ANDROID && <script src="/mobile-runtime.js" />}
+        {IS_DESKTOP_APP && <script src="/desktop-runtime.js" />}
       </head>
       <body className={`${googleSansFlex.variable} ${barlow.variable} ${barlowCondensed.variable} ${plexMono.variable}`}>
         <LocaleProvider initial={locale}>{children}</LocaleProvider>

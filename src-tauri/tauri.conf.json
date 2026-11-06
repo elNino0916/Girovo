@@ -1,0 +1,43 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Girovo",
+  "version": "../package.json",
+  "identifier": "de.elnino0916.sooskasse-fints",
+  "build": {
+    "frontendDist": "../out-desktop",
+    "devUrl": "http://localhost:3000"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "appimage", "deb"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "category": "Finance",
+    "shortDescription": "Banking for German banks via FinTS",
+    "publisher": "MT-Media",
+    "copyright": "MT-Media",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English", "German"],
+        "displayLanguageSelector": false
+      }
+    },
+    "linux": {
+      "deb": {
+        "section": "office"
+      }
+    }
+  }
+}

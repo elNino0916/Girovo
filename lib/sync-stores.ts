@@ -191,10 +191,19 @@ export function lanStore(place: Extract<SyncPlace, { kind: 'lan' }>, key: Buffer
   };
 }
 
+/**
+ * The Tauri desktop's folders, read from disk through its shell
+ * (desktop/server/folders.ts): `lan` for the shelf, else a folder's path.
+ * The page holds the state folder in memory, which would never see what the
+ * phone or a sync tool put there meanwhile.
+ */
+const shellFolder = (place: string): SyncStore | undefined =>
+  (globalThis as { __girovoFolderStore?: (place: string) => SyncStore }).__girovoFolderStore?.(place);
+
 /** The place, as this device reaches it; null where it cannot (a folder on the phone). */
 export function storeFor(place: SyncPlace, key: Buffer): SyncStore | null {
   if (place.kind === 'webdav') return webdavStore(place);
-  if (place.kind === 'lan') return IS_ANDROID ? lanStore(place, key) : folderStore(lanHostDir());
-  if (place.kind === 'folder' && place.path && !IS_ANDROID) return folderStore(place.path);
+  if (place.kind === 'lan') return IS_ANDROID ? lanStore(place, key) : shellFolder('lan') ?? folderStore(lanHostDir());
+  if (place.kind === 'folder' && place.path && !IS_ANDROID) return shellFolder(place.path) ?? folderStore(place.path);
   return null;
 }

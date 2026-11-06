@@ -187,6 +187,11 @@ export function installFetch(handle: Handler): void {
       if (url.pathname.startsWith('/api/')) return handle(new Request(input instanceof Request ? input : url, init));
       return original(input, init);
     }
+    // The shell's own channels are no request to anyone outside: they stay
+    // with the WebView — the Tauri desktop's IPC is ipc://localhost, or
+    // http://ipc.localhost on Windows, where custom schemes become hosts.
+    const local = url.hostname === 'localhost' || url.hostname.endsWith('.localhost');
+    if ((url.protocol !== 'https:' && url.protocol !== 'http:') || local) return original(input, init);
     // In a desktop browser (developing the phone build) there is no native
     // stack; the request goes out as the browser would send it.
     if (!native) return original(input, init);

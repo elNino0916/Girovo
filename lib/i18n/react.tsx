@@ -15,7 +15,7 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { store } from '../client-api';
 import { MESSAGES, type Messages } from './messages/index.ts';
-import { IS_ANDROID } from '../platform.ts';
+import { IN_PAGE_SERVER } from '../platform.ts';
 import { LOCALE_COOKIE, LOCALE_PREF, activeLocale, isLocale, pickLocale, setActiveLocale, type Locale } from './locale.ts';
 
 type LocaleState = { locale: Locale; setLocale: (next: Locale) => void };
@@ -55,7 +55,7 @@ export function LocaleProvider({ initial, children }: { initial: Locale; childre
   useEffect(() => {
     const stored = store.get(LOCALE_PREF);
     if (!isLocale(stored)) {
-      if (IS_ANDROID) {
+      if (IN_PAGE_SERVER) {
         const system = pickLocale(navigator.language);
         if (system !== initial) setLocaleState(system);
       }

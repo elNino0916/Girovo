@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window: the app's own commands and Tauri's core. The development server's page gets the same, so `npm run tauri:dev` works against `next dev`.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://localhost:3000"]
+  },
+  "permissions": ["core:default"]
+}

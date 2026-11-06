@@ -7,7 +7,7 @@
 
 import { isPinRefusal } from './bank-answer.ts';
 import { msgs } from './i18n/index.ts';
-import { IS_ANDROID } from './platform.ts';
+import { IN_PAGE_SERVER } from './platform.ts';
 
 export class ApiError extends Error {
   status: number;
@@ -83,22 +83,23 @@ type MobileRuntime = { ready: Promise<void> };
 export const MOBILE_READY_EVENT = 'girovo:mobile';
 
 /**
- * In the Android app the route handlers run in this page (mobile/runtime.ts)
- * and answer through the fetch it installs. Next's own scripts load async and
- * may start before it has, so a call waits for it — on the desktop and the
- * website, the server is simply there.
+ * In the Android app and the Tauri desktop app the route handlers run in this
+ * page (mobile/runtime.ts, desktop/runtime.ts) and answer through the fetch it
+ * installs. Next's own scripts load async and may start before it has, so a
+ * call waits for it — on the website, the server is simply there.
  */
 function mobileReady(): Promise<void> {
-  const w = window as Window & { girovoMobile?: MobileRuntime };
-  if (w.girovoMobile) return w.girovoMobile.ready;
+  const w = window as Window & { girovoMobile?: MobileRuntime; girovoDesktop?: MobileRuntime };
+  const runtime = () => w.girovoMobile ?? w.girovoDesktop;
+  if (runtime()) return runtime()!.ready;
   return new Promise((resolve) => {
-    window.addEventListener(MOBILE_READY_EVENT, () => resolve(w.girovoMobile?.ready), { once: true });
+    window.addEventListener(MOBILE_READY_EVENT, () => resolve(runtime()?.ready), { once: true });
   });
 }
 
 /** fetch, once there is someone to answer. */
 export function apiFetch(input: string, init?: RequestInit): Promise<Response> {
-  if (!IS_ANDROID) return fetch(input, init);
+  if (!IN_PAGE_SERVER) return fetch(input, init);
   return mobileReady().then(() => fetch(input, init));
 }
 

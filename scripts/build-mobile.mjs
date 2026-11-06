@@ -38,7 +38,8 @@ const DEV = process.argv.includes('--dev');
 
 const shim = (name) => path.join(ROOT, 'mobile', 'shims', name);
 
-const ALIASES = {
+// Shared with scripts/build-desktop.mjs, which bundles the same handlers for the Tauri window.
+export const ALIASES = {
   'node:fs': shim('fs.ts'),
   fs: shim('fs.ts'),
   'node:fs/promises': shim('fs.ts'),
@@ -87,7 +88,7 @@ function assetsModule() {
   return { contents: `export const ASSETS = ${JSON.stringify(assets)};\nexport const LISTINGS = ${JSON.stringify(listings)};\n`, loader: 'js' };
 }
 
-const virtual = {
+export const virtual = {
   name: 'girovo-virtual',
   setup(build) {
     build.onResolve({ filter: /^girovo:/ }, (args) => ({ path: args.path, namespace: 'girovo' }));
@@ -100,7 +101,7 @@ const virtual = {
 };
 
 /** Fails the build on a Node built-in no shim covers, instead of shipping a bundle that throws at start. */
-const noStrayBuiltins = {
+export const noStrayBuiltins = {
   name: 'girovo-no-node',
   setup(build) {
     build.onResolve({ filter: /^node:/ }, (args) => {
