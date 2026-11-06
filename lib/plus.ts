@@ -2,8 +2,8 @@
 // Play build only. It unlocks more than one bank, the month-end forecast and
 // "Frag deine Umsätze";
 // everything else — login, Umsätze, transfers, security, export — stays free.
-// The GitHub APK, the desktop app and the design preview are open source and
-// complete: there the status is 'free' and nothing is locked.
+// The GitHub APK, the desktop app and the design preview are complete, their
+// source public: there the status is 'free' and nothing is locked.
 //
 // Pure, so the tests run it on the desktop.
 

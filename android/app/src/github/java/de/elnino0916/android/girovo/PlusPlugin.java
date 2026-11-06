@@ -8,8 +8,8 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 /**
- * Girovo Plus does not apply to the GitHub build: it is open source and
- * complete, so everything Plus unlocks in the Google Play build is open here
+ * Girovo Plus does not apply to the GitHub build: it is complete, so
+ * everything Plus unlocks in the Google Play build is open here
  * (lib/plus.ts, state 'free'). The Play build has the real PlusPlugin
  * (src/play), with Google Play Billing.
  */

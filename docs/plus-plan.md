@@ -1,7 +1,7 @@
 # Girovo Plus — plan
 
 A supporter subscription in the **Google Play build only**. The GitHub APK and
-the desktop app keep everything free, as open source.
+the desktop app keep everything free of charge.
 
 ## The offer
 

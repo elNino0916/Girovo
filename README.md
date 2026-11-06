@@ -1081,6 +1081,13 @@ under *Einstellungen → Über Girovo*, as are Girovo's website,
 [girovo.de](https://girovo.de), and its contact address,
 [contact@girovo.de](mailto:contact@girovo.de).
 
+## License
+
+From 6.0.0, Girovo's source is available under the
+[PolyForm Perimeter License 1.0.1](LICENSE)
+(<https://polyformproject.org/licenses/perimeter/1.0.1>). Releases up to 5.x
+were published under the MIT License, and stay under it.
+
 ## Development
 
 ```bash

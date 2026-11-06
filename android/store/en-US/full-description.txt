@@ -20,7 +20,7 @@ SAFE AND PRIVATE
 • Optional fingerprint login – your PIN is encrypted with a key only your fingerprint opens
 • Saved data encrypted on your phone
 • No ads, no trackers; usage data only if you agree – error reports without account data
-• Open source (MIT licence): github.com/elNino0916/Girovo
+• Source available (PolyForm Perimeter License 1.0.1): github.com/elNino0916/Girovo
 
 MADE FOR ANDROID
 • In your wallpaper's colours (Material You), light or dark as your phone is set

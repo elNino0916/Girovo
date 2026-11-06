@@ -38,7 +38,7 @@
 		"vr-bank"
 	],
 	"author": "elNino0916",
-	"license": "MIT",
+	"license": "SEE LICENSE IN LICENSE",
 	"dependencies": {
 		"@capacitor/android": "^9.0.0-beta.0",
 		"@capacitor/app": "^9.0.0-alpha.2",

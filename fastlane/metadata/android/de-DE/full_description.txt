@@ -20,7 +20,7 @@ SICHER UND PRIVAT
 • Anmeldung optional mit Fingerabdruck – deine PIN wird dafür mit einem Schlüssel verschlüsselt, den nur dein Fingerabdruck öffnet
 • Gespeicherte Daten verschlüsselt auf deinem Telefon
 • Keine Werbung; Nutzungsdaten nur, wenn du zustimmst
-• Open Source (MIT-Lizenz): github.com/elNino0916/Girovo
+• Quellcode verfügbar (PolyForm Perimeter License 1.0.1): github.com/elNino0916/Girovo
 
 DIESE VERSION
 • Ohne Googles Bibliotheken gebaut: Einen GiroCode scannt ZXing, den Text einer Rechnung liest Tesseract auf deinem Telefon

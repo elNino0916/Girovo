@@ -14,7 +14,7 @@ export const de = {
     about: 'Über Girovo',
   },
   idleHint: 'Eine Minute vorher fragt Girovo nach – während einer Freigabe nie.',
-  licence: 'Freie Software unter der MIT-Lizenz',
+  licence: 'Quellcode verfügbar unter der PolyForm Perimeter License 1.0.1',
   /** Über Girovo: the app's website (girovo.de) and its contact address. */
   website: 'Website',
   contact: 'Kontakt',
@@ -136,7 +136,7 @@ export const en: typeof de = {
     about: 'About Girovo',
   },
   idleHint: 'Girovo asks a minute before – never during an approval.',
-  licence: 'Free software under the MIT licence',
+  licence: 'Source available under the PolyForm Perimeter License 1.0.1',
   website: 'Website',
   contact: 'Contact',
   opensMail: '(opens your e-mail app)',

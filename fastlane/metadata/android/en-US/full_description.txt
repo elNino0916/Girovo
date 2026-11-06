@@ -20,7 +20,7 @@ SAFE AND PRIVATE
 • Optional fingerprint login – your PIN is encrypted with a key only your fingerprint opens
 • Saved data encrypted on your phone
 • No ads; usage data only if you agree
-• Open source (MIT licence): github.com/elNino0916/Girovo
+• Source available (PolyForm Perimeter License 1.0.1): github.com/elNino0916/Girovo
 
 THIS BUILD
 • Built without any of Google's libraries: a GiroCode is scanned with ZXing, an invoice's text is read on your phone with Tesseract

@@ -62,7 +62,8 @@ Three claims together; none alone is the point (owner, 2026-10-04):
 1. **Only your bank sees it.** FinTS runs straight from the device to the
    bank, with no aggregator, cloud account or third party in the path. The PIN
    lives only in memory; everything kept on the device is encrypted with it.
-2. **Any German bank, one modern app.** Free and open source (MIT), the same
+2. **Any German bank, one modern app.** Free to use, its source public under
+   the PolyForm Perimeter License 1.0.1 (since 6.0.0; MIT up to 5.x), the same
    interface for every FinTS bank.
 3. **More than the bank's own app**, all computed on the device: Umsatzanalyse
    with Monatsbudgets, Verträge & Abos, the month-end forecast, the real shop
