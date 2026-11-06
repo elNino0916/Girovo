@@ -103,11 +103,14 @@ jobs:
           ONNXRUNTIME_NODE_INSTALL: skip
 
       # The Tauri app's system libraries: WebKitGTK for its window, and what
-      # the AppImage bundler needs.
+      # the AppImage bundler needs — from GitHub's own cache, not Ubuntu's
+      # mirror, which has crawled at 27 kB/s (45 MB in 28 minutes) and once
+      # hung outright. Only a changed list (or `version`) asks the mirror again.
       - name: Install Tauri's system packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf file
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libwebkit2gtk-4.1-dev librsvg2-dev patchelf file
+          version: tauri-1
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Rust cache
