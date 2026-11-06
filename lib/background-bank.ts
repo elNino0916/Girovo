@@ -13,7 +13,7 @@ import type { BankSide, CheckedLogin } from './background-check';
 import { isCredentialAnswer } from './bank-answer';
 import { fetchStatements } from './fints-statements';
 import { restorePlan } from './product-fallback';
-import { accountsFor, bankAnswerText, serializeTransactions } from './serialize';
+import { accountsFor, balanceFromStatements, bankAnswerText, serializeTransactions } from './serialize';
 import { dropSession, FALLBACK_PRODUCT_ID, getSession, loginInUse, newSession, PRODUCT_ID, restoredClient } from './session';
 import { loadProfile } from './state-store';
 
@@ -53,7 +53,13 @@ export const bankSide: BankSide = {
       if (!resp.success) return isCredentialAnswer(bankAnswerText(resp)) ? { kind: 'refused' } : { kind: 'failed' };
       // The bank took the PIN: for this session's own sake, like a read in the app.
       s.pinAccepted = true;
-      return { kind: 'ok', transactions: serializeTransactions(resp.statements) };
+      // The statement's own closing balance, for an account's limit (lib/payment-alerts.ts): no second request.
+      const balance = balanceFromStatements(resp.statements);
+      return {
+        kind: 'ok',
+        transactions: serializeTransactions(resp.statements),
+        balance: balance ? { value: balance.balance, currency: balance.currency || 'EUR' } : null,
+      };
     } catch (err) {
       // Not reached, or an answer lib-fints could not read: nothing about the PIN.
       console.warn('[background] read failed:', (err as Error)?.message || err);

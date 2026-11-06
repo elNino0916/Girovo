@@ -267,6 +267,8 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
       f.vaultStatus === 'ready' && setting('keep', 'keep', (m) => m.history.keep, <CalendarIcon />),
       f.vaultStatus === 'ready' && setting('backup', 'backup', (m) => m.backup.row.title, <ArchiveIcon />),
       f.vaultStatus === 'ready' && setting('keepBalances', 'keepBalances', (m) => m.settings.balances.keep, <WalletIcon />),
+      // What "Neue Umsätze melden" reports: only while it is on, as on the page.
+      f.backgroundChecks === true && setting('alerts', 'alerts', (m) => m.background.alerts.title, <BellIcon />),
       // With the updater only (the desktop app, the GitHub APK), as on the page.
       !!update && setting('channel', 'channel', (m) => m.settings.channel.title, <SplitIcon />),
       // The bank's own list, at the end of Verträge & Abos — where an account has one.

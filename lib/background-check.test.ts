@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {
-  disable, enroll, enrolled, forget, isOn, mergeSeen, newBookings, parseSecret, runCheck, touch,
-  type BankSide, type CheckedLogin,
+  alertSettings, disable, enroll, enrolled, forget, isOn, limitsKey, mergeSeen, newBookings, parseSecret, runCheck,
+  setAlerts, setWatch, touch, type BankSide, type CheckedLogin,
 } from './background-check.ts';
+import { seriesIdentity } from './recurring.ts';
 import type { BackgroundStore } from './background-store.ts';
 import type { SerializedTransaction } from './fints-types';
 
@@ -27,12 +28,13 @@ const spk: CheckedLogin = { blz: '50050201', userId: 'max', pin: '12345', bank: 
 const dkb: CheckedLogin = { blz: '12030000', userId: 'max.muster', pin: '99999', bank: 'DKB' };
 const NOW = Date.parse('2026-11-03T12:00:00Z');
 
-function tx(day: string, amount: number, name: string, ref = ''): SerializedTransaction {
+function tx(day: string, amount: number, name: string, ref = '', extra: Partial<Record<string, string>> = {}): SerializedTransaction {
   return {
     valueDate: `${day}T00:00:00.000Z`, entryDate: `${day}T00:00:00.000Z`, amount, currency: 'EUR',
     purpose: '', bookingText: '', remoteName: name, remoteIban: '', remoteBic: '', creditorId: '', ultimateName: '',
     e2eReference: '', mandateReference: '', customerReference: '', bankReference: ref, transactionCode: '',
     primeNotesNr: '', textKeyExtension: '', additionalInformation: '', statementNumber: '',
+    ...extra,
   } as unknown as SerializedTransaction;
 }
 
@@ -52,6 +54,11 @@ function fakeBank(answers: Record<string, unknown>, { busy = [] as string[] } = 
       asked.push(`${handle}:${accountNumber}:${from.toISOString().slice(0, 10)}`);
       const a = answers[`${handle}:${accountNumber}`];
       if (typeof a === 'string') return { kind: a as 'approval' | 'refused' | 'failed' };
+      // { transactions, balance }: an answer with the statement's closing balance.
+      if (a && !Array.isArray(a) && typeof a === 'object') {
+        const r = a as { transactions?: SerializedTransaction[]; balance?: number };
+        return { kind: 'ok', transactions: r.transactions ?? [], balance: r.balance == null ? null : { value: r.balance, currency: 'EUR' } };
+      }
       return { kind: 'ok', transactions: (a as SerializedTransaction[] | undefined) ?? [] };
     },
     close(handle) { closed.push(handle); },
@@ -272,4 +279,105 @@ test('newBookings counts equal bookings', () => {
   const a = tx('2026-11-01', -3, 'BÄCKER');
   const { length } = newBookings([], [a, a]);
   assert.equal(length, 2);
+});
+
+
+// ---- payment alerts (lib/payment-alerts.ts) ----------------------------------
+
+const NFX = { creditorId: 'DE98ZZZ09999999999', mandateReference: 'NFX-4711', bookingText: 'FOLGELASTSCHRIFT' };
+const netflix = (day: string, amount: number) => tx(day, amount, 'Netflix International B.V.', '', NFX);
+const salary = (day: string) => tx(day, 2500, 'ACME GmbH', '', { bookingText: 'LOHN/GEHALT' });
+
+test('alerts: a dearer contract and salary each get their own notice; the rest is "new"', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  assert.equal(await setWatch(store, secret, {
+    contracts: [{ key: seriesIdentity(netflix('2026-10-03', -12.99)).key!, name: 'Netflix International B.V.', cents: 1299, at: '2026-11-01' }],
+    income: [],
+  }, NOW), true);
+  await runCheck(store, secret, fakeBank({ '50050201:DE01': [] }).side, NOW);
+  const r = await runCheck(store, secret, fakeBank({
+    '50050201:DE01': [netflix('2026-11-03', -13.99), salary('2026-11-02'), tx('2026-11-02', -4.5, 'Bäcker')],
+  }).side, NOW + 1);
+  assert.deepEqual(r.notices.map((n) => n.kind).sort(), ['dearer', 'income', 'new']);
+  const dearer = r.notices.find((n) => n.kind === 'dearer')!;
+  assert.equal(dearer.title, 'Netflix International B.V. ist teurer geworden');
+  assert.match(dearer.text, /^13,99\s€ statt 12,99\s€ · Sparkasse$/);
+  const income = r.notices.find((n) => n.kind === 'income')!;
+  assert.equal(income.title, 'Geld eingegangen bei Sparkasse');
+  assert.match(income.lines[0], /2\.500,00\s€ · Acme GmbH/i);
+  // Told once: the generic notice has only the bakery.
+  const plain = r.notices.find((n) => n.kind === 'new')!;
+  assert.equal(plain.title, 'Ein neuer Umsatz bei Sparkasse');
+  assert.equal(plain.lines.length, 1);
+
+  // The new price is the usual one now: next month's 13,99 is no news.
+  const next = await runCheck(store, secret, fakeBank({
+    '50050201:DE01': [netflix('2026-11-03', -13.99), salary('2026-11-02'), tx('2026-11-02', -4.5, 'Bäcker'), netflix('2026-12-03', -13.99)],
+  }).side, NOW + 2);
+  assert.deepEqual(next.notices.map((n) => n.kind), ['new']);
+});
+
+test('alerts: "every new booking" off leaves only the specific notices', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], false);
+  assert.equal(await setAlerts(store, secret, { prefs: { every: false } }), true);
+  await runCheck(store, secret, fakeBank({ '50050201:DE01': [] }).side, NOW);
+  const r = await runCheck(store, secret, fakeBank({ '50050201:DE01': [salary('2026-11-02'), tx('2026-11-02', -4.5, 'Bäcker')] }).side, NOW + 1);
+  assert.deepEqual(r.notices.map((n) => n.kind), ['income']);
+  // Amounts off: who, never how much.
+  assert.deepEqual(r.notices[0].lines, ['ACME GmbH']);
+  // Income off too: nothing at all about bookings.
+  await setAlerts(store, secret, { prefs: { income: false } });
+  const r2 = await runCheck(store, secret, fakeBank({ '50050201:DE01': [salary('2026-11-02'), salary('2026-11-03')] }).side, NOW + 2);
+  assert.deepEqual(r2.notices, []);
+});
+
+test('alerts: under a limit is said once, again only after the balance was back above it', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  assert.equal(await setAlerts(store, secret, { limits: [{ login: spk, account: 'DE01', limit: { cents: 10000, label: 'Girokonto' } }] }), true);
+  const at = (balance: number, n: number) => runCheck(store, secret, fakeBank({ '50050201:DE01': { transactions: [], balance } }).side, NOW + n);
+  const first = await at(50, 0);
+  assert.deepEqual(first.notices.map((n) => [n.kind, n.title]), [['low', 'Kontostand unter 100,00\u00a0€']]);
+  assert.match(first.notices[0].text, /^Girokonto bei Sparkasse: 50,00\s€$/);
+  assert.deepEqual((await at(40, 1)).notices, []);
+  assert.deepEqual((await at(200, 2)).notices, []);
+  assert.equal((await at(60, 3)).notices.length, 1);
+  // A changed limit is judged afresh.
+  await setAlerts(store, secret, { limits: [{ login: spk, account: 'DE01', limit: { cents: 8000, label: 'Girokonto' } }] });
+  assert.equal((await at(60, 4)).notices.length, 1);
+  // Removed: nothing more, whatever the balance.
+  await setAlerts(store, secret, { limits: [{ login: spk, account: 'DE01', limit: null }] });
+  assert.deepEqual((await at(1, 5)).notices, []);
+});
+
+test('alerts: settings stay through a new enrolment, go with their login, and only kept logins take limits', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk, dkb], true);
+  await setAlerts(store, secret, {
+    prefs: { dearer: false },
+    limits: [
+      { login: spk, account: 'DE01', limit: { cents: 100, label: '' } },
+      { login: dkb, account: 'DE02', limit: { cents: 200, label: '' } },
+      { login: { blz: '10000000', userId: 'nobody' }, account: 'DE03', limit: { cents: 300, label: '' } },
+    ],
+  });
+  await setWatch(store, secret, { contracts: [{ key: 'out|cred:A|mref:1', name: 'A', cents: 500, at: '2026-11-01' }], income: [] }, NOW);
+  // Turned on again (a new PIN, another bank): the choices stay.
+  await enroll(store, secret, [spk, dkb], false);
+  let s = await alertSettings(store, secret);
+  assert.equal(s?.prefs.dearer, false);
+  assert.equal(s?.amounts, false);
+  assert.deepEqual(Object.keys(s!.limits).sort(), [limitsKey(dkb), limitsKey(spk)].sort());
+  // The box names no login, no limit label, no contract in the clear.
+  assert.ok(!store.text!.includes('out|cred:A'));
+  await forget(store, secret, dkb);
+  s = await alertSettings(store, secret);
+  assert.deepEqual(Object.keys(s!.limits), [limitsKey(spk)]);
+  // Off: nothing to change, and nothing changed.
+  await disable(store);
+  assert.equal(await setAlerts(store, secret, { prefs: { every: false } }), false);
+  assert.equal(await setWatch(store, secret, { contracts: [], income: [] }, NOW), false);
+  assert.equal(await isOn(store), false);
 });

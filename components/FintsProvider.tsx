@@ -107,6 +107,7 @@ import { matchAwaiting } from '@/lib/receipts';
 import { saveFile, textBlob } from '@/lib/download';
 import type { TaxYear } from '@/lib/tax-year';
 import type { BackupSummary, RestoreReport } from '@/lib/backup';
+import type { AlertsChange, AlertsView, Watch } from '@/lib/payment-alerts';
 import type { PopularBank } from '@/lib/banks';
 
 import {
@@ -2940,6 +2941,51 @@ function useFintsState() {
     }
   }, [isCurrent, setBackgroundBoth, toast]);
 
+  /**
+   * Einstellungen → Was Girovo meldet (lib/payment-alerts.ts): what the
+   * notices are about and the limits of `accountKeys`, after `set` changed
+   * them. Null when the checks are off or the answer did not come.
+   */
+  const backgroundAlerts = useCallback(async (accountKeys: readonly string[], set?: AlertsChange): Promise<AlertsView | null> => {
+    if (backgroundRef.current !== true) return null;
+    const secret = await backgroundSecret();
+    if (!secret) return null;
+    const named = (acct: string) => {
+      const sessionId = sessionFor(acct);
+      return sessionId ? { sessionId, accountNumber: acct } : null;
+    };
+    const accounts = accountKeys.map(named).filter((a) => !!a);
+    const change = set && {
+      ...set,
+      limits: set.limits?.flatMap((l) => {
+        const a = named(l.account);
+        return a ? [{ ...a, cents: l.cents, label: l.label }] : [];
+      }),
+    };
+    try {
+      const r = await post<{ on: boolean } & Partial<AlertsView>>(
+        '/api/background', { op: 'alerts', secret, accounts, ...(change ? { set: change } : {}) },
+      );
+      if (!r.on || !r.prefs || !r.accounts) return null;
+      return { prefs: r.prefs, amounts: r.amounts !== false, accounts: r.accounts };
+    } catch {
+      return null;
+    }
+  }, [sessionFor]);
+
+  /** Verträge & Abos' watch list for the checks (components/settings/BackgroundAlerts.tsx AlertWatch). */
+  const sendAlertWatch = useCallback(async (watch: Watch & { drop: string[] }): Promise<boolean> => {
+    if (backgroundRef.current !== true) return false;
+    const secret = await backgroundSecret();
+    if (!secret) return false;
+    try {
+      const r = await post<{ on: boolean }>('/api/background', { op: 'watch', secret, ...watch });
+      return r.on === true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   /** One login's PIN kept for the checks goes (its bank refused it, it was removed, its device forgotten). */
   const forgetBackgroundLogin = useCallback(async (login: { blz: string; userId: string }) => {
     if (backgroundRef.current !== true) return;
@@ -5518,6 +5564,7 @@ function useFintsState() {
     windowsHello, setWindowsHello,
     // "Neue Umsätze melden" (lib/background-check.ts)
     backgroundChecks, backgroundAsk, setBackgroundChecks, openBackgroundAsk, closeBackgroundAsk,
+    backgroundAlerts, sendAlertWatch,
     // sync between devices (lib/sync.ts)
     sync, syncOpen, openSync, closeSync, syncNow, createSync, syncCode, joinSync, leaveSync,
   };

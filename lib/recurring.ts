@@ -468,6 +468,28 @@ function groupKeyOf(tx: SerializedTransaction, credit: boolean, cred: string | n
   return text ? `${dir}|text:${text}` : null;
 }
 
+/**
+ * What a booking is grouped under: the series key Verträge & Abos files it
+ * under before an amount cluster ("|amt:13") or a shop ("|shop:…") is added,
+ * and the shop a payment facilitator collected it for. The background check
+ * matches a new booking to a watched contract by this (lib/payment-alerts.ts),
+ * so both always mean the same contract.
+ */
+export function seriesIdentity(tx: SerializedTransaction): { key: string | null; shop: string | null } {
+  const amount = Number(tx.amount);
+  if (!amount || !Number.isFinite(amount)) return { key: null, shop: null };
+  const identity = groupKeyOf(tx, amount > 0, txCreditorId(tx), txMandate(tx));
+  if (!identity) return { key: null, shop: null };
+  const currency = tx.currency || 'EUR';
+  return {
+    key: currency === 'EUR' ? identity : `${identity}|${currency}`,
+    shop: isFacilitator(tx) ? innerMerchant(tx) || null : null,
+  };
+}
+
+/** A series' key without its amount cluster or shop: what seriesIdentity answers for its bookings. */
+export const seriesBase = (key: string): string => key.replace(/\|(?:amt|shop):.*$/, '');
+
 /** Amount clusters of a group, each in date order: amounts within 2 % or 1,00 of their neighbour. */
 function amountClusters(occ: readonly Occurrence[]): Occurrence[][] {
   const sorted = [...occ].sort((a, b) => a.abs - b.abs);

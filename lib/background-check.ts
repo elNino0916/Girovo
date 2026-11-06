@@ -25,6 +25,11 @@
 // - What is new is told by the booking's key (lib/categories.ts txKey),
 //   counted, so two equal bookings on one day are two. The first check of an
 //   account only learns what is there.
+// - What a notice is about is the user's choice (lib/payment-alerts.ts): every
+//   new booking, a contract that charged more than usual, salary and other
+//   regular income, an account under a limit. A booking is told once, by the
+//   most specific notice; the contracts and incomes come from Verträge & Abos
+//   while the user is in (setWatch), kept in the box beside the PINs.
 //
 // Every change to the box is a compare-and-set (lib/background-store.ts): on
 // the phone the page and the job are two runtimes, and a check must never
@@ -37,12 +42,16 @@
 import crypto from 'node:crypto';
 import { newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
 import { txKey } from './categories.ts';
-import { displayName, fmtSignedMoney } from './format.ts';
+import { displayName, fmtMoney, fmtSignedMoney } from './format.ts';
 import type { SerializedTransaction } from './fints-types';
 import { msgs } from './i18n/index.ts';
 import type { SealedLogin } from './linked-unlock.ts';
 import { sameLogin } from './linked-banks.ts';
 import type { BackgroundStore } from './background-store.ts';
+import {
+  DEFAULT_PREFS, belowLimit, dearerCharge, isIncome, mergeWatch, readLimit, readPrefs, readWatch,
+  type AlertPrefs, type Limit, type Watch, type WatchedContract,
+} from './payment-alerts.ts';
 
 /** A login kept for the checks: its PIN, its bank's name, and whether it waits for the user. */
 export type CheckedLogin = SealedLogin & {
@@ -60,16 +69,26 @@ type Box = {
   logins: CheckedLogin[];
   /** By login (blz|userId), by account: the keys of the bookings seen, one per booking. */
   seen: Record<string, Record<string, string[]>>;
+  /** What the notices are about (lib/payment-alerts.ts). */
+  prefs: AlertPrefs;
+  /** The contracts and regular incomes Verträge & Abos last handed over. */
+  watch: Watch;
+  /** By login, by account: the balance under which to say so. */
+  limits: Record<string, Record<string, Limit>>;
+  /** By login: the accounts said to be under their limit — said once, until the balance is back above it. */
+  below: Record<string, string[]>;
 };
+
+const EMPTY_WATCH: Watch = { contracts: [], income: [] };
 
 /** What a check found worth saying, ready to show — one per bank and kind. */
 export type Notice = {
   /** Stable per bank and kind, so a later notice replaces an earlier one. */
   key: string;
-  kind: 'new' | 'approval' | 'login' | 'refused';
+  kind: 'new' | 'approval' | 'login' | 'refused' | 'dearer' | 'income' | 'low';
   title: string;
   text: string;
-  /** The new bookings, one line each (kind 'new'). */
+  /** The bookings, one line each (kinds 'new' and 'income'). */
   lines: string[];
 };
 
@@ -84,7 +103,7 @@ export type BankSide = {
   /** The login opened on its remembered device — no bank traffic — or 'login' when it does not open. */
   open(login: CheckedLogin): Promise<{ handle: string; accounts: CheckedAccount[] } | 'login'>;
   read(handle: string, accountNumber: string, from: Date): Promise<
-    | { kind: 'ok'; transactions: SerializedTransaction[] }
+    | { kind: 'ok'; transactions: SerializedTransaction[]; balance?: { value: number; currency: string } | null }
     | { kind: 'approval' | 'refused' | 'failed' }
   >;
   close(handle: string): void;
@@ -100,6 +119,8 @@ const SEEN_DAYS = 45;
 const SEEN_MAX = 600;
 const LINES_MAX = 5;
 const LOGINS_MAX = 8;
+/** Limits per login. */
+const LIMITS_MAX = 40;
 const PIN_MAX = 64;
 const BOX_MAX_BYTES = 512 * 1024;
 /** Tries of a compare-and-set before a change is given up for this round. */
@@ -156,7 +177,31 @@ function sanitizeBox(v: unknown): Box {
     }
     seen[loginKey(l)] = out;
   }
-  return { v: 1, amounts: r.amounts !== false, logins, seen };
+  const limits: Box['limits'] = {};
+  const below: Box['below'] = {};
+  const rawLimits = (r.limits && typeof r.limits === 'object' ? r.limits : {}) as Record<string, unknown>;
+  const rawBelow = (r.below && typeof r.below === 'object' ? r.below : {}) as Record<string, unknown>;
+  for (const l of logins) {
+    const lk = loginKey(l);
+    const byAccount = rawLimits[lk];
+    if (byAccount && typeof byAccount === 'object') {
+      const out: Record<string, Limit> = {};
+      for (const [acct, raw] of Object.entries(byAccount as Record<string, unknown>).slice(0, LIMITS_MAX)) {
+        const limit = acct.length <= 64 ? readLimit(raw) : null;
+        if (limit) out[acct] = limit;
+      }
+      if (Object.keys(out).length) limits[lk] = out;
+    }
+    const said = rawBelow[lk];
+    if (Array.isArray(said)) {
+      const accts = said.filter((a): a is string => typeof a === 'string' && !!limits[lk]?.[a]);
+      if (accts.length) below[lk] = [...new Set(accts)];
+    }
+  }
+  return {
+    v: 1, amounts: r.amounts !== false, logins, seen,
+    prefs: readPrefs(r.prefs), watch: readWatch(r.watch), limits, below,
+  };
 }
 
 /**
@@ -238,8 +283,18 @@ export async function enroll(store: BackgroundStore, secret: Buffer, logins: rea
       return before?.checkedAt ? { ...l, checkedAt: before.checkedAt } : l;
     });
     const seen: Box['seen'] = {};
-    for (const l of kept) if (prior?.seen[loginKey(l)]) seen[loginKey(l)] = prior.seen[loginKey(l)];
-    return { v: 1, amounts, logins: kept, seen };
+    const limits: Box['limits'] = {};
+    const below: Box['below'] = {};
+    for (const l of kept) {
+      const lk = loginKey(l);
+      if (prior?.seen[lk]) seen[lk] = prior.seen[lk];
+      if (prior?.limits[lk]) limits[lk] = prior.limits[lk];
+      if (prior?.below[lk]) below[lk] = prior.below[lk];
+    }
+    return {
+      v: 1, amounts, logins: kept, seen,
+      prefs: prior?.prefs ?? DEFAULT_PREFS, watch: prior?.watch ?? EMPTY_WATCH, limits, below,
+    };
   });
   return after?.logins.length ?? 0;
 }
@@ -254,9 +309,78 @@ export async function forget(store: BackgroundStore, secret: Buffer, login: Pick
   await change(store, secret, (box) => {
     if (!box || !box.logins.some((l) => sameLogin(l, login))) return 'keep';
     const seen = { ...box.seen };
+    const limits = { ...box.limits };
+    const below = { ...box.below };
     delete seen[loginKey(login)];
-    return { ...box, logins: box.logins.filter((l) => !sameLogin(l, login)), seen };
+    delete limits[loginKey(login)];
+    delete below[loginKey(login)];
+    return { ...box, logins: box.logins.filter((l) => !sameLogin(l, login)), seen, limits, below };
   });
+}
+
+/** What the notices are about, whether they show amounts, and the limits by login — for Einstellungen; null when off or unreadable. */
+export async function alertSettings(store: BackgroundStore, secret: Buffer): Promise<{
+  amounts: boolean; prefs: AlertPrefs; limits: Record<string, Record<string, Limit>>; logins: string[];
+} | null> {
+  const box = openText(await store.read(), secret);
+  if (!box || box === 'stale') return null;
+  return { amounts: box.amounts, prefs: box.prefs, limits: box.limits, logins: box.logins.map(loginKey) };
+}
+
+/** The key alertSettings files a login's limits under. */
+export const limitsKey = (login: Pick<SealedLogin, 'blz' | 'userId'>): string => loginKey(login);
+
+export type LimitChange = { login: Pick<SealedLogin, 'blz' | 'userId'>; account: string; limit: Limit | null };
+
+/**
+ * Changes what the notices are about, whether they show amounts, and the
+ * limits of accounts at kept logins (others are left out). A changed limit
+ * is judged afresh: under it at the next check, that is said. Answers
+ * whether the checks are on.
+ */
+export async function setAlerts(
+  store: BackgroundStore, secret: Buffer,
+  next: { prefs?: Partial<AlertPrefs>; amounts?: boolean; limits?: readonly LimitChange[] },
+): Promise<boolean> {
+  const after = await change(store, secret, (box) => {
+    if (!box) return 'keep';
+    const limits = { ...box.limits };
+    const below = { ...box.below };
+    for (const c of next.limits ?? []) {
+      if (!c.account || c.account.length > 64 || !box.logins.some((l) => sameLogin(l, c.login))) continue;
+      const lk = loginKey(c.login);
+      const mine = { ...limits[lk] };
+      const before = mine[c.account];
+      if (c.limit) {
+        if (!before && Object.keys(mine).length >= LIMITS_MAX) continue;
+        mine[c.account] = c.limit;
+      } else {
+        delete mine[c.account];
+      }
+      if (Object.keys(mine).length) limits[lk] = mine;
+      else delete limits[lk];
+      if (before?.cents !== c.limit?.cents && below[lk]) {
+        const left = below[lk].filter((a) => a !== c.account);
+        if (left.length) below[lk] = left;
+        else delete below[lk];
+      }
+    }
+    const prefs = readPrefs({ ...box.prefs, ...next.prefs });
+    return { ...box, prefs, amounts: next.amounts ?? box.amounts, limits, below };
+  });
+  return !!after;
+}
+
+/**
+ * What Verträge & Abos hands over while the user is in: the contracts and
+ * regular incomes to match new bookings to (lib/payment-alerts.ts
+ * mergeWatch). Answers whether the checks are on.
+ */
+export async function setWatch(
+  store: BackgroundStore, secret: Buffer, next: Watch & { drop?: readonly string[] }, now = Date.now(),
+): Promise<boolean> {
+  const after = await change(store, secret, (box) => (box ? { ...box, watch: mergeWatch(box.watch, next, now) } : 'keep'));
+  return !!after;
 }
 
 /**
@@ -323,18 +447,64 @@ export function newBookings(seen: readonly string[], current: readonly Serialize
   return out;
 }
 
+/** Who a booking is with, as a notice names them. */
+const whoOf = (t: SerializedTransaction) => displayName(t.remoteName) || displayName(t.purpose).slice(0, 60) || msgs().background.someone;
+
 /** One booking as a notice's line: the amount (unless amounts are off) and who. */
 function lineOf(t: SerializedTransaction, amounts: boolean): string {
-  const who = displayName(t.remoteName) || displayName(t.purpose).slice(0, 60) || msgs().background.someone;
+  const who = whoOf(t);
   return amounts ? `${fmtSignedMoney(t.amount, t.currency || 'EUR')} · ${who}` : who;
 }
 
-function noticeFor(kind: Notice['kind'], login: CheckedLogin, lines: string[] = [], count = 0): Notice {
+/** Bookings as a notice's lines, newest first, the rest counted. */
+function linesOf(txs: readonly SerializedTransaction[], amounts: boolean): string[] {
+  const newest = [...txs].sort((x, y) => String(y.entryDate || y.valueDate).localeCompare(String(x.entryDate || x.valueDate)));
+  const lines = newest.slice(0, LINES_MAX).map((t) => lineOf(t, amounts));
+  if (newest.length > LINES_MAX) lines.push(msgs().background.more(newest.length - LINES_MAX));
+  return lines;
+}
+
+/** A contract charged more than its usual price. */
+function dearerNotice(
+  login: CheckedLogin, contract: WatchedContract, cents: number, t: SerializedTransaction, amounts: boolean,
+): Notice {
+  const said = msgs().background;
+  const currency = t.currency || 'EUR';
+  const name = displayName(contract.name) || whoOf(t);
+  return {
+    key: `${login.blz}|${login.userId}|dearer|${contract.key}|${contract.shop ?? ''}`,
+    kind: 'dearer',
+    title: said.dearerTitle(name),
+    text: amounts
+      ? said.dearerText(fmtMoney(cents / 100, currency), fmtMoney(contract.cents / 100, currency), login.bank)
+      : said.dearerTextHidden(login.bank),
+    lines: [],
+  };
+}
+
+/** An account fell under its limit. */
+function lowNotice(
+  login: CheckedLogin, account: string, limit: Limit, balance: { value: number; currency: string }, amounts: boolean,
+): Notice {
+  const said = msgs().background;
+  const name = limit.label || said.accountEnding(account.slice(-4));
+  return {
+    key: `${login.blz}|${login.userId}|low|${account}`,
+    kind: 'low',
+    title: amounts ? said.lowTitle(fmtMoney(limit.cents / 100, balance.currency)) : said.lowTitleHidden,
+    text: amounts ? said.lowText(name, login.bank, fmtMoney(balance.value, balance.currency)) : said.lowTextHidden(name, login.bank),
+    lines: [],
+  };
+}
+
+function noticeFor(kind: 'new' | 'income' | 'approval' | 'login' | 'refused', login: CheckedLogin, lines: string[] = [], count = 0): Notice {
   const said = msgs().background;
   const key = `${login.blz}|${login.userId}|${kind}`;
   switch (kind) {
     case 'new':
       return { key, kind, title: said.newTitle(count, login.bank), text: lines.slice(0, 2).join('\n'), lines };
+    case 'income':
+      return { key, kind, title: said.incomeTitle(count, login.bank), text: lines.slice(0, 2).join('\n'), lines };
     case 'approval':
       return { key, kind, title: said.approvalTitle(login.bank), text: said.approvalText, lines };
     case 'login':
@@ -344,13 +514,20 @@ function noticeFor(kind: Notice['kind'], login: CheckedLogin, lines: string[] = 
   }
 }
 
+/** What a check learnt besides the bookings: contracts now dearer, accounts under or over their limits. */
+type Learnt = {
+  repriced: Array<{ key: string; shop?: string; from: number; cents: number }>;
+  /** By account read: under its limit now. */
+  below: Record<string, boolean>;
+};
+
 /** What one login's check came to, made on the box as it is then (see `change`). */
 type Outcome =
   | { kind: 'pause'; why: 'approval' | 'login'; seen?: Record<string, string[]> }
   | { kind: 'refused' }
   | { kind: 'read'; seen: Record<string, string[]>; checkedAt?: string };
 
-function settle(box: Box | null, login: CheckedLogin, outcome: Outcome, now: number): Box | 'keep' {
+function settle(box: Box | null, login: CheckedLogin, outcome: Outcome, now: number, learnt?: Learnt): Box | 'keep' {
   const at = box ? box.logins.findIndex((l) => sameLogin(l, login)) : -1;
   // Switched off, or this login forgotten, meanwhile: nothing comes back.
   if (!box || at < 0) return 'keep';
@@ -371,12 +548,31 @@ function settle(box: Box | null, login: CheckedLogin, outcome: Outcome, now: num
     return { ...box, logins: logins.filter((_, i) => i !== at), seen };
   }
   mergeIn(outcome.seen);
+  let { watch, below } = box;
+  if (learnt?.repriced.length) {
+    // The dearer price is the usual one now: the next booking at it is no news.
+    const contracts = watch.contracts.map((c) => {
+      const r = learnt.repriced.find((p) => p.key === c.key && (p.shop ?? '') === (c.shop ?? '') && p.from === c.cents);
+      return r ? { ...c, cents: r.cents } : c;
+    });
+    watch = { ...watch, contracts };
+  }
+  if (learnt && Object.keys(learnt.below).length) {
+    const said = new Set(below[lk] ?? []);
+    for (const [acct, under] of Object.entries(learnt.below)) {
+      if (under && box.limits[lk]?.[acct]) said.add(acct);
+      else said.delete(acct);
+    }
+    below = { ...below };
+    if (said.size) below[lk] = [...said];
+    else delete below[lk];
+  }
   if (outcome.kind === 'pause') {
     if (current.pin === login.pin) logins[at] = { ...current, paused: outcome.why };
   } else if (outcome.checkedAt) {
     logins[at] = { ...current, checkedAt: outcome.checkedAt };
   }
-  return { ...box, logins, seen };
+  return { ...box, logins, seen, watch, below };
 }
 
 /**
@@ -398,18 +594,23 @@ export function runCheck(store: BackgroundStore, secret: Buffer, bank: BankSide,
     const notices: Notice[] = [];
     let checked = 0;
     let on = true;
+    const { prefs, amounts } = start;
+    // A contract found dearer at one login is taken at its new price for the next.
+    let contracts = start.watch.contracts;
     for (const login of start.logins) {
       if (login.paused || bank.busy(login)) continue;
       const opened = await bank.open(login).catch(() => null);
       if (!opened) continue;
       let outcome: Outcome;
       const fresh: SerializedTransaction[] = [];
+      const learnt: Learnt = { repriced: [], below: {} };
       if (opened === 'login') {
         outcome = { kind: 'pause', why: 'login' };
         notices.push(noticeFor('login', login));
       } else {
         checked++;
-        const seenNow = start.seen[loginKey(login)] ?? {};
+        const lk = loginKey(login);
+        const seenNow = start.seen[lk] ?? {};
         const read: Record<string, string[]> = {};
         let stop: 'approval' | 'refused' | 'failed' | null = null;
         const last = login.checkedAt ? Date.parse(login.checkedAt) : NaN;
@@ -427,6 +628,14 @@ export function runCheck(store: BackgroundStore, secret: Buffer, bank: BankSide,
             // The first check of an account only learns what is there.
             if (prior) fresh.push(...newBookings(prior, got.transactions));
             read[account.accountNumber] = got.transactions.map(txKey);
+            const limit = start.limits[lk]?.[account.accountNumber];
+            const under = belowLimit(limit, got.balance?.value);
+            if (limit && got.balance && under !== null) {
+              learnt.below[account.accountNumber] = under;
+              if (under && !start.below[lk]?.includes(account.accountNumber)) {
+                notices.push(lowNotice(login, account.accountNumber, limit, got.balance, amounts));
+              }
+            }
           }
         } finally {
           bank.close(opened.handle);
@@ -443,14 +652,25 @@ export function runCheck(store: BackgroundStore, secret: Buffer, bank: BankSide,
           // the next one reaches back as far as this one would have.
           outcome = { kind: 'read', seen: read, ...(anyRead ? { checkedAt: new Date(now).toISOString() } : {}) };
         }
-        if (fresh.length) {
-          const newest = [...fresh].sort((x, y) => String(y.entryDate || y.valueDate).localeCompare(String(x.entryDate || x.valueDate)));
-          const lines = newest.slice(0, LINES_MAX).map((t) => lineOf(t, start.amounts));
-          if (newest.length > LINES_MAX) lines.push(msgs().background.more(newest.length - LINES_MAX));
-          notices.push(noticeFor('new', login, lines, fresh.length));
+        // Each booking told once, by the most specific notice that fits.
+        const income: SerializedTransaction[] = [];
+        const plain: SerializedTransaction[] = [];
+        for (const t of fresh) {
+          const dearer = prefs.dearer ? dearerCharge(contracts, t) : null;
+          if (dearer) {
+            notices.push(dearerNotice(login, dearer.contract, dearer.cents, t, amounts));
+            learnt.repriced.push({ key: dearer.contract.key, shop: dearer.contract.shop, from: dearer.contract.cents, cents: dearer.cents });
+            contracts = contracts.map((c) => (c === dearer.contract ? { ...c, cents: dearer.cents } : c));
+          } else if (prefs.income && isIncome(start.watch.income, t)) {
+            income.push(t);
+          } else {
+            plain.push(t);
+          }
         }
+        if (income.length) notices.push(noticeFor('income', login, linesOf(income, amounts), income.length));
+        if (plain.length && prefs.every) notices.push(noticeFor('new', login, linesOf(plain, amounts), plain.length));
       }
-      const after = await change(store, secret, (box) => settle(box, login, outcome, now));
+      const after = await change(store, secret, (box) => settle(box, login, outcome, now, learnt));
       if (!after) {
         on = false;
         break;

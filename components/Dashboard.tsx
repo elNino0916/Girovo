@@ -38,6 +38,7 @@ import { AddBankSheet } from './AddBank';
 import { ShareAccount } from './ShareAccount';
 import { LinkedUnlockDialog } from './settings/LinkedUnlock';
 import { BackgroundDialog } from './settings/BackgroundChecks';
+import { AlertWatch } from './settings/BackgroundAlerts';
 import { SyncDialog } from './settings/Sync';
 import { ForgetDeviceDialog, LogoutConfirmDialog } from './shell/ProfileMenu';
 import { SplitRequests } from './transactions/SplitRequests';
@@ -274,7 +275,7 @@ function ClassicDashboard() {
  * (components/shell/FrameSearch.tsx).
  */
 function ShellLayers({ frame = false }: { frame?: boolean }) {
-  const { transferOpen, shareOpen, shareAll, forgetDeviceOpen, setForgetDeviceOpen } = useFints();
+  const { transferOpen, shareOpen, shareAll, forgetDeviceOpen, setForgetDeviceOpen, backgroundChecks } = useFints();
   return (
     <>
       {transferOpen && <TransferSheet />}
@@ -286,6 +287,8 @@ function ShellLayers({ frame = false }: { frame?: boolean }) {
       <LogoutConfirmDialog />
       <LinkedUnlockDialog />
       <BackgroundDialog />
+      {/* Verträge & Abos' contracts for the checks' alerts: only while they are on. */}
+      {backgroundChecks === true && <AlertWatch />}
       <SyncDialog />
       <Inbox />
       {!frame && <CommandPalette />}

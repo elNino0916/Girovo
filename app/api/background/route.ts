@@ -9,6 +9,10 @@
 //   touch  {secret, sessionId, accountNumber?, keys?} → { kept }     a kept login takes the PIN the
 //                                          bank just took, resumes, and counts these bookings as seen
 //   forget {secret, login}               → { on }        one login's PIN
+//   alerts {secret, accounts, set?}      → { on, prefs, amounts, accounts }  what the notices are about
+//                                          and each account's limit (lib/payment-alerts.ts); `accounts`
+//                                          names the page's accounts by session, `set` changes them
+//   watch  {secret, contracts, income, drop} → { on }    Verträge & Abos' watch list
 //   off                                  → { on: false } every PIN
 //   check  {secret}                      → { checked, notices }       the desktop shell's six-hourly call;
 //                                          the phone's job calls lib/background-check.ts itself
@@ -20,7 +24,12 @@
 
 import { boundedBody, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { bankSide } from '@/lib/background-bank';
-import { disable, enroll, enrolled, forget, isOn, parseSecret, runCheck, touch, type CheckedLogin } from '@/lib/background-check';
+import { localKey } from '@/lib/account-key';
+import {
+  alertSettings, disable, enroll, enrolled, forget, isOn, limitsKey, parseSecret, runCheck, setAlerts, setWatch, touch,
+  type CheckedLogin, type LimitChange,
+} from '@/lib/background-check';
+import { readCents, readWatch } from '@/lib/payment-alerts';
 import { backgroundServed, backgroundStore } from '@/lib/background-store';
 import { msgs } from '@/lib/i18n';
 import { LINKED_BANK_LIMITS } from '@/lib/linked-banks';
@@ -33,7 +42,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type BackgroundBody = {
-  op?: 'status' | 'state' | 'enroll' | 'touch' | 'forget' | 'off' | 'check';
+  op?: 'status' | 'state' | 'enroll' | 'touch' | 'forget' | 'off' | 'check' | 'alerts' | 'watch';
   secret?: string;
   sessionId?: string;
   sessionIds?: unknown;
@@ -41,7 +50,26 @@ type BackgroundBody = {
   login?: unknown;
   accountNumber?: unknown;
   keys?: unknown;
+  accounts?: unknown;
+  set?: unknown;
+  contracts?: unknown;
+  income?: unknown;
+  drop?: unknown;
 };
+
+/** The page's accounts, at most this many, named by their session. */
+const ACCOUNTS_MAX = 60;
+
+/** An account of the page, `{ sessionId, accountNumber }`: its login and its own session's key, or null. */
+function accountOf(v: unknown): { key: string; login: { blz: string; userId: string }; account: string } | null {
+  if (!v || typeof v !== 'object') return null;
+  const r = v as Record<string, unknown>;
+  if (typeof r.sessionId !== 'string' || typeof r.accountNumber !== 'string' || r.accountNumber.length > 80) return null;
+  const login = loginOfSession(getSession(r.sessionId));
+  if (!login) return null;
+  // The page's key of a further bank's account may carry its BLZ (lib/account-key.ts); the check reads the bank's own.
+  return { key: r.accountNumber, login: { blz: login.blz, userId: login.userId }, account: localKey(r.accountNumber) };
+}
 
 /** A statement's worth of booking keys at most. */
 const REQUEST_MAX_BYTES = 256 * 1024;
@@ -93,7 +121,8 @@ export const POST = wrap(async (req: Request) => {
       if (!s) return sessionExpired();
       const login = loginOfSession(s);
       if (!login || !s.pinAccepted) return json({ kept: false });
-      const account = typeof b.accountNumber === 'string' ? b.accountNumber : undefined;
+      // The check knows an account by its own session's key (lib/background-bank.ts): never the page's "@BLZ".
+      const account = typeof b.accountNumber === 'string' ? localKey(b.accountNumber) : undefined;
       const keys = Array.isArray(b.keys)
         ? b.keys.filter((k): k is string => typeof k === 'string' && k.length <= 300).slice(0, KEYS_MAX)
         : undefined;
@@ -104,6 +133,39 @@ export const POST = wrap(async (req: Request) => {
       if (!login) return fail(said.unknownAction);
       await forget(store, secret, login);
       return json({ on: await isOn(store) });
+    }
+    case 'alerts': {
+      const accounts = (Array.isArray(b.accounts) ? b.accounts : []).slice(0, ACCOUNTS_MAX).map(accountOf).filter((a) => !!a);
+      const set = (b.set && typeof b.set === 'object' ? b.set : null) as Record<string, unknown> | null;
+      if (set) {
+        const prefs: Record<string, boolean> = {};
+        for (const k of ['every', 'dearer', 'income'] as const) if (typeof set[k] === 'boolean') prefs[k] = set[k] as boolean;
+        const limits: LimitChange[] = [];
+        for (const raw of (Array.isArray(set.limits) ? set.limits : []).slice(0, ACCOUNTS_MAX)) {
+          const a = accountOf(raw);
+          if (!a) continue;
+          const r = raw as Record<string, unknown>;
+          const cents = r.cents === null ? null : readCents(r.cents);
+          if (cents === null && r.cents !== null) continue;
+          const label = typeof r.label === 'string' ? r.label : '';
+          limits.push({ login: a.login, account: a.account, limit: cents === null ? null : { cents, label } });
+        }
+        const amounts = typeof set.amounts === 'boolean' ? set.amounts : undefined;
+        if (!(await setAlerts(store, secret, { prefs, amounts, limits }))) return json({ on: await isOn(store) });
+      }
+      const found = await alertSettings(store, secret);
+      if (!found) return json({ on: false });
+      const byAccount: Record<string, { checked: boolean; cents: number | null }> = {};
+      for (const a of accounts) {
+        const lk = limitsKey(a.login);
+        byAccount[a.key] = { checked: found.logins.includes(lk), cents: found.limits[lk]?.[a.account]?.cents ?? null };
+      }
+      return json({ on: true, prefs: found.prefs, amounts: found.amounts, accounts: byAccount });
+    }
+    case 'watch': {
+      const next = readWatch({ contracts: b.contracts, income: b.income });
+      const drop = (Array.isArray(b.drop) ? b.drop : []).filter((k): k is string => typeof k === 'string' && k.length <= 300).slice(0, 400);
+      return json({ on: await setWatch(store, secret, { ...next, drop }) });
     }
     case 'check':
       // `on: false` tells the shell to stop planning checks (electron/background.cjs).

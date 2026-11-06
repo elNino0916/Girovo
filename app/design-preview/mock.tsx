@@ -69,6 +69,7 @@ import { sanitizeAccountOrder } from '@/lib/account-overview';
 import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
 import { forgetLinkedBank, joinQualified, rememberLinkedBank, sameLogin } from '@/lib/linked-banks';
 import { MESSAGES, msgs } from '@/lib/i18n';
+import type { AlertsChange, AlertsView } from '@/lib/payment-alerts';
 import { BANK_UNAVAILABLE, bankAnswerLines } from '@/lib/bank-answer';
 import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
 import { categorize, explainGuess, type CategoryGuess } from '@/lib/categorize';
@@ -813,6 +814,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     opts.backgroundChecks === undefined ? null : opts.backgroundChecks === true,
   );
   const [backgroundAsk, setBackgroundAsk] = useState(opts.backgroundChecks === 'ask');
+  // What the checks' notices are about, and the limits: in memory.
+  const [alerts, setAlerts] = useState<AlertsView>({ prefs: { every: true, dearer: true, income: true }, amounts: true, accounts: {} });
   // Sync between devices: a state to show, nothing synced.
   const [sync, setSync] = useState<SyncInfo>(() => (opts.sync
     ? {
@@ -3017,6 +3020,19 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     },
     openBackgroundAsk: () => setBackgroundAsk(true),
     closeBackgroundAsk: () => setBackgroundAsk(false),
+    backgroundAlerts: async (keys: readonly string[], set?: AlertsChange): Promise<AlertsView | null> => {
+      if (backgroundChecks !== true) return null;
+      let next = alerts;
+      if (set) {
+        const { limits, amounts, ...prefs } = set;
+        const accounts = { ...alerts.accounts };
+        for (const l of limits ?? []) accounts[l.account] = { checked: true, cents: l.cents };
+        next = { prefs: { ...alerts.prefs, ...prefs }, amounts: amounts ?? alerts.amounts, accounts };
+        setAlerts(next);
+      }
+      return { ...next, accounts: Object.fromEntries(keys.map((k) => [k, next.accounts[k] ?? { checked: true, cents: null }])) };
+    },
+    sendAlertWatch: async () => backgroundChecks === true,
     sync, syncOpen,
     openSync: () => setSyncOpen(true),
     closeSync: () => setSyncOpen(false),

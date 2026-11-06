@@ -658,6 +658,16 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Dialoge',
     options: { tab: 'settings', backgroundChecks: 'ask', secondBank: 'linked' },
   },
+  'background-alerts': {
+    label: 'Was Girovo meldet',
+    group: 'Dialoge',
+    options: { tab: 'settings', backgroundChecks: true, secondBank: 'linked' },
+    async script(c) {
+      const row = await c.poll(() => document.querySelector<HTMLElement>('[data-setting="alerts"]'), 6000);
+      row?.click();
+      await c.poll(() => document.querySelector('[role="dialog"] input[inputmode="decimal"]'), 6000);
+    },
+  },
   'linked-unlock-ask': {
     label: 'Weitere Banken mit anmelden?',
     group: 'Dialoge',

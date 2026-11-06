@@ -52,6 +52,7 @@ import { CategorySettings } from './CategorySettings';
 import { LinkedUnlockSwitch } from './LinkedUnlock';
 import { WindowsHelloSwitch } from './WindowsHello';
 import { BackgroundSwitch } from './BackgroundChecks';
+import { BackgroundAlertsRow } from './BackgroundAlerts';
 import { SyncRow } from './Sync';
 import { UpdateChannelRow } from './UpdateChannel';
 import { ActionItem, ChoiceItem, LinkItem, SegmentedItem, SettingItem, SettingsGroup, SwitchItem } from './rows';
@@ -164,6 +165,8 @@ export function Settings() {
         <LinkedUnlockSwitch />
         {/* Both apps: new Umsätze reported, with PINs kept for it (lib/background-check.ts). */}
         <BackgroundSwitch />
+        {/* …and, while it is on, what it reports (lib/payment-alerts.ts). */}
+        <BackgroundAlertsRow />
         {deviceRemembered ? (
           // The provider's dialog: the "Gerät gemerkt" toast opens the same one.
           <ActionItem
