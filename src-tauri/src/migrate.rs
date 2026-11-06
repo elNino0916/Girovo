@@ -71,6 +71,21 @@ pub fn steps() -> Vec<&'static str> {
   steps
 }
 
+/// A start with Windows (`--background`, no window): the same work without
+/// the screen — the background checks need the secret before anyone looks.
+pub fn run_unseen(prefs: &Prefs, steps: &[&'static str]) {
+  let mut secret_failed = false;
+  for key in steps {
+    match *key {
+      "secret" => secret_failed = !take_over_secret(),
+      "autostart" => take_over_autostart(),
+      "cleanup" => clear_caches(),
+      _ => {}
+    }
+  }
+  prefs.set(MARKER, Some(if secret_failed { "secret-failed" } else { "done" }));
+}
+
 /// Walks the screen through the steps and does each; returns once the screen
 /// has stood SHOWN_AT_LEAST and only "Girovo starten" is left at work.
 pub fn run(app: &AppHandle, splash: &Arc<Splash>, prefs: &Prefs, steps: Vec<&'static str>) {

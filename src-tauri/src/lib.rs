@@ -11,8 +11,11 @@
 // A start: the start window first (splash.rs) — on the first start after the
 // Electron app, the migration screen in it (migrate.rs) — while the app's
 // window loads hidden; that one shows once its page has loaded and the start
-// window has been in view long enough, and the start window goes.
+// window has been in view long enough, and the start window goes. A start
+// with Windows for "Neue Umsätze melden" (`--background`) shows neither: Girovo
+// waits in the notification area (background.rs).
 
+mod background;
 mod files;
 mod frame;
 mod http;
@@ -43,23 +46,45 @@ const PAGE_LOAD_LIMIT: Duration = Duration::from_secs(30);
 pub fn run() {
   tauri::Builder::default()
     .runtime(tauri_runtime_wry::Wry::default())
+    // First: a second start (the Start menu, a click on a notice) brings the running window forward instead.
+    .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| background::show_window(app)))
+    .plugin(tauri_plugin_notification::init())
     .manage(prefs::Prefs::load())
     .manage(http::Requests::default())
+    .manage(background::Background::default())
     .register_uri_scheme_protocol("girovo-shell", |_ctx, request| shell::serve_shell(request.uri().path()))
     .setup(|app| {
       let handle = app.handle().clone();
       let prefs = app.state::<prefs::Prefs>();
       let lang = texts::lang(&prefs);
-      let migration = migrate::needed(&prefs).then(migrate::steps);
-      let splash = splash::Splash::open(
-        &handle,
-        lang,
-        splash::dark(prefs.get("fints.theme")),
-        app.package_info().version.to_string(),
-        false,
-        migration.clone().map(|steps| splash::Migrating { steps, at: 0, secret_failed: false }),
-      )?;
-      app.manage(splash.clone());
+      let hidden = background::started_hidden();
+      // Started with Windows by an entry the checks no longer want: the entry
+      // goes, and so does this start, which nobody asked to see.
+      if hidden && !background::enabled(&handle) {
+        background::set_login_item(false);
+        handle.exit(0);
+        return Ok(());
+      }
+      let mut migration = migrate::needed(&prefs).then(migrate::steps);
+      if hidden {
+        if let Some(steps) = migration.take() {
+          migrate::run_unseen(&prefs, &steps);
+        }
+      }
+      let splash = if hidden {
+        None
+      } else {
+        let s = splash::Splash::open(
+          &handle,
+          lang,
+          splash::dark(prefs.get("fints.theme")),
+          app.package_info().version.to_string(),
+          false,
+          migration.clone().map(|steps| splash::Migrating { steps, at: 0, secret_failed: false }),
+        )?;
+        app.manage(s.clone());
+        Some(s)
+      };
 
       // The app's window, hidden until it is ready to be seen.
       let (loaded_tx, loaded) = mpsc::channel::<()>();
@@ -91,6 +116,18 @@ pub fn run() {
         .build()?;
       frame::install(&handle);
       frame::watch_maximized(&handle);
+      // With "Neue Umsätze melden" on, closing hides the window in the notification area.
+      if let Some(w) = app.get_webview_window("main") {
+        let closer = handle.clone();
+        w.on_window_event(move |event| {
+          if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            if background::hide_on_close(&closer) {
+              api.prevent_close();
+            }
+          }
+        });
+      }
+      background::start(&handle);
 
       std::thread::spawn(move || start(handle, splash, migration, loaded));
       Ok(())
@@ -116,6 +153,8 @@ pub fn run() {
       shell::window_attention,
       shell::open_url,
       splash::splash_fit,
+      background::background_set,
+      background::background_result,
     ])
     .run(tauri::generate_context!())
     .expect("error while running Girovo");
@@ -123,7 +162,9 @@ pub fn run() {
 
 /// The start, off the main thread: the migration if this is the first start
 /// after the Electron app, then the app's window once its page has loaded.
-fn start(app: tauri::AppHandle, splash: Arc<splash::Splash>, migration: Option<Vec<&'static str>>, loaded: mpsc::Receiver<()>) {
+/// Without a start window (a start with Windows) the window stays hidden.
+fn start(app: tauri::AppHandle, splash: Option<Arc<splash::Splash>>, migration: Option<Vec<&'static str>>, loaded: mpsc::Receiver<()>) {
+  let Some(splash) = splash else { return };
   if let Some(steps) = migration {
     migrate::run(&app, &splash, &app.state::<prefs::Prefs>(), steps);
   }

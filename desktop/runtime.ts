@@ -9,7 +9,10 @@
 
 import './env';
 import { MOBILE_READY_EVENT } from '../lib/client-api.ts';
+import { startBackgroundChecks } from './background';
 import { ready } from './server/index';
+
+startBackgroundChecks();
 
 (window as Window & { girovoDesktop?: { ready: Promise<void> } }).girovoDesktop = { ready };
 window.dispatchEvent(new Event(MOBILE_READY_EVENT));

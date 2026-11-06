@@ -5,7 +5,13 @@
 // Tauri's errors arrive as plain strings, "ENOTFOUND: …"; the code the server
 // code reads from Node's errors (err.code) is put back on an Error here.
 
-type Shell = { platform: string; version: string; invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T> };
+type Shell = {
+  platform: string;
+  version: string;
+  invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
+  /** A shell event's payload as it comes; returns its own unsubscribe. */
+  listen: (event: string, callback: (payload: unknown) => void) => () => void;
+};
 
 export function shell(): Shell {
   const s = (window as Window & { __girovoShell?: Shell }).__girovoShell;

@@ -92,6 +92,17 @@
     error: function () {},
   });
 
+  // "Neue Umsätze melden" (src/background.rs): the shell plans the checks and
+  // keeps the notification area; the page runs them (desktop/background.ts).
+  define('electronBackground', {
+    set: function (on) { return invoke('background_set', { on: on === true }); },
+    // The window closed into the notification area: the page ends its bank session.
+    onHidden: function (callback) {
+      if (typeof callback !== 'function') return function () {};
+      return listen('window:hidden-to-tray', function () { callback(); });
+    },
+  });
+
   // The shell's own facts, for desktop/runtime.ts.
-  define('__girovoShell', { platform: String(boot.platform || ''), version: String(boot.version || ''), invoke: invoke });
+  define('__girovoShell', { platform: String(boot.platform || ''), version: String(boot.version || ''), invoke: invoke, listen: listen });
 })();

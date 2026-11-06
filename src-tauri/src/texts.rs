@@ -85,6 +85,40 @@ impl Splash {
   }
 }
 
+/// The notification area while "Neue Umsätze melden" is on (background.rs).
+pub struct Tray {
+  pub tooltip: &'static str,
+  pub open: &'static str,
+  pub check: &'static str,
+  pub quit: &'static str,
+  /// The first time the window closes into the notification area.
+  pub still_title: &'static str,
+  pub still: &'static str,
+}
+
+impl Tray {
+  pub fn of(lang: Lang) -> Self {
+    match lang {
+      Lang::De => Tray {
+        tooltip: "Girovo – meldet neue Umsätze",
+        open: "Girovo öffnen",
+        check: "Jetzt nach neuen Umsätzen sehen",
+        quit: "Beenden",
+        still_title: "Girovo läuft weiter",
+        still: "Im Infobereich, und meldet neue Umsätze. Beenden kannst du es über das Symbol dort.",
+      },
+      Lang::En => Tray {
+        tooltip: "Girovo – reports new transactions",
+        open: "Open Girovo",
+        check: "Look for new transactions now",
+        quit: "Quit",
+        still_title: "Girovo keeps running",
+        still: "In the notification area, reporting new transactions. Quit it from the icon there.",
+      },
+    }
+  }
+}
+
 /// The first start of the Tauri app after the Electron one (migrate.rs).
 pub struct Migration {
   pub title: &'static str,
