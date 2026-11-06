@@ -38,11 +38,42 @@
     },
   });
 
+  // Tauri's events: the handler gets the payload.
+  var listen = function (event, callback) {
+    var handler = tauri.transformCallback(function (e) { callback(e && e.payload); });
+    var id = invoke('plugin:event|listen', { event: event, target: { kind: 'Any' }, handler: handler });
+    return function () {
+      id.then(function (eventId) { return invoke('plugin:event|unlisten', { event: event, eventId: eventId }); }).catch(function () {});
+    };
+  };
+
+  // The theme and the scrims over the caption corner (lib/theme.ts): Electron
+  // recoloured its OS-drawn buttons with them; here the page's own buttons
+  // (components/shell/CaptionButtons.tsx) read them.
+  var captionTheme = { dark: false, dim: 0 };
   define('electronTitleBar', {
     setTheme: function (isDark, dim) {
-      invoke('titlebar_set_theme', { dark: !!isDark, dim: Number.isInteger(dim) ? dim : 0 }).catch(function () {});
+      captionTheme = { dark: !!isDark, dim: Number.isInteger(dim) ? dim : 0 };
+      window.dispatchEvent(new CustomEvent('girovo:caption-theme', { detail: captionTheme }));
     },
   });
+
+  // Windows: the page draws the caption buttons; the shell does what they do,
+  // and Windows 11's snap layouts over the maximize button (src/frame.rs).
+  if (boot.platform === 'windows') {
+    define('electronCaption', {
+      theme: function () { return captionTheme; },
+      minimize: function () { return invoke('caption_minimize'); },
+      toggleMaximize: function () { return invoke('caption_toggle_maximize'); },
+      close: function () { return invoke('caption_close'); },
+      isMaximized: function () { return invoke('caption_is_maximized'); },
+      setMaxRect: function (r) {
+        return invoke('caption_rect', { x: r.x, y: r.y, width: r.width, height: r.height }).catch(function () {});
+      },
+      // 'maximized' (the glyph), 'hover' and 'press' (the maximize button's states, from the snap overlay).
+      on: function (what, callback) { return listen('caption:' + what, callback); },
+    });
+  }
 
   define('electronWindow', {
     requestAttention: function (on) {

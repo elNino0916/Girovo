@@ -9,6 +9,7 @@
 // does not know which shell it runs in.
 
 mod files;
+mod frame;
 mod http;
 mod paths;
 mod prefs;
@@ -33,6 +34,8 @@ pub fn run() {
         .title("Girovo")
         .inner_size(1280.0, 840.0)
         .min_inner_size(900.0, 600.0)
+        // Windows: the page draws the title bar and its caption buttons (frame.rs). Linux keeps its own.
+        .decorations(cfg!(not(windows)))
         .initialization_script(script)
         .additional_browser_args(&shell::browser_args())
         .on_new_window(|url, _features| {
@@ -42,6 +45,8 @@ pub fn run() {
         })
         .build()?;
       let _ = window;
+      frame::install(app.handle());
+      frame::watch_maximized(app.handle());
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
@@ -57,6 +62,11 @@ pub fn run() {
       http::http_body,
       http::http_cancel,
       shell::titlebar_set_theme,
+      frame::caption_minimize,
+      frame::caption_toggle_maximize,
+      frame::caption_close,
+      frame::caption_is_maximized,
+      frame::caption_rect,
       shell::window_attention,
       shell::open_url,
     ])

@@ -6,6 +6,7 @@ import { DEFAULT_LOCALE, LOCALE_COOKIE, resolveLocale, type Locale } from '@/lib
 import { MESSAGES } from '@/lib/i18n/messages';
 import { LocaleProvider } from '@/lib/i18n/react';
 import { IN_PAGE_SERVER, IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
+import { CaptionButtons } from '@/components/shell/CaptionButtons';
 import './globals.css';
 // Girovo's look, Material 3 Expressive, on every platform — after the tokens
 // it remaps; its rules are scoped to <html data-look="material">.
@@ -108,7 +109,7 @@ export const viewport: Viewport = {
 // choice itself on data-theme-pref (what the Darstellung control shows);
 // lib/theme.ts takes over from here and keeps both current. The Android app
 // has no choice of its own: it always follows the phone.
-const THEME_SCRIPT = `(function(){var d=document.documentElement,p=${IS_ANDROID ? "'system'" : 'null'},k='fints.theme';if(p==null){try{var s=window.electronStore;if(s&&typeof s.get==='function')p=s.get(k);}catch(e){}}if(p==null){try{p=localStorage.getItem(k);}catch(e){}}if(p!=='light'&&p!=='dark')p='system';var dark=p==='dark';if(p==='system'){try{dark=window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){dark=false;}}d.dataset.theme=dark?'dark':'light';d.dataset.themePref=p;try{if(window.electronTitleBar)window.electronTitleBar.setTheme(dark);}catch(e){}})();`;
+const THEME_SCRIPT = `(function(){var d=document.documentElement,p=${IS_ANDROID ? "'system'" : 'null'},k='fints.theme';if(p==null){try{var s=window.electronStore;if(s&&typeof s.get==='function')p=s.get(k);}catch(e){}}if(p==null){try{p=localStorage.getItem(k);}catch(e){}}if(p!=='light'&&p!=='dark')p='system';var dark=p==='dark';if(p==='system'){try{dark=window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){dark=false;}}d.dataset.theme=dark?'dark':'light';d.dataset.themePref=p;try{if(window.electronTitleBar)window.electronTitleBar.setTheme(dark);}catch(e){}try{if(window.electronCaption)d.dataset.caption='page';}catch(e){}})();`;
 
 // The phone's font scale reaches the page as WebView text zoom: every
 // computed font size (and line height) is multiplied by it, no px or em
@@ -133,7 +134,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {IS_DESKTOP_APP && <script src="/desktop-runtime.js" />}
       </head>
       <body className={`${googleSansFlex.variable} ${barlow.variable} ${barlowCondensed.variable} ${plexMono.variable}`}>
-        <LocaleProvider initial={locale}>{children}</LocaleProvider>
+        <LocaleProvider initial={locale}>
+          {children}
+          {/* The Tauri desktop app on Windows draws its own caption buttons. */}
+          {IS_DESKTOP_APP && <CaptionButtons />}
+        </LocaleProvider>
       </body>
     </html>
   );

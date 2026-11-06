@@ -251,6 +251,14 @@ export const de = {
    * The desktop's frame (components/shell/TitleBar.tsx, Sidebar.tsx;
    * "Konten als Ebenen", 2026-11-04): the sidebar's month and accounts.
    */
+  /** The caption buttons the Tauri desktop app draws itself (components/shell/CaptionButtons.tsx). */
+  caption: {
+    minimize: 'Minimieren',
+    maximize: 'Maximieren',
+    restore: 'Verkleinern',
+    close: 'Schließen',
+  },
+
   frame: {
     menu: 'Seitenleiste ein- und ausklappen',
     accounts: 'Konten',
@@ -603,6 +611,13 @@ export const en: typeof de = {
   masthead: {
     skip: 'Skip to content',
     newAppVersion: 'new app version',
+  },
+
+  caption: {
+    minimize: 'Minimize',
+    maximize: 'Maximize',
+    restore: 'Restore down',
+    close: 'Close',
   },
 
   frame: {

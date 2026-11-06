@@ -380,6 +380,13 @@
   --bottombar-h: 0px;
 }
 
+/* The Tauri desktop app on Windows draws its caption buttons in the page
+   (components/shell/CaptionButtons.tsx): three of Windows' 46px, at the
+   bar's right edge. No titlebar-area variables there to derive it from. */
+:root[data-caption='page'] {
+  --caption-inset: 138px;
+}
+
 /* Right padding for a bar whose trailing edge must clear the caption
    buttons, on top of the bar's normal horizontal padding (1rem / 1.5rem at
    `sm`, matching the `pl-4 sm:pl-6` these bars pair it with). */

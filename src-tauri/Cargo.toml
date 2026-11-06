@@ -2,7 +2,7 @@
 name = "girovo"
 version = "6.0.0"
 description = "Girovo: German online banking over FinTS, on your own machine"
-authors = ["MT-Media"]
+authors = ["elNino0916"]
 license-file = "../LICENSE"
 repository = "https://github.com/elNino0916/Girovo"
 edition = "2024"
@@ -30,8 +30,13 @@ open = "5"
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
   "Win32_Security_Cryptography",
+  "Win32_System_LibraryLoader",
   "Win32_System_Memory",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
 ] }
 
 [profile.release]

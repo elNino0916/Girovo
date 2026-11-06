@@ -90,6 +90,24 @@ declare global {
       setTheme: (isDark: boolean, dim?: number) => void;
     };
     /**
+     * The Tauri shell on Windows (src-tauri/src/bridge.js, frame.rs): the page
+     * draws the caption buttons (components/shell/CaptionButtons.tsx), the
+     * shell does what they do and lays Windows 11's snap layouts over the
+     * maximize button. Undefined everywhere else.
+     */
+    electronCaption?: {
+      /** The last theme and dim the page reported through electronTitleBar.setTheme. */
+      theme: () => { dark: boolean; dim: number };
+      minimize: () => Promise<void>;
+      toggleMaximize: () => Promise<void>;
+      close: () => Promise<void>;
+      isMaximized: () => Promise<boolean>;
+      /** Where the maximize button is, in physical pixels of the client area. */
+      setMaxRect: (rect: { x: number; y: number; width: number; height: number }) => Promise<void>;
+      /** Returns its own unsubscribe. */
+      on: (what: 'maximized' | 'hover' | 'press', callback: (value: boolean) => void) => () => void;
+    };
+    /**
      * Exposed by electron/preload.cjs; undefined outside the desktop shell.
      * Renders the current page to PDF via Chromium's printToPDF and prompts a
      * native save dialog — bypasses the OS print dialog and its "Microsoft
