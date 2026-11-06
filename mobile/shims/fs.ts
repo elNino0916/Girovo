@@ -135,6 +135,20 @@ export function mountAssets(entries: Record<string, string>, listings: Record<st
   }
 }
 
+/**
+ * Lets go of mounted files' content: they are listed again, as before
+ * mountAssets gave it, their size kept. Never a saved file (/data/).
+ */
+export function unmountAssets(paths: string[]): void {
+  for (const raw of paths) {
+    const p = norm(raw);
+    const entry = files.get(p);
+    if (!entry || persisted(p)) continue;
+    files.delete(p);
+    stubs.set(p, entry.size);
+  }
+}
+
 /** Loads /data/<dir> from the app's private storage. Call once, before the first request. */
 export async function mountData(dir: string): Promise<number> {
   const root = norm(`${DATA_ROOT}${dir}`);

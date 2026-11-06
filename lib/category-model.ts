@@ -286,12 +286,26 @@ export function modelThresholds(): Thresholds {
   return t;
 }
 
+/**
+ * The desktop app hands over the tokenizer's file only for the moment it is
+ * read, and takes it back once the tokenizer is built (desktop/server/model.ts).
+ * Absent everywhere else, where the file is simply on disk.
+ */
+type ModelFiles = { mount(): Promise<void>; unmount(): void };
+
 async function load(): Promise<Loaded> {
   const dir = modelDir();
-  const tokenizer = new Tokenizer(
-    JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ path.join(dir, 'tokenizer.json'), 'utf8')),
-    JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ path.join(dir, 'tokenizer_config.json'), 'utf8')),
-  );
+  const files = (globalThis as typeof globalThis & { __girovoModelFiles?: ModelFiles }).__girovoModelFiles;
+  await files?.mount();
+  let tokenizer: Tokenizer;
+  try {
+    tokenizer = new Tokenizer(
+      JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ path.join(dir, 'tokenizer.json'), 'utf8')),
+      JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ path.join(dir, 'tokenizer_config.json'), 'utf8')),
+    );
+  } finally {
+    files?.unmount();
+  }
   // Two threads: enough for a few hundred short texts, and the bank requests
   // running beside it keep their share of the machine.
   const session = await ort.InferenceSession.create(/*turbopackIgnore: true*/ path.join(dir, 'model_quantized.onnx'), {
