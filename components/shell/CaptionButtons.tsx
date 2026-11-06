@@ -101,7 +101,10 @@ export function CaptionButtons() {
   return (
     <div
       data-caption-buttons
-      className="fixed top-0 right-0 z-[2147483000] flex select-none"
+      // print:hidden: outside the app's own layers (app/layout.tsx), so the
+      // PDF export (src-tauri/src/pdf.rs, the page printed) and a printout
+      // drew them faintly in the corner of every Kontoauszug and receipt.
+      className="fixed top-0 right-0 z-[2147483000] flex select-none print:hidden"
       // The bar under them is a drag region (app-region): WebView2 would take their clicks for a drag.
       style={{ height: 'var(--barbar-h)', color, WebkitAppRegion: 'no-drag' } as CSSProperties}
     >
