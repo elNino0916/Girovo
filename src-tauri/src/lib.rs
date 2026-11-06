@@ -21,6 +21,7 @@ mod frame;
 mod hello;
 mod http;
 pub mod install_window;
+mod leftover;
 mod migrate;
 mod model;
 mod paths;
@@ -67,7 +68,7 @@ pub fn run() {
   let test_run = std::env::var_os("GIROVO_DATA_DIR").is_some_and(|d| !d.is_empty());
   let builder =
     if test_run { builder } else { builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| background::show_window(app))) };
-  builder
+  let app = builder
     .plugin(tauri_plugin_notification::init())
     .manage(prefs::Prefs::load())
     .manage(http::Requests::default())
@@ -79,6 +80,8 @@ pub fn run() {
     .manage(telemetry::Telemetry::default())
     .register_uri_scheme_protocol("girovo-shell", |_ctx, request| shell::serve_shell(request.uri().path()))
     .setup(|app| {
+      // Before any window: a copy stuck on its way out would freeze this one's page (leftover.rs).
+      leftover::end_stuck_copies();
       // First, so that a start that fails is reported too.
       app.state::<telemetry::Telemetry>().start(app.handle());
       let handle = app.handle().clone();
@@ -247,14 +250,18 @@ pub fn run() {
       telemetry::telemetry_relay,
     ])
     .build(tauri::generate_context!())
-    .expect("error while running Girovo")
-    .run(|app, event| {
-      // Telemetry's last word, however the app ends: the last window closed,
-      // the tray's "Beenden", an update (the Electron shell's main.cjs will-quit).
-      if let tauri::RunEvent::Exit = event {
-        app.state::<telemetry::Telemetry>().closing(app);
-      }
-    });
+    .expect("error while running Girovo");
+  let code = app.run_return(|app, event| {
+    // Telemetry's last word, however the app ends: the last window closed,
+    // the tray's "Beenden", an update (the Electron shell's main.cjs will-quit).
+    if let tauri::RunEvent::Exit = event {
+      app.state::<telemetry::Telemetry>().closing(app);
+    }
+  });
+  // Past Tauri's cleanup (the plugins' exit hooks, the updater's installer
+  // among them, then the windows hidden): the end, without the DLLs' exit code
+  // a quitting copy once hung in (leftover.rs).
+  leftover::end_process(code);
 }
 
 /// The start, off the main thread: the migration if this is the first start
