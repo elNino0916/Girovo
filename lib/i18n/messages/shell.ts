@@ -358,7 +358,6 @@ export const de = {
     installedIs: (current: ReactNode) => ['Installiert ist Version ', current, '.'],
     openDownloadPage: 'Download-Seite öffnen',
     inBackground: 'Im Hintergrund laden',
-    startNew: 'Neue Version starten',
     restartNow: 'Jetzt neu starten',
     later: 'Später',
     download: 'Herunterladen',
@@ -368,12 +367,9 @@ export const de = {
         : `Die ${n} Überweisungen mit unklarem Status stehen nach dem Neustart nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.`,
     cannotUpdate: 'Diese Version der App kann sich nicht selbst aktualisieren. Lade die neue Version auf GitHub herunter.',
     noFile: 'Für diese Version gibt es keine Datei, die die App prüfen könnte. Lade sie auf GitHub herunter.',
-    /** The portable app: where the new version was put. */
-    portable: (location: ReactNode) => ['Die neue Version liegt in ', location, ' und startet statt dieser.'],
     restarts: 'Girovo wird beendet, installiert die neue Version und startet von selbst neu – meist in weniger als einer Minute.',
     logsOut: 'Du wirst dabei abgemeldet.',
     approvalRunning: 'Gerade läuft eine Freigabe. Neu starten kannst du, sobald sie abgeschlossen ist.',
-    previous: (path: ReactNode) => ['Die vorige Version liegt noch unter ', path, '. Du kannst sie löschen.'],
     checking: 'Suche nach Updates …',
     latest: 'Du nutzt die neueste Version.',
     lastChecked: (time: ReactNode) => ['Zuletzt geprüft: ', time],
@@ -387,7 +383,7 @@ export const de = {
     auto: 'Automatisch nach Updates suchen',
     autoHint:
       'Beim Start und alle sechs Stunden. Die Anfrage an GitHub enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht GitHub dabei deine IP-Adresse – nichts über deine Konten.',
-    /** The installed Windows app: the same switch, which also installs at start (electron/main.cjs updateAtStart). */
+    /** The installed Windows app: the same switch, which also installs at start (src-tauri/src/updater/start.rs). */
     autoInstall: 'Updates automatisch installieren',
     autoInstallHint:
       'Beim Start sucht Girovo nach einer neuen Version, lädt sie herunter und installiert sie, bevor das Fenster aufgeht; zwischendurch wird alle sechs Stunden nachgesehen. Aus: nur, wenn du es sagst. Die Anfrage an GitHub enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht GitHub dabei deine IP-Adresse – nichts über deine Konten.',
@@ -407,7 +403,7 @@ export const de = {
     ],
     installNow: 'Jetzt installieren …',
     detailsAndDownload: 'Details und Download …',
-    /** The installed Windows app: updates only through the start window (electron/main.cjs updateAtStart). */
+    /** The installed Windows app: updates only through the start window (src-tauri/src/updater/start.rs). */
     detailsAndRestart: 'Details und Neustart …',
     restartToInstall: 'Jetzt neu starten und installieren',
     restartToGoBack: (v: string) => `Neu starten und zu Version ${v} zurück`,
@@ -695,7 +691,6 @@ export const en: typeof de = {
     installedIs: (current) => ['Version ', current, ' is installed.'],
     openDownloadPage: 'Open download page',
     inBackground: 'Download in the background',
-    startNew: 'Start new version',
     restartNow: 'Restart now',
     later: 'Later',
     download: 'Download',
@@ -705,11 +700,9 @@ export const en: typeof de = {
         : `After the restart, the ${n} transfers with an unclear status will no longer be in Messages – check them in your transactions first.`,
     cannotUpdate: 'This version of the app can’t update itself. Download the new version from GitHub.',
     noFile: 'There’s no file for this version that the app could verify. Download it from GitHub.',
-    portable: (location) => ['The new version is in ', location, ' and starts instead of this one.'],
     restarts: 'Girovo closes, installs the new version and restarts by itself – usually in less than a minute.',
     logsOut: 'You’ll be logged out in the process.',
     approvalRunning: 'An approval is in progress. You can restart once it’s complete.',
-    previous: (path) => ['The previous version is still at ', path, '. You can delete it.'],
     checking: 'Checking for updates…',
     latest: 'You’re using the latest version.',
     lastChecked: (time) => ['Last checked: ', time],

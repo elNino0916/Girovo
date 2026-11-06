@@ -3,7 +3,7 @@
 // its files there and read the computer's. The computer's own sync — the
 // route handlers in the page — reads and writes the same folder directly
 // (files.rs folder_get / folder_put, place "lan"). Ported from
-// electron/sync-lan.cjs, rule for rule.
+// the Electron shell's sync-lan.cjs, rule for rule.
 //
 // It is a dumb file shelf: GET and PUT of one file by name under
 // /girovo-sync/v1/, nothing else. Every file is sealed with the group's key
@@ -237,7 +237,7 @@ impl LanShelf {
     answer(&mut stream, status, &body);
   }
 
-  /// The answer to one request: the shelf's rules, electron/sync-lan.cjs handle().
+  /// The answer to one request: the shelf's rules, the Electron shell's sync-lan.cjs handle().
   fn respond(&self, head: &Head, body: &mut impl BufRead, uploads: &AtomicUsize) -> (u16, Vec<u8>) {
     let Some(name) = head.target.strip_prefix(PREFIX) else { return (404, Vec::new()) };
     let Some(group) = group_of(name) else { return (404, Vec::new()) };

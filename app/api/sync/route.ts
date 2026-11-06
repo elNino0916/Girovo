@@ -177,7 +177,7 @@ async function handle(b: SyncBody, s: Session, login: { blz: string; userId: str
   }
 }
 
-/** The place for this group; the desktop's shelf learns the group's token first (electron/sync-lan.cjs). */
+/** The place for this group; the desktop's shelf learns the group's token first (src-tauri/src/sync_lan.rs). */
 function safeStore(meta: SyncMeta) {
   if (meta.place.kind === 'lan' && !IS_ANDROID) keepLanToken(meta.key);
   return storeFor(meta.place, meta.key);

@@ -58,7 +58,7 @@ export function NewInSix() {
     { icon: <CalendarIcon />, ...words.orders },
     { icon: <HistoryIcon />, ...words.kept },
     { icon: <CardIcon />, ...words.cards },
-    // Only the installed Windows app installs in its start window (electron/main.cjs updateAtStart).
+    // Only the installed Windows app installs in its start window (src-tauri/src/updater/start.rs).
     ...(updatesAtStart(updateState) ? [{ icon: <DownloadIcon />, ...words.updates }] : []),
   ];
 

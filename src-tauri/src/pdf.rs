@@ -1,7 +1,7 @@
 // The PDF export for window.electronPDF (bridge.js; components/Statement.tsx):
 // the window's page as a PDF, printed with its print stylesheet — the
 // Kontoauszug, a Buchungsbeleg, a Mitteilung, the Steuer-Jahresübersicht —
-// then a native Save As (electron/main.cjs pdf:export).
+// then a native Save As (the Electron shell's main.cjs pdf:export).
 //
 // The page could call window.print(), but on Windows that hands the PDF to the
 // OS print dialog's "Microsoft Print to PDF" printer, whose driver is a
@@ -88,7 +88,7 @@ pub async fn pdf_export(app: tauri::AppHandle, window: tauri::WebviewWindow, sug
     Err(err) => return Ok(Answer::failed(err)),
   };
   let filter = Filter { name: Files::now(&app).pdf_document, extensions: &["pdf"] };
-  // Where the system opens a Save As, the name filled in — as electron/main.cjs left it.
+  // Where the system opens a Save As, the name filled in — as the Electron shell's main.cjs left it.
   let Some(path) = save_dialog(&app, window, None, bare_name(&suggested_name).to_string(), filter).await else {
     return Ok(Answer::canceled());
   };

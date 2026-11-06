@@ -3,9 +3,9 @@
 // The login's PIN is kept in one sealed file per login:
 //
 // - The key takes two things. The key the desktop shell derives from a
-//   Windows Hello signature (electron/windows-hello.cjs), which only the
+//   Windows Hello signature (src-tauri/src/hello.rs), which only the
 //   face, the fingerprint or the Windows Hello PIN brings about, and the
-//   shell's DPAPI secret (electron/linked-unlock.cjs). The page hands both
+//   shell's DPAPI secret (src-tauri/src/secret.rs). The page hands both
 //   along with the request and nobody keeps them here, so a copy of the file
 //   opens with neither alone.
 // - The PIN is taken from the live session (lib/session.ts), and only once

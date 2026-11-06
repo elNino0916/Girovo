@@ -6,7 +6,7 @@
 //
 // The weights are hundreds of MB, over GitHub's file limit, so they are not
 // committed: this script runs before every desktop build
-// (scripts/build-electron.mjs) and in development once by hand. Files already
+// (scripts/build-desktop.mjs) and in development once by hand. Files already
 // present and correct are not downloaded again. Without the model the app
 // still runs — categories then come from the keyword rules alone.
 //

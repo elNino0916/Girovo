@@ -107,7 +107,7 @@ console.log(`✓ ${path.relative(ROOT, DIST)}`);
 // run time: onnxruntime-node's library for this platform — the very build the
 // Electron app shipped and the model's thresholds were measured with — on the
 // CPU only (DirectML.dll and dxcompiler.dll stay out, as in
-// scripts/build-electron.mjs). On Windows the Visual C++ runtime it imports
+// the Electron build before it). On Windows the Visual C++ runtime it imports
 // goes beside it, for a PC that has none; girovo.exe itself needs none.
 // About 31 MB on Windows (onnxruntime.dll 30 MB, the runtime 0.8 MB; 8 MB
 // compressed), 45 MB on Linux (12 MB compressed), beside the model's 283 MB.

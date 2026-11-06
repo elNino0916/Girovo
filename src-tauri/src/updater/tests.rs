@@ -1,5 +1,5 @@
 // The whole update flow — check, download, verify, install, the restart —
-// against a local server standing in for GitHub: electron/updater.test.cjs,
+// against a local server standing in for GitHub: the Electron shell's updater.test.cjs,
 // test for test. Tauri is not needed: everything it provides comes in through
 // the Host trait.
 //
@@ -387,7 +387,7 @@ async fn the_page_gets_the_state_in_electrons_shape() {
   let s = serde_json::to_value(updater.check(true).await).unwrap();
   let keys: Vec<&str> = s.as_object().unwrap().keys().map(String::as_str).collect();
   for key in
-    ["current", "kind", "auto", "channel", "phase", "checkedAt", "release", "received", "total", "location", "error", "installed", "failedInstall"]
+    ["current", "kind", "auto", "channel", "phase", "checkedAt", "release", "received", "total", "error", "installed", "failedInstall"]
   {
     assert!(keys.contains(&key), "{key}");
   }
@@ -786,7 +786,7 @@ async fn an_install_of_a_preview_that_did_not_happen_is_reported_at_the_next_sta
 
 #[tokio::test]
 async fn the_marker_of_an_electron_install_is_read_too() {
-  // What electron/updater.cjs writes before it runs the first Tauri Setup.exe.
+  // What the Electron shell's updater.cjs writes before it runs the first Tauri Setup.exe.
   let cache = TempDir::new();
   let marker = json!({
     "from": "5.16.2", "to": "6.0.0", "at": 1, "notes": "## Neu", "url": format!("{PAGE}/tag/6.0.0"), "previousFile": null,

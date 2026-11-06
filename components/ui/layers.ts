@@ -158,10 +158,10 @@ export const drawerLayers = new Set<string>();
 
 /**
  * Every layer lays the scrim over the whole page, masthead included — but
- * the desktop shell's caption buttons are drawn by the OS above the page,
- * where no scrim reaches, and would stay a bright navy block in the darkened
+ * the desktop shell's caption buttons (components/shell/CaptionButtons.tsx)
+ * sit above every layer, where no scrim reaches, and would stay a bright navy block in the darkened
  * bar. So the shell is told how many scrims cover their corner and darkens
- * them to match (lib/theme.ts, electron/main.cjs): every layer above the
+ * them to match (lib/theme.ts, CaptionButtons.tsx): every layer above the
  * topmost drawer, whose own navy header sits in that corner undimmed.
  */
 export function syncCaptionDim() {

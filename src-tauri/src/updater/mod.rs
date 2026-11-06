@@ -3,8 +3,8 @@
 // Stabil and 6.0-Vorschau channels, downloads of only what is not on disk
 // yet, the silent install once the app has quit.
 //
-//   logic.rs   the decisions (electron/update-logic.cjs)
-//   engine.rs  check, download, install (electron/updater.cjs)
+//   logic.rs   the decisions (the Electron shell's update-logic.cjs)
+//   engine.rs  check, download, install (the Electron shell's updater.cjs)
 //   chunks.rs  the chunks a differential download is made of
 //   start.rs   the update at start, for the start window
 //   texts.rs   what it says, German and English
@@ -12,7 +12,7 @@
 // This file is the Tauri side: the plugin that makes the updater at start
 // and runs the installer once the app has quit, the page's commands
 // (window.electronUpdater in src/bridge.js, the `updater:*` IPC of
-// electron/main.cjs), every state change pushed as the event STATE_EVENT,
+// the Electron shell's main.cjs), every state change pushed as the event STATE_EVENT,
 // and the hooks for the start and install windows.
 
 mod chunks;
@@ -109,7 +109,7 @@ pub fn get(app: &AppHandle) -> Arc<Updater> {
   app.state::<Shared>().updater.clone()
 }
 
-/// The install window (the lead's port of build/update-window): called once
+/// The install window (install_window.rs, in place of the Electron shell's C# window): called once
 /// the app has quit and the installer runs, before this process ends. Only a
 /// nicety — the update goes on the same without it.
 #[allow(dead_code)]

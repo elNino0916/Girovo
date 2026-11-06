@@ -74,13 +74,13 @@ export function textBlob(text: string, mime = 'text/plain;charset=utf-8'): Blob 
  */
 export type SaveOutcome = 'saved' | 'canceled' | 'handed-over';
 
-/** What the desktop shell's file:save answers (electron/main.cjs). */
+/** What the desktop shell's Save As answers (src-tauri/src/save.rs). */
 export type ShellSaveResult = { ok: true } | { ok: false; canceled: true } | { ok: false; error: string };
 
 /**
  * Saves a Blob as a file and says how that ended, so a "gespeichert" is only
  * ever said for a file that exists. In the desktop shell that is its own
- * Save-As (window.electronFiles, electron/preload.cjs); elsewhere a normal
+ * Save-As (window.electronFiles, src-tauri/src/bridge.js); elsewhere a normal
  * download. Throws with a message for the user when the shell could not
  * write the file.
  */

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use tauri::Manager;
 
-/// The page's bridges (window.electron*), the same shape electron/preload.cjs gave them.
+/// The page's bridges (window.electron*), the same shape the Electron shell's preload.cjs gave them.
 const BRIDGE: &str = include_str!("bridge.js");
 
 /// WebView2's flags: Tauri's own defaults, and no timer throttling while the
@@ -76,11 +76,11 @@ pub fn open_url(url: String) {
   open_external(&url);
 }
 
-/// The frame's colours follow the page's theme (electron/main.cjs barColors). Native frame for now: nothing to colour.
+/// The frame's colours follow the page's theme (the Electron shell's main.cjs barColors). Native frame for now: nothing to colour.
 #[tauri::command]
 pub fn titlebar_set_theme(_dark: bool, _dim: u32) {}
 
-/// The window's zoom level (electron/zoom.cjs): 1.2^level, in half steps from
+/// The window's zoom level (the Electron shell's zoom.cjs): 1.2^level, in half steps from
 /// −4 (≈ 48 %) to 4 (≈ 207 %), every start at 100 %.
 #[derive(Default)]
 pub struct Zoom(std::sync::Mutex<f64>);

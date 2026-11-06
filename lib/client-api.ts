@@ -134,10 +134,10 @@ export async function get<T>(path: string): Promise<T> {
 // ---------------------------------------------------------------------------
 // Preferences
 //
-// The packaged desktop app serves itself on a fresh random port at every start,
-// and localStorage is per origin — so inside the shell it is effectively wiped
-// on each restart. electron/preload.cjs therefore exposes a small synchronous
-// key/value file in userData (keys `fints.*`, values up to 4 KB); everywhere
+// The desktop app keeps the preferences in a small synchronous key/value file
+// of its own (src-tauri/src/prefs.rs, window.electronStore from
+// src-tauri/src/bridge.js; keys `fints.*`, values up to 4 KB), the one its
+// shell reads too and the Electron shell's prefs.json before it; everywhere
 // else, localStorage is the store.
 //
 // Only preferences belong here: the last bank, the login name, theme, privacy,

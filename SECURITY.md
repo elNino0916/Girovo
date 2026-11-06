@@ -26,7 +26,7 @@ Girovo itself: the desktop app, the Android app, the FinTS client in this
 repository, how it stores and seals data on the device (the vault, the kept
 Umsätze, backups, the fingerprint login), its updater and its device check.
 
-A flaw in a bank's FinTS server belongs to that bank; a flaw in Electron,
+A flaw in a bank's FinTS server belongs to that bank; a flaw in Tauri, WebView2,
 Android or another dependency to its maintainers — tell us too if Girovo makes
 it worse.
 

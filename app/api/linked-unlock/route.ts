@@ -7,7 +7,7 @@
 //                                        none before the bank has taken this session's PIN
 //   forget (secret) → { on }               one further bank's PIN (`login`)
 //   off             → { on: false }        every PIN kept beside it
-// `secret` is the desktop shell's (electron/linked-unlock.cjs), handed over by
+// `secret` is the desktop shell's (src-tauri/src/secret.rs), handed over by
 // the page; it is mixed into the key and kept nowhere. The PINs to keep come
 // from the live sessions, never from the request. Nothing here is logged.
 //

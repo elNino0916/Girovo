@@ -4,7 +4,7 @@
 // what a page cannot — reaching the bank past CORS, keeping files, secrets
 // and preferences, the tray, the notifications, the updates.
 //
-// It replaces electron/: every bridge the page knew there (window.electron*)
+// It replaces the Electron shell: every bridge the page knew there (window.electron*)
 // is offered again by src/bridge.js with the same shape, so the page itself
 // does not know which shell it runs in.
 //
@@ -244,7 +244,7 @@ pub fn run() {
     .expect("error while running Girovo")
     .run(|app, event| {
       // Telemetry's last word, however the app ends: the last window closed,
-      // the tray's "Beenden", an update (electron/main.cjs will-quit).
+      // the tray's "Beenden", an update (the Electron shell's main.cjs will-quit).
       if let tauri::RunEvent::Exit = event {
         app.state::<telemetry::Telemetry>().closing(app);
       }
@@ -256,7 +256,7 @@ pub fn run() {
 /// Without a start window (a start with Windows) the window stays hidden.
 fn start(app: tauri::AppHandle, splash: Option<Arc<splash::Splash>>, migration: Option<Vec<&'static str>>, loaded: mpsc::Receiver<()>) {
   let Some(splash) = splash else { return };
-  // An update at start (electron/main.cjs updateAtStart): its check runs
+  // An update at start (the Electron shell's main.cjs updateAtStart): its check runs
   // beside the rest of the start; what it found is installed before the app's
   // window opens — the app then quits for the installer.
   let updater = updater::get(&app);

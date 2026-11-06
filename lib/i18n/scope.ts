@@ -16,10 +16,9 @@ export const DATA_FILES: Record<string, string> = {
   'lib/merchant-match.ts': 'legal forms, towns and given names found in counterparty names',
   'lib/merchants.ts': 'brand names and the words a search for them must skip',
   'lib/banks.ts': 'bank names and towns from the institute database',
-  'electron/i18n.cjs': "the desktop shell's own texts, in both languages",
 };
 
-const ROOTS = ['app', 'components', 'lib', 'electron'];
+const ROOTS = ['app', 'components', 'lib'];
 const SKIP_DIRS = new Set(['node_modules', '.next', 'design-preview', '__fixtures__', 'messages']);
 
 /** Every source file the guard reads, relative to `root`, with forward slashes. */

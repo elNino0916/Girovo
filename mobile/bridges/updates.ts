@@ -4,7 +4,7 @@
 // and the Sitzung row (components/updates) work unchanged.
 //
 // Which release is newer and which of its files is ours is decided by the
-// desktop's own, tested rules (electron/update-logic.cjs: the release's
+// tested rules (../updates/update-logic.cjs: the release's
 // "-android.apk"). The APK is downloaded natively and kept only when its size
 // and SHA-256 are what GitHub published for it (GirovoUpdater); Android's
 // installer then checks that it is signed like the installed app. On the
@@ -17,7 +17,7 @@
 // Sitzung panel offers Play's own in-app update (components/android). Nor has
 // the F-Droid build: its repository serves stable releases only.
 
-import logic from '../../electron/update-logic.cjs';
+import logic from '../updates/update-logic.cjs';
 import { msgs } from '../../lib/i18n/index.ts';
 import { GirovoDevice, GirovoUpdater, type UpdaterState } from '../native';
 import { reportError, track } from './telemetry';
@@ -60,7 +60,7 @@ function set(patch: Partial<ElectronUpdateState>): ElectronUpdateState {
   return state;
 }
 
-/** The updater's moves as telemetry, as the desktop reports them (electron/main.cjs). */
+/** The updater's moves as telemetry, as the Electron desktop shell reported them. */
 function report(before: ElectronUpdateState | undefined, now: ElectronUpdateState): void {
   if (!before) return;
   if (now.release && now.phase === 'available' && before.release?.version !== now.release.version) {
@@ -201,11 +201,11 @@ export async function installUpdates(): Promise<void> {
   let failedInstall: string | null = null;
   try {
     const pending = JSON.parse(read(INSTALLING_PREF) ?? 'null') as { version: string; notes: string; url: string } | null;
-    if (pending && pending.version === current) installed = { version: current, from: last ?? '', notes: pending.notes, url: pending.url, previousFile: null };
+    if (pending && pending.version === current) installed = { version: current, from: last ?? '', notes: pending.notes, url: pending.url };
     else if (pending) failedInstall = pending.version;
   } catch { /* nothing pending */ }
   if (!installed && last && last !== current && logic.isNewer(current, last, { prerelease: true })) {
-    installed = { version: current, from: last, notes: '', url: `${logic.RELEASES_PAGE}/tag/${current}`, previousFile: null };
+    installed = { version: current, from: last, notes: '', url: `${logic.RELEASES_PAGE}/tag/${current}` };
   }
   write(INSTALLING_PREF, null);
   write(LAST_VERSION_PREF, current);
@@ -220,7 +220,6 @@ export async function installUpdates(): Promise<void> {
     release: null,
     received: 0,
     total: 0,
-    location: null,
     error: null,
     failedInstall,
     installed,

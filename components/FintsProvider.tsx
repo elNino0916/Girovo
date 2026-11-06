@@ -4207,7 +4207,7 @@ function useFintsState() {
   }, [setLinksBoth, forgetLinkedPin, forgetBackgroundLogin, openAddBank, setWindowsHelloBoth, setLinkedUnlockBoth, toast]);
 
   // The desktop with "Neue Umsätze melden" on: closing the window leaves the
-  // app in the notification area (electron/main.cjs). The bank session ends
+  // app in the notification area (src-tauri/src/background.rs). The bank session ends
   // as it did when closing quit the app, so the window opened again from
   // there shows the login. The login screen names any transfer left unclear.
   useEffect(() => {
@@ -5638,14 +5638,14 @@ async function backgroundSecret(): Promise<string | null> {
   return null;
 }
 
-/** Plans the shell's checks, or stops them (electron/background.cjs; BackgroundState.java). */
+/** Plans the shell's checks, or stops them (src-tauri/src/background.rs; BackgroundState.java). */
 async function shellSchedule(on: boolean): Promise<void> {
   const shell = backgroundShell();
   if (shell === 'android') await window.girovoMobile!.background.schedule(on);
   else if (shell === 'desktop') await window.electronBackground!.set(on);
 }
 
-/** The desktop shell's secret for the further banks' PINs (electron/linked-unlock.cjs); null anywhere else. */
+/** The desktop shell's secret for the further banks' PINs (src-tauri/src/secret.rs); null anywhere else. */
 async function linkedUnlockSecret(): Promise<string | null> {
   if (IS_ANDROID || typeof window === 'undefined' || !window.electronLinkedUnlock) return null;
   return window.electronLinkedUnlock.secret().catch(() => null);

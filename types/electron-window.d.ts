@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  /** The desktop app's updater as electron/updater.cjs reports it. */
+  /** The desktop app's updater as src-tauri/src/updater reports it. */
   type ElectronUpdatePhase = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'ready' | 'installing';
 
   /** Which releases the updater offers: finished ones, or GitHub's pre-releases too (Einstellungen → Update-Kanal). */
@@ -11,10 +11,10 @@ declare global {
     /** The running version. */
     current: string;
     /**
-     * nsis: installed · portable: the portable .exe · manual: other packaging · dev: unpackaged ·
+     * nsis: installed · manual: other packaging (the Linux packages) · dev: unpackaged ·
      * android: the Android app from GitHub (mobile/bridges/updates.ts provides this bridge there).
      */
-    kind: 'nsis' | 'portable' | 'manual' | 'dev' | 'android';
+    kind: 'nsis' | 'manual' | 'dev' | 'android';
     /** Automatic checks (at start, then every 6 hours). */
     auto: boolean;
     channel: UpdateChannel;
@@ -38,8 +38,6 @@ declare global {
     } | null;
     received: number;
     total: number;
-    /** The folder a portable update was saved to. */
-    location: string | null;
     error: { during: 'check' | 'download' | 'install'; message: string } | null;
     /** An install was started for this version, and this start is not it (the installer failed or was cancelled). */
     failedInstall: string | null;
@@ -49,14 +47,12 @@ declare global {
       from: string;
       notes: string;
       url: string;
-      /** The portable .exe that was replaced (full path); it is still on disk. */
-      previousFile: string | null;
     } | null;
   }
 
   interface Window {
     /**
-     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
      * Every call answers with the updater's state (null if the main process
      * refused the caller); onState hears every change and returns its
      * unsubscribe.
@@ -76,7 +72,7 @@ declare global {
       onState: (callback: (state: ElectronUpdateState) => void) => () => void;
     };
     /**
-     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
      * `requestAttention(true)` flashes the taskbar button while the window is
      * not the one in front, until it is focused; `false` stops it. Never
      * brings the window forward.
@@ -84,7 +80,7 @@ declare global {
     electronWindow?: {
       requestAttention: (on: boolean) => void;
     };
-    /** Exposed by electron/preload.cjs; undefined outside the desktop shell. */
+    /** Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell. */
     electronTitleBar?: {
       /** `dim`: how many dialog scrims lie over the caption buttons (0 = none). */
       setTheme: (isDark: boolean, dim?: number) => void;
@@ -108,7 +104,7 @@ declare global {
       on: (what: 'maximized' | 'hover' | 'press', callback: (value: boolean) => void) => () => void;
     };
     /**
-     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
      * Renders the current page to PDF via Chromium's printToPDF and prompts a
      * native save dialog — bypasses the OS print dialog and its "Microsoft
      * Print to PDF" driver entirely (see main.cjs's pdf:export handler).
@@ -121,7 +117,7 @@ declare global {
       >;
     };
     /**
-     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
      * Saves a file the app made (the CSV export) through a native Save-As
      * and answers once it is written or the dialog was dismissed — see
      * main.cjs's file:save handler and saveFile() in lib/download.ts.
@@ -134,11 +130,11 @@ declare global {
       >;
     };
     /**
-     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
      * Errors are always reported (scrubbed in the main process); events count
      * only after the user's yes, which `consent()` answers synchronously.
      * The main process accepts only the events and fields it declares
-     * (electron/telemetry.cjs).
+     * (src-tauri/src/telemetry.rs).
      */
     electronTelemetry?: {
       consent: () => 'on' | 'off' | 'unasked';
@@ -147,9 +143,9 @@ declare global {
       error: (err: { name?: string; message?: string; stack?: string }) => void;
     };
     /**
-     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
      * The secret of this user account that the further banks' PINs are sealed
-     * with, besides the first login's PIN (electron/linked-unlock.cjs,
+     * with, besides the first login's PIN (src-tauri/src/secret.rs,
      * lib/linked-unlock.ts): base64, or null where the system has no
      * protected store for it (or the main process refused the caller).
      */
@@ -157,20 +153,20 @@ declare global {
       secret: () => Promise<string | null>;
     };
     /**
-     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
-     * Windows Hello (electron/windows-hello.cjs): whether this Windows has it
+     * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
+     * Windows Hello (src-tauri/src/hello.rs): whether this Windows has it
      * set up, and the key a gesture brings about — enroll makes the Windows
      * Hello key the first time — for lib/windows-hello.ts to keep the first
      * login's PIN under, with the secret above. Never a PIN.
      */
     /**
-     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
-     * "Neue Umsätze melden" (electron/background.cjs): plans or stops the
+     * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
+     * "Neue Umsätze melden" (src-tauri/src/background.rs): plans or stops the
      * six-hourly checks, with the notification area and the start with
      * Windows; answers whether they are on now.
      */
     /**
-     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
      * Sync between devices (lib/sync.ts): "Direkt im WLAN" on — answering the
      * port and this computer's private addresses — or off; a folder picked by
      * the user; this computer's name.
@@ -192,7 +188,7 @@ declare global {
       unlock: () => Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing' | 'failed'; key?: string; code?: string }>;
     };
     /**
-     * Exposed by electron/preload.cjs; undefined outside the desktop shell.
+     * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
      * Synchronous preference storage in userData/prefs.json — the packaged
      * app's localStorage does not survive a restart (random port per start).
      * Keys must match /^fints\.[\w.-]{1,80}$/ and values be ≤ 4096 chars;

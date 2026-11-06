@@ -6,7 +6,7 @@
 // - The key takes two things. The first login's PIN — the one typed to log
 //   in — and a secret of this computer's user account that the desktop shell
 //   keeps under the system's own protection (Electron's safeStorage: DPAPI on
-//   Windows, the keyring on Linux; electron/linked-unlock.cjs). The page hands
+//   Windows, the keyring on Linux; src-tauri/src/secret.rs). The page hands
 //   that secret along with each request and nobody keeps it here, so a copy
 //   of the file opens with neither a guessed PIN nor the secret alone.
 // - The PINs are taken from the live sessions (lib/session.ts), where the
@@ -55,8 +55,8 @@ const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 
 /**
  * Whether this server keeps further banks' PINs at all: the desktop app's
- * own server (the shell starts it with GIROVO_DESKTOP=1) and the development
- * server electron:dev opens. Never the phone, which keeps them behind the
+ * route handlers (desktop/env.ts sets GIROVO_DESKTOP=1) and the development
+ * server, `npm run dev`. Never the phone, which keeps them behind the
  * fingerprint, and never a server that other people use.
  */
 export function linkedUnlockServed(): boolean {

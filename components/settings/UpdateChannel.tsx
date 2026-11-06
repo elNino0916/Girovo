@@ -3,7 +3,7 @@
 // Einstellungen → Über Girovo → Update-Kanal: whether the updater offers
 // GitHub's pre-releases (the 6.0 previews) besides the finished versions.
 // Only builds with an updater of their own have it — the desktop app
-// (electron/updater.cjs) and the GitHub APK (mobile/bridges/updates.ts).
+// (src-tauri/src/updater) and the GitHub APK (mobile/bridges/updates.ts).
 // Google Play has its testing tracks and the F-Droid repository serves
 // stable releases only: neither build has the bridge, so neither shows the
 // row. The choice is kept per device, beside the automatic check.

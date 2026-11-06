@@ -1,7 +1,7 @@
 // The shell secret on Windows: DPAPI for the current user, and Electron's
 // safeStorage format read back for the migration.
 //
-// Electron 45's safeStorage.encryptStringAsync (electron/linked-unlock.cjs) is
+// Electron 45's safeStorage.encryptStringAsync (the Electron shell's linked-unlock.cjs) is
 // Chromium's os_crypt: the blob is "v10", a 12-byte nonce, then AES-256-GCM's
 // ciphertext and tag; the AES key is in the user data folder's "Local State",
 // os_crypt.encrypted_key = base64("DPAPI" + the key under DPAPI). Checked

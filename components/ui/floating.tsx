@@ -22,17 +22,18 @@ import { FOOTER_EDGE, useScrollEdges } from './overlay';
 import { cx, NO_DRAG } from './shared';
 
 /**
- * The OS caption buttons' block in the desktop shell (Window Controls
- * Overlay); 0 × 0 everywhere else. Read back from a probe sized by the same
- * env() values --caption-inset is built from — the custom property itself
- * would come back as unresolved calc() text. Measured afresh on every
- * placement, so maximise, restore and zoom are always current.
+ * The caption buttons' block in the desktop app (components/shell/
+ * CaptionButtons.tsx): --caption-inset wide, as tall as the masthead; 0 wide,
+ * and so ignored (lib/anchor.ts), everywhere else. Read back from a probe —
+ * the custom properties themselves would come back as unresolved text.
+ * Measured afresh on every placement, so maximise, restore and zoom are
+ * always current.
  */
 function captionBlock(): { width: number; height: number } {
   const probe = document.createElement('div');
   probe.style.cssText =
     'position:fixed;top:0;right:0;visibility:hidden;pointer-events:none;' +
-    'width:var(--caption-inset,0px);height:env(titlebar-area-height,0px)';
+    'width:var(--caption-inset,0px);height:var(--barbar-h,0px)';
   document.body.appendChild(probe);
   const { width, height } = probe.getBoundingClientRect();
   probe.remove();

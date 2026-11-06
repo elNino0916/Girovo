@@ -138,7 +138,7 @@ export type IconButtonProps = Omit<ComponentProps<'button'>, 'ref' | 'onClick'> 
 /**
  * M3E's standard icon button (@m3e/web icon-button). With aria-pressed it is
  * a toggle — selected, it takes the primary colour. A bar's controls live in
- * a caption band that page zoom shrinks in the desktop shell (--band-ctl,
+ * a band sized for the desktop title bar (--band-ctl,
  * app/material.css sizes them by it).
  */
 export function IconButton({

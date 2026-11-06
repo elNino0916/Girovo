@@ -1,5 +1,5 @@
 // In-app updates for the installed Windows app, from this project's GitHub
-// releases — electron/updater.cjs, ported. The page drives it through
+// releases — the Electron shell's updater.cjs, ported. The page drives it through
 // window.electronUpdater (src/bridge.js → mod.rs), the start window through
 // update_at_start (start.rs).
 //
@@ -134,11 +134,9 @@ pub struct Installed {
   pub from: String,
   pub notes: String,
   pub url: String,
-  /// The portable .exe an update replaced (Electron's portable build); never set by this shell.
-  pub previous_file: Option<String>,
 }
 
-/// The state, exactly as electron/updater.cjs reported it (types/electron-window.d.ts ElectronUpdateState).
+/// The state the page reads (types/electron-window.d.ts ElectronUpdateState), the Electron updater's shape.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateState {
@@ -152,8 +150,6 @@ pub struct UpdateState {
   pub release: Option<PublicRelease>,
   pub received: u64,
   pub total: u64,
-  /// The folder a portable update was saved to; there is no portable build any more.
-  pub location: Option<String>,
   pub error: Option<ErrorInfo>,
   pub installed: Option<Installed>,
   /// The version an install was started for that did not come up — said once, at the next start.
@@ -470,7 +466,6 @@ impl Updater {
       release: None,
       received: 0,
       total: 0,
-      location: None,
       error: None,
       installed: None,
       failed_install: None,
@@ -709,7 +704,6 @@ impl Updater {
         from: field("from").unwrap_or("").chars().take(40).collect(),
         notes: field("notes").unwrap_or("").chars().take(logic::MAX_NOTES_CHARS).collect(),
         url: logic::release_page_or(field("url"), &self.cfg.origin.releases_page),
-        previous_file: field("previousFile").filter(|f| Path::new(f).is_absolute()).map(String::from),
       };
       self.set(|s| s.installed = Some(installed));
       self.clear_cache(None);
@@ -1006,7 +1000,6 @@ impl Updater {
         s.phase = Phase::Current;
         s.checked_at = checked_at;
         s.release = None;
-        s.location = None;
         s.received = 0;
         s.total = 0;
         s.error = None;
@@ -1047,7 +1040,6 @@ impl Updater {
       s.phase = if file.is_some() { Phase::Ready } else { Phase::Available };
       s.checked_at = checked_at;
       s.release = Some(public);
-      s.location = None;
       s.received = 0;
       s.total = 0;
       s.error = None;
@@ -1313,7 +1305,6 @@ impl DownloadJob {
         updater.set(|s| {
           s.phase = Phase::Ready;
           s.received = asset.size;
-          s.location = None;
         })
       }
       Err(Failure::Aborted) => updater.set(|s| {

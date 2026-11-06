@@ -1,6 +1,6 @@
 // Saving a file the app made — the CSV export, a GiroCode, the Steuer-
 // Jahresübersicht's ZIP, a backup — for window.electronFiles (bridge.js,
-// lib/download.ts saveFile), as electron/file-save.cjs did it.
+// lib/download.ts saveFile), as the Electron shell's file-save.cjs did it.
 //
 // A native Save As in Downloads with the type's filter, then the bytes are
 // written here, so the page hears whether the file exists or the dialog was
@@ -62,7 +62,7 @@ pub struct Filter {
   pub extensions: &'static [&'static str],
 }
 
-/// The types the app saves, by lower-case extension ('.csv' …): electron/main.cjs downloadFilters.
+/// The types the app saves, by lower-case extension ('.csv' …): the Electron shell's main.cjs downloadFilters.
 pub fn filter_for(ext: &str, t: &Files) -> Option<Filter> {
   let (name, extensions): (&'static str, &'static [&'static str]) = match ext {
     ".csv" => (t.csv, &["csv"]),

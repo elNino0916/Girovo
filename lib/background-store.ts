@@ -26,7 +26,7 @@ type StoreGlobal = typeof globalThis & { __girovoBackgroundStore?: BackgroundSto
 
 /**
  * Whether this server keeps PINs for the checks at all: the desktop app's own
- * (and the development server electron:dev opens), and the phone where its
+ * (and the development server, `npm run dev`), and the phone where its
  * shell provides the store. Never a server other people use.
  */
 export function backgroundServed(): boolean {

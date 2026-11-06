@@ -77,7 +77,7 @@ export const de = {
   },
   /**
    * 6.0, Windows: Windows Hello in place of typing the first login's PIN
-   * (lib/windows-hello.ts, electron/windows-hello.cjs; on Android the
+   * (lib/windows-hello.ts, src-tauri/src/hello.rs; on Android the
    * fingerprint does it, android.biometric). The further banks follow as
    * with a typed PIN (linkedUnlock).
    */

@@ -1,6 +1,6 @@
 // The shell's own words, in the language the app speaks: the stored choice
 // (fints.locale, lib/i18n/locale.ts), else the system's — German for a German
-// system, English for every other (electron/i18n.cjs shellLocale). Only what
+// system, English for every other (the Electron shell's i18n.cjs shellLocale). Only what
 // the shell draws before the page can, or the page cannot: the start window,
 // the first start's migration screen, the file types of a Save As and what a
 // save answers. Everything else is the page's (lib/i18n/messages).
@@ -23,7 +23,7 @@ pub fn lang(prefs: &Prefs) -> Lang {
   if system.starts_with("de") { Lang::De } else { Lang::En }
 }
 
-/// The start window (splash.rs), as electron/i18n.cjs said it.
+/// The start window (splash.rs), as the Electron shell's i18n.cjs said it.
 pub struct Splash {
   pub title: &'static str,
   pub title_updating: &'static str,
@@ -120,7 +120,7 @@ impl Tray {
   }
 }
 
-/// The install window (install_window.rs), as build/update-window/UpdateWindow.cs said it.
+/// The install window (install_window.rs), as the Electron shell's C# install window said it.
 pub struct Install {
   pub title: &'static str,
   pub failed_title: &'static str,
@@ -203,7 +203,7 @@ impl Migration {
 
 /// Saving a file the app made (save.rs) and the PDF export (pdf.rs): the
 /// file types a Save As offers, and what a save tells the page, as
-/// electron/i18n.cjs said it.
+/// the Electron shell's i18n.cjs said it.
 pub struct Files {
   pub csv: &'static str,
   pub png: &'static str,

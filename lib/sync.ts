@@ -7,7 +7,7 @@
 // The devices of one login share a key, made by the first and handed to the
 // next as a code (a QR code on screen): nothing else is needed to read what
 // they leave each other. They meet in a place that keeps files — the
-// computer itself over the home network (electron/sync-lan.cjs), a WebDAV
+// computer itself over the home network (src-tauri/src/sync_lan.rs), a WebDAV
 // folder (Nextcloud and the like), a folder a sync tool already keeps in
 // step — and each device only ever writes its own files there:
 //
@@ -337,7 +337,7 @@ export function readCode(code: string): { key: Buffer; tag: string; place: SyncP
 const PRIVATE_V4 = /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})$/;
 const privateV4 = (a: string) => PRIVATE_V4.test(a) && a.split('.').every((o) => Number(o) <= 255);
 
-/** What the desktop app's shelf asks of every request (electron/sync-lan.cjs): from the key, never the key. */
+/** What the desktop app's shelf asks of every request (src-tauri/src/sync_lan.rs): from the key, never the key. */
 export const lanToken = (key: Buffer) =>
   crypto.createHash('sha256').update('girovo/sync/lan').update(key).digest('hex').slice(0, 32);
 

@@ -10,13 +10,13 @@
 // The attribute on <html> stays the one source of truth the page renders
 // from, so a component never holds a copy of the theme that could go stale.
 //
-// The desktop shell draws its own caption buttons next to the masthead in
-// colours it is told about (electron/main.cjs, BAR_COLORS); every path that
+// The desktop app draws its caption buttons next to the masthead in colours
+// it is told about (components/shell/CaptionButtons.tsx); every path that
 // changes the theme tells it too, or the buttons would sit in a navy block
 // on a navy-black bar — or the other way round. The same goes for a dialog's
-// scrim, which darkens the masthead but cannot reach the OS-drawn buttons:
+// scrim, which darkens the masthead but not the buttons above every layer:
 // the Overlay reports how many scrims cover their corner (setCaptionDim), and
-// the shell darkens the buttons to match.
+// the buttons darken to match.
 
 import { store } from './client-api';
 import { IS_ANDROID } from './platform';

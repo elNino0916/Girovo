@@ -1,7 +1,7 @@
 // Windows Hello in place of typing the first login's PIN — the desktop's
 // counterpart of Android's fingerprint login (mobile/bridges/biometric.ts).
-// Electron did this with electron/windows-hello.cjs and a helper program
-// (build/windows-hello/WindowsHello.cs); this shell makes the same WinRT calls
+// The Electron shell did this with its windows-hello.cjs and a helper program
+// (WindowsHello.cs, gone with it); this shell makes the same WinRT calls
 // itself, through the windows crate, and keeps the same windows-hello.json in
 // the same data folder, so a Windows Hello set up under Electron opens here:
 //
@@ -15,7 +15,7 @@
 //   RSA PKCS#1 v1.5, the same every time, so the same gesture brings the same
 //   key back — checked at enroll against the key's public half, so a key that
 //   signs otherwise is never used. The tests hold vectors that
-//   electron/windows-hello.cjs made itself: the bytes are Electron's.
+//   the Electron shell's windows-hello.cjs made itself: the bytes are Electron's.
 // - A signature that no longer checks out against the public half kept here
 //   (the key was replaced, by another copy of Girovo for one) or a key Windows
 //   no longer has: 'invalidated', and what was sealed under it is gone.
@@ -523,7 +523,7 @@ mod tests {
 
   use super::*;
 
-  // Made by electron/windows-hello.cjs itself: its enroll against a helper
+  // Made by the Electron shell's windows-hello.cjs itself: its enroll against a helper
   // signing with a Node RSA-2048 key (PKCS#1 v1.5, SHA-256), as a
   // KeyCredential does. The state is the windows-hello.json it wrote.
   const SALT: &str = "EORjgIA5dq0aenN85S9wP4EdRsV+fbfZj8dOe7GYdDM=";

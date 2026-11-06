@@ -4,7 +4,7 @@
 // (the owner's call, 2026-10-07). After SLOW_AFTER without the app's window it
 // says that the first start after an update or a restart often takes longer.
 //
-// Ported from electron/splash.cjs: the same steps and the same card
+// Ported from the Electron shell's splash.cjs: the same steps and the same card
 // (shell/splash.html, served from the binary), the model worked out here and
 // drawn there. The first start after the Electron app draws the migration
 // screen in the same card first (migrate.rs, `migrating`).
@@ -17,7 +17,7 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::texts::{Lang, Migration, Splash as Words};
 
-/// The steps a start goes through, in order (electron/splash.cjs STEPS).
+/// The steps a start goes through, in order (the Electron shell's splash.cjs STEPS).
 const STEPS: [&str; 7] = ["finishing", "preparing", "checking", "downloading", "installing", "starting", "opening"];
 /// The 440px card and the margins its shadow needs.
 const WIDTH: f64 = 440.0 + 2.0 * 28.0;
@@ -257,7 +257,7 @@ impl Splash {
   }
 
   /// What the card shows now, for the install window, which takes over looking
-  /// the same (electron/splash.cjs view()): theme, language, title, version
+  /// the same (the Electron shell's splash.cjs view()): theme, language, title, version
   /// line and the steps with their states.
   pub fn install_view(&self) -> (bool, Lang, String, String, Vec<(String, String)>) {
     let s = self.state.lock().unwrap();
@@ -307,7 +307,7 @@ pub fn splash_fit(app: AppHandle, height: f64) {
   }
 }
 
-/// Whether the stored theme, or the system's, is dark (fints.theme; electron/main.cjs nativeTheme).
+/// Whether the stored theme, or the system's, is dark (fints.theme; the Electron shell's main.cjs nativeTheme).
 pub fn dark(theme_pref: Option<String>) -> bool {
   match theme_pref.as_deref() {
     Some("dark") => true,

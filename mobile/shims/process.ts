@@ -1,5 +1,5 @@
-// `process` for the phone server: the environment electron/main.cjs hands the
-// desktop server, as constants, and the folders mobile/shims/fs.ts lays out.
+// `process` for the in-page server (the phone's, and the desktop's through
+// desktop/env.ts): the environment, as constants, and the folders mobile/shims/fs.ts lays out.
 
 const env: Record<string, string | undefined> = {
   NODE_ENV: 'production',

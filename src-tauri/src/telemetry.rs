@@ -1,5 +1,5 @@
 // Telemetry to the developer's own server (config.json → telemetry), from the
-// shell — electron/telemetry.cjs and its vendored SDK (electron/telemetry-sdk.mjs),
+// shell — the Electron shell's telemetry.cjs and its vendored SDK (the Electron shell's telemetry-sdk.mjs),
 // in Rust. Same endpoint, same batches, same rules.
 //
 // Two kinds, two rules:
@@ -122,7 +122,7 @@ pub trait Sdk: Send + Sync {
   fn shutdown(&self) -> BoxFuture<'_>;
 }
 
-/// electron/telemetry.cjs createTelemetryHub: decides what reaches the client.
+/// the Electron shell's telemetry.cjs createTelemetryHub: decides what reaches the client.
 pub struct Hub {
   client: Option<Arc<dyn Sdk>>,
   random_id: fn() -> String,
@@ -209,7 +209,7 @@ impl Hub {
   }
 
   /// A report of the route handlers (lib/telemetry.ts send()), held to the
-  /// same rules as the shell's own: electron/telemetry.cjs relayServerLine.
+  /// same rules as the shell's own: the Electron shell's telemetry.cjs relayServerLine.
   pub fn relay(&self, store: &dyn Store, msg: &Value) {
     let Some(m) = msg.as_object() else { return };
     let name = m.get("name").and_then(Value::as_str);
@@ -239,7 +239,7 @@ impl Hub {
 }
 
 // ---------------------------------------------------------------------------
-// The client: electron/telemetry-sdk.mjs's queue and batches
+// The client: the Electron shell's telemetry-sdk.mjs's queue and batches
 
 const FLUSH_EVERY: Duration = Duration::from_secs(5);
 const MAX_BATCH: usize = 100;
@@ -638,7 +638,7 @@ pub fn telemetry_relay(prefs: tauri::State<'_, Prefs>, state: tauri::State<'_, T
 
 /// The preference keys that are the hub's alone: a yes, a no and the install
 /// id change together through set_consent, never one of them through the
-/// page's store (electron/main.cjs pageKey).
+/// page's store (the Electron shell's main.cjs pageKey).
 pub fn hub_key(key: &str) -> bool {
   key == CONSENT_PREF || key.starts_with("fints.telemetry.")
 }

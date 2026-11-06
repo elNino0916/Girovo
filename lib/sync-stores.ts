@@ -2,7 +2,7 @@
 // keeps files by name, and holds nothing it could read:
 //
 // - 'lan': the computer itself. Its shell serves the folder below to the home
-//   network while the app runs (electron/sync-lan.cjs); the computer's own
+//   network while the app runs (src-tauri/src/sync_lan.rs); the computer's own
 //   server reads and writes it as a plain folder, the phone reaches it over
 //   plain HTTP to a private address (SyncPlugin.java) — every file is sealed,
 //   so the network learns sizes and times only.
@@ -28,7 +28,7 @@ function checked(name: string): string {
   return name;
 }
 
-/** The folder the computer's shell serves to the home network (electron/sync-lan.cjs reads the same). */
+/** The folder the computer's shell serves to the home network (src-tauri/src/sync_lan.rs reads the same). */
 export function lanHostDir(): string {
   return path.join(STATE_DIR, 'sync-lan');
 }

@@ -1,6 +1,6 @@
 // "Neue Umsätze melden" (6.0): Girovo looks at the user's banks while nobody
 // has it open, and says what arrived. The desktop shell asks for a check
-// every six hours while it runs (electron/background.cjs), the phone from a
+// every six hours while it runs (src-tauri/src/background.rs), the phone from a
 // job of its own (BackgroundJob.java, mobile/background/); both end up here.
 //
 // A check needs the PIN without the user, which nothing else in Girovo keeps:
@@ -8,7 +8,7 @@
 // - The PINs of the logins it was turned on for are kept in one sealed box,
 //   with what each account's last check saw. Its key comes from a secret the
 //   shell keeps with the system's protection — DPAPI or the keyring on the
-//   desktop (electron/linked-unlock.cjs), an Android Keystore key on the phone
+//   desktop (src-tauri/src/secret.rs), an Android Keystore key on the phone
 //   — and only from that: there is no gesture to wait for. The box lives
 //   where the shell says (lib/background-store.ts).
 // - Only logins with a remembered device are taken: a check opens it on this

@@ -41,7 +41,7 @@ import java.io.OutputStream;
 import java.util.Locale;
 
 /**
- * What the desktop shell does for the page (electron/main.cjs), the Android way
+ * What the desktop shell does for the page (src-tauri), the Android way
  * (mobile/bridges/*): the wallpaper's colours for Material You, printing a
  * document — "Save as PDF" is one of Android's printers — saving a file where
  * the user picks, handing one to another app, and keeping the screen out of

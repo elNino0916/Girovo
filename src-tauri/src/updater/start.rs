@@ -1,6 +1,6 @@
 // Updates installed at start ("Updates automatisch installieren", on unless
 // switched off; the installed copy only, never a start with Windows, which
-// shows nothing) — electron/main.cjs updateAtStart, for the start window
+// shows nothing) — the Electron shell's main.cjs updateAtStart, for the start window
 // (splash.rs). The check starts beside whatever else the start does
 // (start_check); update_at_start then waits for it at most START_CHECK_LIMIT,
 // and a newer release this copy can install is downloaded and installed with

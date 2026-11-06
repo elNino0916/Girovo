@@ -1,9 +1,7 @@
 // The Girovo mark, "G€": a G whose left side carries the euro sign's two
 // bars. One geometry for every place the mark appears — the masthead plate
 // (components/shell/BrandMark.tsx), the favicon (app/layout.tsx), the app
-// icon and the installer images (scripts/build-brand-assets.mjs) and the
-// update window (build/update-window/UpdateWindow.cs, which repeats these
-// numbers in WPF path syntax).
+// icon and the installer images (scripts/build-brand-assets.mjs).
 //
 // Drawn on a 512 grid inside a rounded plate. All strokes are round-capped;
 // the G is a 136-radius arc around (274, 256), open to the upper right, whose

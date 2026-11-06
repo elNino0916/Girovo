@@ -1,7 +1,8 @@
 'use strict';
 
-// Telemetry to the developer's own server (config.json → telemetry), through
-// the vendored SDK (electron/telemetry-sdk.mjs, a copy of
+// The Android app's telemetry to the developer's own server (config.json →
+// telemetry, mobile/bridges/telemetry.ts), through the vendored SDK
+// (telemetry-sdk.mjs, a copy of
 // https://telemetry.elnino0916.de/sdk/telemetry.js — loaded from here, never
 // from the network).
 //
@@ -142,7 +143,6 @@ function createTelemetryHub({ client, getPref, setPref, delPref, randomId }) {
  * what may go out, exactly as for the shell's own reports.
  */
 const MARK = '@@girovo-telemetry ';
-const MAX_LINE = 256 * 1024;
 
 function relayServerLine(hub, line) {
   let msg;
@@ -161,37 +161,9 @@ function relayServerLine(hub, line) {
   }
 }
 
-/**
- * Splits a stream's chunks into lines: telemetry lines go to `onTelemetry`,
- * everything else to `onText` (with its newline), so the server's log stays
- * as it was.
- */
-function lineSplitter(onTelemetry, onText) {
-  let rest = '';
-  return (chunk) => {
-    rest += String(chunk);
-    let nl;
-    while ((nl = rest.indexOf('\n')) !== -1) {
-      const line = rest.slice(0, nl).replace(/\r$/, '');
-      rest = rest.slice(nl + 1);
-      if (line.startsWith(MARK)) onTelemetry(line);
-      else onText(`${line}\n`);
-    }
-    // A partial line that cannot become a telemetry line is passed on now;
-    // one that could but never ends is dropped rather than kept growing.
-    if (rest && !MARK.startsWith(rest.slice(0, MARK.length))) {
-      onText(rest);
-      rest = '';
-    } else if (rest.length > MAX_LINE) {
-      rest = '';
-    }
-  };
-}
-
 module.exports = {
   createTelemetryHub,
   relayServerLine,
-  lineSplitter,
   MARK,
   CONSENT_PREF,
   ID_PREF,

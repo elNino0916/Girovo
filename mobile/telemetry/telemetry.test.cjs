@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createTelemetryHub, relayServerLine, lineSplitter, MARK, CONSENT_PREF, ID_PREF } = require('./telemetry.cjs');
+const { createTelemetryHub, relayServerLine, MARK, CONSENT_PREF, ID_PREF } = require('./telemetry.cjs');
 
 /** A stand-in for the SDK instance that records every call. */
 function fakeClient() {
@@ -104,15 +104,4 @@ test('relayServerLine: the server is held to the same rules', () => {
   assert.deepEqual(client.calls.slice(1), [
     ['error', 'Error', 'Konto [Zahl]', { source: 'server', route: '/api/balance', blz: '37040044', fatal: true }],
   ]);
-});
-
-test('lineSplitter: telemetry lines are taken out, the log stays intact', () => {
-  const tel = [];
-  let text = '';
-  const feed = lineSplitter((l) => tel.push(l), (t) => { text += t; });
-  feed('ready on 127.0.0.1\n' + MARK.slice(0, 5));
-  feed(MARK.slice(5) + '{"t":"event"}\npartial');
-  feed(' line\n');
-  assert.deepEqual(tel, [MARK + '{"t":"event"}']);
-  assert.equal(text, 'ready on 127.0.0.1\npartial line\n');
 });

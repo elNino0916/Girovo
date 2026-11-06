@@ -1,10 +1,8 @@
 // The route handlers' telemetry (lib/telemetry.ts) on the desktop: they run
 // in this page, so their reports go to the shell's hub (src-tauri/src/telemetry.rs),
 // which scrubs the errors, drops usage without the user's yes and keeps only
-// the fields it declares, exactly as for the shell's own reports. The Electron
-// shell read the same messages off its server's stdout (GIROVO_TELEMETRY_PIPE,
-// relayServerLine); the phone's hub takes them through this very sink
-// (mobile/bridges/telemetry.ts).
+// the fields it declares, exactly as for the shell's own reports. The phone's
+// hub takes them through this very sink (mobile/bridges/telemetry.ts).
 
 import { invoke } from '../shell';
 

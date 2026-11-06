@@ -1,11 +1,9 @@
-// The server's side of telemetry. It sends nothing itself: each report is one
-// line on stdout, after a mark, which the desktop shell takes out of the log
-// and hands to its hub (electron/telemetry.cjs) — the hub scrubs errors,
-// drops usage without the user's yes, and keeps only the fields it declares.
-// Outside the desktop shell (`npm run dev`, a website build) the pipe is not
-// set, and every call here is a no-op. In the Android app and the Tauri
-// desktop app the routes run in the page, and a sink takes the reports to the
-// hub instead (mobile/bridges/telemetry.ts, desktop/server/telemetry.ts).
+// The server's side of telemetry. It sends nothing itself: the Android app
+// and the desktop app run the route handlers in the page, and a sink takes
+// each report to the shell's hub (mobile/bridges/telemetry.ts,
+// desktop/server/telemetry.ts) — the hub scrubs errors, drops usage without
+// the user's yes, and keeps only the fields it declares. Without a sink
+// (`npm run dev`) every call here is a no-op.
 //
 // Context: wrap() (lib/api.ts) runs every route inside withTelemetryContext;
 // code deeper down notes what is known — the bank's BLZ — and an error that
@@ -13,9 +11,6 @@
 // accounts or bookings: the hub would drop it, but it has no business here.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-
-const MARK = '@@girovo-telemetry ';
-const PIPE = process.env.GIROVO_TELEMETRY_PIPE === '1';
 
 type Props = Record<string, string | number | boolean | undefined | null>;
 
@@ -29,15 +24,9 @@ type Sink = (message: Record<string, unknown>) => void;
 
 function send(message: Record<string, unknown>): void {
   const sink = (globalThis as typeof globalThis & { __girovoTelemetrySink?: Sink }).__girovoTelemetrySink;
-  if (sink) {
-    try {
-      sink(message);
-    } catch { /* a report must never break a request */ }
-    return;
-  }
-  if (!PIPE) return;
+  if (!sink) return;
   try {
-    process.stdout.write(`${MARK}${JSON.stringify(message)}\n`);
+    sink(message);
   } catch { /* a report must never break a request */ }
 }
 

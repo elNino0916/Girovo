@@ -1,6 +1,6 @@
 // Builds the Tauri desktop app's packages (6.0) for one platform and puts
 // them in dist/ under the names the Electron build gave them — the names the
-// installed apps' updaters look for (electron/updater.cjs, src-tauri's port),
+// installed apps' updaters look for (src-tauri/src/updater, and the 5.x Electron updater before it),
 // so the first Tauri release reaches every Electron copy:
 //
 //   Windows  dist/Girovo-<version>-Setup.exe

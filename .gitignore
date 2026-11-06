@@ -10,10 +10,8 @@ next-env.d.ts
 .idea/
 .vs/
 
-# Electron
+# The desktop installers (scripts/dist-desktop.mjs)
 dist/
-build/update-window/bin/
-build/windows-hello/bin/
 # The on-device category model, fetched by scripts/fetch-model.mjs (too big for git)
 /models/
 

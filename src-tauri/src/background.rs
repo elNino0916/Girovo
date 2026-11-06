@@ -1,7 +1,7 @@
 // "Neue Umsätze melden" in the Tauri shell (lib/background-check.ts): every
 // six hours, while Girovo runs — in the window or in the notification area —
 // a check of the banks, and what it found as the system's notifications.
-// Ported from electron/background.cjs and main.cjs.
+// Ported from the Electron shell's background.cjs and main.cjs.
 //
 // The check itself runs in the page now, in the route handler the Electron
 // shell asked over HTTP (app/api/background, op "check"): this side keeps

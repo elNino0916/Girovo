@@ -2,7 +2,6 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const path = require('node:path');
 const logic = require('./update-logic.cjs');
 
 const DIGEST = 'sha256:' + 'ab'.repeat(32);
@@ -135,16 +134,6 @@ test('parseRelease with prerelease: a preview keeps its whole version, a draft i
   assert.equal(logic.parseRelease(release({ tag_name: 'preview' }), { prerelease: true }), null);
 });
 
-test('isSwitchBack: a stable release older than the installed preview, nothing else', () => {
-  assert.equal(logic.isSwitchBack('5.16.1', '6.0.0-preview.202611031200.ge9d8b1b'), true);
-  assert.equal(logic.isSwitchBack('5.16.1', '6.0.0-preview.1'), true);
-  assert.equal(logic.isSwitchBack('6.0.0', '6.0.0-preview.1'), false, 'newer: isNewer offers it');
-  assert.equal(logic.isSwitchBack('5.16.0', '5.16.1'), false, 'a stable install is not going back');
-  assert.equal(logic.isSwitchBack('6.0.0-preview.1', '6.0.0-preview.2'), false, 'never a pre-release');
-  assert.equal(logic.isSwitchBack('5.16.1', '6.0.0-preview.1-dev.4'), false, 'never a CI build');
-  assert.equal(logic.isSwitchBack('nonsense', '6.0.0-preview.1'), false);
-});
-
 test('newestRelease with a kind: a nightly without that install\'s file is passed over', () => {
   const apk = (v) => asset(`Girovo-${v}-android.apk`);
   const exe = (v) => asset(`Girovo-${v}-Setup.exe`);
@@ -152,8 +141,6 @@ test('newestRelease with a kind: a nightly without that install\'s file is passe
     release({ tag_name: '6.0.0-preview.202611040217.g5a9a41f', prerelease: true, assets: [exe('6.0.0-preview.202611040217.g5a9a41f')] }),
     release({ tag_name: '6.0.0-preview.1', prerelease: true, assets: [exe('6.0.0-preview.1'), apk('6.0.0-preview.1')] }),
   ];
-  // The desktop takes the nightly: its date orders it after preview.1.
-  assert.equal(logic.newestRelease(list, '5.16.1', { kind: 'nsis' }).version, '6.0.0-preview.202611040217.g5a9a41f');
   // The GitHub APK has nothing to install in it, so preview.1 is its newest.
   assert.equal(logic.newestRelease(list, '5.16.1', { kind: 'android' }).version, '6.0.0-preview.1');
   assert.equal(logic.newestRelease(list, '6.0.0-preview.1', { kind: 'android' }), null);
@@ -241,7 +228,6 @@ test('parseRelease: files and pages of the old Sooskasse-FinTS repository still 
     `${legacy}/download/5.0.0/Girovo-5.0.0-Setup.exe`,
     `${logic.DOWNLOAD_PREFIX}4.1.0/Girovo-5.0.0-portable.exe`,
   ]);
-  assert.equal(logic.pickAsset(r, 'nsis').name, 'Girovo-5.0.0-Setup.exe');
 });
 
 test('releasePageOr: either repository name, nothing else', () => {
@@ -260,153 +246,18 @@ test('parseRelease caps the release notes', () => {
   assert.equal(r.notes.length, logic.MAX_NOTES_CHARS);
 });
 
-test('pickAsset finds the file for each kind of install', () => {
-  const r = logic.parseRelease(release());
-  assert.equal(logic.pickAsset(r, 'nsis').name, 'Sooskasse-FinTS-4.1.0-Setup.exe');
-  assert.equal(logic.pickAsset(r, 'portable').name, 'Sooskasse-FinTS-4.1.0-portable.exe');
-  assert.equal(logic.pickAsset(r, 'manual'), null);
-  assert.equal(logic.pickAsset(r, 'android'), null);
-  assert.equal(logic.pickAsset(r, 'dev'), null);
-});
-
-test('pickAsset finds the Android APK beside the desktop files', () => {
+/** Chunks as a blockmap lists them, from [checksum, size] pairs. */
+test('pickAsset finds the Android APK beside the desktop files, and only that', () => {
   const r = logic.parseRelease(release({
     assets: [asset('Girovo-5.3.0-Setup.exe'), asset('Girovo-5.3.0-android.apk'), asset('Girovo-5.3.0-android.apk.sha256')],
   }));
   assert.equal(logic.pickAsset(r, 'android').name, 'Girovo-5.3.0-android.apk');
-  assert.equal(logic.pickAsset(r, 'nsis').name, 'Girovo-5.3.0-Setup.exe');
-});
-
-test('installKind tells the installed, portable and unpacked builds apart', () => {
-  const execPath = 'C:\\Users\\max\\AppData\\Local\\Programs\\Sooskasse-FinTS\\Sooskasse-FinTS.exe';
-  const uninstaller = path.join(path.dirname(execPath), 'Uninstall Sooskasse-FinTS.exe');
-  const base = { isPackaged: true, env: {}, execPath, exists: (f) => f === uninstaller };
-  assert.equal(logic.installKind(base), 'nsis');
-  assert.equal(logic.installKind({ ...base, exists: () => false }), 'manual');
-  assert.equal(logic.installKind({ ...base, env: { PORTABLE_EXECUTABLE_FILE: 'D:\\Sooskasse-FinTS-4.0.0-portable.exe' } }), 'portable');
-  assert.equal(logic.installKind({ ...base, isPackaged: false }), 'dev');
-  // An install updated to Girovo keeps its folder, now with the new exe in it.
-  const renamedExe = 'C:\\Users\\max\\AppData\\Local\\Programs\\Sooskasse-FinTS\\Girovo.exe';
-  const renamedUninstaller = path.join(path.dirname(renamedExe), 'Uninstall Girovo.exe');
-  assert.equal(logic.installKind({ ...base, execPath: renamedExe, exists: (f) => f === renamedUninstaller }), 'nsis');
-  // The Linux packages do not update themselves: the AppImage and the .deb's /opt install.
-  const appImage = { isPackaged: true, env: { APPIMAGE: '/home/max/Apps/Girovo-5.2.2-x86_64.AppImage' }, execPath: '/tmp/.mount_GirovoX1y2Z3/girovo', exists: () => false };
-  assert.equal(logic.installKind(appImage), 'manual');
-  assert.equal(logic.installKind({ ...appImage, env: {}, execPath: '/opt/Girovo/girovo' }), 'manual');
-});
-
-test('installArgs: silent and restarting for the installer, nothing for the rest', () => {
-  assert.deepEqual(logic.installArgs('nsis'), ['/S', '--updated', '--force-run']);
-  assert.deepEqual(logic.installArgs('portable'), ['--updated']);
-  assert.equal(logic.installArgs('manual'), null);
-  assert.equal(logic.installArgs('dev'), null);
-});
-
-test('tagUrl sits beside the latest-release address', () => {
-  assert.equal(logic.tagUrl(logic.FEED_URL, '4.1.0'), `https://api.github.com/repos/${logic.REPO}/releases/tags/4.1.0`);
-  assert.equal(logic.tagUrl('http://127.0.0.1:5000/latest', 'v4.1.0'), 'http://127.0.0.1:5000/tags/v4.1.0');
-  assert.equal(logic.tagUrl('http://127.0.0.1:5000/feed.json', '4.1.0'), null);
-});
-
-test('pickBlockmap finds the blockmap beside the installer, and only that', () => {
-  const r = logic.parseRelease(release({
-    assets: [
-      asset('Sooskasse-FinTS-4.1.0-Setup.exe'),
-      asset('Sooskasse-FinTS-4.1.0-portable.exe'),
-      asset('Sooskasse-FinTS-4.1.0-Setup.exe.blockmap', { size: 122_110 }),
-    ],
-  }));
-  const setup = logic.pickAsset(r, 'nsis');
-  assert.equal(setup.name, 'Sooskasse-FinTS-4.1.0-Setup.exe', 'the blockmap is not mistaken for the installer');
-  assert.equal(logic.pickBlockmap(r, setup).name, 'Sooskasse-FinTS-4.1.0-Setup.exe.blockmap');
-  assert.equal(logic.pickBlockmap(r, logic.pickAsset(r, 'portable')), null);
-  assert.equal(logic.pickBlockmap(null, setup), null);
-});
-
-const blockmap = (checksums, sizes, extra = {}) => ({
-  version: '2',
-  files: [{ name: 'file', offset: 0, checksums, sizes, ...extra }],
-});
-
-test('parseBlockmap: chunks in file order, adding up to the installer', () => {
-  assert.deepEqual(logic.parseBlockmap(blockmap(['a', 'b', 'c'], [10, 20, 5]), 35), [
-    { checksum: 'a', size: 10, offset: 0 },
-    { checksum: 'b', size: 20, offset: 10 },
-    { checksum: 'c', size: 5, offset: 30 },
-  ]);
-});
-
-test('parseBlockmap refuses anything that does not describe the file', () => {
-  assert.equal(logic.parseBlockmap(blockmap(['a', 'b'], [10, 20]), 31), null, 'wrong total');
-  assert.equal(logic.parseBlockmap(blockmap(['a'], [10, 20]), 30), null, 'lists of different length');
-  assert.equal(logic.parseBlockmap(blockmap(['a', 'b'], [10, -20]), -10), null);
-  assert.equal(logic.parseBlockmap(blockmap(['a', 7], [10, 20]), 30), null);
-  assert.equal(logic.parseBlockmap(blockmap([], []), 0), null);
-  assert.equal(logic.parseBlockmap(blockmap(['a'], [10], { offset: 4 }), 14), null);
-  assert.equal(logic.parseBlockmap({ ...blockmap(['a'], [10]), version: '1' }, 10), null);
-  assert.equal(logic.parseBlockmap({ version: '2', files: [] }, 10), null);
-  assert.equal(logic.parseBlockmap(null, 10), null);
-});
-
-/** Chunks as a blockmap lists them, from [checksum, size] pairs. */
-function chunks(list) {
-  let offset = 0;
-  return list.map(([checksum, size]) => {
-    const c = { checksum, size, offset };
-    offset += size;
-    return c;
-  });
-}
-
-test('planDifferential: unchanged chunks are copied, changed ones fetched', () => {
-  const old = chunks([['a', 100], ['b', 100], ['c', 100], ['d', 100]]);
-  const next = chunks([['a', 100], ['X', 50], ['c', 100], ['d', 100], ['Y', 30]]);
-  const plan = logic.planDifferential(old, next, { mergeGap: 0 });
-  assert.deepEqual(plan.copies, [
-    { from: 0, to: 0, size: 100 },
-    { from: 200, to: 150, size: 200 },
-  ]);
-  assert.deepEqual(plan.fetches, [
-    { start: 100, size: 50 },
-    { start: 350, size: 30 },
-  ]);
-  assert.equal(plan.fetchBytes, 80);
-});
-
-test('planDifferential: a chunk that moved is copied from where it was', () => {
-  const old = chunks([['a', 10], ['b', 20]]);
-  const plan = logic.planDifferential(old, chunks([['b', 20], ['a', 10]]));
-  assert.deepEqual(plan.copies, [{ from: 10, to: 0, size: 20 }, { from: 0, to: 20, size: 10 }]);
-  assert.deepEqual(plan.fetches, []);
-});
-
-test('planDifferential: same checksum but another size is not the same chunk', () => {
-  const plan = logic.planDifferential(chunks([['a', 10]]), chunks([['a', 11]]));
-  assert.deepEqual(plan.copies, []);
-  assert.deepEqual(plan.fetches, [{ start: 0, size: 11 }]);
+  assert.equal(logic.pickAsset(logic.parseRelease(release()), 'android'), null, 'a release without an APK');
+  assert.equal(logic.pickAsset(r, 'nsis'), null, 'the desktop files are not this updater\'s');
+  assert.equal(logic.pickAsset(null, 'android'), null);
 });
 
 test('passingFailure: only 502, 503 and 504 are asked once more', () => {
   for (const status of [502, 503, 504]) assert.equal(logic.passingFailure(status), true, String(status));
   for (const status of [200, 304, 403, 404, 429, 500]) assert.equal(logic.passingFailure(status), false, String(status));
-});
-
-test('planDifferential: a short copy between two fetches is fetched along', () => {
-  const old = chunks([['a', 100], ['b', 1000]]);
-  const next = chunks([['X', 10], ['a', 100], ['Y', 10], ['b', 1000], ['Z', 10]]);
-  const plan = logic.planDifferential(old, next, { mergeGap: 100 });
-  // 'a' (100 bytes) sits between two fetches: one request for X+a+Y.
-  // 'b' (1000 bytes) is past the gap: copied.
-  assert.deepEqual(plan.fetches, [{ start: 0, size: 120 }, { start: 1120, size: 10 }]);
-  assert.deepEqual(plan.copies, [{ from: 100, to: 120, size: 1000 }]);
-  assert.equal(plan.fetchBytes, 130);
-  // Every byte of the new file is covered exactly once.
-  const covered = [...plan.copies.map((c) => [c.to, c.size]), ...plan.fetches.map((f) => [f.start, f.size])]
-    .sort((x, y) => x[0] - y[0]);
-  let at = 0;
-  for (const [start, size] of covered) {
-    assert.equal(start, at);
-    at += size;
-  }
-  assert.equal(at, 1130);
 });

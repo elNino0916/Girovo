@@ -26,7 +26,7 @@ import { openWithPin, parseBox, sealWithPin } from './crypto-box.ts';
 
 // Defaults to .fints-state/ in the project root. The desktop build installs the
 // server into a read-only program directory, so Electron overrides this with a
-// per-user path (electron/main.cjs). The vault (lib/vault.ts) lives alongside.
+// per-user path (src-tauri/src/paths.rs). The vault (lib/vault.ts) lives alongside.
 export const STATE_DIR = process.env.FINTS_STATE_DIR || path.join(process.cwd(), '.fints-state');
 
 /** What a remembered device profile holds. */

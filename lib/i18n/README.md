@@ -24,8 +24,8 @@ translated; it is shown exactly as the bank wrote it.
   interface text that is still written straight into the code.
 
 The choice is stored as the preference `fints.locale`, copied into the cookie
-for the server, and read by `electron/main.cjs` for the shell's own dialogs and
-the update window. Without a choice, German systems get German and everything
+for the server, and read by the desktop shell (`src-tauri/src/texts.rs`) for its start window and
+the install window. Without a choice, German systems get German and everything
 else gets English.
 
 ## Writing a text

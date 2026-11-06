@@ -25,7 +25,7 @@ import { cx } from '../ui';
 
 /** Windows 11's caption glyphs (Segoe Fluent Icons; Segoe MDL2 Assets on Windows 10). */
 const GLYPH = { minimize: '\uE921', maximize: '\uE922', restore: '\uE923', close: '\uE8BB' };
-/** The glyph colours of electron/main.cjs BAR_COLORS, and Material's scrim at 32 %. */
+/** The glyph colours of the Electron shell's OS-drawn buttons, kept, and Material's scrim at 32 %. */
 const INK = { light: [22, 28, 36], dark: [221, 227, 238] };
 const SCRIM_ALPHA = 0.32;
 

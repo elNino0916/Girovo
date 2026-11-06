@@ -1,6 +1,6 @@
 // The page's preferences (theme, "Beträge ausblenden", the idle limit, the
 // bank chosen last, the shell's own switches): prefs.json in the data folder,
-// the very file and format the Electron shell kept (electron/main.cjs).
+// the very file and format the Electron shell kept (its main.cjs).
 //
 // The page reads them synchronously — layout.tsx's pre-paint script needs the
 // theme before the first frame — and Tauri's IPC is asynchronous, so the whole
@@ -23,7 +23,7 @@ const MAX_KEYS: usize = 200;
 
 pub struct Prefs(Mutex<BTreeMap<String, String>>);
 
-/// `fints.` and 1–80 of [A-Za-z0-9_.-]: PREF_KEY in electron/preload.cjs.
+/// `fints.` and 1–80 of [A-Za-z0-9_.-]: PREF_KEY in the Electron shell's preload.cjs.
 pub fn valid_key(key: &str) -> bool {
   let Some(rest) = key.strip_prefix("fints.") else { return false };
   !rest.is_empty() && rest.len() <= 80 && rest.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))

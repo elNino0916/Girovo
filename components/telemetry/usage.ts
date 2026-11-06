@@ -1,7 +1,7 @@
 'use client';
 
 // The page's side of telemetry. The desktop shell decides what goes out
-// (electron/telemetry.cjs): errors always, scrubbed; usage events only after
+// (src-tauri/src/telemetry.rs; mobile/telemetry/telemetry.cjs on the phone): errors always, scrubbed; usage events only after
 // the user's yes, and only the events and fields it declares. Outside the
 // desktop app every call here does nothing.
 

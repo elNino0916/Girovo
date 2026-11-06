@@ -1,6 +1,6 @@
 'use strict';
 
-// What telemetry may carry, decided in one place (electron/telemetry.cjs sends
+// What telemetry may carry, decided in one place (telemetry.cjs sends
 // only what passes through here).
 //
 // Nothing about the user's money leaves the machine: no IBAN, balance,
@@ -15,7 +15,7 @@
 //              kept, and each must match its type exactly — so no free text
 //              can ride along in a property.
 //
-// Everything here is pure, so electron/telemetry-scrub.test.cjs can pin it.
+// Everything here is pure, so telemetry-scrub.test.cjs can pin it.
 
 const MAX_MESSAGE = 300;
 const MAX_FRAMES = 30;

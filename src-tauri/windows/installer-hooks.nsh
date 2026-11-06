@@ -1,7 +1,7 @@
 ; Girovo's hooks into Tauri's NSIS installer (tauri.conf.json,
 ; bundle.windows.nsis.installerHooks). 6.0 is the first Tauri version: it
 ; replaces the Electron app in place, and an update to it is started by the
-; Electron app's own updater (electron/updater.cjs: `/S --updated --force-run`).
+; Electron app's own updater (the Electron shell's updater.cjs: `/S --updated --force-run`).
 ;
 ; Install:   the Electron app's silent uninstaller first — it keeps the data
 ;            in %APPDATA% (it deletes it only when told to) — after the Electron

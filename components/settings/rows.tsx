@@ -111,7 +111,7 @@ export function ActionItem({
   );
 }
 
-/** A page outside the app, opened in the browser (electron/main.cjs sends it there). */
+/** A page outside the app, opened in the browser (src-tauri/src/shell.rs sends it there). */
 export function LinkItem({ icon, title, summary, href, opensExternally }: {
   icon?: ReactNode; title: ReactNode; summary?: ReactNode; href: string; opensExternally: string;
 }) {

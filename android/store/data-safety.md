@@ -16,12 +16,12 @@ submitting.
 | Google Play services | Nothing — the code scanner runs on the phone and returns only the code's text | "GiroCode scannen" |
 | Google Play (Billing) | The Girovo Plus purchase, handled by Play; Girovo only reads whether it is active (product, purchase state, purchase token) and keeps that status on the phone | Play build, when the user subscribes |
 | MT-Media, through the Play Console | Play's order data for each purchase: order number, product, price, country, date — not the buyer's name or e-mail | Play build, per purchase; kept as tax and commercial law require |
-| The developer's telemetry server (telemetry.elnino0916.de) | Error reports — scrubbed of account data, amounts and names (electron/telemetry-scrub.cjs), tagged only with where they happened | Always (release builds) |
+| The developer's telemetry server (telemetry.elnino0916.de) | Error reports — scrubbed of account data, amounts and names (mobile/telemetry/telemetry-scrub.cjs), tagged only with where they happened | Always (release builds) |
 | The same | Usage: which areas are used, how logins go, how long the bank takes, with its BLZ; an install id | Only after the user agreed ("Nutzungsdaten teilen") |
 
 No advertising ID, no third-party analytics SDK, no account with the
 developer. The rules are the desktop app's (mobile/bridges/telemetry.ts runs
-electron/telemetry.cjs).
+mobile/telemetry/telemetry.cjs).
 
 ## Form answers
 

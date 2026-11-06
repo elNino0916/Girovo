@@ -4,7 +4,7 @@
 // runs. Everything that comes from the network is data — nothing in here
 // panics on odd input, it answers "no update".
 //
-// A port of electron/update-logic.cjs, function for function, so the Tauri
+// A port of the Electron shell's update-logic.cjs, function for function, so the Tauri
 // shell decides exactly as the Electron one did; its tests came along (below).
 // What changed: the portable build and the Android APK are gone from the
 // kinds (Tauri builds neither, and the APK updates itself in the page), the
@@ -560,8 +560,7 @@ pub fn plan_differential(old: &[Chunk], new: &[Chunk], merge_gap: u64) -> Plan {
 /// How this copy of the app was installed (InstallKind). Tauri's NSIS
 /// installer puts its uninstaller beside the executable as uninstall.exe;
 /// nothing else on Windows does, and nothing on Linux updates itself — the
-/// AppImage and the .deb get the download page, as under Electron
-/// (electron-builder.yml, "Neither updates itself").
+/// AppImage and the .deb get the download page, as under Electron.
 pub fn install_kind(packaged: bool, windows: bool, exe: &Path, exists: impl Fn(&Path) -> bool) -> InstallKind {
   if !packaged {
     return InstallKind::Dev;
@@ -580,8 +579,8 @@ pub fn install_kind(packaged: bool, windows: bool, exe: &Path, exists: impl Fn(&
 ///   /UPDATE        Tauri: an update — keep the shortcuts as they are, skip WebView2.
 ///   /R, /ARGS …    Tauri: start the app when done, with the rest of the line
 ///                  ("--updated --force-run", GetOptions reads up to the next " /").
-///   --updated      electron-builder: this replaces a running app (build/installer.nsh
-///                  waits for it to close); the app itself takes it as "the old
+///   --updated      electron-builder: this replaces a running app (5.x's installer
+///                  script waits for it to close); the app itself takes it as "the old
 ///                  instance may still be closing".
 ///   --force-run    electron-builder: start the app when done. The Tauri app ignores it.
 pub fn install_args(kind: InstallKind) -> Option<Vec<String>> {
@@ -665,7 +664,7 @@ pub fn iso_instant(text: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-  // electron/update-logic.test.cjs, test for test. Left out: the portable
+  // the Electron shell's update-logic.test.cjs, test for test. Left out: the portable
   // build and the Android APK (not kinds here), and installKind's Electron
   // layout ("Uninstall Girovo.exe", Tauri's is uninstall.exe).
   use super::*;

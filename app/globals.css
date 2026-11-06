@@ -75,8 +75,8 @@
   --headline: #0a2c5e;
 
   /* --- masthead and stage ---------------------------------------------- */
-  /* --bar/--bar-ink MUST equal BAR_COLORS in electron/main.cjs: the OS draws
-     the caption buttons in those colours right next to this bar. */
+  /* The desktop app draws its caption buttons at this bar's right end
+     (components/shell/CaptionButtons.tsx), their glyphs in step with it. */
   --bar: #0a2c5e;
   --bar-ink: #ffffff;
   --bar-ink-2: #b9c8dc;
@@ -346,33 +346,19 @@
 
 /* The header is the top app bar: the page's name and the session's actions. */
 :root {
-  /* In the desktop shell the OS caption overlay is exactly this tall, and
-     Chromium keeps the env value in lockstep with page zoom — so the
-     masthead and the caption buttons stay one band at 90 % or 125 % too.
-     Outside the shell the variable is undefined and the fallback applies. */
-  --barbar-h: env(titlebar-area-height, 60px);
+  /* The masthead's height: the desktop app's title bar, its caption buttons
+     (components/shell/CaptionButtons.tsx) as tall. */
+  --barbar-h: 60px;
 
-  /* The tallest a control in such a band may be. The overlay stays 60 device
-     pixels, so page zoom shrinks the band in CSS pixels (42 at 144 %, 29 at
-     207 %) while a 40px control would not — it would poke out of the band at
-     both ends. 40px until the band is under 44px, then the band less 4px,
-     never below the 24px WCAG target. Bar-toned controls (app/material.css) and the
-     "€" plate read it; outside the shell the band is fixed and so is this. */
+  /* The tallest a control in such a band may be: 40px until the band is
+     under 44px, then the band less 4px, never below the 24px WCAG target.
+     Bar-toned controls (app/material.css) and the "€" plate read it. */
   --band-ctl: max(24px, min(40px, calc(var(--barbar-h) - 4px)));
   --band-plate: max(20px, min(32px, calc(var(--barbar-h) - 6px)));
 
-  /* Width of the OS-drawn caption buttons (Window Controls Overlay) that
-     float over the masthead's right edge in the desktop shell — see
-     electron/main.cjs. Derived from the `titlebar-area-*` environment
-     variables Chromium exposes, which the compositor updates in lockstep
-     with the window's own layout. A prior version of this computed the same
-     number in JS from a `geometrychange` listener and pushed it into React
-     state; that round trip lagged one render behind the real overlay during
-     fast transitions like clicking maximize, which is what let the caption
-     buttons and the bar's own controls draw on top of each other for a
-     frame. Pure CSS has no such lag. Falls back to exactly 0 outside the
-     desktop shell, where these variables are simply undefined. */
-  --caption-inset: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+  /* Width of the caption buttons at the masthead's right edge: none outside
+     the desktop app, which sets its own below ([data-caption='page']). */
+  --caption-inset: 0px;
 
   /* Height of the phone bottom bar, so anything pinned to the bottom edge
      (toasts, the page's last padding) can clear it. 0 until a bar exists —
@@ -380,9 +366,9 @@
   --bottombar-h: 0px;
 }
 
-/* The Tauri desktop app on Windows draws its caption buttons in the page
+/* The desktop app on Windows draws its caption buttons in the page
    (components/shell/CaptionButtons.tsx): three of Windows' 46px, at the
-   bar's right edge. No titlebar-area variables there to derive it from. */
+   bar's right edge. */
 :root[data-caption='page'] {
   --caption-inset: 138px;
 }
@@ -400,7 +386,7 @@
 }
 @media (max-width: 639.98px) {
   :root {
-    --barbar-h: env(titlebar-area-height, 56px);
+    --barbar-h: 56px;
   }
   :root:has([data-bottombar]) {
     --bottombar-h: calc(64px + env(safe-area-inset-bottom, 0px));

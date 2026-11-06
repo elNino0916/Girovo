@@ -1,9 +1,9 @@
 // Draws the brand images in build/ from the one mark geometry in
 // lib/brand-mark.ts:
 //
-//   build/icon.png              512×512, the app icon (electron-builder makes the .ico from it)
-//   build/installerSidebar.bmp  328×628, the installer's Welcome / Finish pages (2× of NSIS's 164×314)
-//   build/installerHeader.bmp   300×114, the installer's inner pages (2× of 150×57)
+//   build/icon.png              512×512, the app icon (src-tauri/icons: npx tauri icon build/icon.png)
+//   build/installerSidebar.bmp  328×628, the Electron installer's Welcome / Finish pages (2× of NSIS's 164×314); unused by Tauri's
+//   build/installerHeader.bmp   300×114, the Electron installer's inner pages (2× of 150×57); unused by Tauri's
 //
 //   node scripts/build-brand-assets.mjs
 //

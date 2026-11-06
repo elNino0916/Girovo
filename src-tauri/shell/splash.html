@@ -6,12 +6,11 @@
      served from the binary itself (girovo-shell:, src/shell.rs): nothing loads
      from anywhere but its own font beside it, and everything it says arrives as
      data (splash.rs model). Also the first start's migration screen
-     (src/migrate.rs), which draws the same card. Kept in step with
-     electron/splash.html until electron/ goes. -->
+     (src/migrate.rs), which draws the same card. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src 'self'; connect-src ipc: http://ipc.localhost">
 <title>Girovo</title>
 <style>
-  /* The palettes of build/update-window/UpdateWindow.cs (Palette.For): the
+  /* The palettes the Electron shell's C# install window had (Palette.For): the
      app's Material roles (app/material.css), the card as its basic dialog. */
   :root {
     --surface: #e3e8f4; --ink: #161c24; --ink-2: #404753;
@@ -38,7 +37,7 @@
     font-family: "Google Sans Flex", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased; user-select: none; cursor: default;
   }
-  /* The shadow's room inside the transparent window (UpdateWindow.cs: 28, 20, 28, 36). */
+  /* The shadow's room inside the transparent window (as the C# install window had it: 28, 20, 28, 36). */
   .frame { padding: 20px 28px 36px; }
   /* Material's basic dialog: 28px corners, 24px in, one soft shadow. */
   .card {

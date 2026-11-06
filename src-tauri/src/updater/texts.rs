@@ -1,5 +1,5 @@
 // What the updater tells the page when something goes wrong, in German and
-// English — electron/i18n.cjs's `updates`, word for word. The page shows the
+// English — the Electron shell's i18n.cjs's `updates`, word for word. The page shows the
 // message as it comes (state.error.message), so it is in the shell's language
 // (crate::texts::lang), asked each time a message is made: a change in the
 // app reaches the next one.

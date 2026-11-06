@@ -120,7 +120,7 @@ for (const file of built) console.log(`  ${path.relative(ROOT, file)}  ${(fs.sta
 
 // A release goes to dist/ under the names the release page carries: the
 // GitHub build's phone APK as "Girovo-<version>-android.apk" — the name the
-// app's own updater looks for (electron/update-logic.cjs) — the F-Droid
+// app's own updater looks for (mobile/updates/update-logic.cjs) — the F-Droid
 // build's as "Girovo-<version>-fdroid.apk" for Girovo's F-Droid repository
 // (scripts/fdroid-repo.mjs), and the Play bundle for the Play Console.
 if (RELEASE) {

@@ -1,6 +1,6 @@
 // Where Girovo keeps its files: the very folder the Electron shell used, so an
 // update from it finds every remembered device, vault and preference where
-// they were (electron/main.cjs, LEGACY_USER_DATA).
+// they were (the Electron shell's main.cjs, LEGACY_USER_DATA).
 //
 //   Windows  %APPDATA%\Sooskasse-FinTS if an install up to 4.3 made it, else %APPDATA%\Girovo
 //   Linux    ~/.config/Sooskasse-FinTS, else ~/.config/Girovo

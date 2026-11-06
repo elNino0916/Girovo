@@ -52,7 +52,6 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   // An approval being waited for, or a bank call on the wire: quitting now
   // would abandon it half-way.
   const holding = busy || (wait.open && waitHoldsSession(wait));
-  const portable = state.kind === 'portable';
   // The Android app from GitHub: Android's installer takes over, not a restart.
   const android = state.kind === 'android';
   // The installed Windows app: a restart into the start window, which installs.
@@ -139,7 +138,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         disabled={holding}
         onClick={() => void updates.install()}
       >
-        {android ? t.android.updates.install : portable ? u.startNew : u.restartNow}
+        {android ? t.android.updates.install : u.restartNow}
       </Button>
     );
     actions = unclear > 0 ? (
@@ -239,11 +238,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
 
         {release?.canInstall && !atStart && (state.phase === 'ready' || state.phase === 'installing') && (
           <Alert tone="info" className="mt-0" role="status">
-            {android
-              ? t.android.updates.installs
-              : portable
-                ? rich(u.portable(<span className="font-semibold [overflow-wrap:anywhere]">{state.location}</span>))
-                : u.restarts}
+            {android ? t.android.updates.installs : u.restarts}
             {signedIn && <> {u.logsOut}</>}
           </Alert>
         )}
@@ -253,15 +248,6 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
           <p className="flex items-start gap-2.5 text-[14px] leading-snug text-ink-2">
             <InfoIcon size={16} className="mt-px shrink-0 text-info" />
             <span>{u.approvalRunning}</span>
-          </p>
-        )}
-
-        {installed?.previousFile && (
-          <p className="flex items-start gap-2.5 text-[14px] leading-snug text-ink-2">
-            <InfoIcon size={16} className="mt-px shrink-0 text-info" />
-            <span>
-              {rich(u.previous(<span className="font-semibold [overflow-wrap:anywhere]">{installed.previousFile}</span>))}
-            </span>
           </p>
         )}
 

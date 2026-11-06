@@ -4,7 +4,7 @@
 //
 //   GIROVO_DESKTOP   the server that may keep the further banks' PINs and the
 //                    background checks' box (lib/linked-unlock.ts,
-//                    lib/background-store.ts), as electron/main.cjs set it
+//                    lib/background-store.ts)
 //   GIROVO_MODEL_DIR where the category model's small files are mounted
 //                    (desktop/server/model.ts); its weights stay in Rust
 

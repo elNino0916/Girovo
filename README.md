@@ -96,9 +96,8 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   **and** the shell's DPAPI secret, and only once the bank has taken it in
   this session. A PIN the bank turns down, a Windows Hello key that was
   replaced, switching it off, *Gerät vergessen* and deleting the saved data
-  delete it. A small helper program makes the Windows Hello calls
-  (`build/windows-hello/WindowsHello.cs`, built with the C# compiler Windows
-  ships and placed beside the app); it brings Windows' prompt to the front.
+  delete it. The desktop shell makes the Windows Hello calls itself
+  (`src-tauri/src/hello.rs`) and brings Windows' prompt to the front.
   Where Windows reports an error, Girovo names it, and for a damaged Windows
   Hello storage (0x80090011) says how to set the PIN up again in Windows.
 - **Neue Umsätze melden** (both apps, opt-in, *Einstellungen → Sicherheit*) —
@@ -131,7 +130,7 @@ optisch (flicker code), chipTAN QR, photoTAN, chipTAN manuell and smsTAN.
   makes a key and shows it as a QR code (or a text code to paste); the next
   device scans it — both logged in to the same bank with the same login, or
   the code is refused. The devices meet **directly on the Wi-Fi** (the desktop
-  app serves a folder to the home network while it runs, `electron/sync-lan.cjs`;
+  app serves a folder to the home network while it runs, `src-tauri/src/sync_lan.rs`;
   the phone reaches it over plain HTTP to a private address, every request
   carrying a token derived from the group's key — Windows asks once whether
   Girovo may be reached), in a **WebDAV folder** (Nextcloud,
@@ -378,105 +377,103 @@ npm run build && npm start
 > and is never written to disk or logged — unless you turn on *Weitere Banken
 > mit anmelden*, *Mit Windows Hello anmelden* or *Neue Umsätze melden* in the
 > desktop app, which keep PINs sealed as described above. Do not expose this on a public host. Only
-> the desktop app's own server keeps a PIN, plus the development server
-> (`npm run dev`), so that `npm run electron:dev` can try the switches; that
-> one keeps them in the project's `.fints-state/`.
+> the desktop app keeps a PIN, plus the development server (`npm run dev`), so
+> the switches can be tried there; that one keeps them in the project's
+> `.fints-state/`.
 
 ## Windows desktop app
 
 The same app also builds into a normal Windows program — no terminal, no
-browser tab, and **no Node.js or separate backend setup required**. The build
-produces a self-contained installer that bundles **both the backend and
-Electron into one package**:
+browser tab, and **no Node.js or separate backend setup required**. It is a
+[Tauri](https://tauri.app) app: a small Rust program (`src-tauri/`) that shows
+the page in Windows' WebView2, with the route handlers running inside the page
+itself, as on the phone (`desktop/`). There is no server process and no open
+port.
 
 ```bash
-npm run electron:dist
+npm run desktop:dist
 ```
 
 That produces the installer in `dist/`:
 
 | File | What it is |
 |------|------------|
-| `Girovo-<version>-Setup.exe` | Standard NSIS installer — double-click to install, uninstall via *Programs & Features*. German on a German Windows, English on any other; its own texts are in `build/installer.nsh`. |
-| `Girovo-<version>-Setup.exe.blockmap` | What the updater compares to download only what changed (see [Updates](#updates)). |
+| `Girovo-<version>-Setup.exe` | NSIS installer for the current user — double-click to install, uninstall via *Settings → Apps*. German on a German Windows, English on any other. Over a 5.x Girovo (the Electron app) it removes that one first, keeping its data (`src-tauri/windows/installer-hooks.nsh`). |
+| `Girovo-<version>-Setup.exe.blockmap` | What the updater compares to download only what changed (see [Updates](#updates)); made by `scripts/blockmap.mjs`. |
 
-It is about 400 MB: the category model is most of it, the Electron runtime
-most of the rest. There is no portable build since 5.13.0.
+It is about 330 MB, stored uncompressed so that an update can reuse what has
+not changed; the category model is most of it.
 
 ### What the installer contains
 
 The package is entirely self-contained. You only need the one file — **no Node,
-no npm, no extra software**:
+no npm, no extra software** (WebView2 is part of Windows 10 and 11):
 
-- **Electron shell** — the desktop window.
-- **Next.js standalone server** — the full backend API (FinTS session, SEPA,
-  transfers, …), bundled without any dependency on a system-level Node install.
-  Electron starts it as a child process using its own embedded Node runtime
-  (`ELECTRON_RUN_AS_NODE=1`), bound to `127.0.0.1` on a random free port.
-  Nothing is reachable from the network, and the port never collides with a dev
-  server.
-- **Category model** — `resources/models/category-model` (280 MB) and
-  the ONNX runtime for Windows x64 (29 MB, CPU only). See
-  [Category model](#category-model).
-
-End users simply run the installer. Developers building from source only need
-`npm run electron:dist`.
-
-Nothing about the website workflow changes — `npm run dev`, `npm run build` and
-`npm start` behave exactly as before.
+- **Girovo.exe** — the desktop shell (`src-tauri/src`): the window and its
+  caption buttons, the start window, the preferences, the shell secret (DPAPI),
+  Windows Hello, the notification area and *Neue Umsätze melden*, the home
+  network's shelf for sync, Save As and the PDF export, telemetry and the
+  updater. The page's bridges keep the names the Electron shell gave them
+  (`window.electron*`, `src-tauri/src/bridge.js`).
+- **The page** — `next build` as a static export (`scripts/build-desktop.mjs`),
+  embedded in the exe, with the route handlers (FinTS session, SEPA, transfers,
+  …) bundled into it (`desktop/runtime.ts`). The requests to the bank go
+  through the shell (`src-tauri/src/http.rs`, HTTPS only).
+- **Category model** — `models/category-model` (280 MB) and the ONNX runtime
+  for Windows x64 (31 MB, CPU only), run by the shell in Rust
+  (`src-tauri/src/model.rs`). See [Category model](#category-model).
 
 | Script | What it does |
 |--------|--------------|
-| `npm run electron:build` | `next build` in standalone mode, plus the two folders a standalone build leaves behind (`.next/static`, `public`). Output: `.next/standalone/`. |
-| `npm run electron:start` | Opens the desktop window against that build — a packaging-free way to check it. |
-| `npm run electron:dist` | The above, then wraps it with electron-builder into `dist/`. |
-| `npm run electron:dev` | Points the desktop window at a running `npm run dev` (start that first), so the app hot-reloads. |
+| `npm run desktop:page` | The page alone: the export and its runtime, in `out-desktop/`. |
+| `npm run desktop:build` | The page, then `tauri build`: the release exe and its bundles under `src-tauri/target/release`. |
+| `npm run desktop:debug` | A debug exe without installer (`src-tauri/target/debug`, DevTools on port 9350). Start it with `GIROVO_DATA_DIR` set to a folder of its own, so it never touches your real data. |
+| `npm run desktop:dist` | The installer (or, on Linux, the packages) in `dist/`, under the names above, with the blockmap. |
 
-Remembered device profiles (see *Fewer TAN prompts*) cannot live next to a
-program installed under `Program Files`, so the desktop app puts them in
-`%APPDATA%\Girovo\fints-state` via the `FINTS_STATE_DIR` environment
-variable. The website keeps using `.fints-state/` in the project root.
-The app was called Sooskasse-FinTS up to 4.3, and a machine that already has
-`%APPDATA%\Sooskasse-FinTS` keeps using that folder (`electron/main.cjs`), so
-the update to Girovo carries the device profile, the vault and the settings
-over as they are.
+Building needs Rust ([rustup](https://rustup.rs)) and, on Windows, Visual
+Studio's C++ build tools.
+
+The settings, the vault and the device profiles live in `%APPDATA%\Girovo`
+(`src-tauri/src/paths.rs`). The app was called Sooskasse-FinTS up to 4.3, and
+a machine that already has `%APPDATA%\Sooskasse-FinTS` keeps using that folder,
+so every update carries the device profile, the vault and the settings over as
+they are. The first start after the Electron app shows a short migration screen
+in the start window's look (`src-tauri/src/migrate.rs`), which takes over the
+shell secret and the start with Windows.
 
 `config.json` is baked into the package at build time — set your product ID
 before building.
 
+Nothing about the website workflow changes — `npm run dev`, `npm run build` and
+`npm start` behave as before.
+
 ### Linux
 
-The same app also builds for Linux (x64), on a Linux machine — electron-builder
-cannot make these packages on Windows:
+The same app also builds for Linux (x64), on a Linux machine with WebKitGTK
+(`libwebkit2gtk-4.1-dev`, `librsvg2-dev`, `patchelf`):
 
 ```bash
-npm run electron:dist:linux
+npm run desktop:dist
 ```
 
 | File | What it is |
 |------|------------|
 | `Girovo-<version>-x86_64.AppImage` | Single file, no installation needed — `chmod +x` it and run it. Needs FUSE (`libfuse2` on Debian and Ubuntu). |
-| `Girovo-<version>-amd64.deb` | Package for Debian, Ubuntu and their relatives — installs to `/opt/Girovo`, with the `girovo` command and a menu entry. |
+| `Girovo-<version>-amd64.deb` | Package for Debian, Ubuntu and their relatives, with a menu entry. |
 
-CI builds both on every push to `main`, next to the Windows files
+CI builds both on every push, next to the Windows files
 (`.github/workflows/build-development.yml`). The packages are the Windows app
-with three differences: the ONNX runtime is Linux's (`libonnxruntime.so.1`,
-46 MB), there is no update window (`build/update-window` is Windows only, so a
-failed start is said in a plain message box), and neither package updates
-itself — the update dialog offers the release page instead
-(see [Updates](#updates)). The settings, the vault and the device profiles go
-to `~/.config/girovo`.
-
-The `.deb` sets up Chromium's sandbox when it installs, including the
-AppArmor profile Ubuntu 24.04 and later need for it. The AppImage cannot do
-that: on those systems it stops at start with a sandbox error. Use the `.deb`
-there.
+with these differences: the ONNX runtime is Linux's, the window has the
+system's own title bar, Windows Hello and the PDF export are not there (the
+page prints instead), and neither package updates itself — the update dialog
+offers the release page instead (see [Updates](#updates)). The settings, the
+vault and the device profiles go to `~/.config/Girovo`.
 
 ### Updates
 
 The desktop app updates itself from this repository's
 [GitHub releases](https://github.com/elNino0916/Girovo/releases)
-(`electron/updater.cjs`):
+(`src-tauri/src/updater`, described in `docs/tauri-updater.md`):
 
 - **Checking** — 15 seconds after the start and then every 6 hours, the app asks
   GitHub's API for the latest release. The request carries the app's version
@@ -527,26 +524,23 @@ The desktop app updates itself from this repository's
 - **Installed copies** (from the `Setup.exe`): the new `Setup.exe` runs silently
   over the existing installation and starts the app again. The installer waits
   for the old app to close on its own before it touches a file
-  (`build/installer.nsh`); an installation "for all users" asks for
-  administrator rights. While it works, a small window takes over from the start
-  window looking the same — its header, its steps with the install's percentage,
-  then "Girovo starten" — and closes once the new version is up
-  (`build/update-window/UpdateWindow.cs`, built with the C# compiler that comes
-  with Windows by `scripts/build-update-window.mjs` — `--demo light|dark|failure`
-  shows it, `--lang en` in English; it carries the app's font inside it, made by
-  `scripts/make-window-fonts.py`). It only watches: the update runs the same
-  without it. The same window says it when the app cannot go on — it could not
-  start, or its server stopped — in the app's look and language, with "Restart
-  Girovo"; Windows' plain message box is left only as the fallback.
-- **Only what changed** — the installer keeps a copy of itself in the
-  installation (`resources\update-base.bin`). An update compares the new
-  release's blockmap with the installed release's, copies the unchanged parts
-  of the installer from that file and downloads only the rest from GitHub in
-  byte ranges: usually 1–3 MB instead of ~400 MB. A release that changes nearly
-  everything (a new Electron) still reuses the few MB that stayed. The result
-  is checked against GitHub's digest like any download; if anything does not
-  fit (no blockmap, an installation from a local build, nothing reusable at
-  all), the whole `Setup.exe` is downloaded instead.
+  (`src-tauri/windows/installer-hooks.nsh`). While it works, a small window
+  takes over from the start window looking the same — its header, its steps
+  with the install's percentage, then "Girovo starten" — and closes once the
+  new version is up: the app's own exe, copied out of the installation and
+  started with `--install-window` (`src-tauri/src/install_window.rs`). It only
+  watches: the update runs the same without it. If the installer gives up, the
+  window says so in the app's look and language, with the way to the download
+  page.
+- **Only what changed** — the installer is stored uncompressed, so the files
+  already installed reappear in the next one. CI cuts the `Setup.exe` into
+  content-defined chunks and publishes their list as its blockmap
+  (`scripts/blockmap.mjs`); the app cuts its own installation the same way,
+  copies the chunks it already has and downloads only the rest from GitHub in
+  byte ranges. The result is checked against GitHub's digest like any
+  download; if anything does not fit (no blockmap, nothing reusable at all),
+  the whole `Setup.exe` is downloaded instead. A 5.x copy (the Electron app)
+  updating to 6.0 downloads it whole.
 - **Portable copies** (up to 5.12.1; there is no portable build since): a newer
   release has no `portable.exe`, so the dialog links to the release page, where
   the `Setup.exe` is.
@@ -556,7 +550,7 @@ The desktop app updates itself from this repository's
 - After the update the app says so once, with the release notes.
 
 **Publishing a release** the updater picks up needs nothing beyond what
-`npm run electron:dist` produces: create a normal GitHub release (not a draft,
+`npm run desktop:dist` produces: create a normal GitHub release (not a draft,
 not a pre-release — a pre-release, tagged `X.Y.Z-preview.N`, reaches only the
 copies on the "6.0-Vorschau" channel; android/README.md has its Android
 version code) whose tag is the version (`4.1.0` or `v4.1.0`) and attach
@@ -566,7 +560,7 @@ exactly that `Setup.exe`. GitHub adds
 the digests by itself; no `latest.yml` is needed. Without the blockmap the
 release still works, it is just downloaded whole — by the copies updating to
 it and, later, by the copies updating *from* it. Attach the `.AppImage` and
-the `.deb` from `npm run electron:dist:linux` (or CI's Linux artifact) too, for
+the `.deb` from `npm run desktop:dist` on Linux (or CI's Linux artifact) too, for
 the Linux users the dialog sends there.
 The release text becomes the app's "Was ist neu" (Markdown: headings, lists,
 bold, links). Development builds (`<version>-dev.<n>`) are newer than the
@@ -583,26 +577,28 @@ tags of the old repository's immutable releases reserved under that name).
 From 5.0.1 on, the app asks this repository. The old one needs no further
 releases — and must not be deleted while older installs may still be around.
 
-To try the flow without publishing anything, point an unpackaged build at a
-local feed: `GIROVO_UPDATE_FEED=http://127.0.0.1:<port>/latest` (an answer
-shaped like GitHub's `/releases/latest`) and `GIROVO_UPDATE_KIND=nsis` or
-`portable`, then `npm run electron:dev` (`GIROVO_UPDATE_BASE=<path to a
-Setup.exe>` stands in for the installed copy's `update-base.bin`; the feed then
-also needs `/tags/<version>`). A packaged app ignores all of them. The
-design preview shows every state of the update dialog with a fake updater
-(`/design-preview?view=update`, `update-ready`, `update-installed`, …).
+To try the flow without publishing anything, point a debug build
+(`npm run desktop:debug`) at a local feed:
+`GIROVO_UPDATE_FEED=http://127.0.0.1:<port>/latest` (an answer shaped like
+GitHub's `/releases/latest`), `GIROVO_UPDATE_KIND=nsis` or `manual`, and
+`GIROVO_UPDATE_INSTALL_DIR` for the folder that stands in for the installation
+— with `GIROVO_DATA_DIR` set, as for every test run. A release build ignores
+all of them. The design preview shows every state of the update dialog with a
+fake updater (`/design-preview?view=update`, `update-ready`,
+`update-installed`, …).
 
 ### Telemetry
 
 The desktop app reports to the developer's own server
-(`config.json` → `telemetry: { endpoint, key }`), through a vendored copy of
-its SDK (`electron/telemetry-sdk.mjs` — never loaded from the network). The
-main process decides what goes out (`electron/telemetry.cjs`):
+(`config.json` → `telemetry: { endpoint, key }`). The shell decides what goes
+out (`src-tauri/src/telemetry.rs`; the Android app does the same with
+`mobile/telemetry/`, through a vendored copy of the server's SDK that is never
+loaded from the network):
 
 - **Error reports, always.** Crashes and unexpected failures of the shell, the
   server (`wrap()` in `lib/api.ts`, `instrumentation.ts`) and the page, with
   where they happened: the source, the API route, the bank's BLZ when known.
-  Messages and stacks are scrubbed first (`electron/telemetry-scrub.cjs`):
+  Messages and stacks are scrubbed first (`src-tauri/src/telemetry_scrub.rs`):
   IBANs, amounts, dates, long numbers, e-mail addresses, quoted text, names
   after labels like "Empfänger", URL queries and the Windows user folder are
   masked. Without the user's yes a report carries no install id, only the SDK's
@@ -613,15 +609,15 @@ main process decides what goes out (`electron/telemetry.cjs`):
   to answer, how long the app takes to start, exports made (format and kind of document only), update events, and a random install
   id. Switching it off deletes the id.
 
-Only the events and fields declared in `electron/telemetry.cjs` are sent, each
+Only the events and fields declared in `src-tauri/src/telemetry.rs` are sent, each
 of a fixed type, so no free text from the bookings can travel in a property.
 Never sent: login name, PIN, IBANs, balances, bookings, amounts, payees,
 Verwendungszwecke. Every report shows the server the user's IP address.
 
-The server process does not send anything itself: `lib/telemetry.ts` writes one
-marked line per report to its stdout, which the shell takes out of the log and
-judges like its own. `npm run dev` and an unpackaged `electron:dev` send nothing
-(set `GIROVO_TELEMETRY=1` to try it). A build without the `telemetry` block in
+The route handlers do not send anything themselves: `lib/telemetry.ts` hands
+each report to the shell (`desktop/server/telemetry.ts`), which judges it like
+its own. `npm run dev` and a debug build send nothing (set `GIROVO_TELEMETRY=1`
+to try a debug build). A build without the `telemetry` block in
 `config.json` sends nothing at all. The design preview fakes the bridge with
 `?usage=unasked|on|off`.
 
@@ -771,8 +767,8 @@ traffic and therefore being blocked by your bank's infrastructure.
 | `components/*` | The UI: `shell/` (top app bar, navigation bar and rail, Sitzung panel), `settings/` (the Einstellungen page), `overview/`, `transactions/`, `insights/` (Analyse, Verträge), `transfer/`, `auth/`, `updates/` (the desktop updater's dialog and notices), plus the command palette, inbox and the primitives in `ui/` (one module per family, imported through `ui/index.ts`). |
 | `app/globals.css`, `app/material.css`, `app/android.css` | Design tokens as CSS variables mapped into Tailwind v4 via `@theme inline` (`globals.css`); the Material 3 Expressive look on every platform — the Girovo-blue scheme mapped onto Material's standard tokens for M3E's components, shapes, motion, the flat page (`material.css`, its springs generated by `scripts/build-m3e-css.mjs`); the phone's own behaviour (`android.css`). The print styles for the Kontoauszug are frozen separately. |
 | `app/design-preview` | Dev-only harness that renders every screen with generated data (`/design-preview?view=overview`, `analysis`, `analysis-budgets`, `category-check`, `detail-note`, `contracts`, `transfer`, `login`, …; `&theme=dark`, `&privacy=1`). Returns 404 in production. |
-| `electron/main.cjs` | The desktop shell: boots the standalone server on loopback, opens the window, denies every device permission and sends outside links to the real browser. Paired with `scripts/build-electron.mjs` and `electron-builder.yml`. |
-| `electron/updater.cjs`, `electron/update-logic.cjs` | The [updater](#updates): checks GitHub releases, downloads and verifies against GitHub's SHA-256 digest, starts the installer (or the new portable build). Node built-ins and Electron only; the decisions (versions, files, install kind) are pure and tested on their own. The page side is `components/updates/`. |
+| `src-tauri/` | The desktop shell (Tauri, Rust): the window and its caption buttons, the start and install windows, the preferences and the shell secret, Windows Hello, the notification area, the home network's shelf, Save As and the PDF export, telemetry, the category model; it denies every device permission and sends outside links to the real browser. Built by `scripts/build-desktop.mjs` and `scripts/dist-desktop.mjs`; the page's side of it is `desktop/`. |
+| `src-tauri/src/updater/` | The [updater](#updates): checks GitHub releases, downloads (only what changed, where it can) and verifies against GitHub's SHA-256 digest, starts the installer. The decisions (versions, files, install kind) are pure and tested on their own (`logic.rs`); the page side is `components/updates/`. The GitHub APK's are `mobile/updates/update-logic.cjs`. |
 
 ### API surface
 
@@ -815,10 +811,11 @@ decides, on the machine (`lib/category-model.ts`):
 - **The model** is [multilingual-e5-base](https://huggingface.co/intfloat/multilingual-e5-base)
   (MIT), int8-quantised ONNX from
   [Xenova/multilingual-e5-base](https://huggingface.co/Xenova/multilingual-e5-base),
-  run by `onnxruntime-node` on the CPU in the app's own server. Its weights are
+  run on the CPU — by the desktop shell in Rust (`src-tauri/src/model.rs`), by
+  `onnxruntime-node` in the development server. Its weights are
   over GitHub's file limit, so they are not in the repository:
   `scripts/fetch-model.mjs` downloads them pinned to one revision and checks
-  every file's hash; `npm run electron:build` runs it before every build.
+  every file's hash; `scripts/build-desktop.mjs` runs it before every build.
 - **Switching models:** `scripts/fetch-model.mjs` is the only file that names
   the model. It keeps each calibrated one — e5-base, and e5-small (118 MB,
   used in 5.0.2 and 5.0.3) — with its pins and thresholds; `MODEL` picks the one to
@@ -1091,7 +1088,8 @@ were published under the MIT License, and stay under it.
 ## Development
 
 ```bash
-npm test          # node --test over lib/**/*.test.ts and electron/**/*.test.cjs (needs Node ≥ 23.6 for built-in TypeScript stripping)
+npm test          # node --test over the tests in lib/, mobile/ and scripts/ (needs Node ≥ 23.6 for built-in TypeScript stripping)
+cargo test --manifest-path src-tauri/Cargo.toml   # the desktop shell's tests
 npm run typecheck
 ```
 

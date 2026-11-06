@@ -7,8 +7,8 @@
 //   seal   {sessionId, key, secret}   → { on: true }  keeps this session's PIN — only once the bank took it
 //   open   {login, key, secret}       → { pin } | { on: false, dropped? }
 //   forget {login}                    → { on: false }
-// `key` comes from the shell after the gesture (electron/windows-hello.cjs),
-// `secret` from electron/linked-unlock.cjs; both are mixed into the key and
+// `key` comes from the shell after the gesture (src-tauri/src/hello.rs),
+// `secret` from src-tauri/src/secret.rs; both are mixed into the key and
 // kept nowhere. The PIN to keep comes from the live session, never from the
 // request. Nothing here is logged.
 //

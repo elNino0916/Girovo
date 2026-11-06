@@ -1,9 +1,9 @@
 // Telemetry in the Android app, by the desktop's own rules
-// (electron/telemetry.cjs): error reports always, scrubbed and tagged only
+// (../telemetry/telemetry.cjs): error reports always, scrubbed and tagged only
 // with where they happened; usage only after the user's yes ("Nutzungsdaten
 // teilen", asked once on the Übersicht, changeable in the Sitzung panel); only
 // the events and fields that module declares. Sent by the vendored SDK
-// (electron/telemetry-sdk.mjs) to config.json's endpoint, through the app's
+// (../telemetry/telemetry-sdk.mjs) to config.json's endpoint, through the app's
 // native HTTP like every other request.
 //
 // The page reaches it as it reaches the desktop shell's (window.electronTelemetry),
@@ -17,8 +17,8 @@
 // developer turns it on for testing (localStorage fints.telemetry.debug = 1),
 // and then as "development".
 
-import telemetry from '../../electron/telemetry.cjs';
-import { createTelemetry } from '../../electron/telemetry-sdk.mjs';
+import telemetry from '../telemetry/telemetry.cjs';
+import { createTelemetry } from '../telemetry/telemetry-sdk.mjs';
 import config from '../../config.json';
 import { GirovoDevice } from '../native';
 

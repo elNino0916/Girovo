@@ -16,12 +16,6 @@ import pkg from './package.json' with { type: 'json' };
 // package would give the bundled registry and the runtime-required one separate
 // module instances, and the custom segments would be invisible to the encoder.
 
-// The desktop build (scripts/build-electron.mjs) sets ELECTRON_BUILD=1. It needs
-// `output: 'standalone'` so the server can ship as a self-contained folder next
-// to the Electron binary instead of dragging node_modules along. The website
-// workflow (`next build` → `next start`) is left on the default output.
-const isElectronBuild = process.env.ELECTRON_BUILD === '1';
-
 // The Android build (scripts/build-android.mjs) sets GIROVO_TARGET=android. It
 // has no server to run the page on: the page is exported as static files for
 // the app's WebView, and the route handlers run in that WebView instead
@@ -36,7 +30,6 @@ const isAndroidBuild = process.env.GIROVO_TARGET === 'android';
 const isDesktopBuild = process.env.GIROVO_TARGET === 'desktop';
 
 const nextConfig: NextConfig = {
-  ...(isElectronBuild ? { output: 'standalone' as const } : {}),
   // `next dev` with the flag (the Android look in a browser, against the design
   // preview's mock data) is not an export: the preview reads its query string.
   ...(isAndroidBuild && process.env.NODE_ENV === 'production'
@@ -47,10 +40,7 @@ const nextConfig: NextConfig = {
       // 10.0.2.2: the emulator's name for this computer, when a debug build
       // loads the preview from here (GIROVO_DEV_SERVER, capacitor.config.ts).
       ? { pageExtensions: ['tsx'], distDir: '.next-android-dev', allowedDevOrigins: ['10.0.2.2'] }
-      // 127.0.0.1: the desktop shell's window in `npm run electron:dev`
-      // (ELECTRON_START_URL). Next 16 blocks its dev scripts for any host but
-      // localhost unless named here — the window then stops at the bank list.
-      : { allowedDevOrigins: ['127.0.0.1'] }),
+      : {}),
   // The desktop's invoice reading (components/transfer/desktop-read.ts) is
   // loaded on demand, but a dynamic import still makes a chunk: on the phone,
   // which draws a PDF with Android's PdfRenderer, pdf.js is an empty module.
@@ -59,29 +49,6 @@ const nextConfig: NextConfig = {
   ...(isAndroidBuild
     ? { turbopack: { resolveAlias: { 'pdfjs-dist': './mobile/desktop-only.ts' } } }
     : {}),
-  // The institute database and the product registration are read from disk at
-  // runtime; keep them traced into a standalone build.
-  outputFileTracingIncludes: {
-    '/api/**/*': ['./banks-data.json', './config.json'],
-  },
-  // The tracer cannot resolve the filename lib/state-store.ts builds at runtime,
-  // so it falls back to pulling in all of .fints-state/ — the developer's own
-  // encrypted device profiles, which would then ship inside the installer.
-  //
-  // The category model (lib/category-model.ts) ships beside the server as a
-  // resource of its own (electron-builder.yml) — traced in, it would ship twice.
-  //
-  // The Android project (android/, its exports .next-android*) is no part of
-  // the desktop server either: the tracer's guess at the state store's JSON
-  // would otherwise sweep Gradle's build intermediates into the installer.
-  // Nor is the F-Droid workspace (fdroid/, scripts/fdroid-repo.mjs): its
-  // index files and fdroidserver's status files, which name local paths.
-  outputFileTracingExcludes: {
-    '*': [
-      './.fints-state/**', './models/**', './android/**', './.next-android/**', './.next-android-dev/**', './fdroid/**',
-      './src-tauri/**', './.next-desktop/**', './out-desktop/**',
-    ],
-  },
   // Printed documents name the generator and its version, so the client needs
   // the one number that is otherwise only in package.json.
   env: {

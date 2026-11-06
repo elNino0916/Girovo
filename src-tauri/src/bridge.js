@@ -1,4 +1,4 @@
-// The page's bridges to the shell, as electron/preload.cjs gave them — the
+// The page's bridges to the shell, as the Electron shell's preload.cjs gave them — the
 // same names and shapes, so the page does not know which shell it runs in.
 // Runs before any script of the page (src/shell.rs boot_script), with
 // window.__GIROVO_BOOT__ already set: the preferences, read synchronously.
@@ -91,7 +91,7 @@
     secret: function () { return invoke('linked_unlock_secret'); },
   });
 
-  // Windows Hello (src/hello.rs), with electron/windows-hello.cjs's answers;
+  // Windows Hello (src/hello.rs), with the Electron shell's windows-hello.cjs's answers;
   // available() is false off Windows.
   define('electronHello', {
     available: function () { return invoke('hello_available'); },
@@ -200,7 +200,7 @@
     },
   });
 
-  // Zooming from the keyboard, as in a browser (electron/zoom.cjs): by the
+  // Zooming from the keyboard, as in a browser (the Electron shell's zoom.cjs): by the
   // character the key types, so a German keyboard's "+" works; never with Alt,
   // since AltGr is Ctrl+Alt and types characters of its own.
   window.addEventListener('keydown', function (e) {

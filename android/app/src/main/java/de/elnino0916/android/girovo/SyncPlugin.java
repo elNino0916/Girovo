@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 
 /**
  * Sync "Direkt im WLAN" (lib/sync-stores.ts): the phone's way to the desktop
- * app's file shelf (electron/sync-lan.cjs), one GET or PUT of a sealed file.
+ * app's file shelf (src-tauri/src/sync_lan.rs), one GET or PUT of a sealed file.
  *
  * Plain HTTP over a socket of its own: the app's network rules allow no
  * cleartext at all, and should not for anything else — this goes only to a

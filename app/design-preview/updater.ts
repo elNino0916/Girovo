@@ -8,7 +8,7 @@
 import { resetUpdatesForPreview } from '@/components/updates/store';
 
 export const UPDATE_SCENARIOS = [
-  'idle', 'checking', 'current', 'available', 'downloading', 'ready', 'installed', 'manual', 'portable', 'error', 'preview', 'back',
+  'idle', 'checking', 'current', 'available', 'downloading', 'ready', 'installed', 'manual', 'error', 'preview', 'back',
 ] as const;
 export type UpdateScenario = (typeof UPDATE_SCENARIOS)[number];
 
@@ -62,7 +62,6 @@ function initial(scenario: UpdateScenario): ElectronUpdateState {
     release: null,
     received: 0,
     total: 0,
-    location: null,
     error: null,
     installed: null,
     failedInstall: null,
@@ -87,12 +86,10 @@ function initial(scenario: UpdateScenario): ElectronUpdateState {
         current: NEXT,
         phase: 'current',
         checkedAt,
-        installed: { version: NEXT, from: CURRENT, notes: NOTES, url: RELEASE.url, previousFile: null },
+        installed: { version: NEXT, from: CURRENT, notes: NOTES, url: RELEASE.url },
       };
     case 'manual':
       return { ...base, kind: 'manual', phase: 'available', checkedAt, release: { ...RELEASE, canInstall: false } };
-    case 'portable':
-      return { ...base, kind: 'portable', phase: 'ready', checkedAt, release: RELEASE, location: 'D:\\Programme\\Girovo' };
     case 'error':
       return {
         ...base,

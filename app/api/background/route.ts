@@ -16,7 +16,7 @@
 //   off                                  → { on: false } every PIN
 //   check  {secret}                      → { checked, notices }       the desktop shell's six-hourly call;
 //                                          the phone's job calls lib/background-check.ts itself
-// `secret` is the shell's (electron/linked-unlock.cjs; BackgroundPlugin.java),
+// `secret` is the shell's (src-tauri/src/secret.rs; BackgroundPlugin.java),
 // mixed into the key and kept nowhere. PINs come from live sessions, never
 // from the request. Nothing here is logged.
 //
@@ -168,7 +168,7 @@ export const POST = wrap(async (req: Request) => {
       return json({ on: await setWatch(store, secret, { ...next, drop }) });
     }
     case 'check':
-      // `on: false` tells the shell to stop planning checks (electron/background.cjs).
+      // `on: false` tells the shell to stop planning checks (src-tauri/src/background.rs).
       return json(await runCheck(store, secret, bankSide));
     default:
       return fail(said.unknownAction);

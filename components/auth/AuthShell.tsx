@@ -142,9 +142,9 @@ function PhoneAuth({ step, children }: { step?: AuthStep; children: ReactNode })
 
 /**
  * No session yet to put a bar over, but the window still needs one: with no
- * native frame (electron/main.cjs) this strip along the sheet's top is,
+ * native frame (src-tauri/src/frame.rs) this strip along the sheet's top is,
  * with the brand field beside it, where the user grabs the window to drag
- * it. On the sheet's paper, so the OS-drawn caption buttons at its right
+ * it. On the sheet's paper, so the caption buttons at its right
  * end are the colour they are everywhere else.
  */
 function AuthBar() {

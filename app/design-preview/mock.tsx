@@ -54,7 +54,7 @@
 // harness can never change the preferences of the real app on the same origin.
 
 import { sanitizeGoals, type SavingsGoal } from '@/lib/savings-goal';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   FintsContext, countsAsActivity, orderWaitKind, waitHoldsSession,
   type AddBankState, type BankEntry, type BankOrdersInfo, type LinkedLogin,
@@ -3084,10 +3084,9 @@ export function MockFintsProvider({ children, preset = 'default', overrides, sti
     options.unclear, options.failPending, options.pendingWithStatements, options.secondBank, options.history,
     options.ordersLoaded, options.noOrders,
   ]);
-  const underElectron = useSyncExternalStore(noopSubscribe, isElectron, () => false);
   return (
     <MockSession key={sessionKey} preset={preset} options={options} overrides={overrides}>
-      {(still ?? underElectron) && <style>{STILL_CSS}</style>}
+      {still && <style>{STILL_CSS}</style>}
       {children}
     </MockSession>
   );
@@ -3103,9 +3102,6 @@ function MockSession({ children, preset, options, overrides }: {
   const value: FintsApi = overrides ? { ...api, ...overrides } : api;
   return <FintsContext.Provider value={value}>{children}</FintsContext.Provider>;
 }
-
-const noopSubscribe = () => () => {};
-const isElectron = () => /Electron/i.test(navigator.userAgent);
 
 /**
  * Still frames. The screenshot helper captures from a window that never

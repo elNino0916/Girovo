@@ -1,6 +1,6 @@
 'use client';
 
-// The desktop updater as the page sees it (electron/updater.cjs behind
+// The desktop updater as the page sees it (src-tauri/src/updater behind
 // window.electronUpdater): one subscription for the whole page, shared by
 // every surface that mentions an update — the dialog, the Mitteilungen card,
 // the Sitzung row, the login bar — so they can never disagree.
@@ -106,7 +106,7 @@ export function hasNewer(state: UpdateState | null): state is UpdateState & { re
 
 /**
  * The installed Windows app updates only through the start window
- * (electron/main.cjs updateAtStart): no download in the app, a restart into
+ * (src-tauri/src/updater/start.rs): no download in the app, a restart into
  * the start window instead.
  */
 export const updatesAtStart = (state: UpdateState | null) => state?.kind === 'nsis';

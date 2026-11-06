@@ -1,12 +1,11 @@
 'use strict';
 
-// The updater's decisions, kept apart from Electron and the network so they
-// can be tested on their own (update-logic.test.cjs): which release counts as
-// newer, which of its files this copy of the app needs, and whether that file
-// can be checked before it runs. Everything that comes from the network is
+// The GitHub APK's update decisions (mobile/bridges/updates.ts), kept apart
+// from the network so they can be tested on their own (update-logic.test.cjs):
+// which release counts as newer, whether it carries the APK, and whether that
+// file can be checked before it is installed. The desktop app's are in Rust
+// (src-tauri/src/updater/logic.rs), ported from this file's desktop parts. Everything that comes from the network is
 // data — nothing in here throws on odd input, it answers "no update".
-
-const path = require('node:path');
 
 // The project's repository, renamed with the app. Its old name,
 // Sooskasse-FinTS, now belongs to a small repository of its own that carries
@@ -27,23 +26,20 @@ const DOWNLOAD_PREFIXES = [DOWNLOAD_PREFIX, `https://github.com/${LEGACY_REPO}/r
 const MAX_ASSET_BYTES = 1024 * 1024 * 1024;
 // Release notes are shown in a dialog, not archived.
 const MAX_NOTES_CHARS = 20_000;
-/** How long both updaters wait before asking GitHub once more after a passing failure. */
+/** How long the updater waits before asking GitHub once more after a passing failure. */
 const RETRY_DELAY_MS = 1500;
 
 /**
  * Whether GitHub's answer is one of its passing failures — 502, 503 or 504:
  * its API and its file servers do that now and then for a moment (a release
- * just published, a busy minute). The desktop's updater and the GitHub APK's
- * ask once more after RETRY_DELAY_MS; any other answer is the answer.
+ * just published, a busy minute). The updater asks once more after
+ * RETRY_DELAY_MS; any other answer is the answer.
  */
 const passingFailure = (status) => status === 502 || status === 503 || status === 504;
 
-/** The file of a release that updates each kind of install (see installKind). */
+/** The file of a release that updates each kind of install: the Android app
+ * from GitHub. The Google Play build is updated by Play and never asks. */
 const ASSET_PATTERN = {
-  nsis: /-Setup\.exe$/i,
-  portable: /-portable\.exe$/i,
-  // The Android app from GitHub (mobile/bridges/updates.ts); the Google Play
-  // build is updated by Play and never asks.
   android: /-android\.apk$/i,
 };
 
@@ -138,21 +134,6 @@ function isNewer(candidate, current, { prerelease = false } = {}) {
   return compareParsed(c, withoutDev(v)) > 0;
 }
 
-/**
- * Whether `candidate`, a stable release, is the way back for an install of a
- * preview (`current`, a pre-release): on "Stabil" the desktop app offers the
- * latest stable release even where it is older than the preview it runs
- * (owner, 2026-11-03) — going back to the channel goes back to its version.
- * Never for a CI development build, never a pre-release, never a newer one
- * (that is isNewer's).
- */
-function isSwitchBack(candidate, current) {
-  const c = parseVersion(candidate);
-  const v = parseVersion(current);
-  if (!c || !v || c.pre || !v.pre || isDevBuild(current)) return false;
-  return compareParsed(c, v) < 0;
-}
-
 /** A file name that can safely become a path on disk: no folders, no tricks. */
 const SAFE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,150}$/;
 
@@ -238,12 +219,6 @@ function pickAsset(release, kind) {
   return release.assets.find((a) => pattern.test(a.name)) ?? null;
 }
 
-/** The release-by-tag address beside `feedUrl` (…/releases/latest), or null when there is none. */
-function tagUrl(feedUrl, tag) {
-  if (typeof feedUrl !== 'string' || !feedUrl.endsWith('/latest')) return null;
-  return `${feedUrl.slice(0, -'latest'.length)}tags/${encodeURIComponent(tag)}`;
-}
-
 // The list starts with the newest releases; a preview is never far down it.
 const LIST_PAGE_SIZE = 100;
 
@@ -261,125 +236,6 @@ function listUrl(feedUrl) {
  */
 const channelOf = (value) => (value === 'preview' ? 'preview' : 'stable');
 
-/** The blockmap electron-builder writes beside `asset` (name + ".blockmap"), if the release has it. */
-function pickBlockmap(release, asset) {
-  if (!release || !asset) return null;
-  return release.assets.find((a) => a.name === `${asset.name}.blockmap`) ?? null;
-}
-
-// A blockmap of a ~100 MB installer lists ~5,000 chunks; ten times that is not ours.
-const MAX_BLOCKMAP_CHUNKS = 100_000;
-
-/**
- * electron-builder's blockmap (version 2, already un-gzipped and parsed),
- * reduced to its chunks in file order: { checksum, size, offset }. Null
- * unless it is one file starting at 0 whose chunks add up to exactly
- * `fileSize` — the installer it claims to describe.
- */
-function parseBlockmap(json, fileSize) {
-  if (!json || typeof json !== 'object' || json.version !== '2') return null;
-  if (!Array.isArray(json.files) || json.files.length !== 1) return null;
-  const { offset, checksums, sizes } = json.files[0] ?? {};
-  if (offset !== 0 || !Array.isArray(checksums) || !Array.isArray(sizes)) return null;
-  if (checksums.length !== sizes.length || checksums.length === 0 || checksums.length > MAX_BLOCKMAP_CHUNKS) return null;
-  const chunks = [];
-  let at = 0;
-  for (let i = 0; i < sizes.length; i++) {
-    const size = sizes[i];
-    const checksum = checksums[i];
-    if (!Number.isSafeInteger(size) || size <= 0 || typeof checksum !== 'string' || !checksum || checksum.length > 128) {
-      return null;
-    }
-    chunks.push({ checksum, size, offset: at });
-    at += size;
-  }
-  return at === fileSize ? chunks : null;
-}
-
-/**
- * How to build the new installer from the old one: which of its byte ranges
- * can be copied from the old file and which have to be fetched. A chunk
- * counts as present when the old file has one with the same checksum and
- * size. Fetched ranges closer than `mergeGap` bytes are fetched as one —
- * a request costs more than a few kilobytes.
- *
- * @returns {{ copies: {from: number, to: number, size: number}[],
- *             fetches: {start: number, size: number}[], fetchBytes: number }}
- */
-function planDifferential(oldChunks, newChunks, { mergeGap = 64 * 1024 } = {}) {
-  const have = new Map();
-  for (const c of oldChunks) {
-    const key = `${c.size}:${c.checksum}`;
-    if (!have.has(key)) have.set(key, c.offset);
-  }
-  // In file order: runs of copied and fetched chunks, neighbours merged.
-  const runs = [];
-  for (const c of newChunks) {
-    const from = have.get(`${c.size}:${c.checksum}`);
-    const last = runs[runs.length - 1];
-    if (from === undefined) {
-      if (last?.fetch) last.size += c.size;
-      else runs.push({ fetch: true, to: c.offset, size: c.size });
-    } else if (last && !last.fetch && last.from + last.size === from) {
-      last.size += c.size;
-    } else {
-      runs.push({ fetch: false, from, to: c.offset, size: c.size });
-    }
-  }
-  const copies = [];
-  const fetches = [];
-  for (let i = 0; i < runs.length; i++) {
-    const run = runs[i];
-    const prev = fetches[fetches.length - 1];
-    if (run.fetch) {
-      // A short copy between two fetches was folded into the earlier one below.
-      if (prev && prev.start + prev.size === run.to) prev.size += run.size;
-      else fetches.push({ start: run.to, size: run.size });
-    } else if (prev && prev.start + prev.size === run.to && run.size <= mergeGap && runs[i + 1]?.fetch) {
-      prev.size += run.size;
-    } else {
-      copies.push({ from: run.from, to: run.to, size: run.size });
-    }
-  }
-  return { copies, fetches, fetchBytes: fetches.reduce((sum, f) => sum + f.size, 0) };
-}
-
-/**
- * How this copy of the app was installed, which decides how it updates:
- *
- *   nsis      installed by the Setup.exe — the next Setup.exe updates it in
- *             place, silently, and starts it again
- *   portable  the portable .exe — the next one is saved beside it and started
- *             instead (electron-builder's portable launcher sets the variable)
- *   manual    anything else, e.g. an unpacked build or the Linux AppImage
- *             and .deb: the download page
- *   dev       not packaged at all
- */
-function installKind({ isPackaged, env, execPath, exists }) {
-  if (!isPackaged) return 'dev';
-  if (env.PORTABLE_EXECUTABLE_FILE) return 'portable';
-  const dir = path.dirname(execPath);
-  const base = path.basename(execPath, path.extname(execPath));
-  // The NSIS installer puts its uninstaller beside the executable, under
-  // electron-builder's fixed name.
-  if (exists(path.join(dir, `Uninstall ${base}.exe`))) return 'nsis';
-  return 'manual';
-}
-
-/** The arguments the downloaded file is started with. */
-function installArgs(kind) {
-  // /S: the NSIS installer runs without its wizard, into the existing
-  // install's folder. --updated: electron-builder's flag for "this replaces a
-  // running app" (build/installer.nsh waits for it to close on its own).
-  // --force-run: start the app again when done — the installer passes
-  // --updated on to it, which main.cjs takes as "the old instance may still
-  // be closing".
-  if (kind === 'nsis') return ['/S', '--updated', '--force-run'];
-  // The portable launcher hands its arguments on to the app.
-  if (kind === 'portable') return ['--updated'];
-  return null;
-}
-
 module.exports = {
   REPO,
   FEED_URL,
@@ -394,16 +250,9 @@ module.exports = {
   compareVersions,
   isDevBuild,
   isNewer,
-  isSwitchBack,
   releasePageOr,
   parseRelease,
   newestRelease,
   pickAsset,
-  tagUrl,
   listUrl,
-  pickBlockmap,
-  parseBlockmap,
-  planDifferential,
-  installKind,
-  installArgs,
 };

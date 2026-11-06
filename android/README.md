@@ -232,8 +232,8 @@ change on Google Play.
 ### GitHub (the `github` flavour)
 
 The app checks the repository's latest release at start and every six hours
-(Sitzung → Updates can turn that off), with the desktop's own rules
-(`electron/update-logic.cjs`). It downloads `Girovo-<version>-android.apk`,
+(Sitzung → Updates can turn that off), with the same rules as the desktop
+(`mobile/updates/update-logic.cjs`). It downloads `Girovo-<version>-android.apk`,
 keeps it only when its size and SHA-256 are what GitHub published for it, and
 hands it to Android's installer — which refuses it unless it is signed with
 the same key as the installed app. The first time, Android asks to allow
@@ -466,7 +466,7 @@ the review library's code.
   (ScannerPlugin): no camera permission, only the code's text comes back.
   Without Play services the page offers an image or a PDF instead.
 - **Telemetry** follows the desktop's rules (mobile/bridges/telemetry.ts runs
-  electron/telemetry.cjs): error reports always, usage only after the user's
+  mobile/telemetry/telemetry.cjs): error reports always, usage only after the user's
   yes. A debug build sends nothing unless `localStorage['fints.telemetry.debug']`
   is `'1'`, and then as "development".
 - **Store listing:** texts, Data safety draft, feature graphic and phone

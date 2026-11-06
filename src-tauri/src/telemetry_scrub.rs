@@ -1,5 +1,5 @@
 // What telemetry may carry, decided in one place (telemetry.rs sends only
-// what passes through here) — electron/telemetry-scrub.cjs, rule for rule.
+// what passes through here) — the Electron shell's telemetry-scrub.cjs, rule for rule.
 //
 // Nothing about the user's money leaves the machine: no IBAN, balance,
 // booking, amount, payee, Verwendungszweck, login name or PIN. Two kinds of
@@ -21,7 +21,7 @@
 // query, is written out by hand (strip_queries), as `regex` has none.
 //
 // Everything here is pure, so the tests below pin it — the very cases of
-// electron/telemetry-scrub.test.cjs.
+// the Electron shell's telemetry-scrub.test.cjs.
 
 use std::sync::LazyLock;
 
@@ -350,7 +350,7 @@ mod tests {
     assert_eq!(t("GET https://bank.example/fints?user=erika&pin=1 → 500"), "GET https://bank.example/fints → 500");
   }
 
-  /// What electron/telemetry-scrub.cjs itself makes of these (run under Node, 2026-11-06).
+  /// What the Electron shell's telemetry-scrub.cjs itself makes of these (run under Node, 2026-11-06).
   #[test]
   fn text_as_the_javascript_scrubber_writes_it() {
     let cases = [

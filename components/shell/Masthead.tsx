@@ -19,10 +19,9 @@
 // panel, and the avatar carries their dot.
 //
 // In the desktop shell it is also the window's title bar: the whole band is a
-// drag handle except for its controls, it is exactly as tall as the OS
-// caption overlay (--barbar-h follows titlebar-area-height, zoom included),
-// and its right padding keeps the actions clear of the caption buttons that
-// float over its right edge (the .bar-caption-safe rule, see ./edges). On a
+// drag handle except for its controls, it is as tall as the caption buttons
+// at its right end (--barbar-h, components/shell/CaptionButtons.tsx), and its
+// right padding keeps the actions clear of them (the .bar-caption-safe rule, see ./edges). On a
 // wide window its content lines up with the page's 1280px column, so the
 // page title and the first section share one left edge; only the search
 // bar stops dragging the window.

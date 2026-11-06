@@ -8,7 +8,7 @@
 // The choice is stored in three places that each serve one reader: the
 // preference file (`fints.locale`, lib/client-api.ts's store) for the page,
 // a cookie for the server that renders the first frame and answers the API
-// (lib/i18n/server.ts), and electron/main.cjs reads the preference for the
+// (lib/i18n/server.ts), and src-tauri/src/texts.rs reads the preference for the
 // shell's own dialogs and the update window. Without a choice, the system's
 // language decides: German for German, English for anything else.
 //
@@ -20,7 +20,7 @@ export type Locale = 'de' | 'en';
 export const LOCALES: readonly Locale[] = ['de', 'en'];
 export const DEFAULT_LOCALE: Locale = 'de';
 
-/** The preference key (lib/client-api.ts's store, electron/main.cjs's prefs file). */
+/** The preference key (lib/client-api.ts's store, src-tauri/src/prefs.rs's file). */
 export const LOCALE_PREF = 'fints.locale';
 /** The cookie the server reads the choice from. */
 export const LOCALE_COOKIE = 'girovo-locale';

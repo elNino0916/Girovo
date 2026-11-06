@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Updates for the APK from GitHub's releases (the "github" flavour), the way
  * the desktop app updates itself: mobile/bridges/updates.ts finds the newer
- * release (electron/update-logic.cjs, shared), this downloads its APK and
+ * release (mobile/updates/update-logic.cjs), this downloads its APK and
  * keeps it only when its size and SHA-256 are what GitHub published for it,
  * then hands it to Android's package installer — which itself refuses an APK
  * not signed with the same key as the installed app.

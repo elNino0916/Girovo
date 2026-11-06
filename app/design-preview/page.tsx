@@ -373,7 +373,7 @@ async function openExportMenu(c: Ctx) {
 }
 
 /**
- * The desktop app's Save-As (window.electronFiles, electron/preload.cjs),
+ * The desktop app's Save-As (window.electronFiles, src-tauri/src/bridge.js),
  * answering as given — so the toast that follows a written file, or a
  * refusal, can be seen without the shell.
  */
@@ -1038,7 +1038,6 @@ const VIEWS: Record<string, ViewDef> = {
   'update-installed': { label: 'Nach dem Update', group: 'Updates', update: { scenario: 'installed' } },
   'update-error': { label: 'Download fehlgeschlagen', group: 'Updates', update: { scenario: 'error', dialog: true } },
   'update-manual': { label: 'Nur Download-Seite', group: 'Updates', update: { scenario: 'manual', dialog: true } },
-  'update-portable': { label: 'Portable Version', group: 'Updates', update: { scenario: 'portable', dialog: true } },
   'update-inbox': { label: 'In Mitteilungen', group: 'Updates', options: { open: 'inbox' }, update: { scenario: 'available' } },
   'update-login': { label: 'Bei der Anmeldung', group: 'Updates', options: { view: 'login' }, update: { scenario: 'ready' } },
   'update-settings': {

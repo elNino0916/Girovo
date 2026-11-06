@@ -1,5 +1,5 @@
 // The window that stands in for the app while an update installs (6.0, Tauri),
-// in place of build/update-window/UpdateWindow.cs: the start window's card
+// in place of the Electron shell's C# install window (UpdateWindow.cs): the start window's card
 // (shell/splash.html), drawn by this very program started a second time from a
 // copy outside the installation — which the installer is about to replace —
 // with `--install-window` and the same arguments the C# window took.
@@ -45,7 +45,7 @@ pub struct Options {
 }
 
 impl Options {
-  /// The arguments the C# window took (electron/main.cjs showInstallWindow), after `--install-window`.
+  /// The arguments the C# window took (the Electron shell's main.cjs showInstallWindow), after `--install-window`.
   pub fn parse(args: &[String]) -> Options {
     let mut o = Options::default();
     let mut it = args.iter();
