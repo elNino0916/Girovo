@@ -125,6 +125,17 @@ export const de = {
     noteAndroid: 'Vorschauen sind noch nicht fertig und können Fehler haben. Gehst du zurück zu „Stabil“, kommt dein nächstes Update mit der nächsten stabilen Version – eine ältere kann Android nicht installieren.',
     apply: 'Übernehmen',
   },
+
+  /** Einstellungen → Dieses Gerät, the desktop app (components/settings/ResetApp.tsx, src-tauri/src/reset.rs). */
+  resetApp: {
+    row: 'Girovo zurücksetzen',
+    rowHint: 'Alles löschen, was Girovo auf diesem Rechner gespeichert hat',
+    title: 'Girovo zurücksetzen?',
+    description: 'Girovo löscht alles, was es auf diesem Rechner gespeichert hat, und startet neu wie beim ersten Mal.',
+    body: 'Deine Banken, Vorlagen, Kontonamen, Kategorien, gespeicherten Umsätze und Sicherungen, Windows Hello und alle Einstellungen. Deine Banken fragen danach wieder nach einer Freigabe. Das lässt sich nicht rückgängig machen.',
+    confirm: 'Zurücksetzen',
+    failed: 'Girovo konnte nicht zurückgesetzt werden.',
+  },
 };
 
 export const en: typeof de = {
@@ -203,5 +214,15 @@ export const en: typeof de = {
     note: 'Previews aren’t finished and may have bugs. You can go back to “Stable” at any time – you’ll then get the current stable version, even if it’s older.',
     noteAndroid: 'Previews aren’t finished and may have bugs. If you go back to “Stable”, your next update is the next stable version – Android can’t install an older one.',
     apply: 'Apply',
+  },
+
+  resetApp: {
+    row: 'Reset Girovo',
+    rowHint: 'Delete everything Girovo has saved on this computer',
+    title: 'Reset Girovo?',
+    description: 'Girovo deletes everything it has saved on this computer and starts again as if for the first time.',
+    body: 'Your banks, templates, account names, categories, saved transactions and backups, Windows Hello and all settings. Your banks will ask for an approval again afterwards. This can’t be undone.',
+    confirm: 'Reset',
+    failed: 'Girovo couldn’t be reset.',
   },
 };

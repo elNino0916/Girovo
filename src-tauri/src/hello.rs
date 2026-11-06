@@ -284,6 +284,16 @@ impl<P: Platform> Hello<P> {
     })
   }
 
+  /// "Girovo zurücksetzen" (reset.rs): the key goes from Windows, its file from the data folder.
+  pub fn forget(&self) {
+    self.serial(|| {
+      if let Some(state) = self.read_state() {
+        self.platform.delete(&state.name);
+      }
+      self.drop_state();
+    });
+  }
+
   fn drop_state(&self) {
     let _ = fs::remove_file(&self.file);
   }
@@ -495,6 +505,11 @@ mod winrt {
 fn hello() -> &'static Hello<WinRt> {
   static HELLO: OnceLock<Hello<WinRt>> = OnceLock::new();
   HELLO.get_or_init(|| Hello::new(WinRt, data_root().join(STATE_FILE)))
+}
+
+/// The key and its file, gone ("Girovo zurücksetzen", reset.rs).
+pub fn forget() {
+  hello().forget();
 }
 
 #[tauri::command]

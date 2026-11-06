@@ -77,6 +77,11 @@ declare global {
      * not the one in front, until it is focused; `false` stops it. Never
      * brings the window forward.
      */
+    /** Exposed by src-tauri/src/bridge.js; undefined outside the desktop shell. */
+    electronApp?: {
+      /** "Girovo zurücksetzen": deletes everything Girovo keeps on this computer and starts it again. */
+      reset: () => Promise<void>;
+    };
     electronWindow?: {
       requestAttention: (on: boolean) => void;
       /** Whether the shell has the window on screen; WebView2's own visibility says yes for a hidden one. */

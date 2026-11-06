@@ -57,6 +57,17 @@ impl Prefs {
     self.0.lock().unwrap().get(key).cloned()
   }
 
+  /// Everything at once ("Girovo zurücksetzen", reset.rs): only `keep` stays,
+  /// in memory as on disk. Answers whether it is on disk.
+  pub fn replace(&self, keep: &[(&str, &str)]) -> bool {
+    let mut map = self.0.lock().unwrap();
+    map.clear();
+    for (key, value) in keep {
+      map.insert(key.to_string(), value.to_string());
+    }
+    write(&map)
+  }
+
   /// Sets or (None) deletes a key; answers whether it is on disk.
   pub fn set(&self, key: &str, value: Option<&str>) -> bool {
     if !valid_key(key) {

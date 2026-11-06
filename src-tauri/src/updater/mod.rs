@@ -113,6 +113,16 @@ pub fn get(app: &AppHandle) -> Arc<Updater> {
 /// the app has quit and the installer runs, before this process ends. Only a
 /// nicety — the update goes on the same without it.
 #[allow(dead_code)]
+/// Quits and starts the app again, plainly ("Girovo zurücksetzen", reset.rs) —
+/// the way restart_to_update does, after the single-instance plugin has let
+/// go, and through the app's own end (leftover.rs), never Tauri's restart.
+pub fn relaunch(app: &AppHandle) {
+  if let Some(shared) = app.try_state::<Shared>() {
+    *shared.exit.action.lock().unwrap() = Some(engine::AtExit::Relaunch(Vec::new()));
+  }
+  app.exit(0);
+}
+
 pub fn set_install_window(app: &AppHandle, show: impl Fn(&InstallStarted) + Send + Sync + 'static) {
   *app.state::<Shared>().exit.install_window.lock().unwrap() = Some(Box::new(show));
 }

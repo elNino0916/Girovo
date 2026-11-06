@@ -97,6 +97,12 @@
     shown: function () { return shown; },
   });
 
+  // "Girovo zurücksetzen" (src/reset.rs): everything on this computer goes, and
+  // the app starts again — the promise never settles in the page that asked.
+  define('electronApp', {
+    reset: function () { return invoke('app_reset'); },
+  });
+
   // The shell secret (src/secret.rs): base64, or null where this system has no
   // protected store for it — the page then does not offer what needs it.
   define('electronLinkedUnlock', {

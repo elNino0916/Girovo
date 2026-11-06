@@ -27,6 +27,7 @@ mod model;
 mod paths;
 mod pdf;
 mod prefs;
+mod reset;
 mod save;
 mod secret;
 mod secret_migration;
@@ -222,6 +223,7 @@ pub fn run() {
       frame::caption_rect,
       shell::window_attention,
       shell::window_shown,
+      reset::app_reset,
       shell::zoom_step,
       shell::open_url,
       splash::splash_fit,

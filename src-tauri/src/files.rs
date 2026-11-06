@@ -22,6 +22,15 @@ use base64::engine::general_purpose::STANDARD as B64;
 
 use crate::paths::inside_root;
 
+/// Set once "Girovo zurücksetzen" begins (reset.rs): from then on nothing is
+/// written or moved in the data folder, so a save the page still had under way
+/// cannot bring back what the reset deletes.
+pub static FROZEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn writable() -> Result<(), String> {
+  if FROZEN.load(std::sync::atomic::Ordering::SeqCst) { Err("EROFS: Girovo is being reset".into()) } else { Ok(()) }
+}
+
 fn resolve(path: &str) -> Result<PathBuf, String> {
   inside_root(path).ok_or_else(|| format!("refused path: {path}"))
 }
@@ -81,6 +90,7 @@ pub async fn fs_write(request: tauri::ipc::Request<'_>) -> Result<(), String> {
   if std::str::from_utf8(bytes).is_err() {
     return Err("EINVAL: not UTF-8".into());
   }
+  writable()?;
   let file = resolve(&path)?;
   if let Some(parent) = file.parent() {
     fs::create_dir_all(parent).map_err(io)?;
@@ -90,11 +100,13 @@ pub async fn fs_write(request: tauri::ipc::Request<'_>) -> Result<(), String> {
 
 #[tauri::command(async)]
 pub fn fs_delete(path: String) -> Result<(), String> {
+  writable()?;
   fs::remove_file(resolve(&path)?).map_err(io)
 }
 
 #[tauri::command(async)]
 pub fn fs_rename(from: String, to: String) -> Result<(), String> {
+  writable()?;
   let (from, to) = (resolve(&from)?, resolve(&to)?);
   if let Some(parent) = to.parent() {
     fs::create_dir_all(parent).map_err(io)?;

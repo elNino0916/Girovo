@@ -46,6 +46,7 @@ import {
 } from '../icons';
 import { Button, Dot, Kbd, Segmented } from '../ui';
 import { KeepRow, KeepOffDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
+import { ResetAppRow } from './ResetApp';
 import { BackupRows } from './BackupDialogs';
 import { ImportRow } from './ImportDialog';
 import { CategorySettings } from './CategorySettings';
@@ -302,6 +303,9 @@ export function Settings() {
           {vaultStatus === 'unavailable' && (
             <SettingItem icon={<InfoIcon />} title={t.session.vaultUnavailable} />
           )}
+
+          {/* Last: everything on this computer, every bank's included (the desktop app only). */}
+          <ResetAppRow />
         </SettingsGroup>
       )}
 
