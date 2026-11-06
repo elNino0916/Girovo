@@ -20,6 +20,7 @@ mod files;
 mod frame;
 mod hello;
 mod http;
+pub mod install_window;
 mod migrate;
 mod paths;
 mod prefs;

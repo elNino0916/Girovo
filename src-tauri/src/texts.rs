@@ -119,6 +119,44 @@ impl Tray {
   }
 }
 
+/// The install window (install_window.rs), as build/update-window/UpdateWindow.cs said it.
+pub struct Install {
+  pub title: &'static str,
+  pub failed_title: &'static str,
+  /// The installer gave up and the previous version is still there.
+  pub failed_kept: &'static str,
+  /// The installer gave up and took the previous version with it.
+  pub failed_gone: &'static str,
+  pub close: &'static str,
+  pub open: &'static str,
+  pub download: &'static str,
+}
+
+impl Install {
+  pub fn of(lang: Lang) -> Self {
+    match lang {
+      Lang::De => Install {
+        title: "Girovo wird aktualisiert",
+        failed_title: "Update nicht abgeschlossen",
+        failed_kept: "Die Installation wurde abgebrochen – zum Beispiel, weil die Frage nach Administratorrechten abgelehnt wurde. Die bisherige Version ist noch da.",
+        failed_gone: "Die Installation wurde abgebrochen, und Girovo ist nicht mehr vollständig installiert. Lade die neue Version von GitHub herunter und installiere sie.",
+        close: "Schließen",
+        open: "Girovo öffnen",
+        download: "Download-Seite öffnen",
+      },
+      Lang::En => Install {
+        title: "Updating Girovo",
+        failed_title: "Update not completed",
+        failed_kept: "The installation was cancelled — for example because the request for administrator rights was declined. The previous version is still there.",
+        failed_gone: "The installation was cancelled, and Girovo is no longer fully installed. Download the new version from GitHub and install it.",
+        close: "Close",
+        open: "Open Girovo",
+        download: "Open download page",
+      },
+    }
+  }
+}
+
 /// The first start of the Tauri app after the Electron one (migrate.rs).
 pub struct Migration {
   pub title: &'static str,
