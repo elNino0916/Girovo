@@ -85,6 +85,8 @@ pub fn run() {
       leftover::end_stuck_copies();
       // First, so that a start that fails is reported too.
       app.state::<telemetry::Telemetry>().start(app.handle());
+      // What the updater found before telemetry was up: this start being an update, say.
+      updater::report_state(app.handle());
       let handle = app.handle().clone();
       let prefs = app.state::<prefs::Prefs>();
       let lang = texts::lang(&prefs);

@@ -129,6 +129,11 @@ pub struct Hub {
 }
 
 impl Hub {
+  /// Whether this hub sends at all (a client: this build reports, and has started).
+  pub fn sends(&self) -> bool {
+    self.client.is_some()
+  }
+
   /// Without a client nothing is sent; with one, it learns at once whose reports these are.
   pub fn new(client: Option<Arc<dyn Sdk>>, store: &dyn Store, random_id: fn() -> String) -> Hub {
     let hub = Hub { client, random_id };
@@ -557,6 +562,16 @@ impl Telemetry {
 
   pub fn error(&self, raw: &Value, place: Value) {
     self.hub().error(raw, &place);
+  }
+
+  /// A usage event of the shell's own (the updater's, updater/report.rs): held to the user's yes like the page's.
+  pub fn event(&self, prefs: &Prefs, name: &str, props: &Value) {
+    self.hub().event(prefs, name, props);
+  }
+
+  /// Whether reports go out yet: false before start() and in a build that does not report.
+  pub fn ready(&self) -> bool {
+    self.hub().sends()
   }
 
   /// The app is ending (RunEvent::Exit, on the main thread): how long it ran,

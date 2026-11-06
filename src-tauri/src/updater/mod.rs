@@ -18,6 +18,7 @@
 mod chunks;
 mod engine;
 mod logic;
+mod report;
 mod start;
 mod texts;
 #[cfg(test)]
@@ -68,6 +69,7 @@ type InstallWindow = Box<dyn Fn(&InstallStarted) + Send + Sync>;
 pub struct Shared {
   pub updater: Arc<Updater>,
   exit: Arc<Exit>,
+  host: Arc<TauriHost>,
 }
 
 #[derive(Default)]
@@ -79,6 +81,30 @@ struct Exit {
 struct TauriHost {
   app: AppHandle,
   exit: Arc<Exit>,
+  /// What telemetry has heard of this run's updater (report.rs).
+  reported: Mutex<report::Reported>,
+}
+
+impl TauriHost {
+  /// The state's news for telemetry — once the telemetry is up: until then
+  /// nothing counts as heard, and report_state() catches up after its start.
+  fn report(&self, state: &UpdateState) {
+    let Some(telemetry) = self.app.try_state::<crate::telemetry::Telemetry>() else { return };
+    if !telemetry.ready() {
+      return;
+    }
+    let news = self.reported.lock().unwrap().next(state);
+    let prefs = self.app.state::<crate::prefs::Prefs>();
+    for item in news {
+      match item {
+        report::Report::Event(name, props) => telemetry.event(&prefs, name, &props),
+        report::Report::Error { message, during } => telemetry.error(
+          &serde_json::json!({ "name": "UpdateError", "message": message }),
+          serde_json::json!({ "source": "updater", "during": during }),
+        ),
+      }
+    }
+  }
 }
 
 impl Host for TauriHost {
@@ -90,6 +116,7 @@ impl Host for TauriHost {
   }
   fn publish(&self, state: &UpdateState) {
     let _ = self.app.emit(STATE_EVENT, state);
+    self.report(state);
   }
   fn open_external(&self, url: &str) {
     crate::shell::open_external(url);
@@ -113,6 +140,15 @@ pub fn get(app: &AppHandle) -> Arc<Updater> {
 /// the app has quit and the installer runs, before this process ends. Only a
 /// nicety — the update goes on the same without it.
 #[allow(dead_code)]
+/// The updater's state as it stands, for telemetry: called once telemetry has
+/// started (lib.rs) — the updater starts before it, so this start being an
+/// update would otherwise go unheard.
+pub fn report_state(app: &AppHandle) {
+  if let Some(shared) = app.try_state::<Shared>() {
+    shared.host.report(&shared.updater.state());
+  }
+}
+
 /// Quits and starts the app again, plainly ("Girovo zurücksetzen", reset.rs) —
 /// the way restart_to_update does, after the single-instance plugin has let
 /// go, and through the app's own end (leftover.rs), never Tauri's restart.
@@ -136,10 +172,10 @@ pub fn plugin() -> TauriPlugin<tauri::DynRuntime> {
   tauri::plugin::Builder::new("girovo-updater")
     .setup(|app, _api| {
       let exit = Arc::new(Exit::default());
-      let host = Arc::new(TauriHost { app: app.clone(), exit: exit.clone() });
-      let updater = Updater::new(config(app), host);
+      let host = Arc::new(TauriHost { app: app.clone(), exit: exit.clone(), reported: Mutex::default() });
+      let updater = Updater::new(config(app), host.clone());
       updater.start();
-      app.manage(Shared { updater, exit });
+      app.manage(Shared { updater, exit, host });
       Ok(())
     })
     .on_event(|app, event| {
