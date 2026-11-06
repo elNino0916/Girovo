@@ -1,8 +1,9 @@
 // The shell's own words, in the language the app speaks: the stored choice
 // (fints.locale, lib/i18n/locale.ts), else the system's — German for a German
 // system, English for every other (electron/i18n.cjs shellLocale). Only what
-// the shell draws before the page can: the start window and the first start's
-// migration screen. Everything else is the page's (lib/i18n/messages).
+// the shell draws before the page can, or the page cannot: the start window,
+// the first start's migration screen, the file types of a Save As and what a
+// save answers. Everything else is the page's (lib/i18n/messages).
 
 use crate::prefs::Prefs;
 
@@ -197,5 +198,55 @@ impl Migration {
       (Lang::En, "starting") => "Start Girovo",
       _ => "",
     }
+  }
+}
+
+/// Saving a file the app made (save.rs) and the PDF export (pdf.rs): the
+/// file types a Save As offers, and what a save tells the page, as
+/// electron/i18n.cjs said it.
+pub struct Files {
+  pub csv: &'static str,
+  pub png: &'static str,
+  pub pdf: &'static str,
+  pub pdf_document: &'static str,
+  pub zip: &'static str,
+  pub backup: &'static str,
+  pub save_failed: &'static str,
+  pub open_elsewhere: &'static str,
+  pub not_there: &'static str,
+}
+
+impl Files {
+  pub fn of(lang: Lang) -> Self {
+    match lang {
+      Lang::De => Files {
+        csv: "CSV-Datei",
+        png: "PNG-Bild",
+        pdf: "PDF",
+        pdf_document: "PDF-Dokument",
+        zip: "ZIP-Archiv",
+        backup: "Girovo-Sicherung",
+        save_failed: "Die Datei konnte nicht gespeichert werden.",
+        open_elsewhere: "Die Datei ist noch in einem anderen Programm geöffnet, zum Beispiel in Excel. Schließe sie dort oder wähle einen anderen Namen.",
+        not_there: "Die Datei konnte dort nicht gespeichert werden. Wähle einen anderen Ordner.",
+      },
+      Lang::En => Files {
+        csv: "CSV file",
+        png: "PNG image",
+        pdf: "PDF",
+        pdf_document: "PDF document",
+        zip: "ZIP archive",
+        backup: "Girovo backup",
+        save_failed: "The file could not be saved.",
+        open_elsewhere: "The file is still open in another program, Excel for example. Close it there or choose a different name.",
+        not_there: "The file could not be saved there. Choose a different folder.",
+      },
+    }
+  }
+
+  /// In the language the app speaks right now: a change in the app reaches the next dialog.
+  pub fn now(app: &tauri::AppHandle) -> Self {
+    use tauri::Manager;
+    Files::of(app.try_state::<Prefs>().map(|p| lang(&p)).unwrap_or(Lang::De))
   }
 }

@@ -3,8 +3,9 @@
 // and hands to its hub (electron/telemetry.cjs) — the hub scrubs errors,
 // drops usage without the user's yes, and keeps only the fields it declares.
 // Outside the desktop shell (`npm run dev`, a website build) the pipe is not
-// set, and every call here is a no-op. In the Android app the routes run in
-// the page, and a sink takes the reports to its hub instead.
+// set, and every call here is a no-op. In the Android app and the Tauri
+// desktop app the routes run in the page, and a sink takes the reports to the
+// hub instead (mobile/bridges/telemetry.ts, desktop/server/telemetry.ts).
 //
 // Context: wrap() (lib/api.ts) runs every route inside withTelemetryContext;
 // code deeper down notes what is known — the bank's BLZ — and an error that
@@ -23,7 +24,7 @@ type Props = Record<string, string | number | boolean | undefined | null>;
 const g = globalThis as typeof globalThis & { __girovoTelemetryScope?: AsyncLocalStorage<Props> };
 const scope: AsyncLocalStorage<Props> = (g.__girovoTelemetryScope ??= new AsyncLocalStorage<Props>());
 
-/** The Android app's hub (mobile/bridges/telemetry.ts): its route handlers run in the page. */
+/** The hub of an app whose route handlers run in the page: Android's, the Tauri desktop's. */
 type Sink = (message: Record<string, unknown>) => void;
 
 function send(message: Record<string, unknown>): void {

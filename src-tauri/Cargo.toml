@@ -40,6 +40,14 @@ flate2 = "1"
 # gives every session a device selection policy, and onnxruntime-node set none.
 ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic"] }
 libloading = "0.9"
+# The LAN shelf, saving files, the PDF export and telemetry (sync_lan.rs,
+# save.rs, pdf.rs, telemetry.rs): the native Save As and folder dialogs, the
+# scrubber's patterns, ids, this computer's addresses and name.
+rfd = { version = "=0.16.1", default-features = false, features = ["gtk3"] }
+regex = "1.13"
+uuid = { version = "1.29", features = ["v4"] }
+if-addrs = "0.15"
+gethostname = "1.1"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [
@@ -74,6 +82,15 @@ windows-future = "0.3"
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring-core = "1"
 zbus-secret-service-keyring-store = { version = "1", features = ["rt-async-io-crypto-rust"] }
+
+# The PDF export through WebView2's own DevTools protocol (pdf.rs) — the very
+# version tauri-runtime-wry is built on — and the Windows version telemetry
+# reports (telemetry.rs).
+[target.'cfg(windows)'.dependencies.webview2-com]
+version = "=0.39.1"
+
+[target.'cfg(windows)'.dependencies.windows-version]
+version = "0.1.7"
 
 [profile.release]
 codegen-units = 1

@@ -16,23 +16,27 @@
   };
 
   // Preferences: synchronous reads from the snapshot, writes through to prefs.json.
+  // The telemetry keys are the hub's (electronTelemetry.setConsent): a yes, a
+  // no and the install id change together, never one of them on its own.
   var PREF_KEY = /^fints\.[\w.-]{1,80}$/;
+  var HUB_KEY = /^fints\.telemetry(?:\.|$)/;
   var PREF_VALUE_MAX = 4096;
   var prefs = Object.assign(Object.create(null), boot.prefs || {});
+  var pageKey = function (key) { return typeof key === 'string' && PREF_KEY.test(key) && !HUB_KEY.test(key); };
   define('electronStore', {
     get: function (key) {
-      if (typeof key !== 'string' || !PREF_KEY.test(key)) return null;
+      if (!pageKey(key)) return null;
       var v = prefs[key];
       return typeof v === 'string' ? v : null;
     },
     set: function (key, value) {
-      if (typeof key !== 'string' || !PREF_KEY.test(key)) return;
+      if (!pageKey(key)) return;
       if (typeof value !== 'string' || value.length > PREF_VALUE_MAX) return;
       prefs[key] = value;
       invoke('prefs_set', { key: key, value: value }).catch(function () {});
     },
     del: function (key) {
-      if (typeof key !== 'string' || !PREF_KEY.test(key)) return;
+      if (!pageKey(key)) return;
       delete prefs[key];
       invoke('prefs_set', { key: key, value: null }).catch(function () {});
     },
@@ -115,16 +119,75 @@
     },
   });
 
-  // Telemetry: nothing leaves until the hub is ported; the consent question stays unasked.
+  // Saving a file the app made (the CSV export, a backup) through a native
+  // Save As, answered once the file is written or the dialog dismissed
+  // (src/save.rs). The bytes go as the request's body, as they are; the name
+  // URI-encoded beside them, since a header carries only ASCII. Anything but
+  // bytes goes as nothing: the shell refuses it before any dialog, in its
+  // own language.
+  var wellFormed = function (text) {
+    return typeof text.toWellFormed === 'function' ? text.toWellFormed() : text.replace(/[\uD800-\uDFFF]/g, '\uFFFD');
+  };
+  define('electronFiles', {
+    save: function (suggestedName, bytes) {
+      var name = encodeURIComponent(wellFormed(String(suggestedName == null ? '' : suggestedName)));
+      return tauri.invoke('file_save', ArrayBuffer.isView(bytes) ? bytes : {}, { headers: { 'girovo-name': name } });
+    },
+  });
+
+  // The PDF export (Statement.tsx): the page printed straight out of WebView2
+  // with its print stylesheet, then a native Save As (src/pdf.rs). Windows
+  // only; elsewhere the page prints through window.print().
+  if (boot.platform === 'windows') {
+    define('electronPDF', {
+      exportPDF: function (suggestedName) {
+        return invoke('pdf_export', { suggestedName: String(suggestedName == null ? '' : suggestedName) });
+      },
+    });
+  }
+
+  // Sync between devices (lib/sync.ts): the home network's file shelf
+  // (src/sync_lan.rs) — on, with where the phone finds it, or off — a folder
+  // of the user's choosing, and this computer's name for the others.
+  define('electronSync', {
+    lan: function (on) { return invoke('sync_lan', { on: on === true }); },
+    pickFolder: function () { return invoke('sync_pick_folder'); },
+    deviceName: function () { return invoke('sync_device_name'); },
+  });
+
+  // Telemetry (src/telemetry.rs). The page's errors always go to the shell,
+  // which scrubs them; its usage events only count once the user said yes —
+  // consent() is that answer ('on', 'off' or 'unasked'), read synchronously
+  // from the snapshot so the Übersicht knows at first paint whether to ask,
+  // and kept in step with the hub's answer to setConsent.
+  var short = function (value, max) { return typeof value === 'string' ? value.slice(0, max) : ''; };
   define('electronTelemetry', {
     consent: function () {
       var v = prefs['fints.telemetry'];
       return v === 'on' || v === 'off' ? v : 'unasked';
     },
-    setConsent: function () { return Promise.resolve(); },
-    event: function () {},
-    error: function () {},
+    setConsent: function (on) {
+      return invoke('telemetry_set_consent', { on: on === true }).then(function (answer) {
+        if (answer === 'on' || answer === 'off') prefs['fints.telemetry'] = answer;
+        if (answer === 'off') delete prefs['fints.telemetry.id'];
+        return answer;
+      });
+    },
+    event: function (name, props) {
+      if (typeof name !== 'string' || name.length > 64) return;
+      invoke('telemetry_event', { name: name, props: props && typeof props === 'object' ? Object.assign({}, props) : {} }).catch(function () {});
+    },
+    error: function (err) {
+      var e = { name: short(err && err.name, 80), message: short(err && err.message, 2000), stack: short(err && err.stack, 8000) };
+      invoke('telemetry_error', { err: e }).catch(function () {});
+    },
   });
+  // The page ready: how long the start took (the Electron shell's ready-to-show).
+  // Not at its first frame: the window loads hidden behind the start window,
+  // and a hidden WebView2 may hold its frames back until it is shown.
+  var drawn = function () { invoke('telemetry_shown').catch(function () {}); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', drawn, { once: true });
+  else drawn();
 
   // "Neue Umsätze melden" (src/background.rs): the shell plans the checks and
   // keeps the notification area; the page runs them (desktop/background.ts).

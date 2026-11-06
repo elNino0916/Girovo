@@ -19,11 +19,13 @@ import { flush, mountData } from '../../mobile/shims/fs';
 import { installFetch } from '../../mobile/server/fetch';
 import { installFolders } from './folders';
 import { mountModel } from './model';
+import { installTelemetry } from './telemetry';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 async function boot(): Promise<void> {
+  installTelemetry();
   installFolders();
   // The model's files beside the saved ones; a model that cannot be mounted only goes unused.
   const model = mountModel().catch((err) => console.error('[server] category model', err));

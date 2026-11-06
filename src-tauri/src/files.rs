@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as B64;
 
-use crate::paths::{inside_root, state_dir};
+use crate::paths::inside_root;
 
 fn resolve(path: &str) -> Result<PathBuf, String> {
   inside_root(path).ok_or_else(|| format!("refused path: {path}"))
@@ -83,19 +83,23 @@ pub fn fs_rename(from: String, to: String) -> Result<(), String> {
 // ---------------------------------------------------------------------------
 // Sync folders
 
-/// A sync file's name as lib/sync-stores.ts makes them: no separators, no "..".
+/// The largest sync file read (lib/sync-stores.ts MAX_BYTES, the shelf's limit too).
+const SYNC_MAX_BYTES: u64 = 64 * 1024 * 1024;
+
+/// A sync file's name, by the very rule the shelf serves them by
+/// (sync_lan::group_of, lib/sync-stores.ts NAME): nothing else is read or
+/// written in a sync folder.
 fn sync_name(name: &str) -> Result<&str, String> {
-  let ok = !name.is_empty()
-    && name.len() <= 120
-    && !name.starts_with('.')
-    && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
-  if ok { Ok(name) } else { Err(format!("not a sync file name: {name}")) }
+  match crate::sync_lan::group_of(name) {
+    Some(_) => Ok(name),
+    None => Err(format!("not a sync file name: {}", name.chars().take(40).collect::<String>())),
+  }
 }
 
 /// `lan`: the shelf the phone reaches; otherwise an absolute folder that exists.
 fn sync_dir(place: &str) -> Result<PathBuf, String> {
   if place == "lan" {
-    return Ok(state_dir().join("sync-lan"));
+    return Ok(crate::sync_lan::lan_dir());
   }
   let dir = Path::new(place);
   if !dir.is_absolute() || !dir.is_dir() {
@@ -104,9 +108,41 @@ fn sync_dir(place: &str) -> Result<PathBuf, String> {
   Ok(dir.to_path_buf())
 }
 
+/// Renames, riding out the brief locks Windows lets another process hold on
+/// the target — OneDrive, a virus scanner, the shelf serving the old file
+/// (lib/sealed-file.ts renameRetrying).
+pub fn rename_retrying(from: &Path, to: &Path) -> std::io::Result<()> {
+  let mut attempt = 0;
+  loop {
+    match fs::rename(from, to) {
+      Ok(()) => return Ok(()),
+      Err(err) if attempt < 5 && locked(&err) => {
+        std::thread::sleep(std::time::Duration::from_millis(15 << attempt));
+        attempt += 1;
+      }
+      Err(err) => return Err(err),
+    }
+  }
+}
+
+/// Node's EPERM, EACCES and EBUSY: denied, or held open by someone else (Windows'
+/// sharing and lock violations, 32 and 33).
+pub fn locked(err: &std::io::Error) -> bool {
+  matches!(err.kind(), std::io::ErrorKind::PermissionDenied | std::io::ErrorKind::ResourceBusy)
+    || (cfg!(windows) && matches!(err.raw_os_error(), Some(32 | 33)))
+}
+
+// The sync files are read and written off the main thread: one can be tens of megabytes.
+
 #[tauri::command]
-pub fn folder_get(place: String, name: String) -> Result<Option<String>, String> {
+pub async fn folder_get(place: String, name: String) -> Result<Option<String>, String> {
   let file = sync_dir(&place)?.join(sync_name(&name)?);
+  match fs::metadata(&file) {
+    // As lib/sync-stores.ts: a file larger than any sync file is none.
+    Ok(meta) if meta.len() > SYNC_MAX_BYTES => return Ok(None),
+    Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+    _ => {}
+  }
   match fs::read(&file) {
     Ok(bytes) => Ok(Some(B64.encode(bytes))),
     Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -115,9 +151,9 @@ pub fn folder_get(place: String, name: String) -> Result<Option<String>, String>
 }
 
 #[tauri::command]
-pub fn folder_put(place: String, name: String, data: String) -> Result<(), String> {
+pub async fn folder_put(place: String, name: String, data: String) -> Result<(), String> {
   let dir = if place == "lan" {
-    let d = state_dir().join("sync-lan");
+    let d = crate::sync_lan::lan_dir();
     fs::create_dir_all(&d).map_err(io)?;
     d
   } else {
@@ -125,9 +161,15 @@ pub fn folder_put(place: String, name: String, data: String) -> Result<(), Strin
   };
   let name = sync_name(&name)?;
   let bytes = B64.decode(data.as_bytes()).map_err(|e| e.to_string())?;
-  let tmp = dir.join(format!("{name}.{}.part", std::process::id()));
-  fs::write(&tmp, bytes).map_err(io)?;
-  fs::rename(&tmp, dir.join(name)).map_err(|err| {
+  // A name of its own for each write, as the shelf's: two at once never share a temporary file.
+  let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+  let tmp = dir.join(format!("{name}.{}.{stamp}.tmp", std::process::id()));
+  fs::write(&tmp, bytes).map_err(|err| {
+    let _ = fs::remove_file(&tmp);
+    io(err)
+  })?;
+  rename_retrying(&tmp, &dir.join(name)).map_err(|err| {
+    // No half-written file left for the other devices (or the shelf's file count).
     let _ = fs::remove_file(&tmp);
     io(err)
   })

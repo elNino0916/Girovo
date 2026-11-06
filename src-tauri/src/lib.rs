@@ -24,11 +24,16 @@ pub mod install_window;
 mod migrate;
 mod model;
 mod paths;
+mod pdf;
 mod prefs;
+mod save;
 mod secret;
 mod secret_migration;
 mod shell;
 mod splash;
+mod sync_lan;
+mod telemetry;
+mod telemetry_scrub;
 mod texts;
 mod updater;
 
@@ -41,6 +46,10 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[tauri::command]
 fn prefs_set(state: tauri::State<'_, prefs::Prefs>, key: String, value: Option<String>) -> bool {
+  // The consent and the install id are the telemetry hub's (telemetry::hub_key).
+  if telemetry::hub_key(&key) {
+    return false;
+  }
   state.set(&key, value.as_deref())
 }
 
@@ -60,8 +69,12 @@ pub fn run() {
     .manage(shell::Zoom::default())
     .plugin(updater::plugin())
     .manage(model::Model::default())
+    .manage(Arc::new(sync_lan::LanShelf::default()))
+    .manage(telemetry::Telemetry::default())
     .register_uri_scheme_protocol("girovo-shell", |_ctx, request| shell::serve_shell(request.uri().path()))
     .setup(|app| {
+      // First, so that a start that fails is reported too.
+      app.state::<telemetry::Telemetry>().start(app.handle());
       let handle = app.handle().clone();
       let prefs = app.state::<prefs::Prefs>();
       let lang = texts::lang(&prefs);
@@ -167,6 +180,8 @@ pub fn run() {
         });
       }
       background::start(&handle);
+      // The LAN shelf as the last start left it.
+      sync_lan::start_if_on(&app.state::<Arc<sync_lan::LanShelf>>(), &prefs);
 
       std::thread::spawn(move || start(handle, splash, migration, loaded));
       Ok(())
@@ -188,6 +203,8 @@ pub fn run() {
       model::model_open,
       model::model_run,
       model::model_release,
+      pdf::pdf_export,
+      save::file_save,
       shell::titlebar_set_theme,
       frame::caption_minimize,
       frame::caption_toggle_maximize,
@@ -214,9 +231,24 @@ pub fn run() {
       updater::updater_set_auto,
       updater::updater_set_channel,
       updater::updater_open_release,
+      sync_lan::sync_lan,
+      sync_lan::sync_pick_folder,
+      sync_lan::sync_device_name,
+      telemetry::telemetry_shown,
+      telemetry::telemetry_set_consent,
+      telemetry::telemetry_event,
+      telemetry::telemetry_error,
+      telemetry::telemetry_relay,
     ])
-    .run(tauri::generate_context!())
-    .expect("error while running Girovo");
+    .build(tauri::generate_context!())
+    .expect("error while running Girovo")
+    .run(|app, event| {
+      // Telemetry's last word, however the app ends: the last window closed,
+      // the tray's "Beenden", an update (electron/main.cjs will-quit).
+      if let tauri::RunEvent::Exit = event {
+        app.state::<telemetry::Telemetry>().closing(app);
+      }
+    });
 }
 
 /// The start, off the main thread: the migration if this is the first start
