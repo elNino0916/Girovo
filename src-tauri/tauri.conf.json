@@ -27,6 +27,10 @@
       "icons/icon.ico",
       "icons/icon.png"
     ],
+    "resources": {
+      "../models/category-model/": "models/category-model/",
+      "onnxruntime/": "onnxruntime/"
+    },
     "category": "Finance",
     "shortDescription": "Banking for German banks via FinTS",
     "publisher": "MT-Media",

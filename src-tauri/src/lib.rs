@@ -22,6 +22,7 @@ mod hello;
 mod http;
 pub mod install_window;
 mod migrate;
+mod model;
 mod paths;
 mod prefs;
 mod secret;
@@ -58,6 +59,7 @@ pub fn run() {
     .manage(background::Background::default())
     .manage(shell::Zoom::default())
     .plugin(updater::plugin())
+    .manage(model::Model::default())
     .register_uri_scheme_protocol("girovo-shell", |_ctx, request| shell::serve_shell(request.uri().path()))
     .setup(|app| {
       let handle = app.handle().clone();
@@ -150,6 +152,11 @@ pub fn run() {
       http::http_open,
       http::http_body,
       http::http_cancel,
+      model::model_files,
+      model::model_read,
+      model::model_open,
+      model::model_run,
+      model::model_release,
       shell::titlebar_set_theme,
       frame::caption_minimize,
       frame::caption_toggle_maximize,

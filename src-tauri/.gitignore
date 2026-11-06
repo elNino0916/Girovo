@@ -1,2 +1,4 @@
 /target/
 /gen/schemas/
+# ONNX Runtime for the category model, staged by scripts/build-desktop.mjs
+/onnxruntime/

@@ -18,13 +18,17 @@ import type { AsyncLocalStorage } from '../../mobile/shims/async-hooks';
 import { flush, mountData } from '../../mobile/shims/fs';
 import { installFetch } from '../../mobile/server/fetch';
 import { installFolders } from './folders';
+import { mountModel } from './model';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 async function boot(): Promise<void> {
   installFolders();
+  // The model's files beside the saved ones; a model that cannot be mounted only goes unused.
+  const model = mountModel().catch((err) => console.error('[server] category model', err));
   await mountData('fints-state');
+  await model;
   // A login the user calls off must end the bank request it is waiting on,
   // several awaits after withBankSignal set the signal (mobile/shims/async-hooks.ts).
   type BankScope = { signal?: AbortSignal; bankCall?: boolean; inPolicy?: boolean };
