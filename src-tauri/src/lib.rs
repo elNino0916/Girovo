@@ -29,6 +29,7 @@ mod secret_migration;
 mod shell;
 mod splash;
 mod texts;
+mod updater;
 
 use std::sync::Arc;
 use std::sync::mpsc;
@@ -56,6 +57,7 @@ pub fn run() {
     .manage(http::Requests::default())
     .manage(background::Background::default())
     .manage(shell::Zoom::default())
+    .plugin(updater::plugin())
     .register_uri_scheme_protocol("girovo-shell", |_ctx, request| shell::serve_shell(request.uri().path()))
     .setup(|app| {
       let handle = app.handle().clone();
@@ -165,6 +167,15 @@ pub fn run() {
       hello::hello_unlock,
       secret::linked_unlock_secret,
       secret::migrate_secret,
+      updater::updater_get,
+      updater::updater_check,
+      updater::updater_download,
+      updater::updater_cancel,
+      updater::updater_install,
+      updater::updater_restart,
+      updater::updater_set_auto,
+      updater::updater_set_channel,
+      updater::updater_open_release,
     ])
     .run(tauri::generate_context!())
     .expect("error while running Girovo");

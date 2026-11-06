@@ -33,6 +33,8 @@ open = "5"
 sys-locale = "0.3"
 tauri-plugin-single-instance = "=3.0.0-alpha.3"
 tauri-plugin-notification = "=3.0.0-alpha.3"
+# The updater's blockmaps are gzipped JSON (src/updater).
+flate2 = "1"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [

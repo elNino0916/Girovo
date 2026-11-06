@@ -95,6 +95,26 @@
     unlock: function () { return invoke('hello_unlock'); },
   });
 
+  // In-app updates (src/updater). Every call answers with the updater's
+  // state; onState hears every change, download progress included, and
+  // returns its own unsubscribe.
+  define('electronUpdater', {
+    getState: function () { return invoke('updater_get'); },
+    check: function () { return invoke('updater_check'); },
+    download: function () { return invoke('updater_download'); },
+    cancel: function () { return invoke('updater_cancel'); },
+    install: function () { return invoke('updater_install'); },
+    // The installed Windows app: quit and start again, the start window installing the update.
+    restartToUpdate: function () { return invoke('updater_restart'); },
+    setAuto: function (on) { return invoke('updater_set_auto', { on: on === true }); },
+    setChannel: function (channel) { return invoke('updater_set_channel', { channel: channel === 'preview' ? 'preview' : 'stable' }); },
+    openRelease: function () { return invoke('updater_open_release'); },
+    onState: function (callback) {
+      if (typeof callback !== 'function') return function () {};
+      return listen('updater:state', callback);
+    },
+  });
+
   // Telemetry: nothing leaves until the hub is ported; the consent question stays unasked.
   define('electronTelemetry', {
     consent: function () {
