@@ -91,7 +91,7 @@ export function TitleBar({ sidebarOpen, onMenu }: { sidebarOpen: boolean; onMenu
         <IconButton tone="bar" size="md" aria-label={inboxName} aria-haspopup="dialog" data-inbox-trigger onClick={() => setInboxOpen(true)}>
           <span className="relative inline-flex">
             <BellIcon />
-            {(shown.unread > 0 || shown.update) && <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-bar" />}
+            {(shown.unread > 0 || shown.update) && <Dot className="absolute top-0.5 -right-0.5 ring-2 ring-bar" />}
           </span>
         </IconButton>
         <PrivacyToggle bar shortcut={singleKeyShortcuts} />

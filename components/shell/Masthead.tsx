@@ -243,7 +243,7 @@ export function Masthead() {
               {/* The dot is the narrow-window form of the count (where the
                   badge shows, it would say the same thing twice) — and, at
                   every width, the mark of a new app version. */}
-              {(shownUnread > 0 || shown.update) && <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-bar" />}
+              {(shownUnread > 0 || shown.update) && <Dot className="absolute top-0.5 -right-0.5 ring-2 ring-bar" />}
             </span>
           </IconButton>}
 

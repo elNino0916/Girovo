@@ -196,7 +196,7 @@ export function UpdateBarButton({ className }: { className?: string }) {
       iconLeft={(
         <span className="relative inline-flex">
           <DownloadIcon size={18} />
-          <Dot className="absolute -top-0.5 -right-0.5 ring-2 ring-bar" />
+          <Dot className="absolute top-0.5 -right-0.5 ring-2 ring-bar" />
         </span>
       )}
       className={className}
