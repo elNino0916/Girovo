@@ -85,8 +85,26 @@ jobs:
       - name: Set the version
         run: npm version "${{ needs.plan.outputs.version }}" --no-git-tag-version --allow-same-version
       - run: npm ci
+      # From 6.0 the desktop app is a Tauri app: Rust, and the branch's own
+      # packaging script (scripts/dist-desktop.mjs: the model, the page, the
+      # installer under the Electron build's name, and its blockmap). A branch
+      # without it is still built with Electron.
+      - name: Rust
+        if: hashFiles('src-tauri/Cargo.toml') != ''
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        if: hashFiles('src-tauri/Cargo.toml') != ''
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
       - name: Build installer
-        run: npm run electron:dist
+        shell: bash
+        run: |
+          if [ -f scripts/dist-desktop.mjs ]; then
+            node scripts/dist-desktop.mjs --platform win32
+          else
+            npm run electron:dist
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -115,8 +133,28 @@ jobs:
         env:
           # As in build-development.yml: the CPU runtime only, not CUDA's libraries.
           ONNXRUNTIME_NODE_INSTALL: skip
+      # The Tauri app's system libraries: WebKitGTK for its window, and what
+      # the AppImage bundler needs.
+      - name: Tauri's system packages
+        if: hashFiles('src-tauri/Cargo.toml') != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf file
+      - name: Rust
+        if: hashFiles('src-tauri/Cargo.toml') != ''
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        if: hashFiles('src-tauri/Cargo.toml') != ''
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
       - name: Build AppImage and deb
-        run: npm run electron:dist:linux
+        run: |
+          if [ -f scripts/dist-desktop.mjs ]; then
+            node scripts/dist-desktop.mjs --platform linux
+          else
+            npm run electron:dist:linux
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: linux
