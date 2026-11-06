@@ -14,7 +14,7 @@ import { apiFetch } from '@/lib/client-api';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { initials } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
-import { IS_ANDROID } from '@/lib/platform';
+import { IN_PAGE_SERVER } from '@/lib/platform';
 import { BankChip } from '../BankLogo';
 import { useFints, useLogoFile, useMerchant } from '../FintsProvider';
 import { cx } from '../ui';
@@ -44,31 +44,33 @@ const BADGE = {
 
 const logoSrc = (id: string) => `/api/merchant-logo?id=${encodeURIComponent(id)}`;
 
-/** Android: each logo once, as an object URL (null when there is none). */
-const phoneLogos = new Map<string, Promise<string | null>>();
+/** The apps whose routes run in the page: each logo once, as an object URL (null when there is none). */
+const inPageLogos = new Map<string, Promise<string | null>>();
 
 /**
- * Where an <img> gets the logo `id`. On the desktop that is the route itself.
- * In the Android app the route runs inside this page (mobile/server) and only
- * a fetch reaches it, so the bytes are fetched and handed to the <img> as an
- * object URL — undefined until they are in, `onFail` when there are none.
+ * Where an <img> gets the logo `id`. In a browser (`npm run dev`) that is the
+ * route itself. In the Android app and the desktop app the route runs inside
+ * this page (mobile/server, desktop/server) and only a fetch reaches it — an
+ * <img> would ask the WebView for a file of that name — so the bytes are
+ * fetched and handed to the <img> as an object URL: undefined until they are
+ * in, `onFail` when there are none.
  */
 function useLogoSrc(id: string, onFail: () => void): string | undefined {
-  const [phoneSrc, setPhoneSrc] = useState<{ id: string; url: string } | null>(null);
+  const [inPageSrc, setInPageSrc] = useState<{ id: string; url: string } | null>(null);
   useEffect(() => {
-    if (!IS_ANDROID || !id) return;
+    if (!IN_PAGE_SERVER || !id) return;
     let live = true;
-    let pending = phoneLogos.get(id);
+    let pending = inPageLogos.get(id);
     if (!pending) {
       pending = apiFetch(logoSrc(id))
         .then((res) => (res.ok ? res.blob() : null))
         .then((blob) => (blob ? URL.createObjectURL(blob) : null))
         .catch(() => null);
-      phoneLogos.set(id, pending);
+      inPageLogos.set(id, pending);
     }
     void pending.then((url) => {
       if (!live) return;
-      if (url) setPhoneSrc({ id, url });
+      if (url) setInPageSrc({ id, url });
       else onFail();
     });
     return () => {
@@ -76,8 +78,8 @@ function useLogoSrc(id: string, onFail: () => void): string | undefined {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-  if (!IS_ANDROID) return logoSrc(id);
-  return phoneSrc?.id === id ? phoneSrc.url : undefined;
+  if (!IN_PAGE_SERVER) return logoSrc(id);
+  return inPageSrc?.id === id ? inPageSrc.url : undefined;
 }
 
 /**
