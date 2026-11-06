@@ -24,6 +24,10 @@ base64 = "0.22"
 tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2", "charset"] }
 sha2 = "0.10"
+# rustls' own crypto, already built in: AES-GCM for Electron's sealed shell
+# secret, the RSA check of a Windows Hello signature, random bytes. The
+# features rustls asks for, nothing more.
+aws-lc-rs = { version = "1", default-features = false, features = ["aws-lc-sys", "prebuilt-nasm"] }
 dirs = "6"
 open = "5"
 sys-locale = "0.3"
@@ -42,6 +46,26 @@ windows = { version = "0.62", features = [
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
 ] }
+
+# Windows Hello (src/hello.rs): KeyCredentialManager, its buffers and the
+# prompt's window. A table of its own beside the one above (Cargo adds the
+# features up), so the shell's pieces stay apart in merges.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = [
+  "Foundation",
+  "Security_Credentials",
+  "Security_Cryptography",
+  "Security_Cryptography_Core",
+  "Storage_Streams",
+  "Win32_UI_WindowsAndMessaging",
+] }
+windows-future = "0.3"
+
+# The shell secret on Linux (src/secret/linux.rs): the Secret Service over
+# zbus, which the tray (ksni) already brings.
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring-core = "1"
+zbus-secret-service-keyring-store = { version = "1", features = ["rt-async-io-crypto-rust"] }
 
 [profile.release]
 codegen-units = 1

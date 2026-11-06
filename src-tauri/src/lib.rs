@@ -18,10 +18,12 @@
 mod background;
 mod files;
 mod frame;
+mod hello;
 mod http;
 mod migrate;
 mod paths;
 mod prefs;
+mod secret;
 mod secret_migration;
 mod shell;
 mod splash;
@@ -155,6 +157,11 @@ pub fn run() {
       splash::splash_fit,
       background::background_set,
       background::background_result,
+      hello::hello_available,
+      hello::hello_enroll,
+      hello::hello_unlock,
+      secret::linked_unlock_secret,
+      secret::migrate_secret,
     ])
     .run(tauri::generate_context!())
     .expect("error while running Girovo");

@@ -81,6 +81,20 @@
     },
   });
 
+  // The shell secret (src/secret.rs): base64, or null where this system has no
+  // protected store for it — the page then does not offer what needs it.
+  define('electronLinkedUnlock', {
+    secret: function () { return invoke('linked_unlock_secret'); },
+  });
+
+  // Windows Hello (src/hello.rs), with electron/windows-hello.cjs's answers;
+  // available() is false off Windows.
+  define('electronHello', {
+    available: function () { return invoke('hello_available'); },
+    enroll: function () { return invoke('hello_enroll'); },
+    unlock: function () { return invoke('hello_unlock'); },
+  });
+
   // Telemetry: nothing leaves until the hub is ported; the consent question stays unasked.
   define('electronTelemetry', {
     consent: function () {
