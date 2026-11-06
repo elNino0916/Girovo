@@ -221,12 +221,13 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
 
         {release && state.phase === 'downloading' && !atStart && <Progress received={state.received} total={state.total} />}
 
-        {/* The installed Windows app: what the restart does, and when it happens anyway. */}
-        {release?.canInstall && atStart && (
+        {/* The installed Windows app: only what the button doesn't say — the
+            logout, and that the update comes at the next start anyway. */}
+        {release?.canInstall && atStart && (signedIn || (state.auto && !release.back)) && (
           <Alert tone="info" className="mt-0" role="status">
-            {u.restartsIntoStart}
-            {state.auto && !release.back && <> {u.orAtNextStart}</>}
-            {signedIn && <> {u.logsOut}</>}
+            {signedIn && u.restartLogsOut}
+            {signedIn && state.auto && !release.back && ' '}
+            {state.auto && !release.back && u.orAtNextStart}
           </Alert>
         )}
 
