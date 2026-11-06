@@ -28,7 +28,6 @@ pub struct Splash {
   pub title: &'static str,
   pub title_updating: &'static str,
   pub slow: &'static str,
-  pub portable: &'static str,
 }
 
 impl Splash {
@@ -38,13 +37,11 @@ impl Splash {
         title: "Girovo wird gestartet",
         title_updating: "Girovo wird aktualisiert",
         slow: "Das dauert länger als sonst. Nach einer Aktualisierung oder einem Neustart des Computers braucht der erste Start oft mehr Zeit.",
-        portable: "portabel",
       },
       Lang::En => Splash {
         title: "Starting Girovo",
         title_updating: "Updating Girovo",
         slow: "This is taking longer than usual. The first start after an update or after restarting the computer often takes more time.",
-        portable: "portable",
       },
     }
   }

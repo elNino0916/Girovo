@@ -53,6 +53,13 @@ mod win;
 #[cfg(windows)]
 use win as store;
 
+/// "Girovo zurücksetzen" (reset.rs): the secret wherever it is kept beyond the
+/// data folder — on Linux the keyring; on Windows its file goes with the folder.
+pub fn forget() {
+  store::forget(data_root());
+  *kept() = Kept { secret: None, taken: None };
+}
+
 /// Electron's sealed secret, left where it is.
 const ELECTRON_FILE: &str = "linked-unlock.key";
 const SECRET_BYTES: usize = 32;
@@ -227,6 +234,7 @@ mod store {
   pub fn electron(_root: &Path, _sealed: &[u8]) -> Result<String, Unreadable> {
     Err(Unreadable::new("unsupported", "no protected store here"))
   }
+  pub fn forget(_root: &Path) {}
 }
 
 // ---------------------------------------------------------------------------

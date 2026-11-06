@@ -49,6 +49,9 @@ pub fn write(root: &Path, secret: &str) -> Result<(), String> {
 }
 
 /// Opens what Electron's safeStorage sealed, with the key in `root`/Local State.
+/// Nothing beyond the data folder: the DPAPI-sealed file goes with it (reset.rs).
+pub fn forget(_root: &Path) {}
+
 pub fn electron(root: &Path, sealed: &[u8]) -> Result<String, Unreadable> {
   let Some(body) = sealed.strip_prefix(b"v10") else {
     return Err(Unreadable::new("unreadable", "not os_crypt's v10 format"));

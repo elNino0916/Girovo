@@ -27,6 +27,8 @@ pub async fn app_reset(app: AppHandle) -> Result<(), String> {
   app.state::<Arc<crate::sync_lan::LanShelf>>().stop();
   crate::background::set_login_item(false);
   tauri::async_runtime::spawn_blocking(crate::hello::forget).await.map_err(|e| e.to_string())?;
+  // The shell secret where it lives beyond the data folder (the keyring on Linux).
+  tauri::async_runtime::spawn_blocking(crate::secret::forget).await.map_err(|e| e.to_string())?;
 
   let root = data_root().to_path_buf();
   let failed = tauri::async_runtime::spawn_blocking(move || empty(&root)).await.map_err(|e| e.to_string())?;

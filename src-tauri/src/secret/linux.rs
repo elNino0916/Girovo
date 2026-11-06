@@ -33,6 +33,14 @@ pub fn write(_root: &Path, secret: &str) -> Result<(), String> {
   entry()?.set_password(secret).map_err(|err| err.to_string())
 }
 
+/// "Girovo zurücksetzen" (reset.rs): the keyring's item goes too — the data
+/// folder alone would leave it to seal the next start's PINs.
+pub fn forget(_root: &Path) {
+  if let Ok(entry) = entry() {
+    let _ = entry.delete_credential();
+  }
+}
+
 /// Electron's secret on Linux is not opened here (see secret.rs).
 pub fn electron(_root: &Path, _sealed: &[u8]) -> Result<String, Unreadable> {
   Err(Unreadable::new("unsupported", "Electron's keyring-sealed secret is not read on Linux"))
