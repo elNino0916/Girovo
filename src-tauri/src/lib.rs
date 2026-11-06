@@ -153,31 +153,35 @@ pub fn run() {
       // The app's window, hidden until it is ready to be seen.
       let (loaded_tx, loaded) = mpsc::channel::<()>();
       let script = shell::boot_script(&prefs.snapshot(), &app.package_info().version.to_string());
-      let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()));
-      if let Some(dir) = shell::webview_dir() {
-        builder = builder.data_directory(dir);
-      }
-      builder
-        .title("Girovo")
-        .inner_size(1280.0, 840.0)
-        .min_inner_size(900.0, 600.0)
-        .center()
-        .visible(false)
-        // Windows: the page draws the title bar and its caption buttons (frame.rs). Linux keeps its own.
-        .decorations(cfg!(not(windows)))
-        .initialization_script(script)
-        .additional_browser_args(&shell::browser_args())
-        .on_page_load(move |_window, payload| {
-          if payload.event() == PageLoadEvent::Finished {
-            let _ = loaded_tx.send(());
-          }
-        })
-        .on_new_window(|url, _features| {
-          // A link the page opens in a new window goes to the browser, never into the app.
-          shell::open_external(url.as_str());
-          tauri::webview::NewWindowResponse::Deny
-        })
-        .build()?;
+      // Again while a copy that has just quit still holds WebView2's folder (shell.rs).
+      shell::build_retrying(|| {
+        let loaded_tx = loaded_tx.clone();
+        let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()));
+        if let Some(dir) = shell::webview_dir() {
+          builder = builder.data_directory(dir);
+        }
+        builder
+          .title("Girovo")
+          .inner_size(1280.0, 840.0)
+          .min_inner_size(900.0, 600.0)
+          .center()
+          .visible(false)
+          // Windows: the page draws the title bar and its caption buttons (frame.rs). Linux keeps its own.
+          .decorations(cfg!(not(windows)))
+          .initialization_script(script.clone())
+          .additional_browser_args(&shell::browser_args())
+          .on_page_load(move |_window, payload| {
+            if payload.event() == PageLoadEvent::Finished {
+              let _ = loaded_tx.send(());
+            }
+          })
+          .on_new_window(|url, _features| {
+            // A link the page opens in a new window goes to the browser, never into the app.
+            shell::open_external(url.as_str());
+            tauri::webview::NewWindowResponse::Deny
+          })
+          .build()
+      })?;
       frame::install(&handle);
       frame::watch_maximized(&handle);
       // With "Neue Umsätze melden" on, closing hides the window in the notification area.

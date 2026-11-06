@@ -148,24 +148,27 @@ impl Splash {
       closed: false,
     };
     let url = card_url(&model(&state));
-    let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::CustomProtocol(url));
-    if let Some(dir) = crate::shell::webview_dir() {
-      builder = builder.data_directory(dir);
-    }
-    builder
-      .title("Girovo")
-      .inner_size(WIDTH, 320.0)
-      .resizable(false)
-      .maximizable(false)
-      .decorations(false)
-      .transparent(true)
-      .shadow(false)
-      .center()
-      .visible(false)
-      // One WebView2 environment for every window of the app: the same flags
-      // as the app's window, or the second one cannot be made (0x8007139F).
-      .additional_browser_args(&crate::shell::browser_args())
-      .build()?;
+    // Again while a copy that has just quit still holds WebView2's folder (shell.rs).
+    crate::shell::build_retrying(|| {
+      let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::CustomProtocol(url.clone()));
+      if let Some(dir) = crate::shell::webview_dir() {
+        builder = builder.data_directory(dir);
+      }
+      builder
+        .title("Girovo")
+        .inner_size(WIDTH, 320.0)
+        .resizable(false)
+        .maximizable(false)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .center()
+        .visible(false)
+        // One WebView2 environment for every window of the app: the same flags
+        // as the app's window, or the second one cannot be made (0x8007139F).
+        .additional_browser_args(&crate::shell::browser_args())
+        .build()
+    })?;
     let splash = Arc::new(Splash { app: app.clone(), state: Mutex::new(state) });
     let later = splash.clone();
     std::thread::spawn(move || {

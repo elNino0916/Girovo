@@ -26,6 +26,33 @@ pub fn browser_args() -> String {
   }
 }
 
+/// How long a window waits for a WebView2 folder still held (build_retrying).
+const BUSY_WAIT: std::time::Duration = std::time::Duration::from_secs(6);
+
+/// Builds a window, again for a few seconds while WebView2 says its folder is
+/// still taken: a copy that has just quit — the restart into an update, a
+/// reset — may hold it for a moment, and the start then died in its setup
+/// ("failed to create webview", HRESULT 0x800700AA, the resource in use; or
+/// 0x8007139F while that copy's browser runs with other flags). A label is
+/// only Tauri's once its window is made, so the same one can be tried again.
+pub fn build_retrying<T>(mut build: impl FnMut() -> tauri::Result<T>) -> tauri::Result<T> {
+  let start = std::time::Instant::now();
+  loop {
+    match build() {
+      Err(err) if webview_busy(&err) && start.elapsed() < BUSY_WAIT => {
+        eprintln!("[shell] WebView2 folder busy, trying again: {err}");
+        std::thread::sleep(std::time::Duration::from_millis(500));
+      }
+      other => return other,
+    }
+  }
+}
+
+fn webview_busy(err: &tauri::Error) -> bool {
+  let text = err.to_string().to_ascii_uppercase();
+  text.contains("0X800700AA") || text.contains("0X8007139F")
+}
+
 /// WebView2's own folder. A test run (GIROVO_DATA_DIR) keeps it inside its
 /// data folder: every process on one WebView2 folder must start it with the
 /// same flags, so two debug builds side by side (each with its DevTools port)
