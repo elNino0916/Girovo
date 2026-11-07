@@ -231,7 +231,12 @@ function SettingsSections({ open }: { open: boolean }) {
         {pages.map((p) => (
           <Place
             key={p.id}
-            icon={createElement(p.Icon, { size: 24, filled: current === p.id })}
+            icon={(
+              <span className="relative inline-flex">
+                {createElement(p.Icon, { size: 24, filled: current === p.id })}
+                {p.alert && <span aria-hidden className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red" />}
+              </span>
+            )}
             label={p.short}
             title={p.alert ? `${p.title} – ${t.session.vaultUnreadable}` : p.title}
             current={current === p.id}
