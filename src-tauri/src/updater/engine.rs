@@ -615,7 +615,13 @@ impl Updater {
     match res.status().as_u16() {
       // No release published at all yet, or none under that tag.
       404 => return Ok(None),
-      403 | 429 => return Err(Failure::Said(say.rate_limited.to_string())),
+      403 | 429 => {
+        // The quota is per connection, shared with every device and program there:
+        // say when it comes back, where GitHub said.
+        let header = |name: &str| res.headers().get(name).and_then(|v| v.to_str().ok());
+        let wait = logic::rate_limit_wait(header("retry-after"), header("x-ratelimit-remaining"), header("x-ratelimit-reset"), now_ms() / 1000);
+        return Err(Failure::Said(say.rate_limited_for(wait)));
+      }
       s if !res.status().is_success() => return Err(Failure::Said(say.http_error(s))),
       _ => {}
     }

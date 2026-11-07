@@ -47,6 +47,19 @@ pub fn passing_failure(status: u16) -> bool {
   matches!(status, 502..=504)
 }
 
+/// How many minutes until GitHub takes requests again, from its refusal's
+/// headers: Retry-After (seconds) or, with the quota used up
+/// (X-RateLimit-Remaining 0), X-RateLimit-Reset (Unix seconds). At least one;
+/// None when the refusal names no time (a 403 for another reason).
+pub fn rate_limit_wait(retry_after: Option<&str>, remaining: Option<&str>, reset: Option<&str>, now_secs: u64) -> Option<u64> {
+  let secs = match retry_after.and_then(|s| s.trim().parse::<u64>().ok()) {
+    Some(after) => after,
+    None if remaining.map(str::trim) == Some("0") => reset.and_then(|s| s.trim().parse::<u64>().ok())?.saturating_sub(now_secs),
+    None => return None,
+  };
+  Some(secs.div_ceil(60).max(1))
+}
+
 /// How this copy of the app was installed, which decides how it updates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -730,6 +743,22 @@ mod tests {
 
   fn newest(list: &Value, current: &str) -> Option<String> {
     newest_release(list, current, &Origin::default(), None).map(|r| r.version)
+  }
+
+  #[test]
+  fn the_wait_github_names_in_whole_minutes() {
+    let now = 1_794_061_874;
+    // The quota used up: until its reset, rounded up.
+    assert_eq!(rate_limit_wait(None, Some("0"), Some("1794063734"), now), Some(31));
+    // Retry-After wins where GitHub sends it.
+    assert_eq!(rate_limit_wait(Some("90"), Some("0"), Some("1794063734"), now), Some(2));
+    // A reset already past, or seconds away: still "about a minute".
+    assert_eq!(rate_limit_wait(None, Some("0"), Some("1794061800"), now), Some(1));
+    assert_eq!(rate_limit_wait(Some("5"), None, None, now), Some(1));
+    // A 403 with quota left, or without the headers: no time to name.
+    assert_eq!(rate_limit_wait(None, Some("12"), Some("1794063734"), now), None);
+    assert_eq!(rate_limit_wait(None, None, None, now), None);
+    assert_eq!(rate_limit_wait(None, Some("0"), Some("soon"), now), None);
   }
 
   #[test]

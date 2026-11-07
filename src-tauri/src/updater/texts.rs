@@ -36,6 +36,17 @@ impl Texts {
     }
   }
 
+  /// GitHub's quota for this connection used up: when it takes requests again, where it said (logic::rate_limit_wait).
+  pub fn rate_limited_for(&self, minutes: Option<u64>) -> String {
+    match (self.lang, minutes) {
+      (_, None) => self.rate_limited.to_string(),
+      (Lang::De, Some(1)) => "GitHub nimmt gerade keine weiteren Anfragen an – wieder in etwa einer Minute.".to_string(),
+      (Lang::De, Some(m)) => format!("GitHub nimmt gerade keine weiteren Anfragen an – wieder in etwa {m} Minuten."),
+      (Lang::En, Some(1)) => "GitHub is not taking any more requests right now – again in about a minute.".to_string(),
+      (Lang::En, Some(m)) => format!("GitHub is not taking any more requests right now – again in about {m} minutes."),
+    }
+  }
+
   pub fn http_error(&self, status: u16) -> String {
     match self.lang {
       Lang::De => format!("GitHub hat mit einem Fehler geantwortet (HTTP {status})."),

@@ -515,6 +515,24 @@ async fn githubs_rate_limit_a_manual_check_says_so_an_automatic_one_stays_quiet(
 }
 
 #[tokio::test]
+async fn githubs_rate_limit_names_when_it_takes_requests_again() {
+  let srv = Server::start(|_req, conn, _base| {
+    let body = br#"{"message":"API rate limit exceeded"}"#;
+    let reset = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() + 31 * 60 - 5;
+    conn.head(403, &[
+      ("Content-Length", body.len().to_string()),
+      ("X-RateLimit-Remaining", "0".into()),
+      ("X-RateLimit-Reset", reset.to_string()),
+    ]);
+    conn.write(body);
+  });
+  let cache = TempDir::new();
+  let host = Arc::new(FakeHost::default());
+  let manual = make(config(&srv.base, cache.path()), &host).check(true).await;
+  assert_eq!(manual.error.unwrap().message, "GitHub nimmt gerade keine weiteren Anfragen an – wieder in etwa 31 Minuten.");
+}
+
+#[tokio::test]
 async fn nothing_published_yet_counts_as_up_to_date_nonsense_does_not() {
   let nonsense = Arc::new(AtomicUsize::new(0));
   let flag = nonsense.clone();
