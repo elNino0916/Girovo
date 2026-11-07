@@ -270,8 +270,11 @@ async function pressLogout(c: Ctx) {
 
 /** Types into the palette's field, once it is there, until its answer has settled. */
 const paletteQuery = (q: string): Script => async (c) => {
-  const input = await c.poll(() => document.querySelector<HTMLInputElement>('[role="dialog"] input[role="combobox"]'), 4000);
+  // The phone's search is a dialog; the desktop's sits in the title bar.
+  const input = await c.poll(() => document.querySelector<HTMLInputElement>('[role="dialog"] input[role="combobox"]')
+    ?? document.querySelector<HTMLInputElement>('[data-topbar] input[role="combobox"], input[role="combobox"]'), 4000);
   if (!input) return;
+  input.focus();
   typeInto(input, q);
   await c.sleep(500);
 };
@@ -307,7 +310,12 @@ const LAST_MONTH_NAME = new Intl.DateTimeFormat('de-DE', { month: 'long' }).form
  */
 function umsaetzeSection(): HTMLElement | null {
   const h = [...document.querySelectorAll<HTMLElement>('h2')].find((el) => /^umsätze$/i.test(el.textContent?.trim() ?? ''));
-  return h?.closest<HTMLElement>('section') ?? null;
+  const titled = h?.closest<HTMLElement>('section');
+  if (titled) return titled;
+  // The search-first Übersicht has no "Umsätze" heading: the list itself, the
+  // one holding the most bookings (never the Vorgemerkt summary's few).
+  const lists = [...document.querySelectorAll<HTMLElement>('[data-tx-list]')].filter(visible);
+  return lists.sort((a, b) => b.querySelectorAll('[data-tx-row]').length - a.querySelectorAll('[data-tx-row]').length)[0] ?? null;
 }
 
 /** The booking rows of the Umsätze list, never the Vorgemerkt panel's. */
@@ -677,7 +685,8 @@ const VIEWS: Record<string, ViewDef> = {
   'new-in-six': {
     label: 'Neu in Girovo 6',
     group: 'Dialoge',
-    options: { newInSix: true, windowsHello: false, backgroundChecks: false, linkedUnlock: false, secondBank: 'linked' },
+    // Windows Hello is the desktop's: unset on Android, as the real app leaves it.
+    options: { newInSix: true, ...(IS_ANDROID ? {} : { windowsHello: false }), backgroundChecks: false, linkedUnlock: false, secondBank: 'linked' },
   },
   'linked-unlock-ask': {
     label: 'Weitere Banken mit anmelden?',
@@ -1447,13 +1456,24 @@ function findUnderHeading(heading: RegExp, selector: string): HTMLElement | null
 
 const visible = (el: Element) => (el as HTMLElement).getClientRects().length > 0;
 
+/** A control's words as a person reads them: without the icon font's ligature names ("refresh Alle Salden abrufen"). */
+function wordsOf(el: Element): string {
+  let out = '';
+  const walk = (n: Node) => {
+    if (n.nodeType === Node.TEXT_NODE) out += n.textContent ?? '';
+    else if (n instanceof Element && !n.classList.contains('ms-icon')) n.childNodes.forEach(walk);
+  };
+  walk(el);
+  return out;
+}
+
 /** A visible, enabled button whose label matches — in the topmost dialog, or anywhere. */
 function findButton(label: RegExp, within: 'dialog' | 'page', last: boolean): HTMLElement | null {
   const dialogs = [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')].filter(visible);
   const scope: ParentNode = within === 'dialog' ? (dialogs[dialogs.length - 1] ?? document) : document;
   const hits = [...scope.querySelectorAll<HTMLElement>('button, [role="button"], a[href]')].filter((b) => {
     if (!visible(b) || (b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true') return false;
-    const text = (b.getAttribute('aria-label') || b.textContent || '').replace(/\s+/g, ' ').trim();
+    const text = (b.getAttribute('aria-label') || wordsOf(b)).replace(/\s+/g, ' ').trim();
     return label.test(text);
   });
   return (last ? hits[hits.length - 1] : hits[0]) ?? null;

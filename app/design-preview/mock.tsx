@@ -99,6 +99,7 @@ import {
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import { PAGE_OF, type SettingsPage } from '@/lib/settings-pages';
+import { IS_ANDROID } from '@/lib/platform';
 import type { ManualContract } from '@/lib/manual-contracts';
 import type {
   BankOrderKind, Merchant, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedPortfolio, SerializedTanMethod,
@@ -827,7 +828,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   // Sync between devices: a state to show, nothing synced.
   const [sync, setSync] = useState<SyncInfo>(() => (opts.sync
     ? {
-      on: true, place: 'lan', deviceName: 'Computer', deviceId: 'aaaaaaaaaaaaaaaa', lastSync: Date.now() - 4 * 60_000,
+      // This device is the phone in the Android build, the computer elsewhere.
+      on: true, place: 'lan', deviceName: IS_ANDROID ? 'Android' : 'Computer', deviceId: IS_ANDROID ? 'bbbbbbbbbbbbbbbb' : 'aaaaaaaaaaaaaaaa', lastSync: Date.now() - 4 * 60_000,
       devices: [
         { id: 'aaaaaaaaaaaaaaaa', name: 'Computer', at: Date.now() - 4 * 60_000 },
         { id: 'bbbbbbbbbbbbbbbb', name: 'Android', at: Date.now() - 2 * 3600_000 },

@@ -101,7 +101,8 @@ export function TxList({
   const firstSaved = savedTo ? visible.findIndex((g) => g.key <= savedTo) : -1;
 
   return (
-    <div id={id} ref={rootRef} className="relative">
+    // data-tx-list: where the design preview's scripts find the bookings (app/design-preview/page.tsx).
+    <div id={id} ref={rootRef} data-tx-list className="relative">
       <a
         href={`#${id}-end`}
         onClick={skipList}
