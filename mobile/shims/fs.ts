@@ -92,6 +92,12 @@ async function quietly(task: Promise<unknown>): Promise<void> {
 // saveProfile, the vault's and the history's writes), and nothing reaches the
 // disk, nor is anything there deleted.
 let refused = false;
+/**
+ * Saved files the start could not read (locked by a scanner, not text): not
+ * loaded, so not written over or deleted either — the rest of the data works,
+ * that one store says "not saved" (mountData).
+ */
+const unreadable = new Set<string>();
 
 /** From now on /data takes no writes. Call before the first request, instead of mountData(). */
 export function refuseData(): void {
@@ -99,7 +105,7 @@ export function refuseData(): void {
 }
 
 function persistWrite(p: string, text: string): void {
-  if (!persisted(p) || refused) return;
+  if (!persisted(p) || refused || unreadable.has(p)) return;
   const target = diskPath(p);
   enqueue(async () => {
     await Filesystem.writeFile({ path: `${target}.part`, data: text, directory: Directory.Data, encoding: Encoding.UTF8, recursive: true });
@@ -109,7 +115,7 @@ function persistWrite(p: string, text: string): void {
 }
 
 function persistRemove(p: string): void {
-  if (!persisted(p) || refused) return;
+  if (!persisted(p) || refused || unreadable.has(p)) return;
   const target = diskPath(p);
   enqueue(() => quietly(Filesystem.deleteFile({ path: target, directory: Directory.Data })));
 }
@@ -176,9 +182,15 @@ export async function mountData(dir: string): Promise<number> {
   }
   let loaded = 0;
   for (const name of present) {
-    const { data } = await Filesystem.readFile({ path: `${diskPath(root)}/${name}`, directory: Directory.Data, encoding: Encoding.UTF8 });
-    put(`${root}/${name}`, typeof data === 'string' ? data : await data.text(), false);
-    loaded++;
+    try {
+      const { data } = await Filesystem.readFile({ path: `${diskPath(root)}/${name}`, directory: Directory.Data, encoding: Encoding.UTF8 });
+      put(`${root}/${name}`, typeof data === 'string' ? data : await data.text(), false);
+      loaded++;
+    } catch (err) {
+      // One file unreadable: the start goes on without it, and it is kept as it is.
+      unreadable.add(`${root}/${name}`);
+      console.error(`[fs] ${name} could not be read; it is left as it is`, err);
+    }
   }
   return loaded;
 }
@@ -188,7 +200,7 @@ export async function mountData(dir: string): Promise<number> {
 
 function put(p: string, text: string, persist = true): void {
   if (dirs.has(p)) throw fsError('EISDIR', 'open', p);
-  if (persist && refused && persisted(p)) throw fsError('EROFS', 'open', p);
+  if (persist && persisted(p) && (refused || unreadable.has(p))) throw fsError('EROFS', 'open', p);
   addDirs(parentOf(p));
   files.set(p, { text, size: encoder.encode(text).length, mtimeMs: Date.now() });
   stubs.delete(p);

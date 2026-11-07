@@ -19,6 +19,8 @@
 /// Ends this process with `code`. On Windows directly (TerminateProcess), past
 /// the DLLs' exit code that a quitting copy once waited on for good.
 pub fn end_process(code: i32) -> ! {
+  // A file being written is finished first (files.rs): never cut in half.
+  crate::files::settle(std::time::Duration::from_secs(2));
   #[cfg(windows)]
   unsafe {
     use windows::Win32::System::Threading::{GetCurrentProcess, TerminateProcess};

@@ -81,6 +81,33 @@ pub fn fs_read(path: String) -> Result<tauri::ipc::Response, String> {
 /// raw body — never a JSON argument, for the same reason as fs_read.
 const PATH_HEADER: &str = "girovo-path";
 
+/// The file commands under way: the end of the process waits for them
+/// (leftover.rs end_process), so no file is cut off half written.
+static IN_FLIGHT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+struct Busy;
+
+impl Busy {
+  fn new() -> Self {
+    IN_FLIGHT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    Busy
+  }
+}
+
+impl Drop for Busy {
+  fn drop(&mut self) {
+    IN_FLIGHT.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+  }
+}
+
+/// Waits, at most `limit`, for the file commands under way to finish.
+pub fn settle(limit: std::time::Duration) {
+  let start = std::time::Instant::now();
+  while IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst) > 0 && start.elapsed() < limit {
+    std::thread::sleep(std::time::Duration::from_millis(10));
+  }
+}
+
 #[tauri::command]
 pub async fn fs_write(request: tauri::ipc::Request<'_>) -> Result<(), String> {
   let path = request.headers().get(PATH_HEADER).and_then(|v| v.to_str().ok()).map(crate::save::uri_decode).unwrap_or_default();
@@ -91,27 +118,47 @@ pub async fn fs_write(request: tauri::ipc::Request<'_>) -> Result<(), String> {
     return Err("EINVAL: not UTF-8".into());
   }
   writable()?;
+  let _busy = Busy::new();
   let file = resolve(&path)?;
   if let Some(parent) = file.parent() {
     fs::create_dir_all(parent).map_err(io)?;
   }
-  fs::write(file, bytes).map_err(io)
+  // On the disk before the shim renames it into place: a power cut right
+  // after a save must not leave an empty vault (the Electron shell's writeFileAtomic).
+  use std::io::Write;
+  let mut out = fs::File::create(file).map_err(io)?;
+  out.write_all(bytes).map_err(io)?;
+  out.sync_all().map_err(io)
 }
 
 #[tauri::command(async)]
 pub fn fs_delete(path: String) -> Result<(), String> {
   writable()?;
-  fs::remove_file(resolve(&path)?).map_err(io)
+  let _busy = Busy::new();
+  let file = resolve(&path)?;
+  let mut attempt = 0;
+  loop {
+    match fs::remove_file(&file) {
+      Ok(()) => return Ok(()),
+      // A virus scanner or OneDrive holding it a moment, as for a rename.
+      Err(err) if attempt < 5 && locked(&err) => {
+        std::thread::sleep(std::time::Duration::from_millis(15 << attempt));
+        attempt += 1;
+      }
+      Err(err) => return Err(io(err)),
+    }
+  }
 }
 
 #[tauri::command(async)]
 pub fn fs_rename(from: String, to: String) -> Result<(), String> {
   writable()?;
+  let _busy = Busy::new();
   let (from, to) = (resolve(&from)?, resolve(&to)?);
   if let Some(parent) = to.parent() {
     fs::create_dir_all(parent).map_err(io)?;
   }
-  fs::rename(from, to).map_err(io)
+  rename_retrying(&from, &to).map_err(io)
 }
 
 // ---------------------------------------------------------------------------
