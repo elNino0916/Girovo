@@ -182,6 +182,13 @@ pub fn plugin() -> TauriPlugin<tauri::DynRuntime> {
       if let RunEvent::Exit = event
         && let Some(shared) = app.try_state::<Shared>()
       {
+        // Telemetry's last word first: the copy started next (a relaunch, the
+        // installer's) ends every copy still running (leftover.rs), this one
+        // mid-flush. Closing twice is nothing (lib.rs closes again).
+        let pending = shared.exit.action.lock().unwrap().is_some();
+        if pending && let Some(telemetry) = app.try_state::<crate::telemetry::Telemetry>() {
+          telemetry.closing(app);
+        }
         shared.at_exit();
       }
     })

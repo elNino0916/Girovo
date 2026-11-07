@@ -62,8 +62,9 @@ static CODE_WORD: LazyLock<Regex> = LazyLock::new(|| re(r"^[A-Za-z_$][A-Za-z0-9_
 static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
   vec![
     // Home folders name the person using the machine.
-    Rule(re(r#"(?i)([A-Za-z]:[\\/]+Users[\\/]+)[^\\/{S}'"<>:]+"#), Replace::With("${1}~")),
-    Rule(re(r#"(/(?:Users|home)/)[^/{S}'"<>:]+"#), Replace::With("${1}~")),
+    // The name up to the next separator, spaces included ("Max Mustermann").
+    Rule(re(r#"(?i)([A-Za-z]:[\\/]+Users[\\/]+)[^\\/'"<>:\r\n]+"#), Replace::With("${1}~")),
+    Rule(re(r#"(/(?:Users|home)/)[^/'"<>:\r\n]+"#), Replace::With("${1}~")),
     Rule(re(r"[A-Za-z0-9_.+-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+"), Replace::With("[E-Mail]")),
     // IBAN, with or without its groups of four.
     Rule(re(r"(?-u:\b)[A-Z]{2}[0-9]{2}(?: ?[A-Z0-9]){11,30}(?-u:\b)"), Replace::With("[IBAN]")),
@@ -370,6 +371,9 @@ mod tests {
     assert_eq!(t("mail to max@example.org failed"), "mail to [E-Mail] failed");
     assert_eq!(t("ENOENT C:\\Users\\ninob\\AppData\\Roaming\\x"), "ENOENT C:\\Users\\~\\AppData\\Roaming\\x");
     assert_eq!(t("open /home/erika/file"), "open /home/~/file");
+    // A name with a space is masked whole, not up to the space.
+    assert_eq!(t(r"ENOENT C:\Users\Max Mustermann\AppData\x"), r"ENOENT C:\Users\~\AppData\x");
+    assert_eq!(t("open /home/erika muster/file"), "open /home/~/file");
     assert_eq!(t("GET https://bank.example/fints?user=erika&pin=1 → 500"), "GET https://bank.example/fints → 500");
   }
 
