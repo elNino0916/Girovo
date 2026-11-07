@@ -21,6 +21,7 @@ mod logic;
 mod report;
 mod start;
 mod texts;
+mod trust;
 #[cfg(test)]
 mod tests;
 
@@ -241,6 +242,10 @@ fn config(app: &AppHandle) -> Config {
     cfg.https_only = false;
     cfg.origin = Origin { download_prefixes: vec![origin_of(&feed)], ..Origin::default() };
     cfg.feed_url = feed;
+    // A local feed is GitHub's stand-in: no girovo.de and unsigned releases,
+    // unless GIROVO_UPDATE_MANIFESTS names a stand-in for girovo.de as well.
+    cfg.manifest_base = std::env::var("GIROVO_UPDATE_MANIFESTS").ok().filter(|b| !b.is_empty());
+    cfg.require_signed = cfg.manifest_base.is_some();
   }
   cfg
 }
@@ -335,6 +340,11 @@ pub fn updater_restart(s: Updates<'_>) -> UpdateState {
 #[tauri::command]
 pub fn updater_set_auto(s: Updates<'_>, on: bool) -> UpdateState {
   s.updater.set_auto(on)
+}
+
+#[tauri::command]
+pub fn updater_set_early(s: Updates<'_>, on: bool) -> UpdateState {
+  s.updater.set_early(on)
 }
 
 #[tauri::command]

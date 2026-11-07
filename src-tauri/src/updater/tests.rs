@@ -231,6 +231,9 @@ fn config(base: &str, cache: &Path) -> Config {
   cfg.origin = Origin { download_prefixes: vec![base.to_string()], ..Origin::default() };
   cfg.https_only = false;
   cfg.retry_delay = Duration::ZERO;
+  // The stand-in is GitHub as it was: no girovo.de, no signed releases (tests_v2 below has those).
+  cfg.manifest_base = None;
+  cfg.require_signed = false;
   cfg
 }
 
@@ -1323,5 +1326,226 @@ async fn live_github_dry_run() {
       eprintln!("LIVE {current:<36} {channel:<8} {:?} {offer} {:?}", s.phase, s.error.map(|e| e.message));
       assert_ne!(s.phase, Phase::Idle, "GitHub answered");
     }
+  }
+}
+
+/// The real girovo.de with the real keys: the first signed nightly
+/// (6.0.2-nightly.202611071916.gce3e01b) is offered to the one before it.
+/// `cargo test --lib live_girovo_de -- --ignored --nocapture`
+#[tokio::test]
+#[ignore = "asks the real girovo.de"]
+async fn live_girovo_de_offers_the_signed_nightly() {
+  let cache = TempDir::new();
+  let cfg = Config::new("6.0.2-nightly.202611071832.gc0d6b0c".into(), InstallKind::Nsis, cache.path().to_path_buf());
+  let host = FakeHost::on_channel("preview");
+  let s = make(cfg, &host).check(true).await;
+  eprintln!("LIVE girovo.de {:?} {:?} {:?}", s.phase, s.release.as_ref().map(|r| &r.version), s.error);
+  assert_eq!(s.phase, Phase::Available);
+  assert!(s.release.unwrap().version.starts_with("6.0.2-nightly."));
+}
+
+// ---- girovo.de and signed manifests (docs/updater-v2.md) -------------------------------
+
+mod signed {
+  use super::super::trust::{self, testing};
+  use super::*;
+
+  /// The test keys: stable from seed 1, nightly from seed 2; seed 9 is a stranger's.
+  fn keys() -> trust::Keys {
+    trust::Keys { stable: testing::pair(1).1, nightly: testing::pair(2).1 }
+  }
+
+  /// girovo-update.json for `version`, its Setup.exe the stand-in's payload.
+  fn manifest(base: &str, version: &str) -> String {
+    let setup = format!("Girovo-{version}-Setup.exe");
+    json!({
+      "format": "girovo-update", "v": 1, "version": version, "build": trust::build_number(version),
+      "channel": if version.contains('-') { "nightly" } else { "stable" },
+      "page": format!("{PAGE}/tag/{version}"),
+      "published": "2026-11-08T10:00:00.000Z",
+      "files": [{ "kind": "setup", "name": setup, "size": payload().len(), "sha256": sha(&payload()), "url": format!("{base}dl/{setup}") }],
+      "notes": "## Neu\n- signiert",
+    })
+    .to_string()
+  }
+
+  fn listed(base: &str, version: &str, rollout: u32, seed: u8) -> Value {
+    let m = manifest(base, version);
+    json!({ "version": version, "build": trust::build_number(version), "rollout": rollout, "sig": testing::sign(m.as_bytes(), &testing::pair(seed).0), "manifest": m })
+  }
+
+  type Seen = Arc<Mutex<Vec<(String, Option<String>)>>>;
+  type Listing = fn(&str) -> Vec<Value>;
+
+  /// girovo.de at /updates/ (ETag "v1": a check naming it gets a 304), GitHub
+  /// at /latest, the files at /dl/. `listing` None: girovo.de answers 503.
+  /// `github_signed`: GitHub's 9.9.9 carries a manifest signed with that seed.
+  fn site(listing: Option<Listing>, github_signed: Option<u8>, seen: Seen) -> impl Fn(&Request, &mut Conn, &str) + Send + Sync + 'static {
+    let body = payload();
+    move |req, conn, base| {
+      let asked = req.headers.get("if-none-match").cloned();
+      seen.lock().unwrap().push((req.path.clone(), asked.clone()));
+      let m = manifest(base, "9.9.9");
+      let sig = testing::sign(m.as_bytes(), &testing::pair(github_signed.unwrap_or(1)).0);
+      if req.path.starts_with("/updates/") {
+        match listing {
+          None => conn.send(503, b"down"),
+          Some(_) if asked.as_deref() == Some("\"v1\"") => conn.head(304, &[("ETag", "\"v1\"".into())]),
+          Some(list) => {
+            let text = json!({ "format": "girovo-updates", "v": 1, "releases": list(base) }).to_string();
+            conn.head(200, &[("ETag", "\"v1\"".into()), ("Content-Length", text.len().to_string())]);
+            conn.write(text.as_bytes());
+          }
+        }
+      } else if req.path == "/latest" {
+        let mut release = release_json(base, &rel("9.9.9"));
+        if github_signed.is_some() {
+          for (name, len) in [(trust::MANIFEST_NAME, m.len()), (trust::SIG_NAME, sig.len())] {
+            let entry = json!({ "name": name, "size": len, "digest": null, "browser_download_url": format!("{base}dl/{name}") });
+            release["assets"].as_array_mut().unwrap().push(entry);
+          }
+        }
+        conn.json(&release);
+      } else if req.path == format!("/dl/{}", trust::MANIFEST_NAME) {
+        conn.send(200, m.as_bytes());
+      } else if req.path == format!("/dl/{}", trust::SIG_NAME) {
+        conn.send(200, sig.as_bytes());
+      } else if req.path.starts_with("/dl/") {
+        conn.send(200, &body);
+      } else {
+        conn.send(404, b"");
+      }
+    }
+  }
+
+  fn signed_config(base: &str, cache: &Path) -> Config {
+    let mut cfg = config(base, cache);
+    cfg.manifest_base = Some(format!("{base}updates/"));
+    cfg.keys = keys();
+    cfg.require_signed = true;
+    cfg.current_version = "9.0.0".into();
+    cfg
+  }
+
+  fn host() -> Arc<FakeHost> {
+    FakeHost::with_pref(PREF_INSTALL_ID, "install-a")
+  }
+
+  fn by_stable(b: &str) -> Vec<Value> {
+    vec![listed(b, "9.9.9", 100, 1)]
+  }
+  fn by_nightly(b: &str) -> Vec<Value> {
+    vec![listed(b, "9.9.9", 100, 2)]
+  }
+  fn by_stranger(b: &str) -> Vec<Value> {
+    vec![listed(b, "9.9.9", 100, 9)]
+  }
+
+  #[tokio::test]
+  async fn girovo_de_offers_the_signed_release_and_the_download_is_checked_against_its_hash() {
+    let seen: Seen = Arc::default();
+    let srv = Server::start(site(Some(by_stable), None, seen.clone()));
+    let cache = TempDir::new();
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    let s = updater.check(true).await;
+    assert_eq!(s.phase, Phase::Available, "{:?}", s.error);
+    let release = s.release.unwrap();
+    assert_eq!(release.version, "9.9.9");
+    assert!(release.can_install);
+    assert!(release.notes.contains("signiert"));
+    assert_eq!(updater.download().await.phase, Phase::Ready);
+    let paths: Vec<String> = seen.lock().unwrap().iter().map(|(p, _)| p.clone()).collect();
+    assert!(paths.contains(&"/updates/stable.json".to_string()));
+    assert!(!paths.contains(&"/latest".to_string()), "GitHub's API is not asked: {paths:?}");
+  }
+
+  #[tokio::test]
+  async fn a_strangers_signature_or_the_nightly_key_on_stable_offers_nothing() {
+    for listing in [by_stranger as Listing, by_nightly] {
+      let srv = Server::start(site(Some(listing), None, Arc::default()));
+      let cache = TempDir::new();
+      let s = make(signed_config(&srv.base, cache.path()), &host()).check(true).await;
+      assert_eq!(s.phase, Phase::Current);
+    }
+    // On the Nightly channel the nightly key counts.
+    let srv = Server::start(site(Some(by_nightly), None, Arc::default()));
+    let cache = TempDir::new();
+    let host = FakeHost::on_channel("preview");
+    host.set_pref(PREF_INSTALL_ID, "install-a");
+    let s = make(signed_config(&srv.base, cache.path()), &host).check(true).await;
+    assert_eq!(s.phase, Phase::Available, "{:?}", s.error);
+  }
+
+  #[tokio::test]
+  async fn when_girovo_de_cant_be_asked_github_counts_only_with_a_signed_manifest() {
+    let srv = Server::start(site(None, Some(1), Arc::default()));
+    let cache = TempDir::new();
+    let s = make(signed_config(&srv.base, cache.path()), &host()).check(true).await;
+    assert_eq!(s.phase, Phase::Available, "{:?}", s.error);
+    assert_eq!(s.release.unwrap().version, "9.9.9");
+
+    for github_signed in [None, Some(9)] {
+      let srv = Server::start(site(None, github_signed, Arc::default()));
+      let cache = TempDir::new();
+      let s = make(signed_config(&srv.base, cache.path()), &host()).check(true).await;
+      assert_eq!(s.phase, Phase::Current, "GitHub's release signed by {github_signed:?}");
+    }
+  }
+
+  #[tokio::test]
+  async fn an_unchanged_listing_costs_a_304() {
+    let seen: Seen = Arc::default();
+    let srv = Server::start(site(Some(by_stable), None, seen.clone()));
+    let cache = TempDir::new();
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    assert_eq!(updater.check(true).await.phase, Phase::Available);
+    assert_eq!(updater.check(true).await.phase, Phase::Available);
+    let asks: Vec<Option<String>> = seen.lock().unwrap().iter().filter(|(p, _)| p.starts_with("/updates/")).map(|(_, e)| e.clone()).collect();
+    assert_eq!(asks, [None, Some("\"v1\"".to_string())]);
+  }
+
+  /// 9.9.9 to just below this copy's bucket, then 9.9.8 for everybody.
+  fn staged(b: &str) -> Vec<Value> {
+    let bucket = u32::from(trust::bucket("install-a", "9.9.9"));
+    vec![listed(b, "9.9.9", bucket, 1), listed(b, "9.9.8", 100, 1)]
+  }
+
+  #[tokio::test]
+  async fn a_staged_release_reaches_this_copy_by_its_bucket_or_at_once_when_early() {
+    let srv = Server::start(site(Some(staged), None, Arc::default()));
+    let cache = TempDir::new();
+    let host = host();
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    assert_eq!(updater.check(true).await.release.unwrap().version, "9.9.8");
+    let s = updater.set_early(true);
+    assert!(s.early);
+    assert_eq!(host.pref(PREF_EARLY).as_deref(), Some("on"));
+    assert_eq!(updater.check(true).await.release.unwrap().version, "9.9.9");
+  }
+
+  #[tokio::test]
+  async fn a_copy_without_an_id_makes_one_and_keeps_it() {
+    let srv = Server::start(site(Some(by_stable), None, Arc::default()));
+    let cache = TempDir::new();
+    let host = Arc::new(FakeHost::default());
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    updater.check(true).await;
+    let id = host.pref(PREF_INSTALL_ID).expect("an id");
+    assert_eq!(id.len(), 32);
+    updater.check(true).await;
+    assert_eq!(host.pref(PREF_INSTALL_ID), Some(id));
+  }
+
+  #[tokio::test]
+  async fn signed_offers_are_ordered_by_build_number() {
+    let srv = Server::start(site(Some(by_stable), None, Arc::default()));
+    let cache = TempDir::new();
+    let mut cfg = signed_config(&srv.base, cache.path());
+    // A nightly of 9.9.9 is older than 9.9.9.
+    cfg.current_version = "9.9.9-nightly.202611071832.gc0d6b0c".into();
+    assert_eq!(make(cfg, &host()).check(true).await.phase, Phase::Available);
+    let mut cfg = signed_config(&srv.base, cache.path());
+    cfg.current_version = "9.9.9-dev.4".into();
+    assert_eq!(make(cfg, &host()).check(true).await.phase, Phase::Current, "a dev build counts as its version");
   }
 }

@@ -129,6 +129,7 @@
     // The installed Windows app: quit and start again, the start window installing the update.
     restartToUpdate: function () { return invoke('updater_restart'); },
     setAuto: function (on) { return invoke('updater_set_auto', { on: on === true }); },
+    setEarly: function (on) { return invoke('updater_set_early', { on: on === true }); },
     setChannel: function (channel) { return invoke('updater_set_channel', { channel: channel === 'preview' ? 'preview' : 'stable' }); },
     openRelease: function () { return invoke('updater_open_release'); },
     onState: function (callback) {

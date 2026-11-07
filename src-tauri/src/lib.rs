@@ -264,6 +264,7 @@ pub fn run() {
       closing::app_flush_ready,
       closing::app_flushed,
       updater::updater_set_auto,
+      updater::updater_set_early,
       updater::updater_set_channel,
       updater::updater_open_release,
       sync_lan::sync_lan,

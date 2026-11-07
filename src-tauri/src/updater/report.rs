@@ -91,6 +91,7 @@ mod tests {
       current: "6.0.0-preview.1".into(),
       kind: InstallKind::Nsis,
       auto: true,
+      early: false,
       channel: Channel::Preview,
       phase,
       checked_at: None,

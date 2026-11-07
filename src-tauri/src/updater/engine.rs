@@ -46,6 +46,7 @@ use tokio::sync::{OwnedMutexGuard, watch};
 use super::chunks;
 use super::logic::{self, Asset, Channel, InstallKind, Origin, Plan, Release};
 use super::texts::{Texts, texts};
+use super::trust;
 use crate::texts::Lang;
 
 pub const PREF_AUTO: &str = "fints.updates.auto";
@@ -57,6 +58,11 @@ pub const PREF_MOVED_TO_STABLE: &str = "fints.updates.movedToStable";
 /// The version whose install did not complete: never installed again at
 /// start by itself (start.rs), until an install completes (read_marker).
 pub const PREF_FAILED_INSTALL: &str = "fints.updates.failedInstall";
+/// "on": "Neueste Updates erhalten, sobald sie verfügbar sind" — a staged
+/// release reaches this copy at once (trust::reaches).
+pub const PREF_EARLY: &str = "fints.updates.early";
+/// A random id of this installation, only for its rollout bucket (trust::bucket); not telemetry's.
+pub const PREF_INSTALL_ID: &str = "fints.updates.installId";
 /// A start asked for by "Jetzt neu starten und installieren" (restart_to_update).
 pub const UPDATE_ARG: &str = "--update";
 
@@ -65,6 +71,8 @@ const CHECK_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 // Turning the automatic check on runs one soon, so the switch visibly does something.
 const AUTO_ON_DELAY: Duration = Duration::from_millis(1500);
 const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
+/// girovo.de's listing holds at most two manifests with their notes.
+const MAX_LISTING_BYTES: usize = 1024 * 1024;
 const PROGRESS_EVERY: Duration = Duration::from_millis(200);
 // A connection can go quiet without ever failing; a download that has not
 // moved for a minute is given up rather than left spinning.
@@ -149,6 +157,8 @@ pub struct UpdateState {
   pub current: String,
   pub kind: InstallKind,
   pub auto: bool,
+  /// Staged releases at once (PREF_EARLY).
+  pub early: bool,
   pub channel: Channel,
   pub phase: Phase,
   /// When GitHub last answered, ms since the epoch.
@@ -211,6 +221,14 @@ pub struct Config {
   /// Whether automatic checks may run at all in this build.
   pub auto_check: bool,
   pub feed_url: String,
+  /// girovo.de's signed listings, asked before GitHub (trust::MANIFEST_BASE); None: GitHub only.
+  pub manifest_base: Option<String>,
+  /// The keys a manifest must be signed with.
+  pub keys: trust::Keys,
+  /// Only a release with a signed manifest is offered — from girovo.de or, when it
+  /// can't be asked, from the release on GitHub. Always in a shipped app; the
+  /// tests' stand-in for GitHub has no signed releases.
+  pub require_signed: bool,
   pub origin: Origin,
   /// GitHub is https only; a test server is not.
   pub https_only: bool,
@@ -228,6 +246,9 @@ impl Config {
       install_dir: None,
       auto_check: kind != InstallKind::Dev,
       feed_url: logic::FEED_URL.to_string(),
+      manifest_base: Some(trust::MANIFEST_BASE.to_string()),
+      keys: trust::Keys::builtin(),
+      require_signed: true,
       origin: Origin::default(),
       https_only: true,
       retry_delay: logic::RETRY_DELAY,
@@ -415,6 +436,9 @@ struct Inner {
   ready_file: Option<PathBuf>,
   abort: Option<Cancel>,
   timer: Option<JoinHandle<()>>,
+  /// girovo.de's last answer, with its address and ETag: a check that changes
+  /// nothing costs a 304.
+  listing: Option<(String, String, Vec<u8>)>,
 }
 
 type BeforeInstall = Box<dyn Fn(&InstallNotice) + Send + Sync>;
@@ -473,6 +497,7 @@ impl Updater {
       current: cfg.current_version.clone(),
       kind: cfg.kind,
       auto: host.pref(PREF_AUTO).as_deref() != Some("off"),
+      early: host.pref(PREF_EARLY).as_deref() == Some("on"),
       channel: logic::channel_of(host.pref(PREF_CHANNEL).as_deref()),
       phase: Phase::Idle,
       checked_at: None,
@@ -492,7 +517,7 @@ impl Updater {
       .expect("a client without custom TLS cannot fail to build");
     Arc::new_cyclic(|me| Updater {
       states: watch::channel(state.clone()).0,
-      inner: Mutex::new(Inner { state, pending: None, ready_file: None, abort: None, timer: None }),
+      inner: Mutex::new(Inner { state, pending: None, ready_file: None, abort: None, timer: None, listing: None }),
       cfg,
       host,
       client,
@@ -648,10 +673,102 @@ impl Updater {
     }
   }
 
-  /// The release this channel offers: the latest release, or on the preview
-  /// channel the highest version above this one in the list, pre-releases
-  /// included. None when there is none to offer.
+  /// The release this channel offers (docs/updater-v2.md): the first one in
+  /// girovo.de's listing that is signed with a key fitting the channel and
+  /// reaches this copy (staged rollout). When girovo.de can't be asked, GitHub's
+  /// API as before — and there too only a release whose signed manifest checks
+  /// out. None when there is none to offer.
   async fn fetch_offer(&self, channel: Channel) -> Result<Option<Release>, Failure> {
+    if let Some(base) = self.cfg.manifest_base.clone() {
+      if let Some(listing) = self.fetch_listing(&base, channel).await {
+        let early = self.state().early;
+        return Ok(trust::pick_listed(&listing, channel, &self.cfg.keys, &self.cfg.origin, &self.install_id(), early));
+      }
+    }
+    match self.fetch_github_offer(channel).await? {
+      Some(release) if self.cfg.require_signed => Ok(self.signed_copy(release, channel).await),
+      other => Ok(other),
+    }
+  }
+
+  /// girovo.de's listing for the channel, or None when it can't be had — no
+  /// connection, an error page, anything that is not a listing.
+  async fn fetch_listing(&self, base: &str, channel: Channel) -> Option<Vec<trust::Listed>> {
+    let url = format!("{base}{}.json", if channel == Channel::Preview { "nightly" } else { "stable" });
+    let cached = self.inner.lock().unwrap().listing.clone().filter(|(u, _, _)| *u == url);
+    let mut request = self.client.get(&url).timeout(CHECK_TIMEOUT);
+    if let Some((_, etag, _)) = cached.as_ref() {
+      request = request.header("If-None-Match", etag.as_str());
+    }
+    let res = match request.send().await {
+      Ok(res) => res,
+      Err(err) => {
+        warn("girovo.de could not be asked", &err);
+        return None;
+      }
+    };
+    let body = match res.status().as_u16() {
+      304 => cached.map(|(_, _, body)| body)?,
+      200 => {
+        let etag = res.headers().get("etag").and_then(|v| v.to_str().ok()).map(str::to_string);
+        let body = read_bytes(res, MAX_LISTING_BYTES, "").await.ok()?;
+        if let Some(etag) = etag {
+          self.inner.lock().unwrap().listing = Some((url, etag, body.clone()));
+        }
+        body
+      }
+      status => {
+        warn("girovo.de answered", &format!("HTTP {status}"));
+        return None;
+      }
+    };
+    let listing = trust::parse_listing(&body);
+    if listing.is_none() {
+      warn("girovo.de answered", &"something that is not a listing");
+    }
+    listing
+  }
+
+  /// This installation's id for the rollout bucket, made once.
+  fn install_id(&self) -> String {
+    if let Some(id) = self.host.pref(PREF_INSTALL_ID).filter(|id| !id.is_empty()) {
+      return id;
+    }
+    let id = uuid::Uuid::new_v4().simple().to_string();
+    self.host.set_pref(PREF_INSTALL_ID, &id);
+    id
+  }
+
+  /// A small file of a release (its manifest, its signature), or None.
+  async fn small_file(&self, asset: &Asset) -> Option<Vec<u8>> {
+    let res = self.get_retrying(&asset.url, |r| r.timeout(CHECK_TIMEOUT), None).await.ok()?;
+    if !res.status().is_success() {
+      return None;
+    }
+    read_bytes(res, trust::MAX_MANIFEST_BYTES, "").await.ok()
+  }
+
+  /// `release` from GitHub as its signed manifest describes it, or None when
+  /// it carries none, or one that does not check out.
+  async fn signed_copy(&self, release: Release, channel: Channel) -> Option<Release> {
+    let file = |name: &str| release.assets.iter().find(|a| a.name == name).cloned();
+    let (Some(manifest), Some(sig)) = (file(trust::MANIFEST_NAME), file(trust::SIG_NAME)) else {
+      warn("not offered", &format!("{} carries no signed manifest", release.version));
+      return None;
+    };
+    let bytes = self.small_file(&manifest).await?;
+    let sig = self.small_file(&sig).await?;
+    let signed = trust::signer_fits(trust::verify(&bytes, &String::from_utf8_lossy(&sig), &self.cfg.keys), channel);
+    let copy = trust::release_of(&bytes, &self.cfg.origin).filter(|r| signed && r.version == release.version);
+    if copy.is_none() {
+      warn("not offered", &format!("{}: its manifest's signature does not check out", release.version));
+    }
+    copy
+  }
+
+  /// GitHub's offer: the latest release, or on the preview channel the highest
+  /// version above this one in the list, pre-releases included.
+  async fn fetch_github_offer(&self, channel: Channel) -> Result<Option<Release>, Failure> {
     let list = if channel == Channel::Preview { logic::list_url(&self.cfg.feed_url) } else { None };
     let Some(list) = list else { return self.fetch_release(&self.cfg.feed_url, false).await };
     let Some(json) = self.fetch_json(&list).await? else { return Ok(None) };
@@ -1012,7 +1129,15 @@ impl Updater {
   async fn take_offer(&self, release: Option<Release>, channel: Channel) -> UpdateState {
     let checked_at = Some(now_ms());
     let current = &self.cfg.current_version;
-    let newer = release.as_ref().is_some_and(|r| logic::is_newer(&r.version, current, channel == Channel::Preview));
+    // A signed offer is ordered by build number (trust::build_number), which
+    // knows every name a release ever had; the tests' unsigned ones by name.
+    let newer = release.as_ref().is_some_and(|r| {
+      if self.cfg.require_signed {
+        matches!((trust::build_number(&r.version), trust::build_number(current)), (Some(a), Some(b)) if a > b)
+      } else {
+        logic::is_newer(&r.version, current, channel == Channel::Preview)
+      }
+    });
     // Back on "Stabil" from a preview: the latest stable release, older as it may be.
     let back = !newer && channel == Channel::Stable && release.as_ref().is_some_and(|r| logic::is_switch_back(&r.version, current));
     let Some(release) = release.filter(|_| newer || back) else {
@@ -1268,6 +1393,13 @@ impl Updater {
     let state = self.set(|s| s.auto = on);
     self.schedule(on.then_some(AUTO_ON_DELAY));
     state
+  }
+
+  /// "Neueste Updates erhalten, sobald sie verfügbar sind": a staged release
+  /// reaches this copy at once. The next check takes it into account.
+  pub fn set_early(&self, on: bool) -> UpdateState {
+    self.host.set_pref(PREF_EARLY, if on { "on" } else { "off" });
+    self.set(|s| s.early = on)
   }
 
   /// Switches between the stable and the preview channel, and asks again at

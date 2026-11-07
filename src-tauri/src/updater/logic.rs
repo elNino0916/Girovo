@@ -363,7 +363,7 @@ fn str_of<'a>(v: &'a Value, key: &str) -> &'a str {
   v.get(key).and_then(Value::as_str).unwrap_or("")
 }
 
-fn parse_asset(raw: &Value, origin: &Origin) -> Option<Asset> {
+pub(super) fn parse_asset(raw: &Value, origin: &Origin) -> Option<Asset> {
   if !raw.is_object() {
     return None;
   }
@@ -396,7 +396,7 @@ pub fn release_page_or(url: Option<&str>, releases_page: &str) -> String {
   }
 }
 
-fn first_chars(text: &str, max: usize) -> String {
+pub(super) fn first_chars(text: &str, max: usize) -> String {
   text.chars().take(max).collect()
 }
 
@@ -635,7 +635,7 @@ pub fn install_args(kind: InstallKind) -> Option<Vec<String>> {
 // ---- dates -----------------------------------------------------------------------
 
 /// Days since 1970-01-01 of a date in the proleptic Gregorian calendar (Howard Hinnant's days_from_civil).
-fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+pub(super) fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
   let y = if m <= 2 { y - 1 } else { y };
   let era = if y >= 0 { y } else { y - 399 } / 400;
   let yoe = y - era * 400;
