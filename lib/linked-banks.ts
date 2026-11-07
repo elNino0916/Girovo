@@ -25,10 +25,12 @@ import { isRecord } from './guards.ts';
 
 /**
  * What the primary login's vault remembers about a linked bank, so the next
- * login can offer it again: the BLZ, the bank's name and the login name.
- * Never a PIN, never an account — those come from the bank each time.
+ * login can offer it again: the BLZ, the bank's name and the login name —
+ * and the numbers of its accounts as its bank lists them, so which account
+ * keeps a plain number never depends on which bank logs in first (claimedBefore).
+ * Never a PIN.
  */
-export type LinkedBankRef = { blz: string; name: string; userId: string };
+export type LinkedBankRef = { blz: string; name: string; userId: string; accounts?: string[] };
 
 export const LINKED_BANK_LIMITS = {
   /** Banks beside the primary one. */
@@ -36,6 +38,9 @@ export const LINKED_BANK_LIMITS = {
   name: 120,
   /** FinTS allows 30 characters; some banks' login names run longer. */
   userId: 64,
+  /** Account numbers remembered per bank, and the length of one. */
+  accounts: 60,
+  accountNumber: 80,
 };
 
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
@@ -64,7 +69,12 @@ export function sanitizeLinkedBanks(v: unknown): LinkedBankRef[] {
         .slice(0, LINKED_BANK_LIMITS.name).join('').trimEnd()
       : '';
     if (!name) continue;
-    const ref = { blz, name, userId };
+    const accounts = Array.isArray(raw.accounts)
+      ? [...new Set(raw.accounts.filter((n): n is string =>
+        typeof n === 'string' && !!n && n.length <= LINKED_BANK_LIMITS.accountNumber && !CONTROLS.test(n)))]
+        .slice(0, LINKED_BANK_LIMITS.accounts)
+      : [];
+    const ref: LinkedBankRef = { blz, name, userId, ...(accounts.length ? { accounts } : {}) };
     if (out.some((r) => sameLogin(r, ref))) continue;
     out.push(ref);
     if (out.length === LINKED_BANK_LIMITS.count) break;
@@ -72,12 +82,30 @@ export function sanitizeLinkedBanks(v: unknown): LinkedBankRef[] {
   return out;
 }
 
-/** `list` with `ref` remembered: added at the end, or its name brought up to date. */
+/** `list` with `ref` remembered: added at the end, or its name and accounts brought up to date — in its place. */
 export function rememberLinkedBank(list: readonly LinkedBankRef[], ref: LinkedBankRef): LinkedBankRef[] {
   const at = list.findIndex((r) => sameLogin(r, ref));
   if (at < 0) return sanitizeLinkedBanks([...list, ref]);
-  if (list[at].name === ref.name) return [...list];
-  return list.map((r, i) => (i === at ? { ...r, name: ref.name } : r));
+  const had = list[at];
+  const accounts = ref.accounts ?? had.accounts;
+  const same = had.name === ref.name && JSON.stringify(had.accounts ?? []) === JSON.stringify(accounts ?? []);
+  if (same) return [...list];
+  return sanitizeLinkedBanks(list.map((r, i) => (i === at ? { ...r, name: ref.name, ...(accounts ? { accounts } : {}) } : r)));
+}
+
+/**
+ * The account numbers the banks added before `login` hold, each with its
+ * bank's BLZ: a number the primary bank shows or an earlier bank holds stays
+ * that bank's, and `login`'s account under it joins as "number@BLZ" — however
+ * the logins come in this time. A bank not remembered yet comes after all.
+ */
+export function claimedBefore(list: readonly LinkedBankRef[], login: { blz: string; userId: string }): Map<string, string> {
+  const at = list.findIndex((r) => sameLogin(r, login));
+  const claimed = new Map<string, string>();
+  for (const r of at < 0 ? list : list.slice(0, at)) {
+    for (const n of r.accounts ?? []) if (!claimed.has(n)) claimed.set(n, r.blz);
+  }
+  return claimed;
 }
 
 /** `list` without that login. */
@@ -156,7 +184,18 @@ export function joinQualified<A extends Identified>(
   incoming: readonly A[],
   blz: string,
   blzOf: (a: A) => string | null | undefined,
+  /** Numbers a bank added earlier holds, with its BLZ (claimedBefore): qualified even while that bank is not logged in. */
+  claimed: ReadonlyMap<string, string> = new Map(),
 ): Joined<A> {
+  // An earlier bank's number: this bank's account under it is "number@BLZ"
+  // whether or not that bank is on screen now — where the two can be told
+  // apart (another bank, or an IBAN), as for one on screen.
+  if (claimed.size) {
+    incoming = incoming.map((a) => {
+      const owner = claimed.get(a.accountNumber);
+      return owner && (owner !== blz || ibanKey(a.iban)) ? { ...a, accountNumber: qualifiedKey(a.accountNumber, blz) } : a;
+    });
+  }
   const first = joinAccounts(shown, incoming);
   const apart = first.collisions.filter(({ incoming: a, shown: s }) => (ibanKey(a.iban) && ibanKey(s.iban)) || blzOf(s) !== blz);
   if (!apart.length) return first;

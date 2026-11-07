@@ -272,7 +272,7 @@ test('sent orders: two weeks kept, older and malformed ones dropped', () => {
   assert.deepEqual(vault.sanitizeVault({ version: 1 })?.sentOrders, []);
 });
 
-test('linked banks: BLZ, name and login name only — never a PIN — and absent while there are none', () => {
+test('linked banks: BLZ, name, login name and account numbers only — never a PIN — and absent while there are none', () => {
   const out = vault.sanitizeVault(base({
     linkedBanks: [
       { blz: '37050198', name: 'Sparkasse KölnBonn', userId: 'nino.becker', pin: '24680', accounts: ['1234567890'] },
@@ -281,7 +281,7 @@ test('linked banks: BLZ, name and login name only — never a PIN — and absent
     ] as never,
   }));
   assert.ok(out);
-  assert.deepEqual(out.linkedBanks, [{ blz: '37050198', name: 'Sparkasse KölnBonn', userId: 'nino.becker' }]);
+  assert.deepEqual(out.linkedBanks, [{ blz: '37050198', name: 'Sparkasse KölnBonn', userId: 'nino.becker', accounts: ['1234567890'] }]);
   assert.equal(JSON.stringify(out).includes('24680'), false);
   // None left: the key goes, so a vault without linked banks is exactly what it was before.
   assert.equal('linkedBanks' in (vault.sanitizeVault(base({ linkedBanks: [{ blz: 'x' }] as never })) ?? {}), false);

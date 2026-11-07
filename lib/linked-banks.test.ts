@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  LINKED_BANK_LIMITS, combinedTotal, forgetLinkedBank, groupByLogin, joinAccounts, joinQualified, rememberLinkedBank, routeFor,
+  LINKED_BANK_LIMITS, claimedBefore, combinedTotal, forgetLinkedBank, groupByLogin, joinAccounts, joinQualified, rememberLinkedBank, routeFor,
   sameLogin, sanitizeLinkedBanks,
 } from './linked-banks.ts';
 import type { SerializedAccount, SerializedBalance } from './fints-types';
@@ -143,11 +143,11 @@ test('currency rules hold across banks: another currency is excluded, never adde
 // ---------------------------------------------------------------------------
 // What the vault keeps
 
-test('a linked bank is kept as BLZ, name and login name — nothing else survives, a PIN least of all', () => {
+test('a linked bank is kept as BLZ, name, login name and its account numbers — nothing else survives, a PIN least of all', () => {
   const out = sanitizeLinkedBanks([
-    { blz: '37050198', name: '  Sparkasse\tKölnBonn ', userId: 'nino.becker', pin: '12345', accounts: ['1'] },
+    { blz: '37050198', name: '  Sparkasse\tKölnBonn ', userId: 'nino.becker', pin: '12345', accounts: ['1'], balance: 99 },
   ]);
-  assert.deepEqual(out, [{ blz: '37050198', name: 'Sparkasse KölnBonn', userId: 'nino.becker' }]);
+  assert.deepEqual(out, [{ blz: '37050198', name: 'Sparkasse KölnBonn', userId: 'nino.becker', accounts: ['1'] }]);
   assert.equal(JSON.stringify(out).includes('12345'), false);
 });
 
@@ -187,4 +187,31 @@ test('remembering adds a login once and keeps its name current; forgetting takes
   assert.ok(sameLogin(list[0], spk));
   assert.deepEqual(forgetLinkedBank(list, spk).map((r) => r.blz), ['12030000']);
   assert.deepEqual(forgetLinkedBank(list, { blz: '37050198', userId: 'other' }).length, 2);
+});
+
+test('the bank added first keeps a plain number, however the logins come in', () => {
+  const list = sanitizeLinkedBanks([
+    { blz: '37040044', name: 'Commerzbank', userId: 'a', accounts: ['123', '555'] },
+    { blz: '50010517', name: 'ING', userId: 'b', accounts: ['123'] },
+  ]);
+  // ING logs in first, Commerzbank not on screen: ING's 123 is still ING's "123@BLZ".
+  const ing = joinQualified([], [account('123', { iban: 'DE10500105170000000123' })], '50010517', () => null, claimedBefore(list, { blz: '50010517', userId: 'b' }));
+  assert.deepEqual(ing.added.map((a) => a.accountNumber), ['123@50010517']);
+  // Then Commerzbank: the plain 123 is its own.
+  const cb = joinQualified(ing.added, [account('123', { iban: 'DE20370400440000000123' })], '37040044', () => '50010517', claimedBefore(list, { blz: '37040044', userId: 'a' }));
+  assert.deepEqual(cb.added.map((a) => a.accountNumber), ['123']);
+  assert.deepEqual(cb.collisions, []);
+  // A bank not remembered yet comes after every remembered one.
+  assert.deepEqual([...claimedBefore(list, { blz: '12030000', userId: 'c' })], [['123', '37040044'], ['555', '37040044']]);
+});
+
+test('remembering a bank keeps its place and brings its accounts up to date', () => {
+  const list = sanitizeLinkedBanks([
+    { blz: '37040044', name: 'Commerzbank', userId: 'a', accounts: ['1'] },
+    { blz: '50010517', name: 'ING', userId: 'b' },
+  ]);
+  const next = rememberLinkedBank(list, { blz: '37040044', name: 'Commerzbank', userId: 'a', accounts: ['1', '2'] });
+  assert.deepEqual(next.map((r) => [r.userId, r.accounts]), [['a', ['1', '2']], ['b', undefined]]);
+  assert.deepEqual(rememberLinkedBank(next, { blz: '37040044', name: 'Commerzbank', userId: 'a' })[0].accounts, ['1', '2'], 'no accounts given: kept');
+  assert.deepEqual(sanitizeLinkedBanks([{ blz: '37040044', name: 'X', userId: 'a', accounts: ['1', 1, '', '1', 'x\u0007'] }])[0].accounts, ['1']);
 });

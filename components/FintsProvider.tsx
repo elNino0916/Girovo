@@ -75,7 +75,7 @@ import { localKey } from '@/lib/account-key';
 import { keepBalances as foldKeptBalances, recordNetWorth, type KeptBalance, type NetWorthDay } from '@/lib/kept-balances';
 import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
 import {
-  LINKED_BANK_LIMITS, forgetLinkedBank, joinQualified, rememberLinkedBank, routeFor, sameLogin,
+  LINKED_BANK_LIMITS, claimedBefore, forgetLinkedBank, joinQualified, rememberLinkedBank, routeFor, sameLogin,
 } from '@/lib/linked-banks';
 import {
   EMPTY_HISTORY, deliveredSpan, historyCoverage, mergeIntoHistory, planFetch, sanitizeHistory, savedPeriod,
@@ -3648,7 +3648,9 @@ function useFintsState() {
     const shown = again ? accountsRef.current.filter((a) => !again.accountNumbers.includes(a.accountNumber)) : accountsRef.current;
     // An account that only shares its number with one shown joins under its bank's key (lib/linked-banks.ts joinQualified).
     const blzOf = (a: SerializedAccount) => linksRef.current.find((l) => l.accountNumbers.includes(a.accountNumber))?.bank.blz ?? bankRef.current?.blz;
-    const joined = joinQualified(shown, list, chosen.blz, blzOf);
+    // …and one a bank added before this one holds, whether or not it is logged in now: the order banks
+    // were added decides which keeps the plain number, never the order they log in.
+    const joined = joinQualified(shown, list, chosen.blz, blzOf, claimedBefore(vaultRef.current?.linkedBanks ?? [], login));
     let refusal: KeptText | null = null;
     if (joined.collisions.length) {
       const named = joined.collisions.map(({ incoming }) => incoming);
@@ -3706,7 +3708,7 @@ function useFintsState() {
     }
     // Kept in the primary login's store — BLZ, name and login name — for the next login's offer.
     updateVault((v) => {
-      const next = rememberLinkedBank(v.linkedBanks ?? [], { ...login, name: chosen.name });
+      const next = rememberLinkedBank(v.linkedBanks ?? [], { ...login, name: chosen.name, accounts: list.map((a) => a.accountNumber) });
       return JSON.stringify(next) === JSON.stringify(v.linkedBanks ?? []) ? v : withLinkedBanks(v, next);
     });
     setAddBankBoth(null);
