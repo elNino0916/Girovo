@@ -240,8 +240,9 @@ export function SyncDialog() {
             {others.map((d) => (
               <li key={d.id} className="flex items-center gap-3 px-3 py-2.5">
                 <span className="text-ink-2" aria-hidden>{/android|telefon|phone/i.test(d.name) ? <PhoneIcon size={18} /> : <MonitorIcon size={18} />}</span>
-                <span className="min-w-0 flex-1 truncate text-[14px] text-ink">
-                  {d.name}{d.id === sync.deviceId ? ` · ${words.thisDevice}` : ''}
+                <span className="flex min-w-0 flex-1 items-baseline text-[14px] text-ink">
+                  <span className="min-w-0 truncate">{d.name}</span>
+                  {d.id === sync.deviceId && <span className="shrink-0 whitespace-pre">{` · ${words.thisDevice}`}</span>}
                 </span>
                 <span className="shrink-0 text-[12.5px] text-ink-3">{words.seen(when(d.at, words.never))}</span>
               </li>

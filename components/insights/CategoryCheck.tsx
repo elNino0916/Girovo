@@ -200,13 +200,13 @@ function OpenRow({ group, onPick }: { group: OpenGroup; onPick: (g: OpenGroup, i
       <CounterpartyAvatar tx={tx} name={name} credit={credit} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] leading-snug font-semibold text-ink">{name}</span>
-        <span className="block truncate text-[13px] leading-snug text-ink-3">
-          {lastFacts(group.txs, t)}
+        <span className="flex min-w-0 items-baseline text-[13px] leading-snug text-ink-3">
+          <span className="min-w-0 truncate">{lastFacts(group.txs, t)}</span>
           {group.txs.length === 1 && (
-            <>
+            <span className="shrink-0 whitespace-pre">
               {' · '}
               <Money value={tx.amount} currency={tx.currency || 'EUR'} signed tone="credit" />
-            </>
+            </span>
           )}
         </span>
       </span>

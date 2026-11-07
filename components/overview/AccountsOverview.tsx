@@ -664,9 +664,10 @@ function AccountRow({
           </span>
           {last ? (
             <>
-              <span className="col-start-2 truncate text-[14px] leading-5 text-ink-2">
+              <span className="col-start-2 flex min-w-0 items-baseline text-[14px] leading-5 text-ink-2">
                 <span className="sr-only">{words.columns.last}: </span>
-                {lastName} · {lastWhen}
+                <span className="min-w-0 truncate">{lastName}</span>
+                <span className="shrink-0 whitespace-pre"> · {lastWhen}</span>
               </span>
               <span className="col-start-3 text-right text-[14px] leading-5 text-ink-2">{lastAmount}</span>
             </>

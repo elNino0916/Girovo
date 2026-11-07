@@ -390,7 +390,7 @@ function DataRow({
   return (
     <div className="flex min-h-12 items-center gap-3 py-2">
       <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
-        <dt className="shrink-0 text-[13px] font-semibold text-ink-3 sm:w-12">{label}</dt>
+        <dt className="shrink-0 text-[13px] font-semibold text-ink-3 sm:w-10">{label}</dt>
         <dd className="min-w-0 overflow-x-auto [scrollbar-width:none]">{children}</dd>
       </div>
       <CopyButton text={copy} label={copyLabel} />
