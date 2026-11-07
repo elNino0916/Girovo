@@ -726,11 +726,31 @@ function matchManual(m: Pick<ManualContract, 'key' | 'shop' | 'cents'>, index: M
   return occ.sort((a, b) => a.n - b.n);
 }
 
+/**
+ * The newest booking a manual contract was seen with, from what it keeps
+ * (`day`, `cents`, `label`): what it is listed from once its bookings have
+ * left the loaded days — a yearly insurance paid in September, in December.
+ */
+function knownBooking(m: ManualContract): Occurrence | null {
+  if (!m.day) return null;
+  const currency = /\|([A-Z]{3})$/.exec(m.key)?.[1] ?? 'EUR';
+  const at = `${m.day}T12:00:00.000Z`;
+  const tx = {
+    valueDate: at, entryDate: at, amount: ((m.key.startsWith('in|') ? 1 : -1) * m.cents) / 100, currency,
+    purpose: '', bookingText: '', remoteName: m.label ?? '', remoteIban: '', remoteBic: '', creditorId: '', ultimateName: '',
+    e2eReference: '', mandateReference: '', customerReference: '', bankReference: '', transactionCode: '', primeNotesNr: '',
+    textKeyExtension: '', additionalInformation: '', statementNumber: '',
+  } as unknown as SerializedTransaction;
+  return { tx, day: m.day, n: dayNumber(m.day), abs: m.cents };
+}
+
 function manualSeries(
-  id: string, m: ManualContract, occ: readonly Occurrence[], ref: number,
+  id: string, m: ManualContract, loaded: readonly Occurrence[], ref: number,
   categoryOf: DetectOptions['categoryOf'], guessCtx: Pick<DetectOptions, 'ownIbans' | 'modelGuesses'>,
 ): RecurringSeries | null {
   const cadence = CADENCE_BY_ID.get(m.cadence);
+  const known = loaded.length ? null : knownBooking(m);
+  const occ = known ? [known] : loaded;
   if (!cadence || !occ.length) return null;
   const newest = occ[occ.length - 1].tx;
   const gaps = occ.slice(1).map((o, i) => o.n - occ[i].n);
@@ -754,13 +774,17 @@ function manualSeries(
  */
 export function manualPreview(
   txs: readonly SerializedTransaction[], tx: SerializedTransaction,
-): { key: string; shop: string | null; cents: number; count: number; firstDate: string; cadence: Cadence | null } | null {
+): { key: string; shop: string | null; cents: number; count: number; firstDate: string; lastDate: string; cadence: Cadence | null } | null {
   const { key, shop } = seriesIdentity(tx);
   const cents = Math.abs(Math.round(Number(tx.amount) * 100));
   if (!key || !cents) return null;
   const occ = matchManual({ key, shop: shop ?? undefined, cents }, identityIndex([...txs, ...(txs.includes(tx) ? [] : [tx])]));
   const rhythm = rhythmOf(occ);
-  return { key, shop, cents, count: occ.length, firstDate: occ[0]?.day ?? dayKey(tx.entryDate || tx.valueDate), cadence: rhythm?.cadence.id ?? null };
+  const own = dayKey(tx.entryDate || tx.valueDate);
+  return {
+    key, shop, cents, count: occ.length, firstDate: occ[0]?.day ?? own, lastDate: occ[occ.length - 1]?.day ?? own,
+    cadence: rhythm?.cadence.id ?? null,
+  };
 }
 
 /** Every recurring series in the bookings, income first, then by monthly weight. */

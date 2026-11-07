@@ -65,6 +65,7 @@ import { UsageConsentTile } from './telemetry/UsageConsent';
 import { trackUsage } from './telemetry/usage';
 import { PullToRefresh } from './android/PullToRefresh';
 import { useLaunches } from './android/useLaunches';
+import { ManualContractDays } from './insights/AddContract';
 
 /**
  * Which shell: the desktop's frame from 640px ("Konten als Ebenen",
@@ -290,6 +291,8 @@ function ShellLayers({ frame = false }: { frame?: boolean }) {
       <BackgroundDialog />
       {/* Verträge & Abos' contracts for the checks' alerts: only while they are on. */}
       {backgroundChecks === true && <AlertWatch />}
+      {/* The contracts the user added keep their newest booking (components/insights/AddContract.tsx). */}
+      <ManualContractDays />
       <SyncDialog />
       {/* Once after the update from an older Girovo (components/NewInSix.tsx). */}
       <NewInSix />

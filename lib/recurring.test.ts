@@ -649,3 +649,20 @@ test('manual: of two contracts at one payer, each booking belongs to the one nea
   });
   assert.deepEqual(series.map((s) => [s.name, s.count]).sort(), [['A', 3], ['B', 3]]);
 });
+
+test('manual: once its bookings have left the loaded days, it is listed from the newest one it kept', () => {
+  const key = seriesIdentity(insurance('2026-03-02')).key!;
+  const m = { key, cents: 31240, cadence: 'yearly' as const, name: 'Kfz-Versicherung', at: '2026-03-05', day: '2026-03-02', label: 'HUK-COBURG' };
+  const s = only(detectRecurring([netflixMt940('2026-09-15')].filter(() => false), { today: TODAY, manual: { k: m } }));
+  assert.equal(s.name, 'Kfz-Versicherung');
+  assert.equal(s.lastDate, '2026-03-02');
+  assert.equal(s.nextDate, '2027-03-02');
+  assert.equal(s.yearlyAmount, -312.4);
+  assert.equal(s.overdue, false);
+  // Without a kept booking (added before 6.0.0 kept one), nothing to list.
+  const { day: _d, ...bare } = m;
+  assert.equal(detectRecurring([], { today: TODAY, manual: { k: bare } }).length, 0);
+  // A loaded booking wins over the kept one.
+  const loaded = only(detectRecurring([insurance('2026-03-02')], { today: TODAY, manual: { k: { ...m, day: '2025-03-03' } } }));
+  assert.equal(loaded.lastDate, '2026-03-02');
+});

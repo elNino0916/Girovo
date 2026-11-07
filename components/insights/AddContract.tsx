@@ -8,7 +8,7 @@
 // bookings that is. Every booking from the same payer at a similar amount
 // belongs, earlier and later ones alike (lib/recurring.ts).
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { dayKey, displayName } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
@@ -33,6 +33,31 @@ export function useInContract(): Set<SerializedTransaction> {
     () => new Set([...model.income, ...model.expense, ...model.ended, ...model.dismissed].flatMap((s: RecurringSeries) => s.transactions)),
     [model.income, model.expense, model.ended, model.dismissed],
   );
+}
+
+/**
+ * Moves each added contract's newest booking on (lib/manual-contracts.ts
+ * `day`, `label`) as newer ones are loaded, so that once they have left the
+ * loaded days it is listed from the latest one it saw — not from the day it
+ * was added, which would make it look overdue a cycle later.
+ */
+export function ManualContractDays() {
+  const model = useRecurringModel();
+  const { vault, vaultStatus, setManualContract } = useFints();
+  const manual = vault?.manualContracts;
+  useEffect(() => {
+    if (vaultStatus !== 'ready' || !manual) return;
+    for (const s of [...model.income, ...model.expense, ...model.ended, ...model.dismissed]) {
+      const m = s.manual ? manual[s.id] : undefined;
+      const newest = s.transactions[0];
+      if (!m || !newest) continue;
+      const label = m.label || displayName(txText(newest).name);
+      if ((!m.day || m.day < s.lastDate) || (!m.label && label)) {
+        setManualContract(s.id, { ...m, day: !m.day || m.day < s.lastDate ? s.lastDate : m.day, ...(label ? { label } : {}) });
+      }
+    }
+  }, [model, manual, vaultStatus, setManualContract]);
+  return null;
 }
 
 /** `tx`: the booking it is made from; without one, the dialog asks for it first. */
@@ -126,6 +151,9 @@ function DetailsStep({ tx, onBack, onClose }: { tx: SerializedTransaction; onBac
       // The bank's own name is kept as the bank's: it follows the bookings.
       name: typed && typed !== bankName ? typed : '',
       at: dayKey(new Date()),
+      // Its newest booking, to be listed from once the bookings have left the loaded days.
+      day: preview.lastDate,
+      label: bankName,
     });
     toast(words.added(typed || bankName), 'info');
     onClose();

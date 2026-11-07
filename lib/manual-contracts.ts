@@ -7,7 +7,9 @@
 // later ones alike (lib/recurring.ts detectRecurring, `manual`).
 //
 // Kept in the vault by series id and synced, the counterpart of the series
-// the user dismissed.
+// the user dismissed. Its newest booking is kept too (`day`, `label`), so a
+// yearly contract stays listed once that booking has left the loaded days
+// (components/insights/AddContract.tsx ManualContractDays moves it on).
 //
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
@@ -25,6 +27,10 @@ export type ManualContract = {
   name: string;
   /** yyyy-mm-dd it was added. */
   at: string;
+  /** yyyy-mm-dd of the newest booking it was seen with: listed from that booking when none is loaded. */
+  day?: string;
+  /** The bank's name for the payer on that booking. */
+  label?: string;
 };
 
 export const MANUAL_MAX = 100;
@@ -57,6 +63,7 @@ export function sanitizeManual(raw: unknown): Record<string, ManualContract> | u
     if (!(MANUAL_CADENCES as readonly unknown[]).includes(r.cadence)) continue;
     const shop = typeof r.shop === 'string' && r.shop && r.shop.length <= KEY_MAX && !CONTROLS.test(r.shop) ? r.shop : undefined;
     const name = typeof r.name === 'string' ? r.name.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, NAME_MAX) : '';
+    const label = typeof r.label === 'string' ? r.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, NAME_MAX) : '';
     out[id] = {
       key: r.key,
       ...(shop ? { shop } : {}),
@@ -64,6 +71,8 @@ export function sanitizeManual(raw: unknown): Record<string, ManualContract> | u
       cadence: r.cadence as Cadence,
       name,
       at: isDay(r.at) ? r.at : '1970-01-01',
+      ...(isDay(r.day) ? { day: r.day } : {}),
+      ...(label ? { label } : {}),
     };
   }
   return Object.keys(out).length ? out : undefined;
