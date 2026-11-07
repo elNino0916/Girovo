@@ -46,6 +46,11 @@
 // execute debits and standing orders, unless the series' history shows its
 // payer paying early (salary due on a Saturday arrives on the Friday).
 //
+// The user can add what this misses (lib/manual-contracts.ts): a booking
+// marked as a contract takes every booking from the same payer at a similar
+// amount, at the rhythm the user chose, however few there are; a recognised
+// series that shares a booking with it gives way.
+//
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
 import type { SerializedTransaction } from './fints-types';
@@ -58,6 +63,7 @@ import {
 } from './format.ts';
 import { msgs } from './i18n/index.ts';
 import { parsePurpose } from './sepa-purpose.ts';
+import { nearAmount, type ManualContract } from './manual-contracts.ts';
 
 export type Cadence = 'weekly' | 'monthly' | 'quarterly' | 'halfyearly' | 'yearly';
 
@@ -146,6 +152,8 @@ export type RecurringSeries = {
   ended: boolean;
   /** Newest first. */
   transactions: SerializedTransaction[];
+  /** Added by the user from a booking (lib/manual-contracts.ts): removed, never dismissed. */
+  manual?: true;
 };
 
 export type DetectOptions = {
@@ -168,6 +176,8 @@ export type DetectOptions = {
    * is told from a contract the same way a known chain is.
    */
   modelGuesses?: Readonly<Record<string, CategoryId>> | null;
+  /** The contracts the user added, by series id (lib/manual-contracts.ts). */
+  manual?: Readonly<Record<string, ManualContract>> | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -550,6 +560,20 @@ function buildSeries(
     return null;
   }
 
+  return assemble(key, group, occ, cadence, interval, ref, category, directDebit);
+}
+
+/**
+ * A series from its bookings and rhythm, once they are accepted as one: what
+ * it costs, whether its price changed, when it comes next. `nameOverride`:
+ * the name the user gave a contract they added.
+ */
+function assemble(
+  key: string, group: Group, occ: readonly Occurrence[], cadence: CadenceDef, interval: number, ref: number,
+  category: CategoryId, directDebit: boolean, nameOverride?: string,
+): RecurringSeries {
+  const newest = occ[occ.length - 1].tx;
+  const abs = occ.map((o) => o.abs);
   const sign = group.credit ? 1 : -1;
   const { typical, variable } = typicalAmount(abs);
   const lastAbs = abs[abs.length - 1];
@@ -582,7 +606,7 @@ function buildSeries(
     kind: group.credit ? 'income' : 'expense',
     // Words, not data, where the bookings name nobody: read when they are read.
     get name() {
-      return named || msgs().insights.noName;
+      return nameOverride || named || msgs().insights.noName;
     },
     iban,
     creditorId: group.cred,
@@ -661,6 +685,81 @@ function facilitatorSeries(
   return out;
 }
 
+
+// ---------------------------------------------------------------------------
+// Contracts the user added
+// ---------------------------------------------------------------------------
+
+/** A manual contract's id: the payer, the shop and the amount it was made from. */
+export const manualId = (key: string, shop: string | null | undefined, cents: number): string =>
+  `man_${cyrb53(`${key}|${shop ?? ''}|${cents}`).toString(36)}`;
+
+type Indexed = { tx: SerializedTransaction; shop: string | null };
+
+/** The bookings by their identity (seriesIdentity), worked out once for every manual contract. */
+function identityIndex(txs: readonly SerializedTransaction[]): Map<string, Indexed[]> {
+  const index = new Map<string, Indexed[]>();
+  for (const tx of txs) {
+    const { key, shop } = seriesIdentity(tx);
+    if (!key) continue;
+    const list = index.get(key);
+    if (list) list.push({ tx, shop });
+    else index.set(key, [{ tx, shop }]);
+  }
+  return index;
+}
+
+/** The loaded bookings a manual contract takes: its payer, its shop, a similar amount — in date order. */
+function matchManual(m: Pick<ManualContract, 'key' | 'shop' | 'cents'>, index: Map<string, Indexed[]>): Occurrence[] {
+  const occ: Occurrence[] = [];
+  for (const { tx, shop } of index.get(m.key) ?? []) {
+    if (m.shop && shop !== m.shop) continue;
+    const abs = Math.abs(Math.round(Number(tx.amount) * 100));
+    if (!nearAmount(m.cents, abs)) continue;
+    const day = dayKey(tx.entryDate || tx.valueDate);
+    if (!day) continue;
+    occ.push({ tx, day, n: dayNumber(day), abs });
+  }
+  return occ.sort((a, b) => a.n - b.n);
+}
+
+function manualSeries(
+  id: string, m: ManualContract, occ: readonly Occurrence[], ref: number,
+  categoryOf: DetectOptions['categoryOf'], guessCtx: Pick<DetectOptions, 'ownIbans' | 'modelGuesses'>,
+): RecurringSeries | null {
+  const cadence = CADENCE_BY_ID.get(m.cadence);
+  if (!cadence || !occ.length) return null;
+  const newest = occ[occ.length - 1].tx;
+  const gaps = occ.slice(1).map((o, i) => o.n - occ[i].n);
+  const group: Group = {
+    key: m.key, credit: m.key.startsWith('in|'), occ: [...occ], cred: txCreditorId(newest), mref: txMandate(newest),
+    salary: false, facilitator: !!m.shop,
+  };
+  const category = categoryOf ? categoryOf(newest).id : guessCategory(newest, guessCtx);
+  // Filed like a recognised series' sub-series, so the background check knows its payer (seriesBase).
+  const key = m.shop ? `${m.key}|shop:${m.shop}` : `${m.key}|amt:${Math.round(m.cents / 100)}`;
+  const s = assemble(key, group, occ, cadence, gaps.length ? median(gaps) : cadence.days, ref, category, bookingKind(newest) === 'lastschrift', m.name);
+  s.id = id;
+  s.manual = true;
+  return s;
+}
+
+/**
+ * What marking `tx` as a contract would bring together: its payer, the loaded
+ * bookings that would belong (itself among them), and the rhythm they show
+ * where there are two or more — null for a booking with no payer to know it by.
+ */
+export function manualPreview(
+  txs: readonly SerializedTransaction[], tx: SerializedTransaction,
+): { key: string; shop: string | null; cents: number; count: number; firstDate: string; cadence: Cadence | null } | null {
+  const { key, shop } = seriesIdentity(tx);
+  const cents = Math.abs(Math.round(Number(tx.amount) * 100));
+  if (!key || !cents) return null;
+  const occ = matchManual({ key, shop: shop ?? undefined, cents }, identityIndex([...txs, ...(txs.includes(tx) ? [] : [tx])]));
+  const rhythm = rhythmOf(occ);
+  return { key, shop, cents, count: occ.length, firstDate: occ[0]?.day ?? dayKey(tx.entryDate || tx.valueDate), cadence: rhythm?.cadence.id ?? null };
+}
+
 /** Every recurring series in the bookings, income first, then by monthly weight. */
 export function detectRecurring(txs: readonly SerializedTransaction[], opts: DetectOptions = {}): RecurringSeries[] {
   const today = dayKey(opts.today ?? new Date());
@@ -727,8 +826,17 @@ export function detectRecurring(txs: readonly SerializedTransaction[], opts: Det
     }
   }
 
-  return out
-    .filter((s) => !dismissed.has(s.id))
+  let series = out.filter((s) => !dismissed.has(s.id));
+  const manual = opts.manual ? Object.entries(opts.manual) : [];
+  if (manual.length) {
+    const index = identityIndex(txs);
+    const added = manual.flatMap(([id, m]) => manualSeries(id, m, matchManual(m, index), ref, categoryOf, guessCtx) ?? []);
+    // A booking belongs to one contract: a recognised series that shares one with the user's gives way.
+    const taken = new Set(added.flatMap((s) => s.transactions));
+    series = [...series.filter((s) => !s.transactions.some((tx) => taken.has(tx))), ...added];
+  }
+
+  return series
     .sort(
       (a, b) =>
         (a.kind === b.kind ? 0 : a.kind === 'income' ? -1 : 1) ||

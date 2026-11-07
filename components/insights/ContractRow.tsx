@@ -166,7 +166,7 @@ export function ContractRow({
               <span className="mt-0.5 block text-[13px] text-ink-2 md:hidden">
                 <DueText s={s} compact />
               </span>
-              {(price || rose || reminder) && (
+              {(price || rose || reminder || s.manual) && (
                 <span className="mt-1.5 flex flex-wrap gap-1.5">
                   {price ? (
                     <Tag tone={price.delta > 0 && !credit ? 'emphasis' : 'neutral'} size="sm">
@@ -185,6 +185,8 @@ export function ContractRow({
                       {words.cancelBy(fmtDayKey(reminder.by))}
                     </Tag>
                   )}
+                  {/* Added by the user (lib/manual-contracts.ts): not a guess of the app's. */}
+                  {s.manual && <Tag size="sm">{words.manual.mark}</Tag>}
                 </span>
               )}
             </span>
@@ -228,10 +230,10 @@ export function ContractRow({
             )}
             <MenuItem
               icon={<EyeOffIcon size={18} />}
-              description={words.dismissHint}
+              description={s.manual ? words.manual.removeHint : words.dismissHint}
               onSelect={dismiss}
             >
-              {words.dismiss}
+              {s.manual ? words.manual.remove : words.dismiss}
             </MenuItem>
           </Menu>
         </span>
@@ -302,7 +304,7 @@ export function ContractRow({
                   {reminder ? words.reminder.change : words.reminder.set}
                 </Button>
               )}
-              <Button size="sm" variant="tertiary" onClick={dismiss}>{words.dismiss}</Button>
+              <Button size="sm" variant="tertiary" onClick={dismiss}>{s.manual ? words.manual.remove : words.dismiss}</Button>
             </div>
           </>
         )}

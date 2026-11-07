@@ -99,6 +99,7 @@ import {
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import { PAGE_OF, type SettingsPage } from '@/lib/settings-pages';
+import type { ManualContract } from '@/lib/manual-contracts';
 import type {
   BankOrderKind, Merchant, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedPortfolio, SerializedTanMethod,
   SerializedTransaction, SerializedVop,
@@ -2799,6 +2800,17 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     });
   }, [updateVault]);
 
+  /** A contract the user added from a booking (lib/manual-contracts.ts), or removed with null. */
+  const setManualContract = useCallback((id: string, contract: ManualContract | null) => {
+    updateVault((v) => {
+      const next = { ...v.manualContracts };
+      if (contract) next[id] = contract;
+      else delete next[id];
+      const { manualContracts: _, ...rest } = v;
+      return Object.keys(next).length ? { ...rest, manualContracts: next } : rest;
+    });
+  }, [updateVault]);
+
   const markContractsNoticed = useCallback((notices: readonly ContractNotice[]) => {
     if (!notices.length) return;
     updateVault((v) => ({ ...v, noticedContracts: withNoticed(v.noticedContracts, notices) }));
@@ -3006,7 +3018,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
     accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
-    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, markContractsNoticed,
+    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setManualContract, markContractsNoticed,
     printTaxYear, loadRange,
     makeBackup, restoreBackup, inspectBankFile, importBankFile,
     categoryOf, setCategory, setSplit,

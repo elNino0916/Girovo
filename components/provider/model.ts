@@ -11,6 +11,7 @@ import { isGrouping, sanitizeAccountOrder } from '@/lib/account-overview';
 import { isAvatarChoice, isAvatarImage, OWN_PICTURE } from '@/lib/avatars';
 import { sanitizeBudgets } from '@/lib/budgets';
 import { sanitizeNoticed, sanitizeReminders } from '@/lib/contract-watch';
+import { sanitizeManual } from '@/lib/manual-contracts';
 import type { CategoryId } from '@/lib/categories';
 import { post } from '@/lib/client-api';
 import type { KeptDoc } from '@/lib/docs';
@@ -695,6 +696,7 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
       ? raw.dismissedRecurring.filter((id): id is string => typeof id === 'string')
       : [],
     ...(sanitizeReminders(raw.contractReminders) ? { contractReminders: sanitizeReminders(raw.contractReminders) } : {}),
+    ...(sanitizeManual(raw.manualContracts) ? { manualContracts: sanitizeManual(raw.manualContracts) } : {}),
     ...(sanitizeNoticed(raw.noticedContracts) ? { noticedContracts: sanitizeNoticed(raw.noticedContracts) } : {}),
     // The same rules the vault applies (lib/budgets.ts, lib/notes.ts) — and
     // an older vault without either reads as one without any.

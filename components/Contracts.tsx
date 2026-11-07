@@ -16,7 +16,8 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { OrdersEntry } from './BankOrders';
 import { useFints } from './FintsProvider';
 import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, IconButton, Skeleton, Spinner, cx } from './ui';
-import { BackIcon, ChevronIcon, Icon } from './icons';
+import { BackIcon, ChevronIcon, Icon, PlusIcon } from './icons';
+import { AddContractDialog } from './insights/AddContract';
 import { namesList } from '@/lib/balances';
 import { fmtRange, displayName, presetRange } from '@/lib/format';
 import type { Messages } from '@/lib/i18n';
@@ -40,15 +41,26 @@ function unseenPhrase(unseen: readonly Cadence[], t: Messages): string {
 }
 
 function useDismiss() {
-  const { dismissRecurring, restoreRecurring, toast } = useFints();
+  const { dismissRecurring, restoreRecurring, toast, vault, setManualContract } = useFints();
   const t = useT();
+  const manual = vault?.manualContracts;
   const dismiss = useCallback((s: RecurringSeries) => {
+    // One the user added is taken out, not hidden — with the way back.
+    if (s.manual) {
+      const kept = manual?.[s.id];
+      setManualContract(s.id, null);
+      toast(t.insights.contracts.manual.removed(displayName(s.name)), 'info', 6500, kept ? {
+        label: t.insights.contracts.undo,
+        run: () => setManualContract(s.id, kept),
+      } : undefined);
+      return;
+    }
     dismissRecurring(s.id);
     toast(t.insights.contracts.dismissed(displayName(s.name)), 'info', 6500, {
       label: t.insights.contracts.undo,
       run: () => restoreRecurring(s.id),
     });
-  }, [dismissRecurring, restoreRecurring, toast, t]);
+  }, [dismissRecurring, restoreRecurring, toast, t, manual, setManualContract]);
   const restore = useCallback((s: RecurringSeries) => restoreRecurring(s.id), [restoreRecurring]);
   return { dismiss, restore };
 }
@@ -261,6 +273,9 @@ function ContractsFromBookings() {
         </section>
       )}
 
+      {/* What the detection missed — a yearly insurance, a new subscription — from one of its bookings. */}
+      <AddContractRow />
+
       {(ended.length > 0 || dismissed.length > 0) && (
         <section className="panel overflow-hidden" aria-label={words.moreFound}>
           {ended.length > 0 && (
@@ -293,6 +308,32 @@ function ContractsFromBookings() {
         </section>
       )}
     </div>
+  );
+}
+
+/** "Vertrag hinzufügen": a contract Girovo did not recognise, from one of its bookings (components/insights/AddContract.tsx). */
+function AddContractRow() {
+  const t = useT();
+  const words = t.insights.contracts.manual;
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="panel" aria-label={words.add}>
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+        className="row-focus flex min-h-16 w-full items-center gap-4 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] sm:px-6"
+      >
+        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-inset text-ink-2">
+          <PlusIcon size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[16px] leading-6 font-medium text-ink">{words.add}</span>
+          <span className="block text-[14px] leading-5 text-ink-2">{words.addHint}</span>
+        </span>
+      </button>
+      {open && <AddContractDialog onClose={() => setOpen(false)} />}
+    </section>
   );
 }
 

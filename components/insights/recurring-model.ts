@@ -72,6 +72,8 @@ export type RecurringModel = {
   incomplete: boolean;
   /** The account a series' newest booking was booked on. */
   accountOf: (s: RecurringSeries) => string | null;
+  /** The bookings the detection read: where a contract the user adds is picked from (components/insights/AddContract.tsx). */
+  txs: SerializedTransaction[];
   /** Nothing loaded yet, and something is on its way (a statement or the vault). */
   loading: boolean;
 };
@@ -116,7 +118,9 @@ type Loaded = {
   from: string; to: string; until: string; longest: number; shortest: number; spans: Record<string, number>;
 };
 let lastLoaded: { txByAccount: unknown; statementInfo: unknown; value: Loaded } | null = null;
-let lastDetected: { loaded: Loaded; ownIbans: unknown; categoryOf: unknown; modelGuesses: unknown; until: string; value: RecurringSeries[] } | null = null;
+let lastDetected: {
+  loaded: Loaded; ownIbans: unknown; categoryOf: unknown; modelGuesses: unknown; manual: unknown; until: string; value: RecurringSeries[];
+} | null = null;
 
 export function useRecurringModel(): RecurringModel {
   const {
@@ -156,15 +160,17 @@ export function useRecurringModel(): RecurringModel {
     return value;
   }, [txByAccount, statementInfo]);
 
+  // The contracts the user added (lib/manual-contracts.ts) join the recognised ones.
+  const manual = vault?.manualContracts;
   const detected = useMemo(() => {
     const until = loaded.until || dayKey(new Date());
     const last = lastDetected;
     if (last && last.loaded === loaded && last.ownIbans === ownIbans && last.categoryOf === categoryOf
-      && last.modelGuesses === modelGuesses && last.until === until) return last.value;
-    const value = loaded.txs.length ? detectRecurring(loaded.txs, { ownIbans, categoryOf, modelGuesses, until }) : [];
-    lastDetected = { loaded, ownIbans, categoryOf, modelGuesses, until, value };
+      && last.modelGuesses === modelGuesses && last.manual === manual && last.until === until) return last.value;
+    const value = loaded.txs.length ? detectRecurring(loaded.txs, { ownIbans, categoryOf, modelGuesses, until, manual }) : [];
+    lastDetected = { loaded, ownIbans, categoryOf, modelGuesses, manual, until, value };
     return value;
-  }, [loaded, ownIbans, categoryOf, modelGuesses]);
+  }, [loaded, ownIbans, categoryOf, modelGuesses, manual]);
 
   const dismissedIds = vault?.dismissedRecurring;
   const currency = activeAccount?.currency || 'EUR';
@@ -213,6 +219,7 @@ export function useRecurringModel(): RecurringModel {
       unseen: loaded.accts.length ? unseenCadences(loaded.shortest) : [],
       incomplete: bases.some((b) => b.status === 'failed'),
       accountOf: (s) => (s.transactions[0] ? loaded.owner.get(s.transactions[0]) ?? null : null),
+      txs: loaded.txs,
       // Before the vault answers, a dismissed series would flash back in; and
       // with nothing loaded yet, "nothing found" would be a false statement.
       loading: vaultStatus === 'loading' || (!loaded.accts.length && !!loadingAccount),

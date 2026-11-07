@@ -40,6 +40,7 @@ import path from 'node:path';
 import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
 import { isRecord } from './guards.ts';
 import { sanitizeNoticed, sanitizeReminders } from './contract-watch.ts';
+import { sanitizeManual } from './manual-contracts.ts';
 import { sanitizeKeptBalances, sanitizeNetWorth } from './kept-balances.ts';
 import type { TransferTemplate, VaultData, VaultGetResponse, VaultPutResponse } from './app-types.ts';
 import type { CategoryId } from './categories.ts';
@@ -260,6 +261,7 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     dismissedRecurring: dismissed.slice(-VAULT_LIMITS.dismissed),
     // A real date, a lead on offer, a name each (lib/contract-watch.ts).
     ...(sanitizeReminders(input.contractReminders) ? { contractReminders: sanitizeReminders(input.contractReminders) } : {}),
+    ...(sanitizeManual(input.manualContracts) ? { manualContracts: sanitizeManual(input.manualContracts) } : {}),
     ...(sanitizeNoticed(input.noticedContracts) ? { noticedContracts: sanitizeNoticed(input.noticedContracts) } : {}),
     // Spending categories only, whole cents (lib/budgets.ts).
     budgets: sanitizeBudgets(input.budgets, customCategories),
@@ -572,6 +574,9 @@ export function mergeVaults(current: VaultData, backup: VaultData): VaultData {
     dismissedRecurring: [...new Set([...current.dismissedRecurring, ...backup.dismissedRecurring])],
     ...(current.contractReminders || backup.contractReminders
       ? { contractReminders: { ...backup.contractReminders, ...current.contractReminders } }
+      : {}),
+    ...(current.manualContracts || backup.manualContracts
+      ? { manualContracts: { ...backup.manualContracts, ...current.manualContracts } }
       : {}),
     ...(current.avatar || !backup.avatar ? {} : { avatar: backup.avatar, ...(backup.avatarImage ? { avatarImage: backup.avatarImage } : {}) }),
     ...(current.linkedBanks || backup.linkedBanks

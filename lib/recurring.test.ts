@@ -5,7 +5,8 @@ import type { SerializedTransaction } from './fints-types';
 import { counterpartyKey } from './categories.ts';
 import { categorize } from './categorize.ts';
 import {
-  cadenceLabel, detectRecurring, recurringGroups, recurringTotals, seriesId, txCreditorId, txMandate, unseenCadences, upcoming,
+  cadenceLabel, detectRecurring, manualId, manualPreview, recurringGroups, recurringTotals, seriesId, seriesIdentity, txCreditorId,
+  txMandate, unseenCadences, upcoming,
   type RecurringSeries,
 } from './recurring.ts';
 import { CRED, IBAN, OWN_IBANS, OWN_SAVINGS, camt, mt940, newestFirst } from './__fixtures__/transactions.ts';
@@ -558,4 +559,63 @@ test('the on-device guess tells a habit from a contract where the keywords know 
   const key = counterpartyKey(txs[0]);
   const withGuess = detectRecurring(newestFirst(txs), { today: TODAY, modelGuesses: { [key]: 'groceries' } });
   assert.deepEqual(withGuess, [], listed(withGuess));
+});
+
+// ---------------------------------------------------------------------------
+// Contracts the user added (lib/manual-contracts.ts)
+
+const insurance = (day: string, amount = -312.4) =>
+  mt940({ day, amount, gvc: '105', text: 'BASISLASTSCHRIFT', name: 'HUK-COBURG', iban: IBAN.netflix, cred: 'DE12ZZZ00000123456', mref: 'KFZ-2026', purpose: 'Kfz-Versicherung' });
+
+test('manual: one yearly booking becomes a contract at the chosen rhythm, with its next date a year on', () => {
+  const tx = insurance('2026-03-02');
+  assert.equal(detectRecurring([tx], { today: TODAY }).length, 0, 'one booking is never recognised by itself');
+  const key = seriesIdentity(tx).key!;
+  const id = manualId(key, null, 31240);
+  const s = only(detectRecurring([tx], { today: TODAY, manual: { [id]: { key, cents: 31240, cadence: 'yearly', name: 'Kfz-Versicherung', at: '2026-10-03' } } }));
+  assert.equal(s.id, id);
+  assert.equal(s.manual, true);
+  assert.equal(s.name, 'Kfz-Versicherung', "the user's name over the bank's");
+  assert.equal(s.cadence, 'yearly');
+  assert.equal(s.count, 1);
+  assert.equal(s.nextDate, '2027-03-02');
+  assert.equal(s.yearlyAmount, -312.4);
+  assert.equal(s.ended, false);
+});
+
+test('manual: the same payer at a similar amount joins, earlier and later; another amount from it does not', () => {
+  const picked = insurance('2026-03-02');
+  const key = seriesIdentity(picked).key!;
+  const txs = newestFirst([
+    insurance('2025-03-03', -298.9), // last year's price: within a quarter
+    picked,
+    insurance('2026-05-20', -45), // a one-off from the same creditor
+  ]);
+  const s = only(detectRecurring(txs, { today: TODAY, manual: { m1: { key, cents: 31240, cadence: 'yearly', name: '', at: '2026-10-03' } } }));
+  assert.equal(s.count, 2);
+  assert.equal(s.firstDate, '2025-03-03');
+  assert.equal(s.name, 'HUK-COBURG', 'no name of its own: the bank\'s');
+  assert.ok(s.priceChange && s.priceChange.delta > 13 && s.priceChange.delta < 14, 'the price went up by 13,50');
+});
+
+test('manual: a recognised series sharing a booking gives way to the user\'s contract', () => {
+  const txs = newestFirst([netflixMt940('2026-07-15'), netflixMt940('2026-08-17'), netflixMt940('2026-09-15')]);
+  const recognised = only(detectRecurring(txs, { today: TODAY }));
+  const key = seriesIdentity(txs[0]).key!;
+  const s = only(detectRecurring(txs, { today: TODAY, manual: { mine: { key, cents: 1299, cadence: 'monthly', name: 'Netflix', at: '2026-10-03' } } }));
+  assert.equal(s.id, 'mine');
+  assert.notEqual(s.id, recognised.id);
+  assert.equal(s.count, 3);
+});
+
+test('manual: the preview says what would belong and the rhythm it shows', () => {
+  const txs = newestFirst([insurance('2025-03-03', -298.9), insurance('2026-03-02')]);
+  const p = manualPreview(txs, txs[0])!;
+  assert.equal(p.count, 2);
+  assert.equal(p.firstDate, '2025-03-03');
+  assert.equal(p.cadence, 'yearly');
+  assert.equal(p.cents, 31240);
+  const single = manualPreview([], insurance('2026-03-02'))!;
+  assert.equal(single.count, 1);
+  assert.equal(single.cadence, null, 'one booking shows no rhythm');
 });

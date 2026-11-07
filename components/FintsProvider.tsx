@@ -94,6 +94,7 @@ import {
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import { PAGE_OF, type SettingsPage } from '@/lib/settings-pages';
+import type { ManualContract } from '@/lib/manual-contracts';
 import type {
   BalanceResponse, BankOrderKind, BankOrdersAnswer, BankOrdersResponse, BankStatementsAnswer, BankStatementsResponse,
   ConnectResponse, DeleteOrderResponse,
@@ -5169,6 +5170,17 @@ function useFintsState() {
     });
   }, [updateVault]);
 
+  /** A contract the user added from a booking (lib/manual-contracts.ts), or removed with null. */
+  const setManualContract = useCallback((id: string, contract: ManualContract | null) => {
+    updateVault((v) => {
+      const next = { ...v.manualContracts };
+      if (contract) next[id] = contract;
+      else delete next[id];
+      const { manualContracts: _, ...rest } = v;
+      return Object.keys(next).length ? { ...rest, manualContracts: next } : rest;
+    });
+  }, [updateVault]);
+
   /** The contract notices Mitteilungen showed: no dot for them again. */
   const markContractsNoticed = useCallback((notices: readonly ContractNotice[]) => {
     if (!notices.length) return;
@@ -5606,7 +5618,7 @@ function useFintsState() {
     updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
     accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
-    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, markContractsNoticed,
+    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setManualContract, markContractsNoticed,
     categoryOf, setCategory, setSplit,
     removeCategoryRule,
     addCustomCategory, renameCustomCategory, deleteCustomCategory,

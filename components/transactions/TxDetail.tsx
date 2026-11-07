@@ -32,6 +32,8 @@ import {
   cardFacts, counterpartyQuery, countryName, referenceRows, shortDay, statusTags, transferSeeds, txText,
   type StatusTag,
 } from './model';
+import { seriesIdentity } from '@/lib/recurring';
+import { AddContractDialog, useInContract } from '../insights/AddContract';
 
 /** SEPA purpose tags whose value is an amount: Ursprungsbetrag, Zinskompensationsbetrag. */
 const AMOUNT_TAGS = new Set(['OAMT', 'COAM']);
@@ -71,6 +73,10 @@ export function TxDetail({
   } = useFints();
   const activeAccount = account ?? active;
   const [splitting, setSplitting] = useState(false);
+  // A booking no contract holds yet, with a payer to know the next ones by (lib/manual-contracts.ts).
+  const inContract = useInContract();
+  const [contracting, setContracting] = useState(false);
+  const canContract = !pending && !inContract.has(tx) && !!seriesIdentity(tx).key;
   // `tr`, not `t`: in this file `t` is a booking.
   const tr = useT();
   const words = tr.transactions.detail;
@@ -301,7 +307,13 @@ export function TxDetail({
           >
             {words.receipt}
           </Button>
+          {canContract && (
+            <Button size="sm" variant="tertiary" iconLeft={<RepeatIcon size={16} />} onClick={() => setContracting(true)}>
+              {tr.insights.contracts.manual.fromBooking}
+            </Button>
+          )}
         </div>
+        {contracting && <AddContractDialog tx={tx} onClose={() => setContracting(false)} />}
 
       <DetailTabs
         label={pending ? words.pendingTitle : words.title}
