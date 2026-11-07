@@ -167,7 +167,7 @@ pub fn background_result(app: AppHandle, id: u64, result: Option<CheckResult>) {
   app.state::<Prefs>().set(LAST_PREF, Some(&now_ms().to_string()));
   for notice in &result.notices {
     let body = if notice.lines.is_empty() { notice.text.clone() } else { notice.lines.join("\n") };
-    let title = if notice.title.is_empty() { "Girovo".to_string() } else { notice.title.clone() };
+    let title = if notice.title.is_empty() { crate::edition::name().to_string() } else { notice.title.clone() };
     let _ = app.notification().builder().title(title).body(body).show();
   }
   if result.on {
@@ -244,11 +244,11 @@ fn ensure_tray(app: &AppHandle) {
   }
   let words = Words::of(texts::lang(&app.state::<Prefs>()));
   let built = (|| -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", words.open, true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", crate::edition::named(words.open), true, None::<&str>)?;
     let check = MenuItem::with_id(app, "check", words.check, true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", words.quit, true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &check, &PredefinedMenuItem::separator(app)?, &quit_item])?;
-    let mut tray = TrayIconBuilder::with_id(TRAY_ID).tooltip(words.tooltip).menu(&menu).show_menu_on_left_click(false);
+    let mut tray = TrayIconBuilder::with_id(TRAY_ID).tooltip(crate::edition::named(words.tooltip)).menu(&menu).show_menu_on_left_click(false);
     if let Some(icon) = app.default_window_icon() {
       tray = tray.icon(icon.clone());
     }
@@ -306,7 +306,7 @@ fn tell_still_running(app: &AppHandle) {
   }
   prefs.set(TOLD_PREF, Some("1"));
   let words = Words::of(texts::lang(&prefs));
-  let _ = app.notification().builder().title(words.still_title).body(words.still).show();
+  let _ = app.notification().builder().title(crate::edition::named(words.still_title)).body(words.still).show();
 }
 
 /// Windows: start with the system, hidden, while the checks are on. Written

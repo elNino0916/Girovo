@@ -17,6 +17,7 @@
 
 mod background;
 mod closing;
+mod edition;
 mod files;
 mod frame;
 mod hello;
@@ -163,7 +164,7 @@ pub fn run() {
           builder = builder.data_directory(dir);
         }
         builder
-          .title("Girovo")
+          .title(edition::name())
           .inner_size(1280.0, 840.0)
           .min_inner_size(900.0, 600.0)
           .center()

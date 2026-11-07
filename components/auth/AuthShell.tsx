@@ -22,7 +22,7 @@ import { ThemeToggle } from '../ThemeToggle';
 import { LanguageSwitch } from '../LanguageToggle';
 import { CheckIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../icons';
 import { cx } from '../ui';
-import { BrandPlate } from '../shell/BrandMark';
+import { BrandName, BrandPlate } from '../shell/BrandMark';
 import { usePhone } from '../shell/usePhone';
 import { useUpdates } from '../updates/store';
 import { UpdateBarButton } from '../updates/UpdateNotices';
@@ -61,7 +61,7 @@ export function AuthCard({
         <div className="flex flex-1 flex-col justify-center pb-[18vh]">
           {/* By night the field is a deep blue too: a hairline of its ink keeps the navy plate's edge. */}
           <BrandPlate size={48} className="dark:shadow-[0_0_0_1.5px_color-mix(in_srgb,var(--stage-ink)_45%,transparent)]" />
-          <p className="mt-5 text-[28px] leading-9 font-medium">Girovo</p>
+          <BrandName className="mt-5 flex text-[28px] leading-9 font-medium" />
           <p className="mt-3 max-w-[24ch] text-lg leading-[26px]">{t.auth.brandLine}</p>
         </div>
         {/* For support questions, development builds included ("3.1.3-dev.123"). */}
@@ -125,7 +125,7 @@ function PhoneAuth({ step, children }: { step?: AuthStep; children: ReactNode })
           <div className="flex items-center gap-3.5">
             {/* By night the field is a deep blue too: a hairline of its ink keeps the navy plate's edge. */}
             <BrandPlate size={first ? 48 : 36} className="dark:shadow-[0_0_0_1.5px_color-mix(in_srgb,var(--stage-ink)_45%,transparent)]" />
-            <span className={cx('font-medium', first ? 'text-[28px] leading-9' : 'text-[22px] leading-7')}>Girovo</span>
+            <BrandName className={cx('font-medium', first ? 'text-[28px] leading-9' : 'text-[22px] leading-7')} />
           </div>
           {first && <p className="mt-3 max-w-[30ch] text-lg leading-[26px]">{t.auth.brandLine}</p>}
         </header>

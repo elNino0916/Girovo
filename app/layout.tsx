@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Barlow, Barlow_Condensed, Google_Sans_Flex, IBM_Plex_Mono } from 'next/font/google';
 import { cookies, headers } from 'next/headers';
 import { markSvg } from '@/lib/brand-mark';
+import { APP_NAME, NIGHTLY, NIGHTLY_INK, NIGHTLY_PLATE } from '@/lib/edition';
 import { DEFAULT_LOCALE, LOCALE_COOKIE, resolveLocale, type Locale } from '@/lib/i18n/locale';
 import { MESSAGES } from '@/lib/i18n/messages';
 import { LocaleProvider } from '@/lib/i18n/react';
@@ -61,7 +62,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 // The G€ on the masthead's navy, inline so the tab icon costs no request.
-const FAVICON = `data:image/svg+xml,${encodeURIComponent(markSvg({ plate: '#0a2c5e', ink: '#ffffff' }))}`;
+const FAVICON = `data:image/svg+xml,${encodeURIComponent(markSvg(NIGHTLY ? { plate: NIGHTLY_PLATE, ink: NIGHTLY_INK } : { plate: '#0a2c5e', ink: '#ffffff' }))}`;
 
 /**
  * The language of this page load: the stored choice (its cookie copy,
@@ -80,7 +81,7 @@ async function requestLocale(): Promise<Locale> {
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: 'Girovo',
+    title: APP_NAME,
     description: MESSAGES[await requestLocale()].common.appDescription,
     icons: { icon: FAVICON },
   };

@@ -101,7 +101,8 @@ fn model(s: &State) -> Value {
   };
   json!({
     "dark": s.dark,
-    "title": if s.update.is_some() { words.title_updating } else { words.title },
+    "title": crate::edition::named(if s.update.is_some() { words.title_updating } else { words.title }),
+    "nightly": crate::edition::nightly(),
     "version": version,
     "steps": steps,
     "note": if s.slow && s.update.is_none() { Value::String(words.slow.into()) } else { Value::Null },
@@ -155,7 +156,7 @@ impl Splash {
         builder = builder.data_directory(dir);
       }
       builder
-        .title("Girovo")
+        .title(crate::edition::name())
         .inner_size(WIDTH, 320.0)
         .resizable(false)
         .maximizable(false)

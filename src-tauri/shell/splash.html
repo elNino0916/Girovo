@@ -50,6 +50,9 @@
   /* The app's plate: Girovo's navy, the G€ in white, in either theme. */
   .plate { width: 28px; height: 28px; border-radius: 8px; background: #0a2c5e; display: grid; place-items: center; }
   .plate svg { width: 28px; height: 28px; }
+  /* Girovo Nightly (src-tauri/src/edition.rs): the G€ in navy on amber, as on its app icon. */
+  .nightly .plate { background: #f5a623; }
+  .nightly .plate path { stroke: #0a2c5e; }
   /* What the window is doing ("Girovo wird gestartet", "…aktualisiert") in the
      wordmark's place beside the plate: no headline under it, the steps say the
      rest (the owner's call, 2026-11-05). Medium, never 700. */
@@ -157,6 +160,7 @@
   // Text only, never markup: everything arrives from the shell (src-tauri/src/texts.rs).
   function render(model) {
     document.documentElement.classList.toggle('dark', !!model.dark);
+    document.documentElement.classList.toggle('nightly', !!model.nightly);
     document.getElementById('title').textContent = model.title;
     const list = document.getElementById('steps');
     list.replaceChildren(...model.steps.map((step) => {

@@ -3,6 +3,8 @@
 // A row's own name is the Sitzung panel's where it was there before
 // (session.ts, history.ts): the same setting keeps the same words.
 
+import { APP_NAME } from '../../edition.ts';
+
 export const de = {
   /** The pages the settings are sorted into (lib/settings-pages.ts), each shown on its own. */
   pages: {
@@ -14,7 +16,7 @@ export const de = {
     /** Android: the phone's own light and dark, so the page holds the language alone. */
     language: 'Sprache',
     privacy: 'Datenschutz',
-    about: 'Über Girovo',
+    about: `Über ${APP_NAME}`,
   },
   /** The pages' names in the desktop's folded rail, under their glyphs: a word each. */
   pagesShort: {
@@ -186,7 +188,7 @@ export const en: typeof de = {
     appearance: 'Language & appearance',
     language: 'Language',
     privacy: 'Privacy',
-    about: 'About Girovo',
+    about: `About ${APP_NAME}`,
   },
   pagesShort: {
     security: 'Security',

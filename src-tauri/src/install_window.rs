@@ -149,7 +149,7 @@ fn model(s: &State) -> Value {
     })
     .collect();
   let title = if s.options.header.is_empty() { words.title.to_string() } else { s.options.header.clone() };
-  json!({ "dark": s.options.dark, "title": title, "version": s.options.footer, "steps": steps, "note": null })
+  json!({ "dark": s.options.dark, "nightly": crate::edition::nightly(), "title": title, "version": s.options.footer, "steps": steps, "note": null })
 }
 
 /// The install window's run: its own small app, the card, the watching.
@@ -177,7 +177,7 @@ pub fn run() {
       }).collect();
       let url = tauri::Url::parse(&format!("{base}#{hash}")).expect("install url");
       WebviewWindowBuilder::new(app, LABEL, WebviewUrl::CustomProtocol(url))
-        .title("Girovo")
+        .title(crate::edition::name())
         .inner_size(496.0, 320.0)
         .resizable(false)
         .maximizable(false)

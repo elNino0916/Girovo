@@ -16,6 +16,7 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchModel } from './fetch-model.mjs';
@@ -40,6 +41,32 @@ function run(cmd, args) {
 
 await fetchModel();
 run(process.execPath, [path.join(ROOT, 'scripts', 'build-desktop.mjs')]);
+
+// Girovo Nightly (any pre-release version, lib/edition.ts) gets its own icon,
+// the mark in navy on amber, everywhere Tauri puts one: the program, its
+// windows and tray, the installer, the Linux packages. The nightly set takes
+// src-tauri/icons' place for this build, which puts the release's back at
+// exit however the build ends.
+if (/^\d+\.\d+\.\d+-/.test(VERSION)) {
+  const icons = path.join(ROOT, 'src-tauri', 'icons');
+  const nightly = path.join(ROOT, 'src-tauri', 'icons-nightly');
+  const kept = fs.mkdtempSync(path.join(os.tmpdir(), 'girovo-icons-release-'));
+  const files = fs.readdirSync(icons);
+  for (const f of files) {
+    if (!fs.existsSync(path.join(nightly, f))) {
+      console.error(`✗ src-tauri/icons-nightly has no ${f}`);
+      process.exit(1);
+    }
+  }
+  for (const f of files) fs.copyFileSync(path.join(icons, f), path.join(kept, f));
+  process.on('exit', () => {
+    for (const f of files) fs.copyFileSync(path.join(kept, f), path.join(icons, f));
+    fs.rmSync(kept, { recursive: true, force: true });
+  });
+  for (const f of files) fs.copyFileSync(path.join(nightly, f), path.join(icons, f));
+  console.log(`✓ Girovo Nightly ${VERSION}: the nightly icon`);
+}
+
 const bundles = PLATFORM === 'win32' ? 'nsis' : 'appimage,deb';
 // Bundles of earlier builds stay in the folder otherwise; only this one's should be found.
 fs.rmSync(BUNDLE, { recursive: true, force: true });

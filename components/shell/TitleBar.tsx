@@ -19,7 +19,7 @@ import { useContractNotices } from '../insights/contract-notices';
 import { unseenUpdate, useUpdates } from '../updates/store';
 import { BellIcon, Icon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
-import { BrandPlate } from './BrandMark';
+import { BrandName, BrandPlate } from './BrandMark';
 import { FrameSearch } from './FrameSearch';
 import { PAGE_TITLE_ID } from './ids';
 import { PrivacyToggle } from './PrivacyToggle';
@@ -81,7 +81,7 @@ export function TitleBar({ sidebarOpen, onMenu }: { sidebarOpen: boolean; onMenu
         {sidebarOpen && (
           <>
             <BrandPlate size={28} className="ml-1" />
-            <span className="ml-2.5 truncate text-[18px] leading-6 font-medium">Girovo</span>
+            <BrandName className="ml-2.5 text-[18px] leading-6 font-medium" />
           </>
         )}
       </div>
