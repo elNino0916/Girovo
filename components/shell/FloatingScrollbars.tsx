@@ -95,6 +95,8 @@ function install(): () => void {
   };
 
   const hide = (bar: Bar) => {
+    // Its scroller has gone (a drawer closed): so does the thumb.
+    if (!bar.el.isConnected) return drop(bar);
     if (bar.drag || bar.hover || near === bar) return;
     delete bar.thumb.dataset.on;
     delete bar.thumb.dataset.near;
@@ -119,7 +121,13 @@ function install(): () => void {
     if (near === bar) near = null;
   };
 
+  /** Every thumb whose scroller has left the page. */
+  const sweep = () => {
+    for (const [el, both] of [...bars]) if (!el.isConnected) for (const bar of Object.values(both)) if (bar) drop(bar);
+  };
+
   const barFor = (el: HTMLElement, axis: Axis): Bar => {
+    if (!bars.has(el)) sweep();
     const both = bars.get(el) ?? {};
     const had = both[axis];
     if (had) return had;
@@ -211,8 +219,11 @@ function install(): () => void {
     if (near && near !== found) {
       const was = near;
       near = null;
-      if (!was.hover) delete was.thumb.dataset.near;
-      show(was);
+      if (!was.el.isConnected) drop(was);
+      else {
+        if (!was.hover) delete was.thumb.dataset.near;
+        show(was);
+      }
     }
     if (found) {
       near = found;
@@ -230,12 +241,16 @@ function install(): () => void {
     if (near) {
       const was = near;
       near = null;
-      delete was.thumb.dataset.near;
-      show(was);
+      if (!was.el.isConnected) drop(was);
+      else {
+        delete was.thumb.dataset.near;
+        show(was);
+      }
     }
   };
   // The window resized: what shows moves with it.
   const onResize = () => {
+    sweep();
     for (const both of bars.values()) for (const bar of Object.values(both)) if (bar?.thumb.dataset.on !== undefined) show(bar);
   };
 

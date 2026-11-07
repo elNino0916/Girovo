@@ -101,6 +101,9 @@ function useOutsidePress(open: boolean, refs: Array<RefObject<HTMLElement | null
     const onDown = (e: PointerEvent) => {
       const t = e.target as Node | null;
       if (t && refs.some((r) => r.current?.contains(t))) return;
+      // A floating scrollbar's thumb (components/shell/FloatingScrollbars.tsx)
+      // sits on the body, outside every layer: grabbing it scrolls the layer.
+      if (t instanceof Element && t.closest('.float-thumb')) return;
       cb.current();
     };
     document.addEventListener('pointerdown', onDown, true);
