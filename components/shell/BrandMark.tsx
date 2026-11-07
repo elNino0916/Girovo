@@ -10,9 +10,10 @@
 //
 // A Girovo Nightly (lib/edition.ts) shows it: the plate is amber with the G€
 // in navy, as on its app icon, and the wordmark reads "Girovo Nightly". A
-// release's wordmark carries its major version in a six-lobed cookie
-// ("Girovo 6"). Every place the wordmark stands is navy or darker (the bar,
-// the login's field) in either theme, so its colours are literal too.
+// release's wordmark carries its major version the same way, set bolder and
+// filled with a blue gradient ("Girovo 6"). Every place the wordmark stands is
+// navy or darker (the bar, the login's field) in either theme, so its colours
+// are literal too.
 //
 // The version stays legible for support questions, development builds
 // included ("3.1.3-dev.123"); `versionClassName` lets a caller hide it first
@@ -27,17 +28,8 @@ import { cx } from '../ui';
 /** Whether the marks below draw Girovo Nightly: this build's edition, or the design preview's pick. */
 export const NightlyContext = createContext(NIGHTLY);
 
-/** The numeral's cookie: six round lobes (Material 3 Expressive's "6-sided cookie"), on a 100 grid. */
-const COOKIE = (() => {
-  const lobes = 6, depth = 5, steps = 144;
-  const points: string[] = [];
-  for (let i = 0; i < steps; i++) {
-    const a = (i / steps) * 2 * Math.PI - Math.PI / 2;
-    const r = 50 - depth + depth * Math.cos(lobes * a);
-    points.push(`${(50 + r * Math.cos(a)).toFixed(2)} ${(50 + r * Math.sin(a)).toFixed(2)}`);
-  }
-  return `M${points.join('L')}Z`;
-})();
+/** The release numeral's fill: sky to Girovo's blue to a touch of violet, bright on the navy it stands on. */
+const NUMERAL_GRADIENT = 'linear-gradient(155deg, #b8eeff 12%, #4f9dff 52%, #a77bff 92%)';
 
 /**
  * The plate alone: 32px, smaller only when zoom has shrunk the top bar
@@ -80,26 +72,23 @@ export function BrandPlate({ className, tone = 'standard', size }: { className?:
 /**
  * The wordmark, in the caller's size and weight: "Girovo Nightly" on a
  * nightly, its second word in the plate's amber; on a release "Girovo" and its
- * major version in a light-blue cookie. Only "Girovo" truncates.
+ * major version, bolder, in a blue gradient ("Girovo 6"). Only "Girovo" truncates.
  */
 export function BrandName({ className }: { className?: string }) {
   const nightly = useContext(NightlyContext);
   return (
-    <span className={cx('inline-flex min-w-0 items-center whitespace-nowrap', className)}>
+    <span className={cx('inline-flex min-w-0 items-baseline whitespace-nowrap', className)}>
       <span className="truncate">Girovo</span>
       {nightly ? (
         <span className="ml-[0.28em] shrink-0" style={{ color: NIGHTLY_PLATE }}>Nightly</span>
       ) : (
         MAJOR != null && (
-          <>
-            <span aria-hidden className="relative ml-[0.3em] grid size-[1.36em] shrink-0 place-items-center">
-              <svg viewBox="0 0 100 100" className="absolute inset-0 size-full">
-                <path d={COOKIE} fill="#9fcbff" />
-              </svg>
-              <span className="tnum relative text-[0.74em] leading-none font-bold text-[#0a2c5e]">{MAJOR}</span>
-            </span>
-            <span className="sr-only"> {MAJOR}</span>
-          </>
+          <span
+            className="ml-[0.24em] shrink-0 bg-clip-text font-extrabold text-transparent"
+            style={{ backgroundImage: NUMERAL_GRADIENT }}
+          >
+            {MAJOR}
+          </span>
         )
       )}
     </span>
