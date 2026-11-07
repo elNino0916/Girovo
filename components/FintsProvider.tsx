@@ -94,7 +94,7 @@ import {
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import { PAGE_OF, type SettingsPage } from '@/lib/settings-pages';
-import type { ManualContract } from '@/lib/manual-contracts';
+import type { ManualContract, ManualDay } from '@/lib/manual-contracts';
 import type {
   BalanceResponse, BankOrderKind, BankOrdersAnswer, BankOrdersResponse, BankStatementsAnswer, BankStatementsResponse,
   ConnectResponse, DeleteOrderResponse,
@@ -5182,6 +5182,18 @@ function useFintsState() {
     });
   }, [updateVault]);
 
+  /** The newest booking seen of a contract the user added — only while it is there, only ever later. */
+  const setManualDay = useCallback((id: string, seen: ManualDay) => {
+    updateVault((v) => {
+      if (!v.manualContracts?.[id]) return v;
+      const had = v.manualDays?.[id];
+      const later = !had || seen.day > had.day;
+      const label = had?.label || seen.label;
+      if (!later && label === had?.label) return v;
+      return { ...v, manualDays: { ...v.manualDays, [id]: { day: later ? seen.day : had!.day, ...(label ? { label } : {}) } } };
+    });
+  }, [updateVault]);
+
   /** The contract notices Mitteilungen showed: no dot for them again. */
   const markContractsNoticed = useCallback((notices: readonly ContractNotice[]) => {
     if (!notices.length) return;
@@ -5619,7 +5631,7 @@ function useFintsState() {
     updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
     accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
-    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setManualContract, markContractsNoticed,
+    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setManualContract, setManualDay, markContractsNoticed,
     categoryOf, setCategory, setSplit,
     removeCategoryRule,
     addCustomCategory, renameCustomCategory, deleteCustomCategory,

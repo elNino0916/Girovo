@@ -43,20 +43,25 @@ export function useInContract(): Set<SerializedTransaction> {
  */
 export function ManualContractDays() {
   const model = useRecurringModel();
-  const { vault, vaultStatus, setManualContract } = useFints();
+  const t = useT();
+  const { vault, vaultStatus, setManualDay } = useFints();
   const manual = vault?.manualContracts;
+  const days = vault?.manualDays;
   useEffect(() => {
     if (vaultStatus !== 'ready' || !manual) return;
     for (const s of [...model.income, ...model.expense, ...model.ended, ...model.dismissed]) {
       const m = s.manual ? manual[s.id] : undefined;
       const newest = s.transactions[0];
       if (!m || !newest) continue;
-      const label = m.label || displayName(txText(newest).name);
-      if ((!m.day || m.day < s.lastDate) || (!m.label && label)) {
-        setManualContract(s.id, { ...m, day: !m.day || m.day < s.lastDate ? s.lastDate : m.day, ...(label ? { label } : {}) });
+      const known = [m.day, days?.[s.id]?.day].filter(Boolean).sort().at(-1);
+      const name = displayName(txText(newest).name);
+      const label = m.label || days?.[s.id]?.label || (name && name !== t.insights.noName ? name : '');
+      // Only the day and the label, in their own map: never the contract itself.
+      if (!known || known < s.lastDate || (label && !m.label && !days?.[s.id]?.label)) {
+        setManualDay(s.id, { day: !known || known < s.lastDate ? s.lastDate : known, ...(label ? { label } : {}) });
       }
     }
-  }, [model, manual, vaultStatus, setManualContract]);
+  }, [model, manual, days, vaultStatus, setManualDay, t]);
   return null;
 }
 
@@ -153,7 +158,7 @@ function DetailsStep({ tx, onBack, onClose }: { tx: SerializedTransaction; onBac
       at: dayKey(new Date()),
       // Its newest booking, to be listed from once the bookings have left the loaded days.
       day: preview.lastDate,
-      label: bankName,
+      ...(bankName !== t.insights.noName ? { label: bankName } : {}),
     });
     toast(words.added(typed || bankName), 'info');
     onClose();

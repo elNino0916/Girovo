@@ -100,7 +100,7 @@ import {
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import { PAGE_OF, type SettingsPage } from '@/lib/settings-pages';
 import { IS_ANDROID } from '@/lib/platform';
-import type { ManualContract } from '@/lib/manual-contracts';
+import type { ManualContract, ManualDay } from '@/lib/manual-contracts';
 import type {
   BankOrderKind, Merchant, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedPortfolio, SerializedTanMethod,
   SerializedTransaction, SerializedVop,
@@ -2814,6 +2814,18 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     });
   }, [updateVault]);
 
+  /** The newest booking seen of a contract the user added — only while it is there, only ever later. */
+  const setManualDay = useCallback((id: string, seen: ManualDay) => {
+    updateVault((v) => {
+      if (!v.manualContracts?.[id]) return v;
+      const had = v.manualDays?.[id];
+      const later = !had || seen.day > had.day;
+      const label = had?.label || seen.label;
+      if (!later && label === had?.label) return v;
+      return { ...v, manualDays: { ...v.manualDays, [id]: { day: later ? seen.day : had!.day, ...(label ? { label } : {}) } } };
+    });
+  }, [updateVault]);
+
   const markContractsNoticed = useCallback((notices: readonly ContractNotice[]) => {
     if (!notices.length) return;
     updateVault((v) => ({ ...v, noticedContracts: withNoticed(v.noticedContracts, notices) }));
@@ -3021,7 +3033,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
     accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
-    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setManualContract, markContractsNoticed,
+    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setManualContract, setManualDay, markContractsNoticed,
     printTaxYear, loadRange,
     makeBackup, restoreBackup, inspectBankFile, importBankFile,
     categoryOf, setCategory, setSplit,

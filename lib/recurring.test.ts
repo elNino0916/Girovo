@@ -630,6 +630,13 @@ test('a single month at another price between two at the usual one is no price c
   assert.equal(cheaperOnce.priceChange, null);
   assert.equal(cheaperOnce.changed, false, 'no "Betrag gestiegen" either');
   assert.equal(cheaperOnce.amount, -17.99);
+  // A one-off after a real rise: the rise is said, from where it began.
+  const after = only(detectRecurring(newestFirst([
+    sp('2026-04-10', -12.99), sp('2026-05-10', -12.99), sp('2026-06-10', -14.99), sp('2026-07-10', -14.99),
+    sp('2026-08-10', -14.99), sp('2026-09-10', -7.99), sp('2026-09-30', -14.99),
+  ]), { today: TODAY }));
+  assert.equal(after.priceChange?.since, '2026-06-10');
+  assert.equal(after.priceChange?.delta, 2);
   // A real rise still is one.
   const rose = only(detectRecurring(newestFirst([sp('2026-06-10', -12.99), sp('2026-07-10', -12.99), sp('2026-08-10', -14.99), sp('2026-09-10', -14.99)]), { today: TODAY }));
   assert.equal(rose.priceChange?.delta, 2);

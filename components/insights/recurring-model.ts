@@ -23,6 +23,7 @@ import {
 } from '@/lib/recurring';
 import { dayKey } from '@/lib/format';
 import { spanDays } from './shared';
+import { withDays } from '@/lib/manual-contracts';
 
 /** One account and what the detection could see of it. */
 export type AccountBasis = {
@@ -161,7 +162,10 @@ export function useRecurringModel(): RecurringModel {
   }, [txByAccount, statementInfo]);
 
   // The contracts the user added (lib/manual-contracts.ts) join the recognised ones.
-  const manual = vault?.manualContracts;
+  // …each with the newest booking any device saw of it.
+  const manualContracts = vault?.manualContracts;
+  const manualDays = vault?.manualDays;
+  const manual = useMemo(() => withDays(manualContracts, manualDays), [manualContracts, manualDays]);
   const detected = useMemo(() => {
     const until = loaded.until || dayKey(new Date());
     const last = lastDetected;

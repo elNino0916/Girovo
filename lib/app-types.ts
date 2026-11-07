@@ -18,7 +18,7 @@ import type { Budgets } from './budgets';
 import type { LinkedBankRef } from './linked-banks';
 import type { SplitPart } from './splits';
 import type { ContractReminder } from './contract-watch';
-import type { ManualContract } from './manual-contracts';
+import type { ManualContract, ManualDay } from './manual-contracts';
 
 export type { CategoryId };
 
@@ -207,6 +207,8 @@ export type VaultData = {
   contractReminders?: Record<string, ContractReminder>;
   /** Contracts the user added from a booking, by series id (lib/manual-contracts.ts). Older vaults have none. */
   manualContracts?: Record<string, ManualContract>;
+  /** The newest booking a device saw of each added contract (lib/manual-contracts.ts withDays), apart from the contract. */
+  manualDays?: Record<string, ManualDay>;
   /** The contract notices Mitteilungen has shown (lib/contract-watch.ts): no dot for them again. This device's own. */
   noticedContracts?: string[];
   /** Spending category → the monthly budget in whole cents (lib/budgets.ts). */

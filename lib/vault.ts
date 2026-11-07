@@ -40,7 +40,7 @@ import path from 'node:path';
 import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
 import { isRecord } from './guards.ts';
 import { sanitizeNoticed, sanitizeReminders } from './contract-watch.ts';
-import { sanitizeManual } from './manual-contracts.ts';
+import { sanitizeManual, sanitizeManualDays } from './manual-contracts.ts';
 import { sanitizeKeptBalances, sanitizeNetWorth } from './kept-balances.ts';
 import type { TransferTemplate, VaultData, VaultGetResponse, VaultPutResponse } from './app-types.ts';
 import type { CategoryId } from './categories.ts';
@@ -262,6 +262,7 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     // A real date, a lead on offer, a name each (lib/contract-watch.ts).
     ...(sanitizeReminders(input.contractReminders) ? { contractReminders: sanitizeReminders(input.contractReminders) } : {}),
     ...(sanitizeManual(input.manualContracts) ? { manualContracts: sanitizeManual(input.manualContracts) } : {}),
+    ...(sanitizeManualDays(input.manualDays) ? { manualDays: sanitizeManualDays(input.manualDays) } : {}),
     ...(sanitizeNoticed(input.noticedContracts) ? { noticedContracts: sanitizeNoticed(input.noticedContracts) } : {}),
     // Spending categories only, whole cents (lib/budgets.ts).
     budgets: sanitizeBudgets(input.budgets, customCategories),
@@ -577,6 +578,9 @@ export function mergeVaults(current: VaultData, backup: VaultData): VaultData {
       : {}),
     ...(current.manualContracts || backup.manualContracts
       ? { manualContracts: { ...backup.manualContracts, ...current.manualContracts } }
+      : {}),
+    ...(current.manualDays || backup.manualDays
+      ? { manualDays: { ...backup.manualDays, ...current.manualDays } }
       : {}),
     ...(current.avatar || !backup.avatar ? {} : { avatar: backup.avatar, ...(backup.avatarImage ? { avatarImage: backup.avatarImage } : {}) }),
     ...(current.linkedBanks || backup.linkedBanks

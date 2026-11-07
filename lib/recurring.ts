@@ -585,9 +585,15 @@ function assemble(
   // discounted or credited, a one-off extra — is no change of price.
   const oneOff = run >= 2 && !differs(abs[run - 2], lastAbs);
   const changed = !oneOff && prevAbs != null && differs(prevAbs, lastAbs);
-  const before = run > 0 && !oneOff ? abs[run - 1] : null;
-  const priceChange = !variable && before != null && differs(before, lastAbs) && occ[run].n >= ref - 365
-    ? { since: occ[run].day, previous: before / 100, delta: (lastAbs - before) / 100, perYear: ((lastAbs - before) * cadence.perYear) / 100 }
+  // Past a one-off, the run at the current price goes on before it.
+  let begin = run;
+  if (oneOff) {
+    begin = run - 2;
+    while (begin > 0 && !differs(abs[begin - 1], lastAbs)) begin--;
+  }
+  const before = begin > 0 ? abs[begin - 1] : null;
+  const priceChange = !variable && before != null && differs(before, lastAbs) && occ[begin].n >= ref - 365
+    ? { since: occ[begin].day, previous: before / 100, delta: (lastAbs - before) / 100, perYear: ((lastAbs - before) * cadence.perYear) / 100 }
     : null;
   const nextDate = projectNext(occ, cadence, group.credit);
   const late = ref - 5 - dayNumber(nextDate);

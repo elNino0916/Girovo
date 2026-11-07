@@ -50,6 +50,45 @@ export const nearAmount = (cents: number, abs: number): boolean => Math.abs(abs 
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 const isDay = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
+/**
+ * The newest booking a device has seen of a contract the user added: kept
+ * apart from the contract (vault manualDays), so moving it on is never a
+ * newer change of the contract itself — a sync must not bring back one
+ * removed on another device, nor undo a rename made there.
+ */
+export type ManualDay = { day: string; label?: string };
+
+/** A contract with the newest booking any device saw of it. */
+export function withDays(
+  manual: Readonly<Record<string, ManualContract>> | undefined, days: Readonly<Record<string, ManualDay>> | undefined,
+): Record<string, ManualContract> | undefined {
+  if (!manual || !days) return manual as Record<string, ManualContract> | undefined;
+  const out: Record<string, ManualContract> = {};
+  for (const [id, m] of Object.entries(manual)) {
+    const d = days[id];
+    const later = d && (!m.day || d.day > m.day);
+    out[id] = later || (d?.label && !m.label)
+      ? { ...m, ...(later ? { day: d.day } : {}), ...(m.label || !d.label ? {} : { label: d.label }) }
+      : m;
+  }
+  return out;
+}
+
+/** The vault's newest bookings as they may be kept: a real day, a short label. */
+export function sanitizeManualDays(raw: unknown): Record<string, ManualDay> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Record<string, ManualDay> = {};
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (Object.keys(out).length >= MANUAL_MAX) break;
+    if (!id || id.length > 64 || CONTROLS.test(id) || !v || typeof v !== 'object') continue;
+    const r = v as Record<string, unknown>;
+    if (!isDay(r.day)) continue;
+    const label = typeof r.label === 'string' ? r.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, NAME_MAX) : '';
+    out[id] = { day: r.day, ...(label ? { label } : {}) };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 /** The vault's manual contracts as they may be kept: a key, a real amount, a rhythm on offer, a name — at most MANUAL_MAX. */
 export function sanitizeManual(raw: unknown): Record<string, ManualContract> | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
