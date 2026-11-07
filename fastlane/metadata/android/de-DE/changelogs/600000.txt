@@ -1,0 +1,1 @@
+Girovo 6: alle Konten auf einen Blick, mit Gesamtsaldo und Verlauf. Neue Umsätze werden gemeldet, beim Anmelden kommen alle Konten. Abgleich mit dem Rechner, Ende-zu-Ende verschlüsselt. Widget, Hinweise bei teureren Verträgen und Geldeingang, Sparkassen-Kreditkarten, Aufträge auf eigener Seite, eine Demo ohne Bank.

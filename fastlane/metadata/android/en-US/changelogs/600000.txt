@@ -1,0 +1,1 @@
+Girovo 6: every account at a glance, with the total balance and its history. New transactions reported, every account's transactions loaded at login. Sync phone and computer, end-to-end encrypted. Widget, alerts for dearer contracts and incoming money, Sparkasse credit cards, standing orders on their own page, a demo without a bank.
