@@ -16,6 +16,17 @@ export const de = {
     privacy: 'Datenschutz',
     about: 'Über Girovo',
   },
+  /** The pages' names in the desktop's folded rail, under their glyphs: a word each. */
+  pagesShort: {
+    security: 'Sicherheit',
+    notifications: 'Hinweise',
+    accounts: 'Konten',
+    devices: 'Daten',
+    appearance: 'Darstellung',
+    language: 'Sprache',
+    privacy: 'Datenschutz',
+    about: 'Über',
+  },
   /** Under each page's name in their list: what is on it, or how it is set. */
   summary: {
     fingerprint: 'Fingerabdruck',
@@ -175,6 +186,16 @@ export const en: typeof de = {
     language: 'Language',
     privacy: 'Privacy',
     about: 'About Girovo',
+  },
+  pagesShort: {
+    security: 'Security',
+    notifications: 'Alerts',
+    accounts: 'Accounts',
+    devices: 'Data',
+    appearance: 'Appearance',
+    language: 'Language',
+    privacy: 'Privacy',
+    about: 'About',
   },
   summary: {
     fingerprint: 'Fingerprint',

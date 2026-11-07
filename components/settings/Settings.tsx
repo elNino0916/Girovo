@@ -95,6 +95,8 @@ const ICONS: Record<SettingsPage, IconComponent> = {
 export type PageEntry = {
   id: SettingsPage;
   title: string;
+  /** A word for the desktop's folded rail. */
+  short: string;
   /** What is on the page, or how it is set, for the list. */
   summary: string;
   /** Something on it needs a look: the saved data cannot be read. */
@@ -150,6 +152,7 @@ export function useSettingsPages(): PageEntry[] {
     return PAGE_ORDER.filter((id) => shown[id]).map((id) => ({
       id,
       title: id === 'appearance' && IS_ANDROID ? words.pages.language : words.pages[id],
+      short: id === 'appearance' && IS_ANDROID ? words.pagesShort.language : words.pagesShort[id],
       summary: summary[id],
       alert: id === 'devices' && vaultStatus === 'error',
       Icon: ICONS[id],

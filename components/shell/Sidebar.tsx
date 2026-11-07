@@ -41,7 +41,7 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
     if (place === tab) window.dispatchEvent(new CustomEvent(PLACE_ROOT_EVENT, { detail: place }));
     setTab(place);
   };
-  const settings = tab === 'settings' && open;
+  const settings = tab === 'settings';
   // The payments due in the next 30 days from the ticked accounts: Zahlungen's badge.
   const { shown } = useLayers();
   const model = useRecurringModel();
@@ -59,7 +59,7 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
       className="flex w-[var(--frame-side)] shrink-0 flex-col overflow-x-hidden overflow-y-auto pt-2 pb-4 [scrollbar-width:thin] transition-[width] duration-200"
     >
       {settings ? (
-        <SettingsSections />
+        <SettingsSections open={open} />
       ) : (
         <>
           {actions.canTransfer && (
@@ -100,7 +100,7 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
       {open ? (
         // On Einstellungen the sidebar's head already says where you are: the foot stays quiet there.
         <M3eNavMenu className="mt-auto block pt-3">
-          <MenuPlace icon={<GearIcon size={24} />} label={t.common.nav.settings} current={tab === 'settings' && !settings} onClick={() => openSettings()} />
+          <MenuPlace icon={<GearIcon size={24} />} label={t.common.nav.settings} current={false} onClick={() => openSettings()} />
         </M3eNavMenu>
       ) : (
         <div className="mt-auto flex flex-col pt-3">
@@ -111,15 +111,16 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
   );
 }
 
-/** A place in the folded rail: M3E's nav item, icon over label. */
-function Place({ icon, label, current, onClick }: {
-  icon: ReactNode; label: string; current?: boolean; onClick: () => void;
+/** A place in the folded rail: M3E's nav item, icon over label; `title`, a longer name as its tooltip. */
+function Place({ icon, label, current, onClick, title }: {
+  icon: ReactNode; label: string; current?: boolean; onClick: () => void; title?: string;
 }) {
   return (
     <M3eNavItem
       selected={!!current}
       orientation="vertical"
       data-nav-item
+      title={title}
       onBeforeInput={keepPlace}
       onClick={onClick}
     >
@@ -213,11 +214,33 @@ function PlaceMonth() {
  * are — a glyph and a name, the page on the sheet in the secondary container
  * with its glyph filled. A click shows that page.
  */
-function SettingsSections() {
-  const { leaveSettings, settingsPage, setSettingsPage } = useFints();
+function SettingsSections({ open }: { open: boolean }) {
+  const { leaveSettings, settingsPage, setSettingsPage, vaultStatus } = useFints();
   const t = useT();
   const pages = useSettingsPages();
   const current = (pages.find((p) => p.id === settingsPage) ?? pages[0])?.id;
+
+  // Folded, the rail: the way back, then each page as a rail item, its glyph
+  // over a word, its full name as the tooltip.
+  if (!open) {
+    return (
+      <div className="flex flex-col gap-3">
+        <IconButton size="md" aria-label={t.common.back} title={t.common.back} onClick={leaveSettings} className="self-center">
+          <BackIcon size={22} />
+        </IconButton>
+        {pages.map((p) => (
+          <Place
+            key={p.id}
+            icon={createElement(p.Icon, { size: 24, filled: current === p.id })}
+            label={p.short}
+            title={p.alert ? `${p.title} – ${t.session.vaultUnreadable}` : p.title}
+            current={current === p.id}
+            onClick={() => setSettingsPage(p.id)}
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -243,7 +266,12 @@ function SettingsSections() {
               >
                 {createElement(p.Icon, { size: 22, filled: on, className: cx('shrink-0', !on && 'text-ink-2') })}
                 <span className="min-w-0 flex-1 truncate">{p.title}</span>
-                {p.alert && <span aria-hidden className="size-2 shrink-0 rounded-full bg-red" />}
+                {p.alert && (
+                  <>
+                    <span aria-hidden className="size-2 shrink-0 rounded-full bg-red" />
+                    <span className="sr-only">{`, ${t.session.vaultUnreadable}`}</span>
+                  </>
+                )}
               </button>
             </li>
           );
