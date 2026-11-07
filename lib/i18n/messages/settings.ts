@@ -148,19 +148,20 @@ export const de = {
   },
   /**
    * Über Girovo → which releases the updater offers (components/settings/UpdateChannel.tsx;
-   * the desktop app and the GitHub APK only). `stable` and `preview` are also the row's value.
+   * the desktop app and the GitHub APK only). `stable` and `preview` are also the row's value;
+   * `preview` is the channel of the nightly builds (.github/workflows/nightly.yml), named Nightly.
    */
   channel: {
     title: 'Update-Kanal',
     stable: 'Stabil',
-    preview: '6.0-Vorschau',
+    preview: 'Nightly',
     intro: 'Welche Updates du bekommst.',
     stableHint: 'Fertige Versionen. Empfohlen.',
-    previewHint: 'Was in Girovo 6.0 kommt, schon vorab.',
+    previewHint: 'Der neueste Stand, jede Nacht gebaut.',
     /** Under the choice. The desktop: back to "Stabil" offers the latest stable release, older as it may be. */
-    note: 'Vorschauen sind noch nicht fertig und können Fehler haben. Zurück zu „Stabil“ kannst du jederzeit – du bekommst dann die aktuelle stabile Version, auch wenn sie älter ist.',
+    note: 'Nightlies sind noch nicht fertig und können Fehler haben. Zurück zu „Stabil“ kannst du jederzeit – du bekommst dann die aktuelle stabile Version, auch wenn sie älter ist.',
     /** Android installs no older version over a newer one. */
-    noteAndroid: 'Vorschauen sind noch nicht fertig und können Fehler haben. Gehst du zurück zu „Stabil“, kommt dein nächstes Update mit der nächsten stabilen Version – eine ältere kann Android nicht installieren.',
+    noteAndroid: 'Nightlies sind noch nicht fertig und können Fehler haben. Gehst du zurück zu „Stabil“, kommt dein nächstes Update mit der nächsten stabilen Version – eine ältere kann Android nicht installieren.',
     apply: 'Übernehmen',
   },
 
@@ -280,12 +281,12 @@ export const en: typeof de = {
   channel: {
     title: 'Update channel',
     stable: 'Stable',
-    preview: '6.0 preview',
+    preview: 'Nightly',
     intro: 'Which updates you get.',
     stableHint: 'Finished versions. Recommended.',
-    previewHint: 'What’s coming in Girovo 6.0, ahead of time.',
-    note: 'Previews aren’t finished and may have bugs. You can go back to “Stable” at any time – you’ll then get the current stable version, even if it’s older.',
-    noteAndroid: 'Previews aren’t finished and may have bugs. If you go back to “Stable”, your next update is the next stable version – Android can’t install an older one.',
+    previewHint: 'The latest state, built every night.',
+    note: 'Nightlies aren’t finished and may have bugs. You can go back to “Stable” at any time – you’ll then get the current stable version, even if it’s older.',
+    noteAndroid: 'Nightlies aren’t finished and may have bugs. If you go back to “Stable”, your next update is the next stable version – Android can’t install an older one.',
     apply: 'Apply',
   },
 

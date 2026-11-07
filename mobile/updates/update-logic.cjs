@@ -82,12 +82,24 @@ function comparePre(a, b) {
   return 0;
 }
 
+/**
+ * A nightly's tag as it is ordered: "nightly.<yyyymmddhhmm>…", and the
+ * nightlies before the name changed, "preview.<yyyymmddhhmm>…" (12 digits and
+ * more, never a hand-made preview's number), both as "~nightly.<stamp>…": by
+ * their time among themselves, and after a hand-made "preview.N" ("~" comes
+ * after every letter). As src-tauri/src/updater/logic.rs ordered_pre.
+ */
+function orderedPre(pre) {
+  const m = /^(?:nightly|preview)\.(\d{12,})(\..*)?$/.exec(pre);
+  return m ? `~nightly.${m[1]}${m[2] ?? ''}` : pre;
+}
+
 /** Two parsed versions in semver's order: a pre-release comes before its release. */
 function compareParsed(a, b) {
   const order = compareCore(a.core, b.core);
   if (order !== 0) return order;
   if (!a.pre || !b.pre) return a.pre ? -1 : b.pre ? 1 : 0;
-  return comparePre(a.pre, b.pre);
+  return comparePre(orderedPre(a.pre), orderedPre(b.pre));
 }
 
 /** -1, 0 or 1 as `a` comes before, with or after `b` (semver); null when either is not a version. */

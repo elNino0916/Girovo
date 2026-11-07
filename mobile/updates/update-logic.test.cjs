@@ -261,3 +261,13 @@ test('passingFailure: only 502, 503 and 504 are asked once more', () => {
   for (const status of [502, 503, 504]) assert.equal(logic.passingFailure(status), true, String(status));
   for (const status of [200, 304, 403, 404, 429, 500]) assert.equal(logic.passingFailure(status), false, String(status));
 });
+
+test('nightlies by their time, after the hand-made preview, before the release', () => {
+  const old = '6.0.0-preview.202611071124.g36b2a39';
+  const nu = '6.0.0-nightly.202611071530.gabc1234';
+  assert.equal(logic.isNewer(nu, old, { prerelease: true }), true, 'the renamed nightly follows the old one');
+  assert.equal(logic.isNewer(old, nu, { prerelease: true }), false);
+  assert.equal(logic.isNewer('6.0.0-preview.1', nu, { prerelease: true }), false, 'a hand-made preview is older than any nightly');
+  assert.equal(logic.isNewer(nu, '6.0.0-preview.1', { prerelease: true }), true);
+  assert.equal(logic.isNewer('6.0.0', nu, { prerelease: true }), true);
+});

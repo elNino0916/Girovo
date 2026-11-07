@@ -173,13 +173,31 @@ fn compare_pre(a: &str, b: &str) -> Ordering {
   Ordering::Equal
 }
 
+/// A nightly's tag as it is ordered: "nightly.<yyyymmddhhmm>…", and the
+/// nightlies before the name changed, "preview.<yyyymmddhhmm>…" (12 digits
+/// and more, never a hand-made preview's number), both as "~nightly.<stamp>…":
+/// by their time among themselves, and after a hand-made "preview.N" — "~"
+/// comes after every letter — whose release came before them. Never shown.
+fn ordered_pre(pre: &str) -> std::borrow::Cow<'_, str> {
+  let stamp_after = |prefix: &str| {
+    pre.strip_prefix(prefix).filter(|rest| {
+      let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+      digits >= 12 && (rest.len() == digits || rest.as_bytes()[digits] == b'.')
+    })
+  };
+  match stamp_after("nightly.").or_else(|| stamp_after("preview.")) {
+    Some(rest) => std::borrow::Cow::Owned(format!("~nightly.{rest}")),
+    None => std::borrow::Cow::Borrowed(pre),
+  }
+}
+
 /// Two parsed versions in semver's order: a pre-release comes before its release.
 fn compare_parsed(a: &Version, b: &Version) -> Ordering {
   a.core.cmp(&b.core).then_with(|| match (a.pre.is_empty(), b.pre.is_empty()) {
     (true, true) => Ordering::Equal,
     (false, true) => Ordering::Less,
     (true, false) => Ordering::Greater,
-    (false, false) => compare_pre(&a.pre, &b.pre),
+    (false, false) => compare_pre(&ordered_pre(&a.pre), &ordered_pre(&b.pre)),
   })
 }
 
@@ -712,6 +730,19 @@ mod tests {
 
   fn newest(list: &Value, current: &str) -> Option<String> {
     newest_release(list, current, &Origin::default(), None).map(|r| r.version)
+  }
+
+  #[test]
+  fn nightlies_by_their_time_after_the_hand_made_preview_and_before_the_release() {
+    let old = "6.0.0-preview.202611071124.g36b2a39";
+    let new = "6.0.0-nightly.202611071530.gabc1234";
+    assert!(is_newer(new, old, true), "the renamed nightly follows the old one");
+    assert!(!is_newer(old, new, true));
+    assert!(is_newer("6.0.0-nightly.202611080217.gdef5678", new, true));
+    assert!(!is_newer("6.0.0-preview.1", new, true), "a hand-made preview is older than any nightly");
+    assert!(is_newer(new, "6.0.0-preview.1", true));
+    assert!(is_newer("6.0.0", new, true), "the release after its nightlies");
+    assert!(!is_newer(new, "6.0.0", true));
   }
 
   #[test]
