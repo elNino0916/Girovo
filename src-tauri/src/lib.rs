@@ -68,7 +68,7 @@ pub fn run() {
   // copy of its own, which must never hand itself over to the installed app.
   let test_run = std::env::var_os("GIROVO_DATA_DIR").is_some_and(|d| !d.is_empty());
   let builder =
-    if test_run { builder } else { builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| background::show_window(app))) };
+    if test_run { builder } else { builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| background::bring_forward(app))) };
   let app = builder
     .plugin(tauri_plugin_notification::init())
     .manage(prefs::Prefs::load())

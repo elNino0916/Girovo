@@ -194,15 +194,30 @@ fn stopped(app: &AppHandle) {
 /// window.electronBackground.set: the switch in Einstellungen (the page keeps or dropped the PINs already).
 #[tauri::command]
 pub fn background_set(app: AppHandle, on: bool) -> bool {
+  // The page says "on" after every login: the plan stands while they were on already.
+  let was_on = app.state::<Prefs>().get(ON_PREF).as_deref() == Some("1");
   app.state::<Prefs>().set(ON_PREF, on.then_some("1"));
   set_login_item(on);
-  if on {
+  if on && !was_on {
     app.state::<Background>().due.store(now_ms() + SETTLE, Ordering::Relaxed);
+  }
+  if on {
     ensure_tray(&app);
   } else {
     drop_tray(&app);
   }
   enabled(&app)
+}
+
+/// A second start (the Start menu, a notice): the start window while it is
+/// up — the app's window shows when the start is done — else the app's.
+pub fn bring_forward(app: &AppHandle) {
+  if let Some(splash) = app.get_webview_window(crate::splash::LABEL) {
+    let _ = splash.unminimize();
+    let _ = splash.set_focus();
+    return;
+  }
+  show_window(app);
 }
 
 pub fn show_window(app: &AppHandle) {
@@ -261,6 +276,12 @@ fn drop_tray(app: &AppHandle) {
 /// area instead, and the page ends its bank session. Answers whether it did.
 pub fn hide_on_close(app: &AppHandle) -> bool {
   if app.state::<Background>().quitting.load(Ordering::Relaxed) || !enabled(app) {
+    return false;
+  }
+  // A desktop without a notification area (GNOME as it comes): there would
+  // be nowhere to come back from, nor a "Beenden" — the close quits.
+  ensure_tray(app);
+  if app.tray_by_id(TRAY_ID).is_none() {
     return false;
   }
   if let Some(w) = app.get_webview_window("main") {
