@@ -6,7 +6,8 @@
 // round corners. Instead a thin thumb is drawn over the content of whatever
 // scrolls, as the phone does: it shows while that scroller moves, or while
 // the mouse is near its edge (wider then), turns Girovo blue while dragged,
-// and fades a second later.
+// and fades a second later. A scroller that goes — the search closing, a
+// drawer — takes its thumb with it at once, not a second later.
 //
 // One module for every scroller in the app — the page, the sidebar, sheets,
 // dialogs, the search — without any of them taking part: scrolling is found
@@ -248,6 +249,34 @@ function install(): () => void {
       }
     }
   };
+  // A scroller that leaves the page or is hidden (the search closed, a dialog
+  // gone) takes its thumb at once, with no fade: the thumb is not left
+  // floating over what is behind for a second.
+  let vanishFrame = 0;
+  const vanish = () => {
+    vanishFrame = 0;
+    for (const both of [...bars.values()]) {
+      for (const bar of Object.values(both)) {
+        if (!bar) continue;
+        if (!bar.el.isConnected) drop(bar);
+        else if (bar.thumb.dataset.on !== undefined && bar.el !== page() && bar.el.getClientRects().length === 0) {
+          window.clearTimeout(bar.timer);
+          bar.thumb.style.transition = 'none';
+          delete bar.thumb.dataset.on;
+          delete bar.thumb.dataset.near;
+          void bar.thumb.offsetWidth;
+          bar.thumb.style.transition = '';
+        }
+      }
+    }
+  };
+  const watcher = new MutationObserver((records) => {
+    // The thumbs' own coming and going is no news.
+    if (records.every((r) => r.target instanceof HTMLElement && r.target.classList.contains('float-thumb'))) return;
+    if (bars.size && !vanishFrame) vanishFrame = requestAnimationFrame(vanish);
+  });
+  watcher.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class', 'open'] });
+
   // The window resized: what shows moves with it.
   const onResize = () => {
     sweep();
@@ -263,7 +292,9 @@ function install(): () => void {
     document.removeEventListener('pointermove', onPointerMove);
     document.documentElement.removeEventListener('pointerleave', onLeave);
     window.removeEventListener('resize', onResize);
+    watcher.disconnect();
     cancelAnimationFrame(frame);
+    cancelAnimationFrame(vanishFrame);
     for (const both of [...bars.values()]) for (const bar of Object.values(both)) if (bar) drop(bar);
     delete root.dataset.scrollbars;
   };

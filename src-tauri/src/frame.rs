@@ -257,12 +257,15 @@ mod win {
         return LRESULT(0);
       }
       WM_NCLBUTTONUP if at_max => {
-        let pressed = frame().map(|mut f| std::mem::replace(&mut f.pressed, false)).unwrap_or(false);
+        // Released over the button: maximize or restore. Not only after a press
+        // seen here — a WM_NCMOUSELEAVE in between (the snap flyout, a capture
+        // change) clears `pressed`, and the click did nothing (owner, 2026-11-07).
+        if let Some(mut f) = frame() {
+          f.pressed = false;
+        }
         emit("caption:press", false);
-        if pressed {
-          unsafe {
-            let _ = ShowWindow(hwnd, if IsZoomed(hwnd).as_bool() { SW_RESTORE } else { SW_MAXIMIZE });
-          }
+        unsafe {
+          let _ = ShowWindow(hwnd, if IsZoomed(hwnd).as_bool() { SW_RESTORE } else { SW_MAXIMIZE });
         }
         return LRESULT(0);
       }

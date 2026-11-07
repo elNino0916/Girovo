@@ -140,6 +140,17 @@ pub struct PublicRelease {
   pub can_install: bool,
 }
 
+/// Why a picked file is not installed (find_signed).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Refusal {
+  /// No signed release names it: an unsigned file, or a release from before signatures.
+  NoSignature,
+  /// Its release's manifest is there, but not signed with Girovo's key.
+  BadSignature,
+  /// Its release is signed, but this file is not that release's installer: it was changed.
+  Changed,
+}
+
 /// Where a file the user picked to install stands ("Update aus Datei installieren").
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -1450,8 +1461,16 @@ impl Updater {
     let Some((size, sha)) = measured else {
       return self.set(|s| s.file = Some(offer(FilePhase::Refused, Some(say.file_unreadable))));
     };
-    let Some((release, asset)) = self.find_signed(&name, size, &sha).await else {
-      return self.set(|s| s.file = Some(offer(FilePhase::Refused, Some(say.file_unsigned))));
+    let (release, asset) = match self.find_signed(&name, size, &sha).await {
+      Ok(found) => found,
+      Err(refusal) => {
+        let message = match refusal {
+          Refusal::NoSignature => say.file_unsigned,
+          Refusal::BadSignature => say.file_bad_signature,
+          Refusal::Changed => say.file_changed,
+        };
+        return self.set(|s| s.file = Some(offer(FilePhase::Refused, Some(message))));
+      }
     };
     let (build, current) = (trust::build_number(&release.version), trust::build_number(&self.cfg.current_version));
     let file = FileOffer {
@@ -1468,13 +1487,16 @@ impl Updater {
 
   /// The signed release whose installer (for this kind of install) is `size`
   /// bytes with `sha`: from girovo.de's listings, else the manifest of the
-  /// release the file's name points to (Girovo-<version>-Setup.exe).
-  async fn find_signed(&self, name: &str, size: u64, sha: &str) -> Option<(Release, Asset)> {
-    let mut candidates: Vec<(String, String)> = Vec::new();
+  /// release the file's name points to (Girovo-<version>-Setup.exe). Refused,
+  /// it says why: no signature for it anywhere, a signature that is not
+  /// Girovo's, or a signed release of that name whose installer is not this file.
+  async fn find_signed(&self, name: &str, size: u64, sha: &str) -> Result<(Release, Asset), Refusal> {
+    // (manifest, signature, whether it is the one the file's name points to)
+    let mut candidates: Vec<(String, String, bool)> = Vec::new();
     if let Some(base) = self.cfg.manifest_base.clone() {
       for channel in [Channel::Stable, Channel::Preview] {
         for l in self.fetch_listing(&base, channel).await.unwrap_or_default() {
-          candidates.push((l.manifest, l.sig));
+          candidates.push((l.manifest, l.sig, false));
         }
       }
     }
@@ -1482,15 +1504,34 @@ impl Updater {
     let version = lower.strip_prefix("girovo-").and_then(|v| v.strip_suffix("-setup.exe")).map(|_| &name[7..name.len() - 10]);
     if let (Some(version), Some(prefix)) = (version.filter(|v| trust::build_number(v).is_some()), self.cfg.origin.download_prefixes.first()) {
       let at = |file: &str| Asset { name: file.to_string(), url: format!("{prefix}{version}/{file}"), size: 0, sha256: None };
-      if let (Some(m), Some(s)) = (self.small_file(&at(trust::MANIFEST_NAME)).await, self.small_file(&at(trust::SIG_NAME)).await) {
-        candidates.push((String::from_utf8_lossy(&m).into_owned(), String::from_utf8_lossy(&s).into_owned()));
+      // A manifest without its signature counts as one with a bad signature.
+      if let Some(m) = self.small_file(&at(trust::MANIFEST_NAME)).await {
+        let s = self.small_file(&at(trust::SIG_NAME)).await.unwrap_or_default();
+        candidates.push((String::from_utf8_lossy(&m).into_owned(), String::from_utf8_lossy(&s).into_owned(), true));
       }
     }
-    candidates.into_iter().find_map(|(manifest, sig)| {
-      trust::verify(manifest.as_bytes(), &sig, &self.cfg.keys)?;
-      let release = trust::release_of(manifest.as_bytes(), &self.cfg.origin)?;
-      let asset = logic::pick_asset(&release, self.cfg.kind).filter(|a| a.size == size && a.sha256.as_deref() == Some(sha))?.clone();
-      Some((release, asset))
+    let named = version.map(str::to_string);
+    let (mut bad, mut changed) = (false, false);
+    for (manifest, sig, by_name) in candidates {
+      if trust::verify(manifest.as_bytes(), &sig, &self.cfg.keys).is_none() {
+        bad |= by_name;
+        continue;
+      }
+      let Some(release) = trust::release_of(manifest.as_bytes(), &self.cfg.origin) else { continue };
+      match logic::pick_asset(&release, self.cfg.kind) {
+        Some(a) if a.size == size && a.sha256.as_deref() == Some(sha) => {
+          let a = a.clone();
+          return Ok((release, a));
+        }
+        _ => changed |= named.as_deref() == Some(release.version.as_str()),
+      }
+    }
+    Err(if changed {
+      Refusal::Changed
+    } else if bad {
+      Refusal::BadSignature
+    } else {
+      Refusal::NoSignature
     })
   }
 

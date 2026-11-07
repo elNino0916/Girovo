@@ -26,6 +26,10 @@ pub struct Texts {
   pub changed: &'static str,
   /// "Update aus Datei installieren": a file that is no signed release's installer.
   pub file_unsigned: &'static str,
+  /// …its release's signature is not Girovo's.
+  pub file_bad_signature: &'static str,
+  /// …a signed release of that name, but this file is not its installer.
+  pub file_changed: &'static str,
   pub file_unreadable: &'static str,
   /// Only the installed Windows app installs from a file.
   pub file_not_here: &'static str,
@@ -85,7 +89,9 @@ const DE: Texts = Texts {
   no_folder: "Girovo findet keinen Ordner für das Update.",
   digest_mismatch: "Das Update war beschädigt und wurde gelöscht. Versuch es noch einmal.",
   changed: "Das Update fehlt oder wurde verändert. Lade es noch einmal herunter.",
-  file_unsigned: "Girovo erkennt diese Datei nicht als Update.",
+  file_unsigned: "Diese Datei hat keine Signatur von Girovo.",
+  file_bad_signature: "Die Signatur dieser Datei ist ungültig.",
+  file_changed: "Die Datei passt nicht zu ihrer Signatur – sie wurde verändert.",
   file_unreadable: "Die Datei ließ sich nicht lesen.",
   file_not_here: "Das geht nur in der installierten Windows-App.",
   lang: Lang::De,
@@ -109,7 +115,9 @@ const EN: Texts = Texts {
   no_folder: "Girovo can’t find a folder for the update.",
   digest_mismatch: "The update was damaged and has been deleted. Try again.",
   changed: "The update is missing or was changed. Download it again.",
-  file_unsigned: "Girovo doesn’t recognise this file as an update.",
+  file_unsigned: "This file has no signature from Girovo.",
+  file_bad_signature: "This file’s signature is invalid.",
+  file_changed: "The file doesn’t match its signature – it has been changed.",
   file_unreadable: "The file couldn’t be read.",
   file_not_here: "This only works in the installed Windows app.",
   lang: Lang::En,

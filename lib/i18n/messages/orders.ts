@@ -115,7 +115,7 @@ export const de = {
     /** The done step, under the schedule line. */
     done: {
       /** `place`: where the list lives ("Verträge & Abos"). */
-      where: (place: string) => `Zu finden unter „${place}“ bei den Aufträgen, sobald du sie abrufst.`,
+      where: (place: string) => `Zu finden unter „${place}“ bei den Aufträgen, sobald du sie lädst.`,
     },
     showOrders: 'Aufträge ansehen',
     /** The "Status unklar" step. */
@@ -158,7 +158,7 @@ export const de = {
     title: {
       standingOrder: 'Dauerauftrag freigeben',
       datedTransfer: 'Terminüberweisung freigeben',
-      bankOrders: 'Abruf freigeben',
+      bankOrders: 'Freigabe für deine Aufträge',
       orderDelete: 'Löschen freigeben',
       orderChange: 'Änderung freigeben',
     } as Record<OrderWait, string>,
@@ -166,13 +166,13 @@ export const de = {
     subject: {
       standingOrder: 'den Dauerauftrag',
       datedTransfer: 'die Terminüberweisung',
-      bankOrders: 'den Abruf deiner Aufträge',
+      bankOrders: 'das Laden deiner Aufträge',
       orderDelete: 'das Löschen des Auftrags',
       orderChange: 'die Änderung des Auftrags',
     } as Record<OrderWait, string>,
     /** `account`: the user's own name for it first. */
     listOf: (kind: Kind, account: string) =>
-      `den Abruf der ${kind === 'standing' ? 'Daueraufträge' : 'Terminüberweisungen'} von ${account}`,
+      `das Laden der ${kind === 'standing' ? 'Daueraufträge' : 'Terminüberweisungen'} von ${account}`,
     afterConfirm: {
       standingOrder: 'Der Dauerauftrag ist freigegeben.',
       datedTransfer: 'Die Terminüberweisung ist freigegeben.',
@@ -183,7 +183,7 @@ export const de = {
     refused: {
       standingOrder: { title: 'Dauerauftrag nicht eingerichtet', text: 'Deine Bank hat den Auftrag abgelehnt:' },
       datedTransfer: { title: 'Terminüberweisung nicht angelegt', text: 'Deine Bank hat den Auftrag abgelehnt:' },
-      bankOrders: { title: 'Aufträge nicht abgerufen', text: 'Deine Bank hat den Abruf abgelehnt:' },
+      bankOrders: { title: 'Aufträge nicht geladen', text: 'Deine Bank hat abgelehnt:' },
       orderDelete: { title: 'Auftrag nicht gelöscht', text: 'Deine Bank hat das Löschen abgelehnt:' },
       orderChange: { title: 'Auftrag nicht geändert', text: 'Deine Bank hat die Änderung abgelehnt:' },
     } as Record<OrderWait, { title: string; text: string }>,
@@ -208,7 +208,7 @@ export const de = {
     count: (kind: Kind, n: number): string => (kind === 'standing'
       ? (n === 1 ? '1 Dauerauftrag' : `${n} Daueraufträge`)
       : (n === 1 ? '1 Terminüberweisung' : `${n} Terminüberweisungen`)),
-    notRead: 'Bei deiner Bank – noch nicht abgerufen',
+    notRead: 'Bei deiner Bank – noch nicht geladen',
   },
 
   list: {
@@ -216,13 +216,13 @@ export const de = {
     /** The tile's subtitle: whose orders, and that they are the bank's. */
     atBank: 'Bei deiner Bank',
     account: 'Konto',
-    load: 'Aufträge abrufen',
+    load: 'Aufträge laden',
     reload: 'Aktualisieren',
-    /** Beside "Aufträge abrufen". */
+    /** Beside "Aufträge laden". */
     mayNeedApproval: 'Kann eine Freigabe erfordern.',
     loading: 'Aufträge werden geladen …',
     none: { standing: 'Keine Daueraufträge bei deiner Bank.', dated: 'Keine Terminüberweisungen bei deiner Bank.' } as Record<Kind, string>,
-    notLoaded: { standing: 'Daueraufträge noch nicht abgerufen.', dated: 'Terminüberweisungen noch nicht abgerufen.' } as Record<Kind, string>,
+    notLoaded: { standing: 'Daueraufträge noch nicht geladen.', dated: 'Terminüberweisungen noch nicht geladen.' } as Record<Kind, string>,
     /** A Dauerauftrag's next execution, after its rhythm. */
     next: (date: string) => `nächste am ${date}`,
     /** A terminierte Überweisung's date. */
@@ -420,7 +420,7 @@ export const en: typeof de = {
     approve: { standing: 'Approve standing order', dated: 'Approve scheduled transfer' },
     noFunds: 'Your bank checks there is enough money on the day of execution.',
     done: {
-      where: (place) => `You will find it under “${place}” in your orders once you fetch them.`,
+      where: (place) => `You will find it under “${place}” in your orders once you load them.`,
     },
     showOrders: 'View orders',
     unknown: {
@@ -455,7 +455,7 @@ export const en: typeof de = {
     title: {
       standingOrder: 'Approve standing order',
       datedTransfer: 'Approve scheduled transfer',
-      bankOrders: 'Approve retrieval',
+      bankOrders: 'Approve loading your orders',
       orderDelete: 'Approve deletion',
       orderChange: 'Approve change',
     },
@@ -478,7 +478,7 @@ export const en: typeof de = {
     refused: {
       standingOrder: { title: 'Standing order not set up', text: 'Your bank declined the order:' },
       datedTransfer: { title: 'Scheduled transfer not created', text: 'Your bank declined the order:' },
-      bankOrders: { title: 'Orders not fetched', text: 'Your bank declined the retrieval:' },
+      bankOrders: { title: 'Orders not loaded', text: 'Your bank declined:' },
       orderDelete: { title: 'Order not deleted', text: 'Your bank declined the deletion:' },
       orderChange: { title: 'Order not changed', text: 'Your bank declined the change:' },
     },
@@ -499,19 +499,19 @@ export const en: typeof de = {
     count: (kind, n) => (kind === 'standing'
       ? (n === 1 ? '1 standing order' : `${n} standing orders`)
       : (n === 1 ? '1 scheduled transfer' : `${n} scheduled transfers`)),
-    notRead: 'At your bank – not fetched yet',
+    notRead: 'At your bank – not loaded yet',
   },
 
   list: {
     title: 'Standing orders and scheduled transfers',
     atBank: 'At your bank',
     account: 'Account',
-    load: 'Fetch orders',
+    load: 'Load orders',
     reload: 'Refresh',
     mayNeedApproval: 'May need approval.',
     loading: 'Loading orders…',
     none: { standing: 'No standing orders at your bank.', dated: 'No scheduled transfers at your bank.' },
-    notLoaded: { standing: 'Standing orders not fetched yet.', dated: 'Scheduled transfers not fetched yet.' },
+    notLoaded: { standing: 'Standing orders not loaded yet.', dated: 'Scheduled transfers not loaded yet.' },
     next: (date) => `next on ${date}`,
     on: (date) => `on ${date}`,
     until: (date) => `until ${date}`,

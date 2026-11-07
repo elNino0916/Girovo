@@ -27,20 +27,24 @@ import { useRecurringModel } from './recurring-model';
 import { RoundMoney, fmtDayKeyShort } from './shared';
 
 export function ForecastTile({ className }: { className?: string }) {
-  const { activeAccount, balances, pendingCache, bankOrders, txByAccount, statementInfo, accountLabel, accounts, plus } = useFints();
+  const { activeAccount, balances, balanceAt, pendingCache, bankOrders, txByAccount, statementInfo, accountLabel, accounts, plus } = useFints();
   const model = useRecurringModel();
   const frame = useDesktopFrame();
   const t = useT();
   const words = t.insights.forecast;
   const acct = activeAccount?.accountNumber ?? null;
   const balance = acct ? balances[acct] : null;
+  const readAt = acct ? balanceAt[acct] : undefined;
   const today = dayKey(new Date());
   const card = !!activeAccount && isCardAccount(activeAccount);
 
   const result = useMemo(() => {
     if (!activeAccount || !acct || !balance || model.loading) return null;
-    // A balance from another day is no ground to stand on: the bookings since are unknown.
-    if (dayKey(balance.date) < today) return 'stale' as const;
+    // A balance read on another day is no ground to stand on: the bookings since
+    // are unknown. Read today, it is today's — a bank dates it to its last
+    // business day (a Friday on a weekend), which says nothing about how fresh it is.
+    const readDay = readAt ? dayKey(new Date(readAt)) : dayKey(balance.date);
+    if (readDay < today) return 'stale' as const;
     const currency = balance.currency || activeAccount.currency || 'EUR';
     const series = [...model.income, ...model.expense].filter((s) => model.accountOf(s) === acct);
     const orders = [
@@ -71,7 +75,7 @@ export function ForecastTile({ className }: { className?: string }) {
         card,
       }),
     };
-  }, [activeAccount, acct, balance, model, bankOrders, statementInfo, txByAccount, pendingCache, today, card]);
+  }, [activeAccount, acct, balance, readAt, model, bankOrders, statementInfo, txByAccount, pendingCache, today, card]);
 
   // A Depot has no balance to project, a card's statement balance none worth it.
   if (!activeAccount || card || activeAccount.accountType === 'SecuritiesAccount' || !result) return null;

@@ -47,7 +47,8 @@ import { Inbox } from './Inbox';
 import { CommandPalette } from './CommandPalette';
 import { SessionGuard } from './SessionGuard';
 import { ShortcutsHelp } from './ShortcutsHelp';
-import { cx } from './ui';
+import { IconButton, cx } from './ui';
+import { BackIcon } from './icons';
 import { useShellActions } from './shell/actions';
 import { PAGE_TITLE_ID } from './shell/ids';
 import { useSplitOverview } from './shell/useWide';
@@ -94,7 +95,7 @@ export function Dashboard() {
  * in the sheet.
  */
 function FramedDashboard() {
-  const { tab, ordersOpen, accounts, activeAccount, selectAccount, busy, setAccountsHidden } = useFints();
+  const { tab, ordersOpen, closeOrders, accounts, activeAccount, selectAccount, busy, setAccountsHidden } = useFints();
   const t = useT();
   const actions = useShellActions();
   useGlobalShortcuts(actions, { frame: true });
@@ -169,13 +170,21 @@ function FramedDashboard() {
         <div data-frame-sheet className="mr-4 mb-4 min-w-0 flex-1 overflow-hidden rounded-[16px] bg-[var(--frame-sheet)]">
           <div ref={scrollRef} data-scroll-root className="relative h-full overflow-y-auto overscroll-contain">
             <main id="main" className={cx('relative mx-auto w-full', !ledger && 'max-w-[1280px] px-7 pt-5 pb-12')}>
-              <h1
-                id={PAGE_TITLE_ID}
-                tabIndex={-1}
-                className={visibleTitle ? 'mb-2 text-[22px] leading-7 font-medium text-ink outline-none' : 'sr-only'}
-              >
-                {orders ? t.orders.page.title : t.common.nav[tab]}
-              </h1>
+              {/* Aufträge are a level below Zahlungen: the way back beside their name (as Verträge & Abos). */}
+              <div className={visibleTitle ? '-ml-3 mb-2 flex items-center gap-1' : undefined}>
+                {orders && (
+                  <IconButton size="md" aria-label={t.common.nav.contracts} onClick={closeOrders}>
+                    <BackIcon size={22} />
+                  </IconButton>
+                )}
+                <h1
+                  id={PAGE_TITLE_ID}
+                  tabIndex={-1}
+                  className={visibleTitle ? 'text-[22px] leading-7 font-medium text-ink outline-none' : 'sr-only'}
+                >
+                  {orders ? t.orders.page.title : t.common.nav[tab]}
+                </h1>
+              </div>
               <div key={place} data-place>
                 {tab === 'overview' && (ledger ? <Ledger /> : <Overview />)}
                 {tab === 'analysis' && <Analysis />}

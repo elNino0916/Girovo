@@ -1620,7 +1620,7 @@ mod signed {
     let s = updater.check_file(picked(&downloads, "9.9.9", b"something else entirely")).await;
     let offer = s.file.unwrap();
     assert_eq!(offer.phase, FilePhase::Refused);
-    assert!(offer.message.unwrap().contains("nicht als Update"));
+    assert!(offer.message.unwrap().contains("verändert"), "9.9.9 is signed, this file is not its installer");
     assert_eq!(updater.install_file().await.phase, Phase::Idle, "nothing to install");
     assert!(host.installs().is_empty());
     assert_eq!(updater.check_file(downloads.path().join("missing.exe")).await.file.unwrap().phase, FilePhase::Refused);
@@ -1633,11 +1633,16 @@ mod signed {
     let updater = make(signed_config(&srv.base, cache.path()), &host());
     let s = updater.check_file(picked(&downloads, "9.9.9", &payload())).await;
     assert_eq!(s.file.unwrap().phase, FilePhase::Ready);
-    // A stranger's signature there counts for nothing.
+    // A stranger's signature there counts for nothing, and says so.
     let srv = Server::start(site(None, Some(9), Arc::default()));
     let cache = TempDir::new();
     let updater = make(signed_config(&srv.base, cache.path()), &host());
-    assert_eq!(updater.check_file(picked(&downloads, "9.9.9", &payload())).await.file.unwrap().phase, FilePhase::Refused);
+    let offer = updater.check_file(picked(&downloads, "9.9.9", &payload())).await.file.unwrap();
+    assert_eq!(offer.phase, FilePhase::Refused);
+    assert!(offer.message.unwrap().contains("Signatur dieser Datei ist ungültig"));
+    // No manifest for it at all: no signature.
+    let offer = updater.check_file(picked(&downloads, "9.9.7", b"an old installer")).await.file.unwrap();
+    assert!(offer.message.unwrap().contains("keine Signatur"));
   }
 
   #[tokio::test]
