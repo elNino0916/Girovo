@@ -275,6 +275,10 @@ function useFintsState() {
   const [singleKeyShortcuts, setSingleKeyShortcutsState] = useState(true);
   /** "Salden beim Anmelden abrufen" (Einstellungen): off unless the user switched it on. */
   const [balancesAtLogin, setBalancesAtLoginState] = useState(false);
+  /** "Umsätze beim Anmelden abrufen" (Einstellungen): on unless the user switched it off. */
+  const [bookingsAtLogin, setBookingsAtLoginState] = useState(true);
+  /** The session whose login read (the first account's Umsätze) has settled: the others' may follow. */
+  const [loginReadSid, setLoginReadSid] = useState<string | null>(null);
   /** Company logos: off until the user answers the dashboard's one-time question. */
   const [logoConsent, setLogoConsentState] = useState<LogoConsent>('unasked');
 
@@ -675,6 +679,7 @@ function useFintsState() {
     }
     if (store.get('fints.singleKeys') === '0') setSingleKeyShortcutsState(false);
     if (store.get('fints.balancesAtLogin') === '1') setBalancesAtLoginState(true);
+    if (store.get('fints.bookingsAtLogin') === '0') setBookingsAtLoginState(false);
     // A device that knew a bank before this start ran an older Girovo: "Neu in
     // Girovo 6" is due there, once. A first start never gets it — everything
     // is new there anyway.
@@ -2604,6 +2609,16 @@ function useFintsState() {
   }, []);
 
   /**
+   * "Umsätze beim Anmelden abrufen": after the login's own read, every other
+   * shown account's Umsätze, one after the other. On this device, like the
+   * balances' choice.
+   */
+  const setBookingsAtLogin = useCallback((on: boolean) => {
+    setBookingsAtLoginState(on);
+    store.set('fints.bookingsAtLogin', on ? '1' : '0');
+  }, []);
+
+  /**
    * The answer to "Firmenlogos anzeigen?" (the dashboard asks once), or the
    * Sitzung panel's switch. Yes looks up what is loaded already. No drops
    * every logo of this session at once, so the logo proxy is not asked for
@@ -3267,9 +3282,14 @@ function useFintsState() {
       // A remembered device's login: the first statement the bank answers is
       // its word on the PIN, and only then do the kept PINs open (connect).
       const afterRead = linkedAfterReadRef.current === sid;
-      void loadTransactions(list[0], undefined, undefined, afterRead
-        ? { onSettled: (outcome) => { if (outcome === 'applied') pinTaken(sid); } }
-        : {});
+      void loadTransactions(list[0], undefined, undefined, {
+        onSettled: (outcome) => {
+          if (afterRead && outcome === 'applied') pinTaken(sid);
+          // The other accounts' Umsätze may follow ("Umsätze beim Anmelden
+          // abrufen") — not after an approval called off or a failed read.
+          if (outcome === 'applied' || outcome === 'skipped') setLoginReadSid(sid);
+        },
+      });
       // Synchronised (and approved, where the bank asked): the bank took the PIN.
       if (!afterRead && !IS_ANDROID) pinTaken(sid);
     }
@@ -4682,6 +4702,54 @@ function useFintsState() {
     if (loadAllBalances(ids) || ids.every((id) => !sessionFor(id))) for (const id of ids) asked.add(id);
   }, [balancesAtLogin, view, busy, accounts, sessionId, loadAllBalances]);
 
+  // "Umsätze beim Anmelden abrufen" (on unless switched off): once the login's
+  // own read has come back, the Umsätze of every other account that has them
+  // and is shown (not unticked in the desktop's sidebar), one after the other,
+  // as the Übersicht's "Umsätze abrufen" reads them — and a further bank's
+  // accounts when it joins the view. Each account once per session. An
+  // approval called off or a read that failed ends it for the session: no
+  // second prompt for the next account, and the Übersicht's line still offers
+  // the rest by hand. Never while another read runs.
+  const autoBookingsRef = useRef<{ sid: string | null; asked: Set<string>; running: boolean; stopped: boolean }>(
+    { sid: null, asked: new Set(), running: false, stopped: false },
+  );
+  const accountsHidden = vault?.accountsHidden;
+  useEffect(() => {
+    if (!bookingsAtLogin || view !== 'dashboard' || busy || !sessionId || loginReadSid !== sessionId) return;
+    if (autoBookingsRef.current.sid !== sessionId) {
+      autoBookingsRef.current = { sid: sessionId, asked: new Set(), running: false, stopped: false };
+    }
+    const run = autoBookingsRef.current;
+    if (run.running || run.stopped) return;
+    const hidden = new Set(accountsHidden ?? []);
+    // A further bank logged out is left out (its list offers the login), not
+    // counted as a failed read that would end the run for everyone after it.
+    const list = accounts.filter((a) => a.canStatements && !isDepot(a) && !hidden.has(a.accountNumber)
+      && !run.asked.has(a.accountNumber) && !txByAccount[a.accountNumber] && !!sessionFor(a.accountNumber));
+    if (!list.length) return;
+    run.running = true;
+    const step = (i: number) => {
+      // Another login since: that one's own run takes over.
+      if (autoBookingsRef.current !== run || i >= list.length) { run.running = false; return; }
+      const account = list[i];
+      void loadTransactions(account, undefined, undefined, {
+        quiet: true,
+        onSettled: (outcome) => {
+          // Another read had the line: this runs again once it is done.
+          if (outcome === 'busy') { run.running = false; return; }
+          run.asked.add(account.accountNumber);
+          if (outcome === 'cancelled' || outcome === 'failed') {
+            run.stopped = true;
+            run.running = false;
+            return;
+          }
+          step(i + 1);
+        },
+      });
+    };
+    step(0);
+  }, [bookingsAtLogin, view, busy, sessionId, loginReadSid, accounts, accountsHidden, txByAccount, loadTransactions]);
+
   // Kept balances (lib/kept-balances.ts): every balance this session read
   // goes into the vault as the account's last, with when it was read — and,
   // on a day every figure is known, the overview's figures for that day.
@@ -5652,7 +5720,7 @@ function useFintsState() {
     vault, vaultStatus,
     keepBookings, historyStatus, historyCoverage: keptCoverage, savedRange,
     // prefs
-    privacy, idleMinutes, singleKeyShortcuts, balancesAtLogin,
+    privacy, idleMinutes, singleKeyShortcuts, balancesAtLogin, bookingsAtLogin,
     logoConsent,
     // session
     sessionStartedAt, idleDeadline,
@@ -5674,7 +5742,7 @@ function useFintsState() {
     retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
     printTaxYear, loadRange,
     makeBackup, restoreBackup, inspectBankFile, importBankFile,
-    togglePrivacy, setIdleMinutes, setSingleKeyShortcuts, setBalancesAtLogin,
+    togglePrivacy, setIdleMinutes, setSingleKeyShortcuts, setBalancesAtLogin, setBookingsAtLogin,
     setLogoConsent,
     setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions, openOrders, closeOrders,
     setAnalysisPeriod, setAnalysisScope,

@@ -81,6 +81,11 @@ export const de = {
     keepHint: 'Die Übersicht zeigt sie gleich, mit ihrem Stand. Verschlüsselt auf diesem Rechner.',
     deleted: 'Gespeicherte Salden gelöscht.',
   },
+  /** 6.0: every shown account's Umsätze read after the login's own (a device's choice, on unless switched off). */
+  bookingsAtLogin: {
+    title: 'Umsätze beim Anmelden abrufen',
+    hint: 'Nach der Anmeldung liest Girovo die Umsätze jedes angezeigten Kontos – das kann eine Freigabe erfordern.',
+  },
   /**
    * 6.0, the desktop: the further banks log in with the first one — their PINs
    * kept beside it, opened by its PIN (lib/linked-unlock.ts; on Android the
@@ -242,6 +247,10 @@ export const en: typeof de = {
     keep: 'Keep the last balances',
     keepHint: 'The overview shows them straight away, with when they were loaded. Encrypted on this computer.',
     deleted: 'Kept balances deleted.',
+  },
+  bookingsAtLogin: {
+    title: 'Load transactions when logging in',
+    hint: 'After logging in, Girovo loads the transactions of every account shown – this may need an approval.',
   },
   linkedUnlock: {
     title: 'Log in to further banks too',

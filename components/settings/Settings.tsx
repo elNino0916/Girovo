@@ -333,7 +333,7 @@ function NotificationsPage() {
 
 function AccountsPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
   const t = useT();
-  const { balancesAtLogin, setBalancesAtLogin, vault, vaultStatus, setKeepBalances, toast, keepBookings } = useFints();
+  const { balancesAtLogin, setBalancesAtLogin, bookingsAtLogin, setBookingsAtLogin, vault, vaultStatus, setKeepBalances, toast, keepBookings } = useFints();
   const ready = vaultStatus === 'ready';
   return (
     <>
@@ -363,15 +363,22 @@ function AccountsPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
         )}
       </SettingsGroup>
 
-      {/* The choice lives in the vault, so it is offered only while the vault
-          can be written. Off is the default (owner to confirm). */}
-      {ready && (
-        <SettingsGroup title={t.settings.groups.bookings}>
-          <KeepRow onOff={() => onDialog('keepOff')} onReset={() => onDialog('historyReset')} />
-          {/* Older Umsätze from the online banking's export, into the kept ones. */}
-          {keepBookings && <ImportRow />}
-        </SettingsGroup>
-      )}
+      <SettingsGroup title={t.settings.groups.bookings}>
+        {/* 6.0: every shown account's Umsätze after the login's own, as the Übersicht's "Umsätze abrufen" reads them. On unless switched off. */}
+        <SwitchItem
+          icon={<RefreshIcon />}
+          setting="loginBookings"
+          checked={bookingsAtLogin}
+          onChange={setBookingsAtLogin}
+          title={t.settings.bookingsAtLogin.title}
+          summary={t.settings.bookingsAtLogin.hint}
+        />
+        {/* Keeping them lives in the vault, so it is offered only while the
+            vault can be written. Off is the default (owner to confirm). */}
+        {ready && <KeepRow onOff={() => onDialog('keepOff')} onReset={() => onDialog('historyReset')} />}
+        {/* Older Umsätze from the online banking's export, into the kept ones. */}
+        {ready && keepBookings && <ImportRow />}
+      </SettingsGroup>
 
       {/* The guess with Gemini Nano (Android), then the user's own categories:
           made from a booking's menu, kept here. */}

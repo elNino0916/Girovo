@@ -37,6 +37,7 @@ export const PAGE_OF: Record<SettingsTarget, SettingsPage> = {
   device: 'security',
   alerts: 'notifications',
   loginBalances: 'accounts',
+  loginBookings: 'accounts',
   keepBalances: 'accounts',
   keep: 'accounts',
   categories: 'accounts',

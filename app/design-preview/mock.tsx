@@ -776,6 +776,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [singleKeyShortcuts, setSingleKeyShortcuts] = useState(true);
   // As the provider: "Salden beim Anmelden abrufen", off until switched on (a preview reads nothing on its own).
   const [balancesAtLogin, setBalancesAtLogin] = useState(false);
+  const [bookingsAtLogin, setBookingsAtLogin] = useState(true);
   const [logoConsent, setLogoConsentState] = useState<LogoConsent>(() => (
     opts.logos && opts.logos !== 'unavailable' ? opts.logos : loggedIn ? 'off' : 'unasked'
   ));
@@ -3006,7 +3007,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     historyStatus,
     historyCoverage,
     savedRange,
-    privacy, idleMinutes, singleKeyShortcuts, balancesAtLogin,
+    privacy, idleMinutes, singleKeyShortcuts, balancesAtLogin, bookingsAtLogin,
     logoConsent,
     sessionStartedAt, idleDeadline,
     tab, settingsTarget, settingsPage, setSettingsPage, txFilter, txFocusNonce, accountOpen, ordersOpen,
@@ -3023,7 +3024,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
     requestLogout, closeLogoutConfirm, setForgetDeviceOpen,
     retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
-    togglePrivacy, setIdleMinutes, setSingleKeyShortcuts, setBalancesAtLogin,
+    togglePrivacy, setIdleMinutes, setSingleKeyShortcuts, setBalancesAtLogin, setBookingsAtLogin,
     setLogoConsent,
     setTab, openSettings, leaveSettings, clearSettingsTarget, setTxFilter, showTransactions, openOrders, closeOrders,
     setAnalysisPeriod, setAnalysisScope,

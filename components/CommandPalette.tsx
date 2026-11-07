@@ -260,6 +260,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
       setting('language', 'language', (m) => m.session.language, <GlobeIcon />),
       setting('idle', 'idle', (m) => m.settings.find.idle, <ClockIcon />),
       setting('loginBalances', 'loginBalances', (m) => m.settings.balances.atLogin, <RefreshIcon />),
+      setting('loginBookings', 'loginBookings', (m) => m.settings.bookingsAtLogin.title, <RefreshIcon />),
       setting('categories', 'categories', (m) => m.transactions.custom.section, <TagIcon />),
       !!f.meta?.merchantLogos && setting('logos', 'logos', (m) => m.session.logos, <ImageIcon />),
       !!usage && setting('usage', 'usage', (m) => m.session.usage, <ChartIcon />),
