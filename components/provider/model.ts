@@ -113,8 +113,12 @@ export type Toast = { id: number; message: string; tone: ToastTone; ms: number; 
 
 export type View = 'login' | 'tanmethod' | 'dashboard';
 
-/** `cancelled`: the login's own approval was called off, so the half-open session goes. */
-export type LogoutReason = 'user' | 'idle' | 'expired' | 'cancelled';
+/**
+ * `cancelled`: the login's own approval was called off, so the half-open
+ * session goes. `hidden`: the desktop's window closed into the notification
+ * area (src-tauri/src/background.rs).
+ */
+export type LogoutReason = 'user' | 'idle' | 'expired' | 'cancelled' | 'hidden';
 
 /** The idle limits the user can choose from, in minutes. */
 export const IDLE_MINUTE_CHOICES = [5, 10, 15, 30] as const;

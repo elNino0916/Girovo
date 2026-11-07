@@ -84,7 +84,7 @@ import {
 import { afterStatementRead, pendingView, type PendingRead } from '@/lib/pending';
 import { sanitizeGoals, type SavingsGoal } from '@/lib/savings-goal';
 import { recordSentOrder, type SentOrder } from '@/lib/sent-orders';
-import { idleLogoutNotice, logoutNotice, unclearTransfers } from '@/lib/session-log';
+import { idleLogoutNotice, logoutNotice, unclearNotice, unclearTransfers } from '@/lib/session-log';
 import { sepaSanitize } from '@/lib/sepa-text';
 import {
   EMPTY_FILTER, EMPTY_VAULT,
@@ -4107,7 +4107,7 @@ function useFintsState() {
    */
   const logout = useCallback(async (reason: LogoutReason = 'user') => {
     // `onClick={logout}` hands over a click event; that is a user logout too.
-    if (reason !== 'idle' && reason !== 'expired' && reason !== 'cancelled') reason = 'user';
+    if (reason !== 'idle' && reason !== 'expired' && reason !== 'cancelled' && reason !== 'hidden') reason = 'user';
     const sid = sessionRef.current;
     if (!sid) {
       // A straggling idle tick or 401 after the session already ended, or a
@@ -4138,12 +4138,16 @@ function useFintsState() {
     setAutoLoggedOut(reason === 'idle' || reason === 'expired');
 
     let notice: number | null = null;
+    let said: 'user' | 'cancelled' | 'hidden' | null = null;
     if (reason === 'idle') {
       toast(idleLogoutNotice(unclear, unclear.length), 'info', IDLE_NOTICE_MS);
     } else if (reason === 'expired') {
       toast(msgs().provider.logout.expired, 'error');
     } else {
-      notice = toast(logoutNotice(reason, false), 'info', 6000);
+      // An unclear transfer named stays as long as the idle notice does: the
+      // window closed into the notification area shows it only when it is back.
+      said = reason;
+      notice = toast(logoutNotice(said, false, unclear), 'info', unclear.length ? IDLE_NOTICE_MS : 6000);
     }
 
     await Promise.race([saved, delay(LOGOUT_FLUSH_TIMEOUT_MS)]);
@@ -4151,8 +4155,8 @@ function useFintsState() {
     // be gone only once every session that held one confirmed it.
     const results = await Promise.allSettled(sids.map((s) => post('/api/logout', { sessionId: s })));
     const dropped = results.every((r) => r.status === 'fulfilled');
-    if (notice != null && dropped && (reason === 'user' || reason === 'cancelled')) {
-      rewordToast(notice, logoutNotice(reason, true));
+    if (notice != null && said && dropped) {
+      rewordToast(notice, logoutNotice(said, true, unclear));
     }
   }, [flushVault, cancelConnect, resetSession, toast, rewordToast]);
 
@@ -4243,13 +4247,20 @@ function useFintsState() {
   // The desktop with "Neue Umsätze melden" on: closing the window leaves the
   // app in the notification area (src-tauri/src/background.rs). The bank session ends
   // as it did when closing quit the app, so the window opened again from
-  // there shows the login. The login screen names any transfer left unclear.
+  // there shows the login. The login screen names any transfer left unclear —
+  // and since nobody sees the window now, a system notice names it at once.
   useEffect(() => {
     const off = window.electronBackground?.onHidden?.(() => {
       // Not while an approval runs or an order is on its way to the bank
       // (busy, before any approval shows): the idle logout follows once it is
       // over, as it never cuts one off either.
-      if (sessionRef.current && !waitRef.current.open && !busyRef.current) void logout();
+      if (!sessionRef.current || waitRef.current.open || busyRef.current) return;
+      const unclear = unclearTransfers(activityRef.current).map((e) => e.name);
+      if (unclear.length) {
+        void window.electronBackground?.notice?.({ title: msgs().provider.logout.hiddenTitle, text: unclearNotice(unclear) })
+          .catch(() => { /* the login screen's notice remains */ });
+      }
+      void logout('hidden');
     });
     return off;
   }, [logout]);

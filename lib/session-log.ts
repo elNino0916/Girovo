@@ -25,24 +25,40 @@ export function payeeList(names: readonly string[]): string {
 }
 
 /**
- * The notice after the user logged out (`user`), or called off the login's
- * own approval (`cancelled`). The PIN clause only once the server has
- * confirmed it dropped the session: the session object held the PIN, and
- * with it gone the app has nothing left to use it with. Nothing more is
- * claimed — the bank is not told, and memory is not wiped byte by byte.
+ * What a logout says of the transfers it leaves unclear (`count` of them, to
+ * `payees` as far as named): check before sending again. '' for none.
  */
-export function logoutNotice(kind: 'user' | 'cancelled', sessionDropped: boolean): string {
+export function unclearNotice(payees: readonly string[], count = payees.length): string {
+  if (count <= 0) return '';
   const said = msgs().provider.logout;
-  const notice = kind === 'cancelled' ? said.loginCancelled : said.byUser;
-  return sessionDropped ? `${notice} ${said.pinDropped}` : notice;
+  const to = payeeList(payees);
+  return count === 1 ? said.unclearOne(to) : said.unclearMany(count, to);
+}
+
+/**
+ * The notice after the user logged out (`user`), called off the login's own
+ * approval (`cancelled`), or closed the desktop's window into the
+ * notification area (`hidden`, src-tauri/src/background.rs) — then naming the
+ * transfers left unclear, as the automatic logout does. The PIN clause only
+ * once the server has confirmed it dropped the session: the session object
+ * held the PIN, and with it gone the app has nothing left to use it with.
+ * Nothing more is claimed — the bank is not told, and memory is not wiped
+ * byte by byte.
+ */
+export function logoutNotice(
+  kind: 'user' | 'cancelled' | 'hidden',
+  sessionDropped: boolean,
+  unclear: readonly string[] = [],
+  count = unclear.length,
+): string {
+  const said = msgs().provider.logout;
+  const notice = kind === 'cancelled' ? said.loginCancelled : kind === 'hidden' ? said.hidden : said.byUser;
+  return [notice, sessionDropped ? said.pinDropped : '', unclearNotice(unclear, count)].filter(Boolean).join(' ');
 }
 
 /** The notice after the automatic logout, naming the transfers whose status is unclear (`count` of them). */
 export function idleLogoutNotice(payees: readonly string[], count = payees.length): string {
-  const said = msgs().provider.logout;
-  if (count <= 0) return said.idle;
-  const to = payeeList(payees);
-  return `${said.idle} ${count === 1 ? said.unclearOne(to) : said.unclearMany(count, to)}`;
+  return [msgs().provider.logout.idle, unclearNotice(payees, count)].filter(Boolean).join(' ');
 }
 
 /**

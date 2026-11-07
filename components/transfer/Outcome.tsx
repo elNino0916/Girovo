@@ -39,7 +39,8 @@ export function BankAnswer({
 /**
  * What "Jetzt nachsehen" found. Found means: do not send it again. Not found
  * is no reason to send it again either — a transfer can take a while to
- * appear — so the answer never invites it.
+ * appear — so the answer never invites it; nor does a payment like it that
+ * may be an older one (lib/transfer-checks.ts findSentTransfer, `unsure`).
  */
 export function CheckResult({
   sighting, statements, pending, at, name,
@@ -55,22 +56,29 @@ export function CheckResult({
   const tr = useT();
   const words = tr.transfer.unknown;
   const checked = fmtTime(tr, new Date(at));
-  if (sighting) {
-    const tx = sighting.tx;
-    return (
-      <Alert tone="success" title={sighting.where === 'booked' ? words.foundBooked : words.foundPending} className="mt-5">
-        {rich(words.found(
-          <Money value={-tx.amount} className="font-semibold text-ink" />,
-          name,
-          sighting.where === 'booked' ? <span className="tnum">{fmtDate(tx.entryDate || tx.valueDate)}</span> : null,
-        ))}
-      </Alert>
-    );
-  }
   const failed = [
     statements === false && words.failedBooked,
     pending === false && words.failedPending,
   ].filter(Boolean) as string[];
+  if (sighting) {
+    const tx = sighting.tx;
+    const amount = <Money value={-tx.amount} className="font-semibold text-ink" />;
+    const bookedOn = sighting.where === 'booked' ? <span className="tnum">{fmtDate(tx.entryDate || tx.valueDate)}</span> : null;
+    // Something like it, but it may be an older payment or another order's: said so, never guessed.
+    if (sighting.unsure) {
+      return (
+        <Alert tone="warn" title={words.unsure} className="mt-5">
+          {failed.map((f) => <span key={f} className="block">{f}</span>)}
+          <span className="block">{rich(words.unsureText(sighting.count, amount, name, bookedOn))}</span>
+        </Alert>
+      );
+    }
+    return (
+      <Alert tone="success" title={sighting.where === 'booked' ? words.foundBooked : words.foundPending} className="mt-5">
+        {rich(words.found(amount, name, bookedOn))}
+      </Alert>
+    );
+  }
   // Only what was actually read is named as searched.
   const searched = statements === true || pending === true;
   return (

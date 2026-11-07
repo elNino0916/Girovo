@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ActivityEntry } from './app-types';
-import { answerBeyondOutcome, idleLogoutNotice, logoutNotice, payeeList, unclearTransfers } from './session-log.ts';
+import { answerBeyondOutcome, idleLogoutNotice, logoutNotice, payeeList, unclearNotice, unclearTransfers } from './session-log.ts';
 
 const entry = (over: Partial<ActivityEntry>): ActivityEntry => ({
   id: 'x', at: '2026-10-04T10:00:00.000Z', kind: 'transfer', outcome: 'executed',
@@ -32,6 +32,22 @@ test('the logout notice claims the PIN is gone only once the server dropped the 
   assert.equal(logoutNotice('user', true), 'Du hast dich abgemeldet. Die App hat deine PIN verworfen.');
   assert.equal(logoutNotice('cancelled', false), 'Anmeldung abgebrochen.');
   assert.equal(logoutNotice('cancelled', true), 'Anmeldung abgebrochen. Die App hat deine PIN verworfen.');
+});
+
+test('closing the window into the notification area: the logout says so, and names unclear transfers', () => {
+  assert.equal(logoutNotice('hidden', false), 'Du wurdest beim Schließen des Fensters abgemeldet.');
+  assert.equal(
+    logoutNotice('hidden', true, ['Lea Becker']),
+    'Du wurdest beim Schließen des Fensters abgemeldet. Die App hat deine PIN verworfen. Der Status deiner Überweisung an Lea Becker ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.',
+  );
+  assert.match(
+    logoutNotice('hidden', false, ['Max', 'Lea', 'Max']),
+    /abgemeldet\. Der Status von 3 Überweisungen an Max und Lea ist unklar – prüfe deine Umsätze, bevor du eine davon/,
+  );
+  // A user's logout after "Trotzdem abmelden?" names them too.
+  assert.match(logoutNotice('user', false, ['Lea Becker']), /^Du hast dich abgemeldet\. Der Status deiner Überweisung an Lea Becker ist unklar/);
+  assert.equal(unclearNotice([]), '');
+  assert.equal(unclearNotice([''], 1), 'Der Status deiner Überweisung ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.');
 });
 
 test('the idle notice names unclear transfers and asks to check before sending again', () => {

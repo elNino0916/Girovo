@@ -13,7 +13,7 @@ import type { SerializedBalance, SerializedBankOrder, SerializedTransaction } fr
 import type { OrderSchedule } from './order-schedule';
 import type { SentOrder } from './sent-orders';
 import { bookingKind } from './categorize.ts';
-import { dayKey, dayNumber, displayName, fmtDate, isoDate, toLocalDate } from './format.ts';
+import { dayFromNumber, dayKey, dayNumber, displayName, fmtDate, isoDate, toLocalDate } from './format.ts';
 import { msgs } from './i18n/index.ts';
 import { rhythmLine } from './order-schedule.ts';
 import { SENT_ORDER_DAYS } from './sent-orders.ts';
@@ -254,13 +254,61 @@ export function findPlacedOrder(input: {
   return exact ?? same[0] ?? null;
 }
 
-export type SentTransferSighting = { where: 'booked' | 'pending'; tx: SerializedTransaction };
+/**
+ * What "Jetzt nachsehen" saw. `unsure`: debits like it are there, but each
+ * of them may be an older payment or another order's of the same payment —
+ * `count` of them; `tx` is the one nearest after the order.
+ */
+export type SentTransferSighting =
+  | { where: 'booked' | 'pending'; tx: SerializedTransaction; unsure?: false }
+  | { where: 'booked' | 'pending'; tx: SerializedTransaction; unsure: true; count: number };
+
+/** How long an order may take to show among the bookings: a long weekend. */
+const BOOKING_LAG_DAYS = 3;
+
+/** One debit as a key that stays the same when the same list is read again. */
+const debitKey = (tx: SerializedTransaction) => [
+  dayKey(tx.entryDate || tx.valueDate), tx.amount, tx.purpose, tx.e2eReference, tx.bankReference, tx.customerReference,
+].map((v) => String(v ?? '')).join('|');
+
+/** `list` without one entry for each of `held` (by debitKey): what was not there before. */
+function notHeld(list: readonly SerializedTransaction[], held: readonly SerializedTransaction[]): SerializedTransaction[] {
+  const left = new Map<string, number>();
+  for (const tx of held) left.set(debitKey(tx), (left.get(debitKey(tx)) ?? 0) + 1);
+  return list.filter((tx) => {
+    const n = left.get(debitKey(tx)) ?? 0;
+    if (n > 0) left.set(debitKey(tx), n - 1);
+    return n === 0;
+  });
+}
 
 /**
- * After an order whose outcome is unknown: a debit of the same amount to the
- * same IBAN, from the day it was sent on, in the account's freshly loaded
- * bookings — or, failing that, among its vorgemerkte Umsätze. A booking beats
- * a Vormerkposten; the newest of each wins. Null when neither shows one.
+ * After an order whose outcome is unknown: is it among the account's freshly
+ * read bookings (`booked`) or Vormerkposten (`pending`)? Null where a list was
+ * not read. What counts is a debit of the same amount to the same IBAN, dated
+ * from the day the order went out (`since`) on — and only one that was not
+ * there already:
+ *
+ *  - `before` holds the lists as they stood when the order went out. A
+ *    booking stays booked, a Vormerkposten stays one or becomes a booking: so
+ *    as many debits as they held are taken off. A list left out (or null) was
+ *    not on hand, and nothing can be taken off for it.
+ *  - `sent` (lib/sent-orders.ts), this login's orders: another order of the
+ *    same payment from the same account, sent shortly before this one (or a
+ *    terminierte Überweisung due about now), books a debit just like it. It
+ *    counts as one more debit that may be among those found — unless a debit
+ *    of its own can be pointed to: one dated from its day on but before the
+ *    day this order went out, each debit for one order only, and one the
+ *    lists held only for an order sent before they were read (`before.at`).
+ *
+ * Found: at least one debit is left that none of that can explain. The one
+ * nearest after the order is named, a booking before a Vormerkposten, one
+ * already there before passed over. `unsure`: there are debits that were not
+ * certainly there before, but older ones or the other orders could explain
+ * each of them. Null: nothing that was not there before.
+ *
+ * A payment of the same amount to the same IBAN made elsewhere (online
+ * banking) cannot be told apart unless a list held it before the order.
  */
 export function findSentTransfer(input: {
   iban: string;
@@ -268,22 +316,101 @@ export function findSentTransfer(input: {
   since: Date;
   booked?: readonly SerializedTransaction[] | null;
   pending?: readonly SerializedTransaction[] | null;
+  before?: {
+    booked?: readonly SerializedTransaction[] | null;
+    pending?: readonly SerializedTransaction[] | null;
+    /** epoch ms: when the older of the two lists on hand was read. */
+    at?: number | null;
+  } | null;
+  sent?: readonly SentOrder[];
+  /** The account the order left from, for `sent`. */
+  accountNumber?: string;
 }): SentTransferSighting | null {
   const iban = compactIban(input.iban);
   const from = dayKey(input.since);
-  const newest = (list: readonly SerializedTransaction[] | null | undefined) => {
-    let best: { tx: SerializedTransaction; day: string } | null = null;
-    for (const tx of list ?? []) {
-      if (!(tx.amount < 0) || Math.round(-tx.amount * 100) !== input.cents) continue;
-      if (compactIban(tx.remoteIban) !== iban) continue;
-      const day = dayKey(tx.entryDate || tx.valueDate);
-      if (!day || day < from) continue;
-      if (!best || day > best.day) best = { tx, day };
+  const sentAt = input.since.getTime();
+  const lagFrom = dayFromNumber(dayNumber(from) - BOOKING_LAG_DAYS);
+  const dayOf = (tx: SerializedTransaction) => dayKey(tx.entryDate || tx.valueDate);
+  const like = (tx: SerializedTransaction) => tx.amount < 0 && Math.round(-tx.amount * 100) === input.cents
+    && compactIban(tx.remoteIban) === iban;
+  const datedFrom = (list: readonly SerializedTransaction[] | null | undefined, day: string) =>
+    (list ?? []).filter((tx) => like(tx) && dayOf(tx) >= day);
+
+  const booked = datedFrom(input.booked, from);
+  const pending = datedFrom(input.pending, from);
+  const before = input.before ?? {};
+  const heldBooked = datedFrom(before.booked, from);
+  // Any day: one from before the order may be booked under a later date by now.
+  const heldPending = (before.pending ?? []).filter(like);
+
+  // Certainly there before: the bookings held (still booked), and the
+  // Vormerkposten held that are still listed as they were.
+  const newPending = notHeld(pending, heldPending);
+  const certainlyOld = (input.booked ? Math.min(heldBooked.length, booked.length) : 0) + pending.length - newPending.length;
+  const count = booked.length + pending.length - certainlyOld;
+  if (count <= 0) return null;
+
+  // Perhaps there before: every booking held, and every Vormerkposten held
+  // but one still listed under a day before the order (counted nowhere).
+  const listedEarlier = datedFrom(input.pending, '').filter((tx) => dayOf(tx) < from);
+  const heldAside = heldPending.length - notHeld(heldPending, listedEarlier).length;
+  // …or another order's: a transfer sent within the lag, or a terminierte
+  // Überweisung due within it (carried out at the start of its day). `day`:
+  // the first day it can book on; `at`: from when it can have a debit.
+  const others: { day: string; at: number }[] = [];
+  for (const o of input.sent ?? []) {
+    if (o.accountNumber !== input.accountNumber || compactIban(o.iban) !== iban || o.cents !== input.cents) continue;
+    const t = Date.parse(o.at);
+    if (!(t < sentAt)) continue;
+    const sentOn = dayKey(new Date(t));
+    if (!o.kind && sentOn >= lagFrom) others.push({ day: sentOn, at: t });
+    else if (o.kind === 'dated' && o.due && o.due >= lagFrom && o.due <= from) {
+      others.push({ day: o.due, at: toLocalDate(o.due)?.getTime() ?? t });
     }
-    return best?.tx ?? null;
+  }
+  // Such an order is accounted for only by a debit that can be its own, as
+  // read now: dated from its day on, but before the day this order went out
+  // (so none of the debits counted above), and — if the lists held it — held
+  // only once that order could have a debit. Each debit for one order. Any
+  // order left over may be behind one of the debits counted.
+  const readAt = before.at ?? null;
+  const earlierBooked = datedFrom(input.booked, lagFrom).filter((tx) => dayOf(tx) < from);
+  const earlierListed = listedEarlier.filter((tx) => dayOf(tx) >= lagFrom);
+  const freshBookedEarlier = notHeld(earlierBooked, datedFrom(before.booked, lagFrom));
+  const freshListedEarlier = notHeld(earlierListed, heldPending);
+  const debits = [
+    ...earlierBooked.map((tx) => ({ day: dayOf(tx), held: !freshBookedEarlier.includes(tx) })),
+    ...earlierListed.map((tx) => ({ day: dayOf(tx), held: !freshListedEarlier.includes(tx) })),
+  ];
+  const fits = (o: (typeof others)[number], d: (typeof debits)[number]) =>
+    d.day >= o.day && (!d.held || (readAt != null && o.at < readAt));
+  // Each order to a debit of its own where one can be found (a matching: an
+  // order may take a debit another holds if that one can move to a different one).
+  const holder: number[] = debits.map(() => -1);
+  const take = (oi: number, seen: boolean[]): boolean => {
+    for (let di = 0; di < debits.length; di++) {
+      if (seen[di] || !fits(others[oi], debits[di])) continue;
+      seen[di] = true;
+      if (holder[di] < 0 || take(holder[di], seen)) {
+        holder[di] = oi;
+        return true;
+      }
+    }
+    return false;
   };
-  const booked = newest(input.booked);
-  if (booked) return { where: 'booked', tx: booked };
-  const pending = newest(input.pending);
-  return pending ? { where: 'pending', tx: pending } : null;
+  const unexplained = others.filter((_, oi) => !take(oi, [])).length;
+  const possiblyOld = (input.booked ? heldBooked.length : 0) + heldPending.length - heldAside + unexplained;
+
+  const nearest = (list: readonly SerializedTransaction[]) => {
+    let best: SerializedTransaction | null = null;
+    for (const tx of list) if (!best || dayOf(tx) < dayOf(best)) best = tx;
+    return best;
+  };
+  const freshBooked = nearest(notHeld(booked, heldBooked));
+  const freshPending = nearest(newPending);
+  const named = freshBooked ? { where: 'booked' as const, tx: freshBooked }
+    : freshPending ? { where: 'pending' as const, tx: freshPending }
+    : booked.length ? { where: 'booked' as const, tx: nearest(booked)! }
+    : { where: 'pending' as const, tx: nearest(pending)! };
+  return booked.length + pending.length - possiblyOld >= 1 ? named : { ...named, unsure: true, count };
 }

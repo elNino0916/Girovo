@@ -80,10 +80,14 @@ export const de = {
     /** Added once the server confirmed it dropped the session, and the PIN with it. */
     pinDropped: 'Die App hat deine PIN verworfen.',
     idle: 'Du wurdest aus Sicherheitsgründen abgemeldet.',
-    /** After `idle`: one transfer whose outcome is not known. `to` is a payees() phrase, or ''. */
+    /** The desktop: the window closed into the notification area, and the session ended with it. */
+    hidden: 'Du wurdest beim Schließen des Fensters abgemeldet.',
+    /** The system notice for that logout, when it left a transfer unclear (`unclearOne`/`unclearMany` as its text). */
+    hiddenTitle: 'Du wurdest abgemeldet',
+    /** After a logout's notice: one transfer whose outcome is not known. `to` is a payees() phrase, or ''. */
     unclearOne: (to: string) =>
       `Der Status deiner Überweisung${to ? ` ${to}` : ''} ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.`,
-    /** After `idle`: `count` (two or more) such transfers. */
+    /** After a logout's notice: `count` (two or more) such transfers. */
     unclearMany: (count: number, to: string) =>
       `Der Status von ${count} Überweisungen${to ? ` ${to}` : ''} ist unklar – prüfe deine Umsätze, bevor du eine davon noch einmal sendest.`,
     expired: 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
@@ -233,6 +237,8 @@ export const en: typeof de = {
     loginCancelled: 'Login cancelled.',
     pinDropped: 'The app has discarded your PIN.',
     idle: 'You were logged out for security reasons.',
+    hidden: 'You were logged out when you closed the window.',
+    hiddenTitle: 'You were logged out',
     unclearOne: (to) =>
       `The status of your transfer${to ? ` ${to}` : ''} is unclear – check your transactions before you send it again.`,
     unclearMany: (count, to) =>

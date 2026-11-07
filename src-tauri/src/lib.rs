@@ -248,6 +248,7 @@ pub fn run() {
       splash::splash_fit,
       background::background_set,
       background::background_result,
+      background::background_notice,
       hello::hello_available,
       hello::hello_enroll,
       hello::hello_unlock,

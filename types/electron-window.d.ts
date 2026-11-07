@@ -187,6 +187,8 @@ declare global {
       set: (on: boolean) => Promise<boolean>;
       /** The window closed into the notification area (main.cjs): the page logs out. */
       onHidden?: (callback: () => void) => () => void;
+      /** A system notice while the window is hidden (src-tauri/src/background.rs background_notice). */
+      notice?: (notice: { title: string; text: string }) => Promise<void>;
     };
     electronHello?: {
       available: () => Promise<boolean>;

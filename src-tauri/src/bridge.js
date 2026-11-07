@@ -216,6 +216,12 @@
       if (typeof callback !== 'function') return function () {};
       return listen('window:hidden-to-tray', function () { callback(); });
     },
+    // A system notice while nobody sees the window (a logout that left a transfer unclear).
+    notice: function (notice) {
+      var n = notice && typeof notice === 'object' ? notice : {};
+      var text = function (v, max) { return typeof v === 'string' ? v.slice(0, max) : ''; };
+      return invoke('background_notice', { notice: { title: text(n.title, 200), text: text(n.text, 2000) } });
+    },
   });
 
   // Zooming from the keyboard, as in a browser (the Electron shell's zoom.cjs): by the

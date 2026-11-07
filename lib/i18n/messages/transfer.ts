@@ -247,6 +247,23 @@ export const de = {
       ...(bookedOn != null ? [', gebucht am ', bookedOn] : []),
       '. Sende die Überweisung nicht noch einmal.',
     ],
+    /** Payments like it are there, but each may be an older one or another order's. */
+    unsure: 'Nicht eindeutig – bitte nicht erneut senden',
+    /** `count` of them; one is named with `bookedOn` as in found (null: a Vormerkposten). */
+    unsureText: (count: number, amount: ReactNode, name: string, bookedOn: ReactNode | null): ReactNode[] => (count > 1
+      ? [
+        `Es gibt ${count} gleiche Zahlungen über `,
+        amount,
+        ` an ${name}. Ob eine davon diese Überweisung ist, lässt sich nicht sicher sagen. Prüfe es im Online-Banking deiner Bank.`,
+      ]
+      : [
+        bookedOn != null ? 'In deinen Umsätzen steht eine Zahlung über ' : 'Bei den vorgemerkten Umsätzen steht eine Zahlung über ',
+        amount,
+        ` an ${name}`,
+        ...(bookedOn != null ? [', gebucht am ', bookedOn] : []),
+        '. Ob das diese Überweisung ist oder eine gleiche Zahlung von vorher, lässt sich nicht sicher sagen. Prüfe es im '
+          + 'Online-Banking deiner Bank.',
+      ]),
     failedBooked: 'Abruf der Umsätze fehlgeschlagen.',
     failedPending: 'Abruf der vorgemerkten Umsätze fehlgeschlagen.',
     notVisible: 'Noch nicht sichtbar – bitte nicht erneut senden',
@@ -637,6 +654,20 @@ export const en: typeof de = {
       ...(bookedOn != null ? [', booked on ', bookedOn] : []),
       '. Do not send the transfer again.',
     ],
+    unsure: 'Not clear – please do not send it again',
+    unsureText: (count, amount, name, bookedOn) => (count > 1
+      ? [
+        `There are ${count} identical payments of `,
+        amount,
+        ` to ${name}. Whether one of them is this transfer cannot be said for sure. Check in your bank’s online banking.`,
+      ]
+      : [
+        bookedOn != null ? 'Your transactions show a payment of ' : 'Your pending transactions show a payment of ',
+        amount,
+        ` to ${name}`,
+        ...(bookedOn != null ? [', booked on ', bookedOn] : []),
+        '. Whether it is this transfer or an earlier identical payment cannot be said for sure. Check in your bank’s online banking.',
+      ]),
     failedBooked: 'Could not load transactions.',
     failedPending: 'Could not load pending transactions.',
     notVisible: 'Not visible yet – please do not send it again',

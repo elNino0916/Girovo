@@ -149,6 +149,29 @@ fn yes() -> bool {
   true
 }
 
+/// A notice as the system shows it: its title (the app's name when it has none) and its lines, else its text.
+fn shown(notice: &Notice) -> (String, String) {
+  let body = if notice.lines.is_empty() { notice.text.clone() } else { notice.lines.join("\n") };
+  let title = if notice.title.is_empty() { crate::edition::name().to_string() } else { notice.title.clone() };
+  (title, body)
+}
+
+fn show(app: &AppHandle, notice: &Notice) {
+  let (title, body) = shown(notice);
+  let _ = app.notification().builder().title(title).body(body).show();
+}
+
+/// window.electronBackground.notice: the page's word while nobody sees the
+/// window — a logout on closing it into the notification area that left a
+/// transfer unclear (components/FintsProvider.tsx). Nothing empty is shown.
+#[tauri::command]
+pub fn background_notice(app: AppHandle, notice: Notice) {
+  if notice.text.trim().is_empty() && notice.lines.is_empty() {
+    return;
+  }
+  show(&app, &notice);
+}
+
 /// The page's answer to a "background:run": the check's result, or none when it could not run.
 #[tauri::command]
 pub fn background_result(app: AppHandle, id: u64, result: Option<CheckResult>) {
@@ -166,9 +189,7 @@ pub fn background_result(app: AppHandle, id: u64, result: Option<CheckResult>) {
   };
   app.state::<Prefs>().set(LAST_PREF, Some(&now_ms().to_string()));
   for notice in &result.notices {
-    let body = if notice.lines.is_empty() { notice.text.clone() } else { notice.lines.join("\n") };
-    let title = if notice.title.is_empty() { crate::edition::name().to_string() } else { notice.title.clone() };
-    let _ = app.notification().builder().title(title).body(body).show();
+    show(&app, notice);
   }
   if result.on {
     bg.due.store(now_ms() + INTERVAL, Ordering::Relaxed);
@@ -352,3 +373,20 @@ pub fn set_login_item(on: bool) {
 
 #[cfg(not(windows))]
 pub fn set_login_item(_on: bool) {}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn notice(json: &str) -> Notice {
+    serde_json::from_str(json).unwrap()
+  }
+
+  #[test]
+  fn a_notice_shows_its_title_and_its_lines_else_its_text() {
+    let n = notice(r#"{"title":"Du wurdest abgemeldet","text":"Der Status deiner Überweisung an Lea Becker ist unklar."}"#);
+    assert_eq!(shown(&n), ("Du wurdest abgemeldet".to_string(), "Der Status deiner Überweisung an Lea Becker ist unklar.".to_string()));
+    let n = notice(r#"{"text":"ignored","lines":["Eins","Zwei"]}"#);
+    assert_eq!(shown(&n), (crate::edition::name().to_string(), "Eins\nZwei".to_string()));
+  }
+}

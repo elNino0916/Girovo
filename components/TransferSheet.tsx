@@ -24,7 +24,7 @@ import { isCardAccount } from '@/lib/balances';
 import { bankAnswerLines, formatBankAnswer, refusalReference } from '@/lib/bank-answer';
 import type { SerializedAccount, SerializedVop } from '@/lib/fints-types';
 import type { EpcPayment } from '@/lib/girocode';
-import { fmtAmountInput, fmtDate, fmtIban, fmtShortIban, isoDate, parseAmount } from '@/lib/format';
+import { dayKey, fmtAmountInput, fmtDate, fmtIban, fmtShortIban, isoDate, parseAmount } from '@/lib/format';
 import { msgs, type Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { haptic } from './android/haptics';
@@ -32,6 +32,7 @@ import { reviewMoment } from './android/review';
 import { IS_ANDROID } from '@/lib/platform';
 import { sepaLength, sepaSanitize } from '@/lib/sepa-text';
 import { scheduleSentence } from '@/lib/order-schedule';
+import type { SentOrder } from '@/lib/sent-orders';
 import {
   findDuplicate, findPlacedOrder, findSentTransfer, fundsWarning, spendable, type FundsWarning,
 } from '@/lib/transfer-checks';
@@ -201,6 +202,9 @@ type Check =
   | { stage: 'orders'; startedAt: number }
   | { stage: 'done'; at: number; statements: boolean | null; pending: boolean | null; orders?: boolean | null };
 
+/** The account's bookings and Vormerkposten when the order went out; null: not on hand. */
+type HeldLists = NonNullable<Parameters<typeof findSentTransfer>[0]['before']>;
+
 /** Which of the invoice's boxes a field of the form lights (InvoicePane). */
 const FIELD_OF: Record<string, InvoiceField> = { 'tf-name': 'name', 'tf-iban': 'iban', 'tf-purpose': 'purpose', 'tf-amount': 'amount' };
 
@@ -288,6 +292,8 @@ export function TransferSheet() {
   const [vop, setVop] = useState<SerializedVop | null>(null);
   /** When the order went to the bank (epoch ms) — the time "Status unklar" names and searches from. */
   const [sentAt, setSentAt] = useState<number | null>(null);
+  /** The account's lists as they stood then: what was there before is no sign of this order (findSentTransfer). */
+  const [held, setHeld] = useState<HeldLists | null>(null);
   /**
    * The invoice the GiroCode was read from, and whether it goes to the
    * booking once the bank books the transfer (lib/receipts.ts) — kept for
@@ -530,6 +536,17 @@ export function TransferSheet() {
   }, [check, checkAccount, busy, wait.open, statementInfo, pendingInfo, loadPending, kind, bankOrders]);
 
   const checking = !!check && check.stage !== 'done';
+  // This login's orders, for the check: the vault's log, or without one the session's.
+  const sentLog = useMemo<readonly SentOrder[]>(() => sentOrders ?? activity
+    .filter((a) => a.outcome !== 'failed' && a.schedule?.kind !== 'standing')
+    .map((a) => ({
+      at: a.at,
+      accountNumber: a.accountNumber,
+      iban: a.iban,
+      cents: Math.round(a.amount * 100),
+      outcome: a.outcome === 'executed' ? 'executed' as const : 'unknown' as const,
+      ...(a.schedule?.kind === 'dated' ? { kind: 'dated' as const, due: a.schedule.date } : {}),
+    })), [sentOrders, activity]);
   const sighting = check?.stage === 'done' && draft && sentAt != null && !draft.schedule
     ? findSentTransfer({
       iban: draft.iban,
@@ -537,6 +554,9 @@ export function TransferSheet() {
       since: new Date(sentAt),
       booked: check.statements ? txByAccount[draft.accountNumber] : null,
       pending: check.pending ? pendingCache[draft.accountNumber] : null,
+      before: held,
+      sent: sentLog,
+      accountNumber: draft.accountNumber,
     })
     : null;
   // An order for later, found in the bank's list just read.
@@ -545,7 +565,8 @@ export function TransferSheet() {
       iban: draft.iban, cents: draft.cents, schedule: draft.schedule, orders: bankOrders[draft.accountNumber]?.[kind]?.orders,
     })
     : null;
-  const found = !!sighting || !!placed;
+  // A payment like it that may be an older one is not found: the way to look again stays.
+  const found = (!!sighting && !sighting.unsure) || !!placed;
 
   const lookAgain = () => {
     if (!checkAccount || busy) return;
@@ -790,11 +811,31 @@ export function TransferSheet() {
     onVop: (result: SerializedVop) => { setSubmitting(false); setVop(result); setStep('vop'); },
   };
 
+  /**
+   * The sending account's lists as they stand at `at`. The bookings only when
+   * they reach that day (an older list says nothing about it); the
+   * Vormerkposten once read — none at all for an account that has no such list.
+   */
+  const holdLists = (accountNumber: string, at: number): HeldLists => {
+    const st = statementInfo[accountNumber];
+    const pi = pendingInfo[accountNumber];
+    const canPending = !!accounts.find((a) => a.accountNumber === accountNumber)?.canPending;
+    const bookedHeld = !!st && dayKey(st.to) >= dayKey(new Date(at));
+    const reads = [bookedHeld ? st.loadedAt : null, pi ? pi.readAt : null].filter((t): t is number => typeof t === 'number');
+    return {
+      booked: bookedHeld ? txByAccount[accountNumber] ?? [] : null,
+      pending: pi ? pendingCache[accountNumber] ?? [] : canPending ? null : [],
+      at: reads.length ? Math.min(...reads) : null,
+    };
+  };
+
   const send = () => {
     if (!draft || submitting || settling) return;
     setError(null);
     setSubmitting(true);
-    setSentAt(Date.now());
+    const at = Date.now();
+    setSentAt(at);
+    setHeld(holdLists(draft.accountNumber, at));
     void submitTransfer(
       {
         accountNumber: draft.accountNumber,
@@ -814,7 +855,9 @@ export function TransferSheet() {
     if (submitting || settling) return;
     setError(null);
     setSubmitting(true);
-    setSentAt(Date.now());
+    const at = Date.now();
+    setSentAt(at);
+    if (draft) setHeld(holdLists(draft.accountNumber, at));
     void confirmVop(handlers);
   };
 
