@@ -56,6 +56,7 @@ function initial(scenario: UpdateScenario): ElectronUpdateState {
     current: CURRENT,
     kind: 'nsis',
     auto: true,
+    early: false,
     channel: 'stable',
     phase: 'idle',
     checkedAt: null,
@@ -176,6 +177,7 @@ export function installFakeUpdater(
       return state;
     },
     setAuto: async (on) => set({ auto: on }),
+    setEarly: async (on) => set({ early: on }),
     // As the real one: the other channel's offer goes, a check in the new one follows.
     setChannel: async (channel) => {
       if (progress) clearInterval(progress);

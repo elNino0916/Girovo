@@ -172,6 +172,12 @@ export const de = {
     apply: 'Übernehmen',
   },
 
+  /** Über Girovo → staged releases at once (components/settings/UpdateChannel.tsx EarlyUpdatesRow). */
+  early: {
+    title: 'Neueste Updates sofort erhalten',
+    hint: 'Sobald sie verfügbar sind – sonst kommen neue Versionen nach und nach.',
+  },
+
   /** Einstellungen → Dieses Gerät, the desktop app (components/settings/ResetApp.tsx, src-tauri/src/reset.rs). */
   resetApp: {
     row: 'Girovo zurücksetzen',
@@ -299,6 +305,11 @@ export const en: typeof de = {
     note: 'Nightlies aren’t finished and may have bugs. You can go back to “Stable” at any time – you’ll then get the current stable version, even if it’s older.',
     noteAndroid: 'Nightlies aren’t finished and may have bugs. If you go back to “Stable”, your next update is the next stable version – Android can’t install an older one.',
     apply: 'Apply',
+  },
+
+  early: {
+    title: 'Get the latest updates right away',
+    hint: 'As soon as they’re available – otherwise new versions arrive gradually.',
   },
 
   resetApp: {

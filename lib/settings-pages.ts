@@ -49,6 +49,7 @@ export const PAGE_OF: Record<SettingsTarget, SettingsPage> = {
   usage: 'privacy',
   updates: 'about',
   channel: 'about',
+  early: 'about',
 };
 
 export const isSettingsPage = (v: unknown): v is SettingsPage => typeof v === 'string' && (PAGE_ORDER as readonly string[]).includes(v);

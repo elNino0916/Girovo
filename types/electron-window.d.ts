@@ -17,6 +17,8 @@ declare global {
     kind: 'nsis' | 'manual' | 'dev' | 'android';
     /** Automatic checks (at start, then every 6 hours). */
     auto: boolean;
+    /** Staged releases at once (setEarly); undefined from shells and builds from before it. */
+    early?: boolean;
     channel: UpdateChannel;
     phase: ElectronUpdatePhase;
     /** When GitHub last answered, ms since the epoch. */
@@ -66,6 +68,8 @@ declare global {
       /** The installed Windows app: quits, and the start window of the next start installs the update. */
       restartToUpdate?: () => Promise<ElectronUpdateState | null>;
       setAuto: (on: boolean) => Promise<ElectronUpdateState | null>;
+      /** "Neueste Updates sofort erhalten": a staged release at once (docs/updater-v2.md). Absent in shells from before it. */
+      setEarly?: (on: boolean) => Promise<ElectronUpdateState | null>;
       /** Answers once the check in the new channel is done. */
       setChannel: (channel: UpdateChannel) => Promise<ElectronUpdateState | null>;
       openRelease: () => Promise<ElectronUpdateState | null>;

@@ -139,3 +139,18 @@ newer version wrote may not open. The helper installs it.
 5. Install from a file.
 
 Each step lands on `nightly` and goes out as a 6.0.2 nightly when it works.
+
+## State
+
+- **1 and 2** live since 2026-11-07: nightlies sign their manifest in CI,
+  girovo.de serves it, KV `update-controls` holds the switches.
+- **3** built 2026-11-07: `src-tauri/src/updater/trust.rs` (the Rust copy of
+  update-trust.ts, tested against the same numbers, buckets and a signature
+  made in Node), `engine.rs` asks girovo.de first and offers only signed
+  manifests (GitHub's API as the fallback, with the release's signed
+  manifest), orders by build number, applies the rollout with a random
+  installation id (`fints.updates.installId`) and the switch
+  `fints.updates.early` (Einstellungen → Über Girovo → "Neueste Updates sofort
+  erhalten"); the GitHub APK does the same in `mobile/bridges/updates.ts`
+  with `?kind=apk`. An ignored test asks the real girovo.de:
+  `cargo test --lib live_girovo_de -- --ignored`.

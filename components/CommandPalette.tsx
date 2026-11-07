@@ -62,7 +62,7 @@ import { useThemePref } from './ThemeToggle';
 import {
   AccountTypeIcon, ArchiveIcon, BackIcon, BellIcon, CategoryIcon, CalendarIcon, ChartIcon, CheckIcon, ClockIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon,
   FileIcon, GearIcon, GeminiSparkIcon, GlobeIcon, HomeIcon, ImageIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon,
-  RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SplitIcon, SunIcon, TagIcon, TransferIcon, WalletIcon,
+  BoltIcon, RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SplitIcon, SunIcon, TagIcon, TransferIcon, WalletIcon,
 } from './icons';
 import { listsOrders, useShowBankOrders } from './BankOrders';
 import { askInAnalysis, useAskable } from './insights/Ask';
@@ -273,6 +273,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
       f.backgroundChecks === true && setting('alerts', 'alerts', (m) => m.background.alerts.title, <BellIcon />),
       // With the updater only (the desktop app, the GitHub APK), as on the page.
       !!update && setting('channel', 'channel', (m) => m.settings.channel.title, <SplitIcon />),
+      update?.early !== undefined && setting('early', 'early', (m) => m.settings.early.title, <BoltIcon />),
       // The bank's own list, at the end of Verträge & Abos — where an account has one.
       f.accounts.some(listsOrders) && {
         id: 'bank-orders', group: 'actions', icon: <CalendarIcon />,

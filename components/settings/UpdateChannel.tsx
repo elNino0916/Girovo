@@ -12,10 +12,10 @@ import { useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
-import { SplitIcon } from '../icons';
+import { BoltIcon, SplitIcon } from '../icons';
 import { Button, Dialog, cx } from '../ui';
 import { updates, useUpdates } from '../updates/store';
-import { ActionItem } from './rows';
+import { ActionItem, SwitchItem } from './rows';
 
 const CHANNELS: readonly UpdateChannel[] = ['stable', 'preview'];
 
@@ -59,6 +59,28 @@ export function UpdateChannelRow() {
         <p className="mt-4 text-[14px] leading-relaxed text-ink-2">{IS_ANDROID ? c.noteAndroid : c.note}</p>
       </Dialog>
     </>
+  );
+}
+
+/**
+ * "Neueste Updates sofort erhalten", like Windows Update's "get the latest
+ * updates as soon as they're available" (owner, 2026-11-07): a release offered
+ * to part of the copies first (staged, docs/updater-v2.md) reaches this one at
+ * once. Only with an updater that knows it.
+ */
+export function EarlyUpdatesRow() {
+  const e = useT().settings.early;
+  const { state } = useUpdates();
+  if (!state || state.early === undefined) return null;
+  return (
+    <SwitchItem
+      setting="early"
+      icon={<BoltIcon />}
+      title={e.title}
+      summary={e.hint}
+      checked={state.early}
+      onChange={(on) => void updates.setEarly(on)}
+    />
   );
 }
 

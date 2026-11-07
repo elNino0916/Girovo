@@ -64,7 +64,7 @@ import { WindowsHelloSwitch } from './WindowsHello';
 import { BackgroundSwitch } from './BackgroundChecks';
 import { BackgroundAlertsRow } from './BackgroundAlerts';
 import { SyncRow } from './Sync';
-import { UpdateChannelRow } from './UpdateChannel';
+import { EarlyUpdatesRow, UpdateChannelRow } from './UpdateChannel';
 import {
   ActionItem, ChoiceItem, GroupHeading, LinkItem, PageItem, SegmentedItem, SettingItem, SettingsGroup, SwitchItem,
 } from './rows';
@@ -577,6 +577,8 @@ function AboutPage() {
         <UpdateSessionRow setting="updates" onOpen={() => updates.openDialog()} />
         {/* Stable or the 6.0 previews too: with the updater only, like the row above. */}
         <UpdateChannelRow />
+        {/* Staged releases at once, like Windows Update's switch. */}
+        <EarlyUpdatesRow />
         {/* What 6 brought, and its switches together (components/NewInSix.tsx). */}
         <ActionItem icon={<StarIcon />} title={t.shell.newInSix.row} summary={t.shell.newInSix.rowHint} onClick={openNewInSix} />
         <SettingItem

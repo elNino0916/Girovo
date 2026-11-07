@@ -129,6 +129,7 @@ export const de = {
       singleKeys: ['tastenkürzel', 'shortcuts', 'einzeltasten', 'sprachsteuerung', 'barrierefreiheit', 'tastatur'],
       updates: ['update', 'aktualisieren', 'aktualisierung', 'version', 'neue version', 'upgrade', 'installieren'],
       channel: ['update-kanal', 'nightly', 'vorschau', 'vorabversion', 'beta', 'preview'],
+      early: ['sofort', 'neueste updates', 'früher', 'zuerst', 'gestaffelt', 'updates'],
       loginBalances: ['salden', 'anmeldung', 'automatisch abrufen', 'kontostände'],
       loginBookings: ['umsätze', 'anmeldung', 'automatisch abrufen', 'alle konten', 'start'],
       keepBalances: ['salden behalten', 'gespeicherte salden', 'kontostände', 'gesamtsaldo verlauf'],
@@ -396,14 +397,14 @@ export const de = {
     downloading: 'Wird heruntergeladen …',
     progress: 'Download des Updates',
     percent: (n: number) => `${n} Prozent`,
-    checksum: 'Die Datei wird vor der Installation mit der Prüfsumme von GitHub abgeglichen.',
+    checksum: 'Die Datei wird vor der Installation mit Girovos signierter Prüfsumme abgeglichen.',
     auto: 'Automatisch nach Updates suchen',
     autoHint:
-      'Beim Start und alle sechs Stunden. Die Anfrage an GitHub enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht GitHub dabei deine IP-Adresse – nichts über deine Konten.',
+      'Beim Start und alle sechs Stunden. Gefragt wird girovo.de, ersatzweise GitHub; die Anfrage enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht der Server dabei deine IP-Adresse – nichts über deine Konten.',
     /** The installed Windows app: the same switch, which also installs at start (src-tauri/src/updater/start.rs). */
     autoInstall: 'Updates automatisch installieren',
     autoInstallHint:
-      'Beim Start sucht Girovo nach einer neuen Version, lädt sie herunter und installiert sie, bevor das Fenster aufgeht; zwischendurch wird alle sechs Stunden nachgesehen. Aus: nur, wenn du es sagst. Die Anfrage an GitHub enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht GitHub dabei deine IP-Adresse – nichts über deine Konten.',
+      'Beim Start sucht Girovo nach einer neuen Version, lädt sie herunter und installiert sie, bevor das Fenster aufgeht; zwischendurch wird alle sechs Stunden nachgesehen. Aus: nur, wenn du es sagst. Gefragt wird girovo.de, ersatzweise GitHub; die Anfrage enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht der Server dabei deine IP-Adresse – nichts über deine Konten.',
     // The toasts, the Mitteilungen row, the Sitzung panel's row and the login bar's button.
     downloaded: (v: string) => `Version ${v} ist heruntergeladen. Installiert wird erst, wenn du neu startest.`,
     details: 'Details',
@@ -534,6 +535,7 @@ export const en: typeof de = {
       singleKeys: ['keyboard shortcuts', 'shortcuts', 'single keys', 'voice control', 'accessibility', 'keyboard'],
       updates: ['update', 'updates', 'new version', 'version', 'upgrade', 'install'],
       channel: ['update channel', 'nightly', 'preview', 'beta', 'pre-release', 'early access'],
+      early: ['right away', 'latest updates', 'early', 'first', 'staged', 'updates'],
       loginBalances: ['balances', 'login', 'load automatically'],
       loginBookings: ['transactions', 'login', 'load automatically', 'all accounts', 'launch'],
       keepBalances: ['keep balances', 'saved balances', 'total balance history'],
@@ -742,13 +744,13 @@ export const en: typeof de = {
     downloading: 'Downloading…',
     progress: 'Update download',
     percent: (n) => `${n} per cent`,
-    checksum: 'Before it’s installed, the file is checked against GitHub’s checksum.',
+    checksum: 'Before it’s installed, the file is checked against Girovo’s signed checksum.',
     auto: 'Check for updates automatically',
     autoHint:
-      'At start-up and every six hours. The request to GitHub contains only the app’s version number. As with any request, GitHub sees your IP address – nothing about your accounts.',
+      'At start-up and every six hours. Girovo asks girovo.de, or GitHub if that fails; the request contains only the app’s version number. As with any request, the server sees your IP address – nothing about your accounts.',
     autoInstall: 'Install updates automatically',
     autoInstallHint:
-      'At start-up Girovo looks for a new version, downloads it and installs it before the window opens; in between it checks every six hours. Off: only when you ask. The request to GitHub contains only the app’s version number. As with any request, GitHub sees your IP address – nothing about your accounts.',
+      'At start-up Girovo looks for a new version, downloads it and installs it before the window opens; in between it checks every six hours. Off: only when you ask. Girovo asks girovo.de, or GitHub if that fails; the request contains only the app’s version number. As with any request, the server sees your IP address – nothing about your accounts.',
     downloaded: (v) => `Version ${v} has been downloaded. It’s only installed when you restart.`,
     details: 'Details',
     renamed: (v) => `Sooskasse-FinTS is now called Girovo. Version ${v} is installed.`,

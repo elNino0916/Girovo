@@ -91,6 +91,7 @@ export const updates = {
   /** The installed Windows app: quit and start again; the start window installs the update. */
   restartToUpdate: () => call((b) => (b.restartToUpdate ? b.restartToUpdate() : b.install())),
   setAuto: (on: boolean) => call((b) => b.setAuto(on)),
+  setEarly: (on: boolean) => call((b) => (b.setEarly ? b.setEarly(on) : Promise.resolve(null))),
   setChannel: (channel: UpdateChannel) => call((b) => b.setChannel(channel)),
   openRelease: () => call((b) => b.openRelease()),
 };
