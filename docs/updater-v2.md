@@ -107,6 +107,27 @@ a signed release manifest (fetched from girovo.de, or from GitHub when
 offline from girovo.de), older versions included after a warning that data a
 newer version wrote may not open. The helper installs it.
 
+## Releasing with it
+
+- **Nightlies:** `nightly.yml` (on main) builds and signs the manifest in its
+  publish job when the branch has `scripts/sign-update.mjs`, then checks the
+  signature before the checksums; it uploads both with the other files.
+- **Stable releases:** after the files are collected in `dist/release-X/`:
+
+  ```
+  node scripts/update-manifest.mjs dist/release-X --version X --notes dist/release-X/release-notes-X.md
+  node scripts/sign-update.mjs sign dist/release-X/girovo-update.json --key "C:/Users/ninob/Desktop/Codes  - Keys/Girovo Updates/girovo-update-stable.key"
+  node scripts/sign-update.mjs verify dist/release-X/girovo-update.json
+  ```
+
+  The owner types the key's password. `girovo-update.json` and its `.sig` go
+  into the release with the other files (and into SHA256SUMS.txt).
+- **Halting or staging a release:** edit the KV entry `update-controls` of
+  girovo.de's Worker (Cloudflare dashboard → Storage & Databases → KV →
+  `girovo-updates`), e.g. `{"halted": ["6.0.3"], "rollout": {"6.0.4": 20}}`.
+  A change reaches every app within about six minutes (one minute in KV, five
+  in the Worker's cache).
+
 ## Order of work
 
 1. Manifest format, `update-manifest.mjs`, `sign-update.mjs`, the keys
