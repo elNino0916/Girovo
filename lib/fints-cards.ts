@@ -23,6 +23,7 @@
 
 import type { Balance, Message, Segment, Statement, StatementResponse, Transaction } from 'lib-fints';
 import { CreditCardStatementInteraction, splitBySeparator } from './fints-internals.js';
+import { continuesAfterApproval } from './fints-continuation.ts';
 import { msgs } from './i18n/index.ts';
 
 export const CARD_STATEMENT_SEG = 'DKKKU';
@@ -163,8 +164,11 @@ export function cardStatements(segments: readonly DikkuSegment[]): { statements:
   return { statements: [statement], unread };
 }
 
-/** lib-fints' DKKKU request, read here (see the top of this file). */
-export class CardStatementInteraction extends CreditCardStatementInteraction {
+/**
+ * lib-fints' DKKKU request, read here (see the top of this file); a long list's
+ * further pages arrive after an approval as without one (lib/fints-continuation.ts).
+ */
+export class CardStatementInteraction extends continuesAfterApproval(CreditCardStatementInteraction) {
   handleResponse(response: Message, answer: Parameters<CreditCardStatementInteraction['handleResponse']>[1]): void {
     // Answered as a statement answer, not lib-fints' own card shape (see the top of this file).
     const clientResponse = answer as unknown as StatementResponse;

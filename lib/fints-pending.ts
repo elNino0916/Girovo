@@ -31,6 +31,7 @@ import {
 import { bankAccountOf } from './account-key.ts';
 import type { ClientResponseWithResult } from './fints-types';
 import { parseMt942 } from './noted.ts';
+import { continuesAfterApproval } from './fints-continuation.ts';
 
 class HKVMK extends SegmentDefinition {
   static Id = 'HKVMK';
@@ -60,7 +61,8 @@ registerSegmentDefinition(new HIVMK());
 
 export const PENDING_SEG = HKVMK.Id;
 
-export class PendingInteraction extends CustomerOrderInteraction {
+/** HKVMK for one account; a long list's further pages arrive after an approval as without one (lib/fints-continuation.ts). */
+export class PendingInteraction extends continuesAfterApproval(CustomerOrderInteraction) {
   accountNumber: string;
 
   constructor(accountNumber: string) {

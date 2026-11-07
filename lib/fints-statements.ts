@@ -10,12 +10,15 @@
 // They keep the library's segment ids, so getAccountStatementsWithTan finds
 // them after an approval too: the dialog continues with the very instance
 // passed to startCustomerOrderInteraction, and the TAN-poll route reads
-// `notedStatements` from that answer like this one does.
+// `notedStatements` from that answer like this one does. A long answer's
+// further pages arrive after an approval as without one
+// (lib/fints-continuation.ts).
 
 import type { FinTSConfig, Message, Segment, Statement, StatementResponse } from 'lib-fints';
 import { bankAccountOf } from './account-key.ts';
 import { StatementInteractionCAMT, StatementInteractionMT940 } from './fints-internals.js';
 import { CardStatementInteraction, CARD_STATEMENT_SEG } from './fints-cards.ts';
+import { continuesAfterApproval } from './fints-continuation.ts';
 import type { ClientResponseWithResult, FinTSClientEx, SerializedTransaction, StatementBlock } from './fints-types';
 import { dayKey, isoDate } from './format.ts';
 import { msgs } from './i18n/index.ts';
@@ -90,14 +93,14 @@ function logNoted(
   );
 }
 
-export class NotedStatementInteractionCAMT extends StatementInteractionCAMT {
+export class NotedStatementInteractionCAMT extends continuesAfterApproval(StatementInteractionCAMT) {
   handleResponse(response: Message, clientResponse: StatementResponse): void {
     super.handleResponse(response, clientResponse);
     readNoted('camt', this.account, response, clientResponse);
   }
 }
 
-export class NotedStatementInteractionMT940 extends StatementInteractionMT940 {
+export class NotedStatementInteractionMT940 extends continuesAfterApproval(StatementInteractionMT940) {
   handleResponse(response: Message, clientResponse: StatementResponse): void {
     super.handleResponse(response, clientResponse);
     readNoted('mt940', this.account, response, clientResponse);
