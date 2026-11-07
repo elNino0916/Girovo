@@ -47,6 +47,7 @@
 		"@m3e/react": "^2.11.3",
 		"@m3e/web": "^2.11.3",
 		"@noble/ciphers": "^2.4.0",
+		"@noble/curves": "^2.4.0",
 		"@noble/hashes": "^2.4.0",
 		"@tesseract.js-data/deu": "^1.0.0",
 		"@tesseract.js-data/eng": "^1.0.0",
