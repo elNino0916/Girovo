@@ -1,17 +1,18 @@
-name: Nightly desktop preview
+name: Nightly desktop build
 
-# A preview of the next major version for the desktop app, every night that
-# its branch has new commits: Windows and Linux built here and published as a
-# GitHub pre-release, never as Latest. Copies on the "6.0-Vorschau" update
-# channel get it (electron/update-logic.cjs newestRelease); "Stabil",
+# The desktop app as the nightly branch has it, every night that branch has
+# new commits: Windows and Linux built here and published as a GitHub
+# pre-release, never as Latest. Copies on the "Nightly" update channel get it
+# (src-tauri/src/updater/logic.rs, mobile/updates/update-logic.cjs); "Stabil",
 # Obtainium's default and the F-Droid repository never see it.
 #
 # The version is the branch's release with the time and the commit:
-# 6.0.0-preview.<yyyymmddhhmm>.g<commit>. The time orders it (after the
-# hand-made 6.0.0-preview.N, before 6.0.0 itself), the commit names it; the
-# installer's Windows file version stays 6.0.0.0. No APK: the release key is
-# not on GitHub, and the GitHub APK's updater passes over a release without
-# one. The hand-made previews bring the APK.
+# <version>-nightly.<yyyymmddhhmm>.g<commit>. The time orders it — among the
+# nightlies, after a hand-made <version>-preview.N and the nightlies named
+# <version>-preview.<time> before them, before <version> itself — and the
+# commit names it; the installer's Windows file version stays the release's.
+# No APK: the release key is not on GitHub, and the GitHub APK's updater
+# passes over a release without one.
 #
 # GitHub runs scheduled workflows from the default branch, so this file lives
 # on main and checks out the branch it builds.
@@ -24,7 +25,7 @@ on:
       branch:
         description: The branch to build
         type: string
-        default: '6.0'
+        default: 'nightly'
 
 permissions:
   contents: write
@@ -46,7 +47,7 @@ jobs:
       - name: Check out the branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch || '6.0' }}
+          ref: ${{ inputs.branch || 'nightly' }}
 
       - name: Plan
         id: plan
@@ -57,7 +58,7 @@ jobs:
           short=$(git rev-parse --short=7 HEAD)
           base=$(node -p "require('./package.json').version.split('-')[0]")
           stamp=$(date -u +%Y%m%d%H%M)
-          version="$base-preview.$stamp.g$short"
+          version="$base-nightly.$stamp.g$short"
           # The commit the last nightly was built from: its tag ends in ".g<commit>".
           last=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=40" \
             --jq '[.[] | select(.prerelease and (.tag_name | test("\\.g[0-9a-f]{7}$")))][0].target_commitish // ""')
