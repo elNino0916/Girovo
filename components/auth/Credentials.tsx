@@ -281,6 +281,8 @@ export function Credentials({
       await attempt(opened.pin, { linked: [], hello: true });
       return;
     }
+    // The prompt asked for earlier is still open (it came to the front): that request logs in.
+    if (opened.result === 'busy') return;
     if (opened.result === 'gone' || opened.result === 'off') {
       setHello(false);
       if (opened.result === 'gone') setFingerprintNotice(tr.settings.windowsHello.invalidated);

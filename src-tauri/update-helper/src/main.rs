@@ -8,8 +8,8 @@
 //   2. checks the installer once more against the signed hash (--sha256) —
 //      a file changed after Girovo checked it is never run,
 //   3. runs the installer (the arguments after `--`) and waits for it,
-//   4. makes sure the new version comes up (--app-exe): the installer starts
-//      it itself; when it doesn't within a few seconds, this does,
+//   4. starts the new version (--app-exe) once its window has closed — the
+//      installer is told not to, so Girovo never opens beside this window,
 //
 // in a plain Windows window: no WebView2, no Tauri, so an update still
 // installs when the app itself is what is broken. A failure says what went
@@ -29,10 +29,6 @@ use sha2::{Digest, Sha256};
 const QUIT_LIMIT: Duration = Duration::from_secs(90);
 /// How long an installer may run.
 const INSTALL_LIMIT: Duration = Duration::from_secs(15 * 60);
-/// How long the installer has to start the new version itself before this does.
-const APP_GRACE: Duration = Duration::from_secs(6);
-/// How long the new version may take to show its window before this ends anyway.
-const APP_LIMIT: Duration = Duration::from_secs(45);
 /// How long the window stays at least, so a quick update is still seen (owner, 2026-11-07).
 const MIN_SHOWN: Duration = Duration::from_secs(10);
 
@@ -46,7 +42,7 @@ pub struct Plan {
   pub version: String,
   /// Girovo's process, which must have ended first; 0: none to wait for.
   pub wait_pid: u32,
-  /// The installed app, started when the installer doesn't.
+  /// The installed app, which this starts once its window is gone.
   pub app_exe: Option<PathBuf>,
   /// The way on when the install fails and Girovo is gone (github.com only).
   pub releases_url: String,
@@ -141,10 +137,29 @@ impl Plan {
       (Stage::Checking, true) => "Checking the update …".into(),
       (Stage::Installing, false) => "Update installieren …".into(),
       (Stage::Installing, true) => "Installing the update …".into(),
-      // The installer's end, Girovo coming up, and the wait up to MIN_SHOWN (owner, 2026-11-07).
+      // The installer's end and the wait up to MIN_SHOWN (owner, 2026-11-07).
       (Stage::Starting, false) => "Update abschließen …".into(),
       (Stage::Starting, true) => "Finishing the update …".into(),
     }
+  }
+
+  /// The installer's arguments without the ones that have it start Girovo
+  /// (Tauri's /R; --force-run for the hooks and electron-builder): with the
+  /// app to start, this does that itself, after its window has closed.
+  pub fn install_args(&self) -> Vec<String> {
+    if self.app_exe.is_none() {
+      return self.installer_args.clone();
+    }
+    self.installer_args.iter().filter(|a| !a.eq_ignore_ascii_case("/R") && *a != "--force-run").cloned().collect()
+  }
+
+  /// What Girovo starts with after the update: what /ARGS had for it (up to
+  /// the next /option, as NSIS reads it), else --updated.
+  pub fn app_args(&self) -> Vec<String> {
+    let Some(at) = self.installer_args.iter().position(|a| a.eq_ignore_ascii_case("/ARGS")) else {
+      return vec!["--updated".into()];
+    };
+    self.installer_args[at + 1..].iter().take_while(|a| !a.starts_with('/')).filter(|a| *a != "--force-run").cloned().collect()
   }
 
   /// "Version 6.0.2 Nightly": the version as a person reads it, not the build's whole name.
@@ -221,7 +236,7 @@ pub fn run(plan: &Plan, report: &dyn Fn(Stage)) -> Result<(), Failure> {
     return Err(Failure::Changed);
   }
   report(Stage::Installing);
-  let mut child = Command::new(&plan.installer).args(&plan.installer_args).spawn().map_err(|_| Failure::NoInstaller)?;
+  let mut child = Command::new(&plan.installer).args(plan.install_args()).spawn().map_err(|_| Failure::NoInstaller)?;
   let started = Instant::now();
   let code = loop {
     match child.try_wait() {
@@ -235,26 +250,21 @@ pub fn run(plan: &Plan, report: &dyn Fn(Stage)) -> Result<(), Failure> {
     return Err(Failure::InstallerFailed(code));
   }
   report(Stage::Starting);
-  if let Some(app) = plan.app_exe.as_deref() {
-    bring_up(app);
-  }
   Ok(())
 }
 
-/// Waits for the new version's window; starts it when the installer didn't.
-fn bring_up(app: &Path) {
-  let exe = app.to_string_lossy().into_owned();
-  let started = Instant::now();
-  let mut launched = false;
-  while started.elapsed() < APP_LIMIT {
-    if os::window_of(&exe) {
-      return;
-    }
-    if !launched && started.elapsed() > APP_GRACE && !os::running(&exe) {
-      launched = Command::new(app).spawn().is_ok();
-    }
-    std::thread::sleep(Duration::from_millis(250));
+/// Step 4: the new version, unless something already started it.
+pub fn start_app(plan: &Plan) {
+  let Some(app) = plan.app_exe.as_deref() else { return };
+  if !app.is_file() || os::running(&app.to_string_lossy()) {
+    return;
   }
+  let mut command = Command::new(app);
+  command.args(plan.app_args());
+  if let Some(dir) = app.parent() {
+    command.current_dir(dir);
+  }
+  let _ = command.spawn();
 }
 
 /// The way on after a failure: Girovo while it is still there, else the download page.
@@ -301,7 +311,10 @@ fn main() {
   };
   if plan.quiet {
     match run(&plan, &|stage| eprintln!("girovo-update: {stage:?}")) {
-      Ok(()) => std::process::exit(0),
+      Ok(()) => {
+        start_app(&plan);
+        std::process::exit(0)
+      }
       Err(failure) => {
         eprintln!("girovo-update: {failure:?}");
         std::process::exit(1);
@@ -312,7 +325,10 @@ fn main() {
   ui::show(plan);
   #[cfg(not(windows))]
   std::process::exit(match run(&plan, &|_| {}) {
-    Ok(()) => 0,
+    Ok(()) => {
+      start_app(&plan);
+      0
+    }
     Err(_) => 1,
   });
 }
@@ -326,7 +342,7 @@ mod os {
   use windows::Win32::System::Threading::{
     OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, QueryFullProcessImageNameW, WaitForSingleObject,
   };
-  use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowThreadProcessId, IsWindowVisible};
+  use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowThreadProcessId};
   use windows::core::{BOOL, PWSTR};
 
   /// Whether process `pid` has ended within `limit` (or was never there).
@@ -352,15 +368,11 @@ mod os {
 
   struct Search {
     exe: String,
-    visible_only: bool,
     found: bool,
   }
 
   unsafe extern "system" fn each(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let search = unsafe { &mut *(lparam.0 as *mut Search) };
-    if search.visible_only && !unsafe { IsWindowVisible(hwnd) }.as_bool() {
-      return true.into();
-    }
     let mut pid = 0u32;
     unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
     if image_of(pid).is_some_and(|path| path.eq_ignore_ascii_case(&search.exe)) {
@@ -369,22 +381,13 @@ mod os {
     (!search.found).into()
   }
 
-  fn search(exe: &str, visible_only: bool) -> bool {
-    let mut s = Search { exe: exe.to_string(), visible_only, found: false };
+  /// Whether a process started from `exe` has a window, shown or not yet (it runs or is starting).
+  pub fn running(exe: &str) -> bool {
+    let mut s = Search { exe: exe.to_string(), found: false };
     unsafe {
       let _ = EnumWindows(Some(each), LPARAM(&mut s as *mut Search as isize));
     }
     s.found
-  }
-
-  /// Whether a visible window of a process started from `exe` is up.
-  pub fn window_of(exe: &str) -> bool {
-    search(exe, true)
-  }
-
-  /// Whether a process started from `exe` has any window yet (it is starting).
-  pub fn running(exe: &str) -> bool {
-    search(exe, false)
   }
 }
 
@@ -394,11 +397,8 @@ mod os {
   pub fn wait_for_exit(_pid: u32, _limit: Duration) -> bool {
     true
   }
-  pub fn window_of(_exe: &str) -> bool {
-    true
-  }
   pub fn running(_exe: &str) -> bool {
-    true
+    false
   }
 }
 
@@ -693,6 +693,9 @@ mod ui {
     // The work beside the window; it reports through messages.
     let raw = main.0 as isize;
     let shown = Instant::now();
+    let after = plan.clone();
+    let finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let done = finished.clone();
     std::thread::spawn(move || {
       let post = |msg: u32, w: usize| unsafe {
         let _ = PostMessageW(Some(hwnd(raw)), msg, WPARAM(w), LPARAM(0));
@@ -702,6 +705,7 @@ mod ui {
         Ok(()) => {
           // A quick update: the window stays until MIN_SHOWN, saying "Update abschließen".
           std::thread::sleep(super::MIN_SHOWN.saturating_sub(shown.elapsed()));
+          done.store(true, std::sync::atomic::Ordering::SeqCst);
           post(WM_DONE, 0);
         }
         Err(failure) => {
@@ -722,6 +726,10 @@ mod ui {
         }
       }
       GdiplusShutdown(token);
+    }
+    // Girovo only once the window has gone, never beside it (owner, 2026-11-07).
+    if finished.load(std::sync::atomic::Ordering::SeqCst) {
+      super::start_app(&after);
     }
   }
 
@@ -1060,6 +1068,24 @@ mod tests {
     assert_eq!(plan.installer_args, ["/S", "/UPDATE", "/R", "/ARGS", "--updated", "--force-run"]);
     assert_eq!(plan.line(Stage::Installing), "Installing the update …");
     assert_eq!(plan.version_line(), "Version 6.0.3");
+  }
+
+  #[test]
+  fn girovo_is_started_by_this_not_by_the_installer() {
+    let tauri = Plan {
+      app_exe: Some(PathBuf::from("C:\\Apps\\Girovo\\Girovo.exe")),
+      installer_args: args(&["/S", "/UPDATE", "/R", "/ARGS", "--updated", "--force-run"]),
+      ..Plan::default()
+    };
+    assert_eq!(tauri.install_args(), ["/S", "/UPDATE", "/ARGS", "--updated"]);
+    assert_eq!(tauri.app_args(), ["--updated"]);
+    // 5.x's electron-builder installer, on the way back.
+    let electron = Plan { installer_args: args(&["/S", "--updated", "--force-run"]), ..tauri.clone() };
+    assert_eq!(electron.install_args(), ["/S", "--updated"]);
+    assert_eq!(electron.app_args(), ["--updated"]);
+    // Without an app to start, the installer still starts it.
+    let alone = Plan { app_exe: None, ..tauri.clone() };
+    assert_eq!(alone.install_args(), tauri.installer_args);
   }
 
   #[test]

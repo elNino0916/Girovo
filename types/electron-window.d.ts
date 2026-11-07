@@ -216,7 +216,8 @@ declare global {
       available: () => Promise<boolean>;
       /** `code`: the HRESULT Windows threw, where it threw ("0x80090011"). */
       enroll: () => Promise<{ result: 'enrolled' | 'canceled' | 'failed' | 'unavailable'; key?: string; fresh?: boolean; code?: string }>;
-      unlock: () => Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing' | 'failed'; key?: string; code?: string }>;
+      /** 'busy': another unlock still waits for its gesture; its prompt was brought to the front. */
+      unlock: () => Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing' | 'failed' | 'busy'; key?: string; code?: string }>;
     };
     /**
      * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.

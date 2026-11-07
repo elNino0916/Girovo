@@ -162,7 +162,9 @@ Each step lands on `nightly` and goes out as a 6.0.2 nightly when it works.
   `updater/mod.rs` hands the install to a copy in `%TEMP%\girovo-update\`
   (`updater/helper.rs`) with the installer's signed hash; without the helper
   (debug, Linux) the installer starts from the app with the install window,
-  as before.
+  as before. The helper's window stays at least 10 s and starts Girovo only
+  after it has closed: it drops `/R` and `--force-run` from the installer's
+  arguments and starts the app itself with what `/ARGS` had (`--updated`).
 - **5** built 2026-11-07: Einstellungen → Über Girovo → "Update aus Datei
   installieren" (the installed Windows app) or a `Girovo-*-Setup.exe` dropped
   on the window. `check_file` hashes it and looks for it in girovo.de's

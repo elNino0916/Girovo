@@ -47,16 +47,24 @@ export async function helloOn(login: Login): Promise<boolean> {
   }
 }
 
+/** An earlier openWithHello has its gesture and is opening the PIN with it. */
+let openingPin = false;
+
 /**
  * The login's PIN after the gesture. 'gone': it cannot open any more (the
- * Windows Hello key changed) and was deleted; 'off': nothing kept for it.
+ * Windows Hello key changed) and was deleted; 'off': nothing kept for it;
+ * 'busy': an earlier request is still at it — its prompt open (the shell
+ * brings it to the front) or its gesture given — and that one logs in.
  */
 export async function openWithHello(login: Login): Promise<
-  { result: 'opened'; pin: string } | { result: 'canceled' | 'gone' | 'off' } | { result: 'failed'; code?: string }
+  { result: 'opened'; pin: string } | { result: 'canceled' | 'gone' | 'off' | 'busy' } | { result: 'failed'; code?: string }
 > {
   const shell = helloShell();
   if (!shell) return { result: 'off' };
+  // Asking now would open a second prompt once the first login is under way.
+  if (openingPin) return { result: 'busy' };
   const gesture = await shell.unlock().catch(() => ({ result: 'failed' as const, key: undefined, code: undefined }));
+  if (gesture.result === 'busy') return { result: 'busy' };
   if (gesture.result === 'invalidated' || gesture.result === 'missing') {
     // No key opens the kept PIN any more: it goes too.
     await forgetHello(login);
@@ -64,9 +72,10 @@ export async function openWithHello(login: Login): Promise<
   }
   if (gesture.result === 'canceled') return { result: 'canceled' };
   if (gesture.result !== 'unlocked' || !gesture.key) return { result: 'failed', code: gesture.code };
-  const s = await secret();
-  if (!s) return { result: 'failed' };
+  openingPin = true;
   try {
+    const s = await secret();
+    if (!s) return { result: 'failed' };
     const r = await post<{ pin?: string; on?: boolean; dropped?: boolean }>(
       '/api/windows-hello', { op: 'open', login, key: gesture.key, secret: s },
     );
@@ -74,6 +83,8 @@ export async function openWithHello(login: Login): Promise<
     return { result: r.dropped ? 'gone' : 'off' };
   } catch {
     return { result: 'failed' };
+  } finally {
+    openingPin = false;
   }
 }
 

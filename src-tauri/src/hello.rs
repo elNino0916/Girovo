@@ -25,13 +25,18 @@
 // a damaged Windows Hello store, since trying again does not help then.
 //
 // WinRT's operations are waited for on a blocking thread, never the window's,
-// and one at a time: two prompts at once would confuse everyone. Windows opens
+// and one at a time: two prompts at once would confuse everyone. An unlock
+// asked for while another still waits for its gesture (the button, clicked
+// with the prompt hidden behind Girovo) opens no prompt of its own, not even
+// after the first: it brings the open one to the front and answers 'busy'.
+// Windows opens
 // its prompt on its own, often behind Girovo; it is brought to the front by its
 // window class, as the helper did and Chromium does
 // (crypto/user_verifying_key_win.cc).
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use base64::Engine;
@@ -104,6 +109,8 @@ pub trait Platform: Send + Sync {
   fn sign(&self, name: &str, challenge: &[u8]) -> Result<Outcome, Threw>;
   /// Deletes the key `name`, if there is one.
   fn delete(&self, name: &str);
+  /// Brings Windows' prompt to the front, if one is open.
+  fn raise(&self);
 }
 
 struct State {
@@ -135,11 +142,22 @@ pub struct Hello<P: Platform> {
   file: PathBuf,
   supported: Mutex<Option<bool>>,
   queue: Mutex<()>,
+  /// An unlock is waiting for its gesture.
+  unlocking: AtomicBool,
+}
+
+/// Lowers the flag it holds when it goes, however the unlock ended.
+struct Lowers<'a>(&'a AtomicBool);
+
+impl Drop for Lowers<'_> {
+  fn drop(&mut self) {
+    self.0.store(false, Ordering::SeqCst);
+  }
 }
 
 impl<P: Platform> Hello<P> {
   pub fn new(platform: P, file: PathBuf) -> Self {
-    Hello { platform, file, supported: Mutex::new(None), queue: Mutex::new(()) }
+    Hello { platform, file, supported: Mutex::new(None), queue: Mutex::new(()), unlocking: AtomicBool::new(false) }
   }
 
   /// One request at a time: a second waits for the first's prompt to close.
@@ -218,8 +236,14 @@ impl<P: Platform> Hello<P> {
     })
   }
 
-  /// The key, after the gesture.
+  /// The key, after the gesture. While another unlock waits for one, only
+  /// its prompt comes to the front: 'busy'.
   pub fn unlock(&self) -> Answer {
+    if self.unlocking.swap(true, Ordering::SeqCst) {
+      self.platform.raise();
+      return Answer::just("busy");
+    }
+    let _lowers = Lowers(&self.unlocking);
     self.serial(|| {
       let Some(state) = self.read_state() else {
         return Answer::just("missing");
@@ -350,6 +374,9 @@ impl Platform for WinRt {
   fn delete(&self, name: &str) {
     winrt::delete(name)
   }
+  fn raise(&self) {
+    winrt::raise_prompt();
+  }
 }
 
 /// Elsewhere there is no Windows Hello: available() says false, and the page offers nothing.
@@ -365,6 +392,7 @@ impl Platform for WinRt {
     Err(Threw::plain("no Windows Hello here"))
   }
   fn delete(&self, _name: &str) {}
+  fn raise(&self) {}
 }
 
 #[cfg(windows)]
@@ -465,7 +493,7 @@ mod winrt {
   }
 
   /// Brings Windows' Windows Hello prompt to the front, if it is there yet: whether it was.
-  fn raise_prompt() -> bool {
+  pub fn raise_prompt() -> bool {
     // SAFETY: FindWindowW reads a constant, NUL-terminated class name; the
     // window it finds is only handed back to Windows.
     unsafe {
@@ -530,7 +558,8 @@ pub async fn hello_unlock() -> Answer {
 #[cfg(test)]
 mod tests {
   use std::collections::{HashMap, VecDeque};
-  use std::sync::atomic::{AtomicUsize, Ordering};
+  use std::sync::atomic::AtomicUsize;
+  use std::sync::mpsc;
 
   use aws_lc_rs::encoding::AsDer;
   use aws_lc_rs::rsa::KeySize;
@@ -569,11 +598,22 @@ mod tests {
     queued: Mutex<VecDeque<Result<Outcome, Threw>>>,
     /// Signs with PSS, which is different each time.
     random_signatures: bool,
+    /// The next signing says it started, then waits to be let go: a prompt left open.
+    held: Mutex<Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>>,
+    raises: AtomicUsize,
   }
 
   impl Fake {
     fn new(supported: bool) -> Self {
-      Fake { supported, probes: AtomicUsize::new(0), keys: Mutex::default(), queued: Mutex::default(), random_signatures: false }
+      Fake {
+        supported,
+        probes: AtomicUsize::new(0),
+        keys: Mutex::default(),
+        queued: Mutex::default(),
+        random_signatures: false,
+        held: Mutex::default(),
+        raises: AtomicUsize::new(0),
+      }
     }
     fn queue(&self, answer: Result<Outcome, Threw>) {
       self.queued.lock().unwrap().push_back(answer);
@@ -602,6 +642,11 @@ mod tests {
       Ok(Outcome::Signed { signature, public_key: Some(public_key) })
     }
     fn sign(&self, name: &str, challenge: &[u8]) -> Result<Outcome, Threw> {
+      let held = self.held.lock().unwrap().take();
+      if let Some((started, release)) = held {
+        started.send(()).unwrap();
+        release.recv().unwrap();
+      }
       if let Some(answer) = self.queued.lock().unwrap().pop_front() {
         return answer;
       }
@@ -612,6 +657,9 @@ mod tests {
     }
     fn delete(&self, name: &str) {
       self.keys.lock().unwrap().remove(name);
+    }
+    fn raise(&self) {
+      self.raises.fetch_add(1, Ordering::SeqCst);
     }
   }
 
@@ -679,6 +727,29 @@ mod tests {
     let again = hello.enroll();
     assert_eq!((again.result, again.fresh, again.key), ("enrolled", Some(false), Some(key)));
     assert_eq!(hello.platform.keys.lock().unwrap().len(), 1);
+  }
+
+  #[test]
+  fn a_second_unlock_while_the_prompt_is_open_only_brings_it_to_the_front() {
+    let hello = rig(Fake::new(true));
+    let key = hello.enroll().key;
+    let (started_tx, started) = mpsc::channel();
+    let (release, release_rx) = mpsc::channel();
+    *hello.platform.held.lock().unwrap() = Some((started_tx, release_rx));
+    std::thread::scope(|scope| {
+      let first = scope.spawn(|| hello.unlock());
+      started.recv().unwrap();
+      // The button, clicked with the prompt behind Girovo: no second prompt, now or later.
+      assert_eq!(hello.unlock(), Answer::just("busy"));
+      assert_eq!(hello.platform.raises.load(Ordering::SeqCst), 1);
+      release.send(()).unwrap();
+      assert_eq!(first.join().unwrap().key, key);
+    });
+    // Answered, canceled or not: the next unlock asks again.
+    hello.platform.queue(Ok(Outcome::Status("UserCanceled")));
+    assert_eq!(hello.unlock(), Answer::just("canceled"));
+    assert_eq!(hello.unlock().key, key);
+    assert_eq!(hello.platform.raises.load(Ordering::SeqCst), 1);
   }
 
   #[test]

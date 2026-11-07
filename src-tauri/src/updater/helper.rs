@@ -20,7 +20,8 @@ pub struct Handover<'a> {
   pub plan: &'a InstallPlan,
   /// This process, which must have ended before the installer runs.
   pub pid: u32,
-  /// The app being replaced, started again if the installer doesn't.
+  /// The app being replaced: the helper starts it again once its own window
+  /// has closed, and keeps the installer from doing so earlier (/R, --force-run).
   pub app_exe: &'a Path,
   pub releases_url: &'a str,
   pub english: bool,
