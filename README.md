@@ -492,14 +492,16 @@ The desktop app updates itself from this repository's
   there the next stable release above the installed one is offered. The
   Google Play and F-Droid builds have no such setting. A passing 502, 503 or
   504 from GitHub is asked once more. Each copy takes only a release with a file for it: the
-  nightly previews (below) are the desktop's, and the Android app passes over
+  nightlies (below) are the desktop's, and the Android app passes over
   them.
-- **Nightly previews (desktop)** — every night that the `6.0` branch has new
+- **Nightlies (desktop)** — every night that the `nightly` branch has new
   commits, `.github/workflows/nightly.yml` builds Windows and Linux and
-  publishes them as a pre-release, `6.0.0-preview.<yyyymmddhhmm>.g<commit>`:
-  the time orders it after the hand-made `6.0.0-preview.N` and before 6.0.0,
-  the commit names it. Run it by hand from the Actions tab too. The Android
-  previews stay hand-made, because the release key is not on GitHub.
+  publishes them as a pre-release, `<version>-nightly.<yyyymmddhhmm>.g<commit>`,
+  offered on the *Nightly* update channel: the time orders it among the
+  nightlies (and after the earlier ones named `-preview.<time>` and the
+  hand-made `-preview.N`), before the release itself; the commit names it.
+  Run it by hand from the Actions tab too. There is no Android nightly,
+  because the release key is not on GitHub.
 - **Only through the start window** (the installed Windows app): the start
   window adds "Nach Updates suchen" after "Girovo vorbereiten". A newer release
   on the chosen channel is downloaded there ("Version … herunterladen", with the
