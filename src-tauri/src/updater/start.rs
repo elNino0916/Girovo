@@ -61,6 +61,9 @@ impl StartWindow for crate::splash::Splash {
   fn progress(&self, percent: f64) {
     crate::splash::Splash::progress(self, percent);
   }
+  fn is_open(&self) -> bool {
+    crate::splash::Splash::is_open(self)
+  }
 }
 
 /// The check a start runs for the update at start, already under way.
@@ -99,6 +102,10 @@ impl Updater {
     let Ok(Ok(found)) = tokio::time::timeout(START_CHECK_LIMIT, check).await else { return false };
     let Some(release) = found.release.clone() else { return false };
     if !window.is_open()
+      // Its install failed on the last start: not again by itself, or a
+      // failing installer would quit Girovo at every start. The app opens and
+      // says so; installing it again is the user's click.
+      || (found.failed_install.as_deref() == Some(release.version.as_str()) && !asked)
       || (release.back && !asked)
       || !release.can_install
       || !matches!(found.phase, Phase::Available | Phase::Ready)

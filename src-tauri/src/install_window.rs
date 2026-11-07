@@ -156,6 +156,10 @@ fn model(s: &State) -> Value {
 pub fn run() {
   let args: Vec<String> = std::env::args().skip(2).collect();
   let options = Options::parse(&args);
+  // The installer's process, held first thing: it started a moment before
+  // this window, and one that failed fast must not have gone unwatched by the
+  // time the window is up (an exit nobody saw would be taken for success).
+  let installer = Installer::open(options.installer_pid);
   let lang = options.lang.unwrap_or(Lang::De);
   // At work: the first step the start window had not finished — its install.
   let at = options.steps.iter().position(|(state, _)| state != "done").unwrap_or(0);
@@ -186,7 +190,7 @@ pub fn run() {
         .additional_browser_args(&crate::shell::browser_args())
         .build()?;
       let handle = app.handle().clone();
-      std::thread::spawn(move || watch(handle));
+      std::thread::spawn(move || watch(handle, installer));
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![splash_fit, splash_action])
@@ -206,13 +210,12 @@ fn render(app: &AppHandle) {
 }
 
 /// The installer's exit, then the new version's window.
-fn watch(app: AppHandle) {
-  let (pid, app_exe) = {
-    let s = app.state::<Mutex<State>>();
-    let s = s.lock().unwrap();
-    (s.options.installer_pid, s.options.app_exe.clone())
-  };
-  let code = wait_for_exit(pid, INSTALL_LIMIT);
+fn watch(app: AppHandle, installer: Installer) {
+  let app_exe = app.state::<Mutex<State>>().lock().unwrap().options.app_exe.clone();
+  let code = installer.wait(INSTALL_LIMIT);
+  // Not watched (it could not be held): how it went is not known, so this
+  // window starts nothing itself — only the installer's own start counts.
+  let watched = code.is_some();
   if code != Some(0) && code.is_some() {
     app.state::<Mutex<State>>().lock().unwrap().failed = true;
     render(&app);
@@ -232,7 +235,7 @@ fn watch(app: AppHandle) {
       break;
     }
     // The installer did not start it within a few seconds: this window does.
-    if !launched && started.elapsed() > Duration::from_secs(4) && !app_exe.is_empty() {
+    if watched && !launched && started.elapsed() > Duration::from_secs(4) && !app_exe.is_empty() {
       launched = std::process::Command::new(&app_exe).spawn().is_ok();
     }
     std::thread::sleep(Duration::from_millis(250));
@@ -266,29 +269,44 @@ fn splash_action(app: AppHandle, id: String) {
   app.exit(0);
 }
 
-/// Waits for a process to end; its exit code, or None when it could not be watched (gone already).
+/// The installer's process, held from the install window's first moment: its
+/// handle as a number (it crosses to the watching thread).
+struct Installer(Option<isize>);
+
 #[cfg(windows)]
-fn wait_for_exit(pid: u32, limit: Duration) -> Option<u32> {
-  use windows::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
-  use windows::Win32::System::Threading::{
-    GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, WaitForSingleObject,
-  };
-  if pid == 0 {
-    return None;
+impl Installer {
+  fn open(pid: u32) -> Self {
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE};
+    if pid == 0 {
+      return Installer(None);
+    }
+    let process = unsafe { OpenProcess(PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, false, pid) };
+    Installer(process.ok().map(|h| h.0 as isize))
   }
-  unsafe {
-    let process = OpenProcess(PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
-    let waited = WaitForSingleObject(process, limit.as_millis() as u32);
-    let mut code = 1u32;
-    let got = waited == WAIT_OBJECT_0 && GetExitCodeProcess(process, &mut code).is_ok();
-    let _ = CloseHandle(process);
-    if got { Some(code) } else { Some(1) }
+
+  /// Waits for it to end: its exit code, or None when it could not be held.
+  fn wait(&self, limit: Duration) -> Option<u32> {
+    use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0};
+    use windows::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+    let process = HANDLE(self.0? as *mut core::ffi::c_void);
+    unsafe {
+      let waited = WaitForSingleObject(process, limit.as_millis() as u32);
+      let mut code = 1u32;
+      let got = waited == WAIT_OBJECT_0 && GetExitCodeProcess(process, &mut code).is_ok();
+      let _ = CloseHandle(process);
+      if got { Some(code) } else { Some(1) }
+    }
   }
 }
 
 #[cfg(not(windows))]
-fn wait_for_exit(_pid: u32, _limit: Duration) -> Option<u32> {
-  None
+impl Installer {
+  fn open(_pid: u32) -> Self {
+    Installer(None)
+  }
+  fn wait(&self, _limit: Duration) -> Option<u32> {
+    None
+  }
 }
 
 /// Whether a visible window of a process started from `exe` is up.

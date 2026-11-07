@@ -170,6 +170,18 @@ impl Splash {
         .build()
     })?;
     let splash = Arc::new(Splash { app: app.clone(), state: Mutex::new(state) });
+    // Closed by the user (Alt+F4): the start gives up on an update at start
+    // (updater/start.rs is_open) and opens Girovo as always.
+    if let Some(w) = app.get_webview_window(LABEL) {
+      let weak = Arc::downgrade(&splash);
+      w.on_window_event(move |event| {
+        if matches!(event, tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed)
+          && let Some(s) = weak.upgrade()
+        {
+          s.state.lock().unwrap().closed = true;
+        }
+      });
+    }
     let later = splash.clone();
     std::thread::spawn(move || {
       std::thread::sleep(SLOW_AFTER);
@@ -292,6 +304,11 @@ impl Splash {
         None => std::thread::sleep(Duration::from_millis(50)),
       }
     }
+  }
+
+  /** Whether the start window is still up: neither closed by the start nor by the user. */
+  pub fn is_open(&self) -> bool {
+    !self.state.lock().unwrap().closed
   }
 
   pub fn close(&self) {

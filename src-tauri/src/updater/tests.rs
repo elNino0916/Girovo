@@ -946,6 +946,37 @@ async fn at_start_the_way_back_only_when_it_was_asked_for() {
   }
 }
 
+#[tokio::test]
+async fn at_start_a_release_whose_install_just_failed_is_not_installed_again_unasked() {
+  let srv = Server::start(github_like(rel("9.9.9")));
+  let cache = TempDir::new();
+  let first = make(config(&srv.base, cache.path()), &Arc::new(FakeHost::default()));
+  first.check(true).await;
+  first.download().await;
+  first.install().await;
+
+  // The next start, still 4.0.0: the installer failed. Girovo opens instead of quitting for it again.
+  let host = Arc::new(FakeHost::default());
+  let again = make(config(&srv.base, cache.path()), &host);
+  again.start();
+  let window = FakeWindow::default();
+  let check = again.start_check(&window);
+  assert!(!again.update_at_start(check, &window).await);
+  assert_eq!(host.installs().len(), 0);
+  again.stop();
+
+  // Asked for (--update): installed.
+  let host = Arc::new(FakeHost::default());
+  let mut cfg = config(&srv.base, cache.path());
+  cfg.update_asked = true;
+  let asked = make(cfg, &host);
+  asked.start();
+  let check = asked.start_check(&window);
+  assert!(asked.update_at_start(check, &window).await);
+  assert_eq!(host.installs().len(), 1);
+  asked.stop();
+}
+
 // ---- differential downloads -------------------------------------------------------------------
 
 /// What is installed: Girovo.exe and the model (small stand-ins, a few chunks each).
