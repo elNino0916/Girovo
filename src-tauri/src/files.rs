@@ -70,7 +70,19 @@ pub fn fs_list(path: String) -> Result<Vec<Listed>, String> {
 /// few MB would be escaped, sent and parsed on the main thread.
 #[tauri::command(async)]
 pub fn fs_read(path: String) -> Result<tauri::ipc::Response, String> {
-  let bytes = fs::read(resolve(&path)?).map_err(io)?;
+  let file = resolve(&path)?;
+  let mut attempt = 0;
+  // Ridden out as a rename is: a virus scanner or OneDrive holding it a moment.
+  let bytes = loop {
+    match fs::read(&file) {
+      Ok(bytes) => break bytes,
+      Err(err) if attempt < 5 && locked(&err) => {
+        std::thread::sleep(std::time::Duration::from_millis(15 << attempt));
+        attempt += 1;
+      }
+      Err(err) => return Err(io(err)),
+    }
+  };
   if std::str::from_utf8(&bytes).is_err() {
     return Err(format!("EIO: not UTF-8: {path}"));
   }

@@ -189,6 +189,10 @@ pub fn plugin() -> TauriPlugin<tauri::DynRuntime> {
         if pending && let Some(telemetry) = app.try_state::<crate::telemetry::Telemetry>() {
           telemetry.closing(app);
         }
+        // …and a file being written finished (files.rs), for the same reason.
+        if pending {
+          crate::files::settle(std::time::Duration::from_secs(2));
+        }
         shared.at_exit();
       }
     })

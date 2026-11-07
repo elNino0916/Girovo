@@ -19,7 +19,7 @@ import { parseSecret, runCheck } from '../../lib/background-check';
 import type { BackgroundStore } from '../../lib/background-store';
 import { backgroundStore } from '../../lib/background-store';
 import { msgs } from '../../lib/i18n/index.ts';
-import { mountData, refuseData } from '../shims/fs';
+import { mountData, refuseData, unreadableFiles } from '../shims/fs';
 import { bg } from './bridge';
 
 // A request blocks until the bank answers (BackgroundJob.java times it); a
@@ -42,6 +42,10 @@ const store: BackgroundStore = {
 
 async function main(): Promise<string> {
   const files = await mountData('fints-state');
+  // A file that could not be read (the app writing it this very moment): a
+  // device profile missing would pause its login as if it no longer opened.
+  // This run fails instead, and the next one reads it.
+  if (unreadableFiles().length) throw new Error(`${unreadableFiles().length} saved file(s) could not be read`);
   refuseData();
   const secret = parseSecret(bg().secret());
   if (!secret) return 'no secret';

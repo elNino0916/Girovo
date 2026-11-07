@@ -120,6 +120,11 @@ function persistRemove(p: string): void {
   enqueue(() => quietly(Filesystem.deleteFile({ path: target, directory: Directory.Data })));
 }
 
+/** The saved files the start could not read: left alone, and every write to them refused. */
+export function unreadableFiles(): string[] {
+  return [...unreadable];
+}
+
 /** Resolves once every change made so far is on disk (the app going to the background). */
 export function flush(): Promise<{ failures: number }> {
   return queue.then(() => ({ failures }));
@@ -280,6 +285,8 @@ function rename(from: unknown, to: unknown): void {
   const b = norm(to);
   const entry = files.get(a);
   if (!entry) throw fsError('ENOENT', 'rename', a);
+  // A target that takes no writes (refused, or unreadable at the start): the source stays.
+  if (persisted(b) && (refused || unreadable.has(b))) throw fsError('EROFS', 'rename', b);
   files.delete(a);
   if (persisted(a) && !a.endsWith('.tmp')) persistRemove(a);
   put(b, entry.text);
