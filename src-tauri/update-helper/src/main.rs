@@ -99,6 +99,8 @@ impl Plan {
 pub struct Words {
   pub caption: &'static str,
   pub heading: &'static str,
+  /// The card's heading (window C).
+  pub title: &'static str,
   pub failed: &'static str,
   pub open: &'static str,
   pub download: &'static str,
@@ -108,6 +110,7 @@ pub struct Words {
 const DE: Words = Words {
   caption: "Update",
   heading: "wird aktualisiert",
+  title: "Girovo wird aktualisiert",
   failed: "Das Update hat nicht geklappt",
   open: "Girovo öffnen",
   download: "Zur Download-Seite",
@@ -117,6 +120,7 @@ const DE: Words = Words {
 const EN: Words = Words {
   caption: "Update",
   heading: "is being updated",
+  title: "Updating Girovo",
   failed: "The update didn’t work",
   open: "Open Girovo",
   download: "Go to the download page",
@@ -130,18 +134,30 @@ impl Plan {
 
   /// What the window says while `stage` runs.
   pub fn line(&self, stage: Stage) -> String {
-    let v = &self.version;
     match (stage, self.english) {
       (Stage::Waiting, false) => format!("{} wird beendet …", self.name),
       (Stage::Waiting, true) => format!("Closing {} …", self.name),
       (Stage::Checking, false) => "Das Update wird geprüft …".into(),
       (Stage::Checking, true) => "Checking the update …".into(),
-      (Stage::Installing, false) => format!("Version {v} wird installiert …"),
-      (Stage::Installing, true) => format!("Installing version {v} …"),
+      (Stage::Installing, false) => "Update installieren …".into(),
+      (Stage::Installing, true) => "Installing the update …".into(),
       // The installer's end, Girovo coming up, and the wait up to MIN_SHOWN (owner, 2026-11-07).
       (Stage::Starting, false) => "Update abschließen …".into(),
       (Stage::Starting, true) => "Finishing the update …".into(),
     }
+  }
+
+  /// "Version 6.0.2 Nightly": the version as a person reads it, not the build's whole name.
+  pub fn version_line(&self) -> String {
+    let (core, pre) = self.version.split_once('-').unwrap_or((self.version.as_str(), ""));
+    let kind = if pre.starts_with("nightly.") || (pre.starts_with("preview.") && pre.len() > 12) {
+      " Nightly".to_string()
+    } else if let Some(n) = pre.strip_prefix("preview.").filter(|n| n.chars().all(|c| c.is_ascii_digit())) {
+      format!(" Preview {n}")
+    } else {
+      String::new()
+    };
+    if self.english { format!("Version {core}{kind}") } else { format!("Version {core}{kind}") }
   }
 
   /// What the window says when `failure` stopped it.
@@ -257,7 +273,25 @@ pub fn way_on(plan: &Plan) -> WayOn {
 }
 
 fn main() {
-  let args: Vec<String> = std::env::args().skip(1).collect();
+  #[allow(unused_mut)]
+  let mut args: Vec<String> = std::env::args().skip(1).collect();
+  #[cfg(all(windows, debug_assertions))]
+  if let Some(at) = args.iter().position(|a| a == "--snapshot") {
+    let out = std::path::PathBuf::from(args.get(at + 1).cloned().unwrap_or_default());
+    args.drain(at..=at + 1);
+    let mut flag = |name: &str| args.iter().position(|a| a == name).map(|i| args.remove(i)).is_some();
+    let (dark, failed) = (flag("--dark"), flag("--failed"));
+    let _ = flag("--light");
+    let dpi = args.iter().position(|a| a == "--dpi").map(|i| {
+      let v = args.get(i + 1).and_then(|v| v.parse().ok()).unwrap_or(96);
+      args.drain(i..=i + 1);
+      v
+    });
+    if let Ok(plan) = Plan::parse(&args) {
+      ui::snapshot(plan, &out, dark, failed, dpi.unwrap_or(96));
+    }
+    return;
+  }
   let plan = match Plan::parse(&args) {
     Ok(plan) => plan,
     Err(err) => {
@@ -370,18 +404,30 @@ mod os {
 
 #[cfg(windows)]
 mod ui {
-  use std::sync::Mutex;
-  use std::sync::OnceLock;
+  //! Window C (owner's pick, 2026-11-07): Windows' own title bar in the
+  //! window's tint, and on it a white card — the app's icon large, "Girovo
+  //! wird aktualisiert", the version, a rounded moving bar in Girovo blue and
+  //! the step under it. A failure keeps the card, says why and offers the way
+  //! on as real Windows buttons. Light or dark as Windows is set; sharp at
+  //! any scaling. Shapes through GDI+ (smooth corners), text through GDI
+  //! (ClearType), painted off screen and copied in one go.
+
+  use std::sync::{Mutex, OnceLock};
+  use std::time::Instant;
 
   use windows::Win32::Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
-  use windows::Win32::Graphics::Gdi::{
-    CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS, COLOR_WINDOW, CreateFontW, DEFAULT_CHARSET, FF_DONTCARE, FW_NORMAL, FW_SEMIBOLD, GetSysColor, GetSysColorBrush,
-    HDC, HFONT, OUT_DEFAULT_PRECIS, SetBkColor, SetTextColor, COLOR_WINDOWTEXT, UpdateWindow,
+  use windows::Win32::Graphics::Dwm::{DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_USE_IMMERSIVE_DARK_MODE, DwmSetWindowAttribute};
+  use windows::Win32::Graphics::Gdi::*;
+  use windows::Win32::Graphics::GdiPlus::{
+    FillModeAlternate, GdipAddPathArc, GdipAddPathRectangle, GdipClosePathFigure, GdipCreateFromHDC, GdipCreatePath, GdipCreateSolidFill,
+    GdipDeleteBrush, GdipDeleteGraphics, GdipDeletePath, GdipFillPath, GdipSetSmoothingMode, GdiplusShutdown, GdiplusStartup, GdiplusStartupInput,
+    GpBrush, GpGraphics, GpPath, GpSolidFill, SmoothingModeAntiAlias,
   };
   use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-  use windows::Win32::UI::Controls::{ICC_PROGRESS_CLASS, ICC_STANDARD_CLASSES, INITCOMMONCONTROLSEX, InitCommonControlsEx, PBM_SETMARQUEE, PBS_MARQUEE};
-  use windows::Win32::UI::HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForSystem, SetProcessDpiAwarenessContext};
-  use windows::Win32::UI::Shell::{ExtractIconW, ShellExecuteW};
+  use windows::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
+  use windows::Win32::UI::Controls::{ICC_STANDARD_CLASSES, INITCOMMONCONTROLSEX, InitCommonControlsEx, SetWindowTheme};
+  use windows::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForWindow, SetProcessDpiAwarenessContext};
+  use windows::Win32::UI::Shell::ShellExecuteW;
   use windows::Win32::UI::WindowsAndMessaging::*;
   use windows::core::{HSTRING, PCWSTR, w};
 
@@ -392,18 +438,47 @@ mod ui {
   const WM_FAILED: u32 = WM_APP + 3;
   const ID_PRIMARY: usize = 1;
   const ID_CLOSE: usize = 2;
-  /// The client area at 96 dpi.
+  const TIMER: usize = 1;
+
+  // The layout at 96 dpi (the mock's numbers).
   const WIDTH: i32 = 440;
-  const HEIGHT: i32 = 150;
+  const MARGIN: i32 = 6;
+  const PAD: i32 = 22;
+  const PLATE: i32 = 56;
+  const GAP: i32 = 18;
+  const CARD_WORKING: i32 = 124;
+  const CARD_FAILED: i32 = 168;
+
+  struct Colors {
+    window: u32,
+    card: u32,
+    ink: u32,
+    ink2: u32,
+    track: u32,
+    accent: u32,
+  }
+
+  const LIGHT: Colors = Colors { window: 0xf3f5f8, card: 0xffffff, ink: 0x1b1f24, ink2: 0x5b6470, track: 0xe2e6eb, accent: 0x2563c9 };
+  const DARK: Colors = Colors { window: 0x202124, card: 0x2b2d31, ink: 0xf1f3f5, ink2: 0xa9b0b8, track: 0x3c3f45, accent: 0x6ea8ff };
+
+  /// 0xRRGGBB as GDI's COLORREF (0x00BBGGRR).
+  fn cref(rgb: u32) -> COLORREF {
+    COLORREF(((rgb & 0xff) << 16) | (rgb & 0xff00) | ((rgb >> 16) & 0xff))
+  }
 
   struct Ui {
     plan: Plan,
-    heading: isize,
-    line: isize,
-    progress: isize,
+    dark: bool,
+    dpi: u32,
+    heading_font: isize,
+    body_font: isize,
+    small_font: isize,
+    icon: isize,
+    step: String,
+    failure: Option<Failure>,
     primary: isize,
     close: isize,
-    failure: Option<Failure>,
+    started: Instant,
   }
 
   static UI: OnceLock<Mutex<Ui>> = OnceLock::new();
@@ -412,19 +487,105 @@ mod ui {
     HWND(raw as *mut _)
   }
 
-  fn set_text(raw: isize, text: &str) {
-    let text = HSTRING::from(text);
+  fn px(v: i32, dpi: u32) -> i32 {
+    v * dpi as i32 / 96
+  }
+
+  /// Whether Windows shows apps dark.
+  fn system_dark() -> bool {
+    let mut value: u32 = 1;
+    let mut size = std::mem::size_of::<u32>() as u32;
+    let ok = unsafe {
+      RegGetValueW(
+        HKEY_CURRENT_USER,
+        w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
+        w!("AppsUseLightTheme"),
+        RRF_RT_REG_DWORD,
+        None,
+        Some(&mut value as *mut u32 as *mut _),
+        Some(&mut size),
+      )
+    }
+    .is_ok();
+    ok && value == 0
+  }
+
+  fn font(px_height: i32, weight: i32) -> isize {
     unsafe {
-      let _ = SetWindowTextW(hwnd(raw), PCWSTR(text.as_ptr()));
+      CreateFontW(
+        -px_height, 0, 0, 0, weight, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+        FF_DONTCARE.0 as u32, w!("Segoe UI"),
+      )
+    }
+    .0 as isize
+  }
+
+  /// The app's own icon at `size` pixels, from the program the update is for.
+  fn app_icon(plan: &Plan, size: i32) -> isize {
+    let Some(app) = plan.app_exe.as_ref().filter(|p| p.exists()) else { return 0 };
+    use std::os::windows::ffi::OsStrExt;
+    let mut wide: Vec<u16> = app.as_os_str().encode_wide().collect();
+    wide.resize(260, 0);
+    let mut icon = HICON::default();
+    let got = unsafe {
+      PrivateExtractIconsW(&wide.try_into().unwrap_or([0u16; 260]), 0, size, size, Some(std::slice::from_mut(&mut icon)), None, 0)
+    };
+    if got >= 1 && !icon.is_invalid() { icon.0 as isize } else { 0 }
+  }
+
+  fn make_fonts(ui: &mut Ui) {
+    for f in [ui.heading_font, ui.body_font, ui.small_font] {
+      if f != 0 {
+        unsafe {
+          let _ = DeleteObject(HGDIOBJ(f as *mut _));
+        }
+      }
+    }
+    ui.heading_font = font(px(19, ui.dpi), FW_SEMIBOLD.0 as i32);
+    ui.body_font = font(px(13, ui.dpi), FW_NORMAL.0 as i32);
+    ui.small_font = font(px(12, ui.dpi), FW_NORMAL.0 as i32);
+    for b in [ui.primary, ui.close] {
+      unsafe {
+        SendMessageW(hwnd(b), WM_SETFONT, Some(WPARAM(ui.body_font as usize)), Some(LPARAM(1)));
+      }
     }
   }
 
-  fn font(points: i32, weight: i32, dpi: u32) -> HFONT {
-    let height = -(points * dpi as i32 / 72);
+  fn card_height(ui: &Ui) -> i32 {
+    if ui.failure.is_some() { CARD_FAILED } else { CARD_WORKING }
+  }
+
+  /// The window's outer size for the client area the card needs.
+  fn fit(window: HWND, ui: &Ui) {
+    let style = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+    let mut rect = RECT { left: 0, top: 0, right: px(WIDTH, ui.dpi), bottom: px(card_height(ui) + MARGIN, ui.dpi) };
     unsafe {
-      CreateFontW(
-        height, 0, 0, 0, weight, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, FF_DONTCARE.0 as u32, w!("Segoe UI"),
-      )
+      let _ = AdjustWindowRectExForDpi(&mut rect, style, false, WINDOW_EX_STYLE(0), ui.dpi);
+      let _ = SetWindowPos(window, None, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+  }
+
+  fn place_buttons(ui: &Ui) {
+    let d = ui.dpi;
+    let bottom = card_height(ui) - PAD;
+    let close_w = 104;
+    let primary_w = 176;
+    let right = WIDTH - MARGIN - PAD;
+    unsafe {
+      let _ = MoveWindow(hwnd(ui.close), px(right - close_w, d), px(bottom - 30, d), px(close_w, d), px(30, d), true);
+      let _ = MoveWindow(hwnd(ui.primary), px(right - close_w - 8 - primary_w, d), px(bottom - 30, d), px(primary_w, d), px(30, d), true);
+    }
+  }
+
+  fn tint_caption(window: HWND, dark: bool) {
+    let c = if dark { &DARK } else { &LIGHT };
+    let on: i32 = dark as i32;
+    unsafe {
+      let _ = DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE, &on as *const i32 as *const _, 4);
+      let caption = cref(c.window);
+      let _ = DwmSetWindowAttribute(window, DWMWA_CAPTION_COLOR, &caption as *const COLORREF as *const _, 4);
+      let text = cref(c.ink);
+      let _ = DwmSetWindowAttribute(window, DWMWA_TEXT_COLOR, &text as *const COLORREF as *const _, 4);
     }
   }
 
@@ -433,13 +594,18 @@ mod ui {
       let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
       let _ = InitCommonControlsEx(&INITCOMMONCONTROLSEX {
         dwSize: std::mem::size_of::<INITCOMMONCONTROLSEX>() as u32,
-        dwICC: ICC_PROGRESS_CLASS | ICC_STANDARD_CLASSES,
+        dwICC: ICC_STANDARD_CLASSES,
       });
     }
-    let dpi = unsafe { GetDpiForSystem() }.max(96);
-    let px = |v: i32| v * dpi as i32 / 96;
+    let mut token = 0usize;
+    let input = GdiplusStartupInput { GdiplusVersion: 1, ..Default::default() };
+    unsafe {
+      let _ = GdiplusStartup(&mut token, &input, std::ptr::null_mut());
+    }
+
     let instance: HINSTANCE = unsafe { GetModuleHandleW(None) }.map(Into::into).unwrap_or_default();
-    let words = plan.words();
+    let dark = system_dark();
+    let colors = if dark { &DARK } else { &LIGHT };
     let class = w!("GirovoUpdate");
     unsafe {
       let wc = WNDCLASSW {
@@ -447,87 +613,86 @@ mod ui {
         hInstance: instance,
         lpszClassName: class,
         hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),
-        hbrBackground: GetSysColorBrush(COLOR_WINDOW),
+        hbrBackground: CreateSolidBrush(cref(colors.window)),
         ..Default::default()
       };
       RegisterClassW(&wc);
     }
-
-    // The client area, centred on the primary screen.
+    let caption = HSTRING::from(plan.name.as_str());
     let style = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-    let mut rect = RECT { left: 0, top: 0, right: px(WIDTH), bottom: px(HEIGHT) };
-    unsafe {
-      let _ = AdjustWindowRectEx(&mut rect, style, false, WINDOW_EX_STYLE(0));
-    }
-    let (w, h) = (rect.right - rect.left, rect.bottom - rect.top);
-    let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
-    let caption = HSTRING::from(format!("{} {}", plan.name, words.caption));
     let Ok(main) = (unsafe {
-      CreateWindowExW(WINDOW_EX_STYLE(0), class, PCWSTR(caption.as_ptr()), style, (sw - w) / 2, (sh - h) / 2, w, h, None, None, Some(instance), None)
+      CreateWindowExW(WINDOW_EX_STYLE(0), class, PCWSTR(caption.as_ptr()), style, CW_USEDEFAULT, CW_USEDEFAULT, 100, 100, None, None, Some(instance), None)
     }) else {
-      // No window at all: install without one.
       let _ = super::run(&plan, &|_| {});
       return;
     };
+    let dpi = unsafe { GetDpiForWindow(main) }.max(96);
+    tint_caption(main, dark);
 
-    // Girovo's own icon, from the app the update is for.
-    if let Some(app) = plan.app_exe.as_ref().filter(|p| p.exists()) {
-      let path = HSTRING::from(app.as_os_str());
-      let icon = unsafe { ExtractIconW(Some(instance), PCWSTR(path.as_ptr()), 0) };
-      if !icon.is_invalid() {
+    // The small icon in the title bar and the taskbar: the app's.
+    let small = app_icon(&plan, px(16, dpi));
+    let big = app_icon(&plan, px(32, dpi));
+    unsafe {
+      if small != 0 {
+        SendMessageW(main, WM_SETICON, Some(WPARAM(ICON_SMALL as usize)), Some(LPARAM(small)));
+      }
+      if big != 0 {
+        SendMessageW(main, WM_SETICON, Some(WPARAM(ICON_BIG as usize)), Some(LPARAM(big)));
+      }
+    }
+
+    let words = plan.words();
+    let button = |text: &str, default: bool, id: usize| -> isize {
+      let text = HSTRING::from(text);
+      let style = WINDOW_STYLE((if default { BS_DEFPUSHBUTTON } else { BS_PUSHBUTTON }) as u32) | WS_CHILD | WS_TABSTOP;
+      let made = unsafe {
+        CreateWindowExW(WINDOW_EX_STYLE(0), w!("BUTTON"), PCWSTR(text.as_ptr()), style, 0, 0, 10, 10, Some(main), Some(HMENU(id as *mut _)), Some(instance), None)
+      };
+      let h = made.map(|h| h.0 as isize).unwrap_or(0);
+      if dark && h != 0 {
         unsafe {
-          SendMessageW(main, WM_SETICON, Some(WPARAM(ICON_BIG as usize)), Some(LPARAM(icon.0 as isize)));
-          SendMessageW(main, WM_SETICON, Some(WPARAM(ICON_SMALL as usize)), Some(LPARAM(icon.0 as isize)));
+          let _ = SetWindowTheme(hwnd(h), w!("DarkMode_Explorer"), PCWSTR::null());
         }
       }
-    }
-
-    let child = |class: PCWSTR, text: &str, style: WINDOW_STYLE, x: i32, y: i32, cw: i32, ch: i32, id: usize| -> isize {
-      let text = HSTRING::from(text);
-      unsafe {
-        CreateWindowExW(
-          WINDOW_EX_STYLE(0),
-          class,
-          PCWSTR(text.as_ptr()),
-          WS_CHILD | WS_VISIBLE | style,
-          px(x),
-          px(y),
-          px(cw),
-          px(ch),
-          Some(main),
-          Some(HMENU(id as *mut _)),
-          Some(instance),
-          None,
-        )
-      }
-      .map(|h| h.0 as isize)
-      .unwrap_or(0)
+      h
     };
-    let heading_text = format!("{} {}", plan.name, words.heading);
-    let heading = child(w!("STATIC"), &heading_text, WINDOW_STYLE(0), 24, 20, WIDTH - 48, 26, 0);
-    let line = child(w!("STATIC"), &plan.line(Stage::Waiting), WINDOW_STYLE(0), 24, 52, WIDTH - 48, 40, 0);
-    let progress = child(w!("msctls_progress32"), "", WINDOW_STYLE(PBS_MARQUEE), 24, 100, WIDTH - 48, 6, 0);
-    let close = child(w!("BUTTON"), words.close, WINDOW_STYLE(BS_PUSHBUTTON as u32) | WS_TABSTOP, WIDTH - 24 - 110, 104, 110, 30, ID_CLOSE);
-    let primary = child(w!("BUTTON"), "", WINDOW_STYLE(BS_DEFPUSHBUTTON as u32) | WS_TABSTOP, WIDTH - 24 - 110 - 8 - 190, 104, 190, 30, ID_PRIMARY);
-    let (big, normal) = (font(13, FW_SEMIBOLD.0 as i32, dpi), font(10, FW_NORMAL.0 as i32, dpi));
+    let close = button(words.close, false, ID_CLOSE);
+    let primary = button("", true, ID_PRIMARY);
+
+    let mut ui = Ui {
+      step: plan.line(Stage::Waiting),
+      icon: app_icon(&plan, px(PLATE, dpi)),
+      plan: plan.clone(),
+      dark,
+      dpi,
+      heading_font: 0,
+      body_font: 0,
+      small_font: 0,
+      failure: None,
+      primary,
+      close,
+      started: Instant::now(),
+    };
+    make_fonts(&mut ui);
+    fit(main, &ui);
+    // Centred on the screen the window is on.
     unsafe {
-      SendMessageW(hwnd(heading), WM_SETFONT, Some(WPARAM(big.0 as usize)), Some(LPARAM(1)));
-      for c in [line, close, primary] {
-        SendMessageW(hwnd(c), WM_SETFONT, Some(WPARAM(normal.0 as usize)), Some(LPARAM(1)));
-      }
-      SendMessageW(hwnd(progress), PBM_SETMARQUEE, Some(WPARAM(1)), Some(LPARAM(30)));
-      let _ = ShowWindow(hwnd(close), SW_HIDE);
-      let _ = ShowWindow(hwnd(primary), SW_HIDE);
+      let mut r = RECT::default();
+      let _ = GetWindowRect(main, &mut r);
+      let (w, h) = (r.right - r.left, r.bottom - r.top);
+      let (sw, sh) = (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+      let _ = SetWindowPos(main, None, (sw - w) / 2, (sh - h) / 2, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
     }
-    let _ = UI.set(Mutex::new(Ui { plan: plan.clone(), heading, line, progress, primary, close, failure: None }));
+    let _ = UI.set(Mutex::new(ui));
     unsafe {
+      SetTimer(Some(main), TIMER, 16, None);
       let _ = ShowWindow(main, SW_SHOWNORMAL);
       let _ = UpdateWindow(main);
     }
 
     // The work beside the window; it reports through messages.
     let raw = main.0 as isize;
-    let shown = std::time::Instant::now();
+    let shown = Instant::now();
     std::thread::spawn(move || {
       let post = |msg: u32, w: usize| unsafe {
         let _ = PostMessageW(Some(hwnd(raw)), msg, WPARAM(w), LPARAM(0));
@@ -556,17 +721,219 @@ mod ui {
           DispatchMessageW(&msg);
         }
       }
+      GdiplusShutdown(token);
     }
   }
 
   const STAGES: [Stage; 4] = [Stage::Waiting, Stage::Checking, Stage::Installing, Stage::Starting];
 
+  /// A rounded rectangle, smooth, in 0xRRGGBB.
+  unsafe fn round_rect(g: *mut GpGraphics, x: f32, y: f32, w: f32, h: f32, r: f32, rgb: u32) {
+    if w <= 0.0 || h <= 0.0 {
+      return;
+    }
+    let r = r.min(w / 2.0).min(h / 2.0);
+    let d = r * 2.0;
+    let mut path: *mut GpPath = std::ptr::null_mut();
+    let mut brush: *mut GpSolidFill = std::ptr::null_mut();
+    unsafe {
+      GdipCreatePath(FillModeAlternate, &mut path);
+      if r > 0.0 {
+        GdipAddPathArc(path, x, y, d, d, 180.0, 90.0);
+        GdipAddPathArc(path, x + w - d, y, d, d, 270.0, 90.0);
+        GdipAddPathArc(path, x + w - d, y + h - d, d, d, 0.0, 90.0);
+        GdipAddPathArc(path, x, y + h - d, d, d, 90.0, 90.0);
+      } else {
+        GdipAddPathRectangle(path, x, y, w, h);
+      }
+      GdipClosePathFigure(path);
+      GdipCreateSolidFill(0xff00_0000 | rgb, &mut brush);
+      GdipFillPath(g, brush as *mut GpBrush, path);
+      GdipDeleteBrush(brush as *mut GpBrush);
+      GdipDeletePath(path);
+    }
+  }
+
+  unsafe fn text(dc: HDC, font: isize, rgb: u32, s: &str, rect: &mut RECT, flags: DRAW_TEXT_FORMAT) {
+    let mut wide: Vec<u16> = s.encode_utf16().collect();
+    unsafe {
+      SelectObject(dc, HGDIOBJ(font as *mut _));
+      SetTextColor(dc, cref(rgb));
+      DrawTextW(dc, &mut wide, rect, flags);
+    }
+  }
+
+  fn paint(window: HWND, ui: &Ui) {
+    let mut client = RECT::default();
+    unsafe {
+      let _ = GetClientRect(window, &mut client);
+    }
+    let mut ps = PAINTSTRUCT::default();
+    let screen = unsafe { BeginPaint(window, &mut ps) };
+    unsafe {
+      let dc = CreateCompatibleDC(Some(screen));
+      let bitmap = CreateCompatibleBitmap(screen, client.right, client.bottom);
+      let old = SelectObject(dc, HGDIOBJ(bitmap.0));
+      render(dc, client, ui);
+      let _ = BitBlt(screen, 0, 0, client.right, client.bottom, Some(dc), 0, 0, SRCCOPY);
+      SelectObject(dc, old);
+      let _ = DeleteObject(HGDIOBJ(bitmap.0));
+      let _ = DeleteDC(dc);
+      let _ = EndPaint(window, &ps);
+    }
+  }
+
+  /// The window's client area, drawn into `dc`.
+  fn render(dc: HDC, client: RECT, ui: &Ui) {
+    let c = if ui.dark { &DARK } else { &LIGHT };
+    let d = ui.dpi;
+    let p = |v: i32| px(v, d);
+    let card_h = p(card_height(ui));
+    let (ix, iy) = (p(MARGIN + PAD), p(PAD));
+    let tx = p(MARGIN + PAD + PLATE + GAP);
+    let right = client.right - p(MARGIN + PAD);
+    unsafe {
+      let back = CreateSolidBrush(cref(c.window));
+      FillRect(dc, &client, back);
+      let _ = DeleteObject(HGDIOBJ(back.0));
+
+      // Shapes first, through GDI+ (smooth edges). GDI+ keeps its drawing
+      // until the Graphics goes, so text and the icon follow only after it:
+      // drawn in between, the card would land on top of them.
+      let mut g: *mut GpGraphics = std::ptr::null_mut();
+      GdipCreateFromHDC(dc, &mut g);
+      GdipSetSmoothingMode(g, SmoothingModeAntiAlias);
+      // The card, below the title bar, with the window's tint round it.
+      round_rect(g, p(MARGIN) as f32, 0.0, (client.right - p(MARGIN) * 2) as f32, card_h as f32, p(6) as f32, c.card);
+      // Without the app's icon, a plate of the edition's colour.
+      if ui.icon == 0 {
+        let nightly = ui.plan.name.contains("Nightly");
+        round_rect(g, ix as f32, iy as f32, p(PLATE) as f32, p(PLATE) as f32, p(14) as f32, if nightly { 0xf5a623 } else { 0x0a2c5e });
+      }
+      if ui.failure.is_none() {
+        // The bar: a rounded track, a rounded part running along it.
+        let (bx, by, bw, bh) = (tx as f32, p(PAD + 58) as f32, (right - tx) as f32, p(4).max(3) as f32);
+        round_rect(g, bx, by, bw, bh, bh / 2.0, c.track);
+        let t = (ui.started.elapsed().as_secs_f32() % 1.4) / 1.4;
+        let eased = t * t * (3.0 - 2.0 * t);
+        let seg = bw * 0.35;
+        let start = -seg + (bw + seg) * eased;
+        let (s0, s1) = (start.max(0.0), (start + seg).min(bw));
+        if s1 > s0 {
+          round_rect(g, bx + s0, by, s1 - s0, bh, bh / 2.0, c.accent);
+        }
+      }
+      GdipDeleteGraphics(g);
+
+      // Then GDI: the icon and the text (ClearType).
+      if ui.icon != 0 {
+        let _ = DrawIconEx(dc, ix, iy, HICON(ui.icon as *mut _), p(PLATE), p(PLATE), 0, None, DI_NORMAL);
+      }
+      SetBkMode(dc, TRANSPARENT);
+      let words = ui.plan.words();
+      if let Some(failure) = ui.failure.as_ref() {
+        let mut r = RECT { left: tx, top: p(PAD) - p(1), right, bottom: p(PAD + 28) };
+        text(dc, ui.heading_font, c.ink, words.failed, &mut r, DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
+        let mut r = RECT { left: tx, top: p(PAD + 30), right, bottom: card_h - p(PAD + 30 + 10) };
+        text(dc, ui.body_font, c.ink2, &ui.plan.why(failure), &mut r, DT_LEFT | DT_WORDBREAK);
+      } else {
+        let mut r = RECT { left: tx, top: p(PAD) - p(1), right, bottom: p(PAD + 28) };
+        text(dc, ui.heading_font, c.ink, words.title, &mut r, DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
+        let mut r = RECT { left: tx, top: p(PAD + 28), right, bottom: p(PAD + 48) };
+        text(dc, ui.body_font, c.ink2, &ui.plan.version_line(), &mut r, DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
+        let mut r = RECT { left: tx, top: p(PAD + 70), right, bottom: p(PAD + 88) };
+        text(dc, ui.small_font, c.ink2, &ui.step, &mut r, DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
+      }
+    }
+  }
+
+  /// A debug build's picture of the window, without showing one:
+  /// `girovo-update --snapshot out.bmp --dark|--light [--failed] [--dpi 144] <the usual arguments>`.
+  #[cfg(debug_assertions)]
+  pub fn snapshot(plan: Plan, out: &std::path::Path, dark: bool, failed: bool, dpi: u32) {
+    let mut token = 0usize;
+    let input = GdiplusStartupInput { GdiplusVersion: 1, ..Default::default() };
+    unsafe {
+      let _ = GdiplusStartup(&mut token, &input, std::ptr::null_mut());
+    }
+    let mut ui = Ui {
+      step: plan.line(Stage::Installing),
+      icon: app_icon(&plan, px(PLATE, dpi)),
+      plan,
+      dark,
+      dpi,
+      heading_font: 0,
+      body_font: 0,
+      small_font: 0,
+      failure: failed.then_some(Failure::InstallerFailed(2)),
+      primary: 0,
+      close: 0,
+      started: Instant::now() - std::time::Duration::from_millis(560),
+    };
+    make_fonts(&mut ui);
+    let (w, h) = (px(WIDTH, dpi), px(card_height(&ui) + MARGIN, dpi));
+    let client = RECT { left: 0, top: 0, right: w, bottom: h };
+    unsafe {
+      let screen = GetDC(None);
+      let dc = CreateCompatibleDC(Some(screen));
+      let bitmap = CreateCompatibleBitmap(screen, w, h);
+      let old = SelectObject(dc, HGDIOBJ(bitmap.0));
+      render(dc, client, &ui);
+      // Top-down 32-bit pixels out of the bitmap, into a .bmp file.
+      let mut info = BITMAPINFO::default();
+      info.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+      info.bmiHeader.biWidth = w;
+      info.bmiHeader.biHeight = -h;
+      info.bmiHeader.biPlanes = 1;
+      info.bmiHeader.biBitCount = 32;
+      let mut pixels = vec![0u8; (w * h * 4) as usize];
+      GetDIBits(dc, bitmap, 0, h as u32, Some(pixels.as_mut_ptr() as *mut _), &mut info, DIB_RGB_COLORS);
+      // GDI's text leaves the alpha byte at 0; the screen ignores it, a picture viewer would not.
+      for px in pixels.chunks_exact_mut(4) {
+        px[3] = 255;
+      }
+      SelectObject(dc, old);
+      let _ = DeleteObject(HGDIOBJ(bitmap.0));
+      let _ = DeleteDC(dc);
+      ReleaseDC(None, screen);
+      let mut file = Vec::with_capacity(54 + pixels.len());
+      let size = (54 + pixels.len()) as u32;
+      file.extend_from_slice(b"BM");
+      file.extend_from_slice(&size.to_le_bytes());
+      file.extend_from_slice(&0u32.to_le_bytes());
+      file.extend_from_slice(&54u32.to_le_bytes());
+      file.extend_from_slice(&40u32.to_le_bytes());
+      file.extend_from_slice(&w.to_le_bytes());
+      file.extend_from_slice(&(-h).to_le_bytes());
+      file.extend_from_slice(&1u16.to_le_bytes());
+      file.extend_from_slice(&32u16.to_le_bytes());
+      file.extend_from_slice(&[0u8; 24]);
+      file.extend_from_slice(&pixels);
+      let _ = std::fs::write(out, file);
+      GdiplusShutdown(token);
+    }
+  }
+
   unsafe extern "system" fn proc_(window: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
+      WM_PAINT => {
+        if let Some(ui) = UI.get() {
+          paint(window, &ui.lock().unwrap());
+          return LRESULT(0);
+        }
+        unsafe { DefWindowProcW(window, msg, wparam, lparam) }
+      }
+      WM_ERASEBKGND => LRESULT(1),
+      WM_TIMER => {
+        unsafe {
+          let _ = InvalidateRect(Some(window), None, false);
+        }
+        LRESULT(0)
+      }
       WM_STAGE => {
         if let (Some(ui), Some(stage)) = (UI.get(), STAGES.get(wparam.0)) {
-          let ui = ui.lock().unwrap();
-          set_text(ui.line, &ui.plan.line(*stage));
+          let mut ui = ui.lock().unwrap();
+          ui.step = ui.plan.line(*stage);
         }
         LRESULT(0)
       }
@@ -578,27 +945,42 @@ mod ui {
         if let Some(ui) = UI.get() {
           let ui = ui.lock().unwrap();
           let words = ui.plan.words();
-          set_text(ui.heading, words.failed);
-          if let Some(failure) = ui.failure.as_ref() {
-            set_text(ui.line, &ui.plan.why(failure));
-          }
           unsafe {
-            let _ = ShowWindow(hwnd(ui.progress), SW_HIDE);
-            let _ = ShowWindow(hwnd(ui.close), SW_SHOW);
+            let _ = KillTimer(Some(window), TIMER);
           }
+          fit(window, &ui);
+          place_buttons(&ui);
           let label = match super::way_on(&ui.plan) {
             WayOn::Open(_) => Some(words.open),
             WayOn::Download(_) => Some(words.download),
             WayOn::None => None,
           };
-          if let Some(label) = label {
-            set_text(ui.primary, label);
-            unsafe {
+          unsafe {
+            let _ = ShowWindow(hwnd(ui.close), SW_SHOW);
+            if let Some(label) = label {
+              let label = HSTRING::from(label);
+              let _ = SetWindowTextW(hwnd(ui.primary), PCWSTR(label.as_ptr()));
               let _ = ShowWindow(hwnd(ui.primary), SW_SHOW);
             }
+            let _ = InvalidateRect(Some(window), None, false);
           }
         }
-        unsafe { windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(window)).ok() };
+        LRESULT(0)
+      }
+      WM_DPICHANGED => {
+        if let Some(ui) = UI.get() {
+          let mut ui = ui.lock().unwrap();
+          ui.dpi = ((wparam.0 & 0xffff) as u32).max(96);
+          make_fonts(&mut ui);
+          ui.icon = app_icon(&ui.plan, px(PLATE, ui.dpi));
+          let suggested = unsafe { &*(lparam.0 as *const RECT) };
+          unsafe {
+            let _ = SetWindowPos(window, None, suggested.left, suggested.top, suggested.right - suggested.left, suggested.bottom - suggested.top, SWP_NOZORDER | SWP_NOACTIVATE);
+          }
+          if ui.failure.is_some() {
+            place_buttons(&ui);
+          }
+        }
         LRESULT(0)
       }
       WM_COMMAND => {
@@ -622,6 +1004,11 @@ mod ui {
         }
         LRESULT(0)
       }
+      WM_CTLCOLORBTN => {
+        // The buttons' corners in the card's colour.
+        let dark = UI.get().is_some_and(|ui| ui.lock().unwrap().dark);
+        LRESULT(unsafe { CreateSolidBrush(cref(if dark { DARK.card } else { LIGHT.card })) }.0 as isize)
+      }
       WM_CLOSE => {
         // While the installer works the window stays: closing it would only hide what is happening.
         let failed = UI.get().is_some_and(|ui| ui.lock().unwrap().failure.is_some());
@@ -629,14 +1016,6 @@ mod ui {
           let _ = unsafe { DestroyWindow(window) };
         }
         LRESULT(0)
-      }
-      WM_CTLCOLORSTATIC => {
-        let hdc = HDC(wparam.0 as *mut _);
-        unsafe {
-          SetBkColor(hdc, COLORREF(GetSysColor(COLOR_WINDOW)));
-          SetTextColor(hdc, COLORREF(GetSysColor(COLOR_WINDOWTEXT)));
-        }
-        LRESULT(unsafe { GetSysColorBrush(COLOR_WINDOW) }.0 as isize)
       }
       WM_DESTROY => {
         unsafe { PostQuitMessage(0) };
@@ -679,7 +1058,8 @@ mod tests {
     assert!(plan.english);
     assert_eq!(plan.name, "Girovo Nightly");
     assert_eq!(plan.installer_args, ["/S", "/UPDATE", "/R", "/ARGS", "--updated", "--force-run"]);
-    assert_eq!(plan.line(Stage::Installing), "Installing version 6.0.3 …");
+    assert_eq!(plan.line(Stage::Installing), "Installing the update …");
+    assert_eq!(plan.version_line(), "Version 6.0.3");
   }
 
   #[test]
@@ -745,6 +1125,15 @@ mod tests {
     assert!(matches!(way_on(&gone), WayOn::Download(_)));
     let foreign = Plan { releases_url: "https://example.com/".into(), ..gone };
     assert!(matches!(way_on(&foreign), WayOn::None));
+  }
+
+  #[test]
+  fn the_version_reads_as_a_person_says_it() {
+    let at = |v: &str| Plan { version: v.into(), ..Plan::default() }.version_line();
+    assert_eq!(at("6.0.2-nightly.202611072051.gf607061"), "Version 6.0.2 Nightly");
+    assert_eq!(at("6.0.0-preview.202611071208.gef82cf6"), "Version 6.0.0 Nightly");
+    assert_eq!(at("6.0.0-preview.3"), "Version 6.0.0 Preview 3");
+    assert_eq!(at("6.0.2"), "Version 6.0.2");
   }
 
   #[test]
