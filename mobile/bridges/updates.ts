@@ -3,11 +3,16 @@
 // types/electron-window.d.ts — so the update dialog, the Mitteilungen card
 // and the Sitzung row (components/updates) work unchanged.
 //
-// Which release is newer and which of its files is ours is decided by the
-// tested rules (../updates/update-logic.cjs: the release's
-// "-android.apk"). The APK is downloaded natively and kept only when its size
-// and SHA-256 are what GitHub published for it (GirovoUpdater); Android's
-// installer then checks that it is signed like the installed app. On the
+// Where an update comes from and why it can be trusted (docs/updater-v2.md,
+// ../updates/update-trust.ts): girovo.de lists each channel's newest release
+// as its signed girovo-update.json; only one signed with Girovo's key (the
+// nightly key too on the Nightly channel) counts, ordered by build number.
+// When girovo.de can't be asked, GitHub's API as before — and there too only
+// a release whose signed manifest checks out. The APK is downloaded natively
+// and kept only when its size and SHA-256 are what the signed manifest says
+// (GirovoUpdater); Android's installer then checks that it is signed like the
+// installed app. Which file is ours: ../updates/update-logic.cjs (the
+// release's "-android.apk"). On the
 // preview channel (Einstellungen → Update-Kanal) the list of releases is
 // read instead of the latest one, pre-releases included — Android installs
 // no older version over a newer one, so going back to stable waits for the
@@ -18,6 +23,8 @@
 // the F-Droid build: its repository serves stable releases only.
 
 import logic from '../updates/update-logic.cjs';
+import { MANIFEST_BASE, MANIFEST_NAME, SIG_NAME, buildNumber, parseListing, pickListed, releaseOf, signerFits, verifyManifest, type UpdateRelease } from '../updates/update-trust.ts';
+import { TRUSTED_KEYS } from '../updates/update-keys.ts';
 import { msgs } from '../../lib/i18n/index.ts';
 import { GirovoDevice, GirovoUpdater, type UpdaterState } from '../native';
 import { reportError, track } from './telemetry';
@@ -30,9 +37,13 @@ const MOVED_PREF = 'fints.updateChannel.movedToStable';
 const LAST_VERSION_PREF = 'fints.lastVersion';
 /** The release an install was started for: { version, notes, url } — what the next start greets. */
 const INSTALLING_PREF = 'fints.installing';
+/** 'on': "Neueste Updates sofort erhalten" — a staged release reaches this phone at once. */
+const EARLY_PREF = 'fints.updates.early';
+/** A random id of this installation, only for its rollout bucket (update-trust.ts bucket). */
+const INSTALL_ID_PREF = 'fints.updates.installId';
 const EVERY_MS = 6 * 60 * 60 * 1000;
 
-type Release = { version: string; name: string; notes: string; url: string; publishedAt: string | null; assets: { name: string; url: string; size: number; sha256: string | null }[] };
+type Release = UpdateRelease;
 
 const read = (k: string) => {
   try {
@@ -76,32 +87,87 @@ function report(before: ElectronUpdateState | undefined, now: ElectronUpdateStat
   }
 }
 
+function installId(): string {
+  const known = read(INSTALL_ID_PREF);
+  if (known) return known;
+  const id = crypto.randomUUID().replaceAll('-', '');
+  write(INSTALL_ID_PREF, id);
+  return id;
+}
+
+/** girovo.de's offer: a release, null for none, undefined when girovo.de couldn't be asked. */
+async function fromGirovoDe(preview: boolean): Promise<Release | null | undefined> {
+  try {
+    const res = await fetch(`${MANIFEST_BASE}${preview ? 'nightly' : 'stable'}.json?kind=apk`);
+    if (!res.ok) return undefined;
+    const listing = parseListing(await res.json());
+    if (!listing) return undefined;
+    return pickListed(listing, preview ? 'nightly' : 'stable', TRUSTED_KEYS, installId(), state.early === true);
+  } catch {
+    return undefined;
+  }
+}
+
+/** GitHub's offer as its signed manifest describes it; null without one that checks out. */
+async function signedCopy(release: Release, preview: boolean): Promise<Release | null> {
+  const file = (name: string) => release.assets.find((a) => a.name === name);
+  const manifest = file(MANIFEST_NAME);
+  const sig = file(SIG_NAME);
+  if (!manifest || !sig) return null;
+  try {
+    const [text, sigText] = await Promise.all([manifest, sig].map(async (a) => {
+      const res = await fetch(a.url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
+    }));
+    const signer = verifyManifest(new TextEncoder().encode(text), sigText, TRUSTED_KEYS);
+    const copy = signerFits(signer, preview ? 'nightly' : 'stable') ? releaseOf(text) : null;
+    return copy && copy.version === release.version ? copy : null;
+  } catch {
+    return null;
+  }
+}
+
+/** GitHub's API as before: the latest release, on the preview channel the newest with an APK. */
+async function fromGitHub(preview: boolean): Promise<Release | null> {
+  const url = preview ? logic.listUrl(logic.FEED_URL)! : logic.FEED_URL;
+  const ask = () => fetch(url, { headers: { accept: 'application/vnd.github+json' } });
+  let res = await ask();
+  // As the desktop's updater: GitHub's passing failure is asked once more after a breath.
+  if (logic.passingFailure(res.status)) {
+    await new Promise((resolve) => setTimeout(resolve, logic.RETRY_DELAY_MS));
+    res = await ask();
+  }
+  if (res.status === 403 || res.status === 429) {
+    // The quota is per connection: say when it comes back, where GitHub said.
+    const h = (name: string) => res.headers.get(name);
+    const wait = logic.rateLimitWait(h('retry-after'), h('x-ratelimit-remaining'), h('x-ratelimit-reset'), Math.floor(Date.now() / 1000));
+    throw new Error(msgs().android.updates.rateLimited(wait));
+  }
+  if (!res.ok) throw new Error(msgs().android.updates.httpError(res.status));
+  const json: unknown = await res.json();
+  // On the preview channel only a release with an APK: the nightly previews are the desktop's alone.
+  const release: Release | null = preview ? logic.newestRelease(json, state.current, { kind: 'android' }) : logic.parseRelease(json);
+  return release && signedCopy(release, preview);
+}
+
+/** Whether `candidate` comes after the installed version: by build number, which knows every name a release ever had. */
+function isNewer(candidate: string, preview: boolean): boolean {
+  const a = buildNumber(candidate);
+  const b = buildNumber(state.current);
+  return a != null && b != null ? a > b : logic.isNewer(candidate, state.current, { prerelease: preview });
+}
+
 async function check(): Promise<ElectronUpdateState> {
   if (state.phase === 'downloading' || state.phase === 'installing') return state;
   const run = ++checks;
   const preview = state.channel === 'preview';
   set({ phase: 'checking', error: null });
   try {
-    const url = preview ? logic.listUrl(logic.FEED_URL)! : logic.FEED_URL;
-    const ask = () => fetch(url, { headers: { accept: 'application/vnd.github+json' } });
-    let res = await ask();
-    // As the desktop's updater: GitHub's passing failure is asked once more after a breath.
-    if (logic.passingFailure(res.status)) {
-      await new Promise((resolve) => setTimeout(resolve, logic.RETRY_DELAY_MS));
-      res = await ask();
-    }
-    if (res.status === 403 || res.status === 429) {
-      // The quota is per connection: say when it comes back, where GitHub said.
-      const h = (name: string) => res.headers.get(name);
-      const wait = logic.rateLimitWait(h('retry-after'), h('x-ratelimit-remaining'), h('x-ratelimit-reset'), Math.floor(Date.now() / 1000));
-      throw new Error(msgs().android.updates.rateLimited(wait));
-    }
-    if (!res.ok) throw new Error(msgs().android.updates.httpError(res.status));
-    const json: unknown = await res.json();
+    let release = await fromGirovoDe(preview);
+    if (release === undefined) release = await fromGitHub(preview);
     if (run !== checks) return state;
-    // On the preview channel only a release with an APK: the nightly previews are the desktop's alone.
-    const release: Release | null = preview ? logic.newestRelease(json, state.current, { kind: 'android' }) : logic.parseRelease(json);
-    if (!release || !logic.isNewer(release.version, state.current, { prerelease: preview })) {
+    if (!release || !isNewer(release.version, preview)) {
       latest = null;
       return set({ phase: 'current', release: null, checkedAt: Date.now() });
     }
@@ -117,7 +183,7 @@ async function check(): Promise<ElectronUpdateState> {
         url: release.url,
         publishedAt: release.publishedAt,
         size: apk?.size ?? null,
-        // Only a file GitHub published a digest for can be checked before it is installed.
+        // Only a file with a signed hash can be checked before it is installed.
         canInstall: !!apk?.sha256,
       },
     });
@@ -227,6 +293,7 @@ export async function installUpdates(): Promise<void> {
     current,
     kind: 'android',
     auto: read(AUTO_PREF) !== 'off',
+    early: read(EARLY_PREF) === 'on',
     channel: logic.channelOf(read(CHANNEL_PREF)),
     phase: 'idle',
     checkedAt: null,
@@ -255,6 +322,10 @@ export async function installUpdates(): Promise<void> {
     setAuto: async (on) => {
       write(AUTO_PREF, on ? 'on' : 'off');
       return set({ auto: on });
+    },
+    setEarly: async (on) => {
+      write(EARLY_PREF, on ? 'on' : 'off');
+      return set({ early: on });
     },
     setChannel,
     openRelease,

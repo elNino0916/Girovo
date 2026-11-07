@@ -22,6 +22,7 @@
 
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { sha256 } from '@noble/hashes/sha2.js';
+import logic from './update-logic.cjs';
 
 /** Signed before the manifest's bytes, so a signature can't be reused for anything else. */
 export const SIGNED_PREFIX = 'girovo-update/1\n';
@@ -127,4 +128,111 @@ export function verifyManifest(bytes: Uint8Array, sigText: string, keys: Trusted
 /** Whether a manifest signed by `signer` may be offered on `channel`. */
 export function signerFits(signer: 'stable' | 'nightly' | null, channel: 'stable' | 'nightly'): boolean {
   return signer === 'stable' || (signer === 'nightly' && channel === 'nightly');
+}
+
+// ---- girovo.de's listing and the release it offers ----------------------------
+
+/** Where girovo.de answers: `${MANIFEST_BASE}stable.json`, `…/nightly.json` (?kind=apk for the APK). */
+export const MANIFEST_BASE = 'https://girovo.de/updates/v1/';
+/** The release asset GitHub carries beside the files, and its signature. */
+export const MANIFEST_NAME = 'girovo-update.json';
+export const SIG_NAME = 'girovo-update.json.sig';
+
+export interface UpdateRelease {
+  version: string;
+  name: string;
+  notes: string;
+  url: string;
+  publishedAt: string | null;
+  assets: { name: string; url: string; size: number; sha256: string | null }[];
+}
+
+type Where = { downloadPrefix?: string[]; releasesPage?: string };
+
+/**
+ * girovo-update.json as the release the updater works with, its files'
+ * hashes from the manifest — or null when it is not a manifest of a release
+ * Girovo could take: another format, a build number that is not its
+ * version's, a file outside the project's downloads or without a hash. The
+ * files go through update-logic's own checks (parseRelease).
+ */
+export function releaseOf(text: string, opts: Where = {}): UpdateRelease | null {
+  try {
+    const m = JSON.parse(text);
+    if (m?.format !== MANIFEST_FORMAT || m.v !== 1 || typeof m.version !== 'string') return null;
+    if (m.build !== buildNumber(m.version) || !Array.isArray(m.files)) return null;
+    const files: Record<string, unknown>[] = m.files.flatMap((f: Record<string, unknown>) => (f?.blockmap ? [f, f.blockmap as Record<string, unknown>] : [f]));
+    const assets = files.map((f) => ({
+      name: f?.name,
+      size: f?.size,
+      digest: typeof f?.sha256 === 'string' ? `sha256:${f.sha256}` : null,
+      browser_download_url: f?.url,
+    }));
+    const release = logic.parseRelease(
+      { tag_name: m.version, name: `Girovo ${m.version}`, body: m.notes, html_url: m.page, published_at: m.published, assets },
+      { prerelease: true, ...opts },
+    ) as UpdateRelease | null;
+    if (!release || release.version !== m.version) return null;
+    // Every file the manifest names must have come through, with its hash.
+    if (release.assets.length !== files.length || release.assets.some((a) => !a.sha256)) return null;
+    return release;
+  } catch {
+    return null;
+  }
+}
+
+/** One release as girovo.de lists it. */
+export interface Listed {
+  version: string;
+  /** Percent of installations offered it (100: everybody). */
+  rollout: number;
+  manifest: string;
+  sig: string;
+}
+
+/** girovo.de's answer, newest first; null when it is not one. */
+export function parseListing(json: unknown): Listed[] | null {
+  const v = json as { format?: unknown; v?: unknown; releases?: unknown } | null;
+  if (v?.format !== 'girovo-updates' || v.v !== 1 || !Array.isArray(v.releases)) return null;
+  return v.releases.flatMap((r: Record<string, unknown>) => {
+    if (typeof r?.version !== 'string' || typeof r.manifest !== 'string' || typeof r.sig !== 'string') return [];
+    const rollout = typeof r.rollout === 'number' && Number.isFinite(r.rollout) ? Math.min(100, Math.max(0, r.rollout)) : 100;
+    return [{ version: r.version, rollout, manifest: r.manifest, sig: r.sig }];
+  });
+}
+
+/**
+ * This installation's bucket 0–99 for `version` (the desktop's
+ * trust::bucket): the same for every check of a version, different from
+ * version to version, so the same copies are not always the first.
+ */
+export function bucket(installId: string, version: string): number {
+  const d = sha256(new TextEncoder().encode(`${installId}|${version}`));
+  return ((d[0] << 8) | d[1]) % 100;
+}
+
+/** Whether a release offered to `rollout` percent reaches this installation; `early`: "Neueste Updates sofort erhalten". */
+export function reaches(rollout: number, slot: number, early: boolean): boolean {
+  return early || rollout >= 100 || slot < rollout;
+}
+
+/**
+ * The release to offer from girovo.de's listing: the first one signed with a
+ * key that fits the channel, readable, and reaching this installation.
+ */
+export function pickListed(
+  listing: Listed[],
+  channel: 'stable' | 'nightly',
+  keys: TrustedKeys,
+  installId: string,
+  early: boolean,
+  opts: Where = {},
+): UpdateRelease | null {
+  for (const l of listing) {
+    if (!signerFits(verifyManifest(new TextEncoder().encode(l.manifest), l.sig, keys), channel)) continue;
+    const release = releaseOf(l.manifest, opts);
+    if (!release || release.version !== l.version) continue;
+    if (reaches(l.rollout, bucket(installId, release.version), early)) return release;
+  }
+  return null;
 }

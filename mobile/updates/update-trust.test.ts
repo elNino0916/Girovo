@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { buildNumber, keyId, signManifest, signerFits, toBase64, verifyManifest } from './update-trust.ts';
+import { bucket, buildNumber, keyId, parseListing, pickListed, reaches, releaseOf, signManifest, signerFits, toBase64, verifyManifest } from './update-trust.ts';
 
 // The order updates come in and what a signature has to be. The desktop
 // updater's Rust copy (src-tauri/src/updater/trust.rs) is tested against the
@@ -107,4 +107,82 @@ test('which signer a channel takes', () => {
   assert.equal(signerFits('nightly', 'nightly'), true);
   assert.equal(signerFits('nightly', 'stable'), false);
   assert.equal(signerFits(null, 'nightly'), false);
+});
+
+// ---- girovo.de's listing and the release it offers ----
+
+const sha = (n: string) => n.repeat(64).slice(0, 64);
+
+function manifestText(version: string, extra: Record<string, unknown> = {}) {
+  const apk = `Girovo-${version}-android.apk`;
+  return `${JSON.stringify({
+    format: 'girovo-update', v: 1, version, build: buildNumber(version),
+    channel: version.includes('-') ? 'nightly' : 'stable',
+    page: `https://github.com/elNino0916/Girovo/releases/tag/${version}`,
+    published: '2026-11-08T10:00:00.000Z',
+    files: [{ kind: 'apk', name: apk, size: 5000, sha256: sha('a'), url: `https://github.com/elNino0916/Girovo/releases/download/${version}/${apk}` }],
+    notes: '# Girovo',
+    ...extra,
+  }, null, 2)}\n`;
+}
+
+test('a manifest becomes the release the updater works with', () => {
+  const r = releaseOf(manifestText('6.0.2'))!;
+  assert.equal(r.version, '6.0.2');
+  assert.equal(r.name, 'Girovo 6.0.2');
+  assert.equal(r.url, 'https://github.com/elNino0916/Girovo/releases/tag/6.0.2');
+  assert.equal(r.publishedAt, '2026-11-08T10:00:00.000Z');
+  assert.deepEqual(r.assets.map((a) => [a.name, a.sha256]), [['Girovo-6.0.2-android.apk', sha('a')]]);
+});
+
+test('a manifest that does not add up is refused', () => {
+  assert.equal(releaseOf(manifestText('6.0.2', { build: 1 })), null, 'a build number that is not its version’s');
+  assert.equal(releaseOf(manifestText('6.0.2').replace('github.com/elNino0916/Girovo/releases/download', 'example.com/x')), null, 'a file outside the downloads');
+  assert.equal(releaseOf(manifestText('6.0.2').replace(sha('a'), 'nope')), null, 'a file without a hash');
+  assert.equal(releaseOf(manifestText('6.0.2', { format: 'other' })), null);
+  assert.equal(releaseOf('not json'), null);
+});
+
+test('girovo.de’s answer is read, anything else refused', () => {
+  const list = parseListing({ format: 'girovo-updates', v: 1, releases: [
+    { version: '6.0.3', rollout: 20, manifest: 'm', sig: 's' },
+    { version: '6.0.2', manifest: 'm2', sig: 's2' },
+    { version: 'broken' },
+  ] })!;
+  assert.deepEqual(list.map((l) => [l.version, l.rollout]), [['6.0.3', 20], ['6.0.2', 100]]);
+  assert.equal(parseListing({ format: 'other', v: 1, releases: [] }), null);
+  assert.equal(parseListing(null), null);
+});
+
+test('buckets match the desktop’s (src-tauri/src/updater/trust.rs)', () => {
+  assert.equal(bucket('install-a', '9.9.9'), 88);
+  assert.equal(bucket('install-a', '6.0.3'), 91);
+  assert.equal(bucket('x', '6.0.2'), 53);
+  assert.ok(reaches(20, 19, false) && !reaches(20, 20, false));
+  assert.ok(reaches(0, 0, true), 'early takes everything');
+});
+
+test('the first listed release that is signed, fitting and reaching is offered', () => {
+  const stable = pair();
+  const nightly = pair();
+  const keys = { stable: stable.pub, nightly: nightly.pub };
+  const listed = (version: string, rollout: number, secret: Uint8Array) => {
+    const manifest = manifestText(version);
+    return { version, rollout, manifest, sig: signManifest(new TextEncoder().encode(manifest), secret) };
+  };
+  const pick = (list: ReturnType<typeof listed>[], channel: 'stable' | 'nightly', early = false) => pickListed(list, channel, keys, 'install-a', early)?.version ?? null;
+
+  assert.equal(pick([listed('6.0.2', 100, stable.secret)], 'stable'), '6.0.2');
+  assert.equal(pick([listed('6.0.2', 100, nightly.secret)], 'stable'), null, 'the nightly key can’t sign a stable release');
+  assert.equal(pick([listed('6.0.2', 100, nightly.secret)], 'nightly'), '6.0.2');
+  assert.equal(pick([listed('6.0.2', 100, pair().secret)], 'stable'), null);
+
+  const b = bucket('install-a', '6.0.3');
+  const staged = [listed('6.0.3', b, stable.secret), listed('6.0.2', 100, stable.secret)];
+  assert.equal(pick(staged, 'stable'), '6.0.2');
+  assert.equal(pick(staged, 'stable', true), '6.0.3');
+  assert.equal(pick([listed('6.0.3', b + 1, stable.secret), listed('6.0.2', 100, stable.secret)], 'stable'), '6.0.3');
+
+  const lying = { ...listed('6.0.3', 100, stable.secret), version: '6.0.4' };
+  assert.equal(pick([lying, listed('6.0.2', 100, stable.secret)], 'stable'), '6.0.2');
 });
