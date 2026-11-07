@@ -66,7 +66,7 @@ export const de = {
     title: 'Was Girovo meldet',
     /** The row's summary: what is on, in a list. */
     parts: { every: 'neue Umsätze', dearer: 'teurere Verträge', income: 'Eingänge', low: 'Kontostand' },
-    nothing: 'Nur, wenn eine Bank auf dich wartet',
+    nothing: 'Nur Kündigungsfristen und wenn eine Bank auf dich wartet',
     intro: 'Jeder Umsatz wird einmal gemeldet, mit der Mitteilung, die am besten passt.',
     every: 'Jeden neuen Umsatz',
     dearer: 'Teurere Verträge und Abos',
@@ -138,7 +138,7 @@ export const en: typeof de = {
   alerts: {
     title: 'What Girovo reports',
     parts: { every: 'new transactions', dearer: 'pricier contracts', income: 'incoming money', low: 'balance' },
-    nothing: 'Only when a bank is waiting for you',
+    nothing: 'Only notice periods and when a bank is waiting for you',
     intro: 'Each transaction is reported once, with the notification that fits it best.',
     every: 'Every new transaction',
     dearer: 'Pricier contracts and subscriptions',
