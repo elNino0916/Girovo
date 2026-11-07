@@ -75,8 +75,11 @@ jobs:
           case "$NAME" in nightly|preview) ;; *) echo "Unknown name: $NAME" >&2; exit 1 ;; esac
           version="$base-$NAME.$stamp.g$short"
           # The commit the last nightly was built from: its tag ends in ".g<commit>".
-          last=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=40" \
-            --jq '[.[] | select(.prerelease and (.tag_name | test("\\.g[0-9a-f]{7}$")))][0].target_commitish // ""')
+          # The newest by publish time: GitHub lists releases by their commit's
+          # day and then by tag name, so a nightly.* can stand below a
+          # preview.* built the same day.
+          last=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '[.[] | select(.prerelease and (.tag_name | test("\\.g[0-9a-f]{7}$")))] | max_by(.published_at) | .target_commitish // ""')
           build=true
           if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$last" = "$sha" ]; then build=false; fi
           echo "build=$build" >> "$GITHUB_OUTPUT"
