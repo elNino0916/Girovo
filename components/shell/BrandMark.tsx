@@ -10,10 +10,10 @@
 //
 // A Girovo Nightly (lib/edition.ts) shows it: the plate is amber with the G€
 // in navy, as on its app icon, and the wordmark reads "Girovo Nightly". A
-// release's wordmark carries its major version the same way, set bolder and
-// filled with a blue gradient ("Girovo 6"). Every place the wordmark stands is
-// navy or darker (the bar, the login's field) in either theme, so its colours
-// are literal too.
+// release's wordmark carries its major version the same way, set larger,
+// bolder and filled with a blue gradient ("Girovo 6"). The bar and the login's
+// field follow the theme, so the gradient does too (--brand-numeral in
+// app/globals.css): deep by day, bright by night.
 //
 // The version stays legible for support questions, development builds
 // included ("3.1.3-dev.123"); `versionClassName` lets a caller hide it first
@@ -27,9 +27,6 @@ import { cx } from '../ui';
 
 /** Whether the marks below draw Girovo Nightly: this build's edition, or the design preview's pick. */
 export const NightlyContext = createContext(NIGHTLY);
-
-/** The release numeral's fill: sky to Girovo's blue to a touch of violet, bright on the navy it stands on. */
-const NUMERAL_GRADIENT = 'linear-gradient(155deg, #b8eeff 12%, #4f9dff 52%, #a77bff 92%)';
 
 /**
  * The plate alone: 32px, smaller only when zoom has shrunk the top bar
@@ -72,7 +69,8 @@ export function BrandPlate({ className, tone = 'standard', size }: { className?:
 /**
  * The wordmark, in the caller's size and weight: "Girovo Nightly" on a
  * nightly, its second word in the plate's amber; on a release "Girovo" and its
- * major version, bolder, in a blue gradient ("Girovo 6"). Only "Girovo" truncates.
+ * major version, a third larger and bolder, in a blue gradient ("Girovo 6").
+ * Only "Girovo" truncates.
  */
 export function BrandName({ className }: { className?: string }) {
   const nightly = useContext(NightlyContext);
@@ -83,9 +81,10 @@ export function BrandName({ className }: { className?: string }) {
         <span className="ml-[0.28em] shrink-0" style={{ color: NIGHTLY_PLATE }}>Nightly</span>
       ) : (
         MAJOR != null && (
+          // A third larger than "Girovo", on its baseline: the version is the mark's loud part.
           <span
-            className="ml-[0.24em] shrink-0 bg-clip-text font-extrabold text-transparent"
-            style={{ backgroundImage: NUMERAL_GRADIENT }}
+            className="ml-[0.2em] shrink-0 bg-clip-text text-[1.3em] leading-none font-extrabold text-transparent"
+            style={{ backgroundImage: 'var(--brand-numeral)' }}
           >
             {MAJOR}
           </span>
