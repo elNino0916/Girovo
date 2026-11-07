@@ -21,6 +21,13 @@
   "url": "https://hbci-01.hypovereinsbank.de/bank/hbci"
  },
  {
+  "blz": "10030400",
+  "name": "ABK Allgemeine Beamten Bank AG",
+  "location": "Berlin",
+  "bic": "ABKBDEB1XXX",
+  "url": "https://fints2.atruvia.de/cgi-bin/hbciservlet"
+ },
+ {
   "blz": "10030500",
   "name": "Bankhaus Löbbecke (M.M.Warburg)",
   "location": "Berlin",
@@ -3282,7 +3289,7 @@
  },
  {
   "blz": "28563749",
-  "name": "Raiffeisenbank Moormerland eG",
+  "name": "Fehntjer VR Bank eG",
   "location": "Moormerland",
   "bic": "GENODEF1MML",
   "url": "https://fints1.atruvia.de/cgi-bin/hbciservlet"
@@ -5169,7 +5176,7 @@
  },
  {
   "blz": "40069546",
-  "name": "Volksbank Senden eG",
+  "name": "Volksbank Ascheberg-Senden eG",
   "location": "Senden, Westf",
   "bic": "GENODEM1SDN",
   "url": "https://fints1.atruvia.de/cgi-bin/hbciservlet"
@@ -7530,7 +7537,7 @@
  },
  {
   "blz": "50661639",
-  "name": "VR Bank Main-Kinzig-Büdingen",
+  "name": "VR RegionalBank eG",
   "location": "Büdingen, Hess",
   "bic": "GENODEF1LSR",
   "url": "https://fints2.atruvia.de/cgi-bin/hbciservlet"
@@ -9686,7 +9693,7 @@
  },
  {
   "blz": "57092800",
-  "name": "Volksbank Rhein-Lahn eG",
+  "name": "Volksbank Rheingau-Lahn-Limburg eG",
   "location": "Diez",
   "bic": "GENODE51DIE",
   "url": "https://fints2.atruvia.de/cgi-bin/hbciservlet"
@@ -9977,6 +9984,13 @@
   "location": "Saarbrücken",
   "bic": "HYVEDEMM432",
   "url": "https://hbci-01.hypovereinsbank.de/bank/hbci"
+ },
+ {
+  "blz": "59020400",
+  "name": "mediserv Bank",
+  "location": "Saarbrücken",
+  "bic": "MEGHDE81XXX",
+  "url": "https://fints2.atruvia.de/cgi-bin/hbciservlet"
  },
  {
   "blz": "59040000",
@@ -10400,7 +10414,7 @@
  },
  {
   "blz": "60069242",
-  "name": "Raiffeisenbank Gruibingen",
+  "name": "Raiffeisenbank Stauferland eG",
   "location": "Gruibingen",
   "bic": "GENODES1RGR",
   "url": "https://fints2.atruvia.de/cgi-bin/hbciservlet"
@@ -16250,7 +16264,7 @@
  },
  {
   "blz": "74392300",
-  "name": "VR-Bank Vilsbiburg eG",
+  "name": "VR-Bank Landshut-Isar-Vils eG",
   "location": "Vilsbiburg",
   "bic": "GENODEF1VBV",
   "url": "https://fints2.atruvia.de/cgi-bin/hbciservlet"
@@ -16545,7 +16559,7 @@
  },
  {
   "blz": "75350000",
-  "name": "Sparkasse Oberpfalz-Nord",
+  "name": "Sparkasse Nördliche Oberpfalz",
   "location": "Weiden i.d.OPf.",
   "bic": "BYLADEM1WEN",
   "url": "https://banking-by4.s-fints-pt-by.de/fints30"
