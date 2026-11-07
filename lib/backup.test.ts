@@ -43,8 +43,9 @@ test('a backup carries vault, Umsätze and documents to another PIN, and fills o
 
   const { text, summary } = await makeBackup([before], PASSWORD, 'test');
   assert.deepEqual(summary, [{ bank: 'Musterbank', vault: true, accounts: 1, bookings: 2, docs: 1, missing: [] }]);
-  // Nothing readable without the password: not the bank, not a note.
-  assert.ok(!text.includes('Musterbank') && !text.includes('Ordner') && !text.includes('PDF'));
+  // Nothing readable without the password: not the bank, not a note, not the
+  // receipt ("%PDF": a bare "PDF" turns up in the sealed base64 now and then).
+  assert.ok(!text.includes('Musterbank') && !text.includes('Ordner') && !text.includes('%PDF'));
 
   // A new machine: everything gone, and the bank's PIN changed meanwhile.
   await historyStore.wipeHistory(before);

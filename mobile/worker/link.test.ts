@@ -13,6 +13,19 @@ function pair(a: { calls?: Calls; sources?: Sources } = {}, b: { calls?: Calls; 
   return { page, worker, close: () => port1.close() };
 }
 
+/**
+ * Waits until `ready` holds. A message crosses in its own time: on a busy
+ * machine a fixed 20 ms timer can fire before it has landed (timers run first
+ * in the event loop), so the tests wait for what they expect, not for a time.
+ */
+async function until(ready: () => boolean, what: string, ms = 5000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!ready()) {
+    if (Date.now() > end) assert.fail(`timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 2));
+  }
+}
+
 test('a call is answered with its value, both ways', async () => {
   const { page, worker, close } = pair({ calls: { add: (x: number, y: number) => x + y } }, { calls: { hello: async (name: string) => `hallo ${name}` } });
   try {
@@ -84,6 +97,7 @@ test('an event source sends until it is stopped', async () => {
   let stopped = false;
   let emitNow: ((v: unknown) => void) | null = null;
   const { worker, close } = pair({
+    calls: { ping: () => 'pong' },
     sources: {
       ticks: (emit, start: number) => {
         emit(start);
@@ -97,13 +111,14 @@ test('an event source sends until it is stopped', async () => {
   try {
     const heard: unknown[] = [];
     const stop = worker.listen('ticks', [7], (v) => heard.push(v));
-    await new Promise((r) => setTimeout(r, 20));
+    await until(() => heard.length === 1, 'the first event');
     emitNow!(8);
-    await new Promise((r) => setTimeout(r, 20));
+    await until(() => heard.length === 2, 'the second event');
     stop();
-    await new Promise((r) => setTimeout(r, 20));
+    await until(() => stopped, 'the source to stop');
     emitNow!(9);
-    await new Promise((r) => setTimeout(r, 20));
+    // A round trip behind it: an event sent before the answer would have landed first.
+    assert.equal(await worker.call('ping'), 'pong');
     assert.deepEqual(heard, [7, 8]);
     assert.equal(stopped, true);
   } finally {
@@ -113,11 +128,12 @@ test('an event source sends until it is stopped', async () => {
 
 test('a send wants no answer', async () => {
   const seen: unknown[] = [];
-  const { worker, close } = pair({ calls: { log: (text: string) => void seen.push(text) } });
+  const { worker, close } = pair({ calls: { log: (text: string) => void seen.push(text), ping: () => 'pong' } });
   try {
     worker.send('log', ['eins']);
     worker.send('nothing-here', ['zwei']); // no such call: dropped on the other side, no reply
-    await new Promise((r) => setTimeout(r, 20));
+    // A call behind both: once it is answered, the other side has handled them (the line keeps its order).
+    assert.equal(await worker.call('ping'), 'pong');
     assert.deepEqual(seen, ['eins']);
   } finally {
     close();
@@ -180,20 +196,24 @@ test('Direct calls in place and hands over what a call moved', async () => {
 });
 
 test('close ends every subscription the other side holds (a worker that was ended)', async () => {
+  let started = 0;
   let stopped = 0;
   const { page, worker, close } = pair({
     sources: {
-      ticks: () => () => {
-        stopped++;
+      ticks: () => {
+        started++;
+        return () => {
+          stopped++;
+        };
       },
     },
   });
   try {
     worker.listen('ticks', [], () => {});
     worker.listen('ticks', [], () => {});
-    await new Promise((r) => setTimeout(r, 20));
+    await until(() => started === 2, 'both sources to start');
     page.close();
-    await new Promise((r) => setTimeout(r, 10));
+    await until(() => stopped === 2, 'both sources to stop');
     assert.equal(stopped, 2);
     page.close();
     await new Promise((r) => setTimeout(r, 10));

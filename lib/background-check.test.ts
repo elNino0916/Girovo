@@ -78,7 +78,8 @@ test('on, off, and the box names neither a login nor a PIN', async () => {
   assert.equal(await isOn(store), false);
   assert.equal(await enroll(store, secret, [spk, dkb], true), 2);
   assert.equal(await isOn(store), true);
-  assert.ok(!store.text!.includes('12345') && !store.text!.includes('max'));
+  // '"max' as JSON would write either login; a bare "max" turns up in the sealed base64 now and then.
+  assert.ok(!store.text!.includes('12345') && !store.text!.includes('"max'));
   const state = await enrolled(store, secret);
   assert.deepEqual(state?.logins.map((l) => l.bank), ['Sparkasse', 'DKB']);
   assert.ok(state?.logins.every((l) => !('pin' in l)));
