@@ -110,6 +110,12 @@ type Script = {
   approvalAfter?: number[];
   /** The page whose request the bank refuses (9050). */
   refuse?: number;
+  /** Polls of a decoupled approval answered "still waiting" (3956) before it is given. */
+  pendingPolls?: number;
+  /** The approval is turned down (9942) instead of answered with the page. */
+  refuseApproved?: boolean;
+  /** From page 2 on, the bank names the same Aufsetzpunkt again and again. */
+  repeatMark?: boolean;
 };
 
 const orderOf = (message: Message, segId: string) => message.segments.find((s) => s.header.segId === segId) as
@@ -124,10 +130,11 @@ function fakeBank(script: Script): Bank {
   const besideOrder: (string | undefined)[] = [];
   let waiting: { ref: string; page: number } | null = null;
   let refs = 0;
+  let pendingLeft = script.pendingPolls ?? 0;
   const approvals = new Set(script.approvalAfter ?? []);
   const pageAnswer = (n: number) => answer(
     OK,
-    n < script.pages ? more(`AUF-${n + 1}`) : done,
+    n < script.pages ? more(script.repeatMark && n >= 2 ? 'AUF-2' : `AUF-${n + 1}`) : done,
     PAGE[script.order](n),
   );
   const askApproval = (page: number) => {
@@ -166,9 +173,17 @@ function fakeBank(script: Script): Bank {
         sent.push(`HKTAN:${hktan?.tanProcess}`);
         assert.ok(waiting, 'an approval the bank never asked for');
         assert.equal(hktan?.orderRef, waiting.ref);
-        const { page } = waiting;
-        waiting = null;
-        text = pageAnswer(page).replace(OK, `${OK}HITAN:4:7:5+S++REF-${refs}'`);
+        if (pendingLeft > 0) {
+          pendingLeft--;
+          text = answer(`HIRMS:3:2:4+3956::Starke Kundenauthentifizierung noch ausstehend.'`, `HITAN:4:7:5+S++${waiting.ref}'`);
+        } else if (script.refuseApproved) {
+          waiting = null;
+          text = answer(`HIRMG:2:2+9050::Die Nachricht enthält Fehler.'`, `HIRMS:3:2:4+9942::Freigabe abgelehnt.'`);
+        } else {
+          const { page } = waiting;
+          waiting = null;
+          text = pageAnswer(page).replace(OK, `${OK}HITAN:4:7:5+S++REF-${refs}'`);
+        }
       }
       // lib-fints' HttpClient: an order message's own answer segments arrive held back
       // (PARTED) for its reassembly of a parted answer; any other message's arrive decoded.
@@ -314,4 +329,67 @@ test('a bank that keeps asking for approvals is followed a bounded number of tim
   assert.equal(amounts(resp).length, MAX_APPROVAL_ROUNDS + 1);
   assert.equal(bank.sent.filter((m) => m === 'HKTAN:S').length, MAX_APPROVAL_ROUNDS + 1);
   assert.equal(bank.sent.at(-1), 'HKEND');
+});
+
+// A TAN asked for part-way through lib-fints' own page loop (patches/lib-fints+1.5.3.patch,
+// Dialog.handlePartedMessages): without the patch the TAN request was dropped there and
+// the pages so far stood as the whole answer.
+
+test('a TAN asked for part-way, with no approval before: it is asked for, and then every page arrives in order', async () => {
+  const bank = fakeBank({ order: 'HKKAZ', pages: 3, approvalAfter: [1] });
+  const resp = await withBank(bank, async (client) => {
+    const first = await fetchStatements(client, GIRO, new Date(2025, 0, 1));
+    // Page 1 came without an approval; the request for page 2 wants one, and that is what the app sees.
+    assert.equal(first.requiresTan, true);
+    assert.equal(first.tanReference, 'REF-1');
+    return (await client.getAccountStatementsWithTan(first.tanReference!)) as StatementsResponse;
+  });
+  assert.equal(resp.success, true);
+  assert.deepEqual(amounts(resp), [-10, -20, -30]);
+  assert.deepEqual(bank.sent, ['HKIDN', 'HKKAZ', 'HKKAZ@AUF-2', 'HKTAN:S', 'HKKAZ@AUF-3', 'HKEND']);
+});
+
+test('camt: a TAN asked for after two pages keeps both, and the rest follows the approval', async () => {
+  const bank = fakeBank({ order: 'HKCAZ', pages: 4, approvalAfter: [2] });
+  const resp = await withBank(bank, async (client) => {
+    const first = await fetchStatements(client, CAMT_ACCOUNT, new Date(2025, 0, 1));
+    assert.equal(first.requiresTan, true);
+    return (await client.getAccountStatementsWithTan(first.tanReference!)) as StatementsResponse;
+  });
+  assert.equal(resp.success, true);
+  assert.deepEqual(amounts(resp), [-10, -20, -30, -40]);
+  assert.deepEqual(bank.sent, ['HKIDN', 'HKCAZ', 'HKCAZ@AUF-2', 'HKCAZ@AUF-3', 'HKTAN:S', 'HKCAZ@AUF-4', 'HKEND']);
+});
+
+test('a decoupled approval polled while still waiting: the pages before it are kept until it is given', async () => {
+  const bank = fakeBank({ order: 'HKKAZ', pages: 3, approvalAfter: [1], pendingPolls: 2 });
+  const resp = await withBank(bank, async (client) => {
+    let r = (await fetchStatements(client, GIRO, new Date(2025, 0, 1))) as ClientResponseWithResult;
+    let waits = 0;
+    for (; r.requiresTan && waits < 5; waits++) r = await client.getAccountStatementsWithTan(r.tanReference!);
+    assert.equal(waits, 3, 'two "still waiting", then the approval');
+    return r as StatementsResponse;
+  });
+  assert.equal(resp.success, true);
+  assert.deepEqual(amounts(resp), [-10, -20, -30]);
+  assert.deepEqual(bank.sent, ['HKIDN', 'HKKAZ', 'HKKAZ@AUF-2', 'HKTAN:S', 'HKTAN:S', 'HKTAN:S', 'HKKAZ@AUF-3', 'HKEND']);
+});
+
+test('the approval part-way turned down: the pages before it stand', async () => {
+  const bank = fakeBank({ order: 'HKKAZ', pages: 3, approvalAfter: [1], refuseApproved: true });
+  const resp = await withBank(bank, async (client) => {
+    const first = await fetchStatements(client, GIRO, new Date(2025, 0, 1));
+    assert.equal(first.requiresTan, true);
+    return (await client.getAccountStatementsWithTan(first.tanReference!)) as StatementsResponse;
+  });
+  assert.equal(resp.success, true);
+  assert.deepEqual(amounts(resp), [-10]);
+});
+
+test('a bank that names the same Aufsetzpunkt again is not followed in circles', async () => {
+  const bank = fakeBank({ order: 'HKKAZ', pages: 6, repeatMark: true });
+  const resp = await withBank(bank, (client) => fetchStatements(client, GIRO, new Date(2025, 0, 1)));
+  assert.equal(resp.success, true);
+  assert.deepEqual(amounts(resp), [-10, -20]);
+  assert.deepEqual(bank.sent, ['HKIDN', 'HKKAZ', 'HKKAZ@AUF-2', 'HKEND']);
 });

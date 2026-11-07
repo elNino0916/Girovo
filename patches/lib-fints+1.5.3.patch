@@ -60,6 +60,107 @@ index 0dc0042..a39993d 100644
                  e2eReference: endToEndId,
                  mandateReference: mandateId,
                  additionalInformation: additionalEntryInfo,
+diff --git a/node_modules/lib-fints/dist/dialog.js b/node_modules/lib-fints/dist/dialog.js
+index 0022e5d..fafb06a 100644
+--- a/node_modules/lib-fints/dist/dialog.js
++++ b/node_modules/lib-fints/dist/dialog.js
+@@ -8,7 +8,22 @@ import { PARTED } from './partedSegment.js';
+ import { decode } from './segment.js';
+ import { HKEND } from './segments/HKEND.js';
+ import { HKTAN } from './segments/HKTAN.js';
++import { HITAN } from './segments/HITAN.js';
+ import { HNHBK } from './segments/HNHBK.js';
++/**
++ * Whether the bank's answer asks for a TAN first — read as
++ * CustomerInteraction.handleBaseResponse reads it (0030, or 3955–3957 while
++ * an approval is pending, with the HITAN that names the order).
++ */
++function asksForTan(message) {
++    return ((message.hasReturnCode(30) ||
++        message.hasReturnCode(3955) ||
++        message.hasReturnCode(3956) ||
++        message.hasReturnCode(3957)) &&
++        !!message.findSegment(HITAN.Id));
++}
++/** How many further parts of one answer are asked for at most: a bank repeating itself must not hold the dialog forever. */
++const MAX_PARTS = 500;
+ export class Dialog {
+     config;
+     dialogId = '0';
+@@ -85,6 +100,9 @@ export class Dialog {
+                 ? this.createCurrentTanMessage(tanOrderReference, tan)
+                 : this.createCurrentCustomerMessage();
+             const responseMessage = await this.httpClient.sendMessage(message);
++            if (isFirstMessage) {
++                this.putHeldPartsInFront(responseMessage, this.currentInteraction);
++            }
+             await this.handlePartedMessages(message, responseMessage, this.currentInteraction);
+             clientResponse = this.currentInteraction.handleClientResponse(responseMessage);
+             this.checkEnded(clientResponse);
+@@ -206,7 +224,10 @@ export class Dialog {
+         // the last one we happen to receive.
+         const callersMessage = responseMessage;
+         const rawPortions = partedSegments.map((segment) => segment.rawData);
+-        while (responseMessage.hasReturnCode(3040)) {
++        const marks = new Set();
++        // A part that asks for a TAN first ends the loop: the parts before wait for
++        // the approval (below), and the next part comes with the approved answer.
++        while (responseMessage.hasReturnCode(3040) && !asksForTan(responseMessage)) {
+             const answers = responseMessage.getBankAnswers();
+             const segmentWithContinuation = message.segments.find((s) => s.header.segId === interaction.segId);
+             if (!segmentWithContinuation) {
+@@ -216,6 +237,12 @@ export class Dialog {
+             if (!answer || !answer.params || answer.params.length === 0) {
+                 throw new Error('Expected bank answer to contain continuation mark parameters (code 3040)');
+             }
++            // The same mark again, or no end in sight: the parts so far stand.
++            if (marks.has(answer.params[0]) || marks.size >= MAX_PARTS) {
++                console.warn(`[lib-fints] ${interaction.segId}: further parts not followed after ${marks.size} (mark repeated or too many)`);
++                break;
++            }
++            marks.add(answer.params[0]);
+             segmentWithContinuation.continuationMark = answer.params[0];
+             const hnhbkSegment = message.findSegment(HNHBK.Id);
+             if (!hnhbkSegment) {
+@@ -228,6 +255,16 @@ export class Dialog {
+                 .map((segment) => segment.rawData));
+             responseMessage = nextResponseMessage;
+         }
++        // A further part wants an approval first (a bank asking for SCA again
++        // part-way): its answer is the TAN request, and it is what the caller
++        // reads, so the approval is asked for instead of the parts so far
++        // standing as the whole answer. Those parts wait on the interaction and
++        // go in front of the approved answer (putHeldPartsInFront).
++        if (responseMessage !== callersMessage && asksForTan(responseMessage)) {
++            interaction.heldParts = [...(interaction.heldParts ?? []), ...rawPortions.map((raw) => decode(raw))];
++            callersMessage.segments = responseMessage.segments.filter((segment) => segment.header.segId !== PARTED.Id);
++            return;
++        }
+         // Every PARTED placeholder gives way to the decoded portions, at the position of
+         // the first one so the segment order stays intact.
+         const index = callersMessage.segments.indexOf(partedSegments[0]);
+@@ -235,6 +272,21 @@ export class Dialog {
+         withoutPlaceholders.splice(index, 0, ...rawPortions.map((raw) => decode(raw)));
+         callersMessage.segments = withoutPlaceholders;
+     }
++    /**
++     * The parts of an answer that came before a TAN request part-way
++     * (handlePartedMessages), in front of the approved answer's own — once it
++     * is the approval's answer, not "still waiting" (a decoupled approval
++     * polled), so nothing is read before its turn and nothing is lost.
++     */
++    putHeldPartsInFront(responseMessage, interaction) {
++        const held = interaction?.heldParts;
++        if (!held?.length || asksForTan(responseMessage)) {
++            return;
++        }
++        interaction.heldParts = undefined;
++        const at = responseMessage.segments.findIndex((segment) => segment.header.segId === interaction.responseSegId);
++        responseMessage.segments.splice(at < 0 ? responseMessage.segments.length : at, 0, ...held);
++    }
+     checkEnded(response) {
+         if (response.bankAnswers.some((answer) => answer.code === 100) ||
+             response.bankAnswers.some((answer) => answer.code === 9000)) {
 diff --git a/node_modules/lib-fints/dist/interactions/initDialogInteraction.js b/node_modules/lib-fints/dist/interactions/initDialogInteraction.js
 index fb1b0de..a1cbccc 100644
 --- a/node_modules/lib-fints/dist/interactions/initDialogInteraction.js

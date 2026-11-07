@@ -25,7 +25,11 @@
 //
 // A bank that wants another approval for the next page stops the dialog there
 // as for any approval (app/api/tan-poll polls on), and the pages so far wait
-// for it. A next page the bank refuses costs that page and those after it, no
+// for it — inside lib-fints' own page loop too, where a page asked for
+// without any approval yet can want one: patches/lib-fints+1.5.3.patch has
+// Dialog.handlePartedMessages hand on that TAN request and hold the pages
+// before it, and Dialog.continue put them in front of the approved answer,
+// from where this mixin follows the rest. A next page the bank refuses costs that page and those after it, no
 // more: the pages there are delivered, as lib-fints does when a bank refuses a
 // page without an approval.
 
@@ -79,7 +83,9 @@ export function continuesAfterApproval<T extends OrderClass>(Base: T) {
       const clientResponse = super.handleClientResponse(response);
       if (clientResponse.requiresTan) return clientResponse;
       if (!clientResponse.success) {
-        if (!this.#pages.length) return clientResponse;
+        // The pages before: this interaction's own, or those lib-fints held
+        // while a later page waited for its approval (Dialog.putHeldPartsInFront).
+        if (!response.findAllSegments(this.responseSegId).length) return clientResponse;
         // The next page refused: the pages there stand (see the top of this file).
         console.warn(`[pages] ${this.segId}: the next page refused after the approval, the pages before stand`);
         clientResponse.success = true;
