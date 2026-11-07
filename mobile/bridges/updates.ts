@@ -88,7 +88,13 @@ async function check(): Promise<ElectronUpdateState> {
       await new Promise((resolve) => setTimeout(resolve, logic.RETRY_DELAY_MS));
       res = await ask();
     }
-    if (!res.ok) throw new Error(`GitHub answered HTTP ${res.status}`);
+    if (res.status === 403 || res.status === 429) {
+      // The quota is per connection: say when it comes back, where GitHub said.
+      const h = (name: string) => res.headers.get(name);
+      const wait = logic.rateLimitWait(h('retry-after'), h('x-ratelimit-remaining'), h('x-ratelimit-reset'), Math.floor(Date.now() / 1000));
+      throw new Error(msgs().android.updates.rateLimited(wait));
+    }
+    if (!res.ok) throw new Error(msgs().android.updates.httpError(res.status));
     const json: unknown = await res.json();
     if (run !== checks) return state;
     // On the preview channel only a release with an APK: the nightly previews are the desktop's alone.

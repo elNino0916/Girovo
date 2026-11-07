@@ -135,6 +135,14 @@ export const de = {
     play: 'Updates kommen über Google Play.',
     playAvailable: 'Bei Google Play gibt es eine neue Version von Girovo.',
     playUpdate: 'Über Google Play aktualisieren',
+    /** GitHub's quota for the connection used up; `minutes` until it takes requests again, null when it named no time. */
+    rateLimited: (minutes: number | null) =>
+      minutes == null
+        ? 'GitHub nimmt gerade keine weiteren Anfragen an. Versuche es später noch einmal.'
+        : minutes === 1
+          ? 'GitHub nimmt gerade keine weiteren Anfragen an – wieder in etwa einer Minute.'
+          : `GitHub nimmt gerade keine weiteren Anfragen an – wieder in etwa ${minutes} Minuten.`,
+    httpError: (status: number) => `GitHub hat mit einem Fehler geantwortet (HTTP ${status}).`,
   },
 
   /** An invoice shared with Girovo (components/android/useLaunches.ts). */
@@ -272,6 +280,13 @@ export const en: typeof de = {
     play: 'Updates come through Google Play.',
     playAvailable: 'A new version of Girovo is on Google Play.',
     playUpdate: 'Update through Google Play',
+    rateLimited: (minutes) =>
+      minutes == null
+        ? 'GitHub is not taking any more requests right now. Try again later.'
+        : minutes === 1
+          ? 'GitHub is not taking any more requests right now – again in about a minute.'
+          : `GitHub is not taking any more requests right now – again in about ${minutes} minutes.`,
+    httpError: (status) => `GitHub answered with an error (HTTP ${status}).`,
   },
 
   launch: {

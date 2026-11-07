@@ -37,6 +37,25 @@ const RETRY_DELAY_MS = 1500;
  */
 const passingFailure = (status) => status === 502 || status === 503 || status === 504;
 
+/**
+ * How many minutes until GitHub takes requests again, from its refusal's
+ * headers: Retry-After (seconds) or, with the quota used up
+ * (X-RateLimit-Remaining 0), X-RateLimit-Reset (Unix seconds). At least one;
+ * null when the refusal names no time. As src-tauri/src/updater/logic.rs
+ * rate_limit_wait.
+ */
+function rateLimitWait(retryAfter, remaining, reset, nowSecs) {
+  const num = (s) => (typeof s === 'string' && /^\s*\d+\s*$/.test(s) ? Number(s) : null);
+  let secs = num(retryAfter);
+  if (secs == null) {
+    if (typeof remaining !== 'string' || remaining.trim() !== '0') return null;
+    const at = num(reset);
+    if (at == null) return null;
+    secs = Math.max(0, at - nowSecs);
+  }
+  return Math.max(1, Math.ceil(secs / 60));
+}
+
 /** The file of a release that updates each kind of install: the Android app
  * from GitHub. The Google Play build is updated by Play and never asks. */
 const ASSET_PATTERN = {
@@ -257,6 +276,7 @@ module.exports = {
   MAX_NOTES_CHARS,
   RETRY_DELAY_MS,
   passingFailure,
+  rateLimitWait,
   channelOf,
   parseVersion,
   compareVersions,

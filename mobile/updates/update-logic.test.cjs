@@ -271,3 +271,13 @@ test('nightlies by their time, after the hand-made preview, before the release',
   assert.equal(logic.isNewer(nu, '6.0.0-preview.1', { prerelease: true }), true);
   assert.equal(logic.isNewer('6.0.0', nu, { prerelease: true }), true);
 });
+
+test('the wait GitHub names, in whole minutes, as the desktop says it', () => {
+  const now = 1794061874;
+  assert.equal(logic.rateLimitWait(null, '0', '1794063734', now), 31);
+  assert.equal(logic.rateLimitWait('90', '0', '1794063734', now), 2);
+  assert.equal(logic.rateLimitWait(null, '0', '1794061800', now), 1);
+  assert.equal(logic.rateLimitWait(null, '12', '1794063734', now), null);
+  assert.equal(logic.rateLimitWait(null, null, null, now), null);
+  assert.equal(logic.rateLimitWait(null, '0', 'soon', now), null);
+});
