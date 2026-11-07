@@ -281,3 +281,12 @@ test('the wait GitHub names, in whole minutes, as the desktop says it', () => {
   assert.equal(logic.rateLimitWait(null, null, null, now), null);
   assert.equal(logic.rateLimitWait(null, '0', 'soon', now), null);
 });
+
+test('a release moves an install on the Nightly channel back to Stabil, once', () => {
+  assert.equal(logic.movesToStable('preview', '6.0.0', null), true);
+  assert.equal(logic.movesToStable('preview', '6.0.1', '6.0.0'), false, 'moved before: a Nightly picked again stays');
+  assert.equal(logic.movesToStable('stable', '6.0.0', null), false);
+  assert.equal(logic.movesToStable(null, '6.0.0', null), false);
+  assert.equal(logic.movesToStable('preview', '6.0.0-preview.2', null), false);
+  assert.equal(logic.movesToStable('preview', '6.0.0-dev.57', null), false);
+});

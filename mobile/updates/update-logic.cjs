@@ -267,6 +267,19 @@ function listUrl(feedUrl) {
  */
 const channelOf = (value) => (value === 'preview' ? 'preview' : 'stable');
 
+/**
+ * Whether this start moves the install from the Nightly channel back to
+ * Stabil: a release build (6.0.0, owner 2026-11-07: everyone on Nightly to
+ * Stabil for now), with the channel on Nightly, that has not moved it before
+ * (`moved`) — once, so a Nightly picked again afterwards stays. Never a
+ * pre-release or a development build. As src-tauri/src/updater/logic.rs
+ * moves_to_stable.
+ */
+function movesToStable(stored, current, moved) {
+  const v = parseVersion(current);
+  return channelOf(stored) === 'preview' && !moved && !!v && !v.pre;
+}
+
 module.exports = {
   REPO,
   FEED_URL,
@@ -276,6 +289,7 @@ module.exports = {
   MAX_NOTES_CHARS,
   RETRY_DELAY_MS,
   passingFailure,
+  movesToStable,
   rateLimitWait,
   channelOf,
   parseVersion,

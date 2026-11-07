@@ -96,6 +96,17 @@ pub fn channel_of(value: Option<&str>) -> Channel {
   if value == Some("preview") { Channel::Preview } else { Channel::Stable }
 }
 
+/// Whether this start moves the copy from the Nightly channel back to Stabil:
+/// a release build (6.0.0, owner 2026-11-07: everyone on Nightly to Stabil
+/// for now), with the channel on Nightly, that has not moved it before
+/// (`moved`, engine::PREF_MOVED_TO_STABLE) — once, so a Nightly picked again
+/// afterwards stays. Never a nightly or a development build.
+pub fn moves_to_stable(stored: Option<&str>, current: &str, moved: Option<&str>) -> bool {
+  channel_of(stored) == Channel::Preview
+    && moved.is_none_or(str::is_empty)
+    && parse_version(current).is_some_and(|v| v.pre.is_empty())
+}
+
 // ---- versions ----------------------------------------------------------------
 
 /// "4.1.0", "v4.1.0", "4.1.0-dev.12" → core [4, 1, 0], pre "dev.12".
@@ -743,6 +754,22 @@ mod tests {
 
   fn newest(list: &Value, current: &str) -> Option<String> {
     newest_release(list, current, &Origin::default(), None).map(|r| r.version)
+  }
+
+  #[test]
+  fn a_release_moves_a_nightly_copy_back_to_stable_once() {
+    // 6.0.0 on the Nightly channel, never moved: back to Stabil.
+    assert!(moves_to_stable(Some("preview"), "6.0.0", None));
+    assert!(moves_to_stable(Some("preview"), "6.0.0", Some("")));
+    // Moved before: a Nightly picked again stays.
+    assert!(!moves_to_stable(Some("preview"), "6.0.1", Some("6.0.0")));
+    // Already on Stabil, or no choice stored (Stabil).
+    assert!(!moves_to_stable(Some("stable"), "6.0.0", None));
+    assert!(!moves_to_stable(None, "6.0.0", None));
+    // Nightlies and development builds keep their channel.
+    assert!(!moves_to_stable(Some("preview"), "6.0.0-nightly.202611071435.gfe8c9a6", None));
+    assert!(!moves_to_stable(Some("preview"), "6.0.0-dev.57", None));
+    assert!(!moves_to_stable(Some("preview"), "not a version", None));
   }
 
   #[test]

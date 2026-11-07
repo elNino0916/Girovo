@@ -23,7 +23,7 @@ use sha2::{Digest, Sha256};
 
 use super::chunks;
 use super::engine::*;
-use super::logic::{InstallKind, Origin, RELEASES_PAGE};
+use super::logic::{Channel, InstallKind, Origin, RELEASES_PAGE};
 use super::start::StartWindow;
 use crate::texts::Lang;
 
@@ -168,6 +168,13 @@ impl FakeHost {
     let host = FakeHost::default();
     host.set_pref(key, value);
     Arc::new(host)
+  }
+  /// A copy whose channel is `value` by its own choice: moved back to Stabil
+  /// once already (logic::moves_to_stable), so a release build keeps it.
+  fn on_channel(value: &str) -> Arc<FakeHost> {
+    let host = FakeHost::with_pref(PREF_CHANNEL, value);
+    host.set_pref(PREF_MOVED_TO_STABLE, "6.0.0");
+    host
   }
   fn saw(&self, phase: Phase) -> bool {
     self.states.lock().unwrap().iter().any(|s| s.phase == phase)
@@ -515,6 +522,31 @@ async fn githubs_rate_limit_a_manual_check_says_so_an_automatic_one_stays_quiet(
 }
 
 #[tokio::test]
+async fn a_release_start_takes_a_nightly_copy_back_to_stable_once() {
+  let srv = Server::start(|_req, conn, _base| conn.send(404, b"{}"));
+  let cache = TempDir::new();
+  let host = Arc::new(FakeHost::default());
+  host.set_pref(PREF_CHANNEL, "preview");
+  // A nightly keeps its channel.
+  let mut nightly = config(&srv.base, cache.path());
+  nightly.current_version = "6.0.0-nightly.202611071435.gfe8c9a6".into();
+  assert_eq!(make(nightly, &host).state().channel, Channel::Preview);
+  assert_eq!(host.pref(PREF_MOVED_TO_STABLE), None);
+  // The release moves it, and says which release did.
+  let release = || {
+    let mut c = config(&srv.base, cache.path());
+    c.current_version = "6.0.0".into();
+    c
+  };
+  assert_eq!(make(release(), &host).state().channel, Channel::Stable);
+  assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("stable"));
+  assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some("6.0.0"));
+  // Nightly picked again afterwards: it stays.
+  host.set_pref(PREF_CHANNEL, "preview");
+  assert_eq!(make(release(), &host).state().channel, Channel::Preview);
+}
+
+#[tokio::test]
 async fn githubs_rate_limit_names_when_it_takes_requests_again() {
   let srv = Server::start(|_req, conn, _base| {
     let body = br#"{"message":"API rate limit exceeded"}"#;
@@ -624,7 +656,7 @@ async fn the_automatic_check_is_a_stored_preference_on_by_default() {
 #[tokio::test]
 async fn the_channel_is_a_stored_preference_stable_unless_it_says_preview() {
   let cache = TempDir::new();
-  let stored = |v| make(config("http://127.0.0.1:9/", cache.path()), &FakeHost::with_pref(PREF_CHANNEL, v)).state().channel;
+  let stored = |v| make(config("http://127.0.0.1:9/", cache.path()), &FakeHost::on_channel(v)).state().channel;
   assert_eq!(make(config("http://127.0.0.1:9/", cache.path()), &Arc::new(FakeHost::default())).state().channel, super::logic::Channel::Stable);
   assert_eq!(stored("preview"), super::logic::Channel::Preview);
   assert_eq!(stored("nightly"), super::logic::Channel::Stable);
@@ -636,7 +668,7 @@ async fn stable_reads_the_latest_release_preview_the_newest_pre_release_in_the_l
   let cache = TempDir::new();
   let stable = make(config(&srv.base, cache.path()), &Arc::new(FakeHost::default())).check(true).await;
   assert_eq!(stable.release.unwrap().version, "9.9.9");
-  let preview = make(config(&srv.base, cache.path()), &FakeHost::with_pref(PREF_CHANNEL, "preview")).check(true).await;
+  let preview = make(config(&srv.base, cache.path()), &FakeHost::on_channel("preview")).check(true).await;
   assert_eq!(preview.phase, Phase::Available);
   let release = preview.release.unwrap();
   assert_eq!(release.version, "10.0.0-preview.2", "the highest, never the draft");
@@ -672,7 +704,7 @@ async fn switching_the_channel_asks_again_a_preview_is_offered_and_dropped_on_th
 async fn back_on_stable_from_a_preview_the_latest_stable_release_is_offered_as_the_way_back() {
   let srv = Server::start(with_previews(false));
   let cache = TempDir::new();
-  let host = FakeHost::with_pref(PREF_CHANNEL, "preview");
+  let host = FakeHost::on_channel("preview");
   let mut cfg = config(&srv.base, cache.path());
   cfg.current_version = "10.0.0-preview.1".into();
   let updater = make(cfg, &host);
@@ -697,7 +729,7 @@ async fn the_shell_hears_of_an_install_before_it_quits_and_whether_it_goes_back(
   let cache = TempDir::new();
   let heard: Arc<Mutex<Vec<(InstallNotice, usize)>>> = Arc::default();
   for go_back in [false, true] {
-    let host = FakeHost::with_pref(PREF_CHANNEL, "preview");
+    let host = FakeHost::on_channel("preview");
     let mut cfg = config(&srv.base, cache.path());
     cfg.current_version = "10.0.0-preview.1".into();
     let updater = make(cfg, &host);
@@ -779,7 +811,7 @@ async fn an_install_of_a_preview_that_did_not_happen_is_reported_at_the_next_sta
   let preview = |version: &str| {
     let mut cfg = config(&srv.base, cache.path());
     cfg.current_version = version.into();
-    make(cfg, &FakeHost::with_pref(PREF_CHANNEL, "preview"))
+    make(cfg, &FakeHost::on_channel("preview"))
   };
   let updater = preview("9.9.9");
   updater.check(true).await;
@@ -1283,7 +1315,7 @@ async fn live_github_dry_run() {
       if current == "5.16.1" && channel == "stable" {
         cfg.install_dir = Some(install.path().to_path_buf());
       }
-      let updater = Updater::new(cfg, FakeHost::with_pref(PREF_CHANNEL, channel));
+      let updater = Updater::new(cfg, FakeHost::on_channel(channel));
       let s = updater.check(true).await;
       let offer = s.release.as_ref().map_or("-".to_string(), |r| {
         format!("{} back={} canInstall={} size={:?} published={:?}", r.version, r.back, r.can_install, r.size, r.published_at)

@@ -51,6 +51,9 @@ use crate::texts::Lang;
 pub const PREF_AUTO: &str = "fints.updates.auto";
 // 'stable' (unset) or 'preview': whether pre-releases are offered too.
 pub const PREF_CHANNEL: &str = "fints.updates.channel";
+/// The release that took this copy from the Nightly channel back to Stabil
+/// (logic::moves_to_stable): set, it does not happen again.
+pub const PREF_MOVED_TO_STABLE: &str = "fints.updates.movedToStable";
 /// The version whose install did not complete: never installed again at
 /// start by itself (start.rs), until an install completes (read_marker).
 pub const PREF_FAILED_INSTALL: &str = "fints.updates.failedInstall";
@@ -459,6 +462,13 @@ impl Progress<'_> {
 
 impl Updater {
   pub fn new(cfg: Config, host: Arc<dyn Host>) -> Arc<Self> {
+    // A release build takes a copy on the Nightly channel back to Stabil,
+    // once (logic::moves_to_stable) — before the first check asks GitHub.
+    let stored = host.pref(PREF_CHANNEL);
+    if logic::moves_to_stable(stored.as_deref(), &cfg.current_version, host.pref(PREF_MOVED_TO_STABLE).as_deref()) {
+      host.set_pref(PREF_CHANNEL, Channel::Stable.as_str());
+      host.set_pref(PREF_MOVED_TO_STABLE, &cfg.current_version);
+    }
     let state = UpdateState {
       current: cfg.current_version.clone(),
       kind: cfg.kind,

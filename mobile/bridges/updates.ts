@@ -25,6 +25,8 @@ import { reportError, track } from './telemetry';
 const AUTO_PREF = 'fints.autoUpdate';
 /** 'stable' (unset) or 'preview': whether pre-releases are offered too. */
 const CHANNEL_PREF = 'fints.updateChannel';
+/** The release that took this install from the Nightly channel back to Stabil (logic.movesToStable): set, never again. */
+const MOVED_PREF = 'fints.updateChannel.movedToStable';
 const LAST_VERSION_PREF = 'fints.lastVersion';
 /** The release an install was started for: { version, notes, url } — what the next start greets. */
 const INSTALLING_PREF = 'fints.installing';
@@ -215,6 +217,11 @@ export async function installUpdates(): Promise<void> {
   }
   write(INSTALLING_PREF, null);
   write(LAST_VERSION_PREF, current);
+  // A release build takes an install on the Nightly channel back to Stabil, once.
+  if (logic.movesToStable(read(CHANNEL_PREF), current, read(MOVED_PREF))) {
+    write(CHANNEL_PREF, 'stable');
+    write(MOVED_PREF, current);
+  }
 
   state = {
     current,
