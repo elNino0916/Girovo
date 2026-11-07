@@ -48,6 +48,8 @@ export type LocalHost = {
   sources: Sources;
   attach(server: Server): void;
   failed(err: unknown): void;
+  /** Set as soon as the script reached serve(): a script that loaded without it threw on its way there. */
+  reached?: boolean;
 };
 
 /** Whether this script runs in a worker (no document, a postMessage of its own). */
@@ -81,6 +83,7 @@ function serveOnPage(load: (boot: Boot) => Promise<Server>): void {
     console.error('[server] loaded without its page (mobile/worker/host.ts)');
     return;
   }
+  host.reached = true;
   facts = host.boot;
   line = new Direct({ calls: host.calls, sources: host.sources });
   load(host.boot).then(

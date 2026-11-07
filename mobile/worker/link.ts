@@ -286,6 +286,11 @@ export class Link implements Line {
     );
   }
 
+  /** Ends every subscription the other side holds here: the other side has gone (a worker ended). */
+  close(): void {
+    for (const sub of [...this.serving.keys()]) this.stop(sub);
+  }
+
   private stop(sub: number): void {
     const off = this.serving.get(sub);
     if (!off) return;

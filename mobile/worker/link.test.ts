@@ -178,3 +178,25 @@ test('Direct calls in place and hands over what a call moved', async () => {
   assert.deepEqual(heard, ['x']);
   await assert.rejects(line.call('missing'), /no "missing"/);
 });
+
+test('close ends every subscription the other side holds (a worker that was ended)', async () => {
+  let stopped = 0;
+  const { page, worker, close } = pair({
+    sources: {
+      ticks: () => () => {
+        stopped++;
+      },
+    },
+  });
+  try {
+    worker.listen('ticks', [], () => {});
+    worker.listen('ticks', [], () => {});
+    await new Promise((r) => setTimeout(r, 20));
+    page.close();
+    assert.equal(stopped, 2);
+    page.close();
+    assert.equal(stopped, 2, 'once each');
+  } finally {
+    close();
+  }
+});

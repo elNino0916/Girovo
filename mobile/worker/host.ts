@@ -150,6 +150,9 @@ async function inWorker(opts: HostOptions, where: () => Promise<string>, readyNo
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      // What the worker had subscribed to on the page (visibility, the App
+      // plugin's pause) stops with it.
+      link.close();
       worker.terminate();
       letGo();
       reject(why);
@@ -221,6 +224,12 @@ function onPage(opts: HostOptions, readyNow: () => void): Promise<Transport> {
     const script = document.createElement('script');
     script.src = opts.script;
     script.onerror = () => reject(new Error(`${opts.script} did not load`));
+    // Loaded, but thrown before it reached serve() (a page the shell handed out
+    // for a missing file, a syntax error): it never attaches — say so, and
+    // requests fail as unreachable instead of waiting for ever.
+    script.onload = () => {
+      if (!host.reached) reject(new Error(`${opts.script} did not start`));
+    };
     document.head.appendChild(script);
   });
 }
