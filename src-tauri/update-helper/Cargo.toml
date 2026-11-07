@@ -1,0 +1,37 @@
+[package]
+name = "girovo-update"
+version = "1.0.0"
+edition = "2024"
+description = "Installs a downloaded Girovo update once Girovo has quit (docs/updater-v2.md, step 4)"
+publish = false
+
+# Its own crate, not a member of the app's: no Tauri, no WebView2, a few
+# hundred kilobytes. src-tauri/build.rs builds it and hands it to the bundle
+# (tauri.windows.conf.json externalBin), beside Girovo.exe.
+
+[[bin]]
+name = "girovo-update"
+path = "src/main.rs"
+
+[dependencies]
+sha2 = "0.10"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Threading",
+  "Win32_UI_Controls",
+  "Win32_UI_HiDpi",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

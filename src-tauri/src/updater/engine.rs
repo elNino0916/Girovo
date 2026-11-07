@@ -140,6 +140,32 @@ pub struct PublicRelease {
   pub can_install: bool,
 }
 
+/// Where a file the user picked to install stands ("Update aus Datei installieren").
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FilePhase {
+  Checking,
+  Ready,
+  Refused,
+}
+
+/// A file the user picked to install, as the page shows it (step 5, docs/updater-v2.md).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileOffer {
+  pub phase: FilePhase,
+  /// The file's name, as the user knows it.
+  pub name: String,
+  /// The signed release it is the installer of.
+  pub version: Option<String>,
+  /// Older than the installed version: what a newer one saved may not open in it.
+  pub older: bool,
+  /// The installed version itself: installed once more.
+  pub same: bool,
+  /// Why it is refused.
+  pub message: Option<String>,
+}
+
 /// Set when this start is the result of an update.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -170,6 +196,8 @@ pub struct UpdateState {
   pub installed: Option<Installed>,
   /// The version an install was started for that did not come up — said once, at the next start.
   pub failed_install: Option<String>,
+  /// A file the user picked to install (check_file).
+  pub file: Option<FileOffer>,
 }
 
 // ---- what the app provides ---------------------------------------------------------
@@ -188,6 +216,9 @@ pub struct InstallPlan {
   pub file: PathBuf,
   pub args: Vec<String>,
   pub version: String,
+  /// The installer's SHA-256 as the signed manifest (or GitHub) gave it: what
+  /// girovo-update.exe checks it against once more (helper.rs).
+  pub sha256: Option<String>,
 }
 
 /// The install about to start, for whoever must hear of it first.
@@ -439,6 +470,8 @@ struct Inner {
   /// girovo.de's last answer, with its address and ETag: a check that changes
   /// nothing costs a 304.
   listing: Option<(String, String, Vec<u8>)>,
+  /// The picked file once it checked out: the file, its signed release and the installer in it.
+  chosen: Option<(PathBuf, Release, Asset)>,
 }
 
 type BeforeInstall = Box<dyn Fn(&InstallNotice) + Send + Sync>;
@@ -507,6 +540,7 @@ impl Updater {
       error: None,
       installed: None,
       failed_install: None,
+      file: None,
     };
     let client = reqwest::Client::builder()
       .https_only(cfg.https_only)
@@ -517,7 +551,7 @@ impl Updater {
       .expect("a client without custom TLS cannot fail to build");
     Arc::new_cyclic(|me| Updater {
       states: watch::channel(state.clone()).0,
-      inner: Mutex::new(Inner { state, pending: None, ready_file: None, abort: None, timer: None, listing: None }),
+      inner: Mutex::new(Inner { state, pending: None, ready_file: None, abort: None, timer: None, listing: None, chosen: None }),
       cfg,
       host,
       client,
@@ -1348,7 +1382,7 @@ impl Updater {
     if let Some(hook) = self.before_install.lock().unwrap().as_ref() {
       hook(&notice);
     }
-    self.host.quit(AtExit::Install(InstallPlan { file, args, version: release.version }));
+    self.host.quit(AtExit::Install(InstallPlan { file, args, version: release.version, sha256: asset.sha256.clone() }));
     self.state()
   }
 
@@ -1386,6 +1420,107 @@ impl Updater {
         delay = CHECK_INTERVAL;
       }
     }));
+  }
+
+  // ---- an update from a file (step 5) ------------------------------------------------
+
+  /// "Update aus Datei installieren": checks `path` against the signed manifests
+  /// girovo.de lists and the one its name points to on GitHub. Ready to install
+  /// when its size and SHA-256 are a signed release's installer for this kind of
+  /// install — an older release too (the page warns); refused otherwise.
+  pub async fn check_file(&self, path: PathBuf) -> UpdateState {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let say = self.texts();
+    let offer = |phase, message: Option<&str>| FileOffer { phase, name: name.clone(), version: None, older: false, same: false, message: message.map(str::to_string) };
+    self.inner.lock().unwrap().chosen = None;
+    if !self.installable() || logic::install_args(self.cfg.kind).is_none() {
+      return self.set(|s| s.file = Some(offer(FilePhase::Refused, Some(say.file_not_here))));
+    }
+    self.set(|s| s.file = Some(offer(FilePhase::Checking, None)));
+    let measured = {
+      let p = path.clone();
+      async_runtime::spawn_blocking(move || {
+        let size = fs::metadata(&p).ok().filter(|m| m.is_file())?.len();
+        Some((size, sha256_file(&p)?))
+      })
+      .await
+      .ok()
+      .flatten()
+    };
+    let Some((size, sha)) = measured else {
+      return self.set(|s| s.file = Some(offer(FilePhase::Refused, Some(say.file_unreadable))));
+    };
+    let Some((release, asset)) = self.find_signed(&name, size, &sha).await else {
+      return self.set(|s| s.file = Some(offer(FilePhase::Refused, Some(say.file_unsigned))));
+    };
+    let (build, current) = (trust::build_number(&release.version), trust::build_number(&self.cfg.current_version));
+    let file = FileOffer {
+      phase: FilePhase::Ready,
+      name: name.clone(),
+      version: Some(release.version.clone()),
+      older: matches!((build, current), (Some(a), Some(b)) if a < b),
+      same: build.is_some() && build == current,
+      message: None,
+    };
+    self.inner.lock().unwrap().chosen = Some((path, release, asset));
+    self.set(|s| s.file = Some(file))
+  }
+
+  /// The signed release whose installer (for this kind of install) is `size`
+  /// bytes with `sha`: from girovo.de's listings, else the manifest of the
+  /// release the file's name points to (Girovo-<version>-Setup.exe).
+  async fn find_signed(&self, name: &str, size: u64, sha: &str) -> Option<(Release, Asset)> {
+    let mut candidates: Vec<(String, String)> = Vec::new();
+    if let Some(base) = self.cfg.manifest_base.clone() {
+      for channel in [Channel::Stable, Channel::Preview] {
+        for l in self.fetch_listing(&base, channel).await.unwrap_or_default() {
+          candidates.push((l.manifest, l.sig));
+        }
+      }
+    }
+    let lower = name.to_ascii_lowercase();
+    let version = lower.strip_prefix("girovo-").and_then(|v| v.strip_suffix("-setup.exe")).map(|_| &name[7..name.len() - 10]);
+    if let (Some(version), Some(prefix)) = (version.filter(|v| trust::build_number(v).is_some()), self.cfg.origin.download_prefixes.first()) {
+      let at = |file: &str| Asset { name: file.to_string(), url: format!("{prefix}{version}/{file}"), size: 0, sha256: None };
+      if let (Some(m), Some(s)) = (self.small_file(&at(trust::MANIFEST_NAME)).await, self.small_file(&at(trust::SIG_NAME)).await) {
+        candidates.push((String::from_utf8_lossy(&m).into_owned(), String::from_utf8_lossy(&s).into_owned()));
+      }
+    }
+    candidates.into_iter().find_map(|(manifest, sig)| {
+      trust::verify(manifest.as_bytes(), &sig, &self.cfg.keys)?;
+      let release = trust::release_of(manifest.as_bytes(), &self.cfg.origin)?;
+      let asset = logic::pick_asset(&release, self.cfg.kind).filter(|a| a.size == size && a.sha256.as_deref() == Some(sha))?.clone();
+      Some((release, asset))
+    })
+  }
+
+  /// Installs the picked file that checked out, as an update is installed:
+  /// checked once more, the app quits, girovo-update.exe runs it.
+  pub async fn install_file(&self) -> UpdateState {
+    let chosen = self.inner.lock().unwrap().chosen.take();
+    let Some((file, release, asset)) = chosen else { return self.state() };
+    if matches!(self.state().phase, Phase::Downloading) {
+      self.cancel();
+    }
+    {
+      let mut inner = self.inner.lock().unwrap();
+      inner.pending = Some(Pending { release: release.clone(), asset: Some(asset.clone()), plan: None });
+      inner.ready_file = Some(file);
+    }
+    let public = self.public_release(&release, Some(&asset), None, false);
+    self.set(|s| {
+      s.phase = Phase::Ready;
+      s.release = Some(public);
+      s.file = None;
+      s.error = None;
+    });
+    self.install().await
+  }
+
+  /// The picked file's dialog closed without installing.
+  pub fn dismiss_file(&self) -> UpdateState {
+    self.inner.lock().unwrap().chosen = None;
+    self.set(|s| s.file = None)
   }
 
   pub fn set_auto(&self, on: bool) -> UpdateState {

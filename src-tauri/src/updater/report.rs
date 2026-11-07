@@ -92,6 +92,7 @@ mod tests {
       kind: InstallKind::Nsis,
       auto: true,
       early: false,
+      file: None,
       channel: Channel::Preview,
       phase,
       checked_at: None,

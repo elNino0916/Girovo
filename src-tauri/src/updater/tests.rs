@@ -872,7 +872,7 @@ async fn restart_to_update_starts_again_with_update_only_the_installed_app() {
 
 #[test]
 fn at_exit_the_installer_starts_and_the_install_window_hears_of_it() {
-  let plan = InstallPlan { file: PathBuf::from("C:/cache/Girovo-9.9.9-Setup.exe"), args: vec!["/S".into()], version: "9.9.9".into() };
+  let plan = InstallPlan { file: PathBuf::from("C:/cache/Girovo-9.9.9-Setup.exe"), args: vec!["/S".into()], version: "9.9.9".into(), sha256: None };
   let spawned = Mutex::new(Vec::new());
   let mut told = None;
   run_at_exit(
@@ -890,7 +890,7 @@ fn at_exit_the_installer_starts_and_the_install_window_hears_of_it() {
 
 #[test]
 fn at_exit_an_installer_that_does_not_start_brings_the_app_back() {
-  let plan = InstallPlan { file: PathBuf::from("C:/cache/Girovo-9.9.9-Setup.exe"), args: vec![], version: "9.9.9".into() };
+  let plan = InstallPlan { file: PathBuf::from("C:/cache/Girovo-9.9.9-Setup.exe"), args: vec![], version: "9.9.9".into(), sha256: None };
   let spawned = Mutex::new(Vec::new());
   let mut told = false;
   run_at_exit(
@@ -1357,13 +1357,18 @@ mod signed {
 
   /// girovo-update.json for `version`, its Setup.exe the stand-in's payload.
   fn manifest(base: &str, version: &str) -> String {
+    manifest_of(base, version, &payload())
+  }
+
+  /// The same with an installer of its own (`bytes`).
+  fn manifest_of(base: &str, version: &str, bytes: &[u8]) -> String {
     let setup = format!("Girovo-{version}-Setup.exe");
     json!({
       "format": "girovo-update", "v": 1, "version": version, "build": trust::build_number(version),
       "channel": if version.contains('-') { "nightly" } else { "stable" },
       "page": format!("{PAGE}/tag/{version}"),
       "published": "2026-11-08T10:00:00.000Z",
-      "files": [{ "kind": "setup", "name": setup, "size": payload().len(), "sha256": sha(&payload()), "url": format!("{base}dl/{setup}") }],
+      "files": [{ "kind": "setup", "name": setup, "size": bytes.len(), "sha256": sha(bytes), "url": format!("{base}dl/{setup}") }],
       "notes": "## Neu\n- signiert",
     })
     .to_string()
@@ -1406,9 +1411,9 @@ mod signed {
           }
         }
         conn.json(&release);
-      } else if req.path == format!("/dl/{}", trust::MANIFEST_NAME) {
+      } else if req.path == format!("/dl/{}", trust::MANIFEST_NAME) || (github_signed.is_some() && req.path == format!("/9.9.9/{}", trust::MANIFEST_NAME)) {
         conn.send(200, m.as_bytes());
-      } else if req.path == format!("/dl/{}", trust::SIG_NAME) {
+      } else if req.path == format!("/dl/{}", trust::SIG_NAME) || (github_signed.is_some() && req.path == format!("/9.9.9/{}", trust::SIG_NAME)) {
         conn.send(200, sig.as_bytes());
       } else if req.path.starts_with("/dl/") {
         conn.send(200, &body);
@@ -1547,5 +1552,103 @@ mod signed {
     let mut cfg = signed_config(&srv.base, cache.path());
     cfg.current_version = "9.9.9-dev.4".into();
     assert_eq!(make(cfg, &host()).check(true).await.phase, Phase::Current, "a dev build counts as its version");
+  }
+
+  // ---- an update from a file (step 5) ----
+
+  /// The picked file: the stand-in's payload as a Setup.exe of `version`, in a folder of its own.
+  fn picked(dir: &TempDir, version: &str, bytes: &[u8]) -> PathBuf {
+    let path = dir.path().join(format!("Girovo-{version}-Setup.exe"));
+    std::fs::write(&path, bytes).unwrap();
+    path
+  }
+
+  /// 9.9.8's installer: other bytes than 9.9.9's.
+  fn older_payload() -> Vec<u8> {
+    random(300_000, 2)
+  }
+
+  fn by_stable_both(b: &str) -> Vec<Value> {
+    let m = manifest_of(b, "9.9.8", &older_payload());
+    let older = json!({ "version": "9.9.8", "build": trust::build_number("9.9.8"), "rollout": 100, "sig": testing::sign(m.as_bytes(), &testing::pair(1).0), "manifest": m });
+    vec![listed(b, "9.9.9", 100, 1), older]
+  }
+
+  #[tokio::test]
+  async fn a_picked_file_that_is_a_signed_installer_is_ready_and_installs_as_an_update() {
+    let srv = Server::start(site(Some(by_stable), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let host = host();
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    let file = picked(&downloads, "9.9.9", &payload());
+    let s = updater.check_file(file.clone()).await;
+    let offer = s.file.clone().unwrap();
+    assert_eq!(offer.phase, FilePhase::Ready, "{offer:?}");
+    assert_eq!(offer.version.as_deref(), Some("9.9.9"));
+    assert!(!offer.older && !offer.same);
+    assert_eq!(offer.name, "Girovo-9.9.9-Setup.exe");
+
+    let s = updater.install_file().await;
+    assert_eq!(s.phase, Phase::Installing, "{:?}", s.error);
+    assert!(s.file.is_none());
+    let installs = host.installs();
+    assert_eq!(installs.len(), 1);
+    assert_eq!(installs[0].file, file, "the picked file itself, not a copy");
+    assert_eq!(installs[0].sha256.as_deref(), Some(sha(&payload()).as_str()), "its signed hash goes to girovo-update.exe");
+  }
+
+  #[tokio::test]
+  async fn an_older_signed_release_is_ready_and_said_to_be_older() {
+    let srv = Server::start(site(Some(by_stable_both), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let mut cfg = signed_config(&srv.base, cache.path());
+    cfg.current_version = "9.9.9".into();
+    let updater = make(cfg, &host());
+    let s = updater.check_file(picked(&downloads, "9.9.8", &older_payload())).await;
+    let offer = s.file.unwrap();
+    assert_eq!((offer.phase, offer.version.as_deref(), offer.older, offer.same), (FilePhase::Ready, Some("9.9.8"), true, false));
+    let s = updater.check_file(picked(&downloads, "9.9.9", &payload())).await;
+    assert!(s.file.unwrap().same, "the installed version, installed once more");
+  }
+
+  #[tokio::test]
+  async fn a_file_no_signed_release_names_is_refused_and_never_installed() {
+    let srv = Server::start(site(Some(by_stable), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let host = host();
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    let s = updater.check_file(picked(&downloads, "9.9.9", b"something else entirely")).await;
+    let offer = s.file.unwrap();
+    assert_eq!(offer.phase, FilePhase::Refused);
+    assert!(offer.message.unwrap().contains("kein signiertes Update"));
+    assert_eq!(updater.install_file().await.phase, Phase::Idle, "nothing to install");
+    assert!(host.installs().is_empty());
+    assert_eq!(updater.check_file(downloads.path().join("missing.exe")).await.file.unwrap().phase, FilePhase::Refused);
+  }
+
+  #[tokio::test]
+  async fn without_girovo_de_the_files_name_leads_to_its_signed_manifest_on_github() {
+    let srv = Server::start(site(None, Some(1), Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    let s = updater.check_file(picked(&downloads, "9.9.9", &payload())).await;
+    assert_eq!(s.file.unwrap().phase, FilePhase::Ready);
+    // A stranger's signature there counts for nothing.
+    let srv = Server::start(site(None, Some(9), Arc::default()));
+    let cache = TempDir::new();
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    assert_eq!(updater.check_file(picked(&downloads, "9.9.9", &payload())).await.file.unwrap().phase, FilePhase::Refused);
+  }
+
+  #[tokio::test]
+  async fn only_the_installed_windows_app_installs_from_a_file_and_the_dialog_can_close() {
+    let srv = Server::start(site(Some(by_stable), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let mut cfg = signed_config(&srv.base, cache.path());
+    cfg.kind = InstallKind::Manual;
+    let updater = make(cfg, &host());
+    let offer = updater.check_file(picked(&downloads, "9.9.9", &payload())).await.file.unwrap();
+    assert_eq!(offer.phase, FilePhase::Refused);
+    assert!(updater.dismiss_file().file.is_none());
   }
 }

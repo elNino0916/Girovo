@@ -130,6 +130,9 @@
     restartToUpdate: function () { return invoke('updater_restart'); },
     setAuto: function (on) { return invoke('updater_set_auto', { on: on === true }); },
     setEarly: function (on) { return invoke('updater_set_early', { on: on === true }); },
+    chooseFile: function () { return invoke('updater_choose_file'); },
+    installFile: function () { return invoke('updater_install_file'); },
+    dismissFile: function () { return invoke('updater_dismiss_file'); },
     setChannel: function (channel) { return invoke('updater_set_channel', { channel: channel === 'preview' ? 'preview' : 'stable' }); },
     openRelease: function () { return invoke('updater_open_release'); },
     onState: function (callback) {

@@ -24,6 +24,11 @@ pub struct Texts {
   pub no_folder: &'static str,
   pub digest_mismatch: &'static str,
   pub changed: &'static str,
+  /// "Update aus Datei installieren": a file that is no signed release's installer.
+  pub file_unsigned: &'static str,
+  pub file_unreadable: &'static str,
+  /// Only the installed Windows app installs from a file.
+  pub file_not_here: &'static str,
   lang: Lang,
 }
 
@@ -78,8 +83,11 @@ const DE: Texts = Texts {
   interrupted: "Der Download wurde unterbrochen. Versuche es noch einmal.",
   rate_limited: "GitHub nimmt gerade keine weiteren Anfragen an. Versuche es später noch einmal.",
   no_folder: "Es gibt keinen Ordner, in dem die neue Version gespeichert werden kann.",
-  digest_mismatch: "Die Datei stimmt nicht mit der Prüfsumme von GitHub überein und wurde gelöscht.",
+  digest_mismatch: "Die Datei stimmt nicht mit ihrer Prüfsumme überein und wurde gelöscht.",
   changed: "Die heruntergeladene Datei fehlt oder wurde verändert. Lade das Update noch einmal herunter.",
+  file_unsigned: "Diese Datei ist kein signiertes Update von Girovo. Installieren lassen sich nur Setup-Dateien veröffentlichter Versionen.",
+  file_unreadable: "Die Datei konnte nicht gelesen werden.",
+  file_not_here: "Ein Update aus einer Datei installiert nur die installierte Windows-App.",
   lang: Lang::De,
 };
 
@@ -99,8 +107,11 @@ const EN: Texts = Texts {
   interrupted: "The download was interrupted. Try again.",
   rate_limited: "GitHub is not taking any more requests right now. Try again later.",
   no_folder: "There is no folder the new version can be saved in.",
-  digest_mismatch: "The file does not match GitHub’s checksum and was deleted.",
+  digest_mismatch: "The file does not match its checksum and was deleted.",
   changed: "The downloaded file is missing or was changed. Download the update again.",
+  file_unsigned: "This file isn’t a signed Girovo update. Only the setup files of published versions can be installed.",
+  file_unreadable: "The file couldn’t be read.",
+  file_not_here: "Only the installed Windows app can install an update from a file.",
   lang: Lang::En,
 };
 

@@ -17,6 +17,7 @@
 
 mod chunks;
 mod engine;
+mod helper;
 mod logic;
 mod report;
 mod start;
@@ -179,6 +180,9 @@ pub fn plugin() -> TauriPlugin<tauri::DynRuntime> {
       Ok(())
     })
     .on_event(|app, event| {
+      if let RunEvent::WindowEvent { label, event, .. } = event {
+        dropped(app, label, event);
+      }
       if let RunEvent::Exit = event
         && let Some(shared) = app.try_state::<Shared>()
       {
@@ -204,6 +208,13 @@ impl Shared {
     let Some(action) = self.exit.action.lock().unwrap().take() else { return };
     let cfg = self.updater.config();
     let exe = std::env::current_exe().ok();
+    // girovo-update.exe takes it from here when it is there (helper.rs); else
+    // the installer starts from here, with the install window, as before.
+    if let (AtExit::Install(plan), Some(exe)) = (&action, exe.as_deref()) {
+      if self.hand_over(plan, exe, &cfg.origin.releases_page) {
+        return;
+      }
+    }
     engine::run_at_exit(action, exe.as_deref(), spawn_detached, |pid, plan| {
       if let Some(show) = self.exit.install_window.lock().unwrap().as_ref() {
         show(&InstallStarted {
@@ -301,6 +312,23 @@ fn spawn_detached(file: &Path, args: &[String]) -> std::io::Result<u32> {
   command.spawn().map(|child| child.id())
 }
 
+impl Shared {
+  /// Starts girovo-update.exe for `plan`; false when it can't (no helper, no signed hash).
+  fn hand_over(&self, plan: &InstallPlan, exe: &Path, releases_url: &str) -> bool {
+    let english = self.host.lang() == crate::texts::Lang::En;
+    let name = crate::edition::name();
+    let handover = helper::Handover { plan, pid: std::process::id(), app_exe: exe, releases_url, english, name: &name };
+    let Some(args) = helper::args(&handover) else { return false };
+    match helper::stage(exe).and_then(|copy| spawn_detached(&copy, &args)) {
+      Ok(_) => true,
+      Err(err) => {
+        eprintln!("[updater] girovo-update.exe did not start ({err}); the installer starts from here");
+        false
+      }
+    }
+  }
+}
+
 type Updates<'a> = tauri::State<'a, Shared>;
 
 #[tauri::command]
@@ -340,6 +368,57 @@ pub fn updater_restart(s: Updates<'_>) -> UpdateState {
 #[tauri::command]
 pub fn updater_set_auto(s: Updates<'_>, on: bool) -> UpdateState {
   s.updater.set_auto(on)
+}
+
+/// "Update aus Datei installieren …": the native file dialog, then the check.
+#[tauri::command]
+pub async fn updater_choose_file(app: AppHandle, window: tauri::WebviewWindow, s: Updates<'_>) -> Result<UpdateState, String> {
+  let english = s.host.lang() == crate::texts::Lang::En;
+  let (tx, rx) = tokio::sync::oneshot::channel();
+  // Made on the main thread, awaited off it (save.rs's way).
+  let made = app.run_on_main_thread(move || {
+    let picking = rfd::AsyncFileDialog::new()
+      .set_parent(&window)
+      .set_title(if english { "Install an update from a file" } else { "Update aus Datei installieren" })
+      .add_filter(if english { "Girovo setup" } else { "Girovo-Setup" }, &["exe"])
+      .pick_file();
+    std::thread::spawn(move || {
+      let _ = tx.send(tauri::async_runtime::block_on(picking));
+    });
+  });
+  if made.is_err() {
+    return Ok(s.updater.state());
+  }
+  match rx.await.ok().flatten() {
+    Some(file) => Ok(s.updater.check_file(file.path().to_path_buf()).await),
+    None => Ok(s.updater.state()),
+  }
+}
+
+#[tauri::command]
+pub async fn updater_install_file(s: Updates<'_>) -> Result<UpdateState, String> {
+  Ok(s.updater.install_file().await)
+}
+
+#[tauri::command]
+pub fn updater_dismiss_file(s: Updates<'_>) -> UpdateState {
+  s.updater.dismiss_file()
+}
+
+/// A Girovo setup file dropped on the app's window: checked as one picked in the dialog.
+fn dropped(app: &AppHandle, label: &str, event: &tauri::WindowEvent) {
+  let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event else { return };
+  let [path] = paths.as_slice() else { return };
+  let name = path.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+  if label != "main" || !name.starts_with("girovo") || !name.ends_with("-setup.exe") {
+    return;
+  }
+  if let Some(shared) = app.try_state::<Shared>() {
+    let (updater, path) = (shared.updater.clone(), path.clone());
+    tauri::async_runtime::spawn(async move {
+      updater.check_file(path).await;
+    });
+  }
 }
 
 #[tauri::command]
