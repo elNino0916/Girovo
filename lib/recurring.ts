@@ -578,11 +578,14 @@ function assemble(
   const { typical, variable } = typicalAmount(abs);
   const lastAbs = abs[abs.length - 1];
   const prevAbs = abs.length > 1 ? abs[abs.length - 2] : null;
-  const changed = prevAbs != null && differs(prevAbs, lastAbs);
   // Where the current price began: back through the bookings at it.
   let run = abs.length - 1;
   while (run > 0 && !differs(abs[run - 1], lastAbs)) run--;
-  const before = run > 0 ? abs[run - 1] : null;
+  // One booking at another price between two at the current one — a month
+  // discounted or credited, a one-off extra — is no change of price.
+  const oneOff = run >= 2 && !differs(abs[run - 2], lastAbs);
+  const changed = !oneOff && prevAbs != null && differs(prevAbs, lastAbs);
+  const before = run > 0 && !oneOff ? abs[run - 1] : null;
   const priceChange = !variable && before != null && differs(before, lastAbs) && occ[run].n >= ref - 365
     ? { since: occ[run].day, previous: before / 100, delta: (lastAbs - before) / 100, perYear: ((lastAbs - before) * cadence.perYear) / 100 }
     : null;
@@ -830,7 +833,19 @@ export function detectRecurring(txs: readonly SerializedTransaction[], opts: Det
   const manual = opts.manual ? Object.entries(opts.manual) : [];
   if (manual.length) {
     const index = identityIndex(txs);
-    const added = manual.flatMap(([id, m]) => manualSeries(id, m, matchManual(m, index), ref, categoryOf, guessCtx) ?? []);
+    const matched = manual.map(([id, m]) => ({ id, m, occ: matchManual(m, index) }));
+    // Two the user added at one payer can both reach a booking (each takes a
+    // quarter around its own amount): it is the one's nearer in amount.
+    const nearest = new Map<SerializedTransaction, { id: string; d: number }>();
+    for (const { id, m, occ } of matched) {
+      for (const o of occ) {
+        const d = Math.abs(o.abs - m.cents);
+        const had = nearest.get(o.tx);
+        if (!had || d < had.d) nearest.set(o.tx, { id, d });
+      }
+    }
+    const added = matched.flatMap(({ id, m, occ }) =>
+      manualSeries(id, m, occ.filter((o) => nearest.get(o.tx)?.id === id), ref, categoryOf, guessCtx) ?? []);
     // A booking belongs to one contract: a recognised series that shares one with the user's gives way.
     const taken = new Set(added.flatMap((s) => s.transactions));
     series = [...series.filter((s) => !s.transactions.some((tx) => taken.has(tx))), ...added];

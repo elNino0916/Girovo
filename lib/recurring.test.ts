@@ -619,3 +619,33 @@ test('manual: the preview says what would belong and the rhythm it shows', () =>
   assert.equal(single.count, 1);
   assert.equal(single.cadence, null, 'one booking shows no rhythm');
 });
+
+test('a single month at another price between two at the usual one is no price change', () => {
+  const sp = (day: string, amount: number) =>
+    camt({ day, amount, code: 'ESDD', text: 'SEPA-Basislastschrift', name: 'Spotify AB', iban: 'SE3550000000054910000003', mref: 'SP-1', purpose: 'CRED+SE11ZZZ5567037485 Spotify Premium' });
+  const cheaperOnce = only(detectRecurring(newestFirst([
+    sp('2026-05-11', -17.99), sp('2026-06-10', -17.99), sp('2026-07-10', -17.99),
+    sp('2026-08-10', -17.99), sp('2026-09-10', -8.99), sp('2026-09-30', -17.99),
+  ]), { today: TODAY }));
+  assert.equal(cheaperOnce.priceChange, null);
+  assert.equal(cheaperOnce.changed, false, 'no "Betrag gestiegen" either');
+  assert.equal(cheaperOnce.amount, -17.99);
+  // A real rise still is one.
+  const rose = only(detectRecurring(newestFirst([sp('2026-06-10', -12.99), sp('2026-07-10', -12.99), sp('2026-08-10', -14.99), sp('2026-09-10', -14.99)]), { today: TODAY }));
+  assert.equal(rose.priceChange?.delta, 2);
+});
+
+test('manual: of two contracts at one payer, each booking belongs to the one nearer in amount', () => {
+  const sp = (day: string, amount: number) =>
+    camt({ day, amount, code: 'ESDD', text: 'SEPA-Basislastschrift', name: 'Spotify AB', iban: 'SE3550000000054910000003', mref: 'SP-1', purpose: 'CRED+SE11ZZZ5567037485 Spotify Premium' });
+  const txs = newestFirst([sp('2026-07-03', -10), sp('2026-08-03', -10), sp('2026-09-01', -10), sp('2026-07-15', -13), sp('2026-08-15', -13), sp('2026-09-15', -13)]);
+  const key = seriesIdentity(txs[0]).key!;
+  const series = detectRecurring(txs, {
+    today: TODAY,
+    manual: {
+      a: { key, cents: 1000, cadence: 'monthly', name: 'A', at: '2026-10-01' },
+      b: { key, cents: 1300, cadence: 'monthly', name: 'B', at: '2026-10-01' },
+    },
+  });
+  assert.deepEqual(series.map((s) => [s.name, s.count]).sort(), [['A', 3], ['B', 3]]);
+});
