@@ -5,7 +5,7 @@
 // (-dev.<run>). A nightly has its own name and an amber plate, so a test build
 // is never taken for the release. The same rule names the shell's windows
 // (src-tauri/src/edition.rs) and picks the nightly app icon
-// (scripts/dist-desktop.mjs, src-tauri/tauri.nightly.conf.json).
+// (scripts/dist-desktop.mjs swaps in src-tauri/icons-nightly).
 
 /** Whether `version` has a pre-release part, i.e. is a Girovo Nightly build. */
 export function isNightlyVersion(version: string): boolean {

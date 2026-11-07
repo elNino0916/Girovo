@@ -46,7 +46,9 @@ run(process.execPath, [path.join(ROOT, 'scripts', 'build-desktop.mjs')]);
 // the mark in navy on amber, everywhere Tauri puts one: the program, its
 // windows and tray, the installer, the Linux packages. The nightly set takes
 // src-tauri/icons' place for this build, which puts the release's back at
-// exit however the build ends.
+// exit however the build ends: Ctrl+C or a closed terminal included, which
+// Node would otherwise end without its exit handlers. src-tauri/build.rs
+// reruns when the icons change, so the program never keeps the other set.
 if (/^\d+\.\d+\.\d+-/.test(VERSION)) {
   const icons = path.join(ROOT, 'src-tauri', 'icons');
   const nightly = path.join(ROOT, 'src-tauri', 'icons-nightly');
@@ -63,6 +65,7 @@ if (/^\d+\.\d+\.\d+-/.test(VERSION)) {
     for (const f of files) fs.copyFileSync(path.join(kept, f), path.join(icons, f));
     fs.rmSync(kept, { recursive: true, force: true });
   });
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => process.exit(130));
   for (const f of files) fs.copyFileSync(path.join(nightly, f), path.join(icons, f));
   console.log(`✓ Girovo Nightly ${VERSION}: the nightly icon`);
 }
