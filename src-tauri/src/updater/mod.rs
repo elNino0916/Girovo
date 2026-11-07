@@ -96,13 +96,7 @@ impl TauriHost {
     let news = self.reported.lock().unwrap().next(state);
     let prefs = self.app.state::<crate::prefs::Prefs>();
     for item in news {
-      match item {
-        report::Report::Event(name, props) => telemetry.event(&prefs, name, &props),
-        report::Report::Error { message, during } => telemetry.error(
-          &serde_json::json!({ "name": "UpdateError", "message": message }),
-          serde_json::json!({ "source": "updater", "during": during }),
-        ),
-      }
+      item.send(|name, props| telemetry.event(&prefs, name, props), |raw, place| telemetry.error(raw, place));
     }
   }
 }

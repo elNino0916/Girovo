@@ -18,6 +18,21 @@ pub enum Report {
   Error { message: String, during: During },
 }
 
+impl Report {
+  /// Hands this to telemetry (telemetry.rs's hub, which holds it to its
+  /// rules) as the Electron shell's reportUpdate did: an event as it is, sent
+  /// only with the user's yes; a failure as an "UpdateError" of the updater,
+  /// with the step it happened in, sent always, its message scrubbed.
+  pub fn send(self, event: impl FnOnce(&'static str, &Value), error: impl FnOnce(&Value, Value)) {
+    match self {
+      Report::Event(name, props) => event(name, &props),
+      Report::Error { message, during } => {
+        error(&json!({ "name": "UpdateError", "message": message }), json!({ "source": "updater", "during": during }))
+      }
+    }
+  }
+}
+
 /// What telemetry has heard of this run's updater.
 #[derive(Default)]
 pub struct Reported {
@@ -148,5 +163,120 @@ mod tests {
     cleared.error = None;
     r.next(&cleared);
     assert!(r.next(&failed).iter().any(|x| matches!(x, Report::Error { .. })), "back after it had cleared");
+  }
+
+  // ---- through telemetry.rs's hub, as mod.rs hands the reports over ----------
+
+  use std::cell::RefCell;
+  use std::collections::HashMap;
+  use std::sync::{Arc, Mutex};
+
+  use serde_json::Map;
+
+  use crate::telemetry::{BoxFuture, CONSENT_PREF, Hub, Sdk, Store};
+  use crate::telemetry_scrub::Scrubbed;
+  use crate::texts::Lang;
+  use crate::updater::texts::texts;
+
+  /// The client, recording what would go out.
+  #[derive(Default)]
+  struct Sent(Mutex<Vec<Value>>);
+
+  impl Sdk for Sent {
+    fn identify(&self, _id: Option<String>) {}
+    fn capture_error(&self, e: &Scrubbed, props: Map<String, Value>) {
+      self.0.lock().unwrap().push(json!(["error", e.name, e.message, props]));
+    }
+    fn track(&self, name: &str, props: Map<String, Value>) {
+      self.0.lock().unwrap().push(json!(["event", name, props]));
+    }
+    fn metric(&self, name: &str, value: Value, props: Map<String, Value>) {
+      self.0.lock().unwrap().push(json!(["metric", name, value, props]));
+    }
+    fn shutdown(&self) -> BoxFuture<'_> {
+      Box::pin(async {})
+    }
+  }
+
+  #[derive(Default)]
+  struct Prefs(RefCell<HashMap<String, String>>);
+
+  impl Store for Prefs {
+    fn get(&self, key: &str) -> Option<String> {
+      self.0.borrow().get(key).cloned()
+    }
+    fn set(&self, key: &str, value: &str) {
+      self.0.borrow_mut().insert(key.into(), value.into());
+    }
+    fn del(&self, key: &str) {
+      self.0.borrow_mut().remove(key);
+    }
+  }
+
+  /// An updater's run — a release found, downloaded, a download that failed
+  /// its digest, an install that failed, a manual check that failed — and the
+  /// next start, an update; what telemetry sends of it with the consent given.
+  fn run_through_telemetry(consent: Option<&str>) -> Vec<Value> {
+    let prefs = Prefs::default();
+    if let Some(consent) = consent {
+      prefs.set(CONSENT_PREF, consent);
+    }
+    let sent = Arc::new(Sent::default());
+    let hub = Hub::new(Some(sent.clone() as Arc<dyn Sdk>), &prefs, || "install-id".into());
+    let say = texts(Lang::De);
+    let failed = |phase, during, message: &str| {
+      let mut s = state(phase, Some("6.0.1"));
+      s.error = Some(ErrorInfo { during, message: message.into() });
+      s
+    };
+    let mut after = state(Phase::Idle, None);
+    after.installed = Some(Installed { version: "6.0.1".into(), from: "6.0.0-nightly.202611070217.gabc1234".into(), notes: String::new(), url: String::new() });
+    let states = [
+      state(Phase::Checking, None),
+      state(Phase::Available, Some("6.0.1")),
+      state(Phase::Downloading, Some("6.0.1")),
+      failed(Phase::Available, During::Download, say.digest_mismatch),
+      state(Phase::Downloading, Some("6.0.1")),
+      state(Phase::Ready, Some("6.0.1")),
+      failed(Phase::Ready, During::Install, r"C:\Users\erika\AppData\Local\sooskasse-fints-updater: Zugriff verweigert"),
+      failed(Phase::Ready, During::Check, say.check_failed),
+    ];
+    let mut reported = Reported::default();
+    for s in &states {
+      for item in reported.next(s) {
+        item.send(|name, props| hub.event(&prefs, name, props), |raw, place| hub.error(raw, &place));
+      }
+    }
+    for item in Reported::default().next(&after) {
+      item.send(|name, props| hub.event(&prefs, name, props), |raw, place| hub.error(raw, &place));
+    }
+    sent.0.lock().unwrap().clone()
+  }
+
+  #[test]
+  fn update_failures_go_out_without_the_yes_scrubbed_with_their_step() {
+    let errors = vec![
+      json!(["error", "UpdateError", texts(Lang::De).digest_mismatch, { "source": "updater", "during": "download" }]),
+      json!(["error", "UpdateError", r"C:\Users\~\AppData\Local\sooskasse-fints-updater: Zugriff verweigert", { "source": "updater", "during": "install" }]),
+      json!(["error", "UpdateError", texts(Lang::De).check_failed, { "source": "updater", "during": "check" }]),
+    ];
+    for consent in [None, Some("off")] {
+      assert_eq!(run_through_telemetry(consent), errors, "consent {consent:?}: the events wait for the yes");
+    }
+  }
+
+  #[test]
+  fn with_the_yes_the_update_events_go_out_with_their_fields() {
+    let sent = run_through_telemetry(Some("on"));
+    let events: Vec<&Value> = sent.iter().filter(|v| v[0] == "event").collect();
+    assert_eq!(
+      events,
+      vec![
+        &json!(["event", "update_available", { "version": "6.0.1" }]),
+        &json!(["event", "update_downloaded", { "version": "6.0.1" }]),
+        &json!(["event", "update_installed", { "from": "6.0.0-nightly.202611070217.gabc1234", "to": "6.0.1" }]),
+      ]
+    );
+    assert_eq!(sent.iter().filter(|v| v[0] == "error").count(), 3, "the failures as without the yes");
   }
 }
