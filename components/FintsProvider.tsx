@@ -5148,9 +5148,9 @@ function useFintsState() {
   }, [updateVault]);
 
   const dismissRecurring = useCallback((id: string) => {
-    updateVault((v) => (v.dismissedRecurring.includes(id)
+    updateVault((v) => withoutReminder(v.dismissedRecurring.includes(id)
       ? v
-      : { ...v, dismissedRecurring: [...v.dismissedRecurring, id] }));
+      : { ...v, dismissedRecurring: [...v.dismissedRecurring, id] }, id));
   }, [updateVault]);
 
   const restoreRecurring = useCallback((id: string) => {
@@ -5177,7 +5177,8 @@ function useFintsState() {
       if (contract) next[id] = contract;
       else delete next[id];
       const { manualContracts: _, ...rest } = v;
-      return Object.keys(next).length ? { ...rest, manualContracts: next } : rest;
+      const kept = Object.keys(next).length ? { ...rest, manualContracts: next } : rest;
+      return contract ? kept : withoutReminder(kept, id);
     });
   }, [updateVault]);
 
@@ -5701,6 +5702,14 @@ async function shellSchedule(on: boolean): Promise<void> {
   if (shell === 'android') await window.girovoMobile!.background.schedule(on);
   else if (shell === 'desktop') await window.electronBackground!.set(on);
 }
+
+/** The vault without one contract's cancellation reminder: it goes with the contract. */
+const withoutReminder = (v: VaultData, id: string): VaultData => {
+  if (!v.contractReminders?.[id]) return v;
+  const { [id]: _gone, ...left } = v.contractReminders;
+  const { contractReminders: _all, ...rest } = v;
+  return Object.keys(left).length ? { ...rest, contractReminders: left } : rest;
+};
 
 /** The desktop shell's secret for the further banks' PINs (src-tauri/src/secret.rs); null anywhere else. */
 async function linkedUnlockSecret(): Promise<string | null> {

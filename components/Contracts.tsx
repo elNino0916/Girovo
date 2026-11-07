@@ -41,26 +41,38 @@ function unseenPhrase(unseen: readonly Cadence[], t: Messages): string {
 }
 
 function useDismiss() {
-  const { dismissRecurring, restoreRecurring, toast, vault, setManualContract } = useFints();
+  const { dismissRecurring, restoreRecurring, toast, vault, setManualContract, setContractReminder } = useFints();
   const t = useT();
   const manual = vault?.manualContracts;
+  const reminders = vault?.contractReminders;
   const dismiss = useCallback((s: RecurringSeries) => {
+    // Its cancellation reminder goes with it (the provider takes it), and comes back with the undo.
+    const reminder = reminders?.[s.id];
+    const back = () => {
+      if (reminder) setContractReminder(s.id, reminder);
+    };
     // One the user added is taken out, not hidden — with the way back.
     if (s.manual) {
       const kept = manual?.[s.id];
       setManualContract(s.id, null);
       toast(t.insights.contracts.manual.removed(displayName(s.name)), 'info', 6500, kept ? {
         label: t.insights.contracts.undo,
-        run: () => setManualContract(s.id, kept),
+        run: () => {
+          setManualContract(s.id, kept);
+          back();
+        },
       } : undefined);
       return;
     }
     dismissRecurring(s.id);
     toast(t.insights.contracts.dismissed(displayName(s.name)), 'info', 6500, {
       label: t.insights.contracts.undo,
-      run: () => restoreRecurring(s.id),
+      run: () => {
+        restoreRecurring(s.id);
+        back();
+      },
     });
-  }, [dismissRecurring, restoreRecurring, toast, t, manual, setManualContract]);
+  }, [dismissRecurring, restoreRecurring, toast, t, manual, reminders, setManualContract, setContractReminder]);
   const restore = useCallback((s: RecurringSeries) => restoreRecurring(s.id), [restoreRecurring]);
   return { dismiss, restore };
 }

@@ -2780,7 +2780,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   }, [updateVault]);
 
   const dismissRecurring = useCallback((id: string) => {
-    updateVault((v) => (v.dismissedRecurring.includes(id) ? v : { ...v, dismissedRecurring: [...v.dismissedRecurring, id] }));
+    updateVault((v) => withoutReminder(v.dismissedRecurring.includes(id) ? v : { ...v, dismissedRecurring: [...v.dismissedRecurring, id] }, id));
   }, [updateVault]);
 
   const restoreRecurring = useCallback((id: string) => {
@@ -2807,7 +2807,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       if (contract) next[id] = contract;
       else delete next[id];
       const { manualContracts: _, ...rest } = v;
-      return Object.keys(next).length ? { ...rest, manualContracts: next } : rest;
+      const kept = Object.keys(next).length ? { ...rest, manualContracts: next } : rest;
+      return contract ? kept : withoutReminder(kept, id);
     });
   }, [updateVault]);
 
@@ -3097,6 +3098,14 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     },
   } satisfies FintsApi;
 }
+
+/** The vault without one contract's cancellation reminder: it goes with the contract. */
+const withoutReminder = (v: VaultData, id: string): VaultData => {
+  if (!v.contractReminders?.[id]) return v;
+  const { [id]: _gone, ...left } = v.contractReminders;
+  const { contractReminders: _all, ...rest } = v;
+  return Object.keys(left).length ? { ...rest, contractReminders: left } : rest;
+};
 
 /**
  * <FintsProvider> for screenshots and harness pages. `preset` picks the first
