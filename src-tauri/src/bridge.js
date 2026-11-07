@@ -232,6 +232,24 @@
     invoke('zoom_step', { command: command }).catch(function () {});
   }, true);
 
+  // No reload: F5, Strg+R and the browser's own menu ("Aktualisieren") would
+  // start the page and its server over — the bank session gone, an approval
+  // under way lost, and the preferences as this window was given them at its
+  // start (the Electron shell had neither key nor menu). Text fields and a
+  // selection keep their menu: cut, copy, paste.
+  window.addEventListener('keydown', function (e) {
+    var key = e.key;
+    var reload = key === 'F5' || key === 'BrowserRefresh'
+      || ((e.ctrlKey || e.metaKey) && !e.altKey && (key === 'r' || key === 'R'));
+    if (reload) e.preventDefault();
+  }, true);
+  window.addEventListener('contextmenu', function (e) {
+    var t = e.target;
+    var editable = t && t.closest && t.closest('input, textarea, [contenteditable=""], [contenteditable="true"]');
+    var selected = String(window.getSelection ? window.getSelection() : '').length > 0;
+    if (!editable && !selected) e.preventDefault();
+  }, true);
+
   // The shell's own facts, for desktop/runtime.ts.
   // invokeRaw: bytes as the request's body, with headers (src/files.rs fs_write).
   var invokeRaw = function (cmd, bytes, headers) { return tauri.invoke(cmd, bytes, { headers: headers || {} }); };
