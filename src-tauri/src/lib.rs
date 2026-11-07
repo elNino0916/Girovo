@@ -243,6 +243,7 @@ pub fn run() {
       shell::window_attention,
       shell::window_shown,
       reset::app_reset,
+      reset::lan_forget,
       shell::zoom_step,
       shell::open_url,
       splash::splash_fit,

@@ -8,27 +8,35 @@
 //
 // Why each is kept is said while none is: some banks hand a statement out
 // once and mark it as delivered. The drawer's one fetch carries the approval
-// note; the export menu that opens it does not.
+// note; the export menu that opens it does not. Kept ones this PIN cannot
+// open (it changed at the bank) are said here too, with the way out.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { byStatementOrder, statementTitle } from '@/lib/docs';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { fmtBytes, fmtDate, fmtRange } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { DocRow } from './DocRow';
 import { useFints } from './FintsProvider';
+import { ResetDocsDialog } from './settings/data-dialogs';
 import { FileIcon, RefreshIcon } from './icons';
 import { Alert, Button, Drawer, EmptyState } from './ui';
 
 export function BankStatements({ account, open, onClose }: { account: SerializedAccount; open: boolean; onClose: () => void }) {
   const {
-    docs, docsLocked, busy, bankStatementsLoading, statementFetches, fetchBankStatements, accountLabel,
+    docs, docsLocked, docsResettable, loadDocs, busy, bankStatementsLoading, statementFetches, fetchBankStatements, accountLabel,
   } = useFints();
   const t = useT();
   const words = t.docs.statements;
   const acct = account.accountNumber;
   const loading = bankStatementsLoading === acct;
   const last = statementFetches[acct];
+  const [resetOpen, setResetOpen] = useState(false);
+  // Listed before the bank had its word on the PIN: asked again on opening, so
+  // starting over is offered once it has taken it (lib/doc-store.ts resetDocs).
+  useEffect(() => {
+    if (open && docsLocked && !docsResettable) void loadDocs();
+  }, [open, docsLocked, docsResettable, loadDocs]);
   const list = useMemo(
     () => docs.filter((d) => d.kind === 'statement' && d.accountNumber === acct).sort(byStatementOrder),
     [docs, acct],
@@ -59,7 +67,19 @@ export function BankStatements({ account, open, onClose }: { account: Serialized
           </Alert>
         ))}
       </div>
-      {docsLocked && <Alert tone="warn" className="mt-4">{words.locked}</Alert>}
+      {docsLocked && (
+        <Alert tone="warn" className="mt-4">
+          <p>{words.locked}</p>
+          {docsResettable ? (
+            <Button variant="tertiary" size="xs" className="mt-1 -ml-3" aria-haspopup="dialog" onClick={() => setResetOpen(true)}>
+              {t.docs.unreadable.startOver}
+            </Button>
+          ) : (
+            <p className="mt-1">{t.docs.server.notYet}</p>
+          )}
+        </Alert>
+      )}
+      <ResetDocsDialog open={resetOpen} onClose={() => setResetOpen(false)} />
 
       {list.length ? (
         <ul className="mt-5 divide-y divide-line border-t border-line">

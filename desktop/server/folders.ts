@@ -26,4 +26,8 @@ function folder(place: string): SyncStore {
 
 export function installFolders(): void {
   (globalThis as { __girovoFolderStore?: (place: string) => SyncStore }).__girovoFolderStore = folder;
+  // "Gespeicherte Daten löschen": one sync group's files off the LAN shelf,
+  // on disk (lib/wipe-saved.ts forgetLanGroup, src-tauri/src/reset.rs lan_forget).
+  (globalThis as { __girovoLanForget?: (group: string) => Promise<number> }).__girovoLanForget =
+    (group) => invoke<number>('lan_forget', { group });
 }

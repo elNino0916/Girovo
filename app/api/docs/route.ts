@@ -1,6 +1,7 @@
 // Documents kept on this machine (lib/doc-store.ts): list them, open one,
 // attach a receipt to a booking (or to an order not booked yet), move it to
-// its booking, remove one.
+// its booking, remove one — and start over once the store no longer opens
+// with this PIN (reset: the old one set aside, nothing deleted).
 //
 // One POST with an `op`, like /api/vault — the sessionId stays in the body.
 // Nothing about a document is logged. A refusal comes back as a status the
@@ -8,8 +9,10 @@
 // full, 415 not a document, 404 gone).
 
 import { boundedBody, fail, json, sessionExpired, wrap } from '@/lib/api';
-import { DocError, addReceipt, linkReceipt, listDocs, readDoc, removeDoc } from '@/lib/doc-store';
-import { DOC_REQUEST_MAX_BYTES, type AwaitedBooking, type DocGetResponse, type DocResponse, type DocsListResponse } from '@/lib/docs';
+import { DocError, addReceipt, linkReceipt, listDocs, readDoc, removeDoc, resetDocs } from '@/lib/doc-store';
+import {
+  DOC_REQUEST_MAX_BYTES, type AwaitedBooking, type DocGetResponse, type DocResponse, type DocsListResponse, type DocsResetResponse,
+} from '@/lib/docs';
 import { msgs } from '@/lib/i18n';
 import { getSession } from '@/lib/session';
 
@@ -18,7 +21,7 @@ export const dynamic = 'force-dynamic';
 
 type DocsBody = {
   sessionId: string;
-  op: 'list' | 'get' | 'addReceipt' | 'link' | 'remove';
+  op: 'list' | 'get' | 'addReceipt' | 'link' | 'remove' | 'reset';
   id?: string;
   name?: string;
   /** The document, base64. */
@@ -65,6 +68,9 @@ export const POST = wrap(async (req: Request) => {
       case 'remove':
         if (isId(b.id)) await removeDoc(s, b.id);
         return json({ ok: true });
+      case 'reset':
+        // Asked for by the user; a store that opens is left as it is.
+        return json((await resetDocs(s)) satisfies DocsResetResponse);
       default:
         return fail(msgs().docs.server.format);
     }

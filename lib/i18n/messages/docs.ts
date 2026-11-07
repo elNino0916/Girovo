@@ -9,12 +9,33 @@ export const de = {
     unavailable: 'Die gespeicherten Dokumente sind gerade nicht erreichbar.',
     read: 'Die gespeicherten Dokumente ließen sich nicht lesen.',
     write: 'Das Dokument ließ sich nicht speichern.',
-    locked: 'Die gespeicherten Dokumente lassen sich mit dieser PIN nicht öffnen.',
+    locked: 'Die gespeicherten Dokumente lassen sich mit dieser PIN nicht öffnen. In den Einstellungen kannst du neu beginnen.',
     gone: 'Dieses Dokument gibt es nicht mehr.',
+    /** After "Gespeicherte Daten löschen": nothing more is saved until the logout. */
+    wiped: 'Bis zum Abmelden werden keine Dokumente mehr gespeichert.',
+    /** Starting over waits for the bank's word on the PIN: a mistyped one must not replace the store. */
+    notYet: 'Neu beginnen geht erst, wenn deine Bank deine PIN angenommen hat. Lade einmal deine Umsätze und versuche es dann noch einmal.',
     tooLarge: 'Das Dokument ist zu groß – höchstens 8 MB.',
     full: 'Es sind schon sehr viele Dokumente gespeichert. Lösche ein paar, dann geht es wieder.',
     format: 'Das Dokument ließ sich nicht zuordnen.',
     notADocument: 'Das ist weder ein Bild noch ein PDF.',
+  },
+
+  /**
+   * The store does not open with this PIN (it changed at the bank): said in
+   * Einstellungen and with the bank's Kontoauszüge, with the way out
+   * (lib/doc-store.ts resetDocs — the old one set aside, nothing deleted).
+   */
+  unreadable: {
+    title: 'Gespeicherte Dokumente nicht lesbar',
+    hint: 'Mit dieser PIN nicht lesbar – meist, weil sie sich geändert hat. Bis du neu beginnst, werden keine Belege und Auszüge gespeichert.',
+    startOver: 'Neu beginnen …',
+    dialog: {
+      title: 'Belege und Auszüge neu beginnen?',
+      description: 'Die bisherigen lassen sich mit dieser PIN nicht öffnen. Sie bleiben als Sicherung auf diesem Rechner, und die App beginnt eine neue Ablage. Auszüge, die diese Sitzung nur gehalten hat, kommen gleich hinein.',
+      confirm: 'Neu beginnen',
+    },
+    done: 'Neu begonnen – Belege und Auszüge werden wieder gespeichert.',
   },
 
   /** A document's file name when it brings none of its own ("Kontoauszug 2026-007.pdf"). */
@@ -96,12 +117,26 @@ export const en: typeof de = {
     unavailable: 'The saved documents cannot be reached right now.',
     read: 'The saved documents could not be read.',
     write: 'The document could not be saved.',
-    locked: 'The saved documents do not open with this PIN.',
+    locked: 'The saved documents do not open with this PIN. You can start again in the settings.',
     gone: 'This document no longer exists.',
+    wiped: 'No more documents are saved until you log out.',
+    notYet: 'You can start again only once your bank has accepted your PIN. Load your transactions once, then try again.',
     tooLarge: 'The document is too large – 8 MB at most.',
     full: 'A great many documents are saved already. Delete a few, then it works again.',
     format: 'The document could not be filed.',
     notADocument: 'This is neither an image nor a PDF.',
+  },
+
+  unreadable: {
+    title: 'Saved documents unreadable',
+    hint: 'Can’t be opened with this PIN – usually because it has changed. Until you start again, no receipts or statements are saved.',
+    startOver: 'Start again…',
+    dialog: {
+      title: 'Start receipts and statements again?',
+      description: 'The current ones can’t be opened with this PIN. They stay on this computer as a backup, and the app starts a new store. Statements this session only held go into it straight away.',
+      confirm: 'Start again',
+    },
+    done: 'Started again – receipts and statements are being saved again.',
   },
 
   fileName: { statement: 'Statement', receipt: 'Receipt' },

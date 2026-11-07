@@ -26,19 +26,58 @@ const FILE: &str = "shell-secret.dpapi";
 /// Ties the blob to this use: another program of the same user must name it to open the blob.
 const ENTROPY: &[u8] = b"girovo/shell-secret/v1";
 
-/// The kept secret's text; None when there is none, or when it does not open
-/// (sealed under another Windows account, or damaged): unreadable for good.
+/// The kept secret's text; None when there is none, or when it will never
+/// open (damaged, not DPAPI's, sealed for another use): then a new one takes
+/// its place (secret.rs load). Any other failure is an error — the file held
+/// by a scanner, DPAPI not answering for a moment, a domain account's key not
+/// at hand yet: no secret this time, and the file stays for the next ask. Replacing it would lose every PIN kept
+/// under it for good (linked unlock, Windows Hello, the background box).
 pub fn read(root: &Path) -> Result<Option<String>, String> {
-  let sealed = match fs::read(root.join(FILE)) {
+  let sealed = match read_riding_out_locks(&root.join(FILE)) {
     Ok(sealed) => sealed,
     Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
     Err(err) => return Err(format!("{FILE}: {err}")),
   };
-  match unprotect(&sealed, Some(ENTROPY)) {
+  opened(unprotect(&sealed, Some(ENTROPY)))
+}
+
+/// What DPAPI made of the kept blob: its text, None when it never will open
+/// (or is no text), an error when it may yet.
+fn opened(result: windows::core::Result<Vec<u8>>) -> Result<Option<String>, String> {
+  match result {
     Ok(plain) => Ok(String::from_utf8(plain).ok()),
-    Err(err) => {
-      eprintln!("[shell-secret] {FILE} does not open: {err}");
+    Err(err) if never_opens(err.code()) => {
+      eprintln!("[shell-secret] {FILE} does not open, for good: {}", err.message());
       Ok(None)
+    }
+    Err(err) => Err(format!("{FILE} does not open now: {}", err.message())),
+  }
+}
+
+/// DPAPI's answers that say a blob will never open for this user: damaged or
+/// not DPAPI's at all (ERROR_INVALID_DATA, E_INVALIDARG, NTE_BAD_DATA — sealed
+/// with other entropy too). Anything else may pass — the service not
+/// answering, too little memory, access refused for a moment — and so may
+/// NTE_BAD_KEY_STATE: on a domain-joined PC after a password change made
+/// offline it clears once the domain controller is reachable again. Should it
+/// mean another account for good, the features that need the secret are just
+/// not offered, which is better than losing every PIN kept under it.
+fn never_opens(code: windows::core::HRESULT) -> bool {
+  const FOR_GOOD: [u32; 3] = [0x8007_000D, 0x8007_0057, 0x8009_0005];
+  FOR_GOOD.contains(&(code.0 as u32))
+}
+
+/// The file's bytes, riding out the brief locks a virus scanner holds on
+/// Windows (files.rs locked), as every other read of the data folder does.
+fn read_riding_out_locks(file: &Path) -> std::io::Result<Vec<u8>> {
+  let mut attempt = 0;
+  loop {
+    match fs::read(file) {
+      Err(err) if attempt < 5 && crate::files::locked(&err) => {
+        std::thread::sleep(Duration::from_millis(15 << attempt));
+        attempt += 1;
+      }
+      other => return other,
     }
   }
 }
@@ -80,7 +119,7 @@ fn electron_key(root: &Path) -> Result<Vec<u8>, Unreadable> {
     .ok_or_else(|| Unreadable::new("unreadable", "Local State has no os_crypt key"))?;
   let raw = B64.decode(encoded).map_err(|_| Unreadable::new("unreadable", "os_crypt key is no base64"))?;
   let blob = raw.strip_prefix(b"DPAPI").ok_or_else(|| Unreadable::new("unreadable", "os_crypt key is not DPAPI's"))?;
-  let key = unprotect(blob, None).map_err(|err| Unreadable::new("unreadable", format!("os_crypt key does not open: {err}")))?;
+  let key = unprotect(blob, None).map_err(|err| Unreadable::new("unreadable", format!("os_crypt key does not open: {}", err.message())))?;
   if key.len() != 32 {
     return Err(Unreadable::new("unreadable", "os_crypt key is no AES-256 key"));
   }
@@ -121,15 +160,15 @@ pub(super) fn protect(plain: &[u8], entropy: &[u8]) -> Result<Vec<u8>, String> {
   }
 }
 
-/// Opens what DPAPI sealed for this user account (with `entropy` if it was sealed with some).
-pub(super) fn unprotect(sealed: &[u8], entropy: Option<&[u8]>) -> Result<Vec<u8>, String> {
+/// Opens what DPAPI sealed for this user account (with `entropy` if it was
+/// sealed with some). The error keeps DPAPI's code: read() decides by it.
+pub(super) fn unprotect(sealed: &[u8], entropy: Option<&[u8]>) -> windows::core::Result<Vec<u8>> {
   let input = blob(sealed);
   let entropy = entropy.map(blob);
   let mut out = CRYPT_INTEGER_BLOB::default();
   // SAFETY: as in protect().
   unsafe {
-    CryptUnprotectData(&input, None, entropy.as_ref().map(|e| e as *const _), None, None, CRYPTPROTECT_UI_FORBIDDEN, &mut out)
-      .map_err(|err| err.message())?;
+    CryptUnprotectData(&input, None, entropy.as_ref().map(|e| e as *const _), None, None, CRYPTPROTECT_UI_FORBIDDEN, &mut out)?;
     Ok(taken(out))
   }
 }
@@ -200,6 +239,81 @@ pub(super) mod tests {
     assert!(unprotect(&sealed, None).is_err());
     assert!(unprotect(&sealed, Some(b"other")).is_err());
     assert!(unprotect(b"not dpapi", Some(ENTROPY)).is_err());
+  }
+
+  /// A data folder of its own, gone with the test.
+  struct Folder(std::path::PathBuf);
+
+  impl Folder {
+    fn new(name: &str) -> Self {
+      let dir = std::env::temp_dir().join(format!("girovo-dpapi-{name}-{}", std::process::id()));
+      let _ = fs::remove_dir_all(&dir);
+      fs::create_dir_all(&dir).unwrap();
+      Folder(dir)
+    }
+  }
+
+  impl Drop for Folder {
+    fn drop(&mut self) {
+      let _ = fs::remove_dir_all(&self.0);
+    }
+  }
+
+  #[test]
+  fn a_kept_secret_reads_back() {
+    let root = Folder::new("ok");
+    write(&root.0, "c2VjcmV0").unwrap();
+    assert_eq!(read(&root.0).unwrap().as_deref(), Some("c2VjcmV0"));
+  }
+
+  /// What DPAPI really answers for a blob that can never open counts as for
+  /// good, so a new secret may take its place: not DPAPI's, cut short,
+  /// sealed with other entropy (another program's).
+  #[test]
+  fn a_blob_that_never_opens_reads_as_none() {
+    let root = Folder::new("gone");
+    let file = root.0.join(FILE);
+    let sealed = protect(b"c2VjcmV0", ENTROPY).unwrap();
+    for (what, bytes) in [
+      ("not dpapi", b"not dpapi at all".to_vec()),
+      ("cut short", sealed[..sealed.len() / 2].to_vec()),
+      ("other entropy", protect(b"c2VjcmV0", b"another program").unwrap()),
+    ] {
+      fs::write(&file, &bytes).unwrap();
+      let code = unprotect(&bytes, Some(ENTROPY)).unwrap_err().code();
+      assert!(never_opens(code), "{what}: {:#010x} should count as for good", code.0 as u32);
+      assert_eq!(read(&root.0), Ok(None), "{what}");
+    }
+  }
+
+  /// DPAPI failing for a moment is no reason to throw the secret away.
+  #[test]
+  fn a_failure_that_may_pass_is_an_error_not_a_missing_secret() {
+    use windows::core::{Error, HRESULT};
+    for code in [
+      0x8007_06BA_u32, // RPC server unavailable
+      0x8007_000E,     // out of memory
+      0x8007_0005,     // access denied
+      0x8007_05AA,     // no system resources
+      0x8009_000B,     // NTE_BAD_KEY_STATE: a domain account's key, out of reach until the domain controller is
+    ] {
+      let answer = opened(Err(Error::from_hresult(HRESULT(code as i32))));
+      assert!(answer.is_err(), "{code:#010x}: {answer:?}");
+    }
+    for code in [0x8009_0005_u32, 0x8007_000D, 0x8007_0057] {
+      assert_eq!(opened(Err(Error::from_hresult(HRESULT(code as i32)))), Ok(None), "{code:#010x}");
+    }
+    // Opened, but no text: never of use either.
+    assert_eq!(opened(Ok(vec![0xff, 0xfe])), Ok(None));
+  }
+
+  /// A file that cannot be read now (here: a folder where it belongs) is an
+  /// error too, never "none" — which would make a new secret.
+  #[test]
+  fn a_file_that_cannot_be_read_is_an_error() {
+    let root = Folder::new("busy");
+    fs::create_dir_all(root.0.join(FILE)).unwrap();
+    assert!(read(&root.0).is_err());
   }
 
   #[test]

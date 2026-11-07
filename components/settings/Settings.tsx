@@ -54,7 +54,7 @@ import {
 import { PAGE_TITLE_ID } from '../shell/ids';
 import { useDesktopFrame } from '../shell/frame';
 import { Button, Dot, Kbd, Segmented } from '../ui';
-import { KeepRow, KeepOffDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
+import { KeepRow, KeepOffDialog, ResetDocsDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
 import { ResetAppRow } from './ResetApp';
 import { BackupRows } from './BackupDialogs';
 import { ImportRow } from './ImportDialog';
@@ -78,7 +78,7 @@ const IMPRINT_URL = 'https://elnino0916.de/girovo/impressum';
 // i18n-data-end
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 
-type DataDialog = 'reset' | 'wipe' | 'keepOff' | 'historyReset';
+type DataDialog = 'reset' | 'wipe' | 'keepOff' | 'historyReset' | 'docsReset';
 type IconComponent = (props: { size?: number; filled?: boolean; className?: string }) => ReactNode;
 
 /** Each page's glyph: the list's disc, the sidebar's place. */
@@ -215,6 +215,7 @@ export function Settings() {
       <WipeVaultDialog open={dialog === 'wipe'} onClose={closeDialog} />
       <KeepOffDialog open={dialog === 'keepOff'} onClose={closeDialog} />
       <ResetHistoryDialog open={dialog === 'historyReset'} onClose={closeDialog} />
+      <ResetDocsDialog open={dialog === 'docsReset'} onClose={closeDialog} />
     </div>
   );
 }
@@ -384,8 +385,13 @@ function AccountsPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
 
 function DevicesPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
   const t = useT();
-  const { vaultStatus, sync } = useFints();
+  const { vaultStatus, sync, docsLocked, docsResettable, loadDocs } = useFints();
   const kept = vaultStatus === 'ready' || vaultStatus === 'error' || vaultStatus === 'unavailable';
+  // Documents this PIN cannot open, listed before the bank had its word on
+  // the PIN: asked again, so "Neu beginnen" shows once it has taken it.
+  useEffect(() => {
+    if (docsLocked && !docsResettable) void loadDocs();
+  }, [docsLocked, docsResettable, loadDocs]);
   return (
     <>
       {/* Sync between devices (lib/sync.ts): once the first login's vault is loaded. */}
@@ -421,6 +427,30 @@ function DevicesPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
                     {t.session.vaultDelete}
                   </Button>
                 </span>
+              )}
+            />
+          )}
+
+          {/* Receipts and statements this PIN cannot open, any bank's of the
+              view: the way out, as for the saved data above (lib/doc-store.ts). */}
+          {docsLocked && (
+            <SettingItem
+              alert
+              icon={(
+                <span className="relative inline-flex">
+                  <LockIcon />
+                  <Dot className="absolute -top-px -right-px ring-2 ring-[var(--md-surface-container)]" />
+                </span>
+              )}
+              title={t.docs.unreadable.title}
+              summary={t.docs.unreadable.hint}
+              below={docsResettable ? (
+                <Button variant="tertiary" size="xs" className="mt-1 -ml-3" aria-haspopup="dialog" onClick={() => onDialog('docsReset')}>
+                  {t.docs.unreadable.startOver}
+                </Button>
+              ) : (
+                // Not under a PIN the bank has not taken: a typo would set the real store aside.
+                <span className="mt-1 block text-[14px] leading-5 text-ink-2">{t.docs.server.notYet}</span>
               )}
             />
           )}

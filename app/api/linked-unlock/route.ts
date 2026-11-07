@@ -18,8 +18,8 @@ import { boundedBody, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { msgs } from '@/lib/i18n';
 import { LINKED_BANK_LIMITS } from '@/lib/linked-banks';
 import {
-  forgetLogin, isOn, linkedUnlockServed, loginOfSession, openLogins, parseSecret, removeLinkedUnlock, sealLogins,
-  type SealedLogin,
+  forgetLogin, isOn, LinkedUnlockLocked, linkedUnlockServed, loginOfSession, openLogins, parseSecret, removeLinkedUnlock,
+  sealLogins, type SealedLogin,
 } from '@/lib/linked-unlock';
 import { getSession } from '@/lib/session';
 
@@ -54,23 +54,31 @@ export const POST = wrap(async (req: Request) => {
 
   const secret = parseSecret(b.secret);
   if (!secret) return fail(said.noSecret, 400);
+  // A file this PIN does not open is thrown away only once the bank has
+  // taken the PIN: before that it may be a wrong one (lib/linked-unlock.ts).
+  const pin = { pinAccepted: s.pinAccepted === true };
   switch (b.op) {
     case 'seal': {
       const ids = Array.isArray(b.linked) ? b.linked.filter((id): id is string => typeof id === 'string') : [];
       const logins = ids.slice(0, LINKED_BANK_LIMITS.count)
         .map((id) => (id === s.id ? null : loginOfSession(getSession(id))))
         .filter((l): l is SealedLogin => !!l);
-      return json({ on: true, count: await sealLogins(own, secret, logins) });
+      try {
+        return json({ on: true, count: await sealLogins(own, secret, logins, pin) });
+      } catch (err) {
+        if (err instanceof LinkedUnlockLocked) return fail(said.notYet, 409);
+        throw err;
+      }
     }
     case 'open':
       // A remembered device opens on this computer with an old PIN too: the
       // further banks' PINs wait for the bank's word on this one (Session.pinAccepted).
       if (!s.pinAccepted) return json({ on: isOn(own), linked: [] });
-      return json(await openLogins(own, secret));
+      return json(await openLogins(own, secret, pin));
     case 'forget': {
       const login = b.login as { blz?: unknown; userId?: unknown } | null;
       if (!login || typeof login.blz !== 'string' || typeof login.userId !== 'string') return fail(said.unknownAction);
-      return json(await forgetLogin(own, secret, { blz: login.blz, userId: login.userId }));
+      return json(await forgetLogin(own, secret, { blz: login.blz, userId: login.userId }, pin));
     }
     default:
       return fail(said.unknownAction);

@@ -40,7 +40,10 @@ export type KeptDoc = {
 };
 
 /** /api/docs: the list (`locked`: the store does not open with this PIN), one document with its bytes (base64), one changed. */
-export type DocsListResponse = { docs: KeptDoc[]; locked: boolean };
+/** `resettable`: locked, and the bank has taken this session's PIN, so the store may begin anew (lib/doc-store.ts resetDocs). */
+export type DocsListResponse = { docs: KeptDoc[]; locked: boolean; resettable: boolean };
+/** Starting over (lib/doc-store.ts resetDocs): the listing afterwards, and whether a store that did not open was set aside. */
+export type DocsResetResponse = DocsListResponse & { reset: boolean };
 export type DocGetResponse = { doc: KeptDoc; data: string };
 export type DocResponse = { doc: KeptDoc };
 

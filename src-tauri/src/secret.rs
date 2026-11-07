@@ -150,7 +150,11 @@ fn migrate_with(kept: &mut Kept, root: &Path) -> Migration {
 }
 
 /// This shell's secret; else Electron's, taken over; else a new one. With it,
-/// what taking Electron's over came to, where that was tried.
+/// what taking Electron's over came to, where that was tried. A new one only
+/// where there is none or the kept one can never open again (store::read's
+/// None): one that does not open now (store::read's error) is no secret this
+/// time and asked for again next time, for a new one would make every PIN
+/// kept under the old one unopenable.
 fn load(root: &Path) -> Result<(String, Option<Migration>), String> {
   if let Some(secret) = store::read(root)?.and_then(valid) {
     return Ok((secret, None));
@@ -339,6 +343,33 @@ mod tests {
     assert!(secret_in(&mut first, &root.0).is_some_and(|s| s != ELECTRONS));
     let answer = migrate_with(&mut first, &root.0);
     assert!(matches!(answer, Migration::Failed { reason: "unreadable", .. }), "{answer:?}");
+  }
+
+  #[test]
+  fn a_secret_that_cannot_be_read_now_is_kept_not_replaced() {
+    let root = Root::new();
+    let first = secret_in(&mut run(), &root.0).unwrap();
+    let file = root.0.join("shell-secret.dpapi");
+    let sealed = fs::read(&file).unwrap();
+    // Unreadable for now (a folder in its place stands in for a file held open).
+    fs::remove_file(&file).unwrap();
+    fs::create_dir(&file).unwrap();
+    assert_eq!(secret_in(&mut run(), &root.0), None);
+    assert!(file.is_dir(), "nothing was written in its place");
+    // Readable again: the same secret, so the PINs kept under it still open.
+    fs::remove_dir(&file).unwrap();
+    fs::write(&file, sealed).unwrap();
+    assert_eq!(secret_in(&mut run(), &root.0).as_deref(), Some(first.as_str()));
+  }
+
+  #[test]
+  fn a_secret_that_never_opens_again_is_replaced() {
+    let root = Root::new();
+    let first = secret_in(&mut run(), &root.0).unwrap();
+    fs::write(root.0.join("shell-secret.dpapi"), b"damaged, not DPAPI's").unwrap();
+    let next = secret_in(&mut run(), &root.0).unwrap();
+    assert_ne!(next, first);
+    assert_eq!(secret_in(&mut run(), &root.0).as_deref(), Some(next.as_str()));
   }
 
   #[test]

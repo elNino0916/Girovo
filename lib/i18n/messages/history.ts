@@ -60,6 +60,8 @@ export const de = {
     /** Restoring or importing Umsätze while "Umsätze behalten" is off. */
     notKept: 'Umsätze werden auf diesem Rechner nicht behalten – schalte „Umsätze behalten“ zuerst ein.',
     locked: 'Die gespeicherten Umsätze lassen sich mit dieser PIN nicht öffnen.',
+    /** Starting over waits for the bank's word on the PIN: a mistyped one must not replace the file. */
+    notYet: 'Neu beginnen geht erst, wenn deine Bank deine PIN angenommen hat. Lade einmal deine Umsätze und versuche es dann noch einmal.',
   },
   /** Older Umsätze from the online banking's export (lib/bank-import.ts, components/settings/ImportDialog.tsx). */
   import: {
@@ -133,6 +135,7 @@ export const en: typeof de = {
     unknownAction: 'Unknown action.',
     notKept: 'Transactions are not kept on this computer – switch on “Keep transactions” first.',
     locked: 'The saved transactions cannot be opened with this PIN.',
+    notYet: 'You can start again only once your bank has accepted your PIN. Load your transactions once, then try again.',
   },
   import: {
     row: 'Import older transactions',

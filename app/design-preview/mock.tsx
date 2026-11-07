@@ -2994,7 +2994,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
     txErrors, balanceErrors, balanceLoading, loadingAllBalances,
     portfolios, portfolioErrors, portfolioLoading, loadPortfolio,
-    docs, docsLocked: false, loadDocs: async () => {}, readDoc, openDoc, removeDoc, keepReceipt, receiptsOf, receiptKeys,
+    docs, docsLocked: false, docsResettable: false, loadDocs: async () => {}, resetDocs: async () => {}, readDoc, openDoc, removeDoc, keepReceipt, receiptsOf, receiptKeys,
     bankStatementsLoading, statementFetches, fetchBankStatements,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     pendingErrors,

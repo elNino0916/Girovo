@@ -479,6 +479,10 @@ test('a file another PIN sealed is never overwritten; starting over sets it asid
 
   // The PIN changed at the bank: the vault is unreadable too, so it says nothing — make it say keep.
   const s2 = fakeSession('22222', 'kunde-c');
+  // Starting over waits for the bank's word on the PIN: a typo must not set the real file aside.
+  await assert.rejects(store.resetHistory(s2), { status: 409 });
+  await assert.rejects(vault.resetVault(s2), { status: 409 });
+  Object.assign(s2, { pinAccepted: true });
   await vault.resetVault(s2);
   await vault.saveVault(s2, { ...EMPTY_VAULT, keepBookings: true });
   assert.deepEqual(await store.loadHistory(s2), { status: 'error', reason: 'decrypt' });

@@ -105,6 +105,7 @@ import type {
 } from '@/lib/fints-types';
 import {
   base64ToBytes, bytesToBase64, type AwaitedBooking, type DocGetResponse, type DocResponse, type DocsListResponse,
+  type DocsResetResponse,
 } from '@/lib/docs';
 import { matchAwaiting } from '@/lib/receipts';
 import { saveFile, textBlob } from '@/lib/download';
@@ -226,6 +227,8 @@ function useFintsState() {
   const docsGenRef = useRef(0);
   /** A login's store does not open with its PIN: what it fetches is held for the session only. */
   const [docsLocked, setDocsLocked] = useState(false);
+  // Locked, and the bank has taken that login's PIN: "Neu beginnen" may be offered (lib/doc-store.ts resetDocs).
+  const [docsResettable, setDocsResettable] = useState(false);
   /** The account whose Kontoauszüge are being fetched from the bank. */
   const [bankStatementsLoading, setBankStatementsLoading] = useState<string | null>(null);
   /** Per account: how its last fetch of the bank's Kontoauszüge went. */
@@ -1309,20 +1312,11 @@ function useFintsState() {
   }, [isCurrent, setVaultStatusBoth, scheduleVaultSave, toast]);
 
   /**
-   * Has the server delete the vault file and every backup of it (`request` is
-   * "Gerät vergessen" with the box ticked, or the vault route on its own).
-   * First every way this session could write the file again is shut — the
-   * save timer, a load still in flight, saving at all (updateVault and
-   * flushVault only write in 'ready') — and a save already on its way is
-   * waited for. Afterwards the session goes on with an empty vault in memory
-   * that is never written, and the login name this machine remembers for the
-   * bank is forgotten too. Resolves whether it worked; failures are toasted.
-   */
-  /**
    * Deletes the kept Umsätze of every further bank logged in beside the
-   * primary one — each login has its own file. Resolves the first failure's
-   * message, or null. A bank that is not logged in now cannot be asked: its
-   * file stays until it is, or until its own login deletes it.
+   * primary one — each login has its own file — when keeping them is
+   * switched off. Resolves the first failure's message, or null. A bank that
+   * is not logged in now cannot be asked: its file stays until it is, or
+   * until its own login deletes it.
    */
   const wipeLinkedHistories = useCallback(async (): Promise<string | null> => {
     const sids = linksRef.current.map((l) => l.sessionId).filter((x): x is string => !!x);
@@ -1331,7 +1325,20 @@ function useFintsState() {
     return failed ? (failed.reason as Error)?.message || msgs().history.server.wipe : null;
   }, []);
 
-  const wipeVaultWith = useCallback(async (request: (sid: string) => Promise<unknown>): Promise<boolean> => {
+  /**
+   * Has the server delete the vault file and every backup of it (`request` is
+   * "Gerät vergessen" with the box ticked, or the vault route on its own),
+   * and before it every bank's kept Umsätze and documents — `linked` names
+   * the further banks' sessions; those not logged in now the server finds in
+   * the vault (lib/wipe-saved.ts). First every way this session could write
+   * the file again is shut — the save timer, a load still in flight, saving
+   * at all (updateVault and flushVault only write in 'ready') — and a save
+   * already on its way is waited for. Afterwards the session goes on with an
+   * empty vault in memory that is never written, and the login name this
+   * machine remembers for the bank is forgotten too. Resolves whether it
+   * worked; failures are toasted.
+   */
+  const wipeVaultWith = useCallback(async (request: (sid: string, linked: string[]) => Promise<unknown>): Promise<boolean> => {
     const sid = sessionRef.current;
     if (!sid) return false;
     const before = vaultStatusRef.current;
@@ -1342,7 +1349,7 @@ function useFintsState() {
     await syncRunRef.current?.catch(() => {});
     await vaultChainRef.current;
     try {
-      await request(sid);
+      await request(sid, linksRef.current.map((l) => l.sessionId).filter((x): x is string => !!x));
     } catch (err) {
       if (!isCurrent(sid)) return false;
       // Nothing was deleted, or not all of it: carry on as before.
@@ -1361,11 +1368,15 @@ function useFintsState() {
     vaultRef.current = EMPTY_VAULT;
     setVault(EMPTY_VAULT);
     setVaultStatusBoth('unavailable');
-    // The kept Umsätze went with the saved data (both routes delete them) —
-    // the primary login's there, every further bank's here — and so did the
-    // further banks' PINs kept beside the login on the desktop.
+    // The kept Umsätze and documents went with the saved data — every bank's
+    // of the view, before the vault (both routes, lib/wipe-saved.ts) — and so
+    // did the further banks' PINs kept beside the login on the desktop.
     dropHistory();
-    void wipeLinkedHistories().then((problem) => { if (problem) toast(problem, 'error'); });
+    docsGenRef.current++;
+    docsRef.current = [];
+    setDocs([]);
+    setDocsLocked(false);
+    setDocsResettable(false);
     // Nothing is kept for the rest of the session: no row, no offer, no PIN —
     // and the home screen widget forgets its Gesamtsaldo.
     if (IS_ANDROID) {
@@ -1393,11 +1404,11 @@ function useFintsState() {
       } catch { /* unreadable — nothing of ours to remove */ }
     }
     return true;
-  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, wipeLinkedHistories, setLinkedUnlockBoth, setWindowsHelloBoth, setBackgroundBoth, setSyncBoth]);
+  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, setLinkedUnlockBoth, setWindowsHelloBoth, setBackgroundBoth, setSyncBoth]);
 
   /** Deletes the saved personal data from this machine, the device registration untouched. */
   const wipeVault = useCallback(async () => {
-    if (await wipeVaultWith((sid) => post('/api/vault', { sessionId: sid, op: 'wipe' }))) {
+    if (await wipeVaultWith((sid, linked) => post('/api/vault', { sessionId: sid, op: 'wipe', linked }))) {
       toast(msgs().provider.vault.wiped, 'success', 8000);
     }
   }, [wipeVaultWith, toast]);
@@ -1840,13 +1851,33 @@ function useFintsState() {
       try {
         return { sid, ...(await post<DocsListResponse>('/api/docs', { sessionId: sid, op: 'list' })) };
       } catch {
-        return { sid, docs: [], locked: false };
+        return { sid, docs: [], locked: false, resettable: false };
       }
     }));
     if (gen !== docsGenRef.current || !sessionRef.current) return;
     setDocsBoth(lists.flatMap((l) => l.docs.map((d) => ({ ...d, sid: l.sid }))));
     setDocsLocked(lists.some((l) => l.locked));
+    // Starting over is offered once the bank has taken the PIN of a login whose store does not open.
+    setDocsResettable(lists.some((l) => l.locked && l.resettable));
   }, [setDocsBoth]);
+
+  /**
+   * The way out of documents this PIN cannot open (it changed at the bank),
+   * as resetVault is the vault's: each login of the view whose store does not
+   * open sets it aside and begins a new one (lib/doc-store.ts resetDocs) —
+   * nothing is deleted, and a store that opens is left as it is. Listed
+   * again afterwards; the outcome is toasted.
+   */
+  const resetDocs = useCallback(async () => {
+    const sids = [sessionRef.current, ...linksRef.current.map((l) => l.sessionId)].filter((x): x is string => !!x);
+    if (!sids.length) return;
+    const results = await Promise.allSettled(sids.map((sid) => post<DocsResetResponse>('/api/docs', { sessionId: sid, op: 'reset' })));
+    if (!sessionRef.current) return;
+    await loadDocs();
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed) toast((failed.reason as Error)?.message || msgs().docs.server.write, 'error');
+    else if (results.some((r) => r.status === 'fulfilled' && r.value.reset)) toast(msgs().docs.unreadable.done, 'success');
+  }, [loadDocs, toast]);
 
   /** The bytes of a kept document, as a Blob of its type. */
   const readDoc = useCallback(async (doc: ListedDoc): Promise<Blob> => {
@@ -3518,10 +3549,11 @@ function useFintsState() {
 
   /**
    * The desktop: keeps the PINs of the further banks' sessions `sids` beside
-   * the first login's, and turns it on. How many are kept now; null when
-   * nothing could be.
+   * the first login's, and turns it on. How many are kept now; the server's
+   * refusal to say as it is (409: the kept PINs do not open with a PIN the
+   * bank has not taken yet, lib/linked-unlock.ts); null when nothing could be.
    */
-  const sealLinked = useCallback(async (sids: string[]): Promise<number | null> => {
+  const sealLinked = useCallback(async (sids: string[]): Promise<number | string | null> => {
     const primary = sessionRef.current;
     const secret = await linkedUnlockSecret();
     if (!primary || !secret) return null;
@@ -3529,8 +3561,8 @@ function useFintsState() {
       const r = await post<{ on: boolean; count?: number }>('/api/linked-unlock', { op: 'seal', sessionId: primary, secret, linked: sids });
       if (isCurrent(primary)) setLinkedUnlockBoth(true);
       return typeof r.count === 'number' ? r.count : 0;
-    } catch {
-      return null;
+    } catch (err) {
+      return err instanceof ApiError && err.status === 409 && err.message ? err.message : null;
     }
   }, [isCurrent, setLinkedUnlockBoth]);
 
@@ -3548,8 +3580,8 @@ function useFintsState() {
       const sids = linksRef.current.flatMap((l) => (l.sessionId ? [l.sessionId] : []));
       const kept = await sealLinked(sids);
       // With no further bank logged in yet, nothing is kept until each one logs in once.
-      if (kept === null) toast(said.failed, 'error');
-      else toast(kept ? said.nowOn : said.nowOnLater, 'success');
+      if (typeof kept === 'number') toast(kept ? said.nowOn : said.nowOnLater, 'success');
+      else toast(kept ?? said.failed, 'error');
       return;
     }
     // The further banks this login opened stay unasked: their PINs are what goes.
@@ -3596,8 +3628,9 @@ function useFintsState() {
     if (!link.sessionId || linkedUnlockRef.current === null) return;
     const said = msgs().settings.linkedUnlock;
     if (linkedUnlockRef.current) {
-      if ((await sealLinked([link.sessionId])) !== null) toast(said.sealed(link.bank.name), 'success');
-      else toast(said.sealFailed(link.bank.name), 'error');
+      const kept = await sealLinked([link.sessionId]);
+      if (typeof kept === 'number') toast(said.sealed(link.bank.name), 'success');
+      else toast(kept ?? said.sealFailed(link.bank.name), 'error');
       return;
     }
     if (linkedOfferedRef.current || store.get(LINKED_OFFER_DECLINED) === '1') return;
@@ -3942,7 +3975,7 @@ function useFintsState() {
       void window.girovoMobile?.widget?.clear();
     }
     if (opts?.wipeData === true) {
-      if (await wipeVaultWith((sid) => post('/api/forget-device', { sessionId: sid, wipeData: true }))) {
+      if (await wipeVaultWith((sid, linked) => post('/api/forget-device', { sessionId: sid, wipeData: true, linked }))) {
         setDeviceRemembered(false);
         toast(msgs().provider.device.forgottenAndWiped, 'success', 8000);
       }
@@ -4046,6 +4079,7 @@ function useFintsState() {
     docsRef.current = [];
     setDocs([]);
     setDocsLocked(false);
+    setDocsResettable(false);
     setBankStatementsLoading(null);
     setStatementFetches({});
     setWait(IDLE_WAIT);
@@ -5608,7 +5642,7 @@ function useFintsState() {
     accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
     txErrors, balanceErrors, balanceLoading, loadingAllBalances,
     portfolios, portfolioErrors, portfolioLoading, loadPortfolio,
-    docs, docsLocked, loadDocs, readDoc, openDoc, removeDoc, keepReceipt, receiptsOf, receiptKeys,
+    docs, docsLocked, docsResettable, loadDocs, resetDocs, readDoc, openDoc, removeDoc, keepReceipt, receiptsOf, receiptKeys,
     bankStatementsLoading, statementFetches, fetchBankStatements,
     busy, loadingAccount, pendingLoading, deviceRemembered, wait, toasts, printJob,
     pendingErrors,

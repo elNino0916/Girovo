@@ -52,6 +52,8 @@ export const de = {
     /** The client's notices about it (components/FintsProvider.tsx). */
     saveFailed: 'Deine persönlichen Einstellungen konnten nicht gespeichert werden.',
     reset: 'Persönliche Daten zurückgesetzt. Änderungen werden wieder gespeichert.',
+    /** Resetting waits for the bank's word on the PIN: a mistyped one must not replace the saved data. */
+    notYet: 'Zurücksetzen geht erst, wenn deine Bank deine PIN angenommen hat. Lade einmal deine Umsätze und versuche es dann noch einmal.',
     wiped: 'Deine gespeicherten Daten sind von diesem Rechner gelöscht. Bis zum Abmelden wird nichts mehr gespeichert.',
     templateInvalid: 'Vorlage nicht gespeichert: Name oder IBAN ist ungültig.',
   },
@@ -60,6 +62,8 @@ export const de = {
   linkedUnlock: {
     unavailable: 'Weitere Banken mit anmelden gibt es nur in der Desktop-App.',
     noSecret: 'Die PINs lassen sich hier nicht geschützt aufbewahren.',
+    /** The kept PINs do not open with this PIN, and the bank has not taken it yet: nothing is overwritten. */
+    notYet: 'Die gespeicherten PINs lassen sich mit dieser PIN nicht öffnen. Lade einmal deine Umsätze und versuche es dann noch einmal.',
     unknownAction: 'Unbekannte Aktion.',
   },
   /** app/api/windows-hello (lib/windows-hello.ts). */
@@ -215,6 +219,7 @@ export const en: typeof de = {
     unknownAction: 'Unknown action.',
     saveFailed: 'Your personal settings could not be saved.',
     reset: 'Personal data reset. Changes will be saved again.',
+    notYet: 'You can reset only once your bank has accepted your PIN. Load your transactions once, then try again.',
     wiped: 'Your saved data has been deleted from this computer. Nothing more will be saved until you log out.',
     templateInvalid: 'Template not saved: the name or IBAN is invalid.',
   },
@@ -222,6 +227,7 @@ export const en: typeof de = {
   linkedUnlock: {
     unavailable: 'Logging in to further banks too is only available in the desktop app.',
     noSecret: 'The PINs can’t be kept protected here.',
+    notYet: 'The saved PINs don’t open with this PIN. Load your transactions once, then try again.',
     unknownAction: 'Unknown action.',
   },
   windowsHello: {

@@ -24,6 +24,15 @@
 // store not open with this PIN, it is held for the session instead, so it is
 // at least there to save before the logout — never dropped.
 //
+// A PIN changed at the bank leaves the store unopenable, as it does the vault,
+// and the way out is the vault's (lib/vault.ts resetVault): asked for, never
+// done unasked, nothing deleted (resetDocs). The old index is set aside as
+// `.bak`, its documents stay where they are, sealed as they were — with the
+// old PIN all of it opens again — and a new index begins under this PIN, with
+// what the session held taken in. Only once the bank has taken this PIN
+// (Session.pinAccepted): a mistyped one on a remembered device would set the
+// real store aside and begin one under the typo.
+//
 // No 'server-only' marker, like vault.ts. Never log a PIN, a document or a
 // name — codes and counts only.
 
@@ -33,9 +42,12 @@ import path from 'node:path';
 import type { ElectronicStatement } from 'lib-fints';
 import type { Session } from './session';
 import { boxSalt, deriveKey, newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
-import { DOC_LIMITS, safeDocName, sanitizeDoc, sniffMime, type AwaitedBooking, type DocMime, type KeptDoc } from './docs.ts';
+import {
+  DOC_LIMITS, safeDocName, sanitizeDoc, sniffMime, type AwaitedBooking, type DocMime, type DocsListResponse, type DocsResetResponse,
+  type KeptDoc,
+} from './docs.ts';
 import { msgs } from './i18n/index.ts';
-import { removeFamily, removeRetrying, serialized, writeFileAtomic } from './sealed-file.ts';
+import { moveAside, removeFamily, removeRetrying, serialized, writeFileAtomic } from './sealed-file.ts';
 import { STATE_DIR } from './state-store.ts';
 
 const INDEX_AAD = Buffer.from('girovo/docs/index/v1', 'utf8');
@@ -73,6 +85,13 @@ const unlocked = new WeakMap<Session, Unlocked>();
 
 /** Documents this session could not keep (the store does not open with this PIN): held until the logout. */
 const held = new WeakMap<Session, Map<string, { doc: KeptDoc; bytes: Buffer }>>();
+
+/**
+ * Sessions whose documents were deleted ("Gespeicherte Daten löschen"):
+ * nothing more is written for them until the logout, as the vault keeps
+ * nothing more — a receipt is refused, a statement the bank hands over held.
+ */
+const wiped = new WeakSet<Session>();
 
 type Opened =
   | { status: 'missing' }
@@ -151,9 +170,10 @@ const newId = () => crypto.randomBytes(16).toString('hex');
 /**
  * Every document of the login, the session's held ones included. `locked`:
  * the store does not open with this PIN — what is listed is only what this
- * session holds.
+ * session holds. `resettable`: locked, and the bank has taken this PIN, so
+ * resetDocs may begin anew.
  */
-export async function listDocs(s: Session): Promise<{ docs: KeptDoc[]; locked: boolean }> {
+export async function listDocs(s: Session): Promise<DocsListResponse> {
   const id = identityOf(s);
   const file = indexFile(id);
   const extra = [...heldOf(s).values()].map((h) => h.doc);
@@ -161,10 +181,10 @@ export async function listDocs(s: Session): Promise<{ docs: KeptDoc[]; locked: b
     const opened = await openIndex(s, id, file);
     if (opened.status === 'error') {
       unlocked.delete(s);
-      return { docs: extra, locked: true };
+      return { docs: extra, locked: true, resettable: s.pinAccepted === true };
     }
     if (opened.status === 'ready') unlocked.set(s, opened.entry);
-    return { docs: [...(opened.status === 'ready' ? opened.docs : []), ...extra], locked: false };
+    return { docs: [...(opened.status === 'ready' ? opened.docs : []), ...extra], locked: false, resettable: false };
   });
 }
 
@@ -194,6 +214,7 @@ export async function readDoc(s: Session, docId: string): Promise<{ doc: KeptDoc
  * would be. `addedAt` is now, unless a restored one brings its own.
  */
 async function add(s: Session, meta: Omit<KeptDoc, 'id' | 'size' | 'addedAt'>, bytes: Buffer, addedAt?: string): Promise<KeptDoc> {
+  if (wiped.has(s)) throw new DocError(msgs().docs.server.wiped, 409);
   if (bytes.length > DOC_LIMITS.bytes) throw new DocError(msgs().docs.server.tooLarge, 413);
   const id = identityOf(s);
   const file = indexFile(id);
@@ -269,22 +290,119 @@ export async function removeDoc(s: Session, docId: string): Promise<void> {
 /**
  * Removes every document of the login from this machine, and the index: one
  * file family (removeFamily). Needs no PIN — an unreadable store is the one
- * most worth removing. Returns how many files went.
+ * most worth removing. Nothing more is written for the session afterwards
+ * (`wiped`). Returns how many files went.
  */
 export async function wipeDocs(s: Session): Promise<number> {
   const blz = s?.meta?.blz;
   const userId = s?.client?.config?.userId;
   if (!blz || !userId) throw new DocError(msgs().docs.server.unavailable, 409);
-  const stem = docsBaseName(String(blz), String(userId));
+  wiped.add(s);
+  try {
+    return await wipeFamily(String(blz), String(userId), () => {
+      unlocked.delete(s);
+      held.delete(s);
+    });
+  } catch (err) {
+    // Not deleted, or not all of it: the session goes on keeping documents.
+    wiped.delete(s);
+    throw err;
+  }
+}
+
+/**
+ * A wipe that failed as a whole after this session's documents went (another
+ * bank's files, the vault — lib/wipe-saved.ts): the saved data goes on being
+ * saved, so documents are kept again too.
+ */
+export function resumeDocs(s: Session): void {
+  wiped.delete(s);
+}
+
+/**
+ * The same for a login known by its name alone: a further bank of the view
+ * that is not logged in now, named by the primary login's own vault
+ * (lib/wipe-saved.ts) — never by a request.
+ */
+export function wipeDocsOf(login: { blz: string; userId: string }): Promise<number> {
+  return wipeFamily(login.blz, login.userId, () => {});
+}
+
+async function wipeFamily(blz: string, userId: string, forget: () => void): Promise<number> {
+  const stem = docsBaseName(blz, userId);
   const file = path.join(STATE_DIR, stem);
   return serialized(file, async () => {
-    unlocked.delete(s);
-    held.delete(s);
-    const { removed, failed } = await removeFamily(STATE_DIR, stem, (code) => {
-      console.warn('[docs] wipe: could not delete a file:', code);
-    });
+    forget();
+    let removed: number;
+    let failed: number;
+    try {
+      ({ removed, failed } = await removeFamily(STATE_DIR, stem, (code) => {
+        console.warn('[docs] wipe: could not delete a file:', code);
+      }));
+    } catch (err) {
+      console.warn('[docs] wipe: cannot list the state directory:', (err as NodeJS.ErrnoException)?.code || 'unknown');
+      throw new DocError(msgs().docs.server.write, 500);
+    }
     if (failed) throw new DocError(msgs().docs.server.write, 500);
     return removed;
+  });
+}
+
+/**
+ * Starts the documents over once the store does not open with this PIN (it
+ * was changed at the bank) and the bank has taken this PIN — refused (409)
+ * before that —, as resetVault does the vault: the old index is
+ * set aside (moveAside: `.bak`, never over an earlier one), the documents it
+ * names stay beside it as they were sealed — all of it opens again with the
+ * old PIN, and "Gespeicherte Daten löschen" takes it (wipeDocs) — and a new,
+ * empty index begins under this PIN. What the session held because the store
+ * would not take it (keepStatements) goes in, as far as DOC_LIMITS allow; the
+ * rest stays held. A store that opens, or none yet, is left as it is
+ * (`reset: false`). The only path that replaces an index this PIN cannot open.
+ */
+export async function resetDocs(s: Session): Promise<DocsResetResponse> {
+  const id = identityOf(s);
+  const file = indexFile(id);
+  return serialized(file, async (): Promise<DocsResetResponse> => {
+    const holding = heldOf(s);
+    const stillHeld = () => [...holding.values()].map((h) => h.doc);
+    const opened = await openIndex(s, id, file);
+    if (opened.status === 'ready') {
+      unlocked.set(s, opened.entry);
+      return { docs: [...opened.docs, ...stillHeld()], locked: false, resettable: false, reset: false };
+    }
+    if (opened.status === 'missing') return { docs: stillHeld(), locked: false, resettable: false, reset: false };
+    // A PIN the bank has not taken may be a typo: setting the real store
+    // aside under it would leave the documents only in the backup.
+    if (s.pinAccepted !== true) throw new DocError(msgs().docs.server.notYet, 409);
+    unlocked.delete(s);
+    try {
+      await moveAside(file);
+    } catch (err) {
+      console.warn('[docs] could not move the old index aside:', (err as NodeJS.ErrnoException)?.code || 'unknown');
+      throw new DocError(msgs().docs.server.write, 500);
+    }
+    const salt = newSalt();
+    const entry: Unlocked = { file, salt, key: await deriveKey(id.pin, salt) };
+    const kept: KeptDoc[] = [];
+    let total = 0;
+    for (const [docId, h] of holding) {
+      if (kept.length >= DOC_LIMITS.count || total + h.bytes.length > DOC_LIMITS.total) continue;
+      try {
+        await writeFileAtomic(docFile(file, docId), JSON.stringify(sealBox(entry.key, salt, h.bytes, docAad(docId))));
+      } catch (err) {
+        // Still held, to be saved before the logout.
+        console.warn('[docs] reset: could not keep a held document:', (err as NodeJS.ErrnoException)?.code || 'unknown');
+        continue;
+      }
+      kept.push(h.doc);
+      total += h.bytes.length;
+    }
+    await writeIndex(entry, kept);
+    for (const doc of kept) holding.delete(doc.id);
+    unlocked.set(s, entry);
+    console.log(`[docs] reset; previous index kept as backup (blz=${id.blz})`);
+    return { docs: [...kept, ...stillHeld()], locked: false, resettable: false, reset: true };
   });
 }
 

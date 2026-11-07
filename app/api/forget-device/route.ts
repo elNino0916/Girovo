@@ -12,7 +12,11 @@
 //
 // The wipe only ever acts for the session's own login, never for a blz/userId
 // named in the request, and runs first: if it fails, the device is not
-// forgotten either and the user can simply try again.
+// forgotten either and the user can simply try again. The further banks of
+// the view lose their kept Umsätze and documents with it: through their own
+// sessions (`linked`), or by the names the login's own vault keeps for them
+// (lib/wipe-saved.ts) — and the sync group's files leave this computer's LAN
+// shelf.
 //
 // The further banks' PINs kept beside the login on the desktop
 // (lib/linked-unlock.ts) go either way, and first: they are part of what this
@@ -25,19 +29,20 @@ import { HistoryError, wipeHistory } from '@/lib/history-store';
 import { removeLinkedUnlock } from '@/lib/linked-unlock';
 import { forgetProfile } from '@/lib/state-store';
 import { removeWindowsHello } from '@/lib/windows-hello';
-import { removeMeta } from '@/lib/sync-meta';
+import { readMeta, removeMeta } from '@/lib/sync-meta';
 import { disable as disableBackground } from '@/lib/background-check';
 import { backgroundServed, backgroundStore } from '@/lib/background-store';
-import { VaultError, wipeVault } from '@/lib/vault';
+import { VaultError, vaultKeyOf, wipeVault } from '@/lib/vault';
+import { forgetLanGroup, sessionsNamed, wipeFailed, wipeFurtherBanks } from '@/lib/wipe-saved';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** `refused`: the bank turned the first login's PIN down — not the user's "Gerät vergessen". */
-type ForgetBody = { sessionId?: string; blz?: string; userId?: string; wipeData?: boolean; refused?: boolean };
+type ForgetBody = { sessionId?: string; blz?: string; userId?: string; wipeData?: boolean; refused?: boolean; linked?: unknown };
 
 export const POST = wrap(async (req: Request) => {
-  const { sessionId, blz, userId, wipeData, refused } = await body<ForgetBody>(req);
+  const { sessionId, blz, userId, wipeData, refused, linked } = await body<ForgetBody>(req);
   const s = sessionId ? getSession(sessionId) : null;
   let b = blz;
   let u = userId;
@@ -58,13 +63,20 @@ export const POST = wrap(async (req: Request) => {
 
   let wiped: number | undefined;
   if (wipeData === true && s) {
+    const further = sessionsNamed(linked, getSession);
     try {
       // The kept Umsätze first, as in app/api/vault: if they cannot go, the vault stays as it was.
+      // The sync group's files on the LAN shelf before its settings, which say which they are.
+      const meta = vaultKeyOf(s) ? await readMeta(s) : null;
+      const lan = meta?.place.kind === 'lan' ? await forgetLanGroup(meta.key) : 0;
       if (b && u) await removeMeta(String(b), String(u));
+      const others = await wipeFurtherBanks(s, further);
       const history = await wipeHistory(s);
       const docs = await wipeDocs(s);
-      wiped = history + docs + (await wipeVault(s));
+      wiped = lan + others + history + docs + (await wipeVault(s));
     } catch (err) {
+      // The vault stays and goes on being saved: so do the documents.
+      wipeFailed([s, ...further]);
       if (err instanceof VaultError || err instanceof HistoryError || err instanceof DocError) return fail(err.message, err.status);
       throw err;
     }

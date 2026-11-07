@@ -459,9 +459,13 @@ export async function saveVault(s: Session, input: unknown): Promise<VaultPutRes
 
 /**
  * Start over: move whatever is there aside to `.bak` and write an empty vault
- * under a fresh salt. The only path that replaces a file this PIN cannot open.
+ * under a fresh salt. The only path that replaces a file this PIN cannot open
+ * — and only once the bank has taken this PIN (Session.pinAccepted): a
+ * remembered device opens without asking the bank, and a mistyped PIN would
+ * set the real vault aside and begin an empty one under the typo (409).
  */
 export async function resetVault(s: Session): Promise<VaultPutResponse> {
+  if (s?.pinAccepted !== true) throw new VaultError(msgs().provider.vault.notYet, 409);
   const id = identityOf(s);
   const file = vaultFile(id);
   return serialized(file, async (): Promise<VaultPutResponse> => {

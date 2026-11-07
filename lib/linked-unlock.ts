@@ -15,8 +15,13 @@
 // - The page asks for them only once the bank has taken the first login's
 //   PIN in this session (FintsProvider openLinkedUnlock): a remembered device
 //   opens on this computer alone, with an old PIN too.
-// - A file the first login's PIN no longer opens (the PIN was changed at the
-//   bank, the secret is new) is deleted: nothing in it can be used again.
+// - A file that is not one of ours (damaged, cut short) is deleted. One that
+//   does not open with the first login's PIN is deleted only once the bank
+//   has taken that PIN in this session (Session.pinAccepted): then it was
+//   sealed under an old PIN or an old secret, and nothing in it can be used
+//   again. Before that the PIN may simply be wrong — a typo, a remembered
+//   device opened with an old one — and the file stays as it is: losing it
+//   would mean typing every further bank's PIN again.
 //
 // Named by a hash of BLZ and login name like the vault, so the directory says
 // nothing about whose it is. Never in a backup, never logged. No
@@ -40,6 +45,25 @@ export type SealedLogin = { blz: string; userId: string; pin: string };
  * is on at all — and `dropped` when a file was there that no longer opened.
  */
 export type OpenedLogins = { on: boolean; linked: SealedLogin[]; dropped?: true };
+
+/**
+ * What the caller knows of the first login's PIN: `pinAccepted` once the bank
+ * has taken it in this session (Session.pinAccepted). Only then is a file it
+ * does not open known to be of no use.
+ */
+export type PinState = { pinAccepted: boolean };
+
+/**
+ * Sealing refused: the file is there and does not open with this PIN, and the
+ * bank has not taken this PIN yet — it may be the wrong one, so the file and
+ * every PIN in it stay as they are.
+ */
+export class LinkedUnlockLocked extends Error {
+  constructor() {
+    super('linked-unlock: the file does not open with a PIN the bank has not taken yet');
+    this.name = 'LinkedUnlockLocked';
+  }
+}
 
 /** The shell's secret: 32 random bytes, base64 on the way. */
 export const SECRET_BYTES = 32;
@@ -127,14 +151,23 @@ export function isOn(first: Pick<SealedLogin, 'blz' | 'userId'>): boolean {
 }
 
 /**
- * The file's logins opened with this login's PIN and the secret: null when
- * there is no file, 'stale' when it does not open (or is not one of ours).
+ * What reading the file came to: its salt and logins when it opened; null
+ * when there is none; 'corrupt' when it is not a box of ours at all (damaged,
+ * cut short, too large) and never will open; 'locked' when it is one but does
+ * not open with this PIN and secret.
  */
-async function readLogins(first: SealedLogin, secret: Buffer, file: string): Promise<{ salt: Buffer; logins: SealedLogin[] } | null | 'stale'> {
+type Read = { salt: Buffer; logins: SealedLogin[] } | null | 'corrupt' | 'locked';
+
+/**
+ * The file's logins opened with this login's PIN and the secret. A read that
+ * fails for any other reason than a missing file throws: it may pass, and the
+ * file must not be taken for unusable on its account.
+ */
+async function readLogins(first: SealedLogin, secret: Buffer, file: string): Promise<Read> {
   let raw: string;
   try {
     const stat = await fs.promises.stat(file);
-    if (stat.size > FILE_MAX_BYTES) return 'stale';
+    if (stat.size > FILE_MAX_BYTES) return 'corrupt';
     raw = await fs.promises.readFile(file, 'utf8');
   } catch (err) {
     if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return null;
@@ -146,15 +179,27 @@ async function readLogins(first: SealedLogin, secret: Buffer, file: string): Pro
   } catch {
     box = null;
   }
-  if (!box) return 'stale';
+  if (!box) return 'corrupt';
   const salt = boxSalt(box);
+  let plain: Buffer;
   try {
-    const plain = openBox(await keyFor(first, salt, secret), box, aadFor(first));
+    plain = openBox(await keyFor(first, salt, secret), box, aadFor(first));
+  } catch {
+    return 'locked'; // another PIN, another secret — or a wrong PIN
+  }
+  try {
     return { salt, logins: sanitizeLogins(JSON.parse(plain.toString('utf8')), first) };
   } catch {
-    return 'stale';
+    return 'corrupt';
   }
 }
+
+/**
+ * Whether a file that did not open can go: one that is not ours, always; one
+ * this PIN does not open, only once the bank has taken the PIN. Before that
+ * the PIN may be wrong, and the file holds every further bank's PIN.
+ */
+const unusable = (found: 'corrupt' | 'locked', pin: PinState) => found === 'corrupt' || pin.pinAccepted === true;
 
 /**
  * The file and every copy beside it — a temp file a write cut short leaves
@@ -173,30 +218,40 @@ async function writeLogins(first: SealedLogin, secret: Buffer, file: string, sal
 }
 
 /**
- * Keeps `add` beside the first login — each replacing what was kept for the
- * same login — and turns the switch on (an empty `add` only does that).
- * A file that no longer opens starts over. Returns how many are kept.
+ * Keeps `add` beside the first login (each replacing what was kept for the
+ * same login) and turns the switch on (an empty `add` only does that).
+ * A file that can never open again (unusable) starts over; one this PIN does
+ * not open while the bank has not taken it is kept, and the seal refused
+ * (LinkedUnlockLocked). Returns how many are kept.
  */
-export function sealLogins(first: SealedLogin, secret: Buffer, add: readonly SealedLogin[]): Promise<number> {
+export function sealLogins(first: SealedLogin, secret: Buffer, add: readonly SealedLogin[], pin: PinState): Promise<number> {
   const file = linkedUnlockFile(first.blz, first.userId);
   return serialized(file, async () => {
     const found = await readLogins(first, secret, file);
-    const kept = found && found !== 'stale' ? found.logins : [];
+    if (typeof found === 'string' && !unusable(found, pin)) throw new LinkedUnlockLocked();
+    const opened = found && typeof found === 'object' ? found : null;
+    const kept = opened ? opened.logins : [];
     const fresh = sanitizeLogins(add, first);
     // The newest first, so a full list drops the oldest further bank, never the one just added.
     const logins = sanitizeLogins([...fresh, ...kept.filter((l) => !fresh.some((n) => sameLogin(n, l)))], first);
-    await writeLogins(first, secret, file, found && found !== 'stale' ? found.salt : newSalt(), logins);
+    await writeLogins(first, secret, file, opened ? opened.salt : newSalt(), logins);
     return logins.length;
   });
 }
 
-/** The further banks' logins with their PINs, opened by the first login's PIN and the secret. */
-export function openLogins(first: SealedLogin, secret: Buffer): Promise<OpenedLogins> {
+/**
+ * The further banks' logins with their PINs, opened by the first login's PIN
+ * and the secret. A file that can never open again is deleted (`dropped`);
+ * one this PIN does not open while the bank has not taken it stays, and
+ * nothing opens.
+ */
+export function openLogins(first: SealedLogin, secret: Buffer, pin: PinState): Promise<OpenedLogins> {
   const file = linkedUnlockFile(first.blz, first.userId);
   return serialized(file, async () => {
     const found = await readLogins(first, secret, file);
     if (!found) return { on: false, linked: [] };
-    if (found === 'stale') {
+    if (typeof found === 'string') {
+      if (!unusable(found, pin)) return { on: true, linked: [] };
       await removeAll(file);
       return { on: false, linked: [], dropped: true };
     }
@@ -204,13 +259,18 @@ export function openLogins(first: SealedLogin, secret: Buffer): Promise<OpenedLo
   });
 }
 
-/** Deletes one further bank's PIN (refused by its bank, or the bank removed); the switch stays as it is. */
-export function forgetLogin(first: SealedLogin, secret: Buffer, login: Pick<SealedLogin, 'blz' | 'userId'>): Promise<{ on: boolean }> {
+/**
+ * Deletes one further bank's PIN (refused by its bank, or the bank removed);
+ * the switch stays as it is. A file that can never open again goes; one this
+ * PIN does not open while the bank has not taken it stays untouched.
+ */
+export function forgetLogin(first: SealedLogin, secret: Buffer, login: Pick<SealedLogin, 'blz' | 'userId'>, pin: PinState): Promise<{ on: boolean }> {
   const file = linkedUnlockFile(first.blz, first.userId);
   return serialized(file, async () => {
     const found = await readLogins(first, secret, file);
     if (!found) return { on: false };
-    if (found === 'stale') {
+    if (typeof found === 'string') {
+      if (!unusable(found, pin)) return { on: true };
       await removeAll(file);
       return { on: false };
     }

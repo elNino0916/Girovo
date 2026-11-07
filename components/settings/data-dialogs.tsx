@@ -171,6 +171,44 @@ export function ResetVaultDialog({ open, onClose }: { open: boolean; onClose: ()
 }
 
 /**
+ * The way out of kept documents this PIN cannot open — every bank's of the
+ * view. Nothing is deleted: the server sets the old store aside and begins a
+ * new one, with what this session only held taken in (lib/doc-store.ts
+ * resetDocs), as the vault's and the Umsätze's resets do.
+ */
+export function ResetDocsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
+  const { resetDocs } = useFints();
+  const [busy, setBusy] = useState(false);
+  const words = t.docs.unreadable.dialog;
+  const run = async () => {
+    setBusy(true);
+    try {
+      // Reports its own outcome as a toast, success or failure.
+      await resetDocs();
+    } finally {
+      setBusy(false);
+      onClose();
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onClose={busy ? undefined : onClose}
+      title={words.title}
+      icon={<LockIcon size={20} />}
+      description={words.description}
+      actions={
+        <>
+          <Button variant="secondary" data-autofocus onClick={onClose} disabled={busy}>{t.common.cancel}</Button>
+          <Button variant="primary" busy={busy} onClick={() => void run()}>{words.confirm}</Button>
+        </>
+      }
+    />
+  );
+}
+
+/**
  * Deletes the saved personal data from this machine for good — the file and
  * every backup a reset left behind, and the login name and bank the login
  * screen fills in — without touching the device registration. The session

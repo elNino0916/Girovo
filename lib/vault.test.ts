@@ -20,6 +20,8 @@ after(() => fs.rmSync(dir, { recursive: true, force: true }));
 /** Just enough of a Session for the vault: who, which bank, the PIN. */
 const fakeSession = (pin: string, userId = 'kunde1', blz = '12345678') =>
   ({ meta: { blz }, client: { config: { userId, pin } } }) as unknown as Session;
+/** The bank has taken the session's PIN (Session.pinAccepted): only then may a reset replace a file. */
+const accepted = (s: Session) => Object.assign(s, { pinAccepted: true as const });
 
 const vaultFile = (userId = 'kunde1', blz = '12345678') =>
   path.join(dir, `${crypto.createHash('sha256').update(`${blz}|${userId}|vault`).digest('hex').slice(0, 32)}.vault`);
@@ -366,9 +368,17 @@ test('another PIN cannot read the vault, and cannot overwrite it either', async 
   assert.equal(fs.readFileSync(vaultFile(), 'utf8'), original);
 });
 
+test('a PIN the bank has not taken cannot reset: a typo must not set the real vault aside', async () => {
+  const original = fs.readFileSync(vaultFile(), 'utf8');
+  const typo = fakeSession('99999');
+  await assert.rejects(vault.resetVault(typo), (err: unknown) => err instanceof vault.VaultError && err.status === 409);
+  assert.equal(fs.readFileSync(vaultFile(), 'utf8'), original);
+  assert.equal(fs.existsSync(`${vaultFile()}.bak`), false);
+});
+
 test('reset moves the unreadable file aside and starts empty', async () => {
   const original = fs.readFileSync(vaultFile(), 'utf8');
-  const newPin = fakeSession('99999');
+  const newPin = accepted(fakeSession('99999'));
   const res = await vault.resetVault(newPin);
   assert.equal(res.ok, true);
   assert.equal(fs.readFileSync(`${vaultFile()}.bak`, 'utf8'), original, 'old data kept, recoverable with the old PIN');
@@ -417,7 +427,7 @@ test('vaultBaseName is the name the vault file is stored under', () => {
 });
 
 test('wipe removes the vault, every backup and stray temp files — and nothing else', async () => {
-  const s = fakeSession('31337', 'kunde5');
+  const s = accepted(fakeSession('31337', 'kunde5'));
   const file = vaultFile('kunde5');
   await vault.saveVault(s, FULL);
   await vault.resetVault(s);

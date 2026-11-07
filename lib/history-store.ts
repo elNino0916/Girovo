@@ -360,6 +360,9 @@ export async function fillKeptGaps(s: Session, other: HistoryData): Promise<{ da
  * path that replaces a file this PIN cannot open.
  */
 export async function resetHistory(s: Session): Promise<HistoryGetResponse> {
+  // As the vault's reset (lib/vault.ts resetVault): never under a PIN the bank
+  // has not taken — a typo would set the real file aside.
+  if (s?.pinAccepted !== true) throw new HistoryError(msgs().history.server.notYet, 409);
   const id = identityOf(s);
   const file = historyFile(id);
   return serialized(file, async (): Promise<HistoryGetResponse> => {
@@ -394,14 +397,29 @@ export async function wipeHistory(s: Session): Promise<number> {
   const blz = s?.meta?.blz;
   const userId = s?.client?.config?.userId;
   if (!blz || !userId) throw new HistoryError(msgs().history.server.unavailable, 409);
-  const stem = `${historyBaseName(String(blz), String(userId))}.history`;
   stopped.add(s);
   held.delete(s);
-  return serialized(path.join(STATE_DIR, stem), async () => {
+  return wipeFamily(String(blz), String(userId), () => {
     // Again inside the queue: an answer noted while the wipe waited its turn goes as well.
     stopped.add(s);
     held.delete(s);
     unlocked.delete(s);
+  });
+}
+
+/**
+ * The same for a login known by its name alone: a further bank of the view
+ * that is not logged in now, named by the primary login's own vault
+ * (lib/wipe-saved.ts) — never by a request.
+ */
+export function wipeHistoryOf(login: { blz: string; userId: string }): Promise<number> {
+  return wipeFamily(login.blz, login.userId, () => {});
+}
+
+async function wipeFamily(blz: string, userId: string, forget: () => void): Promise<number> {
+  const stem = `${historyBaseName(blz, userId)}.history`;
+  return serialized(path.join(STATE_DIR, stem), async () => {
+    forget();
     let removed: number;
     let failed: number;
     try {
