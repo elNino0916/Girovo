@@ -1,0 +1,1 @@
+Syncing devices works again: the phone and the computer make and read the code that connects them. In 6.0.0 every pasted code was refused with “That isn’t a Girovo code.”

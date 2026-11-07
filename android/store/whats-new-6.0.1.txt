@@ -1,0 +1,6 @@
+<en-US>
+• Syncing devices works again: the phone and the computer make and read the code that connects them
+</en-US>
+<de-DE>
+• Geräte abgleichen geht wieder: Telefon und Rechner erstellen und lesen den Code zum Verbinden
+</de-DE>

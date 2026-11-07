@@ -1,6 +1,6 @@
 [package]
 name = "girovo"
-version = "6.0.0"
+version = "6.0.1"
 description = "Girovo: German online banking over FinTS, on your own machine"
 authors = ["elNino0916"]
 license-file = "../LICENSE"

@@ -1,0 +1,1 @@
+Geräte abgleichen geht wieder: Telefon und Rechner erstellen und lesen den Code zum Verbinden. In 6.0.0 lehnte Girovo jeden eingefügten Code mit „Das ist kein Code von Girovo.“ ab.
