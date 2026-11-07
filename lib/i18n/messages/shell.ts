@@ -635,8 +635,8 @@ export const en: typeof de = {
   },
 
   caption: {
-    minimize: 'Minimize',
-    maximize: 'Maximize',
+    minimize: 'Minimise',
+    maximize: 'Maximise',
     restore: 'Restore down',
     close: 'Close',
   },
