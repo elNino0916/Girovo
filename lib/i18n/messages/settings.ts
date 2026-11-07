@@ -178,6 +178,12 @@ export const de = {
     hint: 'Sobald sie verfügbar sind – sonst kommen neue Versionen nach und nach.',
   },
 
+  /** Über Girovo → a Setup.exe downloaded by hand (components/settings/UpdateChannel.tsx FromFileRow). */
+  fromFile: {
+    title: 'Update aus Datei installieren',
+    hint: 'Eine heruntergeladene Setup-Datei von Girovo, auch eine ältere Version',
+  },
+
   /** Einstellungen → Dieses Gerät, the desktop app (components/settings/ResetApp.tsx, src-tauri/src/reset.rs). */
   resetApp: {
     row: 'Girovo zurücksetzen',
@@ -310,6 +316,11 @@ export const en: typeof de = {
   early: {
     title: 'Get the latest updates right away',
     hint: 'As soon as they’re available – otherwise new versions arrive gradually.',
+  },
+
+  fromFile: {
+    title: 'Install an update from a file',
+    hint: 'A Girovo setup file you downloaded, an older version too',
   },
 
   resetApp: {

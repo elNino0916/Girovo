@@ -178,6 +178,14 @@ export function installFakeUpdater(
     },
     setAuto: async (on) => set({ auto: on }),
     setEarly: async (on) => set({ early: on }),
+    // A picked file: checked for a moment, then an older signed release.
+    chooseFile: async () => {
+      set({ file: { phase: 'checking', name: 'Girovo-6.0.1-Setup.exe', version: null, older: false, same: false, message: null } });
+      await sleep(900);
+      return set({ file: { phase: 'ready', name: 'Girovo-6.0.1-Setup.exe', version: '6.0.1', older: true, same: false, message: null } });
+    },
+    installFile: async () => set({ file: null, phase: 'installing' }),
+    dismissFile: async () => set({ file: null }),
     // As the real one: the other channel's offer goes, a check in the new one follows.
     setChannel: async (channel) => {
       if (progress) clearInterval(progress);

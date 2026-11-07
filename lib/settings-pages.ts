@@ -50,6 +50,7 @@ export const PAGE_OF: Record<SettingsTarget, SettingsPage> = {
   updates: 'about',
   channel: 'about',
   early: 'about',
+  fromFile: 'about',
 };
 
 export const isSettingsPage = (v: unknown): v is SettingsPage => typeof v === 'string' && (PAGE_ORDER as readonly string[]).includes(v);

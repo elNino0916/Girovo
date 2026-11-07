@@ -64,7 +64,7 @@ import { WindowsHelloSwitch } from './WindowsHello';
 import { BackgroundSwitch } from './BackgroundChecks';
 import { BackgroundAlertsRow } from './BackgroundAlerts';
 import { SyncRow } from './Sync';
-import { EarlyUpdatesRow, UpdateChannelRow } from './UpdateChannel';
+import { EarlyUpdatesRow, FromFileRow, UpdateChannelRow } from './UpdateChannel';
 import {
   ActionItem, ChoiceItem, GroupHeading, LinkItem, PageItem, SegmentedItem, SettingItem, SettingsGroup, SwitchItem,
 } from './rows';
@@ -579,6 +579,8 @@ function AboutPage() {
         <UpdateChannelRow />
         {/* Staged releases at once, like Windows Update's switch. */}
         <EarlyUpdatesRow />
+        {/* A Setup.exe downloaded by hand, checked against the signed releases. */}
+        <FromFileRow />
         {/* What 6 brought, and its switches together (components/NewInSix.tsx). */}
         <ActionItem icon={<StarIcon />} title={t.shell.newInSix.row} summary={t.shell.newInSix.rowHint} onClick={openNewInSix} />
         <SettingItem

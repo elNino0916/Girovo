@@ -92,6 +92,9 @@ export const updates = {
   restartToUpdate: () => call((b) => (b.restartToUpdate ? b.restartToUpdate() : b.install())),
   setAuto: (on: boolean) => call((b) => b.setAuto(on)),
   setEarly: (on: boolean) => call((b) => (b.setEarly ? b.setEarly(on) : Promise.resolve(null))),
+  chooseFile: () => call((b) => (b.chooseFile ? b.chooseFile() : Promise.resolve(null))),
+  installFile: () => call((b) => (b.installFile ? b.installFile() : Promise.resolve(null))),
+  dismissFile: () => call((b) => (b.dismissFile ? b.dismissFile() : Promise.resolve(null))),
   setChannel: (channel: UpdateChannel) => call((b) => b.setChannel(channel)),
   openRelease: () => call((b) => b.openRelease()),
 };

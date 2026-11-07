@@ -130,6 +130,7 @@ export const de = {
       updates: ['update', 'aktualisieren', 'aktualisierung', 'version', 'neue version', 'upgrade', 'installieren'],
       channel: ['update-kanal', 'nightly', 'vorschau', 'vorabversion', 'beta', 'preview'],
       early: ['sofort', 'neueste updates', 'früher', 'zuerst', 'gestaffelt', 'updates'],
+      fromFile: ['update aus datei', 'setup', 'installieren', 'datei', 'ältere version', 'downgrade', 'zurück'],
       loginBalances: ['salden', 'anmeldung', 'automatisch abrufen', 'kontostände'],
       loginBookings: ['umsätze', 'anmeldung', 'automatisch abrufen', 'alle konten', 'start'],
       keepBalances: ['salden behalten', 'gespeicherte salden', 'kontostände', 'gesamtsaldo verlauf'],
@@ -403,6 +404,19 @@ export const de = {
       'Beim Start und alle sechs Stunden. Gefragt wird girovo.de, ersatzweise GitHub; die Anfrage enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht der Server dabei deine IP-Adresse – nichts über deine Konten.',
     /** The installed Windows app: the same switch, which also installs at start (src-tauri/src/updater/start.rs). */
     autoInstall: 'Updates automatisch installieren',
+    /** "Update aus Datei installieren" (components/updates/FileUpdateDialog.tsx). */
+    file: {
+      checking: 'Datei wird geprüft …',
+      checkingHint: 'Girovo vergleicht sie mit seinen signierten Versionen.',
+      readyTitle: (v: string) => `Version ${v} installieren?`,
+      ready: 'Die Datei ist ein signiertes Update von Girovo. Girovo schließt sich, installiert sie und startet wieder.',
+      older: (v: string, current: string) =>
+        `Version ${v} ist älter als die installierte Version ${current}. Was eine neuere Version gespeichert hat, kann sie vielleicht nicht öffnen.`,
+      same: (v: string) => `Version ${v} ist schon installiert. Sie wird noch einmal installiert.`,
+      holding: 'Girovo wartet gerade auf deine Bank. Installieren kannst du, sobald das fertig ist.',
+      install: 'Installieren',
+      refusedTitle: 'Diese Datei wird nicht installiert',
+    },
     autoInstallHint:
       'Beim Start sucht Girovo nach einer neuen Version, lädt sie herunter und installiert sie, bevor das Fenster aufgeht; zwischendurch wird alle sechs Stunden nachgesehen. Aus: nur, wenn du es sagst. Gefragt wird girovo.de, ersatzweise GitHub; die Anfrage enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht der Server dabei deine IP-Adresse – nichts über deine Konten.',
     // The toasts, the Mitteilungen row, the Sitzung panel's row and the login bar's button.
@@ -536,6 +550,7 @@ export const en: typeof de = {
       updates: ['update', 'updates', 'new version', 'version', 'upgrade', 'install'],
       channel: ['update channel', 'nightly', 'preview', 'beta', 'pre-release', 'early access'],
       early: ['right away', 'latest updates', 'early', 'first', 'staged', 'updates'],
+      fromFile: ['update from file', 'setup', 'install', 'file', 'older version', 'downgrade', 'roll back'],
       loginBalances: ['balances', 'login', 'load automatically'],
       loginBookings: ['transactions', 'login', 'load automatically', 'all accounts', 'launch'],
       keepBalances: ['keep balances', 'saved balances', 'total balance history'],
@@ -749,6 +764,17 @@ export const en: typeof de = {
     autoHint:
       'At start-up and every six hours. Girovo asks girovo.de, or GitHub if that fails; the request contains only the app’s version number. As with any request, the server sees your IP address – nothing about your accounts.',
     autoInstall: 'Install updates automatically',
+    file: {
+      checking: 'Checking the file …',
+      checkingHint: 'Girovo compares it with its signed versions.',
+      readyTitle: (v) => `Install version ${v}?`,
+      ready: 'The file is a signed Girovo update. Girovo closes, installs it and starts again.',
+      older: (v, current) => `Version ${v} is older than the installed version ${current}. It may not open what a newer version saved.`,
+      same: (v) => `Version ${v} is already installed. It will be installed again.`,
+      holding: 'Girovo is waiting for your bank right now. You can install once that’s done.',
+      install: 'Install',
+      refusedTitle: 'This file won’t be installed',
+    },
     autoInstallHint:
       'At start-up Girovo looks for a new version, downloads it and installs it before the window opens; in between it checks every six hours. Off: only when you ask. Girovo asks girovo.de, or GitHub if that fails; the request contains only the app’s version number. As with any request, the server sees your IP address – nothing about your accounts.',
     downloaded: (v) => `Version ${v} has been downloaded. It’s only installed when you restart.`,

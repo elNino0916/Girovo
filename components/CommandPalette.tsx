@@ -274,6 +274,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
       // With the updater only (the desktop app, the GitHub APK), as on the page.
       !!update && setting('channel', 'channel', (m) => m.settings.channel.title, <SplitIcon />),
       update?.early !== undefined && setting('early', 'early', (m) => m.settings.early.title, <BoltIcon />),
+      update?.kind === 'nsis' && !!window.electronUpdater?.chooseFile && setting('fromFile', 'fromFile', (m) => m.settings.fromFile.title, <FileIcon />),
       // The bank's own list, at the end of Verträge & Abos — where an account has one.
       f.accounts.some(listsOrders) && {
         id: 'bank-orders', group: 'actions', icon: <CalendarIcon />,

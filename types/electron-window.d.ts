@@ -17,6 +17,19 @@ declare global {
     kind: 'nsis' | 'manual' | 'dev' | 'android';
     /** Automatic checks (at start, then every 6 hours). */
     auto: boolean;
+    /**
+     * A Setup.exe picked to install (chooseFile, or dropped on the window): being
+     * checked against Girovo's signed releases, ready (its version; older or
+     * the installed one), or refused with the reason. The desktop app only.
+     */
+    file?: {
+      phase: 'checking' | 'ready' | 'refused';
+      name: string;
+      version: string | null;
+      older: boolean;
+      same: boolean;
+      message: string | null;
+    } | null;
     /** Staged releases at once (setEarly); undefined from shells and builds from before it. */
     early?: boolean;
     channel: UpdateChannel;
@@ -70,6 +83,11 @@ declare global {
       setAuto: (on: boolean) => Promise<ElectronUpdateState | null>;
       /** "Neueste Updates sofort erhalten": a staged release at once (docs/updater-v2.md). Absent in shells from before it. */
       setEarly?: (on: boolean) => Promise<ElectronUpdateState | null>;
+      /** "Update aus Datei installieren …": the native file dialog, then the check (state.file). The installed Windows app only. */
+      chooseFile?: () => Promise<ElectronUpdateState | null>;
+      /** Installs the file state.file is ready with: the app quits, girovo-update.exe installs it. */
+      installFile?: () => Promise<ElectronUpdateState | null>;
+      dismissFile?: () => Promise<ElectronUpdateState | null>;
       /** Answers once the check in the new channel is done. */
       setChannel: (channel: UpdateChannel) => Promise<ElectronUpdateState | null>;
       openRelease: () => Promise<ElectronUpdateState | null>;

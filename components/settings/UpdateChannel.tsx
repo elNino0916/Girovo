@@ -12,7 +12,7 @@ import { useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
-import { BoltIcon, SplitIcon } from '../icons';
+import { BoltIcon, FileIcon, SplitIcon } from '../icons';
 import { Button, Dialog, cx } from '../ui';
 import { updates, useUpdates } from '../updates/store';
 import { ActionItem, SwitchItem } from './rows';
@@ -80,6 +80,27 @@ export function EarlyUpdatesRow() {
       summary={e.hint}
       checked={state.early}
       onChange={(on) => void updates.setEarly(on)}
+    />
+  );
+}
+
+/**
+ * "Update aus Datei installieren …" (docs/updater-v2.md, step 5): a Setup.exe
+ * downloaded by hand — an older version too — checked against Girovo's signed
+ * releases before anything runs (components/updates/FileUpdateDialog.tsx).
+ * The installed Windows app only: it is the one that installs a Setup.exe.
+ */
+export function FromFileRow() {
+  const r = useT().settings.fromFile;
+  const { state } = useUpdates();
+  if (state?.kind !== 'nsis' || typeof window === 'undefined' || !window.electronUpdater?.chooseFile) return null;
+  return (
+    <ActionItem
+      setting="fromFile"
+      icon={<FileIcon />}
+      title={r.title}
+      summary={r.hint}
+      onClick={() => void updates.chooseFile()}
     />
   );
 }

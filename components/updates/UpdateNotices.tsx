@@ -20,6 +20,7 @@ import { Button, Dot, Tag, cx } from '../ui';
 import type { SettingsTarget } from '@/lib/app-types';
 import { ActionItem } from '../settings/rows';
 import { UpdateDialog } from './UpdateDialog';
+import { FileUpdateDialog } from './FileUpdateDialog';
 import { hasNewer, isReady, updates, updatesAtStart, useUpdates, type UpdateState } from './store';
 
 // Up to 4.3 the app was called Sooskasse-FinTS. The first start after the
@@ -71,7 +72,12 @@ export function UpdateLayer() {
     }
   }, [installed, installedFrom, failed, greeted, toast]);
 
-  return <UpdateDialog />;
+  return (
+    <>
+      <UpdateDialog />
+      <FileUpdateDialog />
+    </>
+  );
 }
 
 export type UpdateNotice =

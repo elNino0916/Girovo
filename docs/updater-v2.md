@@ -154,3 +154,19 @@ Each step lands on `nightly` and goes out as a 6.0.2 nightly when it works.
   erhalten"); the GitHub APK does the same in `mobile/bridges/updates.ts`
   with `?kind=apk`. An ignored test asks the real girovo.de:
   `cargo test --lib live_girovo_de -- --ignored`.
+- **4** built 2026-11-07: `src-tauri/update-helper/` (crate `girovo-update`,
+  plain Win32, ~240 KB, embedded manifest for Common Controls 6 and
+  per-monitor DPI; `--quiet` runs without a window for the tests).
+  `src-tauri/build.rs` builds it in release into `binaries/` (gitignored) and
+  `tauri.windows.conf.json` ships it beside Girovo.exe. At exit
+  `updater/mod.rs` hands the install to a copy in `%TEMP%\girovo-update\`
+  (`updater/helper.rs`) with the installer's signed hash; without the helper
+  (debug, Linux) the installer starts from the app with the install window,
+  as before.
+- **5** built 2026-11-07: Einstellungen → Über Girovo → "Update aus Datei
+  installieren" (the installed Windows app) or a `Girovo-*-Setup.exe` dropped
+  on the window. `check_file` hashes it and looks for it in girovo.de's
+  listings, else in the signed manifest its name points to on GitHub; an
+  older release is allowed with a warning (FileUpdateDialog), anything else
+  refused. `install_file` installs it through the normal `install()` and the
+  helper.
