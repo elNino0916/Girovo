@@ -1,0 +1,10 @@
+<en-US>
+• Shorter, clearer texts throughout the app
+• The forecast takes a balance fetched today, whatever date the bank gives it
+• Girovo 6: the 6 in the name is larger
+</en-US>
+<de-DE>
+• Kürzere, klarere Texte in der ganzen App
+• Die Prognose nimmt einen heute abgerufenen Kontostand, egal welches Datum die Bank ihm gibt
+• Girovo 6: die 6 im Namen ist größer
+</de-DE>

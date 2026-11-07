@@ -1,0 +1,1 @@
+Shorter, clearer texts throughout the app. The forecast takes a balance fetched today, whatever date the bank gives it. The 6 in Girovo 6 is larger.

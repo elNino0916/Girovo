@@ -1,0 +1,1 @@
+Kürzere, klarere Texte in der ganzen App. Die Prognose nimmt einen heute abgerufenen Kontostand, egal welches Datum die Bank ihm gibt. Die 6 im Namen Girovo 6 ist größer.
