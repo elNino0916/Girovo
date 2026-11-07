@@ -76,6 +76,7 @@ import { useUsageConsent } from './telemetry/usage';
 import { ShortIban } from './overview/AccountIdentity';
 import { showAlone } from './overview/layers';
 import { useDesktopFrame } from './shell/frame';
+import { BankText } from './BankText';
 
 type Group = 'actions' | 'accounts' | 'transactions' | 'session';
 
@@ -417,7 +418,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
       // write it, and a second line without the card terminal's own record
       // (shop again, city, timestamp, card number) or SEPA tags.
       const { name, summary } = txText(tx);
-      const meta = [fmtDate(tx.entryDate), several ? f.accountLabel(account) : '', summary].filter(Boolean).join(' · ');
+      const meta = [fmtDate(tx.entryDate), several ? f.accountLabel(account) : ''].filter(Boolean).join(' · ');
       // The row's face, as in the Umsätze list: the category's glyph, a person's initials.
       const category = f.categoryOf(tx).id;
       const quiet = category === 'other' || category === 'otherIn';
@@ -425,7 +426,8 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
         id: `tx-${i}`,
         group: 'transactions',
         label: name,
-        description: <span className="block truncate">{meta}</span>,
+        // The bank's own text through BankText: "Beträge ausblenden" hides an amount in it, as in the list.
+        description: <span className="block truncate">{meta}{summary && <>{' · '}<BankText text={summary} /></>}</span>,
         icon: quiet
           ? <span aria-hidden className="text-[12px] font-bold">{initials(name)}</span>
           : <CategoryIcon id={category} size={18} />,
