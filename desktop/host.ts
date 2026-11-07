@@ -32,5 +32,17 @@ export function startDesktopServer(): ServerHandle {
     },
   });
   installFetch(server.handle);
+  // Before the app ends (src-tauri/src/closing.rs): the server's queued
+  // writes on the disk, then the answer — at most a little before the shell
+  // stops waiting, whatever the server does.
+  const listening = s.listen('girovo://flush', () => {
+    const limit = new Promise((resolve) => setTimeout(resolve, 2500));
+    void Promise.race([server.call('flush'), limit])
+      .catch((err: unknown) => console.warn('[server] flush before the end', err))
+      .finally(() => {
+        s.invoke('app_flushed').catch(() => {});
+      });
+  });
+  void Promise.resolve(listening).then(() => s.invoke('app_flush_ready')).catch(() => {});
   return server;
 }

@@ -66,6 +66,9 @@ export async function handle(req: Request): Promise<Response> {
   }
 }
 
+/** What the page asks before the app ends (desktop/host.ts): every write so far on the disk. */
+export const flushFiles = (): Promise<{ failures: number }> => flush();
+
 // What has been written is on disk before the window hides or the page goes.
 void App.addListener('pause', () => {
   void flush();

@@ -126,7 +126,12 @@ impl Host for TauriHost {
   }
   fn quit(&self, then: AtExit) {
     *self.exit.action.lock().unwrap() = Some(then);
-    self.app.exit(0);
+    // The page's writes on the disk first (closing.rs); not waited for at a
+    // start, where no page listens yet.
+    crate::closing::after_flush(&self.app, |app| {
+      crate::closing::pass(app);
+      app.exit(0);
+    });
   }
 }
 

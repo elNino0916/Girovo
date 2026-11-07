@@ -33,5 +33,5 @@ serve(async (boot) => {
   const server = await import('./index');
   // The worker's own fetch: the bank's traffic through the shell (src-tauri/src/http.rs).
   if (inWorker) (await import('../../mobile/server/fetch')).installFetch(server.handle);
-  return { ready: server.ready, handle: server.handle };
+  return { ready: server.ready, handle: server.handle, calls: { flush: () => server.flushFiles() } };
 });

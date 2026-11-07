@@ -16,6 +16,7 @@
 // waits in the notification area (background.rs).
 
 mod background;
+mod closing;
 mod files;
 mod frame;
 mod hello;
@@ -74,6 +75,7 @@ pub fn run() {
     .manage(prefs::Prefs::load())
     .manage(http::Requests::default())
     .manage(background::Background::default())
+    .manage(closing::Closing::default())
     .manage(shell::Zoom::default())
     .plugin(updater::plugin())
     .manage(model::Model::default())
@@ -191,6 +193,15 @@ pub fn run() {
           if let tauri::WindowEvent::CloseRequested { api, .. } = event {
             if background::hide_on_close(&closer) {
               api.prevent_close();
+            } else if !closing::passed(&closer) {
+              // The page's writes on the disk first (closing.rs), then the close again.
+              api.prevent_close();
+              closing::after_flush(&closer, |app| {
+                closing::pass(app);
+                if let Some(w) = app.get_webview_window("main") {
+                  let _ = w.close();
+                }
+              });
             }
           }
         });
@@ -246,6 +257,8 @@ pub fn run() {
       updater::updater_cancel,
       updater::updater_install,
       updater::updater_restart,
+      closing::app_flush_ready,
+      closing::app_flushed,
       updater::updater_set_auto,
       updater::updater_set_channel,
       updater::updater_open_release,

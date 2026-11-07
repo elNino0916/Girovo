@@ -231,7 +231,11 @@ pub fn show_window(app: &AppHandle) {
 
 pub fn quit(app: &AppHandle) {
   app.state::<Background>().quitting.store(true, Ordering::Relaxed);
-  app.exit(0);
+  // The page's writes on the disk first (closing.rs).
+  crate::closing::after_flush(app, |app| {
+    crate::closing::pass(app);
+    app.exit(0);
+  });
 }
 
 fn ensure_tray(app: &AppHandle) {
