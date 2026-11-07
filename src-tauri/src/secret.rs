@@ -28,12 +28,15 @@
 // every PIN kept under the old one would be lost; with two files holding the
 // same secret, both shells open the same PINs.
 //
-// On Linux Electron's secret is not taken over: safeStorage sealed it under a
-// password Chromium keeps in the keyring, in one of several backends (KWallet,
-// the Secret Service, a portal) that cannot be tried from here. A Linux user
-// coming from Electron switches the features on again; the PINs kept under the
-// old secret no longer open, and the route handlers delete them at the next
-// login, as when Electron found its secret unreadable.
+// On Linux safeStorage sealed it with Chromium's os_crypt (secret/os_crypt.rs):
+// v11 under the password Chromium keeps in KWallet or the Secret Service for
+// "Girovo", v10 under the one built into Chromium. Where that password is gone
+// (another keyring, a reset one), the migration fails as on Windows: the
+// features are switched on again, and the PINs kept under the old secret are
+// deleted at the next login, as when Electron found its secret unreadable. A
+// keyring that does not answer — its prompt dismissed, or unanswered for 25 s
+// (secret/linux.rs) — makes no new secret: Electron's is asked for again at
+// the next start.
 
 use std::fs;
 use std::path::Path;
@@ -48,6 +51,9 @@ use crate::paths::data_root;
 mod linux;
 #[cfg(target_os = "linux")]
 use linux as store;
+// Linux's format, tested everywhere.
+#[cfg(any(target_os = "linux", test))]
+mod os_crypt;
 #[cfg(windows)]
 mod win;
 #[cfg(windows)]
@@ -62,6 +68,10 @@ pub fn forget() {
 
 /// Electron's sealed secret, left where it is.
 const ELECTRON_FILE: &str = "linked-unlock.key";
+/// Unreadable's reason when no keyring answered (Linux: an unlock prompt
+/// dismissed or left unanswered, the session bus gone): a passing failure,
+/// Electron's secret asked for again at the next start.
+const KEYRING: &str = "keyring";
 const SECRET_BYTES: usize = 32;
 
 /// What this run knows: the secret once read (DPAPI or the keyring is asked
@@ -82,8 +92,10 @@ static KEPT: Mutex<Kept> = Mutex::new(Kept { secret: None, taken: None });
 ///   {"status":"nothing"}   no secret of Electron's: nothing to take over
 ///   {"status":"failed","reason","detail"}
 ///                          Electron's secret is there but was not taken over. reason:
-///                          "unsupported" (Linux), "unreadable" (it does not open: another
-///                          Windows account, a missing or changed "Local State"), "store"
+///                          "unsupported" (neither Windows nor Linux), "unreadable" (it does
+///                          not open: another Windows account, a missing or changed "Local
+///                          State", a Linux keyring without Chromium's password), "keyring"
+///                          (Linux: no keyring answered; tried again at the next start), "store"
 ///                          (this shell could not keep it). detail: for the log, in English.
 ///
 /// After "failed" the features that need the secret are switched on again.
@@ -156,12 +168,20 @@ fn migrate_with(kept: &mut Kept, root: &Path) -> Migration {
 /// time and asked for again next time, for a new one would make every PIN
 /// kept under the old one unopenable.
 fn load(root: &Path) -> Result<(String, Option<Migration>), String> {
+  load_with(root, electron_secret)
+}
+
+/// load(), with Electron's secret read by `electron` (a stand-in in the tests).
+fn load_with(root: &Path, electron: fn(&Path) -> Result<Option<String>, Unreadable>) -> Result<(String, Option<Migration>), String> {
   if let Some(secret) = store::read(root)?.and_then(valid) {
     return Ok((secret, None));
   }
-  let (secret, taken) = match electron_secret(root) {
+  let (secret, taken) = match electron(root) {
     Ok(Some(secret)) => (secret, Some(Migration::Migrated)),
     Ok(None) => (fresh()?, None),
+    // No keyring answered: no secret this time, and Electron's asked for
+    // again — a new one now would lose every PIN kept under it for good.
+    Err(why) if why.reason == KEYRING => return Err(format!("Electron's secret not taken over yet: {}", why.detail)),
     Err(why) => {
       // Unreadable for good, as when Electron could not open its own: a new
       // secret, and the PINs kept under the old one are deleted at the next login.
@@ -378,5 +398,22 @@ mod tests {
     assert_eq!(serde_json::to_string(&Migration::Nothing).unwrap(), r#"{"status":"nothing"}"#);
     let failed = Migration::Failed { reason: "unreadable", detail: "x".into() };
     assert_eq!(serde_json::to_string(&failed).unwrap(), r#"{"status":"failed","reason":"unreadable","detail":"x"}"#);
+  }
+
+  /// No keyring answered (Linux's os_crypt lookup): no new secret in place of
+  /// Electron's, which a later ask still takes over.
+  #[test]
+  fn a_keyring_that_does_not_answer_leaves_electrons_secret_for_later() {
+    let root = Root::new();
+    let unanswered = load_with(&root.0, |_| Err(Unreadable::new(KEYRING, "prompt dismissed")));
+    assert!(unanswered.is_err(), "{unanswered:?}");
+    assert_eq!(win::read(&root.0), Ok(None), "nothing kept in its place");
+    let later = load_with(&root.0, |_| Ok(Some(ELECTRONS.to_string()))).unwrap();
+    assert_eq!(later, (ELECTRONS.to_string(), Some(Migration::Migrated)));
+    // A secret that does not open for good is replaced, as before.
+    let other = Root::new();
+    let (fresh, taken) = load_with(&other.0, |_| Err(Unreadable::new("unreadable", "no password opens it"))).unwrap();
+    assert_ne!(fresh, ELECTRONS);
+    assert!(matches!(taken, Some(Migration::Failed { reason: "unreadable", .. })), "{taken:?}");
   }
 }

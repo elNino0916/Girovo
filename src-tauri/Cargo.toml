@@ -83,6 +83,11 @@ windows-future = "0.3"
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring-core = "1"
 zbus-secret-service-keyring-store = { version = "1", features = ["rt-async-io-crypto-rust"] }
+# Electron's sealed secret (src/secret/os_crypt.rs): the password Chromium kept
+# for it in the Secret Service, or in KWallet over plain D-Bus. Both already
+# built for the store above, with these very features.
+secret-service = { version = "5", features = ["rt-async-io-crypto-rust"] }
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
 
 # The PDF export through WebView2's own DevTools protocol (pdf.rs) — the very
 # version tauri-runtime-wry is built on — and the Windows version telemetry

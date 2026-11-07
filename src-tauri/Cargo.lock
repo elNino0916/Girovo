@@ -1537,6 +1537,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rfd",
+ "secret-service",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1552,6 +1553,7 @@ dependencies = [
  "windows",
  "windows-future",
  "windows-version",
+ "zbus",
  "zbus-secret-service-keyring-store",
 ]
 
