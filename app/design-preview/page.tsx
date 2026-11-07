@@ -53,6 +53,7 @@ import { txKey } from '@/lib/categories';
 import { addDaysKey, isoDate, presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
 import { IS_ANDROID } from '@/lib/platform';
+import { FloatingScrollbars } from '@/components/shell/FloatingScrollbars';
 import { isSettingsPage, type SettingsPage } from '@/lib/settings-pages';
 import { ACCT, MOCK_PAYEES, MOCK_TAN_KIND, MOCK_TAN_KINDS, SECOND_BANK, type MockTanKind } from './data';
 import { buildEpcPayload } from '@/lib/girocode';
@@ -1621,6 +1622,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
       ) : (
         <div className="print:hidden">
           <App />
+          <FloatingScrollbars />
           <TanWaitOverlay />
           <UpdateLayer />
           <Toasts />

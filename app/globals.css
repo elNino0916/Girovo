@@ -1126,3 +1126,46 @@
   }
 }
 
+/* Floating scrollbars (the desktop; components/shell/FloatingScrollbars.tsx):
+   no native bar and no gutter anywhere — the thumb is drawn over the content
+   while it scrolls or while the mouse is near its edge. Unlayered, so it
+   overrides the thin bars a few panels set as utilities. */
+:root[data-scrollbars='float'],
+:root[data-scrollbars='float'] * {
+  scrollbar-width: none;
+}
+:root[data-scrollbars='float'] *::-webkit-scrollbar,
+:root[data-scrollbars='float']::-webkit-scrollbar {
+  display: none;
+}
+.float-thumb {
+  position: fixed;
+  z-index: 2147483000;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--ink-2) 72%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 260ms cubic-bezier(0.2, 0, 0, 1),
+    width 160ms cubic-bezier(0.2, 0, 0, 1),
+    height 160ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+.float-thumb[data-axis='y'] { width: 6px; }
+.float-thumb[data-axis='x'] { height: 6px; }
+.float-thumb[data-on] {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Near it, or on it: wider, a target to grab. */
+.float-thumb[data-axis='y']:is([data-near], [data-drag]) { width: 10px; }
+.float-thumb[data-axis='x']:is([data-near], [data-drag]) { height: 10px; }
+.float-thumb[data-near] { background-color: var(--ink-2); }
+.float-thumb[data-drag] { background-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .float-thumb { transition: none; }
+}
+@media print {
+  .float-thumb { display: none; }
+}
+

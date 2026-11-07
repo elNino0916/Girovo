@@ -12,6 +12,7 @@ import { TelemetryErrors } from '@/components/telemetry/TelemetryErrors';
 import { trackUsage } from '@/components/telemetry/usage';
 import { useDemo } from '@/components/demo/demo-mode';
 import { Intro } from '@/components/shell/Intro';
+import { FloatingScrollbars } from '@/components/shell/FloatingScrollbars';
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 
 // Girovo without a bank (components/demo): loaded only when the demo starts.
@@ -47,6 +48,8 @@ function AppLayers(): ReactNode {
         <TelemetryErrors />
         {/* Once: the first start, and the first start of Girovo 6. */}
         <Intro />
+        {/* The desktop's scrollbars, drawn over the content (not on Android). */}
+        <FloatingScrollbars />
       </div>
       <Statement />
     </>
