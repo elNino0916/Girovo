@@ -965,8 +965,17 @@ async fn at_start_a_release_whose_install_just_failed_is_not_installed_again_una
   assert_eq!(host.installs().len(), 0);
   again.stop();
 
+  // …nor on the start after (the marker is read once; the failed version is remembered).
+  let third = make(config(&srv.base, cache.path()), &host);
+  third.start();
+  let check = third.start_check(&window);
+  assert!(!third.update_at_start(check, &window).await);
+  assert_eq!(host.installs().len(), 0);
+  third.stop();
+
   // Asked for (--update): installed.
   let host = Arc::new(FakeHost::default());
+  host.set_pref(PREF_FAILED_INSTALL, "9.9.9");
   let mut cfg = config(&srv.base, cache.path());
   cfg.update_asked = true;
   let asked = make(cfg, &host);

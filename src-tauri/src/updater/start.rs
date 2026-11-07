@@ -26,7 +26,7 @@ use std::time::Duration;
 
 use tauri::async_runtime::{self, JoinHandle};
 
-use super::engine::{Phase, UpdateState, Updater};
+use super::engine::{PREF_FAILED_INSTALL, Phase, UpdateState, Updater};
 use super::logic::InstallKind;
 
 /// How long a start waits for GitHub's answer before it opens Girovo anyway.
@@ -70,6 +70,12 @@ impl StartWindow for crate::splash::Splash {
 pub struct StartCheck(JoinHandle<UpdateState>);
 
 impl Updater {
+  /// The version whose install did not complete — on this start's marker, or
+  /// remembered from an earlier one (the marker is read only once).
+  fn failed_install(&self) -> Option<String> {
+    self.state().failed_install.or_else(|| self.host_pref(PREF_FAILED_INSTALL)).filter(|v| !v.is_empty())
+  }
+
   fn updates_at_start(&self) -> bool {
     let state = self.state();
     state.kind == InstallKind::Nsis && (state.auto || self.config().update_asked)
@@ -105,7 +111,7 @@ impl Updater {
       // Its install failed on the last start: not again by itself, or a
       // failing installer would quit Girovo at every start. The app opens and
       // says so; installing it again is the user's click.
-      || (found.failed_install.as_deref() == Some(release.version.as_str()) && !asked)
+      || (self.failed_install().as_deref() == Some(release.version.as_str()) && !asked)
       || (release.back && !asked)
       || !release.can_install
       || !matches!(found.phase, Phase::Available | Phase::Ready)

@@ -51,6 +51,9 @@ use crate::texts::Lang;
 pub const PREF_AUTO: &str = "fints.updates.auto";
 // 'stable' (unset) or 'preview': whether pre-releases are offered too.
 pub const PREF_CHANNEL: &str = "fints.updates.channel";
+/// The version whose install did not complete: never installed again at
+/// start by itself (start.rs), until an install completes (read_marker).
+pub const PREF_FAILED_INSTALL: &str = "fints.updates.failedInstall";
 /// A start asked for by "Jetzt neu starten und installieren" (restart_to_update).
 pub const UPDATE_ARG: &str = "--update";
 
@@ -690,6 +693,11 @@ impl Updater {
     create_private(&self.marker_file())?.write_all(marker.to_string().as_bytes())
   }
 
+  /// One of the shell's preferences, for start.rs.
+  pub(super) fn host_pref(&self, key: &str) -> Option<String> {
+    self.host.pref(key)
+  }
+
   fn read_marker(&self) {
     let Ok(text) = fs::read_to_string(self.marker_file()) else { return };
     // Read once is enough; a leftover is ignored by its age.
@@ -699,6 +707,7 @@ impl Updater {
     let to = field("to").unwrap_or("");
     let current = &self.cfg.current_version;
     if to == current {
+      self.host.set_pref(PREF_FAILED_INSTALL, "");
       let installed = Installed {
         version: current.clone(),
         from: field("from").unwrap_or("").chars().take(40).collect(),
@@ -714,6 +723,7 @@ impl Updater {
       // Another version than the one the installer was started for: it did not
       // run — an update, or the way back from a preview to an older release.
       let message = self.texts().not_completed(to);
+      self.host.set_pref(PREF_FAILED_INSTALL, to);
       self.set(|s| {
         s.failed_install = Some(to.to_string());
         s.error = Some(ErrorInfo { during: During::Install, message });
