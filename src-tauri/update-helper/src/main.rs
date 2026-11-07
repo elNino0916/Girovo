@@ -33,6 +33,8 @@ const INSTALL_LIMIT: Duration = Duration::from_secs(15 * 60);
 const APP_GRACE: Duration = Duration::from_secs(6);
 /// How long the new version may take to show its window before this ends anyway.
 const APP_LIMIT: Duration = Duration::from_secs(45);
+/// How long the window stays at least, so a quick update is still seen (owner, 2026-11-07).
+const MIN_SHOWN: Duration = Duration::from_secs(10);
 
 // ---- what to do ----------------------------------------------------------------------
 
@@ -136,8 +138,9 @@ impl Plan {
       (Stage::Checking, true) => "Checking the update …".into(),
       (Stage::Installing, false) => format!("Version {v} wird installiert …"),
       (Stage::Installing, true) => format!("Installing version {v} …"),
-      (Stage::Starting, false) => format!("{} wird gestartet …", self.name),
-      (Stage::Starting, true) => format!("Starting {} …", self.name),
+      // The installer's end, Girovo coming up, and the wait up to MIN_SHOWN (owner, 2026-11-07).
+      (Stage::Starting, false) => "Update abschließen …".into(),
+      (Stage::Starting, true) => "Finishing the update …".into(),
     }
   }
 
@@ -524,13 +527,18 @@ mod ui {
 
     // The work beside the window; it reports through messages.
     let raw = main.0 as isize;
+    let shown = std::time::Instant::now();
     std::thread::spawn(move || {
       let post = |msg: u32, w: usize| unsafe {
         let _ = PostMessageW(Some(hwnd(raw)), msg, WPARAM(w), LPARAM(0));
       };
       let report = |stage: Stage| post(WM_STAGE, stage as usize);
       match super::run(&plan, &report) {
-        Ok(()) => post(WM_DONE, 0),
+        Ok(()) => {
+          // A quick update: the window stays until MIN_SHOWN, saying "Update abschließen".
+          std::thread::sleep(super::MIN_SHOWN.saturating_sub(shown.elapsed()));
+          post(WM_DONE, 0);
+        }
         Err(failure) => {
           if let Some(ui) = UI.get() {
             ui.lock().unwrap().failure = Some(failure);
