@@ -14,6 +14,12 @@ name: Nightly desktop build
 # No APK: the release key is not on GitHub, and the GitHub APK's updater
 # passes over a release without one.
 #
+# Copies whose update code predates the nightly name (the nightlies named
+# <version>-preview.<time>, a hand-made preview) order "nightly" below
+# "preview" and are never offered these builds. A run by hand with the name
+# "preview" builds the bridge they take, <version>-preview.<time>.g<commit>;
+# from there they have the code that follows the nightlies.
+#
 # GitHub runs scheduled workflows from the default branch, so this file lives
 # on main and checks out the branch it builds.
 
@@ -26,6 +32,13 @@ on:
         description: The branch to build
         type: string
         default: 'nightly'
+      name:
+        description: The pre-release name ("preview" only for the bridge from copies before the nightly name)
+        type: choice
+        options:
+          - nightly
+          - preview
+        default: nightly
 
 permissions:
   contents: write
@@ -53,12 +66,14 @@ jobs:
         id: plan
         env:
           GH_TOKEN: ${{ github.token }}
+          NAME: ${{ inputs.name || 'nightly' }}
         run: |
           sha=$(git rev-parse HEAD)
           short=$(git rev-parse --short=7 HEAD)
           base=$(node -p "require('./package.json').version.split('-')[0]")
           stamp=$(date -u +%Y%m%d%H%M)
-          version="$base-nightly.$stamp.g$short"
+          case "$NAME" in nightly|preview) ;; *) echo "Unknown name: $NAME" >&2; exit 1 ;; esac
+          version="$base-$NAME.$stamp.g$short"
           # The commit the last nightly was built from: its tag ends in ".g<commit>".
           last=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=40" \
             --jq '[.[] | select(.prerelease and (.tag_name | test("\\.g[0-9a-f]{7}$")))][0].target_commitish // ""')
