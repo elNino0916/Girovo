@@ -382,6 +382,8 @@ function useFintsState() {
   const syncQueueRef = useRef<Array<(v: VaultData) => VaultData> | null>(null);
   // The round under way, if any: a second waits for none, a save or a wipe waits for it.
   const syncRunRef = useRef<Promise<void> | null>(null);
+  // How many of the other devices' entries had no room here when that was last said: said once, not every round.
+  const syncFullRef = useRef(0);
   const flushVaultRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const syncRoundRef = useRef<(sid: string, quiet: boolean) => Promise<void>>(() => Promise.resolve());
   // Android: the home screen widget was cleared ("Gerät vergessen", the wiped
@@ -3097,9 +3099,13 @@ function useFintsState() {
         }
         if (syncRef.current) setSyncBoth({ ...syncRef.current, lastSync: r.lastSync, devices: r.devices });
         if (r.receipts.added || r.receipts.removed) void loadDocs();
-        if (!quiet || r.changed || r.receipts.added) {
+        // The vault is full: the rest keeps syncing, and this is said once — again only once it fitted meanwhile.
+        const full = r.full ?? 0;
+        if (full && !syncFullRef.current) toast(said.full(full), 'error');
+        else if (!quiet || r.changed || r.receipts.added) {
           toast(r.changed || r.receipts.added ? said.syncedChanges(r.receipts.added) : said.synced, quiet ? 'info' : 'success');
         }
+        syncFullRef.current = full;
       }
       if (vaultDirtyRef.current) scheduleVaultSave();
     }
@@ -5693,6 +5699,8 @@ type SyncRunResponse = {
   devices: Array<{ id: string; name: string; at: number }>;
   lastSync: number;
   receipts: { added: number; removed: number };
+  /** The other devices' entries with no room here (lib/sync.ts SyncResult.full). */
+  full?: number;
 };
 
 /** Where "Neue Umsätze melden" can keep its PINs: the desktop shell, or the Android app. */

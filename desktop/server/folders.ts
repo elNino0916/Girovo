@@ -18,6 +18,9 @@ function folder(place: string): SyncStore {
     async put(name, bytes) {
       await invoke('folder_put', { place, name, data: Buffer.from(bytes).toString('base64') });
     },
+    async remove(name) {
+      await invoke('folder_remove', { place, name });
+    },
   };
 }
 

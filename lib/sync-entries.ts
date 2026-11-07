@@ -15,15 +15,30 @@
 import crypto from 'node:crypto';
 import type { VaultData } from './app-types';
 
-/** What one entry was at the last sync on this device: its hash ('-' deleted) and since when. */
-export type Stamp = { h: string; t: number };
+/**
+ * What one entry was at the last sync on this device: its hash ('-' deleted)
+ * and since when. `k`: the hash of what this device holds instead, when its
+ * keeping (lib/vault.ts sanitizeVault) changed the entry it was given — not a
+ * change of its own, so neither stamped anew nor a rival to the original.
+ */
+export type Stamp = { h: string; t: number; k?: string };
 export type Stamps = Record<string, Stamp>;
 
-/** An entry in a device's state file: its value, or that it was deleted, and when. */
-export type SyncEntry = { t: number; v?: unknown; d?: 1 };
+/**
+ * An entry in a device's state file: its value, or that it was deleted, and
+ * when. `k: 1`: the value as this device keeps it, changed from how it came —
+ * at the same time, the original wins over it on every device.
+ */
+export type SyncEntry = { t: number; v?: unknown; d?: 1; k?: 1 };
 
-/** A tombstone is kept this long, then forgotten: every device has seen it by then. */
-export const TOMBSTONE_MS = 180 * 86_400_000;
+/**
+ * A tombstone is kept this long, then forgotten. Years, not months: it is
+ * the only thing that deletes — an entry missing from another device's state
+ * never does (that device may simply not hold it) — so a device that comes
+ * back after a long time still meets every deletion made meanwhile. A
+ * tombstone is a path and a time, a few dozen bytes.
+ */
+export const TOMBSTONE_MS = 3 * 365 * 86_400_000;
 
 type MapField = 'aliases' | 'categoryRules' | 'txCategories' | 'splits' | 'budgets' | 'notes' | 'keptBalances' | 'contractReminders' | 'manualContracts' | 'manualDays';
 const MAPS: readonly MapField[] = ['aliases', 'categoryRules', 'txCategories', 'splits', 'budgets', 'notes', 'keptBalances', 'contractReminders', 'manualContracts', 'manualDays'];
@@ -148,7 +163,11 @@ export function restamp(entries: ReadonlyMap<string, unknown>, stamps: Stamps, n
   const after = (s: Stamp | undefined) => (s ? Math.max(now, s.t + 1) : now);
   for (const [path, value] of entries) {
     const h = hashOf(value);
-    out[path] = stamps[path]?.h === h ? stamps[path] : { h, t: after(stamps[path]) };
+    const s = stamps[path];
+    // Unchanged: as it came, or as this device keeps what came.
+    if (s?.h === h) out[path] = s.k === undefined ? s : { h: s.h, t: s.t };
+    else if (s?.k === h) out[path] = s;
+    else out[path] = { h, t: after(s) };
   }
   for (const [path, s] of Object.entries(stamps)) {
     if (entries.has(path)) continue;
@@ -163,26 +182,28 @@ export type RemoteState = { device: string; entries: Record<string, SyncEntry> }
 
 /**
  * One set of entries from this device's and the others': per entry the
- * newest change wins, a tie goes to the larger device id. Answers the
- * entries now (deleted ones gone), the stamps to keep, and the state file to
- * write — every entry with its time, tombstones included.
+ * newest change wins; on a tie an original wins over a copy some device
+ * keeps changed (`k`), then the larger device id. Answers the entries now
+ * (deleted ones gone), the stamps to keep, and the state file to write —
+ * every entry with its time, tombstones included.
  */
 export function mergeEntries(
   local: ReadonlyMap<string, unknown>, stamps: Stamps, device: string, remotes: readonly RemoteState[], now: number,
 ): { entries: Map<string, unknown>; stamps: Stamps; state: Record<string, SyncEntry> } {
-  type Candidate = { t: number; dev: string; deleted: boolean; v?: unknown };
+  type Candidate = { t: number; dev: string; deleted: boolean; kept: boolean; v?: unknown };
   const best = new Map<string, Candidate>();
   const offer = (path: string, c: Candidate) => {
     const cur = best.get(path);
-    if (!cur || c.t > cur.t || (c.t === cur.t && c.dev > cur.dev)) best.set(path, c);
+    if (!cur || c.t > cur.t || (c.t === cur.t && (cur.kept !== c.kept ? cur.kept : c.dev > cur.dev))) best.set(path, c);
   };
   for (const [path, s] of Object.entries(stamps)) {
-    offer(path, { t: s.t, dev: device, deleted: s.h === '-', v: local.get(path) });
+    const v = local.get(path);
+    offer(path, { t: s.t, dev: device, deleted: s.h === '-', kept: s.h !== '-' && s.k !== undefined && hashOf(v) === s.k, v });
   }
   for (const r of remotes) {
     for (const [path, e] of Object.entries(r.entries)) {
       if (!e || typeof e.t !== 'number' || !Number.isFinite(e.t)) continue;
-      offer(path, { t: e.t, dev: r.device, deleted: e.d === 1, v: e.v });
+      offer(path, { t: e.t, dev: r.device, deleted: e.d === 1, kept: e.d !== 1 && e.k === 1, v: e.v });
     }
   }
   const entries = new Map<string, unknown>();
@@ -196,8 +217,9 @@ export function mergeEntries(
       continue;
     }
     entries.set(path, c.v);
-    kept[path] = { h: hashOf(c.v), t: c.t };
-    state[path] = { t: c.t, v: c.v };
+    // This device's own stamp when its entry stands: what it was given, and what it keeps instead.
+    kept[path] = c.dev === device && stamps[path] ? stamps[path] : { h: hashOf(c.v), t: c.t };
+    state[path] = c.kept ? { t: c.t, v: c.v, k: 1 } : { t: c.t, v: c.v };
   }
   return { entries, stamps: kept, state };
 }

@@ -21,7 +21,8 @@ import java.util.regex.Pattern;
 
 /**
  * Sync "Direkt im WLAN" (lib/sync-stores.ts): the phone's way to the desktop
- * app's file shelf (src-tauri/src/sync_lan.rs), one GET or PUT of a sealed file.
+ * app's file shelf (src-tauri/src/sync_lan.rs), one GET or PUT of a sealed file,
+ * or the DELETE of a deleted receipt's file.
  *
  * Plain HTTP over a socket of its own: the app's network rules allow no
  * cleartext at all, and should not for anything else — this goes only to a
@@ -62,7 +63,7 @@ public class SyncPlugin extends Plugin {
             if (!"http".equals(uri.getScheme()) || host == null || !privateLiteral(host)
                     || token == null || !token.matches("[0-9a-f]{32}")
                     || port < 1024 || port > 65535 || path == null || !path.startsWith(PATH) || path.contains("..")
-                    || !("GET".equals(method) || "PUT".equals(method))) {
+                    || !("GET".equals(method) || "PUT".equals(method) || ("DELETE".equals(method) && path.endsWith(".doc")))) {
                 call.reject("not the desktop app's shelf", "invalid");
                 return;
             }

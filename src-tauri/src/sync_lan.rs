@@ -6,7 +6,7 @@
 // the Electron shell's sync-lan.cjs, rule for rule.
 //
 // It is a dumb file shelf: GET and PUT of one file by name under
-// /girovo-sync/v1/, nothing else. Every file is sealed with the group's key
+// /girovo-sync/v1/, and DELETE of a receipt's file, nothing else. Every file is sealed with the group's key
 // before it gets here, so the network and this shelf see sizes and times,
 // never content. A name must look like a sync file, and every request must
 // carry its group's token — derived from the key, kept beside the files by
@@ -73,6 +73,13 @@ pub fn group_of(name: &str) -> Option<&str> {
     Some((mid, k)) => (16..=32).contains(&mid.len()) && mid.as_bytes().iter().all(hex) && kind(k),
   };
   ok.then(|| &name[..24])
+}
+
+/// Whether `name` is a file a device may remove: a receipt's bytes
+/// (`<group>.<blob>.doc`), which the device that deletes the receipt takes
+/// out of the place (lib/sync.ts). The devices list and the states only change.
+pub fn removable(name: &str) -> bool {
+  group_of(name).is_some() && name.ends_with(".doc")
 }
 
 // ---------------------------------------------------------------------------
@@ -258,6 +265,12 @@ impl LanShelf {
         Err(_) => (404, Vec::new()),
       },
       "PUT" => (self.put(&folder, group, &file, head, body, uploads), Vec::new()),
+      // A deleted receipt's bytes, and nothing else; gone already is gone.
+      "DELETE" if removable(name) => match std::fs::remove_file(&file) {
+        Ok(()) => (204, Vec::new()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => (204, Vec::new()),
+        Err(_) => (500, Vec::new()),
+      },
       _ => (405, Vec::new()),
     }
   }
@@ -650,6 +663,32 @@ mod tests {
     assert_eq!(r.status("PUT", &format!("{GROUP}.{:016x}.doc", 1u64 << 40), Some(b"y"), Some(TOKEN)), 507);
     assert_eq!(r.status("PUT", &format!("{GROUP}.{:016x}.doc", 5), Some(b"changed"), Some(TOKEN)), 204);
     assert_eq!(std::fs::read(r.dir.join(format!("{GROUP}.{:016x}.doc", 5))).unwrap(), b"changed");
+  }
+
+  #[test]
+  fn a_deleted_receipts_file_goes_and_makes_room_in_a_full_group() {
+    let r = Rig::new();
+    std::fs::write(r.dir.join(format!("{GROUP}.token")), TOKEN).unwrap();
+    // The token and the devices list count too.
+    for i in 0..MAX_FILES - 2 {
+      std::fs::write(r.dir.join(format!("{GROUP}.{i:016x}.doc")), "x").unwrap();
+    }
+    std::fs::write(r.dir.join(format!("{GROUP}.devices")), "sealed").unwrap();
+    let new_doc = format!("{GROUP}.{:016x}.doc", 1u64 << 40);
+    assert_eq!(r.status("PUT", &new_doc, Some(b"y"), Some(TOKEN)), 507);
+    // Without the token nothing goes.
+    let old_doc = format!("{GROUP}.{:016x}.doc", 7);
+    assert_eq!(r.status("DELETE", &old_doc, None, Some(&"e".repeat(32))), 404);
+    assert!(r.dir.join(&old_doc).exists());
+    assert_eq!(r.status("DELETE", &old_doc, None, Some(TOKEN)), 204);
+    assert!(!r.dir.join(&old_doc).exists());
+    // Gone already is gone.
+    assert_eq!(r.status("DELETE", &old_doc, None, Some(TOKEN)), 204);
+    assert_eq!(r.status("PUT", &new_doc, Some(b"y"), Some(TOKEN)), 204);
+    // The devices list and the states are never removed.
+    assert_eq!(r.status("DELETE", &format!("{GROUP}.devices"), None, Some(TOKEN)), 405);
+    assert!(r.dir.join(format!("{GROUP}.devices")).exists());
+    assert!(removable(&old_doc) && !removable(&format!("{GROUP}.{}.state", "b".repeat(16))) && !removable(&format!("{GROUP}.token")));
   }
 
   #[test]

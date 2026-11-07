@@ -6,8 +6,9 @@
 //   create {place, deviceName}      → { code }         a new group, this device its first member
 //   code   {place?}                 → { code }         for one more device (the computer's addresses refreshed)
 //   join   {code, deviceName, place?} → { on: true }   this device into the group the code names
-//   run    {vault}                  → { changed, vault?, devices, lastSync, receipts }
-//                                     the merged vault is saved here and handed back
+//   run    {vault}                  → { changed, vault?, devices, lastSync, receipts, full }
+//                                     the merged vault is saved here and handed back;
+//                                     full: the others' entries it had no room for
 //   leave                           → { on: false }
 // Only for the first login of the view, once its vault is loaded: the group's
 // settings are sealed with the vault's key (lib/sync-meta.ts). The code is the
@@ -25,7 +26,7 @@ import {
 import { readMeta, removeMeta, syncMetaFileOf, writeMeta, type SyncMeta } from '@/lib/sync-meta';
 import { keepLanToken, storeFor, SyncPlaceError } from '@/lib/sync-stores';
 import { serialized } from '@/lib/sealed-file';
-import { sanitizeVault, saveVault, VAULT_REQUEST_MAX_BYTES, vaultKeyOf } from '@/lib/vault';
+import { sanitizeVault, saveVault, VAULT_LIMITS, VAULT_REQUEST_MAX_BYTES, vaultKeyOf } from '@/lib/vault';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -148,11 +149,21 @@ async function handle(b: SyncBody, s: Session, login: { blz: string; userId: str
         result = await runSync({
           store, key: meta.key, device: { id: meta.deviceId, name: meta.deviceName }, vault, local: meta.local, receipts: await receiptsOf(s),
           keep: (v) => sanitizeVault(v) ?? v,
+          // What saveVault would refuse never comes out of a round, nor a vault so full
+          // that this device's next edit could not be saved (lib/sync.ts FILL_MAX).
+          maxBytes: VAULT_LIMITS.bytes,
+          // Its stamps kept while the round is under way, so one cut off never stamps what is here anew.
+          // Never once the saved data was deleted meanwhile (checked again below).
+          checkpoint: async (local) => {
+            if (vaultKeyOf(s)) await writeMeta(s, { ...meta, local });
+          },
         });
       } catch (err) {
         // The place out of reach or refusing: said, not reported as a fault (it is the network's state).
         if (err instanceof SyncPlaceError) {
           if (err.reason === 'refused') return fail(said.placeRefused, 503);
+          // No room even for this device's state (a receipt's file alone is skipped in the round).
+          if (err.reason === 'full') return fail(said.placeFull, 507);
           return fail(meta.place.kind === 'lan' ? msgs().sync.unreachableLan : said.unreachable, 503);
         }
         throw err;
@@ -169,6 +180,8 @@ async function handle(b: SyncBody, s: Session, login: { blz: string; userId: str
         devices: result.devices,
         lastSync,
         receipts: result.receipts,
+        // Entries of the other devices with no room here (the vault's size limit), said once by the page.
+        full: result.full,
         deviceId: meta.deviceId,
       });
     }

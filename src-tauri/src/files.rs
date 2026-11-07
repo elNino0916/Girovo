@@ -267,3 +267,26 @@ pub async fn folder_put(place: String, name: String, data: String) -> Result<(),
     io(err)
   })
 }
+
+/// A deleted receipt's bytes out of a sync folder (lib/sync.ts): only a
+/// receipt's file (sync_lan::removable), and one that is not there is gone already.
+#[tauri::command]
+pub async fn folder_remove(place: String, name: String) -> Result<(), String> {
+  if !crate::sync_lan::removable(&name) {
+    return Err(format!("not a receipt's sync file: {}", name.chars().take(40).collect::<String>()));
+  }
+  let file = sync_dir(&place)?.join(&name);
+  let mut attempt = 0;
+  loop {
+    match fs::remove_file(&file) {
+      Ok(()) => return Ok(()),
+      Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+      // OneDrive, a virus scanner or the shelf serving it a moment, as for a rename.
+      Err(err) if attempt < 5 && locked(&err) => {
+        std::thread::sleep(std::time::Duration::from_millis(15 << attempt));
+        attempt += 1;
+      }
+      Err(err) => return Err(io(err)),
+    }
+  }
+}

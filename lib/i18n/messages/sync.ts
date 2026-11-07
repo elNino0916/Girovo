@@ -53,6 +53,9 @@ export const de = {
   joined: 'Verbunden. Girovo gleicht jetzt ab.',
   left: 'Dieses Gerät gleicht nicht mehr ab.',
   failed: 'Der Abgleich hat nicht geklappt.',
+  /** The vault's size limit: what does not fit stays on the other devices; the rest keeps syncing. */
+  full: (n: number) =>
+    `${n === 1 ? 'Ein Eintrag' : `${n} Einträge`} von deinen anderen Geräten ${n === 1 ? 'passt' : 'passen'} hier nicht mehr hin – deine persönlichen Daten haben ihre Höchstgröße erreicht. Dort bleibt alles erhalten, der Rest wird weiter abgeglichen.`,
   unreachableLan: 'Die Desktop-App ist nicht erreichbar. Ist Girovo dort geöffnet und sind beide im selben WLAN?',
   /** The route's answers. */
   api: {
@@ -70,6 +73,8 @@ export const de = {
     unreachable: 'Der Ort für den Abgleich ist gerade nicht erreichbar. Girovo versucht es später noch einmal.',
     /** WebDAV turned the login away. */
     placeRefused: 'Der WebDAV-Server hat die Anmeldung abgelehnt. Prüfe dort Benutzername und Passwort.',
+    /** The place has no room for this device's files (the desktop app's shelf, a WebDAV quota). */
+    placeFull: 'Am Ort für den Abgleich ist kein Platz mehr. Lösche dort alte Belege oder schaffe Platz und versuche es dann noch einmal.',
   },
 };
 
@@ -120,6 +125,8 @@ export const en: typeof de = {
   joined: 'Connected. Girovo now syncs.',
   left: 'This device no longer syncs.',
   failed: 'Syncing didn’t work.',
+  full: (n) =>
+    `${n === 1 ? 'One entry' : `${n} entries`} from your other devices no longer ${n === 1 ? 'fits' : 'fit'} here – your personal data has reached its maximum size. Everything stays on the other devices, and the rest keeps syncing.`,
   unreachableLan: 'The desktop app can’t be reached. Is Girovo open there, and are both on the same Wi-Fi?',
   api: {
     noVault: 'Your personal data hasn’t loaded yet. Try again in a moment.',
@@ -134,5 +141,6 @@ export const en: typeof de = {
     unknownAction: 'Unknown action.',
     unreachable: 'The place to sync with can’t be reached right now. Girovo will try again later.',
     placeRefused: 'The WebDAV server turned the login away. Check the user name and password there.',
+    placeFull: 'There’s no more room where your devices sync. Delete old receipts or free up space there, then try again.',
   },
 };

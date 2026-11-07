@@ -84,3 +84,23 @@ test('merge then round-trip: two devices end with the same vault', () => {
   assert.deepEqual(va.notes, { k1: 'A', k2: 'B' });
   assert.deepEqual(stableJson({ ...va, updatedAt: '' }), stableJson({ ...vb, updatedAt: '' }));
 });
+
+test('restamp and merge: a copy kept changed (k) keeps its stamp and loses a tie to the original, on every device', () => {
+  const given = { h: hashOf('Notiz [neu]'), t: 5, k: hashOf('Notiz') };
+  // Held as kept: unchanged. Held as given again: unchanged, without k. Anything else: changed now.
+  assert.equal(restamp(new Map([['notes/a', 'Notiz']]), { 'notes/a': given }, 100)['notes/a'], given);
+  assert.deepEqual(restamp(new Map([['notes/a', 'Notiz [neu]']]), { 'notes/a': given }, 100)['notes/a'], { h: hashOf('Notiz [neu]'), t: 5 });
+  assert.deepEqual(restamp(new Map([['notes/a', 'anders']]), { 'notes/a': given }, 100)['notes/a'], { h: hashOf('anders'), t: 100 });
+  // The original wins the tie whichever id is larger; the copy's own stamp stays as it was.
+  for (const [mine, theirs] of [['aaa', 'zzz'], ['zzz', 'aaa']]) {
+    const m = mergeEntries(new Map([['notes/a', 'Notiz']]), { 'notes/a': given }, mine, [{ device: theirs, entries: { 'notes/a': { t: 5, v: 'Notiz [neu]' } } }], 10);
+    assert.equal(m.entries.get('notes/a'), 'Notiz [neu]');
+    assert.deepEqual(m.state['notes/a'], { t: 5, v: 'Notiz [neu]' });
+    const o = mergeEntries(new Map([['notes/a', 'Notiz [neu]']]), { 'notes/a': { h: hashOf('Notiz [neu]'), t: 5 } }, theirs, [{ device: mine, entries: { 'notes/a': { t: 5, v: 'Notiz', k: 1 } } }], 10);
+    assert.equal(o.entries.get('notes/a'), 'Notiz [neu]');
+  }
+  // With no original left, the copy stands — marked as one in the state.
+  const alone = mergeEntries(new Map([['notes/a', 'Notiz']]), { 'notes/a': given }, 'aaa', [], 10);
+  assert.deepEqual(alone.state['notes/a'], { t: 5, v: 'Notiz', k: 1 });
+  assert.equal(alone.stamps['notes/a'], given);
+});

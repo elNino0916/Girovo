@@ -13,7 +13,7 @@
 //
 //   <group>.devices          who belongs to the group (name, last seen)
 //   <group>.<device>.state   that device's entries, each with its time (lib/sync-entries.ts)
-//   <group>.<blob>.doc       one receipt's bytes
+//   <group>.<blob>.doc       one receipt's bytes, removed by the device that deleted it once all have seen that
 //
 // <group> comes from the key; every file is sealed with it (AES-256-GCM, the
 // file's name bound in), so the place learns sizes and times, nothing else.
@@ -27,12 +27,17 @@
 import crypto from 'node:crypto';
 import type { VaultData } from './app-types';
 import type { KeptDoc } from './docs';
-import { mergeEntries, restamp, stableJson, vaultEntries, vaultFromEntries, type RemoteState, type Stamps, type SyncEntry } from './sync-entries.ts';
+import {
+  hashOf, mergeEntries, restamp, stableJson, vaultEntries, vaultFromEntries,
+  type RemoteState, type Stamp, type Stamps, type SyncEntry,
+} from './sync-entries.ts';
 
 /** A place that keeps files by name. */
 export type SyncStore = {
   get(name: string): Promise<Uint8Array | null>;
   put(name: string, bytes: Uint8Array): Promise<void>;
+  /** Removes it; one that is not there is no error. A place without it keeps a deleted receipt's bytes. */
+  remove?(name: string): Promise<void>;
 };
 
 /** This login's receipts on this device (lib/doc-store.ts, through the session). */
@@ -54,10 +59,16 @@ export type SyncLocal = {
    * overwrites the group's newer notes or brings back what the group deleted.
    */
   joining?: true;
-  /** Receipts whose bytes this device has left in the place, by content hash. */
+  /** Receipts whose bytes this device has left in the place, or taken from it, by content hash. */
   uploaded: string[];
   /** Each local receipt's content hash, by its id — reading every receipt each time is slow. */
   hashes: Record<string, string>;
+  /**
+   * Receipts deleted here whose bytes are still in the place, by content
+   * hash: they leave it once every device of the group has taken in the
+   * deletion — never while one may still keep the receipt.
+   */
+  removing?: string[];
 };
 
 export type SyncDevice = { id: string; name: string; at: number };
@@ -69,16 +80,30 @@ export type SyncResult = {
   changed: boolean;
   devices: SyncDevice[];
   receipts: { added: number; removed: number };
+  /**
+   * Entries of the other devices this one has no room for (the vault's byte
+   * limit, `maxBytes`): they stay theirs, untouched, and every round tries
+   * them again. 0 when everything fits.
+   */
+  full: number;
 };
 
 export const KEY_BYTES = 32;
 const DEVICES_MAX = 8;
 /**
  * A device not seen this long is left out — its state no longer read, its
- * entry dropped — well before a deletion's tombstone is forgotten
- * (sync-entries.ts TOMBSTONE_MS), so it can never bring a deleted note back.
+ * entry dropped — long before a deletion's tombstone is forgotten
+ * (sync-entries.ts TOMBSTONE_MS, years): neither its old state nor the
+ * device itself, when it comes back, can bring a deleted note back, since
+ * the others still hold the tombstone that beats its older entry.
  */
 export const DEVICE_STALE_MS = 90 * 86_400_000;
+/**
+ * How full a round fills the vault with what is new from the others, of
+ * `maxBytes`: the rest stays room for this device's own next edits, which
+ * lib/vault.ts would otherwise refuse to save.
+ */
+export const FILL_MAX = 0.85;
 const NAME_MAX = 40;
 const FILE_MAX = 64 * 1024 * 1024;
 const IV = 12;
@@ -151,12 +176,44 @@ function receiptEntry(doc: KeptDoc) {
 }
 type ReceiptEntry = ReturnType<typeof receiptEntry>;
 
+/** Whether two sets of stamps say the same. */
+function sameStamps(a: Stamps, b: Stamps): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((p) => a[p] === b[p] || (b[p] !== undefined && a[p].h === b[p].h && a[p].t === b[p].t));
+}
+
+/**
+ * The stamp for an entry this device holds as `held`, given it as `st` says:
+ * held as given, the stamp as it is; held changed by the keeping, the same
+ * stamp with what it holds as `k` (sync-entries.ts Stamp) — at the time it had.
+ */
+const stampAsHeld = (st: Stamp, held: unknown): Stamp => {
+  const h = hashOf(held);
+  if (h === st.h) return st.k === undefined ? st : { h: st.h, t: st.t };
+  return st.k === h ? st : { h: st.h, t: st.t, k: h };
+};
+
+/** UTF-8 bytes of a value as JSON — how lib/vault.ts measures the vault. */
+const jsonBytes = (v: unknown) => Buffer.byteLength(JSON.stringify(v) ?? '', 'utf8');
+/** What one entry takes in the vault's JSON, about: its key (not its field) and its value. */
+const entryBytes = (path: string, v: unknown) => jsonBytes(path.slice(path.indexOf('/') + 1)) + jsonBytes(v) + 2;
+
+/** The place has no room for one more file (lib/sync-stores.ts SyncPlaceError 'full': the shelf's 507, a WebDAV quota). */
+const placeFull = (err: unknown) => (err as { reason?: unknown } | null)?.reason === 'full';
+
 export const newDeviceId = () => crypto.randomBytes(8).toString('hex');
 export const newGroupKey = () => crypto.randomBytes(KEY_BYTES);
 
 /**
  * One round: this device's vault and receipts merged with every other
  * device's state in the place, and this device's own state left there.
+ *
+ * In this order: the place first (a deleted receipt's bytes, new receipts'
+ * bytes, the state, the devices list), only then this device's receipts — so
+ * a round the place cuts off has changed nothing here — and the stamps kept
+ * (`checkpoint`) before anything of the round reaches the place and again
+ * once the receipts here changed.
  */
 export async function runSync(opts: {
   store: SyncStore;
@@ -172,6 +229,22 @@ export async function runSync(opts: {
    * this device deleted, and must not reach the others as deleted.
    */
   keep?: (vault: VaultData) => VaultData;
+  /**
+   * The most the kept vault may take as JSON (lib/vault.ts VAULT_LIMITS.bytes,
+   * which refuses to save more). What is new from the others comes only
+   * while the vault stays within FILL_MAX of it — the oldest left out first,
+   * instead of failing every round, and with room left for this device's own
+   * edits.
+   */
+  maxBytes?: number;
+  /**
+   * Keeps this device's sync state (lib/sync-meta.ts) while the round is under
+   * way. A round cut off later — the place gone mid-way, the app closed —
+   * then never stamps what this device holds anew, which would make it newer
+   * than what the others did meanwhile (a receipt deleted there would come
+   * back, a match made there would be undone).
+   */
+  checkpoint?: (local: SyncLocal) => Promise<void>;
   now?: number;
 }): Promise<SyncResult> {
   const { store, key, device, vault, receipts } = opts;
@@ -207,7 +280,10 @@ export async function runSync(opts: {
   // A device's first round after joining: what it brought is older than the group's.
   const stamps = restamp(entries, prior, opts.local.joining && !Object.keys(prior).length ? 0 : now);
 
-  // Every other device's state.
+  // Every other device's state. Only a tombstone deletes: an entry that is
+  // missing from a state (its device never held it, the read failed) is
+  // never taken for deleted — a device back after months keeps what the
+  // others did not hold, and loses only what they deleted, tombstone and all.
   const remotes: RemoteState[] = [];
   for (const d of devices) {
     if (d.id === device.id) continue;
@@ -216,21 +292,81 @@ export async function runSync(opts: {
   }
   const merged = mergeEntries(entries, stamps, device.id, remotes, now);
 
-  // The receipts: what the others added comes here, what they deleted goes,
-  // a changed match follows — and this device's bytes go to the place once.
+  // What this device holds now, stamped, is kept before anything of this
+  // round reaches the place.
+  const stampedHere: Stamps = { ...asideDocs, ...stamps };
+  if (opts.checkpoint && !sameStamps(stampedHere, opts.local.stamps)) {
+    await opts.checkpoint({ ...opts.local, stamps: stampedHere, hashes: { ...hashes } });
+  }
+
+  // The place. A receipt deleted here takes its bytes out of it once every
+  // device of the group has taken in the deletion and it still stands —
+  // never while one of them may still keep the receipt (matched again there
+  // meanwhile, its later stamp beats the deletion) or its state could not be
+  // read this round. A deletion forgotten after its years goes at once.
+  const removing = new Set(opts.local.removing ?? []);
+  if (receipts) {
+    const had = new Set(opts.local.uploaded);
+    for (const [p, st] of Object.entries(stamps)) {
+      if (p.startsWith('docs/') && st.h === '-' && merged.stamps[p]?.h === '-' && had.has(p.slice(5))) removing.add(p.slice(5));
+    }
+    for (const h of removing) {
+      const p = `docs/${h}`;
+      if (merged.entries.has(p)) {
+        removing.delete(h);
+        continue;
+      }
+      const everywhere = devices.every((d) => d.id === device.id || remotes.some((r) => r.device === d.id && r.entries[p]?.d === 1));
+      if (!everywhere && merged.stamps[p]) continue;
+      if (store.remove) await store.remove(blobFile(key, h));
+      removing.delete(h);
+    }
+  }
+  // A receipt kept here that beat another device's deletion: its bytes may
+  // have left the place meanwhile (a round cut off, an older version), so
+  // they go up again until no state says deleted any more.
+  const contested = new Set<string>();
+  for (const r of remotes) {
+    for (const [p, e] of Object.entries(r.entries)) if (p.startsWith('docs/') && e?.d === 1 && merged.entries.has(p)) contested.add(p.slice(5));
+  }
+  // This device's receipts' bytes, once each.
+  const uploaded = new Set(opts.local.uploaded.filter((h) =>
+    !contested.has(h) && (merged.entries.has(`docs/${h}`) || (asideDocs[`docs/${h}`] && asideDocs[`docs/${h}`].h !== '-'))));
+  for (const d of docs) {
+    const h = hashes[d.id];
+    if (uploaded.has(h) || !merged.entries.has(`docs/${h}`)) continue;
+    try {
+      await store.put(blobFile(key, h), seal(key, blobFile(key, h), await receipts!.read(d.id)));
+    } catch (err) {
+      // No room for one more file there (the desktop's shelf is full, a
+      // WebDAV quota): this receipt waits for the next round, the rest syncs on.
+      if (placeFull(err)) continue;
+      throw err;
+    }
+    uploaded.add(h);
+  }
+  await writeJson(store, key, stateFile(key, device.id), { v: 1, device: { id: device.id, name: device.name }, at: now, entries: merged.state });
+  // "Last seen" only once this round's state is written: a device whose
+  // rounds keep failing ages out of the others' view (DEVICE_STALE_MS)
+  // instead of keeping its old state, tombstones expired, in it.
+  await writeJson(store, key, devicesFile(key), devices);
+
+  // Then the receipts here: what the others added comes, what they deleted
+  // goes, a changed match follows.
   const localByHash = new Map(docs.map((d) => [hashes[d.id], d]));
-  const receivedHere = new Set<string>();
   let added = 0;
   let removed = 0;
+  let relinked = 0;
   for (const [path, value] of receipts ? merged.entries : []) {
     if (!path.startsWith('docs/')) continue;
     const hash = path.slice(5);
     if (!value || typeof value !== 'object' || typeof (value as ReceiptEntry).mime !== 'string') continue;
     const meta = value as ReceiptEntry;
-    const mine = localByHash.get(hash);
-    if (mine) {
-      if ((mine.tx ?? null) !== meta.tx || (mine.accountNumber ?? null) !== meta.accountNumber) {
-        await receipts!.link(mine.id, meta.tx, meta.accountNumber).catch(() => {});
+    const here = localByHash.get(hash);
+    if (here) {
+      if ((here.tx ?? null) !== meta.tx || (here.accountNumber ?? null) !== meta.accountNumber) {
+        await receipts!.link(here.id, meta.tx, meta.accountNumber).catch(() => {});
+        relinked++;
       }
       continue;
     }
@@ -241,7 +377,7 @@ export async function runSync(opts: {
     if (!id) continue;
     hashes[id] = hash;
     // Its bytes are in the place already: never left there a second time.
-    receivedHere.add(hash);
+    uploaded.add(hash);
     added++;
   }
   for (const d of docs) {
@@ -250,44 +386,109 @@ export async function runSync(opts: {
     delete hashes[d.id];
     removed++;
   }
-  const uploaded = new Set([...opts.local.uploaded, ...receivedHere].filter((h) => merged.entries.has(`docs/${h}`)));
-  for (const d of docs) {
-    const h = hashes[d.id];
-    if (!h || uploaded.has(h)) continue;
-    await store.put(blobFile(key, h), seal(key, blobFile(key, h), await receipts!.read(d.id)));
-    uploaded.add(h);
-  }
-
-  await writeJson(store, key, stateFile(key, device.id), { v: 1, device: { id: device.id, name: device.name }, at: now, entries: merged.state });
-  // "Last seen" only once this round's state is written: a device whose
-  // rounds keep failing ages out of the others' view (DEVICE_STALE_MS)
-  // instead of keeping its old state, tombstones expired, in it.
-  await writeJson(store, key, devicesFile(key), devices);
-
-  const vaultEntriesOnly = new Map([...merged.entries].filter(([p]) => !p.startsWith('docs/')));
-  const built = vaultFromEntries(vaultEntriesOnly, vault);
-  const next = opts.keep ? opts.keep(built) : built;
-  const sorted = (v: VaultData) => stableJson([...vaultEntries(v)].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-  const changed = sorted(next) !== sorted(vault);
   // Kept hashes only for receipts still here.
   const keptHashes: Record<string, string> = {};
   for (const [id, h] of Object.entries(hashes)) if (merged.entries.has(`docs/${h}`)) keptHashes[id] = h;
+  // Stamps only for receipts this device really holds now: one that did not
+  // arrive gets none — it is not this device's to delete, and the next round
+  // tries it again. A tombstone stays. One the doc store keeps a little
+  // differently (lib/docs.ts sanitizeDoc) is stamped as held, at the time it
+  // had; a match this device could not follow (there is no unlinking) stays
+  // its own, to go to the others with the next round as before.
+  const current = added || relinked ? (await receipts!.list()).filter((d) => d.kind === 'receipt') : docs;
+  const heldAs = new Map(current.filter((d) => keptHashes[d.id]).map((d) => [keptHashes[d.id], receiptEntry(d)]));
+  const docStamps: Stamps = { ...asideDocs };
+  for (const [p, st] of receipts ? Object.entries(merged.stamps) : []) {
+    if (!p.startsWith('docs/')) continue;
+    if (st.h === '-') {
+      docStamps[p] = st;
+      continue;
+    }
+    const here = heldAs.get(p.slice(5));
+    if (!here) continue;
+    const given = merged.entries.get(p) as ReceiptEntry | undefined;
+    docStamps[p] = here.tx === given?.tx && here.accountNumber === given?.accountNumber ? stampAsHeld(st, here) : st;
+  }
+  // The receipts here changed: kept with their stamps at once — the vault's
+  // still as it is on disk until the route saves the merged one.
+  if (opts.checkpoint && (added || removed || relinked)) {
+    const vaultStamps = Object.fromEntries(Object.entries(stamps).filter(([p]) => !p.startsWith('docs/')));
+    await opts.checkpoint({ ...opts.local, stamps: { ...vaultStamps, ...docStamps }, uploaded: [...uploaded], hashes: keptHashes, removing: [...removing] });
+  }
+
+  // The vault: the merged entries as this device keeps them.
+  const vaultOnly = new Map([...merged.entries].filter(([p]) => !p.startsWith('docs/')));
+  const keepFrom = (m: ReadonlyMap<string, unknown>) => {
+    const built = vaultFromEntries(m, vault);
+    return opts.keep ? opts.keep(built) : built;
+  };
+  let next = keepFrom(vaultOnly);
+  let full = 0;
+  let asBefore = false;
+  const fill = opts.maxBytes === undefined ? Infinity : Math.floor(opts.maxBytes * FILL_MAX);
+  let excess = jsonBytes(next) - fill;
+  if (excess > 0) {
+    // Fuller than a round may fill it: what is new from the others is left
+    // out, the oldest first, until it fits FILL_MAX of the limit — the rest
+    // stays room for this device's own next edits. Not held here, it gets no
+    // stamp — still theirs, never deleted — and the next round tries it again.
+    const had = vaultEntries(vault);
+    const incoming = [...vaultOnly.keys()]
+      .filter((p) => !had.has(p))
+      .sort((a, b) => merged.stamps[a].t - merged.stamps[b].t || (a < b ? -1 : a > b ? 1 : 0));
+    const left = new Map(vaultOnly);
+    let i = 0;
+    while (excess > 0 && i < incoming.length) {
+      while (excess > 0 && i < incoming.length) {
+        const p = incoming[i++];
+        excess -= entryBytes(p, left.get(p));
+        left.delete(p);
+        full++;
+      }
+      next = keepFrom(left);
+      excess = jsonBytes(next) - fill;
+    }
+    // Still fuller (this device's own entries, the others' edits to them) is
+    // kept while it can be saved at all.
+    if (jsonBytes(next) > opts.maxBytes!) {
+      // Even without anything new it does not fit (what the others changed
+      // made it larger): the vault stays as it is, with its own stamps.
+      asBefore = true;
+      next = vault;
+      full = 0;
+      for (const [p, v] of vaultOnly) if (!had.has(p) || hashOf(had.get(p)) !== hashOf(v)) full++;
+      for (const p of had.keys()) if (!vaultOnly.has(p)) full++;
+      full = Math.max(full, 1);
+    }
+  }
+  const sorted = (v: VaultData) => stableJson([...vaultEntries(v)].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  const changed = sorted(next) !== sorted(vault);
+
   // Stamps only for what this device really holds now. An entry the vault
-  // did not keep, or a receipt that did not arrive, gets none: it is not this
-  // device's to delete, and the next round tries it again. A tombstone stays.
-  const held = vaultEntries(next);
-  const heldDocs = new Set(Object.values(keptHashes));
-  const stampsNow: Stamps = { ...asideDocs };
-  for (const [p, st] of Object.entries(merged.stamps)) {
-    if (st.h === '-') stampsNow[p] = st;
-    else if (p.startsWith('docs/') ? receipts && heldDocs.has(p.slice(5)) : held.has(p)) stampsNow[p] = st;
+  // did not keep gets none: it is not this device's to delete, and the next
+  // round tries it again. A tombstone stays. What the keeping changed (a
+  // field this version does not know, a clipped note) is stamped as kept
+  // (`k`), at the time it had — never as this device's own change, stamped
+  // anew every round and sent back and forth between devices that keep it
+  // differently, and never a rival to the original it came as.
+  const stampsNow: Stamps = { ...docStamps };
+  if (asBefore) {
+    for (const [p, st] of Object.entries(stamps)) if (!p.startsWith('docs/')) stampsNow[p] = st;
+  } else {
+    const held = vaultEntries(next);
+    for (const [p, st] of Object.entries(merged.stamps)) {
+      if (p.startsWith('docs/')) continue;
+      if (st.h === '-') stampsNow[p] = st;
+      else if (held.has(p)) stampsNow[p] = stampAsHeld(st, held.get(p));
+    }
   }
   return {
     vault: changed ? next : vault,
-    local: { stamps: stampsNow, uploaded: [...uploaded], hashes: keptHashes },
+    local: { stamps: stampsNow, uploaded: [...uploaded], hashes: keptHashes, ...(removing.size ? { removing: [...removing] } : {}) },
     changed,
     devices,
     receipts: { added, removed },
+    full,
   };
 }
 

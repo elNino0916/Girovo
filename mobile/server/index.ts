@@ -42,7 +42,7 @@ bankPolicy.firstByteMs = Infinity;
 
 // Sync "Direkt im WLAN": the way to the desktop app's shelf (lib/sync-stores.ts lanStore).
 (globalThis as typeof globalThis & { __girovoLanHttp?: unknown }).__girovoLanHttp =
-  (req: { method: 'GET' | 'PUT'; url: string; token: string; body?: string }) => GirovoSync.lan(req);
+  (req: { method: 'GET' | 'PUT' | 'DELETE'; url: string; token: string; body?: string }) => GirovoSync.lan(req);
 
 /** Whether this phone has Gemini Nano, asked once at start (mobile/server/categories.ts). */
 const nano = startNano();

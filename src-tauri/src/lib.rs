@@ -223,6 +223,7 @@ pub fn run() {
       files::fs_rename,
       files::folder_get,
       files::folder_put,
+      files::folder_remove,
       http::http_open,
       http::http_body,
       http::http_cancel,

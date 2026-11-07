@@ -44,6 +44,7 @@ function sanitize(raw: unknown): SyncMeta | null {
   const place = readPlace(r.place);
   if (key.length !== 32 || typeof r.deviceId !== 'string' || !/^[0-9a-f]{16}$/.test(r.deviceId) || !place) return null;
   const local = (r.local && typeof r.local === 'object' ? r.local : {}) as Partial<SyncLocal>;
+  const removing = Array.isArray(local.removing) ? local.removing.filter((h): h is string => typeof h === 'string' && /^[0-9a-f]{32}$/.test(h)) : [];
   return {
     key,
     deviceId: r.deviceId,
@@ -54,6 +55,7 @@ function sanitize(raw: unknown): SyncMeta | null {
       stamps: local.stamps && typeof local.stamps === 'object' ? local.stamps : {},
       uploaded: Array.isArray(local.uploaded) ? local.uploaded.filter((h): h is string => typeof h === 'string') : [],
       hashes: local.hashes && typeof local.hashes === 'object' ? local.hashes : {},
+      ...(removing.length ? { removing } : {}),
     },
     ...(typeof r.lastSync === 'number' ? { lastSync: r.lastSync } : {}),
     ...(Array.isArray(r.devices) ? { devices: r.devices as SyncDevice[] } : {}),

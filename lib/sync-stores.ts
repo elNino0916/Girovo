@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { IS_ANDROID } from './platform.ts';
-import { renameRetrying } from './sealed-file.ts';
+import { removeRetrying, renameRetrying } from './sealed-file.ts';
 import { STATE_DIR } from './state-store.ts';
 import { groupOf, lanToken, type SyncPlace, type SyncStore } from './sync.ts';
 
@@ -78,17 +78,23 @@ export function folderStore(dir: string): SyncStore {
         throw err;
       }
     },
+    async remove(name) {
+      // Gone already is fine; a brief lock (OneDrive, a scanner) is ridden out.
+      await removeRetrying(path.join(dir, checked(name)));
+    },
   };
 }
 
 /**
- * The place could not be reached (no network, its server down or too slow)
- * or turned this device away (WebDAV's login): an everyday state of a place
- * on the network, said to the user and never reported as a fault.
+ * The place could not be reached (no network, its server down or too slow),
+ * turned this device away (WebDAV's login) or has no room for one more file
+ * (the desktop's shelf is full, a WebDAV quota — runSync skips a receipt's
+ * file for that): an everyday state of a place on the network, said to the
+ * user and never reported as a fault.
  */
 export class SyncPlaceError extends Error {
-  readonly reason: 'unreachable' | 'refused';
-  constructor(reason: 'unreachable' | 'refused', detail: string) {
+  readonly reason: 'unreachable' | 'refused' | 'full';
+  constructor(reason: 'unreachable' | 'refused' | 'full', detail: string) {
     super(`sync place ${reason}: ${detail}`);
     this.name = 'SyncPlaceError';
     this.reason = reason;
@@ -108,6 +114,7 @@ function offline(err: unknown): boolean {
 /** An answer that says no: the login refused, or the server unable now. Anything else stays a fault. */
 function answerError(status: number, who: string): Error {
   if (status === 401 || status === 403) return new SyncPlaceError('refused', `${who} ${status}`);
+  if (status === 507) return new SyncPlaceError('full', `${who} ${status}`);
   if (status >= 500 || status === 408 || status === 429) return new SyncPlaceError('unreachable', `${who} ${status}`);
   return new Error(`${who} ${status}`);
 }
@@ -144,11 +151,18 @@ export function webdavStore(place: Extract<SyncPlace, { kind: 'webdav' }>): Sync
         if (!res.ok) throw answerError(res.status, 'WebDAV');
       });
     },
+    remove(name) {
+      return reaching('WebDAV', async () => {
+        const res = await fetch(url(name), { method: 'DELETE', headers: { authorization: auth }, signal: AbortSignal.timeout(30_000) });
+        // Gone already: what was asked for.
+        if (!res.ok && res.status !== 404) throw answerError(res.status, 'WebDAV');
+      });
+    },
   };
 }
 
 /** The phone's way to the computer: plain HTTP to a private address, through the app (mobile/runtime.ts). */
-type LanHttp = (req: { method: 'GET' | 'PUT'; url: string; token: string; body?: string }) => Promise<{ status: number; body?: string }>;
+type LanHttp = (req: { method: 'GET' | 'PUT' | 'DELETE'; url: string; token: string; body?: string }) => Promise<{ status: number; body?: string }>;
 
 export function lanStore(place: Extract<SyncPlace, { kind: 'lan' }>, key: Buffer): SyncStore {
   const token = lanToken(key);
@@ -157,7 +171,7 @@ export function lanStore(place: Extract<SyncPlace, { kind: 'lan' }>, key: Buffer
   const http: LanHttp = found;
   let working: string | null = null;
   /** The computer at whichever of its addresses answers — the last one that did first. */
-  async function ask(method: 'GET' | 'PUT', name: string, body?: Uint8Array) {
+  async function ask(method: 'GET' | 'PUT' | 'DELETE', name: string, body?: Uint8Array) {
     const order = working ? [working, ...place.addresses.filter((a) => a !== working)] : place.addresses;
     let lastError: unknown = null;
     for (const address of order) {
@@ -187,6 +201,11 @@ export function lanStore(place: Extract<SyncPlace, { kind: 'lan' }>, key: Buffer
     async put(name, bytes) {
       const res = await ask('PUT', name, bytes);
       if (res.status !== 200 && res.status !== 204) throw answerError(res.status, 'computer');
+    },
+    async remove(name) {
+      const res = await ask('DELETE', name);
+      // 404: gone already. 405: a desktop app from before it removed anything — the bytes stay there, as they did.
+      if (res.status !== 200 && res.status !== 204 && res.status !== 404 && res.status !== 405) throw answerError(res.status, 'computer');
     },
   };
 }

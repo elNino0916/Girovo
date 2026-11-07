@@ -180,7 +180,7 @@ export const GirovoBackground = registerPlugin<GirovoBackgroundPlugin>('GirovoBa
 // of a sealed file on the desktop app's shelf, over plain HTTP to a private address.
 
 export interface GirovoSyncPlugin {
-  lan(opts: { method: 'GET' | 'PUT'; url: string; token: string; body?: string }): Promise<{ status: number; body?: string }>;
+  lan(opts: { method: 'GET' | 'PUT' | 'DELETE'; url: string; token: string; body?: string }): Promise<{ status: number; body?: string }>;
 }
 
 export const GirovoSync = registerPlugin<GirovoSyncPlugin>('GirovoSync');
