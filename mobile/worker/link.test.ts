@@ -193,8 +193,10 @@ test('close ends every subscription the other side holds (a worker that was ende
     worker.listen('ticks', [], () => {});
     await new Promise((r) => setTimeout(r, 20));
     page.close();
+    await new Promise((r) => setTimeout(r, 10));
     assert.equal(stopped, 2);
     page.close();
+    await new Promise((r) => setTimeout(r, 10));
     assert.equal(stopped, 2, 'once each');
   } finally {
     close();
