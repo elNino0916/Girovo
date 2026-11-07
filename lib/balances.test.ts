@@ -126,14 +126,14 @@ test('failures are said in one sentence, with the reason when they share one', (
   assert.equal(failureSentence([]), null);
   assert.equal(
     failureSentence([{ name: 'Tagesgeld', message: 'Zeitüberschreitung.' }]),
-    'Abruf für „Tagesgeld“ fehlgeschlagen: Zeitüberschreitung.',
+    'Girovo konnte „Tagesgeld“ nicht laden: Zeitüberschreitung.',
   );
   assert.equal(
     failureSentence([{ name: 'Tagesgeld', message: 'Zeitüberschreitung.' }, { name: 'Visa', message: 'Zeitüberschreitung.' }]),
-    'Abruf für „Tagesgeld“ und „Visa“ fehlgeschlagen: Zeitüberschreitung.',
+    'Girovo konnte „Tagesgeld“ und „Visa“ nicht laden: Zeitüberschreitung.',
   );
   assert.equal(
     failureSentence([{ name: 'Tagesgeld', message: 'Zeitüberschreitung.' }, { name: 'Visa', message: 'Gesperrt.' }]),
-    'Abruf für „Tagesgeld“ und „Visa“ fehlgeschlagen.',
+    'Girovo konnte „Tagesgeld“ und „Visa“ nicht laden.',
   );
 });

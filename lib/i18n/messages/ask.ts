@@ -12,7 +12,7 @@ export const de = {
   suggestions: ['Lebensmittel letzten Monat', 'Größte Ausgabe dieses Jahr', 'Essen gehen pro Monat'],
   reading: 'Gemini Nano liest die Frage …',
   failed: 'Gemini Nano hat gerade nicht geantwortet. Versuch es gleich noch einmal.',
-  notUnderstood: 'Daraus konnte Gemini Nano keine Suche machen. Frag nach einem Empfänger, einer Kategorie oder einem Zeitraum – etwa „Tanken im August“.',
+  notUnderstood: 'Das hat Gemini Nano nicht verstanden. Frag etwa „Tanken im August“.',
   /** What the question was read as, before the answer. */
   understood: 'Gesucht',
   dir: { out: 'Ausgaben', in: 'Eingänge', all: 'Ausgaben und Eingänge' },
@@ -45,13 +45,13 @@ export const de = {
   /** On a phone without Gemini Nano v4: the tile says why, and where an update may help. */
   unsupported: {
     tag: 'Nicht unterstützt',
-    tooOld: (model: string, min: number) => `Fragen braucht Gemini Nano v${min} oder neuer – auf diesem Telefon ist ${model}.`,
-    unnamed: (min: number) => `Fragen braucht Gemini Nano v${min} oder neuer – AICore nennt das Modell auf diesem Telefon nicht.`,
-    loading: 'Android lädt Gemini Nano noch. Sobald es da ist, kannst du hier fragen.',
-    systemUpdate: 'Gemini Nano braucht ein Systemupdate. Installiere die neuesten Updates, dann kannst du hier fragen.',
-    aicore: 'Gemini Nano braucht eine neuere Version von Android AICore.',
+    tooOld: (model: string, min: number) => `Dafür braucht es Gemini Nano v${min}. Dieses Telefon hat ${model}.`,
+    unnamed: (min: number) => `Dafür braucht es Gemini Nano v${min}. Welche Version dieses Telefon hat, ist unklar.`,
+    loading: 'Android lädt Gemini Nano noch. Danach kannst du hier fragen.',
+    systemUpdate: 'Gemini Nano braucht ein Systemupdate. Installiere die neuesten Updates.',
+    aicore: 'Gemini Nano braucht ein Update von AICore.',
     none: 'Dieses Telefon bietet Gemini Nano nicht an.',
-    hint: 'Oft hilft ein Update von AICore und Private Compute Services im Play Store – das neue Modell lädt Android dann selbst.',
+    hint: 'Oft hilft es, AICore und Private Compute Services im Play Store zu aktualisieren.',
     update: 'AICore aktualisieren',
   },
   /** The figure's name. */
@@ -67,9 +67,9 @@ export const de = {
   approx: 'ca.',
   perMonth: 'pro Monat',
   averageBasis: (n: number) => (n === 1 ? 'aus 1 vollen Monat' : `aus ${n} vollen Monaten`),
-  noWholeMonth: 'Für einen Schnitt pro Monat fehlt ein voller geladener Monat – hier die Summe.',
+  noWholeMonth: 'Noch kein voller Monat geladen – hier die Summe.',
   none: 'Keine passenden Umsätze',
-  noneHint: (range: string) => `In den geladenen Umsätzen (${range}) passt keiner zu dieser Suche.`,
+  noneHint: (range: string) => `Keiner der geladenen Umsätze (${range}) passt.`,
   outside: 'Für diesen Zeitraum sind keine Umsätze geladen.',
   partial: (day: string) => `Geladen erst ab ${day} – es kann mehr gewesen sein.`,
   atLeast: 'mind.',
@@ -77,7 +77,7 @@ export const de = {
   /** The desktop reads the question with the app's own category model, not Gemini Nano. */
   desktop: {
     reading: 'Girovo liest die Frage …',
-    notUnderstood: 'Daraus konnte Girovo keine Suche machen. Frag nach einem Empfänger, einer Kategorie oder einem Zeitraum – etwa „Tanken im August“.',
+    notUnderstood: 'Das hat Girovo nicht verstanden. Frag etwa „Tanken im August“.',
   },
 };
 
@@ -88,7 +88,7 @@ export const en: typeof de = {
   suggestions: ['Groceries last month', 'Largest expense this year', 'Eating out per month'],
   reading: 'Gemini Nano is reading the question …',
   failed: "Gemini Nano didn't answer just now. Try again in a moment.",
-  notUnderstood: "Gemini Nano couldn't make a search out of that. Ask about a recipient, a category or a period – such as “fuel in August”.",
+  notUnderstood: 'Gemini Nano didn’t understand that. Try something like “fuel in August”.',
   understood: 'Searched for',
   dir: { out: 'Spending', in: 'Income', all: 'Spending and income' },
   period: {
@@ -116,13 +116,13 @@ export const en: typeof de = {
   compareMissing: 'No transactions are loaded for one of the periods.',
   unsupported: {
     tag: 'Not supported',
-    tooOld: (model, min) => `Asking needs Gemini Nano v${min} or later – this phone has ${model}.`,
-    unnamed: (min) => `Asking needs Gemini Nano v${min} or later – AICore doesn’t name the model on this phone.`,
-    loading: 'Android is still downloading Gemini Nano. Once it’s there, you can ask here.',
-    systemUpdate: 'Gemini Nano needs a system update. Install the latest updates, then you can ask here.',
-    aicore: 'Gemini Nano needs a newer version of Android AICore.',
+    tooOld: (model, min) => `This needs Gemini Nano v${min}. This phone has ${model}.`,
+    unnamed: (min) => `This needs Gemini Nano v${min}. It’s unclear which version this phone has.`,
+    loading: 'Android is still downloading Gemini Nano. Then you can ask here.',
+    systemUpdate: 'Gemini Nano needs a system update. Install the latest updates.',
+    aicore: 'Gemini Nano needs an AICore update.',
     none: 'This phone doesn’t offer Gemini Nano.',
-    hint: 'Updating AICore and Private Compute Services in the Play Store often helps – Android then fetches the new model itself.',
+    hint: 'Updating AICore and Private Compute Services in the Play Store often helps.',
     update: 'Update AICore',
   },
   spent: 'Spent',
@@ -136,15 +136,15 @@ export const en: typeof de = {
   approx: 'approx.',
   perMonth: 'a month',
   averageBasis: (n) => (n === 1 ? 'from 1 whole month' : `from ${n} whole months`),
-  noWholeMonth: 'A monthly average needs one whole loaded month – here is the total.',
+  noWholeMonth: 'No whole month loaded yet – here is the total.',
   none: 'No matching transactions',
-  noneHint: (range) => `None of the loaded transactions (${range}) matches this search.`,
+  noneHint: (range) => `None of the loaded transactions (${range}) match.`,
   outside: 'No transactions are loaded for this period.',
   partial: (day) => `Only loaded from ${day} – there may have been more.`,
   atLeast: 'at least',
   show: 'Show transactions',
   desktop: {
     reading: 'Girovo is reading the question …',
-    notUnderstood: "Girovo couldn't make a search out of that. Ask about a recipient, a category or a period – such as “fuel in August”.",
+    notUnderstood: 'Girovo didn’t understand that. Try something like “fuel in August”.',
   },
 };

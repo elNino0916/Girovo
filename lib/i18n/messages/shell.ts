@@ -74,7 +74,7 @@ export const de = {
     csv: 'Umsätze als CSV exportieren',
     /** Under the CSV export: the loaded period, if any. */
     csvNote: (range: string) => (range ? `${range} · für Excel` : 'Für Excel'),
-    inboxHint: 'Nachrichten deiner Bank und Vorgänge dieser Sitzung',
+    inboxHint: 'Nachrichten deiner Bank und deine Überweisungen',
     updateTo: (version: string) => `Update auf Version ${version}`,
     installed: (version: string) => `Installiert: Version ${version}`,
     /** Beside the account that is selected now. */
@@ -93,10 +93,10 @@ export const de = {
       `${n === 1 ? '1 Ergebnis' : `${n} Ergebnisse`}${txNote ? ` · Umsätze: ${txNote}` : ''}`,
     field: 'Umsatz, Konto oder Aktion suchen',
     placeholder: 'Umsatz, Konto oder Aktion suchen …',
-    intro: 'Tippe einen Namen, Verwendungszweck oder Betrag, um in den geladenen Umsätzen zu suchen.',
+    intro: 'Finde Umsätze nach Name, Verwendungszweck oder Betrag.',
     resultsLabel: 'Ergebnisse',
     emptyHint:
-      'Suche nach einer Aktion wie „Überweisen“, nach einem Konto oder nach geladenen Umsätzen – Name, Verwendungszweck oder Betrag wie „12,99“.',
+      'Versuch eine Aktion wie „Überweisen“, ein Konto oder einen Betrag wie „12,99“.',
     /** The key hints at the palette's foot. */
     keys: { select: 'auswählen', open: 'öffnen', close: 'schließen' },
     /**
@@ -142,10 +142,10 @@ export const de = {
   /** The Tastenkürzel dialog (ShortcutsHelp). */
   shortcuts: {
     description:
-      'Einzelne Tasten wirken nur, solange du nicht in einem Eingabefeld schreibst – und lassen sich ganz ausschalten.',
+      'Einzelne Tasten wirken nicht, während du in ein Feld schreibst.',
     /** Under the switch; `palette` is "Strg+K" or "⌘K", `toastKey` "F6". */
     switchHint: (palette: string, toastKey: string) =>
-      `/, ?, N, B, G und 1–9. Ausschalten, wenn du per Sprache steuerst oder Tasten leicht versehentlich triffst. ${palette}, Alt+1–3 und ${toastKey} bleiben eingeschaltet.`,
+      `/, ?, N, B, G und 1–9. Ausschalten bei Sprachsteuerung oder wenn du dich oft vertippst. ${palette}, Alt+1–3 und ${toastKey} bleiben an.`,
     groups: { everywhere: 'Überall', navigation: 'Navigation', actions: 'Aktionen', lists: 'In Listen und Dialogen' },
     /** "?": the shortcuts dialog itself. */
     thisList: 'Diese Übersicht',
@@ -161,7 +161,7 @@ export const de = {
     /** The two-key form under Navigation; the keys are G_TABS in components/shell/useShortcuts.ts. */
     gKeys: (key: (k: string) => ReactNode) => [
       'Oder ', key('G'), ' drücken, dann ', key('Ü'), ', ', key('A'), ' oder ', key('V'),
-      ' für die drei Bereiche. Eine Zahl wechselt zu einem schon abgerufenen Konto.',
+      ' für die drei Bereiche. Eine Zahl öffnet ein geladenes Konto.',
     ],
     /** Between keys, for a screen reader: "1 bis 9", "Alt plus 1". */
     to: 'bis',
@@ -172,18 +172,18 @@ export const de = {
   /** What switching "Beträge ausblenden" from a key or the palette says. */
   amounts: {
     shown: 'Beträge werden wieder angezeigt.',
-    hiddenB: 'Beträge ausgeblendet – mit B blendest du sie wieder ein.',
+    hiddenB: 'Beträge ausgeblendet. Mit B zeigst du sie wieder.',
     hidden: 'Beträge ausgeblendet.',
   },
 
   /** A digit key naming an account that a switch would have to fetch first. */
   switchByKey: {
-    busy: (account: string) => `„${account}“ lässt sich wählen, sobald der laufende Vorgang fertig ist.`,
-    failed: (account: string) => `Der letzte Abruf für „${account}“ ist fehlgeschlagen. Ein neuer kann eine Freigabe erfordern.`,
+    busy: (account: string) => `„${account}“ kannst du wählen, sobald Girovo fertig ist.`,
+    failed: (account: string) => `„${account}“ konnte nicht geladen werden. Neu laden kann eine Freigabe erfordern.`,
     otherPeriod: (account: string) =>
-      `Die Umsätze von „${account}“ sind für einen anderen Zeitraum abgerufen. Ein neuer Abruf kann eine Freigabe erfordern.`,
-    notLoaded: (account: string) => `„${account}“ ist noch nicht abgerufen. Ein Abruf kann eine Freigabe erfordern.`,
-    loadNow: 'Jetzt abrufen',
+      `„${account}“ ist für einen anderen Zeitraum geladen. Neu laden kann eine Freigabe erfordern.`,
+    notLoaded: (account: string) => `„${account}“ ist noch nicht geladen. Laden kann eine Freigabe erfordern.`,
+    loadNow: 'Jetzt laden',
   },
 
   toasts: {
@@ -209,7 +209,7 @@ export const de = {
   inbox: {
     bankMessages: 'Mitteilungen deiner Bank',
     received: (time: string) =>
-      `Erhalten bei der Anmeldung um ${time}. Mitteilungen werden nicht gespeichert – nach dem Abmelden sind sie hier nicht mehr zu sehen.`,
+      `Erhalten beim Anmelden um ${time}. Nach dem Abmelden sind sie weg.`,
     none: 'Keine Mitteilungen',
     /**
      * Messages come with the login's synchronisation only (app/api/connect).
@@ -217,11 +217,11 @@ export const de = {
      * device skips that round trip, and then the bank was not asked at all
      * (`noneNotAsked`, FintsProvider's messagesAsked).
      */
-    noneHint: 'Deine Bank hat bei dieser Anmeldung nichts mitgeteilt. Neue Mitteilungen siehst du nach der nächsten Anmeldung.',
-    noneNotAsked: 'Auf einem gemerkten Gerät fragt Girovo deine Bank beim Anmelden nicht nach Mitteilungen.',
-    activity: 'Vorgänge dieser Sitzung',
+    noneHint: 'Deine Bank hat beim Anmelden nichts geschickt.',
+    noneNotAsked: 'Auf einem gemerkten Gerät lädt Girovo beim Anmelden keine Mitteilungen.',
+    activity: 'Überweisungen seit der Anmeldung',
     noActivity:
-      'Noch keine Überweisungen in dieser Sitzung. Ausgeführte, abgelehnte und unklare Aufträge stehen hier, bis du dich abmeldest.',
+      'Noch keine. Deine Überweisungen stehen hier bis zum Abmelden.',
     /** The app's own news, after the bank's messages. */
     thisApp: 'Diese App',
     /** After a new message's subject, for a screen reader. */
@@ -244,7 +244,7 @@ export const de = {
     transferTo: 'Überweisung an',
     unknownPayee: 'Unbekannter Empfänger',
     fromAccount: (account: string) => `von ${account}`,
-    unclear: 'Ob die Bank den Auftrag ausgeführt hat, ist nicht bekannt. Prüfe deine Umsätze, bevor du ihn wiederholst.',
+    unclear: 'Unklar, ob die Bank den Auftrag ausgeführt hat. Prüfe deine Umsätze, bevor du ihn wiederholst.',
     withPayee: 'Umsätze mit diesem Empfänger',
   },
 
@@ -292,10 +292,10 @@ export const de = {
     /** On Zahlungen in the sidebar: payments due in the next 30 days. */
     dueBadge: (n: number) => `${n} fällig`,
     /** Ticked accounts whose Umsätze this session has not read. */
-    notLoaded: (names: string) => `Umsätze noch nicht abgerufen: ${names}`,
-    load: 'Umsätze abrufen',
+    notLoaded: (names: string) => `Umsätze noch nicht geladen: ${names}`,
+    load: 'Umsätze laden',
     /** Nothing ticked. */
-    noneShown: 'Kein Konto angehakt. Hake links ein Konto an, um seine Umsätze zu sehen.',
+    noneShown: 'Kein Konto angehakt. Hake links eins an.',
     /** The month in the sidebar. */
     month: 'Monat',
     /** The day picked in the month, as a chip over the ledger. */
@@ -323,9 +323,9 @@ export const de = {
 
   /** Why there is no Kontoauszug yet. */
   statementHint: {
-    noTransactions: 'Für dieses Konto bietet deine Bank keine Umsätze an – daher auch keinen Kontoauszug.',
-    loading: 'Die Umsätze werden gerade geladen. Danach gibt es den Kontoauszug.',
-    notLoaded: 'Den Kontoauszug gibt es, sobald die Umsätze dieses Kontos geladen sind.',
+    noTransactions: 'Deine Bank liefert für dieses Konto keine Umsätze, also auch keinen Kontoauszug.',
+    loading: 'Umsätze werden geladen. Danach gibt es den Kontoauszug.',
+    notLoaded: 'Lade zuerst die Umsätze dieses Kontos.',
   },
 
   /** The safe answer before a logout or a restart over transfers whose status is unclear. */
@@ -337,26 +337,26 @@ export const de = {
   /** "Neu in Girovo 6" (components/NewInSix.tsx): once after the update, and from Einstellungen → Über Girovo. */
   newInSix: {
     title: 'Neu in Girovo 6',
-    intro: 'Ein paar Neuerungen schaltest du selbst ein, weil sie eine PIN aufbewahren oder über dieses Gerät hinausreichen. Das geht gleich hier oder später in den Einstellungen.',
+    intro: 'Was eine PIN speichert oder dieses Gerät verlässt, schaltest du selbst ein – hier oder später in den Einstellungen.',
     introPlain: 'Was sich mit Version 6 geändert hat.',
     toTurnOn: 'Zum Einschalten',
     alsoNew: 'Außerdem neu',
     done: 'Fertig',
     /** Einstellungen → Über Girovo. */
     row: 'Neu in Girovo 6',
-    rowHint: 'Was Version 6 mitbringt und was du dafür einschalten kannst',
-    overview: { title: 'Alle Konten auf einen Blick', text: 'Mit mehreren Konten zeigt die Übersicht sie alle zusammen, mit dem Gesamtsaldo darüber.' },
-    frame: { title: 'Ein neues Fenster', text: 'Eine Seitenleiste mit deinen Konten zum Ein- und Ausblenden, die Suche in der Titelleiste.' },
+    rowHint: 'Neuerungen und was du einschalten kannst',
+    overview: { title: 'Alle Konten auf einen Blick', text: 'Alle Konten zusammen, mit dem Gesamtsaldo darüber.' },
+    frame: { title: 'Ein neues Fenster', text: 'Deine Konten in einer Seitenleiste, die Suche oben im Fenster.' },
     widget: { title: 'Widget für den Startbildschirm', text: 'Dein Gesamtsaldo, verdeckt, bis du tippst. Halte den Startbildschirm gedrückt und wähle „Widgets“.' },
-    orders: { title: 'Aufträge', text: 'Daueraufträge und terminierte Überweisungen deiner Bank auf einer eigenen Seite unter Zahlungen.' },
-    kept: { title: 'Letzte Salden', text: 'Die letzten Kontostände bleiben bis zur nächsten Anmeldung zu sehen, mit dem Verlauf des Gesamtsaldos.' },
+    orders: { title: 'Aufträge', text: 'Daueraufträge und Terminüberweisungen auf einer eigenen Seite unter Zahlungen.' },
+    kept: { title: 'Letzte Salden', text: 'Deine letzten Kontostände bleiben bis zur nächsten Anmeldung sichtbar, mit Verlauf.' },
     cards: { title: 'Kreditkarten der Sparkassen', text: 'Die Umsätze deiner Sparkassen-Kreditkarte, wo die Bank sie anbietet.' },
-    updates: { title: 'Updates beim Start', text: 'Neue Versionen lädt und installiert Girovo im Startfenster, bevor sich das Fenster öffnet.' },
+    updates: { title: 'Updates beim Start', text: 'Neue Versionen werden beim Start installiert.' },
     /** The desktop app only: the Tauri shell (src-tauri) in place of Electron. */
-    rust: { title: 'Rust in Girovo', text: 'Girovo für Windows und Linux läuft jetzt auf einer neuen, schlankeren Grundlage in Rust – vom Fenster bis zu den Updates.' },
-    contracts: { title: 'Verträge, die sich melden', text: 'Wird ein Abo teurer, steht seit wann und um wie viel im Jahr. Und wenn du willst, erinnert Girovo dich vor der Kündigungsfrist.' },
+    rust: { title: 'Schlanker gebaut', text: 'Girovo für Windows und Linux läuft jetzt auf einer neuen, schlankeren Grundlage.' },
+    contracts: { title: 'Verträge, die sich melden', text: 'Girovo zeigt, wenn ein Abo teurer wird, und erinnert dich auf Wunsch an die Kündigungsfrist.' },
     /** The desktop: "Frag deine Umsätze" with the built-in model (components/insights/Ask.tsx). */
-    ask: { title: 'Frag deine Umsätze', text: 'Stell in der Analyse eine Frage wie „Wie viel ging letzten Monat an Rewe?“. Girovo rechnet die Antwort auf diesem Rechner aus.' },
+    ask: { title: 'Frag deine Umsätze', text: 'Frag in der Analyse zum Beispiel: „Wie viel ging letzten Monat an Rewe?“ Gerechnet wird auf diesem Rechner.' },
   },
 
   /** The update dialog and the places that point to it (components/updates). */
@@ -366,7 +366,7 @@ export const de = {
     available: (v: string) => `Version ${v} ist verfügbar`,
     /** The desktop's way back from a preview to the stable release (Update-Kanal "Stabil"). */
     backTo: (v: string) => `Zurück zu Version ${v}`,
-    backNote: 'Diese Version ist älter als deine Nightly. Was es nur in der Nightly gibt, etwa die Anordnung deiner Konten, geht dabei verloren.',
+    backNote: 'Diese Version ist älter als deine Nightly. Was nur die Nightly hat, geht verloren, etwa die Anordnung deiner Konten.',
     newIn: (v: string) => `Neu in Version ${v}`,
     releaseOf: (version: ReactNode, date: ReactNode, current: ReactNode) => [
       'Version ', version, ' vom ', date, ' · du nutzt ', current,
@@ -384,43 +384,43 @@ export const de = {
       n === 1
         ? 'Die Überweisung mit unklarem Status steht nach dem Neustart nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.'
         : `Die ${n} Überweisungen mit unklarem Status stehen nach dem Neustart nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.`,
-    cannotUpdate: 'Diese Version der App kann sich nicht selbst aktualisieren. Lade die neue Version auf GitHub herunter.',
-    noFile: 'Für diese Version gibt es keine Datei, die die App prüfen könnte. Lade sie auf GitHub herunter.',
-    restarts: 'Girovo wird beendet, installiert die neue Version und startet von selbst neu – meist in weniger als einer Minute.',
+    cannotUpdate: 'Diese Version kann sich nicht selbst aktualisieren. Hol dir die neue auf der Download-Seite.',
+    noFile: 'Girovo kann dieses Update nicht prüfen. Hol es dir auf der Download-Seite.',
+    restarts: 'Girovo startet neu und installiert das Update – meist in unter einer Minute.',
     logsOut: 'Du wirst dabei abgemeldet.',
-    approvalRunning: 'Gerade läuft eine Freigabe. Neu starten kannst du, sobald sie abgeschlossen ist.',
+    approvalRunning: 'Eine Freigabe läuft noch. Danach kannst du neu starten.',
     checking: 'Suche nach Updates …',
     latest: 'Du nutzt die neueste Version.',
     lastChecked: (time: ReactNode) => ['Zuletzt geprüft: ', time],
-    autoOff: 'Die App sucht nicht von selbst nach Updates.',
+    autoOff: 'Girovo sucht nicht selbst nach Updates.',
     whatsNew: 'Was ist neu',
     onGitHub: 'Auf GitHub',
     downloading: 'Wird heruntergeladen …',
     progress: 'Download des Updates',
     percent: (n: number) => `${n} Prozent`,
-    checksum: 'Die Datei wird vor der Installation mit Girovos signierter Prüfsumme abgeglichen.',
+    checksum: 'Girovo prüft die Datei vor der Installation.',
     auto: 'Automatisch nach Updates suchen',
     autoHint:
-      'Beim Start und alle sechs Stunden. Gefragt wird girovo.de, ersatzweise GitHub; die Anfrage enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht der Server dabei deine IP-Adresse – nichts über deine Konten.',
+      'Beim Start und alle sechs Stunden. Über deine Konten wird nichts gesendet.',
     /** The installed Windows app: the same switch, which also installs at start (src-tauri/src/updater/start.rs). */
     autoInstall: 'Updates automatisch installieren',
     /** "Update aus Datei installieren" (components/updates/FileUpdateDialog.tsx). */
     file: {
       checking: 'Datei wird geprüft …',
-      checkingHint: 'Girovo vergleicht sie mit seinen signierten Versionen.',
+      checkingHint: 'Girovo prüft, ob sie echt ist.',
       readyTitle: (v: string) => `Version ${v} installieren?`,
-      ready: 'Die Datei ist ein signiertes Update von Girovo. Girovo schließt sich, installiert sie und startet wieder.',
+      ready: 'Ein echtes Girovo-Update. Girovo schließt sich, installiert es und startet neu.',
       older: (v: string, current: string) =>
-        `Version ${v} ist älter als die installierte Version ${current}. Was eine neuere Version gespeichert hat, kann sie vielleicht nicht öffnen.`,
+        `Version ${v} ist älter als deine (${current}). Daten einer neueren Version kann sie vielleicht nicht öffnen.`,
       same: (v: string) => `Version ${v} ist schon installiert. Sie wird noch einmal installiert.`,
-      holding: 'Girovo wartet gerade auf deine Bank. Installieren kannst du, sobald das fertig ist.',
+      holding: 'Girovo wartet noch auf deine Bank. Danach kannst du installieren.',
       install: 'Installieren',
       refusedTitle: 'Diese Datei wird nicht installiert',
     },
     autoInstallHint:
-      'Beim Start sucht Girovo nach einer neuen Version, lädt sie herunter und installiert sie, bevor das Fenster aufgeht; zwischendurch wird alle sechs Stunden nachgesehen. Aus: nur, wenn du es sagst. Gefragt wird girovo.de, ersatzweise GitHub; die Anfrage enthält nur die Versionsnummer der App. Wie bei jedem Abruf sieht der Server dabei deine IP-Adresse – nichts über deine Konten.',
+      'Neue Versionen werden beim Start installiert.',
     // The toasts, the Mitteilungen row, the Sitzung panel's row and the login bar's button.
-    downloaded: (v: string) => `Version ${v} ist heruntergeladen. Installiert wird erst, wenn du neu startest.`,
+    downloaded: (v: string) => `Version ${v} ist heruntergeladen. Sie wird beim Neustart installiert.`,
     details: 'Details',
     /** The first start after the update from a version called Sooskasse-FinTS. */
     renamed: (v: string) => `Sooskasse-FinTS heißt jetzt Girovo. Version ${v} ist installiert.`,
@@ -429,9 +429,9 @@ export const de = {
     notCompleted: (v: string) => `Das Update auf Version ${v} wurde nicht abgeschlossen.`,
     readyToInstall: (v: string) => `Version ${v} ist bereit zur Installation`,
     updatedTo: (v: string) => `Aktualisiert auf Version ${v}`,
-    stillOn: (current: ReactNode) => ['Du nutzt noch Version ', current, '. Installiert wird erst, wenn du neu startest.'],
+    stillOn: (current: ReactNode) => ['Du nutzt noch Version ', current, '. Installiert wird beim Neustart.'],
     notYetDownloaded: (current: ReactNode) => [
-      'Du nutzt Version ', current, '. Heruntergeladen wird erst, wenn du auf „Herunterladen“ klickst.',
+      'Du nutzt Version ', current, '. Noch nichts heruntergeladen.',
     ],
     installNow: 'Jetzt installieren …',
     detailsAndDownload: 'Details und Download …',
@@ -505,7 +505,7 @@ export const en: typeof de = {
     shareHint: 'GiroCode with your account details',
     csv: 'Export transactions as CSV',
     csvNote: (range) => (range ? `${range} · for Excel` : 'For Excel'),
-    inboxHint: 'Messages from your bank and this session’s activity',
+    inboxHint: 'Messages from your bank and your transfers',
     updateTo: (version) => `Update to version ${version}`,
     installed: (version) => `Installed: version ${version}`,
     selected: 'Selected',
@@ -519,10 +519,10 @@ export const en: typeof de = {
     results: (n, txNote) => `${n === 1 ? '1 result' : `${n} results`}${txNote ? ` · Transactions: ${txNote}` : ''}`,
     field: 'Search for a transaction, account or action',
     placeholder: 'Search for a transaction, account or action…',
-    intro: 'Type a name, payment reference or amount to search the loaded transactions.',
+    intro: 'Find transactions by name, payment reference or amount.',
     resultsLabel: 'Results',
     emptyHint:
-      'Search for an action like “Transfer”, for an account or for loaded transactions – a name, payment reference or amount like “12.99”.',
+      'Try an action like “Transfer”, an account or an amount like “12.99”.',
     keys: { select: 'select', open: 'open', close: 'close' },
     words: {
       transfer: ['send money', 'pay', 'payment', 'instant', 'sepa'],
@@ -560,9 +560,9 @@ export const en: typeof de = {
   },
 
   shortcuts: {
-    description: 'Single keys only work while you’re not typing in a field – and can be turned off completely.',
+    description: 'Single keys don’t work while you’re typing in a field.',
     switchHint: (palette, toastKey) =>
-      `/, ?, N, B, G and 1–9. Turn them off if you use voice control or easily hit keys by accident. ${palette}, Alt+1–3 and ${toastKey} stay on.`,
+      `/, ?, N, B, G and 1–9. Turn off for voice control or if you often mistype. ${palette}, Alt+1–3 and ${toastKey} stay on.`,
     groups: { everywhere: 'Everywhere', navigation: 'Navigation', actions: 'Actions', lists: 'In lists and dialogues' },
     thisList: 'This list',
     toToast: 'To the latest notification and back',
@@ -577,7 +577,7 @@ export const en: typeof de = {
     // initial of Contracts, so English names each section.
     gKeys: (key) => [
       'Or press ', key('G'), ', then ', key('O'), ' for Overview, ', key('A'), ' for Analysis or ', key('V'),
-      ' for Contracts & subscriptions. A number switches to an account that has already been loaded.',
+      ' for Payments. A number opens a loaded account.',
     ],
     to: 'to',
     or: 'or',
@@ -586,16 +586,16 @@ export const en: typeof de = {
 
   amounts: {
     shown: 'Amounts are shown again.',
-    hiddenB: 'Amounts hidden – press B to show them again.',
+    hiddenB: 'Amounts hidden. Press B to show them.',
     hidden: 'Amounts hidden.',
   },
 
   switchByKey: {
-    busy: (account) => `“${account}” can be selected once the current task has finished.`,
-    failed: (account) => `The last attempt to load “${account}” failed. Trying again may need approval.`,
+    busy: (account) => `You can pick “${account}” once Girovo is done.`,
+    failed: (account) => `“${account}” couldn’t be loaded. Loading again may need approval.`,
     otherPeriod: (account) =>
-      `The transactions of “${account}” were loaded for a different period. Loading them again may need approval.`,
-    notLoaded: (account) => `“${account}” hasn’t been loaded yet. Loading it may need approval.`,
+      `“${account}” is loaded for another period. Loading again may need approval.`,
+    notLoaded: (account) => `“${account}” isn’t loaded yet. Loading may need approval.`,
     loadNow: 'Load now',
   },
 
@@ -616,12 +616,12 @@ export const en: typeof de = {
   inbox: {
     bankMessages: 'Messages from your bank',
     received: (time) =>
-      `Received when you logged in at ${time}. Messages aren’t stored – after you log out, they’re no longer shown here.`,
+      `Received when you logged in at ${time}. They’re gone once you log out.`,
     none: 'No messages',
-    noneHint: 'Your bank sent no messages at this login. You’ll see new ones after your next login.',
-    noneNotAsked: 'On a remembered device, Girovo doesn’t ask your bank for messages when you log in.',
-    activity: 'This session’s activity',
-    noActivity: 'No transfers in this session yet. Completed, rejected and unclear orders stay here until you log out.',
+    noneHint: 'Your bank sent nothing when you logged in.',
+    noneNotAsked: 'On a remembered device, Girovo doesn’t load messages when you log in.',
+    activity: 'Transfers since you logged in',
+    noActivity: 'None yet. Your transfers stay here until you log out.',
     thisApp: 'This app',
     new: '(new)',
     copyText: 'Copy text',
@@ -638,7 +638,7 @@ export const en: typeof de = {
     transferTo: 'Transfer to',
     unknownPayee: 'Unknown recipient',
     fromAccount: (account) => `from ${account}`,
-    unclear: 'It’s not known whether the bank carried out the order. Check your transactions before you repeat it.',
+    unclear: 'Unclear whether the bank carried out the order. Check your transactions before you repeat it.',
     withPayee: 'Transactions with this recipient',
   },
 
@@ -673,7 +673,7 @@ export const en: typeof de = {
     dueBadge: (n) => `${n} due`,
     notLoaded: (names) => `Transactions not loaded yet: ${names}`,
     load: 'Load transactions',
-    noneShown: 'No account ticked. Tick an account on the left to see its transactions.',
+    noneShown: 'No account ticked. Tick one on the left.',
     month: 'Month',
     day: (day) => `On ${day}`,
     clearDay: 'Show the whole period',
@@ -693,9 +693,9 @@ export const en: typeof de = {
   },
 
   statementHint: {
-    noTransactions: 'Your bank doesn’t provide transactions for this account – so there’s no account statement either.',
-    loading: 'The transactions are loading. The account statement will be available after that.',
-    notLoaded: 'The account statement is available once this account’s transactions have loaded.',
+    noTransactions: 'Your bank provides no transactions for this account, so no account statement either.',
+    loading: 'Transactions are loading. The account statement comes after that.',
+    notLoaded: 'Load this account’s transactions first.',
   },
 
   lookAtUnclear: {
@@ -705,23 +705,23 @@ export const en: typeof de = {
 
   newInSix: {
     title: 'New in Girovo 6',
-    intro: 'A few new features are yours to turn on, because they keep a PIN or reach beyond this device. You can do it right here or later in Settings.',
+    intro: 'Anything that keeps a PIN or leaves this device is yours to turn on – here or later in Settings.',
     introPlain: 'What changed with version 6.',
     toTurnOn: 'To turn on',
     alsoNew: 'Also new',
     done: 'Done',
     row: 'New in Girovo 6',
-    rowHint: 'What version 6 brings, and what you can turn on for it',
-    overview: { title: 'All accounts at a glance', text: 'With several accounts, the overview shows them all together, with the total balance above.' },
-    frame: { title: 'A new window', text: 'A sidebar with your accounts to show and hide, and search in the title bar.' },
+    rowHint: 'What’s new and what you can turn on',
+    overview: { title: 'All accounts at a glance', text: 'All your accounts together, with the total balance on top.' },
+    frame: { title: 'A new window', text: 'Your accounts in a sidebar, search at the top of the window.' },
     widget: { title: 'Home screen widget', text: 'Your total balance, covered until you tap. Touch and hold the home screen and pick “Widgets”.' },
-    orders: { title: 'Orders', text: 'Your bank’s standing orders and scheduled transfers on a page of their own under Payments.' },
-    kept: { title: 'Last balances', text: 'The last balances stay visible until your next login, with the total balance’s history.' },
+    orders: { title: 'Orders', text: 'Standing orders and scheduled transfers on their own page under Payments.' },
+    kept: { title: 'Last balances', text: 'Your last balances stay visible until your next login, with history.' },
     cards: { title: 'Sparkasse credit cards', text: 'The transactions of your Sparkasse credit card, where the bank offers them.' },
-    updates: { title: 'Updates at start', text: 'Girovo downloads and installs new versions in the start window, before the window opens.' },
-    rust: { title: 'Rust in Girovo', text: 'Girovo for Windows and Linux now runs on a new, leaner foundation built in Rust — from the window to the updates.' },
-    contracts: { title: 'Contracts that speak up', text: 'When a subscription gets dearer, you see since when and how much it adds up to in a year. And if you like, Girovo reminds you before the notice period ends.' },
-    ask: { title: 'Ask your transactions', text: 'Ask a question in the Analysis, such as “How much went to Rewe last month?”. Girovo works out the answer on this computer.' },
+    updates: { title: 'Updates at start', text: 'New versions are installed at start-up.' },
+    rust: { title: 'Built leaner', text: 'Girovo for Windows and Linux now runs on a new, leaner base.' },
+    contracts: { title: 'Contracts that speak up', text: 'Girovo shows when a subscription gets dearer and, if you like, reminds you of the notice period.' },
+    ask: { title: 'Ask your transactions', text: 'Ask in Analysis, for example: “How much went to Rewe last month?” It’s worked out on this computer.' },
   },
 
   updates: {
@@ -729,7 +729,7 @@ export const en: typeof de = {
     ready: (v) => `Version ${v} is ready`,
     available: (v) => `Version ${v} is available`,
     backTo: (v) => `Back to version ${v}`,
-    backNote: 'This version is older than your nightly. Anything only the nightly has, such as the order of your accounts, is lost.',
+    backNote: 'This version is older than your nightly. Anything only the nightly has is lost, such as the order of your accounts.',
     newIn: (v) => `New in version ${v}`,
     releaseOf: (version, date, current) => ['Version ', version, ' from ', date, ' · you’re using ', current],
     youUse: (current) => ['You’re using version ', current],
@@ -745,39 +745,39 @@ export const en: typeof de = {
       n === 1
         ? 'After the restart, the transfer with an unclear status will no longer be in Messages – check it in your transactions first.'
         : `After the restart, the ${n} transfers with an unclear status will no longer be in Messages – check them in your transactions first.`,
-    cannotUpdate: 'This version of the app can’t update itself. Download the new version from GitHub.',
-    noFile: 'There’s no file for this version that the app could verify. Download it from GitHub.',
-    restarts: 'Girovo closes, installs the new version and restarts by itself – usually in less than a minute.',
+    cannotUpdate: 'This version can’t update itself. Get the new one from the download page.',
+    noFile: 'Girovo can’t check this update. Get it from the download page.',
+    restarts: 'Girovo restarts and installs the update – usually in under a minute.',
     logsOut: 'You’ll be logged out in the process.',
-    approvalRunning: 'An approval is in progress. You can restart once it’s complete.',
+    approvalRunning: 'An approval is still running. You can restart after that.',
     checking: 'Checking for updates…',
     latest: 'You’re using the latest version.',
     lastChecked: (time) => ['Last checked: ', time],
-    autoOff: 'The app doesn’t check for updates by itself.',
+    autoOff: 'Girovo doesn’t check for updates by itself.',
     whatsNew: 'What’s new',
     onGitHub: 'On GitHub',
     downloading: 'Downloading…',
     progress: 'Update download',
     percent: (n) => `${n} per cent`,
-    checksum: 'Before it’s installed, the file is checked against Girovo’s signed checksum.',
+    checksum: 'Girovo checks the file before installing it.',
     auto: 'Check for updates automatically',
     autoHint:
-      'At start-up and every six hours. Girovo asks girovo.de, or GitHub if that fails; the request contains only the app’s version number. As with any request, the server sees your IP address – nothing about your accounts.',
+      'At start-up and every six hours. Nothing about your accounts is sent.',
     autoInstall: 'Install updates automatically',
     file: {
       checking: 'Checking the file …',
-      checkingHint: 'Girovo compares it with its signed versions.',
+      checkingHint: 'Girovo checks that it’s genuine.',
       readyTitle: (v) => `Install version ${v}?`,
-      ready: 'The file is a signed Girovo update. Girovo closes, installs it and starts again.',
-      older: (v, current) => `Version ${v} is older than the installed version ${current}. It may not open what a newer version saved.`,
+      ready: 'A genuine Girovo update. Girovo closes, installs it and starts again.',
+      older: (v, current) => `Version ${v} is older than yours (${current}). It may not open data saved by a newer version.`,
       same: (v) => `Version ${v} is already installed. It will be installed again.`,
-      holding: 'Girovo is waiting for your bank right now. You can install once that’s done.',
+      holding: 'Girovo is still waiting for your bank. You can install after that.',
       install: 'Install',
       refusedTitle: 'This file won’t be installed',
     },
     autoInstallHint:
-      'At start-up Girovo looks for a new version, downloads it and installs it before the window opens; in between it checks every six hours. Off: only when you ask. Girovo asks girovo.de, or GitHub if that fails; the request contains only the app’s version number. As with any request, the server sees your IP address – nothing about your accounts.',
-    downloaded: (v) => `Version ${v} has been downloaded. It’s only installed when you restart.`,
+      'New versions are installed at start-up.',
+    downloaded: (v) => `Version ${v} is downloaded. It’s installed when you restart.`,
     details: 'Details',
     renamed: (v) => `Sooskasse-FinTS is now called Girovo. Version ${v} is installed.`,
     updated: (v) => `Girovo has been updated to version ${v}.`,
@@ -785,8 +785,8 @@ export const en: typeof de = {
     notCompleted: (v) => `The update to version ${v} was not completed.`,
     readyToInstall: (v) => `Version ${v} is ready to install`,
     updatedTo: (v) => `Updated to version ${v}`,
-    stillOn: (current) => ['You’re still using version ', current, '. It’s only installed when you restart.'],
-    notYetDownloaded: (current) => ['You’re using version ', current, '. Nothing is downloaded until you click “Download”.'],
+    stillOn: (current) => ['You’re still using version ', current, '. It’s installed when you restart.'],
+    notYetDownloaded: (current) => ['You’re using version ', current, '. Nothing is downloaded yet.'],
     installNow: 'Install now…',
     detailsAndDownload: 'Details and download…',
     detailsAndRestart: 'Details and restart…',

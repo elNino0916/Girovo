@@ -18,7 +18,7 @@ export const de = {
   /** A bank's state, in the account list and the Sitzung panel. */
   state: {
     /** The first login: its encrypted store holds the personal data of the whole view. */
-    primary: 'Hauptanmeldung – hier liegen deine gespeicherten Daten',
+    primary: 'Hauptbank – mit deinen gespeicherten Daten',
     active: 'Angemeldet',
     /** Its session ended during this one; its accounts stay as they were last read. */
     loggedOut: 'Abgemeldet',
@@ -33,8 +33,8 @@ export const de = {
     /** `accounts`: the accounts' names, quoted and joined. */
     collision: (accounts: string, count: number, bank: string) =>
       `${accounts} ${count === 1 ? 'hat' : 'haben'} dieselbe Kontonummer wie ein Konto, das schon angezeigt wird. `
-      + `Zwei Konten mit derselben Kontonummer kann Girovo nicht nebeneinander zeigen – ${bank} wurde deshalb nicht hinzugefügt.`,
-    nothingNew: (bank: string) => `Alle Konten dieser Anmeldung werden schon angezeigt – ${bank} wurde nicht noch einmal hinzugefügt.`,
+      + `${bank} wurde deshalb nicht hinzugefügt.`,
+    nothingNew: (bank: string) => `Diese Konten werden schon angezeigt. ${bank} wurde nicht noch einmal hinzugefügt.`,
     tooMany: (n: number) => `Neben deiner Hauptbank kann Girovo höchstens ${n} weitere Banken zeigen.`,
   },
   added: (bank: string, n: number) => `Bei ${bank} angemeldet – ${n === 1 ? '1 Konto' : `${n} Konten`} hinzugefügt.`,
@@ -55,7 +55,7 @@ export const de = {
   removeDialog: {
     title: 'Bank entfernen?',
     description: (bank: string) => `${bank} und ihre Konten verschwinden aus deiner Übersicht.`,
-    body: 'Girovo meldet dich dort ab und bietet die Anmeldung beim nächsten Mal nicht mehr an. Bei deiner Bank selbst ändert sich nichts.',
+    body: 'Girovo meldet dich dort ab und bietet sie nicht mehr an. Bei der Bank selbst ändert sich nichts.',
     confirm: 'Bank entfernen',
   },
   removed: (bank: string) => `${bank} entfernt.`,
@@ -76,7 +76,7 @@ export const en: typeof de = {
   login: 'Log in',
   loginAgain: 'Log in again',
   state: {
-    primary: 'Main login – your saved data lives here',
+    primary: 'Main bank – holds your saved data',
     active: 'Logged in',
     loggedOut: 'Logged out',
     remembered: 'Not logged in',
@@ -86,8 +86,8 @@ export const en: typeof de = {
     sameLogin: (bank) => `You are already logged in to ${bank} with this login name.`,
     collision: (accounts, count, bank) =>
       `${accounts} ${count === 1 ? 'has' : 'have'} the same account number as an account already shown. `
-      + `Girovo cannot show two accounts with the same account number side by side – so ${bank} was not added.`,
-    nothingNew: (bank) => `Every account of this login is already shown – ${bank} was not added again.`,
+      + `So ${bank} was not added.`,
+    nothingNew: (bank) => `These accounts are already shown. ${bank} was not added again.`,
     tooMany: (n) => `Beside your main bank, Girovo can show at most ${n} more banks.`,
   },
   added: (bank, n) => `Logged in to ${bank} – ${n === 1 ? '1 account' : `${n} accounts`} added.`,
@@ -101,7 +101,7 @@ export const en: typeof de = {
   removeDialog: {
     title: 'Remove bank?',
     description: (bank) => `${bank} and its accounts leave your overview.`,
-    body: 'Girovo logs you out there and stops offering this login next time. Nothing changes at your bank itself.',
+    body: 'Girovo logs you out there and stops offering it. Nothing changes at the bank itself.',
     confirm: 'Remove bank',
   },
   removed: (bank) => `${bank} removed.`,

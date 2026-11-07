@@ -53,9 +53,8 @@ The rules:
    what a bank writes are data, not interface. Mark them so the guard leaves
    them alone: `// i18n-data` on the line, `// i18n-data-next-line`, or
    `// i18n-data-start` … `// i18n-data-end` around a block.
-3. **Move the German, don't rewrite it.** German is the source and already
-   reviewed. Change a German text only where it has to become a function
-   (a placeholder, a plural).
+3. **Write it the way "Voice" below says.** German is the source; English
+   says the same thing.
 4. **Placeholders are parameters, plurals are code.**
    `sent: (name: string) => \`Überweisung an ${name} ausgeführt\``,
    `count: (n: number) => (n === 1 ? '1 Umsatz' : \`${n} Umsätze\`)`.
@@ -77,6 +76,41 @@ The rules:
    language on screen and keeps the German ones as data, so both work.
 8. **Shared words** live in `messages/common.ts` (`t.common.cancel`). Use
    them; add an area's own words to that area.
+
+## Voice
+
+The owner, 2026-11-07: the texts were far too long and too technical — Girovo
+read like an app for developers. Girovo is for people who bank. Every text:
+
+- **Short.** One idea per sentence. A hint under a setting is one line
+  (about 70 characters). A dialog's description is one or two short
+  sentences. An error says what happened and, if there is one, what to do —
+  two short sentences at most.
+- **What it means for you, not how it works.** No internals: no FinTS, API,
+  HTTP, server, request, cache, token, checksum or hash, signature,
+  encryption method, vault, WebDAV, JSON, worker, process, bundle, build,
+  "Abruf" in the technical sense. Say what the person sees or decides:
+  "Girovo prüft die Datei vor der Installation", not "mit der signierten
+  Prüfsumme abgeglichen". A privacy fact stays, in one plain sentence ("Deine
+  Daten bleiben auf deinem Gerät.").
+- **No explaining the obvious**, no lists of every case, no "zwischendurch",
+  "ersatzweise", "jeweils", "entsprechend", "gegebenenfalls", "bzw.".
+- **Everyday words.** "Rechner" on the desktop and "Telefon" on Android,
+  never "Computer". Girovo speaks of itself as "Girovo", never "wir".
+- **Bank words stay the banks'** (the glossary below and PRODUCT.md's
+  terminology): Kontostand, Verfügbar, Umsätze, Vorgemerkt, Verwendungszweck,
+  Freigabe … A bank's own message is shown as the bank wrote it.
+- **Safety and money stay exact.** A warning about a transfer, an unclear
+  order, logging out or losing data keeps every condition — shorter, never
+  softer. Error codes only where someone may need them for support, short
+  and at the end ("(Code 9931)").
+- **English** mirrors the German in the same few words (see below).
+
+Example — the auto-update switch's hint, before: "Beim Start sucht Girovo
+nach einer neuen Version, lädt sie herunter und installiert sie, bevor das
+Fenster aufgeht; zwischendurch wird alle sechs Stunden nachgesehen. Aus: nur,
+wenn du es sagst. Gefragt wird girovo.de, ersatzweise GitHub; …" — after:
+"Neue Versionen werden beim Start installiert."
 
 ## English
 

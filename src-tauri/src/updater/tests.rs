@@ -428,7 +428,7 @@ async fn an_install_that_did_not_happen_is_reported_at_the_next_start() {
   assert_eq!(s.failed_install.as_deref(), Some("9.9.9"));
   let error = s.error.unwrap();
   assert_eq!(error.during, During::Install);
-  assert!(error.message.contains("9.9.9 wurde nicht abgeschlossen"));
+  assert!(error.message.contains("9.9.9 hat nicht geklappt"));
 
   // …and the downloaded file is still good: the next check offers it at once.
   assert_eq!(again.check(false).await.phase, Phase::Ready);
@@ -455,7 +455,7 @@ async fn a_file_that_does_not_match_githubs_digest_is_thrown_away() {
   assert_eq!(s.phase, Phase::Available);
   let error = s.error.unwrap();
   assert_eq!(error.during, During::Download);
-  assert!(error.message.contains("Prüfsumme"));
+  assert!(error.message.contains("Das Update war beschädigt"));
   assert!(cache.names().is_empty());
 }
 
@@ -476,7 +476,7 @@ async fn a_truncated_download_fails_and_leaves_nothing_behind() {
   updater.check(true).await;
   let s = updater.download().await;
   assert_eq!(s.phase, Phase::Available);
-  assert!(s.error.unwrap().message.contains("Verbindung zu GitHub ist abgebrochen"));
+  assert!(s.error.unwrap().message.contains("Verbindung ist abgebrochen"));
   assert!(cache.names().is_empty());
 }
 
@@ -518,7 +518,7 @@ async fn githubs_rate_limit_a_manual_check_says_so_an_automatic_one_stays_quiet(
   let host = Arc::new(FakeHost::default());
   let manual = make(config(&srv.base, cache.path()), &host).check(true).await;
   assert_eq!(manual.phase, Phase::Idle);
-  assert!(manual.error.unwrap().message.contains("keine weiteren Anfragen"));
+  assert!(manual.error.unwrap().message.contains("Suche nach Updates geht gerade nicht"));
   let auto = make(config(&srv.base, cache.path()), &host).check(false).await;
   assert_eq!(auto.phase, Phase::Idle);
   assert_eq!(auto.error, None);
@@ -564,7 +564,7 @@ async fn githubs_rate_limit_names_when_it_takes_requests_again() {
   let cache = TempDir::new();
   let host = Arc::new(FakeHost::default());
   let manual = make(config(&srv.base, cache.path()), &host).check(true).await;
-  assert_eq!(manual.error.unwrap().message, "GitHub nimmt gerade keine weiteren Anfragen an – wieder in etwa 31 Minuten.");
+  assert_eq!(manual.error.unwrap().message, "Die Suche nach Updates geht gerade nicht. Versuch es in etwa 31 Minuten noch einmal.");
 }
 
 #[tokio::test]
@@ -585,7 +585,7 @@ async fn nothing_published_yet_counts_as_up_to_date_nonsense_does_not() {
   nonsense.store(1, Ordering::SeqCst);
   let s = make(config(&srv.base, cache.path()), &host).check(true).await;
   assert_eq!(s.phase, Phase::Idle);
-  assert!(s.error.unwrap().message.contains("unverständlich"));
+  assert!(s.error.unwrap().message.contains("ging schief"));
 }
 
 #[tokio::test]
@@ -779,7 +779,7 @@ async fn githubs_passing_502_503_or_504_is_asked_once_more_a_second_one_is_the_a
   let updater = make(config(&srv.base, cache.path()), &Arc::new(FakeHost::default()));
   let s = updater.check(true).await;
   assert_eq!(s.phase, Phase::Idle, "two in a row: the check fails");
-  assert!(s.error.unwrap().message.contains("HTTP 503"));
+  assert!(s.error.unwrap().message.contains("Code 503"));
   failures.store(1, Ordering::SeqCst);
   let s = updater.check(true).await;
   assert_eq!(s.phase, Phase::Available, "one: the second ask brings the release");
@@ -1620,7 +1620,7 @@ mod signed {
     let s = updater.check_file(picked(&downloads, "9.9.9", b"something else entirely")).await;
     let offer = s.file.unwrap();
     assert_eq!(offer.phase, FilePhase::Refused);
-    assert!(offer.message.unwrap().contains("kein signiertes Update"));
+    assert!(offer.message.unwrap().contains("nicht als Update"));
     assert_eq!(updater.install_file().await.phase, Phase::Idle, "nothing to install");
     assert!(host.installs().is_empty());
     assert_eq!(updater.check_file(downloads.path().join("missing.exe")).await.file.unwrap().phase, FilePhase::Refused);

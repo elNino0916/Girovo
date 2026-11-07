@@ -67,20 +67,20 @@ export const de = {
     date: 'Ausführungsdatum',
     /** Under the date fields: the bank's window. */
     window: (from: string, to: string) => `Frühestens am ${from}, spätestens am ${to}.`,
-    notBankDay: 'Das ist kein Bankarbeitstag – deine Bank führt den Auftrag am nächsten aus.',
+    notBankDay: 'Kein Bankarbeitstag – deine Bank überweist am nächsten.',
     rhythm: 'Turnus',
     day: 'Ausführungstag',
     first: 'Erste Ausführung',
     last: 'Letzte Ausführung',
     lastHint: 'Leer lassen: bis auf Weiteres.',
     /** Under Standard | Echtzeit, while a date or a rhythm is chosen. */
-    noInstant: 'Echtzeit gibt es nur, wenn die Überweisung sofort ausgeführt wird.',
+    noInstant: 'Echtzeit gibt es nur bei „Sofort“.',
     /** No rules from the bank at hand (none sent, or a device profile from before): the app offers what every bank accepts. */
-    defaults: 'Die Regeln deiner Bank dafür liegen der App nicht vor – die Auswahl ist deshalb auf das Übliche beschränkt.',
+    defaults: 'Girovo kennt die Regeln deiner Bank dafür nicht – zur Wahl steht nur das Übliche.',
     problems: {
       dateMissing: 'Bitte wähle das Datum.',
       tooEarly: (from: string) => `Frühestens am ${from} – so viel Vorlauf braucht deine Bank.`,
-      tooLate: (to: string) => `Spätestens am ${to} – weiter im Voraus nimmt deine Bank den Auftrag nicht an.`,
+      tooLate: (to: string) => `Spätestens am ${to} – weiter im Voraus nimmt deine Bank nichts an.`,
       rhythmNotAllowed: 'Diesen Turnus bietet deine Bank nicht an.',
       dayNotAllowed: 'An diesem Tag führt deine Bank Daueraufträge nicht aus.',
       /** `day`: the chosen Ausführungstag as the select names it. */
@@ -111,27 +111,27 @@ export const de = {
     sendNoResult: { standing: 'Ohne Ergebnis einrichten', dated: 'Ohne Ergebnis anlegen' } as Record<Kind, string>,
     approve: { standing: 'Dauerauftrag freigeben', dated: 'Terminüberweisung freigeben' } as Record<Kind, string>,
     /** The review step: no balance figure for a day that has not come. */
-    noFunds: 'Ob das Konto gedeckt ist, prüft deine Bank am Tag der Ausführung.',
+    noFunds: 'Ob genug Geld da ist, prüft deine Bank am Tag der Ausführung.',
     /** The done step, under the schedule line. */
     done: {
       /** `place`: where the list lives ("Verträge & Abos"). */
-      where: (place: string) => `Du findest den Auftrag unter „${place}“, sobald du die Aufträge deiner Bank abrufst.`,
+      where: (place: string) => `Zu finden unter „${place}“ bei den Aufträgen, sobald du sie abrufst.`,
     },
     showOrders: 'Aufträge ansehen',
     /** The "Status unklar" step. */
     unknown: {
       noConfirmation: {
-        standing: 'Für diesen Dauerauftrag liegt keine Bestätigung vor. Deine Bank kann ihn trotzdem angelegt haben.',
-        dated: 'Für diese Terminüberweisung liegt keine Bestätigung vor. Deine Bank kann sie trotzdem angelegt haben.',
+        standing: 'Keine Bestätigung erhalten. Deine Bank kann den Dauerauftrag trotzdem angelegt haben.',
+        dated: 'Keine Bestätigung erhalten. Deine Bank kann die Terminüberweisung trotzdem angelegt haben.',
       } as Record<Kind, string>,
       /** `action`: the check button's label. */
       beforeResend: {
-        standing: (action: string) => 'Bevor du ihn noch einmal anlegst: Sieh nach, ob deine Bank ihn schon führt – '
-          + `„${action}“ ruft deine Daueraufträge ab, das kann eine Freigabe erfordern.`,
-        dated: (action: string) => 'Bevor du sie noch einmal anlegst: Sieh nach, ob deine Bank sie schon führt – '
-          + `„${action}“ ruft deine Terminüberweisungen ab, das kann eine Freigabe erfordern.`,
+        standing: (action: string) => `Bevor du ihn noch einmal anlegst: „${action}“ sucht ihn in deinen Daueraufträgen. `
+          + 'Kann eine Freigabe erfordern.',
+        dated: (action: string) => `Bevor du sie noch einmal anlegst: „${action}“ sucht sie in deinen Terminüberweisungen. `
+          + 'Kann eine Freigabe erfordern.',
       } as Record<Kind, (action: string) => string>,
-      loading: { standing: 'Daueraufträge werden abgerufen …', dated: 'Terminüberweisungen werden abgerufen …' } as Record<Kind, string>,
+      loading: { standing: 'Daueraufträge werden geladen …', dated: 'Terminüberweisungen werden geladen …' } as Record<Kind, string>,
       found: 'Gefunden bei deiner Bank',
       /** `when`: the schedule in words. */
       foundText: (amount: ReactNode, name: string, when: string): ReactNode[] => [
@@ -141,15 +141,15 @@ export const de = {
       notChecked: 'Nachsehen nicht möglich – bitte nicht noch einmal anlegen',
       /** `list`: the plural of the kind ("Daueraufträgen"). */
       notYet: (list: string, time: ReactNode): ReactNode[] => [
-        `In deinen ${list} bei der Bank steht der Auftrag noch nicht (Stand `,
+        `Noch nicht in deinen ${list} (Stand `,
         time,
         '). Sieh später noch einmal nach oder prüfe es im Online-Banking deiner Bank.',
       ],
       /** The dative plural for notYet. */
       listDative: { standing: 'Daueraufträgen', dated: 'Terminüberweisungen' } as Record<Kind, string>,
-      failed: 'Abruf der Aufträge fehlgeschlagen.',
+      failed: 'Die Aufträge konnten nicht geladen werden.',
       tryAgain: 'Versuche es gleich noch einmal oder prüfe es im Online-Banking deiner Bank.',
-      nothingToRead: 'Die Aufträge dieses Kontos liefert deine Bank nicht an die App. Prüfe es im Online-Banking deiner Bank.',
+      nothingToRead: 'Deine Bank zeigt Girovo die Aufträge dieses Kontos nicht. Prüfe es im Online-Banking deiner Bank.',
     },
   },
 
@@ -176,7 +176,7 @@ export const de = {
     afterConfirm: {
       standingOrder: 'Der Dauerauftrag ist freigegeben.',
       datedTransfer: 'Die Terminüberweisung ist freigegeben.',
-      bankOrders: 'Die Aufträge werden abgerufen …',
+      bankOrders: 'Aufträge werden geladen …',
       orderDelete: 'Das Löschen ist freigegeben.',
       orderChange: 'Die Änderung ist freigegeben.',
     } as Record<OrderWait, string>,
@@ -189,14 +189,14 @@ export const de = {
     } as Record<OrderWait, { title: string; text: string }>,
     /** "Freigabe abbrechen?" while one of these is waited for: what stays open. */
     abort: {
-      standingOrder: 'Der Dauerauftrag ist vielleicht schon angelegt. Brichst du jetzt ab, bleibt sein Status unklar – '
-        + 'sieh bei den Aufträgen deiner Bank nach, bevor du ihn noch einmal anlegst.',
-      datedTransfer: 'Die Terminüberweisung ist vielleicht schon angelegt. Brichst du jetzt ab, bleibt ihr Status unklar – '
-        + 'sieh bei den Aufträgen deiner Bank nach, bevor du sie noch einmal anlegst.',
-      orderDelete: 'Der Auftrag ist vielleicht schon gelöscht. Brichst du jetzt ab, bleibt das unklar – '
-        + 'ruf die Liste neu ab, bevor du ihn noch einmal löschst.',
-      orderChange: 'Der Auftrag ist vielleicht schon geändert. Brichst du jetzt ab, bleibt das unklar – '
-        + 'ruf die Liste neu ab, bevor du ihn noch einmal änderst.',
+      standingOrder: 'Der Dauerauftrag ist vielleicht schon angelegt. Brichst du ab, bleibt das unklar – '
+        + 'sieh bei deinen Aufträgen nach, bevor du ihn noch einmal anlegst.',
+      datedTransfer: 'Die Terminüberweisung ist vielleicht schon angelegt. Brichst du ab, bleibt das unklar – '
+        + 'sieh bei deinen Aufträgen nach, bevor du sie noch einmal anlegst.',
+      orderDelete: 'Der Auftrag ist vielleicht schon gelöscht. Brichst du ab, bleibt das unklar – '
+        + 'aktualisiere die Liste, bevor du ihn noch einmal löschst.',
+      orderChange: 'Der Auftrag ist vielleicht schon geändert. Brichst du ab, bleibt das unklar – '
+        + 'aktualisiere die Liste, bevor du ihn noch einmal änderst.',
     } as Record<Exclude<OrderWait, 'bankOrders'>, string>,
   },
 
@@ -220,7 +220,7 @@ export const de = {
     reload: 'Aktualisieren',
     /** Beside "Aufträge abrufen". */
     mayNeedApproval: 'Kann eine Freigabe erfordern.',
-    loading: 'Aufträge werden abgerufen …',
+    loading: 'Aufträge werden geladen …',
     none: { standing: 'Keine Daueraufträge bei deiner Bank.', dated: 'Keine Terminüberweisungen bei deiner Bank.' } as Record<Kind, string>,
     notLoaded: { standing: 'Daueraufträge noch nicht abgerufen.', dated: 'Terminüberweisungen noch nicht abgerufen.' } as Record<Kind, string>,
     /** A Dauerauftrag's next execution, after its rhythm. */
@@ -232,10 +232,10 @@ export const de = {
     /** The bank's answer said nothing the app could read about when it runs. */
     noSchedule: 'Termin nicht lesbar',
     more: (n: number) => (n === 1 ? 'und eine weitere Zahlung' : `und ${n} weitere Zahlungen`),
-    incomplete: 'Deine Bank hat nicht alle Aufträge geliefert – die Liste ist unvollständig.',
+    incomplete: 'Unvollständig: Deine Bank hat nicht alle Aufträge gesendet.',
     unreadable: (n: number) => (n === 1
-      ? 'Einen Auftrag konnte die App nicht lesen; er fehlt in der Liste.'
-      : `${n} Aufträge konnte die App nicht lesen; sie fehlen in der Liste.`),
+      ? 'Ein Auftrag fehlt – Girovo konnte ihn nicht lesen.'
+      : `${n} Aufträge fehlen – Girovo konnte sie nicht lesen.`),
     /** `time`: when the list was read. */
     asOf: (time: string) => `Stand ${time}`,
     change: 'Ändern geht hier nicht: Lösche den Auftrag und lege ihn neu an.',
@@ -246,10 +246,10 @@ export const de = {
     deletedToast: (kind: Kind, name: string) =>
       `${kind === 'standing' ? 'Dauerauftrag' : 'Terminüberweisung'} an ${name} gelöscht.`,
     /** A deletion whose outcome the bank did not confirm. */
-    deleteUnclear: 'Ob deine Bank den Auftrag gelöscht hat, ist unklar. Lösche ihn nicht noch einmal, bevor du nachgesehen hast: „Aktualisieren“ ruft die Liste neu ab.',
-    failed: (reason: string) => `Abruf fehlgeschlagen: ${reason}`,
+    deleteUnclear: 'Ob deine Bank den Auftrag gelöscht hat, ist unklar. Lösche ihn nicht noch einmal, bevor du „Aktualisieren“ gewählt hast.',
+    failed: (reason: string) => `Aufträge konnten nicht geladen werden: ${reason}`,
     /** The phone's Übersicht has no room for it: one link. */
-    noAccount: 'Kein Konto bietet Daueraufträge oder Terminüberweisungen über FinTS an.',
+    noAccount: 'Für keines deiner Konten gibt es hier Daueraufträge oder Terminüberweisungen.',
   },
 
   /** Changing one (components/transfer/ChangeOrder.tsx): amount, purpose, date or rhythm — never the payee. */
@@ -257,7 +257,7 @@ export const de = {
     button: 'Ändern …',
     buttonLabel: (kind: Kind, name: string) => `${kind === 'standing' ? 'Dauerauftrag' : 'Terminüberweisung'} an ${name} ändern …`,
     title: { standing: 'Dauerauftrag ändern', dated: 'Terminüberweisung ändern' } as Record<Kind, string>,
-    intro: 'Betrag, Verwendungszweck und Termin lassen sich ändern. Der Empfänger bleibt – für einen anderen legst du einen neuen Auftrag an.',
+    intro: 'Du kannst Betrag, Verwendungszweck und Termin ändern – nicht den Empfänger.',
     payee: 'Empfänger',
     amount: 'Betrag',
     purpose: 'Verwendungszweck',
@@ -268,11 +268,11 @@ export const de = {
     send: 'Änderung senden',
     approval: 'Danach bittet dich deine Bank um die Freigabe.',
     done: { standing: 'Dauerauftrag geändert', dated: 'Terminüberweisung geändert' } as Record<Kind, string>,
-    doneText: 'Deine Bank hat die Änderung angenommen. „Aktualisieren“ zeigt den Auftrag, wie sie ihn jetzt führt.',
+    doneText: 'Deine Bank hat die Änderung angenommen. „Aktualisieren“ zeigt den neuen Stand.',
     refused: 'Deine Bank hat die Änderung abgelehnt:',
     refusedPlain: 'Deine Bank hat die Änderung abgelehnt.',
-    unclearText: 'Ob deine Bank die Änderung angenommen hat, ist unklar. Ändere den Auftrag nicht noch einmal, bevor du nachgesehen hast: „Aktualisieren“ ruft die Liste neu ab.',
-    vopIntro: 'Deine Bank hat den Namen des Empfängers geprüft. Sende die Änderung nur, wenn du sicher bist, dass er stimmt.',
+    unclearText: 'Ob deine Bank die Änderung angenommen hat, ist unklar. Ändere den Auftrag nicht noch einmal, bevor du „Aktualisieren“ gewählt hast.',
+    vopIntro: 'Deine Bank hat den Namen geprüft. Sende die Änderung nur, wenn du sicher bist, dass er stimmt.',
     vopSend: 'Trotzdem senden',
     vopStop: 'Nicht senden',
     changed: 'Geändert',
@@ -282,7 +282,7 @@ export const de = {
   remove: {
     title: { standing: 'Dauerauftrag löschen?', dated: 'Terminüberweisung löschen?' } as Record<Kind, string>,
     body: {
-      standing: 'Deine Bank löscht den Dauerauftrag. Zahlungen, die schon ausgeführt wurden, bleiben, wie sie sind.',
+      standing: 'Deine Bank löscht den Dauerauftrag. Bereits ausgeführte Zahlungen bleiben.',
       dated: 'Deine Bank löscht die Terminüberweisung – sie wird dann nicht ausgeführt.',
     } as Record<Kind, string>,
     approval: 'Danach bittet dich deine Bank um die Freigabe.',
@@ -318,7 +318,7 @@ export const de = {
     standing: 'Dauerauftrag',
     /** `place`: where the bank's list lives ("Verträge & Abos"). */
     unclear: (place: string) =>
-      `Bevor du den Auftrag noch einmal anlegst: Sieh unter „${place}“ nach, ob deine Bank ihn schon führt.`,
+      `Bevor du den Auftrag noch einmal anlegst: Sieh unter „${place}“ nach, ob deine Bank ihn schon hat.`,
   },
 
   /** The command palette's entry (components/CommandPalette.tsx). */
@@ -331,12 +331,12 @@ export const de = {
   /** The answers of /api/transfer and /api/bank-orders(/delete). */
   route: {
     unsupported: (kind: Kind) =>
-      `Dieses Konto unterstützt keine ${kind === 'standing' ? 'Daueraufträge' : 'Terminüberweisungen'} über FinTS.`,
+      `Deine Bank bietet für dieses Konto hier keine ${kind === 'standing' ? 'Daueraufträge' : 'Terminüberweisungen'} an.`,
     scheduleInvalid: 'Der Termin ist ungültig.',
     /** `reason`: the form's own sentence for what is wrong. */
     scheduleRefused: (reason: string) => `Der Termin passt nicht zu den Regeln deiner Bank: ${reason}`,
     noInstant: 'Eine Echtzeitüberweisung kann nicht terminiert werden.',
-    unknownOrder: 'Diesen Auftrag kennt die App nicht mehr. Bitte ruf die Liste neu ab.',
+    unknownOrder: 'Girovo kennt diesen Auftrag nicht mehr. Bitte aktualisiere die Liste.',
     listFailed: 'Deine Bank hat die Liste nicht geliefert.',
     /** A change the bank or the account does not offer for this order. */
     cannotChange: (kind: Kind) => `${kind === 'standing' ? 'Diesen Dauerauftrag' : 'Diese Terminüberweisung'} kannst du hier nicht ändern.`,
@@ -380,18 +380,18 @@ export const en: typeof de = {
     standing: 'Regularly',
     date: 'Execution date',
     window: (from, to) => `From ${from} at the earliest, ${to} at the latest.`,
-    notBankDay: 'That is not a banking day – your bank will carry out the order on the next one.',
+    notBankDay: 'Not a banking day – your bank will transfer on the next one.',
     rhythm: 'Frequency',
     day: 'Execution day',
     first: 'First payment',
     last: 'Last payment',
     lastHint: 'Leave empty: until further notice.',
-    noInstant: 'Instant transfers are only possible when the transfer is carried out now.',
-    defaults: 'The app does not have your bank’s rules for this – so the choice is limited to the usual options.',
+    noInstant: 'Instant is only available with “Now”.',
+    defaults: 'Girovo does not know your bank’s rules for this – only the usual options are offered.',
     problems: {
       dateMissing: 'Please choose the date.',
       tooEarly: (from) => `${from} at the earliest – your bank needs that much notice.`,
-      tooLate: (to) => `${to} at the latest – your bank does not accept orders further ahead.`,
+      tooLate: (to) => `${to} at the latest – your bank accepts nothing further ahead.`,
       rhythmNotAllowed: 'Your bank does not offer this frequency.',
       dayNotAllowed: 'Your bank does not carry out standing orders on this day.',
       firstNotOnDay: (day) => `The first payment has to fall on the execution day (${day}).`,
@@ -418,36 +418,36 @@ export const en: typeof de = {
     sendUnchecked: { standing: 'Set up without name check', dated: 'Schedule without name check' },
     sendNoResult: { standing: 'Set up without check result', dated: 'Schedule without check result' },
     approve: { standing: 'Approve standing order', dated: 'Approve scheduled transfer' },
-    noFunds: 'Whether the account has enough money is checked by your bank on the day of execution.',
+    noFunds: 'Your bank checks there is enough money on the day of execution.',
     done: {
-      where: (place) => `You will find the order under “${place}” once you fetch your bank’s orders.`,
+      where: (place) => `You will find it under “${place}” in your orders once you fetch them.`,
     },
     showOrders: 'View orders',
     unknown: {
       noConfirmation: {
-        standing: 'There is no confirmation for this standing order. Your bank may still have set it up.',
-        dated: 'There is no confirmation for this scheduled transfer. Your bank may still have created it.',
+        standing: 'No confirmation received. Your bank may still have set up the standing order.',
+        dated: 'No confirmation received. Your bank may still have created the scheduled transfer.',
       },
       beforeResend: {
-        standing: (action) => 'Before you set it up again: check whether your bank already has it – '
-          + `“${action}” fetches your standing orders, which may require approval.`,
-        dated: (action) => 'Before you schedule it again: check whether your bank already has it – '
-          + `“${action}” fetches your scheduled transfers, which may require approval.`,
+        standing: (action) => `Before you set it up again: “${action}” looks for it in your standing orders. `
+          + 'May need approval.',
+        dated: (action) => `Before you schedule it again: “${action}” looks for it in your scheduled transfers. `
+          + 'May need approval.',
       },
-      loading: { standing: 'Fetching standing orders…', dated: 'Fetching scheduled transfers…' },
+      loading: { standing: 'Loading standing orders…', dated: 'Loading scheduled transfers…' },
       found: 'Found at your bank',
       foundText: (amount, name, when) => [amount, ` to ${name} – ${when}. Do not set up the order again.`],
       notVisible: 'Not visible yet – please do not set it up again',
       notChecked: 'Could not check – please do not set it up again',
       notYet: (list, time) => [
-        `The order does not appear in your ${list} at the bank yet (as of `,
+        `Not in your ${list} yet (as of `,
         time,
         '). Check again later or look in your bank’s online banking.',
       ],
       listDative: { standing: 'standing orders', dated: 'scheduled transfers' },
       failed: 'Could not load the orders.',
       tryAgain: 'Try again in a moment or check in your bank’s online banking.',
-      nothingToRead: 'Your bank does not provide this account’s orders to the app. Check in your bank’s online banking.',
+      nothingToRead: 'Your bank does not show Girovo this account’s orders. Check in your bank’s online banking.',
     },
   },
 
@@ -471,7 +471,7 @@ export const en: typeof de = {
     afterConfirm: {
       standingOrder: 'The standing order is approved.',
       datedTransfer: 'The scheduled transfer is approved.',
-      bankOrders: 'Fetching the orders…',
+      bankOrders: 'Loading the orders…',
       orderDelete: 'The deletion is approved.',
       orderChange: 'The change is approved.',
     },
@@ -483,14 +483,14 @@ export const en: typeof de = {
       orderChange: { title: 'Order not changed', text: 'Your bank declined the change:' },
     },
     abort: {
-      standingOrder: 'The standing order may already have been set up. If you cancel now, its status stays unclear – '
-        + 'check your bank’s orders before you set it up again.',
-      datedTransfer: 'The scheduled transfer may already have been created. If you cancel now, its status stays unclear – '
-        + 'check your bank’s orders before you schedule it again.',
-      orderDelete: 'The order may already have been deleted. If you cancel now, that stays unclear – '
-        + 'fetch the list again before you delete it again.',
-      orderChange: 'The order may already have been changed. If you cancel now, that stays unclear – '
-        + 'fetch the list again before you change it again.',
+      standingOrder: 'The standing order may already be set up. If you cancel, that stays unclear – '
+        + 'check your orders before you set it up again.',
+      datedTransfer: 'The scheduled transfer may already be created. If you cancel, that stays unclear – '
+        + 'check your orders before you schedule it again.',
+      orderDelete: 'The order may already be deleted. If you cancel, that stays unclear – '
+        + 'refresh the list before you delete it again.',
+      orderChange: 'The order may already be changed. If you cancel, that stays unclear – '
+        + 'refresh the list before you change it again.',
     },
   },
 
@@ -509,7 +509,7 @@ export const en: typeof de = {
     load: 'Fetch orders',
     reload: 'Refresh',
     mayNeedApproval: 'May need approval.',
-    loading: 'Fetching orders…',
+    loading: 'Loading orders…',
     none: { standing: 'No standing orders at your bank.', dated: 'No scheduled transfers at your bank.' },
     notLoaded: { standing: 'Standing orders not fetched yet.', dated: 'Scheduled transfers not fetched yet.' },
     next: (date) => `next on ${date}`,
@@ -518,40 +518,40 @@ export const en: typeof de = {
     ended: 'no further payment',
     noSchedule: 'Date not readable',
     more: (n) => (n === 1 ? 'and one more payment' : `and ${n} more payments`),
-    incomplete: 'Your bank did not deliver all orders – the list is incomplete.',
+    incomplete: 'Incomplete: your bank did not send all orders.',
     unreadable: (n) => (n === 1
-      ? 'The app could not read one order; it is missing from the list.'
-      : `The app could not read ${n} orders; they are missing from the list.`),
+      ? 'One order is missing – Girovo could not read it.'
+      : `${n} orders are missing – Girovo could not read them.`),
     asOf: (time) => `As of ${time}`,
     change: 'Changing an order is not possible here: delete it and create it again.',
     remove: 'Delete…',
     removeLabel: (kind, name) => `Delete ${kind === 'standing' ? 'standing order' : 'scheduled transfer'} to ${name}…`,
     deleted: 'Deleted',
     deletedToast: (kind, name) => `${kind === 'standing' ? 'Standing order' : 'Scheduled transfer'} to ${name} deleted.`,
-    deleteUnclear: 'It is unclear whether your bank deleted the order. Do not delete it again before you have checked: “Refresh” fetches the list again.',
-    failed: (reason) => `Could not load: ${reason}`,
-    noAccount: 'No account offers standing orders or scheduled transfers over FinTS.',
+    deleteUnclear: 'It is unclear whether your bank deleted the order. Do not delete it again until you have chosen “Refresh”.',
+    failed: (reason) => `Could not load the orders: ${reason}`,
+    noAccount: 'None of your accounts offers standing orders or scheduled transfers here.',
   },
 
   change: {
-    button: 'Change …',
-    buttonLabel: (kind, name) => `Change ${kind === 'standing' ? 'standing order' : 'scheduled transfer'} to ${name} …`,
+    button: 'Change…',
+    buttonLabel: (kind, name) => `Change ${kind === 'standing' ? 'standing order' : 'scheduled transfer'} to ${name}…`,
     title: { standing: 'Change standing order', dated: 'Change scheduled transfer' },
-    intro: 'The amount, the purpose and the date can be changed. The payee stays – for another one, set up a new order.',
+    intro: 'You can change the amount, payment reference and date – not the payee.',
     payee: 'Payee',
     amount: 'Amount',
-    purpose: 'Purpose',
-    purposeTooLong: (max) => `The purpose is too long – at most ${max} characters.`,
+    purpose: 'Payment reference',
+    purposeTooLong: (max) => `The payment reference is too long – at most ${max} characters.`,
     from: (date) => `The change applies from the payment on ${date}.`,
     unchanged: 'You have not changed anything yet.',
     send: 'Send change',
     approval: 'Your bank then asks you to approve it.',
     done: { standing: 'Standing order changed', dated: 'Scheduled transfer changed' },
-    doneText: 'Your bank accepted the change. “Refresh” shows the order as the bank now keeps it.',
+    doneText: 'Your bank accepted the change. “Refresh” shows the latest version.',
     refused: 'Your bank refused the change:',
     refusedPlain: 'Your bank refused the change.',
-    unclearText: 'Whether your bank accepted the change is unclear. Do not change the order again before you have checked: “Refresh” fetches the list again.',
-    vopIntro: 'Your bank checked the payee’s name. Only send the change if you are sure the name is right.',
+    unclearText: 'It is unclear whether your bank accepted the change. Do not change the order again until you have chosen “Refresh”.',
+    vopIntro: 'Your bank checked the name. Only send the change if you are sure it is right.',
     vopSend: 'Send anyway',
     vopStop: 'Do not send',
     changed: 'Changed',
@@ -560,7 +560,7 @@ export const en: typeof de = {
   remove: {
     title: { standing: 'Delete standing order?', dated: 'Delete scheduled transfer?' },
     body: {
-      standing: 'Your bank deletes the standing order. Payments already made stay as they are.',
+      standing: 'Your bank deletes the standing order. Payments already made stay.',
       dated: 'Your bank deletes the scheduled transfer – it will not be carried out.',
     },
     approval: 'Your bank will then ask for your approval.',
@@ -596,11 +596,11 @@ export const en: typeof de = {
 
   route: {
     unsupported: (kind) =>
-      `This account does not support ${kind === 'standing' ? 'standing orders' : 'scheduled transfers'} over FinTS.`,
+      `Your bank does not offer ${kind === 'standing' ? 'standing orders' : 'scheduled transfers'} here for this account.`,
     scheduleInvalid: 'The date is invalid.',
     scheduleRefused: (reason) => `The date does not fit your bank’s rules: ${reason}`,
     noInstant: 'An instant transfer cannot be scheduled.',
-    unknownOrder: 'The app no longer knows this order. Please fetch the list again.',
+    unknownOrder: 'Girovo no longer knows this order. Please refresh the list.',
     listFailed: 'Your bank did not deliver the list.',
     cannotChange: (kind) => `You cannot change this ${kind === 'standing' ? 'standing order' : 'scheduled transfer'} here.`,
     changePayee: 'The payee cannot be changed – set up a new order for that.',

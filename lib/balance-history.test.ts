@@ -95,9 +95,9 @@ test('nothing is drawn without a complete, matching chain', () => {
   assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: null, range })), /keine Salden/);
 
   const noClosing = BLOCKS.map((b, i) => (i === 1 ? { ...b, closingBalance: null } : b));
-  assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: noClosing, range })), /Anfangs- und Endsaldo/);
+  assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: noClosing, range })), /nicht alle Salden/);
   const noOpening = BLOCKS.map((b, i) => (i === 3 ? { ...b, openingBalance: null, openingDate: null } : b));
-  assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: noOpening, range })), /Anfangs- und Endsaldo/);
+  assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: noOpening, range })), /nicht alle Salden/);
 
   const missing = TXS.filter((t) => t.amount !== -12.99);
   assert.match(reason(buildBalanceHistory({ txs: missing, blocks: BLOCKS, range })), /Zahl der Umsätze/);
@@ -106,7 +106,7 @@ test('nothing is drawn without a complete, matching chain', () => {
   assert.match(reason(buildBalanceHistory({ txs: altered, blocks: BLOCKS, range })), /ergeben nicht die Salden/);
 
   const gap = BLOCKS.map((b, i) => (i === 1 ? { ...b, openingBalance: 2900, closingBalance: 2050 } : b));
-  assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: gap, range })), /lückenlos/);
+  assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: gap, range })), /fehlen Tage/);
 
   const usd = BLOCKS.map((b, i) => (i === 0 ? { ...b, currency: 'USD' } : b));
   assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: usd, range })), /Währung/);
@@ -115,7 +115,7 @@ test('nothing is drawn without a complete, matching chain', () => {
 
   assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: BLOCKS, range: { from: '2026-10-03', to: '2026-09-25' } })), /Zeitraum/);
   assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: BLOCKS, range: { from: '', to: '2026-10-03' } })), /Zeitraum/);
-  assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: BLOCKS, range: { from: '2026-09-01', to: '2026-09-10' } })), /keine geprüften Salden/);
+  assert.match(reason(buildBalanceHistory({ txs: TXS, blocks: BLOCKS, range: { from: '2026-09-01', to: '2026-09-10' } })), /fehlen geprüfte Salden/);
 });
 
 test('a cent off is off', () => {
@@ -178,14 +178,14 @@ test('a booking dated outside its own statement block is not drawn, even when th
   const yearEnd = block({ open: 1000, openDay: '2025-12-30', close: 2500, closeDay: '2026-01-02', count: 1 });
   assert.match(
     reason(buildBalanceHistory({ txs: [misdated], blocks: [yearEnd], range: { from: '2025-10-04', to: '2026-01-02' } })),
-    /Buchungsdaten passen nicht/,
+    /Buchungstage passen nicht/,
   );
   // The same when the year-end block is only the oldest of several.
   const later = mt940({ day: '2026-01-05', amount: -100, gvc: '106', text: 'KARTENZAHLUNG', name: 'REWE SAGT DANKE' });
   const blocks = [yearEnd, block({ open: 2500, openDay: '2026-01-02', close: 2400, closeDay: '2026-01-05', count: 1 })];
   assert.match(
     reason(buildBalanceHistory({ txs: newestFirst([later, misdated]), blocks, range: { from: '2025-10-07', to: '2026-01-05' } })),
-    /Buchungsdaten passen nicht/,
+    /Buchungstage passen nicht/,
   );
   // Dated right, the very same statement is a verified curve that opens on the bank's 1.000,00.
   const right = { ...misdated, entryDate: mt940Date('2026-01-02') };
@@ -205,7 +205,7 @@ test('an older block may not hold a booking dated after it closes', () => {
   ];
   assert.match(
     reason(buildBalanceHistory({ txs: newestFirst(txs), blocks, range: { from: '2026-09-24', to: '2026-09-30' } })),
-    /Buchungsdaten passen nicht/,
+    /Buchungstage passen nicht/,
   );
 });
 

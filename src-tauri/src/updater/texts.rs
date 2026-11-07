@@ -1,5 +1,5 @@
 // What the updater tells the page when something goes wrong, in German and
-// English — the Electron shell's i18n.cjs's `updates`, word for word. The page shows the
+// English — once the Electron shell's i18n.cjs's `updates`. The page shows the
 // message as it comes (state.error.message), so it is in the shell's language
 // (crate::texts::lang), asked each time a message is made: a change in the
 // app reaches the next one.
@@ -36,8 +36,8 @@ impl Texts {
   /// Said at the start after an install that did not come up.
   pub fn not_completed(&self, version: &str) -> String {
     match self.lang {
-      Lang::De => format!("Das Update auf Version {version} wurde nicht abgeschlossen. Du kannst es noch einmal versuchen."),
-      Lang::En => format!("The update to version {version} was not completed. You can try again."),
+      Lang::De => format!("Das Update auf Version {version} hat nicht geklappt. Versuch es noch einmal."),
+      Lang::En => format!("The update to version {version} didn’t work. Try again."),
     }
   }
 
@@ -45,73 +45,73 @@ impl Texts {
   pub fn rate_limited_for(&self, minutes: Option<u64>) -> String {
     match (self.lang, minutes) {
       (_, None) => self.rate_limited.to_string(),
-      (Lang::De, Some(1)) => "GitHub nimmt gerade keine weiteren Anfragen an – wieder in etwa einer Minute.".to_string(),
-      (Lang::De, Some(m)) => format!("GitHub nimmt gerade keine weiteren Anfragen an – wieder in etwa {m} Minuten."),
-      (Lang::En, Some(1)) => "GitHub is not taking any more requests right now – again in about a minute.".to_string(),
-      (Lang::En, Some(m)) => format!("GitHub is not taking any more requests right now – again in about {m} minutes."),
+      (Lang::De, Some(1)) => "Die Suche nach Updates geht gerade nicht. Versuch es in etwa einer Minute noch einmal.".to_string(),
+      (Lang::De, Some(m)) => format!("Die Suche nach Updates geht gerade nicht. Versuch es in etwa {m} Minuten noch einmal."),
+      (Lang::En, Some(1)) => "Checking for updates isn’t possible right now. Try again in about a minute.".to_string(),
+      (Lang::En, Some(m)) => format!("Checking for updates isn’t possible right now. Try again in about {m} minutes."),
     }
   }
 
   pub fn http_error(&self, status: u16) -> String {
     match self.lang {
-      Lang::De => format!("GitHub hat mit einem Fehler geantwortet (HTTP {status})."),
-      Lang::En => format!("GitHub answered with an error (HTTP {status})."),
+      Lang::De => format!("Die Suche nach Updates hat nicht geklappt (Code {status})."),
+      Lang::En => format!("Checking for updates didn’t work (code {status})."),
     }
   }
 
   pub fn download_http(&self, status: u16) -> String {
     match self.lang {
-      Lang::De => format!("Der Download ist fehlgeschlagen (HTTP {status})."),
-      Lang::En => format!("The download failed (HTTP {status})."),
+      Lang::De => format!("Der Download hat nicht geklappt (Code {status})."),
+      Lang::En => format!("The download didn’t work (code {status})."),
     }
   }
 }
 
 const DE: Texts = Texts {
-  no_space: "Auf dem Laufwerk ist nicht genug Platz für das Update.",
-  install_locked: "Das Update konnte nicht gestartet werden – die Datei ist gesperrt. Ein Virenscanner prüft sie vielleicht noch; versuche es gleich noch einmal.",
-  folder_locked: "Die Datei konnte nicht gespeichert werden – der Ordner ist schreibgeschützt oder gesperrt.",
-  file_gone: "Die heruntergeladene Datei ist nicht mehr da. Lade das Update noch einmal herunter.",
-  timeout: "GitHub hat nicht rechtzeitig geantwortet. Versuche es später noch einmal.",
-  connection_lost: "Die Verbindung zu GitHub ist abgebrochen. Versuche es noch einmal.",
-  offline: "Keine Verbindung zu GitHub. Bist du mit dem Internet verbunden?",
+  no_space: "Nicht genug Speicherplatz für das Update.",
+  install_locked: "Das Update ließ sich noch nicht starten. Versuch es gleich noch einmal.",
+  folder_locked: "Das Update ließ sich auf diesem Rechner nicht speichern.",
+  file_gone: "Das Update ist nicht mehr da. Lade es noch einmal herunter.",
+  timeout: "Das hat zu lange gedauert. Versuch es später noch einmal.",
+  connection_lost: "Die Verbindung ist abgebrochen. Versuch es noch einmal.",
+  offline: "Keine Verbindung. Bist du online?",
   check_failed: "Die Suche nach Updates hat nicht geklappt.",
   download_failed: "Der Download hat nicht geklappt.",
-  install_failed: "Das Update konnte nicht gestartet werden.",
-  unreadable: "Die Antwort von GitHub war unverständlich.",
-  too_large: "Die Datei ist größer als angekündigt und wurde verworfen.",
-  interrupted: "Der Download wurde unterbrochen. Versuche es noch einmal.",
-  rate_limited: "GitHub nimmt gerade keine weiteren Anfragen an. Versuche es später noch einmal.",
-  no_folder: "Es gibt keinen Ordner, in dem die neue Version gespeichert werden kann.",
-  digest_mismatch: "Die Datei stimmt nicht mit ihrer Prüfsumme überein und wurde gelöscht.",
-  changed: "Die heruntergeladene Datei fehlt oder wurde verändert. Lade das Update noch einmal herunter.",
-  file_unsigned: "Diese Datei ist kein signiertes Update von Girovo. Installieren lassen sich nur Setup-Dateien veröffentlichter Versionen.",
-  file_unreadable: "Die Datei konnte nicht gelesen werden.",
-  file_not_here: "Ein Update aus einer Datei installiert nur die installierte Windows-App.",
+  install_failed: "Das Update ließ sich nicht starten.",
+  unreadable: "Die Suche nach Updates ging schief. Versuch es später noch einmal.",
+  too_large: "Der Download war beschädigt und wurde gelöscht. Versuch es noch einmal.",
+  interrupted: "Der Download wurde unterbrochen. Versuch es noch einmal.",
+  rate_limited: "Die Suche nach Updates geht gerade nicht. Versuch es später noch einmal.",
+  no_folder: "Girovo findet keinen Ordner für das Update.",
+  digest_mismatch: "Das Update war beschädigt und wurde gelöscht. Versuch es noch einmal.",
+  changed: "Das Update fehlt oder wurde verändert. Lade es noch einmal herunter.",
+  file_unsigned: "Girovo erkennt diese Datei nicht als Update.",
+  file_unreadable: "Die Datei ließ sich nicht lesen.",
+  file_not_here: "Das geht nur in der installierten Windows-App.",
   lang: Lang::De,
 };
 
 const EN: Texts = Texts {
-  no_space: "There is not enough space on the drive for the update.",
-  install_locked: "The update could not be started – the file is locked. A virus scanner may still be checking it; try again in a moment.",
-  folder_locked: "The file could not be saved – the folder is read-only or locked.",
-  file_gone: "The downloaded file is no longer there. Download the update again.",
-  timeout: "GitHub did not answer in time. Try again later.",
-  connection_lost: "The connection to GitHub broke off. Try again.",
-  offline: "No connection to GitHub. Are you connected to the internet?",
-  check_failed: "Checking for updates did not work.",
-  download_failed: "The download did not work.",
-  install_failed: "The update could not be started.",
-  unreadable: "GitHub’s answer could not be understood.",
-  too_large: "The file is larger than announced and was discarded.",
+  no_space: "Not enough disk space for the update.",
+  install_locked: "The update couldn’t start yet. Try again in a moment.",
+  folder_locked: "The update couldn’t be saved on this computer.",
+  file_gone: "The update is no longer there. Download it again.",
+  timeout: "That took too long. Try again later.",
+  connection_lost: "The connection dropped. Try again.",
+  offline: "No connection. Are you online?",
+  check_failed: "Checking for updates didn’t work.",
+  download_failed: "The download didn’t work.",
+  install_failed: "The update couldn’t start.",
+  unreadable: "Checking for updates went wrong. Try again later.",
+  too_large: "The download was damaged and has been deleted. Try again.",
   interrupted: "The download was interrupted. Try again.",
-  rate_limited: "GitHub is not taking any more requests right now. Try again later.",
-  no_folder: "There is no folder the new version can be saved in.",
-  digest_mismatch: "The file does not match its checksum and was deleted.",
-  changed: "The downloaded file is missing or was changed. Download the update again.",
-  file_unsigned: "This file isn’t a signed Girovo update. Only the setup files of published versions can be installed.",
+  rate_limited: "Checking for updates isn’t possible right now. Try again later.",
+  no_folder: "Girovo can’t find a folder for the update.",
+  digest_mismatch: "The update was damaged and has been deleted. Try again.",
+  changed: "The update is missing or was changed. Download it again.",
+  file_unsigned: "Girovo doesn’t recognise this file as an update.",
   file_unreadable: "The file couldn’t be read.",
-  file_not_here: "Only the installed Windows app can install an update from a file.",
+  file_not_here: "This only works in the installed Windows app.",
   lang: Lang::En,
 };
 
@@ -128,7 +128,7 @@ mod tests {
 
   #[test]
   fn both_languages_say_the_status() {
-    assert_eq!(texts(Lang::De).http_error(503), "GitHub hat mit einem Fehler geantwortet (HTTP 503).");
-    assert_eq!(texts(Lang::En).not_completed("9.9.9"), "The update to version 9.9.9 was not completed. You can try again.");
+    assert_eq!(texts(Lang::De).http_error(503), "Die Suche nach Updates hat nicht geklappt (Code 503).");
+    assert_eq!(texts(Lang::En).not_completed("9.9.9"), "The update to version 9.9.9 didn’t work. Try again.");
   }
 }

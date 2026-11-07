@@ -2,13 +2,13 @@
 
 export const de = {
   /** Once, after 5.9.0 split the category: to someone with own choices on Freizeit. */
-  diningSplit: 'Neu: „Essen & Trinken“ ist jetzt eine eigene Kategorie. Was du selbst unter Freizeit abgelegt oder budgetiert hast, bleibt dort.',
+  diningSplit: 'Neu: „Essen & Trinken“ ist jetzt eine eigene Kategorie. Was du selbst unter Freizeit einsortiert hast, bleibt dort.',
   /** The local server's own answers (lib/api.ts, lib/client-api.ts). */
   server: {
     /** The server no longer knows the session (HTTP 401). */
     sessionExpired: 'Sitzung abgelaufen. Bitte neu anmelden.',
     /** The request never reached the local server (crashed, restarting). */
-    unreachable: 'Girovo konnte die Anfrage gerade nicht bearbeiten. Versuche es noch einmal – hilft das nicht, starte Girovo neu.',
+    unreachable: 'Das hat gerade nicht geklappt. Versuche es noch einmal oder starte Girovo neu.',
     /** An error answer that brought no message of its own. */
     failed: (status: number) => `Fehler (${status})`,
   },
@@ -24,23 +24,23 @@ export const de = {
     /** A return code the bank sent without a sentence. */
     noReason: 'Deine Bank hat keine Begründung mitgeschickt.',
     /** The bank's certificate did not check out. */
-    insecure: 'Die Verbindung zu deiner Bank ließ sich nicht sicher aufbauen. Prüfe Datum und Uhrzeit dieses Rechners.',
-    cancelled: 'Die Anfrage an deine Bank wurde abgebrochen.',
-    unexpected: 'Bei der Verbindung mit deiner Bank ist ein unerwarteter Fehler aufgetreten.',
+    insecure: 'Keine sichere Verbindung zu deiner Bank. Prüfe Datum und Uhrzeit dieses Rechners.',
+    cancelled: 'Der Vorgang wurde abgebrochen.',
+    unexpected: 'Ein unerwarteter Fehler ist aufgetreten. Versuche es noch einmal.',
     /** lib-fints' English errors, as they concern the user. */
     tanEntryNeeded: 'Deine Bank wartet auf eine TAN. Starte den Vorgang bitte noch einmal.',
-    notOffered: 'Deine Bank bietet diesen Vorgang für dein Konto über FinTS nicht an.',
+    notOffered: 'Deine Bank bietet das für dieses Konto nicht über Girovo an.',
     noIban: 'Für dieses Konto meldet deine Bank keine IBAN.',
     /** The order went out and its answer never came back (lib/fints-order.ts): "Status unklar", never "failed". */
     orderUnanswered:
-      'Die Verbindung zur Bank ist abgebrochen, nachdem der Auftrag gesendet wurde. Ob er ausgeführt wurde, ist unklar.',
+      'Die Verbindung brach nach dem Senden ab. Ob der Auftrag ausgeführt wurde, ist unklar.',
   },
 
   /** The encrypted personal-data vault (lib/vault.ts, app/api/vault). */
   vault: {
-    unavailable: 'Für diese Sitzung können keine persönlichen Daten gespeichert werden.',
+    unavailable: 'In dieser Sitzung kann Girovo nichts speichern.',
     locked: 'Deine gespeicherten Daten lassen sich mit dieser PIN nicht öffnen. Setze sie zurück, um neu zu beginnen.',
-    format: 'Die Daten haben ein unbekanntes Format.',
+    format: 'Die Daten lassen sich nicht lesen.',
     tooLarge: 'Zu viele gespeicherte Einträge. Lösche ein paar Vorlagen oder Kategorie-Zuordnungen und versuche es erneut.',
     /** A request too large to be read at all. */
     tooMany: 'Zu viele gespeicherte Einträge.',
@@ -50,7 +50,7 @@ export const de = {
     noData: 'Keine Daten angegeben.',
     unknownAction: 'Unbekannte Aktion.',
     /** The client's notices about it (components/FintsProvider.tsx). */
-    saveFailed: 'Deine persönlichen Einstellungen konnten nicht gespeichert werden.',
+    saveFailed: 'Deine Einstellungen konnten nicht gespeichert werden.',
     reset: 'Persönliche Daten zurückgesetzt. Änderungen werden wieder gespeichert.',
     /** Resetting waits for the bank's word on the PIN: a mistyped one must not replace the saved data. */
     notYet: 'Zurücksetzen geht erst, wenn deine Bank deine PIN angenommen hat. Lade einmal deine Umsätze und versuche es dann noch einmal.',
@@ -61,7 +61,7 @@ export const de = {
   /** "Weitere Banken mit anmelden" on the desktop (lib/linked-unlock.ts, app/api/linked-unlock). */
   linkedUnlock: {
     unavailable: 'Weitere Banken mit anmelden gibt es nur in der Desktop-App.',
-    noSecret: 'Die PINs lassen sich hier nicht geschützt aufbewahren.',
+    noSecret: 'Die PINs lassen sich hier nicht sicher speichern.',
     /** The kept PINs do not open with this PIN, and the bank has not taken it yet: nothing is overwritten. */
     notYet: 'Die gespeicherten PINs lassen sich mit dieser PIN nicht öffnen. Lade einmal deine Umsätze und versuche es dann noch einmal.',
     unknownAction: 'Unbekannte Aktion.',
@@ -70,7 +70,7 @@ export const de = {
   windowsHello: {
     unavailable: 'Windows Hello gibt es nur in der Desktop-App.',
     notYet: 'Die PIN lässt sich erst speichern, wenn deine Bank sie angenommen hat. Lade einmal deine Umsätze und versuche es dann noch einmal.',
-    noKey: 'Windows Hello hat keinen Schlüssel geliefert.',
+    noKey: 'Windows Hello hat nicht geklappt. Versuche es noch einmal.',
     unknownAction: 'Unbekannte Aktion.',
   },
 
@@ -82,7 +82,7 @@ export const de = {
     /** The login's own approval was called off. */
     loginCancelled: 'Anmeldung abgebrochen.',
     /** Added once the server confirmed it dropped the session, and the PIN with it. */
-    pinDropped: 'Die App hat deine PIN verworfen.',
+    pinDropped: 'Deine PIN ist gelöscht.',
     idle: 'Du wurdest aus Sicherheitsgründen abgemeldet.',
     /** The desktop: the window closed into the notification area, and the session ended with it. */
     hidden: 'Du wurdest beim Schließen des Fensters abgemeldet.',
@@ -102,19 +102,19 @@ export const de = {
     /** What each kind of approval asks the user to confirm, as the object of "bestätige …". */
     subject: {
       login: 'die Anmeldung',
-      statements: 'den Umsatzabruf',
-      pending: 'den Abruf der vorgemerkten Umsätze',
+      statements: 'die Umsatzabfrage',
+      pending: 'die Abfrage der vorgemerkten Umsätze',
       balance: 'die Saldoabfrage',
       transfer: 'die Überweisung',
       portfolio: 'die Depotabfrage',
-      bankStatements: 'den Abruf der Kontoauszüge',
+      bankStatements: 'die Abfrage der Kontoauszüge',
     },
     /** The same, naming the account (the user's own name for it first) and the first day asked for. */
-    statementsOf: (account: string, from: string) => `den Abruf der Umsätze von ${account} ab ${from}`,
-    pendingOf: (account: string) => `den Abruf der vorgemerkten Umsätze von ${account}`,
+    statementsOf: (account: string, from: string) => `die Umsatzabfrage für ${account} ab ${from}`,
+    pendingOf: (account: string) => `die Abfrage der vorgemerkten Umsätze von ${account}`,
     balanceOf: (account: string) => `die Saldoabfrage für ${account}`,
     portfolioOf: (account: string) => `die Depotabfrage für ${account}`,
-    bankStatementsOf: (account: string) => `den Abruf der Kontoauszüge von ${account}`,
+    bankStatementsOf: (account: string) => `die Abfrage der Kontoauszüge von ${account}`,
     /** With an app-approval method: the method as the bank names it ("pushTAN 2.0"). */
     openApp: (method: string, subject: string) => `Öffne „${method}“ und bestätige ${subject}.`,
     confirmInApp: (subject: string) => `Bestätige ${subject} in deiner Banking-App.`,
@@ -126,7 +126,7 @@ export const de = {
     secondApproval: 'Die Anmeldung ist freigegeben – für die Umsätze fragt deine Bank ein zweites Mal.',
     /** The bank closed the dialog before the approval arrived — the bank's timeout, not the user's. */
     endedTitle: 'Freigabe nicht rechtzeitig angekommen',
-    endedText: 'Deine Bank hat die Anfrage beendet.',
+    endedText: 'Deine Bank hat den Vorgang beendet.',
     /** The bank refused, or left it unclear, without a word of its own. */
     notConfirmed: 'Deine Bank hat die Freigabe nicht bestätigt.',
     /** An order's approval whose answer never came back: nothing about it may sound like "send it again". */
@@ -141,7 +141,7 @@ export const de = {
     cancelled: 'Die Anmeldung wurde abgebrochen.',
     deviceRecognised: 'Gerät erkannt – ohne neue Freigabe angemeldet.',
     /** A remembered device logs in afresh: its bank now knows Girovo's own product ID (lib/product-fallback.ts). */
-    productChanged: 'Deine Bank kennt jetzt Girovos eigene Produkt-ID. Dafür braucht diese Anmeldung einmal eine Freigabe – danach erkennt sie dein Gerät wieder.',
+    productChanged: 'Diese Anmeldung braucht einmal eine Freigabe. Danach erkennt deine Bank dein Gerät wieder.',
   },
 
   device: {
@@ -157,25 +157,25 @@ export const de = {
   reads: {
     /** The bank's statement ends before a balance this session already holds. */
     cutShort: (until: string) =>
-      `Deine Bank hat nur Umsätze bis ${until} geliefert. Der Kontostand bleibt der zuletzt abgerufene.`,
+      `Deine Bank hat nur Umsätze bis ${until} geschickt. Der Kontostand bleibt der letzte bekannte.`,
     /** An answer without a balance is not a zero balance. */
     noBalance: 'Deine Bank hat für dieses Konto keinen Saldo gemeldet.',
-    balanceMismatch: 'Die Antwort deiner Bank passte nicht zur Saldoabfrage.',
+    balanceMismatch: 'Deine Bank hat statt des Saldos etwas anderes geschickt. Versuche es noch einmal.',
     /** "Alle Salden abrufen" with only accounts left whose statement is the way to their balance. */
     balanceWithStatements:
-      'Diese Konten melden ihren Saldo nur mit den Umsätzen. Wähle bei den Umsätzen einen Zeitraum bis heute.',
+      'Diese Konten melden ihren Saldo nur mit den Umsätzen. Wähle dort einen Zeitraum bis heute.',
     /** An approval for a new period that was not given; `span` is the period still shown. */
-    olderNotFetched: (span: string) => `Ältere Umsätze wurden nicht abgerufen – es bleibt beim Zeitraum ${span}.`,
-    periodNotFetched: (span: string) => `Der neue Zeitraum wurde nicht abgerufen – es bleibt bei ${span}.`,
+    olderNotFetched: (span: string) => `Ältere Umsätze wurden nicht geladen – es bleibt bei ${span}.`,
+    periodNotFetched: (span: string) => `Der neue Zeitraum wurde nicht geladen – es bleibt bei ${span}.`,
     invalidPeriod: 'Bitte einen gültigen Zeitraum wählen.',
     /** `reason`: the bank's or the server's words. */
     pendingFailed: (account: string, reason: string) =>
-      `Abruf der vorgemerkten Umsätze für „${account}“ fehlgeschlagen: ${reason}`,
+      `Vorgemerkte Umsätze für „${account}“ nicht geladen: ${reason}`,
   },
 
   /** The transfer and request-money sheets, refused before they open. */
   launch: {
-    noTransferAccount: 'Kein Konto unterstützt Überweisungen über FinTS.',
+    noTransferAccount: 'Keines deiner Konten erlaubt Überweisungen über Girovo.',
     noIbanAccount: 'Für keines deiner Konten liegt eine IBAN vor.',
   },
 
@@ -184,10 +184,10 @@ export const de = {
 };
 
 export const en: typeof de = {
-  diningSplit: 'New: “Eating out” is now a category of its own. Whatever you filed or budgeted under Leisure yourself stays there.',
+  diningSplit: 'New: “Eating out” is now a category of its own. Whatever you filed under Leisure yourself stays there.',
   server: {
     sessionExpired: 'Session expired. Please log in again.',
-    unreachable: 'Girovo couldn’t handle the request just now. Try again – if that doesn’t help, restart Girovo.',
+    unreachable: 'That didn’t work just now. Try again or restart Girovo.',
     failed: (status) => `Error (${status})`,
   },
 
@@ -196,20 +196,20 @@ export const en: typeof de = {
     unreachable: 'Your bank can’t be reached right now. Check your internet connection.',
     tryAgainLater: 'Try again in a few minutes.',
     noReason: 'Your bank didn’t give a reason.',
-    insecure: 'A secure connection to your bank could not be established. Check the date and time on this computer.',
-    cancelled: 'The request to your bank was cancelled.',
-    unexpected: 'An unexpected error occurred in the connection to your bank.',
+    insecure: 'No secure connection to your bank. Check the date and time on this computer.',
+    cancelled: 'This was cancelled.',
+    unexpected: 'An unexpected error occurred. Try again.',
     tanEntryNeeded: 'Your bank is waiting for a TAN. Please start again.',
-    notOffered: 'Your bank doesn’t offer this operation for your account over FinTS.',
+    notOffered: 'Your bank doesn’t offer this for this account through Girovo.',
     noIban: 'Your bank reports no IBAN for this account.',
     orderUnanswered:
-      'The connection to the bank broke off after the order was sent. It is unclear whether it was completed.',
+      'The connection broke off after sending. It is unclear whether the order was completed.',
   },
 
   vault: {
-    unavailable: 'No personal data can be saved for this session.',
+    unavailable: 'Girovo can’t save anything in this session.',
     locked: 'Your saved data can’t be opened with this PIN. Reset it to start again.',
-    format: 'The data is in an unknown format.',
+    format: 'The data can’t be read.',
     tooLarge: 'Too many saved entries. Delete a few templates or category assignments and try again.',
     tooMany: 'Too many saved entries.',
     read: 'Your saved data could not be read.',
@@ -217,7 +217,7 @@ export const en: typeof de = {
     wipe: 'Your saved data could not be deleted completely. Please try again.',
     noData: 'No data given.',
     unknownAction: 'Unknown action.',
-    saveFailed: 'Your personal settings could not be saved.',
+    saveFailed: 'Your settings could not be saved.',
     reset: 'Personal data reset. Changes will be saved again.',
     notYet: 'You can reset only once your bank has accepted your PIN. Load your transactions once, then try again.',
     wiped: 'Your saved data has been deleted from this computer. Nothing more will be saved until you log out.',
@@ -226,14 +226,14 @@ export const en: typeof de = {
 
   linkedUnlock: {
     unavailable: 'Logging in to further banks too is only available in the desktop app.',
-    noSecret: 'The PINs can’t be kept protected here.',
+    noSecret: 'The PINs can’t be saved safely here.',
     notYet: 'The saved PINs don’t open with this PIN. Load your transactions once, then try again.',
     unknownAction: 'Unknown action.',
   },
   windowsHello: {
     unavailable: 'Windows Hello is only available in the desktop app.',
     notYet: 'The PIN can only be saved once your bank has accepted it. Load your transactions once, then try again.',
-    noKey: 'Windows Hello didn’t return a key.',
+    noKey: 'Windows Hello didn’t work. Try again.',
     unknownAction: 'Unknown action.',
   },
 
@@ -241,7 +241,7 @@ export const en: typeof de = {
     payees: (others, last) => (others.length ? `to ${others.join(', ')} and ${last}` : `to ${last}`),
     byUser: 'You have logged out.',
     loginCancelled: 'Login cancelled.',
-    pinDropped: 'The app has discarded your PIN.',
+    pinDropped: 'Your PIN has been deleted.',
     idle: 'You were logged out for security reasons.',
     hidden: 'You were logged out when you closed the window.',
     hiddenTitle: 'You were logged out',
@@ -260,13 +260,13 @@ export const en: typeof de = {
       balance: 'the balance enquiry',
       transfer: 'the transfer',
       portfolio: 'the holdings enquiry',
-      bankStatements: 'the retrieval of your statements',
+      bankStatements: 'the request for your statements',
     },
     statementsOf: (account, from) => `the request for the transactions of ${account} from ${from}`,
     pendingOf: (account) => `the request for the pending transactions of ${account}`,
     balanceOf: (account) => `the balance enquiry for ${account}`,
     portfolioOf: (account) => `the holdings enquiry for ${account}`,
-    bankStatementsOf: (account) => `the retrieval of the statements of ${account}`,
+    bankStatementsOf: (account) => `the request for the statements of ${account}`,
     openApp: (method, subject) => `Open “${method}” and confirm ${subject}.`,
     confirmInApp: (subject) => `Confirm ${subject} in your banking app.`,
     typeTan: (subject) => `Enter the TAN for ${subject}.`,
@@ -283,7 +283,7 @@ export const en: typeof de = {
   login: {
     cancelled: 'The login was cancelled.',
     deviceRecognised: 'Device recognised – logged in without a new approval.',
-    productChanged: 'Your bank now knows Girovo’s own product ID. This login needs one approval for it – after that, it recognises your device again.',
+    productChanged: 'This login needs one approval. After that, your bank recognises your device again.',
   },
 
   device: {
@@ -296,19 +296,19 @@ export const en: typeof de = {
 
   reads: {
     cutShort: (until) =>
-      `Your bank only sent transactions up to ${until}. The balance remains the last one retrieved.`,
+      `Your bank only sent transactions up to ${until}. The balance stays the last known one.`,
     noBalance: 'Your bank reported no balance for this account.',
-    balanceMismatch: 'Your bank’s answer did not match the balance enquiry.',
+    balanceMismatch: 'Your bank sent something other than the balance. Try again.',
     balanceWithStatements:
-      'These accounts only report their balance with their transactions. Under Transactions, choose a period up to today.',
-    olderNotFetched: (span) => `Older transactions were not retrieved – the period stays ${span}.`,
-    periodNotFetched: (span) => `The new period was not retrieved – the period stays ${span}.`,
+      'These accounts only report their balance with their transactions. Choose a period up to today under Transactions.',
+    olderNotFetched: (span) => `Older transactions were not loaded – it stays at ${span}.`,
+    periodNotFetched: (span) => `The new period was not loaded – it stays at ${span}.`,
     invalidPeriod: 'Please choose a valid period.',
-    pendingFailed: (account, reason) => `Could not retrieve the pending transactions for “${account}”: ${reason}`,
+    pendingFailed: (account, reason) => `Pending transactions for “${account}” not loaded: ${reason}`,
   },
 
   launch: {
-    noTransferAccount: 'No account supports transfers over FinTS.',
+    noTransferAccount: 'None of your accounts allows transfers through Girovo.',
     noIbanAccount: 'No IBAN is available for any of your accounts.',
   },
 

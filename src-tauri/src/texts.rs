@@ -36,19 +36,19 @@ impl Splash {
       Lang::De => Splash {
         title: "Girovo wird gestartet",
         title_updating: "Girovo wird aktualisiert",
-        slow: "Das dauert länger als sonst. Nach einer Aktualisierung oder einem Neustart des Computers braucht der erste Start oft mehr Zeit.",
+        slow: "Das dauert länger als sonst. Nach einem Update oder Neustart ist das normal.",
       },
       Lang::En => Splash {
         title: "Starting Girovo",
         title_updating: "Updating Girovo",
-        slow: "This is taking longer than usual. The first start after an update or after restarting the computer often takes more time.",
+        slow: "This is taking longer than usual. That’s normal after an update or restart.",
       },
     }
   }
 
   pub fn step(lang: Lang, key: &str) -> &'static str {
     match (lang, key) {
-      (Lang::De, "finishing") => "Aktualisierung abschließen",
+      (Lang::De, "finishing") => "Update abschließen",
       (Lang::De, "preparing") => "Girovo vorbereiten",
       (Lang::De, "checking") => "Nach Updates suchen",
       (Lang::De, "downloading") => "Update herunterladen",
@@ -103,7 +103,7 @@ impl Tray {
         check: "Jetzt nach neuen Umsätzen sehen",
         quit: "Beenden",
         still_title: "Girovo läuft weiter",
-        still: "Im Infobereich, und meldet neue Umsätze. Beenden kannst du es über das Symbol dort.",
+        still: "Es meldet neue Umsätze. Beenden kannst du es über das Symbol im Infobereich.",
       },
       Lang::En => Tray {
         tooltip: "Girovo – reports new transactions",
@@ -111,7 +111,7 @@ impl Tray {
         check: "Look for new transactions now",
         quit: "Quit",
         still_title: "Girovo keeps running",
-        still: "In the notification area, reporting new transactions. Quit it from the icon there.",
+        still: "It reports new transactions. Quit it from its icon in the notification area.",
       },
     }
   }
@@ -136,8 +136,8 @@ impl Install {
       Lang::De => Install {
         title: "Girovo wird aktualisiert",
         failed_title: "Update nicht abgeschlossen",
-        failed_kept: "Die Installation wurde abgebrochen – zum Beispiel, weil die Frage nach Administratorrechten abgelehnt wurde. Die bisherige Version ist noch da.",
-        failed_gone: "Die Installation wurde abgebrochen, und Girovo ist nicht mehr vollständig installiert. Lade die neue Version von GitHub herunter und installiere sie.",
+        failed_kept: "Die Installation wurde abgebrochen. Die bisherige Version ist noch da.",
+        failed_gone: "Die Installation wurde abgebrochen, Girovo ist nicht mehr vollständig installiert. Lade die neue Version herunter und installiere sie.",
         close: "Schließen",
         open: "Girovo öffnen",
         download: "Download-Seite öffnen",
@@ -145,8 +145,8 @@ impl Install {
       Lang::En => Install {
         title: "Updating Girovo",
         failed_title: "Update not completed",
-        failed_kept: "The installation was cancelled — for example because the request for administrator rights was declined. The previous version is still there.",
-        failed_gone: "The installation was cancelled, and Girovo is no longer fully installed. Download the new version from GitHub and install it.",
+        failed_kept: "The installation was cancelled. The previous version is still there.",
+        failed_gone: "The installation was cancelled and Girovo is no longer fully installed. Download the new version and install it.",
         close: "Close",
         open: "Open Girovo",
         download: "Open download page",
@@ -168,13 +168,13 @@ impl Migration {
     match lang {
       Lang::De => Migration {
         title: "Girovo zieht um",
-        note: "Ab Version 6 läuft Girovo auf einer neuen, schlankeren Grundlage. Deine Banken, Konten und Einstellungen bleiben, wo sie sind.",
-        secret_failed: "Windows Hello, „Weitere Banken mit anmelden“ und „Neue Umsätze melden“ ließen sich nicht übernehmen. Schalte sie in den Einstellungen wieder ein.",
+        note: "Ab Version 6 ist Girovo schlanker. Deine Banken, Konten und Einstellungen bleiben, wie sie sind.",
+        secret_failed: "Windows Hello, „Weitere Banken mit anmelden“ und „Neue Umsätze melden“ sind jetzt aus. Schalte sie in den Einstellungen wieder ein.",
       },
       Lang::En => Migration {
         title: "Girovo is moving",
-        note: "From version 6, Girovo runs on a new, leaner foundation. Your banks, accounts and settings stay where they are.",
-        secret_failed: "Windows Hello, “Log in to further banks too” and “Report new transactions” couldn’t be taken over. Turn them on again in Settings.",
+        note: "From version 6, Girovo is leaner. Your banks, accounts and settings stay as they are.",
+        secret_failed: "Windows Hello, “Log in to further banks too” and “Report new transactions” are now off. Turn them on again in Settings.",
       },
     }
   }
@@ -183,15 +183,15 @@ impl Migration {
     match (lang, key) {
       (Lang::De, "found") => "Gespeicherte Daten finden",
       (Lang::De, "settings") => "Einstellungen übernehmen",
-      (Lang::De, "secret") => "Schlüssel übernehmen",
+      (Lang::De, "secret") => "Anmeldedaten übernehmen",
       (Lang::De, "autostart") => "Start mit Windows übernehmen",
-      (Lang::De, "cleanup") => "Alte Zwischenspeicher löschen",
+      (Lang::De, "cleanup") => "Alte Dateien löschen",
       (Lang::De, "starting") => "Girovo starten",
       (Lang::En, "found") => "Find the saved data",
       (Lang::En, "settings") => "Take over the settings",
-      (Lang::En, "secret") => "Take over the key",
+      (Lang::En, "secret") => "Take over the login data",
       (Lang::En, "autostart") => "Take over starting with Windows",
-      (Lang::En, "cleanup") => "Delete the old caches",
+      (Lang::En, "cleanup") => "Delete old files",
       (Lang::En, "starting") => "Start Girovo",
       _ => "",
     }
@@ -224,7 +224,7 @@ impl Files {
         zip: "ZIP-Archiv",
         backup: "Girovo-Sicherung",
         save_failed: "Die Datei konnte nicht gespeichert werden.",
-        open_elsewhere: "Die Datei ist noch in einem anderen Programm geöffnet, zum Beispiel in Excel. Schließe sie dort oder wähle einen anderen Namen.",
+        open_elsewhere: "Die Datei ist noch offen, etwa in Excel. Schließe sie dort oder wähle einen anderen Namen.",
         not_there: "Die Datei konnte dort nicht gespeichert werden. Wähle einen anderen Ordner.",
       },
       Lang::En => Files {
@@ -235,7 +235,7 @@ impl Files {
         zip: "ZIP archive",
         backup: "Girovo backup",
         save_failed: "The file could not be saved.",
-        open_elsewhere: "The file is still open in another program, Excel for example. Close it there or choose a different name.",
+        open_elsewhere: "The file is still open, in Excel for example. Close it there or choose a different name.",
         not_there: "The file could not be saved there. Choose a different folder.",
       },
     }

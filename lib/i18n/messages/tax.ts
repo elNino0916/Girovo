@@ -9,12 +9,12 @@ export const de = {
   /** The Analyse's entry to it. */
   tile: {
     title: 'Jahresübersicht für die Steuer',
-    text: 'Die Umsätze eines Jahres aus den Kategorien, die deine Steuererklärung braucht – als PDF, als CSV oder mit deinen Belegen als ZIP.',
+    text: 'Ein Jahr Umsätze nach Kategorien für die Steuererklärung – als PDF, CSV oder ZIP mit Belegen.',
     open: 'Zusammenstellen …',
   },
   drawer: {
     title: 'Jahresübersicht für die Steuer',
-    intro: 'Wähle Jahr und Kategorien. Eigene Kategorien wie „Spenden“ oder „Handwerker“ und aufgeteilte Umsätze machen sie genauer.',
+    intro: 'Wähle Jahr und Kategorien. Eigene Kategorien wie „Spenden“ und aufgeteilte Umsätze machen sie genauer.',
     year: 'Jahr',
     accounts: 'Konten',
     categories: 'Kategorien',
@@ -31,20 +31,20 @@ export const de = {
       none: 'Nichts aus diesem Jahr geladen',
     },
     incomplete: (year: number) =>
-      `Für ${year} sind nicht alle Umsätze geladen. Die Summen sind deshalb Mindestbeträge – lade das ganze Jahr, bevor du sie weitergibst.`,
+      `Für ${year} fehlen Umsätze, die Summen können höher sein. Lade das ganze Jahr, bevor du sie weitergibst.`,
     load: 'Ganzes Jahr laden',
-    loadHint: 'Kann eine Freigabe erfordern. Manche Banken liefern nur 90 Tage oder ein Jahr zurück.',
+    loadHint: 'Kann eine Freigabe brauchen. Manche Banken liefern nur 90 Tage oder ein Jahr.',
     otherCurrency: (n: number) =>
-      `${n === 1 ? '1 Umsatz' : `${nDe(n)} Umsätze`} in einer anderen Währung als Euro ${n === 1 ? 'ist' : 'sind'} nicht enthalten.`,
+      `${n === 1 ? '1 Umsatz' : `${nDe(n)} Umsätze`} in Fremdwährung nicht enthalten.`,
     pdf: 'Als PDF',
     csv: 'Als CSV',
     zip: 'Mit Belegen als ZIP',
     zipHint: (n: number) =>
-      n === 0 ? 'An diesen Umsätzen hängt noch kein Beleg.' : `${n === 1 ? '1 Beleg kommt' : `${nDe(n)} Belege kommen`} mit der CSV in das ZIP.`,
+      n === 0 ? 'Noch keine Belege an diesen Umsätzen.' : `${n === 1 ? '1 Beleg kommt' : `${nDe(n)} Belege kommen`} mit ins ZIP.`,
     savedCsv: 'Jahresübersicht als CSV gespeichert',
     savedZip: 'Jahresübersicht mit Belegen gespeichert',
-    zipFailed: 'Die Belege konnten nicht gelesen werden – das ZIP wurde nicht erstellt.',
-    disclaimer: 'Eine Zusammenstellung deiner Umsätze, keine Steuerberatung: Was absetzbar ist, entscheiden das Steuerrecht und dein Finanzamt.',
+    zipFailed: 'Die Belege ließen sich nicht lesen. Kein ZIP erstellt.',
+    disclaimer: 'Keine Steuerberatung. Was absetzbar ist, entscheiden Steuerrecht und Finanzamt.',
   },
   /** The CSV's header row (German Excel's dialect either way). */
   csv: {
@@ -77,12 +77,12 @@ export const de = {
       none: 'keine Umsätze geladen',
     },
     incomplete:
-      'Nicht für jedes Konto lagen die Umsätze des ganzen Jahres vor. Die Summen umfassen nur die genannten Tage und sind deshalb Mindestbeträge.',
-    splitNote: 'Bei aufgeteilten Umsätzen zählt nur der Anteil, den der Kontoinhaber dieser Kategorie zugeordnet hat.',
+      'Nicht jedes Konto deckt das ganze Jahr ab. Die Summen gelten nur für die genannten Tage und sind Mindestbeträge.',
+    splitNote: 'Bei aufgeteilten Umsätzen zählt nur der Anteil dieser Kategorie.',
     basis:
-      'Die Kategorien hat der Kontoinhaber selbst gewählt oder die App automatisch vergeben. Diese Übersicht ist eine Zusammenstellung, keine steuerliche Bewertung.',
+      'Die Kategorien stammen vom Kontoinhaber oder automatisch von Girovo. Eine Zusammenstellung, keine steuerliche Bewertung.',
     generatedBy: (generator: string) =>
-      `Erstellt mit ${generator} aus den Umsätzen, die die Banken per FinTS übermittelt haben. Keine Bank hat dieses Dokument ausgestellt; maßgeblich sind ihre eigenen Kontoauszüge.`,
+      `Erstellt mit ${generator} aus den Daten der Banken. Keine Bank hat dieses Dokument ausgestellt; maßgeblich sind ihre Kontoauszüge.`,
     end: (n: number) => `Ende der Jahresübersicht – ${n === 1 ? '1 Umsatz' : `${nDe(n)} Umsätze`}`,
   },
 };
@@ -90,12 +90,12 @@ export const de = {
 export const en: typeof de = {
   tile: {
     title: 'Annual summary for your taxes',
-    text: 'A year’s transactions in the categories your tax return needs – as a PDF, as a CSV or with your receipts as a ZIP.',
+    text: 'A year of transactions by category for your tax return – as PDF, CSV or ZIP with receipts.',
     open: 'Put together …',
   },
   drawer: {
     title: 'Annual summary for your taxes',
-    intro: 'Choose the year and the categories. Your own categories, such as “Donations” or “Tradespeople”, and split transactions make it more precise.',
+    intro: 'Choose the year and categories. Your own categories, like “Donations”, and split transactions make it more precise.',
     year: 'Year',
     accounts: 'Accounts',
     categories: 'Categories',
@@ -111,20 +111,20 @@ export const en: typeof de = {
       none: 'Nothing from this year loaded',
     },
     incomplete: (year) =>
-      `Not every transaction of ${year} is loaded, so the totals are minimums – load the whole year before you pass them on.`,
+      `Transactions for ${year} are missing, so the totals may be higher. Load the whole year before you pass them on.`,
     load: 'Load the whole year',
     loadHint: 'May need an approval. Some banks only go back 90 days or a year.',
     otherCurrency: (n) =>
-      `${n === 1 ? '1 transaction' : `${nEn(n)} transactions`} in a currency other than euros ${n === 1 ? 'is' : 'are'} not included.`,
+      `${n === 1 ? '1 transaction' : `${nEn(n)} transactions`} in a foreign currency not included.`,
     pdf: 'As PDF',
     csv: 'As CSV',
     zip: 'With receipts as ZIP',
     zipHint: (n) =>
-      n === 0 ? 'None of these transactions has a receipt yet.' : `${n === 1 ? '1 receipt goes' : `${nEn(n)} receipts go`} into the ZIP with the CSV.`,
+      n === 0 ? 'No receipts on these transactions yet.' : `${n === 1 ? '1 receipt goes' : `${nEn(n)} receipts go`} into the ZIP.`,
     savedCsv: 'Annual summary saved as CSV',
     savedZip: 'Annual summary saved with receipts',
-    zipFailed: 'The receipts could not be read – the ZIP was not created.',
-    disclaimer: 'A compilation of your transactions, not tax advice: what is deductible is for tax law and your tax office to decide.',
+    zipFailed: 'The receipts couldn’t be read. No ZIP created.',
+    disclaimer: 'Not tax advice. What is deductible is up to tax law and your tax office.',
   },
   csv: {
     header: ['Category', 'Booking date', 'Value date', 'Account', 'Name', 'Purpose', 'Amount', 'Total amount (split)', 'Note', 'Receipts'],
@@ -154,12 +154,12 @@ export const en: typeof de = {
       none: 'no transactions loaded',
     },
     incomplete:
-      'Not every account’s transactions were available for the whole year. The totals cover only the days stated and are therefore minimums.',
-    splitNote: 'For split transactions only the share the account holder assigned to this category counts.',
+      'Not every account covers the whole year. The totals cover only the days stated and are minimums.',
+    splitNote: 'For split transactions, only this category’s share counts.',
     basis:
-      'The categories were chosen by the account holder or assigned automatically by the app. This summary is a compilation, not a tax assessment.',
+      'The categories come from the account holder or automatically from Girovo. A compilation, not a tax assessment.',
     generatedBy: (generator) =>
-      `Created with ${generator} from the transactions the banks transmitted via FinTS. No bank issued this document; their own statements are authoritative.`,
+      `Created with ${generator} from the banks’ data. No bank issued this document; their account statements are authoritative.`,
     end: (n) => `End of the annual summary – ${n === 1 ? '1 transaction' : `${nEn(n)} transactions`}`,
   },
 };

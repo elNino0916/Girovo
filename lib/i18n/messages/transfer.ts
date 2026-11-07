@@ -57,27 +57,27 @@ export const de = {
     /** In a recent payee's tooltip, for one of your own accounts. */
     ownAccount: 'Eigenes Konto',
     name: 'Name',
-    nameHint: 'So, wie das Konto des Empfängers lautet – deine Bank gleicht ihn mit der IBAN ab.',
+    nameHint: 'Wie auf dem Konto des Empfängers – deine Bank prüft den Namen.',
     namePlaceholder: 'Vor- und Nachname oder Firma',
     payment: 'Zahlung',
     available: 'Verfügbar',
     /** Standard or Echtzeit — the form's switch and the review's row. */
     execution: 'Ausführung',
     standard: 'Standard',
-    noInstant: 'Echtzeit bietet deine Bank für dieses Konto nicht über FinTS an.',
+    noInstant: 'Echtzeit bietet deine Bank für dieses Konto hier nicht an.',
     instantHint: 'In Sekunden beim Empfänger, rund um die Uhr.',
     charsLeft: (n: number) => `Noch ${n} Zeichen.`,
     countsWrittenOut: 'Umlaute und Sonderzeichen zählen ausgeschrieben (ä → ae).',
     purposePlaceholder: 'z. B. Rechnung 2026-118',
     chooseAccount: 'Bitte wähle das Konto, von dem du überweist.',
-    nameUnsendable: 'Der Name besteht nur aus Zeichen, die eine Überweisung nicht übertragen kann.',
+    nameUnsendable: 'Keines dieser Zeichen kann eine Überweisung übertragen.',
     nameTooLong: (length: number, max: number) =>
-      `Für die Bank ist der Name ${length} Zeichen lang, höchstens ${max} gehen: `
-      + 'Umlaute und Sonderzeichen werden ausgeschrieben (ä → ae).',
+      `Name zu lang: ${length} Zeichen, höchstens ${max}. `
+      + 'Umlaute und Sonderzeichen zählen ausgeschrieben (ä → ae).',
     /** `over`: how many characters too many, counted as the bank counts. */
     purposeTooLong: (over: number) =>
-      `Für die Bank ${over === 1 ? 'ein Zeichen' : `${over} Zeichen`} zu lang: `
-      + 'Umlaute und Sonderzeichen werden ausgeschrieben (ä → ae, € → EUR).',
+      `${over === 1 ? 'Ein Zeichen' : `${over} Zeichen`} zu lang. `
+      + 'Umlaute und Sonderzeichen zählen ausgeschrieben (ä → ae, € → EUR).',
     amountMissing: 'Bitte gib den Betrag an.',
   },
   /** A typed amount that cannot be sent (components/transfer/model.ts). */
@@ -90,18 +90,18 @@ export const de = {
   iban: {
     missing: 'Bitte gib die IBAN des Empfängers an.',
     countryCode: 'Eine IBAN beginnt mit dem Ländercode, zum Beispiel „DE“.',
-    checkDigits: 'Nach dem Ländercode folgen zwei Prüfziffern.',
+    checkDigits: 'Nach dem Ländercode kommen zwei Ziffern.',
     /** `country`: its name as Intl writes it, or null when there is none. */
     length: (length: number, typed: number, country: string | null) =>
       `Eine IBAN ${country ? `aus ${countryDative(country)} ` : ''}hat ${length} Stellen – eingegeben sind ${typed}.`,
-    checksum: 'Die Prüfziffer passt nicht. Bitte vergleiche die IBAN Zeichen für Zeichen.',
-    own: 'Das ist die IBAN deines Auftragskontos. Bitte gib das Konto des Empfängers an.',
+    checksum: 'Die IBAN stimmt nicht. Bitte vergleiche sie Zeichen für Zeichen.',
+    own: 'Von diesem Konto überweist du. Bitte gib die IBAN des Empfängers an.',
   },
   /** Under the IBAN field, once it passes. */
   ibanHint: {
-    notSepa: 'SEPA-Überweisungen erreichen nur Konten im SEPA-Raum.',
+    notSepa: 'Überweisungen gehen nur an Konten im SEPA-Raum.',
     lookingUp: 'Bank wird gesucht …',
-    unknownBank: 'IBAN gültig. Die Bank ist im Verzeichnis nicht hinterlegt.',
+    unknownBank: 'IBAN gültig. Girovo kennt diese Bank nicht.',
     /** `country`: named for an IBAN from abroad, else null. */
     // "in den Niederlanden", "in der Schweiz": the article the dative needs.
     valid: (country: string | null) => `IBAN gültig${country ? ` · Konto in ${countryDative(country)}` : ''}.`,
@@ -114,7 +114,7 @@ export const de = {
     readingStatus: 'Wird gelesen',
     dropHere: 'Hier ablegen',
     pick: 'Bild oder PDF auswählen',
-    pickOrDrop: 'Bild oder PDF hierher ziehen, mit Strg+V einfügen oder auswählen',
+    pickOrDrop: 'Bild oder PDF wählen, hierher ziehen oder mit Strg+V einfügen',
     /** Android: the camera, through Google's code scanner. */
     scan: 'GiroCode scannen',
     /** Android: an invoice without a GiroCode, photographed and read for its text. */
@@ -122,20 +122,20 @@ export const de = {
     /** Android: the same from an image or a PDF of the invoice. */
     fromFile: 'Aus Bild oder PDF',
     errors: {
-      notAnImage: 'Bitte wähle ein Bild (PNG, JPG oder einen Screenshot) mit dem GiroCode.',
-      notAnImageOrPdf: 'Bitte wähle ein Bild oder ein PDF der Rechnung mit dem GiroCode.',
-      noScanner: 'Der Scanner ist auf diesem Telefon nicht verfügbar. Wähle stattdessen ein Bild oder PDF der Rechnung.',
-      scanFailed: 'Das Scannen hat nicht geklappt. Versuch es noch einmal oder wähle ein Bild oder PDF der Rechnung.',
-      noCode: 'Kein GiroCode gefunden. Nutze ein scharfes Bild, auf dem der Code vollständig zu sehen ist.',
-      nothingRead: 'Weder ein GiroCode noch eine IBAN gefunden. Nutze ein scharfes Bild der ganzen Rechnung.',
-      notEpc: 'Kein gültiger GiroCode – unterstützt werden nur SEPA-Überweisungen in Euro.',
+      notAnImage: 'Bitte wähle ein Bild mit dem GiroCode.',
+      notAnImageOrPdf: 'Bitte wähle ein Bild oder PDF der Rechnung.',
+      noScanner: 'Scannen geht auf diesem Telefon nicht. Wähle ein Bild oder PDF der Rechnung.',
+      scanFailed: 'Scannen hat nicht geklappt. Versuch es noch einmal oder wähle eine Datei.',
+      noCode: 'Kein GiroCode gefunden. Nimm ein scharfes Bild mit dem ganzen Code.',
+      nothingRead: 'Kein GiroCode und keine IBAN gefunden. Nimm ein scharfes Bild der ganzen Rechnung.',
+      notEpc: 'Das ist kein GiroCode für eine Überweisung in Euro.',
     },
   },
   /** One wording for the hint under Betrag and the warning on Prüfen. */
   funds: {
-    over: (available: boolean) => `Mehr als ${available ? 'verfügbar' : 'dein Kontostand'} – die Bank kann den Auftrag ablehnen.`,
+    over: (available: boolean) => `Mehr als ${available ? 'verfügbar' : 'dein Kontostand'} – die Bank kann die Zahlung ablehnen.`,
     /** The balance afterwards arrives as text or as an element. */
-    overdraft: (amount: ReactNode): ReactNode[] => ['Kontostand danach ca. ', amount, ' – du nutzt deinen Dispositionsrahmen.'],
+    overdraft: (amount: ReactNode): ReactNode[] => ['Kontostand danach ca. ', amount, ' – du nutzt deinen Dispo.'],
   },
   /** The sheet's buttons. */
   actions: {
@@ -174,20 +174,20 @@ export const de = {
     balanceAfter: 'Kontostand danach',
     approx: 'ca.',
     asOf: (date: string) => `Stand ${date}`,
-    rewritten: 'So übermittelt an die Bank: Umlaute ausgeschrieben (ä → ae), nicht übertragbare Zeichen weggelassen.',
+    rewritten: 'So kommt es bei der Bank an: Umlaute ausgeschrieben (ä → ae), nicht erlaubte Zeichen weggelassen.',
   },
   /** The Namensabgleich step of the sheet. */
   vopStep: {
     /** No usable result (no check, still running, unclear): the verdict below says which. */
     introUnchecked: (amount: ReactNode): ReactNode[] => ['Prüfe die Angaben, bevor du ', amount, ' freigibst.'],
     intro: (amount: ReactNode): ReactNode[] => [
-      'Die Bank hat den Empfängernamen mit dem Namen zur IBAN abgeglichen. Prüfe das Ergebnis, bevor du ',
+      'Die Bank hat den Namen zur IBAN geprüft. Sieh dir das Ergebnis an, bevor du ',
       amount,
       ' freigibst.',
     ],
-    askPayee: 'Frag beim Empfänger nach, ob Name und IBAN stimmen – über einen Weg, den du schon kennst, nicht über die '
-      + 'Rechnung oder E-Mail, aus der die IBAN stammt.',
-    risk: 'Gibst du die Überweisung trotz Abweichung frei, trägst du das Risiko, dass das Geld beim falschen Empfänger ankommt.',
+    askPayee: 'Frag den Empfänger, ob Name und IBAN stimmen – auf einem Weg, den du schon kennst, nicht über die '
+      + 'Rechnung oder E-Mail mit der IBAN.',
+    risk: 'Gibst du trotz Abweichung frei, trägst du das Risiko, dass das Geld beim falschen Empfänger ankommt.',
   },
   /** The bank's Namensabgleich result (components/VopResult.tsx). */
   vop: {
@@ -196,19 +196,19 @@ export const de = {
     verdicts: {
       MATCH: {
         label: 'Name stimmt überein',
-        blurb: 'Der Empfängername passt zu dem Namen, den die Bank zu dieser IBAN führt.',
+        blurb: 'Die Bank führt diese IBAN unter diesem Namen.',
       },
       CLOSE_MATCH: {
         label: 'Name weicht leicht ab',
-        blurb: 'Die Bank führt zu dieser IBAN einen ähnlichen, aber nicht identischen Namen.',
+        blurb: 'Die Bank führt diese IBAN unter einem ähnlichen, aber anderen Namen.',
       },
       NO_MATCH: {
         label: 'Name stimmt nicht überein',
-        blurb: 'Der Empfängername passt nicht zu dem Namen, den die Bank zu dieser IBAN führt.',
+        blurb: 'Die Bank führt diese IBAN unter einem anderen Namen.',
       },
       NOT_APPLICABLE: { label: 'Kein Abgleich möglich', blurb: 'Der Name konnte nicht geprüft werden.' },
       PENDING: { label: 'Prüfung läuft noch', blurb: 'Der Name konnte noch nicht geprüft werden.' },
-      UNKNOWN: { label: 'Prüfergebnis unklar', blurb: 'Die Bank hat ein Ergebnis geliefert, das sich nicht zuordnen lässt.' },
+      UNKNOWN: { label: 'Prüfergebnis unklar', blurb: 'Girovo versteht das Ergebnis der Bank nicht.' },
     },
     /** The TAN overlay's one line. */
     badge: (label: string) => `Namensabgleich: ${label}`,
@@ -224,19 +224,19 @@ export const de = {
     appears: 'Die Buchung erscheint in deinen Umsätzen, sobald die Bank sie meldet.',
     /** `action`: the refresh button's label. */
     pastRange: (date: string, action: string) =>
-      `Dein gewählter Zeitraum endet am ${date} – „${action}“ lädt die Umsätze bis heute. Das kann eine Freigabe erfordern.`,
-    refreshHint: (action: string) => `„${action}“ ruft sie neu ab – das kann eine Freigabe erfordern.`,
+      `Dein Zeitraum endet am ${date}: „${action}“ lädt die Umsätze bis heute. Kann eine Freigabe erfordern.`,
+    refreshHint: (action: string) => `Mit „${action}“ siehst du gleich nach. Kann eine Freigabe erfordern.`,
   },
   /** The "Status unklar" step and what "Jetzt nachsehen" found. */
   unknown: {
-    noConfirmation: 'Für diese Überweisung liegt keine Bestätigung vor. Sie kann trotzdem bei deiner Bank angekommen sein und '
+    noConfirmation: 'Keine Bestätigung erhalten. Die Überweisung kann trotzdem bei deiner Bank angekommen sein und '
       + 'ausgeführt werden.',
     /** `action`: the check button's label. */
     beforeResend: (action: string) =>
-      'Bevor du sie erneut sendest: Sieh nach, ob sie schon in deinen Umsätzen oder bei den vorgemerkten Umsätzen '
-      + `steht – „${action}“ ruft beide neu ab, das kann eine Freigabe erfordern.`,
-    loadingPending: 'Vorgemerkte Umsätze werden abgerufen …',
-    loading: 'Umsätze werden abgerufen …',
+      `Bevor du sie erneut sendest: „${action}“ sucht sie in deinen Umsätzen und den vorgemerkten. `
+      + 'Kann eine Freigabe erfordern.',
+    loadingPending: 'Vorgemerkte Umsätze werden geladen …',
+    loading: 'Umsätze werden geladen …',
     sent: 'Gesendet',
     foundBooked: 'Gefunden in deinen Umsätzen',
     foundPending: 'Gefunden bei den vorgemerkten Umsätzen',
@@ -252,20 +252,19 @@ export const de = {
     /** `count` of them; one is named with `bookedOn` as in found (null: a Vormerkposten). */
     unsureText: (count: number, amount: ReactNode, name: string, bookedOn: ReactNode | null): ReactNode[] => (count > 1
       ? [
-        `Es gibt ${count} gleiche Zahlungen über `,
+        `${count} gleiche Zahlungen über `,
         amount,
-        ` an ${name}. Ob eine davon diese Überweisung ist, lässt sich nicht sicher sagen. Prüfe es im Online-Banking deiner Bank.`,
+        ` an ${name} gefunden. Ob diese Überweisung dabei ist, ist unklar. Prüfe es im Online-Banking deiner Bank.`,
       ]
       : [
         bookedOn != null ? 'In deinen Umsätzen steht eine Zahlung über ' : 'Bei den vorgemerkten Umsätzen steht eine Zahlung über ',
         amount,
         ` an ${name}`,
         ...(bookedOn != null ? [', gebucht am ', bookedOn] : []),
-        '. Ob das diese Überweisung ist oder eine gleiche Zahlung von vorher, lässt sich nicht sicher sagen. Prüfe es im '
-          + 'Online-Banking deiner Bank.',
+        '. Ob das diese Überweisung ist oder eine frühere, ist unklar. Prüfe es im Online-Banking deiner Bank.',
       ]),
-    failedBooked: 'Abruf der Umsätze fehlgeschlagen.',
-    failedPending: 'Abruf der vorgemerkten Umsätze fehlgeschlagen.',
+    failedBooked: 'Umsätze konnten nicht geladen werden.',
+    failedPending: 'Vorgemerkte Umsätze konnten nicht geladen werden.',
     notVisible: 'Noch nicht sichtbar – bitte nicht erneut senden',
     notChecked: 'Nachsehen nicht möglich – bitte nicht erneut senden',
     /** Where the check looked, as `notYet` names it — only what was actually read. */
@@ -274,20 +273,20 @@ export const de = {
     notYet: (places: string, time: ReactNode): ReactNode[] => [
       `In ${places} steht sie noch nicht (Stand `,
       time,
-      '). Je nach Bank erscheint eine Überweisung erst später. Sieh später noch einmal nach oder prüfe es im Online-Banking deiner Bank.',
+      '). Manche Banken zeigen sie erst später. Sieh später noch einmal nach oder prüfe es im Online-Banking deiner Bank.',
     ],
-    nothingToRead: 'Für dieses Konto liefert deine Bank keine Umsätze an die App. Prüfe es im Online-Banking deiner Bank.',
+    nothingToRead: 'Deine Bank zeigt Girovo für dieses Konto keine Umsätze. Prüfe es im Online-Banking deiner Bank.',
     tryAgain: 'Versuche es gleich noch einmal oder prüfe es im Online-Banking deiner Bank.',
   },
   refused: {
-    withReason: 'Deine Bank hat den Auftrag abgelehnt:',
-    plain: 'Deine Bank hat den Auftrag abgelehnt.',
+    withReason: 'Deine Bank hat abgelehnt:',
+    plain: 'Deine Bank hat abgelehnt.',
   },
   /** The bank's own words on a result step. */
   bankAnswer: {
     label: 'Antwort deiner Bank',
     /** Under a refusal: its code, for a call to the bank. */
-    reference: (code: ReactNode): ReactNode[] => ['Rückmeldung der Bank: ', code],
+    reference: (code: ReactNode): ReactNode[] => ['Fehlercode: ', code],
   },
   /**
    * Closing the sheet before anything was sent. `order`: a Dauerauftrag or a
@@ -296,14 +295,14 @@ export const de = {
   discard: {
     title: 'Eingaben verwerfen?',
     body: (order: boolean) =>
-      `${order ? 'Der Auftrag' : 'Die Überweisung'} wurde noch nicht gesendet. Was du eingegeben hast, geht verloren.`,
+      `${order ? 'Der Auftrag' : 'Die Überweisung'} ist noch nicht gesendet. Deine Eingaben gehen verloren.`,
     keep: 'Weiter bearbeiten',
     confirm: 'Verwerfen',
   },
   /** Closing the sheet on the Namensabgleich step. `order`: as for discard. */
   discardVop: {
     title: (order: boolean): string => (order ? 'Auftrag verwerfen?' : 'Überweisung verwerfen?'),
-    body: 'Der Auftrag liegt geprüft bei deiner Bank, ist aber nicht freigegeben. Verwirfst du ihn, wird kein Geld überwiesen.',
+    body: 'Deine Bank hat die Angaben, aber keine Freigabe. Verwirfst du jetzt, wird kein Geld überwiesen.',
     keep: 'Weiter prüfen',
     confirm: (order: boolean): string => (order ? 'Auftrag verwerfen' : 'Überweisung verwerfen'),
   },
@@ -324,14 +323,14 @@ export const de = {
   templates: {
     menu: 'Vorlagen',
     loading: 'Vorlagen werden geladen …',
-    unavailable: 'Vorlagen sind gerade nicht verfügbar, weil dein verschlüsselter Speicher nicht geladen werden konnte.',
+    unavailable: 'Vorlagen konnten gerade nicht geladen werden.',
     use: 'Vorlage verwenden',
     noneYet: 'Noch keine Vorlagen.',
-    howToSave: 'Ist eine Überweisung ausgeführt, kannst du den Empfänger als Vorlage speichern.',
+    howToSave: 'Nach einer Überweisung kannst du den Empfänger als Vorlage speichern.',
     manage: 'Vorlagen verwalten …',
     manageTitle: 'Vorlagen verwalten',
-    manageDescription: 'Vorlagen werden verschlüsselt gespeichert und sind nur nach deiner Anmeldung lesbar.',
-    notSaving: 'Änderungen werden gerade nicht gespeichert, weil dein verschlüsselter Speicher nicht verfügbar ist.',
+    manageDescription: 'Vorlagen sind verschlüsselt und nur nach der Anmeldung lesbar.',
+    notSaving: 'Änderungen werden gerade nicht gespeichert.',
     renamed: (label: string) => `Vorlage in „${label}“ umbenannt.`,
     deleted: (label: string) => `Vorlage „${label}“ gelöscht.`,
     restored: (label: string) => `Vorlage „${label}“ wiederhergestellt.`,
@@ -344,7 +343,7 @@ export const de = {
     saved: (label: string) => `Als Vorlage „${label}“ gespeichert.`,
     alreadySaved: (label: string) => `Schon als Vorlage „${label}“ gespeichert.`,
     nameLabel: 'Name der Vorlage',
-    saveHint: 'Empfänger, IBAN, Betrag und Verwendungszweck – verschlüsselt auf diesem Rechner.',
+    saveHint: 'Empfänger, IBAN, Betrag und Verwendungszweck – verschlüsselt auf diesem Gerät.',
     save: 'Als Vorlage speichern',
   },
   /** Geld anfordern (components/ShareAccount.tsx). */
@@ -355,11 +354,11 @@ export const de = {
     noAmount: 'Kein Betrag gefunden',
     from: (account: string) => `von ${account}`,
     change: 'Ändern',
-    marked: 'Markiert ist, was übernommen wurde.',
+    marked: 'Markiert ist, was Girovo übernommen hat.',
     /** The desktop: the line of the field in use, magnified. */
     lens: 'Auf der Rechnung',
     enlarge: 'Rechnung groß anzeigen',
-    debit: 'Laut Rechnung wird der Betrag per Lastschrift eingezogen – prüf, ob du überhaupt überweisen musst.',
+    debit: 'Laut Rechnung wird per Lastschrift eingezogen – musst du überhaupt überweisen?',
   },
 
   share: {
@@ -370,13 +369,12 @@ export const de = {
     /** Aufteilen's requests, one per person: "Für Lea · 1 von 2". */
     forWhom: (name: string, step?: { at: number; of: number }) =>
       (step && step.of > 1 ? `Für ${name} · ${step.at} von ${step.of}` : `Für ${name}`),
-    intro: 'Ein GiroCode für dein Konto. Die zahlende Person scannt ihn mit ihrer Banking-App und bekommt die Überweisung '
-      + 'an dich fertig ausgefüllt.',
-    amountInvalid: 'Bitte gib einen gültigen Betrag an, zum Beispiel 25,00 – oder lass das Feld leer.',
+    intro: 'Wer dir Geld schickt, scannt den Code mit der Banking-App – die Überweisung ist dann ausgefüllt.',
+    amountInvalid: 'Bitte gib einen Betrag wie 25,00 an – oder lass das Feld leer.',
     amountNotPositive: 'Der Betrag muss größer als 0,00 € sein – oder lass das Feld leer.',
     codeFailed: 'Der GiroCode konnte nicht erstellt werden.',
     copyFailed: 'Kopieren war nicht möglich.',
-    imageCopyFailed: 'Das Bild ließ sich nicht kopieren. Speichere es stattdessen als PNG.',
+    imageCopyFailed: 'Kopieren ging nicht. Speichere das Bild als PNG.',
     imageSaveFailed: 'Das Bild konnte nicht gespeichert werden.',
     /** No amount in the code: the payer fills it in. */
     anyAmount: 'Betrag frei wählbar',
@@ -387,7 +385,7 @@ export const de = {
     imageCopied: 'GiroCode als Bild kopiert',
     /** Under the code in a copied, saved or shared image. */
     imageCaption: 'Erstellt mit Girovo · girovo.de',
-    covered: 'Beträge sind ausgeblendet – der Code enthält den Betrag und ließe sich vom Bildschirm scannen.',
+    covered: 'Beträge sind ausgeblendet – der Code verrät den Betrag jedem, der ihn scannt.',
     showCode: 'Code anzeigen',
     /** The code's description for a screen reader. */
     codeLabel: (name: string, amount: string) => `GiroCode: Überweisung an ${name}, ${amount}`,
@@ -396,14 +394,14 @@ export const de = {
     yourName: 'Dein Name',
     /** Quotes the Namensabgleich's "Name stimmt nicht überein". */
     nameDiffers: (holder: string) =>
-      `Weicht vom Kontoinhaber „${holder}“ ab. Die Bank der zahlenden Person meldet dann womöglich „Name stimmt nicht überein“.`,
+      `Weicht vom Kontoinhaber „${holder}“ ab. Wer zahlt, sieht dann womöglich „Name stimmt nicht überein“.`,
     useHolder: 'Kontoinhaber übernehmen',
     nameHint: 'So, wie deine Bank den Kontoinhaber führt.',
     amountHint: 'Leer lassen, wenn die zahlende Person den Betrag selbst eingibt.',
     purposePlaceholder: 'z. B. Anteil Konzertkarten',
     copyBic: 'BIC kopieren',
-    explainer: 'Der Code enthält nur Name, IBAN, BIC, Betrag und Verwendungszweck. Die zahlende Person prüft die '
-      + 'Überweisung und gibt sie in ihrer eigenen App frei.',
+    explainer: 'Der Code enthält nur Name, IBAN, BIC, Betrag und Verwendungszweck. '
+      + 'Wer zahlt, gibt die Überweisung in der eigenen App frei.',
   },
   /** Why a GiroCode cannot be built (lib/girocode.ts). */
   epc: {
@@ -413,12 +411,12 @@ export const de = {
     nameTooLong: (max: number) => `Der Name darf höchstens ${max} Zeichen lang sein.`,
     ibanInvalid: 'Die IBAN ist ungültig.',
     purposeTooLong: (max: number) => `Der Verwendungszweck darf höchstens ${max} Zeichen lang sein.`,
-    tooLong: 'Name und Verwendungszweck sind zusammen zu lang für einen GiroCode. Bitte kürze den Verwendungszweck.',
+    tooLong: 'Name und Verwendungszweck sind zusammen zu lang. Bitte kürze den Verwendungszweck.',
   },
   /** Drawing a QR code (lib/qr.ts). */
   qr: {
     tooLong: 'Der Inhalt ist zu lang für einen QR-Code.',
-    browserOnly: 'Ein PNG kann nur im Browser erzeugt werden.',
+    browserOnly: 'Das Bild lässt sich hier nicht erstellen.',
     imageFailed: 'Das Bild konnte nicht erzeugt werden.',
   },
   /**
@@ -443,21 +441,20 @@ export const de = {
   },
   /** The answers of /api/transfer and /api/vop-confirm. */
   route: {
-    nameTooLong: (max: number) => `Der Name des Empfängers ist zu lang (höchstens ${max} Zeichen, Umlaute zählen doppelt).`,
-    ibanInvalid: 'Die IBAN ist ungültig (Prüfsumme oder Format).',
+    nameTooLong: (max: number) => `Der Name ist zu lang: höchstens ${max} Zeichen, Umlaute zählen doppelt.`,
+    ibanInvalid: 'Die IBAN ist ungültig.',
     amountInvalid: 'Der Betrag ist ungültig.',
-    purposeTooLong: (max: number) => `Der Verwendungszweck ist zu lang (höchstens ${max} Zeichen, Umlaute zählen doppelt).`,
+    purposeTooLong: (max: number) => `Der Verwendungszweck ist zu lang: höchstens ${max} Zeichen, Umlaute zählen doppelt.`,
     unknownAccount: 'Unbekanntes Konto.',
-    sameIban: 'Empfänger-IBAN und Auftraggeber-IBAN sind identisch.',
-    noIban: 'Dieses Konto hat keine IBAN und unterstützt keine SEPA-Überweisungen.',
+    sameIban: 'Der Empfänger hat dieselbe IBAN wie dein Konto.',
+    noIban: 'Von diesem Konto kannst du nicht überweisen – es hat keine IBAN.',
     unsupported: (instant: boolean) =>
-      `Dieses Konto unterstützt keine ${instant ? 'Echtzeitüberweisung' : 'SEPA-Überweisung'} über FinTS.`,
-    vopRequired: 'Deine Bank verlangt für Überweisungen einen Namensabgleich (Verification of Payee), '
-      + 'bietet ihn über FinTS aber nicht an. Überweise bitte im Online-Banking deiner Bank.',
-    vopIncomplete: 'Die Bank prüft den Empfängernamen noch und hat das Ergebnis nicht vollständig geliefert. '
-      + 'Versuche es in einem Moment noch einmal.',
-    vopWithdrawn: 'Die Bank hat die Freigabe zurückgezogen, ohne ein Prüfergebnis zu liefern.',
-    noHold: 'Kein Auftrag wartet auf die Bestätigung des Namensabgleichs.',
+      `Deine Bank bietet für dieses Konto hier keine ${instant ? 'Echtzeitüberweisungen' : 'Überweisungen'} an.`,
+    vopRequired: 'Deine Bank verlangt einen Namensabgleich, bietet ihn hier aber nicht an. '
+      + 'Überweise bitte im Online-Banking deiner Bank.',
+    vopIncomplete: 'Die Bank prüft den Namen noch. Versuch es gleich noch einmal.',
+    vopWithdrawn: 'Die Bank hat die Freigabe ohne Prüfergebnis zurückgezogen.',
+    noHold: 'Nichts wartet auf die Bestätigung des Namensabgleichs.',
     holdExpired: 'Das Prüfergebnis ist zu alt. Starte die Überweisung noch einmal.',
   },
 };
@@ -496,25 +493,25 @@ export const en: typeof de = {
     recent: 'Recent recipients',
     ownAccount: 'Your own account',
     name: 'Name',
-    nameHint: 'As it appears on the recipient’s account – your bank checks it against the IBAN.',
+    nameHint: 'As on the recipient’s account – your bank checks the name.',
     namePlaceholder: 'First and last name, or company',
     payment: 'Payment',
     available: 'Available',
     execution: 'Transfer type',
     standard: 'Standard',
-    noInstant: 'Your bank does not offer instant transfers for this account over FinTS.',
+    noInstant: 'Your bank does not offer instant transfers here for this account.',
     instantHint: 'Reaches the recipient in seconds, around the clock.',
     charsLeft: (n) => (n === 1 ? '1 character left.' : `${n} characters left.`),
     countsWrittenOut: 'Umlauts and special characters count as written out (ä → ae).',
     purposePlaceholder: 'e.g. Invoice 2026-118',
     chooseAccount: 'Please choose the account you are transferring from.',
-    nameUnsendable: 'The name consists only of characters a transfer cannot carry.',
+    nameUnsendable: 'A transfer cannot carry any of these characters.',
     nameTooLong: (length, max) =>
-      `For the bank, the name is ${length} characters long and ${max} is the maximum: `
-      + 'umlauts and special characters are written out (ä → ae).',
+      `Name too long: ${length} characters, at most ${max}. `
+      + 'Umlauts and special characters count as written out (ä → ae).',
     purposeTooLong: (over) =>
-      `${over === 1 ? 'One character' : `${over} characters`} too long for the bank: `
-      + 'umlauts and special characters are written out (ä → ae, € → EUR).',
+      `${over === 1 ? 'One character' : `${over} characters`} too long. `
+      + 'Umlauts and special characters count as written out (ä → ae, € → EUR).',
     amountMissing: 'Please enter the amount.',
   },
   amount: {
@@ -525,16 +522,16 @@ export const en: typeof de = {
   iban: {
     missing: 'Please enter the recipient’s IBAN.',
     countryCode: 'An IBAN starts with the country code, for example “DE”.',
-    checkDigits: 'The country code is followed by two check digits.',
+    checkDigits: 'Two digits follow the country code.',
     length: (length, typed, country) =>
       `An IBAN ${country ? `from ${theCountry(country)} ` : ''}has ${length} characters – you entered ${typed}.`,
-    checksum: 'The check digits do not match. Please compare the IBAN character by character.',
-    own: 'This is the IBAN of the account you are sending from. Please enter the recipient’s account.',
+    checksum: 'The IBAN is not right. Please compare it character by character.',
+    own: 'You are transferring from this account. Please enter the recipient’s IBAN.',
   },
   ibanHint: {
-    notSepa: 'SEPA transfers only reach accounts in the SEPA area.',
+    notSepa: 'Transfers only reach accounts in the SEPA area.',
     lookingUp: 'Looking up the bank…',
-    unknownBank: 'IBAN valid. The bank is not listed in the directory.',
+    unknownBank: 'IBAN valid. Girovo does not know this bank.',
     valid: (country) => `IBAN valid${country ? ` · account in ${theCountry(country)}` : ''}.`,
   },
   giro: {
@@ -543,22 +540,22 @@ export const en: typeof de = {
     readingStatus: 'Reading',
     dropHere: 'Drop it here',
     pick: 'Choose an image or PDF',
-    pickOrDrop: 'Drag an image or PDF here, paste it with Ctrl+V or choose one',
+    pickOrDrop: 'Choose an image or PDF, drag it here or paste it with Ctrl+V',
     scan: 'Scan GiroCode',
     scanInvoice: 'Scan invoice',
     fromFile: 'From image or PDF',
     errors: {
-      notAnImage: 'Please choose an image (PNG, JPG or a screenshot) with the GiroCode.',
-      notAnImageOrPdf: 'Please choose an image or a PDF of the invoice with the GiroCode.',
-      noScanner: 'The scanner isn’t available on this phone. Choose an image or PDF of the invoice instead.',
-      scanFailed: 'Scanning didn’t work. Try again, or choose an image or PDF of the invoice.',
-      noCode: 'No GiroCode found. Use a sharp image that shows the whole code.',
-      nothingRead: 'Found neither a GiroCode nor an IBAN. Use a sharp picture of the whole invoice.',
-      notEpc: 'Not a valid GiroCode – only SEPA transfers in euros are supported.',
+      notAnImage: 'Please choose an image with the GiroCode.',
+      notAnImageOrPdf: 'Please choose an image or PDF of the invoice.',
+      noScanner: 'Scanning isn’t available on this phone. Choose an image or PDF of the invoice.',
+      scanFailed: 'Scanning didn’t work. Try again or choose a file.',
+      noCode: 'No GiroCode found. Use a sharp image of the whole code.',
+      nothingRead: 'No GiroCode or IBAN found. Use a sharp image of the whole invoice.',
+      notEpc: 'This is not a GiroCode for a transfer in euros.',
     },
   },
   funds: {
-    over: (available) => `More than ${available ? 'is available' : 'your balance'} – the bank may decline the order.`,
+    over: (available) => `More than ${available ? 'is available' : 'your balance'} – the bank may decline the payment.`,
     overdraft: (amount) => ['Balance afterwards: about ', amount, ' – you will be using your overdraft.'],
   },
   actions: {
@@ -592,37 +589,37 @@ export const en: typeof de = {
     balanceAfter: 'Balance afterwards',
     approx: 'approx.',
     asOf: (date) => `as of ${date}`,
-    rewritten: 'Sent to the bank like this: umlauts written out (ä → ae), characters that cannot be transmitted left out.',
+    rewritten: 'This is how the bank gets it: umlauts written out (ä → ae), characters it does not allow left out.',
   },
   vopStep: {
     introUnchecked: (amount) => ['Check the details before you approve ', amount, '.'],
     intro: (amount) => [
-      'The bank has compared the recipient’s name with the name held for the IBAN. Check the result before you approve ',
+      'The bank has checked the name against the IBAN. Look at the result before you approve ',
       amount,
       '.',
     ],
-    askPayee: 'Ask the recipient whether the name and IBAN are right – through a channel you already know, not through the '
-      + 'invoice or email the IBAN came from.',
-    risk: 'If you approve the transfer despite the mismatch, you bear the risk that the money reaches the wrong recipient.',
+    askPayee: 'Ask the recipient whether the name and IBAN are right – by a route you already know, not through the '
+      + 'invoice or email with the IBAN.',
+    risk: 'If you approve despite the mismatch, you bear the risk that the money reaches the wrong recipient.',
   },
   vop: {
     unconfirmed: 'Nobody has confirmed that the IBAN belongs to this name.',
     verdicts: {
       MATCH: {
         label: 'Name matches',
-        blurb: 'The recipient name matches the name the bank holds for this IBAN.',
+        blurb: 'The bank holds this IBAN under this name.',
       },
       CLOSE_MATCH: {
         label: 'Name differs slightly',
-        blurb: 'The bank holds a similar but not identical name for this IBAN.',
+        blurb: 'The bank holds this IBAN under a similar but different name.',
       },
       NO_MATCH: {
         label: 'Name does not match',
-        blurb: 'The recipient name does not match the name the bank holds for this IBAN.',
+        blurb: 'The bank holds this IBAN under a different name.',
       },
       NOT_APPLICABLE: { label: 'No check possible', blurb: 'The name could not be checked.' },
       PENDING: { label: 'Check still running', blurb: 'The name could not be checked yet.' },
-      UNKNOWN: { label: 'Check result unclear', blurb: 'The bank returned a result that cannot be classified.' },
+      UNKNOWN: { label: 'Check result unclear', blurb: 'Girovo does not understand the bank’s result.' },
     },
     badge: (label) => `Name check: ${label}`,
     submitted: 'Entered by you',
@@ -635,16 +632,16 @@ export const en: typeof de = {
     instant: 'Instant transfer – reaches the recipient in seconds.',
     appears: 'The booking will appear in your transactions as soon as the bank reports it.',
     pastRange: (date, action) =>
-      `Your selected period ends on ${date} – “${action}” loads transactions up to today. This may require approval.`,
-    refreshHint: (action) => `“${action}” fetches them again – this may require approval.`,
+      `Your period ends on ${date}: “${action}” loads transactions up to today. May need approval.`,
+    refreshHint: (action) => `“${action}” lets you check straight away. May need approval.`,
   },
   unknown: {
-    noConfirmation: 'There is no confirmation for this transfer. It may still have reached your bank and be carried out.',
+    noConfirmation: 'No confirmation received. The transfer may still have reached your bank and be carried out.',
     beforeResend: (action) =>
-      'Before you send it again: check whether it already appears in your transactions or your pending transactions '
-      + `– “${action}” fetches both again, which may require approval.`,
-    loadingPending: 'Fetching pending transactions…',
-    loading: 'Fetching transactions…',
+      `Before you send it again: “${action}” looks for it in your transactions and pending transactions. `
+      + 'May need approval.',
+    loadingPending: 'Loading pending transactions…',
+    loading: 'Loading transactions…',
     sent: 'Sent',
     foundBooked: 'Found in your transactions',
     foundPending: 'Found in your pending transactions',
@@ -657,16 +654,16 @@ export const en: typeof de = {
     unsure: 'Not clear – please do not send it again',
     unsureText: (count, amount, name, bookedOn) => (count > 1
       ? [
-        `There are ${count} identical payments of `,
+        `Found ${count} identical payments of `,
         amount,
-        ` to ${name}. Whether one of them is this transfer cannot be said for sure. Check in your bank’s online banking.`,
+        ` to ${name}. Whether this transfer is one of them is unclear. Check in your bank’s online banking.`,
       ]
       : [
         bookedOn != null ? 'Your transactions show a payment of ' : 'Your pending transactions show a payment of ',
         amount,
         ` to ${name}`,
         ...(bookedOn != null ? [', booked on ', bookedOn] : []),
-        '. Whether it is this transfer or an earlier identical payment cannot be said for sure. Check in your bank’s online banking.',
+        '. Whether it is this transfer or an earlier one is unclear. Check in your bank’s online banking.',
       ]),
     failedBooked: 'Could not load transactions.',
     failedPending: 'Could not load pending transactions.',
@@ -677,28 +674,28 @@ export const en: typeof de = {
     notYet: (places, time) => [
       `It does not appear in ${places} yet (as of `,
       time,
-      '). Depending on the bank, a transfer may only appear later. Check again later or look in your bank’s online banking.',
+      '). Some banks show it only later. Check again later or look in your bank’s online banking.',
     ],
-    nothingToRead: 'Your bank does not provide transactions for this account to the app. Check in your bank’s online banking.',
+    nothingToRead: 'Your bank does not show Girovo this account’s transactions. Check in your bank’s online banking.',
     tryAgain: 'Try again in a moment or check in your bank’s online banking.',
   },
   refused: {
-    withReason: 'Your bank declined the order:',
-    plain: 'Your bank declined the order.',
+    withReason: 'Your bank declined:',
+    plain: 'Your bank declined.',
   },
   bankAnswer: {
     label: 'Your bank’s answer',
-    reference: (code) => ['Bank response: ', code],
+    reference: (code) => ['Error code: ', code],
   },
   discard: {
     title: 'Discard your entries?',
-    body: (order) => `The ${order ? 'order' : 'transfer'} has not been sent yet. What you have entered will be lost.`,
+    body: (order) => `The ${order ? 'order' : 'transfer'} has not been sent yet. Your entries will be lost.`,
     keep: 'Keep editing',
     confirm: 'Discard',
   },
   discardVop: {
     title: (order) => (order ? 'Discard order?' : 'Discard transfer?'),
-    body: 'The order is with your bank and has been checked, but not approved. If you discard it, no money will be transferred.',
+    body: 'Your bank has the details, but no approval. If you discard now, no money will be transferred.',
     keep: 'Keep reviewing',
     confirm: (order) => (order ? 'Discard order' : 'Discard transfer'),
   },
@@ -715,14 +712,14 @@ export const en: typeof de = {
   templates: {
     menu: 'Templates',
     loading: 'Loading templates…',
-    unavailable: 'Templates are not available right now because your encrypted storage could not be loaded.',
+    unavailable: 'Templates could not be loaded right now.',
     use: 'Use a template',
     noneYet: 'No templates yet.',
-    howToSave: 'Once a transfer has been completed, you can save the recipient as a template.',
+    howToSave: 'After a transfer, you can save the recipient as a template.',
     manage: 'Manage templates…',
     manageTitle: 'Manage templates',
-    manageDescription: 'Templates are stored encrypted and can only be read after you log in.',
-    notSaving: 'Changes are not being saved right now because your encrypted storage is not available.',
+    manageDescription: 'Templates are encrypted and can only be read after you log in.',
+    notSaving: 'Changes are not being saved right now.',
     renamed: (label) => `Template renamed to “${label}”.`,
     deleted: (label) => `Template “${label}” deleted.`,
     restored: (label) => `Template “${label}” restored.`,
@@ -735,7 +732,7 @@ export const en: typeof de = {
     saved: (label) => `Saved as template “${label}”.`,
     alreadySaved: (label) => `Already saved as template “${label}”.`,
     nameLabel: 'Template name',
-    saveHint: 'Recipient, IBAN, amount and payment reference – encrypted on this computer.',
+    saveHint: 'Recipient, IBAN, amount and payment reference – encrypted on this device.',
     save: 'Save as template',
   },
   invoice: {
@@ -744,10 +741,10 @@ export const en: typeof de = {
     noAmount: 'No amount found',
     from: (account) => `from ${account}`,
     change: 'Change',
-    marked: 'Marked is what was taken over.',
+    marked: 'Highlighted is what Girovo took over.',
     lens: 'On the invoice',
     enlarge: 'Show the invoice large',
-    debit: 'The invoice says the amount is collected by direct debit – check whether you need to transfer at all.',
+    debit: 'The invoice says it is collected by direct debit – do you need to transfer at all?',
   },
 
   share: {
@@ -755,13 +752,12 @@ export const en: typeof de = {
     next: (name) => `Next: ${name}`,
     done: 'Done',
     forWhom: (name, step) => (step && step.of > 1 ? `For ${name} · ${step.at} of ${step.of}` : `For ${name}`),
-    intro: 'A GiroCode for your account. The person paying scans it with their banking app and gets the transfer to you '
-      + 'ready filled in.',
-    amountInvalid: 'Please enter a valid amount, for example 25.00 – or leave the field empty.',
+    intro: 'Whoever sends you money scans the code with their banking app – the transfer is then filled in.',
+    amountInvalid: 'Please enter an amount like 25.00 – or leave the field empty.',
     amountNotPositive: 'The amount must be more than €0.00 – or leave the field empty.',
     codeFailed: 'The GiroCode could not be created.',
     copyFailed: 'Could not copy.',
-    imageCopyFailed: 'The image could not be copied. Save it as a PNG instead.',
+    imageCopyFailed: 'Could not copy. Save the image as a PNG.',
     imageSaveFailed: 'The image could not be saved.',
     anyAmount: 'Any amount',
     copyDetails: 'Copy account details',
@@ -770,21 +766,21 @@ export const en: typeof de = {
     detailsCopied: 'Account details copied',
     imageCopied: 'GiroCode copied as an image',
     imageCaption: 'Made with Girovo · girovo.de',
-    covered: 'Amounts are hidden – the code contains the amount and could be scanned off the screen.',
+    covered: 'Amounts are hidden – the code reveals the amount to anyone who scans it.',
     showCode: 'Show code',
     codeLabel: (name, amount) => `GiroCode: transfer to ${name}, ${amount}`,
     checkAmount: 'Please check the amount.',
     noCode: 'No GiroCode – please check the details.',
     yourName: 'Your name',
     nameDiffers: (holder) =>
-      `Differs from the account holder “${holder}”. The bank of the person paying may then report “Name does not match”.`,
+      `Differs from the account holder “${holder}”. Whoever pays may then see “Name does not match”.`,
     useHolder: 'Use account holder',
     nameHint: 'As your bank lists the account holder.',
     amountHint: 'Leave empty if the person paying enters the amount themselves.',
     purposePlaceholder: 'e.g. Share of concert tickets',
     copyBic: 'Copy BIC',
-    explainer: 'The code only contains the name, IBAN, BIC, amount and payment reference. The person paying checks the '
-      + 'transfer and approves it in their own app.',
+    explainer: 'The code only contains the name, IBAN, BIC, amount and payment reference. '
+      + 'Whoever pays approves the transfer in their own app.',
   },
   epc: {
     amountNaN: 'The amount is not a valid number.',
@@ -793,11 +789,11 @@ export const en: typeof de = {
     nameTooLong: (max) => `The name can be at most ${max} characters long.`,
     ibanInvalid: 'The IBAN is invalid.',
     purposeTooLong: (max) => `The payment reference can be at most ${max} characters long.`,
-    tooLong: 'Name and payment reference together are too long for a GiroCode. Please shorten the payment reference.',
+    tooLong: 'Name and payment reference together are too long. Please shorten the payment reference.',
   },
   qr: {
     tooLong: 'The content is too long for a QR code.',
-    browserOnly: 'A PNG can only be created in the browser.',
+    browserOnly: 'The image cannot be created here.',
     imageFailed: 'The image could not be created.',
   },
   purposeTags: {
@@ -816,20 +812,19 @@ export const en: typeof de = {
     PURP: 'Payment type',
   },
   route: {
-    nameTooLong: (max) => `The recipient’s name is too long (at most ${max} characters; umlauts count double).`,
-    ibanInvalid: 'The IBAN is invalid (checksum or format).',
+    nameTooLong: (max) => `The name is too long: at most ${max} characters, umlauts count double.`,
+    ibanInvalid: 'The IBAN is invalid.',
     amountInvalid: 'The amount is invalid.',
-    purposeTooLong: (max) => `The payment reference is too long (at most ${max} characters; umlauts count double).`,
+    purposeTooLong: (max) => `The payment reference is too long: at most ${max} characters, umlauts count double.`,
     unknownAccount: 'Unknown account.',
-    sameIban: 'The recipient IBAN and the payer IBAN are identical.',
-    noIban: 'This account has no IBAN and does not support SEPA transfers.',
-    unsupported: (instant) => `This account does not support ${instant ? 'instant transfers' : 'SEPA transfers'} over FinTS.`,
-    vopRequired: 'Your bank requires a name check (Verification of Payee) for transfers '
-      + 'but does not offer it over FinTS. Please make the transfer in your bank’s online banking.',
-    vopIncomplete: 'The bank is still checking the recipient’s name and has not delivered the complete result. '
-      + 'Please try again in a moment.',
-    vopWithdrawn: 'The bank withdrew the approval without delivering a check result.',
-    noHold: 'No order is waiting for the name check to be confirmed.',
+    sameIban: 'The recipient has the same IBAN as your account.',
+    noIban: 'You cannot transfer from this account – it has no IBAN.',
+    unsupported: (instant) => `Your bank does not offer ${instant ? 'instant transfers' : 'transfers'} here for this account.`,
+    vopRequired: 'Your bank requires a name check but does not offer it here. '
+      + 'Please make the transfer in your bank’s online banking.',
+    vopIncomplete: 'The bank is still checking the name. Try again in a moment.',
+    vopWithdrawn: 'The bank withdrew the approval without a check result.',
+    noHold: 'Nothing is waiting for the name check to be confirmed.',
     holdExpired: 'The check result is too old. Please start the transfer again.',
   },
 };

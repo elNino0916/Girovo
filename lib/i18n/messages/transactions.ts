@@ -15,7 +15,7 @@ export const de = {
   /** "1 Umsatz", "1.234 Umsätze". */
   count: (n: number) => `${nDe(n)} ${n === 1 ? 'Umsatz' : 'Umsätze'}`,
   refresh: 'Aktualisieren',
-  notFetched: 'Noch nicht abgerufen',
+  notFetched: 'Noch nicht geladen',
   /** A booking whose Buchungstag is still ahead: the bank has sent it and books it on that day. */
   notBooked: 'Noch nicht gebucht',
   /** Where a booking stands, in a word: the receipt's state line, a row's note, beside a date. */
@@ -38,17 +38,17 @@ export const de = {
 
   /** The Umsätze tile (components/Transactions.tsx). */
   list: {
-    busy: 'Möglich, sobald der laufende Vorgang fertig ist.',
+    busy: 'Geht, sobald Girovo fertig ist.',
     loadingRange: (range: string) => `Lädt ${range} …`,
     /** Leads to the Vorgemerkt panel, which the filter also reaches. */
     pendingMatch: (n: number) =>
       (n === 1 ? 'Außerdem passt 1 vorgemerkter Umsatz' : `Außerdem passen ${n} vorgemerkte Umsätze`),
     noStatements: 'Keine Umsätze für dieses Konto',
-    noStatementsBody: 'Deine Bank bietet für dieses Konto keine Umsatzabfrage über FinTS an.',
+    noStatementsBody: 'Deine Bank liefert für dieses Konto keine Umsätze.',
     loading: 'Umsätze werden geladen.',
     loadFailed: 'Umsätze konnten nicht geladen werden',
-    notFetched: 'Umsätze noch nicht abgerufen',
-    fetch: 'Umsätze abrufen',
+    notFetched: 'Umsätze noch nicht geladen',
+    fetch: 'Umsätze laden',
     empty: 'Keine Umsätze in diesem Zeitraum',
     longerPeriod: 'Ein längerer Zeitraum zeigt vielleicht mehr.',
     noMatches: 'Keine passenden Umsätze',
@@ -60,25 +60,25 @@ export const de = {
     /** `words`: the search words that found nothing, quoted and listed; `where`: inLoaded or inLoadedRange. */
     notFound: (words: string, count: number, where: ReactNode) =>
       [words, count === 1 ? ' kommt ' : ' kommen ', where, ' in keinem Umsatz vor.'],
-    allWordsApart: (query: string) => `Jedes Wort von „${query}“ kommt vor, aber kein Umsatz enthält alle zusammen.`,
-    otherFilters: (query: string) => `„${query}“ findet Umsätze, aber keinen, der zu den übrigen Filtern passt.`,
-    noneInPeriod: 'Im geladenen Zeitraum passt kein Umsatz zu diesen Filtern.',
+    allWordsApart: (query: string) => `Kein Umsatz enthält alle Wörter von „${query}“.`,
+    otherFilters: (query: string) => `„${query}“ findet Umsätze, aber keinen mit diesen Filtern.`,
+    noneInPeriod: 'Kein Umsatz im Zeitraum passt zu diesen Filtern.',
     refresh: 'Umsätze aktualisieren.',
     /** The latest fetch failed; the list still shows the one before. */
-    failedKeptOld: (error: string) => `Abruf fehlgeschlagen: ${error} Angezeigt werden die zuletzt abgerufenen Umsätze.`,
+    failedKeptOld: (error: string) => `Aktualisieren fehlgeschlagen: ${error} Du siehst den letzten Stand.`,
     switchTo: (account: string) => `Zu „${account}“ wechseln`,
     /** A transfer whose status is unclear went out from another account than the one shown. */
     sentFromOther: (from: string, shown: string) =>
-      `Die Überweisung ging von „${from}“ aus. Diese Liste zeigt „${shown}“ – ob sie ausgeführt wurde, siehst du nur dort.`,
+      `Ob die Überweisung ausgeführt wurde, siehst du nur in „${from}“, nicht in „${shown}“.`,
     belongsToOther: (owner: string, shown: string) => `Der Umsatz gehört zu „${owner}“. Diese Liste zeigt „${shown}“.`,
     /** The list was fetched before a transfer whose status is unclear. */
     fetchedBeforeTransfer: (time: ReactNode) =>
-      ['Diese Umsätze wurden um ', time, ' Uhr abgerufen, vor deiner Überweisung – sie kann hier noch nicht stehen.'],
+      ['Stand ', time, ' Uhr, vor deiner Überweisung – sie kann hier noch nicht stehen.'],
     acrossAccounts: (account: string) =>
-      `Die Analyse hat alle Konten mit Umsätzen gezählt. Diese Liste zeigt nur ${account}.`,
+      `Die Analyse zählt alle Konten, diese Liste zeigt nur ${account}.`,
     /** While a filter is set: "12 von 240 Umsätzen". */
     countOf: (shown: number, total: number) => `${nDe(shown)} von ${nDe(total)} ${total === 1 ? 'Umsatz' : 'Umsätzen'}`,
-    otherCurrency: (n: number) => `${n} in anderer Währung nicht summiert`,
+    otherCurrency: (n: number) => `${n} in anderer Währung nicht mitgerechnet`,
     reset: 'Zurücksetzen',
     incomeTotal: 'Summe der Eingänge',
     expenseTotal: 'Summe der Ausgänge',
@@ -121,7 +121,7 @@ export const de = {
     choose: 'Zeitraum wählen',
     custom: 'Eigener Zeitraum',
     customMenu: 'Eigener Zeitraum …',
-    busy: 'Bitte warten – ein anderer Vorgang läuft noch.',
+    busy: 'Bitte warte, bis Girovo fertig ist.',
     /** The menu's heading, and the custom range's button. */
     load: 'Zeitraum laden',
     startAfterEnd: 'Der Beginn liegt nach dem Ende.',
@@ -151,14 +151,14 @@ export const de = {
     /** How fresh the list is; `since` from fmtSince ("14:32 Uhr"). */
     asOf: (since: string) => `Stand ${since}`,
     /** After asOf, when the bookings beside the list are newer. */
-    behindStatement: ', vor dem letzten Umsatzabruf',
+    behindStatement: ', älter als die Umsatzliste',
     bookedSince: (n: number) => `${n} inzwischen gebucht`,
     matches: (n: number) => (n === 1 ? '1 passt zu deiner Suche' : `${n} passen zu deiner Suche`),
-    loadingShort: 'Wird abgerufen …',
+    loadingShort: 'Wird geladen …',
     refresh: 'Vorgemerkte Umsätze aktualisieren.',
     loading: 'Vorgemerkte Umsätze werden geladen.',
-    intro: 'Angekündigte Lastschriften und Kartenzahlungen, die deine Bank noch nicht gebucht hat.',
-    fetch: 'Vorgemerkte Umsätze abrufen',
+    intro: 'Angekündigte Lastschriften und Kartenzahlungen, noch nicht gebucht.',
+    fetch: 'Vorgemerkte Umsätze laden',
     showLess: 'Weniger anzeigen',
     showAll: (n: number) => `Alle ${n} anzeigen`,
   },
@@ -166,7 +166,7 @@ export const de = {
   /** The list, one section per day (components/transactions/TxList.tsx). */
   days: {
     skip: 'Liste überspringen',
-    future: 'Diese Buchungen tragen einen Buchungstag in der Zukunft – die Bank verbucht sie erst an diesem Tag.',
+    future: 'Buchungstag in der Zukunft – die Bank bucht sie erst dann.',
     /** Before the day's closing balance on a phone, where "Kontostand" does not fit. */
     balanceShort: 'Stand',
     /** For a screen reader, after "Kontostand". */
@@ -268,7 +268,7 @@ export const de = {
     requests: {
       /** "Sushi Yana · 30,79 € geteilt durch 4" */
       eyebrow: (name: string, total: string, n: number) => `${name} · ${total} geteilt durch ${n}`,
-      intro: 'Für jede Person ein GiroCode mit ihrem Anteil – als Bild in einen Chat, oder vom Bildschirm gescannt.',
+      intro: 'Ein GiroCode pro Person – zum Scannen oder als Bild für den Chat.',
       purpose: (purpose: ReactNode): ReactNode[] => ['Verwendungszweck: ', purpose],
       own: (amount: ReactNode, to: string): ReactNode[] => ['Dein Anteil: ', amount, ` · an ${to}`],
       /** The buttons' names, with whose code it is: "Bild kopieren: Lea". */
@@ -323,11 +323,11 @@ export const de = {
     filedAs: (label: string) => `Als „${label}“ eingeordnet.`,
     ruled: (name: string, label: string) => `Alle Umsätze von ${name} sind jetzt „${label}“ – auch künftige.`,
     undone: (label: string, byRule: boolean) => `Wieder „${label}“, ${byRule ? 'wie deine Regel' : 'automatisch erkannt'}.`,
-    unruled: (name: string) => `Regel entfernt. Die Umsätze von ${name} werden wieder automatisch eingeordnet.`,
+    unruled: (name: string) => `Regel entfernt. Umsätze von ${name} werden wieder automatisch eingeordnet.`,
     change: 'Ändern',
     changeLabel: (label: string) => `Kategorie ändern, aktuell ${label}`,
     yourRuleFor: (name: string) => `Deine Regel für ${name}`,
-    howAppFiles: 'Wie die App den Umsatz einordnet',
+    howAppFiles: 'Wie Girovo den Umsatz einordnet',
     /** The way back from a choice for one booking: "Automatisch (Lebensmittel & Drogerie)". */
     undoItem: (byRule: boolean, label: string) => `${byRule ? 'Wie die Regel' : 'Automatisch'} (${label})`,
     removeRule: (name: string) => `Regel für ${name} entfernen`,
@@ -337,7 +337,7 @@ export const de = {
     alsoFuture: 'Gilt dann auch für künftige Umsätze.',
     applyAll: 'Für alle übernehmen',
     saveRule: 'Als Regel speichern',
-    sessionOnly: 'Gilt nur für diese Sitzung – deine persönlichen Daten werden gerade nicht gespeichert.',
+    sessionOnly: 'Gilt nur für diese Sitzung – Girovo speichert gerade nichts.',
     rules: 'Deine Regeln',
     remove: 'Entfernen',
     /** The menu's way to a category of the user's own (components/transactions/CategoryDialogs.tsx). */
@@ -351,7 +351,7 @@ export const de = {
   split: {
     title: 'Umsatz aufteilen',
     intro: (amount: ReactNode) => [
-      'Verteile ', amount, ' auf mehrere Kategorien. Analyse, Budgets und Export zählen jeden Teil in seiner Kategorie.',
+      'Verteile ', amount, ' auf mehrere Kategorien.',
     ],
     /** The first share: whatever the others leave. */
     rest: 'Rest',
@@ -384,7 +384,7 @@ export const de = {
   /** Categories of the user's own (lib/splits.ts): made from the category menu, kept in Einstellungen. */
   custom: {
     newTitle: 'Neue Kategorie',
-    newIntro: 'Eine eigene Kategorie, etwa „Spenden“, „Handwerker“ oder „Hund“. Analyse, Budgets und Export zählen sie wie jede andere; automatisch eingeordnet wird in sie nichts.',
+    newIntro: 'Zum Beispiel „Spenden“ oder „Hund“. Umsätze ordnest du ihr selbst zu.',
     renameTitle: 'Kategorie umbenennen',
     name: 'Name',
     kind: 'Für',
@@ -396,15 +396,15 @@ export const de = {
     created: (name: string) => `Kategorie „${name}“ angelegt.`,
     /** Einstellungen → Kategorien. */
     section: 'Eigene Kategorien',
-    sectionHint: 'Deine Kategorien gelten für alle Konten dieser Anmeldung und werden verschlüsselt mit deiner PIN gespeichert.',
-    none: 'Noch keine. Eine neue legst du hier an oder beim Umsatz unter „Ändern“.',
+    sectionHint: 'Gelten für alle Konten dieser Anmeldung, geschützt mit deiner PIN.',
+    none: 'Noch keine. Lege hier eine an oder beim Umsatz unter „Ändern“.',
     add: 'Neue Kategorie',
     rename: 'Umbenennen',
     renameLabel: (name: string) => `„${name}“ umbenennen`,
     remove: 'Löschen',
     removeLabel: (name: string) => `„${name}“ löschen`,
     removeTitle: (name: string) => `„${name}“ löschen?`,
-    removeBody: 'Umsätze in dieser Kategorie werden wieder automatisch eingeordnet. Regeln, ein Budget und Aufteilungen mit ihr gehen verloren.',
+    removeBody: 'Umsätze darin werden wieder automatisch eingeordnet. Regeln, Budget und Aufteilungen mit ihr gehen verloren.',
     keep: 'Behalten',
     kindOut: 'Ausgaben',
     kindIn: 'Eingänge',
@@ -428,15 +428,15 @@ export const de = {
     institution: 'Kontoführendes Institut',
     blz: 'BLZ',
     generatedBy: (generator: string) =>
-      `Erstellt mit ${generator} aus den Daten, die die Bank per FinTS übermittelt hat. Die Bank hat dieses Dokument nicht ausgestellt; maßgeblich sind ihre eigenen Kontoauszüge.`,
+      `Erstellt mit ${generator} aus den Daten der Bank. Die Bank hat dieses Dokument nicht ausgestellt; maßgeblich sind ihre Kontoauszüge.`,
     checksum: 'Prüfsumme (SHA-256)',
     aheadNote:
-      '„Noch nicht gebucht“: Die Bank hat den Umsatz bereits gemeldet, sein Buchungstag liegt aber nach dem Erstellungsdatum.',
+      '„Noch nicht gebucht“: von der Bank gemeldet, Buchungstag nach dem Erstellungsdatum.',
     openingDerived:
-      'Alter Kontostand errechnet: neuer Kontostand abzüglich der Umsätze, die er enthält. Einen Anfangssaldo hat die Bank nicht gemeldet.',
+      'Alter Kontostand errechnet aus neuem Kontostand und Umsätzen – die Bank hat ihn nicht gemeldet.',
     closingDerived:
-      'Neuer Kontostand errechnet: alter Kontostand zuzüglich der Umsätze dieses Auszugs. Einen Endsaldo hat die Bank nicht gemeldet.',
-    noPending: 'Vorgemerkte Umsätze sind nicht enthalten: Die Bank hat sie noch nicht gebucht.',
+      'Neuer Kontostand errechnet aus altem Kontostand und Umsätzen – die Bank hat ihn nicht gemeldet.',
+    noPending: 'Vorgemerkte Umsätze sind nicht enthalten, da noch nicht gebucht.',
     statement: 'Kontoauszug',
     receipt: 'Buchungsbeleg',
     period: 'Zeitraum',
@@ -468,20 +468,20 @@ export const de = {
     debits: (n: number) => `${n} ${n === 1 ? 'Belastung' : 'Belastungen'}`,
     available: (amount: string) => `Verfügbar ${amount}`,
     totals: 'Summen und Kontostand',
-    mixed: 'Die Umsätze sind in mehreren Währungen geführt und werden nicht addiert.',
+    mixed: 'Umsätze in mehreren Währungen werden nicht addiert.',
     notReported: 'nicht gemeldet',
     /** Bookings dated after the closing balance's day: "Noch nicht enthalten: 2 Umsätze ab 05.10.2026". */
     notIncluded: (n: number, date: ReactNode) =>
       ['Noch nicht enthalten: ', n === 1 ? '1 Umsatz vom' : `${n} Umsätze ab`, ' ', date],
     /** The bank's balances do not fit the bookings, by `amount`. */
     unexplained: (amount: ReactNode) =>
-      ['Alter und neuer Kontostand stammen von der Bank; die Umsätze dieses Auszugs erklären ', amount, ' des Unterschieds nicht.'],
+      ['Die Umsätze erklären ', amount, ' des Unterschieds zwischen den Kontoständen der Bank nicht.'],
     payee: 'Zahlungsempfänger',
     pendingLead: 'Vorgemerkt, noch nicht gebucht.',
     pendingBody: 'Betrag, Wertstellung und Referenzen können sich bis zur Buchung noch ändern.',
     aheadLead: 'Noch nicht gebucht.',
     aheadBody: (date: ReactNode) =>
-      ['Die Bank meldet den Umsatz mit dem Buchungstag ', date, '; er liegt nach dem Erstellungsdatum dieses Belegs.'],
+      ['Die Bank bucht ihn am ', date, '.'],
     recipientAccount: 'Empfängerkonto',
     debitedAccount: 'Belastetes Konto',
     payerAccount: 'Auftraggeberkonto',
@@ -491,7 +491,7 @@ export const de = {
     /** Beside a Vormerkposten's Wertstellung. */
     provisional: 'vorläufig',
     receiptEnd: 'Ende des Buchungsbelegs',
-    valueNote: 'Die Wertstellung (Valuta) bestimmt die Zinsberechnung und kann vom Buchungstag abweichen.',
+    valueNote: 'Die Wertstellung (Valuta) zählt für die Zinsen und kann vom Buchungstag abweichen.',
     /** The credit line beside the balance: on an account, on a card. */
     overdraftLimit: 'Dispositionsrahmen',
     creditLimit: 'Kreditrahmen',
@@ -504,7 +504,7 @@ export const de = {
     messageEnd: 'Ende der Mitteilung',
     /** The footer's sentence on a message — there are no Kontoauszüge to defer to. */
     generatedFromMessage: (generator: string) =>
-      `Erstellt mit ${generator} aus einer Mitteilung, die die Bank bei der Anmeldung per FinTS übermittelt hat. Ihr Text steht hier so, wie die Bank ihn geschrieben hat. Die Bank hat dieses Dokument nicht ausgestellt.`,
+      `Erstellt mit ${generator} aus einer Mitteilung der Bank, Text unverändert. Die Bank hat dieses Dokument nicht ausgestellt.`,
   },
 
   /**
@@ -550,8 +550,8 @@ export const de = {
 
   /** What the routes answer (app/api/transactions, pending, balance; lib/fints-statements.ts). */
   api: {
-    noAccount: 'Kein Konto angegeben.',
-    noStatements: 'Für dieses Konto bietet deine Bank keine Umsätze über FinTS an.',
+    noAccount: 'Kein Konto gewählt.',
+    noStatements: 'Deine Bank liefert für dieses Konto keine Umsätze.',
     transactionsFailed: 'Umsätze konnten nicht geladen werden.',
     pendingFailed: 'Vorgemerkte Umsätze konnten nicht geladen werden.',
     balanceFailed: 'Kontostand konnte nicht geladen werden.',
@@ -588,11 +588,11 @@ export const en: typeof de = {
   sum: 'Total',
 
   list: {
-    busy: 'Possible once the current operation has finished.',
+    busy: 'Available once Girovo is done.',
     loadingRange: (range) => `Loading ${range}…`,
     pendingMatch: (n) => (n === 1 ? '1 pending transaction also matches' : `${n} pending transactions also match`),
     noStatements: 'No transactions for this account',
-    noStatementsBody: 'Your bank doesn’t offer transaction retrieval for this account over FinTS.',
+    noStatementsBody: 'Your bank doesn’t send transactions for this account.',
     loading: 'Loading transactions.',
     loadFailed: 'Could not load transactions',
     notFetched: 'Transactions not loaded yet',
@@ -606,20 +606,20 @@ export const en: typeof de = {
     inLoadedRange: (range) => ['in the loaded period (', range, ')'],
     notFound: (words, count, where) =>
       [words, count === 1 ? ' doesn’t appear in any transaction ' : ' don’t appear in any transaction ', where, '.'],
-    allWordsApart: (query) => `Every word of “${query}” appears, but no transaction contains them all together.`,
-    otherFilters: (query) => `“${query}” finds transactions, but none that match the other filters.`,
-    noneInPeriod: 'No transaction in the loaded period matches these filters.',
+    allWordsApart: (query) => `No transaction contains all the words of “${query}”.`,
+    otherFilters: (query) => `“${query}” finds transactions, but none with these filters.`,
+    noneInPeriod: 'No transaction in the period matches these filters.',
     refresh: 'Refresh transactions.',
-    failedKeptOld: (error) => `Could not load: ${error} Showing the most recently loaded transactions.`,
+    failedKeptOld: (error) => `Couldn’t refresh: ${error} You’re seeing the last update.`,
     switchTo: (account) => `Switch to “${account}”`,
     sentFromOther: (from, shown) =>
-      `The transfer was sent from “${from}”. This list shows “${shown}” – you can only see whether it was completed in “${from}”.`,
+      `You can only see whether the transfer was completed in “${from}”, not in “${shown}”.`,
     belongsToOther: (owner, shown) => `The transaction belongs to “${owner}”. This list shows “${shown}”.`,
     fetchedBeforeTransfer: (time) =>
-      ['These transactions were loaded at ', time, ', before your transfer – it can’t be in this list yet.'],
-    acrossAccounts: (account) => `The analysis counted all accounts with transactions. This list only shows ${account}.`,
+      ['As of ', time, ', before your transfer – it can’t be here yet.'],
+    acrossAccounts: (account) => `The analysis counts all accounts, this list only shows ${account}.`,
     countOf: (shown, total) => `${nEn(shown)} of ${nEn(total)} ${total === 1 ? 'transaction' : 'transactions'}`,
-    otherCurrency: (n) => `${n} in another currency, not added up`,
+    otherCurrency: (n) => `${n} in another currency not included`,
     reset: 'Reset',
     incomeTotal: 'Total money in',
     expenseTotal: 'Total money out',
@@ -655,7 +655,7 @@ export const en: typeof de = {
     choose: 'Choose period',
     custom: 'Custom period',
     customMenu: 'Custom period…',
-    busy: 'Please wait – another operation is still running.',
+    busy: 'Please wait until Girovo is done.',
     load: 'Load period',
     startAfterEnd: 'The start is after the end.',
     startInFuture: 'The start is in the future.',
@@ -680,13 +680,13 @@ export const en: typeof de = {
     allBooked: 'All booked by now',
     none: 'Your bank reports nothing pending',
     asOf: (since) => `As of ${since}`,
-    behindStatement: ', before transactions were last loaded',
+    behindStatement: ', older than the transaction list',
     bookedSince: (n) => `${n} booked since`,
     matches: (n) => (n === 1 ? '1 matches your search' : `${n} match your search`),
     loadingShort: 'Loading…',
     refresh: 'Refresh pending transactions.',
     loading: 'Loading pending transactions.',
-    intro: 'Announced direct debits and card payments your bank hasn’t booked yet.',
+    intro: 'Announced direct debits and card payments, not booked yet.',
     fetch: 'Load pending transactions',
     showLess: 'Show less',
     showAll: (n) => `Show all ${n}`,
@@ -694,7 +694,7 @@ export const en: typeof de = {
 
   days: {
     skip: 'Skip list',
-    future: 'These transactions carry a booking date in the future – the bank only books them on that day.',
+    future: 'Booking date in the future – the bank books them only then.',
     balanceShort: 'Balance',
     endOfDay: 'at end of day:',
     dayTotal: 'Day total:',
@@ -777,7 +777,7 @@ export const en: typeof de = {
     requestAll: (n) => (n === 1 ? 'Request' : 'Request all'),
     requests: {
       eyebrow: (name, total, n) => `${name} · ${total} split ${n} ways`,
-      intro: 'A GiroCode with their share for each person – as an image in a chat, or scanned off the screen.',
+      intro: 'One GiroCode per person – to scan, or as an image for a chat.',
       purpose: (purpose) => ['Reference: ', purpose],
       own: (amount, to) => ['Your share: ', amount, ` · to ${to}`],
       copyFor: (label, name) => `${label}: ${name}`,
@@ -829,16 +829,16 @@ export const en: typeof de = {
     change: 'Change',
     changeLabel: (label) => `Change category, currently ${label}`,
     yourRuleFor: (name) => `Your rule for ${name}`,
-    howAppFiles: 'How the app files the transaction',
+    howAppFiles: 'How Girovo files the transaction',
     undoItem: (byRule, label) => `${byRule ? 'As the rule says' : 'Automatic'} (${label})`,
     removeRule: (name) => `Remove rule for ${name}`,
     offerOthers: (n, name, label) =>
       `Also file ${n === 1 ? 'the other transaction' : `the ${nEn(n)} other transactions`} with ${name} under “${label}”?`,
     offerFuture: (name, label) => `Also file future transactions with ${name} under “${label}”?`,
-    alsoFuture: 'This then also applies to future transactions.',
+    alsoFuture: 'Then also applies to future transactions.',
     applyAll: 'Apply to all',
     saveRule: 'Save as rule',
-    sessionOnly: 'Only applies to this session – your personal data isn’t being saved right now.',
+    sessionOnly: 'Only for this session – Girovo isn’t saving anything right now.',
     rules: 'Your rules',
     remove: 'Remove',
     newCategory: 'New category …',
@@ -849,7 +849,7 @@ export const en: typeof de = {
   split: {
     title: 'Split transaction',
     intro: (amount) => [
-      'Spread ', amount, ' across several categories. Analysis, budgets and export count each part in its own category.',
+      'Spread ', amount, ' across several categories.',
     ],
     rest: 'Remainder',
     restHint: 'what the other parts leave',
@@ -874,7 +874,7 @@ export const en: typeof de = {
 
   custom: {
     newTitle: 'New category',
-    newIntro: 'A category of your own, such as “Donations”, “Tradespeople” or “Dog”. Analysis, budgets and export count it like any other; nothing is filed into it automatically.',
+    newIntro: 'For example “Donations” or “Dog”. You file transactions into it yourself.',
     renameTitle: 'Rename category',
     name: 'Name',
     kind: 'For',
@@ -885,15 +885,15 @@ export const en: typeof de = {
     full: (n) => `You already have ${nEn(n)} categories of your own – that’s the limit.`,
     created: (name) => `Category “${name}” created.`,
     section: 'Your categories',
-    sectionHint: 'Your categories apply to every account of this login and are stored encrypted with your PIN.',
-    none: 'None yet. Create one here, or on a transaction under “Change”.',
+    sectionHint: 'Apply to every account of this login, protected by your PIN.',
+    none: 'None yet. Create one here or on a transaction under “Change”.',
     add: 'New category',
     rename: 'Rename',
     renameLabel: (name) => `Rename “${name}”`,
     remove: 'Delete',
     removeLabel: (name) => `Delete “${name}”`,
     removeTitle: (name) => `Delete “${name}”?`,
-    removeBody: 'Transactions in this category are filed automatically again. Rules, a budget and splits that use it are lost.',
+    removeBody: 'Its transactions are filed automatically again. Rules, budget and splits that use it are lost.',
     keep: 'Keep',
     kindOut: 'Spending',
     kindIn: 'Income',
@@ -912,15 +912,15 @@ export const en: typeof de = {
     institution: 'Account-holding institution',
     blz: 'Bank code',
     generatedBy: (generator) =>
-      `Created with ${generator} from the data the bank sent over FinTS. The bank did not issue this document; its own account statements are authoritative.`,
+      `Created with ${generator} from the bank’s data. The bank did not issue this document; its account statements are authoritative.`,
     checksum: 'Checksum (SHA-256)',
     aheadNote:
-      '“Not booked yet”: the bank has already reported the transaction, but its booking date is after the date this document was created.',
+      '“Not booked yet”: reported by the bank, booking date after the creation date.',
     openingDerived:
-      'Opening balance calculated: closing balance minus the transactions it contains. The bank did not report an opening balance.',
+      'Opening balance calculated from the closing balance and transactions – the bank did not report it.',
     closingDerived:
-      'Closing balance calculated: opening balance plus the transactions on this statement. The bank did not report a closing balance.',
-    noPending: 'Pending transactions are not included: the bank has not booked them yet.',
+      'Closing balance calculated from the opening balance and transactions – the bank did not report it.',
+    noPending: 'Pending transactions are not included, as they are not booked yet.',
     statement: 'Account statement',
     receipt: 'Transaction receipt',
     period: 'Period',
@@ -948,17 +948,17 @@ export const en: typeof de = {
     debits: (n) => `${n} ${n === 1 ? 'debit' : 'debits'}`,
     available: (amount) => `Available ${amount}`,
     totals: 'Totals and balance',
-    mixed: 'The transactions are in more than one currency and are not added up.',
+    mixed: 'Transactions in more than one currency are not added up.',
     notReported: 'not reported',
     notIncluded: (n, date) => ['Not yet included: ', n === 1 ? '1 transaction dated' : `${n} transactions from`, ' ', date],
     unexplained: (amount) =>
-      ['The opening and closing balances come from the bank; the transactions on this statement do not explain ', amount, ' of the difference.'],
+      ['The transactions do not explain ', amount, ' of the difference between the bank’s balances.'],
     payee: 'Payee',
     pendingLead: 'Pending, not booked yet.',
     pendingBody: 'The amount, value date and references may still change until the transaction is booked.',
     aheadLead: 'Not booked yet.',
     aheadBody: (date) =>
-      ['The bank reports the transaction with the booking date ', date, ', which is after the date this receipt was created.'],
+      ['The bank books it on ', date, '.'],
     recipientAccount: 'Recipient account',
     debitedAccount: 'Debited account',
     payerAccount: 'Payer account',
@@ -967,7 +967,7 @@ export const en: typeof de = {
     bookingType: 'Booking type',
     provisional: 'provisional',
     receiptEnd: 'End of transaction receipt',
-    valueNote: 'The value date determines how interest is calculated and can differ from the booking date.',
+    valueNote: 'The value date counts for interest and can differ from the booking date.',
     overdraftLimit: 'Overdraft limit',
     creditLimit: 'Credit limit',
     message: 'Message from the bank',
@@ -976,7 +976,7 @@ export const en: typeof de = {
     messageText: 'Message text',
     messageEnd: 'End of message',
     generatedFromMessage: (generator) =>
-      `Created with ${generator} from a message the bank sent over FinTS at login. Its text appears here exactly as the bank wrote it. The bank did not issue this document.`,
+      `Created with ${generator} from a message from the bank, text unchanged. The bank did not issue this document.`,
   },
 
   csv: {
@@ -1012,8 +1012,8 @@ export const en: typeof de = {
   },
 
   api: {
-    noAccount: 'No account specified.',
-    noStatements: 'Your bank doesn’t offer transactions for this account over FinTS.',
+    noAccount: 'No account chosen.',
+    noStatements: 'Your bank doesn’t send transactions for this account.',
     transactionsFailed: 'Could not load transactions.',
     pendingFailed: 'Could not load pending transactions.',
     balanceFailed: 'Could not load the balance.',

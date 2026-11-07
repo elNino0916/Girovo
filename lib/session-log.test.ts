@@ -29,16 +29,16 @@ test('payees are named once each, joined the German way', () => {
 
 test('the logout notice claims the PIN is gone only once the server dropped the session', () => {
   assert.equal(logoutNotice('user', false), 'Du hast dich abgemeldet.');
-  assert.equal(logoutNotice('user', true), 'Du hast dich abgemeldet. Die App hat deine PIN verworfen.');
+  assert.equal(logoutNotice('user', true), 'Du hast dich abgemeldet. Deine PIN ist gelöscht.');
   assert.equal(logoutNotice('cancelled', false), 'Anmeldung abgebrochen.');
-  assert.equal(logoutNotice('cancelled', true), 'Anmeldung abgebrochen. Die App hat deine PIN verworfen.');
+  assert.equal(logoutNotice('cancelled', true), 'Anmeldung abgebrochen. Deine PIN ist gelöscht.');
 });
 
 test('closing the window into the notification area: the logout says so, and names unclear transfers', () => {
   assert.equal(logoutNotice('hidden', false), 'Du wurdest beim Schließen des Fensters abgemeldet.');
   assert.equal(
     logoutNotice('hidden', true, ['Lea Becker']),
-    'Du wurdest beim Schließen des Fensters abgemeldet. Die App hat deine PIN verworfen. Der Status deiner Überweisung an Lea Becker ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.',
+    'Du wurdest beim Schließen des Fensters abgemeldet. Deine PIN ist gelöscht. Der Status deiner Überweisung an Lea Becker ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.',
   );
   assert.match(
     logoutNotice('hidden', false, ['Max', 'Lea', 'Max']),

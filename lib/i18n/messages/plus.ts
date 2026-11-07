@@ -16,7 +16,7 @@ export const de = {
     forecast: { title: 'Kontostand am Monatsende', text: 'Wohin sich dein Konto bis zum Monatsende bewegt – mit Warnung vor dem Dispo.' },
     ask: { title: 'Frag deine Umsätze', text: 'Gemini Nano beantwortet Fragen zu deinen Umsätzen – auf dem Telefon.' },
     split: { title: 'Aufteilen', text: 'Eine Rechnung teilen und jeden Anteil mit einem GiroCode anfordern.' },
-    goals: { title: 'Sparziele', text: 'Ein Ziel für dein Sparkonto, mit dem Plan, wie viel im Monat dazu fehlt.' },
+    goals: { title: 'Sparziele', text: 'Ein Ziel fürs Sparkonto – und wie viel du dafür im Monat brauchst.' },
     icon: { title: 'Goldenes App-Symbol', text: 'Auf Wunsch das G€ in Gold.' },
   },
   monthly: (price: string) => `${price} pro Monat`,
@@ -29,8 +29,8 @@ export const de = {
   plan: { monthly: 'Monatlich', yearly: 'Jährlich' },
   manage: 'Abo verwalten',
   goldIcon: 'Goldenes App-Symbol',
-  goldIconHint: 'Das Symbol auf dem Startbildschirm kann dabei verschwinden – im App-Menü ist Girovo dann zu finden.',
-  unavailable: 'Google Play kann auf diesem Telefon gerade keine Käufe abwickeln – etwa ohne Google-Konto oder ohne Google Play. Die Version von GitHub enthält alles kostenlos.',
+  goldIconHint: 'Das Symbol kann vom Startbildschirm verschwinden. Girovo ist dann im App-Menü.',
+  unavailable: 'Käufe über Google Play gehen auf diesem Telefon gerade nicht. Die Version von GitHub hat alles kostenlos.',
   github: 'Girovo von GitHub',
   /** A bank beside the first, without Plus (Übersicht). */
   bankLocked: 'Mit Girovo Plus',
@@ -40,7 +40,7 @@ export const de = {
   /** "Frag deine Umsätze" without Plus, on a phone that could answer. */
   askTeaser: 'Stell Fragen zu deinen Umsätzen – Gemini Nano beantwortet sie auf dem Telefon.',
   /** The weekly reminder toast, in the Play build without Plus. */
-  reminder: 'Gefällt dir Girovo? Mit Girovo Plus unterstützt du die App – und bekommst mehrere Banken, die Monatsprognose und „Frag deine Umsätze“.',
+  reminder: 'Gefällt dir Girovo? Unterstütze es mit Girovo Plus – mit mehreren Banken und mehr.',
   reminderAction: 'Ansehen',
   /**
    * The owner key (scripts/owner-key.mjs): Plus on the developer's own phone
@@ -48,7 +48,7 @@ export const de = {
    */
   owner: {
     title: 'Entwicklerschlüssel',
-    lead: 'Schaltet Girovo Plus auf diesem Telefon ohne Kauf frei – mit einem Schlüssel, der nur zu dieser Installation passt.',
+    lead: 'Schaltet Girovo Plus auf diesem Telefon ohne Kauf frei. Der Schlüssel passt nur zu dieser Installation.',
     installId: 'Installations-ID',
     key: 'Schlüssel',
     unlock: 'Freischalten',
@@ -71,7 +71,7 @@ export const en: typeof de = {
     forecast: { title: 'Balance at month end', text: 'Where your account is heading by the end of the month – with a warning before the overdraft.' },
     ask: { title: 'Ask your transactions', text: 'Gemini Nano answers questions about your transactions – on the phone.' },
     split: { title: 'Split', text: 'Share a bill and request each share with a GiroCode.' },
-    goals: { title: 'Savings goals', text: 'A goal for your savings account, with the plan of how much is still needed each month.' },
+    goals: { title: 'Savings goals', text: 'A goal for your savings account – and how much you need each month.' },
     icon: { title: 'Gold app icon', text: 'The G€ in gold, if you like.' },
   },
   monthly: (price) => `${price} a month`,
@@ -84,18 +84,18 @@ export const en: typeof de = {
   plan: { monthly: 'Monthly', yearly: 'Yearly' },
   manage: 'Manage subscription',
   goldIcon: 'Gold app icon',
-  goldIconHint: 'The icon on your home screen may disappear – Girovo is then in the app drawer.',
-  unavailable: "Google Play can't take purchases on this phone right now – for example without a Google account or without Google Play. The version from GitHub has everything for free.",
+  goldIconHint: 'The icon may disappear from your home screen. Girovo is then in the app drawer.',
+  unavailable: 'Purchases through Google Play don’t work on this phone right now. The version from GitHub has everything for free.',
   github: 'Girovo from GitHub',
   bankLocked: 'With Girovo Plus',
   bankUnlock: 'Plus',
   forecastTeaser: 'Where your balance is heading by the end of the month.',
   askTeaser: 'Ask about your transactions – Gemini Nano answers on the phone.',
-  reminder: 'Enjoying Girovo? Girovo Plus supports the app – and brings several banks, the month-end forecast and “Ask your transactions”.',
+  reminder: 'Enjoying Girovo? Support it with Girovo Plus – with several banks and more.',
   reminderAction: 'See',
   owner: {
     title: 'Developer key',
-    lead: 'Unlocks Girovo Plus on this phone without a purchase – with a key that fits only this installation.',
+    lead: 'Unlocks Girovo Plus on this phone without a purchase. The key fits only this installation.',
     installId: 'Installation ID',
     key: 'Key',
     unlock: 'Unlock',

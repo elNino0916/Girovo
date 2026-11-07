@@ -245,7 +245,7 @@ mod tests {
     let busy = std::io::Error::from_raw_os_error(if cfg!(windows) { 32 } else { 16 });
     let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
     let a = write_failed(&busy, &de());
-    assert!(a.error.as_deref().unwrap().contains("in einem anderen Programm geöffnet, zum Beispiel in Excel"));
+    assert!(a.error.as_deref().unwrap().contains("noch offen, etwa in Excel"));
     let b = write_failed(&denied, &de());
     assert!(b.error.as_deref().unwrap().starts_with("Die Datei konnte dort nicht gespeichert werden"));
     assert!(!b.error.as_deref().unwrap().contains("EACCES"));

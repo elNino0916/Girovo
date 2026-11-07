@@ -8,7 +8,7 @@ export const de = {
   /** The no on both consent tiles (company logos, usage data). */
   noThanks: 'Nein danke',
   /** On both consent tiles: where the answer can be changed later. */
-  changeLater: 'Du kannst das jederzeit in den Einstellungen ändern.',
+  changeLater: 'Das kannst du in den Einstellungen ändern.',
 
   /** Android's phone: the line under the name on the login's brand field. */
   brandLine: 'Banking direkt mit deiner Bank – ohne jemanden dazwischen.',
@@ -26,15 +26,15 @@ export const de = {
     title: 'Deine Daten bleiben bei dir',
     pin: {
       title: 'Deine PIN wird nie gespeichert',
-      text: 'Sie bleibt nur im Arbeitsspeicher und ist mit der Abmeldung weg.',
+      text: 'Girovo kennt sie nur, bis du dich abmeldest.',
     },
     direct: {
       title: 'Direkte Verbindung',
-      text: 'Von diesem Rechner zu deiner Bank, über ihren FinTS-Zugang.',
+      text: 'Von diesem Rechner zu deiner Bank, ohne Umweg.',
     },
     device: {
       title: 'Dieses Gerät wird gemerkt',
-      text: 'Nach der Anmeldung, mit deiner PIN verschlüsselt – deine Bank fragt dann seltener nach einer Freigabe. Rückgängig mit „Gerät vergessen“ in den Einstellungen.',
+      text: 'Geschützt mit deiner PIN. Deine Bank fragt dann seltener nach einer Freigabe.',
     },
     /** Nothing leaves the machine but the bank traffic. The lines about outside lookups follow the text. */
     nothingOut: {
@@ -52,49 +52,49 @@ export const de = {
       text: 'Keine Werbung, keine Nutzungsstatistik ohne deine Zustimmung.',
     },
     /** The desktop app's update check is on. */
-    updates: 'Nach Updates fragt die App bei GitHub – dort kommen nur ihre Versionsnummer und deine IP-Adresse an.',
-    logosOn: 'Für Firmenlogos gehen Firmennamen an den Logo-Dienst Brandfetch – abschaltbar in den Einstellungen.',
-    logosOff: 'Die Firmenlogos von Brandfetch hast du ausgeschaltet.',
-    logosUnasked: 'Firmenlogos nur mit deiner Zustimmung: Dafür gehen Firmennamen an den Logo-Dienst Brandfetch.',
-    telemetryOn: 'Fehlerberichte und, mit deiner Zustimmung, Nutzungsdaten gehen an den Entwickler von Girovo – nie Kontodaten, Beträge oder Namen.',
+    updates: 'Bei der Suche nach Updates erfährt girovo.de nur deine Version.',
+    logosOn: 'Für Firmenlogos gehen Firmennamen an Brandfetch.',
+    logosOff: 'Firmenlogos sind aus.',
+    logosUnasked: 'Firmenlogos nur mit deiner Zustimmung.',
+    telemetryOn: 'Fehlerberichte und Nutzungsdaten gehen an den Entwickler von Girovo – nie Kontodaten, Beträge oder Namen.',
     errorReports: 'Fehlerberichte gehen an den Entwickler von Girovo – ohne Kontodaten, Beträge und Namen.',
     usageNeedsYes: 'Nutzungsdaten nur mit deiner Zustimmung.',
     /** The narrow layout's note under the form; the logo and error-report lines follow it. */
-    note: 'Deine PIN wird nie gespeichert, die Verbindung läuft direkt zu deiner Bank. Nach der Anmeldung merkt sich die App dieses Gerät, mit deiner PIN verschlüsselt.',
+    note: 'Deine PIN wird nie gespeichert. Girovo spricht direkt mit deiner Bank und merkt sich danach dieses Gerät.',
   },
 
   /** Step one: find the bank (components/auth/BankPicker.tsx). */
   bankPicker: {
     title: 'Bank wählen',
     /** The bank chosen last time has left the bank list. */
-    staleTitle: 'Deine Bank vom letzten Mal steht nicht mehr in der Liste',
+    staleTitle: 'Deine Bank vom letzten Mal fehlt in der Liste',
     staleText: (name: string, blz: ReactNode): ReactNode[] => [
       `${name} (BLZ `,
       blz,
-      ') – vielleicht hat sie fusioniert. Such deine Bank bitte neu, am genauesten mit deiner IBAN.',
+      ') hat vielleicht fusioniert. Such sie neu, am besten mit deiner IBAN.',
     ],
     label: 'Bank suchen',
     placeholder: 'Name, Ort, BLZ oder IBAN',
     clear: 'Suche leeren',
     results: 'Gefundene Banken',
     /** Under the field: how many Bankleitzahlen the list holds, the figure already formatted. */
-    count: (n: ReactNode): ReactNode[] => [n, ' Bankleitzahlen mit FinTS-Zugang'],
+    count: (n: ReactNode): ReactNode[] => [n, ' Bankleitzahlen zur Auswahl'],
     /** The one-click picks under the search. */
     quickPicks: 'Schnellauswahl',
     /** A pick that starts a search: a group of banks with no single BLZ. */
     searchFor: (bank: string) => `${bank} suchen`,
     searching: 'Suche …',
-    unavailable: 'Die Suche ist gerade nicht erreichbar. Bitte versuche es gleich noch einmal.',
+    unavailable: 'Die Suche klappt gerade nicht. Versuch es gleich noch einmal.',
     // An IBAN on its way.
-    ibanForeign: 'Hier gibt es nur deutsche Banken – eine deutsche IBAN beginnt mit DE.',
+    ibanForeign: 'Nur deutsche Banken – eine deutsche IBAN beginnt mit DE.',
     ibanInvalid: 'Diese IBAN stimmt nicht. Prüfe sie bitte noch einmal.',
     ibanIncomplete: 'Tippe weiter – die BLZ steckt in Stelle 5 bis 12 deiner IBAN.',
     // Nothing found, said for what was searched.
-    noneForIban: 'Zu dieser IBAN gibt es keine Bank mit FinTS-Zugang. Nicht jede Bank bietet FinTS an.',
-    noneForBlz: 'Keine Bank mit dieser BLZ. Eine BLZ hat 8 Ziffern – du findest sie in deiner IBAN an Stelle 5 bis 12.',
+    noneForIban: 'Keine Bank zu dieser IBAN. Nicht jede Bank funktioniert mit Girovo.',
+    noneForBlz: 'Keine Bank mit dieser BLZ. Die BLZ hat 8 Ziffern: Stelle 5 bis 12 deiner IBAN.',
     /** A bank people look for that offers no FinTS access (N26, Revolut, …). */
-    withoutFints: (bank: string) => `${bank} bietet kein FinTS an. Mit Girovo lässt sich das Konto dort deshalb nicht nutzen.`,
-    noneForName: 'Keine Bank mit diesem Namen oder Ort. Nicht jede Bank bietet FinTS an.',
+    withoutFints: (bank: string) => `${bank} bietet den Zugang nicht an, den Girovo braucht.`,
+    noneForName: 'Keine Bank mit diesem Namen oder Ort. Nicht jede Bank funktioniert mit Girovo.',
     // Above a list that is long, or whose rows share one name.
     ibanBank: 'Die Bank zu deiner IBAN:',
     firstHits: (n: number) => `Die ersten ${n} Treffer – ergänze den Ort oder gib deine IBAN ein.`,
@@ -127,7 +127,7 @@ export const de = {
     title: 'Anmelden',
     intro: 'Mit den Zugangsdaten deines Online-Bankings.',
     noProductId: (file: ReactNode): ReactNode[] => [
-      'Es ist keine registrierte FinTS-Produkt-ID hinterlegt. Banken lehnen die Anmeldung damit meist ab (Code 9078). Trage die ID in ',
+      'Keine FinTS-Produkt-ID eingetragen – Banken lehnen die Anmeldung dann meist ab (Code 9078). Trag sie in ',
       file,
       ' ein.',
     ],
@@ -167,7 +167,7 @@ export const de = {
     capsLock: 'Feststelltaste ist aktiv',
     /** The one hard requirement, said before the PIN goes anywhere; the bank's app named where it is known. */
     approvalHint: (app?: string) =>
-      `Danach gibst du die Anmeldung frei: in deiner Banking-App${app ? ` (z. B. ${app})` : ''} oder mit einer TAN, etwa per chipTAN oder smsTAN.`,
+      `Danach gibst du die Anmeldung frei: in deiner Banking-App${app ? ` (z. B. ${app})` : ''}, mit chipTAN oder smsTAN.`,
     rememberedTitle: 'Dieses Gerät ist gemerkt',
     rememberedText: (withIt: string) => `${withIt} klappt die Anmeldung hier meist ohne neue Freigabe.`,
     locked: 'Entsperren kann nur deine Bank.',
@@ -188,11 +188,11 @@ export const de = {
     },
     fints: {
       title: 'FinTS-Zugang',
-      text: 'Darüber spricht die App mit deiner Bank. Ist er für deinen Zugang nicht freigeschaltet, hilft dir deine Bank.',
+      text: 'So spricht Girovo mit deiner Bank. Ist er nicht freigeschaltet, hilft dir deine Bank.',
     },
     approval: {
       title: 'Freigabe wie gewohnt',
-      text: 'Anmeldung und Aufträge gibst du frei wie im Online-Banking deiner Bank: in ihrer Banking-App, z. B. mit S-pushTAN, SecureGo plus oder BestSign, oder mit einer TAN von chipTAN, photoTAN oder smsTAN.',
+      text: 'Wie im Online-Banking deiner Bank: in ihrer App, z. B. S-pushTAN, SecureGo plus oder BestSign, oder mit chipTAN, photoTAN oder smsTAN.',
     },
     findBank: {
       title: 'Deine Bank finden',
@@ -209,22 +209,22 @@ export const de = {
     /** What each approval is called while it is waited for, unless the app names it itself. */
     title: {
       login: 'Anmeldung freigeben',
-      statements: 'Umsatzabruf freigeben',
-      pending: 'Vorgemerkte Umsätze freigeben',
-      balance: 'Saldoabfrage freigeben',
+      statements: 'Freigabe für deine Umsätze',
+      pending: 'Freigabe für vorgemerkte Umsätze',
+      balance: 'Freigabe für den Kontostand',
       transfer: 'Überweisung freigeben',
-      portfolio: 'Depotabfrage freigeben',
-      bankStatements: 'Abruf der Kontoauszüge freigeben',
+      portfolio: 'Freigabe für dein Depot',
+      bankStatements: 'Freigabe für Kontoauszüge',
     },
     /** What the screen behind does once the approval is in. */
     afterConfirm: {
       login: 'Deine Konten werden geladen …',
       statements: 'Umsätze werden geladen …',
       pending: 'Vorgemerkte Umsätze werden geladen …',
-      balance: 'Der Saldo wird abgerufen …',
+      balance: 'Kontostand wird geladen …',
       transfer: 'Die Überweisung ist freigegeben.',
-      portfolio: 'Der Bestand wird abgerufen …',
-      bankStatements: 'Die Kontoauszüge werden abgerufen …',
+      portfolio: 'Bestand wird geladen …',
+      bankStatements: 'Kontoauszüge werden geladen …',
     },
     /**
      * The bank refused: "Ablehnen" in the app, or the bank said no. The
@@ -233,17 +233,17 @@ export const de = {
      */
     refused: {
       login: { title: 'Anmeldung nicht freigegeben', text: 'Deine Bank hat die Anmeldung abgelehnt:' },
-      statements: { title: 'Umsatzabruf nicht freigegeben', text: 'Deine Bank hat den Abruf abgelehnt:' },
-      pending: { title: 'Abruf nicht freigegeben', text: 'Deine Bank hat den Abruf abgelehnt:' },
-      balance: { title: 'Saldoabfrage nicht freigegeben', text: 'Deine Bank hat die Abfrage abgelehnt:' },
+      statements: { title: 'Umsätze nicht geladen', text: 'Deine Bank hat abgelehnt:' },
+      pending: { title: 'Vorgemerkte Umsätze nicht geladen', text: 'Deine Bank hat abgelehnt:' },
+      balance: { title: 'Kontostand nicht geladen', text: 'Deine Bank hat abgelehnt:' },
       transfer: { title: 'Überweisung nicht ausgeführt', text: 'Deine Bank hat den Auftrag abgelehnt:' },
-      portfolio: { title: 'Depotabfrage nicht freigegeben', text: 'Deine Bank hat die Abfrage abgelehnt:' },
-      bankStatements: { title: 'Abruf nicht freigegeben', text: 'Deine Bank hat den Abruf abgelehnt:' },
+      portfolio: { title: 'Depot nicht geladen', text: 'Deine Bank hat abgelehnt:' },
+      bankStatements: { title: 'Kontoauszüge nicht geladen', text: 'Deine Bank hat abgelehnt:' },
     },
     confirmed: 'Freigabe bestätigt',
     /** The status of the approval could not be read. */
     checkFailed: 'Freigabe konnte nicht geprüft werden',
-    checkFailedText: 'Ob die Freigabe angekommen ist, ließ sich nicht feststellen.',
+    checkFailedText: 'Girovo weiß nicht, ob die Freigabe angekommen ist.',
     newRequest: 'Neue Anfrage senden',
     overdue: 'Die Frist deiner Bank ist abgelaufen.',
     /** Where to look; the device's name comes in as its own element. */
@@ -251,20 +251,20 @@ export const de = {
     /** Above the bank's challenge text, when an order is shown too. */
     challenge: 'Anfrage deiner Bank',
     helpToggle: 'Keine Anfrage bekommen?',
-    openMethod: (method: string) => `Öffne „${method}“ selbst, auch wenn keine Mitteilung erschienen ist.`,
-    openApp: 'Öffne deine Banking-App selbst, auch wenn keine Mitteilung erschienen ist.',
+    openMethod: (method: string) => `Öffne „${method}“ selbst, auch ohne Mitteilung.`,
+    openApp: 'Öffne deine Banking-App selbst, auch ohne Mitteilung.',
     /** Android: the footer's way into the bank's approval app ("S-pushTAN öffnen"). */
     openApprovalApp: (app: string) => `${app} öffnen`,
     /** The desktop: where the approval is waiting. */
     approveOnPhone: (app: string) => `Bestätige in ${app} auf deinem Telefon.`,
-    checkDevices: 'Hast du mehrere Geräte für die Freigabe eingerichtet, sieh auf allen nach.',
-    checkNotifications: 'Prüfe, ob die App auf deinem Telefon Mitteilungen senden darf.',
+    checkDevices: 'Nutzt du mehrere Geräte für Freigaben, sieh auf allen nach.',
+    checkNotifications: 'Prüfe, ob deine Banking-App Mitteilungen senden darf.',
     /** Under a refusal: the bank's return codes, for whoever calls the bank. */
     reference: (codes: ReactNode): ReactNode[] => ['Rückmeldung der Bank: ', codes],
     /** Leaving a transfer's approval while it can still arrive. */
     abort: {
       title: 'Freigabe abbrechen?',
-      text: 'Die Überweisung wurde vielleicht schon ausgeführt. Brichst du jetzt ab, bleibt ihr Status unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.',
+      text: 'Die Überweisung ist vielleicht schon ausgeführt. Brichst du ab, bleibt das unklar. Prüfe deine Umsätze, bevor du sie noch einmal sendest.',
       confirm: 'Trotzdem abbrechen',
       keepWaiting: 'Weiter warten',
     },
@@ -325,7 +325,7 @@ export const de = {
   tanMethod: {
     title: 'Sicherheitsverfahren',
     /** Said before the fact, on the card and in the wide layout's side tile. */
-    deviceMemory: 'Nach der ersten Freigabe merkt sich die App diesen Rechner – rückgängig mit „Gerät vergessen“ in den Einstellungen.',
+    deviceMemory: 'Nach der ersten Freigabe merkt sich Girovo diesen Rechner. Rückgängig mit „Gerät vergessen“ in den Einstellungen.',
     chooseDevice: 'Gerät wählen',
     chooseDeviceText: 'Auf welchem Gerät möchtest du freigeben?',
     method: (name: string) => `Verfahren: ${name}`,
@@ -333,7 +333,7 @@ export const de = {
     onlyOne: 'Deine Bank bietet für diesen Zugang nur ein Verfahren an.',
     /** The method's name comes in as its own element. */
     connectingVia: (method: ReactNode): ReactNode[] => ['Verbinde über ', method, ' …'],
-    choose: 'Wähle, wie du Anmeldung und Aufträge freigibst – wie im Online-Banking deiner Bank.',
+    choose: 'Wähle, wie du Anmeldung und Aufträge freigibst.',
     /** Under a method's name: how it approves. */
     kind: {
       app: 'Freigabe in der Banking-App',
@@ -345,7 +345,7 @@ export const de = {
     aside: {
       title: 'So läuft die Freigabe',
       openTitle: 'Anfrage prüfen',
-      openText: 'Deine Bank schickt sie an deine Banking-App – oder zeigt sie hier, als Grafik für deinen TAN-Generator oder als Text.',
+      openText: 'Deine Bank schickt sie an deine Banking-App oder zeigt sie hier an.',
       confirmTitle: 'Freigeben',
       confirmText: 'In der App bestätigen oder die TAN hier eingeben. Danach geht es von selbst weiter.',
     },
@@ -358,7 +358,7 @@ export const de = {
     /** For screen readers at 60, 30 and 10 seconds; the time comes in words ("42 Sekunden"). */
     announce: (left: string) => `Noch ${left} bis zur automatischen Abmeldung.`,
     title: 'Möchtest du angemeldet bleiben?',
-    text: 'Du warst eine Weile nicht aktiv. Aus Sicherheitsgründen meldet dich die App gleich automatisch ab.',
+    text: 'Du warst eine Weile nicht aktiv. Zu deiner Sicherheit meldet Girovo dich gleich ab.',
     /** The countdown's accessible name; the time comes in words. */
     timeLeft: (left: string) => `Noch ${left}`,
     /** Under the countdown. */
@@ -374,7 +374,7 @@ export const de = {
   logos: {
     title: 'Firmenlogos anzeigen?',
     /** What goes out. "Aus deinen Umsätzen", not "an die du zahlst": a salary's employer is looked up too. */
-    disclosure: 'Dafür gehen Firmennamen aus deinen Umsätzen an den Logo-Dienst Brandfetch – keine Beträge, IBANs oder Verwendungszwecke. Wie bei jedem Abruf sieht Brandfetch dabei deine IP-Adresse.',
+    disclosure: 'Dafür gehen Firmennamen aus deinen Umsätzen an den Logo-Dienst Brandfetch – keine Beträge, IBANs oder Verwendungszwecke. Brandfetch sieht dabei deine IP-Adresse.',
     load: 'Logos laden',
     /** The toasts after the answer. */
     on: 'Firmenlogos sind eingeschaltet.',
@@ -385,7 +385,7 @@ export const de = {
   usage: {
     title: 'Nutzungsdaten teilen?',
     /** What a yes shares. */
-    disclosure: 'Dann erfährt der Entwickler von Girovo, welche Bereiche du nutzt, wie Anmeldungen ausgehen und wie lange deine Bank für Abrufe braucht – mit ihrer Bankleitzahl. Nie dabei: Anmeldename, PIN, IBANs, Salden, Umsätze, Beträge oder Empfänger. Wie bei jeder Verbindung sieht der Server deine IP-Adresse.',
+    disclosure: 'Der Entwickler von Girovo sieht dann, welche Bereiche du nutzt, ob Anmeldungen klappen und wie schnell deine Bank antwortet – samt Bankleitzahl. Nie dabei: Anmeldename, PIN, IBANs, Kontostände, Umsätze, Beträge oder Empfänger. Deine IP-Adresse ist wie bei jeder Verbindung sichtbar.',
     /** Error reports need no yes; the user is told so wherever they are asked. */
     errorReports: 'Fehlerberichte schickt Girovo immer – ohne Kontodaten, Beträge und Namen.',
     share: 'Teilen',
@@ -398,9 +398,9 @@ export const de = {
   api: {
     /** The login was called off; the browser has stopped listening already. */
     cancelled: 'Die Anmeldung wurde abgebrochen.',
-    invalidBlz: 'Bitte eine gültige 8-stellige Bankleitzahl angeben.',
-    bankGone: 'Diese Bank steht nicht mehr in der Liste – vielleicht hat sie fusioniert. Wähle sie über „Ändern“ neu aus.',
-    missingCredentials: 'Bitte Anmeldename und PIN angeben.',
+    invalidBlz: 'Bitte gib eine gültige Bankleitzahl mit 8 Ziffern ein.',
+    bankGone: 'Diese Bank fehlt in der Liste – vielleicht hat sie fusioniert. Wähle sie über „Ändern“ neu.',
+    missingCredentials: 'Bitte gib Anmeldename und PIN ein.',
     /** The bank refused without words of its own. Names the PIN: lib/bank-answer.ts reads that as a credential answer. */
     refused: 'Deine Bank hat die Anmeldung abgelehnt. Prüfe Anmeldename und PIN.',
     methodNotOffered: 'Dieses Verfahren bietet deine Bank für deinen Zugang nicht an.',
@@ -413,7 +413,7 @@ export const de = {
 export const en: typeof de = {
   connecting: 'Connecting to the bank…',
   noThanks: 'No thanks',
-  changeLater: 'You can change this at any time in Settings.',
+  changeLater: 'You can change this in Settings.',
 
   brandLine: 'Banking straight with your bank – no one in between.',
   steps: {
@@ -427,15 +427,15 @@ export const en: typeof de = {
     title: 'Your data stays with you',
     pin: {
       title: 'Your PIN is never stored',
-      text: 'It stays in memory only and is gone when you log out.',
+      text: 'Girovo only knows it until you log out.',
     },
     direct: {
       title: 'Direct connection',
-      text: 'From this computer to your bank, through its FinTS access.',
+      text: 'From this computer to your bank, with nothing in between.',
     },
     device: {
       title: 'This device will be remembered',
-      text: 'After you log in, encrypted with your PIN – your bank then asks for approval less often. You can undo this with “Forget device” in Settings.',
+      text: 'Protected by your PIN. Your bank then asks for approval less often.',
     },
     nothingOut: {
       title: 'No data to third parties',
@@ -449,40 +449,40 @@ export const en: typeof de = {
       title: 'No tracking',
       text: 'No ads, no usage statistics without your consent.',
     },
-    updates: 'The app checks GitHub for updates – only its version number and your IP address arrive there.',
-    logosOn: 'For company logos, company names go to the logo service Brandfetch – you can switch this off in Settings.',
-    logosOff: 'You have switched off the company logos from Brandfetch.',
-    logosUnasked: 'Company logos only with your consent: for them, company names go to the logo service Brandfetch.',
-    telemetryOn: 'Error reports and, with your consent, usage data go to Girovo’s developer – never account data, amounts or names.',
+    updates: 'When Girovo looks for updates, girovo.de only learns your version.',
+    logosOn: 'For company logos, company names go to Brandfetch.',
+    logosOff: 'Company logos are off.',
+    logosUnasked: 'Company logos only with your consent.',
+    telemetryOn: 'Error reports and usage data go to Girovo’s developer – never account data, amounts or names.',
     errorReports: 'Error reports go to Girovo’s developer – without account data, amounts or names.',
     usageNeedsYes: 'Usage data only with your consent.',
-    note: 'Your PIN is never stored, and the connection runs straight to your bank. After you log in, the app remembers this device, encrypted with your PIN.',
+    note: 'Your PIN is never stored. Girovo talks straight to your bank and then remembers this device.',
   },
 
   bankPicker: {
     title: 'Choose your bank',
-    staleTitle: 'Your bank from last time is no longer on the list',
+    staleTitle: 'Your bank from last time is missing from the list',
     staleText: (name, blz) => [
       `${name} (BLZ `,
       blz,
-      ') – it may have merged. Please search for your bank again; your IBAN finds it most precisely.',
+      ') may have merged. Search for it again, best with your IBAN.',
     ],
     label: 'Search for your bank',
     placeholder: 'Name, town, bank code or IBAN',
     clear: 'Clear search',
     results: 'Banks found',
-    count: (n) => [n, ' bank codes with FinTS access'],
+    count: (n) => [n, ' bank codes to choose from'],
     quickPicks: 'Quick picks',
     searchFor: (bank) => `Search for ${bank}`,
     searching: 'Searching…',
-    unavailable: 'The search cannot be reached right now. Please try again in a moment.',
-    ibanForeign: 'Only German banks are available here – a German IBAN starts with DE.',
+    unavailable: 'Search isn’t working right now. Try again in a moment.',
+    ibanForeign: 'German banks only – a German IBAN starts with DE.',
     ibanInvalid: 'This IBAN is not correct. Please check it again.',
     ibanIncomplete: 'Keep typing – the bank code (BLZ) is in positions 5 to 12 of your IBAN.',
-    noneForIban: 'There is no bank with FinTS access for this IBAN. Not every bank offers FinTS.',
-    noneForBlz: 'No bank with this bank code (BLZ). A bank code has 8 digits – you’ll find it in positions 5 to 12 of your IBAN.',
-    withoutFints: (bank) => `${bank} does not offer FinTS, so your account there cannot be used with Girovo.`,
-    noneForName: 'No bank with this name or town. Not every bank offers FinTS.',
+    noneForIban: 'No bank for this IBAN. Not every bank works with Girovo.',
+    noneForBlz: 'No bank with this bank code (BLZ). It has 8 digits: positions 5 to 12 of your IBAN.',
+    withoutFints: (bank) => `${bank} doesn’t offer the access Girovo needs.`,
+    noneForName: 'No bank with this name or town. Not every bank works with Girovo.',
     ibanBank: 'The bank for your IBAN:',
     firstHits: (n) => `The first ${n} matches – add the town or enter your IBAN.`,
     sameNames: 'Enter your IBAN to find exactly your bank.',
@@ -503,7 +503,7 @@ export const en: typeof de = {
     title: 'Log in',
     intro: 'With your online banking login details.',
     noProductId: (file) => [
-      'No registered FinTS product ID is set up. Banks then usually decline the login (code 9078). Enter the ID in ',
+      'No FinTS product ID set – banks then usually decline the login (code 9078). Add it in ',
       file,
       '.',
     ],
@@ -538,7 +538,7 @@ export const en: typeof de = {
     reveal: (secret) => `Show ${secret}`,
     capsLock: 'Caps Lock is on',
     approvalHint: (app) =>
-      `You then approve the login in your banking app${app ? ` (e.g. ${app})` : ''} or with a TAN, for example from chipTAN or smsTAN.`,
+      `Then you approve the login: in your banking app${app ? ` (e.g. ${app})` : ''}, with chipTAN or smsTAN.`,
     rememberedTitle: 'This device is remembered',
     rememberedText: (withIt) => `${withIt}, logging in here usually works without a new approval.`,
     locked: 'Only your bank can unlock it.',
@@ -557,11 +557,11 @@ export const en: typeof de = {
     },
     fints: {
       title: 'FinTS access',
-      text: 'The app talks to your bank through it. If it isn’t enabled for your login, your bank can help.',
+      text: 'This is how Girovo talks to your bank. If it isn’t enabled, your bank can help.',
     },
     approval: {
       title: 'Approval as usual',
-      text: 'You approve logins and orders as in your bank’s online banking: in its banking app, e.g. with S-pushTAN, SecureGo plus or BestSign, or with a TAN from chipTAN, photoTAN or smsTAN.',
+      text: 'As in your bank’s online banking: in its app, e.g. S-pushTAN, SecureGo plus or BestSign, or with chipTAN, photoTAN or smsTAN.',
     },
     findBank: {
       title: 'Finding your bank',
@@ -576,50 +576,50 @@ export const en: typeof de = {
   tanWait: {
     title: {
       login: 'Approve login',
-      statements: 'Approve transaction retrieval',
+      statements: 'Approval for your transactions',
       // Not "Approve pending transactions": what is approved is reading them.
-      pending: 'Approve retrieval of pending transactions',
-      balance: 'Approve balance enquiry',
+      pending: 'Approval for pending transactions',
+      balance: 'Approval for the balance',
       transfer: 'Approve transfer',
-      portfolio: 'Approve holdings enquiry',
-      bankStatements: 'Approve retrieval of statements',
+      portfolio: 'Approval for your securities account',
+      bankStatements: 'Approval for account statements',
     },
     afterConfirm: {
       login: 'Loading your accounts…',
       statements: 'Loading transactions…',
       pending: 'Loading pending transactions…',
-      balance: 'Retrieving the balance…',
+      balance: 'Loading the balance…',
       transfer: 'The transfer is approved.',
-      portfolio: 'Retrieving the holdings…',
-      bankStatements: 'Retrieving the statements…',
+      portfolio: 'Loading holdings…',
+      bankStatements: 'Loading statements…',
     },
     refused: {
       login: { title: 'Login not approved', text: 'Your bank declined the login:' },
-      statements: { title: 'Transaction retrieval not approved', text: 'Your bank declined the retrieval:' },
-      pending: { title: 'Retrieval not approved', text: 'Your bank declined the retrieval:' },
-      balance: { title: 'Balance enquiry not approved', text: 'Your bank declined the enquiry:' },
+      statements: { title: 'Transactions not loaded', text: 'Your bank declined:' },
+      pending: { title: 'Pending transactions not loaded', text: 'Your bank declined:' },
+      balance: { title: 'Balance not loaded', text: 'Your bank declined:' },
       transfer: { title: 'Transfer not completed', text: 'Your bank declined the order:' },
-      portfolio: { title: 'Holdings enquiry not approved', text: 'Your bank declined the enquiry:' },
-      bankStatements: { title: 'Retrieval not approved', text: 'Your bank declined the retrieval:' },
+      portfolio: { title: 'Securities account not loaded', text: 'Your bank declined:' },
+      bankStatements: { title: 'Statements not loaded', text: 'Your bank declined:' },
     },
     confirmed: 'Approval confirmed',
     checkFailed: 'Approval could not be checked',
-    checkFailedText: 'It could not be determined whether the approval arrived.',
+    checkFailedText: 'Girovo can’t tell whether the approval arrived.',
     newRequest: 'Send a new request',
     overdue: 'Your bank’s time limit has expired.',
     device: (name) => ['Device: ', name],
     challenge: 'Your bank’s request',
     helpToggle: 'No request received?',
-    openMethod: (method) => `Open “${method}” yourself, even if no notification has appeared.`,
-    openApp: 'Open your banking app yourself, even if no notification has appeared.',
+    openMethod: (method) => `Open “${method}” yourself, even without a notification.`,
+    openApp: 'Open your banking app yourself, even without a notification.',
     openApprovalApp: (app) => `Open ${app}`,
     approveOnPhone: (app) => `Approve in ${app} on your phone.`,
-    checkDevices: 'If you have set up several devices for approval, check all of them.',
-    checkNotifications: 'Check that the app is allowed to send notifications on your phone.',
+    checkDevices: 'If you use several devices for approvals, check them all.',
+    checkNotifications: 'Check that your banking app may send notifications.',
     reference: (codes) => ['Bank response code: ', codes],
     abort: {
       title: 'Cancel approval?',
-      text: 'The transfer may already have been completed. If you cancel now, its status stays unclear – check your transactions before you send it again.',
+      text: 'The transfer may already be completed. If you cancel, that stays unclear. Check your transactions before you send it again.',
       confirm: 'Cancel anyway',
       keepWaiting: 'Keep waiting',
     },
@@ -670,14 +670,14 @@ export const en: typeof de = {
 
   tanMethod: {
     title: 'Security method',
-    deviceMemory: 'After the first approval, the app remembers this computer – you can undo this with “Forget device” in Settings.',
+    deviceMemory: 'After the first approval, Girovo remembers this computer. Undo it with “Forget device” in Settings.',
     chooseDevice: 'Choose a device',
     chooseDeviceText: 'Which device do you want to approve on?',
     method: (name) => `Method: ${name}`,
     otherMethod: 'Other method',
     onlyOne: 'Your bank offers only one method for this login.',
     connectingVia: (method) => ['Connecting via ', method, '…'],
-    choose: 'Choose how you approve logins and orders – as in your bank’s online banking.',
+    choose: 'Choose how you approve logins and orders.',
     kind: {
       app: 'Approval in the banking app',
       typed: 'Typed TAN',
@@ -687,7 +687,7 @@ export const en: typeof de = {
     aside: {
       title: 'How approval works',
       openTitle: 'Check the request',
-      openText: 'Your bank sends it to your banking app – or shows it here, as a graphic for your TAN generator or as text.',
+      openText: 'Your bank sends it to your banking app or shows it here.',
       confirmTitle: 'Approve',
       confirmText: 'Confirm in the app or enter the TAN here. After that, it carries on by itself.',
     },
@@ -697,7 +697,7 @@ export const en: typeof de = {
     windowTitle: (countdown, title) => `Logout in ${countdown} – ${title}`,
     announce: (left) => `Automatic logout in ${left}.`,
     title: 'Do you want to stay logged in?',
-    text: 'You have not been active for a while. For security reasons, the app will log you out automatically in a moment.',
+    text: 'You haven’t been active for a while. For your safety, Girovo will log you out shortly.',
     timeLeft: (left) => `${left} left`,
     untilLogout: 'until logout',
     unclear: (n, to) => (n === 1
@@ -708,7 +708,7 @@ export const en: typeof de = {
 
   logos: {
     title: 'Show company logos?',
-    disclosure: 'For this, company names from your transactions go to the logo service Brandfetch – no amounts, IBANs or payment references. As with any request, Brandfetch sees your IP address.',
+    disclosure: 'For this, company names from your transactions go to the logo service Brandfetch – no amounts, IBANs or payment references. Brandfetch sees your IP address.',
     load: 'Load logos',
     on: 'Company logos are on.',
     off: 'Company logos stay off.',
@@ -716,7 +716,7 @@ export const en: typeof de = {
 
   usage: {
     title: 'Share usage data?',
-    disclosure: 'Girovo’s developer then learns which parts you use, how logins turn out and how long your bank takes for data requests – along with its bank code. Never included: login name, PIN, IBANs, balances, transactions, amounts or recipients. As with any connection, the server sees your IP address.',
+    disclosure: 'Girovo’s developer then sees which parts you use, whether logins work and how fast your bank answers – with its bank code. Never included: login name, PIN, IBANs, balances, transactions, amounts or recipients. As with any connection, your IP address is visible.',
     errorReports: 'Girovo always sends error reports – without account data, amounts or names.',
     share: 'Share',
     on: 'Usage data is shared from now on.',
@@ -725,9 +725,9 @@ export const en: typeof de = {
 
   api: {
     cancelled: 'The login was cancelled.',
-    invalidBlz: 'Please provide a valid 8-digit bank code.',
-    bankGone: 'This bank is no longer on the list – it may have merged. Choose it again via “Change”.',
-    missingCredentials: 'Please provide your login name and PIN.',
+    invalidBlz: 'Please enter a valid 8-digit bank code.',
+    bankGone: 'This bank is missing from the list – it may have merged. Choose it again via “Change”.',
+    missingCredentials: 'Please enter your login name and PIN.',
     refused: 'Your bank declined the login. Check your login name and PIN.',
     methodNotOffered: 'Your bank does not offer this method for your login.',
     loginFailed: 'Login failed.',

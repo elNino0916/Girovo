@@ -4,7 +4,7 @@
 
 export const de = {
   /** The page description (app/layout.tsx). */
-  appDescription: 'Direktzugang zu deiner Bank über FinTS 3.0',
+  appDescription: 'Deine Konten und Umsätze, direkt von deiner Bank',
   cancel: 'Abbrechen',
   close: 'Schließen',
   /** The top app bar's way up from a page reached from another (Einstellungen on a phone). */
@@ -70,11 +70,11 @@ export const de = {
    * control says it.
    */
   mayNeedApproval: 'Kann eine Freigabe erfordern.',
-  fetchFailed: 'Abruf fehlgeschlagen',
+  fetchFailed: 'Laden fehlgeschlagen',
 };
 
 export const en: typeof de = {
-  appDescription: 'Direct access to your bank over FinTS 3.0',
+  appDescription: 'Your accounts and transactions, straight from your bank',
   cancel: 'Cancel',
   close: 'Close',
   back: 'Back',

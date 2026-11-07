@@ -131,9 +131,9 @@ impl Plan {
     let v = &self.version;
     match (stage, self.english) {
       (Stage::Waiting, false) => format!("{} wird beendet …", self.name),
-      (Stage::Waiting, true) => format!("Waiting for {} to close …", self.name),
-      (Stage::Checking, false) => "Die Update-Datei wird geprüft …".into(),
-      (Stage::Checking, true) => "Checking the update file …".into(),
+      (Stage::Waiting, true) => format!("Closing {} …", self.name),
+      (Stage::Checking, false) => "Das Update wird geprüft …".into(),
+      (Stage::Checking, true) => "Checking the update …".into(),
       (Stage::Installing, false) => format!("Version {v} wird installiert …"),
       (Stage::Installing, true) => format!("Installing version {v} …"),
       (Stage::Starting, false) => format!("{} wird gestartet …", self.name),
@@ -144,16 +144,16 @@ impl Plan {
   /// What the window says when `failure` stopped it.
   pub fn why(&self, failure: &Failure) -> String {
     match (failure, self.english) {
-      (Failure::StillRunning, false) => format!("{} hat sich nicht beendet. Schließe es und versuche das Update noch einmal.", self.name),
-      (Failure::StillRunning, true) => format!("{} didn’t close. Close it and try the update again.", self.name),
-      (Failure::Changed, false) => "Die Update-Datei ist nicht mehr die, die Girovo geprüft hat, und wird nicht installiert.".into(),
-      (Failure::Changed, true) => "The update file is no longer the one Girovo checked, so it won’t be installed.".into(),
-      (Failure::NoInstaller, false) => "Der Installer konnte nicht gestartet werden.".into(),
-      (Failure::NoInstaller, true) => "The installer couldn’t be started.".into(),
-      (Failure::InstallerFailed(code), false) => format!("Der Installer hat mit dem Fehler {code} aufgehört."),
-      (Failure::InstallerFailed(code), true) => format!("The installer stopped with error {code}."),
-      (Failure::TooLong, false) => "Der Installer ist nach 15 Minuten noch nicht fertig.".into(),
-      (Failure::TooLong, true) => "The installer still hasn’t finished after 15 minutes.".into(),
+      (Failure::StillRunning, false) => format!("{} hat sich nicht beendet. Schließe es und versuch es noch einmal.", self.name),
+      (Failure::StillRunning, true) => format!("{} didn’t close. Close it and try again.", self.name),
+      (Failure::Changed, false) => "Das Update wurde verändert und wird nicht installiert.".into(),
+      (Failure::Changed, true) => "The update was changed and won’t be installed.".into(),
+      (Failure::NoInstaller, false) => "Das Update ließ sich nicht starten.".into(),
+      (Failure::NoInstaller, true) => "The update couldn’t start.".into(),
+      (Failure::InstallerFailed(code), false) => format!("Die Installation ist fehlgeschlagen (Code {code})."),
+      (Failure::InstallerFailed(code), true) => format!("The installation failed (code {code})."),
+      (Failure::TooLong, false) => "Die Installation ist nach 15 Minuten noch nicht fertig.".into(),
+      (Failure::TooLong, true) => "The installation still hasn’t finished after 15 minutes.".into(),
     }
   }
 }

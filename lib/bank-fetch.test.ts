@@ -148,7 +148,7 @@ test('every way a request breaks has its sentence; no body, no English', () => {
   assert.equal(describeError(new BankUnavailable('unreadable')), BANK_UNAVAILABLE);
   assert.equal(describeError(Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } })), BANK_UNREACHABLE);
   assert.equal(describeError(Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } })), BANK_UNAVAILABLE);
-  assert.match(describeError(Object.assign(new TypeError('fetch failed'), { cause: { code: 'CERT_HAS_EXPIRED' } })), /nicht sicher/);
+  assert.match(describeError(Object.assign(new TypeError('fetch failed'), { cause: { code: 'CERT_HAS_EXPIRED' } })), /Keine sichere Verbindung/);
   assert.equal(describeError(new Error('Request failed with status code 503: <html>Wartung</html>')), BANK_UNAVAILABLE);
   assert.equal(
     describeError(new Error('TAN must be provided for non-decoupled TAN methods')),

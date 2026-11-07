@@ -63,7 +63,7 @@ test('refuses invalid input with a German message', () => {
   bad({ name: 'Max', iban: IBAN, amount: Number.NaN }, /keine gültige Zahl/);
   bad({ name: 'Max', iban: IBAN, purpose: 'y'.repeat(141) }, /höchstens 140 Zeichen/);
   // 70 + 140 two-byte characters: every element within its own limit, the whole too big.
-  bad({ name: 'ü'.repeat(70), iban: IBAN, amount: 1, purpose: 'ö'.repeat(140) }, /zu lang für einen GiroCode/);
+  bad({ name: 'ü'.repeat(70), iban: IBAN, amount: 1, purpose: 'ö'.repeat(140) }, /zusammen zu lang/);
 });
 
 test('counts characters, not UTF-16 units or bytes, against the element limits', () => {

@@ -112,5 +112,5 @@ test('svg path covers exactly the dark modules, offset by the quiet zone', () =>
 });
 
 test('png needs a browser', async () => {
-  await assert.rejects(qrPngBlob(qrMatrix('x')), /nur im Browser/);
+  await assert.rejects(qrPngBlob(qrMatrix('x')), /nicht erstellen/);
 });

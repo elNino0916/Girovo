@@ -38,7 +38,7 @@ export const de = {
   vaultUnreadable: 'Gespeicherte Daten nicht lesbar',
   vaultUnreadableHint: 'Meist, weil sich deine PIN geändert hat. Was du jetzt änderst, wird nicht gespeichert.',
   vaultReset: 'Zurücksetzen …',
-  vaultUnavailable: 'Vorlagen, Kontonamen und Kategorien gelten in dieser Sitzung nur bis zum Abmelden.',
+  vaultUnavailable: 'Was du jetzt änderst, gilt nur bis zum Abmelden.',
 
   avatar: {
     /** The big avatar's name: pressing it opens the pictures. */
@@ -53,7 +53,7 @@ export const de = {
     /** Under the pictures: where an own picture goes. */
     stays: 'Ein eigenes Bild bleibt verschlüsselt auf diesem Rechner.',
     unreadable: 'Dieses Bild ließ sich nicht öffnen. Nimm ein JPG, PNG oder WebP.',
-    tooLarge: 'Dieses Bild ist auch verkleinert noch zu groß. Nimm ein anderes.',
+    tooLarge: 'Dieses Bild ist zu groß. Nimm ein anderes.',
     names: {
       piggy: 'Sparschwein',
       cat: 'Katze',
@@ -75,32 +75,32 @@ export const de = {
     one: (name: string, amount: ReactNode): ReactNode[] =>
       [`Ob deine Überweisung an ${name || 'den Empfänger'} über `, amount, ' ausgeführt wurde, ist unklar.'],
     several: (n: number) => `Bei ${n} Überweisungen dieser Sitzung ist unklar, ob sie ausgeführt wurden.`,
-    afterOne: 'Nach dem Abmelden steht sie nicht mehr in den Mitteilungen. Sende sie nicht noch einmal, bevor du in deinen Umsätzen nachgesehen hast.',
-    afterSeveral: 'Nach dem Abmelden stehen sie nicht mehr in den Mitteilungen. Sende keine davon noch einmal, bevor du in deinen Umsätzen nachgesehen hast.',
+    afterOne: 'Nach dem Abmelden steht sie nicht mehr in den Mitteilungen. Sieh in deinen Umsätzen nach, bevor du sie noch einmal sendest.',
+    afterSeveral: 'Nach dem Abmelden stehen sie nicht mehr in den Mitteilungen. Sieh in deinen Umsätzen nach, bevor du eine davon noch einmal sendest.',
   },
 
   forgetDialog: {
     title: 'Gerät vergessen?',
     description: (bank: string | null) =>
-      `Die App löscht die Geräte-Kennung, unter der ${bank ?? 'deine Bank'} diesen Rechner kennt. Bei der nächsten Anmeldung gilt er als neues Gerät: Deine Bank fragt dann wieder nach einer Freigabe.`,
-    body: 'Deine aktuelle Sitzung bleibt bestehen. Gibst du den Rechner weiter, lösche auch deine gespeicherten Daten.',
+      `Girovo löscht die Kennung, unter der ${bank ?? 'deine Bank'} diesen Rechner kennt. Bei der nächsten Anmeldung gilt er als neues Gerät, und deine Bank fragt wieder nach einer Freigabe.`,
+    body: 'Du bleibst angemeldet. Gibst du den Rechner weiter, lösche auch deine gespeicherten Daten.',
     wipe: 'Auch gespeicherte Daten von diesem Rechner löschen',
-    wipeHint: 'Vorlagen, Kontonamen, Kategorien, gespeicherte Umsätze, Belege und Kontoauszüge jeder Bank in deiner Übersicht und die Überweisungen der letzten 14 Tage samt früherer Sicherungen, dazu der Anmeldename und die Bank, die die Anmeldung vorausfüllt – endgültig.',
+    wipeHint: 'Vorlagen, Kontonamen, Kategorien, Umsätze, Überweisungen, Belege und Kontoauszüge aller Banken, samt Sicherungen, Anmeldename und gewählter Bank – endgültig.',
     confirm: 'Gerät vergessen',
     confirmWipe: 'Vergessen und löschen',
   },
 
   resetDialog: {
     title: 'Gespeicherte Daten zurücksetzen?',
-    description: 'Es wird eine neue, leere Ablage angelegt. Die alte Datei bleibt als Sicherung auf diesem Rechner.',
-    body: 'Vorlagen, Kontonamen und Kategorien beginnen dann neu. Was du in dieser Sitzung schon geändert hast, wird übernommen und ab jetzt wieder gespeichert.',
+    description: 'Vorlagen, Kontonamen und Kategorien beginnen neu. Die alten Daten bleiben als Sicherung auf diesem Rechner.',
+    body: 'Was du in dieser Sitzung geändert hast, bleibt und wird wieder gespeichert.',
     confirm: 'Zurücksetzen',
   },
 
   wipeDialog: {
     title: 'Gespeicherte Daten löschen?',
-    description: 'Vorlagen, Kontonamen, Kategorien, gespeicherte Umsätze, Belege und Kontoauszüge jeder Bank in deiner Übersicht und die Überweisungen der letzten 14 Tage werden von diesem Rechner gelöscht, frühere Sicherungen eingeschlossen – dazu der Anmeldename und die Bank, die die Anmeldung vorausfüllt. Das lässt sich nicht rückgängig machen.',
-    body: 'Deine aktuelle Sitzung bleibt bestehen. Was du bis zum Abmelden änderst, wird nicht mehr gespeichert; bei der nächsten Anmeldung beginnst du mit leeren Vorlagen.',
+    description: 'Vorlagen, Kontonamen, Kategorien, Umsätze, Überweisungen, Belege und Kontoauszüge aller Banken werden von diesem Rechner gelöscht, samt Sicherungen, Anmeldename und gewählter Bank. Das lässt sich nicht rückgängig machen.',
+    body: 'Du bleibst angemeldet. Was du bis zum Abmelden änderst, wird nicht gespeichert. Bei der nächsten Anmeldung beginnst du von vorn.',
   },
 };
 
@@ -133,7 +133,7 @@ export const en: typeof de = {
   vaultUnreadable: 'Saved data unreadable',
   vaultUnreadableHint: 'Usually because your PIN has changed. What you change now will not be saved.',
   vaultReset: 'Reset…',
-  vaultUnavailable: 'In this session, templates, account names and categories last only until you log out.',
+  vaultUnavailable: 'What you change now lasts only until you log out.',
 
   avatar: {
     change: 'Change picture',
@@ -144,7 +144,7 @@ export const en: typeof de = {
     removeFile: 'Remove picture',
     stays: 'Your own picture stays encrypted on this computer.',
     unreadable: 'This picture could not be opened. Use a JPG, PNG or WebP.',
-    tooLarge: 'This picture is still too large, even made smaller. Choose another one.',
+    tooLarge: 'This picture is too large. Choose another one.',
     names: {
       piggy: 'Piggy bank',
       cat: 'Cat',
@@ -164,31 +164,31 @@ export const en: typeof de = {
     title: 'Log out anyway?',
     one: (name, amount) => ['It is unclear whether your transfer of ', amount, ` to ${name || 'the recipient'} was completed.`],
     several: (n) => `It is unclear whether ${n} transfers from this session were completed.`,
-    afterOne: 'After you log out, it is no longer listed in Messages. Do not send it again before you have checked your transactions.',
-    afterSeveral: 'After you log out, they are no longer listed in Messages. Do not send any of them again before you have checked your transactions.',
+    afterOne: 'After you log out, it is no longer listed in Messages. Check your transactions before you send it again.',
+    afterSeveral: 'After you log out, they are no longer listed in Messages. Check your transactions before you send any of them again.',
   },
 
   forgetDialog: {
     title: 'Forget device?',
     description: (bank) =>
-      `The app deletes the device ID by which ${bank ?? 'your bank'} knows this computer. At your next login it counts as a new device, and your bank asks for an approval again.`,
-    body: 'Your current session stays open. If you are passing this computer on, delete your saved data too.',
+      `Girovo deletes the ID by which ${bank ?? 'your bank'} knows this computer. At your next login it counts as a new device, and your bank asks for approval again.`,
+    body: 'You stay logged in. If you pass this computer on, delete your saved data too.',
     wipe: 'Also delete saved data from this computer',
-    wipeHint: 'Templates, account names, categories, saved transactions, receipts and statements of every bank in your overview and the transfers of the last 14 days, earlier backups included, plus the login name and bank the login screen fills in – for good.',
+    wipeHint: 'Templates, account names, categories, transactions, transfers, receipts and statements of every bank, with all backups, your login name and chosen bank – for good.',
     confirm: 'Forget device',
     confirmWipe: 'Forget and delete',
   },
 
   resetDialog: {
     title: 'Reset saved data?',
-    description: 'A new, empty store is created. The old file stays on this computer as a backup.',
-    body: 'Templates, account names and categories then start afresh. What you have already changed in this session is kept and saved from now on.',
+    description: 'Templates, account names and categories start afresh. The old data stays on this computer as a backup.',
+    body: 'What you changed in this session is kept and saved again.',
     confirm: 'Reset',
   },
 
   wipeDialog: {
     title: 'Delete saved data?',
-    description: 'Templates, account names, categories, saved transactions, receipts and statements of every bank in your overview and the transfers of the last 14 days are deleted from this computer, earlier backups included – along with the login name and bank the login screen fills in. This cannot be undone.',
-    body: 'Your current session stays open. What you change until you log out is no longer saved; at your next login you start with empty templates.',
+    description: 'Templates, account names, categories, transactions, transfers, receipts and statements of every bank are deleted from this computer, with all backups, your login name and chosen bank. This cannot be undone.',
+    body: 'You stay logged in. What you change until you log out isn’t saved. At your next login you start from scratch.',
   },
 };

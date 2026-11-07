@@ -4,17 +4,17 @@
 
 export const de = {
   title: 'Depot',
-  /** Under "Bestand noch nicht abgerufen", in the hero. */
-  intro: 'Wertpapiere, Stückzahlen und Kurse, so wie deine Bank sie meldet.',
-  notRead: 'Bestand noch nicht abgerufen',
-  read: 'Bestand abrufen',
-  refresh: 'Bestand neu abrufen',
-  loading: 'Bestand wird abgerufen …',
+  /** Under "Bestand noch nicht geladen", in the hero. */
+  intro: 'Wertpapiere und Kurse, wie deine Bank sie meldet.',
+  notRead: 'Bestand noch nicht geladen',
+  read: 'Bestand laden',
+  refresh: 'Bestand neu laden',
+  loading: 'Bestand wird geladen …',
   /** The bank's total, above the list. */
   total: 'Depotwert',
   noTotal: 'Deine Bank hat keinen Gesamtwert genannt.',
   /** When the bank was asked; the time comes formatted ("14:05"). */
-  asOf: (time: string) => `Abgerufen um ${time}`,
+  asOf: (time: string) => `Stand ${time}`,
   holdings: (n: number) => (n === 1 ? '1 Position' : `${n} Positionen`),
   empty: 'Keine Wertpapiere im Depot.',
   /** A holding's line under its name; the figures come formatted. */
@@ -27,23 +27,23 @@ export const de = {
   sinceBuy: (pct: string) => `${pct} seit Kauf`,
   isin: 'ISIN',
   wkn: 'WKN',
-  pricesNote: 'Kurse und Werte, wie deine Bank sie zuletzt gemeldet hat – keine Echtzeitkurse.',
-  unreadable: 'Deine Bank hat geantwortet, aber den Bestand konnte die App nicht lesen.',
+  pricesNote: 'Kurse vom letzten Stand deiner Bank, nicht in Echtzeit.',
+  unreadable: 'Girovo konnte den Bestand von deiner Bank nicht lesen.',
   api: {
-    failed: 'Bestandsabfrage fehlgeschlagen.',
+    failed: 'Der Bestand ließ sich nicht laden.',
   },
 };
 
 export const en: typeof de = {
   title: 'Securities account',
-  intro: 'Securities, quantities and prices, as your bank reports them.',
+  intro: 'Securities and prices, as your bank reports them.',
   notRead: 'Holdings not loaded yet',
   read: 'Load holdings',
   refresh: 'Load holdings again',
   loading: 'Loading holdings…',
   total: 'Total value',
   noTotal: 'Your bank did not state a total value.',
-  asOf: (time) => `Loaded at ${time}`,
+  asOf: (time) => `As of ${time}`,
   holdings: (n) => (n === 1 ? '1 holding' : `${n} holdings`),
   empty: 'No securities in this account.',
   units: (n) => `${n} units`,
@@ -53,9 +53,9 @@ export const en: typeof de = {
   sinceBuy: (pct) => `${pct} since purchase`,
   isin: 'ISIN',
   wkn: 'WKN',
-  pricesNote: 'Prices and values as your bank last reported them – not real-time prices.',
-  unreadable: 'Your bank answered, but the app could not read the holdings.',
+  pricesNote: 'Prices as your bank last reported them, not real-time.',
+  unreadable: 'Girovo couldn’t read the holdings from your bank.',
   api: {
-    failed: 'Holdings enquiry failed.',
+    failed: 'The holdings could not be loaded.',
   },
 };
