@@ -20,7 +20,8 @@ import { canRequest, resplit, type SplitPerson } from '@/lib/bill-split';
 import type { SharePrefill } from '@/lib/app-types';
 import { fmtAmountInput, parseAmount } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
-import { Money } from '../Money';
+import { AMOUNT_MASK } from '@/lib/mask';
+import { Money, usePrivacy } from '../Money';
 import { AlertTriangleIcon, CheckCircleIcon, PlusIcon, QrIcon } from '../icons';
 import { Panel } from '../transfer/Panel';
 import { Button, Field, FilterChip, Input, Overlay, cx } from '../ui';
@@ -54,6 +55,8 @@ export function BillSplit({
   const nameRef = useRef<HTMLInputElement>(null);
   const [people, setPeople] = useState<SplitPerson[]>([{ id: 'p1', name: '', cents: 0, typed: false }]);
   const [chosen, setChosen] = useState<string>('p1');
+  const privacy = usePrivacy();
+  const [shareFocus, setShareFocus] = useState(false);
   const [draft, setDraft] = useState<{ id: string; text: string } | null>(null);
   const [purpose, setPurpose] = useState(defaultPurpose.slice(0, MAX_PURPOSE));
 
@@ -187,9 +190,17 @@ export function BillSplit({
                   id={`${titleId}-share`}
                   inputMode="decimal"
                   autoComplete="off"
-                  value={draft?.id === person.id ? draft.text : fmtAmountInput(person.cents / 100)}
+                  // "Beträge ausblenden": the share is hidden until the field is
+                  // taken to change it — an even split would give the booking's amount away.
+                  value={privacy && !shareFocus
+                    ? AMOUNT_MASK
+                    : draft?.id === person.id ? draft.text : fmtAmountInput(person.cents / 100)}
                   onChange={(e) => typeShare(person.id, e.target.value)}
-                  onBlur={() => setDraft(null)}
+                  onFocus={() => setShareFocus(true)}
+                  onBlur={() => {
+                    setDraft(null);
+                    setShareFocus(false);
+                  }}
                   className="amount text-right"
                   trailing={<span aria-hidden className="pr-2.5 text-ink-2">€</span>}
                 />
