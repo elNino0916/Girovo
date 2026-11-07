@@ -4,14 +4,41 @@
 // (session.ts, history.ts): the same setting keeps the same words.
 
 export const de = {
-  sections: {
-    general: 'Allgemein',
-    /** The phone's integrity, fingerprint login, further banks with the first (desktop), the remembered device. */
-    security: 'Sicherheit',
-    /** Gemini Nano and the user's own categories. */
-    categories: 'Kategorien',
+  /** The pages the settings are sorted into (lib/settings-pages.ts), each shown on its own. */
+  pages: {
+    security: 'Anmeldung & Sicherheit',
+    notifications: 'Benachrichtigungen',
+    accounts: 'Konten & Umsätze',
+    devices: 'Daten & Geräte',
+    appearance: 'Sprache & Darstellung',
+    /** Android: the phone's own light and dark, so the page holds the language alone. */
+    language: 'Sprache',
     privacy: 'Datenschutz',
     about: 'Über Girovo',
+  },
+  /** Under each page's name in their list: what is on it, or how it is set. */
+  summary: {
+    fingerprint: 'Fingerabdruck',
+    windowsHello: 'Windows Hello',
+    idle: 'automatisches Abmelden',
+    alertsOn: 'Neue Umsätze werden gemeldet',
+    alertsOff: 'Aus',
+    accounts: 'Kategorien, Umsätze und Salden behalten',
+    sync: 'Abgleich',
+    backup: 'Sicherung',
+    kept: 'gespeicherte Daten',
+    logos: 'Firmenlogos',
+    usage: 'Nutzungsdaten',
+  },
+  /** The subheaders inside a page. */
+  groups: {
+    signIn: 'Anmeldung',
+    thisDevice: 'Dieses Gerät',
+    balances: 'Salden',
+    bookings: 'Umsätze',
+    categories: 'Kategorien',
+    updates: 'Updates',
+    links: 'Kontakt & Rechtliches',
   },
   idleHint: 'Eine Minute vorher fragt Girovo nach – während einer Freigabe nie.',
   licence: 'Quellcode verfügbar unter der PolyForm Perimeter License 1.0.1',
@@ -139,12 +166,37 @@ export const de = {
 };
 
 export const en: typeof de = {
-  sections: {
-    general: 'General',
-    security: 'Security',
-    categories: 'Categories',
+  pages: {
+    security: 'Sign-in & security',
+    notifications: 'Notifications',
+    accounts: 'Accounts & transactions',
+    devices: 'Data & devices',
+    appearance: 'Language & appearance',
+    language: 'Language',
     privacy: 'Privacy',
     about: 'About Girovo',
+  },
+  summary: {
+    fingerprint: 'Fingerprint',
+    windowsHello: 'Windows Hello',
+    idle: 'automatic logout',
+    alertsOn: 'New transactions are reported',
+    alertsOff: 'Off',
+    accounts: 'Categories, keeping transactions and balances',
+    sync: 'Sync',
+    backup: 'Backup',
+    kept: 'saved data',
+    logos: 'Company logos',
+    usage: 'Usage data',
+  },
+  groups: {
+    signIn: 'Sign-in',
+    thisDevice: 'This device',
+    balances: 'Balances',
+    bookings: 'Transactions',
+    categories: 'Categories',
+    updates: 'Updates',
+    links: 'Contact & legal',
   },
   idleHint: 'Girovo asks a minute before – never during an approval.',
   licence: 'Source available under the PolyForm Perimeter License 1.0.1',

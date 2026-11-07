@@ -13,7 +13,7 @@
 import { M3eFab } from '@m3e/react/fab';
 import { M3eNavItem } from '@m3e/react/nav-bar';
 import { M3eNavMenu, M3eNavMenuItem } from '@m3e/react/nav-menu';
-import { useEffect, useMemo, useState } from 'react';
+import { createElement, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { DashboardTab } from '@/lib/app-types';
 import { dayKey, isoDate } from '@/lib/format';
@@ -22,6 +22,7 @@ import { useFints } from '../FintsProvider';
 import { useRecurringModel, useUpcoming } from '../insights/recurring-model';
 import { AccountLayers } from '../overview/AccountLayers';
 import { useLayers } from '../overview/layers';
+import { useSettingsPages } from '../settings/Settings';
 import { BackIcon, ChartIcon, GearIcon, HomeIcon, TransferIcon } from '../icons';
 import { IconButton, cx } from '../ui';
 import type { ShellActions } from './actions';
@@ -207,55 +208,16 @@ function PlaceMonth() {
 }
 
 /**
- * Einstellungen in the sidebar: the way back, its name and its sections —
- * read from the page (each SettingsGroup marks itself), a click bringing a
- * section into view, the one in view marked.
+ * Einstellungen in the sidebar: the way back, its name and its pages
+ * (components/settings/Settings.tsx useSettingsPages), listed as the places
+ * are — a glyph and a name, the page on the sheet in the secondary container
+ * with its glyph filled. A click shows that page.
  */
 function SettingsSections() {
-  const { leaveSettings } = useFints();
+  const { leaveSettings, settingsPage, setSettingsPage } = useFints();
   const t = useT();
-  const [sections, setSections] = useState<{ key: string; title: string }[]>([]);
-  const [current, setCurrent] = useState<string | null>(null);
-
-  useEffect(() => {
-    const main = document.getElementById('main');
-    const scroller = document.querySelector<HTMLElement>('[data-scroll-root]');
-    if (!main) return;
-    const all = () => [...main.querySelectorAll<HTMLElement>('[data-settings-section]')];
-    let sig = '';
-    const read = () => {
-      const list = all().map((el) => ({ key: el.getAttribute('aria-labelledby') ?? '', title: el.dataset.settingsSection ?? '' }));
-      const next = list.map((s) => s.title).join('|');
-      if (next !== sig) {
-        sig = next;
-        setSections(list);
-      }
-    };
-    const mark = () => {
-      const top = (scroller?.getBoundingClientRect().top ?? 0) + 96;
-      let on: string | null = null;
-      for (const el of all()) if (el.getBoundingClientRect().top <= top) on = el.getAttribute('aria-labelledby');
-      setCurrent(on ?? all()[0]?.getAttribute('aria-labelledby') ?? null);
-    };
-    read();
-    mark();
-    const mo = new MutationObserver(read);
-    // The titles too, not only sections coming and going: a change of language
-    // rewrites each section's name in place (the page starts in German and
-    // turns English once it has read the choice), and the list kept the first.
-    mo.observe(main, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-settings-section'] });
-    scroller?.addEventListener('scroll', mark, { passive: true });
-    return () => {
-      mo.disconnect();
-      scroller?.removeEventListener('scroll', mark);
-    };
-  }, []);
-
-  const show = (key: string) => {
-    const el = document.querySelector<HTMLElement>(`[data-settings-section][aria-labelledby="${CSS.escape(key)}"]`);
-    el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    setCurrent(key);
-  };
+  const pages = useSettingsPages();
+  const current = (pages.find((p) => p.id === settingsPage) ?? pages[0])?.id;
 
   return (
     <>
@@ -266,21 +228,26 @@ function SettingsSections() {
         <span className="truncate text-[22px] leading-7 font-medium">{t.common.nav.settings}</span>
       </div>
       <ul aria-label={t.shell.frame.sections} className="flex flex-col gap-0.5 px-3">
-        {sections.map((s) => (
-          <li key={s.key}>
-            <button
-              type="button"
-              aria-current={current === s.key ? 'location' : undefined}
-              onClick={() => show(s.key)}
-              className={cx(
-                'row-focus flex h-10 w-full items-center rounded-full px-4 text-left text-[14px] leading-5 font-medium transition-colors duration-150',
-                current === s.key ? 'bg-[var(--md-secondary-container)] text-[var(--md-on-secondary-container)]' : 'text-ink hover:bg-[var(--md-surface-container)]',
-              )}
-            >
-              <span className="truncate">{s.title}</span>
-            </button>
-          </li>
-        ))}
+        {pages.map((p) => {
+          const on = current === p.id;
+          return (
+            <li key={p.id}>
+              <button
+                type="button"
+                aria-current={on ? 'page' : undefined}
+                onClick={() => setSettingsPage(p.id)}
+                className={cx(
+                  'row-focus flex h-10 w-full items-center gap-3 rounded-full px-4 text-left text-[14px] leading-5 font-medium transition-colors duration-150',
+                  on ? 'bg-[var(--md-secondary-container)] text-[var(--md-on-secondary-container)]' : 'text-ink hover:bg-[var(--md-surface-container)]',
+                )}
+              >
+                {createElement(p.Icon, { size: 22, filled: on, className: cx('shrink-0', !on && 'text-ink-2') })}
+                <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                {p.alert && <span aria-hidden className="size-2 shrink-0 rounded-full bg-red" />}
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </>
   );

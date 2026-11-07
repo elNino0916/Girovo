@@ -98,6 +98,7 @@ import {
   type TransferPrefill, type TransferTemplate, type TxFilter, type VaultData, type VaultStatus,
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
+import { PAGE_OF, type SettingsPage } from '@/lib/settings-pages';
 import type {
   BankOrderKind, Merchant, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedPortfolio, SerializedTanMethod,
   SerializedTransaction, SerializedVop,
@@ -153,6 +154,8 @@ export type MockOptions = {
   // First-frame navigation. Part of the initial state rather than set from an
   // effect, so nothing (a slow first compile, a hot reload) can race it.
   tab?: DashboardTab;
+  /** Einstellungen on one of its pages (lib/settings-pages.ts). */
+  settingsPage?: SettingsPage;
   /** A launcher open from the start. */
   open?: 'inbox' | 'palette' | 'shortcuts' | 'share' | 'transfer' | 'plus';
   /** The transfer form's prefill with `open: 'transfer'`. */
@@ -1744,12 +1747,14 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [settingsTarget, setSettingsTarget] = useState<SettingsTarget | null>(null);
   // As the provider: on a phone Einstellungen leads back to the page it was opened from.
   const settingsFrom = useRef<DashboardTab>('overview');
+  const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(opts.settingsPage ?? null);
   const openSettings = useCallback((target?: SettingsTarget) => {
     setTabState((current) => {
       if (current !== 'settings') settingsFrom.current = current;
       return 'settings';
     });
     setSettingsTarget(target ?? null);
+    setSettingsPage(target ? PAGE_OF[target] : null);
   }, []);
   const leaveSettings = useCallback(() => setTabState(settingsFrom.current), []);
   const clearSettingsTarget = useCallback(() => setSettingsTarget(null), []);
@@ -2977,7 +2982,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     privacy, idleMinutes, singleKeyShortcuts, balancesAtLogin,
     logoConsent,
     sessionStartedAt, idleDeadline,
-    tab, settingsTarget, txFilter, txFocusNonce, accountOpen, ordersOpen,
+    tab, settingsTarget, settingsPage, setSettingsPage, txFilter, txFocusNonce, accountOpen, ordersOpen,
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill, shareAll,
     inboxOpen, paletteOpen, shortcutsOpen, autoLoggedOut: false,

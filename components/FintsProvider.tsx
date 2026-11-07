@@ -93,6 +93,7 @@ import {
   type VaultGetResponse, type VaultPutResponse, type VaultStatus,
 } from '@/lib/app-types';
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
+import { PAGE_OF, type SettingsPage } from '@/lib/settings-pages';
 import type {
   BalanceResponse, BankOrderKind, BankOrdersAnswer, BankOrdersResponse, BankStatementsAnswer, BankStatementsResponse,
   ConnectResponse, DeleteOrderResponse,
@@ -2602,12 +2603,16 @@ function useFintsState() {
   // panel or the search, with no place of its own in the navigation bar): its
   // way back leads to the page it was opened from.
   const settingsFrom = useRef<DashboardTab>('overview');
+  // Its page (lib/settings-pages.ts): null is the list of them on a phone,
+  // the first on the desktop. The search's setting opens the page it is on.
+  const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(null);
   const openSettings = useCallback((target?: SettingsTarget) => {
     setTabState((current) => {
       if (current !== 'settings') settingsFrom.current = current;
       return 'settings';
     });
     setSettingsTarget(target ?? null);
+    setSettingsPage(target ? PAGE_OF[target] : null);
   }, []);
   const leaveSettings = useCallback(() => setTabState(settingsFrom.current), []);
   const clearSettingsTarget = useCallback(() => setSettingsTarget(null), []);
@@ -2645,7 +2650,11 @@ function useFintsState() {
     if (!IS_ANDROID) return;
     const onBack = (e: Event) => {
       if (busyRef.current) return;
-      if (view === 'dashboard' && tab === 'settings') {
+      if (view === 'dashboard' && tab === 'settings' && settingsPage) {
+        // A page of Einstellungen: back to their list first.
+        e.preventDefault();
+        setSettingsPage(null);
+      } else if (view === 'dashboard' && tab === 'settings') {
         e.preventDefault();
         setTabState(settingsFrom.current);
       } else if (view === 'dashboard' && tab === 'overview' && accountOpen && overviewShownRef.current) {
@@ -2664,7 +2673,7 @@ function useFintsState() {
     };
     window.addEventListener(BACK_EVENT, onBack);
     return () => window.removeEventListener(BACK_EVENT, onBack);
-  }, [view, tab, bank, accountOpen, ordersOpen]);
+  }, [view, tab, bank, accountOpen, ordersOpen, settingsPage]);
   const setInboxOpen = useCallback((b: boolean) => setInboxOpenState(b), []);
   const setPaletteOpen = useCallback((b: boolean) => setPaletteOpenState(b), []);
   const setShortcutsOpen = useCallback((b: boolean) => setShortcutsOpenState(b), []);
@@ -5570,7 +5579,7 @@ function useFintsState() {
     // session
     sessionStartedAt, idleDeadline,
     // navigation & launchers
-    tab, settingsTarget, txFilter, txFocusNonce, accountOpen, ordersOpen,
+    tab, settingsTarget, settingsPage, setSettingsPage, txFilter, txFocusNonce, accountOpen, ordersOpen,
     analysisPeriod, analysisScope,
     transferOpen, transferPrefill, shareOpen, sharePrefill, shareAll,
     inboxOpen, paletteOpen, shortcutsOpen, autoLoggedOut,

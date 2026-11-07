@@ -36,6 +36,7 @@ import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
 import { useAskable } from '../insights/Ask';
 import { useContractNotices } from '../insights/contract-notices';
+import { useSettingsPages } from '../settings/Settings';
 import { unseenUpdate, useUpdates } from '../updates/store';
 import { BackIcon, BellIcon, GeminiSparkIcon, SearchIcon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
@@ -109,6 +110,7 @@ export function Masthead() {
   const {
     unreadCount: bankUnread, inboxOpen, setInboxOpen, setPaletteOpen, singleKeyShortcuts,
     tab, leaveSettings, accountOpen, accounts, banks, activeAccount, accountLabel, closeAccount, ordersOpen, closeOrders,
+    settingsPage, setSettingsPage,
   } = useFints();
   const t = useT();
   const phone = usePhone();
@@ -116,6 +118,9 @@ export function Masthead() {
   // screens are: the way back in front of its name, and none of the places'
   // actions behind it. From 640px it is the rail's fifth place.
   const subPage = tab === 'settings';
+  // One of its pages (lib/settings-pages.ts): its name in the bar, and the way back to their list at every width.
+  const settingsPages = useSettingsPages();
+  const settingsOn = subPage ? settingsPages.find((p) => p.id === settingsPage) ?? null : null;
   // An account's page under every account (issue #19): on a phone its own top
   // bar — the way back, the account's name, the search and the eye; from
   // 640px the search bar stays and the way back heads the balance (AccountHero).
@@ -186,15 +191,17 @@ export function Masthead() {
             tone="bar"
             size="md"
             aria-label={subPage ? t.common.back : ordersPage ? t.common.nav.contracts : t.insights.accounts.back}
-            onClick={subPage ? leaveSettings : ordersPage ? closeOrders : closeAccount}
+            onClick={settingsOn ? () => setSettingsPage(null) : subPage ? leaveSettings : ordersPage ? closeOrders : closeAccount}
             // Material's navigation icon: its glyph, not its state layer, on the bar's edge.
-            className={cx('-ml-2', !ordersPage && 'sm:hidden')}
+            className={cx('-ml-2', !ordersPage && !settingsOn && 'sm:hidden')}
             style={NO_DRAG}
           >
             <BackIcon size={22} />
           </IconButton>
         )}
-        <PageTitle text={phoneAccount && activeAccount ? accountLabel(activeAccount) : ordersPage ? t.orders.page.title : undefined} />
+        <PageTitle
+          text={settingsOn ? settingsOn.title : phoneAccount && activeAccount ? accountLabel(activeAccount) : ordersPage ? t.orders.page.title : undefined}
+        />
 
         <div className="min-w-2 flex-1" />
 

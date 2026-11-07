@@ -24,6 +24,7 @@
 //                  &integrity=modified|unknown|kept  Android: the integrity check's answer (./nano.ts)
 //                  &plus=free|active|inactive|unavailable  Android: Girovo Plus as the Play build sees it
 //                  &updateDialog=1            …with its dialog open
+//                  &page=security|notifications|accounts|devices|appearance|privacy|about   Einstellungen on that page
 //                  &y=800                     scroll the page there once loaded
 //
 // The real components render inside the same print:hidden structure as
@@ -52,6 +53,7 @@ import { txKey } from '@/lib/categories';
 import { addDaysKey, isoDate, presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
 import { IS_ANDROID } from '@/lib/platform';
+import { isSettingsPage, type SettingsPage } from '@/lib/settings-pages';
 import { ACCT, MOCK_PAYEES, MOCK_TAN_KIND, MOCK_TAN_KINDS, SECOND_BANK, type MockTanKind } from './data';
 import { buildEpcPayload } from '@/lib/girocode';
 import { qrMatrix, qrPngBlob } from '@/lib/qr';
@@ -1594,6 +1596,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     ...(one(params.unclear) === '1' ? { unclear: true } : {}),
     ...(SECONDS.includes(secondParam) ? { secondBank: secondParam } : {}),
     ...(isPlusScenario(plusParam) ? { plus: plusParam } : {}),
+    ...(isSettingsPage(one(params.page)) ? { settingsPage: one(params.page) as SettingsPage } : {}),
   };
 
   const theme = one(params.theme);

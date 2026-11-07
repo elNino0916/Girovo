@@ -3,8 +3,8 @@
 // The rows of the settings page (./Settings.tsx), and the two the Sitzung
 // panel's list of banks shares with it (components/shell/ProfileMenu.tsx).
 //
-// The page is Material 3 Expressive's grouped list, as Android's own settings
-// draw it: each section's rows stand together on a tonal ground of their own
+// The pages are Material 3 Expressive's grouped list, as Android's own settings
+// draw it: each group's rows stand together on a tonal ground of their own
 // ([data-settings-group], app/material.css) — 2px apart, the group's outer
 // corners round, the inner ones nearly square. Every row has the one shape:
 // a glyph, the name, what it is or what it is set to, and at its end its
@@ -12,24 +12,59 @@
 // something. A row that opens something is pressed whole; what an action
 // does in full is said by the dialog it opens, right before it is done.
 
-import { useId } from 'react';
+import { createContext, createElement, useContext, useId } from 'react';
 import type { ReactNode } from 'react';
 import type { SettingsTarget } from '@/lib/app-types';
 import { ChevronIcon, ExternalIcon } from '../icons';
 import { Menu, MenuItemRadio, Switch, cx } from '../ui';
 
-/** A section of the page: its name over its group of rows, and an optional note under them. */
+/**
+ * The level of a group's subheader: under the page's name on the desktop's
+ * sheet (an h2), or right under the top app bar's on a phone (the h1).
+ */
+export const GroupHeading = createContext<'h2' | 'h3'>('h3');
+
+/**
+ * A group of rows on a page: under its subheader where the page has several
+ * kinds of thing (Anmeldung, Dieses Gerät), and an optional note under it.
+ */
 export function SettingsGroup({
   title, setting, note, children,
-}: { title: string; setting?: SettingsTarget; note?: ReactNode; children: ReactNode }) {
+}: { title?: string; setting?: SettingsTarget; note?: ReactNode; children: ReactNode }) {
   const id = useId();
+  const level = useContext(GroupHeading);
   return (
-    // data-settings-section: the frame's sidebar lists the sections by it (components/shell/Sidebar.tsx).
-    <section aria-labelledby={id} data-setting={setting} data-settings-section={title}>
-      <h2 id={id} className="px-4 pb-2 text-[14px] leading-5 font-medium tracking-[0.1px] text-accent">{title}</h2>
+    <section aria-labelledby={title ? id : undefined} data-setting={setting}>
+      {title && createElement(level, { id, className: 'px-4 pb-2 text-[14px] leading-5 font-medium tracking-[0.1px] text-accent' }, title)}
       <div data-settings-group>{children}</div>
-      {note && <p className="px-4 pt-2 text-[13px] leading-snug text-ink-2">{note}</p>}
+      {note && <p className="px-4 pt-2 text-[14px] leading-5 text-ink-2">{note}</p>}
     </section>
+  );
+}
+
+/**
+ * One page of Einstellungen in their list (a phone; the desktop's sidebar
+ * lists them itself): its glyph on a disc in the primary container, its name,
+ * and what is on it or how it is set. Pressed whole, it opens the page.
+ */
+export function PageItem({ icon, title, summary, alert, onClick }: {
+  icon: ReactNode; title: string; summary?: ReactNode; alert?: boolean; onClick: () => void;
+}) {
+  return (
+    <button type="button" data-item data-pressable onClick={onClick} className={cx(ITEM, 'min-h-[72px]')}>
+      <span
+        aria-hidden
+        className="relative grid size-10 shrink-0 place-items-center rounded-full bg-[var(--md-primary-container)] text-[var(--md-on-primary-container)] [&>svg]:size-[22px]"
+      >
+        {icon}
+        {/* Something on the page needs a look (the saved data cannot be read). */}
+        {alert && <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-red ring-2 ring-[var(--md-surface-container)]" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px] leading-6 font-medium text-ink">{title}</span>
+        {summary && <span className={cx('line-clamp-2 block text-[14px] leading-5', alert ? 'text-red' : 'text-ink-2')}>{summary}</span>}
+      </span>
+    </button>
   );
 }
 
@@ -53,7 +88,8 @@ type ItemProps = {
 const ITEM = 'flex min-h-14 w-full items-center gap-4 px-4 py-3 text-left';
 
 function Glyph({ children }: { children: ReactNode }) {
-  return <span aria-hidden className="grid size-6 shrink-0 place-items-center self-center text-ink-2 [&>svg]:size-[22px]">{children}</span>;
+  // The glyphs are Material Symbols (components/icons.tsx), sized by their font: 22px whatever size they were given.
+  return <span aria-hidden className="grid size-6 shrink-0 place-items-center self-center text-ink-2 [&>svg]:size-[22px] [&_.ms-icon]:text-[22px]!">{children}</span>;
 }
 
 function Text({ title, titleId, summary, summaryId, below, alert }: {
@@ -61,8 +97,8 @@ function Text({ title, titleId, summary, summaryId, below, alert }: {
 }) {
   return (
     <span className="min-w-0 flex-1">
-      <span id={titleId} className={cx('block text-[15px] leading-snug', alert ? 'text-red' : 'text-ink')}>{title}</span>
-      {summary && <span id={summaryId} className="mt-0.5 block text-[13px] leading-snug text-ink-2">{summary}</span>}
+      <span id={titleId} className={cx('block text-[16px] leading-6', alert ? 'text-red' : 'text-ink')}>{title}</span>
+      {summary && <span id={summaryId} className="block text-[14px] leading-5 text-ink-2">{summary}</span>}
       {below}
     </span>
   );
@@ -142,13 +178,13 @@ export function SwitchItem({
         <label
           htmlFor={switchId}
           className={cx(
-            'block text-[15px] leading-snug text-ink after:absolute after:inset-0 after:content-[""]',
+            'block text-[16px] leading-6 text-ink after:absolute after:inset-0 after:content-[""]',
             disabled ? 'cursor-not-allowed text-ink-2' : 'cursor-pointer',
           )}
         >
           {title}
         </label>
-        {summary && <span id={summaryId} className="mt-0.5 block text-[13px] leading-snug text-ink-2">{summary}</span>}
+        {summary && <span id={summaryId} className="block text-[14px] leading-5 text-ink-2">{summary}</span>}
         {below && <span className="relative z-10 block">{below}</span>}
       </span>
       <Switch
