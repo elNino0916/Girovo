@@ -116,8 +116,14 @@ function previewRelease(): NonNullable<ElectronUpdateState['release']> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Puts a fake updater on window for this view (null: none — the web app). */
-export function installFakeUpdater(scenario: UpdateScenario | null, { dialog = false } = {}) {
+/**
+ * Puts a fake updater on window for this view (null: none — the web app).
+ * `kind`: whose updater it is, the installed Windows app's unless said.
+ */
+export function installFakeUpdater(
+  scenario: UpdateScenario | null,
+  { dialog = false, kind }: { dialog?: boolean; kind?: ElectronUpdateState['kind'] } = {},
+) {
   resetUpdatesForPreview({ dialog });
   // Opened in the desktop app itself, the preload's real updater is there and
   // can be neither removed nor replaced (contextBridge): the preview keeps it.
@@ -126,7 +132,7 @@ export function installFakeUpdater(scenario: UpdateScenario | null, { dialog = f
     delete window.electronUpdater;
     return;
   }
-  let state = initial(scenario);
+  let state = kind ? { ...initial(scenario), kind } : initial(scenario);
   const listeners = new Set<(s: ElectronUpdateState) => void>();
   const set = (patch: Partial<ElectronUpdateState>) => {
     state = { ...state, ...patch };

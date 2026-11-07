@@ -45,7 +45,6 @@ import { Login } from '@/components/Login';
 import { Statement } from '@/components/Statement';
 import { TanMethodPicker } from '@/components/TanMethodPicker';
 import { TanWaitOverlay } from '@/components/TanWaitOverlay';
-import { PENDING_PANEL_ID } from '@/components/transactions/PendingPanel';
 import { Toasts } from '@/components/Toasts';
 import { UpdateLayer } from '@/components/updates/UpdateNotices';
 import { Intro, type IntroKind } from '@/components/shell/Intro';
@@ -76,7 +75,7 @@ type Ctx = {
   /** The live provider value — always the latest render's. */
   api: () => FintsApi;
   sleep: (ms: number) => Promise<void>;
-  /** Clicks the first (or last) visible, enabled button whose label matches. */
+  /** Clicks the first (or last) visible, enabled button (or menu item) whose label matches. */
   click: (label: RegExp, opts?: { within?: 'dialog' | 'page'; last?: boolean; timeout?: number }) => Promise<boolean>;
   /** Waits until `get` returns something (or the timeout passes: null). */
   poll: <T>(get: () => T | null | undefined | false, timeout?: number) => Promise<T | null>;
@@ -92,7 +91,7 @@ type ViewDef = {
   preset?: MockPreset;
   options?: MockOptions;
   /** The desktop updater this view shows (a fake, ./updater.ts), and whether its dialog is open. */
-  update?: { scenario: UpdateScenario; dialog?: boolean };
+  update?: { scenario: UpdateScenario; dialog?: boolean; kind?: ElectronUpdateState['kind'] };
   /** A printed document, shown on screen in place of the app (./print.tsx). */
   print?: PrintPreviewKind;
   /** The intro over the app (components/shell/Intro.tsx); ?t=<ms> holds it still there. */
@@ -246,10 +245,13 @@ async function openSession(c: Ctx) {
   await c.poll(() => document.querySelector('[role="dialog"], [data-popover]'), 2000);
 }
 
-/** The Einstellungen page (a view with tab: 'settings'), scrolled to "Umsätze auf diesem Rechner behalten". */
+/**
+ * Einstellungen on its Konten & Umsätze page (settingsPage: 'accounts'),
+ * scrolled to "Umsätze auf diesem Rechner behalten" ("… Telefon …" on a phone).
+ */
 async function settingsAtKeep(c: Ctx): Promise<HTMLElement | null> {
   const label = await c.poll(
-    () => [...document.querySelectorAll<HTMLLabelElement>('label')].find((l) => /^Umsätze auf diesem Rechner/.test(l.textContent ?? '')),
+    () => [...document.querySelectorAll<HTMLLabelElement>('label')].find((l) => /^Umsätze auf diesem (Rechner|Telefon)/.test(l.textContent ?? '')),
     3000,
   );
   label?.scrollIntoView({ block: 'center' });
@@ -286,8 +288,17 @@ function pressKey(key: string) {
   document.body.dispatchEvent(new KeyboardEvent('keydown', { key, code: /^\d$/.test(key) ? `Digit${key}` : '', bubbles: true }));
 }
 
-/** "Konten anordnen", open: the overview's swap icon (a phone) or its "Anordnen" (wider). */
+/**
+ * "Konten anordnen", open: the overview's swap icon (a phone) or its
+ * "Anordnen" (wider). The desktop's frame (from 640px) has no overview of
+ * every account to arrange — its sidebar lists them — so there the view is
+ * the frame as it stands.
+ */
 async function openArrange(c: Ctx) {
+  if (document.querySelector('[data-frame]')) {
+    console.info('[design-preview] Konten anordnen is the phone shell’s (below 640px): the desktop frame has none');
+    return;
+  }
   await c.click(/^(konten anordnen|anordnen)$/i, { within: 'page' });
   await c.poll(() => document.querySelector('[data-arrange]'), 3000);
 }
@@ -343,16 +354,18 @@ async function openFirstRow(c: Ctx): Promise<HTMLElement | null> {
   return row;
 }
 
-/** In the open drawer: "Ändern", then a category — the offer to apply it to all follows. */
+/** In the open drawer: its Kategorie tab, "Ändern", then a category — the offer to apply it to all follows. */
 async function pickCategory(c: Ctx, label: RegExp) {
+  await openDrawerTab(c, CATEGORY_TAB);
   await c.click(/^Kategorie ändern/, { within: 'dialog' });
   await c.poll(() => document.querySelector('[role="menu"]'), 3000);
   await c.click(label, { within: 'dialog' });
   await c.sleep(200);
 }
 
-/** In the open drawer: the Kategorie section scrolled to the top, so its offer or its rules are in view. */
+/** In the open drawer: its Kategorie tab, the section scrolled to the top, so its offer or its rules are in view. */
 async function showCategorySection(c: Ctx) {
+  await openDrawerTab(c, CATEGORY_TAB);
   const drawer = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].filter(visible).at(-1);
   const heading = [...(drawer?.querySelectorAll<HTMLElement>('h3') ?? [])].find((h) => h.textContent?.trim() === 'Kategorie');
   heading?.closest('section')?.scrollIntoView({ block: 'start' });
@@ -367,6 +380,16 @@ async function showDrawerSection(c: Ctx, title: RegExp) {
   await c.sleep(150);
 }
 
+/** The drawer's tabs (components/transactions/TxDetail.tsx DetailTabs) past "Details". */
+const NOTES_TAB = /^(Notiz & Belege|Note & receipts)/;
+const CATEGORY_TAB = /^(Kategorie|Category)$/;
+
+/** In the open drawer: one of its tabs, chosen as a person would — the others' sections are hidden. */
+async function openDrawerTab(c: Ctx, tab: RegExp) {
+  await c.click(tab, { within: 'dialog' });
+  await c.sleep(150);
+}
+
 /** Types into a textarea the way a person would, so React sees the change. */
 function typeIntoArea(el: HTMLTextAreaElement, text: string) {
   el.focus();
@@ -378,10 +401,14 @@ function typeIntoArea(el: HTMLTextAreaElement, text: string) {
 const THIS_MONTH = presetRange('90d').to.slice(0, 7);
 const FIRST_LOADED_MONTH = presetRange('90d').from.slice(0, 7);
 
-/** The Umsätze tile's Export menu, open — scrolled to, so the menu is in view. */
+/** An account page's Export menu, open — scrolled to, so the menu is in view. */
 async function openExportMenu(c: Ctx) {
+  await showAccountPage(c);
   const trigger = await c.poll(() => findButton(/^Export$/, 'page', false), 6000);
-  if (!trigger) return;
+  if (!trigger) {
+    console.warn('[design-preview] no Export button');
+    return;
+  }
   trigger.scrollIntoView({ block: 'center' });
   await c.sleep(100);
   trigger.click();
@@ -397,6 +424,46 @@ function fakeFileSave(answer: { ok: true } | { ok: false; canceled: true } | { o
   // In the desktop app itself the real Save-As stays (contextBridge cannot be replaced).
   if (Object.getOwnPropertyDescriptor(window, 'electronFiles')?.configurable === false) return;
   window.electronFiles = { save: async () => answer };
+}
+
+/**
+ * The Umsätze list on screen: on a phone (and a window below 640px) that is
+ * the active account's page — with more than one account the Übersicht lists
+ * the accounts, a level above it (issue #19). The desktop's frame shows the
+ * ticked accounts' bookings without it.
+ */
+const LIST: MockOptions = { accountOpen: true };
+
+/**
+ * The active account on a page of its own, as on a phone (LIST): on the
+ * desktop's frame its name in the sidebar, pressed — that account alone. The
+ * Export and the bank's statements are an account's, not the ledger's.
+ */
+async function showAccountPage(c: Ctx) {
+  const acct = c.api().activeAccount?.accountNumber;
+  const name = acct ? document.querySelector<HTMLElement>(`[data-frame] [data-layer="${acct}"] button`) : null;
+  if (!name) return;
+  name.click();
+  await c.sleep(150);
+}
+
+/** The Vorgemerkt chip, pressed: the sheet with the list's Vorgemerkte (components/transactions/PendingPanel.tsx). */
+async function openPending(c: Ctx) {
+  await c.click(/^Vorgemerkt\b/, { within: 'page' });
+  await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 3000);
+}
+
+/**
+ * The bank's orders on their page (6.0: under Zahlungen, the provider's
+ * ordersOpen, as the orders-page view opens it), scrolled to their list.
+ */
+async function openBankOrders(c: Ctx): Promise<HTMLElement | null> {
+  c.api().openOrders();
+  await c.until((f) => f.ordersOpen, 2000);
+  const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
+  tile?.scrollIntoView({ block: 'start' });
+  await c.sleep(150);
+  return tile;
 }
 
 const VIEWS: Record<string, ViewDef> = {
@@ -432,13 +499,13 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Dashboard',
     // The list on "Alles Gespeicherte", narrowed to the days around where the
     // kept part begins — the divider in view.
-    options: { history: 'saved', filter: { from: addDaysKey(KEPT_EDGE, -6), to: addDaysKey(KEPT_EDGE, 7) } },
+    options: { ...LIST, history: 'saved', filter: { from: addDaysKey(KEPT_EDGE, -6), to: addDaysKey(KEPT_EDGE, 7) } },
     script: showList,
   },
   'history-period': {
     label: 'Zeitraum mit gespeicherten Umsätzen',
     group: 'Dashboard',
-    options: { history: 'saved' },
+    options: { ...LIST, history: 'saved' },
     async script(c) {
       await showList(c);
       const trigger = await c.poll(() => findButton(/^Zeitraum: /, 'page', false), 4000);
@@ -449,7 +516,7 @@ const VIEWS: Record<string, ViewDef> = {
   'history-past': {
     label: 'Vergangener Monat nur aus gespeicherten Umsätzen',
     group: 'Dashboard',
-    options: { history: 'saved' },
+    options: { ...LIST, history: 'saved' },
     // A month before the bank's free window, all kept: no bank call at all.
     async script(c) {
       const d = new Date();
@@ -499,36 +566,39 @@ const VIEWS: Record<string, ViewDef> = {
       await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
     },
   },
-  'overview-notes': { label: 'Umsätze mit Notizen', group: 'Dashboard', options: { personal: true } },
+  'overview-notes': { label: 'Umsätze mit Notizen', group: 'Dashboard', options: { ...LIST, personal: true } },
   // A note found by the search, then read in its drawer.
   'detail-note': {
-    label: 'Umsatzdetails mit Notiz', group: 'Dashboard', options: { personal: true, query: 'Grillfest' },
+    label: 'Umsatzdetails mit Notiz', group: 'Dashboard', options: { ...LIST, personal: true, query: 'Grillfest' },
     async script(c) {
       await openFirstRow(c);
+      await openDrawerTab(c, NOTES_TAB);
       await showDrawerSection(c, /^(Notiz|Note)$/);
     },
   },
   'detail-receipt': {
-    label: 'Umsatzdetails mit Beleg', group: 'Dashboard', options: { docs: true, query: 'REWE' },
+    label: 'Umsatzdetails mit Beleg', group: 'Dashboard', options: { ...LIST, docs: true, query: 'REWE' },
     async script(c) {
       await c.until((f) => f.docs.some((d) => d.kind === 'receipt'), 4000);
       await openFirstRow(c);
+      await openDrawerTab(c, NOTES_TAB);
       await showDrawerSection(c, /^(Belege|Receipts)$/);
     },
   },
   // The Amazon order the personal set splits between "Geschenke" (an own
   // category) and Shopping: its drawer, and the dialog that changes the split.
   'detail-split': {
-    label: 'Umsatzdetails, aufgeteilt', group: 'Dashboard', options: { personal: true, query: 'Kopfhörer' },
+    label: 'Umsatzdetails, aufgeteilt', group: 'Dashboard', options: { ...LIST, personal: true, query: 'Kopfhörer' },
     async script(c) {
       await openFirstRow(c);
       await showCategorySection(c);
     },
   },
   'split-dialog': {
-    label: 'Umsatz aufteilen', group: 'Dashboard', options: { personal: true, query: 'Kopfhörer' },
+    label: 'Umsatz aufteilen', group: 'Dashboard', options: { ...LIST, personal: true, query: 'Kopfhörer' },
     async script(c) {
       await openFirstRow(c);
+      await openDrawerTab(c, CATEGORY_TAB);
       await c.click(/^(Aufteilung ändern|Change split)$/, { within: 'dialog' });
       await c.sleep(250);
     },
@@ -542,7 +612,7 @@ const VIEWS: Record<string, ViewDef> = {
     },
   },
   'settings-categories': {
-    label: 'Einstellungen: eigene Kategorien', group: 'Dashboard', options: { tab: 'settings', personal: true },
+    label: 'Einstellungen: eigene Kategorien', group: 'Dashboard', options: { tab: 'settings', settingsPage: 'accounts', personal: true },
     async script(c) {
       const section = await c.poll(() => document.querySelector<HTMLElement>('[data-setting="categories"]'), 3000);
       section?.scrollIntoView({ block: 'start' });
@@ -563,9 +633,9 @@ const VIEWS: Record<string, ViewDef> = {
   'bank-statements': {
     label: 'Kontoauszüge der Bank',
     group: 'Dashboard',
-    options: { docs: true },
+    options: { ...LIST, docs: true },
     async script(c) {
-      await c.click(/^(Exportieren|Export)$/);
+      await openExportMenu(c);
       await c.click(/(Auszüge deiner Bank|Your bank’s statements)/);
       await c.poll(() => document.querySelector('[role="dialog"]'), 3000);
     },
@@ -573,9 +643,9 @@ const VIEWS: Record<string, ViewDef> = {
   'bank-statements-fetched': {
     label: 'Kontoauszüge abgerufen',
     group: 'Dashboard',
-    options: { docs: true, tanMs: 600 },
+    options: { ...LIST, docs: true, tanMs: 600 },
     async script(c) {
-      await c.click(/^(Exportieren|Export)$/);
+      await openExportMenu(c);
       await c.click(/(Auszüge deiner Bank|Your bank’s statements)/);
       await c.click(/^(Auszüge abrufen|Load statements)$/, { within: 'dialog' });
       await c.until((f) => !!f.statementFetches[ACCT.giro], 6000);
@@ -594,9 +664,10 @@ const VIEWS: Record<string, ViewDef> = {
     },
   },
   'detail-note-edit': {
-    label: 'Notiz schreiben', group: 'Dashboard',
+    label: 'Notiz schreiben', group: 'Dashboard', options: LIST,
     async script(c) {
       await openFirstRow(c);
+      await openDrawerTab(c, NOTES_TAB);
       await c.click(/^(Notiz hinzufügen|Add note)$/, { within: 'dialog' });
       const area = await c.poll(() => document.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea'), 3000);
       if (area) typeIntoArea(area, 'Für die Steuererklärung aufheben');
@@ -607,6 +678,7 @@ const VIEWS: Record<string, ViewDef> = {
   detail: {
     label: 'Umsatzdetails',
     group: 'Dashboard',
+    options: LIST,
     async script(c) {
       // A row of the Umsätze list (not the Vorgemerkt panel's, which comes
       // first in the DOM): `data-tx-row` when the list marks its rows, else
@@ -624,22 +696,25 @@ const VIEWS: Record<string, ViewDef> = {
   'detail-pending': {
     label: 'Umsatzdetails, vorgemerkt',
     group: 'Dashboard',
-    // The Vorgemerkt panel's first entry, opened from the panel itself.
+    options: LIST,
+    // The Vorgemerkt sheet's first entry, opened from the sheet itself.
     async script(c) {
-      const row = await c.poll(() => document.querySelector<HTMLElement>(`#${PENDING_PANEL_ID} [data-tx-row]`), 6000);
+      await openPending(c);
+      const row = await c.poll(() => [...document.querySelectorAll<HTMLElement>('[role="dialog"] [data-tx-row]')].find(visible), 6000);
       if (!row) {
         console.warn('[design-preview] no pending row found');
         return;
       }
       row.click();
-      await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 4000);
+      // The drawer: its tabs are named after the booking ("Vorgemerkter Umsatz").
+      await c.poll(() => [...document.querySelectorAll('[role="dialog"] [role="tablist"]')].some(visible), 4000);
     },
   },
   'logo-consent': { label: 'Firmenlogos-Frage', group: 'Dashboard', options: { logos: 'unasked' } },
   'detail-privacy': {
     label: 'Umsatzdetails ausgeblendet',
     group: 'Dashboard',
-    options: { privacy: true },
+    options: { ...LIST, privacy: true },
     // A Visa Debit payment in dollars: its record carries the original
     // amount, the rate and the fee — all of them masked.
     async script(c) {
@@ -677,7 +752,7 @@ const VIEWS: Record<string, ViewDef> = {
   'background-alerts': {
     label: 'Was Girovo meldet',
     group: 'Dialoge',
-    options: { tab: 'settings', backgroundChecks: true, secondBank: 'linked' },
+    options: { tab: 'settings', settingsPage: 'notifications', backgroundChecks: true, secondBank: 'linked' },
     async script(c) {
       const row = await c.poll(() => document.querySelector<HTMLElement>('[data-setting="alerts"]'), 6000);
       row?.click();
@@ -698,19 +773,19 @@ const VIEWS: Record<string, ViewDef> = {
   'settings-history': {
     label: 'Einstellungen: Umsätze behalten',
     group: 'Dashboard',
-    options: { history: 'saved', tab: 'settings' },
+    options: { history: 'saved', tab: 'settings', settingsPage: 'accounts' },
     async script(c) { await settingsAtKeep(c); },
   },
   'settings-history-unreadable': {
     label: 'Einstellungen: gespeicherte Umsätze nicht lesbar',
     group: 'Dashboard',
-    options: { history: 'unreadable', tab: 'settings' },
+    options: { history: 'unreadable', tab: 'settings', settingsPage: 'accounts' },
     async script(c) { await settingsAtKeep(c); },
   },
   'history-off': {
     label: 'Gespeicherte Umsätze löschen?',
     group: 'Dialoge',
-    options: { history: 'saved', tab: 'settings' },
+    options: { history: 'saved', tab: 'settings', settingsPage: 'accounts' },
     // Switching it off asks first: it deletes what is kept.
     async script(c) {
       const sw = await settingsAtKeep(c);
@@ -741,38 +816,39 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Suche mit Monat',
     group: 'Dashboard',
     // A month word matches its month and its text — the count line says so.
-    options: { query: `rewe ${LAST_MONTH_NAME.toLowerCase()}` },
+    options: { ...LIST, query: `rewe ${LAST_MONTH_NAME.toLowerCase()}` },
     script: showList,
   },
   'search-none': {
     label: 'Suche ohne Treffer',
     group: 'Dashboard',
     // A typo: the empty state names the word that found nothing.
-    options: { query: `rewe ${LAST_MONTH_NAME.toLowerCase()}x` },
+    options: { ...LIST, query: `rewe ${LAST_MONTH_NAME.toLowerCase()}x` },
     script: showList,
   },
   'search-pending': {
     label: 'Suche trifft Vorgemerkte',
     group: 'Dashboard',
     // The pending Amazon order matches too: one line in the list, first in the panel.
-    options: { query: 'amazon' },
+    options: { ...LIST, query: 'amazon' },
   },
   'month-filter': {
     label: 'Liste auf einen Monat',
     group: 'Dashboard',
-    options: { filter: { from: LAST_MONTH.from, to: LAST_MONTH.to } },
+    options: { ...LIST, filter: { from: LAST_MONTH.from, to: LAST_MONTH.to } },
     script: showList,
   },
   export: {
     label: 'Export-Menü (gefiltert)',
     group: 'Dashboard',
     // A month and a search: the filtered file names its days and "gefiltert".
-    options: { filter: { from: LAST_MONTH.from, to: LAST_MONTH.to }, query: 'rewe' },
+    options: { ...LIST, filter: { from: LAST_MONTH.from, to: LAST_MONTH.to }, query: 'rewe' },
     script: openExportMenu,
   },
   'export-saved': {
     label: 'CSV gespeichert (Desktop-App)',
     group: 'Dashboard',
+    options: LIST,
     async script(c) {
       fakeFileSave({ ok: true });
       await openExportMenu(c);
@@ -783,6 +859,7 @@ const VIEWS: Record<string, ViewDef> = {
   'export-busy': {
     label: 'CSV nicht gespeichert (Datei offen)',
     group: 'Dashboard',
+    options: LIST,
     async script(c) {
       fakeFileSave({
         ok: false,
@@ -797,7 +874,7 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Kategorie geändert',
     group: 'Dashboard',
     // Found by its category label, filed by hand — then the offer for the others.
-    options: { query: 'lebensmittel' },
+    options: { ...LIST, query: 'lebensmittel' },
     async script(c) {
       if (!(await openFirstRow(c))) return;
       await pickCategory(c, /^Shopping$/);
@@ -808,7 +885,7 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Kategorie mit Regel',
     group: 'Dashboard',
     // The shop's name finds its bookings whatever they are filed under.
-    options: { query: 'aldi' },
+    options: { ...LIST, query: 'aldi' },
     async script(c) {
       const row = await c.poll(() => listRows()[0], 6000);
       const key = row?.dataset.txKey;
@@ -818,6 +895,7 @@ const VIEWS: Record<string, ViewDef> = {
       c.api().setCategory(tx, 'shopping', { rule: true });
       await c.sleep(100);
       await openFirstRow(c);
+      await openDrawerTab(c, CATEGORY_TAB);
       await c.click(/^Deine Regeln/, { within: 'dialog' });
       await showCategorySection(c);
     },
@@ -825,14 +903,14 @@ const VIEWS: Record<string, ViewDef> = {
   'detail-refund': {
     label: 'Erstattung (ohne Zurücküberweisen)',
     group: 'Dashboard',
-    options: { query: 'erstattung' },
+    options: { ...LIST, query: 'erstattung' },
     script: async (c) => { await openFirstRow(c); },
   },
   'detail-card': {
     label: 'Kartenzahlung in USD',
     group: 'Dashboard',
     // Found by the words of its second line, which the bank never wrote.
-    options: { query: 'fremdwährung' },
+    options: { ...LIST, query: 'fremdwährung' },
     script: async (c) => { await openFirstRow(c); },
   },
   'analysis-all': {
@@ -892,15 +970,17 @@ const VIEWS: Record<string, ViewDef> = {
   'pending-with-statements': {
     label: 'Vorgemerkte mit den Umsätzen (Sparkasse)',
     group: 'Dashboard',
-    // No HKVMK: the list came with the Umsätze — no fetch button, no refresh.
-    options: { pendingWithStatements: true },
+    // No HKVMK: the list came with the Umsätze — no fetch button, no refresh. In its sheet, behind the chip.
+    options: { ...LIST, pendingWithStatements: true },
+    script: openPending,
   },
   'pending-error': {
     label: 'Vorgemerkte: Abruf fehlgeschlagen',
     group: 'Dashboard',
-    options: { failPending: true, tanMs: 600 },
+    options: { ...LIST, failPending: true, tanMs: 600 },
     async script(c) {
-      await c.click(/^Vorgemerkte Umsätze abrufen$/, { within: 'page' });
+      await openPending(c);
+      await c.click(/^Vorgemerkte Umsätze abrufen$/, { within: 'dialog' });
       await c.until((f) => Object.keys(f.pendingErrors).length > 0, 5000);
     },
   },
@@ -967,8 +1047,11 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Banken',
     options: { secondBank: 'remembered' },
     // "Auch bei … anmelden" from the account list: the login name is there already.
+    // The desktop's frame lists no bank that is not logged in: there, the form as that row opens it.
     async script(c) {
-      await c.click(/^Auch bei /, { within: 'page' });
+      const remembered = c.api().banks.find((b) => b.state === 'remembered');
+      if (document.querySelector('[data-frame]') && remembered) c.api().openAddBank({ bank: remembered.bank, userId: remembered.ref?.userId });
+      else await c.click(/^Auch bei /, { within: 'page' });
       await c.poll(() => document.querySelector('[role="dialog"] input[autocomplete="current-password"]'), 4000);
     },
   },
@@ -1060,13 +1143,15 @@ const VIEWS: Record<string, ViewDef> = {
   'update-settings': {
     label: 'In den Einstellungen',
     group: 'Updates',
-    options: { tab: 'settings' },
+    options: { tab: 'settings', settingsPage: 'about' },
     update: { scenario: 'available' },
   },
   'update-background': {
-    label: 'Im Hintergrund geladen',
+    label: 'Im Hintergrund geladen (Android, GitHub-Version)',
     group: 'Updates',
-    update: { scenario: 'available', dialog: true },
+    // The installed Windows app downloads at its next start (the start window),
+    // so the download in the dialog is the Android app's from GitHub.
+    update: { scenario: 'available', dialog: true, kind: 'android' },
     // "Herunterladen", "Im Hintergrund laden" — and the toast once the file is there.
     async script(c) {
       await c.click(/^Herunterladen/, { within: 'dialog' });
@@ -1077,14 +1162,14 @@ const VIEWS: Record<string, ViewDef> = {
   'update-settings-downloading': {
     label: 'Download in den Einstellungen',
     group: 'Updates',
-    options: { tab: 'settings' },
+    options: { tab: 'settings', settingsPage: 'about' },
     update: { scenario: 'downloading' },
   },
   // Einstellungen → Update-Kanal: the dialog, and the page once the preview channel found a preview.
   'update-channel': {
     label: 'Update-Kanal wählen',
     group: 'Updates',
-    options: { tab: 'settings' },
+    options: { tab: 'settings', settingsPage: 'about' },
     update: { scenario: 'current' },
     async script(c) {
       // The row's text begins with its glyph's name.
@@ -1094,7 +1179,7 @@ const VIEWS: Record<string, ViewDef> = {
   'update-channel-preview': {
     label: 'Auf der 6.0-Vorschau',
     group: 'Updates',
-    options: { tab: 'settings' },
+    options: { tab: 'settings', settingsPage: 'about' },
     update: { scenario: 'preview' },
   },
 
@@ -1363,29 +1448,20 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Daueraufträge bei der Bank',
     group: 'Dashboard',
     options: { tab: 'contracts', ordersLoaded: true },
-    async script(c) {
-      const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
-      tile?.scrollIntoView({ block: 'start' });
-      await c.sleep(150);
-    },
+    async script(c) { await openBankOrders(c); },
   },
   'contracts-orders-unread': {
     label: 'Daueraufträge (nicht abgerufen)',
     group: 'Dashboard',
     options: { tab: 'contracts' },
-    async script(c) {
-      const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
-      tile?.scrollIntoView({ block: 'start' });
-      await c.sleep(150);
-    },
+    async script(c) { await openBankOrders(c); },
   },
   'order-delete': {
     label: 'Dauerauftrag löschen?',
     group: 'Dialoge',
     options: { tab: 'contracts', ordersLoaded: true },
     async script(c) {
-      const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
-      tile?.scrollIntoView({ block: 'start' });
+      await openBankOrders(c);
       await c.click(/^dauerauftrag an .+ löschen …$/i, { within: 'page' });
       await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 3000);
     },
@@ -1395,8 +1471,7 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Dialoge',
     options: { tab: 'contracts', ordersLoaded: true },
     async script(c) {
-      const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
-      tile?.scrollIntoView({ block: 'start' });
+      await openBankOrders(c);
       await c.click(/^dauerauftrag an .+ ändern …$/i, { within: 'page' });
       await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 3000);
     },
@@ -1406,8 +1481,7 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Dashboard',
     options: { tab: 'contracts', ordersLoaded: true, tanMs: 900 },
     async script(c) {
-      const tile = await c.poll(() => document.getElementById('bank-orders'), 6000);
-      tile?.scrollIntoView({ block: 'start' });
+      await openBankOrders(c);
       await c.click(/^dauerauftrag an .+ löschen …$/i, { within: 'page' });
       await c.poll(() => [...document.querySelectorAll('[role="dialog"]')].some(visible), 3000);
       await c.click(/^dauerauftrag löschen$/i, { within: 'dialog' });
@@ -1473,7 +1547,8 @@ function wordsOf(el: Element): string {
 function findButton(label: RegExp, within: 'dialog' | 'page', last: boolean): HTMLElement | null {
   const dialogs = [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')].filter(visible);
   const scope: ParentNode = within === 'dialog' ? (dialogs[dialogs.length - 1] ?? document) : document;
-  const hits = [...scope.querySelectorAll<HTMLElement>('button, [role="button"], a[href]')].filter((b) => {
+  // M3E's menu items (m3e-menu-item) are no buttons: role="menuitem" elements.
+  const hits = [...scope.querySelectorAll<HTMLElement>('button, [role="button"], [role="menuitem"], [role="menuitemradio"], a[href]')].filter((b) => {
     if (!visible(b) || (b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true') return false;
     const text = (b.getAttribute('aria-label') || wordsOf(b)).replace(/\s+/g, ' ').trim();
     return label.test(text);
@@ -1543,10 +1618,10 @@ const noopSubscribe = () => () => {};
 
 /** The fake updater is set up once per view (the same key as the mock session below). */
 let updaterKey: string | null = null;
-function prepareUpdater(key: string, scenario: UpdateScenario | null, dialog: boolean) {
+function prepareUpdater(key: string, scenario: UpdateScenario | null, dialog: boolean, kind?: ElectronUpdateState['kind']) {
   if (updaterKey === key) return;
   updaterKey = key;
-  installFakeUpdater(scenario, { dialog });
+  installFakeUpdater(scenario, { dialog, kind });
 }
 
 /** Likewise the fake Gemini Nano and integrity check (?nano=…, ?integrity=…, Android preview only). */
@@ -1583,6 +1658,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     JSON.stringify(params),
     isUpdateScenario(updateParam) ? updateParam : def.update?.scenario ?? null,
     def.update?.dialog || one(params.updateDialog) === '1',
+    def.update?.kind,
   );
   const nanoParam = one(params.nano);
   const integrityParam = one(params.integrity);
@@ -1750,8 +1826,8 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=overview-single&preset=error', label: 'Ein Konto, Abruf fehlgeschlagen' },
   { q: 'view=overview&privacy=1', label: 'Beträge ausgeblendet' },
   { q: 'view=overview&acct=karte&privacy=1', label: 'Kreditkarte ausgeblendet' },
-  { q: 'view=settings&logos=on', label: 'Einstellungen: Firmenlogos an' },
-  { q: 'view=settings&logos=unavailable', label: 'Einstellungen: ohne Firmenlogos' },
+  { q: 'view=settings&logos=on&page=privacy', label: 'Einstellungen: Firmenlogos an' },
+  { q: 'view=settings&logos=unavailable&page=privacy', label: 'Einstellungen: ohne Firmenlogos' },
   { q: 'view=session&unclear=1', label: 'Sitzung: Überweisung unklar' },
   { q: 'view=palette-logout&unclear=1', label: 'Suche „abm“, Überweisung unklar' },
   { q: 'view=login&logos=on', label: 'Anmeldung: Firmenlogos an' },
