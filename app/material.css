@@ -314,6 +314,13 @@
   }
   :root[data-look='material'][data-theme='dark'] {
     --shadow-tile: 0 0 0 1px rgb(255 255 255 / 0.06);
+    /* Dark notices in the dark theme (owner, 2026-11-08): Material's inverse
+       surface would make every toast a bright card on a dark screen. They
+       stand on the highest dark surface instead, its text and action in the
+       usual dark roles; the light theme keeps the dark inverse snackbar. */
+    --snackbar-bg: var(--md-surface-container-highest);
+    --snackbar-ink: var(--md-on-surface);
+    --snackbar-action: var(--md-primary);
   }
 
   :root[data-look='material'] [data-topbar] {
@@ -804,6 +811,10 @@
   :root[data-look='material'] [data-toast] {
     --md-sys-color-on-surface-variant: var(--snackbar-ink);
     --md-sys-color-primary: var(--snackbar-action);
+  }
+  /* Dark on dark: a hairline keeps its edge, as on the dark theme's other pop-ups (--shadow-pop). */
+  :root[data-look='material'][data-theme='dark'] [data-toast] {
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08), var(--m3e-level3) !important;
   }
 
   /* ---- navigation bar, rail and FAB (@m3e/web nav-bar, fab) ---------------
