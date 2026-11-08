@@ -11,9 +11,11 @@
 //   Mitteilungen — on a phone, where the top bar has no bell: the bank's
 //     messages and this session's activity (components/Inbox.tsx), with the
 //     unread count; the chip carries their dot;
-//   Einstellungen — the way to the settings page (components/settings), with
-//     a mark while the saved data cannot be read: the one thing there that
-//     needs a look.
+//   Einstellungen — on a phone, the way to the settings page
+//     (components/settings); elsewhere the rail and the sidebar have it at
+//     their foot, and it is here only while the saved data cannot be read,
+//     with a mark: the one thing there that needs a look, and what the chip's
+//     dot is about.
 //
 // Kept short on purpose: a row says what a setting is, in a line or two;
 // what an action does in full is said by the dialog it opens ("Gerät
@@ -145,10 +147,10 @@ export function ProfileMenu() {
           <SessionPanel
             holder={full}
             initials={initials}
-            onSettings={() => {
+            onSettings={phone || vaultBroken ? () => {
               close();
               openSettings();
-            }}
+            } : undefined}
             onInbox={noBell ? () => {
               close();
               setInboxOpen(true);
@@ -215,7 +217,8 @@ function SessionPanel({
 }: {
   holder: string;
   initials: string;
-  onSettings: () => void;
+  /** A phone, or saved data that can't be read: the row to the settings. */
+  onSettings?: () => void;
   /** A phone: the Mitteilungen, which have no bell of their own there. */
   onInbox?: () => void;
   unread: number;
@@ -340,28 +343,32 @@ function SessionPanel({
 
       {/* Everything that is set once lives on its own page; the panel says
           where, and marks it while the saved data needs a look. */}
-      <div className="mt-4 border-t border-line pt-2">
-        {onInbox && (
-          <button type="button" aria-haspopup="dialog" onClick={onInbox} className={cx(ROW, 'flex w-full')}>
-            <BellIcon className="text-ink-2" />
-            <span className="min-w-0 flex-1">
-              <span className="block">{t.common.nav.messages}</span>
-              {unread > 0 && <span className="block text-[13px] leading-snug text-ink-3">{t.shell.unread(unread)}</span>}
-            </span>
-            {news && <Dot />}
-            <ChevronIcon dir="right" className="text-ink-3" />
-          </button>
-        )}
-        <button type="button" onClick={onSettings} className={cx(ROW, 'flex w-full')}>
-          <GearIcon className="text-ink-2" />
-          <span className="min-w-0 flex-1">
-            <span className="block">{t.settings.open}</span>
-            {vaultStatus === 'error' && <span className="block text-[13px] leading-snug text-ink-3">{t.session.vaultUnreadable}</span>}
-          </span>
-          {vaultStatus === 'error' && <Dot />}
-          <ChevronIcon dir="right" className="text-ink-3" />
-        </button>
-      </div>
+      {(onInbox || onSettings) && (
+        <div className="mt-4 border-t border-line pt-2">
+          {onInbox && (
+            <button type="button" aria-haspopup="dialog" onClick={onInbox} className={cx(ROW, 'flex w-full')}>
+              <BellIcon className="text-ink-2" />
+              <span className="min-w-0 flex-1">
+                <span className="block">{t.common.nav.messages}</span>
+                {unread > 0 && <span className="block text-[13px] leading-snug text-ink-3">{t.shell.unread(unread)}</span>}
+              </span>
+              {news && <Dot />}
+              <ChevronIcon dir="right" className="text-ink-3" />
+            </button>
+          )}
+          {onSettings && (
+            <button type="button" onClick={onSettings} className={cx(ROW, 'flex w-full')}>
+              <GearIcon className="text-ink-2" />
+              <span className="min-w-0 flex-1">
+                <span className="block">{t.settings.open}</span>
+                {vaultStatus === 'error' && <span className="block text-[13px] leading-snug text-ink-3">{t.session.vaultUnreadable}</span>}
+              </span>
+              {vaultStatus === 'error' && <Dot />}
+              <ChevronIcon dir="right" className="text-ink-3" />
+            </button>
+          )}
+        </div>
+      )}
     </>
   );
 }
