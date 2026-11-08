@@ -473,7 +473,7 @@ function dearerNotice(
 ): Notice {
   const said = msgs().background;
   const currency = t.currency || 'EUR';
-  const name = displayName(contract.name) || whoOf(t);
+  const name = contract.name || whoOf(t);
   return {
     key: `${login.blz}|${login.userId}|dearer|${contract.key}|${contract.shop ?? ''}`,
     kind: 'dearer',
@@ -507,7 +507,7 @@ function remindNotice(r: WatchedReminder, today: string): Notice {
   return {
     key: `remind|${r.owner}|${r.id}`,
     kind: 'remind',
-    title: said.remindTitle(displayName(r.name) || r.name),
+    title: said.remindTitle(r.name),
     text: said.remindText(fmtDate(toLocalDate(r.by)), left),
     lines: [],
   };

@@ -10,7 +10,7 @@ import { IS_ANDROID } from './platform.ts';
 type Login = { blz: string; userId: string };
 
 /** One key of a login, as the settings list it. */
-export type SecurityKeyInfo = { id: string; added: string };
+export type SecurityKeyInfo = { id: string; added: string; name?: string };
 
 type Status = { keys: Array<SecurityKeyInfo & { credential: string }>; salt: string };
 
@@ -25,7 +25,7 @@ const secret = (): Promise<string | null> =>
 
 const status = (login: Login) => post<Status>('/api/security-key', { op: 'status', login });
 
-const brief = (keys: SecurityKeyInfo[]): SecurityKeyInfo[] => keys.map(({ id, added }) => ({ id, added }));
+const brief = (keys: SecurityKeyInfo[]): SecurityKeyInfo[] => keys.map(({ id, added, name }) => ({ id, added, ...(name ? { name } : {}) }));
 
 /** Whether this Windows can use a security key — false outside the shell, and when asking fails. */
 export async function securityKeyAvailable(): Promise<boolean> {
@@ -101,6 +101,12 @@ export async function addSecurityKey(sessionId: string, login: Login): Promise<
   if (!s) return { result: 'failed' };
   const r = await post<{ keys: SecurityKeyInfo[] }>('/api/security-key', { op: 'seal', sessionId, credential: made.credential, key: made.key, secret: s });
   return { result: 'added', keys: brief(r.keys) };
+}
+
+/** Gives a key its name, '' taking it away; answers the keys. */
+export async function nameSecurityKey(login: Login, id: string, name: string): Promise<SecurityKeyInfo[]> {
+  const r = await post<{ keys: SecurityKeyInfo[] }>('/api/security-key', { op: 'rename', login, id, name });
+  return brief(r.keys);
 }
 
 /** One key goes; answers the keys left. */

@@ -39,7 +39,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
 import { isRecord } from './guards.ts';
-import { sanitizeNoticed, sanitizeReminders } from './contract-watch.ts';
+import { sanitizeContractNames, sanitizeNoticed, sanitizeReminders } from './contract-watch.ts';
 import { sanitizeManual, sanitizeManualDays } from './manual-contracts.ts';
 import { sanitizeKeptBalances, sanitizeNetWorth } from './kept-balances.ts';
 import type { TransferTemplate, VaultData, VaultGetResponse, VaultPutResponse } from './app-types.ts';
@@ -261,6 +261,7 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     dismissedRecurring: dismissed.slice(-VAULT_LIMITS.dismissed),
     // A real date, a lead on offer, a name each (lib/contract-watch.ts).
     ...(sanitizeReminders(input.contractReminders) ? { contractReminders: sanitizeReminders(input.contractReminders) } : {}),
+    ...(sanitizeContractNames(input.contractNames) ? { contractNames: sanitizeContractNames(input.contractNames) } : {}),
     ...(sanitizeManual(input.manualContracts) ? { manualContracts: sanitizeManual(input.manualContracts) } : {}),
     ...(sanitizeManualDays(input.manualDays) ? { manualDays: sanitizeManualDays(input.manualDays) } : {}),
     ...(sanitizeNoticed(input.noticedContracts) ? { noticedContracts: sanitizeNoticed(input.noticedContracts) } : {}),
@@ -579,6 +580,9 @@ export function mergeVaults(current: VaultData, backup: VaultData): VaultData {
     dismissedRecurring: [...new Set([...current.dismissedRecurring, ...backup.dismissedRecurring])],
     ...(current.contractReminders || backup.contractReminders
       ? { contractReminders: { ...backup.contractReminders, ...current.contractReminders } }
+      : {}),
+    ...(current.contractNames || backup.contractNames
+      ? { contractNames: { ...backup.contractNames, ...current.contractNames } }
       : {}),
     ...(current.manualContracts || backup.manualContracts
       ? { manualContracts: { ...backup.manualContracts, ...current.manualContracts } }

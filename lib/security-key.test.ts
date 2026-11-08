@@ -122,6 +122,28 @@ test('a damaged file is not listed, and refuses to open', async () => {
   assert.equal(files().length, 0);
 });
 
+test('a key keeps its name, and what it opens stays as it was', async () => {
+  await clean();
+  await store.sealPin(login, credA, answerA, secret);
+  const id = store.keyIdOf(credA);
+  await store.renameKey(login, id, 'Schluesselbund');
+  assert.equal(store.listKeys(login)[0].name, 'Schluesselbund');
+  assert.deepEqual(await store.openPin(login, credA, answerA, secret), { pin: '12345' });
+  await store.renameKey(login, id, '');
+  assert.equal(store.listKeys(login)[0].name, undefined);
+  await store.renameKey(login, 'ffffffffffffffff', 'nobody');
+  assert.equal(store.listKeys(login).length, 1);
+});
+
+test('a key name is on one line and not too long', () => {
+  assert.equal(store.parseKeyName('  Blau  '), 'Blau');
+  assert.equal(store.parseKeyName(''), '');
+  assert.equal(store.parseKeyName('a\nb'), null);
+  assert.equal(store.parseKeyName(5), null);
+  assert.equal(store.parseKeyName('x'.repeat(50))?.length, store.KEY_NAME_MAX);
+  assert.equal(store.parseKeyName('x'.repeat(500)), null);
+});
+
 test('what is not a PIN is not kept', async () => {
   await clean();
   await assert.rejects(store.sealPin({ ...login, pin: '' }, credA, answerA, secret));

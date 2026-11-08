@@ -58,6 +58,22 @@ export function sanitizeReminders(raw: unknown): Record<string, ContractReminder
   return Object.keys(out).length ? out : undefined;
 }
 
+/** How long a contract's own name can be. */
+export const CONTRACT_NAME_MAX = NAME_MAX;
+
+/** The contracts' own names as they may be kept: on one line, not empty, at most REMINDERS_MAX. */
+export function sanitizeContractNames(raw: unknown): Record<string, string> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [key, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (Object.keys(out).length >= REMINDERS_MAX) break;
+    if (!key || key.length > KEY_MAX || typeof v !== 'string') continue;
+    const name = v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, NAME_MAX);
+    if (name) out[key] = name;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 /** The keys of the notices already shown: strings, the newest NOTICED_MAX. */
 export function sanitizeNoticed(raw: unknown): string[] | undefined {
   if (!Array.isArray(raw)) return undefined;

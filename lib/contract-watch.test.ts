@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { seriesTitle } from './recurring.ts';
 import {
+  sanitizeContractNames,
   contractNotices, dayNum, reminderDaysLeft, reminderDue, sanitizeNoticed, sanitizeReminders, unseenNotices, withNoticed,
 } from './contract-watch.ts';
 import type { RecurringSeries } from './recurring.ts';
@@ -74,4 +76,16 @@ test('the vault keeps only well-formed reminders and keys', () => {
   assert.equal(sanitizeReminders({}), undefined);
   assert.deepEqual(sanitizeNoticed(['a', 'a', 7, '', 'b']), ['a', 'b']);
   assert.equal(sanitizeNoticed('a'), undefined);
+});
+
+test('sanitizeContractNames: one line, not empty, only strings', () => {
+  assert.deepEqual(sanitizeContractNames({ a: '  SWM\nStrom ', b: '   ', c: 5 }), { a: 'SWM Strom' });
+  assert.equal(sanitizeContractNames({ b: '' }), undefined);
+  assert.equal(sanitizeContractNames(['a']), undefined);
+  assert.equal(sanitizeContractNames(undefined), undefined);
+});
+
+test('seriesTitle: the name given as typed, else the bank\'s tidied', () => {
+  assert.equal(seriesTitle({ name: 'DB VERTRIEB GMBH' }), 'DB Vertrieb GmbH');
+  assert.equal(seriesTitle({ name: 'DB VERTRIEB GMBH', customName: 'BAHNCARD' }), 'BAHNCARD');
 });

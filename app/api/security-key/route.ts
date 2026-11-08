@@ -6,6 +6,7 @@
 //   status {login}                                → { keys, salt }  the login's keys and its salt; needs no key
 //   seal   {sessionId, credential, key, secret}   → { keys }        keeps this session's PIN — only once the bank took it
 //   open   {login, credential, key, secret}       → { pin } | { on: false, dropped? }
+//   rename {login, id, name}                      → { keys }        a key's name, '' for none
 //   forget {login, id?}                           → { keys }        one key, or all of them
 // `key` comes from the shell after the gesture (src-tauri/src/security_key.rs),
 // `secret` from src-tauri/src/secret.rs; both are mixed into the key and kept
@@ -19,7 +20,7 @@ import { boundedBody, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { msgs } from '@/lib/i18n';
 import { linkedUnlockServed, loginOfSession, parseSecret } from '@/lib/linked-unlock';
 import {
-  listKeys, openPin, parseCredential, parseKeyId, removeKey, removeSecurityKeys, saltOf, sealPin,
+  listKeys, openPin, parseCredential, parseKeyId, parseKeyName, removeKey, removeSecurityKeys, renameKey, saltOf, sealPin,
 } from '@/lib/security-key';
 import { getSession } from '@/lib/session';
 import { parseHelloKey, readLoginName } from '@/lib/windows-hello';
@@ -28,11 +29,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type SecurityKeyBody = {
-  op?: 'status' | 'seal' | 'open' | 'forget';
+  op?: 'status' | 'seal' | 'open' | 'forget' | 'rename';
   sessionId?: string;
   login?: unknown;
   credential?: unknown;
   id?: unknown;
+  name?: unknown;
   key?: string;
   secret?: string;
 };
@@ -74,6 +76,13 @@ export const POST = wrap(async (req: Request) => {
       if (!opened) return json({ on: false });
       if ('dropped' in opened) return json({ on: false, dropped: true });
       return json({ pin: opened.pin });
+    }
+    case 'rename': {
+      const id = parseKeyId(b.id);
+      const name = parseKeyName(b.name);
+      if (!id || name === null) return fail(said.unknownAction);
+      await renameKey(login, id, name);
+      return json({ keys: listKeys(login) });
     }
     case 'forget': {
       if (b.id === undefined) {

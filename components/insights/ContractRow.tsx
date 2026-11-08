@@ -8,19 +8,20 @@
 import { useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useFints } from '../FintsProvider';
-import { BellIcon, CategoryIcon, ChevronIcon, ClockIcon, EyeOffIcon, MoreIcon, ReceiptIcon, UndoIcon } from '../icons';
+import { BellIcon, CategoryIcon, ChevronIcon, ClockIcon, EyeOffIcon, MoreIcon, PencilIcon, ReceiptIcon, UndoIcon } from '../icons';
 import { Money } from '../Money';
 import { Button, IconButton, Menu, MenuItem, Tag, cx } from '../ui';
 import { categoryLabel } from '@/lib/categories';
 import { reminderDaysLeft } from '@/lib/contract-watch';
-import { dayKey, displayName, fmtIban, fmtMonth } from '@/lib/format';
+import { dayKey, fmtIban, fmtMonth } from '@/lib/format';
 import { msgs } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
-import type { RecurringSeries } from '@/lib/recurring';
+import { seriesTitle, type RecurringSeries } from '@/lib/recurring';
 import {
   CounterpartyAvatar, RoundMoney, daysUntil, fmtDayKey, fmtDayKeyShort, focusAfterRemoval, relativeDays, useShowInList,
 } from './shared';
 import { ReminderDialog } from './ReminderDialog';
+import { RenameContract } from './RenameContract';
 
 /** The column template shared by the header and every row from `md` up. */
 export const CONTRACT_COLUMNS = 'md:grid md:grid-cols-[minmax(0,1fr)_12rem_8.5rem_7.5rem] md:items-center md:gap-4';
@@ -41,7 +42,7 @@ export function ContractListHeader({ next }: { next?: string }) {
   );
 }
 
-const name = (s: RecurringSeries) => displayName(s.name) || msgs().insights.noName;
+const name = (s: RecurringSeries) => seriesTitle(s) || msgs().insights.noName;
 
 /** Where a series stands: its next expected booking, or why there is none. */
 function DueText({ s, compact }: { s: RecurringSeries; compact?: boolean }) {
@@ -101,6 +102,7 @@ export function ContractRow({
   const showInList = useShowInList();
   const [open, setOpen] = useState(false);
   const [reminding, setReminding] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const rowRef = useRef<HTMLLIElement>(null);
   const detailId = useId();
   const n = name(s);
@@ -223,6 +225,7 @@ export function ContractRow({
             )}
           >
             <MenuItem icon={<ReceiptIcon size={18} />} onSelect={show}>{t.insights.bookings.show}</MenuItem>
+            <MenuItem icon={<PencilIcon size={18} />} onSelect={() => setRenaming(true)}>{words.rename.action}</MenuItem>
             {!credit && (
               <MenuItem icon={<BellIcon size={18} />} onSelect={() => setReminding(true)}>
                 {reminder ? words.reminder.change : words.reminder.set}
@@ -298,7 +301,8 @@ export function ContractRow({
             </ol>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button size="sm" variant="secondary" onClick={show}>{t.insights.bookings.show}</Button>
-              {/* Phones have no menu: the reminder is offered here. */}
+              {/* Phones have no menu: renaming and the reminder are offered here. */}
+              <Button size="sm" variant="secondary" className="md:hidden" onClick={() => setRenaming(true)}>{words.rename.action}</Button>
               {!credit && (
                 <Button size="sm" variant="secondary" className="md:hidden" onClick={() => setReminding(true)}>
                   {reminder ? words.reminder.change : words.reminder.set}
@@ -310,6 +314,7 @@ export function ContractRow({
         )}
       </div>
       {reminding && <ReminderDialog seriesId={s.id} name={n} onClose={() => setReminding(false)} />}
+      {renaming && <RenameContract s={s} onClose={() => setRenaming(false)} />}
     </li>
   );
 }

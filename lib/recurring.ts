@@ -59,7 +59,7 @@ import { facilitatorShop } from './analytics.ts';
 import { categoryDef, categoryLabel, counterpartyName, intermediaryName, txCreditorId as creditorIdOf } from './categories.ts';
 import { bookingKind, foldText, guessCategory, isOwnAccount } from './categorize.ts';
 import {
-  addBusinessDays, addDaysKey, dayFromNumber, dayKey, dayNumber, isTargetBusinessDay, nextTargetBusinessDay, prettyBookingText,
+  addBusinessDays, addDaysKey, dayFromNumber, dayKey, dayNumber, displayName, isTargetBusinessDay, nextTargetBusinessDay, prettyBookingText,
 } from './format.ts';
 import { msgs } from './i18n/index.ts';
 import { parsePurpose } from './sepa-purpose.ts';
@@ -104,6 +104,8 @@ export type RecurringSeries = {
    * when it is read, so it follows the language.
    */
   name: string;
+  /** The name the user gave it (vault contractNames), shown as typed in place of `name`; `name` stays what bookings are found by. */
+  customName?: string;
   iban: string | null;
   creditorId: string | null;
   mandateReference: string | null;
@@ -411,6 +413,11 @@ function projectNext(occ: readonly Occurrence[], cadence: CadenceDef, income: bo
     next = roll(monthDay(y, base + step, anchor));
   }
   return next;
+}
+
+/** What a series is called on screen: the user's name for it, else the bank's, tidied. */
+export function seriesTitle(s: Pick<RecurringSeries, 'name' | 'customName'>): string {
+  return s.customName ?? displayName(s.name);
 }
 
 // ---------------------------------------------------------------------------

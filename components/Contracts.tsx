@@ -19,10 +19,10 @@ import { Alert, Button, Disclosure, DotList, EmptyState, ErrorState, IconButton,
 import { BackIcon, ChevronIcon, Icon, PlusIcon } from './icons';
 import { AddContractDialog } from './insights/AddContract';
 import { namesList } from '@/lib/balances';
-import { fmtRange, displayName, presetRange } from '@/lib/format';
+import { fmtRange, presetRange } from '@/lib/format';
 import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
-import type { Cadence, RecurringSeries } from '@/lib/recurring';
+import { seriesTitle, type Cadence, type RecurringSeries } from '@/lib/recurring';
 import { ContractGroup, ContractRow, DismissedRow } from './insights/ContractRow';
 import { ForecastTile } from './insights/Forecast';
 import { PayActions, PaymentsHead } from './transfer/PaymentsHead';
@@ -55,7 +55,7 @@ function useDismiss() {
     if (s.manual) {
       const kept = manual?.[s.id];
       setManualContract(s.id, null);
-      toast(t.insights.contracts.manual.removed(displayName(s.name)), 'info', 6500, kept ? {
+      toast(t.insights.contracts.manual.removed(seriesTitle(s)), 'info', 6500, kept ? {
         label: t.insights.contracts.undo,
         run: () => {
           setManualContract(s.id, kept);
@@ -65,7 +65,7 @@ function useDismiss() {
       return;
     }
     dismissRecurring(s.id);
-    toast(t.insights.contracts.dismissed(displayName(s.name)), 'info', 6500, {
+    toast(t.insights.contracts.dismissed(seriesTitle(s)), 'info', 6500, {
       label: t.insights.contracts.undo,
       run: () => {
         restoreRecurring(s.id);

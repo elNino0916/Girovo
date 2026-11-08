@@ -820,7 +820,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [linkedUnlockAsk, setLinkedUnlockAsk] = useState(opts.linkedUnlock === 'ask');
   // The desktop's Windows Hello: a switch, nothing kept.
   const [windowsHello, setWindowsHelloState] = useState<boolean | null>(opts.windowsHello ?? null);
-  const [securityKeys, setSecurityKeysState] = useState<Array<{ id: string; added: string }> | null>(
+  const [securityKeys, setSecurityKeysState] = useState<Array<{ id: string; added: string; name?: string }> | null>(
     opts.securityKeys === undefined ? null : Array.from({ length: opts.securityKeys }, (_, i) => ({ id: `key${i}`, added: '2026-11-08T10:00:00.000Z' })),
   );
   // "Neue Umsätze melden": a switch and its dialog, nothing kept, nothing checked.
@@ -2798,6 +2798,17 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   }, [updateVault]);
 
   // As the provider's (components/FintsProvider.tsx).
+  const setContractName = useCallback((id: string, name: string | null) => {
+    updateVault((v) => {
+      const next = { ...v.contractNames };
+      if (name) next[id] = name;
+      else delete next[id];
+      const { contractNames: _, ...rest } = v;
+      return Object.keys(next).length ? { ...rest, contractNames: next } : rest;
+    });
+  }, [updateVault]);
+
+  // As the provider's (components/FintsProvider.tsx).
   const setContractReminder = useCallback((id: string, reminder: ContractReminder | null) => {
     updateVault((v) => {
       const next = { ...v.contractReminders };
@@ -3039,7 +3050,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
     accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
-    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setManualContract, setManualDay, markContractsNoticed,
+    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setContractName, setManualContract, setManualDay, markContractsNoticed,
     printTaxYear, loadRange,
     makeBackup, restoreBackup, inspectBankFile, importBankFile,
     categoryOf, setCategory, setSplit,
@@ -3075,6 +3086,9 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     addSecurityKey: async () => {
       setSecurityKeysState((k) => [...(k ?? []), { id: `key${Date.now()}`, added: new Date().toISOString() }]);
       toast(msgs().settings.securityKeys.nowOn, 'success');
+    },
+    renameSecurityKey: async (id: string, name: string) => {
+      setSecurityKeysState((k) => (k ?? []).map((x) => (x.id === id ? { ...x, ...(name ? { name } : { name: undefined }) } : x)));
     },
     removeSecurityKey: async (id: string) => {
       setSecurityKeysState((k) => (k ?? []).filter((x) => x.id !== id));

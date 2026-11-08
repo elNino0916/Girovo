@@ -5,12 +5,12 @@
 // login's PIN; a second one is a spare, and losing one only means typing the
 // PIN again. Windows' own dialog asks for the touch and the key's PIN.
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fmtDate } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
-import { ShieldIcon, TrashIcon } from '../icons';
-import { Button, Dialog, IconButton } from '../ui';
+import { PencilIcon, ShieldIcon, TrashIcon } from '../icons';
+import { Button, Dialog, IconButton, Input, useFocusWhenDrawn } from '../ui';
 import { ActionItem } from './rows';
 
 /** How many keys one login can have (lib/security-key.ts KEYS_MAX). */
@@ -38,11 +38,36 @@ export function SecurityKeysRow() {
 
 function SecurityKeysDialog({ onClose }: { onClose: () => void }) {
   const t = useT();
-  const { securityKeys, addSecurityKey, removeSecurityKey } = useFints();
+  const { securityKeys, addSecurityKey, renameSecurityKey, removeSecurityKey } = useFints();
   const [working, setWorking] = useState(false);
   const [asking, setAsking] = useState<string | null>(null);
+  const [naming, setNaming] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const nameField = useRef<HTMLInputElement>(null);
+  useFocusWhenDrawn(nameField, naming);
   const words = t.settings.securityKeys;
   const keys = securityKeys ?? [];
+
+  const startNaming = (id: string, current: string) => {
+    setAsking(null);
+    setDraft(current);
+    setNaming(id);
+  };
+  const saveName = (id: string) => {
+    setNaming(null);
+    void run(() => renameSecurityKey(id, draft.trim()));
+  };
+
+  // A key just added gets its name right away, while it is still in hand.
+  const count = useRef(keys.length);
+  useEffect(() => {
+    const newest = keys[keys.length - 1];
+    if (keys.length > count.current && newest) startNaming(newest.id, '');
+    count.current = keys.length;
+    // Only when the number of keys changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keys.length]);
+
   const run = async (task: () => Promise<void>) => {
     setWorking(true);
     try {
@@ -69,10 +94,44 @@ function SecurityKeysDialog({ onClose }: { onClose: () => void }) {
     >
       {keys.length > 0 ? (
         <ul>
-          {keys.map((key, i) => (
+          {keys.map((key, i) => {
+            const label = key.name || words.keyName(i + 1);
+            if (naming === key.id) {
+              return (
+                <li key={key.id} className="flex items-center gap-2 border-b border-line py-2 last:border-b-0">
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      aria-label={words.nameLabel}
+                      ref={nameField}
+                      value={draft}
+                      maxLength={40}
+                      placeholder={words.namePlaceholder}
+                      autoComplete="off"
+                      spellCheck={false}
+                      enterKeyHint="done"
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          saveName(key.id);
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setNaming(null);
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button variant="tertiary" size="xs" onClick={() => setNaming(null)}>{t.common.cancel}</Button>
+                  <Button variant="tertiary" size="xs" onClick={() => saveName(key.id)}>{t.common.save}</Button>
+                </li>
+              );
+            }
+            return (
             <li key={key.id} className="flex items-center gap-3 border-b border-line py-2 last:border-b-0">
               <div className="min-w-0 flex-1">
-                <p className="text-[15px] leading-snug font-medium text-ink">{words.keyName(i + 1)}</p>
+                <p className="truncate text-[15px] leading-snug font-medium text-ink">{label}</p>
                 <p className="text-[13px] leading-snug text-ink-2">{words.added(fmtDate(key.added))}</p>
               </div>
               {/* Two steps: it deletes the PIN kept for this key, and it's the first thing in the dialog to take focus. */}
@@ -92,12 +151,18 @@ function SecurityKeysDialog({ onClose }: { onClose: () => void }) {
                   </Button>
                 </div>
               ) : (
-                <IconButton aria-label={words.remove(i + 1)} disabled={working} onClick={() => setAsking(key.id)}>
-                  <TrashIcon size={16} />
-                </IconButton>
+                <div className="flex shrink-0 items-center">
+                  <IconButton aria-label={words.rename(label)} disabled={working} onClick={() => startNaming(key.id, key.name ?? '')}>
+                    <PencilIcon size={16} />
+                  </IconButton>
+                  <IconButton aria-label={words.remove(label)} disabled={working} onClick={() => setAsking(key.id)}>
+                    <TrashIcon size={16} />
+                  </IconButton>
+                </div>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       ) : (
         <p className="text-[14px] leading-relaxed text-ink-2">{words.none}</p>

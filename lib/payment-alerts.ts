@@ -23,7 +23,7 @@
 
 import type { SerializedTransaction } from './fints-types';
 import { bookingKind } from './categorize.ts';
-import { seriesBase, seriesIdentity, type RecurringSeries } from './recurring.ts';
+import { seriesBase, seriesIdentity, seriesTitle, type RecurringSeries } from './recurring.ts';
 import { AFTER_DAYS, REMINDER_LEADS, REMINDERS_MAX, dayNum } from './contract-watch.ts';
 
 /** What the notices are about. Each booking is told once, by the most specific one that fits. */
@@ -183,7 +183,7 @@ export function watchOf(
     const cents = Math.round(Math.abs(s.amount) * 100);
     if (!(cents > 0) || cents > CENTS_MAX) continue;
     const shop = s.transactions[0] ? seriesIdentity(s.transactions[0]).shop : null;
-    contracts.push({ key, ...(shop ? { shop } : {}), name: cleanText(s.name, NAME_MAX), cents, at: today });
+    contracts.push({ key, ...(shop ? { shop } : {}), name: cleanText(seriesTitle(s), NAME_MAX), cents, at: today });
   }
   const liveKeys = new Set(live.map((s) => seriesBase(s.key)));
   const drop = [...new Set(gone.map((s) => seriesBase(s.key)))].filter((k) => !liveKeys.has(k) && cleanKey(k));

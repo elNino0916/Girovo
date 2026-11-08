@@ -230,7 +230,7 @@ function ForecastChart({ f, currency }: { f: Forecast; currency: string }) {
             {due.map((e, i) => (
               <li key={`${e.date}-${i}`} className="grid min-h-10 grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 text-[14px] leading-5">
                 <span className="tnum text-ink-2">{fmtDayKeyShort(e.date)}</span>
-                <span className="min-w-0 truncate font-medium text-ink">{displayName(e.name) || words.pendingName}</span>
+                <span className="min-w-0 truncate font-medium text-ink">{(e.kind === 'series' ? e.name : displayName(e.name)) || words.pendingName}</span>
                 <span className="text-right font-medium">
                   {e.approximate && <span className="mr-1 font-normal text-ink-2">{words.approx}</span>}
                   <Money value={e.amount} currency={currency} signed tone="credit" />

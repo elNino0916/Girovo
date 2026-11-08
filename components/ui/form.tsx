@@ -12,7 +12,7 @@
 
 import {
   Children, type ComponentProps, createContext, type CSSProperties, Fragment, isValidElement, type ReactNode,
-  type Ref, type RefCallback, type RefObject, useCallback, useContext, useId, useMemo,
+  type Ref, type RefCallback, type RefObject, useCallback, useContext, useEffect, useId, useMemo,
 } from 'react';
 import { M3eCheckbox } from '@m3e/react/checkbox';
 import { M3eFormField } from '@m3e/react/form-field';
@@ -168,6 +168,25 @@ function InFormField({
  * alone: invalid while an error stands, else valid. Girovo's forms are
  * noValidate; nothing else asks the browser.
  */
+/**
+ * The cursor in a field as soon as its frame has drawn it: until the M3E form
+ * field's first render the input has no box and focus() does nothing. Asked
+ * again whenever `when` changes; does nothing while the field isn't there.
+ */
+export function useFocusWhenDrawn(ref: RefObject<HTMLInputElement | null>, when?: unknown) {
+  useEffect(() => {
+    const frame = ref.current?.closest<HTMLElement & { updateComplete?: Promise<unknown> }>('m3e-form-field');
+    if (!frame) return;
+    let live = true;
+    void Promise.resolve(frame.updateComplete).then(() => requestAnimationFrame(() => {
+      if (live) ref.current?.focus({ preventScroll: true });
+    }));
+    return () => {
+      live = false;
+    };
+  }, [ref, when]);
+}
+
 function useOwnVerdict<T extends HTMLInputElement | HTMLTextAreaElement>(ref: Ref<T> | undefined): RefCallback<T> {
   return useCallback((el: T | null) => {
     if (el) el.checkValidity = () => !el.validity.customError;

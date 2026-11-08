@@ -21,7 +21,7 @@
 export { cx } from './shared';
 export { Button, CopyButton, IconButton, Spinner } from './button';
 export type { ButtonProps, ButtonSize, ButtonVariant, IconButtonProps } from './button';
-export { Checkbox, Field, Input, Progress, Select, Switch, Textarea } from './form';
+export { Checkbox, Field, Input, Progress, Select, Switch, Textarea, useFocusWhenDrawn } from './form';
 export type { CheckboxChange, InputProps, SelectChange, SelectProps, TextareaProps } from './form';
 export { Alert } from './alert';
 export type { AlertTone } from './alert';

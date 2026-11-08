@@ -42,7 +42,7 @@ import {
 import { IS_ANDROID } from '@/lib/platform';
 import { forgetHello, helloAvailable, helloOn, helloStoreBroken, sealWithHello } from '@/lib/windows-hello-client';
 import {
-  addSecurityKey as sealWithSecurityKey, forgetSecurityKeys, removeSecurityKey as dropSecurityKey, securityKeyAvailable, securityKeysOf,
+  addSecurityKey as sealWithSecurityKey, forgetSecurityKeys, nameSecurityKey, removeSecurityKey as dropSecurityKey, securityKeyAvailable, securityKeysOf,
   type SecurityKeyInfo,
 } from '@/lib/security-key-client';
 import { withNoticed, type ContractNotice, type ContractReminder } from '@/lib/contract-watch';
@@ -3005,6 +3005,19 @@ function useFintsState() {
     }
   }, [isCurrent, setSecurityKeysBoth, toast]);
 
+  /** A key's name, '' taking it away. */
+  const renameSecurityKey = useCallback(async (id: string, name: string) => {
+    const sid = sessionRef.current;
+    const login = helloLoginRef.current;
+    if (!sid || !login) return;
+    try {
+      const keys = await nameSecurityKey({ blz: login.blz, userId: login.userId }, id, name);
+      if (isCurrent(sid)) setSecurityKeysBoth(keys);
+    } catch (err) {
+      toast((err as Error).message || msgs().settings.securityKeys.failed, 'error');
+    }
+  }, [isCurrent, setSecurityKeysBoth, toast]);
+
   /** One key goes, with the PIN kept under it. */
   const removeSecurityKey = useCallback(async (id: string) => {
     const sid = sessionRef.current;
@@ -5361,6 +5374,17 @@ function useFintsState() {
     });
   }, [updateVault]);
 
+  /** A contract's own name in place of the bank's, or `null` to go back to the bank's. */
+  const setContractName = useCallback((id: string, name: string | null) => {
+    updateVault((v) => {
+      const next = { ...v.contractNames };
+      if (name) next[id] = name;
+      else delete next[id];
+      const { contractNames: _, ...rest } = v;
+      return Object.keys(next).length ? { ...rest, contractNames: next } : rest;
+    });
+  }, [updateVault]);
+
   /** A contract the user added from a booking (lib/manual-contracts.ts), or removed with null. */
   const setManualContract = useCallback((id: string, contract: ManualContract | null) => {
     updateVault((v) => {
@@ -5822,7 +5846,7 @@ function useFintsState() {
     updateVault, resetVault, wipeVault, accountLabel, renameAccount, arrangeAccounts, setKeepBalances,
     accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
-    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setManualContract, setManualDay, markContractsNoticed,
+    saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setContractName, setManualContract, setManualDay, markContractsNoticed,
     categoryOf, setCategory, setSplit,
     removeCategoryRule,
     addCustomCategory, renameCustomCategory, deleteCustomCategory,
@@ -5839,7 +5863,7 @@ function useFintsState() {
     forgetLinkedPin,
     // Windows Hello in place of the first login's PIN on the desktop (lib/windows-hello.ts)
     windowsHello, setWindowsHello,
-    securityKeys, addSecurityKey, removeSecurityKey,
+    securityKeys, addSecurityKey, renameSecurityKey, removeSecurityKey,
     // "Neue Umsätze melden" (lib/background-check.ts)
     backgroundChecks, backgroundAsk, setBackgroundChecks, openBackgroundAsk, closeBackgroundAsk,
     backgroundAlerts, sendAlertWatch, askCategory,

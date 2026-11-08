@@ -8,12 +8,12 @@
 import { useMemo } from 'react';
 import { useFints } from '../FintsProvider';
 import { contractNotices, unseenNotices, type ContractNotice } from '@/lib/contract-watch';
-import { dayKey, displayName } from '@/lib/format';
+import { dayKey } from '@/lib/format';
 import { msgs } from '@/lib/i18n';
-import type { RecurringSeries } from '@/lib/recurring';
+import { seriesTitle, type RecurringSeries } from '@/lib/recurring';
 import { useRecurringModel } from './recurring-model';
 
-const nameOf = (s: RecurringSeries) => displayName(s.name) || msgs().insights.noName;
+const nameOf = (s: RecurringSeries) => seriesTitle(s) || msgs().insights.noName;
 
 export function useContractNotices(): { notices: ContractNotice[]; unseen: ContractNotice[] } {
   const model = useRecurringModel();

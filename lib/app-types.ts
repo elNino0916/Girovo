@@ -205,6 +205,8 @@ export type VaultData = {
   dismissedRecurring: string[];
   /** recurring-series id → its cancellation reminder (lib/contract-watch.ts). Older vaults have none. */
   contractReminders?: Record<string, ContractReminder>;
+  /** recurring-series id → the name the user gave it, in place of the bank's. Older vaults have none. */
+  contractNames?: Record<string, string>;
   /** Contracts the user added from a booking, by series id (lib/manual-contracts.ts). Older vaults have none. */
   manualContracts?: Record<string, ManualContract>;
   /** The newest booking a device saw of each added contract (lib/manual-contracts.ts withDays), apart from the contract. */

@@ -12,7 +12,7 @@
 //
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
-import type { RecurringSeries } from './recurring';
+import { seriesTitle, type RecurringSeries } from './recurring.ts';
 import type { SerializedBankOrder, SerializedTransaction } from './fints-types';
 import { bookingDay } from './analytics.ts';
 import { addDaysKey, compactIban, dayKey } from './format.ts';
@@ -158,7 +158,7 @@ export function forecast(opts: {
   for (const s of opts.series) {
     if (s.currency !== opts.currency || sameAsOrder(s, opts.orders)) continue;
     for (const date of seriesDates(s, today, until)) {
-      events.push({ date, amount: s.amount, kind: 'series', name: s.name, approximate: s.variable });
+      events.push({ date, amount: s.amount, kind: 'series', name: seriesTitle(s), approximate: s.variable });
     }
   }
   for (const o of opts.orders) {

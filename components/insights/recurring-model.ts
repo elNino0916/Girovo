@@ -177,6 +177,7 @@ export function useRecurringModel(): RecurringModel {
   }, [loaded, ownIbans, categoryOf, modelGuesses, manual]);
 
   const dismissedIds = vault?.dismissedRecurring;
+  const contractNames = vault?.contractNames;
   const currency = activeAccount?.currency || 'EUR';
 
   return useMemo(() => {
@@ -185,7 +186,9 @@ export function useRecurringModel(): RecurringModel {
     const expense: RecurringSeries[] = [];
     const ended: RecurringSeries[] = [];
     const dismissed: RecurringSeries[] = [];
-    for (const s of detected) {
+    for (const found of detected) {
+      const own = contractNames?.[found.id];
+      const s = own ? { ...found, customName: own } : found;
       if (hidden.has(s.id)) dismissed.push(s);
       else if (s.ended) ended.push(s);
       else if (s.kind === 'income') income.push(s);
@@ -228,7 +231,7 @@ export function useRecurringModel(): RecurringModel {
       // with nothing loaded yet, "nothing found" would be a false statement.
       loading: vaultStatus === 'loading' || (!loaded.accts.length && !!loadingAccount),
     };
-  }, [detected, dismissedIds, currency, loaded, vaultStatus, loadingAccount, accounts, statementInfo, txByAccount, failures]);
+  }, [detected, dismissedIds, contractNames, currency, loaded, vaultStatus, loadingAccount, accounts, statementInfo, txByAccount, failures]);
 }
 
 /** The next expected bookings of the live series, soonest first — of one account, when given. */

@@ -38,6 +38,8 @@ export const KEYS_MAX = 5;
 const FILE_MAX_BYTES = 8 * 1024;
 const PIN_MAX = 64;
 const CREDENTIAL_MAX_CHARS = 1400;
+/** A name like "YubiKey am Schlüsselbund". */
+export const KEY_NAME_MAX = 40;
 const SUFFIX = '.skey';
 /** Kept apart from every other key (lib/windows-hello.ts, lib/linked-unlock.ts, lib/crypto-box.ts AADs). */
 const DOMAIN = 'girovo/security-key/v1';
@@ -45,7 +47,7 @@ const DOMAIN = 'girovo/security-key/v1';
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 
 /** One key of a login, as the settings and the login form know it. */
-export type SecurityKeyEntry = { id: string; credential: string; added: string };
+export type SecurityKeyEntry = { id: string; credential: string; added: string; name?: string };
 
 /** A credential id from a request: base64 of a sensible length, else null. */
 export function parseCredential(value: unknown): string | null {
@@ -56,6 +58,12 @@ export function parseCredential(value: unknown): string | null {
 /** A key id from a request: what keyIdOf makes. */
 export function parseKeyId(value: unknown): string | null {
   return typeof value === 'string' && /^[0-9a-f]{16}$/.test(value) ? value : null;
+}
+
+/** A name the user gives a key: on one line, trimmed; '' for none, null when it can't be one. */
+export function parseKeyName(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > KEY_NAME_MAX * 2 || CONTROLS.test(value)) return null;
+  return value.trim().slice(0, KEY_NAME_MAX);
 }
 
 /** The short name a credential goes by here: its file's, and the page's. */
@@ -94,7 +102,8 @@ function readEntry(file: string): (SecurityKeyEntry & { box: unknown }) | null {
     const kept = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
     const credential = parseCredential(kept.credential);
     if (kept.v !== 1 || !credential || typeof kept.added !== 'string') return null;
-    return { id: keyIdOf(credential), credential, added: kept.added, box: kept.box };
+    const name = typeof kept.name === 'string' && kept.name ? kept.name.slice(0, KEY_NAME_MAX) : undefined;
+    return { id: keyIdOf(credential), credential, added: kept.added, box: kept.box, ...(name ? { name } : {}) };
   } catch {
     return null;
   }
@@ -117,7 +126,7 @@ function entries(login: LoginName): Array<SecurityKeyEntry & { box: unknown }> {
 
 /** The login's keys, the oldest first — the settings' list, the login form's button. Needs no key. */
 export function listKeys(login: LoginName): SecurityKeyEntry[] {
-  return entries(login).map(({ id, credential, added }) => ({ id, credential, added }));
+  return entries(login).map(({ id, credential, added, name }) => ({ id, credential, added, ...(name ? { name } : {}) }));
 }
 
 async function removeStem(stem: string): Promise<void> {
@@ -168,6 +177,16 @@ export function openPin(
       await removeStem(path.basename(file));
       return { dropped: true as const };
     }
+  });
+}
+
+/** Gives a key its name, '' taking it away. What the key opens stays as it is. */
+export function renameKey(login: LoginName, id: string, name: string): Promise<void> {
+  return serialized(lane(login), async () => {
+    const file = fileOf(login, id);
+    if (!readEntry(file)) return;
+    const { name: _old, ...kept } = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+    await writeFileAtomic(file, JSON.stringify(name ? { ...kept, name } : kept));
   });
 }
 

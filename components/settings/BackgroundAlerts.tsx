@@ -18,6 +18,7 @@ import { dayKey, fmtAmountInput, parseAmount } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import type { Messages } from '@/lib/i18n';
 import { DEFAULT_PREFS, watchOf, type AlertPrefs, type AlertsView } from '@/lib/payment-alerts';
+import { seriesTitle } from '@/lib/recurring';
 import { useFints } from '../FintsProvider';
 import { AlertTriangleIcon, BellIcon, FilterIcon } from '../icons';
 import { useRecurringModel } from '../insights/recurring-model';
@@ -321,10 +322,15 @@ export function AlertWatch() {
   const sent = useRef('');
   const ready = !model.loading && !!model.basis;
   const kept = vault?.contractReminders;
+  // A reminder keeps the name it was set under; a contract renamed since goes by its name now.
+  const titles = useMemo(
+    () => new Map([...model.income, ...model.expense, ...model.ended, ...model.dismissed].map((s) => [s.id, seriesTitle(s)])),
+    [model.income, model.expense, model.ended, model.dismissed],
+  );
   // The vault's cancellation reminders, whole: an empty list clears what the check kept of them.
   const reminders = useMemo(
-    () => (vaultStatus === 'ready' ? Object.entries(kept ?? {}).map(([id, r]) => ({ id, by: r.by, lead: r.lead, name: r.name })) : null),
-    [vaultStatus, kept],
+    () => (vaultStatus === 'ready' ? Object.entries(kept ?? {}).map(([id, r]) => ({ id, by: r.by, lead: r.lead, name: titles.get(id) || r.name })) : null),
+    [vaultStatus, kept, titles],
   );
   const payload = useMemo(() => {
     const w = ready

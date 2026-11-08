@@ -40,8 +40,8 @@ export type SyncEntry = { t: number; v?: unknown; d?: 1; k?: 1 };
  */
 export const TOMBSTONE_MS = 3 * 365 * 86_400_000;
 
-type MapField = 'aliases' | 'categoryRules' | 'txCategories' | 'splits' | 'budgets' | 'notes' | 'keptBalances' | 'contractReminders' | 'manualContracts' | 'manualDays';
-const MAPS: readonly MapField[] = ['aliases', 'categoryRules', 'txCategories', 'splits', 'budgets', 'notes', 'keptBalances', 'contractReminders', 'manualContracts', 'manualDays'];
+type MapField = 'aliases' | 'categoryRules' | 'txCategories' | 'splits' | 'budgets' | 'notes' | 'keptBalances' | 'contractReminders' | 'contractNames' | 'manualContracts' | 'manualDays';
+const MAPS: readonly MapField[] = ['aliases', 'categoryRules', 'txCategories', 'splits', 'budgets', 'notes', 'keptBalances', 'contractReminders', 'contractNames', 'manualContracts', 'manualDays'];
 const SCALARS = ['avatar', 'avatarImage', 'accountGrouping', 'accountOrder'] as const;
 
 /** How each list's members are told apart. */
@@ -136,6 +136,7 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
   if (base.accountsHidden?.length) out.accountsHidden = base.accountsHidden;
   // A reminder set on one device reminds on all; what this one's Mitteilungen showed is its own.
   if (Object.keys(maps.contractReminders).length) out.contractReminders = maps.contractReminders as NonNullable<VaultData['contractReminders']>;
+  if (Object.keys(maps.contractNames).length) out.contractNames = maps.contractNames as NonNullable<VaultData['contractNames']>;
   if (Object.keys(maps.manualContracts).length) out.manualContracts = maps.manualContracts as NonNullable<VaultData['manualContracts']>;
   if (Object.keys(maps.manualDays).length) out.manualDays = maps.manualDays as NonNullable<VaultData['manualDays']>;
   if (base.noticedContracts?.length) out.noticedContracts = base.noticedContracts;

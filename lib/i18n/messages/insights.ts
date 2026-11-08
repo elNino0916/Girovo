@@ -267,6 +267,14 @@ export const de = {
     /** Under the amount: when it was last booked. */
     lastShort: (day: string) => `zuletzt ${day}`,
     actionsFor: (name: string) => `Aktionen für ${name}`,
+    /** A contract's own name (components/insights/RenameContract.tsx). */
+    rename: {
+      action: 'Umbenennen',
+      title: 'Umbenennen',
+      description: (name: string) => `Der Name in Girovo. Bei der Bank heißt es weiter ${name}.`,
+      label: 'Name',
+      reset: 'Name der Bank nehmen',
+    },
     dismiss: 'Ausblenden',
     dismissHint: 'Aus dieser Liste und den Summen nehmen',
     dismissed: (name: string) => `„${name}“ ausgeblendet.`,
@@ -772,6 +780,13 @@ export const en: typeof de = {
     before: (amount) => ['previously ', amount],
     lastShort: (day) => `last on ${day}`,
     actionsFor: (name) => `Actions for ${name}`,
+    rename: {
+      action: 'Rename',
+      title: 'Rename',
+      description: (name) => `The name in Girovo. Your bank still calls it ${name}.`,
+      label: 'Name',
+      reset: 'Use the bank’s name',
+    },
     dismiss: 'Hide',
     dismissHint: 'Take it out of this list and the totals',
     dismissed: (name) => `“${name}” hidden.`,
