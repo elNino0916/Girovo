@@ -1658,6 +1658,91 @@ mod signed {
     assert!(updater.dismiss_file().file.is_none());
   }
 
+  // ---- could not be asked is not unsigned ----
+
+  const CANNOT_CHECK: &str = "lässt sich gerade nicht prüfen";
+
+  fn message_of(s: UpdateState) -> String {
+    let offer = s.file.unwrap();
+    assert_eq!(offer.phase, FilePhase::Refused, "{offer:?}");
+    offer.message.unwrap()
+  }
+
+  /// girovo.de reachable and listing nothing; at GitHub 9.9.9's manifest is
+  /// `manifest_status`'s answer, its signature `sig_status`'s.
+  fn github_answering(manifest_status: u16, sig_status: u16) -> impl Fn(&Request, &mut Conn, &str) + Send + Sync + 'static {
+    move |req, conn, base| {
+      if req.path.starts_with("/updates/") {
+        conn.send(200, json!({ "format": "girovo-updates", "v": 1, "releases": [] }).to_string().as_bytes());
+      } else if req.path == format!("/9.9.9/{}", trust::MANIFEST_NAME) {
+        conn.send(manifest_status, manifest(base, "9.9.9").as_bytes());
+      } else if req.path == format!("/9.9.9/{}", trust::SIG_NAME) {
+        conn.send(sig_status, b"");
+      } else {
+        conn.send(404, b"");
+      }
+    }
+  }
+
+  #[tokio::test]
+  async fn with_nothing_reachable_a_signed_file_is_not_called_unsigned() {
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(OFFLINE, cache.path()), &host());
+    let said = message_of(updater.check_file(picked(&downloads, "9.9.9", &payload())).await);
+    assert!(said.contains(CANNOT_CHECK), "{said}");
+    assert!(!said.contains("keine Signatur"), "{said}");
+    // Servers that answer, but only with errors: the same. And a name that
+    // points nowhere, with only the listing to go by.
+    let srv = Server::start(|_req, conn, _base| conn.send(503, b""));
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    assert!(message_of(updater.check_file(picked(&downloads, "9.9.9", &payload())).await).contains(CANNOT_CHECK));
+    let renamed = downloads.path().join("Girovo-Setup (1).exe");
+    std::fs::write(&renamed, payload()).unwrap();
+    assert!(message_of(updater.check_file(renamed).await).contains(CANNOT_CHECK));
+  }
+
+  #[tokio::test]
+  async fn a_release_that_answers_it_has_no_manifest_is_unsigned() {
+    let srv = Server::start(site(Some(by_stable), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    let said = message_of(updater.check_file(picked(&downloads, "9.9.7", b"an old installer")).await);
+    assert!(said.contains("keine Signatur"), "{said}");
+  }
+
+  #[tokio::test]
+  async fn a_listing_that_answers_with_no_name_to_follow_is_unsigned() {
+    let srv = Server::start(github_answering(404, 404));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    let renamed = downloads.path().join("Girovo-Setup (1).exe");
+    std::fs::write(&renamed, payload()).unwrap();
+    assert!(message_of(updater.check_file(renamed).await).contains("keine Signatur"));
+  }
+
+  #[tokio::test]
+  async fn a_signature_that_could_not_be_loaded_is_not_a_bad_one() {
+    let srv = Server::start(github_answering(200, 503));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    let said = message_of(updater.check_file(picked(&downloads, "9.9.9", &payload())).await);
+    assert!(said.contains(CANNOT_CHECK), "{said}");
+    // One that is really not there still is one.
+    let srv = Server::start(github_answering(200, 404));
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    let said = message_of(updater.check_file(picked(&downloads, "9.9.9", &payload())).await);
+    assert!(said.contains("Signatur dieser Datei ist ungültig"), "{said}");
+  }
+
+  #[tokio::test]
+  async fn a_server_error_for_the_manifest_is_not_a_missing_manifest() {
+    let srv = Server::start(github_answering(500, 500));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    let said = message_of(updater.check_file(picked(&downloads, "9.9.9", &payload())).await);
+    assert!(said.contains(CANNOT_CHECK), "{said}");
+  }
+
   // ---- a .girovoupdate ----
 
   /// Nobody listens here: what works against it works with no connection.

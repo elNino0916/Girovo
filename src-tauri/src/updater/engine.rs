@@ -150,6 +150,17 @@ enum Refusal {
   BadSignature,
   /// Its release is signed, but this file is not that release's installer: it was changed.
   Changed,
+  /// Where its signature would be could not be asked: nothing is known about the file.
+  CannotCheck,
+}
+
+/// What asking for a small file of a release came to.
+enum Lookup {
+  Found(Vec<u8>),
+  /// The server answered: there is no such file.
+  Absent,
+  /// No answer to go by: the network, a server error, a file far too long.
+  Failed,
 }
 
 /// Where a file the user picked to install stands ("Update aus Datei installieren").
@@ -813,11 +824,22 @@ impl Updater {
 
   /// A small file of a release (its manifest, its signature), or None.
   async fn small_file(&self, asset: &Asset) -> Option<Vec<u8>> {
-    let res = self.get_retrying(&asset.url, |r| r.timeout(CHECK_TIMEOUT), None).await.ok()?;
-    if !res.status().is_success() {
-      return None;
+    match self.look_up(asset).await {
+      Lookup::Found(bytes) => Some(bytes),
+      Lookup::Absent | Lookup::Failed => None,
     }
-    read_bytes(res, trust::MAX_MANIFEST_BYTES, "").await.ok()
+  }
+
+  /// The same, telling "there is none" from "could not be asked".
+  async fn look_up(&self, asset: &Asset) -> Lookup {
+    let Ok(res) = self.get_retrying(&asset.url, |r| r.timeout(CHECK_TIMEOUT), None).await else { return Lookup::Failed };
+    if res.status() == reqwest::StatusCode::NOT_FOUND {
+      return Lookup::Absent;
+    }
+    if !res.status().is_success() {
+      return Lookup::Failed;
+    }
+    read_bytes(res, trust::MAX_MANIFEST_BYTES, "").await.map_or(Lookup::Failed, Lookup::Found)
   }
 
   /// `release` from GitHub as its signed manifest describes it, or None when
@@ -1505,6 +1527,7 @@ impl Updater {
           Refusal::NoSignature => say.file_unsigned,
           Refusal::BadSignature => say.file_bad_signature,
           Refusal::Changed => say.file_changed,
+          Refusal::CannotCheck => say.file_cannot_check,
         };
         return self.file_outcome(round, offer(FilePhase::Refused, Some(message)));
       }
@@ -1641,25 +1664,40 @@ impl Updater {
   /// bytes with `sha`: from girovo.de's listings, else the manifest of the
   /// release the file's name points to (Girovo-<version>-Setup.exe). Refused,
   /// it says why: no signature for it anywhere, a signature that is not
-  /// Girovo's, or a signed release of that name whose installer is not this file.
+  /// Girovo's, a signed release of that name whose installer is not this file,
+  /// or that the places to ask did not answer, which says nothing about the file.
   async fn find_signed(&self, name: &str, size: u64, sha: &str) -> Result<(Release, Asset), Refusal> {
     // (manifest, signature, whether it is the one the file's name points to)
     let mut candidates: Vec<(String, String, bool)> = Vec::new();
+    // Somewhere that could not be asked: "no signature" would be a guess.
+    let mut unasked = false;
     if let Some(base) = self.cfg.manifest_base.clone() {
       for channel in [Channel::Stable, Channel::Preview] {
-        for l in self.fetch_listing(&base, channel).await.unwrap_or_default() {
-          candidates.push((l.manifest, l.sig, false));
+        match self.fetch_listing(&base, channel).await {
+          Some(listing) => candidates.extend(listing.into_iter().map(|l| (l.manifest, l.sig, false))),
+          None => unasked = true,
         }
       }
     }
+    // The release of this name answered that it has no manifest. girovo.de
+    // only passes on what a release carries, so that settles it.
+    let mut none_by_name = false;
     let lower = name.to_ascii_lowercase();
     let version = lower.strip_prefix("girovo-").and_then(|v| v.strip_suffix("-setup.exe")).map(|_| &name[7..name.len() - 10]);
     if let (Some(version), Some(prefix)) = (version.filter(|v| trust::build_number(v).is_some()), self.cfg.origin.download_prefixes.first()) {
       let at = |file: &str| Asset { name: file.to_string(), url: format!("{prefix}{version}/{file}"), size: 0, sha256: None };
-      // A manifest without its signature counts as one with a bad signature.
-      if let Some(m) = self.small_file(&at(trust::MANIFEST_NAME)).await {
-        let s = self.small_file(&at(trust::SIG_NAME)).await.unwrap_or_default();
-        candidates.push((String::from_utf8_lossy(&m).into_owned(), String::from_utf8_lossy(&s).into_owned(), true));
+      match self.look_up(&at(trust::MANIFEST_NAME)).await {
+        Lookup::Found(m) => {
+          let m = String::from_utf8_lossy(&m).into_owned();
+          match self.look_up(&at(trust::SIG_NAME)).await {
+            Lookup::Found(s) => candidates.push((m, String::from_utf8_lossy(&s).into_owned(), true)),
+            // A manifest without its signature counts as one with a bad signature.
+            Lookup::Absent => candidates.push((m, String::new(), true)),
+            Lookup::Failed => unasked = true,
+          }
+        }
+        Lookup::Absent => none_by_name = true,
+        Lookup::Failed => unasked = true,
       }
     }
     let named = version.map(str::to_string);
@@ -1682,6 +1720,8 @@ impl Updater {
       Refusal::Changed
     } else if bad {
       Refusal::BadSignature
+    } else if unasked && !none_by_name {
+      Refusal::CannotCheck
     } else {
       Refusal::NoSignature
     })

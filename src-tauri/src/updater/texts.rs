@@ -30,6 +30,8 @@ pub struct Texts {
   pub file_bad_signature: &'static str,
   /// …a signed release of that name, but this file is not its installer.
   pub file_changed: &'static str,
+  /// …where its signature would be did not answer.
+  pub file_cannot_check: &'static str,
   pub file_unreadable: &'static str,
   /// "Als Datei speichern" did not come to a file.
   pub bundle_failed: &'static str,
@@ -94,6 +96,7 @@ const DE: Texts = Texts {
   file_unsigned: "Diese Datei hat keine Signatur von Girovo.",
   file_bad_signature: "Die Signatur dieser Datei ist ungültig.",
   file_changed: "Die Datei passt nicht zu ihrer Signatur – sie wurde verändert.",
+  file_cannot_check: "Die Signatur lässt sich gerade nicht prüfen. Versuche es später noch einmal.",
   file_unreadable: "Die Datei ließ sich nicht lesen.",
   bundle_failed: "Das Update ließ sich nicht als Datei speichern. Versuche es noch einmal.",
   file_not_here: "Das geht nur in der installierten Windows-App.",
@@ -121,6 +124,7 @@ const EN: Texts = Texts {
   file_unsigned: "This file has no signature from Girovo.",
   file_bad_signature: "This file’s signature is invalid.",
   file_changed: "The file doesn’t match its signature – it has been changed.",
+  file_cannot_check: "The signature can’t be checked right now. Please try again later.",
   file_unreadable: "The file couldn’t be read.",
   bundle_failed: "The update couldn’t be saved as a file. Please try again.",
   file_not_here: "This only works in the installed Windows app.",
