@@ -213,7 +213,11 @@ fn stopped(app: &AppHandle) {
 }
 
 /// window.electronBackground.set: the switch in Einstellungen (the page keeps or dropped the PINs already).
-#[tauri::command]
+/// Off the window's thread: the file and the registry can take their time
+/// (a virus scanner, a slow disk), and that thread is what keeps the app
+/// answering. The icon is the window thread's to make, so it is handed over
+/// and not waited for: the switch does not depend on the notification area.
+#[tauri::command(async)]
 pub fn background_set(app: AppHandle, on: bool) -> bool {
   // The page says "on" after every login: the plan stands while they were on already.
   let was_on = app.state::<Prefs>().get(ON_PREF).as_deref() == Some("1");
@@ -222,11 +226,14 @@ pub fn background_set(app: AppHandle, on: bool) -> bool {
   if on && !was_on {
     app.state::<Background>().due.store(now_ms() + SETTLE, Ordering::Relaxed);
   }
-  if on {
-    ensure_tray(&app);
-  } else {
-    drop_tray(&app);
-  }
+  let handle = app.clone();
+  let _ = app.run_on_main_thread(move || {
+    if on {
+      ensure_tray(&handle);
+    } else {
+      drop_tray(&handle);
+    }
+  });
   enabled(&app)
 }
 

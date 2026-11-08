@@ -110,6 +110,7 @@ import {
 import { matchAwaiting } from '@/lib/receipts';
 import { saveFile, textBlob } from '@/lib/download';
 import type { TaxYear } from '@/lib/tax-year';
+import { TimeLimitError, withinTime } from '@/lib/time-limit';
 import type { BackupSummary, RestoreReport } from '@/lib/backup';
 import type { AlertsChange, AlertsView, Watch } from '@/lib/payment-alerts';
 import type { PopularBank } from '@/lib/banks';
@@ -2973,8 +2974,9 @@ function useFintsState() {
     const said = msgs().background;
     if (!on) {
       try {
-        await post('/api/background', { op: 'off' });
-        await shellSchedule(false);
+        await withinTime(post('/api/background', { op: 'off' }), BACKGROUND_LIMIT_MS.server);
+        // The PINs are gone: a plan left behind ends at its next check, which finds none.
+        await withinTime(shellSchedule(false), BACKGROUND_LIMIT_MS.shell).catch(() => {});
         if (isCurrent(primary)) setBackgroundBoth(false);
         toast(said.nowOff, 'info');
       } catch {
@@ -2982,31 +2984,36 @@ function useFintsState() {
       }
       return;
     }
-    const phone = IS_ANDROID ? window.girovoMobile?.background : undefined;
-    if (phone && !(await phone.requestNotifications())) {
-      toast(said.noPermission, 'error', 12_000);
-      return;
-    }
-    const secret = await backgroundSecret();
-    if (!secret) {
-      toast(said.failed, 'error');
-      return;
-    }
+    // From the moment the PINs are sent, a failure has to take them back:
+    // the switch would say off while they are kept.
+    let sent = false;
     try {
+      const phone = IS_ANDROID ? window.girovoMobile?.background : undefined;
+      if (phone && !(await withinTime(phone.requestNotifications(), BACKGROUND_LIMIT_MS.permission))) {
+        toast(said.noPermission, 'error', 12_000);
+        return;
+      }
+      const secret = await withinTime(backgroundSecret(), BACKGROUND_LIMIT_MS.secret);
+      if (!secret) {
+        toast(said.failed, 'error');
+        return;
+      }
       const sessionIds = [primary, ...linksRef.current.flatMap((l) => (l.sessionId ? [l.sessionId] : []))];
-      const r = await post<{ on: boolean; count: number; skipped: string[] }>(
+      sent = true;
+      const r = await withinTime(post<{ on: boolean; count: number; skipped: string[] }>(
         '/api/background', { op: 'enroll', secret, sessionIds, amounts },
-      );
+      ), BACKGROUND_LIMIT_MS.server);
       if (!r.count) {
         toast(said.noneTaken, 'info', 12_000);
         return;
       }
-      await shellSchedule(true);
+      await withinTime(shellSchedule(true), BACKGROUND_LIMIT_MS.shell);
       if (isCurrent(primary)) setBackgroundBoth(true);
       toast(said.nowOn(r.count), 'success');
       if (r.skipped?.length) toast(said.noDevice(namesList(r.skipped)), 'info', 12_000);
     } catch (err) {
-      toast((err as Error).message || said.failed, 'error');
+      if (sent) void post('/api/background', { op: 'off' }).then(() => shellSchedule(false)).catch(() => {});
+      toast(err instanceof TimeLimitError ? said.failed : (err as Error).message || said.failed, 'error');
     }
   }, [isCurrent, setBackgroundBoth, toast]);
 
@@ -5815,6 +5822,14 @@ type SyncRunResponse = {
   /** The other devices' entries with no room here (lib/sync.ts SyncResult.full). */
   full?: number;
 };
+
+/**
+ * How long each step of switching "Neue Umsätze melden" may take. The dialog
+ * cannot be closed while it works, so a step that never answers would hold the
+ * whole app. `permission` waits for a person, `secret` for a keyring that may
+ * ask for its password (25 s, src-tauri/src/secret/linux.rs).
+ */
+const BACKGROUND_LIMIT_MS = { permission: 120_000, secret: 40_000, server: 20_000, shell: 15_000 };
 
 /** Where "Neue Umsätze melden" can keep its PINs: the desktop shell, or the Android app. */
 function backgroundShell(): 'desktop' | 'android' | null {
