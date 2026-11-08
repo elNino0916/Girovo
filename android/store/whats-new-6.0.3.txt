@@ -1,0 +1,8 @@
+<en-US>
+• Notices are now dark in dark mode
+• Turning on “Report new transactions” can no longer hold up the whole app
+</en-US>
+<de-DE>
+• Hinweise sind im dunklen Design jetzt auch dunkel
+• „Neue Umsätze melden“ kann beim Einschalten nicht mehr die ganze App blockieren
+</de-DE>

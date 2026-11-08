@@ -1,0 +1,1 @@
+Hinweise sind im dunklen Design jetzt auch dunkel. „Neue Umsätze melden“ kann beim Einschalten nicht mehr die ganze App blockieren.

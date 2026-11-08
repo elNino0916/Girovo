@@ -1,0 +1,1 @@
+Notices are now dark in dark mode. Turning on “Report new transactions” can no longer hold up the whole app.
