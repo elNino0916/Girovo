@@ -737,7 +737,7 @@ const VIEWS: Record<string, ViewDef> = {
   'settings-linked-unlock': {
     label: 'Einstellungen: Windows Hello, Weitere Banken mit anmelden (Desktop)',
     group: 'Dashboard',
-    options: { tab: 'settings', linkedUnlock: true, windowsHello: false, backgroundChecks: true, secondBank: 'linked' },
+    options: { tab: 'settings', linkedUnlock: true, windowsHello: false, securityKeys: 1, backgroundChecks: true, secondBank: 'linked' },
   },
   'sync-status': {
     label: 'Geräte abgleichen',

@@ -60,6 +60,7 @@ import { BackupRows } from './BackupDialogs';
 import { ImportRow } from './ImportDialog';
 import { CategorySettings } from './CategorySettings';
 import { LinkedUnlockSwitch } from './LinkedUnlock';
+import { SecurityKeysRow } from './SecurityKeys';
 import { WindowsHelloSwitch } from './WindowsHello';
 import { BackgroundSwitch } from './BackgroundChecks';
 import { BackgroundAlertsRow } from './BackgroundAlerts';
@@ -281,6 +282,7 @@ function SecurityPage() {
             (lib/windows-hello.ts), and the further banks log in with the first
             (lib/linked-unlock.ts). */}
         <WindowsHelloSwitch />
+        <SecurityKeysRow />
         <LinkedUnlockSwitch />
         <ChoiceItem
           icon={<ClockIcon />}

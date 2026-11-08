@@ -28,6 +28,7 @@ import { DocError, wipeDocs } from '@/lib/doc-store';
 import { HistoryError, wipeHistory } from '@/lib/history-store';
 import { removeLinkedUnlock } from '@/lib/linked-unlock';
 import { forgetProfile } from '@/lib/state-store';
+import { removeSecurityKeys } from '@/lib/security-key';
 import { removeWindowsHello } from '@/lib/windows-hello';
 import { readMeta, removeMeta } from '@/lib/sync-meta';
 import { disable as disableBackground } from '@/lib/background-check';
@@ -55,6 +56,7 @@ export const POST = wrap(async (req: Request) => {
   if (b && u) {
     await removeLinkedUnlock({ blz: String(b), userId: String(u) });
     await removeWindowsHello({ blz: String(b), userId: String(u) });
+    await removeSecurityKeys({ blz: String(b), userId: String(u) });
   }
   // "Gerät vergessen" by the user (with a session, not a refused further
   // bank's): the PINs kept for "Neue Umsätze melden" go, all of them. A

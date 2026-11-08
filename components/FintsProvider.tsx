@@ -41,6 +41,10 @@ import {
 } from '@/lib/client-api';
 import { IS_ANDROID } from '@/lib/platform';
 import { forgetHello, helloAvailable, helloOn, helloStoreBroken, sealWithHello } from '@/lib/windows-hello-client';
+import {
+  addSecurityKey as sealWithSecurityKey, forgetSecurityKeys, removeSecurityKey as dropSecurityKey, securityKeyAvailable, securityKeysOf,
+  type SecurityKeyInfo,
+} from '@/lib/security-key-client';
 import { withNoticed, type ContractNotice, type ContractReminder } from '@/lib/contract-watch';
 import { keepsNothing, unsafePhone } from '@/lib/device-integrity';
 import { msgs, type Messages } from '@/lib/i18n';
@@ -367,6 +371,13 @@ function useFintsState() {
   const setWindowsHelloBoth = useCallback((on: boolean | null) => {
     windowsHelloRef.current = on;
     setWindowsHelloState(on);
+  }, []);
+  // The desktop: this login's security keys (lib/security-key.ts), null where Windows can't use one.
+  const [securityKeys, setSecurityKeysState] = useState<SecurityKeyInfo[] | null>(null);
+  const securityKeysRef = useRef<SecurityKeyInfo[] | null>(null);
+  const setSecurityKeysBoth = useCallback((keys: SecurityKeyInfo[] | null) => {
+    securityKeysRef.current = keys;
+    setSecurityKeysState(keys);
   }, []);
   // "Neue Umsätze melden" (lib/background-check.ts): whether it is on — null
   // until the login says, and where the shell cannot keep the PINs — and the
@@ -1398,6 +1409,7 @@ function useFintsState() {
     // The login's PIN kept for Windows Hello went too (app/api/vault), and
     // every PIN kept for "Neue Umsätze melden".
     if (windowsHelloRef.current) setWindowsHelloBoth(false);
+    if (securityKeysRef.current?.length) setSecurityKeysBoth([]);
     if (backgroundRef.current) {
       setBackgroundBoth(false);
       void shellSchedule(false);
@@ -1410,7 +1422,7 @@ function useFintsState() {
       } catch { /* unreadable — nothing of ours to remove */ }
     }
     return true;
-  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, setLinkedUnlockBoth, setWindowsHelloBoth, setBackgroundBoth, setSyncBoth]);
+  }, [bank, isCurrent, loadVault, setVaultStatusBoth, scheduleVaultSave, toast, dropHistory, setLinkedUnlockBoth, setWindowsHelloBoth, setSecurityKeysBoth, setBackgroundBoth, setSyncBoth]);
 
   /** Deletes the saved personal data from this machine, the device registration untouched. */
   const wipeVault = useCallback(async () => {
@@ -2962,6 +2974,52 @@ function useFintsState() {
     toast(said.offer(login.bank), 'info', 12_000, { label: said.offerAction, run: () => void setWindowsHello(true) });
   }, [isCurrent, setWindowsHelloBoth, setWindowsHello, toast]);
 
+  /** The desktop, once the bank has taken the first login's PIN: the login's security keys, the row in Sicherheit. */
+  const checkSecurityKeys = useCallback(async (sid: string) => {
+    const login = helloLoginRef.current;
+    if (IS_ANDROID || !login || !(await securityKeyAvailable())) return;
+    const keys = await securityKeysOf({ blz: login.blz, userId: login.userId });
+    if (keys && isCurrent(sid)) setSecurityKeysBoth(keys);
+  }, [isCurrent, setSecurityKeysBoth]);
+
+  /** One more security key: Windows asks for two touches, and the PIN the bank took is kept under it. */
+  const addSecurityKey = useCallback(async () => {
+    const sid = sessionRef.current;
+    const login = helloLoginRef.current;
+    if (!sid || !login || securityKeysRef.current === null) return;
+    const said = msgs().settings.securityKeys;
+    try {
+      const added = await sealWithSecurityKey(sid, { blz: login.blz, userId: login.userId });
+      if (added.result === 'added') {
+        if (isCurrent(sid)) setSecurityKeysBoth(added.keys);
+        toast(said.nowOn, 'success');
+      } else if (added.result === 'failed') {
+        toast(added.code ? said.failedCode(added.code) : said.failed, 'error', 12_000);
+      } else if (added.result === 'exists') {
+        toast(said.exists, 'info');
+      } else if (added.result === 'unsupported') {
+        toast(said.unsupported, 'error', 12_000);
+      }
+    } catch (err) {
+      toast((err as Error).message || said.failed, 'error');
+    }
+  }, [isCurrent, setSecurityKeysBoth, toast]);
+
+  /** One key goes, with the PIN kept under it. */
+  const removeSecurityKey = useCallback(async (id: string) => {
+    const sid = sessionRef.current;
+    const login = helloLoginRef.current;
+    if (!sid || !login) return;
+    const said = msgs().settings.securityKeys;
+    try {
+      const keys = await dropSecurityKey({ blz: login.blz, userId: login.userId }, id);
+      if (isCurrent(sid)) setSecurityKeysBoth(keys);
+      toast(said.removed, 'info');
+    } catch (err) {
+      toast((err as Error).message || said.failed, 'error');
+    }
+  }, [isCurrent, setSecurityKeysBoth, toast]);
+
   /**
    * "Neue Umsätze melden": on keeps the PINs of the logged-in banks that have
    * a remembered device (the dialog said what that means), plans the checks
@@ -3260,7 +3318,8 @@ function useFintsState() {
   const pinTaken = useCallback((sid: string) => {
     void openLinkedUnlock(sid);
     void checkWindowsHello(sid);
-  }, [openLinkedUnlock, checkWindowsHello]);
+    void checkSecurityKeys(sid);
+  }, [openLinkedUnlock, checkWindowsHello, checkSecurityKeys]);
 
   const afterAccountsReady = useCallback((list: SerializedAccount[]) => {
     const sid = sessionRef.current;
@@ -3328,7 +3387,7 @@ function useFintsState() {
    * desktop the PIN — typed, or from behind Windows Hello (`hello`) — opens
    * theirs (openLinkedUnlock).
    */
-  const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string, unsealed?: { linked: GirovoSealedLogin[]; hello?: true }) => {
+  const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string, unsealed?: { linked: GirovoSealedLogin[]; hello?: true; securityKey?: true }) => {
     // "Zurück zur Anmeldung" from the TAN-method screen leaves the half-open
     // session behind; a new login replaces it.
     const previous = sessionRef.current;
@@ -3361,7 +3420,7 @@ function useFintsState() {
     // first statement read for a remembered device, which opens on this
     // computer alone, with an old PIN too (afterAccountsReady).
     linkedAfterReadRef.current = null;
-    helloLoginRef.current = { blz: chosen.blz, userId: login, bank: data.bank.bankName || chosen.name, hello: unsealed?.hello === true };
+    helloLoginRef.current = { blz: chosen.blz, userId: login, bank: data.bank.bankName || chosen.name, hello: unsealed?.hello === true || unsealed?.securityKey === true };
     widgetClearedRef.current = false;
     // What was kept with this PIN opens once the bank has taken it: when the
     // Übersicht comes up after a synchronisation (and any approval it asked
@@ -4017,6 +4076,7 @@ function useFintsState() {
       openedLinkedRef.current = [];
       if (linkedUnlockRef.current) setLinkedUnlockBoth(false);
       if (windowsHelloRef.current) setWindowsHelloBoth(false);
+      if (securityKeysRef.current?.length) setSecurityKeysBoth([]);
       if (backgroundRef.current) {
         setBackgroundBoth(false);
         void shellSchedule(false);
@@ -4025,7 +4085,7 @@ function useFintsState() {
     } catch (err) {
       toast((err as Error).message, 'error');
     }
-  }, [toast, wipeVaultWith, setLinkedUnlockBoth, setWindowsHelloBoth, setBackgroundBoth]);
+  }, [toast, wipeVaultWith, setLinkedUnlockBoth, setWindowsHelloBoth, setSecurityKeysBoth, setBackgroundBoth]);
 
   /** Everything a session owns, back to its pre-login state. Preferences stay. */
   const resetSession = useCallback(() => {
@@ -4048,6 +4108,7 @@ function useFintsState() {
     linkedAfterReadRef.current = null;
     linkedOfferedRef.current = false;
     setWindowsHelloBoth(null);
+    setSecurityKeysBoth(null);
     helloLoginRef.current = null;
     setBackgroundBoth(null);
     setBackgroundAsk(false);
@@ -4294,6 +4355,8 @@ function useFintsState() {
       if (!IS_ANDROID && userIdRef.current) {
         void forgetHello({ blz: own.blz, userId: userIdRef.current });
         if (windowsHelloRef.current) setWindowsHelloBoth(false);
+        void forgetSecurityKeys({ blz: own.blz, userId: userIdRef.current });
+        if (securityKeysRef.current?.length) setSecurityKeysBoth([]);
       }
       // …and so is the one the checks for new Umsätze would use.
       if (userIdRef.current) void forgetBackgroundLogin({ blz: own.blz, userId: userIdRef.current });
@@ -4303,7 +4366,7 @@ function useFintsState() {
     };
     window.addEventListener(PIN_REFUSED_EVENT, onRefused);
     return () => window.removeEventListener(PIN_REFUSED_EVENT, onRefused);
-  }, [setLinksBoth, forgetLinkedPin, forgetBackgroundLogin, openAddBank, setWindowsHelloBoth, setLinkedUnlockBoth, toast]);
+  }, [setLinksBoth, forgetLinkedPin, forgetBackgroundLogin, openAddBank, setWindowsHelloBoth, setSecurityKeysBoth, setLinkedUnlockBoth, toast]);
 
   // The desktop with "Neue Umsätze melden" on: closing the window leaves the
   // app in the notification area (src-tauri/src/background.rs). The bank session ends
@@ -5776,6 +5839,7 @@ function useFintsState() {
     forgetLinkedPin,
     // Windows Hello in place of the first login's PIN on the desktop (lib/windows-hello.ts)
     windowsHello, setWindowsHello,
+    securityKeys, addSecurityKey, removeSecurityKey,
     // "Neue Umsätze melden" (lib/background-check.ts)
     backgroundChecks, backgroundAsk, setBackgroundChecks, openBackgroundAsk, closeBackgroundAsk,
     backgroundAlerts, sendAlertWatch, askCategory,

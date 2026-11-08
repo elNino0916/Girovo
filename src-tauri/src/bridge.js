@@ -117,6 +117,13 @@
     unlock: function () { return invoke('hello_unlock'); },
   });
 
+  // Security keys (src/security_key.rs); available() is false off Windows.
+  define('electronSecurityKey', {
+    available: function () { return invoke('security_key_available'); },
+    register: function (salt, exclude) { return invoke('security_key_register', { salt: salt, exclude: exclude }); },
+    open: function (salt, credentials) { return invoke('security_key_open', { salt: salt, credentials: credentials }); },
+  });
+
   // In-app updates (src/updater). Every call answers with the updater's
   // state; onState hears every change, download progress included, and
   // returns its own unsubscribe.

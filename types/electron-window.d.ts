@@ -223,6 +223,17 @@ declare global {
       /** A system notice while the window is hidden (src-tauri/src/background.rs background_notice). */
       notice?: (notice: { title: string; text: string }) => Promise<void>;
     };
+    /**
+     * Security keys (src-tauri/src/security_key.rs): whether this Windows can
+     * use one, and the key a touch brings about, for lib/security-key.ts to
+     * keep the first login's PIN under, with the secret above. Never a PIN.
+     */
+    electronSecurityKey?: {
+      available: () => Promise<boolean>;
+      /** `exclude`: the login's keys already set up. Two touches. */
+      register: (salt: string, exclude: string[]) => Promise<{ result: 'registered' | 'canceled' | 'exists' | 'unsupported' | 'unavailable' | 'busy' | 'failed'; credential?: string; key?: string; code?: string }>;
+      open: (salt: string, credentials: string[]) => Promise<{ result: 'opened' | 'canceled' | 'wrong' | 'unsupported' | 'unavailable' | 'busy' | 'failed'; credential?: string; key?: string; code?: string }>;
+    };
     electronHello?: {
       available: () => Promise<boolean>;
       /** `code`: the HRESULT Windows threw, where it threw ("0x80090011"). */

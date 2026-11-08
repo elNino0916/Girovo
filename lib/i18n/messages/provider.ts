@@ -74,6 +74,15 @@ export const de = {
     unknownAction: 'Unbekannte Aktion.',
   },
 
+  /** app/api/security-key (lib/security-key.ts). */
+  securityKey: {
+    unavailable: 'Sicherheitsschlüssel gibt es nur in der Desktop-App.',
+    notYet: 'Die PIN lässt sich erst speichern, wenn deine Bank sie angenommen hat. Lade einmal deine Umsätze und versuche es dann noch einmal.',
+    noKey: 'Der Schlüssel hat nicht geklappt. Versuche es noch einmal.',
+    tooMany: 'Mehr Schlüssel gehen nicht. Entferne zuerst einen.',
+    unknownAction: 'Unbekannte Aktion.',
+  },
+
   /** What a logout says (lib/session-log.ts, components/FintsProvider.tsx). */
   logout: {
     /** "an Lea Becker", "an A, B und C": each payee once, `others` before the last one. */
@@ -234,6 +243,13 @@ export const en: typeof de = {
     unavailable: 'Windows Hello is only available in the desktop app.',
     notYet: 'The PIN can only be saved once your bank has accepted it. Load your transactions once, then try again.',
     noKey: 'Windows Hello didn’t work. Try again.',
+    unknownAction: 'Unknown action.',
+  },
+  securityKey: {
+    unavailable: 'Security keys are only available in the desktop app.',
+    notYet: 'The PIN can only be saved once your bank has accepted it. Load your transactions once, then try again.',
+    noKey: 'The key didn’t work. Try again.',
+    tooMany: 'No more keys fit. Remove one first.',
     unknownAction: 'Unknown action.',
   },
 

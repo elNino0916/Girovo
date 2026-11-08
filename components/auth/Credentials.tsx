@@ -17,6 +17,7 @@ import type { Messages } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { forgetHello, helloOn, helloStoreBroken, openWithHello } from '@/lib/windows-hello-client';
+import { forgetSecurityKeys, openWithSecurityKey, securityKeysOf } from '@/lib/security-key-client';
 import { useWindowInFront } from '../shell/useWindowInFront';
 import { useIntroPlaying } from '../shell/Intro';
 import { useDemo } from '../demo/demo-mode';
@@ -65,7 +66,7 @@ const CANCEL_AFTER_MS = 8000;
  * further banks kept beside it, which the provider logs in next. The
  * desktop: `hello`, it came from behind Windows Hello (lib/windows-hello.ts).
  */
-export type Unsealed = { linked: GirovoSealedLogin[]; hello?: true };
+export type Unsealed = { linked: GirovoSealedLogin[]; hello?: true; securityKey?: true };
 
 export function Credentials({
   bank, logoFile, meta, onChange, onSubmit, onCancel, initialLogin, initialError, openedPin, onOpenedPinRefused, pinKept,
@@ -124,6 +125,8 @@ export function Credentials({
   const fingerprintAsked = useRef(false);
   // The desktop: this login name opens with Windows Hello (lib/windows-hello.ts).
   const [hello, setHello] = useState(false);
+  // The desktop: this login name opens with a security key (lib/security-key.ts). Asked for by the button only: the key may not be plugged in.
+  const [securityKey, setSecurityKey] = useState(false);
   const inFront = useWindowInFront();
   // The intro covers the screen for a moment: Windows Hello asks once it has gone.
   const intro = useIntroPlaying();
@@ -217,6 +220,10 @@ export function Credentials({
           void forgetHello({ blz: bank.blz, userId: login.trim() });
           setHello(false);
           setFingerprintNotice(tr.settings.windowsHello.refused);
+        } else if (unsealed.securityKey) {
+          void forgetSecurityKeys({ blz: bank.blz, userId: login.trim() });
+          setSecurityKey(false);
+          setFingerprintNotice(tr.settings.securityKeys.refused);
         } else {
           onOpenedPinRefused?.(bank.blz, login.trim());
           setFingerprintNotice(tr.settings.linkedUnlock.refused);
@@ -294,6 +301,29 @@ export function Credentials({
     pinRef.current?.focus();
   }, [bank, login, submitting, attempt, tr]);
 
+  /** The desktop: the PIN from behind a security key, then the same login as a typed one. */
+  const withSecurityKey = useCallback(async () => {
+    const name = login.trim();
+    if (submitting || !name) return;
+    const said = tr.settings.securityKeys;
+    const opened = await openWithSecurityKey({ blz: bank.blz, userId: name });
+    if (opened.result === 'opened') {
+      await attempt(opened.pin, { linked: [], securityKey: true });
+      return;
+    }
+    if (opened.result === 'busy') return;
+    if (opened.result === 'off') setSecurityKey(false);
+    if (opened.result === 'gone') {
+      // Only this key's copy went; the others may still be there.
+      const left = await securityKeysOf({ blz: bank.blz, userId: name });
+      setSecurityKey(!!left?.length);
+      setFingerprintNotice(said.gone);
+    }
+    if (opened.result === 'wrong') setFingerprintNotice(said.wrongKey);
+    if (opened.result === 'failed') setFingerprintNotice(opened.code ? said.openFailedCode(opened.code) : said.openFailed);
+    pinRef.current?.focus();
+  }, [bank, login, submitting, attempt, tr]);
+
   // Android: a further bank whose PIN the first login's fingerprint opened
   // logs in at once, as if the fingerprint had just been given for it.
   useEffect(() => {
@@ -341,6 +371,27 @@ export function Credentials({
     const t = setTimeout(() => {
       void helloOn({ blz: bank.blz, userId: name }).then((on) => {
         if (current) setHello(on);
+      });
+    }, 250);
+    return () => {
+      current = false;
+      clearTimeout(t);
+    };
+    // Per bank and login name.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bank.blz, login]);
+
+  // The desktop: whether this login name opens with a security key.
+  useEffect(() => {
+    const name = login.trim();
+    if (IS_ANDROID || demo || openedPin || !name) {
+      setSecurityKey(false);
+      return;
+    }
+    let current = true;
+    const t = setTimeout(() => {
+      void securityKeysOf({ blz: bank.blz, userId: name }).then((keys) => {
+        if (current) setSecurityKey(!!keys?.length);
       });
     }, 250);
     return () => {
@@ -564,6 +615,19 @@ export function Credentials({
             onClick={() => void withHello()}
           >
             {tr.settings.windowsHello.loginButton}
+          </Button>
+        )}
+
+        {securityKey && !submitting && (
+          <Button
+            variant="secondary"
+            size="lg"
+            block
+            className="mt-3"
+            iconLeft={<ShieldIcon size={20} />}
+            onClick={() => void withSecurityKey()}
+          >
+            {tr.settings.securityKeys.loginButton}
           </Button>
         )}
 

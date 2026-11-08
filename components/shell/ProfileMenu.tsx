@@ -586,7 +586,7 @@ export function LogoutConfirmDialog() {
  */
 export function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT();
-  const { bank, forgetDevice, linkedUnlock, windowsHello, backgroundChecks } = useFints();
+  const { bank, forgetDevice, linkedUnlock, windowsHello, securityKeys, backgroundChecks } = useFints();
   const [busy, setBusy] = useState(false);
   const [wipe, setWipe] = useState(false);
   const close = () => {
@@ -624,6 +624,7 @@ export function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: 
         <p className="text-[14px] leading-relaxed text-ink-2">{t.session.forgetDialog.body}</p>
         {linkedUnlock === true && <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{t.settings.linkedUnlock.goesToo}</p>}
         {windowsHello === true && <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{t.settings.windowsHello.goesToo}</p>}
+        {!!securityKeys?.length && <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{t.settings.securityKeys.goesToo}</p>}
         {backgroundChecks === true && <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{t.background.goesToo}</p>}
         <Checkbox
           className="mt-3"

@@ -33,6 +33,7 @@ mod reset;
 mod save;
 mod secret;
 mod secret_migration;
+mod security_key;
 mod shell;
 mod splash;
 mod sync_lan;
@@ -257,6 +258,9 @@ pub fn run() {
       hello::hello_available,
       hello::hello_enroll,
       hello::hello_unlock,
+      security_key::security_key_available,
+      security_key::security_key_register,
+      security_key::security_key_open,
       secret::linked_unlock_secret,
       secret::migrate_secret,
       updater::updater_get,

@@ -204,6 +204,8 @@ export type MockOptions = {
    * Windows Hello).
    */
   windowsHello?: boolean;
+  /** The desktop's security keys: how many are set up; left out, the row is not there. */
+  securityKeys?: number;
   /**
    * "Neue Umsätze melden" (lib/background-check.ts): the row in Sicherheit,
    * off or on; left out, the row is not there (no shell). `'ask'`: off, with
@@ -818,6 +820,9 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [linkedUnlockAsk, setLinkedUnlockAsk] = useState(opts.linkedUnlock === 'ask');
   // The desktop's Windows Hello: a switch, nothing kept.
   const [windowsHello, setWindowsHelloState] = useState<boolean | null>(opts.windowsHello ?? null);
+  const [securityKeys, setSecurityKeysState] = useState<Array<{ id: string; added: string }> | null>(
+    opts.securityKeys === undefined ? null : Array.from({ length: opts.securityKeys }, (_, i) => ({ id: `key${i}`, added: '2026-11-08T10:00:00.000Z' })),
+  );
   // "Neue Umsätze melden": a switch and its dialog, nothing kept, nothing checked.
   const [backgroundChecks, setBackgroundState] = useState<boolean | null>(
     opts.backgroundChecks === undefined ? null : opts.backgroundChecks === true,
@@ -3065,6 +3070,15 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     setWindowsHello: async (on: boolean) => {
       setWindowsHelloState(on);
       toast(on ? msgs().settings.windowsHello.nowOn : msgs().settings.windowsHello.nowOff, on ? 'success' : 'info');
+    },
+    securityKeys,
+    addSecurityKey: async () => {
+      setSecurityKeysState((k) => [...(k ?? []), { id: `key${Date.now()}`, added: new Date().toISOString() }]);
+      toast(msgs().settings.securityKeys.nowOn, 'success');
+    },
+    removeSecurityKey: async (id: string) => {
+      setSecurityKeysState((k) => (k ?? []).filter((x) => x.id !== id));
+      toast(msgs().settings.securityKeys.removed, 'info');
     },
     backgroundChecks, backgroundAsk,
     setBackgroundChecks: async (on: boolean) => {

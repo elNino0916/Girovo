@@ -217,7 +217,7 @@ export function ResetDocsDialog({ open, onClose }: { open: boolean; onClose: () 
  */
 export function WipeVaultDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT();
-  const { wipeVault, linkedUnlock, windowsHello, backgroundChecks } = useFints();
+  const { wipeVault, linkedUnlock, windowsHello, securityKeys, backgroundChecks } = useFints();
   const [busy, setBusy] = useState(false);
   const run = async () => {
     setBusy(true);
@@ -247,6 +247,7 @@ export function WipeVaultDialog({ open, onClose }: { open: boolean; onClose: () 
       <p className="pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.session.wipeDialog.body}</p>
       {linkedUnlock === true && <p className="mt-2 pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.settings.linkedUnlock.goesToo}</p>}
       {windowsHello === true && <p className="mt-2 pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.settings.windowsHello.goesToo}</p>}
+      {!!securityKeys?.length && <p className="mt-2 pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.settings.securityKeys.goesToo}</p>}
       {backgroundChecks === true && <p className="mt-2 pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.background.goesToo}</p>}
     </Dialog>
   );
