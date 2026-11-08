@@ -221,6 +221,19 @@ test('a device silent for months is left out and cannot bring a deleted note bac
   assert.equal(r.devices.length, 1);
 });
 
+test('a device renamed since it joined goes by its new name, on one line of the list', async () => {
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const computer = device('Computer');
+  const phone = device('Android');
+  await round(place, key, computer, 1000);
+  await round(place, key, phone, 2000);
+  phone.name = 'S26 Ultra';
+  await round(place, key, phone, 3000);
+  const { devices } = await round(place, key, computer, 4000);
+  assert.deepEqual(devices.map((d) => d.name).sort(), ['Computer', 'S26 Ultra']);
+});
+
 test('a state file of another group, or a damaged one, is skipped', async () => {
   const place = memoryPlace();
   const key = newGroupKey();

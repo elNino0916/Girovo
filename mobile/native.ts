@@ -101,6 +101,8 @@ export interface GirovoDevicePlugin {
   /** FLAG_SECURE: no screenshots, no screen recording. */
   setSecure(opts: { secure: boolean }): Promise<void>;
   info(): Promise<{ versionName: string; versionCode: number; flavor: 'play' | 'github' | 'fdroid'; debug: boolean; sdk: number; locale: string }>;
+  /** The name the phone goes by in its settings, else its model. */
+  deviceName(): Promise<{ name: string }>;
   /** Key attestation's boot state and the app's signer (DeviceIntegrity.java; lib/device-integrity.ts reads them). */
   integrity(): Promise<IntegrityFacts>;
   /** Opens an https page in the phone's browser. */

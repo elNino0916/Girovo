@@ -82,6 +82,8 @@ window.girovoMobile = {
   review: { note: review.note },
   // "Frag deine Umsätze": one question to Gemini Nano (lib/nano-ask.ts builds and reads it).
   ask: (system, text, maxTokens) => GirovoNano.prompt({ system, text, maxTokens }).then((r) => r.text, () => null),
+  // What the other devices of a sync group call this phone.
+  deviceName: () => GirovoDevice.deviceName().then((r) => r.name, () => null),
   // Where Nano is missing or too old: AICore's page in Google Play, to update it.
   openAICore: () => GirovoDevice.openExternal({ url: AICORE_IN_PLAY }).catch(() => {}),
   approval: {

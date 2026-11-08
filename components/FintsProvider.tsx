@@ -3204,7 +3204,7 @@ function useFintsState() {
     syncQueueRef.current = [];
     let r: SyncRunResponse | null = null;
     try {
-      r = await post<SyncRunResponse>('/api/sync', { op: 'run', sessionId: sid, vault: vaultRef.current });
+      r = await post<SyncRunResponse>('/api/sync', { op: 'run', sessionId: sid, vault: vaultRef.current, deviceName: await deviceName() });
     } catch (err) {
       if (!quiet) {
         const lanPhone = IS_ANDROID && syncRef.current?.place === 'lan';
@@ -3243,7 +3243,8 @@ function useFintsState() {
     return info?.addresses.length ? { kind: 'lan', addresses: info.addresses, port: info.port } : null;
   };
   const deviceName = async (): Promise<string> =>
-    (IS_ANDROID ? 'Android' : await window.electronSync?.deviceName().catch(() => null)) || 'Computer';
+    (IS_ANDROID ? await window.girovoMobile?.deviceName() : await window.electronSync?.deviceName().catch(() => null))
+      || (IS_ANDROID ? 'Android' : 'Computer');
 
   /** This device as the group's first: answers the code the next device takes, or null. */
   const createSync = useCallback(async (place: SyncPlaceChoice): Promise<string | null> => {

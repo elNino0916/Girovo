@@ -14,6 +14,7 @@ import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintJob;
 import android.print.PrintManager;
+import android.provider.Settings;
 import android.util.Base64;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
@@ -352,6 +353,20 @@ public class DevicePlugin extends Plugin {
     @PluginMethod
     public void integrity(PluginCall call) {
         call.resolve(DeviceIntegrity.check(getContext()));
+    }
+
+    /** The name the phone goes by in its own settings, for the other devices of a sync group; its model where it has none. */
+    @PluginMethod
+    public void deviceName(PluginCall call) {
+        String name = null;
+        try {
+            name = Settings.Global.getString(getContext().getContentResolver(), Settings.Global.DEVICE_NAME);
+        } catch (RuntimeException e) {
+            // A maker's Android that keeps it from apps: the model will do.
+        }
+        JSObject result = new JSObject();
+        result.put("name", name != null && !name.trim().isEmpty() ? name.trim() : Build.MODEL);
+        call.resolve(result);
     }
 
     @PluginMethod

@@ -6,7 +6,7 @@
 //   create {place, deviceName}      → { code }         a new group, this device its first member
 //   code   {place?}                 → { code }         for one more device (the computer's addresses refreshed)
 //   join   {code, deviceName, place?} → { on: true }   this device into the group the code names
-//   run    {vault}                  → { changed, vault?, devices, lastSync, receipts, full }
+//   run    {vault, deviceName?}     → { changed, vault?, devices, lastSync, receipts, full }
 //                                     the merged vault is saved here and handed back;
 //                                     full: the others' entries it had no room for
 //   leave                           → { on: false }
@@ -144,10 +144,12 @@ async function handle(b: SyncBody, s: Session, login: { blz: string; userId: str
       if (!sent) return fail(said.unknownAction);
       const saved = await saveVault(s, sent);
       const vault = { ...sent, updatedAt: saved.updatedAt };
+      // The name as it is now: the device may have been renamed since it joined.
+      const deviceName = typeof b.deviceName === 'string' && b.deviceName.trim() ? nameOf(b.deviceName) : meta.deviceName;
       let result;
       try {
         result = await runSync({
-          store, key: meta.key, device: { id: meta.deviceId, name: meta.deviceName }, vault, local: meta.local, receipts: await receiptsOf(s),
+          store, key: meta.key, device: { id: meta.deviceId, name: deviceName }, vault, local: meta.local, receipts: await receiptsOf(s),
           keep: (v) => sanitizeVault(v) ?? v,
           // What saveVault would refuse never comes out of a round, nor a vault so full
           // that this device's next edit could not be saved (lib/sync.ts FILL_MAX).
@@ -173,7 +175,7 @@ async function handle(b: SyncBody, s: Session, login: { blz: string; userId: str
       if (!vaultKeyOf(s)) return fail(said.noVault, 409);
       const lastSync = Date.now();
       if (result.changed) await saveVault(s, result.vault);
-      await writeMeta(s, { ...meta, local: result.local, lastSync, devices: result.devices });
+      await writeMeta(s, { ...meta, deviceName, local: result.local, lastSync, devices: result.devices });
       return json({
         changed: result.changed,
         ...(result.changed ? { vault: result.vault } : {}),

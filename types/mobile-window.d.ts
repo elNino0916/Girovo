@@ -78,6 +78,8 @@ declare global {
      * Umsätze", lib/nano-ask.ts): its answer, or null when AICore gave none.
      */
     ask(system: string, text: string, maxTokens?: number): Promise<string | null>;
+    /** What the other devices of a sync group call this phone: its name in the settings, else its model. */
+    deviceName: () => Promise<string | null>;
     /** Opens Android AICore in Google Play, where Nano is missing or too old for questions. */
     openAICore(): Promise<void>;
     /** The Google Play build: whether Play has a newer version, and Play's own update flow. */
