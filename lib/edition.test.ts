@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isNightlyVersion, majorOf } from './edition.ts';
+import { isNightlyVersion, numeralOf } from './edition.ts';
 
 test('a release is not a nightly, every pre-release is', () => {
   assert.equal(isNightlyVersion('6.0.0'), false);
@@ -13,8 +13,11 @@ test('a release is not a nightly, every pre-release is', () => {
   assert.equal(isNightlyVersion(''), false);
 });
 
-test('the numeral is the major version', () => {
-  assert.equal(majorOf('6.0.0'), 6);
-  assert.equal(majorOf('12.3.4-nightly.1.gabc1234'), 12);
-  assert.equal(majorOf('nonsense'), null);
+test('the numeral is the major and minor version, without a minor of 0', () => {
+  assert.equal(numeralOf('6.1.0'), '6.1');
+  assert.equal(numeralOf('6.1.4'), '6.1');
+  assert.equal(numeralOf('6.0.3'), '6');
+  assert.equal(numeralOf('7.0.0'), '7');
+  assert.equal(numeralOf('12.3.4-nightly.1.gabc1234'), '12.3');
+  assert.equal(numeralOf('nonsense'), null);
 });

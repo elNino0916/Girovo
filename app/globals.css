@@ -85,7 +85,7 @@
   --stage-ink: #ffffff;
   --stage-ink-2: #c4d2e4;
   --stage-line: rgb(255 255 255 / 0.28);
-  /* The release numeral of the wordmark ("Girovo 6", components/shell/BrandMark.tsx):
+  /* The release numeral of the wordmark ("Girovo 6.1", components/shell/BrandMark.tsx):
      deep where the bar and the login's field are light, bright where they are dark. */
   --brand-numeral: linear-gradient(155deg, #0f8fd3 10%, #2f5ee0 52%, #7b4fe0 92%);
   /* A nightly's "Nightly" the same way: the plate's amber running into orange, deep enough to read on light. */

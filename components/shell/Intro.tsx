@@ -2,7 +2,7 @@
 
 // The intro: the G€ draws itself and Girovo settles in, once — on the very
 // first start (a fresh install, or after "Girovo zurücksetzen") and on the
-// first start of Girovo 6 on a device that knew a bank before ("Girovo 6",
+// first start of Girovo 6 on a device that knew a bank before ("Girovo 6.1",
 // ahead of the "Neu in Girovo 6" sheet after the login).
 //
 // On the login screen's own stage, so it fades straight into it. Never while
@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { MARK_ARC, MARK_ARC_WIDTH, MARK_BARS, MARK_BAR_WIDTH, MARK_GRID, MARK_PLATE_RADIUS } from '@/lib/brand-mark';
 import { store } from '@/lib/client-api';
+import { NUMERAL } from '@/lib/edition';
 import { cx } from '../ui';
 
 /** The preference that says which intro was shown last; a later major version may bump it. */
@@ -143,7 +144,7 @@ export function Intro({ preview }: { preview?: { kind: Kind; at?: number } } = {
           <path className="intro-bars" d={MARK_BARS} stroke="#fff" strokeWidth={MARK_BAR_WIDTH} pathLength={1} />
         </svg>
         <p className="intro-word text-[30px] leading-9 font-medium tracking-[-0.01em]">
-          Girovo{kind === 'six' && <span className="text-accent">{' '}6</span>}
+          Girovo{kind === 'six' && <span className="text-accent">{' '}{NUMERAL ?? 6}</span>}
         </p>
       </div>
     </div>

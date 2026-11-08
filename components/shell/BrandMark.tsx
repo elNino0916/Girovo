@@ -11,8 +11,8 @@
 // A Girovo Nightly (lib/edition.ts) shows it: the plate is amber with the G€
 // in navy, as on its app icon, and the wordmark reads "Girovo Nightly", its
 // second word filled with amber running into orange. A release's wordmark
-// carries its major version the same way, set larger, bolder and filled with
-// a blue gradient ("Girovo 6"). The bar and the login's field follow the
+// carries its number the same way, set larger, bolder and filled with
+// a blue gradient ("Girovo 6.1"). The bar and the login's field follow the
 // theme, so both gradients do too (--brand-nightly, --brand-numeral in
 // app/globals.css): deep by day, bright by night.
 //
@@ -23,7 +23,7 @@
 
 import { createContext, useContext } from 'react';
 import { MARK_ARC, MARK_ARC_WIDTH, MARK_BARS, MARK_BAR_WIDTH, MARK_GRID } from '@/lib/brand-mark';
-import { MAJOR, NIGHTLY, NIGHTLY_INK, NIGHTLY_PLATE } from '@/lib/edition';
+import { NIGHTLY, NIGHTLY_INK, NIGHTLY_PLATE, NUMERAL } from '@/lib/edition';
 import { cx } from '../ui';
 
 /** Whether the marks below draw Girovo Nightly: this build's edition, or the design preview's pick. */
@@ -70,7 +70,7 @@ export function BrandPlate({ className, tone = 'standard', size }: { className?:
 /**
  * The wordmark, in the caller's size and weight: "Girovo Nightly" on a
  * nightly, its second word in an amber-to-orange gradient; on a release "Girovo" and its
- * major version, a third larger, centred on the word and bolder, in a blue gradient ("Girovo 6").
+ * number, a third larger, centred on the word and bolder, in a blue gradient ("Girovo 6.1").
  * Only "Girovo" truncates.
  */
 export function BrandName({ className }: { className?: string }) {
@@ -87,7 +87,7 @@ export function BrandName({ className }: { className?: string }) {
           Nightly
         </span>
       ) : (
-        MAJOR != null && (
+        NUMERAL != null && (
           // A third larger than "Girovo", its middle on the middle of the capital G: it stands out
           // as far above the G as below the baseline. Google Sans Flex's G is 0.73 em tall, the
           // extra-bold 6 0.76 of its own (1.3×) em, so it sits 0.087 of its own size lower.
@@ -95,7 +95,7 @@ export function BrandName({ className }: { className?: string }) {
             className="ml-[0.2em] shrink-0 translate-y-[0.087em] bg-clip-text text-[1.3em] leading-none font-extrabold text-transparent"
             style={{ backgroundImage: 'var(--brand-numeral)' }}
           >
-            {MAJOR}
+            {NUMERAL}
           </span>
         )
       )}
