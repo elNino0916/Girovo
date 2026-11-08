@@ -9,10 +9,11 @@
 // whatever the palette. The wordmark is in the bar's ink.
 //
 // A Girovo Nightly (lib/edition.ts) shows it: the plate is amber with the G€
-// in navy, as on its app icon, and the wordmark reads "Girovo Nightly". A
-// release's wordmark carries its major version the same way, set larger,
-// bolder and filled with a blue gradient ("Girovo 6"). The bar and the login's
-// field follow the theme, so the gradient does too (--brand-numeral in
+// in navy, as on its app icon, and the wordmark reads "Girovo Nightly", its
+// second word filled with amber running into orange. A release's wordmark
+// carries its major version the same way, set larger, bolder and filled with
+// a blue gradient ("Girovo 6"). The bar and the login's field follow the
+// theme, so both gradients do too (--brand-nightly, --brand-numeral in
 // app/globals.css): deep by day, bright by night.
 //
 // The version stays legible for support questions, development builds
@@ -68,7 +69,7 @@ export function BrandPlate({ className, tone = 'standard', size }: { className?:
 
 /**
  * The wordmark, in the caller's size and weight: "Girovo Nightly" on a
- * nightly, its second word in the plate's amber; on a release "Girovo" and its
+ * nightly, its second word in an amber-to-orange gradient; on a release "Girovo" and its
  * major version, a third larger, centred on the word and bolder, in a blue gradient ("Girovo 6").
  * Only "Girovo" truncates.
  */
@@ -78,7 +79,13 @@ export function BrandName({ className }: { className?: string }) {
     <span className={cx('inline-flex min-w-0 items-baseline whitespace-nowrap', className)}>
       <span className="truncate">Girovo</span>
       {nightly ? (
-        <span className="ml-[0.28em] shrink-0" style={{ color: NIGHTLY_PLATE }}>Nightly</span>
+        // Filled like a release's numeral: the plate's amber running into orange, per theme (--brand-nightly).
+        <span
+          className="ml-[0.28em] shrink-0 bg-clip-text text-transparent"
+          style={{ backgroundImage: 'var(--brand-nightly)' }}
+        >
+          Nightly
+        </span>
       ) : (
         MAJOR != null && (
           // A third larger than "Girovo", its middle on the middle of the capital G: it stands out
