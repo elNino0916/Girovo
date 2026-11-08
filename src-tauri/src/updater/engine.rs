@@ -43,6 +43,7 @@ use sha2::{Digest, Sha256};
 use tauri::async_runtime::{self, JoinHandle};
 use tokio::sync::{OwnedMutexGuard, watch};
 
+use super::bundle::{self, Bundle, Damaged};
 use super::chunks;
 use super::logic::{self, Asset, Channel, InstallKind, Origin, Plan, Release};
 use super::texts::{Texts, texts};
@@ -177,6 +178,26 @@ pub struct FileOffer {
   pub message: Option<String>,
 }
 
+/// Where saving an update as a .girovoupdate stands (save_bundle).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SavePhase {
+  Working,
+  Done,
+  Failed,
+}
+
+/// An update being saved as a file ("Als Datei speichern"), as the page shows it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleSave {
+  pub phase: SavePhase,
+  /// The file's name.
+  pub name: String,
+  /// Why it failed.
+  pub message: Option<String>,
+}
+
 /// Set when this start is the result of an update.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -209,6 +230,8 @@ pub struct UpdateState {
   pub failed_install: Option<String>,
   /// A file the user picked to install (check_file).
   pub file: Option<FileOffer>,
+  /// The update being saved as a file (save_bundle).
+  pub saving: Option<BundleSave>,
 }
 
 // ---- what the app provides ---------------------------------------------------------
@@ -483,6 +506,9 @@ struct Inner {
   listing: Option<(String, String, Vec<u8>)>,
   /// The picked file once it checked out: the file, its signed release and the installer in it.
   chosen: Option<(PathBuf, Release, Asset)>,
+  /// Counts the files picked and the dialogs closed: a check still running
+  /// for an earlier round ends unheard.
+  file_round: u64,
 }
 
 type BeforeInstall = Box<dyn Fn(&InstallNotice) + Send + Sync>;
@@ -552,6 +578,7 @@ impl Updater {
       installed: None,
       failed_install: None,
       file: None,
+      saving: None,
     };
     let client = reqwest::Client::builder()
       .https_only(cfg.https_only)
@@ -562,7 +589,7 @@ impl Updater {
       .expect("a client without custom TLS cannot fail to build");
     Arc::new_cyclic(|me| Updater {
       states: watch::channel(state.clone()).0,
-      inner: Mutex::new(Inner { state, pending: None, ready_file: None, abort: None, timer: None, listing: None, chosen: None }),
+      inner: Mutex::new(Inner { state, pending: None, ready_file: None, abort: None, timer: None, listing: None, chosen: None, file_round: 0 }),
       cfg,
       host,
       client,
@@ -1371,6 +1398,7 @@ impl Updater {
         if file.parent() == Some(self.cfg.cache_dir.as_path()) {
           let _ = fs::remove_file(&file);
         }
+        self.remove_unpacked(&file);
         return Err(Failure::Said(self.texts().changed.to_string()));
       }
       self.write_marker(&release)?;
@@ -1404,7 +1432,8 @@ impl Updater {
     if self.cfg.kind != InstallKind::Nsis {
       return self.state();
     }
-    let mut next: Vec<String> = args.into_iter().filter(|a| a != "--background" && a != UPDATE_ARG).collect();
+    // A bundle this start was opened with has had its turn.
+    let mut next: Vec<String> = args.into_iter().filter(|a| a != "--background" && a != UPDATE_ARG && !bundle::is_bundle(Path::new(a))).collect();
     next.push(UPDATE_ARG.to_string());
     self.host.quit(AtExit::Relaunch(next));
     self.state()
@@ -1435,19 +1464,27 @@ impl Updater {
 
   // ---- an update from a file (step 5) ------------------------------------------------
 
-  /// "Update aus Datei installieren": checks `path` against the signed manifests
-  /// girovo.de lists and the one its name points to on GitHub. Ready to install
-  /// when its size and SHA-256 are a signed release's installer for this kind of
+  /// "Update aus Datei installieren": a Setup.exe is checked against the signed
+  /// manifests girovo.de lists and the one its name points to on GitHub; a
+  /// .girovoupdate carries its own (check_bundle). Ready to install when its
+  /// size and SHA-256 are a signed release's installer for this kind of
   /// install — an older release too (the page warns); refused otherwise.
   pub async fn check_file(&self, path: PathBuf) -> UpdateState {
+    // Quitting for an install: what it runs must stay where it is.
+    if self.state().phase == Phase::Installing {
+      return self.state();
+    }
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let say = self.texts();
     let offer = |phase, message: Option<&str>| FileOffer { phase, name: name.clone(), version: None, older: false, same: false, message: message.map(str::to_string) };
-    self.inner.lock().unwrap().chosen = None;
+    let round = self.next_file_round();
     if !self.installable() || logic::install_args(self.cfg.kind).is_none() {
       return self.set(|s| s.file = Some(offer(FilePhase::Refused, Some(say.file_not_here))));
     }
     self.set(|s| s.file = Some(offer(FilePhase::Checking, None)));
+    if bundle::is_bundle(&path) {
+      return self.check_bundle(path, name.clone(), round).await;
+    }
     let measured = {
       let p = path.clone();
       async_runtime::spawn_blocking(move || {
@@ -1459,7 +1496,7 @@ impl Updater {
       .flatten()
     };
     let Some((size, sha)) = measured else {
-      return self.set(|s| s.file = Some(offer(FilePhase::Refused, Some(say.file_unreadable))));
+      return self.file_outcome(round, offer(FilePhase::Refused, Some(say.file_unreadable)));
     };
     let (release, asset) = match self.find_signed(&name, size, &sha).await {
       Ok(found) => found,
@@ -1469,20 +1506,135 @@ impl Updater {
           Refusal::BadSignature => say.file_bad_signature,
           Refusal::Changed => say.file_changed,
         };
-        return self.set(|s| s.file = Some(offer(FilePhase::Refused, Some(message))));
+        return self.file_outcome(round, offer(FilePhase::Refused, Some(message)));
       }
     };
-    let (build, current) = (trust::build_number(&release.version), trust::build_number(&self.cfg.current_version));
-    let file = FileOffer {
-      phase: FilePhase::Ready,
+    let file = self.ready_offer(name.clone(), &release);
+    if self.choose(round, (path, release, asset)) { self.set(|s| s.file = Some(file)) } else { self.state() }
+  }
+
+  /// A .girovoupdate, with no connection needed: its manifest's signature
+  /// against the keys built into the app, then its installer against the
+  /// manifest while it is unpacked. The bundle says nothing else that is
+  /// believed: the name, the size and the hash are the signed manifest's.
+  async fn check_bundle(&self, path: PathBuf, name: String, round: u64) -> UpdateState {
+    let say = self.texts();
+    let refused = |message: &str| FileOffer {
+      phase: FilePhase::Refused,
       name: name.clone(),
+      version: None,
+      older: false,
+      same: false,
+      message: Some(message.to_string()),
+    };
+    let parts = {
+      let p = path.clone();
+      async_runtime::spawn_blocking(move || -> Result<_, Damaged> {
+        let mut opened = Bundle::open(&p)?;
+        Ok((opened.small(trust::MANIFEST_NAME, trust::MAX_MANIFEST_BYTES)?, opened.small(trust::SIG_NAME, trust::MAX_MANIFEST_BYTES)?))
+      })
+      .await
+    };
+    let (manifest, sig) = match parts {
+      Ok(Ok((Some(manifest), Some(sig)))) => (manifest, sig),
+      Ok(Ok(_)) => return self.file_outcome(round, refused(say.file_unsigned)),
+      _ => return self.file_outcome(round, refused(say.file_unreadable)),
+    };
+    if trust::verify(&manifest, &String::from_utf8_lossy(&sig), &self.cfg.keys).is_none() {
+      return self.file_outcome(round, refused(say.file_bad_signature));
+    }
+    let Some(release) = trust::release_of(&manifest, &self.cfg.origin) else {
+      return self.file_outcome(round, refused(say.file_unreadable));
+    };
+    // Its name is a plain file name and it has a hash: release_of takes no other.
+    let Some(asset) = logic::pick_asset(&release, self.cfg.kind).cloned() else {
+      return self.file_outcome(round, refused(say.file_changed));
+    };
+    // A folder per round, outside what clear_cache sweeps.
+    let dir = self.bundle_dir().join(round.to_string());
+    let (installer, part) = (dir.join(&asset.name), dir.join(format!("{}.part", asset.name)));
+    let unpacked = {
+      let (p, d, to, entry, size) = (path.clone(), dir.clone(), part.clone(), asset.name.clone(), asset.size);
+      async_runtime::spawn_blocking(move || -> Result<_, Damaged> {
+        fs::create_dir_all(&d)?;
+        Bundle::open(&p)?.extract(&entry, size, &to)
+      })
+      .await
+    };
+    let outcome = match unpacked {
+      Ok(Ok(Some(digest))) if asset.sha256.as_deref() == Some(digest.as_str()) => rename_with_retry(&part, &installer).await.map_err(|_| say.file_unreadable),
+      Ok(Ok(_)) => Err(say.file_changed),
+      _ => Err(say.file_unreadable),
+    };
+    if let Err(message) = outcome {
+      let _ = fs::remove_dir_all(&dir);
+      return self.file_outcome(round, refused(message));
+    }
+    let file = self.ready_offer(name.clone(), &release);
+    if self.choose(round, (installer, release, asset)) {
+      self.set(|s| s.file = Some(file))
+    } else {
+      let _ = fs::remove_dir_all(&dir);
+      self.state()
+    }
+  }
+
+  /// Where installers are unpacked from bundles.
+  fn bundle_dir(&self) -> PathBuf {
+    self.cfg.cache_dir.join("from-bundle")
+  }
+
+  /// `file`'s folder, when `file` was unpacked from a bundle.
+  fn remove_unpacked(&self, file: &Path) {
+    if file.starts_with(self.bundle_dir())
+      && let Some(dir) = file.parent()
+    {
+      let _ = fs::remove_dir_all(dir);
+    }
+  }
+
+  /// Begins a new round: the file picked before is forgotten, a check still running ends unheard.
+  fn next_file_round(&self) -> u64 {
+    let (round, chosen) = {
+      let mut inner = self.inner.lock().unwrap();
+      inner.file_round += 1;
+      (inner.file_round, inner.chosen.take())
+    };
+    if let Some((file, ..)) = chosen {
+      self.remove_unpacked(&file);
+    }
+    round
+  }
+
+  /// Keeps what checked out, unless the round is over: whether it was kept.
+  fn choose(&self, round: u64, chosen: (PathBuf, Release, Asset)) -> bool {
+    let mut inner = self.inner.lock().unwrap();
+    let current = inner.file_round == round;
+    if current {
+      inner.chosen = Some(chosen);
+    }
+    current
+  }
+
+  /// Says how the round's check came out, unless the round is over.
+  fn file_outcome(&self, round: u64, file: FileOffer) -> UpdateState {
+    if self.inner.lock().unwrap().file_round != round {
+      return self.state();
+    }
+    self.set(|s| s.file = Some(file))
+  }
+
+  /// A file that checked out, as the page shows it.
+  fn ready_offer(&self, name: String, release: &Release) -> FileOffer {
+    let (build, current) = (trust::build_number(&release.version), trust::build_number(&self.cfg.current_version));
+    FileOffer {
+      phase: FilePhase::Ready,
+      name,
       version: Some(release.version.clone()),
       older: matches!((build, current), (Some(a), Some(b)) if a < b),
       same: build.is_some() && build == current,
       message: None,
-    };
-    self.inner.lock().unwrap().chosen = Some((path, release, asset));
-    self.set(|s| s.file = Some(file))
+    }
   }
 
   /// The signed release whose installer (for this kind of install) is `size`
@@ -1560,8 +1712,89 @@ impl Updater {
 
   /// The picked file's dialog closed without installing.
   pub fn dismiss_file(&self) -> UpdateState {
-    self.inner.lock().unwrap().chosen = None;
+    self.next_file_round();
     self.set(|s| s.file = None)
+  }
+
+  /// "Als Datei speichern": the update on offer as a .girovoupdate at `dest`,
+  /// to install with no connection or on another PC. Downloads it first when
+  /// that has not happened yet (the installed Windows app otherwise leaves
+  /// that to the start window); state.saving says how far it is.
+  pub async fn save_bundle(&self, dest: PathBuf) -> UpdateState {
+    let dest = if bundle::is_bundle(&dest) { dest } else { dest.with_extension(bundle::EXTENSION) };
+    let name = dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let saving = |phase, message: Option<String>| BundleSave { phase, name: name.clone(), message };
+    let offered = self.inner.lock().unwrap().pending.as_ref().is_some_and(|p| p.asset.is_some());
+    if !self.installable() || !offered || self.state().saving.is_some_and(|s| s.phase == SavePhase::Working) {
+      return self.state();
+    }
+    self.set(|s| {
+      s.saving = Some(saving(SavePhase::Working, None));
+      s.error = None;
+    });
+    // A check or a download under way ends first.
+    drop(self.check_lock.lock().await);
+    drop(self.download_lock.lock().await);
+    if self.state().phase == Phase::Available {
+      self.download().await;
+    }
+    let ready = {
+      let inner = self.inner.lock().unwrap();
+      match (&inner.ready_file, &inner.pending) {
+        (Some(file), Some(Pending { release, asset: Some(asset), .. })) => Some((file.clone(), release.clone(), asset.clone())),
+        _ => None,
+      }
+    };
+    let Some((file, release, asset)) = ready else {
+      // Called off: nothing to say. A download that failed says why, here.
+      let failed = self.state().error.map(|e| e.message);
+      return self.set(|s| {
+        s.error = None;
+        s.saving = failed.map(|message| saving(SavePhase::Failed, Some(message)));
+      });
+    };
+    let done = self.write_bundle(&dest, &file, &release, &asset).await;
+    let say = self.texts();
+    self.set(|s| {
+      s.saving = Some(match done {
+        Some(()) => saving(SavePhase::Done, None),
+        None => saving(SavePhase::Failed, Some(say.bundle_failed.to_string())),
+      });
+    })
+  }
+
+  /// Writes the bundle: the release's own signed manifest, checked here so a
+  /// bundle that could never open is not made, and the installer it names.
+  async fn write_bundle(&self, dest: &Path, file: &Path, release: &Release, asset: &Asset) -> Option<()> {
+    let prefix = self.cfg.origin.download_prefixes.first()?;
+    let at = |name: &str| Asset { name: name.to_string(), url: format!("{prefix}{}/{name}", release.version), size: 0, sha256: None };
+    let manifest = self.small_file(&at(trust::MANIFEST_NAME)).await?;
+    let sig = self.small_file(&at(trust::SIG_NAME)).await?;
+    trust::verify(&manifest, &String::from_utf8_lossy(&sig), &self.cfg.keys)?;
+    let signed = trust::release_of(&manifest, &self.cfg.origin).filter(|r| r.version == release.version)?;
+    let installer = logic::pick_asset(&signed, self.cfg.kind)?.clone();
+    if installer.name != asset.name || !file_matches(file, &installer).await {
+      return None;
+    }
+    let (dest, file) = (dest.to_path_buf(), file.to_path_buf());
+    let written = async_runtime::spawn_blocking(move || bundle::write(&dest, &manifest, &sig, &file, &installer.name)).await;
+    match written {
+      Ok(Ok(())) => Some(()),
+      Ok(Err(err)) => {
+        warn("bundle not saved", &err);
+        None
+      }
+      Err(_) => None,
+    }
+  }
+
+  /// The page has said how the save went.
+  pub fn dismiss_saved(&self) -> UpdateState {
+    self.set(|s| {
+      if s.saving.as_ref().is_some_and(|b| b.phase != SavePhase::Working) {
+        s.saving = None;
+      }
+    })
   }
 
   pub fn set_auto(&self, on: bool) -> UpdateState {
@@ -1619,6 +1852,8 @@ impl Updater {
         }
       }
     }
+    // Installers unpacked from bundles: installed by now, or never going to be.
+    let _ = fs::remove_dir_all(self.bundle_dir());
     self.schedule(Some(FIRST_CHECK_DELAY));
   }
 

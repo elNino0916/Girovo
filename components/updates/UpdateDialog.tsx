@@ -23,7 +23,7 @@
 // again, and gets the same safe answer: "Umsätze prüfen" (or, for several,
 // "In Mitteilungen ansehen") is the filled primary, the restart the outline.
 
-import { useId, useMemo } from 'react';
+import { useEffect, useId, useMemo } from 'react';
 import { fmtBytes, fmtDate } from '@/lib/format';
 import { rich, useT } from '@/lib/i18n/react';
 import { parseReleaseNotes } from '@/lib/release-notes';
@@ -42,7 +42,7 @@ export function UpdateDialog() {
 }
 
 function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }) {
-  const { view, busy, wait } = useFints();
+  const { view, busy, wait, toast } = useFints();
   const t = useT();
   const u = t.shell.updates;
   const { unclear: unclearList, look, lookLabel } = useLookAtUnclear();
@@ -87,7 +87,21 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   );
 
   const icon = release ? <DownloadIcon size={20} /> : installed ? <CheckCircleIcon size={20} /> : <RefreshIcon size={20} />;
-  const close = updates.closeDialog;
+  // Saving the update as a file: a restart meanwhile would end it.
+  const savingFile = state.saving?.phase === 'working';
+  const savedFile = state.saving && state.saving.phase !== 'working' ? state.saving : null;
+  const close = () => {
+    if (savedFile) void updates.dismissSaved();
+    updates.closeDialog();
+  };
+  // Finished with the dialog closed: said once, here. Open, the dialog says it.
+  useEffect(() => {
+    if (!savedFile || open) return;
+    toast(savedFile.phase === 'done' ? u.bundle.saved(savedFile.name) : savedFile.message ?? u.bundle.failed, savedFile.phase === 'done' ? 'success' : 'error');
+    void updates.dismissSaved();
+    // Once, as it finishes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedFile?.phase]);
 
   let actions;
   if (release && release.canInstall && atStart) {
@@ -96,7 +110,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
       <Button
         variant={unclear > 0 ? 'secondary' : 'primary'}
         iconLeft={<RefreshIcon size={16} />}
-        disabled={holding}
+        disabled={holding || savingFile}
         onClick={() => void updates.restartToUpdate()}
       >
         {release.back ? u.restartToGoBack(release.version) : u.restartToInstall}
@@ -220,6 +234,8 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
 
         {release && state.phase === 'downloading' && !atStart && <Progress received={state.received} total={state.total} />}
 
+        {release?.canInstall && atStart && <SaveAsFile state={state} />}
+
         {/* The installed Windows app: only what the button doesn't say — the
             logout, and that the update comes at the next start anyway. */}
         {release?.canInstall && atStart && (signedIn || (state.auto && !release.back)) && (
@@ -260,6 +276,37 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         <AutoCheck state={state} />
       </div>
     </Dialog>
+  );
+}
+
+/** "Als Datei speichern": this update as one file, to install with no connection or on another PC. */
+function SaveAsFile({ state }: { state: UpdateState }) {
+  const t = useT();
+  const b = t.shell.updates.bundle;
+  const saving = state.saving;
+  if (typeof window === 'undefined' || !window.electronUpdater?.saveBundle) return null;
+  if (saving?.phase === 'working') {
+    return state.phase === 'downloading' ? (
+      <div>
+        <Progress received={state.received} total={state.total} />
+        <Button variant="tertiary" size="sm" className="mt-1 -ml-3" onClick={() => void updates.cancel()}>{t.common.cancel}</Button>
+      </div>
+    ) : (
+      <p role="status" className="flex items-center gap-2.5 text-[14px] text-ink-2">
+        <Spinner />
+        {b.writing}
+      </p>
+    );
+  }
+  return (
+    <div>
+      {saving?.phase === 'done' && <Alert tone="success" className="mt-0 mb-2" role="status">{b.saved(saving.name)}</Alert>}
+      {saving?.phase === 'failed' && <Alert tone="error" className="mt-0 mb-2">{saving.message ?? b.failed}</Alert>}
+      <Button variant="tertiary" size="sm" className="-ml-3" iconLeft={<DownloadIcon size={16} />} onClick={() => void updates.saveBundle()}>
+        {b.save}
+      </Button>
+      <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{b.hint}</p>
+    </div>
   );
 }
 

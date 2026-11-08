@@ -1,9 +1,10 @@
 'use client';
 
 // "Update aus Datei installieren" (docs/updater-v2.md, step 5): the dialog
-// for a Setup.exe picked in Einstellungen → Über Girovo or dropped on the
-// window. The shell checks it against Girovo's signed releases
-// (src-tauri/src/updater/engine.rs check_file) while this says so; a file that
+// for a Setup.exe or .girovoupdate picked in Einstellungen → Über Girovo,
+// dropped on the window or double-clicked. The shell checks it against
+// Girovo's signed releases (src-tauri/src/updater/engine.rs check_file; a
+// .girovoupdate with no connection needed) while this says so; a file that
 // checks out is offered for install — an older version with the warning the
 // owner asked for — and anything else is refused with the reason. Installing
 // quits the app like any update (girovo-update.exe runs the installer), so a

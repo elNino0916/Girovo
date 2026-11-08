@@ -18,9 +18,10 @@ declare global {
     /** Automatic checks (at start, then every 6 hours). */
     auto: boolean;
     /**
-     * A Setup.exe picked to install (chooseFile, or dropped on the window): being
-     * checked against Girovo's signed releases, ready (its version; older or
-     * the installed one), or refused with the reason. The desktop app only.
+     * A Setup.exe or .girovoupdate picked to install (chooseFile, dropped on
+     * the window, or double-clicked): being checked against Girovo's signed
+     * releases, ready (its version; older or the installed one), or refused
+     * with the reason. The desktop app only.
      */
     file?: {
       phase: 'checking' | 'ready' | 'refused';
@@ -28,6 +29,12 @@ declare global {
       version: string | null;
       older: boolean;
       same: boolean;
+      message: string | null;
+    } | null;
+    /** The update being saved as a .girovoupdate (saveBundle); undefined from shells without it. */
+    saving?: {
+      phase: 'working' | 'done' | 'failed';
+      name: string;
       message: string | null;
     } | null;
     /** Staged releases at once (setEarly); undefined from shells and builds from before it. */
@@ -88,6 +95,10 @@ declare global {
       /** Installs the file state.file is ready with: the app quits, girovo-update.exe installs it. */
       installFile?: () => Promise<ElectronUpdateState | null>;
       dismissFile?: () => Promise<ElectronUpdateState | null>;
+      /** "Als Datei speichern": asks where, downloads the update, writes the .girovoupdate (state.saving). The installed Windows app only. */
+      saveBundle?: () => Promise<ElectronUpdateState | null>;
+      /** The page has said how the save went. */
+      dismissSaved?: () => Promise<ElectronUpdateState | null>;
       /** Answers once the check in the new channel is done. */
       setChannel: (channel: UpdateChannel) => Promise<ElectronUpdateState | null>;
       openRelease: () => Promise<ElectronUpdateState | null>;

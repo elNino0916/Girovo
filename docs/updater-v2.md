@@ -107,6 +107,16 @@ a signed release manifest (fetched from girovo.de, or from GitHub when
 offline from girovo.de), older versions included after a warning that data a
 newer version wrote may not open. The helper installs it.
 
+A `.girovoupdate` needs no connection at all. It is a plain ZIP with stored
+entries, holding the release's `girovo-update.json`, its signature and its
+Setup.exe (`src-tauri/src/updater/bundle.rs`). Girovo checks the signature
+against the keys built into the app and the installer against the signed
+manifest, then installs through the same path. Nothing in the bundle is
+believed unless the signature covers it. There is no such file on the release
+page: "Als Datei speichern" in the update dialog downloads the update and
+makes one. Opening one by double-click only checks it and shows the dialog;
+installing still takes a yes. Windows only: an APK is signed by its own key.
+
 ## Releasing with it
 
 - **Nightlies:** `nightly.yml` (on main) builds and signs the manifest in its
@@ -171,4 +181,8 @@ Each step lands on `nightly` and goes out as a 6.0.2 nightly when it works.
   listings, else in the signed manifest its name points to on GitHub; an
   older release is allowed with a warning (FileUpdateDialog), anything else
   refused. `install_file` installs it through the normal `install()` and the
-  helper.
+  helper. A `.girovoupdate` is opened the same three ways and by double-click
+  (`bundle.fileAssociations`, `lib.rs`'s single-instance callback); its
+  installer is unpacked to `from-bundle/<round>/` under the download folder,
+  where `clear_cache` does not reach, and goes when the dialog closes or at
+  the next start.

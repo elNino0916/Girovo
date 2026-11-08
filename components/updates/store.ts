@@ -95,6 +95,8 @@ export const updates = {
   chooseFile: () => call((b) => (b.chooseFile ? b.chooseFile() : Promise.resolve(null))),
   installFile: () => call((b) => (b.installFile ? b.installFile() : Promise.resolve(null))),
   dismissFile: () => call((b) => (b.dismissFile ? b.dismissFile() : Promise.resolve(null))),
+  saveBundle: () => call((b) => (b.saveBundle ? b.saveBundle() : Promise.resolve(null))),
+  dismissSaved: () => call((b) => (b.dismissSaved ? b.dismissSaved() : Promise.resolve(null))),
   setChannel: (channel: UpdateChannel) => call((b) => b.setChannel(channel)),
   openRelease: () => call((b) => b.openRelease()),
 };

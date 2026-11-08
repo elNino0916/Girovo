@@ -181,7 +181,7 @@ export const de = {
   /** Über Girovo → a Setup.exe downloaded by hand (components/settings/UpdateChannel.tsx FromFileRow). */
   fromFile: {
     title: 'Update aus Datei installieren',
-    hint: 'Eine heruntergeladene Setup-Datei von Girovo, auch eine ältere Version',
+    hint: 'Eine Setup- oder Update-Datei von Girovo, auch eine ältere Version',
   },
 
   /** Einstellungen → Dieses Gerät, the desktop app (components/settings/ResetApp.tsx, src-tauri/src/reset.rs). */
@@ -320,7 +320,7 @@ export const en: typeof de = {
 
   fromFile: {
     title: 'Install an update from a file',
-    hint: 'A Girovo setup file you downloaded, an older version too',
+    hint: 'A Girovo setup or update file, an older version too',
   },
 
   resetApp: {

@@ -133,6 +133,8 @@
     chooseFile: function () { return invoke('updater_choose_file'); },
     installFile: function () { return invoke('updater_install_file'); },
     dismissFile: function () { return invoke('updater_dismiss_file'); },
+    saveBundle: function () { return invoke('updater_save_bundle'); },
+    dismissSaved: function () { return invoke('updater_dismiss_saved'); },
     setChannel: function (channel) { return invoke('updater_set_channel', { channel: channel === 'preview' ? 'preview' : 'stable' }); },
     openRelease: function () { return invoke('updater_open_release'); },
     onState: function (callback) {

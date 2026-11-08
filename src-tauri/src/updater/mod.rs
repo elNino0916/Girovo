@@ -15,6 +15,7 @@
 // the Electron shell's main.cjs), every state change pushed as the event STATE_EVENT,
 // and the hooks for the start and install windows.
 
+mod bundle;
 mod chunks;
 mod engine;
 mod helper;
@@ -380,7 +381,7 @@ pub async fn updater_choose_file(app: AppHandle, window: tauri::WebviewWindow, s
     let picking = rfd::AsyncFileDialog::new()
       .set_parent(&window)
       .set_title(if english { "Install an update from a file" } else { "Update aus Datei installieren" })
-      .add_filter(if english { "Girovo setup" } else { "Girovo-Setup" }, &["exe"])
+      .add_filter(if english { "Girovo update" } else { "Girovo-Update" }, &[bundle::EXTENSION, "exe"])
       .pick_file();
     std::thread::spawn(move || {
       let _ = tx.send(tauri::async_runtime::block_on(picking));
@@ -405,12 +406,62 @@ pub fn updater_dismiss_file(s: Updates<'_>) -> UpdateState {
   s.updater.dismiss_file()
 }
 
-/// A Girovo setup file dropped on the app's window: checked as one picked in the dialog.
+/// "Als Datei speichern": where to, then the download and the file (state.saving).
+#[tauri::command]
+pub async fn updater_save_bundle(app: AppHandle, window: tauri::WebviewWindow, s: Updates<'_>) -> Result<UpdateState, String> {
+  let Some(version) = s.updater.state().release.map(|r| r.version) else { return Ok(s.updater.state()) };
+  let english = s.host.lang() == crate::texts::Lang::En;
+  let name = format!("Girovo-{version}.{}", bundle::EXTENSION);
+  let (tx, rx) = tokio::sync::oneshot::channel();
+  // Made on the main thread, awaited off it (save.rs's way).
+  let made = app.run_on_main_thread(move || {
+    let mut dialog = rfd::AsyncFileDialog::new()
+      .set_parent(&window)
+      .set_title(if english { "Save the update as a file" } else { "Update als Datei speichern" })
+      .set_file_name(name)
+      .add_filter(if english { "Girovo update" } else { "Girovo-Update" }, &[bundle::EXTENSION]);
+    if let Some(downloads) = dirs::download_dir() {
+      dialog = dialog.set_directory(downloads);
+    }
+    let saving = dialog.save_file();
+    std::thread::spawn(move || {
+      let _ = tx.send(tauri::async_runtime::block_on(saving));
+    });
+  });
+  if made.is_err() {
+    return Ok(s.updater.state());
+  }
+  match rx.await.ok().flatten() {
+    Some(file) => Ok(s.updater.save_bundle(file.path().to_path_buf()).await),
+    None => Ok(s.updater.state()),
+  }
+}
+
+#[tauri::command]
+pub fn updater_dismiss_saved(s: Updates<'_>) -> UpdateState {
+  s.updater.dismiss_saved()
+}
+
+/// A .girovoupdate among a start's arguments (double-clicked in Explorer):
+/// checked as one picked in the dialog, the user still has to say yes.
+/// Answers whether there was one.
+pub fn open_bundle(app: &AppHandle, args: impl IntoIterator<Item = String>) -> bool {
+  let Some(path) = args.into_iter().skip(1).map(PathBuf::from).find(|p| p.is_absolute() && bundle::is_bundle(p)) else { return false };
+  let Some(shared) = app.try_state::<Shared>() else { return false };
+  let updater = shared.updater.clone();
+  tauri::async_runtime::spawn(async move {
+    updater.check_file(path).await;
+  });
+  true
+}
+
+/// A Girovo setup file or bundle dropped on the app's window: checked as one picked in the dialog.
 fn dropped(app: &AppHandle, label: &str, event: &tauri::WindowEvent) {
   let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event else { return };
   let [path] = paths.as_slice() else { return };
   let name = path.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
-  if label != "main" || !name.starts_with("girovo") || !name.ends_with("-setup.exe") {
+  let setup = name.starts_with("girovo") && name.ends_with("-setup.exe");
+  if label != "main" || !(setup || bundle::is_bundle(path)) {
     return;
   }
   if let Some(shared) = app.try_state::<Shared>() {

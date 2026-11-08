@@ -70,7 +70,11 @@ pub fn run() {
   // copy of its own, which must never hand itself over to the installed app.
   let test_run = std::env::var_os("GIROVO_DATA_DIR").is_some_and(|d| !d.is_empty());
   let builder =
-    if test_run { builder } else { builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| background::bring_forward(app))) };
+    if test_run { builder } else { builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+      // A .girovoupdate double-clicked while Girovo runs.
+      updater::open_bundle(app, argv);
+      background::bring_forward(app);
+    })) };
   let app = builder
     .plugin(tauri_plugin_notification::init())
     .manage(prefs::Prefs::load())
@@ -268,6 +272,8 @@ pub fn run() {
       updater::updater_choose_file,
       updater::updater_install_file,
       updater::updater_dismiss_file,
+      updater::updater_save_bundle,
+      updater::updater_dismiss_saved,
       updater::updater_set_channel,
       updater::updater_open_release,
       sync_lan::sync_lan,
@@ -303,12 +309,15 @@ fn start(app: tauri::AppHandle, splash: Option<Arc<splash::Splash>>, migration: 
   // beside the rest of the start; what it found is installed before the app's
   // window opens — the app then quits for the installer.
   let updater = updater::get(&app);
+  // Started by double-clicking a .girovoupdate: that file is what this start
+  // is for, not whichever update is newest.
+  let opened = updater::open_bundle(&app, std::env::args());
   let check = updater.start_check(&*splash);
   if let Some(steps) = migration {
     migrate::run(&app, &splash, &app.state::<prefs::Prefs>(), steps);
   }
   let _ = loaded.recv_timeout(PAGE_LOAD_LIMIT);
-  if updater.update_at_start_blocking(check, &*splash) {
+  if !opened && updater.update_at_start_blocking(check, &*splash) {
     return;
   }
   splash.step("opening");

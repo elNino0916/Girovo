@@ -93,6 +93,7 @@ mod tests {
       auto: true,
       early: false,
       file: None,
+      saving: None,
       channel: Channel::Preview,
       phase,
       checked_at: None,

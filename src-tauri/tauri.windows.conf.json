@@ -1,5 +1,13 @@
 {
   "bundle": {
-    "externalBin": ["binaries/girovo-update"]
+    "externalBin": ["binaries/girovo-update"],
+    "fileAssociations": [
+      {
+        "ext": ["girovoupdate"],
+        "name": "Girovo.Update",
+        "description": "Girovo-Update",
+        "role": "Viewer"
+      }
+    ]
   }
 }

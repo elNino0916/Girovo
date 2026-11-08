@@ -44,6 +44,8 @@ libloading = "0.9"
 # save.rs, pdf.rs, telemetry.rs): the native Save As and folder dialogs, the
 # scrubber's patterns, ids, this computer's addresses and name.
 rfd = { version = "=0.16.1", default-features = false, features = ["gtk3"] }
+# The CRC a .girovoupdate's ZIP entries carry (updater/bundle.rs).
+crc32fast = "1.5"
 regex = "1.13"
 uuid = { version = "1.29", features = ["v4"] }
 if-addrs = "0.15"

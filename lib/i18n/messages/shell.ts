@@ -130,7 +130,7 @@ export const de = {
       updates: ['update', 'aktualisieren', 'aktualisierung', 'version', 'neue version', 'upgrade', 'installieren'],
       channel: ['update-kanal', 'nightly', 'vorschau', 'vorabversion', 'beta', 'preview'],
       early: ['sofort', 'neueste updates', 'früher', 'zuerst', 'gestaffelt', 'updates'],
-      fromFile: ['update aus datei', 'setup', 'installieren', 'datei', 'ältere version', 'downgrade', 'zurück'],
+      fromFile: ['update aus datei', 'setup', 'girovoupdate', 'installieren', 'datei', 'ältere version', 'downgrade', 'zurück'],
       loginBalances: ['salden', 'anmeldung', 'automatisch abrufen', 'kontostände'],
       loginBookings: ['umsätze', 'anmeldung', 'automatisch abrufen', 'alle konten', 'start'],
       keepBalances: ['salden behalten', 'gespeicherte salden', 'kontostände', 'gesamtsaldo verlauf'],
@@ -417,6 +417,14 @@ export const de = {
       install: 'Installieren',
       refusedTitle: 'Diese Datei wird nicht installiert',
     },
+    /** "Als Datei speichern" (components/updates/UpdateDialog.tsx SaveAsFile). */
+    bundle: {
+      save: 'Als Datei speichern',
+      hint: 'Zum Installieren ohne Internet oder auf einem anderen PC.',
+      writing: 'Datei wird gespeichert …',
+      saved: (name: string) => `Gespeichert als ${name}.`,
+      failed: 'Das Update ließ sich nicht als Datei speichern.',
+    },
     autoInstallHint:
       'Neue Versionen werden beim Start installiert.',
     // The toasts, the Mitteilungen row, the Sitzung panel's row and the login bar's button.
@@ -550,7 +558,7 @@ export const en: typeof de = {
       updates: ['update', 'updates', 'new version', 'version', 'upgrade', 'install'],
       channel: ['update channel', 'nightly', 'preview', 'beta', 'pre-release', 'early access'],
       early: ['right away', 'latest updates', 'early', 'first', 'staged', 'updates'],
-      fromFile: ['update from file', 'setup', 'install', 'file', 'older version', 'downgrade', 'roll back'],
+      fromFile: ['update from file', 'setup', 'girovoupdate', 'install', 'file', 'older version', 'downgrade', 'roll back'],
       loginBalances: ['balances', 'login', 'load automatically'],
       loginBookings: ['transactions', 'login', 'load automatically', 'all accounts', 'launch'],
       keepBalances: ['keep balances', 'saved balances', 'total balance history'],
@@ -774,6 +782,13 @@ export const en: typeof de = {
       holding: 'Girovo is still waiting for your bank. You can install after that.',
       install: 'Install',
       refusedTitle: 'This file won’t be installed',
+    },
+    bundle: {
+      save: 'Save as a file',
+      hint: 'To install without internet or on another PC.',
+      writing: 'Saving the file …',
+      saved: (name) => `Saved as ${name}.`,
+      failed: 'The update couldn’t be saved as a file.',
     },
     autoInstallHint:
       'New versions are installed at start-up.',

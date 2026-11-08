@@ -1347,6 +1347,7 @@ async fn live_girovo_de_offers_the_signed_nightly() {
 // ---- girovo.de and signed manifests (docs/updater-v2.md) -------------------------------
 
 mod signed {
+  use super::super::bundle;
   use super::super::trust::{self, testing};
   use super::*;
 
@@ -1655,5 +1656,278 @@ mod signed {
     let offer = updater.check_file(picked(&downloads, "9.9.9", &payload())).await.file.unwrap();
     assert_eq!(offer.phase, FilePhase::Refused);
     assert!(updater.dismiss_file().file.is_none());
+  }
+
+  // ---- a .girovoupdate ----
+
+  /// Nobody listens here: what works against it works with no connection.
+  const OFFLINE: &str = "http://127.0.0.1:9/";
+
+  /// A bundle in `dir` of exactly these parts.
+  fn pack(dir: &TempDir, manifest: &[u8], sig: &[u8], installer_name: &str, installer: &[u8]) -> PathBuf {
+    let exe = dir.path().join("installer.bin");
+    std::fs::write(&exe, installer).unwrap();
+    let path = dir.path().join("Girovo-9.9.9.girovoupdate");
+    bundle::write(&path, manifest, sig, &exe, installer_name).unwrap();
+    path
+  }
+
+  /// A good bundle of 9.9.9, its links under `base`.
+  fn bundled(dir: &TempDir, base: &str) -> PathBuf {
+    let m = manifest_of(base, "9.9.9", &payload());
+    let sig = testing::sign(m.as_bytes(), &testing::pair(1).0);
+    pack(dir, m.as_bytes(), sig.as_bytes(), SETUP, &payload())
+  }
+
+  /// The files unpacked from bundles and still lying there.
+  fn unpacked(cache: &TempDir) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let mut folders = vec![cache.path().join("from-bundle")];
+    while let Some(dir) = folders.pop() {
+      for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+        if entry.path().is_dir() {
+          folders.push(entry.path());
+        } else {
+          found.push(entry.path());
+        }
+      }
+    }
+    found
+  }
+
+  #[tokio::test]
+  async fn a_bundle_opens_with_no_connection_and_installs_what_it_carries() {
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let host = host();
+    let updater = make(signed_config(OFFLINE, cache.path()), &host);
+    let s = updater.check_file(bundled(&downloads, OFFLINE)).await;
+    let offer = s.file.clone().unwrap();
+    assert_eq!(offer.phase, FilePhase::Ready, "{offer:?}");
+    assert_eq!((offer.version.as_deref(), offer.older, offer.same), (Some("9.9.9"), false, false));
+    assert_eq!(offer.name, "Girovo-9.9.9.girovoupdate");
+
+    let s = updater.install_file().await;
+    assert_eq!(s.phase, Phase::Installing, "{:?}", s.error);
+    assert!(s.file.is_none());
+    let installs = host.installs();
+    assert_eq!(installs.len(), 1);
+    assert!(installs[0].file.starts_with(cache.path().join("from-bundle")), "{:?}", installs[0].file);
+    assert_eq!(installs[0].file.file_name().unwrap().to_str(), Some(SETUP), "under the signed name");
+    assert_eq!(std::fs::read(&installs[0].file).unwrap(), payload());
+    assert_eq!(installs[0].sha256.as_deref(), Some(sha(&payload()).as_str()), "its signed hash goes to girovo-update.exe");
+    assert_eq!(unpacked(&cache).len(), 1, "stays for the installer");
+  }
+
+  #[tokio::test]
+  async fn a_check_meanwhile_does_not_sweep_the_unpacked_installer() {
+    let srv = Server::start(site(Some(by_stable), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let host = host();
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    assert_eq!(updater.check_file(bundled(&downloads, &srv.base)).await.file.unwrap().phase, FilePhase::Ready);
+    updater.check(true).await;
+    assert_eq!(unpacked(&cache).len(), 1, "clear_cache left it alone");
+    assert_eq!(updater.install_file().await.phase, Phase::Installing);
+    assert_eq!(host.installs().len(), 1);
+  }
+
+  #[tokio::test]
+  async fn an_older_release_in_a_bundle_is_said_to_be_older() {
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let mut cfg = signed_config(OFFLINE, cache.path());
+    cfg.current_version = "9.9.9".into();
+    let updater = make(cfg, &host());
+    let m = manifest_of(OFFLINE, "9.9.8", &older_payload());
+    let sig = testing::sign(m.as_bytes(), &testing::pair(1).0);
+    let path = pack(&downloads, m.as_bytes(), sig.as_bytes(), "Girovo-9.9.8-Setup.exe", &older_payload());
+    let offer = updater.check_file(path).await.file.unwrap();
+    assert_eq!((offer.phase, offer.version.as_deref(), offer.older, offer.same), (FilePhase::Ready, Some("9.9.8"), true, false));
+  }
+
+  #[tokio::test]
+  async fn a_damaged_or_changed_bundle_is_refused_and_says_why() {
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let good = manifest_of(OFFLINE, "9.9.9", &payload());
+    let by = |seed: u8, bytes: &str| testing::sign(bytes.as_bytes(), &testing::pair(seed).0);
+    let sig = by(1, &good);
+    let unreadable = "ließ sich nicht lesen";
+    let unsigned = "keine Signatur";
+    let bad_signature = "Signatur dieser Datei ist ungültig";
+    let changed = "verändert";
+
+    // A file, and the reason it is refused for.
+    let mut cases: Vec<(&str, Vec<u8>, &str)> = Vec::new();
+    let read = |p: PathBuf| std::fs::read(p).unwrap();
+    let whole = read(pack(&downloads, good.as_bytes(), sig.as_bytes(), SETUP, &payload()));
+    cases.push(("not a bundle", b"this is no zip".to_vec(), unreadable));
+    cases.push(("cut off", whole[..whole.len() / 2].to_vec(), unreadable));
+    let renamed = |from: &[u8], to: &[u8]| {
+      let mut bytes = whole.clone();
+      let mut at = 0;
+      while let Some(i) = bytes[at..].windows(from.len()).position(|w| w == from) {
+        bytes[at + i..at + i + to.len()].copy_from_slice(to);
+        at += i + 1;
+      }
+      bytes
+    };
+    cases.push(("no manifest", renamed(b"girovo-update.json", b"other-updat.json.x"), unsigned));
+    cases.push(("no signature", renamed(b"girovo-update.json.sig", b"girovo-update.json.xyz"), unsigned));
+    cases.push(("a stranger's signature", read(pack(&downloads, good.as_bytes(), by(9, &good).as_bytes(), SETUP, &payload())), bad_signature));
+    let forged = manifest_of(OFFLINE, "9.9.9", b"the attacker's installer");
+    cases.push(("a manifest changed after signing", read(pack(&downloads, forged.as_bytes(), sig.as_bytes(), SETUP, b"the attacker's installer")), bad_signature));
+    cases.push(("garbage for a signature", read(pack(&downloads, good.as_bytes(), b"not json", SETUP, &payload())), bad_signature));
+    let mut other = payload();
+    other[0] ^= 1;
+    cases.push(("another installer of the same size", read(pack(&downloads, good.as_bytes(), sig.as_bytes(), SETUP, &other)), changed));
+    cases.push(("another installer of another size", read(pack(&downloads, good.as_bytes(), sig.as_bytes(), SETUP, b"short")), changed));
+    cases.push(("no installer", read(pack(&downloads, good.as_bytes(), sig.as_bytes(), "Other-Setup.exe", &payload())), changed));
+
+    let host = host();
+    let updater = make(signed_config(OFFLINE, cache.path()), &host);
+    let file = downloads.path().join("case.girovoupdate");
+    for (what, bytes, why) in cases {
+      std::fs::write(&file, bytes).unwrap();
+      let offer = updater.check_file(file.clone()).await.file.unwrap();
+      assert_eq!(offer.phase, FilePhase::Refused, "{what}");
+      assert!(offer.message.as_deref().unwrap_or("").contains(why), "{what}: {:?}", offer.message);
+      assert_eq!(offer.version, None, "{what}");
+      assert!(unpacked(&cache).is_empty(), "{what}: nothing left behind");
+      assert_eq!(updater.install_file().await.phase, Phase::Idle, "{what}: nothing to install");
+    }
+    assert!(host.installs().is_empty());
+    assert_eq!(updater.check_file(downloads.path().join("missing.girovoupdate")).await.file.unwrap().phase, FilePhase::Refused);
+  }
+
+  #[tokio::test]
+  async fn the_unpacked_copy_goes_with_the_dialog_with_the_next_file_and_at_the_next_start() {
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(OFFLINE, cache.path()), &host());
+    let path = bundled(&downloads, OFFLINE);
+    updater.check_file(path.clone()).await;
+    assert_eq!(unpacked(&cache).len(), 1);
+    assert!(updater.dismiss_file().file.is_none());
+    assert!(unpacked(&cache).is_empty(), "closed: gone");
+    assert_eq!(updater.install_file().await.phase, Phase::Idle, "and nothing to install");
+
+    updater.check_file(path.clone()).await;
+    updater.check_file(path.clone()).await;
+    assert_eq!(unpacked(&cache).len(), 1, "the next file takes its place");
+
+    // What a quit left behind.
+    let again = make(signed_config(OFFLINE, cache.path()), &host());
+    again.start();
+    again.stop();
+    assert!(unpacked(&cache).is_empty(), "gone at the next start");
+  }
+
+  #[tokio::test]
+  async fn a_bundle_outside_the_installed_windows_app_is_not_opened() {
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let mut cfg = signed_config(OFFLINE, cache.path());
+    cfg.kind = InstallKind::Manual;
+    let updater = make(cfg, &host());
+    let offer = updater.check_file(bundled(&downloads, OFFLINE)).await.file.unwrap();
+    assert_eq!(offer.phase, FilePhase::Refused);
+    assert!(unpacked(&cache).is_empty());
+  }
+
+  #[tokio::test]
+  async fn a_restart_forgets_the_bundle_this_start_was_opened_with() {
+    let cache = TempDir::new();
+    let host = host();
+    let updater = make(signed_config(OFFLINE, cache.path()), &host);
+    updater.restart_to_update(["C:/Downloads/Girovo-9.9.9.girovoupdate".to_string(), "--updated".into()]);
+    assert_eq!(*host.quits.lock().unwrap(), [AtExit::Relaunch(vec!["--updated".into(), "--update".into()])]);
+  }
+
+  #[tokio::test]
+  async fn a_saved_bundle_opens_and_installs_on_its_own() {
+    let seen: Seen = Arc::default();
+    let srv = Server::start(site(Some(by_stable), Some(1), seen.clone()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    assert_eq!(updater.check(true).await.phase, Phase::Available);
+    let dest = downloads.path().join("Mein Update.girovoupdate");
+    let s = updater.save_bundle(dest.clone()).await;
+    let saving = s.saving.clone().unwrap();
+    assert_eq!((saving.phase, saving.name.as_str()), (SavePhase::Done, "Mein Update.girovoupdate"), "{saving:?}");
+    assert_eq!(s.phase, Phase::Ready, "the download stays for the next start");
+    assert!(updater.dismiss_saved().saving.is_none());
+    assert!(!downloads.path().join("Mein Update.girovoupdate.part").exists());
+
+    // On another PC: another cache, and not one request.
+    let other_cache = TempDir::new();
+    let host = host();
+    let elsewhere = make(signed_config(&srv.base, other_cache.path()), &host);
+    let asked = seen.lock().unwrap().len();
+    let offer = elsewhere.check_file(dest).await.file.unwrap();
+    assert_eq!(offer.phase, FilePhase::Ready, "{offer:?}");
+    assert_eq!(offer.version.as_deref(), Some("9.9.9"));
+    assert_eq!(elsewhere.install_file().await.phase, Phase::Installing);
+    assert_eq!(seen.lock().unwrap().len(), asked, "the network was not asked");
+    assert_eq!(std::fs::read(&host.installs()[0].file).unwrap(), payload());
+  }
+
+  #[tokio::test]
+  async fn saving_a_downloaded_update_uses_that_download() {
+    let seen: Seen = Arc::default();
+    let srv = Server::start(site(Some(by_stable), Some(1), seen.clone()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    updater.check(true).await;
+    assert_eq!(updater.download().await.phase, Phase::Ready);
+    seen.lock().unwrap().clear();
+    let s = updater.save_bundle(downloads.path().join("x.girovoupdate")).await;
+    assert_eq!(s.saving.unwrap().phase, SavePhase::Done);
+    let asked: Vec<String> = seen.lock().unwrap().iter().map(|(path, _)| path.clone()).collect();
+    assert_eq!(asked, ["/9.9.9/girovo-update.json", "/9.9.9/girovo-update.json.sig"]);
+  }
+
+  #[tokio::test]
+  async fn a_file_name_without_the_ending_gets_it() {
+    let srv = Server::start(site(Some(by_stable), Some(1), Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    updater.check(true).await;
+    let s = updater.save_bundle(downloads.path().join("Update")).await;
+    assert_eq!(s.saving.unwrap().name, "Update.girovoupdate");
+    assert!(downloads.path().join("Update.girovoupdate").is_file());
+  }
+
+  #[tokio::test]
+  async fn a_release_without_its_signed_manifest_is_not_saved_and_says_so() {
+    // girovo.de offers it, GitHub has no manifest to go with it.
+    let srv = Server::start(site(Some(by_stable), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    updater.check(true).await;
+    let dest = downloads.path().join("x.girovoupdate");
+    let s = updater.save_bundle(dest.clone()).await;
+    let saving = s.saving.unwrap();
+    assert_eq!(saving.phase, SavePhase::Failed);
+    assert!(saving.message.unwrap().contains("nicht als Datei speichern"));
+    assert!(!dest.exists());
+    assert!(downloads.names().is_empty(), "nothing half written");
+  }
+
+  #[tokio::test]
+  async fn a_manifest_signed_by_a_stranger_is_not_put_in_a_bundle() {
+    // The offer comes from girovo.de, signed; the release's own manifest is a stranger's.
+    let srv = Server::start(site(Some(by_stable), Some(9), Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    updater.check(true).await;
+    let dest = downloads.path().join("x.girovoupdate");
+    assert_eq!(updater.save_bundle(dest.clone()).await.saving.unwrap().phase, SavePhase::Failed);
+    assert!(!dest.exists());
+  }
+
+  #[tokio::test]
+  async fn nothing_on_offer_nothing_to_save() {
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(OFFLINE, cache.path()), &host());
+    let dest = downloads.path().join("x.girovoupdate");
+    assert!(updater.save_bundle(dest.clone()).await.saving.is_none());
+    assert!(!dest.exists());
   }
 }
