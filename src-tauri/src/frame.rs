@@ -7,11 +7,9 @@
 // maximize button comes only when the window answers WM_NCHITTEST with
 // HTMAXBUTTON there. The WebView covers the whole window and answers every
 // hit test itself, so a near-invisible child window lies over the page's
-// maximize button and passes its hit tests up (HTTRANSPARENT); the window's
-// own procedure, subclassed here, then answers HTMAXBUTTON for that spot.
-// Windows draws the flyout, and the mouse messages that land there (hover,
-// press, release) are handled here and told to the page, which draws the
-// button's states.
+// maximize button and answers HTMAXBUTTON for it. The mouse messages that land
+// there (hover, press, release) are handled by that window and told to the
+// page, which draws the button's states.
 //
 // The page reports where its maximize button is (caption_rect), in physical
 // pixels of the window's client area, whenever it moves (zoom, DPI, size).
@@ -90,7 +88,7 @@ mod win {
   use windows::Win32::UI::Input::KeyboardAndMouse::{TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, TrackMouseEvent};
   use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
   use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, HTMAXBUTTON, HTTRANSPARENT, HWND_TOP, IsZoomed, LWA_ALPHA, RegisterClassW,
+    CreateWindowExW, DefWindowProcW, GetParent, HTMAXBUTTON, HWND_TOP, IsZoomed, LWA_ALPHA, RegisterClassW,
     SW_MAXIMIZE, SW_RESTORE, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetLayeredWindowAttributes, SetWindowPos, ShowWindow,
     WM_NCHITTEST, WM_NCLBUTTONDBLCLK, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WNDCLASSW,
     WS_CHILD, WS_CLIPSIBLINGS, WS_EX_LAYERED, WS_EX_NOACTIVATE,
@@ -103,7 +101,6 @@ mod win {
     /// The maximize button: left, top, width, height in client pixels.
     rect: (i32, i32, i32, i32),
     hovering: bool,
-    pressed: bool,
   }
 
   static FRAME: OnceLock<Mutex<Frame>> = OnceLock::new();
@@ -160,7 +157,6 @@ mod win {
         overlay: overlay.0 as isize,
         rect: (0, 0, 0, 0),
         hovering: false,
-        pressed: false,
       }));
       let _ = SetWindowSubclass(window, Some(window_proc), SUBCLASS_ID, 0);
     }
@@ -194,32 +190,15 @@ mod win {
   }
 
   unsafe extern "system" fn overlay_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    // Every hit test goes to the window underneath — the main window, same thread.
-    if msg == WM_NCHITTEST {
-      return LRESULT(HTTRANSPARENT as isize);
-    }
-    unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
-  }
-
-  unsafe extern "system" fn window_proc(
-    hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _id: usize, _data: usize,
-  ) -> LRESULT {
-    let at_max = wparam.0 == HTMAXBUTTON as usize;
     match msg {
-      WM_NCHITTEST if over_button(hwnd, lparam) => return LRESULT(HTMAXBUTTON as isize),
+      // The button is this window's whole area, and the answer is given here.
+      // HTTRANSPARENT was no way to pass it on: Windows then asks the next
+      // window of this thread, which is the WebView's (WRY_WEBVIEW), never the
+      // main window, so neither hover nor click reached anything (owner, 2026-11-08).
+      WM_NCHITTEST => return LRESULT(HTMAXBUTTON as isize),
       WM_NCMOUSEMOVE => {
-        let mut changed = None;
-        if let Some(mut f) = frame() {
-          if at_max && !f.hovering {
-            f.hovering = true;
-            changed = Some(true);
-          } else if !at_max && f.hovering {
-            f.hovering = false;
-            f.pressed = false;
-            changed = Some(false);
-          }
-        }
-        if changed == Some(true) {
+        let entered = frame().is_some_and(|mut f| !std::mem::replace(&mut f.hovering, true));
+        if entered {
           let mut track = TRACKMOUSEEVENT {
             cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
             dwFlags: TME_LEAVE | TME_NONCLIENT,
@@ -229,47 +208,42 @@ mod win {
           unsafe {
             let _ = TrackMouseEvent(&mut track);
           }
+          emit("caption:hover", true);
         }
-        if let Some(on) = changed {
-          emit("caption:hover", on);
-        }
-        if at_max {
-          return LRESULT(0);
-        }
+        return LRESULT(0);
       }
       WM_NCMOUSELEAVE => {
-        let left = frame().map(|mut f| {
-          let was = f.hovering;
-          f.hovering = false;
-          f.pressed = false;
-          was
-        });
-        if left == Some(true) {
+        let left = frame().is_some_and(|mut f| std::mem::replace(&mut f.hovering, false));
+        if left {
           emit("caption:hover", false);
           emit("caption:press", false);
         }
+        return LRESULT(0);
       }
-      WM_NCLBUTTONDOWN | WM_NCLBUTTONDBLCLK if at_max => {
-        if let Some(mut f) = frame() {
-          f.pressed = true;
-        }
+      WM_NCLBUTTONDOWN | WM_NCLBUTTONDBLCLK => {
         emit("caption:press", true);
         return LRESULT(0);
       }
-      WM_NCLBUTTONUP if at_max => {
-        // Released over the button: maximize or restore. Not only after a press
-        // seen here — a WM_NCMOUSELEAVE in between (the snap flyout, a capture
-        // change) clears `pressed`, and the click did nothing (owner, 2026-11-07).
-        if let Some(mut f) = frame() {
-          f.pressed = false;
-        }
+      WM_NCLBUTTONUP => {
         emit("caption:press", false);
         unsafe {
-          let _ = ShowWindow(hwnd, if IsZoomed(hwnd).as_bool() { SW_RESTORE } else { SW_MAXIMIZE });
+          if let Ok(window) = GetParent(hwnd) {
+            let _ = ShowWindow(window, if IsZoomed(window).as_bool() { SW_RESTORE } else { SW_MAXIMIZE });
+          }
         }
         return LRESULT(0);
       }
       _ => {}
+    }
+    unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+  }
+
+  /// The main window gives the same answer for that spot, should Windows ask it directly.
+  unsafe extern "system" fn window_proc(
+    hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _id: usize, _data: usize,
+  ) -> LRESULT {
+    if msg == WM_NCHITTEST && over_button(hwnd, lparam) {
+      return LRESULT(HTMAXBUTTON as isize);
     }
     unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
   }

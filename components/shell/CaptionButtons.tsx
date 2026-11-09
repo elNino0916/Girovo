@@ -13,7 +13,8 @@
 //
 // The maximize button lies under the shell's snap overlay, which takes the
 // mouse there for Windows 11's snap layouts: its hover and press come from the
-// shell, not from CSS. Its position goes to the shell whenever it moves.
+// shell (CSS only where the overlay could not be made). Its position goes to
+// the shell whenever it moves.
 //
 // Not in the Tab order, like the OS buttons: Alt+F4, Win+↑ and Win+↓ are the
 // keyboard's way, and a screen reader still finds them by name.
@@ -116,7 +117,7 @@ export function CaptionButtons() {
         type="button"
         tabIndex={-1}
         aria-label={maximized ? t.shell.caption.restore : t.shell.caption.maximize}
-        className={cx(base, maxPress
+        className={cx(base, tint, maxPress
           ? theme.dark ? 'bg-white/[0.05]' : 'bg-black/[0.03]'
           : maxHover ? theme.dark ? 'bg-white/[0.08]' : 'bg-black/[0.05]' : '')}
         onClick={() => void caption.toggleMaximize()}
