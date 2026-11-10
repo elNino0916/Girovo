@@ -142,6 +142,11 @@ public class UpdaterPlugin extends Plugin {
                     target.delete();
                     throw new IllegalStateException("older-version");
                 }
+                // Cancelled while the last bytes were checked: not kept either.
+                if (cancel.get()) {
+                    target.delete();
+                    throw new InterruptedException("cancelled");
+                }
                 phase = "ready";
                 emit();
                 call.resolve(state());
@@ -172,9 +177,20 @@ public class UpdaterPlugin extends Plugin {
         }
     }
 
+    /**
+     * Ends a running download — and drops a finished one: the page no longer
+     * wants this file (another channel was picked, mobile/bridges/updates.ts
+     * setChannel), so it must not stay there to install.
+     */
     @PluginMethod
     public void cancel(PluginCall call) {
         cancel.set(true);
+        if ("ready".equals(phase) || "installing".equals(phase)) {
+            apk().delete();
+            phase = "idle";
+            received = 0;
+            emit();
+        }
         call.resolve();
     }
 

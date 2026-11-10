@@ -65,6 +65,10 @@ let latest: Release | null = null;
 let checks = 0;
 /** Where the updater stood when the running check began: 'checking' hides it (logic.phaseAfterCheck). */
 let beforeCheck: { phase: ElectronUpdateState['phase']; version: string | null } = { phase: 'idle', version: null };
+/** The version whose download the plugin was last asked for; null once the channel changed or Android refused it (logic.aboutOffer). */
+let asked: string | null = null;
+/** Releases the plugin refused as older than the installed app: not offered again in this session. */
+const refused = new Set<string>();
 const listeners = new Set<(s: ElectronUpdateState) => void>();
 
 function set(patch: Partial<ElectronUpdateState>): ElectronUpdateState {
@@ -172,7 +176,7 @@ async function check(): Promise<ElectronUpdateState> {
     let release = await fromGirovoDe(preview);
     if (release === undefined) release = await fromGitHub(preview);
     if (run !== checks) return state;
-    if (!release || !isNewer(release.version, preview)) {
+    if (!release || refused.has(release.version) || !isNewer(release.version, preview)) {
       latest = null;
       return set({ phase: 'current', release: null, checkedAt: Date.now() });
     }
@@ -207,10 +211,16 @@ async function setChannel(value: UpdateChannel): Promise<ElectronUpdateState> {
   // Picked by hand: no later start takes it back to Stabil (logic.movesToStable).
   write(MOVED_PREF, logic.pickedMarker(state.current));
   if (channel === state.channel) return state;
-  set({ channel });
-  if (state.phase === 'downloading') await cancel();
-  // An install the other channel's APK opened is not this channel's to finish.
-  if (state.phase === 'installing') set({ phase: 'available' });
+  // The other channel's offer goes, on offer, downloading, downloaded or at
+  // Android's installer: a check running for it is overtaken, the one that
+  // follows starts from nothing (a failed one must not go back to "ready"),
+  // the plugin drops the file, and nothing it still says about it counts.
+  checks++;
+  asked = null;
+  latest = null;
+  beforeCheck = logic.afterChannelChange();
+  set({ channel, phase: 'idle', release: null, received: 0, total: 0 });
+  await GirovoUpdater.cancel().catch(() => {});
   return check();
 }
 
@@ -227,16 +237,27 @@ function downloadError(error: string | undefined): string {
 }
 
 function fromNative(s: UpdaterState): void {
+  // Only about the release on offer: the file of another channel's release,
+  // or of one Android refused, is never "ready" for this one.
+  if (!logic.aboutOffer(asked, state.release?.version ?? null)) return;
   if (s.phase === 'downloading') set({ phase: 'downloading', received: s.received, total: s.total, error: null });
   else if (s.phase === 'ready') set({ phase: 'ready', received: s.total, total: s.total });
-  else if (s.phase === 'failed') set({ phase: 'available', error: { during: 'download', message: downloadError(s.error) } });
+  else if (s.phase === 'failed' && s.error === 'older-version') {
+    // Android would refuse it every time: the reason is said once, and the
+    // release is not offered again in this session (check).
+    if (asked) refused.add(asked);
+    asked = null;
+    latest = null;
+    set({ phase: 'idle', release: null, received: 0, total: 0, error: { during: 'download', message: downloadError(s.error) } });
+  } else if (s.phase === 'failed') set({ phase: 'available', error: { during: 'download', message: downloadError(s.error) } });
   // A download cancelled — or, back from Android's installer, the file gone: on offer again.
   else if (s.phase === 'idle' && (state.phase === 'downloading' || state.phase === 'installing')) set({ phase: 'available', received: 0 });
 }
 
 async function download(): Promise<ElectronUpdateState> {
   const apk = latest && logic.pickAsset(latest, 'android');
-  if (!apk?.sha256) return state;
+  if (!latest || !apk?.sha256) return state;
+  asked = latest.version;
   set({ phase: 'downloading', received: 0, total: apk.size, error: null });
   try {
     fromNative(await GirovoUpdater.download({ url: apk.url, sha256: apk.sha256, size: apk.size }));
@@ -298,6 +319,9 @@ export async function installUpdates(): Promise<void> {
   if (logic.movesToStable(read(CHANNEL_PREF), current, read(MOVED_PREF))) {
     write(CHANNEL_PREF, 'stable');
     write(MOVED_PREF, current);
+  } else if (logic.marksPicked(read(CHANNEL_PREF), current, read(MOVED_PREF))) {
+    // Nightly chosen before a pick wrote the marker: the next release build leaves it there.
+    write(MOVED_PREF, logic.pickedMarker(current));
   }
 
   state = {

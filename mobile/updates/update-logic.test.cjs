@@ -306,6 +306,47 @@ test('a channel picked by hand is never moved back', () => {
   assert.equal(logic.movesToStable('preview', '6.0.4', logic.pickedMarker(undefined)), false);
 });
 
+test('a pre-release build on Nightly without the marker writes it at its start', () => {
+  assert.equal(logic.marksPicked('preview', '6.1.0-preview.2', null), true);
+  assert.equal(logic.marksPicked('preview', '6.1.0-nightly.202611101548.g59962ab', null), true);
+  assert.equal(logic.marksPicked('preview', '6.1.0-preview.2', ''), true);
+  assert.equal(logic.marksPicked('preview', '6.1.0-preview.2', '6.0.0'), false, 'marked already');
+  assert.equal(logic.marksPicked('stable', '6.1.0-preview.2', null), false, 'not on Nightly');
+  assert.equal(logic.marksPicked(null, '6.1.0-preview.2', null), false);
+  assert.equal(logic.marksPicked('preview', '6.1.0', null), false, 'a release build moves instead');
+  assert.equal(logic.marksPicked('preview', 'six', null), false);
+
+  // Nightly chosen before picking wrote the marker, then the preview's start, then the release's.
+  const prefs = { channel: 'preview', moved: null };
+  for (const current of ['6.1.0-preview.2', '6.1.0']) {
+    assert.equal(logic.movesToStable(prefs.channel, current, prefs.moved), false, current);
+    if (logic.marksPicked(prefs.channel, current, prefs.moved)) prefs.moved = logic.pickedMarker(current);
+  }
+  assert.equal(prefs.moved, '6.1.0-preview.2');
+  // The move it was made for still happens: a release build, on Nightly from before 6.0.0, never marked.
+  assert.equal(logic.movesToStable('preview', '6.0.0', null), true);
+  assert.equal(logic.marksPicked('preview', '6.0.0', null), false);
+});
+
+test('after a channel change a check starts from nothing: the other channel\'s download is not kept', () => {
+  const start = logic.afterChannelChange();
+  assert.deepEqual(start, { phase: 'idle', version: null });
+  // Nightly's preview was downloaded; on Stabil the check fails (no connection).
+  assert.equal(logic.phaseAfterFailedCheck({ phase: 'ready', version: '6.1.0-preview.2' }), 'ready', 'what staying on the channel keeps');
+  assert.equal(logic.phaseAfterFailedCheck(start), 'idle', 'nothing to install');
+  assert.equal(logic.phaseAfterCheck(start, '6.1.0-preview.2'), 'available', 'the same release again: downloaded anew');
+});
+
+test('the plugin is heard only about the release on offer', () => {
+  assert.equal(logic.aboutOffer('6.0.5', '6.0.5'), true);
+  assert.equal(logic.aboutOffer('6.1.0-preview.2', '6.0.5'), false, 'another release is on offer now');
+  assert.equal(logic.aboutOffer(null, '6.0.5'), false, 'no download asked for: after a channel change, or refused');
+  assert.equal(logic.aboutOffer('6.0.5', null), false, 'nothing on offer');
+  assert.equal(logic.aboutOffer(null, null), false);
+  assert.equal(logic.aboutOffer(undefined, undefined), false);
+  assert.equal(logic.aboutOffer('', ''), false);
+});
+
 test('a check keeps a downloaded update ready for the same release', () => {
   assert.equal(logic.phaseAfterCheck({ phase: 'ready', version: '6.0.5' }, '6.0.5'), 'ready');
   assert.equal(logic.phaseAfterCheck({ phase: 'ready', version: '6.0.5' }, '6.0.6'), 'available', 'a newer one has to be downloaded');

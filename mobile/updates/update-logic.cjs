@@ -290,6 +290,38 @@ function movesToStable(stored, current, moved) {
 const pickedMarker = (current) => (typeof current === 'string' && current ? current : 'picked');
 
 /**
+ * Whether this start writes that marker itself: a pre-release build on the
+ * Nightly channel without one — a copy that chose Nightly before picking a
+ * channel wrote the marker, and whose first start on the next release build
+ * would otherwise be moved to Stabil. The 6.0.0 move was only ever made by a
+ * release build (movesToStable), so this exempts none it was meant for.
+ */
+function marksPicked(stored, current, moved) {
+  const v = parseVersion(current);
+  return channelOf(stored) === 'preview' && !moved && !!v && !!v.pre;
+}
+
+/**
+ * Where a check starts from once the channel changed (the `before` of
+ * phaseAfterCheck and phaseAfterFailedCheck): from nothing. The other
+ * channel's offer is not this one's, downloaded or not — a check that fails
+ * must not go back to a Nightly release "ready" on Stabil.
+ *
+ * @returns {{ phase: 'idle', version: null }}
+ */
+const afterChannelChange = () => ({ phase: 'idle', version: null });
+
+/**
+ * Whether what the plugin reports is about the release on offer: `asked` is
+ * the version whose download the page last asked for (null once the channel
+ * changed or Android refused it), `offered` the one on offer now. Anything
+ * else is a file the page no longer wants — its "ready" counts for nothing.
+ */
+function aboutOffer(asked, offered) {
+  return typeof asked === 'string' && asked !== '' && asked === offered;
+}
+
+/**
  * The phase a check ends in that found the newer release `version`, given
  * where it started (`before`: the phase and the offered version then). An
  * update already downloaded stays ready for the same release — the check
@@ -320,6 +352,9 @@ module.exports = {
   passingFailure,
   movesToStable,
   pickedMarker,
+  marksPicked,
+  afterChannelChange,
+  aboutOffer,
   phaseAfterCheck,
   phaseAfterFailedCheck,
   rateLimitWait,
