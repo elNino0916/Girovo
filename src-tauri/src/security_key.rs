@@ -111,6 +111,19 @@ fn parse_credentials(list: &[String]) -> Option<Vec<Vec<u8>>> {
   list.iter().map(|c| B64.decode(c).ok().filter(|b| !b.is_empty() && b.len() <= CREDENTIAL_MAX_BYTES)).collect()
 }
 
+/// Which credential answered. Windows names it, but a key may leave it out
+/// when only one was asked for (CTAP2 allows that), and Windows then hands on
+/// an empty id: that one credential it is. With several asked for and none
+/// named there is no telling, and the request fails.
+#[cfg(any(windows, test))]
+fn answering_credential(named: Option<&[u8]>, asked: &[Vec<u8>]) -> Option<Vec<u8>> {
+  match named {
+    Some(id) if !id.is_empty() => Some(id.to_vec()),
+    _ if asked.len() == 1 => Some(asked[0].clone()),
+    _ => None,
+  }
+}
+
 /// Lowers the flag when it goes, however the request ended.
 struct Lowers<'a>(&'a AtomicBool);
 
@@ -377,10 +390,17 @@ mod winauthn {
       return Err(Failure::Windows(0x8000_4005));
     }
     // SAFETY: on success Windows hands back a valid attestation, freed once below.
+    // A slice is made only from a pointer that is there: a null one is none, whatever the length.
     unsafe {
-      let id = std::slice::from_raw_parts((*made).pbCredentialId, (*made).cbCredentialId as usize).to_vec();
+      let m = &*made;
+      let id = if m.pbCredentialId.is_null() || m.cbCredentialId == 0 {
+        None
+      } else {
+        Some(std::slice::from_raw_parts(m.pbCredentialId, m.cbCredentialId as usize).to_vec())
+      };
       (api.free_attestation)(made);
-      Ok(id)
+      // A credential without an id could never be asked for again.
+      id.ok_or(Failure::Windows(0x8000_4005))
     }
   }
 
@@ -427,15 +447,23 @@ mod winauthn {
       return Err(Failure::Windows(0x8000_4005));
     }
     // SAFETY: on success Windows hands back a valid assertion, freed once below.
+    // A slice is made only from a pointer that is there: a null one is none, whatever the length.
     unsafe {
       let a = &*got;
-      let credential = std::slice::from_raw_parts(a.Credential.pbId, a.Credential.cbId as usize).to_vec();
+      let named = if a.Credential.pbId.is_null() || a.Credential.cbId == 0 {
+        None
+      } else {
+        Some(std::slice::from_raw_parts(a.Credential.pbId, a.Credential.cbId as usize))
+      };
+      let credential = super::answering_credential(named, credentials);
       let secret = if a.dwVersion >= WEBAUTHN_ASSERTION_VERSION_3 && !a.pHmacSecret.is_null() && !(*a.pHmacSecret).pbFirst.is_null() {
         std::slice::from_raw_parts((*a.pHmacSecret).pbFirst, (*a.pHmacSecret).cbFirst as usize).to_vec()
       } else {
         Vec::new()
       };
       (api.free_assertion)(got);
+      // Several asked for and none named: which sealed PIN this opens cannot be told.
+      let credential = credential.ok_or(Failure::Windows(0x8000_4005))?;
       Ok(Asserted { credential, secret })
     }
   }
@@ -620,6 +648,22 @@ mod tests {
       assert_eq!(first.join().unwrap().result, "opened");
     });
     assert_eq!(k.open(1, &salt(), &[credential]).result, "opened", "free again afterwards");
+  }
+
+  #[test]
+  fn a_key_that_names_no_credential_is_the_one_asked_for() {
+    let one = vec![vec![4u8; 16]];
+    let two = vec![vec![4u8; 16], vec![5u8; 16]];
+    // Named: that one, whatever was asked for.
+    assert_eq!(answering_credential(Some(&[5u8; 16]), &two), Some(vec![5u8; 16]));
+    assert_eq!(answering_credential(Some(&[9u8; 16]), &one), Some(vec![9u8; 16]));
+    // Left out (a null pointer, or an id of no length) with one asked for: that one.
+    assert_eq!(answering_credential(None, &one), Some(vec![4u8; 16]));
+    assert_eq!(answering_credential(Some(&[]), &one), Some(vec![4u8; 16]));
+    // Left out with several asked for, or none: no telling.
+    assert_eq!(answering_credential(None, &two), None);
+    assert_eq!(answering_credential(Some(&[]), &two), None);
+    assert_eq!(answering_credential(None, &[]), None);
   }
 
   #[test]
