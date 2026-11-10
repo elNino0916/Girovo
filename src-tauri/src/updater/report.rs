@@ -113,6 +113,7 @@ mod tests {
       published_at: None,
       size: None,
       can_install: true,
+      waits_for_user: false,
     });
     s
   }

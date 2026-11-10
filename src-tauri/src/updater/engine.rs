@@ -57,13 +57,11 @@ pub const PREF_CHANNEL: &str = "fints.updates.channel";
 /// (logic::moves_to_stable), or the version the user picked a channel in
 /// (set_channel): set, the move does not happen (again).
 pub const PREF_MOVED_TO_STABLE: &str = "fints.updates.movedToStable";
-/// The version the user stepped back from with an older release from a file
-/// (install_file): the start does not install that release or an older one by
-/// itself (start.rs, logic::held_back), until the user asks for the update or
-/// a newer release is out.
-pub const PREF_HELD_BACK: &str = "fints.updates.heldBack";
-/// The version whose install did not complete: never installed again at
-/// start by itself (start.rs), until an install completes (read_marker).
+/// The one version the start never installs by itself (start.rs), until an
+/// install has arrived (read_marker): the one whose install did not complete,
+/// or the one that would come straight back after the user installed an older
+/// release from a file (install_file, logic::comes_back). Every 6.x reads it
+/// this way, so an older version stepped back to honours it too.
 pub const PREF_FAILED_INSTALL: &str = "fints.updates.failedInstall";
 /// "on": "Neueste Updates erhalten, sobald sie verfügbar sind" — a staged
 /// release reaches this copy at once (trust::reaches).
@@ -145,6 +143,10 @@ pub struct PublicRelease {
   /// What the download costs: only the part not on disk when there is a plan; None when no file fits.
   pub size: Option<u64>,
   pub can_install: bool,
+  /// The start will not install this one by itself (PREF_FAILED_INSTALL): its
+  /// install failed before, or the user went back to an older version from
+  /// it. It stays a click, so the page must not promise "at the next start".
+  pub waits_for_user: bool,
 }
 
 /// Why a picked file is not installed (find_signed).
@@ -580,8 +582,13 @@ impl Updater {
     // A release build takes a copy on the Nightly channel back to Stabil,
     // once (logic::moves_to_stable) — before the first check asks GitHub.
     let stored = host.pref(PREF_CHANNEL);
-    if logic::moves_to_stable(stored.as_deref(), &cfg.current_version, host.pref(PREF_MOVED_TO_STABLE).as_deref()) {
+    let moved = host.pref(PREF_MOVED_TO_STABLE);
+    if logic::moves_to_stable(stored.as_deref(), &cfg.current_version, moved.as_deref()) {
       host.set_pref(PREF_CHANNEL, Channel::Stable.as_str());
+      host.set_pref(PREF_MOVED_TO_STABLE, &cfg.current_version);
+    } else if logic::keeps_nightly(stored.as_deref(), moved.as_deref(), trust::is_prerelease(&cfg.current_version)) {
+      // A nightly on the Nightly channel: picked before set_channel noted
+      // choices, noted now, so the release this copy reaches does not move it.
       host.set_pref(PREF_MOVED_TO_STABLE, &cfg.current_version);
     }
     let state = UpdateState {
@@ -674,6 +681,7 @@ impl Updater {
       published_at: release.published_at.clone(),
       size: asset.map(|a| plan.map_or(a.size, |p| p.plan.fetch_bytes)),
       can_install: self.installable() && asset.is_some(),
+      waits_for_user: self.host.pref(PREF_FAILED_INSTALL).is_some_and(|v| !v.is_empty() && v == release.version),
     }
   }
 
@@ -936,23 +944,6 @@ impl Updater {
       "previousFile": null,
     });
     create_private(&self.marker_file())?.write_all(marker.to_string().as_bytes())
-  }
-
-  /// One of the shell's preferences, for start.rs.
-  pub(super) fn host_pref(&self, key: &str) -> Option<String> {
-    self.host.pref(key)
-  }
-
-  /// The build number of the version the user stepped back from (PREF_HELD_BACK), for start.rs.
-  pub(super) fn held_back(&self) -> Option<u64> {
-    trust::build_number(&self.host.pref(PREF_HELD_BACK)?)
-  }
-
-  /// The step back is over: the user asked for the update, or a newer release is being installed.
-  pub(super) fn clear_held_back(&self) {
-    if self.host.pref(PREF_HELD_BACK).is_some_and(|v| !v.is_empty()) {
-      self.host.set_pref(PREF_HELD_BACK, "");
-    }
   }
 
   fn read_marker(&self) {
@@ -1442,6 +1433,18 @@ impl Updater {
   /// Checks the download once more, notes what is being installed, and quits;
   /// the installer starts once the app has (AtExit::Install).
   pub async fn install(&self) -> UpdateState {
+    self.install_noting(None).await
+  }
+
+  /// install(). `comes_back`: this is the user's step back to an older release
+  /// from a file, and that is the version the next start would put back.
+  /// Instead of the marker, that version is noted as not to be installed
+  /// unasked (PREF_FAILED_INSTALL). No marker, for two reasons: the older
+  /// version's read_marker would take one naming it as an update that arrived
+  /// and clear the note (every 6.0.x does), and a step back is no "aktualisiert
+  /// auf". Without one the next start says nothing either way; had the
+  /// installer failed, its own window said so.
+  async fn install_noting(&self, comes_back: Option<String>) -> UpdateState {
     let Some(args) = logic::install_args(self.cfg.kind) else { return self.state() };
     let (file, release, asset) = {
       let inner = self.inner.lock().unwrap();
@@ -1464,7 +1467,13 @@ impl Updater {
         self.remove_unpacked(&file);
         return Err(Failure::Said(self.texts().changed.to_string()));
       }
-      self.write_marker(&release)?;
+      match &comes_back {
+        Some(version) => {
+          let _ = fs::remove_file(self.marker_file());
+          self.host.set_pref(PREF_FAILED_INSTALL, version);
+        }
+        None => self.write_marker(&release)?,
+      }
       Ok(())
     };
     if let Err(err) = prepared.await {
@@ -1497,8 +1506,6 @@ impl Updater {
     if self.cfg.kind != InstallKind::Nsis || self.state().phase == Phase::Installing {
       return self.state();
     }
-    // The user's own "install it now": a step back from this release is over.
-    self.clear_held_back();
     // A bundle this start was opened with has had its turn.
     let mut next: Vec<String> = args.into_iter().filter(|a| a != "--background" && a != UPDATE_ARG && !bundle::is_bundle(Path::new(a))).collect();
     next.push(UPDATE_ARG.to_string());
@@ -1792,13 +1799,15 @@ impl Updater {
     if matches!(self.state().phase, Phase::Downloading) {
       self.cancel();
     }
-    // An older release, on purpose: the next start must not install the newer
-    // one again by itself (start.rs). The highest version stepped back from
-    // counts, so a second step further back keeps the first one's.
-    let current = trust::build_number(&self.cfg.current_version);
-    if logic::steps_back(trust::build_number(&release.version), current) && self.held_back() < current {
-      self.host.set_pref(PREF_HELD_BACK, &self.cfg.current_version);
-    }
+    // An older release, on purpose: the next start must not put the newer one
+    // back by itself (start.rs). Which one that would be is read here, while
+    // the state still holds the release on offer.
+    let current = &self.cfg.current_version;
+    let comes_back = logic::steps_back(trust::build_number(&release.version), trust::build_number(current)).then(|| {
+      let offered = self.state().release.map(|r| r.version);
+      let noted = self.host.pref(PREF_FAILED_INSTALL);
+      logic::comes_back(current, offered.as_deref(), noted.as_deref(), trust::build_number).to_string()
+    });
     {
       let mut inner = self.inner.lock().unwrap();
       inner.pending = Some(Pending { release: release.clone(), asset: Some(asset.clone()), plan: None });
@@ -1811,7 +1820,7 @@ impl Updater {
       s.file = None;
       s.error = None;
     });
-    self.install().await
+    self.install_noting(comes_back).await
   }
 
   /// The picked file's dialog closed without installing.

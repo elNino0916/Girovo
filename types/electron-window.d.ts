@@ -57,6 +57,12 @@ declare global {
       canInstall: boolean;
       /** An older stable release, offered as the way back from a preview (the desktop's "Stabil"). */
       back?: boolean;
+      /**
+       * The start will not install this release by itself: its install failed
+       * before, or the user went back to an older version from it. It takes a
+       * click, so nothing may say "at the next start". The desktop app only.
+       */
+      waitsForUser?: boolean;
     } | null;
     received: number;
     total: number;

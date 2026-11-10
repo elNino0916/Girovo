@@ -109,25 +109,38 @@ pub fn moves_to_stable(stored: Option<&str>, current: &str, moved: Option<&str>)
     && parse_version(current).is_some_and(|v| v.pre.is_empty())
 }
 
+/// Whether this start notes the Nightly channel as the user's own choice
+/// (engine::PREF_MOVED_TO_STABLE): a nightly or a preview (`prerelease`) on
+/// the Nightly channel with nothing noted yet. A copy that picked Nightly
+/// before set_channel noted choices would otherwise be moved to Stabil by the
+/// first release it reaches. The move itself only ever applied to release
+/// builds (moves_to_stable), so this takes nobody out of it.
+pub fn keeps_nightly(stored: Option<&str>, moved: Option<&str>, prerelease: bool) -> bool {
+  prerelease && channel_of(stored) == Channel::Preview && moved.is_none_or(str::is_empty)
+}
+
 // ---- an older version from a file ---------------------------------------------
 //
 // "Update aus Datei installieren" takes an older release too (the way back).
 // The start installs updates by itself, so without a note of it the very next
-// start would install the newer release again. The note is the version
-// stepped back from (engine::PREF_HELD_BACK); these two decide on it, by
-// build number (trust::build_number).
+// start would put the newer release back. The note is the one version the
+// start never installs unasked (engine::PREF_FAILED_INSTALL), which every 6.x
+// honours: an exact version, so any release after it installs as always.
 
 /// Whether installing the file's release (`file`) over the running one
-/// (`current`) is a step back.
+/// (`current`) is a step back, by build number (trust::build_number).
 pub fn steps_back(file: Option<u64>, current: Option<u64>) -> bool {
   matches!((file, current), (Some(f), Some(c)) if f < c)
 }
 
-/// Whether the start leaves the release on offer (`offered`) to the user:
-/// the user stepped back from `held`, and this one is that release or an
-/// older one. A newer release than `held` is installed as always.
-pub fn held_back(held: Option<u64>, offered: Option<u64>) -> bool {
-  matches!((held, offered), (Some(h), Some(o)) if o <= h)
+/// The version the next start would put back after a step back from
+/// `current`: the release on offer (`offered`) when it is newer than
+/// `current`, else the version already noted (`noted`) when that is newer —
+/// stepped back from before, with no check since — else `current` itself.
+/// `build`: trust::build_number.
+pub fn comes_back<'a>(current: &'a str, offered: Option<&'a str>, noted: Option<&'a str>, build: impl Fn(&str) -> Option<u64>) -> &'a str {
+  let newer = |v: &&str| matches!((build(v), build(current)), (Some(a), Some(b)) if a > b);
+  offered.filter(newer).or(noted.filter(newer)).unwrap_or(current)
 }
 
 // ---- versions ----------------------------------------------------------------
@@ -829,19 +842,40 @@ mod tests {
   }
 
   #[test]
-  fn after_a_step_back_the_start_leaves_releases_up_to_that_one_alone() {
-    // An older release from a file is a step back; the same or a newer one is not.
+  fn a_nightly_on_the_nightly_channel_notes_it_as_chosen() {
+    assert!(keeps_nightly(Some("preview"), None, true));
+    assert!(keeps_nightly(Some("preview"), Some(""), true));
+    // Noted already, not on Nightly, or a release build (moves_to_stable's).
+    assert!(!keeps_nightly(Some("preview"), Some("6.0.0"), true));
+    assert!(!keeps_nightly(Some("stable"), None, true));
+    assert!(!keeps_nightly(None, None, true));
+    assert!(!keeps_nightly(Some("preview"), None, false));
+  }
+
+  #[test]
+  fn an_older_release_from_a_file_is_a_step_back() {
     assert!(steps_back(Some(600_010), Some(600_020)));
     assert!(!steps_back(Some(600_020), Some(600_020)));
     assert!(!steps_back(Some(600_030), Some(600_020)));
     assert!(!steps_back(None, Some(600_020)) && !steps_back(Some(600_010), None));
-    // Stepped back from 600_020: that release and anything older waits for the user…
-    assert!(held_back(Some(600_020), Some(600_020)));
-    assert!(held_back(Some(600_020), Some(600_015)));
-    // …a newer one is installed as always, and so is everything with no step back.
-    assert!(!held_back(Some(600_020), Some(600_030)));
-    assert!(!held_back(None, Some(600_030)));
-    assert!(!held_back(Some(600_020), None), "a release without a build number is not this rule's to stop");
+  }
+
+  #[test]
+  fn after_a_step_back_the_version_that_would_come_back_is_the_one_noted() {
+    // Stand-ins for trust::build_number: "6.1.2" → 612.
+    let build = |v: &str| v.replace('.', "").parse::<u64>().ok();
+    // Nothing on offer: the running version is the newest known, so that one.
+    assert_eq!(comes_back("6.1.1", None, None, build), "6.1.1");
+    // A newer release is on offer already: that is what the next start would install.
+    assert_eq!(comes_back("6.1.1", Some("6.1.2"), None, build), "6.1.2");
+    assert_eq!(comes_back("6.1.1", Some("6.1.2"), Some("6.1.1"), build), "6.1.2");
+    // What is on offer is not newer (the way back to an older release, the running one itself).
+    assert_eq!(comes_back("6.1.1", Some("6.1.0"), None, build), "6.1.1");
+    assert_eq!(comes_back("6.1.1", Some("6.1.1"), None, build), "6.1.1");
+    // A second step further back before any check: the version noted at the first stays.
+    assert_eq!(comes_back("6.1.0", None, Some("6.2.0"), build), "6.2.0");
+    assert_eq!(comes_back("6.1.0", None, Some("6.0.4"), build), "6.1.0", "an old note of an older version says nothing");
+    assert_eq!(comes_back("6.1.0", Some("nonsense"), Some(""), build), "6.1.0");
   }
 
   #[test]

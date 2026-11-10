@@ -81,7 +81,16 @@ export function UpdateLayer() {
 }
 
 export type UpdateNotice =
-  | { kind: 'newer'; version: string; ready: boolean; current: string; back?: boolean; atStart?: boolean }
+  | {
+      kind: 'newer';
+      version: string;
+      ready: boolean;
+      current: string;
+      back?: boolean;
+      atStart?: boolean;
+      /** The start leaves this release alone (state.release.waitsForUser): it is not installed "at the next start". */
+      waitsForUser?: boolean;
+    }
   | { kind: 'installed'; version: string };
 
 /** What Mitteilungen should say about the app itself, if anything. */
@@ -100,6 +109,7 @@ function noticeOf(state: UpdateState | null): UpdateNotice | null {
       atStart: updatesAtStart(state),
       current: state.current,
       back: !!state.release.back,
+      waitsForUser: !!state.release.waitsForUser,
     };
   }
   if (state?.installed) return { kind: 'installed', version: state.installed.version };
@@ -137,7 +147,10 @@ export function UpdateInboxCard({ notice, onOpen }: { notice: UpdateNotice; onOp
         {newer && (
           <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
             {notice.atStart
-              ? rich(u.atStartNote(<span className="tnum">{notice.current}</span>))
+              ? notice.waitsForUser
+                // Only by the restart the button below leads to: the start leaves this one alone.
+                ? rich(u.youUse(<span className="tnum">{notice.current}</span>))
+                : rich(u.atStartNote(<span className="tnum">{notice.current}</span>))
               : notice.ready
                 ? rich(u.stillOn(<span className="tnum">{notice.current}</span>))
                 : rich(u.notYetDownloaded(<span className="tnum">{notice.current}</span>))}

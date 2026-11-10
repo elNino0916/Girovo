@@ -408,6 +408,7 @@ async fn the_page_gets_the_state_in_electrons_shape() {
   assert_eq!(s["release"]["canInstall"], true);
   assert_eq!(s["release"]["publishedAt"], "2026-10-10T12:00:00.000Z");
   assert_eq!(s["release"]["back"], false);
+  assert_eq!(s["release"]["waitsForUser"], false);
 }
 
 #[tokio::test]
@@ -524,29 +525,52 @@ async fn githubs_rate_limit_a_manual_check_says_so_an_automatic_one_stays_quiet(
   assert_eq!(auto.error, None);
 }
 
+/// The config of a copy running `version`, with nobody to ask.
+fn running(version: &str, cache: &TempDir) -> Config {
+  let mut cfg = config("http://127.0.0.1:9/", cache.path());
+  cfg.current_version = version.into();
+  cfg
+}
+
 #[tokio::test]
 async fn a_release_start_takes_a_nightly_copy_back_to_stable_once() {
-  let srv = Server::start(|_req, conn, _base| conn.send(404, b"{}"));
   let cache = TempDir::new();
-  let host = Arc::new(FakeHost::default());
-  host.set_pref(PREF_CHANNEL, "preview");
-  // A nightly keeps its channel.
-  let mut nightly = config(&srv.base, cache.path());
-  nightly.current_version = "6.0.0-nightly.202611071435.gfe8c9a6".into();
-  assert_eq!(make(nightly, &host).state().channel, Channel::Preview);
-  assert_eq!(host.pref(PREF_MOVED_TO_STABLE), None);
+  // The channel as a 6.0 preview left it, on a copy that comes to a release build.
+  let host = FakeHost::with_pref(PREF_CHANNEL, "preview");
   // The release moves it, and says which release did.
-  let release = || {
-    let mut c = config(&srv.base, cache.path());
-    c.current_version = "6.0.0".into();
-    c
-  };
-  assert_eq!(make(release(), &host).state().channel, Channel::Stable);
+  assert_eq!(make(running("6.0.0", &cache), &host).state().channel, Channel::Stable);
   assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("stable"));
   assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some("6.0.0"));
   // Nightly picked again afterwards: it stays.
   host.set_pref(PREF_CHANNEL, "preview");
-  assert_eq!(make(release(), &host).state().channel, Channel::Preview);
+  assert_eq!(make(running("6.0.0", &cache), &host).state().channel, Channel::Preview);
+}
+
+#[tokio::test]
+async fn a_nightly_on_the_nightly_channel_is_not_moved_by_the_release_it_reaches() {
+  let cache = TempDir::new();
+  let nightly = "6.1.0-nightly.202611101200.gabcdef0";
+  // Nightly picked before choices were noted: only the channel says so.
+  let host = FakeHost::with_pref(PREF_CHANNEL, "preview");
+  assert_eq!(make(running(nightly, &cache), &host).state().channel, Channel::Preview);
+  assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some(nightly), "the nightly notes it");
+  // 6.1.0 comes out and this copy updates to it: still on Nightly.
+  assert_eq!(make(running("6.1.0", &cache), &host).state().channel, Channel::Preview);
+  assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("preview"));
+  assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some(nightly));
+  // A hand-made preview counts the same.
+  let host = FakeHost::with_pref(PREF_CHANNEL, "preview");
+  make(running("6.1.0-preview.2", &cache), &host);
+  assert_eq!(make(running("6.1.0", &cache), &host).state().channel, Channel::Preview);
+  // Nothing to note on Stabil, and a development build notes nothing.
+  for (channel, version) in [(Some("stable"), nightly), (None, nightly), (Some("preview"), "6.1.0-dev.7")] {
+    let host = Arc::new(FakeHost::default());
+    if let Some(channel) = channel {
+      host.set_pref(PREF_CHANNEL, channel);
+    }
+    make(running(version, &cache), &host);
+    assert_eq!(host.pref(PREF_MOVED_TO_STABLE), None, "{channel:?} {version}");
+  }
 }
 
 #[tokio::test]
@@ -896,6 +920,9 @@ async fn an_install_that_failed_days_ago_is_not_run_again_unasked_and_no_longer_
   let check = updater.start_check(&window);
   assert!(!updater.update_at_start(check, &window).await, "not installed again by itself");
   assert_eq!(host.installs().len(), 0);
+  // The page is told, so it does not promise "at the next start".
+  let release = updater.state().release.unwrap();
+  assert_eq!((release.version.as_str(), release.waits_for_user), ("9.9.9", true));
   updater.stop();
 }
 
@@ -917,9 +944,12 @@ async fn a_channel_the_user_picks_is_not_undone_by_the_next_release() {
   assert_eq!(make(at("6.1.0-nightly.202611101200.gabcdef0"), &host).state().channel, Channel::Preview);
   assert_eq!(make(at("6.1.0"), &host).state().channel, Channel::Preview);
   assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("preview"));
-  // Picking the channel it is on already counts as a choice too.
+  // Picking the channel it is on already counts as a choice too (a development
+  // build, which notes nothing by itself at its start).
   let host = FakeHost::with_pref(PREF_CHANNEL, "preview");
-  make(at("6.1.0-nightly.202611101200.gabcdef0"), &host).set_channel("preview").await;
+  let dev = make(at("6.1.0-dev.7"), &host);
+  assert_eq!(host.pref(PREF_MOVED_TO_STABLE), None);
+  dev.set_channel("preview").await;
   assert_eq!(make(at("6.1.0"), &host).state().channel, Channel::Preview);
   // And what a move noted before stays as it was.
   let host = FakeHost::on_channel("stable");
@@ -1174,37 +1204,48 @@ async fn at_start_a_release_whose_install_just_failed_is_not_installed_again_una
 }
 
 #[tokio::test]
-async fn at_start_a_release_the_user_stepped_back_from_is_not_put_back_unasked() {
+async fn at_start_the_one_release_noted_waits_for_the_user_a_newer_one_installs() {
   let srv = Server::start(github_like(rel("9.9.9")));
   let cache = TempDir::new();
   let window = FakeWindow::default();
-  // Stepped back from 9.9.9 (or from something newer still): 9.9.9 waits for the user.
-  for held in ["9.9.9", "10.0.0"] {
-    let host = FakeHost::with_pref(PREF_HELD_BACK, held);
-    let updater = make(config(&srv.base, cache.path()), &host);
-    let check = updater.start_check(&window);
-    assert!(!updater.update_at_start(check, &window).await, "held at {held}");
-    assert_eq!(host.installs().len(), 0);
-    assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some(held), "and stays held");
-    // The app itself still knows of the release: installing it is a click.
-    assert_eq!(updater.state().release.unwrap().version, "9.9.9");
-  }
-  // Stepped back from an older one: 9.9.9 is newer, installed as always, and the step back is over.
-  let host = FakeHost::with_pref(PREF_HELD_BACK, "9.9.8");
+  let noted = |host: &Arc<FakeHost>| host.pref(PREF_FAILED_INSTALL);
+  // 9.9.9 is the one noted — the user went back to an older version from it,
+  // or its install failed, however long ago: it waits for the user.
+  let host = FakeHost::with_pref(PREF_FAILED_INSTALL, "9.9.9");
+  let updater = make(config(&srv.base, cache.path()), &host);
+  let check = updater.start_check(&window);
+  assert!(!updater.update_at_start(check, &window).await);
+  assert_eq!(host.installs().len(), 0);
+  // The app still knows of the release, and the page hears that the start leaves it alone.
+  let release = updater.state().release.unwrap();
+  assert_eq!((release.version.as_str(), release.waits_for_user), ("9.9.9", true));
+  assert_eq!(noted(&host).as_deref(), Some("9.9.9"));
+
+  // The one noted is 9.9.8: 9.9.9 came out after it and is installed as always…
+  let host = FakeHost::with_pref(PREF_FAILED_INSTALL, "9.9.8");
   let updater = make(config(&srv.base, cache.path()), &host);
   let check = updater.start_check(&window);
   assert!(updater.update_at_start(check, &window).await);
   assert_eq!(host.installs().len(), 1);
-  assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some(""));
-  // Asked for ("Jetzt neu starten und installieren", --update): installed.
-  let host = FakeHost::with_pref(PREF_HELD_BACK, "9.9.9");
+  assert!(!updater.state().release.unwrap().waits_for_user);
+  // …and the note stays until that install has arrived.
+  assert_eq!(noted(&host).as_deref(), Some("9.9.8"), "nothing cleared before the install");
+  let mut cfg = config(&srv.base, cache.path());
+  cfg.current_version = "9.9.9".into();
+  let arrived = make(cfg, &host);
+  arrived.start();
+  arrived.stop();
+  assert_eq!(noted(&host).as_deref(), Some(""));
+
+  // Asked for ("Jetzt neu starten und installieren", --update): the noted release is installed.
+  let host = FakeHost::with_pref(PREF_FAILED_INSTALL, "9.9.9");
   let mut cfg = config(&srv.base, cache.path());
   cfg.update_asked = true;
   let updater = make(cfg, &host);
   let check = updater.start_check(&window);
   assert!(updater.update_at_start(check, &window).await);
   assert_eq!(host.installs().len(), 1);
-  assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some(""));
+  assert_eq!(noted(&host).as_deref(), Some("9.9.9"), "noted until it has arrived");
 }
 
 #[tokio::test]
@@ -1946,60 +1987,121 @@ mod signed {
 
   // ---- an older version on purpose ----
 
+  /// The signed config of a copy running `version`.
+  fn signed_running(base: &str, cache: &TempDir, version: &str) -> Config {
+    let mut cfg = signed_config(base, cache.path());
+    cfg.current_version = version.into();
+    cfg
+  }
+
+  fn noted(host: &Arc<FakeHost>) -> Option<String> {
+    host.pref(PREF_FAILED_INSTALL)
+  }
+
+  fn marker(cache: &TempDir) -> bool {
+    cache.path().join("installing.json").exists()
+  }
+
   #[tokio::test]
   async fn an_older_version_from_a_file_is_not_updated_away_at_the_next_start() {
     let srv = Server::start(site(Some(by_stable_both), None, Arc::default()));
     let (cache, downloads) = (TempDir::new(), TempDir::new());
     let host = host();
-    let at = |version: &str| {
-      let mut cfg = signed_config(&srv.base, cache.path());
-      cfg.current_version = version.into();
-      cfg
-    };
     // 9.9.9 runs; the user installs 9.9.8 from a file.
-    let updater = make(at("9.9.9"), &host);
+    let updater = make(signed_running(&srv.base, &cache, "9.9.9"), &host);
     assert!(updater.check_file(picked(&downloads, "9.9.8", &older_payload())).await.file.unwrap().older);
     assert_eq!(updater.install_file().await.phase, Phase::Installing);
     assert_eq!(host.installs().len(), 1);
-    assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some("9.9.9"), "the version stepped back from");
+    // What every 6.x goes by, a 9.9.8 from before this too: the version its start does not install unasked…
+    assert_eq!(noted(&host).as_deref(), Some("9.9.9"));
+    // …and no marker, which 9.9.8 would read as "updated to 9.9.8" and drop that note for.
+    assert!(!marker(&cache));
 
     // The next start is 9.9.8, and girovo.de offers 9.9.9: Girovo opens, 9.9.9 stays an offer.
-    let older = make(at("9.9.8"), &host);
+    let older = make(signed_running(&srv.base, &cache, "9.9.8"), &host);
     older.start();
+    let s = older.state();
+    assert_eq!((s.installed, s.failed_install, s.error), (None, None, None), "neither greeted as an update nor called a failed one");
     let window = FakeWindow::default();
     let check = older.start_check(&window);
     assert!(!older.update_at_start(check, &window).await);
     assert_eq!(host.installs().len(), 1, "nothing installed by itself");
-    assert_eq!(older.state().release.unwrap().version, "9.9.9");
-    // "Jetzt neu starten und installieren" is the user asking for it: the step back is over.
+    let release = older.state().release.unwrap();
+    assert_eq!((release.version.as_str(), release.waits_for_user), ("9.9.9", true), "and the page hears that it waits");
+    // "Jetzt neu starten und installieren" is the user asking for it. The note stays for now…
     older.restart_to_update([]);
-    assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some(""));
+    assert_eq!(noted(&host).as_deref(), Some("9.9.9"));
     older.stop();
+    // …the start that was asked for installs 9.9.9…
+    let mut cfg = signed_running(&srv.base, &cache, "9.9.8");
+    cfg.update_asked = true;
+    let asked = make(cfg, &host);
+    let check = asked.start_check(&window);
+    assert!(asked.update_at_start(check, &window).await);
+    assert_eq!(host.installs().len(), 2);
+    assert_eq!(noted(&host).as_deref(), Some("9.9.9"), "nothing cleared before the install has arrived");
+    // …and once 9.9.9 runs, the note is gone.
+    let back = make(signed_running(&srv.base, &cache, "9.9.9"), &host);
+    back.start();
+    back.stop();
+    assert_eq!(noted(&host).as_deref(), Some(""));
+    assert_eq!(back.state().installed.unwrap().from, "9.9.8");
   }
 
   #[tokio::test]
-  async fn a_newer_or_the_same_version_from_a_file_holds_nothing_back_and_a_second_step_keeps_the_first() {
+  async fn a_step_back_with_a_newer_release_on_offer_notes_that_release() {
+    // A nightly of 9.9.9 runs and 9.9.9 itself is out, found by the check; the user goes back to 9.9.8.
     let srv = Server::start(site(Some(by_stable_both), None, Arc::default()));
     let (cache, downloads) = (TempDir::new(), TempDir::new());
-    let at = |version: &str| {
-      let mut cfg = signed_config(&srv.base, cache.path());
-      cfg.current_version = version.into();
-      cfg
-    };
+    let host = host();
+    let updater = make(signed_running(&srv.base, &cache, NIGHTLY), &host);
+    assert_eq!(updater.check(true).await.release.unwrap().version, "9.9.9");
+    assert!(updater.check_file(picked(&downloads, "9.9.8", &older_payload())).await.file.unwrap().older);
+    assert_eq!(updater.install_file().await.phase, Phase::Installing);
+    assert_eq!(noted(&host).as_deref(), Some("9.9.9"), "what 9.9.8's start would install, not the nightly that ran");
+    assert!(!marker(&cache));
+  }
+
+  #[tokio::test]
+  async fn a_step_back_that_does_not_start_notes_nothing() {
+    let srv = Server::start(site(Some(by_stable_both), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let host = host();
+    let updater = make(signed_running(&srv.base, &cache, "9.9.9"), &host);
+    let file = picked(&downloads, "9.9.8", &older_payload());
+    assert!(updater.check_file(file.clone()).await.file.unwrap().older);
+    // Changed between the check and the click.
+    std::fs::write(&file, b"something else by now").unwrap();
+    let s = updater.install_file().await;
+    assert_ne!(s.phase, Phase::Installing);
+    assert!(s.error.is_some());
+    assert!(host.installs().is_empty());
+    assert_eq!(noted(&host), None);
+  }
+
+  #[tokio::test]
+  async fn a_newer_or_the_same_version_from_a_file_is_an_update_and_a_second_step_back_keeps_the_first_note() {
+    let srv = Server::start(site(Some(by_stable_both), None, Arc::default()));
+    let downloads = TempDir::new();
     for (running, file, bytes) in [("9.0.0", "9.9.9", payload()), ("9.9.9", "9.9.9", payload())] {
+      let cache = TempDir::new();
       let host = host();
-      let updater = make(at(running), &host);
+      let updater = make(signed_running(&srv.base, &cache, running), &host);
       updater.check_file(picked(&downloads, file, &bytes)).await;
       assert_eq!(updater.install_file().await.phase, Phase::Installing);
-      assert_eq!(host.pref(PREF_HELD_BACK), None, "{file} over {running}");
+      assert_eq!(noted(&host), None, "{file} over {running}");
+      assert!(marker(&cache), "{file} over {running}: its marker speaks at the next start");
     }
-    // Stepped back from 10.0.0 before, now from 9.9.9 to 9.9.8: 10.0.0 and everything below stays held.
+    // Gone back from 10.0.0 before, now from 9.9.9 to 9.9.8 with no check in
+    // between: 10.0.0 is still what the next start would install.
+    let cache = TempDir::new();
     let host = host();
-    host.set_pref(PREF_HELD_BACK, "10.0.0");
-    let updater = make(at("9.9.9"), &host);
+    host.set_pref(PREF_FAILED_INSTALL, "10.0.0");
+    let updater = make(signed_running(&srv.base, &cache, "9.9.9"), &host);
     updater.check_file(picked(&downloads, "9.9.8", &older_payload())).await;
     assert_eq!(updater.install_file().await.phase, Phase::Installing);
-    assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some("10.0.0"));
+    assert_eq!(noted(&host).as_deref(), Some("10.0.0"));
+    assert!(!marker(&cache));
   }
 
   // ---- could not be asked is not unsigned ----

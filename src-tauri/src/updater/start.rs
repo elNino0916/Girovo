@@ -8,8 +8,9 @@
 // download or nothing new: Girovo opens as always, the app's own update
 // notices saying the rest. The way back to an older release only when it was
 // asked for ("Neu starten und zurück", --update); otherwise that stays a click.
-// So does a release the user stepped back from with an older version from a
-// file (PREF_HELD_BACK), and one whose install failed (PREF_FAILED_INSTALL).
+// So does the one release noted in PREF_FAILED_INSTALL: its install failed,
+// or the user went back to an older version from it with a file. The page
+// hears of it with the release (PublicRelease::waits_for_user).
 // A start window the user closes during the download opens Girovo at once;
 // the download goes on behind it.
 //
@@ -30,9 +31,8 @@ use std::time::Duration;
 
 use tauri::async_runtime::{self, JoinHandle};
 
-use super::engine::{PREF_FAILED_INSTALL, Phase, UpdateState, Updater};
-use super::logic::{self, InstallKind};
-use super::trust;
+use super::engine::{Phase, UpdateState, Updater};
+use super::logic::InstallKind;
 
 /// How long a start waits for GitHub's answer before it opens Girovo anyway.
 pub const START_CHECK_LIMIT: Duration = Duration::from_secs(6);
@@ -77,12 +77,6 @@ impl StartWindow for crate::splash::Splash {
 pub struct StartCheck(JoinHandle<UpdateState>);
 
 impl Updater {
-  /// The version whose install did not complete — on this start's marker, or
-  /// remembered from an earlier one (the marker is read only once).
-  fn failed_install(&self) -> Option<String> {
-    self.state().failed_install.or_else(|| self.host_pref(PREF_FAILED_INSTALL)).filter(|v| !v.is_empty())
-  }
-
   fn updates_at_start(&self) -> bool {
     let state = self.state();
     state.kind == InstallKind::Nsis && (state.auto || self.config().update_asked)
@@ -115,23 +109,19 @@ impl Updater {
     let Ok(Ok(found)) = tokio::time::timeout(START_CHECK_LIMIT, check).await else { return false };
     let Some(release) = found.release.clone() else { return false };
     if !window.is_open()
-      // Its install failed on the last start: not again by itself, or a
-      // failing installer would quit Girovo at every start. The app opens and
-      // says so; installing it again is the user's click.
-      || (self.failed_install().as_deref() == Some(release.version.as_str()) && !asked)
+      // Its install failed at an earlier start: not again by itself, or a
+      // failing installer would quit Girovo at every start. Or the user went
+      // back to an older version from it: not put back by itself. The app
+      // opens; installing it is the user's click. A release after it is
+      // installed as always, and the note goes when an install has arrived
+      // (read_marker), not before.
+      || (release.waits_for_user && !asked)
       || (release.back && !asked)
       || !release.can_install
       || !matches!(found.phase, Phase::Available | Phase::Ready)
     {
       return false;
     }
-    // The user went back to an older version from a file: this release, the
-    // one stepped back from or an older one, is not put back unasked. A newer
-    // one ends the step back.
-    if !asked && logic::held_back(self.held_back(), trust::build_number(&release.version)) {
-      return false;
-    }
-    self.clear_held_back();
     window.set_update(Some(release.version.clone()));
     if found.phase == Phase::Available {
       window.step("downloading");

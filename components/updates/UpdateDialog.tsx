@@ -56,6 +56,10 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   const android = state.kind === 'android';
   // The installed Windows app: a restart into the start window, which installs.
   const atStart = updatesAtStart(state);
+  // Whether the next start installs it without being asked. Not the way back
+  // to an older release, and not a release that waits for the user: one whose
+  // install failed before, or one the user went back to an older version from.
+  const comesAtNextStart = !!release && state.auto && !release.back && !release.waitsForUser;
   // The restart is a logout too: what it would take with it is said, as on
   // every other way out of the session.
   const unclear = signedIn ? unclearList.length : 0;
@@ -240,11 +244,11 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
 
         {/* The installed Windows app: only what the button doesn't say — the
             logout, and that the update comes at the next start anyway. */}
-        {release?.canInstall && atStart && (signedIn || (state.auto && !release.back)) && (
+        {release?.canInstall && atStart && (signedIn || comesAtNextStart) && (
           <Alert tone="info" className="mt-0" role="status">
             {signedIn && u.restartLogsOut}
-            {signedIn && state.auto && !release.back && ' '}
-            {state.auto && !release.back && u.orAtNextStart}
+            {signedIn && comesAtNextStart && ' '}
+            {comesAtNextStart && u.orAtNextStart}
           </Alert>
         )}
 
