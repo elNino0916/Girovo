@@ -42,8 +42,9 @@ const EARLY_PREF = 'fints.updates.early';
 /** A random id of this installation, only for its rollout bucket (update-trust.ts bucket). */
 const INSTALL_ID_PREF = 'fints.updates.installId';
 /**
- * What girovo.de offered this copy last, per channel: { stable?: { build, at }, preview?: … }.
- * While girovo.de can't be asked, GitHub offers nothing above it (logic.offersFromGitHub).
+ * What girovo.de offered this copy last, per channel, and since when it can't
+ * be asked: { stable?: { build, at, downSince? }, preview?: … }. For 72 hours
+ * from the first failed ask, GitHub offers nothing above it (logic.offersFromGitHub).
  */
 const LISTED_PREF = 'fints.updates.listed';
 const EVERY_MS = 6 * 60 * 60 * 1000;
@@ -184,6 +185,8 @@ async function check(): Promise<ElectronUpdateState> {
   set({ phase: 'checking', error: null });
   try {
     const listed = await fromGirovoDe(preview);
+    // The first failed ask since the last good answer starts the 72 hours (logic.noteFailedAsk).
+    if (listed === undefined) write(LISTED_PREF, logic.noteFailedAsk(read(LISTED_PREF), preview ? 'preview' : 'stable', Date.now()));
     const found = listed === undefined ? await fromGitHub(preview) : listed;
     if (run !== checks) return state;
     const release = found && !refused.has(found.version) && isNewer(found.version, preview) ? found : null;

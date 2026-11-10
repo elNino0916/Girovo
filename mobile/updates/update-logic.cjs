@@ -346,69 +346,106 @@ function phaseAfterFailedCheck(before) {
 // girovo.de chooses the release: it skips a halted one and stages a rollout.
 // GitHub's API, the fallback when girovo.de cannot be asked, knows neither —
 // an outage would offer a halted or staged release to everyone. So each copy
-// remembers, per channel, what girovo.de offered it last and when, and for
-// LISTED_HOLD_MS GitHub may not offer anything above that. The desktop's
-// updater (src-tauri/src/updater) has the same rule.
+// notes, per channel, what girovo.de offered it last (`build`) and when
+// (`at`), and the time of the first ask that failed since (`downSince`). For
+// LISTED_HOLD_MS from that first failure, GitHub may not offer anything above
+// `build`. The desktop's updater (src-tauri/src/updater) has the same rule.
+//
+// Read as the desktop reads it: `build`, `at` and `downSince` are whole
+// numbers from 0 up to Number.MAX_SAFE_INTEGER; `downSince` may also be
+// missing or null (no failure since). Anything else in a channel's entry
+// leaves that channel with nothing noted.
 
-/** How long girovo.de's last answer holds GitHub's offer back: 72 hours. */
+/** How long GitHub's offer is held back from the first failed ask on: 72 hours. */
 const LISTED_HOLD_MS = 72 * 60 * 60 * 1000;
 
+/** A whole number from 0 to Number.MAX_SAFE_INTEGER: what every field of a note must be. */
+const isNoted = (v) => Number.isSafeInteger(v) && v >= 0;
+
+/** A channel's entry as noted, { build, at, downSince } with downSince null for none — or null when it is not one. */
+function noteOf(entry) {
+  if (!entry || typeof entry !== 'object' || !isNoted(entry.build) || !isNoted(entry.at)) return null;
+  const downSince = entry.downSince ?? null;
+  if (downSince !== null && !isNoted(downSince)) return null;
+  return { build: entry.build, at: entry.at, downSince };
+}
+
 /**
- * The build number to remember from one answer of girovo.de: the release it
+ * The build number to note from one answer of girovo.de: the release it
  * offered this copy (`offered`, what pickListed chose — the rollout's bucket
  * and "early" included), or, when it offered nothing newer, the running
  * version's (`running`). Null when neither has a build number.
  */
 function listedBuild(offered, running) {
-  const o = Number.isSafeInteger(offered) ? offered : null;
-  const r = Number.isSafeInteger(running) ? running : null;
+  const o = isNoted(offered) ? offered : null;
+  const r = isNoted(running) ? running : null;
   if (o == null || r == null) return o ?? r;
   return o > r ? o : r;
 }
 
-/** What is remembered for `channel` in the stored text: { build, at }, or null — nothing yet, or nothing readable. */
+/** What is noted for `channel` in the stored text: { build, at, downSince }, or null — nothing yet, or nothing readable. */
 function listedFor(text, channel) {
   try {
-    const entry = JSON.parse(text ?? 'null')?.[channelOf(channel)];
-    if (!entry || !Number.isSafeInteger(entry.build) || typeof entry.at !== 'number' || !Number.isFinite(entry.at)) return null;
-    return { build: entry.build, at: entry.at };
+    const all = JSON.parse(text ?? 'null');
+    return all && typeof all === 'object' ? noteOf(all[channelOf(channel)]) : null;
   } catch {
     return null;
   }
 }
 
-/**
- * The text to store once girovo.de answered for `channel` at `at` (ms):
- * that answer's build (listedBuild) takes the place of the channel's earlier
- * one — the latest answer, never a maximum, so a release halted after it was
- * offered is held back too. The other channel's entry stays. A `build` that
- * is no number leaves the channel with nothing remembered.
- */
-function rememberListed(text, channel, build, at) {
+/** The stored text with `channel`'s entry changed by `change` (it gets the noted entry or null, returns the new one or null); the other channel's stays. */
+function changeListed(text, channel, change) {
   const mine = channelOf(channel);
   const out = {};
   for (const c of ['stable', 'preview']) {
-    const entry = c === mine ? (Number.isSafeInteger(build) ? { build, at } : null) : listedFor(text, c);
-    if (entry) out[c] = entry;
+    const entry = c === mine ? change(listedFor(text, c)) : listedFor(text, c);
+    if (!entry) continue;
+    out[c] = entry.downSince == null ? { build: entry.build, at: entry.at } : entry;
   }
   return JSON.stringify(out);
 }
 
 /**
+ * The text to store once girovo.de answered for `channel` at `at` (ms) — any
+ * listing that could be read, an empty one too: that answer's build
+ * (listedBuild) takes the place of the channel's earlier one, the latest
+ * answer, never a maximum, so a release halted after it was offered is held
+ * back too; and the outage is over (no downSince). Without a build to note,
+ * or a time that is no whole number, the channel's entry stays as it was.
+ */
+function rememberListed(text, channel, build, at) {
+  return changeListed(text, channel, (old) => (isNoted(build) && isNoted(at) ? { build, at, downSince: null } : old));
+}
+
+/**
+ * The text to store when girovo.de could not be asked for `channel` at `now`
+ * (ms): the first failure since the last good answer is noted, and later
+ * ones change nothing — the 72 hours run from the first. Nothing noted for
+ * the channel: nothing to hold, nothing to note.
+ */
+function noteFailedAsk(text, channel, now) {
+  return changeListed(text, channel, (old) => (old && old.downSince == null && isNoted(now) ? { ...old, downSince: now } : old));
+}
+
+/**
  * Whether GitHub's release (build `candidate`) may be offered while girovo.de
- * cannot be asked, given what girovo.de said last for this channel
- * (`remembered`: { build, at } or null) and the time `now` (ms). Yes when
- *   (a) it is not above the remembered build, or
- *   (b) that answer is older than LISTED_HOLD_MS — or from the future, a
- *       clock that was wrong once: stale, never a hold for ever —, or
- *   (c) nothing was ever remembered for this channel.
+ * cannot be asked, given the channel's note (`remembered`: { build, at,
+ * downSince } or null) and the time `now` (ms). Yes when
+ *   (a) it is not above the noted build, or
+ *   (b) the first failed ask (downSince; none noted: now) is older than
+ *       LISTED_HOLD_MS, or
+ *   (c) nothing readable is noted for this channel, or
+ *   (d) `at` or `downSince` lies in the future — a clock that was wrong once:
+ *       stale, never a hold for ever.
  * Otherwise no: nothing new for now.
  */
 function offersFromGitHub(candidate, remembered, now) {
-  if (!remembered || !Number.isSafeInteger(remembered.build) || typeof remembered.at !== 'number' || !Number.isFinite(remembered.at)) return true;
-  const age = now - remembered.at;
-  if (!(age >= 0 && age <= LISTED_HOLD_MS)) return true;
-  return Number.isSafeInteger(candidate) && candidate <= remembered.build;
+  const note = noteOf(remembered);
+  if (!note) return true;
+  const since = note.downSince ?? now;
+  if (note.at > now || since > now) return true;
+  if (now - since > LISTED_HOLD_MS) return true;
+  return isNoted(candidate) && candidate <= note.build;
 }
 
 /**
@@ -441,6 +478,7 @@ module.exports = {
   listedBuild,
   listedFor,
   rememberListed,
+  noteFailedAsk,
   offersFromGitHub,
   phaseAfterHeldCheck,
   rateLimitWait,

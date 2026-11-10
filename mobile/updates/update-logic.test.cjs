@@ -376,39 +376,73 @@ const B605 = 600050_000000000;
 const B606 = 600060_000000000;
 
 test('GitHub alone: a release above what girovo.de offered last is held back', () => {
-  const said = { build: B604, at: NOW - HOUR };
+  const said = { build: B604, at: NOW - HOUR, downSince: NOW - HOUR / 2 };
   assert.equal(logic.offersFromGitHub(B605, said, NOW), false, 'above: halted or staged, for all this copy knows');
   assert.equal(logic.offersFromGitHub(B604, said, NOW), true, '(a) the one girovo.de offered');
   assert.equal(logic.offersFromGitHub(B604 - 1, said, NOW), true, '(a) below it');
   assert.equal(logic.offersFromGitHub(null, said, NOW), false, 'no build number: not known to be at or below');
   assert.equal(logic.offersFromGitHub(undefined, said, NOW), false);
   assert.equal(logic.offersFromGitHub('600050000000000', said, NOW), false);
+  assert.equal(logic.offersFromGitHub(-1, said, NOW), false);
+  assert.equal(logic.offersFromGitHub(B605, { build: B604, at: NOW - HOUR }, NOW), false, 'no failure noted: it counts from now');
 });
 
-test('GitHub alone: after 72 hours without girovo.de the hold ends', () => {
+test('GitHub alone: the 72 hours run from the first failed ask', () => {
   assert.equal(logic.LISTED_HOLD_MS, 72 * HOUR);
-  const at = (age) => ({ build: B604, at: NOW - age });
-  assert.equal(logic.offersFromGitHub(B605, at(0), NOW), false, 'just now');
-  assert.equal(logic.offersFromGitHub(B605, at(71 * HOUR), NOW), false);
-  assert.equal(logic.offersFromGitHub(B605, at(72 * HOUR), NOW), false, 'exactly 72 hours: not yet older');
-  assert.equal(logic.offersFromGitHub(B605, at(72 * HOUR + 1), NOW), true, '(b) older than 72 hours');
-  assert.equal(logic.offersFromGitHub(B605, at(30 * 24 * HOUR), NOW), true);
+  const down = (age) => ({ build: B604, at: NOW - age - HOUR, downSince: NOW - age });
+  assert.equal(logic.offersFromGitHub(B605, down(0), NOW), false, 'just failed');
+  assert.equal(logic.offersFromGitHub(B605, down(71 * HOUR), NOW), false);
+  assert.equal(logic.offersFromGitHub(B605, down(72 * HOUR), NOW), false, 'exactly 72 hours: not yet older');
+  assert.equal(logic.offersFromGitHub(B605, down(72 * HOUR + 1), NOW), true, '(b) older than 72 hours');
+  assert.equal(logic.offersFromGitHub(B605, down(30 * 24 * HOUR), NOW), true);
 });
 
-test('GitHub alone: a remembered time in the future is stale, never a hold for ever', () => {
-  assert.equal(logic.offersFromGitHub(B605, { build: B604, at: NOW + 1 }, NOW), true);
+test('GitHub alone: a copy opened four days after its last good answer, during an outage, is held', () => {
+  // Last good answer four days ago (6.0.4 for this copy); 6.0.5 was halted since; girovo.de is down now.
+  let text = logic.rememberListed(null, 'stable', B604, NOW - 96 * HOUR);
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW), false, 'the outage starts now, not four days ago');
+  text = logic.noteFailedAsk(text, 'stable', NOW);
+  assert.deepEqual(logic.listedFor(text, 'stable'), { build: B604, at: NOW - 96 * HOUR, downSince: NOW });
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW), false, 'held');
+
+  // Later failures leave the first one's time: six-hourly checks never push the end out.
+  for (let h = 6; h <= 72; h += 6) {
+    text = logic.noteFailedAsk(text, 'stable', NOW + h * HOUR);
+    assert.equal(logic.listedFor(text, 'stable').downSince, NOW, `failure after ${h} h`);
+    assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW + h * HOUR), false, `${h} h after the first failure`);
+  }
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW + 72 * HOUR + 1), true, '72 hours after the first failure: offered');
+
+  // A good answer ends the outage: the next one counts from its own first failure.
+  text = logic.rememberListed(text, 'stable', B604, NOW + 73 * HOUR);
+  assert.deepEqual(logic.listedFor(text, 'stable'), { build: B604, at: NOW + 73 * HOUR, downSince: null });
+  assert.deepEqual(JSON.parse(text), { stable: { build: B604, at: NOW + 73 * HOUR } }, 'no downSince stored');
+  text = logic.noteFailedAsk(text, 'stable', NOW + 200 * HOUR);
+  assert.equal(logic.listedFor(text, 'stable').downSince, NOW + 200 * HOUR);
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW + 201 * HOUR), false);
+});
+
+test('GitHub alone: a time in the future is stale, never a hold for ever', () => {
+  assert.equal(logic.offersFromGitHub(B605, { build: B604, at: NOW + 1, downSince: NOW }, NOW), true, 'the answer from the future');
   assert.equal(logic.offersFromGitHub(B605, { build: B604, at: NOW + 400 * 24 * HOUR }, NOW), true);
+  assert.equal(logic.offersFromGitHub(B605, { build: B604, at: NOW - HOUR, downSince: NOW + 1 }, NOW), true, 'the failure from the future');
 });
 
-test('GitHub alone: nothing remembered, nothing held back', () => {
+test('GitHub alone: nothing noted, or nothing readable, holds nothing back', () => {
   assert.equal(logic.offersFromGitHub(B605, null, NOW), true, '(c)');
   assert.equal(logic.offersFromGitHub(B605, undefined, NOW), true);
-  for (const odd of [{}, { build: B604 }, { at: NOW }, { build: '600040000000000', at: NOW }, { build: B604, at: 'now' }, { build: B604, at: NaN }, { build: 1.5, at: NOW }]) {
+  const at = NOW - HOUR;
+  for (const odd of [
+    {}, { build: B604 }, { at }, { build: '600040000000000', at }, { build: B604, at: 'now' }, { build: B604, at: NaN },
+    { build: 1.5, at }, { build: -1, at }, { build: B604, at: at + 0.5 }, { build: B604, at: -1 },
+    { build: B604, at, downSince: -1 }, { build: B604, at, downSince: at + 0.5 }, { build: B604, at, downSince: 'then' },
+    { build: Number.MAX_SAFE_INTEGER + 1, at },
+  ]) {
     assert.equal(logic.offersFromGitHub(B605, odd, NOW), true, JSON.stringify(odd));
   }
 });
 
-test('what one answer of girovo.de leaves to remember', () => {
+test('what one answer of girovo.de leaves to note', () => {
   assert.equal(logic.listedBuild(B605, B604), B605, 'the release it offered this copy');
   assert.equal(logic.listedBuild(null, B604), B604, 'nothing offered: the running version');
   assert.equal(logic.listedBuild(B604, B604), B604);
@@ -416,44 +450,63 @@ test('what one answer of girovo.de leaves to remember', () => {
   assert.equal(logic.listedBuild(B605, null), B605);
   assert.equal(logic.listedBuild(null, null), null);
   assert.equal(logic.listedBuild('x', undefined), null);
+  assert.equal(logic.listedBuild(-1, B604), B604, 'a negative number is none');
+  assert.equal(logic.listedBuild(1.5, null), null);
 });
 
-test('the answers are remembered per channel, the latest one, not the highest', () => {
+test('the answers are noted per channel, the latest one, not the highest', () => {
   assert.equal(logic.listedFor(null, 'stable'), null);
   let text = logic.rememberListed(null, 'stable', B605, NOW - 2 * HOUR);
-  assert.deepEqual(logic.listedFor(text, 'stable'), { build: B605, at: NOW - 2 * HOUR });
+  assert.deepEqual(logic.listedFor(text, 'stable'), { build: B605, at: NOW - 2 * HOUR, downSince: null });
   assert.equal(logic.listedFor(text, 'preview'), null);
 
   // 6.0.5 was offered, then halted: girovo.de's next answer offers nothing, and that is what counts.
   text = logic.rememberListed(text, 'stable', logic.listedBuild(null, B604), NOW - HOUR);
-  assert.deepEqual(logic.listedFor(text, 'stable'), { build: B604, at: NOW - HOUR });
+  assert.deepEqual(logic.listedFor(text, 'stable'), { build: B604, at: NOW - HOUR, downSince: null });
   assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW), false);
 
   // The other channel's answer stays beside it.
   text = logic.rememberListed(text, 'preview', B606, NOW);
   assert.deepEqual(JSON.parse(text), { stable: { build: B604, at: NOW - HOUR }, preview: { build: B606, at: NOW } });
 
-  // No build to remember: the channel is left with nothing, the other one untouched.
-  text = logic.rememberListed(text, 'preview', null, NOW);
-  assert.deepEqual(JSON.parse(text), { stable: { build: B604, at: NOW - HOUR } });
+  // No build to note, or no whole-number time: the channel's entry stays as it was, failure and all.
+  text = logic.noteFailedAsk(text, 'preview', NOW + HOUR);
+  const kept = JSON.parse(text);
+  for (const [build, at] of [[null, NOW + 2 * HOUR], [-1, NOW + 2 * HOUR], [1.5, NOW + 2 * HOUR], [B606, -1], [B606, NOW + 0.5], [B606, undefined]]) {
+    assert.deepEqual(JSON.parse(logic.rememberListed(text, 'preview', build, at)), kept, `${build} at ${at}`);
+  }
+  assert.deepEqual(kept, { stable: { build: B604, at: NOW - HOUR }, preview: { build: B606, at: NOW, downSince: NOW + HOUR } });
 
-  for (const odd of ['', 'not json', '[]', '7', 'null', '{"stable":7}', '{"stable":{"build":"1","at":2}}', '{"stable":{"build":1}}']) {
+  for (const odd of ['', 'not json', '[]', '7', 'null', '{"stable":7}', '{"stable":{"build":"1","at":2}}', '{"stable":{"build":1}}',
+    '{"stable":{"build":1,"at":2.5}}', '{"stable":{"build":-1,"at":2}}', '{"stable":{"build":1,"at":-2}}', '{"stable":{"build":1,"at":2,"downSince":-3}}']) {
     assert.equal(logic.listedFor(odd, 'stable'), null, odd);
     assert.deepEqual(JSON.parse(logic.rememberListed(odd, 'preview', B606, NOW)), { preview: { build: B606, at: NOW } }, odd);
+    assert.deepEqual(JSON.parse(logic.noteFailedAsk(odd, 'stable', NOW)), {}, `${odd}: nothing noted, no failure noted`);
   }
-  assert.deepEqual(logic.listedFor(text, 'anything else'), { build: B604, at: NOW - HOUR }, 'anything that is not a channel is the stable one');
+  assert.deepEqual(logic.listedFor('{"stable":{"build":1,"at":2,"downSince":null}}', 'stable'), { build: 1, at: 2, downSince: null });
+  assert.deepEqual(logic.listedFor(text, 'anything else'), { build: B604, at: NOW - HOUR, downSince: null }, 'anything that is not a channel is the stable one');
+  assert.deepEqual(JSON.parse(logic.noteFailedAsk(text, 'stable', -5)), JSON.parse(text), 'a time that is no whole number notes nothing');
 });
 
-test('GitHub alone after a channel switch: each channel is held by its own answer', () => {
+test('GitHub alone after a channel switch: each channel is held by its own note', () => {
   // On Stabil girovo.de offered nothing above 6.0.4 an hour ago; Nightly was never asked.
-  const text = logic.rememberListed(null, 'stable', B604, NOW - HOUR);
+  let text = logic.rememberListed(null, 'stable', B604, NOW - HOUR);
+  text = logic.noteFailedAsk(text, 'stable', NOW);
+  text = logic.noteFailedAsk(text, 'preview', NOW);
   assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW), false);
-  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'preview'), NOW), true, '(c) nothing remembered for Nightly');
-  // Once Nightly was asked, it holds too, and back on Stabil its answer changes nothing.
-  const both = logic.rememberListed(text, 'preview', B605, NOW);
-  assert.equal(logic.offersFromGitHub(B606, logic.listedFor(both, 'preview'), NOW), false);
-  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(both, 'preview'), NOW), true);
-  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(both, 'stable'), NOW), false);
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'preview'), NOW), true, '(c) nothing noted for Nightly');
+  assert.equal(logic.listedFor(text, 'preview'), null, 'and no failure noted there either');
+  // Once Nightly was asked, it holds too, and its answer leaves Stabil's outage as it was.
+  text = logic.rememberListed(text, 'preview', B605, NOW + HOUR);
+  assert.equal(logic.listedFor(text, 'stable').downSince, NOW);
+  text = logic.noteFailedAsk(text, 'preview', NOW + 2 * HOUR);
+  assert.equal(logic.offersFromGitHub(B606, logic.listedFor(text, 'preview'), NOW + 3 * HOUR), false);
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'preview'), NOW + 3 * HOUR), true);
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW + 3 * HOUR), false);
+  // Each channel's 72 hours from its own first failure.
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW + 72 * HOUR + 1), true);
+  assert.equal(logic.offersFromGitHub(B606, logic.listedFor(text, 'preview'), NOW + 72 * HOUR + 1), false);
+  assert.equal(logic.offersFromGitHub(B606, logic.listedFor(text, 'preview'), NOW + 74 * HOUR + 1), true);
 });
 
 test('a check whose find was held back: what is on screen stays, else nothing new', () => {
