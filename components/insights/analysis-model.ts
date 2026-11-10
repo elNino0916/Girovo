@@ -18,14 +18,15 @@
 //   may simply have delivered less history, or the account is newer. It is
 //   kept out of every comparison and called what it is ("keine Umsätze").
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { CategoryOf, Counterparty, MonthBucket, PeriodTotals } from '@/lib/analytics';
 import { bookingDay, largest, monthlyBuckets, periodTotals, topCounterparties } from '@/lib/analytics';
-import { withoutCardBills } from '@/lib/card-bills';
+import { acrossAccounts } from '@/lib/card-bills';
 import { counterpartyKey } from '@/lib/categories';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import type { AnalysisPeriod, AnalysisScope, StatementInfo } from '@/lib/app-types';
 import { dayKey } from '@/lib/format';
+import { useFints } from '../FintsProvider';
 
 export type { AnalysisPeriod, AnalysisScope };
 export const WHOLE_RANGE: AnalysisPeriod = 'all';
@@ -89,10 +90,28 @@ export function loadedPeers(
   return { peers, otherCurrency };
 }
 
+/**
+ * What several accounts add up to together, with each credit card's bill and
+ * its credit on the card left out (lib/card-bills.ts acrossAccounts) — the one
+ * way every sum across accounts is made: the Analyse's "Alle geladenen
+ * Konten" and the desktop Übersicht's month (components/overview/Ledger.tsx),
+ * so both leave out the same bills. The accounts' banks are known by name, so
+ * a payment to the card that carries one is no payee's.
+ */
+export function useAcrossAccounts() {
+  const { bankOf } = useFints();
+  return useCallback(
+    (accts: readonly SerializedAccount[], loaded: Readonly<Record<string, readonly SerializedTransaction[] | undefined>>) =>
+      acrossAccounts(accts, loaded, { bankName: (a) => bankOf(a)?.bank.name }),
+    [bankOf],
+  );
+}
+
 /** The bookings and the range one analysis scope covers. Null while the active account has nothing loaded. */
 export function useScopeData({
   scope, activeAccount, accounts, transactions, txByAccount, statementInfo,
 }: Inputs): ScopeData | null {
+  const across = useAcrossAccounts();
   return useMemo(() => {
     if (!activeAccount || !transactions) return null;
     const acct = activeAccount.accountNumber;
@@ -128,14 +147,14 @@ export function useScopeData({
     }
     // A card's bill on the current account and its credit on the card are the
     // card's purchases a second time: left out of the sum across accounts.
-    const { txs, left } = withoutCardBills([activeAccount, ...peers], { ...txByAccount, [acct]: transactions });
+    const { txs, left } = across([activeAccount, ...peers], { ...txByAccount, [acct]: transactions });
     const clipped = from !== ownFrom || to !== ownTo
       || peers.some((p) => statementInfo[p.accountNumber].from !== from || statementInfo[p.accountNumber].to !== to);
     return {
       scope: 'all', txs, from, to, currency, accounts: [activeAccount, ...peers],
       otherCurrencyAccounts: otherCurrency, clipped, cardBills: left,
     };
-  }, [scope, activeAccount, accounts, transactions, txByAccount, statementInfo]);
+  }, [scope, activeAccount, accounts, transactions, txByAccount, statementInfo, across]);
 }
 
 function earliest(txs: readonly SerializedTransaction[]): string {

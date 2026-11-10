@@ -2,7 +2,7 @@ import './__fixtures__/tz.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SerializedTransaction } from './fints-types';
-import { cardBills, readsLikeCardBill, withoutCardBills } from './card-bills.ts';
+import { acrossAccounts, cardBills, readsLikeCardBill, withoutCardBills } from './card-bills.ts';
 import { cardStatements } from './fints-cards.ts';
 import { IBAN, camt } from './__fixtures__/transactions.ts';
 
@@ -171,4 +171,68 @@ test('withoutCardBills: what the accounts add up to together, each bill and its 
   // One account, or no card among them: everything stays.
   assert.equal(withoutCardBills([GIRO], { '1001': giro, '4001': card }).left.length, 0);
   assert.equal(withoutCardBills([GIRO], { '1001': giro }).txs.length, 2);
+});
+
+// ---------------------------------------------------------------------------
+// Second review: settlements the first rule missed, and one helper for every sum across accounts.
+
+test('the bill’s wording with dates and card numbers between its words', () => {
+  const reads = (text: string) => readsLikeCardBill({ bookingText: 'Lastschrift', purpose: text, remoteName: '' });
+  const yes = [
+    'Abrechnung vom 15.10.2026 Mastercard 5232XXXXXXXX1234',
+    'Kreditkarte 5232 XXXX XXXX 1234 Abrechnung 10/26',
+    'Umsatzabrechnung 5232XXXXXXXX1234',
+    'Umsatzabrechnung 5232 XXXX XXXX 1234',
+    'KREDITK. 5232 ABR.',
+    'Abrechnung 10/26 Visa 4000 XXXX',
+    'Mastercard Nr. 5232XXXXXXXX1234 Abrechnung vom 15.10.2026',
+  ];
+  const no = [
+    // Last round's, still not a bill.
+    'VISA Deutschland Abrechnungskonto', 'Mastercard Gutschrift Jahresabrechnung Strom', 'Nebenkostenabrechnung Visastr. 3', 'Abrechnung Barclays',
+    'Umsatzabrechnung', 'Sammelabrechnung Karte', 'DKB VISACARD 4998XXXXXXXX1234', 'Kreditkarte Teilzahlung', 'Entgelt Kreditkarte Gold',
+    // Too much between: three real words, or more than six of anything.
+    'Abrechnung Stadtwerke Strom Zahlung per Visa', 'Abrechnung 1 2 3 4 5 6 7 Mastercard', 'Umsatzabrechnung XXL',
+  ];
+  assert.deepEqual(yes.filter((t) => !reads(t)), []);
+  assert.deepEqual(no.filter(reads), []);
+});
+
+test('a credit on the card in the bank’s own words, or from the holder or the bank, is a payment to it', () => {
+  const b = bill('2026-10-28');
+  const credit = (name: string) => camt({ day: '2026-10-29', amount: 612.4, text: 'Gutschrift', name, ref: name });
+  // A card read over DKKKU puts the bank's text where the shop would be (lib/fints-cards.ts remoteName).
+  for (const name of ['IHRE ZAHLUNG – DANKE', 'ZAHLUNG ERHALTEN – DANKE', 'LASTSCHRIFTEINZUG', 'Einzug vom Girokonto', 'Ausgleich Kreditkartenkonto', 'Habenbuchung Ausgleich']) {
+    assert.equal(paired([b], [credit(name)]).size, 2, name);
+  }
+  // The holder's own name (every transfer to the card carries it) and the bank's: no payee either —
+  // known from the accounts and the bank they belong to.
+  const accounts = [{ ...GIRO, holder: 'Nino Muster' }, { ...CARD, holder: 'MUSTER, NINO' }];
+  const bankName = (a: { accountNumber: string }) => (a.accountNumber === '4001' ? 'DKB Deutsche Kreditbank AG' : 'Sparkasse KölnBonn');
+  const named = (name: string) => cardBills(accounts, { '1001': [b], '4001': [credit(name)] }, { bankName }).size;
+  for (const name of ['Nino Muster', 'NINO MUSTER', 'DKB AG', 'Sparkasse KoelnBonn', 'Sparkasse KölnBonn']) assert.equal(named(name), 2, name);
+  // Without knowing them, a name is a name; and anyone else stays a payee.
+  assert.equal(paired([b], [credit('Nino Muster')]).size, 0);
+  for (const name of ['Lena Beispiel', 'AMAZON EU', 'DKB AG Cashback', 'Nino Muster Hotel']) assert.equal(named(name), 0, name);
+  // A refund stays a refund, whoever it is from.
+  const refund = camt({ day: '2026-10-29', amount: 612.4, text: 'Gutschrift', name: 'DKB AG', purpose: 'Erstattung Jahresgebühr' });
+  assert.equal(cardBills(accounts, { '1001': [b], '4001': [refund] }, { bankName }).size, 0);
+});
+
+test('acrossAccounts: the one sum several ticked accounts make, wherever it is shown', () => {
+  const giro = [camt({ day: '2026-10-30', amount: 2500, code: 'SALA', text: 'Lohn/Gehalt', name: 'ACME GmbH', iban: IBAN.employer }), bill('2026-10-28')];
+  const card = [
+    camt({ day: '2026-10-03', amount: -400, code: 'CCRD', text: 'Kartenumsatz', name: 'HOTEL ADLON' }),
+    camt({ day: '2026-10-11', amount: -212.4, code: 'CCRD', text: 'Kartenumsatz', name: 'DB FERNVERKEHR' }),
+    camt({ day: '2026-10-29', amount: 612.4, text: 'Gutschrift', name: 'IHRE ZAHLUNG – DANKE' }),
+  ];
+  const loaded = { '1001': giro, '4001': card };
+  const both = acrossAccounts([GIRO, CARD], loaded);
+  assert.deepEqual(both.txs, [giro[0], card[0], card[1]]);
+  assert.deepEqual(both.left, [giro[1], card[2]]);
+  // One account ticked: its bookings, all of them, as before.
+  assert.deepEqual(acrossAccounts([GIRO], loaded), { txs: giro, left: [] });
+  assert.deepEqual(acrossAccounts([CARD], loaded), { txs: card, left: [] });
+  // An account without its bookings yet adds nothing.
+  assert.deepEqual(acrossAccounts([GIRO, CARD], { '1001': giro }), { txs: giro, left: [] });
 });

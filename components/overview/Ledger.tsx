@@ -21,6 +21,7 @@ import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types
 import { isoDate } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
+import { useAcrossAccounts } from '../insights/analysis-model';
 import { useRecurringModel, useUpcoming } from '../insights/recurring-model';
 import { RefreshIcon } from '../icons';
 import { Money } from '../Money';
@@ -118,7 +119,10 @@ export function Ledger() {
   const monthStart = isoDate(new Date(today.getFullYear(), today.getMonth(), 1));
   // Only once every ticked account's Umsätze are here (never a partial
   // figure), over the days of the month all of them cover, said in the label
-  // ("1.–24. November") as the account page's line says it.
+  // ("1.–24. November") as the account page's line says it. A credit card's
+  // bill and its credit on the card are left out, as the Analyse leaves them
+  // out across accounts: the card's purchases count already.
+  const across = useAcrossAccounts();
   const month = useMemo(() => {
     if (!withBookings.length || withBookings.some((a) => !txByAccount[a.accountNumber] || !statementInfo[a.accountNumber])) return null;
     let from = monthStart;
@@ -129,17 +133,19 @@ export function Ledger() {
       if (info.to < to) to = info.to;
     }
     if (from > to) return null;
+    const leftOut = new Set(across(withBookings, txByAccount).left);
     let income = 0;
     let expense = 0;
     let count = 0;
     for (const a of withBookings) {
-      const p = periodTotals(txByAccount[a.accountNumber]!, { categoryOf, from, to, currency: 'EUR' });
+      const own = txByAccount[a.accountNumber]!;
+      const p = periodTotals(leftOut.size ? own.filter((tx) => !leftOut.has(tx)) : own, { categoryOf, from, to, currency: 'EUR' });
       income += p.income;
       expense += p.expense;
       count += p.count;
     }
     return count ? { income, expense, span: daySpan(from, to) } : null;
-  }, [withBookings, txByAccount, statementInfo, categoryOf, monthStart, todayKey]);
+  }, [withBookings, txByAccount, statementInfo, categoryOf, monthStart, todayKey, across]);
   const model = useRecurringModel();
   const upcoming = useUpcoming(model, 30);
   const due = useMemo(() => {
