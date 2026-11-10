@@ -72,7 +72,8 @@ import javax.crypto.spec.SecretKeySpec;
  * entry, and its PIN beside other logins — whenever it was stored, so no
  * clock decides it. The note goes once a PIN of that login the bank took is
  * stored again, after it is written (settleNotes), or with the login itself
- * (remove). A login whose copies went is said once by `has` (`dropped`).
+ * (remove). A login whose copies went — its own, or as a further bank in a
+ * dropped entry — is said once, to the login form (`has` with `consume`).
  *
  * Without this switch on, nothing here holds anything and the PINs live only
  * in memory, as on the desktop.
@@ -190,9 +191,27 @@ public class BiometricPlugin extends Plugin {
     }
 
     /**
+     * The logins whose fingerprint login goes with `drop(name)`, for each to
+     * be told once: the login a name keeps a PIN of and, for an entry ("<id>"),
+     * every further bank kept beside it — they go with it. No Android in
+     * here: BiometricNotesTest.
+     */
+    static Set<String> loginsLosing(String name, Set<String> names) {
+        Set<String> out = new HashSet<>();
+        out.add(loginOfName(name));
+        if (name.indexOf('/') < 0) {
+            String beside = itemName(name, "");
+            for (String other : names) {
+                if (other.startsWith(beside)) out.add(other.substring(beside.length()));
+            }
+        }
+        return out;
+    }
+
+    /**
      * Before a PIN is looked up: every copy of a PIN the bank was noted to
-     * have refused is deleted instead, and each login whose copies went is
-     * kept for `has` to say once.
+     * have refused is deleted instead, and each login that lost its
+     * fingerprint login with it is kept for the login form to say once.
      */
     private void dropRefused() {
         SharedPreferences notes = notes();
@@ -205,9 +224,10 @@ public class BiometricPlugin extends Plugin {
         }
         Set<String> refused = timesOf(notes, REFUSED).keySet();
         if (!refused.isEmpty()) {
-            for (String name : refusedCopies(prefs().getAll().keySet(), refused)) {
+            Set<String> names = new HashSet<>(prefs().getAll().keySet());
+            for (String name : refusedCopies(names, refused)) {
+                for (String login : loginsLosing(name, names)) edit.putBoolean(DROPPED + login, true);
                 drop(name);
-                edit.putBoolean(DROPPED + loginOfName(name), true);
                 changed = true;
             }
         }
@@ -254,8 +274,10 @@ public class BiometricPlugin extends Plugin {
 
     /**
      * `enrolled`: the login has an entry of its own; `held`: its PIN is kept
-     * beside another login's; `dropped`: its copies went for a PIN the bank
-     * turned down — said once, to the first who asks.
+     * beside another login's; `dropped`: it lost its fingerprint login for a
+     * PIN the bank turned down. With `consume` (the login form, which says
+     * so) that is said once; without (the settings' switch, the offer to seal)
+     * it is left for the form.
      */
     @PluginMethod
     public void has(PluginCall call) {
@@ -265,7 +287,7 @@ public class BiometricPlugin extends Plugin {
         result.put("enrolled", validId(id) && isEntry(id));
         result.put("held", validId(id) && holderOf(id) != null);
         boolean dropped = validId(id) && notes().getBoolean(DROPPED + id, false);
-        if (dropped) notes().edit().remove(DROPPED + id).commit();
+        if (dropped && Boolean.TRUE.equals(call.getBoolean("consume", false))) notes().edit().remove(DROPPED + id).commit();
         result.put("dropped", dropped);
         call.resolve(result);
     }

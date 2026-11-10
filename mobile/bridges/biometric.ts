@@ -27,6 +27,7 @@ import { GirovoBiometric, type BiometricItem, type BiometricState } from '../nat
 import type { LiveLogin, SealedLogin } from '../server/logins';
 import { fingerprintIdOf as idOf } from '../background/fingerprint-id';
 import { serverCall } from '../worker/host';
+import { VERIFY_WAIT_MS, loginsVerified } from './sealing-wait';
 
 export type { SealedLogin };
 
@@ -70,18 +71,19 @@ export async function state(): Promise<BiometricState> {
 /**
  * `on`: a fingerprint opens this login's PIN, sealed for it or as a further
  * bank of another login. `dropped`: it did until now, and the PIN went because
- * the bank had turned it down in the check for new Umsätze — said once.
+ * the bank had turned it down in the check for new Umsätze. The login form
+ * asks this, and says so: once, so it is taken here (`consume`) and nowhere else.
  */
 export async function enrolled(blz: string, userId: string): Promise<{ on: boolean; dropped: boolean }> {
   try {
-    const { enrolled: own, held, dropped } = await GirovoBiometric.has({ id: idOf(blz, userId) });
+    const { enrolled: own, held, dropped } = await GirovoBiometric.has({ id: idOf(blz, userId), consume: true });
     return { on: own || held, dropped: dropped === true };
   } catch {
     return { on: false, dropped: false };
   }
 }
 
-/** Whether fingerprint login is on for this login itself — its switch. */
+/** Whether fingerprint login is on for this login itself — its switch. A drop it finds is left for the login form to say. */
 export async function isOn(blz: string, userId: string): Promise<boolean> {
   try {
     return (await GirovoBiometric.has({ id: idOf(blz, userId) })).enrolled;
@@ -95,10 +97,13 @@ export async function enroll(
   sessionId: string,
   linkedSessionIds: readonly string[],
   texts: PromptTexts,
-): Promise<'enrolled' | 'canceled' | 'failed'> {
-  const [own, ...others] = await loginsOf([sessionId, ...linkedSessionIds]);
-  // The login's own PIN only once the bank has taken it: a remembered device opens with an old one too.
-  if (!own?.verified) return 'failed';
+): Promise<'enrolled' | 'canceled' | 'failed' | 'notYet'> {
+  // The login's own PIN only once the bank has taken it: a remembered device
+  // opens with an old one too. Turned on right after the login, its first
+  // answer may still be on the way: waited for a moment.
+  const [own, ...others] = await loginsVerified([sessionId, ...linkedSessionIds], VERIFY_WAIT_MS.enroll, loginsOf);
+  if (!own) return 'failed';
+  if (!own.verified) return 'notYet';
   const linked = others.filter((l): l is LiveLogin => !!l);
   try {
     const { result } = await GirovoBiometric.enroll({ id: idOf(own.blz, own.userId), items: [own, ...linked].map(itemOf), ...texts });
@@ -117,10 +122,15 @@ export async function seal(
   linkedSessionIds: readonly string[],
   texts: PromptTexts,
 ): Promise<'sealed' | 'canceled' | 'failed' | 'off'> {
-  const [own, ...others] = await loginsOf([sessionId, ...linkedSessionIds]);
-  // A further bank not asked yet (its remembered device) is sealed too, but marked: it settles no note.
+  // A further bank opened on its remembered device is asked right after it
+  // joined (FintsProvider offerSeal), before the bank has answered for it:
+  // the prompt waits for that answer. One still not checked after the wait is
+  // sealed too, but marked: it settles no note.
+  const [own, ...others] = await loginsVerified([sessionId, ...linkedSessionIds], VERIFY_WAIT_MS.seal, loginsOf);
+  // Logged out meanwhile: nothing to say.
+  if (!own) return 'off';
   const linked = others.filter((l): l is LiveLogin => !!l);
-  if (!own?.verified || !linked.length) return 'failed';
+  if (!own.verified || !linked.length) return 'failed';
   try {
     // The login's own PIN goes along: an entry of the old form takes it in as an item.
     const { result } = await GirovoBiometric.seal({ id: idOf(own.blz, own.userId), items: [own, ...linked].map(itemOf), ...texts });

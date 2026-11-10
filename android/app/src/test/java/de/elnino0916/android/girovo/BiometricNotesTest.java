@@ -63,6 +63,16 @@ public class BiometricNotesTest {
         assertEquals(names(A + "/" + B, A + "/" + C, C), gone(stored, names(B, C)));
     }
 
+    @Test public void everyLoginThatLosesItsFingerprintLoginIsTold() {
+        Set<String> stored = names(A, A + "/" + A, A + "/" + B, A + "/" + C, C, C + "/" + C, C + "/" + B);
+        // A's entry goes: A, and the further banks B and C kept beside it.
+        assertEquals(names(A, B, C), BiometricPlugin.loginsLosing(A, stored));
+        // One PIN beside another login: that login alone.
+        assertEquals(names(B), BiometricPlugin.loginsLosing(C + "/" + B, stored));
+        // An entry of the old form, with nothing beside it.
+        assertEquals(names(B), BiometricPlugin.loginsLosing(B, names(B, A)));
+    }
+
     @Test public void aStoredNameSaysWhoseLoginItKeeps() {
         assertEquals(A, BiometricPlugin.loginOfName(A));
         assertEquals(B, BiometricPlugin.loginOfName(A + "/" + B));

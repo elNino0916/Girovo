@@ -24,7 +24,8 @@ declare global {
       /** Whether fingerprint login is on for this login itself — its switch. */
       isOn(blz: string, userId: string): Promise<boolean>;
       /** Seals the PIN of this session's login, and those of the further banks' sessions beside it, behind a fingerprint. */
-      enroll(sessionId: string, linkedSessionIds: readonly string[], texts: GirovoPromptTexts): Promise<'enrolled' | 'canceled' | 'failed'>;
+      /** `notYet`: the bank has not taken this session's PIN yet (its first answer is still out). */
+      enroll(sessionId: string, linkedSessionIds: readonly string[], texts: GirovoPromptTexts): Promise<'enrolled' | 'canceled' | 'failed' | 'notYet'>;
       /** Seals further banks' PINs beside this session's login, after a fingerprint; `off` when it has no fingerprint login. */
       seal(sessionId: string, linkedSessionIds: readonly string[], texts: GirovoPromptTexts): Promise<'sealed' | 'canceled' | 'failed' | 'off'>;
       /** The PIN after a fingerprint, with the further banks' sealed beside it. */

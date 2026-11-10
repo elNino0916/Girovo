@@ -244,8 +244,11 @@ export interface GirovoBiometricPlugin {
    * `items`: every other one kept beside it.
    */
   unlock(opts: { id: string } & PromptOpts): Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing'; secret?: string; items?: BiometricItem[] }>;
-  /** `enrolled`: an entry of its own; `held`: kept beside another login's; `dropped`: its copies went for a refused PIN (said once). */
-  has(opts: { id: string }): Promise<{ enrolled: boolean; held: boolean; dropped?: boolean }>;
+  /**
+   * `enrolled`: an entry of its own; `held`: kept beside another login's; `dropped`: it lost its
+   * fingerprint login for a refused PIN — said once to a caller that `consume`s it (the login form).
+   */
+  has(opts: { id: string; consume?: boolean }): Promise<{ enrolled: boolean; held: boolean; dropped?: boolean }>;
   /** With `item`: that one beside `id`. Without: `id`'s entry and `id` wherever it is kept. */
   remove(opts: { id: string; item?: string }): Promise<void>;
   removeAll(): Promise<void>;

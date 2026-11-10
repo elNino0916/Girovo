@@ -74,6 +74,9 @@ export function FingerprintSwitch() {
           toast(b.nowOn, 'success');
         } else if (result === 'failed') {
           toast(b.enrollFailed, 'error');
+        } else if (result === 'notYet') {
+          // The bank has not answered for this login yet: its first Umsätze will.
+          toast(t.history.server.notYet, 'info');
         }
       } else {
         await mobile.biometric.forget(bank.blz, userId);
