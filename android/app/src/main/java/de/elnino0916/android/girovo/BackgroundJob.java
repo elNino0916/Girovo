@@ -44,6 +44,10 @@ import javax.net.ssl.HttpsURLConnection;
  * notifications, and the end of the job. Nothing is written to the state
  * folder from here.
  *
+ * A PIN the bank turns down leaves the box. The same PIN behind the
+ * fingerprint cannot be opened from here, so the job says whose it was
+ * (pinRefused) and BiometricPlugin drops it before it is handed out again.
+ *
  * Skipped while the app is in front: the user's own session reads the banks
  * then.
  */
@@ -181,6 +185,17 @@ public class BackgroundJob extends JobService {
         @JavascriptInterface
         public void cancel() {
             BackgroundState.schedule(getApplicationContext(), false);
+        }
+
+        /**
+         * The bank turned the kept PIN of the login `id` down (its own codes
+         * for the PIN): noted with the time, for the fingerprint login. `id`
+         * is the login's name there (mobile/background/fingerprint-id.ts), a
+         * hash — never a PIN, nor anything made from one.
+         */
+        @JavascriptInterface
+        public void pinRefused(String id) {
+            BiometricPlugin.noteRefused(getApplicationContext(), id);
         }
 
         /** The state folder's file names (JSON array) — the page's runtime keeps it under files/fints-state. */

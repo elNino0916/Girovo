@@ -12,7 +12,11 @@
 // if it had been typed, and the further banks' PINs to the provider, which
 // logs them in one after another. Should a bank refuse one (the PIN was
 // changed at the bank), the page calls forget(): a stale PIN must never be
-// tried twice, because a few wrong tries lock the online banking.
+// tried twice, because a few wrong tries lock the online banking. The check
+// for new Umsätze cannot call it (mobile/background/entry.ts): it leaves a
+// note instead, and BiometricPlugin drops the copies stored before the note
+// rather than hand one out — here that reads as a login with no fingerprint
+// login (any more), and the PIN is typed.
 //
 // A login is named by a hash of BLZ and login name, like the device profile's
 // file (lib/state-store.ts), so the stored entries say nothing about whose
@@ -21,12 +25,10 @@
 
 import { GirovoBiometric, type BiometricItem, type BiometricState } from '../native';
 import type { SealedLogin } from '../server/logins';
-import { createHash } from '../shims/crypto';
+import { fingerprintIdOf as idOf } from '../background/fingerprint-id';
 import { serverCall } from '../worker/host';
 
 export type { SealedLogin };
-
-const idOf = (blz: string, userId: string) => createHash('sha256').update(`${blz}|${userId}|biometric`).digest('hex').slice(0, 32);
 
 export type PromptTexts = { title: string; subtitle: string; cancel: string };
 

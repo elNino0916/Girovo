@@ -227,6 +227,12 @@ export type BiometricState = { available: boolean; reason?: 'none-enrolled' | 'n
 export type BiometricItem = { id: string; secret: string };
 type PromptOpts = { title: string; subtitle: string; cancel: string };
 
+/**
+ * Every call that looks a PIN up first drops the copies of a PIN the bank
+ * was noted to have turned down since they were stored (the check for new
+ * Umsätze, BackgroundJob.java): such a login answers `missing`, and a further
+ * bank's copy is simply not among `items`.
+ */
 export interface GirovoBiometricPlugin {
   state(): Promise<BiometricState>;
   /** A new entry for `id` after a fingerprint: `items`, `id`'s own among them. The key dies with a newly enrolled finger. */

@@ -89,10 +89,17 @@ export const bankSide: BankSide = {
   },
 
   async refused(login) {
-    // The phone's job only reads the saved files (mobile/background/entry.ts)
-    // and has no way to the PIN behind the fingerprint: there the app's next
-    // login finds out, before or at its first read (lib/client-api.ts PIN_REFUSED_EVENT).
-    if (IS_ANDROID) return;
+    // The phone's job only reads the saved files and cannot open what is
+    // kept behind the fingerprint: it tells Android whose PIN was refused
+    // (mobile/background/entry.ts), and the fingerprint's store deletes the
+    // copies of it stored before now instead of handing one out
+    // (BiometricPlugin.java). Typed after that, the new PIN does not open the
+    // remembered device, and the bank is asked afresh.
+    if (IS_ANDROID) {
+      const tell = (globalThis as typeof globalThis & { __girovoPinRefused?: (login: { blz: string; userId: string }) => void }).__girovoPinRefused;
+      tell?.({ blz: login.blz, userId: login.userId });
+      return;
+    }
     // Noted first: a copy of this PIN kept beside another login ("Weitere
     // Banken mit anmelden") cannot be deleted without that login's PIN, and
     // /api/connect knows it by this note instead.

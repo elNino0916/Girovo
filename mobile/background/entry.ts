@@ -7,6 +7,10 @@
 // It mounts the state folder read-only (the remembered devices), opens the
 // sealed box with the shell's secret, runs one check, hands the notices to
 // Android and ends the job. Whatever happens, the job ends.
+//
+// A PIN the bank turns down leaves the box here; the same PIN behind the
+// fingerprint is out of this runtime's reach, so Android is told whose it
+// was (GirovoBg.pinRefused) and drops it before it is handed out again.
 
 // First: fetch() through the job's HTTPS stack, then the files the desktop
 // ships beside its server (lib/banks.ts and lib/session.ts read them while
@@ -21,6 +25,7 @@ import { backgroundStore } from '../../lib/background-store';
 import { msgs } from '../../lib/i18n/index.ts';
 import { mountData, refuseData, unreadableFiles } from '../shims/fs';
 import { bg } from './bridge';
+import { fingerprintIdOf } from './fingerprint-id';
 
 // A request blocks until the bank answers (BackgroundJob.java times it); a
 // timer here could not end it anyway.
@@ -39,6 +44,9 @@ const store: BackgroundStore = {
 (globalThis as typeof globalThis & { __girovoBackgroundStore?: BackgroundStore }).__girovoBackgroundStore = store;
 // The app in front, or waiting for an approval: its own session reads the banks then (lib/background-bank.ts).
 (globalThis as typeof globalThis & { __girovoAppInFront?: () => boolean }).__girovoAppInFront = () => bg().inFront();
+// The bank turned a kept PIN down with its own codes for it (lib/background-bank.ts refused): the fingerprint's copies go.
+(globalThis as typeof globalThis & { __girovoPinRefused?: (login: { blz: string; userId: string }) => void }).__girovoPinRefused =
+  (login) => bg().pinRefused(fingerprintIdOf(login.blz, login.userId));
 
 async function main(): Promise<string> {
   const files = await mountData('fints-state');

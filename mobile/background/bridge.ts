@@ -15,6 +15,13 @@ export type GirovoBg = {
   inFront(): boolean;
   /** Cancels the six-hourly job: the checks are off. */
   cancel(): void;
+  /**
+   * The bank turned a login's kept PIN down: noted under the login's name
+   * behind the fingerprint (./fingerprint-id.ts), with the time — never the
+   * PIN. BiometricPlugin.java deletes the copies of it stored before then
+   * instead of handing one out.
+   */
+  pinRefused(id: string): void;
   /** The state folder's file names, as JSON. */
   listFiles(): string;
   /** One file of the state folder as UTF-8 text, or null. */
