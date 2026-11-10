@@ -13,7 +13,7 @@
 import { useMemo } from 'react';
 import { isCardAccount } from '@/lib/balances';
 import { dayKey, displayName } from '@/lib/format';
-import { forecast, seriesBookings, usualSpending, type Forecast } from '@/lib/forecast';
+import { dueEvents, forecast, seriesBookings, usualSpending, type Forecast } from '@/lib/forecast';
 import { intlLocale } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
@@ -204,7 +204,8 @@ function ForecastChart({ f, currency }: { f: Forecast; currency: string }) {
   line += `H${W}`;
   const area = `${line}V${H}H0Z`;
   const lowIndex = days.findIndex((d) => d.day === f.low.date);
-  const due = f.events.filter((e) => e.kind !== 'pending' && e.date > f.today).slice(0, 6);
+  // Today's too: a late payment counts as due today, and what is in the figure is in the list.
+  const due = dueEvents(f);
 
   return (
     <div className="mt-4">

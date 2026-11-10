@@ -12,9 +12,11 @@
 //
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
-import { LATE_DAYS, expectedDates, seriesBase, seriesIdentity, seriesTitle, type RecurringSeries } from './recurring.ts';
+import { LATE_DAYS, atPrice, expectedDates, seriesBase, seriesIdentity, seriesTitle, type RecurringSeries } from './recurring.ts';
 import type { SerializedBankOrder, SerializedTransaction } from './fints-types';
 import { bookingDay } from './analytics.ts';
+import { bookingKind, foldText } from './categorize.ts';
+import { parsePurpose } from './sepa-purpose.ts';
 import { addDaysKey, compactIban, dayKey, dayNumber } from './format.ts';
 import { nextExecution } from './order-schedule.ts';
 
@@ -69,16 +71,26 @@ export function monthEnd(day: string): string {
  *
  * A payment whose day has passed without it is late, not gone: until the
  * series is overdue (LATE_DAYS) it is expected any day now, so it counts as
- * due today. `late: false` where the Umsätze do not reach today — whether it
- * was booked since is not known.
+ * due today. Only what is paid: income that has not come is not counted on —
+ * the forecast is there to warn before the salary arrives, and a salary
+ * assumed for today would hide the very dip it warns of. `late: false` where
+ * the Umsätze do not reach today (whether it was booked since is not known)
+ * or already hold it (bookedSince).
  */
 export function seriesDates(
-  s: Parameters<typeof expectedDates>[0], from: string, to: string, late = true,
+  s: Parameters<typeof expectedDates>[0] & Partial<Pick<RecurringSeries, 'kind'>>, from: string, to: string, late = true,
 ): string[] {
   if (s.ended || s.overdue || !s.nextDate) return [];
   const dates = expectedDates(s, from, to);
-  const isLate = late && s.nextDate < from && from <= to && dayNumber(from) - dayNumber(s.nextDate) <= LATE_DAYS;
-  return isLate ? [from, ...dates] : dates;
+  return late && isLate(s, from) && from <= to ? [from, ...dates] : dates;
+}
+
+/** How many days before its expected day a booking can still be that payment (a late one booked after all). */
+const EARLY_DAYS = 3;
+
+/** Whether a payment's day has passed without it, and the series is not overdue yet: never for income. */
+function isLate(s: Pick<RecurringSeries, 'nextDate'> & Partial<Pick<RecurringSeries, 'kind'>>, today: string): boolean {
+  return s.kind !== 'income' && s.nextDate < today && dayNumber(today) - dayNumber(s.nextDate) <= LATE_DAYS;
 }
 
 /**
@@ -90,6 +102,18 @@ function isOrder(s: RecurringSeries, o: SerializedBankOrder): boolean {
   const iban = compactIban(s.iban);
   if (!iban || s.amount >= 0 || s.currency !== o.currency) return false;
   return compactIban(o.iban) === iban && Math.abs(Math.abs(s.amount) - o.amount) <= Math.max(0.01, o.amount * 0.01);
+}
+
+/**
+ * Whether a booking is the bank running this order, not something else to
+ * the same payee: the bank calls it a Dauerauftrag, or it carries the order's
+ * own Verwendungszweck (a Terminüberweisung is booked as a plain transfer).
+ * The payee and the amount are the caller's to check.
+ */
+function isRun(o: SerializedBankOrder, tx: SerializedTransaction): boolean {
+  if (bookingKind(tx) === 'dauerauftrag') return true;
+  const purpose = foldText(o.purpose);
+  return !!purpose && foldText(parsePurpose(tx.purpose).text || tx.purpose).includes(purpose);
 }
 
 /** Every day the bank runs an order on from `from` to `to`; none where its answer did not say when. */
@@ -116,8 +140,12 @@ const shopOf = (s: RecurringSeries) => (s.transactions[0] ? seriesIdentity(s.tra
  * The bank's own order by its payee's IBAN and its amount to the cent. A
  * regular payment the way Verträge & Abos files a booking (seriesIdentity):
  * the same payer and, through a payment service, the same shop — of several
- * prices under one mandate the nearest, and never a charge of half the price
- * or twice it, which is another charge (lib/payment-alerts.ts dearerCharge).
+ * prices under one mandate the nearest — and at the contract's price (within
+ * 1 % or 0,50, lib/recurring.ts atPrice): another amount from the same payer
+ * is another charge, an instalment or a fee beside the bill, and both are
+ * still to pay. Only a bill that differs every month has no price to hold
+ * it to; there anything from half to twice the usual counts
+ * (lib/payment-alerts.ts dearerCharge draws the same line).
  * Only a payment that is about due: within a week, three days for a weekly
  * one. Days before that, the Vorgemerkte is something else from the same payer.
  */
@@ -148,9 +176,14 @@ function announced(tx: SerializedTransaction, expected: readonly Expected[], tod
     if (own && own !== shop) continue;
     if (!best || Math.abs(cents(s.amount) - paid) < Math.abs(cents(best.event.amount) - paid)) best = x;
   }
-  if (!best) return undefined;
-  const usual = Math.abs(cents(best.event.amount));
-  return Math.abs(paid) * 2 > usual && Math.abs(paid) < usual * 2 ? best : undefined;
+  if (!best?.series) return undefined;
+  return sameCharge(best.series, Math.abs(paid)) ? best : undefined;
+}
+
+/** Whether a charge (cents, unsigned) is this series' payment: its price, or for a varying bill half to twice the usual. */
+function sameCharge(s: RecurringSeries, paid: number): boolean {
+  const usual = Math.abs(cents(s.amount));
+  return s.variable ? paid * 2 > usual && paid < usual * 2 : atPrice(usual, paid);
 }
 
 /**
@@ -198,8 +231,9 @@ export function usualSpending(opts: {
  * `creditLimit` is the Dispositionsrahmen (positive) where the bank reports
  * one; a credit card's balance is negative by nature, so it is never said to
  * fall below zero (`card`). `bookings` are the account's loaded Umsätze: an
- * order due today that they already hold is in the balance, not ahead of it.
- * `loadedTo` is the last day they cover (default: today).
+ * order's run of today, or a late payment booked after all at a new price,
+ * that they already hold is in the balance, not ahead of it. `loadedTo` is
+ * the last day they cover (default: today).
  */
 export function forecast(opts: {
   today: string;
@@ -222,6 +256,29 @@ export function forecast(opts: {
   // A late payment is only known to be outstanding where the Umsätze reach today.
   const complete = !opts.loadedTo || dayKey(opts.loadedTo) >= today;
 
+  // A late payment may have been booked after all — at a new price. A series
+  // that is one of several amounts under a payer (…|amt:20), or one the user
+  // added, takes only bookings near its amount, so the dearer one is not its
+  // newest and its day stays in the past. The Umsätze know better: the same
+  // payer (seriesIdentity), from a few days before the day it was expected,
+  // at half to twice the amount. Each booking answers for one payment.
+  const answeredLate = new Set<SerializedTransaction>();
+  const bookedSince = (s: RecurringSeries): boolean => {
+    const from = addDaysKey(s.nextDate, -EARLY_DAYS);
+    const base = seriesBase(s.key);
+    const own = shopOf(s);
+    const usual = Math.abs(cents(s.amount));
+    const tx = (opts.bookings ?? []).find((t) => {
+      if (bookingDay(t) < from || answeredLate.has(t) || s.transactions.includes(t) || (t.currency || 'EUR') !== s.currency) return false;
+      const paid = Math.abs(cents(t.amount));
+      if (!(paid * 2 > usual && paid < usual * 2)) return false;
+      const { key, shop } = seriesIdentity(t);
+      return key === base && (!own || own === shop);
+    });
+    if (tx) answeredLate.add(tx);
+    return !!tx;
+  };
+
   // The bank's orders that run in these days, each with its days.
   const due = opts.orders
     .filter((o) => o.currency === opts.currency)
@@ -232,22 +289,40 @@ export function forecast(opts: {
     // Such an order speaks for its series. One the bank gave no days for, one
     // that has run out or whose turn comes after the month leaves it to the series.
     if (s.currency !== opts.currency || due.some((d) => isOrder(s, d.o))) continue;
-    for (const date of seriesDates(s, today, until, complete)) {
+    const late = complete && isLate(s, today) && !bookedSince(s);
+    for (const date of seriesDates(s, today, until, late)) {
       expected.push({ event: { date, amount: s.amount, kind: 'series', name: seriesTitle(s), approximate: s.variable }, series: s });
     }
   }
-  // Today's execution of an order may have run already: the statement holds
-  // it (the payee's IBAN, the amount to the cent — each booking answers for one
-  // order), or the order's own series was last booked today.
+  // Today's execution of an order may have run already. Then the statement
+  // holds its run: the payee's IBAN, the amount to the cent, and a booking
+  // that is the order's (isRun) — a transfer of the same sum made by hand
+  // today is not, and the order is still to come. Or, without the Umsätze,
+  // the order's own series was last booked today. Either way one run answers
+  // for one order: of two orders alike, the second is still expected.
   const bookedToday = (opts.bookings ?? []).filter((tx) => bookingDay(tx) === today && (tx.currency || 'EUR') === opts.currency);
   const answered = new Set<SerializedTransaction>();
+  const spoken = new Set<RecurringSeries>();
   const ranToday = (o: SerializedBankOrder): boolean => {
     const iban = compactIban(o.iban);
-    const tx = iban
-      ? bookedToday.find((t) => !answered.has(t) && cents(t.amount) === -cents(o.amount) && compactIban(t.remoteIban) === iban)
-      : undefined;
-    if (tx) answered.add(tx);
-    return !!tx || opts.series.some((s) => s.lastDate === today && isOrder(s, o));
+    if (!iban) return false;
+    const tx = bookedToday.find((t) =>
+      !answered.has(t) && cents(t.amount) === -cents(o.amount) && compactIban(t.remoteIban) === iban && isRun(o, t));
+    if (tx) {
+      answered.add(tx);
+      // The series this booking is the newest of has said its one run with it.
+      for (const s of opts.series) if (s.transactions[0] === tx) spoken.add(s);
+      return true;
+    }
+    const s = opts.series.find((x) => {
+      if (x.lastDate !== today || spoken.has(x) || !isOrder(x, o)) return false;
+      const newest = x.transactions[0];
+      return !newest || (!answered.has(newest) && isRun(o, newest));
+    });
+    if (!s) return false;
+    spoken.add(s);
+    if (s.transactions[0]) answered.add(s.transactions[0]);
+    return true;
   };
   for (const { o, dates } of due) {
     for (const date of dates) {
@@ -305,6 +380,16 @@ export function forecast(opts: {
     low: { date: low.date, balance: euros(low.balance) },
     breach,
   };
+}
+
+/**
+ * What the tile lists under the figure ("Fällig bis Monatsende"): the
+ * expected payments from today on, soonest first — today's too, since a late
+ * payment counts as due today and is in the figure. The Vorgemerkten are not
+ * here; they have their own word in the basis line.
+ */
+export function dueEvents(f: Pick<Forecast, 'events' | 'today'>, max = 6): ForecastEvent[] {
+  return f.events.filter((e) => e.kind !== 'pending' && e.date >= f.today).slice(0, max);
 }
 
 /** Bookings of the account's series, so the usual spending leaves them out. */

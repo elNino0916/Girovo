@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { RecurringSeries } from './recurring';
 import type { SerializedBankOrder, SerializedTransaction } from './fints-types';
-import { forecast, monthEnd, seriesDates, usualSpending } from './forecast.ts';
+import { dueEvents, forecast, monthEnd, seriesDates, usualSpending } from './forecast.ts';
 import { CRED, IBAN, camt, mt940 } from './__fixtures__/transactions.ts';
 import { detectRecurring } from './recurring.ts';
 
@@ -256,4 +256,122 @@ test('the forecast takes the series as Verträge & Abos reads them: no bonus as 
   const november = forecast({ today: '2026-11-01', balance: 500, currency: 'EUR', series: every28, orders: [], pending: [], usual: null });
   assert.deepEqual(november.events.map((e) => [e.date, e.amount]), [['2026-11-02', -60], ['2026-11-30', -60]]);
   assert.equal(november.end, 380);
+});
+
+// ---------------------------------------------------------------------------
+// The second review: what the rules above must not do.
+
+test('late income is not banked: a salary that has not come is no money yet', () => {
+  const pay = (day: string) => camt({ day, amount: 2500, code: 'SALA', text: 'Lohn/Gehalt', name: 'ACME GmbH', iban: IBAN.employer });
+  const rent = (day: string) =>
+    mt940({ day, amount: -850, gvc: '105', text: 'BASISLASTSCHRIFT', name: 'Hausverwaltung', iban: IBAN.landlord, cred: 'DE98ZZZ09999999999', mref: 'MIETE-1', purpose: 'Miete' });
+  // Pay around the 30th, rent on the 4th. It is 3 November and October's pay has not arrived.
+  const txs = [pay('2026-07-30'), pay('2026-08-28'), pay('2026-09-30'), rent('2026-08-04'), rent('2026-09-04'), rent('2026-10-05')];
+  const live = detectRecurring(txs, { today: new Date(2026, 10, 3, 9) });
+  assert.deepEqual(live.map((s) => [s.kind, s.nextDate, s.overdue]), [['income', '2026-10-30', false], ['expense', '2026-11-04', false]]);
+  const f = forecast({ today: '2026-11-03', balance: 300, currency: 'EUR', series: live, orders: [], pending: [], bookings: txs, loadedTo: '2026-11-03', usual: null, creditLimit: 0 });
+  assert.deepEqual(f.events.map((e) => [e.date, e.amount]), [['2026-11-04', -850]]);
+  assert.deepEqual(f.breach, { date: '2026-11-04', balance: -550, line: 'zero' }, 'the warning the forecast is there for');
+  assert.equal(f.end, -550);
+  // The days of a series say it too: late counts for what is paid, never for what comes in.
+  assert.deepEqual(seriesDates(series({ kind: 'income', amount: 2500, nextDate: '2026-10-30' }), '2026-11-03', '2026-11-30'), []);
+
+  // What the tile lists under the figure is what is in the figure: a late payment due "today" included.
+  const lateRent = forecast({ today: '2026-11-06', balance: 300, currency: 'EUR', series: live, orders: [], pending: [], bookings: txs, loadedTo: '2026-11-06', usual: null });
+  assert.deepEqual(lateRent.events.map((e) => [e.date, e.amount, e.kind]), [['2026-11-06', -850, 'series']]);
+  assert.deepEqual(dueEvents(lateRent).map((e) => [e.date, e.amount]), [['2026-11-06', -850]]);
+  // Never the Vorgemerkten (they have their own line), and no more than asked for.
+  const many = forecast({
+    today: '2026-11-06', balance: 300, currency: 'EUR', usual: null, pending: [mt940({ day: '2026-11-06', amount: -5 })],
+    series: [1, 2, 3].map((n) => series({ id: `s${n}`, key: `k${n}`, name: `Abo ${n}`, nextDate: `2026-11-1${n}` })), orders: [],
+  });
+  assert.deepEqual(dueEvents(many, 2).map((e) => e.name), ['Abo 1', 'Abo 2']);
+});
+
+test('a Vorgemerkte from the same payer at another amount is another charge, not the contract\'s month', () => {
+  const telekom = (day: string, amount: number, purpose = 'Mobilfunk Rechnung') =>
+    mt940({ day, amount, gvc: '105', text: 'BASISLASTSCHRIFT', name: 'Telekom Deutschland GmbH', iban: 'DE12500105170000012345', cred: 'DE93ZZZ00000078611', mref: 'TK-1', purpose });
+  const txs = ['06', '07', '08', '09', '10'].map((m) => telekom(`2026-${m}-16`, -39.95));
+  const live = detectRecurring(txs, { today: new Date(2026, 10, 10, 10) });
+  assert.deepEqual(live.map((s) => [s.amount, s.variable, s.nextDate]), [[-39.95, false, '2026-11-16']]);
+  const on = (pending: SerializedTransaction[]) =>
+    forecast({ today: '2026-11-10', balance: 1000, currency: 'EUR', series: live, orders: [], pending, bookings: txs, loadedTo: '2026-11-10', usual: null });
+  // A one-off of 24,95 under the same mandate, six days before the bill: both are still to pay.
+  const oneOff = on([telekom('2026-11-10', -24.95, 'Einmalbetrag Zubehoer')]);
+  assert.deepEqual(oneOff.events.map((e) => [e.date, e.amount, e.kind]), [['2026-11-10', -24.95, 'pending'], ['2026-11-16', -39.95, 'series']]);
+  assert.equal(oneOff.end, 935.1);
+  // The bill itself, vorgemerkt at its price (a few cents of rounding are no other price): once.
+  assert.deepEqual(on([telekom('2026-11-10', -39.95)]).events.map((e) => e.kind), ['pending']);
+  assert.deepEqual(on([telekom('2026-11-10', -40.2)]).events.map((e) => e.kind), ['pending']);
+
+  // A bill that differs every month has no price to compare: there the wide reading stays.
+  const varying = [41.2, 47.9, 39.1, 46.5, 43.3].map((a, i) => telekom(`2026-${['06', '07', '08', '09', '10'][i]}-16`, -a));
+  const bill = detectRecurring(varying, { today: new Date(2026, 10, 10, 10) });
+  assert.deepEqual(bill.map((s) => s.variable), [true]);
+  const base = { today: '2026-11-10', balance: 1000, currency: 'EUR', series: bill, orders: [], bookings: varying, loadedTo: '2026-11-10', usual: null };
+  assert.deepEqual(forecast({ ...base, pending: [telekom('2026-11-10', -52.4)] }).events.map((e) => e.kind), ['pending']);
+  assert.deepEqual(forecast({ ...base, pending: [telekom('2026-11-10', -180)] }).events.map((e) => e.kind), ['pending', 'series']);
+});
+
+test('a late payment that was booked after all, at a new price, is not expected again', () => {
+  // Two instalments at one IBAN: 20 on the 5th, 55 on the 20th. November's first came on its day — at 23,50.
+  const works = (day: string, amount: number, purpose: string) =>
+    camt({ day, amount, code: 'ESDD', text: 'SEPA-Basislastschrift', name: 'Stadtwerke Musterstadt', iban: 'DE12500105170000012345', purpose });
+  const months = ['05', '06', '07', '08', '09', '10'];
+  const past = [...months.map((m) => works(`2026-${m}-05`, -20, 'Abschlag Wasser')), ...months.map((m) => works(`2026-${m}-20`, -55, 'Abschlag Strom'))];
+  const on = (bookings: SerializedTransaction[]) => {
+    const live = detectRecurring(bookings, { today: new Date(2026, 10, 9, 10) });
+    // The dearer booking is outside the 20 € series' amounts, so the series still waits for the 5th.
+    assert.deepEqual(live.map((s) => [s.amount, s.nextDate, s.overdue]), [[-55, '2026-11-20', false], [-20, '2026-11-05', false]]);
+    return forecast({ today: '2026-11-09', balance: 1000, currency: 'EUR', series: live, orders: [], pending: [], bookings, loadedTo: '2026-11-09', usual: null });
+  };
+  const booked = on([...past, works('2026-11-05', -23.5, 'Abschlag Wasser')]);
+  assert.deepEqual(booked.events.map((e) => [e.date, e.amount]), [['2026-11-20', -55]]);
+  assert.equal(booked.end, 945);
+  // Not booked: late, and still expected.
+  assert.deepEqual(on(past).events.map((e) => [e.date, e.amount]), [['2026-11-09', -20], ['2026-11-20', -55]]);
+  // Something else from the payer (a settlement of 180), or a booking weeks before the day, answers for nothing.
+  assert.equal(on([...past, works('2026-11-06', -180, 'Jahresabrechnung')]).events.length, 2);
+  assert.equal(on([...past, works('2026-10-28', -23.5, 'Nachzahlung')]).events.length, 2);
+  // One booking answers for one late payment.
+  const twin = (id: string) => series({ id, key: 'out|iban:DE12500105170000012345|amt:20', name: 'Stadtwerke', amount: -20, lastDate: '2026-10-05', nextDate: '2026-11-05' });
+  const two = forecast({
+    today: '2026-11-09', balance: 1000, currency: 'EUR', series: [twin('a'), twin('b')], orders: [], pending: [],
+    bookings: [works('2026-11-05', -23.5, 'Abschlag Wasser')], usual: null,
+  });
+  assert.deepEqual(two.events.map((e) => [e.date, e.amount]), [['2026-11-09', -20]]);
+});
+
+test('an order due today is only answered by its own run, and each run answers one order', () => {
+  const pocket = order({ name: 'Kind', amount: 50, purpose: 'Taschengeld', schedule: { kind: 'standing', first: '2026-01-10', unit: 'M', interval: 1, day: 10 } });
+  const on = (orders: SerializedBankOrder[], bookings: SerializedTransaction[], live: RecurringSeries[] = []) =>
+    forecast({ today: '2026-11-10', balance: 1000, currency: 'EUR', series: live, orders, pending: [], bookings, loadedTo: '2026-11-10', usual: null });
+  const run = mt940({ day: '2026-11-10', amount: -50, gvc: '117', text: 'DAUERAUFTRAG', name: 'Kind', iban: IBAN.landlord, purpose: 'Taschengeld' });
+  // A transfer of the same 50 to the same IBAN, made by hand today, is not the order's run.
+  const byHand = camt({ day: '2026-11-10', amount: -50, code: 'ESCT', text: 'SEPA-Überweisung', name: 'Kind', iban: IBAN.landlord, purpose: 'Geburtstag' });
+  assert.equal(on([pocket], [byHand]).end, 950);
+  assert.deepEqual(on([pocket], [byHand]).events.map((e) => [e.date, e.amount, e.kind]), [['2026-11-10', -50, 'order']]);
+  // The run itself: the bank calls it a Dauerauftrag …
+  assert.equal(on([pocket], [run]).end, 1000);
+  assert.equal(on([pocket], [run, byHand]).end, 1000);
+  // … or, for a Terminüberweisung booked as a plain transfer, it carries the order's own purpose.
+  const dated = order({ kind: 'dated', name: 'Kind', amount: 50, purpose: 'Klassenfahrt 7b', schedule: { kind: 'dated', date: '2026-11-10' } });
+  const datedRun = camt({ day: '2026-11-10', amount: -50, code: 'ESCT', text: 'SEPA-Überweisung', name: 'Kind', iban: IBAN.landlord, purpose: 'KLASSENFAHRT 7B' });
+  assert.equal(on([dated], [datedRun]).end, 1000);
+  assert.equal(on([dated], [byHand]).end, 950);
+
+  // Two orders alike, due today, one run in the statement: the other is still to come.
+  const twice = on([pocket, { ...pocket, ref: 'r2', orderId: '2' }], [run]);
+  assert.deepEqual(twice.events.map((e) => [e.date, e.amount, e.kind]), [['2026-11-10', -50, 'order']]);
+  assert.equal(twice.end, 950);
+  // The same when the run is known through the order's series: its newest booking answers once.
+  const runs = ['2026-08-10', '2026-09-10', '2026-10-12'].map((day) => mt940({ day, amount: -50, gvc: '117', text: 'DAUERAUFTRAG', name: 'Kind', iban: IBAN.landlord, purpose: 'Taschengeld' }));
+  const live = detectRecurring([...runs, run], { today: new Date(2026, 10, 10, 12) });
+  assert.deepEqual(live.map((s) => [s.lastDate, s.amount]), [['2026-11-10', -50]]);
+  assert.equal(on([pocket, { ...pocket, ref: 'r2', orderId: '2' }], [run], live).end, 950);
+  assert.equal(on([pocket, { ...pocket, ref: 'r2', orderId: '2' }], [], live).end, 950, 'without the Umsätze too');
+  // A series whose newest booking is the transfer made by hand does not speak for the order.
+  const handMade = detectRecurring([...runs, byHand], { today: new Date(2026, 10, 10, 12) });
+  assert.deepEqual(handMade.map((s) => s.lastDate), ['2026-11-10']);
+  assert.equal(on([pocket], [], handMade).end, 950);
 });

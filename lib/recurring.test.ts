@@ -10,7 +10,8 @@ import {
   type RecurringSeries,
 } from './recurring.ts';
 import { CRED, IBAN, OWN_IBANS, OWN_SAVINGS, camt, mt940, newestFirst } from './__fixtures__/transactions.ts';
-import { contractNotices } from './contract-watch.ts';
+import { contractNotices, unseenNotices, withNoticed } from './contract-watch.ts';
+import { addBusinessDays, addDaysKey, dayKey, dayNumber, nextTargetBusinessDay } from './format.ts';
 import { watchOf } from './payment-alerts.ts';
 
 const TODAY = new Date(2026, 9, 3, 11, 0); // Saturday, 3 October 2026
@@ -717,10 +718,10 @@ test('a Christmas bonus is not the new salary', () => {
   assert.equal(s.variable, false);
   assert.equal(s.priceChange, null, 'no "2.500 € mehr seit November, 30.000 € im Jahr"');
   assert.equal(recurringTotals([s]).monthlyIncome, 2500);
-  // What the last booking was stays said.
+  // The last booking is known, but nothing claims the amount changed: the row shows 2.500 € and no "gestiegen".
   assert.equal(s.lastAmount, 5000);
-  assert.equal(s.changed, true);
-  assert.equal(s.change, 2500);
+  assert.equal(s.changed, false);
+  assert.equal(s.change, null);
   assert.equal(s.nextDate, '2026-12-30', 'most months it came on the 30th');
 
   // December is the usual pay again: nothing changed.
@@ -729,7 +730,7 @@ test('a Christmas bonus is not the new salary', () => {
 
   // A raise is taken once the second pay confirms it — from its first month.
   const raised = only(detectRecurring([...steady, acmePay('2026-11-30', 2800)], { today: new Date(2026, 11, 1) }));
-  assert.deepEqual([raised.amount, raised.changed, raised.change, raised.priceChange], [2500, true, 300, null]);
+  assert.deepEqual([raised.amount, raised.changed, raised.change, raised.priceChange], [2500, false, null, null]);
   const confirmed = only(detectRecurring([...steady, acmePay('2026-11-30', 2800), acmePay('2026-12-30', 2800)], { today: new Date(2027, 0, 4) }));
   assert.equal(confirmed.amount, 2800);
   assert.equal(confirmed.yearlyAmount, 33600);
@@ -751,7 +752,7 @@ test('a month charged far less, or twice over, is not the new price; a price ris
   assert.equal(credited.monthlyAmount, -44.99);
   assert.equal(credited.yearlyAmount, -539.88);
   assert.equal(credited.priceChange, null);
-  assert.deepEqual([credited.lastAmount, credited.changed, credited.change], [-4.99, true, -40]);
+  assert.deepEqual([credited.lastAmount, credited.changed, credited.change], [-4.99, false, null]);
   // …and the check that runs without the user keeps watching the real price.
   assert.deepEqual(watchOf([credited], [], '2026-11-20').contracts.map((c) => c.cents), [4499]);
   // Confirmed by the next month: a new tariff, since November.
@@ -770,19 +771,36 @@ test('a month charged far less, or twice over, is not the new price; a price ris
   assert.deepEqual(watchOf([promoOver], [], '2026-11-20').contracts.map((c) => c.cents), [6499]);
 
   // Twice the price or more is another charge (a month collected late with this one): the price stays,
-  // and the notices that said it before still do.
+  // and while it does, nothing says it changed — no "44,99 € · seit November +44,99 € · vorher 44,99 €".
   const doubled = detect(-89.98);
   assert.equal(doubled.amount, -44.99);
   assert.equal(doubled.yearlyAmount, -539.88);
-  assert.deepEqual([doubled.changed, doubled.change], [true, 44.99]);
-  assert.deepEqual(doubled.priceChange, { since: '2026-11-16', previous: 44.99, delta: 44.99, perYear: 539.88 });
-  const notices = contractNotices([doubled], undefined, '2026-11-20', (x) => x.name);
-  assert.deepEqual(notices.map((n) => n.key), [`price|${doubled.id}|2026-11-16`]);
+  assert.deepEqual([doubled.lastAmount, doubled.changed, doubled.change, doubled.priceChange], [-89.98, false, null, null]);
+  const name = (x: RecurringSeries) => x.name;
+  assert.deepEqual(contractNotices([doubled], undefined, '2026-11-20', name), []);
   // Back to the usual price the month after: it was a one-off, and nothing is left of it.
   const after = detect(-89.98, ['2026-12-15', -44.99]);
   assert.deepEqual([after.amount, after.changed, after.priceChange], [-44.99, false, null]);
-  // Twice in a row: that is the price now.
-  assert.equal(detect(-89.98, ['2026-12-15', -89.98]).amount, -89.98);
+  assert.deepEqual(contractNotices([after], undefined, '2026-12-20', name), []);
+  // Twice in a row: that is the price now — said once, when it takes effect, from the booking it began with.
+  const twice = detect(-89.98, ['2026-12-15', -89.98]);
+  assert.equal(twice.amount, -89.98);
+  assert.deepEqual(twice.priceChange, { since: '2026-11-16', previous: 44.99, delta: 44.99, perYear: 539.88 });
+  const said = contractNotices([twice], undefined, '2026-12-20', name);
+  assert.deepEqual(said.map((n) => n.key), [`price|${twice.id}|2026-11-16`]);
+  // The month after, the same notice (seen once, it stays seen), not a second one.
+  const thrice = only(detectRecurring([...usual, bill('2026-11-16', -89.98), bill('2026-12-15', -89.98), bill('2027-01-15', -89.98)], { today: new Date(2026, 11, 28) }));
+  assert.deepEqual(unseenNotices(contractNotices([thrice], undefined, '2026-12-28', name), withNoticed(undefined, said)), []);
+  // A rise that takes effect at once is said at once, and only then.
+  assert.deepEqual(contractNotices([rose], undefined, '2026-11-20', name).map((n) => n.key), [`price|${rose.id}|2026-11-16`]);
+
+  // A change from before the held booking still holds: 10 → 12 in August, then one month at 6.
+  const earlier = only(detectRecurring(
+    [['2026-06-15', -10], ['2026-07-15', -10], ['2026-08-17', -12], ['2026-09-15', -12], ['2026-10-15', -6]].map(([d, a]) => bill(d as string, a as number)),
+    { today: new Date(2026, 9, 20) },
+  ));
+  assert.deepEqual([earlier.amount, earlier.changed], [-12, false]);
+  assert.deepEqual(earlier.priceChange, { since: '2026-08-17', previous: 10, delta: 2, perYear: 24 });
 
   // With two bookings there is no telling: the newer one, as before.
   assert.equal(only(detectRecurring([bill('2026-10-15', -44.99), bill('2026-11-16', -39.99)], { today })).amount, -39.99);
@@ -812,13 +830,20 @@ test('a payment every 28 days: thirteen a year, the next one four weeks on', () 
   assert.deepEqual([s.overdue, s.ended], [false, false]);
   // The ones after the next follow every four weeks.
   assert.deepEqual(upcoming([s], { today, days: 62 }).map((n) => n.date), ['2026-11-09', '2026-12-07']);
-  // Four bookings are enough to see the day wander.
+  // Five bookings are enough to see the day wander; four are still read as monthly.
+  const five = only(detectRecurring(days.slice(0, 5).map((d) => fourWeekly(d)), { today: new Date(2026, 3, 29) }));
+  assert.deepEqual([five.nextDate, five.yearlyAmount, five.everyDays], ['2026-05-25', -780, 28]);
   const four = only(detectRecurring(days.slice(0, 4).map((d) => fourWeekly(d)), { today: new Date(2026, 3, 2) }));
-  assert.deepEqual([four.nextDate, four.yearlyAmount], ['2026-04-27', -780]);
-  // A contract the user added as "monatlich" is read the same way.
+  assert.deepEqual([four.cadenceLabel, four.yearlyAmount, four.everyDays], ['monatlich', -720, undefined]);
+  // One that was skipped (eight weeks between two) changes nothing, nor does a stretch from the middle.
+  const skipped = only(detectRecurring(days.filter((_, i) => i !== 5).map((d) => fourWeekly(d)), { today }));
+  assert.deepEqual([skipped.everyDays, skipped.nextDate, skipped.yearlyAmount], [28, '2026-11-09', -780]);
+  const middle = only(detectRecurring(days.slice(3, 8).map((d) => fourWeekly(d)), { today: new Date(2026, 6, 22) }));
+  assert.deepEqual([middle.everyDays, middle.nextDate], [28, '2026-08-17']);
+  // A contract the user set to "monatlich" stays what they said: twelve a year, on the calendar.
   const key = seriesIdentity(fourWeekly(days[0])).key!;
   const manual = only(detectRecurring(days.map((d) => fourWeekly(d)), { today, manual: { mine: { key, cents: 6000, cadence: 'monthly', name: '', at: '2026-10-20' } } }));
-  assert.deepEqual([manual.id, manual.nextDate, manual.yearlyAmount], ['mine', '2026-11-09', -780]);
+  assert.deepEqual([manual.id, manual.cadenceLabel, manual.yearlyAmount, manual.everyDays], ['mine', 'monatlich', -720, undefined]);
 });
 
 test('a monthly payment stays monthly, short Februaries and early pay days included', () => {
@@ -834,4 +859,175 @@ test('a monthly payment stays monthly, short Februaries and early pay days inclu
   // A weekly one counts its seven days.
   const weekly = only(detectRecurring(['2026-09-04', '2026-09-11', '2026-09-18', '2026-09-25', '2026-10-02'].map((d) => fourWeekly(d, -24.9)), { today: TODAY }));
   assert.deepEqual([weekly.cadence, weekly.everyDays, weekly.nextDate], ['weekly', 7, '2026-10-09']);
+});
+
+// ---------------------------------------------------------------------------
+// Monthly stays monthly: generated histories. The four-weekly reading once took
+// 587 of 130,248 monthly histories — 570 were no series at all any more (a
+// debit on the 1st from 2026-08-03 to 2027-03-01, a salary on the 25th or the
+// banking day before), 17 were "alle 4 Wochen" at thirteen a year.
+
+/** Day `d` of month `m` (1-based, may run past 12), clamped to the month's end: 31 is the Ultimo. */
+const dayInMonth = (y: number, m: number, d: number) => {
+  const yy = y + Math.floor((m - 1) / 12);
+  const mm = ((((m - 1) % 12) + 12) % 12) + 1;
+  return `${yy}-${String(mm).padStart(2, '0')}-${String(Math.min(d, new Date(yy, mm, 0).getDate())).padStart(2, '0')}`;
+};
+/** As a bank moves a day that is not a banking day: debits forward, pay back. */
+const bankDayOnOrAfter = (key: string) => dayKey(nextTargetBusinessDay(key));
+const bankDayOnOrBefore = (key: string) => dayKey(addBusinessDays(addDaysKey(key, 1), -1));
+const gymDebit = (day: string) =>
+  camt({ day, amount: -29.9, code: 'ESDD', text: 'SEPA-Basislastschrift', name: 'FitX Deutschland GmbH', iban: 'DE12500105170000012345', mref: 'GYM-1', purpose: `CRED+${CRED.gym} Mitgliedsbeitrag` });
+const twoDaysAfter = (day: string) => new Date(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8, 10) + 2);
+
+type MonthlyPattern = { name: string; day: (y: number, m: number) => string; booking: (day: string) => SerializedTransaction; perYear: number };
+const MONTHLY_PATTERNS: MonthlyPattern[] = [
+  // Every day of the month and the Ultimo, moved off weekends and holidays either way.
+  ...[...Array.from({ length: 28 }, (_, i) => i + 1), 31].flatMap((d): MonthlyPattern[] => [
+    { name: `debit on day ${d}, forwards`, day: (y, m) => bankDayOnOrAfter(dayInMonth(y, m, d)), booking: gymDebit, perYear: -358.8 },
+    { name: `pay on day ${d}, backwards`, day: (y, m) => bankDayOnOrBefore(dayInMonth(y, m, d)), booking: (day) => acmePay(day, 2500), perYear: 30000 },
+  ]),
+  // The k-th banking day of the month, and the k-th before its end: no day of the month to hold on to.
+  ...[1, 2, 3, 4, 5].flatMap((k): MonthlyPattern[] => [
+    { name: `debit on banking day ${k}`, day: (y, m) => dayKey(addBusinessDays(addDaysKey(dayInMonth(y, m, 1), -1), k)), booking: gymDebit, perYear: -358.8 },
+    { name: `pay ${k} banking days before the month ends`, day: (y, m) => dayKey(addBusinessDays(addDaysKey(dayInMonth(y, m, 31), 1), -k)), booking: (day) => acmePay(day, 2500), perYear: 30000 },
+  ]),
+];
+const MONTHLY_STARTS: [number, number][] = [[2024, 1], [2024, 6], [2024, 11], [2025, 4], [2025, 12], [2026, 1], [2026, 8], [2026, 9]];
+
+test('generated: a monthly history is monthly, whatever its day, its length and its start', () => {
+  const wrong: string[] = [];
+  let count = 0;
+  let unread = 0;
+  for (const p of MONTHLY_PATTERNS) {
+    for (const [y, m] of MONTHLY_STARTS) {
+      for (let len = 4; len <= 14; len++) {
+        const days = Array.from({ length: len }, (_, i) => p.day(y, m + i));
+        const txs = days.map(p.booking);
+        const today = twoDaysAfter(days[len - 1]);
+        count++;
+        const found = detectRecurring(txs, { today });
+        // The monthly projection itself: the same bookings as a contract the user set to "monatlich".
+        const key = seriesIdentity(txs[0]).key!;
+        const cents = Math.abs(Math.round(txs[0].amount * 100));
+        const [asMonthly] = detectRecurring(txs, { today, manual: { set: { key, cents, cadence: 'monthly', name: '', at: '2026-01-01' } } });
+        const is = (s: RecurringSeries | undefined) => (s ? `${s.cadence} ${s.cadenceLabel} every ${s.everyDays} next ${s.nextDate} yearly ${s.yearlyAmount}` : 'no series');
+        const want = `monthly monatlich every undefined next ${asMonthly?.nextDate} yearly ${p.perYear}`;
+        // The monthly rule itself (a median gap of 30.4 ± 4 days that three in four gaps keep, a double gap
+        // counting): a few short histories around a holiday miss it, and were no series before either.
+        const gaps = days.slice(1).map((d, i) => dayNumber(d) - dayNumber(days[i])).sort((a, b) => a - b);
+        const mid = gaps.length % 2 ? gaps[gaps.length >> 1] : (gaps[(gaps.length >> 1) - 1] + gaps[gaps.length >> 1]) / 2;
+        const keeps = gaps.filter((g) => Math.abs(g - 30.4) <= 4 || Math.abs(g - 60.8) <= 8).length >= gaps.length * 0.75;
+        if (!(Math.abs(mid - 30.4) <= 4 && keeps)) {
+          unread++;
+          if (found.length) wrong.push(`${p.name}, ${days[0]} … ${days[len - 1]} (${len}): ${found.map(is).join(' + ')}, where the monthly rule finds none`);
+          continue;
+        }
+        if (found.length !== 1 || is(found[0]) !== want || is(asMonthly) !== want) {
+          wrong.push(`${p.name}, ${days[0]} … ${days[len - 1]} (${len}): ${found.map(is).join(' + ') || 'no series'}; set to monatlich: ${is(asMonthly)}`);
+        }
+      }
+    }
+  }
+  assert.ok(count > 5000 && unread < count / 100, `${count} histories, ${unread} of them outside the monthly rule`);
+  assert.deepEqual(wrong.slice(0, 6), [], `${wrong.length} of ${count} monthly histories are not monthly`);
+});
+
+test('generated: every four weeks is still told from monthly, from five bookings on', () => {
+  const wrong: string[] = [];
+  let count = 0;
+  let strict = 150;
+  // A Monday to a Friday, from three starts; each booking on its banking day.
+  for (const start of ['2025-03-03', '2026-01-05', '2026-06-01']) {
+    for (let weekday = 0; weekday < 5; weekday++) {
+      for (let len = 5; len <= 14; len++) {
+        const nominal = Array.from({ length: len }, (_, i) => addDaysKey(start, weekday + 28 * i));
+        const days = nominal.map(bankDayOnOrAfter);
+        const found = detectRecurring(days.map((d) => fourWeekly(d)), { today: twoDaysAfter(days[len - 1]) });
+        count++;
+        const s = found[0];
+        const said = s ? `${s.cadenceLabel} every ${s.everyDays} next ${s.nextDate} yearly ${s.yearlyAmount}` : 'no series';
+        const fourWeeks = `alle 4 Wochen every 28 next ${bankDayOnOrAfter(addDaysKey(days[len - 1], 28))} yearly -780`;
+        // A holiday that moved a booking (Good Friday, 1 May) can blur a short history: then monthly is an
+        // honest reading too — but never no series at all.
+        const moved = days.some((d, i) => d !== nominal[i]);
+        if (moved) strict--;
+        if (found.length !== 1 || (said !== fourWeeks && !(moved && s.cadenceLabel === 'monatlich' && s.yearlyAmount === -720))) {
+          wrong.push(`${days[0]} … ${days[len - 1]} (${len}): ${said}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(wrong.slice(0, 6), [], `${wrong.length} of ${count} four-weekly histories are not read as such`);
+  assert.ok(count === 150 && strict > 100, `${strict} of ${count} histories without a moved booking`);
+});
+
+test('holding an amount back is for rhythms that confirm it soon: a yearly or quarterly one takes the new amount at once', () => {
+  // A yearly premium on a new tariff: 612, 612, 438. Waiting for a second 438 would take a year.
+  const premium = (day: string, amount: number) =>
+    mt940({ day, amount, gvc: '105', text: 'BASISLASTSCHRIFT', name: 'HUK-COBURG', iban: IBAN.insurer, cred: CRED.insurer, mref: 'KFZ-1', purpose: 'Kfz-Versicherung Jahresbeitrag' });
+  const yearly = only(detectRecurring([premium('2024-01-02', -612), premium('2025-01-02', -612), premium('2026-01-02', -438)], { today: new Date(2026, 10, 10) }));
+  assert.deepEqual([yearly.cadence, yearly.amount, yearly.yearlyAmount, yearly.nextDate], ['yearly', -438, -438, '2027-01-04']);
+  assert.deepEqual(yearly.priceChange, { since: '2026-01-02', previous: 612, delta: -174, perYear: -174 });
+  // Quarterly income raised from 900 to 960 in August: 960 from then on, not 900 for three more months.
+  const lease = (day: string, amount: number) =>
+    camt({ day, amount, code: 'RCDT', text: 'Dauerauftrag', name: 'Mieter Schmidt', iban: IBAN.employer, purpose: 'Pacht Quartal' });
+  const quarterly = only(detectRecurring(
+    [lease('2025-11-03', 900), lease('2026-02-02', 900), lease('2026-05-04', 900), lease('2026-08-03', 960)], { today: new Date(2026, 9, 20) },
+  ));
+  assert.deepEqual([quarterly.cadence, quarterly.amount, quarterly.yearlyAmount, quarterly.changed, quarterly.change], ['quarterly', 960, 3840, true, 60]);
+  assert.deepEqual(quarterly.priceChange, { since: '2026-08-03', previous: 900, delta: 60, perYear: 240 });
+  // Half-yearly the same.
+  const half = (day: string, amount: number) =>
+    camt({ day, amount, code: 'ESDD', name: 'ADAC e.V.', iban: 'DE65700800000123456789', mref: 'ADAC-3', purpose: 'CRED+DE88ZZZ00000012121 Beitrag' });
+  assert.equal(only(detectRecurring([half('2025-05-14', -60), half('2025-11-14', -60), half('2026-05-14', -30)], { today: new Date(2026, 5, 1) })).amount, -30);
+
+  // Weekly and every four weeks, the next booking is days away: there one odd amount waits, as monthly does.
+  const pocket = (day: string, amount: number) =>
+    mt940({ day, amount, gvc: '117', text: 'DAUERAUFTRAG', name: 'Lena Muster', iban: IBAN.person, purpose: 'Taschengeld' });
+  const weekly = only(detectRecurring(
+    [...['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'].map((d) => pocket(d, -50)), pocket('2026-11-02', -20)],
+    { today: new Date(2026, 10, 3) },
+  ));
+  assert.deepEqual([weekly.cadence, weekly.amount, weekly.priceChange], ['weekly', -50, null]);
+  const every28 = only(detectRecurring(
+    [...['2026-06-15', '2026-07-13', '2026-08-10', '2026-09-07', '2026-10-05'].map((d) => fourWeekly(d)), fourWeekly('2026-11-02', -15)],
+    { today: new Date(2026, 10, 3) },
+  ));
+  assert.deepEqual([every28.everyDays, every28.amount, every28.yearlyAmount], [28, -60, -780]);
+});
+
+test('while an amount is held back, the row has nothing to contradict itself with', () => {
+  const abo = (day: string, amount: number) =>
+    mt940({ day, amount, gvc: '105', text: 'BASISLASTSCHRIFT', name: 'Netflix International B.V.', iban: IBAN.netflix, cred: CRED.netflix, mref: 'NF-778', purpose: 'Netflix Monatsabo' });
+  const months = ['2026-01-15', '2026-02-16', '2026-03-16', '2026-04-15', '2026-05-15', '2026-06-15'];
+  const at = (amounts: number[]) => only(detectRecurring(amounts.map((a, i) => abo(months[i], -a)), { today: new Date(2026, amounts.length - 1, 17) }));
+  // What components/insights/ContractRow.tsx draws from: the amount and the yearly figure, the "seit … teurer"
+  // tag and "vorher" (priceChange), and "Betrag gestiegen" (changed with a change above zero).
+  const claims = (s: RecurringSeries) => ({ amount: s.amount, yearly: s.yearlyAmount, priceChange: s.priceChange, rose: s.changed && (s.change ?? 0) > 0 });
+  const name = (x: RecurringSeries) => x.name;
+
+  // 10, 10, 10, 20: the price is still 10, and nothing says otherwise.
+  const held = at([10, 10, 10, 20]);
+  assert.deepEqual(claims(held), { amount: -10, yearly: -120, priceChange: null, rose: false });
+  assert.deepEqual(contractNotices([held], undefined, '2026-04-17', name), []);
+  // 20 again: now it is the price, with the one notice a rise gets — from April, where it began.
+  const taken = at([10, 10, 10, 20, 20]);
+  assert.deepEqual(claims(taken), { amount: -20, yearly: -240, priceChange: { since: '2026-04-15', previous: 10, delta: 10, perYear: 120 }, rose: false });
+  const notice = contractNotices([taken], undefined, '2026-05-17', name);
+  assert.deepEqual(notice.map((n) => n.key), [`price|${taken.id}|2026-04-15`]);
+  // The month after there is no second one: the same change, since April still, and old news by then.
+  const later = at([10, 10, 10, 20, 20, 20]);
+  assert.equal(later.priceChange?.since, '2026-04-15');
+  assert.deepEqual(unseenNotices(contractNotices([later], undefined, '2026-06-17', name), withNoticed(undefined, notice)), []);
+  // 10 again instead: a one-off, never mentioned.
+  assert.deepEqual(claims(at([10, 10, 10, 20, 10])), { amount: -10, yearly: -120, priceChange: null, rose: false });
+
+  // Salary 2500, 2500, 2500, 2500, 2700: 2.500 € without "Betrag gestiegen +200,00 €" and "vorher 2.500,00 €".
+  const pay = [2500, 2500, 2500, 2500, 2700].map((a, i) => acmePay(['2026-01-28', '2026-02-27', '2026-03-27', '2026-04-28', '2026-05-28'][i], a));
+  const salary = only(detectRecurring(pay, { today: new Date(2026, 4, 30) }));
+  assert.deepEqual(claims(salary), { amount: 2500, yearly: 30000, priceChange: null, rose: false });
+  // Confirmed in June: 2.700 €, more since May.
+  const confirmed = only(detectRecurring([...pay, acmePay('2026-06-26', 2700)], { today: new Date(2026, 5, 30) }));
+  assert.deepEqual(claims(confirmed), { amount: 2700, yearly: 32400, priceChange: { since: '2026-05-28', previous: 2500, delta: 200, perYear: 2400 }, rose: false });
 });
