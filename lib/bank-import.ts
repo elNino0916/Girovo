@@ -114,21 +114,29 @@ const fold = (s: string) =>
     .replace(/[^a-z0-9]/g, '');
 
 type Column =
-  | 'entryDate' | 'valueDate' | 'name' | 'iban' | 'bic' | 'bookingText' | 'purpose' | 'amount' | 'debit' | 'credit'
-  | 'sign' | 'currency' | 'creditorId' | 'mandate' | 'e2e' | 'account' | 'status' | 'ultimate';
+  | 'entryDate' | 'valueDate' | 'name' | 'payer' | 'payee' | 'iban' | 'bic' | 'bookingText' | 'purpose' | 'amount' | 'debit'
+  | 'credit' | 'sign' | 'currency' | 'creditorId' | 'mandate' | 'e2e' | 'account' | 'status' | 'ultimate';
 
+// The header words as fold() leaves them. Girovo's own export is among them in
+// both languages (lib/i18n/messages/transactions.ts csv.columns): a column
+// renamed there needs its word here, and the round trip in the tests says so.
 // i18n-data-start — the words banks write in their export's header row, matched, never shown
 const COLUMNS: Record<Column, string[]> = {
   entryDate: ['buchungstag', 'buchungsdatum', 'buchung', 'datum', 'bookingdate', 'date'],
   valueDate: ['valutadatum', 'valuta', 'wertstellung', 'wertstellungsdatum', 'wertstellungstag', 'valuedate'],
+  // One column for the other side, whichever way the money went.
   name: [
-    'beguenstigterzahlungspflichtiger', 'namezahlungsbeteiligter', 'auftraggeberempfaenger', 'zahlungsempfaengerin',
-    'zahlungspflichtigerin', 'auftraggeberbeguenstigter', 'empfaenger', 'auftraggeber', 'beguenstigter', 'name',
+    'beguenstigterzahlungspflichtiger', 'namezahlungsbeteiligter', 'auftraggeberempfaenger', 'auftraggeberbeguenstigter',
+    'counterpartyname', 'name',
   ],
-  iban: ['kontonummeriban', 'ibanzahlungsbeteiligter', 'iban', 'kontonummer', 'gegenkonto'],
-  bic: ['bic', 'bicswiftcode', 'biczahlungsbeteiligter', 'bankleitzahl'],
+  // A column each for who paid and who was paid (DKB: "Zahlungspflichtige*r", "Zahlungsempfänger*in"):
+  // one of the two is the account holder, by the booking's sign. The gender form as genderless() leaves it.
+  payer: ['zahlungspflichtiger', 'auftraggeber'],
+  payee: ['zahlungsempfaenger', 'empfaenger', 'beguenstigter'],
+  iban: ['kontonummeriban', 'ibanzahlungsbeteiligter', 'counterpartyiban', 'iban', 'kontonummer', 'gegenkonto'],
+  bic: ['bic', 'bicswiftcode', 'biczahlungsbeteiligter', 'counterpartybic', 'bankleitzahl'],
   bookingText: ['buchungstext', 'umsatztyp', 'vorgang', 'umsatzart', 'transactiontype', 'bookingtext'],
-  purpose: ['verwendungszweck', 'purpose', 'beschreibung'],
+  purpose: ['verwendungszweck', 'purpose', 'paymentreference', 'beschreibung'],
   amount: ['betrag', 'umsatz', 'betrageur', 'amount', 'umsatzineur'],
   debit: ['soll', 'ausgang', 'belastung'],
   credit: ['haben', 'eingang', 'gutschrift'],
@@ -136,30 +144,63 @@ const COLUMNS: Record<Column, string[]> = {
   currency: ['waehrung', 'currency'],
   creditorId: ['glaeubigerid', 'glaeubigeridentifikation', 'creditorid'],
   mandate: ['mandatsreferenz', 'mandatereference'],
-  e2e: ['kundenreferenz', 'endtoendreferenz', 'kundenreferenzendtoend', 'e2ereference'],
+  e2e: ['kundenreferenz', 'endtoendreferenz', 'kundenreferenzendtoend', 'customerreference', 'e2ereference'],
   account: ['auftragskonto', 'ibanauftragskonto', 'accountiban', 'kontonummerauftragskonto'],
   status: ['status', 'info'],
-  ultimate: ['abweichenderempfaengerauftraggeber', 'ultimatepayeepayer'],
+  ultimate: ['abweichenderempfaengerauftraggeber', 'ultimaterecipientpayer', 'ultimatepayeepayer'],
 };
 // i18n-data-end
+
+/**
+ * A payer's or payee's header without its gender form, folded: "Zahlungspflichtige*r",
+ * "Zahlungspflichtige:r", "Zahlungspflichtige/-r", "Zahlungspflichtige(r)" and
+ * "Zahlungspflichtiger/Zahlungspflichtige" are all "zahlungspflichtiger";
+ * "Zahlungsempfänger*in", "ZahlungsempfängerIn" and "Zahlungsempfänger/Zahlungsempfängerin"
+ * all "zahlungsempfaenger". Banks change the mark, not the word.
+ */
+function genderless(header: string): string {
+  // "(r)", "(in)": an ending in brackets is part of the word; fold() drops any other bracket with what it holds.
+  const forms = header.replace(/\((r|n|in|innen)\)/gi, '$1').split('/').map(fold).filter(Boolean);
+  const stem = (f: string) => f
+    .replace(/^zahlungspflichtige[rn]?(in)?$/, 'zahlungspflichtiger')
+    .replace(/^(zahlungsempfaenger|empfaenger|auftraggeber)(in|innen)?$/, '$1')
+    .replace(/^beguenstigte[rn]?$/, 'beguenstigter');
+  // "…/r", "…/in", "…/-in": the ending alone after the slash belongs to the word before it.
+  const joined: string[] = [];
+  for (const f of forms) {
+    if (joined.length && /^(r|n|in|innen)$/.test(f)) joined[joined.length - 1] += f;
+    else joined.push(f);
+  }
+  const stems = [...new Set(joined.map(stem))];
+  return stems.length === 1 ? stems[0] : '';
+}
 
 /** Which column of `header` holds what: the first exact match per role, in the order the roles are tried. */
 function mapColumns(header: string[]): Partial<Record<Column, number>> {
   const folded = header.map(fold);
+  const parties = header.map(genderless);
   const out: Partial<Record<Column, number>> = {};
   const taken = new Set<number>();
   // Most specific first, so "IBAN Auftragskonto" is the account, not the counterparty's IBAN.
-  const order: Column[] = ['account', 'ultimate', 'valueDate', 'entryDate', 'name', 'iban', 'bic', 'bookingText', 'purpose',
-    'creditorId', 'mandate', 'e2e', 'sign', 'amount', 'debit', 'credit', 'currency', 'status'];
+  const order: Column[] = ['account', 'ultimate', 'valueDate', 'entryDate', 'payer', 'payee', 'name', 'iban', 'bic', 'bookingText',
+    'purpose', 'creditorId', 'mandate', 'e2e', 'sign', 'amount', 'debit', 'credit', 'currency', 'status'];
   for (const col of order) {
+    const heads = col === 'payer' || col === 'payee' ? parties : folded;
     for (const word of COLUMNS[col]) {
-      const at = folded.findIndex((h, i) => h === word && !taken.has(i));
+      const at = heads.findIndex((h, i) => h === word && !taken.has(i));
       if (at >= 0) {
         out[col] = at;
         taken.add(at);
         break;
       }
     }
+  }
+  // One of the two alone is the other side's name whichever way the money
+  // went; a bare "Name" beside it says less.
+  if ((out.payer == null) !== (out.payee == null)) {
+    if (out.name == null || folded[out.name] === 'name') out.name = out.payee ?? out.payer;
+    delete out.payer;
+    delete out.payee;
   }
   return out;
 }
@@ -255,7 +296,9 @@ export function parseCsvExport(text: string): ParsedImport {
 
   const txs: SerializedTransaction[] = [];
   let skipped = 0;
-  const get = (row: string[], col: Column) => (map[col] != null ? row[map[col]!] ?? '' : '');
+  // ="000123" is how a file made for Excel keeps an identifier's zeros (Girovo's own does: lib/csv.ts csvIdCell).
+  const get = (row: string[], col: Column) => (map[col] != null ? row[map[col]!] ?? '' : '').replace(/^="(.*)"$/, '$1');
+  const paired = map.payer != null && map.payee != null;
   for (const line of all.slice(headerAt + 1)) {
     const row = cells(line, sep);
     const entry = readDate(get(row, 'entryDate')) || readDate(get(row, 'valueDate'));
@@ -285,7 +328,8 @@ export function parseCsvExport(text: string): ParsedImport {
       currency: /^[A-Z]{3}$/.test(currency) ? currency : 'EUR',
       purpose: get(row, 'purpose'),
       bookingText: get(row, 'bookingText'),
-      remoteName: get(row, 'name'),
+      // The payer of money that came in, the payee of money that went out — the other one is the account holder.
+      remoteName: (paired ? get(row, amount > 0 ? 'payer' : 'payee') : '') || get(row, 'name'),
       remoteIban: get(row, 'iban').replace(/\s+/g, ''),
       remoteBic: get(row, 'bic').replace(/\s+/g, ''),
       creditorId: get(row, 'creditorId'),

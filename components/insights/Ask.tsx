@@ -201,9 +201,9 @@ function AskForm({ data }: { data: ScopeData }) {
   // A ranking groups payees by the lists' own name — Nano's brand on the phone ("eBay"), tidied by rule elsewhere.
   // brandNames: a brand that arrives later regroups the ranking.
   const ctx = useMemo(
-    () => ({ categoryOf, shownText: searchText, noteOf, payeeOf: (tx: SerializedTransaction) => txText(tx).name }),
+    () => ({ categoryOf, shownText: searchText, noteOf, payeeOf: (tx: SerializedTransaction) => txText(tx).name, currency: data.currency }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [categoryOf, noteOf, brandNames],
+    [categoryOf, noteOf, brandNames, data.currency],
   );
   // The names the bookings in view are listed under: where the desktop looks for the name a question asks about.
   const payees = useMemo(
@@ -477,7 +477,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
       <>
         <p className="text-[24px] leading-tight font-bold text-ink">
           <span className="text-[15px] font-normal text-ink-2">{words.approx} </span>
-          <RoundMoney value={answer.cents / answer.months / 100} />
+          <RoundMoney value={answer.monthCents / answer.months / 100} />
           <span className="text-[15px] font-normal text-ink-2"> {words.perMonth}</span>
         </p>
         <p className="mt-0.5 text-[13px] leading-snug text-ink-2">{words.averageBasis(answer.months)}</p>

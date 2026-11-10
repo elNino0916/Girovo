@@ -49,8 +49,16 @@ export function fmtBytes(n: number, { unitOf = n, bare = false }: { unitOf?: num
   return bare ? figure : `${figure} ${units[unit]}`;
 }
 
-export const fmtDate = (d: Date | string | null | undefined) =>
-  d ? new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(d)) : '';
+/**
+ * A date as the language writes it. Read through toLocalDate: a bank day kept
+ * as a bare yyyy-mm-dd (a booking read from a file) is that day wherever the
+ * device is — `new Date('2025-11-03')` is the 2nd west of Greenwich. What is
+ * no date shows nothing.
+ */
+export const fmtDate = (d: Date | string | null | undefined) => {
+  const date = toLocalDate(d);
+  return date ? new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date) : '';
+};
 
 export const fmtIban = (iban: string | null | undefined) =>
   iban ? String(iban).replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim() : '';
@@ -101,9 +109,8 @@ const startOfDay = (d: Date) => {
 
 /** Whole days between a date and today. Negative means the date is ahead. */
 export function daysFromToday(d: Date | string | null | undefined): number | null {
-  if (!d) return null;
-  const date = new Date(d);
-  if (Number.isNaN(date.getTime())) return null;
+  const date = toLocalDate(d);
+  if (!date) return null;
   return Math.round((startOfDay(new Date()).getTime() - startOfDay(date).getTime()) / 86400000);
 }
 
@@ -125,8 +132,8 @@ export const isFutureDate = (d: Date | string | null | undefined): boolean => {
 export function groupLabel(d: Date | string | null | undefined): string {
   const words = msgs().format;
   const diff = daysFromToday(d);
-  if (diff == null) return words.noDate;
-  const date = new Date(d as Date | string);
+  const date = toLocalDate(d);
+  if (diff == null || !date) return words.noDate;
   if (diff === 0) return words.today;
   if (diff === 1) return words.yesterday;
   if (diff === -1) return words.tomorrow;

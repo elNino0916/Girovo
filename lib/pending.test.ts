@@ -1,3 +1,4 @@
+import './__fixtures__/tz.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { afterStatementRead, pendingView, unbookedPending } from './pending.ts';
@@ -75,6 +76,44 @@ test('one booking accounts for one Vormerkposten only', () => {
   const left = unbookedPending([a, b], [coffee()]);
   assert.equal(left.length, 1);
   assert.equal(left[0], b);
+});
+
+test('a Vormerkposten from MT942 (local midnight) is booked by a camt entry of that day (local noon)', () => {
+  // No real reference on either side, so only day, amount and counterparty can say it is the same.
+  // In UTC the two lie on different days: 2026-11-02T23:00Z and 2026-11-03T11:00Z.
+  const card = (entryDate: string, name: string, over: Partial<SerializedTransaction> = {}) => tx({
+    entryDate, valueDate: entryDate, amount: -23.45, remoteName: name, remoteIban: '', e2eReference: 'NOTPROVIDED', bookingText: 'KARTENZAHLUNG', ...over,
+  });
+  const pending = card(new Date(2026, 10, 3).toISOString(), 'REWE MARKT GMBH-ZWNL MUST');
+  const booked = card(new Date(2026, 10, 3, 12).toISOString(), 'REWE Markt GmbH-Zwnl Musterstadt', { bankReference: 'B-17' });
+  assert.notEqual(String(pending.entryDate).slice(0, 10), String(booked.entryDate).slice(0, 10), 'the case: a different day in UTC');
+  assert.deepEqual(unbookedPending([pending], [booked]), []);
+  // The other way round, and with the counterparty's IBAN on both.
+  assert.deepEqual(unbookedPending([booked], [pending]), []);
+  const withIban = { remoteIban: 'DE02120300000000202051' };
+  assert.deepEqual(unbookedPending([{ ...pending, ...withIban }], [{ ...booked, ...withIban, remoteName: 'Rewe' }]), []);
+  // Still one booking for one Vormerkposten: two such payments, one booked.
+  const twice = [pending, { ...pending }];
+  assert.deepEqual(unbookedPending(twice, [booked]), [twice[1]]);
+  // Another day, amount or counterparty is another payment; so is another real reference.
+  assert.equal(unbookedPending([pending], [card(new Date(2026, 10, 4, 12).toISOString(), 'REWE Markt GmbH-Zwnl Musterstadt')]).length, 1);
+  assert.equal(unbookedPending([pending], [{ ...booked, amount: -23.46 }]).length, 1);
+  assert.equal(unbookedPending([pending], [{ ...booked, remoteName: 'EDEKA Musterstadt' }]).length, 1);
+  assert.equal(unbookedPending([{ ...pending, ...withIban }], [{ ...booked, remoteIban: 'DE89370400440532013000' }]).length, 1);
+  assert.equal(unbookedPending([{ ...pending, e2eReference: 'A-1' }], [{ ...booked, e2eReference: 'A-2' }]).length, 1);
+  // Nobody named on either side says too little to go by.
+  assert.equal(unbookedPending([{ ...pending, remoteName: '' }], [{ ...booked, remoteName: '' }]).length, 1);
+});
+
+test('an exact match is taken before a looser one of the same day', () => {
+  // Two bookings of one day and amount at one shop; the Vormerkposten that is one of them to the letter takes that one.
+  const noon = new Date(2026, 10, 3, 12).toISOString();
+  const midnight = new Date(2026, 10, 3).toISOString();
+  const base = { amount: -23.45, remoteIban: '', e2eReference: '', bookingText: 'KARTENZAHLUNG' };
+  const loose = tx({ ...base, entryDate: midnight, valueDate: midnight, remoteName: 'REWE MARKT' });
+  const exact = tx({ ...base, entryDate: noon, valueDate: noon, remoteName: 'REWE Markt Musterstadt' });
+  const booked = [tx({ ...base, entryDate: noon, valueDate: noon, remoteName: 'REWE Markt Musterstadt' })];
+  assert.deepEqual(unbookedPending([loose, exact], booked), [loose]);
 });
 
 // ---------------------------------------------------------------------------

@@ -709,6 +709,10 @@ export type AskAnswer = {
   tx: SerializedTransaction | null;
   /** For a per-month average: over how many whole months loaded; 0 when none is. */
   months: number;
+  /** Cents like `cents`, of the bookings inside those whole months only: what the average divides. 0 when none is. */
+  monthCents: number;
+  /** Matching bookings in a currency other than the one summed, left out (as lib/analytics.ts does). */
+  otherCurrency: number;
   /** kind 'rank': the first few, largest first. */
   rank?: AskRankRow[];
   /** kind 'compare': the asked period and the one it is set against, worked out alike. */
@@ -764,6 +768,8 @@ export function computeAnswer(
     categoryOf: CategoryOf;
     /** The payee as the lists name it (Nano's brand on Android) — what a ranking groups and shows. Default: the bank's name. */
     payeeOf?: (tx: SerializedTransaction) => string;
+    /** The one currency summed, as the Analyse picks it (lib/analytics.ts). Default: the first booking's, else EUR. */
+    currency?: string;
   },
   loaded: { from: string; to: string },
   today: string,
@@ -778,10 +784,14 @@ export function computeAnswer(
 
   const neutral = new Set(CATEGORIES.filter((c) => c.neutral).map((c) => c.id as string));
   const plain = !query.category && !query.search;
-  const matched = outside ? [] : filterTransactions(txs, filter, ctx).filter((tx) => tx.amount !== 0 && !(plain && neutral.has(ctx.categoryOf(tx).id)));
+  const found = outside ? [] : filterTransactions(txs, filter, ctx).filter((tx) => tx.amount !== 0 && !(plain && neutral.has(ctx.categoryOf(tx).id)));
+  // Currencies are never added together: one is summed, the rest set aside and counted.
+  const currency = ctx.currency || txs.find((t) => t.currency)?.currency || 'EUR';
+  const matched = found.filter((tx) => (tx.currency || 'EUR') === currency);
+  const otherCurrency = found.length - matched.length;
 
   // The name finds nothing: the category Nano read is the better guess ("Streaming" names no payee).
-  if (!matched.length && !outside && query.search && query.hint) {
+  if (!found.length && !outside && query.search && query.hint) {
     return computeAnswer({ ...query, search: null, category: query.hint, hint: null }, txs, ctx, loaded, today);
   }
 
@@ -798,13 +808,27 @@ export function computeAnswer(
     ? categoryPieces(tx, ctx.categoryOf).filter((p) => p.id === query.category).reduce((s, p) => s + Math.abs(p.cents), 0)
     : Math.abs(Math.round(tx.amount * 100)));
 
-  let outCents = 0;
-  let inCents = 0;
-  for (const tx of matched) {
-    if (tx.amount < 0) outCents += centsOf(tx);
-    else inCents += centsOf(tx);
-  }
-  const cents = query.dir === 'in' ? inCents : query.dir === 'out' ? outCents : outCents + inCents;
+  const sums = (list: readonly SerializedTransaction[]) => {
+    let outCents = 0;
+    let inCents = 0;
+    for (const tx of list) {
+      if (tx.amount < 0) outCents += centsOf(tx);
+      else inCents += centsOf(tx);
+    }
+    return { outCents, inCents, cents: query.dir === 'in' ? inCents : query.dir === 'out' ? outCents : outCents + inCents };
+  };
+  const { outCents, inCents, cents } = sums(matched);
+
+  // A per-month average divides what the whole months hold, not the days around them:
+  // 14 weeks of 100 € over two whole months are 400 € a month, not 700 €.
+  const whole = outside ? null : wholeMonthSpan(from, to, today);
+  const inWhole = (tx: SerializedTransaction) => {
+    const day = bookingDay(tx);
+    return !!whole && day >= whole.from && day <= whole.to;
+  };
+  const monthCents = whole ? sums(matched.filter(inWhole)).cents : 0;
+  // The way to the bookings follows what was counted.
+  const shown: TxFilter = query.kind === 'average' && whole ? { ...filter, from: whole.from, to: whole.to } : filter;
 
   let tx: SerializedTransaction | null = null;
   if (query.kind === 'largest') {
@@ -814,8 +838,8 @@ export function computeAnswer(
   }
 
   return {
-    query, filter, from, to, outside, partial: !outside && asked.from < loaded.from,
-    count: matched.length, cents, outCents, inCents, tx, months: outside ? 0 : wholeMonths(from, to, today),
+    query, filter: shown, from, to, outside, partial: !outside && asked.from < loaded.from,
+    count: matched.length, cents, outCents, inCents, tx, months: whole?.months ?? 0, monthCents, otherCurrency,
     ...(query.kind === 'rank' && query.rank ? { rank: rankRows(matched, query, filter, ctx.categoryOf, ctx.payeeOf ?? counterpartyName) } : {}),
   };
 }
@@ -856,9 +880,14 @@ function rankRows(
     }));
 }
 
-/** How many calendar months lie wholly in [from, to] and are over by today. */
-export function wholeMonths(from: string, to: string, today: string): number {
+/**
+ * The calendar months that lie wholly in [from, to] and are over by today:
+ * how many, and their first and last day. Null when none does.
+ */
+export function wholeMonthSpan(from: string, to: string, today: string): { months: number; from: string; to: string } | null {
   let n = 0;
+  let start = '';
+  let end = '';
   let [y, m] = from.split('-').map(Number);
   if (+from.slice(8) !== 1) [y, m] = m === 12 ? [y + 1, 1] : [y, m + 1];
   for (;;) {
@@ -866,7 +895,14 @@ export function wholeMonths(from: string, to: string, today: string): number {
     const last = `${y}-${pad(m)}-${pad(lastDay(y, m))}`;
     if (last > to || last >= today || first < from) break;
     n++;
+    start ||= first;
+    end = last;
     [y, m] = m === 12 ? [y + 1, 1] : [y, m + 1];
   }
-  return n;
+  return n ? { months: n, from: start, to: end } : null;
+}
+
+/** How many calendar months lie wholly in [from, to] and are over by today. */
+export function wholeMonths(from: string, to: string, today: string): number {
+  return wholeMonthSpan(from, to, today)?.months ?? 0;
 }

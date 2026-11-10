@@ -56,11 +56,32 @@ function push(index: Map<string, number[]>, key: string, i: number) {
 }
 
 /**
+ * The local day and the amount: what a Vormerkposten and its booking share
+ * when the two come in different formats and carry no real reference.
+ */
+const dayAmountKey = (tx: Item) => {
+  const day = dayKey(tx.entryDate || tx.valueDate);
+  return day ? `${day}|${cents(tx.amount)}` : '';
+};
+
+/** Two real end-to-end references that differ: two orders, whatever else agrees. */
+const otherOrder = (a: Item, b: Item) => {
+  const ra = realRef(a.e2eReference);
+  const rb = realRef(b.e2eReference);
+  return !!ra && !!rb && ra !== rb;
+};
+
+/**
  * The Vormerkposten of `pending` that `booked` does not list as booked yet.
  *
  * A Vormerkposten counts as booked when a booking has the same txKey (day,
  * amount, counterparty, reference), or the same real end-to-end reference,
- * amount and counterparty IBAN at most a few days earlier or any time later.
+ * amount and counterparty IBAN at most a few days earlier or any time later,
+ * or — the two formats apart — the same local day, amount and counterparty.
+ * That last one because txKey reads the day off the wire's UTC string: MT942
+ * dates a Vormerkposten at local midnight and camt books it at local noon,
+ * a day apart in UTC, and a card payment has no reference to go by instead.
+ * The closest likeness is looked for first, across the whole list.
  * Each booking accounts for one Vormerkposten only — two identical card
  * payments on one day, one of them booked, leave the other one standing.
  *
@@ -72,9 +93,11 @@ export function unbookedPending<T extends Item>(pending: readonly T[], booked: r
   if (!pending.length || !booked.length) return pending;
   const byTxKey = new Map<string, number[]>();
   const byRef = new Map<string, number[]>();
+  const byDayAmount = new Map<string, number[]>();
   booked.forEach((b, i) => {
     push(byTxKey, txKey(b), i);
     push(byRef, refKey(b), i);
+    push(byDayAmount, dayAmountKey(b), i);
   });
   const used = new Set<number>();
   const take = (candidates: number[] | undefined, ok: (i: number) => boolean = () => true) => {
@@ -84,17 +107,24 @@ export function unbookedPending<T extends Item>(pending: readonly T[], booked: r
     return true;
   };
 
-  const left = pending.filter((p) => {
-    if (take(byTxKey.get(txKey(p)))) return false;
+  // One way of telling at a time, the strictest first: a looser match never
+  // takes the booking that is another Vormerkposten's to the letter.
+  const gone = pending.map((p) => take(byTxKey.get(txKey(p))));
+  pending.forEach((p, n) => {
     const key = refKey(p);
-    if (!key) return true;
+    if (gone[n] || !key) return;
     const day = dayOf(p);
-    return !take(byRef.get(key), (i) => {
+    gone[n] = take(byRef.get(key), (i) => {
       const bookedDay = dayOf(booked[i]);
       // Undated on either side: the reference, amount and IBAN still agree.
       return Number.isNaN(day) || Number.isNaN(bookedDay) || bookedDay >= day - EARLIER_BOOKING_DAYS;
     });
   });
+  pending.forEach((p, n) => {
+    if (gone[n]) return;
+    gone[n] = take(byDayAmount.get(dayAmountKey(p)), (i) => sameParty(p, booked[i]) && !otherOrder(p, booked[i]));
+  });
+  const left = pending.filter((_, n) => !gone[n]);
   return left.length === pending.length ? pending : left;
 }
 

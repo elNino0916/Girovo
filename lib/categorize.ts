@@ -25,7 +25,7 @@
 
 import type { SerializedTransaction } from './fints-types';
 import type { CategoryId, CategoryResult } from './categories';
-import { categoryDef, counterpartyKey, counterpartyName, isCategoryId, txCreditorId, txKey } from './categories.ts';
+import { categoryDef, counterpartyKey, counterpartyName, counterpartyRule, isCategoryId, txCreditorId, txKey } from './categories.ts';
 import { isCardPurpose, stripCardBoilerplate } from './card-purpose.ts';
 import { compactIban } from './format.ts';
 import { isFacilitatorName } from './merchant-match.ts';
@@ -628,7 +628,8 @@ export function categorize(tx: SerializedTransaction, ctx: CategorizeContext): C
     if (isCategoryId(manual)) return { id: manual, source: 'manual' };
   }
   if (ctx.rules) {
-    const ruled = ctx.rules[counterpartyKey(tx)];
+    // The payee's key, or the same name with its umlauts written the other way ("BAECKEREI" for a filed "Bäckerei").
+    const ruled = counterpartyRule(ctx.rules, tx);
     if (isCategoryId(ruled)) return { id: ruled, source: 'rule' };
   }
   if (ctx.ruleByName) {

@@ -244,7 +244,7 @@ export function counterpartyKey(
   // keyed on those, "Amazon → Shopping" would file every Visa Debit payment
   // as Shopping. The shop's own name is the only thing that tells them apart.
   if (intermediaryName(tx)) {
-    const shop = squash(counterpartyName(tx)).replace(/\b\d+\b/g, '').replace(/\s+/g, ' ').trim();
+    const shop = nameKey(counterpartyName(tx));
     if (shop) return `name:${shop}`;
   }
   // The same key for the same creditor, whether the statement came as MT940
@@ -255,8 +255,72 @@ export function counterpartyKey(
   if (/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) return `iban:${iban}`;
   // The shop, not its descriptor: one rule for every REWE, whichever branch's
   // street and town the terminal appended.
-  const name = squash(counterpartyName(tx)).replace(/\b\d+\b/g, '').replace(/\s+/g, ' ').trim();
+  const name = nameKey(counterpartyName(tx));
   return `name:${name || '?'}`;
+}
+
+/** A name as counterpartyKey() keys it: squashed, a branch's or terminal's numbers gone. */
+const nameKey = (name: string) => squash(name).replace(/\b\d+\b/g, '').replace(/\s+/g, ' ').trim();
+
+/** How many letter pairs of one name are read both ways; a name with more is tried spelled out and dotless only. */
+const SPELLING_SPOTS = 5;
+
+/**
+ * The other keys the same payee's name could be stored under, by how its
+ * umlauts were written.
+ *
+ * A key drops an umlaut's dots ("Bäckerei Müller" → BACKEREI MULLER) and
+ * keeps one the bank spelled out (MT940's "BAECKEREI MUELLER"), so one baker
+ * has two keys — and a stored key cannot change: the user's rules live under
+ * it. So the lookup reads the name both ways instead. Every AE, OE and UE of
+ * the spelled-out name may be an umlaut or two plain letters, and the bank
+ * may have written each either way: each combination is a key ("Baeckerei
+ * Müller" has four). A UE after A, E or Q is never an umlaut — "Bauer" is
+ * not "Baur", "Quelle" not "Qülle", "neue" not "neü".
+ *
+ * Only for a key made from the name: an IBAN or a creditor ID has one spelling.
+ */
+function otherSpellings(tx: Parameters<typeof counterpartyKey>[0], key: string): string[] {
+  if (!key.startsWith('name:') || key === 'name:?') return [];
+  const spelled = nameKey(
+    counterpartyName(tx).normalize('NFC').toUpperCase().replace(/Ä/g, 'AE').replace(/Ö/g, 'OE').replace(/Ü/g, 'UE'),
+  );
+  const spots = [...spelled.matchAll(/AE|OE|(?<![AEQ])UE/g)].map((m) => m.index);
+  if (!spots.length) return [];
+  // The E of each chosen pair taken out again, from the back so the earlier places stay put.
+  const dotless = (mask: number) => {
+    let out = spelled;
+    for (let i = spots.length - 1; i >= 0; i--) if (mask & (1 << i)) out = out.slice(0, spots[i] + 1) + out.slice(spots[i] + 2);
+    return `name:${out}`;
+  };
+  const all = (1 << spots.length) - 1;
+  const masks = spots.length > SPELLING_SPOTS ? [0, all] : Array.from({ length: all + 1 }, (_, mask) => mask);
+  return [...new Set(masks.map(dotless))].filter((k) => k !== key);
+}
+
+/**
+ * The key the rule for a booking's counterparty is stored under: its own
+ * counterpartyKey() where a rule has that one, else the same name with its
+ * umlauts written the other way (otherSpellings). Null when no rule is its.
+ * A rule is set, changed and removed under this key, so one payee keeps one.
+ */
+export function counterpartyRuleKey(
+  rules: Readonly<Record<string, unknown>> | null | undefined,
+  tx: Parameters<typeof counterpartyKey>[0],
+): string | null {
+  if (!rules) return null;
+  const key = counterpartyKey(tx);
+  if (rules[key] != null) return key;
+  return otherSpellings(tx, key).find((k) => rules[k] != null) ?? null;
+}
+
+/** The user's rule for a booking's counterparty — "always file X under Y" — whichever way the name's umlauts are written. */
+export function counterpartyRule<T>(
+  rules: Readonly<Record<string, T>> | null | undefined,
+  tx: Parameters<typeof counterpartyKey>[0],
+): T | undefined {
+  const key = counterpartyRuleKey(rules, tx);
+  return key == null ? undefined : rules![key];
 }
 
 /**

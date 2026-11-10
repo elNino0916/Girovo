@@ -320,3 +320,52 @@ test('desktop: a name the question asks about, found among the payees in view', 
   assert.equal(read?.search, 'Netflix');
   assert.equal(read?.period.kind, 'lastMonth');
 });
+
+// ---- a per-month average: the whole months' own bookings, in one currency --------
+
+test('a per-month average sums only the whole months it divides by', () => {
+  // 100 EUR at REWE every Monday from 10.08. to 09.11.2026, loaded 10.08.–10.11.
+  const mondays: SerializedTransaction[] = [];
+  for (let d = new Date(2026, 7, 10); d <= new Date(2026, 10, 9); d.setDate(d.getDate() + 7)) {
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    mondays.push(tx(day, -100, 'REWE Markt GmbH'));
+  }
+  assert.equal(mondays.length, 14);
+  const q = readQuestion('Was gebe ich pro Monat für Lebensmittel aus?', null, '2026-11-10')!;
+  assert.deepEqual([q.kind, q.category], ['average', 'groceries']);
+  const a = computeAnswer(q, mondays, CTX, { from: '2026-08-10', to: '2026-11-10' }, '2026-11-10');
+  assert.equal(a.months, 2); // September, October
+  assert.equal(a.monthCents, 80000, 'four Mondays each: 400 € a month, not 1400 € / 2');
+  assert.equal(a.cents, 140000, 'the loaded period as a whole stays the plain sum');
+  assert.equal(a.monthCents / a.months, 40000);
+  // "Umsätze zeigen" opens the bookings the average counts.
+  assert.deepEqual([a.filter.from, a.filter.to], ['2026-09-01', '2026-10-31']);
+  // No whole month loaded: nothing to divide, the sum of what is there.
+  const short = computeAnswer(q, mondays, CTX, { from: '2026-10-05', to: '2026-11-10' }, '2026-11-10');
+  assert.deepEqual([short.months, short.monthCents, short.cents], [0, 0, 60000]);
+  assert.deepEqual([short.filter.from, short.filter.to], ['2026-10-05', '2026-11-10']);
+  // In and out apart, each over the whole months.
+  const both = computeAnswer({ ...q, dir: 'all', category: null }, [...mondays, tx('2026-08-20', 900, 'Nadine Becker'), tx('2026-09-20', 50, 'Nadine Becker')], CTX, { from: '2026-08-10', to: '2026-11-10' }, '2026-11-10');
+  assert.equal(both.monthCents, 80000 + 5000);
+});
+
+test('a booking in another currency is set aside, as in the Analyse', () => {
+  const usd = { ...tx('2026-09-21', -900, 'REWE Markt GmbH'), currency: 'USD' };
+  const a = computeAnswer(
+    { kind: 'sum', dir: 'out', category: 'groceries', search: null, period: { kind: 'all' } }, [...BOOKINGS, usd], CTX, LOADED, TODAY,
+  );
+  assert.equal(a.cents, 5520 + 5000);
+  assert.equal(a.count, 2);
+  assert.equal(a.otherCurrency, 1);
+  assert.equal(ask({ category: 'groceries' }).otherCurrency, 0);
+  // The currency the Analyse sums is the one counted: a dollar account's own bookings.
+  const dollars = computeAnswer(
+    { kind: 'sum', dir: 'out', category: 'groceries', search: null, period: { kind: 'all' } }, [...BOOKINGS, usd], { ...CTX, currency: 'USD' }, LOADED, TODAY,
+  );
+  assert.deepEqual([dollars.cents, dollars.count, dollars.otherCurrency], [90000, 1, 2]);
+  // Largest and last look at the counted bookings only.
+  const largest = computeAnswer(
+    { kind: 'largest', dir: 'out', category: 'groceries', search: null, period: { kind: 'all' } }, [...BOOKINGS, usd], CTX, LOADED, TODAY,
+  );
+  assert.equal(largest.tx?.amount, -55.2);
+});

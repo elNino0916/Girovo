@@ -21,7 +21,7 @@
 import { bankNumberOf } from './account-key.ts';
 import { categoryLabel, intermediaryName, isCategoryId, txBic, txCreditorId } from './categories.ts';
 import type { CategoryId, CategoryResult } from './categories.ts';
-import { prettyBookingText, repairBankText, translateType } from './format.ts';
+import { prettyBookingText, repairBankText, toLocalDate, translateType } from './format.ts';
 import type { SerializedAccount, SerializedTransaction } from './fints-types';
 import { msgs } from './i18n/index.ts';
 import { parsePurpose, purposeLines } from './sepa-purpose.ts';
@@ -88,8 +88,8 @@ export type CsvOptions = {
  */
 export function csvStatus(tx: Pick<SerializedTransaction, 'entryDate' | 'valueDate'>, today = new Date()): string {
   const words = msgs().transactions;
-  const d = new Date(tx.entryDate || tx.valueDate);
-  if (Number.isNaN(d.getTime())) return words.csv.booked;
+  const d = toLocalDate(tx.entryDate || tx.valueDate);
+  if (!d) return words.csv.booked;
   const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   return day(d) > day(today) ? words.notBooked : words.csv.booked;
 }
@@ -160,12 +160,13 @@ export function csvAmountCell(value: number | null | undefined): string {
 /**
  * dd.mm.yyyy of the *local* calendar day. Dates arrive as ISO strings of a
  * local midnight (JSON of a Date) — "2026-10-02T22:00:00.000Z" is the 3rd in
- * Germany, so the string's own date part must not be used.
+ * Germany, so the string's own date part must not be used. A bare yyyy-mm-dd
+ * (a booking read from a file) is that day itself, in any time zone: read as
+ * a moment it would be UTC midnight, the day before west of Greenwich.
  */
 export function csvDateCell(value: Date | string | null | undefined): string {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
+  const d = toLocalDate(value);
+  if (!d) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
 }

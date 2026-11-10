@@ -36,7 +36,7 @@
 import type { DateRange, StatementInfo } from './app-types';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
 import { buildBalanceHistory, fail, type BalanceHistory, type BalancePoint } from './balance-history.ts';
-import { addDaysKey, dayFromNumber, dayKey, dayNumber } from './format.ts';
+import { addDaysKey, dayFromNumber, dayKey, dayNumber, toLocalDate } from './format.ts';
 import { isRecord } from './guards.ts';
 
 // ---------------------------------------------------------------------------
@@ -178,12 +178,12 @@ export function spanAt(spans: readonly DaySpan[] | null | undefined, day: string
   return null;
 }
 
-/** Newest first by Buchungstag (then value date), like serializeTransactions hands them over. Stable. */
+/**
+ * Newest first by Buchungstag (then value date), like serializeTransactions hands them over. Stable.
+ * A bare yyyy-mm-dd (a booking read from a file) counts as that local day's midnight, like MT940's.
+ */
 export function newestFirst<T extends Pick<SerializedTransaction, 'entryDate' | 'valueDate'>>(txs: readonly T[]): T[] {
-  const time = (t: T) => {
-    const v = new Date(t.entryDate || t.valueDate || 0).getTime();
-    return Number.isNaN(v) ? 0 : v;
-  };
+  const time = (t: T) => toLocalDate(t.entryDate || t.valueDate)?.getTime() ?? 0;
   return txs
     .map((t, i) => ({ t, i, at: time(t) }))
     .sort((a, b) => b.at - a.at || a.i - b.i)
