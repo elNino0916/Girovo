@@ -35,9 +35,14 @@ test('errors go out without consent — scrubbed, without an install id', () => 
   const { hub, client, prefs } = setup();
   assert.equal(hub.consent(), 'unasked');
   hub.error(new TypeError('Empfänger: Max Mustermann'), { source: 'route', route: '/api/transfer', blz: '37040044', note: 'x' });
+  // A failed connection says how, by its code; anything that is no code stays behind.
+  hub.error(new TypeError('fetch failed'), { source: 'route', route: '/api/transactions', kind: 'unavailable', code: 'ETIMEDOUT' });
+  hub.error(new TypeError('fetch failed'), { source: 'route', kind: 'unavailable', code: 'connect to bank.example failed' });
   assert.deepEqual(client.calls, [
     ['identify', undefined],
     ['error', 'TypeError', 'Empfänger: […]', { source: 'route', route: '/api/transfer', blz: '37040044' }],
+    ['error', 'TypeError', 'fetch failed', { source: 'route', route: '/api/transactions', kind: 'unavailable', code: 'ETIMEDOUT' }],
+    ['error', 'TypeError', 'fetch failed', { source: 'route', kind: 'unavailable' }],
   ]);
   assert.equal(prefs.has(ID_PREF), false, 'nothing stored for an error report');
 });

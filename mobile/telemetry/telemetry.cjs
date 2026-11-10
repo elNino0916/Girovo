@@ -59,6 +59,8 @@ const ERROR_PROPS = {
   route: 'id',
   blz: 'blz',
   kind: 'id',
+  // How a connection to the bank failed, as the network stack names it (lib/api.ts).
+  code: 'id',
   during: ['check', 'download', 'install'],
   fatal: 'bool',
 };

@@ -79,6 +79,8 @@ const ERROR_PROPS: Spec = &[
   ("route", Kind::Id),
   ("blz", Kind::Blz),
   ("kind", Kind::Id),
+  // How a connection to the bank failed, as the network stack names it (lib/api.ts).
+  ("code", Kind::Id),
   ("during", Kind::OneOf(&["check", "download", "install"])),
   ("fatal", Kind::Bool),
 ];
@@ -827,6 +829,11 @@ mod tests {
     // A route's report keeps its own source.
     hub.relay(&store, &json!({ "t": "error", "message": "x", "props": { "source": "route", "route": "/api/tx" } }));
     assert_eq!(calls(&client).last().unwrap(), &json!(["error", "Error", "x", { "source": "route", "route": "/api/tx" }]));
+    // A failed connection says how, by its code; anything that is no code stays behind.
+    hub.relay(&store, &json!({ "t": "error", "name": "TypeError", "message": "fetch failed", "props": { "source": "route", "route": "/api/transactions", "kind": "unavailable", "code": "ETIMEDOUT" } }));
+    assert_eq!(calls(&client).last().unwrap(), &json!(["error", "TypeError", "fetch failed", { "source": "route", "route": "/api/transactions", "kind": "unavailable", "code": "ETIMEDOUT" }]));
+    hub.relay(&store, &json!({ "t": "error", "message": "x", "props": { "source": "route", "kind": "unavailable", "code": "connect to bank.example failed" } }));
+    assert_eq!(calls(&client).last().unwrap(), &json!(["error", "Error", "x", { "source": "route", "kind": "unavailable" }]));
   }
 
   #[test]

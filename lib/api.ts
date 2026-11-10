@@ -49,7 +49,10 @@ export function wrap<A extends unknown[]>(
       const e = err as { message?: string; cause?: { code?: string } };
       console.error('[error]', e?.message || err, e?.cause?.code || '');
       const kind = bankErrorKind(err);
-      if (kind !== 'cancelled') reportError(err, { source: 'route', route: routeOf(args[0]), kind: kind ?? undefined });
+      // A connection that failed says how in its code (ETIMEDOUT, ECONNRESET, CERT_INVALID …): "fetch failed"
+      // alone is every one of them (a report from a phone, 2026-11-10). A code, nothing of the request.
+      const code = kind && typeof e?.cause?.code === 'string' ? e.cause.code : undefined;
+      if (kind !== 'cancelled') reportError(err, { source: 'route', route: routeOf(args[0]), kind: kind ?? undefined, code });
       return NextResponse.json({ error: describeError(err) }, { status: 500 });
     }
   }));
