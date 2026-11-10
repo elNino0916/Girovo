@@ -1031,3 +1031,25 @@ test('while an amount is held back, the row has nothing to contradict itself wit
   const confirmed = only(detectRecurring([...pay, acmePay('2026-06-26', 2700)], { today: new Date(2026, 5, 30) }));
   assert.deepEqual(claims(confirmed), { amount: 2700, yearly: 32400, priceChange: { since: '2026-05-28', previous: 2500, delta: 200, perYear: 2400 }, rose: false });
 });
+
+test('the monthly card bill stays a contract, the card account loaded or not', () => {
+  // The bill as a Sparkasse collects it from the current account, eight months; the card loaded for the last three.
+  const months = ['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'];
+  const sums = [512.3, 498.1, 530.75, 505.2, 489.9, 521.4, 507.6, 515.05];
+  const bills = months.map((m, i) => camt({
+    day: `${m}-28`, amount: -sums[i], code: 'ESDD', text: 'KREDITKARTENABRECHNUNG', name: 'Sparkasse Musterstadt',
+    purpose: `Mastercard 5232XXXXXXXX1234 Abrechnung ${m}`, mref: 'KK-5232',
+  }));
+  const credits = months.slice(-3).map((m, i) => camt({ day: `${m}-28`, amount: sums[5 + i], text: 'AUSGLEICH KREDITKARTE' }));
+  const categoryOf = (tx: SerializedTransaction) => categorize(tx, { ownIbans: OWN_IBANS });
+  const today = new Date(2026, 10, 10);
+  for (const txs of [bills, [...bills, ...credits]]) {
+    const found = detectRecurring(txs, { today, categoryOf }).filter((s) => s.kind === 'expense');
+    assert.equal(found.length, 1);
+    const [s] = found;
+    assert.deepEqual([s.cadence, s.count, s.lastDate, s.nextDate, s.overdue, s.ended], ['monthly', 8, '2026-10-28', '2026-11-30', false, false]);
+    assert.equal(s.variable, true);
+  }
+  // Its bookings are spending to Verträge, the forecast and the budgets: nothing files them as Umbuchung.
+  assert.deepEqual([...new Set(bills.map((tx) => categoryOf(tx).id))], ['other']);
+});

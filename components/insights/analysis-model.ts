@@ -10,6 +10,8 @@
 //   currencies are never added), and only over the stretch of days that every
 //   one of them covers. Accounts loaded for different periods would otherwise
 //   make a month look expensive just because one account reaches further back.
+//   A credit card's bill and its credit on the card are left out of it too
+//   (lib/card-bills.ts): the card's purchases count already.
 // - Period. The whole scope range, or one calendar month of it. A month the
 //   range cuts — or the current one — is partial and labelled as such. A
 //   month before the first booking is not a month without spending: the bank
@@ -19,6 +21,7 @@
 import { useMemo } from 'react';
 import type { CategoryOf, Counterparty, MonthBucket, PeriodTotals } from '@/lib/analytics';
 import { bookingDay, largest, monthlyBuckets, periodTotals, topCounterparties } from '@/lib/analytics';
+import { withoutCardBills } from '@/lib/card-bills';
 import { counterpartyKey } from '@/lib/categories';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import type { AnalysisPeriod, AnalysisScope, StatementInfo } from '@/lib/app-types';
@@ -45,6 +48,13 @@ export type ScopeData = {
   otherCurrencyAccounts: number;
   /** True when the loaded accounts cover different periods and `from`/`to` is their overlap. */
   clipped: boolean;
+  /**
+   * Across accounts only: each credit card's bill on the current account and
+   * its credit on the card account (lib/card-bills.ts), left out of `txs` —
+   * one payment the card's purchases already count, as a transfer between two
+   * own IBANs is left out. Empty for one account.
+   */
+  cardBills: SerializedTransaction[];
 };
 
 type Inputs = {
@@ -97,7 +107,7 @@ export function useScopeData({
     if (scope === 'account' || peers.length === 0) {
       return {
         scope: 'account', txs: transactions, from: ownFrom, to: ownTo, currency,
-        accounts: [activeAccount], otherCurrencyAccounts: 0, clipped: false,
+        accounts: [activeAccount], otherCurrencyAccounts: 0, clipped: false, cardBills: [],
       };
     }
 
@@ -113,18 +123,17 @@ export function useScopeData({
     if (from > to) {
       return {
         scope: 'account', txs: transactions, from: ownFrom, to: ownTo, currency,
-        accounts: [activeAccount], otherCurrencyAccounts: 0, clipped: false,
+        accounts: [activeAccount], otherCurrencyAccounts: 0, clipped: false, cardBills: [],
       };
     }
-    const txs = [...transactions];
-    for (const p of peers) {
-      txs.push(...txByAccount[p.accountNumber]);
-    }
+    // A card's bill on the current account and its credit on the card are the
+    // card's purchases a second time: left out of the sum across accounts.
+    const { txs, left } = withoutCardBills([activeAccount, ...peers], { ...txByAccount, [acct]: transactions });
     const clipped = from !== ownFrom || to !== ownTo
       || peers.some((p) => statementInfo[p.accountNumber].from !== from || statementInfo[p.accountNumber].to !== to);
     return {
       scope: 'all', txs, from, to, currency, accounts: [activeAccount, ...peers],
-      otherCurrencyAccounts: otherCurrency, clipped,
+      otherCurrencyAccounts: otherCurrency, clipped, cardBills: left,
     };
   }, [scope, activeAccount, accounts, transactions, txByAccount, statementInfo]);
 }
@@ -219,18 +228,24 @@ export function usePeriodFigures(
     const from = month?.from ?? data.from;
     const to = month?.to ?? data.to;
     const opts = { categoryOf, from, to, currency: data.currency };
-    const totals = periodTotals(data.txs, opts);
+    const counted = periodTotals(data.txs, opts);
+    // The card bills left out across accounts are Umbuchungen to the reader: said with them.
+    const settled = data.cardBills.filter((tx) => {
+      const day = bookingDay(tx);
+      return day >= from && day <= to && (tx.currency || 'EUR') === data.currency;
+    }).length;
+    const totals = settled ? { ...counted, excluded: counted.excluded + settled } : counted;
     // The bookings each figure is made of, decided per category exactly as the
     // figures are: a refund netted into "Shopping" counts with the Ausgaben, a
     // category refunded down to nothing on neither side.
-    const counted = (rows: PeriodTotals['byCategory']) => rows.reduce((s, c) => s + c.count, 0);
+    const bookingsOf = (rows: PeriodTotals['byCategory']) => rows.reduce((s, c) => s + c.count, 0);
 
     return {
       from,
       to,
       totals,
-      credits: counted(totals.incomeByCategory),
-      debits: counted(totals.byCategory),
+      credits: bookingsOf(totals.incomeByCategory),
+      debits: bookingsOf(totals.byCategory),
       payees: topCounterparties(data.txs, { ...opts, dir: 'out', limit: 8 }),
       biggest: biggestDistinct(largest(data.txs, { ...opts, dir: 'out', limit: Number.MAX_SAFE_INTEGER, skip: notOneOff }), 8),
     };

@@ -50,7 +50,7 @@ import { keepsNothing, unsafePhone } from '@/lib/device-integrity';
 import { msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { bankAnswerLines, notAboutPin } from '@/lib/bank-answer';
-import { bookingKind, cardSettlements, categorize, explainGuess, guessCategory, type CategoryGuess } from '@/lib/categorize';
+import { bookingKind, categorize, explainGuess, guessCategory, type CategoryGuess } from '@/lib/categorize';
 import { EXAMPLE_MIN, nameSimilarity } from '@/lib/nano-categories';
 import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
 import { withNote } from '@/lib/notes';
@@ -5186,12 +5186,6 @@ function useFintsState() {
     };
   }, [categoryRules, txByAccount, pendingFetched, notedFetched]);
 
-  // A card's bill on the current account and its credit on the card account
-  // are one Umbuchung (lib/categorize.ts cardSettlements). Through its text,
-  // so a load that pairs nothing new leaves categoryOf as it was.
-  const cardSettledKeys = useMemo(() => [...cardSettlements(accounts, txByAccount)].sort().join('\u0000'), [accounts, txByAccount]);
-  const cardSettled = useMemo(() => new Set(cardSettledKeys ? cardSettledKeys.split('\u0000') : []), [cardSettledKeys]);
-
   /**
    * The category of a booking. Its identity changes only when a rule, an
    * override, a logo match or the own-account list does — analysis code can
@@ -5208,7 +5202,7 @@ function useFintsState() {
       try {
         result = categorize(tx, {
           ownIbans: own, rules: categoryRules, ruleByName, overrides: txCategories, splits, merchantLabel: merchant?.label ?? null,
-          modelGuesses, cardSettlements: cardSettled,
+          modelGuesses,
         });
       } catch {
         // A guess gone wrong must not take the dashboard down with it.
@@ -5218,7 +5212,7 @@ function useFintsState() {
       return result;
     };
     // customCategories: a renamed or deleted category relabels every booking.
-  }, [ownIbans, categoryRules, ruleByName, txCategories, splits, customCategories, merchants, modelGuesses, cardSettled]);
+  }, [ownIbans, categoryRules, ruleByName, txCategories, splits, customCategories, merchants, modelGuesses]);
 
   /**
    * What the app would file a booking under on its own, and by which rung
@@ -5235,14 +5229,14 @@ function useFintsState() {
       const merchant = merchants[getMerchantKey(tx)] ?? merchants[counterpartyName(tx)] ?? null;
       let result: CategoryGuess;
       try {
-        result = explainGuess(tx, { ownIbans: own, merchantLabel: merchant?.label ?? null, modelGuesses, cardSettlements: cardSettled });
+        result = explainGuess(tx, { ownIbans: own, merchantLabel: merchant?.label ?? null, modelGuesses });
       } catch {
         result = { id: tx.amount >= 0 ? 'otherIn' : 'other', basis: 'none' };
       }
       memo.set(tx, result);
       return result;
     };
-  }, [ownIbans, merchants, modelGuesses, cardSettled]);
+  }, [ownIbans, merchants, modelGuesses]);
 
   // The user's notes on bookings (lib/notes.ts): one lookup for every place
   // that shows or searches them. A new function whenever a note changes, so

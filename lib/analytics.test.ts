@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SerializedTransaction } from './fints-types';
 import type { TxFilter } from './app-types';
-import { cardSettlements, categorize } from './categorize.ts';
+import { categorize } from './categorize.ts';
+import { withoutCardBills } from './card-bills.ts';
 import type { CategoryOf } from './analytics.ts';
 import {
   calendarMonths, daysLabel, facilitatorShop, filterTransactions, inFilterDays, largest, monthOfWord, monthlyBuckets,
@@ -512,44 +513,49 @@ test('txMatcher takes the screen’s words through its context', () => {
 });
 
 // ---------------------------------------------------------------------------
-// "Alle geladenen Konten" with a current account and its credit card: the
-// card's bill is one payment, not the purchases and their settlement.
+// A credit card's bill across the current account and the card account
+// (lib/card-bills.ts): left out of "Alle geladenen Konten", nowhere else.
 
-test('a card bill is counted once across the current account and the card account', () => {
-  const accounts = [{ accountNumber: '1001', accountType: 'CheckingAccount' }, { accountNumber: '4001', accountType: 'CreditCardAccount' }];
+const ACCOUNTS = [{ accountNumber: '1001', accountType: 'CheckingAccount' }, { accountNumber: '4001', accountType: 'CreditCardAccount' }];
+
+test('"Alle geladenen Konten" counts a card’s bill once; one account alone counts it as it always did', () => {
   const giro = [
     mt940({ day: '2026-10-30', amount: 2500, gvc: '153', text: 'LOHN/GEHALT', name: 'ACME GmbH', iban: IBAN.employer }),
-    camt({ day: '2026-10-28', amount: -612.4, text: 'KREDITKARTENABRECHNUNG', purpose: 'VISA 4000 12XX XXXX 1234' }),
+    camt({ day: '2026-10-28', amount: -612.4, text: 'KREDITKARTENABRECHNUNG' }),
   ];
   const card = [
     camt({ day: '2026-10-03', amount: -400, code: 'CCRD', text: 'Kartenumsatz', name: 'HOTEL ADLON' }),
     camt({ day: '2026-10-11', amount: -212.4, code: 'CCRD', text: 'Kartenumsatz', name: 'DB FERNVERKEHR' }),
     camt({ day: '2026-10-28', amount: 612.4, text: 'AUSGLEICH KREDITKARTE' }),
   ];
-  const period = { from: '2026-10-01', to: '2026-10-31' };
-  const totals = (txs: SerializedTransaction[], loaded: Record<string, SerializedTransaction[]>) => {
-    const cardSettlements_ = cardSettlements(accounts, loaded);
-    const t = periodTotals(txs, { ...period, categoryOf: (tx) => categorize(tx, { ownIbans: [], cardSettlements: cardSettlements_ }) });
+  const period = { categoryOf, from: '2026-10-01', to: '2026-10-31' };
+  const sums = (txs: SerializedTransaction[]) => {
+    const t = periodTotals(txs, period);
     return [t.income, t.expense];
   };
-  // Both loaded: the salary came in, the purchases went out. The settlement moved money between own accounts.
-  assert.deepEqual(totals([...giro, ...card], { '1001': giro, '4001': card }), [2500, 612.4]);
-  // …and each account for itself says the same story's half: no bill on the current account, no "income" on the card.
-  assert.deepEqual(totals(giro, { '1001': giro, '4001': card }), [2500, 0]);
-  assert.deepEqual(totals(card, { '1001': giro, '4001': card }), [0, 612.4]);
-  // The current account alone: the bill is all there is to see of the spending.
-  assert.deepEqual(totals(giro, { '1001': giro }), [2500, 612.4]);
-  // The card alone: as it is today.
-  assert.deepEqual(totals(card, { '4001': card }), [612.4, 612.4]);
-  // A refund on the card and a purchase of the same sum on the current account, the same week: nothing says
-  // card bill, so both stay in the figures — the purchase as spending, the refund against the card's.
-  const purchase = camt({ day: '2026-10-12', amount: -49.99, code: 'ESDD', text: 'SEPA-Basislastschrift', name: 'Zalando SE', mref: 'Z-1' });
-  const refund = camt({ day: '2026-10-14', amount: 49.99, code: 'CCRD', text: 'Gutschrift', name: 'HOTEL ADLON' });
-  const withTwins = { '1001': [...giro, purchase], '4001': [...card, refund] };
-  assert.equal(cardSettlements(accounts, withTwins).size, 2, 'the bill and its credit, nothing else');
-  const twins = periodTotals([purchase, refund], { ...period, categoryOf: (tx) => categorize(tx, { ownIbans: [], cardSettlements: cardSettlements(accounts, withTwins) }) });
-  assert.equal(twins.count, 2, 'neither is set aside as an Umbuchung');
-  // Without the pairing, the sums the review found: the bill twice, and its credit as income.
-  const unpaired = periodTotals([...giro, ...card], { ...period, categoryOf: (tx) => categorize(tx, { ownIbans: [] }) });
-  assert.deepEqual([unpaired.income, unpaired.expense], [3112.4, 1224.8]);
+  // Both accounts together: the salary came in, the purchases went out.
+  const both = withoutCardBills(ACCOUNTS, { '1001': giro, '4001': card });
+  assert.deepEqual(sums(both.txs), [2500, 612.4]);
+  assert.equal(both.left.length, 2);
+  // Added up without it, the review's figures: the bill twice, and its credit as income.
+  assert.deepEqual(sums([...giro, ...card]), [3112.4, 1224.8]);
+  // Each account by itself is untouched: its categories do not know the other account.
+  assert.deepEqual(sums(giro), [2500, 612.4]);
+  assert.deepEqual(sums(card), [612.4, 612.4]);
+  assert.deepEqual(giro.map((tx) => categoryOf(tx).id), ['income', 'other']);
+});
+
+test('one account’s months do not depend on whether, or how far back, its card account is loaded', () => {
+  const months = ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'];
+  const giro = months.flatMap((m, i) => [
+    camt({ day: `${m}-15`, amount: -900, text: 'Dauerauftrag', name: 'Vermieter', purpose: 'Miete', iban: IBAN.employer }),
+    camt({ day: `${m}-28`, amount: -(500 + i), text: 'KREDITKARTENABRECHNUNG' }),
+  ]);
+  // The card loaded for the last three months only.
+  const card = months.slice(-3).map((m, i) => camt({ day: `${m}-28`, amount: 503 + i, text: 'AUSGLEICH KREDITKARTE' }));
+  const line = () => months.map((m) => periodTotals(giro, { categoryOf, from: `${m}-01`, to: `${m}-31` }).expense);
+  assert.deepEqual(line(), [1400, 1401, 1402, 1403, 1404, 1405]);
+  // The pairing finds the three, and only "Alle geladenen Konten" reads it.
+  assert.equal(withoutCardBills(ACCOUNTS, { '1001': giro, '4001': card }).left.length, 6);
+  assert.deepEqual(line(), [1400, 1401, 1402, 1403, 1404, 1405]);
 });
