@@ -170,11 +170,13 @@ pub fn fs_rename(from: String, to: String) -> Result<(), String> {
 // The deletes still owed
 
 /// The note of the deletes that gave up, in the data folder: OWED_HEAD, then
-/// a file a line — its length and modification time (nanoseconds since 1970)
-/// when its delete gave up, and its path relative to the folder, its parts
-/// joined by "/", tab-separated in that order.
+/// a file a line — its length, modification time (nanoseconds since 1970) and
+/// identity ("-" where the system has none) when its delete gave up, and its
+/// path relative to the folder, its parts joined by "/", tab-separated in that
+/// order. A note of the format before (OWED_HEAD_2, no identity) is read too.
 const OWED: &str = ".girovo-delete-pending";
-const OWED_HEAD: &str = "girovo-deletes 2";
+const OWED_HEAD: &str = "girovo-deletes 3";
+const OWED_HEAD_2: &str = "girovo-deletes 2";
 /// More than this is no list of files a scanner held for a moment.
 const OWED_MAX: usize = 500;
 /// All the time a start spends on the note's files that still will not go.
@@ -183,22 +185,99 @@ const OWED_BUDGET: Duration = Duration::from_secs(1);
 /// What a file was when its delete gave up. A file that is no longer so was
 /// written again since, and is the file someone wants: never deleted for an
 /// old note, however that note came to outlive the write.
+///
+/// Its identity too: on FAT and exFAT a time is two seconds wide, and a sealed
+/// file of a fixed size written again within them would keep length and time.
+/// A part renamed into its place is always another file. (Not the creation
+/// time: NTFS hands a file's on to one that takes its name soon after.)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Seen {
   len: u64,
   /// Nanoseconds since 1970.
   mtime: u128,
+  /// The volume and the file's number on it (identity); None where the system does not say.
+  id: Option<u128>,
 }
 
 impl Seen {
-  /// A plain file's length and time; None for anything else, or a time that cannot be told.
-  fn of(meta: &fs::Metadata) -> Option<Self> {
+  /// A plain file's length, time and identity; None for anything else, or a time that cannot be told.
+  fn of(file: &Path) -> Option<Self> {
+    let meta = fs::symlink_metadata(file).ok()?;
     if !meta.is_file() {
       return None;
     }
     let mtime = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos();
-    Some(Seen { len: meta.len(), mtime })
+    Some(Seen { len: meta.len(), mtime, id: identity(file) })
   }
+
+  /// Whether `now` is still the file this was; None when that cannot be told
+  /// now (its identity known then, not now).
+  fn still(&self, now: &Seen) -> Option<bool> {
+    if self.len != now.len || self.mtime != now.mtime {
+      return Some(false);
+    }
+    match (self.id, now.id) {
+      (Some(then), Some(now)) => Some(then == now),
+      (Some(_), None) => None,
+      // Recorded without one: length and time decide.
+      (None, _) => Some(true),
+    }
+  }
+}
+
+/// A file's volume and number on it (GetFileInformationByHandle). Asked with
+/// no access to the file's content, so one another program holds is answered too.
+#[cfg(windows)]
+fn identity(file: &Path) -> Option<u128> {
+  use std::os::windows::fs::OpenOptionsExt;
+  use std::os::windows::io::AsRawHandle;
+
+  /// BY_HANDLE_FILE_INFORMATION.
+  #[repr(C)]
+  #[derive(Default)]
+  struct Information {
+    attributes: u32,
+    /// Creation, last access, last write: two halves each.
+    times: [u32; 6],
+    volume_serial: u32,
+    size_high: u32,
+    size_low: u32,
+    links: u32,
+    index_high: u32,
+    index_low: u32,
+  }
+  #[link(name = "kernel32")]
+  unsafe extern "system" {
+    fn GetFileInformationByHandle(file: *mut std::ffi::c_void, information: *mut Information) -> i32;
+  }
+  const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+  const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+  const SHARE_ALL: u32 = 0x7;
+  let handle = fs::OpenOptions::new()
+    .access_mode(0)
+    .share_mode(SHARE_ALL)
+    .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+    .open(file)
+    .ok()?;
+  let mut information = Information::default();
+  // SAFETY: a handle open for the call's length and a structure of the size the call writes.
+  if unsafe { GetFileInformationByHandle(handle.as_raw_handle(), &mut information) } == 0 {
+    return None;
+  }
+  Some((u128::from(information.volume_serial) << 64) | (u128::from(information.index_high) << 32) | u128::from(information.index_low))
+}
+
+/// A file's device and inode.
+#[cfg(unix)]
+fn identity(file: &Path) -> Option<u128> {
+  use std::os::unix::fs::MetadataExt;
+  let meta = fs::symlink_metadata(file).ok()?;
+  Some((u128::from(meta.dev()) << 64) | u128::from(meta.ino()))
+}
+
+#[cfg(not(any(windows, unix)))]
+fn identity(_file: &Path) -> Option<u128> {
+  None
 }
 
 /// A data folder's files as the page changes them, and the deletes it still
@@ -290,18 +369,33 @@ fn read_note(root: &Path) -> Note {
 fn parse_note(text: &str) -> BTreeMap<String, Seen> {
   let mut lines = text.lines();
   let mut paths = BTreeMap::new();
-  if lines.next() != Some(OWED_HEAD) {
-    return paths;
-  }
+  let with_id = match lines.next() {
+    Some(OWED_HEAD) => true,
+    Some(OWED_HEAD_2) => false,
+    _ => return paths,
+  };
   for line in lines {
     if paths.len() >= OWED_MAX {
       break;
     }
-    let mut fields = line.splitn(3, '\t');
-    let (Some(len), Some(mtime), Some(path)) = (fields.next(), fields.next(), fields.next()) else { continue };
+    let mut fields = line.splitn(if with_id { 4 } else { 3 }, '\t');
+    let (Some(len), Some(mtime)) = (fields.next(), fields.next()) else { continue };
+    let id = if with_id {
+      match fields.next() {
+        Some("-") => None,
+        Some(id) => match id.parse::<u128>() {
+          Ok(id) => Some(id),
+          Err(_) => continue,
+        },
+        None => continue,
+      }
+    } else {
+      None
+    };
+    let Some(path) = fields.next() else { continue };
     let (Ok(len), Ok(mtime)) = (len.parse::<u64>(), mtime.parse::<u128>()) else { continue };
     if owed_key(path).as_deref() == Some(path) {
-      paths.insert(path.to_string(), Seen { len, mtime });
+      paths.insert(path.to_string(), Seen { len, mtime, id });
     }
   }
   paths
@@ -375,7 +469,8 @@ impl Owed {
     }
     let mut text = String::from(OWED_HEAD);
     for (path, seen) in &self.paths {
-      text.push_str(&format!("\n{}\t{}\t{path}", seen.len, seen.mtime));
+      let id = seen.id.map_or_else(|| "-".to_string(), |id| id.to_string());
+      text.push_str(&format!("\n{}\t{}\t{id}\t{path}", seen.len, seen.mtime));
     }
     text.push('\n');
     let tmp = self.root.join(format!("{OWED}.{}.tmp", std::process::id()));
@@ -475,7 +570,7 @@ impl Owed {
     };
     if gave_up.kind() == std::io::ErrorKind::NotFound {
       self.settled(path);
-    } else if let (Some(key), Some(seen)) = (owed_key(path), fs::symlink_metadata(&file).ok().as_ref().and_then(Seen::of)) {
+    } else if let (Some(key), Some(seen)) = (owed_key(path), Seen::of(&file)) {
       // Still there: the next start takes it away (finish), if it is still
       // this very file then. The error stands.
       self.owe(key, seen);
@@ -486,18 +581,21 @@ impl Owed {
   /// Rust's rename puts the file in the target's place, replacing what is
   /// there, on Windows (MoveFileExW with MOVEFILE_REPLACE_EXISTING, or its
   /// POSIX-semantics rename) as on Linux (rename(2)).
+  ///
+  /// A rename that fails changes nothing on the note. A delete owed for the
+  /// target is one the app asked for (a save asks for none here): the old file
+  /// in that place is still unwanted, and once the next start has taken it
+  /// away, mountData puts the part that could not be renamed in its place
+  /// (mobile/shims/fs.ts) — the new save wins. Taking the target off would
+  /// keep the old file, and mountData would then drop the part beside it.
   fn rename_file(&mut self, from: &str, to: &str) -> Result<(), String> {
     let (source, target) = (self.file(from)?, self.file(to)?);
     if let Some(parent) = target.parent() {
       fs::create_dir_all(parent).map_err(io)?;
     }
-    let renamed = rename_retrying(&source, &target);
-    // In that place now is the file just put there, or — the rename having
-    // failed — the one a save meant to replace, which is wanted too: no
-    // delete is owed for it either way.
+    rename_retrying(&source, &target).map_err(io)?;
+    // A file put in that place is wanted; the place it left is empty.
     self.settled(to);
-    renamed.map_err(io)?;
-    // The place it left is empty.
     self.settled(from);
     Ok(())
   }
@@ -533,11 +631,12 @@ impl Owed {
     if !meta.is_file() {
       return true;
     }
-    match Seen::of(&meta) {
-      Some(now) if now == seen => {}
-      // Written again since: the file someone wants.
-      Some(_) => return true,
-      None => return false,
+    match Seen::of(&file).map(|now| seen.still(&now)) {
+      Some(Some(true)) => {}
+      // Written again since, or another file put in its place: the file someone wants.
+      Some(Some(false)) => return true,
+      // Cannot be told now: asked again at the next start.
+      _ => return false,
     }
     // Never through a link that leads out of the folder: such a path is
     // dropped, not followed. One whose place cannot be told now waits.
@@ -716,7 +815,7 @@ mod tests {
 
   /// `path` owed as its delete would owe it, the note saved.
   fn owe_now(owed: &mut Owed, path: &str) {
-    let seen = Seen::of(&fs::symlink_metadata(owed.root.join(path)).unwrap()).unwrap();
+    let seen = Seen::of(&owed.root.join(path)).unwrap();
     owed.owe(path.to_string(), seen);
     assert!(owed.sync());
   }
@@ -757,14 +856,55 @@ mod tests {
   }
 
   #[test]
-  fn the_note_keeps_each_files_length_and_time() {
+  fn the_note_keeps_each_files_length_time_and_identity() {
     let dir = folder("format");
     let mut owed = Owed::load(&dir);
     owe_now(&mut owed, "fints-state/abc.skey");
-    let seen = Seen::of(&fs::metadata(dir.join("fints-state/abc.skey")).unwrap()).unwrap();
+    let seen = Seen::of(&dir.join("fints-state/abc.skey")).unwrap();
     assert_eq!(seen.len, 6);
-    assert_eq!(text(&dir, OWED), format!("girovo-deletes 2\n6\t{}\tfints-state/abc.skey\n", seen.mtime));
+    let id = seen.id.expect("Windows and Linux say which file it is");
+    assert_eq!(text(&dir, OWED), format!("girovo-deletes 3\n6\t{}\t{id}\tfints-state/abc.skey\n", seen.mtime));
     assert_eq!(parse_note(&text(&dir, OWED)), BTreeMap::from([("fints-state/abc.skey".to_string(), seen)]));
+    // Without one ("-"), and in the format before: length and time.
+    let bare = Seen { id: None, ..seen };
+    let without = format!("girovo-deletes 3\n6\t{}\t-\tfints-state/abc.skey\n", seen.mtime);
+    let before = format!("girovo-deletes 2\n6\t{}\tfints-state/abc.skey\n", seen.mtime);
+    for note in [without, before] {
+      assert_eq!(parse_note(&note), BTreeMap::from([("fints-state/abc.skey".to_string(), bare)]), "{note}");
+    }
+    // A note of the format before is honoured: the same file goes.
+    fs::write(dir.join(OWED), format!("girovo-deletes 2\n6\t{}\tfints-state/abc.skey\n", seen.mtime)).unwrap();
+    assert!(next_start(&dir).is_empty());
+    assert!(!dir.join("fints-state/abc.skey").exists());
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  /// On FAT and exFAT a time is two seconds wide: a sealed file of a fixed
+  /// size written again within them keeps length and time. Not its identity.
+  #[test]
+  fn a_file_put_in_place_with_the_same_length_and_time_survives() {
+    let dir = folder("same-time");
+    let mut owed = Owed::load(&dir);
+    owe_now(&mut owed, "fints-state/abc.skey");
+    let seen = owed.paths["fints-state/abc.skey"];
+    assert!(seen.id.is_some());
+    // Behind the note's back: a part of the same length, its time set to the old file's, renamed over it.
+    let part = dir.join("fints-state/abc.skey.part");
+    fs::write(&part, "SEALED").unwrap();
+    let handle = fs::OpenOptions::new().write(true).open(&part).unwrap();
+    handle.set_modified(std::time::UNIX_EPOCH + Duration::from_nanos(seen.mtime as u64)).unwrap();
+    drop(handle);
+    fs::rename(&part, dir.join("fints-state/abc.skey")).unwrap();
+    let now = Seen::of(&dir.join("fints-state/abc.skey")).unwrap();
+    assert_eq!((now.len, now.mtime), (seen.len, seen.mtime), "length and time alone would say: the same file");
+    assert_ne!(now.id, seen.id);
+    assert_eq!(seen.still(&now), Some(false));
+    assert!(next_start(&dir).is_empty(), "off the note");
+    assert_eq!(text(&dir, "fints-state/abc.skey"), "SEALED");
+    // Recorded without an identity, length and time decide; known then and not now, it waits.
+    assert_eq!(Seen { id: None, ..seen }.still(&now), Some(true));
+    assert_eq!(seen.still(&Seen { id: None, ..now }), None);
+    assert_eq!(seen.still(&seen), Some(true));
     fs::remove_dir_all(&dir).unwrap();
   }
 
@@ -778,6 +918,7 @@ mod tests {
     assert!(owed.delete("fints-state/abc.skey").is_err());
     assert!(dir.join("fints-state/abc.skey").exists());
     assert_eq!(on_note(&dir), ["fints-state/abc.skey"]);
+    assert!(owed.paths["fints-state/abc.skey"].id.is_some(), "the identity of a held file is known too");
     // Asked again: once on the note. And no half-written note beside it.
     assert!(owed.delete("fints-state/abc.skey").is_err());
     assert_eq!(owed.paths.len(), 1);
@@ -881,12 +1022,10 @@ mod tests {
     assert_eq!(text(&dir, "fints-state/vault.json"), "v2", "the rename replaced the file");
     assert!(!dir.join("fints-state/vault.json.part").exists());
     assert!(owed.paths.is_empty() && !noted(&dir));
-    // A rename that fails (here: from nowhere) takes its target off the note all the same.
+    // A rename that fails (here: from nowhere) leaves the note as it was: a delete the app asked for still stands.
     owe_now(&mut owed, "fints-state/vault.json");
     assert!(owed.rename("fints-state/missing.part", "fints-state/vault.json").is_err());
-    assert!(owed.paths.is_empty() && !noted(&dir));
-    assert!(next_start(&dir).is_empty());
-    assert_eq!(text(&dir, "fints-state/vault.json"), "v2");
+    assert_eq!(on_note(&dir), ["fints-state/vault.json"]);
     fs::remove_dir_all(&dir).unwrap();
   }
 
@@ -896,7 +1035,7 @@ mod tests {
     let outside = dir.with_file_name(format!("{}-outside.txt", dir.file_name().unwrap().to_string_lossy()));
     fs::write(&outside, "not Girovo's").unwrap();
     let outside_name = outside.file_name().unwrap().to_string_lossy().into_owned();
-    let seen_of = |file: &Path| Seen::of(&fs::metadata(file).unwrap()).unwrap();
+    let seen_of = |file: &Path| Seen::of(file).unwrap();
     let (out, skey) = (seen_of(&outside), seen_of(&dir.join("fints-state/abc.skey")));
     // Not taken onto the note.
     let mut owed = Owed::load(&dir);
@@ -904,7 +1043,7 @@ mod tests {
     assert!(owed.delete(&outside.to_string_lossy()).is_err());
     assert!(owed.paths.is_empty() && !noted(&dir));
     // Nor followed from a note someone else wrote: only the folder's own file goes, and a folder never.
-    let line = |seen: Seen, path: &str| format!("{}\t{}\t{path}", seen.len, seen.mtime);
+    let line = |seen: Seen, path: &str| format!("{}\t{}\t{}\t{path}", seen.len, seen.mtime, seen.id.unwrap());
     let lines = [
       OWED_HEAD.to_string(),
       line(out, &format!("../{outside_name}")),
@@ -927,7 +1066,7 @@ mod tests {
   #[test]
   fn a_file_whose_place_cannot_be_told_waits_for_the_next_start() {
     let dir = folder("unsure");
-    let seen = Seen::of(&fs::metadata(dir.join("fints-state/abc.skey")).unwrap()).unwrap();
+    let seen = Seen::of(&dir.join("fints-state/abc.skey")).unwrap();
     let owed = Owed::load(&dir);
     let until = Instant::now() + Duration::from_millis(200);
     // The data folder's real place unknown: kept on the note, not deleted.
@@ -945,7 +1084,8 @@ mod tests {
     let cases = [
       ("words", "fints-state/abc.skey\n"),
       ("first", "girovo-deletes 1\nfints-state/abc.skey\n"),
-      ("version", "girovo-deletes 3\n6\t1\tfints-state/abc.skey\n"),
+      ("version", "girovo-deletes 4\n6\t1\t-\tfints-state/abc.skey\n"),
+      ("no-id", "girovo-deletes 3\n6\t1\tfints-state/abc.skey\n"),
       ("fields", "girovo-deletes 2\nfints-state/abc.skey\n6\tnow\tfints-state/abc.skey\n"),
       ("empty", ""),
     ];
@@ -1082,29 +1222,49 @@ mod tests {
     fs::remove_dir_all(&dir).unwrap();
   }
 
-  /// The reviewer's D: a save on a held file — the old page's way too, with a
-  /// delete before the rename — never costs the file two starts later.
+  /// mobile/shims/fs.ts mountData for one file: a part beside its file goes,
+  /// a part alone takes the file's place.
+  fn mount_data(dir: &Path, path: &str) {
+    let (file, part) = (dir.join(path), dir.join(format!("{path}.part")));
+    if file.exists() { fs::remove_file(part).unwrap() } else { fs::rename(part, file).unwrap() }
+  }
+
+  /// The reviewer's D and F1: a save on a held file.
   #[cfg(windows)]
   #[test]
   fn a_save_that_failed_on_a_held_file_never_loses_the_file() {
-    for with_delete in [false, true] {
-      let dir = folder(&format!("save-held-{with_delete}"));
-      let mut owed = Owed::load(&dir);
-      assert_eq!(owed.write("fints-state/vault.json.part", b"v2"), Ok(()));
-      let scanner = held(&dir.join("fints-state/vault.json"));
-      if with_delete {
-        assert!(owed.delete("fints-state/vault.json").is_err());
-        assert_eq!(on_note(&dir), ["fints-state/vault.json"]);
-      }
-      assert!(owed.rename("fints-state/vault.json.part", "fints-state/vault.json").is_err());
-      assert!(owed.paths.is_empty() && !noted(&dir), "{with_delete}");
-      assert!(next_start(&dir).is_empty());
-      // mountData: the file is there, so its part goes (mobile/shims/fs.ts).
-      fs::remove_file(dir.join("fints-state/vault.json.part")).unwrap();
-      drop(scanner);
-      assert!(next_start(&dir).is_empty());
-      assert_eq!(text(&dir, "fints-state/vault.json"), "v1", "{with_delete}");
-      fs::remove_dir_all(&dir).unwrap();
-    }
+    const VAULT: &str = "fints-state/vault.json";
+    const PART: &str = "fints-state/vault.json.part";
+    // The desktop's save alone: nothing owed, the file stays as it was.
+    let dir = folder("save-held");
+    let mut owed = Owed::load(&dir);
+    assert_eq!(owed.write(PART, b"v2"), Ok(()));
+    let scanner = held(&dir.join(VAULT));
+    assert!(owed.rename(PART, VAULT).is_err());
+    assert!(owed.paths.is_empty() && !noted(&dir));
+    drop(scanner);
+    assert!(next_start(&dir).is_empty());
+    mount_data(&dir, VAULT);
+    assert_eq!(text(&dir, VAULT), "v1");
+    fs::remove_dir_all(&dir).unwrap();
+
+    // "Gerät vergessen" could not delete the file, it is set up again in the
+    // same session, and the rename of the new part fails on the same hold:
+    // the delete stays owed, the next start takes the old file away, and the
+    // new save takes its place.
+    let dir = folder("save-held-owed");
+    let scanner = held(&dir.join(VAULT));
+    let mut owed = Owed::load(&dir);
+    assert!(owed.delete(VAULT).is_err());
+    assert_eq!(owed.write(PART, b"v2"), Ok(()));
+    assert!(owed.rename(PART, VAULT).is_err());
+    assert_eq!(on_note(&dir), [VAULT]);
+    drop(scanner);
+    assert!(next_start(&dir).is_empty());
+    assert!(!dir.join(VAULT).exists(), "the old file went");
+    mount_data(&dir, VAULT);
+    assert_eq!(text(&dir, VAULT), "v2", "the new save won");
+    fs::remove_dir_all(&dir).unwrap();
+
   }
 }
