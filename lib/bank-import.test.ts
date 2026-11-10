@@ -196,7 +196,14 @@ const OWN_TXS = [
     entryDate: midnight(2025, 11, 3), valueDate: midnight(2025, 11, 1), amount: -23.45, purpose: 'Einkauf; "Danke"', bookingText: 'Kartenzahlung',
     remoteName: 'Landesbank Hessen-Thüringen', remoteIban: 'DE02120300000000202051', ultimateName: 'REWE Markt GmbH', e2eReference: 'CARD-88123',
   }),
+  own({
+    // Texts that start like a formula: the export puts an apostrophe in front for Excel, the import takes it off again.
+    entryDate: midnight(2025, 11, 2), valueDate: midnight(2025, 11, 2), amount: -29.9, purpose: '-10 % Treuerabatt', bookingText: 'Lastschrift',
+    remoteName: '+ONE Fitness', remoteIban: 'DE75512108001245126199', mandateReference: '@M-1', e2eReference: '-A-4711',
+  }),
   own({ entryDate: midnight(2025, 11, 1), valueDate: midnight(2025, 11, 1), amount: 2500, purpose: 'Gehalt 10/2025', bookingText: 'Gutschrift', remoteName: 'ACME GmbH', currency: 'EUR' }),
+  // An account number for want of an IBAN, and a purpose that is a formula to Excel.
+  own({ entryDate: midnight(2025, 10, 31), valueDate: midnight(2025, 10, 31), amount: 12, purpose: '=1+1', bookingText: 'Gutschrift', remoteName: '@home GbR', remoteIban: '0012345678' }),
 ];
 
 for (const locale of ['de', 'en'] as const) {
@@ -219,6 +226,40 @@ test('an own export’s row with a Buchungstag still ahead is no booking yet, in
   for (const locale of ['de', 'en'] as const) {
     const csv = withLocale(locale, () => transactionsToCsv(OWN_TXS, { account: OWN_ACCOUNT, bankName: 'ING', today: new Date(2025, 10, 3, 9) }));
     const p = parseCsvExport(csv);
-    assert.deepEqual([p.txs.length, p.skipped], [3, 1], locale);
+    assert.deepEqual([p.txs.length, p.skipped], [5, 1], locale);
   }
+});
+
+test('an identifier kept as a text formula for Excel is read as the identifier, quoted or not', () => {
+  // ="000123" bare between the separators, as exports made for Excel write it; Girovo's own quotes the cell.
+  const file = [
+    'Buchungstag;Name;IBAN;BIC;Verwendungszweck;Betrag;Glaeubiger ID;Mandatsreferenz;Kundenreferenz;IBAN Auftragskonto',
+    '03.11.2025;Sportverein;="DE89370400440532013000";="COBADEFFXXX";Beitrag;-15,00;="DE98ZZZ09999999999";="000123456789";="20251103000000004711";="DE02120300000000202051"',
+    '04.11.2025;"=""Verein"" e.V.";"=""0012345678""";;=Beitrag;-15,00;;"=""000123456789""";=A-1;="DE02120300000000202051"',
+  ].join('\n');
+  const p = parseCsvExport(file);
+  assert.equal(p.account, 'DE02120300000000202051');
+  const [second, first] = p.txs;
+  assert.deepEqual(
+    [first.remoteIban, first.remoteBic, first.creditorId, first.mandateReference, first.e2eReference],
+    ['DE89370400440532013000', 'COBADEFFXXX', 'DE98ZZZ09999999999', '000123456789', '20251103000000004711'],
+  );
+  assert.deepEqual([second.remoteIban, second.mandateReference, second.e2eReference], ['0012345678', '000123456789', 'A-1']);
+  // A name or purpose is the bank's text: only the whole-cell ="…" wrapper comes off, never a bare "=".
+  assert.deepEqual([second.remoteName, second.purpose], ['="Verein" e.V.', '=Beitrag']);
+});
+
+test('an apostrophe comes off only in front of = + - @; any other one is the text’s own', () => {
+  const file = [
+    'Buchungstag;Name;Verwendungszweck;Betrag;Kundenreferenz',
+    "03.11.2025;'+ONE Fitness;'-10 % Rabatt;-29,90;'-A-4711",
+    "04.11.2025;'s-Hertogenbosch BV;'n Abend;-5,00;'REF",
+    "05.11.2025;'@home;'=1+1;-1,00;'=A-1",
+  ].join('\n');
+  const rows = parseCsvExport(file).txs.map((t) => [t.remoteName, t.purpose, t.e2eReference]);
+  assert.deepEqual(rows, [
+    ['@home', '=1+1', '=A-1'],
+    ["'s-Hertogenbosch BV", "'n Abend", "'REF"],
+    ['+ONE Fitness', '-10 % Rabatt', '-A-4711'],
+  ]);
 });

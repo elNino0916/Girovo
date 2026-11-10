@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATEGORIES, categoryLabel, counterpartyKey, counterpartyRule, counterpartyRuleKey, creditorId, isCategoryId, txKey } from './categories.ts';
+import {
+  CATEGORIES, categoryLabel, counterpartyKey, counterpartyRule, counterpartyRuleKey, creditorId, isCategoryId, ruleKeyFor, txKey,
+} from './categories.ts';
 import { categorize } from './categorize.ts';
 import type { SerializedTransaction } from './fints-types';
 
@@ -104,4 +106,38 @@ test('behind an intermediary the shop’s name is read both ways too; an IBAN or
   assert.equal(counterpartyRule({ 'name:BACKEREI MULLER': 'dining' as const, 'name:BAECKEREI MUELLER': 'dining' as const }, byIban), undefined, 'the IBAN is the key');
   // Nobody named: nothing to read a second way.
   assert.equal(counterpartyRuleKey({ 'name:BACKEREI MULLER': 'dining' as const }, baker('')), null);
+});
+
+test('a rule is removed and overwritten under the key it was found by, so one payee keeps one rule', () => {
+  const dotted = baker('Bäckerei Müller');
+  const spelled = baker('BAECKEREI MUELLER');
+  // Filed from the dotted booking; the MT940 one finds it through the other spelling.
+  const rules: Record<string, string> = { [counterpartyKey(dotted)]: 'dining' };
+  assert.equal(counterpartyKey(spelled), 'name:BAECKEREI MUELLER');
+  assert.equal(ruleKeyFor(rules, spelled), 'name:BACKEREI MULLER');
+  assert.equal(ruleKeyFor(rules, dotted), 'name:BACKEREI MULLER');
+
+  // "Regel entfernen" on the MT940 booking: the rule that matched is gone, for both.
+  const { [ruleKeyFor(rules, spelled)]: _gone, ...removed } = rules;
+  assert.deepEqual(removed, {});
+  assert.equal(counterpartyRule(removed, spelled), undefined);
+  assert.equal(counterpartyRule(removed, dotted), undefined);
+
+  // "Für alle" on the MT940 booking: the one rule changes, no second one beside it.
+  const set = { ...rules, [ruleKeyFor(rules, spelled)]: 'groceries' };
+  assert.deepEqual(set, { 'name:BACKEREI MULLER': 'groceries' });
+  assert.equal(counterpartyRule(set, dotted), 'groceries');
+  assert.equal(counterpartyRule(set, spelled), 'groceries');
+  // The bookings that rule reaches: both spellings, not another baker.
+  const reached = (t: SerializedTransaction) => counterpartyRuleKey(set, t) === ruleKeyFor(rules, spelled);
+  assert.deepEqual([dotted, spelled, baker('Bäckerei Möller')].map(reached), [true, true, false]);
+
+  // No rule yet: the booking's own key, as ever — also for an IBAN and for nobody named.
+  assert.equal(ruleKeyFor({}, spelled), 'name:BAECKEREI MUELLER');
+  assert.equal(ruleKeyFor(null, dotted), 'name:BACKEREI MULLER');
+  assert.equal(ruleKeyFor(rules, baker('Bäckerei Müller', { remoteIban: 'DE89370400440532013000' })), 'iban:DE89370400440532013000');
+  assert.equal(ruleKeyFor(rules, baker('')), 'name:?');
+  // A rule under each spelling (made before this): each booking keeps its own.
+  const two = { 'name:BACKEREI MULLER': 'dining', 'name:BAECKEREI MUELLER': 'groceries' };
+  assert.deepEqual([ruleKeyFor(two, dotted), ruleKeyFor(two, spelled)], ['name:BACKEREI MULLER', 'name:BAECKEREI MUELLER']);
 });

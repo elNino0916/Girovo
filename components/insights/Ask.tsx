@@ -334,8 +334,11 @@ function Answer({ answer, scopeAll, onShow, own }: {
 }) {
   const t = useT();
   const words = t.ask;
-  const { query: q } = answer;
+  const { query: q, currency } = answer;
   const today = dayKey(new Date());
+  // Matching bookings in another currency are in no figure here: said in the Analyse's own words.
+  const aside = answer.compare ? answer.compare.a.otherCurrency + answer.compare.b.otherCurrency : answer.otherCurrency;
+  const asideLine = aside > 0 ? t.insights.analysis.foreignBookings(aside) : null;
   const range = fmtRange(answer.from, answer.to);
 
   // What the question was read as. A month by its name, a year by its number — as the question put it.
@@ -364,7 +367,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
   const figure = (cents: number) => (
     <p className="text-[24px] leading-tight font-bold text-ink">
       {atLeast}
-      <Money value={cents / 100} tone="plain" />
+      <Money value={cents / 100} currency={currency} tone="plain" />
     </p>
   );
   const bookingLine = (
@@ -383,7 +386,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
         <span className="tnum min-w-0 text-[14px] text-ink-2">{fmtRange(x.from, x.to)}</span>
         <span className="shrink-0 text-[17px] font-bold text-ink">
           {x.partial && <span className="text-[13px] font-normal text-ink-2">{words.atLeast} </span>}
-          <Money value={x.cents / 100} tone="plain" />
+          <Money value={x.cents / 100} currency={currency} tone="plain" />
         </span>
       </div>
     );
@@ -392,7 +395,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
         <p className="text-[24px] leading-tight font-bold text-ink">
           {diff === 0 ? words.same : (
             <>
-              <Money value={Math.abs(diff) / 100} tone="plain" />
+              <Money value={Math.abs(diff) / 100} currency={currency} tone="plain" />
               <span className="text-[15px] font-normal text-ink-2"> {diff > 0 ? words.more : words.less}{pct != null ? ` (${pct} %)` : ''}</span>
             </>
           )}
@@ -427,7 +430,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
                     {rank.metric === 'count' ? words.times(row.count) : `${Math.round(row.share * 100)} %`}
                   </span>
                 </span>
-                <Money value={row.cents / 100} tone="plain" className="shrink-0 text-[15px] font-semibold" />
+                <Money value={row.cents / 100} currency={currency} tone="plain" className="shrink-0 text-[15px] font-semibold" />
               </button>
             </li>
           ))}
@@ -446,7 +449,8 @@ function Answer({ answer, scopeAll, onShow, own }: {
     body = (
       <>
         <p className="text-[15px] leading-snug font-semibold text-ink">{words.none}</p>
-        <p className="mt-0.5 text-[13px] leading-snug text-ink-2">{words.noneHint(range)}</p>
+        {/* Nothing counted because all of it is in another currency: that, not "keiner passt". */}
+        {!asideLine && <p className="mt-0.5 text-[13px] leading-snug text-ink-2">{words.noneHint(range)}</p>}
       </>
     );
   } else if ((q.kind === 'largest' || q.kind === 'last') && answer.tx) {
@@ -458,7 +462,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
         </p>
         <div className="mt-1 flex items-baseline justify-between gap-3">
           <span className="min-w-0 truncate text-[15px] leading-snug font-semibold text-ink">{counterpartyName(tx)}</span>
-          <Money value={tx.amount} signed tone="credit" className="shrink-0 text-[17px] font-bold" />
+          <Money value={tx.amount} currency={tx.currency || currency} signed tone="credit" className="shrink-0 text-[17px] font-bold" />
         </div>
         <p className="tnum mt-0.5 text-[13px] leading-snug text-ink-2">{fmtDate(bookingDay(tx))}</p>
       </>
@@ -468,7 +472,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
       <>
         <p className="text-[24px] leading-tight font-bold text-ink">{atLeast}{words.times(answer.count)}</p>
         <p className="tnum mt-0.5 text-[13px] leading-snug text-ink-2">
-          <DotList items={[rich(words.together(<Money value={answer.cents / 100} tone="plain" />)), range]} />
+          <DotList items={[rich(words.together(<Money value={answer.cents / 100} currency={currency} tone="plain" />)), range]} />
         </p>
       </>
     );
@@ -477,7 +481,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
       <>
         <p className="text-[24px] leading-tight font-bold text-ink">
           <span className="text-[15px] font-normal text-ink-2">{words.approx} </span>
-          <RoundMoney value={answer.monthCents / answer.months / 100} />
+          <RoundMoney value={answer.monthCents / answer.months / 100} currency={currency} />
           <span className="text-[15px] font-normal text-ink-2"> {words.perMonth}</span>
         </p>
         <p className="mt-0.5 text-[13px] leading-snug text-ink-2">{words.averageBasis(answer.months)}</p>
@@ -494,11 +498,11 @@ function Answer({ answer, scopeAll, onShow, own }: {
       <>
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-[14px] text-ink-2">{words.spent}</span>
-          <span className="text-[17px] font-bold text-ink">{atLeast}<Money value={answer.outCents / 100} tone="plain" /></span>
+          <span className="text-[17px] font-bold text-ink">{atLeast}<Money value={answer.outCents / 100} currency={currency} tone="plain" /></span>
         </div>
         <div className="mt-1 flex items-baseline justify-between gap-3">
           <span className="text-[14px] text-ink-2">{words.received}</span>
-          <span className="text-[17px] font-bold text-ink">{atLeast}<Money value={answer.inCents / 100} tone="plain" /></span>
+          <span className="text-[17px] font-bold text-ink">{atLeast}<Money value={answer.inCents / 100} currency={currency} tone="plain" /></span>
         </div>
         {bookingLine}
       </>
@@ -519,6 +523,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
       <p className="text-[12.5px] leading-snug font-medium text-ink-2">{words.understood}</p>
       <DotList items={read} className="mt-0.5 text-[14px] leading-snug text-ink" />
       <div className="mt-3">{body}</div>
+      {asideLine && <p className="mt-2 text-[13px] leading-snug text-ink-2">{asideLine}</p>}
       {answer.partial && <p className="mt-2 text-[13px] leading-snug text-ink-2">{words.partial(fmtDate(answer.from))}</p>}
       {answer.count > 0 && !answer.outside && q.kind !== 'rank' && (
         <Button

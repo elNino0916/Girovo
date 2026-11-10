@@ -205,6 +205,28 @@ function mapColumns(header: string[]): Partial<Record<Column, number>> {
   return out;
 }
 
+/** The columns that hold an identifier, never prose: an IBAN or account number, a BIC, a Gläubiger-ID, a reference. */
+const ID_COLUMNS: ReadonlySet<Column> = new Set<Column>(['iban', 'bic', 'creditorId', 'mandate', 'e2e', 'account']);
+
+/**
+ * A cell without what a file made for Excel wraps around its text — one
+ * wrapper at most, so what was under it comes back as it was:
+ *   - ="000123", the text formula that keeps an identifier's zeros and long
+ *     digits (Girovo's own export writes it: lib/csv.ts csvIdCell). Written
+ *     bare between the separators its quotes are gone by here, and =000123
+ *     is left: in an identifier's column that "=" is the wrapper too. In a
+ *     name or a purpose a bare "=" is the bank's text and stays.
+ *   - a leading apostrophe in front of = + - @, which makes Excel show a text
+ *     that starts like a formula as text (csvTextCell). Any other apostrophe
+ *     is the text's own ("'s-Hertogenbosch").
+ */
+function excelText(cell: string, id: boolean): string {
+  const formula = /^="(.*)"$/.exec(cell);
+  if (formula) return formula[1];
+  if (id && /^=[A-Za-z0-9]/.test(cell)) return cell.slice(1);
+  return /^'[=+\-@]/.test(cell) ? cell.slice(1) : cell;
+}
+
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
 /** "03.11.2025", "3.11.25", "2025-11-03", "03/11/2025" → "2025-11-03"; '' for anything else. */
@@ -296,8 +318,7 @@ export function parseCsvExport(text: string): ParsedImport {
 
   const txs: SerializedTransaction[] = [];
   let skipped = 0;
-  // ="000123" is how a file made for Excel keeps an identifier's zeros (Girovo's own does: lib/csv.ts csvIdCell).
-  const get = (row: string[], col: Column) => (map[col] != null ? row[map[col]!] ?? '' : '').replace(/^="(.*)"$/, '$1');
+  const get = (row: string[], col: Column) => excelText(map[col] != null ? row[map[col]!] ?? '' : '', ID_COLUMNS.has(col));
   const paired = map.payer != null && map.payee != null;
   for (const line of all.slice(headerAt + 1)) {
     const row = cells(line, sep);

@@ -713,6 +713,8 @@ export type AskAnswer = {
   monthCents: number;
   /** Matching bookings in a currency other than the one summed, left out (as lib/analytics.ts does). */
   otherCurrency: number;
+  /** The currency every figure here is in. */
+  currency: string;
   /** kind 'rank': the first few, largest first. */
   rank?: AskRankRow[];
   /** kind 'compare': the asked period and the one it is set against, worked out alike. */
@@ -839,7 +841,7 @@ export function computeAnswer(
 
   return {
     query, filter: shown, from, to, outside, partial: !outside && asked.from < loaded.from,
-    count: matched.length, cents, outCents, inCents, tx, months: whole?.months ?? 0, monthCents, otherCurrency,
+    count: matched.length, cents, outCents, inCents, tx, months: whole?.months ?? 0, monthCents, otherCurrency, currency,
     ...(query.kind === 'rank' && query.rank ? { rank: rankRows(matched, query, filter, ctx.categoryOf, ctx.payeeOf ?? counterpartyName) } : {}),
   };
 }

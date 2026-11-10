@@ -4,7 +4,7 @@ import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { IS_ANDROID } from '@/lib/platform';
 import { facilitatorShop, fmtDayShort } from '@/lib/analytics';
 import {
-  allCategories, categoryLabel, counterpartyKey, isCategoryId, txBic, txKey, type CategoryId, type CategorySource,
+  allCategories, categoryLabel, counterpartyKey, counterpartyRuleKey, isCategoryId, ruleKeyFor, txBic, txKey, type CategoryId, type CategorySource,
 } from '@/lib/categories';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { dayKey, displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry } from '@/lib/format';
@@ -533,9 +533,12 @@ function CategorySection({ tx, name, pending }: { tx: SerializedTransaction; nam
   const [newOpen, setNewOpen] = useState(false);
   // A Vormerkposten has no lasting key yet: its split would not find the booking.
   const canSplit = !pending && Math.round(Math.abs(tx.amount) * 100) >= 2;
-  const who = counterpartyKey(tx);
-  const canRule = who !== 'name:?';
+  const canRule = counterpartyKey(tx) !== 'name:?';
   const rules = vault?.categoryRules;
+  // The key of the rule that files this booking — its own, or the one found
+  // through the other spelling of the name's umlauts ("BAECKEREI" for a filed
+  // "Bäckerei") — else the key a new rule goes under (lib/categories.ts).
+  const who = ruleKeyFor(rules, tx);
   const ruled = canRule && rules && isCategoryId(rules[who]) ? rules[who] : null;
   // What the booking falls back to without a choice for it alone: the rule,
   // else the automatic guess — the model's included, as the list shows it.
@@ -545,10 +548,12 @@ function CategorySection({ tx, name, pending }: { tx: SerializedTransaction; nam
   // The counterparty's other loaded bookings — what "für alle" reaches today.
   const others = useMemo(() => {
     if (!canRule) return 0;
+    // With a rule under `who`: every booking that rule would file, in either spelling.
+    const reach = { ...rules, [who]: true };
     let n = 0;
-    for (const list of Object.values(txByAccount)) for (const t of list) if (t !== tx && counterpartyKey(t) === who) n++;
+    for (const list of Object.values(txByAccount)) for (const t of list) if (t !== tx && counterpartyRuleKey(reach, t) === who) n++;
     return n;
-  }, [canRule, txByAccount, tx, who]);
+  }, [canRule, rules, txByAccount, tx, who]);
   const [step, setStep] = useState<Step | null>(null);
   const vaultSaves = vaultStatus === 'ready';
   const titleId = useId();

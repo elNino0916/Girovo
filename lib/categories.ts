@@ -314,6 +314,20 @@ export function counterpartyRuleKey(
   return otherSpellings(tx, key).find((k) => rules[k] != null) ?? null;
 }
 
+/**
+ * The key a rule for a booking's counterparty is set, changed and removed
+ * under: the key of the rule that files it now — its own, or the one found
+ * through the other spelling — else its own counterpartyKey(). Removing by
+ * the booking's own key would leave the rule that matched standing, and
+ * setting by it would put a second rule beside that one.
+ */
+export function ruleKeyFor(
+  rules: Readonly<Record<string, unknown>> | null | undefined,
+  tx: Parameters<typeof counterpartyKey>[0],
+): string {
+  return counterpartyRuleKey(rules, tx) ?? counterpartyKey(tx);
+}
+
 /** The user's rule for a booking's counterparty — "always file X under Y" — whichever way the name's umlauts are written. */
 export function counterpartyRule<T>(
   rules: Readonly<Record<string, T>> | null | undefined,

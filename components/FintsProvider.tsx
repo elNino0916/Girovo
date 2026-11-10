@@ -55,7 +55,7 @@ import { EXAMPLE_MIN, nameSimilarity } from '@/lib/nano-categories';
 import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
 import { withNote } from '@/lib/notes';
 import {
-  counterpartyKey, counterpartyName, isCategoryId, rawCounterparty, setCustomCategories, txKey,
+  counterpartyKey, counterpartyName, counterpartyRuleKey, isCategoryId, rawCounterparty, ruleKeyFor, setCustomCategories, txKey,
   type CategoryId, type CategoryResult, type CustomCategoryId,
 } from '@/lib/categories';
 import {
@@ -5463,7 +5463,10 @@ function useFintsState() {
     // Checked against the vault itself: a category made a moment ago is
     // there before the page has registered it (the next render does).
     if (!categoryValidator(vaultRef.current?.customCategories ?? [])(id)) return;
-    const who = counterpartyKey(tx);
+    // The key of the rule that files this booking now — its own, or the one
+    // found through the other spelling of its name's umlauts — else its own
+    // key: the rule is overwritten, never given a second one beside it.
+    const who = ruleKeyFor(vaultRef.current?.categoryRules, tx);
     // A counterparty with neither IBAN, creditor ID nor name cannot carry a rule.
     if (opts.rule && who !== 'name:?') {
       const stale = new Set([key]);
@@ -5472,7 +5475,9 @@ function useFintsState() {
         ...Object.values(pendingFetched).flatMap((e) => e.txs),
         ...Object.values(notedFetched).flatMap((e) => e.txs),
       ];
-      for (const t of loaded) if (counterpartyKey(t) === who) stale.add(txKey(t));
+      // Every loaded booking the rule files, in either spelling.
+      const reach = { ...vaultRef.current?.categoryRules, [who]: id };
+      for (const t of loaded) if (counterpartyRuleKey(reach, t) === who) stale.add(txKey(t));
       updateVault((v0) => {
         const v = unsplit(v0);
         let overrides = v.txCategories;
@@ -5558,7 +5563,12 @@ function useFintsState() {
     });
   }, [updateVault]);
 
-  /** Drops the user's rule for one counterparty (a counterpartyKey); its bookings go back to the automatic guess. */
+  /**
+   * Drops the user's rule for one counterparty; its bookings go back to the
+   * automatic guess. `who` is the key the rule is stored under — for a booking
+   * ruleKeyFor(), not its own counterpartyKey(), which misses a rule found
+   * through the other spelling of the name's umlauts.
+   */
   const removeCategoryRule = useCallback((who: string) => {
     updateVault((v) => {
       const rules = without(v.categoryRules, who);

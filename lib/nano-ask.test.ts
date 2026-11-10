@@ -369,3 +369,17 @@ test('a booking in another currency is set aside, as in the Analyse', () => {
   );
   assert.equal(largest.tx?.amount, -55.2);
 });
+
+test('the answer names the currency it sums, and how many matching bookings it set aside', () => {
+  // A payee paid in dollars from a euro account: nothing to sum, two bookings to mention.
+  const usd = (day: string) => ({ ...tx(day, -20, 'OpenAI LLC'), currency: 'USD' });
+  const q: AskQuery = { kind: 'sum', dir: 'out', category: null, search: 'OpenAI', period: { kind: 'all' } };
+  const a = computeAnswer(q, [...BOOKINGS, usd('2026-09-03'), usd('2026-10-03')], { ...CTX, currency: 'EUR' }, LOADED, TODAY);
+  assert.deepEqual([a.count, a.cents, a.otherCurrency, a.currency], [0, 0, 2, 'EUR']);
+  // A dollar account: its own currency is the one the figures are in.
+  const d = computeAnswer(q, [usd('2026-09-03'), usd('2026-10-03')], { ...CTX, currency: 'USD' }, LOADED, TODAY);
+  assert.deepEqual([d.count, d.cents, d.otherCurrency, d.currency], [2, 4000, 0, 'USD']);
+  // Both sides of a comparison say theirs.
+  const c = computeAnswer({ ...q, kind: 'compare', period: { kind: 'thisMonth' }, against: { kind: 'lastMonth' } }, [...BOOKINGS, usd('2026-09-03'), usd('2026-10-03')], CTX, LOADED, TODAY);
+  assert.deepEqual([c.currency, c.compare?.a.otherCurrency, c.compare?.b.otherCurrency], ['EUR', 1, 1]);
+});
