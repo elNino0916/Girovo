@@ -341,6 +341,86 @@ function phaseAfterFailedCheck(before) {
   return held ? before.phase : 'idle';
 }
 
+// ---- what girovo.de said last, for when it cannot be asked -------------------
+//
+// girovo.de chooses the release: it skips a halted one and stages a rollout.
+// GitHub's API, the fallback when girovo.de cannot be asked, knows neither —
+// an outage would offer a halted or staged release to everyone. So each copy
+// remembers, per channel, what girovo.de offered it last and when, and for
+// LISTED_HOLD_MS GitHub may not offer anything above that. The desktop's
+// updater (src-tauri/src/updater) has the same rule.
+
+/** How long girovo.de's last answer holds GitHub's offer back: 72 hours. */
+const LISTED_HOLD_MS = 72 * 60 * 60 * 1000;
+
+/**
+ * The build number to remember from one answer of girovo.de: the release it
+ * offered this copy (`offered`, what pickListed chose — the rollout's bucket
+ * and "early" included), or, when it offered nothing newer, the running
+ * version's (`running`). Null when neither has a build number.
+ */
+function listedBuild(offered, running) {
+  const o = Number.isSafeInteger(offered) ? offered : null;
+  const r = Number.isSafeInteger(running) ? running : null;
+  if (o == null || r == null) return o ?? r;
+  return o > r ? o : r;
+}
+
+/** What is remembered for `channel` in the stored text: { build, at }, or null — nothing yet, or nothing readable. */
+function listedFor(text, channel) {
+  try {
+    const entry = JSON.parse(text ?? 'null')?.[channelOf(channel)];
+    if (!entry || !Number.isSafeInteger(entry.build) || typeof entry.at !== 'number' || !Number.isFinite(entry.at)) return null;
+    return { build: entry.build, at: entry.at };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The text to store once girovo.de answered for `channel` at `at` (ms):
+ * that answer's build (listedBuild) takes the place of the channel's earlier
+ * one — the latest answer, never a maximum, so a release halted after it was
+ * offered is held back too. The other channel's entry stays. A `build` that
+ * is no number leaves the channel with nothing remembered.
+ */
+function rememberListed(text, channel, build, at) {
+  const mine = channelOf(channel);
+  const out = {};
+  for (const c of ['stable', 'preview']) {
+    const entry = c === mine ? (Number.isSafeInteger(build) ? { build, at } : null) : listedFor(text, c);
+    if (entry) out[c] = entry;
+  }
+  return JSON.stringify(out);
+}
+
+/**
+ * Whether GitHub's release (build `candidate`) may be offered while girovo.de
+ * cannot be asked, given what girovo.de said last for this channel
+ * (`remembered`: { build, at } or null) and the time `now` (ms). Yes when
+ *   (a) it is not above the remembered build, or
+ *   (b) that answer is older than LISTED_HOLD_MS — or from the future, a
+ *       clock that was wrong once: stale, never a hold for ever —, or
+ *   (c) nothing was ever remembered for this channel.
+ * Otherwise no: nothing new for now.
+ */
+function offersFromGitHub(candidate, remembered, now) {
+  if (!remembered || !Number.isSafeInteger(remembered.build) || typeof remembered.at !== 'number' || !Number.isFinite(remembered.at)) return true;
+  const age = now - remembered.at;
+  if (!(age >= 0 && age <= LISTED_HOLD_MS)) return true;
+  return Number.isSafeInteger(candidate) && candidate <= remembered.build;
+}
+
+/**
+ * The phase of a check whose only find was held back (offersFromGitHub): an
+ * offer already on screen stays what it was, its downloaded file with it;
+ * with none, 'current' — nothing new for now, and no error.
+ */
+function phaseAfterHeldCheck(before) {
+  const kept = phaseAfterFailedCheck(before);
+  return kept === 'idle' ? 'current' : kept;
+}
+
 module.exports = {
   REPO,
   FEED_URL,
@@ -357,6 +437,12 @@ module.exports = {
   aboutOffer,
   phaseAfterCheck,
   phaseAfterFailedCheck,
+  LISTED_HOLD_MS,
+  listedBuild,
+  listedFor,
+  rememberListed,
+  offersFromGitHub,
+  phaseAfterHeldCheck,
   rateLimitWait,
   channelOf,
   parseVersion,

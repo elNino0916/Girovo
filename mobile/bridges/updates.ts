@@ -41,6 +41,11 @@ const INSTALLING_PREF = 'fints.installing';
 const EARLY_PREF = 'fints.updates.early';
 /** A random id of this installation, only for its rollout bucket (update-trust.ts bucket). */
 const INSTALL_ID_PREF = 'fints.updates.installId';
+/**
+ * What girovo.de offered this copy last, per channel: { stable?: { build, at }, preview?: … }.
+ * While girovo.de can't be asked, GitHub offers nothing above it (logic.offersFromGitHub).
+ */
+const LISTED_PREF = 'fints.updates.listed';
 const EVERY_MS = 6 * 60 * 60 * 1000;
 
 type Release = UpdateRelease;
@@ -108,7 +113,12 @@ async function fromGirovoDe(preview: boolean): Promise<Release | null | undefine
     if (!res.ok) return undefined;
     const listing = parseListing(await res.json());
     if (!listing) return undefined;
-    return pickListed(listing, preview ? 'nightly' : 'stable', TRUSTED_KEYS, installId(), state.early === true);
+    const offer = pickListed(listing, preview ? 'nightly' : 'stable', TRUSTED_KEYS, installId(), state.early === true);
+    // Every good answer is remembered, an empty one too: the release it offered
+    // this copy, else the running version (logic.listedBuild).
+    const build = logic.listedBuild(offer ? buildNumber(offer.version) : null, buildNumber(state.current));
+    write(LISTED_PREF, logic.rememberListed(read(LISTED_PREF), preview ? 'preview' : 'stable', build, Date.now()));
+    return offer;
   } catch {
     return undefined;
   }
@@ -173,10 +183,23 @@ async function check(): Promise<ElectronUpdateState> {
   const before = beforeCheck;
   set({ phase: 'checking', error: null });
   try {
-    let release = await fromGirovoDe(preview);
-    if (release === undefined) release = await fromGitHub(preview);
+    const listed = await fromGirovoDe(preview);
+    const found = listed === undefined ? await fromGitHub(preview) : listed;
     if (run !== checks) return state;
-    if (!release || refused.has(release.version) || !isNewer(release.version, preview)) {
+    const release = found && !refused.has(found.version) && isNewer(found.version, preview) ? found : null;
+    // girovo.de couldn't be asked, and GitHub knows no halt and no rollout:
+    // its release counts only up to what girovo.de offered this copy last.
+    if (release && listed === undefined) {
+      const remembered = logic.listedFor(read(LISTED_PREF), preview ? 'preview' : 'stable');
+      if (!logic.offersFromGitHub(buildNumber(release.version), remembered, Date.now())) {
+        // Nothing new for now, and no error: an offer on screen stays, its downloaded file with it.
+        const phase = logic.phaseAfterHeldCheck(before);
+        if (phase !== 'current') return set({ phase, checkedAt: Date.now() });
+        latest = null;
+        return set({ phase, release: null, checkedAt: Date.now() });
+      }
+    }
+    if (!release) {
       latest = null;
       return set({ phase: 'current', release: null, checkedAt: Date.now() });
     }

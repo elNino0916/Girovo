@@ -366,3 +366,101 @@ test('a failed check leaves an offer as it was, and claims nothing without one',
   assert.equal(logic.phaseAfterFailedCheck({ phase: 'checking', version: '6.0.5' }), 'idle');
   assert.equal(logic.phaseAfterFailedCheck(null), 'idle');
 });
+
+// ---- what girovo.de said last holds GitHub's offer back ----
+
+const HOUR = 60 * 60 * 1000;
+const NOW = Date.UTC(2026, 10, 10, 12);
+const B604 = 600040_000000000;
+const B605 = 600050_000000000;
+const B606 = 600060_000000000;
+
+test('GitHub alone: a release above what girovo.de offered last is held back', () => {
+  const said = { build: B604, at: NOW - HOUR };
+  assert.equal(logic.offersFromGitHub(B605, said, NOW), false, 'above: halted or staged, for all this copy knows');
+  assert.equal(logic.offersFromGitHub(B604, said, NOW), true, '(a) the one girovo.de offered');
+  assert.equal(logic.offersFromGitHub(B604 - 1, said, NOW), true, '(a) below it');
+  assert.equal(logic.offersFromGitHub(null, said, NOW), false, 'no build number: not known to be at or below');
+  assert.equal(logic.offersFromGitHub(undefined, said, NOW), false);
+  assert.equal(logic.offersFromGitHub('600050000000000', said, NOW), false);
+});
+
+test('GitHub alone: after 72 hours without girovo.de the hold ends', () => {
+  assert.equal(logic.LISTED_HOLD_MS, 72 * HOUR);
+  const at = (age) => ({ build: B604, at: NOW - age });
+  assert.equal(logic.offersFromGitHub(B605, at(0), NOW), false, 'just now');
+  assert.equal(logic.offersFromGitHub(B605, at(71 * HOUR), NOW), false);
+  assert.equal(logic.offersFromGitHub(B605, at(72 * HOUR), NOW), false, 'exactly 72 hours: not yet older');
+  assert.equal(logic.offersFromGitHub(B605, at(72 * HOUR + 1), NOW), true, '(b) older than 72 hours');
+  assert.equal(logic.offersFromGitHub(B605, at(30 * 24 * HOUR), NOW), true);
+});
+
+test('GitHub alone: a remembered time in the future is stale, never a hold for ever', () => {
+  assert.equal(logic.offersFromGitHub(B605, { build: B604, at: NOW + 1 }, NOW), true);
+  assert.equal(logic.offersFromGitHub(B605, { build: B604, at: NOW + 400 * 24 * HOUR }, NOW), true);
+});
+
+test('GitHub alone: nothing remembered, nothing held back', () => {
+  assert.equal(logic.offersFromGitHub(B605, null, NOW), true, '(c)');
+  assert.equal(logic.offersFromGitHub(B605, undefined, NOW), true);
+  for (const odd of [{}, { build: B604 }, { at: NOW }, { build: '600040000000000', at: NOW }, { build: B604, at: 'now' }, { build: B604, at: NaN }, { build: 1.5, at: NOW }]) {
+    assert.equal(logic.offersFromGitHub(B605, odd, NOW), true, JSON.stringify(odd));
+  }
+});
+
+test('what one answer of girovo.de leaves to remember', () => {
+  assert.equal(logic.listedBuild(B605, B604), B605, 'the release it offered this copy');
+  assert.equal(logic.listedBuild(null, B604), B604, 'nothing offered: the running version');
+  assert.equal(logic.listedBuild(B604, B604), B604);
+  assert.equal(logic.listedBuild(B604, B605), B605, 'nothing newer offered: the running version');
+  assert.equal(logic.listedBuild(B605, null), B605);
+  assert.equal(logic.listedBuild(null, null), null);
+  assert.equal(logic.listedBuild('x', undefined), null);
+});
+
+test('the answers are remembered per channel, the latest one, not the highest', () => {
+  assert.equal(logic.listedFor(null, 'stable'), null);
+  let text = logic.rememberListed(null, 'stable', B605, NOW - 2 * HOUR);
+  assert.deepEqual(logic.listedFor(text, 'stable'), { build: B605, at: NOW - 2 * HOUR });
+  assert.equal(logic.listedFor(text, 'preview'), null);
+
+  // 6.0.5 was offered, then halted: girovo.de's next answer offers nothing, and that is what counts.
+  text = logic.rememberListed(text, 'stable', logic.listedBuild(null, B604), NOW - HOUR);
+  assert.deepEqual(logic.listedFor(text, 'stable'), { build: B604, at: NOW - HOUR });
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW), false);
+
+  // The other channel's answer stays beside it.
+  text = logic.rememberListed(text, 'preview', B606, NOW);
+  assert.deepEqual(JSON.parse(text), { stable: { build: B604, at: NOW - HOUR }, preview: { build: B606, at: NOW } });
+
+  // No build to remember: the channel is left with nothing, the other one untouched.
+  text = logic.rememberListed(text, 'preview', null, NOW);
+  assert.deepEqual(JSON.parse(text), { stable: { build: B604, at: NOW - HOUR } });
+
+  for (const odd of ['', 'not json', '[]', '7', 'null', '{"stable":7}', '{"stable":{"build":"1","at":2}}', '{"stable":{"build":1}}']) {
+    assert.equal(logic.listedFor(odd, 'stable'), null, odd);
+    assert.deepEqual(JSON.parse(logic.rememberListed(odd, 'preview', B606, NOW)), { preview: { build: B606, at: NOW } }, odd);
+  }
+  assert.deepEqual(logic.listedFor(text, 'anything else'), { build: B604, at: NOW - HOUR }, 'anything that is not a channel is the stable one');
+});
+
+test('GitHub alone after a channel switch: each channel is held by its own answer', () => {
+  // On Stabil girovo.de offered nothing above 6.0.4 an hour ago; Nightly was never asked.
+  const text = logic.rememberListed(null, 'stable', B604, NOW - HOUR);
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW), false);
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'preview'), NOW), true, '(c) nothing remembered for Nightly');
+  // Once Nightly was asked, it holds too, and back on Stabil its answer changes nothing.
+  const both = logic.rememberListed(text, 'preview', B605, NOW);
+  assert.equal(logic.offersFromGitHub(B606, logic.listedFor(both, 'preview'), NOW), false);
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(both, 'preview'), NOW), true);
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(both, 'stable'), NOW), false);
+});
+
+test('a check whose find was held back: what is on screen stays, else nothing new', () => {
+  assert.equal(logic.phaseAfterHeldCheck({ phase: 'ready', version: '6.0.4' }), 'ready', 'the downloaded file with it');
+  assert.equal(logic.phaseAfterHeldCheck({ phase: 'available', version: '6.0.4' }), 'available');
+  assert.equal(logic.phaseAfterHeldCheck({ phase: 'idle', version: null }), 'current');
+  assert.equal(logic.phaseAfterHeldCheck({ phase: 'current', version: null }), 'current');
+  assert.equal(logic.phaseAfterHeldCheck(logic.afterChannelChange()), 'current');
+  assert.equal(logic.phaseAfterHeldCheck(null), 'current');
+});
