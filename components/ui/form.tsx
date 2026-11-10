@@ -169,6 +169,19 @@ function InFormField({
  * noValidate; nothing else asks the browser.
  */
 /**
+ * Focus on an M3E control that may only just have been put on the page (a
+ * button that comes back when a form closes): until its first update it has
+ * no tabindex, and focus() falls to <body>. `still` is asked right before, so
+ * a control that has gone, or been replaced, is left alone.
+ */
+export function focusOnceDrawn(el: HTMLElement | null | undefined, still: () => boolean = () => true): void {
+  if (!el) return;
+  void Promise.resolve((el as HTMLElement & { updateComplete?: Promise<unknown> }).updateComplete).then(() => requestAnimationFrame(() => {
+    if (el.isConnected && still()) el.focus({ preventScroll: true });
+  }));
+}
+
+/**
  * The cursor in a field as soon as its frame has drawn it: until the M3E form
  * field's first render the input has no box and focus() does nothing. Asked
  * again whenever `when` changes; does nothing while the field isn't there.

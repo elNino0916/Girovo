@@ -15,7 +15,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { AlertTriangleIcon, BackIcon, ChevronIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
-import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx, useFocusWhenDrawn } from '../ui';
+import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx, focusOnceDrawn, useFocusWhenDrawn } from '../ui';
 import { useDesktopFrame } from '../shell/frame';
 import { PrivacyToggle } from '../shell/PrivacyToggle';
 import { fmtSince } from '../shell/session';
@@ -451,7 +451,8 @@ function AccountHead({ account, label }: { account: SerializedAccount; label: st
       return;
     }
     // Saved or called off: focus goes back to the pencil, never lost to <body> (as AccountLine's).
-    if (!renaming && wasRenaming.current) pencil.current?.focus();
+    // The pencil is newly drawn at that moment: focus once it can take it.
+    if (!renaming && wasRenaming.current) focusOnceDrawn(pencil.current);
     wasRenaming.current = renaming;
   }, [renaming, account.accountNumber]);
   if (frame && accounts.length > 1) {
@@ -616,7 +617,7 @@ function AccountLine({ account }: { account: SerializedAccount }) {
   // Focus goes back to the button that started renaming — never lost to <body>.
   const wasRenaming = useRef(false);
   useEffect(() => {
-    if (!renaming && wasRenaming.current) renameButton.current?.focus();
+    if (!renaming && wasRenaming.current) focusOnceDrawn(renameButton.current);
     wasRenaming.current = renaming;
   }, [renaming]);
 

@@ -10,6 +10,7 @@ import { Statement } from '@/components/Statement';
 import { UpdateLayer } from '@/components/updates/UpdateNotices';
 import { TelemetryErrors } from '@/components/telemetry/TelemetryErrors';
 import { trackUsage } from '@/components/telemetry/usage';
+import { ChannelConsentGuard } from '@/components/telemetry/NightlyUsage';
 import { useDemo } from '@/components/demo/demo-mode';
 import { Intro } from '@/components/shell/Intro';
 import { FloatingScrollbars } from '@/components/shell/FloatingScrollbars';
@@ -46,6 +47,8 @@ function AppLayers(): ReactNode {
         <Toasts />
         {/* Desktop app only: the page's uncaught errors, reported. */}
         <TelemetryErrors />
+        {/* A usage consent that came with the Nightly channel ends when the copy is back on Stabil. */}
+        <ChannelConsentGuard />
         {/* Once: the first start, and the first start of Girovo 6. */}
         <Intro />
         {/* The desktop's scrollbars, drawn over the content (not on Android). */}

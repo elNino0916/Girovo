@@ -12,7 +12,7 @@
 // with an updater of their own have a channel, and only those that can share
 // usage data have the question: everywhere else this draws nothing.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { ChartIcon } from '../icons';
 import { PrivacyPolicyLink } from '../PrivacyPolicyLink';
@@ -25,6 +25,29 @@ export function usageComesWithChannel(channel: UpdateChannel | undefined, usage:
   return channel === 'preview' && usage !== null;
 }
 
+/**
+ * Off Nightly by another way than the channel's dialog (the updater can move a
+ * copy back to "Stabil" at start): a yes that came with the channel ends then
+ * too. Mounted at the app's root (app/page.tsx), so it ends before the login,
+ * not after it.
+ *
+ * Only when the channel is first known or has just left Nightly — never on
+ * the consent changing: choosing Nightly sets the yes a moment before the
+ * channel follows, and that moment must not take it back.
+ */
+export function ChannelConsentGuard() {
+  const { state } = useUpdates();
+  const channel = state?.channel;
+  const seen = useRef<UpdateChannel | undefined>(undefined);
+  useEffect(() => {
+    if (!channel) return;
+    const before = seen.current;
+    seen.current = channel;
+    if (channel === 'stable' && before !== 'stable' && usageCameWithChannel()) void setUsageConsent(false);
+  }, [channel]);
+  return null;
+}
+
 export function NightlyUsageDialog() {
   const t = useT();
   const { state } = useUpdates();
@@ -32,12 +55,6 @@ export function NightlyUsageDialog() {
   const [busy, setBusy] = useState<'agree' | 'stable' | null>(null);
   const words = t.settings.channel.usageAsk;
   const open = usageComesWithChannel(state?.channel, usage) && usage !== 'on';
-  // Off Nightly by another way than the channel's dialog (the updater can move
-  // a copy back to "Stabil"): a yes that came with the channel ends here too.
-  const channel = state?.channel;
-  useEffect(() => {
-    if (channel === 'stable' && usage === 'on' && usageCameWithChannel()) void setUsageConsent(false);
-  }, [channel, usage]);
   // Either answer ends the question by what it changes: the consent, or the channel.
   const answer = async (which: 'agree' | 'stable') => {
     setBusy(which);
