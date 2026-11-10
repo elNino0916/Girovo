@@ -25,8 +25,8 @@ export const de = {
   privacy: {
     title: 'Deine Daten bleiben bei dir',
     pin: {
-      title: 'Deine PIN wird nie gespeichert',
-      text: 'Girovo kennt sie nur, bis du dich abmeldest.',
+      title: 'Deine PIN geht nur an deine Bank',
+      text: 'Gespeichert wird sie nur, wenn du es einschaltest.',
     },
     direct: {
       title: 'Direkte Verbindung',
@@ -60,7 +60,7 @@ export const de = {
     errorReports: 'Fehlerberichte gehen an den Entwickler von Girovo – ohne Kontodaten, Beträge und Namen.',
     usageNeedsYes: 'Nutzungsdaten nur mit deiner Zustimmung.',
     /** The narrow layout's note under the form; the logo and error-report lines follow it. */
-    note: 'Deine PIN wird nie gespeichert. Girovo spricht direkt mit deiner Bank und merkt sich danach dieses Gerät.',
+    note: 'Deine PIN geht nur an deine Bank. Girovo spricht direkt mit ihr und merkt sich danach dieses Gerät.',
   },
 
   /** Step one: find the bank (components/auth/BankPicker.tsx). */
@@ -434,8 +434,8 @@ export const en: typeof de = {
   privacy: {
     title: 'Your data stays with you',
     pin: {
-      title: 'Your PIN is never stored',
-      text: 'Girovo only knows it until you log out.',
+      title: 'Your PIN goes only to your bank',
+      text: 'It is stored only if you turn that on.',
     },
     direct: {
       title: 'Direct connection',
@@ -464,7 +464,7 @@ export const en: typeof de = {
     telemetryOn: 'Error reports and usage data go to Girovo’s developer – never account data, amounts or names.',
     errorReports: 'Error reports go to Girovo’s developer – without account data, amounts or names.',
     usageNeedsYes: 'Usage data only with your consent.',
-    note: 'Your PIN is never stored. Girovo talks straight to your bank and then remembers this device.',
+    note: 'Your PIN goes only to your bank. Girovo talks straight to it and then remembers this device.',
   },
 
   bankPicker: {
