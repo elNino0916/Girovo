@@ -125,46 +125,93 @@ pub fn keeps_nightly(stored: Option<&str>, moved: Option<&str>, prerelease: bool
 // GitHub, the fallback when girovo.de can't be asked, knows nothing of that and
 // names its latest release to everybody. So each copy notes what girovo.de
 // offered it at its last good answer, per channel (engine::PREF_LISTED), and
-// during an outage GitHub is believed only up to that release — for three
-// days, after which a girovo.de that stays away must not strand anyone.
+// during an outage GitHub is believed only up to that release — until the
+// outage has lasted three days as this copy saw it (the first ask that failed
+// since that answer, `downSince`), after which a girovo.de that stays away
+// must not strand anyone. Counted from the outage, not from the last answer:
+// a copy opened again after four days, during an outage, would otherwise be
+// offered a halted release at once and install it at that start.
+//
+// mobile/updates/update-logic.cjs has the same rule for the GitHub APK
+// (listedFor, rememberListed, offersFromGitHub); both read the note alike.
 
-/// How long girovo.de's last answer limits what GitHub may offer.
+/// How long an outage of girovo.de limits what GitHub may offer.
 pub const LISTED_MAX_AGE_MS: u64 = 72 * 60 * 60 * 1000;
 
+/// JavaScript's Number.MAX_SAFE_INTEGER: the largest number both halves read alike.
+const MAX_SAFE: u64 = 9_007_199_254_740_991;
+
 /// girovo.de's last good answer on one channel: the build number of the
-/// release it offered this copy (the running build when nothing newer), and when (ms).
+/// release it offered this copy (the running build when nothing newer), when
+/// (ms), and since when it could not be asked, if it could not since then (ms).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Remembered {
   pub build: u64,
   pub at: u64,
+  pub down_since: Option<u64>,
 }
 
-/// What is noted for `channel` in the pref (`{"stable":{"build":…,"at":…},"preview":{…}}`),
-/// or None: nothing noted for this channel, or nothing readable.
+/// A field of the note: a JSON number with a whole value from 0 to
+/// MAX_SAFE, however written (1000, 1000.0, 1e3) — what JavaScript's
+/// Number.isSafeInteger(x) && x >= 0 takes. None for anything else.
+fn safe_uint(v: &Value) -> Option<u64> {
+  let n = v.as_u64().or_else(|| v.as_f64().filter(|f| f.fract() == 0.0 && *f >= 0.0 && *f <= MAX_SAFE as f64).map(|f| f as u64))?;
+  (n <= MAX_SAFE).then_some(n)
+}
+
+/// What is noted for `channel` in the pref
+/// (`{"stable":{"build":…,"at":…,"downSince":…},"preview":{…}}`), or None:
+/// nothing noted for this channel, or nothing readable. `build` and `at` must
+/// be there and fit safe_uint; `downSince` may be missing or null (no outage
+/// seen), and must fit safe_uint otherwise. One field that does not fit and
+/// the channel counts as not noted.
 pub fn remembered(pref: Option<&str>, channel: Channel) -> Option<Remembered> {
   let all: Value = serde_json::from_str(pref?).ok()?;
   let one = all.get(channel.as_str())?;
-  Some(Remembered { build: one.get("build")?.as_u64()?, at: one.get("at")?.as_u64()? })
+  let down_since = match one.get("downSince") {
+    None | Some(Value::Null) => None,
+    Some(v) => Some(safe_uint(v)?),
+  };
+  Some(Remembered { build: safe_uint(one.get("build")?)?, at: safe_uint(one.get("at")?)?, down_since })
 }
 
 /// The pref with `channel`'s note replaced by this answer's — the latest one,
 /// not the highest: after a halt girovo.de offers the release before, and
-/// that is what counts. The other channel's note stays.
+/// that is what counts. An answer ends the outage (no `downSince`). The other
+/// channel's note stays.
 pub fn remember(pref: Option<&str>, channel: Channel, build: u64, at: u64) -> String {
   let mut all = pref.and_then(|p| serde_json::from_str::<Value>(p).ok()).filter(Value::is_object).unwrap_or_else(|| serde_json::json!({}));
   all[channel.as_str()] = serde_json::json!({ "build": build, "at": at });
   all.to_string()
 }
 
+/// The pref once an ask of girovo.de on `channel` failed at `now`: the first
+/// failure since its last answer is noted as `downSince`, later ones change
+/// nothing. None when there is nothing to write: nothing noted for the
+/// channel (a copy that never reached girovo.de), or an outage noted already.
+pub fn note_outage(pref: Option<&str>, channel: Channel, now: u64) -> Option<String> {
+  let last = remembered(pref, channel)?;
+  if last.down_since.is_some() {
+    return None;
+  }
+  let mut all: Value = serde_json::from_str(pref?).ok()?;
+  all[channel.as_str()] = serde_json::json!({ "build": last.build, "at": last.at, "downSince": now });
+  Some(all.to_string())
+}
+
 /// Whether GitHub's release (`candidate`, its build number) may be offered
-/// while girovo.de can't be asked. Yes when girovo.de never answered on this
-/// channel (`remembered` None), when its last answer is older than
-/// LISTED_MAX_AGE_MS — or lies in the future, a clock set back: stale too,
-/// never a block for good — and otherwise only up to the build it offered
-/// then. No: nothing new for now, the next check asks again.
+/// while girovo.de can't be asked. Yes when
+///   (c) girovo.de never answered on this channel (`remembered` None),
+///   (b) the outage has lasted more than LISTED_MAX_AGE_MS since its first
+///       failed ask (`down_since`; none noted: it begins now), or a time in
+///       the note lies in the future — a clock set back: stale, never a
+///       block for good —, or
+///   (a) the release is not above the build girovo.de offered last.
+/// No: nothing new for now, the next check asks again.
 pub fn fallback_offers(candidate: Option<u64>, remembered: Option<Remembered>, now: u64) -> bool {
   let Some(last) = remembered else { return true };
-  if last.at > now || now - last.at > LISTED_MAX_AGE_MS {
+  let since = last.down_since.unwrap_or(now);
+  if last.at > now || since > now || now - since > LISTED_MAX_AGE_MS {
     return true;
   }
   candidate.is_some_and(|build| build <= last.build)
@@ -907,52 +954,116 @@ mod tests {
   fn while_girovo_de_is_away_github_is_believed_up_to_what_girovo_de_offered_last() {
     const HOUR: u64 = 60 * 60 * 1000;
     let now = 1_800_000_000_000;
-    let last = |build, at| Some(Remembered { build, at });
+    let last = |build, at, down_since| Some(Remembered { build, at, down_since });
     // (c) girovo.de never answered on this channel: as it always was.
     assert!(fallback_offers(Some(600_030), None, now));
-    // (a) Up to the release girovo.de offered an hour ago, and no further: the
-    // next one may be halted, or staged and not this copy's turn.
-    assert!(fallback_offers(Some(600_020), last(600_020, now - HOUR), now));
-    assert!(fallback_offers(Some(600_010), last(600_020, now - HOUR), now));
-    assert!(!fallback_offers(Some(600_030), last(600_020, now - HOUR), now));
-    assert!(!fallback_offers(Some(600_030), last(600_020, now), now));
-    assert!(!fallback_offers(None, last(600_020, now - HOUR), now), "a release without a build number is not known to be older");
-    // (b) After 72 hours a girovo.de that stays away strands nobody: to the millisecond.
-    assert!(!fallback_offers(Some(600_030), last(600_020, now - 71 * HOUR), now));
-    assert!(!fallback_offers(Some(600_030), last(600_020, now - 72 * HOUR), now), "72 hours exactly is not yet older");
-    assert!(fallback_offers(Some(600_030), last(600_020, now - 72 * HOUR - 1), now));
-    assert!(fallback_offers(Some(600_030), last(600_020, 0), now));
-    // The clock was set back: an answer "from the future" is stale, not a block for good.
-    assert!(fallback_offers(Some(600_030), last(600_020, now + 1), now));
-    assert!(fallback_offers(Some(600_030), last(600_020, now + 1000 * HOUR), now));
+    // (a) Up to the release girovo.de offered, and no further: the next one
+    // may be halted, or staged and not this copy's turn.
+    assert!(fallback_offers(Some(600_020), last(600_020, now - HOUR, Some(now)), now));
+    assert!(fallback_offers(Some(600_010), last(600_020, now - HOUR, Some(now)), now));
+    assert!(!fallback_offers(Some(600_030), last(600_020, now - HOUR, Some(now)), now));
+    assert!(!fallback_offers(Some(600_030), last(600_020, now, None), now), "no outage noted yet: it begins now");
+    assert!(!fallback_offers(None, last(600_020, now - HOUR, Some(now)), now), "a release without a build number is not known to be older");
+    // The last answer's age alone opens nothing: opened four days after it, during an outage, the copy waits.
+    assert!(!fallback_offers(Some(600_030), last(600_020, now - 96 * HOUR, Some(now)), now));
+    assert!(!fallback_offers(Some(600_030), last(600_020, now - 96 * HOUR, None), now));
+    // (b) 72 hours of outage as this copy saw it, to the millisecond.
+    assert!(!fallback_offers(Some(600_030), last(600_020, now - 96 * HOUR, Some(now - 71 * HOUR)), now));
+    assert!(!fallback_offers(Some(600_030), last(600_020, now - 96 * HOUR, Some(now - 72 * HOUR)), now), "72 hours exactly is not yet more");
+    assert!(fallback_offers(Some(600_030), last(600_020, now - 96 * HOUR, Some(now - 72 * HOUR - 1)), now));
+    assert!(fallback_offers(Some(600_030), last(600_020, 0, Some(0)), now));
+    // The clock was set back: a time "from the future" is stale, not a block for good.
+    assert!(fallback_offers(Some(600_030), last(600_020, now + 1, None), now));
+    assert!(fallback_offers(Some(600_030), last(600_020, now + 1000 * HOUR, Some(now)), now));
+    assert!(fallback_offers(Some(600_030), last(600_020, now - HOUR, Some(now + 1)), now));
   }
 
   #[test]
   fn what_girovo_de_said_last_is_noted_per_channel_the_latest_answer_not_the_highest() {
     let stable = |pref: &str| remembered(Some(pref), Channel::Stable);
     let preview = |pref: &str| remembered(Some(pref), Channel::Preview);
+    let noted = |build, at, down_since| Some(Remembered { build, at, down_since });
     let first = remember(None, Channel::Stable, 600_030, 1000);
-    assert_eq!(stable(&first), Some(Remembered { build: 600_030, at: 1000 }));
+    assert_eq!(stable(&first), noted(600_030, 1000, None));
     // The other channel has nothing noted: its check goes by "never asked", not by this note.
     assert_eq!(preview(&first), None);
     assert!(fallback_offers(Some(700_000), preview(&first), 2000));
     assert!(!fallback_offers(Some(700_000), stable(&first), 2000));
     // After a halt girovo.de offers the release before: the note goes down with it.
     let halted = remember(Some(&first), Channel::Stable, 600_020, 3000);
-    assert_eq!(stable(&halted), Some(Remembered { build: 600_020, at: 3000 }));
+    assert_eq!(stable(&halted), noted(600_020, 3000, None));
     // Each channel keeps its own.
     let both = remember(Some(&halted), Channel::Preview, 600_039, 4000);
-    assert_eq!(stable(&both), Some(Remembered { build: 600_020, at: 3000 }));
-    assert_eq!(preview(&both), Some(Remembered { build: 600_039, at: 4000 }));
-    // Nothing readable is nothing noted, and is written over.
-    for odd in ["", "not json", "[]", "7", r#"{"stable":7}"#, r#"{"stable":{"build":"x","at":1}}"#, r#"{"stable":{"build":-1,"at":1}}"#, r#"{"stable":{"build":1}}"#] {
-      assert_eq!(stable(odd), None, "{odd:?}");
-      assert_eq!(stable(&remember(Some(odd), Channel::Stable, 5, 6)), Some(Remembered { build: 5, at: 6 }), "{odd:?}");
-    }
+    assert_eq!(stable(&both), noted(600_020, 3000, None));
+    assert_eq!(preview(&both), noted(600_039, 4000, None));
     assert_eq!(remembered(None, Channel::Stable), None);
     // The build numbers of real versions survive the pref (they are below 2^53).
     let big = 8_999_990_000_000_000;
-    assert_eq!(stable(&remember(None, Channel::Stable, big, big)), Some(Remembered { build: big, at: big }));
+    assert_eq!(stable(&remember(None, Channel::Stable, big, big)), noted(big, big, None));
+  }
+
+  #[test]
+  fn an_outage_is_noted_from_its_first_failed_ask_until_the_next_answer() {
+    let stable = |pref: &str| remembered(Some(pref), Channel::Stable);
+    let answered = remember(None, Channel::Stable, 600_020, 1000);
+    // The first failure is noted, with the answer as it was…
+    let down = note_outage(Some(&answered), Channel::Stable, 5000).expect("noted");
+    assert_eq!(stable(&down), Some(Remembered { build: 600_020, at: 1000, down_since: Some(5000) }));
+    // …later ones change nothing, and the other channel is not touched.
+    assert_eq!(note_outage(Some(&down), Channel::Stable, 9000), None);
+    assert_eq!(remembered(Some(&down), Channel::Preview), None);
+    // Nothing noted for the channel (a fresh install, or nothing readable): nothing to note.
+    assert_eq!(note_outage(Some(&answered), Channel::Preview, 5000), None);
+    assert_eq!(note_outage(None, Channel::Stable, 5000), None);
+    assert_eq!(note_outage(Some("not json"), Channel::Stable, 5000), None);
+    // The next answer ends it.
+    let back = remember(Some(&down), Channel::Stable, 600_030, 10_000);
+    assert_eq!(stable(&back), Some(Remembered { build: 600_030, at: 10_000, down_since: None }));
+  }
+
+  #[test]
+  fn the_note_is_read_as_the_apps_javascript_reads_it() {
+    let stable = |pref: &str| remembered(Some(pref), Channel::Stable);
+    let entry = |fields: &str| format!(r#"{{"stable":{{{fields}}}}}"#);
+    // Whole numbers from 0 to 2^53 - 1, however JSON writes them.
+    for (fields, build, at, down) in [
+      (r#""build":5,"at":6"#, 5, 6, None),
+      (r#""build":5,"at":6,"downSince":null"#, 5, 6, None),
+      (r#""build":5,"at":6,"downSince":7"#, 5, 6, Some(7)),
+      (r#""build":5.0,"at":6e3,"downSince":0"#, 5, 6000, Some(0)),
+      (r#""build":-0,"at":0"#, 0, 0, None),
+      (r#""build":9007199254740991,"at":9007199254740991"#, MAX_SAFE, MAX_SAFE, None),
+      (r#""build":5,"at":6,"extra":"kept out of it""#, 5, 6, None),
+    ] {
+      assert_eq!(stable(&entry(fields)), Some(Remembered { build, at, down_since: down }), "{fields}");
+    }
+    // Anything else in one field and the channel counts as not noted.
+    for fields in [
+      r#""build":5"#,
+      r#""at":6"#,
+      r#""build":"5","at":6"#,
+      r#""build":5,"at":"6""#,
+      r#""build":-1,"at":6"#,
+      r#""build":5,"at":-6"#,
+      r#""build":5.5,"at":6"#,
+      r#""build":5,"at":6.5"#,
+      r#""build":9007199254740992,"at":6"#,
+      r#""build":5,"at":9007199254740992"#,
+      r#""build":5,"at":1e300"#,
+      r#""build":null,"at":6"#,
+      r#""build":true,"at":6"#,
+      r#""build":5,"at":6,"downSince":-1"#,
+      r#""build":5,"at":6,"downSince":"7""#,
+      r#""build":5,"at":6,"downSince":7.5"#,
+      r#""build":5,"at":6,"downSince":9007199254740992"#,
+    ] {
+      assert_eq!(stable(&entry(fields)), None, "{fields}");
+    }
+    // Nothing readable around it.
+    for odd in ["", "not json", "[]", "7", "null", r#"{"stable":7}"#, r#"{"stable":[5,6]}"#, r#"{"stable":null}"#] {
+      assert_eq!(stable(odd), None, "{odd:?}");
+      assert_eq!(stable(&remember(Some(odd), Channel::Stable, 5, 6)), Some(Remembered { build: 5, at: 6, down_since: None }), "{odd:?}");
+    }
   }
 
   #[test]

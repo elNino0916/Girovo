@@ -90,11 +90,16 @@ few minutes and carry an ETag; invalid KV JSON keeps the last good value.
   require the signed manifest asset when the release has one. GitHub knows
   nothing of a halt or a staged rollout, so the desktop updater notes after
   every good answer from girovo.de (200 or 304) what it was offered there,
-  per channel (`fints.updates.listed`: the build number and the time), and
-  during an outage offers GitHub's release only up to that build. A newer one
-  waits ("nothing new for now") until girovo.de answers again, or until its
-  last answer is 72 hours old, so a girovo.de that stays away strands nobody;
-  a copy that never reached girovo.de takes GitHub's release as before.
+  per channel (`fints.updates.listed`: the build number and the time, plus
+  `downSince`, the first failed ask since that answer), and during an outage
+  offers GitHub's release only up to that build. A newer one waits ("nothing
+  new for now": what was on offer, downloaded or not, stays) until girovo.de
+  answers again, or until the outage this copy has seen is 72 hours old, so a
+  girovo.de that stays away strands nobody. The 72 hours run from the first
+  failed ask, not from the last answer: a copy opened after a long break
+  during an outage waits too. A copy that never reached girovo.de takes
+  GitHub's release as before. The GitHub APK reads the same note the same way
+  (`mobile/updates/update-logic.cjs`).
 - No bridge release is needed: older copies find 6.0.2 through GitHub's API,
   and from 6.0.2 on they read girovo.de.
 

@@ -362,6 +362,10 @@ enum Failure {
   Stalled,
   /// Cancelled — by the user, or by a switch of the channel.
   Aborted,
+  /// girovo.de could not be asked, and GitHub's release is above what it
+  /// offered this copy last (believed_without_girovo_de): nothing new for
+  /// now. Not a failure for the user; run_check keeps what was on offer.
+  Withheld,
   /// Only for the log; the user hears the general message.
   Other(String),
 }
@@ -374,6 +378,7 @@ impl std::fmt::Display for Failure {
       Failure::Http(e) => write!(f, "{e}"),
       Failure::Stalled => f.write_str("stalled"),
       Failure::Aborted => f.write_str("aborted"),
+      Failure::Withheld => f.write_str("withheld while girovo.de can't be asked"),
     }
   }
 }
@@ -791,7 +796,8 @@ impl Updater {
   /// reaches this copy (staged rollout). When girovo.de can't be asked, GitHub's
   /// API as before — and there too only a release whose signed manifest checks
   /// out, and only up to the release girovo.de offered this copy last
-  /// (believed_without_girovo_de). None when there is none to offer.
+  /// (believed_without_girovo_de; above it: Failure::Withheld). None when
+  /// there is none to offer.
   async fn fetch_offer(&self, channel: Channel) -> Result<Option<Release>, Failure> {
     let asks_girovo_de = self.cfg.manifest_base.is_some();
     if let Some(base) = self.cfg.manifest_base.clone() {
@@ -801,19 +807,27 @@ impl Updater {
         self.remember_listed(channel, offer.as_ref());
         return Ok(offer);
       }
+      // The outage, from its first failed ask on (logic::note_outage).
+      if let Some(noted) = logic::note_outage(self.host.pref(PREF_LISTED).as_deref(), channel, now_ms()) {
+        self.host.set_pref(PREF_LISTED, &noted);
+      }
     }
     let candidate = match self.fetch_github_offer(channel).await? {
       Some(release) if self.cfg.require_signed => self.signed_copy(release, channel).await,
       other => other,
     };
-    Ok(candidate.filter(|release| !asks_girovo_de || self.believed_without_girovo_de(release, channel)))
+    match candidate {
+      Some(release) if asks_girovo_de && !self.believed_without_girovo_de(&release, channel) => Err(Failure::Withheld),
+      other => Ok(other),
+    }
   }
 
   /// Notes what girovo.de offered this copy in the answer it just gave (200
   /// or 304, an empty listing too): the release pick_listed chose — so the
   /// rollout and "early" are in it — or the running build when that is
   /// nothing newer. The latest answer, never a maximum: a halted release
-  /// leaves the note with the next answer.
+  /// leaves the note with the next answer. It ends a noted outage too. With
+  /// no build number for either, the note stays as it was.
   fn remember_listed(&self, channel: Channel, offer: Option<&Release>) {
     let offered = offer.and_then(|r| trust::build_number(&r.version));
     let running = trust::build_number(&self.cfg.current_version);
@@ -1271,6 +1285,18 @@ impl Updater {
       .channel;
     match self.fetch_offer(channel).await {
       Ok(release) => self.take_offer(release, channel).await,
+      // Nothing new for now (girovo.de away, GitHub's release above what it
+      // offered last): like a failed check, what was on offer stays — the
+      // release, its download, the phase — and nothing is said. GitHub did
+      // answer, so the check counts as made; with nothing on offer before,
+      // this copy is up to date as far as anyone can tell.
+      Err(Failure::Withheld) => {
+        let checked_at = Some(now_ms());
+        self.set(|s| {
+          s.phase = if matches!(before, Phase::Available | Phase::Ready) { before } else { Phase::Current };
+          s.checked_at = checked_at;
+        })
+      }
       Err(err) => {
         warn("check failed", &err);
         // Back to where it was. An automatic check fails quietly — being
