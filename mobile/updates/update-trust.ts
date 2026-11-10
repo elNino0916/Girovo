@@ -160,7 +160,9 @@ export function releaseOf(text: string, opts: Where = {}): UpdateRelease | null 
   try {
     const m = JSON.parse(text);
     if (m?.format !== MANIFEST_FORMAT || m.v !== 1 || typeof m.version !== 'string') return null;
-    if (m.build !== buildNumber(m.version) || !Array.isArray(m.files)) return null;
+    // A number, as the desktop reads it (trust.rs): "build": null beside a version without a build number is no match.
+    if (typeof m.build !== 'number' || !Number.isSafeInteger(m.build) || m.build !== buildNumber(m.version)) return null;
+    if (!Array.isArray(m.files)) return null;
     const files: Record<string, unknown>[] = m.files.flatMap((f: Record<string, unknown>) => (f?.blockmap ? [f, f.blockmap as Record<string, unknown>] : [f]));
     const assets = files.map((f) => ({
       name: f?.name,

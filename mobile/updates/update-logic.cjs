@@ -271,13 +271,42 @@ const channelOf = (value) => (value === 'preview' ? 'preview' : 'stable');
  * Whether this start moves the install from the Nightly channel back to
  * Stabil: a release build (6.0.0, owner 2026-11-07: everyone on Nightly to
  * Stabil for now), with the channel on Nightly, that has not moved it before
- * (`moved`) — once, so a Nightly picked again afterwards stays. Never a
- * pre-release or a development build. As src-tauri/src/updater/logic.rs
- * moves_to_stable.
+ * (`moved`) — once, so a Nightly picked again afterwards stays. `moved` is
+ * also what a channel picked by hand leaves (pickedMarker): the move is for
+ * the installs that were on Nightly before 6.0.0, never for a choice made
+ * since. Never a pre-release or a development build. As
+ * src-tauri/src/updater/logic.rs moves_to_stable.
  */
 function movesToStable(stored, current, moved) {
   const v = parseVersion(current);
   return channelOf(stored) === 'preview' && !moved && !!v && !v.pre;
+}
+
+/**
+ * What picking a channel stores as movesToStable's `moved`, on `current`: the
+ * choice stands. Without it, Nightly picked on a release build that never
+ * moved was taken back to Stabil at the next start.
+ */
+const pickedMarker = (current) => (typeof current === 'string' && current ? current : 'picked');
+
+/**
+ * The phase a check ends in that found the newer release `version`, given
+ * where it started (`before`: the phase and the offered version then). An
+ * update already downloaded stays ready for the same release — the check
+ * itself shows 'checking' meanwhile, which is why the start is passed in.
+ */
+function phaseAfterCheck(before, version) {
+  return !!before && before.phase === 'ready' && !!version && before.version === version ? 'ready' : 'available';
+}
+
+/**
+ * The phase a failed check goes back to: an offer it started with — on offer
+ * or downloaded — stays what it was, the release still shown; with none,
+ * 'idle', which claims nothing about being up to date.
+ */
+function phaseAfterFailedCheck(before) {
+  const held = !!before && !!before.version && (before.phase === 'ready' || before.phase === 'available');
+  return held ? before.phase : 'idle';
 }
 
 module.exports = {
@@ -290,6 +319,9 @@ module.exports = {
   RETRY_DELAY_MS,
   passingFailure,
   movesToStable,
+  pickedMarker,
+  phaseAfterCheck,
+  phaseAfterFailedCheck,
   rateLimitWait,
   channelOf,
   parseVersion,

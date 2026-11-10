@@ -32,7 +32,7 @@ import { reportError, track } from './telemetry';
 const AUTO_PREF = 'fints.autoUpdate';
 /** 'stable' (unset) or 'preview': whether pre-releases are offered too. */
 const CHANNEL_PREF = 'fints.updateChannel';
-/** The release that took this install from the Nightly channel back to Stabil (logic.movesToStable): set, never again. */
+/** The release that took this install from the Nightly channel back to Stabil (logic.movesToStable), or the one a channel was picked on: set, never again. */
 const MOVED_PREF = 'fints.updateChannel.movedToStable';
 const LAST_VERSION_PREF = 'fints.lastVersion';
 /** The release an install was started for: { version, notes, url } — what the next start greets. */
@@ -63,6 +63,8 @@ let state: ElectronUpdateState;
 let latest: Release | null = null;
 /** Counts the checks: an answer that a newer check (another channel's) overtook is dropped. */
 let checks = 0;
+/** Where the updater stood when the running check began: 'checking' hides it (logic.phaseAfterCheck). */
+let beforeCheck: { phase: ElectronUpdateState['phase']; version: string | null } = { phase: 'idle', version: null };
 const listeners = new Set<(s: ElectronUpdateState) => void>();
 
 function set(patch: Partial<ElectronUpdateState>): ElectronUpdateState {
@@ -162,6 +164,9 @@ async function check(): Promise<ElectronUpdateState> {
   if (state.phase === 'downloading' || state.phase === 'installing') return state;
   const run = ++checks;
   const preview = state.channel === 'preview';
+  // A check that overtakes a running one starts from where that one did.
+  if (state.phase !== 'checking') beforeCheck = { phase: state.phase, version: state.release?.version ?? null };
+  const before = beforeCheck;
   set({ phase: 'checking', error: null });
   try {
     let release = await fromGirovoDe(preview);
@@ -174,7 +179,8 @@ async function check(): Promise<ElectronUpdateState> {
     latest = release;
     const apk = logic.pickAsset(release, 'android');
     return set({
-      phase: state.phase === 'ready' && state.release?.version === release.version ? 'ready' : 'available',
+      // The APK already downloaded for this release is still the one to install.
+      phase: logic.phaseAfterCheck(before, release.version),
       checkedAt: Date.now(),
       release: {
         version: release.version,
@@ -189,7 +195,8 @@ async function check(): Promise<ElectronUpdateState> {
     });
   } catch (err) {
     if (run !== checks) return state;
-    return set({ phase: 'idle', error: { during: 'check', message: err instanceof Error ? err.message : String(err) } });
+    // The offer from before the check stays: its release is still shown.
+    return set({ phase: logic.phaseAfterFailedCheck(before), error: { during: 'check', message: err instanceof Error ? err.message : String(err) } });
   }
 }
 
@@ -197,6 +204,8 @@ async function check(): Promise<ElectronUpdateState> {
 async function setChannel(value: UpdateChannel): Promise<ElectronUpdateState> {
   const channel = logic.channelOf(value);
   write(CHANNEL_PREF, channel);
+  // Picked by hand: no later start takes it back to Stabil (logic.movesToStable).
+  write(MOVED_PREF, logic.pickedMarker(state.current));
   if (channel === state.channel) return state;
   set({ channel });
   if (state.phase === 'downloading') await cancel();
@@ -208,8 +217,9 @@ async function setChannel(value: UpdateChannel): Promise<ElectronUpdateState> {
 /** Android's version for an API level, as the phone's settings name it. */
 const ANDROID_VERSION: Record<number, string> = { 30: '11', 31: '12', 32: '12L', 33: '13', 34: '14', 35: '15', 36: '16', 37: '17' };
 
-/** A failed download's reason in words: a release for a newer Android says which (UpdaterPlugin). */
+/** A failed download's reason in words: a release for a newer Android says which, one Android would refuse as older says so (UpdaterPlugin). */
 function downloadError(error: string | undefined): string {
+  if (error === 'older-version') return msgs().android.updates.olderVersion;
   const needs = /^needs-sdk:(\d+)$/.exec(error ?? '');
   if (!needs) return error ?? '';
   const sdk = Number(needs[1]);
@@ -220,7 +230,8 @@ function fromNative(s: UpdaterState): void {
   if (s.phase === 'downloading') set({ phase: 'downloading', received: s.received, total: s.total, error: null });
   else if (s.phase === 'ready') set({ phase: 'ready', received: s.total, total: s.total });
   else if (s.phase === 'failed') set({ phase: 'available', error: { during: 'download', message: downloadError(s.error) } });
-  else if (s.phase === 'idle' && state.phase === 'downloading') set({ phase: 'available', received: 0 });
+  // A download cancelled — or, back from Android's installer, the file gone: on offer again.
+  else if (s.phase === 'idle' && (state.phase === 'downloading' || state.phase === 'installing')) set({ phase: 'available', received: 0 });
 }
 
 async function download(): Promise<ElectronUpdateState> {
@@ -308,7 +319,10 @@ export async function installUpdates(): Promise<void> {
   if (installed) track('update_installed', { from: installed.from, to: installed.version });
 
   void GirovoUpdater.addListener('state', fromNative);
-  // Android's installer opened and was dismissed: the APK is still there to install.
+  // Android's installer opened and was dismissed: the APK is still there to
+  // install. The plugin says so when the app is back in front ('ready',
+  // fromNative) — the installer's question need not hide the page; this is
+  // for when it did.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && state.phase === 'installing') set({ phase: 'ready' });
   });

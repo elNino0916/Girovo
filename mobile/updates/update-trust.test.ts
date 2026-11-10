@@ -143,6 +143,18 @@ test('a manifest that does not add up is refused', () => {
   assert.equal(releaseOf('not json'), null);
 });
 
+test('a manifest\'s build is a number: none, null or text is refused', () => {
+  // A version without a build number: its manifest says "build": null, and null is not that number.
+  assert.equal(buildNumber('6.0.3-rc.1'), null);
+  assert.match(manifestText('6.0.3-rc.1'), /"build": null/);
+  assert.equal(releaseOf(manifestText('6.0.3-rc.1')), null);
+  assert.equal(releaseOf(manifestText('6.0.2', { build: null })), null);
+  assert.equal(releaseOf(manifestText('6.0.2', { build: undefined })), null, 'no build at all');
+  assert.equal(releaseOf(manifestText('6.0.2', { build: String(buildNumber('6.0.2')) })), null, 'a number written as text');
+  assert.equal(releaseOf(manifestText('6.0.2', { build: 600020_000000000.5 })), null);
+  assert.equal(releaseOf(manifestText('6.0.2', { build: buildNumber('6.0.2') }))?.version, '6.0.2');
+});
+
 test('girovo.de’s answer is read, anything else refused', () => {
   const list = parseListing({ format: 'girovo-updates', v: 1, releases: [
     { version: '6.0.3', rollout: 20, manifest: 'm', sig: 's' },

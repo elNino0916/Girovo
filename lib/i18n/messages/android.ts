@@ -131,6 +131,8 @@ export const de = {
     /** A release for a newer Android than the phone's (mobile/bridges/updates.ts). */
     needsAndroid: (version: string) =>
       `Diese Version braucht Android ${version} oder neuer. Hier bleibt Girovo bei der aktuellen Version.`,
+    /** A release Android counts as older than the installed app and would refuse (UpdaterPlugin). */
+    olderVersion: 'Diese Version lässt sich über die vorhandene nicht installieren.',
     /** The Google Play build: Play brings updates. */
     play: 'Updates kommen über Google Play.',
     playAvailable: 'Bei Google Play gibt es eine neue Version von Girovo.',
@@ -277,6 +279,7 @@ export const en: typeof de = {
     installs: 'Android will ask whether you want to install the new version. Girovo restarts afterwards.',
     permission: 'Allow Girovo to install apps in Android’s settings, then tap “Install” again.',
     needsAndroid: (version) => `This version needs Android ${version} or later. Girovo stays at the current version here.`,
+    olderVersion: 'This version can’t be installed over the one you have.',
     play: 'Updates come through Google Play.',
     playAvailable: 'A new version of Girovo is on Google Play.',
     playUpdate: 'Update through Google Play',

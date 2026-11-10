@@ -127,10 +127,20 @@ public class UpdaterPlugin extends Plugin {
                 // A release for a newer Android than this phone's never reaches
                 // the installer, which would only say "App not installed": the
                 // page says which Android it needs (mobile/bridges/updates.ts).
-                int needs = minSdk(target);
+                PackageInfo archive = getContext().getPackageManager().getPackageArchiveInfo(target.getPath(), 0);
+                int needs = minSdk(archive);
                 if (needs > Build.VERSION.SDK_INT) {
                     target.delete();
                     throw new IllegalStateException("needs-sdk:" + needs);
+                }
+                // Nor one Android counts as older than the installed app: a
+                // preview of a patch release has a lower version code than
+                // the release before it (android/app/build.gradle) while the
+                // updater orders it above. The installer would refuse it as
+                // a downgrade; the page says so instead.
+                if (archive != null && archive.getLongVersionCode() < installedVersionCode()) {
+                    target.delete();
+                    throw new IllegalStateException("older-version");
                 }
                 phase = "ready";
                 emit();
@@ -149,9 +159,17 @@ public class UpdaterPlugin extends Plugin {
     }
 
     /** The lowest Android (API level) the downloaded APK declares; 0 when it cannot be read. */
-    private int minSdk(File file) {
-        PackageInfo info = getContext().getPackageManager().getPackageArchiveInfo(file.getPath(), 0);
+    private int minSdk(PackageInfo info) {
         return info == null || info.applicationInfo == null ? 0 : info.applicationInfo.minSdkVersion;
+    }
+
+    /** The installed app's version code; 0 when it cannot be read, which refuses nothing. */
+    private long installedVersionCode() {
+        try {
+            return getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0).getLongVersionCode();
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     @PluginMethod
@@ -164,7 +182,9 @@ public class UpdaterPlugin extends Plugin {
     public void install(PluginCall call) {
         File target = apk();
         JSObject result = new JSObject();
-        if (!"ready".equals(phase) || !target.exists()) {
+        // "installing" too: Android's question was answered with no, or left
+        // open, and the checked file is still there.
+        if (!("ready".equals(phase) || "installing".equals(phase)) || !target.exists()) {
             call.reject("nothing downloaded", "NOT_READY");
             return;
         }
@@ -197,6 +217,20 @@ public class UpdaterPlugin extends Plugin {
     @PluginMethod
     public void playUpdate(PluginCall call) {
         call.unavailable("Google Play updates are in the Play build only.");
+    }
+
+    /**
+     * Back in front with the installer's question behind it: had the update
+     * been installed, this process would be gone. The file waits for the next
+     * tap, and the page hears it (mobile/bridges/updates.ts fromNative).
+     */
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        if ("installing".equals(phase)) {
+            phase = apk().exists() ? "ready" : "idle";
+            emit();
+        }
     }
 
     @Override

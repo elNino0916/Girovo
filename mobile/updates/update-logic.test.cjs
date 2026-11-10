@@ -290,3 +290,38 @@ test('a release moves an install on the Nightly channel back to Stabil, once', (
   assert.equal(logic.movesToStable('preview', '6.0.0-preview.2', null), false);
   assert.equal(logic.movesToStable('preview', '6.0.0-dev.57', null), false);
 });
+
+test('a channel picked by hand is never moved back', () => {
+  // Stabil from the first start, so nothing ever moved; then Nightly is picked on 6.0.4.
+  const prefs = { channel: 'stable', moved: null };
+  assert.equal(logic.movesToStable(prefs.channel, '6.0.4', prefs.moved), false);
+  prefs.channel = logic.channelOf('preview');
+  assert.equal(logic.movesToStable(prefs.channel, '6.0.4', prefs.moved), true, 'without the marker the next start took the choice back');
+  prefs.moved = logic.pickedMarker('6.0.4');
+  assert.equal(prefs.moved, '6.0.4');
+  assert.equal(logic.movesToStable(prefs.channel, '6.0.4', prefs.moved), false, 'the next start');
+  assert.equal(logic.movesToStable(prefs.channel, '6.1.0', prefs.moved), false, 'and the next release');
+  assert.ok(logic.pickedMarker(''), 'a marker even without a version');
+  assert.ok(logic.pickedMarker(undefined));
+  assert.equal(logic.movesToStable('preview', '6.0.4', logic.pickedMarker(undefined)), false);
+});
+
+test('a check keeps a downloaded update ready for the same release', () => {
+  assert.equal(logic.phaseAfterCheck({ phase: 'ready', version: '6.0.5' }, '6.0.5'), 'ready');
+  assert.equal(logic.phaseAfterCheck({ phase: 'ready', version: '6.0.5' }, '6.0.6'), 'available', 'a newer one has to be downloaded');
+  assert.equal(logic.phaseAfterCheck({ phase: 'available', version: '6.0.5' }, '6.0.5'), 'available');
+  assert.equal(logic.phaseAfterCheck({ phase: 'idle', version: null }, '6.0.5'), 'available');
+  assert.equal(logic.phaseAfterCheck({ phase: 'current', version: null }, '6.0.5'), 'available');
+  assert.equal(logic.phaseAfterCheck({ phase: 'ready', version: null }, null), 'available');
+  assert.equal(logic.phaseAfterCheck(null, '6.0.5'), 'available');
+});
+
+test('a failed check leaves an offer as it was, and claims nothing without one', () => {
+  assert.equal(logic.phaseAfterFailedCheck({ phase: 'ready', version: '6.0.5' }), 'ready');
+  assert.equal(logic.phaseAfterFailedCheck({ phase: 'available', version: '6.0.5' }), 'available');
+  assert.equal(logic.phaseAfterFailedCheck({ phase: 'current', version: null }), 'idle');
+  assert.equal(logic.phaseAfterFailedCheck({ phase: 'idle', version: null }), 'idle');
+  assert.equal(logic.phaseAfterFailedCheck({ phase: 'available', version: null }), 'idle', 'no release, no offer');
+  assert.equal(logic.phaseAfterFailedCheck({ phase: 'checking', version: '6.0.5' }), 'idle');
+  assert.equal(logic.phaseAfterFailedCheck(null), 'idle');
+});
