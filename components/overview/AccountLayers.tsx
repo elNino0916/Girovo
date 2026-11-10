@@ -105,7 +105,8 @@ export function AccountLayers({ onArrange }: { onArrange: () => void }) {
                 aria-label={t.banks.alsoLogin(b.bank.name)}
                 onClick={() => openAddBank({ bank: b.bank, userId: b.ref?.userId })}
               >
-                {b.state === 'loggedOut' ? t.banks.loginAgain : t.banks.login}
+                {/* "Anmelden" in both cases: "Erneut anmelden" left the bank's name 38px of the sidebar (the screen sweep, 2026-11-10). */}
+                {t.banks.login}
               </Button>
             </li>
           ))}
