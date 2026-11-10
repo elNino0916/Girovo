@@ -145,15 +145,21 @@ async function signedCopy(release: Release, preview: boolean): Promise<Release |
   }
 }
 
-/** GitHub's API as before: the latest release, on the preview channel the newest with an APK. */
-async function fromGitHub(preview: boolean): Promise<Release | null> {
+/**
+ * GitHub's API as before: the latest release, on the preview channel the
+ * newest with an APK. `answered.status` gets the HTTP status of its answer,
+ * an error too (logic.notesOutage); it stays null when none came.
+ */
+async function fromGitHub(preview: boolean, answered: { status: number | null }): Promise<Release | null> {
   const url = preview ? logic.listUrl(logic.FEED_URL)! : logic.FEED_URL;
   const ask = () => fetch(url, { headers: { accept: 'application/vnd.github+json' } });
   let res = await ask();
+  answered.status = res.status;
   // As the desktop's updater: GitHub's passing failure is asked once more after a breath.
   if (logic.passingFailure(res.status)) {
     await new Promise((resolve) => setTimeout(resolve, logic.RETRY_DELAY_MS));
     res = await ask();
+    answered.status = res.status;
   }
   if (res.status === 403 || res.status === 429) {
     // The quota is per connection: say when it comes back, where GitHub said.
@@ -185,9 +191,17 @@ async function check(): Promise<ElectronUpdateState> {
   set({ phase: 'checking', error: null });
   try {
     const listed = await fromGirovoDe(preview);
-    // The first failed ask since the last good answer starts the 72 hours (logic.noteFailedAsk).
-    if (listed === undefined) write(LISTED_PREF, logic.noteFailedAsk(read(LISTED_PREF), preview ? 'preview' : 'stable', Date.now()));
-    const found = listed === undefined ? await fromGitHub(preview) : listed;
+    let found = listed;
+    if (listed === undefined) {
+      const github: { status: number | null } = { status: null };
+      try {
+        found = await fromGitHub(preview, github);
+      } finally {
+        // The first failed ask since the last good answer starts the 72 hours
+        // (logic.noteFailedAsk) — only once GitHub answered: offline, nothing is noted.
+        if (logic.notesOutage(false, github.status)) write(LISTED_PREF, logic.noteFailedAsk(read(LISTED_PREF), preview ? 'preview' : 'stable', Date.now()));
+      }
+    }
     if (run !== checks) return state;
     const release = found && !refused.has(found.version) && isNewer(found.version, preview) ? found : null;
     // girovo.de couldn't be asked, and GitHub knows no halt and no rollout:

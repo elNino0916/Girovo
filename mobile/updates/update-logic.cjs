@@ -428,6 +428,19 @@ function noteFailedAsk(text, channel, now) {
 }
 
 /**
+ * Whether a check notes girovo.de's outage (noteFailedAsk): only when
+ * girovo.de gave no good answer (`listedOk` false) and GitHub's API answered
+ * at all (`githubStatus`: the HTTP status of its last answer, an error status
+ * too, or null when no answer came). An answer from GitHub proves the phone
+ * is online; with neither answering it is offline, and an offline phone must
+ * not use up the 72 hours — back online while girovo.de happens to be down,
+ * it would be offered a halted release at once.
+ */
+function notesOutage(listedOk, githubStatus) {
+  return !listedOk && Number.isInteger(githubStatus) && githubStatus >= 100 && githubStatus <= 599;
+}
+
+/**
  * Whether GitHub's release (build `candidate`) may be offered while girovo.de
  * cannot be asked, given the channel's note (`remembered`: { build, at,
  * downSince } or null) and the time `now` (ms). Yes when
@@ -479,6 +492,7 @@ module.exports = {
   listedFor,
   rememberListed,
   noteFailedAsk,
+  notesOutage,
   offersFromGitHub,
   phaseAfterHeldCheck,
   rateLimitWait,

@@ -488,6 +488,27 @@ test('the answers are noted per channel, the latest one, not the highest', () =>
   assert.deepEqual(JSON.parse(logic.noteFailedAsk(text, 'stable', -5)), JSON.parse(text), 'a time that is no whole number notes nothing');
 });
 
+test('the outage is noted only when GitHub answered: an offline phone uses up nothing', () => {
+  assert.equal(logic.notesOutage(false, 200), true, 'girovo.de down, GitHub answered');
+  for (const status of [304, 403, 404, 429, 500, 503]) assert.equal(logic.notesOutage(false, status), true, `GitHub's ${status} is an answer too`);
+  assert.equal(logic.notesOutage(false, null), false, 'neither answered: offline');
+  assert.equal(logic.notesOutage(false, undefined), false);
+  assert.equal(logic.notesOutage(false, 0), false, 'no HTTP status');
+  assert.equal(logic.notesOutage(false, 200.5), false);
+  assert.equal(logic.notesOutage(true, 200), false, 'girovo.de answered: no outage');
+  assert.equal(logic.notesOutage(true, null), false);
+
+  // Four days offline after the last good answer, then online with girovo.de down: held from now.
+  let text = logic.rememberListed(null, 'stable', B604, NOW - 96 * HOUR);
+  for (let h = 90; h > 0; h -= 6) {
+    if (logic.notesOutage(false, null)) text = logic.noteFailedAsk(text, 'stable', NOW - h * HOUR);
+  }
+  assert.equal(logic.listedFor(text, 'stable').downSince, null, 'offline checks noted nothing');
+  if (logic.notesOutage(false, 200)) text = logic.noteFailedAsk(text, 'stable', NOW);
+  assert.equal(logic.listedFor(text, 'stable').downSince, NOW);
+  assert.equal(logic.offersFromGitHub(B605, logic.listedFor(text, 'stable'), NOW), false, 'held, not offered at once');
+});
+
 test('GitHub alone after a channel switch: each channel is held by its own note', () => {
   // On Stabil girovo.de offered nothing above 6.0.4 an hour ago; Nightly was never asked.
   let text = logic.rememberListed(null, 'stable', B604, NOW - HOUR);
