@@ -5,7 +5,8 @@
 // What goes: the data folder's contents (device profiles, vaults, kept
 // Umsätze, the background box, the shell secret, the LAN shelf's folder and
 // tokens, the preferences — the Electron shell's leftovers too, in the folder
-// it shared), Windows Hello's key in Windows, the start with Windows. What
+// it shared, and on Linux the folder a 6.0.0 to 6.0.3 made beside it,
+// paths.rs unused_roots), Windows Hello's key in Windows, the start with Windows. What
 // stays: the installation, and one preference — the move from the Electron
 // app is done, so a fresh start never shows that screen again.
 //
@@ -34,7 +35,17 @@ pub async fn app_reset(app: AppHandle) -> Result<(), String> {
   tauri::async_runtime::spawn_blocking(crate::secret::forget).await.map_err(|e| e.to_string())?;
 
   let root = data_root().to_path_buf();
-  let failed = tauri::async_runtime::spawn_blocking(move || empty(&root)).await.map_err(|e| e.to_string())?;
+  let failed = tauri::async_runtime::spawn_blocking(move || {
+    let mut failed = empty(&root);
+    for other in crate::paths::unused_roots() {
+      if fs::remove_dir_all(&other).is_err() {
+        failed.push(other.to_string_lossy().into_owned());
+      }
+    }
+    failed
+  })
+  .await
+  .map_err(|e| e.to_string())?;
   // In memory as on disk, so nothing writes the old ones back on the way out.
   app.state::<crate::prefs::Prefs>().replace(KEPT);
   if !failed.is_empty() {

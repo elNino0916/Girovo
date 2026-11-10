@@ -467,7 +467,8 @@ with these differences: the ONNX runtime is Linux's, the window has the
 system's own title bar, Windows Hello and the PDF export are not there (the
 page prints instead), and neither package updates itself — the update dialog
 offers the release page instead (see [Updates](#updates)). The settings, the
-vault and the device profiles go to `~/.config/Girovo`.
+vault and the device profiles go to `~/.config/Girovo`, or stay in
+`~/.config/girovo` where a version before 6 left them.
 
 ### Updates
 
