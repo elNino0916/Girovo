@@ -49,6 +49,7 @@ import type { Session } from './session';
 import { EMPTY_VAULT } from './app-types.ts';
 import { OWN_PICTURE, isAvatarChoice, isAvatarImage } from './avatars.ts';
 import { sanitizeBudgets } from './budgets.ts';
+import { withoutMovedLegacy } from './booking-keys.ts';
 import { boxSalt, deriveKey, newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
 import { msgs } from './i18n/index.ts';
 import { sanitizeNotes } from './notes.ts';
@@ -546,8 +547,14 @@ function newestKept(backup: VaultData['keptBalances'], current: VaultData['keptB
  * this one lacks, its rules and notes for bookings this one says nothing
  * about. An own category of the backup with the name of one here is that one:
  * its rules, budget and splits go to it. Both sanitised, so the caps apply.
+ *
+ * A backup from before the booking keys went by the bank's day brings
+ * entries under keys from before: one whose booking this vault already has an
+ * entry for under its key now is left out (lib/booking-keys.ts
+ * withoutMovedLegacy) — beside it, it would come back over the newer one.
  */
-export function mergeVaults(current: VaultData, backup: VaultData): VaultData {
+export function mergeVaults(current: VaultData, fromBackup: VaultData): VaultData {
+  const backup = withoutMovedLegacy(fromBackup, current);
   const own = new Map(current.customCategories.map((c) => [c.name.toLocaleLowerCase('de'), c.id]));
   const ids = new Set(current.customCategories.map((c) => c.id));
   const idMap = new Map<CategoryId, CategoryId>();

@@ -6,7 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EMPTY_VAULT, type VaultData } from './app-types.ts';
 import {
-  BOOKING_KEY_MAX, BOOKING_MAPS, dropKeys, isLegacyKey, keyMoves, migrateBookingKeys, moveEntries, planMoves, receiptMoves, shownFrom, validMove,
+  BOOKING_KEY_MAX, BOOKING_MAPS, dropKeys, isLegacyKey, keyMoves, keysLeadingTo, migrateBookingKeys, moveEntries, pageTies, planMoves, receiptMoves, sharedKeys, showFiled,
+  shownFrom, validMove, withoutMovedLegacy,
   movesInVault, VAULT_MAX_BYTES, type EntryStamp,
 } from './booking-keys.ts';
 import { NOTE_LIMITS, sanitizeNotes } from './notes.ts';
@@ -552,4 +553,99 @@ test('a sync round takes along only the moves whose key from before is in the va
   assert.equal(movesInVault(v, moves, { pairs: 1, chars: 1e6 }).length, 1);
   assert.equal(movesInVault(v, moves, { pairs: 10, chars: 10 }).length, 0);
   assert.deepEqual(movesInVault(EMPTY_VAULT, moves), []);
+});
+
+// ---- the page while a key from before waits ------------------------------------------
+
+test('a choice for a booking clears every key from before leading to it, the hidden one too: a deleted note stays deleted (s3)', () => {
+  // One booking known twice: kept as MT940 (key from before: the day before) and fetched as camt (the same day).
+  const kept = booking(midnight('2026-10-07'), { bankDay: '2026-10-07' });
+  const fetched = booking(noon('2026-10-07'), { bankDay: '2026-10-07' });
+  const [L1, L2, N] = [legacyTxKey(kept), legacyTxKey(fetched), txKey(fetched)];
+  const groups = [{ account: '111', txs: [fetched], covers: (d: string) => d >= '2026-09-01' }, { account: '111', txs: [kept], covers: (d: string) => d >= '2026-01-01' }];
+  const read = keyMoves(groups, { accounts: [] });
+  const waiting = keyMoves(groups, { accounts: ['111', '\u0000logged-out'] });
+  assert.deepEqual([...waiting.keys()], [L2], 'the camt key moves; the MT940 key waits');
+  let v: VaultData = moveEntries({ ...EMPTY_VAULT, notes: { [L1]: 'Brot (alt)', [L2]: 'Kuchen' } }, waiting);
+  assert.deepEqual(v.notes, { [L1]: 'Brot (alt)', [N]: 'Kuchen' });
+  // The user deletes the note: every key leading to the booking goes, the hidden L1 too.
+  assert.deepEqual(keysLeadingTo(read)(N).sort(), [L1, L2].sort());
+  v = { ...v, notes: dropKeys(dropKeys(v.notes, [N]), keysLeadingTo(read)(N)) };
+  assert.equal(showFiled(v, read, new Map()).notes[N], undefined, 'not shown again');
+  // Once every bank is in, the waiting move has nothing to bring back.
+  assert.deepEqual(moveEntries(v, keyMoves(groups, { accounts: ['111'] })).notes, {});
+  // The rule lift, the same way: the old override does not beat the new rule.
+  let c: VaultData = moveEntries({ ...EMPTY_VAULT, txCategories: { [L1]: 'health', [L2]: 'groceries' } }, waiting);
+  c = { ...c, txCategories: dropKeys(c.txCategories, [N, ...keysLeadingTo(read)(N)]) };
+  assert.equal(showFiled(c, read, new Map()).txCategories[N], undefined);
+});
+
+test('the page’s view keeps the categories the same object when only a note changes (categoryOf stays worked out)', () => {
+  const t = booking(midnight('2026-10-07'));
+  const moves = keyMoves([{ txs: [t] }], { accounts: [] });
+  const none = new Map<string, readonly string[]>(); // the page's sharedKeys, memoized
+  const v: VaultData = { ...EMPTY_VAULT, txCategories: { [legacyTxKey(t)]: 'leisure' }, notes: { [legacyTxKey(t)]: 'a' } };
+  const first = showFiled(v, moves, none);
+  assert.equal(first.txCategories[txKey(t)], 'leisure');
+  assert.notEqual(first.txCategories, v.txCategories, 'a key from before is shown');
+  // A note written: the categories and splits keep their identity.
+  const second = showFiled({ ...v, notes: { ...v.notes, other: 'b' } }, moves, none, first);
+  assert.equal(second.txCategories, first.txCategories);
+  assert.equal(second.splits, first.splits);
+  assert.notEqual(second.notes, first.notes);
+  // Nothing changed at all: the very same view.
+  assert.equal(showFiled({ ...v, notes: second.inputs.n as VaultData['notes'] }, moves, none, second), second);
+  // A category changed: worked out again.
+  assert.notEqual(showFiled({ ...v, txCategories: { ...v.txCategories, x: 'media' } }, moves, none, second).txCategories, second.txCategories);
+  // Without keys from before shown, the maps are the vault's own.
+  const plain: VaultData = { ...EMPTY_VAULT, txCategories: { [txKey(t)]: 'leisure' } };
+  assert.equal(showFiled(plain, moves, none).txCategories, plain.txCategories);
+});
+
+test('a key twins may own is shown on each of them, moved for none and cleared by none (f5)', () => {
+  const base = { amount: -12.99, remoteIban: '', remoteName: 'NETFLIX.COM', e2eReference: '', bankReference: '' };
+  const a = { ...base, entryDate: noon('2026-10-06'), valueDate: noon('2026-10-06'), bankDay: '2026-10-06' } as Tx;
+  const b = { ...base, entryDate: midnight('2026-10-07'), valueDate: midnight('2026-10-07'), bankDay: '2026-10-07' } as Tx;
+  const L = legacyTxKey(a);
+  assert.equal(L, legacyTxKey(b));
+  const groups = [{ account: '111', txs: [a] }, { account: '222', txs: [b] }];
+  const read = keyMoves(groups, { accounts: [] });
+  const shared = sharedKeys(groups);
+  assert.deepEqual([...shared.keys()], [L]);
+  assert.deepEqual([...shared.get(L)!].sort(), [txKey(a), txKey(b)].sort());
+  const v: VaultData = { ...EMPTY_VAULT, notes: { [L]: 'Familien-Abo' }, txCategories: { [L]: 'media' } };
+  const shown = showFiled(v, read, shared);
+  assert.equal(shown.notes[txKey(a)], 'Familien-Abo');
+  assert.equal(shown.notes[txKey(b)], 'Familien-Abo');
+  assert.equal(shown.txCategories[txKey(b)], 'media');
+  assert.equal(moveEntries(v, read), v, 'never moved');
+  // A choice for one of them writes its own key and clears nothing shared; there its own entry now stands.
+  assert.deepEqual(keysLeadingTo(read)(txKey(a)), []);
+  const chosen: VaultData = { ...v, notes: { ...v.notes, [txKey(a)]: 'Mein Abo' } };
+  const after = showFiled(chosen, read, shared);
+  assert.equal(after.notes[txKey(a)], 'Mein Abo');
+  assert.equal(after.notes[txKey(b)], 'Familien-Abo');
+  assert.equal(chosen.notes[L], 'Familien-Abo');
+});
+
+test('a backup’s entries under keys from before are left out where the vault has one for the booking under its key now (f1)', () => {
+  const t = booking(midnight('2026-10-07'), { bankDay: '2026-10-07' });
+  const [L, N] = [legacyTxKey(t), txKey(t)];
+  const backup: VaultData = { ...EMPTY_VAULT, txCategories: { [L]: 'groceries' }, splits: {}, notes: { [L]: 'Brot', x: 'y' } };
+  assert.deepEqual(withoutMovedLegacy(backup, { ...EMPTY_VAULT, notes: { [N]: 'Kuchen' } }).notes, { x: 'y' });
+  assert.deepEqual(withoutMovedLegacy(backup, { ...EMPTY_VAULT, notes: { [N]: 'Kuchen' } }).txCategories, { [L]: 'groceries' }, 'a note says nothing about the category');
+  assert.deepEqual(withoutMovedLegacy(backup, { ...EMPTY_VAULT, splits: { [N]: SPLIT } }).txCategories, {}, 'a split under the key now: the category too');
+  // Another booking (other amount, a day further off) is not touched; nothing to leave out, the same object.
+  assert.equal(withoutMovedLegacy(backup, { ...EMPTY_VAULT, notes: { [txKey({ ...t, amount: -1 })]: 'z', [txKey({ ...t, bankDay: '2026-10-09' })]: 'z' } }), backup);
+});
+
+test('with sync on the page ties only a further bank’s receipts itself; the round ties the first login’s (f6)', () => {
+  const t = booking(midnight('2026-10-07'));
+  const moves = keyMoves([{ txs: [t] }]);
+  const docs = [
+    { id: 'a', kind: 'receipt' as const, tx: legacyTxKey(t), sid: 'primary' },
+    { id: 'b', kind: 'receipt' as const, tx: legacyTxKey(t), sid: 'further' },
+  ];
+  assert.deepEqual(pageTies(docs, moves, { synced: false, primary: 'primary' }).map((m) => m.doc.id), ['a', 'b']);
+  assert.deepEqual(pageTies(docs, moves, { synced: true, primary: 'primary' }).map((m) => [m.doc.id, m.tx]), [['b', txKey(t)]]);
 });

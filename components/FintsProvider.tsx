@@ -86,7 +86,8 @@ import {
   type HistoryData, type HistoryGetResponse, type HistoryStatus,
 } from '@/lib/history';
 import {
-  dropKeys, keyMoves, moveEntries, movesInVault, planMoves, receiptMoves, shownFrom, VAULT_MAX_BYTES, type BookingGroup, type KeyMoves,
+  dropKeys, keyMoves, keysLeadingTo, moveEntries, movesInVault, pageTies, sharedKeys, showFiled, VAULT_MAX_BYTES,
+  type BookingGroup, type KeyMoves, type ShownFiled,
 } from '@/lib/booking-keys';
 import { afterStatementRead, pendingView, type PendingRead } from '@/lib/pending';
 import { sanitizeGoals, type SavingsGoal } from '@/lib/savings-goal';
@@ -1979,17 +1980,22 @@ function useFintsState() {
   // every known booking with that key has the same key now. Never one that
   // could be another booking's (lib/booking-keys.ts).
   const readMoves = useMemo(() => keyMoves(bookingGroups, { accounts: [] }), [bookingGroups]);
+  // A key from before that several known bookings may own (twins) is shown on
+  // each of them, as the version before did — never moved, deleted by none.
+  const sharedReads = useMemo(() => sharedKeys(bookingGroups), [bookingGroups]);
 
-  /** A booking's receipts — those tied to a key from before that leads to it included. */
+  /** A booking's receipts — those tied to a key from before that leads to it, or that it may share, included. */
   const receiptsOf = useCallback((tx: SerializedTransaction) => {
     const key = txKey(tx);
-    return docs.filter((d) => d.kind === 'receipt' && !!d.tx && (d.tx === key || readMoves.get(d.tx)?.to === key));
-  }, [docs, readMoves]);
+    return docs.filter((d) => d.kind === 'receipt' && !!d.tx
+      && (d.tx === key || readMoves.get(d.tx)?.to === key || !!sharedReads.get(d.tx)?.includes(key)));
+  }, [docs, readMoves, sharedReads]);
 
   /** Bookings that have a receipt, by txKey — for the rows' marker. */
   const receiptKeys = useMemo(
-    () => new Set(docs.filter((d) => d.kind === 'receipt' && d.tx).map((d) => readMoves.get(d.tx!)?.to ?? d.tx!)),
-    [docs, readMoves],
+    () => new Set(docs.filter((d) => d.kind === 'receipt' && d.tx)
+      .flatMap((d) => sharedReads.get(d.tx!) ?? [readMoves.get(d.tx!)?.to ?? d.tx!])),
+    [docs, readMoves, sharedReads],
   );
 
   /**
@@ -4737,21 +4743,29 @@ function useFintsState() {
   // Receipts that could not be tied to their key now: not tried again this session (a new login's are).
   const failedReceipts = useRef(new Set<string>());
   const movesAsked = useRef<KeyMoves | null>(null);
-  // The vault as the page reads it: what is not moved yet shown under the
-  // booking it leads to (readMoves), and which key from before each such
-  // entry is under — the only ones a choice for the booking clears.
-  const shownFiled = useMemo(() => planMoves(vault ?? EMPTY_VAULT, readMoves, { display: true }), [vault, readMoves]);
-  const shownFromNow = useMemo(() => shownFrom(shownFiled.plan), [shownFiled]);
-  const shownFromRef = useRef(shownFromNow);
-  shownFromRef.current = shownFromNow;
+  // The vault as the page reads it (lib/booking-keys.ts showFiled): what is
+  // not moved yet shown under the booking it leads to, a key twins may own
+  // on each of them. Worked out again only for a part whose maps changed: a
+  // note written leaves the categories the same object, and every booking's
+  // category is not worked out again.
+  const shownPrev = useRef<ShownFiled | undefined>(undefined);
+  const shownFiled = useMemo(
+    () => (shownPrev.current = showFiled(vault ?? EMPTY_VAULT, readMoves, sharedReads, shownPrev.current)),
+    [vault, readMoves, sharedReads],
+  );
+  // The keys from before a choice for a booking clears: every one that leads to it (keysLeadingTo).
+  const leadingNow = useMemo(() => keysLeadingTo(readMoves), [readMoves]);
+  const leadingRef = useRef(leadingNow);
+  leadingRef.current = leadingNow;
   const [filedCategories, filedSplits, filedNotes] = [vault?.txCategories, vault?.splits, vault?.notes];
   useEffect(() => {
     if (!bookingKeyMoves.size || view !== 'dashboard' || vaultStatus === 'idle' || vaultStatus === 'loading') return;
-    const receipts = () => receiptMoves(docsRef.current, bookingKeyMovesRef.current)
+    // Without sync the page ties every receipt anew; with sync only a further bank's (the round ties the first login's).
+    const receipts = (synced: boolean) => pageTies(docsRef.current, bookingKeyMovesRef.current, { synced, primary: sessionRef.current })
       .filter((m) => !movingReceipts.current.has(m.doc.id) && !failedReceipts.current.has(`${m.doc.sid}|${m.doc.id}`));
     const filed = vaultRef.current ?? EMPTY_VAULT;
     const entries = moveEntries(filed, bookingKeyMoves) !== filed;
-    if (!entries && !receipts().length) return;
+    if (!entries && !receipts(false).length) return;
     const sid = sessionRef.current;
     void (async () => {
       if (syncRef.current === null) await refreshSync();
@@ -4770,8 +4784,8 @@ function useFintsState() {
       } else if (entries) {
         updateVault((v) => moveEntries(v, bookingKeyMovesRef.current, { maxBytes: VAULT_MAX_BYTES }));
       }
-      // With sync on the round ties the receipts anew, at their own stamps (lib/sync-entries.ts moveMergedKeys).
-      for (const { doc, tx } of synced ? [] : receipts()) {
+      // With sync on the round ties the first login's receipts anew, at their own stamps (lib/sync-entries.ts moveMergedKeys).
+      for (const { doc, tx } of receipts(synced)) {
         // Another pass has it, or has tied it anew meanwhile.
         if (!isCurrent(sid) || movingReceipts.current.has(doc.id) || !docsRef.current.some((d) => d.id === doc.id && d.tx === doc.tx)) continue;
         movingReceipts.current.add(doc.id);
@@ -5128,8 +5142,8 @@ function useFintsState() {
 
   const categoryRules = vault?.categoryRules;
   // As shown: entries not moved yet under the booking they lead to (shownFiled).
-  const txCategories = shownFiled.vault.txCategories;
-  const splits = shownFiled.vault.splits;
+  const txCategories = shownFiled.txCategories;
+  const splits = shownFiled.splits;
   const customCategories = vault?.customCategories;
   // The user's own categories, registered for every label, menu and sum on
   // the page (lib/categories.ts). Here, during the render, rather than in an
@@ -5345,7 +5359,7 @@ function useFintsState() {
   // The user's notes on bookings (lib/notes.ts): one lookup for every place
   // that shows or searches them. A new function whenever a note changes, so
   // a search context built on it is built anew.
-  const notes = shownFiled.vault.notes;
+  const notes = shownFiled.notes;
   const noteOf = useCallback(
     (tx: SerializedTransaction): string | undefined => {
       const n = notes?.[txKey(tx)];
@@ -5550,10 +5564,11 @@ function useFintsState() {
    */
   const setCategory = useCallback((tx: SerializedTransaction, id: CategoryId | null, opts: { rule?: boolean } = {}) => {
     const key = txKey(tx);
-    // What was shown for the booking from a key from before goes with every
-    // choice for it, so it never comes back over it — and nothing else: an
-    // entry the user did not see stays (lib/booking-keys.ts shownFrom).
-    const olds = shownFromRef.current(['txCategories', 'splits'], key);
+    // Every key from before that leads to the booking goes with every choice
+    // for it — the one shown and any a move would set aside behind it — so
+    // none comes back over it. A key twins may share stays: it was theirs too
+    // (lib/booking-keys.ts keysLeadingTo).
+    const olds = leadingRef.current(key);
     // A choice of one category — or going back to the automatic one — ends a
     // split of this booking: the booking is then filed whole again.
     const unsplit = (v: VaultData): VaultData => {
@@ -5588,7 +5603,7 @@ function useFintsState() {
       for (const t of loaded) {
         if (counterpartyRuleKey(reach, t) !== who) continue;
         stale.add(txKey(t));
-        for (const k of shownFromRef.current(['txCategories', 'splits'], txKey(t))) stale.add(k);
+        for (const k of leadingRef.current(txKey(t))) stale.add(k);
       }
       updateVault((v0) => {
         const v = unsplit(v0);
@@ -5614,8 +5629,8 @@ function useFintsState() {
    */
   const setSplit = useCallback((tx: SerializedTransaction, parts: readonly SplitPart[] | null): boolean => {
     const key = txKey(tx);
-    // What was shown for it from a key from before goes too, as with setCategory.
-    const olds = shownFromRef.current(['txCategories', 'splits'], key);
+    // Its keys from before go too, as with setCategory.
+    const olds = leadingRef.current(key);
     if (parts === null) {
       updateVault((v) => {
         const rest = dropKeys(v.splits, [key, ...olds]);
@@ -5723,8 +5738,8 @@ function useFintsState() {
    */
   const setNote = useCallback((tx: SerializedTransaction, text: string | null) => {
     const key = txKey(tx);
-    // The note shown for it from a key from before goes too, as with setCategory.
-    const olds = shownFromRef.current(['notes'], key);
+    // Its keys from before go too, as with setCategory.
+    const olds = leadingRef.current(key);
     let dropped = 0;
     updateVault((v) => {
       const res = withNote(dropKeys(v.notes, olds), key, text);

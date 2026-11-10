@@ -380,6 +380,161 @@ export function migrateBookingKeys(vault: VaultData, bookings: readonly KeyedBoo
 }
 
 /**
+ * Keys from before that several known bookings may own (twins: a camt and an
+ * MT940 booking alike in the rest, a day apart), with the keys now of those
+ * bookings. Never moved; shown on each of them, as the version before showed
+ * the entry on every booking with that key (showFiled), and deleted by none.
+ */
+export function sharedKeys(groups: readonly BookingGroup[]): ReadonlyMap<string, readonly string[]> {
+  const to = new Map<string, Set<string>>();
+  for (const group of groups) {
+    for (const tx of group.txs) {
+      const [old, key] = bookingKeys(tx);
+      if (!isLegacyKey(old)) continue;
+      const set = to.get(old);
+      if (set) set.add(key);
+      else to.set(old, new Set([key]));
+    }
+  }
+  const out = new Map<string, readonly string[]>();
+  for (const [old, keys] of to) if (keys.size > 1) out.set(old, [...keys]);
+  return out;
+}
+
+// The keys from before that lead to each key now, worked out once per set of moves.
+const reverseOf = new WeakMap<KeyMoves, Map<string, string[]>>();
+
+/**
+ * Every key from before that `moves` lead to a key now — the one shown for
+ * the booking and those a move would set aside behind it (another copy of
+ * the booking, its key from before waiting). A choice for the booking clears
+ * all of them: shown or not, a move would discard them, and left standing
+ * the hidden one would come back once the shown one is gone. A key several
+ * bookings may own (sharedKeys) is never among them.
+ */
+export function keysLeadingTo(moves: KeyMoves): (key: string) => string[] {
+  let reverse = reverseOf.get(moves);
+  if (!reverse) {
+    reverse = new Map();
+    for (const [old, { to }] of moves) {
+      const list = reverse.get(to);
+      if (list) list.push(old);
+      else reverse.set(to, [old]);
+    }
+    reverseOf.set(moves, reverse);
+  }
+  const r = reverse;
+  return (key) => r.get(key) ?? [];
+}
+
+type Maps = Pick<VaultData, BookingMap>;
+type ShownUnit = { maps: Partial<Maps>; plan: MovePlan };
+
+/** One part of the vault as the page reads it: moves shown (planMoves, display), then shared keys on every candidate. */
+function showUnit(maps: Partial<Maps>, fields: readonly BookingMap[], moves: KeyMoves, shared: ReadonlyMap<string, readonly string[]>): ShownUnit {
+  const { vault: shown, plan } = planMoves(maps as VaultData, moves, { display: true });
+  const out: Partial<Maps> = Object.fromEntries(fields.map((f) => [f, shown[f]]));
+  const copied = new Set<BookingMap>();
+  for (const [old, tos] of shared) {
+    const present = fields.filter((f) => has(maps[f] as Record<string, unknown>, old));
+    if (!present.length) continue;
+    for (const to of tos) {
+      if (fields.some((f) => has(out[f] as Record<string, unknown>, to))) continue;
+      for (const f of present) {
+        if (!copied.has(f)) {
+          out[f] = { ...(out[f] as object) } as never;
+          copied.add(f);
+        }
+        (out[f] as Record<string, unknown>)[to] = (maps[f] as Record<string, unknown>)[old];
+      }
+    }
+  }
+  return { maps: out, plan };
+}
+
+/**
+ * The per-booking maps as the page reads them: what is not moved yet shown
+ * under the booking it leads to (`moves`, the page's readMoves), a key
+ * several bookings may own shown on each of them (`shared`), and the rest as
+ * it is. Worked out per part — the categories with the splits, the notes —
+ * and only for a part whose maps or moves changed since `prev`: a note
+ * written leaves the categories the very same object, so nothing that
+ * depends on them is worked out again.
+ */
+export type ShownFiled = Maps & {
+  readonly inputs: { c: unknown; s: unknown; n: unknown; moves: KeyMoves; shared: ReadonlyMap<string, readonly string[]> };
+  readonly cats: ShownUnit;
+  readonly noted: ShownUnit;
+};
+export function showFiled(
+  vault: Pick<VaultData, BookingMap>, moves: KeyMoves, shared: ReadonlyMap<string, readonly string[]>, prev?: ShownFiled,
+): ShownFiled {
+  const { txCategories: c, splits: s, notes: n } = vault;
+  const sameReads = !!prev && prev.inputs.moves === moves && prev.inputs.shared === shared;
+  const catsSame = sameReads && prev!.inputs.c === c && prev!.inputs.s === s;
+  const notesSame = sameReads && prev!.inputs.n === n;
+  if (catsSame && notesSame) return prev!;
+  const cats = catsSame ? prev!.cats : showUnit({ txCategories: c, splits: s }, ['txCategories', 'splits'], moves, shared);
+  const noted = notesSame ? prev!.noted : showUnit({ notes: n }, ['notes'], moves, shared);
+  return {
+    txCategories: cats.maps.txCategories!, splits: cats.maps.splits!, notes: noted.maps.notes!,
+    inputs: { c, s, n, moves, shared }, cats, noted,
+  };
+}
+
+/**
+ * `backup` without the entries under keys from before that `current` has
+ * already moved: an entry in the same part (a category or split, a note)
+ * under a key now of the same booking a day apart at most (validMove). A
+ * backup made before the move would otherwise put the old entry back beside
+ * the user's newer one — and, stamped anew by the next sync round, over it
+ * (lib/vault.ts mergeVaults).
+ */
+export function withoutMovedLegacy<V extends Pick<VaultData, BookingMap>>(backup: V, current: Pick<VaultData, BookingMap>): V {
+  let out = backup;
+  for (const fields of UNITS) {
+    const days = new Map<string, number[]>();
+    for (const f of fields) {
+      for (const k of Object.keys((current[f] ?? {}) as Record<string, unknown>)) {
+        if (isLegacyKey(k)) continue;
+        const parts = splitKey(k.slice(KEY_MARK.length));
+        if (!parts) continue;
+        const list = days.get(parts.rest);
+        const n = parts.day ? dayNumber(parts.day) : Number.NaN;
+        if (list) list.push(n);
+        else days.set(parts.rest, [n]);
+      }
+    }
+    if (!days.size) continue;
+    const moved = (k: string) => {
+      const parts = isLegacyKey(k) ? splitKey(k) : null;
+      const list = parts ? days.get(parts.rest) : undefined;
+      if (!parts || !list) return false;
+      const n = parts.day ? dayNumber(parts.day) : Number.NaN;
+      return list.some((d) => (Number.isNaN(n) || Number.isNaN(d) ? Number.isNaN(n) && Number.isNaN(d) : Math.abs(d - n) <= 1));
+    };
+    for (const f of fields) {
+      const map = (out[f] ?? {}) as Record<string, unknown>;
+      const keys = Object.keys(map).filter(moved);
+      if (keys.length) out = { ...out, [f]: dropKeys(map, keys) };
+    }
+  }
+  return out;
+}
+
+/**
+ * The receipts the page ties to their key now itself (lib/doc-store.ts
+ * linkReceipt): every one without sync; with sync only those of a further
+ * bank's login — the round ties the first login's receipts (lib/sync.ts),
+ * and only those.
+ */
+export function pageTies<D extends Pick<KeptDoc, 'kind' | 'tx'> & { sid?: string }>(
+  docs: readonly D[], moves: KeyMoves, opts: { synced: boolean; primary: string | null },
+): { doc: D; tx: string }[] {
+  return receiptMoves(docs, moves).filter((m) => !opts.synced || m.doc.sid !== opts.primary);
+}
+
+/**
  * Which key from before each shown entry came from, by "field/key now" — for
  * a plan made only to show (the provider reads the vault through it). What
  * sets or clears a booking's entry clears these and only these: what the

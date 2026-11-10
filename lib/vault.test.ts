@@ -461,3 +461,52 @@ test('wipe without a login to go by is refused', async () => {
   const s = { meta: {}, client: { config: {} } } as unknown as Session;
   await assert.rejects(vault.wipeVault(s), (err: unknown) => err instanceof vault.VaultError && err.status === 409);
 });
+
+// ---- a backup from before the booking keys went by the bank's day (lib/booking-keys.ts) ----
+
+test('restoring a backup from before the move keeps the newer entries under the keys now, with sync off and on (s1)', async () => {
+  const { legacyTxKey, txKey } = await import('./categories.ts');
+  const { keyMoves, moveEntries } = await import('./booking-keys.ts');
+  const { runSync, newGroupKey, newDeviceId } = await import('./sync.ts');
+  // MT940 on German time: the key from before names the day before.
+  const tx = { entryDate: '2026-10-06T22:00:00.000Z', valueDate: '2026-10-06T22:00:00.000Z', bankDay: '2026-10-07', amount: -12.9, remoteIban: 'DE02120300000000202051', remoteName: '', e2eReference: 'E1', bankReference: '' };
+  const [L, N] = [legacyTxKey(tx), txKey(tx)];
+  const moves = keyMoves([{ txs: [tx as never] }]);
+  const backup: VaultData = { ...EMPTY_VAULT, txCategories: { [L]: 'groceries' }, notes: { [L]: 'Brot' }, splits: {} };
+
+  // Sync off: the merge leaves the old entries out, and nothing is moved over the newer ones.
+  const current: VaultData = { ...EMPTY_VAULT, txCategories: { [N]: 'leisure' }, notes: { [N]: 'Kuchen für Oma' } };
+  const merged = vault.mergeVaults(current, backup);
+  assert.deepEqual([merged.txCategories, merged.notes], [{ [N]: 'leisure' }, { [N]: 'Kuchen für Oma' }]);
+  assert.deepEqual(moveEntries(merged, moves).txCategories, { [N]: 'leisure' });
+  // A split under the key now counts for the category too (one choice), a note only for the note.
+  const split = vault.mergeVaults({ ...EMPTY_VAULT, splits: { [N]: [{ id: 'groceries', cents: 800 }, { id: 'leisure', cents: 490 }] } }, backup);
+  assert.deepEqual([split.txCategories, split.notes], [{}, { [L]: 'Brot' }]);
+  // What the vault has nothing for comes in from the backup, as before.
+  const other = '2026-05-05|-1.00|DE00X|R';
+  assert.equal(vault.mergeVaults(current, { ...backup, notes: { ...backup.notes, [other]: 'alt' } }).notes[other], 'alt');
+
+  // Sync on: the round after the restore must not carry the old values over the user's on every device.
+  const files = new Map<string, Uint8Array>();
+  const place = { get: async (n: string) => files.get(n) ?? null, put: async (n: string, b: Uint8Array) => { files.set(n, b); }, remove: async (n: string) => { files.delete(n); } };
+  const key = newGroupKey();
+  const dev = (name: string, v: VaultData) => ({ id: newDeviceId(), name, vault: v, local: { stamps: {}, uploaded: [], hashes: {} } as import('./sync.ts').SyncLocal });
+  const desk = dev('desk', { ...EMPTY_VAULT, txCategories: { [L]: 'groceries' }, notes: { [L]: 'Brot' } });
+  const phone = dev('phone', { ...EMPTY_VAULT });
+  const round = async (d: ReturnType<typeof dev>, now: number, withMoves = false) => {
+    const r = await runSync({ store: place as never, key, device: { id: d.id, name: d.name }, vault: d.vault, local: d.local, receipts: null, now, ...(withMoves ? { moves } : {}) });
+    d.vault = r.vault;
+    d.local = r.local;
+  };
+  await round(desk, 1000, true);
+  desk.vault = { ...desk.vault, txCategories: { [N]: 'leisure' }, notes: { [N]: 'Kuchen für Oma' } };
+  await round(desk, 2000, true);
+  await round(phone, 2100);
+  desk.vault = vault.mergeVaults(desk.vault, backup);
+  await round(desk, 50_000, true);
+  await round(phone, 50_100);
+  for (const d of [desk, phone]) {
+    assert.deepEqual(d.vault.txCategories, { [N]: 'leisure' }, d.name);
+    assert.deepEqual(d.vault.notes, { [N]: 'Kuchen für Oma' }, d.name);
+  }
+});
