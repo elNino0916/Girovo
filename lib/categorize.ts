@@ -7,6 +7,8 @@
 //   1. the user filed this very booking            (manual — txKey)
 //   2. the user filed this counterparty            (rule — counterpartyKey)
 //   3. the other side is one of the user's own accounts   → Umbuchung
+//      (by its IBAN, or — a card account has none — as the card bill's
+//      debit and credit found on two loaded accounts: cardSettlements)
 //   4. the bank's own booking code says what it is (salary, cash, fees)
 //   5. the counterparty's name, the resolved merchant and the remittance
 //      text match a known German company or a telling word
@@ -23,11 +25,12 @@
 // Pure and node-test-safe: no path aliases, and runtime imports of sibling
 // modules carry their .ts extension.
 
-import type { SerializedTransaction } from './fints-types';
+import type { SerializedAccount, SerializedTransaction } from './fints-types';
 import type { CategoryId, CategoryResult } from './categories';
 import { categoryDef, counterpartyKey, counterpartyName, counterpartyRule, isCategoryId, txCreditorId, txKey } from './categories.ts';
 import { isCardPurpose, stripCardBoilerplate } from './card-purpose.ts';
-import { compactIban } from './format.ts';
+import { isCardAccount } from './balances.ts';
+import { compactIban, dayKey, dayNumber } from './format.ts';
 import { isFacilitatorName } from './merchant-match.ts';
 import { parsePurpose } from './sepa-purpose.ts';
 import { splitParts, type SplitPart } from './splits.ts';
@@ -37,6 +40,12 @@ export type { CategoryResult };
 export type CategorizeContext = {
   /** The session's own account IBANs. Normalised or not — both are accepted. */
   ownIbans: ReadonlySet<string> | readonly string[];
+  /**
+   * txKey() of the bookings that settle a card's bill between two loaded own
+   * accounts (cardSettlements): an Umbuchung like one to an own IBAN, for
+   * accounts that have no IBAN to know them by.
+   */
+  cardSettlements?: ReadonlySet<string> | null;
   /** counterpartyKey() → category: the user's "always file X under Y". */
   rules?: Record<string, CategoryId> | null;
   /**
@@ -93,6 +102,131 @@ export function isOwnAccount(
   if (ownIbans instanceof Set && ownIbans.has(iban)) return true;
   for (const own of ownIbans) if (compactIban(own) === iban) return true;
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// The card bill, seen from both accounts
+// ---------------------------------------------------------------------------
+
+/** How many days may lie between the bill's debit on the current account and its credit on the card. */
+const SETTLEMENT_DAYS = 5;
+
+/**
+ * How a card's bill reads in a booking text, a purpose or a counterparty's
+ * name — on the folded text (foldText: upper case, umlauts spelled out,
+ * punctuation a space), in this one place:
+ *
+ *   KREDITKARTE…        "Kreditkarte", "Kreditkarten", "Kreditkartenabrechnung"
+ *   KREDITK             the banks' short form, "KREDITK. 4000"
+ *   …KARTENABRECHNUNG   "Kartenabrechnung"
+ *   UMSATZABRECHNUNG
+ *   AUSGLEICH           "Ausgleich Kreditkarte", "Ausgleich"
+ *   VISA or MASTERCARD together with ABRECHNUNG, in either order
+ *   EINZUG … KARTE      "Einzug Karte 1234", "Einzug Visa-Karte", "Einzug
+ *                       Kartenumsätze" — the word Einzug itself, within three
+ *                       words of a card; never a card payment collected by
+ *                       direct debit ("Einzugsermächtigung … Kartenzahlung")
+ *   CARD SETTLEMENT
+ *
+ * A pair needs one of them on at least one of its two bookings. A card's
+ * number in a purpose ("VISA 4000 12XX"), "Kartenzahlung" or a bare
+ * "Abrechnung" is none.
+ */
+const SETTLEMENT_WORDS = new RegExp([
+  'KREDITKARTE',
+  '(^| )KREDITK( |$)',
+  'KARTENABRECHNUNG',
+  'UMSATZABRECHNUNG',
+  'AUSGLEICH',
+  '(VISA|MASTER ?CARD).*ABRECHNUNG',
+  'ABRECHNUNG.*(VISA|MASTER ?CARD)',
+  '(^| )EINZUG( [A-Z0-9]+){0,3} [A-Z]*KARTE(?!NZAHLUNG)',
+  'CARD SETTLEMENT',
+].join('|'), 'i');
+
+const readsLikeSettlement = (tx: Pick<SerializedTransaction, 'bookingText' | 'purpose' | 'remoteName'>) =>
+  SETTLEMENT_WORDS.test(foldText(`${tx.bookingText ?? ''} ${tx.purpose ?? ''} ${tx.remoteName ?? ''}`));
+
+/**
+ * The bookings that settle a credit card's bill between two of the user's own
+ * accounts, by txKey: the debit on the current account and the credit it
+ * makes on the card. They are one Umbuchung — counted as spending and income,
+ * the bill would be there twice under "Alle geladenen Konten", once as the
+ * card's purchases and once as their settlement.
+ *
+ * Own accounts are known by IBAN (isOwnAccount), and a card account usually
+ * has none, so the two sides are found by what they share: a debit on an
+ * account that is no card and a credit on a card account (lib/balances.ts
+ * isCardAccount), the same sum to the cent in the same currency, at most
+ * SETTLEMENT_DAYS apart — and at least one of the two reads like a card's
+ * bill (SETTLEMENT_WORDS). The sum and the days alone are not enough: a
+ * refund on the card and a purchase of the same price on the current account
+ * in the same week would both leave the figures, and hiding real spending is
+ * worse than the double count this is here to end. One booking pairs with one
+ * mirror. Where several fit, wording on both sides goes before wording on
+ * one, then the nearest in days.
+ *
+ * Only with both sides loaded: the current account alone shows the bill as
+ * the spending it is the only trace of, and the card alone keeps its credit.
+ * Cash from a machine is never the bill, so it is never a side. Pure:
+ * `txByAccount` is the loaded bookings by account key, as the page holds them.
+ */
+export function cardSettlements(
+  accounts: readonly Pick<SerializedAccount, 'accountNumber' | 'accountType'>[],
+  txByAccount: Readonly<Record<string, readonly SerializedTransaction[] | undefined>>,
+): Set<string> {
+  type Side = { tx: SerializedTransaction; day: number; like: boolean };
+  const side = (tx: SerializedTransaction): Side | null => {
+    const day = dayNumber(dayKey(tx.entryDate || tx.valueDate));
+    return Number.isFinite(day) ? { tx, day, like: readsLikeSettlement(tx) } : null;
+  };
+  const sumOf = (tx: SerializedTransaction) => `${tx.currency || 'EUR'}|${Math.round(Math.abs(Number(tx.amount)) * 100)}`;
+
+  const out = new Set<string>();
+  // The credits on the cards first: without one there is nothing to look for.
+  const bySum = new Map<string, { credits: Side[]; debits: Side[] }>();
+  for (const a of accounts) {
+    if (!isCardAccount(a)) continue;
+    for (const tx of txByAccount[a.accountNumber] ?? []) {
+      if (!(Number(tx.amount) > 0)) continue;
+      const s = side(tx);
+      if (!s) continue;
+      const sum = sumOf(tx);
+      const group = bySum.get(sum);
+      if (group) group.credits.push(s);
+      else bySum.set(sum, { credits: [s], debits: [] });
+    }
+  }
+  if (!bySum.size) return out;
+  for (const a of accounts) {
+    if (isCardAccount(a)) continue;
+    for (const tx of txByAccount[a.accountNumber] ?? []) {
+      if (!(Number(tx.amount) < 0)) continue;
+      const group = bySum.get(sumOf(tx));
+      if (!group || bookingKind(tx) === 'bargeld') continue;
+      const s = side(tx);
+      if (s) group.debits.push(s);
+    }
+  }
+
+  for (const { credits, debits } of bySum.values()) {
+    const fits: { debit: Side; credit: Side; like: number; gap: number }[] = [];
+    for (const debit of debits) {
+      for (const credit of credits) {
+        const gap = Math.abs(debit.day - credit.day);
+        const like = +debit.like + +credit.like;
+        if (gap <= SETTLEMENT_DAYS && like > 0) fits.push({ debit, credit, like, gap });
+      }
+    }
+    fits.sort((x, y) => y.like - x.like || x.gap - y.gap);
+    const taken = new Set<Side>();
+    for (const { debit, credit } of fits) {
+      if (taken.has(debit) || taken.has(credit)) continue;
+      taken.add(debit).add(credit);
+      out.add(txKey(debit.tx)).add(txKey(credit.tx));
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -540,7 +674,7 @@ export function keywordCategory(
 export type GuessBasis = 'own' | 'code' | 'keyword' | 'model' | 'none';
 export type CategoryGuess = { id: CategoryId; basis: GuessBasis };
 
-type GuessContext = Pick<CategorizeContext, 'merchantLabel' | 'modelGuesses'> & {
+type GuessContext = Pick<CategorizeContext, 'merchantLabel' | 'modelGuesses' | 'cardSettlements'> & {
   ownIbans?: ReadonlySet<string> | readonly string[] | null;
 };
 
@@ -555,6 +689,8 @@ function isPaymentPayout(tx: Pick<SerializedTransaction, 'remoteName' | 'purpose
 /** The automatic guess and the rung that decided it — guessCategory, explained. */
 export function explainGuess(tx: SerializedTransaction, ctx: GuessContext = {}): CategoryGuess {
   if (isOwnAccount(tx.remoteIban, ctx.ownIbans)) return { id: 'transfer', basis: 'own' };
+  // The card's bill and its credit on the card account: own accounts too, known by their pair.
+  if (ctx.cardSettlements?.has(txKey(tx))) return { id: 'transfer', basis: 'own' };
 
   const credit = Number(tx.amount) > 0;
   const kind = bookingKind(tx);

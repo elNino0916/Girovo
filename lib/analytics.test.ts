@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SerializedTransaction } from './fints-types';
 import type { TxFilter } from './app-types';
-import { categorize } from './categorize.ts';
+import { cardSettlements, categorize } from './categorize.ts';
 import type { CategoryOf } from './analytics.ts';
 import {
   calendarMonths, daysLabel, facilitatorShop, filterTransactions, inFilterDays, largest, monthOfWord, monthlyBuckets,
@@ -509,4 +509,47 @@ test('largest: skip leaves bookings out', () => {
 test('txMatcher takes the screen’s words through its context', () => {
   assert.equal(WITH_CAFE.filter(txMatcher('köln', shown)).length, 1);
   assert.equal(WITH_CAFE.filter(txMatcher('köln')).length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// "Alle geladenen Konten" with a current account and its credit card: the
+// card's bill is one payment, not the purchases and their settlement.
+
+test('a card bill is counted once across the current account and the card account', () => {
+  const accounts = [{ accountNumber: '1001', accountType: 'CheckingAccount' }, { accountNumber: '4001', accountType: 'CreditCardAccount' }];
+  const giro = [
+    mt940({ day: '2026-10-30', amount: 2500, gvc: '153', text: 'LOHN/GEHALT', name: 'ACME GmbH', iban: IBAN.employer }),
+    camt({ day: '2026-10-28', amount: -612.4, text: 'KREDITKARTENABRECHNUNG', purpose: 'VISA 4000 12XX XXXX 1234' }),
+  ];
+  const card = [
+    camt({ day: '2026-10-03', amount: -400, code: 'CCRD', text: 'Kartenumsatz', name: 'HOTEL ADLON' }),
+    camt({ day: '2026-10-11', amount: -212.4, code: 'CCRD', text: 'Kartenumsatz', name: 'DB FERNVERKEHR' }),
+    camt({ day: '2026-10-28', amount: 612.4, text: 'AUSGLEICH KREDITKARTE' }),
+  ];
+  const period = { from: '2026-10-01', to: '2026-10-31' };
+  const totals = (txs: SerializedTransaction[], loaded: Record<string, SerializedTransaction[]>) => {
+    const cardSettlements_ = cardSettlements(accounts, loaded);
+    const t = periodTotals(txs, { ...period, categoryOf: (tx) => categorize(tx, { ownIbans: [], cardSettlements: cardSettlements_ }) });
+    return [t.income, t.expense];
+  };
+  // Both loaded: the salary came in, the purchases went out. The settlement moved money between own accounts.
+  assert.deepEqual(totals([...giro, ...card], { '1001': giro, '4001': card }), [2500, 612.4]);
+  // …and each account for itself says the same story's half: no bill on the current account, no "income" on the card.
+  assert.deepEqual(totals(giro, { '1001': giro, '4001': card }), [2500, 0]);
+  assert.deepEqual(totals(card, { '1001': giro, '4001': card }), [0, 612.4]);
+  // The current account alone: the bill is all there is to see of the spending.
+  assert.deepEqual(totals(giro, { '1001': giro }), [2500, 612.4]);
+  // The card alone: as it is today.
+  assert.deepEqual(totals(card, { '4001': card }), [612.4, 612.4]);
+  // A refund on the card and a purchase of the same sum on the current account, the same week: nothing says
+  // card bill, so both stay in the figures — the purchase as spending, the refund against the card's.
+  const purchase = camt({ day: '2026-10-12', amount: -49.99, code: 'ESDD', text: 'SEPA-Basislastschrift', name: 'Zalando SE', mref: 'Z-1' });
+  const refund = camt({ day: '2026-10-14', amount: 49.99, code: 'CCRD', text: 'Gutschrift', name: 'HOTEL ADLON' });
+  const withTwins = { '1001': [...giro, purchase], '4001': [...card, refund] };
+  assert.equal(cardSettlements(accounts, withTwins).size, 2, 'the bill and its credit, nothing else');
+  const twins = periodTotals([purchase, refund], { ...period, categoryOf: (tx) => categorize(tx, { ownIbans: [], cardSettlements: cardSettlements(accounts, withTwins) }) });
+  assert.equal(twins.count, 2, 'neither is set aside as an Umbuchung');
+  // Without the pairing, the sums the review found: the bill twice, and its credit as income.
+  const unpaired = periodTotals([...giro, ...card], { ...period, categoryOf: (tx) => categorize(tx, { ownIbans: [] }) });
+  assert.deepEqual([unpaired.income, unpaired.expense], [3112.4, 1224.8]);
 });
