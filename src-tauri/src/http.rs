@@ -69,8 +69,16 @@ pub struct Head {
 /// An error the page's fetch reads like Node's: `code` first (ENOTFOUND,
 /// ECONNREFUSED… prove the request never left), then what happened.
 fn failure(err: &reqwest::Error) -> String {
-  let text = format!("{err:?}");
-  let code = if err.is_timeout() {
+  format!("{}: {err}", code_of(&format!("{err:?}"), err.is_timeout(), err.is_connect()))
+}
+
+/// The code for an error by its debug text (the whole chain of causes) and
+/// what reqwest says of it. A certificate the bank's server shows and rustls
+/// refuses — unknown issuer, expired, another name — is CERT_INVALID, which
+/// lib/bank-fetch.ts TLS_CODE reads as an insecure connection; it was taken
+/// for a reset connection before, being a failure to connect too.
+fn code_of(text: &str, timeout: bool, connect: bool) -> &'static str {
+  if timeout {
     "ETIMEDOUT"
   } else if text.contains("dns error") || text.contains("No such host") || text.contains("failed to lookup") {
     "ENOTFOUND"
@@ -80,12 +88,13 @@ fn failure(err: &reqwest::Error) -> String {
     "ENETUNREACH"
   } else if text.contains("HostUnreachable") {
     "EHOSTUNREACH"
-  } else if err.is_connect() {
+  } else if ["InvalidCertificate", "NoCertificatesPresented", "invalid peer certificate"].iter().any(|t| text.contains(t)) {
+    "CERT_INVALID"
+  } else if connect {
     "ECONNRESET"
   } else {
     "EIO"
-  };
-  format!("{code}: {err}")
+  }
 }
 
 #[tauri::command]
@@ -162,5 +171,41 @@ pub fn http_cancel(state: tauri::State<'_, Requests>, id: String) {
   state.open.lock().unwrap().remove(&id);
   if let Some(tx) = state.cancels.lock().unwrap().remove(&id) {
     let _ = tx.send(());
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::code_of;
+
+  /// How reqwest's debug text carries rustls' refusal (hyper-util's connect
+  /// error around the I/O error around rustls::Error::InvalidCertificate).
+  fn refused(why: &str) -> String {
+    format!(
+      "reqwest::Error {{ kind: Request, url: \"https://banking.example/fints\", source: hyper_util::client::legacy::Error(Connect, Custom {{ kind: InvalidData, error: InvalidCertificate({why}) }}) }}"
+    )
+  }
+
+  #[test]
+  fn a_refused_certificate_is_named_as_one() {
+    for why in ["UnknownIssuer", "Expired", "NotValidForName", "Revoked", "Other(OtherError(CertNotTimeValid))"] {
+      assert_eq!(code_of(&refused(why), false, true), "CERT_INVALID", "{why}");
+    }
+    assert_eq!(code_of("... error: NoCertificatesPresented ...", false, true), "CERT_INVALID");
+    assert_eq!(code_of("error sending request: invalid peer certificate: UnknownIssuer", false, false), "CERT_INVALID");
+    // lib/bank-fetch.ts TLS_CODE.
+    let tls = regex::Regex::new("CERT|TLS|SSL|SELF_SIGNED").unwrap();
+    assert!(tls.is_match(code_of(&refused("UnknownIssuer"), false, true)));
+  }
+
+  #[test]
+  fn the_other_failures_keep_their_codes() {
+    assert_eq!(code_of(&refused("UnknownIssuer"), true, true), "ETIMEDOUT");
+    assert_eq!(code_of("ConnectError(\"dns error\", ...)", false, true), "ENOTFOUND");
+    assert_eq!(code_of("Os { code: 10061, kind: ConnectionRefused }", false, true), "ECONNREFUSED");
+    assert_eq!(code_of("kind: NetworkUnreachable", false, true), "ENETUNREACH");
+    assert_eq!(code_of("kind: HostUnreachable", false, true), "EHOSTUNREACH");
+    assert_eq!(code_of("Custom { kind: InvalidData, error: AlertReceived(HandshakeFailure) }", false, true), "ECONNRESET");
+    assert_eq!(code_of("kind: Body", false, false), "EIO");
   }
 }

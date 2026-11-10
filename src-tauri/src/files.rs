@@ -19,13 +19,17 @@
 // just then — a virus scanner on a kept PIN's file during "Gerät vergessen" —
 // would be back after a restart, the PIN in it. A delete that gives up is
 // therefore written down (the note OWED in the data folder, each change of it
-// a whole new file renamed into place), and the next start deletes what is on
-// it before the page or anything else reads those files (finish_owed_deletes,
-// lib.rs), keeping what still will not go for the start after. A file written
+// a whole new file renamed into place), with the file's length and time just
+// then, and the next start deletes what is on it before the page or anything
+// else reads those files (finish_owed_deletes, lib.rs) — only a file still as
+// it was — keeping what still will not go for the start after. A file written
 // again meanwhile, or renamed into that place, is wanted: its path comes off
-// the note.
+// the note, and should the note miss that (it was held just then, the app
+// ended), its changed length or time keeps the file all the same. Only a
+// delete the app asks for is owed: a save does not delete, its rename
+// replaces the file (mobile/shims/fs.ts).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
@@ -166,22 +170,51 @@ pub fn fs_rename(from: String, to: String) -> Result<(), String> {
 // The deletes still owed
 
 /// The note of the deletes that gave up, in the data folder: OWED_HEAD, then
-/// a path a line, relative to the folder, its parts joined by "/".
+/// a file a line — its length and modification time (nanoseconds since 1970)
+/// when its delete gave up, and its path relative to the folder, its parts
+/// joined by "/", tab-separated in that order.
 const OWED: &str = ".girovo-delete-pending";
-const OWED_HEAD: &str = "girovo-deletes 1";
+const OWED_HEAD: &str = "girovo-deletes 2";
 /// More than this is no list of files a scanner held for a moment.
 const OWED_MAX: usize = 500;
 /// All the time a start spends on the note's files that still will not go.
 const OWED_BUDGET: Duration = Duration::from_secs(1);
+
+/// What a file was when its delete gave up. A file that is no longer so was
+/// written again since, and is the file someone wants: never deleted for an
+/// old note, however that note came to outlive the write.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Seen {
+  len: u64,
+  /// Nanoseconds since 1970.
+  mtime: u128,
+}
+
+impl Seen {
+  /// A plain file's length and time; None for anything else, or a time that cannot be told.
+  fn of(meta: &fs::Metadata) -> Option<Self> {
+    if !meta.is_file() {
+      return None;
+    }
+    let mtime = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos();
+    Some(Seen { len: meta.len(), mtime })
+  }
+}
 
 /// A data folder's files as the page changes them, and the deletes it still
 /// owes them. One change at a time (with_owed): a delete giving up and a
 /// write of the same file never cross on the way to the note.
 struct Owed {
   root: PathBuf,
-  paths: BTreeSet<String>,
-  /// The note was there and could not be read at this start: left as it is by finish().
+  paths: BTreeMap<String, Seen>,
+  /// The note on disk is not `paths` (a save of it failed, or there was no
+  /// chance yet): saved at the end of every command and at the start until it is.
+  dirty: bool,
+  /// The note was there and could not be read (another program held it):
+  /// read and taken in before it is written, and never written over until then.
   unread: bool,
+  /// While `unread`: the paths settled since, not taken in from the note once it is read.
+  cleared: BTreeSet<String>,
 }
 
 static OWED_NOW: Mutex<Option<Owed>> = Mutex::new(None);
@@ -226,29 +259,63 @@ fn same_path(a: &str, b: &str) -> bool {
   if cfg!(windows) { a.eq_ignore_ascii_case(b) } else { a == b }
 }
 
-impl Owed {
-  /// What the note in `root` says. A note that is not one says nothing.
-  fn load(root: &Path) -> Self {
-    let mut attempt = 0;
-    let (text, unread) = loop {
-      match fs::read_to_string(root.join(OWED)) {
-        Ok(text) => break (text, false),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => break (String::new(), false),
-        Err(err) if attempt < 5 && locked(&err) => {
-          std::thread::sleep(Duration::from_millis(15 << attempt));
-          attempt += 1;
-        }
-        // Not text: no note. Held by another program: one, for all anyone knows.
-        Err(err) => break (String::new(), locked(&err)),
+/// The note in a folder, as far as it can be read.
+enum Note {
+  Missing,
+  /// Its text; empty for one that is no text.
+  Text(String),
+  /// Another program holds it.
+  Held,
+}
+
+fn read_note(root: &Path) -> Note {
+  let mut attempt = 0;
+  loop {
+    match fs::read_to_string(root.join(OWED)) {
+      Ok(text) => return Note::Text(text),
+      Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Note::Missing,
+      Err(err) if attempt < 5 && locked(&err) => {
+        std::thread::sleep(Duration::from_millis(15 << attempt));
+        attempt += 1;
       }
-    };
-    let mut lines = text.lines();
-    let mut paths = BTreeSet::new();
-    if lines.next() == Some(OWED_HEAD) {
-      // Only paths as this file writes them: anything else is not followed.
-      paths.extend(lines.filter(|line| owed_key(line).as_deref() == Some(*line)).take(OWED_MAX).map(str::to_string));
+      Err(err) if locked(&err) => return Note::Held,
+      // Not text: no note.
+      Err(_) => return Note::Text(String::new()),
     }
-    Owed { root: root.to_path_buf(), paths, unread }
+  }
+}
+
+/// What a note says. A note that is not one says nothing, and of one that is,
+/// only the lines as save() writes them count.
+fn parse_note(text: &str) -> BTreeMap<String, Seen> {
+  let mut lines = text.lines();
+  let mut paths = BTreeMap::new();
+  if lines.next() != Some(OWED_HEAD) {
+    return paths;
+  }
+  for line in lines {
+    if paths.len() >= OWED_MAX {
+      break;
+    }
+    let mut fields = line.splitn(3, '\t');
+    let (Some(len), Some(mtime), Some(path)) = (fields.next(), fields.next(), fields.next()) else { continue };
+    let (Ok(len), Ok(mtime)) = (len.parse::<u64>(), mtime.parse::<u128>()) else { continue };
+    if owed_key(path).as_deref() == Some(path) {
+      paths.insert(path.to_string(), Seen { len, mtime });
+    }
+  }
+  paths
+}
+
+impl Owed {
+  /// What the note in `root` says.
+  fn load(root: &Path) -> Self {
+    let (paths, unread) = match read_note(root) {
+      Note::Missing => (BTreeMap::new(), false),
+      Note::Text(text) => (parse_note(&text), false),
+      Note::Held => (BTreeMap::new(), true),
+    };
+    Owed { root: root.to_path_buf(), paths, dirty: false, unread, cleared: BTreeSet::new() }
   }
 
   /// The file a path of the page's means, inside the folder.
@@ -257,20 +324,58 @@ impl Owed {
     Ok(self.root.join(key))
   }
 
+  /// Brings the note on disk in line with `paths` where it is not. A note
+  /// that could not be read is read first and what it says taken in; while it
+  /// still cannot be read, it is left as it is. Answers whether the note is in line.
+  fn sync(&mut self) -> bool {
+    if !self.dirty {
+      return true;
+    }
+    if self.unread {
+      match read_note(&self.root) {
+        Note::Held => return false,
+        Note::Missing => {}
+        Note::Text(text) => {
+          for (path, seen) in parse_note(&text) {
+            let known = |owed: &String| same_path(owed, &path);
+            if self.cleared.iter().any(known) || self.paths.keys().any(known) || self.paths.len() >= OWED_MAX {
+              continue;
+            }
+            self.paths.insert(path, seen);
+          }
+        }
+      }
+      self.unread = false;
+      self.cleared.clear();
+    }
+    self.dirty = !self.save();
+    !self.dirty
+  }
+
   /// The note as the list is now, a whole new file renamed into place; no
-  /// note where nothing is owed.
+  /// note where nothing is owed. Answers whether that is so on disk.
   fn save(&self) -> bool {
     let note = self.root.join(OWED);
     if self.paths.is_empty() {
-      return match fs::remove_file(&note) {
-        Ok(()) => true,
-        Err(err) => err.kind() == std::io::ErrorKind::NotFound,
+      let mut attempt = 0;
+      return loop {
+        match fs::remove_file(&note) {
+          Ok(()) => break true,
+          Err(err) if err.kind() == std::io::ErrorKind::NotFound => break true,
+          Err(err) if attempt < 5 && locked(&err) => {
+            std::thread::sleep(Duration::from_millis(15 << attempt));
+            attempt += 1;
+          }
+          Err(err) => {
+            eprintln!("[files] the note of owed deletes was not removed: {err}");
+            break false;
+          }
+        }
       };
     }
     let mut text = String::from(OWED_HEAD);
-    for path in &self.paths {
-      text.push('\n');
-      text.push_str(path);
+    for (path, seen) in &self.paths {
+      text.push_str(&format!("\n{}\t{}\t{path}", seen.len, seen.mtime));
     }
     text.push('\n');
     let tmp = self.root.join(format!("{OWED}.{}.tmp", std::process::id()));
@@ -288,27 +393,52 @@ impl Owed {
     written.is_ok()
   }
 
-  /// A delete gave up on `path`: owed from now on.
-  fn owe(&mut self, path: &str) {
-    let Some(key) = owed_key(path) else { return };
-    if self.paths.len() >= OWED_MAX || self.paths.iter().any(|owed| same_path(owed, &key)) {
+  /// A delete gave up on `key`, the file being `seen`: owed from now on.
+  fn owe(&mut self, key: String, seen: Seen) {
+    // Not a line of the note.
+    if key.contains(['\n', '\r']) {
       return;
     }
-    self.paths.insert(key);
-    self.save();
+    self.paths.retain(|owed, _| !same_path(owed, &key));
+    if self.paths.len() < OWED_MAX {
+      self.paths.insert(key, seen);
+    }
+    self.dirty = true;
   }
 
   /// `path` is as the page wants it — deleted, or written anew: nothing is owed for it.
   fn settled(&mut self, path: &str) {
     let Some(key) = owed_key(path) else { return };
     let before = self.paths.len();
-    self.paths.retain(|owed| !same_path(owed, &key));
+    self.paths.retain(|owed, _| !same_path(owed, &key));
     if self.paths.len() != before {
-      self.save();
+      self.dirty = true;
+    }
+    if self.unread {
+      self.cleared.insert(key);
+      self.dirty = true;
     }
   }
 
   fn write(&mut self, path: &str, bytes: &[u8]) -> Result<(), String> {
+    let result = self.write_file(path, bytes);
+    self.sync();
+    result
+  }
+
+  fn delete(&mut self, path: &str) -> Result<(), String> {
+    let result = self.delete_file(path);
+    self.sync();
+    result
+  }
+
+  fn rename(&mut self, from: &str, to: &str) -> Result<(), String> {
+    let result = self.rename_file(from, to);
+    self.sync();
+    result
+  }
+
+  fn write_file(&mut self, path: &str, bytes: &[u8]) -> Result<(), String> {
     let file = self.file(path)?;
     if let Some(parent) = file.parent() {
       fs::create_dir_all(parent).map_err(io)?;
@@ -324,7 +454,9 @@ impl Owed {
     Ok(())
   }
 
-  fn delete(&mut self, path: &str) -> Result<(), String> {
+  /// A delete the app asked for (mobile/shims/fs.ts persistRemove; a save
+  /// asks for none here, its rename replaces the file).
+  fn delete_file(&mut self, path: &str) -> Result<(), String> {
     let file = self.file(path)?;
     let mut attempt = 0;
     let gave_up = loop {
@@ -343,29 +475,38 @@ impl Owed {
     };
     if gave_up.kind() == std::io::ErrorKind::NotFound {
       self.settled(path);
-    } else if !file.is_dir() {
-      // Still there: the next start takes it away (finish). The error stands.
-      self.owe(path);
+    } else if let (Some(key), Some(seen)) = (owed_key(path), fs::symlink_metadata(&file).ok().as_ref().and_then(Seen::of)) {
+      // Still there: the next start takes it away (finish), if it is still
+      // this very file then. The error stands.
+      self.owe(key, seen);
     }
     Err(io(gave_up))
   }
 
-  fn rename(&mut self, from: &str, to: &str) -> Result<(), String> {
+  /// Rust's rename puts the file in the target's place, replacing what is
+  /// there, on Windows (MoveFileExW with MOVEFILE_REPLACE_EXISTING, or its
+  /// POSIX-semantics rename) as on Linux (rename(2)).
+  fn rename_file(&mut self, from: &str, to: &str) -> Result<(), String> {
     let (source, target) = (self.file(from)?, self.file(to)?);
     if let Some(parent) = target.parent() {
       fs::create_dir_all(parent).map_err(io)?;
     }
-    rename_retrying(&source, &target).map_err(io)?;
-    // A file put in that place is wanted; the place it left is empty.
+    let renamed = rename_retrying(&source, &target);
+    // In that place now is the file just put there, or — the rename having
+    // failed — the one a save meant to replace, which is wanted too: no
+    // delete is owed for it either way.
     self.settled(to);
+    renamed.map_err(io)?;
+    // The place it left is empty.
     self.settled(from);
     Ok(())
   }
 
-  /// The start's turn: every file on the note is deleted, `budget` at most
-  /// spent on those another program still holds. What is gone — or was gone
-  /// already, or is no file of this folder — comes off the note; the rest
-  /// stays for the start after.
+  /// The start's turn: every file on the note that is still as it was when
+  /// its delete gave up is deleted, `budget` at most spent on those another
+  /// program still holds. What is gone — or was gone already, written again
+  /// since, or is no file of this folder — comes off the note; the rest stays
+  /// for the start after. A note that could not be read is left for then.
   fn finish(&mut self, budget: Duration) {
     if self.unread {
       return;
@@ -373,29 +514,37 @@ impl Owed {
     let until = Instant::now() + budget;
     let real_root = fs::canonicalize(&self.root).ok();
     let paths = std::mem::take(&mut self.paths);
-    self.paths = paths.into_iter().filter(|path| !self.done_with(path, real_root.as_deref(), until)).collect();
+    self.paths = paths.into_iter().filter(|(path, seen)| !self.done_with(path, *seen, real_root.as_deref(), until)).collect();
     // Also where nothing was owed: a note that was not one goes.
-    self.save();
+    self.dirty = true;
+    self.sync();
   }
 
   /// Deletes one file of the note; answers whether it comes off the note.
-  fn done_with(&self, path: &str, real_root: Option<&Path>, until: Instant) -> bool {
+  fn done_with(&self, path: &str, seen: Seen, real_root: Option<&Path>, until: Instant) -> bool {
     let file = self.root.join(path);
-    match fs::symlink_metadata(&file) {
+    let meta = match fs::symlink_metadata(&file) {
+      Ok(meta) => meta,
       Err(err) if err.kind() == std::io::ErrorKind::NotFound => return true,
       // Cannot be looked at now: asked again at the next start.
       Err(_) => return false,
-      // A folder is not what a file's delete takes away.
-      Ok(meta) if meta.is_dir() => return true,
-      Ok(_) => {}
-    }
-    // Never through a link that leads out of the folder: such a path is dropped, not followed.
-    let inside = match (real_root, file.parent().and_then(|parent| fs::canonicalize(parent).ok())) {
-      (Some(real_root), Some(parent)) => parent.starts_with(real_root),
-      _ => false,
     };
-    if !inside {
+    // A folder or a link is not what a file's delete took away.
+    if !meta.is_file() {
       return true;
+    }
+    match Seen::of(&meta) {
+      Some(now) if now == seen => {}
+      // Written again since: the file someone wants.
+      Some(_) => return true,
+      None => return false,
+    }
+    // Never through a link that leads out of the folder: such a path is
+    // dropped, not followed. One whose place cannot be told now waits.
+    match (real_root, file.parent().and_then(|parent| fs::canonicalize(parent).ok())) {
+      (Some(real_root), Some(parent)) if !parent.starts_with(real_root) => return true,
+      (Some(_), Some(_)) => {}
+      _ => return false,
     }
     let mut attempt = 0;
     loop {
@@ -534,12 +683,14 @@ pub async fn folder_remove(place: String, name: String) -> Result<(), String> {
 mod tests {
   use super::*;
 
-  /// A data folder of this test's own under the system's temp folder, with a kept PIN's file in it.
+  /// A data folder of this test's own under the system's temp folder, with a
+  /// kept PIN's file and a vault in it.
   fn folder(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("girovo-files-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(dir.join("fints-state")).unwrap();
     fs::write(dir.join("fints-state/abc.skey"), "sealed").unwrap();
+    fs::write(dir.join("fints-state/vault.json"), "v1").unwrap();
     dir
   }
 
@@ -547,11 +698,31 @@ mod tests {
   fn next_start(dir: &Path) -> Vec<String> {
     let mut owed = Owed::load(dir);
     owed.finish(Duration::from_millis(200));
-    owed.paths.into_iter().collect()
+    owed.paths.into_keys().collect()
   }
 
-  fn note(dir: &Path) -> Option<String> {
-    fs::read_to_string(dir.join(OWED)).ok()
+  /// The paths on the note in `dir`, as a start would read them.
+  fn on_note(dir: &Path) -> Vec<String> {
+    match read_note(dir) {
+      Note::Text(text) => parse_note(&text).into_keys().collect(),
+      Note::Missing => Vec::new(),
+      Note::Held => panic!("the note is held"),
+    }
+  }
+
+  fn noted(dir: &Path) -> bool {
+    dir.join(OWED).exists()
+  }
+
+  /// `path` owed as its delete would owe it, the note saved.
+  fn owe_now(owed: &mut Owed, path: &str) {
+    let seen = Seen::of(&fs::symlink_metadata(owed.root.join(path)).unwrap()).unwrap();
+    owed.owe(path.to_string(), seen);
+    assert!(owed.sync());
+  }
+
+  fn text(dir: &Path, path: &str) -> String {
+    fs::read_to_string(dir.join(path)).unwrap()
   }
 
   /// Opened as a scanner or a backup would: nobody else may touch it meanwhile.
@@ -580,8 +751,20 @@ mod tests {
     assert!(!dir.join("fints-state/abc.skey").exists());
     // One that is not there is gone already (the shim reads ENOENT as that).
     assert_eq!(owed.delete("fints-state/abc.skey"), Err("ENOENT".to_string()));
-    assert!(owed.paths.is_empty() && note(&dir).is_none());
+    assert!(owed.paths.is_empty() && !noted(&dir));
     assert!(owed.delete("../abc.skey").is_err());
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[test]
+  fn the_note_keeps_each_files_length_and_time() {
+    let dir = folder("format");
+    let mut owed = Owed::load(&dir);
+    owe_now(&mut owed, "fints-state/abc.skey");
+    let seen = Seen::of(&fs::metadata(dir.join("fints-state/abc.skey")).unwrap()).unwrap();
+    assert_eq!(seen.len, 6);
+    assert_eq!(text(&dir, OWED), format!("girovo-deletes 2\n6\t{}\tfints-state/abc.skey\n", seen.mtime));
+    assert_eq!(parse_note(&text(&dir, OWED)), BTreeMap::from([("fints-state/abc.skey".to_string(), seen)]));
     fs::remove_dir_all(&dir).unwrap();
   }
 
@@ -594,20 +777,20 @@ mod tests {
     // The error stands, as before; the file is still there, and written down.
     assert!(owed.delete("fints-state/abc.skey").is_err());
     assert!(dir.join("fints-state/abc.skey").exists());
-    assert_eq!(note(&dir).as_deref(), Some("girovo-deletes 1\nfints-state/abc.skey\n"));
+    assert_eq!(on_note(&dir), ["fints-state/abc.skey"]);
     // Asked again: once on the note. And no half-written note beside it.
     assert!(owed.delete("fints-state/abc.skey").is_err());
     assert_eq!(owed.paths.len(), 1);
-    assert_eq!(fs::read_dir(&dir).unwrap().count(), 2);
+    assert_eq!(fs::read_dir(&dir).unwrap().count(), 2, "fints-state and the note");
     // A start while it is still held: kept for the start after.
     assert_eq!(next_start(&dir), ["fints-state/abc.skey"]);
     assert!(dir.join("fints-state/abc.skey").exists());
-    assert_eq!(note(&dir).as_deref(), Some("girovo-deletes 1\nfints-state/abc.skey\n"));
+    assert_eq!(on_note(&dir), ["fints-state/abc.skey"]);
     // Let go: the next start takes the file away, and the note with it.
     drop(holder);
     assert!(next_start(&dir).is_empty());
     assert!(!dir.join("fints-state/abc.skey").exists());
-    assert!(note(&dir).is_none());
+    assert!(!noted(&dir));
     fs::remove_dir_all(&dir).unwrap();
   }
 
@@ -617,27 +800,31 @@ mod tests {
     let dir = folder("some");
     fs::write(dir.join("fints-state/abc.hello"), "sealed").unwrap();
     fs::write(dir.join("fints-state/abc.linked"), "sealed").unwrap();
+    fs::write(dir.join("fints-state/gone.refused"), "sealed").unwrap();
     let mut owed = Owed::load(&dir);
     for name in ["fints-state/abc.skey", "fints-state/abc.hello", "fints-state/abc.linked", "fints-state/gone.refused"] {
-      owed.owe(name);
+      owe_now(&mut owed, name);
     }
+    fs::remove_file(dir.join("fints-state/gone.refused")).unwrap();
     let holder = held(&dir.join("fints-state/abc.hello"));
     assert_eq!(next_start(&dir), ["fints-state/abc.hello"]);
-    assert_eq!(note(&dir).as_deref(), Some("girovo-deletes 1\nfints-state/abc.hello\n"));
+    assert_eq!(on_note(&dir), ["fints-state/abc.hello"]);
     assert!(!dir.join("fints-state/abc.skey").exists() && !dir.join("fints-state/abc.linked").exists());
     drop(holder);
     assert!(next_start(&dir).is_empty());
-    assert_eq!(fs::read_dir(dir.join("fints-state")).unwrap().count(), 0);
+    assert_eq!(fs::read_dir(dir.join("fints-state")).unwrap().count(), 1, "the vault alone");
     fs::remove_dir_all(&dir).unwrap();
   }
 
   #[test]
   fn a_file_written_again_or_renamed_into_place_is_no_longer_owed() {
     let dir = folder("again");
+    fs::write(dir.join("fints-state/abc.hello"), "sealed").unwrap();
+    fs::write(dir.join("fints-state/other.linked"), "sealed").unwrap();
     let mut owed = Owed::load(&dir);
-    owed.owe("fints-state/abc.skey");
-    owed.owe("fints-state/abc.hello");
-    owed.owe("fints-state/other.linked");
+    owe_now(&mut owed, "fints-state/abc.skey");
+    owe_now(&mut owed, "fints-state/abc.hello");
+    owe_now(&mut owed, "fints-state/other.linked");
     assert_eq!(owed.paths.len(), 3);
     // Windows Hello set up afresh: written in place.
     assert_eq!(owed.write("fints-state/abc.hello", b"new"), Ok(()));
@@ -646,12 +833,60 @@ mod tests {
     assert_eq!(owed.write("fints-state/abc.skey.part", b"new"), Ok(()));
     assert_eq!(owed.paths.len(), 2, "the part is another file");
     assert_eq!(owed.rename("fints-state/abc.skey.part", spelled), Ok(()));
-    assert_eq!(note(&dir).as_deref(), Some("girovo-deletes 1\nfints-state/other.linked\n"));
+    assert_eq!(on_note(&dir), ["fints-state/other.linked"]);
     // The next start leaves both alone.
-    assert_eq!(next_start(&dir), Vec::<String>::new());
-    assert_eq!(fs::read_to_string(dir.join("fints-state/abc.hello")).unwrap(), "new");
-    assert_eq!(fs::read_to_string(dir.join("fints-state/abc.skey")).unwrap(), "new");
-    assert!(note(&dir).is_none());
+    assert!(next_start(&dir).is_empty());
+    assert_eq!(text(&dir, "fints-state/abc.hello"), "new");
+    assert_eq!(text(&dir, "fints-state/abc.skey"), "new");
+    assert!(!noted(&dir));
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  /// However the note came to outlive the write (a crash, a note held at the
+  /// wrong moment, a program that is not Girovo): a file that is no longer
+  /// as it was when its delete gave up is not deleted.
+  #[test]
+  fn a_file_written_again_after_its_delete_was_owed_survives_the_next_start() {
+    let dir = folder("survives");
+    let mut owed = Owed::load(&dir);
+    owe_now(&mut owed, "fints-state/vault.json");
+    owe_now(&mut owed, "fints-state/abc.skey");
+    // Written again behind the note's back: another length; the same length at another time.
+    fs::write(dir.join("fints-state/vault.json"), "v2 and more").unwrap();
+    std::thread::sleep(Duration::from_millis(50));
+    fs::write(dir.join("fints-state/abc.skey"), "SEALED").unwrap();
+    assert_eq!(on_note(&dir), ["fints-state/abc.skey", "fints-state/vault.json"]);
+    assert!(next_start(&dir).is_empty(), "off the note");
+    assert_eq!(text(&dir, "fints-state/vault.json"), "v2 and more");
+    assert_eq!(text(&dir, "fints-state/abc.skey"), "SEALED");
+    assert!(!noted(&dir));
+    // Left as it was, the same file goes.
+    let mut owed = Owed::load(&dir);
+    owe_now(&mut owed, "fints-state/abc.skey");
+    assert!(next_start(&dir).is_empty());
+    assert!(!dir.join("fints-state/abc.skey").exists());
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  /// The desktop's save is a part renamed over the file (mobile/shims/fs.ts):
+  /// the rename replaces the file itself, so no delete — which a held file
+  /// would turn into one owed — is asked for. And a rename that fails leaves
+  /// the file a save meant to replace, which is wanted: owed for nothing.
+  #[test]
+  fn the_delete_inside_a_save_is_never_owed() {
+    let dir = folder("save");
+    let mut owed = Owed::load(&dir);
+    assert_eq!(owed.write("fints-state/vault.json.part", b"v2"), Ok(()));
+    assert_eq!(owed.rename("fints-state/vault.json.part", "fints-state/vault.json"), Ok(()));
+    assert_eq!(text(&dir, "fints-state/vault.json"), "v2", "the rename replaced the file");
+    assert!(!dir.join("fints-state/vault.json.part").exists());
+    assert!(owed.paths.is_empty() && !noted(&dir));
+    // A rename that fails (here: from nowhere) takes its target off the note all the same.
+    owe_now(&mut owed, "fints-state/vault.json");
+    assert!(owed.rename("fints-state/missing.part", "fints-state/vault.json").is_err());
+    assert!(owed.paths.is_empty() && !noted(&dir));
+    assert!(next_start(&dir).is_empty());
+    assert_eq!(text(&dir, "fints-state/vault.json"), "v2");
     fs::remove_dir_all(&dir).unwrap();
   }
 
@@ -661,39 +896,65 @@ mod tests {
     let outside = dir.with_file_name(format!("{}-outside.txt", dir.file_name().unwrap().to_string_lossy()));
     fs::write(&outside, "not Girovo's").unwrap();
     let outside_name = outside.file_name().unwrap().to_string_lossy().into_owned();
+    let seen_of = |file: &Path| Seen::of(&fs::metadata(file).unwrap()).unwrap();
+    let (out, skey) = (seen_of(&outside), seen_of(&dir.join("fints-state/abc.skey")));
     // Not taken onto the note.
     let mut owed = Owed::load(&dir);
-    owed.owe(&format!("../{outside_name}"));
-    owed.owe(&outside.to_string_lossy());
-    assert!(owed.paths.is_empty() && note(&dir).is_none());
+    assert!(owed.delete(&format!("../{outside_name}")).is_err());
+    assert!(owed.delete(&outside.to_string_lossy()).is_err());
+    assert!(owed.paths.is_empty() && !noted(&dir));
     // Nor followed from a note someone else wrote: only the folder's own file goes, and a folder never.
+    let line = |seen: Seen, path: &str| format!("{}\t{}\t{path}", seen.len, seen.mtime);
     let lines = [
       OWED_HEAD.to_string(),
-      format!("../{outside_name}"),
-      format!("fints-state/../../{outside_name}"),
-      outside.to_string_lossy().into_owned(),
-      "fints-state".to_string(),
-      "fints-state/abc.skey".to_string(),
+      line(out, &format!("../{outside_name}")),
+      line(out, &format!("fints-state/../../{outside_name}")),
+      line(out, &outside.to_string_lossy()),
+      line(skey, "fints-state"),
+      line(skey, "fints-state/abc.skey"),
     ];
     fs::write(dir.join(OWED), lines.join("\n")).unwrap();
-    fs::write(dir.join("fints-state/vault.json"), "{}").unwrap();
+    assert_eq!(on_note(&dir), ["fints-state", "fints-state/abc.skey"]);
     assert!(next_start(&dir).is_empty());
     assert_eq!(fs::read_to_string(&outside).unwrap(), "not Girovo's");
     assert!(!dir.join("fints-state/abc.skey").exists());
     assert!(dir.join("fints-state/vault.json").exists());
-    assert!(note(&dir).is_none());
+    assert!(!noted(&dir));
     fs::remove_file(&outside).unwrap();
     fs::remove_dir_all(&dir).unwrap();
   }
 
   #[test]
+  fn a_file_whose_place_cannot_be_told_waits_for_the_next_start() {
+    let dir = folder("unsure");
+    let seen = Seen::of(&fs::metadata(dir.join("fints-state/abc.skey")).unwrap()).unwrap();
+    let owed = Owed::load(&dir);
+    let until = Instant::now() + Duration::from_millis(200);
+    // The data folder's real place unknown: kept on the note, not deleted.
+    assert!(!owed.done_with("fints-state/abc.skey", seen, None, until));
+    assert!(dir.join("fints-state/abc.skey").exists());
+    // Known: deleted.
+    let real_root = fs::canonicalize(&dir).unwrap();
+    assert!(owed.done_with("fints-state/abc.skey", seen, Some(&real_root), until));
+    assert!(!dir.join("fints-state/abc.skey").exists());
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[test]
   fn a_note_that_is_not_one_is_ignored() {
-    for (name, text) in [("words", "fints-state/abc.skey\n"), ("version", "girovo-deletes 2\nfints-state/abc.skey\n"), ("empty", "")] {
+    let cases = [
+      ("words", "fints-state/abc.skey\n"),
+      ("first", "girovo-deletes 1\nfints-state/abc.skey\n"),
+      ("version", "girovo-deletes 3\n6\t1\tfints-state/abc.skey\n"),
+      ("fields", "girovo-deletes 2\nfints-state/abc.skey\n6\tnow\tfints-state/abc.skey\n"),
+      ("empty", ""),
+    ];
+    for (name, note) in cases {
       let dir = folder(&format!("broken-{name}"));
-      fs::write(dir.join(OWED), text).unwrap();
+      fs::write(dir.join(OWED), note).unwrap();
       assert!(next_start(&dir).is_empty(), "{name}");
       assert!(dir.join("fints-state/abc.skey").exists(), "{name}");
-      assert!(note(&dir).is_none(), "{name}: it does not stay around either");
+      assert!(!noted(&dir), "{name}: it does not stay around either");
       fs::remove_dir_all(&dir).unwrap();
     }
     // Not text at all.
@@ -709,15 +970,141 @@ mod tests {
   fn a_note_held_at_the_start_is_left_as_it_is() {
     let dir = folder("note-held");
     let mut owed = Owed::load(&dir);
-    owed.owe("fints-state/abc.skey");
+    owe_now(&mut owed, "fints-state/abc.skey");
     let holder = held(&dir.join(OWED));
     assert!(next_start(&dir).is_empty(), "nothing is known of it at this start");
     drop(holder);
-    assert_eq!(note(&dir).as_deref(), Some("girovo-deletes 1\nfints-state/abc.skey\n"));
+    assert_eq!(on_note(&dir), ["fints-state/abc.skey"]);
     assert!(dir.join("fints-state/abc.skey").exists());
     // Read at the start after, and done then.
     assert!(next_start(&dir).is_empty());
     assert!(!dir.join("fints-state/abc.skey").exists());
     fs::remove_dir_all(&dir).unwrap();
+  }
+
+  /// The reviewer's A: a delete owed, the file then written in its place, and
+  /// the note held just when it should go.
+  #[cfg(windows)]
+  #[test]
+  fn a_rewritten_file_survives_when_the_note_could_not_be_taken_away() {
+    let dir = folder("note-stuck");
+    let mut owed = Owed::load(&dir);
+    let scanner = held(&dir.join("fints-state/vault.json"));
+    assert!(owed.delete("fints-state/vault.json").is_err());
+    drop(scanner);
+    assert_eq!(on_note(&dir), ["fints-state/vault.json"]);
+    // Saved again; the note held as it should go.
+    assert_eq!(owed.write("fints-state/vault.json.part", b"v2"), Ok(()));
+    let note_scanner = held(&dir.join(OWED));
+    assert_eq!(owed.rename("fints-state/vault.json.part", "fints-state/vault.json"), Ok(()));
+    drop(note_scanner);
+    assert!(owed.paths.is_empty() && owed.dirty, "the note on disk is behind");
+    assert_eq!(on_note(&dir), ["fints-state/vault.json"]);
+    // The app ends here: the next start finds the stale note, and leaves the vault.
+    assert!(next_start(&dir).is_empty());
+    assert_eq!(text(&dir, "fints-state/vault.json"), "v2");
+    assert!(!noted(&dir));
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn a_note_that_could_not_be_saved_is_saved_at_the_next_command() {
+    let dir = folder("note-later");
+    let mut owed = Owed::load(&dir);
+    owe_now(&mut owed, "fints-state/abc.skey");
+    owe_now(&mut owed, "fints-state/vault.json");
+    let note_scanner = held(&dir.join(OWED));
+    assert_eq!(owed.write("fints-state/vault.json", b"v2"), Ok(()));
+    assert!(owed.dirty);
+    drop(note_scanner);
+    assert_eq!(on_note(&dir), ["fints-state/abc.skey", "fints-state/vault.json"]);
+    // Any command after it brings the note in line.
+    assert_eq!(owed.write("fints-state/other.json", b"{}"), Ok(()));
+    assert!(!owed.dirty);
+    assert_eq!(on_note(&dir), ["fints-state/abc.skey"]);
+    // The same for the note's removal.
+    let note_scanner = held(&dir.join(OWED));
+    assert_eq!(owed.delete("fints-state/abc.skey"), Ok(()));
+    assert!(owed.dirty && noted(&dir));
+    drop(note_scanner);
+    assert_eq!(owed.delete("fints-state/other.json"), Ok(()));
+    assert!(!owed.dirty && !noted(&dir));
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  /// The reviewer's B: the note held at the start, the file on it saved again in that session.
+  #[cfg(windows)]
+  #[test]
+  fn a_note_unread_at_start_does_not_cost_a_file_saved_since() {
+    let dir = folder("unread-saved");
+    let mut owed = Owed::load(&dir);
+    owe_now(&mut owed, "fints-state/vault.json");
+    let holder = held(&dir.join(OWED));
+    let mut owed = Owed::load(&dir);
+    owed.finish(Duration::from_millis(200));
+    drop(holder);
+    assert!(owed.unread);
+    assert_eq!(owed.write("fints-state/vault.json.part", b"v2"), Ok(()));
+    assert_eq!(owed.rename("fints-state/vault.json.part", "fints-state/vault.json"), Ok(()));
+    // Read and taken in at the first chance, the vault taken off it.
+    assert!(!owed.unread);
+    assert!(on_note(&dir).is_empty() && !noted(&dir));
+    assert!(next_start(&dir).is_empty());
+    assert_eq!(text(&dir, "fints-state/vault.json"), "v2");
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  /// The reviewer's C: the note held at the start, then another delete gives up.
+  #[cfg(windows)]
+  #[test]
+  fn a_note_unread_at_start_is_not_written_over_by_the_next_owed_delete() {
+    let dir = folder("unread-owe");
+    fs::write(dir.join("fints-state/old.skey"), "pin").unwrap();
+    fs::write(dir.join("fints-state/new.skey"), "pin").unwrap();
+    let mut owed = Owed::load(&dir);
+    owe_now(&mut owed, "fints-state/old.skey");
+    let holder = held(&dir.join(OWED));
+    let mut owed = Owed::load(&dir);
+    owed.finish(Duration::from_millis(200));
+    // Still held as the next delete gives up: nothing is written over it.
+    let scanner = held(&dir.join("fints-state/new.skey"));
+    assert!(owed.delete("fints-state/new.skey").is_err());
+    assert!(owed.unread && owed.dirty);
+    drop(holder);
+    assert_eq!(on_note(&dir), ["fints-state/old.skey"]);
+    // The next command reads it, takes it in, and writes both.
+    assert!(owed.delete("fints-state/new.skey").is_err());
+    drop(scanner);
+    assert_eq!(on_note(&dir), ["fints-state/new.skey", "fints-state/old.skey"]);
+    assert!(next_start(&dir).is_empty());
+    assert!(!dir.join("fints-state/old.skey").exists() && !dir.join("fints-state/new.skey").exists());
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  /// The reviewer's D: a save on a held file — the old page's way too, with a
+  /// delete before the rename — never costs the file two starts later.
+  #[cfg(windows)]
+  #[test]
+  fn a_save_that_failed_on_a_held_file_never_loses_the_file() {
+    for with_delete in [false, true] {
+      let dir = folder(&format!("save-held-{with_delete}"));
+      let mut owed = Owed::load(&dir);
+      assert_eq!(owed.write("fints-state/vault.json.part", b"v2"), Ok(()));
+      let scanner = held(&dir.join("fints-state/vault.json"));
+      if with_delete {
+        assert!(owed.delete("fints-state/vault.json").is_err());
+        assert_eq!(on_note(&dir), ["fints-state/vault.json"]);
+      }
+      assert!(owed.rename("fints-state/vault.json.part", "fints-state/vault.json").is_err());
+      assert!(owed.paths.is_empty() && !noted(&dir), "{with_delete}");
+      assert!(next_start(&dir).is_empty());
+      // mountData: the file is there, so its part goes (mobile/shims/fs.ts).
+      fs::remove_file(dir.join("fints-state/vault.json.part")).unwrap();
+      drop(scanner);
+      assert!(next_start(&dir).is_empty());
+      assert_eq!(text(&dir, "fints-state/vault.json"), "v1", "{with_delete}");
+      fs::remove_dir_all(&dir).unwrap();
+    }
   }
 }

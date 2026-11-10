@@ -18,14 +18,15 @@
 // Every file the server writes is UTF-8 text (JSON envelopes of base64), so the
 // tree holds strings and the disk copy is written as UTF-8.
 //
-// A write on disk is "<file>.part" first, then the old file is deleted and the
-// part renamed over it; mountData() finishes a rename a killed app left half
-// done and drops a part whose write never finished. So a file on disk is
-// always one whole version, old or new — the same promise sealed-file.ts makes
-// on the desktop.
+// A write on disk is "<file>.part" first, then the part renamed over the old
+// file (on the phone the old file is deleted first); mountData() finishes a
+// rename a killed app left half done and drops a part whose write never
+// finished. So a file on disk is always one whole version, old or new — the
+// same promise sealed-file.ts makes on the desktop.
 
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Buffer } from 'buffer';
+import { process as shimProcess } from './process.ts';
 
 type Entry = { text: string; size: number; mtimeMs: number };
 
@@ -95,9 +96,10 @@ let refused = false;
 /**
  * Saved files the start could not read (locked by a scanner, not text): not
  * loaded, so not written over, nor deleted unasked — the rest of the data
- * works, that one store says "not saved" (mountData). A delete the server
- * asks for is another matter (remove): the file may hold a kept PIN, so the
- * delete goes to the disk all the same, and the path takes writes again.
+ * works, that one store says "not saved" (mountData). They are listed, as
+ * they are on the disk (readdir), and a delete the server asks for goes to the
+ * disk all the same (remove): the file may hold a kept PIN. The path takes
+ * writes again — unless that delete fails and the file is still there.
  */
 const unreadable = new Set<string>();
 
@@ -106,12 +108,21 @@ export function refuseData(): void {
   refused = true;
 }
 
+/**
+ * The desktop shell's rename puts the part in the file's place itself (Rust's
+ * fs::rename replaces the file on Windows and Linux, src-tauri/src/files.rs),
+ * so a save there asks for no delete: a delete a held file refused would be
+ * owed, and done at the next start. The phone's rename is not known to
+ * replace a file, so it deletes first, as it always did.
+ */
+const renameReplaces = () => shimProcess.env.GIROVO_DESKTOP === '1';
+
 function persistWrite(p: string, text: string): void {
   if (!persisted(p) || refused || unreadable.has(p)) return;
   const target = diskPath(p);
   enqueue(async () => {
     await Filesystem.writeFile({ path: `${target}.part`, data: text, directory: Directory.Data, encoding: Encoding.UTF8, recursive: true });
-    await quietly(Filesystem.deleteFile({ path: target, directory: Directory.Data }));
+    if (!renameReplaces()) await quietly(Filesystem.deleteFile({ path: target, directory: Directory.Data }));
     await Filesystem.rename({ from: `${target}.part`, to: target, directory: Directory.Data, toDirectory: Directory.Data });
   });
 }
@@ -120,6 +131,27 @@ function persistRemove(p: string): void {
   if (!persisted(p) || refused || unreadable.has(p)) return;
   const target = diskPath(p);
   enqueue(() => quietly(Filesystem.deleteFile({ path: target, directory: Directory.Data })));
+}
+
+/** The disk's answer for a file that is not there (the desktop shell's, the phone plugin's). */
+const NOT_THERE = /ENOENT|not exist|no such file/i;
+
+/**
+ * The delete of a file the start could not read. Should it fail with the
+ * file still there, the path is unreadable again — no write goes over a file
+ * this side never read — unless the server wrote it anew meanwhile (that
+ * write follows in the queue). On the desktop the shell deletes it at its
+ * next start all the same.
+ */
+function persistRemoveUnread(p: string): void {
+  const target = diskPath(p);
+  enqueue(async () => {
+    try {
+      await Filesystem.deleteFile({ path: target, directory: Directory.Data });
+    } catch (err) {
+      if (!NOT_THERE.test(String((err as Error)?.message ?? err)) && !files.has(p)) unreadable.add(p);
+    }
+  });
 }
 
 /** The saved files the start could not read: left alone, and every write to them refused. */
@@ -260,7 +292,10 @@ function readdir(p: unknown): string[] {
   }
   const prefix = at === '/' ? '/' : `${at}/`;
   const names = new Set<string>();
-  for (const key of [...files.keys(), ...stubs.keys(), ...dirs]) {
+  // The unread files too: they are on the disk, and a delete by listing
+  // (sealed-file.ts removeFamily — "Gerät vergessen") must reach them. Reading
+  // one throws, as it would for a file that went meanwhile.
+  for (const key of [...files.keys(), ...stubs.keys(), ...dirs, ...unreadable]) {
     if (key === at || !key.startsWith(prefix)) continue;
     names.add(key.slice(prefix.length).split('/')[0]);
   }
@@ -278,7 +313,7 @@ function remove(p: unknown, opts?: { force?: boolean; recursive?: boolean }): vo
   // is passed on — the desktop shell deletes the file now or, while another
   // program still holds it, at its next start (src-tauri/src/files.rs).
   if (!refused && unreadable.delete(at)) {
-    persistRemove(at);
+    persistRemoveUnread(at);
     return;
   }
   if (dirs.has(at)) {
