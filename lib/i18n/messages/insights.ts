@@ -93,6 +93,8 @@ export const de = {
     halfyearly: 'halbjährlich',
     yearly: 'jährlich',
   } as Record<Cadence, string>,
+  /** Every 28 days: thirteen a year, so not "monatlich" (lib/recurring.ts FOUR_WEEKLY). */
+  everyFourWeeks: 'alle 4 Wochen',
 
   /** The Umsatzanalyse (components/Analysis.tsx, components/insights/AnalysisParts.tsx). */
   analysis: {
@@ -634,6 +636,7 @@ export const en: typeof de = {
     halfyearly: 'half-yearly',
     yearly: 'yearly',
   },
+  everyFourWeeks: 'every 4 weeks',
 
   analysis: {
     label: 'Spending analysis',

@@ -15,7 +15,9 @@
 //      creditor ID alone, then the counterparty's name. Money in and money
 //      out are never one series.
 //   3. Read the rhythm from the median gap between bookings and accept it
-//      only if most gaps agree (a skipped month is tolerated).
+//      only if most gaps agree (a skipped month is tolerated). Every 28 days
+//      is told from monthly by its day of the month wandering: thirteen a
+//      year, projected in days.
 //   4. Weigh the evidence. A creditor ID or a mandate reference proves a
 //      standing arrangement with that creditor, and so does a standing order
 //      the user set up: such a series needs three bookings for the weekly and
@@ -72,12 +74,21 @@ type CadenceDef = {
   /** Nominal gap in days, and how far a gap may stray from it. */
   days: number;
   tol: number;
-  /** Calendar months per step; 0 for the weekly rhythm, which counts days. */
+  /** Calendar months per step; 0 for a rhythm that counts days (weekly, every four weeks). */
   months: number;
   /** Fewest bookings that make a series. */
   min: number;
   perYear: number;
 };
+
+/**
+ * Every four weeks: 28 days sit inside the monthly rhythm's tolerance, but
+ * it is thirteen payments a year, and its day wanders through the month. Not
+ * a `Cadence` of its own — the id is stored (manual contracts) and listed in
+ * places that know five — so it goes by 'monthly' and is told apart by
+ * counting days: `everyDays` 28 on the series, its own words as the label.
+ */
+const FOUR_WEEKLY: CadenceDef = { id: 'monthly', days: 28, tol: 2, months: 0, min: 4, perYear: 13 };
 
 const CADENCES: readonly CadenceDef[] = [
   { id: 'weekly', days: 7, tol: 2, months: 0, min: 3, perYear: 52 },
@@ -88,6 +99,12 @@ const CADENCES: readonly CadenceDef[] = [
 ];
 
 const CADENCE_BY_ID = new Map(CADENCES.map((c) => [c.id, c]));
+
+/**
+ * How many days an expected booking may be late before the series is called
+ * overdue. Until then it is still expected — any day now (lib/forecast.ts).
+ */
+export const LATE_DAYS = 5;
 
 /** "monatlich", "vierteljährlich", … — in the language speaking right now (lib/i18n). */
 export const cadenceLabel = (c: Cadence): string => (CADENCE_BY_ID.has(c) ? msgs().insights.cadence[c] : '');
@@ -118,7 +135,19 @@ export type RecurringSeries = {
   cadenceLabel: string;
   /** Median gap between bookings, in days. */
   intervalDays: number;
-  /** Typical signed amount — the current price after a price change. */
+  /**
+   * The step of a rhythm that counts days instead of the calendar: 7 for a
+   * weekly series, 28 for one that comes every four weeks (its `cadence` is
+   * 'monthly', its label and its thirteen a year are its own). Absent for the
+   * calendar rhythms. Its bookings after `nextDate` follow from it (expectedDates).
+   */
+  everyDays?: number;
+  /**
+   * Typical signed amount — the current price after a price change. A single
+   * booking that looks like a one-off (a bonus, a credited month, a double
+   * charge) is not it until a second one confirms it; `lastAmount`, `changed`
+   * and `change` say what that booking was.
+   */
   amount: number;
   /** Signed. */
   lastAmount: number;
@@ -286,21 +315,62 @@ function steadyAmounts(abs: readonly number[], maxCv: number): boolean {
 }
 
 /**
+ * Whether the newest booking is an amount that nothing has confirmed yet and
+ * that is more likely a one-off than the new price. It differs from a price
+ * seen at least twice, and it is
+ *   - income (a Christmas bonus, a back payment: a raise shows again next month),
+ *   - a charge more than a quarter below the price (a month credited or discounted), or
+ *   - a charge of twice the price or more (a month collected late with this one, a
+ *     settlement), where lib/payment-alerts.ts stops calling it a price increase too.
+ * A dearer charge short of that is a price rise and counts at once.
+ */
+function unconfirmed(abs: readonly number[], income: boolean): boolean {
+  const n = abs.length;
+  if (n < 3) return false;
+  const last = abs[n - 1];
+  const prev = abs[n - 2];
+  // Back at the usual amount after a one-off is no new amount.
+  if (!differs(prev, last) || differs(abs[n - 3], prev)) return false;
+  return income || last * 4 < prev * 3 || last >= prev * 2;
+}
+
+/**
  * The amount to expect next time (cents, unsigned). For a fixed price — even
  * one that has changed — the current price: the run of recent bookings at
- * the newest amount. For a genuinely varying amount (salary, a phone bill)
- * the median of the recent ones. With only two bookings there is no telling
- * the two apart, and the newer amount is the better guess.
+ * the newest amount, or at the one before it while the newest is unconfirmed
+ * (`held`): one bonus is not the salary, one credited month not the price.
+ * For a genuinely varying amount (salary, a phone bill) the median of the
+ * recent ones. With only two bookings there is no telling the two apart, and
+ * the newer amount is the better guess.
  */
-function typicalAmount(abs: readonly number[]): { typical: number; variable: boolean } {
-  const last = abs[abs.length - 1];
+function typicalAmount(abs: readonly number[], income: boolean): { typical: number; variable: boolean; held: boolean } {
   const fixed = abs.length <= 2 || changePoints(abs).length * 2 <= abs.length - 1;
-  if (fixed) {
-    let start = abs.length - 1;
-    while (start > 0 && !differs(abs[start - 1], last) && !differs(last, abs[start - 1])) start--;
-    return { typical: Math.round(median(abs.slice(start))), variable: false };
+  if (!fixed) return { typical: Math.round(median(abs.slice(-6))), variable: true, held: false };
+  const held = unconfirmed(abs, income);
+  const end = held ? abs.length - 1 : abs.length;
+  const price = abs[end - 1];
+  let start = end - 1;
+  while (start > 0 && !differs(abs[start - 1], price) && !differs(price, abs[start - 1])) start--;
+  return { typical: Math.round(median(abs.slice(start, end))), variable: false, held };
+}
+
+/**
+ * The price the first `n` bookings end on: where its run began (`begin`) and
+ * the price before that, if any. One booking at another price between two at
+ * this one — a month discounted or credited, a one-off extra — is no change
+ * of price (`oneOff`), and the run goes on before it.
+ */
+function priceRun(abs: readonly number[], n: number): { price: number; oneOff: boolean; begin: number; before: number | null } {
+  const price = abs[n - 1];
+  let run = n - 1;
+  while (run > 0 && !differs(abs[run - 1], price)) run--;
+  const oneOff = run >= 2 && !differs(abs[run - 2], price);
+  let begin = run;
+  if (oneOff) {
+    begin = run - 2;
+    while (begin > 0 && !differs(abs[begin - 1], price)) begin--;
   }
-  return { typical: Math.round(median(abs.slice(-6))), variable: true };
+  return { price, oneOff, begin, before: begin > 0 ? abs[begin - 1] : null };
 }
 
 // ---------------------------------------------------------------------------
@@ -309,11 +379,30 @@ function typicalAmount(abs: readonly number[]): { typical: number; variable: boo
 
 type Occurrence = { tx: SerializedTransaction; day: string; n: number; abs: number };
 
+/**
+ * Whether the bookings come every four weeks rather than monthly. A monthly
+ * payment's gaps are 28 days too across a February, so the gap alone does not
+ * tell; its day of the month does. Monthly keeps it (give or take a weekend);
+ * four-weekly loses two or three days with every booking. So: at least four
+ * bookings, a median gap of 28 (±1) days, and the newest booking at least
+ * `2 × steps − 1` days ahead of where the first one's day of the month would
+ * have put it — five days after three steps, which no weekend or holiday
+ * moves a monthly payment by.
+ */
+function everyFourWeeks(occ: readonly Occurrence[], gaps: readonly number[], interval: number): boolean {
+  if (gaps.length < 3 || Math.abs(interval - FOUR_WEEKLY.days) > 1) return false;
+  const first = occ[0];
+  const last = occ[occ.length - 1];
+  const steps = Math.round((last.n - first.n) / FOUR_WEEKLY.days);
+  const monthly = monthDay(+first.day.slice(0, 4), +first.day.slice(5, 7) + steps, +first.day.slice(8, 10));
+  return dayNumber(monthly) - last.n >= 2 * steps - 1;
+}
+
 function rhythmOf(occ: readonly Occurrence[]): { cadence: CadenceDef; interval: number } | null {
   if (occ.length < 2) return null;
   const gaps = occ.slice(1).map((o, i) => o.n - occ[i].n);
   const interval = median(gaps);
-  const cadence = CADENCES.find((c) => Math.abs(interval - c.days) <= c.tol);
+  const cadence = everyFourWeeks(occ, gaps, interval) ? FOUR_WEEKLY : CADENCES.find((c) => Math.abs(interval - c.days) <= c.tol);
   if (!cadence) return null;
   // Most gaps must agree. One missed booking (a double gap) still agrees: a
   // subscription paused for a month is the same subscription.
@@ -398,7 +487,7 @@ function rollsBackward(occ: readonly Occurrence[], anchor: number | 'end', incom
 function projectNext(occ: readonly Occurrence[], cadence: CadenceDef, income: boolean): string {
   const last = occ[occ.length - 1];
   const forward = (key: string) => dayKey(nextTargetBusinessDay(key));
-  if (!cadence.months) return forward(addDaysKey(last.day, 7));
+  if (!cadence.months) return forward(addDaysKey(last.day, cadence.days));
 
   const anchor = anchorDay(occ);
   const roll = rollsBackward(occ, anchor, income)
@@ -582,28 +671,23 @@ function assemble(
   const newest = occ[occ.length - 1].tx;
   const abs = occ.map((o) => o.abs);
   const sign = group.credit ? 1 : -1;
-  const { typical, variable } = typicalAmount(abs);
+  const { typical, variable, held } = typicalAmount(abs, group.credit);
   const lastAbs = abs[abs.length - 1];
   const prevAbs = abs.length > 1 ? abs[abs.length - 2] : null;
-  // Where the current price began: back through the bookings at it.
-  let run = abs.length - 1;
-  while (run > 0 && !differs(abs[run - 1], lastAbs)) run--;
-  // One booking at another price between two at the current one — a month
-  // discounted or credited, a one-off extra — is no change of price.
-  const oneOff = run >= 2 && !differs(abs[run - 2], lastAbs);
-  const changed = !oneOff && prevAbs != null && differs(prevAbs, lastAbs);
-  // Past a one-off, the run at the current price goes on before it.
-  let begin = run;
-  if (oneOff) {
-    begin = run - 2;
-    while (begin > 0 && !differs(abs[begin - 1], lastAbs)) begin--;
-  }
-  const before = begin > 0 ? abs[begin - 1] : null;
-  const priceChange = !variable && before != null && differs(before, lastAbs) && occ[begin].n >= ref - 365
-    ? { since: occ[begin].day, previous: before / 100, delta: (lastAbs - before) / 100, perYear: ((lastAbs - before) * cadence.perYear) / 100 }
+  const whole = priceRun(abs, abs.length);
+  // What the last booking did against the one before it stays said, held back or not.
+  const changed = !whole.oneOff && prevAbs != null && differs(prevAbs, lastAbs);
+  // A held-back amount is not the price yet. A bonus or a credited month is
+  // no change of price either: the price is read without it, and what changed
+  // before it still holds. A charge of twice the price stays the news it
+  // always was (lib/contract-watch.ts) — only the price is not taken from it.
+  const quiet = held && (group.credit || (prevAbs != null && lastAbs < prevAbs));
+  const p = quiet ? priceRun(abs, abs.length - 1) : whole;
+  const priceChange = !variable && p.before != null && differs(p.before, p.price) && occ[p.begin].n >= ref - 365
+    ? { since: occ[p.begin].day, previous: p.before / 100, delta: (p.price - p.before) / 100, perYear: ((p.price - p.before) * cadence.perYear) / 100 }
     : null;
   const nextDate = projectNext(occ, cadence, group.credit);
-  const late = ref - 5 - dayNumber(nextDate);
+  const late = ref - LATE_DAYS - dayNumber(nextDate);
 
   // Not the intermediary's IBAN, nor a payment service's: "Umsätze anzeigen"
   // would list every shop it serves.
@@ -631,9 +715,10 @@ function assemble(
     category,
     cadence: cadence.id,
     get cadenceLabel() {
-      return cadenceLabel(cadence.id);
+      return cadence === FOUR_WEEKLY ? msgs().insights.everyFourWeeks : cadenceLabel(cadence.id);
     },
     intervalDays: interval,
+    ...(cadence.months ? {} : { everyDays: cadence.days }),
     amount: (sign * typical) / 100,
     lastAmount: (sign * lastAbs) / 100,
     previousAmount: prevAbs == null ? null : (sign * prevAbs) / 100,
@@ -761,9 +846,12 @@ function manualSeries(
   id: string, m: ManualContract, loaded: readonly Occurrence[], ref: number,
   categoryOf: DetectOptions['categoryOf'], guessCtx: Pick<DetectOptions, 'ownIbans' | 'modelGuesses'>,
 ): RecurringSeries | null {
-  const cadence = CADENCE_BY_ID.get(m.cadence);
   const known = loaded.length ? null : knownBooking(m);
   const occ = known ? [known] : loaded;
+  // The user's rhythm — read as every four weeks where they said monthly and the bookings show that.
+  const chosen = CADENCE_BY_ID.get(m.cadence);
+  const seen = rhythmOf(occ)?.cadence;
+  const cadence = seen && seen.id === chosen?.id ? seen : chosen;
   if (!cadence || !occ.length) return null;
   const newest = occ[occ.length - 1].tx;
   const gaps = occ.slice(1).map((o, i) => o.n - occ[i].n);
@@ -898,8 +986,39 @@ export function detectRecurring(txs: readonly SerializedTransaction[], opts: Det
 }
 
 /**
- * The next expected booking of each live series within `days` days from
- * today (inclusive), soonest first — one entry per series.
+ * The days a live series is expected on from `from` to `to` (inclusive): its
+ * next expected day and, for a rhythm counted in days (weekly, every four
+ * weeks), every one after it — each on a business day, as the bank books it.
+ * A calendar rhythm is projected one booking ahead, so it is here at most once.
+ */
+export function expectedDates(
+  s: Pick<RecurringSeries, 'nextDate' | 'cadence' | 'ended' | 'overdue'> & Partial<Pick<RecurringSeries, 'lastDate' | 'everyDays'>>,
+  from: string,
+  to: string,
+): string[] {
+  if (s.ended || s.overdue || !s.nextDate) return [];
+  const out: string[] = [];
+  if (s.nextDate >= from && s.nextDate <= to) out.push(s.nextDate);
+  const step = s.everyDays ?? (s.cadence === 'weekly' ? 7 : 0);
+  if (!step) return out;
+  const roll = (key: string) => dayKey(nextTargetBusinessDay(key));
+  // nextDate is on a business day already. Where a holiday moved it there,
+  // the ones after it count on from its own day, not from where it landed.
+  const own = s.lastDate ? addDaysKey(s.lastDate, step) : '';
+  let nominal = own && roll(own) === s.nextDate ? own : s.nextDate;
+  for (let i = 0; i < 60; i++) {
+    nominal = addDaysKey(nominal, step);
+    if (nominal > to) break;
+    const day = roll(nominal);
+    if (day >= from && day <= to) out.push(day);
+  }
+  return out;
+}
+
+/**
+ * The expected bookings of the live series within `days` days from today
+ * (inclusive), soonest first: one entry per booking, so a weekly payment is
+ * here every week it is due — what is due adds up from this.
  */
 export function upcoming(
   series: readonly RecurringSeries[],
@@ -908,8 +1027,7 @@ export function upcoming(
   const today = dayKey(opts.today ?? new Date());
   const horizon = dayFromNumber(dayNumber(today) + Math.max(0, opts.days));
   return series
-    .filter((s) => !s.ended && !s.overdue && s.nextDate >= today && s.nextDate <= horizon)
-    .map((s) => ({ series: s, date: s.nextDate }))
+    .flatMap((s) => expectedDates(s, today, horizon).map((date) => ({ series: s, date })))
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : Math.abs(b.series.amount) - Math.abs(a.series.amount)));
 }
 

@@ -70,6 +70,11 @@ export function ForecastTile({ className }: { className?: string }) {
         series,
         orders,
         pending: pendingCache[acct] ?? [],
+        // What today's balance already holds (an order that ran this morning),
+        // and how far the Umsätze reach: a late payment is only known to be
+        // outstanding when they reach today.
+        bookings: txByAccount[acct] ?? [],
+        loadedTo: info?.to,
         usual,
         creditLimit: balance.creditLimit ?? null,
         card,
