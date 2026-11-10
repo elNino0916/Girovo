@@ -381,6 +381,14 @@ export const de = {
     off: 'Firmenlogos bleiben aus.',
   },
 
+  /** Before the bank, once: the terms of use (components/auth/TermsStep.tsx). The links' names are settings.terms and settings.privacyPolicy. */
+  terms: {
+    title: 'Nutzungsbedingungen',
+    text: 'Mit „Einverstanden“ stimmst du den Nutzungsbedingungen zu.',
+    privacy: 'Was mit deinen Daten geschieht, steht in der Datenschutzerklärung.',
+    agree: 'Einverstanden',
+  },
+
   /** "Nutzungsdaten teilen?", the desktop app's Übersicht tile (components/telemetry/UsageConsent.tsx). */
   usage: {
     title: 'Nutzungsdaten teilen?',
@@ -712,6 +720,13 @@ export const en: typeof de = {
     load: 'Load logos',
     on: 'Company logos are on.',
     off: 'Company logos stay off.',
+  },
+
+  terms: {
+    title: 'Terms of use',
+    text: 'By choosing “Agree” you accept the terms of use.',
+    privacy: 'The privacy policy says what happens to your data.',
+    agree: 'Agree',
   },
 
   usage: {

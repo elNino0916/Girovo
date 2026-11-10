@@ -20,6 +20,7 @@
 //                  &unclear=1                 this session's log holds a "Status unklar" transfer
 //                  &second=linked|loggedOut|remembered   a second bank in the view (Weitere Bank anmelden)
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
+//                  &terms=ask                 the login before the terms of use are agreed to (lib/terms.ts)
 //                  &nano=working|unsupported|…  Android: a fake Gemini Nano (./nano.ts)
 //                  &integrity=modified|unknown|kept  Android: the integrity check's answer (./nano.ts)
 //                  &plus=free|active|inactive|unavailable  Android: Girovo Plus as the Play build sees it
@@ -67,6 +68,7 @@ import {
 import type { PlusState } from '@/lib/plus';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
 import { USAGE_SCENARIOS, installFakeTelemetry } from './telemetry';
+import { setTermsPreview } from '@/lib/terms';
 
 // ---------------------------------------------------------------------------
 // Scripts: how each view gets from "logged in" to the state it shows
@@ -1671,6 +1673,8 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
   );
   const usageParam = one(params.usage) as (typeof USAGE_SCENARIOS)[number];
   prepareTelemetry(JSON.stringify(params), USAGE_SCENARIOS.includes(usageParam) ? usageParam : null);
+  // Every view is past the terms of use, whatever this browser has stored; ?terms=ask shows the step.
+  setTermsPreview(one(params.terms) !== 'ask');
 
   const presetParam = one(params.preset) as MockPreset;
   const preset = PRESETS.includes(presetParam) ? presetParam

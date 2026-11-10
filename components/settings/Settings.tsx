@@ -36,7 +36,7 @@
 import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { LOCALE_NAMES } from '@/lib/i18n/locale';
 import { useLocale, useT } from '@/lib/i18n/react';
-import { CONTACT_MAIL, WEBSITE_URL, imprintUrl, privacyUrl } from '@/lib/links';
+import { CONTACT_MAIL, WEBSITE_URL, imprintUrl, privacyUrl, termsUrl } from '@/lib/links';
 import { IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
 import { PAGE_CLUSTERS, PAGE_ORDER, type SettingsPage } from '@/lib/settings-pages';
 import { setBlack, setThemePref } from '@/lib/theme';
@@ -612,7 +612,8 @@ function AboutPage() {
         <LinkItem icon={<GlobeIcon />} title={t.settings.website} summary="girovo.de" href={WEBSITE_URL} opensExternally={t.shell.opensExternally} />
         <LinkItem icon={<MailIcon />} title={t.settings.contact} summary={CONTACT_MAIL} href={`mailto:${CONTACT_MAIL}`} opensExternally={t.settings.opensMail} />
         <LinkItem icon={<CodeIcon />} title={t.settings.source} href={SOURCE_URL} opensExternally={t.shell.opensExternally} />
-        <LinkItem icon={<FileIcon />} title={t.settings.privacyPolicy} href={privacyUrl(locale)} opensExternally={t.shell.opensExternally} />
+        <LinkItem icon={<FileIcon />} title={t.settings.terms} href={termsUrl(locale)} opensExternally={t.shell.opensExternally} />
+        <LinkItem icon={<ShieldIcon />} title={t.settings.privacyPolicy} href={privacyUrl(locale)} opensExternally={t.shell.opensExternally} />
         <LinkItem icon={<BuildingIcon />} title={t.settings.imprint} href={imprintUrl(locale)} opensExternally={t.shell.opensExternally} />
       </SettingsGroup>
     </>

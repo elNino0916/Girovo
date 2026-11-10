@@ -59,6 +59,7 @@ export const de = {
   opensMail: '(öffnet die E-Mail-App)',
   source: 'Quellcode auf GitHub',
   privacyPolicy: 'Datenschutzerklärung',
+  terms: 'Nutzungsbedingungen',
   /** The provider's legal notice (§ 5 DDG), on the website. */
   imprint: 'Impressum',
   /** The Sitzung panel's way here, and what it says when the saved data needs a look. */
@@ -283,6 +284,7 @@ export const en: typeof de = {
   opensMail: '(opens your e-mail app)',
   source: 'Source code on GitHub',
   privacyPolicy: 'Privacy policy',
+  terms: 'Terms of use',
   imprint: 'Legal notice',
   open: 'Settings',
   inSettings: 'In Settings',

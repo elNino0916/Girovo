@@ -3,7 +3,9 @@
 import { AuthCard, PrivacyAside } from './auth/AuthShell';
 import { BankPicker } from './auth/BankPicker';
 import { Credentials } from './auth/Credentials';
+import { TermsStep } from './auth/TermsStep';
 import { useFints } from './FintsProvider';
+import { useTermsAccepted } from '@/lib/terms';
 import { Skeleton } from './ui';
 
 // The auth shell lives in components/auth/AuthShell.tsx; re-exported here
@@ -16,14 +18,20 @@ export { AuthCard } from './auth/AuthShell';
  *
  * Both steps share one frame, so moving between them changes the card's
  * content and the step on the stage — nothing else on the page jumps.
+ *
+ * Before either, once: the terms of use (TermsStep), on the same frame.
  */
 export function Login() {
   const {
     bank, setBank, bankChecking, staleBank, popularBanks, logoFiles, meta, connect, cancelConnect,
   } = useFints();
+  const termsAccepted = useTermsAccepted();
+  // Not agreed to yet: nothing of the login is mounted, so nothing asks for a
+  // PIN, Windows Hello or a fingerprint behind it.
+  if (termsAccepted === false) return <AuthCard><TermsStep /></AuthCard>;
   return (
     <AuthCard step={bank ? 'credentials' : 'bank'} aside={<PrivacyAside merchantLogos={meta?.merchantLogos} />}>
-      {bankChecking ? (
+      {bankChecking || termsAccepted === null ? (
         // The bank from last time is being checked against the list — a
         // moment, so neither form flashes up only to be replaced.
         <div aria-busy className="flex flex-col gap-3">
