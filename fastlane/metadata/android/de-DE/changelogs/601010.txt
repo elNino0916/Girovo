@@ -1,0 +1,1 @@
+Abgleich: Ein Telefon wird als Telefon gezeigt, und lange Gerätenamen werden nicht mehr abgeschnitten.

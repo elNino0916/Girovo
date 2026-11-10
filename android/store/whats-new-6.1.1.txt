@@ -1,0 +1,6 @@
+<en-US>
+• Sync: a phone is shown as a phone, and long device names are no longer cut off
+</en-US>
+<de-DE>
+• Abgleich: Ein Telefon wird als Telefon gezeigt, und lange Gerätenamen werden nicht mehr abgeschnitten
+</de-DE>

@@ -1,0 +1,1 @@
+Sync: a phone is shown as a phone, and long device names are no longer cut off.
