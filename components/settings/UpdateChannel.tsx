@@ -13,6 +13,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { BoltIcon, FileIcon, SplitIcon } from '../icons';
+import { PrivacyPolicyLink } from '../PrivacyPolicyLink';
 import { Button, Dialog, cx } from '../ui';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import { updates, useUpdates } from '../updates/store';
@@ -65,8 +66,8 @@ export function UpdateChannelRow() {
       >
         <ChannelChoice value={choice} onChange={setChoice} />
         <p className="mt-4 text-[14px] leading-relaxed text-ink-2">{IS_ANDROID ? c.noteAndroid : c.note}</p>
-        {/* What the yes shares, in full: it is given with "Übernehmen". */}
-        {withUsage && <p data-channel-usage className="mt-2 text-[14px] leading-relaxed text-ink-2">{c.usage} {t.auth.usage.disclosure}</p>}
+        {/* One line (owner, 2026-11-10: the full text was a wall); what is shared is the policy's to say. */}
+        {withUsage && <p data-channel-usage className="mt-2 text-[14px] leading-relaxed text-ink-2">{c.usage} <PrivacyPolicyLink /></p>}
       </Dialog>
     </>
   );

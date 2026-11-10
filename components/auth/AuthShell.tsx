@@ -15,13 +15,13 @@
 // window — the brand field beside it takes its share.
 
 import type { CSSProperties, ReactNode } from 'react';
-import { useLocale, useT } from '@/lib/i18n/react';
-import { privacyUrl } from '@/lib/links';
+import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { ThemeToggle } from '../ThemeToggle';
 import { LanguageSwitch } from '../LanguageToggle';
-import { CheckIcon, ExternalIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../icons';
+import { CheckIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../icons';
+import { PrivacyPolicyLink } from '../PrivacyPolicyLink';
 import { cx } from '../ui';
 import { BrandName, BrandPlate } from '../shell/BrandMark';
 import { usePhone } from '../shell/usePhone';
@@ -246,29 +246,6 @@ function useTelemetryLine(mentionUsage = true): string | null {
   if (usage === 'on') return t.auth.privacy.telemetryOn;
   const errors = t.auth.privacy.errorReports;
   return mentionUsage ? `${errors} ${t.auth.privacy.usageNeedsYes}` : errors;
-}
-
-/**
- * The privacy policy on girovo.de, linked where the app is first met: the
- * update check and an error report can go out before anyone has opened
- * Einstellungen → Über Girovo, where the link used to be the only one.
- */
-function PrivacyPolicyLink({ className }: { className?: string }) {
-  const t = useT();
-  const { locale } = useLocale();
-  return (
-    <a
-      href={privacyUrl(locale)}
-      target="_blank"
-      rel="noopener noreferrer"
-      data-privacy-policy
-      className={cx('font-semibold text-accent underline-offset-4 hover:underline', className)}
-    >
-      {t.settings.privacyPolicy}
-      <ExternalIcon size={12} className="ml-1 inline-block align-[-1px]" />
-      <span className="sr-only">{` ${t.shell.opensExternally}`}</span>
-    </a>
-  );
 }
 
 /**

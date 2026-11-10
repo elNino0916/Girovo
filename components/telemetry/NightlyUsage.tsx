@@ -15,6 +15,7 @@
 import { useState } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { ChartIcon } from '../icons';
+import { PrivacyPolicyLink } from '../PrivacyPolicyLink';
 import { Button, Dialog } from '../ui';
 import { updates, useUpdates } from '../updates/store';
 import { setUsageConsent, useUsageConsent, type UsageConsent } from './usage';
@@ -46,8 +47,8 @@ export function NightlyUsageDialog() {
       open={open}
       title={words.title}
       icon={<ChartIcon size={20} />}
-      // What the yes shares, in full, as where it is asked without a channel (UsageConsentTile).
-      description={<>{t.auth.usage.disclosure} {words.text}</>}
+      // Two short lines; what is shared in full is the policy's to say.
+      description={<>{words.text} <PrivacyPolicyLink /></>}
       actions={
         <>
           <Button variant="secondary" data-autofocus busy={busy === 'stable'} disabled={busy === 'agree'} onClick={() => void answer('stable')}>
