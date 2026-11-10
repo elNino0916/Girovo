@@ -382,6 +382,20 @@ const NFX = { creditorId: 'DE98ZZZ09999999999', mandateReference: 'NFX-4711', bo
 const netflix = (day: string, amount: number) => tx(day, amount, 'Netflix International B.V.', '', NFX);
 const salary = (day: string) => tx(day, 2500, 'ACME GmbH', '', { bookingText: 'LOHN/GEHALT' });
 
+test('alerts: a contract kept by 6.0 under the raw bank name is tidied in the notice; a name the user gave stays as typed', async () => {
+  const key = seriesIdentity(netflix('2026-10-03', -12.99)).key!;
+  const titleFor = async (contract: { name: string; named?: true }) => {
+    const store = memoryStore();
+    await enroll(store, secret, [spk], true);
+    await setWatch(store, secret, { contracts: [{ key, ...contract, cents: 1299, at: '2026-11-01' }], income: [] }, NOW);
+    await runCheck(store, secret, fakeBank({ '50050201:DE01': [] }).side, NOW);
+    const r = await runCheck(store, secret, fakeBank({ '50050201:DE01': [netflix('2026-11-03', -13.99)] }).side, NOW + 1);
+    return r.notices.find((n) => n.kind === 'dearer')?.title;
+  };
+  assert.equal(await titleFor({ name: 'NETFLIX INTERNATIONAL B.V.' }), 'Netflix International B.V. ist teurer geworden');
+  assert.equal(await titleFor({ name: 'HBO', named: true }), 'HBO ist teurer geworden');
+});
+
 test('alerts: a dearer contract and salary each get their own notice; the rest is "new"', async () => {
   const store = memoryStore();
   await enroll(store, secret, [spk], true);

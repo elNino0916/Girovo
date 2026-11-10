@@ -482,7 +482,8 @@ function dearerNotice(
 ): Notice {
   const said = msgs().background;
   const currency = t.currency || 'EUR';
-  const name = contract.name || whoOf(t);
+  // An entry kept by 6.0 holds the bank's raw name ("DB VERTRIEB GMBH") until the app names it again.
+  const name = (contract.named ? contract.name : displayName(contract.name)) || whoOf(t);
   return {
     key: `${login.blz}|${login.userId}|dearer|${contract.key}|${contract.shop ?? ''}`,
     kind: 'dearer',

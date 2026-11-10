@@ -43,8 +43,10 @@ export type WatchedContract = {
   key: string;
   /** A payment facilitator's shop, when the series is one shop's bookings through it. */
   shop?: string;
-  /** As Verträge & Abos names it: raw, run it through displayName. */
+  /** As Verträge & Abos names it. With `named` it is shown as it stands; without (a list kept by 6.0), it is the bank's raw name: run it through displayName. */
   name: string;
+  /** The name is the one to show — the user's own, or already tidied (6.1, seriesTitle). */
+  named?: true;
   /** The usual price in cents, positive. */
   cents: number;
   /** yyyy-mm-dd: when the app last named it. */
@@ -120,7 +122,7 @@ function readContract(v: unknown): WatchedContract | null {
   const cents = readCents(r.cents);
   if (!key || cents === null || cents <= 0 || !isDay(r.at)) return null;
   const shop = cleanText(r.shop, NAME_MAX);
-  return { key, ...(shop ? { shop } : {}), name: cleanText(r.name, NAME_MAX), cents, at: r.at };
+  return { key, ...(shop ? { shop } : {}), name: cleanText(r.name, NAME_MAX), ...(r.named === true ? { named: true as const } : {}), cents, at: r.at };
 }
 
 function readIncome(v: unknown): WatchedIncome | null {
@@ -183,7 +185,7 @@ export function watchOf(
     const cents = Math.round(Math.abs(s.amount) * 100);
     if (!(cents > 0) || cents > CENTS_MAX) continue;
     const shop = s.transactions[0] ? seriesIdentity(s.transactions[0]).shop : null;
-    contracts.push({ key, ...(shop ? { shop } : {}), name: cleanText(seriesTitle(s), NAME_MAX), cents, at: today });
+    contracts.push({ key, ...(shop ? { shop } : {}), name: cleanText(seriesTitle(s), NAME_MAX), named: true, cents, at: today });
   }
   const liveKeys = new Set(live.map((s) => seriesBase(s.key)));
   const drop = [...new Set(gone.map((s) => seriesBase(s.key)))].filter((k) => !liveKeys.has(k) && cleanKey(k));
