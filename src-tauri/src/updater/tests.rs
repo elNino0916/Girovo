@@ -1976,6 +1976,48 @@ mod signed {
   }
 
   #[tokio::test]
+  async fn time_offline_is_no_outage_of_girovo_de() {
+    let cache = TempDir::new();
+    // Nothing answers at all, girovo.de nor GitHub: this device is offline. Nothing is noted.
+    let host = noted_host("stable", "9.9.8", 24 * HOUR);
+    let before = host.pref(PREF_LISTED);
+    let s = make(signed_config(OFFLINE, cache.path()), &host).check(true).await;
+    assert!(s.error.is_some(), "a manual check says it is offline");
+    assert_eq!(host.pref(PREF_LISTED), before);
+    assert_eq!(down_since(&host, "stable"), None);
+    // Offline for four days, then online while girovo.de is down: the outage begins now, 9.9.9 waits.
+    let srv = Server::start(site(None, Some(1), Arc::default()));
+    let came_online = now();
+    let s = make(signed_config(&srv.base, cache.path()), &host).check(true).await;
+    assert_eq!((s.release, s.error), (None, None));
+    assert!(down_since(&host, "stable").is_some_and(|t| t >= came_online));
+    // Any answer from GitHub counts as online, an error page too.
+    let srv = Server::start(|_req, conn, _base| conn.send(500, b"oops"));
+    let host = noted_host("stable", "9.9.8", HOUR);
+    let errored = now();
+    make(signed_config(&srv.base, cache.path()), &host).check(true).await;
+    assert!(down_since(&host, "stable").is_some_and(|t| t >= errored));
+  }
+
+  #[tokio::test]
+  async fn the_way_back_to_stable_is_not_held_during_an_outage() {
+    // A nightly of 10.0.0 runs, just switched back to Stabil; the note on
+    // Stabil is from its days on 9.9.7. girovo.de is down, GitHub's latest is 9.9.9.
+    let srv = Server::start(site(None, Some(1), Arc::default()));
+    let cache = TempDir::new();
+    let host = noted_host("stable", "9.9.7", HOUR);
+    let mut cfg = signed_config(&srv.base, cache.path());
+    cfg.current_version = "10.0.0-nightly.202611071832.gc0d6b0c".into();
+    let s = make(cfg, &host).check(true).await;
+    // 9.9.9 is no update for it, only the way back: offered as that, not held.
+    let release = s.release.expect("the way back");
+    assert_eq!((release.version.as_str(), release.back, s.phase, s.error), ("9.9.9", true, Phase::Available, None));
+    // The same 9.9.9 as an update (from 9.0.0) is held, as before.
+    let s = make(signed_config(&srv.base, cache.path()), &host).check(true).await;
+    assert_eq!((s.release, s.phase), (None, Phase::Current));
+  }
+
+  #[tokio::test]
   async fn an_unchanged_listing_is_an_answer_too_refreshes_the_note_and_ends_the_outage() {
     let seen: Seen = Arc::default();
     let srv = Server::start(site(Some(halted), None, seen.clone()));

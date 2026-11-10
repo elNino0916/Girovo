@@ -807,19 +807,35 @@ impl Updater {
         self.remember_listed(channel, offer.as_ref());
         return Ok(offer);
       }
-      // The outage, from its first failed ask on (logic::note_outage).
-      if let Some(noted) = logic::note_outage(self.host.pref(PREF_LISTED).as_deref(), channel, now_ms()) {
-        self.host.set_pref(PREF_LISTED, &noted);
-      }
     }
-    let candidate = match self.fetch_github_offer(channel).await? {
+    let github = self.fetch_github_offer(channel).await;
+    // girovo.de's outage, from its first failed ask on (logic::note_outage) —
+    // only once GitHub has answered at all (Said: an HTTP answer, a refusal
+    // or an error page included). Both silent is this device offline, and
+    // days offline must not count as days of outage.
+    if asks_girovo_de
+      && matches!(github, Ok(_) | Err(Failure::Said(_)))
+      && let Some(noted) = logic::note_outage(self.host.pref(PREF_LISTED).as_deref(), channel, now_ms())
+    {
+      self.host.set_pref(PREF_LISTED, &noted);
+    }
+    let candidate = match github? {
       Some(release) if self.cfg.require_signed => self.signed_copy(release, channel).await,
       other => other,
     };
+    // Only an update is held back, as in the APK (update-logic.cjs): the way
+    // back to the stable release (logic::is_switch_back) or nothing newer is
+    // take_offer's to decide.
     match candidate {
-      Some(release) if asks_girovo_de && !self.believed_without_girovo_de(&release, channel) => Err(Failure::Withheld),
+      Some(release) if asks_girovo_de && self.is_update(&release) && !self.believed_without_girovo_de(&release, channel) => Err(Failure::Withheld),
       other => Ok(other),
     }
+  }
+
+  /// Whether `release` is newer than the running version by build number, as
+  /// take_offer orders a signed offer.
+  fn is_update(&self, release: &Release) -> bool {
+    matches!((trust::build_number(&release.version), trust::build_number(&self.cfg.current_version)), (Some(a), Some(b)) if a > b)
   }
 
   /// Notes what girovo.de offered this copy in the answer it just gave (200
