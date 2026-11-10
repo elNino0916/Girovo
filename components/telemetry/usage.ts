@@ -6,6 +6,7 @@
 // desktop app every call here does nothing.
 
 import { useSyncExternalStore } from 'react';
+import { store } from '@/lib/client-api';
 
 export type UsageConsent = 'on' | 'off' | 'unasked';
 
@@ -40,9 +41,24 @@ export function forgetUsageConsent(): void {
   for (const listener of listeners) listener();
 }
 
-export async function setUsageConsent(on: boolean): Promise<void> {
+/**
+ * Set while the yes was given by choosing the Nightly channel, not by the
+ * switch or the question: that yes ends with the channel (the privacy policy
+ * says so), one the user gave on their own does not.
+ */
+const VIA_CHANNEL_KEY = 'fints.usage.viaChannel';
+
+/** Whether the consent in force came with the Nightly channel. */
+export function usageCameWithChannel(): boolean {
+  return store.get(VIA_CHANNEL_KEY) === '1';
+}
+
+/** `viaChannel`: this yes is part of choosing Nightly. Any other answer is the user's own and stands by itself. */
+export async function setUsageConsent(on: boolean, viaChannel = false): Promise<void> {
   const t = window.electronTelemetry;
   if (!t) return;
+  if (on && viaChannel) store.set(VIA_CHANNEL_KEY, '1');
+  else store.del(VIA_CHANNEL_KEY);
   const answer = await t.setConsent(on).catch(() => null);
   cached = answer ?? (on ? 'on' : 'off');
   for (const listener of listeners) listener();

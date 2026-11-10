@@ -15,7 +15,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { BoltIcon, FileIcon, SplitIcon } from '../icons';
 import { PrivacyPolicyLink } from '../PrivacyPolicyLink';
 import { Button, Dialog, cx } from '../ui';
-import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
+import { setUsageConsent, usageCameWithChannel, useUsageConsent } from '../telemetry/usage';
 import { updates, useUpdates } from '../updates/store';
 import { ActionItem, SwitchItem } from './rows';
 
@@ -35,9 +35,12 @@ export function UpdateChannelRow() {
     setOpen(false);
     void (async () => {
       // The dialog said so: the yes is set with the channel, and before it.
-      if (withUsage) await setUsageConsent(true);
+      // One given earlier by the switch stays the user's own.
+      if (withUsage && usage !== 'on') await setUsageConsent(true, true);
       // The updater asks again in the new channel at once; its rows follow the state.
       if (choice !== state.channel) await updates.setChannel(choice);
+      // Back to "Stabil": a yes that came with Nightly ends with it.
+      if (choice === 'stable' && usageCameWithChannel()) await setUsageConsent(false);
     })();
   };
   return (
