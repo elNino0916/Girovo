@@ -1,0 +1,1 @@
+Linux: account names, banks and rules are there again after updating from Girovo 5. No changes on Android.

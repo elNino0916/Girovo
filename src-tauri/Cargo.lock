@@ -1522,7 +1522,7 @@ dependencies = [
 
 [[package]]
 name = "girovo"
-version = "6.0.3"
+version = "6.0.4"
 dependencies = [
  "aws-lc-rs",
  "base64 0.22.1",

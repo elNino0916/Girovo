@@ -1,0 +1,8 @@
+<en-US>
+• Linux: account names, banks and rules are there again after updating from Girovo 5
+• No changes on Android
+</en-US>
+<de-DE>
+• Linux: Kontonamen, Banken und Regeln sind nach dem Update von Girovo 5 wieder da
+• Keine Änderungen für Android
+</de-DE>
