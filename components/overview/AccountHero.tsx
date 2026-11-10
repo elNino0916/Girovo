@@ -15,7 +15,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { AlertTriangleIcon, BackIcon, ChevronIcon, InfoIcon, PencilIcon, RefreshIcon, UndoIcon } from '../icons';
-import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx } from '../ui';
+import { Alert, Button, CopyButton, Field, IconButton, Input, Skeleton, cx, useFocusWhenDrawn } from '../ui';
 import { useDesktopFrame } from '../shell/frame';
 import { PrivacyToggle } from '../shell/PrivacyToggle';
 import { fmtSince } from '../shell/session';
@@ -429,15 +429,23 @@ function DepotHero({ account }: { account: SerializedAccount }) {
  * number, so two accounts of one name are never mistaken.
  */
 function AccountHead({ account, label }: { account: SerializedAccount; label: string }) {
-  const { accounts, banks, bankOf, logoFiles, closeAccount } = useFints();
+  const { accounts, banks, bankOf, logoFiles, closeAccount, vaultStatus, toast } = useFints();
   const t = useT();
   // The desktop's frame: the one account ticked of several ("Konten als
   // Ebenen") — no way back, the sidebar is it; the eye is the title bar's.
   const frame = useDesktopFrame();
   const { all } = useLayers();
+  // Which account is being renamed here: another one picked in the sidebar ends it.
+  const [renamed, setRenamed] = useState<string | null>(null);
   if (frame && accounts.length > 1) {
     const entry = bankOf(account);
     const ident = accountIdent(account);
+    const renaming = renamed === account.accountNumber;
+    // The name is kept in the saved data: without it there is nothing to keep it in.
+    const rename = () => {
+      if (vaultStatus === 'ready') setRenamed(account.accountNumber);
+      else toast(vaultNote(vaultStatus), 'info');
+    };
     return (
       <div className="min-w-0">
         <p className="text-[14px] leading-5 font-medium text-ink-2">
@@ -445,7 +453,19 @@ function AccountHead({ account, label }: { account: SerializedAccount; label: st
           {' · '}
           <button type="button" onClick={all} className="text-accent underline-offset-2 hover:underline">{t.shell.frame.showAll}</button>
         </p>
-        <p className="mt-1 min-w-0 truncate text-[22px] leading-7 font-medium text-ink">{label}</p>
+        {renaming ? (
+          <div className="mt-2 mb-2">
+            <RenameForm key={account.accountNumber} account={account} onClose={() => setRenamed(null)} />
+          </div>
+        ) : (
+          // The pencil beside the name: the one under "Kontoverlauf" was two clicks away (a user's report, 2026-11-10).
+          <p className="mt-1 flex min-w-0 items-center gap-1 text-[22px] leading-7 font-medium text-ink">
+            <span className="min-w-0 truncate">{label}</span>
+            <IconButton size="sm" className="-my-1 shrink-0" data-rename-name aria-label={t.insights.accounts.rename} title={t.insights.accounts.rename} onClick={rename}>
+              <PencilIcon size={16} />
+            </IconButton>
+          </p>
+        )}
         <p className="flex min-w-0 items-center gap-2 pb-1 text-[14px] leading-5 text-ink-2">
           {entry && <BankMark entry={entry} logoFile={logoFiles[entry.bank.brand]} className="size-4 rounded-[4px]" />}
           <span className="min-w-0 truncate">{entry?.bank.name}</span>
@@ -655,9 +675,8 @@ function RenameForm({ account, onClose }: { account: SerializedAccount; onClose:
   const fieldId = useId();
   const custom = !!draft.trim();
 
-  useEffect(() => {
-    input.current?.focus();
-  }, []);
+  // Once the field has drawn itself: before that its input has no box and focus() does nothing.
+  useFocusWhenDrawn(input);
 
   const save = (e: FormEvent) => {
     e.preventDefault();
