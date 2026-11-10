@@ -92,6 +92,9 @@ pub fn run() {
     .setup(|app| {
       // Before any window: a copy stuck on its way out would freeze this one's page (leftover.rs).
       leftover::end_stuck_copies();
+      // The deletes the last run could not finish (a kept PIN's file a scanner
+      // held): before the page or anything here reads the saved files (files.rs).
+      files::finish_owed_deletes();
       // First, so that a start that fails is reported too.
       app.state::<telemetry::Telemetry>().start(app.handle());
       // What the updater found before telemetry was up: this start being an update, say.

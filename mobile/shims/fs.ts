@@ -94,8 +94,10 @@ async function quietly(task: Promise<unknown>): Promise<void> {
 let refused = false;
 /**
  * Saved files the start could not read (locked by a scanner, not text): not
- * loaded, so not written over or deleted either — the rest of the data works,
- * that one store says "not saved" (mountData).
+ * loaded, so not written over, nor deleted unasked — the rest of the data
+ * works, that one store says "not saved" (mountData). A delete the server
+ * asks for is another matter (remove): the file may hold a kept PIN, so the
+ * delete goes to the disk all the same, and the path takes writes again.
  */
 const unreadable = new Set<string>();
 
@@ -271,9 +273,17 @@ function remove(p: unknown, opts?: { force?: boolean; recursive?: boolean }): vo
     persistRemove(at);
     return;
   }
+  // A saved file the start could not read is not in the tree, and on the disk
+  // all the same: "Gerät vergessen" must not leave its PIN there. The delete
+  // is passed on — the desktop shell deletes the file now or, while another
+  // program still holds it, at its next start (src-tauri/src/files.rs).
+  if (!refused && unreadable.delete(at)) {
+    persistRemove(at);
+    return;
+  }
   if (dirs.has(at)) {
     if (!opts?.recursive) throw fsError('EISDIR', 'rm', at);
-    for (const key of [...files.keys()]) if (key.startsWith(`${at}/`)) remove(key);
+    for (const key of [...files.keys(), ...(refused ? [] : unreadable)]) if (key.startsWith(`${at}/`)) remove(key);
     for (const key of [...dirs]) if (key === at || key.startsWith(`${at}/`)) dirs.delete(key);
     return;
   }
