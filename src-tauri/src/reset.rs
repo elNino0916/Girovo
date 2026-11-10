@@ -12,27 +12,51 @@
 // the mark that this folder is the one in use (paths.rs ROOT_MARKER).
 //
 // A file another program holds (a scanner, a backup) is tried again for a
-// moment. If anything is still there after that, Girovo does not start again
-// as if all were gone: the page is told (NOT_EMPTY) and says so, and the reset
-// can be asked for again.
+// moment. If anything is still there after that, the reset is not over: what
+// is left is written down in the data folder (PENDING), Girovo starts again as
+// after any reset, and the next start finishes the deletion before anything
+// reads the folder or a window opens (prefs_at_start, from lib.rs). Should
+// something stay even then, that start goes on as usual and the page says so
+// once (LEFT_PREF, components/settings/ResetApp.tsx ResetLeftNotice). Staying
+// in the app that asked was no way out: its page has logged out, nothing may
+// be written any more (files.rs FROZEN), the secret and the preferences are
+// gone already.
 //
 // Also here, the smaller deletion: "Gespeicherte Daten löschen" for one login
 // takes its sync group's files off the LAN shelf (lan_forget).
 
 use std::fs;
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tauri::{AppHandle, Manager};
 
 use crate::paths::data_root;
+use crate::prefs::Prefs;
 
 /// The preferences a reset leaves: the Electron move, done for good (migrate.rs).
 const KEPT: &[(&str, &str)] = &[("fints.shell.tauri", "done")];
-/// How the error begins when something could not be deleted (components/settings/ResetApp.tsx reads it).
-const NOT_EMPTY: &str = "ENOTEMPTY";
 /// How often a deletion that failed is tried again, a little later each time (half a second in all).
 const DELETE_AGAIN: u32 = 5;
+/// The note of a reset that could not delete everything, in the data folder:
+/// when it was (seconds since 1970), then what was left, a name a line.
+const PENDING: &str = ".girovo-reset-pending";
+/// How long that note stands, in seconds. Girovo starts again at once, so the
+/// next start is seconds away; a note found much later (the start that should
+/// have followed never came) must not empty a folder that is in use again.
+const PENDING_FOR: u64 = 10 * 60;
+/// The start that finishes a reset goes over the folder this often, this far apart.
+const FINISH_ROUNDS: u32 = 2;
+const FINISH_PAUSE: Duration = Duration::from_millis(400);
+/// Set when something stayed even after that: the page says settings.resetApp.left
+/// once and deletes it (components/settings/ResetApp.tsx ResetLeftNotice).
+pub const LEFT_PREF: &str = "fints.reset.left";
+
+fn now() -> u64 {
+  SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
 
 #[tauri::command]
 pub async fn app_reset(app: AppHandle) -> Result<(), String> {
@@ -59,23 +83,113 @@ pub async fn app_reset(app: AppHandle) -> Result<(), String> {
   .map_err(|e| e.to_string())?;
   // In memory as on disk, so nothing writes the old ones back on the way out.
   // Written anew, the file that would not go holds nothing of before either.
-  if app.state::<crate::prefs::Prefs>().replace(KEPT) {
+  let prefs = app.state::<Prefs>();
+  if prefs.replace(KEPT) {
     left.retain(|name| name != "prefs.json");
   }
   if !left.is_empty() {
-    // Not started again: that would look like a reset that worked, with
-    // kept PINs perhaps still on the disk.
     eprintln!("[reset] could not delete: {}", left.join(", "));
-    return Err(format!("{NOT_EMPTY}: {}", left.join(", ")));
+    // The next start finishes it (finish). Without the note it cannot: then
+    // the page of that start says at least that something stayed.
+    if !note_pending(data_root(), &left, now()) {
+      prefs.set(LEFT_PREF, Some("1"));
+    }
   }
   crate::updater::relaunch(&app);
   Ok(())
 }
 
+/// The preferences for this start (lib.rs) — after a reset the last run could
+/// not finish has been finished: before the preferences or anything else in
+/// the data folder is read, before any window.
+pub fn prefs_at_start() -> Prefs {
+  let finished = finish(data_root(), &crate::paths::unused_roots(), now());
+  let prefs = Prefs::load();
+  if let Some(finished) = finished {
+    settle(&prefs, finished);
+  }
+  prefs
+}
+
+/// Writes down that a reset is not over. Answers whether the note is there.
+fn note_pending(root: &Path, left: &[String], at: u64) -> bool {
+  let mut text = at.to_string();
+  for name in left {
+    text.push('\n');
+    text.push_str(name);
+  }
+  fs::write(root.join(PENDING), text).is_ok()
+}
+
+/// What became of a reset the last run could not finish.
+#[derive(Debug, PartialEq)]
+struct Finished {
+  /// The folder was emptied again at this start (the preferences with it).
+  emptied: bool,
+  /// What is still there.
+  left: Vec<String>,
+}
+
+/// Finishes a reset the last run noted as not over (None: there is no note):
+/// empties `root` again and removes `others`, going over them a few times.
+///
+/// The note is taken away first, and only a note that is gone and was written
+/// moments ago empties anything: one that cannot be removed, or that some
+/// later start comes across, must never delete what has been kept since.
+/// Such a note only says what of its list is still there.
+fn finish(root: &Path, others: &[PathBuf], now: u64) -> Option<Finished> {
+  let note = root.join(PENDING);
+  let text = match fs::read_to_string(&note) {
+    Ok(text) => text,
+    Err(err) if err.kind() == std::io::ErrorKind::NotFound => return None,
+    // There and not readable: nothing to go by.
+    Err(_) => String::new(),
+  };
+  let mut lines = text.lines();
+  let at = lines.next().and_then(|line| line.trim().parse::<u64>().ok());
+  let fresh = at.is_some_and(|at| now >= at && now - at <= PENDING_FOR);
+  if !remove(&note) || !fresh {
+    // Names only, as they were written: never a path out of the folder.
+    let plain = |name: &&str| {
+      let mut parts = Path::new(name).components();
+      matches!((parts.next(), parts.next()), (Some(Component::Normal(_)), None))
+    };
+    let there = |name: &&str| root.join(name).exists() || others.iter().any(|other| other.file_name().is_some_and(|n| n == *name) && other.exists());
+    let left = lines.filter(plain).filter(there).map(str::to_string).collect();
+    return Some(Finished { emptied: false, left });
+  }
+  let mut left = Vec::new();
+  for round in 0..FINISH_ROUNDS {
+    if round > 0 {
+      std::thread::sleep(FINISH_PAUSE);
+    }
+    left = empty(root);
+    left.extend(others.iter().filter(|other| !remove(other)).map(|other| other.file_name().unwrap_or_default().to_string_lossy().into_owned()));
+    if left.is_empty() {
+      break;
+    }
+  }
+  Some(Finished { emptied: true, left })
+}
+
+/// The preferences after a reset finished at this start: as a reset leaves
+/// them where the folder was emptied, and the word for the page where
+/// something stayed all the same.
+fn settle(prefs: &Prefs, finished: Finished) {
+  let Finished { emptied, mut left } = finished;
+  if emptied && prefs.replace(KEPT) {
+    left.retain(|name| name != "prefs.json");
+  }
+  if !left.is_empty() {
+    eprintln!("[reset] still not deleted: {}", left.join(", "));
+    prefs.set(LEFT_PREF, Some("1"));
+  }
+}
+
 /// Deletes everything in `root` but a test run's WebView2 folder, which the
 /// running window holds (shell::webview_dir), and the mark of the folder in
 /// use (paths.rs). Answers what could not go.
-fn empty(root: &std::path::Path) -> Vec<String> {
+fn empty(root: &Path) -> Vec<String> {
   let keep_webview = std::env::var_os("GIROVO_DATA_DIR").is_some_and(|d| !d.is_empty());
   let Ok(entries) = fs::read_dir(root) else { return Vec::new() };
   let mut left = Vec::new();
@@ -94,7 +208,7 @@ fn empty(root: &std::path::Path) -> Vec<String> {
 /// Deletes a file, or a folder with all that is in it. What another program
 /// holds for a moment — a virus scanner, a backup, the search index — is
 /// tried again. Answers whether it is gone.
-fn remove(path: &std::path::Path) -> bool {
+fn remove(path: &Path) -> bool {
   let mut attempt = 0;
   loop {
     let gone = if path.is_dir() { fs::remove_dir_all(path) } else { fs::remove_file(path) };
@@ -102,7 +216,7 @@ fn remove(path: &std::path::Path) -> bool {
       Ok(()) => return true,
       Err(err) if err.kind() == std::io::ErrorKind::NotFound => return true,
       Err(_) if attempt < DELETE_AGAIN => {
-        std::thread::sleep(std::time::Duration::from_millis(15 << attempt));
+        std::thread::sleep(Duration::from_millis(15 << attempt));
         attempt += 1;
       }
       Err(_) => return false,
@@ -162,7 +276,112 @@ fn forget_group(dir: &std::path::Path, group: &str) -> Result<u32, String> {
 
 #[cfg(test)]
 mod tests {
-  use super::{empty, forget_group};
+  use super::*;
+
+  /// A folder of this test's own under the system's temp folder, with what a used Girovo keeps in it.
+  fn used(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("girovo-reset-{name}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(dir.join("fints-state")).unwrap();
+    fs::write(dir.join("fints-state/vault.json"), "{}").unwrap();
+    fs::write(dir.join("prefs.json"), r#"{"fints.theme":"dark"}"#).unwrap();
+    fs::write(dir.join(crate::paths::ROOT_MARKER), "").unwrap();
+    dir
+  }
+
+  fn names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+    names.sort();
+    names
+  }
+
+  #[test]
+  fn without_a_note_a_start_deletes_nothing() {
+    let dir = used("no-note");
+    assert_eq!(finish(&dir, &[], 1_000), None);
+    assert_eq!(names(&dir), [crate::paths::ROOT_MARKER, "fints-state", "prefs.json"]);
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[test]
+  fn a_reset_noted_as_not_over_is_finished_at_the_next_start() {
+    let dir = used("finish");
+    let other = used("finish-other");
+    assert!(note_pending(&dir, &["fints-state".to_string()], 1_000));
+    assert_eq!(fs::read_to_string(dir.join(PENDING)).unwrap(), "1000\nfints-state");
+    // Seconds later: everything goes, the other folder too; the mark of the folder in use stays.
+    assert_eq!(finish(&dir, &[other.clone()], 1_004), Some(Finished { emptied: true, left: Vec::new() }));
+    assert_eq!(names(&dir), [crate::paths::ROOT_MARKER]);
+    assert!(!other.exists());
+    // Once: the note is gone, the start after it deletes nothing.
+    fs::write(dir.join("prefs.json"), "{}").unwrap();
+    assert_eq!(finish(&dir, &[], 1_010), None);
+    assert!(dir.join("prefs.json").exists());
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[test]
+  fn a_note_from_long_ago_deletes_nothing_and_only_says_what_is_still_there() {
+    for (name, at, now) in [("old", 1_000, 1_000 + PENDING_FOR + 1), ("clock", 5_000, 4_000)] {
+      let dir = used(&format!("stale-{name}"));
+      let other = used(&format!("stale-other-{name}"));
+      let other_name = other.file_name().unwrap().to_string_lossy().into_owned();
+      let noted = ["fints-state".to_string(), "linked-unlock.key".to_string(), other_name.clone(), "../elsewhere".to_string()];
+      assert!(note_pending(&dir, &noted, at));
+      // What has been kept since stays; of the list, what is there is named (never a path out of the folder).
+      assert_eq!(finish(&dir, &[other.clone()], now), Some(Finished { emptied: false, left: vec!["fints-state".to_string(), other_name] }), "{name}");
+      assert_eq!(names(&dir), [crate::paths::ROOT_MARKER, "fints-state", "prefs.json"], "{name}");
+      assert!(other.join("fints-state/vault.json").exists(), "{name}");
+      fs::remove_dir_all(&dir).unwrap();
+      fs::remove_dir_all(&other).unwrap();
+    }
+    // A note that says nothing readable: the same.
+    let dir = used("stale-empty");
+    fs::write(dir.join(PENDING), "").unwrap();
+    assert_eq!(finish(&dir, &[], 1_000), Some(Finished { emptied: false, left: Vec::new() }));
+    assert_eq!(names(&dir), [crate::paths::ROOT_MARKER, "fints-state", "prefs.json"]);
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn what_is_still_held_at_the_next_start_is_named_and_the_start_goes_on() {
+    let dir = used("finish-held");
+    assert!(note_pending(&dir, &["fints-state".to_string()], 1_000));
+    let holder = held(&dir.join("fints-state/vault.json"));
+    assert_eq!(finish(&dir, &[], 1_001), Some(Finished { emptied: true, left: vec!["fints-state".to_string()] }));
+    drop(holder);
+    // The rest went, and the note with it: no start after this one deletes again.
+    assert_eq!(names(&dir), [crate::paths::ROOT_MARKER, "fints-state"]);
+    assert_eq!(finish(&dir, &[], 1_002), None);
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[test]
+  fn after_a_finished_reset_the_preferences_are_a_resets_and_what_stayed_is_said_once() {
+    let kept = |pairs: &[(&str, &str)]| pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<std::collections::BTreeMap<_, _>>();
+    // Emptied, nothing left: what a reset keeps, and no word.
+    let dir = used("settle");
+    fs::remove_file(dir.join("prefs.json")).unwrap();
+    let prefs = Prefs::open(dir.join("prefs.json"));
+    settle(&prefs, Finished { emptied: true, left: Vec::new() });
+    assert_eq!(prefs.snapshot(), kept(KEPT));
+    // Emptied, something stayed: the word for the page with it. A prefs.json that would not go is written anew, so it is no leftover.
+    let prefs = Prefs::open(dir.join("prefs.json"));
+    settle(&prefs, Finished { emptied: true, left: vec!["prefs.json".to_string()] });
+    assert_eq!(prefs.snapshot(), kept(KEPT));
+    settle(&prefs, Finished { emptied: true, left: vec!["prefs.json".to_string(), "fints-state".to_string()] });
+    assert_eq!(prefs.snapshot(), kept(&[KEPT[0], (LEFT_PREF, "1")]));
+    assert_eq!(Prefs::open(dir.join("prefs.json")).get(LEFT_PREF).as_deref(), Some("1"));
+    // Not emptied (a note from long ago): the preferences of now stay, with the word.
+    fs::write(dir.join("prefs.json"), r#"{"fints.theme":"dark"}"#).unwrap();
+    let prefs = Prefs::open(dir.join("prefs.json"));
+    settle(&prefs, Finished { emptied: false, left: Vec::new() });
+    assert_eq!(prefs.snapshot(), kept(&[("fints.theme", "dark")]));
+    settle(&prefs, Finished { emptied: false, left: vec!["fints-state".to_string()] });
+    assert_eq!(prefs.snapshot(), kept(&[(LEFT_PREF, "1"), ("fints.theme", "dark")]));
+    fs::remove_dir_all(&dir).unwrap();
+  }
 
   #[test]
   fn forgets_one_groups_files_on_the_shelf_and_nothing_else() {

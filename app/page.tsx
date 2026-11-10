@@ -14,6 +14,7 @@ import { ChannelConsentGuard } from '@/components/telemetry/NightlyUsage';
 import { useDemo } from '@/components/demo/demo-mode';
 import { Intro } from '@/components/shell/Intro';
 import { FloatingScrollbars } from '@/components/shell/FloatingScrollbars';
+import { ResetLeftNotice } from '@/components/settings/ResetApp';
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 
 // Girovo without a bank (components/demo): loaded only when the demo starts.
@@ -49,6 +50,8 @@ function AppLayers(): ReactNode {
         <TelemetryErrors />
         {/* A usage consent that came with the Nightly channel ends when the copy is back on Stabil. */}
         <ChannelConsentGuard />
+        {/* Desktop app only, once: a reset that could not delete everything, even at the start after it. */}
+        <ResetLeftNotice />
         {/* Once: the first start, and the first start of Girovo 6. */}
         <Intro />
         {/* The desktop's scrollbars, drawn over the content (not on Android). */}

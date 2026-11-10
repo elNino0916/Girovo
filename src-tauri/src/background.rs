@@ -173,7 +173,8 @@ pub fn background_notice(app: AppHandle, notice: Notice) {
 }
 
 /// The page's answer to a "background:run": the check's result, or none when it could not run.
-#[tauri::command]
+/// Off the window's thread, like background_set: it writes preferences.
+#[tauri::command(async)]
 pub fn background_result(app: AppHandle, id: u64, result: Option<CheckResult>) {
   let bg = app.state::<Background>();
   {
@@ -201,15 +202,19 @@ pub fn background_result(app: AppHandle, id: u64, result: Option<CheckResult>) {
 /// The server says nothing is kept any more: the shell lets go too.
 fn stopped(app: &AppHandle) {
   app.state::<Prefs>().set(ON_PREF, None);
-  drop_tray(app);
   set_login_item(false);
-  // Hidden in the notification area or never shown: without the icon there
-  // is no way back to the window, so the app ends instead of running unseen.
-  if let Some(w) = app.get_webview_window("main") {
-    if !w.is_visible().unwrap_or(true) && !w.is_minimized().unwrap_or(false) {
-      quit(app);
+  // The icon is the window thread's (background_set).
+  let handle = app.clone();
+  let _ = app.run_on_main_thread(move || {
+    drop_tray(&handle);
+    // Hidden in the notification area or never shown: without the icon there
+    // is no way back to the window, so the app ends instead of running unseen.
+    if let Some(w) = handle.get_webview_window("main") {
+      if !w.is_visible().unwrap_or(true) && !w.is_minimized().unwrap_or(false) {
+        quit(&handle);
+      }
     }
-  }
+  });
 }
 
 /// window.electronBackground.set: the switch in Einstellungen (the page keeps or dropped the PINs already).
@@ -335,7 +340,11 @@ fn tell_still_running(app: &AppHandle) {
   if prefs.get(TOLD_PREF).as_deref() == Some("1") {
     return;
   }
-  prefs.set(TOLD_PREF, Some("1"));
+  // This is the window's thread (its close handler): the write goes off it.
+  let handle = app.clone();
+  std::thread::spawn(move || {
+    handle.state::<Prefs>().set(TOLD_PREF, Some("1"));
+  });
   let words = Words::of(texts::lang(&prefs));
   let _ = app.notification().builder().title(crate::edition::named(words.still_title)).body(words.still).show();
 }

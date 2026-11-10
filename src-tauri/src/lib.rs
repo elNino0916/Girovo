@@ -78,7 +78,8 @@ pub fn run() {
     })) };
   let app = builder
     .plugin(tauri_plugin_notification::init())
-    .manage(prefs::Prefs::load())
+    // The preferences — once a reset the last run could not finish is finished (reset.rs).
+    .manage(reset::prefs_at_start())
     .manage(http::Requests::default())
     .manage(background::Background::default())
     .manage(closing::Closing::default())
@@ -100,9 +101,13 @@ pub fn run() {
       let lang = texts::lang(&prefs);
       let hidden = background::started_hidden();
       // Started with Windows by an entry the checks no longer want: the entry
-      // goes, and so does this start, which nobody asked to see.
+      // goes, and so does this start, which nobody asked to see. Preferences
+      // that could not be read say nothing about the switch: then only this
+      // start goes, and the entry stays for the next login.
       if hidden && !background::enabled(&handle) {
-        background::set_login_item(false);
+        if !prefs.unreadable() {
+          background::set_login_item(false);
+        }
         handle.exit(0);
         return Ok(());
       }

@@ -5,8 +5,13 @@
 // it starts again as on its first day. Before the shell's part, the page ends
 // the bank sessions and empties its own storage — the one thing the shell
 // cannot reach while the window is open.
+//
+// Should a file not go (another program holds it), Girovo starts again all
+// the same and finishes at that start; only if something stays even then does
+// the shell leave a word for the page (LEFT_KEY), said once by ResetLeftNotice.
 
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { store } from '@/lib/client-api';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { AlertTriangleIcon, RefreshIcon } from '../icons';
@@ -36,6 +41,34 @@ async function emptyPageStorage(): Promise<void> {
   } catch { /* not there */ }
 }
 
+/** Set by the shell when a reset left something behind even at the next start (src-tauri/src/reset.rs LEFT_PREF). */
+const LEFT_KEY = 'fints.reset.left';
+
+const subscribeShown = (onChange: () => void) => {
+  window.addEventListener('girovo:window-shown', onChange);
+  document.addEventListener('visibilitychange', onChange);
+  return () => {
+    window.removeEventListener('girovo:window-shown', onChange);
+    document.removeEventListener('visibilitychange', onChange);
+  };
+};
+/** On screen: not behind the start window, where nobody would read it. */
+const onScreen = () => document.visibilityState === 'visible' && (window.electronWindow?.shown?.() ?? true);
+
+/** After a reset that could not delete everything: said once, on whichever screen the app starts with. */
+export function ResetLeftNotice() {
+  const t = useT();
+  const { toast } = useFints();
+  const shown = useSyncExternalStore(subscribeShown, onScreen, () => false);
+  const text = t.settings.resetApp.left;
+  useEffect(() => {
+    if (!shown || !hasReset() || store.get(LEFT_KEY) !== '1') return;
+    store.del(LEFT_KEY);
+    toast(text, 'error');
+  }, [shown, text, toast]);
+  return null;
+}
+
 export function ResetAppRow() {
   const t = useT();
   const { logout, toast } = useFints();
@@ -52,11 +85,9 @@ export function ResetAppRow() {
       await emptyPageStorage();
       // The shell deletes and starts Girovo again; this page goes with it.
       await window.electronApp!.reset();
-    } catch (err) {
+    } catch {
       setBusy(false);
-      // The shell could not delete everything (reset.rs NOT_EMPTY): it did not
-      // start again, and the reset can be asked for once more.
-      toast(String(err).includes('ENOTEMPTY') ? words.left : words.failed, 'error');
+      toast(words.failed, 'error');
     }
   };
 

@@ -90,7 +90,7 @@ mod win {
   use windows::Win32::UI::Input::KeyboardAndMouse::{TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, TrackMouseEvent};
   use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
   use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, GetParent, HTMAXBUTTON, HWND_TOP, IsZoomed, LWA_ALPHA, RegisterClassW,
+    CreateWindowExW, DefWindowProcW, GetCursorPos, GetParent, HTMAXBUTTON, HWND_TOP, IsZoomed, LWA_ALPHA, RegisterClassW,
     SW_MAXIMIZE, SW_RESTORE, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetLayeredWindowAttributes, SetWindowPos, ShowWindow,
     WM_NCHITTEST, WM_NCLBUTTONDBLCLK, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WNDCLASSW,
     WS_CHILD, WS_CLIPSIBLINGS, WS_EX_LAYERED, WS_EX_NOACTIVATE,
@@ -168,21 +168,25 @@ mod win {
   }
 
   /// Moves the overlay over the page's maximize button, above the WebView.
-  /// Hover and press start over: the button may have moved from under the
-  /// mouse (the window maximized) without Windows saying the mouse left. A
-  /// mouse still on it says so again with its next move.
+  /// Where the button has moved from under the mouse (the window maximized),
+  /// hover and press start over: Windows does not always say the mouse left.
+  /// With the mouse still on it they stay — the page may report the same
+  /// place again between a press and its release, and the click must not be lost.
   pub fn place(rect: (i32, i32, i32, i32)) {
     let Some(mut f) = frame() else { return };
     f.rect = rect;
-    let hovered = std::mem::replace(&mut f.hovering, false);
-    let pressed = std::mem::replace(&mut f.pressed, false);
     let overlay = HWND(f.overlay as _);
     drop(f);
-    if hovered {
-      emit("caption:hover", false);
-    }
-    if hovered || pressed {
-      emit("caption:press", false);
+    if !cursor_within(overlay, rect) {
+      let (hovered, pressed) = frame()
+        .map(|mut f| (std::mem::replace(&mut f.hovering, false), std::mem::replace(&mut f.pressed, false)))
+        .unwrap_or_default();
+      if hovered {
+        emit("caption:hover", false);
+      }
+      if hovered || pressed {
+        emit("caption:press", false);
+      }
     }
     if overlay.is_invalid() {
       return;
@@ -190,6 +194,22 @@ mod win {
     unsafe {
       let _ = SetWindowPos(overlay, Some(HWND_TOP), rect.0, rect.1, rect.2, rect.3, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
+  }
+
+  /// Whether the mouse is over `rect` (client pixels of the overlay's parent, the main window) right now.
+  fn cursor_within(overlay: HWND, rect: (i32, i32, i32, i32)) -> bool {
+    let (x, y, w, h) = rect;
+    if overlay.is_invalid() || w <= 0 || h <= 0 {
+      return false;
+    }
+    let mut pt = POINT::default();
+    unsafe {
+      let Ok(window) = GetParent(overlay) else { return false };
+      if GetCursorPos(&mut pt).is_err() || !ScreenToClient(window, &mut pt).as_bool() {
+        return false;
+      }
+    }
+    pt.x >= x && pt.x < x + w && pt.y >= y && pt.y < y + h
   }
 
   fn over_button(window: HWND, lparam: LPARAM) -> bool {
