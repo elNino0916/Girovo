@@ -87,7 +87,14 @@ few minutes and carry an ETag; invalid KV JSON keeps the last good value.
   bucket is below the percentage, or when "Updates sofort erhalten" is on.
 - Every download is checked against the signed SHA-256 (the blockmap too).
 - girovo.de unreachable: fall back to today's GitHub API path, and still
-  require the signed manifest asset when the release has one.
+  require the signed manifest asset when the release has one. GitHub knows
+  nothing of a halt or a staged rollout, so the desktop updater notes after
+  every good answer from girovo.de (200 or 304) what it was offered there,
+  per channel (`fints.updates.listed`: the build number and the time), and
+  during an outage offers GitHub's release only up to that build. A newer one
+  waits ("nothing new for now") until girovo.de answers again, or until its
+  last answer is 72 hours old, so a girovo.de that stays away strands nobody;
+  a copy that never reached girovo.de takes GitHub's release as before.
 - No bridge release is needed: older copies find 6.0.2 through GitHub's API,
   and from 6.0.2 on they read girovo.de.
 

@@ -1789,6 +1789,179 @@ mod signed {
     assert_eq!(make(cfg, &host()).check(true).await.phase, Phase::Current, "a dev build counts as its version");
   }
 
+  // ---- girovo.de away: GitHub only up to what girovo.de offered last ----
+
+  /// girovo.de with `listing` while `up`, HTTP 503 otherwise. GitHub's latest
+  /// release is 9.9.9 with its signed manifest, whatever girovo.de says.
+  fn sometimes_up(listing: Listing, up: Arc<std::sync::atomic::AtomicBool>) -> impl Fn(&Request, &mut Conn, &str) + Send + Sync + 'static {
+    let all = site(Some(listing), Some(1), Arc::default());
+    move |req, conn, base| {
+      if req.path.starts_with("/updates/") && !up.load(Ordering::SeqCst) {
+        conn.send(503, b"down");
+      } else {
+        all(req, conn, base);
+      }
+    }
+  }
+
+  /// 9.9.9 is halted: girovo.de lists the release before it, 9.9.8.
+  fn halted(b: &str) -> Vec<Value> {
+    by_stable_both(b).split_off(1)
+  }
+
+  fn nothing_listed(_: &str) -> Vec<Value> {
+    Vec::new()
+  }
+
+  fn build(version: &str) -> u64 {
+    trust::build_number(version).unwrap()
+  }
+
+  fn now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64
+  }
+
+  const HOUR: u64 = 60 * 60 * 1000;
+
+  /// What the copy has noted of girovo.de's last answer on `channel`: (build, at).
+  fn listed_note(host: &Arc<FakeHost>, channel: &str) -> Option<(u64, u64)> {
+    let all: Value = serde_json::from_str(&host.pref(PREF_LISTED)?).ok()?;
+    Some((all[channel]["build"].as_u64()?, all[channel]["at"].as_u64()?))
+  }
+
+  /// A copy whose last answer from girovo.de on `channel` offered `version`, `age` ms ago.
+  fn noted_host(channel: &str, version: &str, age: u64) -> Arc<FakeHost> {
+    let host = host();
+    host.set_pref(PREF_LISTED, &json!({ channel: { "build": build(version), "at": now() - age } }).to_string());
+    host
+  }
+
+  #[tokio::test]
+  async fn a_release_halted_on_girovo_de_does_not_come_through_github_while_girovo_de_is_away() {
+    let up = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let srv = Server::start(sometimes_up(halted, up.clone()));
+    let cache = TempDir::new();
+    let host = host();
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    // girovo.de answers: 9.9.9 is halted, 9.9.8 is what this copy is offered.
+    let before = now();
+    assert_eq!(updater.check(true).await.release.unwrap().version, "9.9.8");
+    let (noted, at) = listed_note(&host, "stable").expect("the answer is noted");
+    assert_eq!(noted, build("9.9.8"));
+    assert!(at >= before && at <= now());
+
+    // girovo.de goes away. GitHub names 9.9.9, signed and all: not offered,
+    // and no error either — nothing new for now.
+    up.store(false, Ordering::SeqCst);
+    for manual in [true, false] {
+      let s = updater.check(manual).await;
+      assert_eq!((s.phase, s.release.as_ref().map(|r| r.version.as_str()), &s.error), (Phase::Current, None, &None), "manual: {manual}");
+    }
+    // At the next start too: nothing is installed.
+    let again = make(signed_config(&srv.base, cache.path()), &host);
+    let window = FakeWindow::default();
+    let check = again.start_check(&window);
+    assert!(!again.update_at_start(check, &window).await);
+    assert!(host.installs().is_empty());
+    assert_eq!(listed_note(&host, "stable"), Some((noted, at)), "an outage notes nothing");
+
+    // girovo.de is back and still lists 9.9.8: that is offered again.
+    up.store(true, Ordering::SeqCst);
+    assert_eq!(updater.check(true).await.release.unwrap().version, "9.9.8");
+  }
+
+  #[tokio::test]
+  async fn once_girovo_de_itself_lists_a_release_github_may_offer_it_during_an_outage() {
+    let up = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let srv = Server::start(sometimes_up(by_stable_both, up.clone()));
+    let cache = TempDir::new();
+    // The copy had 9.9.8 noted from the days 9.9.9 was halted.
+    let host = noted_host("stable", "9.9.8", HOUR);
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    assert_eq!(updater.check(true).await.release.unwrap().version, "9.9.9");
+    assert_eq!(listed_note(&host, "stable").unwrap().0, build("9.9.9"), "the latest answer is what is noted");
+    // Away again: GitHub's 9.9.9 is what girovo.de offered last, so it stays on offer.
+    up.store(false, Ordering::SeqCst);
+    let s = updater.check(true).await;
+    assert_eq!((s.phase, s.release.unwrap().version.as_str()), (Phase::Available, "9.9.9"), "{:?}", s.error);
+  }
+
+  #[tokio::test]
+  async fn after_72_hours_without_girovo_de_github_is_believed_again() {
+    // girovo.de is down throughout; GitHub's latest is 9.9.9, signed.
+    let srv = Server::start(site(None, Some(1), Arc::default()));
+    let offered = |host: Arc<FakeHost>| {
+      let base = srv.base.clone();
+      async move {
+        let cache = TempDir::new();
+        let s = make(signed_config(&base, cache.path()), &host).check(true).await;
+        assert_eq!(s.error, None);
+        s.release.map(|r| r.version)
+      }
+    };
+    // Its last answer offered 9.9.8, a day or nearly three ago: 9.9.9 waits.
+    assert_eq!(offered(noted_host("stable", "9.9.8", 24 * HOUR)).await, None);
+    assert_eq!(offered(noted_host("stable", "9.9.8", 71 * HOUR)).await, None);
+    // More than three days: a girovo.de that stays away strands nobody.
+    assert_eq!(offered(noted_host("stable", "9.9.8", 73 * HOUR)).await.as_deref(), Some("9.9.9"));
+    // A clock set back since (the answer lies "in the future") does not block for good.
+    let ahead = host();
+    ahead.set_pref(PREF_LISTED, &json!({ "stable": { "build": build("9.9.8"), "at": now() + 500 * HOUR } }).to_string());
+    assert_eq!(offered(ahead).await.as_deref(), Some("9.9.9"));
+    // What the Nightly channel was offered says nothing about Stabil, which never heard from girovo.de.
+    assert_eq!(offered(noted_host("preview", "9.9.8", HOUR)).await.as_deref(), Some("9.9.9"));
+    // Nor does a note nobody can read.
+    let odd = host();
+    odd.set_pref(PREF_LISTED, "not json");
+    assert_eq!(offered(odd).await.as_deref(), Some("9.9.9"));
+  }
+
+  #[tokio::test]
+  async fn an_unchanged_listing_is_an_answer_too_and_refreshes_the_note() {
+    let seen: Seen = Arc::default();
+    let srv = Server::start(site(Some(halted), None, seen.clone()));
+    let cache = TempDir::new();
+    let host = host();
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    updater.check(true).await;
+    let (noted, _) = listed_note(&host, "stable").unwrap();
+    // As if that answer were 70 hours old…
+    host.set_pref(PREF_LISTED, &json!({ "stable": { "build": noted, "at": now() - 70 * HOUR } }).to_string());
+    // …the next check costs a 304, and counts as girovo.de's answer of now.
+    let before = now();
+    assert_eq!(updater.check(true).await.release.unwrap().version, "9.9.8");
+    let asks: Vec<Option<String>> = seen.lock().unwrap().iter().filter(|(p, _)| p.starts_with("/updates/")).map(|(_, e)| e.clone()).collect();
+    assert_eq!(asks, [None, Some("\"v1\"".to_string())], "the second one was answered 304");
+    let (again, at) = listed_note(&host, "stable").unwrap();
+    assert_eq!(again, noted);
+    assert!(at >= before, "noted {} ms before the check", before.saturating_sub(at));
+  }
+
+  #[tokio::test]
+  async fn what_is_noted_is_what_girovo_de_offered_this_copy() {
+    let noted_after = |listing: Listing, current: &'static str, early: bool, channel: &'static str| async move {
+      let srv = Server::start(site(Some(listing), None, Arc::default()));
+      let cache = TempDir::new();
+      let host = if channel == "preview" { FakeHost::on_channel("preview") } else { Arc::new(FakeHost::default()) };
+      host.set_pref(PREF_INSTALL_ID, "install-a");
+      if early {
+        host.set_pref(PREF_EARLY, "on");
+      }
+      let mut cfg = signed_config(&srv.base, cache.path());
+      cfg.current_version = current.into();
+      make(cfg, &host).check(true).await;
+      (listed_note(&host, "stable").map(|n| n.0), listed_note(&host, "preview").map(|n| n.0))
+    };
+    // A staged 9.9.9 that is not this copy's turn yet: 9.9.8 — and 9.9.9 with "early".
+    assert_eq!(noted_after(staged, "9.0.0", false, "stable").await, (Some(build("9.9.8")), None));
+    assert_eq!(noted_after(staged, "9.0.0", true, "stable").await, (Some(build("9.9.9")), None));
+    // Nothing newer on offer — an older release, or an empty listing: the running build.
+    assert_eq!(noted_after(by_stable, "10.0.0", false, "stable").await, (Some(build("10.0.0")), None));
+    assert_eq!(noted_after(nothing_listed, "9.0.0", false, "stable").await, (Some(build("9.0.0")), None));
+    // Each channel under its own name.
+    assert_eq!(noted_after(nightly_by_nightly, "9.0.0", false, "preview").await, (None, Some(build(NIGHTLY))));
+  }
+
   // ---- an update from a file (step 5) ----
 
   /// The picked file: the stand-in's payload as a Setup.exe of `version`, in a folder of its own.

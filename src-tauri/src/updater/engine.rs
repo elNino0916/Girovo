@@ -68,6 +68,10 @@ pub const PREF_FAILED_INSTALL: &str = "fints.updates.failedInstall";
 pub const PREF_EARLY: &str = "fints.updates.early";
 /// A random id of this installation, only for its rollout bucket (trust::bucket); not telemetry's.
 pub const PREF_INSTALL_ID: &str = "fints.updates.installId";
+/// What girovo.de offered this copy at its last good answer, per channel, and
+/// when (logic::remember): while girovo.de can't be asked, GitHub is believed
+/// only up to that release (logic::fallback_offers).
+pub const PREF_LISTED: &str = "fints.updates.listed";
 /// A start asked for by "Jetzt neu starten und installieren" (restart_to_update).
 pub const UPDATE_ARG: &str = "--update";
 
@@ -786,18 +790,49 @@ impl Updater {
   /// girovo.de's listing that is signed with a key fitting the channel and
   /// reaches this copy (staged rollout). When girovo.de can't be asked, GitHub's
   /// API as before — and there too only a release whose signed manifest checks
-  /// out. None when there is none to offer.
+  /// out, and only up to the release girovo.de offered this copy last
+  /// (believed_without_girovo_de). None when there is none to offer.
   async fn fetch_offer(&self, channel: Channel) -> Result<Option<Release>, Failure> {
+    let asks_girovo_de = self.cfg.manifest_base.is_some();
     if let Some(base) = self.cfg.manifest_base.clone() {
       if let Some(listing) = self.fetch_listing(&base, channel).await {
         let early = self.state().early;
-        return Ok(trust::pick_listed(&listing, channel, &self.cfg.keys, &self.cfg.origin, &self.install_id(), early));
+        let offer = trust::pick_listed(&listing, channel, &self.cfg.keys, &self.cfg.origin, &self.install_id(), early);
+        self.remember_listed(channel, offer.as_ref());
+        return Ok(offer);
       }
     }
-    match self.fetch_github_offer(channel).await? {
-      Some(release) if self.cfg.require_signed => Ok(self.signed_copy(release, channel).await),
-      other => Ok(other),
+    let candidate = match self.fetch_github_offer(channel).await? {
+      Some(release) if self.cfg.require_signed => self.signed_copy(release, channel).await,
+      other => other,
+    };
+    Ok(candidate.filter(|release| !asks_girovo_de || self.believed_without_girovo_de(release, channel)))
+  }
+
+  /// Notes what girovo.de offered this copy in the answer it just gave (200
+  /// or 304, an empty listing too): the release pick_listed chose — so the
+  /// rollout and "early" are in it — or the running build when that is
+  /// nothing newer. The latest answer, never a maximum: a halted release
+  /// leaves the note with the next answer.
+  fn remember_listed(&self, channel: Channel, offer: Option<&Release>) {
+    let offered = offer.and_then(|r| trust::build_number(&r.version));
+    let running = trust::build_number(&self.cfg.current_version);
+    let Some(build) = offered.max(running) else { return };
+    let noted = logic::remember(self.host.pref(PREF_LISTED).as_deref(), channel, build, now_ms());
+    self.host.set_pref(PREF_LISTED, &noted);
+  }
+
+  /// Whether GitHub's `release` may be offered while girovo.de can't be asked
+  /// (logic::fallback_offers). GitHub names its latest release to everybody;
+  /// one girovo.de halted, or staged and not yet this copy's, would otherwise
+  /// reach every copy during an outage, and the next start would install it.
+  fn believed_without_girovo_de(&self, release: &Release, channel: Channel) -> bool {
+    let last = logic::remembered(self.host.pref(PREF_LISTED).as_deref(), channel);
+    let believed = logic::fallback_offers(trust::build_number(&release.version), last, now_ms());
+    if !believed {
+      warn("not offered", &format!("{}: girovo.de can't be asked and did not offer it at its last answer", release.version));
     }
+    believed
   }
 
   /// girovo.de's listing for the channel, or None when it can't be had — no
