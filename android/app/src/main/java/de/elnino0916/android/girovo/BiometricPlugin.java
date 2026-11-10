@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,12 +67,12 @@ import javax.crypto.spec.SecretKeySpec;
  * A PIN the bank turned down is never handed out again. In the app the page
  * deletes it (remove). The check for new Umsätze (BackgroundJob) cannot — it
  * has no fingerprint — and leaves a note instead: the login's name and the
- * time, in preferences of their own (NOTES), with the time each PIN here was
- * stored. Before any PIN is looked up, every copy of a noted login's PIN
- * stored before its note is deleted (dropRefused): the login's own entry, and
- * its PIN beside other logins. A copy from before the times were kept counts
- * as older than any note. The note goes when a PIN of that login is stored
- * again — one the bank took — or with the login itself (remove).
+ * time, in preferences of their own (NOTES). Before any PIN is looked up,
+ * every copy of a noted login's PIN is deleted (dropRefused): the login's own
+ * entry, and its PIN beside other logins — whenever it was stored, so no
+ * clock decides it. The note goes once a PIN of that login the bank took is
+ * stored again, after it is written (settleNotes), or with the login itself
+ * (remove). A login whose copies went is said once by `has` (`dropped`).
  *
  * Without this switch on, nothing here holds anything and the PINs live only
  * in memory, as on the desktop.
@@ -89,12 +90,14 @@ public class BiometricPlugin extends Plugin {
     /** The login itself and the further banks beside it (lib/linked-banks.ts LINKED_BANK_LIMITS). */
     private static final int MAX_ITEMS = 9;
     private static final SecureRandom RANDOM = new SecureRandom();
-    /** Beside PREFS, so nothing there changes its shape: times only, by hashed names — never a PIN. */
+    /** Beside PREFS, so nothing there changes its shape: hashed names and times only — never a PIN. */
     private static final String NOTES = "girovo_biometric_notes";
-    /** "stored/<id>/<item>": when that PIN was stored. */
-    private static final String STORED = "stored/";
     /** "refused/<id>": when the bank was found to have turned that login's kept PIN down. */
     private static final String REFUSED = "refused/";
+    /** "dropped/<id>": that login's copies went for a note, not said yet (has). */
+    private static final String DROPPED = "dropped/";
+    /** What 37f9c07 kept and nothing reads any more: when each PIN was stored. Cleared as it is met. */
+    private static final String OLD_STORED = "stored/";
     /** Far more logins than a phone has; the oldest note goes for a new one. */
     private static final int MAX_NOTES = 64;
 
@@ -148,80 +151,88 @@ public class BiometricPlugin extends Plugin {
         return out;
     }
 
-    /** Whether a copy stored at `storedAt` (null: before the times were kept) is older than the note. */
-    static boolean storedBefore(Long storedAt, long refusedAt) {
-        return storedAt == null || storedAt < refusedAt;
-    }
-
     /**
-     * What has to go for the notes, of everything stored (`names`, as in
-     * PREFS): a login's entry ("<id>") whose own PIN was stored before its
-     * note — the entry is one piece, so everything beside it goes with it —
-     * and a login's PIN beside another one ("<holder>/<id>") stored before
-     * it. Nothing stored since the note. No Android in here: BiometricNotesTest.
+     * What has to go for the noted logins (`refused`), of everything stored
+     * (`names`, as in PREFS): a noted login's entry ("<id>") — one piece, so
+     * everything beside it goes with it — and a noted login's PIN beside
+     * another one ("<holder>/<id>"). Whenever they were stored: a note is
+     * settled as soon as a PIN the bank took is stored for the login
+     * (settleNotes), so a copy newer than its note only lives for the moment
+     * between the two writes, and deleting that one costs typing the PIN —
+     * never a wrong try. No Android in here: BiometricNotesTest.
      */
-    static List<String> refusedCopies(Set<String> names, Map<String, Long> storedAt, Map<String, Long> refusedAt) {
+    static List<String> refusedCopies(Set<String> names, Set<String> refused) {
         List<String> out = new ArrayList<>();
         for (String name : names) {
             int slash = name.indexOf('/');
-            String login = slash < 0 ? name : name.substring(slash + 1);
-            Long note = refusedAt.get(login);
-            if (note == null) continue;
             if (slash < 0) {
-                // Its own PIN is "<id>/<id>" — or, in an entry of the old form, the entry itself, which has no time.
-                if (storedBefore(storedAt.get(itemName(name, name)), note)) out.add(name);
-            } else if (!name.substring(0, slash).equals(login) && storedBefore(storedAt.get(name), note)) {
-                out.add(name);
+                if (refused.contains(name)) out.add(name);
+                continue;
             }
+            String holder = name.substring(0, slash);
+            String login = name.substring(slash + 1);
+            // "<id>/<id>" is the entry's own PIN, and goes with the entry.
+            if (!holder.equals(login) && refused.contains(login)) out.add(name);
         }
         return out;
+    }
+
+    /** The login a stored name keeps a PIN of: "<id>" and "<holder>/<id>" are both `id`'s. */
+    static String loginOfName(String name) {
+        int slash = name.indexOf('/');
+        return slash < 0 ? name : name.substring(slash + 1);
     }
 
     /** One of refusedCopies' names goes: an entry with everything beside it, or one PIN beside another login's. */
     private void drop(String name) {
         if (name.indexOf('/') < 0) forget(name);
-        else removeItem(name);
-    }
-
-    /** Before a PIN is looked up: every copy the bank was noted to have refused since it was stored is deleted instead. */
-    private void dropRefused() {
-        Map<String, Long> refusedAt = timesOf(notes(), REFUSED);
-        if (refusedAt.isEmpty()) return;
-        for (String name : refusedCopies(prefs().getAll().keySet(), timesOf(notes(), STORED), refusedAt)) drop(name);
+        else prefs().edit().remove(name).commit();
     }
 
     /**
-     * PINs of `logins` are about to be stored beside `holder` — taken from
-     * live sessions, so the bank took them. A note about one of them is
-     * settled: the older copies of that login's PIN kept elsewhere go now,
-     * and the note with them. What is beside `holder` is written anew by the
-     * caller.
+     * Before a PIN is looked up: every copy of a PIN the bank was noted to
+     * have refused is deleted instead, and each login whose copies went is
+     * kept for `has` to say once.
+     */
+    private void dropRefused() {
+        SharedPreferences notes = notes();
+        SharedPreferences.Editor edit = notes.edit();
+        boolean changed = false;
+        for (String key : notes.getAll().keySet()) {
+            if (!key.startsWith(OLD_STORED)) continue;
+            edit.remove(key);
+            changed = true;
+        }
+        Set<String> refused = timesOf(notes, REFUSED).keySet();
+        if (!refused.isEmpty()) {
+            for (String name : refusedCopies(prefs().getAll().keySet(), refused)) {
+                drop(name);
+                edit.putBoolean(DROPPED + loginOfName(name), true);
+                changed = true;
+            }
+        }
+        if (changed) edit.commit();
+    }
+
+    /**
+     * `logins`' PINs were just written beside `holder` — PINs the bank took
+     * (mobile/server/logins.ts says which; the others are not in `logins`).
+     * Only now, with them on disk, does a note about one of them go: first
+     * the copies of that login's old PIN kept elsewhere, then the note. A
+     * kill in between leaves the note with every copy, which the next lookup
+     * deletes — never an old copy without its note.
      */
     private void settleNotes(String holder, Set<String> logins) {
-        Map<String, Long> refusedAt = timesOf(notes(), REFUSED);
-        refusedAt.keySet().retainAll(logins);
-        if (refusedAt.isEmpty()) return;
+        Set<String> refused = new HashSet<>(timesOf(notes(), REFUSED).keySet());
+        refused.retainAll(logins);
+        if (refused.isEmpty()) return;
         String beside = itemName(holder, "");
-        for (String name : refusedCopies(prefs().getAll().keySet(), timesOf(notes(), STORED), refusedAt)) {
+        for (String name : refusedCopies(prefs().getAll().keySet(), refused)) {
             if (!name.equals(holder) && !name.startsWith(beside)) drop(name);
         }
         SharedPreferences.Editor edit = notes().edit();
-        for (String login : refusedAt.keySet()) edit.remove(REFUSED + login);
-        edit.apply();
-    }
-
-    /** `logins`' PINs were stored beside `holder` just now. */
-    private void stamp(String holder, Set<String> logins) {
-        long now = System.currentTimeMillis();
-        SharedPreferences.Editor edit = notes().edit();
-        for (String login : logins) edit.putLong(STORED + itemName(holder, login), now);
-        edit.apply();
-    }
-
-    /** One PIN kept beside a login ("<id>/<item>") goes, and its time. */
-    private void removeItem(String name) {
-        prefs().edit().remove(name).apply();
-        notes().edit().remove(STORED + name).apply();
+        for (String login : refused) edit.remove(REFUSED + login).remove(DROPPED + login);
+        edit.commit();
     }
 
     // ---------------------------------------------------------------------
@@ -241,7 +252,11 @@ public class BiometricPlugin extends Plugin {
         call.resolve(result);
     }
 
-    /** `enrolled`: the login has an entry of its own; `held`: its PIN is kept beside another login's. */
+    /**
+     * `enrolled`: the login has an entry of its own; `held`: its PIN is kept
+     * beside another login's; `dropped`: its copies went for a PIN the bank
+     * turned down — said once, to the first who asks.
+     */
     @PluginMethod
     public void has(PluginCall call) {
         dropRefused();
@@ -249,6 +264,9 @@ public class BiometricPlugin extends Plugin {
         JSObject result = new JSObject();
         result.put("enrolled", validId(id) && isEntry(id));
         result.put("held", validId(id) && holderOf(id) != null);
+        boolean dropped = validId(id) && notes().getBoolean(DROPPED + id, false);
+        if (dropped) notes().edit().remove(DROPPED + id).commit();
+        result.put("dropped", dropped);
         call.resolve(result);
     }
 
@@ -257,6 +275,7 @@ public class BiometricPlugin extends Plugin {
     public void enroll(PluginCall call) {
         String id = call.getString("id");
         Map<String, String> items = items(call);
+        Set<String> verified = verified(call);
         if (!validId(id) || items == null || !items.containsKey(id)) {
             call.reject("id and its own item are required");
             return;
@@ -276,7 +295,7 @@ public class BiometricPlugin extends Plugin {
             public void ok(Cipher unlocked) throws Exception {
                 byte[] dataKey = newDataKey();
                 try {
-                    storeEntry(id, unlocked, dataKey, items);
+                    storeEntry(id, unlocked, dataKey, items, verified);
                 } finally {
                     Arrays.fill(dataKey, (byte) 0);
                 }
@@ -304,6 +323,7 @@ public class BiometricPlugin extends Plugin {
     public void seal(PluginCall call) {
         String id = call.getString("id");
         Map<String, String> items = items(call);
+        Set<String> verified = verified(call);
         if (!validId(id) || items == null || items.isEmpty()) {
             call.reject("id and items are required");
             return;
@@ -334,20 +354,20 @@ public class BiometricPlugin extends Plugin {
                 if (upgrade) {
                     byte[] dataKey = newDataKey();
                     try {
-                        storeEntry(id, unlocked, dataKey, items);
+                        storeEntry(id, unlocked, dataKey, items, verified);
                     } finally {
                         Arrays.fill(dataKey, (byte) 0);
                     }
                 } else {
                     byte[] dataKey = unlocked.doFinal(parts(stored)[1]);
                     try {
-                        settleNotes(id, items.keySet());
                         SharedPreferences.Editor edit = prefs().edit();
                         for (Map.Entry<String, String> item : items.entrySet()) {
                             edit.putString(itemName(id, item.getKey()), sealItem(dataKey, itemName(id, item.getKey()), item.getValue()));
                         }
-                        edit.apply();
-                        stamp(id, items.keySet());
+                        // On disk before a note goes (settleNotes).
+                        if (!edit.commit()) throw new IllegalStateException("not saved");
+                        settleNotes(id, verified);
                     } finally {
                         Arrays.fill(dataKey, (byte) 0);
                     }
@@ -408,7 +428,7 @@ public class BiometricPlugin extends Plugin {
                 try {
                     String own = openItem(dataKey, holder, id);
                     if (own == null) {
-                        removeItem(itemName(holder, id));
+                        prefs().edit().remove(itemName(holder, id)).apply();
                         result.put("result", "missing");
                         call.resolve(result);
                         return;
@@ -421,7 +441,7 @@ public class BiometricPlugin extends Plugin {
                             String item = name.substring(prefix.length());
                             String secret = openItem(dataKey, id, item);
                             if (secret == null) {
-                                removeItem(name);
+                                prefs().edit().remove(name).apply();
                                 continue;
                             }
                             JSObject entry = new JSObject();
@@ -462,21 +482,18 @@ public class BiometricPlugin extends Plugin {
             return;
         }
         if (item != null) {
-            if (validId(item)) removeItem(itemName(id, item));
+            if (validId(item)) prefs().edit().remove(itemName(id, item)).apply();
             call.resolve();
             return;
         }
         forget(id);
         SharedPreferences.Editor edit = prefs().edit();
-        // No copy of this login's PIN is left: a note about it has nothing more to say.
-        SharedPreferences.Editor times = notes().edit().remove(REFUSED + id);
         for (String name : prefs().getAll().keySet()) {
-            if (!name.endsWith("/" + id)) continue;
-            edit.remove(name);
-            times.remove(STORED + name);
+            if (name.endsWith("/" + id)) edit.remove(name);
         }
-        edit.apply();
-        times.apply();
+        edit.commit();
+        // No copy of this login's PIN is left: a note about it has nothing more to say.
+        notes().edit().remove(REFUSED + id).remove(DROPPED + id).commit();
         call.resolve();
     }
 
@@ -551,10 +568,26 @@ public class BiometricPlugin extends Plugin {
         return out;
     }
 
+    /**
+     * The items the bank took (`verified: true`, mobile/bridges/biometric.ts):
+     * only they settle a note. An item without it — a further bank opened on
+     * its remembered device, not asked yet — is kept like the rest, and a
+     * note about its login deletes it again at the next lookup.
+     */
+    private static Set<String> verified(PluginCall call) {
+        Set<String> out = new HashSet<>();
+        JSArray list = call.getArray("items");
+        if (list == null) return out;
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject item = list.optJSONObject(i);
+            if (item != null && item.optBoolean("verified", false) && validId(item.optString("id", null))) out.add(item.optString("id"));
+        }
+        return out;
+    }
+
     /** Stores `id`'s new entry: `dataKey` sealed with the fingerprint's `cipher`, and `items` with `dataKey`. */
-    private void storeEntry(String id, Cipher cipher, byte[] dataKey, Map<String, String> items) throws Exception {
+    private void storeEntry(String id, Cipher cipher, byte[] dataKey, Map<String, String> items, Set<String> verified) throws Exception {
         byte[] sealedKey = cipher.doFinal(dataKey);
-        settleNotes(id, items.keySet());
         SharedPreferences.Editor edit = prefs().edit();
         String prefix = itemName(id, "");
         for (String name : prefs().getAll().keySet()) {
@@ -564,9 +597,9 @@ public class BiometricPlugin extends Plugin {
         for (Map.Entry<String, String> item : items.entrySet()) {
             edit.putString(itemName(id, item.getKey()), sealItem(dataKey, itemName(id, item.getKey()), item.getValue()));
         }
-        edit.apply();
-        forgetTimes(id);
-        stamp(id, items.keySet());
+        // On disk before a note goes (settleNotes).
+        if (!edit.commit()) throw new IllegalStateException("not saved");
+        settleNotes(id, verified);
     }
 
     private static byte[] newDataKey() {
@@ -699,17 +732,6 @@ public class BiometricPlugin extends Plugin {
         edit.remove(id);
         String prefix = itemName(id, "");
         for (String name : prefs().getAll().keySet()) {
-            if (name.startsWith(prefix)) edit.remove(name);
-        }
-        edit.apply();
-        forgetTimes(id);
-    }
-
-    /** When the PINs beside `id` were stored: gone with them. */
-    private void forgetTimes(String id) {
-        String prefix = STORED + itemName(id, "");
-        SharedPreferences.Editor edit = notes().edit();
-        for (String name : notes().getAll().keySet()) {
             if (name.startsWith(prefix)) edit.remove(name);
         }
         edit.apply();

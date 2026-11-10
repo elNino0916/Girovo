@@ -223,8 +223,8 @@ export const GirovoText = registerPlugin<GirovoTextPlugin>('GirovoText');
 
 export type BiometricState = { available: boolean; reason?: 'none-enrolled' | 'no-hardware' | 'unavailable' | 'security-update' };
 
-/** One sealed PIN, by its name (a hash). */
-export type BiometricItem = { id: string; secret: string };
+/** One sealed PIN, by its name (a hash). `verified`: handed in only, the bank took it (BiometricPlugin settleNotes). */
+export type BiometricItem = { id: string; secret: string; verified?: boolean };
 type PromptOpts = { title: string; subtitle: string; cancel: string };
 
 /**
@@ -244,8 +244,8 @@ export interface GirovoBiometricPlugin {
    * `items`: every other one kept beside it.
    */
   unlock(opts: { id: string } & PromptOpts): Promise<{ result: 'unlocked' | 'canceled' | 'invalidated' | 'missing'; secret?: string; items?: BiometricItem[] }>;
-  /** `enrolled`: an entry of its own; `held`: kept beside another login's. */
-  has(opts: { id: string }): Promise<{ enrolled: boolean; held: boolean }>;
+  /** `enrolled`: an entry of its own; `held`: kept beside another login's; `dropped`: its copies went for a refused PIN (said once). */
+  has(opts: { id: string }): Promise<{ enrolled: boolean; held: boolean; dropped?: boolean }>;
   /** With `item`: that one beside `id`. Without: `id`'s entry and `id` wherever it is kept. */
   remove(opts: { id: string; item?: string }): Promise<void>;
   removeAll(): Promise<void>;

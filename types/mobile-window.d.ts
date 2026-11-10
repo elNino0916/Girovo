@@ -16,8 +16,11 @@ declare global {
     /** Fingerprint login (mobile/bridges/biometric.ts). */
     biometric: {
       state(): Promise<GirovoBiometricState>;
-      /** Whether a fingerprint opens this login's PIN: sealed for it, or as a further bank of another login. */
-      enrolled(blz: string, userId: string): Promise<boolean>;
+      /**
+       * `on`: a fingerprint opens this login's PIN, sealed for it or as a further bank of another login;
+       * `dropped`: the PIN went because the bank turned it down in the check for new Umsätze (said once).
+       */
+      enrolled(blz: string, userId: string): Promise<{ on: boolean; dropped: boolean }>;
       /** Whether fingerprint login is on for this login itself — its switch. */
       isOn(blz: string, userId: string): Promise<boolean>;
       /** Seals the PIN of this session's login, and those of the further banks' sessions beside it, behind a fingerprint. */

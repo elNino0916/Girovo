@@ -4,18 +4,16 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.junit.Assert.*;
 
 /**
  * What the fingerprint login deletes for a PIN the bank turned down in the
- * check for new Umsätze (BiometricPlugin.refusedCopies): the copies stored
- * before the note, and nothing stored since.
+ * check for new Umsätze (BiometricPlugin.refusedCopies): every copy of a
+ * noted login's PIN, whenever it was stored, and nothing of anyone else's.
  */
 public class BiometricNotesTest {
     // Three logins, by the names the page's bridge gives them (32 hex digits).
@@ -27,64 +25,47 @@ public class BiometricNotesTest {
         return new HashSet<>(Arrays.asList(all));
     }
 
-    private static Map<String, Long> times(Object... pairs) {
-        Map<String, Long> out = new HashMap<>();
-        for (int i = 0; i < pairs.length; i += 2) out.put((String) pairs[i], ((Number) pairs[i + 1]).longValue());
-        return out;
-    }
-
-    private static Set<String> gone(Set<String> names, Map<String, Long> storedAt, Map<String, Long> refusedAt) {
-        List<String> out = BiometricPlugin.refusedCopies(names, storedAt, refusedAt);
+    private static Set<String> gone(Set<String> stored, Set<String> refused) {
+        List<String> out = BiometricPlugin.refusedCopies(stored, refused);
         assertEquals("each name once", out.size(), new HashSet<>(out).size());
         return new HashSet<>(out);
     }
 
-    @Test public void aCopyIsOlderThanTheNoteOnlyWhenStoredBeforeIt() {
-        assertTrue(BiometricPlugin.storedBefore(100L, 200));
-        assertFalse("stored after the note: the PIN the bank took since", BiometricPlugin.storedBefore(300L, 200));
-        assertFalse("the same moment is not before", BiometricPlugin.storedBefore(200L, 200));
-        assertTrue("from before the times were kept: older than any note", BiometricPlugin.storedBefore(null, 1));
-    }
-
     @Test public void withoutANoteNothingGoes() {
         Set<String> stored = names(A, A + "/" + A, A + "/" + B, B, B + "/" + B);
-        assertTrue(gone(stored, times(), Collections.<String, Long>emptyMap()).isEmpty());
+        assertTrue(gone(stored, Collections.<String>emptySet()).isEmpty());
         // A note about a login nothing is kept for.
-        assertTrue(gone(stored, times(), times(C, 500)).isEmpty());
+        assertTrue(gone(stored, names(C)).isEmpty());
     }
 
-    @Test public void theLoginsOwnEntryGoesWhenItsOwnPinIsOlderThanTheNote() {
+    @Test public void theLoginsOwnEntryGoesAsOnePiece() {
         Set<String> stored = names(A, A + "/" + A, A + "/" + B);
-        Map<String, Long> storedAt = times(A + "/" + A, 100, A + "/" + B, 100);
-        // The entry is one piece: named once, and its other PINs go with it (forget), not one by one.
-        assertEquals(names(A), gone(stored, storedAt, times(A, 200)));
-        // Stored after the note: it stays.
-        assertTrue(gone(stored, storedAt, times(A, 50)).isEmpty());
+        // Named once: its own PIN and the further banks beside it go with it (forget), not one by one.
+        assertEquals(names(A), gone(stored, names(A)));
     }
 
-    @Test public void aFurtherBanksPinBesideAnotherLoginGoesAndThatLoginStays() {
+    @Test public void aFurtherBanksPinBesideOtherLoginsGoesAndThoseLoginsStay() {
         // B is kept beside A and beside C, and has an entry of its own.
         Set<String> stored = names(A, A + "/" + A, A + "/" + B, C, C + "/" + C, C + "/" + B, B, B + "/" + B);
-        Map<String, Long> storedAt = times(
-            A + "/" + A, 100, A + "/" + B, 100, C + "/" + C, 100, C + "/" + B, 100, B + "/" + B, 100);
-        assertEquals(names(B, A + "/" + B, C + "/" + B), gone(stored, storedAt, times(B, 200)));
-
-        // The user typed B's new PIN and it was sealed beside A after the note: only the older copies go.
-        storedAt.put(A + "/" + B, 300L);
-        assertEquals(names(B, C + "/" + B), gone(stored, storedAt, times(B, 200)));
+        assertEquals(names(B, A + "/" + B, C + "/" + B), gone(stored, names(B)));
     }
 
-    @Test public void copiesFromBeforeTheTimesWereKeptAreOlderThanAnyNote() {
-        // An entry of the old form holds the PIN itself and has no items; a newer one from an earlier version has no times.
+    @Test public void noClockDecidesIt() {
+        // An entry of the old form (the PIN itself, no items) and copies from any version alike: a note takes them all.
         Set<String> stored = names(A, B, B + "/" + B, C, C + "/" + C, C + "/" + A);
-        assertEquals(names(A, C + "/" + A), gone(stored, times(), times(A, 1)));
-        assertEquals(names(B), gone(stored, times(), times(B, 1)));
+        assertEquals(names(A, C + "/" + A), gone(stored, names(A)));
+        assertEquals(names(B), gone(stored, names(B)));
     }
 
-    @Test public void severalNotesAreEachTakenByTheirOwnTime() {
-        Set<String> stored = names(A, A + "/" + A, A + "/" + B, A + "/" + C);
-        Map<String, Long> storedAt = times(A + "/" + A, 100, A + "/" + B, 100, A + "/" + C, 400);
-        // B refused after its copy was stored, C before: B's goes, C's and A's stay.
-        assertEquals(names(A + "/" + B), gone(stored, storedAt, times(B, 200, C, 300)));
+    @Test public void severalNotesAtOnce() {
+        Set<String> stored = names(A, A + "/" + A, A + "/" + B, A + "/" + C, C, C + "/" + C);
+        // C's own entry, and its PIN beside A; A's entry and its own PIN stay.
+        assertEquals(names(A + "/" + B, A + "/" + C, C), gone(stored, names(B, C)));
+    }
+
+    @Test public void aStoredNameSaysWhoseLoginItKeeps() {
+        assertEquals(A, BiometricPlugin.loginOfName(A));
+        assertEquals(B, BiometricPlugin.loginOfName(A + "/" + B));
+        assertEquals(A, BiometricPlugin.loginOfName(A + "/" + A));
     }
 }

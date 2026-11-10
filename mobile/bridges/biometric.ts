@@ -24,7 +24,7 @@
 // with it.
 
 import { GirovoBiometric, type BiometricItem, type BiometricState } from '../native';
-import type { SealedLogin } from '../server/logins';
+import type { LiveLogin, SealedLogin } from '../server/logins';
 import { fingerprintIdOf as idOf } from '../background/fingerprint-id';
 import { serverCall } from '../worker/host';
 
@@ -33,11 +33,20 @@ export type { SealedLogin };
 export type PromptTexts = { title: string; subtitle: string; cancel: string };
 
 /** The logins of live sessions, with their PINs, in order; null for a session that is gone. */
-function loginsOf(sessionIds: readonly string[]): Promise<(SealedLogin | null)[]> {
-  return serverCall<(SealedLogin | null)[]>('logins', [...sessionIds]).catch(() => sessionIds.map(() => null));
+function loginsOf(sessionIds: readonly string[]): Promise<(LiveLogin | null)[]> {
+  return serverCall<(LiveLogin | null)[]>('logins', [...sessionIds]).catch(() => sessionIds.map(() => null));
 }
 
-const itemOf = (l: SealedLogin): BiometricItem => ({ id: idOf(l.blz, l.userId), secret: JSON.stringify(l) });
+/**
+ * One login as it is sealed: BLZ, login name and PIN. `verified` rides
+ * beside it, never in it: whether the bank took that PIN, which alone lets it
+ * settle a note about the login (BiometricPlugin.java).
+ */
+const itemOf = (l: LiveLogin): BiometricItem => ({
+  id: idOf(l.blz, l.userId),
+  secret: JSON.stringify({ blz: l.blz, userId: l.userId, pin: l.pin } satisfies SealedLogin),
+  verified: l.verified,
+});
 
 /** An item as it was sealed — only when it is the login its name says. */
 function readItem(item: BiometricItem): SealedLogin | null {
@@ -58,13 +67,17 @@ export async function state(): Promise<BiometricState> {
   }
 }
 
-/** Whether a fingerprint opens this login's PIN: sealed for it, or as a further bank of another login. */
-export async function enrolled(blz: string, userId: string): Promise<boolean> {
+/**
+ * `on`: a fingerprint opens this login's PIN, sealed for it or as a further
+ * bank of another login. `dropped`: it did until now, and the PIN went because
+ * the bank had turned it down in the check for new Umsätze — said once.
+ */
+export async function enrolled(blz: string, userId: string): Promise<{ on: boolean; dropped: boolean }> {
   try {
-    const { enrolled: own, held } = await GirovoBiometric.has({ id: idOf(blz, userId) });
-    return own || held;
+    const { enrolled: own, held, dropped } = await GirovoBiometric.has({ id: idOf(blz, userId) });
+    return { on: own || held, dropped: dropped === true };
   } catch {
-    return false;
+    return { on: false, dropped: false };
   }
 }
 
@@ -84,8 +97,9 @@ export async function enroll(
   texts: PromptTexts,
 ): Promise<'enrolled' | 'canceled' | 'failed'> {
   const [own, ...others] = await loginsOf([sessionId, ...linkedSessionIds]);
-  if (!own) return 'failed';
-  const linked = others.filter((l): l is SealedLogin => !!l);
+  // The login's own PIN only once the bank has taken it: a remembered device opens with an old one too.
+  if (!own?.verified) return 'failed';
+  const linked = others.filter((l): l is LiveLogin => !!l);
   try {
     const { result } = await GirovoBiometric.enroll({ id: idOf(own.blz, own.userId), items: [own, ...linked].map(itemOf), ...texts });
     return result;
@@ -104,8 +118,9 @@ export async function seal(
   texts: PromptTexts,
 ): Promise<'sealed' | 'canceled' | 'failed' | 'off'> {
   const [own, ...others] = await loginsOf([sessionId, ...linkedSessionIds]);
-  const linked = others.filter((l): l is SealedLogin => !!l);
-  if (!own || !linked.length) return 'failed';
+  // A further bank not asked yet (its remembered device) is sealed too, but marked: it settles no note.
+  const linked = others.filter((l): l is LiveLogin => !!l);
+  if (!own?.verified || !linked.length) return 'failed';
   try {
     // The login's own PIN goes along: an entry of the old form takes it in as an item.
     const { result } = await GirovoBiometric.seal({ id: idOf(own.blz, own.userId), items: [own, ...linked].map(itemOf), ...texts });

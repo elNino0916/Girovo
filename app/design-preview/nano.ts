@@ -180,7 +180,7 @@ export function installFakeNano(
     ready: Promise.resolve(),
     biometric: {
       state: async () => ({ available: false, reason: 'none-enrolled' }),
-      enrolled: async () => false,
+      enrolled: async () => ({ on: false, dropped: false }),
       isOn: async () => false,
       enroll: async () => 'canceled',
       seal: async () => 'off',

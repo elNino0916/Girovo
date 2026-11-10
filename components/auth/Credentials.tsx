@@ -403,9 +403,11 @@ export function Credentials({
       return;
     }
     let current = true;
-    void mobile.biometric.enrolled(bank.blz, name).then((on) => {
+    void mobile.biometric.enrolled(bank.blz, name).then(({ on, dropped }) => {
       if (!current) return;
       setFingerprint(on);
+      // The check for new Umsätze found the kept PIN refused, and its copies went: said once, here.
+      if (dropped) setFingerprintNotice(tr.android.biometric.refused);
       if (on && !fingerprintAsked.current && !initialError) {
         fingerprintAsked.current = true;
         void withFingerprint();

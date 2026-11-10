@@ -8,11 +8,19 @@ import { getSession } from '../../lib/session.ts';
 /** A sealed login, as a fingerprint opens it. */
 export type SealedLogin = { blz: string; userId: string; pin: string };
 
+/**
+ * A live session's login: `verified` once the bank has taken its PIN
+ * (Session.pinAccepted). A remembered device opens on the phone with an old
+ * PIN too, so only a verified one may settle a note that the bank refused
+ * this login's kept PIN (BiometricPlugin.java settleNotes).
+ */
+export type LiveLogin = SealedLogin & { verified: boolean };
+
 /** The login of a live session, with its PIN; null once the session is gone. */
-export function loginOf(sessionId: unknown): SealedLogin | null {
+export function loginOf(sessionId: unknown): LiveLogin | null {
   const s = getSession(sessionId);
   const blz = s?.meta?.blz;
   const userId = s?.client?.config?.userId;
   const pin = s?.client?.config?.pin;
-  return blz && userId && pin ? { blz: String(blz), userId: String(userId), pin: String(pin) } : null;
+  return blz && userId && pin ? { blz: String(blz), userId: String(userId), pin: String(pin), verified: s?.pinAccepted === true } : null;
 }
