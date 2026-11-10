@@ -258,6 +258,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
         run: () => f.openSettings(),
       },
       setting('language', 'language', (m) => m.session.language, <GlobeIcon />),
+      setting('black', 'black', (m) => m.common.theme.black, <MoonIcon filled />),
       setting('idle', 'idle', (m) => m.settings.find.idle, <ClockIcon />),
       setting('loginBalances', 'loginBalances', (m) => m.settings.balances.atLogin, <RefreshIcon />),
       setting('loginBookings', 'loginBookings', (m) => m.settings.bookingsAtLogin.title, <RefreshIcon />),

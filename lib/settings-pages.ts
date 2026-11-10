@@ -45,6 +45,7 @@ export const PAGE_OF: Record<SettingsTarget, SettingsPage> = {
   backup: 'devices',
   language: 'appearance',
   theme: 'appearance',
+  black: 'appearance',
   logos: 'privacy',
   usage: 'privacy',
   updates: 'about',

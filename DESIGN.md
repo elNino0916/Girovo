@@ -221,7 +221,7 @@ The desktop (from 640px) followed the phone on 2026-10-24 (owner's choice): the 
 
 ## Colors
 
-Material's colour roles carry surfaces, ink, lines and the one interactive colour; Girovo's tokens (`--paper`, `--ink`, `--accent`, …) map onto them in `app/material.css`. Girovo's scheme sits at zero specificity so Material You's runtime roles win on the phone. The frontmatter holds the light values; the dark theme keeps the names.
+Material's colour roles carry surfaces, ink, lines and the one interactive colour; Girovo's tokens (`--paper`, `--ink`, `--accent`, …) map onto them in `app/material.css`. Girovo's scheme sits at zero specificity so Material You's runtime roles win on the phone. The frontmatter holds the light values; the dark theme keeps the names. "Schwarzer Hintergrund" (`<html data-black>`, a switch under Sprache & Darstellung, off by default) puts the dark theme's page on #000 and leaves every surface that stands on it at its tone; the desktop's sheet keeps its edge with a hairline.
 
 ### Primary
 - **Girovo Blue** (`md-primary`; `accent`, `focus`, `chart-line`): what can be pressed. Filled buttons, links, a checked control, a focused field, the sparkline, the Kontoverlauf line, Einstellungen's group subheaders.

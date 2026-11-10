@@ -27,7 +27,7 @@ export type DashboardTab = 'overview' | 'analysis' | 'contracts' | 'settings';
 
 /** A setting the search can bring the user to on the Einstellungen page (components/settings). */
 export type SettingsTarget =
-  | 'language' | 'theme' | 'idle' | 'categories' | 'logos' | 'usage' | 'device' | 'data' | 'keep' | 'backup' | 'updates'
+  | 'language' | 'theme' | 'black' | 'idle' | 'categories' | 'logos' | 'usage' | 'device' | 'data' | 'keep' | 'backup' | 'updates'
   | 'channel' | 'early' | 'fromFile' | 'loginBalances' | 'loginBookings' | 'keepBalances' | 'alerts';
 
 /** A date range as `<input type="date">` speaks it: local yyyy-mm-dd. */

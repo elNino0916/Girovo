@@ -10,6 +10,12 @@
 // The attribute on <html> stays the one source of truth the page renders
 // from, so a component never holds a copy of the theme that could go stale.
 //
+// "Schwarzer Hintergrund" rides along (<html data-black>): the dark theme's
+// page on true black, for screens whose black pixels are off. A switch beside
+// the choice, not a fourth choice, and on Android too, where light and dark
+// are the phone's: app/material.css changes the page's ground and nothing
+// that stands on it.
+//
 // The desktop app draws its caption buttons next to the masthead in colours
 // it is told about (components/shell/CaptionButtons.tsx); every path that
 // changes the theme tells it too, or the buttons would sit in a navy block
@@ -113,6 +119,38 @@ export function setThemePref(pref: ThemePref): void {
   applyTheme(pref);
 }
 
+export const BLACK_KEY = 'fints.black';
+
+/** "Schwarzer Hintergrund", as stored. Off until someone turns it on. */
+export function getBlack(): boolean {
+  return store.get(BLACK_KEY) === '1';
+}
+
+/** Whether the page has it right now (cheap; for render). It shows in the dark theme only. */
+export function appliedBlack(): boolean {
+  if (typeof document === 'undefined') return false;
+  return 'black' in document.documentElement.dataset;
+}
+
+/** Puts it on the page, or takes it off, and tells subscribers. */
+export function applyBlack(on: boolean = getBlack()): void {
+  if (typeof document === 'undefined' || appliedBlack() === on) return;
+  const root = document.documentElement;
+  // As with the theme: no cross-fade of every surface at once.
+  root.dataset.themeSwitching = '';
+  requestAnimationFrame(() => requestAnimationFrame(() => delete root.dataset.themeSwitching));
+  if (on) root.dataset.black = '';
+  else delete root.dataset.black;
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+}
+
+/** Stores it and applies it. */
+export function setBlack(on: boolean): void {
+  // '0' rather than deleted, for the reason 'system' is stored (setThemePref).
+  store.set(BLACK_KEY, on ? '1' : '0');
+  applyBlack(on);
+}
+
 /** The choice as currently applied to the page (cheap; for render). */
 export function appliedThemePref(): ThemePref {
   if (typeof document === 'undefined') return 'system';
@@ -158,6 +196,7 @@ function installListeners(): void {
   }
   window.addEventListener('storage', (e) => {
     if (e.key === THEME_KEY) applyTheme(isThemePref(e.newValue) ? e.newValue : 'system');
+    if (e.key === BLACK_KEY) applyBlack(e.newValue === '1');
   });
 }
 

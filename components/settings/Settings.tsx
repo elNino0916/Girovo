@@ -21,7 +21,7 @@
 //     categories (on Android first the guess with Gemini Nano);
 //   Daten & Geräte — the sync, what is kept here, the backup, the reset;
 //   Sprache & Darstellung — the language, the appearance (not on Android: the
-//     phone's light and dark) and the shortcuts;
+//     phone's light and dark), "Schwarzer Hintergrund" and the shortcuts;
 //   Datenschutz — the two things that can leave the machine besides the bank's
 //     traffic: the shop names for company logos, and usage data;
 //   Über Girovo — updates and their channel, the version, the licence and the links.
@@ -38,12 +38,12 @@ import { LOCALE_NAMES } from '@/lib/i18n/locale';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
 import { PAGE_CLUSTERS, PAGE_ORDER, type SettingsPage } from '@/lib/settings-pages';
-import { setThemePref } from '@/lib/theme';
+import { setBlack, setThemePref } from '@/lib/theme';
 import { FingerprintSwitch, IntegrityRow, NanoRow, PlayUpdateRow } from '../android/AndroidSettings';
 import { PlusRow } from '../android/Plus';
 import { IDLE_MINUTE_CHOICES, useFints, type IdleMinutes } from '../FintsProvider';
 import { LanguageSegmented } from '../LanguageToggle';
-import { useThemePref } from '../ThemeToggle';
+import { useBlackBackground, useThemePref } from '../ThemeToggle';
 import { updates, useUpdates } from '../updates/store';
 import { UpdateSessionRow } from '../updates/UpdateNotices';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
@@ -152,8 +152,8 @@ export function useSettingsPages(): PageEntry[] {
     };
     return PAGE_ORDER.filter((id) => shown[id]).map((id) => ({
       id,
-      title: id === 'appearance' && IS_ANDROID ? words.pages.language : words.pages[id],
-      short: id === 'appearance' && IS_ANDROID ? words.pagesShort.language : words.pagesShort[id],
+      title: words.pages[id],
+      short: words.pagesShort[id],
       summary: summary[id],
       alert: id === 'devices' && vaultStatus === 'error',
       Icon: ICONS[id],
@@ -497,6 +497,7 @@ function AppearancePage() {
   const t = useT();
   const { singleKeyShortcuts, setShortcutsOpen } = useFints();
   const pref = useThemePref();
+  const black = useBlackBackground();
   return (
     <SettingsGroup>
       <SegmentedItem icon={<GlobeIcon />} title={t.session.language} setting="language">
@@ -519,6 +520,17 @@ function AppearancePage() {
           />
         </SegmentedItem>
       )}
+
+      {/* The dark theme's page on true black. Nothing to switch while the choice is Hell. */}
+      <SwitchItem
+        icon={<MoonIcon filled />}
+        setting="black"
+        checked={black}
+        onChange={setBlack}
+        disabled={pref === 'light'}
+        title={t.common.theme.black}
+        summary={t.common.theme.blackHint}
+      />
 
       {/* Shortcuts need a keyboard; a phone has none worth listing them for. */}
       {!IS_ANDROID && (

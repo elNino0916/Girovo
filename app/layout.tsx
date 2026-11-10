@@ -110,7 +110,9 @@ export const viewport: Viewport = {
 // choice itself on data-theme-pref (what the Darstellung control shows);
 // lib/theme.ts takes over from here and keeps both current. The Android app
 // has no choice of its own: it always follows the phone.
-const THEME_SCRIPT = `(function(){var d=document.documentElement,p=${IS_ANDROID ? "'system'" : 'null'},k='fints.theme';if(p==null){try{var s=window.electronStore;if(s&&typeof s.get==='function')p=s.get(k);}catch(e){}}if(p==null){try{p=localStorage.getItem(k);}catch(e){}}if(p!=='light'&&p!=='dark')p='system';var dark=p==='dark';if(p==='system'){try{dark=window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){dark=false;}}d.dataset.theme=dark?'dark':'light';d.dataset.themePref=p;try{if(window.electronTitleBar)window.electronTitleBar.setTheme(dark);}catch(e){}try{if(window.electronCaption)d.dataset.caption='page';}catch(e){}})();`;
+// "Schwarzer Hintergrund" (fints.black) is read the same way, on Android
+// too, and goes on data-black.
+const THEME_SCRIPT = `(function(){var d=document.documentElement,g=function(k){var v=null;try{var s=window.electronStore;if(s&&typeof s.get==='function')v=s.get(k);}catch(e){}if(v==null){try{v=localStorage.getItem(k);}catch(e){}}return v;},p=${IS_ANDROID ? "'system'" : "g('fints.theme')"};if(p!=='light'&&p!=='dark')p='system';var dark=p==='dark';if(p==='system'){try{dark=window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){dark=false;}}d.dataset.theme=dark?'dark':'light';d.dataset.themePref=p;if(g('fints.black')==='1')d.dataset.black='';try{if(window.electronTitleBar)window.electronTitleBar.setTheme(dark);}catch(e){}try{if(window.electronCaption)d.dataset.caption='page';}catch(e){}})();`;
 
 // The phone's font scale reaches the page as WebView text zoom: every
 // computed font size (and line height) is multiplied by it, no px or em

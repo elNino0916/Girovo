@@ -385,6 +385,25 @@
     --bar: var(--frame-canvas);
   }
 
+  /* ---- "Schwarzer Hintergrund" (lib/theme.ts, <html data-black>) ----------
+     The dark theme on true black, for screens whose black pixels are off.
+     Only the page's own ground changes: what stands on it (a card, a sheet, a
+     field, the navigation) keeps its tone, so the layers still read. One
+     attribute more than the wallpaper's roles (Material You,
+     mobile/bridges/material-you.ts), so it holds over them too. */
+  :root[data-look='material'][data-theme='dark'][data-black] {
+    --md-surface: #000000;
+    --md-surface-dim: #000000;
+    --md-surface-container-lowest: #000000;
+    --frame-sheet: #000000;
+  }
+  /* The desktop's sheet and the canvas around it are one black then: a
+     hairline keeps the sheet's edge. */
+  :root[data-look='material'][data-theme='dark'][data-black] [data-frame-sheet] {
+    outline: 1px solid var(--md-outline-variant);
+    outline-offset: -1px;
+  }
+
   /* The sidebar open: M3E's navigation drawer items, 40px pills the
      sidebar's width, the badge in the variant ink at the end. Folded: the
      rail's nav items, each the rail's width. */

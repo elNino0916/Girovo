@@ -14,7 +14,7 @@
 import { useSyncExternalStore } from 'react';
 import { useT } from '@/lib/i18n/react';
 import {
-  appliedTheme, appliedThemePref, setThemePref, subscribeTheme, type Theme, type ThemePref,
+  appliedBlack, appliedTheme, appliedThemePref, setThemePref, subscribeTheme, type Theme, type ThemePref,
 } from '@/lib/theme';
 import { MonitorIcon, MoonIcon, SunIcon } from './icons';
 import { Button, IconButton, Menu, MenuGroup, MenuItemRadio, type Placement } from './ui';
@@ -27,6 +27,11 @@ export function useThemePref(): ThemePref {
 /** The theme actually on screen, live. 'light' on the server. */
 export function useResolvedTheme(): Theme {
   return useSyncExternalStore(subscribeTheme, appliedTheme, () => 'light' as const);
+}
+
+/** "Schwarzer Hintergrund", live. Off on the server. */
+export function useBlackBackground(): boolean {
+  return useSyncExternalStore(subscribeTheme, appliedBlack, () => false);
 }
 
 /** Sun, moon or screen — whichever the CHOSEN setting is. */

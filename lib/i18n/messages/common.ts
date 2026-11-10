@@ -27,6 +27,9 @@ export const de = {
     light: 'Hell',
     dark: 'Dunkel',
     system: 'System',
+    /** The dark theme's page on true black (lib/theme.ts). */
+    black: 'Schwarzer Hintergrund',
+    blackHint: 'Nur bei dunkler Darstellung.',
   },
   /** The app's places, as the navigation names them. */
   nav: {
@@ -95,6 +98,8 @@ export const en: typeof de = {
     light: 'Light',
     dark: 'Dark',
     system: 'System',
+    black: 'Black background',
+    blackHint: 'Only in the dark appearance.',
   },
   nav: {
     overview: 'Overview',
