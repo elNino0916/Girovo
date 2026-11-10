@@ -437,10 +437,26 @@ function AccountHead({ account, label }: { account: SerializedAccount; label: st
   const { all } = useLayers();
   // Which account is being renamed here: another one picked in the sidebar ends it.
   const [renamed, setRenamed] = useState<string | null>(null);
+  const renaming = renamed === account.accountNumber;
+  const pencil = useRef<HTMLElement>(null);
+  const shownAccount = useRef(account.accountNumber);
+  const wasRenaming = useRef(false);
+  useEffect(() => {
+    // Another account: the rename left open is over, not waiting for its
+    // account to be picked again — and focus stays where the click put it.
+    if (shownAccount.current !== account.accountNumber) {
+      shownAccount.current = account.accountNumber;
+      wasRenaming.current = false;
+      setRenamed(null);
+      return;
+    }
+    // Saved or called off: focus goes back to the pencil, never lost to <body> (as AccountLine's).
+    if (!renaming && wasRenaming.current) pencil.current?.focus();
+    wasRenaming.current = renaming;
+  }, [renaming, account.accountNumber]);
   if (frame && accounts.length > 1) {
     const entry = bankOf(account);
     const ident = accountIdent(account);
-    const renaming = renamed === account.accountNumber;
     // The name is kept in the saved data: without it there is nothing to keep it in.
     const rename = () => {
       if (vaultStatus === 'ready') setRenamed(account.accountNumber);
@@ -461,7 +477,7 @@ function AccountHead({ account, label }: { account: SerializedAccount; label: st
           // The pencil beside the name: the one under "Kontoverlauf" was two clicks away (a user's report, 2026-11-10).
           <p className="mt-1 flex min-w-0 items-center gap-1 text-[22px] leading-7 font-medium text-ink">
             <span className="min-w-0 truncate">{label}</span>
-            <IconButton size="sm" className="-my-1 shrink-0" data-rename-name aria-label={t.insights.accounts.rename} title={t.insights.accounts.rename} onClick={rename}>
+            <IconButton ref={pencil} size="sm" className="-my-1 shrink-0" data-rename-name aria-label={t.insights.accounts.rename} title={t.insights.accounts.rename} onClick={rename}>
               <PencilIcon size={16} />
             </IconButton>
           </p>

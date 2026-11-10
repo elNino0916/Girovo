@@ -21,6 +21,7 @@ import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { useRecurringModel, useUpcoming } from '../insights/recurring-model';
 import { AccountLayers } from '../overview/AccountLayers';
+import { ArrangeSheet } from '../overview/ArrangeSheet';
 import { useLayers } from '../overview/layers';
 import { useSettingsPages } from '../settings/Settings';
 import { BackIcon, ChartIcon, GearIcon, HomeIcon, TransferIcon } from '../icons';
@@ -42,6 +43,9 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
     setTab(place);
   };
   const settings = tab === 'settings';
+  // "Konten anordnen" is opened from the account list, which is only here while the sidebar is open: kept
+  // here, so the sheet stays when the window narrows and the sidebar folds under it.
+  const [arranging, setArranging] = useState(false);
   // The payments due in the next 30 days from the ticked accounts: Zahlungen's badge.
   const { shown } = useLayers();
   const model = useRecurringModel();
@@ -94,7 +98,7 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
             </div>
           )}
           {open && <PlaceMonth />}
-          {open && <AccountLayers />}
+          {open && <AccountLayers onArrange={() => setArranging(true)} />}
         </>
       )}
       {open ? (
@@ -107,6 +111,7 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
           <Place icon={<GearIcon size={24} />} label={t.common.nav.settings} current={tab === 'settings'} onClick={() => openSettings()} />
         </div>
       )}
+      {arranging && <ArrangeSheet flat onClose={() => setArranging(false)} />}
     </nav>
   );
 }

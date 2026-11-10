@@ -9,7 +9,7 @@
 // (5.x had it under its account list; a user's report, 2026-11-10).
 
 import { M3eCheckbox } from '@m3e/react/checkbox';
-import { useState, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { BankLogo } from '../BankLogo';
 import { useFints } from '../FintsProvider';
@@ -17,12 +17,10 @@ import { Icon } from '../icons';
 import { Money } from '../Money';
 import { Button, IconButton, cx } from '../ui';
 import { vaultNote } from './AccountIdentity';
-import { ArrangeSheet } from './ArrangeSheet';
 import { useAccountValue, useLayers } from './layers';
 
-export function AccountLayers() {
+export function AccountLayers({ onArrange }: { onArrange: () => void }) {
   const { accountLabel, openAddBank, activeAccount, tab, banks, logoFiles, vaultStatus, toast } = useFints();
-  const [arranging, setArranging] = useState(false);
   const t = useT();
   const words = t.shell.frame;
   const { layers, shown, setShown, only } = useLayers();
@@ -32,7 +30,7 @@ export function AccountLayers() {
   const absent = banks.filter((b) => b.state === 'remembered' || b.state === 'loggedOut');
   // The order is kept in the saved data: without it there is nothing to keep it in.
   const arrange = () => {
-    if (vaultStatus === 'ready') setArranging(true);
+    if (vaultStatus === 'ready') onArrange();
     else toast(vaultNote(vaultStatus), 'info');
   };
 
@@ -113,7 +111,6 @@ export function AccountLayers() {
           ))}
         </ul>
       )}
-      {arranging && <ArrangeSheet flat onClose={() => setArranging(false)} />}
     </section>
   );
 }
