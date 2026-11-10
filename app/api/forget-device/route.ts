@@ -26,8 +26,8 @@ import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { getSession, pinRefused } from '@/lib/session';
 import { DocError, wipeDocs } from '@/lib/doc-store';
 import { HistoryError, wipeHistory } from '@/lib/history-store';
-import { removeLinkedUnlock } from '@/lib/linked-unlock';
-import { forgetProfile } from '@/lib/state-store';
+import { loginOfSession, removeLinkedUnlock } from '@/lib/linked-unlock';
+import { forgetProfile, forgetRefusedPin, markPinRefused } from '@/lib/state-store';
 import { removeSecurityKeys } from '@/lib/security-key';
 import { removeWindowsHello } from '@/lib/windows-hello';
 import { readMeta, removeMeta } from '@/lib/sync-meta';
@@ -53,9 +53,16 @@ export const POST = wrap(async (req: Request) => {
   }
 
   if (wipeData === true && !s) return sessionExpired();
-  // The bank turned this session's PIN down: while the session stays open,
-  // nothing keeps that PIN again (Windows Hello, a security key, the checks).
-  if (s && refused === true) pinRefused(s);
+  // The bank turned this session's PIN down (the page asks only for the
+  // bank's own codes, lib/client-api.ts PIN_REFUSED_EVENT): while the session
+  // stays open, nothing keeps that PIN again (Windows Hello, a security key,
+  // the checks). And it is noted, for a copy kept where nothing here reaches
+  // — beside another login: /api/connect does not send that one again.
+  if (s && refused === true) {
+    pinRefused(s);
+    const own = loginOfSession(s);
+    if (own) markPinRefused(own.blz, own.userId, own.pin);
+  }
   if (b && u) {
     await removeLinkedUnlock({ blz: String(b), userId: String(u) });
     await removeWindowsHello({ blz: String(b), userId: String(u) });
@@ -87,6 +94,8 @@ export const POST = wrap(async (req: Request) => {
     }
   }
 
+  // Forgotten by the user: nothing about this login stays, the note of a refused PIN neither.
+  if (b && u && refused !== true) forgetRefusedPin(String(b), String(u));
   const ok = b && u ? forgetProfile(String(b), String(u)) : false;
   return json({ ok, ...(wiped !== undefined ? { wiped } : {}) });
 });

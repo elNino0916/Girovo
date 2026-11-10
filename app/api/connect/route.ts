@@ -6,14 +6,17 @@
 //
 // `kept`: the PIN was not typed but kept — behind Windows Hello, a security
 // key or the fingerprint, or beside another login. Where it does not open the
-// device remembered here, it was changed at the bank since: the bank is not
-// asked with it at all (a few wrong tries lock the online banking), and the
-// page deletes the kept copies (lib/bank-answer.ts isStaleKeptPin).
+// device remembered here, it was changed at the bank since — and where the
+// bank was noted to have turned that very PIN down (lib/state-store.ts
+// pinWasRefused), it would only do so again: the bank is not asked with it at
+// all (a few wrong tries lock the online banking), and the page deletes the
+// copy that handed it over (lib/bank-answer.ts isStaleKeptPin). A typed PIN
+// is never held back.
 
 import { FinTSClient, FinTSConfig } from 'lib-fints';
 import { lookupBlz } from '@/lib/banks';
 import { body, fail, json, wrap } from '@/lib/api';
-import { isCredentialAnswer } from '@/lib/bank-answer';
+import { isPinRefusal } from '@/lib/bank-answer';
 import { bankErrorKind, withBankSignal } from '@/lib/bank-fetch';
 import { beginAttempt, settleAttempt, type ConnectAttempt } from '@/lib/connect-attempts';
 import { msgs } from '@/lib/i18n';
@@ -23,7 +26,9 @@ import {
   DEBUG, FALLBACK_PRODUCT_ID, PRODUCT_ID, PRODUCT_VERSION, asClientEx, getSession, newSession, restoredClient,
   type Session,
 } from '@/lib/session';
-import { forgetProfile, keptPinIsStale, loadProfile, profileState, type DeviceProfile } from '@/lib/state-store';
+import {
+  forgetProfile, keptPinIsStale, markPinRefused, openProfile, pinWasRefused, type DeviceProfile, type OpenedProfile,
+} from '@/lib/state-store';
 import { noteTelemetry, reportEvent } from '@/lib/telemetry';
 import type { BankMeta, ConnectResponse, FinTSClientEx } from '@/lib/fints-types';
 
@@ -45,8 +50,13 @@ export const POST = wrap(async (req: Request) => {
   // (the browser checks a remembered bank at start, so this is the rare race).
   if (!dbEntry?.url) return fail(msgs().auth.api.bankGone);
   if (!userId || !pin) return fail(msgs().auth.api.missingCredentials);
-  // Before the bank hears of it: a kept PIN the remembered device does not open with is an old one.
-  if (kept === true && keptPinIsStale(kept, profileState(bankId, userId, pin))) return fail(msgs().auth.api.keptPinStale, 409);
+  // The remembered device, opened once for everything this login asks of it (the key derivation is slow).
+  const device = openProfile(bankId, userId, pin);
+  // Before the bank hears of it: a kept PIN the remembered device does not
+  // open with is an old one, and so is one the bank turned down already.
+  if (kept === true && (keptPinIsStale(kept, device.state) || pinWasRefused(bankId, userId, pin))) {
+    return fail(msgs().auth.api.keptPinStale, 409);
+  }
 
   // Telemetry: which bank and how the login went — never who logged in.
   noteTelemetry({ blz: bankId });
@@ -56,7 +66,7 @@ export const POST = wrap(async (req: Request) => {
 
   const attempt = beginAttempt(attemptId);
   try {
-    return await login(attempt, bankId, dbEntry, userId, pin, outcome);
+    return await login(attempt, bankId, dbEntry, userId, pin, outcome, device, kept === true);
   } catch (err) {
     if (attempt.signal.aborted) {
       outcome('cancelled');
@@ -84,11 +94,15 @@ async function login(
   userId: string,
   pin: string,
   outcome: LoginOutcome,
+  device: OpenedProfile,
+  kept: boolean,
 ) {
   /** A session for this login — unless it was called off meanwhile. */
   const open = (client: FinTSClientEx, meta: BankMeta): string | null => {
     if (attempt.signal.aborted) return null;
     const sessionId = newSession(client, meta);
+    // For saveSessionProfile: how the device stood to this PIN, without opening it again.
+    getSession(sessionId)!.profileWas = device.state;
     settleAttempt(attempt, sessionId);
     return sessionId;
   };
@@ -108,7 +122,7 @@ async function login(
   // restore the systemId + cached accounts + TAN method and go straight to the
   // dashboard — no synchronisation SCA. The bank may then serve reads TAN-free
   // within its exemption window. ANY failure here falls through to first-time.
-  const saved = loadProfile(bankId, userId, pin);
+  const saved = device.data;
   // Its Kundensystem-ID belongs to the product ID it was issued under: beside any other the bank refuses it (9391).
   const plan = restorePlan(saved, PRODUCT_ID, FALLBACK_PRODUCT_ID);
   if (saved && plan.kind === 'fresh') {
@@ -214,10 +228,19 @@ async function login(
   if (!sync.success && (!client.config.availableTanMethods || client.config.availableTanMethods.length === 0)) {
     outcome('refused');
     const answer = bankAnswerText(sync) || msgs().auth.api.refused;
-    // The remembered device opens with the very PIN the bank just turned down
-    // (one set up under the previous product ID is asked first, above): it
-    // goes, or "Neue Umsätze melden" would open it and send that PIN again.
-    if (saved && isCredentialAnswer(answer)) forgetProfile(bankId, userId);
+    // Only the bank's own codes for the PIN count here (9931, 9942), never a
+    // word like "Benutzer" in some other refusal, nor the fallback above:
+    // what follows deletes, and a correct PIN's device must not go for it.
+    if (isPinRefusal(answer)) {
+      // The remembered device opens with the very PIN the bank just turned
+      // down (one set up under the previous product ID is asked first,
+      // above): it goes, or "Neue Umsätze melden" would open it and send
+      // that PIN again.
+      if (saved) forgetProfile(bankId, userId);
+      // A kept PIN may be kept in more places than the page can reach
+      // (beside another login): noted, so none of them sends it again.
+      if (kept) markPinRefused(bankId, userId, pin);
+    }
     return fail(answer);
   }
 

@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {
-  alertSettings, disable, enroll, enrolled, forget, isOn, limitsKey, mergeSeen, newBookings, parseSecret, runCheck,
+  alertSettings, disable, enroll, enrolled, forget, isOn, limitsKey, mergeSeen, newBookings, parseSecret, refusalOf, runCheck,
   setAlerts, setWatch, touch, type BankSide, type CheckedLogin,
 } from './background-check.ts';
+import { MESSAGES } from './i18n/index.ts';
 import { seriesIdentity } from './recurring.ts';
 import type { BackgroundStore } from './background-store.ts';
 import type { SerializedTransaction } from './fints-types';
@@ -53,7 +54,9 @@ function fakeBank(answers: Record<string, unknown>, { busy = [] as string[] } = 
     async read(handle, accountNumber, from) {
       asked.push(`${handle}:${accountNumber}:${from.toISOString().slice(0, 10)}`);
       const a = answers[`${handle}:${accountNumber}`];
-      if (typeof a === 'string') return { kind: a as 'approval' | 'refused' | 'failed' };
+      // 'refused': with the bank's own codes for the PIN; 'refused-by-words': it only reads like it.
+      if (a === 'refused' || a === 'refused-by-words') return { kind: 'refused', pin: a === 'refused' };
+      if (typeof a === 'string') return { kind: a as 'approval' | 'failed' };
       // { transactions, balance }: an answer with the statement's closing balance.
       if (a && !Array.isArray(a) && typeof a === 'object') {
         const r = a as { transactions?: SerializedTransaction[]; balance?: number };
@@ -296,6 +299,52 @@ test('a refused PIN is deleted everywhere: the hook runs once, for that login, a
   // Gone from the box: the next round has nothing to refuse, and nothing to tell.
   await runCheck(store, secret, bank.side, NOW + 1);
   assert.deepEqual(told, ['50050201:12345']);
+});
+
+/** Answers that read like the credentials turned down, without the bank's codes for the PIN. */
+const REFUSED_BY_WORDS = [
+  '9210: Benutzer nicht berechtigt für dieses Konto.',
+  '9010: Der Auftrag ist für diesen Benutzer nicht zugelassen.',
+  '9370: Legitimationsverfahren wird nicht unterstützt.',
+  '3920: Zugelassene Zwei-Schritt-Verfahren für den Benutzer.',
+  // What the login says where the bank refused without a word (auth.api.refused).
+  MESSAGES.de.auth.api.refused,
+  MESSAGES.en.auth.api.refused,
+];
+
+test('refusalOf: only the bank\'s own codes for the PIN are certain; words take the login out of the box and no more', () => {
+  for (const answer of REFUSED_BY_WORDS) assert.deepEqual(refusalOf(answer), { kind: 'refused', pin: false }, answer);
+  assert.deepEqual(refusalOf('9931: Anmeldename oder PIN ist falsch. | 9800: Dialog abgebrochen'), { kind: 'refused', pin: true });
+  assert.deepEqual(refusalOf('9942: PIN falsch. Zugang gesperrt.'), { kind: 'refused', pin: true });
+  // The codes beside words that would count on their own: still the codes' answer.
+  assert.deepEqual(refusalOf('9931: Benutzer gesperrt.'), { kind: 'refused', pin: true });
+  // Nothing about the credentials at all.
+  assert.deepEqual(refusalOf('9050: Die Nachricht enthält Fehler. | 9010: Verarbeitung nicht möglich.'), { kind: 'failed' });
+  assert.deepEqual(refusalOf('9078: Software nicht als FinTS-Produkt registriert (PIN/TAN).'), { kind: 'failed' });
+  assert.deepEqual(refusalOf(MESSAGES.de.provider.bank.unavailable), { kind: 'failed' });
+  assert.deepEqual(refusalOf(''), { kind: 'failed' });
+});
+
+test('an answer that only reads like a refusal takes the PIN out of the box, and deletes nothing else', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk, dkb], true);
+  const bank = fakeBank({ '50050201:DE01': 'refused-by-words' });
+  const told = withRefusedHook(bank);
+  const r = await runCheck(store, secret, bank.side, NOW);
+  // As before: out of the box, said, never tried again.
+  assert.equal(r.notices[0].kind, 'refused');
+  assert.deepEqual((await enrolled(store, secret))?.logins.map((l) => l.blz), ['12030000']);
+  // The wider deletion (Windows Hello, the security keys, the remembered device) does not rest on words.
+  assert.deepEqual(told, []);
+  // A side that says nothing about how it knows is not taken at its word either.
+  const plain = memoryStore();
+  await enroll(plain, secret, [spk], true);
+  const bank2 = fakeBank({});
+  const told2 = withRefusedHook(bank2);
+  bank2.side.read = async () => ({ kind: 'refused' });
+  await runCheck(plain, secret, bank2.side, NOW);
+  assert.equal(await isOn(plain), false);
+  assert.deepEqual(told2, []);
 });
 
 test('the hook stays quiet for an outage, an approval, a device that does not open and a plain read', async () => {

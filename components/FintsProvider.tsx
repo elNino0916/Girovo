@@ -3707,13 +3707,22 @@ function useFintsState() {
   }, []);
 
   /**
-   * The desktop: one further bank's PIN kept beside the first login's goes —
-   * its bank refused it (never tried twice: a few wrong tries lock the
-   * online banking), or the bank was removed.
+   * One further bank's PIN kept beside the first login's goes — its bank
+   * refused it (never tried twice: a few wrong tries lock the online
+   * banking), it no longer fits, or the bank was removed. The desktop: out of
+   * the first login's box (lib/linked-unlock.ts); Android: from behind its
+   * fingerprint, that one copy and nothing else kept for either login.
    */
   const forgetLinkedPin = useCallback(async (login: { blz: string; userId: string }) => {
     const primary = sessionRef.current;
-    if (IS_ANDROID || !primary || linkedUnlockRef.current !== true) return;
+    if (IS_ANDROID) {
+      const own = bankRef.current;
+      if (primary && own && userIdRef.current) {
+        await window.girovoMobile?.biometric.forgetLinked(own.blz, userIdRef.current, login.blz, login.userId);
+      }
+      return;
+    }
+    if (!primary || linkedUnlockRef.current !== true) return;
     const secret = await linkedUnlockSecret();
     if (!secret) return;
     await post('/api/linked-unlock', { op: 'forget', sessionId: primary, secret, login: { blz: login.blz, userId: login.userId } })
@@ -4353,8 +4362,12 @@ function useFintsState() {
         const login = { blz: link.bank.blz, userId: link.userId };
         setLinksBoth(linksRef.current.map((l) => (l.id === link.id ? { ...l, sessionId: null } : l)));
         openedLinkedRef.current = openedLinkedRef.current.filter((l) => !sameLogin(l, login));
-        dropSession(sid);
-        void post('/api/forget-device', login).catch(() => { /* asked again with the next refusal */ });
+        // With its session, while the server still has it: the PIN is noted as
+        // refused there, for a copy of it kept beside some other login
+        // (app/api/forget-device). Then the session goes; nothing here uses it any more.
+        void post('/api/forget-device', { ...login, sessionId: sid, refused: true })
+          .catch(() => { /* asked again with the next refusal */ })
+          .finally(() => dropSession(sid));
         if (IS_ANDROID && own) void window.girovoMobile?.biometric.forgetLinked(own.blz, userIdRef.current, login.blz, login.userId);
         else void forgetLinkedPin(login);
         void forgetBackgroundLogin(login);

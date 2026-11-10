@@ -8,21 +8,22 @@
 // changed, the device was set up under another product ID — is never taken
 // to the bank: the login waits for the user instead.
 //
-// A PIN the bank turns down leaves the box (lib/background-check.ts) — and
-// here everything else on the desktop that keeps it or opens with it: the
-// login's Windows Hello file, its security keys and its remembered device, as
-// app/api/forget-device does for a PIN refused in the app.
+// A PIN the bank turns down leaves the box (lib/background-check.ts). Where
+// the bank said so with its own codes for the PIN, everything else on the
+// desktop that keeps it or opens with it goes too — the login's Windows Hello
+// file, its security keys and its remembered device, as app/api/forget-device
+// does for a PIN refused in the app — and the PIN is noted as refused
+// (lib/state-store.ts markPinRefused) for the copies nothing here reaches.
 
 import { lookupBlz } from './banks';
-import type { BankSide, CheckedLogin } from './background-check';
-import { isCredentialAnswer } from './bank-answer';
+import { refusalOf, type BankSide, type CheckedLogin } from './background-check';
 import { fetchStatements } from './fints-statements';
 import { IS_ANDROID } from './platform';
 import { restorePlan } from './product-fallback';
 import { removeSecurityKeys } from './security-key';
 import { accountsFor, balanceFromStatements, bankAnswerText, serializeTransactions } from './serialize';
 import { dropSession, FALLBACK_PRODUCT_ID, getSession, loginInUse, newSession, PRODUCT_ID, restoredClient } from './session';
-import { forgetProfile, loadProfile, profileState } from './state-store';
+import { forgetProfile, loadProfile, markPinRefused, profileState } from './state-store';
 import { removeWindowsHello } from './windows-hello';
 
 export const bankSide: BankSide = {
@@ -57,8 +58,9 @@ export const bankSide: BankSide = {
       const resp = await fetchStatements(s.client, accountNumber, from);
       if (resp.requiresTan) return { kind: 'approval' };
       // Every answer that reads as the credentials turned down counts — banks
-      // do not all send 9931/9942 — and is never tried again.
-      if (!resp.success) return isCredentialAnswer(bankAnswerText(resp)) ? { kind: 'refused' } : { kind: 'failed' };
+      // do not all send 9931/9942 — and is never tried again; which of the
+      // two it was decides how far the deletion goes (refusalOf).
+      if (!resp.success) return refusalOf(bankAnswerText(resp));
       // The bank took the PIN: for this session's own sake, like a read in the app.
       s.pinAccepted = true;
       // The statement's own closing balance, for an account's limit (lib/payment-alerts.ts): no second request.
@@ -91,13 +93,21 @@ export const bankSide: BankSide = {
     // and has no way to the PIN behind the fingerprint: there the app's next
     // login finds out, before or at its first read (lib/client-api.ts PIN_REFUSED_EVENT).
     if (IS_ANDROID) return;
+    // Noted first: a copy of this PIN kept beside another login ("Weitere
+    // Banken mit anmelden") cannot be deleted without that login's PIN, and
+    // /api/connect knows it by this note instead.
+    const noted = markPinRefused(login.blz, login.userId, login.pin);
+    // The remembered device set up afresh under another PIN while this check
+    // was on its way: Windows Hello and the security keys were deleted with
+    // the old one then (lib/session.ts saveSessionProfile), and whatever is
+    // there now keeps the new PIN. Nothing of it is this refusal's.
+    const device = profileState(login.blz, login.userId, login.pin);
+    if (device === 'locked') return;
     const name = { blz: login.blz, userId: login.userId };
     const kept = await Promise.allSettled([removeWindowsHello(name), removeSecurityKeys(name)]);
-    // The remembered device, while it is still the one this PIN opens: set up
-    // afresh since, it is another PIN's.
-    const device = profileState(login.blz, login.userId, login.pin);
+    // The device itself only where this PIN opens it; a damaged file is nobody's.
     const gone = device === 'opens' || device === 'expired' ? forgetProfile(login.blz, login.userId) : true;
-    if (!gone || kept.some((k) => k.status === 'rejected')) {
+    if (!noted || !gone || kept.some((k) => k.status === 'rejected')) {
       console.warn(`[background] a refused PIN could not be deleted everywhere (blz=${login.blz})`);
     }
   },

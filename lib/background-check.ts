@@ -19,11 +19,14 @@
 //   PIN — then nothing is sent to the bank at all.
 // - A PIN the bank turns down is deleted at once — saved before the next
 //   login is checked — and never tried again: a few wrong tries lock the
-//   online banking. Whatever else on this device keeps that PIN, or opens
-//   with it, goes with it (BankSide.refused): the same PIN behind Windows
-//   Hello would be the next wrong try. Any other answer from the bank ends
-//   that login's check for this round, so one round never sends a PIN more
-//   than once after it went wrong.
+//   online banking. Banks do not all send the codes for it (9931, 9942), so
+//   an answer that only reads like the credentials turned down takes the
+//   login out of the box too (refusalOf). Where the bank did send them,
+//   whatever else on this device keeps that PIN, or opens with it, goes with
+//   it (BankSide.refused): the same PIN behind Windows Hello would be the
+//   next wrong try. That wider deletion never rests on words alone. Any other
+//   answer from the bank ends that login's check for this round, so one round
+//   never sends a PIN more than once after it went wrong.
 // - What is new is told by the booking's key (lib/categories.ts txKey),
 //   counted, so two equal bookings on one day are two. The first check of an
 //   account only learns what is there.
@@ -45,6 +48,7 @@
 
 import crypto from 'node:crypto';
 import { newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
+import { isCredentialAnswer, isPinRefusal } from './bank-answer.ts';
 import { txKey } from './categories.ts';
 import { dayKey, displayName, fmtDate, fmtMoney, fmtSignedMoney, toLocalDate } from './format.ts';
 import { dayNum, reminderDue } from './contract-watch.ts';
@@ -109,19 +113,36 @@ export type BankSide = {
   open(login: CheckedLogin): Promise<{ handle: string; accounts: CheckedAccount[] } | 'login'>;
   read(handle: string, accountNumber: string, from: Date): Promise<
     | { kind: 'ok'; transactions: SerializedTransaction[]; balance?: { value: number; currency: string } | null }
-    | { kind: 'approval' | 'refused' | 'failed' }
+    | { kind: 'approval' | 'failed' }
+    /** `pin`: with the bank's own codes for the PIN (refusalOf) — only then does `refused` below run. */
+    | { kind: 'refused'; pin?: boolean }
   >;
   close(handle: string): void;
   /** Whether the user is in this login right now (their own session reads it then). */
   busy(login: CheckedLogin): boolean;
   /**
-   * The bank turned this login's kept PIN down, and it is out of the box:
-   * whatever else on this device keeps that PIN or opens with it goes too.
-   * Never after an outage, an approval or a failed read — and not when the
-   * user gave a new PIN meanwhile, which the refusal says nothing about.
+   * The bank turned this login's kept PIN down with its own codes for it,
+   * and it is out of the box: whatever else on this device keeps that PIN or
+   * opens with it goes too. Never for an answer that only reads like a
+   * refusal, never after an outage, an approval or a failed read — and not
+   * when the user gave a new PIN meanwhile, which the refusal says nothing
+   * about.
    */
   refused?(login: CheckedLogin): Promise<void> | void;
 };
+
+/**
+ * What a read the bank did not answer with Umsätze says about the kept PIN.
+ * `refused`: it reads as the credentials turned down, and the login leaves
+ * the box — banks do not all send 9931/9942, and a kept PIN is never tried
+ * twice on a guess. `pin`: the bank's own codes say so; only that is certain
+ * enough to delete what else keeps the PIN (BankSide.refused). Anything else
+ * is 'failed': nothing about the PIN.
+ */
+export function refusalOf(answer: string): { kind: 'refused'; pin: boolean } | { kind: 'failed' } {
+  if (isPinRefusal(answer)) return { kind: 'refused', pin: true };
+  return isCredentialAnswer(answer) ? { kind: 'refused', pin: false } : { kind: 'failed' };
+}
 
 export const SECRET_BYTES = 32;
 /** How far back a check reads: within the exemption, and enough for a booking dated back a few days. */
@@ -556,7 +577,7 @@ type Learnt = {
 /** What one login's check came to, made on the box as it is then (see `change`). */
 type Outcome =
   | { kind: 'pause'; why: 'approval' | 'login'; seen?: Record<string, string[]> }
-  | { kind: 'refused' }
+  | { kind: 'refused'; byCode: boolean }
   | { kind: 'read'; seen: Record<string, string[]>; checkedAt?: string };
 
 function settle(box: Box | null, login: CheckedLogin, outcome: Outcome, now: number, learnt?: Learnt): Box | 'keep' {
@@ -660,6 +681,8 @@ export function runCheck(store: BackgroundStore, secret: Buffer, bank: BankSide,
         const seenNow = start.seen[lk] ?? {};
         const read: Record<string, string[]> = {};
         let stop: 'approval' | 'refused' | 'failed' | null = null;
+        // Refused with the bank's own codes for the PIN, not only by the sound of it.
+        let byCode = false;
         const last = login.checkedAt ? Date.parse(login.checkedAt) : NaN;
         const from = new Date(Math.max(now - WINDOW_DAYS * DAY_MS, Number.isNaN(last) ? 0 : last - 3 * DAY_MS));
         try {
@@ -669,6 +692,7 @@ export function runCheck(store: BackgroundStore, secret: Buffer, bank: BankSide,
             // round: never one more dialog with a PIN that may be wrong.
             if (got.kind !== 'ok') {
               stop = got.kind;
+              byCode = got.kind === 'refused' && got.pin === true;
               break;
             }
             const prior = seenNow[account.accountNumber];
@@ -689,7 +713,7 @@ export function runCheck(store: BackgroundStore, secret: Buffer, bank: BankSide,
         }
         const anyRead = Object.keys(read).length > 0;
         if (stop === 'refused') {
-          outcome = { kind: 'refused' };
+          outcome = { kind: 'refused', byCode };
           notices.push(noticeFor('refused', login));
         } else if (stop === 'approval') {
           outcome = { kind: 'pause', why: 'approval', seen: read };
@@ -723,7 +747,7 @@ export function runCheck(store: BackgroundStore, secret: Buffer, bank: BankSide,
         replaced = !!box?.logins.some((l) => sameLogin(l, login) && l.pin !== login.pin);
         return settle(box, login, outcome, now, learnt);
       });
-      if (outcome.kind === 'refused' && !replaced) {
+      if (outcome.kind === 'refused' && outcome.byCode && !replaced) {
         try {
           await bank.refused?.(login);
         } catch {

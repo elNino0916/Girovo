@@ -65,10 +65,11 @@ const CANCEL_AFTER_MS = 8000;
  * Android: the PIN came from behind the fingerprint — with the PINs of the
  * further banks kept beside it, which the provider logs in next. The
  * desktop: `hello`, it came from behind Windows Hello (lib/windows-hello.ts);
- * `securityKey`, from behind a security key (lib/security-key.ts); neither, it
- * is a further bank's, opened by the first login (lib/linked-unlock.ts).
+ * `securityKey`, from behind a security key (lib/security-key.ts). `opened`,
+ * on either: it is a further bank's, opened by the first login (its
+ * fingerprint; lib/linked-unlock.ts) and handed in as `openedPin`.
  */
-export type Unsealed = { linked: GirovoSealedLogin[]; hello?: true; securityKey?: true };
+export type Unsealed = { linked: GirovoSealedLogin[]; hello?: true; securityKey?: true; opened?: true };
 
 export function Credentials({
   bank, logoFile, meta, onChange, onSubmit, onCancel, initialLogin, initialError, openedPin, onOpenedPinRefused, pinKept,
@@ -89,7 +90,7 @@ export function Credentials({
    * Android, its PIN on the desktop (lib/linked-unlock.ts) — tried at once.
    */
   openedPin?: string;
-  /** The desktop: that opened PIN was refused, or no longer fits, and has to go (FintsProvider forgetLinkedPin). */
+  /** That opened PIN was refused (the desktop), or no longer fits (either): its copy beside the first login has to go (FintsProvider forgetLinkedPin). */
   onOpenedPinRefused?: (blz: string, userId: string) => void;
   /** The desktop's add-bank sheet with "Weitere Banken mit anmelden" on: this PIN is kept, and the note says so. */
   pinKept?: boolean;
@@ -225,8 +226,8 @@ export function Credentials({
         return;
       }
       const message = (err as Error).message || '';
-      // The kept PIN no longer opens what this device remembers: it was
-      // changed at the bank, and the bank was not asked (app/api/connect).
+      // The kept PIN no longer opens what this device remembers, or the
+      // bank turned it down before: the bank was not asked (app/api/connect).
       const stale = isStaleKeptPin(message);
       // A stored PIN the bank did not take is deleted at once: it is never
       // tried a second time, because a few wrong tries lock the access. Only
@@ -234,27 +235,39 @@ export function Credentials({
       // bank was asked or after it took the PIN, says nothing about the PIN.
       if (unsealed && !demo && !isBankOutage(message) && !isNotAboutPin(err)) {
         const name = login.trim();
+        const own = { blz: bank.blz, userId: name };
+        // Where the PIN came from. A stale copy — found out here, no try used —
+        // says nothing about the others: only the one that handed it over
+        // goes, and each other is checked the same way when it is used. A PIN
+        // the bank refused goes from all of them at once.
+        const from = unsealed.hello ? 'hello' : unsealed.securityKey ? 'securityKey' : unsealed.opened || !IS_ANDROID ? 'opened' : 'fingerprint';
         if (IS_ANDROID) {
-          void window.girovoMobile?.biometric.forget(bank.blz, name);
-          setFingerprint(false);
+          if (stale && from === 'opened' && onOpenedPinRefused) {
+            // A further bank's, from behind the first login's fingerprint: that copy alone.
+            onOpenedPinRefused(bank.blz, name);
+          } else {
+            // The login's own fingerprint entry is one piece; refused, every copy of the PIN goes with it.
+            void window.girovoMobile?.biometric.forget(bank.blz, name);
+            setFingerprint(false);
+          }
           if (!stale) setFingerprintNotice(tr.android.biometric.refused);
         } else {
           // Windows Hello and every security key keep the same PIN, the
-          // first login's: whichever handed it over, both go and both buttons
-          // with them — the other would send the refused PIN once more.
-          void forgetHello({ blz: bank.blz, userId: name });
-          void forgetSecurityKeys({ blz: bank.blz, userId: name });
-          setHello(false);
-          setSecurityKey(false);
-          const said = tr.settings;
-          if (unsealed.hello) {
-            if (!stale) setFingerprintNotice(said.windowsHello.refused);
-          } else if (unsealed.securityKey) {
-            if (!stale) setFingerprintNotice(said.securityKeys.refused);
-          } else {
-            // A further bank's, opened by the first login: its copy beside that login goes too.
-            onOpenedPinRefused?.(bank.blz, name);
-            if (!stale) setFingerprintNotice(said.linkedUnlock.refused);
+          // first login's: refused, both go and both buttons with them —
+          // the other would send the refused PIN once more.
+          if (!stale || from === 'hello') {
+            void forgetHello(own);
+            setHello(false);
+          }
+          if (!stale || from === 'securityKey') {
+            void forgetSecurityKeys(own);
+            setSecurityKey(false);
+          }
+          // A further bank's, opened by the first login: its copy beside that login.
+          if (from === 'opened') onOpenedPinRefused?.(bank.blz, name);
+          if (!stale) {
+            const said = tr.settings;
+            setFingerprintNotice(from === 'hello' ? said.windowsHello.refused : from === 'securityKey' ? said.securityKeys.refused : said.linkedUnlock.refused);
           }
         }
       }
@@ -375,7 +388,7 @@ export function Credentials({
   useEffect(() => {
     if (!openedPin || fingerprintAsked.current) return;
     fingerprintAsked.current = true;
-    void attempt(openedPin, { linked: [] });
+    void attempt(openedPin, { linked: [], opened: true });
     // Once, on mount: the provider hands the PIN in only for this form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

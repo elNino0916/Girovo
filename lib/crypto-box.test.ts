@@ -203,14 +203,35 @@ test('profileState tells no device, one this PIN opens, an expired one and one a
     assert.equal(store.loadProfile('87654321', 'kunde2', '13579'), null);
     assert.equal(store.loadProfile('87654321', 'kunde2', '97531'), null);
 
-    // Damaged, or not an envelope at all: there, and opened by no PIN.
-    fs.writeFileSync(file, '{"v":1,"salt"');
+    // Damaged — empty, cut short, not JSON, not an envelope: no PIN's, and
+    // never taken for one made under another PIN.
+    const whole = JSON.stringify(sealWithPin('13579', Buffer.from(JSON.stringify({ savedAt: Date.now(), data: PROFILE }), 'utf8')));
+    for (const text of ['', whole.slice(0, whole.length >> 1), '{"v":1,"salt"', 'not json', '[]', JSON.stringify({ hello: 'world' })]) {
+      fs.writeFileSync(file, text);
+      assert.equal(state('13579'), 'damaged', JSON.stringify(text.slice(0, 20)));
+      assert.equal(state('97531'), 'damaged');
+      assert.equal(state(''), 'damaged');
+      assert.equal(store.loadProfile('87654321', 'kunde2', '13579'), null);
+      assert.ok(store.hasProfile('87654321', 'kunde2'));
+    }
+    // Opens with the PIN, but holds no profile with a date: damaged too, the PIN was right.
+    for (const inside of ['{"data":{}}', '{"savedAt":1}', 'null', 'no json']) {
+      fs.writeFileSync(file, JSON.stringify(sealWithPin('13579', Buffer.from(inside, 'utf8'))));
+      assert.equal(state('13579'), 'damaged', inside);
+      assert.equal(state('97531'), 'locked', 'a whole envelope another PIN does not open');
+    }
+    // A whole envelope with one byte of it changed: no PIN opens it, and that is all that can be told.
+    const flipped = JSON.parse(whole) as { ct: string };
+    flipped.ct = `${flipped.ct[0] === 'A' ? 'B' : 'A'}${flipped.ct.slice(1)}`;
+    fs.writeFileSync(file, JSON.stringify(flipped));
     assert.equal(state('13579'), 'locked');
-    fs.writeFileSync(file, JSON.stringify({ hello: 'world' }));
-    assert.equal(state('13579'), 'locked');
-    // Opens, but holds no profile with a date.
-    fs.writeFileSync(file, JSON.stringify(sealWithPin('13579', Buffer.from('{"data":{}}', 'utf8'))));
-    assert.equal(state('13579'), 'locked');
+
+    // One opening answers both: the state, and the profile where it opens.
+    assert.ok(store.saveProfile('87654321', 'kunde2', '13579', profile));
+    assert.deepEqual(store.openProfile('87654321', 'kunde2', '13579'), { state: 'opens', data: PROFILE });
+    assert.deepEqual(store.openProfile('87654321', 'kunde2', '97531'), { state: 'locked', data: null });
+    fs.writeFileSync(file, legacySave('13579', PROFILE, Date.now() - store.PROFILE_MAX_AGE_MS - 1000));
+    assert.deepEqual(store.openProfile('87654321', 'kunde2', '13579'), { state: 'expired', data: null });
 
     assert.ok(store.forgetProfile('87654321', 'kunde2'));
     assert.equal(state('13579'), 'none');
@@ -224,10 +245,132 @@ test('a kept PIN is stale only where a device is remembered under another PIN; o
   const { keptPinIsStale, replacesAnotherPin } = await import('./state-store.ts');
   // app/api/connect: refused before the bank is asked.
   assert.equal(keptPinIsStale(true, 'locked'), true);
-  for (const state of ['none', 'opens', 'expired'] as const) assert.equal(keptPinIsStale(true, state), false, state);
+  // A damaged file is as good as none: the kept PIN may well be the right one.
+  for (const state of ['none', 'opens', 'expired', 'damaged'] as const) assert.equal(keptPinIsStale(true, state), false, state);
   // A typed PIN is the user's to try, whatever is remembered; only a real `true` counts as kept.
   for (const kept of [false, undefined, null, 'true', 1]) assert.equal(keptPinIsStale(kept, 'locked'), false, String(kept));
   // lib/session.ts saveSessionProfile: Windows Hello and the security keys go with the old PIN only.
   assert.equal(replacesAnotherPin('locked'), true);
-  for (const state of ['none', 'opens', 'expired'] as const) assert.equal(replacesAnotherPin(state), false, state);
+  for (const state of ['none', 'opens', 'expired', 'damaged'] as const) assert.equal(replacesAnotherPin(state), false, state);
+});
+
+test('a profile is written whole: no temp file stays, and one a cut-short write left goes with the device', async () => {
+  if (!process.env.FINTS_STATE_DIR) process.env.FINTS_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'fints-state-'));
+  const store = await import('./state-store.ts');
+  const dir = store.STATE_DIR;
+  assert.equal(dir, process.env.FINTS_STATE_DIR);
+  try {
+    const name = `${crypto.createHash('sha256').update('87654321|kunde4').digest('hex').slice(0, 32)}.json`;
+    const profile = PROFILE as unknown as Parameters<typeof store.saveProfile>[3];
+    assert.ok(store.saveProfile('87654321', 'kunde4', '13579', profile));
+    assert.ok(store.saveProfile('87654321', 'kunde4', '24680', profile), 'over the one that is there');
+    assert.deepEqual(fs.readdirSync(dir), [name]);
+    assert.equal(store.profileState('87654321', 'kunde4', '24680'), 'opens');
+    assert.equal(store.profileState('87654321', 'kunde4', '13579'), 'locked');
+
+    // What a write that never finished leaves: sealed with a PIN too, so it goes with the profile.
+    fs.writeFileSync(path.join(dir, `${name}.0a1b2c3d4e5f.tmp`), '{"v":1');
+    fs.writeFileSync(path.join(dir, 'another.json'), '{}');
+    assert.ok(store.forgetProfile('87654321', 'kunde4'));
+    assert.deepEqual(fs.readdirSync(dir), ['another.json']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a refused PIN is noted beside the profile: known again by that PIN only, gone with the next device saved', async () => {
+  if (!process.env.FINTS_STATE_DIR) process.env.FINTS_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'fints-state-'));
+  const store = await import('./state-store.ts');
+  const dir = store.STATE_DIR;
+  assert.equal(dir, process.env.FINTS_STATE_DIR);
+  try {
+    const refused = (pin: string, userId = 'kunde5') => store.pinWasRefused('87654321', userId, pin);
+    const profile = PROFILE as unknown as Parameters<typeof store.saveProfile>[3];
+    assert.equal(refused('13579'), false, 'nothing noted');
+
+    // The background check's case: the device is remembered under the PIN the bank then refuses.
+    assert.ok(store.saveProfile('87654321', 'kunde5', '13579', profile));
+    assert.ok(store.markPinRefused('87654321', 'kunde5', '13579'));
+    assert.equal(refused('13579'), true);
+    assert.equal(refused('24680'), false, 'another PIN is not held back');
+    assert.equal(refused(''), false);
+    assert.equal(refused('13579', 'kunde6'), false, 'another login');
+    // Its own file: the profile is as it was, and the note is not taken for a device.
+    assert.equal(store.profileState('87654321', 'kunde5', '13579'), 'opens');
+    assert.equal(fs.readdirSync(dir).filter((n) => n.endsWith('.json')).length, 1);
+    assert.equal(fs.readdirSync(dir).filter((n) => n.endsWith('.refused')).length, 1);
+    // It names neither the login nor the PIN.
+    const text = fs.readFileSync(path.join(dir, fs.readdirSync(dir).find((n) => n.endsWith('.refused'))!), 'utf8');
+    assert.ok(!text.includes('13579') && !text.includes('kunde5') && !text.includes('87654321'));
+
+    // The device goes for the refusal (lib/background-bank.ts); the note stays, and stands without it.
+    assert.ok(store.forgetProfile('87654321', 'kunde5'));
+    assert.equal(store.hasProfile('87654321', 'kunde5'), false);
+    assert.equal(store.profileState('87654321', 'kunde5', '13579'), 'none');
+    assert.equal(refused('13579'), true, 'the kept copy beside another login is still known');
+
+    // A profile put in the note's place is no note: the two are sealed apart.
+    const note = path.join(dir, fs.readdirSync(dir).find((n) => n.endsWith('.refused'))!);
+    const kept = fs.readFileSync(note, 'utf8');
+    fs.writeFileSync(note, JSON.stringify(sealWithPin('13579', Buffer.from('{"refusedAt":1}', 'utf8'))));
+    assert.equal(refused('13579'), false);
+    fs.writeFileSync(note, '{"v":1');
+    assert.equal(refused('13579'), false, 'a damaged note holds nothing back');
+    fs.writeFileSync(note, kept);
+    assert.equal(refused('13579'), true);
+
+    // One note per login, the latest.
+    assert.ok(store.markPinRefused('87654321', 'kunde5', '11111'));
+    assert.equal(refused('11111'), true);
+    assert.equal(refused('13579'), false);
+
+    // The bank took a PIN and the device is remembered again: the note is gone, whatever PIN it was for.
+    assert.ok(store.saveProfile('87654321', 'kunde5', '24680', profile));
+    assert.equal(refused('11111'), false);
+    assert.equal(fs.readdirSync(dir).filter((n) => n.endsWith('.refused')).length, 0);
+
+    // "Gerät vergessen": the note goes by itself too.
+    assert.ok(store.markPinRefused('87654321', 'kunde5', '24680'));
+    assert.ok(store.forgetRefusedPin('87654321', 'kunde5'));
+    assert.equal(refused('24680'), false);
+    assert.ok(store.forgetRefusedPin('87654321', 'kunde5'), 'nothing there is nothing left');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a kept PIN goes to the bank only when neither the device nor a note speaks against it; a typed one always', async () => {
+  if (!process.env.FINTS_STATE_DIR) process.env.FINTS_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'fints-state-'));
+  const store = await import('./state-store.ts');
+  const dir = store.STATE_DIR;
+  assert.equal(dir, process.env.FINTS_STATE_DIR);
+  // The gate as app/api/connect asks it, before the bank is contacted.
+  const heldBack = (kept: unknown, pin: string) => kept === true
+    && (store.keptPinIsStale(kept, store.openProfile('87654321', 'kunde7', pin).state) || store.pinWasRefused('87654321', 'kunde7', pin));
+  try {
+    const profile = PROFILE as unknown as Parameters<typeof store.saveProfile>[3];
+    // Further bank B: remembered under the old PIN, which is also kept beside first login A.
+    assert.ok(store.saveProfile('87654321', 'kunde7', '13579', profile));
+    assert.equal(heldBack(true, '13579'), false, 'the device opens: it may log in');
+    // The check is refused (try 1): noted, the device deleted (lib/background-bank.ts refused).
+    assert.ok(store.markPinRefused('87654321', 'kunde7', '13579'));
+    assert.ok(store.forgetProfile('87654321', 'kunde7'));
+    // A logs in and hands B's kept PIN on: no device speaks against it any more, the note does. No try 2.
+    assert.equal(store.profileState('87654321', 'kunde7', '13579'), 'none');
+    assert.equal(heldBack(true, '13579'), true);
+    // Typed, the same PIN is the user's to try, and the new one is never held back.
+    assert.equal(heldBack(undefined, '13579'), false);
+    assert.equal(heldBack(false, '13579'), false);
+    assert.equal(heldBack(true, '24680'), false);
+    // The user logs in with the new PIN and the bank takes it: from then on only the device decides.
+    assert.ok(store.saveProfile('87654321', 'kunde7', '24680', profile));
+    assert.equal(heldBack(true, '24680'), false);
+    assert.equal(heldBack(true, '13579'), true, 'the old kept copy: the device was made under another PIN');
+    // A device file cut short says nothing: the kept PIN is tried.
+    fs.writeFileSync(path.join(dir, fs.readdirSync(dir).find((n) => n.endsWith('.json'))!), '{"v":1,"salt"');
+    assert.equal(heldBack(true, '24680'), false);
+    assert.equal(heldBack(true, '13579'), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

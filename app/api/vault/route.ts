@@ -16,6 +16,7 @@ import { loginOfSession, removeLinkedUnlock } from '@/lib/linked-unlock';
 import { getSession } from '@/lib/session';
 import { loadVault, resetVault, saveVault, VAULT_REQUEST_MAX_BYTES, VaultError, vaultKeyOf, wipeVault } from '@/lib/vault';
 import { removeSecurityKeys } from '@/lib/security-key';
+import { forgetRefusedPin } from '@/lib/state-store';
 import { removeWindowsHello } from '@/lib/windows-hello';
 import { readMeta, removeMeta } from '@/lib/sync-meta';
 import { forgetLanGroup, sessionsNamed, wipeFailed, wipeFurtherBanks } from '@/lib/wipe-saved';
@@ -62,6 +63,8 @@ export const POST = wrap(async (req: Request) => {
             await removeLinkedUnlock(own);
             await removeWindowsHello(own);
             await removeSecurityKeys(own);
+            // And the note of a PIN the bank once turned down (lib/state-store.ts): nothing of the login stays.
+            forgetRefusedPin(own.blz, own.userId);
             // This device leaves its sync group: its settings are personal data
             // too, and so are the group's files on this computer's LAN shelf —
             // deleted first, while the settings still say which they are.

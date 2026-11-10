@@ -168,6 +168,26 @@ test('a kept PIN that no longer fits is the app’s own answer: no refusal by th
   assert.equal(isStaleKeptPin(undefined), false);
 });
 
+test('answers that only read like a refusal of the credentials are no PIN refusal: nothing is deleted for them', () => {
+  // Each counts as an answer about the credentials (a warning on the login
+  // form, a kept PIN not tried again), and none carries the bank's codes for
+  // the PIN: the remembered device, Windows Hello and the security keys stay
+  // (app/api/connect, lib/background-check.ts refusalOf).
+  for (const answer of [
+    '9210: Benutzer nicht berechtigt für dieses Konto.',
+    '9010: Der Auftrag ist für diesen Benutzer nicht zugelassen.',
+    '9370: Legitimationsverfahren wird nicht unterstützt.',
+    '3920: Zugelassene Zwei-Schritt-Verfahren für den Benutzer.',
+    MESSAGES.de.auth.api.refused,
+    MESSAGES.en.auth.api.refused,
+  ]) {
+    assert.equal(isCredentialAnswer(answer), true, answer);
+    assert.equal(isPinRefusal(answer), false, answer);
+  }
+  assert.equal(isPinRefusal('9931: Anmeldename oder PIN ist falsch.'), true);
+  assert.equal(isPinRefusal('9942: PIN falsch.'), true);
+});
+
 test('the outage sentences are recognised, with or without a next step after them', () => {
   assert.equal(isBankOutage(BANK_UNAVAILABLE), true);
   assert.equal(isBankOutage(`${BANK_UNREACHABLE} Versuche es später noch einmal.`), true);

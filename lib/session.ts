@@ -25,7 +25,7 @@ import { isPinRefusal } from './bank-answer';
 import { findSessionsWith } from './history-store';
 import { fintsProductVersion } from './product-version';
 import { removeSecurityKeys } from './security-key';
-import { profileState, replacesAnotherPin, saveProfile, type DeviceProfile } from './state-store';
+import { profileState, replacesAnotherPin, saveProfile, type DeviceProfile, type ProfileState } from './state-store';
 import { noteTelemetry } from './telemetry';
 import { removeWindowsHello } from './windows-hello';
 
@@ -199,6 +199,12 @@ export type Session = {
    * on nothing may keep it either (app/api/windows-hello, app/api/security-key).
    */
   pinAccepted?: true;
+  /**
+   * How the remembered device stood to this session's PIN when it logged in
+   * (lib/state-store.ts openProfile, app/api/connect), and 'opens' once this
+   * session has saved it: saveSessionProfile need not open it a second time.
+   */
+  profileWas?: ProfileState;
 };
 
 /**
@@ -306,8 +312,9 @@ export function saveSessionProfile(s: Session): void {
     // Remembered before under a PIN that is not this one — the PIN was
     // changed at the bank: Windows Hello and the security keys still keep
     // the old one and would send it as this login's. They go first; queued
-    // per file ahead of anything this session keeps afresh.
-    if (replacesAnotherPin(profileState(s.meta.blz, cfg.userId, cfg.pin))) {
+    // per file ahead of anything this session keeps afresh. The login opened
+    // the device once already (Session.profileWas): not a second time here.
+    if (replacesAnotherPin(s.profileWas ?? profileState(s.meta.blz, cfg.userId, cfg.pin))) {
       const login = { blz: s.meta.blz, userId: cfg.userId };
       void Promise.allSettled([removeWindowsHello(login), removeSecurityKeys(login)]).then((done) => {
         if (done.some((d) => d.status === 'rejected')) console.warn(`[state] a PIN kept under the old one could not be deleted (blz=${login.blz})`);
@@ -323,6 +330,7 @@ export function saveSessionProfile(s: Session): void {
     });
     if (ok) {
       s.deviceSaved = true;
+      s.profileWas = 'opens';
       console.log(`[state] device profile saved (blz=${s.meta.blz})`);
     }
   } catch (err) {
