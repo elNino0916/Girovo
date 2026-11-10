@@ -154,11 +154,11 @@ test('the keys of the moved booking: the old one without the mark, the new one w
   assert.equal(NEW, 'd2|2026-11-01|-12.90|DE02120300000000202051|E1');
 });
 
-test('a move in a round: the new key keeps the old entry’s stamp, the old key gets a deletion of now', () => {
+test('a move in a round: the new key keeps the old entry’s stamp, the old key’s deletion follows it by half a millisecond', () => {
   const [a, b] = pair();
   round(a, [b], 200, MOVES);
   assert.deepEqual(perBooking(a.vault), AFTER);
-  assert.deepEqual(a.state[`notes/${OLD}`], { t: 200, d: 1 });
+  assert.deepEqual(a.state[`notes/${OLD}`], { t: 100.5, d: 1 });
   assert.deepEqual(a.state[`notes/${NEW}`], { t: 100, v: 'Geschenk' });
   assert.deepEqual(a.stamps[`notes/${NEW}`], { h: hashOf('Geschenk'), t: 100 });
   // The next round sees nothing changed: the stamp holds what is there.
@@ -271,4 +271,40 @@ test('a moved entry is not lost to a deletion of its new key made earlier, whate
   round(c, [later], 3000, MOVES);
   assert.equal(c.vault.notes[NEW], undefined);
   assert.equal(c.vault.notes[OLD], undefined);
+});
+
+test('a deletion the move makes is never newer than an edit made after it, whatever the clock of the device that moved (q1)', () => {
+  const DAY = 86_400_000;
+  // The desk's clock runs a day ahead; the phone is on the version before.
+  const [desk, phone] = [device('aaa', filed()), device('bbb', filed())];
+  round(desk, [], 1000 + DAY);
+  round(phone, [desk], 1100);
+  round(desk, [phone], 2000 + DAY, MOVES);
+  assert.equal(desk.state[`txCategories/${OLD}`].t, 1000 + DAY + 0.5, 'the old key’s deletion follows its entry, not the desk’s clock');
+  // Later, on the phone: the category changed, under the old key, before the phone has met the move.
+  phone.vault = { ...phone.vault, txCategories: { ...phone.vault.txCategories, [OLD]: 'groceries' } };
+  round(phone, [desk], 3000);
+  round(desk, [phone], 4000 + DAY, MOVES);
+  round(phone, [desk], 5000);
+  round(desk, [phone], 6000 + DAY, MOVES);
+  assert.equal(desk.vault.txCategories[NEW], 'groceries');
+  assert.equal(desk.vault.txCategories[OLD], undefined);
+  assert.equal(phone.vault.txCategories[NEW], 'groceries');
+});
+
+test('a receipt tied to a key from before is tied to the key now inside the round, just after its own stamp', () => {
+  const docPath = 'docs/abc';
+  const entry = { mime: 'application/pdf', name: 'Beleg', accountNumber: '1', tx: OLD, awaiting: null };
+  const d = device('aaa', filed());
+  const entries = vaultEntries(d.vault);
+  entries.set(docPath, entry);
+  const stamps = restamp(entries, {}, 100);
+  const m = mergeEntries(entries, stamps, d.id, [], 100);
+  moveMergedKeys(m, MOVES, d.vault, 200, { docs: true });
+  assert.deepEqual(m.entries.get(docPath), { ...entry, tx: NEW });
+  assert.equal(m.state[docPath].t, 100.5, 'after its own stamp: it beats the old tie held elsewhere, and loses to any real choice since');
+  // Not while this device's receipts cannot be read: the others' entries are left as they are.
+  const n = mergeEntries(entries, stamps, d.id, [], 100);
+  moveMergedKeys(n, MOVES, d.vault, 200);
+  assert.deepEqual(n.entries.get(docPath), entry);
 });

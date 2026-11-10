@@ -14,7 +14,7 @@
 
 import crypto from 'node:crypto';
 import type { VaultData } from './app-types';
-import { planMoves, type KeyMoves } from './booking-keys.ts';
+import { planMoves, validMove, type KeyMoves } from './booking-keys.ts';
 
 /**
  * What one entry was at the last sync on this device: its hash ('-' deleted)
@@ -230,38 +230,82 @@ export function mergeEntries(
  * A booking's entries moved from keys from before to the key it has now
  * (lib/booking-keys.ts), on the merged entries of a round — after the merge,
  * so an edit another device made under a key from before is in, with its
- * stamp, before anything is decided. Each entry taken to a key now keeps the
- * stamp of the one it came from: a device that moves later never beats an
- * edit made after the first move, and two devices moving the same entry
- * write the same value at the same time. A key from before, and what the
- * move takes off under a key now, get a tombstone of now. `merged` is
- * changed in place; answers the paths written under a key now.
+ * stamp, before anything is decided. `merged` is changed in place; answers
+ * the paths written.
+ *
+ * - Each entry taken to a key now keeps the stamp of the one it came from: a
+ *   device that moves later never beats an edit made after the first move,
+ *   and two devices moving the same entry write the same value at the same
+ *   time.
+ * - A deletion the move makes follows the stamp of what it deletes (under a
+ *   key now: of the newer entry taking its place) by half a millisecond,
+ *   never the clock of this device: it beats the entry it deletes on every
+ *   device, and any later edit, stamped at least a whole millisecond after
+ *   what its device held whatever that device's clock, beats it and is moved
+ *   in its turn.
+ * - A receipt tied to a key from before (`docs`: this device's receipts can
+ *   be read this round) is tied to the key now, half a millisecond after its
+ *   own stamp, for the same reason; the round then ties the receipt here
+ *   anew (lib/sync.ts).
+ * - `maxBytes`: what the vault may take afterwards, measured without
+ *   `incoming`, the others' new entries, which the round leaves out first
+ *   when the vault is too full, while what the move wrote stays.
  */
 export function moveMergedKeys(
   merged: { entries: Map<string, unknown>; stamps: Stamps; state: Record<string, SyncEntry> },
   moves: KeyMoves,
   base: VaultData,
   now: number,
-  maxBytes?: number,
+  opts: { maxBytes?: number; incoming?: ReadonlySet<string>; docs?: boolean } = {},
 ): Set<string> {
   const written = new Set<string>();
+  // Only what can be a booking's key from before and its key now (validMove), whoever asked.
+  moves = new Map([...moves].filter(([from, { to }]) => validMove(from, to)));
   if (!moves.size) return written;
-  const vault = vaultFromEntries(new Map([...merged.entries].filter(([p]) => !p.startsWith('docs/'))), base);
+  const vaultMap = new Map([...merged.entries].filter(([p]) => !p.startsWith('docs/')));
+  const vault = vaultFromEntries(vaultMap, base);
+  let maxBytes = opts.maxBytes;
+  if (maxBytes !== undefined && opts.incoming?.size) {
+    const without = vaultFromEntries(new Map([...vaultMap].filter(([p]) => !opts.incoming!.has(p))), base);
+    maxBytes += Buffer.byteLength(JSON.stringify(vault), 'utf8') - Buffer.byteLength(JSON.stringify(without), 'utf8');
+  }
   const { plan } = planMoves(vault, moves, { stamps: merged.stamps, maxBytes });
+  const stampOf = (path: string) => merged.stamps[path]?.t;
+  /** The newest stamp of a key's entries in the booking maps. */
+  const newest = (key: string) => Math.max(...(['txCategories', 'splits', 'notes'] as const).map((f) => stampOf(`${f}/${key}`) ?? -Infinity));
   for (const { field, key, value, from } of plan.set) {
     const path = `${field}/${key}`;
-    const t = merged.stamps[`${field}/${from}`]?.t ?? now;
+    const t = stampOf(`${field}/${from}`) ?? now;
     merged.entries.set(path, value);
     merged.stamps[path] = { h: hashOf(value), t };
     merged.state[path] = { t, v: value };
     written.add(path);
   }
-  for (const { field, key } of plan.drop) {
+  for (const { field, key, after } of plan.drop) {
     const path = `${field}/${key}`;
-    if (!merged.entries.delete(path)) continue;
-    const t = Math.max(now, (merged.stamps[path]?.t ?? 0) + 1);
+    if (!merged.entries.has(path)) continue;
+    const follows = Math.max(stampOf(path) ?? -Infinity, after === undefined ? -Infinity : newest(after));
+    const t = (Number.isFinite(follows) ? follows : now) + 0.5;
+    merged.entries.delete(path);
     merged.stamps[path] = { h: '-', t };
     merged.state[path] = { t, d: 1 };
+  }
+  if (opts.docs) {
+    for (const [path, value] of merged.entries) {
+      if (!path.startsWith('docs/') || !value || typeof value !== 'object') continue;
+      const tx = (value as { tx?: unknown }).tx;
+      const move = typeof tx === 'string' ? moves.get(tx) : undefined;
+      if (!move) continue;
+      const next = { ...(value as Record<string, unknown>), tx: move.to };
+      // The same path with another value: at its own stamp it would tie with
+      // every device still holding the old tie. Half a millisecond after it,
+      // like a deletion: newer than those, older than any real choice since.
+      const t = (stampOf(path) ?? now) + 0.5;
+      merged.entries.set(path, next);
+      merged.stamps[path] = { h: hashOf(next), t };
+      merged.state[path] = { t, v: next };
+      written.add(path);
+    }
   }
   return written;
 }

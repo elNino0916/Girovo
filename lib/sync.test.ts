@@ -725,7 +725,7 @@ test('a round with booking key moves: moved after the merge, at the old entry’
   assert.equal((await round(place, key, desk, 5000, { moves })).changed, false);
 });
 
-test('a round already too full for what is new moves nothing: the entry waits under its old key, nothing is lost', async () => {
+test('a round too full for what is new still moves: measured without what it leaves out, and what the move wrote stays', async () => {
   const { keyMoves } = await import('./booking-keys.ts');
   const { legacyTxKey, txKey } = await import('./categories.ts');
   const tx = { entryDate: '2026-10-31T23:00:00.000Z', valueDate: '2026-10-31T23:00:00.000Z', amount: -12.9, remoteIban: 'DE02120300000000202051', remoteName: '', e2eReference: 'E1', bankReference: '' };
@@ -738,11 +738,75 @@ test('a round already too full for what is new moves nothing: the entry waits un
   await round(place, key, desk, 1000);
   const r = await round(place, key, phone, 2000, { maxBytes, moves: keyMoves([{ txs: [tx as never] }]) });
   assert.ok(r.full > 0, 'some of the desk’s notes had no room');
-  assert.equal(phone.vault.notes[OLD], 'Geschenk');
-  assert.equal(phone.vault.notes[NEW], undefined);
-  assert.ok(phone.local.stamps[`notes/${OLD}`].h !== '-', 'not stamped as deleted');
-  // With room again (the limit raised here), the next round moves it.
-  await round(place, key, phone, 3000, { maxBytes: maxBytes * 4, moves: keyMoves([{ txs: [tx as never] }]) });
   assert.equal(phone.vault.notes[NEW], 'Geschenk');
   assert.equal(phone.vault.notes[OLD], undefined);
+  assert.ok(bytesOf(phone.vault) <= Math.floor(maxBytes * FILL_MAX));
+  // A vault that is too full even without anything new: nothing moves, nothing is stamped as deleted.
+  const full = device('Tablet', { notes: { ...longNotes('t', 30), [OLD]: 'Geschenk' } });
+  const tight = Math.ceil(bytesOf(full.vault) / FILL_MAX);
+  await round(memoryPlace(), newGroupKey(), full, 4000, { maxBytes: tight, moves: keyMoves([{ txs: [tx as never] }]) });
+  assert.equal(full.vault.notes[OLD], 'Geschenk');
+  assert.equal(full.vault.notes[NEW], undefined);
+  assert.ok(full.local.stamps[`notes/${OLD}`]?.h !== '-', 'not stamped as deleted');
+});
+
+test('a receipt re-tied on the version before after this device last met it keeps that choice when this device moves keys (q3)', async () => {
+  const { keyMoves } = await import('./booking-keys.ts');
+  const { legacyTxKey } = await import('./categories.ts');
+  const tx = { entryDate: '2026-10-31T23:00:00.000Z', valueDate: '2026-10-31T23:00:00.000Z', amount: -12.9, remoteIban: 'DE02120300000000202051', remoteName: '', e2eReference: 'E1', bankReference: '' };
+  const OLD = legacyTxKey(tx);
+  const M = '2026-11-03|-12.90|DE02120300000000202051|E2';
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const desk = device('Computer');
+  const phone = device('Telefon');
+  desk.receipts.docs.set('r1', { doc: { ...receipt('r1', 'Beleg.pdf'), accountNumber: '1', tx: OLD }, bytes: new Uint8Array([1, 2, 3]) });
+  await round(place, key, desk, 1000);
+  await round(place, key, phone, 1100);
+  // On the phone (the version before) the user ties the receipt to the booking they meant.
+  const [pid] = phone.receipts.docs.keys();
+  await phone.receipts.link(pid, M, '1');
+  await round(place, key, phone, 2000);
+  // The desk moves keys in its round: the page ties nothing itself while sync is on.
+  const r = await round(place, key, desk, 3000, { moves: keyMoves([{ txs: [tx as never] }]) });
+  await round(place, key, phone, 4000);
+  assert.equal([...desk.receipts.docs.values()][0].doc.tx, M);
+  assert.equal([...phone.receipts.docs.values()][0].doc.tx, M);
+  assert.equal(r.receipts.relinked, 1, 'the page is told to list its receipts again');
+});
+
+test('a receipt still tied to a key from before is tied to the key now by the round, on every device', async () => {
+  const { keyMoves } = await import('./booking-keys.ts');
+  const { legacyTxKey, txKey } = await import('./categories.ts');
+  const tx = { entryDate: '2026-10-31T23:00:00.000Z', valueDate: '2026-10-31T23:00:00.000Z', amount: -12.9, remoteIban: 'DE02120300000000202051', remoteName: '', e2eReference: 'E1', bankReference: '' };
+  const [OLD, NEW] = [legacyTxKey(tx), txKey(tx)];
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const desk = device('Computer');
+  const phone = device('Telefon');
+  desk.receipts.docs.set('r1', { doc: { ...receipt('r1', 'Beleg.pdf'), accountNumber: '1', tx: OLD }, bytes: new Uint8Array([1, 2, 3]) });
+  await round(place, key, desk, 1000);
+  await round(place, key, phone, 1100);
+  const r = await round(place, key, desk, 2000, { moves: keyMoves([{ txs: [tx as never] }]) });
+  assert.equal(r.receipts.relinked, 1);
+  await round(place, key, phone, 3000);
+  assert.equal([...desk.receipts.docs.values()][0].doc.tx, NEW);
+  assert.equal([...phone.receipts.docs.values()][0].doc.tx, NEW);
+  // Nothing more the next time.
+  assert.equal((await round(place, key, desk, 4000, { moves: keyMoves([{ txs: [tx as never] }]) })).receipts.relinked, 0);
+});
+
+test('pairs that are no booking’s key from before and key now are not moved, whoever asks the round (q1 Q2)', async () => {
+  const { legacyTxKey } = await import('./categories.ts');
+  const tx = { entryDate: '2026-10-31T23:00:00.000Z', valueDate: '2026-10-31T23:00:00.000Z', amount: -12.9, remoteIban: 'DE02120300000000202051', remoteName: '', e2eReference: 'E1', bankReference: '' };
+  const OLD = legacyTxKey(tx);
+  const OTHER = 'd2|2026-11-05|-99.00|DE00OTHER|X';
+  for (const to of [OTHER, 'd2|1999-01-01|0.00||']) {
+    const place = memoryPlace();
+    const key = newGroupKey();
+    const desk = device('Computer', { notes: { [OLD]: 'Geschenk für Mama', [OTHER]: 'Miete' } });
+    await round(place, key, desk, 1000);
+    await round(place, key, desk, 2000, { moves: new Map([[OLD, { to }]]) });
+    assert.deepEqual(desk.vault.notes, { [OLD]: 'Geschenk für Mama', [OTHER]: 'Miete' }, to);
+  }
 });

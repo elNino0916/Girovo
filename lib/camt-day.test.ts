@@ -65,3 +65,13 @@ test('a Date the parser did not make has no text: the caller falls back', () => 
   assert.equal(camtDay(null), '');
 });
 
+test('a second instance of the module finds the texts the first one keeps (r8, q4)', async () => {
+  const second = await import(new URL('./camt-day.ts?second-instance', import.meta.url).href) as typeof import('./camt-day.ts');
+  inZone('Pacific/Honolulu', () => {
+    const d = parse('2026-07-22+02:00');
+    assert.equal(second.camtDay(d), '2026-07-22');
+    assert.equal(camtDay(d), '2026-07-22');
+    // A copy is another object, with no text: the moment decides, as for any Date not from the parser.
+    assert.equal(camtDay(structuredClone(d)), '');
+  });
+});

@@ -80,7 +80,8 @@ export type SyncResult = {
   /** Whether the vault changed (the other devices had something new). */
   changed: boolean;
   devices: SyncDevice[];
-  receipts: { added: number; removed: number };
+  /** `relinked`: receipts here tied to another booking by the round (another device's choice, a moved key). */
+  receipts: { added: number; removed: number; relinked: number };
   /**
    * Entries of the other devices this one has no room for (the vault's byte
    * limit, `maxBytes`): they stay theirs, untouched, and every round tries
@@ -301,7 +302,14 @@ export async function runSync(opts: {
   const fill = opts.maxBytes === undefined ? Infinity : Math.floor(opts.maxBytes * FILL_MAX);
   // Booking keys moved now that the others' edits are in (moveMergedKeys);
   // what the move wrote is this device's own, never left out below as new.
-  const moved = opts.moves ? moveMergedKeys(merged, opts.moves, vault, now, Number.isFinite(fill) ? fill : undefined) : new Set<string>();
+  const had = vaultEntries(vault);
+  const moved = opts.moves
+    ? moveMergedKeys(merged, opts.moves, vault, now, {
+      maxBytes: Number.isFinite(fill) ? fill : undefined,
+      incoming: new Set([...merged.entries.keys()].filter((p) => !p.startsWith('docs/') && !had.has(p))),
+      docs: !!receipts,
+    })
+    : new Set<string>();
 
   // What this device holds now, stamped, is kept before anything of this
   // round reaches the place.
@@ -442,7 +450,6 @@ export async function runSync(opts: {
     // out, the oldest first, until it fits FILL_MAX of the limit — the rest
     // stays room for this device's own next edits. Not held here, it gets no
     // stamp — still theirs, never deleted — and the next round tries it again.
-    const had = vaultEntries(vault);
     const incoming = [...vaultOnly.keys()]
       .filter((p) => !had.has(p) && !moved.has(p))
       .sort((a, b) => merged.stamps[a].t - merged.stamps[b].t || (a < b ? -1 : a > b ? 1 : 0));
@@ -497,7 +504,7 @@ export async function runSync(opts: {
     local: { stamps: stampsNow, uploaded: [...uploaded], hashes: keptHashes, ...(removing.size ? { removing: [...removing] } : {}) },
     changed,
     devices,
-    receipts: { added, removed },
+    receipts: { added, removed, relinked },
     full,
   };
 }

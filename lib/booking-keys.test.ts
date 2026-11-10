@@ -6,10 +6,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EMPTY_VAULT, type VaultData } from './app-types.ts';
 import {
-  BOOKING_KEY_MAX, BOOKING_MAPS, dropKeys, isLegacyKey, keyMoves, legacyKeysOf, migrateBookingKeys, moveEntries, planMoves, receiptMoves,
+  BOOKING_KEY_MAX, BOOKING_MAPS, dropKeys, isLegacyKey, keyMoves, migrateBookingKeys, moveEntries, planMoves, receiptMoves, shownFrom, validMove,
   movesInVault, VAULT_MAX_BYTES, type EntryStamp,
 } from './booking-keys.ts';
-import { NOTE_LIMITS } from './notes.ts';
+import { NOTE_LIMITS, sanitizeNotes } from './notes.ts';
 import { KEY_MARK, legacyTxKey, txKey } from './categories.ts';
 import type { SerializedTransaction } from './fints-types';
 import { addDaysKey } from './format.ts';
@@ -308,15 +308,19 @@ test('a key now longer than the vault keeps: the entry stays where it is rather 
 
 // ---- the days known ----------------------------------------------------------------
 
-test('MT940 on the first day known waits: a camt twin of the day before would not be seen', () => {
+test('MT940 on the first days known waits: a twin a day either side of the day its key named would not be seen', () => {
   const x = card(noon('2026-10-06'));       // camt: key before and now on the 6th
   const y = card(midnight('2026-10-07'));   // MT940: key before on the 6th, now on the 7th
   const ys: VaultData = { ...EMPTY_VAULT, notes: { [legacyTxKey(y)]: 'y' } };
   const from = (day: string) => (d: string) => d >= day;
   // The list begins on the 7th: x, if there is one, is not in it. Nothing moves.
   assert.equal(moveEntries(ys, keyMoves([{ txs: [y], covers: from('2026-10-07') }])), ys);
-  // The 6th known, and no such booking on it: the entry can only be y's.
-  assert.deepEqual(moveEntries(ys, keyMoves([{ txs: [y], covers: from('2026-10-06') }])).notes, { [txKey(y)]: 'y' });
+  // From the 6th: a booking of the 5th, alike in the rest, may have had the same key from before (camt beyond UTC+13). Still waiting.
+  assert.equal(moveEntries(ys, keyMoves([{ txs: [y], covers: from('2026-10-06') }])), ys);
+  // The 5th to the 7th known, and no such booking on them: the entry can only be y's.
+  assert.deepEqual(moveEntries(ys, keyMoves([{ txs: [y], covers: from('2026-10-05') }])).notes, { [txKey(y)]: 'y' });
+  // …and not if the 7th is the one missing.
+  assert.equal(moveEntries(ys, keyMoves([{ txs: [y], covers: (d) => d >= '2026-10-01' && d <= '2026-10-06' }])), ys);
   // The 6th known, with x on it: either one's — not moved.
   assert.equal(moveEntries(ys, keyMoves([{ txs: [x, y], covers: from('2026-10-06') }])), ys);
   // A booking whose key from before names its own day moves on the first day too.
@@ -366,24 +370,96 @@ test('the day before must be known at every bank: a key from before never named 
 
 // ---- the setters' side (components/FintsProvider.tsx) -------------------------------
 
-test('a booking\'s keys from before: its own, and every other the moves lead to it', () => {
+/** What the provider reads through: every unambiguous key from before, with no waiting (the page's readMoves). */
+const readThrough = (groups: Parameters<typeof keyMoves>[0]) => keyMoves(groups, { accounts: [] });
+
+test('an entry not moved yet is shown under its booking, and only the shown one is cleared by a choice (q2 Q4)', () => {
+  // MT940 booking b; another account's list starts after the day its key from before named: the move waits.
+  const b = card(midnight('2026-10-07'), { bankDay: '2026-10-07' });
+  const v: VaultData = { ...EMPTY_VAULT, notes: { [legacyTxKey(b)]: 'Lange Notiz aus 6.0: Vertrag Nr. 4711' } };
+  const groups = [{ account: '222', txs: [b], covers: (d: string) => d >= '2026-08-01' }, { account: '333', txs: [], covers: (d: string) => d >= '2026-10-07' }];
+  assert.equal(keyMoves(groups, { accounts: ['222', '333'] }).size, 0, 'the move waits');
+  // Shown meanwhile.
+  const shown = planMoves(v, readThrough(groups));
+  assert.equal(shown.vault.notes[txKey(b)], 'Lange Notiz aus 6.0: Vertrag Nr. 4711');
+  assert.deepEqual(v.notes, { [legacyTxKey(b)]: 'Lange Notiz aus 6.0: Vertrag Nr. 4711' }, 'the vault itself unchanged');
+  // The user writes a note: the shown one is what it replaces — gone with it, as the user saw.
+  const olds = shownFrom(shown.plan)(['notes'], txKey(b));
+  assert.deepEqual(olds, [legacyTxKey(b)]);
+  assert.deepEqual(dropKeys(v.notes, olds), {});
+});
+
+test('a crossing twin\'s entry is shown under neither booking, and a choice for one deletes nothing of it (q2 Q4b)', () => {
+  const base = { amount: -12.99, remoteIban: '', remoteName: 'NETFLIX.COM', e2eReference: '', bankReference: '' };
+  const a = { ...base, entryDate: noon('2026-10-06'), valueDate: noon('2026-10-06'), bankDay: '2026-10-06' } as Tx;
+  const b = { ...base, entryDate: midnight('2026-10-07'), valueDate: midnight('2026-10-07'), bankDay: '2026-10-07' } as Tx;
+  const v: VaultData = { ...EMPTY_VAULT, notes: { [legacyTxKey(b)]: 'Notiz für b' } };
+  const shown = planMoves(v, readThrough([{ account: '111', txs: [a] }, { account: '222', txs: [b] }]));
+  assert.equal(shown.vault, v, 'whose it is is not written anywhere: shown under neither');
+  assert.deepEqual(shownFrom(shown.plan)(['notes'], txKey(a)), []);
+  assert.deepEqual(shownFrom(shown.plan)(['notes'], txKey(b)), []);
+});
+
+test('what is shown follows the move\'s rules: a split and a category as one, the key now first', () => {
   const kept = card(midnight('2026-10-07'));
   const asCamt = card(noon('2026-10-07'), { bankDay: '2026-10-07' });
-  const moves = keyMoves([{ txs: [kept, asCamt] }]);
-  assert.deepEqual(legacyKeysOf(asCamt, moves).sort(), [legacyTxKey(kept), legacyTxKey(asCamt)].sort());
-  assert.deepEqual(legacyKeysOf(kept, keyMoves([])), [legacyTxKey(kept)]);
-  // A clear of the booking takes those along, so none comes back over it at the next move.
-  const v: VaultData = { ...EMPTY_VAULT, txCategories: { [legacyTxKey(kept)]: 'leisure', [txKey(kept)]: 'groceries' } };
-  const cleared = dropKeys(v.txCategories, [txKey(asCamt), ...legacyKeysOf(asCamt, moves)]);
-  assert.deepEqual(cleared, {});
-  assert.deepEqual(migrateBookingKeys({ ...v, txCategories: cleared }, [kept, asCamt]).txCategories, {});
+  const v: VaultData = { ...EMPTY_VAULT, txCategories: { [legacyTxKey(kept)]: 'leisure' }, splits: { [legacyTxKey(asCamt)]: SPLIT } };
+  const shown = planMoves(v, readThrough([{ txs: [kept, asCamt] }]));
+  assert.deepEqual({ c: shown.vault.txCategories, s: shown.vault.splits }, { c: {}, s: { [txKey(kept)]: SPLIT } });
+  // Only the split was shown: a choice for the booking takes that, the unseen category stays for the move to settle.
+  assert.deepEqual(shownFrom(shown.plan)(['txCategories', 'splits'], txKey(kept)), [legacyTxKey(asCamt)]);
+  const taken: VaultData = { ...v, txCategories: { ...v.txCategories, [txKey(kept)]: 'media' } };
+  const none = planMoves(taken, readThrough([{ txs: [kept, asCamt] }]));
+  assert.deepEqual(none.vault.txCategories[txKey(kept)], 'media');
+  assert.deepEqual(shownFrom(none.plan)(['txCategories', 'splits'], txKey(kept)), [], 'nothing from before was shown');
   const same = { a: 1 };
   assert.equal(dropKeys(same, ['b']), same);
 });
 
+test('a bank of the view not logged in this session holds every move that names another day (q2 Q3)', () => {
+  const base = { amount: -12.99, remoteIban: '', remoteName: 'NETFLIX.COM', e2eReference: '', bankReference: '' };
+  const a = { ...base, entryDate: noon('2026-10-06'), valueDate: noon('2026-10-06'), bankDay: '2026-10-06' } as Tx;
+  const b = { ...base, entryDate: midnight('2026-10-07'), valueDate: midnight('2026-10-07'), bankDay: '2026-10-07' } as Tx;
+  const v: VaultData = { ...EMPTY_VAULT, notes: { [legacyTxKey(a)]: 'Familien-Abo, Konto 111' } };
+  // As the provider asks while bank X is not logged in: an account no list covers.
+  const m = keyMoves([{ account: '222', txs: [b], covers: (d) => d >= '2026-08-01' }], { accounts: ['222', '\u0000logged-out'] });
+  assert.equal(moveEntries(v, m), v);
+  assert.equal(m.size, 0);
+});
+
+test('a key from before is checked for twins when either reading of its day differs — the slice or the day in Germany', () => {
+  // Fetched with its day stated, the moment late in the UTC day: the slice says the 7th, Germany already the 8th.
+  const t = card('2026-10-07T23:30:00.000Z', { bankDay: '2026-10-07' });
+  assert.equal(legacyTxKey(t).slice(0, 10), txKey(t).slice(3, 13));
+  const v: VaultData = { ...EMPTY_VAULT, notes: { [legacyTxKey(t)]: 'n' } };
+  // Only the 7th on is known: a twin of the 6th would not be seen. It waits.
+  assert.equal(moveEntries(v, keyMoves([{ txs: [t], covers: (d) => d >= '2026-10-07' }])), v);
+  assert.deepEqual(moveEntries(v, keyMoves([{ txs: [t], covers: (d) => d >= '2026-10-06' }])).notes, { [txKey(t)]: 'n' });
+  // A camt noon in Germany reads the same both ways: it moves on the first day.
+  const c = card(noon('2026-10-07'), { bankDay: '2026-10-07' });
+  const w: VaultData = { ...EMPTY_VAULT, notes: { [legacyTxKey(c)]: 'n' } };
+  assert.deepEqual(moveEntries(w, keyMoves([{ txs: [c], covers: (d) => d >= '2026-10-07' }])).notes, { [txKey(c)]: 'n' });
+});
+
+test('the server takes a pair only as a booking\'s key from before and its key now, a day apart at most', () => {
+  const tx = booking(midnight('2026-11-01'));
+  assert.equal(validMove(legacyTxKey(tx), txKey(tx)), true);
+  assert.equal(validMove(legacyTxKey(booking(noon('2026-11-01'))), txKey(booking(noon('2026-11-01')))), true);
+  assert.equal(validMove(legacyTxKey(booking('')), txKey(booking(''))), true, 'undated, both');
+  // Another booking's key (other amount or reference), another day further off, a marked from, an unmarked to.
+  assert.equal(validMove(legacyTxKey(tx), 'd2|2026-11-05|-99.00|DE00OTHER|X'), false);
+  assert.equal(validMove(legacyTxKey(tx), 'd2|1999-01-01|0.00||'), false);
+  assert.equal(validMove(legacyTxKey(tx), txKey({ ...tx, amount: -13 })), false);
+  assert.equal(validMove(legacyTxKey(tx), txKey({ ...tx, bankDay: '2026-11-03' })), false);
+  assert.equal(validMove(txKey(tx), txKey(tx)), false);
+  assert.equal(validMove(legacyTxKey(tx), legacyTxKey(tx)), false);
+  assert.equal(validMove('morgen|-12.90|X|', 'd2|morgen|-12.90|X|'), false);
+  assert.equal(validMove(legacyTxKey(booking('')), txKey(tx)), false, 'a date where there was none');
+});
+
 // ---- size caps ----------------------------------------------------------------------
 
-test('a move that would push the notes past their cap waits; nothing is dropped', () => {
+test('near the notes\' cap the notes move one by one while they fit; nothing is dropped (q2 Q5)', () => {
   // Notes filling the cap to within a few bytes: three more per key would make lib/notes.ts drop the oldest.
   const txs: Tx[] = [];
   const notes: Record<string, string> = {};
@@ -397,8 +473,16 @@ test('a move that would push the notes past their cap waits; nothing is dropped'
   }
   const v: VaultData = { ...EMPTY_VAULT, notes, txCategories: { [legacyTxKey(txs[0])]: 'leisure' } };
   const after = migrateBookingKeys(v, txs);
-  assert.equal(after.notes, notes, 'the notes stay under their keys from before');
-  assert.deepEqual(after.txCategories, { [txKey(txs[0])]: 'leisure' }, 'the rest moves');
+  // Booking by booking while they fit: some moved, the rest still under their keys from before — none dropped.
+  const moved = Object.keys(after.notes).filter((k) => !isLegacyKey(k)).length;
+  assert.ok(moved > 0 && moved < txs.length, `moved ${moved} of ${txs.length}`);
+  assert.equal(Object.keys(after.notes).length, Object.keys(notes).length);
+  assert.equal(Object.keys(sanitizeNotes(after.notes)).length, Object.keys(notes).length, 'lib/notes.ts keeps every one');
+  for (const t of txs) assert.equal(after.notes[txKey(t)] ?? after.notes[legacyTxKey(t)], text);
+  assert.deepEqual(after.txCategories, { [txKey(txs[0])]: 'leisure' }, 'the categories move');
+  // Shown meanwhile: what waits is read through all the same.
+  const shown = planMoves(after, readThrough([{ txs }]), { display: true }).vault;
+  for (const t of txs) assert.equal(shown.notes[txKey(t)], text);
 });
 
 test('a move that would push the vault past its size waits, the notes first; nothing moves rather than a save failing', () => {

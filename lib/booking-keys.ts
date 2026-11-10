@@ -5,11 +5,13 @@
 // fetched on German time the day before, and another day again on a device
 // elsewhere. It is built on the bank's own day now (lib/format.ts bankDay),
 // and carries a mark in front (KEY_MARK), so a key from before can never be
-// taken for one of now. This moves what was filed under a key from before to
-// the key its booking has now, whenever bookings become known (the provider:
-// kept Umsätze loaded, a statement read, a file imported). With sync on it
-// runs inside a sync round, after the merge, where every entry's stamp is
-// known (lib/sync.ts); otherwise on the page, without stamps.
+// taken for one of now.
+//
+// The rule over all of this: an entry under a key from before is the user's
+// until it has been moved. While it is not moved it is shown (the provider
+// reads through `readMoves`, the same agreement without the waiting), and
+// nothing deletes it that the user has not seen (the setters clear only what
+// was shown for the booking: shownFrom).
 //
 // Which keys move (keyMoves). Every key without the mark is one from before.
 // Each known booking says which key from before it had (legacyTxKey) and
@@ -24,12 +26,13 @@
 //     part of the key on one day had one key before and have one key now,
 //     so their entry moves: both showed it before, both show it after. (The
 //     same goes for one booking seen twice, kept and fetched anew.)
-//   - Not for a booking whose key from before names another day than its
-//     key now (MT940 on German time: the day before) unless that day is known
-//     for every account (`accounts`: every account of a logged-in bank whose
-//     Umsätze can be read): a camt booking of that day, alike in the rest,
-//     would have had the same key from before — at whatever bank — and must
-//     be there to be seen. The key from before never named the account.
+//   - A key from before that names another day than the key now — by its own
+//     first field, or by the day the moment was in Germany (a device outside
+//     German time reads the slice differently) — waits until the days around
+//     it are known for every account (`accounts`, which the provider makes
+//     every account of every bank of the view, all logged in): a booking alike
+//     in the rest, booked a day either side, may have had the same key from
+//     before, at whatever bank. The key from before never named the account.
 //   - Not to a key longer than the vault keeps (BOOKING_KEY_MAX).
 //
 // What happens to the entries (planMoves). Per booking, its category and its
@@ -46,25 +49,24 @@
 //     still on the version before, after this device moved — it replaces the
 //     one under the key now. A deletion under the key now counts with its
 //     stamp too: what the user took off later does not come back.
-//   - Whatever is taken from a key from before keeps that entry's stamp
-//     (lib/sync.ts), so a device moving later never wins over an edit made
-//     after the first move; the keys from before are deleted (a tombstone).
-//   - A move that would push the notes over their cap (lib/notes.ts, which
-//     would drop the oldest) or the vault over its size (`maxBytes`) is not
-//     made for that part: it stays under the keys from before, and that is
-//     logged.
+//   - Whatever is taken from a key from before keeps that entry's stamp, and
+//     its deletion follows that stamp by half a millisecond (sync-entries.ts
+//     moveMergedKeys): a device moving later never wins over an edit made
+//     after the first move, and any later edit, on whatever clock, wins over
+//     the deletion and is moved in its turn.
+//   - Booking by booking while the notes stay within their cap (lib/notes.ts,
+//     which would drop the oldest) and the vault within `maxBytes`; what does
+//     not fit stays under its keys from before — still shown — and is logged.
 //
-// An entry that is not moved stays where it is: nothing is deleted on a
-// guess. A moved entry carries the mark, so it is never moved again: the same
-// answer however often this runs.
-//
-// Pure and one pass over the bookings: for `node --test`, the provider and
-// the sync round.
+// A moved entry carries the mark, so it is never moved again: the same
+// answer however often this runs. Pure and one pass over the bookings: for
+// `node --test`, the provider and the sync round.
 
 import type { VaultData } from './app-types';
 import type { KeptDoc } from './docs';
 import { KEY_MARK, legacyTxKey, txKey, type KeyedBooking } from './categories.ts';
-import { sanitizeNotes } from './notes.ts';
+import { addDaysKey, bankDay, dayNumber } from './format.ts';
+import { NOTE_LIMITS, sanitizeNotes } from './notes.ts';
 
 /** The vault's maps keyed by txKey — every one of them. */
 export const BOOKING_MAPS = ['txCategories', 'splits', 'notes'] as const satisfies readonly (keyof VaultData)[];
@@ -101,19 +103,44 @@ const NO_MOVES: KeyMoves = new Map();
 /** Whether `key` is one from before the mark — the only kind ever moved. */
 export const isLegacyKey = (key: string) => !key.startsWith(KEY_MARK);
 
-// A booking's two keys, worked out once per object: the lists hand the same
-// bookings over again with every change, thousands of them.
-const keysOf = new WeakMap<object, readonly [before: string, now: string]>();
-function bothKeys(tx: KeyedBooking): readonly [string, string] {
-  let pair = keysOf.get(tx);
-  if (!pair) keysOf.set(tx, (pair = [legacyTxKey(tx), txKey(tx)]));
-  return pair;
+const DAY_FIELD = /^\d{4}-\d{2}-\d{2}$/;
+/** A key's day and the rest after it ('' for an undated key's day); null for no key of this shape. */
+function splitKey(key: string): { day: string; rest: string } | null {
+  const bar = key.indexOf('|');
+  if (bar < 0) return null;
+  const day = key.slice(0, bar);
+  return day === '' || DAY_FIELD.test(day) ? { day, rest: key.slice(bar) } : null;
+}
+
+/**
+ * Whether `from` → `to` can be a booking key move at all: a key from before
+ * and one of now, of one booking (the same amount, counterparty and
+ * reference), on days at most one apart. What a request may ask the sync
+ * round to move (app/api/sync).
+ */
+export function validMove(from: string, to: string): boolean {
+  if (!isLegacyKey(from) || isLegacyKey(to) || from.length > BOOKING_KEY_MAX || to.length > BOOKING_KEY_MAX) return false;
+  const a = splitKey(from);
+  const b = splitKey(to.slice(KEY_MARK.length));
+  if (!a || !b || a.rest !== b.rest) return false;
+  if (!a.day || !b.day) return a.day === b.day;
+  return Math.abs(dayNumber(a.day) - dayNumber(b.day)) <= 1;
+}
+
+// A booking's keys and the day its moment was in Germany, worked out once
+// per object: the lists hand the same bookings over again with every change.
+const keysOf = new WeakMap<object, readonly [before: string, now: string, germanDay: string]>();
+function bookingKeys(tx: KeyedBooking): readonly [string, string, string] {
+  let keys = keysOf.get(tx);
+  if (!keys) keysOf.set(tx, (keys = [legacyTxKey(tx), txKey(tx), bankDay({ entryDate: tx.entryDate, valueDate: tx.valueDate })]));
+  return keys;
 }
 
 /**
  * The moves the known bookings allow, by the rules at the top of this file.
  * `accounts`: every account whose bookings must be known before a key from
- * before that names another day may move; left out, the accounts of `groups`.
+ * before that names another day may move; left out, the accounts of
+ * `groups`; an empty list waits for none (what the page reads through).
  */
 export function keyMoves(groups: readonly BookingGroup[], opts: { accounts?: readonly string[] } = {}): KeyMoves {
   const byAccount = new Map<string, BookingGroup[]>();
@@ -138,9 +165,10 @@ export function keyMoves(groups: readonly BookingGroup[], opts: { accounts?: rea
   const before = new Map<string, { to: string | null; shifted: boolean }>();
   for (const group of groups) {
     for (const tx of group.txs) {
-      const [old, key] = bothKeys(tx);
+      const [old, key, germanDay] = bookingKeys(tx);
       if (!isLegacyKey(old)) continue; // no date makes one; never moved, whatever it is
-      const shifted = old.slice(0, 10) !== key.slice(KEY_MARK.length, KEY_MARK.length + 10);
+      const day = key.slice(KEY_MARK.length, KEY_MARK.length + 10);
+      const shifted = old.slice(0, 10) !== day || (DAY_FIELD.test(germanDay) && germanDay !== day);
       const seen = before.get(old);
       if (!seen) before.set(old, { to: key, shifted });
       else {
@@ -152,8 +180,13 @@ export function keyMoves(groups: readonly BookingGroup[], opts: { accounts?: rea
   if (!before.size) return NO_MOVES;
   const moves = new Map<string, KeyMove>();
   for (const [old, { to, shifted }] of before) {
-    // The day a twin booked on it would have had this key from before by: the key's own first field.
-    if (to !== null && to.length <= BOOKING_KEY_MAX && (!shifted || known(old.slice(0, 10)))) moves.set(old, { to });
+    if (to === null || to.length > BOOKING_KEY_MAX) continue;
+    if (shifted) {
+      // A twin booked a day either side of the day the key from before names may have had it.
+      const day = old.slice(0, 10);
+      if (!DAY_FIELD.test(day) || ![-1, 0, 1].every((d) => known(addDaysKey(day, d)))) continue;
+    }
+    moves.set(old, { to });
   }
   return moves.size ? moves : NO_MOVES;
 }
@@ -164,16 +197,21 @@ export type EntryStamp = { h: string; t: number };
 export type MoveOptions = {
   /** The sync stamps by path ("notes/<key>"); left out, the rules without stamps apply. */
   stamps?: Readonly<Record<string, EntryStamp>>;
-  /** The most the vault may take as JSON afterwards; a part that would make it larger is not moved. */
+  /** The most the vault may take as JSON afterwards; a booking whose move would make it larger waits. */
   maxBytes?: number;
+  /** Only to show (the page reading through what is not moved yet): nothing is saved, so no cap applies. */
+  display?: boolean;
 };
 
 /** One entry the plan writes under a key now (`from`: the key from before it came from). */
 export type PlannedSet = { field: BookingMap; key: string; value: unknown; from: string };
-export type MovePlan = { set: PlannedSet[]; drop: { field: BookingMap; key: string }[] };
+/** One entry the plan deletes; `after`: under a key now, the key from before whose newer entry takes its place. */
+export type PlannedDrop = { field: BookingMap; key: string; after?: string };
+export type MovePlan = { set: PlannedSet[]; drop: PlannedDrop[] };
 
 const has = (map: Record<string, unknown> | undefined, key: string) => !!map && Object.prototype.hasOwnProperty.call(map, key);
 const utf8 = (s: string) => new TextEncoder().encode(s).length;
+const jsonBytes = (v: unknown) => utf8(JSON.stringify(v));
 
 /** The plan for one part of one booking's entries, as the rules at the top of this file say. */
 function planUnit(
@@ -210,7 +248,7 @@ function planUnit(
   if (stands) return plan;
   for (const f of fields) {
     if (has(maps[f], winner)) plan.set.push({ field: f, key: to, value: maps[f]![winner], from: winner });
-    else if (has(maps[f], to)) plan.drop.push({ field: f, key: to });
+    else if (has(maps[f], to)) plan.drop.push({ field: f, key: to, after: winner });
   }
   return plan;
 }
@@ -238,6 +276,31 @@ function applyPlan(vault: VaultData, plan: MovePlan): VaultData {
   return next;
 }
 
+/** What a part of a plan adds to the vault's JSON, and to the notes as lib/notes.ts counts them — never less than it does. */
+function growth(vault: VaultData, plan: MovePlan): { vault: number; notes: number } {
+  let all = 0;
+  let notes = 0;
+  const placed = new Set(plan.set.filter((s) => !has(vault[s.field] as Record<string, unknown>, s.key)).map((s) => `${s.field}/${s.from}`));
+  for (const s of plan.set) {
+    const map = vault[s.field] as Record<string, unknown>;
+    // Taken to a key now that is free: only the key changes. Else the value under it.
+    const d = has(map, s.key) ? jsonBytes(s.value) - jsonBytes(map[s.key]) : jsonBytes(s.key) - jsonBytes(s.from);
+    all += d;
+    if (s.field === 'notes') notes += d;
+  }
+  for (const x of plan.drop) {
+    if (placed.has(`${x.field}/${x.key}`)) continue;
+    const value = (vault[x.field] as Record<string, unknown>)[x.key];
+    // A deletion takes the key, its colon and the value; its comma is not counted, so the estimate stays high.
+    all -= jsonBytes(x.key) + 1 + jsonBytes(value);
+    if (x.field === 'notes') notes -= jsonBytes(x.key) + jsonBytes(value) + 2;
+  }
+  return { vault: all, notes };
+}
+
+/** The notes' bytes as lib/notes.ts caps them: `"key":"text",` each. */
+const notesBytes = (notes: Record<string, string>) => Object.entries(notes).reduce((n, [k, t]) => n + jsonBytes(k) + jsonBytes(t) + 2, 0);
+
 /**
  * What moving `moves` does to `vault`, by the rules at the top of this file:
  * the plan (for the sync round, which stamps it) and the vault afterwards —
@@ -262,36 +325,39 @@ export function planMoves(vault: VaultData, moves: KeyMoves, opts: MoveOptions =
   }
   if (!sources.size) return empty;
   const position = (field: BookingMap, key: string) => positions.get(`${field}/${key}`) ?? -1;
-  // Per part, so a part that would overflow is left out whole.
-  const parts = UNITS.map((fields) => {
-    const plan: MovePlan = { set: [], drop: [] };
-    for (const [to, from] of sources) {
-      const p = planUnit(vault, fields, to, from, opts, position);
-      plan.set.push(...p.set);
-      plan.drop.push(...p.drop);
-    }
-    return { fields, plan };
-  });
-  const kept = parts.filter(({ fields, plan }) => {
-    if (!fields.includes('notes') || !plan.set.length) return true;
-    const notes = applyPlan(vault, plan).notes;
-    if (Object.keys(sanitizeNotes(notes)).length === Object.keys(notes).length) return true;
-    console.warn(`[keys] ${plan.set.length} note(s) left under their old keys: moved, the notes would pass their cap`);
-    return false;
-  });
-  const join = (list: typeof parts): MovePlan => ({ set: list.flatMap((p) => p.plan.set), drop: list.flatMap((p) => p.plan.drop) });
-  let plan = join(kept);
-  let next = applyPlan(vault, plan);
-  if (opts.maxBytes !== undefined) {
-    // The notes first, then the categories: until it fits, or nothing moves.
-    const left = [...kept];
-    while (left.length && utf8(JSON.stringify(next)) > opts.maxBytes) {
-      const gone = left.splice(left.length - 1, 1)[0];
-      console.warn(`[keys] ${gone.plan.set.length + gone.plan.drop.length} change(s) to ${gone.fields.join('/')} left for later: the vault would pass its size`);
-      plan = join(left);
-      next = applyPlan(vault, plan);
+  // Booking by booking, part by part, while what it adds still fits.
+  const notesRoom = opts.display ? Infinity : NOTE_LIMITS.bytes - notesBytes(vault.notes ?? {});
+  let vaultRoom = opts.maxBytes === undefined ? Infinity : opts.maxBytes - jsonBytes(vault);
+  let notesLeft = notesRoom;
+  const accepted: MovePlan[] = [];
+  let held = 0;
+  for (const [to, from] of sources) {
+    for (const fields of UNITS) {
+      const part = planUnit(vault, fields, to, from, opts, position);
+      if (!part.set.length && !part.drop.length) continue;
+      const g = growth(vault, part);
+      if (g.vault > vaultRoom || g.notes > notesLeft) {
+        held++;
+        continue;
+      }
+      vaultRoom -= g.vault;
+      notesLeft -= g.notes;
+      accepted.push(part);
     }
   }
+  const join = (list: readonly MovePlan[]): MovePlan => ({ set: list.flatMap((p) => p.set), drop: list.flatMap((p) => p.drop) });
+  let plan = join(accepted);
+  let next = applyPlan(vault, plan);
+  // The estimate is checked against the real thing; should it be off, the last bookings wait too.
+  const fits = (v: VaultData) => !!opts.display || ((opts.maxBytes === undefined || jsonBytes(v) <= opts.maxBytes)
+    && Object.keys(sanitizeNotes(v.notes)).length === Object.keys(v.notes ?? {}).length);
+  while (accepted.length && !fits(next)) {
+    accepted.pop();
+    held++;
+    plan = join(accepted);
+    next = applyPlan(vault, plan);
+  }
+  if (held) console.warn(`[keys] ${held} booking part(s) left under their old keys for now: moved, the saved data would pass a limit`);
   return plan.set.length || plan.drop.length ? { vault: next, plan } : empty;
 }
 
@@ -314,52 +380,42 @@ export function migrateBookingKeys(vault: VaultData, bookings: readonly KeyedBoo
 }
 
 /**
- * The moves a sync round takes along ([from, to]): only those whose key from
- * before has an entry in `vault`, and no more than one request carries
- * beside the vault (app/api/sync: twice the vault's size in all) — the rest
- * go with the next round.
+ * Which key from before each shown entry came from, by "field/key now" — for
+ * a plan made only to show (the provider reads the vault through it). What
+ * sets or clears a booking's entry clears these and only these: what the
+ * user saw for it, never an entry from before they did not see.
  */
-export function movesInVault(vault: VaultData, moves: KeyMoves, max = { pairs: 1000, chars: 300_000 }): [string, string][] {
+export function shownFrom(plan: MovePlan): (fields: readonly BookingMap[], key: string) => string[] {
+  const from = new Map(plan.set.map((s) => [`${s.field}/${s.key}`, s.from]));
+  return (fields, key) => [...new Set(fields.map((f) => from.get(`${f}/${key}`)).filter((k): k is string => !!k))];
+}
+
+/**
+ * The moves a sync round takes along ([from, to]): only those whose key from
+ * before has an entry in `vault` or ties one of `docs`, and no more than one
+ * request carries beside the vault (app/api/sync: twice the vault's size in
+ * all) — the rest go with the next round.
+ */
+export function movesInVault(
+  vault: VaultData, moves: KeyMoves, max = { pairs: 1000, chars: 300_000 }, docs: readonly Pick<KeptDoc, 'kind' | 'tx'>[] = [],
+): [string, string][] {
   const out: [string, string][] = [];
   if (!moves.size) return out;
   const seen = new Set<string>();
   let chars = 0;
-  for (const field of BOOKING_MAPS) {
-    for (const k of Object.keys((vault[field] ?? {}) as Record<string, unknown>)) {
-      const move = moves.get(k);
-      if (!move || seen.has(k)) continue;
-      chars += k.length + move.to.length + 8;
-      if (out.length >= max.pairs || chars > max.chars) return out;
-      seen.add(k);
-      out.push([k, move.to]);
-    }
+  const keys = [
+    ...BOOKING_MAPS.flatMap((field) => Object.keys((vault[field] ?? {}) as Record<string, unknown>)),
+    ...docs.filter((d) => d.kind === 'receipt' && d.tx).map((d) => d.tx!),
+  ];
+  for (const k of keys) {
+    const move = moves.get(k);
+    if (!move || seen.has(k)) continue;
+    chars += k.length + move.to.length + 8;
+    if (out.length >= max.pairs || chars > max.chars) return out;
+    seen.add(k);
+    out.push([k, move.to]);
   }
   return out;
-}
-
-// The keys from before that lead to each key now, worked out once per set of moves.
-const reverseOf = new WeakMap<KeyMoves, Map<string, string[]>>();
-
-/**
- * The keys from before a booking may still have entries under: its own, and
- * every other that `moves` lead to its key now. What sets or clears an entry
- * of the booking clears these too, so one from before never comes back over
- * it — as clearing did in the version before, where every booking with that
- * key showed the entry.
- */
-export function legacyKeysOf(tx: KeyedBooking, moves: KeyMoves): string[] {
-  let reverse = reverseOf.get(moves);
-  if (!reverse) {
-    reverse = new Map();
-    for (const [old, { to }] of moves) {
-      const list = reverse.get(to);
-      if (list) list.push(old);
-      else reverse.set(to, [old]);
-    }
-    reverseOf.set(moves, reverse);
-  }
-  const [own, now] = bothKeys(tx);
-  return [...new Set([...(isLegacyKey(own) ? [own] : []), ...(reverse.get(now) ?? [])])];
 }
 
 /** `map` without `keys`; the same object when it has none of them. */

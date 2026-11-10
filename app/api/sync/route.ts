@@ -15,7 +15,9 @@
 // group's key; it is shown, never logged.
 
 import { boundedBody, fail, json, sessionExpired, wrap } from '@/lib/api';
-import { BOOKING_KEY_MAX, isLegacyKey, type KeyMoves } from '@/lib/booking-keys';
+import { BOOKING_MAPS, validMove, type KeyMoves } from '@/lib/booking-keys';
+import type { VaultData } from '@/lib/app-types';
+import type { KeptDoc } from '@/lib/docs';
 import { IS_ANDROID } from '@/lib/platform';
 import { msgs } from '@/lib/i18n';
 import { linkReceipt, listDocs, readDoc, removeDoc, restoreDocs } from '@/lib/doc-store';
@@ -43,17 +45,29 @@ type SyncBody = {
   moves?: unknown;
 };
 
-/** The pairs of a request that can be booking key moves: from a key without the mark to one with it. */
-function movesFrom(v: unknown): KeyMoves | undefined {
+/**
+ * The pairs of a request that can be booking key moves (lib/booking-keys.ts
+ * validMove: a key from before and the key now of the same booking, at most
+ * a day apart) and whose key from before is there to move (`present`: the
+ * vault sent, this login's receipts). Any other pair is dropped.
+ */
+function movesFrom(v: unknown, present: ReadonlySet<string>): KeyMoves | undefined {
   if (!Array.isArray(v)) return undefined;
   const moves = new Map<string, { to: string }>();
   for (const pair of v.slice(0, MOVES_MAX)) {
     if (!Array.isArray(pair) || typeof pair[0] !== 'string' || typeof pair[1] !== 'string') continue;
     const [from, to] = pair as [string, string];
-    if (!from || !isLegacyKey(from) || isLegacyKey(to) || from.length > BOOKING_KEY_MAX || to.length > BOOKING_KEY_MAX) continue;
-    moves.set(from, { to });
+    if (present.has(from) && validMove(from, to)) moves.set(from, { to });
   }
   return moves.size ? moves : undefined;
+}
+
+/** The keys a booking's entries can be under in `vault` and on `docs`. */
+function keysIn(vault: VaultData, docs: readonly KeptDoc[]): Set<string> {
+  return new Set([
+    ...BOOKING_MAPS.flatMap((f) => Object.keys((vault[f] ?? {}) as Record<string, unknown>)),
+    ...docs.filter((d) => d.kind === 'receipt' && d.tx).map((d) => d.tx!),
+  ]);
 }
 /** Pairs taken from one request; the page sends at most this many a round. */
 const MOVES_MAX = 2000;
@@ -165,9 +179,11 @@ async function handle(b: SyncBody, s: Session, login: { blz: string; userId: str
       // The name as it is now: the device may have been renamed since it joined.
       const deviceName = typeof b.deviceName === 'string' && b.deviceName.trim() ? nameOf(b.deviceName) : meta.deviceName;
       let result;
+      const receipts = await receiptsOf(s);
+      const moves = b.moves === undefined ? undefined : movesFrom(b.moves, keysIn(vault, receipts ? await receipts.list() : []));
       try {
         result = await runSync({
-          store, key: meta.key, device: { id: meta.deviceId, name: deviceName }, vault, local: meta.local, receipts: await receiptsOf(s),
+          store, key: meta.key, device: { id: meta.deviceId, name: deviceName }, vault, local: meta.local, receipts,
           keep: (v) => sanitizeVault(v) ?? v,
           // What saveVault would refuse never comes out of a round, nor a vault so full
           // that this device's next edit could not be saved (lib/sync.ts FILL_MAX).
@@ -177,7 +193,7 @@ async function handle(b: SyncBody, s: Session, login: { blz: string; userId: str
           checkpoint: async (local) => {
             if (vaultKeyOf(s)) await writeMeta(s, { ...meta, local });
           },
-          moves: movesFrom(b.moves),
+          moves,
         });
       } catch (err) {
         // The place out of reach or refusing: said, not reported as a fault (it is the network's state).
