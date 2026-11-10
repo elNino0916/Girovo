@@ -43,6 +43,8 @@ export const de = {
   devices: 'Geräte',
   thisDevice: 'dieses Gerät',
   seen: (when: string) => `zuletzt ${when}`,
+  /** Under this device's own name: the line `seen` gives, led by who it is. */
+  thisDeviceSeen: (seen: string) => `Dieses Gerät · ${seen}`,
   syncNow: 'Jetzt abgleichen',
   addDevice: 'Weiteres Gerät verbinden',
   leave: 'Abgleich auf diesem Gerät beenden',
@@ -116,6 +118,7 @@ export const en: typeof de = {
   devices: 'Devices',
   thisDevice: 'this device',
   seen: (when) => `last ${when}`,
+  thisDeviceSeen: (seen) => `This device · ${seen}`,
   syncNow: 'Sync now',
   addDevice: 'Connect another device',
   leave: 'Stop syncing on this device',

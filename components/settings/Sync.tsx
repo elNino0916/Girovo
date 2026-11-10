@@ -237,16 +237,23 @@ export function SyncDialog() {
         <div>
           <p className="mb-1 text-[13px] font-semibold text-ink-2">{words.devices}</p>
           <ul className="flex flex-col divide-y divide-line rounded-[12px] border border-line">
-            {others.map((d) => (
-              <li key={d.id} className="flex items-center gap-3 px-3 py-2.5">
-                <span className="text-ink-2" aria-hidden>{/android|telefon|phone/i.test(d.name) ? <PhoneIcon size={18} /> : <MonitorIcon size={18} />}</span>
-                <span className="flex min-w-0 flex-1 items-baseline text-[14px] text-ink">
-                  <span className="min-w-0 truncate">{d.name}</span>
-                  {d.id === sync.deviceId && <span className="shrink-0 whitespace-pre">{` · ${words.thisDevice}`}</span>}
-                </span>
-                <span className="shrink-0 text-[12.5px] text-ink-3">{words.seen(when(d.at, words.never))}</span>
-              </li>
-            ))}
+            {others.map((d) => {
+              // Said by the device itself since 6.1; a list from 6.0 only has the name, and every phone was "Android" then.
+              const phone = d.kind ? d.kind === 'phone' : /android|telefon|phone/i.test(d.name);
+              const seen = words.seen(when(d.at, words.never));
+              return (
+                // Two lines: the name keeps the row's width (a phone's "Nino's S26 Ultra" was cut to "N" beside the date).
+                <li key={d.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <span className="shrink-0 text-ink-2" aria-hidden>{phone ? <PhoneIcon size={18} /> : <MonitorIcon size={18} />}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] leading-5 text-ink">{d.name}</span>
+                    <span className="block truncate text-[12.5px] leading-[18px] text-ink-3">
+                      {d.id === sync.deviceId ? words.thisDeviceSeen(seen) : seen}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
         <div className="flex flex-wrap gap-2">

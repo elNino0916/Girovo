@@ -835,10 +835,11 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [sync, setSync] = useState<SyncInfo>(() => (opts.sync
     ? {
       // This device is the phone in the Android build, the computer elsewhere.
-      on: true, place: 'lan', deviceName: IS_ANDROID ? 'Android' : 'Computer', deviceId: IS_ANDROID ? 'bbbbbbbbbbbbbbbb' : 'aaaaaaaaaaaaaaaa', lastSync: Date.now() - 4 * 60_000,
+      // The names as 6.1 reports them: the phone by the name in its own settings, each with its kind.
+      on: true, place: 'lan', deviceName: IS_ANDROID ? 'Ninas Galaxy S26 Ultra' : 'Nina', deviceId: IS_ANDROID ? 'bbbbbbbbbbbbbbbb' : 'aaaaaaaaaaaaaaaa', lastSync: Date.now() - 4 * 60_000,
       devices: [
-        { id: 'aaaaaaaaaaaaaaaa', name: 'Computer', at: Date.now() - 4 * 60_000 },
-        { id: 'bbbbbbbbbbbbbbbb', name: 'Android', at: Date.now() - 2 * 3600_000 },
+        { id: 'aaaaaaaaaaaaaaaa', name: 'Nina', at: Date.now() - 4 * 60_000, kind: 'computer' },
+        { id: 'bbbbbbbbbbbbbbbb', name: 'Ninas Galaxy S26 Ultra', at: Date.now() - 2 * 3600_000, kind: 'phone' },
       ],
     }
     : { on: false }));

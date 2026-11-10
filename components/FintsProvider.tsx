@@ -6053,7 +6053,7 @@ export type SyncInfo = {
   deviceName?: string;
   deviceId?: string;
   lastSync?: number | null;
-  devices?: Array<{ id: string; name: string; at: number }>;
+  devices?: Array<{ id: string; name: string; at: number; kind?: 'phone' | 'computer' }>;
 };
 /** Where the devices meet, as the sheet sets it up (lib/sync.ts SyncPlace). */
 export type SyncPlaceChoice =
@@ -6063,7 +6063,7 @@ export type SyncPlaceChoice =
 type SyncRunResponse = {
   changed: boolean;
   vault?: VaultData;
-  devices: Array<{ id: string; name: string; at: number }>;
+  devices: Array<{ id: string; name: string; at: number; kind?: 'phone' | 'computer' }>;
   lastSync: number;
   receipts: { added: number; removed: number; relinked?: number };
   /** The other devices' entries with no room here (lib/sync.ts SyncResult.full). */

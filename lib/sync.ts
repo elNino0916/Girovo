@@ -72,7 +72,13 @@ export type SyncLocal = {
   removing?: string[];
 };
 
-export type SyncDevice = { id: string; name: string; at: number };
+/**
+ * One member of the group. `kind` (6.1): a phone or a computer, said by the
+ * device itself; a list written by 6.0 has none, and the page guesses from
+ * the name there ("Android" was every phone's name then).
+ */
+export type DeviceKind = 'phone' | 'computer';
+export type SyncDevice = { id: string; name: string; at: number; kind?: DeviceKind };
 
 export type SyncResult = {
   vault: VaultData;
@@ -164,7 +170,8 @@ function readDevices(v: unknown): SyncDevice[] {
   const out: SyncDevice[] = [];
   for (const d of Array.isArray(v) ? v : []) {
     if (!d || !isDeviceId(d.id) || out.some((o) => o.id === d.id)) continue;
-    out.push({ id: d.id, name: typeof d.name === 'string' ? d.name.slice(0, NAME_MAX) : '', at: Number(d.at) || 0 });
+    const kind = d.kind === 'phone' || d.kind === 'computer' ? { kind: d.kind as DeviceKind } : {};
+    out.push({ id: d.id, name: typeof d.name === 'string' ? d.name.slice(0, NAME_MAX) : '', at: Number(d.at) || 0, ...kind });
   }
   return out;
 }
@@ -220,7 +227,7 @@ export const newGroupKey = () => crypto.randomBytes(KEY_BYTES);
 export async function runSync(opts: {
   store: SyncStore;
   key: Buffer;
-  device: { id: string; name: string };
+  device: { id: string; name: string; kind?: DeviceKind };
   vault: VaultData;
   local: SyncLocal;
   /** null: this device's receipts cannot be read now — they are left as they are, here and in the others' view. */
@@ -261,7 +268,7 @@ export async function runSync(opts: {
   // Who is in the group: this device says it is here; long-silent ones are left out.
   const known = readDevices(await readJson(store, key, devicesFile(key)));
   const devices = [
-    { id: device.id, name: device.name.slice(0, NAME_MAX), at: now },
+    { id: device.id, name: device.name.slice(0, NAME_MAX), at: now, ...(device.kind ? { kind: device.kind } : {}) },
     ...known.filter((d) => d.id !== device.id && now - d.at < DEVICE_STALE_MS),
   ].slice(0, DEVICES_MAX);
 

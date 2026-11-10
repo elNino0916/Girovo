@@ -60,6 +60,18 @@ test('files are sealed under the key and bound to their names', () => {
   assert.match(devicesFile(key), /^[0-9a-f]{24}\.devices$/);
 });
 
+test('each device says whether it is a phone or a computer, and a list without it stays readable', async () => {
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const phone = device("Nino's S26 Ultra");
+  const desk = device('Nino');
+  await runSync({ store: place, key, device: { id: phone.id, name: phone.name, kind: 'phone' }, vault: phone.vault, local: phone.local, receipts: phone.receipts, now: 1000 });
+  // A device on 6.0 says no kind: its entry has none, and nothing breaks.
+  const r = await runSync({ store: place, key, device: { id: desk.id, name: desk.name }, vault: desk.vault, local: desk.local, receipts: desk.receipts, now: 2000 });
+  const byName = Object.fromEntries(r.devices.map((d) => [d.name, d.kind ?? null]));
+  assert.deepEqual(byName, { "Nino's S26 Ultra": 'phone', Nino: null });
+});
+
 test('two devices end with the same notes, rules and receipts — and the place learns none of it', async () => {
   const place = memoryPlace();
   const key = newGroupKey();

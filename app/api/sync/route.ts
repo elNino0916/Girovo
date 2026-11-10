@@ -183,7 +183,7 @@ async function handle(b: SyncBody, s: Session, login: { blz: string; userId: str
       const moves = b.moves === undefined ? undefined : movesFrom(b.moves, keysIn(vault, receipts ? await receipts.list() : []));
       try {
         result = await runSync({
-          store, key: meta.key, device: { id: meta.deviceId, name: deviceName }, vault, local: meta.local, receipts,
+          store, key: meta.key, device: { id: meta.deviceId, name: deviceName, kind: IS_ANDROID ? 'phone' : 'computer' }, vault, local: meta.local, receipts,
           keep: (v) => sanitizeVault(v) ?? v,
           // What saveVault would refuse never comes out of a round, nor a vault so full
           // that this device's next edit could not be saved (lib/sync.ts FILL_MAX).
