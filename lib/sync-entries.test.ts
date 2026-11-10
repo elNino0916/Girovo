@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EMPTY_VAULT, type VaultData } from './app-types.ts';
-import { migrateBookingKeys } from './booking-keys.ts';
+import { keyMoves, type KeyMoves } from './booking-keys.ts';
 import { legacyTxKey, txKey } from './categories.ts';
 import type { SerializedTransaction } from './fints-types';
-import { hashOf, mergeEntries, restamp, stableJson, TOMBSTONE_MS, vaultEntries, vaultFromEntries } from './sync-entries.ts';
+import { hashOf, mergeEntries, moveMergedKeys, restamp, stableJson, TOMBSTONE_MS, vaultEntries, vaultFromEntries } from './sync-entries.ts';
 import type { RemoteState, Stamps } from './sync-entries.ts';
 
 const vault = (extra: Partial<VaultData> = {}): VaultData => ({ ...EMPTY_VAULT, ...extra });
@@ -114,10 +114,15 @@ test('restamp and merge: a copy kept changed (k) keeps its stamp and loses a tie
 /** One device of a group: its vault, its stamps, and the state file it last wrote. */
 type Device = { id: string; vault: VaultData; stamps: Stamps; state: RemoteState['entries'] };
 const device = (id: string, v: VaultData): Device => ({ id, vault: v, stamps: {}, state: {} });
-/** One round as lib/sync.ts runs it: restamp, merge with the others' state files, keep the result. */
-function round(d: Device, others: readonly Device[], now: number): void {
+/**
+ * One round as lib/sync.ts runs it: restamp, merge with the others' state
+ * files, then (a device on this version, `moves` given) the booking keys
+ * moved on the merged entries, and the result kept.
+ */
+function round(d: Device, others: readonly Device[], now: number, moves?: KeyMoves): void {
   const entries = vaultEntries(d.vault);
   const m = mergeEntries(entries, restamp(entries, d.stamps, now), d.id, others.map((o) => ({ device: o.id, entries: o.state })), now);
+  if (moves) moveMergedKeys(m, moves, d.vault, now);
   d.vault = vaultFromEntries(m.entries, d.vault);
   d.stamps = m.stamps;
   d.state = m.state;
@@ -131,108 +136,139 @@ const moved = {
 } as SerializedTransaction;
 const OLD = legacyTxKey(moved);
 const NEW = txKey(moved);
+const MOVES = keyMoves([{ txs: [moved] }]);
 const SPLIT = [{ id: 'groceries' as const, cents: 800 }, { id: 'leisure' as const, cents: 490 }];
-const filed = (): VaultData => vault({ txCategories: { [OLD]: 'leisure' }, splits: { [OLD]: SPLIT }, notes: { [OLD]: 'Geschenk', other: 'bleibt' } });
-const AFTER = { txCategories: { [NEW]: 'leisure' }, splits: { [NEW]: SPLIT }, notes: { [NEW]: 'Geschenk', other: 'bleibt' } };
+const filed = (): VaultData => vault({ txCategories: { [OLD]: 'leisure' }, notes: { [OLD]: 'Geschenk', other: 'bleibt' } });
+const AFTER = { txCategories: { [NEW]: 'leisure' }, splits: {}, notes: { [NEW]: 'Geschenk', other: 'bleibt' } };
+/** Two devices that have met: the entries stamped at 100 on both. */
+function pair(a = 'aaa', b = 'bbb'): [Device, Device] {
+  const [x, y] = [device(a, filed()), device(b, filed())];
+  round(x, [], 100);
+  round(y, [x], 100);
+  round(x, [y], 100);
+  return [x, y];
+}
 
 test('the keys of the moved booking: the old one without the mark, the new one with it and the bank’s day', () => {
   assert.equal(OLD, '2026-10-31|-12.90|DE02120300000000202051|E1');
   assert.equal(NEW, 'd2|2026-11-01|-12.90|DE02120300000000202051|E1');
 });
 
-test('a moved entry: the device that moved it hands the others the new key and a deletion of the old', () => {
-  const [a, b] = [device('aaa', filed()), device('bbb', filed())];
-  round(a, [], 100);
-  round(b, [a], 110);
-  round(a, [b], 120);
-
-  a.vault = migrateBookingKeys(a.vault, [moved]);
-  round(a, [b], 200);
+test('a move in a round: the new key keeps the old entry’s stamp, the old key gets a deletion of now', () => {
+  const [a, b] = pair();
+  round(a, [b], 200, MOVES);
   assert.deepEqual(perBooking(a.vault), AFTER);
   assert.deepEqual(a.state[`notes/${OLD}`], { t: 200, d: 1 });
-  assert.deepEqual(a.state[`notes/${NEW}`], { t: 200, v: 'Geschenk' });
-
-  // A device that has not moved anything (its bookings not loaded, or an
-  // older version): the round brings the move. Nothing is left under the old key.
-  round(b, [a], 300);
+  assert.deepEqual(a.state[`notes/${NEW}`], { t: 100, v: 'Geschenk' });
+  assert.deepEqual(a.stamps[`notes/${NEW}`], { h: hashOf('Geschenk'), t: 100 });
+  // The next round sees nothing changed: the stamp holds what is there.
+  const before = a.state;
+  round(a, [b], 300, MOVES);
+  assert.deepEqual(a.state, before);
+  // A device that has not moved anything (an older version): the round brings the move; nothing is left under the old key.
+  round(b, [a], 400);
   assert.deepEqual(perBooking(b.vault), AFTER);
-  assert.equal(migrateBookingKeys(b.vault, [moved]), b.vault, 'nothing left to move');
 });
 
-test('two devices move the same entry, one after the other: one entry, the same on both, and it stays', () => {
-  const [a, b] = [device('aaa', filed()), device('bbb', filed())];
-  round(a, [], 100);
-  round(b, [a], 110);
-  round(a, [b], 120);
-
-  // A moves and syncs; B, not having met A since, moves on its own and syncs later.
-  a.vault = migrateBookingKeys(a.vault, [moved]);
-  round(a, [b], 200);
-  b.vault = migrateBookingKeys(b.vault, [moved]);
-  assert.deepEqual(perBooking(b.vault), AFTER, 'both make the same key and value of it');
-  round(b, [a], 300);
-  round(a, [b], 400);
-  round(b, [a], 500);
-
-  for (const d of [a, b]) {
-    assert.deepEqual(perBooking(d.vault), AFTER, d.id);
-    // The new entry stands above the deletion of the old one: live, with a time of its own.
-    for (const field of ['txCategories', 'splits', 'notes']) {
-      assert.equal(d.state[`${field}/${OLD}`]?.d, 1, `${d.id} ${field}`);
-      assert.equal(d.state[`${field}/${NEW}`]?.d, undefined, `${d.id} ${field}`);
-      assert.ok(d.state[`${field}/${NEW}`].t >= 200, `${d.id} ${field}`);
-    }
-  }
+test('two devices move the same entry, one after the other: the same value at the same time, and they agree', () => {
+  const [a, b] = pair();
+  round(a, [b], 200, MOVES);
+  // B moves on its own (A out of reach), later.
+  round(b, [], 300, MOVES);
+  assert.deepEqual(b.state[`notes/${NEW}`], a.state[`notes/${NEW}`], 'the same value, the same time');
+  round(a, [b], 400, MOVES);
+  round(b, [a], 500, MOVES);
+  for (const d of [a, b]) assert.deepEqual(perBooking(d.vault), AFTER, d.id);
   assert.equal(stableJson({ ...a.vault, updatedAt: '' }), stableJson({ ...b.vault, updatedAt: '' }));
-  assert.deepEqual(a.state, b.state);
-
-  // A third device that comes back after all that, still with the old key, and moves too.
-  const c = device('ccc', filed());
-  c.stamps = restamp(vaultEntries(c.vault), {}, 100);
-  c.vault = migrateBookingKeys(c.vault, [moved]);
-  round(c, [a, b], 600);
-  round(a, [b, c], 700);
-  assert.deepEqual(perBooking(c.vault), AFTER);
-  assert.deepEqual(perBooking(a.vault), AFTER);
+  for (const p of [`notes/${NEW}`, `txCategories/${NEW}`, `notes/${OLD}`, `txCategories/${OLD}`]) assert.deepEqual(a.state[p], b.state[p], p);
 });
 
-test('a moved entry is not lost to a deletion its new key once had', () => {
-  // Another device moved this entry and then took it off again (the user
-  // unfiled the booking there): a deletion of the very path the move makes.
-  // A move made later stands; one made by a clock behind it still comes after.
-  const b = device('bbb', filed());
-  round(b, [], 100);
-  const other: Device = { id: 'aaa', vault: vault(), stamps: {}, state: { [`notes/${NEW}`]: { t: 150, d: 1 } } };
-  b.vault = migrateBookingKeys(b.vault, [moved]);
-  round(b, [other], 300);
-  assert.equal(b.vault.notes[NEW], 'Geschenk');
-  // And once this device knows that deletion, a move made by a clock that runs behind still comes after it.
-  const late = device('ddd', filed());
-  late.stamps = { ...restamp(vaultEntries(late.vault), {}, 100), [`notes/${NEW}`]: { h: '-', t: 5000 } };
-  late.vault = migrateBookingKeys(late.vault, [moved]);
-  round(late, [], 300);
-  assert.equal(late.vault.notes[NEW], 'Geschenk');
-  assert.equal(late.state[`notes/${NEW}`].t, 5001);
-});
-
-test('the round first, then the move: what another device changed since its own move stands', () => {
-  const [a, b] = [device('aaa', filed()), device('bbb', filed())];
-  round(a, [], 100);
-  round(b, [a], 110);
-  round(a, [b], 120);
-  a.vault = migrateBookingKeys(a.vault, [moved]);
-  round(a, [b], 200);
-  // On A the note is rewritten and the category taken back, under the new key.
-  a.vault = { ...a.vault, notes: { ...a.vault.notes, [NEW]: 'Geschenk für Mama' }, txCategories: {} };
-  round(a, [b], 250);
-  // B, as the provider does it: a round before anything is moved.
-  round(b, [a], 300);
-  b.vault = migrateBookingKeys(b.vault, [moved]);
-  round(b, [a], 310);
-  round(a, [b], 400);
+test('a device that moves later never beats an edit made after the first move (p4)', () => {
+  const [a, b] = pair('zzz', 'bbb');
+  round(b, [a], 2000, MOVES);
+  // The user changes the category and the note on B, under the key now.
+  b.vault = { ...b.vault, txCategories: { [NEW]: 'groceries' }, notes: { ...b.vault.notes, [NEW]: 'Kuchen, nicht Brot' } };
+  round(b, [a], 3000, MOVES);
+  // A starts days later, B out of reach: A moves on its own.
+  round(a, [], 10_000, MOVES);
+  round(a, [b], 11_000, MOVES);
+  round(b, [a], 11_000, MOVES);
   for (const d of [a, b]) {
-    assert.equal(d.vault.notes[NEW], 'Geschenk für Mama', d.id);
-    assert.deepEqual(d.vault.txCategories, {}, d.id);
+    assert.equal(d.vault.txCategories[NEW], 'groceries', d.id);
+    assert.equal(d.vault.notes[NEW], 'Kuchen, nicht Brot', d.id);
     assert.equal(d.vault.notes[OLD], undefined, d.id);
   }
+});
+
+test('an edit on the other device between the two moves stands', () => {
+  const [a, b] = pair();
+  round(a, [b], 200, MOVES);
+  // On A the note is rewritten under the key now; B, out of reach, moves its old copy later.
+  a.vault = { ...a.vault, notes: { ...a.vault.notes, [NEW]: 'Geschenk für Mama' } };
+  round(a, [b], 250, MOVES);
+  round(b, [], 300, MOVES);
+  round(b, [a], 400, MOVES);
+  round(a, [b], 500, MOVES);
+  for (const d of [a, b]) assert.equal(d.vault.notes[NEW], 'Geschenk für Mama', d.id);
+});
+
+test('a device still on the version before re-files the booking under the old key: that newer edit wins (p3)', () => {
+  const [a, b] = pair();
+  // A (this version) moves; B (the version before) takes the deletion of the old key in.
+  round(a, [b], 2000, MOVES);
+  round(b, [a], 3000);
+  assert.equal(b.vault.txCategories[OLD], undefined);
+  // On B the user files the booking again: the version before writes the old key.
+  b.vault = { ...b.vault, txCategories: { ...b.vault.txCategories, [OLD]: 'groceries' } };
+  round(b, [a], 4000);
+  // A's next round: the old key's entry is newer than the one under the key now — it replaces it.
+  round(a, [b], 5000, MOVES);
+  assert.equal(a.vault.txCategories[NEW], 'groceries');
+  assert.equal(a.vault.txCategories[OLD], undefined);
+  assert.equal(a.state[`txCategories/${NEW}`].t, 4000, 'with the edit’s own time');
+  round(b, [a], 6000);
+  round(a, [b], 7000, MOVES);
+  assert.equal(a.vault.txCategories[NEW], 'groceries', 'and it stays');
+  assert.equal(b.vault.txCategories[NEW], 'groceries');
+  // An older entry under the old key does not: the one under the key now stands.
+  const [c, e] = pair('ccc', 'eee');
+  round(c, [e], 2000, MOVES);
+  c.vault = { ...c.vault, txCategories: { [NEW]: 'media' } };
+  round(c, [e], 2500, MOVES);
+  round(e, [], 2600);
+  round(c, [e], 3000, MOVES);
+  assert.equal(c.vault.txCategories[NEW], 'media');
+});
+
+test('what the user took off under the key now does not come back from an older entry under the old key', () => {
+  const [a, b] = pair();
+  round(a, [b], 200, MOVES);
+  // On A the note is taken off — and the clear takes the old key along (the setters); on B, the version before, nothing happened.
+  const { [NEW]: _gone, ...rest } = a.vault.notes;
+  a.vault = { ...a.vault, notes: rest };
+  round(a, [b], 300, MOVES);
+  round(b, [a], 400);
+  round(a, [b], 500, MOVES);
+  for (const d of [a, b]) {
+    assert.equal(d.vault.notes[NEW], undefined, d.id);
+    assert.equal(d.vault.notes[OLD], undefined, d.id);
+  }
+});
+
+test('a moved entry is not lost to a deletion of its new key made earlier, whatever the clocks say', () => {
+  // Another device moved this entry and then took it off again (the user
+  // unfiled the booking there): a deletion of the very path the move makes —
+  // older than the old key's entry here, which therefore still moves.
+  const b = device('bbb', filed());
+  round(b, [], 1000);
+  const other: Device = { id: 'aaa', vault: vault(), stamps: {}, state: { [`notes/${NEW}`]: { t: 500, d: 1 } } };
+  round(b, [other], 3000, MOVES);
+  assert.equal(b.vault.notes[NEW], 'Geschenk');
+  // A deletion newer than the entry: it stays deleted.
+  const c = device('ccc', filed());
+  round(c, [], 1000);
+  const later: Device = { id: 'aaa', vault: vault(), stamps: {}, state: { [`notes/${NEW}`]: { t: 2000, d: 1 } } };
+  round(c, [later], 3000, MOVES);
+  assert.equal(c.vault.notes[NEW], undefined);
+  assert.equal(c.vault.notes[OLD], undefined);
 });

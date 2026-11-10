@@ -448,9 +448,10 @@ test('a box from before the bank\'s day: every account learns once more and says
   await runCheck(store, secret, fakeBank({ '50050201:DE01': known }).side, NOW);
   assert.equal(openStored(store).v, 2);
 
-  // The box as the version before left it: the keys a check then made of the
-  // parser's Dates (their text's first ten characters), under its mark.
-  const before = openStored(store);
+  // The box as the version before writes it: what it does not know (seen2)
+  // gone, its own lists under `seen` — the keys a check then made of the
+  // parser's Dates (their text's first ten characters).
+  const { seen2: _ours, ...before } = openStored(store);
   sealStored(store, { ...before, v: 1, seen: { '50050201|max': { DE01: ['Fri Oct 30|-12.50|REWE|', 'Sun Nov 01|-3.00|BACKER|'] } } });
 
   // The first check after: none of the old keys fits a booking, and a booking
@@ -459,9 +460,10 @@ test('a box from before the bank\'s day: every account learns once more and says
   const relearnt = await runCheck(store, secret, fakeBank({ '50050201:DE01': now }).side, NOW + 3600_000);
   assert.equal(relearnt.checked, 1);
   assert.deepEqual(relearnt.notices, []);
-  const after = openStored(store) as { v: number; seen: Record<string, Record<string, string[]>> };
+  const after = openStored(store) as { v: number; seen?: unknown; seen2: Record<string, Record<string, string[]>> };
   assert.equal(after.v, 2);
-  assert.deepEqual([...after.seen['50050201|max'].DE01].sort(), now.map(txKey).sort());
+  assert.equal(after.seen, undefined);
+  assert.deepEqual([...after.seen2['50050201|max'].DE01].sort(), now.map(txKey).sort());
 
   // Written by this version, it is not learnt again: the next new booking is said.
   const next = await runCheck(store, secret, fakeBank({ '50050201:DE01': [...now, tx('2026-11-03', -9.99, 'NETFLIX')] }).side, NOW + 2 * 3600_000);
@@ -477,15 +479,30 @@ test('a box from before keeps its logins and settings; only the seen lists go', 
   const store = memoryStore();
   await enroll(store, secret, [spk, dkb], false);
   await runCheck(store, secret, fakeBank({ '50050201:DE01': [tx('2026-11-01', -3, 'Bäcker')], '12030000:DE01': [] }).side, NOW);
-  const before = openStored(store);
+  const { seen2: _ours, ...before } = openStored(store);
   sealStored(store, { ...before, v: 1 });
   const state = await enrolled(store, secret);
   assert.equal(state?.amounts, false);
   assert.deepEqual(state?.logins.map((l) => l.blz), ['50050201', '12030000']);
   // Re-enrolling carries nothing over from the old lists either.
   await enroll(store, secret, [spk, dkb], false);
-  assert.deepEqual((openStored(store) as { seen: unknown }).seen, {});
+  assert.deepEqual((openStored(store) as { seen2: unknown }).seen2, {});
   const r = await runCheck(store, secret, fakeBank({ '50050201:DE01': [tx('2026-11-01', -3, 'Bäcker'), tx('2026-11-02', -1, 'KIOSK')], '12030000:DE01': [] }).side, NOW + 1);
+  assert.deepEqual(r.notices, []);
+});
+
+test('a box from this version shows the version before no seen list: there every account is learnt quietly, not announced', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  await runCheck(store, secret, fakeBank({ '50050201:DE01': [tx('2026-11-01', -3, 'Bäcker')] }).side, NOW);
+  const box = openStored(store) as { seen?: unknown; seen2: Record<string, Record<string, string[]>> };
+  // The version before reads `seen` only: it finds none, and its first check of the account only learns.
+  assert.equal(box.seen, undefined);
+  assert.deepEqual(box.seen2['50050201|max'].DE01, [txKey(tx('2026-11-01', -3, 'Bäcker'))]);
+  // And what the version before writes back keeps this version's lists out of the way of its own.
+  const { seen2: _ours, ...asBefore } = box;
+  sealStored(store, { ...asBefore, v: 1, seen: { '50050201|max': { DE01: ['Sun Nov 01|-3.00|BACKER|'] } } });
+  const r = await runCheck(store, secret, fakeBank({ '50050201:DE01': [tx('2026-11-01', -3, 'Bäcker'), tx('2026-11-02', -1, 'KIOSK')] }).side, NOW + 1);
   assert.deepEqual(r.notices, []);
 });
 

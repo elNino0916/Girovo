@@ -7,6 +7,7 @@ import { lookupBlz } from './banks';
 import { renderFlicker } from './flicker';
 import { nearestEntryYear } from './entry-date';
 import { repairBankText, statedDay } from './format';
+import { camtDay } from './camt-day';
 import { parsePurpose } from './sepa-purpose';
 import { INSTANT_SEG, TRANSFER_SEG } from './fints-sepa';
 import { PENDING_SEG } from './fints-pending';
@@ -267,9 +268,10 @@ export function serializeTransactions(statements: Statement[] | undefined, curre
       // MT940 names the Buchungstag without a year, and lib-fints guesses
       // it wrong across the turn of the year (lib/entry-date.ts).
       const entryDate = nearestEntryYear(t.entryDate, t.valueDate);
-      // The day itself, read off the parser's Date here, in the time it was
-      // built in: the JSON of that Date no longer says which day was meant.
-      const bankDay = statedDay(entryDate || t.valueDate);
+      // The day itself: as a camt statement wrote it (lib/camt-day.ts), else
+      // read off the parser's Date here, in the time it was built in — the
+      // JSON of that Date no longer says which day was meant.
+      const bankDay = camtDay(entryDate || t.valueDate) || statedDay(entryDate || t.valueDate);
       txs.push({
         valueDate: t.valueDate,
         entryDate,

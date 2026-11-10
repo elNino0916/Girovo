@@ -15,6 +15,7 @@
 // group's key; it is shown, never logged.
 
 import { boundedBody, fail, json, sessionExpired, wrap } from '@/lib/api';
+import { BOOKING_KEY_MAX, isLegacyKey, type KeyMoves } from '@/lib/booking-keys';
 import { IS_ANDROID } from '@/lib/platform';
 import { msgs } from '@/lib/i18n';
 import { linkReceipt, listDocs, readDoc, removeDoc, restoreDocs } from '@/lib/doc-store';
@@ -38,7 +39,24 @@ type SyncBody = {
   deviceName?: unknown;
   code?: unknown;
   vault?: unknown;
+  /** Booking keys to move in this round, [from, to] (lib/booking-keys.ts): checked here, decided in the round. */
+  moves?: unknown;
 };
+
+/** The pairs of a request that can be booking key moves: from a key without the mark to one with it. */
+function movesFrom(v: unknown): KeyMoves | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const moves = new Map<string, { to: string }>();
+  for (const pair of v.slice(0, MOVES_MAX)) {
+    if (!Array.isArray(pair) || typeof pair[0] !== 'string' || typeof pair[1] !== 'string') continue;
+    const [from, to] = pair as [string, string];
+    if (!from || !isLegacyKey(from) || isLegacyKey(to) || from.length > BOOKING_KEY_MAX || to.length > BOOKING_KEY_MAX) continue;
+    moves.set(from, { to });
+  }
+  return moves.size ? moves : undefined;
+}
+/** Pairs taken from one request; the page sends at most this many a round. */
+const MOVES_MAX = 2000;
 
 const nameOf = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 40) : IS_ANDROID ? 'Telefon' : 'Computer');
 
@@ -159,6 +177,7 @@ async function handle(b: SyncBody, s: Session, login: { blz: string; userId: str
           checkpoint: async (local) => {
             if (vaultKeyOf(s)) await writeMeta(s, { ...meta, local });
           },
+          moves: movesFrom(b.moves),
         });
       } catch (err) {
         // The place out of reach or refusing: said, not reported as a fault (it is the network's state).

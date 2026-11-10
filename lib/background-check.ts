@@ -76,10 +76,14 @@ export type CheckedLogin = SealedLogin & {
 
 /**
  * Which key the `seen` lists hold. 2: txKey by the bank's day (lib/format.ts
- * bankDay). A box without it holds the keys from before — built on the
- * moment's first ten characters, and by a check on the unserialised Date at
- * that — which no booking has any more: its lists are dropped when it is
- * read (sanitizeBox), so the next check of each account only learns.
+ * bankDay). The box keeps those lists under `seen2` (sealText), never under
+ * `seen`, where the version before keeps its own: each finds only lists of
+ * its own keys, and an account without one is learnt anew, quietly — this
+ * version after a box from before, and the version before (back on Stable,
+ * or a device not updated yet) after a box from this one, which would
+ * otherwise take every booking of the window for new. A box from before
+ * holds the keys built on the moment's first ten characters — by a check on
+ * the unserialised Date at that — which no booking has any more.
  */
 const SEEN_KEYS = 2;
 
@@ -212,7 +216,7 @@ function sanitizeBox(v: unknown): Box {
   }
   const seen: Box['seen'] = {};
   // Lists of another key say nothing about the bookings as they are keyed now.
-  const rawSeen = (r.v === SEEN_KEYS && r.seen && typeof r.seen === 'object' ? r.seen : {}) as Record<string, unknown>;
+  const rawSeen = (r.seen2 && typeof r.seen2 === 'object' ? r.seen2 : {}) as Record<string, unknown>;
   for (const l of logins) {
     const byAccount = rawSeen[loginKey(l)];
     if (!byAccount || typeof byAccount !== 'object') continue;
@@ -275,8 +279,9 @@ function openText(raw: string | null, secret: Buffer): Box | null | 'stale' {
   }
 }
 
-const sealText = (secret: Buffer, box: Box): string =>
-  JSON.stringify(sealBox(keyFor(secret), newSalt(), Buffer.from(JSON.stringify(box), 'utf8'), AAD));
+/** The box as it is sealed: its seen lists under `seen2` (SEEN_KEYS). */
+const sealText = (secret: Buffer, { seen, ...box }: Box): string =>
+  JSON.stringify(sealBox(keyFor(secret), newSalt(), Buffer.from(JSON.stringify({ ...box, seen2: seen }), 'utf8'), AAD));
 
 /**
  * One change to the box, made on what is there now: `apply` gets the box (or

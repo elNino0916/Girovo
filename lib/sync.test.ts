@@ -37,7 +37,7 @@ function device(name: string, vault: Partial<VaultData> = {}) {
   return { id: newDeviceId(), name, vault: { ...EMPTY_VAULT, ...vault } as VaultData, local: fresh(), receipts: receiptsOf() };
 }
 
-type Extra = Pick<Parameters<typeof runSync>[0], 'keep' | 'maxBytes' | 'checkpoint'>;
+type Extra = Pick<Parameters<typeof runSync>[0], 'keep' | 'maxBytes' | 'checkpoint' | 'moves'>;
 
 async function round(place: SyncStore, key: Buffer, d: ReturnType<typeof device>, now: number, extra: Extra = {}) {
   const r = await runSync({ store: place, key, device: { id: d.id, name: d.name }, vault: d.vault, local: d.local, receipts: d.receipts, now, ...extra });
@@ -695,4 +695,54 @@ test('readPlace: only private addresses, only https for WebDAV', () => {
   assert.equal(readPlace({ kind: 'webdav', url: 'http://cloud.example', user: 'a', password: 'b' }), null);
   assert.deepEqual(readPlace({ kind: 'webdav', url: 'https://cloud.example/remote.php/dav/files/me/Girovo/', user: 'me', password: 'pw' }),
     { kind: 'webdav', url: 'https://cloud.example/remote.php/dav/files/me/Girovo', user: 'me', password: 'pw' });
+});
+
+// ---- booking keys moved inside a round (lib/booking-keys.ts) -----------------------
+
+test('a round with booking key moves: moved after the merge, at the old entry’s time, and the same on the other device', async () => {
+  const { keyMoves } = await import('./booking-keys.ts');
+  const { legacyTxKey, txKey } = await import('./categories.ts');
+  const tx = { entryDate: '2026-10-31T23:00:00.000Z', valueDate: '2026-10-31T23:00:00.000Z', amount: -12.9, remoteIban: 'DE02120300000000202051', remoteName: '', e2eReference: 'E1', bankReference: '' };
+  const [OLD, NEW] = [legacyTxKey(tx), txKey(tx)];
+  const moves = keyMoves([{ txs: [tx as never] }]);
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const desk = device('Computer', { notes: { [OLD]: 'Geschenk' } });
+  const phone = device('Telefon');
+  await round(place, key, desk, 1000);
+  await round(place, key, phone, 1100);
+  // The phone (the version before) changes the note under the old key; the desk moves in its next round.
+  phone.vault = { ...phone.vault, notes: { [OLD]: 'Geschenk für Mama' } };
+  await round(place, key, phone, 2000);
+  const r = await round(place, key, desk, 3000, { moves });
+  assert.equal(r.changed, true);
+  assert.deepEqual(desk.vault.notes, { [NEW]: 'Geschenk für Mama' }, 'the phone’s edit came in before the move');
+  assert.equal(desk.local.stamps[`notes/${NEW}`].t, 2000, 'at the time of that edit, not of the move');
+  assert.equal(desk.local.stamps[`notes/${OLD}`].h, '-');
+  await round(place, key, phone, 4000);
+  assert.deepEqual(phone.vault.notes, { [NEW]: 'Geschenk für Mama' });
+  // Nothing left to move: the next round changes nothing.
+  assert.equal((await round(place, key, desk, 5000, { moves })).changed, false);
+});
+
+test('a round already too full for what is new moves nothing: the entry waits under its old key, nothing is lost', async () => {
+  const { keyMoves } = await import('./booking-keys.ts');
+  const { legacyTxKey, txKey } = await import('./categories.ts');
+  const tx = { entryDate: '2026-10-31T23:00:00.000Z', valueDate: '2026-10-31T23:00:00.000Z', amount: -12.9, remoteIban: 'DE02120300000000202051', remoteName: '', e2eReference: 'E1', bankReference: '' };
+  const [OLD, NEW] = [legacyTxKey(tx), txKey(tx)];
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const desk = device('Computer', { notes: longNotes('d', 30) });
+  const phone = device('Telefon', { notes: { ...longNotes('p', 30), [OLD]: 'Geschenk' } });
+  const maxBytes = Math.ceil((bytesOf(phone.vault) + 2000) / FILL_MAX);
+  await round(place, key, desk, 1000);
+  const r = await round(place, key, phone, 2000, { maxBytes, moves: keyMoves([{ txs: [tx as never] }]) });
+  assert.ok(r.full > 0, 'some of the desk’s notes had no room');
+  assert.equal(phone.vault.notes[OLD], 'Geschenk');
+  assert.equal(phone.vault.notes[NEW], undefined);
+  assert.ok(phone.local.stamps[`notes/${OLD}`].h !== '-', 'not stamped as deleted');
+  // With room again (the limit raised here), the next round moves it.
+  await round(place, key, phone, 3000, { maxBytes: maxBytes * 4, moves: keyMoves([{ txs: [tx as never] }]) });
+  assert.equal(phone.vault.notes[NEW], 'Geschenk');
+  assert.equal(phone.vault.notes[OLD], undefined);
 });

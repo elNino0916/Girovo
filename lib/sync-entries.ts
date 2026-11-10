@@ -14,6 +14,7 @@
 
 import crypto from 'node:crypto';
 import type { VaultData } from './app-types';
+import { planMoves, type KeyMoves } from './booking-keys.ts';
 
 /**
  * What one entry was at the last sync on this device: its hash ('-' deleted)
@@ -223,4 +224,44 @@ export function mergeEntries(
     state[path] = c.kept ? { t: c.t, v: c.v, k: 1 } : { t: c.t, v: c.v };
   }
   return { entries, stamps: kept, state };
+}
+
+/**
+ * A booking's entries moved from keys from before to the key it has now
+ * (lib/booking-keys.ts), on the merged entries of a round — after the merge,
+ * so an edit another device made under a key from before is in, with its
+ * stamp, before anything is decided. Each entry taken to a key now keeps the
+ * stamp of the one it came from: a device that moves later never beats an
+ * edit made after the first move, and two devices moving the same entry
+ * write the same value at the same time. A key from before, and what the
+ * move takes off under a key now, get a tombstone of now. `merged` is
+ * changed in place; answers the paths written under a key now.
+ */
+export function moveMergedKeys(
+  merged: { entries: Map<string, unknown>; stamps: Stamps; state: Record<string, SyncEntry> },
+  moves: KeyMoves,
+  base: VaultData,
+  now: number,
+  maxBytes?: number,
+): Set<string> {
+  const written = new Set<string>();
+  if (!moves.size) return written;
+  const vault = vaultFromEntries(new Map([...merged.entries].filter(([p]) => !p.startsWith('docs/'))), base);
+  const { plan } = planMoves(vault, moves, { stamps: merged.stamps, maxBytes });
+  for (const { field, key, value, from } of plan.set) {
+    const path = `${field}/${key}`;
+    const t = merged.stamps[`${field}/${from}`]?.t ?? now;
+    merged.entries.set(path, value);
+    merged.stamps[path] = { h: hashOf(value), t };
+    merged.state[path] = { t, v: value };
+    written.add(path);
+  }
+  for (const { field, key } of plan.drop) {
+    const path = `${field}/${key}`;
+    if (!merged.entries.delete(path)) continue;
+    const t = Math.max(now, (merged.stamps[path]?.t ?? 0) + 1);
+    merged.stamps[path] = { h: '-', t };
+    merged.state[path] = { t, d: 1 };
+  }
+  return written;
 }

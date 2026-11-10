@@ -26,9 +26,10 @@
 
 import crypto from 'node:crypto';
 import type { VaultData } from './app-types';
+import type { KeyMoves } from './booking-keys';
 import type { KeptDoc } from './docs';
 import {
-  hashOf, mergeEntries, restamp, stableJson, vaultEntries, vaultFromEntries,
+  hashOf, mergeEntries, moveMergedKeys, restamp, stableJson, vaultEntries, vaultFromEntries,
   type RemoteState, type Stamp, type Stamps, type SyncEntry,
 } from './sync-entries.ts';
 
@@ -245,6 +246,12 @@ export async function runSync(opts: {
    * back, a match made there would be undone).
    */
   checkpoint?: (local: SyncLocal) => Promise<void>;
+  /**
+   * Booking keys to move from keys from before to the keys now
+   * (lib/booking-keys.ts): done after the merge, with every entry's stamp
+   * (sync-entries.ts moveMergedKeys) — never on the page while sync is on.
+   */
+  moves?: KeyMoves;
   now?: number;
 }): Promise<SyncResult> {
   const { store, key, device, vault, receipts } = opts;
@@ -291,6 +298,10 @@ export async function runSync(opts: {
     if (st?.entries && typeof st.entries === 'object') remotes.push({ device: d.id, entries: st.entries });
   }
   const merged = mergeEntries(entries, stamps, device.id, remotes, now);
+  const fill = opts.maxBytes === undefined ? Infinity : Math.floor(opts.maxBytes * FILL_MAX);
+  // Booking keys moved now that the others' edits are in (moveMergedKeys);
+  // what the move wrote is this device's own, never left out below as new.
+  const moved = opts.moves ? moveMergedKeys(merged, opts.moves, vault, now, Number.isFinite(fill) ? fill : undefined) : new Set<string>();
 
   // What this device holds now, stamped, is kept before anything of this
   // round reaches the place.
@@ -425,7 +436,6 @@ export async function runSync(opts: {
   let next = keepFrom(vaultOnly);
   let full = 0;
   let asBefore = false;
-  const fill = opts.maxBytes === undefined ? Infinity : Math.floor(opts.maxBytes * FILL_MAX);
   let excess = jsonBytes(next) - fill;
   if (excess > 0) {
     // Fuller than a round may fill it: what is new from the others is left
@@ -434,7 +444,7 @@ export async function runSync(opts: {
     // stamp — still theirs, never deleted — and the next round tries it again.
     const had = vaultEntries(vault);
     const incoming = [...vaultOnly.keys()]
-      .filter((p) => !had.has(p))
+      .filter((p) => !had.has(p) && !moved.has(p))
       .sort((a, b) => merged.stamps[a].t - merged.stamps[b].t || (a < b ? -1 : a > b ? 1 : 0));
     const left = new Map(vaultOnly);
     let i = 0;

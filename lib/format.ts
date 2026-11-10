@@ -491,6 +491,11 @@ const realDay = (s: unknown): s is string => typeof s === 'string' && DAY_KEY.te
  * Any other moment is a date the bank stated with an offset of its own
  * (camt's "2026-01-22+01:00", a date-time), and names the day in Germany.
  * '' for no date.
+ *
+ * The moment alone cannot tell everything apart: at UTC-10 and -11 a date
+ * with a German offset lands on local noon, and reads as the day before. So
+ * a camt date is read from the bank's own text first (lib/camt-day.ts); this
+ * is what is left for MT940, a card's list and a Date without its text.
  */
 export function statedDay(d: Date | string | null | undefined): string {
   if (realDay(d)) return d;
