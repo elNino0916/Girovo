@@ -10,7 +10,7 @@ import {
 import { isGrouping, sanitizeAccountOrder } from '@/lib/account-overview';
 import { isAvatarChoice, isAvatarImage, OWN_PICTURE } from '@/lib/avatars';
 import { sanitizeBudgets } from '@/lib/budgets';
-import { sanitizeNoticed, sanitizeReminders } from '@/lib/contract-watch';
+import { sanitizeContractNames, sanitizeNoticed, sanitizeReminders } from '@/lib/contract-watch';
 import { sanitizeManual, sanitizeManualDays } from '@/lib/manual-contracts';
 import type { CategoryId } from '@/lib/categories';
 import { post } from '@/lib/client-api';
@@ -700,6 +700,8 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
       ? raw.dismissedRecurring.filter((id): id is string => typeof id === 'string')
       : [],
     ...(sanitizeReminders(raw.contractReminders) ? { contractReminders: sanitizeReminders(raw.contractReminders) } : {}),
+    // Kept too, or a login (and every sync round) would put the bank's names back and the next round delete them everywhere.
+    ...(sanitizeContractNames(raw.contractNames) ? { contractNames: sanitizeContractNames(raw.contractNames) } : {}),
     ...(sanitizeManual(raw.manualContracts) ? { manualContracts: sanitizeManual(raw.manualContracts) } : {}),
     ...(sanitizeManualDays(raw.manualDays) ? { manualDays: sanitizeManualDays(raw.manualDays) } : {}),
     ...(sanitizeNoticed(raw.noticedContracts) ? { noticedContracts: sanitizeNoticed(raw.noticedContracts) } : {}),
