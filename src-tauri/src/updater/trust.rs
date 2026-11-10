@@ -94,11 +94,20 @@ pub fn build_number(version: &str) -> Option<u64> {
   if pre.is_empty() {
     return Some(code * BUILD_SCALE);
   }
+  // The slot below the release. 0.0.0 has none: its pre-releases have no build number.
+  let below = code.checked_sub(1)? * BUILD_SCALE;
   if let Some(p) = PREVIEW.captures(&pre) {
-    return Some((code - 1) * BUILD_SCALE + p[1].parse::<u64>().ok()?);
+    return Some(below + p[1].parse::<u64>().ok()?);
   }
   let n = stamp_minutes(&NIGHTLY.captures(&pre)?[1])?;
-  Some((code - 1) * BUILD_SCALE + n)
+  Some(below + n)
+}
+
+/// Whether `version` is a pre-release by its build number: a nightly or a
+/// preview, in the slot below its release. Not a release, and not a
+/// development build, which counts as the version it is numbered after.
+pub fn is_prerelease(version: &str) -> bool {
+  build_number(version).is_some_and(|build| build % BUILD_SCALE != 0)
 }
 
 // ---- signatures ---------------------------------------------------------------
@@ -133,6 +142,18 @@ pub fn signer_fits(signer: Option<Signer>, channel: Channel) -> bool {
   matches!((signer, channel), (Some(Signer::Stable), _) | (Some(Signer::Nightly), Channel::Preview))
 }
 
+/// The same rule where there is no channel to go by, a file the user picked
+/// (engine::check_file): the stable key signs any version, the nightly key
+/// only a nightly or a preview. A release signed with the nightly key is not
+/// Girovo's release.
+pub fn signer_fits_version(signer: Option<Signer>, version: &str) -> bool {
+  match signer {
+    Some(Signer::Stable) => true,
+    Some(Signer::Nightly) => is_prerelease(version),
+    None => false,
+  }
+}
+
 // ---- staged rollout --------------------------------------------------------------
 
 /// This installation's bucket 0–99 for `version`: the same for every check of
@@ -153,15 +174,16 @@ pub fn reaches(rollout: f64, bucket: u8, early: bool) -> bool {
 
 /// girovo-update.json as a Release, its files' hashes from the manifest, or
 /// None when it is not a manifest of a release Girovo could take: another
-/// format, a build number that is not its version's, files outside the
-/// project's downloads.
+/// format, a version not written as a release names it ("v6.0.2", "06.0.2":
+/// update-trust.ts refuses those too), a build number that is not its
+/// version's, files outside the project's downloads.
 pub fn release_of(bytes: &[u8], origin: &Origin) -> Option<Release> {
   let m: Value = serde_json::from_slice(bytes).ok()?;
   if m.get("format")?.as_str()? != "girovo-update" || m.get("v")?.as_u64()? != 1 {
     return None;
   }
   let version = m.get("version")?.as_str()?.to_string();
-  if Some(m.get("build")?.as_u64()?) != build_number(&version) {
+  if !logic::is_plain_version(&version) || Some(m.get("build")?.as_u64()?) != build_number(&version) {
     return None;
   }
   // Each file through the same checks as GitHub's own listing (logic::parse_asset).
@@ -294,6 +316,31 @@ mod tests {
     }
   }
 
+  #[test]
+  fn a_pre_release_of_0_0_0_has_no_build_number_and_nothing_overflows() {
+    // There is no slot below 0.0.0: refused, never (0 - 1) x 10^9.
+    assert_eq!(build_number("0.0.0"), Some(0));
+    assert_eq!(build_number("0.0.0-preview.1"), None);
+    assert_eq!(build_number("0.0.0-nightly.202611071832.gc0d6b0c"), None);
+    assert_eq!(build_number("0.0.0-dev.4"), Some(0), "a development build counts as its version");
+    assert_eq!(build_number("0.0.1-preview.1"), Some(9_000_000_001));
+    // A manifest of such a version, whatever build it claims (here what wrapping would give).
+    let wrapped = 0u64.wrapping_sub(1).wrapping_mul(BUILD_SCALE).wrapping_add(1);
+    let mut m: Value = serde_json::from_str(&manifest("0.0.0-preview.1")).unwrap();
+    m["build"] = json!(wrapped);
+    assert!(release_of(m.to_string().as_bytes(), &origin()).is_none());
+  }
+
+  #[test]
+  fn nightlies_and_previews_are_pre_releases_releases_and_dev_builds_are_not() {
+    for v in ["6.0.2-nightly.202611071832.gc0d6b0c", "6.0.0-preview.3", "6.0.0-preview.202611071208.gef82cf6", "6.0.0-preview.3-dev.7"] {
+      assert!(is_prerelease(v), "{v}");
+    }
+    for v in ["6.0.2", "6.0.2-dev.41", "6.0.0-rc.1", "0.0.0-preview.1", "nonsense", ""] {
+      assert!(!is_prerelease(v), "{v:?}");
+    }
+  }
+
   fn keys() -> (Keys, aws_lc_rs::signature::Ed25519KeyPair, aws_lc_rs::signature::Ed25519KeyPair) {
     let (stable, s) = pair(1);
     let (nightly, n) = pair(2);
@@ -338,6 +385,19 @@ mod tests {
     assert!(signer_fits(Some(Signer::Nightly), Channel::Preview));
     assert!(!signer_fits(Some(Signer::Nightly), Channel::Stable));
     assert!(!signer_fits(None, Channel::Preview));
+  }
+
+  #[test]
+  fn which_signer_a_version_takes() {
+    let nightly = "6.0.2-nightly.202611071832.gc0d6b0c";
+    assert!(signer_fits_version(Some(Signer::Stable), "6.2.0"));
+    assert!(signer_fits_version(Some(Signer::Stable), nightly));
+    assert!(signer_fits_version(Some(Signer::Nightly), nightly));
+    assert!(signer_fits_version(Some(Signer::Nightly), "6.0.0-preview.3"));
+    assert!(!signer_fits_version(Some(Signer::Nightly), "6.2.0"), "the nightly key can't sign a release");
+    assert!(!signer_fits_version(Some(Signer::Nightly), "6.2.0-dev.4"), "nor a build that counts as one");
+    assert!(!signer_fits_version(Some(Signer::Nightly), "nonsense"));
+    assert!(!signer_fits_version(None, nightly));
   }
 
   #[test]
@@ -395,6 +455,19 @@ mod tests {
     let unhashed = manifest("6.0.2").replace(&"ab".repeat(32), "nope");
     assert!(release_of(unhashed.as_bytes(), &origin()).is_none());
     assert!(release_of(b"{}", &origin()).is_none());
+  }
+
+  #[test]
+  fn a_manifest_whose_version_is_not_written_as_a_release_names_it_is_refused() {
+    // build_number reads all of these as 6.0.2, so the build adds up; the
+    // app's JavaScript (update-trust.ts releaseOf) refuses them, and so does this.
+    assert!(release_of(manifest("6.0.2").as_bytes(), &origin()).is_some());
+    for odd in ["v6.0.2", "06.0.2", " 6.0.2", "6.0.2 ", "6.00.2"] {
+      assert_eq!(build_number(odd), build_number("6.0.2"), "{odd:?}");
+      let mut m: Value = serde_json::from_str(&manifest("6.0.2")).unwrap();
+      m["version"] = json!(odd);
+      assert!(release_of(m.to_string().as_bytes(), &origin()).is_none(), "{odd:?}");
+    }
   }
 
   fn listed(version: &str, rollout: f64, signer: &aws_lc_rs::signature::Ed25519KeyPair) -> Listed {

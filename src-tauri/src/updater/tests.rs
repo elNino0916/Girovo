@@ -854,6 +854,135 @@ async fn the_marker_of_an_electron_install_is_read_too() {
   assert_eq!((installed.from.as_str(), installed.url.as_str()), ("5.16.2", format!("{PAGE}/tag/6.0.0").as_str()));
 }
 
+/// What an install leaves for the next start, `age` old.
+fn write_marker(cache: &TempDir, from: &str, to: &str, age: Duration) {
+  let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap();
+  let at = (now - age).as_millis() as u64;
+  let marker = json!({ "from": from, "to": to, "at": at, "notes": "## Neu", "url": format!("{PAGE}/tag/{to}"), "previousFile": null });
+  std::fs::write(cache.path().join("installing.json"), marker.to_string()).unwrap();
+}
+
+#[tokio::test]
+async fn the_same_version_installed_once_more_is_not_greeted_as_an_update() {
+  // "Update aus Datei installieren" with the running version: 4.0.0 before
+  // and after, whether the installer ran or not.
+  let cache = TempDir::new();
+  write_marker(&cache, "4.0.0", "4.0.0", Duration::from_secs(60));
+  // What is remembered of another version's failed install is not this marker's to clear.
+  let host = FakeHost::with_pref(PREF_FAILED_INSTALL, "9.9.9");
+  let updater = make(config("http://127.0.0.1:9/", cache.path()), &host);
+  updater.start();
+  updater.stop();
+  let s = updater.state();
+  assert_eq!(s.installed, None, "no \"aktualisiert auf 4.0.0\", nothing for telemetry");
+  assert_eq!((s.failed_install, s.error), (None, None), "and no failure either: nothing can be told");
+  assert_eq!(host.pref(PREF_FAILED_INSTALL).as_deref(), Some("9.9.9"));
+  assert!(!cache.path().join("installing.json").exists(), "the marker is read once");
+}
+
+#[tokio::test]
+async fn an_install_that_failed_days_ago_is_not_run_again_unasked_and_no_longer_said() {
+  let srv = Server::start(github_like(rel("9.9.9")));
+  let cache = TempDir::new();
+  // The installer for 9.9.9 was started two days ago; Girovo is opened again only now, still 4.0.0.
+  write_marker(&cache, "4.0.0", "9.9.9", Duration::from_secs(2 * 24 * 60 * 60));
+  let host = Arc::new(FakeHost::default());
+  let updater = make(config(&srv.base, cache.path()), &host);
+  updater.start();
+  assert_eq!(host.pref(PREF_FAILED_INSTALL).as_deref(), Some("9.9.9"), "remembered whatever its age");
+  let s = updater.state();
+  assert_eq!((s.failed_install, s.error), (None, None), "old news is not said");
+  let window = FakeWindow::default();
+  let check = updater.start_check(&window);
+  assert!(!updater.update_at_start(check, &window).await, "not installed again by itself");
+  assert_eq!(host.installs().len(), 0);
+  updater.stop();
+}
+
+#[tokio::test]
+async fn a_channel_the_user_picks_is_not_undone_by_the_next_release() {
+  let srv = Server::start(|_req, conn, _base| conn.send(404, b"{}"));
+  let cache = TempDir::new();
+  let at = |version: &str| {
+    let mut c = config(&srv.base, cache.path());
+    c.current_version = version.into();
+    c
+  };
+  // A fresh copy of a release (nothing was ever moved), where the user picks Nightly.
+  let host = Arc::new(FakeHost::default());
+  let updater = make(at("6.0.4"), &host);
+  assert_eq!(updater.set_channel("preview").await.channel, Channel::Preview);
+  assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some("6.0.4"), "the choice is noted");
+  // Nightlies, then the next release: the channel stays Nightly.
+  assert_eq!(make(at("6.1.0-nightly.202611101200.gabcdef0"), &host).state().channel, Channel::Preview);
+  assert_eq!(make(at("6.1.0"), &host).state().channel, Channel::Preview);
+  assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("preview"));
+  // Picking the channel it is on already counts as a choice too.
+  let host = FakeHost::with_pref(PREF_CHANNEL, "preview");
+  make(at("6.1.0-nightly.202611101200.gabcdef0"), &host).set_channel("preview").await;
+  assert_eq!(make(at("6.1.0"), &host).state().channel, Channel::Preview);
+  // And what a move noted before stays as it was.
+  let host = FakeHost::on_channel("stable");
+  make(at("6.0.4"), &host).set_channel("preview").await;
+  assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some("6.0.0"));
+}
+
+#[tokio::test]
+async fn a_restart_asked_for_while_quitting_for_an_install_does_not_take_its_place() {
+  let srv = Server::start(github_like(rel("9.9.9")));
+  let cache = TempDir::new();
+  let host = Arc::new(FakeHost::default());
+  let updater = make(config(&srv.base, cache.path()), &host);
+  updater.check(true).await;
+  updater.download().await;
+  assert_eq!(updater.install().await.phase, Phase::Installing);
+  // "Jetzt neu starten" while the page's last writes are waited for.
+  assert_eq!(updater.restart_to_update(["--updated".to_string()]).phase, Phase::Installing);
+  let quits = host.quits.lock().unwrap();
+  assert_eq!(quits.len(), 1, "{quits:?}");
+  assert!(matches!(quits[0], AtExit::Install(_)));
+}
+
+#[test]
+fn at_exit_an_install_noted_is_not_replaced_by_a_restart() {
+  let plan = InstallPlan { file: PathBuf::from("C:/cache/Girovo-9.9.9-Setup.exe"), args: vec![], version: "9.9.9".into(), sha256: None };
+  let restart = || AtExit::Relaunch(vec!["--update".into()]);
+  let mut queued = None;
+  assert!(queue_at_exit(&mut queued, restart()));
+  assert_eq!(queued, Some(restart()));
+  // An install takes a restart's place…
+  assert!(queue_at_exit(&mut queued, AtExit::Install(plan.clone())));
+  // …a restart never an install's.
+  assert!(!queue_at_exit(&mut queued, restart()));
+  assert_eq!(queued, Some(AtExit::Install(plan.clone())));
+  assert!(queue_at_exit(&mut queued, AtExit::Install(plan.clone())));
+}
+
+#[tokio::test]
+async fn a_download_the_server_takes_and_never_answers_is_given_up() {
+  // The connection opens, the request goes out, and then nothing: no headers, ever.
+  let srv = Server::start(|req, conn, base| {
+    if req.path == "/latest" {
+      conn.json(&release_json(base, &rel("9.9.9")));
+    } else {
+      conn.hang();
+    }
+  });
+  let cache = TempDir::new();
+  let mut cfg = config(&srv.base, cache.path());
+  cfg.stall = Duration::from_millis(300);
+  let updater = make(cfg, &Arc::new(FakeHost::default()));
+  assert_eq!(updater.check(true).await.phase, Phase::Available);
+  let started = std::time::Instant::now();
+  let s = updater.download().await;
+  assert!(started.elapsed() < Duration::from_secs(20), "given up after the stall limit, not left waiting");
+  assert_eq!(s.phase, Phase::Available);
+  let error = s.error.unwrap();
+  assert_eq!(error.during, During::Download);
+  assert!(error.message.contains("Verbindung ist abgebrochen"), "{}", error.message);
+  assert!(cache.names().iter().all(|n| !n.ends_with(".partial")));
+}
+
 #[tokio::test]
 async fn restart_to_update_starts_again_with_update_only_the_installed_app() {
   let cache = TempDir::new();
@@ -927,6 +1056,8 @@ fn at_exit_a_restart_starts_the_app_with_its_arguments() {
 struct FakeWindow {
   log: Mutex<Vec<String>>,
   progress: Mutex<Vec<f64>>,
+  /// The user closed it.
+  closed: std::sync::atomic::AtomicBool,
 }
 
 impl StartWindow for FakeWindow {
@@ -941,6 +1072,9 @@ impl StartWindow for FakeWindow {
   }
   fn progress(&self, percent: f64) {
     self.progress.lock().unwrap().push(percent);
+  }
+  fn is_open(&self) -> bool {
+    !self.closed.load(Ordering::SeqCst)
   }
 }
 
@@ -1037,6 +1171,65 @@ async fn at_start_a_release_whose_install_just_failed_is_not_installed_again_una
   assert!(asked.update_at_start(check, &window).await);
   assert_eq!(host.installs().len(), 1);
   asked.stop();
+}
+
+#[tokio::test]
+async fn at_start_a_release_the_user_stepped_back_from_is_not_put_back_unasked() {
+  let srv = Server::start(github_like(rel("9.9.9")));
+  let cache = TempDir::new();
+  let window = FakeWindow::default();
+  // Stepped back from 9.9.9 (or from something newer still): 9.9.9 waits for the user.
+  for held in ["9.9.9", "10.0.0"] {
+    let host = FakeHost::with_pref(PREF_HELD_BACK, held);
+    let updater = make(config(&srv.base, cache.path()), &host);
+    let check = updater.start_check(&window);
+    assert!(!updater.update_at_start(check, &window).await, "held at {held}");
+    assert_eq!(host.installs().len(), 0);
+    assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some(held), "and stays held");
+    // The app itself still knows of the release: installing it is a click.
+    assert_eq!(updater.state().release.unwrap().version, "9.9.9");
+  }
+  // Stepped back from an older one: 9.9.9 is newer, installed as always, and the step back is over.
+  let host = FakeHost::with_pref(PREF_HELD_BACK, "9.9.8");
+  let updater = make(config(&srv.base, cache.path()), &host);
+  let check = updater.start_check(&window);
+  assert!(updater.update_at_start(check, &window).await);
+  assert_eq!(host.installs().len(), 1);
+  assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some(""));
+  // Asked for ("Jetzt neu starten und installieren", --update): installed.
+  let host = FakeHost::with_pref(PREF_HELD_BACK, "9.9.9");
+  let mut cfg = config(&srv.base, cache.path());
+  cfg.update_asked = true;
+  let updater = make(cfg, &host);
+  let check = updater.start_check(&window);
+  assert!(updater.update_at_start(check, &window).await);
+  assert_eq!(host.installs().len(), 1);
+  assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some(""));
+}
+
+#[tokio::test]
+async fn at_start_closing_the_window_during_the_download_opens_girovo_at_once() {
+  // 9.9.9 is found, its download sends its headers and then nothing.
+  let srv = Server::start(with_previews(true));
+  let cache = TempDir::new();
+  let host = Arc::new(FakeHost::default());
+  let updater = make(config(&srv.base, cache.path()), &host);
+  let window = Arc::new(FakeWindow::default());
+  let check = updater.start_check(&*window);
+  let user = window.clone();
+  tokio::spawn(async move {
+    while !user.log.lock().unwrap().iter().any(|l| l == "step downloading") {
+      tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    user.closed.store(true, Ordering::SeqCst);
+  });
+  let started = std::time::Instant::now();
+  assert!(!updater.update_at_start(check, &*window).await);
+  assert!(started.elapsed() < Duration::from_secs(20), "not until the download ends or stalls");
+  assert_eq!(host.installs().len(), 0);
+  // The download goes on behind the app.
+  wait_until(|| updater.state().phase == Phase::Downloading).await;
+  updater.stop();
 }
 
 // ---- differential downloads -------------------------------------------------------------------
@@ -1656,6 +1849,157 @@ mod signed {
     let offer = updater.check_file(picked(&downloads, "9.9.9", &payload())).await.file.unwrap();
     assert_eq!(offer.phase, FilePhase::Refused);
     assert!(updater.dismiss_file().file.is_none());
+  }
+
+  // ---- the nightly key signs nightlies only ----
+
+  const NIGHTLY: &str = "9.9.9-nightly.202611071832.gc0d6b0c";
+
+  /// A nightly, signed with the nightly key.
+  fn nightly_by_nightly(b: &str) -> Vec<Value> {
+    vec![listed(b, NIGHTLY, 100, 2)]
+  }
+
+  #[tokio::test]
+  async fn a_picked_release_signed_with_the_nightly_key_is_refused_a_nightly_is_taken() {
+    // girovo.de lists "9.9.9" signed with the nightly key; nothing else knows the file.
+    let srv = Server::start(site(Some(by_nightly), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let host = host();
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    let offer = updater.check_file(picked(&downloads, "9.9.9", &payload())).await.file.unwrap();
+    assert_eq!((offer.phase, offer.version.as_deref()), (FilePhase::Refused, None), "{offer:?}");
+    assert_eq!(updater.install_file().await.phase, Phase::Idle, "nothing to install");
+    assert!(host.installs().is_empty());
+
+    // The manifest its name points to on GitHub, signed with the nightly key: not Girovo's signature for a release.
+    let srv = Server::start(site(None, Some(2), Arc::default()));
+    let cache = TempDir::new();
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    let offer = updater.check_file(picked(&downloads, "9.9.9", &payload())).await.file.unwrap();
+    assert_eq!(offer.phase, FilePhase::Refused, "{offer:?}");
+    assert!(offer.message.unwrap().contains("Signatur dieser Datei ist ungültig"));
+
+    // A nightly signed with the nightly key is what that key is for.
+    let srv = Server::start(site(Some(nightly_by_nightly), None, Arc::default()));
+    let cache = TempDir::new();
+    let updater = make(signed_config(&srv.base, cache.path()), &host);
+    let offer = updater.check_file(picked(&downloads, NIGHTLY, &payload())).await.file.unwrap();
+    assert_eq!((offer.phase, offer.version.as_deref()), (FilePhase::Ready, Some(NIGHTLY)), "{offer:?}");
+  }
+
+  #[tokio::test]
+  async fn a_bundle_of_a_release_signed_with_the_nightly_key_is_refused_a_nightly_is_taken() {
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let host = host();
+    let updater = make(signed_config(OFFLINE, cache.path()), &host);
+    let by_nightly_key = |m: &str| testing::sign(m.as_bytes(), &testing::pair(2).0);
+
+    let release = manifest_of(OFFLINE, "9.9.9", &payload());
+    let path = pack(&downloads, release.as_bytes(), by_nightly_key(&release).as_bytes(), SETUP, &payload());
+    let offer = updater.check_file(path).await.file.unwrap();
+    assert_eq!((offer.phase, offer.version.as_deref()), (FilePhase::Refused, None), "{offer:?}");
+    assert!(offer.message.unwrap().contains("Signatur dieser Datei ist ungültig"));
+    assert!(unpacked(&cache).is_empty(), "nothing unpacked");
+    assert_eq!(updater.install_file().await.phase, Phase::Idle, "nothing to install");
+    assert!(host.installs().is_empty());
+
+    let nightly = manifest_of(OFFLINE, NIGHTLY, &payload());
+    let setup = format!("Girovo-{NIGHTLY}-Setup.exe");
+    let path = pack(&downloads, nightly.as_bytes(), by_nightly_key(&nightly).as_bytes(), &setup, &payload());
+    let offer = updater.check_file(path).await.file.unwrap();
+    assert_eq!((offer.phase, offer.version.as_deref()), (FilePhase::Ready, Some(NIGHTLY)), "{offer:?}");
+  }
+
+  #[tokio::test]
+  async fn a_release_whose_manifest_the_nightly_key_signed_is_not_put_in_a_bundle() {
+    // The offer comes from girovo.de, signed; the release's own manifest is the nightly key's.
+    let srv = Server::start(site(Some(by_stable), Some(2), Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    updater.check(true).await;
+    let dest = downloads.path().join("x.girovoupdate");
+    assert_eq!(updater.save_bundle(dest.clone()).await.saving.unwrap().phase, SavePhase::Failed);
+    assert!(!dest.exists());
+  }
+
+  // ---- a copy the browser renamed ----
+
+  #[tokio::test]
+  async fn a_renamed_copy_of_a_signed_installer_is_still_found_by_its_version() {
+    // girovo.de can't be asked: only the name leads to the manifest.
+    let srv = Server::start(site(None, Some(1), Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let updater = make(signed_config(&srv.base, cache.path()), &host());
+    for name in ["Girovo-9.9.9-Setup (1).exe", "girovo-9.9.9-setup - Kopie.exe"] {
+      let renamed = downloads.path().join(name);
+      std::fs::write(&renamed, payload()).unwrap();
+      let offer = updater.check_file(renamed).await.file.unwrap();
+      assert_eq!((offer.phase, offer.version.as_deref()), (FilePhase::Ready, Some("9.9.9")), "{offer:?}");
+      assert_eq!(offer.name, name, "shown under the name the user knows");
+    }
+    // The name only says where to look: other bytes under it are not that release's installer.
+    let other = downloads.path().join("Girovo-9.9.9-Setup (2).exe");
+    std::fs::write(&other, b"something else entirely").unwrap();
+    assert!(message_of(updater.check_file(other).await).contains("verändert"));
+  }
+
+  // ---- an older version on purpose ----
+
+  #[tokio::test]
+  async fn an_older_version_from_a_file_is_not_updated_away_at_the_next_start() {
+    let srv = Server::start(site(Some(by_stable_both), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let host = host();
+    let at = |version: &str| {
+      let mut cfg = signed_config(&srv.base, cache.path());
+      cfg.current_version = version.into();
+      cfg
+    };
+    // 9.9.9 runs; the user installs 9.9.8 from a file.
+    let updater = make(at("9.9.9"), &host);
+    assert!(updater.check_file(picked(&downloads, "9.9.8", &older_payload())).await.file.unwrap().older);
+    assert_eq!(updater.install_file().await.phase, Phase::Installing);
+    assert_eq!(host.installs().len(), 1);
+    assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some("9.9.9"), "the version stepped back from");
+
+    // The next start is 9.9.8, and girovo.de offers 9.9.9: Girovo opens, 9.9.9 stays an offer.
+    let older = make(at("9.9.8"), &host);
+    older.start();
+    let window = FakeWindow::default();
+    let check = older.start_check(&window);
+    assert!(!older.update_at_start(check, &window).await);
+    assert_eq!(host.installs().len(), 1, "nothing installed by itself");
+    assert_eq!(older.state().release.unwrap().version, "9.9.9");
+    // "Jetzt neu starten und installieren" is the user asking for it: the step back is over.
+    older.restart_to_update([]);
+    assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some(""));
+    older.stop();
+  }
+
+  #[tokio::test]
+  async fn a_newer_or_the_same_version_from_a_file_holds_nothing_back_and_a_second_step_keeps_the_first() {
+    let srv = Server::start(site(Some(by_stable_both), None, Arc::default()));
+    let (cache, downloads) = (TempDir::new(), TempDir::new());
+    let at = |version: &str| {
+      let mut cfg = signed_config(&srv.base, cache.path());
+      cfg.current_version = version.into();
+      cfg
+    };
+    for (running, file, bytes) in [("9.0.0", "9.9.9", payload()), ("9.9.9", "9.9.9", payload())] {
+      let host = host();
+      let updater = make(at(running), &host);
+      updater.check_file(picked(&downloads, file, &bytes)).await;
+      assert_eq!(updater.install_file().await.phase, Phase::Installing);
+      assert_eq!(host.pref(PREF_HELD_BACK), None, "{file} over {running}");
+    }
+    // Stepped back from 10.0.0 before, now from 9.9.9 to 9.9.8: 10.0.0 and everything below stays held.
+    let host = host();
+    host.set_pref(PREF_HELD_BACK, "10.0.0");
+    let updater = make(at("9.9.9"), &host);
+    updater.check_file(picked(&downloads, "9.9.8", &older_payload())).await;
+    assert_eq!(updater.install_file().await.phase, Phase::Installing);
+    assert_eq!(host.pref(PREF_HELD_BACK).as_deref(), Some("10.0.0"));
   }
 
   // ---- could not be asked is not unsigned ----

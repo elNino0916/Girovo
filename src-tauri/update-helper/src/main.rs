@@ -282,6 +282,37 @@ pub fn way_on(plan: &Plan) -> WayOn {
   }
 }
 
+/// The two buttons' ids. Never 1 or 2: those are Windows' IDOK and IDCANCEL,
+/// which the message loop (IsDialogMessageW) sends for Enter and Esc at any
+/// time, button or no button.
+pub const ID_PRIMARY: usize = 101;
+pub const ID_CLOSE: usize = 102;
+const ID_ENTER: usize = 1;
+const ID_ESC: usize = 2;
+
+/// What a command to the window asks for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pressed {
+  /// The way on (way_on), then the window closes.
+  Primary,
+  Close,
+}
+
+/// What the command `id` means. Nothing while the update runs: the buttons
+/// are only there after a failure, and Enter or Esc must neither start Girovo
+/// under the installer nor end this window before the installer has run.
+/// After a failure Enter is the way on and Esc closes.
+pub fn pressed(id: usize, failed: bool) -> Option<Pressed> {
+  if !failed {
+    return None;
+  }
+  match id {
+    ID_PRIMARY | ID_ENTER => Some(Pressed::Primary),
+    ID_CLOSE | ID_ESC => Some(Pressed::Close),
+    _ => None,
+  }
+}
+
 fn main() {
   #[allow(unused_mut)]
   let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -431,13 +462,11 @@ mod ui {
   use windows::Win32::UI::WindowsAndMessaging::*;
   use windows::core::{HSTRING, PCWSTR, w};
 
-  use super::{Failure, Plan, Stage, WayOn};
+  use super::{Failure, ID_CLOSE, ID_PRIMARY, Plan, Pressed, Stage, WayOn};
 
   const WM_STAGE: u32 = WM_APP + 1;
   const WM_DONE: u32 = WM_APP + 2;
   const WM_FAILED: u32 = WM_APP + 3;
-  const ID_PRIMARY: usize = 1;
-  const ID_CLOSE: usize = 2;
   const TIMER: usize = 1;
 
   // The layout at 96 dpi (the mock's numbers).
@@ -992,8 +1021,11 @@ mod ui {
         LRESULT(0)
       }
       WM_COMMAND => {
-        let id = wparam.0 & 0xffff;
-        if id == ID_PRIMARY {
+        // Only after a failure, like WM_CLOSE below: Enter and Esc arrive
+        // here as commands at any time (super::pressed).
+        let failed = UI.get().is_some_and(|ui| ui.lock().unwrap().failure.is_some());
+        let Some(pressed) = super::pressed(wparam.0 & 0xffff, failed) else { return LRESULT(0) };
+        if pressed == Pressed::Primary {
           if let Some(ui) = UI.get() {
             match super::way_on(&ui.lock().unwrap().plan) {
               WayOn::Open(app) => {
@@ -1007,9 +1039,7 @@ mod ui {
             }
           }
         }
-        if id == ID_PRIMARY || id == ID_CLOSE {
-          let _ = unsafe { DestroyWindow(window) };
-        }
+        let _ = unsafe { DestroyWindow(window) };
         LRESULT(0)
       }
       WM_CTLCOLORBTN => {
@@ -1151,6 +1181,21 @@ mod tests {
     assert!(matches!(way_on(&gone), WayOn::Download(_)));
     let foreign = Plan { releases_url: "https://example.com/".into(), ..gone };
     assert!(matches!(way_on(&foreign), WayOn::None));
+  }
+
+  #[test]
+  fn enter_esc_and_the_buttons_do_nothing_while_the_update_runs() {
+    // 1 and 2 are what Windows sends for Enter and Esc (IDOK, IDCANCEL).
+    for id in [1, 2, ID_PRIMARY, ID_CLOSE] {
+      assert_eq!(pressed(id, false), None, "{id} while the installer works");
+    }
+    assert!(![1, 2].contains(&ID_PRIMARY) && ![1, 2].contains(&ID_CLOSE), "the buttons are not Enter and Esc");
+    // After a failure the buttons are there, and the keys go with them.
+    assert_eq!(pressed(ID_PRIMARY, true), Some(Pressed::Primary));
+    assert_eq!(pressed(ID_CLOSE, true), Some(Pressed::Close));
+    assert_eq!(pressed(1, true), Some(Pressed::Primary));
+    assert_eq!(pressed(2, true), Some(Pressed::Close));
+    assert_eq!(pressed(7, true), None);
   }
 
   #[test]

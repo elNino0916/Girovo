@@ -106,11 +106,13 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
   let actions;
   if (release && release.canInstall && atStart) {
     // Quits and starts again: the start window downloads and installs it.
+    // Not while Girovo is quitting to install a file ("Update aus Datei
+    // installieren"): a restart then would start it again with nothing installed.
     const restart = (
       <Button
         variant={unclear > 0 ? 'secondary' : 'primary'}
         iconLeft={<RefreshIcon size={16} />}
-        disabled={holding || savingFile}
+        disabled={holding || savingFile || state.phase === 'installing'}
         onClick={() => void updates.restartToUpdate()}
       >
         {release.back ? u.restartToGoBack(release.version) : u.restartToInstall}

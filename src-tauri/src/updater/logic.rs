@@ -100,11 +100,34 @@ pub fn channel_of(value: Option<&str>) -> Channel {
 /// a release build (6.0.0, owner 2026-11-07: everyone on Nightly to Stabil
 /// for now), with the channel on Nightly, that has not moved it before
 /// (`moved`, engine::PREF_MOVED_TO_STABLE) — once, so a Nightly picked again
-/// afterwards stays. Never a nightly or a development build.
+/// afterwards stays. `moved` is also set by a channel the user picks
+/// (Updater::set_channel): a choice is never undone. Never a nightly or a
+/// development build.
 pub fn moves_to_stable(stored: Option<&str>, current: &str, moved: Option<&str>) -> bool {
   channel_of(stored) == Channel::Preview
     && moved.is_none_or(str::is_empty)
     && parse_version(current).is_some_and(|v| v.pre.is_empty())
+}
+
+// ---- an older version from a file ---------------------------------------------
+//
+// "Update aus Datei installieren" takes an older release too (the way back).
+// The start installs updates by itself, so without a note of it the very next
+// start would install the newer release again. The note is the version
+// stepped back from (engine::PREF_HELD_BACK); these two decide on it, by
+// build number (trust::build_number).
+
+/// Whether installing the file's release (`file`) over the running one
+/// (`current`) is a step back.
+pub fn steps_back(file: Option<u64>, current: Option<u64>) -> bool {
+  matches!((file, current), (Some(f), Some(c)) if f < c)
+}
+
+/// Whether the start leaves the release on offer (`offered`) to the user:
+/// the user stepped back from `held`, and this one is that release or an
+/// older one. A newer release than `held` is installed as always.
+pub fn held_back(held: Option<u64>, offered: Option<u64>) -> bool {
+  matches!((held, offered), (Some(h), Some(o)) if o <= h)
 }
 
 // ---- versions ----------------------------------------------------------------
@@ -160,6 +183,13 @@ pub fn parse_version(text: &str) -> Option<Version> {
     return None;
   }
   Some(Version { core: numbers, pre: pre.unwrap_or("").to_string() })
+}
+
+/// Whether `text` is a version exactly as a release names it: "6.0.2" or
+/// "6.0.2-nightly.…", not "v6.0.2", "06.0.2" or " 6.0.2", which parse_version
+/// reads as the same version.
+pub fn is_plain_version(text: &str) -> bool {
+  parse_version(text).is_some_and(|v| v.to_plain() == text)
 }
 
 /// Two runs of digits by their value, however long: without leading zeros, the longer one is larger.
@@ -459,6 +489,32 @@ pub fn pick_asset(release: &Release, kind: InstallKind) -> Option<&Asset> {
     return None;
   }
   release.assets.iter().find(|a| a.name.to_ascii_lowercase().ends_with("-setup.exe"))
+}
+
+/// The version in an installer's file name, Girovo-<version>-Setup.exe — in
+/// any case, and also as a browser or Explorer names a second copy of it:
+/// "Girovo-6.0.3-Setup (1).exe", "Girovo-6.0.3-Setup - Kopie.exe". None when
+/// the name carries no version. The name only says where to look: the file is
+/// still checked against the signed manifest found there.
+pub fn setup_version(name: &str) -> Option<&str> {
+  // ASCII lower case keeps every byte where it was.
+  let lower = name.to_ascii_lowercase();
+  let rest = lower.strip_suffix(".exe")?.strip_prefix("girovo-")?;
+  let at = rest.rfind("-setup")?;
+  // What a copy adds comes after a space, a bracket, a dash; "-Setup2" is another name.
+  if rest[at + "-setup".len()..].starts_with(|c: char| c.is_alphanumeric()) {
+    return None;
+  }
+  let version = name.get("girovo-".len()..)?.get(..at)?;
+  is_plain_version(version).then_some(version)
+}
+
+/// Whether `name` is a Girovo installer's, as released or as a copy was
+/// renamed (setup_version), with or without a version in it: what a file
+/// dropped on the window is taken for.
+pub fn is_setup_name(name: &str) -> bool {
+  let lower = name.to_ascii_lowercase();
+  lower.starts_with("girovo") && lower.ends_with(".exe") && lower.contains("-setup")
 }
 
 // The list starts with the newest releases. A hundred: the nightly desktop
@@ -770,6 +826,71 @@ mod tests {
     assert!(!moves_to_stable(Some("preview"), "6.0.0-nightly.202611071435.gfe8c9a6", None));
     assert!(!moves_to_stable(Some("preview"), "6.0.0-dev.57", None));
     assert!(!moves_to_stable(Some("preview"), "not a version", None));
+  }
+
+  #[test]
+  fn after_a_step_back_the_start_leaves_releases_up_to_that_one_alone() {
+    // An older release from a file is a step back; the same or a newer one is not.
+    assert!(steps_back(Some(600_010), Some(600_020)));
+    assert!(!steps_back(Some(600_020), Some(600_020)));
+    assert!(!steps_back(Some(600_030), Some(600_020)));
+    assert!(!steps_back(None, Some(600_020)) && !steps_back(Some(600_010), None));
+    // Stepped back from 600_020: that release and anything older waits for the user…
+    assert!(held_back(Some(600_020), Some(600_020)));
+    assert!(held_back(Some(600_020), Some(600_015)));
+    // …a newer one is installed as always, and so is everything with no step back.
+    assert!(!held_back(Some(600_020), Some(600_030)));
+    assert!(!held_back(None, Some(600_030)));
+    assert!(!held_back(Some(600_020), None), "a release without a build number is not this rule's to stop");
+  }
+
+  #[test]
+  fn a_version_is_plain_only_as_a_release_names_it() {
+    for v in ["6.0.2", "6.0.2-nightly.202611071832.gc0d6b0c", "6.0.0-preview.3", "10.12.3"] {
+      assert!(is_plain_version(v), "{v}");
+    }
+    for v in ["v6.0.2", "06.0.2", "6.00.2", " 6.0.2", "6.0.2 ", "6.0.2+build", "6.0", "", "six"] {
+      assert!(!is_plain_version(v), "{v:?}");
+    }
+  }
+
+  #[test]
+  fn an_installers_name_gives_its_version_also_when_a_copy_was_renamed() {
+    let nightly = "6.0.2-nightly.202611071832.gc0d6b0c";
+    for (name, version) in [
+      ("Girovo-6.0.3-Setup.exe", "6.0.3"),
+      ("girovo-6.0.3-setup.EXE", "6.0.3"),
+      ("Girovo-6.0.3-Setup (1).exe", "6.0.3"),
+      ("Girovo-6.0.3-Setup(2).exe", "6.0.3"),
+      ("Girovo-6.0.3-Setup - Kopie.exe", "6.0.3"),
+      ("Girovo-6.0.3-Setup - Copy (2).exe", "6.0.3"),
+      ("Girovo-6.0.3-Setup_1.exe", "6.0.3"),
+      ("Girovo-6.0.2-nightly.202611071832.gc0d6b0c-Setup (1).exe", nightly),
+    ] {
+      assert_eq!(setup_version(name), Some(version), "{name}");
+      assert!(is_setup_name(name), "{name}");
+    }
+    for name in [
+      "Girovo-Setup (1).exe",
+      "Girovo-6.0.3-Setup2.exe",
+      "Girovo-6.0.3-SetupKopie.exe",
+      "Girovo-v6.0.3-Setup.exe",
+      "Girovo-06.0.3-Setup.exe",
+      "Girovo-6.0-Setup.exe",
+      "Girovo-6.0.3-Setup.msi",
+      "Other-6.0.3-Setup.exe",
+      "Girovo-6.0.3 -Setup.exe",
+      "Girövo-6.0.3-Setup.exe",
+      "",
+    ] {
+      assert_eq!(setup_version(name), None, "{name:?}");
+    }
+    // A drop on the window: a Girovo installer by its name, version or not.
+    assert!(is_setup_name("Girovo-Setup (1).exe"));
+    assert!(is_setup_name("Girovo Nightly-6.0.3-setup.exe"));
+    for name in ["Girovo-6.0.3.exe", "Other-6.0.3-Setup.exe", "Girovo-6.0.3-Setup.zip", ""] {
+      assert!(!is_setup_name(name), "{name:?}");
+    }
   }
 
   #[test]

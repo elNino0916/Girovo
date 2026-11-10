@@ -54,8 +54,14 @@ pub const PREF_AUTO: &str = "fints.updates.auto";
 // 'stable' (unset) or 'preview': whether pre-releases are offered too.
 pub const PREF_CHANNEL: &str = "fints.updates.channel";
 /// The release that took this copy from the Nightly channel back to Stabil
-/// (logic::moves_to_stable): set, it does not happen again.
+/// (logic::moves_to_stable), or the version the user picked a channel in
+/// (set_channel): set, the move does not happen (again).
 pub const PREF_MOVED_TO_STABLE: &str = "fints.updates.movedToStable";
+/// The version the user stepped back from with an older release from a file
+/// (install_file): the start does not install that release or an older one by
+/// itself (start.rs, logic::held_back), until the user asks for the update or
+/// a newer release is out.
+pub const PREF_HELD_BACK: &str = "fints.updates.heldBack";
 /// The version whose install did not complete: never installed again at
 /// start by itself (start.rs), until an install completes (read_marker).
 pub const PREF_FAILED_INSTALL: &str = "fints.updates.failedInstall";
@@ -309,6 +315,9 @@ pub struct Config {
   /// GitHub is https only; a test server is not.
   pub https_only: bool,
   pub retry_delay: Duration,
+  /// How long a download may say nothing — before its answer begins, and
+  /// between two pieces of it — until it is given up (STALL; the tests' is short).
+  pub stall: Duration,
   /// "Jetzt neu starten und installieren" started this one (UPDATE_ARG).
   pub update_asked: bool,
 }
@@ -328,6 +337,7 @@ impl Config {
       origin: Origin::default(),
       https_only: true,
       retry_delay: logic::RETRY_DELAY,
+      stall: STALL,
       update_asked: false,
     }
   }
@@ -708,7 +718,7 @@ impl Updater {
     build: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
     cancel: Option<&Cancel>,
   ) -> Result<reqwest::Response, Failure> {
-    let res = build(self.client.get(url)).send().await.map_err(Failure::Http)?;
+    let res = self.send(build(self.client.get(url))).await?;
     if !logic::passing_failure(res.status().as_u16()) {
       return Ok(res);
     }
@@ -717,7 +727,15 @@ impl Updater {
       Some(c) => abortable(c, async { Ok(tokio::time::sleep(self.cfg.retry_delay).await) }).await?,
       None => tokio::time::sleep(self.cfg.retry_delay).await,
     }
-    build(self.client.get(url)).send().await.map_err(Failure::Http)
+    self.send(build(self.client.get(url))).await
+  }
+
+  /// Sends `request` and answers once the response has begun. A server that
+  /// takes the connection and then says nothing is given up after the stall
+  /// limit, like a body that stops coming (save, fetch_range): a download's
+  /// request has no timeout of its own, which would count the whole body.
+  async fn send(&self, request: reqwest::RequestBuilder) -> Result<reqwest::Response, Failure> {
+    tokio::time::timeout(self.cfg.stall, request.send()).await.map_err(|_| Failure::Stalled)?.map_err(Failure::Http)
   }
 
   /// GitHub's API answer at `url`, parsed, or None when there is none (HTTP 404).
@@ -925,36 +943,58 @@ impl Updater {
     self.host.pref(key)
   }
 
+  /// The build number of the version the user stepped back from (PREF_HELD_BACK), for start.rs.
+  pub(super) fn held_back(&self) -> Option<u64> {
+    trust::build_number(&self.host.pref(PREF_HELD_BACK)?)
+  }
+
+  /// The step back is over: the user asked for the update, or a newer release is being installed.
+  pub(super) fn clear_held_back(&self) {
+    if self.host.pref(PREF_HELD_BACK).is_some_and(|v| !v.is_empty()) {
+      self.host.set_pref(PREF_HELD_BACK, "");
+    }
+  }
+
   fn read_marker(&self) {
     let Ok(text) = fs::read_to_string(self.marker_file()) else { return };
-    // Read once is enough; a leftover is ignored by its age.
+    // Read once is enough.
     let _ = fs::remove_file(self.marker_file());
     let Ok(Value::Object(marker)) = serde_json::from_str::<Value>(&text) else { return };
     let field = |k: &str| marker.get(k).and_then(Value::as_str);
     let to = field("to").unwrap_or("");
+    let from = field("from").unwrap_or("");
     let current = &self.cfg.current_version;
-    if to == current {
+    if to == current && from == to {
+      // The running version installed once more (from a file): the version
+      // was this one before and is this one now, so nothing tells whether the
+      // installer ran. No greeting, nothing for telemetry, and what is
+      // remembered of another version's failed install stays.
+      self.clear_cache(None);
+    } else if to == current {
       self.host.set_pref(PREF_FAILED_INSTALL, "");
       let installed = Installed {
         version: current.clone(),
-        from: field("from").unwrap_or("").chars().take(40).collect(),
+        from: from.chars().take(40).collect(),
         notes: field("notes").unwrap_or("").chars().take(logic::MAX_NOTES_CHARS).collect(),
         url: logic::release_page_or(field("url"), &self.cfg.origin.releases_page),
       };
       self.set(|s| s.installed = Some(installed));
       self.clear_cache(None);
-    } else if let Some(at) = marker.get("at").and_then(Value::as_f64)
-      && (now_ms() as f64) - at < MARKER_MAX_AGE_MS
-      && logic::parse_version(to).is_some()
-    {
+    } else if logic::parse_version(to).is_some() {
       // Another version than the one the installer was started for: it did not
       // run — an update, or the way back from a preview to an older release.
-      let message = self.texts().not_completed(to);
+      // Remembered however old the marker is, so the start does not install
+      // it again unasked when Girovo is next opened days later; said only
+      // while it is news.
       self.host.set_pref(PREF_FAILED_INSTALL, to);
-      self.set(|s| {
-        s.failed_install = Some(to.to_string());
-        s.error = Some(ErrorInfo { during: During::Install, message });
-      });
+      let recent = marker.get("at").and_then(Value::as_f64).is_some_and(|at| (now_ms() as f64) - at < MARKER_MAX_AGE_MS);
+      if recent {
+        let message = self.texts().not_completed(to);
+        self.set(|s| {
+          s.failed_install = Some(to.to_string());
+          s.error = Some(ErrorInfo { during: During::Install, message });
+        });
+      }
     }
   }
 
@@ -1041,8 +1081,8 @@ impl Updater {
     progress: &Progress<'_>,
   ) -> Result<(), Failure> {
     let end = range.start + range.size - 1;
-    let send = self.client.get(&asset.url).header("Range", format!("bytes={}-{end}", range.start)).send();
-    let mut res = abortable(stop, async { send.await.map_err(Failure::Http) }).await?;
+    let request = self.client.get(&asset.url).header("Range", format!("bytes={}-{end}", range.start));
+    let mut res = abortable(stop, self.send(request)).await?;
     let got = res.headers().get("content-range").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     // A server that ignores the range answers 200 with the whole file.
     let expected = format!("bytes {}-{end}/", range.start);
@@ -1052,7 +1092,7 @@ impl Updater {
     let mut at = range.start;
     loop {
       let next = abortable(stop, async {
-        tokio::time::timeout(STALL, res.chunk()).await.map_err(|_| Failure::Stalled)?.map_err(Failure::Http)
+        tokio::time::timeout(self.cfg.stall, res.chunk()).await.map_err(|_| Failure::Stalled)?.map_err(Failure::Http)
       })
       .await?;
       let Some(chunk) = next else { break };
@@ -1172,7 +1212,7 @@ impl Updater {
     let mut received = 0u64;
     loop {
       let next = abortable(cancel, async {
-        tokio::time::timeout(STALL, res.chunk()).await.map_err(|_| Failure::Stalled)?.map_err(Failure::Http)
+        tokio::time::timeout(self.cfg.stall, res.chunk()).await.map_err(|_| Failure::Stalled)?.map_err(Failure::Http)
       })
       .await?;
       let Some(chunk) = next else { break };
@@ -1369,6 +1409,7 @@ impl Updater {
             }
           });
         }
+        // No timeout on the request, which would count the body too: send() has the limit.
         let res = abortable(cancel, self.get_retrying(&asset.url, |r| r, Some(cancel))).await?;
         if !res.status().is_success() {
           return Err(Failure::Said(self.texts().download_http(res.status().as_u16())));
@@ -1451,9 +1492,13 @@ impl Updater {
   /// and start again with UPDATE_ARG, the start window installing the update.
   /// `args`: this start's own, which the next one keeps.
   pub fn restart_to_update(&self, args: impl IntoIterator<Item = String>) -> UpdateState {
-    if self.cfg.kind != InstallKind::Nsis {
+    // Quitting for an install already (install_file, while the page's last
+    // writes are waited for): a restart now would start Girovo again without it.
+    if self.cfg.kind != InstallKind::Nsis || self.state().phase == Phase::Installing {
       return self.state();
     }
+    // The user's own "install it now": a step back from this release is over.
+    self.clear_held_back();
     // A bundle this start was opened with has had its turn.
     let mut next: Vec<String> = args.into_iter().filter(|a| a != "--background" && a != UPDATE_ARG && !bundle::is_bundle(Path::new(a))).collect();
     next.push(UPDATE_ARG.to_string());
@@ -1563,12 +1608,17 @@ impl Updater {
       Ok(Ok(_)) => return self.file_outcome(round, refused(say.file_unsigned)),
       _ => return self.file_outcome(round, refused(say.file_unreadable)),
     };
-    if trust::verify(&manifest, &String::from_utf8_lossy(&sig), &self.cfg.keys).is_none() {
+    let signer = trust::verify(&manifest, &String::from_utf8_lossy(&sig), &self.cfg.keys);
+    if signer.is_none() {
       return self.file_outcome(round, refused(say.file_bad_signature));
     }
     let Some(release) = trust::release_of(&manifest, &self.cfg.origin) else {
       return self.file_outcome(round, refused(say.file_unreadable));
     };
+    // The nightly key signs nightlies, never a release (as on the channels).
+    if !trust::signer_fits_version(signer, &release.version) {
+      return self.file_outcome(round, refused(say.file_bad_signature));
+    }
     // Its name is a plain file name and it has a hash: release_of takes no other.
     let Some(asset) = logic::pick_asset(&release, self.cfg.kind).cloned() else {
       return self.file_outcome(round, refused(say.file_changed));
@@ -1662,10 +1712,12 @@ impl Updater {
 
   /// The signed release whose installer (for this kind of install) is `size`
   /// bytes with `sha`: from girovo.de's listings, else the manifest of the
-  /// release the file's name points to (Girovo-<version>-Setup.exe). Refused,
-  /// it says why: no signature for it anywhere, a signature that is not
-  /// Girovo's, a signed release of that name whose installer is not this file,
-  /// or that the places to ask did not answer, which says nothing about the file.
+  /// release the file's name points to (Girovo-<version>-Setup.exe, also as a
+  /// copy was renamed: logic::setup_version). Refused, it says why: no
+  /// signature for it anywhere, a signature that is not Girovo's (or the
+  /// nightly key's on a release), a signed release of that name whose
+  /// installer is not this file, or that the places to ask did not answer,
+  /// which says nothing about the file.
   async fn find_signed(&self, name: &str, size: u64, sha: &str) -> Result<(Release, Asset), Refusal> {
     // (manifest, signature, whether it is the one the file's name points to)
     let mut candidates: Vec<(String, String, bool)> = Vec::new();
@@ -1682,8 +1734,7 @@ impl Updater {
     // The release of this name answered that it has no manifest. girovo.de
     // only passes on what a release carries, so that settles it.
     let mut none_by_name = false;
-    let lower = name.to_ascii_lowercase();
-    let version = lower.strip_prefix("girovo-").and_then(|v| v.strip_suffix("-setup.exe")).map(|_| &name[7..name.len() - 10]);
+    let version = logic::setup_version(name);
     if let (Some(version), Some(prefix)) = (version.filter(|v| trust::build_number(v).is_some()), self.cfg.origin.download_prefixes.first()) {
       let at = |file: &str| Asset { name: file.to_string(), url: format!("{prefix}{version}/{file}"), size: 0, sha256: None };
       match self.look_up(&at(trust::MANIFEST_NAME)).await {
@@ -1703,11 +1754,17 @@ impl Updater {
     let named = version.map(str::to_string);
     let (mut bad, mut changed) = (false, false);
     for (manifest, sig, by_name) in candidates {
-      if trust::verify(manifest.as_bytes(), &sig, &self.cfg.keys).is_none() {
+      let signer = trust::verify(manifest.as_bytes(), &sig, &self.cfg.keys);
+      if signer.is_none() {
         bad |= by_name;
         continue;
       }
       let Some(release) = trust::release_of(manifest.as_bytes(), &self.cfg.origin) else { continue };
+      // The nightly key signs nightlies, never a release (as on the channels).
+      if !trust::signer_fits_version(signer, &release.version) {
+        bad |= by_name;
+        continue;
+      }
       match logic::pick_asset(&release, self.cfg.kind) {
         Some(a) if a.size == size && a.sha256.as_deref() == Some(sha) => {
           let a = a.clone();
@@ -1734,6 +1791,13 @@ impl Updater {
     let Some((file, release, asset)) = chosen else { return self.state() };
     if matches!(self.state().phase, Phase::Downloading) {
       self.cancel();
+    }
+    // An older release, on purpose: the next start must not install the newer
+    // one again by itself (start.rs). The highest version stepped back from
+    // counts, so a second step further back keeps the first one's.
+    let current = trust::build_number(&self.cfg.current_version);
+    if logic::steps_back(trust::build_number(&release.version), current) && self.held_back() < current {
+      self.host.set_pref(PREF_HELD_BACK, &self.cfg.current_version);
     }
     {
       let mut inner = self.inner.lock().unwrap();
@@ -1810,8 +1874,11 @@ impl Updater {
     let at = |name: &str| Asset { name: name.to_string(), url: format!("{prefix}{}/{name}", release.version), size: 0, sha256: None };
     let manifest = self.small_file(&at(trust::MANIFEST_NAME)).await?;
     let sig = self.small_file(&at(trust::SIG_NAME)).await?;
-    trust::verify(&manifest, &String::from_utf8_lossy(&sig), &self.cfg.keys)?;
+    let signer = trust::verify(&manifest, &String::from_utf8_lossy(&sig), &self.cfg.keys);
     let signed = trust::release_of(&manifest, &self.cfg.origin).filter(|r| r.version == release.version)?;
+    if !trust::signer_fits_version(signer, &signed.version) {
+      return None;
+    }
     let installer = logic::pick_asset(&signed, self.cfg.kind)?.clone();
     if installer.name != asset.name || !file_matches(file, &installer).await {
       return None;
@@ -1859,6 +1926,11 @@ impl Updater {
   pub async fn set_channel(&self, value: &str) -> UpdateState {
     let channel = logic::channel_of(Some(value));
     self.host.set_pref(PREF_CHANNEL, channel.as_str());
+    // The user's own choice: the one-time move back to Stabil
+    // (logic::moves_to_stable) never undoes it, on whichever build it comes.
+    if self.host.pref(PREF_MOVED_TO_STABLE).is_none_or(|v| v.is_empty()) {
+      self.host.set_pref(PREF_MOVED_TO_STABLE, &self.cfg.current_version);
+    }
     if channel == self.state().channel {
       return self.state();
     }
@@ -1964,6 +2036,18 @@ fn copy_ranges(copies: &[logic::CopyRange], sources: &[PathBuf], out: &Mutex<Fil
     }
   }
   Ok(())
+}
+
+/// Notes `then` as what runs once the app has quit (mod.rs). An install
+/// already noted stays: the app is quitting for it, and a restart asked for
+/// meanwhile would start Girovo again with nothing installed — the installer
+/// starts it anyway. Answers whether `then` was noted.
+pub fn queue_at_exit(queued: &mut Option<AtExit>, then: AtExit) -> bool {
+  if matches!((&*queued, &then), (Some(AtExit::Install(_)), AtExit::Relaunch(_))) {
+    return false;
+  }
+  *queued = Some(then);
+  true
 }
 
 /// What happens once the app has quit (mod.rs): the installer, else the app

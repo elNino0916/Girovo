@@ -8,6 +8,10 @@
 // download or nothing new: Girovo opens as always, the app's own update
 // notices saying the rest. The way back to an older release only when it was
 // asked for ("Neu starten und zurück", --update); otherwise that stays a click.
+// So does a release the user stepped back from with an older version from a
+// file (PREF_HELD_BACK), and one whose install failed (PREF_FAILED_INSTALL).
+// A start window the user closes during the download opens Girovo at once;
+// the download goes on behind it.
 //
 // lib.rs's start() runs on a thread of its own, so the blocking form is what it calls:
 //
@@ -27,10 +31,13 @@ use std::time::Duration;
 use tauri::async_runtime::{self, JoinHandle};
 
 use super::engine::{PREF_FAILED_INSTALL, Phase, UpdateState, Updater};
-use super::logic::InstallKind;
+use super::logic::{self, InstallKind};
+use super::trust;
 
 /// How long a start waits for GitHub's answer before it opens Girovo anyway.
 pub const START_CHECK_LIMIT: Duration = Duration::from_secs(6);
+/// How often the start's download looks whether the start window is still open.
+const WINDOW_LOOK: Duration = Duration::from_millis(150);
 
 /// What update_at_start shows: the start window's own calls (splash.rs).
 pub trait StartWindow: Send + Sync {
@@ -118,6 +125,13 @@ impl Updater {
     {
       return false;
     }
+    // The user went back to an older version from a file: this release, the
+    // one stepped back from or an older one, is not put back unasked. A newer
+    // one ends the step back.
+    if !asked && logic::held_back(self.held_back(), trust::build_number(&release.version)) {
+      return false;
+    }
+    self.clear_held_back();
     window.set_update(Some(release.version.clone()));
     if found.phase == Phase::Available {
       window.step("downloading");
@@ -125,6 +139,8 @@ impl Updater {
       // Its own task: a start window closed meanwhile does not cut the download off.
       let updater = self.clone();
       let mut download = async_runtime::spawn(async move { updater.download().await });
+      // The window says nothing when it closes, so it is asked now and then.
+      let mut look = tokio::time::interval(WINDOW_LOOK);
       let done = loop {
         tokio::select! {
           done = &mut download => break done.ok(),
@@ -135,6 +151,14 @@ impl Updater {
             let s = states.borrow_and_update().clone();
             if s.phase == Phase::Downloading && s.total > 0 {
               window.progress(s.received as f64 / s.total as f64 * 100.0);
+            }
+          }
+          _ = look.tick() => {
+            // Closed by the user: Girovo opens now, not when the download
+            // ends. The download goes on behind it, and the app's own notice
+            // offers the restart once it is there.
+            if !window.is_open() {
+              return false;
             }
           }
         }

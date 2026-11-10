@@ -122,7 +122,10 @@ impl Host for TauriHost {
     crate::texts::lang(&self.app.state::<crate::prefs::Prefs>())
   }
   fn quit(&self, then: AtExit) {
-    *self.exit.action.lock().unwrap() = Some(then);
+    // Already quitting for an install: that quit goes on as it is.
+    if !engine::queue_at_exit(&mut self.exit.action.lock().unwrap(), then) {
+      return;
+    }
     // The page's writes on the disk first (closing.rs); not waited for at a
     // start, where no page listens yet.
     crate::closing::after_flush(&self.app, |app| {
@@ -156,7 +159,8 @@ pub fn report_state(app: &AppHandle) {
 /// go, and through the app's own end (leftover.rs), never Tauri's restart.
 pub fn relaunch(app: &AppHandle) {
   if let Some(shared) = app.try_state::<Shared>() {
-    *shared.exit.action.lock().unwrap() = Some(engine::AtExit::Relaunch(Vec::new()));
+    // An install the app is quitting for stays: its installer starts Girovo again too.
+    engine::queue_at_exit(&mut shared.exit.action.lock().unwrap(), engine::AtExit::Relaunch(Vec::new()));
   }
   app.exit(0);
 }
@@ -459,8 +463,8 @@ pub fn open_bundle(app: &AppHandle, args: impl IntoIterator<Item = String>) -> b
 fn dropped(app: &AppHandle, label: &str, event: &tauri::WindowEvent) {
   let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event else { return };
   let [path] = paths.as_slice() else { return };
-  let name = path.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
-  let setup = name.starts_with("girovo") && name.ends_with("-setup.exe");
+  // Also a copy the browser or Explorer renamed ("Girovo-6.0.3-Setup (1).exe").
+  let setup = path.file_name().is_some_and(|n| logic::is_setup_name(&n.to_string_lossy()));
   if label != "main" || !(setup || bundle::is_bundle(path)) {
     return;
   }
