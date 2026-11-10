@@ -8,6 +8,8 @@ import {
 import { MESSAGES } from './i18n/index.ts';
 import { seriesIdentity } from './recurring.ts';
 import type { BackgroundStore } from './background-store.ts';
+import { txKey } from './categories.ts';
+import { newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
 import type { SerializedTransaction } from './fints-types';
 
 /** A store in memory, as the phone's preferences or the desktop's file would be. */
@@ -180,7 +182,6 @@ test('bookings the app showed count as seen: no notice for them later', async ()
   await enroll(store, secret, [spk], true);
   await runCheck(store, secret, fakeBank({ '50050201:DE01': [] }).side, NOW);
   const shown = tx('2026-11-03', -9.99, 'NETFLIX');
-  const { txKey } = await import('./categories.ts');
   await touch(store, secret, spk, 'DE01', [txKey(shown)]);
   const r = await runCheck(store, secret, fakeBank({ '50050201:DE01': [shown] }).side, NOW + 1);
   assert.deepEqual(r.notices, []);
@@ -418,10 +419,88 @@ test('mergeSeen keeps each key as often as either side has it, and forgets old d
   assert.deepEqual(merged, ['2026-11-01|1|a|', '2026-11-01|1|a|']);
 });
 
+test('mergeSeen reads the day after the key mark: old days are forgotten, the rest kept in day order', () => {
+  const merged = mergeSeen(['d2|2026-11-01|1|a|', 'd2|2026-09-01|1|b|'], ['d2|2026-10-30|1|c|'], NOW);
+  assert.deepEqual(merged, ['d2|2026-10-30|1|c|', 'd2|2026-11-01|1|a|']);
+});
+
 test('newBookings counts equal bookings', () => {
   const a = tx('2026-11-01', -3, 'BÄCKER');
   const { length } = newBookings([], [a, a]);
   assert.equal(length, 2);
+});
+
+// ---- the seen lists and the key they hold ------------------------------------------
+
+const BOX_DOMAIN = 'girovo/background/v1';
+const boxKey = () => crypto.createHash('sha256').update(BOX_DOMAIN).update(secret).digest();
+/** The box as it is sealed in the store, opened the way the module does. */
+const openStored = (store: { text: string | null }): Record<string, unknown> =>
+  JSON.parse(openBox(boxKey(), parseBox(JSON.parse(store.text!))!, Buffer.from(BOX_DOMAIN, 'utf8')).toString('utf8'));
+const sealStored = (store: { text: string | null }, box: unknown) => {
+  store.text = JSON.stringify(sealBox(boxKey(), newSalt(), Buffer.from(JSON.stringify(box), 'utf8'), Buffer.from(BOX_DOMAIN, 'utf8')));
+};
+
+test('a box from before the bank\'s day: every account learns once more and says nothing, then reports as ever', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  const known = [tx('2026-10-30', -12.5, 'REWE'), tx('2026-11-01', -3, 'Bäcker')];
+  await runCheck(store, secret, fakeBank({ '50050201:DE01': known }).side, NOW);
+  assert.equal(openStored(store).v, 2);
+
+  // The box as the version before left it: the keys a check then made of the
+  // parser's Dates (their text's first ten characters), under its mark.
+  const before = openStored(store);
+  sealStored(store, { ...before, v: 1, seen: { '50050201|max': { DE01: ['Fri Oct 30|-12.50|REWE|', 'Sun Nov 01|-3.00|BACKER|'] } } });
+
+  // The first check after: none of the old keys fits a booking, and a booking
+  // that really is new is among them — nothing is said, all of it is learnt.
+  const now = [...known, tx('2026-11-02', -40, 'TANKSTELLE')];
+  const relearnt = await runCheck(store, secret, fakeBank({ '50050201:DE01': now }).side, NOW + 3600_000);
+  assert.equal(relearnt.checked, 1);
+  assert.deepEqual(relearnt.notices, []);
+  const after = openStored(store) as { v: number; seen: Record<string, Record<string, string[]>> };
+  assert.equal(after.v, 2);
+  assert.deepEqual([...after.seen['50050201|max'].DE01].sort(), now.map(txKey).sort());
+
+  // Written by this version, it is not learnt again: the next new booking is said.
+  const next = await runCheck(store, secret, fakeBank({ '50050201:DE01': [...now, tx('2026-11-03', -9.99, 'NETFLIX')] }).side, NOW + 2 * 3600_000);
+  assert.equal(next.notices.length, 1);
+  assert.equal(next.notices[0].kind, 'new');
+  assert.equal(next.notices[0].lines.length, 1);
+  // And the same list once more says nothing.
+  const quiet = await runCheck(store, secret, fakeBank({ '50050201:DE01': [...now, tx('2026-11-03', -9.99, 'NETFLIX')] }).side, NOW + 3 * 3600_000);
+  assert.deepEqual(quiet.notices, []);
+});
+
+test('a box from before keeps its logins and settings; only the seen lists go', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk, dkb], false);
+  await runCheck(store, secret, fakeBank({ '50050201:DE01': [tx('2026-11-01', -3, 'Bäcker')], '12030000:DE01': [] }).side, NOW);
+  const before = openStored(store);
+  sealStored(store, { ...before, v: 1 });
+  const state = await enrolled(store, secret);
+  assert.equal(state?.amounts, false);
+  assert.deepEqual(state?.logins.map((l) => l.blz), ['50050201', '12030000']);
+  // Re-enrolling carries nothing over from the old lists either.
+  await enroll(store, secret, [spk, dkb], false);
+  assert.deepEqual((openStored(store) as { seen: unknown }).seen, {});
+  const r = await runCheck(store, secret, fakeBank({ '50050201:DE01': [tx('2026-11-01', -3, 'Bäcker'), tx('2026-11-02', -1, 'KIOSK')], '12030000:DE01': [] }).side, NOW + 1);
+  assert.deepEqual(r.notices, []);
+});
+
+test('what the app showed is seen by a check, though the app holds JSON and the check the parser\'s Dates', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  await runCheck(store, secret, fakeBank({ '50050201:DE01': [] }).side, NOW);
+  // As the bank's side hands them over (lib/serialize.ts): Dates, with the day stated — and one without it.
+  const stated = { ...tx('2026-11-03', -9.99, 'NETFLIX'), entryDate: new Date('2026-11-02T23:00:00.000Z'), valueDate: new Date('2026-11-02T23:00:00.000Z'), bankDay: '2026-11-03' } as SerializedTransaction;
+  const bare = { ...tx('2026-11-02', -20, 'APOTHEKE'), entryDate: new Date('2026-11-02T11:00:00.000Z'), valueDate: new Date('2026-11-02T11:00:00.000Z') } as SerializedTransaction;
+  const shown = JSON.parse(JSON.stringify([stated, bare])) as SerializedTransaction[];
+  assert.equal(typeof shown[0].entryDate, 'string');
+  await touch(store, secret, spk, 'DE01', shown.map(txKey));
+  const r = await runCheck(store, secret, fakeBank({ '50050201:DE01': [stated, bare] }).side, NOW + 1);
+  assert.deepEqual(r.notices, []);
 });
 
 

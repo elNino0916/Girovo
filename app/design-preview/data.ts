@@ -335,6 +335,8 @@ function mt940(p: Mt940Input): SerializedTransaction {
   return {
     valueDate: mt940Date(p.valueDay ?? p.day),
     entryDate: mt940Date(p.day),
+    // The bank's day beside the moment, as lib/serialize.ts states it.
+    bankDay: p.day,
     amount: p.amount,
     currency: 'EUR',
     purpose: raw,
@@ -374,6 +376,7 @@ function camt(p: CamtInput): SerializedTransaction {
   return {
     valueDate: camtDate(p.valueDay ?? p.day),
     entryDate: camtDate(p.day),
+    bankDay: p.day,
     amount: p.amount,
     currency: 'EUR',
     purpose: p.purpose,

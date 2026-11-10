@@ -536,3 +536,36 @@ test('wipe removes the file, its backups and stray temp files — and nothing el
 test('wipe without a login to go by is refused', async () => {
   await assert.rejects(store.wipeHistory({ meta: {}, client: { config: {} } } as unknown as Session), store.HistoryError);
 });
+
+// ---- the bank's day beside the moment (lib/format.ts bankDay) ----------------------
+
+test('a booking keeps the bank\'s day it was read with; one that is no day is left out', () => {
+  const read = { ...tx('2026-03-03', -12.34), bankDay: '2026-03-03' };
+  const data = { version: 1 as const, updatedAt: '2026-10-06T08:00:00.000Z', accounts: { '1234567': { txs: [read], coverage: [{ from: '2026-03-01', to: '2026-03-31' }], balances: [] } } };
+  const back = h.sanitizeHistory(JSON.parse(JSON.stringify(h.compactHistory(data))), TODAY);
+  assert.deepEqual(back?.accounts['1234567'].txs[0], { ...read, creditorId: '', ultimateName: '' });
+  assert.equal(h.sanitizeBooking({ ...read, bankDay: '2026-02-31' })?.bankDay, undefined);
+  assert.equal(h.sanitizeBooking({ ...read, bankDay: 20260303 })?.bankDay, undefined);
+  assert.equal('bankDay' in h.sanitizeBooking(tx('2026-03-03', -12.34))!, false);
+});
+
+test('a kept booking and the same one fetched anew are one booking by their key', async () => {
+  const { legacyTxKey, txKey } = await import('./categories.ts');
+  // Kept before bookings carried their day; fetched now, with it — MT940 and camt alike.
+  const kept = tx('2026-03-03', -12.34);
+  const fresh = { ...kept, bankDay: '2026-03-03' };
+  const asCamt = { ...kept, entryDate: new Date(2026, 2, 3, 12).toISOString(), valueDate: new Date(2026, 2, 3, 12).toISOString(), bankDay: '2026-03-03' };
+  assert.equal(txKey(kept), txKey(fresh));
+  assert.equal(txKey(kept), txKey(asCamt));
+  assert.equal(legacyTxKey(kept).slice(0, 10), '2026-03-02');
+  assert.equal(txKey(kept).slice(0, 13), 'd2|2026-03-03');
+
+  // The new answer replaces the kept copy for its days, as ever: one booking, the one with its day.
+  const base = h.mergeIntoHistory(h.EMPTY_HISTORY, '1234567', { span: { from: '2026-03-01', to: '2026-03-31' }, txs: [kept], blocks: [] }, TODAY);
+  const merged = h.mergeIntoHistory(base, '1234567', { span: { from: '2026-03-01', to: '2026-03-31' }, txs: [fresh], blocks: [] }, TODAY);
+  assert.deepEqual(merged.accounts['1234567'].txs, [fresh]);
+  // And what is kept is not rewritten: a copy without its day stays without, its key the same.
+  const again = h.sanitizeHistory(JSON.parse(JSON.stringify(h.compactHistory(base))), TODAY);
+  assert.equal('bankDay' in again!.accounts['1234567'].txs[0], false);
+  assert.equal(txKey(again!.accounts['1234567'].txs[0]), txKey(fresh));
+});

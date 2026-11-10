@@ -248,6 +248,17 @@ export type SerializedBalance = {
 export type SerializedTransaction = {
   valueDate: Date | string;
   entryDate: Date | string;
+  /**
+   * The Buchungstag as the bank names it (the Wertstellung where it names
+   * none), yyyy-mm-dd — a day, with no time zone in it. `entryDate` is a
+   * moment the fetching device made of that day in its own time, so its UTC
+   * string says another day depending on the format and on where the device
+   * was; this does not. Set where a booking is read (lib/serialize.ts);
+   * absent on a booking kept from before bookings carried it, and on one
+   * read from a CSV file, whose `entryDate` is the bare day already. Read it through
+   * bankDay() in lib/format.ts, which works the day out where it is absent.
+   */
+  bankDay?: string;
   /** Already signed: debit negative, credit positive. */
   amount: number;
   currency: string;

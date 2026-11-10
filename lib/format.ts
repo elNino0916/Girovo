@@ -448,6 +448,87 @@ export function addDaysKey(key: string, n: number): string {
   return dayFromNumber(dayNumber(key) + n);
 }
 
+// ---------------------------------------------------------------------------
+// The bank's day
+//
+// A booking's Buchungstag is a day the bank names, not a moment. The parsers
+// make a moment of it in the fetching device's own time (MT940 and a card's
+// list its midnight, camt its noon), and the wire carries that as a UTC
+// string — so the string's date depends on the format and on where the device
+// was. What must find a booking again whatever read it (its key, txKey in
+// lib/categories.ts) goes by the bank's day instead: stated beside the moment
+// where the booking was read by a version that does (statedDay), else worked
+// out from the moment as the day it was in Germany (bankDay).
+// ---------------------------------------------------------------------------
+
+/** The last Sunday of March (2) or October (9), 01:00 UTC: when the EU's clocks change. */
+function clockChange(year: number, month: 2 | 9): number {
+  return Date.UTC(year, month, 31 - new Date(Date.UTC(year, month, 31)).getUTCDay(), 1);
+}
+
+/**
+ * The calendar day in Germany at a moment (epoch ms), as yyyy-mm-dd; '' for
+ * no moment. By the rule itself — UTC+1, and UTC+2 from the last Sunday of
+ * March to the last Sunday of October, as it has stood since 1996 — rather
+ * than by the device's time zone data: every device, whatever it runs on,
+ * gets the same day, which is what a key shared between devices needs.
+ */
+export function berlinDay(ms: number): string {
+  if (!Number.isFinite(ms)) return '';
+  const year = new Date(ms).getUTCFullYear();
+  const summer = ms >= clockChange(year, 2) && ms < clockChange(year, 9);
+  return dayFromNumber(Math.floor((ms + (summer ? 2 : 1) * 3_600_000) / MS_PER_DAY));
+}
+
+/** A yyyy-mm-dd that is a day of the calendar ("2026-02-31" is not). */
+const realDay = (s: unknown): s is string => typeof s === 'string' && DAY_KEY.test(s) && dayFromNumber(dayNumber(s)) === s;
+
+/**
+ * The day a statement's date names, from what its parser made of it — for
+ * the serialisers, which hold the parser's own Date in the very time it was
+ * built in. A bare date becomes that device's midnight (MT940, a card's
+ * list) or noon (camt): the local day is the bank's, wherever the device is.
+ * Any other moment is a date the bank stated with an offset of its own
+ * (camt's "2026-01-22+01:00", a date-time), and names the day in Germany.
+ * '' for no date.
+ */
+export function statedDay(d: Date | string | null | undefined): string {
+  if (realDay(d)) return d;
+  const date = toLocalDate(d);
+  if (!date) return '';
+  const [y, m, day] = [date.getFullYear(), date.getMonth(), date.getDate()];
+  const t = date.getTime();
+  // Built again from its own day rather than asked for its hour: where the
+  // clocks change at midnight, a day's first moment is 01:00.
+  const bare = t === new Date(y, m, day).getTime() || t === new Date(y, m, day, 12).getTime();
+  return bare ? isoDate(date) : berlinDay(t);
+}
+
+/**
+ * A booking's Buchungstag as the bank names it (the Wertstellung where it
+ * names none), yyyy-mm-dd — the same on every device, in any time zone.
+ *
+ * The day stated with the booking where there is one (`bankDay`, set when it
+ * was read: statedDay). A booking kept or synced from before bookings carried
+ * it has only the moment: a bare yyyy-mm-dd is that day, anything else the
+ * day it was in Germany then. That is right for everything fetched on German
+ * time or west of it, as far as Alaska. A midnight made east of Germany
+ * (MT940, a card's list) comes out as the day before, and a camt noon slips
+ * a day at the two ends of the date line (UTC-10 and beyond, UTC+14): the
+ * moment alone no longer says where it was made. What is no date at all
+ * keeps its first ten characters, as the key always had them.
+ */
+export function bankDay(tx: {
+  bankDay?: string | null; entryDate?: Date | string | null; valueDate?: Date | string | null;
+}): string {
+  if (realDay(tx.bankDay)) return tx.bankDay;
+  const d = tx.entryDate || tx.valueDate;
+  if (!d) return '';
+  if (realDay(d)) return d;
+  const t = d instanceof Date ? d.getTime() : Date.parse(String(d));
+  return Number.isNaN(t) ? String(d).slice(0, 10) : berlinDay(t);
+}
+
 const startOfLocalDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
 // ---------------------------------------------------------------------------

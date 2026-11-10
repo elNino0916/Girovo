@@ -29,7 +29,10 @@
 //   never sends a PIN more than once after it went wrong.
 // - What is new is told by the booking's key (lib/categories.ts txKey),
 //   counted, so two equal bookings on one day are two. The first check of an
-//   account only learns what is there.
+//   account only learns what is there. The box holds keys only, so when the
+//   key is built differently the lists cannot be carried over: a box from
+//   before (Box.v) reads as one that has seen nothing, and every account
+//   learns once more — said to nobody.
 // - What a notice is about is the user's choice (lib/payment-alerts.ts): every
 //   new booking, a contract that charged more than usual, salary and other
 //   regular income, an account under a limit. A booking is told once, by the
@@ -49,7 +52,7 @@
 import crypto from 'node:crypto';
 import { newSalt, openBox, parseBox, sealBox } from './crypto-box.ts';
 import { isCredentialAnswer, isPinRefusal } from './bank-answer.ts';
-import { txKey } from './categories.ts';
+import { KEY_MARK, txKey } from './categories.ts';
 import { dayKey, displayName, fmtDate, fmtMoney, fmtSignedMoney, toLocalDate } from './format.ts';
 import { dayNum, reminderDue } from './contract-watch.ts';
 import type { SerializedTransaction } from './fints-types';
@@ -71,8 +74,17 @@ export type CheckedLogin = SealedLogin & {
   checkedAt?: string;
 };
 
+/**
+ * Which key the `seen` lists hold. 2: txKey by the bank's day (lib/format.ts
+ * bankDay). A box without it holds the keys from before — built on the
+ * moment's first ten characters, and by a check on the unserialised Date at
+ * that — which no booking has any more: its lists are dropped when it is
+ * read (sanitizeBox), so the next check of each account only learns.
+ */
+const SEEN_KEYS = 2;
+
 type Box = {
-  v: 1;
+  v: typeof SEEN_KEYS;
   /** Whether a notice shows amounts. */
   amounts: boolean;
   logins: CheckedLogin[];
@@ -199,7 +211,8 @@ function sanitizeBox(v: unknown): Box {
     if (logins.length === LOGINS_MAX) break;
   }
   const seen: Box['seen'] = {};
-  const rawSeen = (r.seen && typeof r.seen === 'object' ? r.seen : {}) as Record<string, unknown>;
+  // Lists of another key say nothing about the bookings as they are keyed now.
+  const rawSeen = (r.v === SEEN_KEYS && r.seen && typeof r.seen === 'object' ? r.seen : {}) as Record<string, unknown>;
   for (const l of logins) {
     const byAccount = rawSeen[loginKey(l)];
     if (!byAccount || typeof byAccount !== 'object') continue;
@@ -232,7 +245,7 @@ function sanitizeBox(v: unknown): Box {
     }
   }
   return {
-    v: 1, amounts: r.amounts !== false, logins, seen,
+    v: SEEN_KEYS, amounts: r.amounts !== false, logins, seen,
     prefs: readPrefs(r.prefs), watch: readWatch(r.watch), limits, below,
   };
 }
@@ -325,7 +338,7 @@ export async function enroll(store: BackgroundStore, secret: Buffer, logins: rea
       if (prior?.below[lk]) below[lk] = prior.below[lk];
     }
     return {
-      v: 1, amounts, logins: kept, seen,
+      v: SEEN_KEYS, amounts, logins: kept, seen,
       prefs: prior?.prefs ?? DEFAULT_PREFS, watch: prior?.watch ?? EMPTY_WATCH, limits, below,
     };
   });
@@ -448,7 +461,8 @@ const countOf = (keys: readonly string[]) => {
   for (const k of keys) m.set(k, (m.get(k) ?? 0) + 1);
   return m;
 };
-const dayOf = (key: string) => key.slice(0, 10);
+/** The day a seen key names: after the key's mark (lib/categories.ts KEY_MARK). */
+const dayOf = (key: string) => (key.startsWith(KEY_MARK) ? key.slice(KEY_MARK.length) : key).slice(0, 10);
 
 /** Seen keys: each as often as either list has it, the last SEEN_DAYS, at most SEEN_MAX. */
 export function mergeSeen(prior: readonly string[], current: readonly string[], now = Date.now()): string[] {

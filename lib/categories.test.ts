@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  CATEGORIES, categoryLabel, counterpartyKey, counterpartyRule, counterpartyRuleKey, creditorId, isCategoryId, ruleKeyFor, txKey,
+  CATEGORIES, categoryLabel, counterpartyKey, counterpartyRule, counterpartyRuleKey, creditorId, isCategoryId, legacyTxKey, ruleKeyFor, txKey,
 } from './categories.ts';
 import { categorize } from './categorize.ts';
 import type { SerializedTransaction } from './fints-types';
@@ -27,9 +27,13 @@ test('counterparty key prefers creditor id, then IBAN, then name', () => {
   assert.equal(counterpartyKey({ purpose: '', remoteIban: '', remoteName: 'REWE SAGT DANKE 123456' }), 'name:REWE SAGT DANKE');
 });
 
-test('txKey is stable and amount-formatted', () => {
-  const k = txKey({ entryDate: '2026-10-02T22:00:00.000Z', valueDate: '', amount: -12.9, remoteIban: 'DE02120300000000202051', remoteName: '', e2eReference: 'E1', bankReference: 'B1' });
-  assert.equal(k, '2026-10-02|-12.90|DE02120300000000202051|E1');
+test('txKey is stable and amount-formatted, on the bank\'s day', () => {
+  // MT940, fetched on German time: midnight of 3 October. The key names that day (lib/booking-day.test.ts).
+  const tx = { entryDate: '2026-10-02T22:00:00.000Z', valueDate: '', amount: -12.9, remoteIban: 'DE02120300000000202051', remoteName: '', e2eReference: 'E1', bankReference: 'B1' };
+  assert.equal(txKey(tx), 'd2|2026-10-03|-12.90|DE02120300000000202051|E1');
+  assert.equal(txKey({ ...tx, bankDay: '2026-10-03' }), 'd2|2026-10-03|-12.90|DE02120300000000202051|E1');
+  // The key before: the moment's UTC date, no mark.
+  assert.equal(legacyTxKey(tx), '2026-10-02|-12.90|DE02120300000000202051|E1');
 });
 
 test('creditor ID: separate MT940 field, CAMT purpose, legacy remoteBic — one key', async () => {
@@ -57,8 +61,8 @@ const baker = (remoteName: string, over: Partial<SerializedTransaction> = {}) =>
 test('the stored keys stay as they are: dots dropped, a spelled-out umlaut kept', () => {
   assert.equal(counterpartyKey(baker('Bäckerei Müller')), 'name:BACKEREI MULLER');
   assert.equal(counterpartyKey(baker('BAECKEREI MUELLER')), 'name:BAECKEREI MUELLER');
-  assert.equal(txKey(baker('Bäckerei Müller')), '2026-10-02|-4.20|BACKEREI MULLER|');
-  assert.equal(txKey(baker('BAECKEREI MUELLER')), '2026-10-02|-4.20|BAECKEREI MUELLER|');
+  assert.equal(txKey(baker('Bäckerei Müller')), 'd2|2026-10-03|-4.20|BACKEREI MULLER|');
+  assert.equal(txKey(baker('BAECKEREI MUELLER')), 'd2|2026-10-03|-4.20|BAECKEREI MUELLER|');
 });
 
 test('a rule for a payee is found under either spelling of its umlauts', () => {

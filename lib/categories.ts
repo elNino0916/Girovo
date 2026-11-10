@@ -8,6 +8,7 @@
 
 import type { SerializedTransaction } from './fints-types';
 import { cleanMerchantName } from './card-purpose.ts';
+import { bankDay } from './format.ts';
 import { msgs } from './i18n/index.ts';
 
 /** The app's own categories: translated, with a glyph each, known to the model and the keywords. */
@@ -337,16 +338,47 @@ export function counterpartyRule<T>(
   return key == null ? undefined : rules![key];
 }
 
-/**
- * One booking, as a key that survives a re-fetch of the same statement. Used
- * for a per-booking category override. Built from what the bank does not
- * re-issue: the day, the amount, the counterparty and the strongest reference.
- */
-export function txKey(
-  tx: Pick<SerializedTransaction, 'entryDate' | 'valueDate' | 'amount' | 'remoteIban' | 'remoteName' | 'e2eReference' | 'bankReference'>,
-): string {
-  const day = String(tx.entryDate || tx.valueDate || '').slice(0, 10);
+/** What a booking's key is built from. */
+export type KeyedBooking = Pick<
+  SerializedTransaction,
+  'bankDay' | 'entryDate' | 'valueDate' | 'amount' | 'remoteIban' | 'remoteName' | 'e2eReference' | 'bankReference'
+>;
+
+/** A booking's key on `day`: the amount, the counterparty and the strongest reference after it. */
+function keyOn(day: string, tx: KeyedBooking): string {
   const ref = (tx.e2eReference && tx.e2eReference !== 'NOTPROVIDED' ? tx.e2eReference : '') || tx.bankReference || '';
   const who = String(tx.remoteIban || '').replace(/\s+/g, '') || squash(tx.remoteName);
   return `${day}|${Number(tx.amount).toFixed(2)}|${who}|${ref}`;
+}
+
+/**
+ * One booking, as a key that survives a re-fetch of the same statement: what
+ * the user files for a single booking hangs on it — its category, its split,
+ * its note, its receipts. Built from what the bank does not re-issue: the
+ * day, the amount, the counterparty and the strongest reference.
+ *
+ * The day is the bank's Buchungstag (lib/format.ts bankDay), so the key is
+ * the same whichever statement format brought the booking and wherever the
+ * device was that fetched or reads it. In front goes KEY_MARK: a key from
+ * before (legacyTxKey) starts with a yyyy-mm-dd or, undated, with '|', so it
+ * never looks like one of now — what was filed under one is moved, once and
+ * without guessing whose it was (lib/booking-keys.ts).
+ *
+ *   d2|2026-11-01|-12.90|DE02120300000000202051|E1
+ */
+export function txKey(tx: KeyedBooking): string {
+  return KEY_MARK + keyOn(bankDay(tx), tx);
+}
+
+/** What a booking's key starts with since it goes by the bank's day; no key from before does. */
+export const KEY_MARK = 'd2|';
+
+/**
+ * The key as it was built before bookings went by the bank's day: on the
+ * first ten characters of the moment the fetching device made of the day —
+ * its UTC date, so the day before for an MT940 booking fetched on German
+ * time. Only for moving what was filed under it (lib/booking-keys.ts).
+ */
+export function legacyTxKey(tx: KeyedBooking): string {
+  return keyOn(String(tx.entryDate || tx.valueDate || '').slice(0, 10), tx);
 }

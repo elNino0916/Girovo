@@ -6,7 +6,7 @@ import { accountKeyOf, bankAccountOf } from './account-key';
 import { lookupBlz } from './banks';
 import { renderFlicker } from './flicker';
 import { nearestEntryYear } from './entry-date';
-import { repairBankText } from './format';
+import { repairBankText, statedDay } from './format';
 import { parsePurpose } from './sepa-purpose';
 import { INSTANT_SEG, TRANSFER_SEG } from './fints-sepa';
 import { PENDING_SEG } from './fints-pending';
@@ -264,11 +264,16 @@ export function serializeTransactions(statements: Statement[] | undefined, curre
   const txs: SerializedTransaction[] = [];
   for (const st of statements || []) {
     for (const t of st.transactions || []) {
+      // MT940 names the Buchungstag without a year, and lib-fints guesses
+      // it wrong across the turn of the year (lib/entry-date.ts).
+      const entryDate = nearestEntryYear(t.entryDate, t.valueDate);
+      // The day itself, read off the parser's Date here, in the time it was
+      // built in: the JSON of that Date no longer says which day was meant.
+      const bankDay = statedDay(entryDate || t.valueDate);
       txs.push({
         valueDate: t.valueDate,
-        // MT940 names the Buchungstag without a year, and lib-fints guesses
-        // it wrong across the turn of the year (lib/entry-date.ts).
-        entryDate: nearestEntryYear(t.entryDate, t.valueDate),
+        entryDate,
+        ...(bankDay ? { bankDay } : {}),
         amount: t.amount, // already signed: debit negative, credit positive
         currency: st.closingBalance?.currency || currency,
         // Repaired here, once, so the list, the CSV, the categories and the

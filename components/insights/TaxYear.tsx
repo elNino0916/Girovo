@@ -15,7 +15,7 @@ import { useMemo, useState } from 'react';
 import { allCategories, categoryLabel, type CategoryId } from '@/lib/categories';
 import { saveFile, textBlob } from '@/lib/download';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
-import { fmtDate } from '@/lib/format';
+import { bankDay, fmtDate } from '@/lib/format';
 import { msgs } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import {
@@ -114,7 +114,8 @@ function TaxYearDrawer({ onClose }: { onClose: () => void }) {
 
   /** The receipts' names in the ZIP: "2025-12-12 UNICEF Deutschland – Spende.pdf". */
   const receiptNames = (list: { tx: SerializedTransaction; doc: ListedDoc }[]) => uniqueNames(list.map(({ tx, doc }) => {
-    const day = String(tx.entryDate || tx.valueDate).slice(0, 10);
+    // The bank's day: the moment's UTC date is the day before for MT940 on German time.
+    const day = bankDay(tx);
     const who = taxLineText(tx).name.slice(0, 40);
     return [day, who, doc.name].filter(Boolean).join(' ');
   }));

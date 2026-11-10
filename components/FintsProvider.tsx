@@ -82,9 +82,10 @@ import {
   LINKED_BANK_LIMITS, claimedBefore, forgetLinkedBank, joinQualified, rememberLinkedBank, routeFor, sameLogin,
 } from '@/lib/linked-banks';
 import {
-  EMPTY_HISTORY, deliveredSpan, historyCoverage, mergeIntoHistory, planFetch, sanitizeHistory, savedPeriod,
+  EMPTY_HISTORY, deliveredSpan, historyCoverage, mergeIntoHistory, planFetch, sanitizeHistory, savedPeriod, spanAt,
   type HistoryData, type HistoryGetResponse, type HistoryStatus,
 } from '@/lib/history';
+import { keyMoves, moveEntries, receiptMoves } from '@/lib/booking-keys';
 import { afterStatementRead, pendingView, type PendingRead } from '@/lib/pending';
 import { sanitizeGoals, type SavingsGoal } from '@/lib/savings-goal';
 import { recordSentOrder, type SentOrder } from '@/lib/sent-orders';
@@ -4686,6 +4687,58 @@ function useFintsState() {
     for (const t of fresh) offeredForLogos.current.add(t);
     if (fresh.length) void resolveMerchants(fresh);
   }, [txByAccount, resolveMerchants]);
+
+  // What the user files for one booking — category, split, note, receipt —
+  // hangs on the booking's key, which goes by the bank's day now
+  // (lib/categories.ts txKey). What is still filed under the key before
+  // moves to the key its booking has now as bookings become known — the kept
+  // Umsätze, a statement read, an imported file, the Vorgemerkte — and only
+  // where it can be no other booking's (lib/booking-keys.ts).
+  const bookingKeyMoves = useMemo(() => {
+    // The days an account's list holds whole; its Vorgemerkte go by them too.
+    const listed = (acct: string) => (day: string) => !!statementInfo[acct] && day >= statementInfo[acct].from;
+    return keyMoves([
+      ...Object.entries(txCache).map(([acct, list]) => ({ txs: list.txs, covers: listed(acct) })),
+      ...Object.values(keptHistory?.accounts ?? {}).map((kept) => ({ txs: kept.txs, covers: (day: string) => !!spanAt(kept.coverage, day) })),
+      ...[...Object.entries(pendingFetched), ...Object.entries(notedFetched)].map(([acct, read]) => ({ txs: read.txs, covers: listed(acct) })),
+    ]);
+  }, [txCache, statementInfo, keptHistory, pendingFetched, notedFetched]);
+  const movingReceipts = useRef(new Set<string>());
+  const [filedCategories, filedSplits, filedNotes] = [vault?.txCategories, vault?.splits, vault?.notes];
+  useEffect(() => {
+    if (!bookingKeyMoves.size || view !== 'dashboard' || vaultStatus === 'idle' || vaultStatus === 'loading') return;
+    const moves = bookingKeyMoves;
+    const receipts = () => receiptMoves(docsRef.current, moves).filter((m) => !movingReceipts.current.has(m.doc.id));
+    const filed = vaultRef.current ?? EMPTY_VAULT;
+    if (moveEntries(filed, moves) === filed && !receipts().length) return;
+    const sid = sessionRef.current;
+    void (async () => {
+      // With sync on, a round first: what another device has moved already,
+      // or changed since, is taken in before this one moves anything — an
+      // entry moved here counts as changed now, and would win over it. Not
+      // waited for longer than a few seconds (the other devices may be out
+      // of reach): a round still under way takes the move in as an edit made
+      // meanwhile, on the vault it brings.
+      if (syncRef.current === null) await refreshSync();
+      await Promise.race([syncNow(true), delay(6000)]);
+      if (!isCurrent(sid)) return;
+      updateVault((v) => moveEntries(v, moves));
+      for (const { doc, tx } of receipts()) {
+        // Another pass has it, or has tied it anew meanwhile.
+        if (movingReceipts.current.has(doc.id) || !docsRef.current.some((d) => d.id === doc.id && d.tx === doc.tx)) continue;
+        movingReceipts.current.add(doc.id);
+        try {
+          const r = await post<DocResponse>('/api/docs', { sessionId: doc.sid, op: 'link', id: doc.id, tx, accountNumber: doc.accountNumber });
+          if (isCurrent(sid)) setDocsBoth(docsRef.current.map((d) => (d.id === doc.id ? { ...r.doc, sid: doc.sid } : d)));
+        } catch { /* tried again with the next list */ } finally {
+          movingReceipts.current.delete(doc.id);
+        }
+      }
+    })();
+  }, [
+    bookingKeyMoves, view, vaultStatus, filedCategories, filedSplits, filedNotes, docs,
+    refreshSync, syncNow, isCurrent, updateVault, setDocsBoth,
+  ]);
 
   /** "Umsätze auf diesem Rechner behalten": the vault's word, off unless it says so. */
   const keepBookings = vault?.keepBookings === true;

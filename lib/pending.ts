@@ -25,7 +25,7 @@ const EARLIER_BOOKING_DAYS = 3;
 
 type Item = Pick<
   SerializedTransaction,
-  'entryDate' | 'valueDate' | 'amount' | 'remoteIban' | 'remoteName' | 'e2eReference' | 'bankReference'
+  'bankDay' | 'entryDate' | 'valueDate' | 'amount' | 'remoteIban' | 'remoteName' | 'e2eReference' | 'bankReference'
 >;
 
 /** SEPA's ways of saying "no reference". */
@@ -78,9 +78,10 @@ const otherOrder = (a: Item, b: Item) => {
  * amount, counterparty, reference), or the same real end-to-end reference,
  * amount and counterparty IBAN at most a few days earlier or any time later,
  * or — the two formats apart — the same local day, amount and counterparty.
- * That last one because txKey reads the day off the wire's UTC string: MT942
- * dates a Vormerkposten at local midnight and camt books it at local noon,
- * a day apart in UTC, and a card payment has no reference to go by instead.
+ * That last one because the formats agree on the day (txKey goes by the
+ * bank's, whichever brought it) but not on the rest of the key: MT942 cuts a
+ * name short where camt does not, one carries a bank reference the other
+ * lacks, and a card payment has no end-to-end reference to go by instead.
  * The closest likeness is looked for first, across the whole list.
  * Each booking accounts for one Vormerkposten only — two identical card
  * payments on one day, one of them booked, leave the other one standing.
@@ -183,8 +184,8 @@ function sameParty(a: Item, b: Item): boolean {
 /**
  * The items of `extra` that `listed` — another source's list of Vormerkposten
  * — does not have. Not txKey: the sources date the same item differently
- * (MT942 a local midnight, camt a local noon, so a different day in UTC, and
- * a Buchungstag where the other has only the Valuta). Same amount, and the
+ * (a Buchungstag where the other has only the Valuta) and name its
+ * counterparty at different lengths. Same amount, and the
  * same real reference or the same counterparty a few days apart; each listed
  * item accounts for one extra item only.
  */

@@ -564,8 +564,10 @@ function bankText(v: unknown, max: number): string {
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 
 /**
- * A date as the wire carries it: the very string when it is one (a booking's
- * txKey reads its first ten characters, so it must come back unchanged), else
+ * A date as the wire carries it: the very string when it is one (a booking
+ * kept without its bank day has its key worked out from this moment — and
+ * what was filed under the key before is found by the string's first ten
+ * characters, lib/booking-keys.ts — so it must come back unchanged), else
  * the instant re-written as ISO; '' when it is no date.
  */
 function dateText(v: unknown): string {
@@ -590,6 +592,9 @@ export function sanitizeBooking(v: unknown): SerializedTransaction | null {
     amount,
     currency: typeof v.currency === 'string' && /^[A-Z]{3}$/.test(v.currency) ? v.currency : 'EUR',
   } as SerializedTransaction;
+  // The bank's own day, where the booking was read with it (lib/format.ts
+  // bankDay): kept beside the moment, which says it only on German time.
+  if (isDay(v.bankDay)) tx.bankDay = v.bankDay;
   for (const [field, max] of TEXT_FIELDS) tx[field] = bankText(v[field], max);
   return bookingDay(tx) ? tx : null;
 }
