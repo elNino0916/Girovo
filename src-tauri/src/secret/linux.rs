@@ -16,10 +16,12 @@ use secret_service::blocking::{Item, SecretService};
 use zbus::blocking::Proxy;
 
 use super::Unreadable;
-use super::os_crypt::{APP, KWALLET_ENTRY, KWALLET_FOLDER, KWallet, Keyring, Lookups};
+use super::os_crypt::{APPS, KWallet, Keyring, Lookups, kwallet_names};
 
 const SERVICE: &str = "Girovo";
 const USER: &str = "shell-secret";
+/// Who asks KWallet: any name, the same one from a wallet's opening to its closing.
+const APP: &str = "Girovo";
 
 fn entry() -> Result<Entry, String> {
   if keyring_core::get_default_store().is_none() {
@@ -89,7 +91,7 @@ fn absent(err: &zbus::Error) -> bool {
 }
 
 impl Keyring for Chromiums {
-  fn kwallet(&self, daemon: KWallet) -> Result<Option<Vec<u8>>, String> {
+  fn kwallet(&self, daemon: KWallet) -> Result<Vec<Vec<u8>>, String> {
     let bus = zbus::blocking::connection::Builder::session()
       .and_then(|b| b.method_timeout(KWALLET_CALL).build())
       .map_err(|err| format!("no session bus: {err}"))?;
@@ -98,41 +100,51 @@ impl Keyring for Chromiums {
       Ok(enabled) => enabled,
       Err(err) if absent(&err) => {
         eprintln!("[shell-secret] {} is not there: {err}", daemon.service);
-        return Ok(None);
+        return Ok(Vec::new());
       }
       Err(err) => return Err(said(err)),
     };
     if !enabled {
       eprintln!("[shell-secret] KWallet is switched off");
-      return Ok(None);
+      return Ok(Vec::new());
     }
     let name: String = wallet.call("networkWallet", &()).map_err(said)?;
     let handle: i32 = wallet.call("open", &(name.as_str(), 0i64, APP)).map_err(said)?;
     if handle < 0 {
       return Err(format!("the wallet {name} did not open"));
     }
-    let read = (|| -> zbus::Result<Option<String>> {
-      let has: bool = wallet.call("hasEntry", &(handle, KWALLET_FOLDER, KWALLET_ENTRY, APP))?;
-      if !has {
-        return Ok(None);
+    // The entry under each spelling of Electron's app name (os_crypt.rs APPS).
+    let read = (|| -> zbus::Result<Vec<String>> {
+      let mut passwords: Vec<String> = Vec::new();
+      for app in APPS {
+        let (folder, entry) = kwallet_names(app);
+        let has: bool = wallet.call("hasEntry", &(handle, folder.as_str(), entry.as_str(), APP))?;
+        if has {
+          let password: String = wallet.call("readPassword", &(handle, folder.as_str(), entry.as_str(), APP))?;
+          passwords.push(password);
+        }
       }
-      wallet.call("readPassword", &(handle, KWALLET_FOLDER, KWALLET_ENTRY, APP)).map(Some)
+      Ok(passwords)
     })();
     let _: zbus::Result<i32> = wallet.call("close", &(handle, false, APP));
-    Ok(read.map_err(said)?.filter(|p| !p.is_empty()).map(String::into_bytes))
+    Ok(read.map_err(said)?.into_iter().filter(|p| !p.is_empty()).map(String::into_bytes).collect())
   }
 
   fn secret_service(&self) -> Result<Vec<Vec<u8>>, String> {
     let service = SecretService::connect(EncryptionType::Dh).map_err(|err| format!("no Secret Service: {err}"))?;
-    let found = service.search_items(HashMap::from([("application", APP)])).map_err(said)?;
-    let mut secrets: Vec<Vec<u8>> = found.unlocked.iter().filter_map(|item| item.get_secret().ok()).collect();
-    if !found.locked.is_empty() {
-      // Unlocking may ask for the keyring's password, as Chromium's start did.
-      let locked: Vec<&Item> = found.locked.iter().collect();
-      match service.unlock_all(&locked) {
-        Ok(()) => secrets.extend(found.locked.iter().filter_map(|item| item.get_secret().ok())),
-        Err(err) if secrets.is_empty() => return Err(format!("not unlocked: {err}")),
-        Err(_) => {}
+    let mut secrets: Vec<Vec<u8>> = Vec::new();
+    // The items under each spelling of Electron's app name (os_crypt.rs APPS).
+    for app in APPS {
+      let found = service.search_items(HashMap::from([("application", app)])).map_err(said)?;
+      secrets.extend(found.unlocked.iter().filter_map(|item| item.get_secret().ok()));
+      if !found.locked.is_empty() {
+        // Unlocking may ask for the keyring's password, as Chromium's start did.
+        let locked: Vec<&Item> = found.locked.iter().collect();
+        match service.unlock_all(&locked) {
+          Ok(()) => secrets.extend(found.locked.iter().filter_map(|item| item.get_secret().ok())),
+          Err(err) if secrets.is_empty() => return Err(format!("not unlocked: {err}")),
+          Err(_) => {}
+        }
       }
     }
     secrets.retain(|s| !s.is_empty());

@@ -237,8 +237,11 @@ pub fn background_set(app: AppHandle, on: bool) -> bool {
   enabled(&app)
 }
 
-/// A second start (the Start menu, a notice): the start window while it is
-/// up — the app's window shows when the start is done — else the app's.
+/// A second start (the Start menu, a notice) and the tray's "open": the start
+/// window while it is up — the app's window shows when the start is done —
+/// else the app's. Never the app's window under the start window: during an
+/// update at start its page would ask for Windows Hello just before the app
+/// quits for the installer.
 pub fn bring_forward(app: &AppHandle) {
   if let Some(splash) = app.get_webview_window(crate::splash::LABEL) {
     let _ = splash.unminimize();
@@ -248,7 +251,7 @@ pub fn bring_forward(app: &AppHandle) {
   show_window(app);
 }
 
-pub fn show_window(app: &AppHandle) {
+fn show_window(app: &AppHandle) {
   if let Some(w) = app.get_webview_window("main") {
     let _ = w.unminimize();
     let _ = w.show();
@@ -282,14 +285,14 @@ fn ensure_tray(app: &AppHandle) {
     }
     tray
       .on_menu_event(|app, event| match event.id().as_ref() {
-        "open" => show_window(app),
+        "open" => bring_forward(app),
         "check" => run_now(app),
         "quit" => quit(app),
         _ => {}
       })
       .on_tray_icon_event(|tray, event| {
         if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-          show_window(tray.app_handle());
+          bring_forward(tray.app_handle());
         }
       })
       .build(app)?;

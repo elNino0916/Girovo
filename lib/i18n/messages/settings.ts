@@ -233,6 +233,7 @@ export const de = {
     body: 'Banken, Vorlagen, Kontonamen, Kategorien, gespeicherte Umsätze, Sicherungen, Windows Hello und alle Einstellungen. Deine Banken fragen danach wieder nach einer Freigabe. Das lässt sich nicht rückgängig machen.',
     confirm: 'Zurücksetzen',
     failed: 'Girovo konnte nicht zurückgesetzt werden.',
+    left: 'Girovo konnte nicht alles löschen. Versuch es gleich noch einmal.',
   },
 };
 
@@ -407,5 +408,6 @@ export const en: typeof de = {
     body: 'Banks, templates, account names, categories, saved transactions, backups, Windows Hello and all settings. Your banks will ask for an approval again afterwards. This can’t be undone.',
     confirm: 'Reset',
     failed: 'Girovo couldn’t be reset.',
+    left: 'Girovo couldn’t delete everything. Try again in a moment.',
   },
 };

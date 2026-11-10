@@ -10,12 +10,14 @@
 // iteration, 16 bytes. The tag says which password:
 //
 //   v11  the one Chromium keeps in the keyring for the app
-//        (FreedesktopSecretKeyProvider), named after Electron's app name,
-//        "Girovo" (electron-builder's productName; ~/.config/Girovo):
-//          KDE        KWallet's network wallet, folder "Girovo Keys", entry
-//                     "Girovo Safe Storage", asked for as the app "Girovo"
+//        (FreedesktopSecretKeyProvider), named after Electron's app name.
+//        On Linux that was package.json's name, "girovo" in lower case — the
+//        name its data folder had too, ~/.config/girovo (paths.rs) — and not
+//        the product's, "Girovo", which is asked for after it all the same:
+//          KDE        KWallet's network wallet, folder "girovo Keys", entry
+//                     "girovo Safe Storage"
 //          elsewhere  the Secret Service item whose attribute application
-//                     is "Girovo" (label "Girovo Safe Storage")
+//                     is "girovo" (label "girovo Safe Storage")
 //   v10  "peanuts", built into Chromium (PosixKeyProvider): what it sealed
 //        with when the keyring did not answer at start. (Where Chromium chose
 //        no keyring at all, "basic_text", the shell kept no secret.)
@@ -36,11 +38,14 @@ use aws_lc_rs::pbkdf2;
 
 use super::{KEYRING, Unreadable, valid};
 
-/// Electron's app name, which the keyring's entries are named after.
-pub const APP: &str = "Girovo";
-/// The KWallet folder and entry (Electron: app name + " Keys", + " Safe Storage").
-pub const KWALLET_FOLDER: &str = "Girovo Keys";
-pub const KWALLET_ENTRY: &str = "Girovo Safe Storage";
+/// Electron's app name, which the keyring's entries are named after: the
+/// spellings to look under, the one Electron used on Linux first.
+pub const APPS: [&str; 2] = ["girovo", "Girovo"];
+
+/// The KWallet folder and entry of an app (Electron: app name + " Keys", + " Safe Storage").
+pub fn kwallet_names(app: &str) -> (String, String) {
+  (format!("{app} Keys"), format!("{app} Safe Storage"))
+}
 
 /// v10's password, built into Chromium.
 const BUILT_IN: &[u8] = b"peanuts";
@@ -63,9 +68,9 @@ pub const KWALLETD6: KWallet = KWallet { service: "org.kde.kwalletd6", path: "/m
 /// dismissed, no session bus — which may pass; a keyring that answered with
 /// nothing (no entry, no such daemon, KWallet switched off) is no error.
 pub trait Keyring {
-  /// The password in KWallet's entry; None when there is none.
-  fn kwallet(&self, daemon: KWallet) -> Result<Option<Vec<u8>>, String>;
-  /// The secrets of the Secret Service's items whose attribute application is APP.
+  /// The passwords in KWallet's entries, one for each of APPS that has one; none when there is none.
+  fn kwallet(&self, daemon: KWallet) -> Result<Vec<Vec<u8>>, String>;
+  /// The secrets of the Secret Service's items whose attribute application is one of APPS.
   fn secret_service(&self) -> Result<Vec<Vec<u8>>, String>;
 }
 
@@ -91,11 +96,11 @@ pub fn open(sealed: &[u8], keyring: &dyn Keyring, env: &dyn Fn(&str) -> Option<S
   let mut unanswered = false;
   if let Some(daemon) = kwallet_of(env) {
     match keyring.kwallet(daemon) {
-      Ok(Some(password)) => match open_with(body, &password) {
+      Ok(passwords) => match passwords.iter().find_map(|password| open_with(body, password)) {
         Some(secret) => return Ok(secret),
+        None if passwords.is_empty() => said.push(format!("{}: no entry", daemon.service)),
         None => said.push(format!("{}: its password does not open it", daemon.service)),
       },
-      Ok(None) => said.push(format!("{}: no entry", daemon.service)),
       Err(err) => {
         unanswered = true;
         said.push(format!("{}: {err}", daemon.service));
@@ -277,13 +282,13 @@ mod tests {
   /// A keyring that answers as told and notes who was asked.
   #[derive(Default)]
   struct Fake {
-    kwallet: HashMap<&'static str, Result<Option<Vec<u8>>, String>>,
+    kwallet: HashMap<&'static str, Result<Vec<Vec<u8>>, String>>,
     secret_service: Option<Result<Vec<Vec<u8>>, String>>,
     asked: RefCell<Vec<&'static str>>,
   }
 
   impl Keyring for Fake {
-    fn kwallet(&self, daemon: KWallet) -> Result<Option<Vec<u8>>, String> {
+    fn kwallet(&self, daemon: KWallet) -> Result<Vec<Vec<u8>>, String> {
       self.asked.borrow_mut().push(daemon.service);
       self.kwallet.get(daemon.service).cloned().unwrap_or(Err("not running".into()))
     }
@@ -310,8 +315,24 @@ mod tests {
   #[test]
   fn the_names_are_electrons() {
     // browser_process_impl.cc: app_name + " Keys", app_name + " Safe Storage".
-    assert_eq!(KWALLET_FOLDER, format!("{APP} Keys"));
-    assert_eq!(KWALLET_ENTRY, format!("{APP} Safe Storage"));
+    // Electron's name on Linux first — lower case, as its data folder — then the product's.
+    assert_eq!(APPS, ["girovo", "Girovo"]);
+    assert_eq!(kwallet_names(APPS[0]), ("girovo Keys".to_string(), "girovo Safe Storage".to_string()));
+    assert_eq!(kwallet_names(APPS[1]), ("Girovo Keys".to_string(), "Girovo Safe Storage".to_string()));
+  }
+
+  #[test]
+  fn every_entry_kwallet_has_is_tried() {
+    // One under each spelling of the name, the first of them another app's.
+    let keyring = Fake { kwallet: HashMap::from([("org.kde.kwalletd6", Ok(vec![b"another".to_vec(), PASSWORD.into()]))]), ..Fake::default() };
+    assert_eq!(open(&blob(V11), &keyring, &env(PLASMA6)).unwrap(), SECRET);
+    assert_eq!(*keyring.asked.borrow(), ["org.kde.kwalletd6"]);
+    // None of them the one: said so, and the Secret Service is asked after it.
+    let wrong = Fake { kwallet: HashMap::from([("org.kde.kwalletd6", Ok(vec![b"another".to_vec()]))]), ..Fake::default() };
+    let err = open(&blob(V11), &wrong, &env(PLASMA6)).unwrap_err();
+    assert_eq!(err.reason, "unreadable");
+    assert!(err.detail.contains("org.kde.kwalletd6: its password does not open it"), "{}", err.detail);
+    assert_eq!(*wrong.asked.borrow(), ["org.kde.kwalletd6", "secret-service"]);
   }
 
   #[test]
@@ -330,7 +351,7 @@ mod tests {
 
   #[test]
   fn v11_opens_with_kwallets_password_on_kde() {
-    let keyring = Fake { kwallet: HashMap::from([("org.kde.kwalletd6", Ok(Some(PASSWORD.into())))]), ..Fake::default() };
+    let keyring = Fake { kwallet: HashMap::from([("org.kde.kwalletd6", Ok(vec![PASSWORD.into()]))]), ..Fake::default() };
     assert_eq!(open(&blob(V11), &keyring, &env(PLASMA6)).unwrap(), SECRET);
     assert_eq!(*keyring.asked.borrow(), ["org.kde.kwalletd6"]);
   }
@@ -338,7 +359,7 @@ mod tests {
   #[test]
   fn on_kde_without_kwallets_entry_the_secret_service_is_asked_too() {
     let keyring = Fake {
-      kwallet: HashMap::from([("org.kde.kwalletd6", Ok(None))]),
+      kwallet: HashMap::from([("org.kde.kwalletd6", Ok(Vec::new()))]),
       secret_service: Some(Ok(vec![PASSWORD.into()])),
       ..Fake::default()
     };
@@ -392,13 +413,13 @@ mod tests {
     assert_eq!(reason(&cancelled, PLASMA6), KEYRING);
     // KDE: KWallet without the entry, the Secret Service not answering.
     let half = Fake {
-      kwallet: HashMap::from([("org.kde.kwalletd6", Ok(None))]),
+      kwallet: HashMap::from([("org.kde.kwalletd6", Ok(Vec::new()))]),
       secret_service: Some(Err("no Secret Service".into())),
       ..Fake::default()
     };
     assert_eq!(reason(&half, PLASMA6), KEYRING);
     // Both answered, neither has it.
-    let gone = Fake { kwallet: HashMap::from([("org.kde.kwalletd6", Ok(None))]), ..Fake::default() };
+    let gone = Fake { kwallet: HashMap::from([("org.kde.kwalletd6", Ok(Vec::new()))]), ..Fake::default() };
     assert_eq!(reason(&gone, PLASMA6), "unreadable");
     // One that did not answer is no matter once another one opens it.
     let found = Fake { secret_service: Some(Ok(vec![PASSWORD.into()])), ..cancelled };
@@ -460,8 +481,8 @@ mod tests {
   }
 
   impl Keyring for Gated {
-    fn kwallet(&self, _daemon: KWallet) -> Result<Option<Vec<u8>>, String> {
-      Ok(None)
+    fn kwallet(&self, _daemon: KWallet) -> Result<Vec<Vec<u8>>, String> {
+      Ok(Vec::new())
     }
     fn secret_service(&self) -> Result<Vec<Vec<u8>>, String> {
       self.asked.fetch_add(1, Ordering::SeqCst);

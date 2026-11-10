@@ -52,9 +52,11 @@ export function ResetAppRow() {
       await emptyPageStorage();
       // The shell deletes and starts Girovo again; this page goes with it.
       await window.electronApp!.reset();
-    } catch {
+    } catch (err) {
       setBusy(false);
-      toast(words.failed, 'error');
+      // The shell could not delete everything (reset.rs NOT_EMPTY): it did not
+      // start again, and the reset can be asked for once more.
+      toast(String(err).includes('ENOTEMPTY') ? words.left : words.failed, 'error');
     }
   };
 

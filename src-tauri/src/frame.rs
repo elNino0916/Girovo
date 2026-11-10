@@ -9,7 +9,9 @@
 // hit test itself, so a near-invisible child window lies over the page's
 // maximize button and answers HTMAXBUTTON for it. The mouse messages that land
 // there (hover, press, release) are handled by that window and told to the
-// page, which draws the button's states.
+// page, which draws the button's states. A release counts only after a press
+// on the button itself: the second click of a double-click on the title bar
+// can land there once the window has moved under the mouse.
 //
 // The page reports where its maximize button is (caption_rect), in physical
 // pixels of the window's client area, whenever it moves (zoom, DPI, size).
@@ -101,6 +103,8 @@ mod win {
     /// The maximize button: left, top, width, height in client pixels.
     rect: (i32, i32, i32, i32),
     hovering: bool,
+    /// The mouse button went down on the overlay and has not come up or left since.
+    pressed: bool,
   }
 
   static FRAME: OnceLock<Mutex<Frame>> = OnceLock::new();
@@ -157,17 +161,29 @@ mod win {
         overlay: overlay.0 as isize,
         rect: (0, 0, 0, 0),
         hovering: false,
+        pressed: false,
       }));
       let _ = SetWindowSubclass(window, Some(window_proc), SUBCLASS_ID, 0);
     }
   }
 
   /// Moves the overlay over the page's maximize button, above the WebView.
+  /// Hover and press start over: the button may have moved from under the
+  /// mouse (the window maximized) without Windows saying the mouse left. A
+  /// mouse still on it says so again with its next move.
   pub fn place(rect: (i32, i32, i32, i32)) {
     let Some(mut f) = frame() else { return };
     f.rect = rect;
+    let hovered = std::mem::replace(&mut f.hovering, false);
+    let pressed = std::mem::replace(&mut f.pressed, false);
     let overlay = HWND(f.overlay as _);
     drop(f);
+    if hovered {
+      emit("caption:hover", false);
+    }
+    if hovered || pressed {
+      emit("caption:press", false);
+    }
     if overlay.is_invalid() {
       return;
     }
@@ -213,22 +229,35 @@ mod win {
         return LRESULT(0);
       }
       WM_NCMOUSELEAVE => {
-        let left = frame().is_some_and(|mut f| std::mem::replace(&mut f.hovering, false));
-        if left {
+        // A press that leaves the button is given up, as on every button.
+        let (hovered, pressed) = frame()
+          .map(|mut f| (std::mem::replace(&mut f.hovering, false), std::mem::replace(&mut f.pressed, false)))
+          .unwrap_or_default();
+        if hovered {
           emit("caption:hover", false);
+        }
+        if hovered || pressed {
           emit("caption:press", false);
         }
         return LRESULT(0);
       }
       WM_NCLBUTTONDOWN | WM_NCLBUTTONDBLCLK => {
+        if let Some(mut f) = frame() {
+          f.pressed = true;
+        }
         emit("caption:press", true);
         return LRESULT(0);
       }
       WM_NCLBUTTONUP => {
+        // Only a press that began here: a release alone is the end of a click
+        // on something else (the title bar's double-click).
+        let pressed = frame().is_some_and(|mut f| std::mem::replace(&mut f.pressed, false));
         emit("caption:press", false);
-        unsafe {
-          if let Ok(window) = GetParent(hwnd) {
-            let _ = ShowWindow(window, if IsZoomed(window).as_bool() { SW_RESTORE } else { SW_MAXIMIZE });
+        if pressed {
+          unsafe {
+            if let Ok(window) = GetParent(hwnd) {
+              let _ = ShowWindow(window, if IsZoomed(window).as_bool() { SW_RESTORE } else { SW_MAXIMIZE });
+            }
           }
         }
         return LRESULT(0);
