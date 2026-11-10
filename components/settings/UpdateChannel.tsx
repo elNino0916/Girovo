@@ -14,6 +14,7 @@ import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { BoltIcon, FileIcon, SplitIcon } from '../icons';
 import { Button, Dialog, cx } from '../ui';
+import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import { updates, useUpdates } from '../updates/store';
 import { ActionItem, SwitchItem } from './rows';
 
@@ -24,12 +25,19 @@ export function UpdateChannelRow() {
   const { state } = useUpdates();
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState<UpdateChannel>('stable');
+  const usage = useUsageConsent();
   if (!state) return null;
   const c = t.settings.channel;
+  // Nightly shares usage data, where this build can (components/telemetry/NightlyUsage.tsx).
+  const withUsage = choice === 'preview' && usage !== null;
   const apply = () => {
     setOpen(false);
-    // The updater asks again in the new channel at once; its rows follow the state.
-    if (choice !== state.channel) void updates.setChannel(choice);
+    void (async () => {
+      // The dialog said so: the yes is set with the channel, and before it.
+      if (withUsage) await setUsageConsent(true);
+      // The updater asks again in the new channel at once; its rows follow the state.
+      if (choice !== state.channel) await updates.setChannel(choice);
+    })();
   };
   return (
     <>
@@ -57,6 +65,8 @@ export function UpdateChannelRow() {
       >
         <ChannelChoice value={choice} onChange={setChoice} />
         <p className="mt-4 text-[14px] leading-relaxed text-ink-2">{IS_ANDROID ? c.noteAndroid : c.note}</p>
+        {/* What the yes shares, in full: it is given with "Übernehmen". */}
+        {withUsage && <p data-channel-usage className="mt-2 text-[14px] leading-relaxed text-ink-2">{c.usage} {t.auth.usage.disclosure}</p>}
       </Dialog>
     </>
   );

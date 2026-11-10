@@ -23,6 +23,8 @@ export const de = {
   logosHint: 'Nur Firmennamen gehen an Brandfetch, das dabei deine IP-Adresse sieht.',
   usage: 'Nutzungsdaten teilen',
   usageHint: 'Welche Bereiche du nutzt – nie Kontodaten. Fehlerberichte gehen immer.',
+  /** In its place while the update channel is "Nightly": the switch is on and stays. */
+  usageNightly: 'Im Update-Kanal „Nightly“ immer an.',
   /** Beside "Tastenkürzel" when the single-key shortcuts are switched off. */
   singleKeysOff: 'Einzeltasten aus',
 
@@ -119,6 +121,7 @@ export const en: typeof de = {
   logosHint: 'Only company names go to Brandfetch, which sees your IP address.',
   usage: 'Share usage data',
   usageHint: 'Which parts you use – never account data. Error reports are always sent.',
+  usageNightly: 'Always on in the “Nightly” update channel.',
   singleKeysOff: 'Single keys off',
 
   thisComputer: 'On this computer',

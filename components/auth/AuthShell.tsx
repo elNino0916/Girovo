@@ -15,12 +15,13 @@
 // window — the brand field beside it takes its share.
 
 import type { CSSProperties, ReactNode } from 'react';
-import { useT } from '@/lib/i18n/react';
+import { useLocale, useT } from '@/lib/i18n/react';
+import { privacyUrl } from '@/lib/links';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { ThemeToggle } from '../ThemeToggle';
 import { LanguageSwitch } from '../LanguageToggle';
-import { CheckIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../icons';
+import { CheckIcon, ExternalIcon, EyeOffIcon, LandmarkIcon, LockIcon, ShieldIcon } from '../icons';
 import { cx } from '../ui';
 import { BrandName, BrandPlate } from '../shell/BrandMark';
 import { usePhone } from '../shell/usePhone';
@@ -248,6 +249,29 @@ function useTelemetryLine(mentionUsage = true): string | null {
 }
 
 /**
+ * The privacy policy on girovo.de, linked where the app is first met: the
+ * update check and an error report can go out before anyone has opened
+ * Einstellungen → Über Girovo, where the link used to be the only one.
+ */
+function PrivacyPolicyLink({ className }: { className?: string }) {
+  const t = useT();
+  const { locale } = useLocale();
+  return (
+    <a
+      href={privacyUrl(locale)}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-privacy-policy
+      className={cx('font-semibold text-accent underline-offset-4 hover:underline', className)}
+    >
+      {t.settings.privacyPolicy}
+      <ExternalIcon size={12} className="ml-1 inline-block align-[-1px]" />
+      <span className="sr-only">{` ${t.shell.opensExternally}`}</span>
+    </a>
+  );
+}
+
+/**
  * What happens to the credentials, said once in the wide sheet's side tile.
  * Honest about what is kept on this machine and about every outside lookup
  * the app can make: company names to Brandfetch only with the user's yes,
@@ -310,6 +334,9 @@ export function PrivacyAside({ merchantLogos }: { merchantLogos?: boolean }) {
           </li>
         ))}
       </ul>
+      <p className="mt-5 border-t border-line pt-4 text-[13.5px] leading-snug">
+        <PrivacyPolicyLink />
+      </p>
     </aside>
   );
 }
@@ -329,6 +356,7 @@ export function PrivacyNote({ note }: { note?: string }) {
       <ShieldIcon size={16} className="mt-px shrink-0" />
       <span>
         {note ?? t.auth.privacy.note}{logoLine && ` ${logoLine}`}{telemetryLine && ` ${telemetryLine}`}
+        {' '}<PrivacyPolicyLink />
       </span>
     </p>
   );

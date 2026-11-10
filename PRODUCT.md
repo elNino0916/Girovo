@@ -177,8 +177,8 @@ laut Bank". On Android the device is the "Telefon", never the "Rechner".
 
 - **Website and contact (owner, 2026-10-23):** girovo.de is Girovo's
   website, and contact@girovo.de its contact address. Both are linked in
-  Einstellungen → Über Girovo. The privacy policy and the Impressum are still
-  linked at elnino0916.de/girovo until they move.
+  Einstellungen → Über Girovo, as are the privacy policy
+  (girovo.de/datenschutz, also on the login screen) and the Impressum.
 - `README.md`: features, security model, update model, architecture.
 - `/design-preview` (dev only) renders every screen with generated data; use
   it for screenshots and store material instead of real accounts.

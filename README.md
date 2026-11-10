@@ -1074,8 +1074,8 @@ Found a weakness? Report it privately, as [SECURITY.md](SECURITY.md) says.
 ## Legal
 
 Girovo is provided by MT-Media (owner Moritz Krug). The
-[legal notice (Impressum)](https://elnino0916.de/girovo/impressum) and the
-[privacy policy](https://elnino0916.de/girovo/privacy) cover every version —
+[legal notice (Impressum)](https://girovo.de/impressum) and the
+[privacy policy](https://girovo.de/datenschutz) cover every version —
 Google Play, the GitHub APK and the desktop app — and are linked in the app
 under *Einstellungen → Über Girovo*, as are Girovo's website,
 [girovo.de](https://girovo.de), and its contact address,

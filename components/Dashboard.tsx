@@ -62,6 +62,7 @@ import { TitleBar } from './shell/TitleBar';
 import { Ledger } from './overview/Ledger';
 import { useLayers } from './overview/layers';
 import { MerchantLogoConsent } from './MerchantLogoConsent';
+import { NightlyUsageDialog } from './telemetry/NightlyUsage';
 import { UsageConsentTile } from './telemetry/UsageConsent';
 import { trackUsage } from './telemetry/usage';
 import { PullToRefresh } from './android/PullToRefresh';
@@ -298,6 +299,7 @@ function ShellLayers({ frame = false }: { frame?: boolean }) {
       <LogoutConfirmDialog />
       <LinkedUnlockDialog />
       <BackgroundDialog />
+      <NightlyUsageDialog />
       {/* Verträge & Abos' contracts for the checks' alerts: only while they are on. */}
       {backgroundChecks === true && <AlertWatch />}
       {/* The contracts the user added keep their newest booking (components/insights/AddContract.tsx). */}

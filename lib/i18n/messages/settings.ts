@@ -199,6 +199,15 @@ export const de = {
     note: 'Nightlies können Fehler haben. Zurück zu „Stabil“ geht jederzeit, auch auf eine ältere Version.',
     /** Android installs no older version over a newer one. */
     noteAndroid: 'Nightlies können Fehler haben. Gehst du zurück zu „Stabil“, kommt das nächste Update erst mit der nächsten stabilen Version.',
+    /** Under the note while "Nightly" is chosen, where the build can share usage data: choosing it is the yes. */
+    usage: 'Nightly teilt Nutzungsdaten.',
+    /** A copy on "Nightly" that does not share them yet is asked once per start (components/telemetry/NightlyUsage.tsx). */
+    usageAsk: {
+      title: 'Nightly teilt Nutzungsdaten',
+      text: 'Ohne das geht es mit „Stabil“ weiter.',
+      agree: 'Einverstanden',
+      toStable: 'Zu „Stabil“ wechseln',
+    },
     apply: 'Übernehmen',
   },
 
@@ -368,6 +377,13 @@ export const en: typeof de = {
     previewHint: 'The latest, every night.',
     note: 'Nightlies may have bugs. You can go back to “Stable” at any time, even to an older version.',
     noteAndroid: 'Nightlies may have bugs. If you go back to “Stable”, the next update comes only with the next stable version.',
+    usage: 'Nightly shares usage data.',
+    usageAsk: {
+      title: 'Nightly shares usage data',
+      text: 'Without it, you carry on with “Stable”.',
+      agree: 'Agree',
+      toStable: 'Switch to “Stable”',
+    },
     apply: 'Apply',
   },
 

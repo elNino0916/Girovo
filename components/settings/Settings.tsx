@@ -36,6 +36,7 @@
 import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { LOCALE_NAMES } from '@/lib/i18n/locale';
 import { useLocale, useT } from '@/lib/i18n/react';
+import { CONTACT_MAIL, WEBSITE_URL, imprintUrl, privacyUrl } from '@/lib/links';
 import { IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
 import { PAGE_CLUSTERS, PAGE_ORDER, type SettingsPage } from '@/lib/settings-pages';
 import { setBlack, setThemePref } from '@/lib/theme';
@@ -46,6 +47,7 @@ import { LanguageSegmented } from '../LanguageToggle';
 import { useBlackBackground, useThemePref } from '../ThemeToggle';
 import { updates, useUpdates } from '../updates/store';
 import { UpdateSessionRow } from '../updates/UpdateNotices';
+import { usageComesWithChannel } from '../telemetry/NightlyUsage';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
   BellIcon, BuildingIcon, ChartIcon, ClockIcon, CodeIcon, EyeOffIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
@@ -71,11 +73,7 @@ import {
 } from './rows';
 
 // i18n-data-start — addresses, not words
-const WEBSITE_URL = 'https://girovo.de';
-const CONTACT_MAIL = 'contact@girovo.de';
 const SOURCE_URL = 'https://github.com/elNino0916/Girovo';
-const PRIVACY_URL = 'https://elnino0916.de/girovo/privacy';
-const IMPRINT_URL = 'https://elnino0916.de/girovo/impressum';
 // i18n-data-end
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 
@@ -550,6 +548,9 @@ function PrivacyPage() {
   const t = useT();
   const { meta, logoConsent, setLogoConsent } = useFints();
   const usage = useUsageConsent();
+  // On the Nightly channel usage data is part of it (components/telemetry/NightlyUsage.tsx).
+  const { state: update } = useUpdates();
+  const withChannel = usageComesWithChannel(update?.channel, usage);
   return (
     // What can leave the machine besides the bank's own traffic — each off
     // until the user agreed, and absent in a build that does not offer it.
@@ -570,8 +571,9 @@ function PrivacyPage() {
           setting="usage"
           checked={usage === 'on'}
           onChange={(on) => void setUsageConsent(on)}
+          disabled={withChannel}
           title={t.session.usage}
-          summary={t.session.usageHint}
+          summary={withChannel ? t.session.usageNightly : t.session.usageHint}
         />
       )}
     </SettingsGroup>
@@ -581,6 +583,7 @@ function PrivacyPage() {
 function AboutPage() {
   const t = useT();
   const { openNewInSix } = useFints();
+  const { locale } = useLocale();
   const { state: update } = useUpdates();
   return (
     <>
@@ -609,8 +612,8 @@ function AboutPage() {
         <LinkItem icon={<GlobeIcon />} title={t.settings.website} summary="girovo.de" href={WEBSITE_URL} opensExternally={t.shell.opensExternally} />
         <LinkItem icon={<MailIcon />} title={t.settings.contact} summary={CONTACT_MAIL} href={`mailto:${CONTACT_MAIL}`} opensExternally={t.settings.opensMail} />
         <LinkItem icon={<CodeIcon />} title={t.settings.source} href={SOURCE_URL} opensExternally={t.shell.opensExternally} />
-        <LinkItem icon={<FileIcon />} title={t.settings.privacyPolicy} href={PRIVACY_URL} opensExternally={t.shell.opensExternally} />
-        <LinkItem icon={<BuildingIcon />} title={t.settings.imprint} href={IMPRINT_URL} opensExternally={t.shell.opensExternally} />
+        <LinkItem icon={<FileIcon />} title={t.settings.privacyPolicy} href={privacyUrl(locale)} opensExternally={t.shell.opensExternally} />
+        <LinkItem icon={<BuildingIcon />} title={t.settings.imprint} href={imprintUrl(locale)} opensExternally={t.shell.opensExternally} />
       </SettingsGroup>
     </>
   );
