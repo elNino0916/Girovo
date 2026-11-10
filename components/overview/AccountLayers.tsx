@@ -4,32 +4,52 @@
 // layers.ts): each a check box in its own colour, its name and its figure.
 // The box puts the account's Umsätze and balance into the Übersicht or takes
 // them out; the name shows that account alone, as its page. "+" logs in a
-// further bank.
+// further bank, the arrows beside it open "Konten anordnen". Under the
+// accounts, each further bank that is not logged in, with the way to log in
+// (5.x had it under its account list; a user's report, 2026-11-10).
 
 import { M3eCheckbox } from '@m3e/react/checkbox';
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useT } from '@/lib/i18n/react';
+import { BankLogo } from '../BankLogo';
 import { useFints } from '../FintsProvider';
 import { Icon } from '../icons';
 import { Money } from '../Money';
-import { IconButton, cx } from '../ui';
+import { Button, IconButton, cx } from '../ui';
+import { vaultNote } from './AccountIdentity';
+import { ArrangeSheet } from './ArrangeSheet';
 import { useAccountValue, useLayers } from './layers';
 
 export function AccountLayers() {
-  const { accountLabel, openAddBank, activeAccount, tab } = useFints();
+  const { accountLabel, openAddBank, activeAccount, tab, banks, logoFiles, vaultStatus, toast } = useFints();
+  const [arranging, setArranging] = useState(false);
   const t = useT();
   const words = t.shell.frame;
   const { layers, shown, setShown, only } = useLayers();
   const valueOf = useAccountValue();
   const alone = shown.length === 1 ? shown[0].accountNumber : null;
+  // Remembered from an earlier session, or its session ended during this one.
+  const absent = banks.filter((b) => b.state === 'remembered' || b.state === 'loggedOut');
+  // The order is kept in the saved data: without it there is nothing to keep it in.
+  const arrange = () => {
+    if (vaultStatus === 'ready') setArranging(true);
+    else toast(vaultNote(vaultStatus), 'info');
+  };
 
   return (
     <section aria-label={words.accounts} className="pt-4">
       <div className="flex items-center justify-between pr-3 pl-7">
         <h2 className="text-[14px] leading-5 font-medium text-ink-2">{words.accounts}</h2>
-        <IconButton size="sm" aria-label={t.banks.add} title={t.banks.add} onClick={() => openAddBank()}>
-          <Icon ms="add" size={20}>{null}</Icon>
-        </IconButton>
+        <div className="flex items-center">
+          {layers.length > 1 && (
+            <IconButton size="sm" aria-label={t.insights.accounts.arrange} title={t.insights.accounts.arrange} aria-haspopup="dialog" onClick={arrange}>
+              <Icon ms="swap_vert" size={20}>{null}</Icon>
+            </IconButton>
+          )}
+          <IconButton size="sm" aria-label={t.banks.add} title={t.banks.add} onClick={() => openAddBank()}>
+            <Icon ms="add" size={20}>{null}</Icon>
+          </IconButton>
+        </div>
       </div>
       <ul className="mt-1 flex flex-col">
         {layers.map(({ account: a, color, shown: on }) => {
@@ -72,6 +92,28 @@ export function AccountLayers() {
           );
         })}
       </ul>
+      {absent.length > 0 && (
+        <ul className="mt-1 flex flex-col">
+          {absent.map((b) => (
+            <li key={b.key} data-absent-bank={b.key} className="mx-3 flex h-9 items-center gap-2 pr-1 pl-2">
+              <span className="grid w-10 shrink-0 place-items-center [&>span]:max-w-full">
+                <BankLogo brand={b.bank.brand} size="sm" file={logoFiles[b.bank.brand]} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-ink-2" title={b.bank.name}>{b.bank.name}</span>
+              <Button
+                variant="tertiary"
+                size="xs"
+                className="shrink-0"
+                aria-label={t.banks.alsoLogin(b.bank.name)}
+                onClick={() => openAddBank({ bank: b.bank, userId: b.ref?.userId })}
+              >
+                {b.state === 'loggedOut' ? t.banks.loginAgain : t.banks.login}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {arranging && <ArrangeSheet flat onClose={() => setArranging(false)} />}
     </section>
   );
 }

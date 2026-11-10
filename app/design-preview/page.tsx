@@ -1047,7 +1047,7 @@ const VIEWS: Record<string, ViewDef> = {
     group: 'Banken',
     options: { secondBank: 'remembered' },
     // "Auch bei … anmelden" from the account list: the login name is there already.
-    // The desktop's frame lists no bank that is not logged in: there, the form as that row opens it.
+    // The desktop's frame has that row in its sidebar, outside the page: there, the form as the row opens it.
     async script(c) {
       const remembered = c.api().banks.find((b) => b.state === 'remembered');
       if (document.querySelector('[data-frame]') && remembered) c.api().openAddBank({ bank: remembered.bank, userId: remembered.ref?.userId });

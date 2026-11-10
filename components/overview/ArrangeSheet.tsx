@@ -37,16 +37,17 @@ type Drag = {
  * within each group. A row is moved by its grip, or by resting a finger on
  * it, and with the keyboard by the grip's arrow keys; each change is kept in
  * the vault as it is made, so the sheet can be closed any way. A bottom sheet
- * on a phone, a dialog from 640px.
+ * on a phone, a dialog from 640px. `flat`: the desktop sidebar's list, which
+ * has no groups — every account in one list, and no grouping to pick.
  */
-export function ArrangeSheet({ onClose }: { onClose: () => void }) {
+export function ArrangeSheet({ onClose, flat = false }: { onClose: () => void; flat?: boolean }) {
   const { accounts, vault, arrangeAccounts, bankOf, banks, accountLabel, logoFiles } = useFints();
   const t = useT();
   const words = t.insights.accounts;
   const id = useId();
   const listRef = useRef<HTMLDivElement>(null);
   const [said, setSaid] = useState('');
-  const grouping: AccountGrouping = vault?.accountGrouping ?? 'type';
+  const grouping: AccountGrouping = flat ? 'none' : vault?.accountGrouping ?? 'type';
   const order = useMemo(() => orderAccounts(accounts, vault?.accountOrder).map((a) => a.accountNumber), [accounts, vault?.accountOrder]);
   const byKey = useMemo(() => new Map(accounts.map((a) => [a.accountNumber, a])), [accounts]);
   const severalBanks = new Set(accounts.map((a) => bankOf(a)?.key ?? 'primary')).size > 1;
@@ -176,14 +177,18 @@ export function ArrangeSheet({ onClose }: { onClose: () => void }) {
             <span className="sr-only"> {words.arrangeKeys}</span>
           </p>
 
-          <p className="mt-4 mb-2 text-[14px] leading-5 font-medium text-ink-2">{words.grouping}</p>
-          <Segmented
-            block
-            aria-label={words.grouping}
-            value={grouping}
-            onChange={(g) => arrangeAccounts({ grouping: g })}
-            options={GROUPINGS.map((g) => ({ value: g, label: words.groupings[g] }))}
-          />
+          {!flat && (
+            <>
+              <p className="mt-4 mb-2 text-[14px] leading-5 font-medium text-ink-2">{words.grouping}</p>
+              <Segmented
+                block
+                aria-label={words.grouping}
+                value={grouping}
+                onChange={(g) => arrangeAccounts({ grouping: g })}
+                options={GROUPINGS.map((g) => ({ value: g, label: words.groupings[g] }))}
+              />
+            </>
+          )}
 
           <div ref={listRef} className="-mx-4 mt-2 sm:-mx-6">
             {groups.map((g) => {

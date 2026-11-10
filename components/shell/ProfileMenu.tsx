@@ -161,6 +161,10 @@ export function ProfileMenu() {
               close();
               openAddBank();
             }}
+            onLoginBank={(entry) => {
+              close();
+              openAddBank({ bank: entry.bank, userId: entry.ref?.userId });
+            }}
             onRemoveBank={(entry) => {
               close();
               setRemoving(entry);
@@ -213,7 +217,7 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function SessionPanel({
-  holder, initials, onSettings, onInbox, unread, news, onAddBank, onRemoveBank,
+  holder, initials, onSettings, onInbox, unread, news, onAddBank, onLoginBank, onRemoveBank,
 }: {
   holder: string;
   initials: string;
@@ -225,6 +229,7 @@ function SessionPanel({
   /** Something unread waits in the Mitteilungen. */
   news: boolean;
   onAddBank: () => void;
+  onLoginBank: (entry: BankEntry) => void;
   onRemoveBank: (entry: BankEntry) => void;
 }) {
   const t = useT();
@@ -317,16 +322,28 @@ function SessionPanel({
               title={b.bank.name}
               hint={bankHint(b, t)}
               action={b.state !== 'primary' && (
-                <Button
-                  variant="tertiary"
-                  size="xs"
-                  className="-mr-2 shrink-0"
-                  aria-haspopup="dialog"
-                  aria-label={t.banks.removeNamed(b.bank.name)}
-                  onClick={() => onRemoveBank(b)}
-                >
-                  {t.banks.remove}
-                </Button>
+                <span className="-mr-2 flex shrink-0 flex-col items-end">
+                  {(b.state === 'remembered' || b.state === 'loggedOut') && (
+                    <Button
+                      variant="tertiary"
+                      size="xs"
+                      aria-haspopup="dialog"
+                      aria-label={t.banks.alsoLogin(b.bank.name)}
+                      onClick={() => onLoginBank(b)}
+                    >
+                      {b.state === 'loggedOut' ? t.banks.loginAgain : t.banks.login}
+                    </Button>
+                  )}
+                  <Button
+                    variant="tertiary"
+                    size="xs"
+                    aria-haspopup="dialog"
+                    aria-label={t.banks.removeNamed(b.bank.name)}
+                    onClick={() => onRemoveBank(b)}
+                  >
+                    {t.banks.remove}
+                  </Button>
+                </span>
               )}
             />
           ))}
