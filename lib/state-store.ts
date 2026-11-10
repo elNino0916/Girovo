@@ -97,6 +97,49 @@ export function loadProfile(blz: string, userId: string, pin: string): DevicePro
   }
 }
 
+/**
+ * How the remembered device of (blz, userId) stands to this PIN:
+ * 'none' — nothing kept; 'opens' — loadProfile would hand it out; 'expired' —
+ * it opens, but is older than PROFILE_MAX_AGE_MS; 'locked' — a file is there
+ * that this PIN does not open (made under another PIN, or damaged).
+ */
+export type ProfileState = 'none' | 'opens' | 'expired' | 'locked';
+
+export function profileState(blz: string, userId: string, pin: string): ProfileState {
+  let text: string;
+  try {
+    text = fs.readFileSync(profileFile(blz, userId), 'utf8');
+  } catch {
+    return 'none';
+  }
+  if (!pin) return 'locked';
+  try {
+    const blob = parseBox(JSON.parse(text));
+    if (!blob) return 'locked';
+    const parsed = JSON.parse(openWithPin(String(pin), blob).toString('utf8')) as { savedAt?: unknown } | null;
+    if (!parsed || typeof parsed.savedAt !== 'number') return 'locked';
+    return Date.now() - parsed.savedAt > PROFILE_MAX_AGE_MS ? 'expired' : 'opens';
+  } catch {
+    return 'locked';
+  }
+}
+
+/**
+ * A PIN that was kept (Windows Hello, a security key, a fingerprint, beside
+ * another login) and does not open the device remembered here: the PIN was
+ * changed since, and the kept one is the old one. The bank is not asked with
+ * it — that would be one wrong try for certain (app/api/connect).
+ */
+export const keptPinIsStale = (kept: unknown, state: ProfileState): boolean => kept === true && state === 'locked';
+
+/**
+ * A device about to be remembered under a PIN the one remembered before does
+ * not open with: whatever else keeps this login's PIN keeps the old one, and
+ * goes (lib/session.ts saveSessionProfile). Not for an expired one — that PIN
+ * is this one — and not where nothing was remembered.
+ */
+export const replacesAnotherPin = (state: ProfileState): boolean => state === 'locked';
+
 /** Whether a profile file exists for (blz, userId) — regardless of PIN. */
 export function hasProfile(blz: string, userId: string): boolean {
   try {

@@ -21,10 +21,13 @@ import type { TransferOrder } from './fints-sepa';
 import type { DaySpan } from './history';
 import type { StatementSeg } from './bank-statements';
 import type { OrderSchedule } from './order-schedule';
+import { isPinRefusal } from './bank-answer';
 import { findSessionsWith } from './history-store';
 import { fintsProductVersion } from './product-version';
-import { saveProfile, type DeviceProfile } from './state-store';
+import { removeSecurityKeys } from './security-key';
+import { profileState, replacesAnotherPin, saveProfile, type DeviceProfile } from './state-store';
 import { noteTelemetry } from './telemetry';
+import { removeWindowsHello } from './windows-hello';
 
 /**
  * Widen a client to the members lib-fints declares private but this app needs
@@ -191,7 +194,9 @@ export type Session = {
    * The bank has taken this session's PIN: it synchronised the login, or
    * answered a read (or asked an approval for one). A remembered device opens
    * on this computer with an old PIN too, so until then nothing kept under
-   * that PIN for other banks leaves (app/api/linked-unlock).
+   * that PIN for other banks leaves (app/api/linked-unlock). Taken back when
+   * the bank turns the PIN down later in the session (pinRefused): from then
+   * on nothing may keep it either (app/api/windows-hello, app/api/security-key).
    */
   pinAccepted?: true;
 };
@@ -257,6 +262,16 @@ export function dropSession(id: unknown): void {
   if (typeof id === 'string') sessions.delete(id);
 }
 
+/** The bank turned this session's PIN down: it is no longer one the bank took (Session.pinAccepted). */
+export function pinRefused(s: Session): void {
+  delete s.pinAccepted;
+}
+
+/** The same, read from the bank's answer to a call in the session: only its own codes for the PIN count (9931, 9942). */
+export function notePinAnswer(s: Session, answer: string): void {
+  if (isPinRefusal(answer)) pinRefused(s);
+}
+
 /**
  * A client for a remembered device: its Kundensystem-ID, cached BPD/UPD and
  * TAN method, under `productId` — the ID that Kundensystem-ID was issued
@@ -288,6 +303,16 @@ export function saveSessionProfile(s: Session): void {
     if (!cfg?.pin || !s.meta?.blz || !cfg.userId) return;
     const systemId = cfg.bankingInformation?.systemId;
     if (!systemId || systemId === '0') return; // nothing worth remembering yet
+    // Remembered before under a PIN that is not this one — the PIN was
+    // changed at the bank: Windows Hello and the security keys still keep
+    // the old one and would send it as this login's. They go first; queued
+    // per file ahead of anything this session keeps afresh.
+    if (replacesAnotherPin(profileState(s.meta.blz, cfg.userId, cfg.pin))) {
+      const login = { blz: s.meta.blz, userId: cfg.userId };
+      void Promise.allSettled([removeWindowsHello(login), removeSecurityKeys(login)]).then((done) => {
+        if (done.some((d) => d.status === 'rejected')) console.warn(`[state] a PIN kept under the old one could not be deleted (blz=${login.blz})`);
+      });
+    }
     const ok = saveProfile(s.meta.blz, cfg.userId, cfg.pin, {
       bankingInformation: cfg.bankingInformation,
       tanMethodId: cfg.tanMethodId,

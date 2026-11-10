@@ -7,15 +7,23 @@
 // A remembered device that does not open with the kept PIN — the PIN was
 // changed, the device was set up under another product ID — is never taken
 // to the bank: the login waits for the user instead.
+//
+// A PIN the bank turns down leaves the box (lib/background-check.ts) — and
+// here everything else on the desktop that keeps it or opens with it: the
+// login's Windows Hello file, its security keys and its remembered device, as
+// app/api/forget-device does for a PIN refused in the app.
 
 import { lookupBlz } from './banks';
 import type { BankSide, CheckedLogin } from './background-check';
 import { isCredentialAnswer } from './bank-answer';
 import { fetchStatements } from './fints-statements';
+import { IS_ANDROID } from './platform';
 import { restorePlan } from './product-fallback';
+import { removeSecurityKeys } from './security-key';
 import { accountsFor, balanceFromStatements, bankAnswerText, serializeTransactions } from './serialize';
 import { dropSession, FALLBACK_PRODUCT_ID, getSession, loginInUse, newSession, PRODUCT_ID, restoredClient } from './session';
-import { loadProfile } from './state-store';
+import { forgetProfile, loadProfile, profileState } from './state-store';
+import { removeWindowsHello } from './windows-hello';
 
 export const bankSide: BankSide = {
   async open(login: CheckedLogin) {
@@ -76,5 +84,21 @@ export const bankSide: BankSide = {
     // the app in front, or waiting for an approval, counts as in use.
     const appInFront = (globalThis as typeof globalThis & { __girovoAppInFront?: () => boolean }).__girovoAppInFront;
     return loginInUse(login.blz, login.userId) || appInFront?.() === true;
+  },
+
+  async refused(login) {
+    // The phone's job only reads the saved files (mobile/background/entry.ts)
+    // and has no way to the PIN behind the fingerprint: there the app's next
+    // login finds out, before or at its first read (lib/client-api.ts PIN_REFUSED_EVENT).
+    if (IS_ANDROID) return;
+    const name = { blz: login.blz, userId: login.userId };
+    const kept = await Promise.allSettled([removeWindowsHello(name), removeSecurityKeys(name)]);
+    // The remembered device, while it is still the one this PIN opens: set up
+    // afresh since, it is another PIN's.
+    const device = profileState(login.blz, login.userId, login.pin);
+    const gone = device === 'opens' || device === 'expired' ? forgetProfile(login.blz, login.userId) : true;
+    if (!gone || kept.some((k) => k.status === 'rejected')) {
+      console.warn(`[background] a refused PIN could not be deleted everywhere (blz=${login.blz})`);
+    }
   },
 };

@@ -19,9 +19,11 @@
 //   PIN — then nothing is sent to the bank at all.
 // - A PIN the bank turns down is deleted at once — saved before the next
 //   login is checked — and never tried again: a few wrong tries lock the
-//   online banking. Any other answer from the bank ends that login's check
-//   for this round, so one round never sends a PIN more than once after it
-//   went wrong.
+//   online banking. Whatever else on this device keeps that PIN, or opens
+//   with it, goes with it (BankSide.refused): the same PIN behind Windows
+//   Hello would be the next wrong try. Any other answer from the bank ends
+//   that login's check for this round, so one round never sends a PIN more
+//   than once after it went wrong.
 // - What is new is told by the booking's key (lib/categories.ts txKey),
 //   counted, so two equal bookings on one day are two. The first check of an
 //   account only learns what is there.
@@ -112,6 +114,13 @@ export type BankSide = {
   close(handle: string): void;
   /** Whether the user is in this login right now (their own session reads it then). */
   busy(login: CheckedLogin): boolean;
+  /**
+   * The bank turned this login's kept PIN down, and it is out of the box:
+   * whatever else on this device keeps that PIN or opens with it goes too.
+   * Never after an outage, an approval or a failed read — and not when the
+   * user gave a new PIN meanwhile, which the refusal says nothing about.
+   */
+  refused?(login: CheckedLogin): Promise<void> | void;
 };
 
 export const SECRET_BYTES = 32;
@@ -707,7 +716,19 @@ export function runCheck(store: BackgroundStore, secret: Buffer, bank: BankSide,
         if (income.length) notices.push(noticeFor('income', login, linesOf(income, amounts), income.length));
         if (plain.length && prefs.every) notices.push(noticeFor('new', login, linesOf(plain, amounts), plain.length));
       }
-      const after = await change(store, secret, (box) => settle(box, login, outcome, now, learnt));
+      // A new PIN typed meanwhile (touch) is what is kept now: the refused one is nobody's any more.
+      let replaced = false;
+      const after = await change(store, secret, (box) => {
+        replaced = !!box?.logins.some((l) => sameLogin(l, login) && l.pin !== login.pin);
+        return settle(box, login, outcome, now, learnt);
+      });
+      if (outcome.kind === 'refused' && !replaced) {
+        try {
+          await bank.refused?.(login);
+        } catch {
+          // The box no longer has the PIN; what could not go is asked again by the next refusal.
+        }
+      }
       if (!after) {
         on = false;
         break;

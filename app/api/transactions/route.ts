@@ -5,7 +5,7 @@ import {
   balanceFromStatements, bankAnswerText, logResp, logStatementDates,
   serializeNoted, serializeTransactions, statementBlocks, tanPayload,
 } from '@/lib/serialize';
-import { getSession } from '@/lib/session';
+import { getSession, notePinAnswer } from '@/lib/session';
 import { cutToAsked, fetchStatements, statementFormat } from '@/lib/fints-statements';
 import type { TransactionsResponse } from '@/lib/fints-types';
 import { isoDate } from '@/lib/format';
@@ -50,7 +50,12 @@ export const POST = wrap(async (req: Request) => {
     s.pending = { type: 'statements', tanReference: resp.tanReference, accountNumber, asked };
     return json({ ...tanPayload(resp, s), accountNumber } satisfies TransactionsResponse);
   }
-  if (!resp.success) return fail(bankAnswerText(resp) || msgs().transactions.api.transactionsFailed);
+  if (!resp.success) {
+    const answer = bankAnswerText(resp);
+    // A PIN the bank turns down now is not kept anywhere from here on (Session.pinAccepted).
+    notePinAnswer(s, answer);
+    return fail(answer || msgs().transactions.api.transactionsFailed);
+  }
   s.pinAccepted = true;
   logStatementDates(accountNumber, resp.statements);
   // Per-block opening/closing balances — what a Kontoverlauf is checked against.

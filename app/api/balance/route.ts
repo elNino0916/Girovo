@@ -3,7 +3,7 @@
 import { bankAccountOf } from '@/lib/account-key';
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { bankAnswerText, serializeBalance, tanPayload } from '@/lib/serialize';
-import { getSession } from '@/lib/session';
+import { getSession, notePinAnswer } from '@/lib/session';
 import type { BalanceResponse } from '@/lib/fints-types';
 import { msgs } from '@/lib/i18n';
 
@@ -24,7 +24,12 @@ export const POST = wrap(async (req: Request) => {
     s.pending = { type: 'balance', tanReference: resp.tanReference, accountNumber };
     return json({ ...tanPayload(resp, s), accountNumber } satisfies BalanceResponse);
   }
-  if (!resp.success) return fail(bankAnswerText(resp) || msgs().transactions.api.balanceFailed);
+  if (!resp.success) {
+    const answer = bankAnswerText(resp);
+    // A PIN the bank turns down now is not kept anywhere from here on (Session.pinAccepted).
+    notePinAnswer(s, answer);
+    return fail(answer || msgs().transactions.api.balanceFailed);
+  }
   s.pinAccepted = true;
   return json({
     needsTan: false, accountNumber, balance: serializeBalance(resp.balance),

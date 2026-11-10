@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { post, store } from '@/lib/client-api';
-import { formatBankAnswer, isBankOutage, isCredentialAnswer, isNotAboutPin } from '@/lib/bank-answer';
+import { formatBankAnswer, isBankOutage, isCredentialAnswer, isNotAboutPin, isStaleKeptPin } from '@/lib/bank-answer';
 import { APPROVAL_APP } from '@/lib/brands';
 import type { MetaResponse } from '@/lib/fints-types';
 import type { Messages } from '@/lib/i18n';
@@ -64,7 +64,9 @@ const CANCEL_AFTER_MS = 8000;
 /**
  * Android: the PIN came from behind the fingerprint — with the PINs of the
  * further banks kept beside it, which the provider logs in next. The
- * desktop: `hello`, it came from behind Windows Hello (lib/windows-hello.ts).
+ * desktop: `hello`, it came from behind Windows Hello (lib/windows-hello.ts);
+ * `securityKey`, from behind a security key (lib/security-key.ts); neither, it
+ * is a further bank's, opened by the first login (lib/linked-unlock.ts).
  */
 export type Unsealed = { linked: GirovoSealedLogin[]; hello?: true; securityKey?: true };
 
@@ -87,7 +89,7 @@ export function Credentials({
    * Android, its PIN on the desktop (lib/linked-unlock.ts) — tried at once.
    */
   openedPin?: string;
-  /** The desktop: the bank refused that opened PIN, which has to go (FintsProvider forgetLinkedPin). */
+  /** The desktop: that opened PIN was refused, or no longer fits, and has to go (FintsProvider forgetLinkedPin). */
   onOpenedPinRefused?: (blz: string, userId: string) => void;
   /** The desktop's add-bank sheet with "Weitere Banken mit anmelden" on: this PIN is kept, and the note says so. */
   pinKept?: boolean;
@@ -133,6 +135,21 @@ export function Credentials({
   const { autoLoggedOut } = useFints();
   const pinRef = useRef<HTMLInputElement>(null);
   const loginRef = useRef<HTMLInputElement>(null);
+  // One login at a time, and none for a form that has gone. `submitting` is
+  // the picture of it; these are read after a wait: a Windows Hello or
+  // security-key prompt can stay open for minutes, and the PIN it then hands
+  // over must not start a login beside one typed meanwhile, nor after the
+  // form went — that login would replace the live session.
+  const inFlight = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  /** Before and after a prompt's wait: whether what it opens may log in — no login under way, the form still there. */
+  const stillFree = useCallback(() => mounted.current && !inFlight.current, []);
 
   useEffect(() => {
     (login ? pinRef : loginRef).current?.focus();
@@ -188,6 +205,8 @@ export function Credentials({
 
   /** One login with `secretValue`: typed (no `unsealed`), or opened with a fingerprint. */
   const attempt = useCallback(async (secretValue: string, unsealed?: Unsealed) => {
+    if (inFlight.current || !mounted.current) return;
+    inFlight.current = true;
     setFieldErrors({});
     setError(null);
     setFingerprintNotice(null);
@@ -206,35 +225,54 @@ export function Credentials({
         return;
       }
       const message = (err as Error).message || '';
-      setError(message);
+      // The kept PIN no longer opens what this device remembers: it was
+      // changed at the bank, and the bank was not asked (app/api/connect).
+      const stale = isStaleKeptPin(message);
       // A stored PIN the bank did not take is deleted at once: it is never
       // tried a second time, because a few wrong tries lock the access. Only
       // a bank that could not be reached, or a login turned down before the
       // bank was asked or after it took the PIN, says nothing about the PIN.
       if (unsealed && !demo && !isBankOutage(message) && !isNotAboutPin(err)) {
+        const name = login.trim();
         if (IS_ANDROID) {
-          void window.girovoMobile?.biometric.forget(bank.blz, login.trim());
+          void window.girovoMobile?.biometric.forget(bank.blz, name);
           setFingerprint(false);
-          setFingerprintNotice(tr.android.biometric.refused);
-        } else if (unsealed.hello) {
-          void forgetHello({ blz: bank.blz, userId: login.trim() });
-          setHello(false);
-          setFingerprintNotice(tr.settings.windowsHello.refused);
-        } else if (unsealed.securityKey) {
-          void forgetSecurityKeys({ blz: bank.blz, userId: login.trim() });
-          setSecurityKey(false);
-          setFingerprintNotice(tr.settings.securityKeys.refused);
+          if (!stale) setFingerprintNotice(tr.android.biometric.refused);
         } else {
-          onOpenedPinRefused?.(bank.blz, login.trim());
-          setFingerprintNotice(tr.settings.linkedUnlock.refused);
+          // Windows Hello and every security key keep the same PIN, the
+          // first login's: whichever handed it over, both go and both buttons
+          // with them — the other would send the refused PIN once more.
+          void forgetHello({ blz: bank.blz, userId: name });
+          void forgetSecurityKeys({ blz: bank.blz, userId: name });
+          setHello(false);
+          setSecurityKey(false);
+          const said = tr.settings;
+          if (unsealed.hello) {
+            if (!stale) setFingerprintNotice(said.windowsHello.refused);
+          } else if (unsealed.securityKey) {
+            if (!stale) setFingerprintNotice(said.securityKeys.refused);
+          } else {
+            // A further bank's, opened by the first login: its copy beside that login goes too.
+            onOpenedPinRefused?.(bank.blz, name);
+            if (!stale) setFingerprintNotice(said.linkedUnlock.refused);
+          }
         }
       }
+      if (stale) {
+        // Girovo's own answer, not the bank's: no error of the bank's, no
+        // warning about a lock — no try was used up. The PIN field waits.
+        setFingerprintNotice(tr.auth.api.keptPinStale);
+        setFailures((n) => n + 1);
+        return;
+      }
+      setError(message);
       // A locked access is not one more wrong try: no lockout warning, and
       // no PIN selected for another attempt — only the bank can help now.
       if (formatBankAnswer(message).locked) return;
       if (isCredentialAnswer(message)) setLockoutRisk(true);
       setFailures((n) => n + 1);
     } finally {
+      inFlight.current = false;
       setSubmitting(false);
     }
   }, [bank, login, onSubmit, onOpenedPinRefused, tr]);
@@ -261,15 +299,17 @@ export function Credentials({
   const withFingerprint = useCallback(async () => {
     const mobile = window.girovoMobile;
     const name = login.trim();
-    if (!mobile || submitting || !name) return;
+    if (!mobile || submitting || !stillFree() || !name) return;
     const bio = tr.android.biometric;
     const opened = await mobile.biometric.unlock(bank.blz, name, {
       title: bio.unlockTitle,
       subtitle: bio.unlockSubtitle(bank.name),
       cancel: bio.usePin,
     });
+    if (!mounted.current) return;
     if (opened.result === 'unlocked' && opened.pin) {
-      await attempt(opened.pin, { linked: opened.linked ?? [] });
+      // A typed login started while the prompt was open: that one counts.
+      if (stillFree()) await attempt(opened.pin, { linked: opened.linked ?? [] });
       return;
     }
     if (opened.result === 'invalidated' || opened.result === 'missing') {
@@ -277,15 +317,18 @@ export function Credentials({
       if (opened.result === 'invalidated') setFingerprintNotice(bio.invalidated);
     }
     pinRef.current?.focus();
-  }, [bank, login, submitting, attempt, tr]);
+  }, [bank, login, submitting, attempt, stillFree, tr]);
 
   /** The desktop: the PIN from behind Windows Hello, then the same login as a typed one. */
   const withHello = useCallback(async () => {
     const name = login.trim();
-    if (submitting || !name) return;
+    if (submitting || !stillFree() || !name) return;
     const opened = await openWithHello({ blz: bank.blz, userId: name });
+    // The prompt can stay open for minutes: the form may have gone meanwhile…
+    if (!mounted.current) return;
     if (opened.result === 'opened') {
-      await attempt(opened.pin, { linked: [], hello: true });
+      // …or a typed login started, and that one counts.
+      if (stillFree()) await attempt(opened.pin, { linked: [], hello: true });
       return;
     }
     // The prompt asked for earlier is still open (it came to the front): that request logs in.
@@ -299,16 +342,18 @@ export function Credentials({
       setFingerprintNotice(helloStoreBroken(opened.code) ? said.brokenStore(opened.code) : said.openFailedCode(opened.code));
     }
     pinRef.current?.focus();
-  }, [bank, login, submitting, attempt, tr]);
+  }, [bank, login, submitting, attempt, stillFree, tr]);
 
   /** The desktop: the PIN from behind a security key, then the same login as a typed one. */
   const withSecurityKey = useCallback(async () => {
     const name = login.trim();
-    if (submitting || !name) return;
+    if (submitting || !stillFree() || !name) return;
     const said = tr.settings.securityKeys;
     const opened = await openWithSecurityKey({ blz: bank.blz, userId: name });
+    // As for Windows Hello: Windows' dialog waits up to two minutes for the key.
+    if (!mounted.current) return;
     if (opened.result === 'opened') {
-      await attempt(opened.pin, { linked: [], securityKey: true });
+      if (stillFree()) await attempt(opened.pin, { linked: [], securityKey: true });
       return;
     }
     if (opened.result === 'busy') return;
@@ -316,13 +361,14 @@ export function Credentials({
     if (opened.result === 'gone') {
       // Only this key's copy went; the others may still be there.
       const left = await securityKeysOf({ blz: bank.blz, userId: name });
+      if (!mounted.current) return;
       setSecurityKey(!!left?.length);
       setFingerprintNotice(said.gone);
     }
     if (opened.result === 'wrong') setFingerprintNotice(said.wrongKey);
     if (opened.result === 'failed') setFingerprintNotice(opened.code ? said.openFailedCode(opened.code) : said.openFailed);
     pinRef.current?.focus();
-  }, [bank, login, submitting, attempt, tr]);
+  }, [bank, login, submitting, attempt, stillFree, tr]);
 
   // Android: a further bank whose PIN the first login's fingerprint opened
   // logs in at once, as if the fingerprint had just been given for it.

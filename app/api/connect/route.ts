@@ -3,10 +3,17 @@
 // The browser sends an attempt id with the login. "Abbrechen" on the login
 // form posts it to ./cancel, which ends the bank request and makes sure no
 // session (and so no PIN) outlives the cancelled login (lib/connect-attempts.ts).
+//
+// `kept`: the PIN was not typed but kept — behind Windows Hello, a security
+// key or the fingerprint, or beside another login. Where it does not open the
+// device remembered here, it was changed at the bank since: the bank is not
+// asked with it at all (a few wrong tries lock the online banking), and the
+// page deletes the kept copies (lib/bank-answer.ts isStaleKeptPin).
 
 import { FinTSClient, FinTSConfig } from 'lib-fints';
 import { lookupBlz } from '@/lib/banks';
 import { body, fail, json, wrap } from '@/lib/api';
+import { isCredentialAnswer } from '@/lib/bank-answer';
 import { bankErrorKind, withBankSignal } from '@/lib/bank-fetch';
 import { beginAttempt, settleAttempt, type ConnectAttempt } from '@/lib/connect-attempts';
 import { msgs } from '@/lib/i18n';
@@ -16,20 +23,20 @@ import {
   DEBUG, FALLBACK_PRODUCT_ID, PRODUCT_ID, PRODUCT_VERSION, asClientEx, getSession, newSession, restoredClient,
   type Session,
 } from '@/lib/session';
-import { loadProfile, type DeviceProfile } from '@/lib/state-store';
+import { forgetProfile, keptPinIsStale, loadProfile, profileState, type DeviceProfile } from '@/lib/state-store';
 import { noteTelemetry, reportEvent } from '@/lib/telemetry';
 import type { BankMeta, ConnectResponse, FinTSClientEx } from '@/lib/fints-types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type ConnectBody = { blz: string; userId: string; pin: string; attemptId?: string };
+type ConnectBody = { blz: string; userId: string; pin: string; attemptId?: string; kept?: boolean };
 
 /** The login was called off; the browser has stopped listening already. */
 const cancelled = () => fail(msgs().auth.api.cancelled, 409);
 
 export const POST = wrap(async (req: Request) => {
-  const { blz, userId, pin, attemptId } = await body<ConnectBody>(req);
+  const { blz, userId, pin, attemptId, kept } = await body<ConnectBody>(req);
 
   const bankId = String(blz || '').trim();
   if (!/^\d{8}$/.test(bankId)) return fail(msgs().auth.api.invalidBlz);
@@ -38,6 +45,8 @@ export const POST = wrap(async (req: Request) => {
   // (the browser checks a remembered bank at start, so this is the rare race).
   if (!dbEntry?.url) return fail(msgs().auth.api.bankGone);
   if (!userId || !pin) return fail(msgs().auth.api.missingCredentials);
+  // Before the bank hears of it: a kept PIN the remembered device does not open with is an old one.
+  if (kept === true && keptPinIsStale(kept, profileState(bankId, userId, pin))) return fail(msgs().auth.api.keptPinStale, 409);
 
   // Telemetry: which bank and how the login went — never who logged in.
   noteTelemetry({ blz: bankId });
@@ -204,7 +213,12 @@ async function login(
   console.log(`[connect] blz=${bankId} upd=${!!client.config.bankingInformation?.upd} accounts=${client.config.bankingInformation?.upd?.bankAccounts?.length ?? 0} tanMethods=${client.config.availableTanMethods?.length ?? 0}`);
   if (!sync.success && (!client.config.availableTanMethods || client.config.availableTanMethods.length === 0)) {
     outcome('refused');
-    return fail(bankAnswerText(sync) || msgs().auth.api.refused);
+    const answer = bankAnswerText(sync) || msgs().auth.api.refused;
+    // The remembered device opens with the very PIN the bank just turned down
+    // (one set up under the previous product ID is asked first, above): it
+    // goes, or "Neue Umsätze melden" would open it and send that PIN again.
+    if (saved && isCredentialAnswer(answer)) forgetProfile(bankId, userId);
+    return fail(answer);
   }
 
   const bankName = client.config.bankingInformation?.bpd?.bankName || dbEntry.name || `BLZ ${bankId}`;

@@ -3399,7 +3399,9 @@ function useFintsState() {
    * `unsealed` (Android): the PIN came from behind the fingerprint, and with
    * it the further banks' PINs kept beside it, which log in next. On the
    * desktop the PIN — typed, or from behind Windows Hello (`hello`) — opens
-   * theirs (openLinkedUnlock).
+   * theirs (openLinkedUnlock). A PIN that was kept rather than typed is sent
+   * as `kept`: the server does not ask the bank with one that no longer
+   * opens the remembered device (app/api/connect).
    */
   const connect = useCallback(async (chosen: ChosenBank, login: string, pin: string, unsealed?: { linked: GirovoSealedLogin[]; hello?: true; securityKey?: true }) => {
     // "Zurück zur Anmeldung" from the TAN-method screen leaves the half-open
@@ -3410,7 +3412,7 @@ function useFintsState() {
     let data: ConnectResponse;
     try {
       data = await post<ConnectResponse>('/api/connect', {
-        blz: chosen.blz, userId: login, pin, attemptId: attempt.id,
+        blz: chosen.blz, userId: login, pin, attemptId: attempt.id, ...(unsealed ? { kept: true } : {}),
       }, { signal: attempt.ctrl.signal });
     } finally {
       if (connectAttemptRef.current === attempt) connectAttemptRef.current = null;
@@ -3874,6 +3876,8 @@ function useFintsState() {
   const connectAddBank = useCallback(async (chosen: ChosenBank, login: string, pin: string, unsealed?: { linked: GirovoSealedLogin[] }) => {
     const primary = sessionRef.current;
     if (!primary || !addBankRef.current) return;
+    // Kept, not typed: from behind the fingerprint, or opened by the first login (app/api/connect `kept`).
+    const kept = !!unsealed || (!!addBankRef.current.openedPin && addBankRef.current.openedPin === pin);
     // An opened PIN is tried once: what happens next is this attempt's.
     if (addBankRef.current.openedPin) updateAddBank((a) => ({ ...a, openedPin: null }));
     const said = msgs().banks;
@@ -3896,7 +3900,7 @@ function useFintsState() {
     let data: ConnectResponse;
     try {
       data = await post<ConnectResponse>('/api/connect', {
-        blz: chosen.blz, userId: login, pin, attemptId: attempt.id,
+        blz: chosen.blz, userId: login, pin, attemptId: attempt.id, ...(kept ? { kept: true } : {}),
       }, { signal: attempt.ctrl.signal });
     } catch (err) {
       if (isCurrent(primary)) releaseFlowBusy();

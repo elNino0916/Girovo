@@ -271,6 +271,99 @@ test('a refused PIN is saved as gone before the next login is checked', async ()
   assert.deepEqual(seenWhenDkb, ['12030000']);
 });
 
+/** The bank's side, noting every login whose refused PIN it was told to delete everywhere. */
+function withRefusedHook(bank: ReturnType<typeof fakeBank>) {
+  const told: string[] = [];
+  bank.side.refused = async (login) => {
+    told.push(`${login.blz}:${login.pin}`);
+  };
+  return told;
+}
+
+test('a refused PIN is deleted everywhere: the hook runs once, for that login, after its PIN left the box', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk, dkb], true);
+  const bank = fakeBank({ '50050201:DE01': 'refused' });
+  let keptWhenTold: string[] | undefined;
+  const told: string[] = [];
+  bank.side.refused = async (login) => {
+    told.push(`${login.blz}:${login.pin}`);
+    keptWhenTold = (await enrolled(store, secret))?.logins.map((l) => l.blz);
+  };
+  await runCheck(store, secret, bank.side, NOW);
+  assert.deepEqual(told, ['50050201:12345']);
+  assert.deepEqual(keptWhenTold, ['12030000']);
+  // Gone from the box: the next round has nothing to refuse, and nothing to tell.
+  await runCheck(store, secret, bank.side, NOW + 1);
+  assert.deepEqual(told, ['50050201:12345']);
+});
+
+test('the hook stays quiet for an outage, an approval, a device that does not open and a plain read', async () => {
+  for (const answers of [
+    { '50050201:DE01': 'failed' },
+    { '50050201:DE01': 'approval' },
+    { '50050201:open': 'login' },
+    { '50050201:DE01': [tx('2026-11-01', -3, 'Bäcker')] },
+  ]) {
+    const store = memoryStore();
+    await enroll(store, secret, [spk], true);
+    const bank = fakeBank(answers);
+    const told = withRefusedHook(bank);
+    await runCheck(store, secret, bank.side, NOW);
+    assert.deepEqual(told, [], JSON.stringify(answers));
+  }
+  // A bank that cannot be reached at all (the read throws) says nothing about the PIN either.
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  const bank = fakeBank({});
+  const told = withRefusedHook(bank);
+  bank.side.read = async () => {
+    throw new Error('ECONNRESET');
+  };
+  await runCheck(store, secret, bank.side, NOW);
+  assert.deepEqual(told, []);
+  assert.deepEqual((await enrolled(store, secret))?.logins.map((l) => l.blz), ['50050201']);
+});
+
+test('the hook does not run for the old PIN once the user gave a new one, and a failing hook ends nothing', async () => {
+  const store = memoryStore();
+  await enroll(store, secret, [spk], true);
+  const bank = fakeBank({ '50050201:DE01': 'refused' });
+  const told = withRefusedHook(bank);
+  const read = bank.side.read;
+  bank.side.read = async (...args) => {
+    await touch(store, secret, { ...spk, pin: '77777' });
+    return read(...args);
+  };
+  await runCheck(store, secret, bank.side, NOW);
+  assert.deepEqual(told, []);
+
+  // Switched off meanwhile: the refused PIN may still be kept elsewhere, so the hook runs.
+  const off = memoryStore();
+  await enroll(off, secret, [spk], true);
+  const bank2 = fakeBank({ '50050201:DE01': 'refused' });
+  const told2 = withRefusedHook(bank2);
+  const read2 = bank2.side.read;
+  bank2.side.read = async (...args) => {
+    await disable(off);
+    return read2(...args);
+  };
+  assert.equal((await runCheck(off, secret, bank2.side, NOW)).on, false);
+  assert.deepEqual(told2, ['50050201:12345']);
+
+  // A hook that throws: the PIN is out of the box all the same, and the next login is still checked.
+  const failing = memoryStore();
+  await enroll(failing, secret, [spk, dkb], true);
+  const bank3 = fakeBank({ '50050201:DE01': 'refused' });
+  bank3.side.refused = async () => {
+    throw new Error('EBUSY');
+  };
+  const r = await runCheck(failing, secret, bank3.side, NOW);
+  assert.deepEqual(bank3.opened, ['50050201', '12030000']);
+  assert.equal(r.notices[0].kind, 'refused');
+  assert.deepEqual((await enrolled(failing, secret))?.logins.map((l) => l.blz), ['12030000']);
+});
+
 test('mergeSeen keeps each key as often as either side has it, and forgets old days', () => {
   const merged = mergeSeen(['2026-11-01|1|a|', '2026-11-01|1|a|'], ['2026-11-01|1|a|', '2026-09-01|1|b|'], NOW);
   assert.deepEqual(merged, ['2026-11-01|1|a|', '2026-11-01|1|a|']);

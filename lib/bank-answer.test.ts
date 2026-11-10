@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BANK_UNAVAILABLE, BANK_UNREACHABLE, bankAnswerCodes, bankAnswerLines, formatBankAnswer, isBankOutage,
-  isCredentialAnswer, isDefiniteRefusal, isPinRefusal, refusalReference,
+  isCredentialAnswer, isDefiniteRefusal, isNotAboutPin, isPinRefusal, isStaleKeptPin, refusalReference,
 } from './bank-answer.ts';
+import { MESSAGES } from './i18n/index.ts';
 
 test('isPinRefusal: the bank\'s own codes, never a word alone', () => {
   assert.equal(isPinRefusal('9931: Anmeldename oder PIN ist falsch. | 9800: Dialog abgebrochen'), true);
@@ -149,6 +150,22 @@ test('credential refusals are told apart from outages and the product registrati
   assert.equal(isCredentialAnswer('9078: Software nicht als FinTS-Produkt registriert (PIN/TAN).'), false);
   assert.equal(isCredentialAnswer(BANK_UNAVAILABLE), false);
   assert.equal(isCredentialAnswer(BANK_UNREACHABLE), false);
+});
+
+test('a kept PIN that no longer fits is the app’s own answer: no refusal by the bank, in either language', () => {
+  for (const said of [MESSAGES.de.auth.api.keptPinStale, MESSAGES.en.auth.api.keptPinStale]) {
+    assert.equal(isStaleKeptPin(said), true);
+    // It names the PIN, and still is no answer about the credentials: no lockout warning, no try used up.
+    assert.equal(isCredentialAnswer(said), false);
+    assert.equal(isPinRefusal(said), false);
+    assert.equal(isBankOutage(said), false);
+    // It is about the kept PIN all the same: the kept copies go (components/auth/Credentials.tsx).
+    assert.equal(isNotAboutPin(new Error(said)), false);
+  }
+  assert.equal(isStaleKeptPin('9931: Anmeldename oder PIN falsch.'), false);
+  assert.equal(isStaleKeptPin(MESSAGES.de.auth.api.refused), false);
+  assert.equal(isStaleKeptPin(BANK_UNAVAILABLE), false);
+  assert.equal(isStaleKeptPin(undefined), false);
 });
 
 test('the outage sentences are recognised, with or without a next step after them', () => {

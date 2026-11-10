@@ -413,6 +413,11 @@ export const de = {
     refused: 'Deine Bank hat die Anmeldung abgelehnt. Prüfe Anmeldename und PIN.',
     methodNotOffered: 'Dieses Verfahren bietet deine Bank für deinen Zugang nicht an.',
     loginFailed: 'Anmeldung fehlgeschlagen.',
+    /**
+     * A kept PIN (Windows Hello, a security key, the fingerprint, beside another login) that no longer opens
+     * what this device remembers: the bank was not asked. Recognised by lib/bank-answer.ts isStaleKeptPin.
+     */
+    keptPinStale: 'Die gespeicherte PIN passt nicht mehr. Melde dich mit deiner PIN an.',
     /** device-status asked with GET, the old query-string form. */
     usePost: 'Bitte per POST abfragen.',
   },
@@ -746,6 +751,7 @@ export const en: typeof de = {
     refused: 'Your bank declined the login. Check your login name and PIN.',
     methodNotOffered: 'Your bank does not offer this method for your login.',
     loginFailed: 'Login failed.',
+    keptPinStale: 'The saved PIN no longer fits. Log in with your PIN.',
     usePost: 'Please use POST.',
   },
 };

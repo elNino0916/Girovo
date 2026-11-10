@@ -23,7 +23,7 @@
 // machine remembers about the login, like the fingerprint's PINs on the phone.
 
 import { body, fail, json, sessionExpired, wrap } from '@/lib/api';
-import { getSession } from '@/lib/session';
+import { getSession, pinRefused } from '@/lib/session';
 import { DocError, wipeDocs } from '@/lib/doc-store';
 import { HistoryError, wipeHistory } from '@/lib/history-store';
 import { removeLinkedUnlock } from '@/lib/linked-unlock';
@@ -53,6 +53,9 @@ export const POST = wrap(async (req: Request) => {
   }
 
   if (wipeData === true && !s) return sessionExpired();
+  // The bank turned this session's PIN down: while the session stays open,
+  // nothing keeps that PIN again (Windows Hello, a security key, the checks).
+  if (s && refused === true) pinRefused(s);
   if (b && u) {
     await removeLinkedUnlock({ blz: String(b), userId: String(u) });
     await removeWindowsHello({ blz: String(b), userId: String(u) });

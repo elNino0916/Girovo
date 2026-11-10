@@ -188,6 +188,18 @@ export function notAboutPin(message: string): Error {
 
 export const isNotAboutPin = (err: unknown): boolean => (err as Error | null)?.name === 'NotAboutPinError';
 
+/**
+ * Whether a message is the login's own "the kept PIN no longer fits"
+ * (app/api/connect, msgs().auth.api.keptPinStale), in either language: a kept
+ * PIN that does not open what this device remembers was changed at the bank
+ * since, so the bank was never asked with it. The kept copies go; nothing
+ * about it is the bank's answer, and no try was used up.
+ */
+export function isStaleKeptPin(message: string | null | undefined): boolean {
+  const m = String(message ?? '');
+  return LOCALES.some((l) => m === MESSAGES[l].auth.api.keptPinStale);
+}
+
 // ---------------------------------------------------------------------------
 // Login and reads: the answer a person reads
 // ---------------------------------------------------------------------------
@@ -271,7 +283,8 @@ export function isPinRefusal(message: string | null | undefined): boolean {
 }
 
 export function isCredentialAnswer(message: string | null | undefined): boolean {
-  if (isBankOutage(message)) return false;
+  // Girovo's own sentences, however much they speak of the PIN: the bank said nothing.
+  if (isBankOutage(message) || isStaleKeptPin(message)) return false;
   const codes = new Set(parts(message).map((p) => p.code));
   if (CREDENTIAL_CODES.some((c) => codes.has(c))) return true;
   if (codes.has(PRODUCT_NOT_REGISTERED)) return false;

@@ -175,3 +175,59 @@ test('state-store reads profiles written by the shipped build and writes ones it
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('profileState tells no device, one this PIN opens, an expired one and one another PIN made', async () => {
+  // Never the real state folder, whichever test runs first.
+  if (!process.env.FINTS_STATE_DIR) process.env.FINTS_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'fints-state-'));
+  const store = await import('./state-store.ts');
+  const dir = store.STATE_DIR;
+  assert.equal(dir, process.env.FINTS_STATE_DIR);
+  try {
+    const name = crypto.createHash('sha256').update('87654321|kunde2').digest('hex').slice(0, 32);
+    const file = path.join(dir, `${name}.json`);
+    const state = (pin: string) => store.profileState('87654321', 'kunde2', pin);
+
+    assert.equal(state('13579'), 'none');
+
+    const profile = PROFILE as unknown as Parameters<typeof store.saveProfile>[3];
+    assert.ok(store.saveProfile('87654321', 'kunde2', '13579', profile));
+    assert.equal(state('13579'), 'opens');
+    assert.equal(state('97531'), 'locked', 'made under another PIN');
+    assert.equal(state(''), 'locked', 'no PIN opens nothing');
+    assert.equal(store.profileState('87654321', 'kunde3', '13579'), 'none', 'another login');
+
+    // Older than the limit: it opens, and says so. loadProfile hands neither out.
+    fs.writeFileSync(file, legacySave('13579', PROFILE, Date.now() - store.PROFILE_MAX_AGE_MS - 1000));
+    assert.equal(state('13579'), 'expired');
+    assert.equal(state('97531'), 'locked', 'another PIN is another PIN, however old the file');
+    assert.equal(store.loadProfile('87654321', 'kunde2', '13579'), null);
+    assert.equal(store.loadProfile('87654321', 'kunde2', '97531'), null);
+
+    // Damaged, or not an envelope at all: there, and opened by no PIN.
+    fs.writeFileSync(file, '{"v":1,"salt"');
+    assert.equal(state('13579'), 'locked');
+    fs.writeFileSync(file, JSON.stringify({ hello: 'world' }));
+    assert.equal(state('13579'), 'locked');
+    // Opens, but holds no profile with a date.
+    fs.writeFileSync(file, JSON.stringify(sealWithPin('13579', Buffer.from('{"data":{}}', 'utf8'))));
+    assert.equal(state('13579'), 'locked');
+
+    assert.ok(store.forgetProfile('87654321', 'kunde2'));
+    assert.equal(state('13579'), 'none');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a kept PIN is stale only where a device is remembered under another PIN; only then do the kept copies go on saving', async () => {
+  if (!process.env.FINTS_STATE_DIR) process.env.FINTS_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'fints-state-'));
+  const { keptPinIsStale, replacesAnotherPin } = await import('./state-store.ts');
+  // app/api/connect: refused before the bank is asked.
+  assert.equal(keptPinIsStale(true, 'locked'), true);
+  for (const state of ['none', 'opens', 'expired'] as const) assert.equal(keptPinIsStale(true, state), false, state);
+  // A typed PIN is the user's to try, whatever is remembered; only a real `true` counts as kept.
+  for (const kept of [false, undefined, null, 'true', 1]) assert.equal(keptPinIsStale(kept, 'locked'), false, String(kept));
+  // lib/session.ts saveSessionProfile: Windows Hello and the security keys go with the old PIN only.
+  assert.equal(replacesAnotherPin('locked'), true);
+  for (const state of ['none', 'opens', 'expired'] as const) assert.equal(replacesAnotherPin(state), false, state);
+});
