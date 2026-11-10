@@ -1,0 +1,18 @@
+<en-US>
+• Black background for the dark theme
+• Your own names for contracts
+• Categories, notes and receipts stay with their booking, in any time zone
+• More accurate forecast and contracts
+• A refused saved PIN is never sent twice
+• Agree to the terms of use once
+• If you sync with your PC, update it to 6.1 too
+</en-US>
+<de-DE>
+• Schwarzer Hintergrund für die dunkle Darstellung
+• Eigene Namen für Verträge
+• Kategorien, Notizen und Belege bleiben bei ihrer Buchung, auch in anderen Zeitzonen
+• Prognose und Verträge rechnen genauer
+• Eine abgelehnte gespeicherte PIN wird nie zweimal gesendet
+• Nutzungsbedingungen einmal bestätigen
+• Gleichst du mit dem PC ab, aktualisiere ihn auch auf 6.1
+</de-DE>

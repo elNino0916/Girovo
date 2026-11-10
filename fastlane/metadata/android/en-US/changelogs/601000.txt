@@ -1,0 +1,1 @@
+Black background for the dark theme, your own names for contracts. Categories, notes and receipts stay with their booking, in any time zone. More accurate forecast and contracts. A refused saved PIN is never sent twice. If you sync with your PC, update it to 6.1 too.
