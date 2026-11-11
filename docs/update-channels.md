@@ -161,6 +161,12 @@ nothing during an outage.
   without name and hint).
 - **setChannel(id)**: takes `stable`, `preview` or a list id that is offered
   or current; anything else is ignored and the state comes back unchanged.
+- **The way back** (desktop): on a channel the running build is not of
+  (Stabil or Nightly from a Girovo Next build), the channel's own latest
+  build is offered even when older, marked as the way back. Only the
+  channel's own: Next without builds lists the stable release, which is no
+  way back for a nightly there. Never between two builds of one channel. The
+  APK keeps offering only newer versions (Android installs nothing older).
 - The note of what girovo.de offered last (`fints.updates.listed`) is keyed by
   the channel id, as it already is for `stable` and `preview`.
 - The move of Nightly copies to Stabil after 6.0.0 (moves_to_stable,

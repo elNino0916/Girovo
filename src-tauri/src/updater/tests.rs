@@ -752,6 +752,39 @@ async fn back_on_stable_from_a_preview_the_latest_stable_release_is_offered_as_t
 }
 
 #[tokio::test]
+async fn back_on_nightly_from_a_next_build_the_latest_nightly_is_offered_as_the_way_back() {
+  let srv = Server::start(with_previews(false));
+  let cache = TempDir::new();
+  let host = FakeHost::on_channel("stable");
+  let mut cfg = config(&srv.base, cache.path());
+  cfg.current_version = "11.0.0-next.202611111507.g3c4476e".into();
+  let updater = make(cfg, &host);
+  // On Nightly from a Girovo Next build: its latest nightly, though older.
+  let s = updater.set_channel("preview").await;
+  assert_eq!(s.channel, "preview");
+  assert_eq!(s.phase, Phase::Available);
+  let release = s.release.expect("the way back");
+  assert_eq!(release.version, "10.0.0-preview.2");
+  assert!(release.back);
+  // And on Stabil, its release.
+  let s = updater.set_channel("stable").await;
+  let release = s.release.expect("the way back");
+  assert_eq!((release.version.as_str(), release.back), ("9.9.9", true));
+}
+
+#[tokio::test]
+async fn a_nightly_copy_is_never_offered_an_older_nightly() {
+  let srv = Server::start(with_previews(false));
+  let cache = TempDir::new();
+  let host = FakeHost::on_channel("preview");
+  let mut cfg = config(&srv.base, cache.path());
+  cfg.current_version = "10.0.0-preview.3".into();
+  let updater = make(cfg, &host);
+  let s = updater.check(true).await;
+  assert_eq!((s.phase, s.release), (Phase::Current, None));
+}
+
+#[tokio::test]
 async fn the_shell_hears_of_an_install_before_it_quits_and_whether_it_goes_back() {
   let srv = Server::start(with_previews(false));
   let cache = TempDir::new();
