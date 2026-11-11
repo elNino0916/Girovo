@@ -16,7 +16,7 @@ import type { ReactNode } from 'react';
 import { iconChoosable, type PlusOffer, type PlusPlan } from '@/lib/plus';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
-import { BuildingIcon, ChartIcon, FlagIcon, GeminiSparkIcon, SplitIcon } from '../icons';
+import { BuildingIcon, ChartIcon, FlagIcon, AiMarkIcon, SplitIcon } from '../icons';
 import { useAskable } from '../insights/Ask';
 import { ActionItem } from '../settings/rows';
 import { BrandPlate } from '../shell/BrandMark';
@@ -223,7 +223,7 @@ export function PlusScreen() {
               <Perk icon={<SplitIcon size={18} />} title={w.perks.split.title} text={w.perks.split.text} />
               <Perk icon={<FlagIcon size={18} />} title={w.perks.goals.title} text={w.perks.goals.text} />
               {/* Only offered where Gemini Nano v4 can answer: nobody pays for what their phone can't do. */}
-              {askable && <Perk icon={<GeminiSparkIcon size={18} />} title={w.perks.ask.title} text={w.perks.ask.text} />}
+              {askable && <Perk icon={<AiMarkIcon size={18} />} title={w.perks.ask.title} text={w.perks.ask.text} />}
               {/* The icon itself, at the disc's size: the perk shows what you get. */}
               <Perk icon={<BrandPlate tone="plus" size={36} />} title={w.perks.icon.title} text={w.perks.icon.text} />
             </ul>

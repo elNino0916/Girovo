@@ -17,7 +17,7 @@ import { HoldButton, SaveAnywayWarning } from './SaveAnyway';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { AlertCircleIcon, CheckCircleIcon, DownloadIcon, FingerprintIcon, GeminiSparkIcon, XCircleIcon } from '../icons';
+import { AlertCircleIcon, CheckCircleIcon, DownloadIcon, FingerprintIcon, AiMarkIcon, XCircleIcon } from '../icons';
 import { ActionItem, SettingItem, SwitchItem } from '../settings/rows';
 import { Button, Dialog, Progress, Tag, cx } from '../ui';
 import { useDemo } from '../demo/demo-mode';
@@ -149,7 +149,7 @@ export function NanoRow() {
     return (
       <SettingItem
         tone="ai"
-        icon={<GeminiSparkIcon />}
+        icon={<AiMarkIcon />}
         title={m.title}
         summary={status.reason === 'update' ? m.update : status.reason === 'aicore' ? m.aicore : m.unsupportedHint}
         below={(
@@ -169,7 +169,7 @@ export function NanoRow() {
   return (
     <SettingItem
       tone="ai"
-      icon={<GeminiSparkIcon />}
+      icon={<AiMarkIcon />}
       title={m.title}
       summary={m.hint}
       // Android has it, and it sorts: a small confirmation, in Credit Green.

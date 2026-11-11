@@ -51,7 +51,7 @@ import { hasNewer, isReady, updates, useUpdates } from '../updates/store';
 import { usageComesWithChannel } from '../telemetry/NightlyUsage';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
-  BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, EyeOffIcon, FileIcon, GeminiSparkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
+  BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, EyeOffIcon, FileIcon, AiMarkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
   LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, RefreshIcon, ShieldIcon, StarIcon, SunIcon, WalletIcon,
 } from '../icons';
 import { BrandName, BrandPlate } from '../shell/BrandMark';
@@ -93,8 +93,8 @@ const ICONS: Record<SettingsPage, IconComponent> = {
   devices: IS_ANDROID ? PhoneIcon : MonitorIcon,
   appearance: GlobeIcon,
   privacy: EyeOffIcon,
-  // Gemini's spark is a picture, drawn: no symbol, so no new glyph in the font's subset.
-  ask: GeminiSparkIcon,
+  // Girovo's AI mark is a picture, drawn: no symbol, so no new glyph in the font's subset.
+  ask: AiMarkIcon,
   about: InfoIcon,
 };
 

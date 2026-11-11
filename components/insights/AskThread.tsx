@@ -4,7 +4,7 @@
 // "Gespräch", 2026-11-11; .impeccable/mocks/decision/next-ai/a-gespraech.png).
 //
 // The user's questions are bubbles in the tonal wash; Girovo's answers are
-// tiles on Gemini's wash, a few plain sentences in which every figure is the
+// tiles on the AI wash, a few plain sentences in which every figure is the
 // app's own (lib/nano-ask.ts computeAnswer) and opens the bookings behind it.
 // A follow-up keeps what it does not say again (lib/ask-followup.ts). On a
 // phone the thread is a full-screen view over the app; on the desktop it
@@ -38,7 +38,7 @@ import {
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
-import { ArrowRightIcon, BackIcon, CloseIcon, GeminiSparkIcon, HistoryIcon, PlusIcon, TrashIcon } from '../icons';
+import { ArrowRightIcon, BackIcon, CloseIcon, AiMarkIcon, HistoryIcon, PlusIcon, TrashIcon } from '../icons';
 import { usePhone } from '../shell/usePhone';
 import { Button, Dialog, IconButton, Menu, MenuItem, MenuSeparator, Overlay, cx } from '../ui';
 import { searchText, txText } from '../transactions/model';
@@ -605,7 +605,7 @@ function ChangeAnswer({ turn, intent }: { turn: Turn; intent: Exclude<AskIntent,
   );
 }
 
-/** One of Girovo's turns: the tile on Gemini's wash. */
+/** One of Girovo's turns: the tile on the AI wash. */
 /** What Girovo is doing on a turn, while it does: reading the question, or writing the answer. */
 type Phase = 'reading' | 'writing' | null;
 
@@ -642,9 +642,9 @@ function Thinking({ phase }: { phase: Exclude<Phase, null> }) {
 function GirovoTile({ children, phase = null }: { children: ReactNode; phase?: Phase }) {
   const words = useT().ask.thread;
   return (
-    <div data-gemini className="ask-tile rounded-[16px] px-4 pt-3 pb-3.5">
+    <div data-ai className="ask-tile rounded-[16px] px-4 pt-3 pb-3.5">
       <span className="sr-only">{words.girovo}</span>
-      <GeminiSparkIcon size={16} className={cx('mb-1.5 block', phase && 'ask-breathe')} aria-hidden />
+      <AiMarkIcon size={16} className={cx('mb-1.5 block', phase && 'ask-breathe')} aria-hidden />
       {phase ? <Thinking phase={phase} /> : <div className="ask-reveal">{children}</div>}
     </div>
   );
@@ -753,7 +753,7 @@ function Thread({ face, onClose }: { face: 'screen' | 'panel'; onClose: () => vo
             <BackIcon size={22} />
           </IconButton>
         )}
-        {face === 'panel' && <GeminiSparkIcon size={20} className="mr-2" aria-hidden />}
+        {face === 'panel' && <AiMarkIcon size={20} className="mr-2" aria-hidden />}
         <h2 id={titleId} className={cx('min-w-0 flex-1 truncate text-ink', face === 'screen' ? 'ml-1 text-[22px] leading-7' : 'text-[16px] leading-6 font-medium')}>
           {words.title}
         </h2>
@@ -867,7 +867,7 @@ function AskIntro() {
       open={!!vault && !vault.askIntroSeen && !done}
       onClose={later}
       title={words.title}
-      icon={<GeminiSparkIcon size={22} />}
+      icon={<AiMarkIcon size={22} />}
       actions={(
         <>
           <Button variant="tertiary" onClick={later}>{words.later}</Button>
@@ -939,9 +939,9 @@ export function MonthRecap({ narrower = false }: { narrower?: boolean }) {
   if (!canAsk || !recap || hidden || inThread) return null;
   const name = fmtMonth(month).split(' ')[0];
   return (
-    <section data-gemini aria-labelledby={titleId} className="rounded-[16px] px-4 pt-3 pb-3.5 sm:px-5">
+    <section data-ai aria-labelledby={titleId} className="rounded-[16px] px-4 pt-3 pb-3.5 sm:px-5">
       <div className="mb-1.5 flex items-center gap-2">
-        <GeminiSparkIcon size={16} aria-hidden />
+        <AiMarkIcon size={16} aria-hidden />
         <h2 id={titleId} className="min-w-0 flex-1 text-[14px] leading-5 font-medium text-ink">{narrower ? words.titleAll(name) : words.title(name)}</h2>
         <IconButton
           size="sm"

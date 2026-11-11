@@ -17,7 +17,7 @@ import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
 import { useContractNotices } from '../insights/contract-notices';
 import { unseenUpdate, useUpdates } from '../updates/store';
-import { BellIcon, GeminiSparkIcon, Icon } from '../icons';
+import { BellIcon, AiMarkIcon, Icon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
 import { BrandName, BrandPlate } from './BrandMark';
 import { FrameSearch } from './FrameSearch';
@@ -117,7 +117,7 @@ function AskToggle() {
   if (!canAsk) return null;
   return (
     <IconButton tone="bar" size="md" aria-label={t.ask.thread.title} aria-pressed={ask.open} onClick={() => (ask.open ? closeAsk() : openAsk())}>
-      <GeminiSparkIcon size={20} />
+      <AiMarkIcon size={20} />
     </IconButton>
   );
 }

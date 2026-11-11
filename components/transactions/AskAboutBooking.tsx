@@ -11,7 +11,7 @@
 import { useId, useState, type FormEvent } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { openAsk } from '../insights/ask-thread-store';
-import { ArrowRightIcon, GeminiSparkIcon } from '../icons';
+import { ArrowRightIcon, AiMarkIcon } from '../icons';
 import { Chip } from '../ui';
 
 export function AskAboutBooking({ name, credit, onClose }: {
@@ -42,12 +42,12 @@ export function AskAboutBooking({ name, credit, onClose }: {
 
   return (
     <section
-      data-gemini
+      data-ai
       aria-labelledby={headingId}
       className="rounded-t-[24px] px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6"
     >
       <h3 id={headingId} className="flex items-center gap-2 text-[14px] leading-5 font-medium text-ink">
-        <GeminiSparkIcon size={16} />
+        <AiMarkIcon size={16} />
         {words.title}
       </h3>
       <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-6 sm:px-6 [&::-webkit-scrollbar]:hidden">

@@ -32,9 +32,8 @@ colors:
   emphasis: "#d9540f"
   brand-plate: "#0a2c5e"
   plus-gold: "#f2c14e"
-  gemini-blue: "#4285f4"
-  gemini-purple: "#9b72cb"
-  gemini-rose: "#d96570"
+  ai-mark: "#7b4fe0"
+  ai-mark-dark: "#b085ff"
   chart-1: "#0053a4"
   chart-2: "#0ca4a0"
   chart-3: "#5f38a7"
@@ -241,7 +240,7 @@ Material's colour roles carry surfaces, ink, lines and the one interactive colou
 ### Neutral
 - **Page** (`md-surface`; `paper`, `bar`): the page and the top bar, one plane. On Android the bar takes Container once the page scrolls under it.
 - **Container Low** (`md-surface-container-low`): sheets, drawers, menus, popovers.
-- **Container** (`md-surface-container`; `nav-bg`): the navigation bar, Einstellungen's grouped rows, the Gemini answer's ground.
+- **Container** (`md-surface-container`; `nav-bg`): the navigation bar, Einstellungen's grouped rows, the AI wash's ground.
 - **Container High** (`md-surface-container-high`; `inset`, `dialog-bg`): the search bar, the avatar disc, wells, skeletons, basic dialogs.
 - **On Surface** (`ink`): text, debit amounts, everything that reports.
 - **On Surface Variant** (`ink-2`): meta lines, day headers and subheaders on the phone, labels.
@@ -251,7 +250,7 @@ Material's colour roles carry surfaces, ink, lines and the one interactive colou
 ### Brand and Partner Colours (literal)
 - **Brand Navy** (`brand-plate`): the G€ plate only.
 - **Plus Gold** (`plus-gold`): the G€ in gold on the navy plate, Girovo Plus's mark and every door to Plus.
-- **Gemini** (`gemini-blue`, `gemini-purple`, `gemini-rose`): a thin 115° wash over Container (26/20/18%) wherever Gemini Nano answers, and the filled spark. Text on it keeps the row's ink.
+- **Girovo's AI** (`ai-mark`, `ai-mark-dark` by night; `--ai-mark`, `--ai-wash` in `app/material.css`): the mark's one colour, Girovo Next's violet, and a thin 115° wash over Container (the violet at 22%, a lighter violet at 12%, Girovo's blue at 10%) under everything Girovo's AI wrote. Text on it keeps the row's ink. Not Gemini's colours or spark (owner, 2026-11-11): Girovo never borrows a provider's branding.
 
 ### Chart Palette
 Categories take `chart-1` to `chart-6` **by rank** within a chart; the rest are `chart-rest`. The slots are an order, not a mapping. Income is `chart-in`, spending `chart-out` (never red). The Kontoverlauf is a staircase line over a flat 12% area, never a gradient.
@@ -262,7 +261,7 @@ Categories take `chart-1` to `chart-6` **by rank** within a chart; the rest are 
 ### Named Rules
 **The Owned Colours Rule.** Green is a credit or a confirmation. Red is a negative balance or an error, never a debit: a debit is ink. A credit card's balance stays ink (a card is known by its Kontoart, `isCardAccount`). Amber means Vorgemerkt and nothing else; a warning is an orange glyph. Orange is never text.
 
-**The Fixed Values Rule.** The value colours (including `chart-in` and `chart-out`), the brand plate, Plus Gold and Gemini's colours never take a wallpaper colour. Surfaces, ink, lines, the interactive colour and, on Android only, the six category slots and the rest follow Material You.
+**The Fixed Values Rule.** The value colours (including `chart-in` and `chart-out`), the brand plate, Plus Gold and the AI mark's violet never take a wallpaper colour. Surfaces, ink, lines, the interactive colour and, on Android only, the six category slots and the rest follow Material You.
 
 **The Tokens Only Rule.** Tailwind's default palette is switched off; every colour is a token. Literal colours exist only for literal things: the plates, a QR or TAN plate, the chipTAN flicker field.
 
@@ -290,7 +289,7 @@ Categories take `chart-1` to `chart-6` **by rank** within a chart; the rest are 
 Sizes in between snap: 12.5 to 12; 13 to 14 to 14; 14.5 to 16 to 16; 17 and 18 to 16/500; 20 to 24 to 22/500.
 
 ### Named Rules
-**The Symbol Rule.** Every app icon is a Material Symbol (`Icon`'s `ms` name) in a box of exactly 1em, sized in px (dp on the phone), so larger system or browser text grows the words, never the glyph: on the phone the icon is zoomed out by the text zoom and its box zoomed back in (see Large Text). `filled` sets FILL 1, used only for the current place in the navigation (24px). Gemini's spark and the avatar glyphs are pictures and stay drawn. A glyph that is only an outline at 18px may read as a letter (the flag read as an "F"): such an icon is drawn solid. The icon's own `display` sits in the base layer, so `hidden` and the Darstellung's glyph switch decide whether it shows.
+**The Symbol Rule.** Every app icon is a Material Symbol (`Icon`'s `ms` name) in a box of exactly 1em, sized in px (dp on the phone), so larger system or browser text grows the words, never the glyph: on the phone the icon is zoomed out by the text zoom and its box zoomed back in (see Large Text). `filled` sets FILL 1, used only for the current place in the navigation (24px). Girovo's AI mark and the avatar glyphs are pictures and stay drawn. A glyph that is only an outline at 18px may read as a letter (the flag read as an "F"): such an icon is drawn solid. The icon's own `display` sits in the base layer, so `hidden` and the Darstellung's glyph switch decide whether it shows.
 
 **The Two Headings Rule.** A section is 18/500 in ink; a subheader is 14/500 in the variant ink. Einstellungen keeps its subheaders in the primary (owner, 2026-10-20). There is no third treatment.
 
@@ -308,7 +307,7 @@ Sizes in between snap: 12.5 to 12; 13 to 14 to 14; 14.5 to 16 to 16; 17 and 18 t
 
 **Phone (below 640px).** One column with 16px gutters; sections reach the screen's edges and are held apart by space. The top bar reaches under the status bar. Touch targets are at least 48dp. The bottom navigation bar is 64dp plus the gesture bar and is a row of the page's column, so nothing scrolls under it.
 
-**The Übersicht, top to bottom:** the search bar (56dp, fully round, 8dp under the status bar, holding the search glyph, "Umsätze suchen oder fragen", the Gemini spark where Nano can answer, and the 32dp avatar with the unread dot); the account name with its chevron and, at the row's end, the eye for Beträge ausblenden; the balance with Verfügbar under it, then on its own line the date or, for today's figure, its freshness ("Stand 13:57 Uhr", the time of the read), and the sparkline (96×36 in a 112×48 target) at its baseline, which opens the details in place; one sideways-scrolling chip row (Vorgemerkt, Eingänge, Ausgänge, Kategorie, Monat, then the period and the export); then day headers and rows. That is an account's page, and the Übersicht itself with a single account.
+**The Übersicht, top to bottom:** the search bar (56dp, fully round, 8dp under the status bar, holding the search glyph, "Umsätze suchen oder fragen", Girovo's AI mark where a question can be asked, and the 32dp avatar with the unread dot); the account name with its chevron and, at the row's end, the eye for Beträge ausblenden; the balance with Verfügbar under it, then on its own line the date or, for today's figure, its freshness ("Stand 13:57 Uhr", the time of the read), and the sparkline (96×36 in a 112×48 target) at its baseline, which opens the details in place; one sideways-scrolling chip row (Vorgemerkt, Eingänge, Ausgänge, Kategorie, Monat, then the period and the export); then day headers and rows. That is an account's page, and the Übersicht itself with a single account.
 
 **Every account (the Übersicht's start with more than one account, issue #19, `AccountsOverview.tsx`):** under the search bar "Gesamtsaldo" (14/500 variant ink) with Konten anordnen (`swap_vert`) and the eye at the row's end; the Gesamtsaldo as the display balance; "6 Konten bei 2 Banken · Stand 14:02 Uhr" (the oldest read it is made of); Vermögen and Verbindlichkeiten (label 14 over 16/500, each account counted by its own sign) only once something is owed; the kinds as filter chips (Alle, Girokonten, Sparen & Anlegen, Karten & Kredite, by FinTS Kontoart, `lib/account-overview.ts`); then the groups, each a subheader with its sum at the figures' edge, and the accounts: the 40dp disc with the account's kind (the bank's mark on its edge when there are several banks), name and figure in row type, bank and the IBAN's end in meta, the last booking and its amount in meta. A card's or loan's figure stays ink. Until every figure is known the Gesamtsaldo's place says "Noch nicht vollständig", names what is missing and offers "Alle Salden abrufen" with "Kann eine Freigabe erfordern." — never a partial sum, never a read on its own. A row opens the account's page, whose top bar on the phone is the way back, the account's name, the search and the eye (no avatar), with the bank and the IBAN's end under it; the back gesture, the back arrow and the Übersicht pressed again lead back, focus returning to the row.
 
@@ -372,7 +371,7 @@ Flat by default. A container is told from the page by tone, not by edge or shado
 
 ## Shapes
 
-Material's corner scale (`--m3e-corner-*`). Fully round: the search bar and the title bar's search pill, the sidebar's nav pills, buttons at rest (they squeeze square while pressed and spring back), the avatar disc, the navigation pill. Small (8px): chips, the brand plate. Large (16px): the frame's sheet, tiles, the Gemini answer, the Anmeldung's bank tiles. Extra-large (28px): sheets, the Anmeldung's sheet, basic dialogs. Extra-small (4px): outlined fields, snackbars, a grouped row's inner corners. On a phone a multi-step flow is a full-screen dialog with no corners, and a bottom sheet has a 32×4 drag handle.
+Material's corner scale (`--m3e-corner-*`). Fully round: the search bar and the title bar's search pill, the sidebar's nav pills, buttons at rest (they squeeze square while pressed and spring back), the avatar disc, the navigation pill. Small (8px): chips, the brand plate. Large (16px): the frame's sheet, tiles, the AI answer, the Anmeldung's bank tiles. Extra-large (28px): sheets, the Anmeldung's sheet, basic dialogs. Extra-small (4px): outlined fields, snackbars, a grouped row's inner corners. On a phone a multi-step flow is a full-screen dialog with no corners, and a bottom sheet has a 32×4 drag handle.
 
 ## Components
 
@@ -408,11 +407,11 @@ No native bar and no gutter: content reaches the sheet's edge. A thumb floats ov
 ### Navigation
 M3E's navigation bar on the phone, with three places: Übersicht · Zahlungen · Analyse (the internal tab id `contracts` is labelled Zahlungen). There is no FAB on the phone; Überweisen lives at the head of Zahlungen and in the search. On Android from 640px M3E's nav items form the 96dp rail, Überweisen as a small primary-container FAB at its top, Einstellungen at its foot. On the desktop the frame's sidebar holds them (Layout): Überweisen as M3E's extended FAB, the places as M3E nav-menu items, the month, Konten, Einstellungen at the foot; folded, M3E's vertical nav items. On the phone Einstellungen and Mitteilungen are rows in the Sitzung panel behind the avatar, and the avatar carries the unread dot.
 
-### Gemini Nano
-Frag deine Umsätze, the Nano row in Einstellungen and the switch on the page Frag deine Umsätze stand on Gemini's wash with its three-colour spark. Nano never states a figure; the app computes it.
+### Girovo's AI mark
+"Strich-Funke" (owner's pick, 2026-11-11, `.impeccable/mocks/decision/next-ai/mark/`): a twinkle drawn with the G€ plate's rounded strokes, four bars and two short diagonals at half strength, in the one AI colour (`AiMarkIcon`, components/icons.tsx). It marks Fragen, the month recap, the asking bars, the search bar and title bar where a question can be asked, and the AI rows in Einstellungen, on the AI wash. "Gemini Nano" stays plain text where Nano really reads a question (Einstellungen' model row on Play phones); no Gemini logo or colour anywhere. A model never states a figure; the app computes it.
 
 ### Fragen (Girovo Next, 7.0)
-Asking is a conversation (owner's pick "Gespräch", 2026-11-11; `.impeccable/mocks/decision/next-ai/a-gespraech.png`). In Girovo Next the AI pieces stand on Gemini's wash with the spark on every platform, the desktop included.
+Asking is a conversation (owner's pick "Gespräch", 2026-11-11; `.impeccable/mocks/decision/next-ai/a-gespraech.png`). In Girovo Next the AI pieces stand on the AI wash with Girovo's own mark on every platform.
 - **The thread** (`components/insights/AskThread.tsx`): a question in the search starts a conversation. On a phone it is a full-screen view, "Fragen" at 22 in the top bar with the way back, Gespräche (`history`) and Neues Gespräch (`add`); on the desktop it docks as a 420px panel at the sheet's right edge, its header 16/500 with the spark, and the page beside it shows what an answer opens. The user's turns are bubbles in the tonal wash (`accent-soft`, 20px round, 4px at the speaker's corner); Girovo's are tiles on the wash, 16px round, the 16px spark leading, the text 16/24 on the phone and 14/22 on the desktop. At the foot: the next questions as 32px chips outlined in the outline variant (concrete, "Und im September 2026?"; "Pro Monat" only where the period holds several months), then the composer, a fully round field on Container High (56dp on the phone, 48 on the desktop) with a filled send disc. The booking's asking bar uses the same composer.
 - **Figures in a sentence** are the app's own (lib/nano-ask.ts computeAnswer), never the model's: tabular, 500, a 1.5px dotted primary underline at 4px; a press opens the bookings behind it. A figure that is no set of bookings (a difference) is 500 without the underline. Every figure goes through `<Money>`, so Beträge ausblenden masks it.
 - **The words:** with Gemma ready (the desktop), Gemma reads the question (the rules correct it) and writes the answer from Girovo's facts (`lib/gemma-writer.ts`); a sentence with a number of its own, or a dash, is thrown away, and its amounts are drawn by the app again. Otherwise the templates in `lib/i18n/messages/ask.ts` (`thread.say`) say each answer in one or two short sentences that open on the period asked about ("Im September 2026 hast du für Lebensmittel 660,10 € ausgegeben, bei 15 Umsätzen."), a day in words ("am 5. Oktober"). A follow-up keeps what it does not say again (`lib/ask-followup.ts`). The conversations live for the session only and end with it.
@@ -494,7 +493,7 @@ Paper is a record for a third party: A4, fixed light `doc-*` values that no them
 ### Don't:
 - **Don't** colour a debit red, or a credit card's balance.
 - **Don't** use amber for anything but Vorgemerkt, or orange as text.
-- **Don't** let a value colour, a chart slot, a plate or Gemini's colours follow Material You.
+- **Don't** let a value colour, a chart slot, a plate or the AI mark's violet follow Material You.
 - **Don't** use 600 or 700, or positive tracking on a figure.
 - **Don't** put a card, a shadow or a hairline grid on the page to group a section (Einstellungen's grouped list excepted).
 - **Don't** float a FAB over the phone's bookings or add a fourth place to the navigation.

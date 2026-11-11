@@ -61,7 +61,7 @@ import { Money } from './Money';
 import { useThemePref } from './ThemeToggle';
 import {
   AccountTypeIcon, ArchiveIcon, BackIcon, BellIcon, CategoryIcon, CalendarIcon, ChartIcon, CheckIcon, ClockIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon,
-  FileIcon, GearIcon, GeminiSparkIcon, GlobeIcon, HomeIcon, ImageIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon,
+  FileIcon, GearIcon, AiMarkIcon, GlobeIcon, HomeIcon, ImageIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon,
   BoltIcon, RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SplitIcon, SunIcon, TagIcon, TransferIcon, WalletIcon,
 } from './icons';
 import { listsOrders, useShowBankOrders } from './BankOrders';
@@ -465,7 +465,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
         id: 'ask', group: 'actions', label: tr.shell.palette.ask(q),
         // Gemini's mark and "Telefon" only where Gemini Nano reads the question; the desktop asks its own model.
         description: IS_ANDROID ? tr.shell.palette.askHint : tr.shell.palette.askHintDesktop,
-        icon: IS_ANDROID ? <GeminiSparkIcon size={18} /> : <ChartIcon size={18} />,
+        icon: IS_ANDROID ? <AiMarkIcon size={18} /> : <ChartIcon size={18} />,
         run: () => {
           // Girovo Next: a question starts a conversation (components/insights/AskThread.tsx).
           openAsk({ question: q, fresh: true });

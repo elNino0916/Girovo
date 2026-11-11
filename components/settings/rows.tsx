@@ -81,7 +81,7 @@ type ItemProps = {
   setting?: SettingsTarget;
   /** The title in Soll Red: something here needs a look (the saved data cannot be read). */
   alert?: boolean;
-  /** The on-device AI's rows (Gemini Nano, Frag deine Umsätze' switch): on Gemini's wash, as Android marks its AI features. */
+  /** The on-device AI's rows (Gemini Nano, Frag deine Umsätze' switch): on the AI wash, as Android marks its AI features. */
   tone?: 'ai';
 };
 

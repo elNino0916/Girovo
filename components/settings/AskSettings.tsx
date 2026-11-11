@@ -2,7 +2,7 @@
 
 // Girovo Next: Einstellungen' page "Frag deine Umsätze" (lib/settings-pages.ts
 // 'ask'), after Datenschutz. The switch turns asking on or off everywhere
-// (vault.askOff, read by components/insights/ask-gate.ts), on Gemini's wash
+// (vault.askOff, read by components/insights/ask-gate.ts), on the AI wash
 // with its spark. Under it, what answers: on a phone with Gemini Nano, Nano
 // and the state AICore reports; elsewhere (a phone without it, the desktop)
 // Girovo's own language model, whose download is not built yet: its "Laden"
@@ -19,7 +19,7 @@ import { useLocale, useT } from '@/lib/i18n/react';
 import { asksWith } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { CheckCircleIcon, DownloadIcon, GeminiSparkIcon, GlobeIcon } from '../icons';
+import { CheckCircleIcon, DownloadIcon, AiMarkIcon, GlobeIcon } from '../icons';
 import { useGemma } from '../insights/gemma';
 import { Button, Progress } from '../ui';
 import { ActionItem, SettingItem, SettingsGroup, SwitchItem } from './rows';
@@ -81,7 +81,7 @@ export function AskPage() {
       <SettingsGroup>
         <SwitchItem
           tone="ai"
-          icon={<GeminiSparkIcon />}
+          icon={<AiMarkIcon />}
           setting="ask"
           checked={on}
           onChange={setOn}

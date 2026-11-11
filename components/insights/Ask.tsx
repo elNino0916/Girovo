@@ -33,7 +33,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { askAllowed } from '@/lib/plus';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
-import { ArrowRightIcon, GeminiSparkIcon, SearchIcon } from '../icons';
+import { ArrowRightIcon, AiMarkIcon, SearchIcon } from '../icons';
 import { Button, Chip, DotList, IconButton, Input, Spinner, Tag, TileHeader } from '../ui';
 import { PlusTeaser } from '../android/PlusTeaser';
 import { searchText, txText } from '../transactions/model';
@@ -76,7 +76,7 @@ export function useAskable(): boolean | undefined {
 
 /** The tile's mark: Gemini's where Nano reads the question, a search where the app's own model does. */
 function AskMark() {
-  return IS_ANDROID ? <GeminiSparkIcon size={22} /> : <SearchIcon size={22} className="text-ink-2" />;
+  return IS_ANDROID ? <AiMarkIcon size={22} /> : <SearchIcon size={22} className="text-ink-2" />;
 }
 
 /**
@@ -160,7 +160,7 @@ function AskUnsupported({ status }: { status: GirovoNanoStatus }) {
         titleId={titleId}
         title={(
           <span className="inline-flex items-center gap-2">
-            <GeminiSparkIcon size={22} />
+            <AiMarkIcon size={22} />
             {t.ask.title}
           </span>
         )}
@@ -325,7 +325,7 @@ function AskForm({ data }: { data: ScopeData }) {
   );
 }
 
-/** The answer — on Gemini's wash on the phone: what was searched, the figure, the way to the bookings. */
+/** The answer — on the AI wash on the phone: what was searched, the figure, the way to the bookings. */
 function Answer({ answer, scopeAll, onShow, own }: {
   answer: AskAnswer;
   scopeAll: boolean;
@@ -518,8 +518,8 @@ function Answer({ answer, scopeAll, onShow, own }: {
   }
 
   return (
-    // Gemini's wash only where Gemini Nano read the question; the desktop's own model answers on the plain inset.
-    <div data-gemini={IS_ANDROID || undefined} className={IS_ANDROID ? 'rounded-[16px] p-4' : 'rounded-[16px] bg-inset p-4'}>
+    // the AI wash only where Gemini Nano read the question; the desktop's own model answers on the plain inset.
+    <div data-ai={IS_ANDROID || undefined} className={IS_ANDROID ? 'rounded-[16px] p-4' : 'rounded-[16px] bg-inset p-4'}>
       <p className="text-[12.5px] leading-snug font-medium text-ink-2">{words.understood}</p>
       <DotList items={read} className="mt-0.5 text-[14px] leading-snug text-ink" />
       <div className="mt-3">{body}</div>

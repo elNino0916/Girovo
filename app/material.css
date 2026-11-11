@@ -498,30 +498,34 @@
     border-bottom-left-radius: 20px;
     border-bottom-right-radius: 20px;
   }
-  /* Gemini Nano's row, the one AI feature: in Gemini's own colours, as
-     Google marks Gemini everywhere — its blue, purple and rose laid thinly
-     over the tile, and its spark filled with the three (GeminiSparkIcon).
-     Literal brand colours, like the G€ plate: no theme and no wallpaper
-     reaches them. The text keeps the row's own ink, so it reads in light and
-     dark alike. */
+  /* Girovo's AI (Fragen, the recap, the asking bars, its Einstellungen rows): its own mark and wash, not Gemini's (owner 2026-11-11). */
   :root[data-look='material'] {
-    --gemini-blue: #4285f4;
-    --gemini-purple: #9b72cb;
-    --gemini-rose: #d96570;
-    --gemini-wash: linear-gradient(
+    /* Girovo's AI mark and the wash under what it wrote (Girovo Next's violet over Girovo's blue, owner 2026-11-11):
+       brand colours, like the plate, so no wallpaper reaches them; the text on the wash keeps the row's own ink. */
+    --ai-mark: #7b4fe0;
+    --ai-wash: linear-gradient(
       115deg,
-      color-mix(in srgb, var(--gemini-blue) 26%, transparent) 0%,
-      color-mix(in srgb, var(--gemini-purple) 20%, transparent) 55%,
-      color-mix(in srgb, var(--gemini-rose) 18%, transparent) 100%
+      color-mix(in srgb, #7b4fe0 22%, transparent) 0%,
+      color-mix(in srgb, #9b5cf0 12%, transparent) 55%,
+      color-mix(in srgb, #0060a8 10%, transparent) 100%
+    );
+  }
+  :root[data-look='material'][data-theme='dark'] {
+    --ai-mark: #b085ff;
+    --ai-wash: linear-gradient(
+      115deg,
+      color-mix(in srgb, #b085ff 20%, transparent) 0%,
+      color-mix(in srgb, #9b5cf0 12%, transparent) 55%,
+      color-mix(in srgb, #a2c9ff 8%, transparent) 100%
     );
   }
   :root[data-look='material'] [data-settings-group] > [data-item][data-tone='ai'] {
-    background-image: var(--gemini-wash);
+    background-image: var(--ai-wash);
   }
-  /* The same wash wherever Gemini answers (Frag deine Umsätze, components/insights/Ask.tsx). */
-  :root[data-look='material'] [data-gemini] {
+  /* The same wash under everything Girovo's AI wrote (components/insights/AskThread.tsx, Ask.tsx). */
+  :root[data-look='material'] [data-ai] {
     background-color: var(--md-surface-container);
-    background-image: var(--gemini-wash);
+    background-image: var(--ai-wash);
   }
   /* The state layer of a row pressed whole: 8% of the ink on hover, 10%
      while pressed — an inset shadow, so the ripple (its background image on

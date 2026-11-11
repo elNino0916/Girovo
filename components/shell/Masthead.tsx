@@ -8,7 +8,7 @@
 // The app's own mark sits at the head of the navigation rail (BottomBar).
 //
 // The Übersicht has no title in it: its head is Material's search bar —
-// "Umsätze suchen oder fragen", the Gemini spark where Nano can answer, Strg K
+// "Umsätze suchen oder fragen", Girovo's AI mark where Nano can answer, Strg K
 // where there is a keyboard, the holder's avatar at its end — and a press
 // opens the search (components/CommandPalette.tsx). The phone's first
 // (owner, 2026-10-23), every width's since the desktop followed it ("Suche
@@ -37,7 +37,7 @@ import { useCanAsk } from '../insights/ask-gate';
 import { useContractNotices } from '../insights/contract-notices';
 import { useSettingsPages } from '../settings/Settings';
 import { unseenUpdate, useUpdates } from '../updates/store';
-import { BackIcon, BellIcon, GeminiSparkIcon, SearchIcon } from '../icons';
+import { BackIcon, BellIcon, AiMarkIcon, SearchIcon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
 import { MASTHEAD_EDGES, SEARCH_EDGES, SPLIT_SEARCH_EDGES } from './edges';
 import { useSplitOverview } from './useWide';
@@ -88,7 +88,7 @@ function SearchBar() {
       >
         <SearchIcon size={22} className="shrink-0 text-bar-ink" />
         <span className="min-w-0 flex-1 truncate">{placeholder}</span>
-        {canAsk && IS_ANDROID && <GeminiSparkIcon size={20} aria-hidden className="mr-1 shrink-0" />}
+        {canAsk && IS_ANDROID && <AiMarkIcon size={20} aria-hidden className="mr-1 shrink-0" />}
         {/* Where there is likely a keyboard: the way in without the mouse. */}
         {!IS_ANDROID && (
           <kbd

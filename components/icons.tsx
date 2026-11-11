@@ -4,7 +4,7 @@
 // since the desktop followed it (2026-10-24); self-hosted as a subset of the
 // glyphs named here (public/fonts/material-symbols-rounded.woff2,
 // app/material.css). `filled` sets its fill axis — the current place in the
-// navigation, as Android draws it. A glyph that is a picture (Gemini's spark,
+// navigation, as Android draws it. A glyph that is a picture (Girovo's AI mark,
 // an avatar) has no symbol and stays drawn. Every icon still carries its line
 // drawing (a 24-unit grid, a 1.8 stroke, round caps and joins): what `Icon`
 // draws without a symbol.
@@ -595,25 +595,31 @@ export function CodeIcon(p: IconProps) {
   return <Icon ms="code" {...p}><path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5M13.5 5l-3 14" /></Icon>;
 }
 
-const SPARK = 'M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z';
-
 /**
- * Gemini's spark: filled with Gemini's blue, purple and rose (the
- * --gemini-* tokens, app/material.css) — a brand mark, so no theme reaches it.
+ * Girovo's AI mark ("Strich-Funke", owner's pick 2026-11-11,
+ * .impeccable/mocks/decision/next-ai/mark/): a twinkle drawn with the G€
+ * plate's rounded strokes, four bars and two short diagonals at half
+ * strength, in one colour (--ai-mark, app/material.css: Girovo Next's violet,
+ * a brand colour, so no wallpaper reaches it). It marks what Girovo's AI
+ * wrote or does: Fragen, the month recap, the asking bars, Einstellungen.
+ * Drawn, not a font glyph: a picture, like the plate.
  */
-export function GeminiSparkIcon({ size = 18, ...rest }: IconProps) {
-  const id = `gemini-${useId().replace(/:/g, '')}`;
+export function AiMarkIcon({ size = 18, className, ...rest }: IconProps) {
   return (
-    <Icon size={size} stroke="none" {...rest}>
-      <defs>
-        <linearGradient id={id} x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse">
-          <stop offset="0" style={{ stopColor: 'var(--gemini-blue)' }} />
-          <stop offset="0.55" style={{ stopColor: 'var(--gemini-purple)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--gemini-rose)' }} />
-        </linearGradient>
-      </defs>
-      <path d={SPARK} fill={`url(#${id})`} />
-    </Icon>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      aria-hidden="true"
+      className={join('shrink-0 text-[var(--ai-mark)]', className)}
+      {...rest}
+    >
+      <path d="M12 2.6v6.2M12 15.2v6.2M2.6 12h6.2M15.2 12h6.2" strokeWidth={2.7} />
+      <path d="M17.4 4.6l-1.9 1.9M6.6 17.4l1.9-1.9" strokeWidth={2.2} opacity={0.55} />
+    </svg>
   );
 }
 
