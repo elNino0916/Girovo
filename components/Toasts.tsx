@@ -16,13 +16,19 @@
 // the user was. A toast with an action says so in what a screen reader hears.
 // F6 is left alone while a dialog is open: its focus stays in the dialog.
 //
+// On a phone a toast is closed with one tap on its cross (a 48dp target) or
+// swiped away sideways, as Material's snackbar is. It stays tappable over an
+// open sheet (components/ui/layers.ts leaves it out of the inert page): an
+// inert toast let the tap through to the sheet under it. A tap on it there
+// keeps the focus in the sheet.
+//
 // What a screen reader hears is kept apart from what is drawn: two persistent
 // live regions (polite, and role=alert for errors) carry the text, so an
 // error is announced once and assertively, and the visible stack can stay a
 // plain region of buttons.
 
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
@@ -34,6 +40,11 @@ import { Button, IconButton, cx } from './ui';
 
 const LEAVE_MS = 160;
 const MAX_VISIBLE = 4;
+/** How far a finger moves before a press on a toast becomes a swipe (px). */
+const SWIPE_SLOP = 10;
+/** A swipe past this share of the toast's width, or a quick flick, sends it away. */
+const SWIPE_AWAY = 0.35;
+const FLICK_PX_PER_MS = 0.5;
 /** The key that moves focus to the newest toast and back (as in Windows apps that have one). */
 export const TOAST_KEY = 'F6';
 
@@ -108,7 +119,9 @@ export function Toasts() {
           aria-label={tr.shell.toasts.region}
           className={cx(
             'pointer-events-none fixed inset-x-0 z-200 flex flex-col items-center gap-2 px-4',
-            'bottom-[calc(var(--bottombar-h)+12px)] sm:inset-x-auto sm:right-6 sm:bottom-6 sm:items-end sm:px-0',
+            // Above the bottom bar, and without one (Einstellungen, the login)
+            // still above the gesture bar, whose edge belongs to the system.
+            'bottom-[calc(max(var(--bottombar-h),env(safe-area-inset-bottom,0px))+12px)] sm:inset-x-auto sm:right-6 sm:bottom-6 sm:items-end sm:px-0',
           )}
           style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
         >
@@ -168,6 +181,12 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
   const [leaving, setLeaving] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
+  // A finger on the toast (pressing or swiping) holds its clock; swiped, it
+  // leaves sideways instead of with the usual fade.
+  const [held, setHeld] = useState(false);
+  const [swiped, setSwiped] = useState(false);
+  const drag = useRef<{ id: number; x: number; y: number; dx: number; on: boolean; lastX: number; lastT: number; v: number } | null>(null);
+  const wasSwipe = useRef(false);
   const away = useAway();
   const lifetime = toastLifetime({ tone: toast.tone, ms: toast.ms, message: toast.message, hasAction: !!toast.action });
   const remaining = useRef(lifetime);
@@ -188,7 +207,7 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
     return () => clearTimeout(t);
   }, [leaving, toast.id]);
 
-  const paused = hovered || focused || away;
+  const paused = hovered || focused || away || held;
   useEffect(() => {
     if (paused || leaving) return;
     const startedAt = Date.now();
@@ -208,12 +227,85 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
     setLeaving(true);
   };
 
+  // The swipe: a touch (or pen) that moves sideways drags the toast; let go
+  // far enough or fast enough and it goes, else it springs back. A press that
+  // moves up or down first is no swipe. The page is not scrolled under it.
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    wasSwipe.current = false;
+    if (e.pointerType === 'mouse' || leaving) return;
+    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, on: false, lastX: e.clientX, lastT: e.timeStamp, v: 0 };
+    setHeld(true);
+  };
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    const el = cardRef.current;
+    if (!d || d.id !== e.pointerId || !el) return;
+    const dx = e.clientX - d.x;
+    if (!d.on) {
+      const dy = e.clientY - d.y;
+      if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return;
+      if (Math.abs(dy) >= Math.abs(dx)) {
+        drag.current = null;
+        setHeld(false);
+        return;
+      }
+      d.on = true;
+      wasSwipe.current = true;
+      el.setPointerCapture(e.pointerId);
+    }
+    const dt = e.timeStamp - d.lastT;
+    if (dt > 0) d.v = (e.clientX - d.lastX) / dt;
+    d.lastX = e.clientX;
+    d.lastT = e.timeStamp;
+    d.dx = dx;
+    el.style.transition = 'none';
+    el.style.translate = `${dx}px 0`;
+    el.style.opacity = String(Math.max(0.3, 1 - Math.abs(dx) / el.offsetWidth));
+  };
+  const onPointerEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    const el = cardRef.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    setHeld(false);
+    if (!d.on || !el) return;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const goes = e.type === 'pointerup'
+      && (Math.abs(d.dx) > el.offsetWidth * SWIPE_AWAY || (Math.abs(d.v) > FLICK_PX_PER_MS && Math.sign(d.v) === Math.sign(d.dx)));
+    el.style.transition = still ? 'none' : `translate ${LEAVE_MS}ms ease-out, opacity ${LEAVE_MS}ms ease-out`;
+    if (goes) {
+      el.style.translate = `${Math.sign(d.dx) * (el.offsetWidth + 32)}px 0`;
+      el.style.opacity = '0';
+      setSwiped(true);
+      setLeaving(true);
+    } else {
+      el.style.translate = '';
+      el.style.opacity = '';
+    }
+  };
+
   return (
     <div
       ref={cardRef}
       data-toast
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onPointerEnter={(e) => e.pointerType === 'mouse' && setHovered(true)}
+      onPointerLeave={(e) => e.pointerType === 'mouse' && setHovered(false)}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerEnd}
+      onPointerCancel={onPointerEnd}
+      // A swipe that ends on the cross or the action presses neither.
+      onClickCapture={(e) => {
+        if (!wasSwipe.current) return;
+        wasSwipe.current = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      // Over an open sheet a tap here leaves the focus in the sheet (whose
+      // trap would pull it back anyway, onto a field that opens the keyboard).
+      onMouseDown={(e) => {
+        if (modalOpen()) e.preventDefault();
+      }}
       onFocus={() => setFocused(true)}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
@@ -221,10 +313,11 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
       onKeyDown={onKeyDown}
       className={cx(
         'pointer-events-auto flex w-full max-w-[420px] items-start gap-3 rounded-[12px] bg-raised py-3 pr-2 pl-4 text-ink sm:w-[380px]',
-        leaving ? 'anim-toast-out' : 'anim-toast',
+        leaving ? (swiped ? undefined : 'anim-toast-out') : 'anim-toast',
       )}
-      // The tone's 3px inner edge, as on an inline alert.
-      style={{ boxShadow: `inset 3px 0 0 ${tone.rule}, var(--shadow-pop)` }}
+      // The tone's 3px inner edge, as on an inline alert. Sideways drags are
+      // the swipe's; up and down stay the browser's.
+      style={{ boxShadow: `inset 3px 0 0 ${tone.rule}, var(--shadow-pop)`, touchAction: 'pan-y' }}
     >
       <span className={cx('mt-[3px] shrink-0', tone.icon)}>
         <tone.Glyph size={18} />

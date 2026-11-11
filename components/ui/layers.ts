@@ -134,16 +134,18 @@ export const layerStack: string[] = [];
  * touch path (`inert`): aria-modal alone is a hint a screen reader on a phone
  * may not honour, and a swipe of TalkBack's would walk out of the sheet into
  * the page behind it. Every sibling on the way from the layer up to <body>
- * is marked, except what is inert already and the live regions that must
- * keep speaking (the toasts, [data-live-outlet]); the returned function gives
- * back exactly what it took, before focus returns to the opener.
+ * is marked, except what is inert already, the live regions that must
+ * keep speaking ([data-live-outlet]) and the toasts: they stand above every
+ * layer, and an inert toast lets a tap through to the sheet under it, so a
+ * tap on its close button pressed whatever was behind. The returned function
+ * gives back exactly what it took, before focus returns to the opener.
  */
 export function inertOutside(root: HTMLElement): () => void {
   const marked: Element[] = [];
   for (let node: Element = root; node.parentElement && node !== document.body; node = node.parentElement) {
     for (const sibling of Array.from(node.parentElement.children)) {
       if (sibling === node || sibling.hasAttribute('inert')) continue;
-      if (sibling.matches('script, style, template, [data-live-outlet], [aria-live], [role="alert"], [role="status"], [role="log"]')) continue;
+      if (sibling.matches('script, style, template, [data-live-outlet], [data-toasts], [aria-live], [role="alert"], [role="status"], [role="log"]')) continue;
       sibling.setAttribute('inert', '');
       marked.push(sibling);
     }
