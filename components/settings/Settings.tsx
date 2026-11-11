@@ -55,7 +55,7 @@ import {
 import { BrandName, BrandPlate } from '../shell/BrandMark';
 import { PAGE_TITLE_ID } from '../shell/ids';
 import { useDesktopFrame } from '../shell/frame';
-import { Button, Dot, Kbd, Segmented, cx } from '../ui';
+import { Button, Dot, Kbd, Segmented, Spinner, cx } from '../ui';
 import { KeepRow, KeepOffDialog, ResetDocsDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
 import { ResetAppRow } from './ResetApp';
 import { BackupRows } from './BackupDialogs';
@@ -641,8 +641,8 @@ function AboutHead() {
   const pct = state && state.total > 0 ? Math.min(100, Math.floor((state.received / state.total) * 100)) : 0;
   let status: ReactNode = null;
   if (state?.phase === 'checking') {
-    // The button below spins: one spinner is enough.
-    status = u.checking;
+    // The spinner is here, by the words; the button below only waits (owner, 2026-11-11).
+    status = <><Spinner size={16} />{u.checking}</>;
   } else if (state && newer) {
     status = (
       <span className="tnum font-medium text-accent">
@@ -673,7 +673,7 @@ function AboutHead() {
               variant="secondary"
               className="mt-3"
               iconLeft={<RefreshIcon size={16} />}
-              busy={state.phase === 'checking'}
+              disabled={state.phase === 'checking'}
               onClick={() => void updates.check()}
             >
               {t.shell.checkForUpdates}
