@@ -102,7 +102,7 @@ fn model(s: &State) -> Value {
   json!({
     "dark": s.dark,
     "title": crate::edition::named(if s.update.is_some() { words.title_updating } else { words.title }),
-    "nightly": crate::edition::nightly(),
+    "edition": crate::edition::edition().id(),
     "version": version,
     "steps": steps,
     "note": if s.slow && s.update.is_none() { Value::String(words.slow.into()) } else { Value::Null },

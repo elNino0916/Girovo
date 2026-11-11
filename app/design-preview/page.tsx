@@ -54,8 +54,8 @@ import { addDaysKey, isoDate, presetRange } from '@/lib/format';
 import { applyTheme } from '@/lib/theme';
 import { IS_ANDROID } from '@/lib/platform';
 import { FloatingScrollbars } from '@/components/shell/FloatingScrollbars';
-import { NightlyContext } from '@/components/shell/BrandMark';
-import { NIGHTLY } from '@/lib/edition';
+import { EditionContext } from '@/components/shell/BrandMark';
+import { EDITION, type Edition } from '@/lib/edition';
 import { isSettingsPage, type SettingsPage } from '@/lib/settings-pages';
 import { ACCT, MOCK_PAYEES, MOCK_TAN_KIND, MOCK_TAN_KINDS, SECOND_BANK, type MockTanKind } from './data';
 import { buildEpcPayload } from '@/lib/girocode';
@@ -1713,12 +1713,12 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
   const stillParam = one(params.still);
   const introAt = Number(one(params.t));
   const still = stillParam ? stillParam === '1' : undefined;
-  // The edition the marks draw (lib/edition.ts): ?edition=nightly or ?edition=release, else this build's.
+  // The edition the marks draw (lib/edition.ts): ?edition=next, ?edition=nightly or ?edition=release, else this build's.
   const editionParam = one(params.edition);
-  const nightly = editionParam === 'nightly' ? true : editionParam === 'release' ? false : NIGHTLY;
+  const edition: Edition = editionParam === 'next' || editionParam === 'nightly' || editionParam === 'release' ? editionParam : EDITION;
 
   return (
-    <NightlyContext.Provider value={nightly}>
+    <EditionContext.Provider value={edition}>
       {/* Keyed by the whole query: another view is another session, not a
           transition of this one. */}
       <MockFintsProvider key={JSON.stringify(params)} preset={preset} still={still} {...options}>
@@ -1738,7 +1738,7 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
         <Statement />
         <Driver setup={setup} script={def.script} />
       </MockFintsProvider>
-    </NightlyContext.Provider>
+    </EditionContext.Provider>
   );
 }
 

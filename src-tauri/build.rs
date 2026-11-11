@@ -1,13 +1,13 @@
 fn main() {
   // The app's version as package.json has it (tauri.conf.json's comes from
-  // there too), for src/edition.rs: Girovo or Girovo Nightly.
+  // there too), for src/edition.rs: Girovo, Girovo Nightly or Girovo Next.
   println!("cargo:rerun-if-changed=../package.json");
   let pkg = std::fs::read_to_string("../package.json").expect("package.json");
   let version = pkg.split("\"version\"").nth(1).and_then(|rest| rest.split('"').nth(1)).unwrap_or("0.0.0").to_string();
   println!("cargo:rustc-env=GIROVO_VERSION={version}");
   // The icons the program, its windows and tray carry: scripts/dist-desktop.mjs
-  // swaps in src-tauri/icons-nightly for a nightly, and tauri-build doesn't
-  // watch them itself, so a build with the other set must recompile.
+  // swaps in src-tauri/icons-nightly for a nightly and src-tauri/icons-next for
+  // a Next build, and tauri-build doesn't watch them itself, so a build with the other set must recompile.
   println!("cargo:rerun-if-changed=icons");
   // girovo-update.exe (update-helper/, docs/updater-v2.md step 4): built here
   // so it is there before tauri-build looks for it (tauri.windows.conf.json

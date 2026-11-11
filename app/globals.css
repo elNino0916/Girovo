@@ -90,6 +90,8 @@
   --brand-numeral: linear-gradient(155deg, #0f8fd3 10%, #2f5ee0 52%, #7b4fe0 92%);
   /* A nightly's "Nightly" the same way: the plate's amber running into orange, deep enough to read on light. */
   --brand-nightly: linear-gradient(100deg, #de8904 10%, #dc7a08 55%, #d9690e 95%);
+  /* Next's "Next" the same way: the plate's violet growing lighter, at least 3.7:1 on the light surfaces. */
+  --brand-next: linear-gradient(100deg, #7b4fe0 10%, #8a55e8 55%, #9b5cf0 95%);
 
   /* --- the one interactive colour -------------------------------------- */
   --accent: #0864ad;
@@ -204,6 +206,10 @@
   --stage-line: rgb(255 255 255 / 0.22);
   --brand-numeral: linear-gradient(155deg, #b8eeff 12%, #4f9dff 52%, #a77bff 92%);
   --brand-nightly: linear-gradient(100deg, #fbbd47 10%, #f5a623 55%, #f3913a 95%);
+  /* Violet is darker than amber at the same strength, so these stand a little
+     lighter than the owner's #a77bff to #c39bff: at least 6.2:1 on the dark
+     surfaces and 3.4:1 on the login's field. */
+  --brand-next: linear-gradient(100deg, #b085ff 10%, #bd95ff 55%, #cda5ff 95%);
 
   /* The same blue, lifted until it clears contrast on navy-black; its ink
      flips to near-black because white on a light blue would not. */

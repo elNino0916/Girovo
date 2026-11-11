@@ -47,7 +47,7 @@ pub struct Plan {
   /// The way on when the install fails and Girovo is gone (github.com only).
   pub releases_url: String,
   pub english: bool,
-  /// "Girovo" or "Girovo Nightly".
+  /// "Girovo", "Girovo Nightly" or "Girovo Next".
   pub name: String,
   pub quiet: bool,
   pub installer_args: Vec<String>,
@@ -165,7 +165,9 @@ impl Plan {
   /// "Version 6.0.2 Nightly": the version as a person reads it, not the build's whole name.
   pub fn version_line(&self) -> String {
     let (core, pre) = self.version.split_once('-').unwrap_or((self.version.as_str(), ""));
-    let kind = if pre.starts_with("nightly.") || (pre.starts_with("preview.") && pre.len() > 12) {
+    let kind = if pre.starts_with("next.") {
+      " Next".to_string()
+    } else if pre.starts_with("nightly.") || (pre.starts_with("preview.") && pre.len() > 12) {
       " Nightly".to_string()
     } else if let Some(n) = pre.strip_prefix("preview.").filter(|n| n.chars().all(|c| c.is_ascii_digit())) {
       format!(" Preview {n}")
@@ -209,6 +211,19 @@ pub enum Failure {
   NoInstaller,
   InstallerFailed(i32),
   TooLong,
+}
+
+/// The plate drawn in place of a missing app icon, in 0xRRGGBB: the colour of
+/// the edition `name` says (Girovo Next violet, Girovo Nightly amber, Girovo navy).
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn plate_of(name: &str) -> u32 {
+  if name.contains("Next") {
+    0x7b4fe0
+  } else if name.contains("Nightly") {
+    0xf5a623
+  } else {
+    0x0a2c5e
+  }
 }
 
 pub fn sha256_of(path: &Path) -> Option<String> {
@@ -462,7 +477,7 @@ mod ui {
   use windows::Win32::UI::WindowsAndMessaging::*;
   use windows::core::{HSTRING, PCWSTR, w};
 
-  use super::{Failure, ID_CLOSE, ID_PRIMARY, Plan, Pressed, Stage, WayOn};
+  use super::{Failure, ID_CLOSE, ID_PRIMARY, Plan, Pressed, Stage, WayOn, plate_of};
 
   const WM_STAGE: u32 = WM_APP + 1;
   const WM_DONE: u32 = WM_APP + 2;
@@ -842,10 +857,9 @@ mod ui {
       GdipSetSmoothingMode(g, SmoothingModeAntiAlias);
       // The card, below the title bar, with the window's tint round it.
       round_rect(g, p(MARGIN) as f32, 0.0, (client.right - p(MARGIN) * 2) as f32, card_h as f32, p(6) as f32, c.card);
-      // Without the app's icon, a plate of the edition's colour.
+      // Without the app's icon, a plate of the edition's colour (src-tauri/src/edition.rs names it).
       if ui.icon == 0 {
-        let nightly = ui.plan.name.contains("Nightly");
-        round_rect(g, ix as f32, iy as f32, p(PLATE) as f32, p(PLATE) as f32, p(14) as f32, if nightly { 0xf5a623 } else { 0x0a2c5e });
+        round_rect(g, ix as f32, iy as f32, p(PLATE) as f32, p(PLATE) as f32, p(14) as f32, plate_of(&ui.plan.name));
       }
       if ui.failure.is_none() {
         // The bar: a rounded track, a rounded part running along it.
@@ -1204,7 +1218,15 @@ mod tests {
     assert_eq!(at("6.0.2-nightly.202611072051.gf607061"), "Version 6.0.2 Nightly");
     assert_eq!(at("6.0.0-preview.202611071208.gef82cf6"), "Version 6.0.0 Nightly");
     assert_eq!(at("6.0.0-preview.3"), "Version 6.0.0 Preview 3");
+    assert_eq!(at("7.0.0-next.202611111200.gabcdef0"), "Version 7.0.0 Next");
     assert_eq!(at("6.0.2"), "Version 6.0.2");
+  }
+
+  #[test]
+  fn the_plate_is_the_edition_s_colour() {
+    assert_eq!(plate_of("Girovo"), 0x0a2c5e);
+    assert_eq!(plate_of("Girovo Nightly"), 0xf5a623);
+    assert_eq!(plate_of("Girovo Next"), 0x7b4fe0);
   }
 
   #[test]

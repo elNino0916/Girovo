@@ -632,7 +632,7 @@ function AboutPage() {
 }
 
 /**
- * The page's head: the plate, the name (amber "Nightly" or the release's
+ * The page's head: the plate, the name (amber "Nightly", violet "Next" or the release's
  * numeral), the version, and with the updater (the desktop app, the GitHub
  * build on Android) what it knows about a newer one. Play and F-Droid bring
  * their own updates: there the head stops at the version.

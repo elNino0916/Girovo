@@ -3,6 +3,7 @@
 //
 //   build/icon.png              512×512, the app icon (src-tauri/icons: npx tauri icon build/icon.png)
 //   build/icon-nightly.png      512×512, Girovo Nightly's: navy on amber (src-tauri/icons-nightly)
+//   build/icon-next.png         512×512, Girovo Next's: white on violet (src-tauri/icons-next)
 //   build/installerSidebar.bmp  328×628, the Electron installer's Welcome / Finish pages (2× of NSIS's 164×314); unused by Tauri's
 //   build/installerHeader.bmp   300×114, the Electron installer's inner pages (2× of 150×57); unused by Tauri's
 //
@@ -73,10 +74,17 @@ await sharp(Buffer.from(markSvg({ plate: NAVY, ink: '#ffffff', size: 512 })))
 // Girovo Nightly's (lib/edition.ts): the mark in Girovo's navy on amber
 // (src-tauri/icons-nightly: npx tauri icon build/icon-nightly.png -o src-tauri/icons-nightly,
 // keeping the files src-tauri/icons has; scripts/dist-desktop.mjs builds nightlies with them).
-const { NIGHTLY_PLATE, NIGHTLY_INK } = await import(pathToFileURL(path.join(ROOT, 'lib', 'edition.ts')).href);
+const { NIGHTLY_PLATE, NIGHTLY_INK, NEXT_PLATE, NEXT_INK } = await import(pathToFileURL(path.join(ROOT, 'lib', 'edition.ts')).href);
 await sharp(Buffer.from(markSvg({ plate: NIGHTLY_PLATE, ink: NIGHTLY_INK, size: 512 })))
   .png()
   .toFile(path.join(ROOT, 'build', 'icon-nightly.png'));
+
+// Girovo Next's the same way: the mark in white on violet (src-tauri/icons-next:
+// npx tauri icon build/icon-next.png -o src-tauri/icons-next, keeping the files
+// src-tauri/icons has; scripts/dist-desktop.mjs builds Next with them).
+await sharp(Buffer.from(markSvg({ plate: NEXT_PLATE, ink: NEXT_INK, size: 512 })))
+  .png()
+  .toFile(path.join(ROOT, 'build', 'icon-next.png'));
 
 // Welcome / Finish: the mark on a white plate inside a soft halo, the name, an accent rule.
 const sidebar = `<svg xmlns="http://www.w3.org/2000/svg" width="328" height="628" viewBox="0 0 328 628">
@@ -95,4 +103,4 @@ const header = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="114"
 </svg>`;
 writeBmp(path.join(ROOT, 'build', 'installerHeader.bmp'), await rasterize(header));
 
-console.log('✓ brand assets written: build/icon.png, build/icon-nightly.png, build/installerSidebar.bmp, build/installerHeader.bmp');
+console.log('✓ brand assets written: build/icon.png, build/icon-nightly.png, build/icon-next.png, build/installerSidebar.bmp, build/installerHeader.bmp');

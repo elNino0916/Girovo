@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { editionOf, nameOf } from '../lib/edition.ts';
 import { fetchModel } from './fetch-model.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -42,21 +43,24 @@ function run(cmd, args) {
 await fetchModel();
 run(process.execPath, [path.join(ROOT, 'scripts', 'build-desktop.mjs')]);
 
-// Girovo Nightly (any pre-release version, lib/edition.ts) gets its own icon,
-// the mark in navy on amber, everywhere Tauri puts one: the program, its
-// windows and tray, the installer, the Linux packages. The nightly set takes
-// src-tauri/icons' place for this build, which puts the release's back at
-// exit however the build ends: Ctrl+C or a closed terminal included, which
-// Node would otherwise end without its exit handlers. src-tauri/build.rs
-// reruns when the icons change, so the program never keeps the other set.
-if (/^\d+\.\d+\.\d+-/.test(VERSION)) {
+// Girovo Nightly and Girovo Next (pre-release versions, by the rule in
+// lib/edition.ts) get their own icon, the mark in navy on amber or in white on
+// violet, everywhere Tauri puts one: the program, its windows and tray, the
+// installer, the Linux packages. The edition's set takes src-tauri/icons'
+// place for this build, which puts the release's back at exit however the
+// build ends: Ctrl+C or a closed terminal included, which Node would
+// otherwise end without its exit handlers. src-tauri/build.rs reruns when the
+// icons change, so the program never keeps the other set.
+const EDITION = editionOf(VERSION);
+if (EDITION !== 'release') {
   const icons = path.join(ROOT, 'src-tauri', 'icons');
-  const nightly = path.join(ROOT, 'src-tauri', 'icons-nightly');
+  const set = `icons-${EDITION}`;
+  const edition = path.join(ROOT, 'src-tauri', set);
   const kept = fs.mkdtempSync(path.join(os.tmpdir(), 'girovo-icons-release-'));
   const files = fs.readdirSync(icons);
   for (const f of files) {
-    if (!fs.existsSync(path.join(nightly, f))) {
-      console.error(`✗ src-tauri/icons-nightly has no ${f}`);
+    if (!fs.existsSync(path.join(edition, f))) {
+      console.error(`✗ src-tauri/${set} has no ${f}`);
       process.exit(1);
     }
   }
@@ -66,8 +70,8 @@ if (/^\d+\.\d+\.\d+-/.test(VERSION)) {
     fs.rmSync(kept, { recursive: true, force: true });
   });
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => process.exit(130));
-  for (const f of files) fs.copyFileSync(path.join(nightly, f), path.join(icons, f));
-  console.log(`✓ Girovo Nightly ${VERSION}: the nightly icon`);
+  for (const f of files) fs.copyFileSync(path.join(edition, f), path.join(icons, f));
+  console.log(`✓ ${nameOf(EDITION)} ${VERSION}: the ${EDITION} icon`);
 }
 
 const bundles = PLATFORM === 'win32' ? 'nsis' : 'appimage,deb';

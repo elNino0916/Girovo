@@ -149,7 +149,7 @@ fn model(s: &State) -> Value {
     })
     .collect();
   let title = if s.options.header.is_empty() { words.title.to_string() } else { s.options.header.clone() };
-  json!({ "dark": s.options.dark, "nightly": crate::edition::nightly(), "title": title, "version": s.options.footer, "steps": steps, "note": null })
+  json!({ "dark": s.options.dark, "edition": crate::edition::edition().id(), "title": title, "version": s.options.footer, "steps": steps, "note": null })
 }
 
 /// The install window's run: its own small app, the card, the watching.
