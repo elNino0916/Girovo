@@ -199,11 +199,16 @@ export function Settings() {
   }, [settingsTarget, clearSettingsTarget]);
 
   return (
-    <div className="flex w-full max-w-[720px] flex-col gap-7 pt-2 pb-2">
+    // Über Girovo stands in the middle of the sheet: its head is centred, and
+    // at the left of a wide sheet it looked shifted (owner, 2026-11-11).
+    <div className={cx('flex w-full max-w-[720px] flex-col gap-7 pt-2 pb-2', frame && page?.id === 'about' && 'mx-auto')}>
       {page ? (
         <>
           {/* The desktop names the page on the sheet; a phone in its top app bar. */}
-          {frame && <h2 className="-mb-2 px-4 text-[22px] leading-7 font-medium text-ink">{page.title}</h2>}
+          {/* Über Girovo's head names the app itself: its title is there only for a screen reader. */}
+          {frame && (
+            <h2 className={page.id === 'about' ? 'sr-only' : '-mb-2 px-4 text-[22px] leading-7 font-medium text-ink'}>{page.title}</h2>
+          )}
           <GroupHeading.Provider value={frame ? 'h3' : 'h2'}>
             <PageContent page={page.id} onDialog={setDialog} />
           </GroupHeading.Provider>
