@@ -14,9 +14,10 @@
 // turn 'reading' until then.
 
 import { useSyncExternalStore } from 'react';
+import type { AskIntent } from '@/lib/ask-intents';
 import type { AskQuery } from '@/lib/nano-ask';
 
-export type TurnState = 'reading' | 'answered' | 'failed' | 'notUnderstood';
+export type TurnState = 'reading' | 'answered' | 'failed' | 'notUnderstood' | 'offTopic';
 
 /** Girovo's own opening, without a question: the month recap that "Weiter fragen" carries in. */
 export type RecapSeed = { kind: 'recap'; month: string };
@@ -35,6 +36,10 @@ export type Turn = {
    */
   written?: string | false;
   writtenFor?: string;
+  /** Not a sum of bookings (lib/ask-intents.ts): Verträge & Abos, a setting read, or a change asked first. */
+  intent?: AskIntent;
+  /** A change's end: made, said no to, or already so. Absent while it waits for the user's answer. */
+  outcome?: 'done' | 'cancelled' | 'already';
 };
 
 export type Conversation = {
@@ -128,7 +133,7 @@ export function askInThread(question: string): void {
 }
 
 /** The host's reading of a turn's question. */
-export function settleTurn(id: number, result: { state: Exclude<TurnState, 'reading'>; query?: AskQuery }): void {
+export function settleTurn(id: number, result: { state: Exclude<TurnState, 'reading'>; query?: AskQuery; intent?: AskIntent }): void {
   set({
     ...state,
     conversations: state.conversations.map((c) => (c.turns.some((t) => t.id === id)
@@ -147,6 +152,16 @@ export function settleWritten(id: number, written: string | false, writtenFor: s
   });
 }
 
+/** A change asked in the thread, answered: made, said no to, or already so. */
+export function settleOutcome(id: number, outcome: NonNullable<Turn['outcome']>): void {
+  set({
+    ...state,
+    conversations: state.conversations.map((c) => (c.turns.some((t) => t.id === id)
+      ? { ...c, turns: c.turns.map((t) => (t.id === id ? { ...t, outcome } : t)) }
+      : c)),
+  });
+}
+
 /** An empty thread to start again ("Neues Gespräch"). */
 export function newConversation(): void {
   set({ ...state, open: true, current: null });
@@ -158,6 +173,16 @@ export function showConversation(id: number): void {
 
 export function closeAsk(): void {
   set({ ...state, open: false });
+}
+
+/** One conversation gone ("Gespräch löschen"); the open one leaves an empty thread behind. */
+export function deleteConversation(id: number): void {
+  set({ ...state, current: state.current === id ? null : state.current, conversations: state.conversations.filter((c) => c.id !== id) });
+}
+
+/** Every conversation gone ("Alle Gespräche löschen"), the thread left open and empty. */
+export function deleteAllConversations(): void {
+  set({ ...state, current: null, conversations: [] });
 }
 
 /** "Später" on the first-use sheet: the conversation it was opened with goes, unasked. */

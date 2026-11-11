@@ -241,6 +241,8 @@ const KIND_RULES: Array<[RegExp, AskKind]> = [
 /** A ranking: "am meisten", "am häufigsten", "Top 5" … — and of what, and by what. */
 const RANK = /\bAM (?:MEISTEN|HAEUFIGSTEN|OEFTESTEN)\b|\bMEISTE[NS]? GELD\b|\bMOST\b|\bTOP(?: \d+)?\b|\bRANGLISTE\b|\bRANKING\b|\bHAUPTAUSGABEN\b|\bGROESSTEN (?:POSTEN|AUSGABEPOSTEN|KATEGORIEN)\b/;
 const RANK_PAYEE = /(?:^| )(?:WO|BEI WEM|AN WEN|VON WEM|WELCHE[NMRS]? (?:LAEDEN|LADEN|HAENDLERN?|SHOPS?|GESCHAEFTEN?|FIRMEN|FIRMA|EMPFAENGER|RESTAURANTS?|CAFES?)|WHERE|WHO|WHICH (?:SHOPS?|STORES?|MERCHANTS?|RESTAURANTS?|PAYEES?))(?= |$)/;
+/** A question for the places themselves ("Wo war ich essen?", "Und wo?", "Where did I shop?"): a ranking by payee, without "am meisten". */
+const WHERE = /^(?:UND )?WO(?= |$)|(?:^| )WO (?:WAR|WAREN|HABE|HAB|BIN|KAUFE|KAUFTE|GEHE|ESSE|TANKE|TANKTE)(?= |$)|(?:^| )BEI WEM(?= |$)|(?:^| )WHERE(?= |$)/;
 const RANK_COUNT = /\bAM (?:HAEUFIGSTEN|OEFTESTEN)\b|\bMOST OFTEN\b|\bHOW OFTEN\b/;
 /** A comparison: needs a period on top ("mehr als 100 Euro" is none). */
 const COMPARE = /\bVERGLICHEN MIT\b|\bIM VERGLEICH\b|\bVERGLEICH\b|\bVS\b|\bVERSUS\b|\bGEGENUEBER\b|\b(?:MEHR|WENIGER)\b.*\bALS\b|\b(?:MORE|LESS)\b.*\bTHAN\b|\bCOMPARED\b|\bCOMPARE\b/;
@@ -248,7 +250,7 @@ const COMPARE = /\bVERGLICHEN MIT\b|\bIM VERGLEICH\b|\bVERGLEICH\b|\bVS\b|\bVERS
 /** A ranking the question asks for, or null. */
 export function rankFromQuestion(question: string): AskRank | null {
   const text = fold(question);
-  if (!RANK.test(text)) return null;
+  if (!RANK.test(text)) return WHERE.test(text) ? { by: 'payee', metric: RANK_COUNT.test(text) ? 'count' : 'sum' } : null;
   return { by: RANK_PAYEE.test(text) ? 'payee' : 'category', metric: RANK_COUNT.test(text) ? 'count' : 'sum' };
 }
 

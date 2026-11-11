@@ -24,13 +24,13 @@ import { AccountLayers } from '../overview/AccountLayers';
 import { ArrangeSheet } from '../overview/ArrangeSheet';
 import { useLayers } from '../overview/layers';
 import { useSettingsPages } from '../settings/Settings';
-import { BackIcon, ChartIcon, GearIcon, HistoryIcon, HomeIcon, TransferIcon } from '../icons';
+import { BackIcon, ChartIcon, GearIcon, HistoryIcon, HomeIcon, TransferIcon, TrashIcon } from '../icons';
 import { IconButton, cx } from '../ui';
 import type { ShellActions } from './actions';
 import { PLACE_ROOT_EVENT } from './frame';
 import { MiniMonth } from './MiniMonth';
 import { useCanAsk } from '../insights/ask-gate';
-import { showConversation, useAskThread } from '../insights/ask-thread-store';
+import { deleteConversation, showConversation, useAskThread } from '../insights/ask-thread-store';
 
 /** Which place is current is the app's to say: M3E would select an item on its own click. */
 const keepPlace = (e: Event) => e.preventDefault();
@@ -307,19 +307,25 @@ function Conversations() {
         {s.conversations.slice(0, 5).map((c) => {
           const on = s.open && s.current === c.id;
           return (
-            <li key={c.id}>
+            <li key={c.id} className="group relative">
               <button
                 type="button"
                 aria-current={on ? 'true' : undefined}
                 onClick={() => showConversation(c.id)}
                 className={cx(
-                  'row-focus flex h-10 w-full items-center gap-3 rounded-full px-4 text-left text-[14px] leading-5 font-medium transition-colors duration-150',
+                  'row-focus flex h-10 w-full items-center gap-3 rounded-full pr-11 pl-4 text-left text-[14px] leading-5 font-medium transition-colors duration-150',
                   on ? 'bg-[var(--md-secondary-container)] text-[var(--md-on-secondary-container)]' : 'text-ink hover:bg-[var(--md-surface-container)]',
                 )}
               >
                 <HistoryIcon size={20} className={cx('shrink-0', !on && 'text-ink-2')} />
                 <span className="min-w-0 flex-1 truncate">{c.title}</span>
               </button>
+              {/* Its own way out, shown with the row's hover or focus (and always to a keyboard). */}
+              <span className="absolute top-1/2 right-1 -translate-y-1/2 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
+                <IconButton size="sm" aria-label={`${t.ask.thread.deleteConversation}: ${c.title}`} onClick={() => deleteConversation(c.id)}>
+                  <TrashIcon size={16} />
+                </IconButton>
+              </span>
             </li>
           );
         })}

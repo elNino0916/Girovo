@@ -17,12 +17,14 @@ import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
 import { useContractNotices } from '../insights/contract-notices';
 import { unseenUpdate, useUpdates } from '../updates/store';
-import { BellIcon, Icon } from '../icons';
+import { BellIcon, GeminiSparkIcon, Icon } from '../icons';
 import { Dot, IconButton, cx } from '../ui';
 import { BrandName, BrandPlate } from './BrandMark';
 import { FrameSearch } from './FrameSearch';
 import { PAGE_TITLE_ID } from './ids';
 import { PrivacyToggle } from './PrivacyToggle';
+import { useCanAsk } from '../insights/ask-gate';
+import { closeAsk, openAsk, useAskThread } from '../insights/ask-thread-store';
 import { ProfileMenu } from './ProfileMenu';
 
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
@@ -92,6 +94,7 @@ export function TitleBar({ sidebarOpen, onMenu }: { sidebarOpen: boolean; onMenu
       <div className="min-w-4 flex-1" />
 
       <div className="flex shrink-0 items-center gap-0.5" style={NO_DRAG}>
+        <AskToggle />
         <IconButton tone="bar" size="md" aria-label={inboxName} aria-haspopup="dialog" data-inbox-trigger onClick={() => setInboxOpen(true)}>
           <span className="relative inline-flex">
             <BellIcon />
@@ -103,5 +106,18 @@ export function TitleBar({ sidebarOpen, onMenu }: { sidebarOpen: boolean; onMenu
         <ProfileMenu />
       </div>
     </div>
+  );
+}
+
+/** Girovo Next: "Fragen" beside the page, opened and closed from the title bar (the last conversation, or an empty one). */
+function AskToggle() {
+  const t = useT();
+  const canAsk = useCanAsk();
+  const ask = useAskThread();
+  if (!canAsk) return null;
+  return (
+    <IconButton tone="bar" size="md" aria-label={t.ask.thread.title} aria-pressed={ask.open} onClick={() => (ask.open ? closeAsk() : openAsk())}>
+      <GeminiSparkIcon size={20} />
+    </IconButton>
   );
 }

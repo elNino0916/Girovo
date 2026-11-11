@@ -708,6 +708,32 @@
   .anim-sheet { animation: sheet-up 0.25s var(--ease-out-soft); }
 }
 
+/*
+ * Girovo Next, Fragen (components/insights/AskThread.tsx). A sent question
+ * rises out of the field on the fast spatial spring; Girovo's tile follows
+ * on the default one; its words arrive one after another out of a blur
+ * (effects never overshoot). While Girovo works: the spark breathes and two
+ * lines shimmer, so it never looks stuck. Backwards fill only (DESIGN.md,
+ * the Backwards Fill Rule); prefers-reduced-motion stills it all below.
+ */
+@keyframes ask-sent { from { opacity: 0; transform: translateY(14px) scale(0.92); } }
+@keyframes ask-tile { from { opacity: 0; transform: translateY(16px) scale(0.97); } }
+@keyframes ask-word { from { opacity: 0; filter: blur(5px); } }
+@keyframes ask-reveal { from { opacity: 0; filter: blur(6px); transform: translateY(4px); } }
+@keyframes ask-breathe { 0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.85; } 50% { transform: scale(1.35) rotate(90deg); opacity: 1; } }
+@keyframes ask-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.ask-sent { transform-origin: bottom right; animation: ask-sent var(--m3e-spatial-fast-ms, 360ms) var(--m3e-spatial-fast, var(--ease-out-soft)) backwards; }
+.ask-tile { transform-origin: top left; animation: ask-tile var(--m3e-spatial-default-ms, 435ms) var(--m3e-spatial-default, var(--ease-out-soft)) backwards; }
+.ask-word { animation: ask-word 420ms var(--m3e-effects-slow, ease-out) backwards; animation-delay: calc(var(--i, 0) * 32ms); }
+.ask-reveal { animation: ask-reveal 480ms var(--m3e-effects-slow, ease-out) backwards; }
+.ask-breathe { animation: ask-breathe 1.6s ease-in-out infinite; }
+.ask-line {
+  height: 10px; border-radius: 5px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ink) 7%, transparent) 30%, color-mix(in srgb, var(--ink) 20%, transparent) 50%, color-mix(in srgb, var(--ink) 7%, transparent) 70%);
+  background-size: 250% 100%;
+  animation: ask-shimmer 1.5s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

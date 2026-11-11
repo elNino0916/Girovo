@@ -17,15 +17,19 @@
 // phone, the built-in model on the desktop).
 
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { followUp, monthBefore } from '@/lib/ask-followup';
+import { aboutBookings, followUp, monthBefore } from '@/lib/ask-followup';
+import { intentOf, type AskIntent } from '@/lib/ask-intents';
+import { seriesTitle } from '@/lib/recurring';
+import { setThemePref } from '@/lib/theme';
 import { segments, usable, writerInput, writerSystem, type WriterLang } from '@/lib/gemma-writer';
 import { bookingDay, periodTotals } from '@/lib/analytics';
 import { categoryLabel, counterpartyName, type CategoryId } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { dayKey, fmtDate, fmtMonth, fmtRange } from '@/lib/format';
-import { activeLocale, intlLocale } from '@/lib/i18n/locale';
-import { useT } from '@/lib/i18n/react';
+import { LOCALE_NAMES, activeLocale, intlLocale } from '@/lib/i18n/locale';
+import { useLocale, useT } from '@/lib/i18n/react';
 import {
   ASK_MAX_TOKENS, ASK_SYSTEM, askText, categoryFromQuestion, computeAnswer, nameFromPayees, parseAskAnswer, periodDays,
   questionTopic, readQuestion,
@@ -34,18 +38,20 @@ import {
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
-import { ArrowRightIcon, BackIcon, CloseIcon, GeminiSparkIcon, HistoryIcon, PlusIcon } from '../icons';
+import { ArrowRightIcon, BackIcon, CloseIcon, GeminiSparkIcon, HistoryIcon, PlusIcon, TrashIcon } from '../icons';
 import { usePhone } from '../shell/usePhone';
-import { Button, Dialog, IconButton, Menu, MenuItem, Overlay, Spinner, cx } from '../ui';
+import { Button, Dialog, IconButton, Menu, MenuItem, MenuSeparator, Overlay, cx } from '../ui';
 import { searchText, txText } from '../transactions/model';
 import { useScopeData, type ScopeData } from './analysis-model';
 import { AskTile } from './Ask';
 import { useCanAsk } from './ask-gate';
 import {
-  askInThread, clearAsk, closeAsk, currentConversation, dropCurrent, hiddenRecaps, newConversation, openAskWithRecap, settleTurn,
-  settleWritten, showConversation, useAskThread, type Turn,
+  askInThread, clearAsk, closeAsk, currentConversation, deleteAllConversations, deleteConversation, dropCurrent, hiddenRecaps,
+  newConversation, openAskWithRecap, settleOutcome, settleTurn, settleWritten, showConversation, useAskThread, type Turn,
 } from './ask-thread-store';
 import { gemmaPrompt, gemmaUsable, useGemma } from './gemma';
+import { useThemePref } from '../ThemeToggle';
+import { useRecurringModel } from './recurring-model';
 import { LoadHistoryButton, useShowInList } from './shared';
 
 type AskCtx = Parameters<typeof computeAnswer>[2];
@@ -118,6 +124,12 @@ export function AskReader() {
         void (async () => {
           const q = turn.question;
           const today = dayKey(new Date());
+          // Verträge & Abos, a setting, a change: by the rules, before any model reads it.
+          const intent = intentOf(q);
+          if (intent) {
+            settleTurn(turn.id, { state: 'answered', intent });
+            return;
+          }
           const mobile = IS_ANDROID ? window.girovoMobile : undefined;
           if (IS_ANDROID && !mobile?.ask) {
             settleTurn(turn.id, { state: 'failed' });
@@ -132,6 +144,11 @@ export function AskReader() {
           const reading = mobile?.ask ? parseAskAnswer(raw, own)
             : fromGemma ? { ...fromGemma, search: fromGemma.search ?? nameFromPayees(q, payees) }
               : await builtInReading(q, payees, askCategory);
+          // Small talk ("Hallo") gets a line, not the sum of every booking a model read into it.
+          if (!aboutBookings(q, readQuestion(q, null, today, own), reading)) {
+            settleTurn(turn.id, { state: 'offTopic' });
+            return;
+          }
           const read = readQuestion(q, reading, today, own);
           if (!read) {
             settleTurn(turn.id, { state: mobile?.ask && raw == null ? 'failed' : 'notUnderstood' });
@@ -349,15 +366,25 @@ function WrittenText({ text, answer, open }: {
   }
   for (const row of answer.rank ?? []) filters.set(row.cents, row.filter as AskAnswer['filter']);
   const tx = (answer.query.kind === 'largest' || answer.query.kind === 'last') && answer.tx ? answer.tx : null;
+  let word = 0;
   return (
     <>
       {segments(text, writerLang()).map((seg, i) => {
-        if ('text' in seg) return <Fragment key={i}>{seg.text}</Fragment>;
+        // Word by word, out of a blur, each a beat after the one before (the count runs on across pieces).
+        if ('text' in seg) {
+          return (
+            <Fragment key={i}>
+              {seg.text.split(/(\s+)/).map((w, j) => (/^\s*$/.test(w) ? w : <span key={j} className="ask-word" style={{ '--i': word++ } as CSSProperties}>{w}</span>))}
+            </Fragment>
+          );
+        }
         const filter = filters.get(seg.cents) ?? (tx && Math.abs(Math.round(tx.amount * 100)) === seg.cents ? answer.filter : undefined);
         return (
-          <Fig key={i} onShow={filter ? () => open(tx, filter) : undefined}>
-            <Money value={seg.cents / 100} currency={answer.currency} tone="plain" />
-          </Fig>
+          <span key={i} className="ask-word" style={{ '--i': word++ } as CSSProperties}>
+            <Fig onShow={filter ? () => open(tx, filter) : undefined}>
+              <Money value={seg.cents / 100} currency={answer.currency} tone="plain" />
+            </Fig>
+          </span>
         );
       })}
     </>
@@ -471,14 +498,154 @@ export function RecapText({ recap, own, onShown }: { recap: NonNullable<ReturnTy
   );
 }
 
+/** A turn that is no sum of bookings: Verträge & Abos, a setting as it is, or a change asked first. */
+function IntentAnswer({ turn, intent, onShown }: { turn: Turn; intent: AskIntent; onShown: () => void }) {
+  if (intent.kind === 'contracts') return <ContractsAnswer onShown={onShown} />;
+  if (intent.kind === 'read') return <SettingsAnswer setting={intent.setting} />;
+  return <ChangeAnswer turn={turn} intent={intent} />;
+}
+
+/** "Welche Abos habe ich?": the live Verträge & Abos with their monthly sum, and the way to the page. */
+function ContractsAnswer({ onShown }: { onShown: () => void }) {
+  const words = useT().ask.actions;
+  const model = useRecurringModel();
+  const { setTab } = useFints();
+  const live = model.expense;
+  if (live.length === 0) return <p className="text-[16px] leading-6 sm:text-[14px]">{words.noContracts}</p>;
+  const monthly = <Fig><Money value={model.totals.monthlyExpense} currency={model.totals.currency} tone="plain" /></Fig>;
+  return (
+    <>
+      <p className="text-[16px] leading-6 text-ink sm:text-[14px] sm:leading-[22px]"><Say parts={words.contracts(live.length, monthly)} /></p>
+      <ul className="mt-3 -mx-2 flex flex-col rounded-[12px] bg-[color-mix(in_srgb,var(--paper)_72%,transparent)] py-1">
+        {live.slice(0, 8).map((s, i) => (
+          <li key={s.id} className="ask-word flex min-h-11 items-center gap-3 px-3" style={{ '--i': i } as CSSProperties}>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[14px] font-medium text-ink">{seriesTitle(s)}</span>
+              <span className="block text-[12px] leading-4 text-ink-2">{s.cadenceLabel}</span>
+            </span>
+            <Money value={Math.abs(s.amount)} currency={s.currency} tone="plain" className="shrink-0 text-[14px] font-medium" />
+          </li>
+        ))}
+      </ul>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="mt-3"
+        onClick={() => {
+          setTab('contracts');
+          onShown();
+        }}
+      >
+        {words.openContracts}
+      </Button>
+    </>
+  );
+}
+
+/** A setting as it is: the theme, the amounts, the language, the logout, or all four. */
+function SettingsAnswer({ setting }: { setting: Extract<AskIntent, { kind: 'read' }>['setting'] }) {
+  const words = useT().ask.actions;
+  const theme = useThemePref();
+  const { privacy, idleMinutes } = useFints();
+  const { locale } = useLocale();
+  const lines = {
+    theme: words.readTheme(words.theme[theme]),
+    privacy: words.readPrivacy(privacy),
+    language: words.readLanguage(LOCALE_NAMES[locale]),
+    idle: words.readIdle(idleMinutes),
+  };
+  const shown = setting === 'all' ? Object.values(lines) : [lines[setting]];
+  return <p className="text-[16px] leading-6 text-ink sm:text-[14px] sm:leading-[22px]">{shown.join(' ')}</p>;
+}
+
+/**
+ * A change, asked first: the question, "Ja, bitte" and "Abbrechen". Made only
+ * on the yes; then what happened, in a word. Already so: said, nothing asked.
+ */
+function ChangeAnswer({ turn, intent }: { turn: Turn; intent: Exclude<AskIntent, { kind: 'contracts' } | { kind: 'read' }> }) {
+  const words = useT().ask.actions;
+  const theme = useThemePref();
+  const { privacy, togglePrivacy, loadAllBalances } = useFints();
+  const { locale, setLocale } = useLocale();
+  const already = intent.kind === 'set' && (
+    (intent.setting === 'theme' && intent.value === theme)
+    || (intent.setting === 'privacy' && intent.value === privacy)
+    || (intent.setting === 'language' && intent.value === locale)
+  );
+  const outcome = turn.outcome ?? (already ? 'already' : undefined);
+  const question = intent.kind === 'refresh' ? words.askRefresh
+    : intent.setting === 'theme' ? words.askTheme[intent.value]
+      : intent.setting === 'privacy' ? words.askPrivacy(intent.value)
+        : words.askLanguage(LOCALE_NAMES[intent.value]);
+  if (outcome) {
+    const said = outcome === 'already' ? words.already : outcome === 'cancelled' ? words.cancelled
+      : intent.kind === 'refresh' ? words.refreshing
+        : intent.setting === 'theme' ? words.doneTheme[intent.value]
+          : intent.setting === 'privacy' ? words.donePrivacy(intent.value)
+            // Said in the language just chosen: the app already speaks it.
+            : intent.setting === 'language' ? words.doneLanguage : words.done;
+    return <p className="text-[16px] leading-6 text-ink sm:text-[14px] sm:leading-[22px]">{said}</p>;
+  }
+  const make = () => {
+    if (intent.kind === 'refresh') loadAllBalances();
+    else if (intent.setting === 'theme') setThemePref(intent.value);
+    else if (intent.setting === 'privacy') { if (privacy !== intent.value) togglePrivacy(); }
+    else setLocale(intent.value);
+    settleOutcome(turn.id, 'done');
+  };
+  return (
+    <>
+      <p className="text-[16px] leading-6 text-ink sm:text-[14px] sm:leading-[22px]">{question}</p>
+      {intent.kind === 'refresh' && <p className="mt-1 text-[14px] leading-5 text-ink-2">{words.refreshNote}</p>}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button size="sm" onClick={make}>{words.yes}</Button>
+        <Button variant="tertiary" size="sm" onClick={() => settleOutcome(turn.id, 'cancelled')}>{words.no}</Button>
+      </div>
+    </>
+  );
+}
+
 /** One of Girovo's turns: the tile on Gemini's wash. */
-function GirovoTile({ children, busy }: { children: ReactNode; busy?: boolean }) {
+/** What Girovo is doing on a turn, while it does: reading the question, or writing the answer. */
+type Phase = 'reading' | 'writing' | null;
+
+/**
+ * Girovo at work: the spark breathes, the step is named ("Liest deine Frage",
+ * "Schreibt die Antwort", "Gemma startet" while the model loads), and after a
+ * few seconds the seconds count, so a slow answer never looks stuck. Two
+ * lines shimmer where the answer will stand.
+ */
+function Thinking({ phase }: { phase: Exclude<Phase, null> }) {
+  const words = useT().ask.thread.thinking;
+  const gemma = useGemma();
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const id = window.setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const label = gemma?.starting ? words.starting : phase === 'reading' ? words.reading : words.writing;
+  return (
+    <div role="status" aria-live="polite">
+      <p className="flex items-center gap-2 text-[14px] leading-5 font-medium text-ink-2">
+        <span>{label}</span>
+        {seconds >= 3 && <span className="tnum font-normal" aria-hidden>{words.seconds(seconds)}</span>}
+      </p>
+      <div className="mt-2.5 flex flex-col gap-2" aria-hidden>
+        <span className="ask-line block w-[92%]" />
+        <span className="ask-line block w-[64%]" />
+      </div>
+    </div>
+  );
+}
+
+function GirovoTile({ children, phase = null }: { children: ReactNode; phase?: Phase }) {
   const words = useT().ask.thread;
   return (
-    <div data-gemini className="rounded-[16px] px-4 pt-3 pb-3.5">
+    <div data-gemini className="ask-tile rounded-[16px] px-4 pt-3 pb-3.5">
       <span className="sr-only">{words.girovo}</span>
-      <GeminiSparkIcon size={16} className="mb-1.5 block" aria-hidden />
-      {busy ? <span className="flex h-6 items-center"><Spinner size={16} /></span> : children}
+      <GeminiSparkIcon size={16} className={cx('mb-1.5 block', phase && 'ask-breathe')} aria-hidden />
+      {phase ? <Thinking phase={phase} /> : <div className="ask-reveal">{children}</div>}
     </div>
   );
 }
@@ -503,16 +670,18 @@ function TurnView({ turn, data, ctx, own, onShown, latest }: {
   return (
     <li className="flex flex-col gap-3">
       {turn.question && (
-        <div className="ml-auto w-fit max-w-[85%] rounded-[20px] rounded-br-[4px] bg-accent-soft px-4 py-2.5 text-[16px] leading-6 text-[var(--tonal-ink)] sm:text-[14px] sm:leading-5">
+        <div className="ask-sent ml-auto w-fit max-w-[85%] rounded-[20px] rounded-br-[4px] bg-accent-soft px-4 py-2.5 text-[16px] leading-6 text-[var(--tonal-ink)] sm:text-[14px] sm:leading-5">
           <span className="sr-only">{words.thread.you} </span>
           {turn.question}
         </div>
       )}
-      <GirovoTile busy={turn.state === 'reading' || writer.pending}>
+      <GirovoTile phase={turn.state === 'reading' ? 'reading' : writer.pending ? 'writing' : null}>
         {turn.seed && (recap ? <RecapText recap={recap} own={own} onShown={onShown} /> : <p className="text-[16px] leading-6 sm:text-[14px]">{data ? words.outside : words.thread.notLoaded}</p>)}
         {turn.state === 'failed' && <p className="text-[16px] leading-6 sm:text-[14px]">{words.failed}</p>}
         {turn.state === 'notUnderstood' && <p className="text-[16px] leading-6 sm:text-[14px]">{IS_ANDROID ? words.notUnderstood : words.desktop.notUnderstood}</p>}
-        {turn.state === 'answered' && !turn.seed && (answer
+        {turn.state === 'offTopic' && <p className="text-[16px] leading-6 sm:text-[14px]">{words.thread.offTopic}</p>}
+        {turn.state === 'answered' && turn.intent && <IntentAnswer turn={turn} intent={turn.intent} onShown={onShown} />}
+        {turn.state === 'answered' && !turn.seed && !turn.intent && (answer
           ? <AnswerText answer={answer} own={own} show={show} scopeAll={data?.scope === 'all'} onShown={onShown} written={writer.text} />
           : <p className="text-[16px] leading-6 sm:text-[14px]">{words.thread.notLoaded}</p>)}
       </GirovoTile>
@@ -604,7 +773,16 @@ function Thread({ face, onClose }: { face: 'screen' | 'panel'; onClose: () => vo
                 <span className="block max-w-[260px] truncate">{c.title}</span>
               </MenuItem>
             ))}
+          {s.conversations.length > 0 && <MenuSeparator />}
+          {s.conversations.length > 0 && (
+            <MenuItem tone="danger" onSelect={deleteAllConversations}>{words.deleteAll}</MenuItem>
+          )}
         </Menu>
+        {conversation && (
+          <IconButton size="md" aria-label={words.deleteConversation} onClick={() => deleteConversation(conversation.id)}>
+            <TrashIcon size={20} />
+          </IconButton>
+        )}
         <IconButton size="md" aria-label={words.newConversation} onClick={newConversation}>
           <PlusIcon size={22} />
         </IconButton>

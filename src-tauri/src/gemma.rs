@@ -22,8 +22,12 @@
 // refuses a request without the key and names our model), so a program that
 // took the port in between gets nothing. The first start on a GPU compiles
 // Vulkan's shaders (about half a minute); a start that fails there is tried
-// once more on the CPU alone, and that choice is remembered (CPU_ONLY) so a
-// broken driver does not cost the wait every time. When neither works, the
+// once more on the CPU alone (8 threads at most: llama.cpp's default of every
+// logical core is half as fast), and that choice holds for the rest of the
+// run, so a broken driver does not cost the wait every time. Only for the
+// run: the GPU may just have been busy (a game), so the next app start tries
+// it again. A GPU server that answers slower than the CPU would (a busy GPU,
+// GPU_SLOW) is swapped for a CPU one the same way. When neither works, the
 // runtime says so (state.unavailable) and stops trying for this run. A server
 // that hangs over a prompt, or fails twice in a row, is ended and started
 // afresh for the next one. It ends with Girovo even after a crash: a job
@@ -41,7 +45,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
@@ -141,10 +145,7 @@ const SERVER_EXE: &str = if cfg!(windows) { "llama-server.exe" } else { "llama-s
 const START_LIMIT: Duration = Duration::from_secs(90);
 /// How long one answer may take once the server is up. One that takes longer
 /// means a hung server: it is ended, and started afresh for the next prompt.
-#[cfg(not(test))]
 const PROMPT_LIMIT: Duration = Duration::from_secs(30);
-#[cfg(test)]
-const PROMPT_LIMIT: Duration = Duration::from_secs(1);
 /// Failed prompts in a row (HTTP errors, unreadable answers) after which the
 /// server is ended too.
 const FAILURES_IN_A_ROW: u32 = 2;
@@ -168,8 +169,18 @@ const CONTEXT: &str = "4096";
 const PROMPT_TEXT_MAX: usize = 64 * 1024;
 const MAX_TOKENS_MAX: u32 = 2048;
 
-/// Remembers that this computer's GPU start failed (the state's gpu: false).
-const CPU_ONLY: &str = "cpu-only";
+/// Where builds before 7.0 remembered a failed GPU start for good. Deleted
+/// at start: the choice is per run now (Core::cpu_only).
+const OLD_CPU_ONLY: &str = "cpu-only";
+/// At most this many CPU threads: more of them (llama.cpp takes every logical
+/// core by default) made it slower on the owner's 24-thread i9, 14 tokens/s
+/// against 26 with 8.
+const CPU_THREADS_MAX: usize = 8;
+/// A GPU server slower than this (tokens/s, from the server's own timings)
+/// is slower than the CPU would be: the GPU is busy with something else.
+const GPU_SLOW: f64 = 20.0;
+/// An answer this short says little about the speed: not judged.
+const SLOW_MIN_TOKENS: u64 = 8;
 const SERVER_LOG: &str = "llama-server.log";
 const KEY_FILE: &str = "llama-server.key";
 
@@ -664,8 +675,15 @@ struct Flags {
   key_env: bool,
   /// --api-key-file, the next best.
   key_file: bool,
-  /// --device none: the CPU alone, the GPU's library not even touched.
+  /// --device: Vulkan0 for a GPU start (as the evaluation ran it), none for
+  /// the CPU alone, the GPU's library not even touched.
   device: bool,
+  /// -t and -tb: the CPU's threads, for the model and for the prompt.
+  threads: bool,
+  threads_batch: bool,
+  /// --list-devices: whether there is a Vulkan0 to start on; None when the
+  /// runtime could not tell (then the GPU is tried).
+  vulkan0: Option<bool>,
 }
 
 impl Flags {
@@ -675,8 +693,22 @@ impl Flags {
       key_env: help.contains("LLAMA_API_KEY"),
       key_file: help.contains("--api-key-file"),
       device: help.contains("--device"),
+      threads: help.contains("--threads "),
+      threads_batch: help.contains("--threads-batch"),
+      vulkan0: None,
     }
   }
+
+  /// Whether a GPU start is worth trying.
+  fn gpu_worth_trying(&self) -> bool {
+    self.vulkan0 != Some(false)
+  }
+}
+
+/// The CPU threads for a CPU start: about the physical cores (half the
+/// logical ones), 2 at least, CPU_THREADS_MAX at most.
+fn cpu_threads(logical: usize) -> usize {
+  (logical / 2).clamp(2, CPU_THREADS_MAX)
 }
 
 /// How the key reaches the server.
@@ -699,8 +731,9 @@ fn key_via(flags: &Flags, dir: &Path) -> KeyVia {
 }
 
 /// llama-server's command line. -np 1: one prompt at a time anyway, and the
-/// whole context for it. The key on it only as the last way (KeyVia::Arg).
-fn server_args(model: &Path, port: u16, gpu: bool, flags: &Flags, key: &KeyVia, secret: &str) -> Vec<OsString> {
+/// whole context for it. A GPU start on Vulkan0, a CPU start on `threads`
+/// threads. The key on it only as the last way (KeyVia::Arg).
+fn server_args(model: &Path, port: u16, gpu: bool, threads: usize, flags: &Flags, key: &KeyVia, secret: &str) -> Vec<OsString> {
   let mut args: Vec<OsString> = vec!["-m".into(), model.into()];
   for arg in ["--host", "127.0.0.1", "--port"] {
     args.push(arg.into());
@@ -709,9 +742,19 @@ fn server_args(model: &Path, port: u16, gpu: bool, flags: &Flags, key: &KeyVia, 
   for arg in ["--jinja", "-c", CONTEXT, "-np", "1", "-ngl", if gpu { "99" } else { "0" }] {
     args.push(arg.into());
   }
-  if !gpu && flags.device {
+  if flags.device {
     args.push("--device".into());
-    args.push("none".into());
+    args.push(if gpu { "Vulkan0" } else { "none" }.into());
+  }
+  if !gpu {
+    if flags.threads {
+      args.push("-t".into());
+      args.push(threads.to_string().into());
+    }
+    if flags.threads_batch {
+      args.push("-tb".into());
+      args.push(threads.to_string().into());
+    }
   }
   if flags.no_webui {
     args.push("--no-webui".into());
@@ -776,6 +819,18 @@ fn answer_text(body: &Value) -> Option<String> {
   (!text.is_empty()).then(|| text.to_string())
 }
 
+/// The server's own count of an answer's speed: tokens per second, and how
+/// many tokens (timings.predicted_per_second, timings.predicted_n).
+fn speed(body: &Value) -> Option<(f64, u64)> {
+  let timings = body.get("timings")?;
+  Some((timings.get("predicted_per_second")?.as_f64()?, timings.get("predicted_n")?.as_u64()?))
+}
+
+/// Slower than GPU_SLOW, over an answer long enough to tell.
+fn too_slow(speed: Option<(f64, u64)>) -> bool {
+  matches!(speed, Some((per_second, tokens)) if tokens >= SLOW_MIN_TOKENS && per_second < GPU_SLOW)
+}
+
 /// No console window for the server or its --help (Windows).
 fn hide_window(command: &mut Command) {
   #[cfg(windows)]
@@ -814,16 +869,41 @@ fn runtime_env(command: &mut Command, exe: &Path) {
 /// Reads what this runtime understands from `llama-server --help`, written
 /// to a file (no pipes to drain), 20 s at most.
 fn probe_flags(exe: &Path, dir: &Path) -> Flags {
-  let out = dir.join("llama-server-help.txt");
-  let Ok(file) = File::create(&out) else { return Flags::default() };
-  let Ok(err) = file.try_clone() else { return Flags::default() };
+  let help = run_for_output(exe, dir, "--help");
+  let mut flags = Flags::from_help(&help);
+  if help.contains("--list-devices") {
+    let devices = run_for_output(exe, dir, "--list-devices");
+    flags.vulkan0 = listed_vulkan0(&devices);
+  }
+  flags
+}
+
+/// Whether `llama-server --list-devices` names a Vulkan0 ("Vulkan0: NVIDIA
+/// GeForce RTX 4080 SUPER (16376 MiB, 14839 MiB free)"); None when it said
+/// nothing readable.
+fn listed_vulkan0(devices: &str) -> Option<bool> {
+  if devices.contains("Vulkan0") {
+    Some(true)
+  } else if devices.contains("Available devices") {
+    Some(false)
+  } else {
+    None
+  }
+}
+
+/// What `exe arg` writes, both streams, written to a file (no pipes to
+/// drain), 20 s at most.
+fn run_for_output(exe: &Path, dir: &Path, arg: &str) -> String {
+  let out = dir.join("llama-server-probe.txt");
+  let Ok(file) = File::create(&out) else { return String::new() };
+  let Ok(err) = file.try_clone() else { return String::new() };
   let mut command = Command::new(exe);
-  command.arg("--help").stdin(Stdio::null()).stdout(file).stderr(err);
+  command.arg(arg).stdin(Stdio::null()).stdout(file).stderr(err);
   hide_window(&mut command);
   runtime_env(&mut command, exe);
   let Ok(mut child) = command.spawn() else {
     let _ = fs::remove_file(&out);
-    return Flags::default();
+    return String::new();
   };
   let until = Instant::now() + Duration::from_secs(20);
   while child.try_wait().ok().flatten().is_none() && Instant::now() < until {
@@ -831,9 +911,9 @@ fn probe_flags(exe: &Path, dir: &Path) -> Flags {
   }
   let _ = child.kill();
   let _ = child.wait();
-  let help = fs::read(&out).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
+  let text = fs::read(&out).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
   let _ = fs::remove_file(&out);
-  Flags::from_help(&help)
+  text
 }
 
 /// Windows: the server goes into a job that ends it with this process — also
@@ -961,6 +1041,8 @@ struct Server {
   healthy: bool,
   /// Started with the model on the GPU.
   gpu: bool,
+  /// Prompts it has answered: the first one's speed is not judged (warm-up).
+  answers: u32,
 }
 
 impl Server {
@@ -1000,6 +1082,11 @@ pub struct Core {
   flags: Mutex<Option<Flags>>,
   /// Failed prompts in a row (FAILURES_IN_A_ROW).
   failures: AtomicU32,
+  /// PROMPT_LIMIT in milliseconds; the tests' fake servers shorten it.
+  prompt_limit_ms: AtomicU64,
+  /// The GPU failed, hung or was too slow in this run: the next starts are on
+  /// the CPU. Never on the disk: the next app start tries the GPU again.
+  cpu_only: AtomicBool,
   /// remove()s under way: no download starts meanwhile, so none can be
   /// declared absent by a remove that was waiting for its locks.
   removing: AtomicU32,
@@ -1046,13 +1133,16 @@ impl Core {
         used: AtomicU64::new(0),
         flags: Mutex::new(None),
         failures: AtomicU32::new(0),
+        prompt_limit_ms: AtomicU64::new(PROMPT_LIMIT.as_millis() as u64),
+        cpu_only: AtomicBool::new(false),
         removing: AtomicU32::new(0),
         me: me.clone(),
       };
       {
         let mut s = core.state.lock().unwrap();
         s.state = core.on_disk();
-        s.gpu = core.dir.join(CPU_ONLY).is_file().then_some(false);
+        // A GPU start that failed once is no reason to stay off the GPU for good.
+        let _ = fs::remove_file(core.dir.join(OLD_CPU_ONLY));
         s.partial = core.partial_bytes();
       }
       core
@@ -1327,6 +1417,7 @@ impl Core {
     self.kill_server_async(false).await;
     *self.flags.lock().unwrap() = None;
     self.failures.store(0, Ordering::SeqCst);
+    self.cpu_only.store(false, Ordering::SeqCst);
     let dir = self.dir.clone();
     let gone = tokio::task::spawn_blocking(move || remove_retrying(&dir)).await.unwrap_or(false);
     if !gone {
@@ -1378,17 +1469,18 @@ impl Core {
     }
     let flags = self.flags_of(&exe).await;
     self.set(|s| s.starting = true);
-    let cpu_only = self.state().gpu == Some(false);
+    let cpu_only = self.cpu_only.load(Ordering::SeqCst) || !flags.gpu_worth_trying();
     let tries: &[bool] = if cpu_only { &[false] } else { &[true, false] };
+    let threads = cpu_threads(std::thread::available_parallelism().map_or(4, |n| n.get()));
     for &gpu in tries {
       if self.epoch.load(Ordering::SeqCst) != epoch {
         break;
       }
-      match self.start_once(&exe, &model, gpu, &flags, epoch).await {
+      match self.start_once(&exe, &model, gpu, threads, &flags, epoch).await {
         Ok((port, key, on_gpu)) => {
           if !gpu {
-            // The GPU failed (or was never asked): the next start goes straight to the CPU.
-            let _ = fs::write(self.dir.join(CPU_ONLY), b"");
+            // The GPU failed (or was not tried): the rest of this run stays on the CPU.
+            self.cpu_only.store(true, Ordering::SeqCst);
           }
           self.set(|s| {
             s.starting = false;
@@ -1431,13 +1523,13 @@ impl Core {
   /// One start: spawned, then /health asked until it answers, the process
   /// ends, or START_LIMIT has passed; then checked to be our own server.
   /// Answers the port, the key and whether the model went onto the GPU.
-  async fn start_once(&self, exe: &Path, model: &Path, gpu: bool, flags: &Flags, epoch: u64) -> Result<(u16, String, bool), String> {
+  async fn start_once(&self, exe: &Path, model: &Path, gpu: bool, threads: usize, flags: &Flags, epoch: u64) -> Result<(u16, String, bool), String> {
     let port = free_port().map_err(|e| format!("no free port: {e}"))?;
     let key = random_key().ok_or("no random bytes")?;
     let via = key_via(flags, &self.dir);
     let log_path = self.dir.join(SERVER_LOG);
     let mut command = Command::new(exe);
-    command.args(server_args(model, port, gpu, flags, &via, &key)).stdin(Stdio::null());
+    command.args(server_args(model, port, gpu, threads, flags, &via, &key)).stdin(Stdio::null());
     hide_window(&mut command);
     runtime_env(&mut command, exe);
     if via == KeyVia::Env {
@@ -1466,7 +1558,7 @@ impl Core {
     .await
     .map_err(|e| format!("spawn: {e}"))?;
     let child = spawned?;
-    *self.server.lock().unwrap() = Some(Server { child, port, key: key.clone(), healthy: false, gpu });
+    *self.server.lock().unwrap() = Some(Server { child, port, key: key.clone(), healthy: false, gpu, answers: 0 });
     let health = format!("http://127.0.0.1:{port}/health");
     let until = Instant::now() + START_LIMIT;
     let mine_alive = || -> Result<(), String> {
@@ -1555,11 +1647,14 @@ impl Core {
     let ticket = self.used.fetch_add(1, Ordering::SeqCst) + 1;
     let body = chat_body(system, user, max_tokens.clamp(1, MAX_TOKENS_MAX), json_out);
     let url = format!("http://127.0.0.1:{port}/v1/chat/completions");
-    let sent = self.local.post(&url).bearer_auth(&key).json(&body).timeout(PROMPT_LIMIT).send().await;
+    let sent = self.local.post(&url).bearer_auth(&key).json(&body).timeout(Duration::from_millis(self.prompt_limit_ms.load(Ordering::SeqCst))).send().await;
     // Some(text): the server answered (the text may still be None, an empty answer).
     let (answered, timed_out) = match sent {
       Ok(res) if res.status().is_success() => match res.json::<Value>().await {
-        Ok(body) => (Some(answer_text(&body)), false),
+        Ok(body) => {
+          self.judge_speed(port, speed(&body)).await;
+          (Some(answer_text(&body)), false)
+        }
         Err(e) => {
           let timed_out = e.is_timeout();
           eprintln!("[gemma] unreadable answer: {}", e.without_url());
@@ -1611,9 +1706,29 @@ impl Core {
     self.failures.store(0, Ordering::SeqCst);
     self.kill_server_async(true).await;
     if on_gpu && (!alive || timed_out) {
-      let _ = fs::write(self.dir.join(CPU_ONLY), b"");
+      self.cpu_only.store(true, Ordering::SeqCst);
       self.set(|s| s.gpu = Some(false));
     }
+  }
+
+  /// A GPU server that answers slower than GPU_SLOW, from its second answer
+  /// on, is ended: the next prompt starts on the CPU, for the rest of this run.
+  async fn judge_speed(&self, port: u16, speed: Option<(f64, u64)>) {
+    let slow = {
+      let mut server = self.server.lock().unwrap();
+      let Some(s) = server.as_mut().filter(|s| s.port == port) else { return };
+      s.answers += 1;
+      s.gpu && s.answers > 1 && too_slow(speed)
+    };
+    if !slow {
+      return;
+    }
+    if let Some((per_second, _)) = speed {
+      eprintln!("[gemma] the GPU answers at {per_second:.1} tokens/s; the CPU takes over for this run");
+    }
+    self.cpu_only.store(true, Ordering::SeqCst);
+    self.kill_server_async(true).await;
+    self.set(|s| s.gpu = Some(false));
   }
 
   /// After IDLE without another prompt, the server stops.
@@ -1951,9 +2066,12 @@ mod tests {
     assert_eq!(core(&dir, pinned).0.state().state, Kind::Absent);
     lay_out(&dir);
     assert_eq!(core(&dir, pinned).0.state().state, Kind::Ready);
-    // A GPU that failed before is remembered.
-    fs::write(dir.join(CPU_ONLY), b"").unwrap();
-    assert_eq!(core(&dir, pinned).0.state().gpu, Some(false));
+    // The marker of a GPU that failed in an older build is no reason to stay off it: gone.
+    fs::write(dir.join(OLD_CPU_ONLY), b"").unwrap();
+    let again = core(&dir, pinned).0;
+    assert_eq!(again.state().gpu, None);
+    assert!(!again.cpu_only.load(Ordering::SeqCst));
+    assert!(!dir.join(OLD_CPU_ONLY).exists());
     // A system without a runtime is never ready, whatever is on the disk.
     let (none, _) = core(&dir, None);
     assert_eq!((none.state().state, none.state().supported), (Kind::Absent, false));
@@ -1987,10 +2105,11 @@ mod tests {
     let dir = temp("remove");
     lay_out(&dir);
     fs::write(dir.join(format!("{MODEL_FILE}.part")), b"half").unwrap();
-    fs::write(dir.join(CPU_ONLY), b"").unwrap();
     let (c, published) = core(&dir, runtime_for("windows", "x86_64"));
     assert_eq!(c.state().state, Kind::Ready);
+    c.cpu_only.store(true, Ordering::SeqCst);
     let s = c.remove().await;
+    assert!(!c.cpu_only.load(Ordering::SeqCst));
     assert_eq!((s.state, s.gpu, s.warm, s.received), (Kind::Absent, None, false, 0));
     assert!(!dir.exists());
     assert_eq!(published.lock().unwrap().last().map(|s| s.state), Some(Kind::Absent));
@@ -2048,19 +2167,21 @@ mod tests {
   #[test]
   fn the_server_command_line() {
     let model = Path::new("m.gguf");
-    let all = Flags { no_webui: true, key_env: true, key_file: true, device: true };
+    let all = Flags { no_webui: true, key_env: true, key_file: true, device: true, threads: true, threads_batch: true, vulkan0: Some(true) };
     let text = |args: Vec<OsString>| args.into_iter().map(|a| a.to_string_lossy().into_owned()).collect::<Vec<_>>().join(" ");
-    let gpu = text(server_args(model, 4321, true, &all, &KeyVia::Env, "secret"));
-    assert_eq!(gpu, "-m m.gguf --host 127.0.0.1 --port 4321 --jinja -c 4096 -np 1 -ngl 99 --no-webui");
-    let cpu = text(server_args(model, 4321, false, &all, &KeyVia::Env, "secret"));
-    assert_eq!(cpu, "-m m.gguf --host 127.0.0.1 --port 4321 --jinja -c 4096 -np 1 -ngl 0 --device none --no-webui");
-    // A runtime that knows neither flag gets neither.
+    // The GPU as the evaluation ran it, the CPU on its threads.
+    let gpu = text(server_args(model, 4321, true, 8, &all, &KeyVia::Env, "secret"));
+    assert_eq!(gpu, "-m m.gguf --host 127.0.0.1 --port 4321 --jinja -c 4096 -np 1 -ngl 99 --device Vulkan0 --no-webui");
+    let cpu = text(server_args(model, 4321, false, 8, &all, &KeyVia::Env, "secret"));
+    assert_eq!(cpu, "-m m.gguf --host 127.0.0.1 --port 4321 --jinja -c 4096 -np 1 -ngl 0 --device none -t 8 -tb 8 --no-webui");
+    // A runtime that knows none of the flags gets none of them.
     let none = Flags::default();
-    let bare = text(server_args(model, 1, false, &none, &KeyVia::File(PathBuf::from("k")), "secret"));
+    let bare = text(server_args(model, 1, false, 4, &none, &KeyVia::File(PathBuf::from("k")), "secret"));
     assert_eq!(bare, "-m m.gguf --host 127.0.0.1 --port 1 --jinja -c 4096 -np 1 -ngl 0 --api-key-file k");
+    assert_eq!(text(server_args(model, 1, true, 4, &none, &KeyVia::Env, "s")), "-m m.gguf --host 127.0.0.1 --port 1 --jinja -c 4096 -np 1 -ngl 99");
     // The key on the command line only as the last way.
     assert!(!gpu.contains("secret") && !cpu.contains("secret") && !bare.contains("secret"));
-    assert!(text(server_args(model, 1, true, &none, &KeyVia::Arg, "secret")).ends_with("--api-key secret"));
+    assert!(text(server_args(model, 1, true, 4, &none, &KeyVia::Arg, "secret")).ends_with("--api-key secret"));
     // How the key goes, by what the runtime understands.
     let dir = Path::new("d");
     assert_eq!(key_via(&all, dir), KeyVia::Env);
@@ -2070,9 +2191,45 @@ mod tests {
 
   #[test]
   fn reads_what_the_runtime_understands_from_its_help() {
-    let help = "  --api-key KEY   API key to use for authentication (env: LLAMA_API_KEY)\n  --api-key-file FNAME\n  --no-webui   Disable the Web UI\n  -dev, --device <dev1,dev2,..>";
-    assert_eq!(Flags::from_help(help), Flags { no_webui: true, key_env: true, key_file: true, device: true });
+    let help = "  --api-key KEY   API key to use for authentication (env: LLAMA_API_KEY)\n  --api-key-file FNAME\n  --no-webui   Disable the Web UI\n  -dev, --device <dev1,dev2,..>\n  -t,    --threads N\n  -tb,   --threads-batch N\n  --threads-http N";
+    let all = Flags { no_webui: true, key_env: true, key_file: true, device: true, threads: true, threads_batch: true, vulkan0: None };
+    assert_eq!(Flags::from_help(help), all);
+    // --threads-http alone is not --threads.
+    assert!(!Flags::from_help("  --threads-http N\n  --threads-batch N").threads);
     assert_eq!(Flags::from_help(""), Flags::default());
+  }
+
+  #[test]
+  fn reads_from_the_device_list_whether_there_is_a_gpu_to_try() {
+    let listed = "Available devices:\n  Vulkan0: NVIDIA GeForce RTX 4080 SUPER (16376 MiB, 14839 MiB free)\n";
+    assert_eq!(listed_vulkan0(listed), Some(true));
+    assert_eq!(listed_vulkan0("Available devices:\n"), Some(false));
+    assert_eq!(listed_vulkan0(""), None);
+    let mut flags = Flags::default();
+    assert!(flags.gpu_worth_trying());
+    flags.vulkan0 = Some(false);
+    assert!(!flags.gpu_worth_trying());
+  }
+
+  #[test]
+  fn the_cpu_gets_about_its_physical_cores_and_eight_at_most() {
+    assert_eq!(cpu_threads(24), 8);
+    assert_eq!(cpu_threads(16), 8);
+    assert_eq!(cpu_threads(12), 6);
+    assert_eq!(cpu_threads(4), 2);
+    assert_eq!(cpu_threads(2), 2);
+    assert_eq!(cpu_threads(1), 2);
+  }
+
+  #[test]
+  fn reads_the_servers_speed_and_judges_it() {
+    let body = json!({ "choices": [], "timings": { "predicted_per_second": 14.2, "predicted_n": 40 } });
+    assert_eq!(speed(&body), Some((14.2, 40)));
+    assert!(too_slow(speed(&body)));
+    assert!(!too_slow(Some((204.0, 40))));
+    // Too short an answer to tell, or no timings at all: not slow.
+    assert!(!too_slow(Some((5.0, 3))));
+    assert!(!too_slow(speed(&json!({ "choices": [] }))));
   }
 
   #[test]
@@ -2262,12 +2419,16 @@ mod tests {
     command.spawn().unwrap()
   }
 
+  /// The prompt limit for the fake servers: a hung one is told in a second.
+  const SHORT_LIMIT: Duration = Duration::from_secs(1);
+
   /// A runtime with its files laid out and a warm "server" on `port`.
   fn warm(name: &str, port: u16, gpu: bool) -> (PathBuf, Arc<Core>) {
     let dir = temp(name);
     lay_out(&dir);
     let (c, _) = core(&dir, runtime_for("windows", "x86_64"));
-    *c.server.lock().unwrap() = Some(Server { child: long_running(), port, key: "k".into(), healthy: true, gpu });
+    c.prompt_limit_ms.store(SHORT_LIMIT.as_millis() as u64, Ordering::SeqCst);
+    *c.server.lock().unwrap() = Some(Server { child: long_running(), port, key: "k".into(), healthy: true, gpu, answers: 0 });
     c.set(|s| {
       s.warm = true;
       s.gpu = Some(gpu);
@@ -2281,11 +2442,13 @@ mod tests {
     let (dir, c) = warm("hung", port, true);
     let started = Instant::now();
     assert_eq!(c.prompt("s", "u", 8, false).await, None);
-    assert!(started.elapsed() < PROMPT_LIMIT * 5, "{:?}", started.elapsed());
+    assert!(started.elapsed() < SHORT_LIMIT * 5, "{:?}", started.elapsed());
     assert!(c.server.lock().unwrap().is_none(), "the hung server still runs");
     let s = c.state();
     assert_eq!((s.warm, s.gpu), (false, Some(false)));
-    assert!(dir.join(CPU_ONLY).is_file());
+    // For this run only: nothing on the disk.
+    assert!(c.cpu_only.load(Ordering::SeqCst));
+    assert!(!dir.join(OLD_CPU_ONLY).exists());
     fs::remove_dir_all(&dir).unwrap();
   }
 
@@ -2298,7 +2461,49 @@ mod tests {
     assert_eq!(c.prompt("s", "u", 8, false).await, None);
     assert!(c.server.lock().unwrap().is_none());
     assert!(!c.state().warm);
-    assert!(!dir.join(CPU_ONLY).exists());
+    assert!(!c.cpu_only.load(Ordering::SeqCst));
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  fn answer_at(per_second: f64) -> String {
+    response("200 OK", &format!(r#"{{"choices":[{{"message":{{"content":"ok"}}}}],"timings":{{"predicted_per_second":{per_second},"predicted_n":40}}}}"#))
+  }
+
+  #[tokio::test]
+  async fn a_slow_gpu_hands_over_to_the_cpu_from_its_second_answer() {
+    let port = fake_server(|_| Some(answer_at(12.0)));
+    let (dir, c) = warm("slow-gpu", port, true);
+    // The first answer is warm-up: not judged.
+    assert_eq!(c.prompt("s", "u", 8, false).await.as_deref(), Some("ok"));
+    assert!(c.server.lock().unwrap().is_some());
+    // The second is, and still reaches the page; the server goes, the CPU is next.
+    assert_eq!(c.prompt("s", "u", 8, false).await.as_deref(), Some("ok"));
+    assert!(c.server.lock().unwrap().is_none());
+    assert!(c.cpu_only.load(Ordering::SeqCst));
+    let s = c.state();
+    assert_eq!((s.warm, s.gpu), (false, Some(false)));
+    fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[tokio::test]
+  async fn a_fast_gpu_and_a_slow_cpu_stay_as_they_are() {
+    let fast = fake_server(|_| Some(answer_at(204.0)));
+    let (dir, c) = warm("fast-gpu", fast, true);
+    for _ in 0..3 {
+      assert_eq!(c.prompt("s", "u", 8, false).await.as_deref(), Some("ok"));
+    }
+    assert!(c.server.lock().unwrap().is_some());
+    assert!(!c.cpu_only.load(Ordering::SeqCst));
+    c.stop();
+    fs::remove_dir_all(&dir).unwrap();
+    // The CPU is where a slow GPU goes: nothing to hand over to.
+    let slow = fake_server(|_| Some(answer_at(12.0)));
+    let (dir, c) = warm("slow-cpu", slow, false);
+    for _ in 0..3 {
+      assert_eq!(c.prompt("s", "u", 8, false).await.as_deref(), Some("ok"));
+    }
+    assert!(c.server.lock().unwrap().is_some());
+    c.stop();
     fs::remove_dir_all(&dir).unwrap();
   }
 
@@ -2451,6 +2656,15 @@ mod tests {
     assert!(!c.state().warm);
     std::thread::sleep(Duration::from_millis(300));
     assert!(TcpListener::bind(("127.0.0.1", port)).is_ok());
+    // A CPU start (after a GPU that failed in this run), with its threads: understood by this runtime.
+    c.cpu_only.store(true, Ordering::SeqCst);
+    let cpu = Instant::now();
+    assert!(c.prompt("You are a storyteller.", "The dog", 8, false).await.is_some());
+    println!("CPU start and answer after {:?}", cpu.elapsed());
+    assert_eq!(c.state().gpu, Some(false));
+    let log = fs::read_to_string(dir.join(SERVER_LOG)).unwrap_or_default();
+    assert!(!log.contains("error: invalid argument"), "{log}");
+    c.stop();
     let s = c.remove().await;
     assert_eq!(s.state, Kind::Absent);
     assert!(!dir.exists());
@@ -2500,5 +2714,25 @@ mod tests {
     .unwrap();
     rename_retrying(&model_part, &dir.join(MODEL_FILE)).unwrap();
     println!("model verified and in place after {:?}", started.elapsed());
+  }
+
+  /// The app's own start, on an existing gemma folder (GEMMA_APP_DIR): whether
+  /// the GPU is used and how fast a prompt is. Nothing is deleted.
+  /// `cargo test real_app_dir_start -- --ignored --nocapture`
+  #[tokio::test]
+  #[ignore]
+  async fn real_app_dir_start() {
+    let Ok(target) = std::env::var("GEMMA_APP_DIR") else { return };
+    let dir = PathBuf::from(target);
+    let pinned = runtime_for(std::env::consts::OS, std::env::consts::ARCH);
+    let (c, _published) = core(&dir, pinned);
+    println!("state {:?} gpu {:?}", c.state().state, c.state().gpu);
+    for i in 0..3 {
+      let t = Instant::now();
+      let a = c.prompt("Antworte kurz auf Deutsch.", "Nenne drei Farben.", 48, false).await;
+      println!("prompt {i}: {:?} in {:?}", a, t.elapsed());
+    }
+    println!("gpu {:?}", c.state().gpu);
+    c.stop();
   }
 }

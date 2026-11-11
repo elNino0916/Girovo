@@ -99,6 +99,17 @@ export const de = {
     copy: 'Antwort kopieren',
     copied: 'Antwort kopiert',
     notLoaded: 'Die Umsätze werden noch geladen.',
+    /** While Girovo works on an answer: what it is doing, so it never looks stuck. */
+    thinking: {
+      starting: 'Gemma startet',
+      reading: 'Liest deine Frage',
+      writing: 'Schreibt die Antwort',
+      seconds: (n: number) => `${n} s`,
+    },
+    deleteConversation: 'Gespräch löschen',
+    deleteAll: 'Alle Gespräche löschen',
+    /** Small talk, or anything that is not about the bookings. */
+    offTopic: 'Dazu kann Girovo nichts sagen. Frag etwas zu deinen Umsätzen, etwa „Was ging im Oktober an Rewe?“',
     /** The chips over the field: the next questions. */
     next: {
       /** Asked as it reads: the month by its name, so the question is read the same way a typed one is. */
@@ -173,6 +184,37 @@ export const de = {
     hide: 'Rückblick ausblenden',
     /** The conversation "Weiter fragen" starts, as the sidebar names it. */
     conversation: (month: string) => `Rückblick ${month}`,
+  },
+  /**
+   * Girovo Next: what Fragen does besides sums (lib/ask-intents.ts): Verträge &
+   * Abos, the settings as they are, and changes, each asked first.
+   */
+  actions: {
+    contracts: (n: number, monthly: ReactNode): ReactNode[] => (n === 1
+      ? ['Du hast einen Vertrag oder ein Abo, ', monthly, ' im Monat.']
+      : ['Du hast ', String(n), ' Verträge und Abos, zusammen ', monthly, ' im Monat.']),
+    noContracts: 'Girovo hat in deinen Umsätzen noch keine Verträge oder Abos gefunden.',
+    openContracts: 'Verträge & Abos öffnen',
+    theme: { light: 'Hell', dark: 'Dunkel', system: 'Wie das System' },
+    readTheme: (value: string) => `Darstellung: ${value}.`,
+    readPrivacy: (hidden: boolean): string => (hidden ? 'Beträge sind ausgeblendet.' : 'Beträge sind sichtbar.'),
+    readLanguage: (name: string) => `Sprache: ${name}.`,
+    readIdle: (minutes: number) => `Girovo meldet dich nach ${minutes} Minuten ohne Eingabe ab.`,
+    askTheme: { light: 'Soll Girovo das helle Design einschalten?', dark: 'Soll Girovo das dunkle Design einschalten?', system: 'Soll Girovo die Darstellung dem System überlassen?' },
+    askPrivacy: (hide: boolean): string => (hide ? 'Soll Girovo alle Beträge ausblenden?' : 'Soll Girovo die Beträge wieder zeigen?'),
+    askLanguage: (name: string) => `Soll Girovo auf ${name} umstellen?`,
+    askRefresh: 'Soll Girovo alle Konten aktualisieren?',
+    refreshNote: 'Kann eine Freigabe erfordern.',
+    yes: 'Ja, bitte',
+    no: 'Abbrechen',
+    done: 'Erledigt.',
+    /** What a change made, said after the yes. */
+    doneTheme: { light: 'Erledigt, das helle Design ist an.', dark: 'Erledigt, das dunkle Design ist an.', system: 'Erledigt, die Darstellung folgt jetzt dem System.' },
+    donePrivacy: (hidden: boolean): string => (hidden ? 'Erledigt, die Beträge sind ausgeblendet.' : 'Erledigt, die Beträge sind wieder sichtbar.'),
+    doneLanguage: 'Erledigt, Girovo ist jetzt auf Deutsch.',
+    refreshing: 'Girovo ruft alle Konten ab.',
+    cancelled: 'Abgebrochen, nichts geändert.',
+    already: 'Das ist schon so eingestellt.',
   },
 };
 
@@ -257,6 +299,15 @@ export const en: typeof de = {
     copy: 'Copy answer',
     copied: 'Answer copied',
     notLoaded: 'Your transactions are still loading.',
+    thinking: {
+      starting: 'Gemma is starting',
+      reading: 'Reading your question',
+      writing: 'Writing the answer',
+      seconds: (n) => `${n} s`,
+    },
+    deleteConversation: 'Delete conversation',
+    deleteAll: 'Delete all conversations',
+    offTopic: 'Girovo can\u2019t help with that. Ask about your transactions, like \u201cWhat went to Rewe in October?\u201d',
     next: {
       monthBefore: (month) => `And in ${month}?`,
       perMonth: 'Per month',
@@ -310,5 +361,31 @@ export const en: typeof de = {
     show: (name) => `Show ${name}`,
     hide: 'Hide recap',
     conversation: (month) => `Recap ${month}`,
+  },
+  actions: {
+    contracts: (n, monthly) => (n === 1
+      ? ['You have one contract or subscription, ', monthly, ' a month.']
+      : ['You have ', String(n), ' contracts and subscriptions, ', monthly, ' a month in total.']),
+    noContracts: 'Girovo hasn\u2019t found any contracts or subscriptions in your transactions yet.',
+    openContracts: 'Open contracts & subscriptions',
+    theme: { light: 'Light', dark: 'Dark', system: 'Same as the system' },
+    readTheme: (value) => `Appearance: ${value}.`,
+    readPrivacy: (hidden) => (hidden ? 'Amounts are hidden.' : 'Amounts are visible.'),
+    readLanguage: (name) => `Language: ${name}.`,
+    readIdle: (minutes) => `Girovo logs you out after ${minutes} minutes without input.`,
+    askTheme: { light: 'Should Girovo switch to the light theme?', dark: 'Should Girovo switch to the dark theme?', system: 'Should Girovo follow the system\u2019s appearance?' },
+    askPrivacy: (hide) => (hide ? 'Should Girovo hide all amounts?' : 'Should Girovo show the amounts again?'),
+    askLanguage: (name) => `Should Girovo switch to ${name}?`,
+    askRefresh: 'Should Girovo refresh all accounts?',
+    refreshNote: 'May need an approval.',
+    yes: 'Yes, please',
+    no: 'Cancel',
+    done: 'Done.',
+    doneTheme: { light: 'Done, the light theme is on.', dark: 'Done, the dark theme is on.', system: 'Done, the appearance now follows the system.' },
+    donePrivacy: (hidden) => (hidden ? 'Done, amounts are hidden.' : 'Done, amounts are visible again.'),
+    doneLanguage: 'Done, Girovo is now in English.',
+    refreshing: 'Girovo is refreshing all accounts.',
+    cancelled: 'Cancelled, nothing changed.',
+    already: 'That\u2019s already set.',
   },
 };

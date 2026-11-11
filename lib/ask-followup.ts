@@ -11,8 +11,25 @@
 import {
   categoryFromQuestion, compareFromQuestion, dirFromQuestion, kindFromQuestion, periodDays, periodFromQuestion, rankFromQuestion,
   searchFromQuestion,
-  type AskPeriod, type AskQuery,
+  type AskPeriod, type AskQuery, type NanoReading,
 } from './nano-ask.ts';
+
+// i18n-data-next-line
+const MONEY = /\b(?:geld|ausgegeben|ausgeben|gezahlt|bezahlt|zahle|zahlte|kostet|kosten|umsatz|umsätze|umsaetze|überwiesen|ueberwiesen|bekommen|eingang|eingänge|ausgaben|einnahmen|spent|spend|paid|pay|cost|costs|transaction|transactions|money|income|received)\b|€/i;
+
+/**
+ * Whether a message asks about the bookings at all. A model always reads
+ * something into "Hallo" or "Wie geht es dir" (every booking, or a category
+ * it guesses), and Girovo would then answer with every booking's sum. So:
+ * what the rules read in the question's own words (`rules`, readQuestion
+ * without a model), a payee's name that stands in the question, or a
+ * category the model saw beside a word about money.
+ */
+export function aboutBookings(question: string, rules: AskQuery | null, reading: NanoReading | null): boolean {
+  if (rules) return true;
+  if (reading?.search && question.toLocaleLowerCase('de').includes(reading.search.toLocaleLowerCase('de'))) return true;
+  return !!reading?.category && MONEY.test(question);
+}
 
 // i18n-data-next-line
 const MONTH_BEFORE = /\b(?:monat davor|monat vorher|month before|previous month)\b/i;

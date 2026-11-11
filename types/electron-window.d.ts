@@ -130,7 +130,11 @@ declare global {
      * state stays 'ready'; `error` says why.
      */
     unavailable: boolean;
-    /** Whether the model runs on the GPU; null until a start has told. False also after a GPU start failed (then the CPU, remembered). */
+    /**
+     * Whether the model runs on the GPU; null until a start has told. False
+     * also once the GPU failed, hung or answered too slowly (busy): the CPU
+     * then for the rest of this run; the next app start tries the GPU again.
+     */
     gpu: boolean | null;
     /** The server is up: the next answer comes without the start's wait. It stops after 5 minutes without a prompt. */
     warm: boolean;

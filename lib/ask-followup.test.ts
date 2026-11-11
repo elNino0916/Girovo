@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { followUp, monthBefore } from './ask-followup.ts';
+import { aboutBookings, followUp, monthBefore } from './ask-followup.ts';
 import { readQuestion, type AskQuery } from './nano-ask.ts';
 
 const today = '2026-11-11';
@@ -55,6 +55,28 @@ test('the month before the one asked about, in either language', () => {
   const en1 = read('How much did I spend on groceries last month?');
   const en2 = readQuestion('And the month before?', null, today) ?? en1;
   assert.deepEqual(followUp(en1, 'And the month before?', en2, today).period, { kind: 'month', month: '2026-09' });
+});
+
+test('"Und wo?" lists the places of the topic and month asked about', () => {
+  const first = read('Wo war ich im August essen?');
+  assert.equal(first.kind, 'rank');
+  assert.equal(first.rank?.by, 'payee');
+  const sum = read('Wie viel hab ich im August fürs Essen gehen ausgegeben?');
+  const next = followUp(sum, 'Und wo?', readQuestion('Und wo?', null, today) ?? sum, today);
+  assert.equal(next.kind, 'rank');
+  assert.equal(next.rank?.by, 'payee');
+  assert.equal(next.category, sum.category);
+  assert.deepEqual(next.period, sum.period);
+});
+
+test('small talk is no question about the bookings, whatever a model reads into it', () => {
+  for (const q of ['Hallo', 'Wie geht es dir', 'Danke!', 'Wer bist du?']) {
+    assert.equal(aboutBookings(q, readQuestion(q, null, today), { dir: 'all', category: null, search: null }), false, q);
+    assert.equal(aboutBookings(q, readQuestion(q, null, today), { dir: null, category: 'health', search: null }), false, q);
+  }
+  assert.equal(aboutBookings('Wie viel ging an Rewe?', readQuestion('Wie viel ging an Rewe?', null, today), null), true);
+  assert.equal(aboutBookings('Was kostet mich Netflix?', null, { dir: null, category: null, search: 'Netflix' }), true);
+  assert.equal(aboutBookings('Wofür gebe ich Geld aus?', null, { dir: null, category: 'shopping', search: null }), true);
 });
 
 test('a ranking does not carry over to a new topic', () => {
