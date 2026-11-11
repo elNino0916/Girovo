@@ -132,6 +132,7 @@ impl Channel {
     &self.id
   }
 
+  #[cfg(test)]
   pub fn is_stable(&self) -> bool {
     self.builtin && self.id == "stable"
   }
@@ -573,18 +574,36 @@ pub fn is_newer(candidate: &str, current: &str, prerelease: bool) -> bool {
   compare_parsed(&c, &without_dev(&v)) == Ordering::Greater
 }
 
-/// Whether `candidate`, a stable release, is the way back for an install of a
-/// preview (`current`, a pre-release): on "Stabil" the desktop app offers the
-/// latest stable release even where it is older than the preview it runs
-/// (owner, 2026-11-03) — going back to the channel goes back to its version.
-/// Never for a CI development build, never a pre-release, never a newer one
-/// (that is is_newer's).
+/// The channel a build is made for, by its name: "stable" for a release,
+/// "nightly" for a nightly or a preview (the names nightlies had before), and
+/// a listed channel's own word for its builds ("next" for 7.0.0-next.<time>).
+/// None for a CI development build or a name that is no version.
+pub fn build_channel(version: &str) -> Option<String> {
+  let v = parse_version(version)?;
+  if dev_base(&v.pre).is_some() {
+    return None;
+  }
+  if v.pre.is_empty() {
+    return Some("stable".to_string());
+  }
+  let word = v.pre.split('.').next()?;
+  Some(if word == "nightly" || word == "preview" { "nightly".to_string() } else { word.to_string() })
+}
+
+/// Whether `candidate` is the way back for an install of a pre-release
+/// (`current`) that another channel made: the desktop app offers a channel's
+/// latest build even where it is older than the one it runs (owner,
+/// 2026-11-03 for "Stabil"; 2026-11-11 for Nightly from a Girovo Next build),
+/// so going back to a channel goes back to its version. Never between two
+/// builds of the same channel, never for a CI development build, never a
+/// newer one (that is is_newer's). Which channel the candidate must be of is
+/// the caller's (Updater::take_offer: the channel it checks).
 pub fn is_switch_back(candidate: &str, current: &str) -> bool {
   let (Some(c), Some(v)) = (parse_version(candidate), parse_version(current)) else { return false };
-  if !c.pre.is_empty() || v.pre.is_empty() || is_dev_build(current) {
+  if v.pre.is_empty() || is_dev_build(current) || is_dev_build(candidate) {
     return false;
   }
-  compare_parsed(&c, &v) == Ordering::Less
+  build_channel(candidate) != build_channel(current) && compare_parsed(&c, &v) == Ordering::Less
 }
 
 // ---- releases ----------------------------------------------------------------
@@ -1567,9 +1586,25 @@ mod tests {
     assert!(is_switch_back("5.16.1", "6.0.0-preview.1"));
     assert!(!is_switch_back("6.0.0", "6.0.0-preview.1"), "newer: is_newer offers it");
     assert!(!is_switch_back("5.16.0", "5.16.1"), "a stable install is not going back");
-    assert!(!is_switch_back("6.0.0-preview.1", "6.0.0-preview.2"), "never a pre-release");
+    assert!(!is_switch_back("6.0.0-preview.1", "6.0.0-preview.2"), "never between two builds of one channel");
+    assert!(!is_switch_back("6.0.0-nightly.202611071200.gabcdef0", "6.0.0-preview.202611081200.gabcdef0"), "a preview.<time> is a nightly too");
+    assert!(is_switch_back("6.2.0-nightly.202611111521.gbe53562", "7.0.0-next.202611111507.g3c4476e"), "from Next back to Nightly");
+    assert!(is_switch_back("6.1.1", "7.0.0-next.202611111507.g3c4476e"), "from Next back to Stabil");
+    assert!(!is_switch_back("7.0.0-next.202611101507.g3c4476e", "7.0.0-next.202611111507.g3c4476e"), "an older Next build is no way back");
+    assert!(!is_switch_back("6.2.0-nightly.202611111521.gbe53562", "6.1.1"), "a release is every channel's: nothing to go back from");
     assert!(!is_switch_back("5.16.1", "6.0.0-preview.1-dev.4"), "never a CI build");
     assert!(!is_switch_back("nonsense", "6.0.0-preview.1"));
+  }
+
+  #[test]
+  fn build_channel_names_whom_a_build_is_for() {
+    assert_eq!(build_channel("6.1.1").as_deref(), Some("stable"));
+    assert_eq!(build_channel("6.2.0-nightly.202611111521.gbe53562").as_deref(), Some("nightly"));
+    assert_eq!(build_channel("6.0.0-preview.202611031200.ge9d8b1b").as_deref(), Some("nightly"));
+    assert_eq!(build_channel("6.0.0-preview.3").as_deref(), Some("nightly"));
+    assert_eq!(build_channel("7.0.0-next.202611111507.g3c4476e").as_deref(), Some("next"));
+    assert_eq!(build_channel("6.0.2-dev.41"), None);
+    assert_eq!(build_channel("nonsense"), None);
   }
 
   #[test]

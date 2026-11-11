@@ -142,7 +142,9 @@
     dismissFile: function () { return invoke('updater_dismiss_file'); },
     saveBundle: function () { return invoke('updater_save_bundle'); },
     dismissSaved: function () { return invoke('updater_dismiss_saved'); },
-    setChannel: function (channel) { return invoke('updater_set_channel', { channel: channel === 'preview' ? 'preview' : 'stable' }); },
+    // Any channel id goes through as it is: the updater takes stable, preview
+    // or a channel of girovo.de's list and ignores the rest (logic::chosen_channel).
+    setChannel: function (channel) { return invoke('updater_set_channel', { channel: typeof channel === 'string' ? channel : 'stable' }); },
     openRelease: function () { return invoke('updater_open_release'); },
     onState: function (callback) {
       if (typeof callback !== 'function') return function () {};

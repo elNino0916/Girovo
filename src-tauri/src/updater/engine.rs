@@ -146,7 +146,7 @@ pub struct ErrorInfo {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicRelease {
-  /// An older stable release, offered as the way back from a preview (logic::is_switch_back).
+  /// An older build of the channel, offered as the way back from another channel's build (logic::is_switch_back).
   pub back: bool,
   pub version: String,
   pub name: String,
@@ -1102,9 +1102,22 @@ impl Updater {
     if !json.is_array() {
       return Err(Failure::Said(self.texts().unreadable.to_string()));
     }
-    // Only a release with this install's file.
+    // Only a release with this install's file, made for this channel or for
+    // everyone: by its name, so another channel's builds (a row of Next builds
+    // above the nightlies) never use up the tries; the signature checks it.
     let current = &self.cfg.current_version;
+    let of_channel = |v: &str| logic::build_channel(v).as_deref() == Some(channel.manifest.as_str());
+    let ours = |v: &str| of_channel(v) || logic::build_channel(v).as_deref() == Some("stable");
+    // On a channel this build is not of (Nightly from a Girovo Next build): the
+    // channel's own builds, older ones too, as the way back (take_offer).
+    let going_back = logic::build_channel(current).is_some_and(|c| c != "stable" && c != channel.manifest);
     if !self.cfg.require_signed {
+      if going_back {
+        let mut own: Vec<Release> =
+          logic::releases_with_file(&json, &self.cfg.origin, Some(self.cfg.kind)).into_iter().filter(|r| of_channel(&r.version)).collect();
+        own.sort_by(|a, b| logic::compare_versions(&b.version, &a.version).unwrap_or(std::cmp::Ordering::Equal));
+        return Ok(own.into_iter().take(1).collect());
+      }
       return Ok(logic::newest_release(&json, current, &self.cfg.origin, Some(self.cfg.kind)).into_iter().collect());
     }
     // Signed releases are ordered by build number, which knows every name a
@@ -1112,7 +1125,11 @@ impl Updater {
     let Some(running) = trust::build_number(current) else { return Ok(Vec::new()) };
     let mut newer: Vec<(u64, Release)> = logic::releases_with_file(&json, &self.cfg.origin, Some(self.cfg.kind))
       .into_iter()
-      .filter_map(|r| Some((trust::build_number(&r.version).filter(|&b| b > running)?, r)))
+      .filter(|r| ours(&r.version))
+      .filter_map(|r| {
+        let build = trust::build_number(&r.version)?;
+        (build > running || (going_back && of_channel(&r.version))).then_some((build, r))
+      })
       .collect();
     newer.sort_by(|a, b| b.0.cmp(&a.0));
     Ok(newer.into_iter().take(GITHUB_TRIES).map(|(_, r)| r).collect())
@@ -1494,8 +1511,13 @@ impl Updater {
         logic::is_newer(&r.version, current, channel.prerelease)
       }
     });
-    // Back on "Stabil" from a preview: the latest stable release, older as it may be.
-    let back = !newer && channel.is_stable() && release.as_ref().is_some_and(|r| logic::is_switch_back(&r.version, current));
+    // Back on a channel from another channel's build ("Stabil" or Nightly from
+    // Next): the channel's own latest build, older as it may be. Only its own:
+    // Next without builds lists the stable release, which is no way back there.
+    let back = !newer
+      && release.as_ref().is_some_and(|r| {
+        logic::is_switch_back(&r.version, current) && logic::build_channel(&r.version).as_deref() == Some(channel.manifest.as_str())
+      });
     let Some(release) = release.filter(|_| newer || back) else {
       {
         let mut inner = self.inner.lock().unwrap();
