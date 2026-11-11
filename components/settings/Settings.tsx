@@ -35,7 +35,7 @@
 
 import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { LOCALE_NAMES } from '@/lib/i18n/locale';
-import { useLocale, useT } from '@/lib/i18n/react';
+import { rich, useLocale, useT } from '@/lib/i18n/react';
 import { CONTACT_MAIL, WEBSITE_URL, imprintUrl, privacyUrl, termsUrl } from '@/lib/links';
 import { IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
 import { PAGE_CLUSTERS, PAGE_ORDER, type SettingsPage } from '@/lib/settings-pages';
@@ -45,17 +45,17 @@ import { PlusRow } from '../android/Plus';
 import { IDLE_MINUTE_CHOICES, useFints, type IdleMinutes } from '../FintsProvider';
 import { LanguageSegmented } from '../LanguageToggle';
 import { useBlackBackground, useThemePref } from '../ThemeToggle';
-import { updates, useUpdates } from '../updates/store';
-import { UpdateSessionRow } from '../updates/UpdateNotices';
+import { hasNewer, isReady, updates, useUpdates } from '../updates/store';
 import { usageComesWithChannel } from '../telemetry/NightlyUsage';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
-  BellIcon, BuildingIcon, ChartIcon, ClockIcon, CodeIcon, EyeOffIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
+  BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, EyeOffIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
   LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, RefreshIcon, ShieldIcon, StarIcon, SunIcon, WalletIcon,
 } from '../icons';
+import { BrandName, BrandPlate } from '../shell/BrandMark';
 import { PAGE_TITLE_ID } from '../shell/ids';
 import { useDesktopFrame } from '../shell/frame';
-import { Button, Dot, Kbd, Segmented } from '../ui';
+import { Button, Dot, Kbd, Segmented, cx } from '../ui';
 import { KeepRow, KeepOffDialog, ResetDocsDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
 import { ResetAppRow } from './ResetApp';
 import { BackupRows } from './BackupDialogs';
@@ -74,6 +74,8 @@ import {
 
 // i18n-data-start — addresses, not words
 const SOURCE_URL = 'https://github.com/elNino0916/Girovo';
+const AUTHOR_URL = 'https://elnino0916.de';
+const PUBLISHER_URL = 'https://mt-media.eu';
 // i18n-data-end
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 
@@ -580,19 +582,23 @@ function PrivacyPage() {
   );
 }
 
+/**
+ * Über Girovo: the app's name and version at its head, with the update's
+ * state and the one button to look for a newer version; then how updates
+ * come, where to write, the legal pages as plain links, and who makes it
+ * (owner's pick, 2026-11-11: mock A in .impeccable/mocks/about).
+ */
 function AboutPage() {
   const t = useT();
   const { openNewInSix } = useFints();
   const { locale } = useLocale();
-  const { state: update } = useUpdates();
   return (
     <>
+      <AboutHead />
       <SettingsGroup>
         {/* The Google Play build, when Play has a newer version. */}
         <PlayUpdateRow />
-        {/* With the updater (the desktop app, the GitHub build on Android) the version is on its row. */}
-        <UpdateSessionRow setting="updates" onOpen={() => updates.openDialog()} />
-        {/* Stable or the 6.0 previews too: with the updater only, like the row above. */}
+        {/* Stable or Nightly: with the updater only. */}
         <UpdateChannelRow />
         {/* Staged releases at once, like Windows Update's switch. */}
         <EarlyUpdatesRow />
@@ -600,22 +606,120 @@ function AboutPage() {
         <FromFileRow />
         {/* What 6 brought, and its switches together (components/NewInSix.tsx). */}
         <ActionItem icon={<StarIcon />} title={t.shell.newInSix.row} summary={t.shell.newInSix.rowHint} onClick={openNewInSix} />
-        <SettingItem
-          icon={<InfoIcon />}
-          title={!update && APP_VERSION ? t.shell.version(APP_VERSION) : t.settings.licence}
-          summary={!update && APP_VERSION ? t.settings.licence : undefined}
-        />
       </SettingsGroup>
 
       {/* Girovo's own site, and the way to write to its maker (owner, 2026-10-23). */}
-      <SettingsGroup title={t.settings.groups.links}>
+      <SettingsGroup title={t.settings.contact}>
         <LinkItem icon={<GlobeIcon />} title={t.settings.website} summary="girovo.de" href={WEBSITE_URL} opensExternally={t.shell.opensExternally} />
         <LinkItem icon={<MailIcon />} title={t.settings.contact} summary={CONTACT_MAIL} href={`mailto:${CONTACT_MAIL}`} opensExternally={t.settings.opensMail} />
         <LinkItem icon={<CodeIcon />} title={t.settings.source} href={SOURCE_URL} opensExternally={t.shell.opensExternally} />
-        <LinkItem icon={<FileIcon />} title={t.settings.terms} href={termsUrl(locale)} opensExternally={t.shell.opensExternally} />
-        <LinkItem icon={<ShieldIcon />} title={t.settings.privacyPolicy} href={privacyUrl(locale)} opensExternally={t.shell.opensExternally} />
-        <LinkItem icon={<BuildingIcon />} title={t.settings.imprint} href={imprintUrl(locale)} opensExternally={t.shell.opensExternally} />
       </SettingsGroup>
+
+      <AboutFooter
+        legal={[
+          { label: t.settings.terms, href: termsUrl(locale) },
+          { label: t.settings.privacyPolicy, short: t.settings.pages.privacy, href: privacyUrl(locale) },
+          { label: t.settings.imprint, href: imprintUrl(locale) },
+        ]}
+      />
     </>
+  );
+}
+
+/**
+ * The page's head: the plate, the name (amber "Nightly" or the release's
+ * numeral), the version, and with the updater (the desktop app, the GitHub
+ * build on Android) what it knows about a newer one. Play and F-Droid bring
+ * their own updates: there the head stops at the version.
+ */
+function AboutHead() {
+  const t = useT();
+  const u = t.shell.updates;
+  const { state } = useUpdates();
+  const version = state?.current || APP_VERSION;
+  const newer = state && hasNewer(state) ? state.release : null;
+  const pct = state && state.total > 0 ? Math.min(100, Math.floor((state.received / state.total) * 100)) : 0;
+  let status: ReactNode = null;
+  if (state?.phase === 'checking') {
+    // The button below spins: one spinner is enough.
+    status = u.checking;
+  } else if (state && newer) {
+    status = (
+      <span className="tnum font-medium text-accent">
+        {state.phase === 'downloading' ? u.loadingPct(pct) : isReady(state) ? u.ready(newer.version) : u.available(newer.version)}
+      </span>
+    );
+  } else if (state?.phase === 'current') {
+    status = <><CheckCircleIcon size={18} className="text-green" strokeWidth={2} />{t.shell.about.upToDate}</>;
+  }
+  return (
+    <header data-setting="updates" className="flex flex-col items-center px-4 pt-4 pb-2 text-center">
+      <BrandPlate size={80} />
+      <h2 className="mt-4 max-w-full text-[32px] leading-10 font-semibold tracking-[-0.2px] text-ink">
+        <BrandName />
+      </h2>
+      {version && <p className="tnum mt-1 text-[14px] leading-5 text-ink-2">{t.shell.version(version)}</p>}
+      {state && (
+        <>
+          {status && (
+            <p role="status" className="mt-4 flex items-center justify-center gap-2 text-[14px] leading-5 text-ink">{status}</p>
+          )}
+          {newer ? (
+            <Button variant="secondary" className="mt-3" aria-haspopup="dialog" onClick={() => updates.openDialog()}>
+              {u.details}
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              className="mt-3"
+              iconLeft={<RefreshIcon size={16} />}
+              busy={state.phase === 'checking'}
+              onClick={() => void updates.check()}
+            >
+              {t.shell.checkForUpdates}
+            </Button>
+          )}
+        </>
+      )}
+    </header>
+  );
+}
+
+/**
+ * The legal pages as one line of links, then who makes Girovo and who
+ * publishes it (owner, 2026-11-11), and the licence, small.
+ */
+function AboutFooter({ legal }: { legal: { label: string; short?: string; href: string }[] }) {
+  const t = useT();
+  const link = 'rounded-sm text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--md-primary)]';
+  const external = <span className="sr-only">{` ${t.shell.opensExternally}`}</span>;
+  return (
+    <footer className="flex flex-col items-center gap-3 px-1 pt-2 pb-6 text-center sm:px-4">
+      <ul className="flex flex-wrap items-center justify-center text-[14px] leading-5 font-medium">
+        {legal.map((l) => (
+          <li key={l.href}>
+            <a href={l.href} target="_blank" rel="noopener noreferrer" className={cx(link, 'block rounded-full px-2 py-1.5 hover:bg-[color-mix(in_srgb,var(--md-primary)_8%,transparent)] hover:no-underline sm:px-3')}>
+              {/* A phone's line has room for the three only with the short name. */}
+              {l.short ? <><span className="sm:hidden">{l.short}</span><span className="max-sm:hidden">{l.label}</span></> : l.label}
+              {external}
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[14px] leading-5 text-ink-2">
+        <span className="whitespace-nowrap">
+          {'© 2026 '}
+          <a href={AUTHOR_URL} target="_blank" rel="noopener noreferrer" className={link}>elNino0916{external}</a>
+        </span>
+        <span aria-hidden className="mx-2 max-sm:hidden">·</span>
+        <br className="sm:hidden" />
+        <span className="whitespace-nowrap">
+          {rich(t.shell.about.publishedBy(
+            <a key="pub" href={PUBLISHER_URL} target="_blank" rel="noopener noreferrer" className={link}>MT-Media{external}</a>,
+          ))}
+        </span>
+      </p>
+      <p className="max-w-[40ch] text-[12px] leading-4 text-ink-2 sm:max-w-none">{t.settings.licence}</p>
+    </footer>
   );
 }

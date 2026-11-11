@@ -36,6 +36,12 @@ export const de = {
   /** The Control key, as the keyboard labels it. */
   ctrl: 'Strg',
   version: (v: string) => `Version ${v}`,
+  /** Einstellungen → Über Girovo: the head's update line and the footer. */
+  about: {
+    upToDate: 'Auf dem neuesten Stand',
+    /** After "© 2026 elNino0916": the publisher's name is a link. */
+    publishedBy: (name: ReactNode) => ['Herausgegeben von ', name],
+  },
   /** The hour of day, said the way a counter clerk would say it. */
   greeting: (hour: number): string =>
     hour < 5 ? 'Guten Abend' : hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Guten Tag' : 'Guten Abend',
@@ -484,6 +490,10 @@ export const en: typeof de = {
   clock: (time) => time,
   ctrl: 'Ctrl',
   version: (v) => `Version ${v}`,
+  about: {
+    upToDate: 'Up to date',
+    publishedBy: (name) => ['Published by ', name],
+  },
   greeting: (hour) => (hour < 5 ? 'Good evening' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'),
   countdown: (s) => {
     if (s >= 120) return `${Math.ceil(s / 60)} minutes`;
