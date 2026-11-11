@@ -25,12 +25,14 @@ import type { SettingsTarget } from './app-types.ts';
 export type SettingsPage = 'security' | 'notifications' | 'accounts' | 'devices' | 'appearance' | 'privacy' | 'ask' | 'about';
 
 /**
- * The list's order, in the clusters a phone draws apart: how you get in and
- * are told; what is kept and what reads it (asking, after Datenschutz); the app itself.
+ * The list's order, in the clusters a phone draws apart: Girovo AI first, on
+ * its own (owner, 2026-11-11, Girovo Next); how you get in and are told; what is
+ * kept; the app itself.
  */
 export const PAGE_CLUSTERS: readonly (readonly SettingsPage[])[] = [
+  ['ask'],
   ['security', 'notifications'],
-  ['accounts', 'devices', 'privacy', 'ask'],
+  ['accounts', 'devices', 'privacy'],
   ['appearance', 'about'],
 ];
 

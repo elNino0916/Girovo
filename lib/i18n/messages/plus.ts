@@ -14,7 +14,7 @@ export const de = {
   perks: {
     banks: { title: 'Mehrere Banken', text: 'Alle deine Banken in einer Übersicht. Ohne Plus nur die erste.' },
     forecast: { title: 'Kontostand am Monatsende', text: 'Wohin sich dein Konto bis zum Monatsende bewegt, mit Warnung vor dem Dispo.' },
-    ask: { title: 'Frag deine Umsätze', text: 'Gemini Nano beantwortet auf dem Telefon Fragen zu deinen Umsätzen.' },
+    ask: { title: 'Girovo AI', text: 'Beantwortet Fragen zu deinen Umsätzen in ganzen Sätzen.' },
     split: { title: 'Aufteilen', text: 'Eine Rechnung teilen und jeden Anteil mit einem GiroCode anfordern.' },
     goals: { title: 'Sparziele', text: 'Ein Ziel fürs Sparkonto und wie viel du dafür im Monat brauchst.' },
     icon: { title: 'Goldenes App-Symbol', text: 'Auf Wunsch das G€ in Gold.' },
@@ -69,7 +69,7 @@ export const en: typeof de = {
   perks: {
     banks: { title: 'Several banks', text: 'All your banks in one overview. Without Plus, only the first.' },
     forecast: { title: 'Balance at month end', text: 'Where your account is heading by the end of the month, with a warning before the overdraft.' },
-    ask: { title: 'Ask your transactions', text: 'Gemini Nano answers questions about your transactions on the phone.' },
+    ask: { title: 'Girovo AI', text: 'Answers questions about your transactions in full sentences.' },
     split: { title: 'Split', text: 'Share a bill and request each share with a GiroCode.' },
     goals: { title: 'Savings goals', text: 'A goal for your savings account and how much you need each month.' },
     icon: { title: 'Gold app icon', text: 'The G€ in gold, if you like.' },

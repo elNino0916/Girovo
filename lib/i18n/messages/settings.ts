@@ -14,7 +14,7 @@ export const de = {
     devices: 'Daten & Geräte',
     appearance: 'Sprache & Darstellung',
     privacy: 'Datenschutz',
-    ask: 'Frag deine Umsätze',
+    ask: 'Girovo AI',
     about: `Über ${APP_NAME}`,
   },
   /** The pages' names in the desktop's folded rail, under their glyphs: a word each. */
@@ -25,7 +25,7 @@ export const de = {
     devices: 'Daten',
     appearance: 'Darstellung',
     privacy: 'Datenschutz',
-    ask: 'Fragen',
+    ask: 'AI',
     about: 'Über',
   },
   /** Under each page's name in their list: what is on it, or how it is set. */
@@ -234,7 +234,7 @@ export const de = {
    * where the phone has it, else Girovo's own model, not loadable yet.
    */
   ask: {
-    title: 'Frag deine Umsätze',
+    title: 'Girovo AI',
     hint: 'Antworten in ganzen Sätzen',
     group: 'Antworten',
     nano: 'Gemini Nano',
@@ -283,7 +283,7 @@ export const en: typeof de = {
     devices: 'Data & devices',
     appearance: 'Language & appearance',
     privacy: 'Privacy',
-    ask: 'Ask your transactions',
+    ask: 'Girovo AI',
     about: `About ${APP_NAME}`,
   },
   pagesShort: {
@@ -293,7 +293,7 @@ export const en: typeof de = {
     devices: 'Data',
     appearance: 'Appearance',
     privacy: 'Privacy',
-    ask: 'Ask',
+    ask: 'AI',
     about: 'About',
   },
   summary: {
@@ -443,7 +443,7 @@ export const en: typeof de = {
   },
 
   ask: {
-    title: 'Ask your transactions',
+    title: 'Girovo AI',
     hint: 'Answers in full sentences',
     group: 'Answers',
     nano: 'Gemini Nano',

@@ -39,7 +39,6 @@ import { ShareAccount } from './ShareAccount';
 import { LinkedUnlockDialog } from './settings/LinkedUnlock';
 import { BackgroundDialog } from './settings/BackgroundChecks';
 import { AlertWatch } from './settings/BackgroundAlerts';
-import { NewInSix } from './NewInSix';
 import { SyncDialog } from './settings/Sync';
 import { ForgetDeviceDialog, LogoutConfirmDialog } from './shell/ProfileMenu';
 import { SplitRequests } from './transactions/SplitRequests';
@@ -308,8 +307,6 @@ function ShellLayers({ frame = false }: { frame?: boolean }) {
       {/* The contracts the user added keep their newest booking (components/insights/AddContract.tsx). */}
       <ManualContractDays />
       <SyncDialog />
-      {/* Once after the update from an older Girovo (components/NewInSix.tsx). */}
-      <NewInSix />
       <Inbox />
       {!frame && <CommandPalette />}
       {/* Girovo Next: the conversation's reading, and on the phone its full-screen view. */}

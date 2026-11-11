@@ -390,9 +390,6 @@ function useFintsState() {
   const [backgroundChecks, setBackgroundState] = useState<boolean | null>(null);
   const backgroundRef = useRef<boolean | null>(null);
   const [backgroundAsk, setBackgroundAsk] = useState(false);
-  // "Neu in Girovo 6" (components/NewInSix.tsx): 'due' once on a device that
-  // ran an older Girovo, 'open' while it shows.
-  const [newInSix, setNewInSix] = useState<'due' | 'open' | null>(null);
   const setBackgroundBoth = useCallback((on: boolean | null) => {
     backgroundRef.current = on;
     setBackgroundState(on);
@@ -697,13 +694,6 @@ function useFintsState() {
     if (store.get('fints.singleKeys') === '0') setSingleKeyShortcutsState(false);
     if (store.get('fints.balancesAtLogin') === '1') setBalancesAtLoginState(true);
     if (store.get('fints.bookingsAtLogin') === '0') setBookingsAtLoginState(false);
-    // A device that knew a bank before this start ran an older Girovo: "Neu in
-    // Girovo 6" is due there, once. A first start never gets it — everything
-    // is new there anyway.
-    if (store.get('fints.newInSix') == null) {
-      if (last?.blz) setNewInSix('due');
-      else store.set('fints.newInSix', 'skip');
-    }
     const logos = store.get('fints.merchantLogos');
     if (logos === 'on' || logos === 'off') {
       logoConsentRef.current = logos;
@@ -3351,12 +3341,6 @@ function useFintsState() {
   const closeSync = useCallback(() => setSyncOpen(false), []);
 
   const openBackgroundAsk = useCallback(() => setBackgroundAsk(true), []);
-  const openNewInSix = useCallback(() => setNewInSix('open'), []);
-  /** Seen: it does not come back by itself (Einstellungen → Über Girovo opens it again). */
-  const closeNewInSix = useCallback(() => {
-    setNewInSix(null);
-    store.set('fints.newInSix', '1');
-  }, []);
   const closeBackgroundAsk = useCallback(() => setBackgroundAsk(false), []);
 
   /** The desktop: the bank took the first login's PIN — what was kept with it may open now. */
@@ -6029,8 +6013,6 @@ function useFintsState() {
     // "Neue Umsätze melden" (lib/background-check.ts)
     backgroundChecks, backgroundAsk, setBackgroundChecks, openBackgroundAsk, closeBackgroundAsk,
     backgroundAlerts, sendAlertWatch, askCategory,
-    // "Neu in Girovo 6" (components/NewInSix.tsx)
-    newInSix, openNewInSix, closeNewInSix,
     // sync between devices (lib/sync.ts)
     sync, syncOpen, openSync, closeSync, syncNow, createSync, syncCode, joinSync, leaveSync,
   };

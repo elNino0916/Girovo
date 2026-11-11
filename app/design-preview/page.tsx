@@ -765,7 +765,7 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Neu in Girovo 6',
     group: 'Dialoge',
     // Windows Hello is the desktop's: unset on Android, as the real app leaves it.
-    options: { newInSix: true, ...(IS_ANDROID ? {} : { windowsHello: false }), backgroundChecks: false, linkedUnlock: false, secondBank: 'linked' },
+    options: { ...(IS_ANDROID ? {} : { windowsHello: false }), backgroundChecks: false, linkedUnlock: false, secondBank: 'linked' },
   },
   'linked-unlock-ask': {
     label: 'Weitere Banken mit anmelden?',

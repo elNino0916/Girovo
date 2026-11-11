@@ -88,9 +88,9 @@ export const de = {
     showAll: (query: string) => `Alle Treffer für „${query}“ anzeigen`,
     /** Android with Gemini Nano: the typed question, handed to "Frag deine Umsätze". */
     ask: (question: string) => `„${question}“ fragen`,
-    askHint: 'Frag deine Umsätze · auf diesem Telefon gerechnet',
+    askHint: 'Girovo AI',
     /** The desktop: no Gemini Nano, the app's own model (components/insights/Ask.tsx). */
-    askHintDesktop: 'Frag deine Umsätze · auf diesem Rechner gerechnet',
+    askHintDesktop: 'Girovo AI',
     inSelected: (n: number) => `${n} ${n === 1 ? 'Umsatz' : 'Umsätze'} im ausgewählten Konto`,
     newest: (shown: number, total: number) => `Die ${shown} neuesten von ${total} Treffern`,
     noResults: (query: string) => `Keine Treffer für „${query}“`,
@@ -341,30 +341,6 @@ export const de = {
     several: 'In Mitteilungen ansehen',
   },
 
-  /** "Neu in Girovo 6" (components/NewInSix.tsx): once after the update, and from Einstellungen → Über Girovo. */
-  newInSix: {
-    title: 'Neu in Girovo 6',
-    intro: 'Was eine PIN speichert oder dieses Gerät verlässt, schaltest du selbst ein, hier oder später in den Einstellungen.',
-    introPlain: 'Was sich mit Version 6 geändert hat.',
-    toTurnOn: 'Zum Einschalten',
-    alsoNew: 'Außerdem neu',
-    done: 'Fertig',
-    /** Einstellungen → Über Girovo. */
-    row: 'Neu in Girovo 6',
-    rowHint: 'Neuerungen und was du einschalten kannst',
-    overview: { title: 'Alle Konten auf einen Blick', text: 'Alle Konten zusammen, mit dem Gesamtsaldo darüber.' },
-    frame: { title: 'Ein neues Fenster', text: 'Deine Konten in einer Seitenleiste, die Suche oben im Fenster.' },
-    widget: { title: 'Widget für den Startbildschirm', text: 'Dein Gesamtsaldo, verdeckt, bis du tippst. Halte den Startbildschirm gedrückt und wähle „Widgets“.' },
-    orders: { title: 'Aufträge', text: 'Daueraufträge und Terminüberweisungen auf einer eigenen Seite unter Zahlungen.' },
-    kept: { title: 'Letzte Salden', text: 'Deine letzten Kontostände bleiben bis zur nächsten Anmeldung sichtbar, mit Verlauf.' },
-    cards: { title: 'Kreditkarten der Sparkassen', text: 'Die Umsätze deiner Sparkassen-Kreditkarte, wo die Bank sie anbietet.' },
-    updates: { title: 'Updates beim Start', text: 'Neue Versionen werden beim Start installiert.' },
-    /** The desktop app only: the Tauri shell (src-tauri) in place of Electron. */
-    rust: { title: 'Schlanker gebaut', text: 'Girovo für Windows und Linux läuft jetzt auf einer neuen, schlankeren Grundlage.' },
-    contracts: { title: 'Verträge, die sich melden', text: 'Girovo zeigt, wenn ein Abo teurer wird, und erinnert dich auf Wunsch an die Kündigungsfrist.' },
-    /** The desktop: "Frag deine Umsätze" with the built-in model (components/insights/Ask.tsx). */
-    ask: { title: 'Frag deine Umsätze', text: 'Frag in der Analyse zum Beispiel: „Wie viel ging letzten Monat an Rewe?“ Gerechnet wird auf diesem Rechner.' },
-  },
 
   /** The update dialog and the places that point to it (components/updates). */
   updates: {
@@ -530,8 +506,8 @@ export const en: typeof de = {
     selected: 'Selected',
     showAll: (query) => `Show all results for “${query}”`,
     ask: (question) => `Ask “${question}”`,
-    askHint: 'Ask your transactions · worked out on this phone',
-    askHintDesktop: 'Ask your transactions · worked out on this computer',
+    askHint: 'Girovo AI',
+    askHintDesktop: 'Girovo AI',
     inSelected: (n) => `${n} ${n === 1 ? 'transaction' : 'transactions'} in the selected account`,
     newest: (shown, total) => `The newest ${shown} of ${total} results`,
     noResults: (query) => `No results for “${query}”`,
@@ -723,26 +699,6 @@ export const en: typeof de = {
     several: 'View in Messages',
   },
 
-  newInSix: {
-    title: 'New in Girovo 6',
-    intro: 'Anything that keeps a PIN or leaves this device is yours to turn on, here or later in Settings.',
-    introPlain: 'What changed with version 6.',
-    toTurnOn: 'To turn on',
-    alsoNew: 'Also new',
-    done: 'Done',
-    row: 'New in Girovo 6',
-    rowHint: 'What’s new and what you can turn on',
-    overview: { title: 'All accounts at a glance', text: 'All your accounts together, with the total balance on top.' },
-    frame: { title: 'A new window', text: 'Your accounts in a sidebar, search at the top of the window.' },
-    widget: { title: 'Home screen widget', text: 'Your total balance, covered until you tap. Touch and hold the home screen and pick “Widgets”.' },
-    orders: { title: 'Orders', text: 'Standing orders and scheduled transfers on their own page under Payments.' },
-    kept: { title: 'Last balances', text: 'Your last balances stay visible until your next login, with history.' },
-    cards: { title: 'Sparkasse credit cards', text: 'The transactions of your Sparkasse credit card, where the bank offers them.' },
-    updates: { title: 'Updates at start', text: 'New versions are installed at start-up.' },
-    rust: { title: 'Built leaner', text: 'Girovo for Windows and Linux now runs on a new, leaner base.' },
-    contracts: { title: 'Contracts that speak up', text: 'Girovo shows when a subscription gets dearer and, if you like, reminds you of the notice period.' },
-    ask: { title: 'Ask your transactions', text: 'Ask in Analysis, for example: “How much went to Rewe last month?” It’s worked out on this computer.' },
-  },
 
   updates: {
     title: 'Updates',

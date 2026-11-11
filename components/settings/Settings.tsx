@@ -52,7 +52,7 @@ import { usageComesWithChannel } from '../telemetry/NightlyUsage';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
   BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, EyeOffIcon, FileIcon, AiMarkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
-  LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, RefreshIcon, ShieldIcon, StarIcon, SunIcon, WalletIcon,
+  LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, RefreshIcon, ShieldIcon, SunIcon, WalletIcon,
 } from '../icons';
 import { BrandName, BrandPlate } from '../shell/BrandMark';
 import { PAGE_TITLE_ID } from '../shell/ids';
@@ -605,7 +605,6 @@ function PrivacyPage() {
  */
 function AboutPage() {
   const t = useT();
-  const { openNewInSix } = useFints();
   const { locale } = useLocale();
   return (
     <>
@@ -619,8 +618,6 @@ function AboutPage() {
         <EarlyUpdatesRow />
         {/* A Setup.exe downloaded by hand, checked against the signed releases. */}
         <FromFileRow />
-        {/* What 6 brought, and its switches together (components/NewInSix.tsx). */}
-        <ActionItem icon={<StarIcon />} title={t.shell.newInSix.row} summary={t.shell.newInSix.rowHint} onClick={openNewInSix} />
       </SettingsGroup>
 
       {/* Girovo's own site, and the way to write to its maker (owner, 2026-10-23). */}

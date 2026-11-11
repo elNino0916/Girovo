@@ -1,11 +1,11 @@
-// "Frag deine Umsätze" (Android, Gemini Nano — components/insights/Ask.tsx; the desktop with its own model, `desktop`):
+// Girovo AI, formerly "Frag deine Umsätze" (Android, Gemini Nano — components/insights/Ask.tsx; the desktop with its own model, `desktop`):
 // a question about the loaded bookings, turned into a search by Gemini Nano
 // and answered by Girovo on the phone (lib/nano-ask.ts).
 
 import type { ReactNode } from 'react';
 
 export const de = {
-  title: 'Frag deine Umsätze',
+  title: 'Girovo AI',
   placeholder: 'Wie viel ging an Amazon?',
   ask: 'Fragen',
   /** Questions to start from, tapped to ask. */
@@ -85,7 +85,7 @@ export const de = {
    * sentences; every figure in them is the app's own and opens its bookings.
    */
   thread: {
-    title: 'Fragen',
+    title: 'Girovo AI',
     conversations: 'Gespräche',
     newConversation: 'Neues Gespräch',
     noConversations: 'Noch keine Gespräche.',
@@ -163,7 +163,7 @@ export const de = {
     },
     /** Once, when the thread first opens. */
     intro: {
-      title: 'Frag deine Umsätze',
+      title: 'Girovo AI',
       sentences: 'Du bekommst die Antwort in ganzen Sätzen.',
       figures: 'Jeden Betrag rechnet Girovo selbst aus deinen Umsätzen.',
       later: 'Später',
@@ -219,7 +219,7 @@ export const de = {
 };
 
 export const en: typeof de = {
-  title: 'Ask your transactions',
+  title: 'Girovo AI',
   placeholder: 'How much went to Amazon?',
   ask: 'Ask',
   suggestions: ['Groceries last month', 'Largest expense this year', 'Eating out per month'],
@@ -285,7 +285,7 @@ export const en: typeof de = {
     notUnderstood: 'Girovo didn’t understand that. Try something like “fuel in August”.',
   },
   thread: {
-    title: 'Ask',
+    title: 'Girovo AI',
     conversations: 'Conversations',
     newConversation: 'New conversation',
     noConversations: 'No conversations yet.',
@@ -343,7 +343,7 @@ export const en: typeof de = {
       rank: (title, name, amount) => [title, ' ', name, ': ', amount, '.'],
     },
     intro: {
-      title: 'Ask your transactions',
+      title: 'Girovo AI',
       sentences: 'You get the answer in full sentences.',
       figures: 'Girovo works out every amount itself from your transactions.',
       later: 'Later',
