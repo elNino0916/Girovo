@@ -20,8 +20,16 @@ name: Nightly desktop build
 # "preview" builds the bridge they take, <version>-preview.<time>.g<commit>;
 # from there they have the code that follows the nightlies.
 #
+# Girovo Next (docs/update-channels.md on the branch): a run by hand with the
+# name "next" and the branch girovo-next builds <version>-next.<time>.g<commit>,
+# signed with the Next key (secret GIROVO_NEXT_SIGNING_KEY) instead of the
+# nightly key, so only copies on the Next channel take it. The schedule
+# builds the nightly alone.
+#
 # GitHub runs scheduled workflows from the default branch, so this file lives
-# on main and checks out the branch it builds.
+# on main and checks out the branch it builds. It must stay the same file on
+# main, nightly and girovo-next: a release made from a commit whose copy
+# differs is refused with a 403.
 
 on:
   schedule:
@@ -33,10 +41,11 @@ on:
         type: string
         default: 'nightly'
       name:
-        description: The pre-release name ("preview" only for the bridge from copies before the nightly name)
+        description: The pre-release name ("next" for Girovo Next from girovo-next; "preview" only for the bridge from copies before the nightly name)
         type: choice
         options:
           - nightly
+          - next
           - preview
         default: nightly
 
@@ -72,14 +81,14 @@ jobs:
           short=$(git rev-parse --short=7 HEAD)
           base=$(node -p "require('./package.json').version.split('-')[0]")
           stamp=$(date -u +%Y%m%d%H%M)
-          case "$NAME" in nightly|preview) ;; *) echo "Unknown name: $NAME" >&2; exit 1 ;; esac
+          case "$NAME" in nightly|preview|next) ;; *) echo "Unknown name: $NAME" >&2; exit 1 ;; esac
           version="$base-$NAME.$stamp.g$short"
           # The commit the last nightly was built from: its tag ends in ".g<commit>".
           # The newest by publish time: GitHub lists releases by their commit's
           # day and then by tag name, so a nightly.* can stand below a
-          # preview.* built the same day.
+          # preview.* built the same day. A Next build is no nightly.
           last=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-            --jq '[.[] | select(.prerelease and (.tag_name | test("\\.g[0-9a-f]{7}$")))] | max_by(.published_at) | .target_commitish // ""')
+            --jq '[.[] | select(.prerelease and (.tag_name | test("\\.g[0-9a-f]{7}$")) and (.tag_name | test("-next\\.") | not))] | max_by(.published_at) | .target_commitish // ""')
           build=true
           if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$last" = "$sha" ]; then build=false; fi
           echo "build=$build" >> "$GITHUB_OUTPUT"
@@ -228,21 +237,25 @@ jobs:
           git log --no-merges --format='%s' -5 "$SHA" | sed -E 's/^\([a-z]+\) +//; s/^/- /' > notes.md
           cat notes.md
       # The update manifest girovo.de serves (docs/updater-v2.md on the branch),
-      # signed with the nightly key. Branches from before it build without one.
+      # signed with the nightly key, or a Next build's with the Next key.
+      # Branches from before it build without one.
       - uses: actions/setup-node@v4
         if: hashFiles('scripts/sign-update.mjs') != ''
         with:
           node-version: 22
           cache: npm
-      - name: Update manifest, signed with the nightly key
+      - name: Update manifest, signed with the nightly or the Next key
         if: hashFiles('scripts/sign-update.mjs') != ''
         env:
           VERSION: ${{ needs.plan.outputs.version }}
           GIROVO_NIGHTLY_SIGNING_KEY: ${{ secrets.GIROVO_NIGHTLY_SIGNING_KEY }}
+          GIROVO_NEXT_SIGNING_KEY: ${{ secrets.GIROVO_NEXT_SIGNING_KEY }}
         run: |
           npm ci --ignore-scripts
+          key=GIROVO_NIGHTLY_SIGNING_KEY
+          case "$VERSION" in *-next.*) key=GIROVO_NEXT_SIGNING_KEY ;; esac
           node scripts/update-manifest.mjs out --version "$VERSION" --notes notes.md
-          node scripts/sign-update.mjs sign out/girovo-update.json --key-env GIROVO_NIGHTLY_SIGNING_KEY
+          node scripts/sign-update.mjs sign out/girovo-update.json --key-env "$key"
           node scripts/sign-update.mjs verify out/girovo-update.json
       - name: Checksums
         run: cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
