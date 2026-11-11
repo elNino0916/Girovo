@@ -13,7 +13,7 @@
     <string name="widget_name">Gesamtsaldo</string>
     <string name="widget_title">Gesamtsaldo</string>
     <string name="widget_description">Dein Gesamtsaldo, verdeckt, bis du tippst</string>
-    <string name="widget_empty">Melde dich in Girovo an – dann steht dein Gesamtsaldo hier.</string>
+    <string name="widget_empty">Melde dich in Girovo an, dann steht dein Gesamtsaldo hier.</string>
     <string name="widget_show">Betrag zeigen</string>
     <string name="widget_hide">Betrag verbergen</string>
     <string name="widget_hidden">Betrag verborgen</string>

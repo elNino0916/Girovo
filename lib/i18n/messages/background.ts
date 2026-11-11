@@ -20,7 +20,7 @@ export const de = {
   /** A cancellation reminder (lib/contract-watch.ts): once, from its lead until its day. */
   remindTitle: (name: string) => `${name}: Kündigungsfrist`,
   remindText: (day: string, days: number) =>
-    days > 1 ? `Kündbar bis ${day} – noch ${days} Tage` : days === 1 ? `Kündbar bis ${day} – noch 1 Tag` : `Kündbar bis heute, ${day}`,
+    days > 1 ? `Kündbar bis ${day}, noch ${days} Tage` : days === 1 ? `Kündbar bis ${day}, noch 1 Tag` : `Kündbar bis heute, ${day}`,
   incomeTitle: (n: number, bank: string) => (n === 1 ? `Geld eingegangen bei ${bank}` : `${n} Eingänge bei ${bank}`),
   lowTitle: (limit: string) => `Kontostand unter ${limit}`,
   lowTitleHidden: 'Kontostand unter deiner Grenze',
@@ -47,7 +47,7 @@ export const de = {
   nowOn: (n: number) => (n === 1 ? 'Girovo meldet jetzt neue Umsätze dieser Bank.' : `Girovo meldet jetzt neue Umsätze von ${n} Banken.`),
   nowOff: 'Girovo meldet keine neuen Umsätze mehr. Die gespeicherten PINs sind gelöscht.',
   /** Logins without a remembered device are left out: a check could not open them without an approval. */
-  noDevice: (banks: string) => `${banks}: Gerät nicht gemerkt – dort sieht Girovo nicht nach.`,
+  noDevice: (banks: string) => `${banks}: Gerät nicht gemerkt, daher sieht Girovo dort nicht nach.`,
   noneTaken: 'Merke dir zuerst dieses Gerät bei deiner Bank.',
   /** Android 13 and later: the notifications were not allowed. */
   noPermission: 'Mitteilungen sind für Girovo aus. Erlaube sie in den Android-Einstellungen und schalte es dann ein.',
@@ -104,7 +104,7 @@ export const en: typeof de = {
   dearerTextHidden: (bank) => `More collected than usual · ${bank}`,
   remindTitle: (name) => `${name}: notice period`,
   remindText: (day, days) =>
-    days > 1 ? `Cancel by ${day} – ${days} days left` : days === 1 ? `Cancel by ${day} – 1 day left` : `Cancel by today, ${day}`,
+    days > 1 ? `Cancel by ${day}, ${days} days left` : days === 1 ? `Cancel by ${day}, 1 day left` : `Cancel by today, ${day}`,
   incomeTitle: (n, bank) => (n === 1 ? `Money came in at ${bank}` : `${n} payments came in at ${bank}`),
   lowTitle: (limit) => `Balance below ${limit}`,
   lowTitleHidden: 'Balance below your limit',
@@ -125,10 +125,10 @@ export const en: typeof de = {
   notNow: 'Not now',
   nowOn: (n) => (n === 1 ? 'Girovo now reports new transactions at this bank.' : `Girovo now reports new transactions at ${n} banks.`),
   nowOff: 'Girovo no longer reports new transactions. The saved PINs have been deleted.',
-  noDevice: (banks) => `${banks}: device not remembered – Girovo doesn’t look there.`,
+  noDevice: (banks) => `${banks}: device not remembered, so Girovo doesn’t look there.`,
   noneTaken: 'Remember this device at your bank first.',
   noPermission: 'Notifications are off for Girovo. Allow them in Android’s settings, then turn this on.',
-  failed: 'That didn’t work. Please try again.',
+  failed: 'That didn’t work. Try again.',
   goesToo: 'This also deletes the PINs for “Report new transactions”.',
   stillRunning: 'Girovo keeps running in the notification area and reports new transactions.',
   trayOpen: 'Open Girovo',
@@ -150,7 +150,7 @@ export const en: typeof de = {
     lowFor: (account) => `Limit for ${account}`,
     invalid: 'Enter an amount, for example 100.00.',
     saved: 'Saved.',
-    failed: 'The settings couldn’t be read. Please try again.',
+    failed: 'The settings couldn’t be read. Try again.',
   },
 
   api: {

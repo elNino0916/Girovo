@@ -654,7 +654,7 @@ test('reminders: said once per date from their lead, only for kept logins, a new
   const first = await runCheck(store, secret, bank(), NOW);
   assert.deepEqual(first.notices.map((n) => n.kind), ['remind']);
   assert.equal(first.notices[0].title, 'FitX: Kündigungsfrist');
-  assert.equal(first.notices[0].text, 'Kündbar bis 10.11.2026 – noch 7 Tage');
+  assert.equal(first.notices[0].text, 'Kündbar bis 10.11.2026, noch 7 Tage');
   assert.deepEqual((await runCheck(store, secret, bank(), NOW + 3_600_000)).notices, [], 'said once');
 
   // The app hands over the same list again: still said.
@@ -668,5 +668,5 @@ test('reminders: said once per date from their lead, only for kept logins, a new
     contracts: [], income: [], owner,
     reminders: [{ owner, id: 'gym', by: '2026-11-08', lead: 7, name: 'FitX' }],
   }, NOW);
-  assert.deepEqual((await runCheck(store, secret, bank(), NOW + 10_800_000)).notices.map((n) => n.text), ['Kündbar bis 08.11.2026 – noch 5 Tage']);
+  assert.deepEqual((await runCheck(store, secret, bank(), NOW + 10_800_000)).notices.map((n) => n.text), ['Kündbar bis 08.11.2026, noch 5 Tage']);
 });

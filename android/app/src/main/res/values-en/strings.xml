@@ -7,7 +7,7 @@
     <string name="widget_name">Total balance</string>
     <string name="widget_title">Total balance</string>
     <string name="widget_description">Your total balance, covered until you tap</string>
-    <string name="widget_empty">Log in to Girovo – then your total balance shows here.</string>
+    <string name="widget_empty">Log in to Girovo and your total balance shows here.</string>
     <string name="widget_show">Show amount</string>
     <string name="widget_hide">Hide amount</string>
     <string name="widget_hidden">Amount hidden</string>

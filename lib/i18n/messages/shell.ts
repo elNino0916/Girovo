@@ -50,7 +50,7 @@ export const de = {
   /** The switch for shortcuts on one unmodified key (WCAG 2.1.4). */
   singleKeys: {
     name: 'Kürzel mit einzelnen Tasten',
-    keys: '/, ?, N, B, G und 1–9',
+    keys: '/, ?, N, B, G und 1 bis 9',
     turnOff: 'Kürzel mit einzelnen Tasten ausschalten',
     turnOn: 'Kürzel mit einzelnen Tasten einschalten',
     nowOn: 'Kürzel mit einzelnen Tasten sind eingeschaltet.',
@@ -146,7 +146,7 @@ export const de = {
       'Einzelne Tasten wirken nicht, während du in ein Feld schreibst.',
     /** Under the switch; `palette` is "Strg+K" or "⌘K", `toastKey` "F6". */
     switchHint: (palette: string, toastKey: string) =>
-      `/, ?, N, B, G und 1–9. Ausschalten bei Sprachsteuerung oder wenn du dich oft vertippst. ${palette}, Alt+1–3 und ${toastKey} bleiben an.`,
+      `/, ?, N, B, G und 1 bis 9. Ausschalten bei Sprachsteuerung oder wenn du dich oft vertippst. ${palette}, Alt+1 bis 3 und ${toastKey} bleiben an.`,
     groups: { everywhere: 'Überall', navigation: 'Navigation', actions: 'Aktionen', lists: 'In Listen und Dialogen' },
     /** "?": the shortcuts dialog itself. */
     thisList: 'Diese Übersicht',
@@ -231,7 +231,7 @@ export const de = {
     /** Contract notices (lib/contract-watch.ts), after the session's activity. */
     contracts: 'Verträge & Abos',
     priceRose: (name: string, month: string) => `${name}: seit ${month} teurer`,
-    priceDetail: (delta: ReactNode, perYear: ReactNode): ReactNode[] => [delta, ' mehr pro Zahlung – ', perYear, ' im Jahr'],
+    priceDetail: (delta: ReactNode, perYear: ReactNode): ReactNode[] => [delta, ' mehr pro Zahlung (', perYear, ' im Jahr)'],
     cancelTitle: (name: string, day: string) => `${name}: kündbar bis ${day}`,
     cancelLeft: (days: number) =>
       days > 1 ? `Noch ${days} Tage` : days === 1 ? 'Noch 1 Tag' : days === 0 ? 'Heute ist der letzte Tag' : 'Die Frist ist vorbei',
@@ -338,7 +338,7 @@ export const de = {
   /** "Neu in Girovo 6" (components/NewInSix.tsx): once after the update, and from Einstellungen → Über Girovo. */
   newInSix: {
     title: 'Neu in Girovo 6',
-    intro: 'Was eine PIN speichert oder dieses Gerät verlässt, schaltest du selbst ein – hier oder später in den Einstellungen.',
+    intro: 'Was eine PIN speichert oder dieses Gerät verlässt, schaltest du selbst ein, hier oder später in den Einstellungen.',
     introPlain: 'Was sich mit Version 6 geändert hat.',
     toTurnOn: 'Zum Einschalten',
     alsoNew: 'Außerdem neu',
@@ -383,11 +383,11 @@ export const de = {
     download: 'Herunterladen',
     unclearRestart: (n: number) =>
       n === 1
-        ? 'Die Überweisung mit unklarem Status steht nach dem Neustart nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.'
-        : `Die ${n} Überweisungen mit unklarem Status stehen nach dem Neustart nicht mehr in den Mitteilungen – prüfe sie vorher in deinen Umsätzen.`,
+        ? 'Die Überweisung mit unklarem Status steht nach dem Neustart nicht mehr in den Mitteilungen. Prüfe sie vorher in deinen Umsätzen.'
+        : `Die ${n} Überweisungen mit unklarem Status stehen nach dem Neustart nicht mehr in den Mitteilungen. Prüfe sie vorher in deinen Umsätzen.`,
     cannotUpdate: 'Diese Version kann sich nicht selbst aktualisieren. Hol dir die neue auf der Download-Seite.',
     noFile: 'Girovo kann dieses Update nicht prüfen. Hol es dir auf der Download-Seite.',
-    restarts: 'Girovo startet neu und installiert das Update – meist in unter einer Minute.',
+    restarts: 'Girovo startet neu und installiert das Update, meist in unter einer Minute.',
     logsOut: 'Du wirst dabei abgemeldet.',
     approvalRunning: 'Eine Freigabe läuft noch. Danach kannst du neu starten.',
     checking: 'Suche nach Updates …',
@@ -450,7 +450,7 @@ export const de = {
     restartToGoBack: (v: string) => `Neu starten und zu Version ${v} zurück`,
     restartLogsOut: 'Beim Neustart wirst du abgemeldet.',
     orAtNextStart: 'Ohne Neustart wird das Update beim nächsten Start installiert.',
-    atStartNote: (current: ReactNode) => ['Du nutzt Version ', current, '. Installiert wird beim nächsten Start – oder gleich mit einem Neustart.'],
+    atStartNote: (current: ReactNode) => ['Du nutzt Version ', current, '. Installiert wird beim nächsten Start oder gleich mit einem Neustart.'],
     whatsNewOpen: 'Was ist neu? …',
     loadingPct: (pct: number) => `Lädt … ${pct} %`,
     readyTag: 'Bereit zur Installation',
@@ -494,7 +494,7 @@ export const en: typeof de = {
 
   singleKeys: {
     name: 'Single-key shortcuts',
-    keys: '/, ?, N, B, G and 1–9',
+    keys: '/, ?, N, B, G and 1 to 9',
     turnOff: 'Turn off single-key shortcuts',
     turnOn: 'Turn on single-key shortcuts',
     nowOn: 'Single-key shortcuts are on.',
@@ -572,7 +572,7 @@ export const en: typeof de = {
   shortcuts: {
     description: 'Single keys don’t work while you’re typing in a field.',
     switchHint: (palette, toastKey) =>
-      `/, ?, N, B, G and 1–9. Turn off for voice control or if you often mistype. ${palette}, Alt+1–3 and ${toastKey} stay on.`,
+      `/, ?, N, B, G and 1 to 9. Turn off for voice control or if you often mistype. ${palette}, Alt+1 to 3 and ${toastKey} stay on.`,
     groups: { everywhere: 'Everywhere', navigation: 'Navigation', actions: 'Actions', lists: 'In lists and dialogues' },
     thisList: 'This list',
     toToast: 'To the latest notification and back',
@@ -637,7 +637,7 @@ export const en: typeof de = {
     copyText: 'Copy text',
     contracts: 'Contracts & subscriptions',
     priceRose: (name, month) => `${name}: dearer since ${month}`,
-    priceDetail: (delta, perYear) => [delta, ' more per payment – ', perYear, ' per year'],
+    priceDetail: (delta, perYear) => [delta, ' more per payment (', perYear, ' a year)'],
     cancelTitle: (name, day) => `${name}: cancel by ${day}`,
     cancelLeft: (days) =>
       days > 1 ? `${days} days left` : days === 1 ? '1 day left' : days === 0 ? 'Today is the last day' : 'The deadline has passed',
@@ -715,7 +715,7 @@ export const en: typeof de = {
 
   newInSix: {
     title: 'New in Girovo 6',
-    intro: 'Anything that keeps a PIN or leaves this device is yours to turn on – here or later in Settings.',
+    intro: 'Anything that keeps a PIN or leaves this device is yours to turn on, here or later in Settings.',
     introPlain: 'What changed with version 6.',
     toTurnOn: 'To turn on',
     alsoNew: 'Also new',
@@ -753,11 +753,11 @@ export const en: typeof de = {
     download: 'Download',
     unclearRestart: (n) =>
       n === 1
-        ? 'After the restart, the transfer with an unclear status will no longer be in Messages – check it in your transactions first.'
-        : `After the restart, the ${n} transfers with an unclear status will no longer be in Messages – check them in your transactions first.`,
+        ? 'After the restart, the transfer with an unclear status will no longer be in Messages. Check it in your transactions first.'
+        : `After the restart, the ${n} transfers with an unclear status will no longer be in Messages. Check them in your transactions first.`,
     cannotUpdate: 'This version can’t update itself. Get the new one from the download page.',
     noFile: 'Girovo can’t check this update. Get it from the download page.',
-    restarts: 'Girovo restarts and installs the update – usually in under a minute.',
+    restarts: 'Girovo restarts and installs the update, usually in under a minute.',
     logsOut: 'You’ll be logged out in the process.',
     approvalRunning: 'An approval is still running. You can restart after that.',
     checking: 'Checking for updates…',
@@ -811,7 +811,7 @@ export const en: typeof de = {
     restartToGoBack: (v) => `Restart and go back to version ${v}`,
     restartLogsOut: 'Restarting logs you out.',
     orAtNextStart: 'Without a restart, it’s installed the next time you open Girovo.',
-    atStartNote: (current) => ['You’re using version ', current, '. It’s installed at the next start – or right away with a restart.'],
+    atStartNote: (current) => ['You’re using version ', current, '. It’s installed at the next start or right away with a restart.'],
     whatsNewOpen: 'See what’s new…',
     loadingPct: (pct) => `Downloading… ${pct}%`,
     readyTag: 'Ready to install',

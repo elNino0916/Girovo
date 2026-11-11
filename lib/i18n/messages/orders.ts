@@ -52,7 +52,7 @@ export const de = {
     dated: (date: string) => `Ausführung am ${date}`,
     /** `last`: the last execution date, or null for "until further notice". */
     standing: (first: string, rhythm: string, day: string, last: string | null) =>
-      `Erste Ausführung am ${first}, dann ${rhythm} ${day} – ${last ? `bis ${last}` : 'bis auf Weiteres'}`,
+      `Erste Ausführung am ${first}, dann ${rhythm} ${day}, ${last ? `bis ${last}` : 'bis auf Weiteres'}`,
     /** A Dauerauftrag in a list row: "monatlich am 1.". */
     rhythmLine: (rhythm: string, day: string) => `${rhythm} ${day}`,
   },
@@ -67,7 +67,7 @@ export const de = {
     date: 'Ausführungsdatum',
     /** Under the date fields: the bank's window. */
     window: (from: string, to: string) => `Frühestens am ${from}, spätestens am ${to}.`,
-    notBankDay: 'Kein Bankarbeitstag – deine Bank überweist am nächsten.',
+    notBankDay: 'Kein Bankarbeitstag. Deine Bank überweist am nächsten.',
     rhythm: 'Turnus',
     day: 'Ausführungstag',
     first: 'Erste Ausführung',
@@ -76,17 +76,17 @@ export const de = {
     /** Under Standard | Echtzeit, while a date or a rhythm is chosen. */
     noInstant: 'Echtzeit gibt es nur bei „Sofort“.',
     /** No rules from the bank at hand (none sent, or a device profile from before): the app offers what every bank accepts. */
-    defaults: 'Girovo kennt die Regeln deiner Bank dafür nicht – zur Wahl steht nur das Übliche.',
+    defaults: 'Girovo kennt die Regeln deiner Bank dafür nicht und bietet nur das Übliche an.',
     problems: {
       dateMissing: 'Bitte wähle das Datum.',
-      tooEarly: (from: string) => `Frühestens am ${from} – so viel Vorlauf braucht deine Bank.`,
-      tooLate: (to: string) => `Spätestens am ${to} – weiter im Voraus nimmt deine Bank nichts an.`,
+      tooEarly: (from: string) => `Frühestens am ${from}. So viel Vorlauf braucht deine Bank.`,
+      tooLate: (to: string) => `Spätestens am ${to}. Weiter im Voraus nimmt deine Bank nichts an.`,
       rhythmNotAllowed: 'Diesen Turnus bietet deine Bank nicht an.',
       dayNotAllowed: 'An diesem Tag führt deine Bank Daueraufträge nicht aus.',
       /** `day`: the chosen Ausführungstag as the select names it. */
       firstNotOnDay: (day: string) => `Die erste Ausführung muss auf den Ausführungstag fallen (${day}).`,
       lastBeforeFirst: 'Die letzte Ausführung kann nicht vor der ersten liegen.',
-      lastInvalid: 'Bitte gib ein gültiges Datum an – oder lass das Feld leer.',
+      lastInvalid: 'Bitte gib ein gültiges Datum an oder lass das Feld leer.',
     },
   },
 
@@ -135,10 +135,10 @@ export const de = {
       found: 'Gefunden bei deiner Bank',
       /** `when`: the schedule in words. */
       foundText: (amount: ReactNode, name: string, when: string): ReactNode[] => [
-        amount, ` an ${name} – ${when}. Lege den Auftrag nicht noch einmal an.`,
+        amount, ` an ${name}. ${when}. Lege den Auftrag nicht noch einmal an.`,
       ],
-      notVisible: 'Noch nicht sichtbar – bitte nicht noch einmal anlegen',
-      notChecked: 'Nachsehen nicht möglich – bitte nicht noch einmal anlegen',
+      notVisible: 'Noch nicht sichtbar, bitte nicht noch einmal anlegen',
+      notChecked: 'Nachsehen nicht möglich, bitte nicht noch einmal anlegen',
       /** `list`: the plural of the kind ("Daueraufträgen"). */
       notYet: (list: string, time: ReactNode): ReactNode[] => [
         `Noch nicht in deinen ${list} (Stand `,
@@ -189,14 +189,14 @@ export const de = {
     } as Record<OrderWait, { title: string; text: string }>,
     /** "Freigabe abbrechen?" while one of these is waited for: what stays open. */
     abort: {
-      standingOrder: 'Der Dauerauftrag ist vielleicht schon angelegt. Brichst du ab, bleibt das unklar – '
-        + 'sieh bei deinen Aufträgen nach, bevor du ihn noch einmal anlegst.',
-      datedTransfer: 'Die Terminüberweisung ist vielleicht schon angelegt. Brichst du ab, bleibt das unklar – '
-        + 'sieh bei deinen Aufträgen nach, bevor du sie noch einmal anlegst.',
-      orderDelete: 'Der Auftrag ist vielleicht schon gelöscht. Brichst du ab, bleibt das unklar – '
-        + 'aktualisiere die Liste, bevor du ihn noch einmal löschst.',
-      orderChange: 'Der Auftrag ist vielleicht schon geändert. Brichst du ab, bleibt das unklar – '
-        + 'aktualisiere die Liste, bevor du ihn noch einmal änderst.',
+      standingOrder: 'Der Dauerauftrag ist vielleicht schon angelegt. Brichst du ab, bleibt das unklar. '
+        + 'Sieh bei deinen Aufträgen nach, bevor du ihn noch einmal anlegst.',
+      datedTransfer: 'Die Terminüberweisung ist vielleicht schon angelegt. Brichst du ab, bleibt das unklar. '
+        + 'Sieh bei deinen Aufträgen nach, bevor du sie noch einmal anlegst.',
+      orderDelete: 'Der Auftrag ist vielleicht schon gelöscht. Brichst du ab, bleibt das unklar. '
+        + 'Aktualisiere die Liste, bevor du ihn noch einmal löschst.',
+      orderChange: 'Der Auftrag ist vielleicht schon geändert. Brichst du ab, bleibt das unklar. '
+        + 'Aktualisiere die Liste, bevor du ihn noch einmal änderst.',
     } as Record<Exclude<OrderWait, 'bankOrders'>, string>,
   },
 
@@ -208,7 +208,7 @@ export const de = {
     count: (kind: Kind, n: number): string => (kind === 'standing'
       ? (n === 1 ? '1 Dauerauftrag' : `${n} Daueraufträge`)
       : (n === 1 ? '1 Terminüberweisung' : `${n} Terminüberweisungen`)),
-    notRead: 'Bei deiner Bank – noch nicht geladen',
+    notRead: 'Bei deiner Bank, noch nicht geladen',
   },
 
   list: {
@@ -234,8 +234,8 @@ export const de = {
     more: (n: number) => (n === 1 ? 'und eine weitere Zahlung' : `und ${n} weitere Zahlungen`),
     incomplete: 'Unvollständig: Deine Bank hat nicht alle Aufträge gesendet.',
     unreadable: (n: number) => (n === 1
-      ? 'Ein Auftrag fehlt – Girovo konnte ihn nicht lesen.'
-      : `${n} Aufträge fehlen – Girovo konnte sie nicht lesen.`),
+      ? 'Ein Auftrag fehlt, weil Girovo ihn nicht lesen konnte.'
+      : `${n} Aufträge fehlen, weil Girovo sie nicht lesen konnte.`),
     /** `time`: when the list was read. */
     asOf: (time: string) => `Stand ${time}`,
     change: 'Ändern geht hier nicht: Lösche den Auftrag und lege ihn neu an.',
@@ -257,11 +257,11 @@ export const de = {
     button: 'Ändern …',
     buttonLabel: (kind: Kind, name: string) => `${kind === 'standing' ? 'Dauerauftrag' : 'Terminüberweisung'} an ${name} ändern …`,
     title: { standing: 'Dauerauftrag ändern', dated: 'Terminüberweisung ändern' } as Record<Kind, string>,
-    intro: 'Du kannst Betrag, Verwendungszweck und Termin ändern – nicht den Empfänger.',
+    intro: 'Du kannst Betrag, Verwendungszweck und Termin ändern, aber nicht den Empfänger.',
     payee: 'Empfänger',
     amount: 'Betrag',
     purpose: 'Verwendungszweck',
-    purposeTooLong: (max: number) => `Der Verwendungszweck ist zu lang – höchstens ${max} Zeichen.`,
+    purposeTooLong: (max: number) => `Der Verwendungszweck ist zu lang (höchstens ${max} Zeichen).`,
     /** A Dauerauftrag's change applies from a run on, not to those already made. */
     from: (date: string) => `Die Änderung gilt ab der Ausführung am ${date}.`,
     unchanged: 'Du hast noch nichts geändert.',
@@ -283,7 +283,7 @@ export const de = {
     title: { standing: 'Dauerauftrag löschen?', dated: 'Terminüberweisung löschen?' } as Record<Kind, string>,
     body: {
       standing: 'Deine Bank löscht den Dauerauftrag. Bereits ausgeführte Zahlungen bleiben.',
-      dated: 'Deine Bank löscht die Terminüberweisung – sie wird dann nicht ausgeführt.',
+      dated: 'Deine Bank löscht die Terminüberweisung. Sie wird dann nicht ausgeführt.',
     } as Record<Kind, string>,
     approval: 'Danach bittet dich deine Bank um die Freigabe.',
     keep: 'Behalten',
@@ -298,11 +298,11 @@ export const de = {
     placedStanding: (when: string, money: string, who: string) =>
       `${when} hast du bereits einen Dauerauftrag über ${money} an ${who} eingerichtet.`,
     placedStandingUnclear: (when: string, money: string, who: string) =>
-      `${when} hast du bereits einen Dauerauftrag über ${money} an ${who} gesendet – sein Status ist unklar.`,
+      `${when} hast du bereits einen Dauerauftrag über ${money} an ${who} gesendet. Sein Status ist unklar.`,
     placedDated: (when: string, money: string, who: string, due: string) =>
       `${when} hast du bereits eine Terminüberweisung über ${money} an ${who} zum ${due} angelegt.`,
     placedDatedUnclear: (when: string, money: string, who: string, due: string) =>
-      `${when} hast du bereits eine Terminüberweisung über ${money} an ${who} zum ${due} gesendet – ihr Status ist unklar.`,
+      `${when} hast du bereits eine Terminüberweisung über ${money} an ${who} zum ${due} gesendet. Ihr Status ist unklar.`,
     /** Found in the list the bank sent. `rhythm`: "monatlich am 1.", or null when unreadable. */
     bankStanding: (money: string, who: string, rhythm: string | null) =>
       `Bei deiner Bank besteht schon ein Dauerauftrag über ${money} an ${who}${rhythm ? ` (${rhythm})` : ''}.`,
@@ -341,7 +341,7 @@ export const de = {
     /** A change the bank or the account does not offer for this order. */
     cannotChange: (kind: Kind) => `${kind === 'standing' ? 'Diesen Dauerauftrag' : 'Diese Terminüberweisung'} kannst du hier nicht ändern.`,
     /** A change may keep the payee only: another payee is another order. */
-    changePayee: 'Der Empfänger lässt sich nicht ändern – lege dafür einen neuen Auftrag an.',
+    changePayee: 'Der Empfänger lässt sich nicht ändern. Lege dafür einen neuen Auftrag an.',
   },
 };
 
@@ -369,7 +369,7 @@ export const en: typeof de = {
     onWeekday: (name) => `on ${name}`,
     dated: (date) => `Carried out on ${date}`,
     standing: (first, rhythm, day, last) =>
-      `First on ${first}, then ${rhythm} ${day} – ${last ? `until ${last}` : 'until further notice'}`,
+      `First on ${first}, then ${rhythm} ${day}, ${last ? `until ${last}` : 'until further notice'}`,
     rhythmLine: (rhythm, day) => `${rhythm} ${day}`,
   },
 
@@ -380,23 +380,23 @@ export const en: typeof de = {
     standing: 'Regularly',
     date: 'Execution date',
     window: (from, to) => `From ${from} at the earliest, ${to} at the latest.`,
-    notBankDay: 'Not a banking day – your bank will transfer on the next one.',
+    notBankDay: 'Not a banking day. Your bank will transfer on the next one.',
     rhythm: 'Frequency',
     day: 'Execution day',
     first: 'First payment',
     last: 'Last payment',
     lastHint: 'Leave empty: until further notice.',
     noInstant: 'Instant is only available with “Now”.',
-    defaults: 'Girovo does not know your bank’s rules for this – only the usual options are offered.',
+    defaults: 'Girovo does not know your bank’s rules for this, so it offers only the usual options.',
     problems: {
       dateMissing: 'Please choose the date.',
-      tooEarly: (from) => `${from} at the earliest – your bank needs that much notice.`,
-      tooLate: (to) => `${to} at the latest – your bank accepts nothing further ahead.`,
+      tooEarly: (from) => `${from} at the earliest. Your bank needs that much notice.`,
+      tooLate: (to) => `${to} at the latest. Your bank accepts nothing further ahead.`,
       rhythmNotAllowed: 'Your bank does not offer this frequency.',
       dayNotAllowed: 'Your bank does not carry out standing orders on this day.',
       firstNotOnDay: (day) => `The first payment has to fall on the execution day (${day}).`,
       lastBeforeFirst: 'The last payment cannot be before the first.',
-      lastInvalid: 'Please enter a valid date – or leave the field empty.',
+      lastInvalid: 'Please enter a valid date or leave the field empty.',
     },
   },
 
@@ -436,9 +436,9 @@ export const en: typeof de = {
       },
       loading: { standing: 'Loading standing orders…', dated: 'Loading scheduled transfers…' },
       found: 'Found at your bank',
-      foundText: (amount, name, when) => [amount, ` to ${name} – ${when}. Do not set up the order again.`],
-      notVisible: 'Not visible yet – please do not set it up again',
-      notChecked: 'Could not check – please do not set it up again',
+      foundText: (amount, name, when) => [amount, ` to ${name}. ${when}. Do not set up the order again.`],
+      notVisible: 'Not visible yet, so please do not set it up again',
+      notChecked: 'Could not check, so please do not set it up again',
       notYet: (list, time) => [
         `Not in your ${list} yet (as of `,
         time,
@@ -483,14 +483,14 @@ export const en: typeof de = {
       orderChange: { title: 'Order not changed', text: 'Your bank declined the change:' },
     },
     abort: {
-      standingOrder: 'The standing order may already be set up. If you cancel, that stays unclear – '
-        + 'check your orders before you set it up again.',
-      datedTransfer: 'The scheduled transfer may already be created. If you cancel, that stays unclear – '
-        + 'check your orders before you schedule it again.',
-      orderDelete: 'The order may already be deleted. If you cancel, that stays unclear – '
-        + 'refresh the list before you delete it again.',
-      orderChange: 'The order may already be changed. If you cancel, that stays unclear – '
-        + 'refresh the list before you change it again.',
+      standingOrder: 'The standing order may already be set up. If you cancel, that stays unclear. '
+        + 'Check your orders before you set it up again.',
+      datedTransfer: 'The scheduled transfer may already be created. If you cancel, that stays unclear. '
+        + 'Check your orders before you schedule it again.',
+      orderDelete: 'The order may already be deleted. If you cancel, that stays unclear. '
+        + 'Refresh the list before you delete it again.',
+      orderChange: 'The order may already be changed. If you cancel, that stays unclear. '
+        + 'Refresh the list before you change it again.',
     },
   },
 
@@ -499,7 +499,7 @@ export const en: typeof de = {
     count: (kind, n) => (kind === 'standing'
       ? (n === 1 ? '1 standing order' : `${n} standing orders`)
       : (n === 1 ? '1 scheduled transfer' : `${n} scheduled transfers`)),
-    notRead: 'At your bank – not loaded yet',
+    notRead: 'At your bank, not loaded yet',
   },
 
   list: {
@@ -520,8 +520,8 @@ export const en: typeof de = {
     more: (n) => (n === 1 ? 'and one more payment' : `and ${n} more payments`),
     incomplete: 'Incomplete: your bank did not send all orders.',
     unreadable: (n) => (n === 1
-      ? 'One order is missing – Girovo could not read it.'
-      : `${n} orders are missing – Girovo could not read them.`),
+      ? 'One order is missing because Girovo could not read it.'
+      : `${n} orders are missing because Girovo could not read them.`),
     asOf: (time) => `As of ${time}`,
     change: 'Changing an order is not possible here: delete it and create it again.',
     remove: 'Delete…',
@@ -537,11 +537,11 @@ export const en: typeof de = {
     button: 'Change…',
     buttonLabel: (kind, name) => `Change ${kind === 'standing' ? 'standing order' : 'scheduled transfer'} to ${name}…`,
     title: { standing: 'Change standing order', dated: 'Change scheduled transfer' },
-    intro: 'You can change the amount, payment reference and date – not the payee.',
+    intro: 'You can change the amount, payment reference and date, but not the payee.',
     payee: 'Payee',
     amount: 'Amount',
     purpose: 'Payment reference',
-    purposeTooLong: (max) => `The payment reference is too long – at most ${max} characters.`,
+    purposeTooLong: (max) => `The payment reference is too long (at most ${max} characters).`,
     from: (date) => `The change applies from the payment on ${date}.`,
     unchanged: 'You have not changed anything yet.',
     send: 'Send change',
@@ -561,7 +561,7 @@ export const en: typeof de = {
     title: { standing: 'Delete standing order?', dated: 'Delete scheduled transfer?' },
     body: {
       standing: 'Your bank deletes the standing order. Payments already made stay.',
-      dated: 'Your bank deletes the scheduled transfer – it will not be carried out.',
+      dated: 'Your bank deletes the scheduled transfer. It will not be carried out.',
     },
     approval: 'Your bank will then ask for your approval.',
     keep: 'Keep',
@@ -573,10 +573,10 @@ export const en: typeof de = {
   duplicate: {
     placedStanding: (when, money, who) => `You already set up a standing order of ${money} to ${who} ${when}.`,
     placedStandingUnclear: (when, money, who) =>
-      `You already sent a standing order of ${money} to ${who} ${when} – its status is unclear.`,
+      `You already sent a standing order of ${money} to ${who} ${when}. Its status is unclear.`,
     placedDated: (when, money, who, due) => `You already scheduled a transfer of ${money} to ${who} for ${due} ${when}.`,
     placedDatedUnclear: (when, money, who, due) =>
-      `You already sent a scheduled transfer of ${money} to ${who} for ${due} ${when} – its status is unclear.`,
+      `You already sent a scheduled transfer of ${money} to ${who} for ${due} ${when}. Its status is unclear.`,
     bankStanding: (money, who, rhythm) => `Your bank already holds a standing order of ${money} to ${who}${rhythm ? ` (${rhythm})` : ''}.`,
     bankDated: (money, who, date) => `Your bank already holds a scheduled transfer of ${money} to ${who}${date ? ` for ${date}` : ''}.`,
     title: { standing: 'Already set up?', dated: 'Already scheduled?' },
@@ -603,6 +603,6 @@ export const en: typeof de = {
     unknownOrder: 'Girovo no longer knows this order. Please refresh the list.',
     listFailed: 'Your bank did not deliver the list.',
     cannotChange: (kind) => `You cannot change this ${kind === 'standing' ? 'standing order' : 'scheduled transfer'} here.`,
-    changePayee: 'The payee cannot be changed – set up a new order for that.',
+    changePayee: 'The payee cannot be changed. Set up a new order for that.',
   },
 };

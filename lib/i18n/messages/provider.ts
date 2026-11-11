@@ -16,7 +16,7 @@ export const de = {
   /** A bank that does not answer, or not usefully (lib/bank-answer.ts, lib/bank-fetch.ts). */
   bank: {
     /** An error page (maintenance), a reply that is no FinTS message, or no answer in time. */
-    unavailable: 'Deine Bank antwortet gerade nicht – oft ist das eine Wartung.',
+    unavailable: 'Deine Bank antwortet gerade nicht. Oft ist das eine Wartung.',
     /** No connection at all (no network, the name not resolved). */
     unreachable: 'Deine Bank ist gerade nicht erreichbar. Prüfe deine Internetverbindung.',
     /** The next step a login or a read adds to either sentence above — never an order. */
@@ -99,10 +99,10 @@ export const de = {
     hiddenTitle: 'Du wurdest abgemeldet',
     /** After a logout's notice: one transfer whose outcome is not known. `to` is a payees() phrase, or ''. */
     unclearOne: (to: string) =>
-      `Der Status deiner Überweisung${to ? ` ${to}` : ''} ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.`,
+      `Der Status deiner Überweisung${to ? ` ${to}` : ''} ist unklar. Prüfe deine Umsätze, bevor du sie noch einmal sendest.`,
     /** After a logout's notice: `count` (two or more) such transfers. */
     unclearMany: (count: number, to: string) =>
-      `Der Status von ${count} Überweisungen${to ? ` ${to}` : ''} ist unklar – prüfe deine Umsätze, bevor du eine davon noch einmal sendest.`,
+      `Der Status von ${count} Überweisungen${to ? ` ${to}` : ''} ist unklar. Prüfe deine Umsätze, bevor du eine davon noch einmal sendest.`,
     expired: 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
   },
 
@@ -132,7 +132,7 @@ export const de = {
     /** The route refused what was typed: it cannot be a TAN. */
     badTan: 'Das ist keine gültige TAN.',
     /** A statement asking for its own approval right after the login's. */
-    secondApproval: 'Die Anmeldung ist freigegeben – für die Umsätze fragt deine Bank ein zweites Mal.',
+    secondApproval: 'Die Anmeldung ist freigegeben. Für die Umsätze fragt deine Bank ein zweites Mal.',
     /** The bank closed the dialog before the approval arrived — the bank's timeout, not the user's. */
     endedTitle: 'Freigabe nicht rechtzeitig angekommen',
     endedText: 'Deine Bank hat den Vorgang beendet.',
@@ -143,21 +143,21 @@ export const de = {
   },
 
   /** A wait, not a failure: said as a notice, never in the error's red. */
-  busy: 'Bitte warten – ein anderer Vorgang läuft noch.',
+  busy: 'Bitte warten. Ein anderer Vorgang läuft noch.',
 
   login: {
     /** A login the user called off while the bank was being asked. */
     cancelled: 'Die Anmeldung wurde abgebrochen.',
-    deviceRecognised: 'Gerät erkannt – ohne neue Freigabe angemeldet.',
+    deviceRecognised: 'Gerät erkannt, ohne neue Freigabe angemeldet.',
     /** A remembered device logs in afresh: its bank now knows Girovo's own product ID (lib/product-fallback.ts). */
     productChanged: 'Diese Anmeldung braucht einmal eine Freigabe. Danach erkennt deine Bank dein Gerät wieder.',
   },
 
   device: {
-    saved: 'Gerät gemerkt – künftige Anmeldungen brauchen seltener eine Freigabe.',
+    saved: 'Gerät gemerkt. Künftige Anmeldungen brauchen seltener eine Freigabe.',
     /** The action on that notice; it opens the confirmation. */
     forget: 'Gerät vergessen …',
-    forgotten: 'Gerät vergessen – bei der nächsten Anmeldung fragt deine Bank wieder nach einer Freigabe.',
+    forgotten: 'Gerät vergessen. Bei der nächsten Anmeldung fragt deine Bank wieder nach einer Freigabe.',
     forgottenAndWiped:
       'Gerät vergessen und deine gespeicherten Daten von diesem Rechner gelöscht. Bis zum Abmelden wird nichts mehr gespeichert.',
   },
@@ -174,8 +174,8 @@ export const de = {
     balanceWithStatements:
       'Diese Konten melden ihren Saldo nur mit den Umsätzen. Wähle dort einen Zeitraum bis heute.',
     /** An approval for a new period that was not given; `span` is the period still shown. */
-    olderNotFetched: (span: string) => `Ältere Umsätze wurden nicht geladen – es bleibt bei ${span}.`,
-    periodNotFetched: (span: string) => `Der neue Zeitraum wurde nicht geladen – es bleibt bei ${span}.`,
+    olderNotFetched: (span: string) => `Ältere Umsätze wurden nicht geladen. Es bleibt bei ${span}.`,
+    periodNotFetched: (span: string) => `Der neue Zeitraum wurde nicht geladen. Es bleibt bei ${span}.`,
     invalidPeriod: 'Bitte einen gültigen Zeitraum wählen.',
     /** `reason`: the bank's or the server's words. */
     pendingFailed: (account: string, reason: string) =>
@@ -201,7 +201,7 @@ export const en: typeof de = {
   },
 
   bank: {
-    unavailable: 'Your bank isn’t answering right now – this is often maintenance.',
+    unavailable: 'Your bank isn’t answering right now. This is often maintenance.',
     unreachable: 'Your bank can’t be reached right now. Check your internet connection.',
     tryAgainLater: 'Try again in a few minutes.',
     noReason: 'Your bank didn’t give a reason.',
@@ -262,9 +262,9 @@ export const en: typeof de = {
     hidden: 'You were logged out when you closed the window.',
     hiddenTitle: 'You were logged out',
     unclearOne: (to) =>
-      `The status of your transfer${to ? ` ${to}` : ''} is unclear – check your transactions before you send it again.`,
+      `The status of your transfer${to ? ` ${to}` : ''} is unclear. Check your transactions before you send it again.`,
     unclearMany: (count, to) =>
-      `The status of ${count} transfers${to ? ` ${to}` : ''} is unclear – check your transactions before you send any of them again.`,
+      `The status of ${count} transfers${to ? ` ${to}` : ''} is unclear. Check your transactions before you send any of them again.`,
     expired: 'Your session has expired. Please log in again.',
   },
 
@@ -287,25 +287,25 @@ export const en: typeof de = {
     confirmInApp: (subject) => `Confirm ${subject} in your banking app.`,
     typeTan: (subject) => `Enter the TAN for ${subject}.`,
     badTan: 'That is not a valid TAN.',
-    secondApproval: 'The login is approved – your bank asks a second time for the transactions.',
+    secondApproval: 'The login is approved. Your bank asks a second time for the transactions.',
     endedTitle: 'Approval did not arrive in time',
     endedText: 'Your bank ended the request.',
     notConfirmed: 'Your bank did not confirm the approval.',
     unverifiable: 'Girovo can’t tell right now whether the approval arrived.',
   },
 
-  busy: 'Please wait – another operation is still in progress.',
+  busy: 'Please wait. Another operation is still in progress.',
 
   login: {
     cancelled: 'The login was cancelled.',
-    deviceRecognised: 'Device recognised – logged in without a new approval.',
+    deviceRecognised: 'Device recognised, logged in without a new approval.',
     productChanged: 'This login needs one approval. After that, your bank recognises your device again.',
   },
 
   device: {
-    saved: 'Device remembered – future logins will need an approval less often.',
+    saved: 'Device remembered. Future logins will need an approval less often.',
     forget: 'Forget device…',
-    forgotten: 'Device forgotten – at your next login, your bank will ask for an approval again.',
+    forgotten: 'Device forgotten. At your next login, your bank will ask for an approval again.',
     forgottenAndWiped:
       'Device forgotten and your saved data deleted from this computer. Nothing more will be saved until you log out.',
   },
@@ -317,8 +317,8 @@ export const en: typeof de = {
     balanceMismatch: 'Your bank sent something other than the balance. Try again.',
     balanceWithStatements:
       'These accounts only report their balance with their transactions. Choose a period up to today under Transactions.',
-    olderNotFetched: (span) => `Older transactions were not loaded – it stays at ${span}.`,
-    periodNotFetched: (span) => `The new period was not loaded – it stays at ${span}.`,
+    olderNotFetched: (span) => `Older transactions were not loaded. It stays at ${span}.`,
+    periodNotFetched: (span) => `The new period was not loaded. It stays at ${span}.`,
     invalidPeriod: 'Please choose a valid period.',
     pendingFailed: (account, reason) => `Pending transactions for “${account}” not loaded: ${reason}`,
   },

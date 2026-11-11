@@ -98,7 +98,7 @@ impl Tray {
   pub fn of(lang: Lang) -> Self {
     match lang {
       Lang::De => Tray {
-        tooltip: "Girovo – meldet neue Umsätze",
+        tooltip: "Girovo meldet neue Umsätze",
         open: "Girovo öffnen",
         check: "Jetzt nach neuen Umsätzen sehen",
         quit: "Beenden",
@@ -106,7 +106,7 @@ impl Tray {
         still: "Es meldet neue Umsätze. Beenden kannst du es über das Symbol im Infobereich.",
       },
       Lang::En => Tray {
-        tooltip: "Girovo – reports new transactions",
+        tooltip: "Girovo reports new transactions",
         open: "Open Girovo",
         check: "Look for new transactions now",
         quit: "Quit",

@@ -12,7 +12,7 @@ export const de = {
   /** The hint once some are kept; `date` is the oldest kept day ("12.03.2025"). */
   keptSince: (date: string) => `Seit ${date} gespeichert, mit deiner PIN verschlüsselt.`,
   loading: 'Gespeicherte Umsätze werden geladen …',
-  unreadable: 'Nicht lesbar – hat sich deine PIN geändert? Bis du neu beginnst, kommen keine dazu.',
+  unreadable: 'Nicht lesbar. Hat sich deine PIN geändert? Bis du neu beginnst, kommen keine dazu.',
   unavailable: 'Die gespeicherten Umsätze ließen sich nicht laden. In dieser Sitzung kommen keine dazu.',
   startOver: 'Neu beginnen …',
 
@@ -20,7 +20,7 @@ export const de = {
   offDialog: {
     title: 'Gespeicherte Umsätze löschen?',
     description: 'Alle gespeicherten Umsätze werden von diesem Rechner gelöscht, auch ältere Sicherungen. Das lässt sich nicht rückgängig machen.',
-    body: 'Deine Bank zeigt sie weiter – oft nur die letzten Monate.',
+    body: 'Deine Bank zeigt sie weiter, oft aber nur die letzten Monate.',
     confirm: 'Ausschalten und löschen',
   },
 
@@ -34,7 +34,7 @@ export const de = {
   /** Toasts (components/FintsProvider.tsx). */
   turnedOn: 'Deine Umsätze bleiben ab jetzt auf diesem Rechner.',
   deleted: 'Die gespeicherten Umsätze sind gelöscht.',
-  restarted: 'Neu begonnen – deine Umsätze werden wieder behalten.',
+  restarted: 'Neu begonnen. Deine Umsätze werden wieder behalten.',
 
   /** The Umsätze list (components/Transactions.tsx, components/transactions/TxList.tsx). */
   list: {
@@ -80,7 +80,7 @@ export const de = {
     foreign: 'Die Datei gehört zu einem anderen Konto. Prüfe, ob du das richtige gewählt hast.',
     run: 'Importieren',
     done: (days: number, count: string) =>
-      days ? `${nDe(days)} ${days === 1 ? 'Tag' : 'Tage'} mit ${count} ergänzt.` : 'Nichts Neues – diese Tage sind schon gespeichert.',
+      days ? `${nDe(days)} ${days === 1 ? 'Tag' : 'Tage'} mit ${count} ergänzt.` : 'Nichts Neues. Diese Tage sind schon gespeichert.',
     keepOff: 'Importieren geht nur, solange „Umsätze behalten“ an ist.',
     server: {
       tooLarge: 'Die Datei ist zu groß.',
@@ -96,14 +96,14 @@ export const en: typeof de = {
   keepHint: 'Encrypted with your PIN.',
   keptSince: (date) => `Kept since ${date}, encrypted with your PIN.`,
   loading: 'Loading saved transactions…',
-  unreadable: 'Can’t be read – has your PIN changed? Nothing is added until you start again.',
+  unreadable: 'Can’t be read. Has your PIN changed? Nothing is added until you start again.',
   unavailable: 'The saved transactions could not be loaded. Nothing is added in this session.',
   startOver: 'Start again…',
 
   offDialog: {
     title: 'Delete saved transactions?',
     description: 'All saved transactions are deleted from this computer, older backups too. This cannot be undone.',
-    body: 'Your bank still shows them – often only the last few months.',
+    body: 'Your bank still shows them, but often only the last few months.',
     confirm: 'Turn off and delete',
   },
 
@@ -115,7 +115,7 @@ export const en: typeof de = {
 
   turnedOn: 'Your transactions now stay on this computer.',
   deleted: 'The saved transactions have been deleted.',
-  restarted: 'Started again – your transactions are being kept again.',
+  restarted: 'Started again. Your transactions are being kept again.',
 
   list: {
     divider: 'From here on: saved on this computer',
@@ -152,7 +152,7 @@ export const en: typeof de = {
     account: 'Account',
     foreign: 'The file belongs to another account. Check that you chose the right one.',
     run: 'Import',
-    done: (days, count) => (days ? `${nEn(days)} ${days === 1 ? 'day' : 'days'} with ${count} added.` : 'Nothing new – these days are already saved.'),
+    done: (days, count) => (days ? `${nEn(days)} ${days === 1 ? 'day' : 'days'} with ${count} added.` : 'Nothing new. These days are already saved.'),
     keepOff: 'Importing only works while “Keep transactions” is on.',
     server: {
       tooLarge: 'The file is too large.',

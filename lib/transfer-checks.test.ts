@@ -64,7 +64,7 @@ test('an unclear order from before a logout is found in the vault log', () => {
   const d = check({ sent: [sent()] });
   assert.equal(
     d?.sentence,
-    'Am 03.10.2026 um 18:40 Uhr hast du bereits eine Überweisung über 120,00 € an Lea Becker gesendet – ihr Status ist unklar.',
+    'Am 03.10.2026 um 18:40 Uhr hast du bereits eine Überweisung über 120,00 € an Lea Becker gesendet. Ihr Status ist unklar.',
   );
 });
 
@@ -81,7 +81,7 @@ test('a vorgemerkte payment counts before the booked statements', () => {
 test('a direct debit is named as one', () => {
   const debit = tx({ bookingText: 'LASTSCHRIFT', transactionCode: '105', remoteName: 'STADTWERKE' });
   assert.equal(check({ txByAccount: { 1: [debit] } })?.sentence, 'Am 02.10.2026 hat Stadtwerke bereits 120,00 € per Lastschrift eingezogen.');
-  assert.equal(check({ pending: { 1: [debit] } })?.sentence, 'Stadtwerke zieht bereits 120,00 € per Lastschrift ein – die Buchung ist vorgemerkt.');
+  assert.equal(check({ pending: { 1: [debit] } })?.sentence, 'Stadtwerke zieht bereits 120,00 € per Lastschrift ein. Die Buchung ist vorgemerkt.');
 });
 
 test('a booked transfer is found by IBAN and amount', () => {
@@ -291,7 +291,7 @@ test('a terminierte Überweisung is one payment: payments and other Terminüberw
 });
 
 test('a transfer now is warned about a terminierte Überweisung of the same payment, never about a Dauerauftrag', () => {
-  assert.match(check({ activity: [activity({ schedule: dated, outcome: 'unknown' })] })?.sentence ?? '', /Terminüberweisung .* zum 20\.10\.2026 gesendet – ihr Status ist unklar/);
+  assert.match(check({ activity: [activity({ schedule: dated, outcome: 'unknown' })] })?.sentence ?? '', /Terminüberweisung .* zum 20\.10\.2026 gesendet. Ihr Status ist unklar/);
   assert.equal(check({ sent: [sent({ kind: 'standing', due: '2026-11-01' })] }), null);
   assert.equal(check({ activity: [activity()] })?.title, 'Schon einmal überwiesen?');
 });

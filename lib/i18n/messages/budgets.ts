@@ -30,9 +30,9 @@ export const de = {
     unknown: 'Rest offen',
     /** The whole range on view: a budget's own figure. */
     perMonth: (amount: ReactNode): ReactNode[] => [amount, ' pro Monat'],
-    running: (day: string) => `Der Monat läuft noch – Stand ${day}.`,
+    running: (day: string) => `Der Monat läuft noch. Stand: ${day}.`,
     partial: (from: string, to: string) =>
-      `Nur ${from} bis ${to} geladen – die Ausgaben können höher sein.`,
+      `Nur ${from} bis ${to} geladen. Die Ausgaben können höher sein.`,
     none: 'Für diesen Monat sind keine Umsätze geladen.',
     wholeRange: 'Budgets gelten pro Monat. Wähle oben einen Monat.',
     showMonth: (month: string) => `${month} anzeigen`,
@@ -46,7 +46,7 @@ export const de = {
       invalid: 'Gib einen Betrag ein, zum Beispiel 250 oder 250,50.',
       notPositive: 'Der Betrag muss größer als 0 sein.',
       tooLarge: (max: string) => `Höchstens ${max}.`,
-      private: 'Verschlüsselt auf diesem Rechner – deine Bank sieht sie nicht.',
+      private: 'Verschlüsselt auf diesem Rechner. Deine Bank sieht sie nicht.',
     },
   },
 
@@ -66,8 +66,8 @@ export const de = {
     /** The row's mark: its tooltip, and what a screen reader hears. */
     marker: 'Mit Notiz',
     oldestDropped: (n: number) => (n === 1
-      ? 'Der Platz für Notizen ist voll – die älteste wurde entfernt.'
-      : `Der Platz für Notizen ist voll – die ${n} ältesten wurden entfernt.`),
+      ? 'Der Platz für Notizen ist voll. Die älteste wurde entfernt.'
+      : `Der Platz für Notizen ist voll. Die ${n} ältesten wurden entfernt.`),
     /** The CSV export's last column. */
     csvColumn: 'Notiz',
   },
@@ -134,9 +134,9 @@ export const en: typeof de = {
     exact: 'Budget used up',
     unknown: 'Amount left unknown',
     perMonth: (amount) => [amount, ' a month'],
-    running: (day) => `The month is still running – as of ${day}.`,
+    running: (day) => `The month is still running. As of ${day}.`,
     partial: (from, to) =>
-      `Only ${from} to ${to} loaded – spending may be higher.`,
+      `Only ${from} to ${to} loaded. Spending may be higher.`,
     none: 'No transactions are loaded for this month.',
     wholeRange: 'Budgets are per month. Choose a month above.',
     showMonth: (month) => `Show ${month}`,
@@ -149,7 +149,7 @@ export const en: typeof de = {
       invalid: 'Enter an amount, for example 250 or 250.50.',
       notPositive: 'The amount must be more than 0.',
       tooLarge: (max) => `At most ${max}.`,
-      private: 'Encrypted on this computer – your bank never sees them.',
+      private: 'Encrypted on this computer. Your bank never sees them.',
     },
   },
 
@@ -167,8 +167,8 @@ export const en: typeof de = {
     removed: 'Note deleted.',
     marker: 'With note',
     oldestDropped: (n) => (n === 1
-      ? 'The space for notes is full – the oldest one was removed.'
-      : `The space for notes is full – the ${n} oldest were removed.`),
+      ? 'The space for notes is full. The oldest one was removed.'
+      : `The space for notes is full. The ${n} oldest were removed.`),
     csvColumn: 'Note',
   },
 

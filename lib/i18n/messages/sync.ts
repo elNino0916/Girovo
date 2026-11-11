@@ -4,7 +4,7 @@
 export const de = {
   section: 'Geräte',
   title: 'Mit anderen Geräten abgleichen',
-  hintOff: 'Kategorien, Notizen und Belege auf all deinen Geräten – nur für dich lesbar.',
+  hintOff: 'Kategorien, Notizen und Belege auf all deinen Geräten, nur für dich lesbar.',
   hintOn: (n: number, when: string) => `${n === 1 ? 'Ein weiteres Gerät' : `${n} weitere Geräte`} · zuletzt ${when}`,
   hintAlone: 'Wartet auf das zweite Gerät',
   never: 'noch nie',
@@ -51,7 +51,7 @@ export const de = {
   leaveText: 'Deine Daten hier bleiben. Die anderen Geräte gleichen weiter ab.',
   /** Toasts. */
   synced: 'Abgeglichen.',
-  syncedChanges: (n: number) => (n ? `Abgeglichen – ${n === 1 ? 'ein Beleg' : `${n} Belege`} dazugekommen.` : 'Abgeglichen – Neues von deinen anderen Geräten.'),
+  syncedChanges: (n: number) => (n ? `Abgeglichen: ${n === 1 ? 'ein Beleg' : `${n} Belege`} dazugekommen.` : 'Abgeglichen: Neues von deinen anderen Geräten.'),
   joined: 'Verbunden. Girovo gleicht jetzt ab.',
   left: 'Dieses Gerät gleicht nicht mehr ab.',
   failed: 'Der Abgleich hat nicht geklappt.',
@@ -83,7 +83,7 @@ export const de = {
 export const en: typeof de = {
   section: 'Devices',
   title: 'Sync with your other devices',
-  hintOff: 'Categories, notes and receipts on all your devices – readable only by you.',
+  hintOff: 'Categories, notes and receipts on all your devices, readable only by you.',
   hintOn: (n, when) => `${n === 1 ? 'One other device' : `${n} other devices`} · last ${when}`,
   hintAlone: 'Waiting for the second device',
   never: 'never',
@@ -124,7 +124,7 @@ export const en: typeof de = {
   leave: 'Stop syncing on this device',
   leaveText: 'Your data here stays. The other devices keep syncing.',
   synced: 'Synced.',
-  syncedChanges: (n) => (n ? `Synced – ${n === 1 ? 'one receipt' : `${n} receipts`} added.` : 'Synced – news from your other devices.'),
+  syncedChanges: (n) => (n ? `Synced: ${n === 1 ? 'one receipt' : `${n} receipts`} added.` : 'Synced: new items from your other devices.'),
   joined: 'Connected. Girovo now syncs.',
   left: 'This device no longer syncs.',
   failed: 'Syncing didn’t work.',

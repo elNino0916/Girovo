@@ -8,7 +8,7 @@ import type { AvatarId } from '../../avatars';
 export const de = {
   /** The chip's accessible name: whose session, and an unreadable store if there is one. */
   chip: (holder: string, vaultBroken: boolean) =>
-    (holder ? `Sitzung von ${holder}` : 'Sitzung') + (vaultBroken ? ' – gespeicherte Daten nicht lesbar' : ''),
+    (holder ? `Sitzung von ${holder}` : 'Sitzung') + (vaultBroken ? ' (gespeicherte Daten nicht lesbar)' : ''),
   panel: 'Sitzung',
   /** Under the holder's name when the bank is not known. */
   loggedIn: 'Angemeldet',
@@ -22,7 +22,7 @@ export const de = {
   logos: 'Firmenlogos',
   logosHint: 'Nur Firmennamen gehen an Brandfetch, das dabei deine IP-Adresse sieht.',
   usage: 'Nutzungsdaten teilen',
-  usageHint: 'Welche Bereiche du nutzt – nie Kontodaten. Fehlerberichte gehen immer.',
+  usageHint: 'Welche Bereiche du nutzt, aber nie Kontodaten. Fehlerberichte gehen immer.',
   /** In its place while the update channel is "Nightly": the switch is on and stays. */
   usageNightly: 'Im Update-Kanal „Nightly“ immer an.',
   /** Beside "Tastenkürzel" when the single-key shortcuts are switched off. */
@@ -87,7 +87,7 @@ export const de = {
       `Girovo löscht die Kennung, unter der ${bank ?? 'deine Bank'} diesen Rechner kennt. Bei der nächsten Anmeldung gilt er als neues Gerät, und deine Bank fragt wieder nach einer Freigabe.`,
     body: 'Du bleibst angemeldet. Gibst du den Rechner weiter, lösche auch deine gespeicherten Daten.',
     wipe: 'Auch gespeicherte Daten von diesem Rechner löschen',
-    wipeHint: 'Vorlagen, Kontonamen, Kategorien, Umsätze, Überweisungen, Belege und Kontoauszüge aller Banken, samt Sicherungen, Anmeldename und gewählter Bank – endgültig.',
+    wipeHint: 'Endgültig gelöscht: Vorlagen, Kontonamen, Kategorien, Umsätze, Überweisungen, Belege und Kontoauszüge aller Banken, samt Sicherungen, Anmeldename und gewählter Bank.',
     confirm: 'Gerät vergessen',
     confirmWipe: 'Vergessen und löschen',
   },
@@ -108,7 +108,7 @@ export const de = {
 
 export const en: typeof de = {
   chip: (holder, vaultBroken) =>
-    (holder ? `Session: ${holder}` : 'Session') + (vaultBroken ? ' – saved data unreadable' : ''),
+    (holder ? `Session: ${holder}` : 'Session') + (vaultBroken ? ' (saved data unreadable)' : ''),
   panel: 'Session',
   loggedIn: 'Logged in',
   sinceAndLogout: (since, countdown) => [`Logged in since ${since} · logout in `, countdown],
@@ -120,7 +120,7 @@ export const en: typeof de = {
   logos: 'Company logos',
   logosHint: 'Only company names go to Brandfetch, which sees your IP address.',
   usage: 'Share usage data',
-  usageHint: 'Which parts you use – never account data. Error reports are always sent.',
+  usageHint: 'Which parts you use, but never account data. Error reports are always sent.',
   usageNightly: 'Always on in the “Nightly” update channel.',
   singleKeysOff: 'Single keys off',
 
@@ -177,7 +177,7 @@ export const en: typeof de = {
       `Girovo deletes the ID by which ${bank ?? 'your bank'} knows this computer. At your next login it counts as a new device, and your bank asks for approval again.`,
     body: 'You stay logged in. If you pass this computer on, delete your saved data too.',
     wipe: 'Also delete saved data from this computer',
-    wipeHint: 'Templates, account names, categories, transactions, transfers, receipts and statements of every bank, with all backups, your login name and chosen bank – for good.',
+    wipeHint: 'Deleted for good: templates, account names, categories, transactions, transfers, receipts and statements of every bank, with all backups, your login name and chosen bank.',
     confirm: 'Forget device',
     confirmWipe: 'Forget and delete',
   },

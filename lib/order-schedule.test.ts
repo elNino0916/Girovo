@@ -119,15 +119,15 @@ test('the schedule in plain words, German', () => {
   assert.equal(scheduleSentence({ kind: 'dated', date: '2026-10-15' }), 'Ausführung am 15.10.2026');
   assert.equal(
     scheduleSentence(monthly('2026-11-01', 1)),
-    'Erste Ausführung am 01.11.2026, dann monatlich am 1. – bis auf Weiteres',
+    'Erste Ausführung am 01.11.2026, dann monatlich am 1., bis auf Weiteres',
   );
   assert.equal(
     scheduleSentence(monthly('2026-10-31', ULTIMO, { interval: 3, last: '2027-12-31' })),
-    'Erste Ausführung am 31.10.2026, dann vierteljährlich am letzten Tag des Monats – bis 31.12.2027',
+    'Erste Ausführung am 31.10.2026, dann vierteljährlich am letzten Tag des Monats, bis 31.12.2027',
   );
   assert.equal(
     scheduleSentence({ kind: 'standing', first: '2026-10-12', unit: 'W', interval: 2, day: 1 }),
-    'Erste Ausführung am 12.10.2026, dann alle 2 Wochen am Montag – bis auf Weiteres',
+    'Erste Ausführung am 12.10.2026, dann alle 2 Wochen am Montag, bis auf Weiteres',
   );
   assert.equal(rhythmLine(monthly('2026-11-15', 15, { interval: 12 })), 'jährlich am 15.');
 });
@@ -137,15 +137,15 @@ test('the schedule in plain words, English', () => {
     assert.equal(scheduleSentence({ kind: 'dated', date: '2026-10-15' }), 'Carried out on 15/10/2026');
     assert.equal(
       scheduleSentence(monthly('2026-11-01', 1)),
-      'First on 01/11/2026, then monthly on the 1st – until further notice',
+      'First on 01/11/2026, then monthly on the 1st, until further notice',
     );
     assert.equal(
       scheduleSentence(monthly('2026-11-22', 22, { interval: 6, last: '2028-05-22' })),
-      'First on 22/11/2026, then every six months on the 22nd – until 22/05/2028',
+      'First on 22/11/2026, then every six months on the 22nd, until 22/05/2028',
     );
     assert.equal(
       scheduleSentence({ kind: 'standing', first: '2026-10-14', unit: 'W', interval: 1, day: 3 }),
-      'First on 14/10/2026, then weekly on Wednesday – until further notice',
+      'First on 14/10/2026, then weekly on Wednesday, until further notice',
     );
     assert.equal(rhythmLine(monthly('2026-11-30', ULTIMO)), 'monthly on the last day of the month');
     assert.equal(rhythmLine(monthly('2026-11-13', 13)), 'monthly on the 13th');

@@ -6,17 +6,17 @@ export const de = {
   name: 'Girovo Plus',
   /** The Einstellungen row's line, by state. */
   row: {
-    active: 'Aktiv – danke!',
+    active: 'Aktiv, danke!',
     inactive: 'Mehrere Banken und mehr',
     unavailable: 'Auf diesem Telefon nicht verfügbar',
   },
-  lead: 'Unterstütze Girovo – und hol dir mehr aus deinen Konten.',
+  lead: 'Unterstütze Girovo und hol dir mehr aus deinen Konten.',
   perks: {
     banks: { title: 'Mehrere Banken', text: 'Alle deine Banken in einer Übersicht. Ohne Plus nur die erste.' },
-    forecast: { title: 'Kontostand am Monatsende', text: 'Wohin sich dein Konto bis zum Monatsende bewegt – mit Warnung vor dem Dispo.' },
-    ask: { title: 'Frag deine Umsätze', text: 'Gemini Nano beantwortet Fragen zu deinen Umsätzen – auf dem Telefon.' },
+    forecast: { title: 'Kontostand am Monatsende', text: 'Wohin sich dein Konto bis zum Monatsende bewegt, mit Warnung vor dem Dispo.' },
+    ask: { title: 'Frag deine Umsätze', text: 'Gemini Nano beantwortet auf dem Telefon Fragen zu deinen Umsätzen.' },
     split: { title: 'Aufteilen', text: 'Eine Rechnung teilen und jeden Anteil mit einem GiroCode anfordern.' },
-    goals: { title: 'Sparziele', text: 'Ein Ziel fürs Sparkonto – und wie viel du dafür im Monat brauchst.' },
+    goals: { title: 'Sparziele', text: 'Ein Ziel fürs Sparkonto und wie viel du dafür im Monat brauchst.' },
     icon: { title: 'Goldenes App-Symbol', text: 'Auf Wunsch das G€ in Gold.' },
   },
   monthly: (price: string) => `${price} pro Monat`,
@@ -38,9 +38,9 @@ export const de = {
   /** The forecast's place without Plus. */
   forecastTeaser: 'Wohin sich dein Kontostand bis zum Monatsende bewegt.',
   /** "Frag deine Umsätze" without Plus, on a phone that could answer. */
-  askTeaser: 'Stell Fragen zu deinen Umsätzen – Gemini Nano beantwortet sie auf dem Telefon.',
+  askTeaser: 'Stell Fragen zu deinen Umsätzen. Gemini Nano beantwortet sie auf dem Telefon.',
   /** The weekly reminder toast, in the Play build without Plus. */
-  reminder: 'Gefällt dir Girovo? Unterstütze es mit Girovo Plus – mit mehreren Banken und mehr.',
+  reminder: 'Gefällt dir Girovo? Unterstütze es mit Girovo Plus: mehrere Banken und mehr.',
   reminderAction: 'Ansehen',
   /**
    * The owner key (scripts/owner-key.mjs): Plus on the developer's own phone
@@ -61,17 +61,17 @@ export const de = {
 export const en: typeof de = {
   name: 'Girovo Plus',
   row: {
-    active: 'Active – thank you!',
+    active: 'Active, thank you!',
     inactive: 'Several banks and more',
     unavailable: 'Not available on this phone',
   },
-  lead: 'Support Girovo – and get more out of your accounts.',
+  lead: 'Support Girovo and get more out of your accounts.',
   perks: {
     banks: { title: 'Several banks', text: 'All your banks in one overview. Without Plus, only the first.' },
-    forecast: { title: 'Balance at month end', text: 'Where your account is heading by the end of the month – with a warning before the overdraft.' },
-    ask: { title: 'Ask your transactions', text: 'Gemini Nano answers questions about your transactions – on the phone.' },
+    forecast: { title: 'Balance at month end', text: 'Where your account is heading by the end of the month, with a warning before the overdraft.' },
+    ask: { title: 'Ask your transactions', text: 'Gemini Nano answers questions about your transactions on the phone.' },
     split: { title: 'Split', text: 'Share a bill and request each share with a GiroCode.' },
-    goals: { title: 'Savings goals', text: 'A goal for your savings account – and how much you need each month.' },
+    goals: { title: 'Savings goals', text: 'A goal for your savings account and how much you need each month.' },
     icon: { title: 'Gold app icon', text: 'The G€ in gold, if you like.' },
   },
   monthly: (price) => `${price} a month`,
@@ -90,8 +90,8 @@ export const en: typeof de = {
   bankLocked: 'With Girovo Plus',
   bankUnlock: 'Plus',
   forecastTeaser: 'Where your balance is heading by the end of the month.',
-  askTeaser: 'Ask about your transactions – Gemini Nano answers on the phone.',
-  reminder: 'Enjoying Girovo? Support it with Girovo Plus – with several banks and more.',
+  askTeaser: 'Ask about your transactions. Gemini Nano answers on the phone.',
+  reminder: 'Enjoying Girovo? Support it with Girovo Plus: several banks and more.',
   reminderAction: 'See',
   owner: {
     title: 'Developer key',

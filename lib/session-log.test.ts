@@ -38,30 +38,30 @@ test('closing the window into the notification area: the logout says so, and nam
   assert.equal(logoutNotice('hidden', false), 'Du wurdest beim Schließen des Fensters abgemeldet.');
   assert.equal(
     logoutNotice('hidden', true, ['Lea Becker']),
-    'Du wurdest beim Schließen des Fensters abgemeldet. Deine PIN ist gelöscht. Der Status deiner Überweisung an Lea Becker ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.',
+    'Du wurdest beim Schließen des Fensters abgemeldet. Deine PIN ist gelöscht. Der Status deiner Überweisung an Lea Becker ist unklar. Prüfe deine Umsätze, bevor du sie noch einmal sendest.',
   );
   assert.match(
     logoutNotice('hidden', false, ['Max', 'Lea', 'Max']),
-    /abgemeldet\. Der Status von 3 Überweisungen an Max und Lea ist unklar – prüfe deine Umsätze, bevor du eine davon/,
+    /abgemeldet\. Der Status von 3 Überweisungen an Max und Lea ist unklar. Prüfe deine Umsätze, bevor du eine davon/,
   );
   // A user's logout after "Trotzdem abmelden?" names them too.
   assert.match(logoutNotice('user', false, ['Lea Becker']), /^Du hast dich abgemeldet\. Der Status deiner Überweisung an Lea Becker ist unklar/);
   assert.equal(unclearNotice([]), '');
-  assert.equal(unclearNotice([''], 1), 'Der Status deiner Überweisung ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.');
+  assert.equal(unclearNotice([''], 1), 'Der Status deiner Überweisung ist unklar. Prüfe deine Umsätze, bevor du sie noch einmal sendest.');
 });
 
 test('the idle notice names unclear transfers and asks to check before sending again', () => {
   assert.equal(idleLogoutNotice([]), 'Du wurdest aus Sicherheitsgründen abgemeldet.');
   assert.equal(
     idleLogoutNotice(['Max Mustermann']),
-    'Du wurdest aus Sicherheitsgründen abgemeldet. Der Status deiner Überweisung an Max Mustermann ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.',
+    'Du wurdest aus Sicherheitsgründen abgemeldet. Der Status deiner Überweisung an Max Mustermann ist unklar. Prüfe deine Umsätze, bevor du sie noch einmal sendest.',
   );
   // An order without a readable name still counts.
   assert.equal(
     idleLogoutNotice([''], 1),
-    'Du wurdest aus Sicherheitsgründen abgemeldet. Der Status deiner Überweisung ist unklar – prüfe deine Umsätze, bevor du sie noch einmal sendest.',
+    'Du wurdest aus Sicherheitsgründen abgemeldet. Der Status deiner Überweisung ist unklar. Prüfe deine Umsätze, bevor du sie noch einmal sendest.',
   );
-  assert.match(idleLogoutNotice(['Max', 'Lea'], 2), /Der Status von 2 Überweisungen an Max und Lea ist unklar – prüfe deine Umsätze, bevor du eine davon/);
+  assert.match(idleLogoutNotice(['Max', 'Lea'], 2), /Der Status von 2 Überweisungen an Max und Lea ist unklar. Prüfe deine Umsätze, bevor du eine davon/);
 });
 
 test('the bank line that only repeats "Ausgeführt" is left out; everything else stays', () => {

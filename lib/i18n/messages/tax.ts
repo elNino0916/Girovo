@@ -9,7 +9,7 @@ export const de = {
   /** The Analyse's entry to it. */
   tile: {
     title: 'Jahresübersicht für die Steuer',
-    text: 'Ein Jahr Umsätze nach Kategorien für die Steuererklärung – als PDF, CSV oder ZIP mit Belegen.',
+    text: 'Ein Jahr Umsätze nach Kategorien für die Steuererklärung, als PDF, CSV oder ZIP mit Belegen.',
     open: 'Zusammenstellen …',
   },
   drawer: {
@@ -27,7 +27,7 @@ export const de = {
     coverage: {
       complete: 'Ganzes Jahr geladen',
       running: 'Bis heute geladen',
-      partial: (from: string, to: string) => `Nur ${from} – ${to} geladen`,
+      partial: (from: string, to: string) => `Nur ${from} bis ${to} geladen`,
       none: 'Nichts aus diesem Jahr geladen',
     },
     incomplete: (year: number) =>
@@ -73,7 +73,7 @@ export const de = {
     coverage: {
       complete: 'ganzes Jahr',
       running: 'bis zum Erstellungstag',
-      partial: (from: string, to: string) => `nur ${from} – ${to}`,
+      partial: (from: string, to: string) => `nur ${from} bis ${to}`,
       none: 'keine Umsätze geladen',
     },
     incomplete:
@@ -83,14 +83,14 @@ export const de = {
       'Die Kategorien stammen vom Kontoinhaber oder automatisch von Girovo. Eine Zusammenstellung, keine steuerliche Bewertung.',
     generatedBy: (generator: string) =>
       `Erstellt mit ${generator} aus den Daten der Banken. Keine Bank hat dieses Dokument ausgestellt; maßgeblich sind ihre Kontoauszüge.`,
-    end: (n: number) => `Ende der Jahresübersicht – ${n === 1 ? '1 Umsatz' : `${nDe(n)} Umsätze`}`,
+    end: (n: number) => `Ende der Jahresübersicht (${n === 1 ? '1 Umsatz' : `${nDe(n)} Umsätze`})`,
   },
 };
 
 export const en: typeof de = {
   tile: {
     title: 'Annual summary for your taxes',
-    text: 'A year of transactions by category for your tax return – as PDF, CSV or ZIP with receipts.',
+    text: 'A year of transactions by category for your tax return, as PDF, CSV or ZIP with receipts.',
     open: 'Put together …',
   },
   drawer: {
@@ -107,7 +107,7 @@ export const en: typeof de = {
     coverage: {
       complete: 'Whole year loaded',
       running: 'Loaded up to today',
-      partial: (from, to) => `Only ${from} – ${to} loaded`,
+      partial: (from, to) => `Only ${from} to ${to} loaded`,
       none: 'Nothing from this year loaded',
     },
     incomplete: (year) =>
@@ -150,7 +150,7 @@ export const en: typeof de = {
     coverage: {
       complete: 'whole year',
       running: 'up to the day of creation',
-      partial: (from, to) => `only ${from} – ${to}`,
+      partial: (from, to) => `only ${from} to ${to}`,
       none: 'no transactions loaded',
     },
     incomplete:
@@ -160,6 +160,6 @@ export const en: typeof de = {
       'The categories come from the account holder or automatically from Girovo. A compilation, not a tax assessment.',
     generatedBy: (generator) =>
       `Created with ${generator} from the banks’ data. No bank issued this document; their account statements are authoritative.`,
-    end: (n) => `End of the annual summary – ${n === 1 ? '1 transaction' : `${nEn(n)} transactions`}`,
+    end: (n) => `End of the annual summary (${n === 1 ? '1 transaction' : `${nEn(n)} transactions`})`,
   },
 };

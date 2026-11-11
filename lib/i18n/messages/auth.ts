@@ -11,7 +11,7 @@ export const de = {
   changeLater: 'Das kannst du in den Einstellungen ändern.',
 
   /** Android's phone: the line under the name on the login's brand field. */
-  brandLine: 'Banking direkt mit deiner Bank – ohne jemanden dazwischen.',
+  brandLine: 'Banking direkt zwischen dir und deiner Bank.',
   /** The progress on the login's stage (AuthShell); the third step is common.approval. */
   steps: {
     label: 'Schritte der Anmeldung',
@@ -30,7 +30,7 @@ export const de = {
     },
     direct: {
       title: 'Direkte Verbindung',
-      text: 'Von diesem Rechner zu deiner Bank, ohne Umweg.',
+      text: 'Von diesem Rechner direkt zu deiner Bank.',
     },
     device: {
       title: 'Dieses Gerät wird gemerkt',
@@ -56,8 +56,8 @@ export const de = {
     logosOn: 'Für Firmenlogos gehen Firmennamen an Brandfetch.',
     logosOff: 'Firmenlogos sind aus.',
     logosUnasked: 'Firmenlogos nur mit deiner Zustimmung.',
-    telemetryOn: 'Fehlerberichte und Nutzungsdaten gehen an den Entwickler von Girovo – nie Kontodaten, Beträge oder Namen.',
-    errorReports: 'Fehlerberichte gehen an den Entwickler von Girovo – ohne Kontodaten, Beträge und Namen.',
+    telemetryOn: 'Fehlerberichte und Nutzungsdaten gehen an den Entwickler von Girovo, aber nie Kontodaten, Beträge oder Namen.',
+    errorReports: 'Fehlerberichte gehen an den Entwickler von Girovo, ohne Kontodaten, Beträge und Namen.',
     usageNeedsYes: 'Nutzungsdaten nur mit deiner Zustimmung.',
     /** The narrow layout's note under the form; the logo and error-report lines follow it. */
     note: 'Deine PIN geht nur an deine Bank. Girovo spricht direkt mit ihr und merkt sich danach dieses Gerät.',
@@ -86,9 +86,9 @@ export const de = {
     searching: 'Suche …',
     unavailable: 'Die Suche klappt gerade nicht. Versuch es gleich noch einmal.',
     // An IBAN on its way.
-    ibanForeign: 'Nur deutsche Banken – eine deutsche IBAN beginnt mit DE.',
+    ibanForeign: 'Nur deutsche Banken. Eine deutsche IBAN beginnt mit DE.',
     ibanInvalid: 'Diese IBAN stimmt nicht. Prüfe sie bitte noch einmal.',
-    ibanIncomplete: 'Tippe weiter – die BLZ steckt in Stelle 5 bis 12 deiner IBAN.',
+    ibanIncomplete: 'Tippe weiter. Die BLZ steckt in Stelle 5 bis 12 deiner IBAN.',
     // Nothing found, said for what was searched.
     noneForIban: 'Keine Bank zu dieser IBAN. Nicht jede Bank funktioniert mit Girovo.',
     noneForBlz: 'Keine Bank mit dieser BLZ. Die BLZ hat 8 Ziffern: Stelle 5 bis 12 deiner IBAN.',
@@ -97,7 +97,7 @@ export const de = {
     noneForName: 'Keine Bank mit diesem Namen oder Ort. Nicht jede Bank funktioniert mit Girovo.',
     // Above a list that is long, or whose rows share one name.
     ibanBank: 'Die Bank zu deiner IBAN:',
-    firstHits: (n: number) => `Die ersten ${n} Treffer – ergänze den Ort oder gib deine IBAN ein.`,
+    firstHits: (n: number) => `Die ersten ${n} Treffer. Ergänze den Ort oder gib deine IBAN ein.`,
     sameNames: 'Gib deine IBAN ein, dann findest du genau deine Bank.',
     // The status line a screen reader hears; the BLZ comes in formatted.
     statusIbanBank: (name: string, blz: string) => `Die Bank zu deiner IBAN: ${name}, BLZ ${blz}`,
@@ -127,7 +127,7 @@ export const de = {
     title: 'Anmelden',
     intro: 'Mit den Zugangsdaten deines Online-Bankings.',
     noProductId: (file: ReactNode): ReactNode[] => [
-      'Keine FinTS-Produkt-ID eingetragen – Banken lehnen die Anmeldung dann meist ab (Code 9078). Trag sie in ',
+      'Keine FinTS-Produkt-ID eingetragen. Banken lehnen die Anmeldung dann meist ab (Code 9078). Trag sie in ',
       file,
       ' ein.',
     ],
@@ -200,7 +200,7 @@ export const de = {
     },
     forgotPin: {
       title: 'PIN vergessen?',
-      text: 'Eine neue PIN bekommst du nur von deiner Bank – Girovo speichert deine PIN nie.',
+      text: 'Eine neue PIN bekommst du nur von deiner Bank. Girovo speichert deine PIN nie.',
     },
   },
 
@@ -354,7 +354,7 @@ export const de = {
   /** The last minute before the automatic logout (components/SessionGuard.tsx). */
   sessionGuard: {
     /** The window's title while the warning is up: the countdown ("0:45"), then the page's own title. */
-    windowTitle: (countdown: string, title: string) => `Abmeldung in ${countdown} – ${title}`,
+    windowTitle: (countdown: string, title: string) => `Abmeldung in ${countdown} · ${title}`,
     /** For screen readers at 60, 30 and 10 seconds; the time comes in words ("42 Sekunden"). */
     announce: (left: string) => `Noch ${left} bis zur automatischen Abmeldung.`,
     title: 'Möchtest du angemeldet bleiben?',
@@ -374,7 +374,7 @@ export const de = {
   logos: {
     title: 'Firmenlogos anzeigen?',
     /** What goes out. "Aus deinen Umsätzen", not "an die du zahlst": a salary's employer is looked up too. */
-    disclosure: 'Dafür gehen Firmennamen aus deinen Umsätzen an den Logo-Dienst Brandfetch – keine Beträge, IBANs oder Verwendungszwecke. Brandfetch sieht dabei deine IP-Adresse.',
+    disclosure: 'Dafür gehen Firmennamen aus deinen Umsätzen an den Logo-Dienst Brandfetch, aber keine Beträge, IBANs oder Verwendungszwecke. Brandfetch sieht dabei deine IP-Adresse.',
     load: 'Logos laden',
     /** The toasts after the answer. */
     on: 'Firmenlogos sind eingeschaltet.',
@@ -393,9 +393,9 @@ export const de = {
   usage: {
     title: 'Nutzungsdaten teilen?',
     /** What a yes shares. */
-    disclosure: 'Der Entwickler von Girovo sieht dann, welche Bereiche du nutzt, ob Anmeldungen klappen und wie schnell deine Bank antwortet – samt Bankleitzahl. Nie dabei: Anmeldename, PIN, IBANs, Kontostände, Umsätze, Beträge oder Empfänger. Deine IP-Adresse ist wie bei jeder Verbindung sichtbar.',
+    disclosure: 'Der Entwickler von Girovo sieht dann, welche Bereiche du nutzt, ob Anmeldungen klappen und wie schnell deine Bank antwortet, samt ihrer Bankleitzahl. Nie dabei: Anmeldename, PIN, IBANs, Kontostände, Umsätze, Beträge oder Empfänger. Deine IP-Adresse ist wie bei jeder Verbindung sichtbar.',
     /** Error reports need no yes; the user is told so wherever they are asked. */
-    errorReports: 'Fehlerberichte schickt Girovo immer – ohne Kontodaten, Beträge und Namen.',
+    errorReports: 'Fehlerberichte schickt Girovo immer, aber ohne Kontodaten, Beträge und Namen.',
     share: 'Teilen',
     /** The toasts after the answer. */
     on: 'Nutzungsdaten werden geteilt.',
@@ -407,7 +407,7 @@ export const de = {
     /** The login was called off; the browser has stopped listening already. */
     cancelled: 'Die Anmeldung wurde abgebrochen.',
     invalidBlz: 'Bitte gib eine gültige Bankleitzahl mit 8 Ziffern ein.',
-    bankGone: 'Diese Bank fehlt in der Liste – vielleicht hat sie fusioniert. Wähle sie über „Ändern“ neu.',
+    bankGone: 'Diese Bank fehlt in der Liste, vielleicht nach einer Fusion. Wähle sie über „Ändern“ neu.',
     missingCredentials: 'Bitte gib Anmeldename und PIN ein.',
     /** The bank refused without words of its own. Names the PIN: lib/bank-answer.ts reads that as a credential answer. */
     refused: 'Deine Bank hat die Anmeldung abgelehnt. Prüfe Anmeldename und PIN.',
@@ -428,7 +428,7 @@ export const en: typeof de = {
   noThanks: 'No thanks',
   changeLater: 'You can change this in Settings.',
 
-  brandLine: 'Banking straight with your bank – no one in between.',
+  brandLine: 'Banking directly between you and your bank.',
   steps: {
     label: 'Login steps',
     bank: 'Bank',
@@ -444,7 +444,7 @@ export const en: typeof de = {
     },
     direct: {
       title: 'Direct connection',
-      text: 'From this computer to your bank, with nothing in between.',
+      text: 'From this computer straight to your bank.',
     },
     device: {
       title: 'This device will be remembered',
@@ -466,8 +466,8 @@ export const en: typeof de = {
     logosOn: 'For company logos, company names go to Brandfetch.',
     logosOff: 'Company logos are off.',
     logosUnasked: 'Company logos only with your consent.',
-    telemetryOn: 'Error reports and usage data go to Girovo’s developer – never account data, amounts or names.',
-    errorReports: 'Error reports go to Girovo’s developer – without account data, amounts or names.',
+    telemetryOn: 'Error reports and usage data go to Girovo’s developer, but never account data, amounts or names.',
+    errorReports: 'Error reports go to Girovo’s developer, without account data, amounts or names.',
     usageNeedsYes: 'Usage data only with your consent.',
     note: 'Your PIN goes only to your bank. Girovo talks straight to it and then remembers this device.',
   },
@@ -489,15 +489,15 @@ export const en: typeof de = {
     searchFor: (bank) => `Search for ${bank}`,
     searching: 'Searching…',
     unavailable: 'Search isn’t working right now. Try again in a moment.',
-    ibanForeign: 'German banks only – a German IBAN starts with DE.',
+    ibanForeign: 'German banks only. A German IBAN starts with DE.',
     ibanInvalid: 'This IBAN is not correct. Please check it again.',
-    ibanIncomplete: 'Keep typing – the bank code (BLZ) is in positions 5 to 12 of your IBAN.',
+    ibanIncomplete: 'Keep typing. The bank code (BLZ) is in positions 5 to 12 of your IBAN.',
     noneForIban: 'No bank for this IBAN. Not every bank works with Girovo.',
     noneForBlz: 'No bank with this bank code (BLZ). It has 8 digits: positions 5 to 12 of your IBAN.',
     withoutFints: (bank) => `${bank} doesn’t offer the access Girovo needs.`,
     noneForName: 'No bank with this name or town. Not every bank works with Girovo.',
     ibanBank: 'The bank for your IBAN:',
-    firstHits: (n) => `The first ${n} matches – add the town or enter your IBAN.`,
+    firstHits: (n) => `The first ${n} matches. Add the town or enter your IBAN.`,
     sameNames: 'Enter your IBAN to find exactly your bank.',
     statusIbanBank: (name, blz) => `The bank for your IBAN: ${name}, BLZ ${blz}`,
     statusOne: (name, blz) => `1 bank found: ${name}, BLZ ${blz}`,
@@ -516,7 +516,7 @@ export const en: typeof de = {
     title: 'Log in',
     intro: 'With your online banking login details.',
     noProductId: (file) => [
-      'No FinTS product ID set – banks then usually decline the login (code 9078). Add it in ',
+      'No FinTS product ID set. Banks then usually decline the login (code 9078). Add it in ',
       file,
       '.',
     ],
@@ -582,7 +582,7 @@ export const en: typeof de = {
     },
     forgotPin: {
       title: 'Forgot your PIN?',
-      text: 'Only your bank can give you a new PIN – Girovo never stores your PIN.',
+      text: 'Only your bank can give you a new PIN. Girovo never stores your PIN.',
     },
   },
 
@@ -707,7 +707,7 @@ export const en: typeof de = {
   },
 
   sessionGuard: {
-    windowTitle: (countdown, title) => `Logout in ${countdown} – ${title}`,
+    windowTitle: (countdown, title) => `Logout in ${countdown} · ${title}`,
     announce: (left) => `Automatic logout in ${left}.`,
     title: 'Do you want to stay logged in?',
     text: 'You haven’t been active for a while. For your safety, Girovo will log you out shortly.',
@@ -721,7 +721,7 @@ export const en: typeof de = {
 
   logos: {
     title: 'Show company logos?',
-    disclosure: 'For this, company names from your transactions go to the logo service Brandfetch – no amounts, IBANs or payment references. Brandfetch sees your IP address.',
+    disclosure: 'For this, company names from your transactions go to the logo service Brandfetch, but no amounts, IBANs or payment references. Brandfetch sees your IP address.',
     load: 'Load logos',
     on: 'Company logos are on.',
     off: 'Company logos stay off.',
@@ -736,8 +736,8 @@ export const en: typeof de = {
 
   usage: {
     title: 'Share usage data?',
-    disclosure: 'Girovo’s developer then sees which parts you use, whether logins work and how fast your bank answers – with its bank code. Never included: login name, PIN, IBANs, balances, transactions, amounts or recipients. As with any connection, your IP address is visible.',
-    errorReports: 'Girovo always sends error reports – without account data, amounts or names.',
+    disclosure: 'Girovo’s developer then sees which parts you use, whether logins work and how fast your bank answers, along with its bank code. Never included: login name, PIN, IBANs, balances, transactions, amounts or recipients. As with any connection, your IP address is visible.',
+    errorReports: 'Girovo always sends error reports, but without account data, amounts or names.',
     share: 'Share',
     on: 'Usage data is shared from now on.',
     off: 'Usage data stays on this computer.',
@@ -746,7 +746,7 @@ export const en: typeof de = {
   api: {
     cancelled: 'The login was cancelled.',
     invalidBlz: 'Please enter a valid 8-digit bank code.',
-    bankGone: 'This bank is missing from the list – it may have merged. Choose it again via “Change”.',
+    bankGone: 'This bank is missing from the list, perhaps after a merger. Choose it again via “Change”.',
     missingCredentials: 'Please enter your login name and PIN.',
     refused: 'Your bank declined the login. Check your login name and PIN.',
     methodNotOffered: 'Your bank does not offer this method for your login.',

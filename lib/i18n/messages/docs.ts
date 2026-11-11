@@ -15,7 +15,7 @@ export const de = {
     wiped: 'Bis zum Abmelden werden keine Dokumente mehr gespeichert.',
     /** Starting over waits for the bank's word on the PIN: a mistyped one must not replace the store. */
     notYet: 'Das geht erst, wenn deine Bank die PIN angenommen hat. Lade zuerst deine Umsätze.',
-    tooLarge: 'Das Dokument ist zu groß – höchstens 8 MB.',
+    tooLarge: 'Das Dokument ist größer als 8 MB.',
     full: 'Zu viele Dokumente gespeichert. Lösche ein paar.',
     format: 'Das Dokument ließ sich nicht zuordnen.',
     notADocument: 'Das ist weder ein Bild noch ein PDF.',
@@ -28,14 +28,14 @@ export const de = {
    */
   unreadable: {
     title: 'Gespeicherte Dokumente nicht lesbar',
-    hint: 'Nicht lesbar – hat sich deine PIN geändert? Bis du neu beginnst, werden keine Belege und Auszüge gespeichert.',
+    hint: 'Nicht lesbar. Hat sich deine PIN geändert? Bis du neu beginnst, werden keine Belege und Auszüge gespeichert.',
     startOver: 'Neu beginnen …',
     dialog: {
       title: 'Belege und Auszüge neu beginnen?',
       description: 'Mit dieser PIN lassen sie sich nicht öffnen. Girovo hebt sie als Sicherung auf und beginnt neu.',
       confirm: 'Neu beginnen',
     },
-    done: 'Neu begonnen – Belege und Auszüge werden wieder gespeichert.',
+    done: 'Neu begonnen. Belege und Auszüge werden wieder gespeichert.',
   },
 
   /** A document's file name when it brings none of its own ("Kontoauszug 2026-007.pdf"). */
@@ -59,7 +59,7 @@ export const de = {
     /** After a fetch. */
     added: (n: number) => (n === 1 ? '1 neuer Auszug gespeichert.' : `${n} neue Auszüge gespeichert.`),
     nothingNew: 'Deine Bank hat keine neuen Auszüge bereitgestellt.',
-    more: 'Es gibt noch mehr – ruf sie noch einmal ab.',
+    more: 'Es gibt noch mehr. Ruf die Auszüge noch einmal ab.',
     held: 'Nicht alle ließen sich speichern. Speichere sie vor dem Abmelden, sonst sind sie weg.',
     /** Said while none are kept: why Girovo keeps every one. */
     delivered: 'Manche Banken bieten einen Auszug nur einmal an. Darum behält Girovo jeden.',
@@ -121,7 +121,7 @@ export const en: typeof de = {
     gone: 'This document no longer exists.',
     wiped: 'No more documents are saved until you log out.',
     notYet: 'This works only once your bank has accepted the PIN. Load your transactions first.',
-    tooLarge: 'The document is too large – 8 MB at most.',
+    tooLarge: 'The document is larger than 8 MB.',
     full: 'Too many documents saved. Delete a few.',
     format: 'The document could not be filed.',
     notADocument: 'This is neither an image nor a PDF.',
@@ -129,14 +129,14 @@ export const en: typeof de = {
 
   unreadable: {
     title: 'Saved documents unreadable',
-    hint: 'Can’t be read – has your PIN changed? Until you start again, no receipts or statements are saved.',
+    hint: 'Can’t be read. Has your PIN changed? Until you start again, no receipts or statements are saved.',
     startOver: 'Start again…',
     dialog: {
       title: 'Start receipts and statements again?',
       description: 'They can’t be opened with this PIN. Girovo keeps them as a backup and starts again.',
       confirm: 'Start again',
     },
-    done: 'Started again – receipts and statements are being saved again.',
+    done: 'Started again. Receipts and statements are saved again.',
   },
 
   fileName: { statement: 'Statement', receipt: 'Receipt' },
@@ -155,7 +155,7 @@ export const en: typeof de = {
     none: 'No statements saved yet',
     added: (n) => (n === 1 ? '1 new statement saved.' : `${n} new statements saved.`),
     nothingNew: 'Your bank has not provided any new statements.',
-    more: 'There are more – load them again.',
+    more: 'There are more. Load the statements again.',
     held: 'Not all of them could be saved. Save them before you log out, or they are gone.',
     delivered: 'Some banks offer a statement only once. That is why Girovo keeps every one.',
     numbered: (n, y) => `Statement ${n}/${y}`,

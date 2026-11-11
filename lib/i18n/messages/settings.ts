@@ -50,7 +50,7 @@ export const de = {
     updates: 'Updates',
     links: 'Kontakt & Rechtliches',
   },
-  idleHint: 'Eine Minute vorher fragt Girovo nach – während einer Freigabe nie.',
+  idleHint: 'Eine Minute vorher fragt Girovo nach, aber nie während einer Freigabe.',
   licence: 'Quellcode verfügbar unter der PolyForm Perimeter License 1.0.1',
   /** Über Girovo: the app's website (girovo.de) and its contact address. */
   website: 'Website',
@@ -95,7 +95,7 @@ export const de = {
     /** The dialog that turns it on: the switch's, and the one a further bank's login offers. */
     askTitle: 'Weitere Banken mit anmelden?',
     askText: (bank: string) =>
-      `Meldest du dich bei ${bank} an, meldet Girovo dich auch bei deinen weiteren Banken an. Ihre PINs bleiben geschützt auf diesem Rechner – öffnen kann sie nur deine PIN für ${bank}.`,
+      `Meldest du dich bei ${bank} an, meldet Girovo dich auch bei deinen weiteren Banken an. Ihre PINs bleiben geschützt auf diesem Rechner. Öffnen kann sie nur deine PIN für ${bank}.`,
     turnOn: 'Einschalten',
     notNow: 'Nicht jetzt',
     /** A toast after a further bank logged in with its PIN typed, while it is off. */
@@ -103,7 +103,7 @@ export const de = {
     offerAction: 'Einrichten …',
     nowOn: 'Deine weiteren Banken melden sich jetzt mit an.',
     /** On with no further bank logged in: none is kept until each one logs in once. */
-    nowOnLater: 'Eingeschaltet. Melde dich einmal bei jeder weiteren Bank an – danach geht es von selbst.',
+    nowOnLater: 'Eingeschaltet. Melde dich einmal bei jeder weiteren Bank an. Danach geht es von selbst.',
     nowOff: 'Die PINs deiner weiteren Banken sind gelöscht.',
     sealed: (bank: string) => `${bank} meldet sich künftig mit an.`,
     /** Keeping one bank's PIN failed while it is on (no control to try again from). */
@@ -112,11 +112,11 @@ export const de = {
     /** The file no longer opened at the login (the first PIN changed at the bank, a new secret): deleted. */
     dropped: 'Die PINs deiner weiteren Banken ließen sich nicht mehr öffnen und sind gelöscht. „Weitere Banken mit anmelden“ ist aus.',
     /** In the dialogs of "Gerät vergessen" and "Gespeicherte Daten löschen", while it is on. */
-    goesToo: 'Dabei werden auch die PINs deiner weiteren Banken gelöscht – „Weitere Banken mit anmelden“ ist danach aus.',
+    goesToo: 'Dabei werden auch die PINs deiner weiteren Banken gelöscht, und „Weitere Banken mit anmelden“ ist danach aus.',
     /** The add-bank sheet's note while it is on, in place of auth.privacy.note: this PIN is kept. */
     privacyNote: 'Die PIN dieser Bank bleibt geschützt auf diesem Rechner, damit sich die Bank mit anmeldet. Girovo verbindet sich direkt mit deiner Bank.',
     /** A kept PIN the bank refused: it is deleted, never tried twice. */
-    refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht – melde dich mit deiner PIN an.',
+    refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht. Melde dich mit deiner PIN an.',
   },
   /**
    * 6.0, Windows: Windows Hello in place of typing the first login's PIN
@@ -147,7 +147,7 @@ export const de = {
     /** The Windows Hello key was replaced or is gone: the kept PIN went with it. */
     invalidated: 'Windows Hello hat sich geändert, die gespeicherte PIN ist gelöscht. Melde dich mit deiner PIN an und schalte es wieder ein.',
     /** A kept PIN the bank refused: it is deleted, never tried twice. */
-    refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht – melde dich mit deiner PIN an.',
+    refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht. Melde dich mit deiner PIN an.',
     /** In the dialogs of "Gerät vergessen" and "Gespeicherte Daten löschen", while it is on. */
     goesToo: 'Die PIN für Windows Hello wird dabei auch gelöscht.',
   },
@@ -181,7 +181,7 @@ export const de = {
     /** A key that was reset: its copy of the PIN went with it. */
     gone: 'Dieser Schlüssel passt nicht mehr, die dafür gespeicherte PIN ist gelöscht. Melde dich mit deiner PIN an.',
     /** A kept PIN the bank refused: every key's copy is deleted, never tried twice. */
-    refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht – melde dich mit deiner PIN an.',
+    refused: 'Die Bank hat die gespeicherte PIN nicht angenommen. Sie ist gelöscht. Melde dich mit deiner PIN an.',
     goesToo: 'Die PINs für deine Sicherheitsschlüssel werden dabei auch gelöscht.',
   },
   /**
@@ -205,7 +205,7 @@ export const de = {
     /** A copy on "Nightly" that does not share them yet is asked once per start (components/telemetry/NightlyUsage.tsx). */
     usageAsk: {
       title: 'Nightly teilt Nutzungsdaten',
-      text: 'Welche Bereiche du nutzt und ob Anmeldungen klappen – nie Kontodaten. Sonst geht es mit „Stabil“ weiter.',
+      text: 'Welche Bereiche du nutzt und ob Anmeldungen klappen, aber nie Kontodaten. Sonst geht es mit „Stabil“ weiter.',
       agree: 'Einverstanden',
       toStable: 'Zu „Stabil“ wechseln',
     },
@@ -215,7 +215,7 @@ export const de = {
   /** Über Girovo → staged releases at once (components/settings/UpdateChannel.tsx EarlyUpdatesRow). */
   early: {
     title: 'Neueste Updates sofort erhalten',
-    hint: 'Sobald sie verfügbar sind – sonst kommen neue Versionen nach und nach.',
+    hint: 'Sobald sie verfügbar sind. Sonst kommen neue Versionen nach und nach.',
   },
 
   /** Über Girovo → a Setup.exe downloaded by hand (components/settings/UpdateChannel.tsx FromFileRow). */
@@ -278,7 +278,7 @@ export const en: typeof de = {
     updates: 'Updates',
     links: 'Contact & legal',
   },
-  idleHint: 'Girovo asks a minute before – never during an approval.',
+  idleHint: 'Girovo asks a minute before, but never during an approval.',
   licence: 'Source available under the PolyForm Perimeter License 1.0.1',
   website: 'Website',
   contact: 'Contact',
@@ -309,21 +309,21 @@ export const en: typeof de = {
     hint: (bank) => `Your PIN for ${bank} logs you in to your further banks too.`,
     askTitle: 'Log in to further banks too?',
     askText: (bank) =>
-      `When you log in to ${bank}, Girovo logs you in to your further banks too. Their PINs stay protected on this computer – only your PIN for ${bank} opens them.`,
+      `When you log in to ${bank}, Girovo logs you in to your further banks too. Their PINs stay protected on this computer. Only your PIN for ${bank} opens them.`,
     turnOn: 'Turn on',
     notNow: 'Not now',
     offer: (bank) => `Log in to ${bank} automatically next time?`,
     offerAction: 'Set up…',
     nowOn: 'Your further banks now log in too.',
-    nowOnLater: 'On. Log in to each further bank once – after that it happens by itself.',
+    nowOnLater: 'On. Log in to each further bank once. After that it happens by itself.',
     nowOff: 'Your further banks’ PINs have been deleted.',
     sealed: (bank) => `${bank} will now log in too.`,
     sealFailed: (bank) => `Your PIN for ${bank} couldn’t be saved.`,
     failed: 'That didn’t work. Please try again.',
     dropped: 'Your further banks’ PINs could no longer be opened and have been deleted. “Log in to further banks too” is off.',
-    goesToo: 'This also deletes your further banks’ PINs – “Log in to further banks too” is then off.',
+    goesToo: 'This also deletes your further banks’ PINs, and “Log in to further banks too” is then off.',
     privacyNote: 'This bank’s PIN stays protected on this computer so the bank can log in too. Girovo connects straight to your bank.',
-    refused: 'The bank didn’t accept the saved PIN. It has been deleted – log in with your PIN.',
+    refused: 'The bank didn’t accept the saved PIN. It has been deleted. Log in with your PIN.',
   },
   windowsHello: {
     title: 'Log in with Windows Hello',
@@ -338,7 +338,7 @@ export const en: typeof de = {
     openFailedCode: (code) => `Windows Hello didn’t work. Log in with your PIN (error ${code}).`,
     brokenStore: (code) => `Windows Hello isn’t working on this computer right now. In Windows, go to Settings → Accounts → Sign-in options, remove your PIN and set it up again (error ${code}).`,
     invalidated: 'Windows Hello has changed, so the saved PIN has been deleted. Log in with your PIN and turn it on again.',
-    refused: 'The bank didn’t accept the saved PIN. It has been deleted – log in with your PIN.',
+    refused: 'The bank didn’t accept the saved PIN. It has been deleted. Log in with your PIN.',
     goesToo: 'This also deletes the PIN saved for Windows Hello.',
   },
   securityKeys: {
@@ -368,7 +368,7 @@ export const en: typeof de = {
     openFailedCode: (code) => `The key didn’t work. Log in with your PIN (error ${code}).`,
     wrongKey: 'That’s not the right key.',
     gone: 'This key no longer fits, so the PIN saved for it has been deleted. Log in with your PIN.',
-    refused: 'The bank didn’t accept the saved PIN. It has been deleted – log in with your PIN.',
+    refused: 'The bank didn’t accept the saved PIN. It has been deleted. Log in with your PIN.',
     goesToo: 'This also deletes the PINs saved for your security keys.',
   },
   channel: {
@@ -383,7 +383,7 @@ export const en: typeof de = {
     usage: 'Nightly shares usage data, never account data.',
     usageAsk: {
       title: 'Nightly shares usage data',
-      text: 'Which parts you use and whether logins work – never account data. Otherwise you carry on with “Stable”.',
+      text: 'Which parts you use and whether logins work, but never account data. Otherwise you carry on with “Stable”.',
       agree: 'Agree',
       toStable: 'Switch to “Stable”',
     },
@@ -392,7 +392,7 @@ export const en: typeof de = {
 
   early: {
     title: 'Get the latest updates right away',
-    hint: 'As soon as they’re available – otherwise new versions arrive gradually.',
+    hint: 'As soon as they’re available. Otherwise new versions arrive gradually.',
   },
 
   fromFile: {

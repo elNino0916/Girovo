@@ -95,6 +95,9 @@ read like an app for developers. Girovo is for people who bank. Every text:
   Daten bleiben auf deinem Gerät.").
 - **No explaining the obvious**, no lists of every case, no "zwischendurch",
   "ersatzweise", "jeweils", "entsprechend", "gegebenenfalls", "bzw.".
+- **No dashes.** No – or — in any interface text, German or English (owner,
+  2026-11-11). Use a period, comma, colon or parentheses instead; a range is
+  "1 bis 9" / "1 to 9".
 - **Everyday words.** "Rechner" on the desktop and "Telefon" on Android,
   never "Computer". Girovo speaks of itself as "Girovo", never "wir".
 - **Bank words stay the banks'** (the glossary below and PRODUCT.md's

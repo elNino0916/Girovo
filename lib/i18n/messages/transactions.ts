@@ -73,7 +73,7 @@ export const de = {
     belongsToOther: (owner: string, shown: string) => `Der Umsatz gehört zu „${owner}“. Diese Liste zeigt „${shown}“.`,
     /** The list was fetched before a transfer whose status is unclear. */
     fetchedBeforeTransfer: (time: ReactNode) =>
-      ['Stand ', time, ' Uhr, vor deiner Überweisung – sie kann hier noch nicht stehen.'],
+      ['Stand ', time, ' Uhr, vor deiner Überweisung. Sie kann hier noch nicht stehen.'],
     acrossAccounts: (account: string) =>
       `Die Analyse zählt alle Konten, diese Liste zeigt nur ${account}.`,
     /** While a filter is set: "12 von 240 Umsätzen". */
@@ -166,7 +166,7 @@ export const de = {
   /** The list, one section per day (components/transactions/TxList.tsx). */
   days: {
     skip: 'Liste überspringen',
-    future: 'Buchungstag in der Zukunft – die Bank bucht sie erst dann.',
+    future: 'Buchungstag in der Zukunft. Die Bank bucht sie erst dann.',
     /** Before the day's closing balance on a phone, where "Kontostand" does not fit. */
     balanceShort: 'Stand',
     /** For a screen reader, after "Kontostand". */
@@ -258,17 +258,17 @@ export const de = {
     purpose: 'Verwendungszweck',
     /** Each request's purpose: "Anteil Sushi Yana, 21.10." */
     purposeFor: (name: string, day: string) => `Anteil ${name}, ${day}`,
-    sumOk: (sum: ReactNode): ReactNode[] => ['Summe ', sum, ' – passt'],
+    sumOk: (sum: ReactNode): ReactNode[] => ['Summe passt: ', sum],
     over: (diff: ReactNode): ReactNode[] => ['Die Anteile sind ', diff, ' mehr als die Buchung'],
     order: (names: string[]) => (names.length === 1
       ? `${names[0]} bekommt einen GiroCode`
-      : `Erst ${names.slice(0, -1).join(', ')}, dann ${names[names.length - 1]} – je ein GiroCode`),
+      : `Je ein GiroCode: erst ${names.slice(0, -1).join(', ')}, dann ${names[names.length - 1]}`),
     requestAll: (n: number): string => (n === 1 ? 'Anfordern' : 'Alle anfordern'),
     /** The desktop's requests, every person's code at once (SplitRequests). */
     requests: {
       /** "Sushi Yana · 30,79 € geteilt durch 4" */
       eyebrow: (name: string, total: string, n: number) => `${name} · ${total} geteilt durch ${n}`,
-      intro: 'Ein GiroCode pro Person – zum Scannen oder als Bild für den Chat.',
+      intro: 'Ein GiroCode pro Person, zum Scannen oder als Bild für den Chat.',
       purpose: (purpose: ReactNode): ReactNode[] => ['Verwendungszweck: ', purpose],
       own: (amount: ReactNode, to: string): ReactNode[] => ['Dein Anteil: ', amount, ` · an ${to}`],
       /** The buttons' names, with whose code it is: "Bild kopieren: Lea". */
@@ -321,7 +321,7 @@ export const de = {
     refundGroup: 'Erstattung einer Ausgabe',
     ownGroup: 'Zwischen deinen Konten',
     filedAs: (label: string) => `Als „${label}“ eingeordnet.`,
-    ruled: (name: string, label: string) => `Alle Umsätze von ${name} sind jetzt „${label}“ – auch künftige.`,
+    ruled: (name: string, label: string) => `Alle Umsätze von ${name} sind jetzt „${label}“, auch künftige.`,
     undone: (label: string, byRule: boolean) => `Wieder „${label}“, ${byRule ? 'wie deine Regel' : 'automatisch erkannt'}.`,
     unruled: (name: string) => `Regel entfernt. Umsätze von ${name} werden wieder automatisch eingeordnet.`,
     change: 'Ändern',
@@ -337,7 +337,7 @@ export const de = {
     alsoFuture: 'Gilt dann auch für künftige Umsätze.',
     applyAll: 'Für alle übernehmen',
     saveRule: 'Als Regel speichern',
-    sessionOnly: 'Gilt nur für diese Sitzung – Girovo speichert gerade nichts.',
+    sessionOnly: 'Gilt nur für diese Sitzung. Girovo speichert gerade nichts.',
     rules: 'Deine Regeln',
     remove: 'Entfernen',
     /** The menu's way to a category of the user's own (components/transactions/CategoryDialogs.tsx). */
@@ -363,9 +363,9 @@ export const de = {
     /** Shown under the rows while the shares take more than the booking. */
     over: (amount: ReactNode) => ['Die Teile sind zusammen ', amount, ' höher als der Umsatz.'],
     /** The others take the whole booking: nothing is left for the first share. */
-    nothingLeft: (label: string) => `Für „${label}“ bleibt nichts übrig – jeder Teil braucht einen Betrag über 0.`,
+    nothingLeft: (label: string) => `Für „${label}“ bleibt nichts übrig. Jeder Teil braucht einen Betrag über 0.`,
     emptyPart: 'Gib für jeden Teil einen Betrag über 0 ein.',
-    twice: 'Jede Kategorie nur einmal – fasse die Teile zusammen.',
+    twice: 'Eine Kategorie kommt doppelt vor. Fasse die Teile zusammen.',
     save: 'Aufteilen',
     /** Where the category section says how the booking got its categories. */
     source: 'Von dir aufgeteilt',
@@ -373,7 +373,7 @@ export const de = {
     edit: 'Aufteilung ändern',
     undo: 'Aufteilung aufheben',
     saved: (n: number) => `Auf ${nDe(n)} Kategorien aufgeteilt.`,
-    undone: (label: string) => `Aufteilung aufgehoben – der Umsatz zählt wieder ganz als „${label}“.`,
+    undone: (label: string) => `Aufteilung aufgehoben. Der Umsatz zählt wieder ganz als „${label}“.`,
     /** A booking row's category line: "Lebensmittel & Drogerie + Geschenke", "Shopping + 2 weitere". */
     summary: (first: string, second: string, more: number) =>
       more > 0 ? `${first} + ${nDe(more + 1)} weitere` : `${first} + ${second}`,
@@ -392,7 +392,7 @@ export const de = {
     createAndFile: 'Anlegen und einordnen',
     empty: 'Gib einen Namen ein.',
     taken: 'Eine Kategorie mit diesem Namen gibt es schon.',
-    full: (n: number) => `Du hast schon ${nDe(n)} eigene Kategorien – mehr gehen nicht.`,
+    full: (n: number) => `Mehr als ${nDe(n)} eigene Kategorien gehen nicht.`,
     created: (name: string) => `Kategorie „${name}“ angelegt.`,
     /** Einstellungen → Kategorien. */
     section: 'Eigene Kategorien',
@@ -433,9 +433,9 @@ export const de = {
     aheadNote:
       '„Noch nicht gebucht“: von der Bank gemeldet, Buchungstag nach dem Erstellungsdatum.',
     openingDerived:
-      'Alter Kontostand errechnet aus neuem Kontostand und Umsätzen – die Bank hat ihn nicht gemeldet.',
+      'Alter Kontostand errechnet aus neuem Kontostand und Umsätzen, weil die Bank ihn nicht gemeldet hat.',
     closingDerived:
-      'Neuer Kontostand errechnet aus altem Kontostand und Umsätzen – die Bank hat ihn nicht gemeldet.',
+      'Neuer Kontostand errechnet aus altem Kontostand und Umsätzen, weil die Bank ihn nicht gemeldet hat.',
     noPending: 'Vorgemerkte Umsätze sind nicht enthalten, da noch nicht gebucht.',
     statement: 'Kontoauszug',
     receipt: 'Buchungsbeleg',
@@ -616,7 +616,7 @@ export const en: typeof de = {
       `You can only see whether the transfer was completed in “${from}”, not in “${shown}”.`,
     belongsToOther: (owner, shown) => `The transaction belongs to “${owner}”. This list shows “${shown}”.`,
     fetchedBeforeTransfer: (time) =>
-      ['As of ', time, ', before your transfer – it can’t be here yet.'],
+      ['As of ', time, ', before your transfer. It can’t be here yet.'],
     acrossAccounts: (account) => `The analysis counts all accounts, this list only shows ${account}.`,
     countOf: (shown, total) => `${nEn(shown)} of ${nEn(total)} ${total === 1 ? 'transaction' : 'transactions'}`,
     otherCurrency: (n) => `${n} in another currency not included`,
@@ -694,7 +694,7 @@ export const en: typeof de = {
 
   days: {
     skip: 'Skip list',
-    future: 'Booking date in the future – the bank books them only then.',
+    future: 'Booking date in the future. The bank books them only then.',
     balanceShort: 'Balance',
     endOfDay: 'at end of day:',
     dayTotal: 'Day total:',
@@ -769,15 +769,15 @@ export const en: typeof de = {
     equal: 'Split equally',
     purpose: 'Payment reference',
     purposeFor: (name, day) => `Share ${name}, ${day}`,
-    sumOk: (sum) => ['Total ', sum, ' – adds up'],
+    sumOk: (sum) => ['Total adds up: ', sum],
     over: (diff) => ['The shares are ', diff, ' more than the transaction'],
     order: (names) => (names.length === 1
       ? `${names[0]} gets a GiroCode`
-      : `First ${names.slice(0, -1).join(', ')}, then ${names[names.length - 1]} – one GiroCode each`),
+      : `One GiroCode each: first ${names.slice(0, -1).join(', ')}, then ${names[names.length - 1]}`),
     requestAll: (n) => (n === 1 ? 'Request' : 'Request all'),
     requests: {
       eyebrow: (name, total, n) => `${name} · ${total} split ${n} ways`,
-      intro: 'One GiroCode per person – to scan, or as an image for a chat.',
+      intro: 'One GiroCode per person, to scan or as an image for a chat.',
       purpose: (purpose) => ['Reference: ', purpose],
       own: (amount, to) => ['Your share: ', amount, ` · to ${to}`],
       copyFor: (label, name) => `${label}: ${name}`,
@@ -823,7 +823,7 @@ export const en: typeof de = {
     refundGroup: 'Refund of an expense',
     ownGroup: 'Between your accounts',
     filedAs: (label) => `Filed under “${label}”.`,
-    ruled: (name, label) => `All transactions with ${name} are now filed under “${label}” – future ones too.`,
+    ruled: (name, label) => `All transactions with ${name} are now filed under “${label}”, future ones too.`,
     undone: (label, byRule) => `Back to “${label}”, ${byRule ? 'as your rule says' : 'recognised automatically'}.`,
     unruled: (name) => `Rule removed. Transactions with ${name} are filed automatically again.`,
     change: 'Change',
@@ -838,11 +838,11 @@ export const en: typeof de = {
     alsoFuture: 'Then also applies to future transactions.',
     applyAll: 'Apply to all',
     saveRule: 'Save as rule',
-    sessionOnly: 'Only for this session – Girovo isn’t saving anything right now.',
+    sessionOnly: 'Only for this session. Girovo isn’t saving anything right now.',
     rules: 'Your rules',
     remove: 'Remove',
-    newCategory: 'New category …',
-    split: 'Split …',
+    newCategory: 'New category…',
+    split: 'Split…',
     splitHint: 'Spread across several categories',
   },
 
@@ -858,16 +858,16 @@ export const en: typeof de = {
     addPart: 'Another category',
     removePart: (label) => `Remove part “${label}”`,
     over: (amount) => ['Together the parts come to ', amount, ' more than the transaction.'],
-    nothingLeft: (label) => `Nothing is left for “${label}” – every part needs an amount above 0.`,
+    nothingLeft: (label) => `Nothing is left for “${label}”. Every part needs an amount above 0.`,
     emptyPart: 'Enter an amount above 0 for every part.',
-    twice: 'Each category only once – combine the parts.',
+    twice: 'A category appears twice. Combine the parts.',
     save: 'Split',
     source: 'Split by you',
     heading: 'Split',
     edit: 'Change split',
     undo: 'Undo split',
     saved: (n) => `Split across ${nEn(n)} categories.`,
-    undone: (label) => `Split undone – the transaction counts fully as “${label}” again.`,
+    undone: (label) => `Split undone. The transaction counts fully as “${label}” again.`,
     summary: (first, second, more) => (more > 0 ? `${first} + ${nEn(more + 1)} more` : `${first} + ${second}`),
     summaryLabel: (labels) => `Split: ${labels.join(', ')}`,
   },
@@ -882,7 +882,7 @@ export const en: typeof de = {
     createAndFile: 'Create and file',
     empty: 'Enter a name.',
     taken: 'There is already a category with this name.',
-    full: (n) => `You already have ${nEn(n)} categories of your own – that’s the limit.`,
+    full: (n) => `You can’t have more than ${nEn(n)} categories of your own.`,
     created: (name) => `Category “${name}” created.`,
     section: 'Your categories',
     sectionHint: 'Apply to every account of this login, protected by your PIN.',
@@ -917,9 +917,9 @@ export const en: typeof de = {
     aheadNote:
       '“Not booked yet”: reported by the bank, booking date after the creation date.',
     openingDerived:
-      'Opening balance calculated from the closing balance and transactions – the bank did not report it.',
+      'Opening balance calculated from the closing balance and transactions, as the bank did not report it.',
     closingDerived:
-      'Closing balance calculated from the opening balance and transactions – the bank did not report it.',
+      'Closing balance calculated from the opening balance and transactions, as the bank did not report it.',
     noPending: 'Pending transactions are not included, as they are not booked yet.',
     statement: 'Account statement',
     receipt: 'Transaction receipt',

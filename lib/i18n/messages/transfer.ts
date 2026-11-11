@@ -26,7 +26,7 @@ export const de = {
   },
   /** The chip above the payee: where the prefilled values came from. */
   source: {
-    invoice: 'Aus der Rechnung gelesen – bitte prüfen',
+    invoice: 'Aus der Rechnung gelesen, bitte prüfen',
     girocode: 'Aus GiroCode übernommen',
     template: (label: string) => `Vorlage: ${label}`,
     templateUnnamed: 'Aus Vorlage übernommen',
@@ -57,7 +57,7 @@ export const de = {
     /** In a recent payee's tooltip, for one of your own accounts. */
     ownAccount: 'Eigenes Konto',
     name: 'Name',
-    nameHint: 'Wie auf dem Konto des Empfängers – deine Bank prüft den Namen.',
+    nameHint: 'Wie auf dem Konto des Empfängers. Deine Bank prüft den Namen.',
     namePlaceholder: 'Vor- und Nachname oder Firma',
     payment: 'Zahlung',
     available: 'Verfügbar',
@@ -93,7 +93,7 @@ export const de = {
     checkDigits: 'Nach dem Ländercode kommen zwei Ziffern.',
     /** `country`: its name as Intl writes it, or null when there is none. */
     length: (length: number, typed: number, country: string | null) =>
-      `Eine IBAN ${country ? `aus ${countryDative(country)} ` : ''}hat ${length} Stellen – eingegeben sind ${typed}.`,
+      `Eine IBAN ${country ? `aus ${countryDative(country)} ` : ''}hat ${length} Stellen. Eingegeben sind ${typed}.`,
     checksum: 'Die IBAN stimmt nicht. Bitte vergleiche sie Zeichen für Zeichen.',
     own: 'Von diesem Konto überweist du. Bitte gib die IBAN des Empfängers an.',
   },
@@ -133,9 +133,9 @@ export const de = {
   },
   /** One wording for the hint under Betrag and the warning on Prüfen. */
   funds: {
-    over: (available: boolean) => `Mehr als ${available ? 'verfügbar' : 'dein Kontostand'} – die Bank kann die Zahlung ablehnen.`,
+    over: (available: boolean) => `Mehr als ${available ? 'verfügbar' : 'dein Kontostand'}. Die Bank kann die Zahlung ablehnen.`,
     /** The balance afterwards arrives as text or as an element. */
-    overdraft: (amount: ReactNode): ReactNode[] => ['Kontostand danach ca. ', amount, ' – du nutzt deinen Dispo.'],
+    overdraft: (amount: ReactNode): ReactNode[] => ['Kontostand danach ca. ', amount, '. Du nutzt deinen Dispo.'],
   },
   /** The sheet's buttons. */
   actions: {
@@ -185,7 +185,7 @@ export const de = {
       amount,
       ' freigibst.',
     ],
-    askPayee: 'Frag den Empfänger, ob Name und IBAN stimmen – auf einem Weg, den du schon kennst, nicht über die '
+    askPayee: 'Frag den Empfänger, ob Name und IBAN stimmen. Nutze dafür einen Weg, den du schon kennst, nicht die '
       + 'Rechnung oder E-Mail mit der IBAN.',
     risk: 'Gibst du trotz Abweichung frei, trägst du das Risiko, dass das Geld beim falschen Empfänger ankommt.',
   },
@@ -220,7 +220,7 @@ export const de = {
   /** The "ausgeführt" step. */
   done: {
     to: (name: string) => `an ${name}`,
-    instant: 'Echtzeitüberweisung – in Sekunden beim Empfänger.',
+    instant: 'Echtzeitüberweisung: in Sekunden beim Empfänger.',
     appears: 'Die Buchung erscheint in deinen Umsätzen, sobald die Bank sie meldet.',
     /** `action`: the refresh button's label. */
     pastRange: (date: string, action: string) =>
@@ -248,7 +248,7 @@ export const de = {
       '. Sende die Überweisung nicht noch einmal.',
     ],
     /** Payments like it are there, but each may be an older one or another order's. */
-    unsure: 'Nicht eindeutig – bitte nicht erneut senden',
+    unsure: 'Nicht eindeutig, bitte nicht erneut senden',
     /** `count` of them; one is named with `bookedOn` as in found (null: a Vormerkposten). */
     unsureText: (count: number, amount: ReactNode, name: string, bookedOn: ReactNode | null): ReactNode[] => (count > 1
       ? [
@@ -265,8 +265,8 @@ export const de = {
       ]),
     failedBooked: 'Umsätze konnten nicht geladen werden.',
     failedPending: 'Vorgemerkte Umsätze konnten nicht geladen werden.',
-    notVisible: 'Noch nicht sichtbar – bitte nicht erneut senden',
-    notChecked: 'Nachsehen nicht möglich – bitte nicht erneut senden',
+    notVisible: 'Noch nicht sichtbar, bitte nicht erneut senden',
+    notChecked: 'Nachsehen nicht möglich, bitte nicht erneut senden',
     /** Where the check looked, as `notYet` names it — only what was actually read. */
     searched: (booked: boolean, pending: boolean) =>
       [booked && 'deinen Umsätzen', pending && 'den vorgemerkten Umsätzen'].filter(Boolean).join(' und '),
@@ -313,8 +313,8 @@ export const de = {
     /** `when`: todayAt or dayAt. */
     sent: (when: string, money: string, who: string) => `${when} hast du bereits ${money} an ${who} überwiesen.`,
     sentUnclear: (when: string, money: string, who: string) =>
-      `${when} hast du bereits eine Überweisung über ${money} an ${who} gesendet – ihr Status ist unklar.`,
-    debitPending: (who: string, money: string) => `${who} zieht bereits ${money} per Lastschrift ein – die Buchung ist vorgemerkt.`,
+      `${when} hast du bereits eine Überweisung über ${money} an ${who} gesendet. Ihr Status ist unklar.`,
+    debitPending: (who: string, money: string) => `${who} zieht bereits ${money} per Lastschrift ein. Die Buchung ist vorgemerkt.`,
     pending: (money: string, who: string) => `Bei deinen vorgemerkten Umsätzen steht bereits eine Zahlung über ${money} an ${who}.`,
     debitBooked: (date: string, who: string, money: string) => `Am ${date} hat ${who} bereits ${money} per Lastschrift eingezogen.`,
     booked: (date: string, money: string, who: string) => `Am ${date} hast du bereits ${money} an ${who} überwiesen.`,
@@ -335,7 +335,7 @@ export const de = {
     deleted: (label: string) => `Vorlage „${label}“ gelöscht.`,
     restored: (label: string) => `Vorlage „${label}“ wiederhergestellt.`,
     undo: 'Rückgängig',
-    undoLabel: (label: string) => `Rückgängig – „${label}“ wiederherstellen`,
+    undoLabel: (label: string) => `Rückgängig: „${label}“ wiederherstellen`,
     none: 'Keine Vorlagen',
     newName: (label: string) => `Neuer Name für „${label}“`,
     rename: (label: string) => `„${label}“ umbenennen`,
@@ -343,7 +343,7 @@ export const de = {
     saved: (label: string) => `Als Vorlage „${label}“ gespeichert.`,
     alreadySaved: (label: string) => `Schon als Vorlage „${label}“ gespeichert.`,
     nameLabel: 'Name der Vorlage',
-    saveHint: 'Empfänger, IBAN, Betrag und Verwendungszweck – verschlüsselt auf diesem Gerät.',
+    saveHint: 'Verschlüsselt auf diesem Gerät: Empfänger, IBAN, Betrag und Verwendungszweck.',
     save: 'Als Vorlage speichern',
   },
   /** Geld anfordern (components/ShareAccount.tsx). */
@@ -358,7 +358,7 @@ export const de = {
     /** The desktop: the line of the field in use, magnified. */
     lens: 'Auf der Rechnung',
     enlarge: 'Rechnung groß anzeigen',
-    debit: 'Laut Rechnung wird per Lastschrift eingezogen – musst du überhaupt überweisen?',
+    debit: 'Laut Rechnung wird per Lastschrift eingezogen. Musst du überhaupt überweisen?',
   },
 
   share: {
@@ -369,9 +369,9 @@ export const de = {
     /** Aufteilen's requests, one per person: "Für Lea · 1 von 2". */
     forWhom: (name: string, step?: { at: number; of: number }) =>
       (step && step.of > 1 ? `Für ${name} · ${step.at} von ${step.of}` : `Für ${name}`),
-    intro: 'Wer dir Geld schickt, scannt den Code mit der Banking-App – die Überweisung ist dann ausgefüllt.',
-    amountInvalid: 'Bitte gib einen Betrag wie 25,00 an – oder lass das Feld leer.',
-    amountNotPositive: 'Der Betrag muss größer als 0,00 € sein – oder lass das Feld leer.',
+    intro: 'Wer dir Geld schickt, scannt den Code mit der Banking-App, und die Überweisung ist ausgefüllt.',
+    amountInvalid: 'Bitte gib einen Betrag wie 25,00 an oder lass das Feld leer.',
+    amountNotPositive: 'Gib einen Betrag über 0,00 € an oder lass das Feld leer.',
     codeFailed: 'Der GiroCode konnte nicht erstellt werden.',
     copyFailed: 'Kopieren war nicht möglich.',
     imageCopyFailed: 'Kopieren ging nicht. Speichere das Bild als PNG.',
@@ -385,12 +385,12 @@ export const de = {
     imageCopied: 'GiroCode als Bild kopiert',
     /** Under the code in a copied, saved or shared image. */
     imageCaption: 'Erstellt mit Girovo · girovo.de',
-    covered: 'Beträge sind ausgeblendet – der Code verrät den Betrag jedem, der ihn scannt.',
+    covered: 'Beträge sind ausgeblendet. Der Code verrät den Betrag jedem, der ihn scannt.',
     showCode: 'Code anzeigen',
     /** The code's description for a screen reader. */
     codeLabel: (name: string, amount: string) => `GiroCode: Überweisung an ${name}, ${amount}`,
     checkAmount: 'Bitte prüfe den Betrag.',
-    noCode: 'Kein GiroCode – bitte prüfe die Angaben.',
+    noCode: 'Kein GiroCode. Bitte prüfe die Angaben.',
     yourName: 'Dein Name',
     /** Quotes the Namensabgleich's "Name stimmt nicht überein". */
     nameDiffers: (holder: string) =>
@@ -447,7 +447,7 @@ export const de = {
     purposeTooLong: (max: number) => `Der Verwendungszweck ist zu lang: höchstens ${max} Zeichen, Umlaute zählen doppelt.`,
     unknownAccount: 'Unbekanntes Konto.',
     sameIban: 'Der Empfänger hat dieselbe IBAN wie dein Konto.',
-    noIban: 'Von diesem Konto kannst du nicht überweisen – es hat keine IBAN.',
+    noIban: 'Von diesem Konto kannst du nicht überweisen, weil es keine IBAN hat.',
     unsupported: (instant: boolean) =>
       `Deine Bank bietet für dieses Konto hier keine ${instant ? 'Echtzeitüberweisungen' : 'Überweisungen'} an.`,
     vopRequired: 'Deine Bank verlangt einen Namensabgleich, bietet ihn hier aber nicht an. '
@@ -468,7 +468,7 @@ export const en: typeof de = {
     refused: 'Transfer not completed',
   },
   source: {
-    invoice: 'Read from the invoice – please check',
+    invoice: 'Read from the invoice, please check',
     girocode: 'From GiroCode',
     template: (label) => `Template: ${label}`,
     templateUnnamed: 'From template',
@@ -493,7 +493,7 @@ export const en: typeof de = {
     recent: 'Recent recipients',
     ownAccount: 'Your own account',
     name: 'Name',
-    nameHint: 'As on the recipient’s account – your bank checks the name.',
+    nameHint: 'As on the recipient’s account. Your bank checks the name.',
     namePlaceholder: 'First and last name, or company',
     payment: 'Payment',
     available: 'Available',
@@ -524,7 +524,7 @@ export const en: typeof de = {
     countryCode: 'An IBAN starts with the country code, for example “DE”.',
     checkDigits: 'Two digits follow the country code.',
     length: (length, typed, country) =>
-      `An IBAN ${country ? `from ${theCountry(country)} ` : ''}has ${length} characters – you entered ${typed}.`,
+      `An IBAN ${country ? `from ${theCountry(country)} ` : ''}has ${length} characters. You entered ${typed}.`,
     checksum: 'The IBAN is not right. Please compare it character by character.',
     own: 'You are transferring from this account. Please enter the recipient’s IBAN.',
   },
@@ -555,8 +555,8 @@ export const en: typeof de = {
     },
   },
   funds: {
-    over: (available) => `More than ${available ? 'is available' : 'your balance'} – the bank may decline the payment.`,
-    overdraft: (amount) => ['Balance afterwards: about ', amount, ' – you will be using your overdraft.'],
+    over: (available) => `More than ${available ? 'is available' : 'your balance'}. The bank may decline the payment.`,
+    overdraft: (amount) => ['Balance afterwards: about ', amount, '. You will be using your overdraft.'],
   },
   actions: {
     toReview: 'Continue to review',
@@ -598,7 +598,7 @@ export const en: typeof de = {
       amount,
       '.',
     ],
-    askPayee: 'Ask the recipient whether the name and IBAN are right – by a route you already know, not through the '
+    askPayee: 'Ask the recipient whether the name and IBAN are right. Use a way you already know, not the '
       + 'invoice or email with the IBAN.',
     risk: 'If you approve despite the mismatch, you bear the risk that the money reaches the wrong recipient.',
   },
@@ -629,7 +629,7 @@ export const en: typeof de = {
   },
   done: {
     to: (name) => `to ${name}`,
-    instant: 'Instant transfer – reaches the recipient in seconds.',
+    instant: 'Instant transfer: reaches the recipient in seconds.',
     appears: 'The booking will appear in your transactions as soon as the bank reports it.',
     pastRange: (date, action) =>
       `Your period ends on ${date}: “${action}” loads transactions up to today. May need approval.`,
@@ -651,7 +651,7 @@ export const en: typeof de = {
       ...(bookedOn != null ? [', booked on ', bookedOn] : []),
       '. Do not send the transfer again.',
     ],
-    unsure: 'Not clear – please do not send it again',
+    unsure: 'Not clear, please do not send it again',
     unsureText: (count, amount, name, bookedOn) => (count > 1
       ? [
         `Found ${count} identical payments of `,
@@ -667,8 +667,8 @@ export const en: typeof de = {
       ]),
     failedBooked: 'Could not load transactions.',
     failedPending: 'Could not load pending transactions.',
-    notVisible: 'Not visible yet – please do not send it again',
-    notChecked: 'Could not check – please do not send it again',
+    notVisible: 'Not visible yet, please do not send it again',
+    notChecked: 'Could not check, please do not send it again',
     searched: (booked, pending) =>
       [booked && 'your transactions', pending && 'your pending transactions'].filter(Boolean).join(' or '),
     notYet: (places, time) => [
@@ -703,8 +703,8 @@ export const en: typeof de = {
     todayAt: (time) => `today at ${time}`,
     dayAt: (date, time) => `on ${date} at ${time}`,
     sent: (when, money, who) => `You already transferred ${money} to ${who} ${when}.`,
-    sentUnclear: (when, money, who) => `You already sent a transfer of ${money} to ${who} ${when} – its status is unclear.`,
-    debitPending: (who, money) => `${who} is already collecting ${money} by direct debit – the transaction is pending.`,
+    sentUnclear: (when, money, who) => `You already sent a transfer of ${money} to ${who} ${when}. Its status is unclear.`,
+    debitPending: (who, money) => `${who} is already collecting ${money} by direct debit. The transaction is pending.`,
     pending: (money, who) => `Your pending transactions already include a payment of ${money} to ${who}.`,
     debitBooked: (date, who, money) => `${who} already collected ${money} by direct debit on ${date}.`,
     booked: (date, money, who) => `You already transferred ${money} to ${who} on ${date}.`,
@@ -724,7 +724,7 @@ export const en: typeof de = {
     deleted: (label) => `Template “${label}” deleted.`,
     restored: (label) => `Template “${label}” restored.`,
     undo: 'Undo',
-    undoLabel: (label) => `Undo – restore “${label}”`,
+    undoLabel: (label) => `Undo: restore “${label}”`,
     none: 'No templates',
     newName: (label) => `New name for “${label}”`,
     rename: (label) => `Rename “${label}”`,
@@ -732,7 +732,7 @@ export const en: typeof de = {
     saved: (label) => `Saved as template “${label}”.`,
     alreadySaved: (label) => `Already saved as template “${label}”.`,
     nameLabel: 'Template name',
-    saveHint: 'Recipient, IBAN, amount and payment reference – encrypted on this device.',
+    saveHint: 'Encrypted on this device: recipient, IBAN, amount and payment reference.',
     save: 'Save as template',
   },
   invoice: {
@@ -741,10 +741,10 @@ export const en: typeof de = {
     noAmount: 'No amount found',
     from: (account) => `from ${account}`,
     change: 'Change',
-    marked: 'Highlighted is what Girovo took over.',
+    marked: 'Highlighted: what Girovo filled in.',
     lens: 'On the invoice',
     enlarge: 'Show the invoice large',
-    debit: 'The invoice says it is collected by direct debit – do you need to transfer at all?',
+    debit: 'The invoice says it is collected by direct debit. Do you need to transfer at all?',
   },
 
   share: {
@@ -752,9 +752,9 @@ export const en: typeof de = {
     next: (name) => `Next: ${name}`,
     done: 'Done',
     forWhom: (name, step) => (step && step.of > 1 ? `For ${name} · ${step.at} of ${step.of}` : `For ${name}`),
-    intro: 'Whoever sends you money scans the code with their banking app – the transfer is then filled in.',
-    amountInvalid: 'Please enter an amount like 25.00 – or leave the field empty.',
-    amountNotPositive: 'The amount must be more than €0.00 – or leave the field empty.',
+    intro: 'Whoever sends you money scans the code with their banking app, and the transfer is filled in.',
+    amountInvalid: 'Please enter an amount like 25.00 or leave the field empty.',
+    amountNotPositive: 'Enter an amount over €0.00 or leave the field empty.',
     codeFailed: 'The GiroCode could not be created.',
     copyFailed: 'Could not copy.',
     imageCopyFailed: 'Could not copy. Save the image as a PNG.',
@@ -766,11 +766,11 @@ export const en: typeof de = {
     detailsCopied: 'Account details copied',
     imageCopied: 'GiroCode copied as an image',
     imageCaption: 'Made with Girovo · girovo.de',
-    covered: 'Amounts are hidden – the code reveals the amount to anyone who scans it.',
+    covered: 'Amounts are hidden. The code reveals the amount to anyone who scans it.',
     showCode: 'Show code',
     codeLabel: (name, amount) => `GiroCode: transfer to ${name}, ${amount}`,
     checkAmount: 'Please check the amount.',
-    noCode: 'No GiroCode – please check the details.',
+    noCode: 'No GiroCode. Please check the details.',
     yourName: 'Your name',
     nameDiffers: (holder) =>
       `Differs from the account holder “${holder}”. Whoever pays may then see “Name does not match”.`,
@@ -818,7 +818,7 @@ export const en: typeof de = {
     purposeTooLong: (max) => `The payment reference is too long: at most ${max} characters, umlauts count double.`,
     unknownAccount: 'Unknown account.',
     sameIban: 'The recipient has the same IBAN as your account.',
-    noIban: 'You cannot transfer from this account – it has no IBAN.',
+    noIban: 'You cannot transfer from this account because it has no IBAN.',
     unsupported: (instant) => `Your bank does not offer ${instant ? 'instant transfers' : 'transfers'} here for this account.`,
     vopRequired: 'Your bank requires a name check but does not offer it here. '
       + 'Please make the transfer in your bank’s online banking.',
