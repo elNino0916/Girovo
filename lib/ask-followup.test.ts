@@ -47,6 +47,16 @@ test('a model\'s guess at a bare follow-up does not replace the topic', () => {
   assert.equal(next.kind, 'largest');
 });
 
+test('the month before the one asked about, in either language', () => {
+  const first = read('Wie viel ging im Oktober an Rewe?');
+  const de = readQuestion('Und im Monat davor?', null, today) ?? first;
+  assert.deepEqual(followUp(first, 'Und im Monat davor?', de, today).period, { kind: 'month', month: '2026-09' });
+  assert.equal(followUp(first, 'Und im Monat davor?', de, today).kind, first.kind);
+  const en1 = read('How much did I spend on groceries last month?');
+  const en2 = readQuestion('And the month before?', null, today) ?? en1;
+  assert.deepEqual(followUp(en1, 'And the month before?', en2, today).period, { kind: 'month', month: '2026-09' });
+});
+
 test('a ranking does not carry over to a new topic', () => {
   const first = read('Wofür gebe ich am meisten aus?');
   assert.equal(first.kind, 'rank');

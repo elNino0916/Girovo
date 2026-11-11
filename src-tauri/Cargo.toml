@@ -50,6 +50,11 @@ regex = "1.13"
 uuid = { version = "1.29", features = ["v4"] }
 if-addrs = "0.15"
 gethostname = "1.1"
+# Girovo Next's local model (src/gemma.rs): llama.cpp's runtime comes as a
+# .zip on Windows and a .tar.gz on Linux. Reading only, deflate through the
+# flate2 already here; no xattrs.
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+tar = { version = "0.4", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [
@@ -57,6 +62,7 @@ windows = { version = "0.62", features = [
   "Win32_Graphics_Gdi",
   "Win32_Security_Cryptography",
   "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_JobObjects",
   "Win32_System_LibraryLoader",
   "Win32_System_Memory",
   "Win32_System_Registry",
@@ -91,6 +97,9 @@ zbus-secret-service-keyring-store = { version = "1", features = ["rt-async-io-cr
 # built for the store above, with these very features.
 secret-service = { version = "5", features = ["rt-async-io-crypto-rust"] }
 zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
+# The local model's server ends with Girovo, even after a crash (src/gemma.rs:
+# PR_SET_PDEATHSIG). Already in the tree through the crates above.
+libc = "0.2"
 
 # The PDF export through WebView2's own DevTools protocol (pdf.rs) — the very
 # version tauri-runtime-wry is built on — and the Windows version telemetry

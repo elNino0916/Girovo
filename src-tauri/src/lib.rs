@@ -20,6 +20,7 @@ mod closing;
 mod edition;
 mod files;
 mod frame;
+mod gemma;
 mod hello;
 mod http;
 pub mod install_window;
@@ -99,6 +100,9 @@ pub fn run() {
       app.state::<telemetry::Telemetry>().start(app.handle());
       // What the updater found before telemetry was up: this start being an update, say.
       updater::report_state(app.handle());
+      // Girovo Next's local model: only what is on the disk is looked at here,
+      // nothing starts before the first question (gemma.rs).
+      app.manage(gemma::Gemma::new(app.handle()));
       let handle = app.handle().clone();
       let prefs = app.state::<prefs::Prefs>();
       let lang = texts::lang(&prefs);
@@ -296,6 +300,11 @@ pub fn run() {
       telemetry::telemetry_event,
       telemetry::telemetry_error,
       telemetry::telemetry_relay,
+      gemma::gemma_state,
+      gemma::gemma_download,
+      gemma::gemma_cancel,
+      gemma::gemma_remove,
+      gemma::gemma_prompt,
     ])
     .build(tauri::generate_context!())
     .expect("error while running Girovo");
@@ -304,6 +313,8 @@ pub fn run() {
     // the tray's "Beenden", an update (the Electron shell's main.cjs will-quit).
     if let tauri::RunEvent::Exit = event {
       app.state::<telemetry::Telemetry>().closing(app);
+      // The local model's server ends with the app, a download stops (gemma.rs).
+      gemma::on_exit(app);
     }
   });
   // Past Tauri's cleanup (the plugins' exit hooks, the updater's installer

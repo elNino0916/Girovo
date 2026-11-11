@@ -19,11 +19,12 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { followUp, monthBefore } from '@/lib/ask-followup';
+import { segments, usable, writerInput, writerSystem, type WriterLang } from '@/lib/gemma-writer';
 import { bookingDay, periodTotals } from '@/lib/analytics';
 import { categoryLabel, counterpartyName, type CategoryId } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
 import { dayKey, fmtDate, fmtMonth, fmtRange } from '@/lib/format';
-import { intlLocale } from '@/lib/i18n/locale';
+import { activeLocale, intlLocale } from '@/lib/i18n/locale';
 import { useT } from '@/lib/i18n/react';
 import {
   ASK_MAX_TOKENS, ASK_SYSTEM, askText, categoryFromQuestion, computeAnswer, nameFromPayees, parseAskAnswer, periodDays,
@@ -42,8 +43,9 @@ import { AskTile } from './Ask';
 import { useCanAsk } from './ask-gate';
 import {
   askInThread, clearAsk, closeAsk, currentConversation, dropCurrent, hiddenRecaps, newConversation, openAskWithRecap, settleTurn,
-  showConversation, useAskThread, type Turn,
+  settleWritten, showConversation, useAskThread, type Turn,
 } from './ask-thread-store';
+import { gemmaPrompt, gemmaUsable, useGemma } from './gemma';
 import { LoadHistoryButton, useShowInList } from './shared';
 
 type AskCtx = Parameters<typeof computeAnswer>[2];
@@ -93,6 +95,8 @@ export function AskReader() {
   const s = useAskThread();
   const data = useAskScope();
   const { askCategory, vault } = useFints();
+  const gemma = useGemma();
+  const gemmaReady = gemmaUsable(gemma);
   const { ctx, own } = useAskContext(data?.currency ?? 'EUR');
   const inflight = useRef(new Set<number>());
   const payees = useMemo(
@@ -120,7 +124,14 @@ export function AskReader() {
             return;
           }
           const raw = mobile?.ask ? await mobile.ask(ASK_SYSTEM, askText(q, own), ASK_MAX_TOKENS) : null;
-          const reading = mobile?.ask ? parseAskAnswer(raw, own) : await builtInReading(q, payees, askCategory);
+          // The desktop with Gemma: Gemma reads the question (the prompt Nano reads on a phone),
+          // a payee's name the question names is taken from the loaded bookings, and the rules
+          // put what the question says plainly over both (readQuestion). Without an answer from
+          // Gemma, the built-in model reads it as before.
+          const fromGemma = !mobile?.ask && gemmaReady ? parseAskAnswer(await gemmaPrompt(ASK_SYSTEM, askText(q, own), ASK_MAX_TOKENS), own) : null;
+          const reading = mobile?.ask ? parseAskAnswer(raw, own)
+            : fromGemma ? { ...fromGemma, search: fromGemma.search ?? nameFromPayees(q, payees) }
+              : await builtInReading(q, payees, askCategory);
           const read = readQuestion(q, reading, today, own);
           if (!read) {
             settleTurn(turn.id, { state: mobile?.ask && raw == null ? 'failed' : 'notUnderstood' });
@@ -130,7 +141,7 @@ export function AskReader() {
         })().finally(() => inflight.current.delete(turn.id));
       });
     }
-  }, [s, own, payees, askCategory]);
+  }, [s, own, payees, askCategory, gemmaReady]);
   return null;
 }
 
@@ -196,12 +207,14 @@ function dayInWords(day: string): string {
 }
 
 /** Girovo's answer to one question, said in sentences over the figures it computed. */
-function AnswerText({ answer, own, show, scopeAll, onShown }: {
+function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
   answer: AskAnswer;
   own: Own;
   show: ReturnType<typeof useShowInList>;
   scopeAll: boolean;
   onShown: () => void;
+  /** Gemma's sentences (passed the number guard); the template's when absent. */
+  written?: string;
 }) {
   const t = useT();
   const words = t.ask;
@@ -300,7 +313,8 @@ function AnswerText({ answer, own, show, scopeAll, onShown }: {
   return (
     <>
       <p className="text-[16px] leading-6 text-ink sm:text-[14px] sm:leading-[22px] [text-wrap:pretty]">
-        {lines.map((parts, i) => <Fragment key={i}>{i > 0 && ' '}<Say parts={parts} /></Fragment>)}
+        {written ? <WrittenText text={written} answer={answer} open={open} />
+          : lines.map((parts, i) => <Fragment key={i}>{i > 0 && ' '}<Say parts={parts} /></Fragment>)}
       </p>
       {extra}
       {answer.count > 0 && !answer.outside && q.kind !== 'rank' && q.kind !== 'compare' && (
@@ -311,6 +325,78 @@ function AnswerText({ answer, own, show, scopeAll, onShown }: {
       )}
     </>
   );
+}
+
+/** The app's language as the writer's. */
+const writerLang = (): WriterLang => (activeLocale() === 'en' ? 'en' : 'de');
+
+/**
+ * Gemma's sentences, every amount in them drawn by the app again: <Money>
+ * (Beträge ausblenden hides it) and, where it is one of the answer's own
+ * figures, a press that opens its bookings.
+ */
+function WrittenText({ text, answer, open }: {
+  text: string;
+  answer: AskAnswer;
+  open: (tx: SerializedTransaction | null, filter: AskAnswer['filter']) => void;
+}) {
+  // Which bookings each figure of the answer is made of, by its amount.
+  const filters = new Map<number, AskAnswer['filter']>();
+  filters.set(answer.cents, answer.filter);
+  if (answer.compare) {
+    filters.set(answer.compare.a.cents, answer.compare.a.filter);
+    filters.set(answer.compare.b.cents, answer.compare.b.filter);
+  }
+  for (const row of answer.rank ?? []) filters.set(row.cents, row.filter as AskAnswer['filter']);
+  const tx = (answer.query.kind === 'largest' || answer.query.kind === 'last') && answer.tx ? answer.tx : null;
+  return (
+    <>
+      {segments(text, writerLang()).map((seg, i) => {
+        if ('text' in seg) return <Fragment key={i}>{seg.text}</Fragment>;
+        const filter = filters.get(seg.cents) ?? (tx && Math.abs(Math.round(tx.amount * 100)) === seg.cents ? answer.filter : undefined);
+        return (
+          <Fig key={i} onShow={filter ? () => open(tx, filter) : undefined}>
+            <Money value={seg.cents / 100} currency={answer.currency} tone="plain" />
+          </Fig>
+        );
+      })}
+    </>
+  );
+}
+
+/** What an answer's figures are: Gemma's sentences belong to these, and are written again when they change. */
+// The language too: a sentence is said in the language it was written in, or written again.
+const answerKey = (a: AskAnswer) => JSON.stringify([writerLang(), a.cents, a.count, a.from, a.to, a.partial, a.outside, a.outCents, a.inCents, a.rank?.slice(0, 5).map((r) => r.cents)]);
+
+/** Turns being written: each asked of Gemma once at a time. */
+const writing = new Set<string>();
+
+/**
+ * Asks Gemma to say a turn's answer, once for each set of figures, and keeps
+ * its sentences on the turn when they pass the number guard (lib/gemma-writer.ts);
+ * otherwise the template says it. Nothing happens without the shell's Gemma.
+ */
+function useWriter(turn: Turn, answer: AskAnswer | null, ctx: AskCtx, own: Own, latest: boolean): { pending: boolean; text?: string } {
+  const gemma = useGemma();
+  const ready = gemmaUsable(gemma);
+  const key = answer ? answerKey(answer) : '';
+  const current = turn.writtenFor === key;
+  useEffect(() => {
+    // Only the newest turn is written: older ones keep what they had, so a new question never waits behind them.
+    if (!ready || !answer || turn.seed || !turn.question || current || !latest) return;
+    const job = `${turn.id}:${key}`;
+    if (writing.has(job)) return;
+    writing.add(job);
+    const lang = writerLang();
+    const nameOf = (id: CategoryId) => own.find((c) => c.id === id)?.name ?? categoryLabel(id);
+    const input = writerInput(turn.question, answer, { lang, nameOf, payeeOf: (tx) => ctx.payeeOf?.(tx) || counterpartyName(tx) });
+    void gemmaPrompt(writerSystem(lang), input.prompt, 160)
+      .then((text) => settleWritten(turn.id, usable(text, input) ? text.trim() : false, key))
+      .finally(() => writing.delete(job));
+  }, [ready, answer, turn.id, turn.question, turn.seed, key, current, ctx, own, latest]);
+  if (!ready || !answer || turn.seed) return { pending: false };
+  if (!current) return { pending: latest };
+  return { pending: false, text: turn.written || undefined };
 }
 
 /**
@@ -397,8 +483,10 @@ function GirovoTile({ children, busy }: { children: ReactNode; busy?: boolean })
   );
 }
 
-function TurnView({ turn, data, ctx, own, onShown }: {
+function TurnView({ turn, data, ctx, own, onShown, latest }: {
   turn: Turn;
+  /** The conversation's newest turn: the one Gemma writes. */
+  latest: boolean;
   data: ScopeData | null;
   ctx: AskCtx;
   own: Own;
@@ -411,6 +499,7 @@ function TurnView({ turn, data, ctx, own, onShown }: {
     [turn.query, data, ctx],
   );
   const recap = useRecap(data, ctx, turn.seed?.month ?? null);
+  const writer = useWriter(turn, turn.state === 'answered' ? answer : null, ctx, own, latest);
   return (
     <li className="flex flex-col gap-3">
       {turn.question && (
@@ -419,12 +508,12 @@ function TurnView({ turn, data, ctx, own, onShown }: {
           {turn.question}
         </div>
       )}
-      <GirovoTile busy={turn.state === 'reading'}>
+      <GirovoTile busy={turn.state === 'reading' || writer.pending}>
         {turn.seed && (recap ? <RecapText recap={recap} own={own} onShown={onShown} /> : <p className="text-[16px] leading-6 sm:text-[14px]">{data ? words.outside : words.thread.notLoaded}</p>)}
         {turn.state === 'failed' && <p className="text-[16px] leading-6 sm:text-[14px]">{words.failed}</p>}
         {turn.state === 'notUnderstood' && <p className="text-[16px] leading-6 sm:text-[14px]">{IS_ANDROID ? words.notUnderstood : words.desktop.notUnderstood}</p>}
         {turn.state === 'answered' && !turn.seed && (answer
-          ? <AnswerText answer={answer} own={own} show={show} scopeAll={data?.scope === 'all'} onShown={onShown} />
+          ? <AnswerText answer={answer} own={own} show={show} scopeAll={data?.scope === 'all'} onShown={onShown} written={writer.text} />
           : <p className="text-[16px] leading-6 sm:text-[14px]">{words.thread.notLoaded}</p>)}
       </GirovoTile>
     </li>
@@ -531,7 +620,7 @@ function Thread({ face, onClose }: { face: 'screen' | 'panel'; onClose: () => vo
           <p className="mt-6 max-w-[34ch] text-[16px] leading-6 text-ink-2 sm:text-[14px] sm:leading-5">{words.empty}</p>
         ) : (
           <ol aria-live="polite" className="flex flex-col gap-5 pt-1 pb-4">
-            {turns.map((turn) => <TurnView key={turn.id} turn={turn} data={data} ctx={ctx} own={own} onShown={onShown} />)}
+            {turns.map((turn, i) => <TurnView key={turn.id} turn={turn} data={data} ctx={ctx} own={own} onShown={onShown} latest={i === turns.length - 1} />)}
           </ol>
         )}
       </div>

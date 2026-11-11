@@ -152,6 +152,29 @@
     },
   });
 
+  // Girovo Next's "Fragen" on this computer (src/gemma.rs): Gemma 4 E2B run by
+  // llama.cpp, downloaded only when the user asks. Every call but prompt
+  // answers with the state; onState hears every change, download progress
+  // included (four times a second at most), and returns its own unsubscribe.
+  // prompt answers the model's text, or null for anything that went wrong; the
+  // server's port and key stay in the shell.
+  var text = function (value) { return typeof value === 'string' ? value : String(value == null ? '' : value); };
+  define('electronGemma', {
+    getState: function () { return invoke('gemma_state'); },
+    download: function () { return invoke('gemma_download'); },
+    cancel: function () { return invoke('gemma_cancel'); },
+    remove: function () { return invoke('gemma_remove'); },
+    prompt: function (system, user, maxTokens, json) {
+      var max = Number.isInteger(maxTokens) && maxTokens > 0 ? maxTokens : 256;
+      return invoke('gemma_prompt', { system: text(system), user: text(user), maxTokens: max, json: json === true })
+        .catch(function () { return null; });
+    },
+    onState: function (callback) {
+      if (typeof callback !== 'function') return function () {};
+      return listen('gemma:state', callback);
+    },
+  });
+
   // Saving a file the app made (the CSV export, a backup) through a native
   // Save As, answered once the file is written or the dialog dismissed
   // (src/save.rs). The bytes go as the request's body, as they are; the name

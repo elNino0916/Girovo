@@ -6,7 +6,8 @@
 // Umsätze, the background box, the shell secret, the LAN shelf's folder and
 // tokens, the preferences — the Electron shell's leftovers too, in the folder
 // it shared, and on Linux the folder a 6.0.0 to 6.0.3 made beside it,
-// paths.rs unused_roots), Windows Hello's key in Windows, the start with Windows. What
+// paths.rs unused_roots), Girovo Next's local model in the app's local data
+// folder (gemma.rs), Windows Hello's key in Windows, the start with Windows. What
 // stays: the installation, one preference — the move from the Electron
 // app is done, so a fresh start never shows that screen again — and on Linux
 // the mark that this folder is the one in use (paths.rs ROOT_MARKER).
@@ -67,6 +68,8 @@ pub async fn app_reset(app: AppHandle) -> Result<(), String> {
   tauri::async_runtime::spawn_blocking(crate::hello::forget).await.map_err(|e| e.to_string())?;
   // The shell secret where it lives beyond the data folder (the keyring on Linux).
   tauri::async_runtime::spawn_blocking(crate::secret::forget).await.map_err(|e| e.to_string())?;
+  // The local model: its server stopped first, which holds the model's file open (gemma.rs).
+  crate::gemma::forget(&app).await;
 
   let root = data_root().to_path_buf();
   let mut left = tauri::async_runtime::spawn_blocking(move || {

@@ -20,7 +20,8 @@ import { asksWith } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { CheckCircleIcon, DownloadIcon, GeminiSparkIcon, GlobeIcon } from '../icons';
-import { Button } from '../ui';
+import { useGemma } from '../insights/gemma';
+import { Button, Progress } from '../ui';
 import { ActionItem, SettingItem, SettingsGroup, SwitchItem } from './rows';
 
 const noSubscription = () => () => {};
@@ -129,7 +130,9 @@ function ModelRow() {
       />
     );
   }
-  // No Nano that can answer (or the desktop): the model Girovo will bring. Its download is not built yet.
+  // The desktop with the shell's Gemma (src-tauri/src/gemma.rs): its download, for real.
+  if (!IS_ANDROID && typeof window !== 'undefined' && window.electronGemma) return <GemmaRow />;
+  // No Nano that can answer (or a shell without Gemma): the model Girovo will bring, not loadable yet.
   return (
     <SettingItem
       icon={<DownloadIcon />}
@@ -137,6 +140,69 @@ function ModelRow() {
       summary={words.modelSize(IS_ANDROID)}
       below={<span className="block text-[14px] leading-5 text-ink-2">{words.later}</span>}
       trailing={<Button variant="secondary" size="sm" disabled>{words.load}</Button>}
+    />
+  );
+}
+
+/** Gigabytes as the row says them: "1,1 GB". */
+function gb(bytes: number, locale: string): string {
+  return `${new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes / 1e9)} GB`;
+}
+
+/**
+ * The desktop's Gemma: where it comes from before it loads (a download leaves
+ * the computer, so it is said), its progress while it loads (cancel keeps
+ * what came, the next press goes on), "bereit" with Löschen once it is here.
+ */
+function GemmaRow() {
+  const t = useT();
+  const words = t.settings.ask;
+  const { locale } = useLocale();
+  const gemma = useGemma();
+  const g = typeof window === 'undefined' ? undefined : window.electronGemma;
+  // Nothing to show until the shell answers, and nothing where no runtime is pinned for this system (an odd architecture).
+  if (!gemma || !g || !gemma.supported) return null;
+  const intl = locale === 'en' ? 'en-GB' : 'de-DE';
+  if (gemma.state === 'ready') {
+    return (
+      <SettingItem
+        icon={<CheckCircleIcon className="text-green" strokeWidth={2} />}
+        title={words.model}
+        summary={words.gemmaReady}
+        // Loaded, but it would not start on this computer (this run): the shell says so; the templates answer meanwhile.
+        below={gemma.unavailable && gemma.error ? <span className="block text-[14px] leading-5 text-ink-2">{gemma.error}</span> : undefined}
+        trailing={<Button variant="tertiary" size="sm" onClick={() => void g.remove()}>{words.remove}</Button>}
+      />
+    );
+  }
+  if (gemma.state === 'downloading') {
+    const total = gemma.total || 3.4e9;
+    return (
+      <SettingItem
+        icon={<DownloadIcon />}
+        title={words.model}
+        summary={words.gemmaLoading(gb(gemma.received, intl), gb(total, intl))}
+        below={<Progress className="mt-2 block" value={(gemma.received / total) * 100} label={words.model} />}
+        trailing={<Button variant="tertiary" size="sm" onClick={() => void g.cancel()}>{words.cancel}</Button>}
+      />
+    );
+  }
+  return (
+    <SettingItem
+      icon={<DownloadIcon />}
+      title={words.model}
+      summary={words.gemmaSize}
+      // The shell says what went wrong (a full disk, a broken file), not only that it did.
+      below={<span className="block text-[14px] leading-5 text-ink-2">{gemma.state === 'error' ? gemma.error || words.gemmaFailed : words.gemmaSource}</span>}
+      trailing={(
+        <span className="flex items-center gap-1">
+          {/* What already came of a cancelled or failed download can go too. */}
+          {(gemma.state === 'error' || gemma.partial > 0) && (
+            <Button variant="tertiary" size="sm" onClick={() => void g.remove()}>{words.remove}</Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => void g.download()}>{gemma.state === 'error' ? words.retry : gemma.partial > 0 ? words.resume : words.load}</Button>
+        </span>
+      )}
     />
   );
 }

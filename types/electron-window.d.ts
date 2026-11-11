@@ -96,7 +96,83 @@ declare global {
     } | null;
   }
 
+  /**
+   * Girovo Next's local model on the desktop (src-tauri/src/gemma.rs), as
+   * electronGemma.getState and onState report it.
+   */
+  interface GirovoGemmaState {
+    /**
+     * absent: not downloaded (or only partly: a cancelled download goes on from
+     * where it stopped) · downloading · ready: runtime and model on the disk ·
+     * error: the last download failed, `error` says why; download() tries again.
+     */
+    state: 'absent' | 'downloading' | 'ready' | 'error';
+    /** While downloading: llama.cpp's runtime first (about 36 MB), then the model (about 3.4 GB). */
+    phase?: 'runtime' | 'model';
+    /**
+     * Bytes of the file being downloaded now (the phase's, not both together):
+     * what is on the disk, and all of it. The model's total is an estimate
+     * (3.35 GB) until the server says its exact size.
+     */
+    received: number;
+    total: number;
+    /** state 'error' (the download failed) or `unavailable`: one short line in the app's language, ready to show. */
+    error?: string;
+    /**
+     * Bytes of a download that stopped on its way (cancelled or failed) and
+     * goes on from there with the next download(); 0 when there is none and
+     * while downloading. Above 0, offer "Löschen" (remove()).
+     */
+    partial: number;
+    /**
+     * The model could start neither on the GPU nor on the CPU in this run:
+     * prompt() answers null at once until the app starts again or remove().
+     * state stays 'ready'; `error` says why.
+     */
+    unavailable: boolean;
+    /** Whether the model runs on the GPU; null until a start has told. False also after a GPU start failed (then the CPU, remembered). */
+    gpu: boolean | null;
+    /** The server is up: the next answer comes without the start's wait. It stops after 5 minutes without a prompt. */
+    warm: boolean;
+    /** The server is starting for a prompt: the first start on a GPU takes about half a minute. */
+    starting: boolean;
+    /** This system has a runtime to download (Windows and Linux, x64 and arm64); false: hide the feature. */
+    supported: boolean;
+  }
+
+  /** window.electronGemma (src-tauri/src/bridge.js). */
+  interface GirovoGemmaBridge {
+    getState: () => Promise<GirovoGemmaState>;
+    /** Starts the download (runtime, then model) unless ready or under way; answers at once, progress comes through onState. */
+    download: () => Promise<GirovoGemmaState>;
+    /** Stops the download; what arrived stays for the next download(). The state turns 'absent' shortly after, through onState. */
+    cancel: () => Promise<GirovoGemmaState>;
+    /**
+     * Stops the server and the download and deletes the runtime, the model and
+     * any partial file. Works in every state (absent and error too); a
+     * download() asked for while it runs is ignored.
+     */
+    remove: () => Promise<GirovoGemmaState>;
+    /**
+     * One question, one answer: the model's text, trimmed, or null when not
+     * ready, unavailable, on any failure, or for an empty answer. Prompts run
+     * one at a time; the first one starts the server (up to 90 s, twice that
+     * when the GPU fails and the CPU takes over), then each answer has 30 s;
+     * a server that takes longer is ended and started afresh for the next
+     * prompt (on the CPU if it was on the GPU). `json`: asks
+     * the server for a JSON object (response_format). Temperature 0, thinking off.
+     */
+    prompt: (system: string, user: string, maxTokens: number, json?: boolean) => Promise<string | null>;
+    /** Hears every change, download progress included (at most four a second); returns its unsubscribe. */
+    onState: (callback: (state: GirovoGemmaState) => void) => () => void;
+  }
+
   interface Window {
+    /**
+     * Girovo Next's "Fragen" with Gemma 4 E2B on this computer (src-tauri/src/gemma.rs).
+     * Undefined outside the desktop shell (and in shells from before it).
+     */
+    electronGemma?: GirovoGemmaBridge;
     /**
      * Exposed by src-tauri/src/bridge.js (the Electron preload's names); undefined outside the desktop shell.
      * Every call answers with the updater's state (null if the main process

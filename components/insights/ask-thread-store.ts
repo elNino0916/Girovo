@@ -28,6 +28,13 @@ export type Turn = {
   state: TurnState;
   query?: AskQuery;
   seed?: RecapSeed;
+  /**
+   * Gemma's sentences for the answer (lib/gemma-writer.ts), for the figures they
+   * were written from (`writtenFor`); false when Gemma could not say it and the
+   * template stands. Absent until asked.
+   */
+  written?: string | false;
+  writtenFor?: string;
 };
 
 export type Conversation = {
@@ -126,6 +133,16 @@ export function settleTurn(id: number, result: { state: Exclude<TurnState, 'read
     ...state,
     conversations: state.conversations.map((c) => (c.turns.some((t) => t.id === id)
       ? { ...c, turns: c.turns.map((t) => (t.id === id ? { ...t, ...result } : t)) }
+      : c)),
+  });
+}
+
+/** Gemma's sentences for a turn's answer, or false: the template says it. */
+export function settleWritten(id: number, written: string | false, writtenFor: string): void {
+  set({
+    ...state,
+    conversations: state.conversations.map((c) => (c.turns.some((t) => t.id === id)
+      ? { ...c, turns: c.turns.map((t) => (t.id === id ? { ...t, written, writtenFor } : t)) }
       : c)),
   });
 }

@@ -14,10 +14,15 @@ import {
   type AskPeriod, type AskQuery,
 } from './nano-ask.ts';
 
+// i18n-data-next-line
+const MONTH_BEFORE = /\b(?:monat davor|monat vorher|month before|previous month)\b/i;
+
 /** The question read on its own (lib/nano-ask.ts readQuestion), completed from the one before it. */
 export function followUp(prev: AskQuery | null, question: string, read: AskQuery, today: string): AskQuery {
   if (!prev) return read;
-  const namedPeriod = !!(compareFromQuestion(question, today) || periodFromQuestion(question, today));
+  // "Und im Monat davor?", "And the month before?": the month before the one asked about, not last month.
+  const before = MONTH_BEFORE.test(question) ? monthBefore(prev.period, today) : null;
+  const namedPeriod = !!(before || compareFromQuestion(question, today) || periodFromQuestion(question, today));
   const namedKind = !!(rankFromQuestion(question) || compareFromQuestion(question, today) || kindFromQuestion(question));
   // A topic the question names in its own words (a model's guess at "Und im Monat davor?" is none),
   // or any topic when the question before had none to keep.
@@ -28,14 +33,15 @@ export function followUp(prev: AskQuery | null, question: string, read: AskQuery
   const namedDir = !!dirFromQuestion(question) || read.category === 'income' || (namedTopic && prev.category === 'income');
   // A comparison or a ranking does not carry over to a new topic: "Und Lieferando?" asks for a sum.
   const carriedKind = prev.kind === 'compare' || prev.kind === 'rank' ? (namedTopic ? 'sum' : prev.kind) : prev.kind;
-  const kind = namedKind ? read.kind : carriedKind;
+  // A question about the month before names no kind of its own, whatever the rules read in "Monat".
+  const kind = namedKind && !before ? read.kind : carriedKind;
   const next: AskQuery = {
     kind,
     dir: namedDir ? read.dir : prev.dir,
     category: namedTopic ? read.category : prev.category,
     search: namedTopic ? read.search : prev.search,
     hint: namedTopic ? read.hint : prev.hint,
-    period: namedPeriod ? read.period : prev.period,
+    period: before ? { kind: 'month', month: before } : namedPeriod ? read.period : prev.period,
   };
   const rank = namedKind ? read.rank : kind === 'rank' ? prev.rank : undefined;
   const against = namedPeriod ? read.against : kind === 'compare' ? prev.against : undefined;
