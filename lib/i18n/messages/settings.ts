@@ -197,14 +197,14 @@ export const de = {
     stableHint: 'Fertige Versionen. Empfohlen.',
     previewHint: 'Das Neueste, jede Nacht.',
     /** Under the choice. The desktop: back to "Stabil" offers the latest stable release, older as it may be. */
-    note: 'Nightlies können Fehler haben. Zurück zu „Stabil“ geht jederzeit, auch auf eine ältere Version.',
+    note: 'Vorabversionen können Fehler haben. Zurück zu „Stabil“ geht jederzeit, auch auf eine ältere Version.',
     /** Android installs no older version over a newer one. */
-    noteAndroid: 'Nightlies können Fehler haben. Gehst du zurück zu „Stabil“, kommt das nächste Update erst mit der nächsten stabilen Version.',
-    /** Under the note while "Nightly" is chosen, where the build can share usage data: choosing it is the yes. */
-    usage: 'Nightly teilt Nutzungsdaten, nie Kontodaten.',
-    /** A copy on "Nightly" that does not share them yet is asked once per start (components/telemetry/NightlyUsage.tsx). */
+    noteAndroid: 'Vorabversionen können Fehler haben. Gehst du zurück zu „Stabil“, kommt das nächste Update erst mit der nächsten stabilen Version.',
+    /** Under the note while a channel that shares usage data (Nightly) is chosen, where the build can share them: choosing it is the yes. */
+    usage: (channel: string) => `${channel} teilt Nutzungsdaten, nie Kontodaten.`,
+    /** A copy on such a channel that does not share them yet is asked once per start (components/telemetry/NightlyUsage.tsx). */
     usageAsk: {
-      title: 'Nightly teilt Nutzungsdaten',
+      title: (channel: string) => `${channel} teilt Nutzungsdaten`,
       text: 'Welche Bereiche du nutzt und ob Anmeldungen klappen, aber nie Kontodaten. Sonst geht es mit „Stabil“ weiter.',
       agree: 'Einverstanden',
       toStable: 'Zu „Stabil“ wechseln',
@@ -378,11 +378,11 @@ export const en: typeof de = {
     intro: 'Which updates you get.',
     stableHint: 'Finished versions. Recommended.',
     previewHint: 'The latest, every night.',
-    note: 'Nightlies may have bugs. You can go back to “Stable” at any time, even to an older version.',
-    noteAndroid: 'Nightlies may have bugs. If you go back to “Stable”, the next update comes only with the next stable version.',
-    usage: 'Nightly shares usage data, never account data.',
+    note: 'Pre-releases may have bugs. You can go back to “Stable” at any time, even to an older version.',
+    noteAndroid: 'Pre-releases may have bugs. If you go back to “Stable”, the next update comes only with the next stable version.',
+    usage: (channel) => `${channel} shares usage data, never account data.`,
     usageAsk: {
-      title: 'Nightly shares usage data',
+      title: (channel) => `${channel} shares usage data`,
       text: 'Which parts you use and whether logins work, but never account data. Otherwise you carry on with “Stable”.',
       agree: 'Agree',
       toStable: 'Switch to “Stable”',

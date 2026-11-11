@@ -4,7 +4,11 @@
 // with scripts/sign-update.mjs and upload both beside the files.
 //
 //   node scripts/update-manifest.mjs <release folder> --version 6.0.2
-//        [--tag 6.0.2] [--notes release-notes-6.0.2.md] [--out <file>]
+//        [--tag 6.0.2] [--notes release-notes-6.0.2.md] [--channel <id>] [--out <file>]
+//
+// The manifest's `channel` decides which update channels may offer it
+// (docs/update-channels.md): "next" for a version with "-next.", "nightly"
+// for any other pre-release, "stable" otherwise; --channel names another.
 //
 // The folder holds the release's files as CI and the Android build name them:
 // Girovo-<version>-Setup.exe (+ .blockmap), -x86_64.AppImage, -amd64.deb,
@@ -38,10 +42,22 @@ function describe(dir, name, url) {
   };
 }
 
+/** A manifest `channel`: "stable", "nightly", or a channel girovo.de lists. Nightly's stored name 'preview' is no manifest name. */
+const MANIFEST_CHANNEL = /^[a-z][a-z0-9]{1,15}$/;
+
+/** The manifest `channel` a version gets unless one is named. */
+export function channelFor(version) {
+  if (version.includes('-next.')) return 'next';
+  return version.includes('-') ? 'nightly' : 'stable';
+}
+
 /** The manifest object for the release in `dir`; throws when it would describe nothing. */
-export function buildManifest({ dir, version, tag = version, notes = '', published = new Date().toISOString() }) {
+export function buildManifest({ dir, version, tag = version, notes = '', published = new Date().toISOString(), channel = channelFor(version) }) {
   const build = buildNumber(version);
   if (build == null) throw new Error(`${version} has no build number (mobile/updates/update-trust.ts)`);
+  if (typeof channel !== 'string' || !MANIFEST_CHANNEL.test(channel) || channel === 'preview') {
+    throw new Error(`${channel} is no channel name (a-z and 0-9, 2 to 16 characters; Nightly's is "nightly")`);
+  }
   const url = (name) => `https://github.com/${REPO}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(name)}`;
   const names = fs.readdirSync(dir);
   const files = [];
@@ -58,7 +74,7 @@ export function buildManifest({ dir, version, tag = version, notes = '', publish
     v: 1,
     version,
     build,
-    channel: version.includes('-') ? 'nightly' : 'stable',
+    channel,
     tag,
     published,
     page: `https://github.com/${REPO}/releases/tag/${encodeURIComponent(tag)}`,
@@ -81,16 +97,25 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const dir = args[0];
   const version = arg(args, '--version');
   if (!dir || dir.startsWith('--') || !version) {
-    console.error('usage: node scripts/update-manifest.mjs <release folder> --version X.Y.Z [--tag T] [--notes file.md] [--out file]');
+    console.error('usage: node scripts/update-manifest.mjs <release folder> --version X.Y.Z [--tag T] [--notes file.md] [--channel id] [--out file]');
     process.exit(2);
   }
   const notesFile = arg(args, '--notes');
-  const manifest = buildManifest({
-    dir,
-    version,
-    tag: arg(args, '--tag') ?? version,
-    notes: notesFile ? fs.readFileSync(notesFile, 'utf8') : '',
-  });
+  const channel = args.includes('--channel') ? arg(args, '--channel') : undefined;
+  let manifest;
+  try {
+    manifest = buildManifest({
+      dir,
+      version,
+      tag: arg(args, '--tag') ?? version,
+      notes: notesFile ? fs.readFileSync(notesFile, 'utf8') : '',
+      // A --channel without a name is refused, never the default.
+      channel: channel === undefined ? channelFor(version) : (channel ?? ''),
+    });
+  } catch (err) {
+    console.error(`✗ ${err.message}`);
+    process.exit(1);
+  }
   const out = arg(args, '--out') ?? path.join(dir, MANIFEST_NAME);
   fs.writeFileSync(out, manifestText(manifest));
   console.log(`› ${out}`);

@@ -23,7 +23,7 @@ use sha2::{Digest, Sha256};
 
 use super::chunks;
 use super::engine::*;
-use super::logic::{Channel, InstallKind, Origin, RELEASES_PAGE};
+use super::logic::{InstallKind, Origin, RELEASES_PAGE};
 use super::start::StartWindow;
 use crate::texts::Lang;
 
@@ -397,12 +397,13 @@ async fn the_page_gets_the_state_in_electrons_shape() {
   let s = serde_json::to_value(updater.check(true).await).unwrap();
   let keys: Vec<&str> = s.as_object().unwrap().keys().map(String::as_str).collect();
   for key in
-    ["current", "kind", "auto", "channel", "phase", "checkedAt", "release", "received", "total", "error", "installed", "failedInstall"]
+    ["current", "kind", "auto", "channel", "channels", "phase", "checkedAt", "release", "received", "total", "error", "installed", "failedInstall"]
   {
     assert!(keys.contains(&key), "{key}");
   }
   assert_eq!(s["kind"], "nsis");
   assert_eq!(s["channel"], "stable");
+  assert_eq!(s["channels"], json!([{ "id": "stable", "builtin": true, "usage": false }, { "id": "preview", "builtin": true, "usage": true }]));
   assert_eq!(s["phase"], "available");
   assert!(s["checkedAt"].is_u64());
   assert_eq!(s["release"]["canInstall"], true);
@@ -538,12 +539,12 @@ async fn a_release_start_takes_a_nightly_copy_back_to_stable_once() {
   // The channel as a 6.0 preview left it, on a copy that comes to a release build.
   let host = FakeHost::with_pref(PREF_CHANNEL, "preview");
   // The release moves it, and says which release did.
-  assert_eq!(make(running("6.0.0", &cache), &host).state().channel, Channel::Stable);
+  assert_eq!(make(running("6.0.0", &cache), &host).state().channel, "stable");
   assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("stable"));
   assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some("6.0.0"));
   // Nightly picked again afterwards: it stays.
   host.set_pref(PREF_CHANNEL, "preview");
-  assert_eq!(make(running("6.0.0", &cache), &host).state().channel, Channel::Preview);
+  assert_eq!(make(running("6.0.0", &cache), &host).state().channel, "preview");
 }
 
 #[tokio::test]
@@ -552,16 +553,16 @@ async fn a_nightly_on_the_nightly_channel_is_not_moved_by_the_release_it_reaches
   let nightly = "6.1.0-nightly.202611101200.gabcdef0";
   // Nightly picked before choices were noted: only the channel says so.
   let host = FakeHost::with_pref(PREF_CHANNEL, "preview");
-  assert_eq!(make(running(nightly, &cache), &host).state().channel, Channel::Preview);
+  assert_eq!(make(running(nightly, &cache), &host).state().channel, "preview");
   assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some(nightly), "the nightly notes it");
   // 6.1.0 comes out and this copy updates to it: still on Nightly.
-  assert_eq!(make(running("6.1.0", &cache), &host).state().channel, Channel::Preview);
+  assert_eq!(make(running("6.1.0", &cache), &host).state().channel, "preview");
   assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("preview"));
   assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some(nightly));
   // A hand-made preview counts the same.
   let host = FakeHost::with_pref(PREF_CHANNEL, "preview");
   make(running("6.1.0-preview.2", &cache), &host);
-  assert_eq!(make(running("6.1.0", &cache), &host).state().channel, Channel::Preview);
+  assert_eq!(make(running("6.1.0", &cache), &host).state().channel, "preview");
   // Nothing to note on Stabil, and a development build notes nothing.
   for (channel, version) in [(Some("stable"), nightly), (None, nightly), (Some("preview"), "6.1.0-dev.7")] {
     let host = Arc::new(FakeHost::default());
@@ -684,9 +685,9 @@ async fn the_automatic_check_is_a_stored_preference_on_by_default() {
 async fn the_channel_is_a_stored_preference_stable_unless_it_says_preview() {
   let cache = TempDir::new();
   let stored = |v| make(config("http://127.0.0.1:9/", cache.path()), &FakeHost::on_channel(v)).state().channel;
-  assert_eq!(make(config("http://127.0.0.1:9/", cache.path()), &Arc::new(FakeHost::default())).state().channel, super::logic::Channel::Stable);
-  assert_eq!(stored("preview"), super::logic::Channel::Preview);
-  assert_eq!(stored("nightly"), super::logic::Channel::Stable);
+  assert_eq!(make(config("http://127.0.0.1:9/", cache.path()), &Arc::new(FakeHost::default())).state().channel, "stable");
+  assert_eq!(stored("preview"), "preview");
+  assert_eq!(stored("nightly"), "stable");
 }
 
 #[tokio::test]
@@ -714,14 +715,14 @@ async fn switching_the_channel_asks_again_a_preview_is_offered_and_dropped_on_th
 
   let s = updater.set_channel("preview").await;
   assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("preview"));
-  assert_eq!(s.channel, super::logic::Channel::Preview);
+  assert_eq!(s.channel, "preview");
   assert_eq!(s.phase, Phase::Available);
   assert_eq!(s.release.unwrap().version, "10.0.0-preview.2");
   assert_eq!(updater.download().await.phase, Phase::Ready);
 
   let s = updater.set_channel("stable").await;
   assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("stable"));
-  assert_eq!(s.channel, super::logic::Channel::Stable);
+  assert_eq!(s.channel, "stable");
   assert_eq!(s.phase, Phase::Current);
   assert_eq!(s.release, None);
   assert!(!cache.path().join(SETUP).exists(), "the preview's installer is gone");
@@ -824,7 +825,7 @@ async fn switching_the_channel_stops_a_download_of_the_other_ones_release() {
   // Give the request time to reach the server and hang there.
   tokio::time::sleep(Duration::from_millis(200)).await;
   let s = updater.set_channel("preview").await;
-  assert_eq!(running.await.unwrap().channel, super::logic::Channel::Preview);
+  assert_eq!(running.await.unwrap().channel, "preview");
   assert_eq!(s.phase, Phase::Available);
   assert_eq!(s.release.unwrap().version, "10.0.0-preview.2");
   assert_eq!(s.error, None);
@@ -938,11 +939,11 @@ async fn a_channel_the_user_picks_is_not_undone_by_the_next_release() {
   // A fresh copy of a release (nothing was ever moved), where the user picks Nightly.
   let host = Arc::new(FakeHost::default());
   let updater = make(at("6.0.4"), &host);
-  assert_eq!(updater.set_channel("preview").await.channel, Channel::Preview);
+  assert_eq!(updater.set_channel("preview").await.channel, "preview");
   assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some("6.0.4"), "the choice is noted");
   // Nightlies, then the next release: the channel stays Nightly.
-  assert_eq!(make(at("6.1.0-nightly.202611101200.gabcdef0"), &host).state().channel, Channel::Preview);
-  assert_eq!(make(at("6.1.0"), &host).state().channel, Channel::Preview);
+  assert_eq!(make(at("6.1.0-nightly.202611101200.gabcdef0"), &host).state().channel, "preview");
+  assert_eq!(make(at("6.1.0"), &host).state().channel, "preview");
   assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("preview"));
   // Picking the channel it is on already counts as a choice too (a development
   // build, which notes nothing by itself at its start).
@@ -950,7 +951,7 @@ async fn a_channel_the_user_picks_is_not_undone_by_the_next_release() {
   let dev = make(at("6.1.0-dev.7"), &host);
   assert_eq!(host.pref(PREF_MOVED_TO_STABLE), None);
   dev.set_channel("preview").await;
-  assert_eq!(make(at("6.1.0"), &host).state().channel, Channel::Preview);
+  assert_eq!(make(at("6.1.0"), &host).state().channel, "preview");
   // And what a move noted before stays as it was.
   let host = FakeHost::on_channel("stable");
   make(at("6.0.4"), &host).set_channel("preview").await;
@@ -1585,9 +1586,9 @@ mod signed {
   use super::super::trust::{self, testing};
   use super::*;
 
-  /// The test keys: stable from seed 1, nightly from seed 2; seed 9 is a stranger's.
+  /// The test keys: stable from seed 1, nightly from seed 2, next from seed 4; seed 9 is a stranger's.
   fn keys() -> trust::Keys {
-    trust::Keys { stable: testing::pair(1).1, nightly: testing::pair(2).1 }
+    trust::Keys { stable: testing::pair(1).1, nightly: testing::pair(2).1, next: testing::pair(4).1, ..trust::Keys::default() }
   }
 
   /// girovo-update.json for `version`, its Setup.exe the stand-in's payload.
@@ -1600,7 +1601,7 @@ mod signed {
     let setup = format!("Girovo-{version}-Setup.exe");
     json!({
       "format": "girovo-update", "v": 1, "version": version, "build": trust::build_number(version),
-      "channel": if version.contains('-') { "nightly" } else { "stable" },
+      "channel": if version.contains("-next.") { "next" } else if version.contains('-') { "nightly" } else { "stable" },
       "page": format!("{PAGE}/tag/{version}"),
       "published": "2026-11-08T10:00:00.000Z",
       "files": [{ "kind": "setup", "name": setup, "size": bytes.len(), "sha256": sha(bytes), "url": format!("{base}dl/{setup}") }],
@@ -1701,19 +1702,22 @@ mod signed {
 
   #[tokio::test]
   async fn a_strangers_signature_or_the_nightly_key_on_stable_offers_nothing() {
-    for listing in [by_stranger as Listing, by_nightly] {
+    for listing in [by_stranger as Listing, by_nightly, nightly_by_nightly] {
       let srv = Server::start(site(Some(listing), None, Arc::default()));
       let cache = TempDir::new();
       let s = make(signed_config(&srv.base, cache.path()), &host()).check(true).await;
       assert_eq!(s.phase, Phase::Current);
     }
-    // On the Nightly channel the nightly key counts.
-    let srv = Server::start(site(Some(by_nightly), None, Arc::default()));
-    let cache = TempDir::new();
-    let host = FakeHost::on_channel("preview");
-    host.set_pref(PREF_INSTALL_ID, "install-a");
-    let s = make(signed_config(&srv.base, cache.path()), &host).check(true).await;
-    assert_eq!(s.phase, Phase::Available, "{:?}", s.error);
+    // On the Nightly channel the nightly key counts for a nightly, never for
+    // a manifest that claims to be a stable release (docs/update-channels.md, rule 3).
+    for (listing, phase) in [(nightly_by_nightly as Listing, Phase::Available), (by_nightly, Phase::Current)] {
+      let srv = Server::start(site(Some(listing), None, Arc::default()));
+      let cache = TempDir::new();
+      let host = FakeHost::on_channel("preview");
+      host.set_pref(PREF_INSTALL_ID, "install-a");
+      let s = make(signed_config(&srv.base, cache.path()), &host).check(true).await;
+      assert_eq!(s.phase, phase, "{:?}", s.error);
+    }
   }
 
   #[tokio::test]
@@ -1740,7 +1744,7 @@ mod signed {
     let updater = make(signed_config(&srv.base, cache.path()), &host());
     assert_eq!(updater.check(true).await.phase, Phase::Available);
     assert_eq!(updater.check(true).await.phase, Phase::Available);
-    let asks: Vec<Option<String>> = seen.lock().unwrap().iter().filter(|(p, _)| p.starts_with("/updates/")).map(|(_, e)| e.clone()).collect();
+    let asks: Vec<Option<String>> = seen.lock().unwrap().iter().filter(|(p, _)| p.starts_with("/updates/") && p != "/updates/channels.json").map(|(_, e)| e.clone()).collect();
     assert_eq!(asks, [None, Some("\"v1\"".to_string())]);
   }
 
@@ -2031,7 +2035,7 @@ mod signed {
     // …the next check costs a 304, and counts as girovo.de's answer of now.
     let before = now();
     assert_eq!(updater.check(true).await.release.unwrap().version, "9.9.8");
-    let asks: Vec<Option<String>> = seen.lock().unwrap().iter().filter(|(p, _)| p.starts_with("/updates/")).map(|(_, e)| e.clone()).collect();
+    let asks: Vec<Option<String>> = seen.lock().unwrap().iter().filter(|(p, _)| p.starts_with("/updates/") && p != "/updates/channels.json").map(|(_, e)| e.clone()).collect();
     assert_eq!(asks, [None, Some("\"v1\"".to_string())], "the second one was answered 304");
     let (again, at) = listed_note(&host, "stable").unwrap();
     assert_eq!(again, noted);
@@ -2735,5 +2739,332 @@ mod signed {
     let dest = downloads.path().join("x.girovoupdate");
     assert!(updater.save_bundle(dest.clone()).await.saving.is_none());
     assert!(!dest.exists());
+  }
+
+  // ---- girovo.de's channel list (docs/update-channels.md) ----
+
+  mod channels {
+    use super::*;
+
+    const NEXT: &str = "9.9.9-next.202611111300.gabcdef0";
+    /// The test next key's seed (keys()).
+    const NEXT_KEY: u8 = 4;
+
+    type Envelope = Arc<Mutex<Option<String>>>;
+
+    /// channels.json with these entries and `serial`, signed with the test stable key.
+    fn envelope(serial: u64, channels: Value) -> String {
+      let text = json!({ "format": "girovo-channel-list", "v": 1, "serial": serial, "channels": channels }).to_string();
+      testing::sign_channels(&text, &testing::pair(1).0)
+    }
+
+    /// The list as girovo.de first serves it: Next hidden, api open, old ended for Nightly.
+    fn the_list(serial: u64) -> String {
+      envelope(
+        serial,
+        json!([
+          { "id": "next", "keys": ["stable", "next"], "hidden": true, "name": { "de": "Next", "en": "Next" }, "hint": { "de": "Vorschau", "en": "Preview" } },
+          { "id": "api", "keys": ["reserve1"], "usage": false, "name": { "de": "API-Test", "en": "API test" } },
+          { "id": "old", "keys": ["reserve2"], "ended": true, "then": "preview", "name": { "de": "Alt", "en": "Old" } },
+        ]),
+      )
+    }
+
+    /// Each channel's listing on girovo.de. nightly.json and stable.json carry
+    /// a Next build at the top too, which neither may take.
+    fn listing(name: &str, base: &str) -> Vec<Value> {
+      match name {
+        "nightly" => vec![listed(base, NEXT, 100, NEXT_KEY), listed(base, NIGHTLY, 100, 2)],
+        "next" => vec![listed(base, NEXT, 100, NEXT_KEY), listed(base, NIGHTLY, 100, 2)],
+        "stable" => vec![listed(base, NEXT, 100, NEXT_KEY), listed(base, "9.9.8", 100, 1)],
+        _ => Vec::new(),
+      }
+    }
+
+    /// The release on GitHub for `tag`: its installer, its manifest and that manifest's signature by `seed`.
+    fn gh_release(base: &str, tag: &str) -> Value {
+      let setup = format!("Girovo-{tag}-Setup.exe");
+      let small = |name: &str| json!({ "name": name, "size": 10, "digest": null, "browser_download_url": format!("{base}gh/{tag}/{name}") });
+      json!({
+        "tag_name": tag, "name": format!("Girovo {tag}"), "draft": false, "prerelease": tag.contains('-'), "body": "",
+        "html_url": format!("{PAGE}/tag/{tag}"), "published_at": "2026-11-11T12:00:00Z",
+        "assets": [
+          { "name": setup, "size": payload().len(), "digest": format!("sha256:{}", sha(&payload())), "browser_download_url": format!("{base}dl/{setup}") },
+          small(trust::MANIFEST_NAME),
+          small(trust::SIG_NAME),
+        ],
+      })
+    }
+
+    /// girovo.de with the channel list `envelope` (None: HTTP 503) and the
+    /// listings above, or with the listings down (`listings`: false), when
+    /// GitHub's list of releases has the Next build and the nightly.
+    fn site_with(envelope: Envelope, listings: bool, seen: Seen) -> impl Fn(&Request, &mut Conn, &str) + Send + Sync + 'static {
+      let body = payload();
+      move |req, conn, base| {
+        let asked = req.headers.get("if-none-match").cloned();
+        seen.lock().unwrap().push((req.path.clone(), asked.clone()));
+        if req.path == "/updates/channels.json" {
+          match envelope.lock().unwrap().clone() {
+            Some(text) => {
+              let etag = format!("\"{}\"", sha(text.as_bytes()));
+              if asked.as_deref() == Some(etag.as_str()) {
+                conn.head(304, &[("ETag", etag)]);
+              } else {
+                conn.head(200, &[("ETag", etag), ("Content-Length", text.len().to_string())]);
+                conn.write(text.as_bytes());
+              }
+            }
+            None => conn.send(503, b"down"),
+          }
+        } else if let Some(name) = req.path.strip_prefix("/updates/").and_then(|p| p.strip_suffix(".json")) {
+          if listings {
+            conn.json(&json!({ "format": "girovo-updates", "v": 1, "releases": listing(name, base) }));
+          } else {
+            conn.send(503, b"down");
+          }
+        } else if req.path == "/?per_page=100" {
+          conn.json(&json!([gh_release(base, NEXT), gh_release(base, NIGHTLY), gh_release(base, "9.9.8")]));
+        } else if let Some(rest) = req.path.strip_prefix("/gh/") {
+          let (tag, file) = rest.split_once('/').unwrap();
+          let m = manifest(base, tag);
+          let seed = if tag == NEXT { NEXT_KEY } else if tag.contains('-') { 2 } else { 1 };
+          if file == trust::MANIFEST_NAME {
+            conn.send(200, m.as_bytes());
+          } else {
+            conn.send(200, testing::sign(m.as_bytes(), &testing::pair(seed).0).as_bytes());
+          }
+        } else if req.path.starts_with("/dl/") {
+          conn.send(200, &body);
+        } else {
+          conn.send(404, b"");
+        }
+      }
+    }
+
+    struct Rig {
+      _srv: Server,
+      envelope: Envelope,
+      seen: Seen,
+      _cache: TempDir,
+      updater: Arc<Updater>,
+    }
+
+    impl Rig {
+      fn asked(&self) -> Vec<String> {
+        self.seen.lock().unwrap().iter().map(|(p, _)| p.clone()).collect()
+      }
+      fn serve(&self, envelope: Option<String>) {
+        *self.envelope.lock().unwrap() = envelope;
+      }
+    }
+
+    fn rig_with(envelope: Option<String>, listings: bool, host: &Arc<FakeHost>, current: &str) -> Rig {
+      let envelope: Envelope = Arc::new(Mutex::new(envelope));
+      let seen: Seen = Arc::default();
+      let srv = Server::start(site_with(envelope.clone(), listings, seen.clone()));
+      let cache = TempDir::new();
+      let mut cfg = signed_config(&srv.base, cache.path());
+      cfg.current_version = current.into();
+      let updater = make(cfg, host);
+      Rig { _srv: srv, envelope, seen, _cache: cache, updater }
+    }
+
+    fn rig(envelope: Option<String>, host: &Arc<FakeHost>) -> Rig {
+      rig_with(envelope, true, host, "9.0.0")
+    }
+
+    /// A copy on `channel` by its own choice, with `held` as the list it holds.
+    fn on(channel: &str, held: Option<String>) -> Arc<FakeHost> {
+      let host = FakeHost::on_channel(channel);
+      host.set_pref(PREF_INSTALL_ID, "install-a");
+      if let Some(held) = held {
+        host.set_pref(PREF_CHANNELS, &held);
+      }
+      host
+    }
+
+    fn ids(s: &UpdateState) -> Vec<&str> {
+      s.channels.iter().map(|c| c.id.as_str()).collect()
+    }
+
+    #[tokio::test]
+    async fn the_list_is_asked_at_each_check_before_the_offer_held_and_shown_to_the_page() {
+      let host = on("stable", None);
+      let r = rig(Some(the_list(3)), &host);
+      assert_eq!(ids(&r.updater.state()), ["stable", "preview"]);
+      let s = r.updater.check(true).await;
+      assert_eq!(host.pref(PREF_CHANNELS), Some(the_list(3)), "the envelope's text is held");
+      let asked = r.asked();
+      let at = |path: &str| asked.iter().position(|p| p == path).unwrap_or_else(|| panic!("{path}: {asked:?}"));
+      assert!(at("/updates/channels.json") < at("/updates/stable.json"));
+      // Exactly the shape the page reads: built-ins without name and hint,
+      // the list's channels for the desktop that are neither hidden nor ended.
+      let page = serde_json::to_value(&s).unwrap();
+      assert_eq!(page["channel"], "stable");
+      assert_eq!(
+        page["channels"],
+        json!([
+          { "id": "stable", "builtin": true, "usage": false },
+          { "id": "preview", "builtin": true, "usage": true },
+          { "id": "api", "builtin": false, "usage": false, "name": { "de": "API-Test", "en": "API test" }, "hint": { "de": "", "en": "" } },
+        ])
+      );
+      // Asked again at the next check, with its ETag.
+      r.updater.check(true).await;
+      let asks: Vec<Option<String>> = r.seen.lock().unwrap().iter().filter(|(p, _)| p == "/updates/channels.json").map(|(_, e)| e.clone()).collect();
+      assert_eq!(asks.len(), 2);
+      assert!(asks[0].is_none() && asks[1].is_some(), "{asks:?}");
+      // girovo.de away: the list held stays, now and after a restart.
+      r.serve(None);
+      assert_eq!(ids(&r.updater.check(true).await), ["stable", "preview", "api"]);
+      assert_eq!(host.pref(PREF_CHANNELS), Some(the_list(3)));
+      let again = rig(None, &host);
+      assert_eq!(ids(&again.updater.state()), ["stable", "preview", "api"]);
+    }
+
+    #[tokio::test]
+    async fn an_older_serial_or_a_list_not_signed_with_the_stable_key_is_not_taken() {
+      let host = on("stable", Some(the_list(3)));
+      let r = rig(Some(envelope(2, json!([]))), &host);
+      assert_eq!(ids(&r.updater.check(true).await), ["stable", "preview", "api"], "serial 2 after 3");
+      assert_eq!(host.pref(PREF_CHANNELS), Some(the_list(3)));
+      // Signed with another built-in key, or changed after signing.
+      let text = json!({ "format": "girovo-channel-list", "v": 1, "serial": 9, "channels": [] }).to_string();
+      for seed in [2, NEXT_KEY, 5, 6] {
+        r.serve(Some(testing::sign_channels(&text, &testing::pair(seed).0)));
+        assert_eq!(ids(&r.updater.check(true).await), ["stable", "preview", "api"], "seed {seed}");
+      }
+      let mut tampered: Value = serde_json::from_str(&envelope(9, json!([]))).unwrap();
+      tampered["list"] = json!(tampered["list"].as_str().unwrap().replace("\"serial\":9", "\"serial\":10"));
+      r.serve(Some(tampered.to_string()));
+      assert_eq!(ids(&r.updater.check(true).await), ["stable", "preview", "api"]);
+      assert_eq!(host.pref(PREF_CHANNELS), Some(the_list(3)));
+      // The same serial is taken, and a later one.
+      let same = envelope(3, json!([]));
+      r.serve(Some(same.clone()));
+      assert_eq!(ids(&r.updater.check(true).await), ["stable", "preview"]);
+      assert_eq!(host.pref(PREF_CHANNELS), Some(same));
+      r.serve(Some(the_list(4)));
+      assert_eq!(ids(&r.updater.check(true).await), ["stable", "preview", "api"]);
+    }
+
+    #[tokio::test]
+    async fn a_list_channel_asks_its_own_listing_and_takes_only_what_fits_it() {
+      // On Next (hidden, but current): next.json, its Next build.
+      let host = on("next", Some(the_list(3)));
+      let r = rig(Some(the_list(3)), &host);
+      assert_eq!(r.updater.state().channel, "next");
+      assert_eq!(ids(&r.updater.state()), ["stable", "preview", "next", "api"], "the current one although hidden");
+      let s = r.updater.check(true).await;
+      assert_eq!(s.phase, Phase::Available, "{:?}", s.error);
+      assert_eq!(s.release.unwrap().version, NEXT);
+      assert!(r.asked().contains(&"/updates/next.json".to_string()));
+      // Nightly and Stabil pass over the Next build girovo.de put at the top of theirs.
+      let r = rig(Some(the_list(3)), &on("preview", None));
+      assert_eq!(r.updater.check(true).await.release.unwrap().version, NIGHTLY);
+      let r = rig(Some(the_list(3)), &on("stable", None));
+      assert_eq!(r.updater.check(true).await.release.unwrap().version, "9.9.8");
+      // api takes the reserve1 key only: nothing here.
+      let r = rig(Some(the_list(3)), &on("api", Some(the_list(3))));
+      assert_eq!(r.updater.check(true).await.phase, Phase::Current);
+      assert!(r.asked().contains(&"/updates/api.json".to_string()));
+    }
+
+    #[tokio::test]
+    async fn what_girovo_de_offered_is_noted_under_the_channels_id() {
+      let host = on("next", Some(the_list(3)));
+      let r = rig(Some(the_list(3)), &host);
+      r.updater.check(true).await;
+      let noted: Value = serde_json::from_str(&host.pref(PREF_LISTED).unwrap()).unwrap();
+      assert_eq!(noted["next"]["build"], json!(build(NEXT)));
+      assert!(noted.get("stable").is_none() && noted.get("preview").is_none());
+    }
+
+    #[tokio::test]
+    async fn set_channel_takes_stable_preview_and_a_list_channel_offered_or_current() {
+      let host = on("stable", Some(the_list(3)));
+      let r = rig(Some(the_list(3)), &host);
+      // Hidden and not current, ended, not in the list, not a channel at all: nothing changes.
+      for odd in ["next", "old", "gone", "nightly", "Bad", "", "STABLE"] {
+        let s = r.updater.set_channel(odd).await;
+        assert_eq!(s.channel, "stable", "{odd:?}");
+        assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("stable"), "{odd:?}");
+      }
+      assert!(!r.asked().iter().any(|p| p.starts_with("/updates/")), "nothing was asked: {:?}", r.asked());
+      let s = r.updater.set_channel("api").await;
+      assert_eq!(s.channel, "api");
+      assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("api"));
+      assert!(r.asked().contains(&"/updates/api.json".to_string()));
+      assert_eq!(r.updater.set_channel("preview").await.channel, "preview");
+      assert_eq!(r.updater.set_channel("stable").await.channel, "stable");
+      // The hidden one, when it is the current channel.
+      let host = on("next", Some(the_list(3)));
+      let r = rig(Some(the_list(3)), &host);
+      assert_eq!(r.updater.set_channel("next").await.channel, "next");
+      assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("next"));
+    }
+
+    #[tokio::test]
+    async fn a_list_id_with_no_list_held_is_checked_as_stable_and_kept_until_a_list_arrives() {
+      let host = on("next", None);
+      let r = rig(None, &host);
+      assert_eq!(r.updater.state().channel, "stable");
+      assert_eq!(ids(&r.updater.state()), ["stable", "preview"]);
+      let s = r.updater.check(true).await;
+      assert_eq!(s.channel, "stable");
+      assert_eq!(s.release.unwrap().version, "9.9.8");
+      assert!(r.asked().contains(&"/updates/stable.json".to_string()));
+      assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("next"), "the stored value stays");
+      // The list arrives: the copy is on Next.
+      r.serve(Some(the_list(3)));
+      let s = r.updater.check(true).await;
+      assert_eq!(s.channel, "next");
+      assert_eq!(s.release.unwrap().version, NEXT);
+      assert!(r.asked().contains(&"/updates/next.json".to_string()));
+    }
+
+    #[tokio::test]
+    async fn a_channel_gone_from_the_list_or_ended_moves_as_if_the_user_had_picked_it() {
+      // Absent from the list held: to stable at once, noted as a choice.
+      let host = FakeHost::with_pref(PREF_CHANNEL, "gone");
+      host.set_pref(PREF_CHANNELS, &the_list(3));
+      let r = rig(None, &host);
+      assert_eq!(r.updater.state().channel, "stable");
+      assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("stable"));
+      assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some("9.0.0"));
+      // Ended: to its `then`, Nightly here, which the move to Stabil then leaves alone.
+      let host = FakeHost::with_pref(PREF_CHANNEL, "old");
+      host.set_pref(PREF_CHANNELS, &the_list(3));
+      let r = rig(None, &host);
+      assert_eq!(r.updater.state().channel, "preview");
+      assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("preview"));
+      assert_eq!(host.pref(PREF_MOVED_TO_STABLE).as_deref(), Some("9.0.0"));
+      // A Next build whose channel a new list takes away, at the next check:
+      // back to Stabil, with the way back to the stable release offered.
+      let host = on("next", Some(the_list(3)));
+      let r = rig_with(Some(the_list(3)), true, &host, "9.9.9-next.202611101200.gabcdef0");
+      assert_eq!(r.updater.check(true).await.release.unwrap().version, NEXT);
+      r.serve(Some(envelope(4, json!([]))));
+      let s = r.updater.check(true).await;
+      assert_eq!(s.channel, "stable");
+      assert_eq!(host.pref(PREF_CHANNEL).as_deref(), Some("stable"));
+      let release = s.release.expect("the way back");
+      assert_eq!(release.version, "9.9.8");
+      assert!(release.back);
+    }
+
+    #[tokio::test]
+    async fn without_girovo_de_s_listings_github_is_walked_for_a_release_that_fits_the_channel() {
+      // GitHub's newest is the Next build, then the nightly, then 9.9.8.
+      let r = rig_with(Some(the_list(3)), false, &on("preview", None), "9.0.0");
+      let s = r.updater.check(true).await;
+      assert_eq!(s.release.map(|r| r.version).as_deref(), Some(NIGHTLY), "{:?}", s.error);
+      let r = rig_with(Some(the_list(3)), false, &on("next", Some(the_list(3))), "9.0.0");
+      assert_eq!(r.updater.check(true).await.release.map(|r| r.version).as_deref(), Some(NEXT));
+      let r = rig_with(Some(the_list(3)), false, &on("api", Some(the_list(3))), "9.0.0");
+      assert_eq!(r.updater.check(true).await.phase, Phase::Current);
+      assert!(r.asked().contains(&"/?per_page=100".to_string()));
+    }
   }
 }

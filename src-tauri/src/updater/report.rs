@@ -84,7 +84,7 @@ impl Reported {
 mod tests {
   use super::*;
   use crate::updater::engine::{ErrorInfo, Installed, PublicRelease};
-  use crate::updater::logic::{Channel, InstallKind};
+  use crate::updater::logic::InstallKind;
 
   fn state(phase: Phase, version: Option<&str>) -> UpdateState {
     let mut s = UpdateState {
@@ -94,7 +94,8 @@ mod tests {
       early: false,
       file: None,
       saving: None,
-      channel: Channel::Preview,
+      channel: "preview".into(),
+      channels: Vec::new(),
       phase,
       checked_at: None,
       release: None,

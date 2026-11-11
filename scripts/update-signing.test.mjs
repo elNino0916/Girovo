@@ -4,10 +4,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { buildManifest, manifestText } from './update-manifest.mjs';
-import { isEncrypted, makeKeyFile, openKeyFile } from './sign-update.mjs';
-import { signManifest, toBase64, verifyManifest } from '../mobile/updates/update-trust.ts';
+import { buildManifest, channelFor, manifestText } from './update-manifest.mjs';
+import { channelsByPlatform, isEncrypted, makeKeyFile, openKeyFile, signChannels, verifyChannelsFile } from './sign-update.mjs';
+import { signManifest, toBase64, verifyChannels, verifyManifest } from '../mobile/updates/update-trust.ts';
 
 // The release side of docs/updater-v2.md: the manifest a release carries and
 // the key file that signs it.
@@ -49,6 +51,21 @@ test('a nightly manifest is on the nightly channel and its tag is escaped in add
   assert.ok(m.files[0].url.includes(`/download/${v}/`));
 });
 
+test('the manifest names its channel: next, nightly or stable by the version, or the one given', () => {
+  assert.equal(channelFor('6.2.0'), 'stable');
+  assert.equal(channelFor('6.2.0-nightly.202611111200.gabcdef0'), 'nightly');
+  assert.equal(channelFor('6.0.0-preview.3'), 'nightly');
+  assert.equal(channelFor('6.2.0-next.202611111200.gabcdef0'), 'next');
+  const v = '6.2.0-next.202611111200.gabcdef0';
+  const dir = releaseFolder(v, [`Girovo-${v}-Setup.exe`]);
+  assert.equal(buildManifest({ dir, version: v }).channel, 'next');
+  assert.equal(buildManifest({ dir, version: v, channel: 'api' }).channel, 'api');
+  assert.equal(buildManifest({ dir, version: v, channel: 'nightly' }).channel, 'nightly');
+  for (const bad of ['preview', 'Next', 'n', 'abcdefghijklmnopq', 'ne xt', '', null, 7]) {
+    assert.throws(() => buildManifest({ dir, version: v, channel: bad }), /no channel name/, String(bad));
+  }
+});
+
 test('the manifest refuses a version without a build number or a folder without files', () => {
   const dir = releaseFolder('6.0.2', ['Girovo-6.0.2-Setup.exe']);
   assert.throws(() => buildManifest({ dir, version: '6.0.2-rc.1' }), /no build number/);
@@ -81,4 +98,94 @@ test('a plain key file (the nightly secret) opens without a password', () => {
   assert.equal(isEncrypted(file), false);
   assert.deepEqual(openKeyFile(file, null), secret);
   assert.throws(() => openKeyFile({ format: 'other' }, null), /not a Girovo update key/);
+});
+
+// ---- the channel list ----
+
+/** The test key [1; 32] (mobile/updates/__fixtures__/channels-test.json), the stable key here. */
+const TEST_SECRET = new Uint8Array(32).fill(1);
+const TEST_KEYS = { stable: 'iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=', nightly: '' };
+const LIST = {
+  format: 'girovo-channel-list',
+  v: 1,
+  serial: 2,
+  channels: [
+    { id: 'next', keys: ['stable', 'next'], hidden: true, name: { de: 'Next', en: 'Next' } },
+    { id: 'api', keys: ['reserve1'], usage: false, platforms: ['desktop', 'apk'], name: { de: 'API-Test', en: 'API test' } },
+  ],
+};
+
+function listFolder(list = LIST, secret = TEST_SECRET) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'girovo-channels-'));
+  const listPath = path.join(dir, 'list.json');
+  const keyPath = path.join(dir, 'test.key');
+  fs.writeFileSync(listPath, typeof list === 'string' ? list : `${JSON.stringify(list, null, 2)}\n`);
+  fs.writeFileSync(keyPath, JSON.stringify(makeKeyFile(secret, null)));
+  return { dir, listPath, keyPath };
+}
+
+const noPassword = async () => {
+  throw new Error('no password was to be asked');
+};
+
+test('sign-channels and verify-channels: a round trip with the stable key', async () => {
+  const { dir, listPath, keyPath } = listFolder();
+  const { out, read } = await signChannels({ listPath, keyPath, keys: TEST_KEYS, ask: noPassword });
+  assert.equal(out, path.join(dir, 'channels.json'), 'beside the list');
+  assert.equal(read.serial, 2);
+  const envelope = fs.readFileSync(out, 'utf8');
+  assert.equal(JSON.parse(envelope).list, fs.readFileSync(listPath, 'utf8'), 'the list\'s bytes, signed as they are');
+  assert.deepEqual(verifyChannels(envelope, TEST_KEYS, 'apk')?.channels.map((c) => c.id), ['api']);
+  const again = verifyChannelsFile(out, TEST_KEYS);
+  const byPlatform = channelsByPlatform(again);
+  assert.deepEqual(byPlatform.desktop.map((c) => c.id), ['next', 'api']);
+  assert.deepEqual(byPlatform.apk.map((c) => c.id), ['api']);
+  assert.throws(() => verifyChannelsFile(out), /no channel list signed/, 'the built-in stable key did not sign it');
+
+  const other = path.join(dir, 'elsewhere.json');
+  assert.equal((await signChannels({ listPath, keyPath, out: other, keys: TEST_KEYS, ask: noPassword })).out, other);
+  assert.ok(fs.existsSync(other));
+});
+
+test('sign-channels refuses any key but the stable key, before asking a password', async () => {
+  const { listPath, keyPath } = listFolder(LIST, ed25519.utils.randomSecretKey());
+  await assert.rejects(signChannels({ listPath, keyPath, keys: TEST_KEYS, ask: noPassword }), /stable key built into the app/);
+  const encrypted = listFolder();
+  fs.writeFileSync(encrypted.keyPath, JSON.stringify(makeKeyFile(ed25519.utils.randomSecretKey(), 'correct horse battery')));
+  await assert.rejects(signChannels({ ...encrypted, keys: TEST_KEYS, ask: noPassword }), /stable key built into the app/);
+  assert.equal(fs.existsSync(path.join(encrypted.dir, 'channels.json')), false);
+});
+
+test('sign-channels refuses a list the apps would not read whole', async () => {
+  const cases = [
+    [{ ...LIST, serial: 0 }, /not a channel list/],
+    [{ ...LIST, format: 'other' }, /not a channel list/],
+    ['not json', /not a channel list/],
+    [{ ...LIST, channels: [...LIST.channels, { id: 'Bad', keys: ['stable'], name: { de: 'x', en: 'x' } }] }, /entry 3 \(Bad\): id/],
+    [{ ...LIST, channels: [...LIST.channels, LIST.channels[1]] }, /duplicate id/],
+    [{ ...LIST, channels: [{ ...LIST.channels[0], then: 'gone' }] }, /then/],
+    [{ ...LIST, channels: Array.from({ length: 9 }, (_, i) => ({ ...LIST.channels[1], id: `c${i}x` })) }, /past the first 8/],
+  ];
+  for (const [list, why] of cases) {
+    const { dir, listPath, keyPath } = listFolder(list);
+    await assert.rejects(signChannels({ listPath, keyPath, keys: TEST_KEYS, ask: noPassword }), why, String(why));
+    assert.equal(fs.existsSync(path.join(dir, 'channels.json')), false);
+  }
+  const { listPath, keyPath } = listFolder();
+  await assert.rejects(signChannels({ listPath, keyPath, out: listPath, keys: TEST_KEYS, ask: noPassword }), /overwrite the list/);
+});
+
+test('the commands themselves: the built-in keys refuse a test key and the test file', () => {
+  const script = fileURLToPath(new URL('./sign-update.mjs', import.meta.url));
+  const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
+  const { dir, listPath, keyPath } = listFolder();
+  const signed = run('sign-channels', listPath, '--key', keyPath);
+  assert.equal(signed.status, 1);
+  assert.match(signed.stderr, /stable key built into the app/);
+  assert.equal(fs.existsSync(path.join(dir, 'channels.json')), false);
+  const fixture = fileURLToPath(new URL('../mobile/updates/__fixtures__/channels-test.json', import.meta.url));
+  const verified = run('verify-channels', fixture);
+  assert.equal(verified.status, 1);
+  assert.match(verified.stderr, /no channel list signed with Girovo's stable key/);
+  assert.equal(run('sign-channels', listPath).status, 1, 'no key given');
 });

@@ -33,6 +33,9 @@ const listeners = new Set<() => void>();
 let attached = false;
 let detach: (() => void) | null = null;
 
+/** The updater's state right now, for code outside React (components/telemetry/NightlyUsage.tsx). */
+export const updateStateNow = (): UpdateState | null => snapshot.state;
+
 function commit(patch: Partial<Snapshot>) {
   snapshot = { ...snapshot, ...patch };
   for (const listener of listeners) listener();

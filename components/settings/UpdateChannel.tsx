@@ -1,7 +1,8 @@
 'use client';
 
-// Einstellungen → Über Girovo → Update-Kanal: whether the updater offers
-// GitHub's pre-releases (the 6.0 previews) besides the finished versions.
+// Einstellungen → Über Girovo → Update-Kanal: which releases the updater
+// offers. Stabil and Nightly are the app's own; girovo.de can list more
+// (docs/update-channels.md, components/updates/channels.ts).
 // Only builds with an updater of their own have it — the desktop app
 // (src-tauri/src/updater) and the GitHub APK (mobile/bridges/updates.ts).
 // Google Play has its testing tracks and the F-Droid repository serves
@@ -10,19 +11,19 @@
 
 import { useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { useT } from '@/lib/i18n/react';
+import { useLocale, useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { BoltIcon, FileIcon, SplitIcon } from '../icons';
 import { PrivacyPolicyLink } from '../PrivacyPolicyLink';
 import { Button, Dialog, cx } from '../ui';
 import { setUsageConsent, usageCameWithChannel, useUsageConsent } from '../telemetry/usage';
+import { channelHint, channelInfo, channelName, channelsOf, needsUsage } from '../updates/channels';
 import { updates, useUpdates } from '../updates/store';
 import { ActionItem, SwitchItem } from './rows';
 
-const CHANNELS: readonly UpdateChannel[] = ['stable', 'preview'];
-
 export function UpdateChannelRow() {
   const t = useT();
+  const { locale } = useLocale();
   const { state } = useUpdates();
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState<UpdateChannel>('stable');
@@ -30,7 +31,8 @@ export function UpdateChannelRow() {
   if (!state) return null;
   const c = t.settings.channel;
   // Nightly shares usage data, where this build can (components/telemetry/NightlyUsage.tsx).
-  const withUsage = choice === 'preview' && usage !== null;
+  const withUsage = needsUsage(state, choice) && usage !== null;
+  const nameOf = (id: UpdateChannel) => channelName(channelInfo(state, id), id, c, locale);
   const apply = () => {
     setOpen(false);
     void (async () => {
@@ -39,8 +41,8 @@ export function UpdateChannelRow() {
       if (withUsage && usage !== 'on') await setUsageConsent(true, true);
       // The updater asks again in the new channel at once; its rows follow the state.
       if (choice !== state.channel) await updates.setChannel(choice);
-      // Back to "Stabil": a yes that came with Nightly ends with it.
-      if (choice === 'stable' && usageCameWithChannel()) await setUsageConsent(false);
+      // To a channel without usage data ("Stabil"): a yes that came with Nightly ends with it.
+      if (!needsUsage(state, choice) && usageCameWithChannel()) await setUsageConsent(false);
     })();
   };
   return (
@@ -53,7 +55,7 @@ export function UpdateChannelRow() {
           setChoice(state.channel);
           setOpen(true);
         }}
-        trailing={<span className="text-[14px] leading-snug text-ink-2">{c[state.channel]}</span>}
+        trailing={<span className="text-[14px] leading-snug text-ink-2">{nameOf(state.channel)}</span>}
       />
       <Dialog
         open={open}
@@ -67,10 +69,10 @@ export function UpdateChannelRow() {
           </>
         )}
       >
-        <ChannelChoice value={choice} onChange={setChoice} />
+        <ChannelChoice channels={channelsOf(state)} value={choice} onChange={setChoice} />
         <p className="mt-4 text-[14px] leading-relaxed text-ink-2">{IS_ANDROID ? c.noteAndroid : c.note}</p>
         {/* One line (owner, 2026-11-10: the full text was a wall); what is shared is the policy's to say. */}
-        {withUsage && <p data-channel-usage className="mt-2 text-[14px] leading-relaxed text-ink-2">{c.usage} <PrivacyPolicyLink /></p>}
+        {withUsage && <p data-channel-usage className="mt-2 text-[14px] leading-relaxed text-ink-2">{c.usage(nameOf(choice))} <PrivacyPolicyLink /></p>}
       </Dialog>
     </>
   );
@@ -120,24 +122,31 @@ export function FromFileRow() {
 }
 
 /**
- * The two channels as radios with one tab stop: the arrows move and choose
- * at once, as in the avatar picker (components/shell/ProfileMenu.tsx). The
+ * The channels as radios with one tab stop: the arrows move and choose at
+ * once, as in the avatar picker (components/shell/ProfileMenu.tsx). The
  * chosen one takes the focus when the dialog opens.
  */
-function ChannelChoice({ value, onChange }: { value: UpdateChannel; onChange: (next: UpdateChannel) => void }) {
+function ChannelChoice({ channels, value, onChange }: {
+  channels: readonly UpdateChannelInfo[];
+  value: UpdateChannel;
+  onChange: (next: UpdateChannel) => void;
+}) {
   const c = useT().settings.channel;
+  const { locale } = useLocale();
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const ids = channels.map((info) => info.id);
   const onKeyDown = (e: ReactKeyboardEvent) => {
     const step = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
     if (!step) return;
     e.preventDefault();
-    const next = (CHANNELS.indexOf(value) + step + CHANNELS.length) % CHANNELS.length;
-    onChange(CHANNELS[next]);
+    const next = (ids.indexOf(value) + step + ids.length) % ids.length;
+    onChange(ids[next]);
     refs.current[next]?.focus();
   };
   return (
     <div role="radiogroup" aria-label={c.title} onKeyDown={onKeyDown} className="-mx-2 flex flex-col gap-1">
-      {CHANNELS.map((channel, i) => {
+      {channels.map((info, i) => {
+        const channel = info.id;
         const checked = channel === value;
         const hintId = `channel-${channel}-hint`;
         return (
@@ -166,9 +175,9 @@ function ChannelChoice({ value, onChange }: { value: UpdateChannel; onChange: (n
               {checked && <span className="size-2.5 rounded-full bg-accent" />}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[15px] leading-snug text-ink">{c[channel]}</span>
+              <span className="block text-[15px] leading-snug text-ink">{channelName(info, channel, c, locale)}</span>
               <span id={hintId} className="mt-0.5 block text-[13px] leading-snug text-ink-2">
-                {channel === 'preview' ? c.previewHint : c.stableHint}
+                {channelHint(info, channel, c, locale)}
               </span>
             </span>
           </button>

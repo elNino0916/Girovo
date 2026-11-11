@@ -177,7 +177,34 @@ test('the preview channel reads the list beside the latest release', () => {
   assert.equal(logic.channelOf('preview'), 'preview');
   assert.equal(logic.channelOf('stable'), 'stable');
   assert.equal(logic.channelOf(null), 'stable');
-  assert.equal(logic.channelOf('beta'), 'stable');
+});
+
+test('a stored channel girovo.de could list stays itself, anything else is the stable one', () => {
+  for (const id of ['next', 'beta', 'api', 'abcdefghijklmnop', 'r2']) assert.equal(logic.channelOf(id), id, id);
+  for (const odd of ['nightly', 'Next', 'n', 'abcdefghijklmnopq', '2next', 'ne-xt', '__proto__', '', 42, undefined, {}]) {
+    assert.equal(logic.channelOf(odd), 'stable', String(odd));
+  }
+  assert.equal(logic.isChannelId('next'), true);
+  assert.equal(logic.isChannelId('preview'), false, 'the built-ins are no list ids');
+  assert.equal(logic.isChannelId('stable'), false);
+  // The move to Stabil after 6.0.0 stays about Nightly only.
+  assert.equal(logic.movesToStable('next', '6.2.0', null), false);
+  assert.equal(logic.marksPicked('next', '6.2.0-next.202611111200', null), false);
+  assert.equal(logic.movesToStable('preview', '6.2.0', null), true);
+});
+
+test('releasesWith: every release in the list with that install\'s file, in the list\'s order', () => {
+  const apk = (v) => asset(`Girovo-${v}-android.apk`, { browser_download_url: `${logic.DOWNLOAD_PREFIX}${v}/Girovo-${v}-android.apk` });
+  const list = [
+    release({ tag_name: '6.2.0-next.202611111300.gabcdef0', prerelease: true, assets: [apk('6.2.0-next.202611111300.gabcdef0')] }),
+    release({ tag_name: '6.2.0-nightly.202611111200.gabcdef0', prerelease: true, assets: [asset('Girovo-x-Setup.exe')] }),
+    release({ tag_name: '6.2.0-nightly.202611111100.gabcdef0', prerelease: true, assets: [apk('6.2.0-nightly.202611111100.gabcdef0')] }),
+    release({ tag_name: '6.1.9', draft: true, assets: [apk('6.1.9')] }),
+    release({ tag_name: '6.1.2', assets: [apk('6.1.2')] }),
+  ];
+  assert.deepEqual(logic.releasesWith(list, 'android').map((r) => r.version), ['6.2.0-next.202611111300.gabcdef0', '6.2.0-nightly.202611111100.gabcdef0', '6.1.2']);
+  assert.deepEqual(logic.releasesWith(list, 'nothing'), []);
+  assert.deepEqual(logic.releasesWith(null, 'android'), []);
 });
 
 test('parseRelease drops files it could not check or place safely', () => {
@@ -486,6 +513,30 @@ test('the answers are noted per channel, the latest one, not the highest', () =>
   assert.deepEqual(logic.listedFor('{"stable":{"build":1,"at":2,"downSince":null}}', 'stable'), { build: 1, at: 2, downSince: null });
   assert.deepEqual(logic.listedFor(text, 'anything else'), { build: B604, at: NOW - HOUR, downSince: null }, 'anything that is not a channel is the stable one');
   assert.deepEqual(JSON.parse(logic.noteFailedAsk(text, 'stable', -5)), JSON.parse(text), 'a time that is no whole number notes nothing');
+});
+
+test('a listed channel has its own note, and the others keep theirs', () => {
+  let text = logic.rememberListed(null, 'stable', B604, NOW - HOUR);
+  text = logic.rememberListed(text, 'next', B605, NOW);
+  assert.deepEqual(logic.listedFor(text, 'next'), { build: B605, at: NOW, downSince: null });
+  assert.deepEqual(logic.listedFor(text, 'stable'), { build: B604, at: NOW - HOUR, downSince: null });
+  text = logic.rememberListed(text, 'preview', B606, NOW);
+  text = logic.noteFailedAsk(text, 'api', NOW + HOUR);
+  assert.equal(logic.listedFor(text, 'api'), null, 'nothing noted, nothing to hold');
+  text = logic.rememberListed(text, 'api', B604, NOW + HOUR);
+  text = logic.noteFailedAsk(text, 'next', NOW + 2 * HOUR);
+  assert.deepEqual(JSON.parse(text), {
+    stable: { build: B604, at: NOW - HOUR },
+    preview: { build: B606, at: NOW },
+    next: { build: B605, at: NOW, downSince: NOW + 2 * HOUR },
+    api: { build: B604, at: NOW + HOUR },
+  });
+  assert.equal(logic.offersFromGitHub(B606, logic.listedFor(text, 'next'), NOW + 3 * HOUR), false, 'held by its own note');
+  // Entries that are no channel's are not carried on; a listed one that can't be read is dropped.
+  const odd = JSON.stringify({ stable: { build: 1, at: 2 }, 'not a channel': { build: 1, at: 2 }, Next: { build: 1, at: 2 }, old: { build: 'x', at: 2 } });
+  assert.deepEqual(JSON.parse(logic.rememberListed(odd, 'next', B605, NOW)), { stable: { build: 1, at: 2 }, next: { build: B605, at: NOW } });
+  assert.equal(logic.listedFor('{"constructor":{"build":1,"at":2}}', 'constructor').build, 1, 'an own key only');
+  assert.equal(logic.listedFor('{}', 'constructor'), null);
 });
 
 test('the outage is noted only when GitHub answered: an offline phone uses up nothing', () => {

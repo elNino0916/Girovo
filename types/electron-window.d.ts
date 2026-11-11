@@ -4,8 +4,24 @@ declare global {
   /** The desktop app's updater as src-tauri/src/updater reports it. */
   type ElectronUpdatePhase = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'ready' | 'installing';
 
-  /** Which releases the updater offers: finished ones, or GitHub's pre-releases too (Einstellungen → Update-Kanal). */
-  type UpdateChannel = 'stable' | 'preview';
+  /**
+   * Which releases the updater offers (Einstellungen → Update-Kanal): 'stable',
+   * 'preview' (shown as Nightly), or a channel girovo.de lists
+   * (docs/update-channels.md).
+   */
+  type UpdateChannel = string;
+
+  /** A channel the updater can offer, as the shell reports it. */
+  interface UpdateChannelInfo {
+    id: UpdateChannel;
+    /** Stabil and Nightly: named by the app's own texts. */
+    builtin: boolean;
+    /** Choosing it comes with usage data, as Nightly does. */
+    usage: boolean;
+    /** A listed channel's name and one-line hint; missing for the built-in ones. */
+    name?: { de: string; en: string };
+    hint?: { de: string; en: string };
+  }
 
   interface ElectronUpdateState {
     /** The running version. */
@@ -40,6 +56,8 @@ declare global {
     /** Staged releases at once (setEarly); undefined from shells and builds from before it. */
     early?: boolean;
     channel: UpdateChannel;
+    /** The channels to offer, Stabil and Nightly first; undefined from shells before 6.2.0. */
+    channels?: UpdateChannelInfo[];
     phase: ElectronUpdatePhase;
     /** When GitHub last answered, ms since the epoch. */
     checkedAt: number | null;

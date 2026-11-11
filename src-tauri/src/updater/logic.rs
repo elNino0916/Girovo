@@ -17,7 +17,10 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
+use serde::Serialize;
 use serde_json::Value;
+
+use super::trust::{self, ChannelList, ListedChannel, Localized, Role};
 
 // The project's repository, renamed with the app. Its old name,
 // Sooskasse-FinTS, now belongs to a small repository of its own that carries
@@ -72,28 +75,172 @@ pub enum InstallKind {
   Dev,
 }
 
-/// Which releases are offered: finished ones, or GitHub's pre-releases too (Einstellungen → Update-Kanal).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Channel {
-  Stable,
-  Preview,
+/// A channel of Einstellungen → Update-Kanal: which releases are offered and
+/// which keys they may be signed with. Two are built into the app, Stabil
+/// (`stable`) and Nightly (`preview`); girovo.de's channel list adds others
+/// (docs/update-channels.md), which can only point at keys built in here.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Channel {
+  /// What is stored (engine::PREF_CHANNEL) and what the page is told.
+  pub id: String,
+  /// girovo.de's listing of it: "<listing>.json".
+  pub listing: String,
+  /// The manifest `channel` field it takes besides "stable" (trust::fits).
+  pub manifest: String,
+  /// The keys a manifest offered on it may be signed with.
+  pub keys: Vec<Role>,
+  /// Pre-releases are offered too: GitHub's fallback reads the list of releases, not the latest one.
+  pub prerelease: bool,
+  /// Choosing it requires usage data.
+  pub usage: bool,
+  pub builtin: bool,
 }
 
 impl Channel {
-  pub fn as_str(self) -> &'static str {
-    match self {
-      Channel::Stable => "stable",
-      Channel::Preview => "preview",
+  /// Stabil: releases only, signed with the stable key.
+  pub fn stable() -> Channel {
+    Channel {
+      id: "stable".into(),
+      listing: "stable".into(),
+      manifest: "stable".into(),
+      keys: vec![Role::Stable],
+      prerelease: false,
+      usage: false,
+      builtin: true,
     }
+  }
+
+  /// Nightly: nightlies and hand-made previews too, by the stable or the nightly key.
+  pub fn preview() -> Channel {
+    Channel {
+      id: "preview".into(),
+      listing: "nightly".into(),
+      manifest: "nightly".into(),
+      keys: vec![Role::Stable, Role::Nightly],
+      prerelease: true,
+      usage: true,
+      builtin: true,
+    }
+  }
+
+  /// A channel of girovo.de's list: its id is its listing and its manifest name, and it offers pre-releases.
+  pub fn listed(c: &ListedChannel) -> Channel {
+    Channel { id: c.id.clone(), listing: c.id.clone(), manifest: c.id.clone(), keys: c.keys.clone(), prerelease: true, usage: c.usage, builtin: false }
+  }
+
+  pub fn as_str(&self) -> &str {
+    &self.id
+  }
+
+  pub fn is_stable(&self) -> bool {
+    self.builtin && self.id == "stable"
+  }
+
+  pub fn is_preview(&self) -> bool {
+    self.builtin && self.id == "preview"
   }
 }
 
-/// `stable` asks for the latest release, which GitHub never lets a pre-release
-/// be; `preview` reads the list of releases, pre-releases included
-/// (newest_release). Anything stored that is not a channel is the stable one.
+/// The built-in channel a stored value names: `stable` asks for the latest
+/// release, which GitHub never lets a pre-release be; `preview` reads the
+/// list of releases, pre-releases included (newest_release). Anything else
+/// is the stable one (resolve_channel reads girovo.de's ids).
 pub fn channel_of(value: Option<&str>) -> Channel {
-  if value == Some("preview") { Channel::Preview } else { Channel::Stable }
+  if value == Some("preview") { Channel::preview() } else { Channel::stable() }
+}
+
+/// What the stored channel comes to with the channel list held.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Resolved {
+  /// Checked on this channel; the stored value stays.
+  Stays(Channel),
+  /// The stored channel is gone from the list or has ended: this one takes
+  /// its place, as if the user had picked it.
+  MovesTo(Channel),
+}
+
+/// How many `then`s are followed from an ended channel before stable is taken instead.
+const MAX_THEN_STEPS: usize = 8;
+
+/// The channel a copy checks on (docs/update-channels.md): `stable` and
+/// `preview` as they are; an id of girovo.de's list as the list held for
+/// this platform has it, moved to stable when the list does not have it and
+/// to its `then` when it has ended. With no list held at all, an id is
+/// checked as stable and stays stored until a list arrives. Anything else
+/// stored is the stable channel, as it always was.
+pub fn resolve_channel(stored: Option<&str>, list: Option<&ChannelList>) -> Resolved {
+  match stored {
+    Some("preview") => Resolved::Stays(Channel::preview()),
+    Some(id) if trust::is_list_id(id) => match list {
+      None => Resolved::Stays(Channel::stable()),
+      Some(list) => match list.get(id) {
+        Some(c) if !c.ended => Resolved::Stays(Channel::listed(c)),
+        Some(c) => Resolved::MovesTo(successor(&c.then, list)),
+        None => Resolved::MovesTo(Channel::stable()),
+      },
+    },
+    _ => Resolved::Stays(Channel::stable()),
+  }
+}
+
+/// Where an ended channel's copies go: its `then`, followed on while that has
+/// ended too; a channel absent here, or a chain that does not end, is stable.
+fn successor(then: &str, list: &ChannelList) -> Channel {
+  let mut next = then;
+  for _ in 0..MAX_THEN_STEPS {
+    match next {
+      "stable" => return Channel::stable(),
+      "preview" => return Channel::preview(),
+      id => match list.get(id) {
+        Some(c) if !c.ended => return Channel::listed(c),
+        Some(c) => next = &c.then,
+        None => return Channel::stable(),
+      },
+    }
+  }
+  Channel::stable()
+}
+
+/// One channel as Update-Kanal offers it (engine::UpdateState::channels).
+/// The built-ins' names and hints are the app's own texts.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ChannelInfo {
+  pub id: String,
+  pub builtin: bool,
+  /// Choosing it requires usage data.
+  pub usage: bool,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub name: Option<Localized>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub hint: Option<Localized>,
+}
+
+/// Whether Update-Kanal offers the list's channel `c` to a copy on `current`:
+/// not ended, and not hidden unless it is the current one.
+fn offers(c: &ListedChannel, current: &str) -> bool {
+  !c.ended && (!c.hidden || c.id == current)
+}
+
+/// The channels to offer: stable, preview, then the list's channels in its order.
+pub fn offered_channels(list: Option<&ChannelList>, current: &str) -> Vec<ChannelInfo> {
+  let builtin = |c: Channel| ChannelInfo { id: c.id, builtin: true, usage: c.usage, name: None, hint: None };
+  let mut out = vec![builtin(Channel::stable()), builtin(Channel::preview())];
+  for c in list.map_or(&[][..], |l| l.channels.as_slice()) {
+    if offers(c, current) {
+      out.push(ChannelInfo { id: c.id.clone(), builtin: false, usage: c.usage, name: Some(c.name.clone()), hint: Some(c.hint.clone()) });
+    }
+  }
+  out
+}
+
+/// The channel the user may pick by `id` (engine::set_channel): stable,
+/// preview, or a channel of the list that is offered or current. None for anything else.
+pub fn chosen_channel(id: &str, list: Option<&ChannelList>, current: &str) -> Option<Channel> {
+  match id {
+    "stable" => Some(Channel::stable()),
+    "preview" => Some(Channel::preview()),
+    _ => list?.get(id).filter(|c| offers(c, current)).map(Channel::listed),
+  }
 }
 
 /// Whether this start moves the copy from the Nightly channel back to Stabil:
@@ -104,7 +251,7 @@ pub fn channel_of(value: Option<&str>) -> Channel {
 /// (Updater::set_channel): a choice is never undone. Never a nightly or a
 /// development build.
 pub fn moves_to_stable(stored: Option<&str>, current: &str, moved: Option<&str>) -> bool {
-  channel_of(stored) == Channel::Preview
+  channel_of(stored).is_preview()
     && moved.is_none_or(str::is_empty)
     && parse_version(current).is_some_and(|v| v.pre.is_empty())
 }
@@ -116,7 +263,7 @@ pub fn moves_to_stable(stored: Option<&str>, current: &str, moved: Option<&str>)
 /// first release it reaches. The move itself only ever applied to release
 /// builds (moves_to_stable), so this takes nobody out of it.
 pub fn keeps_nightly(stored: Option<&str>, moved: Option<&str>, prerelease: bool) -> bool {
-  prerelease && channel_of(stored) == Channel::Preview && moved.is_none_or(str::is_empty)
+  prerelease && channel_of(stored).is_preview() && moved.is_none_or(str::is_empty)
 }
 
 // ---- what girovo.de said last -----------------------------------------------------
@@ -154,20 +301,20 @@ pub struct Remembered {
 /// A field of the note: a JSON number with a whole value from 0 to
 /// MAX_SAFE, however written (1000, 1000.0, 1e3) — what JavaScript's
 /// Number.isSafeInteger(x) && x >= 0 takes. None for anything else.
-fn safe_uint(v: &Value) -> Option<u64> {
+pub fn safe_uint(v: &Value) -> Option<u64> {
   let n = v.as_u64().or_else(|| v.as_f64().filter(|f| f.fract() == 0.0 && *f >= 0.0 && *f <= MAX_SAFE as f64).map(|f| f as u64))?;
   (n <= MAX_SAFE).then_some(n)
 }
 
-/// What is noted for `channel` in the pref
-/// (`{"stable":{"build":…,"at":…,"downSince":…},"preview":{…}}`), or None:
+/// What is noted for the channel with the id `channel` in the pref
+/// (`{"stable":{"build":…,"at":…,"downSince":…},"preview":{…},"next":{…}}`), or None:
 /// nothing noted for this channel, or nothing readable. `build` and `at` must
 /// be there and fit safe_uint; `downSince` may be missing or null (no outage
 /// seen), and must fit safe_uint otherwise. One field that does not fit and
 /// the channel counts as not noted.
-pub fn remembered(pref: Option<&str>, channel: Channel) -> Option<Remembered> {
+pub fn remembered(pref: Option<&str>, channel: &str) -> Option<Remembered> {
   let all: Value = serde_json::from_str(pref?).ok()?;
-  let one = all.get(channel.as_str())?;
+  let one = all.get(channel)?;
   let down_since = match one.get("downSince") {
     None | Some(Value::Null) => None,
     Some(v) => Some(safe_uint(v)?),
@@ -179,9 +326,9 @@ pub fn remembered(pref: Option<&str>, channel: Channel) -> Option<Remembered> {
 /// not the highest: after a halt girovo.de offers the release before, and
 /// that is what counts. An answer ends the outage (no `downSince`). The other
 /// channel's note stays.
-pub fn remember(pref: Option<&str>, channel: Channel, build: u64, at: u64) -> String {
+pub fn remember(pref: Option<&str>, channel: &str, build: u64, at: u64) -> String {
   let mut all = pref.and_then(|p| serde_json::from_str::<Value>(p).ok()).filter(Value::is_object).unwrap_or_else(|| serde_json::json!({}));
-  all[channel.as_str()] = serde_json::json!({ "build": build, "at": at });
+  all[channel] = serde_json::json!({ "build": build, "at": at });
   all.to_string()
 }
 
@@ -189,13 +336,13 @@ pub fn remember(pref: Option<&str>, channel: Channel, build: u64, at: u64) -> St
 /// failure since its last answer is noted as `downSince`, later ones change
 /// nothing. None when there is nothing to write: nothing noted for the
 /// channel (a copy that never reached girovo.de), or an outage noted already.
-pub fn note_outage(pref: Option<&str>, channel: Channel, now: u64) -> Option<String> {
+pub fn note_outage(pref: Option<&str>, channel: &str, now: u64) -> Option<String> {
   let last = remembered(pref, channel)?;
   if last.down_since.is_some() {
     return None;
   }
   let mut all: Value = serde_json::from_str(pref?).ok()?;
-  all[channel.as_str()] = serde_json::json!({ "build": last.build, "at": last.at, "downSince": now });
+  all[channel] = serde_json::json!({ "build": last.build, "at": last.at, "downSince": now });
   Some(all.to_string())
 }
 
@@ -593,6 +740,17 @@ pub fn newest_release(list: &Value, current: &str, origin: &Origin, kind: Option
   best
 }
 
+/// Every release in GitHub's list of releases with this install's file, in
+/// the list's order, pre-releases included.
+pub fn releases_with_file(list: &Value, origin: &Origin, kind: Option<InstallKind>) -> Vec<Release> {
+  let Some(list) = list.as_array() else { return Vec::new() };
+  list
+    .iter()
+    .filter_map(|json| parse_release(json, origin, true))
+    .filter(|release| kind != Some(InstallKind::Nsis) || pick_asset(release, InstallKind::Nsis).is_some())
+    .collect()
+}
+
 /// The file of `release` that updates an install of `kind`: the Setup.exe for
 /// the installed app (any case — Tauri's own name ends in "-setup.exe"), none for the rest.
 pub fn pick_asset(release: &Release, kind: InstallKind) -> Option<&Asset> {
@@ -879,6 +1037,102 @@ mod tests {
   use super::*;
   use serde_json::json;
 
+  /// A channel of girovo.de's list.
+  fn entry(id: &str, hidden: bool, ended: bool, then: &str) -> ListedChannel {
+    ListedChannel {
+      id: id.into(),
+      keys: vec![Role::Stable, Role::Next],
+      usage: true,
+      hidden,
+      ended,
+      then: then.into(),
+      name: Localized { de: id.into(), en: id.into() },
+      hint: Localized::default(),
+    }
+  }
+
+  fn list() -> ChannelList {
+    ChannelList {
+      serial: 3,
+      channels: vec![
+        entry("next", true, false, "stable"),
+        entry("api", false, false, "stable"),
+        entry("old", false, true, "preview"),
+        entry("older", false, true, "old"),
+        entry("gone", false, true, "elsewhere"),
+        entry("loopa", false, true, "loopb"),
+        entry("loopb", false, true, "loopa"),
+        entry("toapi", false, true, "api"),
+      ],
+    }
+  }
+
+  #[test]
+  fn the_stored_channel_is_resolved_against_the_list_held() {
+    let l = list();
+    let stays = |stored: Option<&str>, list: Option<&ChannelList>| match resolve_channel(stored, list) {
+      Resolved::Stays(c) => Some(c.id),
+      Resolved::MovesTo(_) => None,
+    };
+    let moves = |stored: &str| match resolve_channel(Some(stored), Some(&l)) {
+      Resolved::MovesTo(c) => Some(c.id),
+      Resolved::Stays(_) => None,
+    };
+    // The built-ins, with or without a list; anything that is no channel id is stable, unmoved.
+    for held in [None, Some(&l)] {
+      assert_eq!(stays(Some("stable"), held).as_deref(), Some("stable"));
+      assert_eq!(stays(Some("preview"), held).as_deref(), Some("preview"));
+      assert_eq!(stays(None, held).as_deref(), Some("stable"));
+      for odd in ["nightly", "Next", "", "x"] {
+        assert_eq!(stays(Some(odd), held).as_deref(), Some("stable"), "{odd:?}");
+      }
+    }
+    // No list held: an id is checked as stable and stays stored.
+    assert_eq!(stays(Some("next"), None).as_deref(), Some("stable"));
+    // In the list: itself, hidden or not, with its keys and its own listing.
+    let Resolved::Stays(next) = resolve_channel(Some("next"), Some(&l)) else { panic!() };
+    assert_eq!((next.listing.as_str(), next.manifest.as_str(), next.keys.as_slice()), ("next", "next", &[Role::Stable, Role::Next][..]));
+    assert!(next.prerelease && next.usage && !next.builtin && !next.is_stable() && !next.is_preview());
+    assert_eq!(stays(Some("api"), Some(&l)).as_deref(), Some("api"));
+    // Absent: to stable. Ended: to its then, followed while that has ended too.
+    assert_eq!(moves("missing").as_deref(), Some("stable"));
+    assert_eq!(moves("old").as_deref(), Some("preview"));
+    assert_eq!(moves("older").as_deref(), Some("preview"));
+    assert_eq!(moves("toapi").as_deref(), Some("api"));
+    assert_eq!(moves("gone").as_deref(), Some("stable"), "a then absent here");
+    assert_eq!(moves("loopa").as_deref(), Some("stable"), "a chain that never ends");
+  }
+
+  #[test]
+  fn the_page_is_offered_the_built_ins_then_the_lists_open_channels_and_the_current_one() {
+    let l = list();
+    let ids = |current: &str| offered_channels(Some(&l), current).into_iter().map(|c| c.id).collect::<Vec<_>>();
+    assert_eq!(ids("stable"), ["stable", "preview", "api"]);
+    assert_eq!(ids("next"), ["stable", "preview", "next", "api"]);
+    let none: Vec<String> = offered_channels(None, "stable").into_iter().map(|c| c.id).collect();
+    assert_eq!(none, ["stable", "preview"]);
+    let shown = serde_json::to_value(offered_channels(Some(&l), "stable")).unwrap();
+    assert_eq!(
+      shown,
+      json!([
+        { "id": "stable", "builtin": true, "usage": false },
+        { "id": "preview", "builtin": true, "usage": true },
+        { "id": "api", "builtin": false, "usage": true, "name": { "de": "api", "en": "api" }, "hint": { "de": "", "en": "" } },
+      ])
+    );
+    // What may be picked: the built-ins, an offered channel, the current hidden one.
+    let pick = |id: &str, current: &str| chosen_channel(id, Some(&l), current).map(|c| c.id);
+    assert_eq!(pick("stable", "api").as_deref(), Some("stable"));
+    assert_eq!(pick("preview", "stable").as_deref(), Some("preview"));
+    assert_eq!(pick("api", "stable").as_deref(), Some("api"));
+    assert_eq!(pick("next", "next").as_deref(), Some("next"));
+    for (id, current) in [("next", "stable"), ("old", "stable"), ("old", "old"), ("missing", "stable"), ("nightly", "stable"), ("", "stable")] {
+      assert_eq!(pick(id, current), None, "{id:?} on {current}");
+    }
+    assert_eq!(chosen_channel("api", None, "stable"), None);
+    assert_eq!(chosen_channel("preview", None, "stable"), Some(Channel::preview()));
+  }
+
   const DIGEST: &str = "sha256:abababababababababababababababababababababababababababababababab";
   const DOWNLOAD_PREFIX: &str = DOWNLOAD_PREFIXES[0];
 
@@ -980,50 +1234,50 @@ mod tests {
 
   #[test]
   fn what_girovo_de_said_last_is_noted_per_channel_the_latest_answer_not_the_highest() {
-    let stable = |pref: &str| remembered(Some(pref), Channel::Stable);
-    let preview = |pref: &str| remembered(Some(pref), Channel::Preview);
+    let stable = |pref: &str| remembered(Some(pref), "stable");
+    let preview = |pref: &str| remembered(Some(pref), "preview");
     let noted = |build, at, down_since| Some(Remembered { build, at, down_since });
-    let first = remember(None, Channel::Stable, 600_030, 1000);
+    let first = remember(None, "stable", 600_030, 1000);
     assert_eq!(stable(&first), noted(600_030, 1000, None));
     // The other channel has nothing noted: its check goes by "never asked", not by this note.
     assert_eq!(preview(&first), None);
     assert!(fallback_offers(Some(700_000), preview(&first), 2000));
     assert!(!fallback_offers(Some(700_000), stable(&first), 2000));
     // After a halt girovo.de offers the release before: the note goes down with it.
-    let halted = remember(Some(&first), Channel::Stable, 600_020, 3000);
+    let halted = remember(Some(&first), "stable", 600_020, 3000);
     assert_eq!(stable(&halted), noted(600_020, 3000, None));
     // Each channel keeps its own.
-    let both = remember(Some(&halted), Channel::Preview, 600_039, 4000);
+    let both = remember(Some(&halted), "preview", 600_039, 4000);
     assert_eq!(stable(&both), noted(600_020, 3000, None));
     assert_eq!(preview(&both), noted(600_039, 4000, None));
-    assert_eq!(remembered(None, Channel::Stable), None);
+    assert_eq!(remembered(None, "stable"), None);
     // The build numbers of real versions survive the pref (they are below 2^53).
     let big = 8_999_990_000_000_000;
-    assert_eq!(stable(&remember(None, Channel::Stable, big, big)), noted(big, big, None));
+    assert_eq!(stable(&remember(None, "stable", big, big)), noted(big, big, None));
   }
 
   #[test]
   fn an_outage_is_noted_from_its_first_failed_ask_until_the_next_answer() {
-    let stable = |pref: &str| remembered(Some(pref), Channel::Stable);
-    let answered = remember(None, Channel::Stable, 600_020, 1000);
+    let stable = |pref: &str| remembered(Some(pref), "stable");
+    let answered = remember(None, "stable", 600_020, 1000);
     // The first failure is noted, with the answer as it was…
-    let down = note_outage(Some(&answered), Channel::Stable, 5000).expect("noted");
+    let down = note_outage(Some(&answered), "stable", 5000).expect("noted");
     assert_eq!(stable(&down), Some(Remembered { build: 600_020, at: 1000, down_since: Some(5000) }));
     // …later ones change nothing, and the other channel is not touched.
-    assert_eq!(note_outage(Some(&down), Channel::Stable, 9000), None);
-    assert_eq!(remembered(Some(&down), Channel::Preview), None);
+    assert_eq!(note_outage(Some(&down), "stable", 9000), None);
+    assert_eq!(remembered(Some(&down), "preview"), None);
     // Nothing noted for the channel (a fresh install, or nothing readable): nothing to note.
-    assert_eq!(note_outage(Some(&answered), Channel::Preview, 5000), None);
-    assert_eq!(note_outage(None, Channel::Stable, 5000), None);
-    assert_eq!(note_outage(Some("not json"), Channel::Stable, 5000), None);
+    assert_eq!(note_outage(Some(&answered), "preview", 5000), None);
+    assert_eq!(note_outage(None, "stable", 5000), None);
+    assert_eq!(note_outage(Some("not json"), "stable", 5000), None);
     // The next answer ends it.
-    let back = remember(Some(&down), Channel::Stable, 600_030, 10_000);
+    let back = remember(Some(&down), "stable", 600_030, 10_000);
     assert_eq!(stable(&back), Some(Remembered { build: 600_030, at: 10_000, down_since: None }));
   }
 
   #[test]
   fn the_note_is_read_as_the_apps_javascript_reads_it() {
-    let stable = |pref: &str| remembered(Some(pref), Channel::Stable);
+    let stable = |pref: &str| remembered(Some(pref), "stable");
     let entry = |fields: &str| format!(r#"{{"stable":{{{fields}}}}}"#);
     // Whole numbers from 0 to 2^53 - 1, however JSON writes them.
     for (fields, build, at, down) in [
@@ -1062,7 +1316,7 @@ mod tests {
     // Nothing readable around it.
     for odd in ["", "not json", "[]", "7", "null", r#"{"stable":7}"#, r#"{"stable":[5,6]}"#, r#"{"stable":null}"#] {
       assert_eq!(stable(odd), None, "{odd:?}");
-      assert_eq!(stable(&remember(Some(odd), Channel::Stable, 5, 6)), Some(Remembered { build: 5, at: 6, down_since: None }), "{odd:?}");
+      assert_eq!(stable(&remember(Some(odd), "stable", 5, 6)), Some(Remembered { build: 5, at: 6, down_since: None }), "{odd:?}");
     }
   }
 
@@ -1366,10 +1620,10 @@ mod tests {
     assert_eq!(list_url(FEED_URL).unwrap(), "https://api.github.com/repos/elNino0916/Girovo/releases?per_page=100");
     assert_eq!(list_url("http://127.0.0.1:5000/latest").unwrap(), "http://127.0.0.1:5000?per_page=100");
     assert_eq!(list_url("http://127.0.0.1:5000/feed.json"), None);
-    assert_eq!(channel_of(Some("preview")), Channel::Preview);
-    assert_eq!(channel_of(Some("stable")), Channel::Stable);
-    assert_eq!(channel_of(None), Channel::Stable);
-    assert_eq!(channel_of(Some("beta")), Channel::Stable);
+    assert_eq!(channel_of(Some("preview")), Channel::preview());
+    assert_eq!(channel_of(Some("stable")), Channel::stable());
+    assert_eq!(channel_of(None), Channel::stable());
+    assert_eq!(channel_of(Some("beta")), Channel::stable());
   }
 
   #[test]

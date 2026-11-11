@@ -45,14 +45,17 @@ use tokio::sync::{OwnedMutexGuard, watch};
 
 use super::bundle::{self, Bundle, Damaged};
 use super::chunks;
-use super::logic::{self, Asset, Channel, InstallKind, Origin, Plan, Release};
+use super::logic::{self, Asset, Channel, ChannelInfo, InstallKind, Origin, Plan, Release, Resolved};
 use super::texts::{Texts, texts};
 use super::trust;
 use crate::texts::Lang;
 
 pub const PREF_AUTO: &str = "fints.updates.auto";
-// 'stable' (unset) or 'preview': whether pre-releases are offered too.
+// 'stable' (unset), 'preview' or a channel of girovo.de's list (docs/update-channels.md).
 pub const PREF_CHANNEL: &str = "fints.updates.channel";
+/// girovo.de's channel list as it was last taken: the envelope's text, so it
+/// is verified again whenever it is read (trust::read_channels).
+pub const PREF_CHANNELS: &str = "fints.updates.channels";
 /// The release that took this copy from the Nightly channel back to Stabil
 /// (logic::moves_to_stable), or the version the user picked a channel in
 /// (set_channel): set, the move does not happen (again).
@@ -82,6 +85,12 @@ const AUTO_ON_DELAY: Duration = Duration::from_millis(1500);
 const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
 /// girovo.de's listing holds at most two manifests with their notes.
 const MAX_LISTING_BYTES: usize = 1024 * 1024;
+/// How many of GitHub's newest releases the fallback looks at, on a channel
+/// that reads the list of releases, for one whose signed manifest fits the
+/// channel: a Next build at the top must not leave Nightly with nothing.
+const GITHUB_TRIES: usize = 3;
+/// The half of the app this is, for girovo.de's channel list.
+const PLATFORM: trust::Platform = trust::Platform::Desktop;
 const PROGRESS_EVERY: Duration = Duration::from_millis(200);
 // A connection can go quiet without ever failing; a download that has not
 // moved for a minute is given up rather than left spinning.
@@ -240,7 +249,11 @@ pub struct UpdateState {
   pub auto: bool,
   /// Staged releases at once (PREF_EARLY).
   pub early: bool,
-  pub channel: Channel,
+  /// The id of the channel checked on: "stable", "preview" or one of girovo.de's list.
+  pub channel: String,
+  /// What Update-Kanal offers: stable, preview, then girovo.de's channels
+  /// that are neither hidden nor ended, the current one also when hidden.
+  pub channels: Vec<ChannelInfo>,
   pub phase: Phase,
   /// When GitHub last answered, ms since the epoch.
   pub checked_at: Option<u64>,
@@ -424,6 +437,15 @@ async fn abortable<T>(cancel: &Cancel, fut: impl Future<Output = Result<T, Failu
   }
 }
 
+/// Stores `channel` as the user's own choice: the one-time move back to
+/// Stabil (logic::moves_to_stable) never undoes it, on whichever build it comes.
+fn note_channel(host: &dyn Host, current_version: &str, channel: &Channel) {
+  host.set_pref(PREF_CHANNEL, channel.as_str());
+  if host.pref(PREF_MOVED_TO_STABLE).is_none_or(|v| v.is_empty()) {
+    host.set_pref(PREF_MOVED_TO_STABLE, current_version);
+  }
+}
+
 fn now_ms() -> u64 {
   SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
@@ -536,6 +558,10 @@ struct Inner {
   /// girovo.de's last answer, with its address and ETag: a check that changes
   /// nothing costs a 304.
   listing: Option<(String, String, Vec<u8>)>,
+  /// girovo.de's channel list as this platform holds it (PREF_CHANNELS).
+  held: Option<trust::ChannelList>,
+  /// The ETag the held list came with, when it came in this run.
+  channels_etag: Option<String>,
   /// The picked file once it checked out: the file, its signed release and the installer in it.
   chosen: Option<(PathBuf, Release, Asset)>,
   /// Counts the files picked and the dialogs closed: a check still running
@@ -593,19 +619,28 @@ impl Updater {
     let stored = host.pref(PREF_CHANNEL);
     let moved = host.pref(PREF_MOVED_TO_STABLE);
     if logic::moves_to_stable(stored.as_deref(), &cfg.current_version, moved.as_deref()) {
-      host.set_pref(PREF_CHANNEL, Channel::Stable.as_str());
+      host.set_pref(PREF_CHANNEL, Channel::stable().as_str());
       host.set_pref(PREF_MOVED_TO_STABLE, &cfg.current_version);
     } else if logic::keeps_nightly(stored.as_deref(), moved.as_deref(), trust::is_prerelease(&cfg.current_version)) {
       // A nightly on the Nightly channel: picked before set_channel noted
       // choices, noted now, so the release this copy reaches does not move it.
       host.set_pref(PREF_MOVED_TO_STABLE, &cfg.current_version);
     }
+    let held = host.pref(PREF_CHANNELS).and_then(|text| trust::read_channels(&text, &cfg.keys, PLATFORM));
+    let channel = match logic::resolve_channel(host.pref(PREF_CHANNEL).as_deref(), held.as_ref()) {
+      Resolved::Stays(channel) => channel,
+      Resolved::MovesTo(channel) => {
+        note_channel(host.as_ref(), &cfg.current_version, &channel);
+        channel
+      }
+    };
     let state = UpdateState {
       current: cfg.current_version.clone(),
       kind: cfg.kind,
       auto: host.pref(PREF_AUTO).as_deref() != Some("off"),
       early: host.pref(PREF_EARLY).as_deref() == Some("on"),
-      channel: logic::channel_of(host.pref(PREF_CHANNEL).as_deref()),
+      channels: logic::offered_channels(held.as_ref(), &channel.id),
+      channel: channel.id,
       phase: Phase::Idle,
       checked_at: None,
       release: None,
@@ -626,7 +661,18 @@ impl Updater {
       .expect("a client without custom TLS cannot fail to build");
     Arc::new_cyclic(|me| Updater {
       states: watch::channel(state.clone()).0,
-      inner: Mutex::new(Inner { state, pending: None, ready_file: None, abort: None, timer: None, listing: None, chosen: None, file_round: 0 }),
+      inner: Mutex::new(Inner {
+        state,
+        pending: None,
+        ready_file: None,
+        abort: None,
+        timer: None,
+        listing: None,
+        held,
+        channels_etag: None,
+        chosen: None,
+        file_round: 0,
+      }),
       cfg,
       host,
       client,
@@ -671,8 +717,13 @@ impl Updater {
   }
 
   fn set(&self, patch: impl FnOnce(&mut UpdateState)) -> UpdateState {
+    self.update(|inner| patch(&mut inner.state))
+  }
+
+  /// The same with all of Inner at hand.
+  fn update(&self, patch: impl FnOnce(&mut Inner)) -> UpdateState {
     let mut inner = self.inner.lock().unwrap();
-    patch(&mut inner.state);
+    patch(&mut inner);
     let state = inner.state.clone();
     // Under the lock, so the page hears the changes in the order they happened.
     self.host.publish(&state);
@@ -798,7 +849,7 @@ impl Updater {
   /// out, and only up to the release girovo.de offered this copy last
   /// (believed_without_girovo_de; above it: Failure::Withheld). None when
   /// there is none to offer.
-  async fn fetch_offer(&self, channel: Channel) -> Result<Option<Release>, Failure> {
+  async fn fetch_offer(&self, channel: &Channel) -> Result<Option<Release>, Failure> {
     let asks_girovo_de = self.cfg.manifest_base.is_some();
     if let Some(base) = self.cfg.manifest_base.clone() {
       if let Some(listing) = self.fetch_listing(&base, channel).await {
@@ -808,20 +859,20 @@ impl Updater {
         return Ok(offer);
       }
     }
-    let github = self.fetch_github_offer(channel).await;
+    let github = self.fetch_github_offers(channel).await;
     // girovo.de's outage, from its first failed ask on (logic::note_outage) —
     // only once GitHub has answered at all (Said: an HTTP answer, a refusal
     // or an error page included). Both silent is this device offline, and
     // days offline must not count as days of outage.
     if asks_girovo_de
       && matches!(github, Ok(_) | Err(Failure::Said(_)))
-      && let Some(noted) = logic::note_outage(self.host.pref(PREF_LISTED).as_deref(), channel, now_ms())
+      && let Some(noted) = logic::note_outage(self.host.pref(PREF_LISTED).as_deref(), channel.as_str(), now_ms())
     {
       self.host.set_pref(PREF_LISTED, &noted);
     }
     let candidate = match github? {
-      Some(release) if self.cfg.require_signed => self.signed_copy(release, channel).await,
-      other => other,
+      offers if self.cfg.require_signed => self.first_signed(offers, channel).await,
+      offers => offers.into_iter().next(),
     };
     // Only an update is held back, as in the APK (update-logic.cjs): the way
     // back to the stable release (logic::is_switch_back) or nothing newer is
@@ -844,11 +895,11 @@ impl Updater {
   /// nothing newer. The latest answer, never a maximum: a halted release
   /// leaves the note with the next answer. It ends a noted outage too. With
   /// no build number for either, the note stays as it was.
-  fn remember_listed(&self, channel: Channel, offer: Option<&Release>) {
+  fn remember_listed(&self, channel: &Channel, offer: Option<&Release>) {
     let offered = offer.and_then(|r| trust::build_number(&r.version));
     let running = trust::build_number(&self.cfg.current_version);
     let Some(build) = offered.max(running) else { return };
-    let noted = logic::remember(self.host.pref(PREF_LISTED).as_deref(), channel, build, now_ms());
+    let noted = logic::remember(self.host.pref(PREF_LISTED).as_deref(), channel.as_str(), build, now_ms());
     self.host.set_pref(PREF_LISTED, &noted);
   }
 
@@ -856,8 +907,8 @@ impl Updater {
   /// (logic::fallback_offers). GitHub names its latest release to everybody;
   /// one girovo.de halted, or staged and not yet this copy's, would otherwise
   /// reach every copy during an outage, and the next start would install it.
-  fn believed_without_girovo_de(&self, release: &Release, channel: Channel) -> bool {
-    let last = logic::remembered(self.host.pref(PREF_LISTED).as_deref(), channel);
+  fn believed_without_girovo_de(&self, release: &Release, channel: &Channel) -> bool {
+    let last = logic::remembered(self.host.pref(PREF_LISTED).as_deref(), channel.as_str());
     let believed = logic::fallback_offers(trust::build_number(&release.version), last, now_ms());
     if !believed {
       warn("not offered", &format!("{}: girovo.de can't be asked and did not offer it at its last answer", release.version));
@@ -867,8 +918,8 @@ impl Updater {
 
   /// girovo.de's listing for the channel, or None when it can't be had — no
   /// connection, an error page, anything that is not a listing.
-  async fn fetch_listing(&self, base: &str, channel: Channel) -> Option<Vec<trust::Listed>> {
-    let url = format!("{base}{}.json", if channel == Channel::Preview { "nightly" } else { "stable" });
+  async fn fetch_listing(&self, base: &str, channel: &Channel) -> Option<Vec<trust::Listed>> {
+    let url = format!("{base}{}.json", channel.listing);
     let cached = self.inner.lock().unwrap().listing.clone().filter(|(u, _, _)| *u == url);
     let mut request = self.client.get(&url).timeout(CHECK_TIMEOUT);
     if let Some((_, etag, _)) = cached.as_ref() {
@@ -903,6 +954,84 @@ impl Updater {
     listing
   }
 
+  /// girovo.de's channel list, asked at each check before the offer
+  /// (docs/update-channels.md). It is taken when the stable key signed it and
+  /// its serial is at least the held list's, so an old list served again
+  /// can't bring a channel back; its envelope's text is kept (PREF_CHANNELS).
+  /// Anything else, a failed ask included, keeps the list held.
+  async fn refresh_channels(&self) {
+    let Some(base) = self.cfg.manifest_base.as_deref() else { return };
+    let url = format!("{base}{}", trust::CHANNELS_NAME);
+    let etag = self.inner.lock().unwrap().channels_etag.clone();
+    let mut request = self.client.get(&url).timeout(CHECK_TIMEOUT);
+    if let Some(etag) = etag.as_deref() {
+      request = request.header("If-None-Match", etag);
+    }
+    let res = match request.send().await {
+      Ok(res) => res,
+      Err(err) => {
+        warn("girovo.de's channel list could not be asked", &err);
+        return;
+      }
+    };
+    match res.status().as_u16() {
+      200 => {}
+      304 => return,
+      status => {
+        warn("girovo.de's channel list", &format!("HTTP {status}"));
+        return;
+      }
+    }
+    let etag = res.headers().get("etag").and_then(|v| v.to_str().ok()).map(str::to_string);
+    let Ok(body) = read_bytes(res, trust::MAX_MANIFEST_BYTES, "").await else { return };
+    let text = String::from_utf8(body).unwrap_or_default();
+    let Some(list) = trust::read_channels(&text, &self.cfg.keys, PLATFORM) else {
+      warn("girovo.de's channel list", &"not a list signed with the stable key");
+      return;
+    };
+    {
+      let mut inner = self.inner.lock().unwrap();
+      if let Some(held) = inner.held.as_ref().filter(|held| list.serial < held.serial) {
+        warn("girovo.de's channel list", &format!("serial {} is older than the {} held", list.serial, held.serial));
+        return;
+      }
+      inner.held = Some(list);
+      inner.channels_etag = etag;
+    }
+    self.host.set_pref(PREF_CHANNELS, &text);
+  }
+
+  /// The channel this check is on: the stored one as the held list reads it
+  /// (logic::resolve_channel). One the list no longer has, or has ended, is
+  /// left for stable or its `then`, stored as if the user had picked it, so
+  /// the way back is offered as after set_channel.
+  fn resolve_stored(&self) -> Channel {
+    let held = self.inner.lock().unwrap().held.clone();
+    let channel = match logic::resolve_channel(self.host.pref(PREF_CHANNEL).as_deref(), held.as_ref()) {
+      Resolved::Stays(channel) => channel,
+      Resolved::MovesTo(channel) => {
+        note_channel(self.host.as_ref(), &self.cfg.current_version, &channel);
+        channel
+      }
+    };
+    self.show_channel(&channel);
+    channel
+  }
+
+  /// Tells the page the current channel and what Update-Kanal offers with it, when that changed.
+  fn show_channel(&self, channel: &Channel) {
+    let changed = {
+      let inner = self.inner.lock().unwrap();
+      inner.state.channel != channel.id || inner.state.channels != logic::offered_channels(inner.held.as_ref(), &channel.id)
+    };
+    if changed {
+      self.update(|inner| {
+        inner.state.channels = logic::offered_channels(inner.held.as_ref(), &channel.id);
+        inner.state.channel = channel.id.clone();
+      });
+    }
+  }
+
   /// This installation's id for the rollout bucket, made once.
   fn install_id(&self) -> String {
     if let Some(id) = self.host.pref(PREF_INSTALL_ID).filter(|id| !id.is_empty()) {
@@ -935,7 +1064,7 @@ impl Updater {
 
   /// `release` from GitHub as its signed manifest describes it, or None when
   /// it carries none, or one that does not check out.
-  async fn signed_copy(&self, release: Release, channel: Channel) -> Option<Release> {
+  async fn signed_copy(&self, release: Release, channel: &Channel) -> Option<Release> {
     let file = |name: &str| release.assets.iter().find(|a| a.name == name).cloned();
     let (Some(manifest), Some(sig)) = (file(trust::MANIFEST_NAME), file(trust::SIG_NAME)) else {
       warn("not offered", &format!("{} carries no signed manifest", release.version));
@@ -943,7 +1072,7 @@ impl Updater {
     };
     let bytes = self.small_file(&manifest).await?;
     let sig = self.small_file(&sig).await?;
-    let signed = trust::signer_fits(trust::verify(&bytes, &String::from_utf8_lossy(&sig), &self.cfg.keys), channel);
+    let signed = trust::fits_manifest(&bytes, &String::from_utf8_lossy(&sig), &self.cfg.keys, channel);
     let copy = trust::release_of(&bytes, &self.cfg.origin).filter(|r| signed && r.version == release.version);
     if copy.is_none() {
       warn("not offered", &format!("{}: its manifest's signature does not check out", release.version));
@@ -951,17 +1080,42 @@ impl Updater {
     copy
   }
 
-  /// GitHub's offer: the latest release, or on the preview channel the highest
-  /// version above this one in the list, pre-releases included.
-  async fn fetch_github_offer(&self, channel: Channel) -> Result<Option<Release>, Failure> {
-    let list = if channel == Channel::Preview { logic::list_url(&self.cfg.feed_url) } else { None };
-    let Some(list) = list else { return self.fetch_release(&self.cfg.feed_url, false).await };
-    let Some(json) = self.fetch_json(&list).await? else { return Ok(None) };
+  /// The first of GitHub's `offers` whose signed manifest fits `channel`, as that manifest describes it.
+  async fn first_signed(&self, offers: Vec<Release>, channel: &Channel) -> Option<Release> {
+    for release in offers {
+      if let Some(copy) = self.signed_copy(release, channel).await {
+        return Some(copy);
+      }
+    }
+    None
+  }
+
+  /// GitHub's offers, newest first: the latest release; on a channel that
+  /// offers pre-releases (Nightly, girovo.de's channels) the newest few
+  /// releases above this version in the list, pre-releases included, for
+  /// fetch_offer to take the first whose signed manifest fits the channel.
+  /// The tests' unsigned stand-in gets the one newest by name, as always.
+  async fn fetch_github_offers(&self, channel: &Channel) -> Result<Vec<Release>, Failure> {
+    let list = if channel.prerelease { logic::list_url(&self.cfg.feed_url) } else { None };
+    let Some(list) = list else { return Ok(self.fetch_release(&self.cfg.feed_url, false).await?.into_iter().collect()) };
+    let Some(json) = self.fetch_json(&list).await? else { return Ok(Vec::new()) };
     if !json.is_array() {
       return Err(Failure::Said(self.texts().unreadable.to_string()));
     }
     // Only a release with this install's file.
-    Ok(logic::newest_release(&json, &self.cfg.current_version, &self.cfg.origin, Some(self.cfg.kind)))
+    let current = &self.cfg.current_version;
+    if !self.cfg.require_signed {
+      return Ok(logic::newest_release(&json, current, &self.cfg.origin, Some(self.cfg.kind)).into_iter().collect());
+    }
+    // Signed releases are ordered by build number, which knows every name a
+    // pre-release has (nightly.<stamp>, next.<stamp>), as take_offer orders them.
+    let Some(running) = trust::build_number(current) else { return Ok(Vec::new()) };
+    let mut newer: Vec<(u64, Release)> = logic::releases_with_file(&json, &self.cfg.origin, Some(self.cfg.kind))
+      .into_iter()
+      .filter_map(|r| Some((trust::build_number(&r.version).filter(|&b| b > running)?, r)))
+      .collect();
+    newer.sort_by(|a, b| b.0.cmp(&a.0));
+    Ok(newer.into_iter().take(GITHUB_TRIES).map(|(_, r)| r).collect())
   }
 
   // ---- files ----------------------------------------------------------------------
@@ -1291,16 +1445,16 @@ impl Updater {
 
   async fn run_check(&self, manual: bool) -> UpdateState {
     let before = self.state().phase;
-    let channel = self
-      .set(|s| {
-        s.phase = Phase::Checking;
-        if manual {
-          s.error = None;
-        }
-      })
-      .channel;
-    match self.fetch_offer(channel).await {
-      Ok(release) => self.take_offer(release, channel).await,
+    self.set(|s| {
+      s.phase = Phase::Checking;
+      if manual {
+        s.error = None;
+      }
+    });
+    self.refresh_channels().await;
+    let channel = self.resolve_stored();
+    match self.fetch_offer(&channel).await {
+      Ok(release) => self.take_offer(release, &channel).await,
       // Nothing new for now (girovo.de away, GitHub's release above what it
       // offered last): like a failed check, what was on offer stays — the
       // release, its download, the phase — and nothing is said. GitHub did
@@ -1328,7 +1482,7 @@ impl Updater {
     }
   }
 
-  async fn take_offer(&self, release: Option<Release>, channel: Channel) -> UpdateState {
+  async fn take_offer(&self, release: Option<Release>, channel: &Channel) -> UpdateState {
     let checked_at = Some(now_ms());
     let current = &self.cfg.current_version;
     // A signed offer is ordered by build number (trust::build_number), which
@@ -1337,11 +1491,11 @@ impl Updater {
       if self.cfg.require_signed {
         matches!((trust::build_number(&r.version), trust::build_number(current)), (Some(a), Some(b)) if a > b)
       } else {
-        logic::is_newer(&r.version, current, channel == Channel::Preview)
+        logic::is_newer(&r.version, current, channel.prerelease)
       }
     });
     // Back on "Stabil" from a preview: the latest stable release, older as it may be.
-    let back = !newer && channel == Channel::Stable && release.as_ref().is_some_and(|r| logic::is_switch_back(&r.version, current));
+    let back = !newer && channel.is_stable() && release.as_ref().is_some_and(|r| logic::is_switch_back(&r.version, current));
     let Some(release) = release.filter(|_| newer || back) else {
       {
         let mut inner = self.inner.lock().unwrap();
@@ -1808,8 +1962,8 @@ impl Updater {
     // Somewhere that could not be asked: "no signature" would be a guess.
     let mut unasked = false;
     if let Some(base) = self.cfg.manifest_base.clone() {
-      for channel in [Channel::Stable, Channel::Preview] {
-        match self.fetch_listing(&base, channel).await {
+      for channel in [Channel::stable(), Channel::preview()] {
+        match self.fetch_listing(&base, &channel).await {
           Some(listing) => candidates.extend(listing.into_iter().map(|l| (l.manifest, l.sig, false))),
           None => unasked = true,
         }
@@ -2004,23 +2158,24 @@ impl Updater {
     self.set(|s| s.early = on)
   }
 
-  /// Switches between the stable and the preview channel, and asks again at
-  /// once: what the other channel offered — found, downloading or downloaded —
-  /// is dropped unless this one offers it too. Going back to stable from a
-  /// preview offers the latest stable release, older as it may be
-  /// (logic::is_switch_back): the channel's own version, a click away.
+  /// Switches the channel — stable, preview, or one of girovo.de's list that
+  /// Update-Kanal offers or that is the current one; anything else changes
+  /// nothing — and asks again at once: what the other channel offered —
+  /// found, downloading or downloaded — is dropped unless this one offers it
+  /// too. Going back to stable from a preview offers the latest stable
+  /// release, older as it may be (logic::is_switch_back): the channel's own
+  /// version, a click away.
   pub async fn set_channel(&self, value: &str) -> UpdateState {
-    let channel = logic::channel_of(Some(value));
-    self.host.set_pref(PREF_CHANNEL, channel.as_str());
-    // The user's own choice: the one-time move back to Stabil
-    // (logic::moves_to_stable) never undoes it, on whichever build it comes.
-    if self.host.pref(PREF_MOVED_TO_STABLE).is_none_or(|v| v.is_empty()) {
-      self.host.set_pref(PREF_MOVED_TO_STABLE, &self.cfg.current_version);
-    }
-    if channel == self.state().channel {
+    let chosen = {
+      let inner = self.inner.lock().unwrap();
+      logic::chosen_channel(value, inner.held.as_ref(), &inner.state.channel)
+    };
+    let Some(channel) = chosen else { return self.state() };
+    note_channel(self.host.as_ref(), &self.cfg.current_version, &channel);
+    if channel.id == self.state().channel {
       return self.state();
     }
-    self.set(|s| s.channel = channel);
+    self.show_channel(&channel);
     self.cancel();
     // A check or download still running is of the old channel: let it end first.
     drop(self.download_lock.lock().await);

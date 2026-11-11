@@ -4,34 +4,55 @@
 // and the Sitzung row (components/updates) work unchanged.
 //
 // Where an update comes from and why it can be trusted (docs/updater-v2.md,
-// ../updates/update-trust.ts): girovo.de lists each channel's newest release
-// as its signed girovo-update.json; only one signed with Girovo's key (the
-// nightly key too on the Nightly channel) counts, ordered by build number.
+// docs/update-channels.md, ../updates/update-trust.ts): girovo.de lists each
+// channel's newest release as its signed girovo-update.json; only one whose
+// signature and manifest fit the channel counts, ordered by build number.
 // When girovo.de can't be asked, GitHub's API as before — and there too only
 // a release whose signed manifest checks out. The APK is downloaded natively
 // and kept only when its size and SHA-256 are what the signed manifest says
 // (GirovoUpdater); Android's installer then checks that it is signed like the
 // installed app. Which file is ours: ../updates/update-logic.cjs (the
-// release's "-android.apk"). On the
-// preview channel (Einstellungen → Update-Kanal) the list of releases is
-// read instead of the latest one, pre-releases included — Android installs
-// no older version over a newer one, so going back to stable waits for the
-// next stable release above the installed preview.
+// release's "-android.apk"). On Nightly and on the channels girovo.de lists
+// (Einstellungen → Update-Kanal; the list is signed with the stable key and
+// can only point at keys built into the app) the list of releases is read
+// instead of the latest one, pre-releases included — Android installs no
+// older version over a newer one, so going back to stable waits for the next
+// stable release above the installed pre-release.
 //
 // The Google Play build has no such bridge: Play brings its updates, and the
 // Sitzung panel offers Play's own in-app update (components/android). Nor has
 // the F-Droid build: its repository serves stable releases only.
 
 import logic from '../updates/update-logic.cjs';
-import { MANIFEST_BASE, MANIFEST_NAME, SIG_NAME, buildNumber, parseListing, pickListed, releaseOf, signerFits, verifyManifest, type UpdateRelease } from '../updates/update-trust.ts';
+import {
+  MANIFEST_BASE,
+  MANIFEST_NAME,
+  SIG_NAME,
+  acceptChannels,
+  buildNumber,
+  fitsChannel,
+  listingName,
+  offeredChannels,
+  parseListing,
+  pickListed,
+  releaseOf,
+  resolveChannel,
+  verifyChannels,
+  verifyManifest,
+  type ChannelList,
+  type ChannelRule,
+  type UpdateRelease,
+} from '../updates/update-trust.ts';
 import { TRUSTED_KEYS } from '../updates/update-keys.ts';
 import { msgs } from '../../lib/i18n/index.ts';
 import { GirovoDevice, GirovoUpdater, type UpdaterState } from '../native';
 import { reportError, track } from './telemetry';
 
 const AUTO_PREF = 'fints.autoUpdate';
-/** 'stable' (unset) or 'preview': whether pre-releases are offered too. */
+/** 'stable' (unset), 'preview' (Nightly) or the id of a channel girovo.de lists (update-trust.ts resolveChannel). */
 const CHANNEL_PREF = 'fints.updateChannel';
+/** The channel list girovo.de served last that was taken: the signed envelope's text, checked again whenever it is read. */
+const CHANNELS_PREF = 'fints.updates.channels';
 /** The release that took this install from the Nightly channel back to Stabil (logic.movesToStable), or the one a channel was picked on: set, never again. */
 const MOVED_PREF = 'fints.updateChannel.movedToStable';
 const LAST_VERSION_PREF = 'fints.lastVersion';
@@ -42,12 +63,14 @@ const EARLY_PREF = 'fints.updates.early';
 /** A random id of this installation, only for its rollout bucket (update-trust.ts bucket). */
 const INSTALL_ID_PREF = 'fints.updates.installId';
 /**
- * What girovo.de offered this copy last, per channel, and since when it can't
- * be asked: { stable?: { build, at, downSince? }, preview?: … }. For 72 hours
+ * What girovo.de offered this copy last, per channel id, and since when it
+ * can't be asked: { stable?: { build, at, downSince? }, preview?: …, <id>?: … }. For 72 hours
  * from the first failed ask, GitHub offers nothing above it (logic.offersFromGitHub).
  */
 const LISTED_PREF = 'fints.updates.listed';
 const EVERY_MS = 6 * 60 * 60 * 1000;
+/** On GitHub's list, how many of the newest releases are tried for one whose signed manifest fits the channel. */
+const GITHUB_TRIES = 3;
 
 type Release = UpdateRelease;
 
@@ -67,6 +90,8 @@ const write = (k: string, v: string | null) => {
 
 let state: ElectronUpdateState;
 let latest: Release | null = null;
+/** The channel list held (CHANNELS_PREF) as this platform reads it; null while none was ever taken. */
+let held: ChannelList | null = null;
 /** Counts the checks: an answer that a newer check (another channel's) overtook is dropped. */
 let checks = 0;
 /** Where the updater stood when the running check began: 'checking' hides it (logic.phaseAfterCheck). */
@@ -107,26 +132,68 @@ function installId(): string {
   return id;
 }
 
-/** girovo.de's offer: a release, null for none, undefined when girovo.de couldn't be asked. */
-async function fromGirovoDe(preview: boolean): Promise<Release | null | undefined> {
+/**
+ * Asks girovo.de for the channel list and holds it when it may replace the
+ * one held (update-trust.ts acceptChannels: signed by the stable key, no
+ * older serial). A failed ask, or a list that isn't taken, keeps what is held.
+ */
+async function fetchChannels(): Promise<void> {
   try {
-    const res = await fetch(`${MANIFEST_BASE}${preview ? 'nightly' : 'stable'}.json?kind=apk`);
+    const res = await fetch(`${MANIFEST_BASE}channels.json`);
+    if (!res.ok) return;
+    const text = await res.text();
+    const list = acceptChannels(text, held, TRUSTED_KEYS, 'apk');
+    if (!list) return;
+    write(CHANNELS_PREF, text);
+    held = list;
+  } catch { /* the list held stays */ }
+}
+
+/**
+ * Brings the channel in line with the list held: an ended channel moves to
+ * its `then`, a vanished one to Stabil, stored as if picked. True when the
+ * channel changed, its offer dropped (switchTo); the caller cancels the
+ * plugin's download. Else only the channels on offer are brought up to date.
+ */
+function followChannels(): boolean {
+  const { id, moveTo } = resolveChannel(read(CHANNEL_PREF), held);
+  if (moveTo) {
+    write(CHANNEL_PREF, moveTo);
+    write(MOVED_PREF, logic.pickedMarker(state.current));
+  }
+  if (id === state.channel) {
+    const channels = offeredChannels(held, id);
+    if (JSON.stringify(channels) !== JSON.stringify(state.channels)) set({ channels });
+    return false;
+  }
+  switchTo(id);
+  set({ phase: 'checking' });
+  return true;
+}
+
+/** What the current channel takes (update-trust.ts fitsChannel). */
+const currentRule = (): ChannelRule => resolveChannel(state.channel, held).rule;
+
+/** girovo.de's offer: a release, null for none, undefined when girovo.de couldn't be asked. */
+async function fromGirovoDe(channel: ChannelRule): Promise<Release | null | undefined> {
+  try {
+    const res = await fetch(`${MANIFEST_BASE}${listingName(channel)}.json?kind=apk`);
     if (!res.ok) return undefined;
     const listing = parseListing(await res.json());
     if (!listing) return undefined;
-    const offer = pickListed(listing, preview ? 'nightly' : 'stable', TRUSTED_KEYS, installId(), state.early === true);
+    const offer = pickListed(listing, channel, TRUSTED_KEYS, installId(), state.early === true);
     // Every good answer is remembered, an empty one too: the release it offered
     // this copy, else the running version (logic.listedBuild).
     const build = logic.listedBuild(offer ? buildNumber(offer.version) : null, buildNumber(state.current));
-    write(LISTED_PREF, logic.rememberListed(read(LISTED_PREF), preview ? 'preview' : 'stable', build, Date.now()));
+    write(LISTED_PREF, logic.rememberListed(read(LISTED_PREF), channel.id, build, Date.now()));
     return offer;
   } catch {
     return undefined;
   }
 }
 
-/** GitHub's offer as its signed manifest describes it; null without one that checks out. */
-async function signedCopy(release: Release, preview: boolean): Promise<Release | null> {
+/** GitHub's offer as its signed manifest describes it; null without one that fits the channel. */
+async function signedCopy(release: Release, channel: ChannelRule): Promise<Release | null> {
   const file = (name: string) => release.assets.find((a) => a.name === name);
   const manifest = file(MANIFEST_NAME);
   const sig = file(SIG_NAME);
@@ -138,7 +205,7 @@ async function signedCopy(release: Release, preview: boolean): Promise<Release |
       return res.text();
     }));
     const signer = verifyManifest(new TextEncoder().encode(text), sigText, TRUSTED_KEYS);
-    const copy = signerFits(signer, preview ? 'nightly' : 'stable') ? releaseOf(text) : null;
+    const copy = fitsChannel(signer, text, channel) ? releaseOf(text) : null;
     return copy && copy.version === release.version ? copy : null;
   } catch {
     return null;
@@ -146,12 +213,15 @@ async function signedCopy(release: Release, preview: boolean): Promise<Release |
 }
 
 /**
- * GitHub's API as before: the latest release, on the preview channel the
- * newest with an APK. `answered.status` gets the HTTP status of its answer,
- * an error too (logic.notesOutage); it stays null when none came.
+ * GitHub's API as before: the latest release on Stabil; on Nightly and the
+ * listed channels the newest releases with an APK, newest first by build
+ * number, the first whose signed manifest fits (a Next build is no Nightly
+ * one). `answered.status` gets the HTTP status of its answer, an error too
+ * (logic.notesOutage); it stays null when none came.
  */
-async function fromGitHub(preview: boolean, answered: { status: number | null }): Promise<Release | null> {
-  const url = preview ? logic.listUrl(logic.FEED_URL)! : logic.FEED_URL;
+async function fromGitHub(channel: ChannelRule, answered: { status: number | null }): Promise<Release | null> {
+  const list = channel.id !== 'stable';
+  const url = list ? logic.listUrl(logic.FEED_URL)! : logic.FEED_URL;
   const ask = () => fetch(url, { headers: { accept: 'application/vnd.github+json' } });
   let res = await ask();
   answered.status = res.status;
@@ -169,45 +239,62 @@ async function fromGitHub(preview: boolean, answered: { status: number | null })
   }
   if (!res.ok) throw new Error(msgs().android.updates.httpError(res.status));
   const json: unknown = await res.json();
-  // On the preview channel only a release with an APK: the nightly previews are the desktop's alone.
-  const release: Release | null = preview ? logic.newestRelease(json, state.current, { kind: 'android' }) : logic.parseRelease(json);
-  return release && signedCopy(release, preview);
+  if (!list) {
+    const release: Release | null = logic.parseRelease(json);
+    return release && signedCopy(release, channel);
+  }
+  // Only releases with an APK: the nightly desktop previews are nothing the phone could install.
+  const candidates = (logic.releasesWith(json, 'android') as Release[])
+    .filter((r) => !refused.has(r.version) && buildNumber(r.version) != null && isNewer(r.version, true))
+    .sort((a, b) => buildNumber(b.version)! - buildNumber(a.version)!);
+  for (const release of candidates.slice(0, GITHUB_TRIES)) {
+    const copy = await signedCopy(release, channel);
+    if (copy) return copy;
+  }
+  return null;
 }
 
 /** Whether `candidate` comes after the installed version: by build number, which knows every name a release ever had. */
-function isNewer(candidate: string, preview: boolean): boolean {
+function isNewer(candidate: string, prerelease: boolean): boolean {
   const a = buildNumber(candidate);
   const b = buildNumber(state.current);
-  return a != null && b != null ? a > b : logic.isNewer(candidate, state.current, { prerelease: preview });
+  return a != null && b != null ? a > b : logic.isNewer(candidate, state.current, { prerelease });
 }
 
 async function check(): Promise<ElectronUpdateState> {
   if (state.phase === 'downloading' || state.phase === 'installing') return state;
   const run = ++checks;
-  const preview = state.channel === 'preview';
   // A check that overtakes a running one starts from where that one did.
   if (state.phase !== 'checking') beforeCheck = { phase: state.phase, version: state.release?.version ?? null };
-  const before = beforeCheck;
   set({ phase: 'checking', error: null });
   try {
-    const listed = await fromGirovoDe(preview);
+    // The channel list first: an ended channel moves before its offer is asked for.
+    await fetchChannels();
+    if (run !== checks) return state;
+    if (followChannels()) {
+      await GirovoUpdater.cancel().catch(() => {});
+      if (run !== checks) return state;
+    }
+    const before = beforeCheck;
+    const channel = currentRule();
+    const listed = await fromGirovoDe(channel);
     let found = listed;
     if (listed === undefined) {
       const github: { status: number | null } = { status: null };
       try {
-        found = await fromGitHub(preview, github);
+        found = await fromGitHub(channel, github);
       } finally {
         // The first failed ask since the last good answer starts the 72 hours
         // (logic.noteFailedAsk) — only once GitHub answered: offline, nothing is noted.
-        if (logic.notesOutage(false, github.status)) write(LISTED_PREF, logic.noteFailedAsk(read(LISTED_PREF), preview ? 'preview' : 'stable', Date.now()));
+        if (logic.notesOutage(false, github.status)) write(LISTED_PREF, logic.noteFailedAsk(read(LISTED_PREF), channel.id, Date.now()));
       }
     }
     if (run !== checks) return state;
-    const release = found && !refused.has(found.version) && isNewer(found.version, preview) ? found : null;
+    const release = found && !refused.has(found.version) && isNewer(found.version, channel.id !== 'stable') ? found : null;
     // girovo.de couldn't be asked, and GitHub knows no halt and no rollout:
     // its release counts only up to what girovo.de offered this copy last.
     if (release && listed === undefined) {
-      const remembered = logic.listedFor(read(LISTED_PREF), preview ? 'preview' : 'stable');
+      const remembered = logic.listedFor(read(LISTED_PREF), channel.id);
       if (!logic.offersFromGitHub(buildNumber(release.version), remembered, Date.now())) {
         // Nothing new for now, and no error: an offer on screen stays, its downloaded file with it.
         const phase = logic.phaseAfterHeldCheck(before);
@@ -240,26 +327,38 @@ async function check(): Promise<ElectronUpdateState> {
   } catch (err) {
     if (run !== checks) return state;
     // The offer from before the check stays: its release is still shown.
-    return set({ phase: logic.phaseAfterFailedCheck(before), error: { during: 'check', message: err instanceof Error ? err.message : String(err) } });
+    return set({ phase: logic.phaseAfterFailedCheck(beforeCheck), error: { during: 'check', message: err instanceof Error ? err.message : String(err) } });
   }
 }
 
-/** Switches the channel and asks again at once: the other channel's offer, even a downloaded one, is dropped. */
+/**
+ * The other channel's offer goes, on offer, downloading, downloaded or at
+ * Android's installer: the check that follows starts from nothing (a failed
+ * one must not go back to "ready"), and nothing the plugin still says about
+ * its file counts. The caller has the plugin drop the file.
+ */
+function switchTo(channel: string): void {
+  asked = null;
+  latest = null;
+  beforeCheck = logic.afterChannelChange();
+  set({ channel, channels: offeredChannels(held, channel), phase: 'idle', release: null, received: 0, total: 0 });
+}
+
+/**
+ * Switches the channel and asks again at once: the other channel's offer,
+ * even a downloaded one, is dropped. Only Stabil, Nightly or a channel on
+ * offer (or the current one) can be picked; anything else changes nothing.
+ */
 async function setChannel(value: UpdateChannel): Promise<ElectronUpdateState> {
-  const channel = logic.channelOf(value);
+  if (typeof value !== 'string' || !offeredChannels(held, state.channel).some((c) => c.id === value)) return state;
+  const channel = value;
   write(CHANNEL_PREF, channel);
   // Picked by hand: no later start takes it back to Stabil (logic.movesToStable).
   write(MOVED_PREF, logic.pickedMarker(state.current));
   if (channel === state.channel) return state;
-  // The other channel's offer goes, on offer, downloading, downloaded or at
-  // Android's installer: a check running for it is overtaken, the one that
-  // follows starts from nothing (a failed one must not go back to "ready"),
-  // the plugin drops the file, and nothing it still says about it counts.
+  // A check running for the other channel is overtaken.
   checks++;
-  asked = null;
-  latest = null;
-  beforeCheck = logic.afterChannelChange();
-  set({ channel, phase: 'idle', release: null, received: 0, total: 0 });
+  switchTo(channel);
   await GirovoUpdater.cancel().catch(() => {});
   return check();
 }
@@ -364,12 +463,21 @@ export async function installUpdates(): Promise<void> {
     write(MOVED_PREF, logic.pickedMarker(current));
   }
 
+  // The channel as the list held last has it: an ended or vanished one moves now.
+  held = verifyChannels(read(CHANNELS_PREF), TRUSTED_KEYS, 'apk');
+  const { id: channel, moveTo } = resolveChannel(read(CHANNEL_PREF), held);
+  if (moveTo) {
+    write(CHANNEL_PREF, moveTo);
+    write(MOVED_PREF, logic.pickedMarker(current));
+  }
+
   state = {
     current,
     kind: 'android',
     auto: read(AUTO_PREF) !== 'off',
     early: read(EARLY_PREF) === 'on',
-    channel: logic.channelOf(read(CHANNEL_PREF)),
+    channel,
+    channels: offeredChannels(held, channel),
     phase: 'idle',
     checkedAt: null,
     release: null,

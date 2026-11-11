@@ -1,7 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { bucket, buildNumber, keyId, parseListing, pickListed, reaches, releaseOf, signManifest, signerFits, toBase64, verifyManifest } from './update-trust.ts';
+import {
+  PREVIEW_CHANNEL,
+  STABLE_CHANNEL,
+  bucket,
+  buildNumber,
+  fitsChannel,
+  keyId,
+  listingName,
+  parseListing,
+  pickListed,
+  reaches,
+  releaseOf,
+  signManifest,
+  toBase64,
+  verifyManifest,
+  type ChannelRule,
+  type KeyRole,
+} from './update-trust.ts';
+import { TRUSTED_KEYS } from './update-keys.ts';
 
 // The order updates come in and what a signature has to be. The desktop
 // updater's Rust copy (src-tauri/src/updater/trust.rs) is tested against the
@@ -44,6 +62,43 @@ test('development builds count as their version, unknown names count as nothing'
     assert.equal(buildNumber(v), null, v);
   }
   assert.equal(buildNumber(undefined as unknown as string), null);
+});
+
+test('any channel word with a stamp is numbered like a nightly; preview.N and -dev stay as they were', () => {
+  const nightly = buildNumber('6.2.0-nightly.202611111200.gabcdef0')!;
+  assert.equal(buildNumber('6.2.0-next.202611111200.gabcdef0'), nightly, 'the same slot and the same minute');
+  assert.equal(buildNumber('6.2.0-next.202611111200'), nightly);
+  assert.equal(buildNumber('6.2.0-api2.202611111201'), nightly + 1);
+  assert.equal(buildNumber('6.2.0-preview.202611111200'), nightly, 'the old preview.<stamp>');
+  assert.ok(buildNumber('6.2.0-next.202611111200')! < buildNumber('6.2.0')!);
+  assert.ok(buildNumber('6.2.0-next.202611111200')! > buildNumber('6.1.2')!);
+  assert.equal(buildNumber('6.0.0-preview.12'), 599999_000000012, 'preview.N unchanged');
+  assert.equal(buildNumber('6.2.0-next.202611111200-dev.4'), nightly, 'a development build counts as its version');
+  assert.equal(buildNumber('6.2.0-dev.4'), buildNumber('6.2.0'));
+  for (const v of [
+    '6.2.0-n.202611111200', // one letter
+    '6.2.0-abcdefghijklmnopq.202611111200', // 17 characters
+    '6.2.0-Next.202611111200',
+    '6.2.0-1next.202611111200',
+    '6.2.0-ne_xt.202611111200',
+    '6.2.0-next.20261111120',
+    '6.2.0-next.202611111200.gXYZ',
+    '6.2.0-next.1',
+    '6.2.0-next',
+  ]) {
+    assert.equal(buildNumber(v), null, v);
+  }
+});
+
+test('the built-in keys are the ones the key ids name', () => {
+  const ids = Object.fromEntries(Object.entries(TRUSTED_KEYS).map(([role, key]) => [role, keyId(Uint8Array.from(Buffer.from(key, 'base64')))]));
+  assert.deepEqual(ids, {
+    stable: 'db00cdc657dd9421',
+    nightly: 'bc7687ce7912473c',
+    next: '4783eb4473d8281e',
+    reserve1: '148e76a8a204a6e8',
+    reserve2: '02c48bf0ff17f160',
+  });
 });
 
 const pair = () => {
@@ -101,12 +156,65 @@ test('the signature covers a prefix, so the bare bytes signed elsewhere do not c
   assert.equal(verifyManifest(bytes, sig, { stable: stable.pub, nightly: '' }), null);
 });
 
-test('which signer a channel takes', () => {
-  assert.equal(signerFits('stable', 'stable'), true);
-  assert.equal(signerFits('stable', 'nightly'), true);
-  assert.equal(signerFits('nightly', 'nightly'), true);
-  assert.equal(signerFits('nightly', 'stable'), false);
-  assert.equal(signerFits(null, 'nightly'), false);
+test('every key role is told apart, an empty key trusts nothing', () => {
+  const roles = { stable: pair(), nightly: pair(), next: pair(), reserve1: pair(), reserve2: pair() };
+  const keys = Object.fromEntries(Object.entries(roles).map(([r, p]) => [r, p.pub])) as Record<KeyRole, string>;
+  const bytes = new TextEncoder().encode('{"version":"6.2.0"}\n');
+  for (const [role, p] of Object.entries(roles)) assert.equal(verifyManifest(bytes, signManifest(bytes, p.secret), keys), role);
+  assert.equal(verifyManifest(bytes, signManifest(bytes, roles.reserve1.secret), { ...keys, reserve1: '' }), null);
+  assert.equal(verifyManifest(bytes, signManifest(bytes, roles.next.secret), { stable: keys.stable, nightly: keys.nightly }), null, 'a role without a key');
+});
+
+const NEXT_CHANNEL: ChannelRule = { id: 'next', keys: ['stable', 'next'], manifest: 'next' };
+const says = (channel?: unknown) => JSON.stringify(channel === undefined ? { version: '6.2.0' } : { version: '6.2.0', channel });
+
+test('which signed manifest a channel takes (docs/update-channels.md, rules 1 to 3)', () => {
+  // Stabil: the stable key, a manifest that says "stable".
+  assert.equal(fitsChannel('stable', says('stable'), STABLE_CHANNEL), true);
+  assert.equal(fitsChannel('stable', says('nightly'), STABLE_CHANNEL), false, 'a nightly manifest is not Stabil’s, whoever signed it');
+  assert.equal(fitsChannel('nightly', says('stable'), STABLE_CHANNEL), false);
+  assert.equal(fitsChannel('nightly', says('nightly'), STABLE_CHANNEL), false);
+  // Nightly: the stable and the nightly key; "stable" or "nightly".
+  assert.equal(fitsChannel('stable', says('stable'), PREVIEW_CHANNEL), true);
+  assert.equal(fitsChannel('stable', says('nightly'), PREVIEW_CHANNEL), true);
+  assert.equal(fitsChannel('nightly', says('nightly'), PREVIEW_CHANNEL), true);
+  assert.equal(fitsChannel('nightly', says('stable'), PREVIEW_CHANNEL), false, 'rule 3: a nightly-signed manifest that claims to be stable');
+  // A Next build is offered on neither built-in channel.
+  for (const role of ['next', 'stable'] as const) {
+    assert.equal(fitsChannel(role, says('next'), STABLE_CHANNEL), false, `${role}-signed Next build on Stabil`);
+    assert.equal(fitsChannel(role, says('next'), PREVIEW_CHANNEL), false, `${role}-signed Next build on Nightly`);
+  }
+  assert.equal(fitsChannel('next', says('nightly'), PREVIEW_CHANNEL), false, 'rule 1: the next key is no Nightly key');
+  assert.equal(fitsChannel('next', says('stable'), STABLE_CHANNEL), false);
+  // Next: the stable and the next key; "stable" or "next".
+  assert.equal(fitsChannel('next', says('next'), NEXT_CHANNEL), true);
+  assert.equal(fitsChannel('stable', says('next'), NEXT_CHANNEL), true);
+  assert.equal(fitsChannel('stable', says('stable'), NEXT_CHANNEL), true, 'a stable release reaches every channel that takes the stable key');
+  assert.equal(fitsChannel('next', says('stable'), NEXT_CHANNEL), false, 'rule 3: the next key can’t sign a stable release');
+  assert.equal(fitsChannel('nightly', says('nightly'), NEXT_CHANNEL), false, 'rule 1');
+  assert.equal(fitsChannel('stable', says('nightly'), NEXT_CHANNEL), false, 'rule 2: a nightly is not Next’s');
+  assert.equal(fitsChannel('reserve1', says('next'), NEXT_CHANNEL), false);
+  // No signer, or no manifest.
+  assert.equal(fitsChannel(null, says('stable'), PREVIEW_CHANNEL), false);
+  assert.equal(fitsChannel('stable', 'not json', STABLE_CHANNEL), false);
+  assert.equal(fitsChannel('stable', 'null', STABLE_CHANNEL), false);
+});
+
+test('a manifest without a channel field counts by its signer', () => {
+  assert.equal(fitsChannel('stable', says(), STABLE_CHANNEL), true, 'stable-signed: "stable"');
+  assert.equal(fitsChannel('stable', says(), PREVIEW_CHANNEL), true);
+  assert.equal(fitsChannel('nightly', says(), PREVIEW_CHANNEL), true, 'nightly-signed: "nightly"');
+  assert.equal(fitsChannel('nightly', says(), STABLE_CHANNEL), false);
+  assert.equal(fitsChannel('next', says(), NEXT_CHANNEL), false, 'any other signer: refused');
+  assert.equal(fitsChannel('reserve2', says(), { id: 'api', keys: ['reserve2'], manifest: 'api' }), false);
+  assert.equal(fitsChannel('stable', says(7), STABLE_CHANNEL), true, 'a channel that is no text is a missing one');
+  assert.equal(fitsChannel('nightly', says(null), STABLE_CHANNEL), false);
+});
+
+test('each channel asks its own listing', () => {
+  assert.equal(listingName(STABLE_CHANNEL), 'stable');
+  assert.equal(listingName(PREVIEW_CHANNEL), 'nightly');
+  assert.equal(listingName(NEXT_CHANNEL), 'next');
 });
 
 // ---- girovo.de's listing and the release it offers ----
@@ -182,11 +290,13 @@ test('the first listed release that is signed, fitting and reaching is offered',
     const manifest = manifestText(version);
     return { version, rollout, manifest, sig: signManifest(new TextEncoder().encode(manifest), secret) };
   };
-  const pick = (list: ReturnType<typeof listed>[], channel: 'stable' | 'nightly', early = false) => pickListed(list, channel, keys, 'install-a', early)?.version ?? null;
+  const pick = (list: ReturnType<typeof listed>[], channel: 'stable' | 'nightly', early = false) =>
+    pickListed(list, channel === 'stable' ? STABLE_CHANNEL : PREVIEW_CHANNEL, keys, 'install-a', early)?.version ?? null;
 
   assert.equal(pick([listed('6.0.2', 100, stable.secret)], 'stable'), '6.0.2');
   assert.equal(pick([listed('6.0.2', 100, nightly.secret)], 'stable'), null, 'the nightly key can’t sign a stable release');
-  assert.equal(pick([listed('6.0.2', 100, nightly.secret)], 'nightly'), '6.0.2');
+  assert.equal(pick([listed('6.0.2', 100, nightly.secret)], 'nightly'), null, 'nor one on Nightly: a manifest that says "stable" is the stable key’s');
+  assert.equal(pick([listed('6.0.2-nightly.202611081217.g1234567', 100, nightly.secret)], 'nightly'), '6.0.2-nightly.202611081217.g1234567');
   assert.equal(pick([listed('6.0.2', 100, pair().secret)], 'stable'), null);
 
   const b = bucket('install-a', '6.0.3');
@@ -197,4 +307,26 @@ test('the first listed release that is signed, fitting and reaching is offered',
 
   const lying = { ...listed('6.0.3', 100, stable.secret), version: '6.0.4' };
   assert.equal(pick([lying, listed('6.0.2', 100, stable.secret)], 'stable'), '6.0.2');
+});
+
+test('a Next build on girovo.de is passed over on Stabil and Nightly, taken on Next', () => {
+  const stable = pair();
+  const nightly = pair();
+  const next = pair();
+  const keys = { stable: stable.pub, nightly: nightly.pub, next: next.pub, reserve1: '', reserve2: '' };
+  const listed = (version: string, secret: Uint8Array, extra: Record<string, unknown> = {}) => {
+    const manifest = manifestText(version, extra);
+    return { version, rollout: 100, manifest, sig: signManifest(new TextEncoder().encode(manifest), secret) };
+  };
+  const nextBuild = listed('6.2.0-next.202611111300.gabcdef0', next.secret, { channel: 'next' });
+  const nightlyBuild = listed('6.2.0-nightly.202611111200.gabcdef0', nightly.secret);
+  const release = listed('6.1.2', stable.secret);
+  const pick = (channel: ChannelRule) => pickListed([nextBuild, nightlyBuild, release], channel, keys, 'install-a', false)?.version ?? null;
+  assert.equal(pick(STABLE_CHANNEL), '6.1.2');
+  assert.equal(pick(PREVIEW_CHANNEL), '6.2.0-nightly.202611111200.gabcdef0');
+  assert.equal(pick(NEXT_CHANNEL), '6.2.0-next.202611111300.gabcdef0');
+  // Signed with the next key but labelled a nightly: nobody's.
+  const disguised = listed('6.2.0-nightly.202611111400.gabcdef0', next.secret);
+  assert.equal(pickListed([disguised], PREVIEW_CHANNEL, keys, 'install-a', false), null);
+  assert.equal(pickListed([disguised], NEXT_CHANNEL, keys, 'install-a', false), null);
 });

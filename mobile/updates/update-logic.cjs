@@ -260,12 +260,37 @@ function listUrl(feedUrl) {
 }
 
 /**
- * Which releases are offered: `stable` asks for the latest release, which
- * GitHub never lets a pre-release be; `preview` reads the list of releases,
- * pre-releases included (newestRelease). Anything stored that is not a
- * channel is the stable one.
+ * Every usable release in GitHub's list of releases that carries the file of
+ * an install of `kind`, pre-releases included, drafts never, in the list's
+ * order. A channel girovo.de lists, and Nightly, take the newest of these
+ * whose signed manifest fits the channel, which is not always the newest
+ * release: a Next build is no Nightly one.
+ *
+ * @param {unknown} list
+ * @param {string} kind
+ * @param {{ downloadPrefix?: string | readonly string[], releasesPage?: string }} [opts]
  */
-const channelOf = (value) => (value === 'preview' ? 'preview' : 'stable');
+function releasesWith(list, kind, opts = {}) {
+  if (!Array.isArray(list) || !ASSET_PATTERN[kind]) return [];
+  return list.map((json) => parseRelease(json, { ...opts, prerelease: true })).filter((r) => r && pickAsset(r, kind));
+}
+
+/**
+ * What a channel girovo.de lists may be called (docs/update-channels.md): it
+ * is the stored channel value, the listing's name and the manifest's
+ * `channel`. Never one of the built-in names, which the list cannot change.
+ */
+const CHANNEL_ID = /^[a-z][a-z0-9]{1,15}$/;
+const isChannelId = (value) => typeof value === 'string' && CHANNEL_ID.test(value) && !['stable', 'preview', 'nightly'].includes(value);
+
+/**
+ * Which releases are offered: `stable` asks for the latest release, which
+ * GitHub never lets a pre-release be; `preview` and every channel girovo.de
+ * lists read the list of releases, pre-releases included. A stored value
+ * that could be a listed channel stays itself (whether the list has it is
+ * update-trust.ts resolveChannel's question); anything else is the stable one.
+ */
+const channelOf = (value) => (value === 'preview' || isChannelId(value) ? value : 'stable');
 
 /**
  * Whether this start moves the install from the Nightly channel back to
@@ -383,21 +408,33 @@ function listedBuild(offered, running) {
   return o > r ? o : r;
 }
 
-/** What is noted for `channel` in the stored text: { build, at, downSince }, or null — nothing yet, or nothing readable. */
-function listedFor(text, channel) {
+/** The stored notes as an object, or null when there are none or they can't be read. */
+function readListed(text) {
   try {
     const all = JSON.parse(text ?? 'null');
-    return all && typeof all === 'object' ? noteOf(all[channelOf(channel)]) : null;
+    return all && typeof all === 'object' && !Array.isArray(all) ? all : null;
   } catch {
     return null;
   }
 }
 
-/** The stored text with `channel`'s entry changed by `change` (it gets the noted entry or null, returns the new one or null); the other channel's stays. */
+/** What is noted for `channel` in the stored text: { build, at, downSince }, or null — nothing yet, or nothing readable. */
+function listedFor(text, channel) {
+  const all = readListed(text);
+  const c = channelOf(channel);
+  return all && Object.hasOwn(all, c) ? noteOf(all[c]) : null;
+}
+
+/**
+ * The stored text with `channel`'s entry changed by `change` (it gets the
+ * noted entry or null, returns the new one or null); every other channel's
+ * stays, a listed channel's too, Stabil and Nightly first.
+ */
 function changeListed(text, channel, change) {
   const mine = channelOf(channel);
+  const stored = Object.keys(readListed(text) ?? {}).filter((c) => channelOf(c) === c);
   const out = {};
-  for (const c of ['stable', 'preview']) {
+  for (const c of new Set(['stable', 'preview', ...stored, mine])) {
     const entry = c === mine ? change(listedFor(text, c)) : listedFor(text, c);
     if (!entry) continue;
     out[c] = entry.downSince == null ? { build: entry.build, at: entry.at } : entry;
@@ -496,6 +533,7 @@ module.exports = {
   offersFromGitHub,
   phaseAfterHeldCheck,
   rateLimitWait,
+  isChannelId,
   channelOf,
   parseVersion,
   compareVersions,
@@ -504,6 +542,7 @@ module.exports = {
   releasePageOr,
   parseRelease,
   newestRelease,
+  releasesWith,
   pickAsset,
   listUrl,
 };

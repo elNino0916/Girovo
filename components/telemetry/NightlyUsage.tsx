@@ -13,16 +13,17 @@
 // usage data have the question: everywhere else this draws nothing.
 
 import { useEffect, useRef, useState } from 'react';
-import { useT } from '@/lib/i18n/react';
+import { useLocale, useT } from '@/lib/i18n/react';
 import { ChartIcon } from '../icons';
 import { PrivacyPolicyLink } from '../PrivacyPolicyLink';
 import { Button, Dialog } from '../ui';
-import { updates, useUpdates } from '../updates/store';
+import { channelInfo, channelName, needsUsage } from '../updates/channels';
+import { updateStateNow, updates, useUpdates } from '../updates/store';
 import { setUsageConsent, usageCameWithChannel, useUsageConsent, type UsageConsent } from './usage';
 
-/** Whether this copy shares usage data as part of its channel. */
+/** Whether this copy shares usage data as part of its channel (Nightly, or a listed channel that says so). */
 export function usageComesWithChannel(channel: UpdateChannel | undefined, usage: UsageConsent | null): boolean {
-  return channel === 'preview' && usage !== null;
+  return channel != null && needsUsage(updateStateNow(), channel) && usage !== null;
 }
 
 /**
@@ -38,18 +39,20 @@ export function usageComesWithChannel(channel: UpdateChannel | undefined, usage:
 export function ChannelConsentGuard() {
   const { state } = useUpdates();
   const channel = state?.channel;
-  const seen = useRef<UpdateChannel | undefined>(undefined);
+  const withUsage = channel == null ? undefined : needsUsage(state, channel);
+  const seen = useRef<boolean | undefined>(undefined);
   useEffect(() => {
-    if (!channel) return;
+    if (withUsage === undefined) return;
     const before = seen.current;
-    seen.current = channel;
-    if (channel === 'stable' && before !== 'stable' && usageCameWithChannel()) void setUsageConsent(false);
-  }, [channel]);
+    seen.current = withUsage;
+    if (!withUsage && before !== false && usageCameWithChannel()) void setUsageConsent(false);
+  }, [withUsage]);
   return null;
 }
 
 export function NightlyUsageDialog() {
   const t = useT();
+  const { locale } = useLocale();
   const { state } = useUpdates();
   const usage = useUsageConsent();
   const [busy, setBusy] = useState<'agree' | 'stable' | null>(null);
@@ -68,7 +71,7 @@ export function NightlyUsageDialog() {
   return (
     <Dialog
       open={open}
-      title={words.title}
+      title={words.title(state ? channelName(channelInfo(state, state.channel), state.channel, t.settings.channel, locale) : t.settings.channel.preview)}
       icon={<ChartIcon size={20} />}
       // Two short lines; what is shared in full is the policy's to say.
       description={<>{words.text} <PrivacyPolicyLink /></>}
