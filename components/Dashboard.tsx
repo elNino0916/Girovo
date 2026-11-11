@@ -45,6 +45,7 @@ import { ForgetDeviceDialog, LogoutConfirmDialog } from './shell/ProfileMenu';
 import { SplitRequests } from './transactions/SplitRequests';
 import { Inbox } from './Inbox';
 import { CommandPalette } from './CommandPalette';
+import { AskPanel, AskReader, AskThreadScreen } from './insights/AskThread';
 import { SessionGuard } from './SessionGuard';
 import { ShortcutsHelp } from './ShortcutsHelp';
 import { IconButton, cx } from './ui';
@@ -168,8 +169,8 @@ function FramedDashboard() {
       </header>
       <div className="flex min-h-0 flex-1">
         <Sidebar open={sidebarOpen} actions={actions} />
-        <div data-frame-sheet className="mr-4 mb-4 min-w-0 flex-1 overflow-hidden rounded-[16px] bg-[var(--frame-sheet)]">
-          <div ref={scrollRef} data-scroll-root className="relative h-full overflow-y-auto overscroll-contain">
+        <div data-frame-sheet className="mr-4 mb-4 flex min-w-0 flex-1 overflow-hidden rounded-[16px] bg-[var(--frame-sheet)]">
+          <div ref={scrollRef} data-scroll-root className="relative h-full min-w-0 flex-1 overflow-y-auto overscroll-contain">
             <main id="main" className={cx('relative mx-auto w-full', !ledger && 'max-w-[1280px] px-7 pt-5 pb-12')}>
               {/* Aufträge are a level below Zahlungen: the way back beside their name (as Verträge & Abos). */}
               <div className={visibleTitle ? '-ml-3 mb-2 flex items-center gap-1' : undefined}>
@@ -194,6 +195,8 @@ function FramedDashboard() {
               </div>
             </main>
           </div>
+          {/* Girovo Next: the conversation beside the page it talks about. */}
+          <AskPanel />
         </div>
       </div>
     </div>
@@ -309,6 +312,9 @@ function ShellLayers({ frame = false }: { frame?: boolean }) {
       <NewInSix />
       <Inbox />
       {!frame && <CommandPalette />}
+      {/* Girovo Next: the conversation's reading, and on the phone its full-screen view. */}
+      <AskReader />
+      {!frame && <AskThreadScreen />}
       <SessionGuard />
       <ShortcutsHelp />
     </>

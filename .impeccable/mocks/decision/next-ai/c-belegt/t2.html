@@ -1,0 +1,81 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Belegte Sätze, Analyse</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css">
+<style>
+  .bl-bar{height:64px;display:flex;align-items:center;gap:4px;padding:0 4px 0 16px}
+  .bl-bar .t{flex:1;font-size:22px;line-height:28px;font-weight:400}
+  .bl-period{display:flex;align-items:center;height:40px;padding:0 16px}
+  .bl-period .ib{width:40px;height:40px}
+
+  .bl-tile{margin:8px 16px 0;border-radius:16px;padding:16px 16px 6px}
+  .bl-tile .say .spark{width:18px;height:18px;vertical-align:-3px;margin-right:6px}
+  .bl-rule{width:40px;height:1px;background:color-mix(in srgb,var(--ink) 30%,transparent);margin:14px 0 2px}
+  .bl-note{display:grid;grid-template-columns:14px minmax(0,1fr) 20px;column-gap:8px;align-items:center;padding:6px 0;min-height:48px}
+  .bl-note .no{align-self:start;font-size:14px;line-height:20px;font-weight:500;color:var(--primary);font-variant-numeric:tabular-nums;padding-top:0}
+  .bl-note .tx{font-size:14px;line-height:20px;color:var(--ink-2);align-self:start}
+  .bl-note .tx b{font-weight:500;color:var(--ink)}
+  .bl-note .tx .num{letter-spacing:-0.01em}
+  .bl-note .go{font-size:20px;color:var(--ink-2)}
+
+  .bl-lead{padding:16px 16px 0}
+  .bl-fig{font-size:36px;line-height:44px;font-weight:500;letter-spacing:-0.025em;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+  .bl-fig .c{font-size:.58em;letter-spacing:-0.01em}
+  .bl-kv{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0}
+  .bl-kv .v{font-size:16px;line-height:24px;font-weight:500}
+
+  .bl-sec{display:flex;align-items:baseline;justify-content:space-between;padding:20px 16px 4px}
+  .bl-sec h2{margin:0;font-size:18px;line-height:24px;font-weight:500}
+  .bl-cat{padding:8px 16px}
+  .bl-cat .top{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;line-height:20px}
+  .bl-cat .top .v{font-weight:500}
+  .bl-cat .trk{height:8px;margin-top:6px;border-radius:4px;background:var(--sc1);overflow:hidden}
+  .bl-cat .trk i{display:block;height:100%;border-radius:4px}
+</style></head>
+<body style="width:393px;height:852px">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+<div class="phone">
+  <div class="status"><span class="num">9:41</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+
+  <div class="bl-bar"><span class="t">Analyse</span><span class="ib"><span class="ms">search</span></span><span class="ib"><div class="avatar">NB</div><i class="dot" style="top:10px;right:10px;--ring:var(--surface)"></i></span></div>
+
+  <div class="bl-period">
+    <div class="chips">
+      <div class="chip tr" style="padding-left:10px"><span class="ms">calendar_month</span>Oktober 2026<span class="ms">expand_more</span></div>
+      <div class="chip tr">Alle Konten<span class="ms">expand_more</span></div>
+    </div>
+  </div>
+
+  <div class="bl-tile wash">
+    <div class="say">
+      <p><svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg>Im Oktober hast du <span class="f num">2.318,77&nbsp;€</span><span class="fn">1</span> ausgegeben, <span class="f num">164,12&nbsp;€</span><span class="fn">2</span> mehr als im September. Am meisten ging an Miete &amp; Wohnen: <span class="f num">962,40&nbsp;€</span><span class="fn">3</span>. Netflix kostet seit Oktober <span class="f num">2,00&nbsp;€</span><span class="fn">4</span> mehr.</p>
+    </div>
+    <div class="bl-rule"></div>
+    <div class="bl-note"><span class="no">1</span><span class="tx"><b>47 Buchungen</b>, 1. bis 31. Oktober</span><span class="ms go">chevron_right</span></div>
+    <div class="bl-note"><span class="no">2</span><span class="tx">September: <b class="num">2.154,65&nbsp;€</b>, 41 Buchungen</span><span class="ms go">chevron_right</span></div>
+    <div class="bl-note"><span class="no">3</span><span class="tx">Miete <b class="num">890,00&nbsp;€</b>, Stadtwerke <b class="num">72,40&nbsp;€</b></span><span class="ms go">chevron_right</span></div>
+    <div class="bl-note"><span class="no">4</span><span class="tx"><b class="num">13,99&nbsp;€</b> am 15. Oktober, davor <span class="num">11,99&nbsp;€</span></span><span class="ms go">chevron_right</span></div>
+  </div>
+
+  <div class="bl-lead">
+    <div class="sub">Ausgaben</div>
+    <div class="bl-fig">2.318<span class="c">,77&nbsp;€</span></div>
+    <div class="meta" style="margin-top:4px">8&nbsp;% mehr als im September</div>
+  </div>
+
+  <div class="bl-sec"><h2>Nach Kategorie</h2><span class="meta">Oktober</span></div>
+  <div class="bl-cat"><div class="top"><span>Miete &amp; Wohnen</span><span class="v num">962,40&nbsp;€</span></div><div class="trk"><i style="width:100%;background:#0053a4"></i></div></div>
+  <div class="bl-cat"><div class="top"><span>Lebensmittel &amp; Drogerie</span><span class="v num">412,85&nbsp;€</span></div><div class="trk"><i style="width:42.9%;background:#0ca4a0"></i></div></div>
+  <div class="bl-cat"><div class="top"><span>Essen &amp; Trinken</span><span class="v num">298,75&nbsp;€</span></div><div class="trk"><i style="width:31%;background:#5f38a7"></i></div></div>
+  <div class="bl-cat"><div class="top"><span>Mobilität</span><span class="v num">214,60&nbsp;€</span></div><div class="trk"><i style="width:22.3%;background:#e968a1"></i></div></div>
+  <div class="bl-cat"><div class="top"><span>Shopping</span><span class="v num">158,30&nbsp;€</span></div><div class="trk"><i style="width:16.4%;background:#3846b1"></i></div></div>
+
+  <nav class="nav">
+    <div class="it"><div class="pill"><span class="ms">home</span></div>Übersicht</div>
+    <div class="it"><div class="pill"><span class="ms">swap_horiz</span></div>Zahlungen</div>
+    <div class="it on"><div class="pill"><span class="ms fill">bar_chart</span></div>Analyse</div>
+    <i class="handle"></i>
+  </nav>
+</div>
+</body></html>

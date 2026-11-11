@@ -1,0 +1,75 @@
+/* Girovo Next, AI mocks: what every direction shares. The answer's ground is
+   the Gemini wash DESIGN.md already gives Frag deine Umsätze; figures inside
+   a written answer are the app's own (computed, never written by the model)
+   and read as such: tabular, medium, with a dotted underline that opens the
+   bookings behind them. Mock only. */
+:root{
+  --gemini-blue:#4285f4; --gemini-purple:#9b72cb; --gemini-rose:#d96570;
+  --wash:linear-gradient(115deg,
+    color-mix(in srgb,var(--gemini-blue) 26%,transparent) 0%,
+    color-mix(in srgb,var(--gemini-purple) 20%,transparent) 55%,
+    color-mix(in srgb,var(--gemini-rose) 18%,transparent) 100%);
+  --wash-soft:linear-gradient(115deg,
+    color-mix(in srgb,var(--gemini-blue) 12%,transparent) 0%,
+    color-mix(in srgb,var(--gemini-purple) 9%,transparent) 55%,
+    color-mix(in srgb,var(--gemini-rose) 8%,transparent) 100%);
+}
+.wash{background-color:var(--sc1);background-image:var(--wash)}
+.wash-soft{background-color:var(--surface);background-image:var(--wash-soft)}
+
+/* the spark: <svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg>
+   with the <defs> block from defs.html pasted once per page */
+.spark{width:20px;height:20px;flex:none;display:inline-block}
+.spark.s{width:16px;height:16px}
+.spark.l{width:24px;height:24px}
+
+/* a written answer: body type, the app's figures marked */
+.say{font-size:16px;line-height:24px;color:var(--ink);text-wrap:pretty}
+.say.l{font-size:18px;line-height:26px}
+.say p{margin:0}
+.say p+p{margin-top:10px}
+.f{font-weight:500;font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em;white-space:nowrap;
+  text-decoration:underline dotted color-mix(in srgb,var(--primary) 70%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px}
+.f.pos{color:var(--green)}
+.f.on{background:color-mix(in srgb,var(--primary) 12%,transparent);border-radius:4px;box-shadow:0 0 0 2px color-mix(in srgb,var(--primary) 12%,transparent)}
+/* a footnote mark after a figure (direction C) */
+.fn{font-size:11px;line-height:0;font-weight:500;color:var(--primary);vertical-align:super;margin-left:1px;font-variant-numeric:tabular-nums}
+
+/* where it was worked out: one quiet line */
+.where{display:flex;align-items:center;gap:6px;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+.where .ms{font-size:16px}
+
+/* the question as typed */
+.asked{font-size:16px;line-height:24px;color:var(--on-sc)}
+
+/* assist chips: M3's suggestion chips, the next questions */
+.sugg{display:flex;gap:8px;overflow:hidden}
+.sg{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 14px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--ov);
+  font-size:14px;line-height:20px;font-weight:500;color:var(--ink);white-space:nowrap;flex:none;background:var(--surface)}
+.sg .ms{font-size:18px;color:var(--primary)}
+
+/* the composer at the foot of an asking view */
+.composer{display:flex;align-items:center;gap:8px;height:56px;border-radius:28px;background:var(--sch);padding:0 6px 0 18px;color:var(--ink-2)}
+.composer .ph{flex:1;font-size:16px;line-height:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.send{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--primary);color:var(--on-primary);flex:none}
+.send.off{background:color-mix(in srgb,var(--ink) 10%,transparent);color:color-mix(in srgb,var(--ink) 38%,transparent)}
+
+/* tonal button (phone.css has filled and text only) */
+.btn.tonal{background:var(--sc);color:var(--on-sc)}
+
+/* a thinking line: three dots breathing, drawn still for the mock */
+.thinking{display:inline-flex;gap:4px;align-items:center}
+.thinking i{width:6px;height:6px;border-radius:50%;background:var(--ink-2)}
+.thinking i:nth-child(2){opacity:.6}.thinking i:nth-child(3){opacity:.3}
+
+/* the board that lays three phones and a desktop side by side */
+.board{font-family:'Google Sans Flex',sans-serif;color:var(--ink);background:#e9eef6;padding:40px 48px 48px;width:max-content}
+.board h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-0.01em}
+.board .lede{margin:6px 0 0;font-size:16px;line-height:24px;color:var(--ink-2);max-width:880px}
+.board .row-of{display:flex;gap:32px;align-items:flex-start;margin-top:28px}
+.board figure{margin:0}
+.board figcaption{margin-top:12px;font-size:14px;line-height:20px;color:var(--ink-2);max-width:393px}
+.board figcaption b{color:var(--ink);font-weight:500}
+.board .frame{border-radius:28px;overflow:hidden;box-shadow:0 1px 3px rgb(22 28 36 / .12),0 8px 24px rgb(22 28 36 / .10);background:var(--surface)}
+.board iframe{border:0;display:block}
+.board .frame.desk{border-radius:12px}

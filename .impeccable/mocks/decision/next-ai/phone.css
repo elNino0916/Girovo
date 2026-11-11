@@ -1,0 +1,147 @@
+/* Issue #19 mock: the accounts overview as the home screen. Girovo's own
+   blue scheme and type (DESIGN.md), the vocabulary of the earlier
+   decision mocks (.impeccable/mocks/decision). Mock only. */
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=block');
+
+:root{
+  --primary:#0060a8; --on-primary:#fff; --pc:#d3e4ff; --on-pc:#004880;
+  --sc:#dae1ff; --on-sc:#3c4665;
+  --surface:#f8f9ff; --scl:#eff4ff; --sc1:#e9eefa; --sch:#e3e8f4; --schh:#dde3ee;
+  --ink:#161c24; --ink-2:#404753; --outline:#707784; --ov:#bfc7d5;
+  --green:#0c7336; --amber:#8a6410; --amber-soft:#fff4dc; --orange:#d9540f;
+  --scrim:rgb(22 28 36 / .32);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface)}
+body{position:relative;overflow:hidden;font-family:'Google Sans Flex',sans-serif;color:var(--ink);
+  -webkit-font-smoothing:antialiased;font-size:16px;line-height:24px;font-variation-settings:'ROND' 0}
+::selection{background:var(--pc);color:var(--on-pc)}
+
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;font-size:24px;line-height:1;width:1em;height:1em;
+  overflow:hidden;letter-spacing:normal;text-transform:none;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';
+  font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block;flex:none}
+.ms.fill{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.01em;white-space:nowrap}
+.iban{font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.04em;white-space:nowrap}
+
+/* type */
+.meta{font-size:14px;line-height:20px;color:var(--ink-2)}
+.sub{font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+.name{font-size:16px;line-height:22px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ink{color:var(--ink);font-weight:500}
+.pos{color:var(--green)}
+.bal{font-size:48px;line-height:56px;font-weight:500;letter-spacing:-0.025em;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+.bal .c{font-size:.58em;letter-spacing:-0.01em}
+
+/* controls */
+.ib{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);position:relative;flex:none}
+.ib.s{width:40px;height:40px}
+.dot{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 2px var(--ring,var(--surface))}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;
+  font-size:13px;line-height:20px;font-weight:500;letter-spacing:.02em}
+.chips{display:flex;align-items:center;gap:8px}
+.chip{height:32px;display:flex;align-items:center;gap:8px;padding:0 16px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--ov);
+  font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2);white-space:nowrap;flex:none}
+.chip .ms{font-size:18px}
+.chip.on{background:var(--sc);color:var(--on-sc);box-shadow:none;padding-left:8px}
+.chip.tr{padding-right:8px}
+.btn{height:40px;border-radius:20px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 24px;
+  font-size:14px;line-height:20px;font-weight:500;white-space:nowrap}
+.btn.filled{background:var(--primary);color:var(--on-primary)}
+.btn.text{color:var(--primary);padding:0 12px}
+.btn .ms{font-size:18px}
+
+/* the account disc: the account's kind, the bank as a badge */
+.disc{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--sch);color:var(--ink-2);position:relative;flex:none}
+.disc .ms{font-size:20px}
+.disc .bank{position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;border-radius:50%;background:#fff;
+  box-shadow:0 0 0 2px var(--ring,var(--surface));display:grid;place-items:center;overflow:hidden}
+.disc .bank img{width:12px;height:12px;object-fit:contain}
+
+/* a group: the kind's name and its sum, on the balances' edge */
+.group{display:flex;justify-content:space-between;align-items:baseline;padding:16px 16px 4px;font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+
+/* an account row: name and balance; bank and account; the last booking,
+   its amount in the balances' column */
+.acct{display:grid;grid-template-columns:40px minmax(0,1fr) auto;column-gap:16px;padding:10px 16px}
+.acct .disc{grid-row:1 / span 3;margin-top:2px}
+.acct .n{grid-column:2;min-width:0;font-size:16px;line-height:22px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acct .b{grid-column:3;text-align:right;font-size:16px;line-height:22px;font-weight:500}
+.acct .w{grid-column:2 / span 2;min-width:0;font-size:14px;line-height:20px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acct .ln{grid-column:2;min-width:0;font-size:14px;line-height:20px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acct .la{grid-column:3;text-align:right;font-size:14px;line-height:20px;color:var(--ink-2)}
+
+/* the footing: Gesamtsaldo under a rule, as a statement sums up */
+.foot{display:flex;justify-content:space-between;align-items:baseline;margin:8px 16px 0;padding-top:12px;border-top:1px solid var(--ov)}
+.foot .label{font-size:16px;line-height:22px;font-weight:500}
+.foot .num{font-size:16px;line-height:22px;font-weight:500}
+
+/* phone */
+.phone{width:393px;height:852px;position:relative;overflow:hidden;background:var(--surface)}
+.status{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;font-weight:500;font-size:14px}
+.status .ms{font-size:17px;margin-left:3px}
+.search{height:56px;border-radius:28px;background:var(--sch);display:flex;align-items:center;padding:0 8px 0 16px;gap:12px;color:var(--ink-2);--ring:var(--sch)}
+.nav{position:absolute;left:0;right:0;bottom:0;height:88px;background:var(--sc1);display:flex;padding-top:12px}
+.nav .it{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+.nav .pill{width:56px;height:32px;border-radius:16px;display:grid;place-items:center}
+.nav .on .pill{background:var(--sc);color:var(--on-sc)}
+.nav .on{color:var(--ink)}
+.handle{position:absolute;bottom:8px;left:50%;width:108px;height:4px;margin-left:-54px;border-radius:2px;background:var(--ink);opacity:.38}
+
+/* booking rows (the account page) */
+.day{display:flex;align-items:center;gap:6px;padding:14px 16px 4px;font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+.day .ms{font-size:16px}
+.day .r{margin-left:auto;font-weight:400}
+.row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;column-gap:16px;align-items:center;padding:8px 16px;min-height:60px}
+.row .t{min-width:0}
+.row .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amt{font-size:16px;line-height:22px;font-weight:500;text-align:right;white-space:nowrap}
+.adot{width:8px;height:8px;border-radius:50%;background:var(--amber);flex:none}
+
+/* sheet */
+.scrim{position:absolute;inset:0;background:var(--scrim)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--scl);border-radius:28px 28px 0 0;box-shadow:0 -2px 12px rgb(0 0 0 / .08)}
+.sheet .grab{width:32px;height:4px;border-radius:2px;background:var(--outline);opacity:.4;margin:16px auto 8px}
+.seg{display:flex;gap:2px}
+.seg>span{flex:1;height:40px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--sch);
+  font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+.seg>span:first-child{border-radius:20px 8px 8px 20px}
+.seg>span:last-child{border-radius:8px 20px 20px 8px}
+.seg>span.on{background:var(--primary);color:var(--on-primary);border-radius:20px}
+.seg .ms{font-size:18px}
+.order{display:grid;grid-template-columns:24px 40px minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:8px 16px 8px 12px;min-height:64px}
+.order .grip{color:var(--ink-2)}
+.order.lifted{background:var(--surface);border-radius:16px;margin:0 8px;padding-left:4px;padding-right:8px;
+  box-shadow:0 6px 14px rgb(22 28 36 / .16),0 2px 4px rgb(22 28 36 / .10);transform:translateY(-6px) rotate(-.6deg)}
+.slot{height:12px;margin:0 16px;border-radius:8px;background:var(--sc)}
+
+/* desktop */
+.rail{position:absolute;left:0;top:0;bottom:0;width:96px;display:flex;flex-direction:column;align-items:center}
+.fab{margin-top:8px;width:56px;height:56px;border-radius:16px;background:var(--pc);color:var(--on-pc);display:grid;place-items:center;flex:none}
+.places{margin-top:40px;display:flex;flex-direction:column;gap:12px;width:100%}
+.place{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+.place .pill{width:56px;height:32px;border-radius:16px;display:grid;place-items:center}
+.place.on .pill{background:var(--sc);color:var(--on-sc)}
+.place.on{color:var(--ink)}
+.rail .foot-place{margin-top:auto;margin-bottom:24px}
+.main{position:absolute;left:96px;top:0;right:0;bottom:0;overflow:hidden}
+.key{font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2);background:var(--surface);border-radius:8px;padding:4px 8px;white-space:nowrap}
+
+/* the desktop's table: Konto · Letzter Umsatz · Kontostand */
+.tbl{display:grid;grid-template-columns:40px minmax(0,1fr) 300px 180px 24px;column-gap:16px;align-items:center}
+.thead{padding:20px 16px 4px;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+.thead .r{text-align:right}
+.trow{padding:10px 16px;border-radius:16px;position:relative}
+.trow .t,.trow .l{min-width:0}
+.trow .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow .fig{text-align:right;font-size:16px;line-height:22px;font-weight:500}
+.trow .fig .meta{display:block;font-weight:400;letter-spacing:0}
+.trow .go{color:var(--ink-2);opacity:0}
+.trow.hover{background:var(--sc1)}
+.trow.hover .go{opacity:1}
+.trow .grip{position:absolute;left:-28px;top:50%;margin-top:-12px;color:var(--ink-2);opacity:0}
+.trow.hover .grip{opacity:1}
+.tgroup{padding:18px 16px 4px;font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2)}
+.tgroup .r{text-align:right}

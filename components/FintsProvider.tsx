@@ -122,6 +122,7 @@ import { TimeLimitError, withinTime } from '@/lib/time-limit';
 import type { BackupSummary, RestoreReport } from '@/lib/backup';
 import type { AlertsChange, AlertsView, Watch } from '@/lib/payment-alerts';
 import type { PopularBank } from '@/lib/banks';
+import { clearAsk } from './insights/ask-thread-store';
 
 import {
   ACTIVITY_EVENTS, anchorOf, categoryNameTaken, closingBalanceOf, CONFIRMED_LINGER_MS, countsAsActivity,
@@ -4146,6 +4147,8 @@ function useFintsState() {
 
   /** Everything a session owns, back to its pre-login state. Preferences stay. */
   const resetSession = useCallback(() => {
+    // Girovo Next: the conversations about the bookings end with the session.
+    clearAsk();
     waitGenRef.current++;
     waitCbRef.current = {};
     stopTimers();

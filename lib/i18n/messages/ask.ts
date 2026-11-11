@@ -79,6 +79,101 @@ export const de = {
     reading: 'Girovo liest die Frage …',
     notUnderstood: 'Das hat Girovo nicht verstanden. Frag etwa „Tanken im August“.',
   },
+  /**
+   * Girovo Next, "Fragen" (components/insights/AskThread.tsx): the conversation.
+   * Until the on-device writer lands, Girovo says each answer with these
+   * sentences; every figure in them is the app's own and opens its bookings.
+   */
+  thread: {
+    title: 'Fragen',
+    conversations: 'Gespräche',
+    newConversation: 'Neues Gespräch',
+    noConversations: 'Noch keine Gespräche.',
+    placeholder: 'Frag etwas zu deinen Umsätzen',
+    followUp: 'Weiter fragen',
+    send: 'Fragen',
+    empty: 'Frag etwas zu deinen Umsätzen. Girovo antwortet in ganzen Sätzen.',
+    you: 'Du:',
+    girovo: 'Girovo:',
+    show: (n: number) => (n === 1 ? 'Umsatz zeigen' : `${n} Umsätze zeigen`),
+    copy: 'Antwort kopieren',
+    copied: 'Antwort kopiert',
+    notLoaded: 'Die Umsätze werden noch geladen.',
+    /** The chips over the field: the next questions. */
+    next: {
+      /** Asked as it reads: the month by its name, so the question is read the same way a typed one is. */
+      monthBefore: (month: string) => `Und im ${month}?`,
+      perMonth: 'Pro Monat',
+      largest: 'Größte Ausgabe',
+    },
+    say: {
+      /** How a sentence opens on the period a question named (null: every loaded booking, no opening). */
+      when: {
+        month: (month: string) => `Im ${month}`,
+        year: (year: string) => `Im Jahr ${year}`,
+        days: (n: number) => `In den letzten ${n} Tagen`,
+        months: (n: number) => `In den letzten ${n} Monaten`,
+        since: (month: string) => `Seit ${month}`,
+        today: 'Heute',
+        range: (range: string) => `Im Zeitraum ${range}`,
+      },
+      outCategory: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
+        ? [when, ' hast du für ', topic, ' ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
+        : ['Für ', topic, ' hast du ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
+      outName: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
+        ? [when, ' hast du bei ', topic, ' ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
+        : ['Bei ', topic, ' hast du ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
+      out: (when: string | null, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
+        ? [when, ' hast du ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
+        : ['Du hast ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
+      inCategory: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
+        ? [when, ' hast du als ', topic, ' ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
+        : ['Als ', topic, ' hast du ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
+      inName: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
+        ? [when, ' hast du von ', topic, ' ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
+        : ['Von ', topic, ' hast du ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
+      in: (when: string | null, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
+        ? [when, ' hast du ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
+        : ['Du hast ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
+      both: (when: string | null, out: ReactNode, inn: ReactNode): ReactNode[] => (when
+        ? [when, ' hast du ', out, ' ausgegeben und ', inn, ' bekommen.']
+        : ['Ausgegeben hast du ', out, ', bekommen ', inn, '.']),
+      count: (when: string | null, count: ReactNode, amount: ReactNode, topic: ReactNode | null): ReactNode[] => (when
+        ? (topic ? [when, ' waren es bei ', topic, ' ', count, ', zusammen ', amount, '.'] : [when, ' waren es ', count, ', zusammen ', amount, '.'])
+        : (topic ? ['Bei ', topic, ' waren es ', count, ', zusammen ', amount, '.'] : ['Es waren ', count, ', zusammen ', amount, '.'])),
+      average: (amount: ReactNode, basis: string): ReactNode[] => ['Im Schnitt sind es etwa ', amount, ' im Monat, ', basis, '.'],
+      largestOut: (name: string, amount: ReactNode, day: string): ReactNode[] => ['Die größte Ausgabe war ', name, ' mit ', amount, ' am ', day, '.'],
+      largestIn: (name: string, amount: ReactNode, day: string): ReactNode[] => ['Der größte Eingang war ', name, ' mit ', amount, ' am ', day, '.'],
+      last: (name: string, amount: ReactNode, day: string): ReactNode[] => ['Zuletzt am ', day, ': ', name, ' mit ', amount, '.'],
+      compare: (a: string, aAmount: ReactNode, b: string, bAmount: ReactNode): ReactNode[] => [a, ': ', aAmount, '. ', b, ': ', bAmount, '.'],
+      diff: (amount: ReactNode, more: boolean): ReactNode[] => ['Das sind ', amount, more ? ' mehr.' : ' weniger.'],
+      same: 'Genau gleich viel.',
+      rank: (title: string, name: string, amount: ReactNode): ReactNode[] => [title, ' ', name, ': ', amount, '.'],
+    },
+    /** Once, when the thread first opens. */
+    intro: {
+      title: 'Frag deine Umsätze',
+      sentences: 'Du bekommst die Antwort in ganzen Sätzen.',
+      figures: 'Jeden Betrag rechnet Girovo selbst aus deinen Umsätzen.',
+      later: 'Später',
+      go: 'Ausprobieren',
+    },
+  },
+  /** Girovo Next: the month recap at the head of the Analyse (components/insights/MonthRecap.tsx). */
+  recap: {
+    title: (month: string) => `Dein ${month}`,
+    /** When the Analyse below counts fewer accounts than the recap. */
+    titleAll: (month: string) => `Dein ${month}, alle Konten`,
+    spent: (amount: ReactNode, diff: ReactNode | null, more: boolean): ReactNode[] => (diff
+      ? ['Du hast ', amount, ' ausgegeben, ', diff, more ? ' mehr als im Monat davor.' : ' weniger als im Monat davor.']
+      : ['Du hast ', amount, ' ausgegeben.']),
+    top: (name: string, amount: ReactNode): ReactNode[] => ['Am meisten ging an ', name, ': ', amount, '.'],
+    more: 'Weiter fragen',
+    show: (name: string) => `${name} zeigen`,
+    hide: 'Rückblick ausblenden',
+    /** The conversation "Weiter fragen" starts, as the sidebar names it. */
+    conversation: (month: string) => `Rückblick ${month}`,
+  },
 };
 
 export const en: typeof de = {
@@ -146,5 +241,74 @@ export const en: typeof de = {
   desktop: {
     reading: 'Girovo is reading the question …',
     notUnderstood: 'Girovo didn’t understand that. Try something like “fuel in August”.',
+  },
+  thread: {
+    title: 'Ask',
+    conversations: 'Conversations',
+    newConversation: 'New conversation',
+    noConversations: 'No conversations yet.',
+    placeholder: 'Ask about your transactions',
+    followUp: 'Ask a follow-up',
+    send: 'Ask',
+    empty: 'Ask something about your transactions. Girovo answers in full sentences.',
+    you: 'You:',
+    girovo: 'Girovo:',
+    show: (n) => (n === 1 ? 'Show transaction' : `Show ${n} transactions`),
+    copy: 'Copy answer',
+    copied: 'Answer copied',
+    notLoaded: 'Your transactions are still loading.',
+    next: {
+      monthBefore: (month) => `And in ${month}?`,
+      perMonth: 'Per month',
+      largest: 'Largest expense',
+    },
+    say: {
+      when: {
+        month: (month) => `In ${month}`,
+        year: (year) => `In ${year}`,
+        days: (n) => `In the last ${n} days`,
+        months: (n) => `In the last ${n} months`,
+        since: (month) => `Since ${month}`,
+        today: 'Today',
+        range: (range) => `Between ${range}`,
+      },
+      outCategory: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' spent ', amount, ' on ', topic, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
+      outName: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' spent ', amount, ' at ', topic, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
+      out: (when, amount, count, n) => [when ? `${when}, you` : 'You', ' spent ', amount, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
+      inCategory: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' received ', amount, ' as ', topic, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
+      inName: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' received ', amount, ' from ', topic, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
+      in: (when, amount, count, n) => [when ? `${when}, you` : 'You', ' received ', amount, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
+      both: (when, out, inn) => [when ? `${when}, you` : 'You', ' spent ', out, ' and received ', inn, '.'],
+      count: (when, count, amount, topic) => (topic
+        ? [when ? `${when}, at ` : 'At ', topic, ' it was ', count, ', ', amount, ' in total.']
+        : [when ? `${when}, it was ` : 'It was ', count, ', ', amount, ' in total.']),
+      average: (amount, basis) => ['On average that is about ', amount, ' a month, ', basis, '.'],
+      largestOut: (name, amount, day) => ['The largest expense was ', name, ' at ', amount, ' on ', day, '.'],
+      largestIn: (name, amount, day) => ['The largest payment in was ', name, ' at ', amount, ' on ', day, '.'],
+      last: (name, amount, day) => ['Last on ', day, ': ', name, ' at ', amount, '.'],
+      compare: (a, aAmount, b, bAmount) => [a, ': ', aAmount, '. ', b, ': ', bAmount, '.'],
+      diff: (amount, more) => ['That is ', amount, more ? ' more.' : ' less.'],
+      same: 'Exactly the same.',
+      rank: (title, name, amount) => [title, ' ', name, ': ', amount, '.'],
+    },
+    intro: {
+      title: 'Ask your transactions',
+      sentences: 'You get the answer in full sentences.',
+      figures: 'Girovo works out every amount itself from your transactions.',
+      later: 'Later',
+      go: 'Try it',
+    },
+  },
+  recap: {
+    title: (month) => `Your ${month}`,
+    titleAll: (month) => `Your ${month}, all accounts`,
+    spent: (amount, diff, more) => (diff
+      ? ['You spent ', amount, ', ', diff, more ? ' more than the month before.' : ' less than the month before.']
+      : ['You spent ', amount, '.']),
+    top: (name, amount) => ['Most went to ', name, ': ', amount, '.'],
+    more: 'Ask a follow-up',
+    show: (name) => `Show ${name}`,
+    hide: 'Hide recap',
+    conversation: (month) => `Recap ${month}`,
   },
 };

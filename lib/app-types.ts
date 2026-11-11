@@ -28,7 +28,7 @@ export type DashboardTab = 'overview' | 'analysis' | 'contracts' | 'settings';
 /** A setting the search can bring the user to on the Einstellungen page (components/settings). */
 export type SettingsTarget =
   | 'language' | 'theme' | 'black' | 'idle' | 'categories' | 'logos' | 'usage' | 'device' | 'data' | 'keep' | 'backup' | 'updates'
-  | 'channel' | 'early' | 'fromFile' | 'loginBalances' | 'loginBookings' | 'keepBalances' | 'alerts';
+  | 'channel' | 'early' | 'fromFile' | 'loginBalances' | 'loginBookings' | 'keepBalances' | 'alerts' | 'ask';
 
 /** A date range as `<input type="date">` speaks it: local yyyy-mm-dd. */
 export type DateRange = { from: string; to: string };
@@ -258,6 +258,10 @@ export type VaultData = {
   keptBalances?: Record<string, KeptBalance>;
   netWorth?: NetWorthDay[];
   keepBalances?: false;
+  /** Girovo Next: "Frag deine Umsätze" switched off in Einstellungen (answers, the month recap and the asking bars go). */
+  askOff?: true;
+  /** Girovo Next: the sheet that explains asking was seen once. */
+  askIntroSeen?: true;
   /** ISO */
   updatedAt: string;
 };

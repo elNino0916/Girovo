@@ -1,0 +1,60 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Umsatzdetails, Telefon</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css">
+<style>
+  .bar{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 4px}
+  .hdr{padding:4px 16px 0}
+  .logo{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--sch);color:var(--ink-2)}
+  .logo .ms{font-size:28px}
+  .ttl{font-size:22px;line-height:28px;font-weight:500;margin-top:12px}
+  .detail-amt{font-size:40px;line-height:48px;font-weight:500;letter-spacing:-0.025em;font-variant-numeric:tabular-nums lining-nums;margin-top:6px;white-space:nowrap}
+  .detail-amt .c{font-size:.58em;letter-spacing:-0.01em}
+  .acts{display:flex;gap:8px;margin-top:14px}
+  .acts .btn{height:40px;padding:0 16px;background:var(--sc);color:var(--on-sc)}
+  .tabs{display:flex;margin-top:14px;border-bottom:1px solid var(--sch)}
+  .tab{flex:1;height:48px;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2);position:relative}
+  .tab.on{color:var(--primary)}
+  .tab.on::after{content:'';position:absolute;bottom:0;left:50%;width:56px;margin-left:-28px;height:3px;border-radius:3px 3px 0 0;background:var(--primary)}
+  .kv{display:grid;grid-template-columns:120px minmax(0,1fr);column-gap:16px;padding:10px 16px}
+  .kv .k{font-size:14px;line-height:20px;color:var(--ink-2)}
+  .kv .v{font-size:16px;line-height:22px}
+  .askdock{position:absolute;left:0;right:0;bottom:0;padding:12px 16px 30px;border-radius:24px 24px 0 0}
+  .askdock .hd{display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px;font-weight:500;margin-bottom:10px}
+  .askdock .sg{background:color-mix(in srgb,var(--surface) 80%,transparent);box-shadow:none}
+  .askdock .composer{margin-top:10px;background:color-mix(in srgb,var(--surface) 80%,transparent)}
+</style></head>
+<body style="width:393px;height:852px">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+<div class="phone">
+  <div class="status"><span class="num">9:41</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+  <div class="bar"><div class="ib"><span class="ms">arrow_back</span></div><div style="display:flex"><div class="ib"><span class="ms">share</span></div><div class="ib"><span class="ms">more_vert</span></div></div></div>
+
+  <div class="hdr">
+    <div class="logo"><span class="ms">sports_esports</span></div>
+    <div class="ttl">Steamgames.com</div>
+    <div class="meta">PayPal Europe · Montag, 9. November</div>
+    <div class="detail-amt">−23<span class="c">,40&nbsp;€</span></div>
+    <div class="acts"><span class="btn"><span class="ms">receipt_long</span>Beleg hinzufügen</span><span class="btn"><span class="ms">call_split</span>Aufteilen</span></div>
+  </div>
+
+  <div class="tabs"><div class="tab on">Details</div><div class="tab">Notiz &amp; Belege</div><div class="tab">Kategorie</div></div>
+  <div style="padding-top:6px">
+    <div class="kv"><span class="k">Konto</span><span class="v">Visa Classic</span></div>
+    <div class="kv"><span class="k">Zahlart</span><span class="v">Kartenzahlung über PayPal</span></div>
+    <div class="kv"><span class="k">Kategorie</span><span class="v">Freizeit</span></div>
+    <div class="kv"><span class="k">Name laut Bank</span><span class="v" style="font-size:14px;line-height:20px;color:var(--ink-2)">PAYPAL *STEAMGAMES 4029357733</span></div>
+  </div>
+
+  <div class="askdock wash">
+    <div class="hd"><svg class="spark s" viewBox="0 0 24 24"><use href="#spark"/></svg>Frag zu diesem Umsatz</div>
+    <div class="sugg">
+      <span class="sg">Wie oft zahle ich bei Steam?</span>
+      <span class="sg">Ist das ein Abo?</span>
+    </div>
+    <div class="composer"><span class="ph">Eigene Frage</span><span class="send off"><span class="ms">arrow_upward</span></span></div>
+  </div>
+  <i class="handle"></i>
+</div>
+</body></html>

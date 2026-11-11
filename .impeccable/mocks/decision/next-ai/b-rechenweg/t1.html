@@ -1,0 +1,74 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Rechenweg Antwort</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css"><link rel="stylesheet" href="rail.css">
+<style>
+  .gh{position:absolute;bottom:8px;left:50%;width:108px;height:4px;margin-left:-54px;border-radius:2px;background:var(--ink);opacity:.38}
+</style></head>
+<body style="width:393px;height:852px">
+<div class="phone">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+
+  <div class="status"><span class="num">14:12</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+
+  <div class="rw-bar">
+    <div class="ib" title="Zurück zur Übersicht"><span class="ms">arrow_back</span></div>
+    <div class="ib" title="Beträge ausblenden"><span class="ms">visibility</span></div>
+  </div>
+
+  <div class="rw" style="padding:4px 16px 0">
+    <!-- 1 the question as typed -->
+    <div class="rw-step" style="--d:12px;--dn:0px">
+      <div class="rw-disc"><span class="ms">search</span></div>
+      <div class="rw-q"><span class="t">Wie viel hab ich im Oktober fürs Essen gehen ausgegeben?</span><span class="x" title="Frage löschen"><span class="ms">close</span></span></div>
+    </div>
+
+    <!-- 2 what Girovo read -->
+    <div class="rw-step" style="--dn:0px">
+      <div class="rw-disc"><span class="ms">tune</span></div>
+      <div>
+        <div class="rw-label">Gelesen als</div>
+        <div class="rw-chips">
+          <div class="chip tr rw-read">Essen gehen<span class="ms">expand_more</span></div>
+          <div class="chip tr rw-read">Oktober 2026<span class="ms">expand_more</span></div>
+          <div class="chip tr rw-read">Ausgaben<span class="ms">expand_more</span></div>
+          <div class="chip tr rw-read">Alle Konten<span class="ms">expand_more</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 what it counted -->
+    <div class="rw-step" style="--dn:17px">
+      <div class="rw-disc"><span class="ms">receipt_long</span></div>
+      <div>
+        <div class="rw-label">Gefunden</div>
+        <div class="rw-found" style="margin-top:2px"><span class="rw-title num" style="letter-spacing:0">14 Umsätze, 1. bis 31. Oktober</span><span class="ms" title="Zuklappen">expand_less</span></div>
+        <div class="rw-meta">GiroKomfort <span class="num">12</span>, Visa Classic <span class="num">2</span></div>
+        <div class="rw-places">
+          <div class="rw-place"><span class="n">Cafe Extrablatt</span><span class="c">4-mal</span><span class="a num">61,20&nbsp;€</span></div>
+          <div class="rw-place"><span class="n">McDonalds</span><span class="c">5-mal</span><span class="a num">48,00&nbsp;€</span></div>
+          <div class="rw-place"><span class="n">Sushi Yana</span><span class="c">1-mal</span><span class="a num">42,60&nbsp;€</span></div>
+          <div class="rw-place more"><span class="n">Dean &amp; David, Starbucks</span><span class="c">4-mal</span><span class="a num">34,60&nbsp;€</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4 the answer -->
+    <div class="rw-step end" style="--d:17px">
+      <div class="rw-disc ai"><svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg></div>
+      <div class="wash rw-answer">
+        <div class="say l"><p>Im Oktober hast du <span class="f num">186,40&nbsp;€</span> fürs Essen gehen ausgegeben, <span style="white-space:nowrap"><span class="f num">14</span>-mal</span>. Das sind <span class="f num">42,10&nbsp;€</span> mehr als im September. Am meisten bei Cafe Extrablatt: <span class="f num">61,20&nbsp;€</span>.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rw-next" style="margin:20px 0 0 56px">
+    <span class="sg"><span class="ms">add</span>Lieferando dazu</span>
+    <span class="sg"><span class="ms">bar_chart</span>Pro Monat</span>
+    <span class="sg"><span class="ms">event</span>Nur am Wochenende</span>
+  </div>
+
+  <i class="gh"></i>
+</div>
+</body></html>

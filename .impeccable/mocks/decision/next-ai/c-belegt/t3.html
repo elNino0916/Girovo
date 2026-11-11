@@ -1,0 +1,95 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Belegte Sätze, Umsatzdetails</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css">
+<style>
+  .bl-top{height:56px;display:flex;align-items:center;justify-content:flex-end;padding:0 4px}
+  .bl-head{padding:0 16px}
+  .bl-disc{width:56px;height:56px;border-radius:50%;background:var(--sch);color:var(--ink-2);display:grid;place-items:center}
+  .bl-disc .ms{font-size:28px}
+  .bl-name{margin-top:12px;font-size:22px;line-height:28px;font-weight:500}
+  .bl-amt{margin-top:6px;font-size:40px;line-height:48px;font-weight:500;letter-spacing:-0.025em;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+  .bl-amt .c{font-size:.58em;letter-spacing:-0.01em}
+  .bl-tags{display:flex;gap:8px;margin-top:10px}
+  .bl-tag{height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:8px;background:var(--sc1);
+    font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+  .bl-tag .ms{font-size:16px}
+
+  .bl-tile{margin:16px 16px 0;border-radius:16px;padding:16px 16px 6px}
+  .bl-tile .say .spark{width:18px;height:18px;vertical-align:-3px;margin-right:6px}
+  .bl-rule{width:40px;height:1px;background:color-mix(in srgb,var(--ink) 30%,transparent);margin:14px 0 2px}
+  .bl-note{display:grid;grid-template-columns:14px minmax(0,1fr) 20px;column-gap:8px;padding:8px 0;min-height:48px}
+  .bl-note .no{font-size:14px;line-height:20px;font-weight:500;color:var(--primary);font-variant-numeric:tabular-nums}
+  .bl-note .hd{font-size:14px;line-height:20px;font-weight:500}
+  .bl-note .hd span{font-weight:400;color:var(--ink-2)}
+  .bl-note .go{font-size:20px;color:var(--ink-2)}
+  .bl-bk{display:grid;grid-template-columns:repeat(3,max-content);column-gap:14px;margin-top:2px;font-size:12px;line-height:18px;
+    font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+  .bl-bk i{font-style:normal;color:var(--ink-2);margin-right:4px}
+  .bl-bk b{font-weight:500;letter-spacing:-0.01em}
+  .bl-bk .now b{color:var(--primary)}
+  .bl-gap{margin-top:4px;font-size:12px;line-height:16px;color:var(--ink-2)}
+
+  .bl-tabs{display:flex;margin-top:16px;box-shadow:inset 0 -1px 0 var(--ov)}
+  .bl-tabs span{flex:1;height:48px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;line-height:20px;font-weight:500;color:var(--ink-2);position:relative}
+  .bl-tabs span.on{color:var(--primary)}
+  .bl-tabs span.on::after{content:'';position:absolute;bottom:0;left:50%;width:56px;margin-left:-28px;height:3px;border-radius:3px 3px 0 0;background:var(--primary)}
+  .bl-dl{padding:4px 0 0}
+  .bl-dd{display:flex;align-items:center;gap:16px;padding:10px 16px;min-height:56px}
+  .bl-dd .ms{color:var(--ink-2)}
+  .bl-dd .l{font-size:14px;line-height:20px;color:var(--ink-2)}
+  .bl-dd .v{font-size:16px;line-height:22px}
+</style></head>
+<body style="width:393px;height:852px">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+<div class="phone">
+  <div class="status"><span class="num">9:41</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+
+  <div class="bl-top">
+    <span class="ib"><span class="ms">share</span></span>
+    <span class="ib"><span class="ms">more_vert</span></span>
+    <span class="ib" title="Schließen"><span class="ms">close</span></span>
+  </div>
+
+  <div class="bl-head">
+    <div class="bl-disc"><span class="ms">sports_esports</span></div>
+    <div class="bl-name">Steamgames.com</div>
+    <div class="meta">PAYPAL *STEAMGAMES 35314369001 · Heute</div>
+    <div class="bl-amt">−23<span class="c">,40&nbsp;€</span></div>
+    <div class="bl-tags">
+      <span class="bl-tag"><span class="ms">credit_card</span>Visa Classic</span>
+      <span class="bl-tag">über PayPal</span>
+    </div>
+  </div>
+
+  <div class="bl-tile wash">
+    <div class="say">
+      <p><svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg>Eine Kartenzahlung über PayPal mit deiner Visa. Bei Steam hast du seit 14.&nbsp;August <span style="white-space:nowrap"><span class="f num">4</span>-mal</span> bezahlt, zusammen <span class="f num">78,30&nbsp;€</span><span class="fn">1</span>.</p>
+    </div>
+    <div class="bl-rule"></div>
+    <div class="bl-note">
+      <span class="no">1</span>
+      <div>
+        <div class="hd">4 Buchungen <span>· 14. August bis heute</span></div>
+        <div class="bl-bk">
+          <span><i>29.8.</i><b>19,99&nbsp;€</b></span><span><i>4.10.</i><b>11,49&nbsp;€</b></span><span><i>18.10.</i><b>23,42&nbsp;€</b></span><span class="now"><i>Heute</i><b>23,40&nbsp;€</b></span>
+        </div>
+        <div class="bl-gap">Davor ist nichts geladen.</div>
+      </div>
+      <span class="ms go">chevron_right</span>
+    </div>
+  </div>
+
+  <div class="bl-tabs"><span class="on">Details</span><span>Notiz &amp; Belege</span><span>Kategorie</span></div>
+
+  <div class="bl-dl">
+    <div class="bl-dd"><span class="ms">credit_card</span><div><div class="l">Konto</div><div class="v">Visa Classic · Volksbank Musterstadt</div></div></div>
+    <div class="bl-dd"><span class="ms">event</span><div><div class="l">Gebucht</div><div class="v">Mittwoch, 11. November 2026</div></div></div>
+    <div class="bl-dd"><span class="ms">account_balance_wallet</span><div><div class="l">Bezahlt über</div><div class="v">PayPal Europe, Luxemburg</div></div></div>
+    <div class="bl-dd"><span class="ms">sell</span><div><div class="l">Kategorie</div><div class="v">Freizeit</div></div></div>
+  </div>
+
+  <i class="handle"></i>
+</div>
+</body></html>

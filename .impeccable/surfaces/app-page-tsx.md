@@ -73,3 +73,21 @@ FIRST VIEWPORT: Title bar across the window. Sidebar: Überweisen, Übersicht ·
 FORM: Accounts as layers (Google Calendar's sidebar), position 3 of my seven grounded structures, dealt as the lead; seed key 6317aba8 (surface, operate). Signature move: ticking an account recomputes the ledger and the sum; one tick is that account's page.
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+
+## Round 7 (owner, 2026-11-11): Girovo Next, the AI answers in sentences ("Gespräch")
+
+On girovo-next (7.0.0-next). Owner's answers: phone and desktop together; the model only on the device (Gemini Nano on Play phones, a one-time Gemma download elsewhere, llama.cpp on the desktop; no cloud); AI everywhere, UI only for now. Owner's rules during the round: no "Auf diesem Telefon/Rechner berechnet" line anywhere; /humanizer on every text. Picked on the decision page from three rendered boards (`.impeccable/mocks/decision/next-ai/`, rendered from HTML, not generated): A "Gespräch" (THE ROLL), over B "Rechenweg" and C "Belegte Sätze". The fourth board (`gemeinsam`) holds what every direction shares: the model page in Einstellungen, the first-use sheet, the hint in the transfer review.
+
+### Direction contract
+
+THESIS: Asking is a conversation of its own. A question from the search, from Analyse's month recap or from a booking opens one thread where follow-ups keep their context; Girovo computes every figure and the model only writes the sentence around it. It refuses the one-shot result card that today's Frag deine Umsätze shows.
+
+OWN-WORLD: The shipped Girovo world unchanged. The user's turns are bubbles in the tonal wash (secondary container, 20px with a 4px corner at the speaker's side); Girovo's turns are tiles on the Gemini wash, 16px round, led by the small spark, body 16/24 on the phone and 14/22 on the desktop. Every figure in an answer is the app's own: tabular, 500, a dotted primary underline that opens the bookings behind it. Next questions are outlined suggestion chips above a 56dp composer pill.
+
+STORY: Someone asks in the search, reads one to three plain sentences, taps a figure to see its bookings, asks a follow-up, and leaves. Later the thread is still there.
+
+FIRST VIEWPORT: Phone: a full-screen view "Fragen" (back, Verläufe, neues Gespräch), the thread, at the foot the chips and the composer; no navigation bar. Analyse opens with a dismissible "Dein Oktober" recap tile with "Weiter fragen". Umsatzdetails docks "Frag zu diesem Umsatz" at its foot. Desktop: the thread docks as a 420px panel at the sheet's right edge; the page at its left shows what an answer opens (a figure or "N Umsätze zeigen" sets the ledger's usual filter chips; amended at build, no extra chip); past conversations are listed under "Gespräche" in the sidebar.
+
+FORM: Conversation. Position 6 on my ranked list of six (footnoted sentences, search-native answer, contextual ask, month letter, working shown, conversation as ranked). Seed key b88aeb6f, surface scope, Operate mode. Chosen comp: .impeccable/mocks/decision/next-ai/a-gespraech.png (rendered from HTML, not generated).
+
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

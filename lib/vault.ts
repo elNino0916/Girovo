@@ -291,6 +291,9 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     ...(Object.keys(keptBalances).length ? { keptBalances } : {}),
     ...(netWorth.length ? { netWorth } : {}),
     ...(keepBalances ? {} : { keepBalances: false as const }),
+    // Girovo Next: asking switched off, and its sheet seen once.
+    ...(input.askOff === true ? { askOff: true as const } : {}),
+    ...(input.askIntroSeen === true ? { askIntroSeen: true as const } : {}),
     updatedAt: iso(input.updatedAt) ?? EMPTY_VAULT.updatedAt,
   };
 }

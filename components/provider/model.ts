@@ -729,6 +729,9 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
     ...(Object.keys(keptBalances).length ? { keptBalances } : {}),
     ...(netWorth.length ? { netWorth } : {}),
     ...(keepBalances ? {} : { keepBalances: false as const }),
+    // Girovo Next: asking switched off, and its sheet seen once.
+    ...(raw.askOff === true ? { askOff: true as const } : {}),
+    ...(raw.askIntroSeen === true ? { askIntroSeen: true as const } : {}),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : EMPTY_VAULT.updatedAt,
   };
 }

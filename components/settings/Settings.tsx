@@ -24,6 +24,8 @@
 //     phone's light and dark), "Schwarzer Hintergrund" and the shortcuts;
 //   Datenschutz — the two things that can leave the machine besides the bank's
 //     traffic: the shop names for company logos, and usage data;
+//   Frag deine Umsätze (Girovo Next) — asking on or off, what answers, in
+//     which language (./AskSettings.tsx);
 //   Über Girovo — updates and their channel, the version, the licence and the links.
 //
 // Each page is Material 3 Expressive's grouped list (./rows.tsx), the one place
@@ -49,7 +51,7 @@ import { hasNewer, isReady, updates, useUpdates } from '../updates/store';
 import { usageComesWithChannel } from '../telemetry/NightlyUsage';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
-  BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, EyeOffIcon, FileIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
+  BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, EyeOffIcon, FileIcon, GeminiSparkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
   LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, RefreshIcon, ShieldIcon, StarIcon, SunIcon, WalletIcon,
 } from '../icons';
 import { BrandName, BrandPlate } from '../shell/BrandMark';
@@ -58,6 +60,7 @@ import { useDesktopFrame } from '../shell/frame';
 import { Button, Dot, Kbd, Segmented, Spinner, cx } from '../ui';
 import { KeepRow, KeepOffDialog, ResetDocsDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
 import { ResetAppRow } from './ResetApp';
+import { AskPage, useAskPage } from './AskSettings';
 import { BackupRows } from './BackupDialogs';
 import { ImportRow } from './ImportDialog';
 import { CategorySettings } from './CategorySettings';
@@ -90,6 +93,8 @@ const ICONS: Record<SettingsPage, IconComponent> = {
   devices: IS_ANDROID ? PhoneIcon : MonitorIcon,
   appearance: GlobeIcon,
   privacy: EyeOffIcon,
+  // Gemini's spark is a picture, drawn: no symbol, so no new glyph in the font's subset.
+  ask: GeminiSparkIcon,
   about: InfoIcon,
 };
 
@@ -120,10 +125,12 @@ export function useSettingsPages(): PageEntry[] {
   const t = useT();
   const { locale } = useLocale();
   const {
-    bank, backgroundChecks, windowsHello, sync, vaultStatus, meta,
+    bank, backgroundChecks, windowsHello, sync, vaultStatus, meta, vault,
   } = useFints();
   const usage = useUsageConsent();
   const theme = useThemePref();
+  const askPage = useAskPage();
+  const askOff = !!vault?.askOff;
   const words = t.settings;
   return useMemo(() => {
     const kept = vaultStatus === 'ready' || vaultStatus === 'error' || vaultStatus === 'unavailable';
@@ -134,6 +141,7 @@ export function useSettingsPages(): PageEntry[] {
       devices: kept || !!sync || IS_DESKTOP_APP,
       appearance: true,
       privacy: !!meta?.merchantLogos || !!usage,
+      ask: askPage,
       about: true,
     };
     const summary: Record<SettingsPage, string> = {
@@ -148,6 +156,7 @@ export function useSettingsPages(): PageEntry[] {
         : line([sync && words.summary.sync, vaultStatus === 'ready' && words.summary.backup, words.summary.kept]),
       appearance: IS_ANDROID ? LOCALE_NAMES[locale] : `${LOCALE_NAMES[locale]} · ${t.common.theme[theme]}`,
       privacy: line([meta?.merchantLogos && words.summary.logos, usage && words.summary.usage]),
+      ask: askOff ? words.summary.askOff : words.summary.askOn,
       about: APP_VERSION ? t.shell.version(APP_VERSION) : words.licence,
     };
     return PAGE_ORDER.filter((id) => shown[id]).map((id) => ({
@@ -158,7 +167,7 @@ export function useSettingsPages(): PageEntry[] {
       alert: id === 'devices' && vaultStatus === 'error',
       Icon: ICONS[id],
     }));
-  }, [t, locale, bank, backgroundChecks, windowsHello, sync, vaultStatus, meta?.merchantLogos, usage, theme, words]);
+  }, [t, locale, bank, backgroundChecks, windowsHello, sync, vaultStatus, meta?.merchantLogos, usage, theme, askPage, askOff, words]);
 }
 
 export function Settings() {
@@ -271,6 +280,7 @@ function PageContent({ page, onDialog }: { page: SettingsPage; onDialog: (d: Dat
     case 'devices': return <DevicesPage onDialog={onDialog} />;
     case 'appearance': return <AppearancePage />;
     case 'privacy': return <PrivacyPage />;
+    case 'ask': return <AskPage />;
     case 'about': return <AboutPage />;
   }
 }

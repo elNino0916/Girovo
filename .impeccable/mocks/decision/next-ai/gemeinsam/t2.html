@@ -1,0 +1,91 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Erste Frage: Frag deine Umsätze (Telefon)</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css">
+<style>
+  .gs{display:flex;align-items:center;justify-content:space-between;padding:20px 8px 0 20px}
+  .typed{flex:1;min-width:0;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* the first-use sheet */
+  .intro{padding:4px 24px 0}
+  .intro .mark{width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+  .intro h2{margin:16px 0 0;font-size:22px;line-height:28px;font-weight:500}
+  .lines{margin:16px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px}
+  .lines li{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:16px;font-size:16px;line-height:24px}
+  .lines .ms{color:var(--ink-2)}
+  .size{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:16px;margin-top:20px;font-size:14px;line-height:20px;color:var(--ink-2)}
+  .size .ms{font-size:20px;justify-self:center}
+  .acts{display:flex;gap:8px;padding:28px 24px 0}
+  .acts .btn{flex:1;height:48px;border-radius:24px;font-size:16px;line-height:24px}
+</style></head>
+<body style="width:393px;height:852px">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+<div class="phone">
+  <div class="status"><span class="num">14:02</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_5_bar</span></span></div>
+
+  <!-- the Übersicht, the question just typed into its search bar -->
+  <div style="padding:8px 16px 0">
+    <div class="search">
+      <span class="ms">search</span>
+      <span class="typed">Essen gehen im Oktober?</span>
+      <svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg>
+      <div class="ib s" style="width:40px"><div class="avatar">NB</div><i class="dot" style="top:4px;right:4px"></i></div>
+    </div>
+  </div>
+
+  <div class="gs"><span class="sub">Gesamtsaldo</span><span style="display:flex"><span class="ib"><span class="ms">swap_vert</span></span><span class="ib"><span class="ms">visibility</span></span></span></div>
+  <div style="padding:0 20px">
+    <div class="bal">5.968<span class="c">,99&nbsp;€</span></div>
+    <div class="meta"><span class="num" style="letter-spacing:0">4</span> Konten bei <span class="num" style="letter-spacing:0">2</span> Banken · Stand <span class="num" style="letter-spacing:0">14:02</span> Uhr</div>
+  </div>
+
+  <div class="chips" style="padding:16px 16px 0;overflow:hidden">
+    <div class="chip on"><span class="ms">check</span>Alle</div>
+    <div class="chip">Girokonten</div>
+    <div class="chip">Sparen &amp; Anlegen</div>
+    <div class="chip">Karten &amp; Kredite</div>
+  </div>
+
+  <div class="group"><span>Girokonten</span><span class="num">1.922,63&nbsp;€</span></div>
+  <div class="acct"><div class="disc"><span class="ms">account_balance_wallet</span><span class="bank"><img src="../vr-mark.svg" alt=""></span></div>
+    <div class="n">GiroKomfort</div><div class="b num">780,11&nbsp;€</div>
+    <div class="w">Volksbank Musterstadt · <span class="iban">··· 5932 71</span></div>
+    <div class="ln">Telekom Deutschland GmbH</div><div class="la num">−39,95&nbsp;€</div></div>
+  <div class="acct"><div class="disc"><span class="ms">account_balance_wallet</span><span class="bank"><img src="../../../../../public/logos/sparkasse.svg" alt=""></span></div>
+    <div class="n">Giro Haushalt</div><div class="b num">1.142,52&nbsp;€</div>
+    <div class="w">Sparkasse · <span class="iban">··· 4410 08</span></div>
+    <div class="ln">Techniker Krankenkasse</div><div class="la num pos">+84,20&nbsp;€</div></div>
+  <div class="group"><span>Sparen &amp; Anlegen</span><span class="num">4.200,00&nbsp;€</span></div>
+  <div class="acct"><div class="disc"><span class="ms">savings</span><span class="bank"><img src="../vr-mark.svg" alt=""></span></div>
+    <div class="n">Notgroschen</div><div class="b num">4.200,00&nbsp;€</div>
+    <div class="w">Volksbank Musterstadt · <span class="iban">··· 5932 79</span></div>
+    <div class="ln">Übertrag von GiroKomfort</div><div class="la num pos">+100,00&nbsp;€</div></div>
+
+  <nav class="nav">
+    <div class="it on"><div class="pill"><span class="ms fill">home</span></div>Übersicht</div>
+    <div class="it"><div class="pill"><span class="ms">swap_horiz</span></div>Zahlungen</div>
+    <div class="it"><div class="pill"><span class="ms">bar_chart</span></div>Analyse</div>
+  </nav>
+
+  <div class="scrim"></div>
+
+  <!-- first use: what it is, once, calm -->
+  <div class="sheet" role="dialog" aria-labelledby="fu-t" style="padding-bottom:40px">
+    <div class="grab"></div>
+    <div class="intro">
+      <div class="mark wash"><svg class="spark l" viewBox="0 0 24 24"><use href="#spark"/></svg></div>
+      <h2 id="fu-t">Frag deine Umsätze</h2>
+      <ul class="lines">
+        <li><span class="ms">notes</span><span>Du bekommst die Antwort in ganzen Sätzen.</span></li>
+        <li><span class="ms">calculate</span><span>Jeden Betrag rechnet Girovo selbst aus deinen Umsätzen.</span></li>
+      </ul>
+      <div class="size"><span class="ms">download</span><span>Einmal etwa <span class="num">2,6</span> GB laden, am besten im WLAN.</span></div>
+    </div>
+    <div class="acts">
+      <span class="btn text">Später</span>
+      <span class="btn filled">Ausprobieren</span>
+    </div>
+    <i class="handle"></i>
+  </div>
+</div>
+</body></html>

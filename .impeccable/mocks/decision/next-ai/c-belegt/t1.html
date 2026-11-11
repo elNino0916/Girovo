@@ -1,0 +1,115 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Belegte Sätze, Übersicht</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css">
+<style>
+  /* the question stays in the search bar; the bar grows to two lines */
+  .bl-q{min-height:56px;border-radius:28px;background:var(--sch);display:flex;align-items:center;gap:12px;padding:12px 4px 12px 16px;margin:8px 16px 0;color:var(--ink-2)}
+  .bl-q .txt{flex:1;min-width:0;font-size:16px;line-height:24px;color:var(--ink)}
+  .bl-q .ib{width:48px;height:48px;margin:-12px 0}
+
+  /* the answer: a paragraph on the wash, its notes under a short rule */
+  .bl-tile{margin:12px 16px 0;border-radius:16px;padding:16px 16px 6px}
+  .bl-tile .say .spark{width:18px;height:18px;vertical-align:-3px;margin-right:6px}
+  .bl-rule{width:40px;height:1px;background:color-mix(in srgb,var(--ink) 30%,transparent);margin:14px 0 2px}
+  .bl-note{display:grid;grid-template-columns:14px minmax(0,1fr) 20px;column-gap:8px;padding:8px 0;min-height:48px}
+  .bl-note .no{font-size:14px;line-height:20px;font-weight:500;color:var(--primary);font-variant-numeric:tabular-nums}
+  .bl-note .hd{font-size:14px;line-height:20px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bl-note .hd span{font-weight:400;color:var(--ink-2)}
+  .bl-note .go{font-size:20px;color:var(--ink-2);margin-top:0}
+  .bl-bk{display:grid;grid-template-columns:repeat(3,max-content);column-gap:14px;margin-top:2px;font-size:12px;line-height:18px;
+    font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+  .bl-bk i{font-style:normal;color:var(--ink-2);margin-right:4px}
+  .bl-bk b{font-weight:500;letter-spacing:-0.01em}
+
+  .bl-sugg{padding:12px 16px 0}
+
+  /* the account page, pushed down */
+  .bl-acct{height:48px;display:flex;align-items:center;padding:12px 4px 0 16px;margin-top:8px}
+  .bl-acct .n{font-size:16px;line-height:24px;font-weight:500;display:flex;align-items:center;gap:2px}
+  .bl-acct .n .ms{color:var(--ink-2)}
+</style></head>
+<body style="width:393px;height:852px">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+<div class="phone">
+  <div class="status"><span class="num">9:41</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+
+  <div class="bl-q">
+    <span class="ms">search</span>
+    <span class="txt">Wie viel ging im Oktober an Lieferando?</span>
+    <span class="ib" title="Frage schließen"><span class="ms">close</span></span>
+  </div>
+
+  <div class="bl-tile wash">
+    <div class="say">
+      <p><svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg>Im Oktober hast du <span style="white-space:nowrap"><span class="f num">5</span>-mal</span> bei Lieferando bestellt, zusammen <span class="f num">112,35&nbsp;€</span><span class="fn">1</span>. Im September waren es <span class="f num">2</span> Bestellungen für <span class="f num">38,90&nbsp;€</span><span class="fn">2</span>.</p>
+    </div>
+    <div class="bl-rule"></div>
+    <div class="bl-note">
+      <span class="no">1</span>
+      <div>
+        <div class="hd">Lieferando, Oktober <span>· 5 Buchungen</span></div>
+        <div class="bl-bk">
+          <span><i>2.10.</i><b>18,90&nbsp;€</b></span><span><i>9.10.</i><b>24,50&nbsp;€</b></span><span><i>16.10.</i><b>21,35&nbsp;€</b></span>
+          <span><i>23.10.</i><b>26,60&nbsp;€</b></span><span><i>30.10.</i><b>21,00&nbsp;€</b></span>
+        </div>
+      </div>
+      <span class="ms go">chevron_right</span>
+    </div>
+    <div class="bl-note">
+      <span class="no">2</span>
+      <div>
+        <div class="hd">Lieferando, September <span>· 2 Buchungen</span></div>
+        <div class="bl-bk">
+          <span><i>18.9.</i><b>17,40&nbsp;€</b></span><span><i>26.9.</i><b>21,50&nbsp;€</b></span>
+        </div>
+      </div>
+      <span class="ms go">chevron_right</span>
+    </div>
+  </div>
+
+  <div class="sugg bl-sugg">
+    <span class="sg"><span class="ms">calendar_month</span>Und im November?</span>
+    <span class="sg"><span class="ms">restaurant</span>Essen gehen im Oktober</span>
+    <span class="sg"><span class="ms">receipt_long</span>Alle Umsätze bei Lieferando</span>
+  </div>
+
+  <div class="bl-acct">
+    <div class="n">GiroKomfort<span class="ms">expand_more</span></div>
+    <div class="ib" style="margin-left:auto"><span class="ms">visibility</span></div>
+  </div>
+  <div style="padding:0 20px 0 16px;display:flex;justify-content:space-between;align-items:flex-end">
+    <div>
+      <div class="bal">780<span class="c">,11&nbsp;€</span></div>
+      <div class="meta">Verfügbar <span class="num ink">2.706,73&nbsp;€</span></div>
+      <div class="meta">Stand <span class="num" style="letter-spacing:0">9:38</span> Uhr</div>
+    </div>
+    <svg width="112" height="48" viewBox="0 0 112 48" aria-hidden="true" style="margin-bottom:22px">
+      <path d="M2 38H14V40H16V22H30V24H40V26H48V12H60V14H72V16H82V4H94V8H104V30H110V42H2Z" fill="rgb(0 96 168 / .12)"/>
+      <path d="M2 38H14V40H16V22H30V24H40V26H48V12H60V14H72V16H82V4H94V8H104V30H110" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="110" cy="30" r="3.5" fill="var(--primary)"/>
+    </svg>
+  </div>
+
+  <div class="chips" style="padding:18px 16px 0">
+    <div class="chip tr" style="padding-left:12px"><i class="adot"></i>Vorgemerkt 2<span class="ms">expand_more</span></div>
+    <div class="chip">Eingänge</div>
+    <div class="chip">Ausgänge</div>
+    <div class="chip tr">Kategorie<span class="ms">expand_more</span></div>
+  </div>
+
+  <div style="padding-top:4px">
+    <div class="day"><span>Heute</span><span class="r num">Kontostand 780,11&nbsp;€</span></div>
+    <div class="row"><div class="disc"><span class="ms">smartphone</span></div><div class="t"><div class="name">Telekom Deutschland GmbH</div><div class="meta">Abos &amp; Medien · Lastschrift</div></div><div class="amt num">−39,95&nbsp;€</div></div>
+    <div class="row"><div class="disc"><span class="ms">shopping_bag</span></div><div class="t"><div class="name">Zalando SE</div><div class="meta">Shopping · über PayPal</div></div><div class="amt num">−33,52&nbsp;€</div></div>
+  </div>
+
+  <nav class="nav">
+    <div class="it on"><div class="pill"><span class="ms fill">home</span></div>Übersicht</div>
+    <div class="it"><div class="pill"><span class="ms">swap_horiz</span></div>Zahlungen</div>
+    <div class="it"><div class="pill"><span class="ms">bar_chart</span></div>Analyse</div>
+    <i class="handle"></i>
+  </nav>
+</div>
+</body></html>

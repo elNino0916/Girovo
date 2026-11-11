@@ -65,8 +65,8 @@ import {
   BoltIcon, RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SplitIcon, SunIcon, TagIcon, TransferIcon, WalletIcon,
 } from './icons';
 import { listsOrders, useShowBankOrders } from './BankOrders';
-import { askInAnalysis, useAskable } from './insights/Ask';
-import { askAllowed } from '@/lib/plus';
+import { useCanAsk } from './insights/ask-gate';
+import { openAsk } from './insights/ask-thread-store';
 import { EmptyState, IconButton, Kbd, Overlay, cx } from './ui';
 import { searchText, txText } from './transactions/model';
 import { useShellActions, useShowOnAccount } from './shell/actions';
@@ -146,8 +146,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
   const showBankOrders = useShowBankOrders();
   const themePref = useThemePref();
   // Android with Gemini Nano (and, in the Play build, Plus), or the desktop: a question can be asked.
-  const askable = useAskable();
-  const canAsk = askable === true && askAllowed(f.plus.state);
+  const canAsk = useCanAsk();
   const { state: update } = useUpdates();
   const usage = useUsageConsent();
   const frame = useDesktopFrame();
@@ -468,8 +467,8 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
         description: IS_ANDROID ? tr.shell.palette.askHint : tr.shell.palette.askHintDesktop,
         icon: IS_ANDROID ? <GeminiSparkIcon size={18} /> : <ChartIcon size={18} />,
         run: () => {
-          askInAnalysis(q);
-          f.setTab('analysis');
+          // Girovo Next: a question starts a conversation (components/insights/AskThread.tsx).
+          openAsk({ question: q, fresh: true });
         },
       }]
       : [];

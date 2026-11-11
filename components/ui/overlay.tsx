@@ -510,7 +510,7 @@ export function Dialog({
  * beside the window's own close and read as a fourth caption button.
  */
 export function Drawer({
-  open, onClose, title, titleId, actions, footer, width = 'md', children, bodyClassName, fallbackFocus,
+  open, onClose, title, titleId, actions, footer, footerClassName, width = 'md', children, bodyClassName, fallbackFocus,
 }: {
   open: boolean;
   onClose: () => void;
@@ -519,6 +519,8 @@ export function Drawer({
   /** Extra controls in the header row, left of the close button. */
   actions?: ReactNode;
   footer?: ReactNode;
+  /** Replaces the footer's own hairline and padding (a footer that is its own surface, as a booking's asking bar). */
+  footerClassName?: string;
   width?: 'md' | 'lg';
   bodyClassName?: string;
   /** Where focus goes on close when the control that opened the drawer is gone. */
@@ -556,7 +558,7 @@ export function Drawer({
           {children}
         </div>
         {footer && (
-          <div className="shrink-0 border-t border-line px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">{footer}</div>
+          <div className={cx('shrink-0', footerClassName ?? 'border-t border-line px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6')}>{footer}</div>
         )}
       </div>
     </Overlay>

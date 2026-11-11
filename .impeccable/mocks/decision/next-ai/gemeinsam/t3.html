@@ -1,0 +1,72 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Überweisung prüfen mit Hinweis (Telefon)</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css">
+<style>
+  .tbar{height:64px;display:flex;align-items:center;gap:4px;padding:0 4px}
+  .tbar .ttl{font-size:22px;line-height:28px;font-weight:400}
+  /* the transfer's three parts: Betrag, An wen?, Prüfen */
+  .steps{display:flex;gap:4px;padding:0 16px}
+  .steps i{flex:1;height:4px;border-radius:2px;background:var(--primary)}
+  /* the hint: the Flat Page Rule's callout, Container High, 12px, an orange glyph */
+  .hint{margin:20px 16px 0;padding:14px 16px 14px 14px;border-radius:12px;background:var(--sch);display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:12px}
+  .hint>.ms{color:var(--orange);margin-top:0}
+  .hint .by{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+  /* the review */
+  .head{padding:32px 20px 0}
+  .disp{font-size:40px;line-height:48px;font-weight:500;letter-spacing:-0.025em;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+  .disp .c{font-size:.58em;letter-spacing:-0.01em}
+  .facts{margin-top:20px;padding:0 20px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px}
+  .fact{grid-column:1 / -1;padding:8px 0;min-width:0}
+  .fact.half{grid-column:auto}
+  .fact .k{font-size:14px;line-height:20px;color:var(--ink-2)}
+  .fact .v{font-size:16px;line-height:22px;min-width:0;margin-top:2px}
+  .fact .v .meta{display:block}
+  .fact .v .iban{font-size:14px;letter-spacing:.06em;line-height:20px;display:block;color:var(--ink)}
+  .ok{display:flex;align-items:center;gap:6px}
+  .ok .ms{font-size:20px;color:var(--green)}
+  /* the dialog's pinned actions */
+  .acts{position:absolute;left:0;right:0;bottom:0;display:flex;gap:8px;padding:16px 16px 36px;background:var(--surface)}
+  .acts .btn{flex:1;height:48px;border-radius:24px;font-size:16px;line-height:24px;padding:0 16px}
+</style></head>
+<body style="width:393px;height:852px">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+<div class="phone">
+  <div class="status"><span class="num">14:02</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_5_bar</span></span></div>
+
+  <div class="tbar">
+    <div class="ib" title="Schließen"><span class="ms">close</span></div>
+    <div class="ttl">Überweisung prüfen</div>
+  </div>
+  <div class="steps" role="progressbar" aria-label="Schritt 3 von 3: Prüfen"><i></i><i></i><i></i></div>
+
+  <!-- a sentence the model wrote; Girovo found and counted the payments -->
+  <div class="hint" role="note">
+    <span class="ms">error</span>
+    <div>
+      <div class="say">Lea hast du bisher <span class="f num">3-mal</span> <span class="f num">25,00&nbsp;€</span> geschickt. Diesmal sind es <span class="f num">250,00&nbsp;€</span>.</div>
+      <div class="by"><svg class="spark s" viewBox="0 0 24 24"><use href="#spark"/></svg>Frag deine Umsätze</div>
+    </div>
+  </div>
+
+  <div class="head">
+    <div class="disp">250<span class="c">,00&nbsp;€</span></div>
+    <div class="meta">Verfügbar danach <span class="num ink">2.456,73&nbsp;€</span></div>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><div class="k">Von</div><div class="v">GiroKomfort<span class="meta">Volksbank Musterstadt · <span class="iban" style="display:inline;font-size:13px;letter-spacing:.04em;color:var(--ink-2)">··· 5932 71</span></span></div></div>
+    <div class="fact"><div class="k">An</div><div class="v">Lea Hoffmann<span class="iban">DE69 4306 0967 4012 3456 00</span><span class="meta">GLS Gemeinschaftsbank</span></div></div>
+    <div class="fact"><div class="k">Namensabgleich</div><div class="v ok"><span class="ms">check_circle</span>Name passt zum Konto</div></div>
+    <div class="fact half"><div class="k">Verwendungszweck</div><div class="v">Konzertkarten</div></div>
+    <div class="fact half"><div class="k">Termin</div><div class="v">Sofort</div></div>
+  </div>
+
+  <div class="acts">
+    <span class="btn tonal">Betrag ändern</span>
+    <span class="btn filled">Weiter zur Freigabe</span>
+  </div>
+  <i class="handle"></i>
+</div>
+</body></html>

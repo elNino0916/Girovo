@@ -81,7 +81,7 @@ type ItemProps = {
   setting?: SettingsTarget;
   /** The title in Soll Red: something here needs a look (the saved data cannot be read). */
   alert?: boolean;
-  /** The on-device AI's row (Gemini Nano): washed in the tertiary colour, as Android marks its AI features. */
+  /** The on-device AI's rows (Gemini Nano, Frag deine Umsätze' switch): on Gemini's wash, as Android marks its AI features. */
   tone?: 'ai';
 };
 
@@ -165,13 +165,13 @@ export function LinkItem({ icon, title, summary, href, opensExternally }: {
  * press anywhere on it turns it; the summary is the switch's description.
  */
 export function SwitchItem({
-  icon, title, summary, below, setting, checked, onChange, disabled,
+  icon, title, summary, below, setting, tone, checked, onChange, disabled,
 }: ItemProps & { checked: boolean; onChange: (next: boolean) => void; disabled?: boolean }) {
   const id = useId();
   const switchId = `sw${id}`;
   const summaryId = summary ? `${switchId}-sum` : undefined;
   return (
-    <div data-item data-pressable={disabled ? undefined : ''} data-setting={setting} className={cx(ITEM, 'relative')}>
+    <div data-item data-pressable={disabled ? undefined : ''} data-setting={setting} data-tone={tone} className={cx(ITEM, 'relative')}>
       {icon && <Glyph>{icon}</Glyph>}
       <span className="min-w-0 flex-1">
         {/* Its ::after covers the row: the label's press is the row's. */}

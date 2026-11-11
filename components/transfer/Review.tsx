@@ -6,17 +6,20 @@
 // Kontostand that ends in the Dispo. Those sit at the top of the step, above
 // the order, so no window is too short to show them before "überweisen".
 
-import type { Ref } from 'react';
+import { useMemo, type Ref } from 'react';
 import { isCardAccount } from '@/lib/balances';
 import { bankAnswerLines } from '@/lib/bank-answer';
 import type { SerializedAccount } from '@/lib/fints-types';
-import { expectedCreditDate, fmtDate, fmtIban } from '@/lib/format';
+import { compactIban, expectedCreditDate, fmtDate, fmtIban } from '@/lib/format';
 import { intlLocale } from '@/lib/i18n';
 import { rich, useT } from '@/lib/i18n/react';
 import { scheduleSentence } from '@/lib/order-schedule';
 import { sepaSanitize } from '@/lib/sepa-text';
 import type { FundsWarning, spendable } from '@/lib/transfer-checks';
-import { BoltIcon, LandmarkIcon } from '../icons';
+import { transferHistoryHint } from '@/lib/transfer-history-hint';
+import { useFints } from '../FintsProvider';
+import { useCanAsk } from '../insights/ask-gate';
+import { AlertCircleIcon, BoltIcon, LandmarkIcon } from '../icons';
 import { Money } from '../Money';
 import { Alert, Spinner, Tag } from '../ui';
 import { fmtLongDate, shortIbanText, type TransferDraft } from './model';
@@ -78,6 +81,36 @@ export function StepError({ message, errorRef }: { message: string; errorRef?: R
   );
 }
 
+/**
+ * Girovo Next: far more than ever went to this IBAN before, said once above
+ * the order ("Lea Hoffmann hast du bisher 3-mal 25,00 € geschickt. Diesmal
+ * sind es 250,00 €."). A hint, never a block: the step's buttons stay as they
+ * are. Only where asking is on, and never for a transfer to one's own account.
+ */
+function HistoryHint({ draft }: { draft: TransferDraft }) {
+  const t = useT();
+  const canAsk = useCanAsk();
+  const { txByAccount, accounts } = useFints();
+  const hint = useMemo(() => {
+    if (!canAsk) return null;
+    const iban = compactIban(draft.iban);
+    if (accounts.some((a) => compactIban(a.iban) === iban)) return null;
+    return transferHistoryHint({ iban, cents: draft.cents, txByAccount });
+  }, [canAsk, draft.iban, draft.cents, accounts, txByAccount]);
+  if (!hint) return null;
+  const words = t.transfer.review.history;
+  // Every figure through <Money>, so "Beträge ausblenden" hides them all.
+  const figure = (value: number) => <Money value={value} currency="EUR" tone="plain" className="font-medium" />;
+  const now = figure(draft.cents / 100);
+  return (
+    <Alert tone="warn" icon={<AlertCircleIcon size={18} />} className="mb-4">
+      {rich(hint.same != null
+        ? words.same(draft.name, hint.count, figure(hint.same), now)
+        : words.most(draft.name, hint.count, figure(hint.largest), now))}
+    </Alert>
+  );
+}
+
 export function ReviewStep({
   draft, account, accountName, bank, funds, warning, duplicate, duplicateTitle, busyElsewhere, error, errorRef,
 }: {
@@ -131,6 +164,8 @@ export function ReviewStep({
           )}
         </div>
       )}
+
+      <HistoryHint draft={draft} />
 
       <div className="rounded-[12px] bg-inset px-4 py-4 sm:px-5">
         <p className="text-[13px] font-semibold text-ink-3">{t.common.booking.amount}</p>

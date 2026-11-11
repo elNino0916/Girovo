@@ -1,0 +1,207 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=1440"><title>Belegte Sätze, Desktop</title>
+<link rel="stylesheet" href="../desk.css"><link rel="stylesheet" href="../ai.css">
+<style>
+  /* sidebar: the month and the accounts as layers (a-ebenen) */
+  .bl-month{margin:16px 16px 0;padding:0 4px}
+  .bl-month-h{display:flex;align-items:center;justify-content:space-between;padding:0 0 4px 8px}
+  .bl-month-h .t{font-weight:500}
+  .bl-month-h .ib{width:32px;height:32px}
+  .bl-g7{display:grid;grid-template-columns:repeat(7,32px);justify-content:space-between}
+  .bl-wd{height:24px;display:grid;place-items:center;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+  .bl-d{height:32px;display:grid;place-items:center;position:relative;font-size:12px;line-height:16px;font-weight:500;font-variant-numeric:tabular-nums}
+  .bl-d.out{color:#5f6672}
+  .bl-d.today span{width:28px;height:28px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:grid;place-items:center}
+  .bl-d.has::after,.bl-d.due::after{content:'';position:absolute;bottom:1px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%}
+  .bl-d.has::after{background:var(--ink-2)}
+  .bl-d.today.has::after{background:var(--primary)}
+  .bl-d.due::after{box-shadow:inset 0 0 0 1px var(--ink-2)}
+  .bl-legend{display:flex;gap:16px;padding:6px 8px 0;font-size:12px;line-height:16px;color:var(--ink-2)}
+  .bl-legend i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .bl-layer{height:36px;display:flex;align-items:center;gap:12px;padding:0 16px;margin:0 12px;border-radius:18px}
+  .bl-tick{width:18px;height:18px;border-radius:4px;display:grid;place-items:center;flex:none;color:#fff;background:var(--c)}
+  .bl-tick .ms{font-size:16px;font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 20}
+  .bl-layer .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bl-layer .num{font-weight:500}
+
+  /* the sheet: a main column and a margin for the notes */
+  .bl-page{display:grid;grid-template-columns:760px 280px;column-gap:36px;padding:32px 40px 0}
+  .bl-main{grid-column:1}
+  .bl-margin{grid-column:2;grid-row:2 / span 3;padding-top:44px}
+  .bl-ask{height:56px;border-radius:28px;background:var(--sch);display:flex;align-items:center;gap:16px;padding:0 6px 0 20px;color:var(--ink-2)}
+  .bl-ask .q{flex:1;font-size:16px;line-height:24px;color:var(--ink)}
+  .bl-ask .ib{width:44px;height:44px}
+  .bl-ask .ms{font-size:24px}
+
+  .bl-tile{margin-top:16px;border-radius:16px;padding:24px 28px}
+  .bl-tile .say .spark{width:20px;height:20px;vertical-align:-3px;margin-right:8px}
+  .bl-tile .say{font-size:18px;line-height:28px}
+  .bl-tile .fn{font-size:12px}
+  .bl-sugg{margin-top:12px}
+
+  /* a sidenote: its number, what the figure is made of, the bookings as mini rows */
+  .bl-sn{display:grid;grid-template-columns:18px minmax(0,1fr);column-gap:6px;padding:0 8px 0 0;border-radius:12px}
+  .bl-sn+.bl-sn{margin-top:28px}
+  /* the figure under the pointer lights its note */
+  .bl-sn.on{background:color-mix(in srgb,var(--primary) 6%,var(--sheet));box-shadow:0 0 0 10px color-mix(in srgb,var(--primary) 6%,var(--sheet))}
+  .bl-sn .no{font-size:14px;line-height:20px;font-weight:500;color:var(--primary);font-variant-numeric:tabular-nums}
+  .bl-sn .hd{display:flex;align-items:center;justify-content:space-between;font-size:14px;line-height:20px;font-weight:500}
+  .bl-sn .hd .ms{font-size:18px;color:var(--ink-2)}
+  .bl-sn .sb{font-size:12px;line-height:16px;color:var(--ink-2);margin-top:2px}
+  .bl-mini{margin-top:6px}
+  .bl-mr{height:28px;display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:10px;align-items:center;font-size:14px;line-height:20px}
+  .bl-mr .dk{width:20px;height:20px;border-radius:50%;background:var(--sch);color:var(--ink-2);display:grid;place-items:center}
+  .bl-mr .dk .ms{font-size:13px}
+  .bl-mr .dt{color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .bl-mr .a{font-weight:500;text-align:right}
+  .bl-sum{height:28px;display:flex;justify-content:space-between;align-items:center;font-size:14px;line-height:20px;font-weight:500;margin-top:2px;padding-left:30px}
+  .bl-sum span:first-child{color:var(--ink-2);font-weight:400}
+
+  /* the Übersicht, continued in the main column */
+  .bl-sum-head{display:flex;align-items:flex-end;justify-content:space-between;margin-top:36px}
+  .bl-figs{display:flex;gap:32px;padding-bottom:2px}
+  .bl-figs .l{font-size:14px;line-height:20px;color:var(--ink-2)}
+  .bl-figs .v{font-size:16px;line-height:24px;font-weight:500}
+  .bl-accs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:8px;margin:12px -16px 0}
+  .bl-acc{display:grid;grid-template-columns:32px minmax(0,1fr);column-gap:12px;row-gap:2px;padding:10px 16px;border-radius:16px}
+  .bl-acc .disc{grid-row:span 2;align-self:center}
+  .bl-acc .bank{position:absolute;right:-3px;bottom:-3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--sheet);display:grid;place-items:center;overflow:hidden}
+  .bl-acc .bank img{width:10px;height:10px;object-fit:contain}
+  .bl-acc .v{font-size:16px;line-height:24px;font-weight:500}
+  .bl-h2{display:flex;align-items:center;justify-content:space-between;margin-top:20px}
+  .bl-list .row{grid-template-columns:32px minmax(0,1fr) 190px 64px 100px;padding:0 16px;margin:0 -16px;border-radius:12px}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+
+<header class="titlebar">
+  <div class="brand">
+    <div class="ib"><span class="ms l">menu</span></div>
+    <svg class="plate" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#7b4fe0"/><g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M361.4 151.8A136 136 0 1 0 405.1 292H280" stroke-width="46"/><path d="M100 222H244M100 292H208" stroke-width="40"/></g></svg>
+    <span class="wm">Girovo</span>
+  </div>
+  <div class="tools">
+    <div class="ib"><span class="ms">notifications</span><i class="dot" style="top:9px;right:10px"></i></div>
+    <div class="ib"><span class="ms">visibility</span></div>
+    <div class="ib"><span class="ms">contrast</span></div>
+    <div class="ib"><div class="avatar">NB</div></div>
+  </div>
+  <div class="caption"><i><svg viewBox="0 0 10 10"><path d="M0 5.5H10"/></svg></i><i><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" rx="1.5"/></svg></i><i><svg viewBox="0 0 10 10"><path d="M.5 .5L9.5 9.5M9.5 .5L.5 9.5"/></svg></i></div>
+</header>
+
+<nav class="side" aria-label="Navigation">
+  <div class="fab"><span class="ms">swap_horiz</span>Überweisen</div>
+  <div class="nav">
+    <div class="item on"><span class="ms">home</span>Übersicht</div>
+    <div class="item"><span class="ms">payments</span>Zahlungen<span class="end num">3 fällig</span></div>
+    <div class="item"><span class="ms">bar_chart</span>Analyse</div>
+  </div>
+
+  <div class="bl-month">
+    <div class="bl-month-h"><span class="t">November 2026</span><span style="display:flex"><span class="ib"><span class="ms">chevron_left</span></span><span class="ib"><span class="ms">chevron_right</span></span></span></div>
+    <div class="bl-g7">
+      <div class="bl-wd">Mo</div><div class="bl-wd">Di</div><div class="bl-wd">Mi</div><div class="bl-wd">Do</div><div class="bl-wd">Fr</div><div class="bl-wd">Sa</div><div class="bl-wd">So</div>
+      <div class="bl-d out">26</div><div class="bl-d out">27</div><div class="bl-d out">28</div><div class="bl-d out">29</div><div class="bl-d out">30</div><div class="bl-d out">31</div><div class="bl-d has">1</div>
+      <div class="bl-d has">2</div><div class="bl-d has">3</div><div class="bl-d">4</div><div class="bl-d has">5</div><div class="bl-d has">6</div><div class="bl-d has">7</div><div class="bl-d">8</div>
+      <div class="bl-d has">9</div><div class="bl-d has">10</div><div class="bl-d today has"><span>11</span></div><div class="bl-d due">12</div><div class="bl-d">13</div><div class="bl-d">14</div><div class="bl-d due">15</div>
+      <div class="bl-d">16</div><div class="bl-d">17</div><div class="bl-d">18</div><div class="bl-d">19</div><div class="bl-d">20</div><div class="bl-d">21</div><div class="bl-d">22</div>
+      <div class="bl-d">23</div><div class="bl-d">24</div><div class="bl-d">25</div><div class="bl-d">26</div><div class="bl-d">27</div><div class="bl-d">28</div><div class="bl-d">29</div>
+      <div class="bl-d due">30</div><div class="bl-d out">1</div><div class="bl-d out">2</div><div class="bl-d out">3</div><div class="bl-d out">4</div><div class="bl-d out">5</div><div class="bl-d out">6</div>
+    </div>
+    <div class="bl-legend"><span><i style="background:var(--ink-2)"></i>Umsätze</span><span><i style="box-shadow:inset 0 0 0 1px var(--ink-2)"></i>Fällig</span></div>
+  </div>
+
+  <div class="sect"><span class="sub">Konten</span><span class="ib" title="Weitere Bank anmelden"><span class="ms">add</span></span></div>
+  <div class="bl-layer" style="--c:var(--acc-1)"><span class="bl-tick"><span class="ms">check</span></span><span class="n">GiroKomfort</span><span class="num">780,11&nbsp;€</span></div>
+  <div class="bl-layer" style="--c:var(--acc-2)"><span class="bl-tick"><span class="ms">check</span></span><span class="n">Giro Haushalt</span><span class="num">1.142,52&nbsp;€</span></div>
+  <div class="bl-layer" style="--c:var(--acc-3)"><span class="bl-tick"><span class="ms">check</span></span><span class="n">Notgroschen</span><span class="num">4.200,00&nbsp;€</span></div>
+  <div class="bl-layer" style="--c:var(--acc-4)"><span class="bl-tick"><span class="ms">check</span></span><span class="n">Visa Classic</span><span class="num">−153,64&nbsp;€</span></div>
+
+  <div class="nav foot"><div class="item"><span class="ms">settings</span>Einstellungen</div></div>
+</nav>
+
+<main class="sheet">
+  <div class="bl-page">
+    <div class="bl-main">
+      <div class="bl-ask"><span class="ms">search</span><span class="q">Wie viel ging im Oktober an Lieferando?</span><span class="ib" title="Frage schließen"><span class="ms">close</span></span></div>
+    </div>
+
+    <div class="bl-main">
+      <div class="bl-tile wash">
+        <div class="say">
+          <p><svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg>Im Oktober hast du <span style="white-space:nowrap"><span class="f num">5</span>-mal</span> bei Lieferando bestellt, zusammen <span class="f num on">112,35&nbsp;€</span><span class="fn">1</span>. Im September waren es <span class="f num">2</span> Bestellungen für <span class="f num">38,90&nbsp;€</span><span class="fn">2</span>.</p>
+        </div>
+      </div>
+      <div class="sugg bl-sugg">
+        <span class="sg"><span class="ms">calendar_month</span>Und im November?</span>
+        <span class="sg"><span class="ms">restaurant</span>Essen gehen im Oktober</span>
+        <span class="sg"><span class="ms">receipt_long</span>Alle Umsätze bei Lieferando</span>
+      </div>
+    </div>
+
+    <aside class="bl-margin" aria-label="Belege zur Antwort">
+      <div class="bl-sn on">
+        <span class="no">1</span>
+        <div>
+          <div class="hd">Lieferando, Oktober<span class="ms">open_in_new</span></div>
+          <div class="sb">5 Buchungen · GiroKomfort</div>
+          <div class="bl-mini">
+            <div class="bl-mr"><span class="dk"><span class="ms">takeout_dining</span></span><span class="dt">Fr, 2. Oktober</span><span class="a num">18,90&nbsp;€</span></div>
+            <div class="bl-mr"><span class="dk"><span class="ms">takeout_dining</span></span><span class="dt">Fr, 9. Oktober</span><span class="a num">24,50&nbsp;€</span></div>
+            <div class="bl-mr"><span class="dk"><span class="ms">takeout_dining</span></span><span class="dt">Fr, 16. Oktober</span><span class="a num">21,35&nbsp;€</span></div>
+            <div class="bl-mr"><span class="dk"><span class="ms">takeout_dining</span></span><span class="dt">Fr, 23. Oktober</span><span class="a num">26,60&nbsp;€</span></div>
+            <div class="bl-mr"><span class="dk"><span class="ms">takeout_dining</span></span><span class="dt">Fr, 30. Oktober</span><span class="a num">21,00&nbsp;€</span></div>
+          </div>
+          <div class="bl-sum"><span>Zusammen</span><span class="num">112,35&nbsp;€</span></div>
+        </div>
+      </div>
+      <div class="bl-sn">
+        <span class="no">2</span>
+        <div>
+          <div class="hd">Lieferando, September<span class="ms">open_in_new</span></div>
+          <div class="sb">2 Buchungen · GiroKomfort</div>
+          <div class="bl-mini">
+            <div class="bl-mr"><span class="dk"><span class="ms">takeout_dining</span></span><span class="dt">Fr, 18. September</span><span class="a num">17,40&nbsp;€</span></div>
+            <div class="bl-mr"><span class="dk"><span class="ms">takeout_dining</span></span><span class="dt">Sa, 26. September</span><span class="a num">21,50&nbsp;€</span></div>
+          </div>
+          <div class="bl-sum"><span>Zusammen</span><span class="num">38,90&nbsp;€</span></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="bl-main">
+      <div class="bl-sum-head">
+        <div>
+          <div class="sub">Gesamtsaldo</div>
+          <div class="lead" style="margin-top:2px">5.968<span class="c">,99&nbsp;€</span></div>
+          <div class="meta">4 Konten bei 2 Banken · Stand <span class="num" style="letter-spacing:0">9:38</span> Uhr</div>
+        </div>
+        <div class="bl-figs">
+          <div><div class="l">Eingänge November</div><div class="v num pos">+84,20&nbsp;€</div></div>
+          <div><div class="l">Ausgänge November</div><div class="v num">−1.239,24&nbsp;€</div></div>
+          <div><div class="l">Demnächst fällig</div><div class="v num">−1.312,83&nbsp;€</div></div>
+        </div>
+      </div>
+
+      <div class="bl-accs">
+        <div class="bl-acc"><div class="disc"><span class="ms">account_balance_wallet</span><span class="bank"><img src="../../../../../public/logos/vrbank-mark.svg" alt=""></span></div><div class="nm">GiroKomfort</div><div class="v num">780,11&nbsp;€</div></div>
+        <div class="bl-acc"><div class="disc"><span class="ms">account_balance_wallet</span><span class="bank"><img src="../../../../../public/logos/sparkasse.svg" alt=""></span></div><div class="nm">Giro Haushalt</div><div class="v num">1.142,52&nbsp;€</div></div>
+        <div class="bl-acc"><div class="disc"><span class="ms">savings</span><span class="bank"><img src="../../../../../public/logos/vrbank-mark.svg" alt=""></span></div><div class="nm">Notgroschen</div><div class="v num">4.200,00&nbsp;€</div></div>
+        <div class="bl-acc"><div class="disc"><span class="ms">credit_card</span><span class="bank"><img src="../../../../../public/logos/vrbank-mark.svg" alt=""></span></div><div class="nm">Visa Classic</div><div class="v num">−153,64&nbsp;€</div></div>
+      </div>
+
+      <div class="bl-h2"><span class="sub">Neueste Umsätze</span><span class="btn text">Alle Umsätze</span></div>
+      <div class="bl-list">
+        <div class="row"><div class="disc"><span class="ms">smartphone</span></div><div class="nm">Telekom Deutschland GmbH</div><div class="meta trunc">Abos &amp; Medien · Lastschrift</div><div class="meta">Heute</div><div class="amt num">−39,95&nbsp;€</div></div>
+        <div class="row"><div class="disc"><span class="ms">shopping_bag</span></div><div class="nm">Zalando SE</div><div class="meta trunc">Shopping · über PayPal</div><div class="meta">Heute</div><div class="amt num">−33,52&nbsp;€</div></div>
+        <div class="row"><div class="disc"><span class="ms">sports_esports</span></div><div class="nm">Steamgames.com</div><div class="meta trunc">Freizeit · Visa</div><div class="meta">Heute</div><div class="amt num">−23,40&nbsp;€</div></div>
+        <div class="row"><div class="disc"><span class="ms">restaurant</span></div><div class="nm">Cafe Extrablatt</div><div class="meta trunc">Essen &amp; Trinken · girocard</div><div class="meta">Gestern</div><div class="amt num">−23,61&nbsp;€</div></div>
+        <div class="row"><div class="disc"><span class="ms">health_and_safety</span></div><div class="nm">Techniker Krankenkasse</div><div class="meta trunc">Versicherungen · Erstattung</div><div class="meta">2. Nov.</div><div class="amt num pos">+84,20&nbsp;€</div></div>
+        <div class="row"><div class="disc"><span class="ms">home</span></div><div class="nm">Hausverwaltung Kerner</div><div class="meta trunc">Wohnen · Dauerauftrag</div><div class="meta">2. Nov.</div><div class="amt num">−890,00&nbsp;€</div></div>
+      </div>
+    </div>
+  </div>
+</main>
+</body></html>

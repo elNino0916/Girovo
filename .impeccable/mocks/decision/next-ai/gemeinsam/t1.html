@@ -1,0 +1,97 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Einstellungen: Frag deine Umsätze (Telefon, Laden)</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css">
+<style>
+  /* the top app bar of a settings page */
+  .tbar{height:64px;display:flex;align-items:center;gap:4px;padding:0 4px}
+  .tbar .ttl{font-size:22px;line-height:28px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Einstellungen' grouped list: tiles on Container, 2px seams, 20px outer and 4px inner corners */
+  .grp{display:flex;flex-direction:column;gap:2px;margin:0 16px}
+  .tile{background:var(--sc1);border-radius:4px;display:grid;grid-template-columns:40px minmax(0,1fr) auto;column-gap:16px;align-items:center;
+    padding:12px 12px 12px 16px;min-height:72px}
+  .grp>.tile:first-child{border-top-left-radius:20px;border-top-right-radius:20px}
+  .grp>.tile:last-child{border-bottom-left-radius:20px;border-bottom-right-radius:20px}
+  .tile.wash{padding-right:16px}
+  .pd{width:40px;height:40px;border-radius:50%;background:var(--pc);color:var(--on-pc);display:grid;place-items:center;flex:none}
+  .pd .ms{font-size:22px}
+  .pd.plain{background:var(--surface)}
+  .tn{font-size:16px;line-height:22px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tl{font-size:14px;line-height:20px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gsub{font-size:14px;line-height:20px;font-weight:500;color:var(--primary);padding:24px 32px 8px}
+  .end{color:var(--ink-2)}
+  /* M3 switch, the selected one carries its check */
+  .sw{width:52px;height:32px;border-radius:16px;box-shadow:inset 0 0 0 2px var(--outline);position:relative;flex:none;background:var(--schh)}
+  .sw::after{content:'';position:absolute;left:8px;top:8px;width:16px;height:16px;border-radius:50%;background:var(--outline)}
+  .sw.on{background:var(--primary);box-shadow:none}
+  .sw.on::after{display:none}
+  .sw .th{position:absolute;left:24px;top:4px;width:24px;height:24px;border-radius:50%;background:var(--on-primary);color:var(--primary);display:grid;place-items:center}
+  .sw .th .ms{font-size:16px}
+  /* M3 linear progress: active part, a 4px gap, the track and its stop dot */
+  .lpi{display:flex;align-items:center;gap:4px;height:4px;margin:10px 0 8px}
+  .lpi .a{height:4px;border-radius:2px;background:var(--primary);flex:none}
+  .lpi .t{flex:1;height:4px;border-radius:2px;background:var(--pc);position:relative}
+  .lpi .t::after{content:'';position:absolute;right:0;top:0;width:4px;height:4px;border-radius:50%;background:var(--primary)}
+  .tile.dl{align-items:start;padding-top:14px;padding-bottom:12px}
+  .tile.dl .pd{margin-top:2px}
+  .tile.dl .ib{margin-top:-4px}
+  .note{display:flex;gap:12px;align-items:flex-start;padding:20px 32px 0;font-size:14px;line-height:20px;color:var(--ink-2)}
+  .note .ms{font-size:20px;margin-top:0}
+  .link{color:var(--primary);font-size:14px;line-height:20px;font-weight:500;padding:0 12px;height:40px;display:inline-flex;align-items:center;border-radius:20px}
+</style></head>
+<body style="width:393px;height:852px">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+<div class="phone">
+  <div class="status"><span class="num">14:02</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_5_bar</span></span></div>
+
+  <div class="tbar">
+    <div class="ib" title="Zurück zu Einstellungen"><span class="ms">arrow_back</span></div>
+    <div class="ttl">Frag deine Umsätze</div>
+  </div>
+
+  <!-- the switch, on Gemini's wash with the spark -->
+  <div class="grp" style="margin-top:8px">
+    <div class="tile wash">
+      <div class="pd plain"><svg class="spark l" viewBox="0 0 24 24"><use href="#spark"/></svg></div>
+      <div style="min-width:0"><div class="tn">Frag deine Umsätze</div><div class="tl">Antworten in ganzen Sätzen</div></div>
+      <span class="sw on" role="switch" aria-checked="true"><span class="th"><span class="ms">check</span></span></span>
+    </div>
+  </div>
+
+  <div class="gsub">Einmal laden</div>
+  <div class="grp">
+    <div class="tile dl">
+      <div class="pd"><span class="ms">download</span></div>
+      <div style="min-width:0">
+        <div class="tn">Lädt … <span class="num">1,1</span> von <span class="num">2,6</span> GB</div>
+        <div class="lpi" role="progressbar" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100"><span class="a" style="width:84px"></span><span class="t"></span></div>
+        <div class="tl">Noch etwa <span class="num">8</span> Minuten</div>
+      </div>
+      <div class="ib" title="Pausieren"><span class="ms">pause</span></div>
+    </div>
+    <div class="tile">
+      <div class="pd"><span class="ms">wifi</span></div>
+      <div style="min-width:0"><div class="tn">Nur im WLAN</div><div class="tl">Pausiert ohne WLAN.</div></div>
+      <span class="sw on" role="switch" aria-checked="true" style="margin-right:4px"><span class="th"><span class="ms">check</span></span></span>
+    </div>
+  </div>
+
+  <div class="gsub">Allgemein</div>
+  <div class="grp">
+    <div class="tile">
+      <div class="pd"><span class="ms">hard_drive</span></div>
+      <div style="min-width:0"><div class="tn">Speicher: <span class="num">2,6</span> GB</div><div class="tl">Noch frei: <span class="num">41</span> GB</div></div>
+      <span class="link">Löschen</span>
+    </div>
+    <div class="tile">
+      <div class="pd"><span class="ms">translate</span></div>
+      <div style="min-width:0"><div class="tn">Sprache der Antworten</div><div class="tl">Wie die App: Deutsch</div></div>
+      <span class="ms end" style="margin-right:4px">chevron_right</span>
+    </div>
+  </div>
+
+
+  <i class="handle"></i>
+</div>
+</body></html>

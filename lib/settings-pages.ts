@@ -12,6 +12,8 @@
 //                  and resetting it all
 //   appearance     Sprache & Darstellung (on Android: Sprache)
 //   privacy        Datenschutz — what can leave the device besides the bank's traffic
+//   ask            Frag deine Umsätze (Girovo Next) — asking on or off, where the
+//                  answers come from, their language
 //   about          Über Girovo — updates, the version, the links
 //
 // The search opens one setting (SettingsTarget): its page is PAGE_OF it.
@@ -20,12 +22,15 @@
 
 import type { SettingsTarget } from './app-types.ts';
 
-export type SettingsPage = 'security' | 'notifications' | 'accounts' | 'devices' | 'appearance' | 'privacy' | 'about';
+export type SettingsPage = 'security' | 'notifications' | 'accounts' | 'devices' | 'appearance' | 'privacy' | 'ask' | 'about';
 
-/** The list's order, in the clusters a phone draws apart: how you get in and are told; what is kept; the app itself. */
+/**
+ * The list's order, in the clusters a phone draws apart: how you get in and
+ * are told; what is kept and what reads it (asking, after Datenschutz); the app itself.
+ */
 export const PAGE_CLUSTERS: readonly (readonly SettingsPage[])[] = [
   ['security', 'notifications'],
-  ['accounts', 'devices', 'privacy'],
+  ['accounts', 'devices', 'privacy', 'ask'],
   ['appearance', 'about'],
 ];
 
@@ -48,6 +53,7 @@ export const PAGE_OF: Record<SettingsTarget, SettingsPage> = {
   black: 'appearance',
   logos: 'privacy',
   usage: 'privacy',
+  ask: 'ask',
   updates: 'about',
   channel: 'about',
   early: 'about',

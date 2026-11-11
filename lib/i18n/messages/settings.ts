@@ -14,6 +14,7 @@ export const de = {
     devices: 'Daten & Geräte',
     appearance: 'Sprache & Darstellung',
     privacy: 'Datenschutz',
+    ask: 'Frag deine Umsätze',
     about: `Über ${APP_NAME}`,
   },
   /** The pages' names in the desktop's folded rail, under their glyphs: a word each. */
@@ -24,6 +25,7 @@ export const de = {
     devices: 'Daten',
     appearance: 'Darstellung',
     privacy: 'Datenschutz',
+    ask: 'Fragen',
     about: 'Über',
   },
   /** Under each page's name in their list: what is on it, or how it is set. */
@@ -39,6 +41,8 @@ export const de = {
     kept: 'gespeicherte Daten',
     logos: 'Firmenlogos',
     usage: 'Nutzungsdaten',
+    askOn: 'Antworten in ganzen Sätzen',
+    askOff: 'Aus',
   },
   /** The subheaders inside a page. */
   groups: {
@@ -224,6 +228,29 @@ export const de = {
     hint: 'Eine Setup- oder Update-Datei von Girovo, auch eine ältere Version',
   },
 
+  /**
+   * Girovo Next: the page "Frag deine Umsätze" (components/settings/AskSettings.tsx).
+   * The switch writes vault.askOff; the model row is what answers: Gemini Nano
+   * where the phone has it, else Girovo's own model, not loadable yet.
+   */
+  ask: {
+    title: 'Frag deine Umsätze',
+    hint: 'Antworten in ganzen Sätzen',
+    group: 'Antworten',
+    nano: 'Gemini Nano',
+    nanoReady: 'Bereit',
+    nanoDownloading: 'Android lädt es gerade',
+    nanoDownloadable: 'Noch nicht geladen',
+    model: 'Sprachmodell',
+    /** Its size: on a phone, and on the desktop. */
+    modelSize: (phone: boolean): string => (phone ? 'Etwa 2,6 GB' : 'Etwa 3 GB'),
+    load: 'Laden',
+    later: 'Kommt mit einer der nächsten Versionen.',
+    language: 'Sprache der Antworten',
+    /** The app's language name ("Deutsch"): answers follow it. */
+    languageValue: (name: string) => `Wie die App: ${name}`,
+  },
+
   /** Einstellungen → Dieses Gerät, the desktop app (components/settings/ResetApp.tsx, src-tauri/src/reset.rs). */
   resetApp: {
     row: 'Girovo zurücksetzen',
@@ -245,6 +272,7 @@ export const en: typeof de = {
     devices: 'Data & devices',
     appearance: 'Language & appearance',
     privacy: 'Privacy',
+    ask: 'Ask your transactions',
     about: `About ${APP_NAME}`,
   },
   pagesShort: {
@@ -254,6 +282,7 @@ export const en: typeof de = {
     devices: 'Data',
     appearance: 'Appearance',
     privacy: 'Privacy',
+    ask: 'Ask',
     about: 'About',
   },
   summary: {
@@ -268,6 +297,8 @@ export const en: typeof de = {
     kept: 'saved data',
     logos: 'Company logos',
     usage: 'Usage data',
+    askOn: 'Answers in full sentences',
+    askOff: 'Off',
   },
   groups: {
     signIn: 'Sign-in',
@@ -398,6 +429,22 @@ export const en: typeof de = {
   fromFile: {
     title: 'Install an update from a file',
     hint: 'A Girovo setup or update file, an older version too',
+  },
+
+  ask: {
+    title: 'Ask your transactions',
+    hint: 'Answers in full sentences',
+    group: 'Answers',
+    nano: 'Gemini Nano',
+    nanoReady: 'Ready',
+    nanoDownloading: 'Android is downloading it',
+    nanoDownloadable: 'Not downloaded yet',
+    model: 'Language model',
+    modelSize: (phone) => (phone ? 'About 2.6 GB' : 'About 3 GB'),
+    load: 'Download',
+    later: 'Coming in one of the next versions.',
+    language: 'Language of the answers',
+    languageValue: (name) => `Same as the app: ${name}`,
   },
 
   resetApp: {

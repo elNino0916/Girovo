@@ -1,0 +1,73 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Gespräch, Telefon</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css">
+<style>
+  .bar{height:64px;display:flex;align-items:center;gap:4px;padding:0 4px}
+  .bar .t{flex:1;min-width:0;font-size:22px;line-height:28px;font-weight:400}
+  .thread{position:absolute;top:100px;left:0;right:0;bottom:156px;overflow:hidden;padding:4px 16px 0}
+  .me{margin-left:auto;max-width:300px;width:fit-content;background:var(--sc);border-radius:20px 20px 4px 20px;padding:10px 16px}
+  .ans{margin-top:16px;border-radius:16px;padding:14px 16px 12px}
+  .ans .hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .ans .hd .where{font-weight:400}
+  .ans .acts{display:flex;align-items:center;gap:8px;margin-top:12px}
+  .ans .btn{height:36px;padding:0 16px;background:color-mix(in srgb,var(--surface) 70%,transparent);color:var(--on-sc)}
+  .ans .ib{width:36px;height:36px;margin-left:auto}
+  .ans .ib .ms{font-size:20px}
+  .gap{height:20px}
+  .mini{margin:10px -8px 0;background:color-mix(in srgb,var(--surface) 72%,transparent);border-radius:12px;padding:2px 0}
+  .mini .row{min-height:52px;padding:6px 12px;column-gap:12px;grid-template-columns:32px minmax(0,1fr) auto}
+  .mini .disc{width:32px;height:32px}
+  .mini .disc .ms{font-size:18px}
+  .mini .name{font-size:14px;line-height:20px}
+  .mini .meta{font-size:12px;line-height:16px}
+  .mini .amt{font-size:14px;line-height:20px}
+  .dock{position:absolute;left:0;right:0;bottom:0;padding:10px 16px 30px;background:var(--surface)}
+  .fade{position:absolute;left:0;right:0;bottom:156px;height:24px;background:linear-gradient(to bottom,transparent,var(--surface))}
+</style></head>
+<body style="width:393px;height:852px">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+<div class="phone">
+  <div class="status"><span class="num">9:41</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+  <div class="bar">
+    <div class="ib"><span class="ms">arrow_back</span></div>
+    <div class="t">Fragen</div>
+    <div class="ib"><span class="ms">history</span></div>
+    <div class="ib"><span class="ms">edit_square</span></div>
+  </div>
+
+  <div class="thread">
+    <div class="me"><div class="asked">Wie viel hab ich im Oktober fürs Essen gehen ausgegeben?</div></div>
+
+    <div class="ans wash">
+      <div class="hd"><svg class="spark s" viewBox="0 0 24 24"><use href="#spark"/></svg></div>
+      <div class="say"><p>Im Oktober waren es <span class="f num">186,40&nbsp;€</span> bei <span class="f num">14</span> Besuchen. Das sind <span class="f num">42,10&nbsp;€</span> mehr als im September. Am meisten ging an Cafe Extrablatt: <span class="f num">61,20&nbsp;€</span>.</p></div>
+      <div class="acts"><span class="btn">14 Umsätze zeigen</span><span class="ib"><span class="ms">content_copy</span></span></div>
+    </div>
+
+    <div class="gap"></div>
+    <div class="me"><div class="asked">Und Lieferando?</div></div>
+
+    <div class="ans wash">
+      <div class="hd"><svg class="spark s" viewBox="0 0 24 24"><use href="#spark"/></svg></div>
+      <div class="say"><p>Bei Lieferando hast du im Oktober <span style="white-space:nowrap"><span class="f num">5</span>-mal</span> bestellt, zusammen <span class="f num">112,35&nbsp;€</span>. Im September waren es <span class="f num">2</span> Bestellungen für <span class="f num">38,90&nbsp;€</span>.</p></div>
+      <div class="mini">
+        <div class="row"><div class="disc"><span class="ms">delivery_dining</span></div><div class="t"><div class="name">Lieferando</div><div class="meta">Do., 29. Oktober · Visa</div></div><div class="amt num">−31,80&nbsp;€</div></div>
+        <div class="row"><div class="disc"><span class="ms">delivery_dining</span></div><div class="t"><div class="name">Lieferando</div><div class="meta">Sa., 24. Oktober · Visa</div></div><div class="amt num">−22,45&nbsp;€</div></div>
+      </div>
+    </div>
+  </div>
+  <i class="fade"></i>
+
+  <div class="dock">
+    <div class="sugg" style="margin-bottom:10px">
+      <span class="sg"><span class="ms">arrow_forward</span>Und im November?</span>
+      <span class="sg">Alle Lieferdienste</span>
+      <span class="sg">Pro Woche</span>
+    </div>
+    <div class="composer"><span class="ph">Weiter fragen</span><span class="send off"><span class="ms">arrow_upward</span></span></div>
+  </div>
+  <i class="handle"></i>
+</div>
+</body></html>

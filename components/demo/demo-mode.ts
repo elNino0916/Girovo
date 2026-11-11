@@ -6,6 +6,7 @@
 // only: a reload is back at the real login, and nothing of the demo is kept.
 
 import { useSyncExternalStore } from 'react';
+import { clearAsk } from '../insights/ask-thread-store';
 
 let demo = false;
 const listeners = new Set<() => void>();
@@ -17,7 +18,11 @@ function set(next: boolean) {
 }
 
 export const startDemo = () => set(true);
-export const endDemo = () => set(false);
+export const endDemo = () => {
+  // Girovo Next: the demo's conversations go with it.
+  clearAsk();
+  set(false);
+};
 
 function subscribe(l: () => void) {
   listeners.add(l);

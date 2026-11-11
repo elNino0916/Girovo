@@ -135,6 +135,9 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
   if (base.keepBookings) out.keepBookings = true;
   // This device's view (Konten als Ebenen), never another's.
   if (base.accountsHidden?.length) out.accountsHidden = base.accountsHidden;
+  // Girovo Next: asking switched off, and its sheet seen, are this device's too.
+  if (base.askOff) out.askOff = true;
+  if (base.askIntroSeen) out.askIntroSeen = true;
   // A reminder set on one device reminds on all; what this one's Mitteilungen showed is its own.
   if (Object.keys(maps.contractReminders).length) out.contractReminders = maps.contractReminders as NonNullable<VaultData['contractReminders']>;
   if (Object.keys(maps.contractNames).length) out.contractNames = maps.contractNames as NonNullable<VaultData['contractNames']>;

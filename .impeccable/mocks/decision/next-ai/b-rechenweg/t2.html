@@ -1,0 +1,91 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Rechenweg Netflix</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css"><link rel="stylesheet" href="rail.css">
+<style>
+  .rw-tbar{height:64px;display:flex;align-items:center;gap:4px;padding:0 4px}
+  .rw-tbar .t{flex:1;font-size:22px;line-height:28px;font-weight:500}
+  .rw-mark{width:8px;height:8px;border-radius:50%;background:var(--orange);display:inline-block;flex:none}
+  .rw-head{display:grid;grid-template-columns:48px minmax(0,1fr) auto;column-gap:16px;align-items:center;padding:4px 16px 0}
+  .rw-head .disc{width:48px;height:48px}
+  .rw-head .disc .ms{font-size:24px}
+  .rw-sec{display:flex;align-items:center;gap:10px;padding:24px 16px 12px;font-size:18px;line-height:24px;font-weight:500}
+  .rw-stmt{margin-top:6px}
+  .rw-stmt div{display:flex;justify-content:space-between;height:28px;align-items:center;font-size:14px;line-height:20px;color:var(--ink-2)}
+  .rw-stmt div.now{color:var(--ink);font-weight:500}
+  .rw-acts{display:flex;gap:8px;align-items:center;padding:24px 16px 0}
+</style></head>
+<body style="width:393px;height:852px">
+<div class="phone">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+
+  <!-- behind: Verträge & Abos, a level below Zahlungen -->
+  <div class="status"><span class="num">14:12</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+  <div class="rw-tbar"><div class="ib"><span class="ms">arrow_back</span></div><span class="t">Verträge &amp; Abos</span><div class="ib"><span class="ms">search</span></div></div>
+  <div class="meta" style="padding:0 16px">11 erkannt · Fixkosten pro Jahr mind. <span class="num ink">12.946,08&nbsp;€</span></div>
+  <div class="day" style="padding-top:20px">Monatlich</div>
+  <div class="row"><div class="disc"><span class="ms">home</span></div><div class="t"><div class="name">Hausverwaltung Kerner</div><div class="meta">Wohnen · Dauerauftrag · am 1.</div></div><div class="amt num">−890,00&nbsp;€</div></div>
+  <div class="row"><div class="disc"><span class="ms">smartphone</span></div><div class="t"><div class="name">Telekom Deutschland GmbH</div><div class="meta">Lastschrift · am 11.</div></div><div class="amt num">−39,95&nbsp;€</div></div>
+  <div class="row"><div class="disc"><span class="ms">subscriptions</span></div><div class="t"><div class="name">Netflix</div><div class="meta"><span class="rw-mark" style="margin-right:6px;vertical-align:1px"></span>Teurer seit Oktober</div></div><div class="amt num">−13,99&nbsp;€</div></div>
+  <div class="row"><div class="disc"><span class="ms">subscriptions</span></div><div class="t"><div class="name">Spotify AB</div><div class="meta">Lastschrift · am 21.</div></div><div class="amt num">−11,99&nbsp;€</div></div>
+  <nav class="nav">
+    <div class="it"><div class="pill"><span class="ms">home</span></div>Übersicht</div>
+    <div class="it on"><div class="pill"><span class="ms fill">swap_horiz</span></div>Zahlungen</div>
+    <div class="it"><div class="pill"><span class="ms">bar_chart</span></div>Analyse</div>
+  </nav>
+
+  <div class="scrim"></div>
+
+  <!-- the contract's sheet, its price rise worked out on the rail -->
+  <div class="sheet" style="padding-bottom:40px">
+    <div class="grab"></div>
+    <div class="rw-head">
+      <div class="disc"><span class="ms">subscriptions</span></div>
+      <div style="min-width:0">
+        <div style="font-size:22px;line-height:28px;font-weight:500">Netflix</div>
+        <div class="meta">Nächste Abbuchung am 15. November</div>
+      </div>
+      <div style="text-align:right">
+        <div class="num" style="font-size:18px;line-height:24px;font-weight:500">13,99&nbsp;€</div>
+        <div class="meta">im Monat</div>
+      </div>
+    </div>
+
+    <div class="rw-sec"><span class="rw-mark"></span>Teurer seit Oktober</div>
+
+    <div class="rw" style="padding:0 16px">
+      <div class="rw-step" style="--dn:0px">
+        <div class="rw-disc"><span class="ms">event_repeat</span></div>
+        <div>
+          <div class="rw-title">Netflix bucht jeden Monat</div>
+          <div class="rw-meta">Immer am 15., per Lastschrift</div>
+        </div>
+      </div>
+      <div class="rw-step" style="--dn:17px">
+        <div class="rw-disc"><span class="ms">trending_up</span></div>
+        <div>
+          <div class="rw-title"><span class="num" style="letter-spacing:0">Oktober 13,99&nbsp;€ statt 11,99&nbsp;€</span></div>
+          <div class="rw-stmt">
+            <div><span>15. August</span><span class="num">−11,99&nbsp;€</span></div>
+            <div><span>15. September</span><span class="num">−11,99&nbsp;€</span></div>
+            <div class="now"><span>15. Oktober</span><span class="num">−13,99&nbsp;€</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="rw-step end" style="--d:17px">
+        <div class="rw-disc ai"><svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg></div>
+        <div class="wash rw-answer">
+          <div class="say l"><p>Netflix kostet seit Oktober <span class="f num">2,00&nbsp;€</span> mehr im Monat. Aufs Jahr sind das <span class="f num">24,00&nbsp;€</span> mehr.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rw-acts">
+      <span class="btn tonal"><span class="ms">receipt_long</span>Alle Netflix Umsätze</span>
+      <span class="btn text" title="Bei Netflix kündigen">Kündigen<span class="ms">open_in_new</span></span>
+    </div>
+    <i class="handle"></i>
+  </div>
+</div>
+</body></html>

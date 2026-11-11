@@ -1,0 +1,100 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=393"><title>Rechenweg Teilweise</title>
+<link rel="stylesheet" href="../phone.css"><link rel="stylesheet" href="../ai.css"><link rel="stylesheet" href="rail.css">
+<style>
+  .gh{position:absolute;bottom:8px;left:50%;width:108px;height:4px;margin-left:-54px;border-radius:2px;background:var(--ink);opacity:.38}
+  /* the year as twelve months: what is loaded, what is not yet, what is still ahead */
+  .rw-year{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:3px;margin-top:12px}
+  .rw-year .m{height:8px;border-radius:2px;display:flex;overflow:hidden}
+  .rw-year .m i{display:block;height:100%}
+  .rw-year .miss{background:repeating-linear-gradient(135deg,var(--ov) 0 1.5px,transparent 1.5px 4.5px);box-shadow:inset 0 0 0 1px var(--ov);border-radius:2px}
+  .rw-year .in{background:var(--primary)}
+  .rw-year .ahead{background:var(--sch)}
+  .rw-year .l{margin-top:6px;text-align:center;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+  .rw-year .l.on{color:var(--ink)}
+  .rw-key{display:flex;gap:16px;margin-top:8px;font-size:12px;line-height:16px;color:var(--ink-2)}
+  .rw-key span{display:inline-flex;align-items:center;gap:6px}
+  .rw-key i{width:12px;height:8px;border-radius:2px;display:inline-block}
+</style></head>
+<body style="width:393px;height:852px">
+<div class="phone">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+
+  <div class="status"><span class="num">14:12</span><span><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+
+  <div class="rw-bar">
+    <div class="ib" title="Zurück zur Übersicht"><span class="ms">arrow_back</span></div>
+    <div class="ib" title="Beträge ausblenden"><span class="ms">visibility</span></div>
+  </div>
+
+  <div class="rw" style="padding:4px 16px 0">
+    <div class="rw-step" style="--d:12px;--dn:0px">
+      <div class="rw-disc"><span class="ms">search</span></div>
+      <div class="rw-q"><span class="t">Wie viel hab ich dieses Jahr für die Bahn ausgegeben?</span><span class="x" title="Frage löschen"><span class="ms">close</span></span></div>
+    </div>
+
+    <div class="rw-step" style="--dn:0px">
+      <div class="rw-disc"><span class="ms">tune</span></div>
+      <div>
+        <div class="rw-label">Gelesen als</div>
+        <div class="rw-chips">
+          <div class="chip tr rw-read">Deutsche Bahn<span class="ms">expand_more</span></div>
+          <div class="chip tr rw-read">2026<span class="ms">expand_more</span></div>
+          <div class="chip tr rw-read">Ausgaben<span class="ms">expand_more</span></div>
+          <div class="chip tr rw-read">Alle Konten<span class="ms">expand_more</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rw-step" style="--dn:17px">
+      <div class="rw-disc"><span class="ms">receipt_long</span></div>
+      <div>
+        <div class="rw-label">Gefunden</div>
+        <div class="rw-found" style="margin-top:2px"><span class="rw-title num" style="letter-spacing:0">9 Umsätze, 14. August bis heute</span><span class="ms" title="Aufklappen">expand_more</span></div>
+        <div class="rw-meta">Erst ab 14. August geladen.</div>
+        <div class="rw-year" aria-label="Geladen vom 14. August bis heute">
+          <div><div class="m miss"></div><div class="l">J</div></div>
+          <div><div class="m miss"></div><div class="l">F</div></div>
+          <div><div class="m miss"></div><div class="l">M</div></div>
+          <div><div class="m miss"></div><div class="l">A</div></div>
+          <div><div class="m miss"></div><div class="l">M</div></div>
+          <div><div class="m miss"></div><div class="l">J</div></div>
+          <div><div class="m miss"></div><div class="l">J</div></div>
+          <div><div class="m"><i class="miss" style="width:42%;border-radius:2px 0 0 2px"></i><i class="in" style="width:58%"></i></div><div class="l on">A</div></div>
+          <div><div class="m in"></div><div class="l on">S</div></div>
+          <div><div class="m in"></div><div class="l on">O</div></div>
+          <div><div class="m"><i class="in" style="width:37%"></i><i class="ahead" style="width:63%"></i></div><div class="l on">N</div></div>
+          <div><div class="m ahead"></div><div class="l">D</div></div>
+        </div>
+        <div class="rw-key">
+          <span><i style="background:var(--primary)"></i>Geladen</span>
+          <span><i style="background:repeating-linear-gradient(135deg,var(--ov) 0 1.5px,transparent 1.5px 4.5px);box-shadow:inset 0 0 0 1px var(--ov)"></i>Noch nicht geladen</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="rw-step end" style="--d:17px">
+      <div class="rw-disc ai"><svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg></div>
+      <div>
+        <div class="wash rw-answer">
+          <div class="say l"><p>Dieses Jahr hast du mind. <span class="f num">214,60&nbsp;€</span> für die Bahn ausgegeben. Das sind <span class="f num">9</span> Umsätze seit 14. August, ältere sind noch nicht geladen.</p></div>
+        </div>
+        <div style="margin-top:12px">
+          <span class="btn tonal"><span class="ms">history</span>Ältere Umsätze laden</span>
+          <div class="rw-meta" style="margin-top:6px;padding-left:4px">Kann eine Freigabe erfordern.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rw-next" style="margin:20px 0 0 56px">
+    <span class="sg"><span class="ms">bar_chart</span>Pro Monat</span>
+    <span class="sg"><span class="ms">directions_car</span>Alles für Mobilität</span>
+    <span class="sg"><span class="ms">arrow_upward</span>Teuerste Fahrt</span>
+  </div>
+
+  <i class="gh"></i>
+</div>
+</body></html>

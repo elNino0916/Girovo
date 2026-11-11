@@ -1,0 +1,53 @@
+/* Direction B, "Rechenweg": one answer at a time, its working shown as a
+   short sequence of steps on a thin rail. The rail is a 2px line in the
+   outline-variant tone that joins 24px step discs, 4px clear of each disc.
+   Every class is rw- so nothing collides with phone.css or desk.css.
+   Mock only. */
+
+.rw-bar{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 4px}
+
+.rw{position:relative}
+.rw-step{position:relative;display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:16px;padding-bottom:var(--rw-gap,20px)}
+.rw-step.end{padding-bottom:0}
+/* the rail: from 4px under this disc to 4px over the next one.
+   --d is this step's disc offset, --dn the next step's. */
+.rw-step::before{content:'';position:absolute;left:11px;width:2px;border-radius:1px;background:var(--ov);
+  top:calc(var(--d,0px) + 28px);bottom:calc(4px - var(--dn,0px))}
+.rw-step.end::before{display:none}
+.rw-disc{width:24px;height:24px;border-radius:50%;background:var(--sch);color:var(--ink-2);display:grid;place-items:center;
+  margin-top:var(--d,0px);position:relative}
+.rw-disc .ms{font-size:16px;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20}
+/* the answer's disc carries the spark on the wash */
+.rw-disc.ai{background-color:var(--sc1);background-image:var(--wash)}
+.rw-disc.ai .spark{width:16px;height:16px}
+
+.rw-label{font-size:14px;line-height:24px;font-weight:500;color:var(--ink-2)}
+.rw-title{font-size:16px;line-height:24px;font-weight:500;color:var(--ink)}
+.rw-meta{font-size:14px;line-height:20px;color:var(--ink-2)}
+
+/* step 1: the question as typed, still a field */
+.rw-q{display:flex;align-items:flex-start;gap:4px;background:var(--sch);border-radius:20px;padding:12px 4px 12px 16px;min-height:48px}
+.rw-q .t{flex:1;min-width:0;font-size:16px;line-height:24px;color:var(--ink)}
+.rw-q .x{width:40px;height:40px;margin-top:-8px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);flex:none}
+
+/* step 2: the reading, as chips that change it */
+.rw-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+
+/* step 3: what was counted */
+.rw-found{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rw-found .ms{color:var(--ink-2);font-size:24px}
+.rw-places{margin-top:6px}
+.rw-place{display:grid;grid-template-columns:minmax(0,1fr) 52px 84px;column-gap:8px;align-items:center;height:36px;font-size:14px;line-height:20px}
+.rw-place .n{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rw-place .c{color:var(--ink-2);text-align:right;font-variant-numeric:tabular-nums}
+.rw-place .a{font-weight:500;text-align:right}
+.rw-place.more .n{font-weight:400;color:var(--ink-2)}
+
+/* step 4: the answer on the wash */
+.rw-answer{border-radius:16px;padding:16px}
+
+/* next questions: start on the steps' edge, run off the screen's */
+.rw-next{display:flex;gap:8px;overflow:hidden}
+
+/* phone: the reading chips set, in the tonal wash, without a leading glyph */
+.chip.rw-read{background:var(--sc);color:var(--on-sc);box-shadow:none;padding-left:12px}

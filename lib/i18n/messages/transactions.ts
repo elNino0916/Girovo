@@ -307,6 +307,15 @@ export const de = {
     provider: 'Zahlungsdienstleister',
     providerIban: 'IBAN des Zahlungsdienstleisters',
     country: 'Land',
+    /** Girovo Next: the asking bar at the foot of a booking's details (TxDetail.tsx AskAboutBooking). */
+    ask: {
+      title: 'Frag zu diesem Umsatz',
+      /** Two questions about the counterparty, for a debit and for a credit. */
+      debit: (name: string) => [`Wie oft zahle ich bei ${name}?`, `Was ging dieses Jahr an ${name}?`],
+      credit: (name: string) => [`Wie oft kam Geld von ${name}?`, `Was kam dieses Jahr von ${name}?`],
+      own: 'Eigene Frage',
+      send: 'Fragen',
+    },
   },
 
   /** How the drawer files a booking, and the rules (TxDetail.tsx CategorySection, RuleList). */
@@ -811,6 +820,13 @@ export const en: typeof de = {
     provider: 'Payment provider',
     providerIban: 'Payment provider’s IBAN',
     country: 'Country',
+    ask: {
+      title: 'Ask about this transaction',
+      debit: (name) => [`How often do I pay ${name}?`, `What went to ${name} this year?`],
+      credit: (name) => [`How often did money come from ${name}?`, `What came from ${name} this year?`],
+      own: 'Your own question',
+      send: 'Ask',
+    },
   },
 
   categorize: {

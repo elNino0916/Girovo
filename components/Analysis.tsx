@@ -47,7 +47,7 @@ import {
   AnalysisSkeleton, CategoryBreakdown, Kpi, LargestExpenses, MonthlyComparison, PeriodPicker, TopPayees,
   periodLabel,
 } from './insights/AnalysisParts';
-import { AskTile } from './insights/Ask';
+import { AnalysisAskHead } from './insights/AskThread';
 import { BudgetDialog, BudgetTile } from './insights/Budgets';
 import { TaxYearTile } from './insights/TaxYear';
 import { CategoryCheckDrawer, CategoryCheckSummary, useCategoryCheck } from './insights/CategoryCheck';
@@ -323,8 +323,8 @@ export function Analysis() {
 
   return (
     <div className="min-w-0 space-y-4 sm:space-y-6">
-      {/* Android, where the phone has Gemini Nano: a question about these bookings. */}
-      <AskTile data={data} />
+      {/* Girovo Next: last month's recap, the way into a conversation about it (or, on a phone that can't ask, why). */}
+      <AnalysisAskHead data={data} />
 
       {/* ---- Toolbar, basis and the headline figures --------------------- */}
       <section className="panel overflow-hidden" aria-labelledby={headingId}>

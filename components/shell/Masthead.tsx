@@ -31,10 +31,9 @@ import type { CSSProperties } from 'react';
 import { hasOverview } from '@/lib/account-overview';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
-import { askAllowed } from '@/lib/plus';
 import { useFints } from '../FintsProvider';
 import { ThemeMenu } from '../ThemeToggle';
-import { useAskable } from '../insights/Ask';
+import { useCanAsk } from '../insights/ask-gate';
 import { useContractNotices } from '../insights/contract-notices';
 import { useSettingsPages } from '../settings/Settings';
 import { unseenUpdate, useUpdates } from '../updates/store';
@@ -69,10 +68,9 @@ function PageTitle({ hidden = false, text }: { hidden?: boolean; text?: string }
  * is the Sitzung panel's.
  */
 function SearchBar() {
-  const { setPaletteOpen, plus } = useFints();
+  const { setPaletteOpen } = useFints();
   const t = useT();
-  const askable = useAskable();
-  const canAsk = askable === true && askAllowed(plus.state);
+  const canAsk = useCanAsk();
   const placeholder = canAsk ? t.shell.searchBar.ask : t.shell.searchBar.plain;
   return (
     // 56dp on a phone; in the desktop's title bar (60px, less when zoomed) 48 at most.

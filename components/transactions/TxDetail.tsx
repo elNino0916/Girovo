@@ -34,6 +34,8 @@ import {
 } from './model';
 import { seriesIdentity } from '@/lib/recurring';
 import { AddContractDialog, useInContract } from '../insights/AddContract';
+import { useCanAsk } from '../insights/ask-gate';
+import { AskAboutBooking } from './AskAboutBooking';
 
 /** SEPA purpose tags whose value is an amount: Ursprungsbetrag, Zinskompensationsbetrag. */
 const AMOUNT_TAGS = new Set(['OAMT', 'COAM']);
@@ -106,6 +108,12 @@ export function TxDetail({
     : cat.parts?.length ? <PieIcon size={26} />
       : cat.id !== 'other' && cat.id !== 'otherIn' ? <CategoryIcon id={cat.id} size={26} /> : undefined;
   const query = counterpartyQuery(tx);
+  // Girovo Next: questions about the counterparty, at the foot of the details;
+  // a Vormerkposten too (its payee is the same), never a booking without one.
+  const canAsk = useCanAsk();
+  const askBar = canAsk && query && text.name
+    ? <AskAboutBooking name={text.name} credit={credit} onClose={onClose} />
+    : undefined;
   const iban = String(tx.remoteIban ?? '').replace(/\s+/g, '');
   const bic = txBic(tx);
   // Where the terminal stood beats the IBAN's country: behind a card
@@ -255,7 +263,15 @@ export function TxDetail({
   );
 
   return (
-    <Drawer open onClose={onClose} title={pending ? words.pendingTitle : words.title} bodyClassName="px-4 pt-4 pb-8 sm:px-6">
+    <Drawer
+      open
+      onClose={onClose}
+      title={pending ? words.pendingTitle : words.title}
+      bodyClassName="px-4 pt-4 pb-8 sm:px-6"
+      footer={askBar}
+      // The asking bar is its own surface: no hairline, no padding around it.
+      footerClassName={askBar ? '' : undefined}
+    >
       <div className="flex items-center gap-4">
         <CounterpartyAvatar tx={tx} name={text.name} credit={credit} pending={pending} size="lg" glyph={detailGlyph} />
         <div className="min-w-0">

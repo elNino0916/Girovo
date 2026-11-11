@@ -1,0 +1,165 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=1440"><title>Einstellungen: Frag deine Umsätze (Desktop)</title>
+<link rel="stylesheet" href="../desk.css"><link rel="stylesheet" href="../ai.css">
+<style>
+  /* the mini month (a-ebenen) */
+  .month{margin:16px 16px 0;padding:0 4px}
+  .month-h{display:flex;align-items:center;justify-content:space-between;padding:0 0 4px 8px}
+  .month-h .t{font-weight:500}
+  .month-h .ib{width:32px;height:32px}
+  .grid7{display:grid;grid-template-columns:repeat(7,32px);justify-content:space-between}
+  .wd{height:24px;display:grid;place-items:center;font-size:12px;line-height:16px;font-weight:500;color:var(--ink-2)}
+  .d{height:32px;display:grid;place-items:center;position:relative;font-size:12px;line-height:16px;font-weight:500;font-variant-numeric:tabular-nums}
+  .d.out{color:#5f6672}
+  .d.today span{width:28px;height:28px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:grid;place-items:center}
+  .d.due::after{content:'';position:absolute;bottom:1px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--ink-2)}
+  .legend{display:flex;gap:16px;padding:6px 8px 0;font-size:12px;line-height:16px;color:var(--ink-2)}
+  .legend i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  /* accounts as layers */
+  .layer{height:36px;display:flex;align-items:center;gap:12px;padding:0 16px;margin:0 12px;border-radius:18px}
+  .tick{width:18px;height:18px;border-radius:4px;display:grid;place-items:center;flex:none;color:#fff}
+  .tick .ms{font-size:16px;font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 20}
+  .layer .nm{flex:1;font-weight:400}
+  .layer .num{font-weight:500}
+
+  /* inside the sheet: the settings pages on the left, the open page beside them */
+  .split{display:grid;grid-template-columns:288px minmax(0,1fr);height:100%}
+  .pages{padding:28px 12px 0}
+  .pages h1{margin:0;padding:0 16px 16px;font-size:22px;line-height:28px;font-weight:500}
+  .pg{height:40px;border-radius:20px;display:flex;align-items:center;gap:14px;padding:0 16px;font-weight:500;color:var(--ink);white-space:nowrap}
+  .pg .ms{font-size:22px;color:var(--ink-2)}
+  .pg.on{background:var(--sc);color:var(--on-sc)}
+  .pg .spark{width:22px;height:22px}
+  .gap{height:12px}
+  .page{padding:28px 48px 0 40px}
+  .page h2{margin:0;font-size:22px;line-height:28px;font-weight:500}
+  .page .lede{margin-top:4px;color:var(--ink-2);font-size:14px;line-height:20px}
+  /* Einstellungen' grouped list */
+  .grp{display:flex;flex-direction:column;gap:2px;max-width:720px}
+  .srow{min-height:64px;display:grid;grid-template-columns:24px minmax(0,1fr) auto;column-gap:20px;align-items:center;padding:10px 20px;background:var(--sc1);border-radius:4px}
+  .grp>.srow:first-child{border-top-left-radius:20px;border-top-right-radius:20px}
+  .grp>.srow:last-child{border-bottom-left-radius:20px;border-bottom-right-radius:20px}
+  .srow>.ms{color:var(--ink-2);font-size:24px}
+  .srow .rn{font-size:16px;line-height:22px;font-weight:500}
+  .srow .rl{font-size:14px;line-height:20px;color:var(--ink-2)}
+  .srow.big{min-height:76px}
+  .gsub{font-size:14px;line-height:20px;font-weight:500;color:var(--primary);padding:28px 0 8px 4px}
+  .sw{width:52px;height:32px;border-radius:16px;position:relative;flex:none;background:var(--primary)}
+  .sw .th{position:absolute;left:24px;top:4px;width:24px;height:24px;border-radius:50%;background:var(--on-primary);color:var(--primary);display:grid;place-items:center}
+  .sw .th .ms{font-size:16px}
+  .ready{color:var(--green)}
+  .note{display:flex;gap:12px;align-items:center;padding:20px 0 0 4px;color:var(--ink-2)}
+  .note .ms{font-size:20px}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="spark-g" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 6.9 7.5 8.5-4.6 1.6-6.9 4.1-7.5 8.5-.6-4.4-2.9-6.9-7.5-8.5 4.6-1.6 6.9-4.1 7.5-8.5z" fill="url(#spark-g)"/></symbol>
+</defs></svg>
+
+<header class="titlebar">
+  <div class="brand">
+    <div class="ib"><span class="ms l">menu</span></div>
+    <svg class="plate" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#7b4fe0"/><g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M361.4 151.8A136 136 0 1 0 405.1 292H280" stroke-width="46"/><path d="M100 222H244M100 292H208" stroke-width="40"/></g></svg>
+    <span class="wm">Girovo</span>
+  </div>
+  <div class="search" style="width:640px"><span class="ms">search</span><span class="ph">Umsätze und mehr suchen</span><span class="key">Strg K</span></div>
+  <div class="tools">
+    <div class="ib"><span class="ms">notifications</span><i class="dot" style="top:9px;right:10px"></i></div>
+    <div class="ib"><span class="ms">visibility</span></div>
+    <div class="ib"><span class="ms">contrast</span></div>
+    <div class="ib"><div class="avatar">NB</div></div>
+  </div>
+  <div class="caption"><i><svg viewBox="0 0 10 10"><path d="M0 5.5H10"/></svg></i><i><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" rx="1.5"/></svg></i><i><svg viewBox="0 0 10 10"><path d="M.5 .5L9.5 9.5M9.5 .5L.5 9.5"/></svg></i></div>
+</header>
+
+<nav class="side" aria-label="Navigation">
+  <div class="fab"><span class="ms">swap_horiz</span>Überweisen</div>
+  <div class="nav">
+    <div class="item"><span class="ms">home</span>Übersicht</div>
+    <div class="item"><span class="ms">payments</span>Zahlungen<span class="end num">3 fällig</span></div>
+    <div class="item"><span class="ms">bar_chart</span>Analyse</div>
+  </div>
+
+  <div class="month">
+    <div class="month-h"><span class="t">November 2026</span><span style="display:flex"><span class="ib"><span class="ms">chevron_left</span></span><span class="ib"><span class="ms">chevron_right</span></span></span></div>
+    <div class="grid7">
+      <div class="wd">Mo</div><div class="wd">Di</div><div class="wd">Mi</div><div class="wd">Do</div><div class="wd">Fr</div><div class="wd">Sa</div><div class="wd">So</div>
+      <div class="d out">26</div><div class="d out">27</div><div class="d out">28</div><div class="d out">29</div><div class="d out">30</div><div class="d out">31</div><div class="d">1</div>
+      <div class="d">2</div><div class="d">3</div><div class="d">4</div><div class="d">5</div><div class="d">6</div><div class="d">7</div><div class="d">8</div>
+      <div class="d">9</div><div class="d">10</div><div class="d today"><span>11</span></div><div class="d">12</div><div class="d">13</div><div class="d">14</div><div class="d due">15</div>
+      <div class="d">16</div><div class="d">17</div><div class="d">18</div><div class="d">19</div><div class="d">20</div><div class="d">21</div><div class="d">22</div>
+      <div class="d">23</div><div class="d">24</div><div class="d">25</div><div class="d">26</div><div class="d">27</div><div class="d due">28</div><div class="d">29</div>
+      <div class="d due">30</div><div class="d out">1</div><div class="d out">2</div><div class="d out">3</div><div class="d out">4</div><div class="d out">5</div><div class="d out">6</div>
+    </div>
+    <div class="legend"><span><i style="box-shadow:inset 0 0 0 1px var(--ink-2)"></i>Fällig</span></div>
+  </div>
+
+  <div class="sect"><span class="sub">Konten</span><span class="ib" title="Weitere Bank anmelden"><span class="ms">add</span></span></div>
+  <div class="layer" style="--c:var(--acc-1)"><span class="tick" style="background:var(--c)"><span class="ms">check</span></span><span class="nm trunc">GiroKomfort</span><span class="num">780,11&nbsp;€</span></div>
+  <div class="layer" style="--c:var(--acc-2)"><span class="tick" style="background:var(--c)"><span class="ms">check</span></span><span class="nm trunc">Giro Haushalt</span><span class="num">1.142,52&nbsp;€</span></div>
+  <div class="layer" style="--c:var(--acc-3)"><span class="tick" style="background:var(--c)"><span class="ms">check</span></span><span class="nm trunc">Notgroschen</span><span class="num">4.200,00&nbsp;€</span></div>
+  <div class="layer" style="--c:var(--acc-4)"><span class="tick" style="background:var(--c)"><span class="ms">check</span></span><span class="nm trunc">Visa Classic</span><span class="num">−153,64&nbsp;€</span></div>
+
+  <div class="nav foot"><div class="item on"><span class="ms">settings</span>Einstellungen</div></div>
+</nav>
+
+<main class="sheet">
+  <div class="split">
+    <nav class="pages" aria-label="Einstellungen">
+      <h1>Einstellungen</h1>
+      <div class="pg"><span class="ms">lock</span>Anmeldung &amp; Sicherheit</div>
+      <div class="pg"><span class="ms">notifications</span>Benachrichtigungen</div>
+      <div class="gap"></div>
+      <div class="pg"><span class="ms">account_balance_wallet</span>Konten &amp; Umsätze</div>
+      <div class="pg"><span class="ms">computer</span>Daten &amp; Geräte</div>
+      <div class="pg"><span class="ms">visibility_off</span>Datenschutz</div>
+      <div class="pg on" aria-current="page"><svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg>Frag deine Umsätze</div>
+      <div class="gap"></div>
+      <div class="pg"><span class="ms">language</span>Sprache &amp; Darstellung</div>
+      <div class="pg"><span class="ms">info</span>Über Girovo</div>
+    </nav>
+
+    <section class="page">
+      <h2>Frag deine Umsätze</h2>
+      <div class="lede">Stell in der Suche eine Frage zu deinen Umsätzen.</div>
+
+      <div class="grp" style="margin-top:20px">
+        <div class="srow big wash">
+          <svg class="spark l" viewBox="0 0 24 24"><use href="#spark"/></svg>
+          <div><div class="rn">Frag deine Umsätze</div><div class="rl">Antworten in ganzen Sätzen</div></div>
+          <span class="sw" role="switch" aria-checked="true"><span class="th"><span class="ms">check</span></span></span>
+        </div>
+      </div>
+
+      <div class="gsub">Einmal geladen</div>
+      <div class="grp">
+        <div class="srow">
+          <span class="ms ready">check_circle</span>
+          <div><div class="rn">Geladen und bereit</div><div class="rl">Etwa <span class="num">3</span> GB, geladen am <span class="num">4.</span> November</div></div>
+          <span></span>
+        </div>
+        <div class="srow">
+          <span class="ms">memory</span>
+          <div><div class="rn">Mit Grafikkarte schneller</div><div class="rl">NVIDIA GeForce RTX 4060</div></div>
+          <span class="sw" role="switch" aria-checked="true"><span class="th"><span class="ms">check</span></span></span>
+        </div>
+        <div class="srow">
+          <span class="ms">hard_drive</span>
+          <div><div class="rn">Speicher: <span class="num">2,9</span> GB</div><div class="rl">Frei auf Laufwerk C: <span class="num">214</span> GB</div></div>
+          <span class="btn text">Löschen</span>
+        </div>
+      </div>
+
+      <div class="gsub">Antworten</div>
+      <div class="grp">
+        <div class="srow">
+          <span class="ms">translate</span>
+          <div><div class="rn">Sprache der Antworten</div><div class="rl">Wie die App: Deutsch</div></div>
+          <span class="ms" style="color:var(--ink-2)">chevron_right</span>
+        </div>
+      </div>
+
+    </section>
+  </div>
+</main>
+</body></html>

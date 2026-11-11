@@ -175,6 +175,18 @@ export const de = {
     approx: 'ca.',
     asOf: (date: string) => `Stand ${date}`,
     rewritten: 'So kommt es bei der Bank an: Umlaute ausgeschrieben (ä → ae), nicht erlaubte Zeichen weggelassen.',
+    /**
+     * Girovo Next: far more than went to this IBAN before (lib/transfer-history-hint.ts).
+     * `same`: every earlier transfer was that amount; `most`: they differed, the largest.
+     */
+    history: {
+      same: (name: string, count: number, amount: ReactNode, now: ReactNode): ReactNode[] => [
+        `${name} hast du bisher ${count.toLocaleString('de-DE')}-mal `, amount, ' geschickt. Diesmal sind es ', now, '.',
+      ],
+      most: (name: string, count: number, largest: ReactNode, now: ReactNode): ReactNode[] => [
+        `${name} hast du bisher ${count.toLocaleString('de-DE')}-mal Geld geschickt, höchstens `, largest, '. Diesmal sind es ', now, '.',
+      ],
+    },
   },
   /** The Namensabgleich step of the sheet. */
   vopStep: {
@@ -590,6 +602,14 @@ export const en: typeof de = {
     approx: 'approx.',
     asOf: (date) => `as of ${date}`,
     rewritten: 'This is how the bank gets it: umlauts written out (ä → ae), characters it does not allow left out.',
+    history: {
+      same: (name, count, amount, now) => [
+        `You have sent ${name} `, amount, ` ${count.toLocaleString('en-GB')} times so far. This time it is `, now, '.',
+      ],
+      most: (name, count, largest, now) => [
+        `You have sent ${name} money ${count.toLocaleString('en-GB')} times so far, at most `, largest, '. This time it is ', now, '.',
+      ],
+    },
   },
   vopStep: {
     introUnchecked: (amount) => ['Check the details before you approve ', amount, '.'],

@@ -24,11 +24,13 @@ import { AccountLayers } from '../overview/AccountLayers';
 import { ArrangeSheet } from '../overview/ArrangeSheet';
 import { useLayers } from '../overview/layers';
 import { useSettingsPages } from '../settings/Settings';
-import { BackIcon, ChartIcon, GearIcon, HomeIcon, TransferIcon } from '../icons';
+import { BackIcon, ChartIcon, GearIcon, HistoryIcon, HomeIcon, TransferIcon } from '../icons';
 import { IconButton, cx } from '../ui';
 import type { ShellActions } from './actions';
 import { PLACE_ROOT_EVENT } from './frame';
 import { MiniMonth } from './MiniMonth';
+import { useCanAsk } from '../insights/ask-gate';
+import { showConversation, useAskThread } from '../insights/ask-thread-store';
 
 /** Which place is current is the app's to say: M3E would select an item on its own click. */
 const keepPlace = (e: Event) => e.preventDefault();
@@ -99,6 +101,7 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
           )}
           {open && <PlaceMonth />}
           {open && <AccountLayers onArrange={() => setArranging(true)} />}
+          {open && <Conversations />}
         </>
       )}
       {open ? (
@@ -288,5 +291,39 @@ function SettingsSections({ open }: { open: boolean }) {
         })}
       </ul>
     </>
+  );
+}
+
+/** Girovo Next: this session's conversations (components/insights/AskThread.tsx), newest first; a press shows one in the panel. */
+function Conversations() {
+  const t = useT();
+  const s = useAskThread();
+  const canAsk = useCanAsk();
+  if (!canAsk || s.conversations.length === 0) return null;
+  return (
+    <section aria-label={t.ask.thread.conversations} className="pt-5">
+      <h2 className="px-7 pb-1.5 text-[14px] leading-5 font-medium text-ink-2">{t.ask.thread.conversations}</h2>
+      <ul className="flex flex-col gap-0.5 px-3">
+        {s.conversations.slice(0, 5).map((c) => {
+          const on = s.open && s.current === c.id;
+          return (
+            <li key={c.id}>
+              <button
+                type="button"
+                aria-current={on ? 'true' : undefined}
+                onClick={() => showConversation(c.id)}
+                className={cx(
+                  'row-focus flex h-10 w-full items-center gap-3 rounded-full px-4 text-left text-[14px] leading-5 font-medium transition-colors duration-150',
+                  on ? 'bg-[var(--md-secondary-container)] text-[var(--md-on-secondary-container)]' : 'text-ink hover:bg-[var(--md-surface-container)]',
+                )}
+              >
+                <HistoryIcon size={20} className={cx('shrink-0', !on && 'text-ink-2')} />
+                <span className="min-w-0 flex-1 truncate">{c.title}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
