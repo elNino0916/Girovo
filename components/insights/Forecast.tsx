@@ -12,6 +12,7 @@
 
 import { useMemo } from 'react';
 import { isCardAccount } from '@/lib/balances';
+import type { SerializedAccount } from '@/lib/fints-types';
 import { dayKey, displayName } from '@/lib/format';
 import { dueEvents, forecast, seriesBookings, usualSpending, type Forecast } from '@/lib/forecast';
 import { intlLocale } from '@/lib/i18n';
@@ -26,26 +27,28 @@ import { useDesktopFrame } from '../shell/frame';
 import { useRecurringModel } from './recurring-model';
 import { RoundMoney, fmtDayKeyShort } from './shared';
 
-export function ForecastTile({ className }: { className?: string }) {
-  const { activeAccount, balances, balanceAt, pendingCache, bankOrders, txByAccount, statementInfo, accountLabel, accounts, plus } = useFints();
+/**
+ * One account's month-end forecast (lib/forecast.ts), as the tile below shows
+ * it and Girovo AI says it (components/insights/ask/FactAnswers.tsx): null
+ * while there is nothing to project, 'stale' when the balance is not today's.
+ */
+export function useMonthEndForecast(account: SerializedAccount | null) {
+  const { balances, balanceAt, pendingCache, bankOrders, txByAccount, statementInfo } = useFints();
   const model = useRecurringModel();
-  const frame = useDesktopFrame();
-  const t = useT();
-  const words = t.insights.forecast;
-  const acct = activeAccount?.accountNumber ?? null;
+  const acct = account?.accountNumber ?? null;
   const balance = acct ? balances[acct] : null;
   const readAt = acct ? balanceAt[acct] : undefined;
   const today = dayKey(new Date());
-  const card = !!activeAccount && isCardAccount(activeAccount);
+  const card = !!account && isCardAccount(account);
 
-  const result = useMemo(() => {
-    if (!activeAccount || !acct || !balance || model.loading) return null;
+  return useMemo(() => {
+    if (!account || !acct || !balance || model.loading) return null;
     // A balance read on another day is no ground to stand on: the bookings since
     // are unknown. Read today, it is today's — a bank dates it to its last
     // business day (a Friday on a weekend), which says nothing about how fresh it is.
     const readDay = readAt ? dayKey(new Date(readAt)) : dayKey(balance.date);
     if (readDay < today) return 'stale' as const;
-    const currency = balance.currency || activeAccount.currency || 'EUR';
+    const currency = balance.currency || account.currency || 'EUR';
     const series = [...model.income, ...model.expense].filter((s) => model.accountOf(s) === acct);
     const orders = [
       ...(bankOrders[acct]?.standing?.orders ?? []),
@@ -80,7 +83,16 @@ export function ForecastTile({ className }: { className?: string }) {
         card,
       }),
     };
-  }, [activeAccount, acct, balance, readAt, model, bankOrders, statementInfo, txByAccount, pendingCache, today, card]);
+  }, [account, acct, balance, readAt, model, bankOrders, statementInfo, txByAccount, pendingCache, today, card]);
+}
+
+export function ForecastTile({ className }: { className?: string }) {
+  const { activeAccount, accountLabel, accounts, plus } = useFints();
+  const frame = useDesktopFrame();
+  const t = useT();
+  const words = t.insights.forecast;
+  const card = !!activeAccount && isCardAccount(activeAccount);
+  const result = useMonthEndForecast(activeAccount);
 
   // A Depot has no balance to project, a card's statement balance none worth it.
   if (!activeAccount || card || activeAccount.accountType === 'SecuritiesAccount' || !result) return null;

@@ -22,7 +22,8 @@ import type { FormEvent, ReactNode } from 'react';
 import { monthBefore } from '@/lib/ask-followup';
 import { checkPlan, plannerInput, plannerSystem } from '@/lib/ask-planner';
 import { readAsked } from '@/lib/ask-read';
-import { intentOf, type AskIntent } from '@/lib/ask-intents';
+import { intentOf, type AskIntent, type FactIntent } from '@/lib/ask-intents';
+import { isFact } from '@/lib/ask-facts';
 import { seriesTitle } from '@/lib/recurring';
 import { setThemePref } from '@/lib/theme';
 import { segments, usable, writerInput, writerSystem, type WriterLang } from '@/lib/gemma-writer';
@@ -48,6 +49,7 @@ import { openTxDetail } from '../transactions/detail-host';
 import { useScopeData, type ScopeData } from './analysis-model';
 import { AskTile } from './Ask';
 import { useCanAsk } from './ask-gate';
+import { FactAnswer } from './ask/FactAnswers';
 import {
   askInThread, clearAsk, closeAsk, currentConversation, deleteAllConversations, deleteConversation, dropCurrent, hiddenRecaps,
   newConversation, openAskWithRecap, settleOutcome, settleTurn, settleWritten, showConversation, useAskThread, type Turn,
@@ -530,6 +532,7 @@ export function RecapText({ recap, own, onShown }: { recap: NonNullable<ReturnTy
 function IntentAnswer({ turn, intent, onShown }: { turn: Turn; intent: AskIntent; onShown: () => void }) {
   if (intent.kind === 'contracts') return <ContractsAnswer onShown={onShown} />;
   if (intent.kind === 'read') return <SettingsAnswer setting={intent.setting} />;
+  if (isFact(intent)) return <FactAnswer intent={intent} onShown={onShown} />;
   return <ChangeAnswer turn={turn} intent={intent} />;
 }
 
@@ -590,7 +593,7 @@ function SettingsAnswer({ setting }: { setting: Extract<AskIntent, { kind: 'read
  * A change, asked first: the question, "Ja, bitte" and "Abbrechen". Made only
  * on the yes; then what happened, in a word. Already so: said, nothing asked.
  */
-function ChangeAnswer({ turn, intent }: { turn: Turn; intent: Exclude<AskIntent, { kind: 'contracts' } | { kind: 'read' }> }) {
+function ChangeAnswer({ turn, intent }: { turn: Turn; intent: Exclude<AskIntent, { kind: 'contracts' } | { kind: 'read' } | FactIntent> }) {
   const words = useT().ask.actions;
   const theme = useThemePref();
   const { privacy, togglePrivacy, loadAllBalances } = useFints();
