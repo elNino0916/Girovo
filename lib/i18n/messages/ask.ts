@@ -346,6 +346,8 @@ export const de = {
       : ['Ende ', month, ' hast du voraussichtlich etwa ', amount, '.']),
     monthEndFine: 'Es reicht also bis zum Monatsende.',
     monthEndZero: (day: string) => `Am ${day} könnte das Konto ins Minus gehen.`,
+    /** It dips below zero, then money comes in before the month ends. */
+    monthEndDip: (day: string) => `Am ${day} könnte das Konto kurz ins Minus gehen, bevor wieder Geld kommt.`,
     monthEndLimit: (day: string) => `Am ${day} könnte der Dispo nicht reichen.`,
     noForecast: 'Für eine Prognose fehlt noch der heutige Kontostand.',
     staleForecast: 'Der Kontostand ist nicht von heute. Aktualisiere zuerst dein Konto.',
@@ -651,6 +653,7 @@ export const en: typeof de = {
       : ['At the end of ', month, ', you’ll likely have about ', amount, '.']),
     monthEndFine: 'So it lasts until the end of the month.',
     monthEndZero: (day) => `On ${day} the account could go below zero.`,
+    monthEndDip: (day) => `On ${day} the account could briefly go below zero before money comes in again.`,
     monthEndLimit: (day) => `On ${day} your overdraft might not be enough.`,
     noForecast: 'A forecast needs today’s balance first.',
     staleForecast: 'The balance isn’t from today. Refresh your account first.',

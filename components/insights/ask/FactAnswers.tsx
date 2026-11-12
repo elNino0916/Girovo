@@ -168,7 +168,8 @@ function MonthEndAnswer({ onShown }: { onShown: () => void }) {
   const month = new Intl.DateTimeFormat(intlLocale(), { month: 'long' }).format(new Date(`${f.until}T12:00:00`));
   const lines: Line[] = [
     words.monthEnd(month, <Fig><RoundMoney value={f.end} currency={currency} /></Fig>, accounts.length > 1 ? accountLabel(account) : null),
-    f.breach ? (f.breach.line === 'limit' ? words.monthEndLimit : words.monthEndZero)(dayWords(f.breach.date)) : f.end >= 0 && words.monthEndFine,
+    // Below zero on a day, back in the plus by the month's end: said as a dip, not as "it won't last".
+    f.breach ? (f.breach.line === 'limit' ? words.monthEndLimit : f.end >= 0 ? words.monthEndDip : words.monthEndZero)(dayWords(f.breach.date)) : f.end >= 0 && words.monthEndFine,
   ];
   return (
     <>

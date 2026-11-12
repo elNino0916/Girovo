@@ -212,6 +212,7 @@ const CATEGORY_WORDS: Array<[BuiltinCategoryId, string[]]> = [
   ['dining', [
     'RESTAURANT', 'ESSEN GEHEN', 'ESSEN BESTELL', 'AUSWAERTS', 'LIEFERDIENST', 'GASTRONOMIE', 'IMBISS', 'CAFES', 'KNEIPE',
     'DOENER', 'SUSHI', 'FAST FOOD', 'EATING OUT', 'DINING', 'TAKEAWAY', 'TAKE AWAY', 'FOOD DELIVERY',
+    'GEGESSEN', 'EAT OUT', 'ATE OUT', 'TAKEOUT',
   ]],
   ['leisure', [
     'FREIZEIT', 'KINO', 'KONZERT', 'THEATER', 'URLAUB', 'HOTEL', 'FITNESS', 'VIDEOSPIEL', 'GAMES', 'GAMING', 'CINEMA',
@@ -357,6 +358,8 @@ const bare = (s: string) => foldText(s).replace(/[^A-Z0-9]/g, '');
 export function categoryFromQuestion(question: string): BuiltinCategoryId | null {
   const text = ` ${fold(question)}`;
   for (const [id, words] of CATEGORY_WORDS) if (words.some((w) => text.includes(` ${w}`))) return id;
+  // "Wo war ich im Oktober essen?": "essen" with "wo" is eating out, whatever else the noun can mean.
+  if (/ WO /.test(`${text} `) && / ESSEN(?= |$)/.test(text)) return 'dining';
   return null;
 }
 

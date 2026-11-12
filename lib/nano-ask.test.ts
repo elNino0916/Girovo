@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { CategoryResult } from './categories.ts';
 import type { SerializedTransaction } from './fints-types.ts';
 import {
-  askText, asksWith, compareFromQuestion, computeAnswer, dirFromQuestion, kindFromQuestion, nanoGeneration, parseAskAnswer,
+  askText, asksWith, categoryFromQuestion, compareFromQuestion, computeAnswer, dirFromQuestion, kindFromQuestion, nanoGeneration, parseAskAnswer,
   nameFromPayees, periodDays, periodFromQuestion, periodsFromQuestion, questionTopic, rankFromQuestion, readQuestion, searchAsFilter,
   searchFromQuestion, wholeMonths, LIST_ROWS, newest,
   type AskQuery,
@@ -424,4 +424,10 @@ test('a ranking holds every payee, not only the first few', () => {
   const a = computeAnswer({ kind: 'rank', rank: { by: 'payee', metric: 'sum' }, dir: 'out', category: null, search: null, period: { kind: 'all' } }, many, CTX, LOADED, TODAY);
   assert.equal(a.rank?.length, 12);
   assert.deepEqual([a.rank?.[0].name, a.rank?.[11].name], ['Laden 12', 'Laden 1']);
+});
+
+test('"wo … essen" is eating out', () => {
+  assert.equal(categoryFromQuestion('Wo war ich im Oktober essen?'), 'dining');
+  assert.equal(categoryFromQuestion('wo hab ich gegessen'), 'dining');
+  assert.equal(categoryFromQuestion('Was hab ich für Essen ausgegeben'), null);
 });
