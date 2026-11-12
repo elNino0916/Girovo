@@ -245,6 +245,44 @@ export const de = {
     rankBy: { payee: 'nach Ort', category: 'nach Kategorie' },
     metric: { sum: 'nach Betrag', count: 'nach Häufigkeit' },
   },
+
+  /**
+   * Girovo Next: "Was ist das für eine Zahlung?", one booking explained
+   * (components/insights/ask/ExplainAnswer.tsx, lib/ask-explain.ts). The first
+   * suggestion in a booking's "Frag zu diesem Umsatz"; typed, it is understood too.
+   */
+  explain: {
+    question: 'Was ist das für eine Zahlung?',
+    /** The conversation it starts, as Gespräche name it. */
+    title: (name: string) => `${name}, erklärt`,
+    /** Asked with no booking to go by. */
+    noBooking: 'Öffne zuerst einen Umsatz und frag dort.',
+    /** Who it is and what kind of booking, in one line (lib/categorize.ts BookingKind; sepa: a Lastschrift with its mandate). */
+    kind: {
+      lastschrift: (name: string, credit: boolean) => (credit ? `Eine Lastschrift von ${name}.` : `${name} hat das per Lastschrift abgebucht.`),
+      sepa: (name: string, credit: boolean) => (credit ? `Eine SEPA-Lastschrift von ${name}.` : `${name} hat das per SEPA-Lastschrift abgebucht.`),
+      karte: (name: string, credit: boolean) => (credit ? `Eine Erstattung von ${name} auf deine Karte.` : `Eine Kartenzahlung bei ${name}.`),
+      ueberweisung: (name: string, credit: boolean) => (credit ? `Eine Überweisung von ${name}.` : `Eine Überweisung an ${name}.`),
+      echtzeit: (name: string, credit: boolean) => (credit ? `Eine Echtzeitüberweisung von ${name}.` : `Eine Echtzeitüberweisung an ${name}.`),
+      dauerauftrag: (name: string, credit: boolean) => (credit ? `Ein Dauerauftrag von ${name}.` : `Ein Dauerauftrag an ${name}.`),
+      gutschrift: (name: string, credit: boolean) => (credit ? `Eine Gutschrift von ${name}.` : `Eine Zahlung an ${name}.`),
+      gehalt: (name: string, credit: boolean) => (credit ? `Gehalt oder Rente von ${name}.` : `Eine Zahlung an ${name}.`),
+      bargeld: (_name: string, credit: boolean): string => (credit ? 'Eine Bareinzahlung.' : 'Bargeld vom Geldautomaten.'),
+      entgelt: (_name: string, credit: boolean): string => (credit ? 'Deine Bank hat ein Entgelt erstattet.' : 'Ein Entgelt deiner Bank.'),
+      zinsen: (_name: string, credit: boolean): string => (credit ? 'Zinsen von deiner Bank.' : 'Zinsen, die deine Bank berechnet hat.'),
+      ruecklastschrift: (name: string, credit: boolean) => (credit ? `Eine Lastschrift von ${name} ging zurück, das Geld ist wieder da.` : `Eine Rücklastschrift mit ${name}.`),
+      sonstige: (name: string, credit: boolean) => (credit ? `Geld von ${name}.` : `Eine Zahlung an ${name}.`),
+    },
+    /** The purpose, tidied; the bank's own text stays in the booking's details. */
+    purpose: (text: string) => `Verwendungszweck: „${text}“`,
+    /** It belongs to a contract in Verträge & Abos; the rhythm as Verträge & Abos says it ("monatlich", "alle 4 Wochen"). */
+    repeats: (cadence: string) => `Kommt ${cadence}, steht bei deinen Verträgen & Abos.`,
+    /** A Lastschrift or a Dauerauftrag that no contract holds. */
+    noContract: 'Girovo kennt das noch nicht als Vertrag oder Abo.',
+    mandate: 'Mandatsreferenz',
+    creditorId: 'Gläubiger-ID',
+    open: 'Umsatz öffnen',
+  },
 };
 
 export const en: typeof de = {
@@ -439,5 +477,31 @@ export const en: typeof de = {
     },
     rankBy: { payee: 'by place', category: 'by category' },
     metric: { sum: 'by amount', count: 'by frequency' },
+  },
+  explain: {
+    question: 'What is this payment?',
+    title: (name) => `${name}, explained`,
+    noBooking: 'Open a transaction first and ask there.',
+    kind: {
+      lastschrift: (name, credit) => (credit ? `A direct debit from ${name}.` : `${name} collected this by direct debit.`),
+      sepa: (name, credit) => (credit ? `A SEPA direct debit from ${name}.` : `${name} collected this by SEPA direct debit.`),
+      karte: (name, credit) => (credit ? `A refund from ${name} to your card.` : `A card payment at ${name}.`),
+      ueberweisung: (name, credit) => (credit ? `A transfer from ${name}.` : `A transfer to ${name}.`),
+      echtzeit: (name, credit) => (credit ? `An instant transfer from ${name}.` : `An instant transfer to ${name}.`),
+      dauerauftrag: (name, credit) => (credit ? `A standing order from ${name}.` : `A standing order to ${name}.`),
+      gutschrift: (name, credit) => (credit ? `A credit from ${name}.` : `A payment to ${name}.`),
+      gehalt: (name, credit) => (credit ? `Salary or pension from ${name}.` : `A payment to ${name}.`),
+      bargeld: (_name, credit) => (credit ? 'A cash deposit.' : 'Cash from a cash machine.'),
+      entgelt: (_name, credit) => (credit ? 'Your bank refunded a fee.' : 'A fee from your bank.'),
+      zinsen: (_name, credit) => (credit ? 'Interest from your bank.' : 'Interest your bank charged.'),
+      ruecklastschrift: (name, credit) => (credit ? `A direct debit from ${name} came back, the money is back.` : `A returned direct debit with ${name}.`),
+      sonstige: (name, credit) => (credit ? `Money from ${name}.` : `A payment to ${name}.`),
+    },
+    purpose: (text) => `Payment reference: \u201c${text}\u201d`,
+    repeats: (cadence) => `Comes ${cadence}, listed in your contracts & subscriptions.`,
+    noContract: 'Girovo doesn\u2019t know this as a contract or subscription yet.',
+    mandate: 'Mandate reference',
+    creditorId: 'Creditor ID',
+    open: 'Open transaction',
   },
 };

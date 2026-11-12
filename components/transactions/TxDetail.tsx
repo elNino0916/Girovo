@@ -112,7 +112,7 @@ export function TxDetail({
   // a Vormerkposten too (its payee is the same), never a booking without one.
   const canAsk = useCanAsk();
   const askBar = canAsk && query && text.name
-    ? <AskAboutBooking name={text.name} credit={credit} onClose={onClose} />
+    ? <AskAboutBooking tx={tx} name={text.name} credit={credit} onClose={onClose} />
     : undefined;
   const iban = String(tx.remoteIban ?? '').replace(/\s+/g, '');
   const bic = txBic(tx);

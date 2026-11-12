@@ -14,7 +14,9 @@
 // turn 'reading' until then.
 
 import { useSyncExternalStore } from 'react';
+import { isExplainQuestion } from '@/lib/ask-explain';
 import type { AskIntent } from '@/lib/ask-intents';
+import type { SerializedTransaction } from '@/lib/fints-types';
 import type { AskQuery } from '@/lib/nano-ask';
 
 export type TurnState = 'reading' | 'answered' | 'failed' | 'notUnderstood' | 'offTopic';
@@ -42,6 +44,14 @@ export type Turn = {
   outcome?: 'done' | 'cancelled' | 'already';
   /** Its reading changed by a chip (ask/ReadingChips.tsx): the template says it, Gemma's sentences were about the question as asked. */
   edited?: boolean;
+  /**
+   * The booking the question is about: asked from its details ("Frag zu diesem
+   * Umsatz"), or a follow-up in a conversation that began there. Absent
+   * everywhere else.
+   */
+  booking?: SerializedTransaction;
+  /** "Was ist das für eine Zahlung?": that booking explained by the rules (lib/ask-explain.ts), no model asked. */
+  explain?: true;
 };
 
 export type Conversation = {
@@ -94,26 +104,33 @@ function startConversation(title: string, turns: Turn[]): void {
   set({ open: true, current: c.id, conversations: [c, ...state.conversations] });
 }
 
-function turnOf(question: string): Turn {
-  return { id: nextId++, question, state: 'reading' };
+function turnOf(question: string, booking?: SerializedTransaction): Turn {
+  const about = booking ? { booking } : {};
+  // Explained by the rules at once, with or without a booking (without one it asks to open one first).
+  if (isExplainQuestion(question)) return { id: nextId++, question, state: 'answered', explain: true, ...about };
+  return { id: nextId++, question, state: 'reading', ...about };
 }
 
 /**
  * Opens "Fragen". With a question it is asked: in the open conversation when
  * one is open and `fresh` is not set, else in a new one. Without one the last
- * conversation shows again (or an empty thread).
+ * conversation shows again (or an empty thread). `booking`: the booking it is
+ * asked about; `title`: the new conversation's name, where the question is
+ * not.
  */
-export function openAsk({ question, fresh = false }: { question?: string; fresh?: boolean } = {}): void {
+export function openAsk({ question, fresh = false, booking, title }: {
+  question?: string; fresh?: boolean; booking?: SerializedTransaction; title?: string;
+} = {}): void {
   const q = question?.trim();
   if (!q) {
     set({ ...state, open: true });
     return;
   }
   if (!fresh && state.open && currentConversation()) {
-    askInThread(q);
+    askInThread(q, booking);
     return;
   }
-  startConversation(q, [turnOf(q)]);
+  startConversation(title || q, [turnOf(q, booking)]);
 }
 
 /** Opens a new conversation that starts with the month recap, as "Weiter fragen" does. */
@@ -123,15 +140,18 @@ export function openAskWithRecap(month: string, title: string): void {
   startConversation(title, [{ id: nextId++, question: '', state: 'answered', query, seed: { kind: 'recap', month } }]);
 }
 
-/** A follow-up in the open conversation. */
-export function askInThread(question: string): void {
+/** A follow-up in the open conversation; it keeps the booking the conversation is about. */
+export function askInThread(question: string, booking?: SerializedTransaction): void {
   const q = question.trim();
   if (!q) return;
   if (!currentConversation()) {
-    startConversation(q, [turnOf(q)]);
+    startConversation(q, [turnOf(q, booking)]);
     return;
   }
-  withConversation((c) => ({ ...c, turns: [...c.turns, turnOf(q)] }));
+  withConversation((c) => ({
+    ...c,
+    turns: [...c.turns, turnOf(q, booking ?? [...c.turns].reverse().find((t) => t.booking)?.booking)],
+  }));
 }
 
 /** The host's reading of a turn's question. */
