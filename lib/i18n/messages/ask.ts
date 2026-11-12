@@ -283,6 +283,50 @@ export const de = {
     creditorId: 'Gläubiger-ID',
     open: 'Umsatz öffnen',
   },
+
+  /**
+   * Girovo Next, Girovo AI: answers that are lists (components/insights/ask/ListAnswer.tsx).
+   * A ranking says in one line how many places or categories and the first;
+   * every one follows as a row. `when` opens the line (null: every loaded booking);
+   * `often`: ranked by how often, else by money.
+   */
+  list: {
+    rank: {
+      dining: (when: string | null, n: number, first: string, often: boolean) => (n === 1
+        ? `${when ? `${when} warst du` : 'Du warst'} nur bei ${first} essen.`
+        : `${when ? `${when} warst du` : 'Du warst'} in ${n} Restaurants, ${often ? 'am häufigsten bei' : 'das meiste ging an'} ${first}.`),
+      shops: (when: string | null, n: number, first: string, often: boolean) => (n === 1
+        ? `${when ? `${when} hast du` : 'Du hast'} nur bei ${first} eingekauft.`
+        : `${when ? `${when} hast du` : 'Du hast'} in ${n} Läden eingekauft, ${often ? 'am häufigsten bei' : 'das meiste ging an'} ${first}.`),
+      payeeOut: (when: string | null, n: number, first: string, often: boolean) => (n === 1
+        ? `${when ? `${when} hast du` : 'Du hast'} nur an ${first} gezahlt.`
+        : `${when ? `${when} hast du` : 'Du hast'} an ${n} Empfänger gezahlt, ${often ? 'am häufigsten' : 'das meiste'} an ${first}.`),
+      payeeIn: (when: string | null, n: number, first: string, often: boolean) => (n === 1
+        ? `${when ? `${when} hast du` : 'Du hast'} nur von ${first} Geld bekommen.`
+        : `${when ? `${when} hast du` : 'Du hast'} von ${n} Absendern Geld bekommen, ${often ? 'am häufigsten' : 'das meiste'} von ${first}.`),
+      categoryOut: (when: string | null, n: number, first: string, often: boolean) => (n === 1
+        ? `${when ? `${when} hast du` : 'Du hast'} nur für ${first} ausgegeben.`
+        : `${when ? `${when} hast du` : 'Du hast'} in ${n} Kategorien ausgegeben, ${often ? 'am häufigsten' : 'das meiste'} für ${first}.`),
+      categoryIn: (when: string | null, n: number, first: string, often: boolean) => (n === 1
+        ? `${when ? `${when} hast du` : 'Du hast'} nur als ${first} Geld bekommen.`
+        : `${when ? `${when} hast du` : 'Du hast'} Geld aus ${n} Kategorien bekommen, ${often ? 'am häufigsten' : 'das meiste'} als ${first}.`),
+    },
+    /** Under a long ranking: the rest, in place. */
+    showAll: (n: number) => `Alle ${n} zeigen`,
+    showLess: 'Weniger zeigen',
+    /** "Zeig alle Zahlungen an Amazon": one line over the newest bookings. `count` is "23 Umsätze". */
+    withName: (when: string | null, count: ReactNode, topic: ReactNode, amount: ReactNode | null): ReactNode[] => [
+      when ? `${when} hattest du ` : 'Du hast ', count, ' mit ', topic, ...(amount ? [', zusammen ', amount] : []), '.',
+    ],
+    withCategory: (when: string | null, count: ReactNode, topic: ReactNode, amount: ReactNode | null, income: boolean): ReactNode[] => [
+      when ? `${when} hattest du ` : 'Du hast ', count, income ? ' als ' : ' für ', topic, ...(amount ? [', zusammen ', amount] : []), '.',
+    ],
+    plain: (when: string | null, count: ReactNode, amount: ReactNode | null): ReactNode[] => [
+      when ? `${when} hattest du ` : 'Du hast ', count, ...(amount ? [', zusammen ', amount] : []), '.',
+    ],
+    /** Over the rows when there are more bookings than rows. */
+    newest: (n: number) => `Die ${n} neuesten`,
+  },
 };
 
 export const en: typeof de = {
@@ -503,5 +547,39 @@ export const en: typeof de = {
     mandate: 'Mandate reference',
     creditorId: 'Creditor ID',
     open: 'Open transaction',
+  },
+  list: {
+    rank: {
+      dining: (when, n, first, often) => (n === 1
+        ? `${when ? `${when}, you` : 'You'} only ate at ${first}.`
+        : `${when ? `${when}, you` : 'You'} ate at ${n} restaurants, ${often ? 'most often at' : 'the most went to'} ${first}.`),
+      shops: (when, n, first, often) => (n === 1
+        ? `${when ? `${when}, you` : 'You'} only shopped at ${first}.`
+        : `${when ? `${when}, you` : 'You'} shopped at ${n} stores, ${often ? 'most often at' : 'the most went to'} ${first}.`),
+      payeeOut: (when, n, first, often) => (n === 1
+        ? `${when ? `${when}, you` : 'You'} only paid ${first}.`
+        : `${when ? `${when}, you` : 'You'} paid ${n} payees, ${often ? 'most often' : 'the most went to'} ${first}.`),
+      payeeIn: (when, n, first, often) => (n === 1
+        ? `${when ? `${when}, you` : 'You'} only got money from ${first}.`
+        : `${when ? `${when}, you` : 'You'} got money from ${n} senders, ${often ? 'most often' : 'the most'} from ${first}.`),
+      categoryOut: (when, n, first, often) => (n === 1
+        ? `${when ? `${when}, you` : 'You'} only spent on ${first}.`
+        : `${when ? `${when}, you` : 'You'} spent in ${n} categories, ${often ? 'most often' : 'the most'} on ${first}.`),
+      categoryIn: (when, n, first, often) => (n === 1
+        ? `${when ? `${when}, you` : 'You'} only got money as ${first}.`
+        : `${when ? `${when}, you` : 'You'} got money in ${n} categories, ${often ? 'most often' : 'the most'} as ${first}.`),
+    },
+    showAll: (n) => `Show all ${n}`,
+    showLess: 'Show fewer',
+    withName: (when, count, topic, amount) => [
+      when ? `${when}, you had ` : 'You have ', count, ' with ', topic, ...(amount ? [', ', amount, ' in total'] : []), '.',
+    ],
+    withCategory: (when, count, topic, amount, income) => [
+      when ? `${when}, you had ` : 'You have ', count, income ? ' as ' : ' for ', topic, ...(amount ? [', ', amount, ' in total'] : []), '.',
+    ],
+    plain: (when, count, amount) => [
+      when ? `${when}, you had ` : 'You have ', count, ...(amount ? [', ', amount, ' in total'] : []), '.',
+    ],
+    newest: (n) => `The ${n} newest`,
   },
 };

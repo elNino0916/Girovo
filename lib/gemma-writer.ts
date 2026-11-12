@@ -51,6 +51,7 @@ const W = {
     perMonth: 'Im Schnitt pro Monat', basis: (n: number) => `Grundlage: ${n} volle Monate`, noWhole: 'Noch kein voller Monat geladen, daher die Summe',
     largestOut: 'Größte Ausgabe', largestIn: 'Größter Eingang', last: 'Zuletzt', on: 'am', rankBy: { category: 'nach Kategorie', payee: 'nach Empfänger' },
     rank: { sum: 'Rangliste nach Betrag', count: 'Rangliste nach Häufigkeit' }, a: 'Gefragter Zeitraum', b: 'Vergleichszeitraum',
+    ranked: { category: 'Anzahl Kategorien', payee: 'Anzahl Empfänger' }, newest: 'Neuester Umsatz',
     diff: 'Unterschied', more: 'mehr', less: 'weniger', same: 'genau gleich viel', atLeast: 'mindestens',
     partial: (d: string) => `Hinweis: Umsätze sind erst ab dem ${d} geladen, es kann mehr gewesen sein.`,
     outside: 'Für diesen Zeitraum sind keine Umsätze geladen.',
@@ -63,6 +64,7 @@ const W = {
     perMonth: 'On average per month', basis: (n: number) => `Based on ${n} whole months`, noWhole: 'No whole month loaded yet, so the total',
     largestOut: 'Largest expense', largestIn: 'Largest payment in', last: 'Last', on: 'on', rankBy: { category: 'by category', payee: 'by payee' },
     rank: { sum: 'Ranking by amount', count: 'Ranking by how often' }, a: 'Period asked about', b: 'Compared with',
+    ranked: { category: 'Number of categories', payee: 'Number of payees' }, newest: 'Newest transaction',
     diff: 'Difference', more: 'more', less: 'less', same: 'exactly the same', atLeast: 'at least',
     partial: (d: string) => `Note: transactions are only loaded from ${d}, so there may have been more.`,
     outside: 'No transactions are loaded for this period.',
@@ -157,6 +159,8 @@ export function writerInput(question: string, a: AskAnswer, c: FactsContext): Wr
     if (a.count === 0) {
       lines.push(w.none(day(a.from), day(a.to)));
     } else if (q.kind === 'rank' && a.rank && q.rank) {
+      // How many there are ("in 6 Restaurants"): the app lists them all under the sentence.
+      lines.push(`${w.ranked[q.rank.by]}: ${count(a.rank.length)}`);
       lines.push(`${w.rank[q.rank.metric]}:`);
       a.rank.slice(0, 5).forEach((r, i) => {
         const name = r.category ? c.nameOf(r.category) : asData(r.name ?? '');
@@ -166,6 +170,12 @@ export function writerInput(question: string, a: AskAnswer, c: FactsContext): Wr
       const tx = a.tx;
       const head = q.kind === 'last' ? w.last : tx.amount > 0 ? w.largestIn : w.largestOut;
       lines.push(`${head}: ${asData(c.payeeOf(tx))}, ${money(Math.abs(Math.round(tx.amount * 100)))}, ${w.on} ${day(bookingDay(tx))}`);
+    } else if (q.kind === 'list') {
+      // The bookings themselves: the app lists the newest under the sentence; the facts name how many and the newest.
+      lines.push(`${w.count}: ${atLeast}${count(a.count)}`);
+      if (q.dir !== 'all') lines.push(`${flow()}: ${atLeast}${money(a.cents)}`);
+      const tx = a.latest?.[0];
+      if (tx) lines.push(`${w.newest}: ${asData(c.payeeOf(tx))}, ${money(Math.abs(Math.round(tx.amount * 100)))}, ${w.on} ${day(bookingDay(tx))}`);
     } else if (q.kind === 'count') {
       lines.push(`${w.count}: ${atLeast}${times(a.count)}`);
       lines.push(`${w.together}: ${money(a.cents)}`);

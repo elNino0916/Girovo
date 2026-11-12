@@ -54,7 +54,7 @@ Add an item to `questions.json`. Give it the next free id (`d…` German, `e…`
 
 | field | meaning |
 |---|---|
-| `kind` | sum, count, average, largest, last, rank, compare |
+| `kind` | sum, count, average, largest, last, rank, compare, list (the bookings themselves: "Zeig alle Zahlungen an Amazon") |
 | `dir` | out, in, all |
 | `category` | a category id (`dining` is Essen & Trinken, `groceries` the supermarket), or null for none |
 | `search` | a lowercase piece the reading's name must contain (`"rewe"`), or null for no name |

@@ -27,7 +27,8 @@ import { CATEGORIES, counterpartyName, type BuiltinCategoryId, type CategoryId }
 import { foldText } from './categorize.ts';
 import type { SerializedTransaction } from './fints-types.ts';
 
-export type AskKind = 'sum' | 'count' | 'largest' | 'last' | 'average' | 'rank' | 'compare';
+/** 'list': the bookings themselves ("Zeig alle Zahlungen an Amazon"), the newest first. */
+export type AskKind = 'sum' | 'count' | 'largest' | 'last' | 'average' | 'rank' | 'compare' | 'list';
 export type AskDir = 'out' | 'in' | 'all';
 export type AskPeriod =
   | { kind: 'all' }
@@ -239,6 +240,16 @@ const KIND_RULES: Array<[RegExp, AskKind]> = [
   [/\bPRO MONAT\b|\bIM MONAT\b|\bMONATLICH|\bIM SCHNITT\b|\bDURCHSCHNITT|\bPER MONTH\b|\bA MONTH\b|\bMONTHLY\b|\bAVERAGE\b/, 'average'],
 ];
 
+/** The bookings themselves: "Zeig alle Zahlungen an Amazon", "Liste Rewe", "alle Umsätze bei Rewe", "Show me all …". */
+const LIST = new RegExp(
+  '^(?:BITTE |KANNST DU (?:MIR )?|PLEASE |CAN YOU )?(?:ZEIG|SHOW|LIST)\\b|\\bZEIG(?:E|ST)?\\b|\\bANZEIGEN\\b|\\bAUFLISTEN\\b|\\bLISTE\\b'
+  + '|\\bSHOW ME\\b|\\bLIST (?:ALL|MY|EVERY)\\b'
+  + '|\\bALLE (?:(?:MEINE[NR]? |DIE )?(?:ZAHLUNGEN|BUCHUNGEN|UMSAETZE|UEBERWEISUNGEN|ABBUCHUNGEN|LASTSCHRIFTEN|EINKAEUFE|AUSGABEN|EINGAENGE|BESTELLUNGEN) )?(?:AN|VON|VOM|BEI|BEIM|FUER)\\b'
+  + '|\\bALL (?:(?:MY|THE) )?(?:PAYMENTS|TRANSACTIONS|TRANSFERS|PURCHASES|CHARGES|BOOKINGS)\\b',
+);
+/** A total asked for: "Zeig mir, wie viel …" is a sum, not a list. */
+const ASKS_TOTAL = /\bWIE ?VIEL\b|\bINSGESAMT\b|\bZUSAMMEN\b|\bSUMME\b|\bHOW MUCH\b|\bIN TOTAL\b|\bTOTAL\b/;
+
 /** A ranking: "am meisten", "am häufigsten", "Top 5" … — and of what, and by what. */
 const RANK = /\bAM (?:MEISTEN|HAEUFIGSTEN|OEFTESTEN)\b|\bMEISTE[NS]? GELD\b|\bDIE MEISTEN\b|\b(?:TEUERSTEN|GROESSTEN|HOECHSTEN|BIGGEST|LARGEST|TOP) (?:KATEGORIEN|POSTEN|HAENDLER|LAEDEN|SHOPS|EMPFAENGER|CATEGORIES|MERCHANTS|STORES|PAYEES)\b|\bMOST\b|\bTOP(?: \d+)?\b|\bRANGLISTE\b|\bRANKING\b|\bHAUPTAUSGABEN\b|\bGROESSTEN (?:POSTEN|AUSGABEPOSTEN|KATEGORIEN)\b/;
 const PLACES = '(?:LAEDEN|LADEN|HAENDLERN?|SHOPS?|GESCHAEFTEN?|FIRMEN|FIRMA|EMPFAENGERN?|RESTAURANTS?|CAFES?|SUPERMAERKTEN?|SUPERMARKT|TANKSTELLEN?|TANKEN?|STORES?|MERCHANTS?|PAYEES?)';
@@ -300,7 +311,7 @@ export function compareFromQuestion(question: string, today: string): { period: 
 }
 
 /** Words that say the money went out or came in; prepositions only where no such word does. */
-const OUT_WORDS = /\b(?:AUSGEGEBEN|AUSGABE|AUSGABEN|BEZAHLT|GEZAHLT|ZAHLE|ZAHLT|KOSTET|KOSTEN|GEKOSTET|UEBERWIESEN|ABGEBUCHT|BERECHNET|ABGEZOGEN|EINGEZOGEN|SPENT|SPEND|PAID|PAY|COST|COSTS|CHARGED)\b/;
+const OUT_WORDS = /\b(?:AUSGEGEBEN|AUSGABE|AUSGABEN|ABBUCHUNG|ABBUCHUNGEN|LASTSCHRIFT|LASTSCHRIFTEN|BEZAHLT|GEZAHLT|ZAHLE|ZAHLT|KOSTET|KOSTEN|GEKOSTET|UEBERWIESEN|ABGEBUCHT|BERECHNET|ABGEZOGEN|EINGEZOGEN|SPENT|SPEND|PAID|PAY|COST|COSTS|CHARGED)\b/;
 /** Words for money taken, which "hat mir" does not turn around: "Was hat mir Vodafone abgebucht?" is money out. */
 const DEBIT_WORDS = /\b(?:ABGEBUCHT|BERECHNET|ABGEZOGEN|EINGEZOGEN|KOSTET|KOSTEN|GEKOSTET|CHARGED|COST|COSTS)\b/;
 const IN_WORDS = /BEKOMMEN|\b(?:ERHALTEN|EINGEGANGEN|EINGAENGE|EINGANG|EINGENOMMEN|EINNAHME|EINNAHMEN|VERDIENT|ERSTATTET|RECEIVED|EARNED|INCOME|REFUND)/;
@@ -383,7 +394,21 @@ export function searchFromQuestion(question: string): string | null {
 export function kindFromQuestion(question: string): AskKind | null {
   const text = fold(question);
   for (const [re, kind] of KIND_RULES) if (re.test(text)) return kind;
-  return null;
+  return LIST.test(text) && !ASKS_TOTAL.test(text) ? 'list' : null;
+}
+
+/** Whether the question asks for a total ("wie viel", "insgesamt", "how much"). */
+export function asksTotal(question: string): boolean {
+  return ASKS_TOTAL.test(fold(question));
+}
+
+/**
+ * A list's direction: both ways unless a word says which. "Buchungen von Lea"
+ * are hers to you and yours to her; "an Amazon", "bei Rewe" go out.
+ */
+export function listDir(question: string, dir: AskDir | null): AskDir {
+  if (saysDirection(question)) return dir ?? 'out';
+  return dir === 'out' ? 'out' : 'all';
 }
 
 /** Whether the question has a word for money going out or coming in (not just "an", "bei", "von"). */
@@ -578,7 +603,7 @@ export function readQuestion(
     ...(compare ? { against: compare.against } : {}),
     kind: kind ?? 'sum',
     // Income is what comes in, whatever else was said of the direction.
-    dir: category === 'income' ? 'in' : dir ?? nano?.dir ?? 'out',
+    dir: category === 'income' ? 'in' : kind === 'list' ? listDir(q, dir) : dir ?? nano?.dir ?? 'out',
     category,
     search,
     period: period ?? { kind: 'all' },
@@ -797,8 +822,10 @@ export type AskAnswer = {
   otherCurrency: number;
   /** The currency every figure here is in. */
   currency: string;
-  /** kind 'rank': the first few, largest first. */
+  /** kind 'rank': every category or payee, first by the ranking's measure. */
   rank?: AskRankRow[];
+  /** kind 'list': the newest LIST_ROWS bookings counted, newest first. */
+  latest?: SerializedTransaction[];
   /** kind 'compare': the asked period and the one it is set against, worked out alike. */
   compare?: { a: AskAnswer; b: AskAnswer };
 };
@@ -816,8 +843,11 @@ export type AskRankRow = {
   filter: TxFilter;
 };
 
-/** How many lines a ranking shows. */
+/** How many lines the phone's tile shows of a ranking (components/insights/Ask.tsx). */
 export const RANK_ROWS = 5;
+
+/** How many bookings a list answer shows; "Umsätze zeigen" opens all of them. */
+export const LIST_ROWS = 5;
 
 /**
  * The earlier side of a comparison, cut to the running side's length: the
@@ -925,10 +955,20 @@ export function computeAnswer(
     query, filter: shown, from, to, outside, partial: !outside && asked.from < loaded.from,
     count: matched.length, cents, outCents, inCents, tx, months: whole?.months ?? 0, monthCents, otherCurrency, currency,
     ...(query.kind === 'rank' && query.rank ? { rank: rankRows(matched, query, filter, ctx.categoryOf, ctx.payeeOf ?? counterpartyName) } : {}),
+    ...(query.kind === 'list' ? { latest: newest(matched, LIST_ROWS) } : {}),
   };
 }
 
-/** The first RANK_ROWS categories or payees of the matched bookings, by money or by count. */
+/** The `n` newest bookings, newest first; of one day, in the order they came. */
+export function newest(list: readonly SerializedTransaction[], n: number): SerializedTransaction[] {
+  return list
+    .map((tx, i) => ({ tx, i, day: bookingDay(tx) }))
+    .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : a.i - b.i))
+    .slice(0, n)
+    .map((x) => x.tx);
+}
+
+/** Every category or payee of the matched bookings, by money or by count. */
 function rankRows(
   matched: readonly SerializedTransaction[],
   query: AskQuery,
@@ -956,8 +996,7 @@ function rankRows(
   const measure = (g: { cents: number; count: number }) => (rank.metric === 'count' ? g.count : g.cents);
   const total = [...groups.values()].reduce((s, g) => s + measure(g), 0) || 1;
   return [...groups.entries()]
-    .sort(([, x], [, y]) => measure(y) - measure(x) || y.cents - x.cents)
-    .slice(0, RANK_ROWS)
+    .sort(([, x], [, y]) => measure(y) - measure(x) || y.cents - x.cents || y.count - x.count)
     .map(([key, g]) => ({
       key, category: g.category, name: g.name, cents: g.cents, count: g.count, share: measure(g) / total,
       filter: g.category ? { ...filter, category: g.category } : { ...filter, query: g.name ?? '' },

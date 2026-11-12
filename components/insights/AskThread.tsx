@@ -48,6 +48,7 @@ import { openTxDetail } from '../transactions/detail-host';
 import { useScopeData, type ScopeData } from './analysis-model';
 import { AskTile } from './Ask';
 import { ExplainAnswer } from './ask/ExplainAnswer';
+import { ListLine, ListRows, RankLine, RankRows } from './ask/ListAnswer';
 import { useCanAsk } from './ask-gate';
 import {
   askInThread, clearAsk, closeAsk, currentConversation, deleteAllConversations, deleteConversation, dropCurrent, hiddenRecaps,
@@ -296,30 +297,11 @@ function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
     lines.push(diff === 0 ? [say.same] : say.diff(<Fig><Money value={Math.abs(diff) / 100} currency={currency} tone="plain" /></Fig>, diff > 0));
     if (a.outside || b.outside) lines.push([words.compareMissing]);
   } else if (q.kind === 'rank' && answer.rank) {
-    const rank = q.rank!;
-    const first = answer.rank[0];
-    if (!first) lines.push([words.none]);
+    // Every place or category, a row each (components/insights/ask/ListAnswer.tsx).
+    if (!answer.rank.length) lines.push([words.none]);
     else {
-      const name = (row: typeof first) => (row.category ? nameOf(row.category) : row.name ?? '');
-      // No "mind." inside a ranking's sentence: the note on the loaded days follows it.
-      lines.push(say.rank(words.rankTitle[rank.by][rank.metric][q.dir === 'in' ? 'in' : 'out'], name(first), money(first.cents, first.filter as AskAnswer['filter'], null, false)));
-      extra = (
-        <ol className="mt-3 -mx-2 flex flex-col rounded-[12px] bg-[color-mix(in_srgb,var(--paper)_72%,transparent)] py-1">
-          {answer.rank.slice(0, 5).map((row, i) => (
-            <li key={row.key}>
-              <button
-                type="button"
-                className="flex min-h-12 w-full items-center gap-3 rounded-[12px] px-3 text-left"
-                onClick={() => open(null, row.filter as AskAnswer['filter'])}
-              >
-                <span className="tnum w-4 shrink-0 text-[14px] text-ink-2">{i + 1}</span>
-                <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{name(row)}</span>
-                <Money value={row.cents / 100} currency={currency} tone="plain" className="shrink-0 text-[14px] font-medium" />
-              </button>
-            </li>
-          ))}
-        </ol>
-      );
+      lines.push([<RankLine key="rank" answer={answer} when={when} nameOf={nameOf} />]);
+      extra = <RankRows answer={answer} nameOf={nameOf} onOpen={(filter) => open(null, filter)} />;
     }
   } else if (answer.outside) {
     lines.push([words.outside]);
@@ -339,6 +321,10 @@ function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
     const name = txText(tx).name || counterpartyName(tx);
     lines.push(q.kind === 'last' ? say.last(name, amount, day)
       : tx.amount > 0 ? say.largestIn(name, amount, day) : say.largestOut(name, amount, day));
+  } else if (q.kind === 'list') {
+    // One line over the newest bookings; a row opens the booking.
+    lines.push([<ListLine key="list" answer={answer} when={when} topic={topic} count={<Fig onShow={() => open(null, answer.filter)}>{atLeast}{words.bookings(answer.count)}</Fig>} amount={money(answer.cents)} />]);
+    extra = <ListRows answer={answer} onOpen={(tx) => { openBooking(tx); onShown(); }} />;
   } else if (q.kind === 'count') {
     lines.push(say.count(when, <Fig onShow={() => open(null, answer.filter)}>{atLeast}{words.times(answer.count)}</Fig>, money(answer.cents), topic));
   } else if (q.kind === 'average' && answer.months > 0) {
@@ -423,7 +409,7 @@ function WrittenText({ text, answer, open }: {
 
 /** What an answer's figures are: Gemma's sentences belong to these, and are written again when they change. */
 // The language too: a sentence is said in the language it was written in, or written again.
-const answerKey = (a: AskAnswer) => JSON.stringify([writerLang(), a.cents, a.count, a.from, a.to, a.partial, a.outside, a.outCents, a.inCents, a.rank?.slice(0, 5).map((r) => r.cents)]);
+const answerKey = (a: AskAnswer) => JSON.stringify([writerLang(), a.cents, a.count, a.from, a.to, a.partial, a.outside, a.outCents, a.inCents, a.rank?.length, a.rank?.slice(0, 5).map((r) => r.cents), a.latest?.[0]?.amount]);
 
 /** Turns being written: each asked of Gemma once at a time. */
 const writing = new Set<string>();
