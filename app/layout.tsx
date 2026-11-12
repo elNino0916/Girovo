@@ -8,6 +8,7 @@ import { MESSAGES } from '@/lib/i18n/messages';
 import { LocaleProvider } from '@/lib/i18n/react';
 import { IN_PAGE_SERVER, IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
 import { CaptionButtons } from '@/components/shell/CaptionButtons';
+import { DragRegions } from '@/components/shell/DragRegions';
 import './globals.css';
 // Girovo's look, Material 3 Expressive, on every platform — after the tokens
 // it remaps; its rules are scoped to <html data-look="material">.
@@ -141,6 +142,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
           {/* The Tauri desktop app on Windows draws its own caption buttons. */}
           {IS_DESKTOP_APP && <CaptionButtons />}
+          {/* And keeps the window's drag areas in step with the page (WebView2 does not always). */}
+          {IS_DESKTOP_APP && <DragRegions />}
         </LocaleProvider>
       </body>
     </html>
