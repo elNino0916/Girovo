@@ -216,6 +216,35 @@ export const de = {
     cancelled: 'Abgebrochen, nichts geändert.',
     already: 'Das ist schon so eingestellt.',
   },
+  /**
+   * Girovo Next: the chips under an answer that say how Girovo read the
+   * question (components/insights/ask/ReadingChips.tsx, labels in lib/ask-chips.ts).
+   * Each one opens a menu that changes that part, and the answer follows.
+   */
+  chips: {
+    title: 'Verstanden als',
+    /** A chip's name for a screen reader: what it changes, then what it says now. */
+    aria: (change: string, value: string) => `${change}, ${value}`,
+    change: {
+      topic: 'Thema ändern',
+      dir: 'Ausgaben oder Eingänge ändern',
+      period: 'Zeitraum ändern',
+      against: 'Vergleich ändern',
+      rankBy: 'Nach Ort oder Kategorie ordnen',
+      metric: 'Nach Betrag oder Häufigkeit ordnen',
+    },
+    allCategories: 'alle Kategorien',
+    removeName: (name: string) => `„${name}“ entfernen`,
+    period: {
+      thisMonth: 'diesen Monat',
+      lastMonth: 'letzten Monat',
+      thisYear: 'dieses Jahr',
+      lastYear: 'letztes Jahr',
+      all: 'alles',
+    },
+    rankBy: { payee: 'nach Ort', category: 'nach Kategorie' },
+    metric: { sum: 'nach Betrag', count: 'nach Häufigkeit' },
+  },
 };
 
 export const en: typeof de = {
@@ -387,5 +416,28 @@ export const en: typeof de = {
     refreshing: 'Girovo is refreshing all accounts.',
     cancelled: 'Cancelled, nothing changed.',
     already: 'That\u2019s already set.',
+  },
+  chips: {
+    title: 'Read as',
+    aria: (change, value) => `${change}, ${value}`,
+    change: {
+      topic: 'Change topic',
+      dir: 'Change spending or income',
+      period: 'Change period',
+      against: 'Change comparison',
+      rankBy: 'Order by place or category',
+      metric: 'Order by amount or frequency',
+    },
+    allCategories: 'all categories',
+    removeName: (name) => `Remove \u201c${name}\u201d`,
+    period: {
+      thisMonth: 'this month',
+      lastMonth: 'last month',
+      thisYear: 'this year',
+      lastYear: 'last year',
+      all: 'everything',
+    },
+    rankBy: { payee: 'by place', category: 'by category' },
+    metric: { sum: 'by amount', count: 'by frequency' },
   },
 };

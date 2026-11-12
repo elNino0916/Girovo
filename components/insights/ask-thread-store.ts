@@ -40,6 +40,8 @@ export type Turn = {
   intent?: AskIntent;
   /** A change's end: made, said no to, or already so. Absent while it waits for the user's answer. */
   outcome?: 'done' | 'cancelled' | 'already';
+  /** Its reading changed by a chip (ask/ReadingChips.tsx): the template says it, Gemma's sentences were about the question as asked. */
+  edited?: boolean;
 };
 
 export type Conversation = {
@@ -148,6 +150,16 @@ export function settleWritten(id: number, written: string | false, writtenFor: s
     ...state,
     conversations: state.conversations.map((c) => (c.turns.some((t) => t.id === id)
       ? { ...c, turns: c.turns.map((t) => (t.id === id ? { ...t, written, writtenFor } : t)) }
+      : c)),
+  });
+}
+
+/** A turn's reading changed by a chip: the answer is worked out again, and Gemma's sentences go with the old one. */
+export function updateTurnQuery(id: number, query: AskQuery): void {
+  set({
+    ...state,
+    conversations: state.conversations.map((c) => (c.turns.some((t) => t.id === id)
+      ? { ...c, turns: c.turns.map((t) => (t.id === id ? { ...t, query, edited: true, written: undefined, writtenFor: undefined } : t)) }
       : c)),
   });
 }

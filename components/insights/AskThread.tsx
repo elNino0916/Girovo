@@ -50,8 +50,9 @@ import { AskTile } from './Ask';
 import { useCanAsk } from './ask-gate';
 import {
   askInThread, clearAsk, closeAsk, currentConversation, deleteAllConversations, deleteConversation, dropCurrent, hiddenRecaps,
-  newConversation, openAskWithRecap, settleOutcome, settleTurn, settleWritten, showConversation, useAskThread, type Turn,
+  newConversation, openAskWithRecap, settleOutcome, settleTurn, settleWritten, showConversation, updateTurnQuery, useAskThread, type Turn,
 } from './ask-thread-store';
+import { ReadingChips } from './ask/ReadingChips';
 import { gemmaPrompt, gemmaUsable, useGemma } from './gemma';
 import { useThemePref } from '../ThemeToggle';
 import { useRecurringModel } from './recurring-model';
@@ -438,7 +439,7 @@ function useWriter(turn: Turn, answer: AskAnswer | null, ctx: AskCtx, own: Own, 
   const current = turn.writtenFor === key;
   useEffect(() => {
     // Only the newest turn is written: older ones keep what they had, so a new question never waits behind them.
-    if (!ready || !answer || turn.seed || !turn.question || current || !latest) return;
+    if (!ready || !answer || turn.seed || turn.edited || !turn.question || current || !latest) return;
     const job = `${turn.id}:${key}`;
     if (writing.has(job)) return;
     writing.add(job);
@@ -448,8 +449,9 @@ function useWriter(turn: Turn, answer: AskAnswer | null, ctx: AskCtx, own: Own, 
     void gemmaPrompt(writerSystem(lang), input.prompt, 160)
       .then((text) => settleWritten(turn.id, usable(text, input) ? text.trim() : false, key))
       .finally(() => writing.delete(job));
-  }, [ready, answer, turn.id, turn.question, turn.seed, key, current, ctx, own, latest]);
-  if (!ready || !answer || turn.seed) return { pending: false };
+  }, [ready, answer, turn.id, turn.question, turn.seed, turn.edited, key, current, ctx, own, latest]);
+  // A reading changed by a chip is said by the template: Gemma's sentences were about the question as asked.
+  if (!ready || !answer || turn.seed || turn.edited) return { pending: false };
   if (!current) return { pending: latest };
   return { pending: false, text: turn.written || undefined };
 }
@@ -712,6 +714,9 @@ function TurnView({ turn, data, ctx, own, onShown, latest }: {
         {turn.state === 'answered' && !turn.seed && !turn.intent && (answer
           ? <AnswerText answer={answer} own={own} show={show} scopeAll={data?.scope === 'all'} onShown={onShown} written={writer.text} />
           : <p className="text-[16px] leading-6 sm:text-[14px]">{words.thread.notLoaded}</p>)}
+        {turn.state === 'answered' && !turn.seed && !turn.intent && answer && data && (
+          <ReadingChips query={answer.query} loaded={data} own={own} onChange={(query) => updateTurnQuery(turn.id, query)} />
+        )}
       </GirovoTile>
     </li>
   );
