@@ -3,7 +3,9 @@
 //
 // An expect lists only what matters for its question:
 //   kind, dir, category, search, period, against, rankBy, rankMetric  (a question about bookings)
-//   intent (+ setting, value)                                           (contracts, read, set, refresh)
+//   intent (+ setting, value, name)                                     (contracts, read, set, refresh, and the
+//                                                                         app's figures: balance, monthEnd, contractCost,
+//                                                                         priceRises, salary, owed, goal)
 //   offTopic: true                                                      (small talk, nonsense, injections)
 //   anyOf: [expect, …]                                                  (any one of these readings is right;
 //                                                                         fields beside anyOf apply to each)
@@ -53,6 +55,10 @@ function scoreOne(result, expect, today) {
     if (!alts(expect.intent).includes(got.kind)) misses.push(`intent: want ${show(expect.intent)}, got ${got.kind}`);
     if ('setting' in expect && !alts(expect.setting).includes(got.setting)) misses.push(`setting: want ${show(expect.setting)}, got ${show(got.setting)}`);
     if ('value' in expect && !alts(expect.value).includes(got.value)) misses.push(`value: want ${show(expect.value)}, got ${show(got.value)}`);
+    // The contract, person or goal a fact is about: a lowercase piece of it, or null for none.
+    if ('name' in expect && !alts(expect.name).some((want) => (want == null ? got.name == null : String(got.name ?? '').includes(String(want).toLocaleLowerCase('de'))))) {
+      misses.push(`name: want ${show(expect.name)}, got ${show(got.name ?? null)}`);
+    }
     return misses;
   }
   const query = result && 'query' in result ? result.query : null;

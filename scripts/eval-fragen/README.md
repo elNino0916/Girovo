@@ -60,7 +60,7 @@ Add an item to `questions.json`. Give it the next free id (`d…` German, `e…`
 | `search` | a lowercase piece the reading's name must contain (`"rewe"`), or null for no name |
 | `period`, `against` | an AskPeriod, compared by the days it spans on the set's `today` (2026-11-12), so `lastMonth` equals `{ "kind": "month", "month": "2026-10" }` |
 | `rankBy`, `rankMetric` | for a ranking: category or payee, sum or count |
-| `intent` | contracts, read, set, refresh, with `setting` and `value` where they matter |
+| `intent` | contracts, read, set, refresh, with `setting` and `value` where they matter; or one of the app's figures (`lib/ask-facts.ts`): balance, monthEnd, contractCost, priceRises, salary, owed, goal, with `name` (a lowercase piece of the contract, person or goal, or null) where it matters |
 | `offTopic` | true for small talk, nonsense and orders Girovo cannot carry out |
 
 Any field may be a list of values that are all right (`"kind": ["sum", "average"]`). `anyOf` holds whole readings of which any one is right.

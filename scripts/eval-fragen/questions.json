@@ -205,6 +205,20 @@
     {"id":"e029","lang":"en","turns":[{"q":"How much did I pay Amazon this year","expect":{"kind":"sum","search":"amazon","period":{"kind":"thisYear"}}},{"q":"How often?","expect":{"kind":"count","search":"amazon","period":{"kind":"thisYear"}}},{"q":"Biggest one?","expect":{"kind":"largest","search":"amazon","period":{"kind":"thisYear"}}}]},
     {"id":"e030","lang":"en","turns":[{"q":"Hi there","expect":{"offTopic":true}},{"q":"How much did I spend this month","expect":{"kind":"sum","dir":"out","category":null,"search":null,"period":{"kind":"thisMonth"}}}]},
     {"id":"e031","lang":"en","turns":[{"q":"show me all payments to Amazon","expect":{"kind":"list","search":"amazon","dir":"out"}}]},
-    {"id":"e032","lang":"en","turns":[{"q":"list my transactions from Lea last month","expect":{"kind":"list","search":"lea","dir":["all","in"],"period":{"kind":"lastMonth"}}}]}
-  ]
+    {"id":"e032","lang":"en","turns":[{"q":"list my transactions from Lea last month","expect":{"kind":"list","search":"lea","dir":["all","in"],"period":{"kind":"lastMonth"}}}]},
+    {"id":"d174","lang":"de","turns":[{"q":"wie viel geld hab ich","expect":{"intent":"balance"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"d175","lang":"de","turns":[{"q":"kontostand","expect":{"intent":"balance"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"d176","lang":"de","turns":[{"q":"reicht das geld bis monatsende","expect":{"intent":"monthEnd"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"d177","lang":"de","turns":[{"q":"wie viel bleibt mir bis zum monatsende","expect":{"intent":"monthEnd"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"d178","lang":"de","turns":[{"q":"was kostet mich netflix im jahr","expect":{"intent":"contractCost","name":"netflix"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"d179","lang":"de","turns":[{"q":"welche abos sind teurer geworden","expect":{"intent":"priceRises"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"d180","lang":"de","turns":[{"q":"wann kommt das gehalt","expect":{"intent":"salary"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"d181","lang":"de","turns":[{"q":"wie viel schuldet mir lea noch","expect":{"intent":"owed","name":"lea"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"d182","lang":"de","turns":[{"q":"wie weit bin ich beim urlaubsziel","expect":{"intent":"goal","name":"urlaub"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"d183","lang":"de","turns":[{"q":"was zahle ich im jahr für spotify","expect":{"intent":"contractCost","name":"spotify"}},{"q":"und wie viel ging dieses jahr an netflix","expect":{"kind":"sum","search":"netflix","period":{"kind":"thisYear"}}}],"note":"app figures (lib/ask-facts.ts), then a booking question"},
+    {"id":"e033","lang":"en","turns":[{"q":"how much money do i have","expect":{"intent":"balance"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"e034","lang":"en","turns":[{"q":"will my money last until the end of the month","expect":{"intent":"monthEnd"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"e035","lang":"en","turns":[{"q":"how much does lea owe me","expect":{"intent":"owed","name":"lea"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"e036","lang":"en","turns":[{"q":"which subscriptions got more expensive","expect":{"intent":"priceRises"}}],"note":"app figures (lib/ask-facts.ts)"}
+]
 }
