@@ -32,11 +32,12 @@ export function useGemma(): GemmaState | null {
 export const gemmaUsable = (s: GemmaState | null): boolean => s?.state === 'ready' && !s.unavailable;
 
 /** Gemma's answer to one prompt, or null (not there, not ready, failed): the caller falls back. */
-export async function gemmaPrompt(system: string, user: string, maxTokens: number): Promise<string | null> {
+export async function gemmaPrompt(system: string, user: string, maxTokens: number, json = false): Promise<string | null> {
   const g = bridge();
   if (!g) return null;
   try {
-    return await g.prompt(system, user, maxTokens);
+    // json: the server holds Gemma to a JSON object (the planner, lib/ask-planner.ts).
+    return await g.prompt(system, user, maxTokens, json);
   } catch {
     return null;
   }

@@ -68,3 +68,9 @@ test('amounts are written as the guard reads them', () => {
   assert.equal(moneyText(123456, 'de'), '1.234,56 €');
   assert.equal(moneyText(123456, 'en'), '€1,234.56');
 });
+
+test('an average that does not say it is one is not said', () => {
+  const avg = writerInput('Netflix pro Monat', { ...answer, query: { ...answer.query, kind: 'average' } } as AskAnswer, { ...ctx, lang: 'de' });
+  assert.equal(usable('Du hast 112,35 € für Lieferando ausgegeben.', avg), false);
+  assert.equal(usable('Im Schnitt 112,35 € pro Monat bei Lieferando.', avg), true);
+});

@@ -228,24 +228,33 @@ const CATEGORY_WORDS: Array<[BuiltinCategoryId, string[]]> = [
 const NOT_A_SEARCH = new Set(
   ('GELD AUSGABE AUSGABEN AUSGEGEBEN EINNAHMEN UMSATZ UMSAETZE BUCHUNG BUCHUNGEN KONTO ZAHLUNG ZAHLUNGEN UEBERWEISUNG UEBERWEISUNGEN '
     + 'ALLES INSGESAMT MICH MIR MEIN MEINE MEINEN MEINEM MEINER DEN DIE DAS DEM DER EIN EINE EINEN SACHEN DINGE '
-    + 'MONEY SPENDING SPENT PAYMENTS PAYMENT ALL TOTAL AVERAGE ME MY THE IT THAT THIS THINGS STUFF').split(' '),
+    + 'WEN WEM WER WAS WELCHE WELCHEN WELCHEM WELCHER WELCHES IHR IHM IHN IHNEN SIE ER ES UNS EUCH DIR DICH DU '
+    + 'MONEY SPENDING SPENT PAYMENTS PAYMENT ALL TOTAL AVERAGE ME MY THE IT THAT THIS THINGS STUFF HER HIM THEM WHOM WHO WHICH YOU MOST OFTEN').split(' '),
 );
 
 const KIND_RULES: Array<[RegExp, AskKind]> = [
-  [/\bZULETZT\b|\bLETZTE[SN]? MAL\b|^WANN\b|\bLAST TIME\b|^WHEN\b|\bMOST RECENT\b/, 'last'],
+  [/\bZULETZT\b|\bLETZTE[SN]? MAL\b|^WANN\b|\bLAST TIME\b|^WHEN\b|\bMOST RECENT\b|\bLETZTE[NSR]? (?:BUCHUNG|UMSATZ|ZAHLUNG|UEBERWEISUNG|EINGANG|ABBUCHUNG)\b|\bLAST (?:PAYMENT|TRANSACTION|BOOKING|TRANSFER)\b/, 'last'],
   [/\b(?:GROESSTE[NMRS]?|TEUERSTE[NMRS]?|HOECHSTE[NMRS]?|LARGEST|BIGGEST|HIGHEST|MOST EXPENSIVE)\b/, 'largest'],
   [/\bWIE OFT\b|\bWIE HAEUFIG\b|\bWIE VIELE (?:MAL|BUCHUNGEN|UMSAETZE|ZAHLUNGEN)\b|\bANZAHL\b|\bHOW OFTEN\b|\bHOW MANY\b/, 'count'],
   [/\bPRO MONAT\b|\bIM MONAT\b|\bMONATLICH|\bIM SCHNITT\b|\bDURCHSCHNITT|\bPER MONTH\b|\bA MONTH\b|\bMONTHLY\b|\bAVERAGE\b/, 'average'],
 ];
 
 /** A ranking: "am meisten", "am häufigsten", "Top 5" … — and of what, and by what. */
-const RANK = /\bAM (?:MEISTEN|HAEUFIGSTEN|OEFTESTEN)\b|\bMEISTE[NS]? GELD\b|\bMOST\b|\bTOP(?: \d+)?\b|\bRANGLISTE\b|\bRANKING\b|\bHAUPTAUSGABEN\b|\bGROESSTEN (?:POSTEN|AUSGABEPOSTEN|KATEGORIEN)\b/;
-const RANK_PAYEE = /(?:^| )(?:WO|BEI WEM|AN WEN|VON WEM|WELCHE[NMRS]? (?:LAEDEN|LADEN|HAENDLERN?|SHOPS?|GESCHAEFTEN?|FIRMEN|FIRMA|EMPFAENGER|RESTAURANTS?|CAFES?)|WHERE|WHO|WHICH (?:SHOPS?|STORES?|MERCHANTS?|RESTAURANTS?|PAYEES?))(?= |$)/;
+const RANK = /\bAM (?:MEISTEN|HAEUFIGSTEN|OEFTESTEN)\b|\bMEISTE[NS]? GELD\b|\bDIE MEISTEN\b|\b(?:TEUERSTEN|GROESSTEN|HOECHSTEN|BIGGEST|LARGEST|TOP) (?:KATEGORIEN|POSTEN|HAENDLER|LAEDEN|SHOPS|EMPFAENGER|CATEGORIES|MERCHANTS|STORES|PAYEES)\b|\bMOST\b|\bTOP(?: \d+)?\b|\bRANGLISTE\b|\bRANKING\b|\bHAUPTAUSGABEN\b|\bGROESSTEN (?:POSTEN|AUSGABEPOSTEN|KATEGORIEN)\b/;
+const PLACES = '(?:LAEDEN|LADEN|HAENDLERN?|SHOPS?|GESCHAEFTEN?|FIRMEN|FIRMA|EMPFAENGERN?|RESTAURANTS?|CAFES?|SUPERMAERKTEN?|SUPERMARKT|TANKSTELLEN?|TANKEN?|STORES?|MERCHANTS?|PAYEES?)';
+const RANK_PAYEE = new RegExp(`(?:^| )(?:WO|WER|BEI WEM|AN WEN|VON WEM|WELCHE[NMRS]? ${PLACES}|${PLACES}|WHERE|WHO|WHICH ${PLACES})(?= |$)`);
 /** A question for the places themselves ("Wo war ich essen?", "Und wo?", "Where did I shop?"): a ranking by payee, without "am meisten". */
-const WHERE = /^(?:UND )?WO(?= |$)|(?:^| )WO (?:WAR|WAREN|HABE|HAB|BIN|KAUFE|KAUFTE|GEHE|ESSE|TANKE|TANKTE)(?= |$)|(?:^| )BEI WEM(?= |$)|(?:^| )WHERE(?= |$)/;
-const RANK_COUNT = /\bAM (?:HAEUFIGSTEN|OEFTESTEN)\b|\bMOST OFTEN\b|\bHOW OFTEN\b/;
+const WHERE = new RegExp(`^(?:UND )?WO(?= |$)|(?:^| )WO (?:WAR|WAREN|HABE|HAB|BIN|KAUFE|KAUFTE|GEHE|ESSE|TANKE|TANKTE)(?= |$)|(?:^| )BEI WEM(?= |$)|(?:^| )WHERE(?= |$)|(?:^| )(?:WELCHE[NMRS]?|WHICH) ${PLACES}(?= |$)`);
+const RANK_COUNT = /\bAM (?:HAEUFIGSTEN|OEFTESTEN)\b|\bMOST OFTEN\b|\bHOW OFTEN\b|\bMEISTEN (?:BUCHUNGEN|UMSAETZE|ZAHLUNGEN|EINKAEUFE)\b|\bMOST (?:TRANSACTIONS|PAYMENTS|PURCHASES)\b/;
 /** A comparison: needs a period on top ("mehr als 100 Euro" is none). */
-const COMPARE = /\bVERGLICHEN MIT\b|\bIM VERGLEICH\b|\bVERGLEICH\b|\bVS\b|\bVERSUS\b|\bGEGENUEBER\b|\b(?:MEHR|WENIGER)\b.*\bALS\b|\b(?:MORE|LESS)\b.*\bTHAN\b|\bCOMPARED\b|\bCOMPARE\b/;
+const COMPARE = /\bVERGLICHEN MIT\b|\bIM VERGLEICH\b|\bVERGLEICH\b|\bVS\b|\bVERSUS\b|\bGEGENUEBER\b|\b(?:HOEHER|NIEDRIGER|HIGHER|LOWER)\b|\b(?:MEHR|WENIGER)\b.*\bALS\b|\b(?:MORE|LESS)\b.*\bTHAN\b|\bCOMPARED\b|\bCOMPARE\b/;
+
+/** What a ranking is of, where the question says it: payees ("wo", "Händler") or categories ("wofür", "Kategorien"); null otherwise. */
+export function rankByFromQuestion(question: string): AskRank['by'] | null {
+  const text = fold(question);
+  if (RANK_PAYEE.test(text) || WHERE.test(text)) return 'payee';
+  return /\bWOFUER\b|\bKATEGORIE|\bWHAT (?:DO I|DID I) SPEND\b|\bCATEGOR/.test(text) ? 'category' : null;
+}
 
 /** A ranking the question asks for, or null. */
 export function rankFromQuestion(question: string): AskRank | null {
@@ -273,9 +282,13 @@ function previousOf(running: AskPeriod): AskPeriod | null {
  * first — or null when the question compares nothing or names no period.
  */
 export function compareFromQuestion(question: string, today: string): { period: AskPeriod; against: AskPeriod } | null {
-  if (!COMPARE.test(fold(question))) return null;
+  const text = fold(question);
+  // "gegen" compares only between two periods ("2026 gegen 2025"); "gegen Hagel", "gegen Mitte September" do not.
+  const loose = !COMPARE.test(text) && /\bGEGEN\b/.test(text);
+  if (!COMPARE.test(text) && !loose) return null;
   const periods = periodsFromQuestion(question, today);
   if (periods.length >= 2) return { period: periods[0], against: periods[1] };
+  if (loose) return null;
   if (periods.length === 1) {
     const [only] = periods;
     const running = runningOf(only);
@@ -287,9 +300,13 @@ export function compareFromQuestion(question: string, today: string): { period: 
 }
 
 /** Words that say the money went out or came in; prepositions only where no such word does. */
-const OUT_WORDS = /\b(?:AUSGEGEBEN|AUSGABE|AUSGABEN|BEZAHLT|GEZAHLT|ZAHLE|ZAHLT|KOSTET|KOSTEN|GEKOSTET|UEBERWIESEN|SPENT|SPEND|PAID|PAY|COST|COSTS)\b/;
+const OUT_WORDS = /\b(?:AUSGEGEBEN|AUSGABE|AUSGABEN|BEZAHLT|GEZAHLT|ZAHLE|ZAHLT|KOSTET|KOSTEN|GEKOSTET|UEBERWIESEN|ABGEBUCHT|BERECHNET|ABGEZOGEN|EINGEZOGEN|SPENT|SPEND|PAID|PAY|COST|COSTS|CHARGED)\b/;
+/** Words for money taken, which "hat mir" does not turn around: "Was hat mir Vodafone abgebucht?" is money out. */
+const DEBIT_WORDS = /\b(?:ABGEBUCHT|BERECHNET|ABGEZOGEN|EINGEZOGEN|KOSTET|KOSTEN|GEKOSTET|CHARGED|COST|COSTS)\b/;
 const IN_WORDS = /BEKOMMEN|\b(?:ERHALTEN|EINGEGANGEN|EINGAENGE|EINGANG|EINGENOMMEN|EINNAHME|EINNAHMEN|VERDIENT|ERSTATTET|RECEIVED|EARNED|INCOME|REFUND)/;
 const OUT_TO = /\b(?:AN|BEI|FUER|TO|AT)\b/;
+/** Money to the asker: "Wer hat mir … überwiesen", "Was hat mir Lea geschickt", "Who sent me …". */
+const TO_ME = /\b(?:HAT|HABEN|HAETTE) MIR\b|\bAN MICH\b|\b(?:SENT|PAID|GAVE|TRANSFERRED) ME\b|\bG(?:O|E)T PAID\b|\bBEEN PAID\b/;
 const IN_FROM = /\b(?:VON|VOM|FROM)\b/;
 
 /** The words before a name: "an Amazon", "bei Rewe", "von Nadine", "für Netflix", "on Uber". */
@@ -310,7 +327,7 @@ const RULES: Array<[RegExp, (m: RegExpExecArray) => AskPeriod]> = [
   [/\b(?:LETZTE[NMR]?|VORIGE[NMR]?|VERGANGENE[NMR]?) MONAT\b|\bVORMONAT\b|\bLAST MONTH\b|\bPREVIOUS MONTH\b/, () => ({ kind: 'lastMonth' })],
   [/\b(?:DIESE[NMR]?|LAUFENDE[NMR]?) MONAT\b|\bTHIS MONTH\b/, () => ({ kind: 'thisMonth' })],
   [/\b(?:LETZTE[NMS]?|VORIGE[NMS]?|VERGANGENE[NMS]?) JAHR\b|\bVORJAHR\b|\bLAST YEAR\b/, () => ({ kind: 'lastYear' })],
-  [/\b(?:DIESE[NMS]?|LAUFENDE[NMS]?) JAHR\b|\bHEUER\b|\bTHIS YEAR\b|\bSEIT JANUAR\b/, () => ({ kind: 'thisYear' })],
+  [/\b(?:DIESE[NMS]?|LAUFENDE[NMS]?|GANZE[NS]?) JAHR\b|\bHEUER\b|\bWHOLE YEAR\b|\bTHIS YEAR\b|\bSEIT JANUAR\b|\bSEIT (?:ANFANG|BEGINN) (?:DES|DIESES) JAHRES\b|\bSEIT JAHRES(?:ANFANG|BEGINN)\b|\bSINCE THE (?:START|BEGINNING) OF THE YEAR\b|\bYEAR TO DATE\b|\bYTD\b/, () => ({ kind: 'thisYear' })],
   [/\bHALBE[NS]? JAHR\b|\bHALF A YEAR\b|\bSECHS MONATE/, () => ({ kind: 'months', months: 6 })],
   [new RegExp(`\\b${LAST_N} (\\d{1,3}|[A-Z]+) (TAGE?N?|DAYS|WOCHEN|WEEKS|MONATE?N?|MONTHS)\\b`), (m) => {
     const n = /^\d+$/.test(m[1]) ? +m[1] : NUMBERS[m[1]] ?? 0;
@@ -369,9 +386,16 @@ export function kindFromQuestion(question: string): AskKind | null {
   return null;
 }
 
+/** Whether the question has a word for money going out or coming in (not just "an", "bei", "von"). */
+export function saysDirection(question: string): boolean {
+  const text = fold(question);
+  return TO_ME.test(text) || OUT_WORDS.test(text) || IN_WORDS.test(text);
+}
+
 /** Out or in, as the question's verbs say — or its "an"/"von" where no verb does; null where it says neither or both. */
 export function dirFromQuestion(question: string): AskDir | null {
   const text = fold(question);
+  if (TO_ME.test(text) && !DEBIT_WORDS.test(text)) return 'in';
   const out = OUT_WORDS.test(text);
   const into = IN_WORDS.test(text);
   if (out && into) return 'all';
@@ -401,6 +425,8 @@ function monthIn(word: string, beforeYear = false): number | null {
  */
 export function periodFromQuestion(question: string, today: string): AskPeriod | null {
   const folded = fold(question);
+  const part = partOfYear(folded, today);
+  if (part) return part;
   for (const [re, make] of RULES) {
     const m = re.exec(folded);
     if (m) {
@@ -421,6 +447,60 @@ export function periodFromQuestion(question: string, today: string): AskPeriod |
   }
   const y = words.find((w) => /^(?:19|20)\d{2}$/.test(w));
   return y && +y <= year ? { kind: 'year', year: +y } : null;
+}
+
+// i18n-data-start — quarters and halves, German and English
+// "Q1" alone may be a name (the fuel chain): a quarter only after "im", "in", "das" or before a year.
+const QUARTER_NTH = /\b(?:(ERSTE|ZWEITE|DRITTE|VIERTE|FIRST|SECOND|THIRD|FOURTH)[NMS]? (?:QUARTAL|QUARTER)|(?:IM|IN|DAS|THE) Q([1-4])|Q([1-4])(?= (?:(?:19|20)\d{2}\b|(?:LETZTE|VORIGE)[NMS]? JAHR|VORJAHR|LAST YEAR)))\b/;
+const LAST_YEAR_WORDS = /\b(?:(?:LETZTE|VORIGE|VERGANGENE)[NMS]? JAHR(?:ES)?|VORJAHR(?:ES)?|LAST YEAR)\b/;
+const QUARTER_LAST = /\b(?:(?:LETZTE|VORIGE|VERGANGENE)[NMS]? QUARTAL|VORQUARTAL|LAST QUARTER|PREVIOUS QUARTER)\b/;
+const QUARTER_THIS = /\b(?:(?:DIESE|LAUFENDE)[NMS]? QUARTAL|THIS QUARTER)\b/;
+const HALF_NTH = /\b(?:(ERSTE|ZWEITE)[NMS]? HALBJAHR|(FIRST|SECOND) HALF)\b/;
+const LAST_WEEKEND = /\b(?:(?:LETZTE|VORIGE|VERGANGENE)[NMS]? WOCHENENDE|LAST WEEKEND)\b/;
+const MONTH_SPAN = /\b(?:ZWISCHEN|VON|BETWEEN|FROM) ([A-Z]+) (?:UND|BIS|AND|TO|UNTIL) ([A-Z]+)\b/;
+const NTH: Record<string, number> = { ERSTE: 1, ZWEITE: 2, DRITTE: 3, VIERTE: 4, FIRST: 1, SECOND: 2, THIRD: 3, FOURTH: 4 };
+// i18n-data-end
+
+/** A quarter or half of a year the question names, as days; a part not yet begun this year is last year's. */
+function partOfYear(folded: string, today: string): AskPeriod | null {
+  const [year, month] = today.split('-').map(Number);
+  const range = (y: number, first: number, months: number): AskPeriod => {
+    const last = first + months - 1;
+    const end = `${y}-${String(last).padStart(2, '0')}-${String(new Date(Date.UTC(y, last, 0)).getUTCDate()).padStart(2, '0')}`;
+    return { kind: 'range', from: `${y}-${String(first).padStart(2, '0')}-01`, to: end < today ? end : today };
+  };
+  // A year the question names ("Q1 2025", "erstes Halbjahr letztes Jahr"); else this year's, or last year's for a part not yet begun.
+  const named = /\b((?:19|20)\d{2})\b/.exec(folded);
+  const namedYear = named && +named[1] <= year ? +named[1] : LAST_YEAR_WORDS.test(folded) ? year - 1 : null;
+  const nth = (n: number, months: number) => {
+    const first = (n - 1) * months + 1;
+    return range(namedYear ?? (first > month ? year - 1 : year), first, months);
+  };
+  const thisQuarter = Math.floor((month - 1) / 3) + 1;
+  let m: RegExpExecArray | null;
+  if (LAST_WEEKEND.test(folded)) {
+    // The Saturday and Sunday before this week (Monday its first day).
+    const weekday = (new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7;
+    const day = (add: number) => {
+      const d = new Date(`${today}T12:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + add);
+      return d.toISOString().slice(0, 10);
+    };
+    return { kind: 'range', from: day(-weekday - 2), to: day(-weekday - 1) };
+  }
+  if ((m = MONTH_SPAN.exec(folded))) {
+    const a = monthIn(m[1]);
+    const b = monthIn(m[2]);
+    if (a && b && a <= b) {
+      const y = namedYear ?? (b > month ? year - 1 : year);
+      return range(y, a, b - a + 1);
+    }
+  }
+  if (QUARTER_THIS.test(folded) && namedYear == null) return nth(thisQuarter, 3);
+  if (QUARTER_LAST.test(folded) && namedYear == null) return thisQuarter === 1 ? range(year - 1, 10, 3) : nth(thisQuarter - 1, 3);
+  if ((m = QUARTER_NTH.exec(folded))) return nth(m[1] ? NTH[m[1]] : +(m[2] ?? m[3]), 3);
+  if ((m = HALF_NTH.exec(folded))) return nth(NTH[m[1] ?? m[2]], 6);
+  return null;
 }
 
 /** Every period the question names, in the order it names them ("diesen vs. letzten Monat"). */

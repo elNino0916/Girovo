@@ -22,7 +22,7 @@
 // Pure: no path aliases, `.ts` on sibling imports.
 
 import { bookingDay } from './analytics.ts';
-import type { AskAnswer } from './nano-ask.ts';
+import type { AskAnswer, AskQuery } from './nano-ask.ts';
 import type { CategoryId } from './categories.ts';
 import type { SerializedTransaction } from './fints-types.ts';
 
@@ -105,7 +105,7 @@ export type FactNumbers = {
 };
 
 /** What Girovo hands the writer: the prompt (the question and the facts), and the facts' numbers for the guard. */
-export type WriterInput = { prompt: string; numbers: FactNumbers; lang: WriterLang };
+export type WriterInput = { prompt: string; numbers: FactNumbers; lang: WriterLang; kind?: AskQuery['kind'] };
 
 /** A name from a booking, as data: one line, no longer than a name needs. */
 const asData = (name: string) => name.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
@@ -178,7 +178,7 @@ export function writerInput(question: string, a: AskAnswer, c: FactsContext): Wr
     if (a.partial) lines.push(w.partial(day(a.from)));
   }
   const prompt = [`${w.q}: ${question.trim()}`, `${w.facts}:`, ...lines.map((l) => `- ${l}`)].join('\n');
-  return { prompt, numbers, lang: c.lang };
+  return { prompt, numbers, lang: c.lang, kind: q.kind };
 }
 
 // i18n-data-start — words a sentence must not use: a number or a currency said in words, a percentage
@@ -245,6 +245,9 @@ export function unbacked(sentence: string, input: WriterInput): string[] {
 }
 
 /** Whether a written sentence may be said: something written, no number of its own, no number in words, no dash, no link. */
+// i18n-data-next-line
+const PER_MONTH = /schnitt|durchschnitt|pro monat|im monat|monatlich|per month|a month|average|monthly/i;
+
 export function usable(sentence: string | null, input: WriterInput): sentence is string {
   if (!sentence) return false;
   const s = sentence.trim();
@@ -252,6 +255,8 @@ export function usable(sentence: string | null, input: WriterInput): sentence is
   // The owner's rule for the interface: no dashes (the prompt asks; the guard makes sure).
   if (/[–—]|\s-\s/.test(s)) return false;
   if (SPELLED.test(s) || CONTACT.test(s.replace(AMOUNT[input.lang], ''))) return false;
+  // An average must say it is one: "Du hast 12,99 € für Netflix ausgegeben" reads as the total.
+  if (input.kind === 'average' && !PER_MONTH.test(s)) return false;
   return unbacked(s, input).length === 0;
 }
 

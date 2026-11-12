@@ -19,7 +19,9 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { aboutBookings, followUp, monthBefore } from '@/lib/ask-followup';
+import { monthBefore } from '@/lib/ask-followup';
+import { checkPlan, plannerInput, plannerSystem } from '@/lib/ask-planner';
+import { readAsked } from '@/lib/ask-read';
 import { intentOf, type AskIntent } from '@/lib/ask-intents';
 import { seriesTitle } from '@/lib/recurring';
 import { setThemePref } from '@/lib/theme';
@@ -32,7 +34,7 @@ import { LOCALE_NAMES, activeLocale, intlLocale } from '@/lib/i18n/locale';
 import { useLocale, useT } from '@/lib/i18n/react';
 import {
   ASK_MAX_TOKENS, ASK_SYSTEM, askText, categoryFromQuestion, computeAnswer, nameFromPayees, parseAskAnswer, periodDays,
-  questionTopic, readQuestion,
+  questionTopic,
   type AskAnswer, type AskPeriod, type AskQuery, type NanoReading,
 } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
@@ -42,6 +44,7 @@ import { ArrowRightIcon, BackIcon, CloseIcon, AiMarkIcon, HistoryIcon, PlusIcon,
 import { usePhone } from '../shell/usePhone';
 import { Button, Dialog, IconButton, Menu, MenuItem, MenuSeparator, Overlay, cx } from '../ui';
 import { searchText, txText } from '../transactions/model';
+import { openTxDetail } from '../transactions/detail-host';
 import { useScopeData, type ScopeData } from './analysis-model';
 import { AskTile } from './Ask';
 import { useCanAsk } from './ask-gate';
@@ -120,7 +123,8 @@ export function AskReader() {
         if (turn.state !== 'reading' || inflight.current.has(turn.id)) return;
         inflight.current.add(turn.id);
         // The question before it, as it was read: what a follow-up keeps.
-        const prev = [...c.turns.slice(0, i)].reverse().find((t) => t.query)?.query ?? null;
+        const prevTurn = [...c.turns.slice(0, i)].reverse().find((t) => t.query);
+        const prev = prevTurn?.query ?? null;
         void (async () => {
           const q = turn.question;
           const today = dayKey(new Date());
@@ -135,26 +139,29 @@ export function AskReader() {
             settleTurn(turn.id, { state: 'failed' });
             return;
           }
+          // The desktop with Gemma: Gemma plans the whole question (and a follow-up with the
+          // one before it); the checks keep only what can be true (lib/ask-planner.ts).
+          if (!mobile?.ask && gemmaReady) {
+            const ctx = { question: q, today, own, payees, prev: prevTurn?.query ? { question: prevTurn.question, query: prevTurn.query } : null };
+            const planned = checkPlan(await gemmaPrompt(plannerSystem(today, own), plannerInput(ctx), 200, true), ctx);
+            if (planned && 'offTopic' in planned) {
+              settleTurn(turn.id, { state: 'offTopic' });
+              return;
+            }
+            if (planned) {
+              settleTurn(turn.id, { state: 'answered', query: planned.plan });
+              return;
+            }
+          }
+          // Otherwise (a phone with Gemini Nano, the desktop without Gemma, or no usable plan):
+          // the model reads, the rules decide (lib/ask-read.ts).
           const raw = mobile?.ask ? await mobile.ask(ASK_SYSTEM, askText(q, own), ASK_MAX_TOKENS) : null;
-          // The desktop with Gemma: Gemma reads the question (the prompt Nano reads on a phone),
-          // a payee's name the question names is taken from the loaded bookings, and the rules
-          // put what the question says plainly over both (readQuestion). Without an answer from
-          // Gemma, the built-in model reads it as before.
-          const fromGemma = !mobile?.ask && gemmaReady ? parseAskAnswer(await gemmaPrompt(ASK_SYSTEM, askText(q, own), ASK_MAX_TOKENS), own) : null;
-          const reading = mobile?.ask ? parseAskAnswer(raw, own)
-            : fromGemma ? { ...fromGemma, search: fromGemma.search ?? nameFromPayees(q, payees) }
-              : await builtInReading(q, payees, askCategory);
-          // Small talk ("Hallo") gets a line, not the sum of every booking a model read into it.
-          if (!aboutBookings(q, readQuestion(q, null, today, own), reading)) {
-            settleTurn(turn.id, { state: 'offTopic' });
-            return;
-          }
-          const read = readQuestion(q, reading, today, own);
-          if (!read) {
-            settleTurn(turn.id, { state: mobile?.ask && raw == null ? 'failed' : 'notUnderstood' });
-            return;
-          }
-          settleTurn(turn.id, { state: 'answered', query: followUp(prev, q, read, today) });
+          const reading = mobile?.ask ? parseAskAnswer(raw, own) : await builtInReading(q, payees, askCategory);
+          const read = readAsked(q, prev, { today, own, reading });
+          if ('offTopic' in read) settleTurn(turn.id, { state: 'offTopic' });
+          else if ('query' in read) settleTurn(turn.id, { state: 'answered', query: read.query });
+          else if ('intent' in read) settleTurn(turn.id, { state: 'answered', intent: read.intent });
+          else settleTurn(turn.id, { state: mobile?.ask && raw == null ? 'failed' : 'notUnderstood' });
         })().finally(() => inflight.current.delete(turn.id));
       });
     }
@@ -223,6 +230,22 @@ function dayInWords(day: string): string {
   return new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'long', ...(thisYear ? {} : { year: 'numeric' }) }).format(d);
 }
 
+/**
+ * Opens one booking's details from an answer: the Übersicht (which hosts the
+ * drawer) comes forward, the drawer opens on the booking, with its own account
+ * where it is not the active one.
+ */
+function useOpenBooking() {
+  const { txByAccount, accounts, setTab } = useFints();
+  return (tx: SerializedTransaction) => {
+    const owner = Object.keys(txByAccount).find((key) => txByAccount[key]?.includes(tx));
+    const account = accounts.find((a) => a.accountNumber === owner);
+    setTab('overview');
+    // On the next tick, once the Übersicht and its drawer host are there.
+    setTimeout(() => openTxDetail(tx, false, account), 0);
+  };
+}
+
 /** Girovo's answer to one question, said in sentences over the figures it computed. */
 function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
   answer: AskAnswer;
@@ -241,8 +264,12 @@ function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
   const { query: q, currency } = answer;
   const when = lead(q.period);
   const across = scopeAll ? { acrossAccounts: true } : {};
+  const openBooking = useOpenBooking();
+  // One booking answers "Größte Ausgabe" and "Zuletzt": its details open, not a list of the period.
+  const single = (q.kind === 'largest' || q.kind === 'last') && !!answer.tx;
   const open = (tx: SerializedTransaction | null, filter: AskAnswer['filter']) => {
-    show(tx, { ...filter, ...across });
+    if (single && tx) openBooking(tx);
+    else show(tx, { ...filter, ...across });
     onShown();
   };
   const nameOf = (id: CategoryId) => own.find((c) => c.id === id)?.name ?? categoryLabel(id);
@@ -272,7 +299,8 @@ function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
     if (!first) lines.push([words.none]);
     else {
       const name = (row: typeof first) => (row.category ? nameOf(row.category) : row.name ?? '');
-      lines.push(say.rank(words.rankTitle[rank.by][rank.metric][q.dir === 'in' ? 'in' : 'out'], name(first), money(first.cents, first.filter as AskAnswer['filter'])));
+      // No "mind." inside a ranking's sentence: the note on the loaded days follows it.
+      lines.push(say.rank(words.rankTitle[rank.by][rank.metric][q.dir === 'in' ? 'in' : 'out'], name(first), money(first.cents, first.filter as AskAnswer['filter'], null, false)));
       extra = (
         <ol className="mt-3 -mx-2 flex flex-col rounded-[12px] bg-[color-mix(in_srgb,var(--paper)_72%,transparent)] py-1">
           {answer.rank.slice(0, 5).map((row, i) => (

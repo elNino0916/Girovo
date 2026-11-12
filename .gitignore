@@ -40,3 +40,6 @@ dist/
 .next-desktop/
 .next-desktop-dev/
 /out-desktop/
+
+# Girovo AI question-set runs (scripts/eval-fragen)
+/scripts/eval-fragen/results/

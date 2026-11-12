@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aboutBookings, followUp, monthBefore } from './ask-followup.ts';
+import { aboutBookings, continuesFrom, followUp, monthBefore } from './ask-followup.ts';
 import { readQuestion, type AskQuery } from './nano-ask.ts';
 
 const today = '2026-11-11';
@@ -77,6 +77,19 @@ test('small talk is no question about the bookings, whatever a model reads into 
   assert.equal(aboutBookings('Wie viel ging an Rewe?', readQuestion('Wie viel ging an Rewe?', null, today), null), true);
   assert.equal(aboutBookings('Was kostet mich Netflix?', null, { dir: null, category: null, search: 'Netflix' }), true);
   assert.equal(aboutBookings('Wofür gebe ich Geld aus?', null, { dir: null, category: 'shopping', search: null }), true);
+});
+
+test('a complete new question keeps nothing of the one before it', () => {
+  const first = read('Wo war ich im August essen?');
+  const q = 'Größte Ausgabe dieses Jahr';
+  const next = followUp(first, q, read(q), today);
+  assert.equal(next.category, null);
+  assert.equal(next.search, null);
+  assert.equal(next.kind, 'largest');
+  assert.equal(continuesFrom('Und wo?'), true);
+  assert.equal(continuesFrom('Pro Monat'), true);
+  assert.equal(continuesFrom('Was ist mit Rewe?'), true);
+  assert.equal(continuesFrom('Wie viel ging im Oktober an Rewe?'), false);
 });
 
 test('a ranking does not carry over to a new topic', () => {

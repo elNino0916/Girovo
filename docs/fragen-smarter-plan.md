@@ -21,6 +21,12 @@ The root cause is one design choice: **the rules decide, Gemma only suggests**, 
 7. **"Verstanden als" when unsure**: if Gemma and the checks disagree, the answer shows one quiet line of chips ("Essen & Trinken · August 2026 · nach Ort") the user can change, instead of a confident wrong answer.
 8. **Android**: the same planner through Gemini Nano 4's structured output once AICore offers it on the owner's phone; until then the rules from step 4.
 
+## Where it stands (2026-11-12)
+
+Steps 1 and 2 are done; step 4 is partly done. Step 2 came out differently from the plan. With the rules only checking, Gemma alone read 74 % of the question set right: it took "Netflix pro Monat" for a sum and "Wofür geb ich am meisten aus" for the largest booking. Now Gemma's reading goes through the rules the way Gemini Nano's does on a phone (`lib/ask-planner.ts` checkPlan). Where the message says it in so many words (the kind of answer, a period, a category word), the rules decide. Gemma fills in the rest: a payee, a category in other words, a loosely worded period, a comparison or a ranking the rules missed. Scores are in `scripts/eval-fragen/README.md`. On the blind set, which nobody tuning has read: rules alone 79 %, with Gemma E2B 90 %. E4B was no better at reading and took twice as long.
+
+Next: step 3 (places as real lists), step 5 (the writer: E2B wrote "12,99 € für Netflix" for an average, and the guard now refuses that), then steps 6 and 7.
+
 ## What done looks like
 
 The question set at 90 % or more with Gemma (rules only: 75 %), every miss above answered right, and each step in its own commit with its score in the message.
