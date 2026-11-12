@@ -47,6 +47,7 @@ import { searchText, txText } from '../transactions/model';
 import { openTxDetail } from '../transactions/detail-host';
 import { useScopeData, type ScopeData } from './analysis-model';
 import { AskTile } from './Ask';
+import { ExplainAnswer } from './ask/ExplainAnswer';
 import { useCanAsk } from './ask-gate';
 import {
   askInThread, clearAsk, closeAsk, currentConversation, deleteAllConversations, deleteConversation, dropCurrent, hiddenRecaps,
@@ -709,7 +710,8 @@ function TurnView({ turn, data, ctx, own, onShown, latest }: {
         {turn.state === 'notUnderstood' && <p className="text-[16px] leading-6 sm:text-[14px]">{IS_ANDROID ? words.notUnderstood : words.desktop.notUnderstood}</p>}
         {turn.state === 'offTopic' && <p className="text-[16px] leading-6 sm:text-[14px]">{words.thread.offTopic}</p>}
         {turn.state === 'answered' && turn.intent && <IntentAnswer turn={turn} intent={turn.intent} onShown={onShown} />}
-        {turn.state === 'answered' && !turn.seed && !turn.intent && (answer
+        {turn.state === 'answered' && turn.explain && <ExplainAnswer turn={turn} onShown={onShown} />}
+        {turn.state === 'answered' && !turn.seed && !turn.intent && !turn.explain && (answer
           ? <AnswerText answer={answer} own={own} show={show} scopeAll={data?.scope === 'all'} onShown={onShown} written={writer.text} />
           : <p className="text-[16px] leading-6 sm:text-[14px]">{words.thread.notLoaded}</p>)}
       </GirovoTile>
