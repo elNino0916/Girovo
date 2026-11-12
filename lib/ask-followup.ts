@@ -17,6 +17,12 @@ import {
 // i18n-data-next-line
 const MONEY = /\b(?:geld|ausgegeben|ausgeben|gezahlt|bezahlt|zahle|zahlte|kostet|kosten|umsatz|umsätze|umsaetze|überwiesen|ueberwiesen|bekommen|eingang|eingänge|ausgaben|einnahmen|spent|spend|paid|pay|cost|costs|transaction|transactions|money|income|received)\b|€/i;
 
+// i18n-data-next-line
+const BOOKINGS = /(?:^|[^\p{L}])(?:umsätze|umsaetze|buchungen|zahlungen|überweisungen|ueberweisungen|abbuchungen|lastschriften|ausgaben|einnahmen|eingänge|transactions|payments|transfers|bookings)(?![\p{L}])/iu;
+
+// i18n-data-next-line
+const SHOW_THEM = /^(?:zeig\w*|show|list)(?: (?:mir|me|sie|die|diese|alle|them|those|the|all|bitte|please|mal))*(?: (?:umsätze|umsaetze|buchungen|zahlungen|transactions|payments))?$/i;
+
 /**
  * Whether a message asks about the bookings at all. A model always reads
  * something into "Hallo" or "Wie geht es dir" (every booking, or a category
@@ -27,8 +33,10 @@ const MONEY = /\b(?:geld|ausgegeben|ausgeben|gezahlt|bezahlt|zahle|zahlte|kostet
  */
 export function aboutBookings(question: string, rules: AskQuery | null, reading: NanoReading | null): boolean {
   if (ordersSomething(question)) return false;
-  // A reading that is nothing but an "an" or "bei" ("Na, alles fit bei dir?") is no sign of the bookings.
-  const bare = rules && rules.kind === 'sum' && !rules.category && !rules.search && rules.period.kind === 'all' && !saysDirection(question);
+  // A reading that is nothing but an "an" or "bei" ("Na, alles fit bei dir?") is no sign of the bookings,
+  // nor a bare "zeig" ("Zeig mal, was du kannst") unless it names the bookings ("Zeig mir alle Umsätze").
+  const bare = rules && (rules.kind === 'sum' || (rules.kind === 'list' && !BOOKINGS.test(question)))
+    && !rules.category && !rules.search && rules.period.kind === 'all' && !saysDirection(question);
   if (rules && !bare) return true;
   if (reading?.search && question.toLocaleLowerCase('de').includes(reading.search.toLocaleLowerCase('de'))) return true;
   return !!reading?.category && MONEY.test(question);
@@ -64,6 +72,8 @@ const CONTINUES = /^(?:und|and|aber|but|auch|also|dann|then|nur|only|was ist mit
 export function continuesFrom(question: string): boolean {
   const q = question.trim().replace(/[?!.]+$/, '');
   if (CONTINUES.test(q)) return true;
+  // "Zeig sie mir", "Zeig mir die Umsätze": the bookings of the question before.
+  if (SHOW_THEM.test(q)) return true;
   // A short message goes on only when it says something about the bookings ("Pro Monat",
   // "Wie oft?"); "Danke!", "Ok", "Hallo" are small talk, not the question before again.
   return q.split(/\s+/).filter(Boolean).length <= 3 && !ordersSomething(q) && saysSomething(q);

@@ -82,3 +82,27 @@ test('money from a name is said as from that name, and a sentence that turns it 
   assert.equal(usable('Nadine Milleville hat mindestens 586,75 € bekommen.', input), false);
   assert.equal(usable('Von Nadine Milleville hast du mindestens 586,75 € bekommen.', input), true);
 });
+
+test('a list\'s facts: how many, the total, the newest booking', () => {
+  const newestTx = { entryDate: '2026-10-28', valueDate: '2026-10-28', amount: -23.4, currency: 'EUR' };
+  const list = { ...answer, query: { ...answer.query, kind: 'list' }, latest: [newestTx] } as unknown as AskAnswer;
+  const input = writerInput('Zeig alle Zahlungen an Lieferando im Oktober', list, { ...ctx, payeeOf: () => 'Lieferando', lang: 'de' });
+  assert.match(input.prompt, /Anzahl Umsätze: 5/);
+  assert.match(input.prompt, /Du hast an „Lieferando“ gezahlt: 112,35 €/);
+  assert.match(input.prompt, /Neuester Umsatz: Lieferando, 23,40 €, am 28\. Oktober 2026/);
+  assert.equal(usable('Im Oktober hast du 5 Umsätze bei Lieferando, zuletzt 23,40 € am 28. Oktober.', input), true);
+  // Both ways at once: no total.
+  const both = writerInput('Zeig alles mit Lieferando', { ...list, query: { ...list.query, dir: 'all' } } as AskAnswer, { ...ctx, lang: 'de' });
+  assert.doesNotMatch(both.prompt, /112,35/);
+});
+
+test('a ranking\'s facts say how many there are', () => {
+  const row = (name: string, cents: number) => ({ key: name, category: null, name, cents, count: 1, share: 0, filter: {} });
+  const rank = {
+    ...answer, query: { ...answer.query, kind: 'rank', search: null, category: 'dining', rank: { by: 'payee', metric: 'count' } },
+    rank: [row('Pinos Pizza', 8450), row('Café Lotte', 1200), row('Sushi Bar', 3100)],
+  } as unknown as AskAnswer;
+  const input = writerInput('In welchen Restaurants war ich im Oktober?', rank, { ...ctx, lang: 'de' });
+  assert.match(input.prompt, /Anzahl Empfänger: 3/);
+  assert.equal(usable('Im Oktober warst du in 3 Restaurants, am häufigsten bei Pinos Pizza.', input), true);
+});

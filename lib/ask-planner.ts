@@ -20,7 +20,8 @@
 import { aboutBookings, continuesFrom, followUp, ordersSomething } from './ask-followup.ts';
 import type { CategoryId } from './categories.ts';
 import {
-  ASKABLE, compareFromQuestion, kindFromQuestion, nameFromPayees, periodFromQuestion, rankByFromQuestion, readQuestion,
+  ASKABLE, asksTotal, compareFromQuestion, dirFromQuestion, kindFromQuestion, listDir, nameFromPayees, periodFromQuestion,
+  rankByFromQuestion, readQuestion,
   type AskPeriod, type AskQuery, type NanoReading,
 } from './nano-ask.ts';
 
@@ -63,7 +64,7 @@ export function plannerSystem(today: string, own: readonly { id: string; name: s
     `Heute ist ${today}.`,
     'Felder:',
     '"about": "bookings" wenn es um Umsätze, Ausgaben, Einnahmen, Händler oder Zeiträume geht, sonst "other" (Begrüßung, Smalltalk, anderes).',
-    '"kind": "sum" (wie viel), "count" (wie oft), "average" (im Schnitt, pro Monat), "largest" (größte Ausgabe oder größter Eingang), "last" (wann zuletzt), "places" (wo, bei wem, welche Läden oder Restaurants: eine Liste der Empfänger), "categories" (wofür, welche Kategorien), "compare" (mehr oder weniger als ein anderer Zeitraum).',
+    '"kind": "sum" (wie viel), "count" (wie oft), "average" (im Schnitt, pro Monat), "largest" (größte Ausgabe oder größter Eingang), "last" (wann zuletzt), "places" (wo, bei wem, welche Läden oder Restaurants: eine Liste der Empfänger), "categories" (wofür, welche Kategorien), "compare" (mehr oder weniger als ein anderer Zeitraum), "list" (zeig, liste, alle Zahlungen an, von oder bei: die Umsätze selbst).',
     '"direction": "out" (ausgegeben, bezahlt), "in" (bekommen, Einnahmen, Gehalt), "both".',
     '"category": eine der Kategorien unten, oder null.',
     '"payee": ein Händler oder eine Person genau so, wie die Frage sie schreibt, oder null. Eine Kategorie ist kein payee.',
@@ -76,6 +77,7 @@ export function plannerSystem(today: string, own: readonly { id: string; name: s
     'Frage: Wo war ich im August essen? -> {"about":"bookings","kind":"places","direction":"out","category":"dining","payee":null,"period":{"type":"month","month":"2026-08"},"compare_to":null}',
     'Frage: Wie viel ging letzten Monat an Rewe? -> {"about":"bookings","kind":"sum","direction":"out","category":null,"payee":"Rewe","period":{"type":"last_month"},"compare_to":null}',
     'Frage: Größte Ausgabe dieses Jahr -> {"about":"bookings","kind":"largest","direction":"out","category":null,"payee":null,"period":{"type":"this_year"},"compare_to":null}',
+    'Frage: Zeig alle Zahlungen an Amazon -> {"about":"bookings","kind":"list","direction":"out","category":null,"payee":"Amazon","period":{"type":"all"},"compare_to":null}',
     'Frage: Hallo -> {"about":"other"}',
   ].join('\n');
 }
@@ -194,6 +196,11 @@ export function checkPlan(raw: string | null, ctx: PlanContext): PlanResult {
   const against = periodOf(o.compare_to, today);
   if (o.kind === 'compare' && merged.kind === 'sum' && !kindFromQuestion(question) && planned && against && JSON.stringify(planned) !== JSON.stringify(against)) {
     merged = { ...merged, kind: 'compare', against };
+  }
+  // The bookings themselves, said in words the rules do not know ("Was ging alles an Amazon raus?");
+  // never where the message asks for a total.
+  if (o.kind === 'list' && merged.kind === 'sum' && !kindFromQuestion(question) && !asksTotal(question)) {
+    merged = { ...merged, kind: 'list', dir: merged.category === 'income' ? 'in' : listDir(question, dirFromQuestion(question)) };
   }
   // A ranking of categories the rules did not see ("Wofür die meisten Buchungen" said otherwise).
   if (o.kind === 'categories' && merged.kind === 'sum' && !kindFromQuestion(question) && /\b(?:wofur|wofuer|kategorie\w*|categor\w*)\b/.test(q)) {

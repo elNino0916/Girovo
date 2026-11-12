@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkPlan, periodOf, plannerInput, type PlanContext } from './ask-planner.ts';
+import { checkPlan, periodOf, plannerInput, plannerSystem, type PlanContext } from './ask-planner.ts';
 import type { AskQuery } from './nano-ask.ts';
 
 const today = '2026-11-12';
@@ -74,4 +74,15 @@ test('periods: weeks, yesterday, impossible months', () => {
   assert.equal(periodOf({ type: 'month', month: '2026-13' }, today), null);
   assert.equal(periodOf({ type: 'month', month: '2027-01' }, today), null);
   assert.deepEqual(periodOf({ type: 'last_days', n: 30 }, today), { kind: 'days', days: 30 });
+});
+
+test('a list: Gemma\'s where the rules read a plain sum, never where the message asks a total', () => {
+  assert.match(plannerSystem(today), /"list"/);
+  const list = plan({ about: 'bookings', kind: 'list', direction: 'out', category: null, payee: 'Amazon', period: { type: 'all' } }, ctx('Was ging alles an Amazon raus?'));
+  assert.deepEqual([list.kind, list.search, list.dir], ['list', 'Amazon', 'out']);
+  const total = plan({ about: 'bookings', kind: 'list', direction: 'out', category: null, payee: 'Amazon', period: { type: 'all' } }, ctx('Wie viel ging an Amazon?'));
+  assert.equal(total.kind, 'sum');
+  // The rules' own list stands, whatever Gemma read.
+  const rules = plan({ about: 'bookings', kind: 'sum', direction: 'in', category: null, payee: 'Lea', period: { type: 'all' } }, ctx('Zeig mir die Buchungen von Lea'));
+  assert.deepEqual([rules.kind, rules.dir], ['list', 'all']);
 });

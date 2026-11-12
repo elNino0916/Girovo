@@ -107,3 +107,28 @@ test('the month before a one-month period, and none for other periods', () => {
   assert.equal(monthBefore({ kind: 'days', days: 30 }, today), null);
   assert.equal(monthBefore({ kind: 'all' }, today), null);
 });
+
+test('a list goes on like a sum: a new month or name keeps it a list, "wie viel insgesamt" asks the sum', () => {
+  const first = read('Zeig alle Zahlungen an Amazon');
+  assert.equal(first.kind, 'list');
+  const october = followUp(first, 'Und im Oktober?', read('Und im Oktober?'), today);
+  assert.deepEqual([october.kind, october.search, october.period], ['list', first.search, { kind: 'month', month: '2026-10' }]);
+  const rewe = followUp(first, 'Und bei Rewe?', read('Und bei Rewe?'), today);
+  assert.deepEqual([rewe.kind, rewe.search?.toLowerCase()], ['list', 'rewe']);
+  const total = followUp(october, 'Und wie viel insgesamt?', october, today) // nothing to read in it: the question before stands, as lib/ask-read.ts hands it on;
+  assert.deepEqual([total.kind, total.search, total.period], ['sum', first.search, october.period]);
+});
+
+test('"Zeig sie mir" lists the bookings of the question before', () => {
+  const first = read('Wie viel ging im Oktober an Rewe?');
+  assert.equal(continuesFrom('Zeig sie mir'), true);
+  assert.equal(continuesFrom('Zeig mir die Umsätze'), true);
+  const shown = followUp(first, 'Zeig sie mir', read('Zeig sie mir'), today);
+  assert.deepEqual([shown.kind, shown.search, shown.period, shown.dir], ['list', 'Rewe', first.period, 'out']);
+});
+
+test('a bare "zeig" is no question about the bookings, "zeig mir alle Umsätze" is', () => {
+  const rules = (q: string) => readQuestion(q, null, today);
+  assert.equal(aboutBookings('Zeig mal, was du kannst', rules('Zeig mal, was du kannst'), null), false);
+  assert.equal(aboutBookings('Zeig mir alle Umsätze', rules('Zeig mir alle Umsätze'), null), true);
+});

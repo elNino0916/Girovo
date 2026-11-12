@@ -26,7 +26,7 @@ import { dayKey, fmtDate, fmtMonth, fmtRange } from '@/lib/format';
 import { rich, useT } from '@/lib/i18n/react';
 import {
   ASK_MAX_TOKENS, ASK_MIN_NANO, ASK_SYSTEM, askText, asksWith, categoryFromQuestion, computeAnswer, nameFromPayees,
-  parseAskAnswer, periodDays, questionTopic, readQuestion,
+  parseAskAnswer, periodDays, questionTopic, readQuestion, RANK_ROWS,
   type AskAnswer, type AskPeriod, type AskQuery, type NanoReading,
 } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
@@ -415,7 +415,7 @@ function Answer({ answer, scopeAll, onShow, own }: {
       <>
         <p className="text-[13px] leading-snug font-medium text-ink-2">{words.rankTitle[rank.by][rank.metric][q.dir === 'in' ? 'in' : 'out']}</p>
         <ol className="mt-1 flex flex-col">
-          {answer.rank.map((row, i) => (
+          {answer.rank.slice(0, RANK_ROWS).map((row, i) => (
             <li key={row.key}>
               {/* The name gets the width; its share (or how often) goes under it. */}
               <button

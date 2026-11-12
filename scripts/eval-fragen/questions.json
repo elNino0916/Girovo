@@ -164,6 +164,16 @@
     {"id":"d161","lang":"de","turns":[{"q":"Essen gehen im August","expect":{"kind":"sum","category":"dining","search":null,"period":{"kind":"month","month":"2026-08"}}},{"q":"Und Lieferando?","expect":{"kind":"sum","search":"lieferando","period":{"kind":"month","month":"2026-08"}}}]},
     {"id":"d162","lang":"de","turns":[{"q":"In welchen Restaurants war ich in August","expect":{"kind":"rank","rankBy":"payee","category":"dining","period":{"kind":"month","month":"2026-08"}}},{"q":"Und wie viel insgesamt?","expect":{"kind":"sum","category":"dining","search":null,"period":{"kind":"month","month":"2026-08"}}}]},
     {"id":"d163","lang":"de","turns":[{"q":"Kino dieses Jahr","expect":{"kind":"sum","category":"leisure","search":null,"period":{"kind":"thisYear"}}},{"q":"Wie oft?","expect":{"kind":"count","category":"leisure","search":null,"period":{"kind":"thisYear"}}}]},
+    {"id":"d164","lang":"de","turns":[{"q":"Zeig alle Zahlungen an Amazon","expect":{"kind":"list","search":"amazon","dir":"out"}}],"note":"list: the bookings themselves"},
+    {"id":"d165","lang":"de","turns":[{"q":"Zeig mir die Buchungen von Lea im Oktober","expect":{"kind":"list","search":"lea","dir":["all","in"],"period":{"kind":"month","month":"2026-10"}}}],"note":"list: \"von\" alone says no direction"},
+    {"id":"d166","lang":"de","turns":[{"q":"alle umsätze bei rewe","expect":{"kind":"list","search":"rewe"}}]},
+    {"id":"d167","lang":"de","turns":[{"q":"zeig mir alle ausgaben im september","expect":{"kind":"list","dir":"out","category":null,"search":null,"period":{"kind":"month","month":"2026-09"}}}]},
+    {"id":"d168","lang":"de","turns":[{"q":"kannst du mir alle überweisungen an mama zeigen","expect":{"kind":"list","search":"mama","dir":"out"}}]},
+    {"id":"d169","lang":"de","turns":[{"q":"zeig mir mein gehalt dieses jahr","expect":{"kind":"list","category":"income","dir":"in","period":{"kind":"thisYear"}}}]},
+    {"id":"d170","lang":"de","turns":[{"q":"Wie viel ging im Oktober an Rewe?","expect":{"kind":"sum","search":"rewe","period":{"kind":"month","month":"2026-10"}}},{"q":"Zeig sie mir","expect":{"kind":"list","search":"rewe","period":{"kind":"month","month":"2026-10"}}}],"note":"list as a follow-up: the bookings of the question before"},
+    {"id":"d171","lang":"de","turns":[{"q":"zeig alle zahlungen an netflix","expect":{"kind":"list","search":"netflix"}},{"q":"und wie viel insgesamt","expect":{"kind":"sum","search":"netflix"}}],"note":"a list goes on like a sum"},
+    {"id":"d172","lang":"de","turns":[{"q":"zeig mir wie viel ich bei amazon ausgegeben hab","expect":{"kind":"sum","search":"amazon","dir":"out"}}],"note":"zeig with a total is a sum"},
+    {"id":"d173","lang":"de","turns":[{"q":"liste alle abbuchungen von vodafone im oktober","expect":{"kind":"list","search":"vodafone","dir":"out","period":{"kind":"month","month":"2026-10"}}}],"note":"\"abbuchungen\" say money out"},
     {"id":"e001","lang":"en","turns":[{"q":"enable white mode","expect":{"intent":"set","setting":"theme","value":"light"}}],"note":"owner miss"},
     {"id":"e002","lang":"en","turns":[{"q":"refresh all accounts","expect":{"intent":"refresh"}}],"note":"owner miss"},
     {"id":"e003","lang":"en","turns":[{"q":"how much did I spend on groceries last month","expect":{"kind":"sum","category":"groceries","search":null,"period":{"kind":"lastMonth"},"dir":"out"}}]},
@@ -193,6 +203,8 @@
     {"id":"e027","lang":"en","turns":[{"q":"How much did I spend on restaurants in August","expect":{"kind":"sum","category":"dining","search":null,"period":{"kind":"month","month":"2026-08"}}},{"q":"And where?","expect":{"kind":"rank","rankBy":"payee","category":"dining","period":{"kind":"month","month":"2026-08"}}},{"q":"And in September?","expect":{"kind":"rank","rankBy":"payee","category":"dining","period":{"kind":"month","month":"2026-09"}}}]},
     {"id":"e028","lang":"en","turns":[{"q":"Groceries last month","expect":{"kind":"sum","category":"groceries","search":null,"period":{"kind":"lastMonth"}}},{"q":"Per month","expect":{"kind":"average","category":"groceries","search":null}}]},
     {"id":"e029","lang":"en","turns":[{"q":"How much did I pay Amazon this year","expect":{"kind":"sum","search":"amazon","period":{"kind":"thisYear"}}},{"q":"How often?","expect":{"kind":"count","search":"amazon","period":{"kind":"thisYear"}}},{"q":"Biggest one?","expect":{"kind":"largest","search":"amazon","period":{"kind":"thisYear"}}}]},
-    {"id":"e030","lang":"en","turns":[{"q":"Hi there","expect":{"offTopic":true}},{"q":"How much did I spend this month","expect":{"kind":"sum","dir":"out","category":null,"search":null,"period":{"kind":"thisMonth"}}}]}
+    {"id":"e030","lang":"en","turns":[{"q":"Hi there","expect":{"offTopic":true}},{"q":"How much did I spend this month","expect":{"kind":"sum","dir":"out","category":null,"search":null,"period":{"kind":"thisMonth"}}}]},
+    {"id":"e031","lang":"en","turns":[{"q":"show me all payments to Amazon","expect":{"kind":"list","search":"amazon","dir":"out"}}]},
+    {"id":"e032","lang":"en","turns":[{"q":"list my transactions from Lea last month","expect":{"kind":"list","search":"lea","dir":["all","in"],"period":{"kind":"lastMonth"}}}]}
   ]
 }

@@ -5,7 +5,7 @@ import type { SerializedTransaction } from './fints-types.ts';
 import {
   askText, asksWith, compareFromQuestion, computeAnswer, dirFromQuestion, kindFromQuestion, nanoGeneration, parseAskAnswer,
   nameFromPayees, periodDays, periodFromQuestion, periodsFromQuestion, questionTopic, rankFromQuestion, readQuestion, searchAsFilter,
-  searchFromQuestion, wholeMonths,
+  searchFromQuestion, wholeMonths, LIST_ROWS, newest,
   type AskQuery,
 } from './nano-ask.ts';
 
@@ -382,4 +382,46 @@ test('the answer names the currency it sums, and how many matching bookings it s
   // Both sides of a comparison say theirs.
   const c = computeAnswer({ ...q, kind: 'compare', period: { kind: 'thisMonth' }, against: { kind: 'lastMonth' } }, [...BOOKINGS, usd('2026-09-03'), usd('2026-10-03')], CTX, LOADED, TODAY);
   assert.deepEqual([c.currency, c.compare?.a.otherCurrency, c.compare?.b.otherCurrency], ['EUR', 1, 1]);
+});
+
+test('a list: "zeig", "liste", "alle … an, von, bei" and "show me all" ask for the bookings themselves', () => {
+  assert.equal(kindFromQuestion('Zeig alle Zahlungen an Amazon'), 'list');
+  assert.equal(kindFromQuestion('Liste Netflix'), 'list');
+  assert.equal(kindFromQuestion('show me all payments to Amazon'), 'list');
+  assert.equal(kindFromQuestion('alle Umsätze bei Rewe'), 'list');
+  // A total, one booking, how often: not a list, whatever "zeig" says.
+  assert.equal(kindFromQuestion('Zeig mir, wie viel ich bei Rewe ausgegeben habe'), null);
+  assert.equal(kindFromQuestion('Zeig mir die größte Ausgabe'), 'largest');
+  assert.equal(kindFromQuestion('Zeig mir, wie oft ich bei Rewe war'), 'count');
+  assert.equal(kindFromQuestion('Rangliste der Händler'), null);
+  const lea = readQuestion('Zeig mir die Buchungen von Lea im Oktober', null, TODAY);
+  assert.deepEqual([lea?.kind, lea?.search, lea?.dir, lea?.period], ['list', 'Lea', 'all', { kind: 'month', month: '2026-10' }]);
+  const rewe = readQuestion('alle Umsätze bei Rewe', null, TODAY);
+  assert.deepEqual([rewe?.kind, rewe?.search, rewe?.dir], ['list', 'Rewe', 'out']);
+  const spent = readQuestion('Zeig mir alle Ausgaben im September', null, TODAY);
+  assert.deepEqual([spent?.kind, spent?.dir, spent?.search], ['list', 'out', null]);
+  const income = readQuestion('Zeig mir mein Gehalt', null, TODAY);
+  assert.deepEqual([income?.kind, income?.dir, income?.category], ['list', 'in', 'income']);
+});
+
+test('a list answer: the bookings counted, the newest LIST_ROWS of them first', () => {
+  const amazon = ask({ kind: 'list', dir: 'all', search: 'Amazon' });
+  assert.equal(amazon.count, 3);
+  assert.deepEqual(amazon.latest?.map((t) => t.entryDate), ['2026-09-15', '2026-09-02', '2026-08-03']);
+  // Every booking but the Umbuchung, five of six shown.
+  const all = ask({ kind: 'list', dir: 'all' });
+  assert.equal(all.count, 6);
+  assert.equal(LIST_ROWS, 5);
+  assert.deepEqual(all.latest?.map((t) => t.entryDate), ['2026-10-05', '2026-09-28', '2026-09-20', '2026-09-15', '2026-09-02']);
+  assert.equal(ask({ kind: 'sum' }).latest, undefined);
+  // Of one day, in the order they came.
+  const same = [tx('2026-09-01', -1, 'A'), tx('2026-09-02', -2, 'B'), tx('2026-09-02', -3, 'C')];
+  assert.deepEqual(newest(same, 2).map((t) => t.remoteName), ['B', 'C']);
+});
+
+test('a ranking holds every payee, not only the first few', () => {
+  const many = Array.from({ length: 12 }, (_, i) => tx(`2026-09-${String(i + 1).padStart(2, '0')}`, -(i + 1), `Laden ${i + 1}`));
+  const a = computeAnswer({ kind: 'rank', rank: { by: 'payee', metric: 'sum' }, dir: 'out', category: null, search: null, period: { kind: 'all' } }, many, CTX, LOADED, TODAY);
+  assert.equal(a.rank?.length, 12);
+  assert.deepEqual([a.rank?.[0].name, a.rank?.[11].name], ['Laden 12', 'Laden 1']);
 });
